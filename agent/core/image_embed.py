@@ -159,52 +159,118 @@ def shrink_path(path: Path, *, max_side: int = EMBED_MAX_SIDE) -> bytes:
     return out
 
 
-#: 只给**最近这么多张**图内联嵌图；更早的图转文本占位。
+#: 只给**最近这么多轮用户发言**里的图内联嵌图；更早的图转文本占位。
+#: 0 = 一张都不带；负数 = 不限（全带）。
 #:
-#: 依据：
-#: 每次请求都把历史上的每一张图重新内联一遍，会让请求体随会话线性膨胀
-#: （一个 43 条消息的会话累计 11 张图 ≈ 238KB 图片字节），
+#: 依据：每轮都把历史上的每一张图重新内联一遍，请求体会随会话线性膨胀，
 #: 而且该形态下模型会稳定地读不出图（同一张图单独发则正常）。
 #: 老图对当前这一轮几乎没有价值 —— 问的是"这张图"时，指的是刚发的那张。
-MAX_INLINE_IMAGES = 3
+KEEP_IMAGE_TURNS = 3
+
+#: 进请求体的图片**总数上限**（在这几轮之内再设一道闸）。
+#: 0 = 一张都不带；负数 = 不限。
+#: 与 `KEEP_IMAGE_TURNS` 是两道独立的闸：轮数限制"往前看多远"，
+#: 总量限制"最多带几张" —— 一轮里发十张截图时，只有后者能挡住。
+MAX_EMBED_IMAGES = 10
 
 
 def strip_old_images(
     messages: Any,
     *,
-    keep_last: int = MAX_INLINE_IMAGES,
+    keep_turns: int = KEEP_IMAGE_TURNS,
+    max_images: int = MAX_EMBED_IMAGES,
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """把**较早**消息里的图片块换成文本占位，只保留最近 `keep_last` 张。
+    """只保留最近 `keep_turns` 轮用户发言里的图片块，更早的转文本占位。
 
-    返回 `(处理后的消息, 被剥离的张数)`。事实与字节仍在 —— 事实仍在
-    `.raw` 里，图片字节仍在附件缓存里；这里只是不把老图重复塞进请求体。
+    保留优先级：**最近一轮优先**，倒数第二轮次之，再次倒数第三轮。
+    所以总量超过 `max_images` 时，从**最老的那一轮**开始砍；一轮之内若仍不够，
+    再砍该轮里**靠后**的那几张（一张都不留时那轮整体转占位）。
+
+    返回 `(处理后的消息, 被剥离的图片块数)`。**只改发给模型的这一份**：事实流
+    里那些 base64 一个字节都不动，所以历史回显、重新提问都还能拿到原图。
+
+    按**轮**计数而不是按张：一轮里发三张图算一轮。问"这张图"时指的是
+    刚发的那一轮，老图连带的价值很低，但把它们留在请求里是实打实的体积。
     """
     msgs = list(messages or [])
-    positions: List[int] = []
-    for i, m in enumerate(msgs):
-        if not isinstance(m, dict):
-            continue
-        content = m.get("content")
-        if isinstance(content, list) and any(
-            isinstance(p, dict) and p.get("type") == "image_url" for p in content
-        ):
-            positions.append(i)
-    if keep_last < 0 or len(positions) <= keep_last:
+    if keep_turns < 0 and max_images < 0:
         return msgs, 0
-    drop = set(positions[:-keep_last]) if keep_last else set(positions)
+    # 带图的 user 消息 = 一轮（同一轮的后续消息不会有图），按时间升序
+    positions = [
+        i for i, m in enumerate(msgs)
+        if isinstance(m, dict)
+        and str(m.get("role") or "") == "user"
+        and _image_block_count(m) > 0
+    ]
+    if not positions:
+        return msgs, 0
+
+    # ── 挑出要保留的图片块：从最近一轮往前分配配额 ──
+    keep_ids: set = set()
+    remaining = max_images
+    window = positions if keep_turns < 0 else positions[-keep_turns:] if keep_turns else []
+    window_set = set(window)
+    for i in reversed(window):                       # 最近一轮先分
+        if max_images >= 0 and remaining <= 0:
+            break
+        blocks = _image_block_indexes(msgs[i])
+        take = len(blocks) if max_images < 0 else min(len(blocks), remaining)
+        keep_ids.update((i, k) for k in blocks[len(blocks) - take:])  # 一轮内保靠后的
+        if max_images >= 0:
+            remaining -= take
+
+    # ── 把没选中的块换成占位 ──
     out: List[Dict[str, Any]] = []
     stripped = 0
     for i, m in enumerate(msgs):
-        if i not in drop or not isinstance(m, dict):
+        if i not in window_set:
+            # 窗口外的整轮：有图就全剥
+            if isinstance(m, dict) and str(m.get("role") or "") == "user":
+                n = _image_block_count(m)
+                if n:
+                    stripped += n
+                    out.append({**m, "content": _drop_image_blocks(m.get("content"), n)})
+                    continue
             out.append(m)
             continue
-        content = m.get("content")
-        texts = [str(p.get("text") or "") for p in content
-                 if isinstance(p, dict) and p.get("type") == "text"]
-        n_imgs = sum(1 for p in content
-                     if isinstance(p, dict) and p.get("type") == "image_url")
-        stripped += n_imgs
-        note = f"（历史消息：此处原有 {n_imgs} 张图片，已不在本轮请求中）"
-        joined = "\n".join(t for t in texts if t).strip()
-        out.append({**m, "content": f"{joined}\n{note}" if joined else note})
+        blocks = _image_block_indexes(m)
+        drop = [k for k in blocks if (i, k) not in keep_ids]
+        if not drop:
+            out.append(m)
+            continue
+        stripped += len(drop)
+        out.append({**m, "content": _drop_selected_blocks(m.get("content"), drop)})
     return out, stripped
+
+
+def _image_block_indexes(message: Any) -> List[int]:
+    """该消息里图片块的下标（升序）。"""
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, list):
+        return []
+    return [k for k, p in enumerate(content)
+            if isinstance(p, dict) and p.get("type") == "image_url"]
+
+
+def _image_block_count(message: Dict[str, Any]) -> int:
+    return len(_image_block_indexes(message))
+
+
+def _drop_image_blocks(content: Any, n_imgs: int) -> Any:
+    """摘掉 content 数组里的**全部**图片块，只留文字与一句占位。"""
+    if not isinstance(content, list):
+        return content
+    return _drop_selected_blocks(
+        content, [k for k, p in enumerate(content)
+                  if isinstance(p, dict) and p.get("type") == "image_url"])
+
+
+def _drop_selected_blocks(content: Any, drop: List[int]) -> Any:
+    """摘掉指定下标的图片块；其余块（含没被选中的图片）按原顺序保留，末尾补占位。"""
+    if not isinstance(content, list):
+        return content
+    drop_set = set(drop)
+    kept = [part for k, part in enumerate(content) if k not in drop_set]
+    kept.append({"type": "text",
+                 "text": f"（此处原有 {len(drop)} 张图片，已不在本轮请求中；需要时重新发送）"})
+    return kept

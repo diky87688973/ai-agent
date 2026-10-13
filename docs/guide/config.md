@@ -94,6 +94,8 @@ summary_token_threshold  = 700000
 full_user_rounds         = 10
 pure_user_rounds         = 10
 summary_output_max_chars = 5000
+image_turns              = 3
+image_max                = 10
 ```
 
 | 键 | 缺省或留空时 | 含义 | 建议范围 |
@@ -102,6 +104,10 @@ summary_output_max_chars = 5000
 | `full_user_rounds` | `6` | 近期记忆保留的用户轮数，始终按原文发送 | `4`–`20` |
 | `pure_user_rounds` | `2` | 远期记忆额外缓冲的轮数，超过 `full + pure` 的部分才压缩 | `1`–`20` |
 | `summary_output_max_chars` | `2000` | 摘要的篇幅上限，单位为字。它作为约束写进摘要提示词，实际长度由模型遵守程度决定 | `2000`–`8000` |
+| `image_turns` | `3` | 只把**最近这么多轮用户发言**里的图片带进模型请求，更早的转文本占位。`0` = 一张都不带，负数 = 不限 | `1`–`10` |
+| `image_max` | `10` | 这几轮里最多带几张图；**最近一轮优先保**，超量的从最老的那一轮开始砍。`0` = 一张都不带，负数 = 不限 | `1`–`30` |
+
+图片只从**发给模型的请求**里被裁掉，事实流里的字节不动 —— 历史回显与重新提问都还能拿到原图。
 
 「缺省或留空时」是 `config.ini` 缺该节或缺该键时生效的值；`config.ini.example` 给出的是上例中的值。
 

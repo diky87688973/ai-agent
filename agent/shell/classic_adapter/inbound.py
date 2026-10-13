@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import threading
 import time
@@ -61,14 +62,18 @@ _ATTACH_REGISTER_MAX_BYTES = 2 * 1024 * 1024
 _ATTACH_REGISTER_MAX_COUNT = 24
 
 
-def _attachment_id(seq: int, index: int) -> str:
-    """附件的稳定 id —— **从事实派生**，可重算。
+def _attachment_id(data_base64: Any, index: int) -> str:
+    """附件的稳定 id —— **从图片字节派生**，两端都能算出同一个。
 
-    时间戳（`att-<i>-<毫秒>`）不可用：刷新后重算会得到**不同的 id**，
-    而前端 `<img src=...>` 一旦加载失败就再也不会重试 —— 同一张图在刷新前后 id 不一致，
-    两个标签页看到的 id 也不同。用"事实序号 + 组内序号"就唯一且可重算。
+    不能用"事实序号 + 下标"：那个序号是**文件行数**，而发出请求的那一刻
+    与刷新时读到的行数不同（发图时那一行还没落盘），同一个附件会算出两个 id，
+    `<img src>` 因此指向不存在的 id（`/api/chat/attachment` 返回 404）。
+
+    用字节的摘要就没有这个时间依赖：请求里的 `data_base64` 与事实里存下的
+    逐字节相同，所以两边算出的 id 必然一致。
     """
-    return f"att-{int(seq)}-{int(index)}"
+    digest = hashlib.sha1(str(data_base64 or "").encode("utf-8")).hexdigest()[:12]
+    return f"att-{digest}-{int(index)}"
 
 
 def _split_user_content(content: Any) -> Tuple[str, List[Dict[str, Any]]]:
@@ -123,7 +128,7 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
     """
     items: List[Dict[str, Any]] = []
     resolved: List[Dict[str, Any]] = []
-    for seq, ev in enumerate(events):
+    for ev in events:
         kind = str(getattr(ev, "type", ""))
         data = dict(getattr(ev, "data", None) or {})
         if kind == "input_claimed":
@@ -147,10 +152,10 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
             if attachments:
                 pub: List[Dict[str, Any]] = []
                 for index, att in enumerate(attachments):
-                    ident = _attachment_id(seq, index)
+                    raw = str(att.get("data_base64") or "")
+                    ident = _attachment_id(raw, index)
                     mime = str(att.get("mime") or "image/png")
                     name = f"image{index}.png"
-                    raw = str(att.get("data_base64") or "")
                     pub.append({"id": ident, "name": name, "mime": mime})
                     resolved.append({"id": ident, "name": name, "mime": mime,
                                      "data_base64": raw})
@@ -828,7 +833,11 @@ class Inbound:
             return 500, b"bad attachment", "text/plain; charset=utf-8"
 
     def remember_attachments(self, cid: str, images: Any) -> List[Dict[str, Any]]:
-        """把本轮 `images` 存进来并编上 id，供 `send` 的返回体回给经典界面。"""
+        """把本轮 `images` 存进来并编上 id，供 `send` 的返回体回给经典界面。
+
+        id 由**图片字节**派生（与 `_history_items` 同一函数），所以这个 id 与
+        刷新后历史里的 id 相同 —— 前端不必知道是刚发的还是从历史读的。
+        """
         items: List[Dict[str, Any]] = []
         if not isinstance(images, list):
             return items
@@ -839,8 +848,7 @@ class Inbound:
             if not isinstance(data, str) or not data:
                 continue
             items.append({
-                # 与 `_history_items` 同一算法，保证**刷新前后 id 一致**
-                "id": _attachment_id(len(self._load_events(cid)), index),
+                "id": _attachment_id(data, index),
                 "name": str(raw.get("name") or f"image{index}.png"),
                 "mime": str(raw.get("mime") or "image/png"),
                 "data_base64": data,

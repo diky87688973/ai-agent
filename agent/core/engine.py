@@ -22,6 +22,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from agent.core.events import Event
 from agent.core.host import Host, TurnResult
+from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.module import ModuleBase
 from agent.core.modules import InputModule, build_default_chain
 from agent.core.ports import ModelPort, ToolPort
@@ -44,6 +45,8 @@ class Engine:
         inbox: Any = None,
         effort: str = "high",
         model: str = "",
+        image_turns: int = KEEP_IMAGE_TURNS,
+        image_max: int = MAX_EMBED_IMAGES,
         modules: Optional[List[ModuleBase]] = None,
         input_module: Optional[InputModule] = None,
         max_passes: int = 32,
@@ -81,7 +84,8 @@ class Engine:
             modules if modules is not None
             else build_default_chain(input_module=self._input, context=context,
                                      compactor=compactor, inbox=inbox,
-                                     effort=effort, model=model),
+                                     effort=effort, model=model,
+                                     image_turns=image_turns, image_max=image_max),
             sink=self._on_event,
             max_passes=max_passes,
             on_pass_end=self._flush_facts,

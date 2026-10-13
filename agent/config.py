@@ -98,6 +98,11 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         "full_user_rounds": _int("full_user_rounds", 6),
         "pure_user_rounds": _int("pure_user_rounds", 2),
         "summary_output_max_chars": _int("summary_output_max_chars", 2000),
+        # 只把最近这么多轮用户发言里的图带进请求（负数 = 不限）。
+        # 与上面几个**不同**：它不进 `ContextPipeline` 的构造参数（那是给压缩器的），
+        # 由装配根单独取走交给模型模块。
+        "image_turns": _int("image_turns", 3),
+        "image_max": _int("image_max", 10),
     }
 
 

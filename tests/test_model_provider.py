@@ -52,16 +52,6 @@ class RequestLevelModelTest(unittest.TestCase):
         list(p.stream(LogicalRequest(messages=[], tools=[], model="   ")))
         self.assertEqual(p.payloads[0]["model"], "default-model")
 
-    def test_vision_is_judged_per_requested_model(self) -> None:
-        """图片能力**逐个模型**不同，所以 `supports_vision` 按本次请求的模型判定。
-
-        按实例默认模型判定会"该剥的图不剥"→ 整轮请求被 API 拒绝。
-        """
-        p = _provider("plain-model")
-        self.assertFalse(p.supports_vision())
-        self.assertTrue(p.supports_vision("deepseek-v4-flash-vision-exp"),
-                        msg="本次选的是视觉模型，就该按视觉模型处理")
-
     def test_local_model_check_is_per_requested_model(self) -> None:
         """本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。"""
         p = _provider("plain-model")
@@ -77,43 +67,35 @@ class RequestLevelModelTest(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
-class ImageStrippingIsNotSilentTest(unittest.TestCase):
-    """非视觉模型收到图片时**必须留一句说明**，不能静默丢图。
+class ImagesAlwaysReachTheWireTest(unittest.TestCase):
+    """图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图。
 
-    静默丢图的症状：模型不知道自己漏看了图，会当成"用户只发了文字"，
-    于是言之凿凿地描述一张它没看到的图；用户也收不到任何提示。
+    "名字含 vision 才算视觉模型"是猜的判据：`deepseek-flash` 这类名字里没有
+    `vision` 的模型其实支持图片，被剥图后模型只能看到一句占位说明，
+    用户以为发了图、模型却什么也没看到。
     """
 
-    def test_notice_is_added_even_when_text_is_present(self) -> None:
-        from agent.mechanisms.model_provider import _strip_images
-
-        out = _strip_images([{
+    def test_image_block_survives_into_the_payload(self) -> None:
+        p = _provider("deepseek-flash")
+        list(p.stream(LogicalRequest(messages=[{
             "role": "user",
             "content": [
                 {"type": "text", "text": "这张图什么颜色？"},
-                {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA"}},
+                {"type": "image_url",
+                 "image_url": {"url": "data:image/png;base64,AA"}},
             ],
-        }])
-        text = str(out[0].get("content"))
-        self.assertIn("这张图什么颜色？", text, msg="原文字必须保留")
-        self.assertIn("图片", text, msg="必须说明图片被省略了")
-        self.assertNotIn("image_url", str(out[0]), msg="图片本身必须已被移除")
+        }], tools=[])))
+        sent = p.payloads[0]["messages"][0]["content"]
+        self.assertIsInstance(sent, list, msg="多模态 content 必须原样下发")
+        kinds = [part.get("type") for part in sent]
+        self.assertIn("image_url", kinds, msg="图片块不能被剥掉")
+        self.assertIn("text", kinds, msg="文字块要保留")
 
-    def test_notice_still_added_when_there_is_no_text(self) -> None:
-        from agent.mechanisms.model_provider import _strip_images
-
-        out = _strip_images([{
-            "role": "user",
-            "content": [{"type": "image_url",
-                         "image_url": {"url": "data:image/png;base64,AA"}}],
-        }])
-        self.assertIn("图片", str(out[0].get("content")))
-
-    def test_plain_text_is_untouched(self) -> None:
-        from agent.mechanisms.model_provider import _strip_images
-
-        out = _strip_images([{"role": "user", "content": "只有文字"}])
-        self.assertEqual(out[0]["content"], "只有文字")
+    def test_plain_text_message_is_untouched(self) -> None:
+        p = _provider("deepseek-flash")
+        list(p.stream(LogicalRequest(messages=[
+            {"role": "user", "content": "只有文字"}], tools=[])))
+        self.assertEqual(p.payloads[0]["messages"][0]["content"], "只有文字")
 
 class SessionModelSelectionTest(unittest.TestCase):
     """会话级模型选择：选中即生效、可读回、**跨进程仍在**。

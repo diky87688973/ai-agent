@@ -71,9 +71,7 @@ class ModelProvider:
 
 ## 图片
 
-`supports_vision(model)` 判定本次请求能不能带图：模型名含 `vision` 即算。
-
-不能带图时 `_strip_images()` 剥掉图片内容块，只留文本。
+图片**原样下发**，不按模型名猜能力、不做降级剥图 —— 剥图是有损的，猜错一次就是"用户发了图而模型只看到一句占位"。带不带图、带几张由 `[context]` 的 `image_turns` / `image_max` 决定（见 [context.md](context.md)）。
 
 带图却声称看不到时（`_IMAGE_DENIAL_HINTS` / `_denies_seeing_images()` 识别这类措辞），**丢弃被历史污染的上下文**，只带系统提示与当前那条带图消息重试一次，后续增量照常产出。历史里"我看不到图片"的断言会像 few-shot 一样把后续每轮锚死在否认上。
 

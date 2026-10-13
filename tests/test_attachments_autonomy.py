@@ -141,46 +141,26 @@ class VisionDegradeTest(unittest.TestCase):
         return self.mp.OpenAICompatibleProvider(
             base_url="http://example.invalid/v1", api_key="k", model=model, **kw)
 
-    def test_vision_by_model_name(self) -> None:
+    def test_any_model_keeps_image_parts(self) -> None:
+        """图片一律原样下发 —— 不按模型名猜能力、不做降级剥图。"""
 
-        self.assertTrue(self._provider("deepseek-v4-flash-vision-exp").supports_vision())
-        self.assertFalse(self._provider("glm-5.2").supports_vision())
-
-    def test_vision_model_keeps_image_parts(self) -> None:
-
-        provider = self._provider("deepseek-v4-flash-vision-exp")
+        provider = self._provider("glm-5.2")
         request = LogicalRequest(
             messages=[{"role": "user", "content": _user_content("看图", [_img()])}], tools=[])
         list(provider.stream(request))
         content = self.sent[-1]["messages"][-1]["content"]
         self.assertIsInstance(content, list)
+        self.assertEqual(content[0]["type"], "text")
         self.assertEqual(content[1]["type"], "image_url")
 
-    def test_non_vision_model_strips_images(self) -> None:
-        """非视觉模型必须剥掉图片，否则整轮请求会被 API 拒。"""
-
-        provider = self._provider("glm-5.2")
-        request = LogicalRequest(
-            messages=[{"role": "user", "content": _user_content("看图", [_img()])}], tools=[])
-        list(provider.stream(request))
-        content = self.sent[-1]["messages"][-1]["content"]
-        self.assertIsInstance(content, str)
-        # 图片被剥掉，但**必须留下说明**：静默丢图会让模型以为用户只发了文字，
-        # 于是它会言之凿凿地描述一张自己没看到的图。
-        self.assertIn("看图", content, msg="原文字必须保留")
-        self.assertIn("图片", content, msg="必须说明图片已省略")
-        self.assertNotIn("image_url", str(self.sent[-1]["messages"][-1]),
-                         msg="图片本身必须已被移除，否则 API 会拒整轮请求")
-
-    def test_non_vision_model_placeholder_when_image_only(self) -> None:
-
+    def test_image_only_message_is_not_empty(self) -> None:
         provider = self._provider("glm-5.2")
         request = LogicalRequest(
             messages=[{"role": "user", "content": _user_content("", [_img()])}], tools=[])
         list(provider.stream(request))
         content = self.sent[-1]["messages"][-1]["content"]
-        self.assertIsInstance(content, str)
-        self.assertTrue(content.strip(), msg="不得发空 content")
+        self.assertIsInstance(content, list)
+        self.assertTrue(content, msg="不得发空 content")
 
 class AutonomyTest(unittest.TestCase):
     """自主模式的存储与续跑判定。"""

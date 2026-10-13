@@ -30,10 +30,14 @@ user_rules_file =
 ; full_user_rounds         近期记忆保留的用户轮数，始终按原文发送
 ; pure_user_rounds         远期记忆额外缓冲的轮数，超过 full+pure 的部分才压缩
 ; summary_output_max_chars 摘要的篇幅上限（字数，写进提示词，不作强制截断）
+; image_turns               只把最近这么多轮用户发言里的图片带进模型请求（负数 = 不限）
+; image_max                 这几轮里最多带几张图；最近一轮优先保（负数 = 不限）
 summary_token_threshold = 700000
 full_user_rounds = 10
 pure_user_rounds = 10
 summary_output_max_chars = 5000
+image_turns = 3
+image_max = 10
 
 [skills]
 ; 技能目录（相对路径按项目根解析；**留空禁用**）。技能是给模型按需读取的说明文档。

@@ -315,36 +315,6 @@ def _to_wire_tool(tool: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _strip_images(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """把多模态 content 降回纯文本（非视觉模型不带图）。
-
-    文本部分保留；有图时补一句"图片已省略"的说明。
-    """
-    out: List[Dict[str, Any]] = []
-    for msg in messages:
-        content = msg.get("content")
-        if not isinstance(content, list):
-            out.append(msg)
-            continue
-        texts = [
-            str(part.get("text") or "")
-            for part in content
-            if isinstance(part, dict) and part.get("type") == "text"
-        ]
-        has_image = any(isinstance(part, dict) and part.get("type") == "image_url"
-                        for part in content)
-        text = "\n".join(t for t in texts if t).strip()
-        if has_image:
-            # **有图必须补一句说明**：只剥掉图片而不声明，模型会当成"用户只发了文字"，
-            # 用户也收不到任何提示（症状：模型言之凿凿地描述没看到的图）。
-            note = "（用户还发送了图片，但当前模型不支持图片输入，图片已省略）"
-            text = f"{text}\n{note}" if text else note
-        replaced = dict(msg)
-        replaced["content"] = text
-        out.append(replaced)
-    return out
-
-
 def _to_wire_messages(messages: List[Any]) -> List[Dict[str, Any]]:
     """消息列表 → 线格式：assistant.tool_calls 扁平结构（id/name/arguments(dict)）
     包装为 OpenAI 形态（type=function / function.arguments 为 JSON 文本）；其余透传。"""
@@ -458,9 +428,7 @@ def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
     """发送前把请求摘要成**一行**（`AI_AGENT_LOG_REQUESTS=1` 时打）。
 
     图片在 `content` 数组里与文本同层，消息条数反映不出它，所以单独列出：
-    问题，而只看消息条数看不出来 —— 图片在 `content` 数组里，和文本同层。
-    这里逐条列出"第几条消息、什么角色、带几张图、每张多少字符"，
-    一眼就能判断图片是**没进去**还是**被剥掉了**（`_strip_images` 的结果）。
+    逐条给出"第几条消息、什么角色、带几张图、每张多少字符"。
     """
     msgs = payload.get("messages") or []
     img_rows: List[str] = []
@@ -541,8 +509,6 @@ class OpenAICompatibleProvider(ModelProvider):
             raise ModelRequestError("api_key 未配置。")
         url = _chat_completions_url(self.base_url)
         messages = _to_wire_messages(getattr(request, "messages", None) or [])
-        if not self.supports_vision(model):
-            messages = _strip_images(messages)
         # ── 请求体：**逐键**──
         #
         # 请求体的键序与取值：
@@ -651,18 +617,6 @@ class OpenAICompatibleProvider(ModelProvider):
         """
         name = (str(model or "").strip() or self.model).strip().lower()
         return name == "local-model" or name.startswith("local-model")
-
-    def supports_vision(self, model: str = "") -> bool:
-        """模型是否支持图片输入：名字含 `vision` 即算。
-
-        非视觉模型收到图片时**剥掉图片只留文本**，避免整轮请求被 API 拒绝
-        （有图无字时给一句占位说明，不至于发空消息）。
-
-        `model` 为空时看实例默认 —— 图片能力是**逐个模型**不同的：
-        用实例默认去判另一个模型会答错（该剥的不剥 → API 拒绝）。
-        """
-        name = (str(model or "").strip() or self.model).strip().lower()
-        return "vision" in name
 
     # ── HTTP 传输────────────────────────────
 

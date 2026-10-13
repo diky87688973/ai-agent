@@ -39,6 +39,11 @@ from agent.core.event_name import (
     TOOL_SUSPENDED,
     USAGE,
 )
+from agent.core.image_embed import (
+    KEEP_IMAGE_TURNS,
+    MAX_EMBED_IMAGES,
+    strip_old_images,
+)
 from agent.core.module import ModuleBase
 from agent.core.outcome import Outcome
 from agent.core.ports import LogicalRequest, Ports
@@ -232,13 +237,19 @@ class ModelModule(ModuleBase):
     requires = ("model_port",)
 
     def __init__(self, *, context: Any = None, compactor: Any = None,
-                 effort: str = "high", model: str = "") -> None:
+                 effort: str = "high", model: str = "",
+                 image_turns: int = KEEP_IMAGE_TURNS,
+                 image_max: int = MAX_EMBED_IMAGES) -> None:
         self._context = context
         self._compactor = compactor
         self._effort = str(effort or "high")
         #: 本次请求要用哪个模型（空串 = 用 provider 的默认）。
         #: 与 `effort` 同源：都在**每个回合装配引擎时**由会话级设置解析而来。
         self._model = str(model or "")
+        #: 只把**最近这么多轮**用户发言里的图带进请求；负数 = 不限。
+        self._image_turns = int(image_turns)
+        #: 这些轮里最多带几张图；负数 = 不限。最近一轮优先保。
+        self._image_max = int(image_max)
 
     def execute(self, ports: Ports) -> Iterator[Any]:
         if not _tail_expects_model(ports.log):
@@ -249,6 +260,10 @@ class ModelModule(ModuleBase):
             return Outcome.halt("未装配模型端口")
 
         messages = ports.log.derive_messages()
+        # 老图不重复塞进请求体：图片按**最近几轮用户发言**保留、总数再设一道闸，
+        # 更早/超量的转文本占位。只改这一份，事实流里的字节一个都不动。
+        messages, _stripped = strip_old_images(
+            messages, keep_turns=self._image_turns, max_images=self._image_max)
         if self._context is not None:
             _rebuild(self._context, messages)
             try:
@@ -486,6 +501,8 @@ def build_default_chain(
     inbox: Any = None,
     effort: str = "high",
     model: str = "",
+    image_turns: int = KEEP_IMAGE_TURNS,
+    image_max: int = MAX_EMBED_IMAGES,
 ) -> List[ModuleBase]:
     """默认模块链：输入 → 收件箱 → 压缩 → 模型 → 工具。
 
@@ -498,7 +515,8 @@ def build_default_chain(
         input_module if input_module is not None else InputModule(),
         InboxModule(inbox=inbox),
         CompressModule(context=context, compactor=compactor),
-        ModelModule(context=context, compactor=compactor, effort=effort, model=model),
+        ModelModule(context=context, compactor=compactor, effort=effort, model=model,
+                    image_turns=image_turns, image_max=image_max),
         ToolModule(),
     ]
 

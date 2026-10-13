@@ -68,6 +68,7 @@ from agent.core.context import (
 )
 from agent.core.event_bus import EventBus
 from agent.core.events import Event
+from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.session_context import SessionContexts
 from agent.core.session_log import SessionLog
 from agent.core.tool_call import ToolPipeline
@@ -99,6 +100,8 @@ class App:
         context: AppContext,
         *,
         context_defaults: Optional[Dict[str, Any]] = None,
+        image_turns: int = KEEP_IMAGE_TURNS,
+        image_max: int = MAX_EMBED_IMAGES,
     ) -> None:
         self.context = context
         self.context_defaults = dict(context_defaults or {})
@@ -106,6 +109,10 @@ class App:
         #: 可选的模型 id 列表（装配时由配置注入；空 = 未配置，不做白名单校验）。
         #: 该字段只保存模型 id；凭据由 provider 持有，不下发到浏览器。
         self._available_models: list = []
+        #: 只把**最近这么多轮**用户发言里的图带进请求（负数 = 不限）。
+        self.image_turns = int(image_turns)
+        #: 这些轮里最多带几张图（负数 = 不限）；最近一轮优先保。
+        self.image_max = int(image_max)
 
     # ── 服务解析（进程级上下文）──
 
@@ -332,6 +339,8 @@ class App:
             cancel=cancel,
             effort=str(effort_resolver(conversation_id)) if effort_resolver else "high",
             model=str(self.live_state.get_model(conversation_id) or "") if self.live_state else "",
+            image_turns=self.image_turns,
+            image_max=self.image_max,
             event_sink=self.event_bus.publish if self.event_bus is not None else None,
             session_context=session_ctx,
             seq_allocator=seq_allocator,
@@ -358,6 +367,8 @@ def _build_engine(
     cancel: Any = None,
     effort: str = "high",
     model: str = "",
+    image_turns: int = KEEP_IMAGE_TURNS,
+    image_max: int = MAX_EMBED_IMAGES,
     event_sink: Any = None,
     session_context: Any = None,
     seq_allocator: Any = None,
@@ -386,6 +397,7 @@ def _build_engine(
         inbox=inbox,
         effort=effort,
         model=model,
+        image_turns=image_turns,
         fact_sink=fact_sink,
         event_sink=event_sink,
         session_context=session_context,
@@ -591,6 +603,8 @@ def build_app(
             "full_user_rounds": int(ctx_cfg["full_user_rounds"]),
             "summary_token_threshold": int(ctx_cfg["summary_token_threshold"]),
         },
+        image_turns=int(ctx_cfg["image_turns"]),
+        image_max=int(ctx_cfg["image_max"]),
     )
     app._available_models = list(_available)
     runner = SessionRunner(
