@@ -1,0 +1,70 @@
+# 私有配置与凭据
+config.ini
+# 插件自己的配置也是私有配置（模板 `config.ini.example` 入库）
+plugins/*/config.ini
+*.local.ini
+*.local.toml
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# 运行时数据
+data/
+*.raw
+*.lock
+
+# 运行期产物
+*.log
+*.tmp
+*.bak
+*.orig
+*.rej
+*~
+logs/
+tmp/
+var/
+
+# Python 派生
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# 工具缓存与覆盖率
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# 编辑器与系统
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 输入法等本机软件写在当前目录里的文件（与本工程无关）
+sgim_*
+*.sgim
+inputstat.dat
+user.config
+*.local.stat
+*local.stat
+%SystemDrive%/
+Backup/
+
+# 退役脚本
+scripts/retired/

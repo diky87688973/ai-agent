@@ -1,0 +1,50 @@
+; AI Agent 配置模板
+;
+; 复制成同目录下的 `config.ini` 并填入自己的值；本模板不含密钥。
+;
+; 缺 `[model_reasoning]` 节里 api_base_url / api_key 这两项时，服务启动报错并指出缺哪项；
+; 其余各节留空即禁用对应功能（config.ini 文件缺失本身不报错，只得到空配置）。
+
+[model_reasoning]
+; 推理模型网关（OpenAI 兼容 /chat/completions）。api_base_url / api_key 必填，缺一则无法对话；model 留空取内置默认模型。
+api_base_url = https://api.deepseek.com
+api_key = 在这里填你的 API Key
+model = deepseek-flash
+; 同一网关下可选的模型名（逗号分隔）；会话可从中选一个。
+; 留空 = 只能用上面那个 `model`。每个 provider 绑定一个网关地址与密钥，换网关要多建 provider。
+models = deepseek-flash, deepseek-v4-pro
+
+[agent]
+; 全局推理档位：max（深度推理）或 high（标准推理）。会话内可在界面上临时切换。
+reasoning_effort = max
+; 版本化备份（file_undo 的回滚依据）保留天数：启动时清理更早的。0 = 永久保留。
+backup_retention_days = 7
+; 用户自定义规则文件（.md / .txt）。留空 = 不加规则段。
+; 相对路径按项目根解析，也可给绝对路径；文件不存在或读不到时静默不加载。
+; 正文拼进系统提示的「用户自定义规则」段，长度上限 20000 字符，超出截断。
+user_rules_file =
+
+[context]
+; 上下文预算与压缩。会话在内存中分三段：近期记忆 / 远期记忆 / 摘要。
+; summary_token_threshold  估算 token 超过该值触发压缩
+; full_user_rounds         近期记忆保留的用户轮数，始终按原文发送
+; pure_user_rounds         远期记忆额外缓冲的轮数，超过 full+pure 的部分才压缩
+; summary_output_max_chars 摘要的篇幅上限（字数，写进提示词，不作强制截断）
+summary_token_threshold = 700000
+full_user_rounds = 10
+pure_user_rounds = 10
+summary_output_max_chars = 5000
+
+[skills]
+; 技能目录（相对路径按项目根解析；**留空禁用**）。技能是给模型按需读取的说明文档。
+dir =
+max_file_size = 200000
+
+[model_pricing]
+; 覆盖内置费率表（用量面板的金额计算）。
+; rates 可以是**内联 JSON**，也可以是**相对项目根的 JSON 文件路径**。
+; 键名为模型名前缀（最长匹配优先），另有 `__default__` 作兜底。
+; 每行三项齐全才生效：cache_hit_cny_per_m（缓存命中输入）/ cache_miss_cny_per_m（缓存未命中输入）
+; / output_cny_per_m（输出），单位元 / 百万 tokens；缺项或非数字的行被忽略，回落内置默认表。
+; 示例值（deepseek-v4-pro 的官方高峰价）：{"deepseek-v4-pro": {"cache_hit_cny_per_m": 0.30, "cache_miss_cny_per_m": 9.0, "output_cny_per_m": 27.0}}
+rates =

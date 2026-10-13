@@ -1,0 +1,39 @@
+# 换行统一成 LF：Windows 检出时 Git 默认会把文本文件转成 CRLF，
+# 而本工程的 shell 脚本要在 Linux/macOS 上跑，带 CR 会报 `bad interpreter`。
+# 显式指定让工作区、仓库、CI 三处拿到的字节一致。
+* text=auto eol=lf
+
+# 二进制：不参与换行转换，也不做文本 diff。
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary
+*.xlsx binary
+*.docx binary
+*.pptx binary
+*.zip  binary
+*.gz   binary
+*.7z   binary
+*.rar  binary
+*.pdf  binary
+
+# 仓库里本来就带 CRLF 的文件不强制转换：
+# 现在改动它们会在 diff 里显示成"整个文件重写"，掩盖真正的改动。
+*.bat  text eol=crlf
+
+# 界面资产与文档按文本处理。
+*.js   text
+*.css  text
+*.html text
+*.md   text
+*.json text
+*.yml  text
+*.yaml text
+*.toml text
+*.ini  text
+*.py   text
+*.sh   text

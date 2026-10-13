@@ -1,0 +1,9 @@
+; TTS 插件配置。
+
+[tts]
+; 引擎：console（只打印文本，不出声）/ edge（需 pip install edge-tts）
+engine = edge
+; 音色名
+voice = zh-CN-XiaoxiaoNeural
+; 单段文本上限（字数，取值 40–2000），超出则切分
+max_segment_chars = 240

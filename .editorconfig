@@ -1,0 +1,20 @@
+# 行尾统一成 LF，与 .gitattributes 的 `* text=auto eol=lf` 对齐。
+# 编辑器与工具按这里的设置写文件，就不会在改动时把 CRLF 带进工作区 ——
+# 那会让 git 在提交时提示"CRLF will be replaced by LF"。
+root = true
+
+[*]
+end_of_line = lf
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Windows 批处理按惯例用 CRLF，与 .gitattributes 的 `*.bat text eol=crlf` 一致。
+[*.bat]
+end_of_line = crlf
+
+[*.{md,markdown}]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab

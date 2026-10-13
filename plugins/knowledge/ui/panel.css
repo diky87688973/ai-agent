@@ -1,0 +1,33 @@
+/* 知识库面板样式。
+   属于 knowledge 插件：面板 HTML 由插件注入，样式也由插件随面板一起送达
+   （壳层按 `/api/plugin/knowledge/_asset/ui/panel.css` 送，面板打开时注入），
+   与壳层公共样式表分开，插件未加载时不会带上它。
+   类名统一用 `.kb-` 前缀：样式是同源注入的，不前缀就可能撞上页面样式。 */
+
+.kb-body{flex:1;overflow:auto;color:#bbb;font-size:12px;line-height:1.55}.kb-loading{padding:20px;text-align:center;color:#9aa0a6}
+.kb-empty{padding:20px;text-align:center;color:#9aa0a6}
+.kb-hint{display:block;margin-top:6px;font-size:11px;color:#6e7681}
+.kb-list{display:flex;flex-direction:column}
+.kb-file-row{display:flex;align-items:center;gap:8px;padding:5px 10px;cursor:pointer;border-bottom:1px solid #2a2d32;transition:background .1s}
+.kb-file-row:hover{background:rgba(255,255,255,.03)}
+.kb-cb{flex:0 0 16px;width:16px;height:16px;border-radius:3px;border:1.5px solid #6e655a;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;line-height:1;color:transparent;transition:all .12s}
+html[data-ui-theme="light"] .kb-cb:not(.checked){border-color:#d2cdc5}
+.kb-cb.checked{border-color:#c9a962;background:transparent;color:#dfc08c}
+.kb-cb.checked::after{content:"✓";font-size:11px;line-height:1}
+html[data-ui-theme="light"] .kb-cb.checked {
+  border-color: #b8924a;
+  background: transparent;
+  color: #7a6220;
+}
+.kb-fpath{flex:1;min-width:0;color:#6e7681;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kb-hint-bar{padding:4px 10px;font-size:11px;color:#9aa0a6;border-bottom:1px solid #2a2d32;background:#1e2024;line-height:1.4}
+html[data-ui-theme="light"] .kb-hint-bar {
+  background: #fafbfc;
+  border-color: #e8edf2;
+}
+html[data-ui-theme="light"] .kb-file-row {
+  border-bottom-color: #e8edf5;
+}
+html[data-ui-theme="light"] .kb-file-row:hover {
+  background: #f4f6f9;
+}

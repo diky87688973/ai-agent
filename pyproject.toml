@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-agent"
+version = "0.1.0"
+description = "AI Agent：本地运行的通用智能助手，委托式模块链内核 + 单页 Web 界面"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.10"
+dependencies = [
+    "openpyxl>=3.1",
+    "Pillow>=10",
+]
+
+[project.optional-dependencies]
+ui = ["playwright>=1.40"]
+ocr = ["easyocr>=1.7", "pytesseract>=0.3"]
+archive = ["rarfile>=4.0"]
+dev = ["ruff>=0.5"]
+tts = ["edge-tts>=6.1"]
+
+[project.scripts]
+ai-agent-web = "agent.shell.web:main"
+
+[tool.setuptools.packages.find]
+namespaces = true
+include = ["agent*"]
+exclude = ["tests*", "scripts*", "data*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = ["data", "__pycache__", ".git", "scripts/retired"]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "B",
+    "I",
+    "RUF100",
+]
+ignore = [
+    "E501",
+    "E741", "E731",
+    "B904",
+    "B905",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F841"]
+"scripts/*" = ["F841", "B904"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
