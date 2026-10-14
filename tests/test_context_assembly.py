@@ -474,7 +474,9 @@ class CompactionContext(_Case):
         comp = ContextCompactor(make_provider_summarizer(spy, max_chars=200),
                                 summary_token_threshold=1)
         comp.ensure_before_append(p, dlg(4), mode_note=MODE_AUTO, assembled=whole)
-        self.check("system 字段有内容", True, bool(str(spy.reqs[0].system or "").strip()))
+        self.check("系统提示在请求消息里", True,
+                   any(str(m.get("role")) == "system" and str(m.get("content") or "").strip()
+                       for m in (spy.reqs[0].messages or [])))
 
     def test_tools_are_forwarded(self) -> None:
         """工具定义是前缀的一部分：摘要请求必须带上同一份。"""

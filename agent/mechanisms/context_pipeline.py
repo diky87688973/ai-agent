@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import threading
 from dataclasses import dataclass, field
@@ -77,6 +78,25 @@ class ContextChunk:
         return sum(r.calculate_tokens(approx_msg_fn) for r in self.rounds)
 
 
+def _without_reasoning(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """剥掉消息里的思维链字段（不改原列表、不改原消息）。
+
+    思维链只留在事实流里给界面看；进请求的那份不带它（见 `model_provider`）。
+    这里剥一次，是为了让**统计口径**（分段 token、预算估算）与实际发出的体积一致 ——
+    两处不一致时，界面会把窗口算满、压缩也会提前或滞后触发。
+    """
+    out: List[Dict[str, Any]] = []
+    for msg in messages:
+        if isinstance(msg, dict) and ("reasoning_content" in msg or "reasoning" in msg):
+            clean = dict(msg)
+            clean.pop("reasoning_content", None)
+            clean.pop("reasoning", None)
+            out.append(clean)
+        else:
+            out.append(msg)
+    return out
+
+
 def _as_text_parts(text: Any) -> List[str]:
     """把可能为列表/字符串的注入内容归一成"每段一条"的正文列表。
 
@@ -95,12 +115,42 @@ def _as_text_parts(text: Any) -> List[str]:
     return out
 
 
+#: CJK 区段的字符每字约 1 token（本工程正文以中文为主，实测 prompt_tokens 与
+#: 字符数同量级）；其余按 4 字符 1 token。见 `approx_tokens_text`。
+_CJK_RANGES: Tuple[Tuple[int, int], ...] = (
+    (0x3000, 0x303F),    # 中文标点
+    (0x3400, 0x4DBF),    # 扩展 A
+    (0x4E00, 0x9FFF),    # 基本区
+    (0xF900, 0xFAFF),    # 兼容表意
+    (0xFF00, 0xFFEF),    # 全角
+    (0x20000, 0x3FFFF),  # 扩展 B 及以上
+)
+
+
+def _is_cjk(ch: str) -> bool:
+    code = ord(ch)
+    return any(lo <= code <= hi for lo, hi in _CJK_RANGES)
+
+
 def approx_tokens_text(text: str) -> int:
-    """粗略 token 估算：非空字符数 // 4 + 4；空串 0（缺省估算器，可整体替换）。"""
+    """粗略 token 估算：CJK 每字 1 token，其余每 4 字符 1 token。
+
+    **不能整体按 `len // 4` 算**：中文正文一个字约一个 token，除 4 会低估约四倍 ——
+    实测一条会话的估算 173,219 对上真实 prompt 1,000,563（差 5.8 倍，主要是中文工具输出），
+    于是 `summary_token_threshold` 形同虚设，压缩永远晚触发，请求一路顶到上限。
+
+    这里只做分区计数，不引入分词器依赖：它是**估算**，用途是"什么时候该压缩"，
+    宁可略高也不要低（低估会让窗口悄悄溢出）。
+    """
     s = str(text or "")
     if not s:
         return 0
-    return len(s) // 4 + 4
+    cjk = 0
+    for ch in s:
+        if _is_cjk(ch):
+            cjk += 1
+    rest = len(s) - cjk
+    return cjk + rest // 4 + 4
 
 
 def default_message_tokens(msg: Dict[str, Any]) -> int:
@@ -108,6 +158,9 @@ def default_message_tokens(msg: Dict[str, Any]) -> int:
 
     多模态 content 里**图片块按每图固定上限计**：base64 是编码而非文本，
     拿它按字符估算会把一张截图算成两千多 token（官方口径每图最多 1024）。
+
+    `tool_calls` 也计入：它的 `arguments` 是模型请求体的一部分（`python_inline`
+    的 `code`、`write_file` 的正文都在里面，一段几 KB），漏掉它会让估算系统性偏小。
     """
     content = msg.get("content")
     if isinstance(content, list):
@@ -116,8 +169,16 @@ def default_message_tokens(msg: Dict[str, Any]) -> int:
         texts = "".join(str(p.get("text") or "") for p in content
                         if isinstance(p, dict) and p.get("type") == "text")
         # 与压缩器同一口径（`IMAGE_TOKENS_PER_IMAGE = 384`）。
-        return approx_tokens_text(texts) + imgs * 384
-    return approx_tokens_text(str(content or ""))
+        n = approx_tokens_text(texts) + imgs * 384
+    else:
+        n = approx_tokens_text(str(content or ""))
+    calls = msg.get("tool_calls")
+    if isinstance(calls, list) and calls:
+        try:
+            n += approx_tokens_text(json.dumps(calls, ensure_ascii=False))
+        except (TypeError, ValueError):
+            n += 16
+    return n
 
 
 def flat_messages_to_user_rounds(msgs: List[Dict[str, Any]]) -> List[Round]:
@@ -761,12 +822,17 @@ class ContextPipeline:
         `covered_end`：已覆盖前缀长度（压缩器维护），那一段由摘要代表，
         不再进对话段。缺省 0 = 全量都是对话。
 
+        **思维链在这里剥掉**（`reasoning_content`）：它不回传给模型（见 `model_provider`），
+        留着会让分段统计与预算估算把窗口算大一倍以上（实测一条会话里它占 72%）。
+        事实流不动，记录与界面的事件照旧带推理。
+
         顺带从注入源刷新知识库 —— 这是"每回合开始"的挂点（对话每回合都重装）。
         """
         seq = list(messages or [])
         cut = max(0, int(covered_end or 0))
         if cut:
             seq = seq[cut:]
+        seq = _without_reasoning(seq)
         self.name_map[CHUNK_FULL].rounds = flat_messages_to_user_rounds(seq)
         self._refresh_sources()
 
@@ -905,13 +971,15 @@ class ContextPipeline:
         那种重建会打乱分块归属，装配一律走 `set_dialogue()` + `assembles()`。
         """
         self.set_dialogue(flat_messages, covered_end=0)
-        self._refresh_sources()
 
     def _refresh_sources(self) -> None:
         """从注入源刷新**知识库**与 **Skills** 块（无来源时不动）。
 
         Skills 也走注入源：技能库注册「可用技能清单」（渐进式披露第一层）
         与 `auto_load/` 常驻技能正文（第二层）。
+
+        刷新**每次都做**（界面勾选一变就得立刻生效，管线不替来源判断新鲜度）；
+        重活由来源自己缓存：技能库按扫描间隔、知识库按文件 mtime。
         """
         if self._sources is None:
             return

@@ -158,6 +158,8 @@ class _KnowledgeFiles:
         self.max_file_size = int(max_file_size)
         #: 配置里追加的可收录扩展名（小写带点形式）
         self.extra_suffixes: Tuple[str, ...] = tuple(extra_suffixes or ())
+        #: 文件正文缓存：键是 `(路径, mtime_ns, 大小)`，装配一趟会读三次。
+        self._read_cache: Dict[Any, str] = {}
 
     @classmethod
     def from_config(cls, path: Optional[Path] = None,
@@ -230,13 +232,30 @@ class _KnowledgeFiles:
     # ── 文件读取 ──
 
     def read_text(self, target: Path) -> str:
-        """读文件正文：表格转文本（Sheet 头 + 制表符分行），其余按 utf-8 容错解码。"""
-        if target.suffix.lower() in TABLE_SUFFIXES:
-            return self._read_table(target)
+        """读文件正文：表格转文本（Sheet 头 + 制表符分行），其余按 utf-8 容错解码。
+
+        按 `(路径, mtime, 大小)` 缓存：装配一趟会收集三次，每次勾选文件都全量重读
+        纯属白烧磁盘；文件一改（mtime/大小变）缓存自动失效。
+        """
         try:
-            return target.read_text(encoding="utf-8", errors="replace")
+            info = target.stat()
+            key = (str(target), info.st_mtime_ns, info.st_size)
         except OSError:
-            return ""
+            key = None
+        if key is not None:
+            hit = self._read_cache.get(key)
+            if hit is not None:
+                return hit
+        if target.suffix.lower() in TABLE_SUFFIXES:
+            text = self._read_table(target)
+        else:
+            try:
+                text = target.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                text = ""
+        if key is not None:
+            self._read_cache[key] = text
+        return text
 
     def _read_table(self, target: Path) -> str:
         try:

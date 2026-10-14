@@ -21,6 +21,7 @@ from agent.core.ports import LogicalRequest
 from agent.core.session_log import _ensure_tool_pairs
 from agent.mechanisms.context_pipeline import (
     DEFAULT_FULL_USER_ROUNDS,
+    _without_reasoning,
     approx_tokens_text,
     excerpt_by_target_tokens,
     tool_chain_balanced,
@@ -77,9 +78,13 @@ def count_images(content: Any) -> int:
 
 
 def _approx_message_tokens(message: Optional[Dict[str, Any]]) -> int:
-    """单条消息 token 估算（content + reasoning + tool_calls）。
+    """单条消息 token 估算（content + tool_calls）。
 
-    **图片块按 `IMAGE_TOKENS_PER_IMAGE` 计、文本块按字符数计**：一张 8536 字符的截图会被算成 2000+
+    与**真正发出去的那份**同口径：不回传的思维链不计入（见 `model_provider` 的
+    `_to_wire_messages`）。按事实里的全量算会把预算高估一倍以上 ——
+    实测一条会话里思维链占 72%，估算把窗口算满了，实际发出去只用四分之一。
+
+    图片块按 `IMAGE_TOKENS_PER_IMAGE` 计、文本块按字符数计：一张 8536 字符的截图会被算成 2000+
     （`//4+4`），而官方口径是**每图最多 1024**。按文本算会把预算高估一倍以上，
     于是"刚发一张图就触发压缩"。图片块按固定上限计，文本部分照旧。
     """
@@ -103,9 +108,6 @@ def _approx_message_tokens(message: Optional[Dict[str, Any]]) -> int:
             n = approx_tokens_text(json.dumps(content, ensure_ascii=False))
         except (TypeError, ValueError):
             n = approx_tokens_text(str(content))
-    rc = message.get("reasoning_content")
-    if isinstance(rc, str) and rc.strip():
-        n += approx_tokens_text(rc)
     tc = message.get("tool_calls")
     if isinstance(tc, list) and tc:
         try:
@@ -113,6 +115,55 @@ def _approx_message_tokens(message: Optional[Dict[str, Any]]) -> int:
         except (TypeError, ValueError):
             n += 16
     return n
+
+
+def _schemas_tokens(tools: Optional[List[Dict[str, Any]]]) -> int:
+    """工具声明的 token 估算（每请求都带，属固定开销）。"""
+    if not tools:
+        return 0
+    try:
+        return approx_tokens_text(json.dumps(tools, ensure_ascii=False))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _mode_note_tokens(mode_note: str) -> int:
+    """尾部执行模式说明的 token 估算（也算进请求体）。"""
+    return approx_tokens_text(str(mode_note or ""))
+
+
+def _material_messages(prefix: Optional[List[Dict[str, Any]]],
+                       material: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """不复用前缀时的素材消息：把要压的正文按角色拼成可读文本。
+
+    `material` 是调用方给的"要压的那一段"（没给就退回前缀本身）——
+    这时不与平常请求共用前缀，所以**只带要压的正文**，不带整份上下文。
+    """
+    rows = material if material else prefix
+    if not rows:
+        return []
+    lines: List[str] = []
+    for msg in rows:
+        if not isinstance(msg, dict):
+            continue
+        role = str(msg.get("role") or "")
+        body = msg.get("content")
+        if not isinstance(body, str):
+            try:
+                body = json.dumps(body, ensure_ascii=False)
+            except (TypeError, ValueError):
+                body = str(body)
+        calls = msg.get("tool_calls")
+        if isinstance(calls, list) and calls:
+            try:
+                body = f"{body}\n[工具调用] {json.dumps(calls, ensure_ascii=False)}"
+            except (TypeError, ValueError):
+                pass
+        lines.append(f"### {role}\n{body}")
+    text = "\n\n".join(lines)
+    if not text:
+        return []
+    return [{"role": "user", "content": "【待压缩的对话】\n" + text}]
 
 
 def make_provider_summarizer(
@@ -140,28 +191,30 @@ def make_provider_summarizer(
         prefix: Optional[List[Dict[str, Any]]] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         system: str = "",
+        material: Optional[List[Dict[str, Any]]] = None,
         **_ignored: Any,
     ) -> str:
         if provider is None:
             return ""
         instruction = _SUMMARY_INSTRUCTION.format(max_chars=max(1, int(max_chars)))
         head = list(prefix or []) if prefix_reuse else []
-        tail = instruction
         if not head:
-            # 复用前缀有前提：拿不到前缀时请求里只剩这条指令，没有对话可压。
-            return ""
+            # 不复用前缀（或调用方没给前缀）时只发**素材 + 指令**：要压的正文本来就
+            # 在素材里，发一份自成一体的请求即可。原先这里直接返回空串，等于把
+            # `summary_prefix_reuse=0` 变成"压缩永久失效"（估算再大也不压，直到
+            # 请求超窗口被 API 拒绝）。
+            head = _material_messages(prefix, material)
+        tail = instruction
         request = LogicalRequest(
             # 与平常请求走同一个补齐函数：压缩可能落在"工具调用已发出、结果还没
             # 回来"的中间态（例如某个调用在等用户确认），此时历史里
             # `assistant(tool_calls)` 是悬空的。模型 API 对悬空调用硬拒绝
             # （400：must be followed by tool messages）。
             # 两边补法一致，前缀逐字节相同不受影响。
-            messages=_ensure_tool_pairs(head + [{"role": "system", "content": tail}]),
+            messages=_ensure_tool_pairs(_without_reasoning(head)
+                                        + [{"role": "system", "content": tail}]),
             # 工具定义照平常请求带上（前缀的一部分，少一项整段缓存作废）。
             tools=list(tools or []) if prefix_reuse else [],
-            # 系统提示词同理：平常请求放在 `system` 字段，这里留空会让前缀
-            # 从第一条消息起就与平常请求不同，缓存必然不命中。
-            system=str(system or ""),
         )
         parts: List[str] = []
         try:
@@ -273,7 +326,10 @@ class ContextCompactor:
             # `set_dialogue` 不改写任何消息，所以这里的估算就是真实请求体积。
             context.set_summary_messages(self.summary_messages())
             context.set_dialogue(view)
-            estimate = context.total_token_estimate() + pending_tokens
+            # 工具声明与模式说明也在请求体里，但不在 messages 里 —— 漏掉它们
+            # 会让预算永远差着五六千 token（固定开销，每请求都付）。
+            overhead = _schemas_tokens(tools) + _mode_note_tokens(mode_note)
+            estimate = context.total_token_estimate() + pending_tokens + overhead
             if estimate <= self.summary_token_threshold:
                 return None
             # ── 压缩区域：遮盖末尾 N 轮，压它前面的那一段 ──
@@ -307,7 +363,11 @@ class ContextCompactor:
                     system = ""
             text = ""
             if self._summarize_fn is not None:
-                text = str(self._summarize_fn(prefix, tools, system) or "").strip()
+                # 第三个位置参数是"要压的那一段"（在补齐后的对话序列里，按轮边界对齐）：
+                # 复用前缀时用不上（素材就是前缀），不复用时它就是全部素材。
+                segment_material = list(messages[int(s):int(e)]) if messages else []
+                text = str(self._summarize_fn(prefix, tools, system,
+                                              material=segment_material) or "").strip()
             if _is_degenerate_summary_body(text):
                 return None
             body = text + SUMMARY_BRIDGE_TAIL

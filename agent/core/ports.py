@@ -256,7 +256,3 @@ class LogicalRequest:
     turn_start: Optional[int] = None
     #: 会话身份：provider 侧把它过滤成官方 `user` 字段下发。
     conversation_id: str = ""
-    #: 本次请求所用的系统提示（provider 侧重试最小上下文时用它 + 当前用户消息）
-    #: 组成**最小上下文**重试：历史里"我看不到图片"的断言会像 few-shot 一样
-    #: 把后续每轮都锚死在否认上，丢掉历史才能让视觉重新生效。
-    system: str = ""

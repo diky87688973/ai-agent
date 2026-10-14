@@ -185,7 +185,6 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 `set_dialogue` 只做一件事：按 `covered_end` 丢掉已被摘要覆盖的前缀，其余原样装载。
 每加一轮，上下文就是上一次的上下文**加上新消息**。
 
-
 ## 压缩触发
 
 ### `summary_token_threshold` 是什么
@@ -348,6 +347,15 @@ provider 的 KV 缓存，只按压缩指令那点新增内容付费。
 退化判定 `_is_degenerate_summary_body()`：空串，或长度不足 10 且只含占位文本，都算失败。
 
 ## 估算
+
+估算器 `approx_tokens_text()` 按字符分区算：**CJK 每字 1 token，其余每 4 字符 1 token**，
+`tool_calls` 的 `arguments` 也算进去。整体按 `len // 4` 会把中文正文低估约四倍 ——
+实测一条会话估出 17 万而真实 prompt 100 万，阈值因此形同虚设、压缩永远晚触发。
+
+压缩判定另外加上工具声明与模式说明的固定开销（它们不在 messages 里，却是请求体的一部分）。
+
+分段浮层显示的是**估算**（对装配后的 messages 求和），与用量条里的 `prompt_tokens`
+不是同一个数：后者是 API 回来的真值。两者差着工具声明与分词差异。
 
 token 数是**估算**而非精确计数：
 

@@ -181,12 +181,17 @@ class CompressModule(ModuleBase):
     requires = ("context", "compactor")
 
     def __init__(self, *, context: Any = None, compactor: Any = None,
-                 mode_note: str = "") -> None:
+                 mode_note: str = "", image_turns: int = KEEP_IMAGE_TURNS,
+                 image_max: int = MAX_EMBED_IMAGES) -> None:
         self._context = context
         self._compactor = compactor
         #: 执行模式说明 —— 摘要复用前缀时要照平常请求补在末尾。
         #: 与 `ModelModule` 各持一份：两个模块各自组装各自的请求，互相不读对方状态。
         self._mode_note = str(mode_note or "")
+        #: 图片口径必须与 `ModelModule` 一致：压缩器声明的"前缀与随后请求逐字节相同"
+        #: 只有在两边用同一套剥图参数时才成立。
+        self._image_turns = int(image_turns)
+        self._image_max = int(image_max)
 
     def _covered_end(self) -> int:
         """已覆盖前缀长度（压缩器维护）；没有压缩器就是 0。"""
@@ -207,7 +212,8 @@ class CompressModule(ModuleBase):
         # 发给模型的请求序列：**必须成对**（`derive_request_messages`
         # 会为悬空的 tool_calls 补说明性占位，否则模型 API 硬拒绝 400）。
         # 请求序列取自 derive_request_messages()；derive_messages() 保留悬空——那是日志的忠实折叠，会保留悬空。
-        dialogue = ports.log.derive_request_messages()
+        dialogue = _prepare_dialogue(ports.log.derive_request_messages(),
+                                     self._image_turns, self._image_max)
         # 工具定义照平常请求取同一份：摘要复用前缀时它是前缀的一部分，
         # 少一项或换一份就整段缓存作废。
         schemas = ports.tool_port.schemas() if getattr(ports, "tool_port", None) is not None else []
@@ -297,7 +303,8 @@ class ModelModule(ModuleBase):
             yield ports.emit(ERROR, where="model", detail="未装配模型端口")
             return Outcome.halt("未装配模型端口")
 
-        dialogue = ports.log.derive_messages()
+        dialogue = _prepare_dialogue(ports.log.derive_messages(),
+                                     self._image_turns, self._image_max)
         # 本轮起点 = 对话里最后一条用户消息的下标（含）。它之前的思维链一律不回传
         # （provider 侧按这个下标裁）：思维链是模型的中间产物，回传只是让每轮输入
         # 凭空多几万 token，而那几万必然未命中缓存；不回传时**同一轮内每次请求的
@@ -308,10 +315,6 @@ class ModelModule(ModuleBase):
             if str(dialogue[index].get("role") or "") == "user":
                 turn_start = index
                 break
-        # 老图不重复塞进请求体：图片按**最近几轮用户发言**保留、总数再设一道闸，
-        # 更早/超量的转文本占位。只改这一份，事实流里的字节一个都不动。
-        dialogue, _stripped = strip_old_images(
-            dialogue, keep_turns=self._image_turns, max_images=self._image_max)
 
         # ── 装配：头部 + 对话 + 尾部（唯一入口，不重建）──
         #
@@ -340,9 +343,6 @@ class ModelModule(ModuleBase):
             # 头部条数（系统提示 / 插件段 / 摘要）+ 本轮起点 = 整份 messages 里的本轮起点。
             turn_start=len(messages) - len(dialogue) + turn_start,
             conversation_id=str(getattr(ports, "conversation_id", "") or ""),
-            system=(self._context.system_text()
-                    if self._context is not None and hasattr(self._context, "system_text")
-                    else ""),
         )
         # 装配完成 → 发一条**分段快照**（上下文示意图的数据源）。
         # 分段统计走把装配结果拆开的方式：模式与工具结果的内部注入只在这份
@@ -550,8 +550,10 @@ class ToolModule(ModuleBase):
                 return Outcome.suspend(f"工具 {call.name} 需要外部输入")
             ok = bool(getattr(result, "ok", False))
             if ok:
+                # 进上下文前统一裁一刀：工具自己的 `max_chars` 是**默认值**不是上限，
+                # 一次读 20 万字符的结果会永久留在上下文里，把每轮请求都撑大。
                 yield ports.emit(TOOL_DONE, call_id=call.call_id, name=call.name,
-                                 data=_safe(getattr(result, "data", None)),
+                                 data=_clip_tool_result(_safe(getattr(result, "data", None))),
                                  elapsed_ms=elapsed)
             else:
                 yield ports.emit(TOOL_FAILED, call_id=call.call_id, name=call.name,
@@ -565,6 +567,22 @@ class ToolModule(ModuleBase):
 # ══════════════════════════════════════════════════════════════════════
 # 五、默认链装配
 # ══════════════════════════════════════════════════════════════════════
+
+
+def _prepare_dialogue(dialogue: Any, image_turns: int,
+                      image_max: int) -> List[Dict[str, Any]]:
+    """对话 → 请求用对话：老图不重复塞进请求体。
+
+    图片按**最近几轮用户发言**保留、总数再设一道闸，更早/超量的转文本占位。
+    只改这一份，事实流里的字节一个都不动。
+
+    **压缩请求与模型请求必须走同一函数**：压缩器自称"前缀与随后请求逐字节相同"，
+    只在模型侧剥图时这句话就不成立 —— 摘要请求多带一堆 base64，前缀从对话段起
+    就与平常请求不同，KV 缓存白丢。
+    """
+    prepared, _stripped = strip_old_images(dialogue, keep_turns=image_turns,
+                                           max_images=image_max)
+    return prepared
 
 
 def _with_mode_note(messages: Any, mode_note: str) -> List[Dict[str, Any]]:
@@ -604,7 +622,8 @@ def build_default_chain(
     return [
         input_module if input_module is not None else InputModule(),
         InboxModule(inbox=inbox),
-        CompressModule(context=context, compactor=compactor, mode_note=mode_note),
+        CompressModule(context=context, compactor=compactor, mode_note=mode_note,
+                       image_turns=image_turns, image_max=image_max),
         ModelModule(context=context, compactor=compactor, effort=effort, model=model,
                     image_turns=image_turns, image_max=image_max,
                     mode_note=mode_note),
@@ -744,6 +763,33 @@ def _safe(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_safe(v) for v in value]
     return str(value)
+
+
+#: 一条工具结果进上下文的字符上限。超过就**只保留头部**并标注截断 ——
+#: 结果本身仍然完整落事实（`data/sessions/*.raw`），模型要看全文可以再调工具读区间。
+#: 没有这道闸时，一次 `read_file`（默认 20 万字符）就能让这一轮的请求体翻倍，
+#: 而且它此后**永久留在上下文里**（事实 append-only，只有压缩才动）。
+TOOL_RESULT_MAX_CHARS = 40000
+
+
+def _clip_tool_result(value: Any, limit: int = TOOL_RESULT_MAX_CHARS) -> Any:
+    """把过长的工具结果裁到上限（递归处理 dict/list 里的长字符串）。
+
+    dict 里最长的那个字符串是正文（`stdout` / `content` / `text`），裁它即可；
+    裁过的字段留下显式标记，模型据此知道"还有更多，要看就再读"。
+    """
+    if isinstance(value, str):
+        if len(value) <= limit:
+            return value
+        return value[:limit] + f"\n…（结果已截断，原文 {len(value)} 字符）"
+    if isinstance(value, dict):
+        out: Dict[str, Any] = {str(k): _clip_tool_result(v, limit) for k, v in value.items()}
+        if out != value:
+            out.setdefault("_truncated", True)
+        return out
+    if isinstance(value, list):
+        return [_clip_tool_result(v, limit) for v in value]
+    return value
 
 
 def _progress_emitter(ports: Ports):

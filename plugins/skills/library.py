@@ -37,6 +37,9 @@ class SkillManager:
         self._last_mtimes: Dict[str, float] = {}
         if self.skills_dir and self.skills_dir.is_dir():
             self._scan()
+            # 首次扫描后就把 mtime 记下来：不记的话下面每次 `_check_rescan`
+            # 都会判成"变了"再扫一遍（首次加载后紧接着的重扫纯属白做）。
+            self._last_mtimes = self._current_mtimes()
 
     # ── 隐藏目录过滤 ────────────────────────────────────
 
@@ -49,37 +52,47 @@ class SkillManager:
 
     # ── 动态检测 / 扫描 ────────────────────────────────
 
-    def _check_rescan(self) -> None:
-        """mtime 检测新增 / 变更 / 删除；有变化则清缓存重扫。"""
+    def auto_load_count(self) -> int:
+        """常驻技能条数（不拼正文）。"""
+        self._check_rescan()
+        return sum(1 for s in self.skills if s.is_auto_load)
+
+    def _current_mtimes(self) -> Dict[str, float]:
+        """当前全部技能文件的 mtime 表（键是绝对路径）。"""
+        out: Dict[str, float] = {}
         if not self.skills_dir or not self.skills_dir.is_dir():
-            return
-        changed = False
-        current: Dict[str, float] = {}
+            return out
         for md_file in self.skills_dir.rglob("*.md"):
             if not md_file.is_file() or self._should_skip(md_file):
                 continue
             try:
-                key = str(md_file.resolve())
-                mtime = md_file.stat().st_mtime
-                current[key] = mtime
-                if key not in self._last_mtimes or self._last_mtimes[key] != mtime:
-                    changed = True
+                out[str(md_file.resolve())] = md_file.stat().st_mtime
             except OSError:
-                pass
-        if set(self._last_mtimes.keys()) - set(current.keys()):
-            changed = True
-        if changed:
-            self._last_mtimes = current
-            self.skills.clear()
-            self._content_cache.clear()
-            self._scan()
+                continue
+        return out
+
+    def _check_rescan(self) -> None:
+        """mtime 检测新增 / 变更 / 删除；有变化则清缓存重扫。
+
+        界面/工具改完技能文件后，下一次收集就能看到（这里每次都核对 mtime）。
+        """
+        if not self.skills_dir or not self.skills_dir.is_dir():
+            return
+        current = self._current_mtimes()
+        changed = current != self._last_mtimes
+        if not changed:
+            return
+        self._last_mtimes = current
+        self.skills.clear()
+        self._content_cache.clear()
+        self._scan()
 
     def _force_rescan(self) -> None:
         """清空缓存全量重扫（复制落盘后调用）。"""
         self.skills.clear()
         self._content_cache.clear()
-        self._last_mtimes = {}
         self._scan()
+        self._last_mtimes = self._current_mtimes()
 
     def _scan(self) -> None:
         """扫描 skills_dir 下全部 .md（auto_load 子目录标记；隐藏目录跳过）。"""

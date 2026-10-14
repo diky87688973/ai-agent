@@ -93,7 +93,8 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         ctx.add_context_source(
             lambda cid, _lib=library: _lib.build_auto_load_messages(),
             {"label": "Skills 常驻", "prefix": RESIDENT_PREFIX,
-             "count": lambda _cid, _lib=library: len(_lib.build_auto_load_messages())},
+             # 只数条数：为取长度去把常驻正文全拼一遍是白烧（每次收集都跑）。
+             "count": lambda _cid, _lib=library: _lib.auto_load_count()},
         ),
     ]
     # 提交执行器登记到宿主的执行器注册表：`commit_write` 提交时按工具名取。

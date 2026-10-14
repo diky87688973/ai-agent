@@ -162,7 +162,9 @@ class ModeIsNotPersistedTest(unittest.TestCase):
         )
         self.assertNotIn("当前模式", dump, msg="模式说明不得写进会话记录")
         # 系统提示词字段里也没有
-        self.assertNotIn("当前模式", str(spy.reqs[-1].system or ""))
+        self.assertNotIn("当前模式",
+                         str([m.get("content") for m in (spy.reqs[-1].messages or [])
+                              if str(m.get("role")) == "system"][:-1]))
 
 
 if __name__ == "__main__":
