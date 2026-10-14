@@ -90,6 +90,9 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         "image_max": _int("image_max", 10),
         # 摘要那一次调用复用平常请求的前缀（吃 KV 缓存）。.ini 无布尔类型，1/0 表示。
         "summary_prefix_reuse": _int("summary_prefix_reuse", 1) != 0,
+        # 模型上下文窗口（token）：界面按它算"上下文占用率"。
+        # 压缩阈值是**预算**（留多少余量），窗口是**物理上限**，两者不是一回事。
+        "model_context_window": _int("model_context_window", 1000000),
         # 思维链回传预算（token）：-1 = 全量回传，0 = 不回传，
         # 正数 = 超出就取两头、中间以省略标记代替（模型按前后脑补）。
         # 思维链必然未命中缓存，全量回传等于每轮多背几万 token。

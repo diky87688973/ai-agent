@@ -14,6 +14,21 @@
 | `fspaths.py` | 可见范围的来源、路径判界与展示形态 |
 | `classic_adapter/` | 事件翻译、历史回读、用户作答 |
 
+## 用量与命中率的口径
+
+**命中率只用官方返回值算**：每次模型调用后 API 在 `usage` 里给
+`prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`，内核原样落成 `usage` 事实、
+适配层原样转发（字段名见 `classic_adapter/contract.py` 的 `SSE_USAGE_FIELDS`），
+界面显示的命中率就是"命中 / (命中 + 未命中)"这两个官方值之比 —— 不掺任何估算。
+
+**上下文占用率的分母是模型窗口**（`[context] model_context_window`，内核随
+`context_layout` 一起下发 `model_max_context_tokens`），不是压缩阈值：
+阈值是"留多少余量触发压缩"的预算，窗口是物理上限，两者混用会让人以为"还剩 75%"。
+
+**分段浮层里的 token 是估算**（对装配后的消息求和，中文按每字 1 token），
+与用量条里的官方 `prompt_tokens` 不是同一个数：前者是"这段大概多少"，
+后者是"这次实际花了多少"。
+
 ## 启动
 
 ```bash

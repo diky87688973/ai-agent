@@ -728,6 +728,7 @@ class ContextPipeline:
         full_user_rounds: int = DEFAULT_FULL_USER_ROUNDS,
         summary_token_threshold: int = DEFAULT_SUMMARY_TOKEN_THRESHOLD,
         reasoning_replay_tokens: int = DEFAULT_REASONING_REPLAY_TOKENS,
+        model_context_window: int = 0,
         sources: Optional["ContextSources"] = None,
     ) -> None:
         self.conversation_id = str(conversation_id or "")
@@ -735,6 +736,8 @@ class ContextPipeline:
         self.summary_token_threshold = max(1, int(summary_token_threshold))
         #: 思维链回传预算（token）：-1 全量、0 不回传、正数取两头中间省略。
         self.reasoning_replay_tokens = int(reasoning_replay_tokens)
+        #: 模型上下文窗口（token）：界面按它算占用率；0 = 未配置，界面用预算兜底。
+        self.model_context_window = int(model_context_window or 0)
         #: 最近这么多**用户轮**原样保留（含工具往返）；更早的轮剥掉轮内工具往返。
         #: 负数 = 不剥（全部保留）。
         self._sources = sources
@@ -879,7 +882,10 @@ class ContextPipeline:
             "segments": segments,
             "total_tokens": total,
             "budget_tokens": budget,
-            "model_max_context_tokens": int(model_max_context_tokens or 0),
+            # 模型窗口：界面按它算占用率。调用方没传时用实例上配的那个；
+            # 都没配就给 0，界面退回用预算当分母（并标明是预算口径）。
+            "model_max_context_tokens": int(model_max_context_tokens
+                                            or self.model_context_window or 0),
         }
 
     def add(self, chunk: ContextChunk) -> None:

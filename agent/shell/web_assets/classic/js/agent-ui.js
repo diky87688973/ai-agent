@@ -29,7 +29,10 @@ function findConversationTab(id){id=normalizeConversationId(id);for(var i=0;i<co
 function ensureConversationTab(id){id=normalizeConversationId(id)||newConversationId();var t=findConversationTab(id);if(!t){t=makeConversationTab(id);conversationTabs.push(t);if(typeof renderChatTabs==="function")renderChatTabs();}return t;}
 function getActiveConversationId(){return activeConversationId;}
 function setActiveConversationId(id,opts){id=normalizeConversationId(id)||newConversationId();var t=ensureConversationTab(id);activeConversationId=id;sessionId=id;conv=id;storeConversationId(id);t.id=id;t.title=t.title||("会话 "+id.slice(0,8));if(typeof cid!=="undefined"&&cid)cid.textContent=id.slice(0,8);if(!opts||opts.resetPricing!==false){pricingRates=null;pricingFailed=false;pricingCacheKey="";pricingLoading=false;pricingInflight=false;pricingFetchGen++;}if(typeof renderChatTabs==="function")renderChatTabs();if(typeof _updateUsageBottom==="function")_updateUsageBottom();}
-let sessionId=activeConversationId;let conv=sessionId,stepSeq=0,lastLlm=null;let llmStreamBuffer={round:null,reqHtml:"",resHtml:"",consumed:false};let pendingToolTags=[];let anyToolThisTurn=false;let pendingStepEls=[];let streamAssistantEl=null,streamAssistantText="";let pendingDeltaSeparator=false;let seenDispatchTitle="";const SESSION_TOKEN_LIMIT=1000000;let sessionTokenUsed=0;
+let sessionId=activeConversationId;let conv=sessionId,stepSeq=0,lastLlm=null;let llmStreamBuffer={round:null,reqHtml:"",resHtml:"",consumed:false};let pendingToolTags=[];let anyToolThisTurn=false;let pendingStepEls=[];let streamAssistantEl=null,streamAssistantText="";let pendingDeltaSeparator=false;let seenDispatchTitle="";/* 上下文占用率的分母 = **模型窗口**（内核在 context_layout 里给）。
+   没给时退回下面这个兜底值，界面会标明口径。 */
+var SESSION_TOKEN_LIMIT=1000000;
+function setModelContextWindow(n){var v=Number(n??0)||0;if(v>0)SESSION_TOKEN_LIMIT=v;}let sessionTokenUsed=0;
 let totalPromptTokens=0,totalCompletionTokens=0,totalCacheHitTokens=0,totalCacheMissTokens=0;
 let pricingCacheKey="";let pricingRates=null;let pricingFailed=false;let pricingLoading=false;let pricingInflight=false;let pricingFetchGen=0;
 var ctxLayoutTooltipEl=null;var ctxLayoutTooltipInited=false;var ctxLayoutTipHideTimer=null;
@@ -110,7 +113,7 @@ else if(ev.type==="llm_request")onLlmRequest(ev);
 else if(ev.type==="llm_response")onLlmResponse(ev);
 else if(ev.type==="llm_done"){flushPendingToolTags();if(lastLlm){finishLlmTitle(true);lastLlm.tag.className="tag ok";lastLlm.tag.textContent="Done";}}
 else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_tokens??0)||0;const outTok=Number(u.completion_tokens??0)||0;const hitTok=Number(u.prompt_cache_hit_tokens??0)||0;const missTok=Number(u.prompt_cache_miss_tokens??0)||0;sessionTokenUsed+=Math.max(0,inTok+outTok);totalPromptTokens+=inTok;totalCompletionTokens+=outTok;totalCacheHitTokens+=hitTok;totalCacheMissTokens+=missTok;void ensureModelPricing();_updateUsageBottom();void persistUsageAccumulator();}
-else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
+else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;setModelContextWindow(ev.model_max_context_tokens);if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
 else if(ev.type==="tool_start")onToolStart(ev);
 else if(ev.type==="tool_progress")onToolProgress(ev);
 else if(ev.type==="tool_end"){onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}
@@ -158,7 +161,7 @@ else if(ev.type==="llm_request")onLlmRequest(ev);
 else if(ev.type==="llm_response")onLlmResponse(ev);
 else if(ev.type==="llm_done"){flushPendingToolTags();if(lastLlm){finishLlmTitle(true);lastLlm.tag.className="tag ok";lastLlm.tag.textContent="Done";}}
 else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_tokens??0)||0;const outTok=Number(u.completion_tokens??0)||0;const hitTok=Number(u.prompt_cache_hit_tokens??0)||0;const missTok=Number(u.prompt_cache_miss_tokens??0)||0;sessionTokenUsed+=Math.max(0,inTok+outTok);totalPromptTokens+=inTok;totalCompletionTokens+=outTok;totalCacheHitTokens+=hitTok;totalCacheMissTokens+=missTok;void ensureModelPricing();_updateUsageBottom();void persistUsageAccumulator();}
-else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
+else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;setModelContextWindow(ev.model_max_context_tokens);if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
 else if(ev.type==="tool_start")onToolStart(ev);
 else if(ev.type==="tool_progress")onToolProgress(ev);
 else if(ev.type==="tool_end"){onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}

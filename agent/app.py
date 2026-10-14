@@ -551,10 +551,14 @@ def build_app(
         # 没有它，回合里 `ctx.context` 恒为 None，请求只是"记录 derive 出来的扁平消息"，
         # 上下文分段也无从谈起——只能退化成单段兜底。
         def _default_context_factory(conversation_id: str) -> ContextPipeline:
+            # 这里**逐项**列出来（不是 `**context_defaults`）：漏一项就是"配置写了不生效"，
+            # 而且症状很隐蔽 —— 配置能读出来、界面也显示，只有行为不对。
             return ContextPipeline(
                 conversation_id,
                 full_user_rounds=int(ctx_cfg["full_user_rounds"]),
                 summary_token_threshold=int(ctx_cfg["summary_token_threshold"]),
+                reasoning_replay_tokens=int(ctx_cfg["reasoning_replay_tokens"]),
+                model_context_window=int(ctx_cfg["model_context_window"]),
                 sources=context_sources,
             )
 
@@ -602,6 +606,7 @@ def build_app(
             "full_user_rounds": int(ctx_cfg["full_user_rounds"]),
             "summary_token_threshold": int(ctx_cfg["summary_token_threshold"]),
             "reasoning_replay_tokens": int(ctx_cfg["reasoning_replay_tokens"]),
+            "model_context_window": int(ctx_cfg["model_context_window"]),
         },
         image_turns=int(ctx_cfg["image_turns"]),
         image_max=int(ctx_cfg["image_max"]),

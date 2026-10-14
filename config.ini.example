@@ -39,6 +39,9 @@ summary_output_max_chars = 5000
 image_turns = 3
 image_max = 10
 summary_prefix_reuse = 1
+; model_context_window     模型上下文窗口（token）。界面按它算"上下文占用率"；
+;                          它是**物理上限**，与上面的压缩阈值（预算）不是一回事。
+model_context_window = 1000000
 ; reasoning_replay_tokens   思维链回传预算（token）：-1 = 全量回传；0 = 不回传；
 ;                           正数 = 超出就取两头、中间用 <此处省略 N token 的推理> 代替
 ;                           （前后文够模型脑补中间）。思维链必定未命中缓存，
