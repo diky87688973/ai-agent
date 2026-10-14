@@ -21,11 +21,20 @@ Disposer = Callable[[], None]
 
 
 class ToolPlugin:
-    """工具插件协议：子类声明 name / description / parameters / parallel_safe 并实现 execute。"""
+    """工具插件协议：子类声明 name / description / parameters / label / icon / parallel_safe。
+
+    `label` 与 `icon` 是**界面展示信息**，由工具自己声明：界面不该为认出一个工具而在
+    前端维护一张工具名表（那样每加一个插件工具都得改界面）。内核只把它们透出去，
+    不做任何解释。
+    """
 
     name: str = ""
     description: str = ""
     parameters: Dict[str, Any] = {}
+    #: 中文短名（界面上的工具标题）；留空时界面退回显示 `name`
+    label: str = ""
+    #: 一个字符的图标（emoji）；留空时界面用兜底图标
+    icon: str = ""
     parallel_safe: bool = False  # 默认串行
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
@@ -81,6 +90,21 @@ class ToolRegistry:
                 "description": str(getattr(p, "description", "") or ""),
                 "parameters": dict(getattr(p, "parameters", {}) or {}),
                 "parallel_safe": bool(getattr(p, "parallel_safe", False)),
+            }
+            for _, p in sorted(self._plugins.items())
+        ]
+
+    def display_list(self) -> List[Dict[str, str]]:
+        """导出界面展示清单：`[{name, label, icon}]`（按名称排序）。
+
+        界面据此认识**所有**工具（含插件工具），不必在前端维护工具名表。
+        `label` 留空时界面退回显示 `name`。
+        """
+        return [
+            {
+                "name": str(p.name),
+                "label": str(getattr(p, "label", "") or ""),
+                "icon": str(getattr(p, "icon", "") or ""),
             }
             for _, p in sorted(self._plugins.items())
         ]

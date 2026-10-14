@@ -20,7 +20,10 @@ html[data-ui-theme="light"] .kb-cb.checked {
   color: #7a6220;
 }
 .kb-fpath{flex:1;min-width:0;color:#6e7681;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.kb-hint-bar{padding:4px 10px;font-size:11px;color:#9aa0a6;border-bottom:1px solid #2a2d32;background:#1e2024;line-height:1.4}
+.kb-hint-bar{padding:4px 10px;font-size:11px;color:#9aa0a6;border-bottom:1px solid #2a2d32;background:#1e2024;line-height:1.4;display:flex;align-items:center;gap:8px}
+.kb-hint-bar>span{flex:1;min-width:0}
+/* 刷新按钮用壳层的 `.pane-btn`（与文件查看器那个同款），这里只管位置。 */
+.kb-refresh{flex:0 0 auto}
 html[data-ui-theme="light"] .kb-hint-bar {
   background: #fafbfc;
   border-color: #e8edf2;

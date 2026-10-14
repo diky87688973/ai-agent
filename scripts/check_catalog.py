@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from gen_catalog import CATALOG_PATH, collect_schemas, render_catalog
+from gen_catalog import CATALOG_PATH, collect_display, collect_schemas, render_catalog
 
 
 def diff_tools(actual: list[dict], expected: list[dict]) -> list[str]:
@@ -31,7 +31,10 @@ def diff_tools(actual: list[dict], expected: list[dict]) -> list[str]:
     for name in sorted(set(a) - set(e)):
         lines.append(f"注册文件多余工具：{name}")
     for name in sorted(set(a) & set(e)):
-        if a[name] != e[name]:
+        # `display` 与声明同源派生：比声明即可，比它会把同一个漂移报两遍
+        left = {k: v for k, v in a[name].items() if k != "display"}
+        right = {k: v for k, v in e[name].items() if k != "display"}
+        if left != right:
             lines.append(f"工具声明不一致：{name}")
     return lines
 
@@ -42,7 +45,8 @@ def check(catalog_path: Path = CATALOG_PATH) -> list[str]:
         return [f"注册文件不存在：{catalog_path}（运行 python scripts/gen_catalog.py 生成）"]
     raw = catalog_path.read_bytes()
     schemas = collect_schemas()
-    if raw == render_catalog(schemas).encode("utf-8"):
+    display = collect_display()
+    if raw == render_catalog(schemas, display).encode("utf-8"):
         return []
     try:
         payload = json.loads(raw.decode("utf-8"))

@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agent.mechanisms.session_store import _KEY_DATA, _KEY_TYPE
 from agent.shell.classic_adapter import contract as C
+from agent.shell.classic_adapter.contract import EV_CONTEXT_SEGMENTS
 
 
 def _scan_title(path: Path) -> str:
@@ -254,32 +255,129 @@ _LAYOUT_CACHE_MAX = 32
 
 
 def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str, Any]]:
-    """按**事实**算上下文分段快照（实时与刷新两条路径共用同一口径）。
+    """上下文分段快照（实时与刷新两条路径共用同一口径）。
 
-    `context_layout` 是**派生数据**（由事件的消费方算），
-    内核不产出、因此**从不落盘**。没有它时实时帧里有分段条，**一刷新就回落「—」**
-    （`/api/chat/history` 的 `context_layout` 恒为 `null`，因为
-    `_last_payload(events, "context_layout")` 永远取不到）。
+    数据源是内核发的 `context_segments`（`ModelModule` 每次装配完请求发一条）——
+    分段统计需要**装配结果**，而模式说明与工具轮的内部 system 注入都不落记录，
+    只有那份快照里有它们。观测侧只读，不自己另算一套（另算必然与真实请求漂移）。
 
-    把算出来的 layout 写成事实会给适配层新增一个**写点**，
-    让适配层直接往 store 里写 —— 同一份状态就有了两个真相。
-    按同一口径**每次重算**更简单，也不会与内核事实产生分歧。
-    （重算的代价由上面的 `_LAYOUT_CACHE` 压住。）
-
-    口径（无分段时给单段兜底）：
-    从事实派生消息序列，按 `字符数 // 4 + 4` 估 token
-    （与 `mechanisms.context_pipeline.approx_tokens_text` 同口径）。
-
-    算不出来返回 `None`，调用方不发/不填。
+    内核这条事件还没发出来时，退回「整段 + 剩余容量」的单段兜底，
+    界面至少不是空的。算不出来返回 `None`，调用方不发/不填。
     """
     if not events:
         return None
-    # 缓存命中：同一会话、事实条数没变 → 派生结果必然一样，不必再折叠一遍。
     stamp = len(events)
     hit = _LAYOUT_CACHE.get(cid)
     if hit is not None and hit[0] == stamp:
         _LAYOUT_CACHE.move_to_end(cid)
         return hit[1]
+    budget = _budget_of(app, cid)
+    payload = _last_segments(events, budget)
+    if payload is None:
+        payload = _fallback_layout(app, events, cid)
+    if payload is None:
+        return None
+    _LAYOUT_CACHE[cid] = (stamp, payload)
+    _LAYOUT_CACHE.move_to_end(cid)
+    while len(_LAYOUT_CACHE) > _LAYOUT_CACHE_MAX:
+        _LAYOUT_CACHE.popitem(last=False)
+    return payload
+
+
+def _budget_of(app: Any, cid: str) -> int:
+    """本次会话的上下文预算 = 压缩阈值（`[context] summary_token_threshold`）。
+
+    取不到就给 0，调用方各自退回自己的兜底口径。
+    """
+    factory = getattr(app, "compactor_factory", None)
+    if not callable(factory):
+        return 0
+    try:
+        return int(getattr(factory(cid), "summary_token_threshold", 0) or 0)
+    except Exception:
+        return 0
+
+
+def _last_segments(events: List[Any],
+                   budget_tokens: int = 0) -> Optional[Dict[str, Any]]:
+    """最后一条 `context_segments`（内核发的装配快照）。
+
+    快照里的 `pct` 是**产出那一刻**按当时预算算好的，会随配置与版本漂移
+    （早先的装配点没把预算传下来，快照里 `budget_tokens` 等于"已用"，
+    于是界面那条「剩余容量」永远是 0%）。所以这里按**当前**预算把各段 pct 重算一遍 ——
+    渲染时点一下算术，比留一条永远为 0 的段强。
+    """
+    for event in reversed(list(events or [])):
+        if str(getattr(event, "type", "") or "") != EV_CONTEXT_SEGMENTS:
+            continue
+        data = getattr(event, "data", None) or {}
+        if not data.get("segments"):
+            continue
+        return _rescale(dict(data), budget_tokens)
+    return None
+
+
+def _rescale(payload: Dict[str, Any], budget_tokens: int) -> Dict[str, Any]:
+    """按给定预算重算各段 `pct` 与「剩余容量」。预算不可用时原样返回。"""
+    segments = [s for s in (payload.get("segments") or []) if isinstance(s, dict)]
+    total = sum(int(s.get("tokens") or 0) for s in segments
+                if str(s.get("key") or "") != "remaining")
+    budget = max(int(budget_tokens or 0), total, 1)
+    rows: List[Dict[str, Any]] = []
+    for s in segments:
+        if str(s.get("key") or "") == "remaining":
+            continue
+        row = dict(s)
+        row["pct"] = round(100.0 * int(row.get("tokens") or 0) / budget, 6)
+        rows.append(row)
+    remainder = max(0, budget - total)
+    rows.append({
+        "key": "remaining",
+        "label": (next((str(s.get("label")) for s in segments
+                        if str(s.get("key") or "") == "remaining"), "") or "剩余容量"),
+        "tokens": remainder,
+        "pct": round(100.0 * remainder / budget, 6),
+    })
+    out = dict(payload)
+    out["segments"] = rows
+    out["total_tokens"] = sum(int(r.get("tokens") or 0) for r in rows
+                              if str(r.get("key") or "") != "remaining")
+    out["budget_tokens"] = budget
+    return out
+
+
+def _mode_of(events: List[Any]) -> str:
+    """末次请求里的执行模式（`## 当前模式：<mode>`）；取不到给 auto。
+
+    倒序扫描：模式在请求里位置不固定（工具轮里它后面还跟着工具结果）。
+    """
+    msgs: List[Any] = []
+    if events:
+        try:
+            from agent.core.session_log import SessionLog
+
+            msgs = SessionLog(events=list(events)).derive_request_messages() or []
+        except Exception:
+            msgs = []
+    marker = "## 当前模式："
+    for m in reversed(msgs):
+        if not isinstance(m, dict) or str(m.get("role") or "") != "system":
+            continue
+        text = str(m.get("content") or "")
+        if text.startswith(marker):
+            return text[len(marker):].splitlines()[0].strip() or "auto"
+    return "auto"
+
+
+def _fallback_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str, Any]]:
+    """兜底：**没有装配快照的旧会话**（快照是后加的，老记录里没有）也分层。
+
+    技能清单、知识库、摘要都**不在事实记录里** —— 它们是每回合装配时注入的，
+    所以只从事实折叠不出来。这里真装一次上下文（与内核同一套注入源），
+    读它的头部来切段；事实只提供对话与覆盖点。
+    """
+    from agent.mechanisms.context_pipeline import layout_from_messages
+
     try:
         from agent.core.session_log import SessionLog
 
@@ -288,18 +386,6 @@ def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Di
         return None
     if not messages:
         return None
-
-    def _approx(msg: Dict[str, Any]) -> int:
-        text = str(msg.get("content") or "")
-        return (len(text) // 4 + 4) if text else 0
-
-    try:
-        tokens = sum(_approx(m) for m in messages if isinstance(m, dict))
-    except Exception:
-        return None
-    if tokens <= 0:
-        return None
-
     budget = 0
     compactor_factory = getattr(app, "compactor_factory", None)
     if callable(compactor_factory):
@@ -307,25 +393,54 @@ def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Di
             budget = int(getattr(compactor_factory(cid), "summary_token_threshold", 0) or 0)
         except Exception:
             budget = 0
-    total_budget = max(budget, tokens, 1)
-    remainder = max(0, total_budget - tokens)
-    payload = {
-        "segments": [
-            {"key": "full_recent", "label": "近期记忆", "tokens": tokens,
-             "pct": round(100.0 * tokens / total_budget, 6), "count": len(messages)},
-            {"key": "remaining", "label": "剩余容量", "tokens": remainder,
-             "pct": round(100.0 * remainder / total_budget, 6)},
-        ],
-        "total_tokens": tokens,
-        "budget_tokens": total_budget,
-        "model_max_context_tokens": 0,
-    }
-    # 只缓存"算得出"的结果；`None` 不入缓存（否则第一次算不出会被永久记住）。
-    _LAYOUT_CACHE[cid] = (stamp, payload)
-    _LAYOUT_CACHE.move_to_end(cid)
-    while len(_LAYOUT_CACHE) > _LAYOUT_CACHE_MAX:
-        _LAYOUT_CACHE.popitem(last=False)
-    return payload
+    system_text = ""
+    try:
+        from agent.shell.prompts import resolve_system_prompt
+
+        mesh = getattr(app, "mesh", None)
+        meta = mesh.get_agent(cid) if mesh is not None and hasattr(mesh, "get_agent") else {}
+        system_text = resolve_system_prompt(
+            mode=_mode_of(events),
+            registry=getattr(app, "registry", None),
+            explicit=str((meta or {}).get("system") or "") or None,
+        )
+    except Exception:
+        system_text = ""
+    # 真装一次：头部（系统提示 / Skills / 知识库 / 摘要）由管线按注入源产出。
+    head: List[Dict[str, Any]] = []
+    plugin_segments: List[Any] = []
+    try:
+        from agent.mechanisms.context_pipeline import ContextPipeline
+
+        pipeline = ContextPipeline(str(cid or ""),
+                                   sources=getattr(app, "context_sources", None),
+                                   **(dict(getattr(app, "context_defaults", None) or {})))
+        if system_text:
+            pipeline.append_system(system_text)
+        pipeline.set_dialogue(messages, covered_end=_covered_end_of(events))
+        head = pipeline.host_messages()
+        plugin_segments = pipeline.plugin_segments()
+    except Exception:
+        head = []
+        plugin_segments = []
+    payload = layout_from_messages(messages, system_text=system_text, head=head,
+                                   plugin_segments=plugin_segments,
+                                   budget_tokens=budget)
+    return payload if payload.get("segments") else None
+
+
+def _covered_end_of(events: List[Any]) -> int:
+    """末次压缩的覆盖点（事实里的 `context_compacted`）。"""
+    covered = 0
+    for event in events or []:
+        if str(getattr(event, "type", "") or "") != "context_compacted":
+            continue
+        data = getattr(event, "data", None) or {}
+        try:
+            covered = max(covered, int(data.get("covered_end") or 0))
+        except (TypeError, ValueError):
+            continue
+    return covered
 
 
 def _todo_items(events: List[Any]) -> List[Dict[str, Any]]:
@@ -350,29 +465,13 @@ def _todo_items(events: List[Any]) -> List[Dict[str, Any]]:
 
 
 def _date_group(mtime: float, now: Optional[float] = None) -> str:
-    """修改时间 → 中文日期分组（今天 / 昨天 / 本周 / 更早，按**自然日**比较）。
+    """修改时间 → 中文日期分组（今天 / 昨天 / `xx月xx日`，按**自然日**比较）。
 
-    与内核 `_date_group` 同口径 —— 经典界面的会话菜单靠它插分组标题
-    （agent-ui.js:309 附近）。
+    经典界面的会话菜单靠它插分组标题；口径直接取内核那一份，避免两处漂移。
     """
-    if not mtime:
-        return ""
-    reference = time.time() if now is None else now
-    try:
-        stamp = time.localtime(mtime)
-        today = time.localtime(reference)
-    except (OverflowError, OSError, ValueError):
-        return ""
-    if (stamp.tm_year, stamp.tm_yday) == (today.tm_year, today.tm_yday):
-        return "今天"
-    yesterday = time.localtime(reference - 86400)
-    if (stamp.tm_year, stamp.tm_yday) == (yesterday.tm_year, yesterday.tm_yday):
-        return "昨天"
-    # 同一自然周（以周一为一周之始）判为「本周」
-    week_start = reference - (today.tm_wday * 86400)
-    if mtime >= (week_start - (week_start % 86400)):
-        return "本周"
-    return "更早"
+    from agent.shell.web import _date_group as kernel_date_group
+
+    return kernel_date_group(mtime, now)
 
 
 # ── 内存态：经典界面需要、但内核不持有的三样东西 ─────────────────
@@ -509,8 +608,7 @@ class Inbound:
         """当前会话用哪个模型（`conversation` 帧据此同步前端下拉）。
 
         与 `adapter._model` 同一条纪律：**按会话取**，不能恒取全局默认 ——
-        否则每轮开场都把用户的模型选择覆盖回默认，而后端接着按那个默认模型的
-        名字判视觉能力，名字里没有 vision 就**把图片摘掉**。
+        否则每轮开场都把用户的模型选择覆盖回默认。
         """
         live = getattr(self._app, "live_state", None)
         if live is not None:

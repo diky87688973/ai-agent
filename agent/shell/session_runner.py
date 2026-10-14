@@ -14,7 +14,11 @@ import time
 from typing import Any, Callable, Dict, Optional
 
 from agent.core.events import Event
-from agent.shell.prompts import load_user_rules_from_config, resolve_system_prompt
+from agent.shell.prompts import (
+    load_user_rules_from_config,
+    resolve_mode_note,
+    resolve_system_prompt,
+)
 
 # 运行态心跳的间隔（秒）：远小于 `RunRegistry` 的存活期（默认 900 秒），
 # 又不会有任何可观测开销（一次小文件写入）。
@@ -278,7 +282,10 @@ class SessionRunner:
         if isinstance(resume, dict):
             self._splice_resume(cid, resume)
         engine = self._app.session(
-            cid, system_prompt=self._system_prompt(cid), cancel=self._cancel_check(cid)
+            cid,
+            system_prompt=self._system_prompt(cid),
+            mode_note=self._mode_note(cid),
+            cancel=self._cancel_check(cid),
         )
         for _event in engine.start_turn(text, attachments=attachments):
             pass
@@ -313,10 +320,13 @@ class SessionRunner:
                   file=sys.stderr, flush=True)
 
     def _system_prompt(self, cid: str) -> str:
-        """系统提示：mesh 显式设过就用它，否则基础提示词（含模式段与工具速查）。
+        """系统提示：mesh 显式设过就用它，否则基础提示词（含工具速查）。
 
         系统提示必须有内容：只读 mesh 的 `system` 时它常为空串，
         模型便只知工具 schema、不知使用纪律。
+
+        **不含模式段**：模式由 `_mode_note` 单独产出、只附加在请求尾部，
+        这样切模式不会改动这一段，前缀缓存不失效。
         """
         meta = self._mesh.get_agent(cid)
         explicit = str(meta.get("system") or "")
@@ -333,6 +343,19 @@ class SessionRunner:
             explicit=explicit or None,
             user_rules=self._user_rules,
         )
+
+    def _mode_note(self, cid: str) -> str:
+        """请求尾部要附加的执行模式说明（临时；不落记录、不发事件）。"""
+        meta = self._mesh.get_agent(cid)
+        explicit = str(meta.get("system") or "")
+        mode = "auto"
+        state = getattr(self._app, "live_state", None)
+        if state is not None:
+            try:
+                mode = state.get_mode(cid)
+            except Exception:
+                mode = "auto"
+        return resolve_mode_note(mode=mode, explicit=explicit or None)
 
     # ── 等待（测试 / 壳层）────────────────────────────────
 

@@ -40,6 +40,8 @@ class CommitWriteTool(ToolPlugin):
     """提交：仅凭 confirm_id；写参数由门控从预览快照恢复后分派执行。"""
 
     name = "commit_write"
+    label = "提交写盘"
+    icon = "💾"
     description = (
         "凭 confirm_id 提交写预览并落盘。"
         "前置：必须先通过 review_conclusion 的 review。"
@@ -53,9 +55,13 @@ class CommitWriteTool(ToolPlugin):
         self,
         gate: GateRef,
         executors: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]],
+        dynamic: Any = None,
     ) -> None:
         self._gate = gate
+        # 内置执行器是静态表；插件贡献的执行器走 `dynamic`（提交那一刻才查），
+        # 所以插件装配顺序不影响提交能不能解析到。
         self._executors = dict(executors)
+        self._dynamic = dynamic
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         cid = str(arguments.get("confirm_id") or "").strip()
@@ -66,6 +72,8 @@ class CommitWriteTool(ToolPlugin):
             raise ValueError("confirm_id 无效或已使用：请重新预览")
         tool = str(record.get("tool") or "")
         executor = self._executors.get(tool)
+        if executor is None and self._dynamic is not None:
+            executor = self._dynamic.get(tool)
         if executor is None:
             raise ValueError(f"该预览类型不支持提交：{tool or '（空）'}")
         return executor(dict(record.get("arguments") or {}))
@@ -74,9 +82,11 @@ class CommitWriteTool(ToolPlugin):
 def build(
     gate: GateRef,
     executors: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]],
+    dynamic: Any = None,
 ) -> CommitWriteTool:
     """构造 commit_write 插件（提交入口；需门控与执行器表）。
 
     gate 可传门控实例（直调场景）或"按当前会话解析门控"的可调用（装配态）。
+    `dynamic` 是插件贡献的执行器注册表（`ExecutorRegistry`），可为 None。
     """
-    return CommitWriteTool(gate, executors)
+    return CommitWriteTool(gate, executors, dynamic)

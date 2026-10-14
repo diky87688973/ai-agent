@@ -4,7 +4,7 @@
 三层各钉一遍，因为"传了但没进去 / 开了但没续跑"是这两类功能最常见的坏法：
   1. 服务端 `images` 校验（MIME / 上限 / 静默丢弃 / 有图无字）；
   2. 附件 → `input_claimed` 事实 → 多模态 content 的组装；
-  3. 视觉能力判定与非视觉模型的降级剥离；
+  3. 图片一律原样下发（无按模型名判能力的分支）；
   4. 自主模式的 runtime 续跑谓词。
 """
 from __future__ import annotations
@@ -118,7 +118,7 @@ class UserContentTest(unittest.TestCase):
         self.assertEqual(user["content"], "纯文本")
 
 class VisionDegradeTest(unittest.TestCase):
-    """视觉能力判定与非视觉模型降级。"""
+    """图片一律原样下发：没有任何按模型名降级剥图的分支。"""
 
     def setUp(self) -> None:
         import agent.mechanisms.model_provider as mp

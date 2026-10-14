@@ -41,6 +41,8 @@ class ReviewConclusionTool(ToolPlugin):
     """review 结论提交与预览解锁。"""
 
     name = "review_conclusion"
+    label = "提交 review 结论"
+    icon = "🔍"
     description = (
         "写盘前必做：提交 review 结论并解锁预览。"
         "结论须基于本次改动的实际审阅、给出验证证据（≥30 字）；"

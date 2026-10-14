@@ -1,7 +1,7 @@
 # 私有配置与凭据
 config.ini
-# 插件自己的配置也是私有配置（模板 `config.ini.example` 入库）
-plugins/*/config.ini
+# 插件自己的配置也是私有配置（模板 `plugin-config.ini.example` 入库）
+plugins/*/plugin-config.ini
 *.local.ini
 *.local.toml
 .env

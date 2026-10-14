@@ -28,7 +28,7 @@ def _user_content(text: str, attachments: Any) -> Any:
     from agent.core.image_embed import build_embed_parts, placeholder_text
 
     parts, skipped = build_embed_parts(attachments)
-    # 一张合法附件都没有 → 回落纯文本（别把单文本段包成数组）
+    # 一张合法附件都没有 → 回落纯文本（单文本段不包成数组）
     if not parts:
         return text
     if text:

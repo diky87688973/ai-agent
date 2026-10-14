@@ -80,6 +80,8 @@ class FindInFileTool(ToolPlugin):
     """单文件定位。"""
 
     name = "find_in_file"
+    label = "定位文件内文本"
+    icon = "🎯"
     description = "在单个文件内定位字面（| 为 OR）或正则的第 N 处命中，返回 region 与行列（可直接传 replace_in_file）。"
     parameters = {
         "path": {"type": "string", "description": "目标文件路径"},
@@ -147,6 +149,8 @@ class RegexLocateTool(ToolPlugin):
     """单文件/目录正则定位。"""
 
     name = "regex_locate"
+    label = "正则检索与定位"
+    icon = "🔍"
     description = "在单文件或目录下用正则检索，每条命中返回 region 与行列（与 find_in_file / replace_in_file 语义一致）。"
     parameters = {
         "path": {"type": "string", "description": "文件或目录路径"},
@@ -225,6 +229,8 @@ class FileSearchTool(ToolPlugin):
     """大目录内容搜索。"""
 
     name = "file_search"
+    label = "搜索文件内容"
+    icon = "🔎"
     description = (
         "目录或单文件内容搜索（字面/正则）；支持 gitignore 过滤、编码嗅探与上下文行；"
         "适合大范围扫描。简单精确匹配用 grep_files。"

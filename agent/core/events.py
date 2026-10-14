@@ -19,5 +19,5 @@ class Event:
 
 
 def make_event(type_: str, **data: Any) -> Event:
-    """构造事件（唯一工厂，方便将来统一加工）。"""
+    """构造事件（唯一工厂）。"""
     return Event(type=type_, data=dict(data))

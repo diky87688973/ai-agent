@@ -52,9 +52,14 @@
   }
 
   function renderList(container, files, checkedSet, cid) {
+    /* 小标题右侧挂刷新：知识库目录是**外部**目录，用户随时会往里加文件，
+        面板不重开也要能取到新的。按钮用壳层的 `.pane-btn` —— 与文件查看器
+        那个刷新是同一套样式，两处不会长得不一样。 */
     var html =
-      '<div class="kb-hint-bar">💡 共 ' + files.length +
-      " 个文件；勾选的文件将作为当前会话的上下文参考内容</div>" +
+      '<div class="kb-hint-bar"><span>💡 共 ' + files.length +
+      " 个文件；勾选的文件将作为当前会话的上下文参考内容</span>" +
+      '<button type="button" class="pane-btn kb-refresh" ' +
+      'title="重新读取知识库目录">↻ 刷新</button></div>' +
       '<div class="kb-list">';
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
@@ -66,6 +71,14 @@
     }
     html += "</div>";
     container.innerHTML = html;
+    var btn = container.querySelector(".kb-refresh");
+    if (btn) {
+      btn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        render();
+      });
+    }
     container.querySelectorAll(".kb-file-row").forEach(function (row) {
       row.addEventListener("click", function () {
         var cb = row.querySelector(".kb-cb");
@@ -118,12 +131,33 @@
 
   window.aiAgentKnowledgePanel = { render: render };
 
-  /* 勾选是**按会话**记的，所以会话一切换就要重取。
-     壳层广播通用事件（`ai-agent:conversation-changed`），插件自己订阅 ——
-     壳层不点名任何插件，插件也不要求壳层认识自己。 */
-  document.addEventListener("ai-agent:conversation-changed", function () {
-    if (document.getElementById("kbBody")) render();
+/* 上下文分层：本插件那一段的颜色与段名由插件自己声明。 */
+if (window.aiAgentPlugins && window.aiAgentPlugins.ctxSegments) {
+  window.aiAgentPlugins.ctxSegments.register("knowledge", {
+    // 色名而不是定值：壳层按当前主题取深/浅两套里的那一套，
+    // 分段条与浮层都走同一个取色函数，两处必然同色。
+    color: "blue",
+    label: "知识库",
+  });
+}
+
+  function visible() {
+    return !!document.getElementById("kbBody");
+  }
+
+  /* 面板**打开时**渲染：脚本在开屏就被预载（段色注册要赶在上下文条第一次渲染前），
+     那时面板 DOM 还不存在，首次 render() 是空跑；而脚本只载一次，开面板时不会再执行。
+     所以渲染由壳层广播的打开事件驱动 —— 壳层不点名任何插件，插件也不要求壳层认识自己。 */
+  document.addEventListener("ai-agent:panel-opened", function (ev) {
+    var d = (ev && ev.detail) || {};
+    if (String(d.panel || "") === "kb") render();
   });
 
-  render();
+  /* 勾选是**按会话**记的，所以会话一切换就要重取。 */
+  document.addEventListener("ai-agent:conversation-changed", function () {
+    if (visible()) render();
+  });
+
+  /* 面板已经开着（脚本因样式等原因后到时）补一次渲染；没开就什么都不做。 */
+  if (visible()) render();
 })();

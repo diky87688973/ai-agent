@@ -31,7 +31,6 @@ class ModelProvider:
 }
 ```
 
-带工具时追加 `tools` 与 `tool_choice: "auto"`；有会话身份时追加 `user`（对服务端做 KV 缓存隔离）；构造参数 `include_usage=True` 时追加 `stream_options.include_usage`。
 
 两处取值来源：
 
@@ -73,7 +72,6 @@ class ModelProvider:
 
 图片**原样下发**，不按模型名猜能力、不做降级剥图 —— 剥图是有损的，猜错一次就是"用户发了图而模型只看到一句占位"。带不带图、带几张由 `[context]` 的 `image_turns` / `image_max` 决定（见 [context.md](context.md)）。
 
-带图却声称看不到时（`_IMAGE_DENIAL_HINTS` / `_denies_seeing_images()` 识别这类措辞），**丢弃被历史污染的上下文**，只带系统提示与当前那条带图消息重试一次，后续增量照常产出。历史里"我看不到图片"的断言会像 few-shot 一样把后续每轮锚死在否认上。
 
 ## 错误映射
 

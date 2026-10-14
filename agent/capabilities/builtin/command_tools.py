@@ -115,10 +115,10 @@ def _close_streams(proc: "subprocess.Popen[bytes]") -> None:
 def _read_available(stream: Any, chunk: int = 4096) -> bytes:
     """从管道读「当前已到达」的数据（阻塞到至少有 1 字节或 EOF）。
 
-    为什么不能直接 `stream.read(4096)`：Windows 上对管道的定长读会**一直等到读满
-    4096 字节或 EOF** 才返回，于是一段小输出要等命令结束才一次性吐出来——那就不叫
-    实时了。这里先 `read(1)`（只等"有数据"，一旦有就立刻返回），再把已到达的其余
-    部分读出来，兼顾及时性与吞吐。
+    直接 `stream.read(4096)` 不行：Windows 上对管道的定长读会**一直等到读满 4096
+    字节或 EOF** 才返回，一段小输出要等命令结束才一次性吐出来。这里先 `read(1)`
+    （只等"有数据"，一旦有就立刻返回），再把已到达的其余部分读出来，
+    兼顾及时性与吞吐。
     """
     try:
         first = stream.read(1)
@@ -265,6 +265,8 @@ class RunCommandTool(ToolPlugin):
     """执行单条 shell 命令：安全防线 + 超时强杀 + 输出净化。"""
 
     name = "run_command"
+    label = "执行命令"
+    icon = "⚡"
     description = "执行单条 shell 命令并收集 stdout/stderr/exit_code；先过安全防线（黑名单 / 脚本内容 / safe_mode），超时强杀进程树。"
     parameters = {
         "command": {"type": "string", "description": "单条命令（非多行脚本；多步请多次调用）"},
@@ -376,6 +378,8 @@ class PythonInlineTool(ToolPlugin):
     """exec 执行 Python 源码（不经 shell）：stdout/stderr 捕获 + 净化。"""
 
     name = "python_inline"
+    label = "执行内联 Python"
+    icon = "🐍"
     description = "exec 执行 Python 源码（不经 shell），stdout/stderr 捕获；名义 timeout（exec 无法硬中断）。复杂编排可用；勿代替 run_command 跑安装类命令。"
     parameters = {
         "code": {"type": "string", "description": "完整 Python 源码"},

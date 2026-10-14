@@ -144,8 +144,7 @@ class OutboundContractTest(unittest.TestCase):
         后续 `usage` / `context_layout` 的渲染守卫不过，用量底栏永远不更新。
 
         帧里**不带 `model`**：模型不由服务端推送。前端照单接收并覆盖
-        `selectedModel` 的话，"发一条消息、模型下拉自己跳回默认"，而后端接着按那个默认
-        模型的名字判视觉能力 —— 名字里没有 `vision` 就把图片摘掉，模型于是说"看不到图"。
+        `selectedModel` 的话，就是"发一条消息、模型下拉自己跳回默认"。
         现行规则：首次打开页面拉一次当前模型，此后以**发送消息那一刻**前端带来的
         `model` 为准。
         """

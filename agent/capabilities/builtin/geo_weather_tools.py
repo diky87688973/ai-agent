@@ -176,6 +176,8 @@ class IpGeolocateTool(ToolPlugin):
     """IP 地理查询。"""
 
     name = "ip_geolocate"
+    label = "定位公网地区"
+    icon = "📍"
     description = "IP 地理查询（ipwho.is 免费 API，无 Key）：国家/城市/经纬度/时区；内网或未指定 IP 自动查出口。"
     parameters = {
         "ip": {"type": "string", "description": "待查询 IP（省略/内网/回环时查当前出口公网 IP）"},
@@ -242,6 +244,8 @@ class OpenMeteoWeatherTool(ToolPlugin):
     """天气查询。"""
 
     name = "open_meteo_weather"
+    label = "查询天气"
+    icon = "🌤️"
     description = "天气预报（Open-Meteo 免费 API，无 Key）：支持地名 / 经纬度 / IP 定位三来源；中文摘要输出。"
     parameters = {
         "location": {"type": "string", "description": "城市或地区名（如 北京；先查内置别名表）"},

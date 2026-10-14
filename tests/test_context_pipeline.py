@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ContextPipeline 测试。
 
-- 数据模型与展平（七块 / Round·ContextChunk / 展平顺序 / user 起轮）；
+- 数据模型与展平（分块 / Round·ContextChunk / 展平顺序 / user 起轮）；
 - 窗口与摘要调度（越界轮三分支 / 取段区间 / 工具链外扩 / 素材切轮）；
 - 待并摘要 / 估算 / 统计 / 追加语义 / 时序重建。
 """
@@ -22,8 +22,6 @@ from agent.mechanisms.context_pipeline import (  # noqa: E402
     Round,
     adjust_excerpt_range_half_open,
     approx_tokens_text,
-    dialogue_summary_excerpt_half_open_for_messages,
-    excerpt_slice_to_rounds,
     flat_messages_to_user_rounds,
 )
 
@@ -89,101 +87,8 @@ class ChunksAndFlattenTest(unittest.TestCase):
         self.assertEqual(len(rounds[0].messages), 2)
         self.assertIsNone(rounds[1].round_id)
 
-    def test_flatten_order_and_empty_skip(self) -> None:
-
-        p = ContextPipeline("conv")
-        self.assertEqual(p.flatten_to_messages(), [])
-        p.append_system("S1")
-        p.append_skill("K1")
-        p.append_kb("B1")
-        p.set_summaries([_msg("assistant", "SUM")])
-        p.set_pure_rounds([_round(("user", "P1"))])
-        p.append_new_msg("user", "U1")
-        p.append_msg("assistant", "A1")
-        p.set_mode_tail(_msg("system", "M1"))
-        flat = p.flatten_to_messages()
-        self.assertEqual(
-            [m["content"] for m in flat],
-            ["S1", "K1", "B1", "SUM", "P1", "U1", "A1", "M1"],
-        )
-        # sanitize 末端统一应用
-        kept = p.flatten_to_messages(sanitize_fn=lambda ms: ms[:2])
-        self.assertEqual([m["content"] for m in kept], ["S1", "K1"])
-        # 深拷贝安全：修改返回不影响内部状态
-        flat[0]["content"] = "MUT"
-        self.assertEqual(p.flatten_to_messages()[0]["content"], "S1")
-
-    def test_constructor_config(self) -> None:
-
-        p = ContextPipeline(
-            "conv-1", pure_user_rounds=1, full_user_rounds=3, summary_token_threshold=100
-        )
-        self.assertEqual(p.conversation_id, "conv-1")
-        self.assertEqual(p.pure_user_rounds, 1)
-        self.assertEqual(p.full_user_rounds, 3)
-        self.assertEqual(p.summary_token_threshold, 100)
-
-class WindowTest(unittest.TestCase):
-    """越界轮提取。"""
-
-    def _build(self, pure_n: int, full_n: int) -> ContextPipeline:
-        p = ContextPipeline("c", pure_user_rounds=2, full_user_rounds=2)
-        p.set_pure_rounds([_round(("user", f"p{i}")) for i in range(pure_n)])
-        for i in range(full_n):
-            p.append_new_msg("user", f"f{i}")
-        return p
-
-    def test_extract_over_rounds_branches(self) -> None:
-
-        # ③ full(1) < window(4)：excess = 1 + 4 − 4 = 1 → pure[0:1]
-        over = self._build(4, 1).extract_over_rounds()
-        self.assertEqual([r.messages[0]["content"] for r in over], ["p0"])
-        # ③ 无越界：full(1) + pure(1) − window(4) ≤ 0 → []
-        self.assertEqual(self._build(1, 1).extract_over_rounds(), [])
-        # ② full == window(4)：越界 = 全部 pure
-        over = self._build(2, 4).extract_over_rounds()
-        self.assertEqual([r.messages[0]["content"] for r in over], ["p0", "p1"])
-        # ① full(6) > window(4)：越界 = 全部 pure + full 最早 2 轮
-        over = self._build(2, 6).extract_over_rounds()
-        self.assertEqual(
-            [r.messages[0]["content"] for r in over], ["p0", "p1", "f0", "f1"]
-        )
-        # 深拷贝：修改返回不影响源
-        p = self._build(4, 1)
-        over = p.extract_over_rounds()
-        over[0].messages[0]["content"] = "X"
-        again = p.extract_over_rounds()
-        self.assertEqual(again[0].messages[0]["content"], "p0")
-
 class ExcerptTest(unittest.TestCase):
     """摘要取段与工具链完整性。"""
-
-    def test_excerpt_none_cases(self) -> None:
-
-        self.assertIsNone(dialogue_summary_excerpt_half_open_for_messages([], 2, 1))
-        self.assertIsNone(
-            dialogue_summary_excerpt_half_open_for_messages(
-                [_msg("user", "u0"), _msg("assistant", "a0")], 2, 1
-            )
-        )
-
-    def test_excerpt_branches(self) -> None:
-
-        msgs = [
-            _msg("user", "u0"),
-            _msg("assistant", "a0"),
-            _msg("user", "u1"),
-            _msg("assistant", "a1"),
-            _msg("user", "u2"),
-            _msg("assistant", "a2"),
-        ]
-        # k(3) > reserve(2)：end_cap = 第 (3−2) 条 user 下标(2) → (0, 2)
-        self.assertEqual(dialogue_summary_excerpt_half_open_for_messages(msgs, 1, 1), (0, 2))
-        # k(2) ≤ reserve(3) 且 k > full(1)：end_cap = 第 (2−1) 条 user 下标(2) → (0, 2)
-        self.assertEqual(dialogue_summary_excerpt_half_open_for_messages(msgs[:4], 1, 2), (0, 2))
-        # ContextPipeline 的方法包装：与自由函数的取段入口一致
-        p = ContextPipeline("c", pure_user_rounds=1, full_user_rounds=1)
-        self.assertEqual(p.dialogue_summary_excerpt_half_open(msgs), (0, 2))
 
     def test_adjust_back_extends_over_tool_chain(self) -> None:
 
@@ -215,21 +120,6 @@ class ExcerptTest(unittest.TestCase):
             _msg("user", "u2"),
         ]
         self.assertEqual(adjust_excerpt_range_half_open(msgs, 0, 2), (0, 3))
-
-    def test_excerpt_slice_to_rounds(self) -> None:
-
-        self.assertEqual(excerpt_slice_to_rounds([], 1, 1), [])
-        msgs = [
-            _msg("user", "u0"),
-            _msg("assistant", "a0"),
-            _msg("user", "u1"),
-            _msg("assistant", "a1"),
-            _msg("user", "u2"),
-            _msg("assistant", "a2"),
-        ]
-        rounds = excerpt_slice_to_rounds(msgs, 1, 1)
-        self.assertEqual(len(rounds), 1)
-        self.assertEqual([m["content"] for m in rounds[0].messages], ["u0", "a0"])
 
 class MemoryAndEstimateTest(unittest.TestCase):
     """待并摘要 / 估算 / 统计 / 追加。"""
@@ -265,7 +155,7 @@ class MemoryAndEstimateTest(unittest.TestCase):
         per = p.calculate_tokens(fn)
         self.assertEqual(per["系统提示词"], 4)
         self.assertEqual(per["近期记忆"], 8)
-        self.assertEqual(per["知识库"], 0)
+        self.assertEqual(per["插件段落"], 0)
         self.assertEqual(p.total_token_estimate(fn), sum(per.values()))
 
     def test_round_count(self) -> None:
@@ -300,6 +190,36 @@ class RebuildTest(unittest.TestCase):
         full = p.name_map["近期记忆"]
         self.assertEqual(full.get_count(), 2)
         self.assertEqual(full.rounds[0].messages[0]["content"], "u1")
+
+class DefaultConfigValues(unittest.TestCase):
+    """配置默认值与机制层常量必须一致（三处口径：config.py / 管线常量 / 压缩器签名）。"""
+
+    def test_summary_token_threshold_default(self) -> None:
+        from agent.config import get_context
+        from agent.mechanisms.context_pipeline import DEFAULT_SUMMARY_TOKEN_THRESHOLD
+        c = get_context()
+        self.assertEqual(c["summary_token_threshold"], 700000)
+        self.assertEqual(DEFAULT_SUMMARY_TOKEN_THRESHOLD, 700000)
+
+    def test_compactor_signature_matches_config(self) -> None:
+        import inspect
+
+        from agent.config import get_context
+        from agent.mechanisms.context_compactor import ContextCompactor
+        sig = inspect.signature(ContextCompactor.__init__)
+        c = get_context()
+        self.assertEqual(sig.parameters["summary_token_threshold"].default,
+                         c["summary_token_threshold"])
+        self.assertEqual(sig.parameters["full_user_rounds"].default,
+                         c["full_user_rounds"])
+
+    def test_other_context_defaults(self) -> None:
+        from agent.config import get_context
+        c = get_context()
+        self.assertEqual(c["summary_output_max_chars"], 5000)
+        self.assertEqual(c["image_turns"], 3)
+        self.assertEqual(c["image_max"], 10)
+        self.assertIs(c["summary_prefix_reuse"], True)
 
 if __name__ == "__main__":
     unittest.main()

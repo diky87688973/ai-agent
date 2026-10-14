@@ -33,6 +33,8 @@ class TextDiffTool(ToolPlugin):
     """两段文本 unified diff。"""
 
     name = "text_diff"
+    label = "对比文本"
+    icon = "📑"
     description = "对左右两侧文本生成 unified diff（只读不落盘）；左右各取「文件路径或内联文本」之一。"
     parameters = {
         "left_file": {"type": "string", "description": "左侧文件路径（与 left_text 二选一）"},
@@ -117,6 +119,8 @@ class DataTableTool(ToolPlugin):
     """表格读取与操作。"""
 
     name = "data_table"
+    label = "处理表格"
+    icon = "📊"
     description = "表格文件（csv/tsv/xlsx）预览、筛选、排序、统计与导出（json/csv/markdown）；xlsx 需可选依赖 openpyxl。"
     parameters = {
         "action": {"type": "string", "description": "preview / filter / sort / stats / to_json / to_csv / to_md / sheets"},

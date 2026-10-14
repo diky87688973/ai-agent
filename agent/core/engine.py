@@ -47,6 +47,7 @@ class Engine:
         model: str = "",
         image_turns: int = KEEP_IMAGE_TURNS,
         image_max: int = MAX_EMBED_IMAGES,
+        mode_note: str = "",
         modules: Optional[List[ModuleBase]] = None,
         input_module: Optional[InputModule] = None,
         max_passes: int = 32,
@@ -85,7 +86,8 @@ class Engine:
             else build_default_chain(input_module=self._input, context=context,
                                      compactor=compactor, inbox=inbox,
                                      effort=effort, model=model,
-                                     image_turns=image_turns, image_max=image_max),
+                                     image_turns=image_turns, image_max=image_max,
+                                     mode_note=mode_note),
             sink=self._on_event,
             max_passes=max_passes,
             on_pass_end=self._flush_facts,
@@ -159,13 +161,12 @@ class Engine:
             # （`SessionStore._write_rows` 失败时把整批收进 `self._pending[cid]`，
             # 下次 `append` 先补投它）。
             #
-            # 为什么不能两边都重试：引擎这里放回 `_turn_events` 之后，
-            # 同一批事实会被**重新渲染一遍**（`_seq` 也重新分配）→ 磁盘上出现
-            # **重复行与重复坐标**。
+            # 引擎这里放回 `_turn_events` 之后，同一批事实会被**重新渲染一遍**
+            # （`_seq` 也重新分配）→ 磁盘上出现**重复行与重复坐标**。
             #
-            # 为什么重试必须归 store：真实路径每回合 `App.session(cid)` **新建引擎**，
-            # 挂在引擎上的批次会随引擎一起被 GC —— 用户发言**永久丢失**。
-            # store 跨回合、跨引擎实例存活，而 store 是落盘的唯一入口。
+            # 真实路径每回合 `App.session(cid)` **新建引擎**：挂在引擎上的批次会随
+            # 引擎一起被 GC，用户发言**永久丢失**。store 跨回合、跨引擎实例存活，
+            # 而 store 是落盘的唯一入口。
             #
             # 观察面（浏览器）已经收到并渲染了这些事实，所以**必须留痕**，
             # 不能静默 —— 重连读历史会读不到它们（等下一次 append 补投）。

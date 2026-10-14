@@ -150,5 +150,52 @@ class ToolRegistryTest(unittest.TestCase):
         self.registry.dispose_all()
 
 
+class ToolDisplayDeclarationTest(unittest.TestCase):
+    """工具自带展示信息（label / icon）：界面不维护工具名表。"""
+
+    def test_plugin_carries_display_fields(self) -> None:
+        from agent.capabilities.registry import ToolPlugin
+
+        class _T(ToolPlugin):
+            name = "t_demo"
+            label = "示例工具"
+            icon = "🎈"
+
+            def execute(self, arguments):
+                return "ok"
+
+        row = _T()
+        self.assertEqual(row.label, "示例工具")
+        self.assertEqual(row.icon, "🎈")
+
+    def test_defaults_are_empty(self) -> None:
+        from agent.capabilities.registry import ToolPlugin
+
+        class _Bare(ToolPlugin):
+            name = "t_bare"
+
+            def execute(self, arguments):
+                return ""
+
+        self.assertEqual(_Bare().label, "")
+        self.assertEqual(_Bare().icon, "")
+
+    def test_display_list_shape(self) -> None:
+        from agent.capabilities.registry import ToolRegistry
+
+        class _T(ToolPlugin := __import__("agent.capabilities.registry",
+                                          fromlist=["ToolPlugin"]).ToolPlugin):
+            name = "t_x"
+            label = "示例"
+            icon = "🧪"
+
+            def execute(self, arguments):
+                return ""
+
+        reg = ToolRegistry()
+        reg.register(_T())
+        rows = reg.display_list()
+        self.assertEqual(rows, [{"name": "t_x", "label": "示例", "icon": "🧪"}])
+
 if __name__ == "__main__":
     unittest.main()

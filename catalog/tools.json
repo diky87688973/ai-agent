@@ -2,6 +2,10 @@
   "tools": [
     {
       "description": "预览补丁应用（不落盘）：把 unified diff（patch_text）应用到 path 根下已有文件（目标可带 a//b/ 前缀，须在根内）；返回各文件统计与 confirm_id，凭 commit_write 提交。",
+      "display": {
+        "icon": "🔧",
+        "label": "应用补丁"
+      },
       "name": "apply_patch",
       "parallel_safe": false,
       "parameters": {
@@ -17,6 +21,10 @@
     },
     {
       "description": "压缩包 list / extract / create：list 只读；extract / create 先预览（不落盘，返回 confirm_id），凭 commit_write 提交执行。",
+      "display": {
+        "icon": "🗜️",
+        "label": "压缩包操作"
+      },
       "name": "archive",
       "parallel_safe": false,
       "parameters": {
@@ -48,6 +56,10 @@
     },
     {
       "description": "凭 confirm_id 提交写预览并落盘。前置：必须先通过 review_conclusion 的 review。写参数由门控从预览快照恢复并分派执行。",
+      "display": {
+        "icon": "💾",
+        "label": "提交写盘"
+      },
       "name": "commit_write",
       "parallel_safe": false,
       "parameters": {
@@ -59,6 +71,10 @@
     },
     {
       "description": "表格文件（csv/tsv/xlsx）预览、筛选、排序、统计与导出（json/csv/markdown）；xlsx 需可选依赖 openpyxl。",
+      "display": {
+        "icon": "📊",
+        "label": "处理表格"
+      },
       "name": "data_table",
       "parallel_safe": false,
       "parameters": {
@@ -106,6 +122,10 @@
     },
     {
       "description": "预览安全删除（不落盘）：文件将移入回收目录（可恢复）；目录请用 `file_ops(action=delete, recursive=true)`；返回 confirm_id，凭 commit_write 提交。",
+      "display": {
+        "icon": "🗑️",
+        "label": "删除文件"
+      },
       "name": "delete_file",
       "parallel_safe": false,
       "parameters": {
@@ -117,6 +137,10 @@
     },
     {
       "description": "回显输入文本。",
+      "display": {
+        "icon": "🔔",
+        "label": "回显"
+      },
       "name": "echo",
       "parallel_safe": false,
       "parameters": {
@@ -128,12 +152,20 @@
     },
     {
       "description": "探测本机可用命令行环境（cmd / powershell / pwsh / bash / python / py）并给出使用建议。",
+      "display": {
+        "icon": "🧪",
+        "label": "探测运行环境"
+      },
       "name": "env_probe",
       "parallel_safe": false,
       "parameters": {}
     },
     {
       "description": "预览文件操作（不落盘）：copy / move / rename / delete（delete 移入回收目录，可恢复；delete 目录须 `recursive=true`）；返回 confirm_id，凭 commit_write 提交。",
+      "display": {
+        "icon": "📋",
+        "label": "执行文件复制/移动/删除"
+      },
       "name": "file_ops",
       "parallel_safe": false,
       "parameters": {
@@ -157,6 +189,10 @@
     },
     {
       "description": "目录或单文件内容搜索（字面/正则）；支持 gitignore 过滤、编码嗅探与上下文行；适合大范围扫描。简单精确匹配用 grep_files。",
+      "display": {
+        "icon": "🔎",
+        "label": "搜索文件内容"
+      },
       "name": "file_search",
       "parallel_safe": false,
       "parameters": {
@@ -200,6 +236,10 @@
     },
     {
       "description": "版本回滚：`action=list` 列某文件历史备份（只读）；`action=diff` 比对备份与当前（只读）；`action=undo` + `mod_id` + `path` 预览回滚（不落盘，返回 confirm_id，凭 commit_write 提交；回滚前自动备份当前版本）。",
+      "display": {
+        "icon": "↩️",
+        "label": "撤销文件改动"
+      },
       "name": "file_undo",
       "parallel_safe": false,
       "parameters": {
@@ -219,6 +259,10 @@
     },
     {
       "description": "在单个文件内定位字面（| 为 OR）或正则的第 N 处命中，返回 region 与行列（可直接传 replace_in_file）。",
+      "display": {
+        "icon": "🎯",
+        "label": "定位文件内文本"
+      },
       "name": "find_in_file",
       "parallel_safe": false,
       "parameters": {
@@ -250,6 +294,10 @@
     },
     {
       "description": "Git 工作区只读查询：worktree（状态+diff）/ log / blame / show；不执行写入型 git 命令。",
+      "display": {
+        "icon": "🌿",
+        "label": "查看 Git 工作区"
+      },
       "name": "git_workspace",
       "parallel_safe": false,
       "parameters": {
@@ -289,6 +337,10 @@
     },
     {
       "description": "GitHub 远程操作：login / get_repo / list_issues / create_issue / list_releases / set_topics / list_prs / get_pr / create_pr / close_pr / update_pr。",
+      "display": {
+        "icon": "🐙",
+        "label": "调用 GitHub 接口"
+      },
       "name": "github_api",
       "parallel_safe": false,
       "parameters": {
@@ -332,6 +384,10 @@
     },
     {
       "description": "按 glob 模式列出路径；可选递归与 file/dir/all 过滤。",
+      "display": {
+        "icon": "📂",
+        "label": "列出路径"
+      },
       "name": "glob_files",
       "parallel_safe": false,
       "parameters": {
@@ -359,6 +415,10 @@
     },
     {
       "description": "管理本会话的目标文案。目标处于 active 时，每轮结束后系统会自动用该文案发起新一轮，直到你用 action=pause/done 停下。action: create=新建或整体改写；get=查询；update=局部改（文案/状态/备注）；pause=暂停触发；resume=恢复触发；done=标记达成；delete=删除。**不要每轮都调 get 自查**：自动触发的那一轮里，目标文案本身就是发来的消息，你不需要再查一次；只在用户问起目标状态、或你要动手改它之前查一次。",
+      "display": {
+        "icon": "🎯",
+        "label": "目标"
+      },
       "name": "goal",
       "parallel_safe": false,
       "parameters": {
@@ -382,6 +442,10 @@
     },
     {
       "description": "按字面（| 为 OR 分隔）或正则搜索目录内文本文件内容。需要 gitignore 过滤 / 上下文行 / 编码嗅探时用 file_search。",
+      "display": {
+        "icon": "🔎",
+        "label": "搜索文件内容"
+      },
       "name": "grep_files",
       "parallel_safe": false,
       "parameters": {
@@ -409,6 +473,10 @@
     },
     {
       "description": "对图片做 OCR（pytesseract / easyocr，可选依赖）；支持区域裁剪；缺依赖时给出安装提示。",
+      "display": {
+        "icon": "🖼",
+        "label": "识别图片文字"
+      },
       "name": "image_ocr",
       "parallel_safe": false,
       "parameters": {
@@ -432,6 +500,10 @@
     },
     {
       "description": "IP 地理查询（ipwho.is 免费 API，无 Key）：国家/城市/经纬度/时区；内网或未指定 IP 自动查出口。",
+      "display": {
+        "icon": "📍",
+        "label": "定位公网地区"
+      },
       "name": "ip_geolocate",
       "parallel_safe": false,
       "parameters": {
@@ -447,6 +519,10 @@
     },
     {
       "description": "天气预报（Open-Meteo 免费 API，无 Key）：支持地名 / 经纬度 / IP 定位三来源；中文摘要输出。",
+      "display": {
+        "icon": "🌤️",
+        "label": "查询天气"
+      },
       "name": "open_meteo_weather",
       "parallel_safe": false,
       "parameters": {
@@ -478,6 +554,10 @@
     },
     {
       "description": "exec 执行 Python 源码（不经 shell），stdout/stderr 捕获；名义 timeout（exec 无法硬中断）。复杂编排可用；勿代替 run_command 跑安装类命令。",
+      "display": {
+        "icon": "🐍",
+        "label": "执行内联 Python"
+      },
       "name": "python_inline",
       "parallel_safe": false,
       "parameters": {
@@ -497,6 +577,10 @@
     },
     {
       "description": "读取文本文件；可选行区间（line_start/line_end）与 max_chars 截断。",
+      "display": {
+        "icon": "📖",
+        "label": "读取文件"
+      },
       "name": "read_file",
       "parallel_safe": false,
       "parameters": {
@@ -520,6 +604,10 @@
     },
     {
       "description": "预览管道写（不落盘）：从 source_path 取片段（可选 line_start/line_end 行区间、max_chars 截断）写入 dest_path；返回 confirm_id，凭 commit_write 提交。",
+      "display": {
+        "icon": "🔀",
+        "label": "管道读写"
+      },
       "name": "read_write",
       "parallel_safe": false,
       "parameters": {
@@ -547,6 +635,10 @@
     },
     {
       "description": "在单文件或目录下用正则检索，每条命中返回 region 与行列（与 find_in_file / replace_in_file 语义一致）。",
+      "display": {
+        "icon": "🔍",
+        "label": "正则检索与定位"
+      },
       "name": "regex_locate",
       "parallel_safe": false,
       "parameters": {
@@ -586,6 +678,10 @@
     },
     {
       "description": "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。",
+      "display": {
+        "icon": "✏️",
+        "label": "替换文件内容"
+      },
       "name": "replace_in_file",
       "parallel_safe": false,
       "parameters": {
@@ -621,6 +717,10 @@
     },
     {
       "description": "写盘前必做：提交 review 结论并解锁预览。结论须基于本次改动的实际审阅、给出验证证据（≥30 字）；带 confirm_id 时解锁，之后用该 confirm_id 调 commit_write 落盘。cancel_preview 取消预览。",
+      "display": {
+        "icon": "🔍",
+        "label": "提交 review 结论"
+      },
       "name": "review_conclusion",
       "parallel_safe": false,
       "parameters": {
@@ -648,6 +748,10 @@
     },
     {
       "description": "执行单条 shell 命令并收集 stdout/stderr/exit_code；先过安全防线（黑名单 / 脚本内容 / safe_mode），超时强杀进程树。",
+      "display": {
+        "icon": "⚡",
+        "label": "执行命令"
+      },
       "name": "run_command",
       "parallel_safe": false,
       "parameters": {
@@ -675,6 +779,10 @@
     },
     {
       "description": "查询或切换会话运行模式（auto / plan / execute）；不传 `run_type` 为查询当前模式。",
+      "display": {
+        "icon": "🎛️",
+        "label": "切换运行模式"
+      },
       "name": "run_type",
       "parallel_safe": false,
       "parameters": {
@@ -686,6 +794,10 @@
     },
     {
       "description": "按 tag 向目标群组广播消息（tag 必填；可叠加 role 过滤与 exclude_self）。",
+      "display": {
+        "icon": "💬",
+        "label": "广播到多会话"
+      },
       "name": "session_broadcast",
       "parallel_safe": false,
       "parameters": {
@@ -721,6 +833,10 @@
     },
     {
       "description": "创建自由 Agent 会话（count 1-50 批量；role / persona / tags / skill；名称规则与别名映射）。",
+      "display": {
+        "icon": "💬",
+        "label": "新建会话"
+      },
       "name": "session_create",
       "parallel_safe": false,
       "parameters": {
@@ -756,12 +872,20 @@
     },
     {
       "description": "列出协作网络中的自由 Agent（状态派生：running / queued / meta.status；含 queueSize）。",
+      "display": {
+        "icon": "💬",
+        "label": "列出会话"
+      },
       "name": "session_list",
       "parallel_safe": false,
       "parameters": {}
     },
     {
       "description": "向多个目标 Agent 发送同一条消息（target_ids 列表或逗号分隔）；返回 sent / skipped / partial。",
+      "display": {
+        "icon": "💬",
+        "label": "多会话分发"
+      },
       "name": "session_multisend",
       "parallel_safe": false,
       "parameters": {
@@ -793,6 +917,10 @@
     },
     {
       "description": "向目标 Agent 发送消息并触发其执行；目标忙时进入 inbox 队列（requires_reply 必填）。",
+      "display": {
+        "icon": "💬",
+        "label": "发送到会话"
+      },
       "name": "session_send",
       "parallel_safe": false,
       "parameters": {
@@ -824,6 +952,10 @@
     },
     {
       "description": "技能管理：`action=list` 列出可用技能；`action=read` 读取技能全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。",
+      "display": {
+        "icon": "🧩",
+        "label": "技能管理"
+      },
       "name": "skill_manage",
       "parallel_safe": false,
       "parameters": {
@@ -847,6 +979,10 @@
     },
     {
       "description": "暂停自主执行：宿主停止自动激活，N 秒后携提醒重新激活（1~86400 秒）。",
+      "display": {
+        "icon": "⏱️",
+        "label": "等待一段时间"
+      },
       "name": "task_sleep",
       "parallel_safe": false,
       "parameters": {
@@ -862,6 +998,10 @@
     },
     {
       "description": "对左右两侧文本生成 unified diff（只读不落盘）；左右各取「文件路径或内联文本」之一。",
+      "display": {
+        "icon": "📑",
+        "label": "对比文本"
+      },
       "name": "text_diff",
       "parallel_safe": false,
       "parameters": {
@@ -893,6 +1033,10 @@
     },
     {
       "description": "会话待办清单：`action=create / check / uncheck / add_item / remove_item / replace_item / collapse / close / query`。",
+      "display": {
+        "icon": "☑️",
+        "label": "待办清单"
+      },
       "name": "todo_list",
       "parallel_safe": false,
       "parameters": {
@@ -920,6 +1064,10 @@
     },
     {
       "description": "对目录下 Python 文件做 AST 语法诊断，并尽力调用 ruff（PATH 中存在时）；发现 error 级问题返回 ok=false。",
+      "display": {
+        "icon": "🛠️",
+        "label": "统一诊断"
+      },
       "name": "unified_diagnose",
       "parallel_safe": false,
       "parameters": {
@@ -951,6 +1099,10 @@
     },
     {
       "description": "向用户发起分岔确认：首段提交 title + confirms 选项（返回待确认信封）；用户确认后携带 confirm 再次调用回填。",
+      "display": {
+        "icon": "⚠️",
+        "label": "等待确认"
+      },
       "name": "user_confirm",
       "parallel_safe": false,
       "parameters": {
@@ -986,6 +1138,10 @@
     },
     {
       "description": "抓取网页（urllib 无第三方依赖）并提取纯文本；支持超时、长度限制、min_chars/require_keywords 验收与落盘。",
+      "display": {
+        "icon": "🌐",
+        "label": "抓取网页内容"
+      },
       "name": "web_fetch",
       "parallel_safe": false,
       "parameters": {
@@ -1021,6 +1177,10 @@
     },
     {
       "description": "用 Playwright 无头浏览器抓取 JS 渲染后的页面（可选依赖；缺失时给出安装提示）。",
+      "display": {
+        "icon": "🌐",
+        "label": "抓取网页内容"
+      },
       "name": "web_fetch_render",
       "parallel_safe": false,
       "parameters": {
@@ -1040,6 +1200,10 @@
     },
     {
       "description": "预览写入文本文件（不落盘），返回 confirm_id。落盘前必须先 review：用 review_conclusion 提交结论与证据解锁，再用该 confirm_id 调 commit_write。",
+      "display": {
+        "icon": "📝",
+        "label": "写入文件"
+      },
       "name": "write_file",
       "parallel_safe": false,
       "parameters": {

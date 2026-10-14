@@ -181,6 +181,8 @@ class ArchiveTool(ToolPlugin):
     """压缩包：list 只读；extract / create 预览（不落盘）。"""
 
     name = "archive"
+    label = "压缩包操作"
+    icon = "🗜️"
     description = "压缩包 list / extract / create：list 只读；extract / create 先预览（不落盘，返回 confirm_id），凭 commit_write 提交执行。"
     parameters = {
         "action": {"type": "string", "description": "list / extract / create"},

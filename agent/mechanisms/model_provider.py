@@ -375,55 +375,6 @@ def _append_request_log(line: str) -> None:
             fh.write(f"{stamp} {line}\n")
     except OSError:
         pass
-
-
-#: 模型"声称看不到图"的典型说法。用于**带图却否认**时自动纠正重试。
-#: 这些短语只在「没吃到图片」或「吃到了却否认」时出现 ——
-#: 正常看图作答不会说这些（它只会描述图里的东西）。
-_IMAGE_DENIAL_HINTS = (
-    # 「看不到」三个字是最常见的否认形态，且**不包含**「看不到图」这类更长片段，
-    # 所以最短的这条必须单列。
-    "看不到", "看不见", "无法看到",
-    "看不到图", "看不到这张图", "看不到你贴", "看不到你发", "看不到图片",
-    "拿不到像素", "没有像素", "没有图像数据", "没有可读的图像",
-    "图像输入通道", "没有视觉", "无法查看图片", "无法看到图",
-    "只有一个占位", "只是个占位", "只传进来一个占位", "占位符",
-    "图片没有成功发送", "图没收到", "我没收到图",
-    # 另一类**更隐蔽**的否认：不提「看不到」，而是**要文件路径** ——
-    # 那等于承认自己没拿到图。
-    "没有收到实际的图片", "没有拿到这张图", "没拿到这张图", "没有可访问的图片",
-    "只看到题干", "没有附带图片", "没附带图片", "只有文字",
-    "给我图片在磁盘", "图的文件路径", "图片的文件路径", "拿不到这张图的文件",
-    "没有拿到这张图的文件", "还没拿到这张图",
-)
-
-#: 纠正提示：**追加在末尾**（近距离最强），并且明确否认"前面那些否认"。
-_VISION_REMINDER = (
-    "系统校验：本轮请求**确实携带了用户上传的图片**（多模态 image_url 内容块，就在上面的 user 消息里）。"
-    "你是具备原生视觉能力的模型，请直接依据图片作答。"
-    "如果你刚才说过「看不到图片」「拿不到像素」「只有一个占位」之类的话，那是误判，请忽略并重新作答。"
-)
-
-
-def _has_image_blocks(messages: Any) -> bool:
-    """消息里是否存在 `image_url` 块（= 本轮真的带了图）。"""
-    for m in messages or []:
-        if not isinstance(m, dict):
-            continue
-        content = m.get("content")
-        if isinstance(content, list) and any(
-            isinstance(p, dict) and p.get("type") == "image_url" for p in content
-        ):
-            return True
-    return False
-
-
-def _denies_seeing_images(text: str) -> bool:
-    """文本是否在"声称自己看不到图"。"""
-    s = str(text or "")
-    return any(hint in s for hint in _IMAGE_DENIAL_HINTS)
-
-
 def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
     """发送前把请求摘要成**一行**（`AI_AGENT_LOG_REQUESTS=1` 时打）。
 
@@ -469,7 +420,6 @@ def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
 class OpenAICompatibleProvider(ModelProvider):
     """OpenAI 兼容真实适配（SSE 流式；stdlib urllib）。
 
-    - stream_options 受 include_usage 控制；首次 400 且请求含 stream_options
       时剥离并重试一次（部分网关不支持该字段）；
     - HTTP 错误：DeepSeek 基址 / 模型名命中时映射中文提示，否则原样返回；
     - 超时：默认 300s；
@@ -484,16 +434,14 @@ class OpenAICompatibleProvider(ModelProvider):
         api_key: str,
         model: str,
         timeout: float = 300.0,
-        # 默认**不下发** `stream_options`：官方在末帧本来就会带上 usage
-        # 附在最后一个内容块上（文档明确），这个开关对单次请求是冗余的。
-        include_usage: bool = False,
+        # usage 取官方流末帧自带的那一份：`stream_options.include_usage` 只是让中间帧
+        # 也带上 usage（官方文档），单次请求用它属于多余，本实现不下发。
         extra_headers: Optional[Dict[str, str]] = None,
     ) -> None:
         self.base_url = str(base_url or "").strip()
         self.api_key = str(api_key or "").strip()
         self.model = str(model or "").strip()
         self.timeout = float(timeout)
-        self.include_usage = bool(include_usage)
         self.extra_headers = {str(k): str(v) for k, v in dict(extra_headers or {}).items()}
 
     def stream(self, request: Any) -> Iterator[StreamDelta]:
@@ -551,10 +499,6 @@ class OpenAICompatibleProvider(ModelProvider):
         uid = re.sub(r"[^a-zA-Z0-9_-]", "", str(getattr(request, "conversation_id", "") or ""))[:512]
         if uid:
             payload["user"] = uid
-        if self.include_usage:
-            # 官方支持 `stream_options.include_usage`；默认关闭
-            # （`include_usage` 构造参数默认 False），需要时再开。
-            payload["stream_options"] = {"include_usage": True}
         if _LOG_REQUESTS:
             # 发送前留痕：出问题时第一件要回答的是"图片有没有进请求"。
             # **同时写 stderr 与文件**：控制台可能被重定向/管道吞掉，
@@ -563,51 +507,7 @@ class OpenAICompatibleProvider(ModelProvider):
             print(line, file=sys.stderr, flush=True)
             _append_request_log(line)
 
-        sent_image = _has_image_blocks(messages)
-        collected: List[Any] = []
-        denied_text: List[str] = []
-        for delta in _assemble_stream_deltas(self._post_stream(url, payload)):
-            # 仅在"本轮带了图"时顺带收集文本，供"声称看不到图"的识别使用
-            # （无图时零开销：那种错报不会发生）。
-            if sent_image:
-                kind = getattr(delta, "kind", "")
-                if kind == "text":
-                    denied_text.append(str(delta.text or ""))
-            collected.append(delta)
-            yield delta
-
-        if not sent_image or not _denies_seeing_images("".join(denied_text)):
-            return
-
-        # **带图却声称看不到**：历史里那些"我看不到图片"的断言是极强的 few-shot，
-        # 会把后续每一轮都锚死在"看不到"上（同一条带图消息：带全部历史几乎全部答"看不到"，
-        # 只带系统提示 + 当前这条则全部正确作答）。
-        # 本实现**丢掉被污染的对话历史**，
-        # 用「系统提示 + 当前这条带图消息」重试。**只重试一次**。
-        last_image_msg = None
-        for m in reversed(messages):
-            if not isinstance(m, dict):
-                continue
-            content = m.get("content")
-            if m.get("role") == "user" and isinstance(content, list) and any(
-                isinstance(p, dict) and p.get("type") == "image_url" for p in content
-            ):
-                last_image_msg = m
-                break
-        if last_image_msg is None:
-            return
-        sys_text = str(getattr(request, "system", "") or "").strip()
-        fresh: List[Dict[str, Any]] = []
-        if sys_text:
-            fresh.append({"role": "system", "content": sys_text})
-        fresh.append(last_image_msg)
-        retry_payload = dict(payload)
-        retry_payload["messages"] = fresh
-        line = (f"[llm↻] 带图却被否认 → 丢弃被污染的历史，用最小上下文重试一次 "
-                f"({len(messages)} 条 → {len(fresh)} 条) model={model}")
-        print(line, file=sys.stderr, flush=True)
-        _append_request_log(line)
-        yield from _assemble_stream_deltas(self._post_stream(url, retry_payload))
+        yield from _assemble_stream_deltas(self._post_stream(url, payload))
 
     def _is_local_model(self, model: str = "") -> bool:
         """本地模型（浏览器页面）不支持 tools / thinking / reasoning_effort。
@@ -629,33 +529,22 @@ class OpenAICompatibleProvider(ModelProvider):
         return headers
 
     def _post_stream(self, url: str, payload: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
-        body = dict(payload)
-        attempt = 0
-        resp = None
-        while attempt < 2:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-                headers=self._headers(),
-                method="POST",
-            )
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers=self._headers(),
+            method="POST",
+        )
+        try:
+            resp = urllib.request.urlopen(req, timeout=self.timeout)
+        except urllib.error.HTTPError as exc:
             try:
-                resp = urllib.request.urlopen(req, timeout=self.timeout)
-                break
-            except urllib.error.HTTPError as exc:
-                try:
-                    detail_body = exc.read().decode("utf-8", errors="replace")
-                except Exception:
-                    detail_body = ""
-                if attempt == 0 and exc.code == 400 and "stream_options" in body:
-                    body.pop("stream_options", None)
-                    attempt = 1
-                    continue
-                raise self._http_error(exc.code, detail_body) from exc
-            except urllib.error.URLError as exc:
-                raise ModelRequestError(f"网络错误：{getattr(exc, 'reason', exc)}") from exc
-        if resp is None:
-            raise ModelRequestError("流式连接打开失败。")
+                detail_body = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                detail_body = ""
+            raise self._http_error(exc.code, detail_body) from exc
+        except urllib.error.URLError as exc:
+            raise ModelRequestError(f"网络错误：{getattr(exc, 'reason', exc)}") from exc
         try:
             lines = (raw.decode("utf-8", errors="replace") for raw in resp)
             yield from _parse_sse_lines(lines)

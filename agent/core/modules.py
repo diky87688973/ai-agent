@@ -19,6 +19,7 @@ from agent.core.event_name import (
     COMPRESS_ENDED,
     COMPRESS_STARTED,
     CONTEXT_COMPACTED,
+    CONTEXT_SEGMENTS,
     ERROR,
     INBOX_DEQUEUED,
     INPUT_CLAIMED,
@@ -152,7 +153,7 @@ class InboxModule(ModuleBase):
                 yield ports.emit(INBOX_DEQUEUED, batch_count=0, dropped=1)
                 continue
             # 入站消息就是**一条用户输入事实**：这样它自然进入模型可见消息序列，
-            # 与用户手打的输入走同一条读规则（不再为"对等消息"另造一套）。
+            # 与用户手打的输入走同一条读规则。
             # 发送者字段由 `session_send` 写入，键名是 `_sender` / `_sender_name`
             # （下划线开头，与事实字段一致）。
             sender = str(msg.get("_sender") or msg.get("sender") or "").strip()
@@ -179,9 +180,21 @@ class CompressModule(ModuleBase):
     name = "compress"
     requires = ("context", "compactor")
 
-    def __init__(self, *, context: Any = None, compactor: Any = None) -> None:
+    def __init__(self, *, context: Any = None, compactor: Any = None,
+                 mode_note: str = "") -> None:
         self._context = context
         self._compactor = compactor
+        #: 执行模式说明 —— 摘要复用前缀时要照平常请求补在末尾。
+        #: 与 `ModelModule` 各持一份：两个模块各自组装各自的请求，互相不读对方状态。
+        self._mode_note = str(mode_note or "")
+
+    def _covered_end(self) -> int:
+        """已覆盖前缀长度（压缩器维护）；没有压缩器就是 0。"""
+        value = getattr(self._compactor, "covered_end", 0)
+        try:
+            return max(0, int(value or 0))
+        except (TypeError, ValueError):
+            return 0
 
     def execute(self, ports: Ports) -> Iterator[Any]:
         if self._context is None and self._compactor is None:
@@ -194,17 +207,30 @@ class CompressModule(ModuleBase):
         # 发给模型的请求序列：**必须成对**（`derive_request_messages`
         # 会为悬空的 tool_calls 补说明性占位，否则模型 API 硬拒绝 400）。
         # 请求序列取自 derive_request_messages()；derive_messages() 保留悬空——那是日志的忠实折叠，会保留悬空。
-        messages = ports.log.derive_request_messages()
-        yield ports.emit(COMPRESS_STARTED, messages=len(messages))
+        dialogue = ports.log.derive_request_messages()
+        # 工具定义照平常请求取同一份：摘要复用前缀时它是前缀的一部分，
+        # 少一项或换一份就整段缓存作废。
+        schemas = ports.tool_port.schemas() if getattr(ports, "tool_port", None) is not None else []
+        yield ports.emit(COMPRESS_STARTED, messages=len(dialogue))
         report: Any = None
         if self._compactor is not None:
             try:
+                # 压缩走**同一条装配入口**：头部 + 对话（+ 尾部仅执行模式，随后剔除）。
+                # 压缩器拿到的这份与随后模型请求的前缀是同一份装配结果。
+                whole = _assemble_with(self._context, dialogue, self._mode_note,
+                                       self._covered_end())
                 report = self._compactor.ensure_before_append(
-                    self._context, messages, pending=None)
-            except Exception:
-                report = None                      # 压缩异常 → 放行，不阻断回合
-        else:
-            _rebuild(self._context, messages)
+                    self._context, dialogue, pending=None, tools=schemas,
+                    mode_note=self._mode_note, assembled=whole)
+            except Exception as exc:
+                # 压缩异常 → 放行，不阻断回合；但**必须留痕**：静默吞掉会让
+                # "压缩从未生效"看起来像"没超阈值"，排查时会往完全错的方向找。
+                report = None
+                print(f"[core] 压缩检查失败（已放行，本轮不压缩）："
+                      f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        elif self._context is not None:
+            # 没有压缩能力：至少把对话装进上下文，后续模块才看得到。
+            _assemble_with(self._context, dialogue, self._mode_note, 0)
         compacted = isinstance(report, dict) and bool(report)
         if compacted:
             yield ports.emit(CONTEXT_COMPACTED, **report)
@@ -239,7 +265,8 @@ class ModelModule(ModuleBase):
     def __init__(self, *, context: Any = None, compactor: Any = None,
                  effort: str = "high", model: str = "",
                  image_turns: int = KEEP_IMAGE_TURNS,
-                 image_max: int = MAX_EMBED_IMAGES) -> None:
+                 image_max: int = MAX_EMBED_IMAGES,
+                 mode_note: str = "") -> None:
         self._context = context
         self._compactor = compactor
         self._effort = str(effort or "high")
@@ -250,6 +277,17 @@ class ModelModule(ModuleBase):
         self._image_turns = int(image_turns)
         #: 这些轮里最多带几张图；负数 = 不限。最近一轮优先保。
         self._image_max = int(image_max)
+        #: 执行模式说明：**只加在发给模型的这一份请求尾部**，不落记录、不发事件。
+        #: 放在最后一项是为了让切模式只影响尾部这一条，前面的前缀缓存照旧命中。
+        self._mode_note = str(mode_note or "")
+
+    def _covered_end(self) -> int:
+        """已覆盖前缀长度（压缩器维护）；没有压缩器就是 0。"""
+        value = getattr(self._compactor, "covered_end", 0)
+        try:
+            return max(0, int(value or 0))
+        except (TypeError, ValueError):
+            return 0
 
     def execute(self, ports: Ports) -> Iterator[Any]:
         if not _tail_expects_model(ports.log):
@@ -259,20 +297,30 @@ class ModelModule(ModuleBase):
             yield ports.emit(ERROR, where="model", detail="未装配模型端口")
             return Outcome.halt("未装配模型端口")
 
-        messages = ports.log.derive_messages()
+        dialogue = ports.log.derive_messages()
         # 老图不重复塞进请求体：图片按**最近几轮用户发言**保留、总数再设一道闸，
         # 更早/超量的转文本占位。只改这一份，事实流里的字节一个都不动。
-        messages, _stripped = strip_old_images(
-            messages, keep_turns=self._image_turns, max_images=self._image_max)
+        dialogue, _stripped = strip_old_images(
+            dialogue, keep_turns=self._image_turns, max_images=self._image_max)
+
+        # ── 装配：头部 + 对话 + 尾部（唯一入口，不重建）──
+        #
+        # 头部 = 系统提示 / Skills / 知识库 / 摘要（管线持有）
+        # 对话 = 事实折叠出来的对话
+        # 尾部 = 执行模式（本轮新输入已在对话末尾，由事实带来）
         if self._context is not None:
-            _rebuild(self._context, messages)
-            try:
-                messages = self._context.flatten_to_messages()
-            except Exception as exc:
-                # 拿不到扁平化消息 → 压缩模块看到的是**上一次**的快照，
-                # 压缩预算可能算错。不阻断（压缩是优化），但必须留痕。
-                print(f"[core] 取扁平化消息失败（压缩预算可能失准）："
-                      f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            assembled = _assemble_with(self._context, dialogue, self._mode_note,
+                                       self._covered_end())
+            if assembled is None:
+                # 上下文缺装配能力 → 退回只有对话（不阻断回合），但必须留痕：
+                # 这种请求缺头部，模型看不到系统提示，属于异常状态。
+                print("[core] 上下文缺装配能力（本轮请求可能缺系统前缀）",
+                      file=sys.stderr, flush=True)
+                messages = _with_mode_note(dialogue, self._mode_note)
+            else:
+                messages = assembled
+        else:
+            messages = _with_mode_note(dialogue, self._mode_note)
 
         request = LogicalRequest(
             messages=messages,
@@ -284,6 +332,20 @@ class ModelModule(ModuleBase):
                     if self._context is not None and hasattr(self._context, "system_text")
                     else ""),
         )
+        # 装配完成 → 发一条**分段快照**（上下文示意图的数据源）。
+        # 分段统计走把装配结果拆开的方式：模式与工具结果的内部注入只在这份
+        # 装配里，落记录里没有，所以只能在这里算。
+        #
+        # 预算（= 压缩阈值）必须显式传：不传就只能拿"已用"当归一化基准，
+        # 剩余容量恒为 0，界面那条永远显示 0%。
+        budget = 0
+        try:
+            budget = int(getattr(self._compactor, "summary_token_threshold", 0) or 0)
+        except (TypeError, ValueError):
+            budget = 0
+        segments = _segment_snapshot(self._context, messages, budget_tokens=budget)
+        if segments is not None:
+            yield ports.emit(CONTEXT_SEGMENTS, **segments)
         # 模型模块**自己的**细粒度事件：调用边界。有了它，监控能算出调用 RT
         # （以及首帧时延），而不必去猜"哪两个事件之间算一次调用"。
         # 这是"各个模块内部管理自己的事件"的落点——宿主不掺和。
@@ -388,10 +450,10 @@ class ModelModule(ModuleBase):
 #:   ① 与 `tool_started` **配对**，监控不必猜"哪个事件算结束"；
 #:   ② 把"发生了什么"（done/failed/suspended）与"结束了"分开——
 #:      前者是结果，后者是生命周期；
-#:   ③ 将来加 `tool_canceled`、超时等终止路径时，**配对关系不用改**。
+#:   ③ 加新的终止路径（取消、超时）时，**配对关系不用改**。
 #:
-#: 事件名从 `event_name.py` 导入；本文件不重复定义字面量（本文件顶部）。
-#: 在这里重写一遍字面量会把导入的名字覆盖回去，"唯一出处"即名存实亡。
+#: 事件名从 `event_name.py` 导入：在这里重写字面量会把导入的名字覆盖回去，
+#: "唯一出处"随之失效。
 
 
 class ToolModule(ModuleBase):
@@ -493,6 +555,21 @@ class ToolModule(ModuleBase):
 # ══════════════════════════════════════════════════════════════════════
 
 
+def _with_mode_note(messages: Any, mode_note: str) -> List[Dict[str, Any]]:
+    """把执行模式说明附加到请求消息的**最末尾**（不动原列表、不动事实流）。
+
+    模式说明是宿主附加的指令，不是用户发言 —— 用 `role=system`。
+    非用户发起的请求一律走 system：用户消息的位置只放用户真正发的东西。
+
+    追加一条独立消息而不是拼进最后一条的正文：最后一条可能是多模态数组
+    或工具结果，拼接会改坏它的结构；独立成条也保证"改动只落在尾部"这件事一眼可见。
+    """
+    note = str(mode_note or "").strip()
+    if not note:
+        return list(messages or [])
+    return list(messages or []) + [{"role": "system", "content": note}]
+
+
 def build_default_chain(
     *,
     input_module: Optional[ModuleBase] = None,
@@ -503,6 +580,7 @@ def build_default_chain(
     model: str = "",
     image_turns: int = KEEP_IMAGE_TURNS,
     image_max: int = MAX_EMBED_IMAGES,
+    mode_note: str = "",
 ) -> List[ModuleBase]:
     """默认模块链：输入 → 收件箱 → 压缩 → 模型 → 工具。
 
@@ -514,9 +592,10 @@ def build_default_chain(
     return [
         input_module if input_module is not None else InputModule(),
         InboxModule(inbox=inbox),
-        CompressModule(context=context, compactor=compactor),
+        CompressModule(context=context, compactor=compactor, mode_note=mode_note),
         ModelModule(context=context, compactor=compactor, effort=effort, model=model,
-                    image_turns=image_turns, image_max=image_max),
+                    image_turns=image_turns, image_max=image_max,
+                    mode_note=mode_note),
         ToolModule(),
     ]
 
@@ -526,17 +605,65 @@ def build_default_chain(
 # ══════════════════════════════════════════════════════════════════════
 
 
-def _rebuild(context: Any, messages: List[Dict[str, Any]]) -> None:
-    """让上下文管线按当前消息重建（管线缺省/异常时静默跳过）。"""
-    if context is None or not hasattr(context, "rebuild_from_messages"):
-        return
+
+
+
+def _assemble_with(context: Any, dialogue: Any, mode_note: str,
+                   covered_end: int) -> Optional[List[Dict[str, Any]]]:
+    """把对话装进上下文并装配出整份请求消息（头部 + 对话 + 尾部）。
+
+    上下文缺能力（没实现 `set_dialogue` / `assembles`）时返回 None ——
+    调用方据此退回"只有对话"的降级路径，而不是崩掉。
+    """
+    if context is None:
+        return None
+    if not (hasattr(context, "set_dialogue") and hasattr(context, "assembles")):
+        return None
+    context.set_dialogue(dialogue, covered_end=covered_end)
+    note = str(mode_note or "").strip()
+    tail = [{"role": "system", "content": note}] if note else []
+    return list(context.assembles(tail))
+
+
+def _segment_snapshot(context: Any, messages: Any,
+                      budget_tokens: int = 0) -> Optional[Dict[str, Any]]:
+    """把装配好的请求拆成分段快照（段名 + 各段估算 token）。
+
+    口径与真正发出去的请求一致（同一份装配、同一个估算器）：
+    头部各块（系统提示词 / 插件各段 / 记忆摘要）+ 对话
+    + 尾部（本轮新输入 / 工具结果 / 执行模式）。
+
+    `budget_tokens` 是各段 `pct` 的归一化基准（= 压缩阈值）。不传就只能拿"已用"
+    当基准，剩余容量恒为 0 —— 界面那条永远显示 0%，所以调用方必须给。
+
+    上下文缺分段能力（或算不出来）→ `None`，调用方不发这条事件。
+    """
+    if context is None or not hasattr(context, "layout_payload"):
+        return None
+    mode = _mode_tail(messages)
     try:
-        context.rebuild_from_messages(messages)
-    except Exception as exc:
-        # 重建失败 = 压缩模块这轮看到的是**过时**的上下文快照，
-        # 压缩决策可能因此失准。不阻断回合（压缩是优化不是必需），但必须留痕。
-        print(f"[core] 上下文重建失败（本轮压缩决策可能失准）：{type(exc).__name__}: {exc}",
-              file=sys.stderr, flush=True)
+        payload = context.layout_payload(tail_messages=mode,
+                                         budget_tokens=int(budget_tokens or 0))
+    except Exception:
+        return None
+    if not payload or not payload.get("segments"):
+        return None
+    return payload
+
+
+def _mode_tail(messages: Any) -> List[Dict[str, Any]]:
+    """请求尾部的执行模式说明（正文以 `## 当前模式：` 开头）。
+
+    位置不固定：用户输入轮末尾是 `[本轮新输入][执行模式]`，工具轮里是
+    `[执行模式][工具结果]`。所以倒序按内容认，不按位置猜。
+    """
+    for m in reversed(list(messages or [])):
+        if not isinstance(m, dict):
+            continue
+        if str(m.get("role") or "") == "system" \
+                and str(m.get("content") or "").startswith("## 当前模式"):
+            return [m]
+    return []
 
 
 def _tail_expects_model(log: SessionLog) -> bool:

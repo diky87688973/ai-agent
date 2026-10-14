@@ -15,6 +15,8 @@ class GlobFilesTool(ToolPlugin):
     """按 glob 模式列出目录下路径（可选递归与条目类型过滤）。"""
 
     name = "glob_files"
+    label = "列出路径"
+    icon = "📂"
     description = "按 glob 模式列出路径；可选递归与 file/dir/all 过滤。"
     parameters = {
         "path": {"type": "string", "description": "目录根，默认 ."},

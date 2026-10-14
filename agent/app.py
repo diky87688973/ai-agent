@@ -27,7 +27,6 @@ from agent.capabilities.builtin import (
     read_file,
     review_conclusion,
     session_tools,
-    skill_tools,
     system_tools,
     task_tools,
     text_data_tools,
@@ -46,7 +45,6 @@ from agent.config import (
     get_model_reasoning,
     get_plugins,
     get_reasoning_effort,
-    get_skills,
 )
 from agent.core.context import (
     SERVICE_CLASSIC_ADAPTER,
@@ -74,6 +72,7 @@ from agent.core.session_log import SessionLog
 from agent.core.tool_call import ToolPipeline
 from agent.mechanisms.context_compactor import ContextCompactor, make_provider_summarizer
 from agent.mechanisms.context_pipeline import ContextPipeline, ContextSources
+from agent.mechanisms.executors import ExecutorRegistry
 from agent.mechanisms.file_safety import (
     FileBackups,
     Recycle,
@@ -83,7 +82,6 @@ from agent.mechanisms.mesh import MeshState
 from agent.mechanisms.model_pricing import ModelPricing
 from agent.mechanisms.model_provider import EchoProvider
 from agent.mechanisms.quality_gate import QualityGate, build_pipeline_gate
-from agent.mechanisms.skills import SkillManager
 from agent.shell.classic_adapter import ClassicAdapter
 from agent.shell.session_runner import SessionRunner
 
@@ -262,6 +260,7 @@ class App:
         system_prompt: str = "",
         cancel: Optional[Callable[[], bool]] = None,
         inbox: Any = None,
+        mode_note: str = "",
     ) -> Any:
         """创建会话引擎：装载既有记录（store 可用时）、装配上下文与持久化旁路。
 
@@ -341,6 +340,7 @@ class App:
             model=str(self.live_state.get_model(conversation_id) or "") if self.live_state else "",
             image_turns=self.image_turns,
             image_max=self.image_max,
+            mode_note=str(mode_note or ""),
             event_sink=self.event_bus.publish if self.event_bus is not None else None,
             session_context=session_ctx,
             seq_allocator=seq_allocator,
@@ -369,6 +369,7 @@ def _build_engine(
     model: str = "",
     image_turns: int = KEEP_IMAGE_TURNS,
     image_max: int = MAX_EMBED_IMAGES,
+    mode_note: str = "",
     event_sink: Any = None,
     session_context: Any = None,
     seq_allocator: Any = None,
@@ -383,9 +384,8 @@ def _build_engine(
     """
     from agent.core.engine import Engine
 
-    # ⚠️ `system_prompt` 由 `App.session()` 注入一次：
-    # （见本文件上方的装配流程）。这里再注入一次会造成**每个请求把系统提示
-    # 发两遍**——真实身份块上千 token，等于每请求双付，还可能干扰指令遵循。
+    # `system_prompt` 由 `App.session()` 注入一次。这里再注入一次就会**每个请求
+    # 把系统提示发两遍** —— 真实身份块上千 token，等于每请求双付。
     return Engine(
         conversation_id=conversation_id,
         log=log,
@@ -398,6 +398,8 @@ def _build_engine(
         effort=effort,
         model=model,
         image_turns=image_turns,
+        image_max=image_max,
+        mode_note=mode_note,
         fact_sink=fact_sink,
         event_sink=event_sink,
         session_context=session_context,
@@ -421,7 +423,6 @@ def build_app(
     live_state: Optional[LiveState] = None,
     mesh: Optional[MeshState] = None,
     backup_retention_days: Optional[int] = None,
-    skill_library: Optional[SkillManager] = None,
     plugins_dir: Optional[Path] = None,
     compactor_factory: Optional[Callable[[str], Any]] = None,
 ) -> App:
@@ -431,7 +432,6 @@ def build_app(
     写类工具覆盖前留备份供 file_undo 回滚，删除类操作移入回收目录可恢复）。
     live_state：会话实时状态（模式 / todo 清单）；默认落 PROJECT_ROOT/data/todo_lists。
     mesh：会话协作网格（Agent 注册表 / inbox）；默认落 PROJECT_ROOT/data/mesh。
-    skill_library：技能库；默认按 config.ini [skills] 节装配（留空禁用）。
     plugins_dir：插件根目录；默认 PROJECT_ROOT/plugins。装载哪些取工程根 plugins.ini 清单。
     compactor_factory：上下文压缩器工厂；默认为对话提供 provider 摘要 + config [context] 阈值。"""
     # 默认数据根：认 `AI_AGENT_DATA_ROOT`（只给测试/CI 的落盘隔离口）——
@@ -472,11 +472,6 @@ def build_app(
     )
     mesh_state = mesh if mesh is not None else MeshState(storage_dir=data_root / "mesh")
 
-    skills_cfg = get_skills()
-    skill_lib = skill_library if skill_library is not None else SkillManager(
-        Path(skills_cfg["dir"]) if skills_cfg["dir"] else None,
-        int(skills_cfg["max_file_size"]),
-    )
     registry = ToolRegistry()
     registry.register(echo.build())
     registry.register(read_file.build())
@@ -508,7 +503,6 @@ def build_app(
     for plugin in geo_weather_tools.build_plugins():
         registry.register(plugin)
     registry.register(github_tools.build())
-    registry.register(skill_tools.build(skill_lib))
     gate = QualityGate()
     contexts = SessionContexts(lambda cid: QualityGate(), live=state, inbox=mesh_state)
 
@@ -518,12 +512,13 @@ def build_app(
 
     registry.register(review_conclusion.build(_gate_resolver))
     executors: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
+    # 插件贡献的写类工具执行器登记在这里：提交那一刻才查，装配顺序无关。
+    executor_registry = ExecutorRegistry()
     executors.update(write_file.build_executors(backups))
     executors.update(edit_tools.build_executors(backups))
     executors.update(fs_tools.build_executors(backups, recycle))
     executors.update(archive_tool.build_executors())
-    executors.update(skill_tools.build_executors(skill_lib))
-    registry.register(commit_write.build(_gate_resolver, executors))
+    registry.register(commit_write.build(_gate_resolver, executors, executor_registry))
     pipeline = ToolPipeline()
     pre, post = build_pipeline_gate(
         gate, live_state=state, gate_resolver=_gate_resolver
@@ -531,6 +526,7 @@ def build_app(
     pipeline.add_pre(pre)
     pipeline.add_post(post)
     event_bus = EventBus()
+    # 上下文注入源：插件按段注册（宿主不认具体插件，段名与数量由插件给）。
     context_sources = ContextSources()
     # 插件贡献注册表：面板（界面）与插件命名空间端点（HTTP）都记在这里，
     # 壳层只按数据枚举，不必为每个插件加分支。
@@ -546,6 +542,7 @@ def build_app(
         contributions=contributions,
         # 插件专属存储根：各插件拿到 `<数据根>/plugin/<插件名>/`，互相隔离
         plugin_data_root=data_root / "plugin",
+        executors=executor_registry,
     )
     provider_inst = provider if provider is not None else EchoProvider()
     ctx_cfg = get_context()
@@ -556,7 +553,6 @@ def build_app(
         def _default_context_factory(conversation_id: str) -> ContextPipeline:
             return ContextPipeline(
                 conversation_id,
-                pure_user_rounds=int(ctx_cfg["pure_user_rounds"]),
                 full_user_rounds=int(ctx_cfg["full_user_rounds"]),
                 summary_token_threshold=int(ctx_cfg["summary_token_threshold"]),
                 sources=context_sources,
@@ -565,12 +561,16 @@ def build_app(
         context_factory = _default_context_factory
     if compactor_factory is None:
         summarizer = make_provider_summarizer(
-            provider_inst, max_chars=int(ctx_cfg["summary_output_max_chars"])
+            provider_inst,
+            max_chars=int(ctx_cfg["summary_output_max_chars"]),
+            prefix_reuse=bool(ctx_cfg["summary_prefix_reuse"]),
         )
 
         def _default_compactor_factory(conversation_id: str) -> ContextCompactor:
             return ContextCompactor(
-                summarizer, summary_token_threshold=int(ctx_cfg["summary_token_threshold"])
+                summarizer,
+                summary_token_threshold=int(ctx_cfg["summary_token_threshold"]),
+                full_user_rounds=int(ctx_cfg["full_user_rounds"]),
             )
 
         compactor_factory = _default_compactor_factory
@@ -599,7 +599,6 @@ def build_app(
     app = App(
         context,
         context_defaults={
-            "pure_user_rounds": int(ctx_cfg["pure_user_rounds"]),
             "full_user_rounds": int(ctx_cfg["full_user_rounds"]),
             "summary_token_threshold": int(ctx_cfg["summary_token_threshold"]),
         },

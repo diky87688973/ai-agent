@@ -86,26 +86,26 @@ user_rules_file =
 
 ## `[context]`
 
-上下文压缩。会话在内存中分三段：近期记忆、远期记忆、摘要。近期与远期按原文保留，超出保留窗口的远期轮次压缩成摘要。
+上下文压缩。会话在内存中分两段：近期记忆与摘要。末尾 `full_user_rounds` 个用户轮被遮盖、按原文保留，它们前面的轮次压缩成摘要。
 
 ```ini
 [context]
 summary_token_threshold  = 700000
-full_user_rounds         = 10
-pure_user_rounds         = 10
+full_user_rounds         = 1
 summary_output_max_chars = 5000
 image_turns              = 3
 image_max                = 10
+summary_prefix_reuse     = 1
 ```
 
 | 键 | 缺省或留空时 | 含义 | 建议范围 |
 |---|---|---|---|
-| `summary_token_threshold` | `8000` | 上下文估算 token 数超过此值时触发压缩。调大保留更多原文、请求更贵；调小更省但更早丢失细节 | `60000`–`1000000` |
-| `full_user_rounds` | `6` | 近期记忆保留的用户轮数，始终按原文发送 | `4`–`20` |
-| `pure_user_rounds` | `2` | 远期记忆额外缓冲的轮数，超过 `full + pure` 的部分才压缩 | `1`–`20` |
-| `summary_output_max_chars` | `2000` | 摘要的篇幅上限，单位为字。它作为约束写进摘要提示词，实际长度由模型遵守程度决定 | `2000`–`8000` |
+| `summary_token_threshold` | `700000` | 上下文估算 token 数超过此值时触发压缩。调大保留更多原文、请求更贵；调小更省但更早丢失细节 | `60000`–`1000000` |
+| `full_user_rounds` | `1` | 压缩时的遮盖轮数：末尾这么多用户轮不压，只压它们前面的 | `1`–`10` |
+| `summary_output_max_chars` | `5000` | 摘要的篇幅上限，单位为字。它作为约束写进摘要提示词，实际长度由模型遵守程度决定 | `2000`–`8000` |
 | `image_turns` | `3` | 只把**最近这么多轮用户发言**里的图片带进模型请求，更早的转文本占位。`0` = 一张都不带，负数 = 不限 | `1`–`10` |
 | `image_max` | `10` | 这几轮里最多带几张图；**最近一轮优先保**，超量的从最老的那一轮开始砍。`0` = 一张都不带，负数 = 不限 | `1`–`30` |
+| `summary_prefix_reuse` | `1` | 摘要那一次调用复用平常请求的前缀（系统提示词 + 工具定义 + 溢出点之前的消息），从而命中 KV 缓存。`0` 时摘要请求不带工具定义与前缀，前缀缓存必然不命中 | `0` / `1` |
 
 图片只从**发给模型的请求**里被裁掉，事实流里的字节不动 —— 历史回显与重新提问都还能拿到原图。
 
@@ -118,32 +118,25 @@ image_max                = 10
 插件的装载在**另一份文件** `plugins.ini`（工程根），不在 `config.ini` 里：列出即装载。
 
 ```ini
-[plugin:knowledge]
+[plugin:skills]
 version = 1.0
 
-[plugin:tts]
+[plugin:knowledge]
+version = 1.0
 ```
 
 | 名称 | 能力 | 自己的配置文件 |
 |---|---|---|
-| `knowledge` | 本地知识库检索 | `plugins/knowledge/config.ini` |
-| `tts` | 语音合成 | `plugins/tts/config.ini` |
+| `skills` | 技能库与 `skill_manage` 工具 | `plugins/skills/plugin-config.ini` |
+| `knowledge` | 本地知识库检索 | `plugins/knowledge/plugin-config.ini` |
+| `tts` | 语音合成 | `plugins/tts/plugin-config.ini` |
 
-**插件自己的配置跟着插件走。**
-每个插件目录下都有 `config.ini.example` 作为模板。
+**节的先后即上下文组装顺序**：越不容易变动的插件排在越前面。
+
+**插件自己的配置跟着插件走。** 每个插件目录下都有 `plugin-config.ini.example` 作为模板，
+自用配置不入库；**内核的 `config.ini` 里没有插件设置**。
 插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.md)。
 
-## `[skills]`
-
-技能库目录。留空禁用。
-
-```ini
-[skills]
-dir           =
-max_file_size = 200000
-```
-
-相对路径按项目根解析；目录不存在时静默降级为"未启用"，不报错。
 
 ## `[model_pricing]`
 

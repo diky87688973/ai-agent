@@ -11,6 +11,7 @@ skill_manage / github_api）headless 演示。
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -26,7 +27,6 @@ from agent.core.tool_call import ToolCallRequest, ToolResult  # noqa: E402
 from agent.mechanisms import quality_gate  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
-from agent.mechanisms.skills import SkillManager  # noqa: E402
 
 CID_DRIVER = "accept-batch-f"
 
@@ -42,12 +42,15 @@ class Acceptance:
         self.root = root
         self.skills_dir = root / "skills"
         self.skills_dir.mkdir()
+        # 技能目录由 `skills` 插件装载时解析：经环境变量指到本次的临时目录，
+        # 否则插件读到的是工程配置里那个真目录。
+        self._skills_env_old = os.environ.get("AI_AGENT_SKILLS_DIR")
+        os.environ["AI_AGENT_SKILLS_DIR"] = str(self.skills_dir)
         self.app = build_app(
             backup_root=root / "backups",
             recycle_root=root / "recycle",
             live_state=LiveState(storage_dir=root / "todo"),
             mesh=MeshState(storage_dir=root / "mesh"),
-            skill_library=SkillManager(self.skills_dir),
         )
         self.seq = 0
         self.failures: list = []
@@ -253,9 +256,16 @@ class Acceptance:
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         acc = Acceptance(Path(tmp))
-        acc.scenario_1()
-        acc.scenario_2()
-        acc.scenario_3()
+        try:
+            acc.scenario_1()
+            acc.scenario_2()
+            acc.scenario_3()
+        finally:
+            # 环境变量是本脚本自己设的，用完还原，别影响同一进程里后续的东西。
+            if acc._skills_env_old is None:
+                os.environ.pop("AI_AGENT_SKILLS_DIR", None)
+            else:
+                os.environ["AI_AGENT_SKILLS_DIR"] = acc._skills_env_old
         print()
         if acc.failures:
             print(f"验收失败：{len(acc.failures)} 项未通过")

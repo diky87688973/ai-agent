@@ -10,6 +10,7 @@ AI 编码准则（摘取可操作项）· 三模式提示 · 用户自定义规�
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 # 术语表：**防歧义**
@@ -102,7 +103,7 @@ def build_system_prompt(
     tool_summary: str = "",
     user_rules: str = "",
 ) -> str:
-    """组装基础系统提示词（模式段随模式切换）。
+    """组装基础系统提示词。
 
     参数都可缺省：缺省时仍输出纪律与模式两段，系统提示不会退化为空串，
     空系统提示会让模型只凭工具 schema 猜纪律。
@@ -112,7 +113,7 @@ def build_system_prompt(
         _TERMINOLOGY,
         _TOOLING_DISCIPLINE,
         _CODING_DISCIPLINE,
-        _MODE_PROMPTS.get(str(mode or "auto").lower(), _MODE_PROMPTS["auto"]),
+        mode_section(mode),
     ]
     if str(user_rules or "").strip():
         parts.append("## 用户自定义规则\n" + str(user_rules).strip())
@@ -122,6 +123,48 @@ def build_system_prompt(
             + "\n" + _TOOL_SUMMARY_FOOTER
         )
     return "\n\n".join(parts)
+
+
+#: 模式段的起始标记。切分系统提示词时用它定位，不靠"模式段必是最后一段"这种位置假设。
+_MODE_MARKER = "## 当前模式："
+
+#: 段分隔符（`build_system_prompt` 用它拼接，切分时按它还原）。
+_SECTION_JOIN = "\n\n"
+
+#: 下一个段头：换行后跟 `## `。模式段只删到此处为止。
+_NEXT_SECTION_RE = re.compile(r"\n(?=## )")
+
+
+def mode_section(mode: str = "auto") -> str:
+    """当前模式那一段的正文。"""
+    return _MODE_PROMPTS.get(str(mode or "auto").lower(), _MODE_PROMPTS["auto"])
+
+
+def mode_note(mode: str = "auto") -> str:
+    """请求尾部临时附加的执行模式说明。
+
+    **只加在发给模型的那一份请求上**：不写会话记录、不发事件、不进历史。
+    因此切换模式只改动请求的最后一条；模式段若写进系统提示词，
+    改动位置会落到上下文最前面，从那里起整段前缀缓存失效。
+    """
+    return mode_section(mode)
+
+
+def split_mode_section(system_prompt: str) -> str:
+    """去掉系统提示词里的**模式段本身**，其余段落原样保留。
+
+    只删到下一个段头（`\\n## `）为止：模式段后面通常还有用户自定义规则与工具速查，
+    从模式段一路删到末尾会把它们一起吃掉。
+    """
+    text = str(system_prompt or "")
+    idx = text.find(_MODE_MARKER)
+    if idx < 0:
+        return text
+    rest = text[idx:]
+    nxt = _NEXT_SECTION_RE.search(rest)
+    tail = rest[nxt.start():] if nxt else ""
+    merged = text[:idx].rstrip() + tail
+    return merged.strip()
 
 
 def tool_summary(registry: Any, *, limit: int = 40) -> str:
@@ -156,18 +199,36 @@ def resolve_system_prompt(
     explicit: Optional[str] = None,
     user_rules: str = "",
 ) -> str:
-    """会话系统提示的解析入口。
+    """会话系统提示的解析入口，**不含模式段**。
 
     `explicit`（mesh 里显式设过 `system`）优先——调用方要能覆盖；
     否则用基础提示词 + 用户规则 + 工具速查。这条链路让"系统提示词"这一块**永远有内容**。
+
+    模式不进这里：它由 `mode_note()` 单独产出、只在发请求时附加到尾部，
+    这样切模式不会改动系统提示词，前缀缓存不被破坏。
     """
     if explicit is not None and str(explicit).strip():
         return str(explicit)
-    return build_system_prompt(
+    return split_mode_section(build_system_prompt(
         mode=mode,
         tool_summary=tool_summary(registry),
         user_rules=user_rules,
-    )
+    ))
+
+
+def resolve_mode_note(
+    *,
+    mode: str = "auto",
+    explicit: Optional[str] = None,
+) -> str:
+    """请求尾部要附加的模式说明。
+
+    `explicit`（mesh 显式设过 system）时返回空串：那份系统提示是调用方给的，
+    模式该怎么表达由他自己写在里面，不由这里另加。
+    """
+    if explicit is not None and str(explicit).strip():
+        return ""
+    return mode_note(mode)
 
 
 def load_user_rules_from_config() -> str:

@@ -181,6 +181,8 @@ class SessionSendTool(ToolPlugin):
     """点对点发送：触发接收方执行或排队。"""
 
     name = "session_send"
+    label = "发送到会话"
+    icon = "💬"
     description = "向目标 Agent 发送消息并触发其执行；目标忙时进入 inbox 队列（requires_reply 必填）。"
     parameters = {
         "target_id": {"type": "string", "description": "目标会话 id"},
@@ -211,6 +213,8 @@ class SessionMultisendTool(ToolPlugin):
     """多目标同文发送：逐目标走 send 通道。"""
 
     name = "session_multisend"
+    label = "多会话分发"
+    icon = "💬"
     description = "向多个目标 Agent 发送同一条消息（target_ids 列表或逗号分隔）；返回 sent / skipped / partial。"
     parameters = {
         "target_ids": {"type": "array", "description": "目标会话 id 列表（或逗号分隔字符串）"},
@@ -278,6 +282,8 @@ class SessionBroadcastTool(ToolPlugin):
     """按 tag（可叠加 role）广播：禁止全员广播。"""
 
     name = "session_broadcast"
+    label = "广播到多会话"
+    icon = "💬"
     description = "按 tag 向目标群组广播消息（tag 必填；可叠加 role 过滤与 exclude_self）。"
     parameters = {
         "role": {"type": "string", "description": "按角色过滤（可选）"},
@@ -344,6 +350,8 @@ class SessionCreateTool(ToolPlugin):
     """创建自由 Agent：注册表登记 + 身份注入通道。"""
 
     name = "session_create"
+    label = "新建会话"
+    icon = "💬"
     description = "创建自由 Agent 会话（count 1-50 批量；role / persona / tags / skill；名称规则与别名映射）。"
     parameters = {
         "role": {"type": "string", "description": "角色（别名映射：worker / qa 等）"},
@@ -440,6 +448,8 @@ class SessionListTool(ToolPlugin):
     """列出 Session Mesh 自由 Agent。"""
 
     name = "session_list"
+    label = "列出会话"
+    icon = "💬"
     description = "列出协作网络中的自由 Agent（状态派生：running / queued / meta.status；含 queueSize）。"
     parameters: Dict[str, Any] = {}
 

@@ -433,6 +433,17 @@ class WebShell:
             return []
         return [a.as_dict() for a in contribs.all_actions()]
 
+    def tool_list(self) -> List[Dict[str, Any]]:
+        """工具展示清单：`[{name, label, icon}]`（来自工具自己的声明）。
+
+        界面据此认识**所有**工具（含插件工具），不必在前端维护工具名表 ——
+        加一个插件工具不需要改界面。
+        """
+        registry = getattr(self.app, "registry", None)
+        if registry is None or not hasattr(registry, "display_list"):
+            return []
+        return registry.display_list()
+
     # ── 右栏文件查看器（文本 / 代码 / 表格）──
 
     def fs_list(self, path: str) -> Tuple[int, Dict[str, Any]]:
@@ -1249,6 +1260,9 @@ class _Handler(BaseHTTPRequestHandler):
             elif path == "/api/actions":
                 # 插件贡献的输入区动作（输入框下面的按钮）；不声明就没有按钮
                 self._json(200, {"ok": True, "actions": self.shell.action_list()})
+            elif path == "/api/tool-labels":
+                # 工具展示清单（中文名 + 图标）：由工具自己声明，界面不维护工具名表
+                self._json(200, {"ok": True, "tools": self.shell.tool_list()})
             elif path.startswith("/api/plugin/"):
                 # 插件自己的端点：命名空间内匹配声明过的路径形状（`:名字` 段可由请求填值）
                 self._plugin_route("GET")
@@ -1444,7 +1458,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._safe_error(exc)
 
     def do_DELETE(self) -> None:  # HTTP 动词命名（stdlib 约定）
-        """目前只有插件端点用 DELETE（撤销任务 / 清插件自己的缓存）。"""
+        """DELETE 只有插件端点会用（撤销任务 / 清插件自己的缓存）。"""
         try:
             path = self._path()
             if path.startswith("/api/plugin/"):
@@ -1493,7 +1507,7 @@ def _normalize_images(raw: Any) -> List[Dict[str, str]]:
 def _date_group(mtime: float, now: Optional[float] = None) -> str:
     """把修改时间归入中文日期分组。
 
-    分组顺序：今天 / 昨天 / 本周 / 更早（按自然日比较，不按 24 小时）。
+    分组：今天 / 昨天 / `xx月xx日`（按自然日比较，不按 24 小时）。
     """
     if not mtime:
         return ""
@@ -1511,15 +1525,8 @@ def _date_group(mtime: float, now: Optional[float] = None) -> str:
     yesterday = time.localtime(reference - 86400)
     if day == (yesterday.tm_year, yesterday.tm_yday):
         return "昨天"
-    # 本周：同一 ISO 周（周一为一周之始）
-    try:
-        stamp_iso = time.strftime("%G-%V", stamp)
-        today_iso = time.strftime("%G-%V", today)
-    except ValueError:
-        return "更早"
-    if stamp_iso == today_iso:
-        return "本周"
-    return "更早"
+    # 更早的按具体日期分组：「本周」「更早」看不出是哪天。
+    return f"{stamp.tm_mon}月{stamp.tm_mday}日"
 
 
 def create_server(

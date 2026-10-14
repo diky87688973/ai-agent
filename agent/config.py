@@ -2,8 +2,8 @@
 """配置读取：项目根 config.ini（按需取用，未使用的项留空）。
 
 [model_reasoning] 节字段：api_base_url / api_key / model（model 可缺省，取 DEFAULT_MODEL）。
-[skills] 节字段：dir / max_file_size（dir 相对路径按 PROJECT_ROOT 解析；留空禁用）。
 读取策略：文件缺失或节缺失 → 空值/缺省返回（调用方决定报错策略）。
+本模块只认内核设置；插件设置在插件自己目录的 plugin-config.ini 里，由插件自己读。
 """
 from __future__ import annotations
 
@@ -62,24 +62,6 @@ def get_model_reasoning(path: Optional[Path] = None) -> Dict[str, Any]:
     }
 
 
-def get_skills(path: Optional[Path] = None) -> Dict[str, Any]:
-    """读取 [skills] 节：{dir: 绝对路径或空串（留空禁用）, max_file_size（字节，默认 200000）}。"""
-    parser = load_ini(path)
-    skills_dir = ""
-    max_size = 200000
-    if parser.has_section("skills"):
-        values = {k: _clean(v) for k, v in parser.items("skills")}
-        raw_dir = values.get("dir") or ""
-        if raw_dir:
-            p = Path(raw_dir)
-            skills_dir = str(p if p.is_absolute() else (PROJECT_ROOT / p))
-        try:
-            max_size = int(values.get("max_file_size") or 200000)
-        except (TypeError, ValueError):
-            max_size = 200000
-    return {"dir": skills_dir, "max_file_size": max_size}
-
-
 def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
     """读取 [context] 节：上下文预算保护参数；缺失或坏值一律回默认。"""
     parser = load_ini(path)
@@ -94,15 +76,16 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
             return default
 
     return {
-        "summary_token_threshold": _int("summary_token_threshold", 8000),
-        "full_user_rounds": _int("full_user_rounds", 6),
-        "pure_user_rounds": _int("pure_user_rounds", 2),
+        "summary_token_threshold": _int("summary_token_threshold", 700000),
+        # 压缩时遮盖的末尾用户轮数（压不出空间时连它们一起压）。
+        "full_user_rounds": _int("full_user_rounds", 1),
         "summary_output_max_chars": _int("summary_output_max_chars", 2000),
         # 只把最近这么多轮用户发言里的图带进请求（负数 = 不限）。
-        # 与上面几个**不同**：它不进 `ContextPipeline` 的构造参数（那是给压缩器的），
-        # 由装配根单独取走交给模型模块。
+        # 这两项由装配根取走交给模型模块，不进 `ContextPipeline` 的构造参数。
         "image_turns": _int("image_turns", 3),
         "image_max": _int("image_max", 10),
+        # 摘要那一次调用复用平常请求的前缀（吃 KV 缓存）。.ini 无布尔类型，1/0 表示。
+        "summary_prefix_reuse": _int("summary_prefix_reuse", 1) != 0,
     }
 
 

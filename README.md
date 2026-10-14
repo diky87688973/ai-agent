@@ -57,7 +57,6 @@ user_rules_file =            # 可选：自定义规则文件（.md / .txt），
 summary_token_threshold  = 700000
 summary_output_max_chars = 5000
 full_user_rounds         = 10
-pure_user_rounds         = 10
 ```
 
 `[context]` 的四个默认值：
@@ -67,9 +66,8 @@ pure_user_rounds         = 10
 | `summary_token_threshold` | `700000` | 估算 token 超过该值触发压缩 |
 | `summary_output_max_chars` | `5000` | 摘要篇幅上限（字） |
 | `full_user_rounds` | `10` | 近期记忆保留的用户轮数，始终按原文发送 |
-| `pure_user_rounds` | `10` | 远期记忆额外缓冲的轮数 |
 
-保留窗口宽度为 `full_user_rounds + pure_user_rounds`，窗口内的轮次按原文保留，超出的部分压缩成摘要。
+末尾 `full_user_rounds` 个用户轮被遮盖、按原文保留，它们前面的轮次压缩成摘要。
 
 全部配置项、启动参数与环境变量见 [配置](docs/guide/config.md)。
 
@@ -80,10 +78,11 @@ pure_user_rounds         = 10
 | [架构](docs/architecture.md) | 四层结构、模块链、端口、事件协议、状态生命周期 |
 | [术语](docs/glossary.md) | 项目自定义词的定义 |
 | [内核](docs/subsystems/core.md) | 模块契约、链执行器、宿主循环 |
-| [上下文管理](docs/subsystems/context.md) | 七块上下文、保留窗口、摘要生成 |
+| [上下文管理](docs/subsystems/context.md) | 三拼接装、分段统计、压缩与摘要 |
 | [模型调用](docs/subsystems/llm.md) | 请求体、流式解析、工具调用归并、错误映射 |
 | [工具](docs/subsystems/tools.md) | 注册、执行管道、写盘四步协议、41 个内置工具 |
 | [插件](docs/subsystems/plugins.md) | 插件包形态、可贡献的能力、界面资产、生命周期与边界 |
+| [技能](docs/subsystems/skills.md) | `skills` 插件的三层披露与 `skill_manage` |
 | [会话与协作](docs/subsystems/session.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
 | [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
 | [配置](docs/guide/config.md) | 配置项全表、启动参数、环境变量 |
@@ -99,7 +98,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（821 个用例）：
+单元测试（1039 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

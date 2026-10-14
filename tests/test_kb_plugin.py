@@ -22,6 +22,7 @@ sys.path.insert(0, str(_ROOT))
 from agent.app import build_app  # noqa: E402
 from agent.core.model_call import StreamDelta  # noqa: E402
 from agent.mechanisms.context_pipeline import ContextPipeline, ContextSources  # noqa: E402
+from agent.mechanisms.session_store import SessionStore  # noqa: E402  # noqa: E402
 
 _PLUGIN_DIR = _ROOT / "plugins"
 _PLUGIN_MOD = "fan_agent_plugins.knowledge"
@@ -210,7 +211,7 @@ class KBRuntimeTest(unittest.TestCase):
         self.assertTrue(all("name" in f and "mtime" in f for f in r.list_files()))
 
 class KBConfigTest(unittest.TestCase):
-    """本插件配置（`plugins/knowledge/config.ini`）读取。
+    """本插件配置（`plugins/knowledge/plugin-config.ini`）读取。
 
     缺文件 / 缺节 / 目录不存在都静默降级为未启用 —— 判定失败不报错。
     """
@@ -219,8 +220,8 @@ class KBConfigTest(unittest.TestCase):
         """配置跟着插件走，不在内核的 `config.ini` 里。"""
         p = _PLUGIN._config_path()
         self.assertEqual(p.parent, _PLUGIN.__file__ and Path(_PLUGIN.__file__).resolve().parent)
-        self.assertEqual(p.name, "config.ini")
-        self.assertTrue((p.parent / "config.ini.example").is_file(),
+        self.assertEqual(p.name, "plugin-config.ini")
+        self.assertTrue((p.parent / "plugin-config.ini.example").is_file(),
                         msg="插件目录下应当有一个模板")
 
     def test_missing_section_disables(self) -> None:
@@ -284,10 +285,10 @@ class ContextSourcesTest(unittest.TestCase):
         cs = ContextSources()
         d1 = cs.add(lambda cid: ["A1"])
         cs.add(lambda cid: ["B1", "B2"])
-        self.assertEqual(cs.collect("c"), ["A1", "B1", "B2"])
+        self.assertEqual([t for _, _, t in cs.collect_segments("c").items], ["A1", "B1", "B2"])
         d1()
         d1()  # 幂等
-        self.assertEqual(cs.collect("c"), ["B1", "B2"])
+        self.assertEqual([t for _, _, t in cs.collect_segments("c").items], ["B1", "B2"])
 
     def test_exception_isolated(self) -> None:
 
@@ -298,15 +299,15 @@ class ContextSourcesTest(unittest.TestCase):
 
         cs.add(bad)
         cs.add(lambda cid: ["ok"])
-        self.assertEqual(cs.collect("c"), ["ok"])
+        self.assertEqual([t for _, _, t in cs.collect_segments("c").items], ["ok"])
 
     def test_validation_and_empty_filter(self) -> None:
 
         cs = ContextSources()
-        with self.assertRaises(ValueError):
+        with self.assertRaises((ValueError, TypeError)):
             cs.add(None)
         cs.add(lambda cid: ["", "  ", None, "留白"])
-        self.assertEqual(cs.collect("c"), ["留白"])
+        self.assertEqual([t for _, _, t in cs.collect_segments("c").items], ["留白"])
 
 class _RecordingProvider:
     """记录请求的假模型（一轮文本应答结束回合）。"""
@@ -357,5 +358,371 @@ class InjectionTest(unittest.TestCase):
         self.assertEqual(len(kb_msgs), 1)
         self.assertEqual(kb_msgs[0].get("role"), "system")
 
+
+class PluginSourceContractTest(unittest.TestCase):
+    """插件注入源的契约：注册进「知识库」段、每回合刷新、disposer 后消失。
+
+    插件只经 `ctx.add_context_source` 说话 —— 内核不知道"知识库插件"的存在，
+    也不知道它读了什么文件。这里钉住的就是这条边界。
+    """
+
+    def _run(self, app, spy, cid: str):
+        engine = app.session(cid, system_prompt="你是助手。")
+        for _ev in engine.start_turn("问"):
+            pass
+        return spy.requests[-1].messages
+
+    def _app(self, root: Path):
+        spy = _RecordingProvider()
+        app = build_app(provider=spy, store=SessionStore(root / "data"),
+                        backup_root=root / "bk", recycle_root=root / "rc")
+        return app, spy
+
+    def test_source_text_lands_in_the_knowledge_block(self) -> None:
+        import tempfile
+        root = Path(tempfile.mkdtemp(prefix="kbcontract_"))
+        try:
+            app, spy = self._app(root)
+            app.context_sources.add(lambda cid: ["【知识库：probe】\n内容P"])
+            msgs = self._run(app, spy, "kb-contract-0001")
+            hits = [m for m in msgs if "内容P" in str(m.get("content"))]
+            self.assertEqual(len(hits), 1)
+            self.assertEqual(hits[0].get("role"), "system")
+            # 位置：在任何对话消息之前（头部）
+            idx = msgs.index(hits[0])
+            first_user = next(i for i, m in enumerate(msgs)
+                              if str(m.get("role")) == "user")
+            self.assertLess(idx, first_user)
+        finally:
+            import shutil
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_source_is_refreshed_every_turn(self) -> None:
+        """注入源每回合都重读：第 2 回合改内容，请求里立刻反映。"""
+        import shutil
+        import tempfile
+        root = Path(tempfile.mkdtemp(prefix="kbcontract2_"))
+        try:
+            app, spy = self._app(root)
+            state = {"text": "第一版"}
+            app.context_sources.add(lambda cid: [f"【知识库：probe】\n{state['text']}"])
+            msgs1 = self._run(app, spy, "kb-contract-0002")
+            state["text"] = "第二版"
+            engine = app.session("kb-contract-0002", system_prompt="你是助手。")
+            for _ev in engine.start_turn("再问"):
+                pass
+            msgs2 = spy.requests[-1].messages
+            self.assertTrue(any("第一版" in str(m.get("content")) for m in msgs1))
+            joined2 = "".join(str(m.get("content")) for m in msgs2)
+            self.assertIn("第二版", joined2)
+            self.assertNotIn("第一版", joined2)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_disposer_removes_the_source(self) -> None:
+        import shutil
+        import tempfile
+        root = Path(tempfile.mkdtemp(prefix="kbcontract3_"))
+        try:
+            app, spy = self._app(root)
+            disposer = app.context_sources.add(lambda cid: ["【知识库：probe】\n内容P"])
+            self._run(app, spy, "kb-contract-0003")
+            disposer()
+            engine = app.session("kb-contract-0003", system_prompt="你是助手。")
+            for _ev in engine.start_turn("再问"):
+                pass
+            self.assertFalse(any("内容P" in str(m.get("content"))
+                                 for m in spy.requests[-1].messages))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_plugin_sources_do_not_touch_the_kernel(self) -> None:
+        """插件来源只经注册表进出；内核不持有插件对象。"""
+        from agent.mechanisms.context_pipeline import ContextSources
+        sources = ContextSources()
+        seen = []
+        disposer = sources.add(lambda cid: seen.append(cid) or ["文本"])
+        self.assertEqual([t for _, _, t in sources.collect_segments("c1").items], ["文本"])
+        self.assertEqual(seen, ["c1"])
+        disposer()
+        self.assertEqual(sources.collect_segments("c1").items, [])
+
+    def test_segments_carry_their_own_name_and_prefix(self) -> None:
+        """段名与注入前缀由来源声明：内核不解释正文是什么。"""
+        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        sources = ContextSources()
+        sources.add(lambda cid: ["正文"], SourceMeta(key="kb", label="知识库",
+                                                   prefix="【知识库：a.md】\n"))
+        seg = sources.collect_segments("c1")
+        self.assertEqual([(k, lb) for k, lb, _t in seg.items], [("kb", "知识库")])
+        self.assertEqual(seg.items[0][2], "【知识库：a.md】\n正文")
+
+    def test_two_sources_of_one_plugin_stay_separate(self) -> None:
+        """同一插件可以贡献多段：数量按位置对，不互相覆盖。"""
+        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        sources = ContextSources()
+        sources.add(lambda cid: ["清单"], SourceMeta(key="skills", label="Skills",
+                                                   count=lambda cid: 31))
+        sources.add(lambda cid: ["常驻"], SourceMeta(key="skills", label="常驻技能",
+                                                   count=lambda cid: 1))
+        seg = sources.collect_segments("c1")
+        self.assertEqual([lb for _k, lb, _t in seg.items], ["Skills", "常驻技能"])
+        self.assertEqual(seg.counts, [31, 1])
+
+
+class PluginConfigIsolationTest(unittest.TestCase):
+    """内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-config.ini。"""
+
+    #: 内核配置允许出现的节（多一个就说明插件设置漏进了内核配置）
+    KERNEL_SECTIONS = {"model_reasoning", "agent", "context", "model_pricing"}
+
+    def test_kernel_templates_have_no_plugin_section(self) -> None:
+        from agent.config import PROJECT_ROOT, load_ini
+        for name in ("config.ini", "config.ini.example"):
+            path = PROJECT_ROOT / name
+            if not path.exists():
+                continue
+            extra = set(load_ini(path).sections()) - self.KERNEL_SECTIONS
+            self.assertEqual(extra, set(), msg=f"{name} 里有插件设置：{sorted(extra)}")
+
+    def test_each_plugin_reads_its_own_config_file(self) -> None:
+        import importlib.util
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        for name in ("knowledge", "skills", "tts"):
+            entry = root / "plugins" / name / "plugin.py"
+            spec = importlib.util.spec_from_file_location(
+                f"cfgprobe_{name}", str(entry))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            path = mod._config_path()
+            self.assertEqual(path.parent, root / "plugins" / name)
+            self.assertEqual(path.name, "plugin-config.ini")
+
+    def test_skills_dir_comes_from_its_own_config(self) -> None:
+        import importlib.util
+        import tempfile
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        spec = importlib.util.spec_from_file_location(
+            "cfgprobe_skills_dir", str(root / "plugins" / "skills" / "plugin.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        tmp = _P(tempfile.mkdtemp(prefix="skcfg_"))
+        target = tmp / "skills"
+        target.mkdir()
+        ini = tmp / "plugin-config.ini"
+        ini.write_text(f"[skills]\ndir = {target.as_posix()}\nmax_file_size = 321\n",
+                       encoding="utf-8")
+        cfg = mod._load_config(ini)
+        self.assertEqual(cfg["dir"], target)
+        self.assertEqual(cfg["max_file_size"], 321)
+        empty = tmp / "empty.ini"
+        empty.write_text("[skills]\ndir =\n", encoding="utf-8")
+        self.assertIsNone(mod._load_config(empty)["dir"])
+
+class KnowledgeTextOnlyTest(unittest.TestCase):
+    """知识库只收文本类文件：非文本不列、不可勾（读出来是替换字符与 NUL，白占预算）。"""
+
+    def _files(self, tmp):
+        import importlib.util
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        spec = importlib.util.spec_from_file_location(
+            "kb_text_probe", str(root / "plugins" / "knowledge" / "plugin.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod, mod._KnowledgeFiles(tmp, 200000)
+
+    def test_text_suffix_rules(self) -> None:
+        import tempfile
+        from pathlib import Path as _P
+        tmp = _P(tempfile.mkdtemp(prefix="kbtext_"))
+        mod, _files = self._files(tmp)
+        for name in ("a.md", "b.txt", "c.csv", "d.json", "e.yaml", "f.py", "noext", "g.xlsx"):
+            self.assertTrue(mod.is_text_like(name), msg=f"{name} 应算文本")
+        for name in ("a.png", "b.bin", "c.zip", "d.pdf", "e.exe", "f.docx"):
+            self.assertFalse(mod.is_text_like(name), msg=f"{name} 不该算文本")
+
+    def test_binary_is_neither_listed_nor_selectable(self) -> None:
+        import tempfile
+        from pathlib import Path as _P
+        tmp = _P(tempfile.mkdtemp(prefix="kbtext2_"))
+        (tmp / "doc.md").write_text("正文", encoding="utf-8")
+        (tmp / "img.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 20)
+        (tmp / "blob.bin").write_bytes(b"\x00\xff" * 20)
+        mod, files = self._files(tmp)
+        paths = [row["path"] for row in files.list_files()]
+        self.assertEqual(paths, ["doc.md"], msg=f"列出内容不对：{paths}")
+        ok, why = files.file_allowed(tmp / "img.png")
+        self.assertFalse(ok)
+        self.assertIn("非文本", why)
+        ok2, _why2 = files.file_allowed(tmp / "blob.bin")
+        self.assertFalse(ok2)
+
+    def test_runtime_rejects_binary_check(self) -> None:
+        import tempfile
+        from pathlib import Path as _P
+        tmp = _P(tempfile.mkdtemp(prefix="kbtext3_"))
+        (tmp / "doc.md").write_text("正文", encoding="utf-8")
+        (tmp / "img.png").write_bytes(b"\x89PNG" + b"\x00" * 20)
+        mod, _files = self._files(tmp)
+        rt = mod.KBRuntime(tmp, 200000, data_dir=_P(tempfile.mkdtemp(prefix="kbstate_")))
+        rt.set_checked("c1", ["doc.md", "img.png"])
+        self.assertEqual(sorted(rt.get_checked("c1")), ["doc.md"])
+
+class KnowledgeExtraSuffixesTest(unittest.TestCase):
+    """配置 `extra_suffixes`：英文逗号分隔，追加可收录的扩展名。"""
+
+    def _mod(self):
+        import importlib.util
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        spec = importlib.util.spec_from_file_location(
+            "kb_extra_probe", str(root / "plugins" / "knowledge" / "plugin.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_parse_forms(self) -> None:
+        mod = self._mod()
+        self.assertEqual(mod.parse_extra_suffixes("txt, ini"), (".txt", ".ini"))
+        self.assertEqual(mod.parse_extra_suffixes(".txt,.ini"), (".txt", ".ini"))
+        self.assertEqual(mod.parse_extra_suffixes("TXT , .Ini ,txt,"), (".txt", ".ini"))
+        self.assertEqual(mod.parse_extra_suffixes(""), ())
+        self.assertEqual(mod.parse_extra_suffixes(None), ())
+        self.assertEqual(mod.parse_extra_suffixes("  "), ())
+
+    def test_extra_extends_the_whitelist(self) -> None:
+        mod = self._mod()
+        self.assertFalse(mod.is_text_like("a.dat"))
+        self.assertTrue(mod.is_text_like("a.dat", (".dat",)))
+        self.assertFalse(mod.is_text_like("a.png", (".dat",)))
+
+    def test_config_key_is_read_and_used(self) -> None:
+        import tempfile
+        from pathlib import Path as _P
+        mod = self._mod()
+        tmp = _P(tempfile.mkdtemp(prefix="kbextra_"))
+        (tmp / "x.dat").write_text("自定义类型", encoding="utf-8")
+        (tmp / "y.png").write_bytes(b"\x89PNG\x00")
+        ini = tmp / "plugin-config.ini"
+        ini.write_text(f"[knowledge]\ndir = {tmp.as_posix()}\n"
+                       "max_file_size = 200000\nextra_suffixes = dat\n", encoding="utf-8")
+        cfg = mod._load_kb_config(ini)
+        self.assertEqual(cfg["extra_suffixes"], (".dat",))
+        files = mod._KnowledgeFiles(cfg["dir"], cfg["max_file_size"], cfg["extra_suffixes"])
+        paths = [row["path"] for row in files.list_files()]
+        self.assertIn("x.dat", paths)
+        self.assertNotIn("y.png", paths)
+        self.assertTrue(files.file_allowed(tmp / "x.dat")[0])
+        self.assertFalse(files.file_allowed(tmp / "y.png")[0])
+
+    def test_missing_key_keeps_default_whitelist(self) -> None:
+        mod = self._mod()
+        self.assertEqual(mod.parse_extra_suffixes(None), ())
+        self.assertTrue(mod.is_text_like("a.md"))
+        self.assertFalse(mod.is_text_like("a.dat"))
+
+class PluginPanelRenderContractTest(unittest.TestCase):
+    """插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动。
+
+    脚本在开屏被预载（段色注册要赶在上下文条第一次渲染前），那时面板 DOM 还不存在，
+    脚本里的首次渲染必然是空跑 —— 没有这个事件，面板就永远停在初始占位。
+    """
+
+    def _shell_js(self) -> str:
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        return (root / "agent" / "shell" / "web_assets" / "classic" / "js"
+                / "agent-ui.js").read_text(encoding="utf-8")
+
+    def test_open_pane_broadcasts_panel_opened(self) -> None:
+        js = self._shell_js()
+        self.assertIn("ai-agent:panel-opened", js)
+        idx = js.index("function openPane(")
+        self.assertIn("ai-agent:panel-opened", js[idx:idx + 4000],
+                      msg="广播要在 openPane 里（每个面板打开都发）")
+
+    def test_open_plugin_panel_passes_its_plugin_name(self) -> None:
+        js = self._shell_js()
+        idx = js.index("function openPluginPanel(")
+        self.assertIn('plugin:String(plugin||"")', js[idx:idx + 600],
+                      msg="不带插件名，脚本认不出这是不是自己的面板")
+
+    def test_panel_has_a_refresh_button_on_the_subtitle(self) -> None:
+        """小标题右侧一个刷新：知识库目录是外部目录，不重开面板也要能取到新文件。"""
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        js = (root / "plugins" / "knowledge" / "ui" / "panel.js").read_text(encoding="utf-8")
+        css = (root / "plugins" / "knowledge" / "ui" / "panel.css").read_text(encoding="utf-8")
+        self.assertIn("kb-refresh", js)
+        self.assertIn("pane-btn", js, msg="按钮样式用壳层那套，与文件查看器的刷新同款")
+        idx = js.index("kb-hint-bar")
+        self.assertIn("kb-refresh", js[idx:idx + 500], msg="刷新要挂在小标题那一行")
+        self.assertIn("kb-refresh", css)
+        self.assertIn("display:flex", css[css.index(".kb-hint-bar"):css.index(".kb-hint-bar") + 300])
+
+    def test_refresh_handler_re_renders(self) -> None:
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        js = (root / "plugins" / "knowledge" / "ui" / "panel.js").read_text(encoding="utf-8")
+        idx = js.index('querySelector(".kb-refresh")')
+        self.assertIn("render()", js[idx:idx + 300], msg="点了刷新要重新取数并渲染")
+
+    def test_panels_render_on_the_event(self) -> None:
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        for name in ("knowledge", "tts"):
+            panel = root / "plugins" / name / "ui" / "panel.js"
+            if not panel.exists():
+                continue
+            text = panel.read_text(encoding="utf-8")
+            self.assertIn("ai-agent:panel-opened", text,
+                          msg=f"plugins/{name}/ui/panel.js 没订阅打开事件")
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class SkillsConfigSourceTest(unittest.TestCase):
+    """技能设置只有工程 config.ini 一处来源（插件目录下没有同名配置）。"""
+
+    def test_plugin_dir_has_no_own_config(self) -> None:
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent / "plugins" / "skills"
+        self.assertFalse((root / "config.ini").exists(),
+                         msg="插件目录下不该有第二份技能配置")
+        self.assertFalse((root / "config.ini.example").exists())
+
+    def test_reader_reads_the_project_config(self) -> None:
+        import importlib.util
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        spec = importlib.util.spec_from_file_location(
+            "skills_plugin_probe", str(root / "plugins" / "skills" / "plugin.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cfg = mod._load_config()
+        self.assertEqual(cfg["max_file_size"], 200000)
+        if cfg["dir"] is not None:
+            self.assertTrue(_P(cfg["dir"]).is_dir())
+
+    def test_reader_takes_a_given_ini(self) -> None:
+        import importlib.util
+        import tempfile
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        spec = importlib.util.spec_from_file_location(
+            "skills_plugin_probe2", str(root / "plugins" / "skills" / "plugin.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        tmp = _P(tempfile.mkdtemp(prefix="skcfg_"))
+        target = tmp / "skills"
+        target.mkdir()
+        ini = tmp / "config.ini"
+        ini.write_text(f"[skills]\ndir = {target.as_posix()}\nmax_file_size = 321\n",
+                       encoding="utf-8")
+        cfg = mod._load_config(ini)
+        self.assertEqual(cfg["dir"], target)
+        self.assertEqual(cfg["max_file_size"], 321)

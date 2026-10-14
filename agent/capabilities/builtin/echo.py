@@ -11,6 +11,8 @@ class EchoTool(ToolPlugin):
     """回显输入文本。"""
 
     name = "echo"
+    label = "回显"
+    icon = "🔔"
     description = "回显输入文本。"
     parameters = {"text": {"type": "string", "description": "要回显的文本"}}
 

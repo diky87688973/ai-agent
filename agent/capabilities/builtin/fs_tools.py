@@ -29,6 +29,8 @@ class DeleteFileTool(ToolPlugin):
     """预览：安全删除（移入回收目录），不落盘。"""
 
     name = "delete_file"
+    label = "删除文件"
+    icon = "🗑️"
     description = "预览安全删除（不落盘）：文件将移入回收目录（可恢复）；目录请用 `file_ops(action=delete, recursive=true)`；返回 confirm_id，凭 commit_write 提交。"
     parameters = {
         "path": {"type": "string", "description": "待删除文件路径"},
@@ -83,6 +85,8 @@ class FileOpsTool(ToolPlugin):
     """预览：copy / move / rename / delete（不落盘）。"""
 
     name = "file_ops"
+    label = "执行文件复制/移动/删除"
+    icon = "📋"
     description = "预览文件操作（不落盘）：copy / move / rename / delete（delete 移入回收目录，可恢复；delete 目录须 `recursive=true`）；返回 confirm_id，凭 commit_write 提交。"
     parameters = {
         "action": {"type": "string", "description": "copy / move / rename / delete"},
@@ -110,6 +114,8 @@ class FileUndoTool(ToolPlugin):
     """版本回滚工具：list / diff 只读；undo 预览（提交后执行回滚）。"""
 
     name = "file_undo"
+    label = "撤销文件改动"
+    icon = "↩️"
     description = "版本回滚：`action=list` 列某文件历史备份（只读）；`action=diff` 比对备份与当前（只读）；`action=undo` + `mod_id` + `path` 预览回滚（不落盘，返回 confirm_id，凭 commit_write 提交；回滚前自动备份当前版本）。"
     parameters = {
         "action": {"type": "string", "description": "list / diff / undo"},

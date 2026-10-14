@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""技能库：扫描 / 元数据解析 / 读取 / 复制计划。
+"""技能库：扫描 / 元数据解析 / 读取 / 复制计划（技能插件内部）。
 
 范围：不做 LLM 元数据生成、不做缺 frontmatter 自动写回、
 不携带 side_usage / notifications（无旁支模型；静默写文件违反写盘纪律）。
@@ -10,6 +10,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+CATALOG_HEAD = "【Skills清单】"
 
 
 class SkillMeta:
@@ -203,6 +205,48 @@ class SkillManager:
             if len(stem_matches) == 1:
                 return self._read_content(stem_matches[0])
         return None
+
+    def build_registry_message(self) -> str:
+        """构建**可用技能清单**（一条 system 消息，注入上下文前端）。
+
+        渐进式披露的第一层：清单里只有名字与描述，正文按需用 `skill_manage`
+        读取。模型据此知道"有哪些技能、什么时候该用"，而不必把所有正文塞进请求。
+        没有普通技能 → 空串（不注入空清单）。
+        """
+        parts = self.build_registry_message_parts()
+        return parts[0] if parts else ""
+
+    def build_registry_message_parts(self) -> List[str]:
+        """清单的**消息列表形态**（没有技能 → 空列表）。
+
+        注入源按 `List[str]` 收内容，这里给它列表；单条内容与
+        `build_registry_message()` 完全一致。
+        """
+        items = self.list_skills()
+        if not items:
+            return []
+        lines = [CATALOG_HEAD,
+                 "需要用某个技能时，先用 skill_manage 读取它的正文再照做。"]
+        for s in items:
+            desc = str(s.get("description") or "").strip() or "（无描述）"
+            lines.append(f"- {s.get('name')}: {desc}")
+        return ["\n".join(lines)]
+
+    def build_auto_load_messages(self) -> List[str]:
+        """构建 `auto_load/` 目录下技能的**常驻正文**（每条一条 system 消息）。
+
+        渐进式披露的第二层：这些技能始终随上下文携带，不必模型主动读取。
+        正文为空的不注入。
+        """
+        self._check_rescan()
+        out: List[str] = []
+        for s in self.skills:
+            if not s.is_auto_load:
+                continue
+            content = self._read_content(s)
+            if content.strip():
+                out.append(f"【Skills 技能 {s.name}】\n{content}")
+        return out
 
     def _read_content(self, meta: SkillMeta) -> str:
         if meta.name in self._content_cache:

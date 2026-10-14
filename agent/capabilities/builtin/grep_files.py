@@ -41,6 +41,8 @@ class GrepFilesTool(ToolPlugin):
     """在目录内搜索文本内容。"""
 
     name = "grep_files"
+    label = "搜索文件内容"
+    icon = "🔎"
     description = (
         "按字面（| 为 OR 分隔）或正则搜索目录内文本文件内容。"
         "需要 gitignore 过滤 / 上下文行 / 编码嗅探时用 file_search。"

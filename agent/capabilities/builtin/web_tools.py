@@ -162,6 +162,8 @@ class WebFetchTool(ToolPlugin):
     """抓取网页并提取纯文本。"""
 
     name = "web_fetch"
+    label = "抓取网页内容"
+    icon = "🌐"
     description = "抓取网页（urllib 无第三方依赖）并提取纯文本；支持超时、长度限制、min_chars/require_keywords 验收与落盘。"
     parameters = {
         "url": {"type": "string", "description": "http/https 完整 URL"},
@@ -246,6 +248,8 @@ class WebFetchRenderTool(ToolPlugin):
     """JS 渲染抓取（可选依赖 Playwright）。"""
 
     name = "web_fetch_render"
+    label = "抓取网页内容"
+    icon = "🌐"
     description = "用 Playwright 无头浏览器抓取 JS 渲染后的页面（可选依赖；缺失时给出安装提示）。"
     parameters = {
         "url": {"type": "string", "description": "目标网页 URL"},

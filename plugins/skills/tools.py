@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 from agent.capabilities.registry import ToolPlugin
-from agent.mechanisms.skills import SkillManager
+from plugins.skills.library import SkillManager
 
 
 class SkillLookupError(RuntimeError):
@@ -42,6 +42,8 @@ class SkillManageTool(ToolPlugin):
     """技能工具：list / read 直通；copy 预览。"""
 
     name = "skill_manage"
+    label = "技能管理"
+    icon = "🧩"
     description = "技能管理：`action=list` 列出可用技能；`action=read` 读取技能全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。"
     parameters = {
         "action": {"type": "string", "description": "list / read / copy"},

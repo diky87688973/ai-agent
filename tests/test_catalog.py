@@ -13,7 +13,13 @@ sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_ROOT / "scripts"))
 
 from check_catalog import check  # noqa: E402
-from gen_catalog import CATALOG_PATH, collect_schemas, render_catalog, write_catalog  # noqa: E402
+from gen_catalog import (  # noqa: E402
+    CATALOG_PATH,
+    collect_display,
+    collect_schemas,
+    render_catalog,
+    write_catalog,
+)
 
 
 class RenderCatalogTest(unittest.TestCase):
@@ -45,7 +51,9 @@ class RenderCatalogTest(unittest.TestCase):
             count = write_catalog(target)
             raw = target.read_bytes()
         self.assertEqual(count, len(collect_schemas()))
-        self.assertEqual(raw, render_catalog(collect_schemas()).encode("utf-8"))
+        self.assertEqual(
+            raw,
+            render_catalog(collect_schemas(), collect_display()).encode("utf-8"))
         self.assertNotIn(b"\r", raw)
 
 
@@ -91,6 +99,26 @@ class CheckCatalogTest(unittest.TestCase):
         self.assertIn("工具声明不一致", text)
         self.assertIn("commit_write", text)
 
+
+class CatalogDisplayTest(unittest.TestCase):
+    """目录带 `display`（中文名 + 图标），来源是工具自己的声明。"""
+
+    def test_every_tool_has_display(self) -> None:
+        from gen_catalog import collect_display, collect_schemas
+        schemas = collect_schemas()
+        display = collect_display()
+        names = [s["name"] for s in schemas]
+        self.assertEqual(sorted(names), sorted(display.keys()))
+        missing = [n for n, d in display.items() if not d.get("label") or not d.get("icon")]
+        self.assertEqual(missing, [], msg=f"这些工具没声明 label/icon：{missing}")
+
+    def test_render_includes_display(self) -> None:
+        import json as _json
+
+        from gen_catalog import collect_display, collect_schemas, render_catalog
+        payload = _json.loads(render_catalog(collect_schemas(), collect_display()))
+        row = [t for t in payload["tools"] if t["name"] == "skill_manage"][0]
+        self.assertEqual(row["display"], {"icon": "🧩", "label": "技能管理"})
 
 if __name__ == "__main__":
     unittest.main()

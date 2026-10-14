@@ -51,6 +51,8 @@ class ImageOcrTool(ToolPlugin):
     """图片 OCR。"""
 
     name = "image_ocr"
+    label = "识别图片文字"
+    icon = "🖼"
     description = "对图片做 OCR（pytesseract / easyocr，可选依赖）；支持区域裁剪；缺依赖时给出安装提示。"
     parameters = {
         "path": {"type": "string", "description": "图片文件路径"},

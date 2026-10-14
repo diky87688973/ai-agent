@@ -76,6 +76,8 @@ class RunTypeTool(ToolPlugin):
     """查询 / 切换会话运行模式。"""
 
     name = "run_type"
+    label = "切换运行模式"
+    icon = "🎛️"
     description = "查询或切换会话运行模式（auto / plan / execute）；不传 `run_type` 为查询当前模式。"
     parameters = {
         "run_type": {"type": "string", "description": "auto / plan / execute；缺省为查询"},
@@ -98,6 +100,8 @@ class TodoListTool(ToolPlugin):
     """会话执行清单。"""
 
     name = "todo_list"
+    label = "待办清单"
+    icon = "☑️"
     description = "会话待办清单：`action=create / check / uncheck / add_item / remove_item / replace_item / collapse / close / query`。"
     parameters = {
         "action": {
@@ -242,6 +246,8 @@ class UserConfirmTool(ToolPlugin):
     """用户分岔确认：两段式信封。"""
 
     name = "user_confirm"
+    label = "等待确认"
+    icon = "⚠️"
     description = "向用户发起分岔确认：首段提交 title + confirms 选项（返回待确认信封）；用户确认后携带 confirm 再次调用回填。"
     parameters = {
         "title": {"type": "string", "description": "标题（首段必填）"},
@@ -295,6 +301,8 @@ class TaskSleepTool(ToolPlugin):
     """自主休眠指令：校验 + 信封 + 会话状态记录。"""
 
     name = "task_sleep"
+    label = "等待一段时间"
+    icon = "⏱️"
     description = "暂停自主执行：宿主停止自动激活，N 秒后携提醒重新激活（1~86400 秒）。"
     parameters = {
         "seconds": {"type": "integer", "description": "休眠秒数（1~86400）"},
@@ -338,6 +346,8 @@ class GoalTool(ToolPlugin):
     """
 
     name = "goal"
+    label = "目标"
+    icon = "🎯"
     description = (
         "管理本会话的目标文案。目标处于 active 时，每轮结束后系统会自动用该文案"
         "发起新一轮，直到你用 action=pause/done 停下。"

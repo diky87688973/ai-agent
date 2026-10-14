@@ -76,13 +76,10 @@ class ClassicAdapter:
         **计算口径只有一处**：`inbound.compute_context_layout` —— 刷新的
         `history()` 与这里的实时帧共用它，避免两条路径算出不同结果。
 
-        `context_layout` 是**给观察面看的派生数据**，所以由观察面算：
-        内核不产生它，也不存它。
-
-        不调 `context.layout_payload()` 的原因：`App.session` 每次调用都**新建**
-        一个 `ContextPipeline`，那个对象的 `chunks` 是空的 → 恒返回
-        `total_tokens=0` 的全零分段。真实的上下文状态只活在那一次回合的管线里，
-        回合结束就没了。
+        分段数据来自内核发的 `context_segments`（`ModelModule` 每次装配完请求发
+        一条）：分段统计需要**装配结果**，而模式说明与工具轮的内部 system 注入
+        都不落记录，只有那份快照里有它们。适配层在这里换个名字转发给前端
+        （前端认 `context_layout`）。
 
         算不出来返回 `None`，调用方不发那一帧。
         """
@@ -109,9 +106,7 @@ class ClassicAdapter:
         """当前会话用哪个模型（`conversation` 帧要把它同步给前端）。
 
         **必须按会话取**，不能恒取全局的 `provider.model`：那个 `conversation` 帧
-        会把用户选好的模型覆盖回默认（表现为下拉自己跳回默认），
-        而后端此后按**默认**模型的名字判视觉能力，名字里没有 vision
-        就**把图片摘掉**，模型于是说"看不到图"。
+        会把用户选好的模型覆盖回默认，表现为下拉自己跳回默认。
         """
         live = getattr(self._app, "live_state", None)
         if live is not None:
@@ -336,9 +331,9 @@ class ClassicAdapter:
     def submit_user_choice(self, cid: str, text: str) -> Dict[str, Any]:
         """用户作答 → 把选择写成那次调用的返回值，再起新回合（两段式第二段）。
 
-        为什么不把选择当成一条新用户发言：那样模型要**重新理解**一遍「左」是什么，
-        还得自己判断该不该再问一次——它往往会**重复提问**。
-        写成工具返回值之后，模型看到的是「工具终于返回了答案」，接着往下做即可。
+        选择**不写成新用户发言**：那样模型要重新理解一遍「左」是什么，还得自己判断
+        该不该再问一次，往往会重复提问。写成工具返回值，模型看到的是"工具终于返回了
+        答案"，接着往下做即可。
 
         **权威状态在内核的 `SessionContext.pending_confirm`**：
         首段返回信封时由管道记下，回合放行结束；这里读它拿到 `call_id`，写入那次调用

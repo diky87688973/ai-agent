@@ -67,6 +67,8 @@ class EnvProbeTool(ToolPlugin):
     """命令行环境探测。"""
 
     name = "env_probe"
+    label = "探测运行环境"
+    icon = "🧪"
     description = "探测本机可用命令行环境（cmd / powershell / pwsh / bash / python / py）并给出使用建议。"
     parameters: Dict[str, Dict[str, Any]] = {}
 
@@ -110,6 +112,8 @@ class UnifiedDiagnoseTool(ToolPlugin):
     """Python 统一诊断：AST 语法检查 + 可选 ruff。"""
 
     name = "unified_diagnose"
+    label = "统一诊断"
+    icon = "🛠️"
     description = "对目录下 Python 文件做 AST 语法诊断，并尽力调用 ruff（PATH 中存在时）；发现 error 级问题返回 ok=false。"
     parameters = {
         "path": {"type": "string", "description": "项目根目录"},
@@ -321,6 +325,8 @@ class GitWorkspaceTool(ToolPlugin):
     """Git 工作区只读查询。"""
 
     name = "git_workspace"
+    label = "查看 Git 工作区"
+    icon = "🌿"
     description = "Git 工作区只读查询：worktree（状态+diff）/ log / blame / show；不执行写入型 git 命令。"
     parameters = {
         "path": {"type": "string", "description": "Git 仓库根目录（含 .git）"},

@@ -25,25 +25,20 @@ backup_retention_days = 7
 user_rules_file =
 
 [context]
-; 上下文预算与压缩。会话在内存中分三段：近期记忆 / 远期记忆 / 摘要。
+; 上下文预算与压缩。会话在内存中分两段：近期记忆 / 摘要。
 ; summary_token_threshold  估算 token 超过该值触发压缩
-; full_user_rounds         近期记忆保留的用户轮数，始终按原文发送
-; pure_user_rounds         远期记忆额外缓冲的轮数，超过 full+pure 的部分才压缩
+; full_user_rounds         压缩时的遮盖轮数：末尾这么多用户轮不压，只压它们前面的
 ; summary_output_max_chars 摘要的篇幅上限（字数，写进提示词，不作强制截断）
 ; image_turns               只把最近这么多轮用户发言里的图片带进模型请求（负数 = 不限）
 ; image_max                 这几轮里最多带几张图；最近一轮优先保（负数 = 不限）
+; summary_prefix_reuse      摘要那一次调用复用平常请求的前缀吃 KV 缓存（1 开 / 0 关）
 summary_token_threshold = 700000
-full_user_rounds = 10
-pure_user_rounds = 10
+full_user_rounds = 1
+; 最近这么多用户轮保留完整工具往返；更早的轮剥掉轮内工具往返（负数 = 不剥）
 summary_output_max_chars = 5000
 image_turns = 3
 image_max = 10
-
-[skills]
-; 技能目录（相对路径按项目根解析；**留空禁用**）。技能是给模型按需读取的说明文档。
-dir =
-max_file_size = 200000
-
+summary_prefix_reuse = 1
 [model_pricing]
 ; 覆盖内置费率表（用量面板的金额计算）。
 ; rates 可以是**内联 JSON**，也可以是**相对项目根的 JSON 文件路径**。

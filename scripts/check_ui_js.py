@@ -240,7 +240,7 @@ def main() -> int:
             continue                      # 脚本作用域已有同名函数，谁都看得到
         decl_in = _enclosing(decl_ln)
         if decl_in is None:
-            continue                      # 声明不在任何函数体里 = 本来就是脚本作用域
+            continue                      # 声明不在任何函数体里 = 脚本作用域，谁都看得到
         callers = []
         for k, ln in enumerate(lines, 1):
             if k == decl_ln:

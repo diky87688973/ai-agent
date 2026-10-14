@@ -18,10 +18,10 @@ from agent.capabilities.builtin import (  # noqa: E402
     geo_weather_tools,
     github_tools,
     review_conclusion,
-    skill_tools,
 )
 from agent.mechanisms.quality_gate import QualityGate  # noqa: E402
-from agent.mechanisms.skills import SkillManager  # noqa: E402
+from plugins.skills import tools as skill_tools  # noqa: E402
+from plugins.skills.library import SkillManager  # noqa: E402
 
 
 def _ipwho_payload(**overrides: object) -> dict:

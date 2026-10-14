@@ -324,14 +324,27 @@ class DateGroupTest(unittest.TestCase):
         self.assertEqual(_date_group(now - 86400, now), "昨天")
         self.assertEqual(_date_group(0, now), "")
 
-    def test_older_falls_into_week_or_earlier(self) -> None:
+    def test_older_is_grouped_by_date(self) -> None:
 
         from agent.shell.web import _date_group
 
         now = time.time()
-        # 3 天前必然既不属今天也不属昨天；只可能是本周或更早
-        self.assertIn(_date_group(now - 3 * 86400, now), ("本周", "更早"))
-        self.assertEqual(_date_group(now - 40 * 86400, now), "更早")
+        # 更早的按具体日期分组（「本周」「更早」看不出是哪天）。
+        day = time.localtime(now - 3 * 86400)
+        self.assertEqual(_date_group(now - 3 * 86400, now),
+                         f"{day.tm_mon}月{day.tm_mday}日")
+        old_day = time.localtime(now - 40 * 86400)
+        self.assertEqual(_date_group(now - 40 * 86400, now),
+                         f"{old_day.tm_mon}月{old_day.tm_mday}日")
+
+    def test_classic_layer_shares_the_kernel_grouping(self) -> None:
+
+        from agent.shell.classic_adapter.inbound import _date_group as classic_group
+        from agent.shell.web import _date_group as kernel_group
+
+        now = time.time()
+        for stamp in (now, now - 86400, now - 3 * 86400, now - 40 * 86400):
+            self.assertEqual(classic_group(stamp, now), kernel_group(stamp, now))
 
 class FileViewerContractTest(_ServerFixture):
     """文件读取端点的路径解析与越界边界。"""

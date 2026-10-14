@@ -14,6 +14,8 @@ class ReadFileTool(ToolPlugin):
     """读取文本文件内容（1-based 闭区间行切片；编码容错）。"""
 
     name = "read_file"
+    label = "读取文件"
+    icon = "📖"
     description = "读取文本文件；可选行区间（line_start/line_end）与 max_chars 截断。"
     parameters = {
         "path": {"type": "string", "description": "文件路径"},

@@ -18,6 +18,14 @@ sys.path.insert(0, str(ROOT))
 from agent.core.ports import LogicalRequest  # noqa: E402
 from agent.mechanisms.model_provider import OpenAICompatibleProvider  # noqa: E402
 
+_PNG_B64 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+            "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+
+
+def _img() -> dict:
+    """附件形态与上传链路一致（`mime` + `data_base64`）。"""
+    return {"mime": "image/png", "data_base64": _PNG_B64}
+
 
 class _Capturing(OpenAICompatibleProvider):
     """把 `_post_stream` 换掉：不发网络请求，只记下 payload。"""
@@ -63,7 +71,6 @@ class RequestLevelModelTest(unittest.TestCase):
         p = _provider()
         list(p.stream(LogicalRequest(messages=[], tools=[], effort="max")))
         self.assertEqual(p.payloads[0].get("reasoning_effort"), "max")
-
 if __name__ == "__main__":
     unittest.main()
 

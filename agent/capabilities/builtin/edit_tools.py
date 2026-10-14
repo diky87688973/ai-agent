@@ -94,6 +94,8 @@ class ReplaceInFileTool(ToolPlugin):
     """预览：文本替换（字面 / 行区间），不落盘。"""
 
     name = "replace_in_file"
+    label = "替换文件内容"
+    icon = "✏️"
     description = "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。"
     parameters = {
         "path": {"type": "string", "description": "目标文件路径"},
@@ -237,6 +239,8 @@ class ApplyPatchTool(ToolPlugin):
     """预览：unified diff 应用（校验 + 统计），不落盘。"""
 
     name = "apply_patch"
+    label = "应用补丁"
+    icon = "🔧"
     description = "预览补丁应用（不落盘）：把 unified diff（patch_text）应用到 path 根下已有文件（目标可带 a//b/ 前缀，须在根内）；返回各文件统计与 confirm_id，凭 commit_write 提交。"
     parameters = {
         "path": {"type": "string", "description": "补丁应用根目录（目标文件须位于其下）"},
@@ -289,6 +293,8 @@ class ReadWriteTool(ToolPlugin):
     """预览：从 source_path 取片段写入 dest_path（校验 + 切片），不落盘。"""
 
     name = "read_write"
+    label = "管道读写"
+    icon = "🔀"
     description = "预览管道写（不落盘）：从 source_path 取片段（可选 line_start/line_end 行区间、max_chars 截断）写入 dest_path；返回 confirm_id，凭 commit_write 提交。"
     parameters = {
         "source_path": {"type": "string", "description": "源文件路径"},

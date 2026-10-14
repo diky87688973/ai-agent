@@ -7,7 +7,7 @@
   · 当前估算 token 与阈值的关系（会不会触发）
   · 保留窗口多宽、实际保留了几轮、哪几轮会被压掉
   · 已落盘的摘要与它覆盖到的轮次
-  · 分块 token 估算（系统提示词 / Skills / 知识库 / 记忆 / 远期 / 近期 / 模式）
+  · 分块 token 估算（系统提示词 / Skills / 知识库 / 记忆 / 近期 / 模式）
 
 用法：
 
@@ -129,13 +129,11 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
     cfg = get_context()
     threshold = int(cfg["summary_token_threshold"])
     full = int(cfg["full_user_rounds"])
-    pure = int(cfg["pure_user_rounds"])
 
     from agent.core.session_log import SessionLog
     from agent.mechanisms.context_pipeline import (
         ContextPipeline,
-        dialogue_summary_excerpt_half_open_for_messages,
-        excerpt_slice_to_rounds,
+        excerpt_by_target_tokens,
         flat_messages_to_user_rounds,
     )
 
@@ -144,7 +142,6 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
 
     pipeline = ContextPipeline(
         cid,
-        pure_user_rounds=pure,
         full_user_rounds=full,
         summary_token_threshold=threshold,
     )
@@ -156,8 +153,11 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
     full_tokens = sum(default_message_tokens(m) for m in messages)
 
     rounds = flat_messages_to_user_rounds(messages)
-    excerpt = dialogue_summary_excerpt_half_open_for_messages(messages, full, pure)
-    to_compress = excerpt_slice_to_rounds(messages, full, pure)
+    # 取段口径与压缩器一致：遮盖末尾 `full_user_rounds` 轮，压它前面那一段。
+    excerpt = excerpt_by_target_tokens(messages, keep_turns=full,
+                                       token_fn=pipeline.message_tokens)
+    to_compress = (flat_messages_to_user_rounds(messages[excerpt[0]:excerpt[1]])
+                   if excerpt else [])
     keep_count = len(rounds) - len(to_compress)
 
     print(SEP)
@@ -177,10 +177,9 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
     if threshold > 0:
         print(f"  占用            {full_tokens / threshold * 100:.1f}%")
 
-    print("\n【保留窗口】")
-    print(f"  full_user_rounds（从不被摘要）  {full}")
-    print(f"  pure_user_rounds（额外缓冲）    {pure}")
-    print(f"  窗口宽度                        {full + pure}")
+    print("\n【遮盖】")
+    print("  遮盖的末尾用户轮（不压）        1")
+    print(f"  遮盖之前可压的轮                {len(rounds) - 1 if rounds else 0}")
     print(f"  实际按原文保留                  {keep_count} 轮")
     print(f"  会被压成摘要                    {len(to_compress)} 轮")
     if excerpt is not None:
@@ -230,8 +229,16 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
             body = str(m.get("content") or "")
             print(f"      {len(body)} 字符：{' '.join(body.split())[:70]}")
         pending = {"messages": messages[-2:]} if len(messages) >= 2 else None
+        # 与 `ModelModule` 同序：**先把这一轮真正要发的样子装进管线**（摘要 + 未覆盖对话），
+        # 再让压缩器估体积。反过来（管线里还是占位对话）算出来的体积偏小，
+        # 会得出"不会压缩"的假结论。
+        pipeline.set_summary_messages(sm)
+        pipeline.set_dialogue(view, covered_end=comp.covered_end)
+        assembled = pipeline.assembles([])
+        print(f"  装配后估算      {_fmt_tokens(pipeline.total_token_estimate())}")
         try:
-            ev = comp.ensure_before_append(pipeline, messages, pending)
+            ev = comp.ensure_before_append(pipeline, messages, pending,
+                                           assembled=assembled)
         except Exception as exc:
             ev = None
             print(f"  ensure_before_append 抛错：{type(exc).__name__}: {exc}")

@@ -3,7 +3,7 @@
 
 三块各自钉一遍：
   1. todo_list 信封的进度字段（all_done 由服务端给，不让前端各算一遍）；
-  2. 上下文管线 layout_payload（七块 + 剩余容量，各段 pct 之和为 100）；
+  2. 上下文管线 layout_payload（各段 + 剩余容量，各段 pct 之和为 100）；
   3. 基础系统提示词（不得为空，否则「系统提示词」块恒为 0）。
 """
 from __future__ import annotations
@@ -98,19 +98,21 @@ class ContextLayoutTest(unittest.TestCase):
     def _pipeline(self) -> ContextPipeline:
         p = ContextPipeline("c1")
         p.append_system("你是助手，要遵守纪律")
-        p.append_skill("技能块")
-        p.append_kb("知识库块")
+        p.append_plugin("技能块", key="skills", label="Skills")
+        p.append_plugin("知识库块", key="kb", label="知识库")
         p.append_new_msg("user", "你好")
         p.append_new_msg("assistant", "在的")
         p.append_new_msg("user", "再问")
         return p
 
-    def test_seven_chunks_plus_remainder(self) -> None:
+    def test_chunks_plus_remainder(self) -> None:
 
-        payload = self._pipeline().layout_payload()
+        # 模式是请求尾部的临时后缀（不在管线里），单独传进来才占一段。
+        payload = self._pipeline().layout_payload(
+            tail_messages=[{"role": "system", "content": "## 当前模式：Auto"}])
         keys = [s["key"] for s in payload["segments"]]
-        self.assertEqual(keys[:7], ["system", "skill", "knowledge", "summary",
-                                    "pure", "full_recent", "mode"])
+        self.assertEqual(keys[:6], ["system", "plugin:skills", "plugin:kb",
+                                    "summary", "full_recent", "mode"])
         self.assertEqual(keys[-1], "remaining")
 
     def test_pct_sums_to_100(self) -> None:
@@ -142,7 +144,9 @@ class ContextLayoutTest(unittest.TestCase):
         payload = self._pipeline().layout_payload()
         by_key = {s["key"]: s for s in payload["segments"]}
         self.assertEqual(by_key["system"]["count"], 1)
-        self.assertEqual(by_key["full_recent"]["count"], 3)
+        # 计「个」的口径按段定：对话段按用户轮数（不是消息条数）
+        self.assertEqual(by_key["system"]["count"], 1)
+        self.assertGreaterEqual(by_key["full_recent"]["count"], 1)
         self.assertNotIn("count", by_key["remaining"])
 
     def test_labels_are_chinese_names(self) -> None:

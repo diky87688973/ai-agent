@@ -187,7 +187,7 @@ class FileRunRegistry:
     def _pid_alive(pid: object) -> bool:
         """记录里那个进程还在吗？**只在"确知它死了"时返回 False**。
 
-        ## 判活为何不走 `os.kill(pid, 0)`
+        判活不用 `os.kill(pid, 0)`：
 
         那条路在 Windows 上**不可靠**：在没有控制台的进程里
         （Windows 服务 / 计划任务 / `pythonw` / 分离启动 / `Start-Process -WindowStyle Hidden`），

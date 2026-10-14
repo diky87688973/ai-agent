@@ -75,6 +75,7 @@ class PluginContext:
         pipeline: Any = None,
         host: Any = None,
         contributions: Any = None,
+        executors: Any = None,
     ) -> None:
         self.name = name
         self._registry = registry
@@ -83,7 +84,25 @@ class PluginContext:
         self._pipeline = pipeline
         self._host = host
         self._contributions = contributions
+        self._executors = executors
+        #: 本插件在清单里的位次（宿主装载时写入；测试直构时为 None）
+        self._rank: Optional[int] = None
         self._disposers: List[Disposer] = []
+
+    def set_rank(self, rank: Optional[int]) -> None:
+        """写入本插件在清单里的位次（组装顺序按它排）。"""
+        self._rank = rank
+
+    def add_executor(self, name: str, fn: Callable[[Dict[str, Any]], Dict[str, Any]]) -> Disposer:
+        """登记写类工具的执行器（提交路径扩展点；需接入 ExecutorRegistry）。
+
+        插件自己的写类工具走 `confirm_id` 制预览时，提交那一刻按工具名来这里取。
+        """
+        if self._executors is None:
+            raise RuntimeError("插件未接入执行器注册表（PluginHost 未传 executors）")
+        disposer = self._executors.add(name, fn, owner=self.name)
+        self._disposers.append(disposer)
+        return disposer
 
     def register_tool(self, plugin: ToolPlugin) -> Disposer:
         """向工具注册表注册插件；返回幂等 disposer。"""
@@ -99,13 +118,48 @@ class PluginContext:
         self._disposers.append(disposer)
         return disposer
 
-    def add_context_source(self, fn: Callable[[str], List[str]]) -> Disposer:
-        """注册上下文注入源（上下文注入扩展点；需接入 sources）。"""
+    def add_context_source(self, fn: Callable[[str], List[str]],
+                           meta: Any = None) -> Disposer:
+        """注册上下文注入源（上下文注入扩展点；需接入 sources）。
+
+        `meta` 是这一段的描述（`SourceMeta` 或 `{"label": ...}` 这类映射）：
+        段 key 一律以**插件名**为首（宿主不解释它的含义），段名由插件给。
+        不给描述时用插件名当段名。
+        """
         if self._context_sources is None:
             raise RuntimeError("插件未接入上下文注入源（PluginHost 未传 context_sources）")
-        disposer = self._context_sources.add(fn)
+        disposer = self._context_sources.add(fn, self._source_meta(meta))
         self._disposers.append(disposer)
         return disposer
+
+    def _source_meta(self, meta: Any) -> Any:
+        """把插件给的描述补上插件名，成为内核认的 `SourceMeta`。
+
+        **段 key 一律是插件名** —— 前端按这个名字找插件注册的渲染钩子。
+        段名、注入前缀与主体数量的取数口由插件给：
+        `{"label": ..., "prefix": ..., "count": fn(cid)}`。
+        组装顺序不由插件声明：它取插件在清单里的位次。
+        """
+        from agent.mechanisms.context_pipeline import SourceMeta, _slug
+
+        label = ""
+        prefix = ""
+        count = None
+        if isinstance(meta, str):
+            label = meta
+        elif isinstance(meta, dict):
+            label = str(meta.get("label") or "")
+            prefix = str(meta.get("prefix") or "")
+            count = meta.get("count") if callable(meta.get("count")) else None
+        elif meta is not None:
+            label = str(getattr(meta, "label", "") or "")
+            prefix = str(getattr(meta, "prefix", "") or "")
+            count = getattr(meta, "count", None)
+        name = _slug(self.name)
+        # 组装顺序按**插件清单位次**：清单靠前的插件，它的段也排在前面。
+        return SourceMeta(key=name, label=label or name, plugin=self.name,
+                          prefix=prefix, count=count,
+                          plugin_rank=self._rank)
 
     def add_pre_gate(self, fn: Callable[[Any, Any], Any]) -> Disposer:
         """注册工具管道前置门控（工具管道扩展点；仅可加检查，不可减保证）。"""
@@ -227,13 +281,14 @@ class PluginContext:
 class PluginHost:
     """插件宿主：发现 / 按清单装载 / 卸载 / 报告。"""
 
-    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None) -> None:
+    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None) -> None:
         self._dir = Path(plugins_dir)
         self._registry = registry
         self._event_bus = event_bus
         self._context_sources = context_sources
         self._pipeline = pipeline
         self._contributions = contributions
+        self._executors = executors
         #: 插件专属存储的根（`<数据根>/plugin/`）。插件只拿到自己的子目录，见 `PluginContext.data_dir`。
         self.plugin_data_root: Optional[Path] = (
             Path(plugin_data_root) if plugin_data_root is not None else None
@@ -303,7 +358,7 @@ class PluginHost:
         配置错了要**看得见** —— 静默当没写会让人对着"插件没生效"无从下手。
         """
         fresh: List[LoadReport] = []
-        for entry in entries:
+        for rank, entry in enumerate(entries):
             raw = entry if isinstance(entry, dict) else {"name": entry}
             name = str(raw.get("name") or "").strip()
             declared = str(raw.get("version") or "").strip()
@@ -325,7 +380,7 @@ class PluginHost:
                     message=f"插件目录不存在或缺少 plugin.py：{entry_file}"))
                 continue
 
-            report = self._load_one(PluginInfo(name=name, path=entry_file))
+            report = self._load_one(PluginInfo(name=name, path=entry_file), rank=rank)
             if report.status == "loaded" and declared:
                 actual = str(self._versions.get(name) or "")
                 if actual and actual != declared:
@@ -360,7 +415,7 @@ class PluginHost:
         """
         discovered = {info.name: info for info in self.discover()}
         fresh: List[LoadReport] = []
-        for raw in enabled:
+        for rank, raw in enumerate(enabled):
             name = str(raw or "").strip()
             if not name or name in self._loaded:
                 continue
@@ -368,14 +423,16 @@ class PluginHost:
             if info is None:
                 fresh.append(LoadReport(name=name, status="error", message="插件目录不存在或缺少 plugin.py"))
                 continue
-            fresh.append(self._load_one(info))
+            report = self._load_one(info, rank=rank)
+            fresh.append(report)
         self._reports.extend(fresh)
         return fresh
 
-    def _load_one(self, info: PluginInfo) -> LoadReport:
+    def _load_one(self, info: PluginInfo, rank: Optional[int] = None) -> LoadReport:
         ctx = PluginContext(info.name, self._registry, self._event_bus,
                             self._context_sources, self._pipeline, self,
-                            self._contributions)
+                            self._contributions, self._executors)
+        ctx.set_rank(rank)
         mod_name = f"{_MODULE_PREFIX}.{info.name}"
         try:
             spec = importlib.util.spec_from_file_location(mod_name, str(info.path))

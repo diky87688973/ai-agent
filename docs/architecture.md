@@ -143,7 +143,8 @@ class Ports:
 | 内核模块链与事件 | [subsystems/core.md](subsystems/core.md) |
 | 上下文管理 | [subsystems/context.md](subsystems/context.md) |
 | 模型调用 | [subsystems/llm.md](subsystems/llm.md) |
-| 工具与插件 | [subsystems/tools.md](subsystems/tools.md) |
+| 工具与插件 | [subsystems/tools.md](subsystems/tools.md)、[subsystems/plugins.md](subsystems/plugins.md) |
+| 技能 | [subsystems/skills.md](subsystems/skills.md) |
 | 会话存储与协作 | [subsystems/session.md](subsystems/session.md) |
 | HTTP 服务与界面 | [subsystems/shell.md](subsystems/shell.md) |
 | 配置项 | [guide/config.md](guide/config.md) |

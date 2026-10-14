@@ -1,39 +1,37 @@
 # -*- coding: utf-8 -*-
-"""上下文管线：七块上下文与摘要调度。
+"""上下文管线：分块上下文、三段装配与摘要调度。
 
-- 数据模型：七块（系统提示词 / Skills / 知识库 / 记忆文件 / 远期记忆 /
-  近期记忆 / 模式）+ Round（user 起轮）+ ContextChunk（命名块含轮）；
-- 展平：系统 → Skills → 知识库 → 摘要 → 对话（远期 → 近期）→ 模式；
-  空块跳过；末端统一过 sanitize_fn；
-- 摘要调度：越界轮提取 / 半开取段区间 / 工具链完整性外扩 / 素材切轮；
-- 待并摘要：暂存 → 合并 → 清空；
-- 估算与统计：总量 / 分块 / 轮数。
+- 数据模型：六块（系统提示词 / 插件段落 / 记忆文件 / 近期记忆 /
+  模式）+ Round（user 起轮）+ ContextChunk（命名块含轮）；
+- 装配走三段拼接：头部（系统提示词 / 插件各段 / 记忆摘要）+ 对话 +
+  尾部（本轮新输入 / 工具结果 / 模式），见 `assembles()`；
+- 区块来源：系统提示词与摘要由会话注入，插件各段经 `ContextSources`
+  注入源刷新，对话来自事实日志；
+- 摘要调度：遮盖取段 / 工具链完整性外扩 / 素材切轮；
+- 估算与统计：总量 / 分块 / 分段快照。
 
-装配说明：
-- 最小集 = 系统块 + 对话块；Skills / 模式块保留结构、留空待能力接入；知识库块经 ContextSources 注入源刷新；
-- 对话段以「远期 → 近期」时序展平；
-- 摘要生成（调用模型产出摘要文本）不在本模块范围（属压缩策略执行侧）；
-- 持久化重建走时序路径（rebuild_from_messages）。
+摘要生成（调用模型产出摘要文本）不在本模块范围（属压缩策略执行侧）。
 """
 from __future__ import annotations
 
 import copy
 import sys
 import threading
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 CHUNK_SYSTEM = "系统提示词"
-CHUNK_SKILL = "Skills"
-CHUNK_KB = "知识库"
+CHUNK_PLUGIN = "插件段落"
 CHUNK_MEM = "记忆文件"
-CHUNK_PURE = "远期记忆"
 CHUNK_FULL = "近期记忆"
 CHUNK_MODE = "模式"
-CHUNK_ORDER = (CHUNK_SYSTEM, CHUNK_SKILL, CHUNK_KB, CHUNK_MEM, CHUNK_PURE, CHUNK_FULL, CHUNK_MODE)
+CHUNK_ORDER = (CHUNK_SYSTEM, CHUNK_PLUGIN, CHUNK_MEM, CHUNK_FULL, CHUNK_MODE)
 
-DEFAULT_PURE_USER_ROUNDS = 2
-DEFAULT_FULL_USER_ROUNDS = 6
-DEFAULT_SUMMARY_TOKEN_THRESHOLD = 8000
+DEFAULT_FULL_USER_ROUNDS = 1
+DEFAULT_SUMMARY_TOKEN_THRESHOLD = 700000
+#: 最近这么多用户轮保留完整工具往返；更早的轮剥掉轮内工具往返。
+#: 压缩时保留的最近用户轮数（0 = 允许压到 0 个用户轮）。
+#: 剥掉工具往返的轮补的标注：不补的话模型会以为这些轮没调用过工具。
 
 
 class Round:
@@ -77,6 +75,24 @@ class ContextChunk:
 
     def calculate_tokens(self, approx_msg_fn: Callable[[Dict[str, Any]], int]) -> int:
         return sum(r.calculate_tokens(approx_msg_fn) for r in self.rounds)
+
+
+def _as_text_parts(text: Any) -> List[str]:
+    """把可能为列表/字符串的注入内容归一成"每段一条"的正文列表。
+
+    注入源（知识库 / 技能）常按条目给列表；直接塞进 `content` 会让模型收到
+    Python 字面量。这里逐条转字符串并去掉空串。
+    """
+    if isinstance(text, (list, tuple)):
+        items = list(text)
+    else:
+        items = [text]
+    out: List[str] = []
+    for it in items:
+        t = str(it or "").strip()
+        if t:
+            out.append(t)
+    return out
 
 
 def approx_tokens_text(text: str) -> int:
@@ -146,6 +162,226 @@ def find_first_user_index(messages: List[Dict[str, Any]]) -> Optional[int]:
     return None
 
 
+def user_turn_starts(messages: List[Dict[str, Any]]) -> List[int]:
+    """每个**用户轮**的起始下标（一条 user 起到下一条 user 前，为原子单位）。
+
+    轮的边界只认 `user`：一条 user 之后的所有 `assistant` / `tool` 都属于这一轮 ——
+    工具往返、悬空调用、多段回复都算轮内。压缩只允许整轮处理。
+    """
+    return [i for i, m in enumerate(messages or [])
+            if isinstance(m, dict) and str(m.get("role") or "") == "user"]
+
+
+def turn_boundary_floor(messages: List[Dict[str, Any]], index: int) -> int:
+    """把下标**向下取整**到最近的用户轮起始位置。
+
+    不是轮边界时向**前**退到本轮的起点（宁可少压，也不从轮中间切开）::
+
+        [user0][A][tool][A]  [user1][A]  [user2][A]
+                        ↑ index=4（轮内）→ 取整到 3（user1 的位置）
+
+    前面一条 user 都没有 → 返回 0。
+    """
+    idx = max(0, int(index))
+    best = 0
+    for s in user_turn_starts(messages):
+        if s <= idx:
+            best = s
+        else:
+            break
+    return best
+
+
+def is_turn_boundary(messages: List[Dict[str, Any]], index: int) -> bool:
+    """下标是否正好落在某个用户轮起始处（`len` 也算：末尾之后是合法边界）。"""
+    idx = int(index)
+    if idx == len(messages or []):
+        return True
+    return idx in set(user_turn_starts(messages))
+
+
+def turn_spans(messages: List[Dict[str, Any]]) -> List[Tuple[int, int]]:
+    """每个用户轮的半开区间 `[start, end)` 列表（按顺序）。"""
+    starts = user_turn_starts(messages)
+    n = len(messages or [])
+    out: List[Tuple[int, int]] = []
+    for j, s in enumerate(starts):
+        e = starts[j + 1] if j + 1 < len(starts) else n
+        out.append((s, e))
+    return out
+
+
+def tool_chain_balanced(messages: List[Dict[str, Any]], start: int, end: int) -> bool:
+    """区间 `[start, end)` 内工具链是否**闭合**。
+
+    闭合 = 每条 `assistant.tool_calls` 的结果都在区间内，且没有孤立 `tool`
+    （发起它的 assistant 落在区间外）。模型 API 对不闭合是硬拒绝。
+    """
+    pending: List[str] = []
+    for m in (messages or [])[max(0, start):max(0, end)]:
+        if not isinstance(m, dict):
+            continue
+        for tc in (m.get("tool_calls") or []):
+            pending.append(str((tc or {}).get("id") or ""))
+        tid = m.get("tool_call_id")
+        if tid is not None:
+            key = str(tid)
+            if key not in pending:
+                return False
+            pending.remove(key)
+    return not pending
+def layout_from_messages(
+    messages: List[Dict[str, Any]],
+    *,
+    system_text: str = "",
+    head: Optional[List[Dict[str, Any]]] = None,
+    plugin_segments: Optional[List[Tuple[str, str, int]]] = None,
+    budget_tokens: int = 0,
+    token_fn: Optional[Callable[[Dict[str, Any]], int]] = None,
+) -> Dict[str, Any]:
+    """把请求的**头部 + 对话**切开分段并统计 token（观察面用）。
+
+    `head` 是装配出来的头部：第 1 条是系统提示词，其后依次是**插件各段**
+    （顺序与 `plugin_segments` 一致），再往后是记忆摘要。
+    `plugin_segments` 是 `[(段 key, 段名, 主体数量)]` —— 由插件给，宿主不猜。
+
+    插件内容与技能清单**不在事实记录里**（每回合装配时注入），所以不传 `head`
+    就只能退化：按位置猜，插件各段与摘要分不出来。
+
+    模式从对话段里按正文认（`## 当前模式` 开头），单列一段。
+    """
+    counter = token_fn or default_message_tokens
+    msgs = [m for m in (messages or []) if isinstance(m, dict)]
+    budget_in = max(int(budget_tokens or 0), 1)
+    if not msgs and not head:
+        return {"segments": [], "total_tokens": 0, "budget_tokens": budget_in,
+                "model_max_context_tokens": 0}
+
+    if head is not None:
+        head_msgs = [m for m in head if isinstance(m, dict)]
+        body = msgs
+    else:
+        cut = next((i for i, m in enumerate(msgs)
+                    if str(m.get("role") or "") == "user"), len(msgs))
+        head_msgs, body = msgs[:cut], msgs[cut:]
+
+    prompt = str(system_text or "").strip()
+    rest_head = list(head_msgs)
+    if prompt:
+        # 给了系统提示词正文：头部第 1 条若与它同文，就不再重复计入。
+        if rest_head and str(rest_head[0].get("content") or "").strip() == prompt:
+            rest_head = rest_head[1:]
+    elif rest_head:
+        # 没给正文：头部第 1 条就是系统提示词，同样要从后面的分段里去掉 ——
+        # 否则它会被系统段与摘要段各算一次。
+        rest_head = rest_head[1:]
+    plan = list(plugin_segments or [])
+    plugin: List[List[Dict[str, Any]]] = []
+    for i, _ in enumerate(plan):
+        plugin.append([rest_head[i]] if i < len(rest_head) else [])
+    # 插件各段之后剩下的都算记忆摘要（压缩产出的那份）。
+    summary = [m for m in rest_head[len(plan):]]
+
+    mode: List[Dict[str, Any]] = []
+    for m in reversed(body):
+        if str(m.get("role") or "") == "system" \
+                and str(m.get("content") or "").startswith("## 当前模式"):
+            mode = [m]
+            break
+    dialogue = [m for m in body if m not in mode]
+
+    rows: List[Dict[str, Any]] = []
+
+    def _row(key: str, items: List[Dict[str, Any]],
+             tokens: Optional[int] = None, count: Optional[int] = None,
+             label: str = "") -> None:
+        rows.append({
+            "key": key,
+            "label": label or ContextPipeline.SEGMENT_LABELS.get(key, key),
+            "tokens": int(tokens) if tokens is not None
+            else sum(int(counter(m)) for m in items),
+            "count": len(items) if count is None else int(count),
+        })
+
+    if prompt:
+        _row("system", [], int(counter({"role": "system", "content": prompt})), count=1)
+    elif head_msgs:
+        _row("system", head_msgs[:1])
+    # 头部内部顺序与装配一致：插件各段 → 记忆摘要；对话接在摘要之后。
+    for i, seg in enumerate(plan):
+        seg_key, seg_label = str(seg[0]), str(seg[1])
+        seg_count = int(seg[2]) if len(seg) > 2 else len(plugin[i])
+        _row(f"plugin:{seg_key}", plugin[i], count=seg_count, label=seg_label)
+    _row("summary", summary)
+    # 对话段计**用户轮数**（不是消息条数）：一轮里有问有答还有工具往返。
+    _row("full_recent", dialogue,
+         count=sum(1 for m in dialogue if str(m.get("role") or "") == "user"))
+    if mode:
+        _row("mode", mode)
+
+    total = sum(int(r["tokens"]) for r in rows)
+    budget = max(int(budget_tokens or 0), total, 1)
+    segments: List[Dict[str, Any]] = []
+    for row in rows:
+        row = dict(row)
+        row["pct"] = round(100.0 * row["tokens"] / budget, 6)
+        segments.append(row)
+    segments.append({
+        "key": "remaining",
+        "label": "剩余容量",
+        "tokens": max(0, budget - total),
+        "pct": round(100.0 * max(0, budget - total) / budget, 6),
+    })
+    return {
+        "segments": segments,
+        "total_tokens": total,
+        "budget_tokens": budget,
+        "model_max_context_tokens": 0,
+    }
+
+
+def excerpt_by_target_tokens(
+    messages: List[Dict[str, Any]],
+    keep_turns: int,
+    token_fn: Optional[Callable[[Dict[str, Any]], int]] = None,
+) -> Optional[Tuple[int, int]]:
+    """要压缩掉的区间 `[0, end)`：**遮盖末尾 `keep_turns` 轮，压它前面的**。
+
+    遮盖是**偏好**（正常情况）：
+
+    - 末尾 `keep_turns` 个用户轮不压 —— 那是模型的近场，手里的活全在那里；
+    - 压缩区域只能是**「最后一个前置 system 之后 → 遮盖起点之前」**那一段。
+      系统提示词 / Skills / 知识库 / 记忆摘要都是 `system`，位置在对话之前，
+      所以这个区域天然只覆盖对话，不含任何系统设定。
+
+    **压不动就连近场一起压**（这一条亘古不变）：遮盖前面没有可压的轮
+    （例如总共只剩 1 轮、或遮盖已经盖住全部）时，连遮盖一起压掉 ——
+    极端情况压缩后整个上下文 **0 个用户轮**，摘要接管全部历史，
+    剩下的只有头部（系统提示 / 知识库 / 摘要）。
+    遮盖是偏好，不是拒绝压缩的理由：压不动就是请求超上限直接失败。
+
+    两者都没有（对话一条都没有）→ `None`。
+    返回的 `end` 只会落在用户轮边界或工具链闭合处。
+    """
+    msgs = list(messages or [])
+    spans = turn_spans(msgs)
+    if not spans:
+        return None
+    keep = max(0, int(keep_turns))
+    start = len(spans) - keep
+    cut = 0
+    if 0 < start < len(spans):
+        # 正常路径：压遮盖前面那一段（`spans[0][0]` 恒为 0，落点即遮盖起点）。
+        cut = spans[start][0]
+    if cut <= 0:
+        # 遮盖前面没有可压的轮 → **连遮盖一起压**（压到末尾）。
+        cut = len(msgs)
+    # 落点不能切在悬空工具链上：往前收到工具链闭合为止。
+    while cut > 0 and not tool_chain_balanced(msgs, 0, cut):
+        cut -= 1
+    if cut <= 0:
+        return None
+    return 0, cut
 def adjust_excerpt_range_half_open(
     messages: List[Dict[str, Any]], start: int, end: int
 ) -> Tuple[int, int]:
@@ -190,118 +426,166 @@ def adjust_excerpt_range_half_open(
     return start, min(end, n)
 
 
-def dialogue_summary_excerpt_half_open_for_messages(
-    messages: List[Dict[str, Any]],
-    full_user_rounds: int,
-    pure_user_rounds: int,
-) -> Optional[Tuple[int, int]]:
-    """摘要取段半开区间 [start, end)；无需摘要 → None。"""
-    fu = find_first_user_index(messages)
-    if fu is None:
-        return None
-    user_idxs = [i for i, m in enumerate(messages) if m.get("role") == "user" and i >= fu]
-    k = len(user_idxs)
-    fn = max(1, int(full_user_rounds))
-    pn = max(0, int(pure_user_rounds))
-    reserve = fn + pn
-    if k <= reserve:
-        if k <= fn:
-            return None
-        end_cap = user_idxs[k - fn]
-    else:
-        end_cap = user_idxs[k - reserve]
-    start0 = fu
-    if start0 >= end_cap:
-        return None
-    s_adj, e_adj = adjust_excerpt_range_half_open(messages, start0, end_cap)
-    e_adj = min(e_adj, end_cap)
-    if s_adj >= e_adj:
-        return None
-    return s_adj, e_adj
 
 
-def excerpt_slice_to_rounds(
-    messages: List[Dict[str, Any]],
-    full_user_rounds: int,
-    pure_user_rounds: int,
-) -> List[Round]:
-    """由摘要半开区间得到 Round 列表；区间空 / 越界 → []。"""
-    rng = dialogue_summary_excerpt_half_open_for_messages(
-        messages, full_user_rounds, pure_user_rounds
-    )
-    if not rng:
-        return []
-    s, e = int(rng[0]), int(rng[1])
-    if s >= e or s >= len(messages):
-        return []
-    e = min(e, len(messages))
-    return flat_messages_to_user_rounds(messages[s:e])
+
+
+
+@dataclass(frozen=True)
+class SourceMeta:
+    """插件段落的描述：段 key 与段名。
+
+    `key` 是**前端认的字段名**，也进 `context_layout.segments[].key`，
+    所以与插件名一致；宿主不解释它的含义。
+    """
+
+    key: str = ""
+    label: str = ""
+    plugin: str = ""
+    # 注入前缀：告诉模型这段是什么（如 `【知识库：a.md】`、`【Skills清单】`）。
+    # 前缀由来源给，宿主不替它拼 —— 拼错了模型会把它当对话内容。
+    prefix: str = ""
+    # 主体数量的取数口 `fn(conversation_id) -> int`（插件自报，如"勾选了几个文件"、
+    # "清单里列了几个技能"）；不给时按消息条数算。
+    count: Optional[Callable[[str], int]] = None
+    # 插件在清单（`plugins.ini`）里的位次。插件段之间的组装顺序**按它排** ——
+    # 清单靠前的插件，它的段也靠前。应用级来源（非插件）没有位次，排在最后。
+    plugin_rank: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class PluginSegments:
+    """插件贡献的段落：段落表 + 各段主体数量。
+
+    `items` 是 `[(段 key, 段名, 正文)]`，顺序即装配顺序；
+    `counts` 是**按位置**对应的主体数量（同一个插件可以声明多段，按 key 存会互相覆盖）；
+    """
+
+    items: List[Tuple[str, str, str]] = field(default_factory=list)
+    counts: List[int] = field(default_factory=list)
+
+
+def _slug(text: str) -> str:
+    """把任意名字压成可用作段 key 的形状（只留字母数字与 `_`、`-`）。"""
+    out = "".join(ch if (ch.isalnum() or ch in "_-") else "_" for ch in str(text or ""))
+    return out.strip("_") or "source"
 
 
 class ContextSources:
     """上下文注入源注册表（扩展点）。
 
-    每个来源 fn(conversation_id) -> List[str]（系统文本列表，每条独立成消息）；
-    collect 按注册顺序串接，单个来源异常被隔离（记录 stderr），不影响其他来源与请求。
+    每个来源贡献**一段** `system` 文本，并自带段名（`SourceMeta`）：
+    段 key 是插件名（前端按它找插件注册的渲染钩子），段名与主体数量由插件给。
+
+    宿主不认识任何具体插件 —— 知识库、技能清单都只是"某个插件注册的一段"；
+    来源函数是 `fn(conversation_id) -> List[str]`（文本列表，每条独立成消息）。
+    `collect` 按注册顺序串接，单个来源异常被隔离（记录 stderr），不影响其他来源。
     """
 
     def __init__(self) -> None:
-        self._sources: List[Callable[[str], List[str]]] = []
+        self._sources: List[Tuple[str, str, Callable[[str], List[str]], Any, str, str]] = []
         self._lock = threading.Lock()
 
-    def add(self, fn: Callable[[str], List[str]]) -> Callable[[], None]:
-        """注册来源；返回幂等 disposer。"""
+    def add(self, fn: Callable[[str], List[str]],
+            meta: Optional["SourceMeta"] = None) -> Callable[[], None]:
+        """注册一段注入源；返回幂等 disposer。
+
+        `meta` 不给时按来源函数名兜底成一段段名等于 key 的来源。
+        """
         if not callable(fn):
             raise ValueError("上下文来源必须可调用")
+        info = meta if isinstance(meta, SourceMeta) else SourceMeta()
+        key = info.key or _slug(getattr(fn, "__name__", "") or "source")
+        return self._register(self._sources,
+                              (key, info.label or key, fn, info.count, info.prefix,
+                               info.plugin_rank))
+
+    def _register(self, bucket: List[Any], item: Any) -> Callable[[], None]:
         with self._lock:
-            self._sources.append(fn)
+            bucket.append(item)
 
         def _dispose() -> None:
             with self._lock:
-                if fn in self._sources:
-                    self._sources.remove(fn)
+                if item in bucket:
+                    bucket.remove(item)
 
         return _dispose
 
-    def collect(self, conversation_id: str) -> List[str]:
-        """收集全部来源的系统文本（顺序串接；异常隔离）。"""
+    def collect_segments(self, conversation_id: str) -> "PluginSegments":
+        """收集注入源，返回 `PluginSegments`（异常隔离）。
+
+        `items` 是 `[(段 key, 段名, 正文)]`；`counts` **按位置**对应 `items` ——
+        同一个插件可以注册多个来源，它们共用段 key，按 key 存会互相覆盖。
+        数量由来源自报，没有自报口的按消息条数算。
+        """
         with self._lock:
             sources = list(self._sources)
+        # 插件段按**插件清单位次**排：清单靠前的插件排在前面；
+        # 没有位次的（应用级来源）排最后。稳定排序，同位次保持注册序。
+        sources.sort(key=lambda s: (s[5] is None, s[5] if s[5] is not None else 0))
+        items: List[Tuple[str, str, str]] = []
+        counts: List[int] = []
+        for key, label, fn, reported, prefix, _order in sources:
+            texts = self._gather(fn, conversation_id)
+            amount = None
+            if callable(reported):
+                try:
+                    amount = max(0, int(reported(conversation_id)))
+                except Exception as exc:
+                    print(
+                        f"[context_sources] 数量取数口异常（已隔离）: "
+                        f"{key}: {type(exc).__name__}: {exc}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    amount = None
+            for i, text in enumerate(texts):
+                # 前缀在收集时统一加上：插件只管正文，前缀由它自己声明。
+                items.append((key, label, f"{prefix}{text}" if prefix else text))
+                # 一个来源给多条正文时只有第一条带自报数量，其余按条数算。
+                counts.append(amount if i == 0 and amount is not None else 1)
+        return PluginSegments(items=items, counts=counts)
+
+    @staticmethod
+    def _gather(fn: Callable[[str], List[str]], conversation_id: str) -> List[str]:
+        try:
+            parts = fn(conversation_id)
+        except Exception as exc:
+            print(
+                f"[context_sources] 来源异常（已隔离）: {type(exc).__name__}: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return []
         out: List[str] = []
-        for fn in sources:
-            try:
-                parts = fn(conversation_id)
-            except Exception as exc:
-                print(
-                    f"[context_sources] 来源异常（已隔离）: {type(exc).__name__}: {exc}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                continue
-            for text in parts or []:
-                t = str(text or "").strip()
-                if t:
-                    out.append(t)
+        for text in parts or []:
+            t = str(text or "").strip()
+            if t:
+                out.append(t)
         return out
 
 
 class ContextPipeline:
-    """会话级七块上下文管线（摘要生成由外部执行）。"""
+    """会话级上下文管线（摘要生成由外部执行）。"""
 
     def __init__(
         self,
         conversation_id: str = "",
         *,
-        pure_user_rounds: int = DEFAULT_PURE_USER_ROUNDS,
         full_user_rounds: int = DEFAULT_FULL_USER_ROUNDS,
         summary_token_threshold: int = DEFAULT_SUMMARY_TOKEN_THRESHOLD,
         sources: Optional["ContextSources"] = None,
     ) -> None:
         self.conversation_id = str(conversation_id or "")
-        self.pure_user_rounds = max(0, int(pure_user_rounds))
         self.full_user_rounds = max(1, int(full_user_rounds))
         self.summary_token_threshold = max(1, int(summary_token_threshold))
+        #: 最近这么多**用户轮**原样保留（含工具往返）；更早的轮剥掉轮内工具往返。
+        #: 负数 = 不剥（全部保留）。
         self._sources = sources
+        # 插件段落：`[(段 key, 段名)]`，顺序与 CHUNK_PLUGIN 里的消息一一对应。
+        self._plugin_sources: List[Tuple[str, str]] = []
+        # 插件自报的主体数量，**按段的位置**对应（缺省时段落行按消息条数算）。
+        self._plugin_counts: List[int] = []
         self.chunks: List[ContextChunk] = []
         self.name_map: Dict[str, ContextChunk] = {}
         for nm in CHUNK_ORDER:
@@ -313,37 +597,117 @@ class ContextPipeline:
 
     # ── 结构──────────────────────────────────────
 
+    #: 前端上下文条的段名与配色键（与 `segments()` 输出一致）。
+    SEGMENT_LABELS = {
+        "system": "系统提示词",
+        "summary": "记忆摘要",
+        "full_recent": "近期记忆",
+        "mode": "模式",
+    }
+
+    def segment_tokens(
+        self,
+        *,
+        token_fn: Optional[Callable[[Dict[str, Any]], int]] = None,
+    ) -> List[Dict[str, Any]]:
+        """按**当前装配**逐段统计 token：系统提示词 + 插件各段 + 记忆摘要 + 对话。
+
+        口径与真正发出去的请求一致（同一个 `default_message_tokens`）。
+        插件各段一段一条，key 是 `plugin:<插件名>`、段名与数量由插件给 ——
+        内核不认识知识库、技能这些具体名字。
+
+        **模式不在管线里** —— 它是请求尾部的临时后缀，由调用方单独算。
+
+        返回 `[{key, label, tokens, count}]`（按装配顺序）。
+        """
+        counter = token_fn or default_message_tokens
+        rows: List[Dict[str, Any]] = []
+        for key, name in (("system", CHUNK_SYSTEM),
+                          ("summary", CHUNK_MEM), ("full_recent", CHUNK_FULL)):
+            chunk = self.name_map.get(name)
+            tokens = 0
+            msgs = 0
+            users = 0
+            if chunk is not None:
+                for rnd in chunk.rounds:
+                    for msg in rnd.messages:
+                        tokens += int(counter(msg))
+                        msgs += 1
+                        if str(msg.get("role") or "") == "user":
+                            users += 1
+            rows.append({
+                "key": key,
+                "label": self.SEGMENT_LABELS[key],
+                "tokens": tokens,
+                # 计「个」的口径按段定：头部各段按消息条数，对话段按用户轮数。
+                "count": users if key == "full_recent" else msgs,
+            })
+        # 段顺序**逐条对齐装配顺序**：系统提示词 → 插件各段 → 记忆摘要 → 近期记忆。
+        # 前端就按这个顺序画，所以不能为了方便把摘要挪到末尾。
+        head = [rows[0]] if rows else []
+        tail = [r for r in rows[1:] if r["key"] == "full_recent"]
+        summary = [r for r in rows[1:] if r["key"] != "full_recent"]
+        return head + self._plugin_rows(counter) + summary + tail
+
+    def _plugin_rows(
+        self, counter: Callable[[Dict[str, Any]], int],
+    ) -> List[Dict[str, Any]]:
+        """插件贡献的段落：一段一条，key 用插件来源声明的名字。
+
+        消息与段落**按顺序对齐**：`set_plugin_segments` 保证每条消息各成一轮、
+        顺序与来源一致，所以这里按展平顺序数过去即可。
+        """
+        flat: List[Dict[str, Any]] = []
+        chunk = self.name_map.get(CHUNK_PLUGIN)
+        if chunk is not None:
+            for rnd in chunk.rounds:
+                flat.extend(rnd.messages)
+        rows: List[Dict[str, Any]] = []
+        for i, (key, label) in enumerate(self._plugin_sources):
+            msg = flat[i] if i < len(flat) else None
+            reported = self._plugin_counts[i] if i < len(self._plugin_counts) else None
+            rows.append({
+                "key": f"plugin:{key}",
+                "label": label,
+                "tokens": int(counter(msg)) if msg is not None else 0,
+                "count": (1 if msg is not None else 0) if reported is None else int(reported),
+            })
+        return rows
+
     def layout_payload(
         self,
         *,
         budget_tokens: int = 0,
         model_max_context_tokens: int = 0,
         token_fn: Optional[Callable[[Dict[str, Any]], int]] = None,
+        tail_messages: Any = None,
     ) -> Dict[str, Any]:
-        """上下文分段快照。
+        """上下文分段快照（前端画上下文条与浮层用）。
 
-        产出量纲一致：每段 `{key, label, tokens, pct, count?}`，末尾补
-        `剩余容量`；`pct` 相对**预算**（取预算与已用中的较大者，保证各段之和不超过 100%）。
-        key 用稳定的英文标识（`system` / `skill` / `knowledge` / `summary` / `pure` /
-        `full_recent` / `mode`），label 用七块中文名——前端据此画上下文条与浮层。
+        每段 `{key, label, tokens, pct, count}`，末尾补 `剩余容量`；
+        `pct` 相对**预算**（取预算与已用中的较大者，保证各段之和不超过 100%）。
+
+        `tail_messages` 是请求尾部的临时后缀（本轮新输入 / 工具结果 / 执行模式），
+        不在管线里持有，由调用方传进来单独算 `mode` 段。
         """
         counter = token_fn or default_message_tokens
-        keys = ("system", "skill", "knowledge", "summary", "pure", "full_recent", "mode")
-        rows: List[Dict[str, Any]] = []
-        total = 0
-        for key, chunk in zip(keys, self.chunks):
-            tokens = int(chunk.calculate_tokens(counter))
-            total += tokens
+        rows = self.segment_tokens(token_fn=counter)
+        tail_tokens = sum(int(counter(m)) for m in (tail_messages or [])
+                          if isinstance(m, dict))
+        if tail_tokens:
+            rows = [r for r in rows if r["key"] != "mode"]
             rows.append({
-                "key": key,
-                "label": chunk.name,
-                "tokens": tokens,
-                "count": len(chunk.rounds),
+                "key": "mode",
+                "label": self.SEGMENT_LABELS["mode"],
+                "tokens": tail_tokens,
+                "count": len([m for m in (tail_messages or []) if isinstance(m, dict)]),
             })
+        total = sum(int(r["tokens"]) for r in rows)
         budget = max(int(budget_tokens or 0), total, 1)
         remainder = max(0, budget - total)
         segments: List[Dict[str, Any]] = []
         for row in rows:
+            row = dict(row)
             row["pct"] = round(100.0 * row["tokens"] / budget, 6)
             segments.append(row)
         segments.append({
@@ -360,9 +724,91 @@ class ContextPipeline:
         }
 
     def add(self, chunk: ContextChunk) -> None:
-        """扩展点：追加自定义块（默认七块之后；参与展平与统计）。"""
+        """扩展点：追加自定义块（排在 `CHUNK_ORDER` 之后；参与展平与统计）。"""
         self.chunks.append(chunk)
         self.name_map[chunk.name] = chunk
+
+    # ── 三段式装配（唯一装配入口）──────────────
+    #
+    # 发给模型的 messages 只有三段，顺序拼接，**不做任何重建**：
+    #
+    #   ① 头部（host）  系统提示 / Skills / 知识库 / 摘要 —— 本回合内逐字节稳定
+    #   ② 对话（dialogue） 事实折叠出来的对话（含工具调用与工具结果）
+    #   ③ 尾部（tail）  本轮新输入 / 工具结果 + 执行模式 —— 请求时才拼
+    #
+    #   messages = 头部 + 对话 + 尾部
+    #
+    # 压缩请求用的是同一份"头部 + 对话"，末尾换成压缩指令：
+    #
+    #   压缩请求 = 头部 + 对话 + [压缩指令]
+    #
+    # 两个请求共用同一个 `assembles()`：前缀相同不是靠比对保证的，而是同一份列表。
+
+    def message_tokens(self, msg: Dict[str, Any]) -> int:
+        """单条消息的 token 估算（与 `total_token_estimate` 用同一个口径）。"""
+        return int(default_message_tokens(msg))
+
+    def set_dialogue(self, messages: Any, *, covered_end: int = 0) -> None:
+        """装对话段（②）。
+
+        `covered_end`：已覆盖前缀长度（压缩器维护），那一段由摘要代表，
+        不再进对话段。缺省 0 = 全量都是对话。
+
+        顺带从注入源刷新知识库 —— 这是"每回合开始"的挂点（对话每回合都重装）。
+        """
+        seq = list(messages or [])
+        cut = max(0, int(covered_end or 0))
+        if cut:
+            seq = seq[cut:]
+        self.name_map[CHUNK_FULL].rounds = flat_messages_to_user_rounds(seq)
+        self._refresh_sources()
+
+    def set_summary_messages(self, summaries: Any) -> None:
+        """装摘要段（属头部①）。每次压缩后调用一次，装的是**全部**摘要。"""
+        chunk = self.name_map[CHUNK_MEM]
+        chunk.rounds = []
+        for sm in summaries or []:
+            if not isinstance(sm, dict):
+                continue
+            r = Round()
+            r.append_message_dict(copy.deepcopy(dict(sm)))
+            chunk.rounds.append(r)
+
+    def plugin_segments(self) -> List[Tuple[str, str, int]]:
+        """当前插件段落的 `[(段 key, 段名, 主体数量)]`（顺序与头部一致）。"""
+        return [(key, label,
+                 int(self._plugin_counts[i]) if i < len(self._plugin_counts) else 0)
+                for i, (key, label) in enumerate(self._plugin_sources)]
+
+    def host_messages(self) -> List[Dict[str, Any]]:
+        """头部①：系统提示 / Skills / 插件段落 / 摘要，按 `CHUNK_ORDER` 顺序。
+
+        模式块不在这里 —— 它是尾部③。
+        """
+        out: List[Dict[str, Any]] = []
+        for name in (CHUNK_SYSTEM, CHUNK_PLUGIN, CHUNK_MEM):
+            chunk = self.name_map.get(name)
+            if chunk is None:
+                continue
+            for rnd in chunk.rounds:
+                for m in rnd.messages:
+                    out.append(copy.deepcopy(m))
+        return out
+
+    def dialogue_messages(self) -> List[Dict[str, Any]]:
+        """对话段②：按事实顺序。"""
+        chunk = self.name_map.get(CHUNK_FULL)
+        if chunk is None:
+            return []
+        return [copy.deepcopy(m) for rnd in chunk.rounds for m in rnd.messages]
+
+    def assembles(self, tail: Any = None) -> List[Dict[str, Any]]:
+        """三段拼接：头部 + 对话 + 尾部。**唯一装配入口**，无重建。"""
+        out = self.host_messages() + self.dialogue_messages()
+        for m in tail or []:
+            if isinstance(m, dict):
+                out.append(copy.deepcopy(m))
+        return out
 
     # ── 内容装配──────────────────────────
 
@@ -389,22 +835,35 @@ class ContextPipeline:
                         parts.append(text)
         return "\n\n".join(parts)
 
-    def append_skill(self, text: str) -> None:
-        """追加 Skills 段（每段独立成轮）。"""
-        self.name_map[CHUNK_SKILL].append("system", text, True)
+    def append_plugin(self, text: str, key: str = "", label: str = "") -> None:
+        """追加一段插件内容（每段独立成轮）。
 
-    def append_kb(self, text: str) -> None:
-        """追加知识库段（每段独立成轮）。"""
-        self.name_map[CHUNK_KB].append("system", text, True)
+        `text` 可能是列表（注入源常按"条目"给），必须**归一成字符串正文** ——
+        直接把列表塞进 `content` 会让模型收到 Python 字面量
+        （`['条目一']`），而不是条目本身。
+        """
+        for part in _as_text_parts(text):
+            self.name_map[CHUNK_PLUGIN].append("system", part, True)
+            self._plugin_sources.append((key or _slug(label), label or key))
 
-    def set_kb(self, parts: List[str]) -> None:
-        """整体设置知识库段（清空重建；空列表清空）。"""
-        chunk = self.name_map[CHUNK_KB]
+    def set_plugin_segments(self, segments: Any) -> None:
+        """整体设置插件段落（清空重建；空列表清空）。
+
+        收 `PluginSegments`（段落表 + 数量表）；也接受裸的 `[(key, 段名, 正文)]`。
+        **顺序即装配顺序**，每条正文各成一轮，所以统计时能按顺序逐段对上。
+        """
+        if isinstance(segments, PluginSegments):
+            items, counts = segments.items, list(segments.counts)
+        else:
+            items, counts = list(segments or []), []
+        chunk = self.name_map[CHUNK_PLUGIN]
         chunk.rounds = []
-        for text in parts:
-            t = str(text or "").strip()
-            if t:
-                chunk.append("system", t, True)
+        self._plugin_sources = []
+        self._plugin_counts = list(counts)
+        for key, label, text in items:
+            for part in _as_text_parts(text):
+                chunk.append("system", part, True)
+                self._plugin_sources.append((key, label))
 
     def set_summaries(self, summaries: List[Dict[str, Any]]) -> None:
         """设置摘要（记忆块；逐条独立成轮，深拷贝）。"""
@@ -414,10 +873,6 @@ class ContextPipeline:
             r = Round()
             r.append_message_dict(copy.deepcopy(dict(sm)))
             chunk.rounds.append(r)
-
-    def set_pure_rounds(self, rounds: List[Round]) -> None:
-        """设置「远期记忆」块（深拷贝）。"""
-        self.name_map[CHUNK_PURE].rounds = copy_round_list(rounds, 0, len(rounds))
 
     def set_mode_tail(self, message: Optional[Dict[str, Any]]) -> None:
         """设置「模式」尾块（单条；None 清空）。"""
@@ -437,15 +892,26 @@ class ContextPipeline:
         self.name_map[CHUNK_FULL].append(role, content, False, **extra)
 
     def rebuild_from_messages(self, flat_messages: List[Dict[str, Any]]) -> None:
-        """用扁平消息重建「近期记忆」块（按时序切轮）。"""
-        self.name_map[CHUNK_FULL].rounds = flat_messages_to_user_rounds(list(flat_messages))
+        """兼容入口：装对话段（等价 `set_dialogue(..., covered_end=0)`）。
+
+        保留旧名只为不打断既有调用方；**内部不再"按 role 重建"** ——
+        那种重建会打乱分块归属，装配一律走 `set_dialogue()` + `assembles()`。
+        """
+        self.set_dialogue(flat_messages, covered_end=0)
         self._refresh_sources()
 
     def _refresh_sources(self) -> None:
-        """从注入源刷新知识库块（无来源时不动）。"""
+        """从注入源刷新**知识库**与 **Skills** 块（无来源时不动）。
+
+        Skills 也走注入源：技能库注册「可用技能清单」（渐进式披露第一层）
+        与 `auto_load/` 常驻技能正文（第二层）。
+        """
         if self._sources is None:
             return
-        self.set_kb(self._sources.collect(self.conversation_id))
+        collect_segments = getattr(self._sources, "collect_segments", None)
+        if callable(collect_segments):
+            self.set_plugin_segments(collect_segments(self.conversation_id))
+
 
     # ── 展平──────────────────────────────────────
 
@@ -453,7 +919,7 @@ class ContextPipeline:
         self,
         sanitize_fn: Optional[Callable[[List[Dict[str, Any]]], List[Dict[str, Any]]]] = None,
     ) -> List[Dict[str, Any]]:
-        """按七块顺序展平（空块跳过；深拷贝；末端统一过 sanitize_fn）。"""
+        """按块顺序展平（空块跳过；深拷贝；末端统一过 sanitize_fn）。"""
         built: List[Dict[str, Any]] = []
         for chunk in self.chunks:
             for r in chunk.rounds:
@@ -464,36 +930,6 @@ class ContextPipeline:
         return built
 
     # ── 窗口与摘要调度────────────────────
-
-    def extract_over_rounds(self) -> List[Round]:
-        """按 pure+full 窗口取应摘要的越界轮（深拷贝）。"""
-        pure = self.name_map[CHUNK_PURE]
-        full = self.name_map[CHUNK_FULL]
-        window = self.pure_user_rounds + self.full_user_rounds
-        pure_size = len(pure.rounds)
-        full_size = len(full.rounds)
-        over: List[Round] = []
-        if full_size > window:
-            over.extend(copy_round_list(pure.rounds, 0, pure_size))
-            over.extend(copy_round_list(full.rounds, 0, full_size - window))
-            return over
-        if full_size == window:
-            over.extend(copy_round_list(pure.rounds, 0, pure_size))
-            return over
-        if full_size < window:
-            excess = full_size + pure_size - window
-            if excess > 0:
-                over.extend(copy_round_list(pure.rounds, 0, excess))
-                return over
-        return over
-
-    def dialogue_summary_excerpt_half_open(
-        self, messages: List[Dict[str, Any]]
-    ) -> Optional[Tuple[int, int]]:
-        """在扁平 transcript 上计算摘要半开区间。"""
-        return dialogue_summary_excerpt_half_open_for_messages(
-            messages, self.full_user_rounds, self.pure_user_rounds
-        )
 
     # ── 待并摘要──────────────────────────────────
 

@@ -21,6 +21,8 @@ class WriteFileTool(ToolPlugin):
     """预览：校验写参数并返回预览信息（不落盘）。"""
 
     name = "write_file"
+    label = "写入文件"
+    icon = "📝"
     description = (
         "预览写入文本文件（不落盘），返回 confirm_id。"
         "落盘前必须先 review：用 review_conclusion 提交结论与证据解锁，"

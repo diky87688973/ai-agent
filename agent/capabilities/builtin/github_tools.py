@@ -175,6 +175,8 @@ class GithubApiTool(ToolPlugin):
     """GitHub 远程操作。"""
 
     name = "github_api"
+    label = "调用 GitHub 接口"
+    icon = "🐙"
     description = (
         "GitHub 远程操作：login / get_repo / list_issues / create_issue / list_releases / set_topics / "
         "list_prs / get_pr / create_pr / close_pr / update_pr。"

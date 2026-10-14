@@ -95,9 +95,9 @@ SSE 连接表由 `WebShell` 持有，断开时从表里移除。
 
 ## 系统提示词
 
-`prompts.py` 的 `build_system_prompt()` 组装基础提示词：术语表、工具纪律、编码准则、模式尾注。`tool_summary()` 从工具注册表摘一份"名字 — 一句话"速查，避免把完整 schema 塞两遍。
+`prompts.py` 的 `build_system_prompt()` 组装基础提示词：术语表、工具纪律、编码准则、模式段。`tool_summary()` 从工具注册表摘一份"名字 — 一句话"速查，避免把完整 schema 塞两遍。
 
-`resolve_system_prompt()` 处理会话级覆盖。
+`resolve_system_prompt()` 处理会话级覆盖，并**把模式段切掉**（`split_mode_section()`）：模式改由 `resolve_mode_note()` 产出，作为请求尾部的临时后缀附加，只加在发给模型的那一份上。理由见 [context.md](context.md) 的「执行模式是请求尾部的临时后缀」。
 
 ## 界面打包
 
@@ -111,6 +111,17 @@ inline_ui_html()        # 拼成完整单页
 ```
 
 浅色代码高亮主题的作用域隔离在**运行时**做：`scope_hljs_css()` 给 `.hljs` 选择器加 `html[data-ui-theme="light"]` 前缀，两套配色同页共存而不互相覆盖。不另存一份改过的 CSS。
+
+## 对话区最小宽度
+
+对话区与右栏之间是可拖拽的分割条（`initClassicMainSplit`，宽度记在 `localStorage`）。
+对话区有**硬下界 `670px`**（样式表 `.chat{min-width}` 与脚本里的 `MIN_CHAT_PX` 同值）：
+
+- 分割条拖到极限、或窗口缩到很窄时，右栏先被压到自己的下界 `300px`，对话区不再被压；
+- 到这个数是因为输入区那一行控件（附件 / 模式 / 思考 / 模型 / 插件按钮 + 发送提示 +
+  目标 / 发送）在更窄时会顶出面板右边界 —— 实测 669px 时"发送"越界 1px，670px 起为 0。
+
+插件按钮会让这一行变长：加了一个按钮之后要重量一次，把样式表与脚本里两个数字一起往上调。
 
 ## 对话区 Markdown
 

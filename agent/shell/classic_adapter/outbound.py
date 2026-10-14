@@ -126,8 +126,7 @@ class ClassicStream:
         # 内核的 `turn_started` 不带 mode/model，所以用注入的解析器现场取。
         # **不带 `model`**：模型不由服务端推送。
         # 若每轮都推一次，前端会照单接收并覆盖 `selectedModel` ⇒
-        # "发一条消息，模型下拉自己跳回默认"，而后端接着按那个默认模型的名字
-        # 判视觉能力（名字里没有 vision 就**把图片摘掉**，模型于是说"看不到图"）。
+        # "发一条消息，模型下拉自己跳回默认"。
         # 规则：**首次打开页面拉一次当前模型**，此后一律以**发送消息那一刻**
         # 前端带来的 `model` 为准 —— 服务端不反向覆盖用户当场的选择。
         out.append(self._ev(C.EV_CONVERSATION, mode=self._resolve_mode()))
@@ -530,13 +529,13 @@ class ClassicStream:
         return [self._ev(C.EV_USAGE, usage=payload)]
 
     def _on_context_layout(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        return [self._ev(
-            C.EV_CONTEXT_LAYOUT,
-            segments=d.get("segments") or [],
-            total_tokens=d.get("total_tokens"),
-            budget_tokens=d.get("budget_tokens"),
-            model_max_context_tokens=d.get("model_max_context_tokens"),
-        )]
+        """分段快照原样转发。
+
+        段里的字段（key / label / tokens / count / pct）由装配方定，适配层不逐个
+        列举：漏一个字段只会在这条路径上少（兜底路径 `layout_from_messages` 是全的），
+        界面上表现为"同一个东西两条路径长得不一样"，极难查。
+        """
+        return [self._ev(C.EV_CONTEXT_LAYOUT, **dict(d or {}))]
 
     def _on_error(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 记下"本回合已经报过错"：`turn_ended` 收尾时若 `halted` 为真还会想补一帧

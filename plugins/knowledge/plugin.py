@@ -6,7 +6,7 @@
 （`ctx.add_context_source` / `add_panel` / `add_action` / `add_route` / `data_dir`）
 与通用的 INI 读取（`agent.config.load_ini`）。
 
-配置在插件自己目录下的 `config.ini`（`[knowledge]`：`dir` / `max_file_size`）。
+配置在插件自己目录下的 `plugin-config.ini`（`[knowledge]`：`dir` / `max_file_size`）。
 
 注入走 `ctx.add_context_source`（上下文注入扩展点）：管线每一步组装请求时，
 会把注入源产出的文本刷进上下文的「知识库」块。勾选状态落在 `ctx.data_dir`
@@ -49,6 +49,47 @@ INJECT_PREFIX = "【知识库：{rel}】"
 #: 按表格解析的扩展名（需要 openpyxl）
 TABLE_SUFFIXES = (".xlsx", ".xls", ".xlsm")
 
+#: 可收录的文本类扩展名。**知识库只收文本**：非文本文件读出来是替换字符与 NUL，
+#: 注进上下文等于白占预算，还会把模型带偏。没有扩展名的文件按文本对待（README 之类）。
+TEXT_SUFFIXES = (
+    ".md", ".markdown", ".txt", ".text", ".rst", ".log", ".csv", ".tsv",
+    ".json", ".jsonl", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".env",
+    ".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte",
+    ".html", ".htm", ".css", ".scss", ".less", ".xml", ".sql", ".sh", ".bat", ".ps1",
+    ".java", ".kt", ".go", ".rs", ".c", ".h", ".cpp", ".hpp", ".cs", ".rb", ".php", ".lua",
+    ".properties", ".gradle", ".dockerfile", ".gitignore",
+)
+#: 无扩展名时也收的常见文件名
+TEXT_FILENAMES = ("dockerfile", "makefile", "readme", "license", "changelog")
+
+
+def parse_extra_suffixes(raw: Any) -> Tuple[str, ...]:
+    """解析配置里的自定义扩展名：英文逗号分隔，`txt, ini` 与 `.txt,.ini` 都认。
+
+    规范化成小写带点形式；重复与空项丢掉。写错了不报错 —— 一个拼错的扩展名
+    不该让整个知识库不可用。
+    """
+    out: List[str] = []
+    for part in str(raw or "").split(","):
+        item = part.strip().strip("'\"").lower()
+        if not item:
+            continue
+        suffix = item if item.startswith(".") else "." + item
+        if suffix not in out:
+            out.append(suffix)
+    return tuple(out)
+
+
+def is_text_like(name: str, extra: Tuple[str, ...] = ()) -> bool:
+    """是否属于可收录的文本类文件（无扩展名按文本对待；`extra` 是配置加的类型）。"""
+    low = str(name or "").strip().lower()
+    if not low:
+        return False
+    suffix = Path(low).suffix
+    if not suffix:
+        return True
+    return suffix in TEXT_SUFFIXES or suffix in TABLE_SUFFIXES or suffix in extra
+
 #: 缺 openpyxl 时给出的提示文本（作为提示而非异常，便于模型理解）
 MISSING_OPENPYXL_HINT = "（缺少 openpyxl，无法读取 Excel 知识库文件；请先安装 openpyxl）"
 
@@ -63,16 +104,16 @@ CONFIG_SECTION = "knowledge"
 
 
 def _config_path() -> Path:
-    """本插件的配置文件：`plugins/knowledge/config.ini`。
+    """本插件的配置文件：`plugins/knowledge/plugin-config.ini`。
 
-    配置与本插件同目录：内核的 `config.ini` 只含内核设置，本插件的设置在插件自己的 `config.ini` 里。
+    配置与本插件同目录：内核的 `config.ini` 只含内核设置。
     文件不在就用缺省值（`dir` 为空 → 不提供任何文件）。
     """
-    return Path(__file__).resolve().parent / "config.ini"
+    return Path(__file__).resolve().parent / "plugin-config.ini"
 
 
 def _load_kb_config(path: Optional[Path] = None) -> Dict[str, Any]:
-    """读本插件配置的 `[knowledge]` 节：`dir` / `max_file_size`。
+    """读本插件配置的 `[knowledge]` 节：`dir` / `max_file_size` / `extra_suffixes`。
 
     `dir` 缺失、不存在或不是目录时返回 `None`，于是 `enabled` 为假、全部操作返回空
     —— 判定失败时静默降级，不报错。相对路径按工程根解析。
@@ -99,7 +140,8 @@ def _load_kb_config(path: Optional[Path] = None) -> Dict[str, Any]:
         max_size = int(values.get("max_file_size") or DEFAULT_MAX_FILE_SIZE)
     except (TypeError, ValueError):
         max_size = DEFAULT_MAX_FILE_SIZE
-    return {"dir": root, "max_file_size": max_size}
+    return {"dir": root, "max_file_size": max_size,
+            "extra_suffixes": parse_extra_suffixes(values.get("extra_suffixes"))}
 
 
 class _KnowledgeFiles:
@@ -110,15 +152,19 @@ class _KnowledgeFiles:
     """
 
     def __init__(self, root: Optional[Any] = None,
-                 max_file_size: int = DEFAULT_MAX_FILE_SIZE) -> None:
+                 max_file_size: int = DEFAULT_MAX_FILE_SIZE,
+                 extra_suffixes: Any = ()) -> None:
         self.root: Optional[Path] = Path(root).resolve() if root else None
         self.max_file_size = int(max_file_size)
+        #: 配置里追加的可收录扩展名（小写带点形式）
+        self.extra_suffixes: Tuple[str, ...] = tuple(extra_suffixes or ())
 
     @classmethod
     def from_config(cls, path: Optional[Path] = None,
                     data_dir: Optional[Path] = None) -> "KBRuntime":
         cfg = _load_kb_config(path)
         return KBRuntime(cfg.get("dir"), int(cfg.get("max_file_size") or DEFAULT_MAX_FILE_SIZE),
+                         extra_suffixes=cfg.get("extra_suffixes") or (),
                          data_dir=data_dir)
 
     @property
@@ -172,6 +218,8 @@ class _KnowledgeFiles:
             return False, "无法读取文件信息"
         if self.max_file_size > 0 and size > self.max_file_size:
             return False, f"文件超过上限（{size} > {self.max_file_size} 字节）"
+        if not is_text_like(target.name, self.extra_suffixes):
+            return False, "非文本文件不可收录"
         if target.suffix.lower() in TABLE_SUFFIXES:
             try:
                 import openpyxl  # noqa: F401
@@ -222,8 +270,9 @@ class _KnowledgeFiles:
     # ── 文件列表 ──
 
     def list_files(self) -> List[Dict[str, Any]]:
-        """列出根下全部文件：rglob 递归；排除隐藏段与 `__pycache__`。
+        """列出可收录的文件：rglob 递归；排除隐藏段、`__pycache__` 与非文本文件。
 
+        只列能勾的 —— 列出来却勾不了（`file_allowed` 会拒）等于给界面挖坑。
         每项 `{path, name, mtime}`；`path` 为相对根的 POSIX 风格路径。
         未启用时返回空列表（不报错）。
         """
@@ -239,6 +288,8 @@ class _KnowledgeFiles:
                 except ValueError:
                     continue
                 if _has_hidden_segment(rel) or "__pycache__" in rel.parts:
+                    continue
+                if not is_text_like(path.name, self.extra_suffixes):
                     continue
                 try:
                     mtime = int(path.stat().st_mtime)
@@ -259,8 +310,9 @@ class KBRuntime(_KnowledgeFiles):
 
     def __init__(self, root: Optional[Any] = None,
                  max_file_size: int = DEFAULT_MAX_FILE_SIZE,
-                 data_dir: Optional[Path] = None) -> None:
-        super().__init__(root, max_file_size)
+                 data_dir: Optional[Path] = None,
+                 extra_suffixes: Any = ()) -> None:
+        super().__init__(root, max_file_size, extra_suffixes)
         self._data_dir = Path(data_dir) if data_dir is not None else None
         self._lock = threading.Lock()
         #: `{cid: {相对路径, ...}}`；缺失的 cid 视为"没有勾选"。
@@ -385,14 +437,22 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     cfg = _load_kb_config()
     root = cfg.get("dir") or None
     max_size = int(cfg.get("max_file_size") or DEFAULT_MAX_FILE_SIZE)
-    runtime = KBRuntime(root, max_size, data_dir=getattr(ctx, "data_dir", None))
+    runtime = KBRuntime(root, max_size, data_dir=getattr(ctx, "data_dir", None),
+                        extra_suffixes=cfg.get("extra_suffixes") or ())
     runtime.load_checked()
-    if hasattr(ctx, "set_runtime"):
-        ctx.set_runtime(runtime)
+    ctx.set_runtime(runtime)
+
+    def _meta() -> Any:
+        """这一段在上下文分层里的名片：段名、注入前缀、主体数量（勾选文件数）。"""
+        return {
+            "label": "知识库",
+            # 前缀按文件不同（`【知识库：<路径>】`），由本插件在正文里拼好。
+            "count": runtime.attached_count,
+        }
 
     disposers: List[Callable[[], None]] = [
-        # 上下文注入：管线组装请求时把勾选文件的正文刷进「知识库」块
-        ctx.add_context_source(runtime.build_system_messages),
+        # 上下文注入：管线组装请求时把勾选文件的正文刷进本插件的段落
+        ctx.add_context_source(runtime.build_system_messages, _meta()),
     ]
 
     def _files(query: Dict[str, Any]) -> Any:
@@ -414,15 +474,12 @@ def register(ctx: Any) -> List[Callable[[], None]]:
             raw = body.get("paths") if isinstance(body.get("paths"), list) else []
         return 200, {"ok": True, "checked": runtime.set_checked(cid, raw)}
 
-    if hasattr(ctx, "add_panel"):
-        disposers.append(ctx.add_panel(
-            "kb", title="知识库", html=_PANEL_HTML,
-            script_file="ui/panel.js", css_file="ui/panel.css"))
-    if hasattr(ctx, "add_action"):
-        # 输入框下面的按钮：插件不声明就没有这个按钮
-        disposers.append(ctx.add_action("kb", label="📚 知识库", title="知识库"))
-    if hasattr(ctx, "add_route"):
-        disposers.append(ctx.add_route("GET", "files", _files))
-        disposers.append(ctx.add_route("GET", "checked", _checked_get))
-        disposers.append(ctx.add_route("PUT", "checked", _checked_put))
+    disposers.append(ctx.add_panel(
+        "kb", title="知识库", html=_PANEL_HTML,
+        script_file="ui/panel.js", css_file="ui/panel.css"))
+    # 输入框下面的按钮：插件不声明就没有这个按钮
+    disposers.append(ctx.add_action("kb", label="📚 知识库", title="知识库"))
+    disposers.append(ctx.add_route("GET", "files", _files))
+    disposers.append(ctx.add_route("GET", "checked", _checked_get))
+    disposers.append(ctx.add_route("PUT", "checked", _checked_put))
     return disposers

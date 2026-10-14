@@ -751,6 +751,17 @@ w.addEventListener("click",function(ev){if(ev.target&&ev.target.classList&&ev.ta
 sideTabbar.appendChild(w);
 }
 selectSidePane(id);
+/* 广播"面板已打开"：插件脚本在开屏就被预载（段色注册要赶在第一次渲染前），
+   那时面板 DOM 还不存在，脚本里的首次渲染必然是空跑。而脚本**只载一次**
+   （`_pluginScriptsLoaded` 去重），开面板时不会再执行一遍 ——
+   不广播这一下，面板就永远停在初始占位（"加载知识库…"）。
+   插件自己监听这个事件决定渲染什么，壳层不点名任何插件。 */
+try{
+document.dispatchEvent(new CustomEvent("ai-agent:panel-opened",{detail:{
+plugin:String((opts&&opts.plugin)||""),
+panel:id
+}}));
+}catch(e){}
 if(typeof opts.onOpen==="function")opts.onOpen(ex);
 return ex;
 }
@@ -804,7 +815,21 @@ put:function(path,payload){return call("PUT",path,payload===undefined?{}:payload
 del:function(path){return call("DELETE",path);}
 };
 }
-window.aiAgentPlugins={for:pluginApi};
+/* 上下文分层的插件钩子：插件注册自己那一段的颜色/段名，宿主只按 key 取用。 */
+var ctxSegmentHooks={};
+var _ctxSegColors={};
+var _ctxSegColorCache={};
+function registerCtxSegment(plugin,opts){
+var name=String(plugin||"").replace(/^plugin:/,"");
+if(!name)return;
+ctxSegmentHooks[name]=Object.assign({},ctxSegmentHooks[name]||{},opts||{});
+}
+function ctxSegmentLabel(key){
+var m=/^plugin:(.+)$/.exec(String(key||""));
+var h=m?ctxSegmentHooks[m[1]]:null;
+return h&&h.label?String(h.label):"";
+}
+window.aiAgentPlugins={for:pluginApi,ctxSegments:{register:registerCtxSegment}};
 /* 面板脚本只加载一次。脚本里读 `window.aiAgentPluginCurrent` 就知道自己属于哪个插件。 */
 var _pluginScriptsLoaded={};
 function loadPluginScript(url,plugin){
@@ -849,6 +874,22 @@ if(String(p.plugin)+":"+String(p.id)===key)return p;
 }
 return null;
 }
+/* 插件脚本在开屏就依次预载：脚本里的段色注册必须赶在上下文条渲染之前 ——
+   注册晚于渲染时那一段只能先按兜底色画，用户会看到"颜色对不上"。
+   面板**样式**仍旧按需（面板打开时才注入），内容渲染也仍在面板脚本里。 */
+function preloadPluginScripts(){
+var list=pluginPanels.slice();
+function next(){
+if(!list.length)return Promise.resolve(false);
+var def=list.shift();
+if(!def||!def.script)return next();
+var owner=String(def.plugin||"");
+/* 脚本读全局知道自己属于哪个插件，所以**串行**加载：并行会互相覆盖这个值。 */
+window.aiAgentPluginCurrent=owner;
+return loadPluginScript(def.script,owner).then(next);
+}
+return next();
+}
 function loadPluginPanels(){
 return fetch("/api/panels").then(function(r){return r.json();}).then(function(d){
 pluginPanels=(d&&Array.isArray(d.panels))?d.panels:[];
@@ -892,6 +933,7 @@ id:id,
 title:(def&&def.title)||id,
 html:def?def.html:"",
 pinned:!!(def&&def.pinned),
+plugin:String(plugin||""),
 onOpen:function(pane){
 /* 面板脚本与样式按需加载各一次；`aiAgentPluginCurrent` 让脚本知道自己的插件名，
    从而用 `window.aiAgentPlugins.for(...)` 拿到带前缀的 API，不必自己拼 URL。
@@ -1802,23 +1844,20 @@ var parts=[];
 for(var m=0;m<rows.length;m++){
 var sg=rows[m];
 var key=String(sg.key||"");
-var lab=String(sg.label||key);
+var lab=String(sg.label||ctxSegmentLabel(key)||key);
 var tok=Math.max(0,Math.floor(Number(sg.tokens)||0));
 var pct=formatContextPct(sg.pct);
-var col=colors[key]||"#5c5c5c";
+var col=ctxSegmentColor(key);
 var csafe=String(col).replace(/[^#0-9a-fA-F]/g,"").slice(0,9)||"#5c5c5c";
 var wpx=tok<=0?0:Math.max(2,Math.round(trackW*tok/maxTok));
 var mid="—";
-if(key==="knowledge"||key==="summary"||key==="pure"||key==="full_recent"){
-var cnt=(sg.count!==undefined&&sg.count!==null)?Math.max(0,Math.floor(Number(sg.count)||0)):null;
-if(cnt!==null)mid=String(cnt)+"个";
+/* 数量一律按段显示"几个主体"：插件段的数量由插件自报（勾选文件数、技能数…），
+   内核与壳层都不解释它的含义。 */
+if(sg.count!==undefined&&sg.count!==null){
+var cnt=Math.max(0,Math.floor(Number(sg.count)||0));
+mid=String(cnt)+"个";
 }
-if(key==="skill"){
-var cnt=(sg.count!==undefined&&sg.count!==null)?Math.max(0,Math.floor(Number(sg.count)||0)):0;
-var ac=sg.auto_load_count!==undefined?Math.max(0,Math.floor(Number(sg.auto_load_count)||0)):0;
-mid=ac+"/"+cnt;
-}
-var meta=pct+"% | "+mid+" | "+tok.toLocaleString()+" 令牌";
+var meta=pct+"% | "+mid+" | "+tok.toLocaleString()+" tokens";
 parts.push(
 '<div class="ctx-tip-line">'+
 '<span class="ctx-tip-br">'+escapeHtml(lab)+'</span>'+
@@ -1830,6 +1869,65 @@ parts.push(
 );
 }
 return parts.join("");
+}
+/* 插件段的取色：注册过就用注册的，没注册按段 key 稳定取一个 ——
+   同一插件每回合同色、换插件不串色（插件没有界面脚本时走这里）。 */
+function _segVar(name,fallback){
+var v=getComputedStyle(document.documentElement).getPropertyValue(name);
+v=String(v||"").trim();
+return v||fallback;
+}
+/* 两套主题各一组段色：色名 → {dark, light}。插件注册色名就自动跟着主题走；
+   兜底也按同一张色名表取，所以**分段条与弹窗永远同色**。 */
+var CTX_SEG_NAMED={
+"amber":  {dark:"#c8a44a",light:"#9a7f22"},
+"blue":   {dark:"#4f86d6",light:"#17456f"},
+"teal":   {dark:"#3f9e86",light:"#15604a"},
+"violet": {dark:"#9b6bd6",light:"#5b3d9a"},
+"slate":  {dark:"#7d8b99",light:"#3f5560"},
+"purple": {dark:"#b06fd0",light:"#8e24aa"},
+"red":    {dark:"#c86a6a",light:"#8a2a2a"},
+"plum":   {dark:"#c8779f",light:"#8e3a63"}};
+/* 已知段显式配色：段名固定，就不该让哈希决定颜色（哈希会撞色）。 */
+var CTX_SEG_FIXED={system:"amber",summary:"red",full_recent:"teal",
+mode:"slate"};
+/* 只有完全没见过的插件段才走哈希兜底。 */
+var CTX_SEG_FALLBACK=["blue","teal","amber","violet","slate","red","purple"];
+function _ctxIsLight(){
+return document.documentElement.getAttribute("data-ui-theme")==="light";
+}
+function ctxSegmentResolve(color){
+var c=String(color||"");
+if(/^#|^rgb/.test(c))return c;
+return _ctxNamedColor(c)||c;
+}
+function _ctxNamedColor(name){
+var e=CTX_SEG_NAMED[String(name||"")];
+if(!e)return "";
+return _ctxIsLight()?e.light:e.dark;
+}
+function ctxSegmentColor(key){
+var k=String(key||"");
+var theme=_ctxIsLight()?"light":"dark";
+var cacheKey=theme+"|"+k;
+if(_ctxSegColorCache[cacheKey])return _ctxSegColorCache[cacheKey];
+var col="";
+var hook=/^plugin:(.+)$/.exec(k);
+if(hook&&ctxSegmentHooks[hook[1]]&&ctxSegmentHooks[hook[1]].color){
+col=String(ctxSegmentHooks[hook[1]].color);
+if(!/^#|^rgb/.test(col))col=_ctxNamedColor(col);
+}else if(hook){
+col=_ctxNamedColor("violet");
+}
+if(!col&&CTX_SEG_FIXED[k])col=_ctxNamedColor(CTX_SEG_FIXED[k]);
+if(!col&&k==="remaining")col=_segVar("--c-seg-idle","#4a4e55");
+if(!col){
+var h=0;
+for(var i=0;i<k.length;i++){h=(h*31+k.charCodeAt(i))>>>0;}
+col=_ctxNamedColor(CTX_SEG_FALLBACK[h%CTX_SEG_FALLBACK.length]);
+}
+_ctxSegColorCache[cacheKey]=col;
+return col;
 }
 function bindCtxLayoutTooltip(barHost, segs, colors){
 var tt=ensureCtxLayoutTooltip();
@@ -1873,12 +1971,19 @@ var barHost=document.createElement("div");barHost.className="ctx-bar-host";
 var tabCtx=typeof getActiveTab==="function"?getActiveTab():null;
 var lay=tabCtx&&tabCtx.lastContextLayout;
 var segs=lay&&Array.isArray(lay.segments)?lay.segments:[];
-var colors={system:"#a68b32",knowledge:"#0d3a66",summary:"#7a1f1f",skill:"#9c27b0",pure:"#156b4a",full_recent:"#124a3a",mode:"#455a64",remaining:"#4a4e55"};
+
+/* 段色取自主题令牌（两套主题各一组），JS 不写死颜色。 */
+/* 非插件段的色名：弹窗与分段条共用同一个取色函数，两处必然同色。 */
+/* 弹窗与分段条共用 ctxSegmentColor，两处必然同色。 */
+var colors={system:ctxSegmentColor("system"),summary:ctxSegmentColor("summary"),skill:ctxSegmentColor("skill"),resident:ctxSegmentColor("resident"),full_recent:ctxSegmentColor("full_recent"),mode:ctxSegmentColor("mode"),remaining:ctxSegmentColor("remaining")};
+/* 插件段的颜色与渲染由插件自己注册：段 key 是 `plugin:<插件名>`。
+   插件脚本里调 ctxSegments.register("<插件名>", {color:"blue", label:"知识库"})：
+   color 给色名（壳层按当前主题取深/浅两套）或 `#rrggbb` 定值。 */
 if(!segs.length){var empty=document.createElement("span");empty.className="ctx-bar-empty";empty.textContent="—";barHost.appendChild(empty);}
 else{var bar=document.createElement("div");bar.className="ctx-bar";
 for(var si=0;si<segs.length;si++){var sg=segs[si];if(!sg)continue;
 var tok=Math.max(0,Math.floor(Number(sg.tokens)||0));
-var col=colors[String(sg.key)]||"#5c5c5c";
+var col=ctxSegmentColor(String(sg.key));
 var colEl=document.createElement("span");colEl.className="ctx-seg-col"+(tok>0?"":" ctx-seg-col-zero");
 if(tok>0){colEl.style.flex=String(tok)+" 1 0";colEl.style.minWidth="2px";}else{colEl.style.flex="0 0 2px";colEl.style.minWidth="2px";colEl.style.maxWidth="2px";}
 var fill=document.createElement("span");fill.className="ctx-seg ctx-seg-"+String(sg.key||"").replace(/[^a-z0-9_-]/gi,"");fill.style.background=col;fill.style.height="10px";fill.style.borderRadius="2px";fill.style.flexShrink="0";fill.style.width="100%";fill.style.display="block";fill.style.boxSizing="border-box";
@@ -1899,90 +2004,45 @@ if(!String(activeConversationId||""))return;/* **写操作走 body**（约定：
          缺 conversation_id 时后端返回 `invalid conversation_id`，
          会话用量永不落盘（刷新即归零）。 */
 await fetch("/api/usage-accumulator",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:String(activeConversationId||""),session_token_used:sessionTokenUsed,total_prompt_tokens:totalPromptTokens,total_completion_tokens:totalCompletionTokens,total_cache_hit_tokens:totalCacheHitTokens,total_cache_miss_tokens:totalCacheMissTokens})});}catch(e){}}
+/* 工具展示清单（`/api/tool-labels`）：中文名与图标由**工具自己**声明。
+   界面据此认识所有工具（含插件工具）—— 加一个插件工具不必改这里。
+   下面的旧表只作兜底：清单还没到时至少不是空白。 */
+var toolLabels={};
+function toolDisplayOf(script){
+var s=String(script||"").toLowerCase();
+if(!s)return null;
+if(toolLabels[s])return toolLabels[s];
+var keys=Object.keys(toolLabels);
+for(var i=0;i<keys.length;i++){
+var k=keys[i];
+if(s===k||s.indexOf(k+" ")>0||s.indexOf(k+"(")>0)return toolLabels[k];
+}
+return null;
+}
+function loadToolLabels(){
+return fetch("/api/tool-labels").then(function(r){return r.json();}).then(function(d){
+var list=(d&&Array.isArray(d.tools))?d.tools:[];
+for(var i=0;i<list.length;i++){
+var row=list[i]||{};
+var n=String(row.name||"").toLowerCase();
+if(n)toolLabels[n]={label:String(row.label||""),icon:String(row.icon||"")};
+}
+return toolLabels;
+}).catch(function(){return toolLabels;});
+}
 function toolIco(script,args){
 const s=(script||"").toLowerCase();
 const a=(!args||typeof args!=="object")?{}:args;
-if(s.indexOf("read_file")>=0)return "📖";
-if(s.indexOf("write_file")>=0)return "📝";
-if(s.indexOf("replace_in_file")>=0)return "✏️";
-if(s.indexOf("read_write")>=0)return "🔀";
-if(s.indexOf("web_fetch")>=0)return "🌐";
-if(s.indexOf("file_search")>=0)return "🔎";
-if(s.indexOf("ip_geolocate")>=0)return "📍";
-if(s.indexOf("open_meteo")>=0)return "🌤️";
-if(s.indexOf("image_ocr")>=0)return "🖼";
-if(s.indexOf("glob_files")>=0)return "📂";
-if(s.indexOf("regex")>=0)return "🔍";
-if(s.indexOf("file_ops")>=0)return "📋";
-if(s.indexOf("apply_patch")>=0)return "🔧";
-if(s.indexOf("git")>=0)return "🌿";
-if(s.indexOf("diff")>=0)return "📑";
-if(s.indexOf("diagnos")>=0)return "🛠️";
-if(s.indexOf("user_confirm")>=0)return "⚠️";/* 补新增工具的**图标**（与中文名表同理）。 */
-if(s.indexOf("commit_write")>=0)return "💾";
-if(s.indexOf("review_conclusion")>=0)return "🔍";
-if(s.indexOf("delete_file")>=0)return "🗑️";
-if(s.indexOf("file_undo")>=0)return "↩️";
-if(s.indexOf("read_write")>=0)return "🔀";
-if(s.indexOf("python_inline")>=0)return "🐍";
-if(s.indexOf("run_command")>=0)return "⚡";
-if(s.indexOf("archive")>=0)return "🗜️";
-if(s.indexOf("data_table")>=0)return "📊";
-if(s.indexOf("todo_list")>=0)return "☑️";
-if(s.indexOf("run_type")>=0)return "🎛️";
-if(s.indexOf("task_sleep")>=0)return "⏱️";
-if(s.indexOf("goal")>=0)return "🎯";
-if(s.indexOf("skill_manage")>=0)return "🧩";
-if(s.indexOf("github_api")>=0)return "🐙";
-if(s.indexOf("session_")>=0)return "💬";
-if(s.indexOf("env_probe")>=0)return "🧪";
-if(s.indexOf("echo")>=0)return "🔔";
-if(s.indexOf("unknown")>=0)return "⚠️";
+var _d=toolDisplayOf(s);
+if(_d&&_d.icon)return _d.icon;
+/* 展示信息由工具自己声明（`/api/tool-labels`）。清单还没到时给一个中性图标，
+   不再在壳层维护工具名表 —— 那样每加一个插件工具都得改这里。 */
 return "⚙️";}
 function toolZh(script){const s=(script||"").toLowerCase();
-if(s.indexOf("read_file")>=0)return "读取文件";
-if(s.indexOf("write_file")>=0)return "写入文件";
-if(s.indexOf("replace_in_file")>=0)return "替换文件内容";
-if(s.indexOf("grep_files")>=0)return "搜索文件内容";
-if(s.indexOf("find_in_file")>=0)return "定位文件内文本";
-if(s.indexOf("read_write")>=0)return "管道读写";
-if(s.indexOf("apply_patch")>=0)return "应用补丁";
-if(s.indexOf("web_fetch")>=0)return "抓取网页内容";
-if(s.indexOf("file_search")>=0)return "搜索文件内容";
-if(s.indexOf("ip_geolocate")>=0)return "定位公网地区";
-if(s.indexOf("open_meteo")>=0)return "查询天气";
-if(s.indexOf("image_ocr")>=0)return "识别图片文字";
-if(s.indexOf("glob_files")>=0)return "列出路径";
-if(s.indexOf("regex")>=0)return "正则检索与定位";
-if(s.indexOf("file_ops")>=0)return "执行文件复制/移动/删除";
-if(s.indexOf("git")>=0)return "查看 Git 工作区";
-if(s.indexOf("diff")>=0)return "对比文本";
-if(s.indexOf("diagnos")>=0)return "统一诊断";/* 补新增工具的**中文名**。
-     标题表只有 18 个键，未命中的工具落到兜底 `"执行工具 · "+script`，
-     于是 `commit_write` / `review_conclusion` 等显示英文名。 */
-if(s.indexOf("commit_write")>=0)return "提交写盘";
-if(s.indexOf("review_conclusion")>=0)return "提交 review 结论";
-if(s.indexOf("delete_file")>=0)return "删除文件";
-if(s.indexOf("file_undo")>=0)return "撤销文件改动";
-if(s.indexOf("read_write")>=0)return "管道读写";
-if(s.indexOf("python_inline")>=0)return "执行内联 Python";
-if(s.indexOf("run_command")>=0)return "执行命令";
-if(s.indexOf("archive")>=0)return "压缩包操作";
-if(s.indexOf("data_table")>=0)return "处理表格";
-if(s.indexOf("todo_list")>=0)return "待办清单";
-if(s.indexOf("run_type")>=0)return "切换运行模式";
-if(s.indexOf("task_sleep")>=0)return "等待一段时间";
-if(s.indexOf("goal")>=0)return "目标";
-if(s.indexOf("skill_manage")>=0)return "技能管理";
-if(s.indexOf("github_api")>=0)return "GitHub 操作";
-if(s.indexOf("session_create")>=0)return "新建会话";
-if(s.indexOf("session_list")>=0)return "列出会话";
-if(s.indexOf("session_broadcast")>=0)return "广播到多会话";
-if(s.indexOf("session_multisend")>=0)return "多会话分发";
-if(s.indexOf("session_send")>=0)return "发送到会话";
-if(s.indexOf("env_probe")>=0)return "探测运行环境";
-if(s.indexOf("echo")>=0)return "回显";
-const bn=baseNameOnly(String(script||""));return bn?("执行工具 · "+bn):"执行本地工具";}
+var _d=toolDisplayOf(s);
+if(_d&&_d.label)return _d.label;
+/* 同上：没有中文名就用工具自己的 name（后端清单里带 label）。 */
+return s||"工具";}
 function pickFileHint(args){if(!args||typeof args!=="object")return "";
 const keys=["file","request_file","payload_file","path","old_path","new_path","source_path","dest_path","source","patch_file"];
 for(let k of keys){let v=args[k];if(v===undefined&&args["--"+k]!==undefined)v=args["--"+k];
@@ -2985,13 +3045,21 @@ if(files&&files.length)void addPendingImageFiles(files);
 
 (function initClassicMainSplit(){
 var STORAGE_KEY="aiAgent.classicMainSplit";
-var MIN_CHAT_PX=600,MIN_STEPS_PX=300,RESIZER_PX=3;
+/* 对话区最小宽度（与样式表 `.chat{min-width}` 同值）。
+   实测口径：把对话区逐步压窄，量输入区那一行**最右侧控件**何时越过容器右边界 ——
+   669px 时"发送"越界 1px，670px 起为 0。写死一个数而不是每次运行时量：
+   布局是跟着拖拽连续变的，运行时量会一路抖动；插件按钮让这一行变长时，
+   把两个数字一起往上调。 */
+var MIN_CHAT_PX=670,MIN_STEPS_PX=300,RESIZER_PX=3;
 var mainEl=document.querySelector("main");
 var chatEl=mainEl?mainEl.querySelector(".chat"):null;
 var sideEl=document.getElementById("classicSidePane")||(mainEl?mainEl.querySelector(".side"):null);
 var resizerEl=document.getElementById("classicSplitResizer");
 if(!mainEl||!chatEl||!sideEl||!resizerEl)return;
 function mainInnerWidth(){var w=mainEl.getBoundingClientRect().width;return w>0?w:window.innerWidth;}
+/* 右侧面板能占到的最大宽度 = 主区宽度 - 分割条 - 对话区最小宽度。
+   窗口不够宽时这里会小于 `MIN_STEPS_PX`，`clampSteps` 仍把面板钉在 `MIN_STEPS_PX` ——
+   宁可整行出现横向滚动，也不让对话区被压到控件出界。 */
 function maxStepsPx(){return Math.max(MIN_STEPS_PX,mainInnerWidth()-RESIZER_PX-MIN_CHAT_PX);}
 function defaultStepsPx(){return Math.min(600,Math.round(window.innerWidth*0.46));}
 function clampSteps(px){var maxPx=maxStepsPx();if(maxPx<MIN_STEPS_PX)return MIN_STEPS_PX;return Math.max(MIN_STEPS_PX,Math.min(maxPx,Math.round(px)));}
@@ -3033,8 +3101,18 @@ initModePicker();
 initReasoningPicker();
 initKbAndSlashUi();
 initMarkedExtensions();
-void loadPluginPanels();
+/* 面板清单与动作清单先取回（渲染各入口都按数据来）；
+   随后预载插件脚本 —— 段色注册必须早于第一次画上下文条，否则那一段
+   只能先按兜底色画出来，用户看到的颜色就和浮层对不上。预载完再重画一次。 */
+void loadPluginPanels().then(function(){
+void preloadPluginScripts().then(function(){
+if(typeof _updateUsageBottom==="function")_updateUsageBottom();
+});
+});
 void loadPluginActions();
+/* 工具展示清单（中文名 + 图标）与面板/动作清单一样，都是**数据驱动**的入口：
+   工具自己声明自己长什么样，界面不维护工具名表。 */
+void loadToolLabels();
 if(goBtn)goBtn.addEventListener("click",function(){void sendChatMessage();});
 if(stopTaskBtn)stopTaskBtn.addEventListener("click",function(){_autoEnabled=false;updateAutoToggleUI();stopCurrentTask();});
 if(autoToggleBtn)autoToggleBtn.addEventListener("click",function(){renderGoalDialog();});
@@ -3090,5 +3168,9 @@ if(idx===n-1){if(window.DEBUG)console.log("===== 测试结束 =====");}
 if(typeof themeUi!=="undefined"){
 themeUi.apply();
 var _ht=document.getElementById("hdrThemeBtn");
-if(_ht)_ht.addEventListener("click",function(){themeUi.toggle();});
+if(_ht)_ht.addEventListener("click",function(){
+themeUi.toggle();
+/* 段色在渲染时从主题令牌取，所以切主题要重画一次上下文条。 */
+if(typeof _updateUsageBottom==="function")_updateUsageBottom();
+});
 }

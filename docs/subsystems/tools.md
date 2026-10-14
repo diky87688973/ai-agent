@@ -79,6 +79,10 @@ registry.schemas()          # 导出模型可见的工具声明
 
 工具清单的权威来源是 `catalog/tools.json`，它与装配集的一致性由 `scripts/check_catalog.py` 守着。
 
+**界面展示信息归工具自己**：`ToolPlugin` 上的 `label`（中文短名）与 `icon`（一个字符）
+由工具声明，经 `registry.display_list()` 与壳层的 `/api/tool-labels` 送到页面 ——
+加一个插件工具不必改界面；缺声明时界面退回显示工具名与中性图标。
+
 ### 文件读写
 
 | 工具 | 做什么 |
@@ -172,7 +176,7 @@ version = 1.0
 
 | 插件 | 能力 |
 |---|---|
-| `knowledge` | 知识库：配置判定、文件访问、表格解析、勾选状态、`add_context_source` 注入，加上右栏面板、输入区按钮与 `/api/plugin/knowledge/*` 端点 —— 全在插件里 |
+| `knowledge` | 知识库：配置判定、文件访问、表格解析、勾选状态、`add_context_source` 注入，加上右栏面板、输入区按钮与 `/api/plugin/knowledge/*` 端点 —— 全在插件里（只收文本类文件与表格，非文本不列也不可勾；`extra_suffixes` 可追加）|
 | `tts` | 语音合成：只订阅事件（`assistant_delta` / `turn_ended` / `error`），不注册工具也不贡献界面 |
 
 插件的完整说明见 [plugins.md](plugins.md)。

@@ -1271,3 +1271,78 @@ class StoreIntegrationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ContextSegmentsEventTest(CoreHarness):
+    """分段快照事件：每次装配完请求发一条，载荷与真实请求一致。
+
+    它是上下文示意图的**唯一数据源** —— 模式说明与工具轮的内部 system 注入
+    都不落记录，只有这条快照里有它们。
+    """
+
+    def _segs(self) -> List[Dict[str, Any]]:
+        from agent.core.event_name import CONTEXT_SEGMENTS
+
+        return [e.data for e in self.events if e.type == CONTEXT_SEGMENTS]
+
+    def _run_with_context(self, steps, *, text: str = "", dialogue=()):
+        """带**真上下文管线**跑一遍：分段快照需要装配能力才会发。"""
+        from agent.mechanisms.context_pipeline import ContextPipeline
+
+        ctx = ContextPipeline(self.cid, full_user_rounds=1)
+        ctx.append_system("系统提示")
+        ctx.set_dialogue(list(dialogue), covered_end=0)
+        input_module = InputModule(text)
+        modules = build_default_chain(input_module=input_module, context=ctx,
+                                      mode_note="## 当前模式：Auto")
+        host = Host(modules, sink=self.events.append, max_passes=16)
+        provider = ScriptedProvider(steps)
+        host.run(log=self.log, conversation_id=self.cid,
+                 model=ModelPort(provider), tools=self.tools)
+        return provider
+
+    def test_event_is_emitted_once_per_model_call(self) -> None:
+        self._run_with_context([{"text": "你好"}], text="在吗")
+        self.assertEqual(len(self._segs()), 1, msg="一次模型调用发一条")
+
+    def test_payload_has_segments_and_total(self) -> None:
+        self._run_with_context([{"text": "你好"}], text="在吗")
+        data = self._segs()[0]
+        self.assertIn("segments", data)
+        self.assertIn("total_tokens", data)
+        self.assertTrue(data["segments"], msg="段不能为空")
+
+    def test_last_segment_is_remaining(self) -> None:
+        self._run_with_context([{"text": "你好"}], text="在吗")
+        keys = [s["key"] for s in self._segs()[0]["segments"]]
+        self.assertEqual(keys[-1], "remaining")
+
+    def test_total_is_the_sum_of_segments_without_remaining(self) -> None:
+        self._run_with_context([{"text": "你好"}], text="在吗")
+        data = self._segs()[0]
+        want = sum(int(s["tokens"]) for s in data["segments"] if s["key"] != "remaining")
+        self.assertEqual(want, int(data["total_tokens"]))
+
+    def test_every_segment_has_label_and_pct(self) -> None:
+        self._run_with_context([{"text": "你好"}], text="在吗")
+        for s in self._segs()[0]["segments"]:
+            self.assertIn("label", s)
+            self.assertIn("pct", s)
+            self.assertIn("tokens", s)
+
+    def test_tool_round_emits_a_fresh_snapshot(self) -> None:
+        """工具轮会再装配一次 → 再发一条快照（分段随之变化）。"""
+        self._run_with_context(
+            [{"calls": [ToolCallRequest("c1", "echo", {"text": "hi"})]},
+             {"text": "好"}], text="看一眼")
+        self.assertGreaterEqual(len(self._segs()), 2, msg="工具轮各一次装配")
+
+    def test_dialogue_segment_grows_with_the_turn(self) -> None:
+        """对话段按真实内容估：把输入加大，近期记忆段必须变大。"""
+        self._run_with_context([{"text": "好"}], text="短")
+        small = {s["key"]: s["tokens"] for s in self._segs()[0]["segments"]}
+        self.events = []
+        self.log = SessionLog()
+        self._run_with_context([{"text": "好"}], text="长" * 400)
+        big = {s["key"]: s["tokens"] for s in self._segs()[0]["segments"]}
+        self.assertGreater(big.get("full_recent", 0), small.get("full_recent", 0))
