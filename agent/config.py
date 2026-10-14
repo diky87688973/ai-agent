@@ -79,7 +79,7 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         "summary_token_threshold": _int("summary_token_threshold", 700000),
         # 压缩时遮盖的末尾用户轮数（压不出空间时连它们一起压）。
         "full_user_rounds": _int("full_user_rounds", 1),
-        "summary_output_max_chars": _int("summary_output_max_chars", 2000),
+        "summary_output_max_chars": _int("summary_output_max_chars", 5000),
         # 只把最近这么多轮用户发言里的图带进请求（负数 = 不限）。
         # 这两项由装配根取走交给模型模块，不进 `ContextPipeline` 的构造参数。
         "image_turns": _int("image_turns", 3),
