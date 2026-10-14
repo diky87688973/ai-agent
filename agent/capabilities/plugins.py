@@ -132,6 +132,18 @@ class PluginContext:
         self._disposers.append(disposer)
         return disposer
 
+    def bump_context_sources(self) -> None:
+        """声明"本插件注入的内容变了"（勾选集合、磁盘文件等）。
+
+        装配侧会把收集结果缓存一趟（压缩与模型请求共用同一份），缓存看不到插件内部
+        的数据变化 —— 改完数据不打招呼，那一段就要等下一趟装配才更新。
+        """
+        if self._context_sources is None:
+            return
+        bump = getattr(self._context_sources, "bump", None)
+        if callable(bump):
+            bump()
+
     def _source_meta(self, meta: Any) -> Any:
         """把插件给的描述补上插件名，成为内核认的 `SourceMeta`。
 

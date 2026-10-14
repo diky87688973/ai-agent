@@ -330,8 +330,10 @@ class InjectionTest(unittest.TestCase):
     def test_pipeline_refresh_and_replace(self) -> None:
 
         runtime = _PLUGIN.KBRuntime(self.root)
-        runtime.set_checked("c1", ["a.md"])
         cs = ContextSources()
+        # 勾选一变就声明"内容变了"：装配侧一趟只收集一次，不打招呼就看不到新勾选。
+        runtime._sources_bump = cs.bump
+        runtime.set_checked("c1", ["a.md"])
         cs.add(runtime.build_system_messages)
         pipeline = ContextPipeline("c1", sources=cs)
         pipeline.rebuild_from_messages([])

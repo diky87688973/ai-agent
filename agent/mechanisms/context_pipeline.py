@@ -634,6 +634,19 @@ class ContextSources:
     def __init__(self) -> None:
         self._sources: List[Tuple[str, str, Callable[[str], List[str]], Any, str, str]] = []
         self._lock = threading.Lock()
+        #: 内容版本号：注册变化或来源自身的数据变化（例如勾选集合变了）时 +1。
+        #: 装配侧据此判断缓存的收集结果还能不能用 —— 光看"有没有注册新来源"
+        #: 判不出"同一个来源的数据换了"。
+        self._version = 0
+
+    @property
+    def version(self) -> int:
+        return int(self._version)
+
+    def bump(self) -> None:
+        """标记来源内容已变（勾选集合、磁盘文件等），让装配侧丢掉缓存重收集。"""
+        with self._lock:
+            self._version += 1
 
     def add(self, fn: Callable[[str], List[str]],
             meta: Optional["SourceMeta"] = None) -> Callable[[], None]:
@@ -652,6 +665,7 @@ class ContextSources:
     def _register(self, bucket: List[Any], item: Any) -> Callable[[], None]:
         with self._lock:
             bucket.append(item)
+            self._version += 1
 
         def _dispose() -> None:
             with self._lock:
@@ -745,6 +759,10 @@ class ContextPipeline:
         self._plugin_sources: List[Tuple[str, str]] = []
         # 插件自报的主体数量，**按段的位置**对应（缺省时段落行按消息条数算）。
         self._plugin_counts: List[int] = []
+        #: 注入源的一趟快照（同一次装配里压缩与模型请求共用同一份）
+        self._sources_snapshot: Any = None
+        #: 快照对应的来源版本号（版本一变就重收集）
+        self._sources_snapshot_version: int = -1
         self.chunks: List[ContextChunk] = []
         self.name_map: Dict[str, ContextChunk] = {}
         for nm in CHUNK_ORDER:
@@ -1074,20 +1092,33 @@ class ContextPipeline:
         """
         self.set_dialogue(flat_messages, covered_end=0)
 
+    def refresh_sources(self) -> None:
+        """强制刷新注入源（界面勾选/文件改动后立刻生效用）。"""
+        self._sources_snapshot = None
+        self._refresh_sources()
+
     def _refresh_sources(self) -> None:
         """从注入源刷新**知识库**与 **Skills** 块（无来源时不动）。
 
         Skills 也走注入源：技能库注册「可用技能清单」（渐进式披露第一层）
         与 `auto_load/` 常驻技能正文（第二层）。
 
-        刷新**每次都做**（界面勾选一变就得立刻生效，管线不替来源判断新鲜度）；
-        重活由来源自己缓存：技能库按扫描间隔、知识库按文件 mtime。
+        **一趟装配只收集一次**：一趟里会装配两遍（压缩模块一遍、模型模块一遍，
+        压缩器内部还会再 `set_dialogue` 一次），而每次收集都要重列技能目录、
+        重读全部勾选文件。收集两遍不只是白烧磁盘 —— 两遍之间源可变，
+        于是"压缩看到的那份"和"发出去的那份"数字可能对不上（段与数量错位就是这么来的）。
+        需要拿到新数据的场合调 `refresh_sources()` 显式清掉这份快照。
         """
         if self._sources is None:
             return
         collect_segments = getattr(self._sources, "collect_segments", None)
-        if callable(collect_segments):
-            self.set_plugin_segments(collect_segments(self.conversation_id))
+        if not callable(collect_segments):
+            return
+        version = int(getattr(self._sources, "version", 0) or 0)
+        if self._sources_snapshot is None or version != self._sources_snapshot_version:
+            self._sources_snapshot = collect_segments(self.conversation_id)
+            self._sources_snapshot_version = version
+        self.set_plugin_segments(self._sources_snapshot)
 
 
     # ── 展平──────────────────────────────────────

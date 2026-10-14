@@ -154,6 +154,8 @@ class _KnowledgeFiles:
     def __init__(self, root: Optional[Any] = None,
                  max_file_size: int = DEFAULT_MAX_FILE_SIZE,
                  extra_suffixes: Any = ()) -> None:
+        #: 勾选一变就调它，让装配侧丢掉缓存的收集结果（由 `register()` 接上）。
+        self._sources_bump: Any = None
         self.root: Optional[Path] = Path(root).resolve() if root else None
         self.max_file_size = int(max_file_size)
         #: 配置里追加的可收录扩展名（小写带点形式）
@@ -400,6 +402,11 @@ class KBRuntime(_KnowledgeFiles):
             else:
                 self._checked.pop(key, None)
         self._persist()
+        # 勾选是本插件的数据，装配侧缓存看不到它变了 —— 必须显式打个标记，
+        # 否则"改了勾选，这一段要等下一轮才生效"。
+        bump = self._sources_bump
+        if callable(bump):
+            bump()
         return sorted(accepted)
 
     # ── 注入上下文 ──
@@ -459,6 +466,9 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     runtime = KBRuntime(root, max_size, data_dir=getattr(ctx, "data_dir", None),
                         extra_suffixes=cfg.get("extra_suffixes") or ())
     runtime.load_checked()
+    # 勾选一变就让装配侧丢掉缓存的收集结果：否则"改了勾选要等下一轮才生效"。
+    # 出处是宿主的注册表（`ContextSources.bump`），拿不到就退化为"下一轮生效"。
+    runtime._sources_bump = getattr(ctx, "bump_context_sources", None)
     ctx.set_runtime(runtime)
 
     def _meta() -> Any:
