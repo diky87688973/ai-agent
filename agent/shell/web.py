@@ -29,6 +29,7 @@ from agent.capabilities.contributions import ASSET_SEGMENT
 from agent.config import (
     PROJECT_ROOT,
     default_data_root,
+    get_context,
     get_model_reasoning,
     get_reasoning_effort,
 )
@@ -1607,7 +1608,9 @@ def build_shell_app(
                 "缺少配置：config.ini 的 [model_reasoning]（api_base_url / api_key / model）"
             )
         provider = OpenAICompatibleProvider(
-            base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"]
+            base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
+            # 历史轮次的思维链：默认不回传（每轮回传等于每轮多算几万 token）。
+            replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
         )
     if store is None:
         store = SessionStore(Path(data_root) if data_root else default_data_root())

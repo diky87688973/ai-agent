@@ -298,6 +298,16 @@ class ModelModule(ModuleBase):
             return Outcome.halt("未装配模型端口")
 
         dialogue = ports.log.derive_messages()
+        # 本轮起点 = 对话里最后一条用户消息的下标（含）。它之前的思维链一律不回传
+        # （provider 侧按这个下标裁）：思维链是模型的中间产物，回传只是让每轮输入
+        # 凭空多几万 token，而那几万必然未命中缓存；不回传时**同一轮内每次请求的
+        # 前缀逐字节相同**，缓存能吃满。工具结果与模型自己的回答照旧带着。
+        # 没有用户消息（理论上到不了这里）就退回 0，等于不裁剪。
+        turn_start = 0
+        for index in range(len(dialogue) - 1, -1, -1):
+            if str(dialogue[index].get("role") or "") == "user":
+                turn_start = index
+                break
         # 老图不重复塞进请求体：图片按**最近几轮用户发言**保留、总数再设一道闸，
         # 更早/超量的转文本占位。只改这一份，事实流里的字节一个都不动。
         dialogue, _stripped = strip_old_images(
@@ -327,6 +337,8 @@ class ModelModule(ModuleBase):
             tools=(ports.tool_port.schemas() if ports.tool_port is not None else []),
             effort=self._effort,
             model=self._model,
+            # 头部条数（系统提示 / 插件段 / 摘要）+ 本轮起点 = 整份 messages 里的本轮起点。
+            turn_start=len(messages) - len(dialogue) + turn_start,
             conversation_id=str(getattr(ports, "conversation_id", "") or ""),
             system=(self._context.system_text()
                     if self._context is not None and hasattr(self._context, "system_text")

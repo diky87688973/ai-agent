@@ -39,6 +39,10 @@ summary_output_max_chars = 5000
 image_turns = 3
 image_max = 10
 summary_prefix_reuse = 1
+; replay_history_reasoning   已结束轮次的思维链是否回传（1 = 回传，0 = 不回传）。
+;                           回传能让模型看到自己上一轮怎么想的；不回传每轮少算几万 token、
+;                           缓存命中率更高（思维链必定未命中缓存）。
+replay_history_reasoning = 0
 [model_pricing]
 ; 覆盖内置费率表（用量面板的金额计算）。
 ; rates 可以是**内联 JSON**，也可以是**相对项目根的 JSON 文件路径**。

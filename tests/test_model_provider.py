@@ -223,3 +223,71 @@ class UserFacingTextTest(unittest.TestCase):
         for status in (500, 503):
             self.assertIn("服务端", _DEEPSEEK_HTTP_HINTS[status],
                           f"HTTP {status} 的提示应指明是「服务端」的问题")
+
+
+class ReasonNotReplayedTest(unittest.TestCase):
+    """历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token。"""
+
+    def _sample(self):
+        return [
+            {"role": "system", "content": "s"},
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1", "reasoning_content": "旧推理",
+             "tool_calls": [{"id": "c1", "name": "t", "arguments": {}}]},
+            {"role": "tool", "tool_call_id": "c1", "content": "结果"},
+            {"role": "user", "content": "u2"},
+            {"role": "assistant", "content": "a2", "reasoning_content": "本轮推理"},
+        ]
+
+    def test_cut_drops_everything_before_it(self) -> None:
+        from agent.mechanisms.model_provider import _to_wire_messages
+
+        wire = _to_wire_messages(self._sample(), keep_reasoning_from=5)
+        self.assertNotIn("reasoning_content", wire[2])
+        self.assertEqual(wire[5].get("reasoning_content"), "本轮推理")
+
+    def test_cut_none_keeps_everything(self) -> None:
+        from agent.mechanisms.model_provider import _to_wire_messages
+
+        wire = _to_wire_messages(self._sample(), keep_reasoning_from=None)
+        self.assertEqual(wire[2].get("reasoning_content"), "旧推理")
+
+    def test_tool_calls_survive_the_cut(self) -> None:
+        from agent.mechanisms.model_provider import _to_wire_messages
+
+        wire = _to_wire_messages(self._sample(), keep_reasoning_from=5)
+        calls = wire[2].get("tool_calls") or []
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["function"]["name"], "t")
+
+    def test_original_messages_are_not_mutated(self) -> None:
+        from agent.mechanisms.model_provider import _to_wire_messages
+
+        sample = self._sample()
+        _to_wire_messages(sample, keep_reasoning_from=5)
+        self.assertEqual(sample[2].get("reasoning_content"), "旧推理")
+
+    def test_provider_passes_the_boundary_and_defaults_to_stripping(self) -> None:
+        from agent.mechanisms.model_provider import OpenAICompatibleProvider
+
+        src = (ROOT / "agent/mechanisms/model_provider.py").read_text(encoding="utf-8")
+        self.assertIn('getattr(request, "turn_start", None)', src)
+        provider = OpenAICompatibleProvider(base_url="http://x/v1", api_key="k", model="m")
+        self.assertFalse(provider.replay_history_reasoning)
+        self.assertTrue(OpenAICompatibleProvider(
+            base_url="http://x/v1", api_key="k", model="m",
+            replay_history_reasoning=True).replay_history_reasoning)
+
+
+class TurnStartAssemblyTest(unittest.TestCase):
+    """装配时把"本轮起点"标出来，provider 才有裁的依据。"""
+
+    def test_model_module_marks_turn_start(self) -> None:
+        src = (ROOT / "agent/core/modules.py").read_text(encoding="utf-8")
+        self.assertIn("turn_start=len(messages) - len(dialogue) + turn_start", src)
+
+    def test_port_default_keeps_everything(self) -> None:
+        from agent.core.ports import LogicalRequest
+
+        req = LogicalRequest(messages=[{"role": "user", "content": "x"}], tools=[])
+        self.assertIsNone(req.turn_start)

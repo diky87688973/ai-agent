@@ -2,6 +2,18 @@
 
 `agent/mechanisms/model_provider.py` 定义模型调用协议与它的两个实现。
 
+## 历史推理不回传
+
+思考模式下模型逐轮产出思维链（`reasoning_content`）。它**只作为事实留在会话记录里**
+（界面能看到），**不回传给 API**：官方在带 `tools` 时要求回传，但实测不回传同样被接受；
+回传的代价是每次请求的输入里多一大段必然未命中缓存的内容（实测一轮几万 token），
+而且同一轮内每次请求的前缀都在变，前缀缓存落不住。
+
+装配时标出"本轮起点"（`LogicalRequest.turn_start` = 最后一条用户消息的下标），
+provider 按这个下标把之前的 `reasoning_content` 全部剥掉：同一轮内每次请求
+前缀逐字节相同，缓存命中率稳定在 98% 以上。开关是
+`[context] replay_history_reasoning`（默认 `0`；置 `1` 回到官方文档的写法）。
+
 ## 协议
 
 ```python

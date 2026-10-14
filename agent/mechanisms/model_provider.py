@@ -315,14 +315,27 @@ def _to_wire_tool(tool: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _to_wire_messages(messages: List[Any]) -> List[Dict[str, Any]]:
+def _to_wire_messages(messages: List[Any],
+                      *,
+                      keep_reasoning_from: Optional[int] = None) -> List[Dict[str, Any]]:
     """消息列表 → 线格式：assistant.tool_calls 扁平结构（id/name/arguments(dict)）
-    包装为 OpenAI 形态（type=function / function.arguments 为 JSON 文本）；其余透传。"""
+    包装为 OpenAI 形态（type=function / function.arguments 为 JSON 文本）；其余透传。
+
+    `keep_reasoning_from` 给了下标（含）就**只保留该下标之后**的 `reasoning_content`。
+    思维链是模型的中间产物：回传它就是让每次请求的输入里多一大段**必然未命中缓存**
+    的内容（每轮几万 token，按未命中价计费），而且同一轮内每次请求的前缀都在变，
+    缓存根本落不住。裁掉之后同一轮内前缀逐字节相同，缓存能吃满。
+    实测丢弃它不会让 API 报错（带 `tools` 的思考模式同样接受）。
+    """
     out: List[Dict[str, Any]] = []
-    for m in messages:
+    cut = None if keep_reasoning_from is None else max(0, int(keep_reasoning_from))
+    for index, m in enumerate(messages):
         if not isinstance(m, dict):
             continue
         msg = dict(m)
+        if cut is not None and index < cut:
+            msg.pop("reasoning_content", None)
+            msg.pop("reasoning", None)
         tcs = msg.get("tool_calls")
         if isinstance(tcs, list) and tcs:
             wire: List[Dict[str, Any]] = []
@@ -434,6 +447,7 @@ class OpenAICompatibleProvider(ModelProvider):
         api_key: str,
         model: str,
         timeout: float = 300.0,
+        replay_history_reasoning: bool = False,
         # usage 取官方流末帧自带的那一份：`stream_options.include_usage` 只是让中间帧
         # 也带上 usage（官方文档），单次请求用它属于多余，本实现不下发。
         extra_headers: Optional[Dict[str, str]] = None,
@@ -442,6 +456,8 @@ class OpenAICompatibleProvider(ModelProvider):
         self.api_key = str(api_key or "").strip()
         self.model = str(model or "").strip()
         self.timeout = float(timeout)
+        #: 历史轮次的思维链**默认不回传**（见 `_to_wire_messages`）。
+        self.replay_history_reasoning = bool(replay_history_reasoning)
         self.extra_headers = {str(k): str(v) for k, v in dict(extra_headers or {}).items()}
 
     def stream(self, request: Any) -> Iterator[StreamDelta]:
@@ -456,7 +472,10 @@ class OpenAICompatibleProvider(ModelProvider):
         if not self.api_key:
             raise ModelRequestError("api_key 未配置。")
         url = _chat_completions_url(self.base_url)
-        messages = _to_wire_messages(getattr(request, "messages", None) or [])
+        messages = _to_wire_messages(
+            getattr(request, "messages", None) or [],
+            keep_reasoning_from=(None if self.replay_history_reasoning
+                                 else getattr(request, "turn_start", None)))
         # ── 请求体：**逐键**──
         #
         # 请求体的键序与取值：

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from agent.app import build_app
-from agent.config import default_data_root, get_model_reasoning
+from agent.config import default_data_root, get_context, get_model_reasoning
 from agent.core import event_name as ev
 from agent.mechanisms.model_provider import OpenAICompatibleProvider
 from agent.mechanisms.session_store import SessionStore, new_conversation_id
@@ -153,7 +153,9 @@ def build_session(
         return None
 
     provider = OpenAICompatibleProvider(
-        base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"]
+        base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
+        # 与 Web 壳同一口径：历史轮次的思维链默认不回传。
+        replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
     )
     store = SessionStore(default_data_root())
     app = build_app(provider=provider, store=store)

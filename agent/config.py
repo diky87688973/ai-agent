@@ -86,6 +86,9 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         "image_max": _int("image_max", 10),
         # 摘要那一次调用复用平常请求的前缀（吃 KV 缓存）。.ini 无布尔类型，1/0 表示。
         "summary_prefix_reuse": _int("summary_prefix_reuse", 1) != 0,
+        # 已结束轮次的思维链是否回传。默认 0：思维链是模型的中间产物，
+        # 回传等于每轮都往输入里多塞几万 token，而这段必然未命中缓存（按未命中计费）。
+        "replay_history_reasoning": _int("replay_history_reasoning", 0) != 0,
     }
 
 
