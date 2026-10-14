@@ -337,3 +337,44 @@ class GithubApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SkillsListNeverDoublesTest(unittest.TestCase):
+    """清单翻倍防线：库内出现重复条目时，清单仍只列一份。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.skills_dir = self.root / "skills"
+        self.skills_dir.mkdir()
+        (self.skills_dir / "alpha.md").write_text(
+            "---\nname: alpha\ndescription: 甲\n---\nA\n", encoding="utf-8")
+        (self.skills_dir / "beta.md").write_text(
+            "---\nname: beta\ndescription: 乙\n---\nB\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_duplicate_entries_do_not_double_the_catalog(self) -> None:
+        mgr = SkillManager(self.skills_dir)
+        base = mgr.list_skills()
+        self.assertEqual(len(base), 2)
+        # 模拟"扫描被打断留下的残留"：同一文件在库内出现两次
+        mgr.skills.append(mgr.skills[0])
+        self.assertEqual(len(mgr.skills), 3)
+        names = [s["name"] for s in mgr.list_skills()]
+        self.assertEqual(sorted(names), ["alpha", "beta"])
+        text = mgr.build_registry_message_parts()[0]
+        self.assertEqual(text.count("- alpha:"), 1)
+        self.assertEqual(text.count("- beta:"), 1)
+
+    def test_repeated_collection_is_stable(self) -> None:
+        mgr = SkillManager(self.skills_dir)
+        counts = [len(mgr.list_skills()) for _ in range(5)]
+        self.assertEqual(counts, [2, 2, 2, 2, 2])
+
+    def test_rescan_does_not_append_twice(self) -> None:
+        mgr = SkillManager(self.skills_dir)
+        before = len(mgr.skills)
+        mgr._scan()          # 直接再扫一次（不给它清空的机会）
+        self.assertEqual(len(mgr.skills), before)

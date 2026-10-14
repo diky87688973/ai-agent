@@ -21,8 +21,9 @@ from agent.core.ports import LogicalRequest
 from agent.core.session_log import _ensure_tool_pairs
 from agent.mechanisms.context_pipeline import (
     DEFAULT_FULL_USER_ROUNDS,
-    _without_reasoning,
     approx_tokens_text,
+    clip_reasoning,
+    default_message_tokens,
     excerpt_by_target_tokens,
     tool_chain_balanced,
     turn_boundary_floor,
@@ -78,43 +79,12 @@ def count_images(content: Any) -> int:
 
 
 def _approx_message_tokens(message: Optional[Dict[str, Any]]) -> int:
-    """单条消息 token 估算（content + tool_calls）。
+    """单条消息 token 估算 —— 与装配期**同一个实现**（`default_message_tokens`）。
 
-    与**真正发出去的那份**同口径：不回传的思维链不计入（见 `model_provider` 的
-    `_to_wire_messages`）。按事实里的全量算会把预算高估一倍以上 ——
-    实测一条会话里思维链占 72%，估算把窗口算满了，实际发出去只用四分之一。
-
-    图片块按 `IMAGE_TOKENS_PER_IMAGE` 计、文本块按字符数计：一张 8536 字符的截图会被算成 2000+
-    （`//4+4`），而官方口径是**每图最多 1024**。按文本算会把预算高估一倍以上，
-    于是"刚发一张图就触发压缩"。图片块按固定上限计，文本部分照旧。
+    两处各写一份必然漂移：一处算了 `tool_calls`、另一处算了思维链，
+    于是"压缩判定的体积"与"实际发出去的体积"对不上，阈值跟着失准。
     """
-    if not isinstance(message, dict):
-        return 0
-    content = message.get("content")
-    if isinstance(content, str):
-        n = approx_tokens_text(content)
-    elif content is None:
-        n = 0
-    elif isinstance(content, list):
-        imgs = count_images(content)
-        texts = [
-            str(p.get("text") or "")
-            for p in content
-            if isinstance(p, dict) and p.get("type") == "text"
-        ]
-        n = approx_tokens_text("".join(texts)) + imgs * IMAGE_TOKENS_PER_IMAGE
-    else:
-        try:
-            n = approx_tokens_text(json.dumps(content, ensure_ascii=False))
-        except (TypeError, ValueError):
-            n = approx_tokens_text(str(content))
-    tc = message.get("tool_calls")
-    if isinstance(tc, list) and tc:
-        try:
-            n += approx_tokens_text(json.dumps(tc, ensure_ascii=False))
-        except (TypeError, ValueError):
-            n += 16
-    return n
+    return int(default_message_tokens(message or {}))
 
 
 def _schemas_tokens(tools: Optional[List[Dict[str, Any]]]) -> int:
@@ -211,7 +181,7 @@ def make_provider_summarizer(
             # `assistant(tool_calls)` 是悬空的。模型 API 对悬空调用硬拒绝
             # （400：must be followed by tool messages）。
             # 两边补法一致，前缀逐字节相同不受影响。
-            messages=_ensure_tool_pairs(_without_reasoning(head)
+            messages=_ensure_tool_pairs(clip_reasoning(head, 0)
                                         + [{"role": "system", "content": tail}]),
             # 工具定义照平常请求带上（前缀的一部分，少一项整段缓存作废）。
             tools=list(tools or []) if prefix_reuse else [],

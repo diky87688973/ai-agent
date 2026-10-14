@@ -601,6 +601,7 @@ def build_app(
         context_defaults={
             "full_user_rounds": int(ctx_cfg["full_user_rounds"]),
             "summary_token_threshold": int(ctx_cfg["summary_token_threshold"]),
+            "reasoning_replay_tokens": int(ctx_cfg["reasoning_replay_tokens"]),
         },
         image_turns=int(ctx_cfg["image_turns"]),
         image_max=int(ctx_cfg["image_max"]),

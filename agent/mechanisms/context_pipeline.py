@@ -29,6 +29,9 @@ CHUNK_MODE = "模式"
 CHUNK_ORDER = (CHUNK_SYSTEM, CHUNK_PLUGIN, CHUNK_MEM, CHUNK_FULL, CHUNK_MODE)
 
 DEFAULT_FULL_USER_ROUNDS = 1
+#: 思维链回传预算默认值（token）：超出取两头、中间以省略标记代替。
+DEFAULT_REASONING_REPLAY_TOKENS = 8000
+
 DEFAULT_SUMMARY_TOKEN_THRESHOLD = 700000
 #: 最近这么多用户轮保留完整工具往返；更早的轮剥掉轮内工具往返。
 #: 压缩时保留的最近用户轮数（0 = 允许压到 0 个用户轮）。
@@ -78,22 +81,91 @@ class ContextChunk:
         return sum(r.calculate_tokens(approx_msg_fn) for r in self.rounds)
 
 
-def _without_reasoning(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """剥掉消息里的思维链字段（不改原列表、不改原消息）。
+#: 推理正文被截断时插在中间的话。写明省了多少，模型据此知道"这里原本有内容"。
+REASONING_OMIT_FMT = "…<此处省略约 {tokens} token 的推理>…"
 
-    思维链只留在事实流里给界面看；进请求的那份不带它（见 `model_provider`）。
-    这里剥一次，是为了让**统计口径**（分段 token、预算估算）与实际发出的体积一致 ——
-    两处不一致时，界面会把窗口算满、压缩也会提前或滞后触发。
+
+def clip_reasoning_text(text: str, budget_tokens: int) -> str:
+    """按 token 预算截断一段推理正文：取两头，中间删掉。
+
+    - `budget_tokens < 0`：全量保留（原样返回）
+    - `budget_tokens == 0`：整段丢弃（返回空串）
+    - 否则若超出预算，保留开头与结尾各约一半，中间以省略标记代替。
+
+    取两头而不是只留尾部：推理的开头是"我要干什么"、结尾是"结论是什么"，
+    中间的过程模型能按这两头补出来。
+    """
+    s = str(text or "")
+    if not s or budget_tokens < 0:
+        return s
+    if budget_tokens == 0:
+        return ""
+    if approx_tokens_text(s) <= budget_tokens:
+        return s
+    # 省略标记本身也占预算，先把它扣掉
+    marker = REASONING_OMIT_FMT.format(tokens=budget_tokens)
+    head_budget = max(1, budget_tokens // 2)
+    tail_budget = max(1, budget_tokens - head_budget)
+    head = _prefix_within_budget(s, head_budget)
+    tail = _suffix_within_budget(s, tail_budget)
+    if not head and not tail:
+        return marker
+    omitted = max(0, approx_tokens_text(s) - approx_tokens_text(head)
+                  - approx_tokens_text(tail))
+    return head + REASONING_OMIT_FMT.format(tokens=omitted) + tail
+
+
+def _prefix_within_budget(text: str, budget_tokens: int) -> str:
+    """取开头这一段，使其估算不超过预算（二分找最大长度）。"""
+    lo, hi = 0, len(text)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if approx_tokens_text(text[:mid]) <= budget_tokens:
+            lo = mid
+        else:
+            hi = mid - 1
+    return text[:lo]
+
+
+def _suffix_within_budget(text: str, budget_tokens: int) -> str:
+    """取结尾这一段，使其估算不超过预算（二分找最长后缀）。"""
+    lo, hi = 0, len(text)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if approx_tokens_text(text[len(text) - mid:]) <= budget_tokens:
+            lo = mid
+        else:
+            hi = mid - 1
+    return text[len(text) - lo:] if lo else ""
+
+
+def clip_reasoning(messages: List[Dict[str, Any]],
+                   budget_tokens: int) -> List[Dict[str, Any]]:
+    """按预算裁掉消息里的思维链（不改原列表、不改原消息）。
+
+    思维链是模型的中间稿：整段回传就是让每次请求多背一大段**必然未命中缓存**的内容
+    （实测一条会话里它占 prompt 的 72%）。按预算裁到两头保留，既省掉大部分钱，
+    又让模型看得到"上一轮打算干什么、得出了什么"。
+
+    统计口径（分段 token、预算估算）用的也是这一份 —— 两处不一致时，
+    界面会把窗口算满、压缩也会提前或滞后触发。
     """
     out: List[Dict[str, Any]] = []
     for msg in messages:
-        if isinstance(msg, dict) and ("reasoning_content" in msg or "reasoning" in msg):
-            clean = dict(msg)
-            clean.pop("reasoning_content", None)
-            clean.pop("reasoning", None)
-            out.append(clean)
-        else:
+        if not isinstance(msg, dict):
             out.append(msg)
+            continue
+        if "reasoning_content" not in msg and "reasoning" not in msg:
+            out.append(msg)
+            continue
+        clean = dict(msg)
+        source = clean.pop("reasoning_content", None)
+        if source is None:
+            source = clean.pop("reasoning", None)
+        clipped = clip_reasoning_text(str(source or ""), budget_tokens)
+        if clipped:
+            clean["reasoning_content"] = clipped
+        out.append(clean)
     return out
 
 
@@ -117,6 +189,9 @@ def _as_text_parts(text: Any) -> List[str]:
 
 #: CJK 区段的字符每字约 1 token（本工程正文以中文为主，实测 prompt_tokens 与
 #: 字符数同量级）；其余按 4 字符 1 token。见 `approx_tokens_text`。
+#: 每张图片计入的 token 上限（官方口径每图最多 1024）。
+IMAGE_TOKENS_PER_IMAGE = 384
+
 _CJK_RANGES: Tuple[Tuple[int, int], ...] = (
     (0x3000, 0x303F),    # 中文标点
     (0x3400, 0x4DBF),    # 扩展 A
@@ -156,28 +231,41 @@ def approx_tokens_text(text: str) -> int:
 def default_message_tokens(msg: Dict[str, Any]) -> int:
     """缺省消息 token 估算（接入时可替换为更精确实现）。
 
-    多模态 content 里**图片块按每图固定上限计**：base64 是编码而非文本，
-    拿它按字符估算会把一张截图算成两千多 token（官方口径每图最多 1024）。
-
-    `tool_calls` 也计入：它的 `arguments` 是模型请求体的一部分（`python_inline`
-    的 `code`、`write_file` 的正文都在里面，一段几 KB），漏掉它会让估算系统性偏小。
+    口径 = **将要发出去的那一条**：
+    - `content`：文本按字符估算；多模态里的图片块按每图固定上限计（base64 是编码
+      而非文本，按字符算会把一张截图算成两千多 token，官方口径每图最多 1024）。
+    - `tool_calls`：`arguments` 是请求体的一部分（`python_inline` 的 `code`、
+      `write_file` 的正文都在里面，一段几 KB），漏掉它估算会系统性偏小。
+    - `reasoning_content`：按当前回传预算裁过之后**还剩多少就计多少**
+      （`set_dialogue` 已经裁好；不裁全量回传的那份也确实要计费）。
     """
+    if not isinstance(msg, dict):
+        return 0
     content = msg.get("content")
-    if isinstance(content, list):
+    if isinstance(content, str):
+        n = approx_tokens_text(content)
+    elif content is None:
+        n = 0
+    elif isinstance(content, list):
         imgs = sum(1 for p in content
                    if isinstance(p, dict) and p.get("type") == "image_url")
         texts = "".join(str(p.get("text") or "") for p in content
                         if isinstance(p, dict) and p.get("type") == "text")
-        # 与压缩器同一口径（`IMAGE_TOKENS_PER_IMAGE = 384`）。
-        n = approx_tokens_text(texts) + imgs * 384
+        n = approx_tokens_text(texts) + imgs * IMAGE_TOKENS_PER_IMAGE
     else:
-        n = approx_tokens_text(str(content or ""))
+        try:
+            n = approx_tokens_text(json.dumps(content, ensure_ascii=False))
+        except (TypeError, ValueError):
+            n = approx_tokens_text(str(content))
     calls = msg.get("tool_calls")
     if isinstance(calls, list) and calls:
         try:
             n += approx_tokens_text(json.dumps(calls, ensure_ascii=False))
         except (TypeError, ValueError):
             n += 16
+    reasoning = msg.get("reasoning_content")
+    if isinstance(reasoning, str) and reasoning.strip():
+        n += approx_tokens_text(reasoning)
     return n
 
 
@@ -639,11 +727,14 @@ class ContextPipeline:
         *,
         full_user_rounds: int = DEFAULT_FULL_USER_ROUNDS,
         summary_token_threshold: int = DEFAULT_SUMMARY_TOKEN_THRESHOLD,
+        reasoning_replay_tokens: int = DEFAULT_REASONING_REPLAY_TOKENS,
         sources: Optional["ContextSources"] = None,
     ) -> None:
         self.conversation_id = str(conversation_id or "")
         self.full_user_rounds = max(1, int(full_user_rounds))
         self.summary_token_threshold = max(1, int(summary_token_threshold))
+        #: 思维链回传预算（token）：-1 全量、0 不回传、正数取两头中间省略。
+        self.reasoning_replay_tokens = int(reasoning_replay_tokens)
         #: 最近这么多**用户轮**原样保留（含工具往返）；更早的轮剥掉轮内工具往返。
         #: 负数 = 不剥（全部保留）。
         self._sources = sources
@@ -816,15 +907,18 @@ class ContextPipeline:
         """单条消息的 token 估算（与 `total_token_estimate` 用同一个口径）。"""
         return int(default_message_tokens(msg))
 
-    def set_dialogue(self, messages: Any, *, covered_end: int = 0) -> None:
+    def set_dialogue(self, messages: Any, *, covered_end: int = 0,
+                     reasoning_budget: Optional[int] = None) -> None:
         """装对话段（②）。
 
         `covered_end`：已覆盖前缀长度（压缩器维护），那一段由摘要代表，
         不再进对话段。缺省 0 = 全量都是对话。
 
-        **思维链在这里剥掉**（`reasoning_content`）：它不回传给模型（见 `model_provider`），
-        留着会让分段统计与预算估算把窗口算大一倍以上（实测一条会话里它占 72%）。
-        事实流不动，记录与界面的事件照旧带推理。
+        `reasoning_budget`：思维链回传预算（token）。`-1` 全量、`0` 全丢、
+        正数取两头中间省略；缺省用实例上的 `reasoning_replay_tokens`。
+        **在这里裁**而不是在线上裁：分段统计与预算估算看的是同一份，
+        两处不一致时界面会把窗口算满、压缩也会提前或滞后触发。
+        事实流不动，记录与界面的事件照旧带完整推理。
 
         顺带从注入源刷新知识库 —— 这是"每回合开始"的挂点（对话每回合都重装）。
         """
@@ -832,7 +926,9 @@ class ContextPipeline:
         cut = max(0, int(covered_end or 0))
         if cut:
             seq = seq[cut:]
-        seq = _without_reasoning(seq)
+        budget = (self.reasoning_replay_tokens if reasoning_budget is None
+                  else int(reasoning_budget))
+        seq = clip_reasoning(seq, budget)
         self.name_map[CHUNK_FULL].rounds = flat_messages_to_user_rounds(seq)
         self._refresh_sources()
 

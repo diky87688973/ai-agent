@@ -62,6 +62,10 @@ def get_model_reasoning(path: Optional[Path] = None) -> Dict[str, Any]:
     }
 
 
+#: 思维链回传预算默认值（token）：超出取两头，中间省略。
+DEFAULT_REASONING_REPLAY_TOKENS = 8000
+
+
 def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
     """读取 [context] 节：上下文预算保护参数；缺失或坏值一律回默认。"""
     parser = load_ini(path)
@@ -86,9 +90,10 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         "image_max": _int("image_max", 10),
         # 摘要那一次调用复用平常请求的前缀（吃 KV 缓存）。.ini 无布尔类型，1/0 表示。
         "summary_prefix_reuse": _int("summary_prefix_reuse", 1) != 0,
-        # 已结束轮次的思维链是否回传。默认 0：思维链是模型的中间产物，
-        # 回传等于每轮都往输入里多塞几万 token，而这段必然未命中缓存（按未命中计费）。
-        "replay_history_reasoning": _int("replay_history_reasoning", 0) != 0,
+        # 思维链回传预算（token）：-1 = 全量回传，0 = 不回传，
+        # 正数 = 超出就取两头、中间以省略标记代替（模型按前后脑补）。
+        # 思维链必然未命中缓存，全量回传等于每轮多背几万 token。
+        "reasoning_replay_tokens": _int("reasoning_replay_tokens", DEFAULT_REASONING_REPLAY_TOKENS),
     }
 
 

@@ -1954,3 +1954,65 @@ class PluginSegmentCountAlignmentTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReasoningReplayBudgetTest(unittest.TestCase):
+    """思维链回传预算：三种取值的行为与统计口径。"""
+
+    def _long(self, steps: int = 400) -> str:
+        return "".join(f"第{i}步：先看配置，再改装配，然后跑测试。" for i in range(steps))
+
+    def test_negative_keeps_everything(self) -> None:
+        from agent.mechanisms.context_pipeline import clip_reasoning_text
+
+        text = self._long()
+        self.assertEqual(clip_reasoning_text(text, -1), text)
+
+    def test_zero_drops_everything(self) -> None:
+        from agent.mechanisms.context_pipeline import clip_reasoning_text
+
+        self.assertEqual(clip_reasoning_text(self._long(), 0), "")
+
+    def test_positive_keeps_both_ends_and_marks_the_gap(self) -> None:
+        from agent.mechanisms.context_pipeline import approx_tokens_text, clip_reasoning_text
+
+        text = self._long()
+        got = clip_reasoning_text(text, 500)
+        self.assertIn("此处省略", got)
+        self.assertTrue(got.startswith(text[:20]), msg="开头要保留")
+        self.assertTrue(got.endswith(text[-20:]), msg="结尾要保留")
+        self.assertLessEqual(approx_tokens_text(got), 700,
+                             msg="截断后不该还超预算太多")
+
+    def test_short_text_untouched(self) -> None:
+        from agent.mechanisms.context_pipeline import clip_reasoning_text
+
+        self.assertEqual(clip_reasoning_text("短推理", 1000), "短推理")
+
+    def test_messages_clip_does_not_mutate_input(self) -> None:
+        from agent.mechanisms.context_pipeline import clip_reasoning
+
+        msg = {"role": "assistant", "content": "答",
+               "reasoning_content": self._long()}
+        out = clip_reasoning([msg], 0)
+        self.assertNotIn("reasoning_content", out[0])
+        self.assertIn("reasoning_content", msg, msg="原消息不能被改")
+
+    def test_dialogue_segment_uses_the_budget(self) -> None:
+        from agent.mechanisms.context_pipeline import ContextPipeline
+
+        msgs = [{"role": "user", "content": "问"},
+                {"role": "assistant", "content": "答",
+                 "reasoning_content": self._long()}]
+        drop = ContextPipeline("c", reasoning_replay_tokens=0)
+        drop.set_dialogue(msgs)
+        kept = ContextPipeline("c", reasoning_replay_tokens=-1)
+        kept.set_dialogue(msgs)
+        self.assertLess(drop.total_token_estimate(), kept.total_token_estimate())
+
+    def test_config_default_matches_constant(self) -> None:
+        from agent.config import get_context
+        from agent.mechanisms.context_pipeline import DEFAULT_REASONING_REPLAY_TOKENS
+
+        self.assertEqual(get_context()["reasoning_replay_tokens"],
+                         DEFAULT_REASONING_REPLAY_TOKENS)

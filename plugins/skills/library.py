@@ -99,6 +99,15 @@ class SkillManager:
         if not self.skills_dir or not self.skills_dir.is_dir():
             return
         seen: Set[str] = set()
+        # 扫描必须**幂等**：清空与重填是两步，中间若被打断（并发、异常）
+        # 残留的条目会留在 `self.skills` 里，下一次扫描再追加一遍就是双份。
+        # 这里先按 key 记下库内已有的条目，重复的一律不追加。
+        for old in list(self.skills):
+            try:
+                seen.add(str(old.file_path.relative_to(self.skills_dir))
+                         .replace("\\", "/").lower())
+            except (ValueError, AttributeError):
+                continue
         auto_dir = self.skills_dir / "auto_load"
 
         def _rel_key(md: Path) -> str:
@@ -170,13 +179,24 @@ class SkillManager:
     # ── 公开 API ───────────────────────────────────────
 
     def list_skills(self) -> List[Dict[str, Any]]:
-        """列出普通技能（auto_load 常驻技能不列入，供上下文注入用）。"""
+        """列出普通技能（auto_load 常驻技能不列入，供上下文注入用）。
+
+        按文件路径去重：库内一旦出现同名重复（扫描被打断、并发重扫），
+        清单会整份翻倍 —— 段计数与正文都会翻，而症状只是"数字变大"。
+        """
         self._check_rescan()
-        return [
-            {"name": s.name, "description": s.description, "auto_load": s.is_auto_load}
-            for s in self.skills
-            if not s.is_auto_load
-        ]
+        out: List[Dict[str, Any]] = []
+        seen: Set[str] = set()
+        for s in self.skills:
+            if s.is_auto_load:
+                continue
+            key = str(s.file_path).lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"name": s.name, "description": s.description,
+                        "auto_load": s.is_auto_load})
+        return out
 
     def list_skill_names(self) -> List[str]:
         """全部技能 name 列表（供错误提示）。"""
