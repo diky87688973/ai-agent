@@ -544,6 +544,10 @@ class ContextSources:
                 items.append((key, label, f"{prefix}{text}" if prefix else text))
                 # 一个来源给多条正文时只有第一条带自报数量，其余按条数算。
                 counts.append(amount if i == 0 and amount is not None else 1)
+        # 不变量：数量与正文**逐条对齐**。少了数量，管线那边会把别人的数量贴到
+        # 自己的段上（按位置取值）；错位是静默的，只在浮层上表现为数字离谱。
+        while len(counts) < len(items):
+            counts.append(1)
         return PluginSegments(items=items, counts=counts)
 
     @staticmethod
@@ -663,9 +667,12 @@ class ContextPipeline:
             for rnd in chunk.rounds:
                 flat.extend(rnd.messages)
         rows: List[Dict[str, Any]] = []
+        counts = list(self._plugin_counts)
         for i, (key, label) in enumerate(self._plugin_sources):
             msg = flat[i] if i < len(flat) else None
-            reported = self._plugin_counts[i] if i < len(self._plugin_counts) else None
+            # 自报数量**按位置**对来源：数量表比来源表长说明两者已经错位，
+            # 此时宁可退回"按消息条数"（1），也不要拿别人的数量去贴自己的段。
+            reported = counts[i] if i < len(counts) else None
             rows.append({
                 "key": f"plugin:{key}",
                 "label": label,

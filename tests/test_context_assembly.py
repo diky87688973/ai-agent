@@ -1906,5 +1906,49 @@ class RemainingCapacityTest(unittest.TestCase):
         self.assertEqual(rows["system"]["pct"], 100.0)
         self.assertEqual(rows["remaining"]["tokens"], 0)
 
+class PluginSegmentCountAlignmentTest(unittest.TestCase):
+    """段与自报数量必须逐条对齐：错位是静默的，只在浮层上显示成离谱的数字。"""
+
+    def test_collect_segments_counts_match_items(self) -> None:
+        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+
+        srcs = ContextSources()
+        srcs.add(lambda cid: ["一条正文"],
+                 SourceMeta(key="a", label="有自报口", count=lambda cid: 7))
+        srcs.add(lambda cid: ["第一条", "第二条"], SourceMeta(key="b", label="两条正文"))
+        srcs.add(lambda cid: [], SourceMeta(key="c", label="空的", count=lambda cid: 3))
+        got = srcs.collect_segments("c")
+        self.assertEqual(len(got.counts), len(got.items))
+        self.assertEqual([label for _key, label, _t in got.items],
+                         ["有自报口", "两条正文", "两条正文"],
+                         msg=f"实际拿到 {[(k, l) for k, l, _ in got.items]}")
+        # 自报数只贴在该来源的第一条上；同一来源的其余条按条数算
+        self.assertEqual(got.counts, [7, 1, 1])
+
+    def test_missing_reported_count_falls_back_to_one(self) -> None:
+        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+
+        srcs = ContextSources()
+        srcs.add(lambda cid: ["x"], SourceMeta(key="x", label="没有自报口"))
+        got = srcs.collect_segments("c")
+        self.assertEqual(len(got.counts), len(got.items))
+        self.assertEqual(got.counts, [1])
+
+    def test_short_count_table_does_not_borrow_neighbours(self) -> None:
+        """数量表比来源表短时，多出来的段按自身条数算，不拿别的段的数字。"""
+        from agent.mechanisms.context_pipeline import (
+            ContextPipeline,
+            PluginSegments,
+        )
+
+        pipe = ContextPipeline("c")
+        pipe.set_plugin_segments(PluginSegments(
+            items=[("skills", "清单", "正文一"), ("skills", "常驻", "正文二")],
+            counts=[62],
+        ))
+        rows = [r for r in pipe.segment_tokens() if str(r["key"]).startswith("plugin:")]
+        self.assertEqual([r["label"] for r in rows], ["清单", "常驻"])
+        self.assertEqual([r["count"] for r in rows], [62, 1])
+
 if __name__ == "__main__":
     unittest.main()

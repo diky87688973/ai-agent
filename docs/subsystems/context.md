@@ -136,6 +136,10 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 `layout_payload()` 补 `remaining`（剩余容量）与 `pct`；`pct` 相对预算
 （预算 = 压缩阈值，取预算与已用中的较大者）。
 
+自报数量**按位置**与来源对齐：`collect_segments()` 返回的数量表与段落表等长，
+某个来源少了自报数就按它自己的条数算。错位是静默的（段名、token 都对，只有数字离谱），
+所以两处都不允许用邻段的数字补位。
+
 ### 字段与边界
 
 `context_layout.segments[]` 只给**数据**：
