@@ -1267,7 +1267,7 @@ textarea::placeholder{color:var(--c-text-5);opacity:1}
 .chat-session-row{color:var(--c-text-2)}
 .chat-session-row:hover{background:var(--c-bg-hover)}
 .chat-session-new{color:var(--c-text-3);border-bottom:1px solid var(--c-line-1)}
-.chat-session-badge{background:var(--c-ok-bg);color:var(--c-ok);font-size:var(--fs-xs)}
+.chat-session-badge{background:transparent;color:var(--c-ok);font-size:var(--fs-xs)}
 .chat-session-empty{color:var(--c-text-4);font-size:var(--fs-sm)}
 .chat-session-group{color:var(--c-text-4)}
 .chat-session-group::after{content:"";flex:1 1 auto;align-self:center;height:1px;background:var(--c-sep)}
