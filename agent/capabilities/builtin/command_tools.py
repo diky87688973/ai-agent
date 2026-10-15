@@ -374,6 +374,25 @@ class RunCommandTool(ToolPlugin):
         }
 
 
+class _ProgressText(io.TextIOBase):
+    """写入同时上报进度，stdout/stderr 由此推到界面。"""
+
+    def __init__(self, sink: io.StringIO, stream: str) -> None:
+        self._sink = sink
+        self._stream = stream
+
+    def write(self, s: str) -> int:
+        text = "" if s is None else str(s)
+        if not text:
+            return 0
+        self._sink.write(text)
+        emit_progress(stream=self._stream, text=text)
+        return len(text)
+
+    def flush(self) -> None:
+        self._sink.flush()
+
+
 class PythonInlineTool(ToolPlugin):
     """exec 执行 Python 源码（不经 shell）：stdout/stderr 捕获 + 净化。"""
 
@@ -408,7 +427,10 @@ class PythonInlineTool(ToolPlugin):
         buffer_err = io.StringIO()
         exit_code = 0
         try:
-            with redirect_stdout(buffer_out), redirect_stderr(buffer_err):
+            with (
+                redirect_stdout(_ProgressText(buffer_out, "stdout")),
+                redirect_stderr(_ProgressText(buffer_err, "stderr")),
+            ):
                 try:
                     exec(compile(code, "<python_inline>", "exec"), {"__name__": "__main__"})
                 except SystemExit as exc:
@@ -419,6 +441,7 @@ class PythonInlineTool(ToolPlugin):
         finally:
             if raw_cwd:
                 os.chdir(old_cwd)
+            emit_progress(done=True)
         return {
             "exit_code": int(exit_code),
             "cwd": str(ran_in),

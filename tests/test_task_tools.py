@@ -16,6 +16,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
+from agent.capabilities.builtin.task_tools import ApprovalConfirmTool  # noqa: E402
 from agent.core import session_scope  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
@@ -211,6 +212,64 @@ class UserConfirmTest(_TaskToolsBase):
         self.assertFalse(r.ok)
         self.assertIn("UserConfirmRequired", r.error)
         self.assertEqual(r.data["confirms"], ["A", "B"])
+
+class ApprovalConfirmTest(_TaskToolsBase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.assertIsNone(self.app.registry.get("approval_confirm"))
+        self.app.registry.register(ApprovalConfirmTool())
+
+    def test_suspends_with_approval_envelope(self):
+
+        r = self._call("approval_confirm", {
+            "option_id": "video-1",
+            "option_desc": "提示词已修正完毕，是否准许生成视频？",
+        })
+        self.assertFalse(r.ok)
+        self.assertTrue(r.await_user)
+        self.assertIn("ApprovalRequired", r.error)
+        self.assertEqual(r.data["kind"], "approval")
+        self.assertEqual(r.data["title"], "审批")
+        self.assertEqual(r.data["option_id"], "video-1")
+        self.assertEqual(r.data["option_desc"], "提示词已修正完毕，是否准许生成视频？")
+
+    def test_rejects_blank_or_forged_id(self):
+
+        self.assertFalse(self._call("approval_confirm", {"option_desc": "是否准许？"}).ok)
+        self.assertFalse(self._call("approval_confirm", {"option_id": "  ", "option_desc": "是否准许？"}).ok)
+        self.assertFalse(self._call("approval_confirm", {"option_id": "video-1"}).ok)
+        forged = self._call("approval_confirm", {
+            "option_id": "video-1",
+            "option_desc": "是否准许？",
+            "approval_id": "apv_forged",
+        })
+        self.assertFalse(forged.ok)
+        self.assertIn("不接收 approval_id", forged.error)
+
+    def test_suspend_is_remembered_on_the_session(self):
+        """挂起信封进会话上下文，回合结束只清待审批，不清已签发的通行证。"""
+
+        from agent.core.engine import Engine
+        from agent.core.events import Event
+        from agent.core.session_context import SessionContext
+
+        ctx = SessionContext(conversation_id=CID)
+        engine = Engine(conversation_id=CID, modules=[], session_context=ctx)
+        engine._remember_suspend(Event("tool_suspended", {
+            "call_id": "c1",
+            "envelope": {
+                "kind": "approval",
+                "title": "审批",
+                "option_id": "video-1",
+                "option_desc": "是否准许生成视频？",
+            },
+        }))
+        self.assertEqual(ctx.pending_confirm["kind"], "approval")
+        self.assertEqual(ctx.pending_confirm["option_id"], "video-1")
+        aid = ctx.grant_approval("video-1")
+        engine._remember_suspend(Event("turn_ended", {"paused": False}))
+        self.assertIsNone(ctx.pending_confirm)
+        self.assertEqual(ctx.approvals[aid], "video-1")
 
 class TaskSleepAutonomousTest(_TaskToolsBase):
     def test_sleep_ok_and_clamp(self):

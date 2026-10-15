@@ -17,6 +17,8 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
+from agent.capabilities.builtin.command_tools import PythonInlineTool  # noqa: E402
+from agent.core.session_scope import reset_progress_reporter, set_progress_reporter  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms import command_safety as cs  # noqa: E402
 
@@ -217,6 +219,17 @@ class PythonInlineTest(unittest.TestCase):
         self.assertTrue(r.ok, msg=str(r.error))
         self.assertEqual(r.data["exit_code"], 0)
         self.assertIn("hi-inline", r.data["stdout"])
+
+    def test_inline_prints_push_progress(self) -> None:
+        seen: list[dict] = []
+        token = set_progress_reporter(seen.append)
+        try:
+            data = PythonInlineTool().execute({"code": "print('hi-inline')"})
+        finally:
+            reset_progress_reporter(token)
+        self.assertIn("hi-inline", data["stdout"])
+        streamed = "".join(str(item.get("text") or "") for item in seen if item.get("stream") == "stdout")
+        self.assertIn("hi-inline", streamed)
 
     def test_inline_exception_captured(self) -> None:
         r = self._call("python_inline", {"code": "raise ValueError('boom')"})

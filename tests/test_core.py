@@ -47,9 +47,11 @@ class ScriptedProvider:
     def __init__(self, steps: List[Dict[str, Any]]) -> None:
         self._steps = list(steps)
         self.calls = 0
+        self.last_request = None
 
     def stream(self, request: Any):
         self.calls += 1
+        self.last_request = request
         step = self._steps.pop(0) if self._steps else {"text": "(no more)"}
         reasoning = str(step.get("reasoning") or "")
         if reasoning:
@@ -456,6 +458,16 @@ class SuspendBatchTest(CoreHarness):
         self.assertIn("c1", self._gaps(self.log.derive_messages()))
         # 请求视图**必须补齐**（否则模型 API 拒绝）
         self.assertEqual(self._gaps(self.log.derive_request_messages()), set())
+        # 模型实际收到的那一份也必须补齐，而且占位要紧跟要求了工具的那条消息
+        sent = list(getattr(provider2.last_request, "messages", None) or [])
+        self.assertEqual(self._gaps(sent), set())
+        for index, msg in enumerate(sent):
+            calls = msg.get("tool_calls") or []
+            if msg.get("role") != "assistant" or not calls:
+                continue
+            nxt = sent[index + 1] if index + 1 < len(sent) else {}
+            self.assertEqual(nxt.get("role"), "tool")
+            self.assertEqual(str(nxt.get("tool_call_id") or ""), str(calls[0].get("id") or ""))
 
     def test_placeholder_says_why_not_just_null(self) -> None:
         """占位内容要**说明原因**，不能是空串或 `null`。"""

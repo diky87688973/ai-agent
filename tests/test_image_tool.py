@@ -176,6 +176,7 @@ class ReadImageToolTest(unittest.TestCase):
         self.assertEqual(result.data["width"], 120)
         self.assertEqual(result.data["height"], 60)
         self.assertEqual(result.data["format"], "image/png")
+        self.assertTrue(Path(result.data["path"]).is_absolute())
         self.assertEqual(len(result.attachments), 1)
         # 摘要里**不能**带 base64：它会进上下文，几十万字符白占体积
         self.assertNotIn("data_base64", result.data)

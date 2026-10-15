@@ -18,6 +18,11 @@ main{flex:1;display:flex;min-height:0;align-items:stretch}
 .classic-split-resizer{cursor:col-resize;align-self:stretch;flex:0 0 3px;box-sizing:border-box;background-color:#2a2a2a;border-left:1px solid #333;border-right:1px solid #333;flex-shrink:0}
 .classic-split-resizer:hover{background-color:#3a3f47;border-left-color:#4a4f57;border-right-color:#4a4f57}
 .side{flex:0 0 auto;width:min(600px,46vw);background:#252526;display:flex;flex-direction:column;min-width:300px}
+html[data-tool-steps="off"] #tabSteps,
+html[data-tool-steps="off"] #paneSteps{display:none}
+/* 没有可见标签时右栏宽度为 0。打开文件或插件面板后脚本去掉这个标记，宽度回到拖拽值。 */
+html[data-side-empty] #classicSidePane{flex:0 0 0;width:0;max-width:0;min-width:0;overflow:hidden;border-left-width:0}
+html[data-side-empty] #classicSplitResizer{flex:0 0 0;width:0;min-width:0;border:0;pointer-events:none;overflow:hidden}
 .chat-conversation-mount{flex:1 1 0;min-height:0;display:flex;flex-direction:column;min-width:0}
 .chat-conversation-pane{flex:1 1 0;min-height:0;display:flex;flex-direction:column;min-width:0}
 .p-title{font-size:11px;color:#888;padding:6px 10px;border-bottom:1px solid #333;text-transform:uppercase;letter-spacing:.04em}
@@ -48,6 +53,7 @@ html[data-ui-theme="light"][data-session-rail="open"] .session-rail-resizer.is-c
 }
 .session-rail-resizer.is-collapsed{flex:0 0 0;width:0;min-width:0;border:0;pointer-events:none;overflow:hidden}
 .session-rail-list{flex:1 1 0;min-height:0;overflow-x:hidden;overflow-y:auto;padding:5px}
+.session-rail .usage-bottom{min-width:0}
 .chat-session-row{width:100%;display:flex;align-items:center;gap:8px;background:transparent;border:0;border-radius:7px;padding:7px 9px;color:#d0d7de;text-align:left;font-size:12px}
 .chat-session-row:hover{background:#252b34}
 .chat-session-group{display:flex;align-items:center;gap:9px;padding:10px 9px 4px;color:#979da6;font-size:10px;font-weight:700;letter-spacing:.04em}
@@ -83,7 +89,7 @@ html[data-ui-theme="light"][data-session-rail="open"] .session-rail-resizer.is-c
 .msgs{flex:1;min-height:0;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
 .b{padding:8px 10px;border-radius:6px;white-space:pre-wrap;word-break:break-word;line-height:1.45}
 .b.u{max-width:92%;align-self:flex-end;background:#171717;border:1px solid #2c2c30;color:#aeb6c0;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
-.b.a{align-self:stretch;max-width:100%;width:100%;box-sizing:border-box;background:transparent;border:0;padding:8px 0;white-space:normal}
+.b.a{align-self:stretch;max-width:100%;width:100%;box-sizing:border-box;background:transparent;border:0;padding:8px 0 8px 8px;white-space:normal}
 /* 助手正文的阅读排版。
    字号独立于 `body` 的 13px：界面控件 13px 够，但成段中文在 13px / 行高 1.45 下密到发闷。
    标题用绝对 px 而不是 `em` —— `em` 跟着 `body` 走，改一次全局字号整条标题层级都要重算。 */
@@ -321,6 +327,9 @@ html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
 .user-confirm-actions .mode-plus{border-color:#4a525e;color:#c9d1d9}
 .user-confirm-actions .mode-plus:hover{background:rgba(120,130,145,.10)}
 .user-confirm-actions button{padding:6px 12px;font-size:12px;border-radius:6px}
+.approval-desc{font-size:13px;line-height:1.55;color:#d6dde5;padding:2px 2px 4px;word-break:break-word}
+.user-confirm-actions .approval-agree{border-color:#8a7344;color:#e7d3a1}
+.user-confirm-actions .approval-agree:hover{background:rgba(201,169,98,.12)}
 .b.a .chat-diff-card .diff-unified.diff-surface-adaptive{max-height:none;overflow:visible;border:0;border-radius:0;background:var(--diff-surface-bg)}
 .b.a .chat-diff-card pre,.b.a .chat-diff-card pre.chat-run-pre{max-height:none;overflow:visible;border:0;border-radius:0}
 .done-banner{margin-bottom:8px;padding:10px 12px;border-radius:6px;background:#1e3d2a;border:1px solid #2d5a3d;color:#89d185;font-size:12px;line-height:1.45}
@@ -531,6 +540,15 @@ html[data-ui-theme="light"] header .hdr-theme-btn:hover {
 html[data-ui-theme="light"] .chat {
   background: #eef1f6;
 }
+html[data-ui-theme="dark"] .chat {
+  background: #151517;
+}
+html[data-ui-theme="dark"] .session-rail,
+html[data-ui-theme="dark"] .side,
+html[data-ui-theme="dark"] .side-tabbar,
+html[data-ui-theme="dark"] .usage-bottom {
+  background: #1b1b1c;
+}
 html[data-ui-theme="light"] .classic-split-resizer {
   background-color: #e4e9f2;
   border-left-color: #c8d4e8;
@@ -563,7 +581,7 @@ html[data-ui-theme="light"] .b.a {
   border: none;
   box-shadow: none;
   border-radius: 0;
-  padding: 8px 0;
+  padding: 8px 0 8px 8px;
   color: #1a2233;
 }
 html[data-ui-theme="light"] .b.a pre {
@@ -1098,6 +1116,8 @@ html[data-ui-theme="light"] .user-confirm-card{border-color:#d0dae8;background:#
 html[data-ui-theme="light"] .user-confirm-cap.user-confirm-cap{background:#f6f8fc;border-bottom-color:#e2e8f4}
 html[data-ui-theme="light"] .user-confirm-cap-line>span.uc-title{color:#1a2233}
 html[data-ui-theme="light"] .user-confirm-body{background:#ffffff}
+html[data-ui-theme="light"] .approval-desc{color:#1a2233}
+html[data-ui-theme="light"] .user-confirm-actions .approval-agree{border-color:#b8924a;color:#6e5420}
 html[data-ui-theme="light"] .uc-radio.uc-on{border-color:#b8924a}
 html[data-ui-theme="light"] .uc-radio.uc-on::after{background:#8a6d1f}
 html[data-ui-theme="light"] .uc-check.uc-on{border-color:#b8924a;color:#7a6220}
@@ -1133,6 +1153,7 @@ html[data-ui-theme="light"] .uc-check.uc-on{border-color:#b8924a;color:#7a6220}
 html[data-ui-theme="light"] .diff-bubble{border-color:#d0dae8;background:#ffffff}
 html[data-ui-theme="light"] .diff-bubble-cap{color:#1a2233;background:#f6f8fc;border-bottom-color:#e2e8f4}
 html[data-ui-theme="light"] .diff-bubble .chat-diff-card{background:#ffffff}
+
 
 /* 字体渲染：Windows 走系统次像素渲染（不开 -webkit-font-smoothing，
    那会把 ClearType 关掉，中文发虚）；拉丁字优先用 Segoe UI Variable。 */
@@ -1262,9 +1283,10 @@ header .hdr-theme-btn:hover{color:var(--c-text-1);border-color:var(--c-line-3);b
 .classic-split-resizer{background-color:var(--c-bg-base);border-left:1px solid var(--c-line-1);border-right:1px solid var(--c-line-1)}
 .classic-split-resizer:hover{background-color:var(--c-bg-layer);border-color:var(--c-line-2)}
 .row{border-top:1px solid var(--c-line-1);padding:var(--sp-5)}
-.composer{border:1px solid var(--c-line-2);background:var(--c-bg-raise);border-radius:var(--r-2xl)}
+.composer{color:#1c1c1c;border:none;border-radius:inherit;background:transparent}
 textarea{color:var(--c-text-1);caret-color:var(--c-brand)}
 textarea::placeholder{color:var(--c-text-5);opacity:1}
+html[data-ui-theme="dark"] textarea::placeholder{color:#70747c}
 .b{padding:var(--sp-4) var(--sp-5)}
 .b.a{color:var(--c-text-2)}
 .b.u{background:var(--c-bg-layer);border:1px solid var(--c-line-1);color:var(--c-text-3)}
@@ -1280,6 +1302,10 @@ textarea::placeholder{color:var(--c-text-5);opacity:1}
 .b.a td,.b.a th{border-color:var(--c-line-2)}
 .mode-plus{color:var(--c-text-3);border:1px solid var(--c-line-2);border-radius:var(--r-xl);font-size:var(--fs-ui);height:var(--h-ctl)}
 .mode-plus:hover{background:var(--c-bg-hover);border-color:var(--c-line-3);color:var(--c-text-1)}
+.mode-plus.stop-task{border-color:#7a3d3d;color:#f0b8b8;background:transparent}
+.mode-plus.stop-task:hover{background:rgba(160,70,70,.16);border-color:#7a3d3d;color:#f0b8b8}
+html[data-ui-theme="light"] .mode-plus.stop-task{border-color:#a8434a;color:#9c3b41;background:transparent}
+html[data-ui-theme="light"] .mode-plus.stop-task:hover{background:rgba(168,67,74,.10);border-color:#a8434a;color:#9c3b41}
 .send-hint{color:var(--c-text-5);font-size:var(--fs-ui)}
 .mode-menu{background:var(--c-bg-overlay);border:1px solid var(--c-line-1);border-radius:var(--r-xl);box-shadow:var(--c-shadow)}
 .session-rail{background:#24262a}

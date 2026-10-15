@@ -218,6 +218,25 @@ class OutboundContractTest(unittest.TestCase):
         parsed = json.loads(end["preview"])                   # 必须能 parse
         self.assertEqual(parsed["data"]["stdout"], "hi")      # agent-ui.js:1550/2029 读 data.stdout
 
+    def test_tool_done_images_ride_beside_preview(self) -> None:
+        """看图的像素走 `images`，不写进 `preview` 文本。"""
+        stream = _stream()
+        stream.translate("tool_call", {
+            "call_id": "c1", "name": "read_image",
+            "arguments": {"path": r"C:\Temp\qq5.png"},
+        })
+        frames = stream.translate("tool_done", {
+            "call_id": "c1",
+            "data": {"path": r"C:\Temp\qq5.png", "width": 10, "height": 8},
+            "attachments": [
+                {"mime": "image/png", "data_base64": "abcd"},
+                {"mime": "text/plain", "data_base64": "nope"},
+            ],
+        })
+        end = frames[0]
+        self.assertEqual(end["images"], [{"mime": "image/png", "data_base64": "abcd"}])
+        self.assertNotIn("data_base64", end["preview"])
+
     def test_tool_result_without_start_is_skipped(self) -> None:
 
         self.assertEqual(_stream().translate("tool_result", {"call_id": "nope", "ok": True}), [])
@@ -339,6 +358,25 @@ class OutboundContractTest(unittest.TestCase):
         self.assertTrue(end["user_confirm_required"])
         self.assertEqual(end["user_confirm_options"], ["甲", "乙"])
         self.assertEqual(end["user_confirm_title"], "选一个")
+
+    def test_approval_suspension_is_not_a_choice_card(self) -> None:
+        """审批挂起发 `approval_required`，不发选项卡。"""
+
+        stream = _stream()
+        frames = stream.translate("tool_suspended", {
+            "call_id": "c9", "name": "approval_confirm",
+            "envelope": {
+                "kind": "approval",
+                "title": "审批",
+                "option_id": "video-1",
+                "option_desc": "是否准许生成视频？",
+            },
+        })
+        end = [f for f in frames if f["type"] == C.EV_TOOL_END][0]
+        self.assertTrue(end["approval_required"])
+        self.assertEqual(end["approval_title"], "审批")
+        self.assertEqual(end["approval_desc"], "是否准许生成视频？")
+        self.assertNotIn("user_confirm_required", end)
 
     def test_cancel_on_confirm_modal_records_a_declined_result(self) -> None:
         """模态点「取消」（空 `confirm`）**当作拒绝作答、记成工具结果**，
@@ -1173,6 +1211,67 @@ class UserConfirmRoundTripTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertFalse(payload["ok"])
 
+    def test_agree_mints_approval_id_for_the_option(self) -> None:
+        """同意：结果是「同意」加宿主签发的 approval_id，并记下 option_id。"""
+
+        session = self.adapter._session(CID)
+        session.pending_confirm = {
+            "call_id": "call-ap",
+            "kind": "approval",
+            "option_id": "video-1",
+            "option_desc": "是否准许生成视频？",
+        }
+        status, payload = self.adapter.user_confirm(CID, {"approval": "agree"})
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["decision"], "同意")
+        aid = payload["approval_id"]
+        self.assertTrue(str(aid).startswith("apv_"))
+        self.assertEqual(session.approvals[aid], "video-1")
+        resume = self.submitted[0][1]["resume"]
+        self.assertEqual(resume["call_id"], "call-ap")
+        self.assertTrue(resume["ok"])
+        self.assertEqual(resume["data"], {"decision": "同意", "approval_id": aid})
+        self.assertIsNone(self.adapter._session(CID).pending_confirm)
+
+    def test_reject_returns_disagree_and_stores_nothing(self) -> None:
+        """驳回：结果是「不同意」，不签发通行证。"""
+
+        session = self.adapter._session(CID)
+        session.approvals.clear()
+        session.pending_confirm = {
+            "call_id": "call-ap",
+            "kind": "approval",
+            "option_id": "video-1",
+            "option_desc": "是否准许生成视频？",
+        }
+        status, payload = self.adapter.user_confirm(CID, {"approval": "reject"})
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["confirmed"])
+        self.assertEqual(payload["decision"], "不同意")
+        self.assertEqual(payload["approval_id"], "")
+        self.assertEqual(session.approvals, {})
+        resume = self.submitted[0][1]["resume"]
+        self.assertEqual(resume["data"], {"decision": "不同意"})
+
+    def test_confirm_text_does_not_answer_an_approval(self) -> None:
+        """选项文本不能冒充审批结果，待审批保持原样。"""
+
+        session = self.adapter._session(CID)
+        session.approvals.clear()
+        session.pending_confirm = {
+            "call_id": "call-ap",
+            "kind": "approval",
+            "option_id": "video-1",
+        }
+        status, payload = self.adapter.user_confirm(CID, {"confirm": "同意"})
+        self.assertEqual(status, 200)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(self.submitted, [])
+        self.assertEqual(session.pending_confirm["call_id"], "call-ap")
+        self.assertEqual(session.approvals, {})
+
 class UiBundleTest(unittest.TestCase):
     """素材与内联打包。"""
 
@@ -1194,10 +1293,14 @@ class UiBundleTest(unittest.TestCase):
         start = js.find("function onToolEnd(ev){")
         self.assertNotEqual(start, -1, msg="onToolEnd 不见了")
         body = js[start:start + 1100]
-        self.assertIn('o.tag.textContent=(!!ok||!!ev.user_confirm_required)?"Done":"Fail"', body,
-                      msg="工具结束没有立刻写终态标签")
-        self.assertIn('o.tag.className="tag "+((!!ok||!!ev.user_confirm_required)?"ok":"bad")', body,
-                      msg="终态标签的样式没有一起写")
+        self.assertIn(
+            'o.tag.textContent=(!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"Done":"Fail"',
+            body,
+            msg="工具结束没有立刻写终态标签")
+        self.assertIn(
+            'o.tag.className="tag "+((!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"ok":"bad")',
+            body,
+            msg="终态标签的样式没有一起写")
 
     def test_reasoning_stays_out_of_the_chat_area(self) -> None:
         """**思考内容不能出现在对话区**（它属于右侧步骤卡）。
@@ -1371,6 +1474,38 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
         self.assertEqual(atts[0]["mime"], "image/png")
         self.assertEqual(len(resolved), 1, msg="同时要把字节交给调用方登记")
         self.assertEqual(resolved[0]["data_base64"], self.PNG_B64)
+
+    def test_history_tool_done_keeps_images(self) -> None:
+        """刷新后看图条目仍带着像素，展开面板才能把图画出来。"""
+        from agent.core.events import Event
+        from agent.shell.classic_adapter.inbound import _history_items
+
+        items, _resolved = _history_items([
+            Event("tool_started", {
+                "call_id": "c1", "name": "read_image",
+                "arguments": {"path": r"C:\Temp\qq5.png"},
+            }),
+            Event("tool_done", {
+                "call_id": "c1",
+                "data": {"path": r"C:\Temp\qq5.png"},
+                "attachments": [{"mime": "image/png", "data_base64": self.PNG_B64}],
+            }),
+        ])
+        tool = items[0]
+        self.assertEqual(tool["status"], "done")
+        self.assertEqual(tool["images"], [{"mime": "image/png", "data_base64": self.PNG_B64}])
+        self.assertNotIn("data_base64", tool.get("preview") or "")
+
+    def test_history_tool_canceled_stays_distinct_from_failed(self) -> None:
+        """停止是独立终态，刷新后标题才能和失败分开上色。"""
+        from agent.core.events import Event
+        from agent.shell.classic_adapter.inbound import _history_items
+
+        items, _resolved = _history_items([
+            Event("tool_started", {"call_id": "c1", "name": "run_command", "arguments": {}}),
+            Event("tool_canceled", {"call_id": "c1", "reason": "user_stop"}),
+        ])
+        self.assertEqual(items[0]["status"], "canceled")
 
     def test_attachment_id_is_recomputable(self) -> None:
         """id 必须**从事实派生**：刷新前后一致，否则浏览器不会重试那张失败的图。"""

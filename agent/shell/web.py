@@ -1054,8 +1054,14 @@ class _Handler(BaseHTTPRequestHandler):
     def _classic_page(self) -> None:
         """经典界面页面：把经典界面素材内联成单页返回。"""
         from agent.shell.ui_bundle import APP_VERSION, inline_ui_html
+        from agent.shell.web_ui_config import get_web_ui
 
         html = inline_ui_html(APP_VERSION)
+        # 开关按请求注入：素材缓存不含 ini，改 web-ui-config.ini 后刷新页面即生效。
+        html = html.replace(
+            "{{WEB_UI_JSON}}",
+            json.dumps(get_web_ui(), ensure_ascii=False, separators=(",", ":")),
+        )
         body = html.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")

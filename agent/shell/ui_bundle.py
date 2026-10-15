@@ -23,6 +23,7 @@ CLASSIC_DIR = Path(__file__).resolve().parent / "web_assets" / "classic"
 _HTML_FILE = CLASSIC_DIR / "agent-ui.html"
 _RESET_CSS = CLASSIC_DIR / "css" / "reset.css"
 _UI_CSS = CLASSIC_DIR / "css" / "agent-ui.css"
+_TOOL_CSS = CLASSIC_DIR / "css" / "chat-tool-views.css"
 _HLJS_DARK_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github-dark.min.css"
 _HLJS_LIGHT_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github.min.css"
 _THEME_JS = CLASSIC_DIR / "js" / "theme-ui.js"
@@ -31,6 +32,7 @@ _HLJS_JS = CLASSIC_DIR / "js" / "vendor" / "highlight.min.js"
 _CODE_HIGHLIGHT_JS = CLASSIC_DIR / "js" / "code-highlight.js"
 _LIGHTBOX_JS = CLASSIC_DIR / "js" / "image-lightbox.js"
 _UI_JS = CLASSIC_DIR / "js" / "agent-ui.js"
+_TOOL_JS = CLASSIC_DIR / "js" / "chat-tool-views.js"
 
 APP_VERSION = "v0.1"
 
@@ -56,6 +58,7 @@ def build_inline_css() -> str:
     parts = [
         _read(_RESET_CSS).rstrip(),
         _read(_UI_CSS),
+        _read(_TOOL_CSS),
         _read(_HLJS_DARK_CSS),
         scope_hljs_css(_read(_HLJS_LIGHT_CSS), 'html[data-ui-theme="light"]'),
     ]
@@ -74,6 +77,7 @@ def build_inline_js() -> str:
         _read(_CODE_HIGHLIGHT_JS),
         _read(_LIGHTBOX_JS),
         _read(_UI_JS),
+        _read(_TOOL_JS),
     ]
     return "\n;".join(p for p in parts if p)
 
@@ -98,6 +102,7 @@ def inline_ui_html(version: Optional[str] = None) -> str:
 def classic_assets_present() -> bool:
     """素材是否齐全（供 /health 自检）。"""
     return all(p.is_file() for p in (
-        _HTML_FILE, _RESET_CSS, _UI_CSS, _HLJS_DARK_CSS, _HLJS_LIGHT_CSS,
+        _HTML_FILE, _RESET_CSS, _UI_CSS, _TOOL_CSS, _HLJS_DARK_CSS, _HLJS_LIGHT_CSS,
         _THEME_JS, _MARKED_JS, _HLJS_JS, _CODE_HIGHLIGHT_JS, _LIGHTBOX_JS, _UI_JS,
+        _TOOL_JS,
     ))

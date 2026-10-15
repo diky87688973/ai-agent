@@ -296,6 +296,11 @@ class ClassicAdapter:
         cid = C.normalize_cid(cid)
         if not cid:
             return 400, {"error": "missing conversation_id"}
+        approval = str(body.get("approval") or "").strip().lower()
+        if approval:
+            if approval not in ("agree", "reject"):
+                return 400, {"ok": False, "error": "approval 只能是 agree 或 reject"}
+            return 200, self.submit_approval(cid, approval == "agree")
         confirm_id = str(body.get("confirm_id") or "").strip()
         confirm_text = str(body.get("confirm") or "").strip()
 
@@ -359,6 +364,17 @@ class ClassicAdapter:
         #      （用户只能点「停止」逃生）。
         text = str(text or "")
         declined = not text.strip()
+        if str((pending or {}).get("kind") or "") == "approval":
+            # 审批挂起不接受选项文本。空 confirm 在这里不记成取消。
+            return {
+                "ok": False,
+                "error": "当前挂起的是审批，confirm 文本不作为作答",
+                "confirmed": False,
+                "conversation_id": cid,
+                "queued": False,
+                "run_id": "",
+                "resumed_call": "",
+            }
         if call_id:
             # **经运行器提交结果**：由它把结果拼成 `tool_result` 事实并起一轮。
             # 事实由运行器写入：适配层直接写会成为第二个事实写点，
@@ -390,6 +406,71 @@ class ClassicAdapter:
             "queued": bool(result.get("queued")),
             "run_id": str(result.get("run_id") or ""),
             # 是否真的把结果交回给了内核（没有挂起调用时为假——退化成纯新回合）
+            "resumed_call": call_id,
+        }
+
+    def submit_approval(self, cid: str, agreed: bool) -> Dict[str, Any]:
+        """审批作答。同意时签发 `approval_id` 并记下 `option_id`；驳回的结果是「不同意」。
+
+        结果写回挂起的那次 `approval_confirm`。
+        """
+        cid = C.normalize_cid(cid)
+        if not cid:
+            return {"ok": False, "error": "invalid conversation_id", "confirmed": False}
+        mesh = getattr(self._app, "mesh", None)
+        if mesh is None:
+            return {"ok": False, "error": "mesh 不可用", "confirmed": False}
+        pending = self.pending_confirm(cid) if hasattr(self, "pending_confirm") else None
+        kind = str((pending or {}).get("kind") or "")
+        call_id = str((pending or {}).get("call_id") or "")
+        if kind != "approval" or not call_id:
+            return {
+                "ok": False,
+                "error": "没有待审批的调用",
+                "confirmed": False,
+                "conversation_id": cid,
+                "queued": False,
+                "run_id": "",
+                "resumed_call": "",
+            }
+        approval_id = ""
+        if agreed:
+            option_id = str((pending or {}).get("option_id") or "").strip()
+            session = self._session(cid)
+            if not option_id or session is None:
+                return {
+                    "ok": False,
+                    "error": "待审批缺少 option_id",
+                    "confirmed": False,
+                    "conversation_id": cid,
+                    "queued": False,
+                    "run_id": "",
+                    "resumed_call": "",
+                }
+            approval_id = session.grant_approval(option_id)
+            data: Dict[str, Any] = {"decision": "同意", "approval_id": approval_id}
+        else:
+            data = {"decision": "不同意"}
+        payload: Dict[str, Any] = {
+            "content": "",
+            "attachments": [],
+            "mode": "",
+            "model": "",
+            "resume": {"call_id": call_id, "ok": True, "data": data},
+        }
+        self._clear_pending(cid)
+        try:
+            result = mesh.submit(cid, dict(payload))
+        except Exception as exc:
+            return {"ok": False, "error": str(exc), "confirmed": False}
+        return {
+            "ok": True,
+            "confirmed": agreed,
+            "decision": data["decision"],
+            "approval_id": approval_id,
+            "conversation_id": cid,
+            "queued": bool(result.get("queued")),
+            "run_id": str(result.get("run_id") or ""),
             "resumed_call": call_id,
         }
 

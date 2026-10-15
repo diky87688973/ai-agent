@@ -194,9 +194,9 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
                         item["status"] = "failed"
                         item["error"] = str(data.get("error") or data.get("detail") or "")
                     elif kind == "tool_canceled":
-                        # 用户点了停止：实时路径把这张卡收成 Fail，
-                        # 历史里若停在 running，刷新后卡片会**永久显示"进行中"**。
-                        item["status"] = "failed"
+                        # 停止单独成终态：刷新后标题用银色，不和失败的红色混在一起。
+                        # 留在 running 的话，这张卡会一直显示进行中。
+                        item["status"] = "canceled"
                         item["error"] = str(data.get("error") or "已停止")
                     elif kind == "tool_suspended":
                         # 工具声明"要等人在界面作答" → 卡片状态置 suspended。
@@ -218,6 +218,9 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
                                 ensure_ascii=False, default=str)
                         except (TypeError, ValueError):
                             pass
+                    images = C.public_tool_images(data.get("attachments"))
+                    if images:
+                        item["images"] = images
                     break
         elif kind == "tool_progress":
             # 流式输出（命令卡的正文）：历史里要把它拼回卡片，否则刷新后

@@ -123,12 +123,18 @@ class Engine:
             if event.type == "tool_suspended":
                 envelope = (event.data or {}).get("envelope")
                 envelope = envelope if isinstance(envelope, dict) else {}
-                self.session_context.pending_confirm = {
+                kind = str(envelope.get("kind") or "confirm")
+                pending = {
                     "call_id": str((event.data or {}).get("call_id") or ""),
+                    "kind": kind,
                     "title": str(envelope.get("title") or ""),
                     "options": [str(x) for x in (envelope.get("confirms") or [])],
                     "multi": bool(envelope.get("multi")),
                 }
+                if kind == "approval":
+                    pending["option_id"] = str(envelope.get("option_id") or "")
+                    pending["option_desc"] = str(envelope.get("option_desc") or "")
+                self.session_context.pending_confirm = pending
             elif event.type == "turn_ended" and not bool((event.data or {}).get("paused")):
                 self.session_context.pending_confirm = None   # 已消费，清掉
         except Exception as exc:

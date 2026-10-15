@@ -85,3 +85,24 @@ class ClassicToolResultTest(unittest.TestCase):
         self.assertEqual([m for m in log.derive_messages()
                           if str(m.get("tool_call_id") or "") == "c2"], [],
                          msg="中间结果不得进模型上下文")
+
+    def test_cancel_without_a_closing_terminal_still_reaches_the_model(self) -> None:
+        """取消只写下 tool_failed、没有第二条终态时，模型仍要看到取消，而不是被请去重问。"""
+        from agent.core.session_log import SessionLog
+
+        log = SessionLog()
+        log.append([
+            Event("model_message", {"content": "请确认。", "tool_calls": [
+                {"id": "call-confirm-1", "name": "user_confirm", "arguments": {}}]}),
+            Event("tool_ended", {"call_id": "call-confirm-1", "name": "user_confirm",
+                                 "status": "suspended"}),
+            Event("tool_failed", {"call_id": "call-confirm-1", "name": "user_confirm",
+                                  "error": "用户取消了这次确认（未作答）"}),
+        ])
+        for label, msgs in (("derive_messages", log.derive_messages()),
+                            ("derive_request_messages", log.derive_request_messages())):
+            hit = [m for m in msgs if str(m.get("tool_call_id") or "") == "call-confirm-1"]
+            self.assertEqual(len(hit), 1, msg=f"[{label}] 应恰好一条 tool 消息，实际 {len(hit)}")
+            text = str(hit[0].get("content"))
+            self.assertIn("用户取消了这次确认", text, msg=f"[{label}] 模型必须看见取消")
+            self.assertNotIn("请按需重新发起", text, msg=f"[{label}] 不能把取消说成没结果再请重问")

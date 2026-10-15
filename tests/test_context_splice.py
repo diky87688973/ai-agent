@@ -139,11 +139,10 @@ class ContextSpliceTest(unittest.TestCase):
         self.assertEqual(len(delivered), 1)
         self.assertEqual(delivered[0]["call_id"], "call-1")
 
-    def test_splice_is_not_idempotent_so_write_once_must_be_enforced(self) -> None:
-        """**拼接本身没有幂等性**——所以"只拼一次"必须由写前查重保证。
+    def test_repeated_terminal_folds_to_one_tool_message(self) -> None:
+        """同一 `call_id` 的终态写两次时，派生对话里只有一条 tool 消息。
 
-        两条事实摆在一起：同一 `call_id` 拼两次会派生两条 `tool` 消息（模型 API 非法）；
-        而按"已存在就不写"实现时，第二次确认不会产生任何新事实。后者才是宿主的行为约定。
+        写前查重后，事实里也只有一组终态，派生结果同样是一条 tool 消息。
         """
 
         def _roles_and_tools(rows):
@@ -153,16 +152,15 @@ class ContextSpliceTest(unittest.TestCase):
             return [m["role"] for m in messages], len(
                 [m for m in messages if m["role"] == "tool"])
 
-        # 反面：无条件拼两次 → 两条 tool 消息（非法，作为警示保留）
+        # 同一 call_id 的终态重复出现：派生时收成一条 tool 消息。
         naive = self._suspended_rows()
-        for _ in range(2):                      # 无条件拼两次
+        for _ in range(2):
             naive.append({"type": "tool_done", "call_id": "call-1", "name": "a", "data": "甲"})
             naive.append({"type": "tool_ended", "call_id": "call-1", "name": "a",
                           "status": "ok"})
         roles, tools = _roles_and_tools(naive)
-        self.assertEqual(tools, 2)
-        self.assertEqual(roles, ["user", "assistant", "tool", "tool"],
-                         msg="两次 tool 相邻且都无前置 tool_calls —— 这正是非法形状")
+        self.assertEqual(tools, 1)
+        self.assertEqual(roles, ["user", "assistant", "tool"])
 
         # 正面：写前查重（宿主应当这么做）→ 只有一条
         guarded = self._suspended_rows()
@@ -258,13 +256,12 @@ class ResumeSpliceNamingTest(unittest.TestCase):
             # 连调两次：写前查重必须挡住第二次（拼接没有幂等性）
             runner._splice_resume(cid, {"call_id": "call-1", "ok": True,
                                         "data": "用户选了甲", "name": "ask_user"})
-            store.append(cid, [Event("tool_ended", {"call_id": "call-1",
-                                                    "name": "ask_user",
-                                                    "status": "ok"})])
 
             facts = [e.type for e in store.load(cid)]
             self.assertEqual(facts.count("tool_done"), 1,
                              msg=f"结果事实应恰好一条，实际 {facts}")
+            self.assertEqual(facts.count("tool_ended"), 1,
+                             msg="结果后面必须有终态，模型才收得到这条 tool 消息")
             self.assertNotIn("tool_result", facts,
                              msg="不得写内核不认的名字（会造成两条 tool 消息 → API 400）")
 

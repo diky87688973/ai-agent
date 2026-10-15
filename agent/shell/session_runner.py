@@ -308,13 +308,24 @@ class SessionRunner:
             # 若写成别的名字，`tool_ended` 取不到结果 → 模型收到
             # 「已结束，但未记录结果」，而且要等这条被单独算作一条 tool 消息，
             # 同一个 `tool_call_id` 就有了两条 —— 模型 API 直接 400。
-            event = Event("tool_done" if ok else "tool_failed", {
-                "call_id": call_id,
-                "name": str(resume.get("name") or ""),
-                "data": resume.get("data"),
-                "error": str(resume.get("error") or ""),
-            })
-            store.append(cid, [event])
+            name = str(resume.get("name") or "")
+            # 结果事实本身不进模型上下文，要靠紧随的 tool_ended 收成 tool 消息。
+            # 挂起时已经有过一条 status=suspended 的终态，那条不产出消息；
+            # 这里再补一条 done/failed，模型才能看见用户的选择或取消。
+            store.append(cid, [
+                Event("tool_done" if ok else "tool_failed", {
+                    "call_id": call_id,
+                    "name": name,
+                    "data": resume.get("data"),
+                    "error": str(resume.get("error") or ""),
+                }),
+                Event("tool_ended", {
+                    "call_id": call_id,
+                    "name": name,
+                    "status": "done" if ok else "failed",
+                    "elapsed_ms": 0,
+                }),
+            ])
         except Exception as exc:
             print(f"[session_runner] resume 拼接失败 cid={cid}: {exc}",
                   file=sys.stderr, flush=True)

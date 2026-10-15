@@ -335,6 +335,20 @@ class ClassicStream:
         if not call_id:
             return []
         envelope = d.get("envelope") if isinstance(d.get("envelope"), dict) else {}
+        if str(envelope.get("kind") or "") == "approval":
+            # 审批帧带描述，按钮是同意和驳回，不带选项列表。
+            desc = str(envelope.get("option_desc") or "").strip()
+            self._awaiting_confirm = True
+            self.pending.pop(call_id, None)
+            return [self._ev(
+                C.EV_TOOL_END,
+                tool_call_id=call_id,
+                ok=True,
+                preview="",
+                approval_required=True,
+                approval_title="审批",
+                approval_desc=desc,
+            )]
         title = str(envelope.get("title") or "").strip()
         confirms = envelope.get("confirms")
         if not title or not isinstance(confirms, list) or not confirms:
@@ -463,6 +477,9 @@ class ClassicStream:
             "ok": ok,
             "preview": _preview_json(pend.script, data, error, ok),
         }
+        images = C.public_tool_images(d.get("attachments"))
+        if images:
+            frame["images"] = images
         # ⚠️ `script` 是**经典界面判别"这是哪类工具"的唯一依据**，原样带上。
         #
         # 经典界面的 `fillToolPreview(o,ev)` 第 2 行就是

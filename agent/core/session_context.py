@@ -18,6 +18,7 @@
    - `live`：实时状态（模式 / todo / 自主 / 休眠）；实例由装配共享，内部按 cid 分键；
    - `inbox`：收件队列；实例由装配共享，内部按 cid 分键；
    - `pending_confirm`：待用户确认（两段式首段留下的挂起调用）。
+   - `approvals`：已同意的审批，`approval_id` → `option_id`。驳回不写入。
 
 2. `SessionContexts` —— 会话注册表（cid → SessionContext）：懒创建、线程安全、同 cid 复用；
    空 cid 归默认会话桶（无会话作用域直调场景）。
@@ -41,6 +42,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional
+from uuid import uuid4
 
 from agent.core.session_scope import current_session_id
 
@@ -66,6 +68,18 @@ class SessionContext:
     # 而回合级上下文随回合消亡。放这里也符合分级纪律——
     # 会话态归 SessionContext，不塞全局单例、也不跨会话直读。
     pending_confirm: Optional[Dict[str, Any]] = None
+    # 用户同意后的通行证：`approval_id` → 本次的 `option_id`。
+    # 会话级字段。驳回不写入。
+    approvals: Dict[str, str] = field(default_factory=dict)
+
+    def grant_approval(self, option_id: str) -> str:
+        """用户同意后签发 `approval_id`，并记下它对应的 `option_id`。"""
+        option_id = str(option_id or "").strip()
+        if not option_id:
+            raise ValueError("option_id 为空，不能签发 approval_id")
+        approval_id = "apv_" + uuid4().hex
+        self.approvals[approval_id] = option_id
+        return approval_id
 
 
 class SessionContexts:

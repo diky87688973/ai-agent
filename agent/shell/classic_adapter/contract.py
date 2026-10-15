@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import re
-from typing import Final
+from typing import Any, Final, List
 
 # ── 会话 ID（经典界面的校验口径，agent-ui.js:8）────────────────
 CID_PATTERN: Final = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
@@ -146,6 +146,27 @@ def normalize_mode(value: object) -> str:
     """经典界面的口径：不是三者之一一律回落 `auto`。"""
     text = str(value or "").strip().lower()
     return text if text in MODE_VALUES else "auto"
+
+
+def public_tool_images(raw: Any) -> List[dict]:
+    """工具结果上的图片附件，给经典界面直接显示。
+
+    只留 `mime` 与 `data_base64`。缺字节、或 mime 不是 image/* 的条目丢掉。
+    """
+    if not isinstance(raw, list):
+        return []
+    out: List[dict] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        data = str(item.get("data_base64") or "")
+        if not data:
+            continue
+        mime = str(item.get("mime") or "image/png")
+        if not mime.startswith("image/"):
+            continue
+        out.append({"mime": mime, "data_base64": data})
+    return out
 
 
 # ── 心跳间隔（经典界面靠它判断连接存活）──────────────────────

@@ -192,7 +192,7 @@ es.onmessage=function(e){if(!e||!e.data)return;var ev;try{ev=JSON.parse(e.data);
 es.onerror=function(){};
 }catch(_e){}
 }
-function openUserConfirmModalFromToolEnd(ev){
+function openUserConfirmModalFromToolEnd(ev, toolRow){
 if(userConfirmCardHost||!ev.user_confirm_required)return;
 userConfirmBlocking=true;
 if(goBtn)goBtn.disabled=true;
@@ -274,12 +274,45 @@ var confirmCid=getActiveConversationId();cleanup();showChatLoading();var gb=goBt
 try{
 var r=await fetch("/api/chat/user-confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:confirmCid,confirm:finalTxt,mode:selectedMode,model:selectedModel})});
 if(!r.ok){var _bc="";try{_bc=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/user-confirm 非 OK",{status:r.status,bodyHead:String(_bc||"").slice(0,500)});withConversationContext(confirmCid,function(){hideChatLoading();add("a","确认请求 HTTP "+r.status);});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
-var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id||"");
+var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id||"");if(_jr&&_jr.ok!==false&&toolRow){var picked=String(finalTxt||"").trim();if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(toolRow, picked?"done":"bad");if(typeof chatToolSetResultText==="function")chatToolSetResultText(toolRow, picked||"用户取消了这次确认（未作答）");}
 }catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","确认请求失败: "+(err&&err.message?err.message:String(err)));});}
 finally{updateTaskControls();}
 };
 cancel.onclick=function(){void submitUserConfirm("");};
 ok.onclick=function(){void submitUserConfirm(buildFinal());};
+}
+function openApprovalModalFromToolEnd(ev, toolRow){
+if(userConfirmCardHost||!ev.approval_required)return;
+userConfirmBlocking=true;
+if(goBtn)goBtn.disabled=true;
+hideChatLoading();
+var desc=String(ev.approval_desc||"").trim()||"（无描述）";
+var wrap=document.createElement("div");wrap.className="b a user-confirm-card-outer";
+var card=document.createElement("div");card.className="chat-diff-card user-confirm-card";
+var cap=document.createElement("div");cap.className="chat-diff-cap user-confirm-cap";
+var capLine=document.createElement("div");capLine.className="user-confirm-cap-line";
+var h=document.createElement("span");h.className="uc-title";h.textContent="审批";
+capLine.appendChild(h);cap.appendChild(capLine);card.appendChild(cap);
+var body=document.createElement("div");body.className="user-confirm-body";
+var p=document.createElement("div");p.className="approval-desc";p.textContent=desc;
+body.appendChild(p);
+var act=document.createElement("div");act.className="user-confirm-actions";
+var reject=document.createElement("button");reject.type="button";reject.className="mode-plus";reject.textContent="驳回";
+var agree=document.createElement("button");agree.type="button";agree.className="mode-plus approval-agree";agree.textContent="同意";
+act.appendChild(reject);act.appendChild(agree);body.appendChild(act);
+card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;scrollMsgsToBottom();
+function cleanup(){closeUserConfirmCardHost();updateTaskControls();}
+var submitApproval=async function(agreed){
+var confirmCid=getActiveConversationId();cleanup();showChatLoading();var gb=goBtn;if(gb)gb.disabled=true;var tab=findConversationTab(confirmCid);if(tab){tab.abortController={global:true};tab.stopRequested=false;}updateTaskControls();
+try{
+var r=await fetch("/api/chat/user-confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:confirmCid,approval:agreed?"agree":"reject",mode:selectedMode,model:selectedModel})});
+if(!r.ok){var _bc="";try{_bc=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/user-confirm 非 OK",{status:r.status,bodyHead:String(_bc||"").slice(0,500)});withConversationContext(confirmCid,function(){hideChatLoading();add("a","审批请求 HTTP "+r.status);});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
+var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id||"");if(_jr&&_jr.ok!==false&&toolRow){var decision=agreed?"同意":"不同意";var aid=String(_jr.approval_id||"").trim();if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(toolRow,"done");if(typeof chatToolSetResultText==="function")chatToolSetResultText(toolRow,agreed&&aid?(decision+"\n"+aid):decision);}
+}catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","审批请求失败: "+(err&&err.message?err.message:String(err)));});}
+finally{updateTaskControls();}
+};
+reject.onclick=function(){void submitApproval(false);};
+agree.onclick=function(){void submitApproval(true);};
 }
 var conversationMount=document.getElementById("chatConversationMount");
 if(!conversationMount){
@@ -364,49 +397,9 @@ renderHistoryToolItem(it);
 }
 }
 }
-/* 从**工具结果事实**恢复一张 diff 预览卡到对话区。
-   放在对话区而不是步骤卡：步骤卡的预览槽默认收起、宽度也放不下 diff，
-   用户根本看不到（是靠"工具卡片往对话区植入一张卡"才看得见的）。
-   这里的做法是**只用事实**：结果里取得到 diff 就画一张，取不到就什么都不画。
-   判据只有"有没有 diff"，所以 write_file / replace_in_file / apply_patch /
-   file_undo 走的是同一条路 —— 不依赖任何工具专属特效。
-   实时（SSE 的 tool_end）与刷新重放（raw 事实）都从这里出，所以两条路必然一致。 */
-function renderDiffBubbleFromFacts(script,previewText){
-if(!msgs||!previewText)return false;
-var dt="",fp="";
-try{
-var j=typeof previewText==="string"?JSON.parse(previewText):previewText;
-var d=j&&j.data;
-dt=diffTextFromToolData(d);
-fp=(d&&d.path)?String(d.path):"";
-}catch(e){return false;}
-if(!dt||!dt.trim())return false;
-var sc=String(script||"").toLowerCase();
-var capText=(sc.indexOf("apply_patch")>=0)?"补丁 diff"
- :(sc.indexOf("replace_in_file")>=0)?"替换 diff"
- :(sc.indexOf("file_undo")>=0)?"版本比较 diff":"写入 diff";
-var card=document.createElement("div");
-card.className="diff-bubble";
-var cap=document.createElement("div");
-cap.className="diff-bubble-cap";
-cap.textContent=(fp?baseNameOnly(fp)+" · ":"")+capText;
-if(fp)cap.title=fp;
-card.appendChild(cap);
-/* `renderUnifiedDiffBodyAsCardsHtml` **本身就返回完整的 `.chat-diff-card` 块**，
-   所以直接拼到卡上，不再包中间 div。
-   多包一层无类名的 `<div>` 时，`.msgs` 是 `display:flex` 的列容器，
-   那一层不参与高度计算 —— 内层 diff 的高度传不上去，`.diff-bubble` 会塌成极薄一条，
-   再叠加 `overflow:hidden` 就把整块裁掉，DOM 里有节点而屏幕上什么都看不见。 */
-card.innerHTML+=renderUnifiedDiffBodyAsCardsHtml(dt);
-if(!card.querySelector(".chat-diff-card")&&!card.querySelector(".diff-unified")){
-var box=document.createElement("div");
-box.className="diff-unified diff-surface-adaptive";
-renderUnifiedDiffRows(box,dt.split(/\r?\n/));
-card.appendChild(box);
-}
-msgs.appendChild(card);
-scrollMsgsToBottom();
-return true;
+/* 对话区的 diff 由工具展示自己画进展开面板，这里不另插卡片。 */
+function renderDiffBubbleFromFacts(){
+return false;
 }
 function renderHistoryToolItem(it){
 var ev={tool_call_id:String(it.tool_call_id||""),script:String(it.script||""),args:it.args||{}};
@@ -414,16 +407,25 @@ if(!ev.tool_call_id)return;
 onToolStart(ev);
 var o=toolOpen.get(ev.tool_call_id);
 if(!o)return;
-if(it.status==="failed"){
+if(it.status==="canceled"){
+onToolEnd({tool_call_id:ev.tool_call_id,ok:false,canceled:true,error:String(it.error||"已停止")});
+}else if(it.status==="failed"){
 onToolEnd({tool_call_id:ev.tool_call_id,ok:false,error:String(it.error||"执行失败")});
 }else if(it.status==="suspended"){
 /* 挂起（等用户在界面作答）：不标失败，保持"待确认"语义 */
+var env=it.envelope||{};
+if(env.kind==="approval"){
+onToolEnd({tool_call_id:ev.tool_call_id,ok:true,approval_required:true,
+approval_title:"审批",approval_desc:String(env.option_desc||""),
+preview:it.envelope?JSON.stringify({data:it.envelope}):""});
+}else{
 onToolEnd({tool_call_id:ev.tool_call_id,ok:false,user_confirm_required:true,
 preview:it.envelope?JSON.stringify({data:it.envelope}):""});
+}
 }else if(it.status==="done"){
 /* `preview` 走实时帧**同一条**渲染路径（onToolEnd 内部就认它）：
    编辑类工具的 diff 卡片靠这一项重画 —— 不传它，刷新后 diff 整片消失。 */
-onToolEnd({tool_call_id:ev.tool_call_id,ok:true,preview:String(it.preview||"")});
+onToolEnd({tool_call_id:ev.tool_call_id,ok:true,preview:String(it.preview||""),images:it.images||[]});
 }
 /* 输出放在状态之后：这样命令卡已经是"完成"态，输出仍然可见。 */
 var out=String(it.output||"");
@@ -776,15 +778,38 @@ panel:id
 }}));
 }catch(e){}
 if(typeof opts.onOpen==="function")opts.onOpen(ex);
+syncClassicSide();
 return ex;
+}
+/* 步骤开关关闭时，步骤标签藏在样式里，不占右栏。其余标签都算打开。 */
+function countOpenSideTabs(){
+var tabs=document.querySelectorAll("#sideTabbar .side-tab");
+var n=0;
+for(var i=0;i<tabs.length;i++){
+if(tabs[i].id==="tabSteps"&&typeof showToolSteps==="function"&&!showToolSteps())continue;
+n++;
+}
+return n;
+}
+function syncClassicSide(){
+if(typeof window._setClassicSideOpen==="function")window._setClassicSideOpen(countOpenSideTabs()>0);
 }
 function closePane(id){
 var t=document.getElementById("tab-"+id);
 if(t)t.remove();
 var p=document.getElementById("pane-"+id);
 if(p)p.remove();
-var next=document.querySelector(".side-tab");
-selectSidePane(next?next.dataset.pane:"steps");
+var tabs=document.querySelectorAll(".side-tab");
+var next=null;
+for(var i=0;i<tabs.length;i++){
+if(!showToolSteps()&&tabs[i].id==="tabSteps")continue;
+next=tabs[i];
+break;
+}
+if(next)selectSidePane(next.dataset.pane);
+else if(showToolSteps())selectSidePane("steps");
+else selectSidePane("");
+syncClassicSide();
 }
 /* 插件 API 客户端：面板脚本经它调**自己插件的端点**，不必知道 URL 前缀。
    插件改名、端点挪位置都不影响脚本 —— 前缀由壳层拼。
@@ -1093,6 +1118,13 @@ var p=el.getAttribute("data-file-path")||"";
 if(p){ev.preventDefault();openFileTab(p);}
 return;
 }
+if(el.tagName==="A"){
+var fp=filePathFromHref(el.getAttribute("href")||"");
+if(fp){
+if(ev.button===0&&!ev.metaKey&&!ev.ctrlKey&&!ev.shiftKey&&!ev.altKey){ev.preventDefault();openFileTab(fp);}
+return;
+}
+}
 el=el.parentNode;
 }
 });
@@ -1189,6 +1221,15 @@ return /\.(mp4|mov|webm|avi|mp3|wav|m4a|aac|flac|ogg|png|jpe?g|gif|webp|bmp)(\?|
 /* 正文里的 `@<绝对路径>` → 可点击引用，点了在右栏打开该文件。
    这是**展示层**的事：composer 里插入的仍是 `@<路径>` 纯文本（模型认这个格式），
    这里只把它渲染成一个 chip。 */
+/* 正文里的本地文件链接：盘符路径进右栏，外链与站内地址留给浏览器。 */
+function filePathFromHref(href){
+var s=String(href||"").trim();
+if(!s||/^(?:https?:|mailto:|#|\/)/i.test(s))return "";
+s=s.replace(/^file:\/+/i,"");
+try{s=decodeURIComponent(s);}catch(e){}
+if(/^[A-Za-z]:[\\/]/.test(s))return s;
+return "";
+}
 function filePaneId(path){
 /* 用路径哈希做面板 id：文件名可能含中文/空格/超长，直接进 id 会有麻烦 */
 var s=String(path||"").replace(/\\/g,"/").toLowerCase();
@@ -1796,7 +1837,27 @@ return true;
 }
 return false;
 }
-function appendStep(el){steps.appendChild(el);scrollToBottom(steps);}
+function webUiFlag(name, fallback){
+var o=window.__webUi||{};
+if(!Object.prototype.hasOwnProperty.call(o,name))return fallback;
+var v=o[name];
+if(v===true||v===1||v==="1")return true;
+if(v===false||v===0||v==="0")return false;
+return !!v;
+}
+function showToolSteps(){return webUiFlag("display_tool_steps", false);}
+function showToolItems(){return webUiFlag("display_tool_items", true);}
+if(!showToolSteps())document.documentElement.setAttribute("data-tool-steps","off");
+else document.documentElement.removeAttribute("data-tool-steps");
+function _muteEl(){return document.createElement("span");}
+function beginChatToolOnly(ev){
+var tid=ev.tool_call_id!=null&&String(ev.tool_call_id).trim()!==""?String(ev.tool_call_id).trim():String(Math.random());
+var o={tag:_muteEl(),resLb:_muteEl(),resPb:_muteEl(),previewSlot:_muteEl(),args:ev.args||{},script:ev.script||"",spinWrap:null,stepTitle:String(ev.step_title||"").trim(),fileSpan:null,progressBadge:null,liveOutPre:null,cmdInputBar:null,chatRunCard:null,chatRunOutPre:null,chatToolRow:null,chatToolRes:null};
+toolOpen.set(tid,o);
+if(showToolItems())mountChatToolItem(o);
+if(showToolItems()&&isStreamOutputToolScript(ev.script)&&!o.chatToolRow)ensureChatRunCard(o);
+}
+function appendStep(el){if(!showToolSteps()||!steps||!el)return;steps.appendChild(el);scrollToBottom(steps);}
 function findStepCardForToolCall(tid){
 var id=String(tid!=null?tid:"").trim();
 if(!id)return null;
@@ -1816,6 +1877,7 @@ const t=String(title||"").trim();
 if(!t)return;
 if(seenDispatchTitle===t)return;
 seenDispatchTitle=t;
+if(!showToolSteps())return;
 const d=document.createElement("div");d.className="dispatch-title";
 d.textContent="本轮调度："+t;
 appendStep(d);
@@ -2101,7 +2163,17 @@ const t=String(text||"");
 if(lang)return highlightCode(t,lang);
 return escapeHtml(t);
 }
-function buildToolTitleParts(script,args){
+function buildToolTitleParts(script,args,full){
+function take(text,n){
+var s=String(text==null?"":text);
+if(full)return s;
+return s.length>n?s.slice(0,n):s;
+}
+function takeDots(text,n){
+var s=String(text==null?"":text);
+if(full||s.length<=n)return s;
+return s.slice(0,n)+"…";
+}
 const s=(script+"").toLowerCase();
 // confirm_id 提交时请求参数纯净（无 path），但预览已把 confirm_id→path 记入缓存；
 // 此处仅构造展示视图（副本），不修改原始 args，展示策略与预览/ review 一致（从 args 取路径）
@@ -2147,8 +2219,8 @@ else if(Array.isArray(rules)&&rules.length)mode="规则×"+rules.length;
 return {main:dry?"预览修改":"提交修改",fname:leaf+" · "+mode+extra};}
 if(s.indexOf("grep_files")>=0){
 const root=String(argGet(args,"path")||"").trim();
-const leaf=pathLeaf(root)||root.slice(0,36)+(root.length>36?"…":"");
-const pat=String(argGet(args,"pattern")||"").slice(0,40);
+const leaf=pathLeaf(root)||takeDots(root,36);
+const pat=take(argGet(args,"pattern"),40);
 const re=!!argGet(args,"regex");
 return {main:"搜索"+(re?"（正则）":"（字面）"),fname:leaf+(pat?" · /"+pat+"/":"")};}
 if(s.indexOf("find_in_file")>=0){
@@ -2188,9 +2260,9 @@ const cmd=String(argGet(args,"command")||"").replace(/\s+/g," ").trim().slice(0,
 return {main:"执行命令",fname:(cwd?cwd+" · ":"")+(cmd||"（空命令）")};}
 if(s.indexOf("python_inline")>=0){
 const cwd=pathLeaf(String(argGet(args,"cwd")||""));
-const c0=String(argGet(args,"code")||"");
-const c=c0.replace(/\s+/g," ").trim().slice(0,48);
-return {main:"执行内联 Python",fname:(cwd?cwd+" · ":"")+(c+(c.length>=48?"…":"")||"（无 code）")};}
+const c0=String(argGet(args,"code")||"").replace(/\s+/g," ").trim();
+const c=take(c0,48);
+return {main:"执行命令",fname:(cwd?cwd+" · ":"")+(c+(!full&&c0.length>48?"…":"")||"（无 code）")};}
 if(s.indexOf("archive")>=0){
 const act=String(argGet(args,"action")||"").toLowerCase();
 const src=pathLeaf(String(argGet(args,"source")||""))||"（未指定 source）";
@@ -2199,13 +2271,16 @@ return {main:"正在"+(act==="list"?"列出":act==="extract"?"解压":"打包")+
 if(s.indexOf("data_table")>=0){
 const act=String(argGet(args,"action")||"");
 const src=pathLeaf(String(argGet(args,"source")||""))||"表格";
-const sh=String(argGet(args,"sheet")||"").slice(0,16);
+const sh=take(argGet(args,"sheet"),16);
 return {main:"处理表格 · "+(act||"?"),fname:src+(sh?" · "+sh:"")};}
 if(s.indexOf("todo_list")>=0){
 const act=String(argGet(args,"action")||"");
 return {main:"Todo-List",fname:act||"query"};}
+if(s.indexOf("approval_confirm")>=0){
+const d=take(argGet(args,"option_desc"),40);
+return {main:"审批",fname:d||"（无描述）"};}
 if(s.indexOf("user_confirm")>=0){
-const t=String(argGet(args,"title")||"").slice(0,40);
+const t=take(argGet(args,"title"),40);
 return {main:"等待用户确认",fname:t||"（无标题）"};}
 if(s.indexOf("run_type")>=0){
 const rt=String(argGet(args,"run_type")||"").trim().toLowerCase();
@@ -2213,18 +2288,18 @@ return {main:rt?"切换运行模式":"查询运行模式",fname:rt||"auto/plan/e
 if(s.indexOf("glob_files")>=0){
 const root=String(argGet(args,"path")||"");
 const glob=String(argGet(args,"glob_pattern")||"*");
-const leaf=pathLeaf(root)||(root.length>28?root.slice(0,28)+"…":root);
+const leaf=pathLeaf(root)||takeDots(root,28);
 const rec=argGet(args,"recursive");
 const et=String(argGet(args,"entry_type")||"").toLowerCase();
 const scope=(et==="dir"?"仅目录":et==="all"?"全部":"")+(et==="file"||!et?"文件":"");
 return {main:"列出路径"+(scope?"（"+scope+"）":""),fname:leaf+(glob&&glob!=="*"&&glob!=="**/*"?" · "+glob:"")+(rec===false?"":" · 递归")};}
 if(s.indexOf("web_fetch")>=0){
-const url=String(argGet(args,"url")||"");
-try{const u=new URL(url);const path=u.pathname==="/"?"":u.pathname;return {main:"抓取 "+u.hostname+(path?path.length>36?path.slice(0,36)+"…":path:""),fname:""};}catch(e){return {main:url?"抓取 "+url.slice(0,56):"抓取网页",fname:""};}}
+const url=String(argGet(args,"url")||"").trim();
+return {main:"网页",fname:url};}
 if(s.indexOf("file_search")>=0){
-const pat=String(argGet(args,"pattern")||"").slice(0,40);
+const pat=take(argGet(args,"pattern"),40);
 const root=String(argGet(args,"path")||"").trim();
-const leaf=pathLeaf(root)||(root.length>28?root.slice(0,28)+"…":root);
+const leaf=pathLeaf(root)||takeDots(root,28);
 return {main:"全文搜索"+(argGet(args,"regex")?"（正则）":"（字面）"),fname:leaf+(pat?" · /"+pat+"/":"")};}
 if(s.indexOf("ip_geolocate")>=0){
 const ip=String(argGet(args,"ip")||"").trim();
@@ -2236,7 +2311,7 @@ const lo=String(argGet(args,"longitude")||"").trim();
 if(la&&lo)return {main:"查询天气 · "+la+","+lo,fname:""};
 return {main:"查询天气"+(loc?" · "+loc:""),fname:""};}
 if(s.indexOf("regex_locate")>=0){
-const pat=String(argGet(args,"pattern")||"").slice(0,48);
+const pat=take(argGet(args,"pattern"),48);
 const tgt=pathLeaf(String(argGet(args,"path")||""));
 const glob=String(argGet(args,"glob_pattern")||"");
 return {main:"正则检索",fname:(tgt||"?")+(pat?" · /"+pat+"/":"")+(glob&&glob!=="*"?" · "+glob:"")};}
@@ -2271,7 +2346,10 @@ const root=pathLeaf(String(argGet(args,"path")||""))||".";
 return {main:"统一诊断",fname:root};}
 if(s.indexOf("review_conclusion")>=0){
 const fn=String(argGet(args,"file_name")||"").trim();
-return {main:"Review",fname:fn};}
+const full=String(argGet(args,"path")||"").trim();
+var shown=fn;
+if(full&&(!fn||fn===baseNameOnly(full)||(fn.indexOf("/")<0&&fn.indexOf("\\")<0)))shown=full;
+return {main:"Review",fname:shown||full};}
 if(s.indexOf("file_undo")>=0){
 const ac=String(argGet(args,"action")||"").trim();
 const fp=pathLeaf(String(argGet(args,"path")||""))||"";
@@ -2433,11 +2511,6 @@ var _rlCap=document.createElement("p");_rlCap.textContent="匹配结果 "+_rlDat
 var _rlPre=document.createElement("pre");_rlPre.className="sub";
 _rlPre.innerHTML=_rlData.snippets.map(function(s){return escapeHtml(s);}).join("\n");
 o.previewSlot.appendChild(_rlCap);o.previewSlot.appendChild(_rlPre);
-// 推送到对话区：卡片插在流式气泡下方，气泡移到卡片后继续流式
-var _rlCardHtml='<div class="chat-diff-card"><div class="chat-diff-cap">快速查找 · 共 '+_rlData.count+' 处</div><div class="diff-unified diff-surface-adaptive"><pre style="margin:0;padding:4px 8px;font-size:11px;line-height:1.4">'+escapeHtml(_rlData.snippets.join("\n"))+'</pre></div></div>';
-var _rlDiv=document.createElement("div");_rlDiv.className="b a";_rlDiv.innerHTML=_rlCardHtml;
-if(streamAssistantEl){streamAssistantEl.after(_rlDiv);streamAssistantEl=null;streamAssistantText="";}else{msgs.appendChild(_rlDiv);}
-scrollMsgsToBottom();
 }
 }catch(e){if(window.DEBUG)console.error("regex_locate preview error",e);}
 return;}
@@ -2541,16 +2614,18 @@ if((streamAssistantText||"").trim())return;
 appendAssistantDelta(rt);}
 function appendReasoningDelta(ev){
 var d=String(ev.delta||"");if(!d)return;if(!lastLlm)return;if(ev.round!=null&&lastLlm.round!=null&&ev.round!==lastLlm.round)return;
-lastLlm.reasoningText=(lastLlm.reasoningText||"")+d;if(lastLlm.thLb&&lastLlm.thPb){lastLlm.thLb.style.display="block";lastLlm.thPb.style.display="block";lastLlm.thPb.textContent=lastLlm.reasoningText;scrollToBottom(lastLlm.thPb);}}
+lastLlm.reasoningText=(lastLlm.reasoningText||"")+d;if(lastLlm.thLb&&lastLlm.thPb){lastLlm.thLb.style.display="block";lastLlm.thPb.style.display="block";lastLlm.thPb.textContent=lastLlm.reasoningText;scrollToBottom(lastLlm.thPb);}paintChatThink();}
 function applyReasoningSync(ev){
 var t=String(ev.text||"");if(!lastLlm)return;if(ev.round!=null&&lastLlm.round!=null&&ev.round!==lastLlm.round)return;
-lastLlm.reasoningText=t;if(lastLlm.thLb&&lastLlm.thPb){lastLlm.thLb.style.display="block";lastLlm.thPb.style.display="block";lastLlm.thPb.textContent=lastLlm.reasoningText;scrollToBottom(lastLlm.thPb);}}
+lastLlm.reasoningText=t;if(lastLlm.thLb&&lastLlm.thPb){lastLlm.thLb.style.display="block";lastLlm.thPb.style.display="block";lastLlm.thPb.textContent=lastLlm.reasoningText;scrollToBottom(lastLlm.thPb);}paintChatThink();}
 function finishLlmTitle(ok){
 if(!lastLlm||!lastLlm.msgSpan)return;
 if(lastLlm.dotsTimer){clearInterval(lastLlm.dotsTimer);lastLlm.dotsTimer=null;}
 lastLlm.dotsSpan.textContent="";
 if(ok){lastLlm.msgSpan.textContent="思考完毕";}
-else{lastLlm.msgSpan.textContent="思考异常";}}
+else{lastLlm.msgSpan.textContent="思考异常";}
+sealChatThinkElapsed();
+if(lastLlm.chatThink){lastLlm.chatThink.classList.remove("is-running");if(!ok)lastLlm.chatThink.classList.add("is-bad");chatToolSyncStatusTitle(lastLlm.chatThink);}}
 function addLlmRound(r){
 hideChatLoading();
 stepSeq++;
@@ -2559,6 +2634,10 @@ llmStreamBuffer.round=n;llmStreamBuffer.reqHtml="";llmStreamBuffer.resHtml="";ll
 if(n>1&&streamAssistantEl){pendingDeltaSeparator=true;}
 let baseMsg="正在思考中";
 if(n>1){const tail=lastAnalysisTail||"工具调度";baseMsg="分析"+tail;lastAnalysisTail="";}
+if(!showToolSteps()){
+lastLlm={tag:_muteEl(),msgSpan:_muteEl(),dotsSpan:_muteEl(),dotsTimer:null,round:n,thLb:null,thPb:null,reasoningText:"",reqLb:null,reqPb:null,resLb:null,resPb:null,cardEl:null,stepNum:stepSeq,chatThink:null,chatThinkFull:null,chatThinkStartedAt:Date.now()};
+return;
+}
 const c=document.createElement("div");c.className="step card";
 const h=document.createElement("div");h.className="ch ch-toggle";h.setAttribute("role","button");
 const left=document.createElement("div");left.className="tit tit-row";
@@ -2583,7 +2662,7 @@ h.onclick=function(){c.classList.toggle("open");};
 appendStep(c);
 let d=0;
 const timer=setInterval(function(){d=(d+1)%4;dotsSpan.textContent=".".repeat(d);},400);
-lastLlm={tag:tag,msgSpan:msgSpan,dotsSpan:dotsSpan,dotsTimer:timer,round:n,thLb:thLb,thPb:thPb,reasoningText:"",reqLb:rqLb,reqPb:rqPb,resLb:rsLb,resPb:rsPb,cardEl:c,stepNum:stepSeq};
+lastLlm={tag:tag,msgSpan:msgSpan,dotsSpan:dotsSpan,dotsTimer:timer,round:n,thLb:thLb,thPb:thPb,reasoningText:"",reqLb:rqLb,reqPb:rqPb,resLb:rsLb,resPb:rsPb,cardEl:c,stepNum:stepSeq,chatThink:null,chatThinkFull:null,chatThinkStartedAt:Date.now()};
 }
 function onLlmRequest(ev){
 if(!lastLlm)return;
@@ -2687,7 +2766,9 @@ o.liveOutPre=o.resPb;
 }
 // 在左侧对话区创建/获取“执行命令脚本 + 执行结果”卡片；执行结果区随 stdout 增量刷新
 function ensureChatRunCard(o){
+if(!showToolItems())return null;
 if(!o)return null;
+if(o.chatToolRow)return o.chatToolRow;
 if(o.chatRunCard&&o.chatRunCard.parentNode)return o.chatRunCard;
 var _cardDiv=document.createElement("div");_cardDiv.className="b a";
 var _cardTitle=(o.stepTitle&&o.stepTitle.trim())?escapeHtml(o.stepTitle.trim()):"执行命令脚本";
@@ -2728,8 +2809,14 @@ if(o&&o._chatRunTimer){try{clearInterval(o._chatRunTimer);}catch(e){}o._chatRunT
 // 增量刷新对话区卡片的执行结果文本
 function updateChatRunCardOutput(o,text){
 if(!o)return;
+var s=text!=null?String(text):"";
+if(o.chatToolRow){
+if(o.chatRunOutPre){o.chatRunOutPre.textContent=s;var pane=o.chatRunOutPre.closest&&o.chatRunOutPre.closest(".chat-tool-pane");if(pane)pane.scrollTop=pane.scrollHeight;}
+return;
+}
+if(!showToolItems())return;
 if(!o.chatRunCard||!o.chatRunCard.parentNode)ensureChatRunCard(o);
-if(o.chatRunOutPre){o.chatRunOutPre.textContent=text!=null?String(text):"";scrollMsgsToBottom();}
+if(o.chatRunOutPre){o.chatRunOutPre.textContent=s;scrollMsgsToBottom();}
 }
 // 命令结束：停止倒计时，标题状态置为完成/失败
 function finalizeChatRunCard(o,ok){
@@ -2741,7 +2828,8 @@ o.chatRunStatus.classList.toggle("run-ok",!!ok);o.chatRunStatus.classList.toggle
 }
 function renderRunCommandInputBar(o,ev){
 var card=findStepCardForToolCall(String(ev.tool_call_id||"").trim());
-if(!card||o.cmdInputBar)return;
+var host=card||(o&&o.chatToolRow)||null;
+if(!host||o.cmdInputBar)return;
 var ai=ev.awaiting_input||{};
 var title=String(ai.title||"命令需要确认").trim();
 var opts=Array.isArray(ai.options)&&ai.options.length?ai.options:["Y","N"];
@@ -2790,9 +2878,14 @@ try{bar.remove();}catch(e){}o.cmdInputBar=null;
 row.appendChild(custom);
 row.appendChild(sendBtn);
 bar.appendChild(row);
-var body=card.querySelector(".card-body-inner")||card.querySelector(".card-body");
+var body=host.querySelector(".card-body-inner")||host.querySelector(".card-body")||host.querySelector(".chat-tool-body");
 if(body)body.appendChild(bar);
-else card.appendChild(bar);
+else host.appendChild(bar);
+if(o.chatToolRow&&host===o.chatToolRow){
+o.chatToolRow.classList.add("is-open");
+var head=o.chatToolRow.querySelector(".chat-tool-head");
+if(head)head.setAttribute("aria-expanded","true");
+}
 o.cmdInputBar=bar;
 }
 function onToolStart(ev){
@@ -2808,6 +2901,7 @@ var _ga=String((ev.args&&ev.args.action)||"get").trim().toLowerCase();
 if(_ga==="get"||_ga==="")return;
 }
 if(!anyToolThisTurn){anyToolThisTurn=true;}
+if(!showToolSteps()){beginChatToolOnly(ev);return;}
 var merged=!!(lastLlm&&lastLlm.cardEl&&!llmStreamBuffer.consumed);
 var mergeKeepOpen=merged&&lastLlm.cardEl?lastLlm.cardEl.classList.contains("open"):false;
 var dispStep;
@@ -2849,9 +2943,9 @@ flushPendingSteps();
 body.appendChild(inner);
 c.appendChild(h);c.appendChild(body);
 h.onclick=function(){c.classList.toggle("open");};
-appendStep(c);if(mergeKeepOpen)c.classList.add("open");toolOpen.set(tid,{tag:tag,resLb:lb,resPb:pb,previewSlot:pv,args:ev.args||{},script:ev.script||"",spinWrap:spinWrap,stepTitle:_stt,fileSpan:null,progressBadge:null,liveOutPre:isStreamOutputToolScript(ev.script)?pb:null,cmdInputBar:null,chatRunCard:null,chatRunOutPre:null});
-// 流式命令：执行一开始就在左侧对话区建卡，执行结果随后增量刷新
-if(isStreamOutputToolScript(ev.script)){ensureChatRunCard(toolOpen.get(tid));}}
+appendStep(c);if(mergeKeepOpen)c.classList.add("open");toolOpen.set(tid,{tag:tag,resLb:lb,resPb:pb,previewSlot:pv,args:ev.args||{},script:ev.script||"",spinWrap:spinWrap,stepTitle:_stt,fileSpan:null,progressBadge:null,liveOutPre:isStreamOutputToolScript(ev.script)?pb:null,cmdInputBar:null,chatRunCard:null,chatRunOutPre:null,chatToolRow:null,chatToolRes:null});
+if(showToolItems())mountChatToolItem(toolOpen.get(tid));
+if(isStreamOutputToolScript(ev.script)){var _opened=toolOpen.get(tid);if(!_opened||!_opened.chatToolRow)ensureChatRunCard(_opened);}}
 
 function onToolProgress(ev){
 var tid=String(ev.tool_call_id!=null?ev.tool_call_id:"").trim();
@@ -2860,9 +2954,23 @@ if(!o)return;
 if(isStreamOutputToolScript(o.script)){
 ensureRunCommandLivePanel(o);
 if(o.tag&&o.tag.parentNode)o.tag.textContent="进行中 "+(ev.elapsed_sec!=null?ev.elapsed_sec+"s":"");
-var tail=String(ev.stdout_tail!=null?ev.stdout_tail:ev.stdoutTail||"");
-if(o.liveOutPre&&tail){o.liveOutPre.textContent=tail;scrollMsgsToBottom();}
-if(tail)updateChatRunCardOutput(o,tail);
+/* 进度帧的正文是增量 `text`（stdout/stderr 各一块）。
+   旧字段 `stdout_tail` 若还在，则它已是拼好的全文，直接换上。 */
+var tail=ev.stdout_tail!=null?String(ev.stdout_tail):(ev.stdoutTail!=null?String(ev.stdoutTail):"");
+var shown=tail;
+if(!shown){
+var chunk=String(ev.text!=null?ev.text:"");
+if(chunk){
+var el=o.chatRunOutPre||o.liveOutPre;
+var cur=el?String(el.textContent||""):"";
+if(cur==="（等待输出…）"||cur==="（等待结果…）")cur="";
+shown=cur+chunk;
+}
+}
+if(shown){
+if(o.liveOutPre){o.liveOutPre.textContent=shown;scrollMsgsToBottom();}
+updateChatRunCardOutput(o,shown);
+}
 if(isRunCommandToolScript(o.script)&&ev.awaiting_input)renderRunCommandInputBar(o,ev);
 return;
 }
@@ -2904,9 +3012,9 @@ o.tag.className="tag tag-run";
    若把标签 push 进 `pendingToolTags`、等 `llm_done` 才 flush，
    一轮里多个工具时，已结束的工具会一直显示「进行中」直到整轮结束。
    `ok` 来自真实的工具结果（`tool_end.ok`），此刻就能定终态。 */
-o.tag.textContent=(!!ok||!!ev.user_confirm_required)?"Done":"Fail";
-o.tag.className="tag "+((!!ok||!!ev.user_confirm_required)?"ok":"bad");
-if(ev.user_confirm_required){o.tag.textContent="待确认";o.tag.className="tag tag-run";}
+o.tag.textContent=(!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"Done":"Fail";
+o.tag.className="tag "+((!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"ok":"bad");
+if(ev.user_confirm_required||ev.approval_required){o.tag.textContent="待确认";o.tag.className="tag tag-run";}
 o.resLb.style.display="block";o.resPb.style.display="block";if(ev.user_confirm_required){try{var _pj=JSON.parse(ev.preview||"{}");var _em=_pj&&_pj.error&&_pj.error.message?String(_pj.error.message):"";var _em2=_em.indexOf("\n\n--help:")>=0?_em.split("\n\n--help:")[0].trim():_em;var slim={ok:_pj.ok,data:_pj.data,error:_pj.error?{code:_pj.error.code,type:_pj.error.type,message:_em2,hint:_pj.error.hint,retryable:_pj.error.retryable}:null};o.resPb.textContent=JSON.stringify(slim,null,2);}catch(e){o.resPb.textContent=ev.preview||"";}}else{try{var _pj2=JSON.parse(ev.preview||"{}");o.resPb.textContent=JSON.stringify(_pj2,null,2);}catch(e){o.resPb.textContent=ev.preview||"";}}
 fillToolPreview(o,ev);
 /* diff 预览画到**对话区**（步骤卡的预览槽放不下、默认也收起）。
@@ -2918,7 +3026,7 @@ try{var _cp=typeof ev.preview==="string"?JSON.parse(ev.preview):ev.preview;_cp=_
 if(_cp){
 var _cpPath=String((o.args&&(o.args.path||o.args.dest_path||o.args.source_path))||(_cp.path||_cp.dest_path||_cp.source_path)||"").trim();
 if(_cpPath){window.confirmPathCache=window.confirmPathCache||{};window.confirmPathCache[String(_cp.confirm_id).trim()]=_cpPath;}}
-try{var _pp=typeof ev.preview==="string"?JSON.parse(ev.preview):ev.preview;var _so=_pp&&_pp.data&&_pp.data.stdout;if(_so&&typeof _so==="string"&&_so.trim()){if(o.chatRunCard&&o.chatRunCard.parentNode){updateChatRunCardOutput(o,_so);}else{ensureChatRunCard(o);updateChatRunCardOutput(o,_so);}}}catch(_e3){}
+try{var _pp=typeof ev.preview==="string"?JSON.parse(ev.preview):ev.preview;var _dd=_pp&&_pp.data||null;var _so=_dd&&typeof _dd.stdout==="string"?_dd.stdout:"";var _se=_dd&&typeof _dd.stderr==="string"?_dd.stderr:"";var _shown=_so;if(isStreamOutputToolScript(o.script)&&_se.trim()){_shown=_so.trim()?(_so.replace(/\s*$/,"")+"\n"+_se):_se;}if(_shown&&String(_shown).trim()){if(o.liveOutPre&&o.liveOutPre!==o.chatRunOutPre)o.liveOutPre.textContent=_shown;updateChatRunCardOutput(o,_shown);}}catch(_e3){}
 // file_undo：从结果数据补充路径到标题
 try{var _fuP=typeof ev.preview==="string"?JSON.parse(ev.preview):ev.preview;_fuP=_fuP&&_fuP.data;}catch(_fuE){_fuP=null;}
 if(_fuP&&o.script&&o.script.toLowerCase().indexOf("file_undo")>=0){
@@ -2928,13 +3036,15 @@ if(_fuPath&&!_fuPath.endsWith("\\")&&!_fuPath.endsWith("/")){
 var _fn=pathLeaf(_fuPath)||"";
 if(_fn){var _card=findStepCardForToolCall(tid);if(_card){var _tx=_card.querySelector(".step-title-wrap");if(_tx){var _txM=_tx.querySelector(":scope > span:first-child");var _txF=_tx.querySelector(":scope > .step-fname");var _ts="";var _mid=String(o.args&&o.args.mod_id||"").trim();/* 版本目录名的形状由 file_safety._version_dir_name 产出；按形状取，不数段数 */if(_mid){var _mv=/_(\d{6})_\d{3}_\d{4}_[0-9a-z]+$/.exec(_mid);if(_mv)_ts=_mv[1].slice(0,2)+":"+_mv[1].slice(2,4)+":"+_mv[1].slice(4,6);}if(_txM&&!_txF){_txF=document.createElement("span");_txF.className="step-fname";_tx.appendChild(_txF);}if(_txF){_txF.textContent=_fn+(_ts?" to "+_ts:"");}}}}}}
 if(isStreamOutputToolScript(o.script))finalizeChatRunCard(o,ok);
-if(ev.user_confirm_required)openUserConfirmModalFromToolEnd(ev);
+if(ev.approval_required)openApprovalModalFromToolEnd(ev, o.chatToolRow);
+else if(ev.user_confirm_required)openUserConfirmModalFromToolEnd(ev, o.chatToolRow);
 /* 模型改了目标（goal 工具）→ 立即同步按钮，不必等用户刷新 */
 if(ok&&o.script==="goal"){var _gp=null;try{_gp=JSON.parse(ev.preview||"{}").data||null;}catch(_e){}
 /* `delete` 返回的是 {deleted:true} 而不是 {goal:...}：只认 goal 键的话，
    删完目标按钮会停在"进行中"。两种形状都要处理。 */
 if(_gp&&Object.prototype.hasOwnProperty.call(_gp,"goal")){_goalInfo=_gp.goal;updateAutoToggleUI();}
 else if(_gp&&_gp.deleted){_goalInfo=null;updateAutoToggleUI();}}
+fillChatToolResult(o,ev);
 toolOpen.delete(tid);}
 
 async function sendChatMessage(){
@@ -3090,8 +3200,11 @@ function loadStepsPx(){try{var raw=localStorage.getItem(STORAGE_KEY);if(!raw)ret
 function saveStepsPx(px){try{localStorage.setItem(STORAGE_KEY,JSON.stringify({stepsPx:Math.round(px)}));}catch(e){}}
 var _savedSteps=loadStepsPx();
 var stepsPx=clampSteps(_savedSteps!=null?_savedSteps:defaultStepsPx());
-function applyLayout(px){stepsPx=clampSteps(px);sideEl.style.flex="0 0 "+stepsPx+"px";sideEl.style.width=stepsPx+"px";sideEl.style.maxWidth=stepsPx+"px";}
-applyLayout(stepsPx);
+function sideEmpty(){return document.documentElement.getAttribute("data-side-empty")==="1";}
+function applyLayout(px){stepsPx=clampSteps(px);if(sideEmpty()){sideEl.style.flex="0 0 0px";sideEl.style.width="0px";sideEl.style.maxWidth="0px";sideEl.style.minWidth="0px";return;}sideEl.style.minWidth="";sideEl.style.flex="0 0 "+stepsPx+"px";sideEl.style.width=stepsPx+"px";sideEl.style.maxWidth=stepsPx+"px";}
+function setClassicSideOpen(open){if(open)document.documentElement.removeAttribute("data-side-empty");else document.documentElement.setAttribute("data-side-empty","1");if(resizerEl){resizerEl.setAttribute("aria-hidden",open?"false":"true");resizerEl.tabIndex=open?0:-1;}applyLayout(stepsPx);}
+setClassicSideOpen(countOpenSideTabs()>0);
+window._setClassicSideOpen=setClassicSideOpen;
 function railRoom(){return mainInnerWidth()-RESIZER_PX-RESIZER_PX-MIN_CHAT_PX-MIN_STEPS_PX;}
 function clampRail(px){var room=railRoom();var maxPx=Math.min(MAX_RAIL_PX,room>=MIN_RAIL_PX?room:MIN_RAIL_PX);return Math.max(MIN_RAIL_PX,Math.min(maxPx,Math.round(px)));}
 function loadRailPx(){try{var n=Number(localStorage.getItem(RAIL_KEY));return isFinite(n)&&n>0?n:null;}catch(e){return null;}}
@@ -3129,6 +3242,7 @@ document.addEventListener("mouseup",onRailUp);
 }
 var drag=null;
 resizerEl.addEventListener("mousedown",function(ev){
+if(sideEmpty())return;
 ev.preventDefault();
 drag={startX:ev.clientX,startSteps:stepsPx};
 function onMove(e){

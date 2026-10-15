@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """任务与目标工具组：run_type / todo_list / user_confirm / task_sleep / goal。
 
+`approval_confirm` 类在本文件，`build_plugins` 不返回它。
+
 - run_type / todo_list：读写 LiveState（会话作用域经 core.session_scope 取 conversation_id）；
 - user_confirm：两段式——首段抛 UserConfirmRequired（ok=False + data 信封），次段回填 confirm；
+- approval_confirm：抛 ApprovalRequired 后停下，等用户同意或驳回；通行证由宿主签发；
 - task_sleep / goal：校验 + 数据信封 + 会话状态记录（宿主循环按目标状态决定是否续跑）。
 """
 from __future__ import annotations
@@ -39,6 +42,36 @@ class UserConfirmRequired(Exception):
             self.data["multi"] = True
         if custom_option_index is not None:
             self.data["custom_option_index"] = int(custom_option_index)
+
+
+class ApprovalRequired(Exception):
+    """待审批信封。`option_id` 与 `option_desc` 在 ToolResult.data 里。
+
+    `await_user=True`，回合在此停下，等宿主界面上的同意或驳回。
+    """
+
+    await_user = True
+
+    def __init__(self, option_id: str, option_desc: str) -> None:
+        super().__init__("需由宿主展示审批并由用户同意或驳回")
+        self.data: Dict[str, Any] = {
+            "kind": "approval",
+            "title": "审批",
+            "option_id": option_id,
+            "option_desc": option_desc,
+        }
+
+
+def _approval_text(raw: Any, name: str, limit: int) -> str:
+    """审批入参：非空字符串。超过上限时拒绝。"""
+    if not isinstance(raw, str):
+        raise ValueError(f"{name} 须为非空字符串")
+    text = raw.strip()
+    if not text:
+        raise ValueError(f"{name} 须为非空字符串")
+    if len(text) > limit:
+        raise ValueError(f"{name} 最长 {limit} 字符")
+    return text
 
 
 def _normalize_confirms(raw: Any) -> List[str]:
@@ -295,6 +328,38 @@ class UserConfirmTool(ToolPlugin):
             multi=bool(arguments.get("multi", False)),
             custom_option_index=custom_index,
         )
+
+
+class ApprovalConfirmTool(ToolPlugin):
+    """操作审批。调用后挂起，等用户同意或驳回。
+
+    同意时宿主把 `approval_id` 写入这次调用的结果，并在会话上下文记下
+    `approval_id` → `option_id`。本工具没有回填入参。
+    """
+
+    name = "approval_confirm"
+    label = "审批"
+    icon = "🛂"
+    description = (
+        "向用户发起审批。入参为 option_id（需要放行的工具给出的操作 ID）"
+        "和 option_desc（弹窗正文）。调用后挂起，等用户点同意或驳回。"
+        "驳回的结果是「不同意」。同意的结果是「同意」，并带有宿主签发的 approval_id。"
+        "approval_id 写在这次调用的结果里。再次调用本工具不会回填。"
+    )
+    parameters = {
+        "option_id": {"type": "string", "description": "操作 ID，由需要审批的工具给出"},
+        "option_desc": {"type": "string", "description": "弹窗正文，一句简短问话"},
+    }
+
+    def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        if str(arguments.get("approval_id") or "").strip():
+            raise ValueError(
+                "approval_id 由宿主在用户同意后写入这次调用的结果。"
+                "本工具不接收 approval_id。"
+            )
+        option_id = _approval_text(arguments.get("option_id"), "option_id", 200)
+        option_desc = _approval_text(arguments.get("option_desc"), "option_desc", 500)
+        raise ApprovalRequired(option_id, option_desc)
 
 
 class TaskSleepTool(ToolPlugin):

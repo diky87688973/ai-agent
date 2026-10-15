@@ -304,7 +304,9 @@ class ModelModule(ModuleBase):
             yield ports.emit(ERROR, where="model", detail="未装配模型端口")
             return Outcome.halt("未装配模型端口")
 
-        dialogue = _prepare_dialogue(ports.log.derive_messages(),
+        # 请求前补齐悬空的 tool_calls。挂起的终态不产生 tool 消息；
+        # 取消若没到达服务器，事实里就一直缺配对，此后每次请求都会被拒绝。
+        dialogue = _prepare_dialogue(ports.log.derive_request_messages(),
                                      self._image_turns, self._image_max)
         # 本轮起点 = 对话里最后一条用户消息的下标（含）。它之前的思维链一律不回传
         # （provider 侧按这个下标裁）：思维链是模型的中间产物，回传只是让每轮输入

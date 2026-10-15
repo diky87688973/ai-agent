@@ -59,6 +59,21 @@ def _tool_content(text: Any, attachments: Any) -> Any:
     return [{"type": "text", "text": body}, *parts]
 
 
+def _render_tool_message(call_id: str, done: dict[str, Any] | None, name: str = "") -> dict[str, Any]:
+    """把一次调用的结果收成一条 tool 消息。没有结果事实时说明「未记录」，不写 null。"""
+    images = done.get("attachments") if isinstance(done, dict) else None
+    if done is None:
+        content = f"(工具 {name} 已结束，但未记录结果)"
+    elif bool(done.get("ok")):
+        payload = done.get("data")
+        content = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
+    else:
+        detail = done.get("error")
+        content = f"ERROR: {detail if detail is not None else ''}"
+    return {"role": "tool", "tool_call_id": call_id,
+            "content": _tool_content(content, images)}
+
+
 class SessionLogView:
     """`SessionLog` 的**只读视图**：暴露读取面，**不暴露 `append`**。
 
@@ -137,6 +152,16 @@ class SessionLog:
         # 工具结果事实（`tool_done` / `tool_failed`）按 `call_id` 攒起来：
         # 终态事实 `tool_ended` 只标"结束了"，结果取自这一份（下方 tool_ended 分支回查 `_tool_results`）。
         _tool_results: dict[str, dict[str, Any]] = {}
+        # 非挂起的 tool_ended 负责把结果收成消息。只有结果事实、没有这种终态时
+        # （取消确认只写下了 tool_failed），在结果事实处直接收成消息。
+        _closed: set[str] = set()
+        for ev in self.events:
+            if ev.type != "tool_ended" or str(ev.data.get("status") or "") == "suspended":
+                continue
+            cid = str(ev.data.get("call_id") or "")
+            if cid:
+                _closed.add(cid)
+        _emitted: set[str] = set()
         for ev in self.events:
             if ev.type == "input_claimed":
                 content = str(ev.data.get("content", ""))
@@ -182,28 +207,15 @@ class SessionLog:
                     # 会产生两条 tool 消息，模型 API 直接拒绝（400）。
                     continue
                 call_id = str(ev.data.get("call_id", ""))
+                if call_id in _emitted:
+                    continue
                 done = _tool_results.get(call_id)      # 结果事实（done / failed）
-                # 工具随结果附带的图片（`tool_done.attachments`）：附件挂在结果事实上
-                # 而非事件流主体，base64 不进事件流，这里取出后翻成 `image_url` 块。
-                images = done.get("attachments") if isinstance(done, dict) else None
-                if done is None:
-                    # 只有终态、没有结果事实：补一个**说明性**内容，而不是 `null`
-                    # ——"没有内容"和"没有结果事实"是两件事，模型该能分辨。
-                    content = f"(工具 {ev.data.get('name') or ''} 已结束，但未记录结果)"
-                elif bool(done.get("ok")):
-                    payload = done.get("data")
-                    content = (payload if isinstance(payload, str)
-                               else json.dumps(payload, ensure_ascii=False))
-                else:
-                    detail = done.get("error")
-                    content = f"ERROR: {detail if detail is not None else ''}"
-                messages.append(
-                    {"role": "tool", "tool_call_id": call_id,
-                     "content": _tool_content(content, images)}
-                )
+                messages.append(_render_tool_message(
+                    call_id, done, str(ev.data.get("name") or "")))
+                _emitted.add(call_id)
             elif ev.type in ("tool_done", "tool_failed"):
-                # 结果事实：**攒起来供终态回查**（本身不直接进模型上下文——
-                # 进上下文的是"这次调用结束了、结果是这个"，一份就够）。
+                # 结果事实先攒着。后面有非挂起的终态时，由那条终态收成 tool 消息。
+                # 没有这种终态时就在这里收成消息，否则取消只留在事实里，模型看不见。
                 call_id = str(ev.data.get("call_id", ""))
                 if call_id:
                     _tool_results[call_id] = {
@@ -213,6 +225,9 @@ class SessionLog:
                         # 工具附带的图片：只在派生对话时取用，不写入事件流。
                         "attachments": ev.data.get("attachments"),
                     }
+                    if call_id not in _closed and call_id not in _emitted:
+                        messages.append(_render_tool_message(call_id, _tool_results[call_id]))
+                        _emitted.add(call_id)
             elif ev.type == "tool_result":
                 # **落盘记录里"用户作答"的结果事实名**（另一种结果事实格式）。
                 #
@@ -262,6 +277,7 @@ class SessionLog:
                 messages.append(
                     {"role": "tool", "tool_call_id": call_id, "content": content}
                 )
+                _emitted.add(call_id)
         return messages
 
     def derive_request_messages(self) -> list[dict[str, Any]]:

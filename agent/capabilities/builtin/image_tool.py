@@ -78,6 +78,10 @@ class ImageReadTool(ToolPlugin):
         path = Path(raw_path).expanduser()
         if not path.is_file():
             raise FileNotFoundError(f"图片不存在或不是文件：{path}")
+        try:
+            shown_path = str(path.resolve())
+        except OSError:
+            shown_path = str(path)
 
         raw = path.read_bytes()
         if not raw:
@@ -101,7 +105,7 @@ class ImageReadTool(ToolPlugin):
             sent_w, sent_h = width, height
         scale = (width / sent_w) if sent_w else 1.0
         summary: Dict[str, Any] = {
-            "path": str(path),
+            "path": shown_path,
             "format": sent_mime,
             # 原图尺寸：坐标以它为基准
             "width": width,
