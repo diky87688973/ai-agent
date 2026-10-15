@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -326,7 +327,13 @@ class RunnerE2ETest(unittest.TestCase):
         self.assertTrue(r1.ok)
         self.assertFalse(r1.data["queued"])
         self.assertTrue(r1.data["run_id"])
-        self.assertTrue(self.mesh.is_running(target))  # 第一回合挂起在 gate
+        self.assertTrue(self.mesh.is_running(target))
+        # 占位成功还没进模型：一趟开始先收集注入源，这期间后到的消息
+        # 会被收件箱并进当前回合。抽干要测的是模型已经挂起之后的排队。
+        deadline = time.monotonic() + 5
+        while not self.provider.seen and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(len(self.provider.seen), 1)
         r2 = self._call("session_send", {"target_id": target, "message": "第二条", "requires_reply": False})
         self.assertTrue(r2.data["queued"])
         self.assertEqual(r2.data["queued_count"], 1)

@@ -671,6 +671,9 @@ class ContextSources:
             with self._lock:
                 if item in bucket:
                     bucket.remove(item)
+                    # 卸下来源也是内容变化。不打版本号的话，本趟还没作废的快照
+                    # 会继续带着已经卸掉的那一段。
+                    self._version += 1
 
         return _dispose
 
@@ -759,7 +762,9 @@ class ContextPipeline:
         self._plugin_sources: List[Tuple[str, str]] = []
         # 插件自报的主体数量，**按段的位置**对应（缺省时段落行按消息条数算）。
         self._plugin_counts: List[int] = []
-        #: 注入源的一趟快照（同一次装配里压缩与模型请求共用同一份）
+        #: 本趟链的注入源快照。`begin_pass` 收集，`end_pass` 丢掉。
+        #: 这一趟里压缩与模型请求共用这一份；趟结束就放开，
+        #: 下一趟若不来，知识库和技能正文不会留在会话上。
         self._sources_snapshot: Any = None
         #: 快照对应的来源版本号（版本一变就重收集）
         self._sources_snapshot_version: int = -1
@@ -1092,6 +1097,25 @@ class ContextPipeline:
         """
         self.set_dialogue(flat_messages, covered_end=0)
 
+    def begin_pass(self) -> None:
+        """一趟链开始：收集注入源。本趟内的装配共用这一份。"""
+        self._drop_source_snapshot()
+        self._refresh_sources()
+
+    def end_pass(self) -> None:
+        """一趟链结束：丢掉注入源快照。
+
+        快照里是知识库正文和技能正文。留到下一趟开始再清的话，
+        下一趟若不来，这份内容就一直挂在会话上。
+        插件段是从这份快照装上去的，一并卸掉；下一趟开始会重新装。
+        """
+        self._drop_source_snapshot()
+        self.set_plugin_segments([])
+
+    def _drop_source_snapshot(self) -> None:
+        self._sources_snapshot = None
+        self._sources_snapshot_version = -1
+
     def refresh_sources(self) -> None:
         """强制刷新注入源（界面勾选/文件改动后立刻生效用）。"""
         self._sources_snapshot = None
@@ -1103,11 +1127,12 @@ class ContextPipeline:
         Skills 也走注入源：技能库注册「可用技能清单」（渐进式披露第一层）
         与 `auto_load/` 常驻技能正文（第二层）。
 
-        **一趟装配只收集一次**：一趟里会装配两遍（压缩模块一遍、模型模块一遍，
-        压缩器内部还会再 `set_dialogue` 一次），而每次收集都要重列技能目录、
-        重读全部勾选文件。收集两遍不只是白烧磁盘 —— 两遍之间源可变，
-        于是"压缩看到的那份"和"发出去的那份"数字可能对不上（段与数量错位就是这么来的）。
-        需要拿到新数据的场合调 `refresh_sources()` 显式清掉这份快照。
+        **一趟链只收集一次**：压缩模块、压缩器内部、模型模块会各装一次对话。
+        每次收集都要重列技能目录、重读全部勾选文件。同一趟里收集两遍不只是
+        白烧磁盘 —— 两遍之间源可变，于是"压缩看到的那份"和"发出去的那份"
+        数字可能对不上。快照由 `begin_pass()` 在一趟开始时收集，
+        `end_pass()` 在一趟结束时丢掉 —— 不留到下一趟，下一趟没来也不会占着内存。
+        需要在本趟中途拿到新数据时调 `refresh_sources()`，或由来源 `bump()`。
         """
         if self._sources is None:
             return

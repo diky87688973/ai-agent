@@ -7,11 +7,27 @@
 """
 from __future__ import annotations
 
+import os
 import shutil
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 CATALOG_HEAD = "【Skills清单】"
+
+
+def _canonical_key(path: Path) -> str:
+    """同一文件的稳定身份。
+
+    解析掉 `.` / `..`，再按平台折叠大小写。只比 `str(path).lower()` 时，
+    `skills/a.md` 和 `skills/./a.md`（或带 `\\\\?\\` 前缀的写法）会被当成两个技能，
+    清单计数就整份翻倍。
+    """
+    try:
+        text = str(path.resolve())
+    except OSError:
+        text = str(path)
+    return os.path.normcase(os.path.normpath(text))
 
 
 class SkillMeta:
@@ -35,6 +51,8 @@ class SkillManager:
         self.skills: List[SkillMeta] = []
         self._content_cache: Dict[str, str] = {}
         self._last_mtimes: Dict[str, float] = {}
+        #: 扫描与读取共用。重扫必须整表换上，不能一边清空一边追加。
+        self._lock = threading.RLock()
         if self.skills_dir and self.skills_dir.is_dir():
             self._scan()
             # 首次扫描后就把 mtime 记下来：不记的话下面每次 `_check_rescan`
@@ -53,9 +71,10 @@ class SkillManager:
     # ── 动态检测 / 扫描 ────────────────────────────────
 
     def auto_load_count(self) -> int:
-        """常驻技能条数（不拼正文）。"""
-        self._check_rescan()
-        return sum(1 for s in self.skills if s.is_auto_load)
+        """常驻技能条数（不拼正文）。同一文件只计一次。"""
+        with self._lock:
+            self._check_rescan()
+            return sum(1 for s in self._deduped() if s.is_auto_load)
 
     def _current_mtimes(self) -> Dict[str, float]:
         """当前全部技能文件的 mtime 表（键是绝对路径）。"""
@@ -72,60 +91,62 @@ class SkillManager:
         return out
 
     def _check_rescan(self) -> None:
-        """mtime 检测新增 / 变更 / 删除；有变化则清缓存重扫。
+        """mtime 检测新增 / 变更 / 删除；有变化则换上一份新表。
 
         界面/工具改完技能文件后，下一次收集就能看到（这里每次都核对 mtime）。
+        调用方若已持有 `_lock` 会重入，不会和自己死锁。
         """
         if not self.skills_dir or not self.skills_dir.is_dir():
             return
-        current = self._current_mtimes()
-        changed = current != self._last_mtimes
-        if not changed:
-            return
-        self._last_mtimes = current
-        self.skills.clear()
-        self._content_cache.clear()
-        self._scan()
+        with self._lock:
+            current = self._current_mtimes()
+            if current == self._last_mtimes:
+                return
+            # 先记下这份 mtime，再整表换上。换上的是新列表，不是往旧列表里追加：
+            # `clear()` 之后两边一起 `append`，31 个文件会被装进同一份列表两次，
+            # 段上的数字只是 `len(...)` 的一次赋值，赋到的却是 62。
+            self._last_mtimes = current
+            self.skills = self._collect_skills()
+            self._content_cache.clear()
 
     def _force_rescan(self) -> None:
         """清空缓存全量重扫（复制落盘后调用）。"""
-        self.skills.clear()
-        self._content_cache.clear()
-        self._scan()
-        self._last_mtimes = self._current_mtimes()
+        with self._lock:
+            self.skills = self._collect_skills()
+            self._content_cache.clear()
+            self._last_mtimes = self._current_mtimes()
 
     def _scan(self) -> None:
-        """扫描 skills_dir 下全部 .md（auto_load 子目录标记；隐藏目录跳过）。"""
+        """整表换上当前目录里的技能（赋值，不追加）。"""
+        built = self._collect_skills()
+        with self._lock:
+            self.skills = built
+            self._content_cache.clear()
+
+    def _collect_skills(self) -> List[SkillMeta]:
+        """扫描 skills_dir 下全部 .md，返回一份新列表（不碰 `self.skills`）。
+
+        `auto_load/` 子目录标记常驻；隐藏目录跳过。同一文件只留一条。
+        """
+        built: List[SkillMeta] = []
         if not self.skills_dir or not self.skills_dir.is_dir():
-            return
+            return built
         seen: Set[str] = set()
-        # 扫描必须**幂等**：清空与重填是两步，中间若被打断（并发、异常）
-        # 残留的条目会留在 `self.skills` 里，下一次扫描再追加一遍就是双份。
-        # 这里先按 key 记下库内已有的条目，重复的一律不追加。
-        for old in list(self.skills):
-            try:
-                seen.add(str(old.file_path.relative_to(self.skills_dir))
-                         .replace("\\", "/").lower())
-            except (ValueError, AttributeError):
-                continue
         auto_dir = self.skills_dir / "auto_load"
 
-        def _rel_key(md: Path) -> str:
-            try:
-                return str(md.relative_to(self.skills_dir)).replace("\\", "/").lower()
-            except ValueError:
-                return md.name.lower()
-
         def _collect_one(md_file: Path, is_auto_load: bool) -> None:
-            key = _rel_key(md_file)
+            key = _canonical_key(md_file)
             if key in seen:
                 return
             seen.add(key)
-            rel_name = str(md_file.relative_to(self.skills_dir)).replace("\\", "/")
+            try:
+                rel_name = str(md_file.relative_to(self.skills_dir)).replace("\\", "/")
+            except ValueError:
+                rel_name = md_file.name
             if rel_name.lower().endswith(".md"):
                 rel_name = rel_name[:-3]
             _, desc = self._parse_meta(md_file)
-            self.skills.append(SkillMeta(rel_name, desc, md_file, is_auto_load=is_auto_load))
+            built.append(SkillMeta(rel_name, desc, md_file, is_auto_load=is_auto_load))
 
         if auto_dir.is_dir():
             for md_file in sorted(auto_dir.rglob("*.md")):
@@ -139,6 +160,7 @@ class SkillManager:
             if skip_prefix and skip_prefix in md_file.resolve().parents:
                 continue
             _collect_one(md_file, is_auto_load=False)
+        return built
 
     # ── frontmatter 解析 ───────────────────────────────
 
@@ -178,66 +200,81 @@ class SkillManager:
 
     # ── 公开 API ───────────────────────────────────────
 
-    def list_skills(self) -> List[Dict[str, Any]]:
-        """列出普通技能（auto_load 常驻技能不列入，供上下文注入用）。
-
-        按文件路径去重：库内一旦出现同名重复（扫描被打断、并发重扫），
-        清单会整份翻倍 —— 段计数与正文都会翻，而症状只是"数字变大"。
-        """
-        self._check_rescan()
-        out: List[Dict[str, Any]] = []
+    def _deduped(self) -> List[SkillMeta]:
+        """当前表里每个文件只留第一条。调用方应已持有 `_lock`。"""
+        out: List[SkillMeta] = []
         seen: Set[str] = set()
         for s in self.skills:
-            if s.is_auto_load:
-                continue
-            key = str(s.file_path).lower()
+            key = _canonical_key(s.file_path)
             if key in seen:
                 continue
             seen.add(key)
-            out.append({"name": s.name, "description": s.description,
-                        "auto_load": s.is_auto_load})
+            out.append(s)
         return out
 
+    def list_skills(self) -> List[Dict[str, Any]]:
+        """列出普通技能（auto_load 常驻技能不列入，供上下文注入用）。
+
+        按文件身份去重：库内一旦出现重复条目（扫描交错留下的残留，
+        或同一文件的两种路径写法），清单会整份翻倍 —— 段计数与正文都会翻，
+        而症状只是"数字变大"。段上的数量是这里的长度，一次赋值；
+        长度本身已经是两倍时，赋上去就是两倍。
+        """
+        with self._lock:
+            self._check_rescan()
+            out: List[Dict[str, Any]] = []
+            for s in self._deduped():
+                if s.is_auto_load:
+                    continue
+                out.append({"name": s.name, "description": s.description,
+                            "auto_load": s.is_auto_load})
+            return out
+
     def list_skill_names(self) -> List[str]:
-        """全部技能 name 列表（供错误提示）。"""
-        return [s.name for s in self.skills]
+        """全部技能 name 列表（供错误提示）。同一文件只留一条。"""
+        with self._lock:
+            return [s.name for s in self._deduped()]
 
     def get_skill_meta(self, name: str) -> Optional[SkillMeta]:
         """按 name 取元数据（精确 → 纯文件名 stem）。"""
-        self._check_rescan()
-        key = str(name or "").strip()
-        if not key:
+        with self._lock:
+            self._check_rescan()
+            key = str(name or "").strip()
+            if not key:
+                return None
+            skills = self._deduped()
+            for s in skills:
+                if s.name == key:
+                    return s
+            for s in skills:
+                if Path(s.name).stem == key:
+                    return s
             return None
-        for s in self.skills:
-            if s.name == key:
-                return s
-        for s in self.skills:
-            if Path(s.name).stem == key:
-                return s
-        return None
 
     def get_skill(self, name: str) -> Optional[str]:
         """按 name 取正文（精确 → 忽略大小写 → stem 且父目录为根）。"""
-        self._check_rescan()
-        key = str(name or "").strip()
-        if not key:
+        with self._lock:
+            self._check_rescan()
+            key = str(name or "").strip()
+            if not key:
+                return None
+            skills = self._deduped()
+            for s in skills:
+                if s.name == key:
+                    return self._read_content(s)
+            key_lower = key.lower()
+            for s in skills:
+                if s.name.lower() == key_lower:
+                    return self._read_content(s)
+            if "/" not in key and "\\" not in key:
+                stem_matches = [
+                    s
+                    for s in skills
+                    if s.file_path.stem.lower() == key_lower and s.file_path.parent == self.skills_dir
+                ]
+                if len(stem_matches) == 1:
+                    return self._read_content(stem_matches[0])
             return None
-        for s in self.skills:
-            if s.name == key:
-                return self._read_content(s)
-        key_lower = key.lower()
-        for s in self.skills:
-            if s.name.lower() == key_lower:
-                return self._read_content(s)
-        if "/" not in key and "\\" not in key:
-            stem_matches = [
-                s
-                for s in self.skills
-                if s.file_path.stem.lower() == key_lower and s.file_path.parent == self.skills_dir
-            ]
-            if len(stem_matches) == 1:
-                return self._read_content(stem_matches[0])
-        return None
 
     def build_registry_message(self) -> str:
         """构建**可用技能清单**（一条 system 消息，注入上下文前端）。
@@ -271,15 +308,16 @@ class SkillManager:
         渐进式披露的第二层：这些技能始终随上下文携带，不必模型主动读取。
         正文为空的不注入。
         """
-        self._check_rescan()
-        out: List[str] = []
-        for s in self.skills:
-            if not s.is_auto_load:
-                continue
-            content = self._read_content(s)
-            if content.strip():
-                out.append(f"【Skills 技能 {s.name}】\n{content}")
-        return out
+        with self._lock:
+            self._check_rescan()
+            out: List[str] = []
+            for s in self._deduped():
+                if not s.is_auto_load:
+                    continue
+                content = self._read_content(s)
+                if content.strip():
+                    out.append(f"【Skills 技能 {s.name}】\n{content}")
+            return out
 
     def _read_content(self, meta: SkillMeta) -> str:
         if meta.name in self._content_cache:

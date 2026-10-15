@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -21,7 +22,7 @@ from agent.capabilities.builtin import (  # noqa: E402
 )
 from agent.mechanisms.quality_gate import QualityGate  # noqa: E402
 from plugins.skills import tools as skill_tools  # noqa: E402
-from plugins.skills.library import SkillManager  # noqa: E402
+from plugins.skills.library import SkillManager, SkillMeta  # noqa: E402
 
 
 def _ipwho_payload(**overrides: object) -> dict:
@@ -376,5 +377,47 @@ class SkillsListNeverDoublesTest(unittest.TestCase):
     def test_rescan_does_not_append_twice(self) -> None:
         mgr = SkillManager(self.skills_dir)
         before = len(mgr.skills)
-        mgr._scan()          # 直接再扫一次（不给它清空的机会）
+        mgr._scan()          # 再扫一次必须整表换上，不能在旧表上追加
         self.assertEqual(len(mgr.skills), before)
+
+    def test_different_path_spelling_counts_once(self) -> None:
+        """同一文件的两种路径写法不能让 `len(list_skills())` 变成两倍。"""
+        mgr = SkillManager(self.skills_dir)
+        first = mgr.skills[0]
+        weird = first.file_path.parent / "." / first.file_path.name
+        mgr.skills.append(SkillMeta(first.name, first.description, weird, False))
+        self.assertGreater(len(mgr.skills), 2)
+        self.assertEqual(len(mgr.list_skills()), 2)
+        text = mgr.build_registry_message_parts()[0]
+        self.assertEqual(text.count(f"- {first.name}:"), 1)
+
+    def test_auto_load_count_ignores_duplicate_entries(self) -> None:
+        auto = self.skills_dir / "auto_load"
+        auto.mkdir()
+        (auto / "resident.md").write_text(
+            "---\nname: resident\ndescription: 常\n---\n正文\n", encoding="utf-8")
+        mgr = SkillManager(self.skills_dir)
+        self.assertEqual(mgr.auto_load_count(), 1)
+        resident = next(s for s in mgr.skills if s.is_auto_load)
+        mgr.skills.append(SkillMeta(resident.name, resident.description,
+                                    resident.file_path, True))
+        self.assertEqual(len(mgr.skills), 4)
+        self.assertEqual(mgr.auto_load_count(), 1)
+        self.assertEqual(len(mgr.build_auto_load_messages()), 1)
+
+    def test_concurrent_rescan_replaces_the_list(self) -> None:
+        mgr = SkillManager(self.skills_dir)
+        target = self.skills_dir / "alpha.md"
+
+        def work() -> None:
+            target.write_text(target.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+            mgr.list_skills()
+            mgr.auto_load_count()
+
+        threads = [threading.Thread(target=work) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(len(mgr.skills), 2)
+        self.assertEqual(len(mgr.list_skills()), 2)

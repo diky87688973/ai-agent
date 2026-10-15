@@ -65,33 +65,70 @@ class _Pass:
         self.result: Optional[PassResult] = None
 
     def __iter__(self) -> Iterator[Any]:
-        wants_another = False
+        # 一趟开始就收集注入源，结束就丢掉。
+        # 收集放在模块跑起来之前：这一趟里压缩和模型多次装配，共用这一份。
+        # 丢掉放在 finally：收集失败、中途停、抛错、消费方关掉生成器，
+        # 都不能把快照留在会话上。
+        try:
+            self._begin_source_pass()
+            wants_another = False
+            for module in self._modules:
+                it = module.execute(self._ports)
+                # 常见写法错误：`execute` 里没有 `yield`，于是它是**普通函数**、
+                # 直接返回 `Outcome`。这时 `next(it)` 会给出一个很难懂的
+                # `'Outcome' object is not an iterator`——这里换成能照着改的提示。
+                if isinstance(it, (Outcome, type(None))):
+                    raise TypeError(
+                        f"{module.describe()} 的 execute 不是生成器（返回了 "
+                        f"{type(it).__name__}）。契约是：**`yield` 事实、`return` 控制信号**；"
+                        f"请至少写一个 `yield`（没有事实可产出时写 `if False: yield`）"
+                        f"——见 core/module.py 顶部说明。"
+                    )
+                outcome: Optional[Outcome] = None
+                try:
+                    while True:
+                        yield next(it)              # 立刻转给消费者（流式的关键）
+                except StopIteration as stop:
+                    outcome = stop.value
+                _require_outcome(module, outcome)
+                assert isinstance(outcome, Outcome)
+                if outcome.is_terminal:
+                    self.result = PassResult(terminal=outcome, wants_another=wants_another)
+                    return
+                if outcome.wants_another_pass:
+                    wants_another = True
+            self.result = PassResult(terminal=None, wants_another=wants_another)
+        finally:
+            self._end_source_pass()
+
+    def _source_contexts(self) -> List[Any]:
+        """本趟模块持有的上下文，同一份只出现一次。"""
+        seen: set = set()
+        out: List[Any] = []
         for module in self._modules:
-            it = module.execute(self._ports)
-            # 常见写法错误：`execute` 里没有 `yield`，于是它是**普通函数**、
-            # 直接返回 `Outcome`。这时 `next(it)` 会给出一个很难懂的
-            # `'Outcome' object is not an iterator`——这里换成能照着改的提示。
-            if isinstance(it, (Outcome, type(None))):
-                raise TypeError(
-                    f"{module.describe()} 的 execute 不是生成器（返回了 "
-                    f"{type(it).__name__}）。契约是：**`yield` 事实、`return` 控制信号**；"
-                    f"请至少写一个 `yield`（没有事实可产出时写 `if False: yield`）"
-                    f"——见 core/module.py 顶部说明。"
-                )
-            outcome: Optional[Outcome] = None
-            try:
-                while True:
-                    yield next(it)              # 立刻转给消费者（流式的关键）
-            except StopIteration as stop:
-                outcome = stop.value
-            _require_outcome(module, outcome)
-            assert isinstance(outcome, Outcome)
-            if outcome.is_terminal:
-                self.result = PassResult(terminal=outcome, wants_another=wants_another)
-                return
-            if outcome.wants_another_pass:
-                wants_another = True
-        self.result = PassResult(terminal=None, wants_another=wants_another)
+            ctx = getattr(module, "_context", None)
+            if ctx is None:
+                continue
+            key = id(ctx)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(ctx)
+        return out
+
+    def _begin_source_pass(self) -> None:
+        """本趟链开始：收集注入源快照。"""
+        for ctx in self._source_contexts():
+            begin = getattr(ctx, "begin_pass", None)
+            if callable(begin):
+                begin()
+
+    def _end_source_pass(self) -> None:
+        """本趟链结束：丢掉注入源快照。"""
+        for ctx in self._source_contexts():
+            end = getattr(ctx, "end_pass", None)
+            if callable(end):
+                end()
 
     def drain(self) -> PassResult:
         """跑完本趟（丢弃事件），返回结论。非流式场合用。"""

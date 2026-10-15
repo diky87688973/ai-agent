@@ -13,6 +13,11 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
+from agent.core.chain import run_chain  # noqa: E402
+from agent.core.module import ModuleBase  # noqa: E402
+from agent.core.outcome import Outcome  # noqa: E402
+from agent.core.ports import Ports  # noqa: E402
+from agent.core.session_log import SessionLog  # noqa: E402
 from agent.mechanisms.context_pipeline import (  # noqa: E402
     ContextPipeline,
     ContextSources,
@@ -58,6 +63,93 @@ class CollectOncePerPassTest(unittest.TestCase):
         before = self.calls
         self.pipe.refresh_sources()
         self.assertEqual(self.calls, before + 1)
+
+    def test_pass_builds_at_start_and_drops_at_end(self) -> None:
+        self.pipe.begin_pass()
+        self.assertEqual(self.calls, 1, msg="一趟开始就要收集，不能拖到第一次装配")
+        self.pipe.set_dialogue([{"role": "user", "content": "问"}])
+        self.pipe.set_dialogue([{"role": "user", "content": "再问"}])
+        self.assertEqual(self.calls, 1, msg="本趟内装配复用开始时建好的快照")
+        self.assertIsNotNone(self.pipe._sources_snapshot)
+        self.pipe.end_pass()
+        self.assertIsNone(self.pipe._sources_snapshot, msg="一趟结束必须丢掉快照，下一趟不来也不能留着")
+        self.assertEqual(
+            [r for r in self.pipe.segment_tokens() if str(r["key"]).startswith("plugin:")],
+            [],
+            msg="从快照装上的插件段要随快照一起卸掉",
+        )
+
+    def test_disposing_a_source_bumps_version(self) -> None:
+        self.pipe.set_dialogue([{"role": "user", "content": "问"}])
+        before = self.calls
+        dispose = self.sources.add(lambda cid: ["临时"], SourceMeta(key="tmp", label="临时"))
+        dispose()
+        self.pipe.set_dialogue([{"role": "user", "content": "问"}])
+        self.assertGreater(self.calls, before, msg="卸下来源也是内容变化，快照不能继续带着它")
+
+
+class _Touch(ModuleBase):
+    """一趟里装一次对话。压缩模块和模型模块都是这个形状。"""
+
+    name = "touch"
+
+    def __init__(self, pipe: ContextPipeline) -> None:
+        self._context = pipe
+
+    def execute(self, ports):
+        self._context.set_dialogue([{"role": "user", "content": "问"}])
+        if False:
+            yield None
+        return Outcome.ok()
+
+
+class _Halt(ModuleBase):
+    """装配一次后立刻停掉本趟。"""
+
+    name = "halt"
+
+    def __init__(self, pipe: ContextPipeline) -> None:
+        self._context = pipe
+
+    def execute(self, ports):
+        self._context.set_dialogue([{"role": "user", "content": "问"}])
+        if False:
+            yield None
+        return Outcome.halt("停")
+
+
+class ChainPassDropsSnapshotTest(unittest.TestCase):
+    """一趟开始时收集，结束时丢掉；同一趟里多次装配只收集一次。"""
+
+    def _pipe(self) -> tuple:
+        calls = {"n": 0}
+        sources = ContextSources()
+
+        def _source(cid: str):
+            calls["n"] += 1
+            return ["正文"]
+
+        sources.add(_source, SourceMeta(key="demo", label="示例段"))
+        pipe = ContextPipeline("c", sources=sources)
+        return pipe, calls
+
+    def test_one_pass_collects_once_and_drops_when_the_pass_ends(self) -> None:
+        pipe, calls = self._pipe()
+        ports = Ports(emit=lambda event: None, log=SessionLog())
+        modules = [_Touch(pipe), _Touch(pipe)]
+        run_chain(modules, ports)
+        self.assertEqual(calls["n"], 1, msg="同一趟里压缩和模型要共用开始时的那一份")
+        self.assertIsNone(pipe._sources_snapshot, msg="趟结束快照必须已经丢掉")
+        run_chain(modules, ports)
+        self.assertEqual(calls["n"], 2, msg="下一趟开始重新收集")
+        self.assertIsNone(pipe._sources_snapshot)
+
+    def test_halted_pass_still_drops_the_snapshot(self) -> None:
+        pipe, calls = self._pipe()
+        ports = Ports(emit=lambda event: None, log=SessionLog())
+        run_chain([_Halt(pipe), _Touch(pipe)], ports)
+        self.assertEqual(calls["n"], 1)
+        self.assertIsNone(pipe._sources_snapshot, msg="中途停掉也不能把快照留在会话上")
 
 
 class SegmentsStayAlignedTest(unittest.TestCase):

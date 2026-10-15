@@ -118,6 +118,14 @@ class Acceptance:
         r1 = self.call("session_send", {"target_id": self.worker, "message": "第一条：请开工", "requires_reply": True})
         self.check("直启：目标空闲 → 触发回合（run_id）", r1.ok and r1.data["queued"] is False and bool(r1.data["run_id"]), str(r1.data))
         self.check("运行中：活跃集登记", self.mesh.is_running(self.worker))
+        # 占位成功还没进模型：一趟开始先收集注入源，这期间后到的消息
+        # 会被收件箱并进当前回合。排队窗口从首个请求挂起之后起算。
+        entered = self.wait_until(lambda: len(self.provider.seen) == 1, timeout=15)
+        self.check(
+            "忙窗口：首个请求已挂起",
+            entered,
+            f"已见请求 {len(self.provider.seen)} 次（期望 1）",
+        )
         r2 = self.call("session_send", {"target_id": self.worker, "message": "第二条：追加任务", "requires_reply": False})
         self.check("忙时排队：queued + 计数", r2.ok and r2.data["queued"] is True and r2.data["queued_count"] == 1, str(r2.data))
         row = [a for a in self.call("session_list", {}).data["agents"] if a["cid"] == self.worker][0]
