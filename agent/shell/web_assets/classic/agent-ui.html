@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<script>try{var _t=localStorage.getItem("aiAgent.uiTheme");document.documentElement.setAttribute("data-ui-theme",_t==="light"?"light":"dark");}catch(e){document.documentElement.setAttribute("data-ui-theme","dark");}</script>
+<script>try{var _t=localStorage.getItem("aiAgent.uiTheme");document.documentElement.setAttribute("data-ui-theme",_t==="light"?"light":"dark");}catch(e){document.documentElement.setAttribute("data-ui-theme","dark");}try{if(localStorage.getItem("aiAgent.sessionRailOpen")!=="0"){document.documentElement.setAttribute("data-session-rail","open");var _rw=Number(localStorage.getItem("aiAgent.sessionRailPx"));if(!(_rw>0))_rw=240;if(_rw>500)_rw=500;if(_rw<180)_rw=180;document.documentElement.style.setProperty("--session-rail-w",_rw+"px");}}catch(e){document.documentElement.setAttribute("data-session-rail","open");document.documentElement.style.setProperty("--session-rail-w","240px");}</script>
 <title>AI Agent {{APP_VERSION}}</title>
 <style>
 {{CSS}}
@@ -13,8 +13,13 @@
      agent-ui.js 对 hdrTtsBtn / toggleAudio 无引用。 -->
 <header><b>AI Agent {{APP_VERSION}}</b>·<span class="muted" id="hdrModel">模型加载中…</span><span class="muted" id="cid"></span><span class="hdr-actions"><button type="button" id="hdrThemeBtn" class="hdr-theme-btn" title="切换为白天界面">白天模式</button></span></header>
 <main>
+<aside id="sessionRail" class="session-rail is-collapsed" aria-label="会话清单">
+<div id="sessionRailHead" class="session-rail-head"><button type="button" id="sessionRailNew" class="mode-plus">新会话 +</button></div>
+<div id="chatSessionMenu" class="session-rail-list"></div>
+</aside>
+<div id="sessionRailResizer" class="classic-split-resizer session-rail-resizer is-collapsed" role="separator" aria-orientation="vertical" aria-label="调整会话清单宽度" aria-hidden="true" tabindex="-1"></div>
 <section class="chat">
-<div class="p-title chat-title-row"><button id="chatMoreBtn" class="chat-more-btn" title="会话列表">⋮</button><div id="chatSessionMenu" class="chat-session-menu hidden"></div><div id="chatTabs" class="chat-tabs" role="tablist"></div><button id="nwTop" class="mode-plus">新会话 +</button></div>
+<div class="p-title chat-title-row"><span id="chatMoreSlot" class="chat-more-slot"><button type="button" id="chatMoreBtn" class="chat-more-btn" title="展开会话清单" aria-label="展开会话清单" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"></rect><path d="M8 4v16"></path><path class="rail-ico-open" d="M12 9.2 15.2 12 12 14.8"></path><path class="rail-ico-close" d="M15.2 9.2 12 12l3.2 2.8"></path></svg></button></span><div id="chatTabs" class="chat-tabs" role="tablist"></div></div>
 <div id="chatConversationMount" class="chat-conversation-mount"></div>
 <div class="row">
 <div class="composer">
