@@ -12,6 +12,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from agent.core.host import MAX_PASSES_DEFAULT
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.ini"
 DEFAULT_MODEL = "deepseek-v4-flash-vision-exp"
@@ -84,10 +86,12 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         # 压缩时遮盖的末尾用户轮数（压不出空间时连它们一起压）。
         "full_user_rounds": _int("full_user_rounds", 1),
         "summary_output_max_chars": _int("summary_output_max_chars", 5000),
-        # 只把最近这么多轮用户发言里的图带进请求（负数 = 不限）。
+        # 只把最近这么多轮**带图的**用户发言里的图带进请求（负数 = 不限）。
+        # 缺省 999999 = 不剥：历史图片全保留，KV 缓存前缀稳定；代价是内联 base64
+        # 随会话线性增长（受官方 48 MiB 请求体上限约束）。配小即按用户轮剥图。
         # 这两项由装配根取走交给模型模块，不进 `ContextPipeline` 的构造参数。
-        "image_turns": _int("image_turns", 3),
-        "image_max": _int("image_max", 10),
+        "image_turns": _int("image_turns", 999999),
+        "image_max": _int("image_max", 999999),
         # 摘要那一次调用复用平常请求的前缀（吃 KV 缓存）。.ini 无布尔类型，1/0 表示。
         "summary_prefix_reuse": _int("summary_prefix_reuse", 1) != 0,
         # 模型上下文窗口（token）：界面按它算"上下文占用率"。
@@ -210,6 +214,29 @@ def get_backup_retention_days(path: Optional[Path] = None) -> int:
         return max(0, int(raw)) if raw else DEFAULT_BACKUP_RETENTION_DAYS
     except (TypeError, ValueError):
         return DEFAULT_BACKUP_RETENTION_DAYS
+
+
+#: 一个回合最多跑多少趟（模型往返）的默认值。
+#: 权威值在内核的 `MAX_PASSES_DEFAULT`，这里只做转出，避免同一个数写两遍。
+#: 一趟 = 模型说一次话（可带多个工具调用）+ 这些工具全部执行完。
+#: 超过说明有模块永远要求续行，或这轮任务确实很长（GUI 自动化常见）。
+DEFAULT_MAX_PASSES = MAX_PASSES_DEFAULT
+
+
+def get_max_passes(path: Optional[Path] = None) -> int:
+    """读取一回合的趟数上限（`[agent] max_passes`）。
+
+    取不到或值非法时回落 `DEFAULT_MAX_PASSES`。小于 1 视为 1
+    —— 0 或负数会让回合一开始就撞上限，那不是"更严格"而是"跑不起来"。
+    """
+    parser = load_ini(path)
+    raw = ""
+    if parser.has_section("agent"):
+        raw = _clean(parser.get("agent", "max_passes", fallback=""))
+    try:
+        return max(1, int(raw)) if raw else DEFAULT_MAX_PASSES
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_PASSES
 
 
 def get_model_pricing(path: Optional[Path] = None) -> Dict[str, Any]:

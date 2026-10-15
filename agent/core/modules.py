@@ -280,6 +280,7 @@ class ModelModule(ModuleBase):
         #: 与 `effort` 同源：都在**每个回合装配引擎时**由会话级设置解析而来。
         self._model = str(model or "")
         #: 只把**最近这么多轮**用户发言里的图带进请求；负数 = 不限。
+        #: 缺省 999999 = 不剥（前缀稳定、缓存可复用）。
         self._image_turns = int(image_turns)
         #: 这些轮里最多带几张图；负数 = 不限。最近一轮优先保。
         self._image_max = int(image_max)
@@ -552,8 +553,15 @@ class ToolModule(ModuleBase):
             if ok:
                 # 进上下文前统一裁一刀：工具自己的 `max_chars` 是**默认值**不是上限，
                 # 一次读 20 万字符的结果会永久留在上下文里，把每轮请求都撑大。
+                #
+                # 附件不过裁刀：`_clip_tool_result` 按字符截断，图片是 base64，
+                # 截断即损坏；其体积由 `build_tool_parts` 的预算单独约束。
+                result_images = getattr(result, "attachments", None)
                 yield ports.emit(TOOL_DONE, call_id=call.call_id, name=call.name,
                                  data=_clip_tool_result(_safe(getattr(result, "data", None))),
+                                 attachments=(list(result_images)
+                                              if isinstance(result_images, list) and result_images
+                                              else None),
                                  elapsed_ms=elapsed)
             else:
                 yield ports.emit(TOOL_FAILED, call_id=call.call_id, name=call.name,
@@ -571,14 +579,14 @@ class ToolModule(ModuleBase):
 
 def _prepare_dialogue(dialogue: Any, image_turns: int,
                       image_max: int) -> List[Dict[str, Any]]:
-    """对话 → 请求用对话：老图不重复塞进请求体。
+    """对话 → 请求用对话：按配置剥掉窗口外的图。
 
-    图片按**最近几轮用户发言**保留、总数再设一道闸，更早/超量的转文本占位。
-    只改这一份，事实流里的字节一个都不动。
+    两个上限缺省都是 999999，不产生改动：历史图片块内容恒定、前缀恒定，
+    KV 缓存可复用；代价是内联 base64 随会话线性增长。配小 `[context] image_turns`
+    即按用户轮剥图，请求体小，但每逢滑窗消息前缀被改写、缓存整段作废。
 
-    **压缩请求与模型请求必须走同一函数**：压缩器自称"前缀与随后请求逐字节相同"，
-    只在模型侧剥图时这句话就不成立 —— 摘要请求多带一堆 base64，前缀从对话段起
-    就与平常请求不同，KV 缓存白丢。
+    压缩请求与模型请求走同一函数：压缩器声明前缀与随后请求逐字节相同，
+    该声明只在两边用同一套剥图参数时成立。
     """
     prepared, _stripped = strip_old_images(dialogue, keep_turns=image_turns,
                                            max_images=image_max)

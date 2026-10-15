@@ -217,9 +217,62 @@ class DefaultConfigValues(unittest.TestCase):
         from agent.config import get_context
         c = get_context()
         self.assertEqual(c["summary_output_max_chars"], 5000)
-        self.assertEqual(c["image_turns"], 3)
-        self.assertEqual(c["image_max"], 10)
+        self.assertEqual(c["image_turns"], 999999)
+        self.assertEqual(c["image_max"], 999999)
         self.assertIs(c["summary_prefix_reuse"], True)
+
+
+class MaxPassesConfigTest(unittest.TestCase):
+    """`[agent] max_passes`：一回合的操作次数上限，可配。"""
+
+    def test_default_is_64(self) -> None:
+        from agent.config import DEFAULT_MAX_PASSES, get_max_passes
+        from agent.core.host import MAX_PASSES_DEFAULT
+        self.assertEqual(MAX_PASSES_DEFAULT, 64)
+        self.assertEqual(DEFAULT_MAX_PASSES, 64, msg="config 转出的默认值要与内核一致")
+        self.assertEqual(get_max_passes(), 64)
+
+    def test_config_value_wins(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from agent.config import get_max_passes
+        with tempfile.TemporaryDirectory() as tmp:
+            ini = Path(tmp) / "config.ini"
+            ini.write_text("[agent]\nmax_passes = 200\n", encoding="utf-8")
+            self.assertEqual(get_max_passes(ini), 200)
+
+    def test_bad_value_falls_back(self) -> None:
+        """写错不该让回合跑不起来：非法值回落默认，0/负数按 1。"""
+        import tempfile
+        from pathlib import Path
+
+        from agent.config import get_max_passes
+        with tempfile.TemporaryDirectory() as tmp:
+            for text, want in (("max_passes = abc\n", 64),
+                               ("max_passes =\n", 64),
+                               ("max_passes = 0\n", 1),
+                               ("max_passes = -5\n", 1),
+                               ("max_passes = 3\n", 3)):
+                ini = Path(tmp) / "config.ini"
+                ini.write_text(f"[agent]\n{text}", encoding="utf-8")
+                self.assertEqual(get_max_passes(ini), want, msg=text.strip())
+
+    def test_app_carries_the_value(self) -> None:
+        import inspect
+
+        from agent.app import App
+        from agent.core.host import MAX_PASSES_DEFAULT
+        sig = inspect.signature(App.__init__)
+        self.assertEqual(sig.parameters["max_passes"].default, MAX_PASSES_DEFAULT)
+
+    def test_engine_carries_the_value(self) -> None:
+        import inspect
+
+        from agent.config import get_max_passes
+        from agent.core.engine import Engine
+        sig = inspect.signature(Engine.__init__)
+        self.assertEqual(sig.parameters["max_passes"].default, get_max_passes())
 
 class CodeDefaultsMatchTemplateTest(unittest.TestCase):
     """代码里的默认值必须与 `config.ini.example` 一致。

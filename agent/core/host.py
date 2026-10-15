@@ -32,9 +32,14 @@ from agent.core.module import ModuleBase
 from agent.core.ports import ModelPort, Ports, ToolPort
 from agent.core.session_log import SessionLog
 
-#: 一个回合最多跑多少趟（护栏）。超了说明有模块永远要求续行——
-#: 那是模块的 bug，不该让宿主无限转下去。
-MAX_PASSES_DEFAULT = 32
+#: 一个回合最多跑多少趟（模型往返）。
+#:
+#: 一趟 = 模型说一次话（可带多个工具调用）+ 这些工具全部执行完。
+#: 撞上限有两种成因，护栏本身分不出来：
+#:   ① 有模块永远返回 `next`（bug）；
+#:   ② 这轮任务确实长 —— GUI 自动化每步都要"看 → 想 → 动"，往返天然多。
+#: 所以这里只做**预算**，不做判罪；要更大的预算就调 `[agent] max_passes`。
+MAX_PASSES_DEFAULT = 64
 
 # 回合边界事实（`TURN_STARTED` / `TURN_ENDED`）**取自 `event_name.py`**，
 # 不在这里重写一遍字面量——那是事实词汇的**唯一出处**；多一个定义点，
@@ -189,8 +194,9 @@ class Host:
             self.last_result = TurnResult(
                 reason="max_passes",
                 passes=passes,
-                detail=f"模块链连续 {self.max_passes} 趟都要求续行"
-                       f"（疑似有模块永远返回 next）",
+                detail=f"本回合已达操作 {self.max_passes} 次上限"
+                       f"（每次 = 模型一次往返 + 其工具调用），"
+                       f"可通过 `[agent] max_passes` 配置调整每回合上限",
             )
             # **三条中止路径都必须显式带全三态**。
             # 这里若只给 `paused`，适配层拿不到 `halted` → 发 `done{ok:true}`

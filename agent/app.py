@@ -22,6 +22,7 @@ from agent.capabilities.builtin import (
     github_tools,
     glob_files,
     grep_files,
+    image_tool,
     locate_tools,
     ocr_tool,
     read_file,
@@ -37,10 +38,12 @@ from agent.capabilities.contributions import ContributionRegistry
 from agent.capabilities.plugins import PluginHost
 from agent.capabilities.registry import ToolRegistry
 from agent.config import (
+    DEFAULT_MAX_PASSES,
     PROJECT_ROOT,
     default_data_root,
     get_backup_retention_days,
     get_context,
+    get_max_passes,
     get_model_pricing,
     get_model_reasoning,
     get_plugins,
@@ -100,6 +103,7 @@ class App:
         context_defaults: Optional[Dict[str, Any]] = None,
         image_turns: int = KEEP_IMAGE_TURNS,
         image_max: int = MAX_EMBED_IMAGES,
+        max_passes: int = DEFAULT_MAX_PASSES,
     ) -> None:
         self.context = context
         self.context_defaults = dict(context_defaults or {})
@@ -108,9 +112,12 @@ class App:
         #: 该字段只保存模型 id；凭据由 provider 持有，不下发到浏览器。
         self._available_models: list = []
         #: 只把**最近这么多轮**用户发言里的图带进请求（负数 = 不限）。
+        #: 缺省 999999 = 不剥：历史图片全保留 → 前缀稳定 → 缓存可复用。
         self.image_turns = int(image_turns)
         #: 这些轮里最多带几张图（负数 = 不限）；最近一轮优先保。
         self.image_max = int(image_max)
+        #: 一回合的模型往返上限（`[agent] max_passes`）。
+        self.max_passes = max(1, int(max_passes))
 
     # ── 服务解析（进程级上下文）──
 
@@ -340,6 +347,7 @@ class App:
             model=str(self.live_state.get_model(conversation_id) or "") if self.live_state else "",
             image_turns=self.image_turns,
             image_max=self.image_max,
+            max_passes=self.max_passes,
             mode_note=str(mode_note or ""),
             event_sink=self.event_bus.publish if self.event_bus is not None else None,
             session_context=session_ctx,
@@ -369,6 +377,7 @@ def _build_engine(
     model: str = "",
     image_turns: int = KEEP_IMAGE_TURNS,
     image_max: int = MAX_EMBED_IMAGES,
+    max_passes: int = DEFAULT_MAX_PASSES,
     mode_note: str = "",
     event_sink: Any = None,
     session_context: Any = None,
@@ -399,6 +408,7 @@ def _build_engine(
         model=model,
         image_turns=image_turns,
         image_max=image_max,
+        max_passes=max_passes,
         mode_note=mode_note,
         fact_sink=fact_sink,
         event_sink=event_sink,
@@ -497,6 +507,8 @@ def build_app(
     for plugin in web_tools.build_plugins():
         registry.register(plugin)
     for plugin in ocr_tool.build_plugins():
+        registry.register(plugin)
+    for plugin in image_tool.build_plugins():
         registry.register(plugin)
     for plugin in archive_tool.build_plugins():
         registry.register(plugin)
@@ -610,6 +622,7 @@ def build_app(
         },
         image_turns=int(ctx_cfg["image_turns"]),
         image_max=int(ctx_cfg["image_max"]),
+        max_passes=get_max_passes(),
     )
     app._available_models = list(_available)
     runner = SessionRunner(

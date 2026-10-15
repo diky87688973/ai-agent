@@ -38,6 +38,28 @@ class ToolResult:
     ok: bool
     data: Any = None
     error: str = ""
+    # 工具随结果附带的图片附件（`[{"mime":…, "data_base64":…}]`）。
+    #
+    # 独立字段，不并入 `data`：`data` 会落到事件流并 `json.dumps`，
+    # base64 计入每次事件序列化的体积。派生对话时由 `SessionLogView`
+    # 把它翻成 `image_url` 块。
+    #
+    # 由 `ToolResult.attach(...)` 构造，见该方法。
+    attachments: list = field(default_factory=list)
+
+    @staticmethod
+    def attach(data: Any, attachments: Any) -> "ToolResult":
+        """带附件的成功结果。
+
+        管道读取返回值上的 `attachments` 属性并搬进结果信封，
+        所以工具无须提供 `call_id`。
+        """
+        result = ToolResult(call_id="", ok=True, data=data)
+        result.attachments = list(attachments or [])
+        return result
+
+    # 允许以元组 `(ToolResult, attachments)` 回传（旧式工具少改一处）
+    # 由管道统一归一化，工具侧只认 `attach`。
     # 工具声明"这一轮必须停下等用户在宿主界面作答"（如 `user_confirm` 首段）。
     # 由工具异常上的 `await_user` 属性带上（`task_tools.UserConfirmRequired` 即此类异常），
     # 回合循环据此暂停——否则模型会把 `ok=False` 读成失败并反复重试。
@@ -130,7 +152,21 @@ class ToolPipeline:
             else:
                 try:
                     data = binding.execute(dict(call.arguments))
-                    result = ToolResult(call_id=call.call_id, ok=True, data=data)
+                    # 工具可回传结果信封（`ToolResult.attach(...)`）携带图片附件。
+                    # 必须拆信封：不拆则整个对象被当作普通返回值，下游 `_safe()`
+                    # 会把它（含附件 base64）`str()` 进事件流，而模型那条路径
+                    # 拿到的仍不是 `image_url` 块。
+                    carried = getattr(data, "attachments", None)
+                    if isinstance(data, ToolResult):
+                        inner = data
+                        data = inner.data
+                        result = ToolResult(call_id=call.call_id, ok=bool(inner.ok), data=data,
+                                            error=str(inner.error or ""))
+                        carried = inner.attachments
+                    else:
+                        result = ToolResult(call_id=call.call_id, ok=True, data=data)
+                    if isinstance(carried, list) and carried:
+                        result.attachments = list(carried)
                 except Exception as exc:  # 工具异常结构化回灌，不终止回合
                     # 两段式首段（待用户确认）：这次调用**还没返回**，所以标 `deferred`
                     # ——回合循环据此**不把它写进事实流**。选择由宿主在用户作答后写进来。

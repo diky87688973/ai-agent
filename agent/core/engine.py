@@ -21,7 +21,7 @@ import sys
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from agent.core.events import Event
-from agent.core.host import Host, TurnResult
+from agent.core.host import MAX_PASSES_DEFAULT, Host, TurnResult
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.module import ModuleBase
 from agent.core.modules import InputModule, build_default_chain
@@ -50,7 +50,7 @@ class Engine:
         mode_note: str = "",
         modules: Optional[List[ModuleBase]] = None,
         input_module: Optional[InputModule] = None,
-        max_passes: int = 32,
+        max_passes: int = MAX_PASSES_DEFAULT,
         fact_sink: Optional[Callable[[List[Event]], None]] = None,
         event_sink: Optional[Callable[[Event], None]] = None,
         session_context: Any = None,

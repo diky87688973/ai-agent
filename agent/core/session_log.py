@@ -17,14 +17,12 @@ def _user_content(text: str, attachments: Any) -> Any:
     """用户消息的 content：无附件 → 纯字符串；有附件 → 多模态 content 数组。
 
     多模态形态（OpenAI 兼容）：`[{"type":"text",...}, {"type":"image_url",...}]`；
-    附件以 `data:<mime>;base64,<data>` 内联。
-    文本为空时只发图片——纯截图提问是常见用法。
+    附件以 `data:<mime>;base64,<data>` 内联。文本为空时只发图片。
     """
     if not isinstance(attachments, list) or not attachments:
         return text
-    # 嵌图前**本地缩放 + 预算**：官方推理前本就会自动缩放，先缩只赚不赔；而内联 base64
-    # 计入请求体 48 MiB 上限，不设预算时多张截图会把请求体顶爆 ——
-    # 症状是**整轮请求被拒**，不是"这张图看不到"。
+    # 嵌图前做本地缩放与预算：内联 base64 计入请求体 48 MiB 上限，
+    # 超出时整轮请求被拒。
     from agent.core.image_embed import build_embed_parts, placeholder_text
 
     parts, skipped = build_embed_parts(attachments)
@@ -33,11 +31,32 @@ def _user_content(text: str, attachments: Any) -> Any:
         return text
     if text:
         parts.insert(0, {"type": "text", "text": text})
-    # 超预算的附件**不静默消失**：给一句占位，模型才知道"有图但没带上"。
+    # 超预算的附件转占位文字，使模型知道有图未随请求发送。
     note = placeholder_text(skipped)
     if note:
         parts.append({"type": "text", "text": note})
     return parts
+
+
+def _tool_content(text: Any, attachments: Any) -> Any:
+    """工具消息的 content：无图 → 纯字符串；有图 → 多模态 content 数组。
+
+    与 `_user_content` 同构，差别在文本处理：工具结果的正文已渲染好（可能是 JSON 串），
+    原样保留成第一个 `text` 块，不做类型转换。
+
+    空文本 + 有图时补一句默认说明：`content` 为空数组的 tool 消息在部分网关会被拒。
+    """
+    if not isinstance(attachments, list) or not attachments:
+        return text
+    from agent.core.image_embed import build_tool_parts
+
+    parts, note = build_tool_parts(attachments)
+    if not parts:
+        return text
+    body = text if isinstance(text, str) and text else "(工具返回了图片)"
+    if note:
+        body = f"{body}\n{note}"
+    return [{"type": "text", "text": body}, *parts]
 
 
 class SessionLogView:
@@ -164,6 +183,9 @@ class SessionLog:
                     continue
                 call_id = str(ev.data.get("call_id", ""))
                 done = _tool_results.get(call_id)      # 结果事实（done / failed）
+                # 工具随结果附带的图片（`tool_done.attachments`）：附件挂在结果事实上
+                # 而非事件流主体，base64 不进事件流，这里取出后翻成 `image_url` 块。
+                images = done.get("attachments") if isinstance(done, dict) else None
                 if done is None:
                     # 只有终态、没有结果事实：补一个**说明性**内容，而不是 `null`
                     # ——"没有内容"和"没有结果事实"是两件事，模型该能分辨。
@@ -176,7 +198,8 @@ class SessionLog:
                     detail = done.get("error")
                     content = f"ERROR: {detail if detail is not None else ''}"
                 messages.append(
-                    {"role": "tool", "tool_call_id": call_id, "content": content}
+                    {"role": "tool", "tool_call_id": call_id,
+                     "content": _tool_content(content, images)}
                 )
             elif ev.type in ("tool_done", "tool_failed"):
                 # 结果事实：**攒起来供终态回查**（本身不直接进模型上下文——
@@ -187,6 +210,8 @@ class SessionLog:
                         "ok": ev.type == "tool_done",
                         "data": ev.data.get("data"),
                         "error": ev.data.get("error"),
+                        # 工具附带的图片：只在派生对话时取用，不写入事件流。
+                        "attachments": ev.data.get("attachments"),
                     }
             elif ev.type == "tool_result":
                 # **落盘记录里"用户作答"的结果事实名**（另一种结果事实格式）。
