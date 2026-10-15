@@ -59,6 +59,9 @@ UI_SCRIPTS = (
     "js/image-lightbox.js",
 )
 
+#: 与主脚本拼进同一个 script 的界面文件。函数声明落在同一作用域，主脚本可以直接调用。
+SHARED_SCOPE_JS = UI_SCRIPTS + ("js/chat-tool-views.js",)
+
 #: 这些是经典 UI 的骨架函数，被误删会**静默**失效（页面不报错，功能没了）
 REQUIRED_FUNCTIONS = (
     "renderMarkdown", "renderMarkdownBlocks",
@@ -108,12 +111,8 @@ _BUILTINS = {
 }
 
 
-def _undefined_called(text: str) -> list:
-    """被调用、但全文件**从未定义**的辅助函数名（第 ⑥ 项检查）。
-
-    故障特征：`node --check` 过、其它检查项也过，只有真跑页面才炸
-    —— `node --check` 过、其它检查项也过，只有真跑页面才炸。
-    """
+def _defined_names(text: str) -> set:
+    """脚本里声明过的名字：函数声明、变量赋值、形参。"""
     defined = set(re.findall(r"function\s+([A-Za-z_$][\w$]*)", text))
     for kw in ("var", "let", "const"):
         defined |= set(re.findall(rf"\b{kw}\s+([A-Za-z_$][\w$]*)\s*=", text))
@@ -129,6 +128,17 @@ def _undefined_called(text: str) -> list:
             if re.fullmatch(r"[A-Za-z_$][\w$]*", nm):
                 defined.add(nm)
     defined |= set(re.findall(r"(?:^|[,(\s])([A-Za-z_$][\w$]*)\s*=>", text))
+    return defined
+
+
+def _undefined_called(text: str, also_defined: set | None = None) -> list:
+    """被调用、但主脚本与同作用域脚本都**从未定义**的辅助函数名（第 ⑥ 项检查）。
+
+    故障特征：`node --check` 过、其它检查项也过，只有真跑页面才炸。
+    """
+    defined = _defined_names(text)
+    if also_defined:
+        defined |= also_defined
 
     called = set(re.findall(r"(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(", text))
     return sorted(n for n in (called - defined - _BUILTINS)
@@ -145,7 +155,12 @@ def main() -> int:
 
     # ⑥ 被调用但从未定义的"辅助函数名"（`getAtUpBtn is not defined` 这类错
     #    会让整个交互层挂掉，而 `node --check` 与其它检查项都查不出）
-    undef = _undefined_called(text)
+    shared: set[str] = set()
+    for rel in SHARED_SCOPE_JS:
+        path = UI_ASSETS / "classic" / rel
+        if path.is_file() and path != UI_JS:
+            shared |= _defined_names(path.read_text(encoding="utf-8"))
+    undef = _undefined_called(text, shared)
     if undef:
         problems.append(
             "被调用但**从未定义**的函数名（只有真跑页面才会炸）：" + "、".join(undef))

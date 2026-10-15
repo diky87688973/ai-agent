@@ -63,7 +63,7 @@ html[data-ui-theme="light"] .chat-tool-layer{border-top-color:#e6ebf3}
 html[data-ui-theme="light"] .chat-tool-pane-cap{color:#6a7688}
 html[data-ui-theme="light"] .chat-tool-layer--cmd .chat-tool-pane-cap{background:#f7f9fc}
 html[data-ui-theme="light"] .chat-tool-pane pre,
-html[data-ui-theme="light"] .chat-tool-pane code{color:#24292f}
+html[data-ui-theme="light"] .chat-tool-pane code{color:#1a2233}
 html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md pre{background:#fafbfc;border-color:#e6ebf3;color:#1a2233}
 html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md code{background:rgba(9,105,218,.08);color:#0a3069}
 html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md pre code{background:transparent;color:inherit}
@@ -78,3 +78,11 @@ html[data-ui-theme="light"] .chat-tool-body .cmd-input-bar{border-top-color:#e6e
 .chat-tool-shot-miss{font-size:12px;line-height:1.45;color:#8b949e}
 html[data-ui-theme="light"] .chat-tool-shot-path,
 html[data-ui-theme="light"] .chat-tool-shot-miss{color:#5c6b80}
+/* 思考展开：正文左缘与标题「思考」重合。标题起点 = 行内边距 8 + 箭头 12 + 间距 8。 */
+.chat-tool-body:has(.chat-tool-pane--think){border:none;border-radius:0;background:transparent}
+.chat-tool-pane--think{padding-left:0}
+.chat-tool-pane--think pre,
+.chat-tool-pane--think code{color:var(--c-text-3)}
+html[data-ui-theme="light"] .chat-tool-body:has(.chat-tool-pane--think){border:none;background:transparent}
+html[data-ui-theme="light"] .chat-tool-pane--think pre,
+html[data-ui-theme="light"] .chat-tool-pane--think code{color:#5a6474}

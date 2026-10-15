@@ -385,6 +385,8 @@ bubble.appendChild(AIA.buildMsgAttachStrip(cid,atts,null));
 if(window.AIA&&AIA.appendHadImagesLostTip)AIA.appendHadImagesLostTip(bubble);
 else appendHadImagesLostTip(bubble);
 }
+}else if(it.role==="think"){
+renderHistoryThink(it);
 }else if(it.role==="assistant"){
 var ac=String(it.content||"").trim();
 if(ac)add("a",ac);
@@ -400,6 +402,17 @@ renderHistoryToolItem(it);
 /* 对话区的 diff 由工具展示自己画进展开面板，这里不另插卡片。 */
 function renderDiffBubbleFromFacts(){
 return false;
+}
+function renderHistoryThink(it){
+if(!showToolItems())return;
+var text=String(it&&it.content||"");
+if(!text.trim())return;
+var label="";
+if(it.elapsed_ms!=null&&it.elapsed_ms!==""&&isFinite(Number(it.elapsed_ms)))label=chatThinkElapsedLabel(Number(it.elapsed_ms));
+var row=makeChatToolRow("思考",label);
+addChatToolPane(row._body,"",text,"think");
+chatToolSyncStatusTitle(row);
+appendChatToolRow(row);
 }
 function renderHistoryToolItem(it){
 var ev={tool_call_id:String(it.tool_call_id||""),script:String(it.script||""),args:it.args||{}};
@@ -2028,18 +2041,32 @@ const el=document.getElementById("usage-bottom");if(!el)return;
 if(ctxLayoutTooltipEl){ctxLayoutTooltipEl.style.display="none";}
 if(ctxLayoutTipHideTimer){clearTimeout(ctxLayoutTipHideTimer);ctxLayoutTipHideTimer=null;}
 const ring=buildUsageRing();
-const row1=document.createElement("div");row1.className="ub-row ub-row-main";
+function ubCells(label, value){var k=document.createElement("span");k.className="ub-k";k.textContent=label;var v=document.createElement("span");v.className="ub-v";v.textContent=value;return [k,v];}
+function ubPush(sheet, cells){for(var i=0;i<cells.length;i++)sheet.appendChild(cells[i]);}
+const totalCache=totalCacheHitTokens+totalCacheMissTokens;const hitPct=totalCache>0?Math.round(totalCacheHitTokens/totalCache*100):0;
+const sheet=document.createElement("div");sheet.className="ub-sheet";
+const head1=document.createElement("div");head1.className="ub-head";
 const title=document.createElement("span");title.className="ub-title";title.textContent="模型用量";
 const ringWrap=document.createElement("span");ringWrap.className="ub-ring";ringWrap.appendChild(ring);
-const sep=document.createElement("span");sep.className="ub-sep";sep.textContent="|";
-const inItem=document.createElement("span");inItem.className="ub-item";inItem.innerHTML='输入: <b>'+formatCompactTokens(totalPromptTokens)+'</b>';
-const outItem=document.createElement("span");outItem.className="ub-item";outItem.innerHTML='输出: <b>'+formatCompactTokens(totalCompletionTokens)+'</b>';
-const totalCache=totalCacheHitTokens+totalCacheMissTokens;const hitPct=totalCache>0?Math.round(totalCacheHitTokens/totalCache*100):0;const hitItem=document.createElement("span");hitItem.className="ub-item";hitItem.innerHTML='缓存命中: <b>'+formatCompactTokens(totalCacheHitTokens)+' ('+hitPct+'%)</b>';
-const missItem=document.createElement("span");missItem.className="ub-item";missItem.innerHTML='未命中: <b>'+formatCompactTokens(totalCacheMissTokens)+'</b>';row1.appendChild(title);row1.appendChild(ringWrap);row1.appendChild(sep);row1.appendChild(inItem);row1.appendChild(outItem);row1.appendChild(hitItem);row1.appendChild(missItem);
-var row2=document.createElement("div");row2.className="ub-row ub-row-cost";
-var t2=document.createElement("span");t2.className="ub-title";t2.textContent="费用预估";row2.appendChild(t2);
+head1.appendChild(title);head1.appendChild(ringWrap);
+sheet.appendChild(head1);
+ubPush(sheet,[].concat(
+ubCells("输入", formatCompactTokens(totalPromptTokens)),
+ubCells("输出", formatCompactTokens(totalCompletionTokens)),
+ubCells("缓存命中", formatCompactTokens(totalCacheHitTokens)+" ("+hitPct+"%)"),
+ubCells("未命中", formatCompactTokens(totalCacheMissTokens))
+));
+var head2=document.createElement("div");head2.className="ub-head";
+var t2=document.createElement("span");t2.className="ub-title";t2.textContent="费用预估";head2.appendChild(t2);sheet.appendChild(head2);
 if(pricingRates&&pricingRates.ok===true){var hC=totalCacheHitTokens/1e6*Number(pricingRates.cache_hit_cny_per_m||0);var mC=totalCacheMissTokens/1e6*Number(pricingRates.cache_miss_cny_per_m||0);var oC=totalCompletionTokens/1e6*Number(pricingRates.output_cny_per_m||0);var tC=hC+mC+oC;var pm=Number(pricingRates.cache_miss_cny_per_m||0);
-var rI=document.createElement("span");rI.className="ub-item";rI.innerHTML='1m=<b>￥'+pm.toFixed(2)+'</b>';var sMid=document.createElement("span");sMid.className="ub-sep";sMid.textContent=" | ";var tI=document.createElement("span");tI.className="ub-item";tI.innerHTML='总费用: <b>￥'+tC.toFixed(2)+'</b>';var iI=document.createElement("span");iI.className="ub-item";iI.innerHTML='输入: <b>￥'+(hC+mC).toFixed(2)+'</b>';var oI=document.createElement("span");oI.className="ub-item";oI.innerHTML='输出: <b>￥'+oC.toFixed(2)+'</b>';var hI=document.createElement("span");hI.className="ub-item";hI.innerHTML='缓存命中: <b>￥'+hC.toFixed(2)+'</b>';var mI=document.createElement("span");mI.className="ub-item";mI.innerHTML='未命中: <b>￥'+mC.toFixed(2)+'</b>';row2.appendChild(rI);row2.appendChild(sMid);row2.appendChild(tI);row2.appendChild(iI);row2.appendChild(oI);row2.appendChild(hI);row2.appendChild(mI);}else if(pricingLoading){var lI=document.createElement("span");lI.className="ub-item";lI.textContent="计价查询中…";row2.appendChild(lI);}else if(!conv){var dI=document.createElement("span");dI.className="ub-item";dI.textContent="—";row2.appendChild(dI);}else{var eI=document.createElement("span");eI.className="ub-item";eI.textContent="未查到模型计价信息";row2.appendChild(eI);}
+ubPush(sheet,[].concat(
+ubCells("1m", "￥"+pm.toFixed(2)),
+ubCells("总费用", "￥"+tC.toFixed(2)),
+ubCells("输入", "￥"+(hC+mC).toFixed(2)),
+ubCells("输出", "￥"+oC.toFixed(2)),
+ubCells("缓存命中", "￥"+hC.toFixed(2)),
+ubCells("未命中", "￥"+mC.toFixed(2))
+));}else if(pricingLoading){var lI=document.createElement("span");lI.className="ub-note";lI.textContent="计价查询中…";sheet.appendChild(lI);}else if(!conv){var dI=document.createElement("span");dI.className="ub-note";dI.textContent="—";sheet.appendChild(dI);}else{var eI=document.createElement("span");eI.className="ub-note";eI.textContent="未查到模型计价信息";sheet.appendChild(eI);}
 var row3=document.createElement("div");row3.className="ub-row ub-row-ctx";
 var t3=document.createElement("span");t3.className="ub-title";t3.textContent="上下文视图";
 var barHost=document.createElement("div");barHost.className="ctx-bar-host";
@@ -2065,7 +2092,7 @@ var fill=document.createElement("span");fill.className="ctx-seg ctx-seg-"+String
 colEl.appendChild(fill);bar.appendChild(colEl);}
 barHost.appendChild(bar);bindCtxLayoutTooltip(barHost,segs,colors);}
 row3.appendChild(t3);row3.appendChild(barHost);
-el.innerHTML='';el.appendChild(row1);el.appendChild(row2);el.appendChild(row3);
+el.innerHTML='';el.appendChild(sheet);el.appendChild(row3);
 }
 
 function applyUsageAccumulatorPayload(j){if(!j||typeof j!=="object")return;sessionTokenUsed=Number(j.session_token_used??0)||0;totalPromptTokens=Number(j.total_prompt_tokens??0)||0;totalCompletionTokens=Number(j.total_completion_tokens??0)||0;totalCacheHitTokens=Number(j.total_cache_hit_tokens??0)||0;totalCacheMissTokens=Number(j.total_cache_miss_tokens??0)||0;if(conv)void ensureModelPricing();_updateUsageBottom();}

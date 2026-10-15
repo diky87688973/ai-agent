@@ -350,7 +350,14 @@ html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
 .usage-bottom .ub-cost-cny{color:#c9d1d9;font-weight:400}
 .usage-bottom .ub-cost-or{color:#9aa0a6}
 .usage-bottom .ub-cost-usd{color:#9aa0a6}
-.usage-bottom .ub-row-ctx{margin-top:4px;align-items:center;gap:8px;flex-wrap:nowrap;width:100%}
+.usage-bottom .ub-sheet{display:grid;width:100%;grid-template-columns:max-content max-content max-content max-content;justify-content:space-between;column-gap:6px;row-gap:2px;align-items:baseline;font-size:11px;line-height:1.45}
+.usage-bottom .ub-sheet>.ub-head,.usage-bottom .ub-sheet>.ub-note{grid-column:1 / -1}
+.usage-bottom .ub-sheet>.ub-head:not(:first-child){margin-top:6px}
+.usage-bottom .ub-head{display:flex;align-items:center;gap:6px;min-width:0}
+.usage-bottom .ub-k{color:#9aa0a6;white-space:nowrap;text-align:left}
+.usage-bottom .ub-v{color:#d0d7de;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+.usage-bottom .ub-note{color:#9aa0a6;font-size:11px;line-height:1.45}
+.usage-bottom .ub-row-ctx{margin-top:8px;align-items:center;gap:8px;flex-wrap:nowrap;width:100%}
 .usage-bottom .ctx-bar-host{flex:1;min-width:0;display:flex;align-items:center;position:relative}
 .usage-bottom .ctx-bar{display:flex;flex-direction:row;flex-wrap:nowrap;gap:2px;width:100%;min-height:10px;align-items:stretch;box-sizing:border-box}
 .usage-bottom .ctx-seg-col{display:flex;flex-direction:column;justify-content:flex-end;flex:1 1 0;min-width:2px;min-height:10px;box-sizing:border-box;cursor:default}
@@ -521,8 +528,8 @@ html[data-ui-theme="light"] body {
   color: #1a2233;
 }
 html[data-ui-theme="light"] header {
-  background: #fafbfc;
-  border-bottom-color: #d8dee8;
+  background: #f5f6f8;
+  border-bottom-color: #e4e8ef;
 }
 html[data-ui-theme="light"] header .muted {
   color: #5a6474;
@@ -538,7 +545,7 @@ html[data-ui-theme="light"] header .hdr-theme-btn:hover {
   background: #fff;
 }
 html[data-ui-theme="light"] .chat {
-  background: #eef1f6;
+  background: #f5f6f8;
 }
 html[data-ui-theme="dark"] .chat {
   background: #151517;
@@ -560,7 +567,7 @@ html[data-ui-theme="light"] .classic-split-resizer:hover {
   border-right-color: #9eb0cc;
 }
 html[data-ui-theme="light"] .side {
-  background: #f4f6fb;
+  background: #eef1f6;
 }
 html[data-ui-theme="light"] .p-title {
   color: #5a6474;
@@ -568,12 +575,12 @@ html[data-ui-theme="light"] .p-title {
   background: #eef1f6;
 }
 html[data-ui-theme="light"] .msgs {
-  background: #f6f8fc;
+  background: #f5f6f8;
 }
 html[data-ui-theme="light"] .b.u {
-  background: #e8ecf7;
-  border-color: #c5cede;
-  color: #2c3545;
+  background: #e8eef6;
+  border-color: #d5dce8;
+  color: #1a2233;
 }
 /* 与夜间 / 沉浸一致：助手消息无气泡底与描边，与 .msgs 背板融合 */
 html[data-ui-theme="light"] .b.a {
@@ -622,15 +629,16 @@ html[data-ui-theme="light"] .b.a td {
   border-color: #d0dae8;
 }
 html[data-ui-theme="light"] .row {
-  border-top-color: #e4e9f2;
-  background: #fcfcfd;
+  border-top-color: #e4e8ef;
+  background: #f5f6f8;
 }
 html[data-ui-theme="light"] .composer {
-  background: #ffffff;
-  border-color: #dce3ef;
+  background: transparent;
+  border-color: transparent;
+  color: #1a2233;
 }
 html[data-ui-theme="light"] .composer-foot {
-  background: #ffffff;
+  background: transparent;
 }
 html[data-ui-theme="light"] textarea {
   color: #1a2233;
@@ -641,7 +649,7 @@ html[data-ui-theme="light"] textarea::placeholder {
 }
 html[data-ui-theme="light"] .mode-plus {
   color: #5a6474;
-  border-color: #9eb0cc;
+  border-color: #c9d2de;
 }
 html[data-ui-theme="light"] .mode-plus:hover {
   background: rgba(9, 105, 218, 0.06);
@@ -683,10 +691,15 @@ html[data-ui-theme="light"] .side-tab.active {
   color: #1a2233;
 }
 html[data-ui-theme="light"] .usage-bottom {
-  background: #f8f9fa;
-  border-top-color: #d8e0ea;
+  background: #eef1f6;
+  border-top-color: #e4e8ef;
   color: #3a4456;
 }
+html[data-ui-theme="light"] .usage-ring{
+  background:conic-gradient(var(--ring-color) calc(var(--p) * 1%), #d5dce8 0);
+}
+html[data-ui-theme="light"] .usage-ring::after{background:#eef1f6}
+html[data-ui-theme="light"] .usage-ring .usage-num{color:#1a2233}
 html[data-ui-theme="light"] .card,
 html[data-ui-theme="light"] .step.card {
   background: #ffffff;
@@ -703,7 +716,7 @@ html[data-ui-theme="light"] .at-pop-head {
   border-bottom-color: #e2e8f4;
 }
 html[data-ui-theme="light"] .session-rail {
-  background: #f4f6fb;
+  background: #eef1f6;
 }
 html[data-ui-theme="light"] .session-rail-head {
   border-bottom-color: #d8e0ee;
@@ -1361,5 +1374,7 @@ pre{color:var(--c-text-2)}
 .usage-bottom .ctx-bar-empty{color:var(--c-text-4);font-size:var(--fs-sm)}
 .usage-bottom .ctx-seg-remaining{box-shadow:inset 0 0 0 1px var(--c-line-2)}
 .usage-bottom .ub-title{color:var(--c-text-4)}
+.usage-bottom .ub-k,.usage-bottom .ub-note{color:var(--c-text-4)}
+.usage-bottom .ub-v{color:var(--c-text-1)}
 .usage-bottom .ub-item b{color:var(--c-text-1)}
 .usage-bottom .ub-sep{color:var(--c-text-5)}

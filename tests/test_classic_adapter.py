@@ -1507,6 +1507,35 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
         ])
         self.assertEqual(items[0]["status"], "canceled")
 
+    def test_history_replays_each_reasoning_before_its_tools(self) -> None:
+        """思考定稿在 `model_message.reasoning_content`，刷新后按轮插回工具卡前面。"""
+        from agent.core.events import Event
+        from agent.shell.classic_adapter.inbound import _history_items
+
+        items, _resolved = _history_items([
+            Event("llm_ended", {"status": "done", "elapsed_ms": 3200}),
+            Event("model_message", {
+                "content": "",
+                "reasoning_content": "先看窗口",
+                "tool_calls": [{"id": "c1"}],
+            }),
+            Event("tool_started", {"call_id": "c1", "name": "run_command", "arguments": {}}),
+            Event("tool_done", {"call_id": "c1", "data": {"ok": True}}),
+            Event("llm_ended", {"status": "done", "elapsed_ms": "4100"}),
+            Event("model_message", {
+                "content": "播好了",
+                "reasoning_content": "再等一下",
+            }),
+            Event("model_message", {"content": "只有正文", "reasoning_content": "  \n"}),
+        ])
+        self.assertEqual([i["role"] for i in items],
+                         ["think", "tool", "think", "assistant", "assistant"])
+        self.assertEqual(items[0]["content"], "先看窗口")
+        self.assertEqual(items[0]["elapsed_ms"], 3200)
+        self.assertEqual(items[2]["content"], "再等一下")
+        self.assertEqual(items[2]["elapsed_ms"], 4100)
+        self.assertEqual(items[4]["content"], "只有正文")
+
     def test_attachment_id_is_recomputable(self) -> None:
         """id 必须**从事实派生**：刷新前后一致，否则浏览器不会重试那张失败的图。"""
         from agent.shell.classic_adapter.inbound import _history_items

@@ -114,8 +114,10 @@ def _split_user_content(content: Any) -> Tuple[str, List[Dict[str, Any]]]:
 def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """内核事件 → `(经典界面的 items, 本次解析出的附件)`。
 
-    只认两条气泡：
+    回显条目：
       - `input_claimed.content` → `{role:"user", content[, attachments][, had_images]}`；
+      - `model_message.reasoning_content` **非空** → `{role:"think", content[, elapsed_ms]}`，
+        排在同条助手正文之前。用时取这条消息之前最近一次 `llm_ended.elapsed_ms`；
       - `model_message.content` **非空** → `{role:"assistant", content}`。
         （工具调用轮的 `model_message` 正文为空，跳过——否则会渲染空气泡。）
 
@@ -129,6 +131,7 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
     """
     items: List[Dict[str, Any]] = []
     resolved: List[Dict[str, Any]] = []
+    think_ms: Optional[int] = None
     for ev in events:
         kind = str(getattr(ev, "type", ""))
         data = dict(getattr(ev, "data", None) or {})
@@ -163,7 +166,20 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
                 item["attachments"] = pub
                 item["had_images"] = True
             items.append(item)
+        elif kind == "llm_ended":
+            raw_ms = data.get("elapsed_ms")
+            try:
+                think_ms = int(raw_ms) if raw_ms is not None else None
+            except (TypeError, ValueError):
+                think_ms = None
         elif kind == "model_message":
+            reasoning = str(data.get("reasoning_content") or "")
+            if reasoning.strip():
+                think_item: Dict[str, Any] = {"role": "think", "content": reasoning}
+                if think_ms is not None and think_ms >= 0:
+                    think_item["elapsed_ms"] = think_ms
+                items.append(think_item)
+            think_ms = None
             content = str(data.get("content") or "")
             if content.strip():
                 items.append({"role": "assistant", "content": content})
