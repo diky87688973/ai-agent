@@ -1,6 +1,17 @@
 ; 技能插件配置。
+; [base] 每个插件都有：身份与开关。
+; [ext] 只放这个插件自己的键。
 
-[skills]
+[base]
+id = skills
+name = 技能
+desc = 技能清单常驻上下文，正文按需读取。
+; 1 装载，0 留在清单里但不装载。没写时按 1。
+enable = 1
+icon = 🧩
+version = 1.0
+
+[ext]
 ; 技能目录。留空或目录不存在则不提供任何技能。
 ; 相对路径按工程根解析。目录下每个 .md 是一个技能（可用 frontmatter 给
 ; name / description）；`auto_load/` 子目录里的技能正文始终随上下文携带。

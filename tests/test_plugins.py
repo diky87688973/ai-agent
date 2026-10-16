@@ -322,16 +322,23 @@ class ConfigParseTest(unittest.TestCase):
             (root / "good").mkdir(parents=True)
             (root / "good" / "plugin.py").write_text(
                 "def register(ctx):\n    return []\n", encoding="utf-8")
+            (root / "off").mkdir(parents=True)
+            (root / "off" / "plugin.py").write_text(
+                "def register(ctx):\n    return []\n", encoding="utf-8")
+            (root / "off" / "plugin-config.ini").write_text(
+                "[base]\nenable = 0\ndesc = 停着\n", encoding="utf-8")
             host = PluginHost(root, ToolRegistry(), event_bus=None,
                               context_sources=ContextSources(),
                               contributions=ContributionRegistry(),
                               plugin_data_root=Path(tmp) / "data")
             reports = {r.name: r for r in host.load_manifest([
                 {"name": "good", "version": "", "path": ""},
+                {"name": "off"},
                 {"name": "missing", "version": "", "path": ""},
                 {"name": "../evil", "version": "", "path": ""},
             ])}
             self.assertEqual(host.loaded_names(), ["good"])
+            self.assertNotIn("off", reports)
             self.assertEqual(reports["missing"].status, "error")
             self.assertEqual(reports["../evil"].status, "error")
             self.assertIn("非法", reports["../evil"].message)

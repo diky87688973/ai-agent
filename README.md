@@ -40,7 +40,9 @@ python -m agent.shell.web --host 127.0.0.1 --port 8765
 
 配置文件为仓库根目录的 `config.ini`，从 `config.ini.example` 复制后填写。**必填项只有 `api_key`**。
 
-装载哪些插件由仓库根目录的 `plugins.ini` 决定（`.ini` 里列出即装载），见 [插件](docs/subsystems/plugins.md)。
+装载哪些插件由仓库根目录的 `plugins.ini` 决定（节在就进入候选）。开关、名字、描述、图标、版本写在各插件 `plugin-config.ini` 的 `[base]`，自己的键在 `[ext]`，见 [插件](docs/subsystems/plugins.md)。
+
+页面右上角「设置」改的是同一批文件。密钥框留空不覆盖，接口也不回明文。
 
 ```ini
 [model_reasoning]
@@ -98,7 +100,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1134 个用例）：
+单元测试（1143 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

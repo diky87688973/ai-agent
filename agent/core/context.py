@@ -35,7 +35,6 @@ SERVICE_MESH = "mesh"                            # 协作网格 / 收件队列�
 SERVICE_SESSION_FACTORY = "session_factory"      # 上下文管线工厂（cid → ContextPipeline）
 SERVICE_COMPACTOR_FACTORY = "compactor_factory"  # 压缩器工厂（cid → ContextCompactor）
 SERVICE_RUNNER = "runner"                        # 后台会话运行器
-SERVICE_MODEL_PRICING = "model_pricing"          # 模型计价表（用量换算）
 SERVICE_CLASSIC_ADAPTER = "classic_adapter"      # 经典界面适配层（双向翻译）
 
 

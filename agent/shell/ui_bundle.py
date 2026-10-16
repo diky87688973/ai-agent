@@ -24,6 +24,7 @@ _HTML_FILE = CLASSIC_DIR / "agent-ui.html"
 _RESET_CSS = CLASSIC_DIR / "css" / "reset.css"
 _UI_CSS = CLASSIC_DIR / "css" / "agent-ui.css"
 _TOOL_CSS = CLASSIC_DIR / "css" / "chat-tool-views.css"
+_SETTINGS_CSS = CLASSIC_DIR / "css" / "settings-ui.css"
 _HLJS_DARK_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github-dark.min.css"
 _HLJS_LIGHT_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github.min.css"
 _THEME_JS = CLASSIC_DIR / "js" / "theme-ui.js"
@@ -33,6 +34,7 @@ _CODE_HIGHLIGHT_JS = CLASSIC_DIR / "js" / "code-highlight.js"
 _LIGHTBOX_JS = CLASSIC_DIR / "js" / "image-lightbox.js"
 _UI_JS = CLASSIC_DIR / "js" / "agent-ui.js"
 _TOOL_JS = CLASSIC_DIR / "js" / "chat-tool-views.js"
+_SETTINGS_JS = CLASSIC_DIR / "js" / "settings-ui.js"
 
 APP_VERSION = "v0.1"
 
@@ -59,6 +61,7 @@ def build_inline_css() -> str:
         _read(_RESET_CSS).rstrip(),
         _read(_UI_CSS),
         _read(_TOOL_CSS),
+        _read(_SETTINGS_CSS),
         _read(_HLJS_DARK_CSS),
         scope_hljs_css(_read(_HLJS_LIGHT_CSS), 'html[data-ui-theme="light"]'),
     ]
@@ -66,7 +69,7 @@ def build_inline_css() -> str:
 
 
 def build_inline_js() -> str:
-    """JS 段：主题 → markdown 解析器 → 高亮库 → 高亮封装 → 灯箱 → 主脚本，用 `;` 连接。
+    """JS 段：主题 → markdown 解析器 → 高亮库 → 高亮封装 → 灯箱 → 主脚本 → 设置页，用 `;` 连接。
 
     `marked` 排在主脚本前：主脚本在顶层就引用 `window.marked`。
     """
@@ -78,6 +81,7 @@ def build_inline_js() -> str:
         _read(_LIGHTBOX_JS),
         _read(_UI_JS),
         _read(_TOOL_JS),
+        _read(_SETTINGS_JS),
     ]
     return "\n;".join(p for p in parts if p)
 
@@ -104,5 +108,5 @@ def classic_assets_present() -> bool:
     return all(p.is_file() for p in (
         _HTML_FILE, _RESET_CSS, _UI_CSS, _TOOL_CSS, _HLJS_DARK_CSS, _HLJS_LIGHT_CSS,
         _THEME_JS, _MARKED_JS, _HLJS_JS, _CODE_HIGHLIGHT_JS, _LIGHTBOX_JS, _UI_JS,
-        _TOOL_JS,
+        _TOOL_JS, _SETTINGS_CSS, _SETTINGS_JS,
     ))

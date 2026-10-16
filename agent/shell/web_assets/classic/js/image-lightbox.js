@@ -147,12 +147,17 @@
     img.classList.add("msg-attach-thumb");
     img.title = img.title || "点击预览（默认铺满屏幕）";
     img.style.cursor = "zoom-in";
-    img.addEventListener("click", function (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      openImageLightbox(img.currentSrc || img.src);
-    });
   }
+
+  /* 缩略图是后画进对话区的。点在图上冒泡到 document，这里收一次再开预览。 */
+  document.addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (!t || !t.closest) return;
+    var img = t.closest(".msg-attach-thumb");
+    if (!img) return;
+    ev.preventDefault();
+    openImageLightbox(img.currentSrc || img.src);
+  });
 
   function buildMsgAttachStrip(cid, attachments, localItems) {
     var wrap = document.createElement("div");

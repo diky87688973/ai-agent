@@ -25,7 +25,7 @@ models       = deepseek-flash, deepseek-v4-pro
 | 键 | 内置缺省 | 含义 |
 |---|---|---|
 | `api_base_url` | `https://api.deepseek.com` | 网关地址。地址推导见 [llm.md](../subsystems/llm.md) |
-| `api_key` | 空 | 鉴权密钥。**留空时服务启动失败**（壳层装配阶段报错退出，退出码 2） |
+| `api_key` | 空 | 鉴权密钥。**留空时服务启动失败**（壳层装配阶段报错退出，退出码 2）。设置页只回是否已填写，不回明文；密码框留空不改这一项，填了新值才替换 |
 | `model` | `deepseek-v4-flash-vision-exp` | 默认模型名；配置里给了值就以它为准 |
 | `models` | 空 | 会话内可选的模型名，逗号分隔。留空则只能用 `model` |
 
@@ -95,7 +95,6 @@ full_user_rounds         = 1
 summary_output_max_chars = 5000
 image_turns              = 3
 image_max                = 10
-summary_prefix_reuse     = 1
 reasoning_replay_tokens = 8000
 model_context_window     = 1000000
 ```
@@ -107,8 +106,7 @@ model_context_window     = 1000000
 | `summary_output_max_chars` | `5000` | 摘要的篇幅上限，单位为字。它作为约束写进摘要提示词，实际长度由模型遵守程度决定 | `2000`–`8000` |
 | `image_turns` | `3` | 只把**最近这么多轮用户发言**里的图片带进模型请求，更早的转文本占位。`0` = 一张都不带，负数 = 不限 | `1`–`10` |
 | `image_max` | `10` | 这几轮里最多带几张图；**最近一轮优先保**，超量的从最老的那一轮开始砍。`0` = 一张都不带，负数 = 不限 | `1`–`30` |
-| `summary_prefix_reuse` | `1` | 摘要那一次调用复用平常请求的前缀（系统提示词 + 工具定义 + 溢出点之前的消息），从而命中 KV 缓存。`0` 时摘要请求不带工具定义与前缀，前缀缓存必然不命中 | `0`
-| `reasoning_replay_tokens` | `8000` | 思维链回传预算（token）。`-1` = 全量回传；`0` = 不回传；正数 = 超出就**取两头、中间以 `<此处省略 N token 的推理>` 代替**（前后文够模型脑补中间）。思维链是模型产生的中间稿，必然未命中缓存，全量回传等于每轮多背几万 token | `-1` / `0` / 正数 | / `1` |
+| `reasoning_replay_tokens` | `8000` | 思维链回传预算（token）。`-1` = 全量回传；`0` = 不回传；正数 = 超出就**取两头、中间以 `<此处省略 N token 的推理>` 代替**（前后文够模型脑补中间）。思维链是模型产生的中间稿，必然未命中缓存，全量回传等于每轮多背几万 token | `-1` / `0` / 正数 |
 | `model_context_window` | `1000000` | 模型上下文窗口（token）。界面按它算"上下文占用率"；**物理上限**，与压缩阈值（预算）不是一回事 | 正整数 |
 
 图片只从**发给模型的请求**里被裁掉，事实流里的字节不动 —— 历史回显与重新提问都还能拿到原图。
@@ -119,7 +117,7 @@ model_context_window     = 1000000
 
 ## 插件
 
-插件的装载在**另一份文件** `plugins.ini`（工程根），不在 `config.ini` 里：列出即装载。
+插件的装载在**另一份文件** `plugins.ini`（工程根）。节在就进入装载候选。开关、名字、描述、图标、版本在各插件 `plugin-config.ini` 的 `[base]`（`enable`、`name`、`desc`、`icon`、`version`）。插件自己的键在 `[ext]`。
 
 ```ini
 [plugin:skills]
@@ -141,21 +139,6 @@ version = 1.0
 自用配置不入库；**内核的 `config.ini` 里没有插件设置**。
 插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.md)。
 
-
-## `[model_pricing]`
-
-覆盖内置费率表。值为内联 JSON，或指向一个 JSON 文件的路径。
-
-```ini
-[model_pricing]
-rates = {"deepseek-flash": {"cache_hit_cny_per_m": 0.04, "cache_miss_cny_per_m": 2.0, "output_cny_per_m": 8.0}}
-```
-
-| 字段 | 含义 |
-|---|---|
-| 三项费率 | `cache_hit_cny_per_m` / `cache_miss_cny_per_m` / `output_cny_per_m`，单位为元 / 百万 tokens，分别对应缓存命中输入、缓存未命中输入、输出 |
-
-键为模型名前缀，取最长匹配。一行必须三项齐全且为数字，缺项或非数字时该行不生效；整段无法解析时回落内置表。留空使用内置表。
 
 ## 启动参数
 

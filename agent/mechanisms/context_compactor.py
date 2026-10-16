@@ -151,8 +151,8 @@ def make_provider_summarizer(
 
     `prefix` 就是上一次请求消息列表里"溢出点之前"的那一段，**逐字节相同**，
     工具定义也照同一份带上 —— 这样前缀部分命中 provider 的 KV 缓存，
-    只按压缩指令那点新增内容付费。`prefix_reuse=False` 时退回旧做法：
-    用「摘要专用系统提示词 + 素材 JSON」，前缀与平常请求无关，必然缓存未命中。
+    只按压缩指令那点新增内容付费。`prefix_reuse=False` 时不带这份前缀，
+    改发素材 JSON，前缀与平常请求无关，必然缓存未命中。
 
     生成异常 / 空文本 → 返回空串（由调用方按失败放行处理）。
     """
@@ -169,10 +169,8 @@ def make_provider_summarizer(
         instruction = _SUMMARY_INSTRUCTION.format(max_chars=max(1, int(max_chars)))
         head = list(prefix or []) if prefix_reuse else []
         if not head:
-            # 不复用前缀（或调用方没给前缀）时只发**素材 + 指令**：要压的正文本来就
-            # 在素材里，发一份自成一体的请求即可。原先这里直接返回空串，等于把
-            # `summary_prefix_reuse=0` 变成"压缩永久失效"（估算再大也不压，直到
-            # 请求超窗口被 API 拒绝）。
+            # 没有可复用的前缀时只发素材和指令。要压的正文在素材里，请求自成一体。
+            # 这里若返回空串，估算再大也不压，直到请求超窗口被拒绝。
             head = _material_messages(prefix, material)
         tail = instruction
         request = LogicalRequest(

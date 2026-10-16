@@ -35,7 +35,7 @@ from plugins.skills.library import SkillManager
 
 ## 清单：`plugins.ini`
 
-工程根的 `plugins.ini` 列出要装载的插件。**列出来就是装载**，没有单独的开关键。
+工程根的 `plugins.ini` 列出插件。节在就进入装载候选。开或关、卡片上一句话写在该插件自己的 `plugin-config.ini`。
 
 ```ini
 [plugin:skills]
@@ -51,7 +51,7 @@ path = D:/lab/my-plugin
 | 字段 | 必填 | 说明 |
 |---|---|---|
 | 节名 | 是 | 固定 `[plugin:<名字>]`。名字即模块名后缀与默认目录名 |
-| `version` | 否 | 插件版本。插件自己可在 `plugin.py` 声明 `PLUGIN_VERSION`，两边都写时核对，不一致记一条加载报告（**照常装载**） |
+| `version` | 否 | 插件版本。与该插件 `plugin-config.ini` 的 `[base] version` 核对，不一致记一条加载报告（**照常装载**） |
 | `path` | 否 | 插件目录，相对路径按插件根解析。省掉取 `plugins/<名字>`，常规布局不必写 |
 
 **节的先后有意义**：它就是插件的装载位次，也是**上下文里插件段的组装顺序**
@@ -64,8 +64,8 @@ path = D:/lab/my-plugin
 
 ## 插件自己的配置
 
-插件自己的配置放**插件自己目录下的 `plugin-config.ini`**（节名与字段由插件自己定义，
-自己用 `agent.config.load_ini()` 读）：
+插件自己的配置放**插件自己目录下的 `plugin-config.ini`**。`[base]` 每个插件都有，
+`[ext]` 只放这个插件自己的键。插件用 `agent.config.load_ini()` 读 `[ext]`：
 
 ```
 plugins/knowledge/plugin-config.ini     ← 知识库自己的配置
@@ -78,13 +78,16 @@ plugins/tts/plugin-config.ini           ← 语音合成自己的配置
 每个插件目录下配有 `plugin-config.ini.example` 作模板；配置文件本身不入库。
 
 文件名固定是 `plugin-config.ini`（不是 `config.ini`）——`config.ini` 这个名字专指
-内核配置，同名两份文件必然会有人改错那一份。节名由插件自己定，与插件同名。
+内核配置，同名两份文件必然会有人改错那一份。`[base]` 固定，`[ext]` 由插件自己定。
 
-| 插件 | 配置文件 | 节 | 键 |
+| 插件 | 配置文件 | `[base]` | `[ext]` |
 |---|---|---|---|
-| `knowledge` | `plugins/knowledge/plugin-config.ini` | `[knowledge]` | `dir`、`max_file_size` |
-| `skills` | `plugins/skills/plugin-config.ini` | `[skills]` | `dir`、`max_file_size` |
-| `tts` | `plugins/tts/plugin-config.ini` | `[tts]` | `engine`、`voice`、`max_segment_chars` |
+| `knowledge` | `plugins/knowledge/plugin-config.ini` | `id`、`name`、`desc`、`enable`、`icon`、`version` | `dir`、`max_file_size`、`extra_suffixes` |
+| `skills` | `plugins/skills/plugin-config.ini` | 同上 | `dir`、`max_file_size` |
+| `tts` | `plugins/tts/plugin-config.ini` | 同上 | `engine`、`voice`、`max_segment_chars` |
+
+`enable`：`1` 装载，`0` 留在清单里但不装载。没写时按 `1`。设置页的开关写的就是这一项。
+`name` / `desc` / `icon` 是设置页卡片上的展示名、一句话和图标。`version` 与 `plugins.ini` 里的 `version` 核对。
 
 插件自己的键由插件自己读、自己解释：内核不解析插件配置，`agent/config.py` 里
 没有任何插件节的读取口。`dir` 一类的相对路径按**工程根**解析（不是按插件目录），

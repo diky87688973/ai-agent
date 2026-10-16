@@ -841,32 +841,6 @@ class DirBrowseQueryTest(_ServerFixture):
         self.assertNotEqual(payload["current"], "C:/",
                             msg="path 被截断成 '_' 时会回落到盘根")
 
-    def test_model_pricing_returns_rates(self) -> None:
-        """计价接口按模型返回三项费率。"""
-
-        status, payload = self.get_json(
-            "/api/model-pricing?model=deepseek-v4-flash-vision-exp")
-        self.assertEqual(status, 200)
-        self.assertTrue(payload.get("ok"))
-        for key in ("cache_hit_cny_per_m", "cache_miss_cny_per_m", "output_cny_per_m"):
-            self.assertIn(key, payload)
-            self.assertIsInstance(payload[key], (int, float))
-
-    def test_model_pricing_unknown_model_is_not_ok(self) -> None:
-        """查不到就 `ok:false`——不编数（UI 显示"未查到模型计价信息"）。"""
-
-        status, payload = self.get_json("/api/model-pricing?model=definitely-not-a-model")
-        self.assertEqual(status, 200)
-        self.assertFalse(payload.get("ok"))
-
-    def test_model_pricing_falls_back_to_provider_model(self) -> None:
-        """不传 model 时用 provider 当前模型（该 provider 无模型名，只验响应形状）。"""
-
-        status, payload = self.get_json("/api/model-pricing")
-        self.assertEqual(status, 200)
-        self.assertIn("model", payload)
-        self.assertIn("ok", payload)
-
     def test_ui_state_roundtrip(self) -> None:
 
         cid = "sse-ui-01"

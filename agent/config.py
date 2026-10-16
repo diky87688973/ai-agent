@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import configparser
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -92,8 +91,6 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         # 这两项由装配根取走交给模型模块，不进 `ContextPipeline` 的构造参数。
         "image_turns": _int("image_turns", 999999),
         "image_max": _int("image_max", 999999),
-        # 摘要那一次调用复用平常请求的前缀（吃 KV 缓存）。.ini 无布尔类型，1/0 表示。
-        "summary_prefix_reuse": _int("summary_prefix_reuse", 1) != 0,
         # 模型上下文窗口（token）：界面按它算"上下文占用率"。
         # 压缩阈值是**预算**（留多少余量），窗口是**物理上限**，两者不是一回事。
         "model_context_window": _int("model_context_window", 1000000),
@@ -104,7 +101,7 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
     }
 
 
-#: 插件清单文件（工程根）。列出要装载的插件，未列出的不加载。
+#: 插件清单文件（工程根）。节在就进入装载候选；开关在插件自己的 plugin-config.ini。
 DEFAULT_PLUGINS_PATH = PROJECT_ROOT / "plugins.ini"
 
 #: 插件清单的节名前缀：`[plugin:名字]`。
@@ -112,25 +109,12 @@ PLUGIN_SECTION_PREFIX = "plugin:"
 
 
 def get_plugins(path: Optional[Path] = None) -> List[Dict[str, str]]:
-    """读取插件清单 `plugins.ini`，返回 `[{name, version, path}, ...]`。
+    """读取插件清单，返回 `[{name, version, path}, ...]`。
 
-    每个插件一个节，节名是 `[plugin:<名字>]`：
-
-    ```ini
-    [plugin:knowledge]
-    version = 1.0
-    path    = D:/lab/knowledge
-
-    [plugin:tts]
-    ```
-    节里没有字段也合法 —— 名字即默认目录名，其余可为空。
-
-    **列在文件里就是装载**，没有单独的开关键：`.ini` 里没有布尔值这种类型，
-    再塞一个 `enabled = true` 只是把同一件事写两遍。
-
-    `path` 留空时本函数不填，由装载方按自己的插件根解析。
-    名字非法、目录不存在这类判断也不在这里做：本函数只负责解析，
-    判断与报告归装载方，免得同一件事有两处口径。
+    每个插件一个节 `[plugin:<名字>]`。节在就进入装载候选。
+    开或关写在该插件自己的 `plugin-config.ini`：`[base] enable = 1` 装载，`0` 不装载。
+    `path` 留空时本函数不填，由装载方按插件根解析。
+    名字非法、目录不存在归装载方判断。
     """
     parser = load_ini(path if path is not None else DEFAULT_PLUGINS_PATH)
     out: List[Dict[str, str]] = []
@@ -237,36 +221,6 @@ def get_max_passes(path: Optional[Path] = None) -> int:
         return max(1, int(raw)) if raw else DEFAULT_MAX_PASSES
     except (TypeError, ValueError):
         return DEFAULT_MAX_PASSES
-
-
-def get_model_pricing(path: Optional[Path] = None) -> Dict[str, Any]:
-    """读取 [model_pricing] 节：`rates` 覆盖内置官方费率表。
-
-    `rates` 为 JSON 字符串或 JSON 文件路径；坏数据一律忽略（回落内置默认表）——
-    计价是展示增强项，配置写错不该让服务起不来。
-    """
-    parser = load_ini(path)
-    values: Dict[str, str] = {}
-    if parser.has_section("model_pricing"):
-        values = {k: _clean(v) for k, v in parser.items("model_pricing")}
-
-    raw = values.get("rates") or ""
-    if not raw:
-        return {}
-    # 先当文件路径试；不是文件就当内联 JSON
-    candidate = Path(raw)
-    if not candidate.is_absolute():
-        candidate = PROJECT_ROOT / candidate
-    try:
-        if candidate.is_file():
-            raw = candidate.read_text(encoding="utf-8")
-    except OSError:
-        pass
-    try:
-        parsed = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
 
 
 def default_data_root():

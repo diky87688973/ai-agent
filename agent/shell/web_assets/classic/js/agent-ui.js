@@ -16,8 +16,8 @@ function storeConversationLayoutLocal(){try{localStorage.setItem(CONVERSATION_TA
    本地空空如也就是新会话 —— 不去服务端拉一个来激活。 */
 function getOrCreateConversationId(){let id=getUrlConversationId();if(id){storeConversationId(id);return id;}var layout=getStoredConversationLayout();if(layout&&layout.active_conversation_id){storeConversationId(layout.active_conversation_id);return layout.active_conversation_id;}id=getStoredConversationId();if(id)return id;id=normalizeConversationId(readCookieValue("sessionId"));if(id){storeConversationId(id);clearCookie("sessionId");return id;}id=newConversationId();storeConversationId(id);return id;}
 function createDetachedHost(className){var d=document.createElement("div");d.className=className||"";return d;}
-function buildTodoArea(){var n=document.createElement("div");n.className="todo-list-area hidden";n.style.display="";var hdr=document.createElement("div");hdr.className="todo-list-header";var ttl=document.createElement("span");ttl.className="todo-list-title";ttl.textContent="📋 Todo List";var cnt=document.createElement("span");cnt.className="todo-list-count";cnt.textContent="0/0";var ic=document.createElement("span");ic.className="todo-collapse-icon";ic.textContent="▼";hdr.appendChild(ttl);hdr.appendChild(cnt);hdr.appendChild(ic);hdr.addEventListener("click",function(e){if(e.target.closest&&e.target.closest(".todo-list-count"))return;n.classList.toggle("collapsed");});var bd=document.createElement("div");bd.className="todo-list-body";var sc=document.createElement("div");sc.className="todo-list-scroll";bd.appendChild(sc);n.appendChild(hdr);n.appendChild(bd);return n;}
-function makeConversationTab(id){id=normalizeConversationId(id)||newConversationId();var pane=document.createElement("div");pane.className="chat-conversation-pane";var mh=createDetachedHost("msgs");var td=buildTodoArea();pane.appendChild(mh);pane.appendChild(td);return {id:id,title:"会话 "+id.slice(0,8),conversationPane:pane,msgsHost:mh,stepsHost:createDetachedHost("steps"),todoArea:td,selectedMode:"auto",selectedModel:"",abortController:null,activeRunId:"",stopRequested:false,stepSeq:0,lastLlm:null,llmStreamBuffer:{round:null,reqHtml:"",resHtml:"",consumed:false},pendingToolTags:[],anyToolThisTurn:false,pendingStepEls:[],streamAssistantEl:null,streamAssistantText:"",pendingDeltaSeparator:false,seenDispatchTitle:"",toolOpen:new Map(),lastAnalysisTail:"",chatLoadingEl:null,userConfirmCardHost:null,userConfirmBlocking:false,todoUnread:false,sessionTokenUsed:0,totalPromptTokens:0,totalCompletionTokens:0,totalCacheHitTokens:0,totalCacheMissTokens:0,pricingCacheKey:"",pricingRates:null,pricingFailed:false,pricingLoading:false,pricingInflight:false,pricingFetchGen:0,lastContextLayout:null};}
+function buildTodoArea(){var n=document.createElement("div");n.className="todo-list-area hidden";n.style.display="";var hdr=document.createElement("div");hdr.className="todo-list-header";var ttl=document.createElement("span");ttl.className="todo-list-title";ttl.textContent="📋 Todo List";var cnt=document.createElement("span");cnt.className="todo-list-count";cnt.textContent="0/0";var ic=document.createElement("span");ic.className="todo-collapse-icon";ic.textContent="▼";hdr.appendChild(ttl);hdr.appendChild(cnt);hdr.appendChild(ic);var bd=document.createElement("div");bd.className="todo-list-body";var sc=document.createElement("div");sc.className="todo-list-scroll";bd.appendChild(sc);n.appendChild(hdr);n.appendChild(bd);return n;}
+function makeConversationTab(id){id=normalizeConversationId(id)||newConversationId();var pane=document.createElement("div");pane.className="chat-conversation-pane";var mh=createDetachedHost("msgs");var td=buildTodoArea();pane.appendChild(mh);pane.appendChild(td);return {id:id,title:"会话 "+id.slice(0,8),conversationPane:pane,msgsHost:mh,stepsHost:createDetachedHost("steps"),todoArea:td,selectedMode:"auto",selectedModel:"",abortController:null,activeRunId:"",stopRequested:false,stepSeq:0,lastLlm:null,llmStreamBuffer:{round:null,reqHtml:"",resHtml:"",consumed:false},pendingToolTags:[],anyToolThisTurn:false,pendingStepEls:[],streamAssistantEl:null,streamAssistantText:"",pendingDeltaSeparator:false,seenDispatchTitle:"",toolOpen:new Map(),lastAnalysisTail:"",chatLoadingEl:null,userConfirmCardHost:null,userConfirmBlocking:false,todoUnread:false,sessionTokenUsed:0,totalPromptTokens:0,totalCompletionTokens:0,totalCacheHitTokens:0,totalCacheMissTokens:0,lastContextLayout:null};}
 const initialConversationId=getOrCreateConversationId();
 let _initialLayout=getStoredConversationLayout();
 let conversationTabs=(_initialLayout&&_initialLayout.tabs.length?_initialLayout.tabs.map(function(t){var tab=makeConversationTab(t.id);tab.title=t.title||tab.title;return tab;}):[makeConversationTab(initialConversationId)]);
@@ -28,13 +28,12 @@ function getActiveTab(){for(var i=0;i<conversationTabs.length;i++){if(conversati
 function findConversationTab(id){id=normalizeConversationId(id);for(var i=0;i<conversationTabs.length;i++){if(conversationTabs[i].id===id)return conversationTabs[i];}return null;}
 function ensureConversationTab(id){id=normalizeConversationId(id)||newConversationId();var t=findConversationTab(id);if(!t){t=makeConversationTab(id);conversationTabs.push(t);if(typeof renderChatTabs==="function")renderChatTabs();}return t;}
 function getActiveConversationId(){return activeConversationId;}
-function setActiveConversationId(id,opts){id=normalizeConversationId(id)||newConversationId();var t=ensureConversationTab(id);activeConversationId=id;sessionId=id;conv=id;storeConversationId(id);t.id=id;t.title=t.title||("会话 "+id.slice(0,8));if(typeof cid!=="undefined"&&cid)cid.textContent=id.slice(0,8);if(!opts||opts.resetPricing!==false){pricingRates=null;pricingFailed=false;pricingCacheKey="";pricingLoading=false;pricingInflight=false;pricingFetchGen++;}if(typeof renderChatTabs==="function")renderChatTabs();if(typeof _updateUsageBottom==="function")_updateUsageBottom();}
+function setActiveConversationId(id,opts){id=normalizeConversationId(id)||newConversationId();var t=ensureConversationTab(id);activeConversationId=id;sessionId=id;conv=id;storeConversationId(id);t.id=id;t.title=t.title||("会话 "+id.slice(0,8));if(typeof cid!=="undefined"&&cid)cid.textContent=id.slice(0,8);if(typeof renderChatTabs==="function")renderChatTabs();if(typeof _updateUsageBottom==="function")_updateUsageBottom();}
 let sessionId=activeConversationId;let conv=sessionId,stepSeq=0,lastLlm=null;let llmStreamBuffer={round:null,reqHtml:"",resHtml:"",consumed:false};let pendingToolTags=[];let anyToolThisTurn=false;let pendingStepEls=[];let streamAssistantEl=null,streamAssistantText="";let pendingDeltaSeparator=false;let seenDispatchTitle="";/* 上下文占用率的分母 = **模型窗口**（内核在 context_layout 里给）。
    没给时退回下面这个兜底值，界面会标明口径。 */
 var SESSION_TOKEN_LIMIT=1000000;
 function setModelContextWindow(n){var v=Number(n??0)||0;if(v>0)SESSION_TOKEN_LIMIT=v;}let sessionTokenUsed=0;
 let totalPromptTokens=0,totalCompletionTokens=0,totalCacheHitTokens=0,totalCacheMissTokens=0;
-let pricingCacheKey="";let pricingRates=null;let pricingFailed=false;let pricingLoading=false;let pricingInflight=false;let pricingFetchGen=0;
 var ctxLayoutTooltipEl=null;var ctxLayoutTooltipInited=false;var ctxLayoutTipHideTimer=null;
 let renderingContextVisible=true;
 let toolOpen=new Map();let lastAnalysisTail="";
@@ -72,7 +71,7 @@ html+='<div class="todo-item"><span class="'+cbClass+'"></span><span class="'+tx
 }
 if(todoListBody){var sc=todoListBody.querySelector(".todo-list-scroll");if(sc)sc.innerHTML=html;else todoListBody.innerHTML=html;}
 if(todoListCount)todoListCount.textContent=doneCount+"/"+items.length;
-if(ev.all_done&&todoListArea){todoListArea.style.borderLeft="3px solid #3daf3f";if(!todoListArea.querySelector(".todo-close-btn")){var cb=document.createElement("button");cb.className="todo-close-btn";cb.textContent="✕";cb.title="关闭清单";cb.onclick=function(){todoListArea.style.display="none";};var hd=todoListArea.querySelector(".todo-list-header");if(hd)hd.appendChild(cb);}}
+if(ev.all_done&&todoListArea){todoListArea.style.borderLeft="3px solid #3daf3f";if(!todoListArea.querySelector(".todo-close-btn")){var cb=document.createElement("button");cb.className="todo-close-btn";cb.textContent="✕";cb.title="关闭清单";var hd=todoListArea.querySelector(".todo-list-header");if(hd)hd.appendChild(cb);}}
 else if(todoListArea){todoListArea.style.borderLeft="3px solid #a68b4a";var oldBtn=todoListArea.querySelector(".todo-close-btn");if(oldBtn)oldBtn.remove();}
 if(ev.collapsed&&todoListArea){todoListArea.classList.add("collapsed");}
 else if(ev.collapsed===false&&todoListArea){todoListArea.classList.remove("collapsed");}
@@ -104,7 +103,7 @@ if(line.indexOf("data:")!==0)continue;
 const raw=line.slice(5).trim();let ev;try{ev=JSON.parse(raw);}catch(_jsonErr){if(window.DEBUG){console.warn("[SSE recv] JSON 解析失败",{error:String(_jsonErr&&_jsonErr.message||_jsonErr),sample:String(raw||"").slice(0,400)});console.error("[SSE] JSON 解析失败，已跳过本行（不渲染）",{error:String(_jsonErr&&_jsonErr.message||_jsonErr),sample:String(raw||"").slice(0,240)});}continue;}
 if(window.DEBUG){try{console.log("[SSE recv]",{streamCid:String(streamCid||""),type:ev&&ev.type,conversation_id:ev&&ev.conversation_id,ev:ev});}catch(e){}}
 const packetCid=normalizeConversationId(ev.conversation_id);if(!packetCid){if(window.DEBUG){console.warn("[SSE recv] 已丢弃（conversation_id 缺失或非法）",{streamCid:String(streamCid||""),type:ev&&ev.type,conversation_id:ev&&ev.conversation_id,ev:ev});console.error("[SSE] 数据包缺少或非法 conversation_id，已跳过渲染（不写入任何会话）",{type:ev&&ev.type,conversation_id:ev&&ev.conversation_id});}continue;}withConversationContext(packetCid,function(_ctxTab){if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);/* 服务端不推送 model（outbound 的 conversation 帧不含该字段）；
-       此处不覆盖用户当场的选择。*/if(renderingContextVisible){if(ev.mode)applyMode(ev.mode);void ensureModelPricing();}}
+       此处不覆盖用户当场的选择。*/if(renderingContextVisible){if(ev.mode)applyMode(ev.mode);}}
 else if(ev.type==="run_started"){_ctxTab.activeRunId=String(ev.run_id||"");}
 else if(ev.type==="mode_changed"&&ev.mode){_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible)applyMode(normalizeMode(ev.mode));}
 else if(ev.type==="dispatch_title")addDispatchTitle(ev.title||"");
@@ -112,7 +111,7 @@ else if(ev.type==="llm_round")addLlmRound(ev.round);
 else if(ev.type==="llm_request")onLlmRequest(ev);
 else if(ev.type==="llm_response")onLlmResponse(ev);
 else if(ev.type==="llm_done"){flushPendingToolTags();if(lastLlm){finishLlmTitle(true);lastLlm.tag.className="tag ok";lastLlm.tag.textContent="Done";}}
-else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_tokens??0)||0;const outTok=Number(u.completion_tokens??0)||0;const hitTok=Number(u.prompt_cache_hit_tokens??0)||0;const missTok=Number(u.prompt_cache_miss_tokens??0)||0;sessionTokenUsed+=Math.max(0,inTok+outTok);totalPromptTokens+=inTok;totalCompletionTokens+=outTok;totalCacheHitTokens+=hitTok;totalCacheMissTokens+=missTok;void ensureModelPricing();_updateUsageBottom();void persistUsageAccumulator();}
+else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_tokens??0)||0;const outTok=Number(u.completion_tokens??0)||0;const hitTok=Number(u.prompt_cache_hit_tokens??0)||0;const missTok=Number(u.prompt_cache_miss_tokens??0)||0;sessionTokenUsed+=Math.max(0,inTok+outTok);totalPromptTokens+=inTok;totalCompletionTokens+=outTok;totalCacheHitTokens+=hitTok;totalCacheMissTokens+=missTok;_updateUsageBottom();void persistUsageAccumulator();}
 else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;setModelContextWindow(ev.model_max_context_tokens);if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
 else if(ev.type==="tool_start")onToolStart(ev);
 else if(ev.type==="tool_progress")onToolProgress(ev);
@@ -150,9 +149,10 @@ _routeEventBySource(ev);
 }
 function handleGlobalSseEvent(ev){
 if(!ev||ev.type==="heartbeat"||ev.type==="global_sse_ready")return;
+if(ev.type==="plugins_changed"){applyPluginsChanged(ev);return;}
 const packetCid=normalizeConversationId(ev.conversation_id);if(!packetCid)return;
 withConversationContext(packetCid,function(_ctxTab){
-if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);if(ev.model)_ctxTab.selectedModel=String(ev.model||"");if(renderingContextVisible){if(ev.mode)applyMode(ev.mode);if(ev.model)applyModel(ev.model);void ensureModelPricing();}}
+if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);if(ev.model)_ctxTab.selectedModel=String(ev.model||"");if(renderingContextVisible){if(ev.mode)applyMode(ev.mode);if(ev.model)applyModel(ev.model);}}
 else if(ev.type==="run_started"){_ctxTab.activeRunId=String(ev.run_id||"");_ctxTab.abortController=_ctxTab.abortController||{global:true};showChatLoading();}
 else if(ev.type==="mode_changed"&&ev.mode){_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible)applyMode(normalizeMode(ev.mode));}
 else if(ev.type==="dispatch_title")addDispatchTitle(ev.title||"");
@@ -160,7 +160,7 @@ else if(ev.type==="llm_round")addLlmRound(ev.round);
 else if(ev.type==="llm_request")onLlmRequest(ev);
 else if(ev.type==="llm_response")onLlmResponse(ev);
 else if(ev.type==="llm_done"){flushPendingToolTags();if(lastLlm){finishLlmTitle(true);lastLlm.tag.className="tag ok";lastLlm.tag.textContent="Done";}}
-else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_tokens??0)||0;const outTok=Number(u.completion_tokens??0)||0;const hitTok=Number(u.prompt_cache_hit_tokens??0)||0;const missTok=Number(u.prompt_cache_miss_tokens??0)||0;sessionTokenUsed+=Math.max(0,inTok+outTok);totalPromptTokens+=inTok;totalCompletionTokens+=outTok;totalCacheHitTokens+=hitTok;totalCacheMissTokens+=missTok;void ensureModelPricing();_updateUsageBottom();void persistUsageAccumulator();}
+else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_tokens??0)||0;const outTok=Number(u.completion_tokens??0)||0;const hitTok=Number(u.prompt_cache_hit_tokens??0)||0;const missTok=Number(u.prompt_cache_miss_tokens??0)||0;sessionTokenUsed+=Math.max(0,inTok+outTok);totalPromptTokens+=inTok;totalCompletionTokens+=outTok;totalCacheHitTokens+=hitTok;totalCacheMissTokens+=missTok;_updateUsageBottom();void persistUsageAccumulator();}
 else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;setModelContextWindow(ev.model_max_context_tokens);if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
 else if(ev.type==="tool_start")onToolStart(ev);
 else if(ev.type==="tool_progress")onToolProgress(ev);
@@ -256,7 +256,7 @@ row.appendChild(inp);
 var lab=document.createElement("span");lab.className="uc-opt-label";lab.textContent=label;
 row.appendChild(lab);
 }
-row.onclick=function(e){if(e.target&&e.target.closest&&e.target.closest(".uc-opt-input"))return;toggleIdx(idx);};
+row.dataset.ucIdx=String(idx);
 btns.appendChild(row);rows.push({row:row,icon:icon,idx:idx});
 }
 for(var oi=0;oi<opts.length;oi++){addRow(oi,String(opts[oi]),false);}
@@ -264,8 +264,8 @@ addRow(tailIdx,"",true);
 syncRows();
 body.appendChild(btns);
 var act=document.createElement("div");act.className="user-confirm-actions";
-var cancel=document.createElement("button");cancel.type="button";cancel.className="mode-plus";cancel.textContent="取消";
-var ok=document.createElement("button");ok.type="button";ok.className="mode-plus";ok.textContent="确认";
+var cancel=document.createElement("button");cancel.type="button";cancel.className="mode-plus uc-cancel";cancel.textContent="取消";
+var ok=document.createElement("button");ok.type="button";ok.className="mode-plus uc-ok";ok.textContent="确认";
 act.appendChild(cancel);act.appendChild(ok);body.appendChild(act);
 card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;scrollMsgsToBottom();
 function cleanup(){closeUserConfirmCardHost();updateTaskControls();}
@@ -278,8 +278,17 @@ var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id
 }catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","确认请求失败: "+(err&&err.message?err.message:String(err)));});}
 finally{updateTaskControls();}
 };
-cancel.onclick=function(){void submitUserConfirm("");};
-ok.onclick=function(){void submitUserConfirm(buildFinal());};
+card.addEventListener("click",function(e){
+var hit=e.target;
+if(!hit||!hit.closest)return;
+if(hit.closest(".uc-opt-input"))return;
+if(hit.closest(".uc-cancel")){void submitUserConfirm("");return;}
+if(hit.closest(".uc-ok")){void submitUserConfirm(buildFinal());return;}
+var rowHit=hit.closest(".uc-opt-row");
+if(!rowHit||!card.contains(rowHit))return;
+var picked=parseInt(rowHit.dataset.ucIdx,10);
+if(!isNaN(picked))toggleIdx(picked);
+});
 }
 function openApprovalModalFromToolEnd(ev, toolRow){
 if(userConfirmCardHost||!ev.approval_required)return;
@@ -297,7 +306,7 @@ var body=document.createElement("div");body.className="user-confirm-body";
 var p=document.createElement("div");p.className="approval-desc";p.textContent=desc;
 body.appendChild(p);
 var act=document.createElement("div");act.className="user-confirm-actions";
-var reject=document.createElement("button");reject.type="button";reject.className="mode-plus";reject.textContent="驳回";
+var reject=document.createElement("button");reject.type="button";reject.className="mode-plus approval-reject";reject.textContent="驳回";
 var agree=document.createElement("button");agree.type="button";agree.className="mode-plus approval-agree";agree.textContent="同意";
 act.appendChild(reject);act.appendChild(agree);body.appendChild(act);
 card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;scrollMsgsToBottom();
@@ -311,8 +320,12 @@ var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id
 }catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","审批请求失败: "+(err&&err.message?err.message:String(err)));});}
 finally{updateTaskControls();}
 };
-reject.onclick=function(){void submitApproval(false);};
-agree.onclick=function(){void submitApproval(true);};
+card.addEventListener("click",function(e){
+var hit=e.target;
+if(!hit||!hit.closest)return;
+if(hit.closest(".approval-reject"))void submitApproval(false);
+else if(hit.closest(".approval-agree"))void submitApproval(true);
+});
 }
 var conversationMount=document.getElementById("chatConversationMount");
 if(!conversationMount){
@@ -334,8 +347,8 @@ function moveChildrenToArray(el){var arr=[];if(!el)return arr;while(el.firstChil
 function restoreChildrenFromArray(el,arr){if(!el)return;el.innerHTML="";arr=Array.isArray(arr)?arr:[];for(var i=0;i<arr.length;i++){el.appendChild(arr[i]);}}
 function isConversationBusy(){var t=getActiveTab();return !!(userConfirmBlocking||toolOpen.size||pendingToolTags.length||(t&&t.abortController));}
 function isTabBusy(t){return !!(t&&(t.abortController||t.userConfirmBlocking||(t.toolOpen&&t.toolOpen.size)||((t.pendingToolTags||[]).length)));}
-function saveRuntimeStateToTab(t){t.selectedMode=selectedMode;t.selectedModel=selectedModel;t.stepSeq=stepSeq;t.lastLlm=lastLlm;t.llmStreamBuffer=llmStreamBuffer;t.pendingToolTags=pendingToolTags;t.anyToolThisTurn=anyToolThisTurn;t.pendingStepEls=pendingStepEls;t.streamAssistantEl=streamAssistantEl;t.streamAssistantText=streamAssistantText;t.pendingDeltaSeparator=pendingDeltaSeparator;t.seenDispatchTitle=seenDispatchTitle;t.toolOpen=toolOpen;t.lastAnalysisTail=lastAnalysisTail;t.chatLoadingEl=chatLoadingEl;t.userConfirmCardHost=userConfirmCardHost;t.userConfirmBlocking=userConfirmBlocking;t.sessionTokenUsed=sessionTokenUsed;t.totalPromptTokens=totalPromptTokens;t.totalCompletionTokens=totalCompletionTokens;t.totalCacheHitTokens=totalCacheHitTokens;t.totalCacheMissTokens=totalCacheMissTokens;t.pricingCacheKey=pricingCacheKey;t.pricingRates=pricingRates;t.pricingFailed=pricingFailed;t.pricingLoading=pricingLoading;t.pricingInflight=pricingInflight;t.pricingFetchGen=pricingFetchGen;}
-function loadRuntimeStateFromTab(t){selectedMode=t.selectedMode||selectedMode||"auto";selectedModel=t.selectedModel||selectedModel||"";stepSeq=Number(t.stepSeq||0);lastLlm=t.lastLlm||null;llmStreamBuffer=t.llmStreamBuffer||{round:null,reqHtml:"",resHtml:"",consumed:false};pendingToolTags=t.pendingToolTags||[];anyToolThisTurn=!!t.anyToolThisTurn;pendingStepEls=t.pendingStepEls||[];streamAssistantEl=t.streamAssistantEl||null;streamAssistantText=String(t.streamAssistantText||"");pendingDeltaSeparator=!!t.pendingDeltaSeparator;seenDispatchTitle=String(t.seenDispatchTitle||"");toolOpen=t.toolOpen instanceof Map?t.toolOpen:new Map();lastAnalysisTail=String(t.lastAnalysisTail||"");chatLoadingEl=t.chatLoadingEl||null;userConfirmCardHost=t.userConfirmCardHost||null;userConfirmBlocking=!!t.userConfirmBlocking;sessionTokenUsed=Number(t.sessionTokenUsed||0);totalPromptTokens=Number(t.totalPromptTokens||0);totalCompletionTokens=Number(t.totalCompletionTokens||0);totalCacheHitTokens=Number(t.totalCacheHitTokens||0);totalCacheMissTokens=Number(t.totalCacheMissTokens||0);pricingCacheKey=String(t.pricingCacheKey||"");pricingRates=t.pricingRates||null;pricingFailed=!!t.pricingFailed;pricingLoading=!!t.pricingLoading;pricingInflight=!!t.pricingInflight;pricingFetchGen=Number(t.pricingFetchGen||0);}
+function saveRuntimeStateToTab(t){t.selectedMode=selectedMode;t.selectedModel=selectedModel;t.stepSeq=stepSeq;t.lastLlm=lastLlm;t.llmStreamBuffer=llmStreamBuffer;t.pendingToolTags=pendingToolTags;t.anyToolThisTurn=anyToolThisTurn;t.pendingStepEls=pendingStepEls;t.streamAssistantEl=streamAssistantEl;t.streamAssistantText=streamAssistantText;t.pendingDeltaSeparator=pendingDeltaSeparator;t.seenDispatchTitle=seenDispatchTitle;t.toolOpen=toolOpen;t.lastAnalysisTail=lastAnalysisTail;t.chatLoadingEl=chatLoadingEl;t.userConfirmCardHost=userConfirmCardHost;t.userConfirmBlocking=userConfirmBlocking;t.sessionTokenUsed=sessionTokenUsed;t.totalPromptTokens=totalPromptTokens;t.totalCompletionTokens=totalCompletionTokens;t.totalCacheHitTokens=totalCacheHitTokens;t.totalCacheMissTokens=totalCacheMissTokens;}
+function loadRuntimeStateFromTab(t){selectedMode=t.selectedMode||selectedMode||"auto";selectedModel=t.selectedModel||selectedModel||"";stepSeq=Number(t.stepSeq||0);lastLlm=t.lastLlm||null;llmStreamBuffer=t.llmStreamBuffer||{round:null,reqHtml:"",resHtml:"",consumed:false};pendingToolTags=t.pendingToolTags||[];anyToolThisTurn=!!t.anyToolThisTurn;pendingStepEls=t.pendingStepEls||[];streamAssistantEl=t.streamAssistantEl||null;streamAssistantText=String(t.streamAssistantText||"");pendingDeltaSeparator=!!t.pendingDeltaSeparator;seenDispatchTitle=String(t.seenDispatchTitle||"");toolOpen=t.toolOpen instanceof Map?t.toolOpen:new Map();lastAnalysisTail=String(t.lastAnalysisTail||"");chatLoadingEl=t.chatLoadingEl||null;userConfirmCardHost=t.userConfirmCardHost||null;userConfirmBlocking=!!t.userConfirmBlocking;sessionTokenUsed=Number(t.sessionTokenUsed||0);totalPromptTokens=Number(t.totalPromptTokens||0);totalCompletionTokens=Number(t.totalCompletionTokens||0);totalCacheHitTokens=Number(t.totalCacheHitTokens||0);totalCacheMissTokens=Number(t.totalCacheMissTokens||0);}
 function moveVisibleToTab(t){while(stepsRoot.firstChild)t.stepsHost.appendChild(stepsRoot.firstChild);if(t.conversationPane&&conversationMount&&t.conversationPane.parentNode===conversationMount){conversationMount.removeChild(t.conversationPane);}saveRuntimeStateToTab(t);}
 function moveTabToVisible(t){while(t.stepsHost.firstChild)stepsRoot.appendChild(t.stepsHost.firstChild);if(conversationMount&&t.conversationPane){while(conversationMount.firstChild){conversationMount.removeChild(conversationMount.firstChild);}conversationMount.appendChild(t.conversationPane);}msgsRoot=t.msgsHost;msgs=msgsRoot;todoListArea=t.todoArea;todoListBody=todoListArea?todoListArea.querySelector(".todo-list-body"):null;todoListCount=todoListArea?todoListArea.querySelector(".todo-list-count"):null;steps=stepsRoot;loadRuntimeStateFromTab(t);}
 function saveActiveConversationView(){moveVisibleToTab(getActiveTab());}
@@ -715,14 +728,12 @@ if(modelPickerMenu.classList.contains("hidden"))openModelPicker();else closeMode
 }
 function applyModel(m){
 var x=String(m||"").trim();if(allowedModels.indexOf(x)<0)return;
-if(selectedModel!==x){pricingRates=null;pricingFailed=false;pricingCacheKey="";}
 selectedModel=x;
 var hm=document.getElementById("hdrModel");if(hm)hm.textContent="模型: "+selectedModel;
 if(modelPickerLabel)modelPickerLabel.textContent=selectedModel||"默认";
 /* 选择**只活在前端**：不写服务端、也不由服务端推送覆盖。
    每轮请求把当时的 `selectedModel` 随消息带给后端，后端只认那一刻的值。 */
 document.querySelectorAll(".model-choice").forEach(function(b){if(b&&b.dataset&&b.dataset.model)b.classList.toggle("model-current",b.dataset.model===selectedModel);});
-if(conv)void ensureModelPricing();
 }
 function selectSidePane(name){
 document.querySelectorAll(".side-tab").forEach(function(el){el.classList.toggle("active",el.dataset.pane===name);});
@@ -744,6 +755,7 @@ ex=document.createElement("div");
 ex.className="side-pane";
 ex.id="pane-"+id;
 ex.dataset.pane=id;
+ex.dataset.plugin=String((opts&&opts.plugin)||"");
 /* `openPane` 建的面板**不建标题行**：标题已经在标签上（同一个 `title`），再写一行是重复。
    固定面板（步骤栏）不同 —— 它不参与开/关，自带标题行是有意的。
    正文容器**始终建**：面板可以只给 `onOpen` 自己填内容（文件查看器就是这样），
@@ -760,6 +772,7 @@ w.type="button";
 w.className="side-tab";
 w.id="tab-"+id;
 w.dataset.pane=id;
+w.dataset.plugin=String((opts&&opts.plugin)||"");
 w.setAttribute("role","tab");
 w.tabIndex=0;
 var sp=document.createElement("span");
@@ -917,6 +930,8 @@ document.head.appendChild(l);
    页面只按数据建标签、面板与按钮，不为任何插件加分支 —— 加插件不必改前端。 */
 var pluginPanels=[];
 var pluginActions=[];
+/* null：还没拿到已装载名单，上下文段按上次快照画。拿到之后只留名单里的插件段。 */
+var loadedPlugins=null;
 function pluginPanel(plugin,panelId){
 var key=String(plugin||"")+":"+String(panelId||"");
 for(var i=0;i<pluginPanels.length;i++){
@@ -941,9 +956,19 @@ return loadPluginScript(def.script,owner).then(next);
 }
 return next();
 }
+function rememberLoadedPlugins(names){
+if(!Array.isArray(names))return;
+var set={};
+for(var i=0;i<names.length;i++){
+var name=String(names[i]||"").trim();
+if(name)set[name]=true;
+}
+loadedPlugins=set;
+}
 function loadPluginPanels(){
 return fetch("/api/panels").then(function(r){return r.json();}).then(function(d){
 pluginPanels=(d&&Array.isArray(d.panels))?d.panels:[];
+if(d&&Array.isArray(d.loaded))rememberLoadedPlugins(d.loaded);
 return pluginPanels;
 }).catch(function(){pluginPanels=[];return pluginPanels;});
 }
@@ -966,6 +991,38 @@ b.addEventListener("click",function(){openPluginPanel(act.plugin,act.panel||act.
 host.appendChild(b);
 })(pluginActions[i]);
 }
+}
+function panePluginName(id){
+var pane=document.getElementById("pane-"+id);
+var marked=pane&&pane.getAttribute("data-plugin");
+if(marked)return marked;
+var tab=document.getElementById("tab-"+id);
+marked=tab&&tab.getAttribute("data-plugin");
+if(marked)return marked;
+for(var i=0;i<pluginPanels.length;i++){
+if(String(pluginPanels[i].id)===String(id))return String(pluginPanels[i].plugin||"");
+}
+return "";
+}
+function closeUnloadedPluginPanes(){
+if(!loadedPlugins)return;
+var tabs=document.querySelectorAll("#sideTabbar .side-tab");
+var ids=[];
+for(var i=0;i<tabs.length;i++){
+var id=tabs[i].dataset.pane||"";
+if(!id||id==="steps")continue;
+var name=panePluginName(id);
+if(name&&!loadedPlugins[name])ids.push(id);
+}
+for(var j=0;j<ids.length;j++)closePane(ids[j]);
+}
+/* 插件开关的广播：重画按钮，关掉卸下插件的面板。上下文条重画一次，画的时候跳过未装载的插件。 */
+function applyPluginsChanged(ev){
+rememberLoadedPlugins(ev&&ev.loaded);
+closeUnloadedPluginPanes();
+void loadPluginActions();
+void loadPluginPanels().then(function(){return preloadPluginScripts();});
+if(typeof _updateUsageBottom==="function")_updateUsageBottom();
 }
 function loadPluginActions(){
 return fetch("/api/actions").then(function(r){return r.json();}).then(function(d){
@@ -1121,10 +1178,43 @@ ta.addEventListener("input",function(){autoResizeTextarea();var ap=getAtPop();va
 document.addEventListener("mousedown",function(ev){var ap2=getAtPop();if(!ap2||ap2.style.visibility==="hidden")return;if(ap2.contains(ev.target))return;hideAtPop();},true);
 }
 /* 输入区按钮全部来自插件声明，页面不再有写死的插件入口 */
-/* `@文件` 引用的点击：从 `.msgs` 委托，避免给每个 chip 单独绑事件。
-   链接默认行为要拦掉 —— 否则浏览器会把它当普通 `<a>` 去跳转。 */
+/* `@文件` 引用的点击：从 document 收一次冒泡，避免给每个 chip 单独绑事件。
+   链接默认行为要拦掉 —— 否则浏览器会把它当普通 `<a>` 去跳转。
+   待办标题、命令确认按钮也走这一条：它们都是后画进对话区的。 */
 document.addEventListener("click",function(ev){
 var el=ev.target;
+if(!el||!el.closest)return;
+var optBtn=el.closest(".cmd-input-btn[data-cmd-opt]");
+var sendBtn=optBtn?null:el.closest(".cmd-input-btn[data-cmd-send]");
+if(optBtn||sendBtn){
+var bar=(optBtn||sendBtn).closest(".cmd-input-bar");
+if(!bar)return;
+var value=optBtn?String(optBtn.getAttribute("data-cmd-opt")||""):String((bar.querySelector(".cmd-input-field")||{}).value||"").trim();
+if(sendBtn&&!value)return;
+ev.preventDefault();
+var cid=normalizeConversationId(bar.getAttribute("data-cmd-cid")||activeConversationId);
+var tid=String(bar.getAttribute("data-cmd-tid")||"").trim();
+submitCommandInputToServer(cid,tid,value);
+var opened=tid&&toolOpen.get(tid);
+if(opened&&opened.tag&&optBtn){opened.tag.textContent="已发送 "+value;opened.tag.className="tag tag-run";}
+try{bar.remove();}catch(eCmd){}
+if(opened)opened.cmdInputBar=null;
+return;
+}
+var todoClose=el.closest(".todo-close-btn");
+if(todoClose){
+var todoArea=todoClose.closest(".todo-list-area");
+if(todoArea)todoArea.style.display="none";
+ev.preventDefault();
+return;
+}
+var todoHead=el.closest(".todo-list-header");
+if(todoHead){
+if(el.closest(".todo-list-count"))return;
+var todoBox=todoHead.closest(".todo-list-area");
+if(todoBox)todoBox.classList.toggle("collapsed");
+return;
+}
 while(el&&el!==document){
 if(el.classList&&el.classList.contains("file-ref")){
 var p=el.getAttribute("data-file-path")||"";
@@ -2032,10 +2122,7 @@ barHost.addEventListener("mouseenter",showTip);
 barHost.addEventListener("mouseleave",function(){scheduleHideCtxLayoutTooltip();});
 }
 function formatCompactTokens(n){var x=Math.max(0,Math.floor(Number(n)||0));if(x>=1e9){var v=x/1e9;return (v>=100?v.toFixed(0):v>=10?v.toFixed(1):v.toFixed(2)).replace(/\.?0+$/,"")+"B";}if(x>=1e6){var v2=x/1e6;return (v2>=100?v2.toFixed(0):v2>=10?v2.toFixed(1):v2.toFixed(2)).replace(/\.?0+$/,"")+"M";}if(x>=1e3){var v3=x/1e3;return (v3>=100?v3.toFixed(0):v3.toFixed(1)).replace(/\.0+$/,"")+"K";}return String(x);}
-function estimateCnyFromRates(){if(!pricingRates||pricingRates.ok!==true)return null;var hit=totalCacheHitTokens/1e6*Number(pricingRates.cache_hit_cny_per_m||0);var miss=totalCacheMissTokens/1e6*Number(pricingRates.cache_miss_cny_per_m||0);var out=totalCompletionTokens/1e6*Number(pricingRates.output_cny_per_m||0);return hit+miss+out;}
-function costTitleSuffix(){if(!conv)return "—";if(pricingLoading)return "计价查询中…";if(pricingFailed)return "未查到模型计价信息";var x=estimateCnyFromRates();return x===null?"未查到模型计价信息":"￥"+x.toFixed(2);}
-async function ensureModelPricing(){var cid=conv,mid=selectedModel;if(!cid||!mid)return;if(pricingCacheKey===cid+"\0"+mid&&(pricingRates!==null||pricingFailed))return;if(pricingInflight)return;pricingInflight=true;pricingLoading=true;queueMicrotask(_updateUsageBottom);var g=++pricingFetchGen;try{var r=await fetch("/api/model-pricing?"+new URLSearchParams({conversation_id:cid,model:mid}));var j=await r.json();if(g!==pricingFetchGen)return;pricingCacheKey=cid+"\0"+mid;if(j&&j.ok===true){pricingRates=j;pricingFailed=false;}else{pricingRates=null;pricingFailed=true;}}catch(e){if(g!==pricingFetchGen)return;pricingCacheKey=cid+"\0"+mid;pricingRates=null;pricingFailed=true;}finally{if(g===pricingFetchGen){pricingLoading=false;pricingInflight=false;queueMicrotask(_updateUsageBottom);}}}
-function buildUsageRing(){const million=Math.floor(sessionTokenUsed/SESSION_TOKEN_LIMIT);const p=tokenPercent();const used=Math.max(0,Math.floor(sessionTokenUsed));const ring=document.createElement("span");ring.className="usage-ring";ring.style.setProperty("--p",String(p));const totalCache=totalCacheHitTokens+totalCacheMissTokens;const hitPct=totalCache>0?Math.round(totalCacheHitTokens/totalCache*100):0;var cts=costTitleSuffix();var costD="";if(pricingRates&&pricingRates.ok===true){var _hC=totalCacheHitTokens/1e6*Number(pricingRates.cache_hit_cny_per_m||0);var _mC=totalCacheMissTokens/1e6*Number(pricingRates.cache_miss_cny_per_m||0);var _oC=totalCompletionTokens/1e6*Number(pricingRates.output_cny_per_m||0);var _pm=Number(pricingRates.cache_miss_cny_per_m||0);costD="1m=￥"+_pm.toFixed(2)+" | 总费用: ￥"+(_hC+_mC+_oC).toFixed(2)+" 输入: ￥"+(_hC+_mC).toFixed(2)+" 输出: ￥"+_oC.toFixed(2)+" 缓存命中: ￥"+_hC.toFixed(2)+" 未命中: ￥"+_mC.toFixed(2);}ring.title="已用: "+used.toLocaleString()+"\n输入: "+totalPromptTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalPromptTokens)+")\n输出: "+totalCompletionTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalCompletionTokens)+")\nKV缓存命中: "+totalCacheHitTokens.toLocaleString()+" ("+hitPct+"%)\n未命中: "+totalCacheMissTokens.toLocaleString()+"\n费用预估: "+cts+(costD?"\n"+costD:"");const num=document.createElement("span");num.className="usage-num";num.textContent=million;ring.appendChild(num);return ring;}
+function buildUsageRing(){const million=Math.floor(sessionTokenUsed/SESSION_TOKEN_LIMIT);const p=tokenPercent();const used=Math.max(0,Math.floor(sessionTokenUsed));const ring=document.createElement("span");ring.className="usage-ring";ring.style.setProperty("--p",String(p));const totalCache=totalCacheHitTokens+totalCacheMissTokens;const hitPct=totalCache>0?Math.round(totalCacheHitTokens/totalCache*100):0;ring.title="已用: "+used.toLocaleString()+"\n输入: "+totalPromptTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalPromptTokens)+")\n输出: "+totalCompletionTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalCompletionTokens)+")\nKV缓存命中: "+totalCacheHitTokens.toLocaleString()+" ("+hitPct+"%)\n未命中: "+totalCacheMissTokens.toLocaleString();const num=document.createElement("span");num.className="usage-num";num.textContent=million;ring.appendChild(num);return ring;}
 function _updateUsageBottom(){
 const el=document.getElementById("usage-bottom");if(!el)return;
 if(ctxLayoutTooltipEl){ctxLayoutTooltipEl.style.display="none";}
@@ -2056,23 +2143,20 @@ ubCells("输出", formatCompactTokens(totalCompletionTokens)),
 ubCells("缓存命中", formatCompactTokens(totalCacheHitTokens)+" ("+hitPct+"%)"),
 ubCells("未命中", formatCompactTokens(totalCacheMissTokens))
 ));
-var head2=document.createElement("div");head2.className="ub-head";
-var t2=document.createElement("span");t2.className="ub-title";t2.textContent="费用预估";head2.appendChild(t2);sheet.appendChild(head2);
-if(pricingRates&&pricingRates.ok===true){var hC=totalCacheHitTokens/1e6*Number(pricingRates.cache_hit_cny_per_m||0);var mC=totalCacheMissTokens/1e6*Number(pricingRates.cache_miss_cny_per_m||0);var oC=totalCompletionTokens/1e6*Number(pricingRates.output_cny_per_m||0);var tC=hC+mC+oC;var pm=Number(pricingRates.cache_miss_cny_per_m||0);
-ubPush(sheet,[].concat(
-ubCells("1m", "￥"+pm.toFixed(2)),
-ubCells("总费用", "￥"+tC.toFixed(2)),
-ubCells("输入", "￥"+(hC+mC).toFixed(2)),
-ubCells("输出", "￥"+oC.toFixed(2)),
-ubCells("缓存命中", "￥"+hC.toFixed(2)),
-ubCells("未命中", "￥"+mC.toFixed(2))
-));}else if(pricingLoading){var lI=document.createElement("span");lI.className="ub-note";lI.textContent="计价查询中…";sheet.appendChild(lI);}else if(!conv){var dI=document.createElement("span");dI.className="ub-note";dI.textContent="—";sheet.appendChild(dI);}else{var eI=document.createElement("span");eI.className="ub-note";eI.textContent="未查到模型计价信息";sheet.appendChild(eI);}
 var row3=document.createElement("div");row3.className="ub-row ub-row-ctx";
 var t3=document.createElement("span");t3.className="ub-title";t3.textContent="上下文视图";
 var barHost=document.createElement("div");barHost.className="ctx-bar-host";
 var tabCtx=typeof getActiveTab==="function"?getActiveTab():null;
 var lay=tabCtx&&tabCtx.lastContextLayout;
-var segs=lay&&Array.isArray(lay.segments)?lay.segments:[];
+var segs=lay&&Array.isArray(lay.segments)?lay.segments.slice():[];
+/* 快照里还留着上一次的插件段。未装载的不画。 */
+if(loadedPlugins){
+segs=segs.filter(function(sg){
+var m=/^plugin:(.+)$/.exec(String(sg&&sg.key||""));
+if(!m)return true;
+return !!loadedPlugins[m[1]];
+});
+}
 
 /* 段色取自主题令牌（两套主题各一组），JS 不写死颜色。 */
 /* 非插件段的色名：弹窗与分段条共用同一个取色函数，两处必然同色。 */
@@ -2095,7 +2179,7 @@ row3.appendChild(t3);row3.appendChild(barHost);
 el.innerHTML='';el.appendChild(sheet);el.appendChild(row3);
 }
 
-function applyUsageAccumulatorPayload(j){if(!j||typeof j!=="object")return;sessionTokenUsed=Number(j.session_token_used??0)||0;totalPromptTokens=Number(j.total_prompt_tokens??0)||0;totalCompletionTokens=Number(j.total_completion_tokens??0)||0;totalCacheHitTokens=Number(j.total_cache_hit_tokens??0)||0;totalCacheMissTokens=Number(j.total_cache_miss_tokens??0)||0;if(conv)void ensureModelPricing();_updateUsageBottom();}
+function applyUsageAccumulatorPayload(j){if(!j||typeof j!=="object")return;sessionTokenUsed=Number(j.session_token_used??0)||0;totalPromptTokens=Number(j.total_prompt_tokens??0)||0;totalCompletionTokens=Number(j.total_completion_tokens??0)||0;totalCacheHitTokens=Number(j.total_cache_hit_tokens??0)||0;totalCacheMissTokens=Number(j.total_cache_miss_tokens??0)||0;if(conv)_updateUsageBottom();}
 async function loadUsageAccumulator(){try{/* 带上 conversation_id。
    后端用**单个全局文件**存用量，不带参数也能取到；
    适配层**按会话存**，缺参数会取到空槽 → 刷新后用量归零。
@@ -2874,13 +2958,7 @@ var btn=document.createElement("button");
 btn.type="button";
 btn.textContent=opt;
 btn.className="cmd-input-btn";
-btn.onclick=function(){
-var cid=normalizeConversationId(ev.conversation_id||activeConversationId);
-var tid=String(ev.tool_call_id||"").trim();
-submitCommandInputToServer(cid,tid,opt);
-if(o.tag){o.tag.textContent="已发送 "+opt;o.tag.className="tag tag-run";}
-try{bar.remove();}catch(e){}o.cmdInputBar=null;
-};
+btn.setAttribute("data-cmd-opt",opt);
 row.appendChild(btn);
 });
 var hint=document.createElement("span");
@@ -2894,17 +2972,13 @@ custom.className="cmd-input-field";
 var sendBtn=document.createElement("button");
 sendBtn.type="button";
 sendBtn.textContent="发送";
-sendBtn.onclick=function(){
-var v=String(custom.value||"").trim();
-if(!v)return;
-var cid=normalizeConversationId(ev.conversation_id||activeConversationId);
-var tid=String(ev.tool_call_id||"").trim();
-submitCommandInputToServer(cid,tid,v);
-try{bar.remove();}catch(e){}o.cmdInputBar=null;
-};
+sendBtn.className="cmd-input-btn";
+sendBtn.setAttribute("data-cmd-send","1");
 row.appendChild(custom);
 row.appendChild(sendBtn);
 bar.appendChild(row);
+bar.setAttribute("data-cmd-cid",normalizeConversationId(ev.conversation_id||activeConversationId));
+bar.setAttribute("data-cmd-tid",String(ev.tool_call_id||"").trim());
 var body=host.querySelector(".card-body-inner")||host.querySelector(".card-body")||host.querySelector(".chat-tool-body");
 if(body)body.appendChild(bar);
 else host.appendChild(bar);

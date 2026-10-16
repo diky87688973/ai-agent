@@ -167,11 +167,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertEqual(params["toolsCount"], 41)
 
     def test_llm_request_model_is_never_empty(self) -> None:
-        """`params.model` 为空会让经典界面永不查计价 → 费用行恒为 ￥0.00。
-
-        `ensureModelPricing()` 开头是 `if(!cid||!mid)return;`，
-        所以空串会把整条计价链路关掉，费用行恒为 ￥0.00。
-        """
+        """请求快照里的 `params.model` 不能是空串。"""
         frames = _stream().translate("step_started", {"model": "kern-model"})
         self.assertTrue(frames[1]["params"]["model"], msg="model 不得为空")
 
@@ -845,6 +841,13 @@ class WireHygieneTest(unittest.TestCase):
         beat = self.adapter.heartbeat()
         self.assertEqual(beat["type"], C.EV_HEARTBEAT)
         self.assertNotIn("conversation_id", beat)
+        box = self.adapter.attach()
+        self.adapter.announce_plugins(["skills", "knowledge", ""])
+        frame = self.adapter.next_frame(box, timeout=0.05)
+        self.assertEqual(frame["type"], C.EV_PLUGINS_CHANGED)
+        self.assertEqual(frame["loaded"], ["knowledge", "skills"])
+        self.assertNotIn("conversation_id", frame)
+        self.adapter.detach(box)
 
     def test_frame_without_cid_is_dropped_silently(self) -> None:
         """入站事件没有 cid 时直接丢，不要造一个假 cid 塞给前端。"""
@@ -894,8 +897,11 @@ class WireHygieneTest(unittest.TestCase):
         self.assertEqual(C.tool_script("brand_new_tool"), "brand_new_tool")
 
     def test_cid_exempt_set_is_exactly_two(self) -> None:
-        """契约只豁免这两个事件；多豁免一个就等于给前端埋一个静默丢弃的场景。"""
-        self.assertEqual(C.CID_EXEMPT_EVENTS, {C.EV_HEARTBEAT, C.EV_GLOBAL_SSE_READY})
+        """契约豁免的事件必须在前端先接住，否则会被静默丢掉。"""
+        self.assertEqual(
+            C.CID_EXEMPT_EVENTS,
+            {C.EV_HEARTBEAT, C.EV_GLOBAL_SSE_READY, C.EV_PLUGINS_CHANGED},
+        )
 
 class ResumeContractTest(unittest.TestCase):
     """续传：存储坐标 `seq` 从落盘一路走到 SSE 的 `id:` 行，再用于断线续传。
@@ -1347,7 +1353,7 @@ class UiBundleTest(unittest.TestCase):
         self.assertIn(C.EV_LLM_ROUND, kinds, msg="不起卡则步骤面板为空")
         self.assertIn(C.EV_LLM_REQUEST, kinds)
         params = [f for f in frames if f["type"] == C.EV_LLM_REQUEST][0]["params"]
-        self.assertEqual(params["model"], "m-x", msg="model 为空会让计价永远不查、费用恒为 ￥0.00")
+        self.assertEqual(params["model"], "m-x", msg="请求快照里的 model 不能是空串")
         self.assertEqual(params["messagesCount"], 3)
         self.assertEqual(params["toolsCount"], 41)
         # 守卫已置位：推理增量不再是空

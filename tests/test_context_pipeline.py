@@ -219,7 +219,6 @@ class DefaultConfigValues(unittest.TestCase):
         self.assertEqual(c["summary_output_max_chars"], 5000)
         self.assertEqual(c["image_turns"], 999999)
         self.assertEqual(c["image_max"], 999999)
-        self.assertIs(c["summary_prefix_reuse"], True)
 
 
 class MaxPassesConfigTest(unittest.TestCase):

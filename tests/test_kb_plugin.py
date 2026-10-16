@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """知识库插件测试。
 
-覆盖：`[knowledge]` 配置读取（缺节 / 目录不存在 / 引号容忍）/ 路径安全
+覆盖：`[ext]` 配置读取（缺节 / 目录不存在 / 引号容忍）/ 路径安全
 （八项边界）/ 文件校验 / 读取（含 xlsx 依赖降级与假库路径）/ 文件列表 /
 勾选状态（全量替换、持久化、单会话恢复）/ 组包格式；ContextSources 注册与隔离；
 管线注入刷新与回合端到端署名注入。
@@ -242,7 +242,7 @@ class KBConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ini = Path(tmp) / "config.ini"
             ini.write_text(
-                "[knowledge]\ndir = Z:/definitely-not-here\nmax_file_size = 100\n",
+                "[ext]\ndir = Z:/definitely-not-here\nmax_file_size = 100\n",
                 encoding="utf-8")
             cfg = _PLUGIN._load_kb_config(ini)
             self.assertIsNone(cfg["dir"], msg="目录不存在应静默降级为未启用")
@@ -255,7 +255,7 @@ class KBConfigTest(unittest.TestCase):
             kb_dir = base / "kb"
             kb_dir.mkdir()
             ini = base / "config.ini"
-            ini.write_text(f"[knowledge]\ndir = {kb_dir.as_posix()}\n", encoding="utf-8")
+            ini.write_text(f"[ext]\ndir = {kb_dir.as_posix()}\n", encoding="utf-8")
             self.assertEqual(_PLUGIN._load_kb_config(ini)["dir"], kb_dir.resolve())
 
     def test_values_tolerate_quotes_and_blank_lines(self) -> None:
@@ -266,7 +266,7 @@ class KBConfigTest(unittest.TestCase):
             kb_dir.mkdir()
             ini = base / "config.ini"
             ini.write_text(
-                f"[knowledge]\ndir = \"{kb_dir.as_posix()}\"\nmax_file_size =\n",
+                f"[ext]\ndir = \"{kb_dir.as_posix()}\"\nmax_file_size =\n",
                 encoding="utf-8")
             cfg = _PLUGIN._load_kb_config(ini)
             self.assertEqual(cfg["dir"], kb_dir.resolve(), msg="包裹引号应被剥掉")
@@ -476,7 +476,7 @@ class PluginConfigIsolationTest(unittest.TestCase):
     """内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-config.ini。"""
 
     #: 内核配置允许出现的节（多一个就说明插件设置漏进了内核配置）
-    KERNEL_SECTIONS = {"model_reasoning", "agent", "context", "model_pricing"}
+    KERNEL_SECTIONS = {"model_reasoning", "agent", "context"}
 
     def test_kernel_templates_have_no_plugin_section(self) -> None:
         from agent.config import PROJECT_ROOT, load_ini
@@ -514,13 +514,13 @@ class PluginConfigIsolationTest(unittest.TestCase):
         target = tmp / "skills"
         target.mkdir()
         ini = tmp / "plugin-config.ini"
-        ini.write_text(f"[skills]\ndir = {target.as_posix()}\nmax_file_size = 321\n",
+        ini.write_text(f"[ext]\ndir = {target.as_posix()}\nmax_file_size = 321\n",
                        encoding="utf-8")
         cfg = mod._load_config(ini)
         self.assertEqual(cfg["dir"], target)
         self.assertEqual(cfg["max_file_size"], 321)
         empty = tmp / "empty.ini"
-        empty.write_text("[skills]\ndir =\n", encoding="utf-8")
+        empty.write_text("[ext]\ndir =\n", encoding="utf-8")
         self.assertIsNone(mod._load_config(empty)["dir"])
 
 class KnowledgeTextOnlyTest(unittest.TestCase):
@@ -609,7 +609,7 @@ class KnowledgeExtraSuffixesTest(unittest.TestCase):
         (tmp / "x.dat").write_text("自定义类型", encoding="utf-8")
         (tmp / "y.png").write_bytes(b"\x89PNG\x00")
         ini = tmp / "plugin-config.ini"
-        ini.write_text(f"[knowledge]\ndir = {tmp.as_posix()}\n"
+        ini.write_text(f"[ext]\ndir = {tmp.as_posix()}\n"
                        "max_file_size = 200000\nextra_suffixes = dat\n", encoding="utf-8")
         cfg = mod._load_kb_config(ini)
         self.assertEqual(cfg["extra_suffixes"], (".dat",))
@@ -723,7 +723,7 @@ class SkillsConfigSourceTest(unittest.TestCase):
         target = tmp / "skills"
         target.mkdir()
         ini = tmp / "config.ini"
-        ini.write_text(f"[skills]\ndir = {target.as_posix()}\nmax_file_size = 321\n",
+        ini.write_text(f"[ext]\ndir = {target.as_posix()}\nmax_file_size = 321\n",
                        encoding="utf-8")
         cfg = mod._load_config(ini)
         self.assertEqual(cfg["dir"], target)

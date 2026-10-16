@@ -76,9 +76,9 @@ class ClassicAdapter:
         **计算口径只有一处**：`inbound.compute_context_layout` —— 刷新的
         `history()` 与这里的实时帧共用它，避免两条路径算出不同结果。
 
-        分段数据来自内核发的 `context_segments`（`ModelModule` 每次装配完请求发
-        一条）：分段统计需要**装配结果**，而模式说明与工具轮的内部 system 注入
-        都不落记录，只有那份快照里有它们。适配层在这里换个名字转发给前端
+        对话与模式来自内核发的 `context_segments`（`ModelModule` 每次装配完请求发
+        一条）：模式说明与工具轮的内部 system 注入不落记录，只有那份快照里有。
+        插件段按当前注入源重算。适配层在这里换个名字转发给前端
         （前端认 `context_layout`）。
 
         算不出来返回 `None`，调用方不发那一帧。
@@ -557,6 +557,25 @@ class ClassicAdapter:
         """心跳帧（豁免 `conversation_id` 校验）。"""
         self._last_beat = time.time()
         return {"type": C.EV_HEARTBEAT, "time": int(self._last_beat)}
+
+    def announce_plugins(self, loaded: List[str]) -> None:
+        """把已装载插件名推给每条 SSE 连接。
+
+        开关是进程级的，这帧不带会话号。页面据此改按钮、关面板、重画上下文条。
+        """
+        names = sorted({str(name) for name in loaded if str(name or "").strip()})
+        frame = {"type": C.EV_PLUGINS_CHANGED, "loaded": names}
+        with self._lock:
+            channels = list(self._channels)
+        for box in channels:
+            try:
+                box.put_nowait(frame)
+            except queue.Full:
+                try:
+                    box.get_nowait()
+                    box.put_nowait(frame)
+                except queue.Empty:
+                    pass
 
     # ── 续传（断线重连从游标继续）──────────────────────────
 

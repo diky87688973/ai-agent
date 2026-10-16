@@ -111,7 +111,8 @@ class SseFrameContractTest(unittest.TestCase):
         self.assertTrue(frames)
         for f in frames:
             self.assertTrue(str(f.get("conversation_id") or "").strip()
-                            or f.get("type") in ("heartbeat", "global_sse_ready"),
+                            or f.get("type") in (
+                                "heartbeat", "global_sse_ready", "plugins_changed"),
                             msg=f"帧缺 conversation_id：{f}")
 
     def test_seq_never_leaks_into_frame_payloads(self) -> None:

@@ -62,6 +62,9 @@ UI_SCRIPTS = (
 #: 与主脚本拼进同一个 script 的界面文件。函数声明落在同一作用域，主脚本可以直接调用。
 SHARED_SCOPE_JS = UI_SCRIPTS + ("js/chat-tool-views.js",)
 
+#: 设置页脚本跟主脚本拼在同一页。函数包在闭包里，不参与主脚本的未定义调用检查。
+SETTINGS_SCRIPTS = ("js/settings-ui.js",)
+
 #: 这些是经典 UI 的骨架函数，被误删会**静默**失效（页面不报错，功能没了）
 REQUIRED_FUNCTIONS = (
     "renderMarkdown", "renderMarkdownBlocks",
@@ -273,10 +276,10 @@ def main() -> int:
                 f"这类异常常被同行 `catch{{}}` 静默吞掉（`pageerror` 仍为 0），"
                 f"功能**静默失效**。请提升到脚本作用域。")
 
-    # ── ③ 四个界面脚本都必须存在且非空 ──
+    # ── ③ 界面脚本都必须存在且非空 ──
     # 少注入一个脚本会让整块功能**静默消失**（页面不报错，功能没了），
     # 所以这里逐个核对它们在磁盘上、且 `ui_bundle` 真的会把它们内联进去。
-    for rel in UI_SCRIPTS:
+    for rel in UI_SCRIPTS + SETTINGS_SCRIPTS:
         path = UI_ASSETS / "classic" / rel
         if not path.is_file():
             problems.append(f"界面脚本缺失：classic/{rel}")

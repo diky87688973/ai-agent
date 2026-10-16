@@ -1893,6 +1893,29 @@ class RemainingCapacityTest(unittest.TestCase):
         self.assertEqual(rows["remaining"]["tokens"], 99000)
         self.assertAlmostEqual(rows["remaining"]["pct"], 99.0, places=3)
         self.assertAlmostEqual(rows["system"]["pct"], 1.0, places=3)
+        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        from agent.shell.classic_adapter.inbound import compute_context_layout
+
+        sources = ContextSources()
+        sources.add(lambda cid: ["知识正文"],
+                    SourceMeta(key="knowledge", label="知识库",
+                               count=lambda cid: 1))
+
+        class _App:
+            context_sources = sources
+
+            @staticmethod
+            def compactor_factory(_cid):
+                class _Compactor:
+                    summary_token_threshold = 100000
+                return _Compactor()
+
+        laid = compute_context_layout(_App(), [stale], "cid-kb-overlay")
+        labels = [row["label"] for row in laid["segments"]]
+        self.assertEqual(labels, ["系统提示词", "知识库", "剩余容量"])
+        kb = next(row for row in laid["segments"] if row["key"] == "plugin:knowledge")
+        self.assertEqual(kb["count"], 1)
+        self.assertGreater(kb["tokens"], 0)
 
     def test_rescale_falls_back_when_budget_unknown(self) -> None:
         """拿不到预算时按"已用"归一（不再更差），段序与字段不变。"""

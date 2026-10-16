@@ -48,8 +48,18 @@ class Acceptance:
             self.failures.append(label)
 
     def build(self, enabled):
-        """按名字清单装配；`enabled` 直接喂给宿主的名字入口（不写临时清单）。"""
-        with mock.patch("agent.app.get_plugins", return_value=[{"name": n} for n in enabled]):
+        """按名字清单装配。清单即本场景的开关，不读私人配置里的 enable。"""
+        from agent.capabilities import plugins as plugin_mod
+
+        real_fields = plugin_mod.plugin_config_fields
+
+        def _force_on(root):
+            fields = real_fields(root)
+            fields["enable"] = "1"
+            return fields
+
+        with mock.patch("agent.app.get_plugins", return_value=[{"name": n} for n in enabled]), \
+                mock.patch.object(plugin_mod, "plugin_config_fields", side_effect=_force_on):
             return build_app(
                 backup_root=self.root / "backups",
                 recycle_root=self.root / "recycle",

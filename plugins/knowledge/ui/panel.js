@@ -105,7 +105,7 @@
         if (!data.ok || !data.enabled) {
           body.innerHTML =
             '<div class="kb-empty">⚠️ 知识库未启用' +
-            '<br><span class="kb-hint">在 config.ini 的 [knowledge] 节配置 dir</span></div>';
+            '<br><span class="kb-hint">打开右上角设置，在「插件」里配置知识库的 dir</span></div>';
           return;
         }
         var files = data.files || [];

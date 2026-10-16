@@ -254,14 +254,21 @@ var sum=document.createElement("span");sum.className="chat-tool-sum";sum.textCon
 var chev=document.createElement("span");chev.className="chat-tool-chev";chev.setAttribute("aria-hidden","true");
 head.appendChild(chev);head.appendChild(t);head.appendChild(sum);
 var body=document.createElement("div");body.className="chat-tool-body";
-head.addEventListener("click",function(){
-var open=row.classList.toggle("is-open");
-head.setAttribute("aria-expanded",open?"true":"false");
-});
 row.appendChild(head);row.appendChild(body);
 row._title=t;row._sum=sum;row._body=body;
 return row;
 }
+/* 工具标题是后画进对话区的。点击从标题冒泡上来，这里收一次再展开，不为每一行再绑。 */
+document.addEventListener("click",function(ev){
+var t=ev.target;
+if(!t||!t.closest)return;
+var head=t.closest(".chat-tool-head");
+if(!head)return;
+var row=head.closest(".chat-tool-row");
+if(!row)return;
+var open=row.classList.toggle("is-open");
+head.setAttribute("aria-expanded",open?"true":"false");
+});
 function addChatToolLayer(body, cap, kind){
 var layer=document.createElement("div");
 layer.className="chat-tool-layer"+(kind?" chat-tool-layer--"+kind:"");

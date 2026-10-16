@@ -260,14 +260,14 @@ def _last_payload(events: List[Any], kind: str) -> Optional[Dict[str, Any]]:
     return found
 
 
-#: 上下文布局的小缓存：`{cid: (事实条数, 布局)}`。
+#: 上下文布局的小缓存：`{cid: ((事实条数, 注入源版本), 布局)}`。
 #
 # 本函数在**每一步**都会被调（实时帧一路），每次都做
 # 一次全量 `store.load` + 折叠，一轮几十步就是几百毫秒的纯浪费
 # （同一步内事实没变，算出来必然一样）。
 #
-# 缓存键用**事实条数**：它是当前序列的廉价指纹 —— 条数没变，派生结果就没变
-# （事实只追加、不修改；`SessionStore.append` 是原子写）。
+# 缓存键是事实条数加上注入源版本。事实只追加、不修改。
+# 勾选文件和插件开关不追加事实，但会抬高注入源版本，插件段得重算。
 # 有界（只留最近 32 个会话），不会随会话数无限增长。
 _LAYOUT_CACHE: "OrderedDict[str, tuple]" = OrderedDict()
 _LAYOUT_CACHE_MAX = 32
@@ -276,16 +276,17 @@ _LAYOUT_CACHE_MAX = 32
 def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str, Any]]:
     """上下文分段快照（实时与刷新两条路径共用同一口径）。
 
-    数据源是内核发的 `context_segments`（`ModelModule` 每次装配完请求发一条）——
-    分段统计需要**装配结果**，而模式说明与工具轮的内部 system 注入都不落记录，
-    只有那份快照里有它们。观测侧只读，不自己另算一套（另算必然与真实请求漂移）。
+    对话、系统提示词、模式用内核最后一条 `context_segments`
+    （模式说明与工具轮的内部 system 注入不落记录，只有那份快照里有）。
+    插件段按当前注入源重算：勾选和插件开关发生在两次请求之间，
+    快照里的插件段对不上此刻会注入的内容。
 
-    内核这条事件还没发出来时，退回「整段 + 剩余容量」的单段兜底，
-    界面至少不是空的。算不出来返回 `None`，调用方不发/不填。
+    内核这条事件还没发出来时，退回按当前注入源重装的兜底。
+    算不出来返回 `None`，调用方不发/不填。
     """
     if not events:
         return None
-    stamp = len(events)
+    stamp = (len(events), _sources_version(app))
     hit = _LAYOUT_CACHE.get(cid)
     if hit is not None and hit[0] == stamp:
         _LAYOUT_CACHE.move_to_end(cid)
@@ -294,6 +295,8 @@ def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Di
     payload = _last_segments(events, budget)
     if payload is None:
         payload = _fallback_layout(app, events, cid)
+    else:
+        payload = _overlay_plugin_segments(app, cid, payload)
     if payload is None:
         return None
     _LAYOUT_CACHE[cid] = (stamp, payload)
@@ -301,6 +304,62 @@ def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Di
     while len(_LAYOUT_CACHE) > _LAYOUT_CACHE_MAX:
         _LAYOUT_CACHE.popitem(last=False)
     return payload
+
+
+def _sources_version(app: Any) -> int:
+    """注入源版本。没有注册表时为 0。"""
+    sources = getattr(app, "context_sources", None)
+    try:
+        return int(getattr(sources, "version", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _overlay_plugin_segments(app: Any, cid: str,
+                             payload: Dict[str, Any]) -> Dict[str, Any]:
+    """用当前注入源替换快照里的插件段，再按预算重算百分比。
+
+    没有注入源注册表时原样返回（测试夹具与未装插件的进程走这里）。
+    """
+    sources = getattr(app, "context_sources", None)
+    collect = getattr(sources, "collect_segments", None)
+    if not callable(collect):
+        return payload
+    try:
+        packed = collect(str(cid or ""))
+    except Exception:
+        return payload
+    from agent.mechanisms.context_pipeline import default_message_tokens
+
+    items = list(getattr(packed, "items", None) or [])
+    counts = list(getattr(packed, "counts", None) or [])
+    fresh: List[Dict[str, Any]] = []
+    for index, item in enumerate(items):
+        key, label, text = item[0], item[1], item[2]
+        reported = counts[index] if index < len(counts) else 1
+        fresh.append({
+            "key": f"plugin:{key}",
+            "label": str(label or key),
+            "tokens": int(default_message_tokens(
+                {"role": "system", "content": str(text or "")})),
+            "count": int(reported),
+        })
+    tail_keys = {"summary", "full_recent", "mode"}
+    head: List[Dict[str, Any]] = []
+    tail: List[Dict[str, Any]] = []
+    for segment in payload.get("segments") or []:
+        if not isinstance(segment, dict):
+            continue
+        key = str(segment.get("key") or "")
+        if key == "remaining" or key.startswith("plugin:"):
+            continue
+        if key in tail_keys or tail:
+            tail.append(segment)
+        else:
+            head.append(segment)
+    merged = dict(payload)
+    merged["segments"] = head + fresh + tail
+    return _rescale(merged, _budget_of(app, cid) or int(payload.get("budget_tokens") or 0))
 
 
 def _budget_of(app: Any, cid: str) -> int:

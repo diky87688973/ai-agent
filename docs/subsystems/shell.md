@@ -9,6 +9,7 @@
 | `session_runner.py` | 回合调度与心跳，消费 inbox 队列 |
 | `prompts.py` | 系统提示词 |
 | `ui_bundle.py` | 界面资源内联打包 |
+| `settings_panel.py` | 设置页：宿主配置与插件开关的读写 |
 | `chat.py` | 交互式对话壳（命令行） |
 | `headless.py` | 无 UI 跑一轮并打印事件流 |
 | `fspaths.py` | 可见范围的来源、路径判界与展示形态 |
@@ -61,7 +62,9 @@ python -m agent.shell.web --host 127.0.0.1 --port 8765
 | `/api/dir-browse` | 目录浏览（补全用） |
 | `/api/panels` `/api/actions` | 插件贡献的右栏面板与输入区动作清单 |
 | `/api/plugin/<插件>/<路径>` | 插件自己的端点命名空间（精确匹配，无通配） |
-| `/api/model-pricing` | 计价表 |
+| `/api/settings` | 设置页目录。密钥字段 `value` 恒为空，另给 `configured`（是否已填写）和 `placeholder` |
+| `/api/settings/plugins` | 插件卡片：名字、描述、图标、是否装载 |
+| `/api/settings/plugin-file` | 某个插件的 `plugin-config.ini` 文本 |
 | `/api/reasoning-effort` | 推理档位 |
 | `/api/usage-accumulator` | 用量累计 |
 | `/api/media` | 媒体代理，根由 `--media-root` 指定 |
@@ -77,12 +80,18 @@ python -m agent.shell.web --host 127.0.0.1 --port 8765
 | `/api/chat/autonomous` | 自主模式开关 |
 | `/api/chat/goal` | 目标文案读写 |
 | `/api/chat/command-input` | 交互式命令的 stdin 输入 |
+| `/api/settings` | 写回宿主配置。密钥字段为空不写，有内容才覆盖文件里的原值 |
+| `/api/settings/plugins` | 插件开关，写 `[base] enable` |
+| `/api/settings/plugin-file` | 整份写回某个插件的 `plugin-config.ini` |
+| `/api/settings/pick-dir` | 弹出系统目录选择窗口 |
 
 ### PUT
 
 `/api/chat/ui-state`、`/api/reasoning-effort`、`/api/usage-accumulator`，以及插件端点（`/api/plugin/<插件>/…`）。
 
 写操作走 body、读操作走 query，全工程统一。
+
+设置页在界面右上角，读写的就是 `config.ini`、`web-ui-config.ini` 和各插件的 `plugin-config.ini`。密钥只允许覆盖：密码框留空则文件里的值不动；有内容才替换。`GET /api/settings` 不回明文，只说明是否已填写。已填写时密码框提示「已设置秘钥,可重新设置并替换」，未填写时提示「未配置秘钥」。
 
 ## SSE 事件流
 
@@ -120,7 +129,7 @@ SSE 连接表由 `WebShell` 持有，断开时从表里移除。
 
 ```python
 build_inline_css()      # reset + 主样式 + 两份代码高亮主题
-build_inline_js()       # 主题 / markdown 解析器 / 高亮 / 图片灯箱 / 主脚本
+build_inline_js()       # 主题 / markdown 解析器 / 高亮 / 图片灯箱 / 主脚本 / 设置页
 scope_hljs_css()        # 把 .hljs 选择器限定到浅色主题下
 inline_ui_html()        # 拼成完整单页
 ```

@@ -6,7 +6,7 @@
 （`ctx.add_context_source` / `add_panel` / `add_action` / `add_route` / `data_dir`）
 与通用的 INI 读取（`agent.config.load_ini`）。
 
-配置在插件自己目录下的 `plugin-config.ini`（`[knowledge]`：`dir` / `max_file_size`）。
+配置在插件自己目录下的 `plugin-config.ini`：`[base]` 是身份与开关，`[ext]` 是 `dir` / `max_file_size`。
 
 注入走 `ctx.add_context_source`（上下文注入扩展点）：管线每一步组装请求时，
 会把注入源产出的文本刷进上下文的「知识库」块。勾选状态落在 `ctx.data_dir`
@@ -23,19 +23,16 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
+from agent.capabilities.plugins import plugin_config_fields
 from agent.config import PROJECT_ROOT, load_ini
 
 __all__ = [
     "DEFAULT_MAX_FILE_SIZE",
     "KBRuntime",
     "MISSING_OPENPYXL_HINT",
-    "PLUGIN_VERSION",
     "TABLE_SUFFIXES",
     "register",
 ]
-
-#: 插件版本。清单（`plugins.ini`）里也声明时会核对，不一致记一条加载报告。
-PLUGIN_VERSION = "1.0"
 
 #: 未配置 `max_file_size` 时的缺省上限
 DEFAULT_MAX_FILE_SIZE = 200000
@@ -100,7 +97,7 @@ def _has_hidden_segment(rel: Path) -> bool:
 
 
 #: 本插件配置文件的节名（文件在插件自己目录下）
-CONFIG_SECTION = "knowledge"
+CONFIG_SECTION = "ext"
 
 
 def _config_path() -> Path:
@@ -113,7 +110,7 @@ def _config_path() -> Path:
 
 
 def _load_kb_config(path: Optional[Path] = None) -> Dict[str, Any]:
-    """读本插件配置的 `[knowledge]` 节：`dir` / `max_file_size` / `extra_suffixes`。
+    """读本插件配置的 `[ext]` 节：`dir` / `max_file_size` / `extra_suffixes`。
 
     `dir` 缺失、不存在或不是目录时返回 `None`，于是 `enabled` 为假、全部操作返回空
     —— 判定失败时静默降级，不报错。相对路径按工程根解析。
@@ -503,11 +500,13 @@ def register(ctx: Any) -> List[Callable[[], None]]:
             raw = body.get("paths") if isinstance(body.get("paths"), list) else []
         return 200, {"ok": True, "checked": runtime.set_checked(cid, raw)}
 
+    base = plugin_config_fields(Path(__file__).resolve().parent)
+    title = base["name"] or "知识库"
+    label = f"{base['icon']} {title}".strip() if base["icon"] else title
     disposers.append(ctx.add_panel(
-        "kb", title="知识库", html=_PANEL_HTML,
+        "kb", title=title, html=_PANEL_HTML,
         script_file="ui/panel.js", css_file="ui/panel.css"))
-    # 输入框下面的按钮：插件不声明就没有这个按钮
-    disposers.append(ctx.add_action("kb", label="📚 知识库", title="知识库"))
+    disposers.append(ctx.add_action("kb", label=label, title=title))
     disposers.append(ctx.add_route("GET", "files", _files))
     disposers.append(ctx.add_route("GET", "checked", _checked_get))
     disposers.append(ctx.add_route("PUT", "checked", _checked_put))

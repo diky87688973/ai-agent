@@ -44,7 +44,6 @@ from agent.config import (
     get_backup_retention_days,
     get_context,
     get_max_passes,
-    get_model_pricing,
     get_model_reasoning,
     get_plugins,
     get_reasoning_effort,
@@ -56,7 +55,6 @@ from agent.core.context import (
     SERVICE_EVENT_BUS,
     SERVICE_LIVE_STATE,
     SERVICE_MESH,
-    SERVICE_MODEL_PRICING,
     SERVICE_PIPELINE,
     SERVICE_PLUGIN_HOST,
     SERVICE_PROVIDER,
@@ -82,7 +80,6 @@ from agent.mechanisms.file_safety import (
 )
 from agent.mechanisms.live_state import LiveState
 from agent.mechanisms.mesh import MeshState
-from agent.mechanisms.model_pricing import ModelPricing
 from agent.mechanisms.model_provider import EchoProvider
 from agent.mechanisms.quality_gate import QualityGate, build_pipeline_gate
 from agent.shell.classic_adapter import ClassicAdapter
@@ -169,11 +166,6 @@ class App:
     @property
     def mesh(self) -> Any:
         return self._svc(SERVICE_MESH)
-
-    @property
-    def model_pricing(self) -> Any:
-        """模型计价表（用量底栏的费用换算）；未注册时为 None。"""
-        return self._svc(SERVICE_MODEL_PRICING)
 
     @property
     def plugin_host(self) -> Any:
@@ -565,28 +557,32 @@ def build_app(
         def _default_context_factory(conversation_id: str) -> ContextPipeline:
             # 这里**逐项**列出来（不是 `**context_defaults`）：漏一项就是"配置写了不生效"，
             # 而且症状很隐蔽 —— 配置能读出来、界面也显示，只有行为不对。
+            # 每次建会话再读文件，设置页保存后下一回合用新阈值。
+            fresh = get_context()
             return ContextPipeline(
                 conversation_id,
-                full_user_rounds=int(ctx_cfg["full_user_rounds"]),
-                summary_token_threshold=int(ctx_cfg["summary_token_threshold"]),
-                reasoning_replay_tokens=int(ctx_cfg["reasoning_replay_tokens"]),
-                model_context_window=int(ctx_cfg["model_context_window"]),
+                full_user_rounds=int(fresh["full_user_rounds"]),
+                summary_token_threshold=int(fresh["summary_token_threshold"]),
+                reasoning_replay_tokens=int(fresh["reasoning_replay_tokens"]),
+                model_context_window=int(fresh["model_context_window"]),
                 sources=context_sources,
             )
 
         context_factory = _default_context_factory
     if compactor_factory is None:
-        summarizer = make_provider_summarizer(
-            provider_inst,
-            max_chars=int(ctx_cfg["summary_output_max_chars"]),
-            prefix_reuse=bool(ctx_cfg["summary_prefix_reuse"]),
-        )
-
         def _default_compactor_factory(conversation_id: str) -> ContextCompactor:
+            # 每次建会话再读阈值和摘要长度，设置页保存后下一回合用新值。
+            fresh = get_context()
+            summarizer = make_provider_summarizer(
+                provider_inst,
+                max_chars=int(fresh["summary_output_max_chars"]),
+                # 摘要请求带上与平常请求相同的前缀，这次调用才能命中已有缓存。
+                prefix_reuse=True,
+            )
             return ContextCompactor(
                 summarizer,
-                summary_token_threshold=int(ctx_cfg["summary_token_threshold"]),
-                full_user_rounds=int(ctx_cfg["full_user_rounds"]),
+                summary_token_threshold=int(fresh["summary_token_threshold"]),
+                full_user_rounds=int(fresh["full_user_rounds"]),
             )
 
         compactor_factory = _default_compactor_factory
@@ -603,8 +599,6 @@ def build_app(
     context.register(SERVICE_LIVE_STATE, state)
     context.register(SERVICE_MESH, mesh_state)
     context.register(SERVICE_SESSION_CONTEXTS, contexts)
-    # 模型计价：配置覆盖 + 官方默认表；查不到即"未查到计价信息"，不编数
-    context.register(SERVICE_MODEL_PRICING, ModelPricing(get_model_pricing()))
     if store is not None:
         context.register(SERVICE_STORE, store)
     if context_factory is not None:

@@ -9,7 +9,7 @@
 
 没有界面交互，唯一对外可见的是上下文分层里的用量（段名与数量）。
 
-配置在插件自己目录下的 `plugin-config.ini`（`[skills]`：`dir` / `max_file_size`）。
+配置在插件自己目录下的 `plugin-config.ini`：`[base]` 是身份与开关，`[ext]` 是 `dir` / `max_file_size`。
 """
 from __future__ import annotations
 
@@ -17,13 +17,13 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from agent.capabilities.plugins import plugin_config_fields
 from agent.config import PROJECT_ROOT, load_ini
 from plugins.skills.library import SkillManager
 from plugins.skills.tools import build as build_tool
 from plugins.skills.tools import build_executors
 
-PLUGIN_VERSION = "1.0"
-CONFIG_SECTION = "skills"
+CONFIG_SECTION = "ext"
 DEFAULT_MAX_FILE_SIZE = 200000
 CONFIG_FILE = "plugin-config.ini"
 
@@ -43,7 +43,7 @@ def _config_path() -> Path:
 
 
 def _load_config(path: Optional[Path] = None) -> Dict[str, Any]:
-    """读本插件配置的 `[skills]` 节：`dir` / `max_file_size`。
+    """读本插件配置的 `[ext]` 节：`dir` / `max_file_size`。
 
     `dir` 缺失、不存在或不是目录时为 `None`，于是技能库为空、注入为空 ——
     判定失败时静默降级，不报错。相对路径按工程根解析。
@@ -79,9 +79,14 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     """插件入口：装配技能库，注册工具、两条上下文注入与提交执行器。"""
     cfg = _load_config()
     library = SkillManager(cfg["dir"], int(cfg["max_file_size"]))
+    base = plugin_config_fields(Path(__file__).resolve().parent)
+    panel_title = base["name"] or "技能"
 
+    tool = build_tool(library)
+    if base["icon"]:
+        tool.icon = base["icon"]
     disposers: List[Callable[[], None]] = [
-        ctx.register_tool(build_tool(library)),
+        ctx.register_tool(tool),
         # 清单：只有名字与描述（渐进式披露第一层）。
         ctx.add_context_source(
             lambda cid, _lib=library: _catalog_parts(_lib),
@@ -103,7 +108,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     # 上下文分层里的外观（段色/段名）：技能没有界面交互，唯一对外可见的就是那两段。
     # 脚本由壳层在开屏时预载，注册早于第一次渲染。
     disposers.append(ctx.add_panel(
-        "skills-appearance", title="Skills", html="", script_file="ui/panel.js"))
+        "skills-appearance", title=panel_title, html="", script_file="ui/panel.js"))
     return disposers
 
 

@@ -43,7 +43,7 @@ class SkillManageTool(ToolPlugin):
 
     name = "skill_manage"
     label = "技能管理"
-    icon = "🧩"
+    icon = ""
     description = "技能管理：`action=list` 列出可用技能；`action=read` 读取技能全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。"
     parameters = {
         "action": {"type": "string", "description": "list / read / copy"},

@@ -38,13 +38,22 @@
 
 ```ini
 ; plugins/skills/plugin-config.ini
-[skills]
+[base]
+id = skills
+name = 技能
+desc = 技能清单常驻上下文，正文按需读取。
+enable = 1
+icon = 🧩
+version = 1.0
+
+[ext]
 dir =
 max_file_size = 200000
 ```
 
 | 键 | 说明 |
 |---|---|
+| `[base]` | 每个插件都有：`id`、`name`、`desc`、`enable`、`icon`、`version`。`enable` 为 `0` 时不装载 |
 | `dir` | 技能目录。相对路径按**工程根**解析；留空或目录不存在则技能库为空、注入为空，不报错 |
 | `max_file_size` | 单个技能文件的字节上限，超过则截断；留空取 200000 |
 

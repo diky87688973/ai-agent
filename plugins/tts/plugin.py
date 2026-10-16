@@ -7,7 +7,7 @@
 - 音频输出经 on_audio 钩子：默认只打印日志，壳层可从 `plugin_host.runtime("tts")`
   取到同一份运行时并替换它。
 
-配置在本插件目录下的 `plugin-config.ini`（`[tts]`：`engine` / `voice` / `max_segment_chars`）。
+配置在本插件目录下的 `plugin-config.ini`：`[base]` 是身份与开关，`[ext]` 是 `engine` / `voice` / `max_segment_chars`。
 """
 from __future__ import annotations
 
@@ -112,10 +112,6 @@ def create_tts_provider(engine: str = "console", voice: Optional[str] = None) ->
     if name == "edge":
         return EdgeTTSProvider(voice=voice or "zh-CN-XiaoxiaoNeural")
     return ConsoleTTSProvider()
-
-
-#: 插件版本。清单（`plugins.ini`）里也声明时会核对，不一致记一条加载报告。
-PLUGIN_VERSION = "1.0"
 
 
 # ── 文本处理（切分与净化） ──
@@ -427,13 +423,13 @@ def _config_path() -> Path:
 
 
 def _load_tts_config() -> Dict[str, str]:
-    """读取本插件配置的 `[tts]` 节（缺失返回空 dict）。"""
+    """读取本插件配置的 `[ext]` 节（缺失返回空 dict）。"""
     try:
         from agent.config import load_ini
 
         parser = load_ini(_config_path())
-        if parser.has_section("tts"):
-            return {k: str(v).strip().strip("'\"") for k, v in parser.items("tts")}
+        if parser.has_section("ext"):
+            return {k: str(v).strip().strip("'\"") for k, v in parser.items("ext")}
     except Exception:
         pass
     return {}

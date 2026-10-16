@@ -14,6 +14,7 @@ ctx（PluginContext）提供 name、register_tool（挂 ToolRegistry）、subscr
 """
 from __future__ import annotations
 
+import configparser
 import importlib.util
 import re
 import sys
@@ -27,6 +28,46 @@ from agent.capabilities.registry import ToolPlugin, ToolRegistry
 Disposer = Callable[[], None]
 
 _MODULE_PREFIX = "fan_agent_plugins"
+
+
+def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
+    """读插件 `plugin-config.ini` 的 `[base]`：身份与开关。
+
+    每个插件都有这一节：`id` / `name` / `desc` / `enable` / `icon` / `version`。
+    `enable` 为 `0` 时不装载；没写时按 `1`。插件自己的键在 `[ext]`，这里不读。
+    """
+    root = Path(plugin_root)
+    fields = {
+        "id": root.name,
+        "name": "",
+        "desc": "",
+        "enable": "1",
+        "icon": "",
+        "version": "",
+    }
+    path = root / "plugin-config.ini"
+    if not path.is_file():
+        return fields
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(path, encoding="utf-8-sig")
+    except (OSError, configparser.Error):
+        return fields
+    if not parser.has_section("base"):
+        return fields
+
+    def _get(key: str) -> str:
+        return str(parser.get("base", key, fallback="") or "").strip()
+
+    if _get("id"):
+        fields["id"] = _get("id")
+    fields["name"] = _get("name")
+    fields["desc"] = _get("desc")
+    if _get("enable") == "0":
+        fields["enable"] = "0"
+    fields["icon"] = _get("icon")
+    fields["version"] = _get("version")
+    return fields
 
 
 def _safe_dir_name(name: str) -> str:
@@ -308,7 +349,7 @@ class PluginHost:
         self._loaded: Dict[str, List[Disposer]] = {}
         self._modules: Dict[str, str] = {}
         self._runtimes: Dict[str, Any] = {}
-        #: 插件自报版本（模块级 `PLUGIN_VERSION`）；没声明就是空串
+        #: 版本，来自 `[base] version`；没写时沿用模块里的 `PLUGIN_VERSION`。没声明就是空串。
         self._versions: Dict[str, str] = {}
         self._reports: List[LoadReport] = []
         #: 内核 App；`build_app` 装配完登记（插件取内核服务用，见 `PluginContext.app`）
@@ -366,8 +407,9 @@ class PluginHost:
     def load_manifest(self, entries: List[Any]) -> List[LoadReport]:
         """按清单装载。每项是 `{name, version, path}`；也接受纯名字（取默认目录）。
 
-        每项都产出报告：名字非法、目录缺失、缺 `plugin.py`、版本对不上都记下来。
-        配置错了要**看得见** —— 静默当没写会让人对着"插件没生效"无从下手。
+        插件 `plugin-config.ini` 的 `[base] enable = 0` 时卸下后跳过，不记错误。
+        条目自己带 `enabled = 0` 时同样跳过。
+        名字非法、目录缺失、缺 `plugin.py`、版本对不上都记下来。
         """
         fresh: List[LoadReport] = []
         for rank, entry in enumerate(entries):
@@ -375,16 +417,25 @@ class PluginHost:
             name = str(raw.get("name") or "").strip()
             declared = str(raw.get("version") or "").strip()
             path_raw = str(raw.get("path") or "").strip()
+            if isinstance(raw, dict) and str(raw.get("enabled", "1")).strip() == "0":
+                if name in self._loaded:
+                    self.unload(name)
+                continue
 
             if not _valid_plugin_name(name):
                 fresh.append(LoadReport(
                     name=name or "(未命名)", status="error",
                     message="插件名非法：只许字母、数字、下划线与短横，且不以 . 或 _ 开头"))
                 continue
+            root = self._resolve_plugin_root(name, path_raw)
+            base = plugin_config_fields(root)
+            if base["enable"] == "0":
+                if name in self._loaded:
+                    self.unload(name)
+                continue
             if name in self._loaded:
                 continue
 
-            root = self._resolve_plugin_root(name, path_raw)
             entry_file = root / "plugin.py"
             if not entry_file.is_file():
                 fresh.append(LoadReport(
@@ -393,6 +444,8 @@ class PluginHost:
                 continue
 
             report = self._load_one(PluginInfo(name=name, path=entry_file), rank=rank)
+            if base["version"]:
+                self._versions[name] = base["version"]
             if report.status == "loaded" and declared:
                 actual = str(self._versions.get(name) or "")
                 if actual and actual != declared:
@@ -459,7 +512,7 @@ class PluginHost:
             returned = register(ctx)
             self._loaded[info.name] = _collect_disposers(ctx, returned)
             self._modules[info.name] = mod_name
-            # 插件自报版本（可选）：模块级 `PLUGIN_VERSION`。清单里也声明时两者核对。
+            # 模块级 PLUGIN_VERSION。`[base] version` 有值时调用方改用那一份，再与清单核对。
             self._versions[info.name] = str(getattr(module, "PLUGIN_VERSION", "") or "")
             return LoadReport(name=info.name, status="loaded")
         except Exception as exc:

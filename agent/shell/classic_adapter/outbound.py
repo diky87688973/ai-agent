@@ -8,7 +8,7 @@
      `llm_done` / `mode_changed` / `heartbeat`），由这里按上下文合成。
 
 三条硬约束：
-  - 每帧必须带合法 `conversation_id`（`heartbeat` / `global_sse_ready` 除外）；
+  - 每帧必须带合法 `conversation_id`（`heartbeat` / `global_sse_ready` / `plugins_changed` 除外）；
   - `tool_call_id` 是 tool_start/tool_end 的唯一配对键，原样透传内核的 `call_id`；
   - `reasoning_delta` 跟在 `llm_round` 之后、且 `round` 相等，否则经典界面丢弃。
 """
@@ -120,7 +120,7 @@ class ClassicStream:
         self._awaiting_confirm = False
         out: List[Dict[str, Any]] = []
         # `conversation` 是**必需**事件：经典界面靠它建立该会话的上下文
-        # （`ensureConversationTab` + 同步模式/模型 + 拉计价），并由
+        # （`ensureConversationTab` + 同步模式/模型），并由
         # `withConversationContext` 设置 `renderingContextVisible`——
         # 没有它，后续 `usage` / `context_layout` 的渲染守卫不过，底栏永远不更新。
         # 内核的 `turn_started` 不带 mode/model，所以用注入的解析器现场取。
@@ -222,9 +222,7 @@ class ClassicStream:
         内核没有该事件，这里按当轮实况组；拿不到的字段给 None——
         经典界面只是 `JSON.stringify`，显示 null 比显示假数字诚实。
 
-        **`model` 不能为空**：经典界面的 `ensureModelPricing()` 要求 `selectedModel` 非空
-        （agent-ui.js 内 `if(!cid||!mid)return;`），空串会让它**永远不查计价**，
-        费用行就一直是 ￥0.00。所以这里回落注入的模型名。
+        **`model` 不能为空**：请求快照要写出这一轮用的模型名，空串就回落注入的模型名。
         """
         return {
             "round": self.round,

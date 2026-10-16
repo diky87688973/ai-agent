@@ -422,6 +422,14 @@ class WebShell:
             return []
         return [p.as_dict() for p in contribs.all_panels()]
 
+    def loaded_plugin_names(self) -> List[str]:
+        """当前已装载的插件名。页面用它决定上下文条里哪些插件段还在。"""
+        host = getattr(self.app, "plugin_host", None)
+        names = getattr(host, "loaded_names", None)
+        if not callable(names):
+            return []
+        return [str(name) for name in names()]
+
     def action_list(self) -> List[Dict[str, Any]]:
         """插件贡献的输入区动作（输入框下面的按钮）。
 
@@ -692,18 +700,6 @@ class WebShell:
             except OSError:
                 parent = ""
         return 200, {"current": current, "parent": parent, "items": items}
-
-    # ── 模型计价（用量底栏的费用换算）──────────────
-
-    def model_pricing(self, model: str) -> Tuple[int, Dict[str, Any]]:
-        """返回某模型的费率（元/百万 tokens）；查不到 → `ok:False`（UI 显示"未查到"）。"""
-        pricing = getattr(self.app, "model_pricing", None)
-        name = str(model or "").strip()
-        if not name:
-            name = str(getattr(self.app.provider, "model", "") or "")
-        if pricing is None:
-            return 200, {"ok": False, "model": name, "error": "pricing 不可用"}
-        return 200, pricing.payload(name)
 
     def _rel_to_root(self, target: Path) -> str:
         """相对命中的那个可见根的路径；命不中根时退回文件名。"""
@@ -1211,6 +1207,11 @@ class _Handler(BaseHTTPRequestHandler):
                 else:
                     status, payload = self.shell.health()
                     self._json(status, payload)
+            elif path == "/api/settings" or path.startswith("/api/settings/"):
+                from agent.shell.settings_panel import handle_get
+
+                status, payload = handle_get(path, query)
+                self._json(status, payload)
             elif path == "/api/events/stream":
                 self._classic_sse(query)
             elif path == "/api/usage-accumulator":
@@ -1263,7 +1264,11 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(status, payload)
             elif path == "/api/panels":
                 # 插件贡献的右栏面板清单；界面按它动态建标签，不为每个插件加分支
-                self._json(200, {"ok": True, "panels": self.shell.panel_list()})
+                self._json(200, {
+                    "ok": True,
+                    "panels": self.shell.panel_list(),
+                    "loaded": self.shell.loaded_plugin_names(),
+                })
             elif path == "/api/actions":
                 # 插件贡献的输入区动作（输入框下面的按钮）；不声明就没有按钮
                 self._json(200, {"ok": True, "actions": self.shell.action_list()})
@@ -1275,9 +1280,6 @@ class _Handler(BaseHTTPRequestHandler):
                 self._plugin_route("GET")
             elif path == "/api/dir-browse":
                 status, payload = self.shell.dir_browse(query.get("path", ""))
-                self._json(status, payload)
-            elif path == "/api/model-pricing":
-                status, payload = self.shell.model_pricing(query.get("model", ""))
                 self._json(status, payload)
             elif path == "/api/reasoning-effort":
                 status, payload = self.shell.reasoning_effort_get(
@@ -1426,6 +1428,12 @@ class _Handler(BaseHTTPRequestHandler):
             elif path.startswith("/api/plugin/"):
                 # 插件业务提交（生成任务、保存配置等）走这条
                 self._plugin_route("POST", body)
+            elif path == "/api/settings" or path.startswith("/api/settings/"):
+                from agent.shell.settings_panel import handle_post
+
+                status, payload = handle_post(
+                    path, body, getattr(self.shell, "app", None))
+                self._json(status, payload)
             else:
                 self._json(404, {"error": "not found", "path": path})
         except Exception as exc:
