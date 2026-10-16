@@ -83,8 +83,6 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     panel_title = base["name"] or "技能"
 
     tool = build_tool(library)
-    if base["icon"]:
-        tool.icon = base["icon"]
     disposers: List[Callable[[], None]] = [
         ctx.register_tool(tool),
         # 清单：只有名字与描述（渐进式披露第一层）。
