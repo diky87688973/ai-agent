@@ -436,7 +436,7 @@ if(!o)return;
 if(it.status==="canceled"){
 onToolEnd({tool_call_id:ev.tool_call_id,ok:false,canceled:true,error:String(it.error||"已停止")});
 }else if(it.status==="failed"){
-onToolEnd({tool_call_id:ev.tool_call_id,ok:false,error:String(it.error||"执行失败")});
+onToolEnd({tool_call_id:ev.tool_call_id,ok:false,error:String(it.error||"执行失败"),preview:String(it.preview||"")});
 }else if(it.status==="suspended"){
 /* 挂起（等用户在界面作答）：不标失败，保持"待确认"语义 */
 var env=it.envelope||{};
@@ -1846,127 +1846,6 @@ var _hc2=hljsCodeClass(lang);html+='<pre><code'+(_hc2?' class="'+_hc2+'"':'')+(l
 });
 return html||'<p></p>';
 }
-/* 本轮编辑只记在会话页上：预览留下 confirm_id 对应的 diff，提交成功留下确认 id。
-   真正收尾时取两者交集；同一路径只留最后一次。等用户确认时的 done 不出清单。 */
-function liveEditPieces(data, args, script){
-var icon=toolIco(script, args);
-var out=[];
-function push(path, diff){
-path=String(path||"").trim();
-if(!path)return;
-diff=String(diff||"");
-var stat=chatDiffCounts(diff);
-out.push({path:path, diff:diff, added:stat.add, deleted:stat.del, icon:icon});
-}
-if(data&&Array.isArray(data.files)&&data.files.length){
-for(var i=0;i<data.files.length;i++){
-var f=data.files[i];
-if(!f||typeof f!=="object")continue;
-if(f.path)push(f.path, diffTextFromToolData(f));
-}
-if(out.length)return out;
-}
-push((data&&data.path)||argGet(args,"path")||argGet(args,"dest_path")||argGet(args,"source_path"), diffTextFromToolData(data));
-return out;
-}
-function noteLiveEdit(ev, tab){
-if(!tab||!ev||!ev.ok)return;
-var tid=String(ev.tool_call_id!=null?ev.tool_call_id:"").trim();
-var o=tid&&toolOpen.get(tid);
-var script=String((ev.script||(o&&o.script)||"")).toLowerCase();
-var args=(o&&o.args)||{};
-if(script==="commit_write"){
-var cid=String(argGet(args,"confirm_id")||"").trim();
-if(!cid)return;
-if(!tab.editedConfirmed)tab.editedConfirmed=[];
-tab.editedConfirmed.push(cid);
-return;
-}
-if(script==="review_conclusion")return;
-var data=null;
-try{var parsed=typeof ev.preview==="string"?JSON.parse(ev.preview||""):ev.preview;data=parsed&&parsed.data;}catch(_e){data=null;}
-if(!data||typeof data!=="object"||!data.confirm_id)return;
-var pieces=liveEditPieces(data, args, script);
-if(!pieces.length)return;
-if(!tab.editedPreview)tab.editedPreview={};
-tab.editedPreview[String(data.confirm_id).trim()]=pieces;
-}
-function finishLiveEdits(tab){
-if(!tab)return;
-if(tab.editedHold){tab.editedHold=false;return;}
-var confirmed=tab.editedConfirmed||[];
-var map=tab.editedPreview||{};
-var rows=[];
-var seq=0;
-for(var i=0;i<confirmed.length;i++){
-var pieces=map[confirmed[i]];
-if(!pieces)continue;
-for(var j=0;j<pieces.length;j++){var row=pieces[j];row.seq=seq++;rows.push(row);}
-delete map[confirmed[i]];
-}
-tab.editedConfirmed=[];
-var last={};
-var order=[];
-for(var k=0;k<rows.length;k++){
-var path=rows[k].path;
-if(!Object.prototype.hasOwnProperty.call(last, path))order.push(path);
-last[path]=rows[k];
-}
-var files=[];
-for(var n=0;n<order.length;n++)files.push(last[order[n]]);
-if(files.length)showEditedFiles(files);
-}
-function fillEditedStat(sum, added, deleted){
-sum.textContent="";
-var a=Number(added)||0, d=Number(deleted)||0;
-if(!a&&!d){sum.textContent="0";return;}
-if(d){
-var neg=document.createElement("span");
-neg.className="chat-diff-neg";
-neg.textContent="-"+d;
-sum.appendChild(neg);
-}
-if(a){
-if(d)sum.appendChild(document.createTextNode(" "));
-var pos=document.createElement("span");
-pos.className="chat-diff-pos";
-pos.textContent="+"+a;
-sum.appendChild(pos);
-}
-}
-function showEditedFiles(files){
-if(!msgs||!Array.isArray(files)||!files.length)return;
-var e=document.createElement("div");
-e.className="edited-files";
-var title=document.createElement("div");
-title.className="edited-files-title";
-title.textContent="本轮编辑";
-e.appendChild(title);
-var count=0;
-for(var i=0;i<files.length;i++){
-var file=files[i];
-if(!file||typeof file!=="object")continue;
-var path=String(file.path||"").trim();
-if(!path)continue;
-var row=makeChatToolRow(path,"");
-var ico=document.createElement("span");
-ico.className="edited-file-ico";
-ico.setAttribute("aria-hidden","true");
-ico.textContent=String(file.icon||"📝");
-row._title.parentNode.insertBefore(ico, row._title);
-fillEditedStat(row._sum, file.added, file.deleted);
-var diff=String(file.diff||"");
-if(diff.trim()){
-var pane=addChatToolLayer(row._body,"","");
-chatPaintDiffPane(pane,{},{preview:JSON.stringify({data:{path:path,_diff:diff}})});
-}
-e.appendChild(row);
-count++;
-}
-if(!count)return;
-msgs.appendChild(e);
-scrollMsgsToBottom();
-}
 function add(role,t){
 if(!msgs)return null;
 const e=document.createElement('div');
@@ -2474,7 +2353,7 @@ const dr=argGet(args,"dry_run");
 const dry=dr!==false&&dr!==0;
 return {main:dry?"预览修改":"提交修改",fname:(src||"?")+(dst?" → "+dst:"")+rng};}
 if(s.indexOf("delete_file")>=0){
-const leaf=pathLeaf(String(argGet(args,"path")||""))||"（未指定 path）";
+const leaf=String(argGet(args,"path")||"").trim()||"（未指定 path）";
 const dr=argGet(args,"dry_run");
 const dry=dr!==false&&dr!==0;
 return {main:dry?"预览删除":"删除文件",fname:leaf};}
@@ -2518,13 +2397,9 @@ if(s.indexOf("run_type")>=0){
 const rt=String(argGet(args,"run_type")||"").trim().toLowerCase();
 return {main:rt?"切换运行模式":"查询运行模式",fname:rt||"auto/plan/execute"};}
 if(s.indexOf("glob_files")>=0){
-const root=String(argGet(args,"path")||"");
-const glob=String(argGet(args,"glob_pattern")||"*");
-const leaf=pathLeaf(root)||takeDots(root,28);
-const rec=argGet(args,"recursive");
 const et=String(argGet(args,"entry_type")||"").toLowerCase();
 const scope=(et==="dir"?"仅目录":et==="all"?"全部":"")+(et==="file"||!et?"文件":"");
-return {main:"列出路径"+(scope?"（"+scope+"）":""),fname:leaf+(glob&&glob!=="*"&&glob!=="**/*"?" · "+glob:"")+(rec===false?"":" · 递归")};}
+return {main:"列出路径"+(scope?"（"+scope+"）":""),fname:chatGlobSummary(args)};}
 if(s.indexOf("web_fetch")>=0){
 const url=String(argGet(args,"url")||"").trim();
 return {main:"网页",fname:url};}
@@ -2549,13 +2424,14 @@ const glob=String(argGet(args,"glob_pattern")||"");
 return {main:"正则检索",fname:(tgt||"?")+(pat?" · /"+pat+"/":"")+(glob&&glob!=="*"?" · "+glob:"")};}
 if(s.indexOf("file_ops")>=0){
 const act=String(argGet(args,"action")||"").toLowerCase();
-const src=baseNameOnly(String(argGet(args,"source")||""));
-const dst=baseNameOnly(String(argGet(args,"dest")||""));
-if(act==="delete")return {main:"移入回收站 · "+(src||"见参数"),fname:""};
-if(act==="copy")return {main:"复制 · "+src+(dst?" → "+dst:""),fname:""};
-if(act==="move")return {main:"移动 · "+src+(dst?" → "+dst:""),fname:""};
-if(act==="rename")return {main:"重命名 · "+src+(dst?" → "+dst:""),fname:""};
-return {main:(src?"文件操作 · "+src:"文件操作"),fname:""};}
+const src=String(argGet(args,"source")||"").trim();
+const dst=String(argGet(args,"dest")||"").trim();
+const arrow=src+(dst?" → "+dst:"");
+if(act==="delete")return {main:"移入回收站",fname:src||"见参数"};
+if(act==="copy")return {main:"复制",fname:arrow};
+if(act==="move")return {main:"移动",fname:arrow};
+if(act==="rename")return {main:"重命名",fname:arrow};
+return {main:"文件操作",fname:src};}
 if(s.indexOf("text_diff")>=0){
 const lf=baseNameOnly(String(argGet(args,"left_file")||""));
 const rf=baseNameOnly(String(argGet(args,"right_file")||""));
@@ -3237,7 +3113,7 @@ o.tag.className="tag tag-run";
 o.tag.textContent=(!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"Done":"Fail";
 o.tag.className="tag "+((!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"ok":"bad");
 if(ev.user_confirm_required||ev.approval_required){o.tag.textContent="待确认";o.tag.className="tag tag-run";}
-o.resLb.style.display="block";o.resPb.style.display="block";if(ev.user_confirm_required){try{var _pj=JSON.parse(ev.preview||"{}");var _em=_pj&&_pj.error&&_pj.error.message?String(_pj.error.message):"";var _em2=_em.indexOf("\n\n--help:")>=0?_em.split("\n\n--help:")[0].trim():_em;var slim={ok:_pj.ok,data:_pj.data,error:_pj.error?{code:_pj.error.code,type:_pj.error.type,message:_em2,hint:_pj.error.hint,retryable:_pj.error.retryable}:null};o.resPb.textContent=JSON.stringify(slim,null,2);}catch(e){o.resPb.textContent=ev.preview||"";}}else{try{var _pj2=JSON.parse(ev.preview||"{}");o.resPb.textContent=JSON.stringify(_pj2,null,2);}catch(e){o.resPb.textContent=ev.preview||"";}}
+o.resLb.style.display="block";o.resPb.style.display="block";if(ev.user_confirm_required){try{var _pj=JSON.parse(ev.preview||"{}");var _em=_pj&&_pj.error&&_pj.error.message?String(_pj.error.message):"";var _em2=_em.indexOf("\n\n--help:")>=0?_em.split("\n\n--help:")[0].trim():_em;var slim={ok:_pj.ok,data:_pj.data,error:_pj.error?{code:_pj.error.code,type:_pj.error.type,message:_em2,hint:_pj.error.hint,retryable:_pj.error.retryable}:null};o.resPb.textContent=JSON.stringify(slim,null,2);}catch(e){o.resPb.textContent=ev.preview||"";}}else{var _rawPrev=String(ev.preview||"").trim();if(!_rawPrev&&!ok&&ev.error){o.resPb.textContent=typeof chatToolFailPreview==="function"?chatToolFailPreview(ev.error):JSON.stringify({data:{ok:false,error:String(ev.error)}},null,2);}else{try{var _pj2=JSON.parse(_rawPrev||"{}");o.resPb.textContent=JSON.stringify(_pj2,null,2);}catch(e){o.resPb.textContent=_rawPrev||"";}}}
 fillToolPreview(o,ev);
 /* diff 预览画到**对话区**（步骤卡的预览槽放不下、默认也收起）。
    放在这里而不是调用方：实时（tool_end 帧）与刷新重放（走 renderHistoryToolItem）
@@ -3276,6 +3152,8 @@ var imgs=pendingChatImages.slice();
 if(!text&&!imgs.length)return;
 if(isConversationBusy()){alert("当前会话仍在执行中，请等待模型响应、工具执行或确认流程完成后再发送。");return;}
 var sendCid=getActiveConversationId();
+/* 有效新消息才清本轮编辑清单；/api/chat/user-confirm 不走这里。 */
+if(typeof clearLiveEdits==="function")clearLiveEdits(findConversationTab(sendCid));
 /* 气泡只显示文字：图片由下方的附件条（缩略图）表达，不再追加 `[图片 ×N]` 尾巴。
    只发图不打字时给个占位，否则气泡是空的。 */
 var display=text||"（截图）";

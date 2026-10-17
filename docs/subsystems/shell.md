@@ -119,7 +119,7 @@ SSE 连接表由 `WebShell` 持有，断开时从表里移除。
 
 ## 系统提示词
 
-`prompts.py` 的 `build_system_prompt()` 组装基础提示词：术语表、工具纪律、编码准则、模式段。`tool_summary()` 从工具注册表摘一份"名字 — 一句话"速查，避免把完整 schema 塞两遍。
+`prompts.py` 的 `build_system_prompt()` 组装基础提示词：回复语言、术语表、工具纪律、编码准则、模式段。`tool_summary()` 从工具注册表摘一份"名字 — 一句话"速查，避免把完整 schema 塞两遍。
 
 `resolve_system_prompt()` 处理会话级覆盖，并**把模式段切掉**（`split_mode_section()`）：模式改由 `resolve_mode_note()` 产出，作为请求尾部的临时后缀附加，只加在发给模型的那一份上。理由见 [context.md](context.md) 的「执行模式是请求尾部的临时后缀」。
 
@@ -128,13 +128,17 @@ SSE 连接表由 `WebShell` 持有，断开时从表里移除。
 `ui_bundle.py` 把界面资源内联成单页 HTML，运行时页面零额外请求。
 
 ```python
-build_inline_css()      # reset + 主样式 + 两份代码高亮主题
-build_inline_js()       # 主题 / markdown 解析器 / 高亮 / 图片灯箱 / 主脚本 / 设置页
+build_inline_css()      # reset + 主样式 + 工具视图 + 本轮编辑清单 + 两份代码高亮主题
+build_inline_js()       # 主题 / markdown 解析器 / 高亮 / 图片灯箱 / 主脚本 / 工具视图 / 本轮编辑清单 / 设置页
 scope_hljs_css()        # 把 .hljs 选择器限定到浅色主题下
 inline_ui_html()        # 拼成完整单页
 ```
 
 浅色代码高亮主题的作用域隔离在**运行时**做：`scope_hljs_css()` 给 `.hljs` 选择器加 `html[data-ui-theme="light"]` 前缀，两套配色同页共存而不互相覆盖。不另存一份改过的 CSS。
+
+### 本轮编辑清单
+
+`edited-files.js` 只在页面内存拼装：预览留下 `confirm_id → diff`，`commit_write` 留下已确认 id，回合 `done` 时取交集渲染 `.edited-files`。清单不进内核、刷新不回放。`POST /api/chat/send` 发出有效新消息时 `clearLiveEdits` 清掉当前会话的旧清单卡与页内映射；`POST /api/chat/user-confirm` 不清。
 
 ## 对话区最小宽度
 

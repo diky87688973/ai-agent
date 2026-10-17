@@ -24,6 +24,9 @@ animation:chat-tool-marquee 1.8s linear infinite;
 }
 .chat-tool-row.is-bad .chat-tool-title{color:#e15d5d}
 .chat-tool-row.is-canceled .chat-tool-title{color:#b7c0c8}
+.chat-tool-fail{color:#e15d5d;font-size:12.5px;line-height:1.45}
+.chat-tool-pane code.chat-tool-fail,
+.chat-tool-custom-view .chat-tool-fail{color:#e15d5d}
 @keyframes chat-tool-marquee{from{background-position:100% 0}to{background-position:-100% 0}}
 @media (prefers-reduced-motion:reduce){
 .chat-tool-chev::before{transition:none}
@@ -45,6 +48,16 @@ animation:chat-tool-marquee 1.8s linear infinite;
 .chat-tool-pane--diff .chat-diff-card{margin:0;border:0;border-radius:0;background:transparent}
 .chat-tool-pane--diff .diff-unified{max-height:400px;overflow:auto}
 .chat-tool-body .cmd-input-bar{margin:0;border:0;border-top:1px solid rgba(255,255,255,.06);border-radius:0}
+.chat-tool-custom-view{max-height:400px;overflow:auto}
+.chat-tool-custom-view .chat-tool-pane,
+.chat-tool-custom-view .chat-tool-pane--diff,
+.chat-tool-custom-view .chat-tool-pane--shot,
+.chat-tool-custom-view .diff-unified,
+.chat-tool-custom-view .chat-tool-pane--diff .diff-unified{max-height:none;overflow:visible}
+.chat-tool-packet{padding:6px 12px 8px}
+.chat-tool-packet-btn{border:0;background:transparent;padding:0;font:inherit;font-size:12.5px;line-height:1.4;color:#8b949e;cursor:pointer}
+.chat-tool-packet-btn:hover{color:#d6dde6}
+.chat-tool-raw .chat-tool-pane{max-height:400px;overflow:auto}
 html[data-ui-theme="light"] .chat-tool-head:hover{background:rgba(20,40,80,.05)}
 html[data-ui-theme="light"] .chat-tool-title{color:#1a2233}
 html[data-ui-theme="light"] .chat-tool-sum{color:#5c6b80}
@@ -55,6 +68,9 @@ background-image:linear-gradient(90deg,#d4892a 0%,#d4892a 38%,#6e4324 50%,#d4892
 }
 html[data-ui-theme="light"] .chat-tool-row.is-bad .chat-tool-title{color:#c4453c}
 html[data-ui-theme="light"] .chat-tool-row.is-canceled .chat-tool-title{color:#8e98a6}
+html[data-ui-theme="light"] .chat-tool-fail,
+html[data-ui-theme="light"] .chat-tool-pane code.chat-tool-fail,
+html[data-ui-theme="light"] .chat-tool-custom-view .chat-tool-fail{color:#c4453c}
 @media (prefers-reduced-motion:reduce){
 html[data-ui-theme="light"] .chat-tool-row.is-running .chat-tool-title{color:#c47a22;-webkit-text-fill-color:#c47a22}
 }
@@ -70,6 +86,8 @@ html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md pre code{background:tr
 html[data-ui-theme="light"] .chat-tool-pane--cmd{background:transparent}
 html[data-ui-theme="light"] .chat-tool-pane--diff{background:transparent}
 html[data-ui-theme="light"] .chat-tool-body .cmd-input-bar{border-top-color:#e6ebf3}
+html[data-ui-theme="light"] .chat-tool-packet-btn{color:#5c6b80}
+html[data-ui-theme="light"] .chat-tool-packet-btn:hover{color:#1a2233}
 .chat-tool-pane--shot{max-height:none;overflow:visible;padding:8px 12px 4px 8px}
 .chat-tool-shot{display:block;max-width:400px;max-height:400px;width:auto;height:auto;object-fit:contain;border-radius:4px}
 .chat-tool-shot-meta{margin-top:8px}

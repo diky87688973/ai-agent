@@ -19,7 +19,7 @@
 
 | 字段 | 含义 |
 |---|---|
-| `_pending[confirm_id]` | 一份预览快照。`confirmed` 表示已审，`confirmed_generation` 是审阅当时的真写次数 |
+| `_pending[confirm_id]` | 一份预览快照。`confirmed` 表示已审，`confirmed_generation` 是审阅当时的真写次数。登记时同路径只留最新；条数上限 `MAX_PENDING_PREVIEWS`（100），满则按登记顺序挤掉最旧的 |
 | `_write_generation` | 成功提交的次数，从 0 起 |
 | `pending_review` | 已落盘、被视为尚未复核的路径列表 |
 | `reviewed_ok` | 为假时，跨文件规则生效 |

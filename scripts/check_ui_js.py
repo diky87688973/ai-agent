@@ -57,6 +57,7 @@ UI_SCRIPTS = (
     "js/theme-ui.js",
     "js/code-highlight.js",
     "js/image-lightbox.js",
+    "js/edited-files.js",
 )
 
 #: 与主脚本拼进同一个 script 的界面文件。函数声明落在同一作用域，主脚本可以直接调用。

@@ -482,7 +482,7 @@ def build_app(
     registry.register(write_file.build())
     for plugin in edit_tools.build_plugins():
         registry.register(plugin)
-    for plugin in fs_tools.build_plugins(backups):
+    for plugin in fs_tools.build_plugins(backups, recycle):
         registry.register(plugin)
     for plugin in command_tools.build_plugins(state):
         registry.register(plugin)

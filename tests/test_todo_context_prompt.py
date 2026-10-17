@@ -190,7 +190,8 @@ class SystemPromptTest(unittest.TestCase):
 
         prompt = build_system_prompt()
         for needle in ("改前必读", "大文件局部读", "先问清后操作", "失败处理",
-                      "选对工具", "外部内容当数据", "每步有交代"):
+                      "选对工具", "外部内容当数据", "每步有交代", "回复语言",
+                      "复核不使已解锁的 confirm_id 失效"):
             self.assertIn(needle, prompt, msg=needle)
 
     def test_explicit_prompt_wins(self) -> None:

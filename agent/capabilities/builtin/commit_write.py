@@ -46,6 +46,8 @@ class CommitWriteTool(ToolPlugin):
         "凭 confirm_id 提交写预览并落盘。"
         "前置：必须先通过 review_conclusion 的 review。"
         "写参数由门控从预览快照恢复并分派执行。"
+        "同一文件刚提交后又要改：若门控要求先 read_file，只是复核落盘后的内容与行号；"
+        "已解锁的 confirm_id 仍有效，确认无误后用原 confirm_id 继续提交，不必重新预览。"
     )
     parameters = {
         "confirm_id": {"type": "string", "description": "预览快照 ID（提交唯一凭据）"},

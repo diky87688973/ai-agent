@@ -4,6 +4,7 @@
 四步协议（id 制，所有提交统一走 confirm_id）：
 - 预览（write_file / replace_in_file / apply_patch / read_write / delete_file / file_ops / file_undo）：
   写参数快照登记入库，返回 confirm_id（不落盘）；
+  同路径只留最新快照；未提交条数上限 `MAX_PENDING_PREVIEWS`，满则按登记顺序挤掉最旧的；
 - 确认（宿主）：confirm(confirm_id)；
 - 提交（commit_write）：仅凭 confirm_id —— content 等写参数由本模块从快照恢复，
   模型不重传（省 token、防重写漂移）；预览与提交是两个独立工具入口，不共用函数入口。
@@ -44,6 +45,8 @@ from agent.core.tool_call import (
 MAX_DIFF_LINES = 80
 LARGE_DELETE_MIN_LINES = 30
 LARGE_DELETE_ADD_RATIO = 0.35
+# 未提交预览快照上限：同路径只留最新；满额时按登记顺序挤掉最旧的。
+MAX_PENDING_PREVIEWS = 100
 
 
 def _norm_path(p: str) -> str:
@@ -179,11 +182,33 @@ class QualityGate:
 
     # ── ① 预览登记（id 制）──────────────────────────────────
     def register_preview(self, tool: str, arguments: Dict[str, Any]) -> str:
-        """登记一次预览快照（写参数入库），返回 confirm_id（提交唯一凭据）。"""
+        """登记一次预览快照（写参数入库），返回 confirm_id（提交唯一凭据）。
+
+        同一写目标路径只保留最新一条；条数达到 `MAX_PENDING_PREVIEWS` 时，
+        按登记顺序挤掉最旧的未提交快照后再写入。
+        """
+        tool_name = str(tool or "")
+        args = dict(arguments or {})
+        path = resolve_write_path(tool_name, args)
+        if path:
+            stale = [
+                key
+                for key, rec in self._pending.items()
+                if resolve_write_path(
+                    str(rec.get("tool") or ""),
+                    dict(rec.get("arguments") or {}),
+                )
+                == path
+            ]
+            for key in stale:
+                del self._pending[key]
+        while len(self._pending) >= MAX_PENDING_PREVIEWS:
+            oldest = next(iter(self._pending))
+            del self._pending[oldest]
         cid = uuid4().hex
         self._pending[cid] = {
-            "tool": str(tool or ""),
-            "arguments": dict(arguments or {}),
+            "tool": tool_name,
+            "arguments": args,
             "confirmed": False,
         }
         return cid
@@ -278,7 +303,12 @@ class QualityGate:
             )
         if path in self.needs_reread:
             return GateDecision(
-                allow=False, reason=f"刚写入过：请先 read 复核当前内容（{path}）"
+                allow=False,
+                reason=(
+                    f"该路径刚落盘过：请先 read_file 复核当前内容与行号（{path}）。"
+                    "复核不使已解锁的 confirm_id 失效；确认无误后用原 confirm_id 继续 "
+                    "commit_write，不必重新预览。"
+                ),
             )
         if tool == "replace_in_file":
             new_text = str(args.get("new_text") or "")

@@ -234,6 +234,16 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
                                 ensure_ascii=False, default=str)
                         except (TypeError, ValueError):
                             pass
+                    elif kind == "tool_failed" and item.get("error"):
+                        # 门控拒绝等失败常只有 error、没有 data；也落成同形状 preview，
+                        # 刷新后工具壳响应区才能画出 JSON，而不是空对象。
+                        try:
+                            item["preview"] = json.dumps(
+                                {"data": {"ok": False, "error": str(item.get("error") or "")}},
+                                ensure_ascii=False,
+                            )
+                        except (TypeError, ValueError):
+                            pass
                     images = C.public_tool_images(data.get("attachments"))
                     if images:
                         item["images"] = images

@@ -36,6 +36,9 @@ class DeleteFileTool(ToolPlugin):
         "path": {"type": "string", "description": "待删除文件路径"},
     }
 
+    def __init__(self, recycle: Recycle | None = None) -> None:
+        self._recycle = recycle
+
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         raw = str(arguments.get("path") or "").strip()
         if not raw:
@@ -45,7 +48,10 @@ class DeleteFileTool(ToolPlugin):
             raise FileNotFoundError(f"路径不存在：{target}")
         if target.is_dir():
             raise ValueError("delete_file 仅用于文件；目录请用 file_ops(action=delete, recursive=true)")
-        return {"path": str(target), "preview": True, "bytes": target.stat().st_size}
+        info: Dict[str, Any] = {"path": str(target), "preview": True, "bytes": target.stat().st_size}
+        if self._recycle is not None:
+            info["recycle_dir"] = str(self._recycle.root)
+        return info
 
 
 # ── file_ops ───────────────────────────────────────────
@@ -253,9 +259,9 @@ def _execute_undo(backups: FileBackups, arguments: Dict[str, Any]) -> Dict[str, 
     }
 
 
-def build_plugins(backups: FileBackups) -> List[ToolPlugin]:
+def build_plugins(backups: FileBackups, recycle: Recycle | None = None) -> List[ToolPlugin]:
     """构造本组预览插件（delete_file / file_ops / file_undo）。"""
-    return [DeleteFileTool(), FileOpsTool(), FileUndoTool(backups)]
+    return [DeleteFileTool(recycle), FileOpsTool(), FileUndoTool(backups)]
 
 
 def build_executors(

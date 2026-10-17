@@ -5,13 +5,18 @@
 没有地方会写它 —— 真实运行的系统提示就是空串，模型只知工具 schema、
 不知使用纪律；上下文分段里的「系统提示词」块也永远是 0。
 
-分段：先确认后工具 · 改前链路铁律 · 大文件读取纪律 · 失败处理 ·
+分段：回复语言 · 先确认后工具 · 改前链路铁律 · 大文件读取纪律 · 失败处理 ·
 AI 编码准则（摘取可操作项）· 三模式提示 · 用户自定义规则（配置给才加）。
 """
 from __future__ import annotations
 
 import re
 from typing import Any, Optional
+
+_REPLY_LANGUAGE = """\
+## 回复语言
+
+正文与用户用同一种语言。用户写中文就回中文，不要改用英文。只有用户明确要求换一种语言时才换。"""
 
 # 术语表：**防歧义**
 #
@@ -40,6 +45,9 @@ _TOOLING_DISCIPLINE = """\
    write_file / replace_in_file / apply_patch / read_write / delete_file /
    file_ops / file_undo / archive / skill_manage。
    链路见上「术语」的**三步写盘链路**；跳过 review 直接提交会被门控拒绝。
+   同一文件刚落盘后又要改：须先 read_file 复核当前内容与行号；
+   **复核不使已解锁的 confirm_id 失效**，确认无误后用原 confirm_id 继续
+   commit_write，不必重新预览。
 3. **选对工具**：找文件用 glob_files，搜内容用 grep_files，读文件用 read_file，
    看改动用 text_diff。**不要**用 run_command 跑 dir / find / findstr / type / Get-Content ——
    专用工具更准、更省、也不会被输出编码坑到。
@@ -110,6 +118,7 @@ def build_system_prompt(
     """
     parts = [
         "你是 AI Agent，一个可以读写文件、执行命令的通用助手。",
+        _REPLY_LANGUAGE,
         _TERMINOLOGY,
         _TOOLING_DISCIPLINE,
         _CODING_DISCIPLINE,

@@ -319,11 +319,74 @@ var j=typeof ev.preview==="string"?JSON.parse(ev.preview||""):ev.preview;
 return j&&typeof j==="object"?j:null;
 }catch(e){return null;}
 }
+function chatToolPrettyJson(value){
+if(value==null||value==="")return "";
+if(typeof value==="object"){
+try{return JSON.stringify(value,null,2);}catch(e){return "";}
+}
+var raw=String(value);
+try{
+var j=JSON.parse(raw);
+if(j&&typeof j==="object")return JSON.stringify(j,null,2);
+}catch(e){}
+return raw;
+}
+function chatToolPayloadUseful(text){
+var s=String(text||"").trim();
+if(!s||s==="{}"||s==="null")return false;
+try{
+var j=JSON.parse(s);
+if(j&&typeof j==="object"&&!Array.isArray(j)){
+if(!Object.keys(j).length)return false;
+var d=j.data;
+if(d&&typeof d==="object"&&!Array.isArray(d)&&!Object.keys(d).length&&j.error==null)return false;
+}
+}catch(e){}
+return true;
+}
+function chatToolFailPreview(error){
+return JSON.stringify({data:{ok:false,error:String(error||"执行失败")}},null,2);
+}
+/* tool_end 的失败详情在 preview JSON 里，帧上常常没有顶层 error。
+   自定义明细只认失败态，文案统一为红色「<执行失败>」，细节留在「查看报文」。 */
+function chatToolIsFailed(ev){
+if(!ev||ev.user_confirm_required||ev.approval_required)return false;
+if(typeof chatToolWasCanceled==="function"&&chatToolWasCanceled(ev))return false;
+if(ev.ok===false||ev.ok===0||ev.ok==="false")return true;
+var j=chatToolParsePreview(ev);
+var d=j&&j.data;
+return !!(d&&typeof d==="object"&&(d.ok===false||d.ok===0));
+}
+function chatToolPaintFailText(el){
+if(!el)return;
+el.classList.add("chat-tool-fail");
+if(el.tagName==="CODE"||el.tagName==="PRE"||el.classList.contains("b")||el.classList.contains("chat-tool-md")){
+el.textContent="<执行失败>";
+return;
+}
+el.textContent="";
+var line=document.createElement("div");
+line.className="chat-tool-fail";
+line.textContent="<执行失败>";
+el.appendChild(line);
+}
+function chatToolClearFailMark(el){
+if(!el)return;
+el.classList.remove("chat-tool-fail");
+}
 function chatToolResponseText(o, ev){
-if(!ev.ok&&ev.error&&!ev.user_confirm_required&&!ev.approval_required)return String(ev.error);
-var t=o.resPb?String(o.resPb.textContent||""):"";
-if(t.trim())return t;
-if(ev.preview)return String(ev.preview);
+if(ev&&ev.preview){
+var fromPreview=chatToolPrettyJson(ev.preview);
+if(chatToolPayloadUseful(fromPreview))return fromPreview;
+}
+if(ev&&!ev.ok&&ev.error&&!ev.user_confirm_required&&!ev.approval_required){
+return chatToolFailPreview(ev.error);
+}
+var t=o&&o.resPb?String(o.resPb.textContent||""):"";
+if(chatToolPayloadUseful(t)){
+var fromRes=chatToolPrettyJson(t);
+if(fromRes.trim())return fromRes;
+}
 return "（无结果）";
 }
 var chatToolViewDefault={
@@ -380,10 +443,15 @@ if(!o.liveOutPre)o.liveOutPre=out;
 },
 fill:function(row, o, ev){
 if(!o.chatRunOutPre||ev.user_confirm_required)return;
+if(chatToolIsFailed(ev)){
+var curFail=String(o.chatRunOutPre.textContent||"");
+if(!curFail.trim()||curFail==="（等待输出…）")chatToolPaintFailText(o.chatRunOutPre);
+return;
+}
+chatToolClearFailMark(o.chatRunOutPre);
 var cur=String(o.chatRunOutPre.textContent||"");
 if(cur.trim()&&cur!=="（等待输出…）")return;
-var err=!ev.ok&&ev.error?String(ev.error):"";
-o.chatRunOutPre.textContent=err||(ev.ok?"（无输出）":"（无结果）");
+o.chatRunOutPre.textContent=ev.ok?"（无输出）":"（无结果）";
 }
 });
 var chatToolViewPreview=registerChatToolView({
@@ -394,13 +462,16 @@ mount:function(row, o){
 o.chatToolDiffPane=addChatToolLayer(row._body,"","diff");
 },
 fill:function(row, o, ev){
-var dt=chatPaintDiffPane(o.chatToolDiffPane, o, ev);
-var parsed=chatToolParsePreview(ev);
 var path=chatEditPath(o.script, o.args);
+var parsed=chatToolParsePreview(ev);
 if(!path&&parsed&&parsed.data){
-var d=parsed.data;
-path=String(d.path||d.dest_path||d.source_path||d.file_name||"").trim();
+var d0=parsed.data;
+path=String(d0.path||d0.dest_path||d0.source_path||d0.file_name||"").trim();
 }
+if(path)chatToolSetSummary(row, path);
+if(chatToolIsFailed(ev)){chatToolPaintFailText(o.chatToolDiffPane);return;}
+chatToolClearFailMark(o.chatToolDiffPane);
+var dt=chatPaintDiffPane(o.chatToolDiffPane, o, ev);
 paintPreviewSummary(row, path, dt);
 }
 });
@@ -416,8 +487,11 @@ mount:function(row, o){
 o.chatToolDiffPane=addChatToolLayer(row._body,"","diff");
 },
 fill:function(row, o, ev){
-var dt=chatPaintDiffPane(o.chatToolDiffPane, o, ev);
 var label=chatVersionCompareLabel(chatVersionComparePath(o, ev), chatVersionCompareStamp(o, ev));
+if(label)chatToolSetSummary(row, label);
+if(chatToolIsFailed(ev)){chatToolPaintFailText(o.chatToolDiffPane);return;}
+chatToolClearFailMark(o.chatToolDiffPane);
+var dt=chatPaintDiffPane(o.chatToolDiffPane, o, ev);
 if(label||dt)paintPreviewSummary(row, label, dt);
 }
 });
@@ -431,7 +505,8 @@ o.chatToolFile=addChatToolText(addChatToolLayer(row._body,"","file"), "（等待
 fill:function(row, o, ev){
 var pane=o.chatToolFile;
 if(!pane)return;
-if(!ev.ok&&ev.error&&!ev.user_confirm_required){pane.textContent=String(ev.error);return;}
+if(chatToolIsFailed(ev)){chatToolPaintFailText(pane);return;}
+chatToolClearFailMark(pane);
 var text=chatReadFileContent(ev);
 if(text==null){pane.textContent=ev.ok?"（无内容）":"（无结果）";return;}
 pane.textContent=text.length?text:"（空文件）";
@@ -450,6 +525,8 @@ var path=chatImagePath(o, ev);
 chatToolSetSummary(row, path||"（未指定 path）");
 var pane=o.chatToolShot;
 if(!pane)return;
+if(chatToolIsFailed(ev)){chatToolPaintFailText(pane);return;}
+chatToolClearFailMark(pane);
 pane.textContent="";
 var images=ev&&ev.images;
 var shown=false;
@@ -470,7 +547,7 @@ shown=true;
 if(!shown){
 var miss=document.createElement("div");
 miss.className="chat-tool-shot-miss";
-miss.textContent=(!ev.ok&&ev.error)?String(ev.error):"（没有可显示的图片）";
+miss.textContent="（没有可显示的图片）";
 pane.appendChild(miss);
 }
 var sizeText=chatImageSize(o, ev);
@@ -517,11 +594,91 @@ name=String(d.name||"").trim();
 if(name)chatToolSetSummary(row, name);
 var box=o.chatToolSkill;
 if(!box)return;
-if(!ev.ok&&ev.error&&!ev.user_confirm_required){box.textContent=String(ev.error);return;}
+if(chatToolIsFailed(ev)){chatToolPaintFailText(box);return;}
+chatToolClearFailMark(box);
 var text=chatSkillContent(ev);
 if(text==null){box.textContent=ev.ok?"（无内容）":"（无结果）";return;}
 if(!text){box.textContent="（空内容）";return;}
 try{box.innerHTML=renderMarkdown(text);}catch(e){box.textContent=text;}
+}
+});
+function chatGlobSummary(args, data){
+var root=String((data&&data.root)||argGet(args,"path")||".").trim()||".";
+var glob=String(argGet(args,"glob_pattern")||"*");
+var rec=argGet(args,"recursive");
+var text=root+" · "+(glob||"*");
+if(rec!==false)text+=" · 递归";
+return text;
+}
+function chatJoinUnder(root, rel){
+root=String(root||"").replace(/[\\/]+$/,"");
+rel=String(rel||"").trim();
+if(!rel)return root;
+if(/^[A-Za-z]:[\\/]/.test(rel)||rel.charAt(0)==="/"||rel.charAt(0)==="\\")return rel;
+if(!root)return rel;
+var sep=root.indexOf("\\")>=0?"\\":"/";
+rel=sep==="\\"?rel.replace(/\//g,"\\"):rel.replace(/\\/g,"/");
+return root+sep+rel;
+}
+function chatGlobLines(ev, args){
+var j=chatToolParsePreview(ev);
+var d=j&&j.data&&typeof j.data==="object"?j.data:{};
+var root=String(d.root||argGet(args,"path")||"");
+var entries=Array.isArray(d.entries)?d.entries:[];
+var lines=[];
+for(var i=0;i<entries.length;i++){
+var line=chatJoinUnder(root, entries[i]);
+if(line)lines.push(line);
+}
+if(d.truncated)lines.push("（还有更多，已到条数上限）");
+return lines;
+}
+registerChatToolView({
+match:function(script){return chatToolName(script)==="delete_file";},
+title:function(){return "预览删除";},
+summary:function(o){return String(argGet(o&&o.args,"path")||"").trim()||"（未指定 path）";},
+mount:function(row, o){
+o.chatToolDelete=addChatToolText(addChatToolLayer(row._body,"",""), "（等待结果…）");
+},
+fill:function(row, o, ev){
+var path=String(argGet(o&&o.args,"path")||"").trim();
+var dir="";
+var j=chatToolParsePreview(ev);
+var d=j&&j.data&&typeof j.data==="object"?j.data:null;
+if(d){
+if(!path)path=String(d.path||"").trim();
+dir=String(d.recycle_dir||d.moved_to||"").trim();
+}
+if(path)chatToolSetSummary(row, path);
+if(chatToolIsFailed(ev)){chatToolPaintFailText(o.chatToolDelete);return;}
+chatToolClearFailMark(o.chatToolDelete);
+var text;
+if(path&&dir)text=path+" 文件移入 "+dir+" 安全回收目录, 可在此找回原文件";
+else if(path)text=path+" 文件移入安全回收目录, 可在此找回原文件";
+else text="（无结果）";
+if(o.chatToolDelete)o.chatToolDelete.textContent=text;
+}
+});
+registerChatToolView({
+match:function(script){return chatToolName(script)==="glob_files";},
+title:function(o){
+var et=String(argGet(o&&o.args,"entry_type")||"").toLowerCase();
+var scope=et==="dir"?"仅目录":et==="all"?"全部":"文件";
+return "列出路径（"+scope+"）";
+},
+summary:function(o){return chatGlobSummary(o&&o.args);},
+mount:function(row, o){
+o.chatToolPaths=addChatToolText(addChatToolLayer(row._body,"",""), "（等待结果…）");
+},
+fill:function(row, o, ev){
+var parsed=chatToolParsePreview(ev);
+chatToolSetSummary(row, chatGlobSummary(o&&o.args, parsed&&parsed.data));
+var pane=o.chatToolPaths;
+if(!pane)return;
+if(chatToolIsFailed(ev)){chatToolPaintFailText(pane);return;}
+chatToolClearFailMark(pane);
+var lines=chatGlobLines(ev, o&&o.args);
+pane.textContent=lines.length?lines.join("\n"):"（没有匹配的路径）";
 }
 });
 window.aiAgentChatTools={register:registerChatToolView};
@@ -544,6 +701,7 @@ row.classList.add("is-running");
 chatToolSyncStatusTitle(row);
 o.chatToolRow=row;
 if(view.mount)view.mount(row, o);
+attachChatToolPacket(row, o);
 appendChatToolRow(row);
 }
 function paintChatThink(){
@@ -606,10 +764,62 @@ else if(status==="bad")row.classList.add("is-bad");
 else if(status==="canceled")row.classList.add("is-canceled");
 chatToolSyncStatusTitle(row);
 }
+function chatToolShowsRaw(row){
+return !!(row&&row._body&&row._body.querySelector(".chat-tool-layer--req")&&row._body.querySelector(".chat-tool-layer--res"));
+}
+function attachChatToolPacket(row, o){
+if(!row||!row._body||chatToolShowsRaw(row)||row.querySelector(".chat-tool-custom"))return;
+var custom=document.createElement("div");
+custom.className="chat-tool-custom";
+var view=document.createElement("div");
+view.className="chat-tool-custom-view";
+while(row._body.firstChild)view.appendChild(row._body.firstChild);
+var btn=document.createElement("button");
+btn.type="button";
+btn.className="chat-tool-packet-btn";
+btn.textContent="查看报文";
+btn.setAttribute("aria-expanded","false");
+var bar=document.createElement("div");
+bar.className="chat-tool-packet";
+bar.appendChild(btn);
+custom.appendChild(view);
+custom.appendChild(bar);
+var raw=document.createElement("div");
+raw.className="chat-tool-raw";
+raw.hidden=true;
+function pane(cap, kind, text){
+var host=document.createElement("div");
+var el=addChatToolLayer(host, cap, kind);
+var pre=document.createElement("pre");
+var code=document.createElement("code");
+code.textContent=text;
+pre.appendChild(code);
+el.appendChild(pre);
+raw.appendChild(host.firstChild);
+return code;
+}
+pane("请求", "req", JSON.stringify((o&&o.args)||{},null,2));
+var res=pane("响应", "res", "（等待结果…）");
+btn.addEventListener("click",function(ev){
+ev.preventDefault();
+ev.stopPropagation();
+var open=!!raw.hidden;
+raw.hidden=!open;
+btn.setAttribute("aria-expanded", open?"true":"false");
+});
+row._body.appendChild(custom);
+row._body.appendChild(raw);
+if(o)o.chatToolPacketRes=res;
+}
+function fillChatToolPacket(o, ev){
+if(!o||!o.chatToolPacketRes)return;
+o.chatToolPacketRes.textContent=chatToolResponseText(o, ev);
+}
 function fillChatToolResult(o, ev){
 if(!o||!o.chatToolRow)return;
 var view=o.chatToolView||chatToolViewDefault;
 if(view.fill)view.fill(o.chatToolRow, o, ev);
+fillChatToolPacket(o, ev);
 o.chatToolRow.classList.remove("is-running");
 o.chatToolRow.classList.remove("is-bad");
 o.chatToolRow.classList.remove("is-canceled");

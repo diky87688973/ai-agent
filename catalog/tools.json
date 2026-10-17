@@ -55,7 +55,7 @@
       }
     },
     {
-      "description": "凭 confirm_id 提交写预览并落盘。前置：必须先通过 review_conclusion 的 review。写参数由门控从预览快照恢复并分派执行。",
+      "description": "凭 confirm_id 提交写预览并落盘。前置：必须先通过 review_conclusion 的 review。写参数由门控从预览快照恢复并分派执行。同一文件刚提交后又要改：若门控要求先 read_file，只是复核落盘后的内容与行号；已解锁的 confirm_id 仍有效，确认无误后用原 confirm_id 继续提交，不必重新预览。",
       "display": {
         "icon": "💾",
         "label": "提交写盘"
@@ -576,7 +576,7 @@
       }
     },
     {
-      "description": "读取文本文件；可选行区间（line_start/line_end）与 max_chars 截断。",
+      "description": "读取文本文件；可选行区间（line_start/line_end）与 max_chars 截断。写盘后门控要求复核时调用本工具：只是确认落盘后的内容与行号，不使已解锁的 confirm_id 失效，确认无误后可继续 commit_write。",
       "display": {
         "icon": "📖",
         "label": "读取文件"

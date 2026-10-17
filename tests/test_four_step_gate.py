@@ -15,7 +15,11 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.core.tool_call import GateDecision  # noqa: E402
-from agent.mechanisms.quality_gate import QualityGate, WriteContext  # noqa: E402
+from agent.mechanisms.quality_gate import (  # noqa: E402
+    MAX_PENDING_PREVIEWS,
+    QualityGate,
+    WriteContext,
+)
 
 
 class FourStepGateTest(unittest.TestCase):
@@ -104,9 +108,47 @@ class FourStepGateTest(unittest.TestCase):
         cid2 = self._ready(target, "v2")
         blocked = self.gate.check_write(WriteContext(confirm_id=cid2))
         self.assertFalse(blocked.allow)
-        self.assertIn("read", blocked.reason)
+        self.assertIn("read_file", blocked.reason)
+        self.assertIn("confirm_id", blocked.reason)
         self.gate.note_read(str(target))
         self.assertTrue(self.gate.check_write(WriteContext(confirm_id=cid2)).allow)
+
+    def test_same_path_keeps_only_latest_preview(self) -> None:
+        """同一写目标再次预览时，旧 confirm_id 被挤掉。"""
+        target = self.root / "same.txt"
+        old = self.gate.register_preview(
+            "write_file", {"path": str(target), "content": "old"}
+        )
+        new = self.gate.register_preview(
+            "write_file", {"path": str(target), "content": "new"}
+        )
+        self.assertIsNone(self.gate.peek(old))
+        self.assertIsNotNone(self.gate.peek(new))
+        self.assertEqual(len(self.gate._pending), 1)
+        self.assertEqual(self.gate.peek(new)["arguments"]["content"], "new")
+
+    def test_pending_cap_evicts_oldest(self) -> None:
+        """未提交预览满额时，新登记挤掉最旧的一条。"""
+        keep: list[str] = []
+        for i in range(MAX_PENDING_PREVIEWS):
+            keep.append(
+                self.gate.register_preview(
+                    "write_file",
+                    {"path": str(self.root / f"p{i}.txt"), "content": str(i)},
+                )
+            )
+        self.assertEqual(len(self.gate._pending), MAX_PENDING_PREVIEWS)
+        oldest = keep[0]
+        self.assertIsNotNone(self.gate.peek(oldest))
+        newest = self.gate.register_preview(
+            "write_file",
+            {"path": str(self.root / "overflow.txt"), "content": "x"},
+        )
+        self.assertIsNone(self.gate.peek(oldest))
+        self.assertIsNotNone(self.gate.peek(newest))
+        self.assertEqual(len(self.gate._pending), MAX_PENDING_PREVIEWS)
+        self.assertIsNotNone(self.gate.peek(keep[1]))
+
 
 if __name__ == "__main__":
     unittest.main()

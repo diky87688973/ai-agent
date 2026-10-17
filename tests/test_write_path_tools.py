@@ -292,6 +292,7 @@ class WritePathToolsTest(unittest.TestCase):
         f.write_text("bye", encoding="utf-8")
         r = self._call("delete_file", {"path": str(f)})
         self.assertTrue(r.ok)
+        self.assertEqual(Path(str(r.data.get("recycle_dir"))), self.root / "rc")
         self.assertTrue(f.exists())  # 预览不落盘
         cid = self._ready("delete_file", {"path": str(f)})
         r2 = self._commit(cid)

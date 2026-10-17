@@ -16,7 +16,11 @@ class ReadFileTool(ToolPlugin):
     name = "read_file"
     label = "读取文件"
     icon = "📖"
-    description = "读取文本文件；可选行区间（line_start/line_end）与 max_chars 截断。"
+    description = (
+        "读取文本文件；可选行区间（line_start/line_end）与 max_chars 截断。"
+        "写盘后门控要求复核时调用本工具：只是确认落盘后的内容与行号，"
+        "不使已解锁的 confirm_id 失效，确认无误后可继续 commit_write。"
+    )
     parameters = {
         "path": {"type": "string", "description": "文件路径"},
         "line_start": {"type": "integer", "description": "起始行（1-based，含）"},

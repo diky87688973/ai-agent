@@ -53,10 +53,11 @@ registry.schemas()          # 导出模型可见的工具声明
 预览  →  确认  →  凭 confirm_id 提交  →  重读
 ```
 
-1. **预览**：`write_file` / `replace_in_file` / `apply_patch` / `read_write` / `delete_file` / `file_ops` / `file_undo` / `archive` / `skill_manage` 都先预览，把写参数快照登记入库，返回 `confirm_id`，**不落盘**。预览类工具可用 `review_conclusion(cancel_preview=true)` 丢弃未提交的快照。
+1. **预览**：`write_file` / `replace_in_file` / `apply_patch` / `read_write` / `delete_file` / `file_ops` / `file_undo` / `archive` / `skill_manage` 都先预览，把写参数快照登记入库，返回 `confirm_id`，**不落盘**。预览类工具可用 `review_conclusion(cancel_preview=true)` 丢弃未提交的快照。同一写目标路径只保留最新一条未提交快照；会话内未提交条数上限为 `MAX_PENDING_PREVIEWS`（100），满额时按登记顺序挤掉最旧的。
 2. **确认**：宿主侧 `QualityGate.confirm(confirm_id)`。
 3. **提交**：`commit_write` 只凭 `confirm_id`。写参数由门控**从快照恢复**，模型不重传。
-4. **重读**：提交后重读落盘结果并记入报告。
+4. **重读**：同一文件刚落盘后又要改时，须先 `read_file` 复核当前内容与行号；
+   复核不使已解锁的 `confirm_id` 失效，确认无误后用原 ID 继续提交。
 
 预览与提交是**两个独立的工具入口**，不共用函数。
 
