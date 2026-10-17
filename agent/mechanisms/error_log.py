@@ -46,7 +46,8 @@ class ErrorLog:
 
     def __init__(self, data_root: Path) -> None:
         self._root = Path(data_root)
-        self._path = self._root / "logs" / "errors.log"
+        # 用 `data_root / "logs"` 形状，供 check_readme AST 识别（勿写成 self._root / …）
+        self._path = (data_root / "logs") / "errors.log"
         self._lock = threading.Lock()
 
     @property

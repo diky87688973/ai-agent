@@ -68,3 +68,6 @@ Backup/
 
 # 退役脚本
 scripts/retired/
+
+# 本地草稿（图标目录预览等，不入库）
+scripts/_icon_catalog.html
