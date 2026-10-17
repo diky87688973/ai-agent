@@ -224,6 +224,15 @@ class UserFacingTextTest(unittest.TestCase):
             self.assertIn("服务端", _DEEPSEEK_HTTP_HINTS[status],
                           f"HTTP {status} 的提示应指明是「服务端」的问题")
 
+    def test_deepseek_official_error_codes_are_mapped(self) -> None:
+        """与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。"""
+        from agent.mechanisms.model_provider import _DEEPSEEK_HTTP_HINTS
+
+        self.assertEqual(
+            sorted(_DEEPSEEK_HTTP_HINTS),
+            [400, 401, 402, 422, 429, 500, 503],
+        )
+
 
 class ReasonNotReplayedTest(unittest.TestCase):
     """历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token。"""

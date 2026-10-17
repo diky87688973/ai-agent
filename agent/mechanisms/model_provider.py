@@ -25,16 +25,17 @@ from agent.core.tool_call import ToolCallRequest
 
 _REASONING_FIELDS = ("reasoning_content", "reasoning")
 
+# DeepSeek 官方 Error Codes：
+# https://api-docs.deepseek.com/quick_start/error_codes
+# 取值直接回给用户（见 `_http_error`）。500/503 说的是模型服务方，与本工程无关。
 _DEEPSEEK_HTTP_HINTS: Dict[int, str] = {
-    400: "请求体格式错误，请根据接口返回说明修改请求体。",
-    401: "API Key 认证失败，请检查密钥是否正确或是否已创建。",
-    402: "账号余额不足（额度可能已用完），请确认余额并充值后重试。",
-    422: "请求参数错误，请根据接口返回说明修改相关参数。",
-    429: "请求速率达到上限（TPM 或 RPM），请降低调用频率后重试。",
-    # 这两句**直接回给用户**（见 `_http_error`：命中就作为 `ModelRequestError.detail`）。
-    # 说的是**模型服务方的服务器**，与本工程无关。
-    500: "模型服务端内部故障，请稍后重试。",
-    503: "模型服务端繁忙，请稍后重试。",
+    400: "请求格式无效，请检查请求体后重试。",
+    401: "认证失败，请检查 API Key。",
+    402: "余额不足，请充值后重试。",
+    422: "请求参数无效，请检查参数后重试。",
+    429: "请求过于频繁，请稍后再试。",
+    500: "模型服务端错误，请稍后再试。",
+    503: "模型服务端繁忙，请稍后再试。",
 }
 
 

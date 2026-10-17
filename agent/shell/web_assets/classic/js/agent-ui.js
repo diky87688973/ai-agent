@@ -273,7 +273,7 @@ var submitUserConfirm=async function(finalTxt){
 var confirmCid=getActiveConversationId();cleanup();showChatLoading();var gb=goBtn;if(gb)gb.disabled=true;var tab=findConversationTab(confirmCid);if(tab){tab.abortController={global:true};tab.stopRequested=false;}updateTaskControls();
 try{
 var r=await fetch("/api/chat/user-confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:confirmCid,confirm:finalTxt,mode:selectedMode,model:selectedModel})});
-if(!r.ok){var _bc="";try{_bc=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/user-confirm 非 OK",{status:r.status,bodyHead:String(_bc||"").slice(0,500)});withConversationContext(confirmCid,function(){hideChatLoading();add("a","确认请求 HTTP "+r.status);});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
+if(!r.ok){var _bc="";try{_bc=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/user-confirm 非 OK",{status:r.status,bodyHead:String(_bc||"").slice(0,500)});withConversationContext(confirmCid,function(){hideChatLoading();add("a",formatHttpError(r.status,_bc,"确认请求"));});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
 var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id||"");if(_jr&&_jr.ok!==false&&toolRow){var picked=String(finalTxt||"").trim();if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(toolRow, picked?"done":"bad");if(typeof chatToolSetResultText==="function")chatToolSetResultText(toolRow, picked||"用户取消了这次确认（未作答）");}
 }catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","确认请求失败: "+(err&&err.message?err.message:String(err)));});}
 finally{updateTaskControls();}
@@ -315,7 +315,7 @@ var submitApproval=async function(agreed){
 var confirmCid=getActiveConversationId();cleanup();showChatLoading();var gb=goBtn;if(gb)gb.disabled=true;var tab=findConversationTab(confirmCid);if(tab){tab.abortController={global:true};tab.stopRequested=false;}updateTaskControls();
 try{
 var r=await fetch("/api/chat/user-confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:confirmCid,approval:agreed?"agree":"reject",mode:selectedMode,model:selectedModel})});
-if(!r.ok){var _bc="";try{_bc=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/user-confirm 非 OK",{status:r.status,bodyHead:String(_bc||"").slice(0,500)});withConversationContext(confirmCid,function(){hideChatLoading();add("a","审批请求 HTTP "+r.status);});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
+if(!r.ok){var _bc="";try{_bc=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/user-confirm 非 OK",{status:r.status,bodyHead:String(_bc||"").slice(0,500)});withConversationContext(confirmCid,function(){hideChatLoading();add("a",formatHttpError(r.status,_bc,"审批请求"));});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
 var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id||"");if(_jr&&_jr.ok!==false&&toolRow){var decision=agreed?"同意":"不同意";var aid=String(_jr.approval_id||"").trim();if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(toolRow,"done");if(typeof chatToolSetResultText==="function")chatToolSetResultText(toolRow,agreed&&aid?(decision+"\n"+aid):decision);}
 }catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","审批请求失败: "+(err&&err.message?err.message:String(err)));});}
 finally{updateTaskControls();}
@@ -3176,6 +3176,35 @@ else if(_gp&&_gp.deleted){_goalInfo=null;updateAutoToggleUI();}}
 fillChatToolResult(o,ev);
 toolOpen.delete(tid);}
 
+/* 把 HTTP 失败收成对话区可读文案。
+   本服务：409（会话忙）。
+   DeepSeek 模型侧：400/401/402/422/429/500/503（官方 Error Codes）。
+   其余：优先响应 JSON 的 error，再兜底状态码。 */
+function formatHttpError(status, bodyText, kind){
+var code=Number(status)||0;
+var server="";
+try{
+var j=JSON.parse(String(bodyText||""));
+if(j&&j.error!=null){
+server=typeof j.error==="string"?String(j.error).trim():String((j.error&&j.error.message)||j.error).trim();
+}
+}catch(e){}
+if(code===409)return "会话仍在执行中，请稍后再试。";
+var deepseek={
+400:"请求格式无效，请检查请求体后重试。",
+401:"认证失败，请检查 API Key。",
+402:"余额不足，请充值后重试。",
+422:"请求参数无效，请检查参数后重试。",
+429:"请求过于频繁，请稍后再试。",
+500:"模型服务端错误，请稍后再试。",
+503:"模型服务端繁忙，请稍后再试。"
+};
+if(deepseek[code])return deepseek[code];
+var label=kind?String(kind):"请求";
+if(server)return label+"失败："+server;
+if(code===404)return label+"失败：资源不存在。";
+return label+"失败（HTTP "+code+"）。";
+}
 async function sendChatMessage(){
 if(!ta)return;
 var text=String(ta.value||"").trim();
@@ -3209,7 +3238,7 @@ try{
 var body={message:text,conversation_id:sendCid,mode:selectedMode,model:selectedModel};
 if(imgs.length)body.images=imgs.map(function(it){return{mime:it.mime,data_base64:it.data_base64};});
 var r=await fetch("/api/chat/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-if(!r.ok){var _bt="";try{_bt=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/send 非 OK",{status:r.status,bodyHead:String(_bt||"").slice(0,500)});withConversationContext(sendCid,function(){hideChatLoading();add("a","HTTP "+r.status);});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
+if(!r.ok){var _bt="";try{_bt=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/send 非 OK",{status:r.status,bodyHead:String(_bt||"").slice(0,500)});withConversationContext(sendCid,function(){hideChatLoading();add("a",formatHttpError(r.status,_bt,"发送"));});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
 var _sj=await r.json();if(tab&&_sj&&_sj.run_id)tab.activeRunId=String(_sj.run_id||"");
 if(stripEl&&_sj&&Array.isArray(_sj.attachments)&&_sj.attachments.length&&window.AIA&&AIA.buildMsgAttachStrip){
 try{
