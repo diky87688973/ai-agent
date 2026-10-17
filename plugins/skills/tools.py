@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""技能管理工具：skill_manage——list / read 只读直通；copy 走预览 + 提交执行器。
+"""Skills 管理工具：skill_manage——list / read 只读直通；copy 走预览 + 提交执行器。
 
 copy 预览（不落盘，返回 confirm_id；冲突时明示 would_overwrite，是否覆盖由确认环节决定）；
 提交执行器由 commit_write 统一分派（app.py 装配）。
@@ -14,7 +14,7 @@ from plugins.skills.library import SkillManager
 
 
 class SkillLookupError(RuntimeError):
-    """技能查找失败：可用清单随 data 透传。"""
+    """Skills 查找失败：可用清单随 data 透传。"""
 
     def __init__(self, message: str, available: List[str]) -> None:
         super().__init__(message)
@@ -22,7 +22,7 @@ class SkillLookupError(RuntimeError):
 
 
 def _resolve_copy_source(library: SkillManager, arguments: Dict[str, Any]) -> Path:
-    """解析 copy 源：name → 技能文件路径；否则 source 路径；失败抛异常。"""
+    """解析 copy 源：name → Skills 文件路径；否则 source 路径；失败抛异常。"""
     name_key = str(arguments.get("name") or "").strip()
     src = str(arguments.get("source") or "").strip()
     if name_key:
@@ -39,15 +39,15 @@ def _resolve_copy_source(library: SkillManager, arguments: Dict[str, Any]) -> Pa
 
 
 class SkillManageTool(ToolPlugin):
-    """技能工具：list / read 直通；copy 预览。"""
+    """Skills 工具：list / read 直通；copy 预览。"""
 
     name = "skill_manage"
-    label = "技能管理"
+    label = "Skills 管理"
     icon = "🧩"
-    description = "技能管理：`action=list` 列出可用技能；`action=read` 读取技能全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。"
+    description = "Skills 管理：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。"
     parameters = {
         "action": {"type": "string", "description": "list / read / copy"},
-        "name": {"type": "string", "description": "技能名称（read 必填；copy 可作源）"},
+        "name": {"type": "string", "description": "Skills 名称（read 必填；copy 可作源）"},
         "source": {"type": "string", "description": "copy 源路径（文件或目录；与 name 二选一）"},
         "subdir": {"type": "string", "description": "copy 子目录名（源子目录与目标子目录一致）"},
     }
@@ -98,7 +98,7 @@ class SkillManageTool(ToolPlugin):
 
 
 def _execute_skill_copy(library: SkillManager, arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """提交：执行技能复制（真实落盘）。"""
+    """提交：执行 Skills 复制（真实落盘）。"""
     action = str(arguments.get("action") or "").strip().lower()
     if action != "copy":
         raise ValueError("预览快照不完整：请重新预览（skill_manage）")
@@ -116,7 +116,7 @@ def _execute_skill_copy(library: SkillManager, arguments: Dict[str, Any]) -> Dic
 
 
 def build(library: SkillManager) -> SkillManageTool:
-    """构造 skill_manage 插件（需技能库引用）。"""
+    """构造 skill_manage 插件（需 Skills 库引用）。"""
     return SkillManageTool(library)
 
 

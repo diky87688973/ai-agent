@@ -92,7 +92,7 @@ class WebUiConfigTest(unittest.TestCase):
         self.assertIn('n==="run_command"||n==="python_inline"', tool_js)
         self.assertIn('chatToolName(script)==="skill_manage"', tool_js)
         self.assertIn("function chatReviewPath(", tool_js)
-        self.assertIn("加载技能", tool_js)
+        self.assertIn("加载 Skills", tool_js)
         self.assertIn("chat-tool-md", tool_js)
         self.assertIn("renderMarkdown", tool_js)
         self.assertIn('chatToolName(script)==="file_undo"', tool_js)

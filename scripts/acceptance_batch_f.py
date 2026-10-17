@@ -42,7 +42,7 @@ class Acceptance:
         self.root = root
         self.skills_dir = root / "skills"
         self.skills_dir.mkdir()
-        # 技能目录由 `skills` 插件装载时解析：经环境变量指到本次的临时目录，
+        # Skills 目录由 `skills` 插件装载时解析：经环境变量指到本次的临时目录，
         # 否则插件读到的是工程配置里那个真目录。
         self._skills_env_old = os.environ.get("AI_AGENT_SKILLS_DIR")
         os.environ["AI_AGENT_SKILLS_DIR"] = str(self.skills_dir)
@@ -124,7 +124,7 @@ class Acceptance:
         r_list = self.call("skill_manage", {"action": "list"})
         names = [s["name"] for s in (r_list.data or {}).get("skills", [])]
         self.check(
-            "list 只读：不登记快照且含新技能",
+            "list 只读：不登记快照且含新 Skills",
             r_list.ok and (r_list.data or {}).get("needs_commit") is False and "confirm_id" not in (r_list.data or {}) and "one" in names,
             str(r_list.data),
         )

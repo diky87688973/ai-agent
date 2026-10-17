@@ -105,19 +105,22 @@ class QualityPipelineTest(unittest.TestCase):
         self.assertTrue(self.gate.check_write(self._wc(cid_b)).allow)
 
     def test_apply_patch_channel(self) -> None:
-        """apply_patch 独立 review 通道。"""
+        """apply_patch：写之前解锁的另一份仍可提交；同一路径写之后才解锁的要先 review。"""
 
         a = self.root / "pa.txt"
-        cid_a = self.gate.register_preview("apply_patch", {"path": str(a), "content": "va"})
-        self.gate.confirm(cid_a)
+        b = self.root / "pb.txt"
+        self._ready(a, "va", tool="apply_patch")
+        cid_b = self._ready(b, "vb", tool="apply_patch")
         self.gate.note_committed(str(a), tool="apply_patch")
-        wc = self._wc(cid_a)
-        blocked = self.gate.check_write(wc)
+        sibling = self.gate.check_write(self._wc(cid_b))
+        self.assertTrue(sibling.allow, sibling.reason)
+        cid_again = self._ready(a, "vb", tool="apply_patch")
+        blocked = self.gate.check_write(self._wc(cid_again))
         self.assertFalse(blocked.allow)
         self.assertIn("apply_patch", blocked.reason)
         self.gate.review_done()
         self.gate.note_read(str(a))
-        self.assertTrue(self.gate.check_write(wc).allow)
+        self.assertTrue(self.gate.check_write(self._wc(cid_again)).allow)
 
     def test_large_diff_blocked(self) -> None:
         """单次替换过大被拒、拆分后放行。"""

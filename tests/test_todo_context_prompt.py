@@ -98,7 +98,7 @@ class ContextLayoutTest(unittest.TestCase):
     def _pipeline(self) -> ContextPipeline:
         p = ContextPipeline("c1")
         p.append_system("你是助手，要遵守纪律")
-        p.append_plugin("技能块", key="skills", label="Skills")
+        p.append_plugin("Skills 块", key="skills", label="Skills")
         p.append_plugin("知识库块", key="kb", label="知识库")
         p.append_new_msg("user", "你好")
         p.append_new_msg("assistant", "在的")

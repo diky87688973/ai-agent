@@ -884,7 +884,7 @@
           "type": "string"
         },
         "skill": {
-          "description": "技能名（记录于 meta；技能库未接入）",
+          "description": "Skills 名（记录于 meta；Skills 库未接入）",
           "type": "string"
         },
         "tags": {
@@ -974,10 +974,10 @@
       }
     },
     {
-      "description": "技能管理：`action=list` 列出可用技能；`action=read` 读取技能全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。",
+      "description": "Skills 管理：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。",
       "display": {
         "icon": "🧩",
-        "label": "技能管理"
+        "label": "Skills 管理"
       },
       "name": "skill_manage",
       "parallel_safe": false,
@@ -987,7 +987,7 @@
           "type": "string"
         },
         "name": {
-          "description": "技能名称（read 必填；copy 可作源）",
+          "description": "Skills 名称（read 必填；copy 可作源）",
           "type": "string"
         },
         "source": {

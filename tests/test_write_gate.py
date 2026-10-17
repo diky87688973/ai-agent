@@ -110,6 +110,47 @@ class WriteGateTest(unittest.TestCase):
         self.assertTrue(self._commit(cid).ok)
         self.assertEqual(f.read_text(encoding="utf-8"), "v1")
 
+    def test_already_reviewed_previews_commit_together(self) -> None:
+        """两份预览都先解锁，再连续提交：第二份不被第一份落盘挡下。"""
+        a = self.root / "batch_a.txt"
+        b = self.root / "batch_b.txt"
+        cid_a = self._ready(a, "va")
+        cid_b = self._ready(b, "vb")
+        first = self._commit(cid_a)
+        self.assertTrue(first.ok, first.error)
+        second = self._commit(cid_b)
+        self.assertTrue(second.ok, second.error)
+        later = self.root / "batch_c.txt"
+        cid_c = self._ready(later, "vc")
+        blocked = self._commit(cid_c)
+        self.assertFalse(blocked.ok)
+        self.assertIn("review", blocked.error)
+
+    def test_consecutive_reviews_then_consecutive_commits(self) -> None:
+        """两个不同文件先各自 review_conclusion，再连续 commit_write，两份都落盘。"""
+        a = self.root / "rev_a.txt"
+        b = self.root / "rev_b.txt"
+        conclusion = "review结论：已对照预览核对目标路径与写入内容，两份文件可以分别提交落盘。"
+        preview_a = self._preview(a, "va")
+        preview_b = self._preview(b, "vb")
+        self.assertTrue(preview_a.ok and preview_b.ok)
+        cid_a = str(preview_a.data["confirm_id"])
+        cid_b = str(preview_b.data["confirm_id"])
+        reviewed_a = self._call("review_conclusion", {
+            "confirm_id": cid_a, "file_name": a.name, "conclusion": conclusion,
+        })
+        reviewed_b = self._call("review_conclusion", {
+            "confirm_id": cid_b, "file_name": b.name, "conclusion": conclusion,
+        })
+        self.assertTrue(reviewed_a.ok, reviewed_a.error)
+        self.assertTrue(reviewed_b.ok, reviewed_b.error)
+        first = self._commit(cid_a)
+        second = self._commit(cid_b)
+        self.assertTrue(first.ok, first.error)
+        self.assertTrue(second.ok, second.error)
+        self.assertEqual(a.read_text(encoding="utf-8"), "va")
+        self.assertEqual(b.read_text(encoding="utf-8"), "vb")
+
     def test_cross_file_review_gate(self) -> None:
         """写后未 review 跨文件：被拒；review_done 后放行。"""
         a = self.root / "f_a.txt"

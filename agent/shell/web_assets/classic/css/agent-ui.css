@@ -90,6 +90,12 @@ html[data-ui-theme="light"][data-session-rail="open"] .session-rail-resizer.is-c
 .b{padding:8px 10px;border-radius:6px;white-space:pre-wrap;word-break:break-word;line-height:1.45}
 .b.u{max-width:92%;align-self:flex-end;background:#171717;border:1px solid #2c2c30;color:#aeb6c0;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
 .b.a{align-self:stretch;max-width:100%;width:100%;box-sizing:border-box;background:transparent;border:0;padding:8px 0 8px 8px;white-space:normal}
+.edited-files{align-self:stretch;margin:0 0 4px 8px;padding:4px 4px 6px;border:1px solid var(--c-line-1);border-radius:8px}
+.edited-files-title{font-size:12px;line-height:1.4;color:var(--c-text-3);margin:4px 8px 2px}
+.edited-files .chat-tool-head{gap:6px}
+.edited-files .edited-file-ico{flex:0 0 auto;width:16px;text-align:center;font-size:13px;line-height:1}
+.edited-files .chat-tool-title{flex:1 1 auto;min-width:0;font-weight:400;font-size:12.5px;white-space:normal;word-break:break-all}
+.edited-files .chat-tool-sum{flex:0 0 auto;overflow:visible}
 /* 助手正文的阅读排版。
    字号独立于 `body` 的 13px：界面控件 13px 够，但成段中文在 13px / 行高 1.45 下密到发闷。
    标题用绝对 px 而不是 `em` —— `em` 跟着 `body` 走，改一次全局字号整条标题层级都要重算。 */
@@ -131,7 +137,7 @@ html[data-ui-theme="light"][data-session-rail="open"] .session-rail-resizer.is-c
 .b.a img{max-width:100%;height:auto;border-radius:4px;border:1px solid #3c3c3c}
 .b.a del{color:#9aa0a6}
 .row{flex-shrink:0;flex-grow:0;border-top:1px solid #333;padding:10px}
-.composer{position:relative;border:1px solid #3c3c3c;border-radius:16px;background:#1e1e1e;padding:10px;display:flex;flex-direction:column;gap:8px}
+.composer{position:relative;border:1px solid #3c3c3c;border-radius:16px;background:#1e1e1e;padding:0;display:flex;flex-direction:column;gap:8px}
 .attach-strip{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 4px}
 .attach-strip.hidden{display:none}
 .attach-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid #555;background:#111}

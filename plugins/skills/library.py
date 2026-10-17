@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""技能库：扫描 / 元数据解析 / 读取 / 复制计划（技能插件内部）。
+"""Skills 库：扫描 / 元数据解析 / 读取 / 复制计划（Skills 插件内部）。
 
 范围：不做 LLM 元数据生成、不做缺 frontmatter 自动写回、
 不携带 side_usage / notifications（无旁支模型；静默写文件违反写盘纪律）。
@@ -13,14 +13,14 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-CATALOG_HEAD = "【Skills清单】"
+CATALOG_HEAD = "【Skills 清单】"
 
 
 def _canonical_key(path: Path) -> str:
     """同一文件的稳定身份。
 
     解析掉 `.` / `..`，再按平台折叠大小写。只比 `str(path).lower()` 时，
-    `skills/a.md` 和 `skills/./a.md`（或带 `\\\\?\\` 前缀的写法）会被当成两个技能，
+    `skills/a.md` 和 `skills/./a.md`（或带 `\\\\?\\` 前缀的写法）会被当成两个 Skills，
     清单计数就整份翻倍。
     """
     try:
@@ -31,7 +31,7 @@ def _canonical_key(path: Path) -> str:
 
 
 class SkillMeta:
-    """单个技能元数据。"""
+    """单个 Skills 元数据。"""
 
     __slots__ = ("name", "description", "file_path", "is_auto_load")
 
@@ -43,7 +43,7 @@ class SkillMeta:
 
 
 class SkillManager:
-    """技能库：扫描目录、缓存元数据与正文、mtime 增量重扫。"""
+    """Skills 库：扫描目录、缓存元数据与正文、mtime 增量重扫。"""
 
     def __init__(self, skills_dir: Optional[Path], max_file_size: int = 200000) -> None:
         self.skills_dir = Path(skills_dir) if skills_dir else None
@@ -71,13 +71,13 @@ class SkillManager:
     # ── 动态检测 / 扫描 ────────────────────────────────
 
     def auto_load_count(self) -> int:
-        """常驻技能条数（不拼正文）。同一文件只计一次。"""
+        """常驻 Skills 条数（不拼正文）。同一文件只计一次。"""
         with self._lock:
             self._check_rescan()
             return sum(1 for s in self._deduped() if s.is_auto_load)
 
     def _current_mtimes(self) -> Dict[str, float]:
-        """当前全部技能文件的 mtime 表（键是绝对路径）。"""
+        """当前全部 Skills 文件的 mtime 表（键是绝对路径）。"""
         out: Dict[str, float] = {}
         if not self.skills_dir or not self.skills_dir.is_dir():
             return out
@@ -93,7 +93,7 @@ class SkillManager:
     def _check_rescan(self) -> None:
         """mtime 检测新增 / 变更 / 删除；有变化则换上一份新表。
 
-        界面/工具改完技能文件后，下一次收集就能看到（这里每次都核对 mtime）。
+        界面/工具改完 Skills 文件后，下一次收集就能看到（这里每次都核对 mtime）。
         调用方若已持有 `_lock` 会重入，不会和自己死锁。
         """
         if not self.skills_dir or not self.skills_dir.is_dir():
@@ -117,7 +117,7 @@ class SkillManager:
             self._last_mtimes = self._current_mtimes()
 
     def _scan(self) -> None:
-        """整表换上当前目录里的技能（赋值，不追加）。"""
+        """整表换上当前目录里的 Skills（赋值，不追加）。"""
         built = self._collect_skills()
         with self._lock:
             self.skills = built
@@ -213,7 +213,7 @@ class SkillManager:
         return out
 
     def list_skills(self) -> List[Dict[str, Any]]:
-        """列出普通技能（auto_load 常驻技能不列入，供上下文注入用）。
+        """列出普通 Skills（auto_load 常驻 Skills 不列入，供上下文注入用）。
 
         按文件身份去重：库内一旦出现重复条目（扫描交错留下的残留，
         或同一文件的两种路径写法），清单会整份翻倍 —— 段计数与正文都会翻，
@@ -231,7 +231,7 @@ class SkillManager:
             return out
 
     def list_skill_names(self) -> List[str]:
-        """全部技能 name 列表（供错误提示）。同一文件只留一条。"""
+        """全部 Skills name 列表（供错误提示）。同一文件只留一条。"""
         with self._lock:
             return [s.name for s in self._deduped()]
 
@@ -277,17 +277,17 @@ class SkillManager:
             return None
 
     def build_registry_message(self) -> str:
-        """构建**可用技能清单**（一条 system 消息，注入上下文前端）。
+        """构建**可用 Skills 清单**（一条 system 消息，注入上下文前端）。
 
         渐进式披露的第一层：清单里只有名字与描述，正文按需用 `skill_manage`
-        读取。模型据此知道"有哪些技能、什么时候该用"，而不必把所有正文塞进请求。
-        没有普通技能 → 空串（不注入空清单）。
+        读取。模型据此知道"有哪些 Skills、什么时候该用"，而不必把所有正文塞进请求。
+        没有普通 Skills → 空串（不注入空清单）。
         """
         parts = self.build_registry_message_parts()
         return parts[0] if parts else ""
 
     def build_registry_message_parts(self) -> List[str]:
-        """清单的**消息列表形态**（没有技能 → 空列表）。
+        """清单的**消息列表形态**（没有 Skills → 空列表）。
 
         注入源按 `List[str]` 收内容，这里给它列表；单条内容与
         `build_registry_message()` 完全一致。
@@ -296,16 +296,16 @@ class SkillManager:
         if not items:
             return []
         lines = [CATALOG_HEAD,
-                 "需要用某个技能时，先用 skill_manage 读取它的正文再照做。"]
+                 "需要用某个 Skills 时，先用 skill_manage 读取它的正文再照做。"]
         for s in items:
             desc = str(s.get("description") or "").strip() or "（无描述）"
             lines.append(f"- {s.get('name')}: {desc}")
         return ["\n".join(lines)]
 
     def build_auto_load_messages(self) -> List[str]:
-        """构建 `auto_load/` 目录下技能的**常驻正文**（每条一条 system 消息）。
+        """构建 `auto_load/` 目录下 Skills 的**常驻正文**（每条一条 system 消息）。
 
-        渐进式披露的第二层：这些技能始终随上下文携带，不必模型主动读取。
+        渐进式披露的第二层：这些 Skills 始终随上下文携带，不必模型主动读取。
         正文为空的不注入。
         """
         with self._lock:
@@ -316,7 +316,7 @@ class SkillManager:
                     continue
                 content = self._read_content(s)
                 if content.strip():
-                    out.append(f"【Skills 技能 {s.name}】\n{content}")
+                    out.append(f"【Skills {s.name}】\n{content}")
             return out
 
     def _read_content(self, meta: SkillMeta) -> str:

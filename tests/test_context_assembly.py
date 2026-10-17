@@ -70,7 +70,7 @@ def short(m) -> str:
         return "SYSTEM"
     if c.startswith("skill-"):
         return "SKILL" + c.split("-", 1)[1][:1]
-    if c.startswith("【Skills清单】") or c.startswith("【Skills 技能 "):
+    if c.startswith("【Skills 清单】") or c.startswith("【Skills "):
         return "SKILLBLOCK"
     if c.startswith(KB1):
         return "KB1"
@@ -134,7 +134,7 @@ def make_pipe(*, cid: str = "cid-assembly-0001", headers: str = "full",
         p.append_system(SYS)
     if headers == "full":
         p.append_plugin(SK1, key="skills", label="Skills")
-        p.append_plugin(SK2, key="skills", label="常驻技能")
+        p.append_plugin(SK2, key="skills", label="常驻 Skills")
     if headers in ("full", "no_skill"):
         p.append_plugin([KB1], key="kb", label="知识库")
         p.append_plugin([KB2], key="kb", label="知识库")
@@ -1218,12 +1218,12 @@ class MaskSurvivesOverflow(_Case):
 
 
 # ══════════════════════════════════════════════════════════════
-# 十、技能渐进式披露
+# 十、Skills 渐进式披露
 #
 # 两层：
-#   第一层「Skills清单」—— 名字 + 描述，常驻上下文前端，模型据此挑技能；
-#   第二层 `auto_load/` 下的技能正文 —— 始终随上下文携带，不必模型主动读。
-# 普通技能的**正文不进上下文**，由模型按需用 `skill_manage` 读取。
+#   第一层「Skills 清单」—— 名字 + 描述，常驻上下文前端，模型据此挑 Skills；
+#   第二层 `auto_load/` 下的 Skills 正文 —— 始终随上下文携带，不必模型主动读。
+# 普通 Skills 的**正文不进上下文**，由模型按需用 `skill_manage` 读取。
 # ══════════════════════════════════════════════════════════════
 
 import shutil  # noqa: E402
@@ -1233,7 +1233,7 @@ from plugins.skills.library import SkillManager  # noqa: E402
 
 
 def _skill_tree():
-    """造一个技能目录：两个普通技能 + 一个 auto_load 常驻技能。"""
+    """造一个 Skills 目录：两个普通 Skills + 一个 auto_load 常驻 Skills。"""
     root = Path(tempfile.mkdtemp(prefix="skillcase_"))
     skills = root / "skills"
     (skills / "auto_load").mkdir(parents=True, exist_ok=True)
@@ -1250,7 +1250,7 @@ def _skill_tree():
 
 
 class SkillProgressiveDisclosure(_Case):
-    """清单只给名字 + 描述；常驻技能给正文；普通技能正文不进上下文。"""
+    """清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文。"""
 
     def setUp(self) -> None:
         self.root, self.skills = _skill_tree()
@@ -1259,36 +1259,36 @@ class SkillProgressiveDisclosure(_Case):
 
     def test_registry_lists_names_and_descriptions(self) -> None:
         got = self.lib.build_registry_message()
-        self.check_true("含清单标题", "【Skills清单】" in got)
+        self.check_true("含清单标题", "【Skills 清单】" in got)
         self.check_true("含 deploy 名字与描述", "- deploy: 部署到测试环境" in got)
         self.check_true("含 review 名字与描述", "- review: 审查改动" in got)
 
     def test_registry_excludes_auto_load_skill(self) -> None:
         got = self.lib.build_registry_message()
-        self.check_true("常驻技能不列进清单（它的正文已常驻）", "house" not in got)
+        self.check_true("常驻 Skills 不列进清单（它的正文已常驻）", "house" not in got)
 
     def test_registry_excludes_skill_bodies(self) -> None:
         got = self.lib.build_registry_message()
-        self.check_true("普通技能正文不进清单", "部署正文步骤" not in got)
+        self.check_true("普通 Skills 正文不进清单", "部署正文步骤" not in got)
         self.check_true("审查正文也不进清单", "审查正文步骤" not in got)
 
     def test_registry_is_absent_when_no_skills(self) -> None:
         empty = Path(tempfile.mkdtemp(prefix="skillcase_empty_"))
         self.addCleanup(shutil.rmtree, empty, True)
         lib = SkillManager(empty, 200000)
-        self.check("没有技能 → 不注入空清单", "", lib.build_registry_message())
+        self.check("没有 Skills → 不注入空清单", "", lib.build_registry_message())
         self.check("列表形态也为空", [], lib.build_registry_message_parts())
 
     def test_auto_load_messages_carry_bodies(self) -> None:
         got = self.lib.build_auto_load_messages()
         self.check("自动加载 1 条", 1, len(got))
-        self.check_true("带技能名抬头", "【Skills 技能 " in got[0])
-        self.check_true("带技能名", "house" in got[0])
+        self.check_true("带 Skills 名抬头", "【Skills " in got[0])
+        self.check_true("带 Skills 名", "house" in got[0])
         self.check_true("带正文", "必须遵守的规范正文" in got[0])
 
     def test_auto_load_excludes_normal_skills(self) -> None:
         got = "".join(self.lib.build_auto_load_messages())
-        self.check_true("普通技能不进常驻", "部署正文步骤" not in got)
+        self.check_true("普通 Skills 不进常驻", "部署正文步骤" not in got)
 
     def test_auto_load_empty_when_no_auto_load_dir(self) -> None:
         root = Path(tempfile.mkdtemp(prefix="skillcase_noauto_"))
@@ -1300,11 +1300,11 @@ class SkillProgressiveDisclosure(_Case):
 
     def test_skill_manager_lists_normal_skills_only(self) -> None:
         names = [s["name"] for s in self.lib.list_skills()]
-        self.check("list_skills 只给普通技能", ["deploy", "review"], names)
+        self.check("list_skills 只给普通 Skills", ["deploy", "review"], names)
 
 
 class SkillInjectionIntoRequest(_Case):
-    """技能作为插件段落注入：顺序、压缩请求同源、整体重建。"""
+    """Skills 作为插件段落注入：顺序、压缩请求同源、整体重建。"""
 
     def setUp(self) -> None:
         self.root, self.skills = _skill_tree()
@@ -1313,7 +1313,7 @@ class SkillInjectionIntoRequest(_Case):
 
     def _segments(self):
         return ([("skills", "Skills", t) for t in self.lib.build_registry_message_parts()] +
-                [("skills", "常驻技能", t) for t in self.lib.build_auto_load_messages()])
+                [("skills", "常驻 Skills", t) for t in self.lib.build_auto_load_messages()])
 
     def _pipeline(self):
         p = ContextPipeline("cid-skill-0001", full_user_rounds=1)
@@ -1350,8 +1350,8 @@ class SkillInjectionIntoRequest(_Case):
                                 summary_token_threshold=1)
         comp.ensure_before_append(p, dlg(4), mode_note=MODE_AUTO, assembled=whole)
         joined = "".join(str(m.get("content")) for m in spy.reqs[0].messages)
-        self.check_true("压缩请求含技能清单", "【Skills清单】" in joined)
-        self.check_true("压缩请求含常驻技能正文", "必须遵守的规范正文" in joined)
+        self.check_true("压缩请求含 Skills 清单", "【Skills 清单】" in joined)
+        self.check_true("压缩请求含常驻 Skills 正文", "必须遵守的规范正文" in joined)
 
     def test_plugin_segments_are_not_duplicated_across_passes(self) -> None:
         """`set_plugin_segments` 是整体重建：多跑几趟不会累积。"""
@@ -1360,7 +1360,7 @@ class SkillInjectionIntoRequest(_Case):
             p.set_plugin_segments(self._segments())
         p.set_dialogue(dlg(1), covered_end=0)
         joined = "".join(str(m.get("content")) for m in p.host_messages())
-        self.check("清单只出现一次", 1, joined.count("【Skills清单】"))
+        self.check("清单只出现一次", 1, joined.count("【Skills 清单】"))
         self.check("常驻正文只出现一次", 1, joined.count("必须遵守的规范正文"))
 
     def test_empty_segments_leave_head_empty(self) -> None:
@@ -1381,7 +1381,7 @@ class SkillInjectionIntoRequest(_Case):
                    ["system", "plugin:skills", "plugin:skills", "summary", "full_recent"],
                    keys)
         self.check("段名由插件给",
-                   ["系统提示词", "Skills", "常驻技能", "记忆摘要", "近期记忆"], labels)
+                   ["系统提示词", "Skills", "常驻 Skills", "记忆摘要", "近期记忆"], labels)
 
 
 
@@ -1432,7 +1432,7 @@ class SegmentTokens(_Case):
 
     def test_segments_sum_equals_assembled_total(self) -> None:
         """关键一致性：分段之和 == 装配出来的消息总量（同估算器）。"""
-        p = self._pipe(dialogue=dlg(3), summaries=(SUM1,), skills=["技能正文" * 5],
+        p = self._pipe(dialogue=dlg(3), summaries=(SUM1,), skills=["Skills 正文" * 5],
                        kb=["知识库条目" * 5])
         p.set_dialogue(dlg(3), covered_end=0)
         got = p.assembles()
@@ -1571,14 +1571,14 @@ class LayoutWithHead(_Case):
     def _head(self):
         return [
             {"role": "system", "content": SYS},
-            {"role": "system", "content": "【技能清单】\n- a: b"},
-            {"role": "system", "content": "【技能】\n常驻正文"},
+            {"role": "system", "content": "【Skills 清单】\n- a: b"},
+            {"role": "system", "content": "【Skills】\n常驻正文"},
             {"role": "system", "content": KB1},
             {"role": "system", "content": "【历史摘要】\n旧摘要"},
         ]
 
     def _segments(self):
-        return [("skills", "Skills", 1), ("skills", "常驻技能", 1),
+        return [("skills", "Skills", 1), ("skills", "常驻 Skills", 1),
                 ("knowledge", "知识库", 1)]
 
     def _layout(self, messages, **kw):
@@ -1592,7 +1592,7 @@ class LayoutWithHead(_Case):
         self.check("三段各一行",
                    [("system", "系统提示词", 1),
                     ("plugin:skills", "Skills", 1),
-                    ("plugin:skills", "常驻技能", 1),
+                    ("plugin:skills", "常驻 Skills", 1),
                     ("plugin:knowledge", "知识库", 1),
                     ("summary", "记忆摘要", 1),
                     ("full_recent", "近期记忆", 1),
@@ -1642,11 +1642,11 @@ class SegmentKeysAndCounts(_Case):
         """同一插件两段：数量按位置对上，不会互相覆盖。"""
         p = ContextPipeline("cid-seg-0101", full_user_rounds=1)
         p.append_system(SYS)
-        p.set_plugin_segments([("skills", "Skills", "清单30个技能"), ("skills", "常驻技能", "常驻1个")])
+        p.set_plugin_segments([("skills", "Skills", "清单30个 Skills"), ("skills", "常驻 Skills", "常驻1个")])
         p.set_dialogue(dlg(1), covered_end=0)
         rows = [r for r in p.segment_tokens() if r["key"] == "plugin:skills"]
         self.check("两段都在 plugin:skills 名下", 2, len(rows))
-        self.check("段名各自独立", ["Skills", "常驻技能"], [r["label"] for r in rows])
+        self.check("段名各自独立", ["Skills", "常驻 Skills"], [r["label"] for r in rows])
 
 
 class SegmentCountSemantics(_Case):
@@ -1727,7 +1727,7 @@ class SourceOrderDeclaration(_Case):
         return cs
 
     def test_rank_beats_registration(self) -> None:
-        """先注册知识库（位次 1）、后注册技能（位次 0），组装仍是技能在前。"""
+        """先注册知识库（位次 1）、后注册 Skills（位次 0），组装仍是 Skills 在前。"""
         cs = self._sources([("knowledge", 1), ("skills", 0)])
         keys = [k for k, _l, _t in cs.collect_segments("c").items]
         self.check("位次小的排前面", ["skills", "knowledge"], keys)
@@ -1744,7 +1744,7 @@ class SourceOrderDeclaration(_Case):
         self.check("插件段在前", ["skills", "loose"], keys)
 
     def test_kernel_pipeline_follows_the_same_order(self) -> None:
-        """真管线：技能两段 → 知识库 → 摘要 → 对话。"""
+        """真管线：Skills 两段 → 知识库 → 摘要 → 对话。"""
         p = ContextPipeline("cid-ord-9001", full_user_rounds=1)
         p.append_system(SYS)
         p.set_plugin_segments([("skills", "Skills 清单", "清单"),

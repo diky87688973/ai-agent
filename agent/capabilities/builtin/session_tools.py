@@ -360,7 +360,7 @@ class SessionCreateTool(ToolPlugin):
         "persona": {"type": "string", "description": "人设文本（缺省含协作指引）"},
         "count": {"type": "integer", "description": "创建数量（1-50，默认 1）"},
         "tags": {"type": "array", "description": "标签（列表或逗号分隔字符串）"},
-        "skill": {"type": "string", "description": "技能名（记录于 meta；技能库未接入）"},
+        "skill": {"type": "string", "description": "Skills 名（记录于 meta；Skills 库未接入）"},
     }
 
     def __init__(self, mesh: MeshState) -> None:

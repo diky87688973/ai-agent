@@ -152,7 +152,7 @@ registry.schemas()          # 导出模型可见的工具声明
 | `session_broadcast` | 按 tag 向群组广播 |
 | `session_create` | 创建自由会话 |
 | `session_list` | 列出协作网络中的会话 |
-| `skill_manage` | 技能管理：list / read / copy |
+| `skill_manage` | Skills 管理：list / read / copy |
 
 ### 诊断
 

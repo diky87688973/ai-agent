@@ -69,7 +69,7 @@ path = D:/lab/my-plugin
 
 ```
 plugins/knowledge/plugin-config.ini     ← 知识库自己的配置
-plugins/skills/plugin-config.ini        ← 技能自己的配置
+plugins/skills/plugin-config.ini        ← Skills 自己的配置
 plugins/tts/plugin-config.ini           ← 语音合成自己的配置
 ```
 
@@ -168,7 +168,7 @@ def register(ctx):
 工具进内核注册表，与内置工具走**同一条执行管道**：门控、确认流程、写盘四步协议
 都照旧。插件不能绕过管道。
 
-**工具只在插件装载时存在**：`skill_manage` 由技能插件注册，把 `[plugin:skills]`
+**工具只在插件装载时存在**：`skill_manage` 由 Skills 插件注册，把 `[plugin:skills]`
 从清单里去掉，它就不在工具清单里。
 
 ### 写类工具的提交执行器
@@ -318,11 +318,11 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 | `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir` |
 | `plugins/tts` | 只订阅事件 | 最小形态 |
 
-技能插件的实现拆在三个文件里，可作"插件怎么组织代码"的例子：
+Skills 插件的实现拆在三个文件里，可作"插件怎么组织代码"的例子：
 
 ```
-plugins/skills/plugin.py     入口：读配置、装配技能库、注册工具与两条注入
-plugins/skills/library.py    技能库：扫描 / 元数据 / 读取 / 复制计划
+plugins/skills/plugin.py     入口：读配置、装配 Skills 库、注册工具与两条注入
+plugins/skills/library.py    Skills 库：扫描 / 元数据 / 读取 / 复制计划
 plugins/skills/tools.py      skill_manage 工具与其执行器
 ```
 
@@ -348,7 +348,7 @@ plugins/skills/tools.py      skill_manage 工具与其执行器
 ## 延伸阅读
 
 - [上下文管理](context.md)：注入源怎么进上下文、组装顺序怎么定
-- [技能](skills.md)：`skills` 插件的三层披露与 `skill_manage`
+- [Skills](skills.md)：`skills` 插件的三层披露与 `skill_manage`
 - [工具](tools.md)：工具的注册、执行管道与写盘协议
 - [壳层](shell.md)：HTTP 路由与界面打包
 - [配置](../guide/config.md)：配置项全表

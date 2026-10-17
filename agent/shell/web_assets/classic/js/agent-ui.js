@@ -115,7 +115,7 @@ else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_toke
 else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;setModelContextWindow(ev.model_max_context_tokens);if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
 else if(ev.type==="tool_start")onToolStart(ev);
 else if(ev.type==="tool_progress")onToolProgress(ev);
-else if(ev.type==="tool_end"){onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}
+else if(ev.type==="tool_end"){noteLiveEdit(ev,_ctxTab);onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}
 else if(ev.type==="open_session"){var sid=normalizeConversationId(ev.session_id);if(sid){ensureConversationTab(sid);var _ot=findConversationTab(sid);if(_ot)_ot.title=ev.name||("会话 "+sid.slice(0,8));}}
 else if(ev.type==="tool_preview_update"){var tid2=String(ev.tool_call_id||"").trim();if(tid2){var card=findStepCardForToolCall(tid2);if(card){var pb2=card.querySelector("pre.tool-res");if(pb2){try{var _pj2=JSON.parse(ev.preview||"{}");pb2.textContent=JSON.stringify(_pj2,null,2);}catch(e2){pb2.textContent=String(ev.preview||"");}var lb2=pb2.previousElementSibling;if(lb2&&lb2.classList&&lb2.classList.contains("lbl"))lb2.style.display="block";pb2.style.display="block";}var tag2=card.querySelector(".ch .tag");if(tag2){try{var _pj3=JSON.parse(ev.preview||"{}");if(_pj3&&_pj3.ok){tag2.textContent="Done";tag2.className="tag ok";}else{tag2.textContent="Fail";tag2.className="tag bad";}}catch(e3){}}}}}
 else if(ev.type==="audio"){playAudio(packetCid||ev.conversation_id,ev.audio,ev.voice||"",ev._dbg||"");}
@@ -134,9 +134,9 @@ scrollMsgsToBottom();
 })();
 }
 else if(ev.type==="assistant"){if(anyToolThisTurn){flushPendingSteps();}if(!finalizeAssistantStream(ev.content||"")){add("a",ev.content||"");}}
-else if(ev.type==="done"){finalizeAssistantStream("");_clearServerRunning(packetCid);void refreshConversationTitle(packetCid);}
-else if(ev.type==="stopped"){markCurrentTurnStoped();resetTurnState();hideChatLoading();if(ev.message)add("a",ev.message);_clearServerRunning(packetCid);}
-else if(ev.type==="paused_for_user_confirm"){hideChatLoading();endedAwaitingUserConfirm=true;}
+else if(ev.type==="done"){finalizeAssistantStream("");finishLiveEdits(_ctxTab);_clearServerRunning(packetCid);void refreshConversationTitle(packetCid);}
+else if(ev.type==="stopped"){finishLiveEdits(_ctxTab);markCurrentTurnStoped();resetTurnState();hideChatLoading();if(ev.message)add("a",ev.message);_clearServerRunning(packetCid);}
+else if(ev.type==="paused_for_user_confirm"){_ctxTab.editedHold=true;hideChatLoading();endedAwaitingUserConfirm=true;}
 else if(ev.type==="todo_list"){renderTodoListFromEvent(ev,packetCid);scrollToBottomAfterLayout(msgs,true);}
 else if(ev.type==="error"){hideChatLoading();abortPendingToolTags();if(lastLlm){finishLlmTitle(false);lastLlm.tag.className="tag bad";lastLlm.tag.textContent="Fail";lastLlm=null;}
 if(!anyToolThisTurn){discardPendingSteps();}else{pendingStepEls=[];}
@@ -164,7 +164,7 @@ else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_toke
 else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;setModelContextWindow(ev.model_max_context_tokens);if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
 else if(ev.type==="tool_start")onToolStart(ev);
 else if(ev.type==="tool_progress")onToolProgress(ev);
-else if(ev.type==="tool_end"){onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}
+else if(ev.type==="tool_end"){noteLiveEdit(ev,_ctxTab);onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}
 else if(ev.type==="open_session"){var sid=normalizeConversationId(ev.session_id);if(sid){ensureConversationTab(sid);var _ot=findConversationTab(sid);if(_ot)_ot.title=ev.name||("会话 "+sid.slice(0,8));}}
 else if(ev.type==="tool_preview_update"){var tid2=String(ev.tool_call_id||"").trim();if(tid2){var card=findStepCardForToolCall(tid2);if(card){var pb2=card.querySelector("pre.tool-res");if(pb2){try{var _pj2=JSON.parse(ev.preview||"{}");pb2.textContent=JSON.stringify(_pj2,null,2);}catch(e2){pb2.textContent=String(ev.preview||"");}var lb2=pb2.previousElementSibling;if(lb2&&lb2.classList&&lb2.classList.contains("lbl"))lb2.style.display="block";pb2.style.display="block";}}}}
 else if(ev.type==="assistant_delta"){if(anyToolThisTurn){flushPendingSteps();}appendAssistantDelta(ev.delta||"");}
@@ -175,9 +175,9 @@ else if(ev.type==="assistant"){if(anyToolThisTurn){flushPendingSteps();}if(!fina
 else if(ev.type==="peer_message"){addPeerMessage(ev.content||"",ev.sender_name||"",ev.sender||"");}
 else if(ev.type==="inbox_queued"){add("a","已收到来自 "+(ev.from_name||ev.from||"其他 Agent")+" 的排队消息。");}
 else if(ev.type==="audio"){playAudio(packetCid||ev.conversation_id,ev.audio,ev.voice||"",ev._dbg||"");}
-else if(ev.type==="done"){finalizeAssistantStream("");_ctxTab.abortController=null;_ctxTab.activeRunId="";hideChatLoading();updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();void refreshConversationTitle(packetCid);}
-else if(ev.type==="stopped"){markCurrentTurnStoped();resetTurnState();hideChatLoading();if(ev.message)add("a",ev.message);_ctxTab.abortController=null;_ctxTab.activeRunId="";updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();}
-else if(ev.type==="paused_for_user_confirm"){hideChatLoading();}
+else if(ev.type==="done"){finalizeAssistantStream("");finishLiveEdits(_ctxTab);_ctxTab.abortController=null;_ctxTab.activeRunId="";hideChatLoading();updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();void refreshConversationTitle(packetCid);}
+else if(ev.type==="stopped"){finishLiveEdits(_ctxTab);markCurrentTurnStoped();resetTurnState();hideChatLoading();if(ev.message)add("a",ev.message);_ctxTab.abortController=null;_ctxTab.activeRunId="";updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();}
+else if(ev.type==="paused_for_user_confirm"){_ctxTab.editedHold=true;hideChatLoading();}
 else if(ev.type==="todo_list"){renderTodoListFromEvent(ev,packetCid);scrollToBottomAfterLayout(msgs,true);}
 else if(ev.type==="error"){hideChatLoading();abortPendingToolTags();if(lastLlm){finishLlmTitle(false);lastLlm.tag.className="tag bad";lastLlm.tag.textContent="Fail";lastLlm=null;}if(!anyToolThisTurn){discardPendingSteps();}else{pendingStepEls=[];}add("a","错误: "+JSON.stringify(ev.detail||ev));_ctxTab.abortController=null;_ctxTab.activeRunId="";updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();}
 });
@@ -1846,6 +1846,127 @@ var _hc2=hljsCodeClass(lang);html+='<pre><code'+(_hc2?' class="'+_hc2+'"':'')+(l
 });
 return html||'<p></p>';
 }
+/* 本轮编辑只记在会话页上：预览留下 confirm_id 对应的 diff，提交成功留下确认 id。
+   真正收尾时取两者交集；同一路径只留最后一次。等用户确认时的 done 不出清单。 */
+function liveEditPieces(data, args, script){
+var icon=toolIco(script, args);
+var out=[];
+function push(path, diff){
+path=String(path||"").trim();
+if(!path)return;
+diff=String(diff||"");
+var stat=chatDiffCounts(diff);
+out.push({path:path, diff:diff, added:stat.add, deleted:stat.del, icon:icon});
+}
+if(data&&Array.isArray(data.files)&&data.files.length){
+for(var i=0;i<data.files.length;i++){
+var f=data.files[i];
+if(!f||typeof f!=="object")continue;
+if(f.path)push(f.path, diffTextFromToolData(f));
+}
+if(out.length)return out;
+}
+push((data&&data.path)||argGet(args,"path")||argGet(args,"dest_path")||argGet(args,"source_path"), diffTextFromToolData(data));
+return out;
+}
+function noteLiveEdit(ev, tab){
+if(!tab||!ev||!ev.ok)return;
+var tid=String(ev.tool_call_id!=null?ev.tool_call_id:"").trim();
+var o=tid&&toolOpen.get(tid);
+var script=String((ev.script||(o&&o.script)||"")).toLowerCase();
+var args=(o&&o.args)||{};
+if(script==="commit_write"){
+var cid=String(argGet(args,"confirm_id")||"").trim();
+if(!cid)return;
+if(!tab.editedConfirmed)tab.editedConfirmed=[];
+tab.editedConfirmed.push(cid);
+return;
+}
+if(script==="review_conclusion")return;
+var data=null;
+try{var parsed=typeof ev.preview==="string"?JSON.parse(ev.preview||""):ev.preview;data=parsed&&parsed.data;}catch(_e){data=null;}
+if(!data||typeof data!=="object"||!data.confirm_id)return;
+var pieces=liveEditPieces(data, args, script);
+if(!pieces.length)return;
+if(!tab.editedPreview)tab.editedPreview={};
+tab.editedPreview[String(data.confirm_id).trim()]=pieces;
+}
+function finishLiveEdits(tab){
+if(!tab)return;
+if(tab.editedHold){tab.editedHold=false;return;}
+var confirmed=tab.editedConfirmed||[];
+var map=tab.editedPreview||{};
+var rows=[];
+var seq=0;
+for(var i=0;i<confirmed.length;i++){
+var pieces=map[confirmed[i]];
+if(!pieces)continue;
+for(var j=0;j<pieces.length;j++){var row=pieces[j];row.seq=seq++;rows.push(row);}
+delete map[confirmed[i]];
+}
+tab.editedConfirmed=[];
+var last={};
+var order=[];
+for(var k=0;k<rows.length;k++){
+var path=rows[k].path;
+if(!Object.prototype.hasOwnProperty.call(last, path))order.push(path);
+last[path]=rows[k];
+}
+var files=[];
+for(var n=0;n<order.length;n++)files.push(last[order[n]]);
+if(files.length)showEditedFiles(files);
+}
+function fillEditedStat(sum, added, deleted){
+sum.textContent="";
+var a=Number(added)||0, d=Number(deleted)||0;
+if(!a&&!d){sum.textContent="0";return;}
+if(d){
+var neg=document.createElement("span");
+neg.className="chat-diff-neg";
+neg.textContent="-"+d;
+sum.appendChild(neg);
+}
+if(a){
+if(d)sum.appendChild(document.createTextNode(" "));
+var pos=document.createElement("span");
+pos.className="chat-diff-pos";
+pos.textContent="+"+a;
+sum.appendChild(pos);
+}
+}
+function showEditedFiles(files){
+if(!msgs||!Array.isArray(files)||!files.length)return;
+var e=document.createElement("div");
+e.className="edited-files";
+var title=document.createElement("div");
+title.className="edited-files-title";
+title.textContent="本轮编辑";
+e.appendChild(title);
+var count=0;
+for(var i=0;i<files.length;i++){
+var file=files[i];
+if(!file||typeof file!=="object")continue;
+var path=String(file.path||"").trim();
+if(!path)continue;
+var row=makeChatToolRow(path,"");
+var ico=document.createElement("span");
+ico.className="edited-file-ico";
+ico.setAttribute("aria-hidden","true");
+ico.textContent=String(file.icon||"📝");
+row._title.parentNode.insertBefore(ico, row._title);
+fillEditedStat(row._sum, file.added, file.deleted);
+var diff=String(file.diff||"");
+if(diff.trim()){
+var pane=addChatToolLayer(row._body,"","");
+chatPaintDiffPane(pane,{},{preview:JSON.stringify({data:{path:path,_diff:diff}})});
+}
+e.appendChild(row);
+count++;
+}
+if(!count)return;
+msgs.appendChild(e);
+scrollMsgsToBottom();
+}
 function add(role,t){
 if(!msgs)return null;
 const e=document.createElement('div');
@@ -2029,7 +2150,7 @@ var col=ctxSegmentColor(key);
 var csafe=String(col).replace(/[^#0-9a-fA-F]/g,"").slice(0,9)||"#5c5c5c";
 var wpx=tok<=0?0:Math.max(2,Math.round(trackW*tok/maxTok));
 var mid="—";
-/* 数量一律按段显示"几个主体"：插件段的数量由插件自报（勾选文件数、技能数…），
+/* 数量一律按段显示"几个主体"：插件段的数量由插件自报（勾选文件数、Skills 数…），
    内核与壳层都不解释它的含义。 */
 if(sg.count!==undefined&&sg.count!==null){
 var cnt=Math.max(0,Math.floor(Number(sg.count)||0));
@@ -2058,14 +2179,14 @@ return v||fallback;
 /* 两套主题各一组段色：色名 → {dark, light}。插件注册色名就自动跟着主题走；
    兜底也按同一张色名表取，所以**分段条与弹窗永远同色**。 */
 var CTX_SEG_NAMED={
-"amber":  {dark:"#c8a44a",light:"#9a7f22"},
-"blue":   {dark:"#4f86d6",light:"#17456f"},
-"teal":   {dark:"#3f9e86",light:"#15604a"},
-"violet": {dark:"#9b6bd6",light:"#5b3d9a"},
-"slate":  {dark:"#7d8b99",light:"#3f5560"},
-"purple": {dark:"#b06fd0",light:"#8e24aa"},
-"red":    {dark:"#c86a6a",light:"#8a2a2a"},
-"plum":   {dark:"#c8779f",light:"#8e3a63"}};
+"amber":  {dark:"#ffb020",light:"#f59e0b"},
+"blue":   {dark:"#4c8dff",light:"#2563eb"},
+"teal":   {dark:"#2ee6a6",light:"#12b981"},
+"violet": {dark:"#a78bfa",light:"#7c3aed"},
+"slate":  {dark:"#9aa6b2",light:"#64748b"},
+"purple": {dark:"#e879f9",light:"#c026d3"},
+"red":    {dark:"#ff5a5a",light:"#ef4444"},
+"plum":   {dark:"#ff4f9a",light:"#e11d74"}};
 /* 已知段显式配色：段名固定，就不该让哈希决定颜色（哈希会撞色）。 */
 var CTX_SEG_FIXED={system:"amber",summary:"red",full_recent:"teal",
 mode:"slate"};

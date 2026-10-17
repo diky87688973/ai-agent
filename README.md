@@ -84,7 +84,7 @@ full_user_rounds         = 10
 | [模型调用](docs/subsystems/llm.md) | 请求体、流式解析、工具调用归并、错误映射 |
 | [工具](docs/subsystems/tools.md) | 注册、执行管道、写盘四步协议、41 个内置工具 |
 | [插件](docs/subsystems/plugins.md) | 插件包形态、可贡献的能力、界面资产、生命周期与边界 |
-| [技能](docs/subsystems/skills.md) | `skills` 插件的三层披露与 `skill_manage` |
+| [Skills](docs/subsystems/skills.md) | `skills` 插件的三层披露与 `skill_manage` |
 | [会话与协作](docs/subsystems/session.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
 | [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
 | [配置](docs/guide/config.md) | 配置项全表、启动参数、环境变量 |
@@ -100,7 +100,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1143 个用例）：
+单元测试（1146 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

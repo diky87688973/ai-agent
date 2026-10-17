@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""集成与外围测试：ip 定位 / 天气 / review 提交 / 技能库与工具 / GitHub。
+"""集成与外围测试：ip 定位 / 天气 / review 提交 / Skills 库与工具 / GitHub。
 
-网络类以 unittest.mock 替换模块内 HTTP 层；storage 类（技能库）用临时目录实测。
+网络类以 unittest.mock 替换模块内 HTTP 层；storage 类（Skills 库）用临时目录实测。
 """
 from __future__ import annotations
 
@@ -196,7 +196,7 @@ class ReviewConclusionTest(unittest.TestCase):
             self.tool.execute({"file_name": "o.zip", "confirm_id": cid, "cancel_preview": True})
 
 class SkillsLibraryTest(unittest.TestCase):
-    """技能库。"""
+    """Skills 库。"""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()

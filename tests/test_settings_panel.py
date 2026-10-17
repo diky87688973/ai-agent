@@ -249,7 +249,7 @@ class PluginSettingsTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (folder / "plugin-config.ini").write_text(
-                "[base]\nname = 技能\ndesc = 清单常驻。\nversion = 2.0\nicon = 🧩\n",
+                "[base]\nname = Skills\ndesc = 清单常驻。\nversion = 2.0\nicon = 🧩\n",
                 encoding="utf-8",
             )
             plugins.write_text(
@@ -275,7 +275,7 @@ class PluginSettingsTest(unittest.TestCase):
             self.assertEqual([item["name"] for item in host.seen], ["oldplug", "skills"])
             cards = list_plugins(plugins_path=plugins, plugins_dir=root / "plugins")["plugins"]
             skill = next(item for item in cards if item["name"] == "skills")
-            self.assertEqual(skill["title"], "技能")
+            self.assertEqual(skill["title"], "Skills")
             self.assertEqual(skill["description"], "清单常驻。")
             self.assertEqual(skill["version"], "v2.0")
             self.assertEqual(skill["icon"], "🧩")

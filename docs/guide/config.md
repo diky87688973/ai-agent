@@ -129,7 +129,7 @@ version = 1.0
 
 | 名称 | 能力 | 自己的配置文件 |
 |---|---|---|
-| `skills` | 技能库与 `skill_manage` 工具 | `plugins/skills/plugin-config.ini` |
+| `skills` | Skills 库与 `skill_manage` 工具 | `plugins/skills/plugin-config.ini` |
 | `knowledge` | 本地知识库检索 | `plugins/knowledge/plugin-config.ini` |
 | `tts` | 语音合成 | `plugins/tts/plugin-config.ini` |
 

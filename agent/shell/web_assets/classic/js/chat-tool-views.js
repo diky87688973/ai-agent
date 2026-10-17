@@ -497,8 +497,8 @@ registerChatToolView({
 match:function(script, args){
 return chatToolName(script)==="skill_manage"&&String(argGet(args,"action")||"").toLowerCase()==="read";
 },
-title:function(){return "加载技能";},
-summary:function(o){return chatSkillName(o)||"（未指定技能）";},
+title:function(){return "加载 Skills";},
+summary:function(o){return chatSkillName(o)||"（未指定 Skills）";},
 mount:function(row, o){
 var pane=addChatToolLayer(row._body,"","skill");
 var box=document.createElement("div");

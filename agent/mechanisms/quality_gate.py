@@ -162,6 +162,8 @@ class QualityGate:
     needs_reread: Set[str] = field(default_factory=set)
     pending_review: List[str] = field(default_factory=list)
     reviewed_ok: bool = True
+    # 真写次数。预览解锁时记下当时的值，用来区分「写之前已解锁」和「写之后才解锁」。
+    _write_generation: int = 0
 
     # ── 检查状态──
     intent: str = ""               # "" | "debug" | "troubleshoot"
@@ -217,6 +219,7 @@ class QualityGate:
         if rec is None:
             return False
         rec["confirmed"] = True
+        rec["confirmed_generation"] = self._write_generation
         return True
 
     # ── ③ 提交前检查（四步协议核心）──────────────────────────
@@ -261,12 +264,14 @@ class QualityGate:
                     reason="写后诊断仍有问题未处理：先修复已改文件上的 fail 项，再改其他文件",
                 )
         if self.pending_review and not self.reviewed_ok:
-            if not _in_paths(path, self.pending_review):
+            if (not _in_paths(path, self.pending_review)
+                    and not self._unlocked_before_latest_write(rec)):
                 return GateDecision(
                     allow=False,
                     reason="上一次真写的 review 尚未完成：请先提交 review 结论，再跨文件继续写",
                 )
-        if tool == "apply_patch" and self.apply_patch_pending:
+        if (tool == "apply_patch" and self.apply_patch_pending
+                and not self._unlocked_before_latest_write(rec)):
             return GateDecision(
                 allow=False,
                 reason="apply_patch 上一次真写尚未 review：请先提交 review 结论",
@@ -315,6 +320,7 @@ class QualityGate:
         reread: bool = True,
     ) -> None:
         """真写成功后的记账 + 大删除检测；reread=False 用于结构性操作（删除/移动/重命名）。"""
+        self._write_generation += 1
         norm = _norm_path(path)
         if reread:
             self.needs_reread.add(norm)
@@ -330,6 +336,15 @@ class QualityGate:
             self.changeset_mod_ids.append((norm, str(mod_id)))
         if diff_text:
             self._maybe_flag_large_delete(norm, diff_text)
+
+    def _unlocked_before_latest_write(self, rec: Dict[str, Any]) -> bool:
+        """这份预览在最近一次真写之前就已经解锁。
+
+        同一批里连续提交多份已审预览时，第一份落盘会把 `reviewed_ok` 打回未完成。
+        写之前就解锁的后续提交仍然有效；写之后才解锁的新文件继续要先 review。
+        """
+        stamped = rec.get("confirmed_generation")
+        return isinstance(stamped, int) and stamped < self._write_generation
 
     def note_read(self, path: str) -> None:
         """read 复核后清除该路径的"需重读"标记。"""

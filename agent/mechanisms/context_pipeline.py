@@ -172,7 +172,7 @@ def clip_reasoning(messages: List[Dict[str, Any]],
 def _as_text_parts(text: Any) -> List[str]:
     """把可能为列表/字符串的注入内容归一成"每段一条"的正文列表。
 
-    注入源（知识库 / 技能）常按条目给列表；直接塞进 `content` 会让模型收到
+    注入源（知识库 / Skills）常按条目给列表；直接塞进 `content` 会让模型收到
     Python 字面量。这里逐条转字符串并去掉空串。
     """
     if isinstance(text, (list, tuple)):
@@ -394,7 +394,7 @@ def layout_from_messages(
     （顺序与 `plugin_segments` 一致），再往后是记忆摘要。
     `plugin_segments` 是 `[(段 key, 段名, 主体数量)]` —— 由插件给，宿主不猜。
 
-    插件内容与技能清单**不在事实记录里**（每回合装配时注入），所以不传 `head`
+    插件内容与 Skills 清单**不在事实记录里**（每回合装配时注入），所以不传 `head`
     就只能退化：按位置猜，插件各段与摘要分不出来。
 
     模式从对话段里按正文认（`## 当前模式` 开头），单列一段。
@@ -591,11 +591,11 @@ class SourceMeta:
     key: str = ""
     label: str = ""
     plugin: str = ""
-    # 注入前缀：告诉模型这段是什么（如 `【知识库：a.md】`、`【Skills清单】`）。
+    # 注入前缀：告诉模型这段是什么（如 `【知识库：a.md】`、`【Skills 清单】`）。
     # 前缀由来源给，宿主不替它拼 —— 拼错了模型会把它当对话内容。
     prefix: str = ""
     # 主体数量的取数口 `fn(conversation_id) -> int`（插件自报，如"勾选了几个文件"、
-    # "清单里列了几个技能"）；不给时按消息条数算。
+    # "清单里列了几个 Skills"）；不给时按消息条数算。
     count: Optional[Callable[[str], int]] = None
     # 插件在清单（`plugins.ini`）里的位次。插件段之间的组装顺序**按它排** ——
     # 清单靠前的插件，它的段也靠前。应用级来源（非插件）没有位次，排在最后。
@@ -626,7 +626,7 @@ class ContextSources:
     每个来源贡献**一段** `system` 文本，并自带段名（`SourceMeta`）：
     段 key 是插件名（前端按它找插件注册的渲染钩子），段名与主体数量由插件给。
 
-    宿主不认识任何具体插件 —— 知识库、技能清单都只是"某个插件注册的一段"；
+    宿主不认识任何具体插件 —— 知识库、Skills 清单都只是"某个插件注册的一段"；
     来源函数是 `fn(conversation_id) -> List[str]`（文本列表，每条独立成消息）。
     `collect` 按注册顺序串接，单个来源异常被隔离（记录 stderr），不影响其他来源。
     """
@@ -764,7 +764,7 @@ class ContextPipeline:
         self._plugin_counts: List[int] = []
         #: 本趟链的注入源快照。`begin_pass` 收集，`end_pass` 丢掉。
         #: 这一趟里压缩与模型请求共用这一份；趟结束就放开，
-        #: 下一趟若不来，知识库和技能正文不会留在会话上。
+        #: 下一趟若不来，知识库和 Skills 正文不会留在会话上。
         self._sources_snapshot: Any = None
         #: 快照对应的来源版本号（版本一变就重收集）
         self._sources_snapshot_version: int = -1
@@ -796,7 +796,7 @@ class ContextPipeline:
 
         口径与真正发出去的请求一致（同一个 `default_message_tokens`）。
         插件各段一段一条，key 是 `plugin:<插件名>`、段名与数量由插件给 ——
-        内核不认识知识库、技能这些具体名字。
+        内核不认识知识库、Skills 这些具体名字。
 
         **模式不在管线里** —— 它是请求尾部的临时后缀，由调用方单独算。
 
@@ -1105,7 +1105,7 @@ class ContextPipeline:
     def end_pass(self) -> None:
         """一趟链结束：丢掉注入源快照。
 
-        快照里是知识库正文和技能正文。留到下一趟开始再清的话，
+        快照里是知识库正文和 Skills 正文。留到下一趟开始再清的话，
         下一趟若不来，这份内容就一直挂在会话上。
         插件段是从这份快照装上去的，一并卸掉；下一趟开始会重新装。
         """
@@ -1124,11 +1124,11 @@ class ContextPipeline:
     def _refresh_sources(self) -> None:
         """从注入源刷新**知识库**与 **Skills** 块（无来源时不动）。
 
-        Skills 也走注入源：技能库注册「可用技能清单」（渐进式披露第一层）
-        与 `auto_load/` 常驻技能正文（第二层）。
+        Skills 也走注入源：Skills 库注册「可用 Skills 清单」（渐进式披露第一层）
+        与 `auto_load/` 常驻 Skills 正文（第二层）。
 
         **一趟链只收集一次**：压缩模块、压缩器内部、模型模块会各装一次对话。
-        每次收集都要重列技能目录、重读全部勾选文件。同一趟里收集两遍不只是
+        每次收集都要重列 Skills 目录、重读全部勾选文件。同一趟里收集两遍不只是
         白烧磁盘 —— 两遍之间源可变，于是"压缩看到的那份"和"发出去的那份"
         数字可能对不上。快照由 `begin_pass()` 在一趟开始时收集，
         `end_pass()` 在一趟结束时丢掉 —— 不留到下一趟，下一趟没来也不会占着内存。

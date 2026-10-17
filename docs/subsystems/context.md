@@ -109,7 +109,7 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 | 分段 | 一段一行上报，`key` 是 `plugin:<插件名>`，段名与数量用插件给的 |
 | 展平 | 末端统一过 `sanitize_fn` |
 
-内核**不解释**段名与数量的含义：`count` 是"几个文件"还是"几个技能"，由插件决定。
+内核**不解释**段名与数量的含义：`count` 是"几个文件"还是"几个 Skills"，由插件决定。
 
 ### 观察面
 
@@ -317,7 +317,7 @@ provider 的 KV 缓存，只按压缩指令那点新增内容付费。
 多条注入属于**同一个来源组**：组装位次由插件在清单里的位置决定，组内按注册顺序。
 分段统计也按同一顺序逐段上报。
 
-技能本身的分层做法见 [skills.md](skills.md)。
+Skills 本身的分层做法见 [skills.md](skills.md)。
 
 ## 图片进请求的限制
 
@@ -370,6 +370,6 @@ token 数是**估算**而非精确计数：
 
 - [architecture.md](../architecture.md)：模块链与端口
 - [plugins.md](plugins.md)：插件怎么注册注入源
-- [skills.md](skills.md)：技能插件的三层披露
+- [skills.md](skills.md)：Skills 插件的三层披露
 - [core.md](core.md)：`CompressModule` 在链上的位置
 - [guide/config.md](../guide/config.md)：完整配置项

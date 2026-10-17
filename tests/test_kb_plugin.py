@@ -465,10 +465,10 @@ class PluginSourceContractTest(unittest.TestCase):
         sources = ContextSources()
         sources.add(lambda cid: ["清单"], SourceMeta(key="skills", label="Skills",
                                                    count=lambda cid: 31))
-        sources.add(lambda cid: ["常驻"], SourceMeta(key="skills", label="常驻技能",
+        sources.add(lambda cid: ["常驻"], SourceMeta(key="skills", label="常驻 Skills",
                                                    count=lambda cid: 1))
         seg = sources.collect_segments("c1")
-        self.assertEqual([lb for _k, lb, _t in seg.items], ["Skills", "常驻技能"])
+        self.assertEqual([lb for _k, lb, _t in seg.items], ["Skills", "常驻 Skills"])
         self.assertEqual(seg.counts, [31, 1])
 
 
@@ -688,13 +688,13 @@ if __name__ == "__main__":
 
 
 class SkillsConfigSourceTest(unittest.TestCase):
-    """技能设置只有工程 config.ini 一处来源（插件目录下没有同名配置）。"""
+    """Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）。"""
 
     def test_plugin_dir_has_no_own_config(self) -> None:
         from pathlib import Path as _P
         root = _P(__file__).resolve().parent.parent / "plugins" / "skills"
         self.assertFalse((root / "config.ini").exists(),
-                         msg="插件目录下不该有第二份技能配置")
+                         msg="插件目录下不该有第二份 Skills 配置")
         self.assertFalse((root / "config.ini.example").exists())
 
     def test_reader_reads_the_project_config(self) -> None:

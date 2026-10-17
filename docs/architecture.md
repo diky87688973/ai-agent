@@ -128,7 +128,7 @@ class Ports:
 
 `app.py` 的 `build_app()` 按顺序做四件事：
 
-1. 读配置（`agent/config.py`），决定 provider、数据根、技能库与插件清单。
+1. 读配置（`agent/config.py`），决定 provider、数据根、Skills 库与插件清单。
 2. 建工具注册表与门控，装配工具管道、事件总线、插件宿主；清单里的插件在此加载。
 3. 装配上下文管线工厂与压缩器工厂。
 4. 构建 `AppContext`，按逆序即清理序登记全部进程级服务；返回 `App`，其属性是 `context.get(name)` 的快捷方式。
@@ -144,7 +144,8 @@ class Ports:
 | 上下文管理 | [subsystems/context.md](subsystems/context.md) |
 | 模型调用 | [subsystems/llm.md](subsystems/llm.md) |
 | 工具与插件 | [subsystems/tools.md](subsystems/tools.md)、[subsystems/plugins.md](subsystems/plugins.md) |
-| 技能 | [subsystems/skills.md](subsystems/skills.md) |
+| Skills | [subsystems/skills.md](subsystems/skills.md) |
 | 会话存储与协作 | [subsystems/session.md](subsystems/session.md) |
 | HTTP 服务与界面 | [subsystems/shell.md](subsystems/shell.md) |
 | 配置项 | [guide/config.md](guide/config.md) |
+| 写盘门控现状与优化 | [write-gate.md](write-gate.md) |
