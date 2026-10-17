@@ -310,6 +310,57 @@ class ConfigParseTest(unittest.TestCase):
             ini.write_text("; 什么都不列\n", encoding="utf-8")
             self.assertEqual(get_plugins(ini), [])
 
+    def test_tree_only_rejects_external_path(self) -> None:
+        """plugin_tree_only 打开时，清单里的树外 path 不得装载。"""
+        from agent.capabilities.plugins import PluginHost
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            plugins_dir = base / "plugins"
+            plugins_dir.mkdir()
+            external = base / "elsewhere" / "ext"
+            external.mkdir(parents=True)
+            (external / "plugin.py").write_text(
+                "def register(ctx):\n    return []\n", encoding="utf-8"
+            )
+            host = PluginHost(plugins_dir, ToolRegistry())
+            old = __import__("os").environ.get("AI_AGENT_PLUGIN_TREE_ONLY")
+            __import__("os").environ["AI_AGENT_PLUGIN_TREE_ONLY"] = "1"
+            try:
+                reports = host.load_manifest(
+                    [{"name": "ext", "path": str(external)}]
+                )
+            finally:
+                if old is None:
+                    __import__("os").environ.pop("AI_AGENT_PLUGIN_TREE_ONLY", None)
+                else:
+                    __import__("os").environ["AI_AGENT_PLUGIN_TREE_ONLY"] = old
+            self.assertEqual(reports[0].status, "error")
+            self.assertIn("越出", reports[0].message)
+            self.assertEqual(host.loaded_names(), [])
+
+    def test_load_logs_source_integrity(self) -> None:
+        """装载时 stderr 须留下入口文件来源与完整性摘要。"""
+        from io import StringIO
+        from unittest.mock import patch
+
+        from agent.capabilities.plugins import PluginHost
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "plugins"
+            (root / "good").mkdir(parents=True)
+            entry = root / "good" / "plugin.py"
+            entry.write_text("def register(ctx):\n    return []\n", encoding="utf-8")
+            host = PluginHost(root, ToolRegistry())
+            buf = StringIO()
+            with patch("sys.stderr", buf):
+                reports = host.load_manifest([{"name": "good"}])
+            self.assertEqual(reports[0].status, "loaded")
+            text = buf.getvalue()
+            self.assertIn("[plugin.load] good", text)
+            self.assertIn("source=", text)
+            self.assertIn("sha256=", text)
+
     def test_load_manifest_resolves_paths_and_reports_errors(self) -> None:
         """装载方把 `path` 落到自己的插件根，并把配置错误变成报告。"""
 

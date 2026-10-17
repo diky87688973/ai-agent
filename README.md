@@ -32,7 +32,7 @@
 ### 手动启动
 
 ```bash
-pip install -e .
+pip install -e . -c constraints.txt
 python -m agent.shell.web --host 127.0.0.1 --port 8765
 ```
 
@@ -91,8 +91,12 @@ full_user_rounds         = 10
 
 ## 开发
 
-`scripts/ci.py` 的流水线 21 步：十项门禁（依赖方向、架构洁癖、ruff、Python 下限、UI JS 自检、
-静默异常、README 一致性、确认文案、注释文案、注册表一致性）→ 单测 → 10 个验收脚本。
+依赖安装请带锁文件：`pip install -e . -c constraints.txt`（与 CI 同源）。
+
+`scripts/ci.py` 的流水线 22 步（清单唯一事实源是 `scripts/ci_steps.py`，由
+`check_ci_workflow` 与 GitHub Actions 对齐）：十一项门禁（依赖方向、架构洁癖、
+CI 工作流一致、ruff、Python 下限、UI JS 自检、静默异常、README 一致性、确认文案、
+注释文案、注册表一致性）→ 单测 → 10 个验收脚本。
 
 ```bash
 python scripts/ci.py           # 全部检查
@@ -100,7 +104,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1146 个用例）：
+单元测试（1159 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

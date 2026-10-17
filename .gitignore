@@ -47,6 +47,7 @@ env/
 .coverage
 .coverage.*
 htmlcov/
+coverage_html/
 
 # 编辑器与系统
 .vscode/

@@ -15,6 +15,7 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.core import event_name as ev  # noqa: E402
+from agent.core.error_report import bind_error_sink  # noqa: E402
 from agent.core.event_bus import EventBus  # noqa: E402
 from agent.core.events import make_event  # noqa: E402
 
@@ -121,6 +122,13 @@ class EngineEventSinkTest(unittest.TestCase):
     def test_sink_exception_does_not_break_turn(self):
 
         app = build_app()
+        reported: list = []
+
+        def _sink(tag, exc, **kw):
+            reported.append((tag, exc, kw))
+
+        bind_error_sink(_sink)
+        self.addCleanup(lambda: bind_error_sink(None))
 
         def broken(event):
             raise RuntimeError("sink boom")
@@ -128,6 +136,13 @@ class EngineEventSinkTest(unittest.TestCase):
         app.event_bus.publish = broken  # 模拟旁路实现故障
         events = list(app.session("conv-bus-2").start_turn("你好"))
         self.assertTrue(any(e.type == ev.TURN_ENDED for e in events))
+        self.assertTrue(
+            any(tag == "core.event_sink" for tag, _exc, _kw in reported),
+            msg=f"应 report_error(core.event_sink)，实际 {reported!r}",
+        )
+        self.assertTrue(
+            any(isinstance(exc, RuntimeError) for _tag, exc, _kw in reported),
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -38,6 +38,7 @@ models       = deepseek-flash, deepseek-v4-pro
 reasoning_effort = max
 backup_retention_days = 7
 user_rules_file =
+plugin_tree_only = 0
 ```
 
 | 键 | 默认 | 含义 |
@@ -45,6 +46,7 @@ user_rules_file =
 | `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可在界面上临时切换，**会话级选择优先** |
 | `backup_retention_days` | `7` | 版本化备份保留天数。启动时清理更早的；`0` = 永久保留 |
 | `user_rules_file` | 空 | 用户自定义规则文件（`.md` / `.txt`）。留空则不加规则段 |
+| `plugin_tree_only` | `0` | `1` 时只允许装载落在 `plugins/` 树内的插件目录；清单里的绝对/外置 `path` 会被拒。环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先 |
 
 `reasoning_effort` 的取值直接进请求体的 `reasoning_effort` 字段。值非法时回落 `max`。
 
@@ -163,6 +165,7 @@ version = 1.0
 | `AI_AGENT_DATA_ROOT` | 数据根目录 |
 | `AI_AGENT_FS_ROOT` | 文件可见根，多个用系统路径分隔符连接（Windows 为 `;`） |
 | `AI_AGENT_MEDIA_ROOT` | `/api/media` 可读根 |
+| `AI_AGENT_PLUGIN_TREE_ONLY` | `1` 只允许从 `plugins/` 树内装载；覆盖 `[agent] plugin_tree_only` |
 | `AI_AGENT_LOCK_TIMEOUT` | 跨进程锁等待秒数，默认 30 |
 | `AI_AGENT_LOG_REQUESTS` | 设为 `0` 关闭发送前的请求摘要，默认开启 |
 | `AI_AGENT_LLM_LOG` | 模型收发日志落盘路径，缺省为 `%TEMP%\fan_agent_llm_requests.log` |

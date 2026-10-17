@@ -119,8 +119,14 @@ class Engine:
             return
         try:
             self.event_sink(event)
-        except Exception:
-            pass          # 观察者异常不影响回合（旁路纪律）
+        except Exception as exc:
+            # 旁路纪律：观察者异常不影响回合，但必须留痕（对齐 _remember_suspend）。
+            report_error(
+                "core.event_sink",
+                exc,
+                conversation_id=self.conversation_id,
+                event_type=getattr(event, "type", None),
+            )
 
     def _remember_suspend(self, event: Event) -> None:
         """把挂起信息记进**会话上下文**（宿主作答时靠 `call_id` 把结果交回来）。

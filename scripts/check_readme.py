@@ -28,8 +28,8 @@ README = ROOT / "README.md"
 
 
 def _ci_acceptance_scripts() -> int:
-    """读 ci.py 真正会跑的验收脚本数（不是目录里有多少个）。"""
-    src = (ROOT / "scripts" / "ci.py").read_text(encoding="utf-8")
+    """读 ci_steps 清单里的验收脚本数（不是目录里有多少个）。"""
+    src = (ROOT / "scripts" / "ci_steps.py").read_text(encoding="utf-8")
     block = src.split("ACCEPTANCE = [", 1)[1].split("]", 1)[0]
     return len([x for x in re.findall(r'"(acceptance_\w+)"', block)])
 

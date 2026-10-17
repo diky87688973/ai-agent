@@ -14,6 +14,9 @@ concurrency:
 permissions:
   contents: read
 
+# 步骤「跑哪些」以 scripts/ci_steps.py 为唯一事实源；本 yml 逐步跑便于超时定位。
+# 漂移由 scripts/check_ci_workflow.py 门禁拦截。
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -36,12 +39,18 @@ jobs:
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .
-          python -m pip install "ruff>=0.5"
+          python -m pip install -e . -c constraints.txt
+          python -m pip install ruff coverage -c constraints.txt
 
       - name: 门禁 依赖方向
         timeout-minutes: 3
         run: python -u scripts/check_imports.py
+      - name: 门禁 架构洁癖
+        timeout-minutes: 3
+        run: python -u scripts/check_architecture_hygiene.py
+      - name: 门禁 CI 工作流一致
+        timeout-minutes: 3
+        run: python -u scripts/check_ci_workflow.py
       - name: 门禁 静态检查
         timeout-minutes: 5
         run: python -u -m ruff check agent tests scripts
@@ -77,6 +86,7 @@ jobs:
           # 逐文件跑，输出先落盘再打印：超时被杀（137）时已产出的日志也不会丢。
           # 退出码 2 = 该文件在本平台按设计跳过，不算失败。
           fail=0; skip=0
+          skip_names=()
           for f in tests/test_*.py; do
             mod=$(basename "$f" .py)
             echo "::group::$mod"
@@ -87,56 +97,136 @@ jobs:
             if [ "$code" -eq 2 ]; then
               echo "   $mod 跳过"
               skip=$((skip+1))
+              skip_names+=("$mod")
             elif [ "$code" -ne 0 ]; then
               echo "::error::$mod 退出码 $code"
               fail=$((fail+1))
             fi
           done
           echo "失败 $fail 个文件，跳过 $skip 个"
+          if [ "$skip" -gt 0 ]; then
+            echo "单测跳过名单：${skip_names[*]}"
+          fi
           [ "$fail" -eq 0 ]
 
-      # 验收脚本逐个一步：卡住时 GitHub 直接指出是哪一个。
-      # 退出码 2 = 本机跑不了（如缺真模型凭据），按跳过处理，不算失败。
+      # 验收经 run_acceptance_step：打印 SKIP/OK/FAIL；码 2 记入 ACC_SKIP_FILE。
+      - name: 准备验收 skip 文件
+        shell: bash
+        run: |
+          echo "ACC_SKIP_FILE=$RUNNER_TEMP/fan_acc_skips.txt" >> "$GITHUB_ENV"
+          : > "$RUNNER_TEMP/fan_acc_skips.txt"
+
       - name: 验收 batch a
         timeout-minutes: 4
         shell: bash
-        run: python -u scripts/acceptance_batch_a.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_a
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_a" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
       - name: 验收 batch b
         timeout-minutes: 4
         shell: bash
-        run: python -u scripts/acceptance_batch_b.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_b
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_b" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
       - name: 验收 batch c
         timeout-minutes: 4
         shell: bash
-        run: python -u scripts/acceptance_batch_c.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_c
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_c" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
       - name: 验收 batch d
         timeout-minutes: 4
         shell: bash
-        run: python -u scripts/acceptance_batch_d.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_d
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_d" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
       - name: 验收 batch e
         timeout-minutes: 4
         shell: bash
-        run: python -u scripts/acceptance_batch_e.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_e
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_e" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
       - name: 验收 batch f
         timeout-minutes: 4
         shell: bash
-        run: python -u scripts/acceptance_batch_f.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_f
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_f" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
       - name: 验收 mvp2
         timeout-minutes: 4
         shell: bash
-        run: python -u scripts/acceptance_mvp2.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_mvp2
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_mvp2" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
       - name: 验收 mvp3
         timeout-minutes: 5
         shell: bash
-        run: python -u scripts/acceptance_mvp3.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_mvp3
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_mvp3" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
       - name: 验收 phase3
         timeout-minutes: 4
         shell: bash
-        run: python -u scripts/acceptance_phase3.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_phase3
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_phase3" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
       - name: 验收 web
         timeout-minutes: 6
         shell: bash
-        run: python -u scripts/acceptance_web.py || [ $? -eq 2 ]
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_web
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_web" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+
+      - name: 验收 skip 预算
+        timeout-minutes: 2
+        run: python -u scripts/check_acceptance_skips.py
+
+      # 覆盖率只在 3.12 矩阵跑一遍，避免双倍单测墙钟；下限保守，只增不减靠审 PR。
+      - name: 覆盖率 core/mechanisms
+        if: matrix.python-version == '3.12'
+        timeout-minutes: 20
+        run: |
+          python -m coverage run --source=agent/core,agent/mechanisms \
+            -m unittest discover -s tests -p "test_*.py" -t tests
+          python -m coverage report --include="agent/core/*,agent/mechanisms/*" --fail-under=80
+          python -m coverage html -d coverage_html
+      - name: 上传覆盖率报告
+        if: matrix.python-version == '3.12' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-${{ matrix.python-version }}
+          path: coverage_html
+          if-no-files-found: ignore
 
       - name: 工程 data/ 检查
         run: >

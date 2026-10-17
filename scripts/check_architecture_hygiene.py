@@ -135,16 +135,18 @@ def check_shell_prompts_skill_manage(prompts: Path = PROMPTS_PY) -> list[str]:
     return []
 
 
-# 门控单通路 / 预览只认 needs_preview：源码禁旁路字面量
-_BANNED_GATE_LITERALS = (
+# 门控单通路 / 预览只认 needs_preview：AST 禁旁路符号（非子串）
+_BANNED_GATE_NAMES = frozenset({
     "_fallback_gate",
-    "preview_tools=",
     "gate_resolver",
     "_TOOL_PATH_KEYS",
     "register_write_path_keys",
     "unregister_write_path_keys",
-    "content_tools =",
-)
+})
+_BANNED_GATE_ASSIGN_OR_KW = frozenset({
+    "preview_tools",
+    "content_tools",
+})
 
 # prompts 纪律段不得再手写整串内置写工具名单
 _HANDWRITTEN_WRITE_TOOLS = (
@@ -153,15 +155,76 @@ _HANDWRITTEN_WRITE_TOOLS = (
 )
 
 
+def _rel_to_root(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _iter_assign_target_ids(target: ast.AST):
+    """展开赋值目标上的 Name.id / Attribute.attr（含 Tuple/List/Starred）。"""
+    if isinstance(target, ast.Name):
+        yield target.id
+    elif isinstance(target, ast.Attribute):
+        yield target.attr
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        for elt in target.elts:
+            yield from _iter_assign_target_ids(elt)
+    elif isinstance(target, ast.Starred):
+        yield from _iter_assign_target_ids(target.value)
+
+
+def _gate_bypass_hits(tree: ast.AST) -> list[tuple[int, str]]:
+    """扫描 AST，返回 (lineno, symbol) 旁路命中。"""
+    hits: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in _BANNED_GATE_NAMES:
+            hits.append((node.lineno, node.id))
+        elif isinstance(node, ast.Attribute) and node.attr in _BANNED_GATE_NAMES:
+            hits.append((node.lineno, node.attr))
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                for sym in (alias.name, alias.asname):
+                    if sym and sym in _BANNED_GATE_NAMES:
+                        hits.append((node.lineno, sym))
+        elif isinstance(node, ast.keyword) and node.arg in _BANNED_GATE_ASSIGN_OR_KW:
+            hits.append((node.lineno, node.arg))
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                for name in _iter_assign_target_ids(t):
+                    if name in _BANNED_GATE_ASSIGN_OR_KW:
+                        hits.append((node.lineno, name))
+        elif isinstance(node, ast.AnnAssign) and node.target is not None:
+            for name in _iter_assign_target_ids(node.target):
+                if name in _BANNED_GATE_ASSIGN_OR_KW:
+                    hits.append((node.lineno, name))
+        elif isinstance(node, ast.AugAssign):
+            for name in _iter_assign_target_ids(node.target):
+                if name in _BANNED_GATE_ASSIGN_OR_KW:
+                    hits.append((node.lineno, name))
+    return hits
+
+
 def check_gate_single_path(package_root: Path = PACKAGE_ROOT) -> list[str]:
-    """禁门控旁路字面量（_fallback_gate / preview_tools= / gate_resolver）。"""
+    """禁门控旁路符号（AST：Name/Attribute/导入别名/赋值与关键字参数）。"""
     violations: list[str] = []
     for py in sorted(package_root.rglob("*.py")):
-        rel = py.relative_to(ROOT)
-        text = py.read_text(encoding="utf-8")
-        for needle in _BANNED_GATE_LITERALS:
-            if needle in text:
-                violations.append(f"{rel}: 禁旁路字面量「{needle}」")
+        if "__pycache__" in py.parts:
+            continue
+        rel = _rel_to_root(py)
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+        except SyntaxError as exc:
+            violations.append(f"{rel}: 无法解析（{exc}）")
+            continue
+        seen: set[tuple[int, str]] = set()
+        for lineno, sym in _gate_bypass_hits(tree):
+            key = (lineno, sym)
+            if key in seen:
+                continue
+            seen.add(key)
+            violations.append(f"{rel}:{lineno}: 禁旁路符号「{sym}」")
     return violations
 
 
@@ -194,35 +257,56 @@ def check_no_silent_system_prompt(package_root: Path = PACKAGE_ROOT) -> list[str
     return violations
 
 
-#: 写盘门控只认 quality 包；禁兼容模块路径回流
-_BANNED_QUALITY_GATE_SHIM = (
-    "mechanisms.quality_gate",
-    "import quality_gate",
-)
+def _quality_gate_import_hits(tree: ast.AST) -> list[tuple[int, str]]:
+    """AST 检测 quality_gate / mechanisms.quality_gate 导入。"""
+    hits: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                parts = alias.name.split(".")
+                if "quality_gate" in parts:
+                    hits.append((node.lineno, alias.name))
+        elif isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            parts = mod.split(".") if mod else []
+            if "quality_gate" in parts:
+                hits.append((node.lineno, mod))
+                continue
+            for alias in node.names:
+                if alias.name == "quality_gate" or alias.asname == "quality_gate":
+                    label = f"{mod} import {alias.name}" if mod else alias.name
+                    hits.append((node.lineno, label))
+    return hits
 
 
 def check_no_quality_gate_shim(
     package_root: Path = PACKAGE_ROOT,
     plugins_dir: Path = PLUGINS_DIR,
+    tests_dir: Path | None = None,
 ) -> list[str]:
     """禁 `quality_gate` 兼容层：实现只在 mechanisms.quality。"""
     violations: list[str] = []
-    roots = (package_root, plugins_dir, ROOT / "tests")
+    roots = (package_root, plugins_dir, tests_dir if tests_dir is not None else ROOT / "tests")
     for root in roots:
         if not root.is_dir():
             continue
         for py in sorted(root.rglob("*.py")):
             if "__pycache__" in py.parts:
                 continue
-            text = py.read_text(encoding="utf-8")
-            rel = py.relative_to(ROOT)
-            for needle in _BANNED_QUALITY_GATE_SHIM:
-                if needle in text:
-                    violations.append(f"{rel}: 禁兼容层「{needle}」，用 agent.mechanisms.quality")
+            rel = _rel_to_root(py)
+            try:
+                tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+            except SyntaxError as exc:
+                violations.append(f"{rel}: 无法解析（{exc}）")
+                continue
+            for lineno, label in _quality_gate_import_hits(tree):
+                violations.append(
+                    f"{rel}:{lineno}: 禁兼容层「{label}」，用 agent.mechanisms.quality"
+                )
     # 模块文件本身也不得回流
     shim = package_root / "mechanisms" / "quality_gate.py"
     if shim.is_file():
-        violations.append(f"{shim.relative_to(ROOT)}: 禁保留 quality_gate 兼容模块")
+        violations.append(f"{_rel_to_root(shim)}: 禁保留 quality_gate 兼容模块")
     return violations
 
 

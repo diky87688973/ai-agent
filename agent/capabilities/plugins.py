@@ -15,6 +15,7 @@ ctx（PluginContext）提供 name、register_tool（挂 ToolRegistry）、subscr
 from __future__ import annotations
 
 import configparser
+import hashlib
 import importlib.util
 import re
 import sys
@@ -24,6 +25,7 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional
 
 from agent.capabilities.registry import ToolPlugin, ToolRegistry
+from agent.config import get_plugin_tree_only
 from agent.core.error_report import report_error
 
 Disposer = Callable[[], None]
@@ -105,6 +107,38 @@ def _valid_plugin_name(name: str) -> bool:
     名字要做模块名后缀（`fan_agent_plugins.<名字>`）与目录名，两处都受限。
     """
     return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", str(name or "")))
+
+
+def _within_plugins_tree(plugins_dir: Path, root: Path) -> bool:
+    """插件目录是否落在宿主 `plugins_dir` 之下（解析后比较）。"""
+    try:
+        Path(root).resolve().relative_to(Path(plugins_dir).resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def _entry_integrity(entry: Path) -> Dict[str, Any]:
+    """入口文件来源与完整性摘要（路径 / sha256 前缀 / mtime / 字节数）。"""
+    path = Path(entry)
+    meta: Dict[str, Any] = {
+        "path": str(path.resolve()) if path.exists() else str(path),
+        "sha256": "",
+        "mtime": 0,
+        "bytes": 0,
+    }
+    try:
+        st = path.stat()
+        meta["mtime"] = int(st.st_mtime)
+        meta["bytes"] = int(st.st_size)
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(65536), b""):
+                digest.update(chunk)
+        meta["sha256"] = digest.hexdigest()[:16]
+    except OSError:
+        pass
+    return meta
 
 
 @dataclass(slots=True)
@@ -551,6 +585,20 @@ class PluginHost:
         mod_name = f"{_MODULE_PREFIX}.{info.name}"
         plugin_root = Path(root).resolve() if root is not None else info.path.parent.resolve()
         try:
+            # 开关打开时拒绝对外置路径装载（见 docs/subsystems/plugins.md「信任模型」）
+            if get_plugin_tree_only() and not _within_plugins_tree(self._dir, plugin_root):
+                raise RuntimeError(
+                    f"插件路径越出 plugins/ 树：{plugin_root}"
+                    "（已开 plugin_tree_only / AI_AGENT_PLUGIN_TREE_ONLY）"
+                )
+            integrity = _entry_integrity(info.path)
+            print(
+                f"[plugin.load] {info.name} source={integrity['path']} "
+                f"sha256={integrity['sha256'] or '?'} "
+                f"mtime={integrity['mtime']} bytes={integrity['bytes']}",
+                file=sys.stderr,
+                flush=True,
+            )
             # 把插件目录标成包搜索路径，使 `from .sibling import …` 在动态加载下可用
             spec = importlib.util.spec_from_file_location(
                 mod_name,

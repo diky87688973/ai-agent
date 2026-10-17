@@ -236,3 +236,23 @@ def default_data_root():
 
     env_root = os.environ.get("AI_AGENT_DATA_ROOT", "").strip()
     return Path(env_root) if env_root else PROJECT_ROOT / "data"
+
+
+def get_plugin_tree_only(path: Optional[Path] = None) -> bool:
+    """是否只允许从 `plugins/` 树内装载插件（`[agent] plugin_tree_only`）。
+
+    环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先：`1`/`true`/`on` 开，`0`/`false`/`off` 关。
+    未设环境变量时读配置；缺省关闭（兼容清单里的绝对/外置 path）。
+    """
+    import os
+
+    env = os.environ.get("AI_AGENT_PLUGIN_TREE_ONLY", "").strip().lower()
+    if env in ("1", "true", "yes", "on"):
+        return True
+    if env in ("0", "false", "no", "off"):
+        return False
+    parser = load_ini(path)
+    raw = ""
+    if parser.has_section("agent"):
+        raw = _clean(parser.get("agent", "plugin_tree_only", fallback=""))
+    return raw.lower() in ("1", "true", "yes", "on")
