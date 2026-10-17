@@ -1,4 +1,4 @@
-.edited-files{align-self:stretch;margin:2px 0 6px 8px;padding:4px 4px 6px;border:1px solid var(--c-line-2);border-radius:10px;background:var(--c-bg-raise)}
+.edited-files{align-self:stretch;margin:2px 0 6px 8px;padding:4px 4px 6px;border:1px solid transparent;border-radius:10px;background:var(--c-bg-raise);box-shadow:inset 0 0 0 1px var(--c-line-1)}
 .edited-files-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px;padding:4px 8px 2px}
 .edited-files-title{margin:0;font-size:13px;line-height:1.4;font-weight:600;color:var(--c-text-1)}
 .edited-files-review{border:0;background:transparent;padding:2px 4px;font:inherit;font-size:13px;line-height:1.4;color:var(--c-text-4);cursor:pointer}
