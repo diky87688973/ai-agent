@@ -168,8 +168,9 @@ def _lock_timeout() -> float:
 #: 它跨会话共享、从不重置，所以**与行号差一个常数**；也**不保证连续** ——
 #: 事件在产出瞬间就拿号（那时还不知道会不会落盘），跳过的号不再补。
 #: 游标只要求单调唯一，不要求连续。
-_KEY_TYPE = "t"
-_KEY_DATA = "d"
+# 落盘行短键：壳层读标题/历史也要同一份，故公开（禁止跨层 import 私有名）。
+KEY_TYPE = "t"
+KEY_DATA = "d"
 _KEY_SEQ = "s"
 
 #: 落盘时不写的载荷字段：都能从别处还原，写了就是每行白占字节。
@@ -206,7 +207,7 @@ def _event_to_json(event: Event) -> str:
     """
     data = dict(event.data) if isinstance(event.data, dict) else {}
     seq = data.get("_seq")
-    payload: dict[str, Any] = {_KEY_TYPE: event.type, _KEY_DATA: data}
+    payload: dict[str, Any] = {KEY_TYPE: event.type, KEY_DATA: data}
     if _valid_seq(seq):
         payload[_KEY_SEQ] = seq
     for key in _DERIVED_KEYS:
@@ -222,16 +223,16 @@ def _event_to_json(event: Event) -> str:
 def _event_from_obj(obj: Any, conversation_id: str = "") -> Optional[Event]:
     """JSON 对象 → 事件；非对象或缺 `t` 返回 None。
 
-    落盘行用的是短键（`t` / `d` / `s`，见 `_KEY_*`）。`conversation_id` 不在落盘
+    落盘行用的是短键（`t` / `d` / `s`，见 `KEY_*`）。`conversation_id` 不在落盘
     内容里（见 `_DERIVED_KEYS`），由调用方按**文件名**传进来补回 data ——
     内核事件在内存里一律带它，续传翻译与 SSE 分派都依赖这一点。
     """
     if not isinstance(obj, dict):
         return None
-    type_ = str(obj.get(_KEY_TYPE) or "").strip()
+    type_ = str(obj.get(KEY_TYPE) or "").strip()
     if not type_:
         return None
-    data = obj.get(_KEY_DATA)
+    data = obj.get(KEY_DATA)
     payload = dict(data) if isinstance(data, dict) else {}
     seq = _seq_from_obj(obj)
     if seq is not None:
@@ -567,10 +568,14 @@ class SessionStore:
                     seq = _seq_from_obj(obj) if obj is not None else None
                     if isinstance(seq, int):
                         out.add(seq)
-        except Exception:
-            # **旁路，刻意吞掉**：这里在**补偿路径**上（`_put_pending` 会调它），
-            # 若让异常逃出去会**顶掉原始异常**、且队列为空 —— 第二道防线就被击穿了。
-            # 读不出来就当"盘上没有已知坐标"：去重会保守地放行（宁可重试也不丢）。
+        except Exception as exc:
+            # 补偿路径：若让异常逃出去会顶掉原始异常、且队列为空 —— 第二道防线被击穿。
+            # 读不出来就当"盘上没有已知坐标"（宁可重试也不丢），但必须留痕。
+            print(
+                f"[store] 读已落盘坐标失败 path={path}: "
+                f"{type(exc).__name__}: {exc}",
+                file=sys.stderr, flush=True,
+            )
             return set()
         return out
 
@@ -767,7 +772,7 @@ class SessionStore:
     # ── 读取────────────────────────────────────────
 
     def load(self, conversation_id: str) -> List[Event]:
-        """读回全部事件；坏行 / 空行跳过，文件缺失或整体异常返回空（不抛错）。"""
+        """读回全部事件；坏行 / 空行跳过，文件缺失返回空；IO 失败冒泡。"""
         return [event for _seq, event in self.load_with_seq(conversation_id)]
 
     def load_with_seq(self, conversation_id: str) -> List[Tuple[int, Event]]:
@@ -784,22 +789,19 @@ class SessionStore:
         if not path.is_file():
             return []
         out: List[Tuple[int, Event]] = []
-        try:
-            with path.open("r", encoding="utf-8", errors="replace") as fh:
-                position = 0
-                for line in fh:
-                    if not line.strip():
-                        continue
-                    obj = self._parse_obj(line)
-                    event = _event_from_obj(obj, conversation_id) if obj is not None else None
-                    if event is not None:
-                        stored = _seq_from_obj(obj)
-                        seq = position if stored is None else stored
-                        self._observe(seq)
-                        out.append((seq, event))
-                    position += 1
-        except Exception:  # 整体异常 → 返回空，不抛错
-            return []
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            position = 0
+            for line in fh:
+                if not line.strip():
+                    continue
+                obj = self._parse_obj(line)
+                event = _event_from_obj(obj, conversation_id) if obj is not None else None
+                if event is not None:
+                    stored = _seq_from_obj(obj)
+                    seq = position if stored is None else stored
+                    self._observe(seq)
+                    out.append((seq, event))
+                position += 1
         return out
 
     def tail_from(self, conversation_id: str, after_seq: int) -> List[Tuple[int, Event]]:
@@ -890,6 +892,7 @@ class SessionStore:
         try:
             plain = self._decrypt_line(line)
         except ValueError:
+            # 坏密文 / 非本密钥：跳过该行，不中断整档回放
             return None
         if not plain:
             return None

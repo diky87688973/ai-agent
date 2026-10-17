@@ -23,14 +23,15 @@ plugins/<插件名>/
 不注册工具也不贡献界面。
 
 `register(ctx)` 返回 disposer 或 disposer 列表。**每个 `ctx.add_*` 都会返回 disposer**，
-但返回它只是为了幂等记账：宿主已经替你记了一份，卸载时逆序调用。
+且宿主在调用时已自动 `append` 进本插件清单（含 `add_panel` / `add_route` / `add_action` /
+`add_boot_script` / `add_ctx_segment_style` 等）——返回值只为幂等记账；卸载时逆序调用。
 `register` 抛错时经 `ctx` 完成的注册全部回滚，插件不会留半截状态。
 
 插件可以把实现拆成同目录的多个模块（`plugins/skills/library.py`、`tools.py`），
 用绝对包名导入自己那部分：
 
 ```python
-from plugins.skills.library import SkillManager
+from .library import SkillManager
 ```
 
 ## 清单：`plugins.ini`
@@ -52,7 +53,7 @@ path = D:/lab/my-plugin
 |---|---|---|
 | 节名 | 是 | 固定 `[plugin:<名字>]`。名字即模块名后缀与默认目录名 |
 | `version` | 否 | 插件版本。与该插件 `plugin-config.ini` 的 `[base] version` 核对，不一致记一条加载报告（**照常装载**） |
-| `path` | 否 | 插件目录，相对路径按插件根解析。省掉取 `plugins/<名字>`，常规布局不必写 |
+| `path` | 否 | 插件目录（可在 `plugins/` 外）。相对路径按插件根解析；空则 `plugins/<名字>`。装载后资产与配置一律经宿主的 `plugin_root(名字)`，不写死 `plugins/<名字>` |
 
 **节的先后有意义**：它就是插件的装载位次，也是**上下文里插件段的组装顺序**
 （见 [context.md](context.md#组装顺序)）。越不容易变动的插件排在越前面。
@@ -111,6 +112,8 @@ plugins/tts/plugin-config.ini           ← 语音合成自己的配置
 | `add_post_observer(obs)` | 工具执行后观察 | 工具管道 |
 | `add_route(method, path, handler)` | HTTP 端点 | `/api/plugin/<插件名>/…` |
 | `add_panel(id, ...)` / `add_action(id, ...)` | 面板 / 输入区按钮 | 贡献注册表（壳层按数据枚举） |
+| `add_ctx_segment_style(label=..., color=...)` | 上下文段外观 | 贡献注册表 → `/api/ctx-segment-styles` |
+| `add_boot_script(rel_path)` | 开屏预载脚本（无面板也可） | 贡献注册表 → `/api/boot-scripts` |
 | `set_runtime(obj)` | 自己的运行时实例 | `plugin_host.runtime(名字)` 取同一份 |
 
 ### 上下文注入
@@ -239,7 +242,8 @@ ctx.add_action("kb", label="📚 知识库", title="知识库")   # 输入框下
 #### 界面资产
 
 面板可以带自己的样式与脚本，声明的是**插件目录内的相对路径**；
-壳层按 `/api/plugin/<插件名>/_asset/<相对路径>` 送达。
+壳层按 `/api/plugin/<插件名>/_asset/<相对路径>` 送达，**目录根取自**
+`plugin_host.plugin_root(插件名)`（清单 `path=` 指向的外部目录同样适用）。
 路径不许绝对、不许含 `..`；只有文本类扩展名（`.js` `.mjs` `.css` `.html` `.json` `.svg`）
 会送出去。类名要加自己的前缀 —— 样式是同源注入的，没有沙箱隔离。
 
@@ -257,12 +261,14 @@ await api.del("tasks/t-1");                               // DELETE
 
 #### 脚本的加载时机
 
-**脚本在开屏时依次预载**（`preloadPluginScripts()`），**样式在面板首次打开时注入**。
+**上下文段外观**经 `add_ctx_segment_style` 登记，壳层开屏拉 `/api/ctx-segment-styles`
+并调用 `ctxSegments.register` —— 不必为段色单独挂空面板脚本。
 
-- 脚本注册的是**只与渲染有关**的钩子（如上下文分层的段色，
-  `window.aiAgentPlugins.ctxSegments.register`）：注册晚于第一次渲染，
-  那一处就只能先按兜底值画出来；
-- 样式只在面板打开时才需要，提前注入等于给每个页面加载用不到的字节。
+**面板脚本**在开屏时依次预载（`preloadPluginScripts()`），**样式在面板首次打开时注入**。
+样式只在面板打开时才需要，提前注入等于给每个页面加载用不到的字节。
+
+**开屏脚本**经 `add_boot_script(rel_path)` 登记（如工具卡视图），壳层开屏拉
+`/api/boot-scripts`，在面板脚本之后预载 —— 无面板也能注入 JS。
 
 预载是**串行**的：脚本读全局 `window.aiAgentPluginCurrent` 判断自己属于哪个插件，
 并行加载会互相覆盖这个值。
@@ -314,7 +320,7 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 
 | 插件 | 注册了什么 | 形态 |
 |---|---|---|
-| `plugins/skills` | `skill_manage` 工具 + 它的提交执行器 + 两条注入（清单 / 常驻正文） | 无界面，只在上下文分层里露一段；见 [skills.md](skills.md) |
+| `plugins/skills` | `skill_manage` 工具 + 提交执行器 + 两条注入 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
 | `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir` |
 | `plugins/tts` | 只订阅事件 | 最小形态 |
 

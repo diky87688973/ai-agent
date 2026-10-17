@@ -15,7 +15,6 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from types import SimpleNamespace
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,8 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.capabilities.builtin import geo_weather_tools, github_tools  # noqa: E402
-from agent.core.tool_call import ToolCallRequest, ToolResult  # noqa: E402
-from agent.mechanisms import quality_gate  # noqa: E402
+from agent.core.tool_call import ToolResult  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
 
@@ -57,9 +55,9 @@ class Acceptance:
 
     def call(self, name: str, arguments: dict = None, cid: str = CID_DRIVER) -> ToolResult:
         self.seq += 1
-        call = ToolCallRequest(call_id=f"c{self.seq}", name=name, arguments=arguments or {})
-        ctx = SimpleNamespace(conversation_id=cid) if cid else None
-        return self.app.pipeline.execute(self.app.registry, call, ctx)
+        return self.app.execute_tool(
+            name, arguments or {}, conversation_id=cid, call_id=f"c{self.seq}"
+        )
 
     @property
     def gate(self):
@@ -245,11 +243,14 @@ class Acceptance:
         not_in_catalog = [n for n in BATCH_F_TOOLS if n not in tool_names]
         self.check("catalog 成员含 5 件工具", not not_in_catalog, str(not_in_catalog))
         self.check("catalog 工具总数 ≥ 41", len(tool_names) >= 41, str(len(tool_names)))
+        skill = self.app.registry.get("skill_manage")
         self.check(
-            "门控：预览名单含 skill_manage 且 discard 在位",
-            quality_gate._TOOL_PATH_KEYS.get("skill_manage") == ("source", "name")
+            "skill_manage 声明 write_path_keys 且 discard 在位",
+            skill is not None
+            and tuple(getattr(skill, "write_path_keys", ()) or ())
+            == ("source", "name")
             and hasattr(self.gate, "discard"),
-            str(quality_gate._TOOL_PATH_KEYS.get("skill_manage")),
+            str(getattr(skill, "write_path_keys", None)),
         )
 
 

@@ -29,11 +29,14 @@ CID = "frame-align-0001"
 
 
 class _FakeApp:
-    """只够适配层用的最小 App：一个 store。"""
+    """只够适配层用的最小 App：store + 工具注册表（布局要拼系统提示词）。"""
 
     def __init__(self, store: SessionStore) -> None:
+        from agent.capabilities.registry import ToolRegistry
+
         self.store = store
         self.plugin_host = None
+        self.registry = ToolRegistry()
 
 
 def _events() -> List[Event]:

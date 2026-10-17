@@ -25,6 +25,7 @@ _RESET_CSS = CLASSIC_DIR / "css" / "reset.css"
 _UI_CSS = CLASSIC_DIR / "css" / "agent-ui.css"
 _TOOL_CSS = CLASSIC_DIR / "css" / "chat-tool-views.css"
 _EDITED_CSS = CLASSIC_DIR / "css" / "edited-files.css"
+_FILE_ICO_CSS = CLASSIC_DIR / "css" / "file-icons.css"
 _SETTINGS_CSS = CLASSIC_DIR / "css" / "settings-ui.css"
 _HLJS_DARK_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github-dark.min.css"
 _HLJS_LIGHT_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github.min.css"
@@ -35,6 +36,7 @@ _CODE_HIGHLIGHT_JS = CLASSIC_DIR / "js" / "code-highlight.js"
 _LIGHTBOX_JS = CLASSIC_DIR / "js" / "image-lightbox.js"
 _UI_JS = CLASSIC_DIR / "js" / "agent-ui.js"
 _TOOL_JS = CLASSIC_DIR / "js" / "chat-tool-views.js"
+_FILE_ICO_JS = CLASSIC_DIR / "js" / "file-icons.js"
 _EDITED_JS = CLASSIC_DIR / "js" / "edited-files.js"
 _SETTINGS_JS = CLASSIC_DIR / "js" / "settings-ui.js"
 
@@ -63,6 +65,7 @@ def build_inline_css() -> str:
         _read(_RESET_CSS).rstrip(),
         _read(_UI_CSS),
         _read(_TOOL_CSS),
+        _read(_FILE_ICO_CSS),
         _read(_EDITED_CSS),
         _read(_SETTINGS_CSS),
         _read(_HLJS_DARK_CSS),
@@ -84,6 +87,7 @@ def build_inline_js() -> str:
         _read(_LIGHTBOX_JS),
         _read(_UI_JS),
         _read(_TOOL_JS),
+        _read(_FILE_ICO_JS),
         _read(_EDITED_JS),
         _read(_SETTINGS_JS),
     ]

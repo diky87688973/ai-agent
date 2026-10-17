@@ -12,7 +12,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -61,11 +60,17 @@ class ChatConfirmRoundTripTest(unittest.TestCase):
         self._seq = 0
 
     def _call(self, name: str, arguments: dict, cid: str):
+        from agent.core.ports import ToolPort
+
         self._seq += 1
         call = ToolCallRequest(call_id=f"c{self._seq}", name=name, arguments=arguments)
-        return self.app.pipeline.execute(
-            self.app.registry, call, SimpleNamespace(conversation_id=cid)
+        port = ToolPort(
+            registry=self.app.registry,
+            pipeline=self.app.pipeline,
+            app=self.app.context,
+            sessions=self.app.session_contexts,
         )
+        return port.execute(call, conversation_id=cid)
 
     def _confirm_yes(self, gate, name: str, confirm_id: str, args: dict) -> None:
         """以真实壳层回调驱动确认（stdin 替身为 y）。"""
@@ -160,15 +165,20 @@ class ChatExitReleaseTest(unittest.TestCase):
         self.assertEqual(self.app.context.names(), [])
 
     def test_released_session_reparses_clean(self) -> None:
-        """释放后同 cid 重新解析得到干净上下文（红灯 / 待 review 不残留）。"""
+        """释放后同 cid 重新解析得到干净上下文（红灯 / 待 review 不残留）。
+
+        测的是 SessionContexts.release，不是 app.dispose（dispose 会拆掉注册表，
+        gate_for 按契约直接报错）。
+        """
 
         self.gate.set_intent("debug")
         self.gate.note_committed("stale.py", tool="write_file")
         self.assertTrue(self.gate.pending_review)
 
-        self._run_main_with_stubbed_build()
+        self.assertTrue(self.contexts.release(self.cid))
 
         fresh = self.app.gate_for(self.cid)
+        self.assertIsNot(fresh, self.gate)
         self.assertEqual(fresh.intent, "")
         self.assertEqual(fresh.pending_review, [])
         self.assertTrue(fresh.reviewed_ok)
@@ -188,6 +198,28 @@ class ExplicitReleaseTest(unittest.TestCase):
         self.assertIsNotNone(ctxs.get("conv-b"))
         # 释放后重新解析得到新上下文（旧引用失效）
         self.assertIsNot(ctxs.resolve_sync("conv-a"), a)
+
+    def test_web_release_conversation_reduces_active_count(self) -> None:
+        """关闭会话 API 调用 release 后 active_count 下降。"""
+        from agent.shell.web import WebShell
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        app = build_app(
+            backup_root=Path(tmp.name) / "bk",
+            recycle_root=Path(tmp.name) / "rc",
+        )
+        self.addCleanup(app.dispose)
+        cid = "web-release-active-count-01"
+        app.session_contexts.resolve_sync(cid)
+        before = app.session_contexts.active_count()
+        self.assertGreaterEqual(before, 1)
+        shell = WebShell(app)
+        status, payload = shell.release_conversation(cid)
+        self.assertEqual(status, 200)
+        self.assertTrue(payload.get("ok"))
+        self.assertEqual(app.session_contexts.active_count(), before - 1)
+        self.assertIsNone(app.session_contexts.get(cid))
 
     def test_release_unknown_and_blank_are_safe(self) -> None:
 

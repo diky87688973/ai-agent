@@ -67,11 +67,12 @@ def _normalize_ip_for_lookup(ip_raw: Any) -> str:
         return ""
     try:
         obj = ipaddress.ip_address(ip)
-        if obj.is_loopback or obj.is_unspecified or obj.is_private:
-            return ""
-        return ip
     except ValueError:
+        # 非法 IP 字面量：按「未指定」处理，走出口 IP 查询
         return ""
+    if obj.is_loopback or obj.is_unspecified or obj.is_private:
+        return ""
+    return ip
 
 
 def _resolve_timeout(raw: Any, default: int) -> int:

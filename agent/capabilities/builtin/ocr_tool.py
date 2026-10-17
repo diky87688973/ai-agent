@@ -41,10 +41,7 @@ class OcrError(RuntimeError):
 
 def _available(module: str) -> bool:
     """探测可选依赖是否可导入（find_spec 不触发重量级 import）。"""
-    try:
-        return importlib.util.find_spec(module) is not None
-    except Exception:
-        return False
+    return importlib.util.find_spec(module) is not None
 
 
 class ImageOcrTool(ToolPlugin):

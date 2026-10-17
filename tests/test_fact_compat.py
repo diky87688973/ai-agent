@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import json
 import unittest
 
 from agent.core.events import Event
@@ -68,7 +69,10 @@ class ClassicToolResultTest(unittest.TestCase):
         msgs = log.derive_request_messages()
         hit = [m for m in msgs if str(m.get("tool_call_id") or "") == "c1"]
         self.assertEqual(len(hit), 1, msg=f"只应一条 tool 消息，实际 {len(hit)}")
-        self.assertEqual(str(hit[0].get("content")), "结果")
+        self.assertEqual(
+            str(hit[0].get("content")),
+            json.dumps({"ok": True, "data": "结果"}, ensure_ascii=False),
+        )
 
     def test_await_user_intermediate_result_does_not_reach_the_model(self) -> None:
         """标了 `await_user` 的**中间**结果不交给模型（按定义还没返回）。"""

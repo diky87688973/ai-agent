@@ -5,14 +5,6 @@
 .edited-files-review:hover{color:var(--c-text-2)}
 .edited-files .chat-tool-chev{display:none}
 .edited-files .chat-tool-head{gap:8px;min-height:28px;padding:3px 8px}
-.edited-files .edited-file-ico{flex:0 0 16px;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;border-radius:3px;font-size:8px;font-weight:700;line-height:1;color:#1b1c1f;background:#6e7681}
-.edited-files .edited-file-ico--json{background:#e2b340;color:#3a2e00;font-family:var(--f-code);font-size:7px}
-.edited-files .edited-file-ico--py{background:#3776ab;color:#ffd343}
-.edited-files .edited-file-ico--md{background:#3d8bfd;color:#fff;font-size:10px}
-.edited-files .edited-file-ico--js{background:#f7df1e;color:#1e1e1e}
-.edited-files .edited-file-ico--css{background:#42a5f5;color:#fff;font-size:11px}
-.edited-files .edited-file-ico--html{background:#e44d26;color:#fff;font-size:7px}
-.edited-files .edited-file-ico--cfg{background:#6e7681;color:#fff}
 .edited-files .chat-tool-title{flex:1 1 auto;min-width:0;font-weight:400;font-size:13px;color:var(--c-text-2);white-space:normal;overflow:visible;text-overflow:clip;word-break:break-all}
 .edited-files .chat-tool-row.is-del .chat-tool-title{color:var(--diff-stat-del)}
 .edited-files .chat-tool-sum{flex:0 0 auto;margin-left:12px;overflow:visible;font-size:12px}

@@ -1,5 +1,5 @@
 // 调试：控制台执行 window.DEBUG=1（或 DEBUG=1）后输出 SSE / 预览等 console 日志
-// 主题与全页只读选区的实现在 theme-ui.js（经典页内联包首部已包含该脚本）
+// 主题与全页只读选区的实现在 theme-ui.js（内联包首部已包含该脚本）
 const CONVERSATION_STORAGE_KEY="aiAgent.activeConversationId";
 const CONVERSATION_TABS_STORAGE_KEY="aiAgent.openConversationTabs";
 function newConversationId(){return crypto.randomUUID?crypto.randomUUID():'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g,function(c){const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);});}
@@ -502,7 +502,7 @@ function syncTodoUnreadBadgeForConversation(cid){cid=normalizeConversationId(cid
 function renderChatTabs(){if(!chatTabs)return;var sig=conversationTabs.map(function(t){return String(t.id)+"\t"+String(t.title||"")+"\t"+(t.id===activeConversationId?1:0)+"\t"+(t.todoUnread?1:0);}).join("|");if(renderChatTabs._sig===sig&&chatTabs.children.length===conversationTabs.length){var mz=conversationTabs.length;for(var zp=0;zp<mz;zp++){var el=chatTabs.children[zp];if(!el||el.getAttribute("data-tab-id")!==conversationTabs[zp].id)break;}if(zp===mz)return;}renderChatTabs._sig=sig;var wc=conversationTabs.length>1;var pi,tid,t,btn,lab,labT,cn,ft,cur,kj,nel,xc;for(pi=0;pi<conversationTabs.length;pi++){t=conversationTabs[pi];tid=t.id;cur=chatTabs.children[pi];if(cur&&cur.getAttribute("data-tab-id")===tid)continue;btn=null;if(cur){for(kj=pi;kj<chatTabs.children.length;kj++){if(chatTabs.children[kj]&&chatTabs.children[kj].getAttribute("data-tab-id")===tid){btn=chatTabs.children[kj];break;}}}if(!btn){for(kj=0;kj<chatTabs.children.length;kj++){if(chatTabs.children[kj]&&chatTabs.children[kj].getAttribute("data-tab-id")===tid){btn=chatTabs.children[kj];break;}}}if(!btn){nel=document.createElement("button");nel.type="button";nel.setAttribute("role","tab");nel.setAttribute("data-tab-id",tid);(function(cid){nel.onclick=function(){switchConversationTab(cid);};})(tid);lab=document.createElement("span");lab.className="chat-tab-label";nel.appendChild(lab);btn=nel;}chatTabs.insertBefore(btn,cur||null);}while(chatTabs.children.length>conversationTabs.length){chatTabs.removeChild(chatTabs.lastChild);}for(pi=0;pi<conversationTabs.length;pi++){t=conversationTabs[pi];tid=t.id;btn=chatTabs.children[pi];if(!btn)continue;labT=t.title||("会话 "+t.id.slice(0,8));cn="chat-tab"+((t.id===activeConversationId)?" active":"")+(t.todoUnread?" chat-tab-todo-unread":"");ft="标题: "+labT+"\n会话ID: "+t.id;lab=btn.querySelector(".chat-tab-label");if(lab&&lab.textContent!==labT)lab.textContent=labT;if(btn.className!==cn)btn.className=cn;if(btn.title!==ft)btn.title=ft;xc=btn.querySelector(".chat-tab-close");if(wc){if(!xc){xc=document.createElement("button");xc.type="button";xc.className="chat-tab-close";xc.textContent="×";xc.title="关闭会话";btn.appendChild(xc);}(function(cid2){xc.onclick=function(ev){ev.stopPropagation();closeConversationTab(cid2);};})(tid);}else{if(xc)xc.remove();}}}
 function switchConversationTab(id){id=normalizeConversationId(id);if(!id)return;saveActiveConversationView();var t=findConversationTab(id);if(!t)return;t.todoUnread=false;activeConversationId=id;sessionId=id;conv=id;storeConversationId(id);restoreConversationView(t);renderChatTabs();persistConversationLayout();loadConversationHistory(t);}
 function createConversationTab(){saveActiveConversationView();var t=makeConversationTab(newConversationId());conversationTabs.push(t);activeConversationId=t.id;sessionId=t.id;conv=t.id;storeConversationId(t.id);restoreConversationView(t);renderChatTabs();persistConversationLayout();repaintSessionRail();}
-function closeConversationTab(id){id=normalizeConversationId(id);if(conversationTabs.length<=1)return;var idx=-1;for(var i=0;i<conversationTabs.length;i++){if(conversationTabs[i].id===id){idx=i;break;}}if(idx<0)return;if(isTabBusy(conversationTabs[idx])){alert("该会话正在响应或等待确认，请完成后再关闭。");return;}var wasActive=id===activeConversationId;var _closedT=conversationTabs[idx];conversationTabs.splice(idx,1);if(_closedT&&_closedT.conversationPane&&conversationMount&&_closedT.conversationPane.parentNode===conversationMount){try{conversationMount.removeChild(_closedT.conversationPane);}catch(_eM){}}if(wasActive){var next=conversationTabs[Math.max(0,idx-1)]||conversationTabs[0];activeConversationId=next.id;sessionId=next.id;conv=next.id;storeConversationId(next.id);restoreConversationView(next);}renderChatTabs();persistConversationLayout();repaintSessionRail();}
+function closeConversationTab(id){id=normalizeConversationId(id);if(conversationTabs.length<=1)return;var idx=-1;for(var i=0;i<conversationTabs.length;i++){if(conversationTabs[i].id===id){idx=i;break;}}if(idx<0)return;if(isTabBusy(conversationTabs[idx])){alert("该会话正在响应或等待确认，请完成后再关闭。");return;}var wasActive=id===activeConversationId;var _closedT=conversationTabs[idx];conversationTabs.splice(idx,1);if(_closedT&&_closedT.conversationPane&&conversationMount&&_closedT.conversationPane.parentNode===conversationMount){try{conversationMount.removeChild(_closedT.conversationPane);}catch(_eM){}}if(wasActive){var next=conversationTabs[Math.max(0,idx-1)]||conversationTabs[0];activeConversationId=next.id;sessionId=next.id;conv=next.id;storeConversationId(next.id);restoreConversationView(next);}renderChatTabs();persistConversationLayout();repaintSessionRail();try{fetch("/api/chat/sessions?"+new URLSearchParams({conversation_id:id}),{method:"DELETE"}).catch(function(){});}catch(_eRel){}}
 const modePlus=document.getElementById("modePlus"),modeMenu=document.getElementById("modeMenu"),modeChip=document.getElementById("modeChip"),modeChipText=document.getElementById("modeChipText"),modeChipClear=document.getElementById("modeChipClear"),goBtn=document.getElementById("go"),stopTaskBtn=document.getElementById("stopTask"),autoToggleBtn=document.getElementById("autoToggle"),chatMoreBtn=document.getElementById("chatMoreBtn"),chatSessionMenu=document.getElementById("chatSessionMenu");
 var _autoEnabled=false;
 function updateAutoToggleUI(){
@@ -800,7 +800,9 @@ selectSidePane(id);
 try{
 document.dispatchEvent(new CustomEvent("ai-agent:panel-opened",{detail:{
 plugin:String((opts&&opts.plugin)||""),
-panel:id
+/* DOM id（可能带 `插件__` 前缀）；逻辑面板 id 另给 panelId */
+panel:id,
+panelId:String((opts&&opts.panelId)||id)
 }}));
 }catch(e){}
 if(typeof opts.onOpen==="function")opts.onOpen(ex);
@@ -940,11 +942,11 @@ if(String(p.plugin)+":"+String(p.id)===key)return p;
 }
 return null;
 }
-/* 插件脚本在开屏就依次预载：脚本里的段色注册必须赶在上下文条渲染之前 ——
-   注册晚于渲染时那一段只能先按兜底色画，用户会看到"颜色对不上"。
-   面板**样式**仍旧按需（面板打开时才注入），内容渲染也仍在面板脚本里。 */
-function preloadPluginScripts(){
-var list=pluginPanels.slice();
+/* 插件脚本在开屏就依次预载（面板内容 / 交互）；段色改由 `/api/ctx-segment-styles` 注册。
+   面板**样式**仍旧按需（面板打开时才注入），内容渲染也仍在面板脚本里。
+   开屏脚本（无面板也可）在面板脚本之后预载，见 `/api/boot-scripts`。 */
+function preloadPluginScriptList(list){
+list=Array.isArray(list)?list.slice():[];
 function next(){
 if(!list.length)return Promise.resolve(false);
 var def=list.shift();
@@ -955,6 +957,27 @@ window.aiAgentPluginCurrent=owner;
 return loadPluginScript(def.script,owner).then(next);
 }
 return next();
+}
+function preloadPluginScripts(){
+return preloadPluginScriptList(pluginPanels);
+}
+function preloadBootScripts(){
+return fetch("/api/boot-scripts").then(function(r){return r.json();}).then(function(d){
+return preloadPluginScriptList((d&&Array.isArray(d.scripts))?d.scripts:[]);
+}).catch(function(){return false;});
+}
+/* 开屏拉取上下文段外观并注册，不必靠空面板脚本。 */
+function loadCtxSegmentStyles(){
+return fetch("/api/ctx-segment-styles").then(function(r){return r.json();}).then(function(d){
+var list=(d&&Array.isArray(d.styles))?d.styles:[];
+for(var i=0;i<list.length;i++){
+var st=list[i]||{};
+var name=String(st.plugin||"").trim();
+if(!name)continue;
+registerCtxSegment(name,{color:String(st.color||""),label:String(st.label||"")});
+}
+return list;
+}).catch(function(){return [];});
 }
 function rememberLoadedPlugins(names){
 if(!Array.isArray(names))return;
@@ -1021,7 +1044,10 @@ function applyPluginsChanged(ev){
 rememberLoadedPlugins(ev&&ev.loaded);
 closeUnloadedPluginPanes();
 void loadPluginActions();
-void loadPluginPanels().then(function(){return preloadPluginScripts();});
+void loadCtxSegmentStyles();
+void loadPluginPanels().then(function(){
+return preloadPluginScripts().then(function(){return preloadBootScripts();});
+});
 if(typeof _updateUsageBottom==="function")_updateUsageBottom();
 }
 function loadPluginActions(){
@@ -1031,17 +1057,21 @@ renderPluginActions();
 return pluginActions;
 }).catch(function(){pluginActions=[];renderPluginActions();return pluginActions;});
 }
-/* 打开插件声明的面板：HTML 片段与标题都取自清单。 */
+/* 打开插件声明的面板：HTML 片段与标题都取自清单。
+   DOM id 用 `插件名__面板id`，避免不同插件同名面板撞 id。 */
 function openPluginPanel(plugin,panelId){
 var def=pluginPanel(plugin,panelId);
-var id=String(panelId||"").trim();
-if(!id)return null;
+var panelKey=String(panelId||"").trim();
+var pluginKey=String(plugin||"").trim();
+if(!panelKey)return null;
+var id=pluginKey?pluginKey+"__"+panelKey:panelKey;
 return openPane({
 id:id,
-title:(def&&def.title)||id,
+title:(def&&def.title)||panelKey,
 html:def?def.html:"",
 pinned:!!(def&&def.pinned),
-plugin:String(plugin||""),
+plugin:pluginKey,
+panelId:panelKey,
 onOpen:function(pane){
 /* 面板脚本与样式按需加载各一次；`aiAgentPluginCurrent` 让脚本知道自己的插件名，
    从而用 `window.aiAgentPlugins.for(...)` 拿到带前缀的 API，不必自己拼 URL。
@@ -2162,8 +2192,8 @@ return !!loadedPlugins[m[1]];
 /* 非插件段的色名：弹窗与分段条共用同一个取色函数，两处必然同色。 */
 /* 弹窗与分段条共用 ctxSegmentColor，两处必然同色。 */
 var colors={system:ctxSegmentColor("system"),summary:ctxSegmentColor("summary"),skill:ctxSegmentColor("skill"),resident:ctxSegmentColor("resident"),full_recent:ctxSegmentColor("full_recent"),mode:ctxSegmentColor("mode"),remaining:ctxSegmentColor("remaining")};
-/* 插件段的颜色与渲染由插件自己注册：段 key 是 `plugin:<插件名>`。
-   插件脚本里调 ctxSegments.register("<插件名>", {color:"blue", label:"知识库"})：
+/* 插件段的颜色与渲染由贡献表注册：段 key 是 `plugin:<插件名>`。
+   开屏拉 `/api/ctx-segment-styles` 后调用 ctxSegments.register；
    color 给色名（壳层按当前主题取深/浅两套）或 `#rrggbb` 定值。 */
 if(!segs.length){var empty=document.createElement("span");empty.className="ctx-bar-empty";empty.textContent="—";barHost.appendChild(empty);}
 else{var bar=document.createElement("div");bar.className="ctx-bar";
@@ -2300,10 +2330,10 @@ const sc=argGet(args,"start_column"), ec=argGet(args,"end_column");
 const chs=argGet(args,"char_start"), che=argGet(args,"char_end");
 let rng="";
 if(ls!=null&&le!=null){
-if(sc!=null&&ec!=null)rng=" L"+ls+":"+sc+"–"+le+":"+ec;
-else rng=" L"+ls+"–"+le;
+if(sc!=null&&ec!=null)rng=" L"+ls+":"+sc+"-"+le+":"+ec;
+else rng=" L"+ls+"-"+le;
 }else if(chs!=null||che!=null){
-rng=" §"+(chs!=null?chs:0)+"–"+(che!=null?che:"EOF");
+rng=" §"+(chs!=null?chs:0)+"-"+(che!=null?che:"EOF");
 }
 return {main:"读取文件",fname:leaf+rng};}
 if(s.indexOf("write_file")>=0){
@@ -2378,7 +2408,8 @@ if(s.indexOf("archive")>=0){
 const act=String(argGet(args,"action")||"").toLowerCase();
 const src=pathLeaf(String(argGet(args,"source")||""))||"（未指定 source）";
 const dst=pathLeaf(String(argGet(args,"dest")||""));
-return {main:"正在"+(act==="list"?"列出":act==="extract"?"解压":"打包")+"压缩包",fname:src+(dst?" · → "+dst:"")};}
+const am=act==="list"?"列出压缩包":act==="extract"?"预览解压":act==="create"?"预览打包":"压缩包操作";
+return {main:am,fname:src+(dst?" · → "+dst:"")};}
 if(s.indexOf("data_table")>=0){
 const act=String(argGet(args,"action")||"");
 const src=pathLeaf(String(argGet(args,"source")||""))||"表格";
@@ -2427,11 +2458,11 @@ const act=String(argGet(args,"action")||"").toLowerCase();
 const src=String(argGet(args,"source")||"").trim();
 const dst=String(argGet(args,"dest")||"").trim();
 const arrow=src+(dst?" → "+dst:"");
-if(act==="delete")return {main:"移入回收站",fname:src||"见参数"};
-if(act==="copy")return {main:"复制",fname:arrow};
-if(act==="move")return {main:"移动",fname:arrow};
-if(act==="rename")return {main:"重命名",fname:arrow};
-return {main:"文件操作",fname:src};}
+if(act==="delete")return {main:"预览删除",fname:src||"见参数"};
+if(act==="copy")return {main:"预览复制",fname:arrow};
+if(act==="move")return {main:"预览移动",fname:arrow};
+if(act==="rename")return {main:"预览重命名",fname:arrow};
+return {main:"预览文件操作",fname:src};}
 if(s.indexOf("text_diff")>=0){
 const lf=baseNameOnly(String(argGet(args,"left_file")||""));
 const rf=baseNameOnly(String(argGet(args,"right_file")||""));
@@ -2467,7 +2498,7 @@ const mid=String(argGet(args,"mod_id")||"").trim();
    按固定形状取，**不靠数段数** —— 名字里增删一段（例如加同毫秒序号）就会取错位置，
    卡片标题上显示的就不再是时刻。 */
 if(mid){const mv=/_(\d{6})_\d{3}_\d{4}_[0-9a-z]+$/.exec(mid);if(mv)ts=mv[1].slice(0,2)+":"+mv[1].slice(2,4)+":"+mv[1].slice(4,6);}
-const label=ac==="list"?"检查可回滚清单":ac==="diff"?"版本比较":ac==="undo"?"回滚文件":"回滚文件";
+const label=ac==="list"?"检查可回滚清单":ac==="diff"?"版本比较":ac==="undo"?"预览回滚":"预览回滚";
 // list 与 diff 是只读查询，标题不该像"正在回滚"；时间戳只在挑定某个版本（undo）时才加，
 // 否则会读成"回滚到某时刻"
 const showTs=(ac==="undo");
@@ -3113,7 +3144,7 @@ o.tag.className="tag tag-run";
 o.tag.textContent=(!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"Done":"Fail";
 o.tag.className="tag "+((!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"ok":"bad");
 if(ev.user_confirm_required||ev.approval_required){o.tag.textContent="待确认";o.tag.className="tag tag-run";}
-o.resLb.style.display="block";o.resPb.style.display="block";if(ev.user_confirm_required){try{var _pj=JSON.parse(ev.preview||"{}");var _em=_pj&&_pj.error&&_pj.error.message?String(_pj.error.message):"";var _em2=_em.indexOf("\n\n--help:")>=0?_em.split("\n\n--help:")[0].trim():_em;var slim={ok:_pj.ok,data:_pj.data,error:_pj.error?{code:_pj.error.code,type:_pj.error.type,message:_em2,hint:_pj.error.hint,retryable:_pj.error.retryable}:null};o.resPb.textContent=JSON.stringify(slim,null,2);}catch(e){o.resPb.textContent=ev.preview||"";}}else{var _rawPrev=String(ev.preview||"").trim();if(!_rawPrev&&!ok&&ev.error){o.resPb.textContent=typeof chatToolFailPreview==="function"?chatToolFailPreview(ev.error):JSON.stringify({data:{ok:false,error:String(ev.error)}},null,2);}else{try{var _pj2=JSON.parse(_rawPrev||"{}");o.resPb.textContent=JSON.stringify(_pj2,null,2);}catch(e){o.resPb.textContent=_rawPrev||"";}}}
+o.resLb.style.display="block";o.resPb.style.display="block";if(ev.user_confirm_required){try{var _pj=JSON.parse(ev.preview||"{}");var _em=_pj&&_pj.error&&_pj.error.message?String(_pj.error.message):"";var _em2=_em.indexOf("\n\n--help:")>=0?_em.split("\n\n--help:")[0].trim():_em;var slim={ok:_pj.ok,data:_pj.data,error:_pj.error?{code:_pj.error.code,type:_pj.error.type,message:_em2,hint:_pj.error.hint,retryable:_pj.error.retryable}:null};o.resPb.textContent=JSON.stringify(slim,null,2);}catch(e){o.resPb.textContent=ev.preview||"";}}else{var _rawPrev=String(ev.preview||"").trim();if(!_rawPrev&&!ok&&ev.error){o.resPb.textContent=typeof chatToolFailPreview==="function"?chatToolFailPreview(ev.error):JSON.stringify({ok:false,error:String(ev.error)},null,2);}else{try{var _pj2=JSON.parse(_rawPrev||"{}");o.resPb.textContent=JSON.stringify(_pj2,null,2);}catch(e){o.resPb.textContent=_rawPrev||"";}}}
 fillToolPreview(o,ev);
 /* diff 预览画到**对话区**（步骤卡的预览槽放不下、默认也收起）。
    放在这里而不是调用方：实时（tool_end 帧）与刷新重放（走 renderHistoryToolItem）
@@ -3376,11 +3407,16 @@ initReasoningPicker();
 initKbAndSlashUi();
 initMarkedExtensions();
 /* 面板清单与动作清单先取回（渲染各入口都按数据来）；
-   随后预载插件脚本 —— 段色注册必须早于第一次画上下文条，否则那一段
-   只能先按兜底色画出来，用户看到的颜色就和浮层对不上。预载完再重画一次。 */
+   段色经 `/api/ctx-segment-styles` 注册；面板脚本仍预载（内容/交互）；
+   开屏脚本（`/api/boot-scripts`）排在面板脚本之后。
+   注册与预载赶在第一次画上下文条之前，否则那一段只能先按兜底色画。 */
+void loadCtxSegmentStyles().then(function(){
 void loadPluginPanels().then(function(){
 void preloadPluginScripts().then(function(){
+void preloadBootScripts().then(function(){
 if(typeof _updateUsageBottom==="function")_updateUsageBottom();
+});
+});
 });
 });
 void loadPluginActions();

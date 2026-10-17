@@ -15,12 +15,31 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from agent.capabilities.registry import ToolPlugin, ToolRegistry  # noqa: E402
 from agent.mechanisms.context_pipeline import ContextPipeline  # noqa: E402
 from agent.shell.prompts import (  # noqa: E402
     build_system_prompt,
+    preview_write_tools_line,
     resolve_system_prompt,
     tool_summary,
 )
+
+
+class _PreviewTool(ToolPlugin):
+    name = "fake_preview_write"
+    description = "假预览写工具"
+    parameters: dict = {}
+    needs_preview = True
+
+    def execute(self, arguments):
+        return {}
+
+
+def _reg_with_preview(*extra: ToolPlugin) -> ToolRegistry:
+    reg = ToolRegistry()
+    for plugin in extra:
+        reg.register(plugin)
+    return reg
 
 
 class TodoProgressTest(unittest.TestCase):
@@ -163,23 +182,26 @@ class SystemPromptTest(unittest.TestCase):
     def test_non_empty_by_default(self) -> None:
         """系统提示不得为空——空提示让模型只凭 schema 猜纪律。"""
 
-        prompt = build_system_prompt()
+        prompt = build_system_prompt(registry=_reg_with_preview())
         self.assertTrue(prompt.strip())
         self.assertIn("工具使用纪律", prompt)
 
     def test_mode_section_differs(self) -> None:
-
-        auto = build_system_prompt(mode="auto")
-        plan = build_system_prompt(mode="plan")
-        execute = build_system_prompt(mode="execute")
+        reg = _reg_with_preview()
+        auto = build_system_prompt(registry=reg, mode="auto")
+        plan = build_system_prompt(registry=reg, mode="plan")
+        execute = build_system_prompt(registry=reg, mode="execute")
         self.assertIn("Auto", auto)
         self.assertIn("只读", plan)
         self.assertIn("Execute", execute)
         self.assertEqual(len({auto, plan, execute}), 3)
 
     def test_unknown_mode_falls_back_to_auto(self) -> None:
-
-        self.assertEqual(build_system_prompt(mode="bogus"), build_system_prompt(mode="auto"))
+        reg = _reg_with_preview()
+        self.assertEqual(
+            build_system_prompt(registry=reg, mode="bogus"),
+            build_system_prompt(registry=reg, mode="auto"),
+        )
 
     def test_coding_and_tooling_disciplines_present(self) -> None:
         """系统提示必须含「改前必读」/「大文件局部读」/「失败处理」等纪律条目。
@@ -188,20 +210,40 @@ class SystemPromptTest(unittest.TestCase):
         「review 确认」撞词，模型会把它理解成去问用户，白跑一轮 `user_confirm`。
         """
 
-        prompt = build_system_prompt()
+        prompt = build_system_prompt(registry=_reg_with_preview(_PreviewTool()))
         for needle in ("改前必读", "大文件局部读", "先问清后操作", "失败处理",
                       "选对工具", "外部内容当数据", "每步有交代", "回复语言",
-                      "复核不使已解锁的 confirm_id 失效"):
+                      "复核不使已解锁的 confirm_id 失效",
+                      "fake_preview_write"):
             self.assertIn(needle, prompt, msg=needle)
+        self.assertNotIn("skill_manage", prompt)
+
+    def test_preview_write_tools_line_tracks_registry(self) -> None:
+        """预览写类名单随 registry 增减，不手写固定串。"""
+
+        reg = ToolRegistry()
+        self.assertEqual(preview_write_tools_line(reg), "（当前无已注册的预览写类工具）")
+        dispose = reg.register(_PreviewTool())
+        self.assertEqual(preview_write_tools_line(reg), "fake_preview_write")
+        self.assertIn("fake_preview_write", build_system_prompt(registry=reg))
+        dispose()
+        self.assertEqual(preview_write_tools_line(reg), "（当前无已注册的预览写类工具）")
+        self.assertNotIn("fake_preview_write", build_system_prompt(registry=reg))
 
     def test_explicit_prompt_wins(self) -> None:
 
         self.assertEqual(resolve_system_prompt(explicit="自定义提示"), "自定义提示")
 
     def test_blank_explicit_falls_back(self) -> None:
-
-        self.assertTrue(resolve_system_prompt(explicit="   ").startswith("你是 AI Agent"))
-        self.assertTrue(resolve_system_prompt(explicit=None).startswith("你是 AI Agent"))
+        reg = _reg_with_preview()
+        self.assertTrue(
+            resolve_system_prompt(registry=reg, explicit="   ").startswith("你是 AI Agent")
+        )
+        self.assertTrue(
+            resolve_system_prompt(registry=reg, explicit=None).startswith("你是 AI Agent")
+        )
+        with self.assertRaises(ValueError):
+            resolve_system_prompt(explicit=None)
 
     def test_tool_summary_shape(self) -> None:
 
@@ -220,13 +262,14 @@ class SystemPromptTest(unittest.TestCase):
         self.assertIn("`write_file`", summary)
         self.assertEqual(len(summary.splitlines()), 2)
 
-    def test_tool_summary_survives_bad_registry(self) -> None:
+    def test_tool_summary_propagates_registry_errors(self) -> None:
 
         class _Boom:
             def schemas(self):
                 raise RuntimeError("炸了")
 
-        self.assertEqual(tool_summary(_Boom()), "")
+        with self.assertRaises(RuntimeError):
+            tool_summary(_Boom())
         self.assertEqual(tool_summary(None), "")
 
 if __name__ == "__main__":

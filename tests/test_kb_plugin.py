@@ -493,9 +493,15 @@ class PluginConfigIsolationTest(unittest.TestCase):
         root = _P(__file__).resolve().parent.parent
         for name in ("knowledge", "skills", "tts"):
             entry = root / "plugins" / name / "plugin.py"
+            plugin_root = entry.parent
+            mod_name = f"fan_agent_plugins.cfgprobe_{name}"
             spec = importlib.util.spec_from_file_location(
-                f"cfgprobe_{name}", str(entry))
+                mod_name,
+                str(entry),
+                submodule_search_locations=[str(plugin_root)],
+            )
             mod = importlib.util.module_from_spec(spec)
+            sys.modules[mod_name] = mod
             spec.loader.exec_module(mod)
             path = mod._config_path()
             self.assertEqual(path.parent, root / "plugins" / name)
@@ -506,9 +512,15 @@ class PluginConfigIsolationTest(unittest.TestCase):
         import tempfile
         from pathlib import Path as _P
         root = _P(__file__).resolve().parent.parent
+        entry = root / "plugins" / "skills" / "plugin.py"
+        mod_name = "fan_agent_plugins.cfgprobe_skills_dir"
         spec = importlib.util.spec_from_file_location(
-            "cfgprobe_skills_dir", str(root / "plugins" / "skills" / "plugin.py"))
+            mod_name,
+            str(entry),
+            submodule_search_locations=[str(entry.parent)],
+        )
         mod = importlib.util.module_from_spec(spec)
+        sys.modules[mod_name] = mod
         spec.loader.exec_module(mod)
         tmp = _P(tempfile.mkdtemp(prefix="skcfg_"))
         target = tmp / "skills"
@@ -649,8 +661,11 @@ class PluginPanelRenderContractTest(unittest.TestCase):
     def test_open_plugin_panel_passes_its_plugin_name(self) -> None:
         js = self._shell_js()
         idx = js.index("function openPluginPanel(")
-        self.assertIn('plugin:String(plugin||"")', js[idx:idx + 600],
+        chunk = js[idx:idx + 800]
+        self.assertIn("plugin:pluginKey", chunk,
                       msg="不带插件名，脚本认不出这是不是自己的面板")
+        self.assertIn('pluginKey+"__"+panelKey', chunk,
+                      msg="面板 DOM id 须带插件名前缀，避免跨插件撞名")
 
     def test_panel_has_a_refresh_button_on_the_subtitle(self) -> None:
         """小标题右侧一个刷新：知识库目录是外部目录，不重开面板也要能取到新文件。"""
@@ -683,6 +698,19 @@ class PluginPanelRenderContractTest(unittest.TestCase):
             self.assertIn("ai-agent:panel-opened", text,
                           msg=f"plugins/{name}/ui/panel.js 没订阅打开事件")
 
+    def test_knowledge_panel_matches_composite_dom_id(self) -> None:
+        """壳层广播的 panel 是 `knowledge__kb`，不能只认逻辑 id `kb`。"""
+        from pathlib import Path as _P
+        root = _P(__file__).resolve().parent.parent
+        text = (root / "plugins" / "knowledge" / "ui" / "panel.js").read_text(
+            encoding="utf-8")
+        self.assertIn('plugin === "knowledge"', text)
+        self.assertIn("panelId", text)
+        shell = self._shell_js()
+        idx = shell.index("ai-agent:panel-opened")
+        chunk = shell[idx:idx + 280]
+        self.assertIn("panelId", chunk, msg="打开事件须带逻辑 panelId")
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -701,9 +729,15 @@ class SkillsConfigSourceTest(unittest.TestCase):
         import importlib.util
         from pathlib import Path as _P
         root = _P(__file__).resolve().parent.parent
+        entry = root / "plugins" / "skills" / "plugin.py"
+        mod_name = "fan_agent_plugins.skills_plugin_probe"
         spec = importlib.util.spec_from_file_location(
-            "skills_plugin_probe", str(root / "plugins" / "skills" / "plugin.py"))
+            mod_name,
+            str(entry),
+            submodule_search_locations=[str(entry.parent)],
+        )
         mod = importlib.util.module_from_spec(spec)
+        sys.modules[mod_name] = mod
         spec.loader.exec_module(mod)
         cfg = mod._load_config()
         self.assertEqual(cfg["max_file_size"], 200000)
@@ -715,9 +749,15 @@ class SkillsConfigSourceTest(unittest.TestCase):
         import tempfile
         from pathlib import Path as _P
         root = _P(__file__).resolve().parent.parent
+        entry = root / "plugins" / "skills" / "plugin.py"
+        mod_name = "fan_agent_plugins.skills_plugin_probe2"
         spec = importlib.util.spec_from_file_location(
-            "skills_plugin_probe2", str(root / "plugins" / "skills" / "plugin.py"))
+            mod_name,
+            str(entry),
+            submodule_search_locations=[str(entry.parent)],
+        )
         mod = importlib.util.module_from_spec(spec)
+        sys.modules[mod_name] = mod
         spec.loader.exec_module(mod)
         tmp = _P(tempfile.mkdtemp(prefix="skcfg_"))
         target = tmp / "skills"

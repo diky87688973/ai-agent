@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
-from agent.core.tool_call import ToolCallRequest, ToolResult  # noqa: E402
+from agent.core.tool_call import ToolResult  # noqa: E402
 
 
 class Acceptance:
@@ -33,8 +33,9 @@ class Acceptance:
 
     def call(self, name: str, arguments: dict) -> ToolResult:
         self.seq += 1
-        call = ToolCallRequest(call_id=f"c{self.seq}", name=name, arguments=arguments)
-        return self.app.pipeline.execute(self.app.registry, call, None)
+        return self.app.execute_tool(
+            name, arguments, call_id=f"c{self.seq}"
+        )
 
     def preview(self, path: Path, content: str) -> ToolResult:
         return self.call("write_file", {"path": str(path), "content": content})

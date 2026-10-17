@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -68,7 +69,10 @@ class ContextSpliceTest(unittest.TestCase):
         self.assertEqual(messages[1]["tool_calls"][0]["id"], "call-1")
         self.assertEqual(messages[2]["tool_call_id"], "call-1",
                          msg="tool 消息必须应答那条 tool_call")
-        self.assertEqual(messages[2]["content"], '{"confirm": "甲"}')
+        self.assertEqual(
+            messages[2]["content"],
+            json.dumps({"ok": True, "data": {"confirm": "甲"}}, ensure_ascii=False),
+        )
 
     def test_no_user_message_is_inserted_on_resume(self) -> None:
         """恢复轮**没有用户输入**：绝不能凭空多一条 user 消息——那会让请求序列非法。"""
@@ -269,5 +273,7 @@ class ResumeSpliceNamingTest(unittest.TestCase):
                          if m["role"] == "tool"]
             self.assertEqual(len(tool_msgs), 1,
                              msg=f"同一 call_id 只允许一条 tool 消息，实际 {len(tool_msgs)}")
-            self.assertIn("用户选了甲", str(tool_msgs[0]["content"]),
+            payload = json.loads(str(tool_msgs[0]["content"]))
+            self.assertEqual(payload.get("ok"), True, msg="回填须走统一信封")
+            self.assertIn("用户选了甲", json.dumps(payload.get("data"), ensure_ascii=False),
                           msg="回填的内容必须真的到模型手里")

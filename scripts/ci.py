@@ -6,9 +6,10 @@
 
 ## 顺序的由来
 
-1. **依赖方向**（`check_imports`）—— 先跑它：分层错了后面的结果都不值得看；
+1. **依赖方向**（`check_imports`）与 **架构洁癖**（`check_architecture_hygiene`）——
+   先跑它们：分层错了、跨层偷私有名、内核点名插件，后面的结果都不值得看；
    接着 **ruff 静态检查**（未定义名/未使用导入这类真 bug）与 **静默异常检查**
-   （静默吞异常全部已说明：要么写了判据、要么属已登记惯用法；具体条数以该脚本输出为准）——这三样都是"秒级、抓真问题"的，放最前面；
+   （静默吞异常全部已说明：要么写了判据、要么属已登记惯用法；具体条数以该脚本输出为准）——这些都是"秒级、抓真问题"的，放最前面；
 2. **文档与注册表一致性**（`check_readme` / `check_catalog`）—— 文档数字漂了、
    装配集与注册文件漂了，都会让后面的验证失真；
 3. **单元测试**；
@@ -91,6 +92,7 @@ def _steps(fast: bool) -> list[tuple[str, list[str]]]:
     atexit.register(shutil.rmtree, _tmp_data, True)
     steps: list[tuple[str, list[str]]] = [
         ("依赖方向", [PY, "scripts/check_imports.py"]),
+        ("架构洁癖", [PY, "scripts/check_architecture_hygiene.py"]),
         ("静态检查", [PY, "-m", "ruff", "check", "agent", "tests", "scripts"]),
         ("Python 下限", [PY, "scripts/check_python_floor.py"]),
         ("UI JS 自检", [PY, "scripts/check_ui_js.py"]),

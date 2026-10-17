@@ -13,14 +13,13 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.core.model_call import StreamDelta  # noqa: E402
-from agent.core.tool_call import ToolCallRequest, ToolResult  # noqa: E402
+from agent.core.tool_call import ToolResult  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
 
 CID_DRIVER = "accept-driver1"
@@ -61,9 +60,9 @@ class Acceptance:
 
     def call(self, name, arguments=None, cid=CID_DRIVER) -> ToolResult:
         self.seq += 1
-        call = ToolCallRequest(call_id=f"c{self.seq}", name=name, arguments=arguments or {})
-        ctx = SimpleNamespace(conversation_id=cid) if cid else None
-        return self.app.pipeline.execute(self.app.registry, call, ctx)
+        return self.app.execute_tool(
+            name, arguments or {}, conversation_id=cid, call_id=f"c{self.seq}"
+        )
 
     def check(self, label, cond, detail=""):
         status = "PASS" if cond else "FAIL"

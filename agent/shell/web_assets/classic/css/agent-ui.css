@@ -582,7 +582,7 @@ html[data-ui-theme="light"] .b.u {
   border-color: #d5dce8;
   color: #1a2233;
 }
-/* 与夜间 / 沉浸一致：助手消息无气泡底与描边，与 .msgs 背板融合 */
+/* 助手消息无气泡底与描边，与 .msgs 背板融合 */
 html[data-ui-theme="light"] .b.a {
   background: transparent;
   border: none;

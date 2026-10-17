@@ -91,7 +91,7 @@ full_user_rounds         = 10
 
 ## 开发
 
-`scripts/ci.py` 的流水线 20 步：九项门禁（依赖方向、ruff、Python 下限、UI JS 自检、
+`scripts/ci.py` 的流水线 21 步：十项门禁（依赖方向、架构洁癖、ruff、Python 下限、UI JS 自检、
 静默异常、README 一致性、确认文案、注释文案、注册表一致性）→ 单测 → 10 个验收脚本。
 
 ```bash
@@ -100,7 +100,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1148 个用例）：
+单元测试（1146 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

@@ -1,6 +1,6 @@
 # 写盘门控：当前链路与后续优化
 
-本文记录 2026-10-17 代码的真实行为，并给出一份尚未实施的优化方案。优化落地前，以 `agent/mechanisms/quality_gate.py` 与 `agent/capabilities/builtin/review_conclusion.py` 为准。
+本文记录写盘门控的真实行为。权威实现在 `agent/mechanisms/quality/`（入口 `QualityGate` / `build_pipeline_gate`），提交结论工具见 `agent/capabilities/builtin/review_conclusion.py`。
 
 相关代码：
 

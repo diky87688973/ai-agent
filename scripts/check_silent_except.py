@@ -8,14 +8,22 @@ BLE001 抓的是"`except Exception` **本身**"（全仓 112 处），
 **无法区分"吞掉"与"吞掉但留痕"**：全开会在全仓产生 112 个 `# noqa`，
 而静默吞仍不可见。
 
-所以这个检查器做**语义判断**：`except` 后面紧跟 `pass` / `continue`（或空体）= 静默吞。
+所以这个检查器做**语义判断**：
+
+1. `except Exception`（或裸 except）后 `return` 常量/空集合（`[]` / `None` / `""` / `"auto"` …）  
+   → **一律禁止**，注释与惯用法都不可豁免（失败必须冒泡）。
+2. `except Exception`（或裸 except）后**整段只有一条**赋值为常量/空集合/`None`/`"auto"`  
+   → **一律禁止**（与 return 兜底同级；失败装成默认值）。
+3. `except` 后紧跟 `pass` / `continue`（或空体）  
+   → 静默吞；内核路径须留痕或写明判据；旁路须注释或命中惯用法。
 
 ## 规则（按目录分层）
 
 | 目录 | 规则 | 是否让 CI 失败 |
 |---|---|---|
-| `core/`（**内核路径**） | **一律不得静默**：要么留痕，要么写明判据 | **是**（`--all-strict`，ci.py 用这个） |
-| 其它（旁路） | 要说明为什么可以吞 | 默认只**报告**，暂不失败（见下） |
+| 全仓 | `except Exception` + `return` / 赋常量兜底 | **是**（`--all-strict`） |
+| `core/`（**内核路径**） | `pass`/`continue` 不得无说明 | **是** |
+| 其它（旁路） | `pass`/`continue` 须注释或惯用法 | **是**（`--all-strict`） |
 
 "写明判据"的判定：`except` 行到 `pass` 行之间、或 `except` 上方 3 行内
 出现注释即视为已说明（行内注释也算）。这样一条注释就能解释一个块。
@@ -75,8 +83,74 @@ SCAN_DIRS = ("agent", "tests", "scripts")
 SKIP_PARTS = ("__pycache__", "retired")
 
 
+def _catches_broad(node: ast.ExceptHandler) -> bool:
+    """是否为裸 except / except Exception（宽捕才禁 return 兜底）。"""
+    if node.type is None:
+        return True
+    if isinstance(node.type, ast.Name) and node.type.id == "Exception":
+        return True
+    if isinstance(node.type, ast.Tuple):
+        return any(
+            isinstance(elt, ast.Name) and elt.id == "Exception"
+            for elt in node.type.elts
+        )
+    return False
+
+
+def _is_fallback_constant(node: ast.AST | None) -> bool:
+    """表达式是否为「装没事」用的常量 / 空集合 / None。"""
+    if node is None:
+        return True  # bare `return`
+    if isinstance(node, ast.Constant):
+        return True  # None / "" / 0 / -1 / "auto" / False …
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return len(getattr(node, "elts", []) or []) == 0
+    if isinstance(node, ast.Dict):
+        return len(getattr(node, "keys", []) or []) == 0
+    if isinstance(node, ast.Name) and node.id == "None":
+        return True
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "set"
+        and not node.args
+        and not node.keywords
+    ):
+        return True  # set()
+    return False
+
+
+def _is_fallback_return(body: list[ast.stmt]) -> bool:
+    """except 体是否为「失败装没事」的 return 兜底（一律禁止，注释不可豁免）。"""
+    if not body or len(body) != 1:
+        return False
+    only = body[0]
+    if not isinstance(only, ast.Return):
+        return False
+    return _is_fallback_constant(only.value)
+
+
+def _is_fallback_assign(body: list[ast.stmt]) -> bool:
+    """except 体是否为「失败装没事」的赋常量（一律禁止，注释不可豁免）。"""
+    if not body or len(body) != 1:
+        return False
+    only = body[0]
+    if not isinstance(only, ast.Assign):
+        return False
+    return _is_fallback_constant(only.value)
+
+
+def _is_fallback_mask(body: list[ast.stmt]) -> bool:
+    """return 常量或赋常量：失败装成默认值。"""
+    return _is_fallback_return(body) or _is_fallback_assign(body)
+
+
 def _is_silent(body: list[ast.stmt]) -> bool:
-    """except 体是否等价于"什么都不做"。"""
+    """except 体是否等价于静默吞：pass / continue / return 常量。
+
+    赋常量不走这里——只在宽捕 `Exception` 时由 `_is_fallback_assign` 一律禁止；
+    窄捕（如 `EOFError` / `ImportError`）赋默认值不属本检查范围。
+    """
     if not body:
         return True
     if len(body) > 1:
@@ -84,10 +158,9 @@ def _is_silent(body: list[ast.stmt]) -> bool:
     only = body[0]
     if isinstance(only, ast.Pass):
         return True
-    # `continue`（在循环里跳过）等同静默
     if isinstance(only, ast.Continue):
         return True
-    return False
+    return _is_fallback_return(body)
 
 
 def _explained(node: ast.ExceptHandler, lines: list[str]) -> bool:
@@ -200,14 +273,29 @@ def main(argv: list[str] | None = None) -> int:
             for node in ast.walk(tree):
                 if not isinstance(node, ast.ExceptHandler):
                     continue
+                where = f"{rel}:{node.lineno}"
+
+                # except Exception + return/赋常量：一律禁止（注释/惯用法不可豁免）
+                # 先于 `_is_silent` 判定，否则「仅赋常量」进不了静默分支会被漏掉。
+                if _catches_broad(node) and _is_fallback_mask(node.body):
+                    checked += 1
+                    kind = "return" if _is_fallback_return(node.body) else "赋常量"
+                    msg = (
+                        f"{where}  ← 禁止 except Exception 后 {kind} 兜底"
+                        "（失败必须冒泡，不可装成空/默认值）"
+                    )
+                    if is_kernel:
+                        kernel_bad.append(msg)
+                    else:
+                        bypass_bad.append(msg)
+                    continue
+
                 if not _is_silent(node.body):
                     continue
                 checked += 1
-                where = f"{rel}:{node.lineno}"
 
-                # "已说明" = 写了注释（**解释为什么可以吞**）
-                #           或 命中已知惯用法（见 `IDIOMS`：知识放在一处，
-                #              而不是在几十个地方塞近乎相同的注释）
+                # pass / continue / return 常量（窄捕）："已说明" = 注释或命中惯用法
+                # 宽捕的 return 常量已在上一段禁掉；此处 return 只会是窄捕。
                 if _explained(node, lines):
                     continue
                 idiom = _idiom(_try_body(node, lines))

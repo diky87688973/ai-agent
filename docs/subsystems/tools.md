@@ -1,6 +1,6 @@
 # 工具
 
-工具是模型能对外界做的事。实现在 `agent/capabilities/`，执行管道与写盘门控在 `agent/core/tool_call.py` 与 `agent/mechanisms/quality_gate.py`。
+工具是模型能对外界做的事。实现在 `agent/capabilities/`，执行管道与写盘门控在 `agent/core/tool_call.py` 与 `agent/mechanisms/quality/`。
 
 ## 注册
 
@@ -10,6 +10,7 @@ class ToolPlugin:
     description: str = ""
     parameters: Dict[str, Any] = {}   # 参数名 → JSON Schema 片段
     parallel_safe: bool = False
+    needs_preview: bool = False       # 写类预览：插件工具声明后走同一门控
 
     def execute(self, arguments: Dict[str, Any]) -> Any: ...
 ```
@@ -53,13 +54,22 @@ registry.schemas()          # 导出模型可见的工具声明
 预览  →  确认  →  凭 confirm_id 提交  →  重读
 ```
 
-1. **预览**：`write_file` / `replace_in_file` / `apply_patch` / `read_write` / `delete_file` / `file_ops` / `file_undo` / `archive` / `skill_manage` 都先预览，把写参数快照登记入库，返回 `confirm_id`，**不落盘**。预览类工具可用 `review_conclusion(cancel_preview=true)` 丢弃未提交的快照。同一写目标路径只保留最新一条未提交快照；会话内未提交条数上限为 `MAX_PENDING_PREVIEWS`（100），满额时按登记顺序挤掉最旧的。
+1. **预览**：凡工具声明 `needs_preview=True`（内置写类与插件写类同一规则）都先预览，把写参数快照登记入库，返回 `confirm_id`，**不落盘**。若结果带 `needs_commit=false`（如 `already_applied` / `already_absent` / `skipped`），门控**不登记**快照，也就不必再走确认与提交。`copy`/`move`/`rename` 源不存在为 `ok=false` / `source_missing`；目标冲突且 `on_exists=error` 为 `ok=false` / `dest_exists_conflict`——二者均带结构化 `data`，同样不登记、不视为已完成。管道与系统提示词的写类名单都只认注册表上的该元数据，无静态 `preview_tools` 旁路。预览类工具可用 `review_conclusion(cancel_preview=true)` 丢弃未提交的快照。同一写目标路径只保留最新一条未提交快照；会话内未提交条数上限为 `MAX_PENDING_PREVIEWS`（100），满额时按登记顺序挤掉最旧的。写目标路径参数键序只认工具的 `write_path_keys`（经注册表查找，不猜默认 `path`）；落盘后是否要求先 `read_file` 认 `needs_reread`。
 2. **确认**：宿主侧 `QualityGate.confirm(confirm_id)`。
 3. **提交**：`commit_write` 只凭 `confirm_id`。写参数由门控**从快照恢复**，模型不重传。
 4. **重读**：同一文件刚落盘后又要改时，须先 `read_file` 复核当前内容与行号；
    复核不使已解锁的 `confirm_id` 失效，确认无误后用原 ID 继续提交。
 
 预览与提交是**两个独立的工具入口**，不共用函数。
+
+### 回灌模型的结果信封
+
+派生进模型上下文的 tool 消息（`SessionLog.derive_messages`）成功/失败**同形**：
+
+- 成功：`{"ok": true, "data": <工具返回>}`
+- 失败：`{"ok": false, "error": "<类型与信息>"}`（可选附带 `data`）
+
+管道内部仍是 `ToolResult(ok/data/error)`；事件流仍是 `tool_done` / `tool_failed`。信封作用在「给模型看的那一层」；经典界面 `tool_end.preview` 用同一顶层 `ok`/`error`/`data` 形状（不再把失败塞进 `data.ok`）。
 
 ### 写盘前必须先 review
 
@@ -89,12 +99,12 @@ registry.schemas()          # 导出模型可见的工具声明
 | 工具 | 做什么 |
 |---|---|
 | `read_file` | 读取文本文件，支持行区间与截断 |
-| `write_file` | 预览写入（不落盘），返回 `confirm_id` |
+| `write_file` | 预览写入（不落盘），返回 `confirm_id`；内容已一致则 `status=already_applied`（不必 commit） |
 | `replace_in_file` | 预览文本替换：字面替换或按 region / 行列的区间替换 |
 | `apply_patch` | 预览应用 unified diff |
 | `read_write` | 预览管道写：从源文件取片段写入目标 |
-| `delete_file` | 预览删除，文件移入回收目录（可恢复） |
-| `file_ops` | 预览 copy / move / rename / delete |
+| `delete_file` | 预览删除；路径已不存在则 `already_absent`；否则移入回收目录 |
+| `file_ops` | 预览 copy / move / rename / delete；`on_exists=error\|overwrite\|skip`；源缺失 `source_missing`、目标冲突 `dest_exists_conflict`、已目标态 / 跳过有明确 `status` |
 | `file_undo` | 版本回滚：列历史 / 比对 / 回滚 |
 | `commit_write` | 凭 `confirm_id` 提交写预览 |
 | `review_conclusion` | 提交 review 结论并解锁预览 |
@@ -153,7 +163,6 @@ registry.schemas()          # 导出模型可见的工具声明
 | `session_broadcast` | 按 tag 向群组广播 |
 | `session_create` | 创建自由会话 |
 | `session_list` | 列出协作网络中的会话 |
-| `skill_manage` | Skills 管理：list / read / copy |
 
 ### 诊断
 
@@ -177,6 +186,7 @@ version = 1.0
 
 | 插件 | 能力 |
 |---|---|
+| `skills` | Skills 库与管理工具：声明 `needs_preview` 的写类工具走同一门控；工具卡视图经开屏脚本贡献，见 [skills.md](skills.md) |
 | `knowledge` | 知识库：配置判定、文件访问、表格解析、勾选状态、`add_context_source` 注入，加上右栏面板、输入区按钮与 `/api/plugin/knowledge/*` 端点 —— 全在插件里（只收文本类文件与表格，非文本不列也不可勾；`extra_suffixes` 可追加）|
 | `tts` | 语音合成：只订阅事件（`assistant_delta` / `turn_ended` / `error`），不注册工具也不贡献界面 |
 

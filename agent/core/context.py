@@ -34,8 +34,7 @@ SERVICE_LIVE_STATE = "live_state"                # 实时状态容器（按 cid 
 SERVICE_MESH = "mesh"                            # 协作网格 / 收件队列（按 cid 分键）
 SERVICE_SESSION_FACTORY = "session_factory"      # 上下文管线工厂（cid → ContextPipeline）
 SERVICE_COMPACTOR_FACTORY = "compactor_factory"  # 压缩器工厂（cid → ContextCompactor）
-SERVICE_RUNNER = "runner"                        # 后台会话运行器
-SERVICE_CLASSIC_ADAPTER = "classic_adapter"      # 经典界面适配层（双向翻译）
+SERVICE_ERROR_LOG = "error_log"                  # 错误日志（mechanisms.ErrorLog）
 
 
 class AppContext:
@@ -105,7 +104,7 @@ class ToolTurnContext:
 
     **窄视图的取舍**：
     ① 工具按构造拿到的是"这一次调用"，不是"整个回合"——`step_index` / `await_user` /
-    取消谓词这些回合内部状态不该出现在工具的视野里（现在它们确实看不到，因为只给了
+    停止检查这些回合内部状态不该出现在工具的视野里（现在它们确实看不到，因为只给了
     派生量）；② 它是一处**审计面**：将来工具在别的进程 / 沙箱里跑，要跨过去的正是
     这个对象携带的数据，而不是整棵上下文。
     """
@@ -144,10 +143,7 @@ class ToolTurnContext:
         app = self.app
         if app is None or not hasattr(app, "has"):
             return None
-        try:
-            return app.get(name) if app.has(name) else None
-        except Exception:
-            return None
+        return app.get(name) if app.has(name) else None
 
     def report(self, payload: dict) -> None:
         """上报工具进度（未接进度通道时静默丢弃——工具不必自己判空）。"""

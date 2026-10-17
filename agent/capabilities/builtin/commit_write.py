@@ -4,26 +4,18 @@
 - 预览与提交是两个独立工具入口：提交仅传 confirm_id；写参数（含内容）由
   QualityGate 从预览快照恢复，模型不重传（省 token、防漂移）；快照一次性消费防重放；
 - 分派：快照记录 tool → executors 表（由装配点 app.py 注入，覆盖全部写类工具）。
+- 会话门控只经 `current_context().session.gate`（ToolPort 在管道执行期填齐 session）。
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Union
+from typing import Any, Callable, Dict
 
 from agent.capabilities.registry import ToolPlugin
-from agent.mechanisms.quality_gate import QualityGate
-
-GateRef = Union[QualityGate, Callable[[], QualityGate], None]
+from agent.mechanisms.quality import QualityGate
 
 
-def _resolve_gate(gate: GateRef) -> QualityGate:
-    """解析本次调用的会话门控。
-
-    优先用构造期给的引用（门控对象或取门控的回调）；没有给就**从会话上下文取**
-    ——门控本来就住在 `SessionContext.gate` 里，而工具轮次的上下文是共享数据结构，
-    直接读即可，不必让装配层专门造一个"能摸到门控的函数"传进来。
-    """
-    if gate is not None:
-        return gate() if callable(gate) else gate
+def _session_gate() -> QualityGate:
+    """取当前工具轮次的会话门控。"""
     from agent.core.session_scope import current_context
 
     ctx = current_context()
@@ -31,7 +23,7 @@ def _resolve_gate(gate: GateRef) -> QualityGate:
     resolved = getattr(session, "gate", None)
     if resolved is None:
         raise ValueError(
-            "取不到会话门控：既未注入，也不在工具轮次上下文内（须经 ToolPipeline.execute 调用）"
+            "取不到会话门控：须经 ToolPort.execute（管道上下文填入 session）调用"
         )
     return resolved
 
@@ -52,16 +44,15 @@ class CommitWriteTool(ToolPlugin):
     parameters = {
         "confirm_id": {"type": "string", "description": "预览快照 ID（提交唯一凭据）"},
     }
+    needs_preview = False
+    write_path_keys: tuple[str, ...] = ()
 
     def __init__(
         self,
-        gate: GateRef,
         executors: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]],
         dynamic: Any = None,
     ) -> None:
-        self._gate = gate
-        # 内置执行器是静态表；插件贡献的执行器走 `dynamic`（提交那一刻才查），
-        # 所以插件装配顺序不影响提交能不能解析到。
+        # 内置执行器是静态表；插件贡献的执行器走 `dynamic`（提交那一刻才查）。
         self._executors = dict(executors)
         self._dynamic = dynamic
 
@@ -69,7 +60,7 @@ class CommitWriteTool(ToolPlugin):
         cid = str(arguments.get("confirm_id") or "").strip()
         if not cid:
             raise ValueError("缺少 confirm_id")
-        record = _resolve_gate(self._gate).take_record(cid)
+        record = _session_gate().take_record(cid)
         if record is None:
             raise ValueError("confirm_id 无效或已使用：请重新预览")
         tool = str(record.get("tool") or "")
@@ -82,13 +73,8 @@ class CommitWriteTool(ToolPlugin):
 
 
 def build(
-    gate: GateRef,
     executors: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]],
     dynamic: Any = None,
 ) -> CommitWriteTool:
-    """构造 commit_write 插件（提交入口；需门控与执行器表）。
-
-    gate 可传门控实例（直调场景）或"按当前会话解析门控"的可调用（装配态）。
-    `dynamic` 是插件贡献的执行器注册表（`ExecutorRegistry`），可为 None。
-    """
-    return CommitWriteTool(gate, executors, dynamic)
+    """构造 commit_write；门控由管道上下文提供。"""
+    return CommitWriteTool(executors, dynamic)

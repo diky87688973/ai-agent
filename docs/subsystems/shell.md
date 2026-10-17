@@ -119,9 +119,9 @@ SSE 连接表由 `WebShell` 持有，断开时从表里移除。
 
 ## 系统提示词
 
-`prompts.py` 的 `build_system_prompt()` 组装基础提示词：回复语言、术语表、工具纪律、编码准则、模式段。`tool_summary()` 从工具注册表摘一份"名字 — 一句话"速查，避免把完整 schema 塞两遍。
+`prompts.py` 的 `build_system_prompt(registry=…)` 组装基础提示词：回复语言、术语表、工具纪律、编码准则、模式段。纪律第 2 条的预览写类名单由 `preview_write_tools_line(registry)` 按 `needs_preview` 动态生成。`tool_summary()` 从同一注册表摘一份"名字 — 一句话"速查，避免把完整 schema 塞两遍。
 
-`resolve_system_prompt()` 处理会话级覆盖，并**把模式段切掉**（`split_mode_section()`）：模式改由 `resolve_mode_note()` 产出，作为请求尾部的临时后缀附加，只加在发给模型的那一份上。理由见 [context.md](context.md) 的「执行模式是请求尾部的临时后缀」。
+`resolve_system_prompt()` 处理会话级覆盖，并**把模式段切掉**（`split_mode_section()`）：无 `explicit` 时必须传 `registry`。模式改由 `resolve_mode_note()` 产出，作为请求尾部的临时后缀附加，只加在发给模型的那一份上。理由见 [context.md](context.md) 的「执行模式是请求尾部的临时后缀」。
 
 ## 界面打包
 

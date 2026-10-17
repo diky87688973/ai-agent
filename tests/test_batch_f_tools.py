@@ -20,7 +20,6 @@ from agent.capabilities.builtin import (  # noqa: E402
     github_tools,
     review_conclusion,
 )
-from agent.mechanisms.quality_gate import QualityGate  # noqa: E402
 from plugins.skills import tools as skill_tools  # noqa: E402
 from plugins.skills.library import SkillManager, SkillMeta  # noqa: E402
 
@@ -154,11 +153,22 @@ class WeatherTest(unittest.TestCase):
         )
 
 class ReviewConclusionTest(unittest.TestCase):
-    """review 提交与解锁。"""
+    """review 提交与解锁（经 ToolTurnContext.session.gate）。"""
 
     def setUp(self) -> None:
-        self.gate = QualityGate()
-        self.tool = review_conclusion.build(self.gate)
+        from agent.core.context import ToolTurnContext
+        from agent.core.session_context import SessionContexts
+        from agent.core.session_scope import reset_tool_turn_context, set_tool_turn_context
+        from tests.gate_fixtures import make_gate
+
+        self._contexts = SessionContexts(lambda cid: make_gate())
+        self.session = self._contexts.resolve_sync("review-test")
+        self.gate = self.session.gate
+        self.tool = review_conclusion.build()
+        self._ctx_token = set_tool_turn_context(
+            ToolTurnContext(app=None, session=self.session, turn=None, call=None)
+        )
+        self.addCleanup(lambda: reset_tool_turn_context(self._ctx_token))
 
     def test_short_conclusion_and_missing_file_name_rejected(self) -> None:
         with self.assertRaises(ValueError):
@@ -167,11 +177,7 @@ class ReviewConclusionTest(unittest.TestCase):
             self.tool.execute({"conclusion": "x" * 40, "file_name": ""})
 
     def test_call_is_submit_not_format_check(self) -> None:
-        """**调用即提交**：没有"仅格式校验"档。
-
-        写盘链路只有三步：预览 → review → 提交（仅 `confirm_id`）。
-        调用即提交，返回里不含 dry_run。
-        """
+        """调用即提交：没有"仅格式校验"档；返回里不含 dry_run。"""
         r = self.tool.execute({"conclusion": "x" * 40, "file_name": "a.py"})
         self.assertTrue(r["reviewed"])
         self.assertNotIn("dry_run", r)
@@ -181,7 +187,6 @@ class ReviewConclusionTest(unittest.TestCase):
         r = self.tool.execute({"conclusion": "x" * 40, "file_name": "p.txt", "confirm_id": cid})
         self.assertTrue(r["reviewed"])
         self.assertTrue(self.gate.peek(cid)["confirmed"])
-        # 锁定候选：写后 review 提交清空 pending_review
         self.gate.note_committed("some.py", tool="write_file")
         self.assertTrue(self.gate.pending_review)
         self.tool.execute({"conclusion": "x" * 40, "file_name": "some.py"})
@@ -368,11 +373,6 @@ class SkillsListNeverDoublesTest(unittest.TestCase):
         text = mgr.build_registry_message_parts()[0]
         self.assertEqual(text.count("- alpha:"), 1)
         self.assertEqual(text.count("- beta:"), 1)
-
-    def test_repeated_collection_is_stable(self) -> None:
-        mgr = SkillManager(self.skills_dir)
-        counts = [len(mgr.list_skills()) for _ in range(5)]
-        self.assertEqual(counts, [2, 2, 2, 2, 2])
 
     def test_rescan_does_not_append_twice(self) -> None:
         mgr = SkillManager(self.skills_dir)

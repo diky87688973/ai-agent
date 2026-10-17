@@ -121,7 +121,7 @@
       }
     },
     {
-      "description": "预览安全删除（不落盘）：文件将移入回收目录（可恢复）；目录请用 `file_ops(action=delete, recursive=true)`；返回 confirm_id，凭 commit_write 提交。",
+      "description": "预览安全删除（不落盘）：文件将移入回收目录（可恢复）；路径已不存在时返回 status=already_absent（needs_commit=false），不必再 commit；目录请用 `file_ops(action=delete, recursive=true)`；否则返回 confirm_id，凭 commit_write 提交。",
       "display": {
         "icon": "🗑️",
         "label": "删除文件"
@@ -161,7 +161,7 @@
       "parameters": {}
     },
     {
-      "description": "预览文件操作（不落盘）：copy / move / rename / delete（delete 移入回收目录，可恢复；delete 目录须 `recursive=true`）；返回 confirm_id，凭 commit_write 提交。",
+      "description": "预览文件操作（不落盘）：copy / move / rename / delete（delete 移入回收目录，可恢复；delete 目录须 `recursive=true`）。on_exists=error|overwrite|skip（默认 error）；copy/move/rename 源不存在 → ok=false / source_missing（可含 dest_exists）；目标已在且 on_exists=error → ok=false / dest_exists_conflict（结构化，非纯字符串）；同内容 copy → already_applied；on_exists=skip → skipped；delete 路径已不在 → already_absent；否则返回 confirm_id，凭 commit_write 提交。",
       "display": {
         "icon": "📋",
         "label": "执行文件复制/移动/删除"
@@ -175,6 +175,10 @@
         },
         "dest": {
           "description": "目标路径（delete 时勿传）",
+          "type": "string"
+        },
+        "on_exists": {
+          "description": "目标已存在时：error（默认拒绝）/ overwrite（覆盖）/ skip（跳过，needs_commit=false）",
           "type": "string"
         },
         "recursive": {
@@ -700,7 +704,7 @@
       }
     },
     {
-      "description": "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。",
+      "description": "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。old_text 字面未命中时一律 ok=false 且 data.status=old_text_not_found（不因 new_text 已在文件中、也不做大小写折叠而改判 already_applied）。old 命中但替换后内容不变（如同值替换）时 status=already_applied（needs_commit=false）。",
       "display": {
         "icon": "✏️",
         "label": "替换文件内容"
@@ -1222,7 +1226,7 @@
       }
     },
     {
-      "description": "预览写入文本文件（不落盘），返回 confirm_id。落盘前必须先 review：用 review_conclusion 提交结论与证据解锁，再用该 confirm_id 调 commit_write。",
+      "description": "预览写入文本文件（不落盘），返回 confirm_id。内容已与磁盘一致时返回 status=already_applied（needs_commit=false），不必再 commit。否则落盘前必须先 review：用 review_conclusion 提交结论与证据解锁，再用该 confirm_id 调 commit_write。",
       "display": {
         "icon": "📝",
         "label": "写入文件"

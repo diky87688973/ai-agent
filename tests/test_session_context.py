@@ -11,7 +11,6 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -25,12 +24,13 @@ from agent.core.session_context import (  # noqa: E402
 from agent.core.session_scope import current_session_id  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
-from agent.mechanisms.quality_gate import QualityGate  # noqa: E402
+from agent.mechanisms.quality import QualityGate  # noqa: E402
+from tests.gate_fixtures import make_gate  # noqa: E402
 
 
 def _contexts(**kwargs) -> SessionContexts:
-    """会话注册表（门控工厂默认造真门控）。"""
-    return SessionContexts(kwargs.pop("gate_factory", lambda cid: QualityGate()), **kwargs)
+    """会话注册表（门控工厂默认造真门控，并接内置 write_path_keys）。"""
+    return SessionContexts(kwargs.pop("gate_factory", lambda cid: make_gate()), **kwargs)
 
 class IsolationKeyTest(unittest.TestCase):
     """会话隔离键。"""
@@ -79,7 +79,7 @@ class LazyLifecycleTest(unittest.TestCase):
 
         def factory(cid):
             made.append(cid)
-            return QualityGate()
+            return make_gate()
 
         ctxs = SessionContexts(factory)
         ctxs.resolve_sync("conv-a")
@@ -211,9 +211,16 @@ class AppWiringTest(unittest.TestCase):
         self.app = build_app()
 
     def _call(self, name: str, arguments: dict, cid: str = ""):
+        from agent.core.ports import ToolPort
+
         call = ToolCallRequest(call_id=f"c-{name}-{cid}", name=name, arguments=arguments)
-        ctx = SimpleNamespace(conversation_id=cid) if cid else None
-        return self.app.pipeline.execute(self.app.registry, call, ctx)
+        port = ToolPort(
+            registry=self.app.registry,
+            pipeline=self.app.pipeline,
+            app=self.app.context,
+            sessions=self.app.session_contexts,
+        )
+        return port.execute(call, conversation_id=cid)
 
     def test_default_bucket_gate_is_canonical(self):
 

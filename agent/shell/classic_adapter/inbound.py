@@ -15,13 +15,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import sys
 import threading
 import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from agent.mechanisms.session_store import _KEY_DATA, _KEY_TYPE
+from agent.mechanisms.session_store import KEY_DATA, KEY_TYPE
 from agent.shell.classic_adapter import contract as C
 from agent.shell.classic_adapter.contract import EV_CONTEXT_SEGMENTS
 
@@ -30,7 +31,7 @@ def _scan_title(path: Path) -> str:
     """回落实现：从 .raw 前若干行找首条用户输入派生标题。
 
     只读文件前 400 行——一个会话可能有上万条事件，为标题读全文件不值得。
-    行的键名取自 store 的 `_KEY_TYPE` / `_KEY_DATA`：硬编码字符串会随键名改动静默失配，
+    行的键名取自 store 的 `KEY_TYPE` / `KEY_DATA`：硬编码字符串会随键名改动静默失配，
     硬编码字符串就会静默失配，标题悄悄退化成空。
     """
     try:
@@ -45,9 +46,9 @@ def _scan_title(path: Path) -> str:
                     continue
                 if not isinstance(payload, dict):
                     continue
-                if payload.get(_KEY_TYPE) != "input_claimed":
+                if payload.get(KEY_TYPE) != "input_claimed":
                     continue
-                data = payload.get(_KEY_DATA) if isinstance(payload.get(_KEY_DATA), dict) else payload
+                data = payload.get(KEY_DATA) if isinstance(payload.get(KEY_DATA), dict) else payload
                 content = str(data.get("content") or "").strip()
                 if content:
                     return " ".join(content.split())[:40]
@@ -220,18 +221,22 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
                         envelope = data.get("envelope")
                         if envelope is not None:
                             item["envelope"] = envelope
-                    # `preview` 与实时帧**同一形状**（`{"data": <工具结果>}` 的 JSON 串）：
-                    # 编辑类工具的 `diffText` / `diff_text` 就在这里，前端靠它重画 diff。
+                    # `preview` 与实时帧**同一形状**（与模型信封同形的 JSON 串）：
+                    # 成功 `{"ok":true,"data":…}` / 失败 `{"ok":false,"error":…}`。
+                    # 编辑类工具的 `diffText` / `diff_text` 在 `data` 里，前端靠它重画 diff。
                     # 不补这一项，刷新后 diff 预览整片消失（实时看得见、回显看不见）。
                     result = data.get("result")
                     if result is None:
                         result = data.get("data")
                     if result is not None:
                         try:
+                            if isinstance(result, dict) and "ok" in result and (
+                                    "data" in result or "error" in result):
+                                payload = result
+                            else:
+                                payload = {"ok": True, "data": result}
                             item["preview"] = json.dumps(
-                                {"data": result} if not isinstance(result, dict) or "data" not in result
-                                else result,
-                                ensure_ascii=False, default=str)
+                                payload, ensure_ascii=False, default=str)
                         except (TypeError, ValueError):
                             pass
                     elif kind == "tool_failed" and item.get("error"):
@@ -239,7 +244,7 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
                         # 刷新后工具壳响应区才能画出 JSON，而不是空对象。
                         try:
                             item["preview"] = json.dumps(
-                                {"data": {"ok": False, "error": str(item.get("error") or "")}},
+                                {"ok": False, "error": str(item.get("error") or "")},
                                 ensure_ascii=False,
                             )
                         except (TypeError, ValueError):
@@ -337,9 +342,15 @@ def _overlay_plugin_segments(app: Any, cid: str,
         return payload
     try:
         packed = collect(str(cid or ""))
-    except Exception:
+    except Exception as exc:
+        # 可选增强：失败不砸 SSE，但必须留痕，不得静默沿用旧快照。
+        print(
+            f"[inbound] 注入源 collect 失败 cid={cid}: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr, flush=True,
+        )
         return payload
-    from agent.mechanisms.context_pipeline import default_message_tokens
+    from agent.mechanisms.context_tokens import default_message_tokens
 
     items = list(getattr(packed, "items", None) or [])
     counts = list(getattr(packed, "counts", None) or [])
@@ -380,10 +391,7 @@ def _budget_of(app: Any, cid: str) -> int:
     factory = getattr(app, "compactor_factory", None)
     if not callable(factory):
         return 0
-    try:
-        return int(getattr(factory(cid), "summary_token_threshold", 0) or 0)
-    except Exception:
-        return 0
+    return int(getattr(factory(cid), "summary_token_threshold", 0) or 0)
 
 
 def _last_segments(events: List[Any],
@@ -441,12 +449,9 @@ def _mode_of(events: List[Any]) -> str:
     """
     msgs: List[Any] = []
     if events:
-        try:
-            from agent.core.session_log import SessionLog
+        from agent.core.session_log import SessionLog
 
-            msgs = SessionLog(events=list(events)).derive_request_messages() or []
-        except Exception:
-            msgs = []
+        msgs = SessionLog(events=list(events)).derive_request_messages() or []
     marker = "## 当前模式："
     for m in reversed(msgs):
         if not isinstance(m, dict) or str(m.get("role") or "") != "system":
@@ -464,56 +469,49 @@ def _fallback_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str
     所以只从事实折叠不出来。这里真装一次上下文（与内核同一套注入源），
     读它的头部来切段；事实只提供对话与覆盖点。
     """
+    from agent.core.session_log import SessionLog
     from agent.mechanisms.context_pipeline import layout_from_messages
 
-    try:
-        from agent.core.session_log import SessionLog
-
-        messages = SessionLog(events=list(events)).derive_request_messages()
-    except Exception:
-        return None
+    messages = SessionLog(events=list(events)).derive_request_messages()
     if not messages:
         return None
     budget = 0
     compactor_factory = getattr(app, "compactor_factory", None)
     if callable(compactor_factory):
-        try:
-            budget = int(getattr(compactor_factory(cid), "summary_token_threshold", 0) or 0)
-        except Exception:
-            budget = 0
-    system_text = ""
-    try:
-        from agent.shell.prompts import resolve_system_prompt
+        budget = int(getattr(compactor_factory(cid), "summary_token_threshold", 0) or 0)
+    from agent.shell.prompts import resolve_system_prompt
 
-        mesh = getattr(app, "mesh", None)
-        meta = mesh.get_agent(cid) if mesh is not None and hasattr(mesh, "get_agent") else {}
-        system_text = resolve_system_prompt(
-            mode=_mode_of(events),
-            registry=getattr(app, "registry", None),
-            explicit=str((meta or {}).get("system") or "") or None,
-        )
-    except Exception:
-        system_text = ""
+    registry = getattr(app, "registry", None)
+    if registry is None:
+        raise RuntimeError("上下文布局需要 app.registry：未装配工具注册表，无法生成系统提示词")
+    mesh = getattr(app, "mesh", None)
+    meta = mesh.get_agent(cid) if mesh is not None and hasattr(mesh, "get_agent") else {}
+    system_text = resolve_system_prompt(
+        mode=_mode_of(events),
+        registry=registry,
+        explicit=str((meta or {}).get("system") or "") or None,
+    )
+    if not str(system_text or "").strip():
+        raise RuntimeError("系统提示词为空：装配异常，拒绝静默继续")
     # 真装一次：头部（系统提示 / Skills / 知识库 / 摘要）由管线按注入源产出。
-    head: List[Dict[str, Any]] = []
-    plugin_segments: List[Any] = []
-    try:
-        from agent.mechanisms.context_pipeline import ContextPipeline
+    from agent.mechanisms.context_pipeline import ContextPipeline
 
-        pipeline = ContextPipeline(str(cid or ""),
-                                   sources=getattr(app, "context_sources", None),
-                                   **(dict(getattr(app, "context_defaults", None) or {})))
-        if system_text:
-            pipeline.append_system(system_text)
-        pipeline.set_dialogue(messages, covered_end=_covered_end_of(events))
-        head = pipeline.host_messages()
-        plugin_segments = pipeline.plugin_segments()
-    except Exception:
-        head = []
-        plugin_segments = []
-    payload = layout_from_messages(messages, system_text=system_text, head=head,
-                                   plugin_segments=plugin_segments,
-                                   budget_tokens=budget)
+    pipeline = ContextPipeline(
+        str(cid or ""),
+        sources=getattr(app, "context_sources", None),
+        **(dict(getattr(app, "context_defaults", None) or {})),
+    )
+    pipeline.append_system(system_text)
+    pipeline.set_dialogue(messages, covered_end=_covered_end_of(events))
+    head = pipeline.host_messages()
+    plugin_segments = pipeline.plugin_segments()
+    payload = layout_from_messages(
+        messages,
+        system_text=system_text,
+        head=head,
+        plugin_segments=plugin_segments,
+        budget_tokens=budget,
+    )
     return payload if payload.get("segments") else None
 
 
@@ -687,10 +685,7 @@ class Inbound:
         live = getattr(self._app, "live_state", None)
         if live is None:
             return "auto"
-        try:
-            return str(live.get_mode(cid))
-        except Exception:
-            return "auto"
+        return str(live.get_mode(cid))
 
     def _model(self, cid: str = "") -> str:
         """当前会话用哪个模型（`conversation` 帧据此同步前端下拉）。
@@ -806,10 +801,8 @@ class Inbound:
         if resolved:
             register = []
             for item in resolved[-_ATTACH_REGISTER_MAX_COUNT:]:
-                try:
-                    size = len(item.get("data_base64") or "")
-                except Exception:
-                    size = 0
+                raw = item.get("data_base64") if isinstance(item, dict) else None
+                size = len(raw or "") if isinstance(raw, str) else 0
                 if size and size <= _ATTACH_REGISTER_MAX_BYTES:
                     register.append(item)
             if register:
@@ -829,10 +822,7 @@ class Inbound:
         store = getattr(self._app, "store", None)
         if store is None:
             return []
-        try:
-            return list(store.load(cid))
-        except Exception:
-            return []
+        return list(store.load(cid))
 
     # ── /api/chat/ui-state ────────────────────────────────
     #
@@ -880,8 +870,12 @@ class Inbound:
             return payload
         try:
             state["running"] = [str(c) for c in lister()]
-        except Exception:
-            # 忙闲只用来决定"停止"键显不显示，问不出来就当没在跑。
+        except Exception as exc:
+            # 忙闲只用来决定"停止"键显不显示；问不出来就当没在跑，但必须留痕。
+            print(
+                f"[inbound] 列举 running 失败: {type(exc).__name__}: {exc}",
+                file=sys.stderr, flush=True,
+            )
             state["running"] = []
         return payload
 
@@ -912,14 +906,19 @@ class Inbound:
         if callable(getter):
             try:
                 result = getter(cid)
-            except Exception:
-                result = None
-            # 内核口径是 `(status, payload)`
-            if isinstance(result, tuple) and len(result) == 2:
-                payload = result[1] if isinstance(result[1], dict) else {}
-                if payload.get("title"):
-                    return {"ok": True, "conversation_id": cid,
-                            "title": str(payload["title"])}
+            except Exception as exc:
+                print(
+                    f"[inbound] 取标题失败 cid={cid}: "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr, flush=True,
+                )
+            else:
+                # 内核口径是 `(status, payload)`
+                if isinstance(result, tuple) and len(result) == 2:
+                    payload = result[1] if isinstance(result[1], dict) else {}
+                    if payload.get("title"):
+                        return {"ok": True, "conversation_id": cid,
+                                "title": str(payload["title"])}
         return {"ok": True, "conversation_id": cid, "title": self._fallback_title(cid)}
 
     def _fallback_title(self, cid: str) -> str:

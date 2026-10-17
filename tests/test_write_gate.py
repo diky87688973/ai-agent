@@ -11,6 +11,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
+from agent.core.ports import ToolPort  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 
 
@@ -22,15 +23,21 @@ class WriteGateTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
         self.app = build_app()
+        self.port = ToolPort(
+            registry=self.app.registry,
+            pipeline=self.app.pipeline,
+            app=self.app.context,
+            sessions=self.app.session_contexts,
+        )
         self._seq = 0
 
     # ── helpers ──────────────────────────────────────────
 
     def _call(self, name: str, arguments: dict):
-        """经管道唯一入口驱动一次工具调用。"""
+        """经 ToolPort 驱动一次工具调用（填齐 session.gate）。"""
         self._seq += 1
         call = ToolCallRequest(call_id=f"c{self._seq}", name=name, arguments=arguments)
-        return self.app.pipeline.execute(self.app.registry, call, None)
+        return self.port.execute(call, conversation_id="")
 
     def _preview(self, path: Path, content: str):
         return self._call("write_file", {"path": str(path), "content": content})

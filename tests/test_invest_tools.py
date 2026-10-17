@@ -386,11 +386,16 @@ class BatchERegistrationTest(unittest.TestCase):
         for name in expected:
             self.assertIsNotNone(registry.get(name), f"未注册：{name}")
 
-    def test_archive_in_gate_preview_list(self) -> None:
-        from agent.mechanisms import quality_gate
+    def test_archive_declares_write_path_keys(self) -> None:
+        from agent.capabilities.builtin import archive_tool
+        from agent.capabilities.registry import ToolRegistry
 
-        self.assertIn("archive", quality_gate._TOOL_PATH_KEYS)
-        self.assertEqual(quality_gate._TOOL_PATH_KEYS["archive"], ("dest", "source"))
+        reg = ToolRegistry()
+        for plugin in archive_tool.build_plugins():
+            reg.register(plugin)
+        plugin = reg.get("archive")
+        self.assertIsNotNone(plugin)
+        self.assertEqual(tuple(plugin.write_path_keys), ("dest", "source"))
 
 if __name__ == "__main__":
     unittest.main()

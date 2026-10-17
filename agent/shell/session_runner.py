@@ -13,6 +13,7 @@ import threading
 import time
 from typing import Any, Callable, Dict, Optional
 
+from agent.core.error_report import report_error
 from agent.core.events import Event
 from agent.shell.prompts import (
     load_user_rules_from_config,
@@ -39,7 +40,7 @@ AUTO_CONTINUE_PROMPT = (
 class SessionRunner:
     """后台回合运行器：以 mesh 活跃集为唯一忙闲事实源。
 
-    `auto_continue`：注入的谓词（cid → bool）。回合结束后若为真，则自动再跑一轮
+    `auto_continue`：注入的判断函数（cid → bool）。回合结束后若为真，则自动再跑一轮
     ——这是「自主模式」的落地（`_autoEnabled` + `/api/chat/autonomous`）。
 
     `goal_row`：注入的取目标函数（cid → dict | None）。**目标存在时它说了算**：
@@ -115,7 +116,7 @@ class SessionRunner:
         return True
 
     def _cancel_check(self, cid: str):
-        """给内核的取消谓词（内核 `cancel` 参数的注入位）。"""
+        """给内核的停止检查（内核 `cancel` 参数的注入位）。"""
 
         def _check() -> bool:
             with self._lock:
@@ -159,7 +160,7 @@ class SessionRunner:
                 try:
                     self._execute(cid, text, attachments, resume)
                 except Exception as exc:  # 单回合失败不打断抽干链
-                    print(f"[session_runner] turn failed cid={cid}: {exc}", file=sys.stderr, flush=True)
+                    report_error("shell.session_runner", exc, conversation_id=cid)
                 resume = None
                 nxt = self._mesh.end_run(cid)
                 # **取消优先**：用户点了停止就不能再续跑。
@@ -192,7 +193,7 @@ class SessionRunner:
                 resume = nxt.get("resume")
         except Exception as exc:  # 兜底：释放占位（不续跑）
             self._mesh.abort_run(cid)
-            print(f"[session_runner] runner aborted cid={cid}: {exc}", file=sys.stderr, flush=True)
+            report_error("shell.session_runner", exc, conversation_id=cid, where="aborted")
         finally:
             stop_beat.set()
             # **会话终点必须补投一次**：`SessionStore.flush_pending` 只在
@@ -248,10 +249,7 @@ class SessionRunner:
         没有目标时才回落到自主开关 + `AUTO_CONTINUE_PROMPT`。
         """
         if self._goal_row is not None:
-            try:
-                row = self._goal_row(cid)
-            except Exception:
-                row = None
+            row = self._goal_row(cid)
             if isinstance(row, dict):
                 if str(row.get("status") or "") != "active":
                     return ""
@@ -262,14 +260,11 @@ class SessionRunner:
         """自主模式：回合结束后是否再自动跑一轮。"""
         if self._auto_continue is None:
             return False
-        try:
-            return bool(self._auto_continue(cid))
-        except Exception:
-            return False
+        return bool(self._auto_continue(cid))
 
     def _execute(self, cid: str, text: str, attachments: Any = None,
                  resume: Any = None) -> None:
-        """执行单个回合：迭代事件至尽（回合过）；注入协作式取消谓词。
+        """执行单个回合：迭代事件至尽（回合过）；注入停止检查。
 
         `resume` 非空时（外部结果回灌）：先把结果**写成 `tool_result` 事实**，
         再跑回合。写法就是"拼接到上下文末尾"——这一刻上下文末端正好是那次工具调用，
@@ -341,13 +336,8 @@ class SessionRunner:
         """
         meta = self._mesh.get_agent(cid)
         explicit = str(meta.get("system") or "")
-        mode = "auto"
         state = getattr(self._app, "live_state", None)
-        if state is not None:
-            try:
-                mode = state.get_mode(cid)
-            except Exception:
-                mode = "auto"
+        mode = state.get_mode(cid) if state is not None else "auto"
         return resolve_system_prompt(
             mode=mode,
             registry=getattr(self._app, "registry", None),
@@ -359,13 +349,8 @@ class SessionRunner:
         """请求尾部要附加的执行模式说明（临时；不落记录、不发事件）。"""
         meta = self._mesh.get_agent(cid)
         explicit = str(meta.get("system") or "")
-        mode = "auto"
         state = getattr(self._app, "live_state", None)
-        if state is not None:
-            try:
-                mode = state.get_mode(cid)
-            except Exception:
-                mode = "auto"
+        mode = state.get_mode(cid) if state is not None else "auto"
         return resolve_mode_note(mode=mode, explicit=explicit or None)
 
     # ── 等待（测试 / 壳层）────────────────────────────────

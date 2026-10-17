@@ -14,6 +14,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
+from agent.core.ports import ToolPort  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.file_safety import FileBackups  # noqa: E402
 
@@ -43,6 +44,12 @@ class WritePathToolsTest(unittest.TestCase):
             backup_root=self.root / "bk",
             recycle_root=self.root / "rc",
         )
+        self.port = ToolPort(
+            registry=self.app.registry,
+            pipeline=self.app.pipeline,
+            app=self.app.context,
+            sessions=self.app.session_contexts,
+        )
         self._seq = 0
 
     # ── helpers ──────────────────────────────────────────
@@ -50,7 +57,7 @@ class WritePathToolsTest(unittest.TestCase):
     def _call(self, name: str, arguments: dict):
         self._seq += 1
         call = ToolCallRequest(call_id=f"c{self._seq}", name=name, arguments=arguments)
-        return self.app.pipeline.execute(self.app.registry, call, None)
+        return self.port.execute(call, conversation_id="")
 
     def _ready(self, name: str, arguments: dict) -> str:
         r = self._call(name, arguments)
@@ -183,6 +190,44 @@ class WritePathToolsTest(unittest.TestCase):
         r = self._call("replace_in_file", {"path": str(f), "old_text": "zzz", "new_text": "y"})
         self.assertFalse(r.ok)
         self.assertIn("未找到", str(r.error))
+        self.assertIsInstance(r.data, dict)
+        self.assertEqual(r.data.get("status"), "old_text_not_found")
+        self.assertEqual(r.data.get("needs_commit"), False)
+
+    def test_replace_old_absent_never_already_applied(self) -> None:
+        """old 字面未命中一律 old_text_not_found；不得因 new 已在或删除语义改判。"""
+        f = self.root / "r4b.txt"
+        f.write_text("hello world", encoding="utf-8")
+        r = self._call(
+            "replace_in_file",
+            {"path": str(f), "old_text": "foo", "new_text": "world"},
+        )
+        self.assertFalse(r.ok)
+        self.assertEqual(r.data.get("status"), "old_text_not_found")
+        self.assertEqual(r.data.get("needs_commit"), False)
+        # 删除语义：old 不在也不得 already_applied
+        f2 = self.root / "r4c.txt"
+        f2.write_text("only", encoding="utf-8")
+        r2 = self._call(
+            "replace_in_file",
+            {"path": str(f2), "old_text": "gone", "new_text": ""},
+        )
+        self.assertFalse(r2.ok)
+        self.assertEqual(r2.data.get("status"), "old_text_not_found")
+
+    def test_replace_same_text_already_applied(self) -> None:
+        """同值替换不得发空 diff 的 confirm_id。"""
+        f = self.root / "r4d.txt"
+        f.write_text("ALPHA\nBETA\n", encoding="utf-8")
+        r = self._call(
+            "replace_in_file",
+            {"path": str(f), "old_text": "BETA", "new_text": "BETA"},
+        )
+        self.assertTrue(r.ok, msg=str(r.error))
+        self.assertEqual(r.data.get("status"), "already_applied")
+        self.assertFalse(r.data.get("needs_commit", True))
+        self.assertFalse(r.data.get("confirm_id"))
+        self.assertIn("相同", str(r.data.get("message") or ""))
 
     def test_replace_line_mode(self) -> None:
         f = self.root / "r5.txt"
@@ -317,9 +362,113 @@ class WritePathToolsTest(unittest.TestCase):
         r = self._commit(cid)
         self.assertTrue(r.ok, msg=str(r.error))
         self.assertEqual(dst.read_text(encoding="utf-8"), "data")
+        # 同内容再 copy → 幂等已应用（不必 commit）
+        r_same = self._call("file_ops", {"action": "copy", "source": str(src), "dest": str(dst)})
+        self.assertTrue(r_same.ok)
+        self.assertEqual(r_same.data.get("status"), "already_applied")
+        self.assertFalse(r_same.data.get("needs_commit", True))
+        self.assertFalse(r_same.data.get("confirm_id"))
+        # 内容不同且默认 on_exists=error → 结构化拒绝（非纯字符串）
+        src.write_text("other", encoding="utf-8")
         r2 = self._call("file_ops", {"action": "copy", "source": str(src), "dest": str(dst)})
         self.assertFalse(r2.ok)
         self.assertIn("拒绝覆盖", str(r2.error))
+        self.assertIsInstance(r2.data, dict)
+        self.assertEqual(r2.data.get("status"), "dest_exists_conflict")
+        self.assertEqual(r2.data.get("needs_commit"), False)
+        self.assertTrue(r2.data.get("dest_exists"))
+        self.assertEqual(r2.data.get("on_exists"), "error")
+        # skip：跳过且不登记
+        r_skip = self._call(
+            "file_ops",
+            {"action": "copy", "source": str(src), "dest": str(dst), "on_exists": "skip"},
+        )
+        self.assertTrue(r_skip.ok)
+        self.assertEqual(r_skip.data.get("status"), "skipped")
+        self.assertEqual(dst.read_text(encoding="utf-8"), "data")
+        # overwrite：可预览并提交覆盖
+        cid2 = self._ready(
+            "file_ops",
+            {"action": "copy", "source": str(src), "dest": str(dst), "on_exists": "overwrite"},
+        )
+        r3 = self._commit(cid2)
+        self.assertTrue(r3.ok, msg=str(r3.error))
+        self.assertEqual(dst.read_text(encoding="utf-8"), "other")
+
+    def test_delete_file_missing_is_already_absent(self) -> None:
+        gone = self.root / "gone.txt"
+        r = self._call("delete_file", {"path": str(gone)})
+        self.assertTrue(r.ok)
+        self.assertEqual(r.data.get("status"), "already_absent")
+        self.assertFalse(r.data.get("needs_commit", True))
+        self.assertFalse(r.data.get("confirm_id"))
+        # file_ops delete 同口径
+        r2 = self._call("file_ops", {"action": "delete", "source": str(gone)})
+        self.assertTrue(r2.ok)
+        self.assertEqual(r2.data.get("status"), "already_absent")
+
+    def test_file_ops_source_missing_is_not_already_applied(self) -> None:
+        """copy/move/rename：源不在一律 source_missing（ok=false），不得因目标已在改判。"""
+        dest = self.root / "moved.txt"
+        dest.write_text("here", encoding="utf-8")
+        for action in ("move", "rename", "copy"):
+            with self.subTest(action=action):
+                r = self._call(
+                    "file_ops",
+                    {
+                        "action": action,
+                        "source": str(self.root / "src-missing.txt"),
+                        "dest": str(dest),
+                    },
+                )
+                self.assertFalse(r.ok)
+                self.assertIsInstance(r.data, dict)
+                self.assertEqual(r.data.get("status"), "source_missing")
+                self.assertEqual(r.data.get("needs_commit"), False)
+                self.assertTrue(r.data.get("dest_exists"))
+                self.assertFalse(r.data.get("applied", True))
+                self.assertIn("未实际", str(r.data.get("message") or ""))
+        # 目标也不在：仍是 source_missing，dest_exists=false
+        r2 = self._call(
+            "file_ops",
+            {
+                "action": "move",
+                "source": str(self.root / "no-src.txt"),
+                "dest": str(self.root / "no-dest.txt"),
+            },
+        )
+        self.assertFalse(r2.ok)
+        self.assertEqual(r2.data.get("status"), "source_missing")
+        self.assertFalse(r2.data.get("dest_exists"))
+
+    def test_write_file_same_content_already_applied(self) -> None:
+        f = self.root / "same.txt"
+        f.write_text("keep\n", encoding="utf-8")
+        r = self._call("write_file", {"path": str(f), "content": "keep\n"})
+        self.assertTrue(r.ok)
+        self.assertEqual(r.data.get("status"), "already_applied")
+        self.assertFalse(r.data.get("needs_commit", True))
+        self.assertFalse(r.data.get("confirm_id"))
+
+    def test_write_file_trailing_newline_only_shows_diff(self) -> None:
+        """仅差结尾换行时预览不得空 diff（splitlines 曾吃掉 \\n）。"""
+        f = self.root / "nl-only.txt"
+        f.write_text("created-by-probe", encoding="utf-8")  # 无结尾 \\n
+        r = self._call("write_file", {"path": str(f), "content": "created-by-probe\n"})
+        self.assertTrue(r.ok, msg=str(r.error))
+        self.assertEqual(r.data.get("status"), "pending")
+        self.assertTrue(r.data.get("newline_only"))
+        self.assertIn("结尾换行", str(r.data.get("message") or ""))
+        change = r.data.get("_change") or {}
+        self.assertGreaterEqual(int(change.get("added") or 0), 1)
+        self.assertGreaterEqual(int(change.get("deleted") or 0), 1)
+        diff = str(change.get("diff") or "")
+        self.assertTrue(diff.strip(), msg="diff 不应为空")
+        self.assertIn("created-by-probe", diff)
+        self.assertIn("No newline at end of file", diff)
+        # -/+ 不得粘成一行
+        self.assertRegex(diff, r"(?m)^-created-by-probe$")
+        self.assertRegex(diff, r"(?m)^\+created-by-probe$")
 
     # ── file_undo ────────────────────────────────────────
 

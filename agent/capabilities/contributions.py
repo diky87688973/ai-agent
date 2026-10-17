@@ -6,6 +6,7 @@
 
 - `Panel`：右栏一个可开面板的声明（id / 标题 / HTML 片段或 url / 是否常驻）。
   HTML 由插件给，壳层只负责塞进面板容器，不解释内容。
+- `BootScript`：开屏预载脚本（插件目录内相对路径）；无面板也能注入工具卡等 JS。
 - `Route`：插件自己的 HTTP 端点，挂在 `/api/plugin/<plugin>/<path>` 命名空间下。
 
 命名空间是硬约束：插件不许注册到内核路由上，也不许用 `..` 或前导 `/` 越出命名空间。
@@ -103,6 +104,40 @@ class Action:
             "label": self.label,
             "title": self.title,
             "panel": self.panel or self.action_id,
+        }
+
+
+@dataclass(slots=True)
+class CtxSegmentStyle:
+    """上下文分层里某插件段的外观（段名 / 色名）。"""
+
+    plugin: str
+    label: str = ""
+    color: str = ""
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "plugin": self.plugin,
+            "label": self.label,
+            "color": self.color,
+        }
+
+
+@dataclass(slots=True)
+class BootScript:
+    """开屏预载脚本：插件目录内相对路径，无面板也能在经典 UI 启动时注入。"""
+
+    plugin: str
+    rel_path: str
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "plugin": self.plugin,
+            "rel_path": self.rel_path,
+            "script": (
+                f"{PLUGIN_ROUTE_PREFIX}{self.plugin}/"
+                f"{ASSET_SEGMENT}/{self.rel_path}"
+            ),
         }
 
 
@@ -229,6 +264,50 @@ class ContributionRegistry:
     panels: Dict[str, Panel] = field(default_factory=dict)
     routes: Dict[str, Route] = field(default_factory=dict)
     actions: Dict[str, Action] = field(default_factory=dict)
+    ctx_segment_styles: Dict[str, CtxSegmentStyle] = field(default_factory=dict)
+    boot_scripts: Dict[str, BootScript] = field(default_factory=dict)
+
+    # ── 上下文段外观 ──
+
+    def add_ctx_segment_style(
+        self,
+        plugin: str,
+        *,
+        label: str = "",
+        color: str = "",
+    ) -> Disposer:
+        key = _clean_segment(plugin, "插件名")
+        if key in self.ctx_segment_styles:
+            raise ContributionError(f"上下文段外观已注册：{key}")
+        self.ctx_segment_styles[key] = CtxSegmentStyle(
+            plugin=plugin,
+            label=str(label or ""),
+            color=str(color or ""),
+        )
+        return lambda: self.ctx_segment_styles.pop(key, None)
+
+    def all_ctx_segment_styles(self) -> List[CtxSegmentStyle]:
+        """全部上下文段外观，按插件名排序。"""
+        return sorted(self.ctx_segment_styles.values(), key=lambda s: s.plugin)
+
+    # ── 开屏脚本（无面板也可预载）──
+
+    def add_boot_script(self, plugin: str, rel_path: str) -> Disposer:
+        """登记开屏预载脚本（插件目录内相对路径，如 `ui/tool-view.js`）。"""
+        name = _clean_segment(plugin, "插件名")
+        rel = _clean_asset_rel(rel_path)
+        key = f"{name}:{rel}"
+        if key in self.boot_scripts:
+            raise ContributionError(f"开屏脚本已注册：{key}")
+        self.boot_scripts[key] = BootScript(plugin=plugin, rel_path=rel)
+        return lambda: self.boot_scripts.pop(key, None)
+
+    def all_boot_scripts(self) -> List[BootScript]:
+        """全部开屏脚本，按插件名与相对路径排序。"""
+        return sorted(
+            self.boot_scripts.values(),
+            key=lambda s: (s.plugin, s.rel_path),
+        )
 
     # ── 动作（输入区按钮）──
 
@@ -353,7 +432,10 @@ class ContributionRegistry:
         """撤掉某插件的全部贡献；返回撤掉条数（卸载兜底，防残留死标签 / 死端点）。"""
         name = str(plugin or "")
         total = 0
-        for store in (self.panels, self.routes, self.actions):
+        for store in (
+            self.panels, self.routes, self.actions,
+            self.ctx_segment_styles, self.boot_scripts,
+        ):
             keys = [k for k, v in store.items() if getattr(v, "plugin", None) == name]
             for k in keys:
                 store.pop(k, None)

@@ -42,8 +42,6 @@ class ChatMinWidthTest(unittest.TestCase):
         self.assertGreaterEqual(
             got, MEASURED_MIN_PX,
             msg=f"最小宽度 {got}px 小于实测下界 {MEASURED_MIN_PX}px，控件会顶出边界")
-
-    def test_clamp_uses_that_bound(self) -> None:
         js = JS.read_text(encoding="utf-8")
         self.assertIn("mainInnerWidth()-RESIZER_PX-MIN_CHAT_PX", js,
                       msg="右栏上限必须扣掉对话区最小宽度")

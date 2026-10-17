@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import threading
 import time
 import uuid
@@ -68,10 +69,7 @@ class MeshState:
             fn = self._session_exists
         if fn is None:
             return False
-        try:
-            return bool(fn(key))
-        except Exception:
-            return False
+        return bool(fn(key))
 
     # ── 注册表───────────────────────────────────
 
@@ -224,8 +222,14 @@ class MeshState:
                 return {"queued": True, "queued_count": n, "run_id": ""}
             try:
                 rid = str(self._activator(key, dict(message)) or "")
-            except Exception:
-                rid = ""
+            except Exception as exc:
+                print(
+                    f"[mesh] activator 失败 cid={key}: "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr, flush=True,
+                )
+                n = self._enqueue_locked(key, message)
+                return {"queued": True, "queued_count": n, "run_id": ""}
             if rid:
                 return {"queued": False, "queued_count": 0, "run_id": rid}
             n = self._enqueue_locked(key, message)
@@ -293,8 +297,13 @@ class MeshState:
                                 continue  # 坏行跳过
                             if isinstance(obj, dict):
                                 rows.append(obj)
-                    except Exception:
-                        rows = []
+                    except Exception as exc:
+                        print(
+                            f"[mesh] 读 inbox 失败 path={p}: "
+                            f"{type(exc).__name__}: {exc}",
+                            file=sys.stderr, flush=True,
+                        )
+                        continue
                     if rows:
                         self._inboxes[p.stem] = rows
         except Exception:

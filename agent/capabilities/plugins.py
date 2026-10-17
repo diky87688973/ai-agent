@@ -24,10 +24,30 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional
 
 from agent.capabilities.registry import ToolPlugin, ToolRegistry
+from agent.core.error_report import report_error
 
 Disposer = Callable[[], None]
 
 _MODULE_PREFIX = "fan_agent_plugins"
+
+
+def resolve_plugin_root(plugins_dir: Path, name: str, path_raw: str = "") -> Path:
+    """清单里的 `path` → 插件目录。空值取 `<插件根>/<名字>`。
+
+    相对路径**按插件根解析**，不是按工程根：插件根是可配置的，写死工程根会让
+    换了目录的部署全解析错。清单里写 `plugins/knowledge` 这种带前缀的路径也认 ——
+    前缀与插件根同名时先剥掉，否则会拼成 `<插件根>/plugins/knowledge`。
+    """
+    base = Path(plugins_dir)
+    if not path_raw:
+        return (base / name).resolve()
+    raw = Path(path_raw)
+    if raw.is_absolute():
+        return raw.resolve()
+    parts = list(raw.parts)
+    if parts and parts[0] == base.name:
+        parts = parts[1:]
+    return (base.joinpath(*parts) if parts else base).resolve()
 
 
 def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
@@ -193,7 +213,7 @@ class PluginContext:
         `{"label": ..., "prefix": ..., "count": fn(cid)}`。
         组装顺序不由插件声明：它取插件在清单里的位次。
         """
-        from agent.mechanisms.context_pipeline import SourceMeta, _slug
+        from agent.mechanisms.context_pipeline import SourceMeta, slug
 
         label = ""
         prefix = ""
@@ -208,7 +228,7 @@ class PluginContext:
             label = str(getattr(meta, "label", "") or "")
             prefix = str(getattr(meta, "prefix", "") or "")
             count = getattr(meta, "count", None)
-        name = _slug(self.name)
+        name = slug(self.name)
         # 组装顺序按**插件清单位次**：清单靠前的插件，它的段也排在前面。
         return SourceMeta(key=name, label=label or name, plugin=self.name,
                           prefix=prefix, count=count,
@@ -296,10 +316,12 @@ class PluginContext:
         `ui/panel.css`）：声明它们，壳层就按 `_asset` 路由送出，面板首次打开时注入。
         面板的脚本与样式都属于插件，不必自己挂路由、也不要写进壳层的公共资源。
         """
-        return self._contrib().add_panel(
+        disposer = self._contrib().add_panel(
             self.name, panel_id, title=title, html=html, url=url,
             script=script, script_file=script_file, css_file=css_file, pinned=pinned,
         )
+        self._disposers.append(disposer)
+        return disposer
 
     def add_route(
         self,
@@ -312,7 +334,9 @@ class PluginContext:
         `handler(query)` 返回 `(status, payload)`；payload 为 dict / list 时按 JSON 返回。
         路径只许是单段字面量（不许 `..`、通配或前导斜杠），命名空间不可越出。
         """
-        return self._contrib().add_route(self.name, method, path, handler)
+        disposer = self._contrib().add_route(self.name, method, path, handler)
+        self._disposers.append(disposer)
+        return disposer
 
     def add_action(
         self,
@@ -327,8 +351,31 @@ class PluginContext:
         默认点击打开本插件同 id 的面板；`panel` 可指向另一个面板。
         插件不声明就没有这个按钮 —— 界面里不该有内核写死的插件入口。
         """
-        return self._contrib().add_action(
+        disposer = self._contrib().add_action(
             self.name, action_id, label=label, title=title, panel=panel)
+        self._disposers.append(disposer)
+        return disposer
+
+    def add_ctx_segment_style(
+        self,
+        *,
+        label: str = "",
+        color: str = "",
+    ) -> Disposer:
+        """声明上下文分层里本插件段的外观（段名 / 色名）；壳层开屏按贡献表注册。"""
+        disposer = self._contrib().add_ctx_segment_style(
+            self.name, label=label, color=color)
+        self._disposers.append(disposer)
+        return disposer
+
+    def add_boot_script(self, rel_path: str) -> Disposer:
+        """声明开屏预载脚本（插件目录内相对路径）；无面板也能在经典 UI 启动时注入。
+
+        壳层按 `/api/plugin/<插件>/_asset/<路径>` 送达，排在面板脚本预载之后。
+        """
+        disposer = self._contrib().add_boot_script(self.name, rel_path)
+        self._disposers.append(disposer)
+        return disposer
 
 
 class PluginHost:
@@ -349,6 +396,8 @@ class PluginHost:
         self._loaded: Dict[str, List[Disposer]] = {}
         self._modules: Dict[str, str] = {}
         self._runtimes: Dict[str, Any] = {}
+        #: 已装载插件名 → 插件目录（清单 `path` 解析后的绝对路径）
+        self._plugin_roots: Dict[str, Path] = {}
         #: 版本，来自 `[base] version`；没写时沿用模块里的 `PLUGIN_VERSION`。没声明就是空串。
         self._versions: Dict[str, str] = {}
         self._reports: List[LoadReport] = []
@@ -361,6 +410,14 @@ class PluginHost:
     def plugins_dir(self) -> Path:
         """插件根目录（壳层送面板脚本资产时要按它校验路径）。"""
         return self._dir
+
+    def plugin_root(self, name: str) -> Optional[Path]:
+        """已装载插件的目录；未装载或未知名返回 None。"""
+        return self._plugin_roots.get(str(name or "").strip())
+
+    def resolve_plugin_root(self, name: str, path_raw: str = "") -> Path:
+        """清单里的 `path` → 插件目录（与装载时同一套解析）。"""
+        return resolve_plugin_root(self._dir, name, path_raw)
 
     @property
     def contributions(self) -> Any:
@@ -423,11 +480,12 @@ class PluginHost:
                 continue
 
             if not _valid_plugin_name(name):
+                msg = "插件名非法：只许字母、数字、下划线与短横，且不以 . 或 _ 开头"
+                report_error("plugin.load", msg, plugin=name or "(未命名)")
                 fresh.append(LoadReport(
-                    name=name or "(未命名)", status="error",
-                    message="插件名非法：只许字母、数字、下划线与短横，且不以 . 或 _ 开头"))
+                    name=name or "(未命名)", status="error", message=msg))
                 continue
-            root = self._resolve_plugin_root(name, path_raw)
+            root = resolve_plugin_root(self._dir, name, path_raw)
             base = plugin_config_fields(root)
             if base["enable"] == "0":
                 if name in self._loaded:
@@ -438,12 +496,13 @@ class PluginHost:
 
             entry_file = root / "plugin.py"
             if not entry_file.is_file():
-                fresh.append(LoadReport(
-                    name=name, status="error",
-                    message=f"插件目录不存在或缺少 plugin.py：{entry_file}"))
+                msg = f"插件目录不存在或缺少 plugin.py：{entry_file}"
+                report_error("plugin.load", msg, plugin=name)
+                fresh.append(LoadReport(name=name, status="error", message=msg))
                 continue
 
-            report = self._load_one(PluginInfo(name=name, path=entry_file), rank=rank)
+            report = self._load_one(
+                PluginInfo(name=name, path=entry_file), rank=rank, root=root)
             if base["version"]:
                 self._versions[name] = base["version"]
             if report.status == "loaded" and declared:
@@ -455,23 +514,6 @@ class PluginHost:
             fresh.append(report)
         self._reports.extend(fresh)
         return fresh
-
-    def _resolve_plugin_root(self, name: str, path_raw: str) -> Path:
-        """清单里的 `path` → 插件目录。空值取 `<插件根>/<名字>`。
-
-        相对路径**按插件根解析**，不是按工程根：插件根是可配置的，写死工程根会让
-        换了目录的部署全解析错。清单里写 `plugins/knowledge` 这种带前缀的路径也认 ——
-        前缀与插件根同名时先剥掉，否则会拼成 `<插件根>/plugins/knowledge`。
-        """
-        if not path_raw:
-            return (self._dir / name).resolve()
-        raw = Path(path_raw)
-        if raw.is_absolute():
-            return raw.resolve()
-        parts = list(raw.parts)
-        if parts and parts[0] == self._dir.name:
-            parts = parts[1:]
-        return (self._dir.joinpath(*parts) if parts else self._dir).resolve()
 
     def load_enabled(self, enabled: List[str]) -> List[LoadReport]:
         """按**名字白名单**装载（不写清单的场景：测试、脚本、临时装配）。
@@ -486,21 +528,35 @@ class PluginHost:
                 continue
             info = discovered.get(name)
             if info is None:
-                fresh.append(LoadReport(name=name, status="error", message="插件目录不存在或缺少 plugin.py"))
+                msg = "插件目录不存在或缺少 plugin.py"
+                report_error("plugin.load", msg, plugin=name)
+                fresh.append(LoadReport(name=name, status="error", message=msg))
                 continue
-            report = self._load_one(info, rank=rank)
+            report = self._load_one(
+                info, rank=rank, root=info.path.parent.resolve())
             fresh.append(report)
         self._reports.extend(fresh)
         return fresh
 
-    def _load_one(self, info: PluginInfo, rank: Optional[int] = None) -> LoadReport:
+    def _load_one(
+        self,
+        info: PluginInfo,
+        rank: Optional[int] = None,
+        root: Optional[Path] = None,
+    ) -> LoadReport:
         ctx = PluginContext(info.name, self._registry, self._event_bus,
                             self._context_sources, self._pipeline, self,
                             self._contributions, self._executors)
         ctx.set_rank(rank)
         mod_name = f"{_MODULE_PREFIX}.{info.name}"
+        plugin_root = Path(root).resolve() if root is not None else info.path.parent.resolve()
         try:
-            spec = importlib.util.spec_from_file_location(mod_name, str(info.path))
+            # 把插件目录标成包搜索路径，使 `from .sibling import …` 在动态加载下可用
+            spec = importlib.util.spec_from_file_location(
+                mod_name,
+                str(info.path),
+                submodule_search_locations=[str(plugin_root)],
+            )
             if spec is None or spec.loader is None:
                 raise ImportError(f"无法加载插件模块：{info.path}")
             module: ModuleType = importlib.util.module_from_spec(spec)
@@ -512,12 +568,15 @@ class PluginHost:
             returned = register(ctx)
             self._loaded[info.name] = _collect_disposers(ctx, returned)
             self._modules[info.name] = mod_name
+            self._plugin_roots[info.name] = plugin_root
             # 模块级 PLUGIN_VERSION。`[base] version` 有值时调用方改用那一份，再与清单核对。
             self._versions[info.name] = str(getattr(module, "PLUGIN_VERSION", "") or "")
             return LoadReport(name=info.name, status="loaded")
         except Exception as exc:
             _rollback(ctx)
-            sys.modules.pop(mod_name, None)
+            _drop_plugin_modules(mod_name)
+            self._plugin_roots.pop(info.name, None)
+            report_error("plugin.load", exc, plugin=info.name)
             return LoadReport(name=info.name, status="error", message=f"{type(exc).__name__}: {exc}")
 
     # ── 卸载 ──
@@ -535,8 +594,9 @@ class PluginHost:
                 pass
         mod_name = self._modules.pop(key, None)
         if mod_name:
-            sys.modules.pop(mod_name, None)
+            _drop_plugin_modules(mod_name)
         self._runtimes.pop(key, None)
+        self._plugin_roots.pop(key, None)
         # 贡献兜底：disposer 正常时已撤过，这里防的是 disposer 漏挂或执行失败 ——
         # 残留的面板会变成打不开的死标签，残留的端点会指向已卸载的插件。
         if self._contributions is not None:
@@ -556,6 +616,14 @@ class PluginHost:
     def reports(self) -> List[LoadReport]:
         """全部装载报告（副本）。"""
         return list(self._reports)
+
+
+def _drop_plugin_modules(mod_name: str) -> None:
+    """卸掉插件入口模块及其子模块（相对 import 会挂上同前缀名）。"""
+    prefix = mod_name + "."
+    for key in list(sys.modules):
+        if key == mod_name or key.startswith(prefix):
+            sys.modules.pop(key, None)
 
 
 def _collect_disposers(ctx: PluginContext, returned: Any) -> List[Disposer]:

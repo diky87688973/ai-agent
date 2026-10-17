@@ -4,8 +4,7 @@
 工作方式：
 - 订阅事件总线：assistant_delta → 句子缓冲切分 → 每会话串行队列合成；
 - turn_ended / error → flush_remaining 强制入队；
-- 音频输出经 on_audio 钩子：默认只打印日志，壳层可从 `plugin_host.runtime("tts")`
-  取到同一份运行时并替换它。
+- 音频就绪时默认只写 stderr（调试用）；可选 `on_audio` 钩子供测试替换。
 
 配置在本插件目录下的 `plugin-config.ini`：`[base]` 是身份与开关，`[ext]` 是 `engine` / `voice` / `max_segment_chars`。
 """
@@ -383,7 +382,7 @@ class TTSRuntime:
             self._emit_audio(cid, audio, spoken, voice or TTS_VOICES[0], dbg)
 
     def _emit_audio(self, cid: str, audio: bytes, text: str, voice: str, dbg: str) -> None:
-        """音频输出钩子：默认打印日志；壳层可替换 on_audio 以走 SSE audio 事件。"""
+        """音频就绪：有 `on_audio` 则回调，否则只写 stderr。"""
         if self._on_audio is not None:
             self._on_audio(cid=cid, audio=audio, text=text, voice=voice, dbg=dbg)
             return
@@ -459,8 +458,7 @@ def _make_flush_handler(runtime: TTSRuntime) -> Callable[[Any], None]:
 def register(ctx: Any) -> List[Callable[[], None]]:
     """插件入口：装配运行时并订阅事件总线（返回 disposer 列表）。"""
     runtime = TTSRuntime(_load_tts_config())
-    # 登记给宿主：壳层经 `plugin_host.runtime("tts")` 取同一份实例，才能替换
-    # `on_audio` 把音频送到界面。只放模块级表壳层 import 不到（动态模块名）。
+    # 登记给宿主（动态模块名下壳层 import 不到同一份实例）。
     ctx.set_runtime(runtime)
     _RUNTIMES[ctx.name] = runtime
     disposers: List[Callable[[], None]] = [

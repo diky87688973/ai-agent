@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
-from agent.core.tool_call import ToolCallRequest, ToolResult  # noqa: E402
+from agent.core.tool_call import ToolResult  # noqa: E402
 
 
 def _patch(old: str, new: str) -> str:
@@ -50,8 +50,9 @@ class Acceptance:
 
     def call(self, name: str, arguments: dict) -> ToolResult:
         self.seq += 1
-        call = ToolCallRequest(call_id=f"c{self.seq}", name=name, arguments=arguments)
-        return self.app.pipeline.execute(self.app.registry, call, None)
+        return self.app.execute_tool(
+            name, arguments, call_id=f"c{self.seq}"
+        )
 
     def ready(self, name: str, arguments: dict):
         """预览 + 确认（四步前两步）；返回 (预览结果, confirm_id)。"""
@@ -172,6 +173,15 @@ class Acceptance:
 
         f4 = self.root / "f4.txt"
         f5 = self.root / "f5.txt"
+        # 同内容再 copy → 幂等已应用（不必 commit）
+        r = self.call("file_ops", {"action": "copy", "source": str(f4), "dest": str(f5)})
+        self.check(
+            "file_ops：同内容再复制为 already_applied",
+            r.ok and r.data.get("status") == "already_applied"
+            and not r.data.get("needs_commit", True),
+        )
+        # 内容不同且默认 on_exists=error → 拒绝覆盖
+        f4.write_text("changed", encoding="utf-8")
         r = self.call("file_ops", {"action": "copy", "source": str(f4), "dest": str(f5)})
         self.check("file_ops：覆盖已存在目标被拒", (not r.ok) and ("拒绝覆盖" in str(r.error)))
 

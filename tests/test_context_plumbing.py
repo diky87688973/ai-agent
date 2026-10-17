@@ -53,7 +53,7 @@ class ContextPlumbingTest(unittest.TestCase):
     """三级上下文在工具轮次内可用。"""
 
     def setUp(self) -> None:
-        from agent.mechanisms.quality_gate import QualityGate
+        from agent.mechanisms.quality import QualityGate
 
         self.tool = _ProbeTool()
         self.registry = _Registry(self.tool)

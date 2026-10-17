@@ -33,17 +33,39 @@ _TERMINOLOGY = """\
 - **用户确认**：`user_confirm` —— 停下来问用户。**与写盘链路无关**。
 - **`confirm_id`**：`write_file` 预览返回的**预览快照 ID**（提交唯一凭据）。
   它与 `user_confirm` 的同名参数（宿主确认单 ID）**不是一回事**。
-- **三步写盘**：**任意预览工具**（`write_file` / `replace_in_file` / `apply_patch` …，
-  只返回改动、不落盘）→ `review_conclusion`（审阅并解锁）→ `commit_write`（凭 `confirm_id` 落盘）。
-  写类工具共 9 个，见纪律第 2 条；链路只有这一条。"""
-_TOOLING_DISCIPLINE = """\
+- **三步写盘**：任意声明预览的写类工具（只返回改动、不落盘）→
+  `review_conclusion`（审阅并解锁）→ `commit_write`（凭 `confirm_id` 落盘）。
+  当前已注册的预览写类工具名单见纪律第 2 条；链路只有这一条。"""
+
+
+def preview_write_tools_line(registry: Any) -> str:
+    """从注册表收集 `needs_preview` 工具名，排序后用 ` / ` 拼接。"""
+    if registry is None:
+        raise ValueError("preview_write_tools_line 需要 registry")
+    names: list[str] = []
+    try:
+        for name in registry.names():
+            plugin = registry.get(name)
+            if plugin is not None and bool(getattr(plugin, "needs_preview", False)):
+                names.append(str(name))
+    except Exception as exc:
+        raise ValueError(f"无法从 registry 读取预览写类工具：{exc}") from exc
+    names.sort()
+    if not names:
+        return "（当前无已注册的预览写类工具）"
+    return " / ".join(names)
+
+
+def tooling_discipline(registry: Any) -> str:
+    """工具使用纪律段；写类名单来自 registry 的 needs_preview。"""
+    tools_line = preview_write_tools_line(registry)
+    return f"""\
 ## 工具使用纪律
 
 1. **先问清后操作**：缺路径、缺目录、意图不明时先问用户 —— 不要猜着做，也不要在未知路径上递归搜索。
 2. **改前必读**：改任何源码前**必须** read_file 看清当前内容 —— 跳过读取直接改必然出错。
    **所有写类工具**都走同一个门控，一个都不能跳 review：
-   write_file / replace_in_file / apply_patch / read_write / delete_file /
-   file_ops / file_undo / archive / skill_manage。
+   {tools_line}
    链路见上「术语」的**三步写盘链路**；跳过 review 直接提交会被门控拒绝。
    同一文件刚落盘后又要改：须先 read_file 复核当前内容与行号；
    **复核不使已解锁的 confirm_id 失效**，确认无误后用原 confirm_id 继续
@@ -107,20 +129,22 @@ _TOOL_SUMMARY_FOOTER = "各工具的完整参数以它自己的 schema 为准。
 
 def build_system_prompt(
     *,
+    registry: Any,
     mode: str = "auto",
     tool_summary: str = "",
     user_rules: str = "",
 ) -> str:
     """组装基础系统提示词。
 
-    参数都可缺省：缺省时仍输出纪律与模式两段，系统提示不会退化为空串，
-    空系统提示会让模型只凭工具 schema 猜纪律。
+    `registry` 必填：纪律第 2 条的预览写类名单从 `needs_preview` 生成。
     """
+    if registry is None:
+        raise ValueError("build_system_prompt 需要 registry")
     parts = [
         "你是 AI Agent，一个可以读写文件、执行命令的通用助手。",
         _REPLY_LANGUAGE,
         _TERMINOLOGY,
-        _TOOLING_DISCIPLINE,
+        tooling_discipline(registry),
         _CODING_DISCIPLINE,
         mode_section(mode),
     ]
@@ -183,10 +207,7 @@ def tool_summary(registry: Any, *, limit: int = 40) -> str:
     """
     if registry is None:
         return ""
-    try:
-        schemas = registry.schemas()
-    except Exception:
-        return ""
+    schemas = registry.schemas()
     lines = []
     for schema in list(schemas or [])[: max(0, int(limit))]:
         if not isinstance(schema, dict):
@@ -211,14 +232,14 @@ def resolve_system_prompt(
     """会话系统提示的解析入口，**不含模式段**。
 
     `explicit`（mesh 里显式设过 `system`）优先——调用方要能覆盖；
-    否则用基础提示词 + 用户规则 + 工具速查。这条链路让"系统提示词"这一块**永远有内容**。
-
-    模式不进这里：它由 `mode_note()` 单独产出、只在发请求时附加到尾部，
-    这样切模式不会改动系统提示词，前缀缓存不被破坏。
+    否则用基础提示词 + 用户规则 + 工具速查（须传 `registry`）。
     """
     if explicit is not None and str(explicit).strip():
         return str(explicit)
+    if registry is None:
+        raise ValueError("resolve_system_prompt 在无 explicit 时需要 registry")
     return split_mode_section(build_system_prompt(
+        registry=registry,
         mode=mode,
         tool_summary=tool_summary(registry),
         user_rules=user_rules,
@@ -246,9 +267,6 @@ def load_user_rules_from_config() -> str:
     配置读取由 `agent.config` 提供，本函数只做一层薄封装，
     好让调用方不必同时 import 两个模块。
     """
-    try:
-        from agent.config import get_user_rules
+    from agent.config import get_user_rules
 
-        return get_user_rules()
-    except Exception:
-        return ""
+    return get_user_rules()

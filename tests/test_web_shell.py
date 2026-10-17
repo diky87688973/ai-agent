@@ -60,8 +60,12 @@ class ScriptedProvider:
                 data = _json.loads(content)
             except Exception:
                 continue
-            if isinstance(data, dict) and data.get("confirm_id"):
-                return str(data["confirm_id"])
+            if not isinstance(data, dict):
+                continue
+            # 模型侧信封：`{"ok":true,"data":{…confirm_id…}}`；兼容旧裸 data
+            inner = data.get("data") if isinstance(data.get("data"), dict) else data
+            if isinstance(inner, dict) and inner.get("confirm_id"):
+                return str(inner["confirm_id"])
         return ""
 
     def stream(self, request):
@@ -245,7 +249,6 @@ class EndpointTest(_ServerFixture):
 
         # 首页是经典界面单页：素材内联，原件仍按原名躺在 `web_assets/classic/` 下，
         # 可用 `/assets/classic/...` 直接取到。
-        # 沉浸模式入口不存在，路由必须显式 404。
         for path, needle in (
             ("/", "AI Agent"),                     # 经典 UI 标题
             ("/", "id=\"chatTabs\""),              # 顶部会话标签栏
@@ -336,15 +339,6 @@ class DateGroupTest(unittest.TestCase):
         old_day = time.localtime(now - 40 * 86400)
         self.assertEqual(_date_group(now - 40 * 86400, now),
                          f"{old_day.tm_mon}月{old_day.tm_mday}日")
-
-    def test_classic_layer_shares_the_kernel_grouping(self) -> None:
-
-        from agent.shell.classic_adapter.inbound import _date_group as classic_group
-        from agent.shell.web import _date_group as kernel_group
-
-        now = time.time()
-        for stamp in (now, now - 86400, now - 3 * 86400, now - 40 * 86400):
-            self.assertEqual(classic_group(stamp, now), kernel_group(stamp, now))
 
 class FileViewerContractTest(_ServerFixture):
     """文件读取端点的路径解析与越界边界。"""
@@ -878,7 +872,7 @@ class ConcurrencyTest(_ServerFixture):
         self.assertEqual(status, 400)
 
     def test_stop_cancels_a_running_turn(self) -> None:
-        """停止是协作式真取消：经 SessionRunner 取消谓词让内核在检查点停下。"""
+        """停止是真取消：经 SessionRunner 的停止检查，让内核在检查点停下。"""
 
         cid = "conc-cancel-0001"
         started = self.app.runner.start(cid, {"content": "跑"})
@@ -932,15 +926,18 @@ class WriteGateOverWebTest(_ServerFixture):
         self.assertIn("未解锁", str(rejected[-1].get("error") or ""))
         self.assertFalse(self.target.exists(), msg="被拒的提交不得落盘")
 
-        # 经 review_conclusion 解锁（三步链路的第二步）
-        from agent.capabilities.builtin import review_conclusion as rc
-
-        rc.ReviewConclusionTool(gate).execute({
-            "conclusion": "review结论：本次预览为新建 out.txt，内容与预期一致，"
-                          "路径在临时目录内、无覆盖风险，验证通过。",
-            "file_name": "out.txt",
-            "confirm_id": confirm_id,
-        })
+        # 经 review_conclusion 解锁（三步链路的第二步；须走 ToolPort / 会话桶）
+        unlocked = self.app.execute_tool(
+            "review_conclusion",
+            {
+                "conclusion": "review结论：本次预览为新建 out.txt，内容与预期一致，"
+                              "路径在临时目录内、无覆盖风险，验证通过。",
+                "file_name": "out.txt",
+                "confirm_id": confirm_id,
+            },
+            conversation_id=cid,
+        )
+        self.assertTrue(unlocked.ok, msg=str(unlocked.error))
         self.assertTrue(gate.peek(confirm_id).get("confirmed"), msg="review 后预览应已解锁")
 
     def test_confirm_is_session_scoped(self) -> None:

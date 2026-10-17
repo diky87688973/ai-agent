@@ -14,6 +14,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
+from agent.capabilities.registry import ToolRegistry  # noqa: E402
 from agent.core.modules import _with_mode_note  # noqa: E402
 from agent.shell.prompts import (  # noqa: E402
     build_system_prompt,
@@ -25,19 +26,28 @@ from agent.shell.prompts import (  # noqa: E402
 MODES = ("auto", "plan", "execute")
 
 
+def _empty_reg() -> ToolRegistry:
+    return ToolRegistry()
+
+
 class SystemPromptHasNoModeTest(unittest.TestCase):
     """模式段必须从系统提示词里出去。"""
 
     def test_resolved_system_prompt_has_no_mode(self) -> None:
+        reg = _empty_reg()
         for mode in MODES:
-            text = resolve_system_prompt(mode=mode)
+            text = resolve_system_prompt(mode=mode, registry=reg)
             self.assertNotIn("## 当前模式", text, msg=f"{mode} 的模式段漏在系统提示词里")
 
     def test_switching_mode_keeps_system_prompt_byte_identical(self) -> None:
-        base = resolve_system_prompt(mode="auto", user_rules="规则一段")
+        reg = _empty_reg()
+        base = resolve_system_prompt(mode="auto", registry=reg, user_rules="规则一段")
         for mode in MODES[1:]:
-            self.assertEqual(resolve_system_prompt(mode=mode, user_rules="规则一段"), base,
-                             msg=f"切到 {mode} 改动了系统提示词 —— 前缀缓存会整段作废")
+            self.assertEqual(
+                resolve_system_prompt(mode=mode, registry=reg, user_rules="规则一段"),
+                base,
+                msg=f"切到 {mode} 改动了系统提示词 —— 前缀缓存会整段作废",
+            )
 
     def test_mode_note_still_differs_per_mode(self) -> None:
         notes = {m: resolve_mode_note(mode=m) for m in MODES}
@@ -46,7 +56,12 @@ class SystemPromptHasNoModeTest(unittest.TestCase):
             self.assertIn("当前模式", note, msg=f"{mode} 的说明缺少模式标题")
 
     def test_split_helper_drops_the_mode_section(self) -> None:
-        full = build_system_prompt(mode="plan", user_rules="规则", tool_summary="- `a` — b")
+        full = build_system_prompt(
+            registry=_empty_reg(),
+            mode="plan",
+            user_rules="规则",
+            tool_summary="- `a` — b",
+        )
         self.assertIn("## 当前模式", full, msg="构造函数本身仍应产出模式段（供拆分用）")
         cut = split_mode_section(full)
         self.assertNotIn("## 当前模式", cut)
@@ -147,25 +162,28 @@ class ModeIsNotPersistedTest(unittest.TestCase):
         cid = "mode-not-persisted"
         engine = app.session(
             cid,
-            system_prompt=resolve_system_prompt(mode="plan"),
+            system_prompt=resolve_system_prompt(mode="plan", registry=app.registry),
             mode_note=resolve_mode_note(mode="plan"),
             cancel=lambda: False,
         )
         for _ev in engine.start_turn("做点什么"):
             pass
 
-        # 请求里有
-        self.assertIn("当前模式", str(spy.reqs[-1].messages[-1].get("content")))
+        # 请求尾条有模式段标记（工具描述里也可能出现「当前模式」字样，故钉段头）
+        self.assertIn("## 当前模式", str(spy.reqs[-1].messages[-1].get("content")))
         # 事实里没有
         dump = "\n".join(
             f"{getattr(e, 'type', '')}:{getattr(e, 'data', {})}" for e in store.load(cid)
         )
-        self.assertNotIn("当前模式", dump, msg="模式说明不得写进会话记录")
-        # 系统提示词字段里也没有
-        self.assertNotIn("当前模式",
-                         str([m.get("content") for m in (spy.reqs[-1].messages or [])
-                              if str(m.get("role")) == "system"][:-1]))
-
+        self.assertNotIn("## 当前模式", dump, msg="模式说明不得写进会话记录")
+        # 系统提示词字段里也没有（不含尾条 mode_note）
+        self.assertNotIn(
+            "## 当前模式",
+            str([
+                m.get("content") for m in (spy.reqs[-1].messages or [])
+                if str(m.get("role")) == "system"
+            ][:-1]),
+        )
 
 if __name__ == "__main__":
     unittest.main()

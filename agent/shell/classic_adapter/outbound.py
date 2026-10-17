@@ -104,9 +104,6 @@ class ClassicStream:
             return []
         try:
             return list(handler(payload))
-        except Exception:
-            # 翻译失败不能把事件流打断（观察面纪律）：静默跳过这一帧
-            return []
         finally:
             self._frame_seq = None      # 翻完即清，绝不留给下一个事件
 
@@ -137,21 +134,15 @@ class ClassicStream:
         return out
 
     def _resolve_mode(self) -> str:
-        """当前会话模式：由 adapter 注入的解析器取；拿不到回落 auto。"""
+        """当前会话模式：由 adapter 注入的解析器取。"""
         if self.mode_resolver is None:
             return "auto"
-        try:
-            return C.normalize_mode(self.mode_resolver(self.cid))
-        except Exception:
-            return "auto"
+        return C.normalize_mode(self.mode_resolver(self.cid))
 
     def _resolve_model(self) -> str:
         if self.model_resolver is None:
             return ""
-        try:
-            return str(self.model_resolver(self.cid) or "")
-        except Exception:
-            return ""
+        return str(self.model_resolver(self.cid) or "")
 
     def _on_input_claimed(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 经典界面**乐观渲染**用户气泡（agent-ui.js:2053），这里再发一次会重复。
@@ -494,7 +485,7 @@ class ClassicStream:
         # ⚠️ `data.confirm_id` 不映射为 `user_confirm_required`。
         #
         # `confirm_id` 是**写盘门控的二阶提交锁**，不是"等用户点卡片"：
-        # `quality_gate.post` 给**预览类工具的成功结果**挂上它，意思是
+        # 写盘门控给**预览类工具的成功结果**挂上它，意思是
         # "锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。
         # 用户交互**不发生在这一步**。
         #
@@ -644,19 +635,24 @@ class ClassicStream:
 def _preview_json(script: str, data: Any, error: str, ok: bool) -> str:
     """`tool_end.preview` 是 **JSON 字符串**（经典界面会 `JSON.parse`，失败回落原文）。
 
-    内层字段**各工具不同**（经典界面读 `data.stdout` / `data.diffText` /
-    `data.diff_text` / `data.confirm_id` / `data.restored_path`），所以这里保留
-    内核原始 data 的形状，只做"裹一层 `data`"——内核工具已经在用这些名字。
+    与回灌模型的信封同形（见 `session_log._tool_envelope`）：
+      - 成功：`{"ok": true, "data": <工具结果>}`
+      - 失败：`{"ok": false, "error": "…"}`（可选附带 `data`）
+
+    内层字段仍各工具不同（经典界面读 `data.stdout` / `data.diffText` /
+    `data.diff_text` / `data.confirm_id` / `data.restored_path`）。
     """
     import json
 
     if not ok:
-        payload: Dict[str, Any] = {"data": {"ok": False, "error": error}}
+        payload: Dict[str, Any] = {"ok": False, "error": error}
+        if data is not None:
+            payload["data"] = data
     elif isinstance(data, dict):
-        payload = {"data": data}
+        payload = {"ok": True, "data": data}
     else:
-        payload = {"data": {"value": data}}
+        payload = {"ok": True, "data": {"value": data}}
     try:
         return json.dumps(payload, ensure_ascii=False, default=str)
     except (TypeError, ValueError):
-        return json.dumps({"data": {"error": "结果无法序列化"}}, ensure_ascii=False)
+        return json.dumps({"ok": False, "error": "结果无法序列化"}, ensure_ascii=False)

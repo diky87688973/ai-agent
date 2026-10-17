@@ -35,12 +35,13 @@ def _load_pillow() -> Any:
 
     缩放是优化而非正确性前提：缺库时仍发原图。
     """
-    try:
-        from PIL import Image  # type: ignore
+    import importlib.util
 
-        return Image
-    except Exception:
+    if importlib.util.find_spec("PIL") is None:
         return None
+    from PIL import Image  # type: ignore
+
+    return Image
 
 
 def _sniff_mime(data: bytes) -> str:
@@ -269,11 +270,8 @@ def describe_image(data: bytes, declared_mime: str = "") -> Tuple[str, int, int]
 
 
 def shrink_path(path: Path, *, max_side: int = EMBED_MAX_SIDE) -> bytes:
-    """从文件读图并缩放（工具类用途；读不到返回空字节）。"""
-    try:
-        raw = Path(path).read_bytes()
-    except OSError:
-        return b""
+    """从文件读图并缩放（工具类用途；读失败让 OSError 冒泡）。"""
+    raw = Path(path).read_bytes()
     out, _mime = shrink_image(raw, max_side=max_side)
     return out
 

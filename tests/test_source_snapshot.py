@@ -94,10 +94,10 @@ class _Touch(ModuleBase):
     name = "touch"
 
     def __init__(self, pipe: ContextPipeline) -> None:
-        self._context = pipe
+        self.context_pass = pipe
 
     def execute(self, ports):
-        self._context.set_dialogue([{"role": "user", "content": "问"}])
+        self.context_pass.set_dialogue([{"role": "user", "content": "问"}])
         if False:
             yield None
         return Outcome.ok()
@@ -109,10 +109,10 @@ class _Halt(ModuleBase):
     name = "halt"
 
     def __init__(self, pipe: ContextPipeline) -> None:
-        self._context = pipe
+        self.context_pass = pipe
 
     def execute(self, ports):
-        self._context.set_dialogue([{"role": "user", "content": "问"}])
+        self.context_pass.set_dialogue([{"role": "user", "content": "问"}])
         if False:
             yield None
         return Outcome.halt("停")

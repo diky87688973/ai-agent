@@ -283,7 +283,7 @@ class TurnStartAssemblyTest(unittest.TestCase):
     """装配时把"本轮起点"标出来，provider 才有裁的依据。"""
 
     def test_model_module_marks_turn_start(self) -> None:
-        src = (ROOT / "agent/core/modules.py").read_text(encoding="utf-8")
+        src = (ROOT / "agent/core/modules/model_mod.py").read_text(encoding="utf-8")
         self.assertIn("turn_start=len(messages) - len(dialogue) + turn_start", src)
 
     def test_port_default_keeps_everything(self) -> None:

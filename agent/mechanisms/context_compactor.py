@@ -17,23 +17,20 @@ import json
 import sys
 from typing import Any, Callable, Dict, List, Optional
 
+from agent.core.mode_marker import MODE_MARKER
 from agent.core.ports import LogicalRequest
-from agent.core.session_log import _ensure_tool_pairs
+from agent.core.session_log import ensure_tool_pairs
 from agent.mechanisms.context_pipeline import (
     DEFAULT_FULL_USER_ROUNDS,
-    approx_tokens_text,
     clip_reasoning,
-    default_message_tokens,
     excerpt_by_target_tokens,
     tool_chain_balanced,
     turn_boundary_floor,
 )
+from agent.mechanisms.context_tokens import approx_tokens_text, default_message_tokens
 
 #: 摘要桥接尾巴：接在摘要正文之后，向模型标明上文是历史摘要、下文续当前对话。
 SUMMARY_BRIDGE_TAIL = "\n\n【以上为历史摘要，下面继续当前对话】"
-
-#: 执行模式段的固定起始标记。压缩时要把它从尾部剔除（见 `_strip_mode_tail`）。
-_MODE_MARKER = "## 当前模式："
 
 _SUMMARY_INSTRUCTION = (
     "把上面这段对话压缩成一份摘要，供另一个模型接着干，关键上下文不能丢。\n"
@@ -179,7 +176,7 @@ def make_provider_summarizer(
             # `assistant(tool_calls)` 是悬空的。模型 API 对悬空调用硬拒绝
             # （400：must be followed by tool messages）。
             # 两边补法一致，前缀逐字节相同不受影响。
-            messages=_ensure_tool_pairs(clip_reasoning(head, 0)
+            messages=ensure_tool_pairs(clip_reasoning(head, 0)
                                         + [{"role": "system", "content": tail}]),
             # 工具定义照平常请求带上（前缀的一部分，少一项整段缓存作废）。
             tools=list(tools or []) if prefix_reuse else [],
@@ -325,10 +322,7 @@ class ContextCompactor:
             prefix = base
             system = ""
             if hasattr(context, "system_text"):
-                try:
-                    system = str(context.system_text() or "")
-                except Exception:
-                    system = ""
+                system = str(context.system_text() or "")
             text = ""
             if self._summarize_fn is not None:
                 # 第三个位置参数是"要压的那一段"（在补齐后的对话序列里，按轮边界对齐）：
@@ -362,7 +356,7 @@ class ContextCompactor:
         判据（两条任一成立即认为是模式说明，从尾部连续剔除）：
 
         1. 与本次的 `mode_note` 正文相同 —— 最可靠，模式说明是现拼出来的；
-        2. 正文以 `## 当前模式：` 开头 —— 模式段的固定标记，`mode_note` 拿不到时兜底。
+        2. 正文以 `MODE_MARKER` 开头 —— 模式段的固定标记，`mode_note` 拿不到时兜底。
 
         只剔尾部的：模式说明永远附在最后，中间的 `system` 消息（系统提示 / 插件段 /
         知识库 / 摘要）一条都不能动。
@@ -379,7 +373,7 @@ class ContextCompactor:
             if note and text == note:
                 out.pop()
                 continue
-            if text.startswith(_MODE_MARKER):
+            if text.startswith(MODE_MARKER):
                 out.pop()
                 continue
             break

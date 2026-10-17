@@ -21,10 +21,10 @@
 """
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
+from agent.core.error_report import report_error
 from agent.core.events import Event
 from agent.core.session_log import SessionLog
 
@@ -62,11 +62,22 @@ class ToolPort:
     """工具能力的**规则接口**：执行一次工具调用。
 
     实现类保证"工具调用唯一入口"（所有调用都经管道），模块只管要结果。
+    装配时注入进程级 `app` 与会话注册表 `sessions`，执行期写入管道上下文，
+    工具经 `current_context().session.gate` 取会话门控。
     """
 
-    def __init__(self, *, registry: Any, pipeline: Any) -> None:
+    def __init__(
+        self,
+        *,
+        registry: Any,
+        pipeline: Any,
+        app: Any = None,
+        sessions: Any = None,
+    ) -> None:
         self._registry = registry
         self._pipeline = pipeline
+        self._app = app
+        self._sessions = sessions
 
     @property
     def registry(self) -> Any:
@@ -82,48 +93,60 @@ class ToolPort:
                 canceled: Any = None, tool_call_id: str = "") -> Any:
         """执行一次调用，返回 `ToolResult`。
 
-        `conversation_id` / `progress` / `canceled` 是管道需要的上下文信息，
-        由模块从端口带过来 ——模块不需要自己拼一个上下文对象。
+        `conversation_id` / `progress` / `canceled` 由模块从端口带过来；
+        `app` / `session` 由本端口在执行期填入管道上下文。
         """
         if self._pipeline is None or self._registry is None:
             raise RuntimeError("未装配工具管道")
-        holder = _ToolCallScope(conversation_id=conversation_id, progress_sink=progress,
-                                canceled=canceled,
-                                tool_call_id=tool_call_id or str(getattr(call, "call_id", "") or ""))
+        cid = str(conversation_id or "")
+        session = None
+        if self._sessions is not None:
+            resolve = getattr(self._sessions, "resolve_sync", None)
+            if callable(resolve):
+                session = resolve(cid)
+        holder = _ToolCallScope(
+            conversation_id=cid,
+            progress_sink=progress,
+            canceled=canceled,
+            tool_call_id=tool_call_id or str(getattr(call, "call_id", "") or ""),
+            app=self._app,
+            session=session,
+        )
         return self._pipeline.execute(self._registry, call, holder)
 
 
 class _ToolCallScope:
-    """管道执行期需要的最小上下文载体（会话 id + 进度出口 + 取消谓词）。
+    """管道执行期上下文：会话 id、进度出口、停止检查、进程级 app、会话桶。
 
-    管道是鸭子类型的：它只读 `conversation_id` / `progress_sink` /
-    `app` / `session`。这里把前两个由模块带过来；后两个在模块里不经过工具上下文
-    传递（能力一律走 `ToolPort`），故留空。
+    管道只读这些字段；`app` / `session` 由 `ToolPort` 在 `execute` 时填入，
+    供 `ToolTurnContext` 与 `current_context()` 使用。
 
-    `canceled`：**长时间跑的工具要能在执行中途停下来**。只靠宿主退出循环不够 ——
-    子进程会继续跑到自然结束，而界面已经显示"已停止"。所以要把它一路带给工具
-    （用法见 `capabilities/builtin/command_tools._pump`）。
+    `canceled`：长时间跑的工具在执行中途查询（见 `command_tools._pump`）。
     """
 
-    def __init__(self, *, conversation_id: str = "", progress_sink: Any = None,
-                 canceled: Any = None, tool_call_id: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        conversation_id: str = "",
+        progress_sink: Any = None,
+        canceled: Any = None,
+        tool_call_id: str = "",
+        app: Any = None,
+        session: Any = None,
+    ) -> None:
         self.conversation_id = str(conversation_id or "")
-        #: 本次调用的 id。交互式命令要把它拼进 stdin 通道键
-        #: （`cid:tool_call_id`），否则同一会话里的多次命令调用分不清谁在等输入。
+        #: 本次调用的 id。交互式命令拼进 stdin 通道键（`cid:tool_call_id`）。
         self.tool_call_id = str(tool_call_id or "")
         self.progress_sink = progress_sink
         self._canceled = canceled
-        self.app = None
-        self.session = None
+        self.app = app
+        self.session = session
 
     def canceled(self) -> bool:
-        """是否已请求停止（没有谓词时恒为 False）。"""
+        """是否已请求停止（没传入检查函数时恒为 False）。"""
         if self._canceled is None:
             return False
-        try:
-            return bool(self._canceled())
-        except Exception:
-            return False
+        return bool(self._canceled())
 
 
 class Ports:
@@ -140,7 +163,6 @@ class Ports:
         conversation_id: str = "",
         model: Optional[ModelPort] = None,
         tools: Optional[ToolPort] = None,
-        extras: Optional[Dict[str, Any]] = None,
         cancel: Optional[Callable[[], bool]] = None,
         seq_allocator: Optional[Callable[[], int]] = None,
     ) -> None:
@@ -149,7 +171,6 @@ class Ports:
         self._cid = str(conversation_id or "")
         self._model = model
         self._tools = tools
-        self._extras = dict(extras or {})
         self._cancel = cancel
         #: 分配**全局存储坐标**（`store.allocate_seq`）。core 不感知 store，
         #: 所以由装配方注入"分配一个号"的能力。坐标必须在 **emit 产出瞬间**标好
@@ -196,8 +217,7 @@ class Ports:
             payload["_seq"] = int(self._seq_allocator())
         except Exception as exc:
             # 不阻断回合，但**必须留痕**：没有坐标意味着这个事件的续传能力丢了。
-            print(f"[core] 分配存储坐标失败（本事件将无法断线续传）："
-                  f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            report_error("core.seq_alloc", exc)
 
     # ── 能力（按类型，不按字符串名）───────────────────────
 
@@ -213,22 +233,12 @@ class Ports:
         """宿主是否已请求停止（**协作式取消**）。
 
         模块在自认为合适的粒度问它：模型模块逐帧问（长回答能被立刻打断），
-        工具模块逐调用问（不启动新调用）。谓词异常一律当"未取消"——
-        取消是增强项，不能让回合因它出错。
+        工具模块逐调用问（不启动新调用）。检查函数自身出错必须把异常抛出去。
         """
         if self._cancel is None:
             return False
-        try:
-            return bool(self._cancel())
-        except Exception:
-            return False
+        return bool(self._cancel())
 
-    def extras(self, key: str, default: Any = None) -> Any:
-        """装配期传入的附加数据（**数据**，不是能力）。
-
-        给"确实无法静态声明"的装配参数留一个口子；能力一律走上面的端口属性。
-        """
-        return self._extras.get(key, default)
 
 @dataclass(slots=True)
 class LogicalRequest:

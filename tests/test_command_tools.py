@@ -258,8 +258,8 @@ if __name__ == "__main__":
 class CancelKillsProcessTest(unittest.TestCase):
     """**停止要真的停子进程**：只退出内核循环不够。
 
-    `request_cancel` 置位取消谓词后，宿主退出自己的循环、界面显示"已停止"；
-    `run_command` 不在读取循环里检查该谓词时，子进程会继续跑到自然结束
+    `request_cancel` 记下「已请求停止」后，宿主退出自己的循环、界面显示"已停止"；
+    `run_command` 不在读取循环里看这个状态时，子进程会继续跑到自然结束
     （编译 / 安装这种长命令尤其明显，用户以为停了、其实还在跑）。
     """
 
@@ -280,7 +280,7 @@ class CancelKillsProcessTest(unittest.TestCase):
         threading.Timer(2.0, lambda: state.__setitem__("canceled", True)).start()
 
         # 用**真实载体**：管道执行期工具看到的是 `_ToolCallScope`，
-        # 取消谓词由 `_ToolPort.execute(..., canceled=...)` 带进来；
+        # 停止检查由 `_ToolPort.execute(..., canceled=...)` 带进来；
         # 自造替身的形状与真实载体不一致，测不出真问题。
         from agent.core.ports import _ToolCallScope
 
@@ -323,13 +323,13 @@ class CancelKillsProcessTest(unittest.TestCase):
         self.assertEqual(survivors, [], msg=f"子进程必须被真的杀掉；残留：{survivors}")
 
 class CancelWiringTest(unittest.TestCase):
-    """取消谓词必须**从模块一路带到工具**（装配层，不是工具自己猜）。
+    """停止检查必须**从模块一路带到工具**（装配层，不是工具自己猜）。
 
-    工具的取消分支只有在装配层把谓词一路传到底时才拿得到真值；只在工具内部
+    工具的取消分支只有在装配层把检查函数一路传到底时才拿得到真值；只在工具内部
     检查取消位、装配层不接线，取消永远不生效。这条用例钉住那条接线。
     """
 
-    def test_tool_port_passes_the_cancel_predicate_into_the_scope(self) -> None:
+    def test_tool_port_passes_the_cancel_check_into_the_scope(self) -> None:
         from agent.core.ports import ToolPort
 
         seen = {}
@@ -367,10 +367,10 @@ class CancelWiringTest(unittest.TestCase):
         self.assertTrue(seen.get("canceled"),
                         msg="请求停止后工具必须看得到（否则停止只停了个循环）")
 
-    def test_scope_without_predicate_is_safe(self) -> None:
-        """没有谓词时 `canceled()` 必须是 False，不抛。"""
+    def test_scope_without_cancel_check_is_safe(self) -> None:
+        """没传入检查函数时 `canceled()` 必须是 False；检查函数自己出错必须把异常抛出去。"""
         from agent.core.ports import _ToolCallScope
 
         self.assertFalse(_ToolCallScope().canceled())
-        self.assertFalse(_ToolCallScope(canceled=lambda: 1 / 0).canceled(),
-                         msg="谓词自身出错时按未取消处理，不得让工具崩")
+        with self.assertRaises(ZeroDivisionError):
+            _ToolCallScope(canceled=lambda: 1 / 0).canceled()

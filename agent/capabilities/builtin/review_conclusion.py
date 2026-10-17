@@ -3,28 +3,18 @@
 
 写盘链路只有预览 → review → 提交（仅 `confirm_id`）。
 调用本工具即"提交结论"（带 `confirm_id` 时并解锁预览）。
-提交结论 → 门控 review_done()（清 pending_review、解除跨文件写限制）；
-confirm_id → gate.confirm 解锁；cancel_preview → gate.discard 释放预览。
+会话门控只经 `current_context().session.gate`。
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Union
+from typing import Any, Dict
 
 from agent.capabilities.registry import ToolPlugin
-from agent.mechanisms.quality_gate import QualityGate
-
-GateRef = Union[QualityGate, Callable[[], QualityGate], None]
+from agent.mechanisms.quality import QualityGate
 
 
-def _resolve_gate(gate: GateRef) -> QualityGate:
-    """解析本次调用的会话门控。
-
-    优先用构造期给的引用（门控对象或取门控的回调）；没有给就**从会话上下文取**
-    ——门控本来就住在 `SessionContext.gate` 里，而工具轮次的上下文是共享数据结构，
-    直接读即可，不必让装配层专门造一个"能摸到门控的函数"传进来。
-    """
-    if gate is not None:
-        return gate() if callable(gate) else gate
+def _session_gate() -> QualityGate:
+    """取当前工具轮次的会话门控。"""
     from agent.core.session_scope import current_context
 
     ctx = current_context()
@@ -32,7 +22,7 @@ def _resolve_gate(gate: GateRef) -> QualityGate:
     resolved = getattr(session, "gate", None)
     if resolved is None:
         raise ValueError(
-            "取不到会话门控：既未注入，也不在工具轮次上下文内（须经 ToolPipeline.execute 调用）"
+            "取不到会话门控：须经 ToolPort.execute（管道上下文填入 session）调用"
         )
     return resolved
 
@@ -56,9 +46,8 @@ class ReviewConclusionTool(ToolPlugin):
         "confirm_id": {"type": "string", "description": "要解锁的预览快照 ID（可选）"},
         "cancel_preview": {"type": "boolean", "description": "true 时取消该 confirm_id 预览（释放锁）"},
     }
-
-    def __init__(self, gate: GateRef) -> None:
-        self._gate = gate
+    needs_preview = False
+    write_path_keys: tuple[str, ...] = ()
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         text = str(arguments.get("conclusion") or "").strip()
@@ -74,13 +63,12 @@ class ReviewConclusionTool(ToolPlugin):
             )
         review_type = str(arguments.get("review_type") or "file")
         cid = str(arguments.get("confirm_id") or "").strip()
+        gate = _session_gate()
 
-        # 调用即"提交结论"，并按需解锁预览；写盘链路只有：预览 → review → 提交（仅 confirm_id）。
-        # 解锁必须由显式调用触发：靠对模型不可见的参数默认值，漏传就会静默解锁失败。
-        # ⚠️ 下面 `cancel` 分支必须在 `confirm` **之前**：取消不能变成解锁。
+        # cancel 分支在 confirm 之前：取消不能变成解锁。
 
         if cid and cancel:
-            ok = _resolve_gate(self._gate).discard(cid)
+            ok = gate.discard(cid)
             if not ok:
                 raise ValueError(f"confirm_id 无效或已被消耗: {cid}")
             return {
@@ -92,11 +80,11 @@ class ReviewConclusionTool(ToolPlugin):
             }
 
         if cid:
-            ok = _resolve_gate(self._gate).confirm(cid)
+            ok = gate.confirm(cid)
             if not ok:
                 raise ValueError(f"confirm_id 无效或已被消耗: {cid}")
 
-        _resolve_gate(self._gate).review_done()
+        gate.review_done()
         return {
             "reviewed": True,
             "review_type": review_type,
@@ -106,9 +94,6 @@ class ReviewConclusionTool(ToolPlugin):
         }
 
 
-def build(gate: GateRef = None) -> ReviewConclusionTool:
-    """构造 review_conclusion 插件（需门控引用）。
-
-    gate 可传门控实例（直调场景）或"按当前会话解析门控"的可调用（装配态）。
-    """
-    return ReviewConclusionTool(gate)
+def build() -> ReviewConclusionTool:
+    """构造 review_conclusion；门控由管道上下文提供。"""
+    return ReviewConclusionTool()

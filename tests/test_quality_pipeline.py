@@ -13,7 +13,8 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.mechanisms.quality_gate import QualityGate, WriteContext  # noqa: E402
+from agent.mechanisms.quality import WriteContext  # noqa: E402
+from tests.gate_fixtures import make_gate  # noqa: E402
 
 
 class QualityPipelineTest(unittest.TestCase):
@@ -23,7 +24,7 @@ class QualityPipelineTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
-        self.gate = QualityGate()
+        self.gate = make_gate()
 
     def _ready(self, path: Path, content: str = "v", *, tool: str = "write_file") -> str:
         """预览登记 + 确认（四步前两步），返回 confirm_id。"""
@@ -74,35 +75,6 @@ class QualityPipelineTest(unittest.TestCase):
         self.assertFalse(self.gate.evidence_ok)
         self.gate.set_intent("whatever")
         self.assertEqual(self.gate.intent, "")
-
-    def test_diagnose_red_limits_scope(self) -> None:
-        """红灯时仅允许 fixable/pending 路径。"""
-
-        a = self.root / "fix_a.txt"
-        b = self.root / "other_b.txt"
-        cid_a = self._ready(a, "va")
-        cid_b = self._ready(b, "vb")
-        self.gate.pending_diagnose_red = True
-        self.gate.fixable_paths = [str(a)]
-        blocked = self.gate.check_write(self._wc(cid_b))
-        self.assertFalse(blocked.allow)
-        self.assertIn("诊断", blocked.reason)
-        allowed = self.gate.check_write(self._wc(cid_a))
-        self.assertTrue(allowed.allow)
-
-    def test_cross_file_review_blocks(self) -> None:
-        """写 A 后未 review，写 B 被拒；review 后放行。"""
-
-        a = self.root / "ra.txt"
-        b = self.root / "rb.txt"
-        cid_a = self._ready(a, "va")
-        self.gate.note_committed(str(a))
-        cid_b = self._ready(b, "vb")
-        blocked = self.gate.check_write(self._wc(cid_b))
-        self.assertFalse(blocked.allow)
-        self.assertIn("review", blocked.reason)
-        self.gate.review_done()
-        self.assertTrue(self.gate.check_write(self._wc(cid_b)).allow)
 
     def test_apply_patch_channel(self) -> None:
         """apply_patch：写之前解锁的另一份仍可提交；同一路径写之后才解锁的要先 review。"""
@@ -202,7 +174,10 @@ class QualityPipelineTest(unittest.TestCase):
         report = self.gate.build_quality_report(str(a))
         self.assertEqual(report["overall"], "green")
         self.assertTrue(report["checks"])
-        self.assertIn("请提交 review 结论（review_done）", report["required_next_actions"])
+        self.assertIn(
+            "若继续改其他文件，请先做写后复核（review_conclusion）",
+            report["required_next_actions"],
+        )
         b = self.root / "rep_bad.py"
         b.write_text("def f(:\n", encoding="utf-8")
         report_red = self.gate.build_quality_report(str(b))

@@ -18,7 +18,7 @@ var n=chatToolName(script);
 if(n==="review_conclusion")return "Review";
 if(n==="commit_write")return "提交修改";
 var dr=argGet(args,"dry_run");
-return (dr!==false&&dr!==0)?"修改预览":"提交修改";
+return (dr!==false&&dr!==0)?"预览修改":"提交修改";
 }
 function chatCachedConfirmPath(args){
 var cid=String(argGet(args,"confirm_id")||"").trim();
@@ -197,11 +197,19 @@ if(path)return path;
 if(stamp)return "to "+stamp;
 return "";
 }
+function chatToolResultData(ev){
+/* 从 tool_end.preview 取工具结果：信封用 `.data`，旧帧/裸结果则用对象本身。 */
+var parsed=chatToolParsePreview(ev);
+if(!parsed||typeof parsed!=="object")return null;
+if(parsed.data!==undefined&&typeof parsed.data==="object"&&parsed.data!==null)return parsed.data;
+if(parsed._change||parsed.path||parsed.files||parsed.diff||parsed.diffText||parsed.diff_text||parsed._diff)return parsed;
+return null;
+}
 function chatPaintDiffPane(pane, o, ev){
 if(!pane)return "";
 pane.innerHTML="";
-var parsed=chatToolParsePreview(ev);
-var dt=diffTextFromToolData(parsed&&parsed.data);
+var data=chatToolResultData(ev);
+var dt=typeof diffTextFromToolData==="function"?diffTextFromToolData(data):"";
 var html=dt&&dt.trim()?renderUnifiedDiffBodyAsCardsHtml(dt):"";
 if(html)pane.innerHTML=html;
 else if(dt&&dt.trim()){
@@ -209,17 +217,11 @@ var box=document.createElement("div");
 box.className="diff-unified diff-surface-adaptive";
 renderUnifiedDiffRows(box, dt.split(/\r?\n/));
 pane.appendChild(box);
-}else addChatToolText(pane, chatToolResponseText(o, ev));
+}else{
+/* 预览区只画 diff；完整信封在「查看报文」。无差异时不落整段 JSON。 */
+addChatToolText(pane, "（无文本差异）");
+}
 return dt||"";
-}
-function chatSkillName(o){
-return String(argGet(o&&o.args,"name")||"").trim();
-}
-function chatSkillContent(ev){
-var j=chatToolParsePreview(ev);
-if(!j)return null;
-var d=j.data&&typeof j.data==="object"?j.data:j;
-return typeof d.content==="string"?d.content:null;
 }
 function chatReadFileContent(ev){
 var j=chatToolParsePreview(ev);
@@ -258,10 +260,22 @@ row.appendChild(head);row.appendChild(body);
 row._title=t;row._sum=sum;row._body=body;
 return row;
 }
-/* 工具标题是后画进对话区的。点击从标题冒泡上来，这里收一次再展开，不为每一行再绑。 */
+/* 后画进对话区的控件统一委托：工具标题展开、查看报文，不为每个按钮再绑。 */
 document.addEventListener("click",function(ev){
 var t=ev.target;
 if(!t||!t.closest)return;
+var pkt=t.closest(".chat-tool-packet-btn");
+if(pkt){
+ev.preventDefault();
+var body=pkt.closest(".chat-tool-body");
+var raw=body?body.querySelector(":scope > .chat-tool-raw"):null;
+if(!raw)return;
+var open=!!raw.hidden;
+raw.hidden=!open;
+pkt.setAttribute("aria-expanded",open?"true":"false");
+pkt.classList.toggle("is-open",open);
+return;
+}
 var head=t.closest(".chat-tool-head");
 if(!head)return;
 var row=head.closest(".chat-tool-row");
@@ -345,7 +359,7 @@ if(d&&typeof d==="object"&&!Array.isArray(d)&&!Object.keys(d).length&&j.error==n
 return true;
 }
 function chatToolFailPreview(error){
-return JSON.stringify({data:{ok:false,error:String(error||"执行失败")}},null,2);
+return JSON.stringify({ok:false,error:String(error||"执行失败")},null,2);
 }
 /* tool_end 的失败详情在 preview JSON 里，帧上常常没有顶层 error。
    自定义明细只认失败态，文案统一为红色「<执行失败>」，细节留在「查看报文」。 */
@@ -354,6 +368,7 @@ if(!ev||ev.user_confirm_required||ev.approval_required)return false;
 if(typeof chatToolWasCanceled==="function"&&chatToolWasCanceled(ev))return false;
 if(ev.ok===false||ev.ok===0||ev.ok==="false")return true;
 var j=chatToolParsePreview(ev);
+if(j&&(j.ok===false||j.ok===0||j.ok==="false"))return true;
 var d=j&&j.data;
 return !!(d&&typeof d==="object"&&(d.ok===false||d.ok===0));
 }
@@ -374,16 +389,45 @@ function chatToolClearFailMark(el){
 if(!el)return;
 el.classList.remove("chat-tool-fail");
 }
+function chatToolFrameOk(ev){
+if(!ev)return true;
+if(ev.user_confirm_required||ev.approval_required)return true;
+if(ev.ok===false||ev.ok===0||ev.ok==="false")return false;
+return true;
+}
+function chatToolEnvelopePayload(ok, data, error){
+if(ok)return {ok:true,data:data};
+var payload={ok:false,error:String(error||"执行失败")};
+if(data!==undefined)payload.data=data;
+return payload;
+}
+/* 报文「响应」= 工具输出信封（与回灌模型同形）：顶层 ok + data/error。
+   preview 已是信封则原样展示；旧帧只有 `{data:工具结果}` 时按帧 ok 补齐，不改内层字段。 */
 function chatToolResponseText(o, ev){
-if(ev&&ev.preview){
-var fromPreview=chatToolPrettyJson(ev.preview);
+var ok=chatToolFrameOk(ev);
+var j=chatToolParsePreview(ev);
+if(j&&Object.prototype.hasOwnProperty.call(j,"ok")){
+var fromPreview=chatToolPrettyJson(j);
 if(chatToolPayloadUseful(fromPreview))return fromPreview;
 }
-if(ev&&!ev.ok&&ev.error&&!ev.user_confirm_required&&!ev.approval_required){
+if(j&&Object.prototype.hasOwnProperty.call(j,"data")){
+var packed=chatToolPrettyJson(chatToolEnvelopePayload(ok, j.data, (ev&&ev.error)||j.error));
+if(chatToolPayloadUseful(packed))return packed;
+}
+if(ev&&!ok&&ev.error&&!ev.user_confirm_required&&!ev.approval_required){
 return chatToolFailPreview(ev.error);
 }
 var t=o&&o.resPb?String(o.resPb.textContent||""):"";
 if(chatToolPayloadUseful(t)){
+try{
+var rj=JSON.parse(t);
+if(rj&&typeof rj==="object"){
+if(Object.prototype.hasOwnProperty.call(rj,"ok"))return chatToolPrettyJson(rj);
+if(Object.prototype.hasOwnProperty.call(rj,"data"))
+return chatToolPrettyJson(chatToolEnvelopePayload(ok, rj.data, (ev&&ev.error)||rj.error));
+return chatToolPrettyJson(chatToolEnvelopePayload(ok, rj, ev&&ev.error));
+}
+}catch(e){}
 var fromRes=chatToolPrettyJson(t);
 if(fromRes.trim())return fromRes;
 }
@@ -456,7 +500,7 @@ o.chatRunOutPre.textContent=ev.ok?"（无输出）":"（无结果）";
 });
 var chatToolViewPreview=registerChatToolView({
 match:function(script, args){return isPreviewEditTool(script, args);},
-title:function(){return "修改预览";},
+title:function(){return "预览修改";},
 summary:function(o){return chatEditPath(o.script, o.args)||"（未指定文件）";},
 mount:function(row, o){
 o.chatToolDiffPane=addChatToolLayer(row._body,"","diff");
@@ -495,6 +539,17 @@ var dt=chatPaintDiffPane(o.chatToolDiffPane, o, ev);
 if(label||dt)paintPreviewSummary(row, label, dt);
 }
 });
+function chatReadFileRangeLabel(args, data){
+var ls=argGet(args,"line_start"), le=argGet(args,"line_end");
+var sc=argGet(args,"start_column"), ec=argGet(args,"end_column");
+if((ls==null||le==null)&&data&&typeof data==="object"){
+if(ls==null&&data.line_start!=null)ls=data.line_start;
+if(le==null&&data.line_end!=null)le=data.line_end;
+}
+if(ls==null||le==null)return "";
+if(sc!=null&&ec!=null)return " L"+ls+":"+sc+"-"+le+":"+ec;
+return " L"+ls+"-"+le;
+}
 registerChatToolView({
 match:function(script){return chatToolName(script)==="read_file";},
 title:function(o){return chatToolExpandPaths(chatToolHead(o).title, o.args);},
@@ -505,6 +560,12 @@ o.chatToolFile=addChatToolText(addChatToolLayer(row._body,"","file"), "（等待
 fill:function(row, o, ev){
 var pane=o.chatToolFile;
 if(!pane)return;
+var j=chatToolParsePreview(ev);
+var d=j&&j.data&&typeof j.data==="object"?j.data:null;
+var path=String(argGet(o&&o.args,"path")||"").trim();
+if(d&&!path)path=String(d.path||"").trim();
+var sum=(path||"（未指定 path）")+chatReadFileRangeLabel(o&&o.args, d);
+chatToolSetSummary(row, sum);
 if(chatToolIsFailed(ev)){chatToolPaintFailText(pane);return;}
 chatToolClearFailMark(pane);
 var text=chatReadFileContent(ev);
@@ -570,38 +631,6 @@ pane.appendChild(meta);
 }
 }
 });
-registerChatToolView({
-match:function(script, args){
-return chatToolName(script)==="skill_manage"&&String(argGet(args,"action")||"").toLowerCase()==="read";
-},
-title:function(){return "加载 Skills";},
-summary:function(o){return chatSkillName(o)||"（未指定 Skills）";},
-mount:function(row, o){
-var pane=addChatToolLayer(row._body,"","skill");
-var box=document.createElement("div");
-box.className="b a chat-tool-md";
-box.textContent="（等待内容…）";
-pane.appendChild(box);
-o.chatToolSkill=box;
-},
-fill:function(row, o, ev){
-var name=chatSkillName(o);
-if(!name){
-var j=chatToolParsePreview(ev);
-var d=j&&j.data||{};
-name=String(d.name||"").trim();
-}
-if(name)chatToolSetSummary(row, name);
-var box=o.chatToolSkill;
-if(!box)return;
-if(chatToolIsFailed(ev)){chatToolPaintFailText(box);return;}
-chatToolClearFailMark(box);
-var text=chatSkillContent(ev);
-if(text==null){box.textContent=ev.ok?"（无内容）":"（无结果）";return;}
-if(!text){box.textContent="（空内容）";return;}
-try{box.innerHTML=renderMarkdown(text);}catch(e){box.textContent=text;}
-}
-});
 function chatGlobSummary(args, data){
 var root=String((data&&data.root)||argGet(args,"path")||".").trim()||".";
 var glob=String(argGet(args,"glob_pattern")||"*");
@@ -635,7 +664,7 @@ return lines;
 }
 registerChatToolView({
 match:function(script){return chatToolName(script)==="delete_file";},
-title:function(){return "预览删除";},
+title:function(o){return chatToolHead(o).title;},
 summary:function(o){return String(argGet(o&&o.args,"path")||"").trim()||"（未指定 path）";},
 mount:function(row, o){
 o.chatToolDelete=addChatToolText(addChatToolLayer(row._body,"",""), "（等待结果…）");
@@ -777,8 +806,15 @@ while(row._body.firstChild)view.appendChild(row._body.firstChild);
 var btn=document.createElement("button");
 btn.type="button";
 btn.className="chat-tool-packet-btn";
-btn.textContent="查看报文";
 btn.setAttribute("aria-expanded","false");
+var chev=document.createElement("span");
+chev.className="chat-tool-chev";
+chev.setAttribute("aria-hidden","true");
+var label=document.createElement("span");
+label.className="chat-tool-packet-label";
+label.textContent="查看报文";
+btn.appendChild(chev);
+btn.appendChild(label);
 var bar=document.createElement("div");
 bar.className="chat-tool-packet";
 bar.appendChild(btn);
@@ -800,13 +836,6 @@ return code;
 }
 pane("请求", "req", JSON.stringify((o&&o.args)||{},null,2));
 var res=pane("响应", "res", "（等待结果…）");
-btn.addEventListener("click",function(ev){
-ev.preventDefault();
-ev.stopPropagation();
-var open=!!raw.hidden;
-raw.hidden=!open;
-btn.setAttribute("aria-expanded", open?"true":"false");
-});
 row._body.appendChild(custom);
 row._body.appendChild(raw);
 if(o)o.chatToolPacketRes=res;

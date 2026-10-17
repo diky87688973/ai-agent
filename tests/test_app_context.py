@@ -99,6 +99,26 @@ class AppContextTest(unittest.TestCase):
             with self.assertRaises(KeyError):
                 ctx.get(name)
 
+    def test_dispose_all_runs_in_reverse_registration_order(self) -> None:
+        """dispose_all 按注册逆序调用 disposer（后注册先清理）。"""
+        ctx = AppContext()
+        order: list[str] = []
+        for name in ("a", "b", "c"):
+            ctx.register(name, object())
+        original = list(ctx._disposers)
+        ctx._disposers.clear()
+        for key, orig in original:
+            def _wrap(k=key, o=orig):
+                def _d() -> None:
+                    order.append(k)
+                    o()
+
+                return _d
+
+            ctx._disposers.append((key, _wrap()))
+        ctx.dispose_all()
+        self.assertEqual(order, ["c", "b", "a"])
+
 
 if __name__ == "__main__":
     unittest.main()

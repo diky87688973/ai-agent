@@ -183,6 +183,7 @@ version = 1.0
 | `data/recycle/` | 删除操作的回收目录 |
 | `data/plugin/<插件名>/` | 插件专属存储（插件只看到自己那一层） |
 | `data/cache/` | 派生缓存，含会话加密密钥 |
+| `data/logs/errors.log` | 进程错误日志（JSONL；内核/插件装配与宿主运行异常；工具业务失败收成 `ToolResult` 后不记此处；超约 2MB 轮转为 `errors.log.1`） |
 
 目录都是按需惰性创建的：全新克隆下只有 `data/` 本身，跑过一轮才会出现用到的那几个。
 

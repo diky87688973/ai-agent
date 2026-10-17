@@ -11,7 +11,8 @@
 .chat-tool-sum:not(:empty)::before{content:"";display:inline-block;width:1px;height:11px;margin-right:8px;background:rgba(255,255,255,.18);vertical-align:-1px}
 .chat-tool-chev{flex:0 0 12px;width:12px;height:12px;display:inline-flex;align-items:center;justify-content:center;color:#8b949e}
 .chat-tool-chev::before{content:"";border-style:solid;border-width:4px 0 4px 5px;border-color:transparent transparent transparent currentColor;transition:transform .15s ease}
-.chat-tool-row.is-open .chat-tool-chev::before{transform:rotate(90deg)}
+/* 只转标题箭头；报文按钮自有 `.chat-tool-packet-btn.is-open`，不能跟行展开绑死。 */
+.chat-tool-row.is-open .chat-tool-head .chat-tool-chev::before{transform:rotate(90deg)}
 .chat-tool-row.is-open{margin-bottom:6px}
 .chat-tool-row.is-running .chat-tool-title{
 background-image:linear-gradient(90deg,#e39a3a 0%,#e39a3a 38%,#7a4a28 50%,#e39a3a 62%,#e39a3a 100%);
@@ -46,6 +47,8 @@ animation:chat-tool-marquee 1.8s linear infinite;
 .chat-tool-pane--cmd{background:transparent}
 .chat-tool-pane--diff{max-height:none;overflow:visible;padding:0;background:transparent}
 .chat-tool-pane--diff .chat-diff-card{margin:0;border:0;border-radius:0;background:transparent}
+/* 工具行标题已有路径与 ±，详情里不再重复画 diff 标题栏。 */
+.chat-tool-pane--diff .chat-diff-cap{display:none}
 .chat-tool-pane--diff .diff-unified{max-height:400px;overflow:auto}
 .chat-tool-body .cmd-input-bar{margin:0;border:0;border-top:1px solid rgba(255,255,255,.06);border-radius:0}
 .chat-tool-custom-view{max-height:400px;overflow:auto}
@@ -55,8 +58,12 @@ animation:chat-tool-marquee 1.8s linear infinite;
 .chat-tool-custom-view .diff-unified,
 .chat-tool-custom-view .chat-tool-pane--diff .diff-unified{max-height:none;overflow:visible}
 .chat-tool-packet{padding:6px 12px 8px}
-.chat-tool-packet-btn{border:0;background:transparent;padding:0;font:inherit;font-size:12.5px;line-height:1.4;color:#8b949e;cursor:pointer}
+.chat-tool-packet-btn{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;padding:0;font:inherit;font-size:12.5px;line-height:1.4;color:#8b949e;cursor:pointer}
 .chat-tool-packet-btn:hover{color:#d6dde6}
+.chat-tool-packet-btn .chat-tool-chev{color:inherit}
+.chat-tool-packet-btn.is-open .chat-tool-chev::before{transform:rotate(90deg)}
+.chat-tool-packet-label{font:inherit;font-size:inherit;line-height:inherit;color:inherit}
+.chat-tool-raw{border-top:1px solid rgba(255,255,255,.06)}
 .chat-tool-raw .chat-tool-pane{max-height:400px;overflow:auto}
 html[data-ui-theme="light"] .chat-tool-head:hover{background:rgba(20,40,80,.05)}
 html[data-ui-theme="light"] .chat-tool-title{color:#1a2233}
@@ -88,6 +95,7 @@ html[data-ui-theme="light"] .chat-tool-pane--diff{background:transparent}
 html[data-ui-theme="light"] .chat-tool-body .cmd-input-bar{border-top-color:#e6ebf3}
 html[data-ui-theme="light"] .chat-tool-packet-btn{color:#5c6b80}
 html[data-ui-theme="light"] .chat-tool-packet-btn:hover{color:#1a2233}
+html[data-ui-theme="light"] .chat-tool-raw{border-top-color:#e6ebf3}
 .chat-tool-pane--shot{max-height:none;overflow:visible;padding:8px 12px 4px 8px}
 .chat-tool-shot{display:block;max-width:400px;max-height:400px;width:auto;height:auto;object-fit:contain;border-radius:4px}
 .chat-tool-shot-meta{margin-top:8px}

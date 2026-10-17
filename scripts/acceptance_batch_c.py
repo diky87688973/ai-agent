@@ -12,13 +12,12 @@ from __future__ import annotations
 import sys
 import tempfile
 from pathlib import Path
-from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
-from agent.core.tool_call import ToolCallRequest, ToolResult  # noqa: E402
+from agent.core.tool_call import ToolResult  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 
 CID = "acceptance-c-01"
@@ -47,9 +46,9 @@ class Acceptance:
 
     def call(self, name: str, arguments: dict = None, cid: str = CID) -> ToolResult:
         self.seq += 1
-        call = ToolCallRequest(call_id=f"c{self.seq}", name=name, arguments=arguments or {})
-        ctx = SimpleNamespace(conversation_id=cid) if cid else None
-        return self.app.pipeline.execute(self.app.registry, call, ctx)
+        return self.app.execute_tool(
+            name, arguments or {}, conversation_id=cid, call_id=f"c{self.seq}"
+        )
 
     def ready(self, name: str, arguments: dict):
         """预览 + 确认（四步前两步）；返回 (预览结果, confirm_id)。"""

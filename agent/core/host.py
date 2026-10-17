@@ -21,11 +21,11 @@
 """
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence
+from typing import Any, Callable, Iterator, List, Optional, Sequence
 
 from agent.core.chain import run_chain_iter
+from agent.core.error_report import report_error
 from agent.core.event_name import TURN_ENDED, TURN_STARTED
 from agent.core.events import Event
 from agent.core.module import ModuleBase
@@ -47,11 +47,8 @@ MAX_PASSES_DEFAULT = 64
 
 
 def _asked_to_stop(cancel: Callable[[], bool]) -> bool:
-    """问一次取消谓词；**谓词异常不得影响回合**（取消是增强项，不是必要条件）。"""
-    try:
-        return bool(cancel())
-    except Exception:
-        return False
+    """问一次「是否已请求停止」；这个函数自己出错必须把异常抛出去（不得装成「未取消」）。"""
+    return bool(cancel())
 
 
 @dataclass
@@ -119,7 +116,6 @@ class Host:
         conversation_id: str = "",
         model: Optional[ModelPort] = None,
         tools: Optional[ToolPort] = None,
-        extras: Optional[Dict[str, Any]] = None,
         cancel: Optional[Callable[[], bool]] = None,
     ) -> Iterator[Event]:
         """跑一个回合，**边跑边产出**事实。跑完后读 `self.last_result`。
@@ -127,8 +123,9 @@ class Host:
         产出顺序：`turn_started` → 模块链产出的事实（可能多趟）→ `turn_ended`。
         边界由宿主发，因为它就是"控制循环的那一方"——只有它知道回合从哪到哪。
 
-        `cancel`：**协作式取消谓词**。宿主在每趟开始前问一次，模块在自认为
-        合适的粒度问（模型模块逐帧、工具模块逐调用）。取消时发
+        `cancel`：壳层传入的停止检查（无参函数，返回是否已请求停止）。
+        宿主在每趟开始前问一次，模块在自认为合适的粒度问（模型模块逐帧、
+        工具模块逐调用）。各方自己来问，不是被强行打断。取消时发
         `turn_ended{stopped: true}` 并结束——**与 `paused` 是两件事**
         （用户主动停止 ≠ 等外部输入）。
         """
@@ -155,7 +152,6 @@ class Host:
                     conversation_id=conversation_id,
                     model=model,
                     tools=tools,
-                    extras=extras,
                     cancel=cancel,
                     seq_allocator=self._seq_allocator,
                 )
@@ -221,7 +217,6 @@ class Host:
         conversation_id: str = "",
         model: Optional[ModelPort] = None,
         tools: Optional[ToolPort] = None,
-        extras: Optional[Dict[str, Any]] = None,
         cancel: Optional[Callable[[], bool]] = None,
     ) -> TurnResult:
         """跑完整个回合，返回结论（事件照常经 `sink` 发出）。
@@ -230,7 +225,7 @@ class Host:
         要恢复一轮挂起，由调用方（壳层）从**事实源**重建 `log` 后再调一次。
         """
         for _event in self.run_iter(log=log, conversation_id=conversation_id,
-                                    model=model, tools=tools, extras=extras,
+                                    model=model, tools=tools,
                                     cancel=cancel):
             pass
         assert self.last_result is not None
@@ -243,8 +238,7 @@ class Host:
         try:
             self._on_pass_end()
         except Exception as exc:
-            print(f"[core] 增量落盘回调失败（本轮事实可能延迟到回合末尾）："
-                  f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            report_error("core.pass_end", exc)
 
     # ── 记事实（与 `Ports.emit` 同一纪律：先入日志；由生成器让给消费者）──
 
@@ -255,8 +249,7 @@ class Host:
                 payload["_seq"] = int(self._seq_allocator())
             except Exception as exc:
                 # 不阻断回合，但留痕（这个事件将无法断线续传）。
-                print(f"[core] 分配存储坐标失败（本事件无法续传）："
-                      f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+                report_error("core.seq_alloc", exc)
         event = Event(type_, payload)
         log.append([event])
         return event

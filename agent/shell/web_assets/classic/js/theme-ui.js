@@ -1,4 +1,4 @@
-/* 经典页与沉浸页共用：明暗主题。 */
+/* 明暗主题。 */
 (function (w) {
   "use strict";
   var KEY = "aiAgent.uiTheme";
@@ -39,7 +39,7 @@
   w.themeUi = { get: get, set: set, toggle: toggle, apply: apply, syncButtons: syncButtons };
 })(window);
 
-/* 全页：消幽灵插入符，但保留拖选复制。经典/沉浸共用。 */
+/* 全页：消幽灵插入符，但保留拖选复制。 */
 (function () {
   "use strict";
 

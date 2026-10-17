@@ -152,12 +152,12 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 | `count` | 主体数量（插件自报；缺省按消息条数） |
 | `pct` | 相对预算的占比 |
 
-**颜色、图标、布局由界面决定**：服务端不下发色号。插件的界面脚本在开屏时依次预载
-（`preloadPluginScripts()`），脚本里调
-`window.aiAgentPlugins.ctxSegments.register("<插件名>", {color, label})` 注册自己那一段的
-外观；注册早于第一次渲染，所以**分段条与浮层两处同源同色**。
+**颜色、图标、布局由界面决定**：服务端不下发色号。插件经
+`ctx.add_ctx_segment_style(label=..., color=...)` 登记外观，壳层开屏拉
+`/api/ctx-segment-styles` 并调用 `ctxSegments.register`；注册早于第一次渲染，
+所以**分段条与浮层两处同源同色**。
 插件没注册时，壳层按段 key 从自己的色名表取一个稳定颜色。
-面板样式仍是按需注入，只有脚本提前预载。
+面板脚本仍可开屏预载；面板样式按需注入。
 
 ## 用户轮是原子单位
 

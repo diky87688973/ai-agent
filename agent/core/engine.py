@@ -17,9 +17,9 @@
 """
 from __future__ import annotations
 
-import sys
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
+from agent.core.error_report import report_error
 from agent.core.events import Event
 from agent.core.host import MAX_PASSES_DEFAULT, Host, TurnResult
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
@@ -56,6 +56,8 @@ class Engine:
         session_context: Any = None,
         cancel: Any = None,
         seq_allocator: Any = None,
+        app_context: Any = None,
+        session_contexts: Any = None,
     ) -> None:
         self.conversation_id = str(conversation_id or "")
         self.log = log if log is not None else SessionLog()
@@ -70,15 +72,23 @@ class Engine:
         # 会话上下文（装配方给了才有）：挂起信息记在这里——它要**跨回合**存活，
         # 宿主（UI 适配层）靠它拿到 `call_id`，把用户的选择交回来。
         self.session_context = session_context
-        # 协作式取消谓词：宿主与模块在检查点问它。
+        # 停止检查：宿主与模块在检查点问它是否该停。
         self.cancel = cancel
         #: 全局存储坐标分配器（装配方注入 `store.allocate_seq`）。
         #: **没有它，所有帧都不带 `id:`** → 浏览器不回传 `Last-Event-ID`
         #: → 断线续传整条路径静默失效（帧带坐标 0/10）。
         self.seq_allocator = seq_allocator
         self.model_port = ModelPort(provider) if provider is not None else None
-        self.tool_port = (ToolPort(registry=registry, pipeline=pipeline)
-                          if registry is not None and pipeline is not None else None)
+        self.tool_port = (
+            ToolPort(
+                registry=registry,
+                pipeline=pipeline,
+                app=app_context,
+                sessions=session_contexts,
+            )
+            if registry is not None and pipeline is not None
+            else None
+        )
         self._input = input_module if input_module is not None else InputModule()
         # 宿主的出口就是引擎的旁路：**唯一出口**，模块事件与宿主事件都从这里出去。
         self._host = Host(
@@ -140,8 +150,11 @@ class Engine:
         except Exception as exc:
             # **不能静默**：这里失败的症状是"UI 不弹确认"，从现象完全看不出是
             # 挂起状态没记上。吞掉异常保住回合，但必须把原因留痕。
-            print(f"[core] 记录挂起状态失败（会话将不会弹确认）：{type(exc).__name__}: {exc}",
-                  file=sys.stderr, flush=True)
+            report_error(
+                "core.suspend",
+                exc,
+                conversation_id=self.conversation_id,
+            )
 
     def _flush_facts(self) -> None:
         """把**尚未落盘**的本回合事实写出去，然后清空待写列表。
@@ -176,8 +189,12 @@ class Engine:
             #
             # 观察面（浏览器）已经收到并渲染了这些事实，所以**必须留痕**，
             # 不能静默 —— 重连读历史会读不到它们（等下一次 append 补投）。
-            print(f"[core] 事实落盘失败，已交 store 待重试（{len(batch)} 条）："
-                  f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            report_error(
+                "core.fact_sink",
+                exc,
+                conversation_id=self.conversation_id,
+                batch_size=len(batch),
+            )
 
     def start_turn(self, user_text: str, attachments: Any = None) -> Iterator[Event]:
         """跑一个回合，**边跑边产出**事实（保实时流语义）。

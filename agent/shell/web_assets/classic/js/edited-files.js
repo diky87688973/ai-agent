@@ -106,27 +106,15 @@ files.push({path:order[n], parts:parts, added:added, deleted:deleted, op:op});
 }
 if(files.length)showEditedFiles(files);
 }
-function editedFileKind(path){
-var ext=(baseNameOnly(String(path||"")).split(".").pop()||"").toLowerCase();
-if(ext==="json")return "json";
-if(ext==="py"||ext==="pyw")return "py";
-if(ext==="md"||ext==="mdc"||ext==="markdown")return "md";
-if(ext==="js"||ext==="mjs"||ext==="cjs")return "js";
-if(ext==="css")return "css";
-if(ext==="html"||ext==="htm")return "html";
-if(ext==="ini"||ext==="cfg"||ext==="toml"||ext==="yaml"||ext==="yml")return "cfg";
-return "file";
-}
 function editedFileLabel(path){
 return String(path||"");
 }
 function editedFileIcon(path){
-var kind=editedFileKind(path);
-var mark={json:"{}",py:"Py",md:"M",js:"JS",css:"#",html:"<>",cfg:"=",file:""}[kind]||"";
+if(window.aiAgentFileIcons&&typeof window.aiAgentFileIcons.el==="function")
+return window.aiAgentFileIcons.el(path);
 var ico=document.createElement("span");
-ico.className="edited-file-ico edited-file-ico--"+kind;
+ico.className="file-type-ico file-type-ico--file";
 ico.setAttribute("aria-hidden","true");
-if(mark)ico.textContent=mark;
 return ico;
 }
 function fillEditedStat(sum, file){

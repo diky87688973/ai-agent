@@ -1,4 +1,4 @@
-/* 消息图片点击预览大图 + 剪贴板取图辅助（经典 / 沉浸 / sider 共用） */
+/* 消息图片点击预览大图 + 剪贴板取图辅助。 */
 (function (global) {
   var AIA = global.AIA || (global.AIA = {});
 

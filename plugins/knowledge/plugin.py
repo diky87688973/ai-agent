@@ -507,6 +507,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         "kb", title=title, html=_PANEL_HTML,
         script_file="ui/panel.js", css_file="ui/panel.css"))
     disposers.append(ctx.add_action("kb", label=label, title=title))
+    disposers.append(ctx.add_ctx_segment_style(label=title, color="blue"))
     disposers.append(ctx.add_route("GET", "files", _files))
     disposers.append(ctx.add_route("GET", "checked", _checked_get))
     disposers.append(ctx.add_route("PUT", "checked", _checked_put))

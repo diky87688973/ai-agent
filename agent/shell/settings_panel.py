@@ -18,7 +18,7 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from agent.capabilities.plugins import plugin_config_fields
+from agent.capabilities.plugins import plugin_config_fields, resolve_plugin_root
 from agent.config import (
     DEFAULT_CONFIG_PATH,
     DEFAULT_PLUGINS_PATH,
@@ -30,7 +30,7 @@ from agent.config import (
     get_plugins,
     get_reasoning_effort,
 )
-from agent.core.context import SERVICE_CLASSIC_ADAPTER
+from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.web_ui_config import WEB_UI_CONFIG_PATH, get_web_ui
 
 _LOCK = threading.Lock()
@@ -461,8 +461,40 @@ def _version_label(raw: str) -> str:
     return "v" + text
 
 
+def _plugin_folder(
+    name: str,
+    *,
+    plugins_dir: Optional[Path] = None,
+    plugins_path: Optional[Path] = None,
+    app: Any = None,
+) -> Path:
+    """解析某插件目录：优先已装载的 plugin_root，否则与 PluginHost 同一套 path 解析。"""
+    plugin = str(name or "").strip()
+    host = getattr(app, "plugin_host", None) if app is not None else None
+    if host is not None:
+        lookup = getattr(host, "plugin_root", None)
+        if callable(lookup):
+            tracked = lookup(plugin)
+            if tracked is not None:
+                return Path(tracked)
+    base = Path(plugins_dir) if plugins_dir is not None else (
+        Path(getattr(host, "plugins_dir", _PLUGINS_DIR)) if host is not None else _PLUGINS_DIR
+    )
+    path_raw = ""
+    manifest = Path(plugins_path) if plugins_path is not None else DEFAULT_PLUGINS_PATH
+    for item in get_plugins(manifest):
+        if str(item.get("name") or "") == plugin:
+            path_raw = str(item.get("path") or "").strip()
+            break
+    resolve = getattr(host, "resolve_plugin_root", None) if host is not None else None
+    if callable(resolve):
+        return resolve(plugin, path_raw)
+    return resolve_plugin_root(base, plugin, path_raw)
+
+
 def list_plugins(plugins_path: Optional[Path] = None,
-                 plugins_dir: Optional[Path] = None) -> Dict[str, Any]:
+                 plugins_dir: Optional[Path] = None,
+                 app: Any = None) -> Dict[str, Any]:
     """插件卡片：目录里有入口的都列出，清单里有但目录没了的也列出以便关掉。"""
     manifest_path = Path(plugins_path) if plugins_path is not None else DEFAULT_PLUGINS_PATH
     root = Path(plugins_dir) if plugins_dir is not None else _PLUGINS_DIR
@@ -475,6 +507,14 @@ def list_plugins(plugins_path: Optional[Path] = None,
             entry = child / "plugin.py"
             if entry.is_file() and _valid_name(child.name):
                 found[child.name] = entry
+    for name, _item in listed.items():
+        if name in found or not _valid_name(name):
+            continue
+        folder = _plugin_folder(
+            name, plugins_dir=root, plugins_path=manifest_path, app=app)
+        entry = folder / "plugin.py"
+        if entry.is_file():
+            found[name] = entry
     names = list(found)
     for name in sorted(listed):
         if name not in found and _valid_name(name):
@@ -512,13 +552,15 @@ def set_plugin_enabled(name: str, enabled: bool, app: Any = None, *,
         return {"ok": False, "error": "插件名不合法"}
     manifest_path = Path(plugins_path) if plugins_path is not None else DEFAULT_PLUGINS_PATH
     root = Path(plugins_dir) if plugins_dir is not None else _PLUGINS_DIR
-    if enabled and not (root / plugin / "plugin.py").is_file():
+    folder = _plugin_folder(
+        plugin, plugins_dir=root, plugins_path=manifest_path, app=app)
+    if enabled and not (folder / "plugin.py").is_file():
         return {"ok": False, "error": "插件目录里没有 plugin.py"}
     with _LOCK:
         text = _read_text(manifest_path)
         section = f"plugin:{plugin}"
         flag = "1" if enabled else "0"
-        config_path = root / plugin / "plugin-config.ini"
+        config_path = folder / "plugin-config.ini"
         cfg = _read_text(config_path)
         if _section_span(cfg.splitlines(keepends=True), "base") is None:
             cfg = append_ini_section(cfg, "base", [("enable", flag)])
@@ -526,7 +568,7 @@ def set_plugin_enabled(name: str, enabled: bool, app: Any = None, *,
             cfg = update_ini_keys(cfg, "base", {"enable": flag})
         _write_text(config_path, cfg)
         if enabled and _section_span(text.splitlines(keepends=True), section) is None:
-            version = plugin_config_fields(root / plugin)["version"] or "1.0"
+            version = plugin_config_fields(folder)["version"] or "1.0"
             text = append_ini_section(text, section, [("version", version)])
             _write_text(manifest_path, text)
         reports = sync_plugins(
@@ -540,12 +582,18 @@ def sync_plugins(app: Any, *, plugins_path: Optional[Path] = None,
     host = getattr(app, "plugin_host", None) if app is not None else None
     if host is None:
         return []
-    base = Path(plugins_dir) if plugins_dir is not None else _PLUGINS_DIR
+    base = Path(plugins_dir) if plugins_dir is not None else (
+        Path(getattr(host, "plugins_dir", _PLUGINS_DIR))
+    )
+    resolve = getattr(host, "resolve_plugin_root", None)
     desired = []
     for item in get_plugins(plugins_path):
         name = str(item.get("name") or "")
         path_raw = str(item.get("path") or "").strip()
-        folder = Path(path_raw) if path_raw else base / name
+        if callable(resolve):
+            folder = resolve(name, path_raw)
+        else:
+            folder = resolve_plugin_root(base, name, path_raw)
         if plugin_config_fields(folder)["enable"] == "0":
             continue
         desired.append(item)
@@ -576,29 +624,32 @@ def _announce_plugins(app: Any, loaded: List[str]) -> None:
         announce(loaded)
 
 
-def _config_file(plugins_dir: Path, name: str) -> Path:
-    if not _valid_name(name):
-        raise ValueError("插件名不合法")
-    root = (plugins_dir / name).resolve()
-    base = plugins_dir.resolve()
-    if root.parent != base:
-        raise ValueError("插件名不合法")
+def _config_file(plugin_root: Path) -> Path:
+    root = Path(plugin_root).resolve()
     if not (root / "plugin.py").is_file():
         raise ValueError("插件目录里没有 plugin.py")
     return root / "plugin-config.ini"
 
 
-def read_plugin_config(name: str, *, plugins_dir: Optional[Path] = None) -> Dict[str, Any]:
+def read_plugin_config(name: str, *, plugins_dir: Optional[Path] = None,
+                       plugins_path: Optional[Path] = None,
+                       app: Any = None) -> Dict[str, Any]:
+    plugin = str(name or "").strip()
+    if not _valid_name(plugin):
+        return {"ok": False, "error": "插件名不合法"}
     root = Path(plugins_dir) if plugins_dir is not None else _PLUGINS_DIR
     try:
-        path = _config_file(root, str(name or "").strip())
+        folder = _plugin_folder(
+            plugin, plugins_dir=root, plugins_path=plugins_path, app=app)
+        path = _config_file(folder)
     except ValueError as exc:
         return {"ok": False, "error": str(exc)}
-    return {"ok": True, "name": str(name).strip(), "text": _read_text(path), "exists": path.is_file()}
+    return {"ok": True, "name": plugin, "text": _read_text(path), "exists": path.is_file()}
 
 
 def write_plugin_config(name: str, text: Any, app: Any = None, *,
-                        plugins_dir: Optional[Path] = None) -> Dict[str, Any]:
+                        plugins_dir: Optional[Path] = None,
+                        plugins_path: Optional[Path] = None) -> Dict[str, Any]:
     """整份写回插件配置。插件正在装载时卸下再装，让它重新读文件。"""
     if not isinstance(text, str):
         return {"ok": False, "error": "配置内容要是文本"}
@@ -606,8 +657,12 @@ def write_plugin_config(name: str, text: Any, app: Any = None, *,
         return {"ok": False, "error": "配置文件过大"}
     root = Path(plugins_dir) if plugins_dir is not None else _PLUGINS_DIR
     plugin = str(name or "").strip()
+    if not _valid_name(plugin):
+        return {"ok": False, "error": "插件名不合法"}
     try:
-        path = _config_file(root, plugin)
+        folder = _plugin_folder(
+            plugin, plugins_dir=root, plugins_path=plugins_path, app=app)
+        path = _config_file(folder)
     except ValueError as exc:
         return {"ok": False, "error": str(exc)}
     with _LOCK:

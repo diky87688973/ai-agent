@@ -86,10 +86,7 @@ class ClassicAdapter:
         store = getattr(self._app, "store", None)
         if store is None or not hasattr(store, "load"):
             return None
-        try:
-            events = list(store.load(cid))
-        except Exception:
-            return None
+        events = list(store.load(cid))
         from agent.shell.classic_adapter.inbound import compute_context_layout
 
         return compute_context_layout(self._app, events, cid)
@@ -97,10 +94,7 @@ class ClassicAdapter:
         live = getattr(self._app, "live_state", None)
         if live is None:
             return "auto"
-        try:
-            return str(live.get_mode(cid))
-        except Exception:
-            return "auto"
+        return str(live.get_mode(cid))
 
     def _model(self, cid: str = "") -> str:
         """当前会话用哪个模型（`conversation` 帧要把它同步给前端）。
@@ -198,10 +192,18 @@ class ClassicAdapter:
             self._drop_subscription()
 
     def drop_session(self, cid: str) -> None:
-        """会话结束/关闭时清掉翻译流状态。"""
+        """会话结束/关闭：清翻译流状态，并释放进程内会话运行态。"""
+        key = str(cid or "").strip()
         with self._lock:
-            self._streams.pop(cid, None)
-        self.state.clear_attachments(cid)
+            self._streams.pop(key, None)
+        self.state.clear_attachments(key)
+        contexts = getattr(self._app, "session_contexts", None)
+        if contexts is not None:
+            try:
+                contexts.release(key)
+            except Exception:
+                # 释放是收尾副作用：失败不得阻断关闭路径。
+                pass
 
     # ── 入站（前端 → 服务端）：转发到 inbound ──────────────
 
@@ -270,10 +272,7 @@ class ClassicAdapter:
         contexts = getattr(self._app, "session_contexts", None)
         if contexts is None:
             return {}
-        try:
-            buckets = contexts.buckets()
-        except Exception:
-            return {}
+        buckets = contexts.buckets()
         out: Dict[str, Any] = {}
         for cid, session in buckets.items():
             pending = getattr(session, "pending_confirm", None)
@@ -479,10 +478,7 @@ class ClassicAdapter:
         contexts = getattr(self._app, "session_contexts", None)
         if contexts is None:
             return None
-        try:
-            return contexts.resolve_sync(cid)
-        except Exception:
-            return None
+        return contexts.resolve_sync(cid)
 
     def pending_confirm(self, cid: str) -> Optional[Dict[str, Any]]:
         """该会话当前挂着的待确认（`SessionContext.pending_confirm`）。
@@ -551,6 +547,7 @@ class ClassicAdapter:
         try:
             return box.get(timeout=max(0.0, timeout))
         except queue.Empty:
+            # 超时无帧：SSE 层据此发心跳，不是错误
             return None
 
     def heartbeat(self) -> Dict[str, Any]:
@@ -595,17 +592,15 @@ class ClassicAdapter:
             return 0
         with self._lock:
             frames: List[Dict[str, Any]] = []
-            try:
-                rows = store.tail_across(int(after_seq), limit=limit)
-                # 按会话分组翻译：每个会话一条 `ClassicStream`（翻译是有状态的，
-                # 轮次号 / 待配对工具都按会话各自维护）。
-                for seq, cid, event in rows:
-                    stream = self._stream(cid)
-                    payload = dict(event.data or {})
-                    payload["_seq"] = seq
-                    frames.extend(stream.translate(str(event.type), payload))
-            except Exception:
-                frames = []
+            rows = store.tail_across(int(after_seq), limit=limit)
+            # 按会话分组翻译：每个会话一条 `ClassicStream`（翻译是有状态的，
+            # 轮次号 / 待配对工具都按会话各自维护）。
+            # 装配/契约错误（如缺 registry）直接冒泡，禁止吞成空回放。
+            for seq, cid, event in rows:
+                stream = self._stream(cid)
+                payload = dict(event.data or {})
+                payload["_seq"] = seq
+                frames.extend(stream.translate(str(event.type), payload))
             channels = [only] if only is not None else list(self._channels)
         for box in channels:
             for frame in frames:
@@ -663,22 +658,12 @@ class ClassicAdapter:
         cid = C.normalize_cid(cid)
         live = getattr(self._app, "live_state", None)
         provider = getattr(self._app, "provider", None)
-        mode = "auto"
-        if live is not None:
-            try:
-                mode = live.get_mode(cid)
-            except Exception:
-                mode = "auto"
+        mode = live.get_mode(cid) if live is not None else "auto"
         # 模型取**会话级选择**（没选过才回落 provider 默认）。
         # 不能恒取 `provider.model`：那样每来一帧就把用户的模型选择覆盖回默认
         # （表现为"发一条消息，模型下拉自己就跳回默认"），
         # 而用户接着发图时后端按**默认**模型的名字判能力（不认视觉）→ 图片被剥掉。
-        model = ""
-        if live is not None:
-            try:
-                model = live.get_model(cid)
-            except Exception:
-                model = ""
+        model = live.get_model(cid) if live is not None else ""
         return {
             "type": C.EV_CONVERSATION,
             "conversation_id": cid,
@@ -705,14 +690,8 @@ class ClassicAdapter:
         if model and model not in allowed:
             allowed = [model, *allowed]
         contexts = getattr(self._app, "session_contexts", None)
-        try:
-            buckets = contexts.active_count() if contexts is not None else 0
-        except Exception:
-            buckets = 0
-        try:
-            tools = len(self._app.registry.names())
-        except Exception:
-            tools = 0
+        buckets = contexts.active_count() if contexts is not None else 0
+        tools = len(self._app.registry.names())
         return {
             "ok": True,
             "service": "agent.web",

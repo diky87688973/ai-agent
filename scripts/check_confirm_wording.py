@@ -9,7 +9,7 @@
 
 **「确认」有两种完全不同的含义，`confirm_id` 也是同名不同物**：
 
-| 名字 | 门控（`quality_gate`） | `user_confirm` 工具 |
+| 名字 | 写盘门控（`mechanisms.quality`） | `user_confirm` 工具 |
 |---|---|---|
 | `confirm_id` | **预览快照 ID**（解锁后凭它提交） | **宿主确认单 ID**（次段回显） |
 | 「确认」 | **review 确认**（`review_conclusion` 解锁预览） | **用户确认**（停下来问用户） |
@@ -33,7 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-GATE = ROOT / "agent/mechanisms/quality_gate.py"
+GATE = ROOT / "agent/mechanisms/quality/checks.py"
 WRITE_FILE = ROOT / "agent/capabilities/builtin/write_file.py"
 COMMIT_WRITE = ROOT / "agent/capabilities/builtin/commit_write.py"
 REVIEW = ROOT / "agent/capabilities/builtin/review_conclusion.py"
@@ -79,16 +79,16 @@ def check() -> list[str]:
 
     # ── ② 门控拒绝文案：给**可执行的下一步**（工具 + 参数）──
     gate = _read(GATE)
-    m = re.search(r'if not rec\.get\("confirmed"\):(.*?)\n        args = ', gate, re.S)
+    m = re.search(r'if not rec\.get\("confirmed"\):(.*?)\n    args = ', gate, re.S)
     block = m.group(1) if m else ""
     if "review_conclusion" not in block:
         problems.append(
-            "quality_gate.py 的拒绝文案没有告诉模型**下一步调哪个工具** —— "
+            "checks.py 的拒绝文案没有告诉模型**下一步调哪个工具** —— "
             "只说「未解锁」而不给工具名，模型只能自己猜（会猜成 user_confirm）"
         )
     if "confirm_id" not in block:
         problems.append(
-            "quality_gate.py 的拒绝文案没有告诉模型**要带哪个参数**（confirm_id）"
+            "checks.py 的拒绝文案没有告诉模型**要带哪个参数**（confirm_id）"
         )
 
     # ── ③ 写盘链路里不得出现含糊写法 ──
@@ -113,7 +113,7 @@ def check() -> list[str]:
         "同名不同物",
     )
     targets = dict(MUST_NAME_REVIEW)
-    targets[GATE] = "quality_gate.py 的拒绝文案"
+    targets[GATE] = "checks.py 的拒绝文案"
     for path, label in targets.items():
         text = _read(path)
         for phrase in EXPLANATORY:

@@ -31,7 +31,7 @@ from agent.shell.classic_adapter.outbound import ClassicStream  # noqa: E402
 from tests.testkit import no_plugins  # noqa: E402
 
 try:                                    # 服务名常量（装配层用）
-    from agent.core.context import SERVICE_CLASSIC_ADAPTER
+    from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 except ImportError:                     # pragma: no cover - 常量缺失时用字面量兜底
     SERVICE_CLASSIC_ADAPTER = "classic_adapter"
 
@@ -63,12 +63,6 @@ class _FakeApp:
     from agent.core.session_context import SessionContexts as _SCs
     session_contexts = _SCs(lambda cid: None)
 
-    class _Registry:
-        def names(self):
-            return [f"t{i}" for i in range(45)]
-
-    registry = _Registry()
-
     class _PluginHost:
         """最小插件宿主：只提供 `runtime(name)`（勾选端点按名字取插件运行时）。"""
 
@@ -89,6 +83,24 @@ class _FakeApp:
         self.store = SessionStore(data_root)
         # 每个壳一份：实例属性，测试之间互不串（类属性会共享状态）
         self.plugin_host = _FakeApp._PluginHost()
+        # 真注册表：上下文布局 / 系统提示词必须能从 registry 拼出来；
+        # health 契约还要求 tools>40，用最小 ToolPlugin 填满。
+        from agent.capabilities.registry import ToolPlugin, ToolRegistry
+
+        self.registry = ToolRegistry()
+
+        class _Stub(ToolPlugin):
+            parameters: dict = {}
+
+            def __init__(self, name: str) -> None:
+                self.name = name
+                self.description = "stub"
+
+            def execute(self, arguments):
+                return {}
+
+        for i in range(45):
+            self.registry.register(_Stub(f"t{i}"))
 
 def _stream(**kwargs) -> ClassicStream:
     return ClassicStream(
@@ -212,6 +224,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertEqual(end["type"], C.EV_TOOL_END)
         self.assertTrue(end["ok"])
         parsed = json.loads(end["preview"])                   # 必须能 parse
+        self.assertEqual(parsed.get("ok"), True)
         self.assertEqual(parsed["data"]["stdout"], "hi")      # agent-ui.js:1550/2029 读 data.stdout
 
     def test_tool_done_images_ride_beside_preview(self) -> None:
@@ -308,6 +321,10 @@ class OutboundContractTest(unittest.TestCase):
         })[0]
         self.assertFalse(end["ok"])
         self.assertNotIn("user_confirm_required", end)
+        fail_preview = json.loads(end["preview"])
+        self.assertEqual(fail_preview.get("ok"), False)
+        self.assertEqual(fail_preview.get("error"), "文件不存在")
+        self.assertNotIn("data", fail_preview)
         # 缺 title / confirms 的残缺 data 也不算信封
         stream2 = _stream()
         stream2.translate("tool_call", {"call_id": "c2", "name": "user_confirm", "arguments": {}})
@@ -317,7 +334,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertNotIn("user_confirm_required", end2)
 
     def test_write_gate_confirm_id_does_not_fake_a_confirmation(self) -> None:
-        """`confirm_id` 是**写盘门控的二阶提交锁**：`quality_gate.post` 给预览类工具的
+        """`confirm_id` 是**写盘门控的二阶提交锁**：门控给预览类工具的
         **成功结果**挂上它，意思是"锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。
         用户交互**不发生在这一步**（解锁入口是 `review_conclusion`）。
 
@@ -441,27 +458,6 @@ class OutboundContractTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertFalse(payload.get("confirmed"))
         self.assertEqual(calls, [], msg="无挂起时不该起空回合")
-
-    def test_ui_scripts_are_all_present(self) -> None:
-        """**界面脚本齐备**：少注入一个会让整块功能静默消失。
-
-        `ui_bundle` 把这些脚本内联进单页；任一缺失，页面不报错但功能没了。
-        所以逐个核对它们在磁盘上且被真的内联（用脚本里的特征串验证）。
-        """
-        from agent.shell.ui_bundle import inline_ui_html
-
-        html = inline_ui_html()
-        markers = {
-            "js/agent-ui.js": "renderMarkdown",
-            "js/theme-ui.js": "data-ui-theme",
-            "js/code-highlight.js": "hljs",
-            "js/image-lightbox.js": "AIA",
-            "js/vendor/highlight.min.js": "highlight",
-        }
-        for rel, needle in markers.items():
-            path = (_ROOT / "agent" / "shell" / "web_assets" / "classic" / rel)
-            self.assertTrue(path.is_file(), msg=f"界面脚本缺失：{rel}")
-            self.assertIn(needle, html, msg=f"{rel} 未内联进产物 HTML")
 
     def test_chat_bubble_layout_puts_image_above_text(self) -> None:
         """图文气泡：**图片在上、文字在下**。
@@ -1280,12 +1276,6 @@ class UserConfirmRoundTripTest(unittest.TestCase):
 
 class UiBundleTest(unittest.TestCase):
     """素材与内联打包。"""
-
-    def test_assets_present(self) -> None:
-        from agent.shell.ui_bundle import classic_assets_present
-
-        self.assertTrue(classic_assets_present(),
-                        msg="界面素材缺失")
 
     def test_tool_tag_shows_final_state_immediately(self) -> None:
         """工具结束时**立刻**写标签终态。

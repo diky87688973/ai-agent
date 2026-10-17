@@ -51,13 +51,10 @@ class VersionStampTest(unittest.TestCase):
                 hhmmss = name.split("_")[1]
                 self.assertEqual(ts, f"{hhmmss[:2]}:{hhmmss[2:4]}:{hhmmss[4:6]}")
 
-    def test_javascript_regex_is_not_over_escaped(self) -> None:
-        """JS 里必须是 `\\d` 而不是 `\\\\d` —— 后者匹配的是字面反斜杠加 d。
-
-        前端有**两处**取版本时刻的地方（`onToolStart` 建标题、`onToolEnd` 补文件段），
-        两处都要查：只改一处会让卡片上仍是错的标题。
-        """
+    def test_frontend_has_two_unescaped_stamp_regexes(self) -> None:
+        """前端两处取时刻（建标题 / 补文件段）正则同形，且不得写成 `\\\\d`。"""
         src = _UI_JS.read_text(encoding="utf-8")
+        self.assertNotIn("slice(-2,-1)", src, msg="仍有按段数取时间戳的旧写法")
         found = 0
         for i, line in enumerate(src.splitlines(), 1):
             if "mv=/" not in line:
@@ -65,18 +62,12 @@ class VersionStampTest(unittest.TestCase):
             found += 1
             with self.subTest(line=i):
                 seg = line[line.index("mv=/"):line.index("mv=/") + 60]
-                # 逐字符看：`\` 后面必须紧跟 `d`（单反斜杠），不能是 `\\`
                 chars = list(seg)
                 for k, ch in enumerate(chars):
                     if ch == "\\" and k + 1 < len(chars) and chars[k + 1] == "\\":
                         self.fail(f"第 {i} 行正则被多转义了一层：{seg}")
                 self.assertIn(r"_(\d{6})_\d{3}_\d{4}_[0-9a-z]+$", seg)
         self.assertEqual(found, 2, msg=f"取版本时刻的地方应有两处，实测 {found} 处")
-
-    def test_no_copy_still_counts_segments(self) -> None:
-        """不许再留"数段数取时间戳"的写法 —— 目录名增删一段就会取错。"""
-        src = _UI_JS.read_text(encoding="utf-8")
-        self.assertNotIn("slice(-2,-1)", src, msg="仍有按段数取时间戳的旧写法")
 
     def test_node_agrees_with_python(self) -> None:
         """把 JS 那段真跑一遍，结果与 Python 侧一致（防止只改了注释没改代码）。"""

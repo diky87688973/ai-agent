@@ -24,6 +24,7 @@ from typing import Any, Iterator, List, Optional, Sequence, Tuple
 
 from agent.core.module import ModuleBase
 from agent.core.outcome import Outcome
+from agent.core.pass_lifecycle import PassLifecycle
 from agent.core.ports import Ports
 
 
@@ -101,13 +102,13 @@ class _Pass:
         finally:
             self._end_source_pass()
 
-    def _source_contexts(self) -> List[Any]:
-        """本趟模块持有的上下文，同一份只出现一次。"""
+    def _source_contexts(self) -> List[PassLifecycle]:
+        """本趟模块经 `context_pass` 暴露的生命周期对象，同一份只出现一次。"""
         seen: set = set()
-        out: List[Any] = []
+        out: List[PassLifecycle] = []
         for module in self._modules:
-            ctx = getattr(module, "_context", None)
-            if ctx is None:
+            ctx = getattr(module, "context_pass", None)
+            if ctx is None or not isinstance(ctx, PassLifecycle):
                 continue
             key = id(ctx)
             if key in seen:
@@ -119,17 +120,12 @@ class _Pass:
     def _begin_source_pass(self) -> None:
         """本趟链开始：收集注入源快照。"""
         for ctx in self._source_contexts():
-            begin = getattr(ctx, "begin_pass", None)
-            if callable(begin):
-                begin()
+            ctx.begin_pass()
 
     def _end_source_pass(self) -> None:
         """本趟链结束：丢掉注入源快照。"""
         for ctx in self._source_contexts():
-            end = getattr(ctx, "end_pass", None)
-            if callable(end):
-                end()
-
+            ctx.end_pass()
     def drain(self) -> PassResult:
         """跑完本趟（丢弃事件），返回结论。非流式场合用。"""
         for _event in self:

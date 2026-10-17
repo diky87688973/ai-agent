@@ -170,6 +170,10 @@ class ToolPipeline:
                 except Exception as exc:  # 工具异常结构化回灌，不终止回合
                     # 两段式首段（待用户确认）：这次调用**还没返回**，所以标 `deferred`
                     # ——回合循环据此**不把它写进事实流**。选择由宿主在用户作答后写进来。
+                    #
+                    # 这里**不上报 error_log**：异常已经收成 ToolResult(ok=False)
+                    # 回灌模型 / 落 tool_failed，属于业务结果，不是进程故障。
+                    # 再记 errors.log 会把 ValueError / 文件不存在 / 黑名单等刷成误报。
                     awaiting = bool(getattr(exc, "await_user", False))
                     result = ToolResult(
                         call_id=call.call_id,

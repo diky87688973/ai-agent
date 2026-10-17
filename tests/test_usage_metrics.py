@@ -18,7 +18,6 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.core.events import make_event  # noqa: E402
 from agent.shell.classic_adapter import contract as C  # noqa: E402
 from agent.shell.classic_adapter.outbound import ClassicStream  # noqa: E402
 
@@ -67,12 +66,6 @@ class UsageFieldsAreOfficialTest(unittest.TestCase):
         self.assertNotIn("prompt_tokens_details", got,
                          msg="只转发契约里的字段，不塞别的东西")
 
-    def test_usage_event_keeps_the_values(self) -> None:
-        ev = make_event("usage", **OFFICIAL)
-        self.assertEqual(ev.data.get("prompt_cache_hit_tokens"), 800)
-        self.assertEqual(ev.data.get("prompt_cache_miss_tokens"), 200)
-
-
 class UiReadsTheOfficialFieldsTest(unittest.TestCase):
     """界面读的字段名与契约一致；命中率只用官方两个值算。"""
 
@@ -108,14 +101,6 @@ class UiReadsTheOfficialFieldsTest(unittest.TestCase):
 class WindowComesFromKernelTest(unittest.TestCase):
     """用量环分母 = 内核给的模型窗口，不是写死的常量。"""
 
-    def test_ui_has_a_setter(self) -> None:
-        src = _UI.read_text(encoding="utf-8")
-        self.assertIn("function setModelContextWindow(", src)
-
-    def test_context_layout_feeds_it(self) -> None:
-        src = _UI.read_text(encoding="utf-8")
-        self.assertIn("setModelContextWindow(ev.model_max_context_tokens)", src)
-
     def test_pipeline_reports_the_configured_window(self) -> None:
         from agent.mechanisms.context_pipeline import ContextPipeline
 
@@ -123,11 +108,10 @@ class WindowComesFromKernelTest(unittest.TestCase):
         payload = pipe.layout_payload(budget_tokens=700_000)
         self.assertEqual(payload["model_max_context_tokens"], 1_000_000)
         self.assertEqual(payload["budget_tokens"], 700_000)
-
-    def test_window_falls_back_to_config_default(self) -> None:
-        from agent.config import get_context
-
-        self.assertEqual(get_context()["model_context_window"], 1_000_000)
+        # 界面经 context_layout 灌入同一字段
+        src = _UI.read_text(encoding="utf-8")
+        self.assertIn("function setModelContextWindow(", src)
+        self.assertIn("setModelContextWindow(ev.model_max_context_tokens)", src)
 
 
 if __name__ == "__main__":

@@ -34,11 +34,11 @@ from agent.config import (
     get_reasoning_effort,
 )
 from agent.core import event_name as ev
-from agent.core.context import SERVICE_CLASSIC_ADAPTER
+from agent.core.error_report import report_error
 from agent.mechanisms.model_provider import OpenAICompatibleProvider
 from agent.mechanisms.session_store import (
-    _KEY_DATA,
-    _KEY_TYPE,
+    KEY_DATA,
+    KEY_TYPE,
     SessionStore,
     is_valid_conversation_id,
     new_conversation_id,
@@ -62,6 +62,7 @@ from agent.shell.fspaths import (  # noqa: F401
     _parse_roots,
     _within_any_root,
 )
+from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 
 # SSE 传输层的导入路径约定在本模块：`from agent.shell.web import _Channel` 可用。
 from agent.shell.sse import _Channel, _event_seq, _sse_payload  # noqa: F401
@@ -150,10 +151,12 @@ class WebShell:
         self._runs: Dict[str, str] = {}  # cid → run_id（当前活跃回合）
         # 把壳自己交给适配层：它会复用本壳的 `_derive_title` 派生会话标题，
         # 避免适配层另写一套截断口径导致两侧标题不一致。
-        try:
-            classic = app.context.get(SERVICE_CLASSIC_ADAPTER)
-        except Exception:
-            classic = None
+        ctx = getattr(app, "context", None)
+        classic = (
+            ctx.get(SERVICE_CLASSIC_ADAPTER)
+            if ctx is not None and ctx.has(SERVICE_CLASSIC_ADAPTER)
+            else None
+        )
         if classic is not None:
             classic.adopt_shell(self)
 
@@ -206,10 +209,7 @@ class WebShell:
         """
         models = getattr(self.app, "available_models", None)
         if callable(models):
-            try:
-                return [str(m) for m in (models() or [])]
-            except Exception:
-                return []
+            return [str(m) for m in (models() or [])]
         return []
 
     # ── 业务动作──────────────────────────────────
@@ -317,6 +317,25 @@ class WebShell:
                     )
         return 200, {"sessions": [r["conversation_id"] for r in rows], "items": rows}
 
+    def release_conversation(self, conversation_id: str) -> Tuple[int, Dict[str, Any]]:
+        """关闭/删除标签时释放进程内会话运行态（不动已落盘的 `.raw`）。"""
+        cid = str(conversation_id or "").strip()
+        if not cid:
+            return 400, {"ok": False, "error": "conversation_id 为空"}
+        ctx = getattr(self.app, "context", None)
+        classic = (
+            ctx.get(SERVICE_CLASSIC_ADAPTER)
+            if ctx is not None and ctx.has(SERVICE_CLASSIC_ADAPTER)
+            else None
+        )
+        if classic is not None and callable(getattr(classic, "drop_session", None)):
+            classic.drop_session(cid)
+        else:
+            contexts = getattr(self.app, "session_contexts", None)
+            if contexts is not None:
+                contexts.release(cid)
+        return 200, {"ok": True, "conversation_id": cid, "released": True}
+
     def _derive_title(self, cid: str) -> str:
         """会话标题：优先已生成并落盘的标题，其次从事实源派生（首条用户输入）。
 
@@ -327,12 +346,9 @@ class WebShell:
         if stored and not is_placeholder_title(stored):
             return stored
         store = self.app.store
-        if store is None:
+        if store is None or not hasattr(store, "raw_path"):
             return ""
-        try:
-            path = store.raw_path(cid)
-        except (ValueError, AttributeError):
-            return ""
+        path = store.raw_path(cid)
         if not path.is_file():
             return ""
         try:
@@ -346,11 +362,11 @@ class WebShell:
                         continue
                     if not isinstance(payload, dict):
                         continue
-                    # 落盘行的键名取自 store 的 `_KEY_TYPE` / `_KEY_DATA`：
+                    # 落盘行的键名取自 store 的 `KEY_TYPE` / `KEY_DATA`：
                     # 硬编码字符串会随键名改动静默失配，标题悄悄退化成空。
-                    if payload.get(_KEY_TYPE) != "input_claimed":
+                    if payload.get(KEY_TYPE) != "input_claimed":
                         continue
-                    body = payload.get(_KEY_DATA)
+                    body = payload.get(KEY_DATA)
                     if not isinstance(body, dict):
                         continue
                     text = str(body.get("content") or "").strip()
@@ -392,10 +408,7 @@ class WebShell:
         store = self.app.store
         if store is None:
             return []
-        try:
-            events = store.load(cid)
-        except Exception:
-            return []
+        events = store.load(cid)
         messages: List[Dict[str, Any]] = []
         for event in events:
             data = event.data or {}
@@ -441,6 +454,28 @@ class WebShell:
         if contribs is None:
             return []
         return [a.as_dict() for a in contribs.all_actions()]
+
+    def ctx_segment_style_list(self) -> List[Dict[str, Any]]:
+        """插件贡献的上下文段外观（段名 / 色名）；界面开屏按它注册，不必靠空面板脚本。"""
+        host = getattr(self.app, "plugin_host", None)
+        contribs = getattr(host, "contributions", None) if host is not None else None
+        if contribs is None:
+            return []
+        listing = getattr(contribs, "all_ctx_segment_styles", None)
+        if not callable(listing):
+            return []
+        return [s.as_dict() for s in listing()]
+
+    def boot_script_list(self) -> List[Dict[str, Any]]:
+        """插件贡献的开屏脚本；界面在面板脚本之后预载，无面板也能注入。"""
+        host = getattr(self.app, "plugin_host", None)
+        contribs = getattr(host, "contributions", None) if host is not None else None
+        if contribs is None:
+            return []
+        listing = getattr(contribs, "all_boot_scripts", None)
+        if not callable(listing):
+            return []
+        return [s.as_dict() for s in listing()]
 
     def tool_list(self) -> List[Dict[str, Any]]:
         """工具展示清单：`[{name, label, icon}]`（来自工具自己的声明）。
@@ -974,6 +1009,7 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             result = route.handler(args)
         except Exception as exc:  # 插件端点异常不该打挂壳层
+            report_error("plugin.route", exc, plugin=str(route.plugin or ""))
             self._json(500, {"error": f"{type(exc).__name__}: {exc}",
                              "plugin": route.plugin})
             return
@@ -997,7 +1033,8 @@ class _Handler(BaseHTTPRequestHandler):
         if base is None:
             self._json(404, {"error": "插件目录未接入"})
             return
-        root = (Path(base) / plugin).resolve()
+        tracked = host.plugin_root(plugin) if host is not None else None
+        root = Path(tracked).resolve() if tracked is not None else (Path(base) / plugin).resolve()
         target = (root / rel).resolve()
         try:
             target.relative_to(root)
@@ -1040,12 +1077,12 @@ class _Handler(BaseHTTPRequestHandler):
     def _classic(self) -> Any:
         """适配层实例；未装配时返回 None（旧页面仍可用）。"""
         app = getattr(self.shell, "app", None)
-        if app is None:
+        if app is None or not hasattr(app, "context"):
             return None
-        try:
-            return app.context.get(SERVICE_CLASSIC_ADAPTER)
-        except Exception:
+        ctx = app.context
+        if not hasattr(ctx, "has") or not ctx.has(SERVICE_CLASSIC_ADAPTER):
             return None
+        return ctx.get(SERVICE_CLASSIC_ADAPTER)
 
     def _classic_page(self) -> None:
         """经典界面页面：把经典界面素材内联成单页返回。"""
@@ -1272,6 +1309,18 @@ class _Handler(BaseHTTPRequestHandler):
             elif path == "/api/actions":
                 # 插件贡献的输入区动作（输入框下面的按钮）；不声明就没有按钮
                 self._json(200, {"ok": True, "actions": self.shell.action_list()})
+            elif path == "/api/ctx-segment-styles":
+                # 插件贡献的上下文段外观；开屏注册，不必靠空面板脚本
+                self._json(200, {
+                    "ok": True,
+                    "styles": self.shell.ctx_segment_style_list(),
+                })
+            elif path == "/api/boot-scripts":
+                # 插件贡献的开屏脚本；面板脚本预载之后再注入
+                self._json(200, {
+                    "ok": True,
+                    "scripts": self.shell.boot_script_list(),
+                })
             elif path == "/api/tool-labels":
                 # 工具展示清单（中文名 + 图标）：由工具自己声明，界面不维护工具名表
                 self._json(200, {"ok": True, "tools": self.shell.tool_list()})
@@ -1473,10 +1522,16 @@ class _Handler(BaseHTTPRequestHandler):
             self._safe_error(exc)
 
     def do_DELETE(self) -> None:  # HTTP 动词命名（stdlib 约定）
-        """DELETE 只有插件端点会用（撤销任务 / 清插件自己的缓存）。"""
+        """DELETE：会话关闭释放运行态；插件端点撤销任务 / 清缓存。"""
         try:
             path = self._path()
-            if path.startswith("/api/plugin/"):
+            query = self._query()
+            if path == "/api/chat/sessions":
+                status, payload = self.shell.release_conversation(
+                    query.get("conversation_id", "") or query.get("id", "")
+                )
+                self._json(status, payload)
+            elif path.startswith("/api/plugin/"):
                 self._plugin_route("DELETE")
             else:
                 self._json(404, {"error": "not found", "path": path})
@@ -1531,6 +1586,7 @@ def _date_group(mtime: float, now: Optional[float] = None) -> str:
         stamp = time.localtime(mtime)
         today = time.localtime(reference)
     except (OverflowError, OSError, ValueError):
+        # 非法/溢出时间戳：无法归组，交给调用方显示空分组
         return ""
     day = (stamp.tm_year, stamp.tm_yday)
     today_day = (today.tm_year, today.tm_yday)

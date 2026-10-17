@@ -19,9 +19,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 from agent.capabilities.plugins import plugin_config_fields
 from agent.config import PROJECT_ROOT, load_ini
-from plugins.skills.library import SkillManager
-from plugins.skills.tools import build as build_tool
-from plugins.skills.tools import build_executors
+
+from .library import SkillManager
+from .tools import build as build_tool
+from .tools import build_executors
 
 CONFIG_SECTION = "ext"
 DEFAULT_MAX_FILE_SIZE = 200000
@@ -80,7 +81,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     cfg = _load_config()
     library = SkillManager(cfg["dir"], int(cfg["max_file_size"]))
     base = plugin_config_fields(Path(__file__).resolve().parent)
-    panel_title = base["name"] or "Skills"
+    style_label = base["name"] or "Skills"
 
     tool = build_tool(library)
     disposers: List[Callable[[], None]] = [
@@ -103,10 +104,10 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     # 提交执行器登记到宿主的执行器注册表：`commit_write` 提交时按工具名取。
     disposers.append(
         ctx.add_executor("skill_manage", build_executors(library)["skill_manage"]))
-    # 上下文分层里的外观（段色/段名）：Skills 没有界面交互，唯一对外可见的就是那两段。
-    # 脚本由壳层在开屏时预载，注册早于第一次渲染。
-    disposers.append(ctx.add_panel(
-        "skills-appearance", title=panel_title, html="", script_file="ui/panel.js"))
+    # 上下文分层外观：无面板，经贡献表交给壳层开屏注册。
+    disposers.append(ctx.add_ctx_segment_style(label=style_label, color="plum"))
+    # 工具卡视图：开屏脚本，不必挂空面板。
+    disposers.append(ctx.add_boot_script("ui/tool-view.js"))
     return disposers
 
 

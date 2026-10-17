@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from agent.capabilities.registry import ToolPlugin
 from agent.mechanisms.file_safety import FileBackups
-from agent.mechanisms.quality_gate import change_payload, diff_text
+from agent.mechanisms.quality import change_payload, diff_text
 
 # ── 公共辅助 ────────────────────────────────────────────
 
@@ -76,18 +76,52 @@ def _apply_replace(text: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     new_text = str(arguments.get("new_text") or "")
     count = text.count(old_text)
     if count == 0:
-        raise ValueError("old_text 未找到（请先 read_file 确认当前内容）")
+        # 锁死：old 字面未命中一律 old_text_not_found。
+        # 不得用「new 已在文件中」或删除语义反推 already_applied——
+        # 那是全局属性猜局部操作，会掩盖找错串/找错文件；也不做大小写折叠。
+        exc = ValueError("old_text 未找到")
+        exc.data = {
+            "status": "old_text_not_found",
+            "needs_commit": False,
+            "matches": 0,
+            "message": "old_text 未找到，未生成预览",
+        }
+        raise exc
     expected = arguments.get("expected_replacements")
     if expected is not None and int(expected) != count:
-        raise ValueError(f"命中数不符：old_text 出现 {count} 次，expected_replacements={int(expected)}")
+        exc = ValueError(
+            f"命中数不符：old_text 出现 {count} 次，expected_replacements={int(expected)}"
+        )
+        exc.data = {
+            "status": "replacement_count_mismatch",
+            "needs_commit": False,
+            "matches": count,
+            "expected_replacements": int(expected),
+            "message": str(exc),
+        }
+        raise exc
     if bool(arguments.get("replace_all", True)):
+        new_content = text.replace(old_text, new_text)
+        replaced = count
+    else:
+        new_content = text.replace(old_text, new_text, 1)
+        replaced = 1
+    # 同值替换（old==new）或替换后无变化：勿发空 diff 的 confirm_id
+    if new_content == text:
         return {
-            "text": text.replace(old_text, new_text),
+            "text": text,
             "mode": "literal",
             "matches": count,
-            "replaced": count,
+            "replaced": 0,
+            "status": "already_applied",
+            "reason": "noop_replace",
         }
-    return {"text": text.replace(old_text, new_text, 1), "mode": "literal", "matches": count, "replaced": 1}
+    return {
+        "text": new_content,
+        "mode": "literal",
+        "matches": count,
+        "replaced": replaced,
+    }
 
 
 class ReplaceInFileTool(ToolPlugin):
@@ -96,7 +130,16 @@ class ReplaceInFileTool(ToolPlugin):
     name = "replace_in_file"
     label = "替换文件内容"
     icon = "✏️"
-    description = "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。"
+    description = (
+        "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）"
+        "或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。"
+        "old_text 字面未命中时一律 ok=false 且 data.status=old_text_not_found"
+        "（不因 new_text 已在文件中、也不做大小写折叠而改判 already_applied）。"
+        "old 命中但替换后内容不变（如同值替换）时 status=already_applied（needs_commit=false）。"
+    )
+    needs_preview = True
+    needs_reread = True
+    write_path_keys = ("path",)
     parameters = {
         "path": {"type": "string", "description": "目标文件路径"},
         "old_text": {"type": "string", "description": "字面替换：待替换文本"},
@@ -110,7 +153,27 @@ class ReplaceInFileTool(ToolPlugin):
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         target = _required_file(arguments)
         text = _read_text(target)
-        outcome = _apply_replace(text, arguments)
+        try:
+            outcome = _apply_replace(text, arguments)
+        except ValueError as exc:
+            data = getattr(exc, "data", None)
+            if isinstance(data, dict):
+                data = dict(data)
+                data.setdefault("path", str(target))
+                exc.data = data
+            raise
+        if outcome.get("status") == "already_applied":
+            return {
+                "path": str(target),
+                "status": "already_applied",
+                "applied": False,
+                "needs_commit": False,
+                "mode": outcome["mode"],
+                "matches": int(outcome.get("matches") or 0),
+                "replaced": 0,
+                "message": "替换结果与当前内容相同，无需写入",
+                "_change": change_payload(text, text, str(target)),
+            }
         return {
             "path": str(target),
             "preview": True,
@@ -242,6 +305,9 @@ class ApplyPatchTool(ToolPlugin):
     label = "应用补丁"
     icon = "🔧"
     description = "预览补丁应用（不落盘）：把 unified diff（patch_text）应用到 path 根下已有文件（目标可带 a//b/ 前缀，须在根内）；返回各文件统计与 confirm_id，凭 commit_write 提交。"
+    needs_preview = True
+    needs_reread = True
+    write_path_keys = ("path",)
     parameters = {
         "path": {"type": "string", "description": "补丁应用根目录（目标文件须位于其下）"},
         "patch_text": {"type": "string", "description": "unified diff 文本（可含多个文件段）"},
@@ -296,6 +362,9 @@ class ReadWriteTool(ToolPlugin):
     label = "管道读写"
     icon = "🔀"
     description = "预览管道写（不落盘）：从 source_path 取片段（可选 line_start/line_end 行区间、max_chars 截断）写入 dest_path；返回 confirm_id，凭 commit_write 提交。"
+    needs_preview = True
+    needs_reread = True
+    write_path_keys = ("dest_path",)
     parameters = {
         "source_path": {"type": "string", "description": "源文件路径"},
         "dest_path": {"type": "string", "description": "目标文件路径"},

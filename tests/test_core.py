@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -232,10 +233,14 @@ class BasicTurnTest(CoreHarness):
         self.assertEqual(len(tools), 1)
         content = str(tools[0]["content"])
         self.assertNotEqual(content, "null", msg="null 说明读错了事实（应回查 tool_done）")
-        self.assertIn("ping", content, msg="模型的 tool 消息里必须带工具真实返回")
+        payload = json.loads(content)
+        self.assertEqual(payload.get("ok"), True)
+        self.assertIn("data", payload)
+        self.assertIn("ping", json.dumps(payload.get("data"), ensure_ascii=False),
+                      msg="模型的 tool 消息里必须带工具真实返回")
 
     def test_failed_tool_result_reaches_the_model_as_error(self) -> None:
-        """工具失败时模型看到的是 `ERROR: <详情>`（同样来自结果事实，不是终态）。"""
+        """工具失败与成功同形：`{"ok":false,"error":…}`（来自结果事实）。"""
         class _BoomTool:
             name = "boom"
             description = "总是失败"
@@ -252,8 +257,35 @@ class BasicTurnTest(CoreHarness):
         ], text="用工具")
         tools = [m for m in self.log.derive_messages() if m.get("role") == "tool"]
         self.assertEqual(len(tools), 1)
-        self.assertTrue(str(tools[0]["content"]).startswith("ERROR:"),
-                        msg=f"失败详情没到模型：{tools[0]['content']!r}")
+        content = str(tools[0]["content"])
+        payload = json.loads(content)
+        self.assertEqual(payload.get("ok"), False)
+        self.assertIn("炸了", str(payload.get("error") or ""))
+        self.assertNotIn("data", payload)  # 无附带 data 时不塞空键
+
+    def test_failed_tool_with_data_keeps_envelope(self) -> None:
+        """失败附带 data 时仍是顶层 ok/error/data。"""
+        class _BoomDataTool:
+            name = "boom_data"
+            description = "失败但带 data"
+            parameters = {}
+
+            def execute(self, arguments):
+                exc = RuntimeError("炸了带结构")
+                exc.data = {"status": "old_text_not_found", "needs_commit": False}
+                raise exc
+
+        self.registry = _Registry([_BoomDataTool()])
+        self.tools = ToolPort(registry=self.registry, pipeline=ToolPipeline())
+        self._run([
+            {"calls": [ToolCallRequest("c1", "boom_data", {})]},
+            {"text": "知道了"},
+        ], text="用工具")
+        tools = [m for m in self.log.derive_messages() if m.get("role") == "tool"]
+        self.assertEqual(len(tools), 1)
+        payload = json.loads(str(tools[0]["content"]))
+        self.assertEqual(payload.get("ok"), False)
+        self.assertEqual((payload.get("data") or {}).get("status"), "old_text_not_found")
 
     def test_message_sequence_is_valid_for_the_model(self) -> None:
         self._run([{"text": "答"}], text="问")
@@ -484,8 +516,9 @@ class SuspendBatchTest(CoreHarness):
         placeholder = [m for m in req
                        if m.get("role") == "tool" and m.get("tool_call_id") == "c1"][0]
         content = str(placeholder["content"])
-        self.assertTrue(content.startswith("ERROR:"), msg=f"占位={content!r}")
-        self.assertIn("没有产生结果", content)
+        payload = json.loads(content)
+        self.assertEqual(payload.get("ok"), False, msg=f"占位={content!r}")
+        self.assertIn("没有产生结果", str(payload.get("error") or ""))
 
 # ══════════════════════════════════════════════════════════════════
 # 三·三、基础设施契约：事实落盘时机、存储坐标、端口封装
@@ -947,7 +980,7 @@ class CancelTest(CoreHarness):
     """
 
     def _stop_after_first_tool(self):
-        """取消谓词：**第一个工具开始执行之后**才返回 True。
+        """停止检查：**第一个工具开始执行之后**才返回 True。
 
         为什么不用"问第 N 次就取消"：检查点是多粒度的（回合入口 / 模型逐帧 /
         工具逐调用），逐帧检查会让"被问几次"随流式分片数变化——那种阈值一改实现就碎。
@@ -959,7 +992,7 @@ class CancelTest(CoreHarness):
         return _check
 
     def _stop_immediately(self):
-        """取消谓词：永远返回 True（第一处检查点就停）。"""
+        """停止检查：永远返回 True（第一处检查点就停）。"""
         return lambda: True
 
     def test_stop_before_any_tool_marks_all_as_canceled(self) -> None:
@@ -1032,18 +1065,18 @@ class CancelTest(CoreHarness):
         self.assertFalse(ended.data.get("paused"))
         self.assertFalse(ended.data.get("halted"))
 
-    def test_cancel_predicate_error_does_not_break_the_turn(self) -> None:
-        """取消谓词异常一律当"未取消"——取消是增强项，不能让回合因它出错。"""
+    def test_cancel_check_error_propagates(self) -> None:
+        """停止检查自己出错必须把异常抛出去，不得装成「未取消」。"""
         def _boom() -> bool:
-            raise RuntimeError("谓词炸了")
+            raise RuntimeError("停止检查出错")
 
         host, provider, _i = self._host([{"text": "答"}], text="问")
-        result = host.run(log=self.log, conversation_id=self.cid,
-                          model=ModelPort(provider), tools=self.tools, cancel=_boom)
-        self.assertEqual(result.reason, "done")
+        with self.assertRaises(RuntimeError):
+            host.run(log=self.log, conversation_id=self.cid,
+                     model=ModelPort(provider), tools=self.tools, cancel=_boom)
 
-    def test_no_cancel_predicate_means_no_stop(self) -> None:
-        """不给谓词（脚本直建）时行为不变。"""
+    def test_no_cancel_check_means_no_stop(self) -> None:
+        """不传停止检查（脚本直建）时行为不变。"""
         result, _p, _i, _h = self._run([{"text": "答"}], text="问")
         self.assertEqual(result.reason, "done")
 

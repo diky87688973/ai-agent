@@ -36,7 +36,7 @@ except Exception:
     pass
 
 from agent.config import default_data_root, get_context  # noqa: E402
-from agent.mechanisms.context_pipeline import default_message_tokens  # noqa: E402
+from agent.mechanisms.context_tokens import default_message_tokens  # noqa: E402
 
 SEP = "─" * 68
 
@@ -94,7 +94,7 @@ def _round_labels(rounds: List[Any]) -> List[str]:
 
 def _chunk_report(pipeline: Any) -> List[Tuple[str, int]]:
     """分块 token 估算；拿不到时返回空列表。"""
-    from agent.mechanisms.context_pipeline import default_message_tokens
+    from agent.mechanisms.context_tokens import default_message_tokens
 
     out: List[Tuple[str, int]] = []
     try:

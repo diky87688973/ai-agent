@@ -15,11 +15,11 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.core.tool_call import GateDecision  # noqa: E402
-from agent.mechanisms.quality_gate import (  # noqa: E402
+from agent.mechanisms.quality import (  # noqa: E402
     MAX_PENDING_PREVIEWS,
-    QualityGate,
     WriteContext,
 )
+from tests.gate_fixtures import make_gate  # noqa: E402
 
 
 class FourStepGateTest(unittest.TestCase):
@@ -29,7 +29,7 @@ class FourStepGateTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
-        self.gate = QualityGate()
+        self.gate = make_gate()
 
     def _ready(self, path: Path, content: str) -> str:
         """预览登记 + 确认（四步前两步），返回 confirm_id。"""

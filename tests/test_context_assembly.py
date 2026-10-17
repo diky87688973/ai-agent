@@ -1945,10 +1945,12 @@ class PluginSegmentCountAlignmentTest(unittest.TestCase):
         got = srcs.collect_segments("c")
         self.assertEqual(len(got.counts), len(got.items))
         self.assertEqual([label for _key, label, _t in got.items],
-                         ["有自报口", "两条正文", "两条正文"],
+                         ["有自报口", "两条正文", "两条正文", "空的"],
                          msg=f"实际拿到 {[(k, l) for k, l, _ in got.items]}")
-        # 自报数只贴在该来源的第一条上；同一来源的其余条按条数算
-        self.assertEqual(got.counts, [7, 1, 1])
+        # 自报数只贴在该来源的第一条上；同一来源的其余条按条数算；
+        # 空来源仍占一段（示意图可见），数量用自报值。
+        self.assertEqual(got.counts, [7, 1, 1, 3])
+        self.assertEqual(got.items[-1][2], "", msg="空来源正文应为空串占位")
 
     def test_missing_reported_count_falls_back_to_one(self) -> None:
         from agent.mechanisms.context_pipeline import ContextSources, SourceMeta

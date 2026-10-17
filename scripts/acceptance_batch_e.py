@@ -21,14 +21,12 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
-from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
-from agent.core.tool_call import ToolCallRequest, ToolResult  # noqa: E402
-from agent.mechanisms import quality_gate  # noqa: E402
+from agent.core.tool_call import ToolResult  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
 
@@ -51,10 +49,7 @@ BATCH_E_TOOLS = [
 
 
 def _available(module: str) -> bool:
-    try:
-        return importlib.util.find_spec(module) is not None
-    except Exception:
-        return False
+    return importlib.util.find_spec(module) is not None
 
 
 class _HtmlHandler(http.server.BaseHTTPRequestHandler):
@@ -100,9 +95,9 @@ class Acceptance:
 
     def call(self, name: str, arguments: dict = None, cid: str = CID_DRIVER) -> ToolResult:
         self.seq += 1
-        call = ToolCallRequest(call_id=f"c{self.seq}", name=name, arguments=arguments or {})
-        ctx = SimpleNamespace(conversation_id=cid) if cid else None
-        return self.app.pipeline.execute(self.app.registry, call, ctx)
+        return self.app.execute_tool(
+            name, arguments or {}, conversation_id=cid, call_id=f"c{self.seq}"
+        )
 
     @property
     def gate(self):
@@ -333,10 +328,13 @@ class Acceptance:
         not_in_catalog = [n for n in BATCH_E_TOOLS if n not in tool_names]
         self.check("catalog 成员含 12 件工具", not not_in_catalog, str(not_in_catalog))
         self.check("catalog 工具总数 ≥ 36", len(tool_names) >= 36, str(len(tool_names)))
+        archive = self.app.registry.get("archive")
         self.check(
-            "门控预览名单含 archive（路径键 dest→source）",
-            quality_gate._TOOL_PATH_KEYS.get("archive") == ("dest", "source"),
-            str(quality_gate._TOOL_PATH_KEYS.get("archive")),
+            "archive 声明 write_path_keys=dest→source",
+            archive is not None
+            and tuple(getattr(archive, "write_path_keys", ()) or ())
+            == ("dest", "source"),
+            str(getattr(archive, "write_path_keys", None)),
         )
 
 

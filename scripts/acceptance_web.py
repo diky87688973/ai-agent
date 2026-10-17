@@ -66,8 +66,12 @@ class ScriptedProvider:
                 data = json.loads(message.get("content") or "{}")
             except Exception:
                 continue
-            if isinstance(data, dict) and data.get("confirm_id"):
-                return str(data["confirm_id"])
+            if not isinstance(data, dict):
+                continue
+            # 模型侧信封：`{"ok":true,"data":{…confirm_id…}}`；兼容旧裸 data
+            inner = data.get("data") if isinstance(data.get("data"), dict) else data
+            if isinstance(inner, dict) and inner.get("confirm_id"):
+                return str(inner["confirm_id"])
         return ""
 
     def stream(self, request):
@@ -275,7 +279,6 @@ class Acceptance:
         print("\n场景① 服务与静态资源")
         # 首页是**经典界面**（素材，内联成单页）。素材按原名躺在
         # `web_assets/classic/` 下，可经 `/assets/classic/...` 直接取到。
-        # 沉浸模式路由不存在，访问返回 404。
         for path, needle, label in (
             ("/", "AI Agent", "主界面（经典 UI）"),
             ("/", 'id="chatTabs"', "顶部会话标签栏"),
@@ -464,7 +467,7 @@ class Acceptance:
         started = self.app.runner.start("accept-conc-02", {"content": "跑"})
         requested = self.app.runner.request_cancel("accept-conc-02")
         self.app.runner.wait_idle("accept-conc-02", timeout=25)
-        self.check("取消谓词可置位并释放占位", bool(started) and requested and not self.app.mesh.is_running("accept-conc-02"))
+        self.check("停止检查可置位并释放占位", bool(started) and requested and not self.app.mesh.is_running("accept-conc-02"))
 
         status, payload = self.post("/api/chat/send", {"message": "  "})
         self.check("空消息 400", status == 400, str(payload))

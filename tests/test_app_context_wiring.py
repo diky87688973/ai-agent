@@ -17,6 +17,7 @@ from agent.app import build_app  # noqa: E402
 from agent.core.context import (  # noqa: E402
     SERVICE_COMPACTOR_FACTORY,
     SERVICE_CONTEXT_SOURCES,
+    SERVICE_ERROR_LOG,
     SERVICE_EVENT_BUS,
     SERVICE_LIVE_STATE,
     SERVICE_MESH,
@@ -24,12 +25,12 @@ from agent.core.context import (  # noqa: E402
     SERVICE_PLUGIN_HOST,
     SERVICE_PROVIDER,
     SERVICE_REGISTRY,
-    SERVICE_RUNNER,
     SERVICE_SESSION_CONTEXTS,
     SERVICE_SESSION_FACTORY,
     SERVICE_STORE,
     AppContext,
 )
+from agent.shell.service_keys import SERVICE_RUNNER  # noqa: E402
 
 REQUIRED_SERVICES = (
     SERVICE_REGISTRY,
@@ -41,6 +42,7 @@ REQUIRED_SERVICES = (
     SERVICE_LIVE_STATE,
     SERVICE_MESH,
     SERVICE_SESSION_CONTEXTS,
+    SERVICE_ERROR_LOG,
     SERVICE_RUNNER,
 )
 
@@ -187,23 +189,6 @@ class DisposeTest(_AppFixture):
         self.app.dispose()
         self.app.dispose()
         self.assertEqual(self.app.context.names(), [])
-
-    def test_registered_disposers_run_in_reverse_order(self) -> None:
-
-        ctx = AppContext()
-        order = []
-        ctx.register("a", object())
-        ctx.register("b", object())
-        ctx.register("c", object())
-        ctx.dispose_all()
-        self.assertEqual(ctx.names(), [])
-        self.assertEqual(order, [])  # 服务本身无 disposer，清空即可
-        # 显式 disposer 句柄应幂等
-        ctx2 = AppContext()
-        dispose = ctx2.register("x", object())
-        ctx2.dispose_all()
-        dispose()
-        self.assertEqual(ctx2.names(), [])
 
     def test_runner_registered_and_mesh_activator_wired(self) -> None:
 

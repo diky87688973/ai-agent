@@ -36,6 +36,12 @@ class ToolPlugin:
     #: 一个字符的图标（emoji）；留空时界面用兜底图标
     icon: str = ""
     parallel_safe: bool = False  # 默认串行
+    #: 为真时管道 post 登记预览快照并注入 confirm_id（写类预览入口）
+    needs_preview: bool = False
+    #: 写目标路径参数键序（供门控解析写路径）；空则无法解析路径（不默认猜 path）
+    write_path_keys: Tuple[str, ...] = ()
+    #: 为真时落盘后要求先 read_file 再改同一路径（内容写类）；结构性操作保持 False
+    needs_reread: bool = False
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
         """执行工具，返回结果（任意可序列化值）；子类必须覆写。"""

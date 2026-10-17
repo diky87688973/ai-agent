@@ -59,17 +59,40 @@ def _tool_content(text: Any, attachments: Any) -> Any:
     return [{"type": "text", "text": body}, *parts]
 
 
+def _tool_envelope(*, ok: bool, data: Any = None, error: Any = None) -> str:
+    """回灌模型的工具结果信封（成功/失败同形）。
+
+    - 成功：`{"ok": true, "data": …}`
+    - 失败：`{"ok": false, "error": "…"}`，可选附带 `data`
+    """
+    if ok:
+        payload: dict[str, Any] = {"ok": True, "data": data}
+    else:
+        payload = {"ok": False, "error": str(error if error is not None else "")}
+        if data is not None:
+            payload["data"] = data
+    try:
+        return json.dumps(payload, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        if ok:
+            return json.dumps({"ok": True, "data": str(data)}, ensure_ascii=False)
+        return json.dumps(
+            {"ok": False, "error": str(error if error is not None else "")},
+            ensure_ascii=False,
+        )
+
+
 def _render_tool_message(call_id: str, done: dict[str, Any] | None, name: str = "") -> dict[str, Any]:
     """把一次调用的结果收成一条 tool 消息。没有结果事实时说明「未记录」，不写 null。"""
     images = done.get("attachments") if isinstance(done, dict) else None
     if done is None:
-        content = f"(工具 {name} 已结束，但未记录结果)"
+        content = _tool_envelope(
+            ok=False, error=f"工具 {name} 已结束，但未记录结果")
     elif bool(done.get("ok")):
-        payload = done.get("data")
-        content = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
+        content = _tool_envelope(ok=True, data=done.get("data"))
     else:
-        detail = done.get("error")
-        content = f"ERROR: {detail if detail is not None else ''}"
+        content = _tool_envelope(
+            ok=False, error=done.get("error"), data=done.get("data"))
     return {"role": "tool", "tool_call_id": call_id,
             "content": _tool_content(content, images)}
 
@@ -251,24 +274,13 @@ class SessionLog:
                     _tool_results[call_id] = {"ok": True, "data": None, "error": ""}
                     continue
                 if bool(ev.data.get("ok")):
-                    payload = ev.data.get("data")
-                    content = (payload if isinstance(payload, str)
-                               else json.dumps(payload, ensure_ascii=False))
+                    content = _tool_envelope(ok=True, data=ev.data.get("data"))
                 else:
-                    detail = ev.data.get("error")
-                    text = f"ERROR: {detail if detail is not None else ''}"
-                    extra = ev.data.get("data")
-                    if extra is not None:
-                        # 失败时把**结构化 data** 一并给出：它是"异常附带的信息"，
-                        # 模型靠它判断该改参数还是重试。序列化失败就退回纯文本
-                        # （主信息已拿到，不该因为附注打包不了而丢掉整个结果）。
-                        try:
-                            packed = (extra if isinstance(extra, str)
-                                      else json.dumps(extra, ensure_ascii=False, default=str))
-                            text = f"{text}\nDETAIL: {packed}"
-                        except (TypeError, ValueError):
-                            pass
-                    content = text
+                    content = _tool_envelope(
+                        ok=False,
+                        error=ev.data.get("error"),
+                        data=ev.data.get("data"),
+                    )
                 _tool_results[call_id] = {
                     "ok": bool(ev.data.get("ok")),
                     "data": ev.data.get("data"),
@@ -308,10 +320,10 @@ class SessionLog:
           · 补占位让模型**看得见"这次调用没有结果"**，自行决定重发或换方案；
           · 这也是唯一能让**已经写出缺口的记录**重新可用的办法。
         """
-        return _ensure_tool_pairs(self.derive_messages())
+        return ensure_tool_pairs(self.derive_messages())
 
 
-def _ensure_tool_pairs(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def ensure_tool_pairs(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """**保证 `assistant(tool_calls)` 的每个 id 都有对应的 tool 消息**。
 
     由 `SessionLog.derive_request_messages` 保证每个 id 都有 tool 消息。
@@ -334,8 +346,13 @@ def _ensure_tool_pairs(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
             out.append({
                 "role": "tool",
                 "tool_call_id": call_id,
-                "content": ("ERROR: 这次工具调用没有产生结果（等待用户确认期间回合结束，"
-                            "或用户转而发了新消息）。请按需重新发起。"),
+                "content": _tool_envelope(
+                    ok=False,
+                    error=(
+                        "这次工具调用没有产生结果（等待用户确认期间回合结束，"
+                        "或用户转而发了新消息）。请按需重新发起。"
+                    ),
+                ),
             })
             answered.add(call_id)
     return out

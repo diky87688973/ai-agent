@@ -14,7 +14,6 @@ sys.path.insert(0, str(_ROOT / "scripts"))
 
 from check_catalog import check  # noqa: E402
 from gen_catalog import (  # noqa: E402
-    CATALOG_PATH,
     collect_display,
     collect_schemas,
     render_catalog,
@@ -58,11 +57,7 @@ class RenderCatalogTest(unittest.TestCase):
 
 
 class CheckCatalogTest(unittest.TestCase):
-    """校验器：零漂移锚点 + 缺失 / 损坏 / 漂移三式检出。"""
-
-    def test_repo_catalog_zero_drift(self) -> None:
-        """仓库 catalog/tools.json 与当前装配集零漂移。"""
-        self.assertEqual(check(CATALOG_PATH), [])
+    """校验器：缺失 / 损坏 / 漂移三式检出（仓库零漂移由 CI 的 check_catalog 守）。"""
 
     def test_missing_file_detected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

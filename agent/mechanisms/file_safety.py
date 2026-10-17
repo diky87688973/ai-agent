@@ -144,10 +144,7 @@ class FileBackups:
         group = self.group_dir(path)
         if not group.is_dir():
             return []
-        try:
-            entries = list(group.iterdir())
-        except OSError:
-            return []
+        entries = list(group.iterdir())
         return sorted((d for d in entries if d.is_dir()), key=lambda d: d.name, reverse=True)
 
     def _meta_of(self, version_dir: Path) -> Optional[Dict[str, Any]]:
@@ -178,10 +175,7 @@ class FileBackups:
         target = Path(path)
         if not target.is_file():
             return None
-        try:
-            data = target.read_bytes()
-        except OSError:
-            return None
+        data = target.read_bytes()
 
         group = self.group_dir(target)
         ver = _version_dir_name()
@@ -237,10 +231,7 @@ class FileBackups:
         fp = self.root / parts[0] / parts[1] / ORIGINAL_NAME
         if not fp.is_file():
             return None
-        try:
-            return fp.read_bytes()
-        except OSError:
-            return None
+        return fp.read_bytes()
 
     # ── 维护 ──────────────────────────────────────────────
 

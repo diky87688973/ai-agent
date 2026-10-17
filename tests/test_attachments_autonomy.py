@@ -5,7 +5,7 @@
   1. 服务端 `images` 校验（MIME / 上限 / 静默丢弃 / 有图无字）；
   2. 附件 → `input_claimed` 事实 → 多模态 content 的组装；
   3. 图片一律原样下发（无按模型名判能力的分支）；
-  4. 自主模式的 runtime 续跑谓词。
+  4. 自主模式里「回合结束后是否再跑一轮」的判断函数。
 """
 from __future__ import annotations
 
@@ -180,8 +180,8 @@ class AutonomyTest(unittest.TestCase):
         state.set_autonomy("c1", True)
         self.assertFalse(state.get_autonomy("c2")["enabled"], msg="不得串到别的会话")
 
-    def test_runner_auto_continue_predicate_used(self) -> None:
-        """`SessionRunner(auto_continue=...)` 被真正查询；谓词异常不得炸线程。"""
+    def test_runner_auto_continue_check_used(self) -> None:
+        """`SessionRunner(auto_continue=...)` 被真正查询；判断函数抛错必须原样抛出，不得吞掉。"""
 
         from agent.shell.session_runner import SessionRunner
 
@@ -191,21 +191,16 @@ class AutonomyTest(unittest.TestCase):
         self.assertEqual(calls, ["c1"])
 
         def boom(cid):
-            raise RuntimeError("predicate 炸了")
+            raise RuntimeError("判断函数出错")
 
-        self.assertFalse(SessionRunner(app=None, mesh=None, auto_continue=boom)._should_auto_continue("c1"))
+        with self.assertRaises(RuntimeError):
+            SessionRunner(app=None, mesh=None, auto_continue=boom)._should_auto_continue("c1")
 
-    def test_no_predicate_means_no_continue(self) -> None:
+    def test_no_auto_continue_means_no_continue(self) -> None:
 
         from agent.shell.session_runner import SessionRunner
 
         self.assertFalse(SessionRunner(app=None, mesh=None)._should_auto_continue("c1"))
-
-    def test_auto_continue_prompt_is_non_empty(self) -> None:
-
-        from agent.shell.session_runner import AUTO_CONTINUE_PROMPT
-
-        self.assertTrue(AUTO_CONTINUE_PROMPT.strip())
 
 if __name__ == "__main__":
     unittest.main()

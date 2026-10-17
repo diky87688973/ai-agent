@@ -11,7 +11,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, Dict
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -170,12 +171,43 @@ class ContributionRegistryTest(unittest.TestCase):
         self.reg.add_panel("a", "p", title="x")
         self.reg.add_action("a", "go", label="去")
         self.reg.add_route("a", "GET", "x", lambda q: (200, {}))
+        self.reg.add_ctx_segment_style("a", label="A", color="blue")
+        self.reg.add_boot_script("a", "ui/tool-view.js")
         self.reg.add_panel("b", "p", title="x")
-        self.assertEqual(self.reg.drop_plugin("a"), 3)
+        self.assertEqual(self.reg.drop_plugin("a"), 5)
         # b 的贡献不该被牵连
         self.assertEqual([p.plugin for p in self.reg.all_panels()], ["b"])
         self.assertEqual(self.reg.all_actions(), [])
         self.assertEqual(self.reg.all_routes(), [])
+        self.assertEqual(self.reg.all_ctx_segment_styles(), [])
+        self.assertEqual(self.reg.all_boot_scripts(), [])
+
+    def test_ctx_segment_style_register_and_dispose(self) -> None:
+        d = self.reg.add_ctx_segment_style("a", label="Skills", color="plum")
+        styles = self.reg.all_ctx_segment_styles()
+        self.assertEqual(len(styles), 1)
+        self.assertEqual(styles[0].as_dict(), {
+            "plugin": "a", "label": "Skills", "color": "plum"})
+        d()
+        self.assertEqual(self.reg.all_ctx_segment_styles(), [])
+
+    def test_boot_script_register_and_dispose(self) -> None:
+        d = self.reg.add_boot_script("a", "ui/tool-view.js")
+        scripts = self.reg.all_boot_scripts()
+        self.assertEqual(len(scripts), 1)
+        self.assertEqual(scripts[0].as_dict(), {
+            "plugin": "a",
+            "rel_path": "ui/tool-view.js",
+            "script": f"/api/plugin/a/{ASSET_SEGMENT}/ui/tool-view.js",
+        })
+        d()
+        self.assertEqual(self.reg.all_boot_scripts(), [])
+
+    def test_boot_script_rejects_escape(self) -> None:
+        for bad in ("../x.js", "ui/../../x.js", "/abs/x.js", r"C:\x.js", ""):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ContributionError):
+                    self.reg.add_boot_script("a", bad)
 
 
 class PluginContextContributionTest(unittest.TestCase):
@@ -195,10 +227,32 @@ class PluginContextContributionTest(unittest.TestCase):
         ctx.add_panel("p", title="面板")
         ctx.add_action("go", label="去")
         ctx.add_route("GET", "x", lambda q: (200, {}))
+        ctx.add_ctx_segment_style(label="A", color="blue")
+        ctx.add_boot_script("ui/tool-view.js")
         self.assertEqual([p.plugin for p in self.reg.all_panels()], ["a"])
         self.assertEqual([a.plugin for a in self.reg.all_actions()], ["a"])
         self.assertEqual([r.plugin for r in self.reg.all_routes()], ["a"])
+        self.assertEqual([s.plugin for s in self.reg.all_ctx_segment_styles()], ["a"])
+        self.assertEqual([s.plugin for s in self.reg.all_boot_scripts()], ["a"])
         self.assertTrue(self.reg.all_routes()[0].full_path.startswith("/api/plugin/a/"))
+        # 贡献 disposer 记入 ctx，register 失败时可回滚
+        self.assertEqual(len(ctx._disposers), 5)
+
+    def test_register_fail_after_add_panel_rolls_back(self) -> None:
+        """register 在 add_panel 之后抛错 → 面板不得留在贡献表。"""
+        plugins = self.base / "plugins"
+        plugins.mkdir(parents=True)
+        (plugins / "boom").mkdir()
+        (plugins / "boom" / "plugin.py").write_text(
+            "def register(ctx):\n"
+            "    ctx.add_panel('p', title='会回滚')\n"
+            "    raise RuntimeError('boom')\n",
+            encoding="utf-8",
+        )
+        reports = self.host.load_enabled(["boom"])
+        self.assertEqual(reports[0].status, "error")
+        self.assertIsNone(self.reg.panel("boom", "p"))
+        self.assertEqual(self.reg.all_panels(), [])
 
     def test_ctx_add_context_source_returns_disposer(self) -> None:
         ctx = self._ctx("a")
@@ -250,6 +304,57 @@ class PluginAssetUrlTest(unittest.TestCase):
         self.assertIsNone(_plugin_asset_rel("/other/a/_asset/x.js"))
         # 插件自己声明的端点若正好叫 _asset，只有 `GET` 走资产分支；解析函数本身不管动词
         self.assertEqual(_plugin_asset_rel("/api/plugin/a/_asset/x.svg"), ("a", "x.svg"))
+
+
+class ExternalPluginRootAssetTest(unittest.TestCase):
+    """外部 path= 插件：资产根走 plugin_root，而不是 plugins_dir/<name>。"""
+
+    def test_plugin_asset_uses_tracked_root(self) -> None:
+        from agent.shell.web import WebShell, _Handler
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        base = Path(tmp.name)
+        plugins_dir = base / "plugins"
+        plugins_dir.mkdir()
+        external = base / "elsewhere" / "extplug"
+        (external / "ui").mkdir(parents=True)
+        (external / "plugin.py").write_text(
+            "def register(ctx):\n"
+            "    ctx.add_panel('p', title='外', script_file='ui/panel.js')\n",
+            encoding="utf-8",
+        )
+        marker = "/* external-asset-ok */\n"
+        (external / "ui" / "panel.js").write_text(marker, encoding="utf-8")
+
+        host = PluginHost(plugins_dir, ToolRegistry(), contributions=ContributionRegistry())
+        reports = host.load_manifest([{"name": "extplug", "path": str(external)}])
+        self.assertEqual(reports[0].status, "loaded")
+        self.assertEqual(host.plugin_root("extplug"), external.resolve())
+        # 默认目录下没有同名插件 —— 若仍按 plugins_dir/<name> 解析会 404
+        self.assertFalse((plugins_dir / "extplug").exists())
+
+        app = SimpleNamespace(plugin_host=host)
+        shell = WebShell(app)
+        captured: Dict[str, Any] = {}
+
+        handler = object.__new__(_Handler)
+        handler.shell = shell
+
+        def _json(status: int, payload: Any) -> None:
+            captured["json"] = (status, payload)
+
+        def _bytes(status: int, body: bytes, content_type: str) -> None:
+            captured["bytes"] = (status, body, content_type)
+
+        handler._json = _json  # type: ignore[method-assign]
+        handler._bytes = _bytes  # type: ignore[method-assign]
+        handler._plugin_asset("extplug", "ui/panel.js")
+        self.assertIn("bytes", captured, msg=f"应送出资产，实际={captured}")
+        status, body, ctype = captured["bytes"]
+        self.assertEqual(status, 200)
+        self.assertIn("javascript", ctype)
+        self.assertEqual(body.decode("utf-8").replace("\r\n", "\n"), marker)
 
 
 if __name__ == "__main__":

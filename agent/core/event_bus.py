@@ -9,10 +9,10 @@
 """
 from __future__ import annotations
 
-import sys
 import threading
 from typing import Callable, Dict, List
 
+from agent.core.error_report import report_error
 from agent.core.events import Event
 
 Handler = Callable[[Event], None]
@@ -67,11 +67,7 @@ class EventBus:
             try:
                 handler(event)
             except Exception as exc:
-                print(
-                    f"[event_bus] 订阅者异常（已隔离）{key}: {type(exc).__name__}: {exc}",
-                    file=sys.stderr,
-                    flush=True,
-                )
+                report_error("core.event_bus", exc, event_type=key)
 
     def dispose_all(self) -> None:
         """清空全部订阅。"""

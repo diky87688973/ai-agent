@@ -66,6 +66,9 @@
       var on = checkedSet[f.path] ? " checked" : "";
       html += '<label class="kb-file-row' + on + '">';
       html += '<span class="kb-cb' + on + '" data-path="' + esc(f.path) + '"></span>';
+      if (window.aiAgentFileIcons && typeof window.aiAgentFileIcons.html === "function") {
+        html += window.aiAgentFileIcons.html(f.path);
+      }
       html += '<span class="kb-fpath">' + esc(f.path) + "</span>";
       html += "</label>";
     }
@@ -131,26 +134,28 @@
 
   window.aiAgentKnowledgePanel = { render: render };
 
-/* 上下文分层：本插件那一段的颜色与段名由插件自己声明。 */
-if (window.aiAgentPlugins && window.aiAgentPlugins.ctxSegments) {
-  window.aiAgentPlugins.ctxSegments.register("knowledge", {
-    // 色名而不是定值：壳层按当前主题取深/浅两套里的那一套，
-    // 分段条与浮层都走同一个取色函数，两处必然同色。
-    color: "blue",
-    label: "知识库",
-  });
-}
-
   function visible() {
     return !!document.getElementById("kbBody");
   }
 
-  /* 面板**打开时**渲染：脚本在开屏就被预载（段色注册要赶在上下文条第一次渲染前），
-     那时面板 DOM 还不存在，首次 render() 是空跑；而脚本只载一次，开面板时不会再执行。
+  /* 面板**打开时**渲染：脚本在开屏就被预载，那时面板 DOM 还不存在，首次 render() 是空跑；
+     而脚本只载一次，开面板时不会再执行。段色由 plugin.py 的 add_ctx_segment_style 登记。
      所以渲染由壳层广播的打开事件驱动 —— 壳层不点名任何插件，插件也不要求壳层认识自己。 */
   document.addEventListener("ai-agent:panel-opened", function (ev) {
     var d = (ev && ev.detail) || {};
-    if (String(d.panel || "") === "kb") render();
+    var plugin = String(d.plugin || "");
+    var panel = String(d.panel || "");
+    var panelId = String(d.panelId || "");
+    /* 壳层 DOM id 是 `插件名__面板id`（如 knowledge__kb）；逻辑 id 在 panelId。
+       只认 panel==="kb" 会对不上，面板永远停在「加载知识库…」。 */
+    if (
+      plugin === "knowledge"
+      || panelId === "kb"
+      || panel === "kb"
+      || /(?:^|__)kb$/.test(panel)
+    ) {
+      render();
+    }
   });
 
   /* 勾选是**按会话**记的，所以会话一切换就要重取。 */

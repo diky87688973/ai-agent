@@ -559,7 +559,12 @@ class OpenAICompatibleProvider(ModelProvider):
         except urllib.error.HTTPError as exc:
             try:
                 detail_body = exc.read().decode("utf-8", errors="replace")
-            except Exception:
+            except Exception as read_exc:
+                print(
+                    f"[model_provider] 读 HTTP 错误体失败: "
+                    f"{type(read_exc).__name__}: {read_exc}",
+                    file=sys.stderr, flush=True,
+                )
                 detail_body = ""
             raise self._http_error(exc.code, detail_body) from exc
         except urllib.error.URLError as exc:

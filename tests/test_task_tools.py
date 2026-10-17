@@ -10,7 +10,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -35,10 +34,17 @@ class _TaskToolsBase(unittest.TestCase):
         self._seq = 0
 
     def _call(self, name, arguments=None, cid=CID):
+        from agent.core.ports import ToolPort
+
         self._seq += 1
         call = ToolCallRequest(call_id=f"c{self._seq}", name=name, arguments=arguments or {})
-        ctx = SimpleNamespace(conversation_id=cid) if cid else None
-        return self.app.pipeline.execute(self.app.registry, call, ctx)
+        port = ToolPort(
+            registry=self.app.registry,
+            pipeline=self.app.pipeline,
+            app=self.app.context,
+            sessions=self.app.session_contexts,
+        )
+        return port.execute(call, conversation_id=cid or "")
 
 class RunTypeTest(_TaskToolsBase):
     def test_query_default_auto(self):
@@ -325,29 +331,28 @@ class ModeGateTest(_TaskToolsBase):
         cid = prev.data["confirm_id"]
         # 会话级门控：预览登记在 CID 会话桶，确认须取同一会话的门控
         self.app.gate_for(CID).confirm(cid)
-        call = ToolCallRequest(call_id=f"c-{cid}", name="commit_write", arguments={"confirm_id": cid})
-        return call, SimpleNamespace(conversation_id=CID)
+        return cid
 
     def test_plan_blocks_commit(self):
 
         self._call("run_type", {"run_type": "plan"})
-        call, ctx = self._preview_ready("gateplan.txt")
-        r = self.app.pipeline.execute(self.app.registry, call, ctx)
+        cid = self._preview_ready("gateplan.txt")
+        r = self._call("commit_write", {"confirm_id": cid})
         self.assertFalse(r.ok)
         self.assertIn("ModeConflict", r.error)
         self._call("run_type", {"run_type": "auto"})
-        r2 = self.app.pipeline.execute(self.app.registry, call, ctx)
+        r2 = self._call("commit_write", {"confirm_id": cid})
         self.assertTrue(r2.ok, msg=r2.error)
 
     def test_execute_requires_todo(self):
 
         self._call("run_type", {"run_type": "execute"})
-        call, ctx = self._preview_ready("gateexec.txt")
-        r = self.app.pipeline.execute(self.app.registry, call, ctx)
+        cid = self._preview_ready("gateexec.txt")
+        r = self._call("commit_write", {"confirm_id": cid})
         self.assertFalse(r.ok)
         self.assertIn("ModeConflict", r.error)
         self._call("todo_list", {"action": "create", "items": ["step"]})
-        r2 = self.app.pipeline.execute(self.app.registry, call, ctx)
+        r2 = self._call("commit_write", {"confirm_id": cid})
         self.assertTrue(r2.ok, msg=r2.error)
 
     def test_plan_blocks_commands(self):

@@ -122,19 +122,21 @@ def _read_available(stream: Any, chunk: int = 4096) -> bytes:
     """
     try:
         first = stream.read(1)
-    except Exception:
+    except OSError:
+        # 管道已断开/关闭：等同 EOF，结束读线程
         return b""
     if not first:
         return b""                      # EOF
     rest = b""
-    try:
-        buffer = getattr(stream, "peek", None)
-        if callable(buffer):
+    buffer = getattr(stream, "peek", None)
+    if callable(buffer):
+        try:
             pending = len(stream.peek(0))     # 不消费，只看缓冲区里有多少
             if pending:
                 rest = stream.read(min(pending, chunk - 1))
-    except Exception:
-        rest = b""
+        except OSError:
+            # peek/续读失败：只交还已读到的首字节
+            pass
     return first + rest
 
 
@@ -159,7 +161,7 @@ def _pump(
     **取消（"停止"）必须在这里生效**：宿主收到停止请求后只会退出自己的循环，
     子进程仍在跑 —— 不在这里杀，用户点了停止却看到命令继续跑（编译/安装尤其明显），
     而界面早已显示"已停止"。取消状态经 `current_context().turn.canceled()` 读，
-    它就是内核给模块的取消谓词（`Ports.canceled`）。
+    它就是内核给模块的停止检查（`Ports.canceled`）。
     """
     import threading
 

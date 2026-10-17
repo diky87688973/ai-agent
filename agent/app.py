@@ -49,9 +49,9 @@ from agent.config import (
     get_reasoning_effort,
 )
 from agent.core.context import (
-    SERVICE_CLASSIC_ADAPTER,
     SERVICE_COMPACTOR_FACTORY,
     SERVICE_CONTEXT_SOURCES,
+    SERVICE_ERROR_LOG,
     SERVICE_EVENT_BUS,
     SERVICE_LIVE_STATE,
     SERVICE_MESH,
@@ -59,12 +59,12 @@ from agent.core.context import (
     SERVICE_PLUGIN_HOST,
     SERVICE_PROVIDER,
     SERVICE_REGISTRY,
-    SERVICE_RUNNER,
     SERVICE_SESSION_CONTEXTS,
     SERVICE_SESSION_FACTORY,
     SERVICE_STORE,
     AppContext,
 )
+from agent.core.error_report import bind_error_sink, report_error
 from agent.core.event_bus import EventBus
 from agent.core.events import Event
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
@@ -73,6 +73,7 @@ from agent.core.session_log import SessionLog
 from agent.core.tool_call import ToolPipeline
 from agent.mechanisms.context_compactor import ContextCompactor, make_provider_summarizer
 from agent.mechanisms.context_pipeline import ContextPipeline, ContextSources
+from agent.mechanisms.error_log import ErrorLog
 from agent.mechanisms.executors import ExecutorRegistry
 from agent.mechanisms.file_safety import (
     FileBackups,
@@ -81,8 +82,9 @@ from agent.mechanisms.file_safety import (
 from agent.mechanisms.live_state import LiveState
 from agent.mechanisms.mesh import MeshState
 from agent.mechanisms.model_provider import EchoProvider
-from agent.mechanisms.quality_gate import QualityGate, build_pipeline_gate
+from agent.mechanisms.quality import QualityGate, build_pipeline_gate
 from agent.shell.classic_adapter import ClassicAdapter
+from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER
 from agent.shell.session_runner import SessionRunner
 
 
@@ -104,7 +106,6 @@ class App:
     ) -> None:
         self.context = context
         self.context_defaults = dict(context_defaults or {})
-        self._fallback_gate: Optional[QualityGate] = None
         #: 可选的模型 id 列表（装配时由配置注入；空 = 未配置，不做白名单校验）。
         #: 该字段只保存模型 id；凭据由 provider 持有，不下发到浏览器。
         self._available_models: list = []
@@ -223,31 +224,30 @@ class App:
                           file=sys.stderr, flush=True)
             except Exception as exc:
                 # **旁路，刻意吞掉**：停机路径不能让补投失败阻断释放流程。
-                print(f"[app] 停机补投失败：{type(exc).__name__}: {exc}",
-                      file=sys.stderr, flush=True)
+                report_error("app.flush", exc)
         session_contexts = self.session_contexts
         if session_contexts is not None:
             session_contexts.close_all()
         self.context.dispose_all()
+        unbind = getattr(self, "_error_unbind", None)
+        if callable(unbind):
+            unbind()
+            self._error_unbind = None
 
     # ── 会话级门控 ──
 
     @property
     def gate(self) -> QualityGate:
-        """默认会话桶的写盘门控（无会话作用域直调场景；每会话门控经 `gate_for` 解析）。
-
-        读属性：容器缺失时按需求值，不缓存于实例——门控状态一律由会话注册表持有，
-        避免"注册表一份、App 属性一份"的双份状态。
-        """
+        """默认会话桶的写盘门控（经 `gate_for("")`）。"""
         return self.gate_for("")
 
     def gate_for(self, conversation_id: str) -> QualityGate:
-        """解析某会话的写盘门控；无会话装配时退化为默认桶门控（`self.gate`）。"""
+        """解析某会话的写盘门控；须已装配 `SessionContexts`。"""
         session_contexts = self.session_contexts
         if session_contexts is None:
-            if self._fallback_gate is None:
-                self._fallback_gate = QualityGate()
-            return self._fallback_gate
+            raise RuntimeError(
+                "未装配会话注册表（SessionContexts）：无法解析写盘门控"
+            )
         return session_contexts.resolve_sync(conversation_id).gate
 
     # ── 会话入口（内核三面：开始回合 / 事件流 / 工具调用协议）──
@@ -263,7 +263,7 @@ class App:
     ) -> Any:
         """创建会话引擎：装载既有记录（store 可用时）、装配上下文与持久化旁路。
 
-        cancel：协作式取消谓词——壳层传入，内核只认"是否要求停止"。
+        cancel：壳层传入的停止检查——内核只认"是否要求停止"。
         inbox：取队首消息的可调用对象 `(cid) -> dict | None`；缺省时用会话消息队列，
         这样"别的会话投进来的消息"不必每次由壳层显式接线。
         """
@@ -295,12 +295,12 @@ class App:
         # 入站消息出口：默认取协作网格（`MeshState`）的 inbox 队列 ——
         # 它就是 `session_send` 投递的目标队列（持久化在 `mesh/inbox/<cid>.jsonl`）。
         # 装配方显式传 `inbox` 时以传入的为准（便于替换存储）。
-        try:
-            mesh = self.mesh
-        except Exception:
-            # 判据：没装配协作网格的部署（单会话/嵌入式）不该因为"取不到 mesh"而
-            # 建不出会话 —— 没有网格就是没有入站消息。
-            mesh = None
+        # 没装配协作网格（单会话/嵌入式）→ 没有入站消息；用 has 判定，不吞异常装 None。
+        mesh = (
+            self.context.get(SERVICE_MESH)
+            if self.context.has(SERVICE_MESH)
+            else None
+        )
         if inbox is None and mesh is not None:
             inbox = mesh.pop
 
@@ -344,11 +344,38 @@ class App:
             event_sink=self.event_bus.publish if self.event_bus is not None else None,
             session_context=session_ctx,
             seq_allocator=seq_allocator,
+            app_context=self.context,
+            session_contexts=self.session_contexts,
         )
 
     def run_turn(self, user_text: str, conversation_id: str = "default") -> Iterator[Event]:
         """便捷入口：单回合（新建会话引擎；无 store / 上下文时按无状态路径运行）。"""
         yield from self.session(conversation_id).start_turn(user_text)
+
+    def execute_tool(
+        self,
+        name: str,
+        arguments: Optional[Dict[str, Any]] = None,
+        *,
+        conversation_id: str = "",
+        call_id: str = "",
+    ) -> Any:
+        """经 ToolPort 执行一次工具（填齐 app / session，与生产路径一致）。"""
+        from agent.core.ports import ToolPort
+        from agent.core.tool_call import ToolCallRequest
+
+        port = ToolPort(
+            registry=self.registry,
+            pipeline=self.pipeline,
+            app=self.context,
+            sessions=self.session_contexts,
+        )
+        call = ToolCallRequest(
+            call_id=str(call_id or f"app-{name}"),
+            name=str(name or ""),
+            arguments=dict(arguments or {}),
+        )
+        return port.execute(call, conversation_id=str(conversation_id or ""))
 
 
 
@@ -374,6 +401,8 @@ def _build_engine(
     event_sink: Any = None,
     session_context: Any = None,
     seq_allocator: Any = None,
+    app_context: Any = None,
+    session_contexts: Any = None,
 ) -> Any:
     """引擎工厂：把装配参数翻成模块链引擎。
 
@@ -412,6 +441,8 @@ def _build_engine(
         # 浏览器 `Last-Event-ID` 恒空 → **断线期间的事件静默丢失**（不重放、不报错）。
         # 存储侧的兜底补号会掩盖它（存储行有坐标、总线上的没有）。
         seq_allocator=seq_allocator,
+        app_context=app_context,
+        session_contexts=session_contexts,
     )
 
 
@@ -455,8 +486,7 @@ def build_app(
                 print(f"[core] 已清理 {_removed} 份过期文件备份（保留 {_kept} 份，"
                       f"保留期 {_retention_days} 天）", file=sys.stderr, flush=True)
         except Exception as exc:
-            print(f"[core] 文件备份清理失败（不影响启动）："
-                  f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            report_error("core.backup_prune", exc)
     model_cfg = get_model_reasoning()
     # 多模型：`[model_reasoning] models` 是**同一个网关下的可选模型名**，
     # 逗号分隔；未配置时清单只有当前模型（单模型部署照常工作）。
@@ -507,14 +537,19 @@ def build_app(
     for plugin in geo_weather_tools.build_plugins():
         registry.register(plugin)
     registry.register(github_tools.build())
-    gate = QualityGate()
-    contexts = SessionContexts(lambda cid: QualityGate(), live=state, inbox=mesh_state)
+    def _path_keys_for(name: str):
+        plugin = registry.get(name)
+        if plugin is None:
+            return ()
+        return tuple(getattr(plugin, "write_path_keys", ()) or ())
 
-    def _gate_resolver() -> QualityGate:
-        """当前会话门控（管道执行期内经会话作用域解析）。"""
-        return contexts.resolve().gate
-
-    registry.register(review_conclusion.build(_gate_resolver))
+    contexts = SessionContexts(
+        lambda cid: QualityGate(path_keys_for=_path_keys_for),
+        live=state,
+        inbox=mesh_state,
+    )
+    # 写盘工具经管道上下文取 session.gate；直调单测可另传门控实例。
+    registry.register(review_conclusion.build())
     executors: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
     # 插件贡献的写类工具执行器登记在这里：提交那一刻才查，装配顺序无关。
     executor_registry = ExecutorRegistry()
@@ -522,10 +557,13 @@ def build_app(
     executors.update(edit_tools.build_executors(backups))
     executors.update(fs_tools.build_executors(backups, recycle))
     executors.update(archive_tool.build_executors())
-    registry.register(commit_write.build(_gate_resolver, executors, executor_registry))
+    registry.register(commit_write.build(executors, executor_registry))
     pipeline = ToolPipeline()
+    # 管道钩子：会话门控经 sessions；预览只认工具 needs_preview。
     pre, post = build_pipeline_gate(
-        gate, live_state=state, gate_resolver=_gate_resolver
+        registry=registry,
+        sessions=contexts,
+        live_state=state,
     )
     pipeline.add_pre(pre)
     pipeline.add_post(post)
@@ -589,6 +627,10 @@ def build_app(
 
     # ── 进程级服务登记（AppContext 是唯一持有者）──
     context = AppContext()
+    # 错误日志尽早登记并绑定：后续装配/插件装载失败也能落盘。
+    error_log = ErrorLog(data_root)
+    context.register(SERVICE_ERROR_LOG, error_log)
+    _unbind_error = bind_error_sink(error_log.report)
     # 逆序即清理序（后注册先清理）：先会话注册表与运行器，再各机制，最后管道与注册表。
     context.register(SERVICE_REGISTRY, registry)
     context.register(SERVICE_PIPELINE, pipeline)
@@ -619,6 +661,7 @@ def build_app(
         max_passes=get_max_passes(),
     )
     app._available_models = list(_available)
+    app._error_unbind = _unbind_error
     runner = SessionRunner(
         app=app,
         mesh=mesh_state,

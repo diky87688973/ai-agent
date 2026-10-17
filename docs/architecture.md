@@ -135,6 +135,26 @@ class Ports:
 
 `build_shell_app()` 在 `shell/web.py` 里包一层：按配置建真实 provider 与会话存储，再交给 `build_app()`。
 
+## 反苟且清单
+
+下列纪律必须保持为零例外（由 `scripts/check_architecture_hygiene.py` 与单测共同钉住）：
+
+- `ToolCallScope` 在执行期填入 `app` 与 `session`；工具读 `current_context().session.gate`，不另开全局门控旁路（无 `gate=` / `_fallback_gate` / `gate_resolver`）。
+- 无 `session_contexts` 时 `gate_for` 报错；`build_pipeline_gate` 必填 `registry` 与 `sessions`，预览只认工具 `needs_preview`（无 `preview_tools=`）。
+- 系统提示词写类名单由 `preview_write_tools_line(registry)` 从 `needs_preview` 动态生成，不手写内置枚举长串；生成失败必须报错，禁止静默空串。
+- 写路径键只认工具声明的 `write_path_keys`（经注册表查找），无进程全局键表、无默认猜 `path`；落盘后是否强制重读认 `needs_reread`。
+- 写盘门控只认 `agent.mechanisms.quality`；禁止 `quality_gate` 兼容模块或 `mechanisms.quality_gate` 回流。
+- `agent/core` 与 `agent/mechanisms` 不出现具体插件名（含 `skill_manage` 与 `plugins/` 目录名）。
+- 插件 `add_panel` / `add_route` / `add_action` 等贡献一律经 disposer 记账，卸载逆序清理。
+- 外部 `path=` 插件的资产根走 `plugin_root`，不写死 `plugins/<名>`。
+- 仅为段色登记时用 `add_ctx_segment_style`，不挂空面板。
+- 壳层经典 JS 与 `prompts.py` 不含 `skill_manage`（工具名只在插件侧）。
+- TTS 等插件不向界面承诺内核未提供的能力。
+- 禁止跨层私有导入（`from agent.X import _priv`）；同层私有导入允许。
+- `SERVICE_CLASSIC_ADAPTER` 只住在壳层键表，不进 `core`。
+- 不保留死的 `changeset_mod_ids` 引用。
+- 会话关闭时释放对应 `SessionContext` 桶。
+
 ## 延伸阅读
 
 | 主题 | 文档 |

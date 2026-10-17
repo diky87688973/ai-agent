@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict
 
 from agent.capabilities.registry import ToolPlugin
 from agent.mechanisms.file_safety import FileBackups
-from agent.mechanisms.quality_gate import change_payload, diff_text
+from agent.mechanisms.quality import change_payload, diff_text
 
 
 class WriteFileTool(ToolPlugin):
@@ -25,9 +25,13 @@ class WriteFileTool(ToolPlugin):
     icon = "📝"
     description = (
         "预览写入文本文件（不落盘），返回 confirm_id。"
-        "落盘前必须先 review：用 review_conclusion 提交结论与证据解锁，"
+        "内容已与磁盘一致时返回 status=already_applied（needs_commit=false），不必再 commit。"
+        "否则落盘前必须先 review：用 review_conclusion 提交结论与证据解锁，"
         "再用该 confirm_id 调 commit_write。"
     )
+    needs_preview = True
+    needs_reread = True
+    write_path_keys = ("path",)
     parameters = {
         "path": {"type": "string", "description": "目标文件路径"},
         "content": {"type": "string", "description": "写入内容（UTF-8；仅预览入口）"},
@@ -48,14 +52,40 @@ class WriteFileTool(ToolPlugin):
                 old_text = target.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 old_text = ""
-        return {
+        if target.is_file() and old_text == content:
+            return {
+                "path": str(target),
+                "status": "already_applied",
+                "applied": False,
+                "needs_commit": False,
+                "exists": True,
+                "bytes": len(payload),
+                "message": "内容已是目标态，无需写入",
+                "_change": change_payload(old_text, content, str(target)),
+            }
+        change = change_payload(old_text, content, str(target))
+        out: Dict[str, Any] = {
             "path": str(target),
             "preview": True,
+            "status": "pending",
             "bytes": len(payload),
             "exists": target.is_file(),
             # 变更预览（Web 壳文件编辑 / diff 卡片用；不落盘，仅供展示）
-            "_change": change_payload(old_text, content, str(target)),
+            "_change": change,
         }
+        # 仅结尾换行不同时，行级 diff 曾一度为空；现已 keepends，这里仍标明字节差，
+        # 避免模型以为「无改动却要 review」。
+        if (
+            target.is_file()
+            and old_text != content
+            and old_text.rstrip("\n") == content.rstrip("\n")
+        ):
+            old_n = len(old_text.encode("utf-8"))
+            out["message"] = (
+                f"仅结尾换行差异（磁盘 {old_n} 字节 → 预览 {len(payload)} 字节）"
+            )
+            out["newline_only"] = True
+        return out
 
 
 def build() -> WriteFileTool:

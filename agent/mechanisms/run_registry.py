@@ -221,26 +221,23 @@ class FileRunRegistry:
             return False
 
         if sys.platform == "win32":
-            try:
-                import ctypes
-                from ctypes import wintypes
+            import ctypes
+            from ctypes import wintypes
 
-                kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-                kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-                kernel32.OpenProcess.restype = wintypes.HANDLE
-                kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-                PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-                handle = kernel32.OpenProcess(
-                    PROCESS_QUERY_LIMITED_INFORMATION, False, value)
-                if handle:
-                    kernel32.CloseHandle(handle)
-                    return True
-                # 87 = ERROR_INVALID_PARAMETER：该 pid 根本不存在
-                if ctypes.get_last_error() == 87:
-                    return False
-                return True          # 其它错误：说不准 → 保守当活着
-            except Exception:
-                return True          # 探测本身失败 → 保守当活着
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            handle = kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, value)
+            if handle:
+                kernel32.CloseHandle(handle)
+                return True
+            # 87 = ERROR_INVALID_PARAMETER：该 pid 根本不存在
+            if ctypes.get_last_error() == 87:
+                return False
+            return True          # 其它错误：说不准 → 保守当活着
 
         try:
             os.kill(value, 0)
@@ -250,8 +247,6 @@ class FileRunRegistry:
             return True              # 存在但不属于我
         except OSError:
             return True              # 探活失败 ≠ 已死
-        except Exception:
-            return True
         return True
 
     def _fresh(self, rec: Dict[str, object]) -> bool:

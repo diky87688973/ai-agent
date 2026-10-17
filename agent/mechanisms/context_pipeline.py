@@ -11,15 +11,21 @@
 - 估算与统计：总量 / 分块 / 分段快照。
 
 摘要生成（调用模型产出摘要文本）不在本模块范围（属压缩策略执行侧）。
+token 估算见 `agent.mechanisms.context_tokens`（本模块再导出以保持旧导入可用）。
 """
 from __future__ import annotations
 
 import copy
-import json
-import sys
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from agent.core.error_report import report_error
+from agent.mechanisms.context_tokens import (  # noqa: F401 — 再导出供旧导入路径
+    IMAGE_TOKENS_PER_IMAGE,
+    approx_tokens_text,
+    default_message_tokens,
+)
 
 CHUNK_SYSTEM = "系统提示词"
 CHUNK_PLUGIN = "插件段落"
@@ -187,88 +193,6 @@ def _as_text_parts(text: Any) -> List[str]:
     return out
 
 
-#: CJK 区段的字符每字约 1 token（本工程正文以中文为主，实测 prompt_tokens 与
-#: 字符数同量级）；其余按 4 字符 1 token。见 `approx_tokens_text`。
-#: 每张图片计入的 token 上限（官方口径每图最多 1024）。
-IMAGE_TOKENS_PER_IMAGE = 384
-
-_CJK_RANGES: Tuple[Tuple[int, int], ...] = (
-    (0x3000, 0x303F),    # 中文标点
-    (0x3400, 0x4DBF),    # 扩展 A
-    (0x4E00, 0x9FFF),    # 基本区
-    (0xF900, 0xFAFF),    # 兼容表意
-    (0xFF00, 0xFFEF),    # 全角
-    (0x20000, 0x3FFFF),  # 扩展 B 及以上
-)
-
-
-def _is_cjk(ch: str) -> bool:
-    code = ord(ch)
-    return any(lo <= code <= hi for lo, hi in _CJK_RANGES)
-
-
-def approx_tokens_text(text: str) -> int:
-    """粗略 token 估算：CJK 每字 1 token，其余每 4 字符 1 token。
-
-    **不能整体按 `len // 4` 算**：中文正文一个字约一个 token，除 4 会低估约四倍 ——
-    实测一条会话的估算 173,219 对上真实 prompt 1,000,563（差 5.8 倍，主要是中文工具输出），
-    于是 `summary_token_threshold` 形同虚设，压缩永远晚触发，请求一路顶到上限。
-
-    这里只做分区计数，不引入分词器依赖：它是**估算**，用途是"什么时候该压缩"，
-    宁可略高也不要低（低估会让窗口悄悄溢出）。
-    """
-    s = str(text or "")
-    if not s:
-        return 0
-    cjk = 0
-    for ch in s:
-        if _is_cjk(ch):
-            cjk += 1
-    rest = len(s) - cjk
-    return cjk + rest // 4 + 4
-
-
-def default_message_tokens(msg: Dict[str, Any]) -> int:
-    """缺省消息 token 估算（接入时可替换为更精确实现）。
-
-    口径 = **将要发出去的那一条**：
-    - `content`：文本按字符估算；多模态里的图片块按每图固定上限计（base64 是编码
-      而非文本，按字符算会把一张截图算成两千多 token，官方口径每图最多 1024）。
-    - `tool_calls`：`arguments` 是请求体的一部分（`python_inline` 的 `code`、
-      `write_file` 的正文都在里面，一段几 KB），漏掉它估算会系统性偏小。
-    - `reasoning_content`：按当前回传预算裁过之后**还剩多少就计多少**
-      （`set_dialogue` 已经裁好；不裁全量回传的那份也确实要计费）。
-    """
-    if not isinstance(msg, dict):
-        return 0
-    content = msg.get("content")
-    if isinstance(content, str):
-        n = approx_tokens_text(content)
-    elif content is None:
-        n = 0
-    elif isinstance(content, list):
-        imgs = sum(1 for p in content
-                   if isinstance(p, dict) and p.get("type") == "image_url")
-        texts = "".join(str(p.get("text") or "") for p in content
-                        if isinstance(p, dict) and p.get("type") == "text")
-        n = approx_tokens_text(texts) + imgs * IMAGE_TOKENS_PER_IMAGE
-    else:
-        try:
-            n = approx_tokens_text(json.dumps(content, ensure_ascii=False))
-        except (TypeError, ValueError):
-            n = approx_tokens_text(str(content))
-    calls = msg.get("tool_calls")
-    if isinstance(calls, list) and calls:
-        try:
-            n += approx_tokens_text(json.dumps(calls, ensure_ascii=False))
-        except (TypeError, ValueError):
-            n += 16
-    reasoning = msg.get("reasoning_content")
-    if isinstance(reasoning, str) and reasoning.strip():
-        n += approx_tokens_text(reasoning)
-    return n
-
-
 def flat_messages_to_user_rounds(msgs: List[Dict[str, Any]]) -> List[Round]:
     """扁平消息按 user 起轮切分为 Round 列表。"""
     rounds: List[Round] = []
@@ -425,11 +349,21 @@ def layout_from_messages(
         # 否则它会被系统段与摘要段各算一次。
         rest_head = rest_head[1:]
     plan = list(plugin_segments or [])
+    # 空占位段不占头部消息：按「有正文才消费一条」对齐，避免知识库未勾选时
+    # 把后面 Skills 的消息错贴到知识库段上。
     plugin: List[List[Dict[str, Any]]] = []
-    for i, _ in enumerate(plan):
-        plugin.append([rest_head[i]] if i < len(rest_head) else [])
+    msg_i = 0
+    for seg in plan:
+        seg_count = int(seg[2]) if len(seg) > 2 else 0
+        if seg_count > 0 and msg_i < len(rest_head):
+            plugin.append([rest_head[msg_i]])
+            msg_i += 1
+        elif seg_count > 0:
+            plugin.append([])
+        else:
+            plugin.append([])
     # 插件各段之后剩下的都算记忆摘要（压缩产出的那份）。
-    summary = [m for m in rest_head[len(plan):]]
+    summary = [m for m in rest_head[msg_i:]]
 
     mode: List[Dict[str, Any]] = []
     for m in reversed(body):
@@ -614,7 +548,7 @@ class PluginSegments:
     counts: List[int] = field(default_factory=list)
 
 
-def _slug(text: str) -> str:
+def slug(text: str) -> str:
     """把任意名字压成可用作段 key 的形状（只留字母数字与 `_`、`-`）。"""
     out = "".join(ch if (ch.isalnum() or ch in "_-") else "_" for ch in str(text or ""))
     return out.strip("_") or "source"
@@ -657,7 +591,7 @@ class ContextSources:
         if not callable(fn):
             raise ValueError("上下文来源必须可调用")
         info = meta if isinstance(meta, SourceMeta) else SourceMeta()
-        key = info.key or _slug(getattr(fn, "__name__", "") or "source")
+        key = info.key or slug(getattr(fn, "__name__", "") or "source")
         return self._register(self._sources,
                               (key, info.label or key, fn, info.count, info.prefix,
                                info.plugin_rank))
@@ -693,18 +627,27 @@ class ContextSources:
         counts: List[int] = []
         for key, label, fn, reported, prefix, _order in sources:
             texts = self._gather(fn, conversation_id)
+            if texts is None:
+                # 来源异常已隔离：不占位（占位会假装插件正常只是没内容）。
+                continue
             amount = None
             if callable(reported):
                 try:
                     amount = max(0, int(reported(conversation_id)))
                 except Exception as exc:
-                    print(
-                        f"[context_sources] 数量取数口异常（已隔离）: "
-                        f"{key}: {type(exc).__name__}: {exc}",
-                        file=sys.stderr,
-                        flush=True,
+                    report_error(
+                        "context.source_count",
+                        exc,
+                        conversation_id=conversation_id,
+                        source=key,
                     )
                     amount = None
+            if not texts:
+                # 空段仍占位：上下文示意图要看见已装载但尚未注入内容的插件
+                # （例如知识库未勾选）。正文空串，装配进模型时会被跳过。
+                items.append((key, label, ""))
+                counts.append(amount if amount is not None else 0)
+                continue
             for i, text in enumerate(texts):
                 # 前缀在收集时统一加上：插件只管正文，前缀由它自己声明。
                 items.append((key, label, f"{prefix}{text}" if prefix else text))
@@ -717,16 +660,19 @@ class ContextSources:
         return PluginSegments(items=items, counts=counts)
 
     @staticmethod
-    def _gather(fn: Callable[[str], List[str]], conversation_id: str) -> List[str]:
+    def _gather(
+        fn: Callable[[str], List[str]], conversation_id: str,
+    ) -> Optional[List[str]]:
+        """收集一个来源。异常 → `None`（隔离、不占位）；正常无正文 → `[]`（占空段）。"""
         try:
             parts = fn(conversation_id)
         except Exception as exc:
-            print(
-                f"[context_sources] 来源异常（已隔离）: {type(exc).__name__}: {exc}",
-                file=sys.stderr,
-                flush=True,
+            report_error(
+                "context.source",
+                exc,
+                conversation_id=conversation_id,
             )
-            return []
+            return None
         out: List[str] = []
         for text in parts or []:
             t = str(text or "").strip()
@@ -758,10 +704,12 @@ class ContextPipeline:
         #: 最近这么多**用户轮**原样保留（含工具往返）；更早的轮剥掉轮内工具往返。
         #: 负数 = 不剥（全部保留）。
         self._sources = sources
-        # 插件段落：`[(段 key, 段名)]`，顺序与 CHUNK_PLUGIN 里的消息一一对应。
+        # 插件段落：`[(段 key, 段名)]`；有正文的段才与 CHUNK_PLUGIN 消息对齐。
         self._plugin_sources: List[Tuple[str, str]] = []
         # 插件自报的主体数量，**按段的位置**对应（缺省时段落行按消息条数算）。
         self._plugin_counts: List[int] = []
+        #: 与 `_plugin_sources` 对齐：是否带进模型的正文（空占位为 False）。
+        self._plugin_has_body: List[bool] = []
         #: 本趟链的注入源快照。`begin_pass` 收集，`end_pass` 丢掉。
         #: 这一趟里压缩与模型请求共用这一份；趟结束就放开，
         #: 下一趟若不来，知识库和 Skills 正文不会留在会话上。
@@ -846,8 +794,15 @@ class ContextPipeline:
                 flat.extend(rnd.messages)
         rows: List[Dict[str, Any]] = []
         counts = list(self._plugin_counts)
+        has_body = list(getattr(self, "_plugin_has_body", []) or [])
+        msg_i = 0
         for i, (key, label) in enumerate(self._plugin_sources):
-            msg = flat[i] if i < len(flat) else None
+            # 空占位不占消息槽，避免把后面插件的正文错算到本段。
+            body = True if i >= len(has_body) else bool(has_body[i])
+            msg = None
+            if body and msg_i < len(flat):
+                msg = flat[msg_i]
+                msg_i += 1
             # 自报数量**按位置**对来源：数量表比来源表长说明两者已经错位，
             # 此时宁可退回"按消息条数"（1），也不要拿别人的数量去贴自己的段。
             reported = counts[i] if i < len(counts) else None
@@ -1020,9 +975,8 @@ class ContextPipeline:
         模型否认看到图片时的最小上下文重试＝本方法结果 + 当前那条用户消息 ——
         最小上下文 = 这份系统提示 + 当前那条用户消息。
         """
-        try:
-            chunk = self.name_map[CHUNK_SYSTEM]
-        except (KeyError, AttributeError):
+        chunk = self.name_map.get(CHUNK_SYSTEM) if hasattr(self, "name_map") else None
+        if chunk is None:
             return ""
         parts: List[str] = []
         for rnd in getattr(chunk, "rounds", []) or []:
@@ -1041,8 +995,11 @@ class ContextPipeline:
         （`['条目一']`），而不是条目本身。
         """
         for part in _as_text_parts(text):
+            if not str(part).strip():
+                continue
             self.name_map[CHUNK_PLUGIN].append("system", part, True)
-            self._plugin_sources.append((key or _slug(label), label or key))
+            self._plugin_sources.append((key or slug(label), label or key))
+            self._plugin_has_body.append(True)
 
     def set_plugin_segments(self, segments: Any) -> None:
         """整体设置插件段落（清空重建；空列表清空）。
@@ -1058,10 +1015,18 @@ class ContextPipeline:
         chunk.rounds = []
         self._plugin_sources = []
         self._plugin_counts = list(counts)
+        #: 与 `_plugin_sources` 对齐：这段是否带了进模型的正文（空占位为 False）
+        self._plugin_has_body: List[bool] = []
         for key, label, text in items:
-            for part in _as_text_parts(text):
+            parts = [p for p in _as_text_parts(text) if str(p).strip()]
+            if not parts:
+                self._plugin_sources.append((key, label))
+                self._plugin_has_body.append(False)
+                continue
+            for part in parts:
                 chunk.append("system", part, True)
                 self._plugin_sources.append((key, label))
+                self._plugin_has_body.append(True)
 
     def set_summaries(self, summaries: List[Dict[str, Any]]) -> None:
         """设置摘要（记忆块；逐条独立成轮，深拷贝）。"""
