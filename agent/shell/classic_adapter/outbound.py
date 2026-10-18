@@ -2,9 +2,9 @@
 """出站适配：内核事件 → 经典 UI 认得的事件（服务端 → 前端）。
 
 一个会话一条 `ClassicStream`。它做两件事：
-  ① **翻译**：内核的 `tool_call` / `tool_result` / `step_started` / … 变成经典界面读的
+  ① 翻译：内核的 `tool_call` / `tool_result` / `step_started` / … 变成经典界面读的
      `tool_start` / `tool_end` / `llm_round` / …（字段名完全对齐，见 contract.py）；
-  ② **补事件**：经典界面依赖一些内核没有的事件（`llm_request` / `llm_response` /
+  ② 补事件：经典界面依赖一些内核没有的事件（`llm_request` / `llm_response` /
      `llm_done` / `mode_changed` / `heartbeat`），由这里按上下文合成。
 
 三条硬约束：
@@ -32,7 +32,7 @@ class _Pending:
 class ClassicStream:
     """把一个会话的内核事件翻成经典界面事件序列。
 
-    有状态但**只读内核**：状态全部是"经典界面需要而内核没提供"的派生量
+    有状态但只读内核：状态全部是"经典界面需要而内核没提供"的派生量
     （当前轮次号、待配对工具、本步 LLM 卡片信息）。
     """
 
@@ -54,21 +54,21 @@ class ClassicStream:
         # 用注入的解析器现场取（adapter 从 live_state / provider 拿）。
         self.mode_resolver = mode_resolver
         self.model_resolver = model_resolver
-        #: 上下文分段快照的**计算者**（装配方注入）。内核不产出 `context_layout`
+        #: 上下文分段快照的计算者（装配方注入）。内核不产出 `context_layout`
         #: 事实，按分工由消费方（`_on_context_compacted`）计算。
         self.layout_resolver = layout_resolver
         self._step_had_llm = False   # 本步是否发过 llm_round（决定要不要补 llm_done）
         self._tools_in_step = 0
-        # **这一次 translate 调用**对应的存储坐标（落盘旁路标的 `_seq`）。
-        # 每个事件翻译前**重新设定、翻完即清**，绝不跨事件沿用。
+        # 这一次 translate 调用对应的存储坐标（落盘旁路标的 `_seq`）。
+        # 每个事件翻译前重新设定、翻完即清，绝不跨事件沿用。
         #
-        # 不能做成"最近一帧的坐标"那种实例字段：本对象**按会话缓存**
-        # （`adapter._streams`），一旦某次**回放**把历史坐标写进实例，之后所有实时帧
-        # 都会被盖上那个**过期**坐标 —— 客户端拿旧坐标重连**又收到那批帧**，
+        # 不能做成"最近一帧的坐标"那种实例字段：本对象按会话缓存
+        # （`adapter._streams`），一旦某次回放把历史坐标写进实例，之后所有实时帧
+        # 都会被盖上那个过期坐标 —— 客户端拿旧坐标重连又收到那批帧，
         # assistant 正文被重复渲染（对话区多一个气泡），且游标永久失效。
         self._frame_seq: Optional[int] = None
         # 本轮是否停在"等用户作答"（由 `turn_ended.paused` 置位）。
-        # 它是**宿主状态**：恢复靠用户操作触发新回合，内核不等待、不阻塞。
+        # 它是宿主状态：恢复靠用户操作触发新回合，内核不等待、不阻塞。
         self.paused = False
         # 本轮是否已发出待确认信封（决定要不要抑制收尾的空正文气泡）。
         self._awaiting_confirm = False
@@ -91,8 +91,8 @@ class ClassicStream:
     def translate(self, ev_type: str, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """一个内核事件 → 零到多帧老事件（按顺序）。"""
         payload = dict(data or {})
-        # 存储坐标（落盘旁路标的 `_seq`）：**本事件**翻出的所有帧共用它。
-        # 实时事件没有 `_seq` → 明确置 `None`，**不沿用上一次的**（那正是"粘滞"的来源）。
+        # 存储坐标（落盘旁路标的 `_seq`）：本事件翻出的所有帧共用它。
+        # 实时事件没有 `_seq` → 明确置 `None`，不沿用上一次的（那正是"粘滞"的来源）。
         raw_seq = payload.pop("_seq", None)
         self._frame_seq = (raw_seq
                            if isinstance(raw_seq, int)
@@ -116,15 +116,15 @@ class ClassicStream:
         self.paused = False
         self._awaiting_confirm = False
         out: List[Dict[str, Any]] = []
-        # `conversation` 是**必需**事件：经典界面靠它建立该会话的上下文
+        # `conversation` 是必需事件：经典界面靠它建立该会话的上下文
         # （`ensureConversationTab` + 同步模式/模型），并由
         # `withConversationContext` 设置 `renderingContextVisible`——
         # 没有它，后续 `usage` / `context_layout` 的渲染守卫不过，底栏永远不更新。
         # 内核的 `turn_started` 不带 mode/model，所以用注入的解析器现场取。
-        # **不带 `model`**：模型不由服务端推送。
+        # 不带 `model`：模型不由服务端推送。
         # 若每轮都推一次，前端会照单接收并覆盖 `selectedModel` ⇒
         # "发一条消息，模型下拉自己跳回默认"。
-        # 规则：**首次打开页面拉一次当前模型**，此后一律以**发送消息那一刻**
+        # 规则：首次打开页面拉一次当前模型，此后一律以发送消息那一刻
         # 前端带来的 `model` 为准 —— 服务端不反向覆盖用户当场的选择。
         out.append(self._ev(C.EV_CONVERSATION, mode=self._resolve_mode()))
         out.append(self._ev(C.EV_RUN_STARTED, run_id=self.run_id))
@@ -145,11 +145,11 @@ class ClassicStream:
         return str(self.model_resolver(self.cid) or "")
 
     def _on_input_claimed(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        # 经典界面**乐观渲染**用户气泡（agent-ui.js:2053），这里再发一次会重复。
+        # 经典界面乐观渲染用户气泡（agent-ui.js:2053），这里再发一次会重复。
         # 所以只回一个空的确认帧，供适配层更新自身状态。
         #
-        # 例外：**别的会话投进来的消息**（`_sender` 非空）不是用户自己打的，
-        # 前端没有乐观渲染它 —— 不回帧的话它在实时视图里**完全看不见**，
+        # 例外：别的会话投进来的消息（`_sender` 非空）不是用户自己打的，
+        # 前端没有乐观渲染它 —— 不回帧的话它在实时视图里完全看不见，
         # 只有刷新后才冒出来（而且会被当成用户自己说的话）。
         sender = str(d.get("_sender") or "").strip()
         if not sender:
@@ -177,11 +177,11 @@ class ClassicStream:
     def _on_llm_started(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         """同一含义的当前事实：模型模块在真正发起调用前发的 `llm_started`。
 
-        经典界面的步骤卡由 `llm_round` 起卡，而内核**不发"步"**
-        （"趟"是宿主的实现细节）——只认"步开始"的话，**步骤面板彻底空**。
+        经典界面的步骤卡由 `llm_round` 起卡，而内核不发"步"
+        （"趟"是宿主的实现细节）——只认"步开始"的话，步骤面板彻底空。
 
         这里让适配层吸收两种词汇：历史记录用"步开始"、当前用"模型调用开始"，
-        对经典界面是同一件事——**新一轮要起卡了**。
+        对经典界面是同一件事——新一轮要起卡了。
 
         顺带把 `llm_request.params` 用真实携带的信息填满
         （`model` / `messages` / `tools` 取自当轮实况）。
@@ -213,7 +213,7 @@ class ClassicStream:
         内核没有该事件，这里按当轮实况组；拿不到的字段给 None——
         经典界面只是 `JSON.stringify`，显示 null 比显示假数字诚实。
 
-        **`model` 不能为空**：请求快照要写出这一轮用的模型名，空串就回落注入的模型名。
+        `model` 不能为空：请求快照要写出这一轮用的模型名，空串就回落注入的模型名。
         """
         return {
             "round": self.round,
@@ -241,7 +241,7 @@ class ClassicStream:
     def _on_model_message(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         """本步收束：补 `llm_response` + `llm_done`，并给最终正文。
 
-        经典界面的 `assistant` 只在**有正文**时才应发；工具调用轮没有正文，
+        经典界面的 `assistant` 只在有正文时才应发；工具调用轮没有正文，
         发空串会让它渲染一个空气泡。
         """
         out: List[Dict[str, Any]] = []
@@ -260,17 +260,17 @@ class ClassicStream:
             ))
             out.append(self._ev(C.EV_LLM_DONE))
             self._step_had_llm = False
-            # 正在等用户作答时**不发** `assistant`：暂停那一轮通常没有正文，
+            # 正在等用户作答时不发 `assistant`：暂停那一轮通常没有正文，
             # 而经典界面的 `assistant` 分支是 `if(!finalizeAssistantStream(c)){add("a", c||"");}`——
-            # 没有流式气泡时它会 `add("a","")`，渲染出一个**空气泡**。
+            # 没有流式气泡时它会 `add("a","")`，渲染出一个空气泡。
             # 那一轮的可见产出是确认模态，不是对话区里的文字。
             if content and not self._awaiting_confirm:
                 out.append(self._ev(C.EV_ASSISTANT, content=content))
-        # 上下文分段条：**每步发一次**。
+        # 上下文分段条：每步发一次。
         #
         # 不能只挂在 `context_compacted` 上——那条分支要求"真的发生了压缩"，
-        # 而短会话永远不触发压缩 → **右栏上下文条恒为「—」**。
-        # `context_layout` 由**事件的消费方**计算（这里算）；
+        # 而短会话永远不触发压缩 → 右栏上下文条恒为「—」。
+        # `context_layout` 由事件的消费方计算（这里算）；
         # 算不出来就不发这一帧。
         out += self._emit_layout()
         return out
@@ -286,7 +286,7 @@ class ClassicStream:
         self._tools_in_step += 1
         # 待确认卡由内核事实 `turn_awaiting_user` 转成：
         # `turn_awaiting_user`（带 `call_id`/标题/选项），由 `_on_turn_awaiting_user`
-        # 转成卡片。那样选项以**工具声明**的为准，不比这里的模型原始入参更差。
+        # 转成卡片。那样选项以工具声明的为准，不比这里的模型原始入参更差。
         return [self._ev(C.EV_TOOL_START, tool_call_id=call_id, script=script, args=dict(args))]
 
     def _on_tool_progress(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -309,15 +309,15 @@ class ClassicStream:
         return [frame]
 
     def _on_tool_suspended(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """工具声明"需要外部输入" → 经典界面的**待确认卡**（当前事实名）。
+        """工具声明"需要外部输入" → 经典界面的待确认卡（当前事实名）。
 
         与 `_on_turn_awaiting_user` 是同一件事的两种事实名：
         - `turn_awaiting_user`：回合级暂停事实，载荷扁平带 title/confirms；
-        - `tool_suspended`：**工具级**挂起事实，选项在 `envelope` 里（当前）；
+        - `tool_suspended`：工具级挂起事实，选项在 `envelope` 里（当前）；
 
         适配层两个都认，吸收词汇差异。
 
-        卡片挂在专用事实上：按两段式设计，首段**不产生**结果事实
+        卡片挂在专用事实上：按两段式设计，首段不产生结果事实
         （那次调用还没返回），所以没有结果事件可以挂载。
         """
         call_id = str(d.get("call_id") or "")
@@ -347,8 +347,8 @@ class ClassicStream:
         self._awaiting_confirm = True
         # 待确认卡已发：把这张卡从 `pending` 摘掉。内核紧接着还会发
         # `tool_ended{status:"suspended"}`，那会走 `_on_tool_ended` 的兜底分支
-        # **再收一次同一张卡** —— 契约上就是重复帧：
-        # 任何按 id 幂等渲染的客户端都会翻车。
+        # 再收一次同一张卡 —— 契约上就是重复帧：
+        # 按 id 幂等渲染的客户端会出现重复条目。
         # 摘除动作在 return 之前执行。
         self.pending.pop(call_id, None)
         return [self._ev(
@@ -363,12 +363,12 @@ class ClassicStream:
         )]
 
     def _on_turn_awaiting_user(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """回合停在"等用户作答" → 把内核事实变成经典界面的**待确认卡**。
+        """回合停在"等用户作答" → 把内核事实变成经典界面的待确认卡。
 
-        卡片挂在专用事实上的原因：按两段式设计，首段**不产生**结果事实
+        卡片挂在专用事实上的原因：按两段式设计，首段不产生结果事实
         （那次调用还没返回），所以没有结果事件可以挂载。内核为此产出这条专用事实，
-        携带 `call_id` / `title` / `confirms`，选项以**工具声明**的为准
-        （选项以**工具声明**的为准）。
+        携带 `call_id` / `title` / `confirms`，选项以工具声明的为准
+        （选项以工具声明的为准）。
 
         经典界面的卡片靠 `tool_end` 上的 `user_confirm_required` 渲染，所以这里发一个
         `tool_end`：卡片就是这次调用的界面呈现，而这次调用确实"停在了等人这一步"。
@@ -383,7 +383,7 @@ class ClassicStream:
             return []
         self._awaiting_confirm = True
         # 与 `_on_tool_suspended` 同理：摘掉，避免随后的终态事实重复收卡。
-        # **必须在 `return` 之前**。
+        # 必须在 `return` 之前。
         self.pending.pop(call_id, None)
         return [self._ev(
             C.EV_TOOL_END,
@@ -397,7 +397,7 @@ class ClassicStream:
         )]
 
     def _on_tool_started(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """**工具开始调用**：起工具卡，标签「进行中」。
+        """工具开始调用：起工具卡，标签「进行中」。
 
         监听者也可以在这里起 RT、修剪参数——事件本身带 `arguments`。
         """
@@ -413,15 +413,15 @@ class ClassicStream:
                          args=dict(args))]
 
     def _on_tool_done(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """工具**成功完成** → 卡片标签绿色 `Done`。"""
+        """工具成功完成 → 卡片标签绿色 `Done`。"""
         return self._finish_tool(d, ok=True)
 
     def _on_tool_failed(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """工具**失败** → 卡片标签红色 `Fail`。"""
+        """工具失败 → 卡片标签红色 `Fail`。"""
         return self._finish_tool(d, ok=False)
 
     def _on_tool_canceled(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """工具**被取消** → 卡片标签 `Stoped`（预留：取消能力尚未接线，先让映射就位）。"""
+        """工具被取消 → 卡片标签 `Stoped`（预留：取消能力尚未接线，先让映射就位）。"""
         call_id = str(d.get("call_id") or "")
         pend = self.pending.pop(call_id, None)
         if pend is None:
@@ -438,11 +438,11 @@ class ClassicStream:
         return self._finish_tool(d, ok=bool(d.get("ok")))
 
     def _on_tool_ended(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """工具**终态**（与 `tool_started` 配对）。
+        """工具终态（与 `tool_started` 配对）。
 
-        它在结果事实**之后**紧随发出（`tool_done` / `tool_failed` / `tool_suspended`
-        已经各自把卡片收过尾了），所以到这里**只做兜底**：若还有没被收尾的卡片
-        （例如出现了没预料到的终止路径），在这里收掉——保证**每张卡都有终态**，
+        它在结果事实之后紧随发出（`tool_done` / `tool_failed` / `tool_suspended`
+        已经各自把卡片收过尾了），所以到这里只做兜底：若还有没被收尾的卡片
+        （例如出现了没预料到的终止路径），在这里收掉——保证每张卡都有终态，
         不会永远停在「进行中」。卡片已被收过就走空（`pending` 里没有了）。
         """
         call_id = str(d.get("call_id") or "")
@@ -469,32 +469,32 @@ class ClassicStream:
         images = C.public_tool_images(d.get("attachments"))
         if images:
             frame["images"] = images
-        # ⚠️ `script` 是**经典界面判别"这是哪类工具"的唯一依据**，原样带上。
+        # ⚠️ `script` 是经典界面判别"这是哪类工具"的唯一依据，原样带上。
         #
         # 经典界面的 `fillToolPreview(o,ev)` 第 2 行就是
-        # `const sc=(ev.script||"").toLowerCase();`，之后**所有**预览分支
+        # `const sc=(ev.script||"").toLowerCase();`，之后所有预览分支
         # （`run_command` 的实时输出、`write_file`/`replace_in_file` 的 diff …）
         # 都以 `sc` 为条件。漏发它 → `sc=""` → 一个分支都不进 → 预览槽永远空白。
         #
         # 帧带 `api_name` + `script`（`agent_runtime.py`
         # 三处 yield 都是 `{"type":"tool_end","api_name":…,"script":…,"tool_call_id":…,
         # "ok":…,"preview":…}`）。经典界面的 `onToolEnd` 直接把这个帧当事件用，
-        # 所以 `ev.script` 一定有值 —— **漏发它就是漏了经典界面契约的一半**。
+        # 所以 `ev.script` 一定有值 —— 漏发它就是漏了经典界面契约的一半。
         frame["script"] = pend.script
         frame["api_name"] = pend.script
         # ⚠️ `data.confirm_id` 不映射为 `user_confirm_required`。
         #
-        # `confirm_id` 是**写盘门控的二阶提交锁**，不是"等用户点卡片"：
-        # 写盘门控给**预览类工具的成功结果**挂上它，意思是
+        # `confirm_id` 是写盘门控的二阶提交锁，不是"等用户点卡片"：
+        # 写盘门控给预览类工具的成功结果挂上它，意思是
         # "锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。
-        # 用户交互**不发生在这一步**。
+        # 用户交互不发生在这一步。
         #
         # 契约里没有"写盘需要确认 / 允许提交 / 拒绝"这段卡片文案：
-        # 那段文案在契约里**根本不存在**，而且 `user_confirm_required`
-        # 在经典界面里是 **100% 走弹窗**的（`openUserConfirmModalFromToolEnd`，
+        # 那段文案在契约里根本不存在，而且 `user_confirm_required`
+        # 在经典界面里是 100% 走弹窗的（`openUserConfirmModalFromToolEnd`，
         # 会 `userConfirmBlocking=true` + `goBtn.disabled=true`）。虚构它有双重害处：
         #   ① 用户看到一张没人触发的内嵌卡，还得手动点 ✅；
-        #   ② **模型完全不知道**发生了这个交互（`tool_done` 已正常返回，模型以为流程在跑）。
+        #   ② 模型完全不知道发生了这个交互（`tool_done` 已正常返回，模型以为流程在跑）。
         #
         # 真正的挂起只有一条路：工具自己 `Outcome.suspend` / `await_user=True`
         # （由 `_on_tool_suspended` 处理）——只有那时才弹模态。
@@ -511,7 +511,7 @@ class ClassicStream:
 
         # `run_type` 切模式 → 补一帧 `mode_changed`。
         #
-        # 该工具直接写 `live_state.set_mode()`，但**不发** `mode_changed`；
+        # 该工具直接写 `live_state.set_mode()`，但不发 `mode_changed`；
         # 而经典界面的模式按钮只在 `mode_changed`（与 `conversation`）时刷新，
         # 所以模型用工具切换模式后必须由这里补一帧，否则按钮停在旧值。
         # 对照：`goal` 不需要在这里补——经典界面自己在 `onToolEnd` 里读工具结果
@@ -524,7 +524,7 @@ class ClassicStream:
         return out
 
     def _on_usage(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """用量：**必须嵌套在 `usage` 键下**。
+        """用量：必须嵌套在 `usage` 键下。
 
         经典界面读的是 `ev.usage.prompt_tokens`（agent-ui.js:156），不是平铺字段。
         字段名用 SSE 那套（与 `/api/usage-accumulator` 的 `total_*` 不同，不可复用）。
@@ -545,18 +545,18 @@ class ClassicStream:
 
     def _on_error(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 记下"本回合已经报过错"：`turn_ended` 收尾时若 `halted` 为真还会想补一帧
-        # `error{where:"turn"}`，那会与这里的 `error{where:"model"}` **重复** ——
+        # `error{where:"turn"}`，那会与这里的 `error{where:"model"}` 重复 ——
         # 同一个失败会产生两帧 error，用户看到两行错误。
         self._error_sent = True
         return [self._ev(C.EV_ERROR,
                          message=str(d.get("detail") or d.get("where") or "未知错误"))]
 
     def _on_turn_ended(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """回合结束。**暂停**（等用户作答）与**正常结束**都发 `done`，但暂停多一帧信令。
+        """回合结束。暂停（等用户作答）与正常结束都发 `done`，但暂停多一帧信令。
 
         暂停同样发 `done`：SSE 的生命周期要完整（客户端总能看到收尾），
         而"这不是正常收尾"由 `paused_for_user_confirm` 表达——
-        经典界面收到它就把本轮标记为"待用户确认"，随后 `done` 会**短路收尾**
+        经典界面收到它就把本轮标记为"待用户确认"，随后 `done` 会短路收尾
         （`if(endedAwaitingUserConfirm){hideChatLoading();return;}`：
         不提升思考、不刷新标题）。
         内核不阻塞、不等待；暂停 = 回合结束 + 信令；恢复由用户操作触发。
@@ -573,29 +573,29 @@ class ClassicStream:
             # 用户主动停止 → 经典界面的 `stopped`：它收到后会 `markCurrentTurnStoped()`
             # （把所有还开着的工具卡与当前 LLM 卡拉成 `Stoped`、复位回合状态、
             # 隐藏"思考中"）。
-            # 前端本身也会在点停止时**乐观地**先标一遍；这里这一帧是让**后端**也确认
+            # 前端本身也会在点停止时乐观地先标一遍；这里这一帧是让后端也确认
             # 收尾，两者一致。
-            # **不带文案**：点停止时前端已经本地加了一条「任务已停止。」，
+            # 不带文案：点停止时前端已经本地加了一条「任务已停止。」，
             # 再带 `message` 会让前端 `if(ev.message)add(...)` 又加一条（用户看到两行）。
             # 这一帧只负责信号（标记回合停止、复位状态、清服务端标记）。
             out.append(self._ev(C.EV_STOPPED))
         # `halted` 也要让观察面看得见：模型调用失败、护栏触顶（max_passes）等
-        # 都走 `halted`；若适配层**丢掉**这个字段，那些情况在 UI 上就会
+        # 都走 `halted`；若适配层丢掉这个字段，那些情况在 UI 上就会
         # 和"正常完成"完全一样（`done{ok:true}`）——失败被静默伪装成成功。
         halted = bool(d.get("halted")) or bool(d.get("interrupted"))
         detail = str(d.get("detail") or "")
         if halted and detail and not self._error_sent:
-            # **必须同时给 `message`**：经典界面的 error 分支是
+            # 必须同时给 `message`：经典界面的 error 分支是
             # `add("a", "错误: " + (ev.message || JSON.stringify(ev)))`
             # （`agent-ui.js:175`）—— 只给 `where`/`detail` 时它走
-            # `JSON.stringify(ev)`，用户看到的是**原始 JSON**：
+            # `JSON.stringify(ev)`，用户看到的是原始 JSON：
             # `错误: {"type":"error","where":"turn","detail":"模型调用失败：…"}`
             # `_on_error` 同样给 `message`。
             out.append(self._ev(C.EV_ERROR, message=detail,
                                 where="turn", detail=detail))
         out.append(self._ev(C.EV_DONE, ok=not (stopped or halted)))
         self._error_sent = False   # 回合收尾，下一回合重新计
-        # 回合收尾再发一次布局：此时本趟事实**已落盘**，那趟的上下文条
+        # 回合收尾再发一次布局：此时本趟事实已落盘，那趟的上下文条
         # 才不是「—」（布局由 `_emit_layout` 计算并发出）。
         out += self._emit_layout()
         self.pending.clear()
@@ -605,11 +605,11 @@ class ClassicStream:
     def _on_context_compacted(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         """压缩事实 → 补一帧 `context_layout`（经典界面靠它画底部分段条）。
 
-        经典界面没有"压缩"这个事件，但**压缩后上下文变了**，分段条必须跟着变。
+        经典界面没有"压缩"这个事件，但压缩后上下文变了，分段条必须跟着变。
 
-        **内核不产出 `context_layout` 事实**，且压缩器的
-        report 里**没有 `layout` 键**，所以这条分支永不命中 ——
-        右栏上下文条**恒为「—」**。因此 `context_layout` **由事件的消费方计算**
+        内核不产出 `context_layout` 事实，且压缩器的
+        report 里没有 `layout` 键，所以这条分支永不命中 ——
+        右栏上下文条恒为「—」。因此 `context_layout` 由事件的消费方计算
         （这里），内核不必为此新增事实。算不出来就不发。
         """
         layout = d.get("layout")
@@ -621,9 +621,9 @@ class ClassicStream:
         """算并发出 `context_layout`；算不出来返回空列表。
 
         两处调用（每步的 `model_message`、回合收尾的 `turn_ended`）都要它，
-        所以抽出来。回合收尾同样发一次：布局是从**已落盘的事实**算的
+        所以抽出来。回合收尾同样发一次：布局是从已落盘的事实算的
         （`inbound.compute_context_layout`），而事实按趟增量落盘 —— 一趟开始算布局时
-        本趟事实还没落盘，于是**那一趟的上下文条一直是「—」**，
+        本趟事实还没落盘，于是那一趟的上下文条一直是「—」，
         直到刷新（走 `history()`）或下一趟才出现。收尾时事实已经写下，这时补一帧就补齐了。
         """
         computed = self.layout_resolver() if self.layout_resolver is not None else None
@@ -633,7 +633,7 @@ class ClassicStream:
 
 
 def _preview_json(script: str, data: Any, error: str, ok: bool) -> str:
-    """`tool_end.preview` 是 **JSON 字符串**（经典界面会 `JSON.parse`，失败回落原文）。
+    """`tool_end.preview` 是 JSON 字符串（经典界面会 `JSON.parse`，失败回落原文）。
 
     与回灌模型的信封同形（见 `session_log._tool_envelope`）：
       - 成功：`{"ok": true, "data": <工具结果>}`

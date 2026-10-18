@@ -5,7 +5,7 @@
     python scripts/gen_unit_tests_md.py           # 重新生成
     python scripts/gen_unit_tests_md.py --check   # 只校验文档是否与用例一致（漂移即退出 1）
 
-文档是**代码的投影**：用例增删改后忘了重新生成，`--check` 会失败；
+文档是代码的投影：用例增删改后忘了重新生成，`--check` 会失败；
 这样"文档说 1165 个用例、实际 1164 个"这类漂移不可能悄悄留在库里。
 """
 from __future__ import annotations
@@ -85,7 +85,7 @@ def render() -> str:
         "无则结合类 docstring 与方法名，再否则仅由方法名转写。",
         "",
         "本文件由 `python scripts/gen_unit_tests_md.py` 生成；"
-        "`--check` 在 CI 里校验是否漂移，**不要手改**。",
+        "`--check` 在 CI 里校验是否漂移，直接改动会被下一次生成覆盖。",
         "",
         "## 目录",
         "",

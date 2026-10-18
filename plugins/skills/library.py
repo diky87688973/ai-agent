@@ -277,7 +277,7 @@ class SkillManager:
             return None
 
     def build_registry_message(self) -> str:
-        """构建**可用 Skills 清单**（一条 system 消息，注入上下文前端）。
+        """构建可用 Skills 清单（一条 system 消息，注入上下文前端）。
 
         渐进式披露的第一层：清单里只有名字与描述，正文按需用 `skill_manage`
         读取。模型据此知道"有哪些 Skills、什么时候该用"，而不必把所有正文塞进请求。
@@ -287,7 +287,7 @@ class SkillManager:
         return parts[0] if parts else ""
 
     def build_registry_message_parts(self) -> List[str]:
-        """清单的**消息列表形态**（没有 Skills → 空列表）。
+        """清单的消息列表形态（没有 Skills → 空列表）。
 
         注入源按 `List[str]` 收内容，这里给它列表；单条内容与
         `build_registry_message()` 完全一致。
@@ -303,7 +303,7 @@ class SkillManager:
         return ["\n".join(lines)]
 
     def build_auto_load_messages(self) -> List[str]:
-        """构建 `auto_load/` 目录下 Skills 的**常驻正文**（每条一条 system 消息）。
+        """构建 `auto_load/` 目录下 Skills 的常驻正文（每条一条 system 消息）。
 
         渐进式披露的第二层：这些 Skills 始终随上下文携带，不必模型主动读取。
         正文为空的不注入。

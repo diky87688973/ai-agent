@@ -2,13 +2,13 @@
 """多模型插件：把每条模型的网关与厂商声明交给内核的模型目录。
 
 配置在本插件目录下的 `plugin-config.ini`：`[base]` 是身份与开关，
-`[model:<id>]` 每条模型一节。插件**只声明**（id / 厂商 / 选项 / 标签），
+`[model:<id>]` 每条模型一节。插件只声明（id / 厂商 / 选项 / 标签），
 不构造 provider、不接触路由 —— 厂商分发在 `provider_registry` 里，
 请求路由在 `provider_router` 里，模型目录负责给每个条目缓存实例。
 
 `register(ctx)` 贡献模型目录回调、只读 `/catalog` 端点与开屏下拉脚本；
-卸载时三者的 disposer 一起回收（`ctx` 已记账）。解析纪律：任一条目坏掉
-只影响它自己；每条诊断都带文件路径与节名，只说"配置有误"等于没留痕。
+卸载时三者的 disposer 一起回收（`ctx` 已记账）。解析规则：任一条目坏掉
+只影响它自己；每条诊断都带文件路径与节名，仅写"配置有误"无法定位。
 """
 from __future__ import annotations
 
@@ -27,6 +27,12 @@ SECTION_PREFIX = "model:"
 DEFAULT_PROVIDER = "openai"
 _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"0", "false", "no", "off"}
+#: 模板里的占位密钥标记：占位符不算已配置，否则目录会接管路由，
+#: 直到请求打到网关才报鉴权错误。这里提前判无效，
+#: 插件保持非权威、继续回落到 `config.ini`，填上真密钥的下一次请求才生效。
+_PLACEHOLDER_MARKERS = (
+    "请替换", "替换成", "your-api-key", "your_api_key", "sk-xxx", "changeme", "placeholder",
+)
 #: 最近一次打印过的诊断（按文件签名去重）：目录每次请求都重读配置。
 _LAST_DIAG: Dict[str, Tuple[str, ...]] = {}
 
@@ -43,6 +49,12 @@ def _clean(value: object) -> str:
 
 def _section_id(section: str) -> str:
     return section[len(SECTION_PREFIX):].strip()
+
+
+def _is_placeholder_key(value: str) -> bool:
+    """密钥是否还是模板占位符（不区分大小写）。"""
+    text = _clean(value).lower()
+    return any(marker in text for marker in _PLACEHOLDER_MARKERS)
 
 
 def _diag(path: Path, section: str, key: str, reason: str) -> str:
@@ -119,12 +131,24 @@ def _parse_entry(path: Path, section: str, parser: configparser.ConfigParser,
     if not api_key:
         lines.append(_diag(path, section, "api_key", "缺少密钥"))
         return None
+    if _is_placeholder_key(api_key):
+        lines.append(_diag(
+            path, section, "api_key",
+            f"还是模板占位符 {api_key!r}，请换成真实密钥",
+        ))
+        return None
 
     options: Dict[str, Any] = {
         "base_url": base_url,
         "api_key": api_key,
         "model": get("model") or model_id,
     }
+    # 上下文窗口是该模型的物理上限，只给界面算占用率用（provider 构造器不认它，
+    # 注册表按白名单过滤）。坏值只留痕、不塞进条目：一个展示字段不该让整条模型失效。
+    window = _positive_int(
+        get("context_window"), path, section, "context_window", lines)
+    if window is not None:
+        options["context_window"] = window
     if provider == "anthropic":
         # 这些键只对 Anthropic 有意义；写在 openai 条目上就忽略，避免把
         # 不属于该厂商的参数塞进构造器。
@@ -221,6 +245,7 @@ def _catalog_payload(path: Optional[Path] = None) -> Dict[str, Any]:
         "ok": True,
         "models": [
             {"id": item.id, "label": item.label, "provider": item.provider,
+             "context_window": item.context_window,
              "default": bool(item.is_default)}
             for item in entries
         ],

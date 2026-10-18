@@ -1,6 +1,6 @@
 /* chat/tool-events.js —— 本轮结束收尾：重置步骤与运行态。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function resetSteps(){resetTurnState();stepSeq=0;}
@@ -13,7 +13,7 @@ lastAnalysisTail=analysisFollowupPhrase(o.script,o.args||{});
 const ok=!!ev.ok;o.tag.innerHTML="";
 o.tag.textContent="进行中";
 o.tag.className="tag tag-run";
-/* **立即写终态标签**。
+/* 立即写终态标签。
    若把标签 push 进 `pendingToolTags`、等 `llm_done` 才 flush，
    一轮里多个工具时，已结束的工具会一直显示「进行中」直到整轮结束。
    `ok` 来自真实的工具结果（`tool_end.ok`），此刻就能定终态。 */
@@ -22,7 +22,7 @@ o.tag.className="tag "+((!!ok||!!ev.user_confirm_required||!!ev.approval_require
 if(ev.user_confirm_required||ev.approval_required){o.tag.textContent="待确认";o.tag.className="tag tag-run";}
 o.resLb.style.display="block";o.resPb.style.display="block";if(ev.user_confirm_required){try{var _pj=JSON.parse(ev.preview||"{}");var _em=_pj&&_pj.error&&_pj.error.message?String(_pj.error.message):"";var _em2=_em.indexOf("\n\n--help:")>=0?_em.split("\n\n--help:")[0].trim():_em;var slim={ok:_pj.ok,data:_pj.data,error:_pj.error?{code:_pj.error.code,type:_pj.error.type,message:_em2,hint:_pj.error.hint,retryable:_pj.error.retryable}:null};o.resPb.textContent=JSON.stringify(slim,null,2);}catch(e){o.resPb.textContent=ev.preview||"";}}else{var _rawPrev=String(ev.preview||"").trim();if(!_rawPrev&&!ok&&ev.error){o.resPb.textContent=typeof chatToolFailPreview==="function"?chatToolFailPreview(ev.error):JSON.stringify({ok:false,error:String(ev.error)},null,2);}else{try{var _pj2=JSON.parse(_rawPrev||"{}");o.resPb.textContent=JSON.stringify(_pj2,null,2);}catch(e){o.resPb.textContent=_rawPrev||"";}}}
 fillToolPreview(o,ev);
-/* diff 预览画到**对话区**（步骤卡的预览槽放不下、默认也收起）。
+/* diff 预览画到对话区（步骤卡的预览槽放不下、默认也收起）。
    放在这里而不是调用方：实时（tool_end 帧）与刷新重放（走 renderHistoryToolItem）
    都经过 onToolEnd，所以两条路必然一致，也不会重复画。 */
 renderDiffBubbleFromFacts(o.script||ev.script,ev.preview);

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """分包覆盖率下限校验（X5 / X6）。
 
-读 `.coverage`（`coverage run` 的产物），按顶层包分别算**语句覆盖率**，
+读 `.coverage`（`coverage run` 的产物），按顶层包分别算语句覆盖率，
 与 `scripts/quality_budgets.py` 的 `COVERAGE_FLOORS` 比对。
 
 用法：
     python scripts/check_coverage.py            # 校验（低于下限退出 1）
-    python scripts/check_coverage.py --print    # 只打印实测值（定基线用）
+    python scripts/check_coverage.py --print    # 只打印测得值（确定基线用）
 
 `.coverage` 不存在 / `coverage` 未安装 → 退出码 2（CI 记为 SKIP，可见）。
 """

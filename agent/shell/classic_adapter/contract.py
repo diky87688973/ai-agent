@@ -6,12 +6,12 @@
 一处改，也能被契约测试逐条钉住。
 
 经典界面的三条硬约束：
-  1. **每帧必须带合法 `conversation_id`**（`/^[A-Za-z0-9_-]{8,128}$/`），否则经典界面
-     **整包静默丢弃**（agent-ui.js:100）；`heartbeat` / `global_sse_ready` /
+  1. 每帧必须带合法 `conversation_id`（`/^[A-Za-z0-9_-]{8,128}$/`），否则经典界面
+     整包静默丢弃（agent-ui.js:100）；`heartbeat` / `global_sse_ready` /
      `plugins_changed` 豁免。
-  2. **`tool_call_id` 是 tool_start / tool_end 的唯一配对键**，为空或对不上 → `tool_end`
+  2. `tool_call_id` 是 tool_start / tool_end 的唯一配对键，为空或对不上 → `tool_end`
      被整个忽略（agent-ui.js:2013），卡片永远停在"进行中"。
-  3. **`reasoning_delta` 前置 `llm_round`**，且 `round` 相等，否则丢弃（agent-ui.js:1674）。
+  3. `reasoning_delta` 前置 `llm_round`，且 `round` 相等，否则丢弃（agent-ui.js:1674）。
 """
 from __future__ import annotations
 
@@ -69,13 +69,13 @@ CID_EXEMPT_EVENTS: Final = frozenset({
     EV_HEARTBEAT, EV_GLOBAL_SSE_READY, EV_PLUGINS_CHANGED,
 })
 
-#: 适配层明确**不发**的事件（当前没有对应能力）
+#: 适配层明确不发的事件（当前没有对应能力）
 NEVER_EMIT: Final = frozenset({EV_AUDIO})
 
 
 # ── 工具名映射：内核工具 → 经典界面的 `script` 标识 ─────────────
 # 经典界面靠 `script` 决定图标（toolIco agent-ui.js:1179）、中文名（buildToolTitleParts
-# agent-ui.js:1263）与是否"实时输出"。**名字必须落在它认识的集合里**，否则标题会退化。
+# agent-ui.js:1263）与是否"实时输出"。名字必须落在它认识的集合里，否则标题会退化。
 # 来源：经典界面的 ICONS / LABELS 表（agent-ui.js 内 `toolIco` / `toolZh`）。
 TOOL_SCRIPT_MAP: Final = {
     # 读
@@ -110,9 +110,9 @@ def tool_script(kernel_tool_name: str) -> str:
     return TOOL_SCRIPT_MAP.get(name, name)
 
 
-# ── usage 字段名（**两套，不可复用**）────────────────────────
+# ── usage 字段名（两套，不可复用）────────────────────────
 # SSE 的 `usage` 事件（agent-ui.js:156）与 `/api/usage-accumulator`（agent-ui.js:1176）
-# 用**完全不同的字段名**，混用会导致其中一边永远为 0。
+# 用完全不同的字段名，混用会导致其中一边永远为 0。
 SSE_USAGE_FIELDS: Final = (
     "prompt_tokens", "completion_tokens",
     "prompt_cache_hit_tokens", "prompt_cache_miss_tokens",

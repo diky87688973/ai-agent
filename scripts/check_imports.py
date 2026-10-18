@@ -104,7 +104,7 @@ def _is_type_checking(test: ast.expr) -> bool:
 
 
 def _iter_imports_without_typing_guard(tree: ast.AST):
-    """遍历导入，但**不下钻** `if TYPE_CHECKING:` 的分支（A2 解析规则）。"""
+    """遍历导入，但不下钻 `if TYPE_CHECKING:` 的分支（A2 解析规则）。"""
     stack: list[ast.AST] = [tree]
     while stack:
         node = stack.pop()

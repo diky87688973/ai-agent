@@ -4,7 +4,7 @@
 `mod_id` 的形状是 `<路径哈希>:YYYYMMDD_HHMMSS_mmm_序号_随机`
 （见 `file_safety._version_dir_name`）。前端从这个串里取 `HHMMSS` 换成可读时刻。
 
-**不能靠数段数取** —— 名字里增删一段（例如为了同毫秒定序而加序号）就会取错位置，
+不能靠数段数取 —— 名字里增删一段（例如为了同毫秒定序而加序号）就会取错位置，
 卡片上显示的会变成序号（`to 0000`）而不是时刻。这里把形状钉死：
 前端正则与后端生成的目录名必须对得上。
 """
@@ -39,7 +39,7 @@ def _extract_ts(mid: str) -> str:
 
 class VersionStampTest(unittest.TestCase):
     def test_frontend_regex_matches_backend_directory_names(self) -> None:
-        """后端现造的版本目录名必须被前端正则命中，且取到的是**时间**那一段。"""
+        """后端现造的版本目录名必须被前端正则命中，且取到的是时间那一段。"""
         for _ in range(5):
             name = _version_dir_name()
             mid = f"a1b2c3d4e5f60718:{name}"
@@ -66,7 +66,7 @@ class VersionStampTest(unittest.TestCase):
                     if ch == "\\" and k + 1 < len(chars) and chars[k + 1] == "\\":
                         self.fail(f"第 {i} 行正则被多转义了一层：{seg}")
                 self.assertIn(r"_(\d{6})_\d{3}_\d{4}_[0-9a-z]+$", seg)
-        self.assertEqual(found, 2, msg=f"取版本时刻的地方应有两处，实测 {found} 处")
+        self.assertEqual(found, 2, msg=f"取版本时刻的地方应有两处，实际 {found} 处")
 
     def test_node_agrees_with_python(self) -> None:
         """把 JS 那段真跑一遍，结果与 Python 侧一致（防止只改了注释没改代码）。"""

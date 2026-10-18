@@ -294,24 +294,54 @@ def _upstream_error_message(body: str) -> str:
 # ── 逻辑→线格式适配 ─────────────
 
 
+def tool_parameters(tool: Dict[str, Any]) -> Dict[str, Any]:
+    """工具声明 → 完整的 JSON Schema 对象（供两家线格式共用）。
+
+    三种声明形状，来源是同一份 `ToolRegistry.schemas()`：
+
+    1. 逻辑形 `{"name", "description", "parameters": {参数名: 片段}}` —— `parameters`
+       是属性映射，必须包装成 `{"type": "object", "properties": {...}}`；
+    2. OpenAI 线形 `{"type": "function", "function": {...}}` —— `parameters` 已是完整 schema；
+    3. Anthropic 形（自带 `input_schema`）—— 已是完整 schema。
+
+    包装时必定补 `type: "object"`：把属性映射直接当 schema 下发，线上会得到
+    `type: null`，Anthropic 一侧直接 400（OpenAI 兼容网关不校验，所以这个缺陷只在
+    Anthropic 协议上暴露）。
+    """
+    fn = tool.get("function") if isinstance(tool.get("function"), dict) else tool
+    raw = fn.get("input_schema")
+    if not isinstance(raw, dict):
+        raw = fn.get("parameters")
+        if fn is tool and tool.get("type") != "function":
+            # 逻辑形：`parameters` 是属性映射，不是 schema
+            raw = {"type": "object", "properties": raw if isinstance(raw, dict) else {}}
+    return _object_schema(raw)
+
+
+def _object_schema(raw: Any) -> Dict[str, Any]:
+    """补齐 `type` / `properties`，保证拿到的是合法 object schema。"""
+    schema = dict(raw) if isinstance(raw, dict) else {}
+    if not isinstance(schema.get("type"), str) or not schema["type"]:
+        schema["type"] = "object"
+    if schema["type"] == "object" and not isinstance(schema.get("properties"), dict):
+        schema["properties"] = {}
+    return schema
+
+
 def _to_wire_tool(tool: Dict[str, Any]) -> Dict[str, Any]:
     """逻辑工具（name / description / parameters 属性映射）→ OpenAI tools 项。
 
     parameters 为「参数名 → JSON Schema 片段」的属性映射；线格式要求
-    {"type": "object", "properties": {...}}，此处补包装；已是线格式则原样透传。
+    {"type": "object", "properties": {...}}，包装在 `tool_parameters` 里。
     """
     if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
         return tool
-    props = {
-        str(k): dict(v) if isinstance(v, dict) else {}
-        for k, v in dict(tool.get("parameters") or {}).items()
-    }
     return {
         "type": "function",
         "function": {
             "name": str(tool.get("name") or ""),
             "description": str(tool.get("description") or ""),
-            "parameters": {"type": "object", "properties": props},
+            "parameters": tool_parameters(tool),
         },
     }
 
@@ -322,11 +352,16 @@ def _to_wire_messages(messages: List[Any],
     """消息列表 → 线格式：assistant.tool_calls 扁平结构（id/name/arguments(dict)）
     包装为 OpenAI 形态（type=function / function.arguments 为 JSON 文本）；其余透传。
 
-    `keep_reasoning_from` 给了下标（含）就**只保留该下标之后**的 `reasoning_content`。
-    思维链是模型的中间产物：回传它就是让每次请求的输入里多一大段**必然未命中缓存**
-    的内容（每轮几万 token，按未命中价计费），而且同一轮内每次请求的前缀都在变，
-    缓存根本落不住。裁掉之后同一轮内前缀逐字节相同，缓存能吃满。
-    实测丢弃它不会让 API 报错（带 `tools` 的思考模式同样接受）。
+    `keep_reasoning_from` 给了下标（含）就只保留该下标之后的 `reasoning_content`
+    内容。思维链是模型的中间产物：整段回传就是让每次请求多背一大段必然未命中
+    缓存的内容，而且同一轮内每次请求的前缀都在变，缓存根本落不住；裁掉之后同一轮内
+    前缀逐字节相同，缓存能吃满。
+
+    但键不能丢：DeepSeek 思考模式下，带 `tool_calls` 的 assistant 消息必须把
+    `reasoning_content` 回传给 API（空串也接受），缺键直接 400
+    `The reasoning_content in the thinking mode must be passed back to the API`。
+    所以历史轮的工具消息只清空内容、保留键；老记录里本来就没存思维链的工具消息
+    补一个空串。纯文本 assistant 消息不受这条约束，历史轮的键照旧摘掉。
     """
     out: List[Dict[str, Any]] = []
     cut = None if keep_reasoning_from is None else max(0, int(keep_reasoning_from))
@@ -335,12 +370,19 @@ def _to_wire_messages(messages: List[Any],
             continue
         msg = dict(m)
         # 厂商私有元数据只对产出它的适配器有意义；发给 OpenAI 兼容网关会被当成
-        # 未知字段（部分网关直接 400），所以**永远剥掉**，与回放下标无关。
+        # 未知字段（部分网关直接 400），所以永远剥掉，与回放下标无关。
         msg.pop(PROVIDER_META_KEY, None)
+        calls = msg.get("tool_calls")
+        has_calls = isinstance(calls, list) and any(isinstance(c, dict) for c in calls)
         if cut is not None and index < cut:
-            msg.pop("reasoning_content", None)
             msg.pop("reasoning", None)
-        tcs = msg.get("tool_calls")
+            if has_calls:
+                msg["reasoning_content"] = ""
+            else:
+                msg.pop("reasoning_content", None)
+        elif has_calls and "reasoning_content" not in msg:
+            msg["reasoning_content"] = ""
+        tcs = calls
         if isinstance(tcs, list) and tcs:
             wire: List[Dict[str, Any]] = []
             for tc in tcs:
@@ -374,7 +416,7 @@ def _to_wire_messages(messages: List[Any],
     return out
 
 
-#: 请求日志落盘位置（`AI_AGENT_LLM_LOG` 可改；留空则回落到 `%TEMP%\fan_agent_llm_requests.log`（**不是关闭**））。
+#: 请求日志落盘位置（`AI_AGENT_LLM_LOG` 可改；留空则回落到 `%TEMP%\fan_agent_llm_requests.log`（不是关闭））。
 _LLM_LOG_PATH = str(os.environ.get("AI_AGENT_LLM_LOG", "") or "").strip() or str(
     Path(os.environ.get("TEMP") or os.environ.get("TMP") or ".") / "fan_agent_llm_requests.log"
 )
@@ -393,7 +435,7 @@ def _append_request_log(line: str) -> None:
     except OSError:
         pass
 def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
-    """发送前把请求摘要成**一行**（`AI_AGENT_LOG_REQUESTS=1` 时打）。
+    """发送前把请求摘要成一行（`AI_AGENT_LOG_REQUESTS=1` 时打）。
 
     图片在 `content` 数组里与文本同层，消息条数反映不出它，所以单独列出：
     逐条给出"第几条消息、什么角色、带几张图、每张多少字符"。
@@ -426,7 +468,7 @@ def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
         parts.append("where=" + " ".join(img_rows))
         parts.append(f"img_chars={total_img_chars}")
     else:
-        parts.append("**本轮请求不含任何图片**")
+        parts.append("本轮请求不含任何图片")
     try:
         parts.append(f"body_bytes={len(json.dumps(payload, ensure_ascii=False))}")
     except (TypeError, ValueError):
@@ -470,14 +512,14 @@ class OpenAICompatibleProvider(ModelProvider):
         self.api_key = str(api_key or "").strip()
         self.model = str(model or "").strip()
         self.timeout = float(timeout)
-        #: 历史轮次的思维链**默认不回传**（见 `_to_wire_messages`）。
+        #: 历史轮次的思维链默认不回传内容（键仍保留，见 `_to_wire_messages`）。
         self.replay_history_reasoning = bool(replay_history_reasoning)
         self.extra_headers = {str(k): str(v) for k, v in dict(extra_headers or {}).items()}
 
     def stream(self, request: Any) -> Iterator[StreamDelta]:
         """发送流式请求并产出归一化增量（text / reasoning / tool_call / usage）。
 
-        `request.model` 非空时**以它为准**（会话级选择），否则用实例默认 ——
+        `request.model` 非空时以它为准（会话级选择），否则用实例默认 ——
         这样同一个 provider 实例能服务多个模型名。
         """
         model = str(getattr(request, "model", "") or "").strip() or self.model
@@ -490,16 +532,17 @@ class OpenAICompatibleProvider(ModelProvider):
             getattr(request, "messages", None) or [],
             keep_reasoning_from=(None if self.replay_history_reasoning
                                  else getattr(request, "turn_start", None)))
-        # ── 请求体：**逐键**──
+        # ── 请求体：逐键──
         #
         # 请求体的键序与取值：
         #   {"model", "messages", "reasoning_effort", "thinking", "temperature", "tools"}
         #   再加一个会话身份 "user"（它对 provider 侧做 KV 缓存隔离）。
         #
-        # **`thinking` 与 `temperature` 显式下发**：官方文档里
+        # `thinking` 与 `temperature` 显式下发：官方文档里
         #   `thinking:{type:enabled|disabled}` 控制思考模式，`temperature` 默认 1；
-        #   这里显式下发 `{"type":"enabled"}` + `0.2`。采样温度直接决定"同一个请求
-        #   会不会给出不同结论"，不下发就等于每次都用默认 1.0（更随机）。
+        #   这里显式下发 `{"type":"enabled"}` + `0.2`。
+        #   ⚠️ 思考模式下 `temperature` 被忽略（官方文档：不报错但不生效），
+        #   所以这个值只在非思考请求/其它兼容网关上起作用，不参与思考模式的采样。
         payload: Dict[str, Any] = {
             "model": model,
             "messages": messages,
@@ -512,7 +555,7 @@ class OpenAICompatibleProvider(ModelProvider):
             payload["tools"] = [_to_wire_tool(t) for t in tools]
             # 每次带工具都同时下发 `tool_choice`（官方默认值也是 auto，显式下发更明确）。
             payload["tool_choice"] = "auto"
-        # 推理档位：**取自请求**（`LogicalRequest.effort`，由会话级
+        # 推理档位：取自请求（`LogicalRequest.effort`，由会话级
         # 设置解析而来）。官方取值 none/low/high/max —— 缺省回落 high，但非空值**如实
         # 下发**（不把 `low` 静默吞成 `high`）；本地模型整键剥掉。
         #
@@ -534,7 +577,7 @@ class OpenAICompatibleProvider(ModelProvider):
             payload["user"] = uid
         if _LOG_REQUESTS:
             # 发送前留痕：出问题时第一件要回答的是"图片有没有进请求"。
-            # **同时写 stderr 与文件**：控制台可能被重定向/管道吞掉，
+            # 同时写 stderr 与文件：控制台可能被重定向/管道吞掉，
             # 而"图片有没有发出去"这种证据不能只寄望于终端能看到。
             line = f"[llm→] url={url} {describe_request(model, url, payload)}"
             print(line, file=sys.stderr, flush=True)
@@ -545,7 +588,7 @@ class OpenAICompatibleProvider(ModelProvider):
     def _is_local_model(self, model: str = "") -> bool:
         """本地模型（浏览器页面）不支持 tools / thinking / reasoning_effort。
 
-        `model` 为空时看实例默认 —— 判定跟着**本次真正要用的**模型走：用实例默认去判
+        `model` 为空时看实例默认 —— 判定跟着本次真正要用的模型走：用实例默认去判
         另一个模型，会把云端模型请求的 `reasoning_effort` 误剥掉。
         """
         name = (str(model or "").strip() or self.model).strip().lower()

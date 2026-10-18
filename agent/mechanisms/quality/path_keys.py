@@ -13,7 +13,7 @@ def _norm_path(p: str) -> str:
 def resolve_write_path(args: Dict[str, Any], keys: Iterable[str]) -> str:
     """按键序取首个非空参数作为写目标路径。
 
-    `keys` 为空或不命中时返回空串——**不**默认猜 `path`。
+    `keys` 为空或不命中时返回空串——不默认猜 `path`。
     键序来自工具声明的 `write_path_keys`（经注册表查找），不经全局旁路表。
     """
     for key in keys:

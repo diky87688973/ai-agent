@@ -5,7 +5,7 @@
 请求体与查询串送达、面板脚本资源送达（类型白名单 + 越界拒绝）、
 命名空间隔离与未声明路径的 404。
 
-用**真服务**（夹具目录 + 随机端口）而不是桩：这一层的价值恰在
+用真服务（夹具目录 + 随机端口）而不是桩：这一层的价值恰在
 "路由拼得对不对、动词接没接上、路径穿不穿得出去"。
 """
 from __future__ import annotations
@@ -193,11 +193,11 @@ class PluginHttpTest(unittest.TestCase):
         self.assertIn(b".probe-row", raw)
 
     def test_shell_public_stylesheet_does_not_carry_plugin_styles(self) -> None:
-        """壳层的公共**样式表**里不该出现插件专属的样式规则。
+        """壳层的公共样式表里不该出现插件专属的样式规则。
 
         插件样式写进公共文件的话，插件没加载时页面也白带一份，而且插件的类名会和
         页面样式混在同一个文件里。
-        只查样式表：主脚本模块里出现 `.kb-*` 是**控制逻辑**的选择器
+        只查样式表：主脚本模块里出现 `.kb-*` 是控制逻辑的选择器
         （面板渲染与事件绑定），那不是样式，也不该由插件提供。
         """
         text = read_ui_css()
@@ -214,7 +214,7 @@ class PluginHttpTest(unittest.TestCase):
     def test_checked_files_reach_the_context(self) -> None:
         """经插件的勾选端点写进去的文件，必须真的变成注入上下文的系统消息。
 
-        这是 knowledge 插件的**核心语义**：勾选状态与上下文注入必须看同一份状态。
+        这是 knowledge 插件的核心语义：勾选状态与上下文注入必须看同一份状态。
         分成两处存放就会出现"界面显示已勾选、模型一个字都收不到"。
         """
         import tempfile

@@ -2,7 +2,7 @@
 
 Skills 是**给模型按需读取的说明文档**：一个目录下的若干 `.md`，每条带名字与描述。
 Skills 库、`skill_manage` 工具、以及它在上下文里的两段注入，全部由 `plugins/skills`
-这个插件提供 —— 把 `[plugin:skills]` 从 `plugins.ini` 里去掉，这些能力一起消失，
+这个插件提供 —— 移除 `[plugin:skills]` 节后，这些能力一起消失，
 内核不受影响。
 
 插件怎么组织、扩展点怎么用见 [plugins.md](plugins.md)；本文只讲这个插件本身。
@@ -17,7 +17,7 @@ Skills 正文**不全量塞进请求**，按三层给：
 | 第二层 | `auto_load/` 目录下 Skills 的正文 | 每次请求常驻 |
 | 第三层 | 其余 Skills 的正文 | **不进上下文**，模型用 `skill_manage action=read` 按需读取 |
 
-模型只看清单就该能判断"这个任务该用哪个 Skills"，判断完了才去读正文。
+仅凭清单即可判断该用哪个 Skills，判断之后才去读正文。
 清单是目录，正文才是内容 —— 两者分开，是这套披露的全部意思。
 
 ## 目录形态
@@ -58,7 +58,7 @@ max_file_size = 200000
 | `max_file_size` | 单个 Skills 文件的字节上限，超过则截断；留空取 200000 |
 
 配置在插件自己目录下，随插件一起装卸、一起删除；内核的 `config.ini` 里没有这一节。
-`AI_AGENT_SKILLS_DIR` 环境变量能覆盖 `dir`，给测试与 CI 一个换数据位的口子。
+`AI_AGENT_SKILLS_DIR` 环境变量能覆盖 `dir`，为测试与 CI 提供独立的数据目录入口。
 
 ## 元数据
 
@@ -100,7 +100,7 @@ description: 写 .py 前后要遵守的工程约定
 ```json
 {"action": "list"}
 {"action": "read", "name": "engineering/code-review"}
-{"action": "copy", "source": "E:/incoming/review.md", "name": "review"}
+{"action": "copy", "source": "/srv/inbox/review.md", "name": "review"}
 ```
 
 | action | 行为 |

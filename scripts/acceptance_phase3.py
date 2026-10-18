@@ -125,7 +125,7 @@ class Acceptance:
         self.check("卸后：名单清空", app.plugin_host.loaded_names() == [])
         subs = self.subs_total(app)
         self.check("卸后：TTS 订阅回收（=0）", subs == 0, f"subs={subs}")
-        # 注入源、面板、动作、端点都是**插件的贡献**，卸载必须一起撤掉 ——
+        # 注入源、面板、动作、端点都是插件的贡献，卸载必须一起撤掉 ——
         # 留一个就是死标签 / 指向已卸载插件的死端点 / 卸了还在注入的幽灵上下文。
         sources = self.sources_total(app)
         self.check("卸后：KB 注入源回收（=0）", sources == 0, f"sources={sources}")

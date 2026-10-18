@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""架构洁癖：门控旁路 AST 检测（负例伪装 + 正例放行）。"""
+"""架构约束：门控旁路 AST 检测（负例伪装 + 正例放行）。"""
 from __future__ import annotations
 
 import sys

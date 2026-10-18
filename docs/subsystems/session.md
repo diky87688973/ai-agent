@@ -1,6 +1,6 @@
 # 会话存储与协作
 
-本页覆盖会话事实的落盘（`mechanisms/session_store.py`）、运行态登记（`run_registry.py`）、跨会话协作（`mesh.py`）、标题生成（`session_title.py`）与文件安全设施（`file_safety.py`）。
+本页覆盖会话事实的落盘（`mechanisms/session_store.py`）、运行态登记（`run_registry.py`）、跨会话协作（`mesh.py`）、标题生成（`session_title.py`）、会话状态（`live_state.py`）与文件安全设施（`file_safety.py`）。
 
 ## 事实日志
 
@@ -72,7 +72,7 @@
 
 ### 跨进程
 
-同会话的"记偏移 → 追加 → 回滚"是**读改写**。进程内锁挡不住别的进程：并发写同一个 `.raw` 会**静默丢行**（多个进程同时写时丢了将近四成行，退出码仍是 0）。
+同会话的"记偏移 → 追加 → 回滚"是**读改写**。进程内锁挡不住别的进程：并发写同一个 `.raw` 会**静默丢行**，退出码仍为 0。
 
 所以按文件加一层**跨进程**排它锁：Windows 用 `msvcrt.locking`，POSIX 用 `fcntl.flock`，非阻塞轮询。
 
@@ -116,7 +116,7 @@
 1. 心跳未过期（TTL 默认 900 秒）；
 2. 记录里那个进程**还活着**。
 
-占位期间**读取也会续心跳**（`running()` 顺手续期），所以长任务执行中途不会被误判成"已结束"。
+占位期间**读取也会续心跳**（`running()` 读取时刷新），所以长任务执行中途不会被误判成"已结束"。
 
 第二条件解决的是 TTL 窗口内的误判：进程被强杀后心跳冻结在死前那一刻，而 TTL 还有十几分钟，这期间文件看起来完全"新鲜"。判一下 pid 就能立刻识破。
 
@@ -152,7 +152,34 @@ Windows 用 `ctypes` 的 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`：
 
 `session_title.py`：一次无工具的模型调用，输入是会话首条用户输入加首条模型回复（截断），输出清洗成不超过 18 字的标题，落盘 `<data_root>/titles/<cid>.title`。
 
-失败（无 provider / 异常 / 空文本 / 退化占位）回落到**首条用户输入的前缀**，不阻断任何流程。
+失败（无 provider / 异常 / 空文本 / 退化占位）回落到**首条用户输入的前缀**，不阻断任何流程。标题是**派生缓存**：可以重新生成，因此不与用户意图共用文件。
+
+## 会话状态
+
+`live_state.py` 的 `LiveState` 持有按会话分键的可变状态。落盘与内存分开看：
+
+| 字段 | 落盘 | 说明 |
+|---|---|---|
+| `model` | 是 | 会话级模型选择；空串回落 `default_model` |
+| `mode` | 是 | `plan` / `execute` 才算覆盖，`auto` 不写文件 |
+| `effort` | 是 | `high` / `max`；空回落全局 `default_effort` |
+| `todo` | 是 | 嵌套在 `todo` 键下，字段为 `list_id` / `items` / `collapsed` |
+| 自主 / 休眠 / 目标 | 否 | 回合内临时事实，进程重启即失效 |
+
+一个会话一份 JSON：`<data_root>/session_state/<cid>.json`。
+
+```json
+{"model": "deepseek-flash", "mode": "plan", "effort": "max",
+ "todo": {"list_id": "l-1", "items": [{"id": "1", "text": "x", "done": false}], "collapsed": false}}
+```
+
+三条纪律：
+
+1. **缺键即默认**。任一分量为空就不写这个键，不存空值与"未选择"占位；四项全空则删文件。
+2. **写前先读**。四个分量同住一份文件，任一路径写入前都要 `_ensure_loaded`，否则会覆盖其它分量（关闭清单时连带清掉模型即属此类）。
+3. **只认这一种形状**。读路径不做结构兼容：兼容分支会让两套结构长期并存，每次改动都要同时证明两套都对。
+
+cid 必须匹配 `[A-Za-z0-9_-]{8,128}` 才拼路径，非法 cid 直接不落盘（防穿越）。
 
 ## 文件安全设施
 

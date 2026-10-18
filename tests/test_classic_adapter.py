@@ -2,16 +2,16 @@
 """经典界面适配层契约测试 —— 逐字段钉住内核 ↔ 经典界面的双向翻译。
 
 适配层的风险全部集中在"字段名差一个字"。经典界面大量代码写成
-`window.AIA && …` 或"取不到就静默 return"，形状对不上时**一行错误都不报**，只是功能
+`window.AIA && …` 或"取不到就静默 return"，形状对不上时一行错误都不报，只是功能
 默默消失（例如 `tool_call_id` 为空 → `tool_end` 永远配不上 → 步骤卡停在"进行中"）。
 
-断言对象是**经典界面源码真正读的那些名字**（每条断言旁边标出对应的界面模块），
+断言对象是经典界面源码真正读的那些名字（每条断言旁边标出对应的界面模块），
 不测"大致像"。
 
 三组：
 1. `OutboundContractTest`：内核事件 → 老事件（服务端 → 前端）；
 2. `InboundContractTest`：老入参 → 内核调用 → 老返回体（前端 → 服务端）；
-3. `WireHygieneTest`：帧格式、`conversation_id` 合法性、广播语义等**传输层铁律**。
+3. `WireHygieneTest`：帧格式、`conversation_id` 合法性、广播语义等传输层铁律。
 """
 from __future__ import annotations
 
@@ -39,8 +39,8 @@ except ImportError:                     # pragma: no cover - 常量缺失时用�
 CID = "4a4edf45-4fcb-43d7-aa48-05451a89ed5f"
 
 #: 素材改动登记册（与代码耦合：`check_ui_js.py` 也核对它）。
-#: 正常情况下它**随仓库公开**（见 `.gitignore` 的 B3 节显式取反）；
-#: 万一不在本地（例如只拷了部分文件），相关用例**跳过而不是失败** ——
+#: 正常情况下它随仓库公开（见 `.gitignore` 的 B3 节显式取反）；
+#: 万一不在本地（例如只拷了部分文件），相关用例跳过而不是失败 ——
 #: 否则"克隆不全"会被误报成"代码坏了"。
 _UI_CHANGES_MD = (Path(__file__).resolve().parent.parent
                 / "agent" / "shell" / "web_assets" / "classic" / "UI-CHANGES.md")
@@ -58,7 +58,7 @@ class _FakeApp:
     provider = _Provider()
     live_state = None
 
-    # 待确认状态记在**会话级** `SessionContext`；适配层只读它。
+    # 待确认状态记在会话级 `SessionContext`；适配层只读它。
     # 没有它时适配层取不到挂起调用、静默退化成"无待确认"，
     # 所以测试壳给真的注册表。
     from agent.core.session_context import SessionContexts as _SCs
@@ -77,7 +77,7 @@ class _FakeApp:
             return self._runtimes.get(str(name), default)
 
     def __init__(self, data_root: Path) -> None:
-        # 这里挂**真存储**：待确认回填要往会话日志写一条事实（`store.append` /
+        # 这里挂真存储：待确认回填要往会话日志写一条事实（`store.append` /
         # `allocate_seq`）。空壳 store 写不进去，回填会静默退化成"没回填"。
         from agent.mechanisms.session_store import SessionStore
 
@@ -114,16 +114,16 @@ def _types(frames):
     return [f["type"] for f in frames]
 
 class UsageSemanticsTest(unittest.TestCase):
-    """`/api/usage-accumulator` 的 PUT 必须是**覆盖**语义。
+    """`/api/usage-accumulator` 的 PUT 必须是覆盖语义。
 
-    前端上报的是**会话累计值**（字段名 `total_prompt_tokens`），不是本轮增量。
+    前端上报的是会话累计值（字段名 `total_prompt_tokens`），不是本轮增量。
     按累加处理会让每次上报都翻一倍：`PUT 1000 → 1000；涨到 1500 再 PUT → 2500`，
-    真实会话前端 37.6K 而服务端 **159K**（4.2×）。
+    真实会话前端 37.6K 而服务端 159K（4.2×）。
     `_save_usage_accumulator(body)` 也是覆盖 —— 这里同样按覆盖处理。
     """
 
     def test_put_overwrites_instead_of_accumulating(self) -> None:
-        """覆盖语义：连报两次累计值，第二次必须**替换**而不是相加。"""
+        """覆盖语义：连报两次累计值，第二次必须替换而不是相加。"""
         from agent.shell.classic_adapter.inbound import ClassicState, Inbound
 
         state = ClassicState()          # 用量活在入站状态对象里（不是 LiveState）
@@ -134,7 +134,7 @@ class UsageSemanticsTest(unittest.TestCase):
         inbound.usage_put(cid, {"total_prompt_tokens": 1000})
         self.assertEqual(state.get_usage(cid)["total_prompt_tokens"], 1000)
 
-        # 客户端涨到 1500 再上报 —— 必须是 1500，**不能是 2500**
+        # 客户端涨到 1500 再上报 —— 必须是 1500，不能是 2500
         inbound.usage_put(cid, {"total_prompt_tokens": 1500})
         self.assertEqual(state.get_usage(cid)["total_prompt_tokens"], 1500,
                          msg="累加了：PUT 是覆盖语义，不是累加")
@@ -153,12 +153,12 @@ class OutboundContractTest(unittest.TestCase):
     def test_turn_started_emits_conversation_first(self) -> None:
         """`conversation` 必须发，且要带头。
 
-        它建立会话上下文（`ensureConversationTab`）并同步**模式**；缺了它，
+        它建立会话上下文（`ensureConversationTab`）并同步模式；缺了它，
         后续 `usage` / `context_layout` 的渲染守卫不过，用量底栏永远不更新。
 
-        帧里**不带 `model`**：模型不由服务端推送。前端照单接收并覆盖
+        帧里不带 `model`：模型不由服务端推送。前端照单接收并覆盖
         `selectedModel` 的话，就是"发一条消息、模型下拉自己跳回默认"。
-        现行规则：首次打开页面拉一次当前模型，此后以**发送消息那一刻**前端带来的
+        现行规则：首次打开页面拉一次当前模型，此后以发送消息那一刻前端带来的
         `model` 为准。
         """
         frames = _stream(mode_resolver=lambda c: "execute").translate("turn_started", {"run_id": "r1"})
@@ -170,7 +170,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertEqual(frames[1]["run_id"], "r1")          # 经典界面
 
     def test_step_started_emits_llm_round_then_request(self) -> None:
-        """`llm_round` 是 `reasoning_*` / `llm_request` 的**前置**（`classic/js/chat/llm-rounds.js` 的 `addLlmRound`）。"""
+        """`llm_round` 是 `reasoning_*` / `llm_request` 的前置（`classic/js/chat/llm-rounds.js` 的 `addLlmRound`）。"""
         frames = _stream().translate("step_started", {"messages_count": 3, "tools_count": 41})
         self.assertEqual(_types(frames), [C.EV_LLM_ROUND, C.EV_LLM_REQUEST])
         self.assertEqual(frames[0]["round"], 1)              # `classic/js/chat/llm-rounds.js` 的 `addLlmRound`
@@ -215,7 +215,7 @@ class OutboundContractTest(unittest.TestCase):
 
     def test_tool_result_preview_is_json_string(self) -> None:
 
-        """`preview` 必须是 **JSON 字符串**（经典界面会 `JSON.parse`，`classic/js/tools/previews.js` 的 `fillToolPreview`）。"""
+        """`preview` 必须是 JSON 字符串（经典界面会 `JSON.parse`，`classic/js/tools/previews.js` 的 `fillToolPreview`）。"""
         stream = _stream()
         stream.translate("tool_call", {"call_id": "c1", "name": "run_command", "arguments": {}})
         frames = stream.translate(
@@ -254,9 +254,9 @@ class OutboundContractTest(unittest.TestCase):
     def test_confirm_card_comes_from_the_kernel_fact(self) -> None:
         """待确认卡由内核专用事实 `turn_awaiting_user` 驱动。
 
-        两段式首段**不产生** `tool_result`（那次调用还没返回），所以没有结果事件
+        两段式首段不产生 `tool_result`（那次调用还没返回），所以没有结果事件
         可以挂载卡片。内核为此产出这条事实，携带 `call_id` / 标题 / 选项——
-        选项以**工具声明**的为准。
+        选项以工具声明的为准。
 
         经典界面的卡片靠 `tool_end` 上的 `user_confirm_required` 渲染，所以适配层
         在这里发一个 `tool_end`（`ok=True`：停下来等用户是协议的一环，不是失败）。
@@ -274,12 +274,12 @@ class OutboundContractTest(unittest.TestCase):
         self.assertTrue(end["user_confirm_required"])
         self.assertEqual(end["user_confirm_title"], "选一个")
         self.assertFalse(end["user_confirm_multi"])
-        # **选项必须给**：模态只读 `user_confirm_options`，不看 preview
+        # 选项必须给：模态只读 `user_confirm_options`，不看 preview
         self.assertEqual(end["user_confirm_options"], ["甲", "乙"],
                          msg="模态靠它渲染选项行，不给就只剩一个空的自定义输入框")
 
     def test_tool_call_does_not_pre_empt_the_confirm_card(self) -> None:
-        """`tool_call` 期**不发**待确认卡——卡片由内核事实驱动，避免重复发两张。
+        """`tool_call` 期不发待确认卡——卡片由内核事实驱动，避免重复发两张。
 
         卡片只由内核 `turn_awaiting_user` 驱动；模型原始入参里的选项不构成触发依据。
         """
@@ -335,13 +335,13 @@ class OutboundContractTest(unittest.TestCase):
         self.assertNotIn("user_confirm_required", end2)
 
     def test_write_gate_confirm_id_does_not_fake_a_confirmation(self) -> None:
-        """`confirm_id` 是**写盘门控的二阶提交锁**：门控给预览类工具的
-        **成功结果**挂上它，意思是"锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。
-        用户交互**不发生在这一步**（解锁入口是 `review_conclusion`）。
+        """`confirm_id` 是写盘门控的二阶提交锁：门控给预览类工具的
+        成功结果挂上它，意思是"锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。
+        用户交互不发生在这一步（解锁入口是 `review_conclusion`）。
 
         据此发 `user_confirm_required` 会同时产生两个后果（同一个根因）：
         ① 对话区冒出一张没人触发的内嵌卡，用户还得手动点 ✅；
-        ② **模型完全不知道**有这个交互——`tool_done` 已正常返回，它以为流程在跑。
+        ② 模型完全不知道有这个交互——`tool_done` 已正常返回，它以为流程在跑。
         （卡片文案"写盘需要确认 / 允许提交"并不存在于任何实现里。）
         """
 
@@ -350,14 +350,14 @@ class OutboundContractTest(unittest.TestCase):
         end = stream.translate("tool_result", {
             "call_id": "c1", "ok": True, "data": {"confirm_id": "cf-9"},
         })[0]
-        self.assertTrue(end["ok"], msg="预览是**成功**结果，不是挂起")
+        self.assertTrue(end["ok"], msg="预览是成功结果，不是挂起")
         self.assertNotIn("user_confirm_required", end,
                          msg="confirm_id 不该伪装成用户确认（会冒出无人触发的卡片）")
         # 但锁必须仍可见：它在 preview 里，模型据此拿到 confirm_id 去提交
         self.assertIn("cf-9", end["preview"])
 
     def test_only_a_real_suspension_asks_the_user(self) -> None:
-        """**只有工具真挂起**才发 `user_confirm_required`——经典界面收到它就弹模态。
+        """只有工具真挂起才发 `user_confirm_required`——经典界面收到它就弹模态。
 
         `classic/js/chat/confirm.js` 里这条是 100% 走弹窗的（`openUserConfirmModalFromToolEnd`
         会 `userConfirmBlocking=true` + `goBtn.disabled=true`）。所以这个字段的
@@ -393,13 +393,13 @@ class OutboundContractTest(unittest.TestCase):
         self.assertNotIn("user_confirm_required", end)
 
     def test_cancel_on_confirm_modal_records_a_declined_result(self) -> None:
-        """模态点「取消」（空 `confirm`）**当作拒绝作答、记成工具结果**，
+        """模态点「取消」（空 `confirm`）当作拒绝作答、记成工具结果，
         与在端点里就地 `return 200 {"confirmed": False}` 行为不同。
 
         就地返回的后果：
-          · 挂起**继续保持**（用户以为取消了，其实还在等作答）；
+          · 挂起继续保持（用户以为取消了，其实还在等作答）；
           · 那次调用的 `tool_result` 永不出现 → 悬空的 `assistant(tool_calls)`
-            留在历史里 → **该会话之后每条消息都 400**，且不可自愈；
+            留在历史里 → 该会话之后每条消息都 400，且不可自愈；
           · 顺带 `abortController` 永不复位 → 正在思考中永久转圈、
             发送按钮消失，用户只能点停止逃生。
 
@@ -434,10 +434,10 @@ class OutboundContractTest(unittest.TestCase):
         self.assertIn("取消", str(resume.get("error") or ""))
 
     def test_cancel_without_pending_does_not_start_an_empty_turn(self) -> None:
-        """没有挂起调用时的取消**不得**起新回合。
+        """没有挂起调用时的取消不得起新回合。
 
         那正是永久转圈的来源：内核那一轮没有输入 → 不产出任何事实
-        → **永远不发 `done`** → 前端的 loading 状态没人复位。
+        → 永远不发 `done` → 前端的 loading 状态没人复位。
         """
         calls: list = []
 
@@ -461,7 +461,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertEqual(calls, [], msg="无挂起时不该起空回合")
 
     def test_chat_bubble_layout_puts_image_above_text(self) -> None:
-        """图文气泡：**图片在上、文字在下**。
+        """图文气泡：图片在上、文字在下。
 
         做法：用户气泡是纵向 flex，文字包在 `.b-text` 里，附件条用 CSS `order`
         排到它前面（`.b.u > .msg-attach-strip{order:1}` / `.b.u > .b-text{order:2}`）。
@@ -476,13 +476,13 @@ class OutboundContractTest(unittest.TestCase):
     def test_reasoning_is_not_promoted_into_chat_area(self) -> None:
         """思考内容不经对话区填充（它属于右侧步骤卡）。
 
-        `promoteReasoningToChatIfNeeded` 的函数体保留但**不得被调用**：
+        `promoteReasoningToChatIfNeeded` 的函数体保留但不得被调用：
         一旦调用，思考会混进对话正文。
         """
         js = read_ui_js()
         self.assertIn("function promoteReasoningToChatIfNeeded", js,
                       msg="函数被删了；本项只约束它不被调用")
-        # 定义之后的正文里**不得**出现调用（注释里的提及不算）
+        # 定义之后的正文里不得出现调用（注释里的提及不算）
         body = js.split("function promoteReasoningToChatIfNeeded", 1)[1]
         callers = [ln for ln in body.splitlines()
                    if "promoteReasoningToChatIfNeeded(" in ln
@@ -493,7 +493,7 @@ class OutboundContractTest(unittest.TestCase):
     def test_run_type_switch_emits_mode_changed(self) -> None:
         """`run_type` 切模式后必须补 `mode_changed`，否则经典界面的模式按钮停在旧值。
 
-        该工具直接写 `live_state.set_mode()`、**不发** `mode_changed`，
+        该工具直接写 `live_state.set_mode()`、不发 `mode_changed`，
         而经典界面的模式按钮只在 `mode_changed` / `conversation` 时刷新。
         （`goal` 不需要补：经典界面自己在 `onToolEnd` 里刷新「目标」按钮。）
         """
@@ -532,7 +532,7 @@ class OutboundContractTest(unittest.TestCase):
 
     def test_todo_list_rides_on_tool_end(self) -> None:
 
-        """清单**没有独立事件**，挂在 `tool_end.todo_list_data` 上（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。"""
+        """清单没有独立事件，挂在 `tool_end.todo_list_data` 上（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。"""
         stream = _stream()
         stream.translate("tool_call", {"call_id": "c9", "name": "todo_list", "arguments": {}})
         frames = stream.translate("tool_result", {
@@ -544,7 +544,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertEqual(end["todo_list_data"]["items"][0]["text"], "甲")
 
     def test_usage_must_be_nested(self) -> None:
-        """用量**嵌套在 `usage` 键下**：经典界面读 `ev.usage.prompt_tokens`（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。
+        """用量嵌套在 `usage` 键下：经典界面读 `ev.usage.prompt_tokens`（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。
 
         平铺到顶层时经典界面读不到，表现是"用量永远是 0"。
         """
@@ -560,7 +560,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertNotIn("prompt_tokens", frame)
 
     def test_context_layout_is_flat_with_segments(self) -> None:
-        """`lastContextLayout = ev` 整包存下，所以 segments 在**顶层**（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。"""
+        """`lastContextLayout = ev` 整包存下，所以 segments 在顶层（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。"""
         frames = _stream().translate("context_layout", {
             "segments": [{"key": "system", "tokens": 100}], "total_tokens": 100,
         })
@@ -596,7 +596,7 @@ class OutboundContractTest(unittest.TestCase):
     def test_malformed_arguments_do_not_break_the_stream(self) -> None:
         """`arguments` 不是对象时按空对象处理（经典界面只把它 JSON 化显示，不校验）。
 
-        关键是**不能抛异常**——观察面纪律：一帧翻不出来只能丢那一帧，
+        关键是不能抛异常——观察面纪律：一帧翻不出来只能丢那一帧，
         不能把后面的事件一起带走。
         """
         stream = _stream()
@@ -631,9 +631,9 @@ class InboundContractTest(unittest.TestCase):
             self.assertIn("date_group", row)
 
     def test_ui_state_get_returns_only_client_independent_state(self) -> None:
-        """GET 只回**与客户端无关**的那部分：哪些会话在跑。
+        """GET 只回与客户端无关的那部分：哪些会话在跑。
 
-        布局（打开过哪些标签、激活哪一个）是**客户端本地状态**，服务端不存也不回 ——
+        布局（打开过哪些标签、激活哪一个）是客户端本地状态，服务端不存也不回 ——
         两个客户端各自激活不同会话时，一个全局字段表示不了，只会互相覆盖。
         """
         payload = self.adapter.ui_state_get()
@@ -643,7 +643,7 @@ class InboundContractTest(unittest.TestCase):
         self.assertNotIn("active_conversation_id", payload["state"])
 
     def test_ui_state_put_stores_nothing(self) -> None:
-        """PUT 收到布局也**不落盘**；旧前端不会因此报错。"""
+        """PUT 收到布局也不落盘；旧前端不会因此报错。"""
         result = self.adapter.ui_state_put({
             "tabs": [{"id": CID, "title": "甲"}], "active_conversation_id": CID,
         })
@@ -659,7 +659,7 @@ class InboundContractTest(unittest.TestCase):
         self.assertFalse((root / "ui_layout.json").is_file())
 
     def test_usage_accumulator_uses_different_field_names(self) -> None:
-        """累计端点用 `total_*`，与 SSE 的 `prompt_tokens` **不是一套**（`classic/js/chat/context-usage.js` 的 `loadUsageAccumulator`）。"""
+        """累计端点用 `total_*`，与 SSE 的 `prompt_tokens` 不是一套（`classic/js/chat/context-usage.js` 的 `loadUsageAccumulator`）。"""
         self.state.add_usage(CID, {"prompt_tokens": 10, "completion_tokens": 2,
                                    "prompt_cache_hit_tokens": 8, "prompt_cache_miss_tokens": 2})
         payload = self.adapter.usage_get(CID)
@@ -711,7 +711,7 @@ class InboundContractTest(unittest.TestCase):
         self.assertTrue(payload["ok"])
 
     def test_history_returns_items_for_bubbles(self) -> None:
-        """`items` 是刷新页面渲染气泡与工具卡的**唯一**来源（`renderHistoryItems`）。
+        """`items` 是刷新页面渲染气泡与工具卡的唯一来源（`renderHistoryItems`）。
 
         `items` 必须由内核事件折出——经典界面的 30 种事件里没有"用户消息"这一种，
         用户侧只能从 `input_claimed` 取。
@@ -745,7 +745,7 @@ class InboundContractTest(unittest.TestCase):
         self.assertEqual(items[1]["content"], "在的")   # 空气泡被跳过
 
     def test_history_carries_context_layout_at_top_level(self) -> None:
-        """`context_layout` 在**顶层**，`applyContextLayoutFromHistory` 读那里。"""
+        """`context_layout` 在顶层，`applyContextLayoutFromHistory` 读那里。"""
         from agent.core.events import Event
 
         layout = {"segments": [{"key": "system", "tokens": 100}], "total_tokens": 100}
@@ -842,8 +842,8 @@ class WireHygieneTest(unittest.TestCase):
         self.adapter = ClassicAdapter(_FakeApp(Path(self._tmp.name)))
 
     def test_every_frame_carries_valid_conversation_id(self) -> None:
-        """没带合法 cid 的帧会被经典界面**整包静默丢弃**（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。"""
-        # 必须先 attach 再 feed：事件是**广播给当前已连接通道**的，
+        """没带合法 cid 的帧会被经典界面整包静默丢弃（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。"""
+        # 必须先 attach 再 feed：事件是广播给当前已连接通道的，
         # 没有通道时没有"待收件箱"，事件不会被留到以后（这是有意的：
         # 重连补齐靠 /api/chat/history 回放，而不是靠无限积压）。
         box = self.adapter.attach()
@@ -864,7 +864,7 @@ class WireHygieneTest(unittest.TestCase):
         self.assertGreater(seen, 0, msg="一帧都没发出去，说明 feed 没接上")
 
     def test_frames_broadcast_to_every_channel(self) -> None:
-        """**广播**而非共享队列：两个标签页必须各自收到完整事件流。
+        """广播而非共享队列：两个标签页必须各自收到完整事件流。
 
         共享队列时两个消费者会瓜分事件——表现是"步骤卡不出现、用量不动"。
         """
@@ -979,7 +979,7 @@ class ResumeContractTest(unittest.TestCase):
         self.adapter = ClassicAdapter(self.app)
 
     def _seed(self, count: int = 4) -> str:
-        """写一段**带 `_seq` 的载荷**（模拟 `App.session` 的落盘旁路）。"""
+        """写一段带 `_seq` 的载荷（模拟 `App.session` 的落盘旁路）。"""
         from agent.core.events import Event
 
         kinds = ["turn_started", "input_claimed", "model_message", "turn_ended",
@@ -1031,7 +1031,7 @@ class ResumeContractTest(unittest.TestCase):
         self.assertTrue(all(s > 1 for s in seqs), msg=str(seqs))
 
     def test_replay_only_targets_given_channel(self) -> None:
-        """续传只补**这一条**连接：别的连接的队列不能被塞进历史。"""
+        """续传只补这一条连接：别的连接的队列不能被塞进历史。"""
         self._seed()
         target = self.adapter.attach()
         other = self.adapter.attach()
@@ -1078,7 +1078,7 @@ class ResumeContractTest(unittest.TestCase):
         self.assertEqual(self.adapter.cursor_of(_Headers("-5"), {}), -5)
 
     def test_latest_seq_reports_global_log_end(self) -> None:
-        """`latest_seq` 是**全局**最大坐标；空仓库返回 -1。"""
+        """`latest_seq` 是全局最大坐标；空仓库返回 -1。"""
         self.assertEqual(self.adapter.latest_seq(), -1)
         self._seed(3)
         self.assertEqual(self.adapter.latest_seq(), 2)
@@ -1095,7 +1095,7 @@ class ResumeContractTest(unittest.TestCase):
             self.assertNotIn("_seq", frame)
 
 class SubscriptionLifecycleTest(unittest.TestCase):
-    """适配层对事件总线的订阅必须**按需**，不能是常驻观察者。
+    """适配层对事件总线的订阅必须按需，不能是常驻观察者。
 
     常驻订阅的后果：`plugin_host.unload_all()` 之后再数总线订阅会多出 1 条——
     `unload_all()` 收不回别人的订阅，那条就成了谁都回收不掉的泄漏。
@@ -1105,7 +1105,7 @@ class SubscriptionLifecycleTest(unittest.TestCase):
     def setUp(self) -> None:
         from agent.app import build_app
 
-        # 本类数的是**总线订阅总数**，所以必须排除插件贡献的订阅：
+        # 本类数的是总线订阅总数，所以必须排除插件贡献的订阅：
         # `tts` 插件按设计会挂三条，混进来就分不清"适配层的订阅"与"插件的订阅"。
         no_plugins(self)
         self.app = build_app()
@@ -1137,7 +1137,7 @@ class SubscriptionLifecycleTest(unittest.TestCase):
         self.assertFalse(self.classic.subscribed)
 
     def test_bus_subscription_reaches_channels(self) -> None:
-        """端到端：事件经**真总线**发布 → 翻译 → 到达连接队列。"""
+        """端到端：事件经真总线发布 → 翻译 → 到达连接队列。"""
         from agent.core.events import Event
 
         box = self.classic.attach()
@@ -1160,11 +1160,11 @@ class SubscriptionLifecycleTest(unittest.TestCase):
         self.assertEqual(self._subs(self.app), 0)
 
 class UserConfirmRoundTripTest(unittest.TestCase):
-    """确认的**回路**：用户在模态里选完，选择必须真的送到模型。
+    """确认的回路：用户在模态里选完，选择必须真的送到模型。
 
     经典界面的模态在「确认」后 POST `{conversation_id, confirm: <选择>, mode, model}`
     并读返回体的 `run_id`（见 `classic/js/chat/confirm.js` 的 `submitUserConfirm`）——
-    也就是说它期待**服务端把选择投回会话**。只回一个 `{ok:true}` 会让模型永远
+    也就是说它期待服务端把选择投回会话。只回一个 `{ok:true}` 会让模型永远
     等不到第二段，工具回路就断在"待确认"。
     """
 
@@ -1174,7 +1174,7 @@ class UserConfirmRoundTripTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.app = _FakeApp(Path(self._tmp.name))
-        # 直通回填要往会话日志里补一条事实，所以这里必须用**真存储**
+        # 直通回填要往会话日志里补一条事实，所以这里必须用真存储
         # （`_FakeApp` 的空壳 store 只够形状测试）
         self.app.store = SessionStore(Path(self._tmp.name))
         self.submitted: list = []
@@ -1190,15 +1190,15 @@ class UserConfirmRoundTripTest(unittest.TestCase):
         self.adapter = ClassicAdapter(self.app)
 
     def test_choice_is_filled_back_as_the_tool_result(self) -> None:
-        """直通：用户的选择被写成**那次 `user_confirm` 调用的返回值**，不是新用户发言。
+        """直通：用户的选择被写成那次 `user_confirm` 调用的返回值，不是新用户发言。
 
         把选择当新消息投回去的话，模型要重新理解「左」是什么、还得自己判断
         该不该再问一次，它会重复提问。直通后模型看到的是「工具返回了答案」。
-        所以这里的断言：新回合的消息体是**空**的（没有新用户发言），
+        所以这里的断言：新回合的消息体是空的（没有新用户发言），
         答案是日志里那条合成 `tool_result`（`call_id` 与原调用配对）。
         """
 
-        # 挂起状态由**内核**记在 SessionContext（管道后置观察者写），测试里手工置上
+        # 挂起状态由内核记在 SessionContext（管道后置观察者写），测试里手工置上
         session = self.adapter._session(CID)
         self.assertIsNotNone(session, msg="SessionContexts 应可用")
         session.pending_confirm = {"call_id": "call-77", "title": "选一个",
@@ -1214,7 +1214,7 @@ class UserConfirmRoundTripTest(unittest.TestCase):
         self.assertEqual(cid, CID)
         self.assertEqual(message["content"], "", msg="结果回灌不该伪装成一条用户发言")
         self.assertIn("attachments", message)
-        # **结果走 `resume` 交给运行器**：由它拼成 `tool_result` 事实。
+        # 结果走 `resume` 交给运行器：由它拼成 `tool_result` 事实。
         # 适配层不再自己往 store 写——那会变成第二个事实写点，也会绕开"写前查重"。
         resume = message.get("resume") or {}
         self.assertEqual(resume.get("call_id"), "call-77")
@@ -1338,10 +1338,10 @@ class UiBundleTest(unittest.TestCase):
     """素材与内联打包。"""
 
     def test_tool_tag_shows_final_state_immediately(self) -> None:
-        """工具结束时**立刻**写标签终态。
+        """工具结束时立刻写标签终态。
 
         若把标签挂到 `llm_done` 才刷新，一轮里多个工具会同时停在「进行中」
-        直到整轮结束；取消场景还会把**已完成**的工具刷成失败。
+        直到整轮结束；取消场景还会把已完成的工具刷成失败。
         所以 `tool_end` 分支里必须当场定标签。
         """
         js = read_ui_js()
@@ -1358,20 +1358,20 @@ class UiBundleTest(unittest.TestCase):
             msg="终态标签的样式没有一起写")
 
     def test_reasoning_stays_out_of_the_chat_area(self) -> None:
-        """**思考内容不能出现在对话区**（它属于右侧步骤卡）。
+        """思考内容不能出现在对话区（它属于右侧步骤卡）。
 
-        `promoteReasoningToChatIfNeeded()` 是**实时渲染的容错**：怕「模型只产出了思考、
+        `promoteReasoningToChatIfNeeded()` 是实时渲染的容错：怕「模型只产出了思考、
         没有正文」时对话区一片空白，于是在 `done` 时把 `lastLlm.reasoningText`
-        兜底追加成回答。它必须**不被调用**：
+        兜底追加成回答。它必须不被调用：
 
-        ① 它不是数据：刷新后走 `loadConversationHistory()`，那段内容**会消失**，
+        ① 它不是数据：刷新后走 `loadConversationHistory()`，那段内容会消失，
            说明它本来就不该是「回答」；
         ② 思考已有正当归宿：`reasoning_delta` → `appendReasoningDelta()` → 右侧面板；
         ③ `done` 时 `streamAssistantText` 已被 `assistant` 分支
            （`finalizeAssistantStream()` 清空它）清掉，守卫必然放行 →
-           思考被追加成对话区的**第二个回答气泡**（一轮 3 个气泡）。
+           思考被追加成对话区的第二个回答气泡（一轮 3 个气泡）。
 
-        断言：`done` 分支里**不得**出现这个调用。
+        断言：`done` 分支里不得出现这个调用。
         """
         from agent.shell.ui_bundle import inline_ui_html
 
@@ -1383,15 +1383,15 @@ class UiBundleTest(unittest.TestCase):
         self.assertIn("finalizeAssistantSt", html, msg="助手消息终态填充丢失")
 
     def test_llm_call_start_opens_a_step_card(self) -> None:
-        """**步骤卡必须起得来**。
+        """步骤卡必须起得来。
 
-        经典界面的步骤卡由 `llm_round` 起卡。内核 **不发"步"**（"趟"是宿主的实现细节），
+        经典界面的步骤卡由 `llm_round` 起卡。内核 不发"步"（"趟"是宿主的实现细节），
         所以适配层必须吸收两种词汇：历史记录用"步开始"、当前用
-        "模型调用开始"（`llm_call_start`），对经典界面是**同一件事**。
+        "模型调用开始"（`llm_call_start`），对经典界面是同一件事。
         不起卡时步骤面板是空的（表现："步骤面板空空如也，但对话区一直持续输出"）。
 
         这条同时守住一个隐蔽依赖：`reasoning_delta` / `llm_response` / `llm_done`
-        都以 `_step_had_llm` 为守卫——不在这里置位，那些帧会被**静默丢弃**。
+        都以 `_step_had_llm` 为守卫——不在这里置位，那些帧会被静默丢弃。
         """
         stream = _stream()
         stream.translate("turn_started", {"conversation_id": CID})
@@ -1431,7 +1431,7 @@ class UiBundleTest(unittest.TestCase):
             self.assertNotIn(token, html, msg=token)
 
     def test_inline_html_contains_all_five_scripts(self) -> None:
-        """漏注入 `image-lightbox.js` 会让 `window.AIA` 缺失 → 附件四条链路**静默**失效。
+        """漏注入 `image-lightbox.js` 会让 `window.AIA` 缺失 → 附件四条链路静默失效。
 
         它们全都写成 `window.AIA && …`，所以没有报错、只是功能不见。
         """
@@ -1458,7 +1458,7 @@ class UiBundleTest(unittest.TestCase):
         self.assertEqual(scope_hljs_css("a.hljs{color:red}", "P"), "a.hljs{color:red}")
 
     def test_tts_entry_is_gone(self) -> None:
-        """TTS 的**入口元素**应从素材里删掉。
+        """TTS 的入口元素应从素材里删掉。
 
         查的是入口元素而不是裸字符串：文件头注释为记录改动会提到这个 id，
         查字符串会误报。
@@ -1474,7 +1474,7 @@ if __name__ == "__main__":
     unittest.main()
 
 class HistoryAttachmentReplayTest(unittest.TestCase):
-    """带附件的会话刷新后必须**能再看图**。
+    """带附件的会话刷新后必须能再看图。
 
     事实里图片以 `data:<mime>;base64,<数据>` 内联在多模态 content 数组里，
     所以回显不需要另找来源 —— 但 `_history_items` 得真的把它们解出来，
@@ -1487,9 +1487,9 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
     )
 
     def _events(self):
-        """**真实事实形状**：附件在 `input_claimed.data["attachments"]`。
+        """真实事实形状：附件在 `input_claimed.data["attachments"]`。
 
-        （容易搞错：`content` 里的多模态数组是 `session_log` 为**模型请求**派生的，
+        （容易搞错：`content` 里的多模态数组是 `session_log` 为模型请求派生的，
         事实里 `content` 就是纯文本。按多模态数组造数据会得到"测试通过、真实链路
         仍然失败"的假绿。）
         """
@@ -1504,7 +1504,7 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
         ]
 
     def _events_inline_multimodal(self):
-        """**兜底形态**：历史记录里可能出现内联多模态 content（也要认）。"""
+        """兜底形态：历史记录里可能出现内联多模态 content（也要认）。"""
         from agent.core.events import Event
 
         return [
@@ -1592,7 +1592,7 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
         self.assertEqual(items[4]["content"], "只有正文")
 
     def test_attachment_id_is_recomputable(self) -> None:
-        """id 必须**从事实派生**：刷新前后一致，否则浏览器不会重试那张失败的图。"""
+        """id 必须从事实派生：刷新前后一致，否则浏览器不会重试那张失败的图。"""
         from agent.shell.classic_adapter.inbound import _history_items
 
         first = _history_items(self._events())[0][0]["attachments"][0]["id"]

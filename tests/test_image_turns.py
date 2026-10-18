@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """图片按「最近几轮用户发言」进请求：轮数由配置控制，事实流不受影响。
 
-判定口径是**轮**而不是**张**：一轮里发三张图算一轮。
-被剥掉的图只从**发给模型的这一份**里消失，`.raw` 里的字节一个都不动 ——
+判定口径是轮而不是张：一轮里发三张图算一轮。
+被剥掉的图只从发给模型的这一份里消失，`.raw` 里的字节一个都不动 ——
 所以历史回显、重新提问都还能拿到原图。
 """
 from __future__ import annotations
@@ -98,7 +98,7 @@ class StripByTurnTest(unittest.TestCase):
 
 
 class StripByTotalCapTest(unittest.TestCase):
-    """轮数之外的第二道闸：总数上限，**最近一轮优先**。"""
+    """轮数之外的第二道闸：总数上限，最近一轮优先。"""
 
     def test_cap_keeps_the_most_recent_turn_first(self) -> None:
         """五张的额度：最近一轮三张全保，剩两张给倒数第二轮，最老的一轮全舍。"""

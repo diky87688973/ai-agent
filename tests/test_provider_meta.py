@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """`provider_meta` 透传契约。
 
-内核**不解释**厂商私有元数据（Anthropic 的 thinking 块与签名），只保证三件事：
+内核不解释厂商私有元数据（Anthropic 的 thinking 块与签名），只保证三件事：
 
 1. 适配器以 `StreamDelta(kind="meta")` 交上来的载荷，被原样收进 `model_message`；
 2. `derive_messages()` 把它原样带回 assistant 消息，回放链路不丢签名；
-3. 发给 OpenAI 兼容网关的线格式里**不得**出现这个键（未知字段可能被 400）。
+3. 发给 OpenAI 兼容网关的线格式里不得出现这个键（未知字段可能被 400）。
 
 第 3 条同时是负向断言：只要有一条路径漏了剥离，网关就会看到 Anthropic 专属键。
 """
@@ -45,7 +45,7 @@ class _ModelMessageCase(unittest.TestCase):
 
 
 class LlmEventModelTest(unittest.TestCase):
-    """模型生命周期事件必须报告**本次请求**的模型，而不是 provider 默认值。"""
+    """模型生命周期事件必须报告本次请求的模型，而不是 provider 默认值。"""
 
     def test_done_reports_request_model(self) -> None:
         from agent.core.event_name import LLM_ENDED

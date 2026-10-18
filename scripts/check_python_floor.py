@@ -4,16 +4,16 @@
 
 ## 为什么需要它
 
-**Python 3.10+，写法下限 3.10**。本机是 3.12，所以 3.11 / 3.12 才有的语法
-在这里**永远不会报错**；把下限声明放宽（`requires-python`、ruff 的
+Python 3.10+，写法下限 3.10。本机是 3.12，所以 3.11 / 3.12 才有的语法
+在这里永远不会报错；把下限声明放宽（`requires-python`、ruff 的
 `target-version`）会让 3.10 上直接 SyntaxError 的代码通过检查，
 等交付到 3.10 环境才炸，那时定位成本极高。
 
-这类"下限声明"必须**可执行**，否则就是纸面保证。
+这类"下限声明"必须可执行，否则就是纸面保证。
 
 ## 判据
 
-按 AST 节点识别"3.11 / 3.12 才有的语法"，这些是**语法级**不兼容，
+按 AST 节点识别"3.11 / 3.12 才有的语法"，这些是语法级不兼容，
 在 3.10 上直接 SyntaxError：
 
 | 语法 | 引入版本 | AST 特征 |
@@ -39,7 +39,7 @@ try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
-    # **旁路，刻意吞掉**：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
+    # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
     # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
     pass
 
@@ -49,7 +49,7 @@ FLOOR = (3, 10)
 SCAN_DIRS = ("agent", "tests", "scripts")
 SKIP_PARTS = ("__pycache__", "retired")
 
-#: 高版本才有的节点类型。**不能直接写 `ast.TryStar`**：这两个属性分别到 3.11 / 3.12
+#: 高版本才有的节点类型。不能直接写 `ast.TryStar`：这两个属性分别到 3.11 / 3.12
 #: 才存在，本脚本在 3.10 上取属性就 AttributeError —— 下限检查器自己越界。
 _TRY_STAR = getattr(ast, "TryStar", None)
 _TYPE_ALIAS = getattr(ast, "TypeAlias", None)
@@ -90,8 +90,8 @@ def main() -> int:
     for line in bad:
         print(f"  [FAIL] {line}")
     if bad:
-        # 这里刻意**不**把转义写进 f-string 表达式：
-        # f-string 表达式里出现反斜杠是 Python **3.12+** 才允许的，
+        # 这里刻意不把转义写进 f-string 表达式：
+        # f-string 表达式里出现反斜杠是 Python 3.12+ 才允许的，
         # 而本脚本自身就必须能在 3.10 上跑（否则"下限检查器"自己越界）。
         hint = "修法：改用 " + floor + " 可用的等价写法"
         print()

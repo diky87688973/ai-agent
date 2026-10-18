@@ -202,13 +202,13 @@ class CryptoTest(_StoreTest):
             self.assertEqual(loaded[0].data["cid"], cid)
 
 class CrossProcessAppendTest(_StoreTest):
-    """**多进程**并发写同一个 `.raw` 不得丢行、不得写坏。
+    """多进程并发写同一个 `.raw` 不得丢行、不得写坏。
 
-    进程内锁挡不住别的进程：4 个进程并发写会丢行且**不报错**。
+    进程内锁挡不住别的进程：4 个进程并发写会丢行且不报错。
     因此写路径按文件串行（`agent/mechanisms/session_store.py` 的 `_cross_process_lock`
     用 `msvcrt` 文件锁实现）。
 
-    为什么必须用**真子进程**：进程内锁在同一个解释器里怎么测都"正确"，
+    为什么必须用真子进程：进程内锁在同一个解释器里怎么测都"正确"，
     只有真起多进程才走得到 `LK_NBLCK` 那条路径。所以这里用 `subprocess`，
     每个子进程独立 `SessionStore` 实例、独立打开同一个文件。
     """

@@ -2,10 +2,10 @@
 """适配层门面：`ClassicAdapter`。
 
 职责边界：
-  - **只做形状翻译**：业务一律落到内核既有面；
-  - **持有经典界面需要而内核不持有的内存态**（用量累计 / 勾选 / 附件 / 布局）；
-  - **把内核事件流翻成经典界面事件流**（按会话一实例 `ClassicStream`）；
-  - **不碰内核**：不加钩子、不改语义；`web.py` 只调本类的公开方法。
+  - 只做形状翻译：业务一律落到内核既有面；
+  - 持有经典界面需要而内核不持有的内存态（用量累计 / 勾选 / 附件 / 布局）；
+  - 把内核事件流翻成经典界面事件流（按会话一实例 `ClassicStream`）；
+  - 不碰内核：不加钩子、不改语义；`web.py` 只调本类的公开方法。
 
 事件如何从内核流到这里：`web.py` 在会话事件入库时调用 `feed()`（它已经在写盘路径上），
 本类按会话翻译并推进各自的发送队列；SSE 连接从队列取帧、并用心跳保活。
@@ -44,11 +44,11 @@ class ClassicAdapter:
         self._lock = threading.Lock()
         self._streams: Dict[str, ClassicStream] = {}
         # 每条 SSE 连接各自一条队列（广播）。
-        # 共享队列会让多个消费者（两个标签页、或浏览器 + 探针）**瓜分**事件——
+        # 共享队列会让多个消费者（两个标签页、或浏览器 + 探针）瓜分事件——
         # 表现为"步骤卡不出现、用量不动"。
         self._channels: List["queue.Queue[Dict[str, Any]]"] = []
         self._last_beat = time.time()
-        # 按会话记的**暂停态**（宿主状态，非内核阻塞态）。
+        # 按会话记的暂停态（宿主状态，非内核阻塞态）。
         #
         # 待确认内容记在内核的
         # `SessionContext.pending_confirm`（`app._pending_confirm_recorder` 写入），
@@ -73,7 +73,7 @@ class ClassicAdapter:
     def _layout_for(self, cid: str) -> Optional[Dict[str, Any]]:
         """算当前会话的上下文分段快照（给经典界面的底部分段条用）。
 
-        **计算口径只有一处**：`inbound.compute_context_layout` —— 刷新的
+        计算口径只有一处：`inbound.compute_context_layout` —— 刷新的
         `history()` 与这里的实时帧共用它，避免两条路径算出不同结果。
 
         对话与模式来自内核发的 `context_segments`（`ModelModule` 每次装配完请求发
@@ -99,7 +99,7 @@ class ClassicAdapter:
     def _model(self, cid: str = "") -> str:
         """当前会话用哪个模型（`conversation` 帧要把它同步给前端）。
 
-        **必须按会话取**，不能恒取全局的 `provider.model`：那个 `conversation` 帧
+        必须按会话取，不能恒取全局的 `provider.model`：那个 `conversation` 帧
         会把用户选好的模型覆盖回默认，表现为下拉自己跳回默认。
         """
         resolver = getattr(self._app, "model_for", None)
@@ -119,7 +119,7 @@ class ClassicAdapter:
                 if want:
                     return str(want)
             except Exception:
-                # 判据：**读会话状态失败不该打断事件翻译**（这里只是给前端一个展示名）。
+                # 判据：读会话状态失败不该打断事件翻译（这里只是给前端一个展示名）。
                 # 取不到就落到下面的 provider 默认名 —— 退化结果仍然可用，
                 # 而抛出去会让整条 SSE 帧丢失，代价远大于"显示的是默认模型名"。
                 pass
@@ -132,12 +132,12 @@ class ClassicAdapter:
         self.inbound._shell = shell
 
     def bind_bus(self, event_bus: Any) -> None:
-        """记下事件总线，**先不订阅**。
+        """记下事件总线，先不订阅。
 
-        订阅是**按需**的：有 SSE 连接进来才订阅、最后一个连接断开就摘掉（实现在
+        订阅是按需的：有 SSE 连接进来才订阅、最后一个连接断开就摘掉（实现在
         `attach` / `detach`）。两个理由：
           1. 没有客户端时翻译纯属白做功；
-          2. 常驻订阅会变成一条**谁都回收不掉的泄漏**——`plugin_host.unload_all()`
+          2. 常驻订阅会变成一条谁都回收不掉的泄漏——`plugin_host.unload_all()`
              之后再数事件总线订阅，会多出这一条。
         """
         self._bus = event_bus
@@ -179,9 +179,9 @@ class ClassicAdapter:
         return self._unsubscribe is not None
 
     def attach(self) -> "queue.Queue[Dict[str, Any]]":
-        """一条新 SSE 连接：给它一条独立队列，并在**首条连接**时开始订阅总线。
+        """一条新 SSE 连接：给它一条独立队列，并在首条连接时开始订阅总线。
 
-        顺序是**先入列、后订阅**：反过来的话，从入列到订阅之间的那几毫秒里
+        顺序是先入列、后订阅：反过来的话，从入列到订阅之间的那几毫秒里
         发布的事件会既没进队列也没被翻译——直接消失。
         """
         box: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=_QUEUE_MAX)
@@ -193,7 +193,7 @@ class ClassicAdapter:
         return box
 
     def detach(self, box: "queue.Queue[Dict[str, Any]]") -> None:
-        """连接断开（刷新 / 关标签）：摘掉队列；**最后一条**断开时退订总线。"""
+        """连接断开（刷新 / 关标签）：摘掉队列；最后一条断开时退订总线。"""
         with self._lock:
             if box in self._channels:
                 self._channels.remove(box)
@@ -247,10 +247,10 @@ class ClassicAdapter:
     def is_paused(self, cid: str) -> bool:
         """该会话是否停在"等用户作答"（宿主状态）。
 
-        内核**不阻塞、不等待**：暂停就是回合正常结束（资源已释放、服务可服务别的会话），
+        内核不阻塞、不等待：暂停就是回合正常结束（资源已释放、服务可服务别的会话），
         只是多了一帧 `paused_for_user_confirm` 信令，让宿主知道"这不是正常收尾"。
         恢复由用户在界面上作答触发 `POST /api/chat/user-confirm` → 起新回合。
-        所以"是否暂停"是**适配层按会话记的状态**，不是内核里的阻塞态。
+        所以"是否暂停"是适配层按会话记的状态，不是内核里的阻塞态。
         """
         cid = C.normalize_cid(cid)
         if not cid:
@@ -264,7 +264,7 @@ class ClassicAdapter:
     def pause_state(self) -> Dict[str, Any]:
         """暂停态快照（供 /health 或诊断观察）。
 
-        `pending_confirm` 从**内核的 `SessionContext`** 现读（权威在那里），
+        `pending_confirm` 从内核的 `SessionContext` 现读（权威在那里），
         本类不另存一份：两处各存一份迟早不一致。
         """
         return {
@@ -273,10 +273,10 @@ class ClassicAdapter:
         }
 
     def pending_confirms(self) -> Dict[str, Any]:
-        """全量扫一遍会话状态，给出**当前所有**待确认（`cid → call_id`）。
+        """全量扫一遍会话状态，给出当前所有待确认（`cid → call_id`）。
 
         `_paused` 不作复用来源：那是"上一次 `turn_ended` 说停着"的瞬时观测，
-        而**权威状态**是 `SessionContext.pending_confirm`。两者可能短暂不一致
+        而权威状态是 `SessionContext.pending_confirm`。两者可能短暂不一致
         （例如新回合还没收尾），所以可观测性接口一律以权威为准。
         """
         contexts = getattr(self._app, "session_contexts", None)
@@ -295,7 +295,7 @@ class ClassicAdapter:
     # 经典界面的确认模态在用户点「确认」后 POST 的是
     #   `{conversation_id, confirm: <用户选的文本>, mode, model}`
     # `agent-ui.js` 的 `submitUserConfirm` 就是这条请求，并期待返回体带 `run_id`——
-    # 也就是说**它期待服务端把选择送回模型**，而不是只回一个"收到"。
+    # 也就是说它期待服务端把选择送回模型，而不是只回一个"收到"。
     #
     # 工具声明也印证这点：次段调用要带 `confirm`（用户确认结果），模型才能完成回路。
     # 所以适配层必须把 `confirm` 经 `mesh.submit` 投回该会话：
@@ -334,24 +334,24 @@ class ClassicAdapter:
 
         # 既没有 `confirm_id` 也没有 `confirm` 文本：模态的「取消」走这里。
         #
-        # **必须交给 `submit_user_choice`**，不能就地返回 200 了事：
-        #   ① 挂起会**继续保持** —— 用户以为取消了，其实那次调用还在等作答；
+        # 必须交给 `submit_user_choice`，不能就地返回 200 了事：
+        #   ① 挂起会继续保持 —— 用户以为取消了，其实那次调用还在等作答；
         #   ② 那次调用的 `tool_result` 永不出现 → 悬空的 `assistant(tool_calls)`
-        #      留在历史里 → 该会话之后**每条消息都 400**，不可自愈。
-        # 交给 `submit_user_choice` 后，"取消"被当成"**拒绝作答**"记成工具结果，
+        #      留在历史里 → 该会话之后每条消息都 400，不可自愈。
+        # 交给 `submit_user_choice` 后，"取消"被当成"拒绝作答"记成工具结果，
         # 既闭合了配对，也让模型知道用户不想答（它可以改问法或换方案）。
         return 200, self.submit_user_choice(cid, "")
 
     def submit_user_choice(self, cid: str, text: str) -> Dict[str, Any]:
         """用户作答 → 把选择写成那次调用的返回值，再起新回合（两段式第二段）。
 
-        选择**不写成新用户发言**：那样模型要重新理解一遍「左」是什么，还得自己判断
+        选择不写成新用户发言：那样模型要重新理解一遍「左」是什么，还得自己判断
         该不该再问一次，往往会重复提问。写成工具返回值，模型看到的是"工具终于返回了
         答案"，接着往下做即可。
 
-        **权威状态在内核的 `SessionContext.pending_confirm`**：
+        权威状态在内核的 `SessionContext.pending_confirm`：
         首段返回信封时由管道记下，回合放行结束；这里读它拿到 `call_id`，写入那次调用
-        **唯一**的 `tool_result`。
+        唯一的 `tool_result`。
         """
         cid = C.normalize_cid(cid)
         if not cid:
@@ -364,12 +364,12 @@ class ClassicAdapter:
         pending = self.pending_confirm(cid) if hasattr(self, "pending_confirm") else None
         call_id = str((pending or {}).get("call_id") or "")
         payload: Dict[str, Any] = {"content": "", "attachments": [], "mode": "", "model": ""}
-        # 空文本 = 用户在模态上点了「取消」。**这不是"没作答"，而是"拒绝作答"**：
-        # 拒绝也作为那次调用的**结果**交回去，否则
+        # 空文本 = 用户在模态上点了「取消」。这不是"没作答"，而是"拒绝作答"：
+        # 拒绝也作为那次调用的结果交回去，否则
         #   ① 那次调用的 `tool_result` 永不出现 → 悬空的 `assistant(tool_calls)`
-        #      留在历史里（该会话之后**每条消息都 400**，不可自愈）；
+        #      留在历史里（该会话之后每条消息都 400，不可自愈）；
         #   ② 若照"起一个没有输入的新回合"处理，内核那一轮不产出任何事实
-        #      → **永远不发 `done`** → 前端「正在思考中」永久转圈、发送按钮消失
+        #      → 永远不发 `done` → 前端「正在思考中」永久转圈、发送按钮消失
         #      （用户只能点「停止」逃生）。
         text = str(text or "")
         declined = not text.strip()
@@ -385,10 +385,10 @@ class ClassicAdapter:
                 "resumed_call": "",
             }
         if call_id:
-            # **经运行器提交结果**：由它把结果拼成 `tool_result` 事实并起一轮。
+            # 经运行器提交结果：由它把结果拼成 `tool_result` 事实并起一轮。
             # 事实由运行器写入：适配层直接写会成为第二个事实写点，
             # 也会绕开"写前查重"。
-            # `resume` 走消息体，所以**忙时入队也正确**（结果随队列入队，不会丢）。
+            # `resume` 走消息体，所以忙时入队也正确（结果随队列入队，不会丢）。
             payload["resume"] = (
                 {"call_id": call_id, "ok": False,
                  "error": "用户取消了这次确认（未作答）"}
@@ -396,7 +396,7 @@ class ClassicAdapter:
                 {"call_id": call_id, "ok": True, "data": {"confirm": text}}
             )
         elif declined:
-            # 没有挂起调用可拒绝：**不起空回合**——那正是"永久转圈"的来源。
+            # 没有挂起调用可拒绝：不起空回合——那正是"永久转圈"的来源。
             return {"ok": True, "confirmed": False, "declined": True,
                     "conversation_id": cid, "queued": False, "run_id": "",
                     "resumed_call": "",
@@ -493,7 +493,7 @@ class ClassicAdapter:
     def pending_confirm(self, cid: str) -> Optional[Dict[str, Any]]:
         """该会话当前挂着的待确认（`SessionContext.pending_confirm`）。
 
-        它是**跨回合**的会话态：暂停发生在上一回合、作答在下一回合，
+        它是跨回合的会话态：暂停发生在上一回合、作答在下一回合，
         它是跨回合状态，放回合级上下文会随回合消亡；适配层只读。
         """
         cid = C.normalize_cid(cid)
@@ -510,7 +510,7 @@ class ClassicAdapter:
             session.pending_confirm = None
 
     def feed(self, ev_type: str, data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """喂一个内核事件；翻译后**广播**给所有已连接的 SSE 通道。
+        """喂一个内核事件；翻译后广播给所有已连接的 SSE 通道。
 
         `web.py` 在事件入库路径上调用它——那里已经是"事实已落盘"的位置，
         所以翻译不会漏帧，也不改变内核时序。
@@ -525,11 +525,11 @@ class ClassicAdapter:
             # 用量累计（经典界面的 /api/usage-accumulator 要累计值）
             if ev_type == "usage":
                 self.state.add_usage(cid, data)
-            # ── 以下记账**与"翻译出几帧"无关**，无条件执行 ──
+            # ── 以下记账与"翻译出几帧"无关，无条件执行 ──
             # 若放到 `if not frames: return` 之后，翻译成 0 帧的事件
             # （如 `input_claimed`）就会跳过记账——状态就会丢掉。
             #
-            # 暂停态：`turn_ended.paused` 给出。**权威的待确认内容**在
+            # 暂停态：`turn_ended.paused` 给出。权威的待确认内容在
             # `SessionContext.pending_confirm`（内核侧由 `app._pending_confirm_recorder` 写入）
             # —— 适配层只读它，不另存一份。
             if ev_type == "turn_ended":
@@ -553,7 +553,7 @@ class ClassicAdapter:
         box: "queue.Queue[Dict[str, Any]]",
         timeout: float = 1.0,
     ) -> Optional[Dict[str, Any]]:
-        """从**指定通道**取一帧；超时返回 None（SSE 层据此发心跳）。"""
+        """从指定通道取一帧；超时返回 None（SSE 层据此发心跳）。"""
         try:
             return box.get(timeout=max(0.0, timeout))
         except queue.Empty:
@@ -577,7 +577,7 @@ class ClassicAdapter:
         """把模型变化推给同会话的其它标签页（发起方已写过服务端）。
 
         与 `announce_plugins` 同构：不是内核事件，不伪装成内核事件。
-        接收方只更新页头与本地 tab 字段，**不再回写** `live_state`。
+        接收方只更新页头与本地 tab 字段，不再回写 `live_state`。
         """
         key = C.normalize_cid(cid)
         if not key:
@@ -607,7 +607,7 @@ class ClassicAdapter:
     def replay_after(self, after_seq: int, only: Any = None, limit: int = _REPLAY_LIMIT) -> int:
         """把 `seq > after_seq` 的历史事件翻成老事件、投进通道，返回投出的帧数。
 
-        **跨会话**：坐标是全局单调的，所以一个游标对所有会话都成立——
+        跨会话：坐标是全局单调的，所以一个游标对所有会话都成立——
         这正是 SSE `Last-Event-ID` 的语义（一条流一个光标）。
         游标若按会话各自从 0 编号，一个值就无法表达"所有会话的位置"，
         额外带上 `?conversation_id=`。
@@ -639,7 +639,7 @@ class ClassicAdapter:
         return len(frames)
 
     def latest_seq(self) -> int:
-        """当前**全局**最大坐标；没有任何坐标时返回 -1。"""
+        """当前全局最大坐标；没有任何坐标时返回 -1。"""
         store = getattr(self._app, "store", None)
         if store is None or not hasattr(store, "_scan_max_seq"):
             return -1
@@ -651,7 +651,7 @@ class ClassicAdapter:
     def cursor_of(self, request_headers: Any, query: Dict[str, str]) -> int:
         """取本次连接的续传游标。
 
-        优先 `Last-Event-ID` 请求头（浏览器 `EventSource` **自动**带上的标准位置），
+        优先 `Last-Event-ID` 请求头（浏览器 `EventSource` 自动带上的标准位置），
         其次 `?last_event_id=`（非浏览器客户端显式指定）；都没有则 -1（从头开始）。
         非整数一律当 -1：游标不可信时重放全量，比断在半路安全。
         """
@@ -662,7 +662,7 @@ class ClassicAdapter:
             try:
                 candidates.append(str(request_headers.get("Last-Event-ID") or ""))
             except Exception:
-                # **旁路，刻意吞掉**：`Last-Event-ID` 是断线续传的**可选**请求头。
+                # 旁路，刻意吞掉：`Last-Event-ID` 是断线续传的可选请求头。
                 # 取不到（headers 实现异常）就少一个候选坐标，下面的循环会用
                 # URL 查询参数那一路兜底——续传能力降级，不影响本次订阅。
                 pass
@@ -679,17 +679,17 @@ class ClassicAdapter:
     # ── 供壳层组装会话事件 ────────────────────────────────
 
     def conversation_frame(self, cid: str) -> Dict[str, Any]:
-        """`conversation` 事件（**必需**）：经典界面靠它初始化模式与顶栏模型。
+        """`conversation` 事件（必需）：经典界面靠它初始化模式与顶栏模型。
 
         缺它 → 刷新后模式按钮回落 auto、`#hdrModel` 停在"模型加载中…"。
         """
         cid = C.normalize_cid(cid)
         live = getattr(self._app, "live_state", None)
         mode = live.get_mode(cid) if live is not None else "auto"
-        # 模型取**会话级选择**（没选过才回落 provider 默认）。
+        # 模型取会话级选择（没选过才回落 provider 默认）。
         # 不能恒取 `provider.model`：那样每来一帧就把用户的模型选择覆盖回默认
         # （表现为"发一条消息，模型下拉自己就跳回默认"），
-        # 而用户接着发图时后端按**默认**模型的名字判能力（不认视觉）→ 图片被剥掉。
+        # 而用户接着发图时后端按默认模型的名字判能力（不认视觉）→ 图片被剥掉。
         model = self._model(cid)
         return {
             "type": C.EV_CONVERSATION,
@@ -699,7 +699,7 @@ class ClassicAdapter:
         }
 
     def health(self) -> Dict[str, Any]:
-        """`/health`：`model` **必须在 `allowed_models` 里**，否则经典界面白名单校验丢弃它
+        """`/health`：`model` 必须在 `allowed_models` 里，否则经典界面白名单校验丢弃它
         （agent-ui.js:496 vs 407），顶栏永远"模型加载中…"。
 
         其余字段（`service` / `tools` / …）保留内核原有口径——经典界面不看它们，
@@ -707,7 +707,7 @@ class ClassicAdapter:
         """
         provider = getattr(self._app, "provider", None)
         model = str(getattr(provider, "model", "") or "")
-        # 可选清单以**装配面**为准（`config.ini` 的 `[model_reasoning] models`）：
+        # 可选清单以装配面为准（`config.ini` 的 `[model_reasoning] models`）：
         # provider 未必有 `allowed_models` 属性，只读它会让清单退化成"只有当前模型"
         # ——模型下拉只画一项，而且选择会被白名单校验拒掉。
         resolver = getattr(self._app, "available_models", None)
@@ -731,6 +731,9 @@ class ClassicAdapter:
             "tools": tools,
             "model": model,
             "allowed_models": allowed,
+            # 全局默认档位：会话回填前顶栏先按它显示（会话值见 `/api/chat/ui-state`）。
+            "reasoning_effort": (self._app.live_state.default_effort
+                                 if self._app.live_state is not None else "high"),
             "model_config": settings() if callable(settings) else {},
             # 停在"等用户作答"的会话（宿主状态，非内核阻塞态）。
             "paused_conversations": sorted(cid for cid, on in self._paused.items() if on),
@@ -755,7 +758,7 @@ class ClassicSseChannel:
         self.adapter.detach(self._box)
 
     def resume(self, after_seq: int) -> int:
-        """重连续传：把**全局坐标** `> after_seq` 的事件补进本连接的队列。
+        """重连续传：把全局坐标 `> after_seq` 的事件补进本连接的队列。
 
         只补这一条连接（不广播）——别的连接没断，它们不需要补。
         """

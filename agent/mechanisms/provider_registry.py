@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """模型提供者注册表：厂商名 → 构造器。
 
-**唯一**知道"怎么 new 一个 provider"的地方。目录只存厂商名与选项字典，
+唯一知道"怎么 new 一个 provider"的地方。目录只存厂商名与选项字典，
 路由只按 id 取实例，插件只声明配置 —— 三者都不 import 具体适配器。
 
 扩展方式（`A4`：扩展只加文件）：
@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, Mapping, Tuple
 from agent.mechanisms.anthropic_provider import AnthropicProvider
 from agent.mechanisms.model_provider import ModelProvider, OpenAICompatibleProvider
 
-#: 各厂商接受的构造参数。**白名单而不是透传**：配置文件是外部输入，
+#: 各厂商接受的构造参数。白名单而不是透传：配置文件是外部输入，
 #: 多一个键就让构造器抛 TypeError 属于"配置笔误升级成启动失败"。
 _OPTIONS: Dict[str, Tuple[str, ...]] = {
     "openai": (

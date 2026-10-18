@@ -6,7 +6,7 @@
 ; 各插件自己的配置写在插件目录的 plugin-config.ini。
 ; 可贡献的能力与开发方式见 docs/subsystems/plugins.md。
 ;
-; 不列任何插件 = 不装载任何插件。要装哪个就把它的节拷下来：
+; 不列任何插件 = 不装载任何插件。启用哪个就加上它对应的节：
 ;
 ; [plugin:knowledge]
 ; version = 1.0

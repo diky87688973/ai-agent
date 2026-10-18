@@ -1,6 +1,6 @@
 /* panels/panes.js —— 右栏通用面板容器：标签、面板创建/关闭、显隐同步。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function selectSidePane(name){
@@ -24,9 +24,9 @@ ex.className="side-pane";
 ex.id="pane-"+id;
 ex.dataset.pane=id;
 ex.dataset.plugin=String((opts&&opts.plugin)||"");
-/* `openPane` 建的面板**不建标题行**：标题已经在标签上（同一个 `title`），再写一行是重复。
+/* `openPane` 建的面板不建标题行：标题已经在标签上（同一个 `title`），再写一行是重复。
    固定面板（步骤栏）不同 —— 它不参与开/关，自带标题行是有意的。
-   正文容器**始终建**：面板可以只给 `onOpen` 自己填内容（文件查看器就是这样），
+   正文容器始终建：面板可以只给 `onOpen` 自己填内容（文件查看器就是这样），
    只在传了 `html` 时才建会让 `onOpen` 找不到容器、静默什么都不渲染。 */
 var bodyEl=document.createElement("div");
 bodyEl.className="pane-body";
@@ -61,7 +61,7 @@ sideTabbar.appendChild(w);
 }
 selectSidePane(id);
 /* 广播"面板已打开"：插件脚本在开屏就被预载（段色注册要赶在第一次渲染前），
-   那时面板 DOM 还不存在，脚本里的首次渲染必然是空跑。而脚本**只载一次**
+   那时面板 DOM 还不存在，脚本里的首次渲染必然是空跑。而脚本只载一次
    （`_pluginScriptsLoaded` 去重），开面板时不会再执行一遍 ——
    不广播这一下，面板就永远停在初始占位（"加载知识库…"）。
    插件自己监听这个事件决定渲染什么，壳层不点名任何插件。 */
@@ -107,7 +107,7 @@ else if(showToolSteps())selectSidePane("steps");
 else selectSidePane("");
 syncClassicSide();
 }
-/* 插件 API 客户端：面板脚本经它调**自己插件的端点**，不必知道 URL 前缀。
+/* 插件 API 客户端：面板脚本经它调自己插件的端点，不必知道 URL 前缀。
    插件改名、端点挪位置都不影响脚本 —— 前缀由壳层拼。
 
    用法（面板脚本里）：

@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from agent.core.tool_call import ToolCallRequest
 
-#: 厂商私有元数据的键名。内核**不解释**其内容，只在事实与 assistant 消息之间透传；
+#: 厂商私有元数据的键名。内核不解释其内容，只在事实与 assistant 消息之间透传；
 #: 读写两侧都引用这个常量，避免各写一遍字符串（P6）。
 PROVIDER_META_KEY = "provider_meta"
 

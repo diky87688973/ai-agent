@@ -39,6 +39,7 @@ from agent.capabilities.model_catalog import ModelCatalog
 from agent.capabilities.plugins import PluginHost
 from agent.capabilities.registry import ToolRegistry
 from agent.config import (
+    DEFAULT_CONTEXT_WINDOW,
     DEFAULT_MAX_PASSES,
     PROJECT_ROOT,
     default_data_root,
@@ -108,6 +109,7 @@ class App:
         image_turns: int = KEEP_IMAGE_TURNS,
         image_max: int = MAX_EMBED_IMAGES,
         max_passes: int = DEFAULT_MAX_PASSES,
+        config_context_window: int = DEFAULT_CONTEXT_WINDOW,
     ) -> None:
         self.context = context
         self.context_defaults = dict(context_defaults or {})
@@ -117,13 +119,16 @@ class App:
         #: 模型来源三态：catalog（插件目录权威）/ config（config.ini）/ none。
         #: 装配末尾由 `build_app` 计算；`reload_model_config` 之后可能从 config 变 none。
         self.model_config_state = "none"
-        #: 只把**最近这么多轮**用户发言里的图带进请求（负数 = 不限）。
+        #: 只把最近这么多轮用户发言里的图带进请求（负数 = 不限）。
         #: 缺省 999999 = 不剥：历史图片全保留 → 前缀稳定 → 缓存可复用。
         self.image_turns = int(image_turns)
         #: 这些轮里最多带几张图（负数 = 不限）；最近一轮优先保。
         self.image_max = int(image_max)
         #: 一回合的模型往返上限（`[agent] max_passes`）。
         self.max_passes = max(1, int(max_passes))
+        #: 配置态模型的上下文窗口（`[model_reasoning] context_window`）。
+        #: 目录态按条目自带的窗口走；这里只作为回退。
+        self.config_context_window = max(0, int(config_context_window or 0))
 
     # ── 服务解析（进程级上下文）──
 
@@ -139,7 +144,7 @@ class App:
     def available_models(self) -> list:
         """可选的模型 id 列表（会话选模型只能从中挑）。
 
-        目录权威时**每次现读快照**：插件配置是热读的，缓存名单会让下拉、
+        目录权威时每次现读快照：插件配置是热读的，缓存名单会让下拉、
         白名单与配置各说各话。非权威态才用装配注入的 `_available_models`。
         """
         snapshot = self._catalog_snapshot()
@@ -197,10 +202,26 @@ class App:
         )
         return fallback
 
+    def context_window_for(self, conversation_id: str) -> int:
+        """会话当前所用模型的上下文窗口（token）。
+
+        窗口是模型的物理上限，同一份配置下换模型就该换分母：
+        目录态取条目自带的 `context_window`，配置态取
+        `[model_reasoning] context_window`。都拿不到时给 0，
+        界面退回用压缩阈值当分母（并标明口径），不编一个假窗口。
+        """
+        snapshot = self._catalog_snapshot()
+        if snapshot is not None and snapshot.authoritative:
+            entry = snapshot.entry(self.model_for(conversation_id))
+            if entry is not None:
+                return entry.context_window or DEFAULT_CONTEXT_WINDOW
+            return 0
+        return int(self.config_context_window or 0)
+
     def reload_model_config(self, config_path: Optional[Path] = None) -> str:
         """设置页保存后的唯一入口：重建默认 provider 并刷新清单。
 
-        目录权威时**不**动配置（`config.ini` 模型节忽略但保留）；返回空串
+        目录权威时不动配置（`config.ini` 模型节忽略但保留）；返回空串
         表示成功，非空是给界面看的说明（不进异常路径）。
         """
         if self.model_config_state == "catalog":
@@ -212,7 +233,7 @@ class App:
     def refresh_model_config(self, config_path: Optional[Path] = None) -> str:
         """插件装卸后重算权威来源：目录接管则刷新路由，否则回退 config.ini。
 
-        必须**先看快照**：插件停用后状态仍是 `catalog`，只看状态会把请求
+        必须先看快照：插件停用后状态仍是 `catalog`，只看状态会把请求
         继续路由到已注销的条目。
         """
         snapshot = self._catalog_snapshot()
@@ -252,6 +273,7 @@ class App:
         default_model = str(cfg.get("model") or "")
         self._available_models = models or ([default_model] if default_model else [])
         self.live_state.default_model = default_model
+        self.config_context_window = int(cfg.get("context_window") or 0)
         self._reload_policy(self._available_models, default_model, True)
         self.model_config_state = "config"
         return ""
@@ -353,7 +375,7 @@ class App:
                     print(f"[app] 停机补投了 {written} 条先前未落盘的事实",
                           file=sys.stderr, flush=True)
             except Exception as exc:
-                # **旁路，刻意吞掉**：停机路径不能让补投失败阻断释放流程。
+                # 旁路，刻意吞掉：停机路径不能让补投失败阻断释放流程。
                 report_error("app.flush", exc)
         session_contexts = self.session_contexts
         if session_contexts is not None:
@@ -411,6 +433,11 @@ class App:
             )
         if context is not None and system_prompt:
             context.append_system(system_prompt)
+        # 窗口随"这个会话当前用的模型"走：换模型后下一回合的分母就该换。
+        # 只写这个字段，不动上下文工厂的构造约定 —— 工厂可以是外部替换的。
+        window = self.context_window_for(conversation_id)
+        if window and context is not None and hasattr(context, "model_context_window"):
+            context.model_context_window = int(window)
         compactor = None
         compactor_factory = self.compactor_factory
         if compactor_factory is not None:
@@ -439,7 +466,7 @@ class App:
         effort_resolver = (
             (lambda cid: state.get_reasoning_effort(cid)) if state is not None else None
         )
-        # 本回合事件的存储坐标**按需分配**（全局单调，跨会话唯一）。
+        # 本回合事件的存储坐标按需分配（全局单调，跨会话唯一）。
         # 坐标按需分配（回调）：工具进度事件的条数取决于工具输出长度
         # （不可预知），预留多少都可能不够，不够就会与后续回合撞号。
         # 坐标必须在 `emit` 产出瞬间就标好（事件一产出即发布到总线，落盘在其后），
@@ -520,6 +547,7 @@ def build_app(
     mesh: Optional[MeshState] = None,
     backup_retention_days: Optional[int] = None,
     plugins_dir: Optional[Path] = None,
+    plugins_path: Optional[Path] = None,
     compactor_factory: Optional[Callable[[str], Any]] = None,
     config_ready: Optional[bool] = None,
 ) -> App:
@@ -527,9 +555,11 @@ def build_app(
 
     backup_root / recycle_root：版本化备份与回收目录根（默认 PROJECT_ROOT/data 下；
     写类工具覆盖前留备份供 file_undo 回滚，删除类操作移入回收目录可恢复）。
-    live_state：会话实时状态（模式 / todo 清单）；默认落 PROJECT_ROOT/data/todo_lists。
+    live_state：会话实时状态（模型 / 模式 / 档位 / todo 清单）；
+        默认落 PROJECT_ROOT/data/session_state（一个会话一份 JSON）。
     mesh：会话协作网格（Agent 注册表 / inbox）；默认落 PROJECT_ROOT/data/mesh。
     plugins_dir：插件根目录；默认 PROJECT_ROOT/plugins。装载哪些取工程根 plugins.ini 清单。
+    plugins_path：插件清单文件；默认工程根 plugins.ini。给一个不存在的路径即"不装插件"（验收脚本与测试用它排除环境里的开发配置）。
     compactor_factory：上下文压缩器工厂；默认为对话提供 provider 摘要 + config [context] 阈值。
     config_ready：`config.ini` 是否已有可用凭据；None = 由本函数读取配置判定。"""
     # 默认数据根：认 `AI_AGENT_DATA_ROOT`（只给测试/CI 的落盘隔离口）——
@@ -553,17 +583,17 @@ def build_app(
         except Exception as exc:
             report_error("core.backup_prune", exc)
     model_cfg = get_model_reasoning()
-    # 多模型：`[model_reasoning] models` 是**同一个网关下的可选模型名**，
+    # 多模型：`[model_reasoning] models` 是同一个网关下的可选模型名，
     # 逗号分隔；未配置时清单只有当前模型（单模型部署照常工作）。
     # 只支持"同网关多模型"：provider 实例绑定一个 base_url / key，
     # 而模型名是请求级的 —— 换网关需要按 id 建多个 provider。
     # `get_model_reasoning` 已经把 `models` 解析成列表；这里只做去空与去重，
-    # 它已是列表，**不要再 `str()`**（那样会得到 "['a', 'b']" 再被逗号切开，切成一堆带引号的碎片）。
+    # 它已是列表；再 `str()` 会得到 "['a', 'b']" 这一类字面量，随后按逗号切开就是一堆带引号的碎片。
     _cfg_models = [str(m).strip() for m in (model_cfg.get("models") or []) if str(m).strip()]
     _default_model = str(model_cfg.get("model") or "")
     _available = _cfg_models or ([_default_model] if _default_model else [])
     state = live_state if live_state is not None else LiveState(
-        storage_dir=data_root / "todo_lists",
+        storage_dir=data_root / "session_state",
         default_effort=get_reasoning_effort(),
         default_model=_default_model,
     )
@@ -672,7 +702,7 @@ def build_app(
         # 没有它，回合里 `ctx.context` 恒为 None，请求只是"记录 derive 出来的扁平消息"，
         # 上下文分段也无从谈起——只能退化成单段兜底。
         def _default_context_factory(conversation_id: str) -> ContextPipeline:
-            # 这里**逐项**列出来（不是 `**context_defaults`）：漏一项就是"配置写了不生效"，
+            # 这里逐项列出来（不是 `**context_defaults`）：漏一项就是"配置写了不生效"，
             # 而且症状很隐蔽 —— 配置能读出来、界面也显示，只有行为不对。
             # 每次建会话再读文件，设置页保存后下一回合用新阈值。
             fresh = get_context()
@@ -681,7 +711,9 @@ def build_app(
                 full_user_rounds=int(fresh["full_user_rounds"]),
                 summary_token_threshold=int(fresh["summary_token_threshold"]),
                 reasoning_replay_tokens=int(fresh["reasoning_replay_tokens"]),
-                model_context_window=int(fresh["model_context_window"]),
+                # 上下文窗口属于"模型"而不是"上下文预算"：由会话按当前模型
+                # 在 `App.session` 里回填，工厂不猜。
+                model_context_window=0,
                 sources=context_sources,
             )
 
@@ -734,11 +766,11 @@ def build_app(
             "full_user_rounds": int(ctx_cfg["full_user_rounds"]),
             "summary_token_threshold": int(ctx_cfg["summary_token_threshold"]),
             "reasoning_replay_tokens": int(ctx_cfg["reasoning_replay_tokens"]),
-            "model_context_window": int(ctx_cfg["model_context_window"]),
         },
         image_turns=int(ctx_cfg["image_turns"]),
         image_max=int(ctx_cfg["image_max"]),
         max_passes=get_max_passes(),
+        config_context_window=int(model_cfg.get("context_window") or 0),
     )
     app._available_models = list(_available)
     app._error_unbind = _unbind_error
@@ -752,23 +784,23 @@ def build_app(
         mesh=mesh_state,
         # 自主模式：回合结束后按会话决定是否再续一轮
         auto_continue=lambda cid: bool(state.get_autonomy(cid).get("enabled")),
-        # 目标（Goal）：有目标时续跑与否由目标状态决定，发的是**目标文案**
+        # 目标（Goal）：有目标时续跑与否由目标状态决定，发的是目标文案
         goal_row=state.get_goal,
     )
     mesh_state.set_activator(runner.start)
     if store is not None:
         mesh_state.set_session_exists(lambda cid: bool(store.load(cid)))
     context.register(SERVICE_RUNNER, runner)
-    # 经典界面适配层：观察内核事件总线做**出站翻译**（内核零改动，只加观察者）。
-    # 订阅是**按需**的（有 SSE 连接才订阅，最后一个断开就摘掉）——见 ClassicAdapter.bind_bus。
+    # 经典界面适配层：观察内核事件总线做出站翻译（内核零改动，只加观察者）。
+    # 订阅是按需的（有 SSE 连接才订阅，最后一个断开就摘掉）——见 ClassicAdapter.bind_bus。
     classic = ClassicAdapter(app)
     classic.bind_bus(event_bus)
     context.register(SERVICE_CLASSIC_ADAPTER, classic)
-    # 插件加载放在**装配末尾**：插件的端点处理器要在调用时取内核服务
+    # 插件加载放在装配末尾：插件的端点处理器要在调用时取内核服务
     # （`ctx.app.registry` 之类），服务没注册完就加载会让它们全都取到 None。
     # 注册贡献（面板 / 端点）本身是纯记账，放这里不影响工具与管道的装配顺序。
     plugin_host.app = app
-    plugin_host.load_manifest(get_plugins())
+    plugin_host.load_manifest(get_plugins(plugins_path))
     # 插件装载完成后才算得出权威：目录"启用了"不等于"可用"，看有效条目数。
     snapshot = model_catalog.snapshot()
     if snapshot.authoritative:

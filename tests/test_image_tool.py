@@ -3,9 +3,9 @@
 
 链路有三段，测试也按段拆：
 
-1. **工具侧** —— `read_image` 把文件读成附件，报出的摘要里不带 base64；
-2. **管道侧** —— `ToolPipeline` 把返回值上的附件搬进结果信封；
-3. **投影侧** —— `SessionLogView` 把附件翻成 `tool` 消息里的多模态 content。
+1. 工具侧 —— `read_image` 把文件读成附件，报出的摘要里不带 base64；
+2. 管道侧 —— `ToolPipeline` 把返回值上的附件搬进结果信封；
+3. 投影侧 —— `SessionLogView` 把附件翻成 `tool` 消息里的多模态 content。
 
 第 3 段是关键：`tool` 消息的 content 曾经只能是字符串，模型因此永远看不到
 工具给的图。测试锁的就是"它现在是数组、且图在里面"。
@@ -70,7 +70,7 @@ class DescribeImageTest(unittest.TestCase):
         self.assertEqual((mime, w, h), ("image/gif", 12, 34))
 
     def test_unknown_bytes_report_no_mime(self) -> None:
-        """非图片内容：报**空 mime**、尺寸 0，不抛。
+        """非图片内容：报空 mime、尺寸 0，不抛。
 
         空 mime 是"这不是图片"的信号 —— 调用方据此拒绝。
         若这里回落到声明的 MIME（例如文件名给的 image/png），
@@ -104,7 +104,7 @@ class ToolContentTest(unittest.TestCase):
     """工具消息 content 的三态：无图 / 有图 / 只有图。"""
 
     def test_no_attachments_keeps_string(self) -> None:
-        """没图时**保持字符串**：多模态数组会让请求体无谓变大，也改变既有形态。"""
+        """没图时保持字符串：多模态数组会让请求体无谓变大，也改变既有形态。"""
         self.assertEqual(_tool_content("done", None), "done")
         self.assertEqual(_tool_content("done", []), "done")
 
@@ -178,7 +178,7 @@ class ReadImageToolTest(unittest.TestCase):
         self.assertEqual(result.data["format"], "image/png")
         self.assertTrue(Path(result.data["path"]).is_absolute())
         self.assertEqual(len(result.attachments), 1)
-        # 摘要里**不能**带 base64：它会进上下文，几十万字符白占体积
+        # 摘要里不能带 base64：它会进上下文，几十万字符只增加体积
         self.assertNotIn("data_base64", result.data)
         self.assertLess(len(str(result.data)), 500)
 
@@ -241,7 +241,7 @@ class ReadImageToolTest(unittest.TestCase):
 class StripProtectsToolImagesTest(unittest.TestCase):
     """工具图受总量闸管，但不按"最近几轮"的窗口剥。
 
-    这些用例都**显式传窗口参数**（等价于配小 `[context] image_turns`）；
+    这些用例都显式传窗口参数（等价于配小 `[context] image_turns`）；
     不传时缺省 999999 = 一条都不剥。
     """
 
@@ -273,7 +273,7 @@ class StripProtectsToolImagesTest(unittest.TestCase):
         self.assertEqual(total, 1)
 
     def test_newest_user_image_wins_over_tool_image(self) -> None:
-        """配额只够一张时，留给**用户刚发的那张** —— 工具图是模型自己请求的，
+        """配额只够一张时，留给用户刚发的那张 —— 工具图是模型自己请求的，
         用户刚发的图才是它这轮要回答的对象。"""
         msgs = [self._tool_msg(), self._user_msg("刚发的图")]
         out, _ = strip_old_images(msgs, keep_turns=3, max_images=1)
@@ -281,7 +281,7 @@ class StripProtectsToolImagesTest(unittest.TestCase):
         self.assertEqual(_img_blocks(out[1]["content"]), 1)
 
     def test_old_tool_image_survives_turn_window(self) -> None:
-        """轮次窗口**不**剥工具图：老工具图不是"重复内联的老用户图"，
+        """轮次窗口不剥工具图：老工具图不是"重复内联的老用户图"，
         它只由总量闸管。窗口只影响用户图。"""
         msgs = [self._tool_msg(), self._user_msg("新轮"), self._user_msg("更新轮")]
         out, _ = strip_old_images(msgs, keep_turns=1, max_images=10)

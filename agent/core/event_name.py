@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""事实词汇：内核产出的**全部**事件名。
+"""事实词汇：内核产出的全部事件名。
 
 ## 集中定义
 
-这些名字是**对外契约**：监控、UI 适配层、测试都按名字订阅，改动即破坏兼容。
+这些名字是对外契约：监控、UI 适配层、测试都按名字订阅，改动即破坏兼容。
 散在各模块顶部会让契约看起来像实现细节，也看不出到底有哪些事件。
 
 - 模块发事件时从这里导入常量；
@@ -13,9 +13,9 @@
 
 | 层 | 事件 | 说明 |
 |---|---|---|
-| **宿主** | `turn_started` / `turn_ended` | 回合边界归宿主——控制循环的是它 |
-| **模块** | 各自的生命周期（见下） | 各模块内部管理自己的事件 |
-| **共享** | `input_claimed` / `model_message` / `tool_progress` | 数据事实与副作用 |
+| 宿主 | `turn_started` / `turn_ended` | 回合边界归宿主——控制循环的是它 |
+| 模块 | 各自的生命周期（见下） | 各模块内部管理自己的事件 |
+| 共享 | `input_claimed` / `model_message` / `tool_progress` | 数据事实与副作用 |
 
 ## 模块生命周期：统一的 `<域>_started` → 结果 → `<域>_ended`
 
@@ -26,16 +26,16 @@
 | 模型 | `llm_started` | `llm_done` / `llm_failed` | `llm_ended` |
 | 工具 | `tool_started` | `tool_done` / `tool_failed` / `tool_canceled` / `tool_suspended` | `tool_ended` |
 
-**成对的作用**：① 监听者据此算该环节 RT，不必猜"哪两个事件之间算一次"；
-② `_ended` 把**所有终止路径**（成功 / 失败 / 跳过 / 挂起 / 取消）收成**一个出口**——
+成对的作用：① 监听者据此算该环节 RT，不必猜"哪两个事件之间算一次"；
+② `_ended` 把所有终止路径（成功 / 失败 / 跳过 / 挂起 / 取消）收成一个出口——
 将来新增终止方式时，配对关系不用改。
 
 ## 两条读规则
 
-1. **`tool_ended` 不带结果**：它只标"这次调用结束了"（`status` / `elapsed_ms`）。
+1. `tool_ended` 不带结果：它只标"这次调用结束了"（`status` / `elapsed_ms`）。
    结果在同一次调用先发的 `tool_done{data}` / `tool_failed{error}` 里，
-   派生模型消息时必须**按 `call_id` 回查**（否则模型看到一片 `null`）。
-2. **`_ended` 是判定边界**：是否结束以 `_ended` 为唯一判据，
+   派生模型消息时必须按 `call_id` 回查（否则模型看到一片 `null`）。
+2. `_ended` 是判定边界：是否结束以 `_ended` 为唯一判据，
    不在多处分别判断。
 """
 from __future__ import annotations

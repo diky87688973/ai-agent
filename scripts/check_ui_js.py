@@ -1,18 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""经典 UI 的 JS 静态自检 —— 抓 `node --check` **抓不到**的那类回归。
+"""经典 UI 的 JS 静态自检 —— 抓 `node --check` 抓不到的那类回归。
 
 ## 为什么需要它
 
-`node --check` 只验语法。有一类错**语法完全合法、运行时才炸**：定义那行被删掉、
+`node --check` 只验语法。有一类错语法完全合法、运行时才炸：定义那行被删掉、
 引用还在，例如
 
     10|    const tag=document.createElement("span");tag.className="tag tag-run";
     tag.textContent="运行中";          ← 定义行不见了，这里就是 `tag is not defined`
 
-- `node --check` → **通过**（语法没问题）；
+- `node --check` → 通过（语法没问题）；
 - 浏览器 → `pageerror: tag is not defined`，`addLlmRound` 中途抛异常、
-  **思考卡建不出来**（连带后续流式增量受影响）。
+  思考卡建不出来（连带后续流式增量受影响）。
 - 只有真跑一遍页面才会暴露。
 
 这类"删了定义、留了引用"的错在改 UI 素材时容易发生：按注释块批量删除 / 还原，
@@ -20,17 +20,17 @@
 
 ## 检查什么
 
-1. **裸用未定义标识符**：对每个"只出现一次赋值目标、但从未声明"的短标识符报警
+1. 裸用未定义标识符：对每个"只出现一次赋值目标、但从未声明"的短标识符报警
    （重点覆盖 `tag` / `o` / `c` 这类在 UI 代码里高频复用的临时变量）；
-2. **常见全局名未被误删**：核心函数（`renderMarkdown` / `onToolStart` /
+2. 常见全局名未被误删：核心函数（`renderMarkdown` / `onToolStart` /
    `stopChatRunCountdown` / `flushPendingToolTags` / `markCurrentTurnStoped` …）
    仍然存在——它们是经典 UI 的骨架，被误删会静默失效。
 
-不做完整的 JS 作用域分析（那需要解析器）；只做**针对已知故障模式**的检查，
+不做完整的 JS 作用域分析（那需要解析器）；只做针对已知故障模式的检查，
 误报可接受（宁可多看一眼）。
 
 主脚本已按模块拆分（`agent/shell/ui_bundle.py` 的清单）。模块共用同一个
-`<script>` 作用域，所以这里把**所有同作用域模块拼成一份文本**再检查，
+`<script>` 作用域，所以这里把所有同作用域模块拼成一份文本再检查，
 报错行号会映射回具体模块文件。
 
 运行：python scripts/check_ui_js.py（通过退出码 0）
@@ -47,7 +47,7 @@ try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
-    # **旁路，刻意吞掉**：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
+    # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
     # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
     pass
 
@@ -69,7 +69,7 @@ SHARED_EXTRA_JS = tuple(
     if "/vendor/" not in rel and not rel.endswith("settings-ui.js")
 )
 
-#: 这些是经典 UI 的骨架函数，被误删会**静默**失效（页面不报错，功能没了）
+#: 这些是经典 UI 的骨架函数，被误删会静默失效（页面不报错，功能没了）
 REQUIRED_FUNCTIONS = (
     "renderMarkdown", "renderMarkdownBlocks",
     "onToolStart", "onToolProgress", "onToolEnd",
@@ -154,7 +154,7 @@ def _defined_names(text: str) -> set:
 
 
 def _undefined_called(text: str, also_defined: set | None = None) -> list:
-    """被调用、但主脚本与同作用域脚本都**从未定义**的辅助函数名（第 ⑥ 项检查）。
+    """被调用、但主脚本与同作用域脚本都从未定义的辅助函数名（第 ⑥ 项检查）。
 
     故障特征：`node --check` 过、其它检查项也过，只有真跑页面才炸。
     """
@@ -221,7 +221,7 @@ def main() -> int:
     undef = _undefined_called(text, extra_defined)
     if undef:
         problems.append(
-            "被调用但**从未定义**的函数名（只有真跑页面才会炸）：" + "、".join(undef))
+            "被调用但从未定义的函数名（只有真跑页面才会炸）：" + "、".join(undef))
 
     # ── ① 裸用未声明变量 ──
     for name in WATCH_VARS:
@@ -231,7 +231,7 @@ def main() -> int:
             s = ln.strip()
             if not re.match(rf"^{name}\s*(=|\.|\[)", s):
                 continue
-            # 往上看 **200 行**内是否有声明。UI 是长函数，窗口太窄会误报
+            # 往上看 200 行内是否有声明。UI 是长函数，窗口太窄会误报
             # （40 行时 `card` 会被误判成未声明）；跨模块拼接后窗口依旧有效。
             window = decl.search("\n".join(lines[max(0, i - 200):i]))
             if not window:
@@ -256,13 +256,13 @@ def main() -> int:
     # 缺陷形态：
     #   function stopOpenToolTags(){ ... stopTextFor(o.chatRunStatus) ... }      // 调用方
     #   function markOpenToolCardsStoped(){ ... var stopTextFor=function(){} }   // 声明在别人里面
-    # → `ReferenceError: stopTextFor is not defined`，被同行 `catch{}` **静默吞掉**
+    # → `ReferenceError: stopTextFor is not defined`，被同行 `catch{}` 静默吞掉
     #   （页面 `pageerror` 仍是 0），于是「本页点停运行中命令」的收尾不生效 ——
     #   卡面一直停在「⏳ 等待执行结果中…」，只有量 DOM 才看得见。
     #
-    # 判据刻意**不用花括号计数**：模板串与注释里的代码片段含大量不配对花括号，
+    # 判据刻意不用花括号计数：模板串与注释里的代码片段含大量不配对花括号，
     # 逐行计数会把脚本作用域的声明算到深处（`stopTextFor` 会被算成深度 3）。
-    # 改用「**找不到合法的调用来源**」这个语义。
+    # 改用「找不到合法的调用来源」这个语义。
     def _scrub(s: str) -> str:
         s = re.sub(r'"(?:[^"\\]|\\.)*"', '""', s)
         s = re.sub(r"'(?:[^'\\]|\\.)*'", "''", s)
@@ -271,8 +271,8 @@ def main() -> int:
     def _func_spans() -> list:
         """每个 `function name(` 的 (name, 起行, 止行)。
 
-        用**净花括号深度**定界（从函数头数到归零）——不能用"行首 function"，
-        模块里也有**缩进**的函数声明（跟在注释块后面），用行首判会漏掉它。
+        用净花括号深度定界（从函数头数到归零）——不能用"行首 function"，
+        模块里也有缩进的函数声明（跟在注释块后面），用行首判会漏掉它。
         """
         out = []
         for i, ln in enumerate(lines):
@@ -322,17 +322,17 @@ def main() -> int:
                 continue
             if not re.search(rf"\b{re.escape(name)}\s*\(", ln):
                 continue
-            if _enclosing(k) != decl_in:  # **别的**函数（或脚本作用域）在调用它
+            if _enclosing(k) != decl_in:  # 别的函数（或脚本作用域）在调用它
                 callers.append(k)
         if callers:
             problems.append(
-                f"{_where(owner, decl_ln)}  `{name}` 是 `{decl_in}` **内部**的函数表达式声明，"
-                f"但 {_where(owner, callers[0])} 等处在**别处**调用了它 —— 会抛 "
+                f"{_where(owner, decl_ln)}  `{name}` 是 `{decl_in}` 内部的函数表达式声明，"
+                f"但 {_where(owner, callers[0])} 等处在别处调用了它 —— 会抛 "
                 f"`ReferenceError`；这类异常常被同行 `catch{{}}` 静默吞掉"
-                f"（`pageerror` 仍为 0），功能**静默失效**。请提升到脚本作用域。")
+                f"（`pageerror` 仍为 0），功能静默失效。请提升到脚本作用域。")
 
     # ── ③ 界面脚本都必须存在且非空 ──
-    # 少注入一个脚本会让整块功能**静默消失**（页面不报错，功能没了），
+    # 少注入一个脚本会让整块功能静默消失（页面不报错，功能没了），
     # 所以这里逐个核对它们在磁盘上、且 `ui_bundle` 真的会把它们内联进去。
     for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES:
         path = _js_path(rel)

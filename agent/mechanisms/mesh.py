@@ -144,10 +144,10 @@ class MeshState:
         return self._runs.running(str(cid or "").strip())
 
     def running_cids(self) -> List[str]:
-        """当前**正在跑**的会话 id（快照）。
+        """当前正在跑的会话 id（快照）。
 
         `is_running` 只回答单个会话；本方法一次给出全部在跑的会话 id ——
-        前端不知道有哪些会话在跑（尤其是**中途接入的页面**：它没收到 `run_started`，
+        前端不知道有哪些会话在跑（尤其是中途接入的页面：它没收到 `run_started`，
         只能靠服务端告诉它）。`/api/chat/ui-state` 用这个列出在跑的会话，
         页面据此回填"忙"状态，停止键才不会永不出现。
 
@@ -164,9 +164,9 @@ class MeshState:
         """续一次运行态心跳（幂等）。
 
         `RunRegistry` 用"心跳 + 存活期"判定在跑，
-        而一次**长工具调用**（`run_command` 跑 `ping -n 120` ≈ 120 秒）
+        而一次长工具调用（`run_command` 跑 `ping -n 120` ≈ 120 秒）
         期间运行器不会与登记表交互 —— 只靠占位/释放两次心跳的话，
-        长任务中途就会被误判成"已结束"，用户那边的停止键会**消失**。
+        长任务中途就会被误判成"已结束"，用户那边的停止键会消失。
         运行器因此起一个旁路线程周期性调用本方法。
         """
         self._runs.touch(str(cid or "").strip())
@@ -183,10 +183,10 @@ class MeshState:
     def end_run(self, cid: str) -> Optional[Dict[str, Any]]:
         """回合结束：原子释放 + 队列非空则取队首并续占位（返回该消息，同线程抽干）。
 
-        ⚠️ **顺序是硬要求**：**先为下一条占位，再释放当前占位** ——
+        ⚠️ 顺序是硬要求：先为下一条占位，再释放当前占位 ——
         中间不能出现"空闲窗口"。若按 `release → pop → claim` 执行，第二个
         `session_send` 会正好落进那个窗口、看到"空闲"就又激活一趟：
-        **同一个回合被执行两遍**（`provider.stream` 被调两次、队列也算抽干，
+        同一个回合被执行两遍（`provider.stream` 被调两次、队列也算抽干，
         但 `seen` 只有 1）。
         """
         key = str(cid or "").strip()
@@ -195,8 +195,8 @@ class MeshState:
             if not q:
                 self._runs.release(key)
                 return None
-            # **先换 id、全程不释放**：`renew` 在已占位时就地换 run_id，
-            # 于是外界**始终**看到"在跑"，不存在能被别人抢走的空闲窗口。
+            # 先换 id、全程不释放：`renew` 在已占位时就地换 run_id，
+            # 于是外界始终看到"在跑"，不存在能被别人抢走的空闲窗口。
             new_rid = uuid.uuid4().hex[:12]
             if not self._runs.renew(key, new_rid):
                 # 理论上到不了（此刻必然是自己占着位）；真到不了就当异常兜底，

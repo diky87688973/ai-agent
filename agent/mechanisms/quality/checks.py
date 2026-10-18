@@ -129,10 +129,10 @@ def check_write(gate: "QualityGate", wc: WriteContext) -> GateDecision:
             reason="confirm_id 无效或已使用：请先 write_file 预览拿到确认 ID",
         )
     if not rec.get("confirmed"):
-        # 这段 reason 给出**下一步操作**（review 本次改动 + 用哪个工具提交 + 带哪个 ID）：
-        # 含糊的文案会让模型误发起 `user_confirm`（白跑一轮），所以要**点名工具**；
+        # 这段 reason 给出下一步操作（review 本次改动 + 用哪个工具提交 + 带哪个 ID）：
+        # 含糊的文案会让模型误发起 `user_confirm`（白跑一轮），所以要点名工具；
         # 但不能写成"带 confirm_id 调一下就能解锁" —— 那是在教模型走过场，
-        # review 基于**本次改动的实际审阅**并给出验证证据。
+        # review 基于本次改动的实际审阅并给出验证证据。
         # 四步协议的状态转移由 `register_preview` / `confirm` / `take_record` 承载。
         return GateDecision(
             allow=False,

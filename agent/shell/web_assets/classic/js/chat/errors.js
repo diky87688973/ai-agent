@@ -1,6 +1,6 @@
 /* chat/errors.js —— 请求错误文案：HTTP 状态与网关错误的可读说明。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function formatHttpError(status, bodyText, kind){

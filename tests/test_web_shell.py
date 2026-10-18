@@ -27,15 +27,17 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
+from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.model_provider import StreamDelta  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
 from agent.shell.web import create_server  # noqa: E402
+from tests.testkit import no_plugins  # noqa: E402
 
 
 class ScriptedProvider:
     """脚本 provider 替身：首步预览写盘 → 之后每步尝试凭 id 提交。
 
-    关键：`write_file` 预览在**同一步内**同步执行完毕（管道），其 tool 结果已进
+    关键：`write_file` 预览在同一步内同步执行完毕（管道），其 tool 结果已进
     `request.messages`（tool 结果按 json.dumps 落进消息），故下一步可安全取回
     confirm_id——与真实模型"上一步看到工具结果、下一步据此行动"一致。
 
@@ -107,14 +109,20 @@ class _ServerFixture(unittest.TestCase):
     fs_root_override: "Path | None" = None
 
     def setUp(self) -> None:
+        # 不装插件：本文件钉的是壳层端点与门控，替身 provider 必须真的被调用。
+        # 开发者本机的多模型配置会让插件目录接管路由，替身收不到请求（还会真的触网）。
+        no_plugins(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
         self.target = self.root / "out.txt"
         self.provider = self.provider_factory(self.target)
+        # 会话状态显式钉在临时目录：模型 / 模式 / 档位都会落盘，
+        # 用缺省数据根会让同一用例第二次运行读到上一次写的值。
         self.app = build_app(
             provider=self.provider,
             store=SessionStore(self.root / "data"),
+            live_state=LiveState(storage_dir=self.root / "session_state"),
             backup_root=self.root / "bk",
             recycle_root=self.root / "rc",
         )
@@ -151,7 +159,7 @@ class _ServerFixture(unittest.TestCase):
 
     def _read_sse(self) -> None:
         try:
-            # `format=kernel`：取**内核原生事件**。默认那条流是适配层翻译过的经典 UI 事件
+            # `format=kernel`：取内核原生事件。默认那条流是适配层翻译过的经典 UI 事件
             # （`conversation`/`llm_round`/`tool_start`…），本文件要验的是内核行为，
             # 所以显式要原生格式——这也是未来其它交互层（命令行等）观察内核的入口。
             response = urllib.request.urlopen(
@@ -379,11 +387,11 @@ class FileViewerContractTest(_ServerFixture):
         self.assertEqual(status, 403)
 
     def test_traversal_cannot_escape_roots(self) -> None:
-        """穿越语义：不允许**逃出**可见根（不是"禁止 `..`"）。
+        """穿越语义：不允许逃出可见根（不是"禁止 `..`"）。
 
         多根模型下 `..` 可能仍落在某个根内（例如根是 D:\\ 与 C:\\，`../x` 从
         C:\\Temp\\a 上跳仍在 C:\\）——那是允许的；真正的边界是"出不了根集合"。
-        这里用一个**不在任何根内**的绝对路径来验证边界，并用穿越写法复验。
+        这里用一个不在任何根内的绝对路径来验证边界，并用穿越写法复验。
         """
 
         outside = Path(tempfile.gettempdir()).parent  # 仍可能在根内
@@ -470,6 +478,7 @@ class MultiRootFileViewerTest(unittest.TestCase):
         self.app = build_app(
             provider=EchoProvider(),
             store=SessionStore(base / "data"),
+            live_state=LiveState(storage_dir=base / "session_state"),
             backup_root=base / "bk",
             recycle_root=base / "rc",
         )
@@ -618,7 +627,7 @@ class SseContractTest(_ServerFixture):
         self.assertNotIn("events", payload)
         status, payload = self.get_json("/api/chat/sessions")
         self.assertEqual(status, 200)
-        # `sessions` 是**字典列表**（`id`/`title`/`date_group`）：经典 UI 读 `s.id`
+        # `sessions` 是字典列表（`id`/`title`/`date_group`）：经典 UI 读 `s.id`
         # 而不是 `conversation_id`；纯 cid 列表另给 `conversation_ids`，方便非 UI 消费者。
         ids = [row.get("id") for row in payload.get("sessions", [])]
         self.assertIn(cid, ids)
@@ -673,13 +682,15 @@ class SseContractTest(_ServerFixture):
         self.assertEqual(item["date_group"], "今天", msg=str(item))
 
     def test_health_reports_model_for_header(self) -> None:
-        """`/health` 须给出 model / allowed_models（顶栏模型名与模型菜单）。"""
+        """`/health` 须给出 model / allowed_models / 全局默认档位（顶栏与模型菜单）。"""
 
         status, payload = self.get_json("/health")
         self.assertEqual(status, 200)
         self.assertIn("model", payload)
         self.assertIn("allowed_models", payload)
         self.assertIsInstance(payload["allowed_models"], list)
+        # 全局默认档位：会话状态回来之前，顶栏的「思考 · X」先按它显示。
+        self.assertIn(payload["reasoning_effort"], ("high", "max"))
 
     def test_reasoning_effort_roundtrip(self) -> None:
         """推理档位 GET/PUT 往返。"""
@@ -706,7 +717,7 @@ class SseContractTest(_ServerFixture):
         self.assertEqual(payload["reasoning_effort"], payload["global_default"])
 
     def test_reasoning_effort_rejects_invalid(self) -> None:
-        """非法档位拒设且**保留原值**；缺 cid 报错。"""
+        """非法档位拒设且保留原值；缺 cid 报错。"""
 
         cid = "effort-invalid-01"
         self.put_json("/api/reasoning-effort", {"conversation_id": cid, "effort": "max"})
@@ -776,7 +787,7 @@ class SseContractTest(_ServerFixture):
         self.assertIsInstance(payload["items"], list)
 
     def test_dir_browse_relative_path_uses_workspace_base(self) -> None:
-        """相对路径应基于可见根解析，且**不得落到盘根**。"""
+        """相对路径应基于可见根解析，且不得落到盘根。"""
 
         _, payload = self.get_json("/api/dir-browse?path=agent/core")
         current = payload["current"]
@@ -791,7 +802,7 @@ def _is_drive_root_text(path_text: str) -> bool:
     return len(text) == 2 and text[1] == ":"
 
 class DirBrowseDriveRootTest(_ServerFixture):
-    """可见根是**盘根**时（默认情形），相对路径不能被钉死在盘根。
+    """可见根是盘根时（默认情形），相对路径不能被钉死在盘根。
 
     可见根取「本机各盘根」时，`agent/core` 会解析成 `C:/` —— 相对路径因此被钉在盘根上。
 
@@ -885,9 +896,9 @@ class ConcurrencyTest(_ServerFixture):
         self.assertFalse(self.app.runner.request_cancel(cid))
 
 def _pending_confirm_ids(gate) -> list:
-    """从门控里取**未提交的预览快照 id**。
+    """从门控里取未提交的预览快照 id。
 
-    预览结果不回传 `confirm_id`；写盘走**三步**
+    预览结果不回传 `confirm_id`；写盘走三步
     （`write_file` 预览 → `review_conclusion` 审阅并解锁 → `commit_write` 落盘），
     它由门控持有，解锁后再用同一个 id 提交，所以测试直接问门控要。
     """
@@ -895,7 +906,7 @@ def _pending_confirm_ids(gate) -> list:
     return list(pending.keys()) if isinstance(pending, dict) else []
 
 class WriteGateOverWebTest(_ServerFixture):
-    """写盘门控闭环经 Web 层 —— **三步写盘**（预览 → review 解锁 → 提交落盘）。"""
+    """写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）。"""
 
     provider_factory = staticmethod(lambda target: ScriptedProvider(target))
 
@@ -949,7 +960,7 @@ class WriteGateOverWebTest(_ServerFixture):
         self.assertTrue(ids, msg="门控里应有未提交的预览快照")
         confirm_id = str(ids[-1])
 
-        # 别的会话的门控**不能**解锁它（会话隔离）
+        # 别的会话的门控不能解锁它（会话隔离）
         other = self.app.gate_for("some-other-conv")
         self.assertFalse(other.confirm(confirm_id), msg="跨会话不得解锁预览快照")
 

@@ -9,7 +9,6 @@
 """
 from __future__ import annotations
 
-import configparser
 import os
 import re
 import subprocess
@@ -30,6 +29,13 @@ from agent.config import (
     get_plugins,
     get_reasoning_effort,
 )
+from agent.shell.ini_sections import (
+    newline as _newline,
+)
+from agent.shell.ini_sections import (
+    section_span as _section_span,
+)
+from agent.shell.plugin_editor import build_editor, merge_groups, merge_text
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.web_ui_config import WEB_UI_CONFIG_PATH, get_web_ui
 
@@ -45,7 +51,7 @@ _NUMBER_MIN = {
     "summary_token_threshold": 1,
     "full_user_rounds": 0,
     "summary_output_max_chars": 1,
-    "model_context_window": 1,
+    "context_window": 1,
     "reasoning_replay_tokens": -1,
 }
 
@@ -63,20 +69,23 @@ def _fields() -> List[Dict[str, Any]]:
                 {"key": "model", "kind": "text", "label": "默认模型"},
                 {"key": "models", "kind": "text", "label": "可选模型",
                  "hint": "逗号分隔，同一网关下的模型名"},
+                {"key": "context_window", "kind": "number", "label": "上下文窗口（token）",
+                 "hint": "该模型的物理上限，界面按它算上下文占用率"},
             ],
         },
         {
             "id": "agent",
             "file": "config.ini",
-            "title": "代理",
+            "title": "Agent",
             "fields": [
                 {"key": "reasoning_effort", "kind": "enum", "label": "推理档位",
                  "options": [{"value": "high", "label": "high"},
                              {"value": "max", "label": "max"}]},
-                {"key": "max_passes", "kind": "number", "label": "单回合往返上限"},
-                {"key": "backup_retention_days", "kind": "number", "label": "备份保留天数",
+                {"key": "max_passes", "kind": "number", "label": "单回合模型往返上限",
+                 "hint": "一趟 = 模型回复一次 + 这次回复里的工具调用全部执行完；一趟可含多个工具调用"},
+                {"key": "backup_retention_days", "kind": "number",
+                 "label": "AI 修改文件时的备份保存天数",
                  "hint": "下次启动时按这个天数清理更早的备份"},
-                {"key": "user_rules_file", "kind": "text", "label": "用户规则文件"},
             ],
         },
         {
@@ -87,7 +96,6 @@ def _fields() -> List[Dict[str, Any]]:
                 {"key": "summary_token_threshold", "kind": "number", "label": "压缩阈值（token）"},
                 {"key": "full_user_rounds", "kind": "number", "label": "保留完整用户轮数"},
                 {"key": "summary_output_max_chars", "kind": "number", "label": "摘要字数上限"},
-                {"key": "model_context_window", "kind": "number", "label": "上下文窗口（token）"},
                 {"key": "reasoning_replay_tokens", "kind": "number", "label": "思维链回传预算",
                  "hint": "-1 全量回传，0 不回传，正数超出后取两头"},
                 {"key": "image_turns", "kind": "number", "label": "带图用户轮数",
@@ -100,44 +108,11 @@ def _fields() -> List[Dict[str, Any]]:
             "file": "web-ui-config.ini",
             "title": "界面",
             "fields": [
-                {"key": "display_tool_items", "kind": "bool", "label": "对话区工具条目"},
-                {"key": "display_tool_steps", "kind": "bool", "label": "步骤面板"},
+                {"key": "display_tool_items", "kind": "bool", "label": "工作区展示工具步骤"},
+                {"key": "display_tool_steps", "kind": "bool", "label": "侧边栏展示工具步骤"},
             ],
         },
     ]
-
-
-def _newline(text: str) -> str:
-    return "\r\n" if "\r\n" in text else "\n"
-
-
-def _section_at(line: str) -> Optional[str]:
-    raw = line.strip()
-    if not raw or raw[0] in ";#":
-        return None
-    if len(raw) < 3 or raw[0] != "[" or raw[-1] != "]":
-        return None
-    name = raw[1:-1].strip()
-    if not name or "[" in name or "]" in name:
-        return None
-    return name
-
-
-def _section_span(lines: List[str], section: str) -> Optional[Tuple[int, int]]:
-    """节头到下一节头（不含）的行号。找不到返回 None。"""
-    want = section.strip().lower()
-    start = None
-    for index, line in enumerate(lines):
-        name = _section_at(line)
-        if name is None:
-            continue
-        if start is not None:
-            return start, index
-        if name.lower() == want:
-            start = index
-    if start is None:
-        return None
-    return start, len(lines)
 
 
 def update_ini_keys(text: str, section: str, updates: Dict[str, str]) -> str:
@@ -234,20 +209,8 @@ def _write_text(path: Path, text: str) -> None:
         raise
 
 
-def _raw_map(path: Path) -> Dict[str, Dict[str, str]]:
-    """按节取出文件里写着的原始字符串。缺文件给空表。"""
-    parser = configparser.ConfigParser(interpolation=None)
-    if path.is_file():
-        parser.read(str(path), encoding="utf-8-sig")
-    out: Dict[str, Dict[str, str]] = {}
-    for section in parser.sections():
-        out[section] = {key: str(value) for key, value in parser.items(section)}
-    return out
-
-
 def _effective_values(config_path: Path, web_ui_path: Path) -> Dict[str, Dict[str, str]]:
     """表单回显用的当前值：文件里有的用文件的，没有的用运行时缺省。"""
-    raw = _raw_map(config_path)
     reasoning = get_model_reasoning(config_path)
     ctx = get_context(config_path)
     web = get_web_ui(web_ui_path)
@@ -257,18 +220,17 @@ def _effective_values(config_path: Path, web_ui_path: Path) -> Dict[str, Dict[st
             "api_key": str(reasoning["api_key"]),
             "model": str(reasoning["model"]),
             "models": ",".join(str(item) for item in reasoning["models"]),
+            "context_window": str(reasoning["context_window"]),
         },
         "agent": {
             "reasoning_effort": get_reasoning_effort(config_path),
             "max_passes": str(get_max_passes(config_path)),
             "backup_retention_days": str(get_backup_retention_days(config_path)),
-            "user_rules_file": raw.get("agent", {}).get("user_rules_file", ""),
         },
         "context": {
             "summary_token_threshold": str(ctx["summary_token_threshold"]),
             "full_user_rounds": str(ctx["full_user_rounds"]),
             "summary_output_max_chars": str(ctx["summary_output_max_chars"]),
-            "model_context_window": str(ctx["model_context_window"]),
             "reasoning_replay_tokens": str(ctx["reasoning_replay_tokens"]),
             "image_turns": str(ctx["image_turns"]),
             "image_max": str(ctx["image_max"]),
@@ -436,7 +398,6 @@ def apply_host(app: Any, *, config_path: Optional[Path] = None) -> Dict[str, str
                 "full_user_rounds": int(ctx["full_user_rounds"]),
                 "summary_token_threshold": int(ctx["summary_token_threshold"]),
                 "reasoning_replay_tokens": int(ctx["reasoning_replay_tokens"]),
-                "model_context_window": int(ctx["model_context_window"]),
             })
         if hasattr(app, "image_turns"):
             app.image_turns = int(ctx["image_turns"])
@@ -650,6 +611,13 @@ def _config_file(plugin_root: Path) -> Path:
 def read_plugin_config(name: str, *, plugins_dir: Optional[Path] = None,
                        plugins_path: Optional[Path] = None,
                        app: Any = None) -> Dict[str, Any]:
+    """读插件配置的编辑视图；文件还不存在时把同目录的 `.example` 当作草稿。
+
+    不落盘：示例里的密钥是占位符，自动写进真实配置会让"打开设置"变成
+    一次隐式配置动作。用户改完点保存才创建文件。
+
+    `editor` 只包含插件自己的节：`[base]` 既不回显也不回写。
+    """
     plugin = str(name or "").strip()
     if not _valid_name(plugin):
         return {"ok": False, "error": "插件名不合法"}
@@ -660,17 +628,26 @@ def read_plugin_config(name: str, *, plugins_dir: Optional[Path] = None,
         path = _config_file(folder)
     except ValueError as exc:
         return {"ok": False, "error": str(exc)}
-    return {"ok": True, "name": plugin, "text": _read_text(path), "exists": path.is_file()}
+    exists = path.is_file()
+    source = path if exists else path.with_name(path.name + ".example")
+    text = _read_text(source) if source.is_file() else ""
+    return {
+        "ok": True,
+        "name": plugin,
+        "exists": exists,
+        "seeded": (not exists and source.is_file()),
+        "editor": build_editor(text, folder),
+    }
 
 
-def write_plugin_config(name: str, text: Any, app: Any = None, *,
+def write_plugin_config(name: str, text: Any = None, groups: Any = None,
+                        app: Any = None, *,
                         plugins_dir: Optional[Path] = None,
                         plugins_path: Optional[Path] = None) -> Dict[str, Any]:
-    """整份写回插件配置。插件正在装载时卸下再装，让它重新读文件。"""
-    if not isinstance(text, str):
-        return {"ok": False, "error": "配置内容要是文本"}
-    if len(text.encode("utf-8")) > 512 * 1024:
-        return {"ok": False, "error": "配置文件过大"}
+    """只写插件自己的节：`[base]` 与其它节保持原样。
+
+    插件正在装载时卸下再装，让它重新读文件。
+    """
     root = Path(plugins_dir) if plugins_dir is not None else _PLUGINS_DIR
     plugin = str(name or "").strip()
     if not _valid_name(plugin):
@@ -681,14 +658,37 @@ def write_plugin_config(name: str, text: Any, app: Any = None, *,
         path = _config_file(folder)
     except ValueError as exc:
         return {"ok": False, "error": str(exc)}
+    base_text = _plugin_config_source(path)
+    editor = build_editor(base_text, folder)
+    if editor["kind"] == "sections":
+        if not isinstance(groups, list):
+            return {"ok": False, "error": "这份配置要用表单提交"}
+        merged, error = merge_groups(base_text, groups, editor["schema"])
+    else:
+        if not isinstance(text, str):
+            return {"ok": False, "error": "配置内容要是文本"}
+        merged, error = merge_text(base_text, text, editor["sections"])
+    if error:
+        return {"ok": False, "error": error}
+    final = str(merged or "")
+    if len(final.encode("utf-8")) > 512 * 1024:
+        return {"ok": False, "error": "配置文件过大"}
     with _LOCK:
-        _write_text(path, text)
+        _write_text(path, final)
         reports: List[Dict[str, str]] = []
         host = getattr(app, "plugin_host", None) if app is not None else None
         if host is not None and plugin in list(host.loaded_names()):
             host.unload(plugin)
             reports = sync_plugins(app)
     return {"ok": True, "reports": reports}
+
+
+def _plugin_config_source(path: Path) -> str:
+    """真实配置优先；还没有时用同目录模板作底稿（`[base]` 因此能保留）。"""
+    if path.is_file():
+        return _read_text(path)
+    example = path.with_name(path.name + ".example")
+    return _read_text(example) if example.is_file() else ""
 
 
 def pick_directory() -> Dict[str, Any]:
@@ -746,7 +746,8 @@ def handle_post(path: str, body: Dict[str, Any], app: Any) -> Tuple[int, Dict[st
         payload = set_plugin_enabled(str(body.get("name") or ""), enabled, app)
         return (200 if payload.get("ok") else 400), payload
     if path == "/api/settings/plugin-file":
-        payload = write_plugin_config(str(body.get("name") or ""), body.get("text"), app)
+        payload = write_plugin_config(
+            str(body.get("name") or ""), body.get("text"), body.get("groups"), app)
         return (200 if payload.get("ok") else 400), payload
     if path == "/api/settings/pick-dir":
         payload = pick_directory()

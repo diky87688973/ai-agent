@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """内核（`agent.core`）的端到端验证。
 
-注：模块的 `execute` 是**生成器**——`yield` 事实、`return` 控制信号，
+注：模块的 `execute` 是生成器——`yield` 事实、`return` 控制信号，
 所以测试里的内联模块也按这个形状写。
 
-装配**真实模块**（输入 / 压缩 / 模型 / 工具）与真实工具管道跑完整回合，模型那一段
+装配真实模块（输入 / 压缩 / 模型 / 工具）与真实工具管道跑完整回合，模型那一段
 用脚本化替身。断言两件事：关键路径行为，以及五条架构约束
 （换实现零改动、控制流四态、数据只走事件、挂起是终态、恢复靠拼接）。
 """
@@ -156,10 +156,10 @@ class CoreHarness(unittest.TestCase):
     def _clear(self) -> None:
         """清空事件与事实。
 
-        两者必须**一起清**：测试间共用 `self.log`，上一用例留下的事实会留在里面，
+        两者必须一起清：测试间共用 `self.log`，上一用例留下的事实会留在里面，
         而 `self.events` 是每次 run 才追加的——只清一个，两边就对不上。
 
-        **只清内容、不换对象**：`self.log` 的引用被端口与引擎握着，
+        只清内容、不换对象：`self.log` 的引用被端口与引擎握着，
         换掉对象会让写入方与断言方读到两个不同的日志，
         断言读旧对象时就找不到 `model_message` 事实。
         """
@@ -176,7 +176,7 @@ class CoreHarness(unittest.TestCase):
         return rows[-1]
 
     def _splice(self, call_id: str, answer: str) -> None:
-        """用户作答 → API 把结果**拼接**到上下文末尾。"""
+        """用户作答 → API 把结果拼接到上下文末尾。"""
         # 内核写结果的真实形态是两条：结果事实 + 终态（终态负责把它交给模型）
         self.log.append([
             Event("tool_done", {"call_id": call_id, "name": "ask_user",
@@ -199,10 +199,10 @@ class BasicTurnTest(CoreHarness):
         self.assertEqual(result.passes, 1, msg="没有工具调用就不该多跑")
         self.assertEqual(provider.calls, 1)
         kinds = self._kinds()
-        # **回合边界由宿主发**：`turn_started` 打头、`turn_ended` 收尾
+        # 回合边界由宿主发：`turn_started` 打头、`turn_ended` 收尾
         self.assertEqual(kinds[0], "turn_started")
         self.assertEqual(kinds[-1], "turn_ended")
-        # 输入模块有**自己的生命周期**：started → claimed → ended
+        # 输入模块有自己的生命周期：started → claimed → ended
         self.assertEqual(kinds[1:3], ["input_started", "input_claimed"])
         self.assertIn("input_ended", kinds)
         # 压缩模块也有（没装压缩器 → skipped 终态）
@@ -216,14 +216,14 @@ class BasicTurnTest(CoreHarness):
         self.assertIn("model_message", kinds)
 
     def test_model_sees_the_real_tool_result_not_null(self) -> None:
-        """**模型必须看到工具的真实结果**——不能是 `null`。
+        """模型必须看到工具的真实结果——不能是 `null`。
 
         工具生命周期拆成「结果事实（`tool_done{data}`）+ 终态事实
-        （`tool_ended{status}`）」时，派生消息**不能**去读 `tool_ended.data`
-        —— 终态**只标"结束了"、不带结果**，那样每条 tool 消息都是 `null`，
-        而工具其实**执行成功了、数据就在旁边**。
+        （`tool_ended{status}`）」时，派生消息不能去读 `tool_ended.data`
+        —— 终态只标"结束了"、不带结果，那样每条 tool 消息都是 `null`，
+        而工具其实执行成功了、数据就在旁边。
 
-        派生消息取结果的来源是**同一 `call_id` 的结果事实**（`tool_ended` 只定边界）。
+        派生消息取结果的来源是同一 `call_id` 的结果事实（`tool_ended` 只定边界）。
         """
         self._run([
             {"calls": [ToolCallRequest("c1", "echo", {"text": "ping"})]},
@@ -309,7 +309,7 @@ class BasicTurnTest(CoreHarness):
 # ══════════════════════════════════════════════════════════════════
 
 class ToolLoopTest(CoreHarness):
-    """工具调用驱动多趟：**续行由事实末端表达，不需要谁发续行信号**。"""
+    """工具调用驱动多趟：续行由事实末端表达，不需要谁发续行信号。"""
 
     def test_tool_call_then_model_continues(self) -> None:
         result, provider, _i, _h = self._run([
@@ -319,7 +319,7 @@ class ToolLoopTest(CoreHarness):
         self.assertEqual(result.reason, "done")
         self.assertEqual(provider.calls, 2, msg="工具结果回来后模型必须再看一次")
         kinds = self._kinds()
-        # **工具生命周期**：started → 结果（done）→ 终态（ended）
+        # 工具生命周期：started → 结果（done）→ 终态（ended）
         self.assertIn("tool_started", kinds)
         self.assertIn("tool_done", kinds)
         self.assertIn("tool_ended", kinds)
@@ -344,7 +344,7 @@ class ToolLoopTest(CoreHarness):
         self.assertEqual(len(self.echo_calls()), 1, msg="同一调用不得执行两次")
 
     def echo_calls(self) -> List[Dict[str, Any]]:
-        """被**实际发起**的调用（按工具的 `tool_started` 事实数）。"""
+        """被实际发起的调用（按工具的 `tool_started` 事实数）。"""
         return [e.data for e in self.log.events if e.type == "tool_started"]
 
 # ══════════════════════════════════════════════════════════════════
@@ -367,7 +367,7 @@ class SuspendResumeTest(CoreHarness):
         self.assertIn("tool_suspended", kinds)
         self.assertNotIn("tool_done", kinds, msg="未返回的调用不该有成功结果")
         self.assertNotIn("tool_failed", kinds, msg="未返回的调用不该有失败结果")
-        # 但仍要与 `tool_started` **配对**：终态照发，状态标 suspended
+        # 但仍要与 `tool_started` 配对：终态照发，状态标 suspended
         self.assertIn("tool_ended", kinds)
         ended = [e for e in self.log.events if e.type == "tool_ended"][0]
         self.assertEqual(ended.data.get("status"), "suspended")
@@ -427,11 +427,11 @@ class SuspendResumeTest(CoreHarness):
 # ══════════════════════════════════════════════════════════════════
 
 class SuspendBatchTest(CoreHarness):
-    """批量挂起丢调用、挂起后改说话 → **请求序列非法**（模型 API 400）。
+    """批量挂起丢调用、挂起后改说话 → 请求序列非法（模型 API 400）。
 
     模型 API 对"要求了工具调用却没给响应"是硬拒绝的：
     `An assistant message with 'tool_calls' must be followed by tool messages
-     responding to each 'tool_call_id'`。这种缺口一旦进历史，**此后每个请求都带它**，
+     responding to each 'tool_call_id'`。这种缺口一旦进历史，此后每个请求都带它，
     会话彻底打不开。
     """
 
@@ -445,7 +445,7 @@ class SuspendBatchTest(CoreHarness):
         return asked - answered
 
     def test_suspend_mid_batch_gives_the_rest_a_terminal_fact(self) -> None:
-        """一条消息要求 [ask_user(c1), echo(c2)]，c1 挂起时 **c2 必须有终态事实**。
+        """一条消息要求 [ask_user(c1), echo(c2)]，c1 挂起时 c2 必须有终态事实。
 
         缺了它，c2 既没执行也没有任何事实 → 历史里永久缺 c2 的响应
         （`ask_user` 1 次 / `echo` 0 次，缺口 `{c1, c2}`）。
@@ -465,11 +465,11 @@ class SuspendBatchTest(CoreHarness):
         ended = {str(e.data.get("call_id")): str(e.data.get("status"))
                  for e in self.log.events if e.type == "tool_ended"}
         self.assertEqual(ended, {"c1": "suspended", "c2": "canceled"})
-        # 而**发给模型**的序列不允许有缺口
+        # 而发给模型的序列不允许有缺口
         self.assertEqual(self._gaps(self.log.derive_request_messages()), set())
 
     def test_request_sequence_stays_valid_when_user_talks_instead_of_answering(self) -> None:
-        """挂起后用户**不答确认、直接发新消息** → 请求序列仍必须合法。
+        """挂起后用户不答确认、直接发新消息 → 请求序列仍必须合法。
 
         这是"用户什么都没做错"的自然路径（刷新页面后确认模态消失，直接打字即可）。
         若序列是 `user → assistant(tool_calls) → user`，缺 tool 响应 → 400。
@@ -486,9 +486,9 @@ class SuspendBatchTest(CoreHarness):
         second = host2.run(log=self.log, conversation_id=self.cid,
                            model=ModelPort(provider2), tools=self.tools)
         self.assertEqual(second.reason, "done")
-        # 折叠视图**如实**保留悬空（那是事实真相）
+        # 折叠视图如实保留悬空（那是事实真相）
         self.assertIn("c1", self._gaps(self.log.derive_messages()))
-        # 请求视图**必须补齐**（否则模型 API 拒绝）
+        # 请求视图必须补齐（否则模型 API 拒绝）
         self.assertEqual(self._gaps(self.log.derive_request_messages()), set())
         # 模型实际收到的那一份也必须补齐，而且占位要紧跟要求了工具的那条消息
         sent = list(getattr(provider2.last_request, "messages", None) or [])
@@ -502,7 +502,7 @@ class SuspendBatchTest(CoreHarness):
             self.assertEqual(str(nxt.get("tool_call_id") or ""), str(calls[0].get("id") or ""))
 
     def test_placeholder_says_why_not_just_null(self) -> None:
-        """占位内容要**说明原因**，不能是空串或 `null`。"""
+        """占位内容要说明原因，不能是空串或 `null`。"""
         self._clear()
         host, provider, _i = self._host(
             [{"calls": [ToolCallRequest("c1", "ask_user", {"title": "选"})]}],
@@ -528,11 +528,11 @@ class InfrastructureTest(CoreHarness):
     """三条容易漏掉的基础设施契约：事实按趟落盘、存储坐标、端口只读。"""
 
     def test_facts_are_flushed_incrementally_not_only_at_turn_end(self) -> None:
-        """事实**按趟增量落盘**：不能攒到回合末尾（那会丢掉整回合）。
+        """事实按趟增量落盘：不能攒到回合末尾（那会丢掉整回合）。
 
-        事实攒到回合末尾才落盘，一旦中途抛异常，存储里就**一个字都没有**、
-        `/api/chat/history` 为空、刷新即消失（**连用户发言一起丢**）；
-        已完成工具的事实丢失还会让下一轮**重跑同一调用**（重复副作用）。
+        事实攒到回合末尾才落盘，一旦中途抛异常，存储里就一个字都没有、
+        `/api/chat/history` 为空、刷新即消失（连用户发言一起丢）；
+        已完成工具的事实丢失还会让下一轮重跑同一调用（重复副作用）。
         """
         from agent.core.engine import Engine
 
@@ -556,7 +556,7 @@ class InfrastructureTest(CoreHarness):
     def test_events_carry_a_storage_coordinate(self) -> None:
         """事实必须带全局存储坐标 `_seq` —— 否则浏览器收不到 `id:`。
 
-        没有 `id:` 就不会回传 `Last-Event-ID`，**断线续传整条路径静默失效**
+        没有 `id:` 就不会回传 `Last-Event-ID`，断线续传整条路径静默失效
         （帧带坐标 0/10）。
         """
         counter = {"n": 0}
@@ -577,11 +577,11 @@ class InfrastructureTest(CoreHarness):
                         msg=f"有事件没有坐标：{seqs}")
 
     def test_ports_log_is_readonly(self) -> None:
-        """`ports.log` 必须是**只读视图** —— 否则模块能绕过 `emit` 写秘密事实。
+        """`ports.log` 必须是只读视图 —— 否则模块能绕过 `emit` 写秘密事实。
 
         模块直接 `log.events.append(model_message)` 后，观察面（sink）
         只收到 `turn_started`/`turn_ended`，而 `derive_messages` 已经能看到那条
-        "从没经过 emit"的回答 —— "模型可见 ⟺ 已记录且已通知"的**反向被绕过**。
+        "从没经过 emit"的回答 —— "模型可见 ⟺ 已记录且已通知"的反向被绕过。
         """
         from agent.core.ports import Ports
 
@@ -595,10 +595,10 @@ class InfrastructureTest(CoreHarness):
         self.assertEqual(len(log.events), len(seen))
 
     def test_seq_does_not_stick_after_a_replay(self) -> None:
-        """适配层的存储坐标**每事件独立** —— 回放一次不能让之后所有帧粘住旧坐标。
+        """适配层的存储坐标每事件独立 —— 回放一次不能让之后所有帧粘住旧坐标。
 
         `?last_event_id=0` 回放后 `stream.seq=12`，之后第二轮 10 帧
-        **全部带 `seq=12`**，客户端拿 12 重连又收到那 10 帧 → assistant 正文
+        全部带 `seq=12`，客户端拿 12 重连又收到那 10 帧 → assistant 正文
         被重复渲染（对话区多一个气泡），游标永久失效。
         """
         from agent.shell.classic_adapter.outbound import ClassicStream
@@ -613,12 +613,12 @@ class InfrastructureTest(CoreHarness):
                         msg="实时帧不得沿用回放时的坐标")
 
     def test_suspend_emits_exactly_one_tool_end(self) -> None:
-        """挂起时同一 `tool_call_id` **只能有一帧 `tool_end`**。
+        """挂起时同一 `tool_call_id` 只能有一帧 `tool_end`。
 
         重复的来源：待确认卡已经发过一次，随后 `tool_ended{status:"suspended"}`
         走兜底分支又会发一次（`preview={"data":{"value":null}}`）。
         经典界面因 `toolOpen` 已删条目而忽略它（无可见影响），
-        但任何按 id 幂等渲染的客户端都会翻车。
+        但按 id 幂等渲染的客户端会显示重复帧。
         """
         from agent.shell.classic_adapter.outbound import ClassicStream
 
@@ -641,7 +641,7 @@ class InfrastructureTest(CoreHarness):
 # ══════════════════════════════════════════════════════════════════
 
 class _FlakyStore(SessionStore):
-        """在**真实写入路径内部**失败 N 次（`_encrypt_line` 是渲染行的必经步骤）。
+        """在真实写入路径内部失败 N 次（`_encrypt_line` 是渲染行的必经步骤）。
 
         不要覆盖 `_write_rows` 本身 —— 那样会绕过基类里"失败进队列"的 `except`，
         待重试队列于是永远收不到东西，测试也就测不到真实行为。
@@ -659,19 +659,19 @@ class _FlakyStore(SessionStore):
             return super()._encrypt_line(line)
 
 class DurableRetryTest(unittest.TestCase):
-    """落盘失败的**跨回合**重试。
+    """落盘失败的跨回合重试。
 
-    约束：失败的批次不能只留在引擎里 —— **真实路径**每回合 `App.session(cid)`
+    约束：失败的批次不能只留在引擎里 —— 真实路径每回合 `App.session(cid)`
     都新建引擎，留在旧引擎里的批次会随它一起被 GC，磁盘上只剩后一回合，
-    用户发言**永久丢失**。重试也不能让同一批写两遍
+    用户发言永久丢失。重试也不能让同一批写两遍
     （否则 `input_claimed` 重复、坐标撞号）。
 
-    契约：**重试的唯一归属是 `SessionStore` 的待重试队列**（跨回合、
+    契约：重试的唯一归属是 `SessionStore` 的待重试队列（跨回合、
     跨引擎实例存活），引擎只管把失败报上去。
     """
 
     def _run_turns(self, fail_times: int, turns: List[str], cid: str):
-        """跑 N 个回合，**每回合新建引擎**（复刻 `SessionRunner` 的真实路径）。"""
+        """跑 N 个回合，每回合新建引擎（复刻 `SessionRunner` 的真实路径）。"""
         import tempfile as _tf
 
         from agent.app import build_app
@@ -699,7 +699,7 @@ class DurableRetryTest(unittest.TestCase):
         return rows, store
 
     def test_failed_flush_survives_new_engine_each_turn(self) -> None:
-        """连续两次落盘失败 + 每回合新引擎 → **三回合的发言都要在磁盘上**。"""
+        """连续两次落盘失败 + 每回合新引擎 → 三回合的发言都要在磁盘上。"""
         turns = ["第一回合的问题", "第二回合的问题", "第三回合的问题"]
         rows, store = self._run_turns(2, turns, "durable-0001")
         inputs = [
@@ -714,7 +714,7 @@ class DurableRetryTest(unittest.TestCase):
                          msg="回合都跑完了，待重试队列应已排空")
 
     def test_retry_does_not_duplicate_rows_or_coordinates(self) -> None:
-        """重试**不能**造副本：`turn_started` 次数 = 回合数，坐标无重复。"""
+        """重试不能造副本：`turn_started` 次数 = 回合数，坐标无重复。"""
         turns = ["甲", "乙", "丙"]
         rows, _ = self._run_turns(2, turns, "durable-0002")
         types = [getattr(e, "type", "") for e in rows]
@@ -734,12 +734,12 @@ class DurableRetryTest(unittest.TestCase):
         self.assertEqual(sum(len(v) for v in store._pending.values()), 0)
 
 class PortConflictTest(unittest.TestCase):
-    """端口被占时 `create_server` **必须抛错**。
+    """端口被占时 `create_server` 必须抛错。
 
     `ThreadingHTTPServer` 默认 `allow_reuse_address = True`，Windows 上
-    **同端口二次 bind 会成功** —— 而先绑的旧服务继续收全部连接，新服务永远
+    同端口二次 bind 会成功 —— 而先绑的旧服务继续收全部连接，新服务永远
     收不到请求：开发者以为在测新代码，其实浏览器连的是旧服务。
-    所以必须关掉它，并且**真的抛错**。
+    所以必须关掉它，并且真的抛错。
     """
 
     def test_second_bind_on_same_port_raises(self) -> None:
@@ -763,11 +763,11 @@ class PortConflictTest(unittest.TestCase):
                 pass
 
 class DedupOnFailureTest(unittest.TestCase):
-    """落盘失败后的重试**不能**把同一事实写两遍。
+    """落盘失败后的重试不能把同一事实写两遍。
 
-    重复的来源：引擎按"**整批投递**"（`fact_sink(self._new_events)`），而批次跨多次
+    重复的来源：引擎按"整批投递"（`fact_sink(self._new_events)`），而批次跨多次
     flush 会长大；`flush#1` 投 `[A]` 失败 → store 把 `[A]` 收进 `_pending`，引擎留着
-    `[A]`；`flush#2` 投 `[A,B]` → store **又收到 A**。若不去重，A 会在 `_pending`
+    `[A]`；`flush#2` 投 `[A,B]` → store 又收到 A。若不去重，A 会在 `_pending`
     里两次、最终写成两行，用户发言落盘多份 → 模型会收到两条相同的 user 消息。
 
     存储层（落盘的唯一入口）须立两条不变式：
@@ -777,7 +777,7 @@ class DedupOnFailureTest(unittest.TestCase):
     """
 
     def test_retry_after_failure_never_duplicates_rows(self) -> None:
-        """同一事件 **重复投递多次** → 磁盘上仍只有一份。"""
+        """同一事件 重复投递多次 → 磁盘上仍只有一份。"""
         import tempfile as _tf
 
         from agent.core.events import Event
@@ -855,16 +855,16 @@ class DedupOnFailureTest(unittest.TestCase):
                         try:
                             list(session.start_turn(text))
                         except Exception:
-                            # **旁路，刻意吞掉**：本用例故意让落盘失败，
+                            # 旁路，刻意吞掉：本用例故意让落盘失败，
                             # 而契约就是"异常照常向上冒"——这里要的是
-                            # 失败之后**磁盘上留下了什么**，不是回合是否成功。
+                            # 失败之后磁盘上留下了什么，不是回合是否成功。
                             pass
                     rows = list(store.load(cid))
                 finally:
                     try:
                         app.dispose()
                     except Exception:
-                        # **旁路，刻意吞掉**：收尾释放失败不该掩盖断言结果。
+                        # 旁路，刻意吞掉：收尾释放失败不该掩盖断言结果。
                         pass
                 types = [getattr(e, "type", "") for e in rows]
                 seqs = [(getattr(e, "data", None) or {}).get("_seq") for e in rows]
@@ -875,13 +875,13 @@ class DedupOnFailureTest(unittest.TestCase):
                                  msg=f"K={k}：坐标重复 {len(seqs) - len(set(seqs))} 个")
 
 class WiringTest(unittest.TestCase):
-    """**必须走 `App.session`** 的测试。
+    """必须走 `App.session` 的测试。
 
     为什么单独一个类：`_seq` 只有在装配层把 `seq_allocator` 真的传进引擎时才生效
     （`build_engine` 收了它就要往引擎传）。直接构造 `Host(...)` / `Engine(...)`
-    的用例绕过 `App.session`，**测不到这条接线** —— 装配链因此是测试盲区。
+    的用例绕过 `App.session`，测不到这条接线 —— 装配链因此是测试盲区。
 
-    这条测试补上那个盲区：它只断言"**实时发布的帧带存储坐标**"——
+    这条测试补上那个盲区：它只断言"实时发布的帧带存储坐标"——
     这正是浏览器 `Last-Event-ID` 续传的前提。
     """
 
@@ -911,7 +911,7 @@ class WiringTest(unittest.TestCase):
             try:
                 dispose_sub()
             except Exception:
-                # **旁路，刻意吞掉**：测试收尾时释放订阅。释放失败不该让
+                # 旁路，刻意吞掉：测试收尾时释放订阅。释放失败不该让
                 # 测试报错（那会掩盖真正的断言结果），进程结束即回收。
                 pass
         try:
@@ -921,13 +921,13 @@ class WiringTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_live_events_carry_a_storage_coordinate_through_app_session(self) -> None:
-        """经 `App.session` 跑一轮，**总线上的事件必须带 `_seq`**。
+        """经 `App.session` 跑一轮，总线上的事件必须带 `_seq`。
 
-        漏接线的症状：帧 `id:` 行 **0** 条，
+        漏接线的症状：帧 `id:` 行 0 条，
         浏览器 `Last-Event-ID` 恒空 → `web.py` 的 `if cursor >= 0` 跳过 replay
-        → **断线期间的事件静默丢失**（不重放、不报错）。
+        → 断线期间的事件静默丢失（不重放、不报错）。
         `SessionStore.append` 的兜底补号会掩盖它（存储行有坐标、总线上的没有），
-        所以只能断言**总线帧**。
+        所以只能断言总线帧。
         """
         session = self.app.session("wiring-0001", system_prompt="你是助手")
         list(session.start_turn("问一句"))
@@ -940,7 +940,7 @@ class WiringTest(unittest.TestCase):
     def test_factory_receives_every_dependency_it_is_given(self) -> None:
         """`build_engine` 收到的依赖必须真的传进引擎（防"收了不用"）。
 
-        这是一类**静默装配缺陷**：签名收了参数、函数体里忘了传，单元测试
+        这是一类静默装配缺陷：签名收了参数、函数体里忘了传，单元测试
         直接构造下层对象时全绿，真实运行里功能整条缺失。
         """
         from agent.core.engine import Engine
@@ -970,21 +970,21 @@ class WiringTest(unittest.TestCase):
 # ══════════════════════════════════════════════════════════════════
 
 class CancelTest(CoreHarness):
-    """用户点停止 → 回合真的停，且**已开的卡片都有终态**。
+    """用户点停止 → 回合真的停，且已开的卡片都有终态。
 
     两条约束：
-      - 工具循环**每个工具执行前**检查 `_turn_abort_requested`；
-      - 中断时给"尾部未执行完的 tool_calls"**补 `ok=false` 占位**，
+      - 工具循环每个工具执行前检查 `_turn_abort_requested`；
+      - 中断时给"尾部未执行完的 tool_calls"补 `ok=false` 占位，
         否则下一轮 API 会因缺 tool 消息拒请求。
     本测试守住这两条成立。
     """
 
     def _stop_after_first_tool(self):
-        """停止检查：**第一个工具开始执行之后**才返回 True。
+        """停止检查：第一个工具开始执行之后才返回 True。
 
         为什么不用"问第 N 次就取消"：检查点是多粒度的（回合入口 / 模型逐帧 /
         工具逐调用），逐帧检查会让"被问几次"随流式分片数变化——那种阈值一改实现就碎。
-        用**可观测状态**（已有 `tool_started` 事实）作判据，测的是语义而不是计数。
+        用可观测状态（已有 `tool_started` 事实）作判据，测的是语义而不是计数。
         """
         def _check() -> bool:
             return any(e.type == "tool_started" for e in self.log.events)
@@ -996,7 +996,7 @@ class CancelTest(CoreHarness):
         return lambda: True
 
     def test_stop_before_any_tool_marks_all_as_canceled(self) -> None:
-        """**入口检查点**就被叫停：连模型都不叫，工具一个都不启动。
+        """入口检查点就被叫停：连模型都不叫，工具一个都不启动。
 
         （"已请求但未执行的调用要补终态"由下一条用例覆盖——那条才需要模型先产出
         `tool_calls`，才谈得上"未执行"。）
@@ -1020,7 +1020,7 @@ class CancelTest(CoreHarness):
         self.assertFalse(ended.data.get("halted"))
 
     def test_stop_mid_batch_pads_the_remaining(self) -> None:
-        """跑到第 2 个调用前被叫停：第 1 个已完成，**剩余全部补终态**。"""
+        """跑到第 2 个调用前被叫停：第 1 个已完成，剩余全部补终态。"""
         host, provider, _i = self._host(
             [{"calls": [ToolCallRequest("c1", "echo", {"text": "a"}),
                         ToolCallRequest("c2", "echo", {"text": "b"}),
@@ -1192,7 +1192,7 @@ class ArchitectureTest(CoreHarness):
         self.assertEqual(writable, [], msg="Ports 不该有可写公开字段——模块只能调方法")
 
     def test_events_stream_out_incrementally(self) -> None:
-        """**流式**：事件在产出那一刻就让出去，不是等回合跑完再一次性返回。
+        """流式：事件在产出那一刻就让出去，不是等回合跑完再一次性返回。
 
         用 `run_iter` 逐帧消费，并在消费到第一个 `assistant_delta` 时检查
         `model_message` 还没出现——说明"模型还在说"的时候宿主就已经把增量交出来了。
@@ -1231,9 +1231,9 @@ class ArchitectureTest(CoreHarness):
         self.assertEqual(host.last_result.reason, "abandoned")
 
     def test_every_module_returns_an_outcome_on_every_path(self) -> None:
-        """**每个模块的每条路径都必须 return `Outcome`**。
+        """每个模块的每条路径都必须 return `Outcome`。
 
-        `execute` 是**生成器**：某条路径没 `return` 时 `StopIteration.value`
+        `execute` 是生成器：某条路径没 `return` 时 `StopIteration.value`
         就是 `None`，`_require_outcome` 会在运行期抛错，而这只在特定装配组合下
         才走到（例如给压缩模块加上 compactor 后，`compactor is not None`
         那条路径必须有 `return`）。
@@ -1321,7 +1321,7 @@ if __name__ == "__main__":
 class ContextSegmentsEventTest(CoreHarness):
     """分段快照事件：每次装配完请求发一条，载荷与真实请求一致。
 
-    它是上下文示意图的**唯一数据源** —— 模式说明与工具轮的内部 system 注入
+    它是上下文示意图的唯一数据源 —— 模式说明与工具轮的内部 system 注入
     都不落记录，只有这条快照里有它们。
     """
 
@@ -1331,7 +1331,7 @@ class ContextSegmentsEventTest(CoreHarness):
         return [e.data for e in self.events if e.type == CONTEXT_SEGMENTS]
 
     def _run_with_context(self, steps, *, text: str = "", dialogue=()):
-        """带**真上下文管线**跑一遍：分段快照需要装配能力才会发。"""
+        """带真上下文管线跑一遍：分段快照需要装配能力才会发。"""
         from agent.mechanisms.context_pipeline import ContextPipeline
 
         ctx = ContextPipeline(self.cid, full_user_rounds=1)

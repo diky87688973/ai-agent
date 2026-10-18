@@ -1,6 +1,6 @@
 /* plugins/host.js —— 插件宿主：插件 API 客户端、脚本/样式加载、面板与动作清单、上下文段注册。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function pluginApi(plugin){
@@ -52,8 +52,8 @@ return h&&h.label?String(h.label):"";
 window.aiAgentPlugins={for:pluginApi,ctxSegments:{register:registerCtxSegment}};
 
 /* ── 壳层公共桥 ────────────────────────────────────────────────────────────
-   `aiAgentShell` 与 `aiAgentPlugins` 平级：前者给插件用**壳层能力**
-   （当前模型、切换模型、载入插件样式），后者给插件用**插件自己的端点**。
+   `aiAgentShell` 与 `aiAgentPlugins` 平级：前者给插件用壳层能力
+   （当前模型、切换模型、载入插件样式），后者给插件用插件自己的端点。
    桥本身不持有"当前模型"——多份状态必然分叉；`current()` 每次读活动标签页。 */
 var _modelSubscribers=[];
 function notifyModelSubscribers(model){
@@ -97,7 +97,7 @@ if(tab&&typeof tab.selectedModel==="string")return tab.selectedModel;
 return (typeof selectedModel!=="undefined")?String(selectedModel||""):"";
 },
 /* 本地点击 → 服务端 live_state + 广播。先乐观更新界面；写失败回滚并返回 false。
-   服务端值不受本地清单限制：本函数只拦**用户点击**，不拦 SSE/回填。 */
+   服务端值不受本地清单限制：本函数只拦用户点击，不拦 SSE/回填。 */
 select:function(id){
 var want=String(id||"").trim();
 if(!want)return Promise.resolve(false);
@@ -157,7 +157,7 @@ s.onerror=function(){resolve(false);};
 document.head.appendChild(s);
 });
 }
-/* 面板样式表同样只注入一次，且**在面板打开时才注入** ——
+/* 面板样式表同样只注入一次，且在面板打开时才注入 ——
    插件的样式随面板按需注入：壳层公共样式表里没有它们，插件没打开时也不会被加载。 */
 var _pluginStylesLoaded={};
 function loadPluginStyle(url,plugin){
@@ -190,7 +190,7 @@ if(String(p.plugin)+":"+String(p.id)===key)return p;
 return null;
 }
 /* 插件脚本在开屏就依次预载（面板内容 / 交互）；段色改由 `/api/ctx-segment-styles` 注册。
-   面板**样式**仍旧按需（面板打开时才注入），内容渲染也仍在面板脚本里。
+   面板样式仍旧按需（面板打开时才注入），内容渲染也仍在面板脚本里。
    开屏脚本（无面板也可）在面板脚本之后预载，见 `/api/boot-scripts`。 */
 function preloadPluginScriptList(list){
 list=Array.isArray(list)?list.slice():[];
@@ -199,7 +199,7 @@ if(!list.length)return Promise.resolve(false);
 var def=list.shift();
 if(!def||!def.script)return next();
 var owner=String(def.plugin||"");
-/* 脚本读全局知道自己属于哪个插件，所以**串行**加载：并行会互相覆盖这个值。 */
+/* 脚本读全局知道自己属于哪个插件，所以串行加载：并行会互相覆盖这个值。 */
 window.aiAgentPluginCurrent=owner;
 return loadPluginScript(def.script,owner).then(next);
 }
@@ -348,7 +348,7 @@ panelId:panelKey,
 onOpen:function(pane){
 /* 面板脚本与样式按需加载各一次；`aiAgentPluginCurrent` 让脚本知道自己的插件名，
    从而用 `window.aiAgentPlugins.for(...)` 拿到带前缀的 API，不必自己拼 URL。
-   面板内容的渲染**全在插件脚本里** —— 壳层不认任何插件的面板 id。 */
+   面板内容的渲染全在插件脚本里 —— 壳层不认任何插件的面板 id。 */
 window.aiAgentPluginCurrent=String(plugin||"");
 if(def&&def.style)void loadPluginStyle(def.style,plugin);
 if(def&&def.script)void loadPluginScript(def.script,plugin);

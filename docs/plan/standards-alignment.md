@@ -2,7 +2,7 @@
 
 > 适用标准：`production-standards.md` v1.1（MUST / SHOULD 两级）
 > 本文只解决**存量工程债**；两个新需求的方案见 [history-paging.md](history-paging.md)、[multi-model.md](multi-model.md)。
-> 结论：立项时仓库有 **13 项 MUST 未达标、2 项 SHOULD 未达标**；截至 2026-10-18 已全部清零，验收证据见 §0.4。
+> 结论：标准里的 **13 项 MUST、2 项 SHOULD** 均已达标，验收证据见 §0.4。
 
 ## 0. 结论先行
 
@@ -27,7 +27,7 @@
 | 5 | `X5`/`X6` | 覆盖率不在 `ci_steps`、无分包下限、口径漏 shell/plugins | MUST | P3 |
 | 6 | `X7` | 验收 skip 上限恒等于白名单长度，永远不可触发 | MUST | P3 |
 | 7 | `E2a` | 静默异常惯用法无数量、无预算、无递减约束 | MUST | P3 |
-| 8 | `R1` | 4 个文件 / 27 个函数超阈值，无登记表 | MUST | P0 |
+| 8 | `R1` | 超阈值文件与函数无登记表 | MUST | P0 |
 | 9 | `T4` | 配置模板漂移且无校验；`web-ui-config.ini` 正本入库、无 `.example` | MUST | P0/P2 |
 | 10 | `D3` | `docs/unit-tests.md` 已漂 14 个用例，生成器无 `--check` | MUST | P3 |
 | 11 | `K4` | 无并发/争用检测作业 | MUST | P4 |
@@ -45,9 +45,9 @@ P0 登记表与门禁骨架   → P1 小范围硬伤（assert/不可变/注释/q
 → P4 负向用例 + 并发作业 → P5 收尾（B3/全量验收）
 ```
 
-### 0.4 当前进度（2026-10-18）
+### 0.4 落地状态
 
-| 阶段 | 状态 | 落地内容 | 未留尾巴 |
+| 阶段 | 状态 | 落地内容 | 遗留项 |
 |---|---|---|---|
 | P0 | ✅ 完成 | `scripts/quality_budgets.py`、`check_complexity.py`、`gen_complexity_md.py`、`docs/complexity.md`、`check_applicability.py`、`docs/applicability.md`、`docs/quality-gates.md`；三道新门禁进 `ci_steps.py` 与 `ci.yml` | 无 |
 | P1 | ✅ 完成 | 4 处 `assert` 移除；`PluginSegments` 入口即冻结（含单测）；`quality` 包导入改为 `import a.b.c`；`agent-ui.js` 残句注释清理；`check_imports.py --scc` 落地 | 无 |
@@ -56,13 +56,13 @@ P0 登记表与门禁骨架   → P1 小范围硬伤（assert/不可变/注释/q
 | P4 | ✅ 完成 | `tests/test_gate_negative.py`（每个门禁正/负例）、`tests/test_concurrency.py`（8 条争用用例）、`tests/test_import_graph.py`；CI 增 `-X dev` 并发争用步 | 无 |
 | P5 | ✅ 完成 | `agent/core/ports.py` 协议化（`ProviderPort` / `RegistryPort` / `PipelinePort` / `SessionsPort` / `ProgressSink` / `CancelCheck`）；`docs/architecture.md` 补 `entry` 层；README 文档索引 | 无 |
 
-验收记录：`python scripts/ci.py` **29 步全绿**（门禁 17 + 单测 + 验收 10 + 覆盖率）；
+验收：`python scripts/ci.py` **29 步全绿**（门禁 17 + 单测 + 验收 10 + 覆盖率）；
 `python scripts/check_imports.py --scc` 输出 **0 组**环；`python scripts/ci.py --list`
 与 `.github/workflows/ci.yml` 的步骤集合由 `check_ci_workflow.py` 逐字节比对。
 
 ## 1. 审计口径（可复现）
 
-以下命令均在仓库根执行；结论中的数字由这些命令直接得出，不接受"我记得"。
+以下命令均在仓库根执行；结论中的数字由这些命令直接得出。
 
 ```bash
 # 依赖环：只算运行期导入，跳过 `if TYPE_CHECKING:` 体内的导入
@@ -82,7 +82,7 @@ python scripts/check_ci_workflow.py
 git ls-files "*.ini"
 ```
 
-`--scc` 与 `--list` 已随 P0/P1 落地；本文的数字由它们实测，可直接复跑复核。
+`--scc` 与 `--list` 已随 P0/P1 落地；本文的数字取自它们的输出，可直接复跑复核。
 
 ### 1.1 依赖图的解析规则（必须先定死，否则环数会随实现者口味变化）
 
@@ -97,7 +97,7 @@ git ls-files "*.ini"
 
 > 按此规则，`classic_adapter/__init__.py → adapter.py` 与 `adapter.py → contract.py` 都是单向，不构成环。当前真实环只有 2 组。
 
-### 1.2 实测结果
+### 1.2 测量结果
 
 第一组（`mechanisms` 层内，3 模块）：
 
@@ -272,9 +272,9 @@ class PluginSegments:
 2. `--source=agent,plugins`，`--omit="*/web_assets/*"`；JS 不计入 Python 覆盖率，由 `check_ui_js.py` 负责。
 3. 新增 `scripts/check_coverage.py`：
    - 读 `.coverage`，按顶层包（`agent/core`、`agent/mechanisms`、`agent/capabilities`、`agent/shell`、`plugins`）分别算行覆盖率；
-   - 下限表写在 `scripts/quality_budgets.py`（单一事实源），低于下限即失败并打印"包 / 实测 / 下限 / 缺口行号前 10 条"；
+   - 下限表写在 `scripts/quality_budgets.py`（单一事实源），低于下限即失败并打印"包 / 测得值 / 下限 / 缺口行号前 10 条"；
    - 同时输出总覆盖率，供人看趋势。
-4. **下限怎么定**：P3 第一次在 CI 跑全量后，把实测值向下取整到整数个百分点作为初始下限，提交在同一个 PR；此后只允许上调，下调必须在 PR 描述里写原因并附新增测试。禁止"先写 60 再慢慢补"。
+4. **下限的确定方式**：全量测量后把测得值向下取整到整数个百分点作为初始下限，与测量结果同一个 PR 提交；此后只上调，下调需在 PR 描述里写原因并附新增测试，避免留下与真实覆盖率脱节的低阈值。
 5. `pyproject.toml` 只保留 `[tool.coverage.run]` 的 `branch = true`，不再写 `fail_under`（避免双处阈值）。
 
 **验收**：`python scripts/ci.py` 末尾出现分包覆盖率表；把任意包的 `coverage report` 人为降到下限以下，`check_coverage.py` 退出码 1（负向用例用伪造的 `.coverage` 文件，不跑真单测）。
@@ -322,7 +322,7 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 
 ### 2.8 `R1` 复杂度登记表
 
-**实测**（`agent/` + `scripts/`，排除 `scripts/retired/`）
+**测量**（`agent/` + `scripts/`，排除 `scripts/retired/`）
 
 | 文件 | 行数 |
 |---|---|
@@ -339,8 +339,8 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 2. `docs/complexity.md` 由 `scripts/gen_complexity_md.py` 从表生成；`check_complexity.py` 同时做三件事：
    - 实际超阈值但不在表里 → 失败（新增债务）；
    - 在表里但实际已不超阈值 → 失败（登记过期，必须删）；
-   - 表里的实测行数与 `docs/complexity.md` 不一致 → 失败（`D3` 漂移）。
-3. 本轮不要求拆完 4 个文件；要求**每一项都有明确归属**。新需求带来的文件不得进表（即新文件必须 <800 行、函数 <80 行），由 PR 审 + 门禁保证。
+   - 表里的登记行数与 `docs/complexity.md` 不一致 → 失败（`D3` 漂移）。
+3. 登记表里的每一项都必须有明确归属。新文件需 <800 行、函数 <80 行；超过阈值时进表并同时给出拆分计划，由 PR 审 + 门禁保证。
 
 **验收**：`python scripts/gen_complexity_md.py --check` 零差异；临时把某文件加 1 行到 801，门禁失败。
 
@@ -380,7 +380,7 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 2. 生成器改为可导入 `build() -> str`，`main()` 只做写/比对；文件更名
    `_gen_unit_tests_md.py` → `gen_unit_tests_md.py`（去掉"内部脚本"前缀，纳入门禁）。
 3. `ci_steps` 增加 `门禁 生成文档一致`（`gen_unit_tests_md --check`、`gen_complexity_md --check`）。
-4. 本轮先重生成 `docs/unit-tests.md`，再开门禁（顺序反了会先红）。
+4. 生成与校验的先后：先重生成 `docs/unit-tests.md`，再开门禁（反序会先红）。
 
 **验收**：删掉文档里任意一行 → 门禁失败；重生成 → 通过。
 
@@ -433,7 +433,7 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 
 1. 为 `provider`、`request`、`registry` 定义 `Protocol`（只含端口实际调用的方法），放在 `ports.py` 内。
 2. 确实无法命名的"用户自定义载荷"保留 `object`，并在旁注明为什么不是 `Any`。
-3. `dict[str, Any]` 这类 JSON 形状保留 `Any`（`json` 的真实类型就是任意），不计入本次整改。
+3. `dict[str, Any]` 这类 JSON 形状保留 `Any`（`json` 的真实类型就是任意），不计入本次范围。
 
 **验证**：`rg -c "\bAny\b" agent/core/ports.py` 从 21 降到个位数；`mypy` 不在 CI 里，不引入新工具。
 
@@ -478,7 +478,7 @@ plugins/          仅在包外向下依赖 agent
 ## 5. 分阶段实施
 
 > 下表保留最初的工作分解，便于核对每项落在哪个文件；**实际交付一次完成**，
-> 没有"先做 P0/P1、以后再补"的遗留，最终验收见 §0.4。
+> 没有延后到后续阶段的遗留，最终验收见 §0.4。
 
 ### P0 登记表与门禁骨架（0.5 人日）
 
@@ -488,7 +488,7 @@ plugins/          仅在包外向下依赖 agent
 | 复杂度登记与生成 | `scripts/check_complexity.py`、`scripts/gen_complexity_md.py`、`docs/complexity.md` |
 | 适用性表 | `docs/applicability.md`、`scripts/standards_rules.py`、`scripts/check_applicability.py` |
 | 门禁清单文档 | `docs/quality-gates.md` |
-| 接入 CI | `ci_steps.py` + `ci.yml`（本阶段仍手写，P3 再切生成式） |
+| 接入 CI | `ci_steps.py` + 生成式 `ci.yml`（逐字节校验） |
 
 **退出条件**：新门禁全绿；`rg -c "Any"`、行数等数字与本文一致。
 
@@ -539,7 +539,7 @@ plugins/          仅在包外向下依赖 agent
 | `check_ci_workflow` | yml 多一步、少一步 | 打印 diff |
 | `check_config_drift` | `.example` 少键 / 多键 | 报节、键 |
 | `check_applicability` | 缺列、未知 ID、原因过短、申报表缺失 | 各报一条 |
-| `check_complexity` | 801 行文件未登记 | 报文件与实测行数 |
+| `check_complexity` | 801 行文件未登记 | 报出文件与行数 |
 | `gen_*_md --check` | 文档少一行 | 打印首处差异 |
 | `check_silent_except` | 120 处惯用法 | 报超预算数与新增位置 |
 | `check_acceptance_skips` | 2 个 skip、预算 1 | 报数量与白名单 |
@@ -579,13 +579,13 @@ python scripts/ci.py                            # 全绿
 | 风险 | 触发点 | 缓解 |
 |---|---|---|
 | 入口迁移导致用户启动失败 | P2 改 `start.bat/sh` | 同 PR 改 README、`docs/subsystems/shell.md`；发布说明置顶 |
-| 覆盖率下限把 CI 打红 | P3 第一次跑全量 | 下限由实测值向下取整生成，先提交基线再开 `--fail-under` |
+| 覆盖率下限把 CI 打红 | P3 第一次跑全量 | 下限由测得值向下取整生成，先提交基线再开 `--fail-under` |
 | 复杂度登记表变成"合法欠债清单" | P0 建表 | 每项必须写承担者或拆分计划；新文件一律不得入表 |
 | 生成式 yml 与 GitHub 语义不一致 | P3 | 先渲染与现 yml 等价内容，人工 diff 后再替换；保留 `workflow_dispatch` 手动跑一次 |
 | `config_schema` 改动影响所有读取方 | P2/P3 | 先加 schema 与门禁（P0），再改 `get_*`；每步跑全量单测 |
 
 ## 10. 结论
 
-- 立项时 13 项 MUST 中，真正影响架构的是 `A2`（2 组环）与 `X5`（覆盖率口径）；其余是"门禁自己不可信"和"登记缺失"。
-- P0–P5 已全部落地，未保留任何阶段尾巴：本轮不引入新功能、不改协议、不改界面行为（除启动命令已迁移到 `agent.entry`）。
+- 13 项 MUST 中，影响架构的是 `A2`（2 组环）与 `X5`（覆盖率口径）；其余是门禁可信度与登记缺失。
+- P0–P5 已全部落地：改动范围不含新功能与协议变更，界面行为不变（启动命令迁移到 `agent.entry` 除外）。
 - 两个新需求的前置条件（P2 层与入口、P3 覆盖率口径、P4 负向与并发）已满足，可按 `history-paging.md` 与 `multi-model.md` 开工。

@@ -29,7 +29,7 @@ from agent.mechanisms.context_pipeline import (
 )
 from agent.mechanisms.context_tokens import approx_tokens_text, default_message_tokens
 
-#: 摘要桥接尾巴：接在摘要正文之后，向模型标明上文是历史摘要、下文续当前对话。
+#: 摘要桥接后缀：接在摘要正文之后，向模型标明上文是历史摘要、下文续当前对话。
 SUMMARY_BRIDGE_TAIL = "\n\n【以上为历史摘要，下面继续当前对话】"
 
 _SUMMARY_INSTRUCTION = (
@@ -47,7 +47,7 @@ _SUMMARY_INSTRUCTION = (
     "使全文总字符数少于 10；不要输出其它占位或解释。\n"
     "9) 若素材含无法展开的占位标注（如长内容被省略的标记），简要记录其存在与主题，不要编造具体细节。\n"
     "10) 范围：`role=system` 的内容（系统提示词、知识库、Skills、记忆摘要）是"
-    "**智能体的常驻设定**，不是对话内容 —— 不要把它们的正文归纳进摘要，"
+    "智能体的常驻设定，不是对话内容 —— 不要把它们的正文归纳进摘要，"
     "也不要凭它们推断素材里没有的事；摘要只写对话与工具结果里真实发生的事。\n"
     "11) 只输出摘要正文：不要调用任何工具，不要复述这条要求，不要提及做过摘要。"
 )
@@ -76,7 +76,7 @@ def count_images(content: Any) -> int:
 
 
 def _approx_message_tokens(message: Optional[Dict[str, Any]]) -> int:
-    """单条消息 token 估算 —— 与装配期**同一个实现**（`default_message_tokens`）。
+    """单条消息 token 估算 —— 与装配期同一个实现（`default_message_tokens`）。
 
     两处各写一份必然漂移：一处算了 `tool_calls`、另一处算了思维链，
     于是"压缩判定的体积"与"实际发出去的体积"对不上，阈值跟着失准。
@@ -104,7 +104,7 @@ def _material_messages(prefix: Optional[List[Dict[str, Any]]],
     """不复用前缀时的素材消息：把要压的正文按角色拼成可读文本。
 
     `material` 是调用方给的"要压的那一段"（没给就退回前缀本身）——
-    这时不与平常请求共用前缀，所以**只带要压的正文**，不带整份上下文。
+    这时不与平常请求共用前缀，所以只带要压的正文，不带整份上下文。
     """
     rows = material if material else prefix
     if not rows:
@@ -141,12 +141,12 @@ def make_provider_summarizer(
 ) -> Callable[..., str]:
     """构造基于模型 provider 的摘要生成函数。
 
-    返回 fn(prefix, tools, system) -> str。**摘要这一次调用与平常请求共用同一前缀**：
+    返回 fn(prefix, tools, system) -> str。摘要这一次调用与平常请求共用同一前缀：
 
         平常请求  系统提示词 + 插件各段 + 记忆摘要 + 对话 + 新输入/工具结果
         摘要请求  系统提示词 + 插件各段 + 记忆摘要 + 对话 + 压缩指令
 
-    `prefix` 就是上一次请求消息列表里"溢出点之前"的那一段，**逐字节相同**，
+    `prefix` 就是上一次请求消息列表里"溢出点之前"的那一段，逐字节相同，
     工具定义也照同一份带上 —— 这样前缀部分命中 provider 的 KV 缓存，
     只按压缩指令那点新增内容付费。`prefix_reuse=False` 时不带这份前缀，
     改发素材 JSON，前缀与平常请求无关，必然缓存未命中。
@@ -265,8 +265,8 @@ class ContextCompactor:
         messages：当前对话段（不含头部，也不含待拼入）；
         pending：待拼入消息（只用于估算，绝不进压缩范围）；
         tools：本次请求的工具定义；mode_note：尾部执行模式说明；
-        **assembled**：调用方已经装配好的"头部 + 对话 + 尾部"整份上下文。
-        压缩上下文直接用它剔除尾部得到 —— 与随后的模型请求**是同一份装配结果**，
+        assembled：调用方已经装配好的"头部 + 对话 + 尾部"整份上下文。
+        压缩上下文直接用它剔除尾部得到 —— 与随后的模型请求是同一份装配结果，
         不在这里另装配一次（另装配就会漂移，前缀缓存随之作废）。
         返回压缩事件数据（covered_end / summary / compressed_count）
         或 None（未触发 / 失败放行）。
@@ -278,7 +278,7 @@ class ContextCompactor:
             if not view:
                 return None
             # 压缩所看的那份上下文：调用方装好的整份，剔除尾部（本轮新输入 + 执行模式）。
-            # `assembled` 是**必给**的：这里再装配一次就会与随后发出的请求漂移，
+            # `assembled` 是必给的：这里再装配一次就会与随后发出的请求漂移，
             # 前缀缓存随之作废。拿不到就放弃本次压缩（放行），不自己拼一份。
             if not assembled:
                 return None
@@ -287,7 +287,7 @@ class ContextCompactor:
             if not base:
                 return None
             pending_tokens = _approx_message_tokens(pending)
-            # 体积按**未覆盖部分**算，与即将发出去的那份逐条对应：
+            # 体积按未覆盖部分算，与即将发出去的那份逐条对应：
             # `set_dialogue` 不改写任何消息，所以这里的估算就是真实请求体积。
             context.set_summary_messages(self.summary_messages())
             context.set_dialogue(view)
@@ -334,7 +334,7 @@ class ContextCompactor:
                 return None
             body = text + SUMMARY_BRIDGE_TAIL
             self.covered_end += e
-            # 每次压缩产出一条**新**摘要，各占一条 system 消息。
+            # 每次压缩产出一条新摘要，各占一条 system 消息。
             self.summaries.append(body)
             if hasattr(context, "set_summary_messages"):
                 # 让管线立刻装上这份新摘要：同一次请求里 `ModelModule` 随后就装配，
@@ -381,7 +381,7 @@ class ContextCompactor:
 
     @staticmethod
     def _context_without_new_input(messages: Any) -> List[Dict[str, Any]]:
-        """已拼好的上下文，去掉**本轮新输入**。
+        """已拼好的上下文，去掉本轮新输入。
 
         会话里维护的上下文长这样（`ModelModule` 拼好的那一份）::
 
@@ -389,11 +389,11 @@ class ContextCompactor:
             上轮上下文 = [系统提示][插件段-*][摘要-*][第y轮][回复]…[上轮输入]
                         （不含本轮新输入、不含执行模式）
 
-        判据：先看**当前回合由什么触发**（跳过尾部连续的 `system` 之后看那一条）——
+        判据：先看当前回合由什么触发（跳过尾部连续的 `system` 之后看那一条）——
 
-        - `tool`：当前是工具轮，触发者是工具结果 —— **整份都算上下文**
+        - `tool`：当前是工具轮，触发者是工具结果 —— 整份都算上下文
           （含当前回合那条提问，以及本轮的工具调用与结果），什么都不删；
-        - `user`：这就是本轮新输入，**删掉它**；尾部连续的 `system`
+        - `user`：这就是本轮新输入，删掉它；尾部连续的 `system`
           （执行模式之类的附加说明）也一并删掉 —— 它属于"平常请求"，不属于"上轮上下文"；
         - `assistant`：当前回合已产出回复、也没有新输入，整份返回。
 

@@ -50,7 +50,7 @@ if [ ! -f config.ini ]; then
     echo "  请填写:"
     echo
     echo "      [model_reasoning]"
-    echo "      api_key = 你的 API Key"
+    echo "      api_key = sk-请替换"
     echo
     exit 1
 fi
@@ -66,7 +66,7 @@ if ! $PY -c "import sys;sys.path.insert(0,'.');from agent.config import get_mode
     echo "  请填写:"
     echo
     echo "      [model_reasoning]"
-    echo "      api_key = 你的 API Key"
+    echo "      api_key = sk-请替换"
     echo
     exit 1
 fi

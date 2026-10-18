@@ -11,16 +11,16 @@ from agent.core.ports import Ports
 
 
 class InputModule(ModuleBase):
-    """把本轮的**新用户输入**认领成事实。
+    """把本轮的新用户输入认领成事实。
 
     - 有输入：发 `input_claimed`，返回 `ok`（链上后面的模型模块自己会看到"末端是新输入"）；
-    - **无输入**：什么都不发，返回 `ok`。
+    - 无输入：什么都不发，返回 `ok`。
 
-    第二点是硬要求：接口确认触发的恢复轮**没有用户发言**，此时上下文末端
+    第二点是硬要求：接口确认触发的恢复轮没有用户发言，此时上下文末端
     就该是那次工具调用——凭空发一条空的 `input_claimed` 会让消息序列变成
     `…assistant(tool_calls) → user("") → tool`，模型 API 直接拒绝（400）。
 
-    **不要求续行**：这条链的模型模块在同**趟**里就会跑（它看事实末端）。若这里返回
+    不要求续行：这条链的模型模块在同趟里就会跑（它看事实末端）。若这里返回
     `next`，宿主会多跑一整趟空链（`passes` 从 1 变 2）。
     """
 
@@ -38,7 +38,7 @@ class InputModule(ModuleBase):
 
     def execute(self, ports: Ports) -> Iterator[Any]:
         if not self._text and not self._attachments:
-            # 无输入 = 无用户消息（不是"跳过"，是"没有"）。**仍发终态**：
+            # 无输入 = 无用户消息（不是"跳过"，是"没有"）。仍发终态：
             # 监听者要能配对上"这次调用结束了"，而不是猜"它到底跑没跑"。
             yield ports.emit(INPUT_ENDED, claimed=False)
             return Outcome.ok()

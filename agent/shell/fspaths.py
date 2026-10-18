@@ -3,17 +3,17 @@
 
 ## 这个文件负责三件事（同一条边界）
 
-1. **可见范围从哪来**：`_normalize_roots` / `_parse_roots` / `_env_roots` /
+1. 可见范围从哪来：`_normalize_roots` / `_parse_roots` / `_env_roots` /
    `_env_path` / `_default_fs_roots` —— 命令行、环境变量、默认值。
-2. **一个请求的路径允不允许访问**：`_resolve_fs` / `_fs_rejection`
-   —— **这是安全边界**；越界判定的改动面限于本文件。
-3. **人看的展示形态**：`_rel_to_root` / `_is_drive_root` / `_list_drives`。
+2. 一个请求的路径允不允许访问：`_resolve_fs` / `_fs_rejection`
+   —— 这是安全边界；越界判定的改动面限于本文件。
+3. 人看的展示形态：`_rel_to_root` / `_is_drive_root` / `_list_drives`。
 
 ## 安全语义
 
-`_resolve_fs` 做两件事：**解析**（`resolve()` 展开 `..` 与符号链接）
-与**判界**（`relative_to` 落在某个允许的根内）。任何"先拼路径再检查"的写法
-都会被 `..` 绕过 —— 所以顺序是**先 resolve 再判界**，且判界用 `relative_to`
+`_resolve_fs` 做两件事：解析（`resolve()` 展开 `..` 与符号链接）
+与判界（`relative_to` 落在某个允许的根内）。任何"先拼路径再检查"的写法
+都会被 `..` 绕过 —— 所以顺序是先 resolve 再判界，且判界用 `relative_to`
 抛异常与否来定，不用字符串前缀比较（前缀比较会被 `/root2` 骗过 `/root`）。
 
 导入路径：`web.py` 再导出这些名字。
@@ -85,7 +85,7 @@ def _normalize_roots(value: Any) -> List[Path]:
 def _within_any_root(target: Path, roots: List[Path]) -> bool:
     """目标是否落在任一可见根之内。
 
-    可见根是多个盘根时**不能只看第一个** —— 那会让别的盘上一律判越界，
+    可见根是多个盘根时不能只看第一个 —— 那会让别的盘上一律判越界，
     而生成物（下载的图片/视频）常常不在第一个根所在的盘上。
     """
     try:
@@ -104,7 +104,7 @@ def _within_any_root(target: Path, roots: List[Path]) -> bool:
 def _default_fs_roots() -> List[Path]:
     """文件查看器的默认可见根（可多个）。
 
-    取**本机存在的盘根**而不是项目目录：agent 的文件工具能读写整个磁盘（无沙箱），
+    取本机存在的盘根而不是项目目录：agent 的文件工具能读写整个磁盘（无沙箱），
     查看器若只看项目目录，就会出现"agent 刚写的文件打不开"——项目盘之外的文件
     一律 403。可见范围要与 agent 的实际读写范围对齐，才谈得上"看得见它做的事"。
     越界（`..` 穿越）依然禁止，且全程只读。

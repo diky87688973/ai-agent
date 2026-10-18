@@ -5,9 +5,9 @@
 
 Markdown 注入防线由 `scripts/acceptance_web.py` 的实时场景覆盖：
 在真实页面上调经典 UI 自己的 `renderMarkdown`，把结果塞进真实 DOM，再问浏览器
-"有没有生成危险元素 / 事件处理器属性 / javascript: 链接"，并额外断言**脚本真的没被执行**。
+"有没有生成危险元素 / 事件处理器属性 / javascript: 链接"，并额外断言脚本真的没被执行。
 
-那边的判据取**真实 DOM**而不是 HTML 字符串——转义后的 `&lt;img onerror=…&gt;`
+那边的判据取真实 DOM而不是 HTML 字符串——转义后的 `&lt;img onerror=…&gt;`
 里仍然包含 `onerror=` 这几个字符，字符串包含判断会把"正确转义"误报成"注入面"。
 """
 from __future__ import annotations

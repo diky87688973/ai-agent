@@ -1,6 +1,6 @@
 /* composer/pickers.js —— @ 文件选择器、模式菜单、推理档位。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  *
  * 模型下拉不在这里：它由 `multi_model` 插件渲染到 `#modelPickerSlot`，
@@ -24,23 +24,30 @@ function hideSlashPop(){if(slashPop){slashPop.classList.add("hidden");slashPop.s
 function positionSlashPop(){if(!ta||!slashPop)return;var rect=ta.getBoundingClientRect();var before=ta.value.slice(0,ta.selectionStart||0);var lineStart=before.lastIndexOf("\n")+1;var col=before.length-lineStart;var cs=getComputedStyle(ta);var fz=parseFloat(cs.fontSize)||13;var lh=parseFloat(cs.lineHeight);if(!isFinite(lh)||lh<=0)lh=fz*1.35;var padL=parseFloat(cs.paddingLeft)||4;var padT=parseFloat(cs.paddingTop)||2;var chW=fz*0.55*Math.max(col,0);var lines=(before.match(/\n/g)||[]).length;var x=rect.left+padL+chW+6;var y=rect.top+padT+lines*lh-slashPop.offsetHeight-6;if(y<8)y=rect.bottom+4;var maxx=window.innerWidth-slashPop.offsetWidth-8;x=Math.min(Math.max(8,x),maxx);slashPop.style.position="fixed";slashPop.style.left=x+"px";slashPop.style.top=y+"px";}
 function autoResizeTextarea(){if(!ta)return;ta.style.height="auto";var maxH=parseInt(getComputedStyle(ta).maxHeight)||320;var newH=Math.min(ta.scrollHeight,maxH);ta.style.height=newH+"px";ta.style.overflowY=ta.scrollHeight>maxH?"auto":"hidden";}
 function normalizeMode(v){const t=String(v||"auto").toLowerCase();return (t==="plan"||t==="execute"||t==="auto")?t:"auto";}
-function applyMode(v){hideSlashPop();selectedMode=normalizeMode(v);const label=(selectedMode==="auto"?"Auto":(selectedMode==="plan"?"Plan":"Execute"));if(modePlus){modePlus.textContent=label+" +";modePlus.classList.remove("plan","execute");if(selectedMode==="plan")modePlus.classList.add("plan");if(selectedMode==="execute")modePlus.classList.add("execute");}if(modeChip){modeChip.classList.add("hidden");}if(modeChipText){modeChipText.textContent="";}}
+function applyMode(v,persist){hideSlashPop();selectedMode=normalizeMode(v);const label=(selectedMode==="auto"?"Auto":(selectedMode==="plan"?"Plan":"Execute"));if(modePlus){modePlus.textContent=label+" +";modePlus.classList.remove("plan","execute");if(selectedMode==="plan")modePlus.classList.add("plan");if(selectedMode==="execute")modePlus.classList.add("execute");}if(modeChip){modeChip.classList.add("hidden");}if(modeChipText){modeChipText.textContent="";}/* 模式属于会话：用户点击才回写，服务端回填 / SSE / 标签页切换都不写。
+   否则开屏时 applyMode("auto") 会先把服务端刚恢复的 plan 覆盖掉。 */
+if(persist!==false){var cid=activeConversationId;if(cid){fetch("/api/chat/ui-state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,mode:selectedMode})}).catch(function(){});}}}
 function closeModeMenu(){modeMenu.classList.add("hidden");}
 let reasoningEffort="max";let reasoningBtn=document.getElementById("reasoningBtn");let reasoningMenu=document.getElementById("reasoningMenu");let reasoningLabel=document.getElementById("reasoningLabel");
-function applyReasoningEffort(effort){if(effort!=="high"&&effort!=="max")return;reasoningEffort=effort;if(reasoningLabel){reasoningLabel.textContent=effort==="high"?"High":"Max";/* 颜色走类名，**不写死值**：写死的是深色主题的那一套，切到白天模式
+function applyReasoningEffort(effort,persist){if(effort!=="high"&&effort!=="max")return;reasoningEffort=effort;if(reasoningLabel){reasoningLabel.textContent=effort==="high"?"High":"Max";/* 颜色走类名，不写死值：写死的是深色主题的那一套，切到白天模式
    就会变成"暗金文字压在浅底上"（对比度极差）。
    `effort-max` 只是给 CSS 一个钩子，两套主题各自决定怎么画。 */
 reasoningLabel.style.color="";
 reasoningBtn.style.borderColor="";
 reasoningBtn.classList.toggle("effort-max",effort==="max");
 reasoningBtn.classList.toggle("effort-high",effort!=="max");}if(reasoningMenu){var cs=reasoningMenu.querySelectorAll(".reasoning-choice");cs.forEach(function(c){c.classList.remove("reasoning-current");if(c.dataset.effort===effort)c.classList.add("reasoning-current");});}
-var cid=activeConversationId;if(cid){fetch("/api/reasoning-effort",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,effort:effort})}).catch(function(){});}}
+/* 只有用户点击才回写；服务端回填（同一次回填里已经在显示它）再写一次
+   只是多余的 PUT，还会在会话切换的竞态里把旧值盖回去。 */
+if(persist!==false){var cid=activeConversationId;if(cid){fetch("/api/reasoning-effort",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,effort:effort})}).catch(function(){});}}}
 function closeReasoningMenu(){if(reasoningMenu)reasoningMenu.classList.add("hidden");}
 function initReasoningPicker(){if(!reasoningBtn||!reasoningMenu)return;
 reasoningBtn.onclick=function(e){e.stopPropagation();closeModeMenu();reasoningMenu.classList.toggle("hidden");};
 reasoningMenu.onclick=function(e){var t=e.target;if(!t||typeof t.closest!=="function")return;var btn=t.closest("[data-effort]");if(!btn||!btn.dataset)return;if(btn.dataset.effort){applyReasoningEffort(btn.dataset.effort);closeReasoningMenu();}};
 document.addEventListener("click",function(e){if(reasoningMenu&&!reasoningMenu.classList.contains("hidden")&&!reasoningBtn.contains(e.target)&&!reasoningMenu.contains(e.target))closeReasoningMenu();});
-fetch("/api/reasoning-effort?conversation_id="+encodeURIComponent(activeConversationId||"")).then(function(r){return r.json();}).then(function(d){if(d&&d.reasoning_effort)applyReasoningEffort(d.reasoning_effort);}).catch(function(){});}
+/* 档位初值不在这里取：它属于会话，得等会话恢复后按 cid 一起取
+   （`loadConversationModel` / `syncConversationSettings`），
+   在这里按 `activeConversationId` 取会拿到还没定下来的那个会话。 */
+}
 
 function initModePicker(){
 if(!modePlus||!modeMenu||!modeChip||!modeChipClear)return;
@@ -57,12 +64,15 @@ document.addEventListener("click",function(e){
 if(!modeMenu.contains(e.target)&&e.target!==modePlus)closeModeMenu();
 if(slashPop&&!slashPop.classList.contains("hidden")&&!slashPop.contains(e.target)&&e.target!==ta)hideSlashPop();
 });
-applyMode("auto");
+/* 开屏先显示默认值；此时 `activeConversationId` 可能还没恢复，绝不能回写。 */
+applyMode("auto",false);
 }
 /* 模型显示的唯一写入点：当前标签页字段 + 页头 + 壳层订阅者。
    用户点击的校验在 `aiAgentShell.models.select()`；服务端下发的值（回填 / SSE）
-   不受本地清单限制 —— 清单可能比页面新。 */
-function applyModel(m){
+   不受本地清单限制 —— 清单可能比页面新。
+   `force`：切标签页时全局值已被 `loadRuntimeStateFromTab` 先写好，
+   这时"值没变"也是错的显示（模型按钮由插件订阅刷新），必须照发一次。 */
+function applyModel(m,force){
 var x=String(m||"").trim();
 var changed=x!==selectedModel;
 selectedModel=x;
@@ -70,5 +80,5 @@ var tab=(typeof getActiveTab==="function")?getActiveTab():null;
 if(tab)tab.selectedModel=x;
 var hm=document.getElementById("hdrModel");
 if(hm)hm.textContent=x?("模型: "+x):"模型加载中…";
-if(changed&&typeof notifyModelSubscribers==="function")notifyModelSubscribers(x);
+if((changed||force===true)&&typeof notifyModelSubscribers==="function")notifyModelSubscribers(x);
 }

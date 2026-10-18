@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 """模型 provider 的请求级模型选择。
 
-**为什么要能按请求选模型**：一个 provider 实例绑定一个 `base_url` / `api_key`，
+为什么要能按请求选模型：一个 provider 实例绑定一个 `base_url` / `api_key`，
 但同一个网关下往往有多个模型名可选。
-把模型放进**请求**，provider 便可复用，不必按模型各建一个实例 ——
+把模型放进请求，provider 便可复用，不必按模型各建一个实例 ——
 会话选择因此只影响装配时注入的请求参数，不影响链上的模块。
 """
 from __future__ import annotations
 
+import json
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -17,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 from agent.core.ports import LogicalRequest  # noqa: E402
 from agent.mechanisms.model_provider import OpenAICompatibleProvider  # noqa: E402
+from tests.testkit import no_plugins  # noqa: E402
 
 _PNG_B64 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
             "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
@@ -105,7 +109,7 @@ class ImagesAlwaysReachTheWireTest(unittest.TestCase):
         self.assertEqual(p.payloads[0]["messages"][0]["content"], "只有文字")
 
 class SessionModelSelectionTest(unittest.TestCase):
-    """会话级模型选择：选中即生效、可读回、**跨进程仍在**。
+    """会话级模型选择：选中即生效、可读回、跨进程仍在。
 
     选择必须落盘：只活在内存里的话，换个进程/换台机器打开同一会话就回默认，
     而"选了却没生效"比"没有这个功能"更坏 —— 用户以为换成了另一个模型。
@@ -146,11 +150,105 @@ class SessionModelSelectionTest(unittest.TestCase):
         self.assertEqual(st.get_model("cid-12345678"), "base-model")
 
     def test_read_only_is_never_used(self) -> None:
-        """**只读**会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。"""
+        """只读会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。"""
         st = self._state()
         st.set_model("../../etc/passwd", "x")
         self.assertEqual(list(self.dir.iterdir()), [],
                          msg="非法 cid 不得拼出路径")
+
+class SessionStateFileTest(unittest.TestCase):
+    """会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回。
+
+    这些用例守的是存储契约，不是某个工具的行为：文件结构一旦变回
+    "清单平铺、模型混在顶层"，读写两边就会互相覆盖。
+    """
+
+    CID = "cid-12345678"
+
+    def setUp(self) -> None:
+        import tempfile
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.state_dir = Path(self._tmp.name) / "session_state"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _state(self, default_model: str = "base-model"):
+        from agent.mechanisms.live_state import LiveState
+
+        return LiveState(
+            storage_dir=self.state_dir,
+            default_model=default_model,
+        )
+
+    def _todo(self, items=None):
+        return {
+            "list_id": "list-1",
+            "items": items or [{"id": "1", "text": "p1", "done": False}],
+            "collapsed": False,
+        }
+
+    def _read(self) -> dict:
+        return json.loads((self.state_dir / f"{self.CID}.json").read_text(encoding="utf-8"))
+
+    def test_file_nests_todo_and_keeps_state_flat(self) -> None:
+        st = self._state()
+        st.set_model(self.CID, "chosen-model")
+        st.set_todo(self.CID, self._todo())
+        st.set_mode(self.CID, "plan")
+        self.assertTrue(st.set_reasoning_effort(self.CID, "max"))
+
+        raw = self._read()
+        self.assertEqual(raw["model"], "chosen-model")
+        self.assertEqual(raw["mode"], "plan")
+        self.assertEqual(raw["effort"], "max")
+        self.assertEqual(raw["todo"]["list_id"], "list-1")
+        self.assertNotIn("items", raw, msg="清单字段不得再平铺在顶层")
+        self.assertNotIn("list_id", raw)
+
+    def test_every_component_survives_a_new_process(self) -> None:
+        st = self._state()
+        st.set_model(self.CID, "chosen-model")
+        st.set_todo(self.CID, self._todo())
+        st.set_mode(self.CID, "execute")
+        st.set_reasoning_effort(self.CID, "max")
+
+        again = self._state()
+        self.assertEqual(again.get_model(self.CID), "chosen-model")
+        self.assertEqual(again.get_mode(self.CID), "execute")
+        self.assertEqual(again.get_reasoning_effort(self.CID), "max")
+        self.assertEqual(again.get_todo(self.CID)["items"][0]["text"], "p1")
+
+    def test_closing_todo_does_not_wipe_the_model(self) -> None:
+        """`close` 只清清单：写盘前必须读回其余分量，否则会覆盖模型。"""
+        first = self._state()
+        first.set_model(self.CID, "chosen-model")
+        first.set_todo(self.CID, self._todo())
+
+        fresh = self._state()
+        fresh.set_todo(self.CID, None)
+        self.assertIsNone(fresh.get_todo(self.CID))
+        self.assertEqual(fresh.get_model(self.CID), "chosen-model")
+        raw = self._read()
+        self.assertNotIn("todo", raw)
+        self.assertEqual(raw["model"], "chosen-model")
+
+    def test_stale_flat_file_is_ignored(self) -> None:
+        """只认嵌套结构：平铺把清单字段写在顶层的文件不算会话状态。
+
+        读路径一旦容忍第二种形状，每次改动都要同时证明两套都对。
+        """
+        self.state_dir.mkdir(parents=True)
+        (self.state_dir / f"{self.CID}.json").write_text(
+            json.dumps({**self._todo(), "model": "flat-model"}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        st = self._state()
+        self.assertIsNone(st.get_todo(self.CID))
+        self.assertEqual(st.get_model(self.CID), "flat-model",
+                         msg="顶层 model 仍是合法键，只有清单必须嵌套")
 
 class AppModelConfigTest(unittest.TestCase):
     """装配层的模型设置入口：来源状态、回落与重建。
@@ -314,15 +412,18 @@ class _RecordingRouter:
 
 
 class AvailableModelsWireTest(unittest.TestCase):
-    """`/health` 的 `allowed_models` 必须给出**完整清单**。
+    """`/health` 的 `allowed_models` 必须给出完整清单。
 
     它是经典 UI 模型下拉的唯一数据来源，也是选择时的白名单。
-    清单不得退化成"只有当前模型"——那样**下拉只画一项，且选择被白名单校验拒掉**。
+    清单不得退化成"只有当前模型"——那样下拉只画一项，且选择被白名单校验拒掉。
     """
 
     def _app(self):
         from agent.app import build_app
 
+        # 不装插件：本类钉的是 `/health` 与 `allowed_models` 的接线，
+        # 插件目录（开发者本机的多模型配置）会把清单整体换掉，与本类无关。
+        no_plugins(self)
         app = build_app()
         app._available_models = ["m-one", "m-two", "m-three"]
         return app
@@ -374,13 +475,61 @@ class AvailableModelsWireTest(unittest.TestCase):
         extra = set(allowed) - expected
         self.assertEqual(extra, {provider_model} if provider_model else set(), allowed)
 
+
+class CatalogAuthorityAtAssemblyTest(unittest.TestCase):
+    """插件目录一旦权威，装配末尾就把模型清单与路由策略换成目录的。
+
+    这条分支只在真的装了带目录来源的插件时走到。别的用例都用 `no_plugins`
+    把开发机上的插件隔离掉了（否则结果取决于本机私有配置），所以这里自己造一个
+    最小插件树来钉住这段装配逻辑。
+    """
+
+    _PLUGIN = '''\
+from agent.capabilities.model_catalog import ModelEntry
+
+def register(ctx):
+    return ctx.add_model_catalog(lambda: (
+        ModelEntry.from_options(id="cat-a", provider="openai", is_default=True),
+        ModelEntry.from_options(id="cat-b", provider="openai"),
+    ))
+'''
+
+    def test_catalog_entries_become_the_model_list(self) -> None:
+        from agent.app import build_app
+        from agent.mechanisms.live_state import LiveState
+        from agent.mechanisms.mesh import MeshState
+        from agent.mechanisms.session_store import SessionStore
+
+        tmp = Path(tempfile.mkdtemp(prefix="catalogasm_"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        plugins = tmp / "plugins" / "catalog_demo"
+        plugins.mkdir(parents=True)
+        (plugins / "plugin.py").write_text(self._PLUGIN, encoding="utf-8")
+        manifest = tmp / "plugins.ini"
+        manifest.write_text("[plugin:catalog_demo]\nversion = 1.0\n", encoding="utf-8")
+
+        app = build_app(
+            plugins_dir=tmp / "plugins",
+            plugins_path=manifest,
+            store=SessionStore(tmp / "data"),
+            live_state=LiveState(storage_dir=tmp / "state"),
+            mesh=MeshState(storage_dir=tmp / "mesh"),
+            backup_root=tmp / "bk",
+            recycle_root=tmp / "rc",
+        )
+        self.addCleanup(app.dispose)
+        self.assertEqual(app.model_config_state, "catalog")
+        self.assertEqual(app.available_models(), ["cat-a", "cat-b"])
+        self.assertEqual(app.live_state.default_model, "cat-a")
+        self.assertEqual(app.provider.allowed_models, ("cat-a", "cat-b"))
+
 class UserFacingTextTest(unittest.TestCase):
     """用户可见的文案不得混入内部术语。
 
     `_DEEPSEEK_HTTP_HINTS` 的取值会作为 `ModelRequestError.detail` 直接回给用户，
     所以它只能说清"哪一端出了问题"。
 
-    只查这些字符串的**取值**，不查注释。
+    只查这些字符串的取值，不查注释。
     """
 
     #: 不该出现在用户可见文案里的词
@@ -417,7 +566,11 @@ class UserFacingTextTest(unittest.TestCase):
 
 
 class ReasonNotReplayedTest(unittest.TestCase):
-    """历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token。"""
+    """历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token。
+
+    但键必须留着：DeepSeek 思考模式下带 `tool_calls` 的 assistant 消息要回传
+    `reasoning_content`（空串可接受），缺键会 400。
+    """
 
     def _sample(self):
         return [
@@ -430,12 +583,36 @@ class ReasonNotReplayedTest(unittest.TestCase):
             {"role": "assistant", "content": "a2", "reasoning_content": "本轮推理"},
         ]
 
-    def test_cut_drops_everything_before_it(self) -> None:
+    def test_cut_clears_the_content_but_keeps_the_key_for_tool_messages(self) -> None:
         from agent.mechanisms.model_provider import _to_wire_messages
 
         wire = _to_wire_messages(self._sample(), keep_reasoning_from=5)
-        self.assertNotIn("reasoning_content", wire[2])
+        self.assertEqual(wire[2].get("reasoning_content"), "",
+                         msg="历史轮的工具消息必须保留键，只清空内容")
         self.assertEqual(wire[5].get("reasoning_content"), "本轮推理")
+
+    def test_plain_assistant_before_the_cut_drops_the_key(self) -> None:
+        from agent.mechanisms.model_provider import _to_wire_messages
+
+        wire = _to_wire_messages([
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1", "reasoning_content": "旧推理"},
+            {"role": "user", "content": "u2"},
+        ], keep_reasoning_from=2)
+        self.assertNotIn("reasoning_content", wire[1],
+                         msg="纯文本 assistant 没有回传要求，历史轮直接摘键")
+
+    def test_tool_message_without_reasoning_gets_an_empty_key(self) -> None:
+        """没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。"""
+        from agent.mechanisms.model_provider import _to_wire_messages
+
+        wire = _to_wire_messages([
+            {"role": "user", "content": "u"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "c1", "name": "t", "arguments": {}}]},
+            {"role": "tool", "tool_call_id": "c1", "content": "r"},
+        ], keep_reasoning_from=1)
+        self.assertEqual(wire[1].get("reasoning_content"), "")
 
     def test_cut_none_keeps_everything(self) -> None:
         from agent.mechanisms.model_provider import _to_wire_messages

@@ -3,18 +3,21 @@
 
 与 OpenAI 兼容适配的差别集中在三处：
 
-1. **消息形状**：system 提到顶层；工具结果是 `role:"user"` 里的 `tool_result` 块；
+1. 消息形状：system 提到顶层；工具结果是 `role:"user"` 里的 `tool_result` 块；
    assistant 的工具调用是 `tool_use` 块（参数是对象，不是 JSON 文本）。
-2. **extended thinking**：推理增量是 `thinking_delta`，签名随块回传；同一轮里带工具的
+2. extended thinking：推理增量是 `thinking_delta`，签名随块回传；同一轮里带工具的
    后续请求必须把 thinking 块（含 `signature`）原样带回，否则会被 API 拒绝。
    签名由内核 `provider_meta` 透传（见 `docs/plan/multi-model.md` 第 8 节）。
-3. **必填参数**：`max_tokens` 必填，且必须大于 thinking 预算。
+3. 必填参数：`max_tokens` 必填，且必须大于 thinking 预算。
 
 适配器只产出 `StreamDelta`；内核不认识 Anthropic 的线格式、块类型或签名。
 
-`LogicalRequest.effort`（High / Max）对本适配器**不生效**：思考深度由每条模型条目的
-`thinking_budget_tokens` 决定。该差异是有意的——Anthropic 的预算是 token 数，
-不是档位名。
+`LogicalRequest.effort`（High / Max）对本适配器不生效：本适配器不下发任何
+强度参数。两家的控制方式不同——Anthropic 官方用 `thinking.budget_tokens`（本适配器
+按条目的 `thinking_budget_tokens` 下发），DeepSeek 兼容层忽略 `budget_tokens`、
+改用 `output_config.effort`，而 Anthropic 官方会拒绝 `output_config` 这个未知字段。
+同一个适配器要同时服务两家，就只能不下发强度：DeepSeek 侧取服务端默认（high）。
+需要按档位调深度时用同一模型的 openai 协议条目（那里下发 `reasoning_effort`）。
 """
 from __future__ import annotations
 
@@ -31,9 +34,10 @@ from agent.mechanisms.model_provider import (
     ModelProvider,
     ModelRequestError,
     _parse_sse_lines,
+    tool_parameters,
 )
 
-#: HTTP 状态 → 面向用户的提示。与 DeepSeek 的表**分开**：同一状态码在两家的含义
+#: HTTP 状态 → 面向用户的提示。与 DeepSeek 的表分开：同一状态码在两家的含义
 #: 不完全一致（例如 529 只有 Anthropic 侧常见）。
 _HTTP_HINTS: Dict[int, str] = {
     400: "请求参数无效，请检查模型与参数配置。",
@@ -119,13 +123,15 @@ def _meta_blocks(m: Mapping[str, Any]) -> List[Dict[str, str]]:
             continue
         thinking = block.get("thinking")
         signature = block.get("signature")
-        if isinstance(thinking, str) and thinking and isinstance(signature, str) and signature:
+        # 文本允许为空：有的模型（如旧名 deepseek-chat）思考块正文就是空串，
+        # 但块本身仍必须原样回传（见下方 `_consume_block_stop` 的同一条约束）。
+        if isinstance(thinking, str) and isinstance(signature, str) and signature:
             out.append({"thinking": thinking, "signature": signature})
     return out
 
 
 def strip_stale_thinking(messages: List[Any], turn_start: Optional[int]) -> List[Any]:
-    """只保留**本轮**（下标 >= `turn_start`）的 thinking 块。
+    """只保留本轮（下标 >= `turn_start`）的 thinking 块。
 
     跨用户轮重放旧签名没有意义，还可能因为签名过期被拒。缺 `signature` 的块同样丢弃
     并留一条降级日志——留着它一定会被 API 拒绝，丢块最多损失一点推理上下文。
@@ -159,7 +165,7 @@ def strip_stale_thinking(messages: List[Any], turn_start: Optional[int]) -> List
 
 
 def _assistant_tool_ids(messages: List[Any]) -> Tuple[Dict[int, List[str]], Dict[str, List[str]]]:
-    """给每次 `tool_use` 分配**唯一** id，并登记 tool 消息的消费队列。
+    """给每次 `tool_use` 分配唯一 id，并登记 tool 消息的消费队列。
 
     重复 id 会让 API 无法配对（同一 id 出现两次），从第二次起追加 `_2`、`_3`。
     返回 `(消息下标 → 该消息内 tool_use 的新 id 列表, 旧 id → 新 id 队列)`。
@@ -193,7 +199,7 @@ def _assistant_tool_ids(messages: List[Any]) -> Tuple[Dict[int, List[str]], Dict
 def drop_dangling_tool_results(messages: List[Any]) -> List[Any]:
     """丢掉没有对应 `tool_use` 的 tool 消息。
 
-    悬空结果会被 API 拒绝，且是**整段会话打不开**——比丢一条结果严重得多。
+    悬空结果会被 API 拒绝，且是整段会话打不开——比丢一条结果严重得多。
     """
     known = set()
     for m in messages:
@@ -216,8 +222,15 @@ def drop_dangling_tool_results(messages: List[Any]) -> List[Any]:
 
 
 def _image_block(url: str) -> Optional[Dict[str, Any]]:
-    """`data:<mime>;base64,<data>` → Anthropic image 块；其它 URL 不支持。"""
-    text = str(url or "")
+    """图片地址 → Anthropic image 块：`data:` 走 base64，http(s) 走 url 源。
+
+    DeepSeek 兼容层的 `source.type` 支持 `base64` 与 `url`（Anthropic 官方也支持
+    这两种）。只认 `data:` 会让粘贴的图片链接在 anthropic 条目上静默消失，
+    而同一张图在 openai 条目里照常发送 —— 同一份输入在两个协议下不一致。
+    """
+    text = str(url or "").strip()
+    if text.startswith(("http://", "https://")):
+        return {"type": "image", "source": {"type": "url", "url": text}}
     if not text.startswith("data:"):
         return None
     head, _, data = text[5:].partition(",")
@@ -267,8 +280,14 @@ def _tool_result_content(content: Any) -> Any:
     return "（工具没有返回内容）"
 
 
-def _to_anthropic_messages(messages: List[Any], turn_start: Optional[int]) -> List[Dict[str, Any]]:
-    """逻辑消息 → Anthropic 线格式消息（system 另行提取，不在这里）。"""
+def _to_anthropic_messages(messages: List[Any], turn_start: Optional[int],
+                           *, keep_thinking: bool = True) -> List[Dict[str, Any]]:
+    """逻辑消息 → Anthropic 线格式消息（system 另行提取，不在这里）。
+
+    `keep_thinking=False` 时一条 thinking 块都不下发：思考关闭时带着思考块，
+    官方端点会拒（"thinking is not enabled"）；DeepSeek 兼容层虽然忽略，
+    也没有重放的意义。
+    """
     cleaned = drop_dangling_tool_results(strip_stale_thinking(messages, turn_start))
     ids_per_message, id_queues = _assistant_tool_ids(cleaned)
     out: List[Dict[str, Any]] = []
@@ -305,8 +324,9 @@ def _to_anthropic_messages(messages: List[Any], turn_start: Optional[int]) -> Li
         if role != "assistant":
             continue
         blocks: List[Dict[str, Any]] = []
-        for block in _meta_blocks(m):
-            blocks.append({"type": "thinking", **block})
+        if keep_thinking:
+            for block in _meta_blocks(m):
+                blocks.append({"type": "thinking", **block})
         text = m.get("content")
         if isinstance(text, str) and text:
             blocks.append({"type": "text", "text": text})
@@ -347,11 +367,12 @@ def _tools_payload(tools: Iterable[Any]) -> List[Dict[str, Any]]:
         name = str(fn.get("name") or "").strip()
         if not name:
             continue
-        schema = fn.get("input_schema") or fn.get("parameters")
         out.append({
             "name": name,
             "description": str(fn.get("description") or ""),
-            "input_schema": schema if isinstance(schema, dict) else {"type": "object", "properties": {}},
+            # 与 OpenAI 侧共用同一个规范化函数：`input_schema` 必须是带 `type` 的
+            # object schema，逻辑形的属性映射不能直接当 schema 下发。
+            "input_schema": tool_parameters(tool),
         })
     return out
 
@@ -361,6 +382,28 @@ def _tools_payload(tools: Iterable[Any]) -> List[Dict[str, Any]]:
 
 def _stop_reason_note(reason: str) -> str:
     return f"[anthropic] stop_reason={reason}" if reason else ""
+
+
+def _tool_turn_missing_thinking(messages: List[Any], turn_start: Optional[int]) -> bool:
+    """本轮有带 `tool_calls` 的 assistant 消息但没有任何可回传的 thinking 块？
+
+    DeepSeek 与 Anthropic 官方都要求：思考模式下，带 `tool_use` 的 assistant 消息
+    必须把 thinking 块原样带回（DeepSeek 报 `content[].thinking ... must be passed
+    back`，官方同义）。历史里丢了块（换了协议条目 / 签名缺失被丢弃）就再也补不回来，
+    此时只能关掉思考，否则这条会话在这条模型上永远打不开。
+    """
+    cut = max(0, int(turn_start or 0))
+    for index, m in enumerate(messages):
+        if index < cut or not isinstance(m, dict):
+            continue
+        if str(m.get("role") or "") != "assistant":
+            continue
+        calls = m.get("tool_calls")
+        if not isinstance(calls, list) or not calls:
+            continue
+        if not _meta_blocks(m):
+            return True
+    return False
 
 
 class AnthropicProvider(ModelProvider):
@@ -392,7 +435,14 @@ class AnthropicProvider(ModelProvider):
     # ── 请求体 ──
 
     def _thinking_enabled(self) -> bool:
-        """预算不足时关闭 thinking 并留痕（请求照常发出，配置瑕疵不该阻断对话）。"""
+        """预算不足时关闭 thinking 并留痕（请求照常发出，配置瑕疵不该阻断对话）。
+
+        这两条约束来自 Anthropic 官方（`budget_tokens >= 1024` 且
+        `max_tokens > budget_tokens`）。DeepSeek 兼容层会忽略 `budget_tokens`
+        （官方文档：`thinking` 支持、`budget_tokens` 被忽略），但同一个适配器
+        要能直接切到官方端点，所以约束照旧；关掉时显式下发 `disabled`，
+        而不是省略字段——省略在 DeepSeek 侧意味着"继续思考"。
+        """
         if not self.thinking:
             return False
         budget = self.thinking_budget_tokens
@@ -411,11 +461,17 @@ class AnthropicProvider(ModelProvider):
             raise ModelRequestError("model 未配置。")
         raw_messages = list(getattr(request, "messages", None) or [])
         turn_start = getattr(request, "turn_start", None)
+        thinking_on = self._thinking_enabled()
+        if thinking_on and _tool_turn_missing_thinking(raw_messages, turn_start):
+            # 历史工具轮丢了 thinking 块：补不回来，只能本轮关掉思考（否则必被拒）。
+            _warn("本轮带工具调用的 assistant 消息缺 thinking 块，已关闭 thinking")
+            thinking_on = False
         payload: Dict[str, Any] = {
             "model": model,
             "max_tokens": self.max_tokens,
             "stream": True,
-            "messages": _to_anthropic_messages(raw_messages, turn_start),
+            "messages": _to_anthropic_messages(
+                raw_messages, turn_start, keep_thinking=thinking_on),
         }
         system = _system_text(raw_messages)
         if system:
@@ -424,11 +480,17 @@ class AnthropicProvider(ModelProvider):
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = {"type": "auto"}
-        if self._thinking_enabled():
+        if thinking_on:
             payload["thinking"] = {
                 "type": "enabled",
                 "budget_tokens": self.thinking_budget_tokens,
             }
+        else:
+            # 必须显式关闭：DeepSeek 兼容层默认开启思考模式，不传 `thinking`
+            # 等于继续思考；而思考模式下带 `tool_use` 的 assistant 消息必须回传
+            # thinking 块，关掉思考就再也拿不到块 → 工具轮 400。Anthropic 官方同样
+            # 接受 `{"type":"disabled"}`。
+            payload["thinking"] = {"type": "disabled"}
         return payload
 
     # ── 传输 ──
@@ -571,7 +633,9 @@ def _consume_block_stop(data: Dict[str, Any],
     elif block.get("type") == "thinking":
         text = str(block.get("thinking") or "")
         sig = str(block.get("signature") or "")
-        if text and sig:
+        if sig:
+            # 正文允许为空：DeepSeek 兼容层要求带 `tool_use` 的思考块原样回传，
+            # 而有的模型思考正文就是空串；丢掉它会让下一子请求直接 400。
             thinking.append({"thinking": text, "signature": sig})
         elif text:
             _warn("收到缺 signature 的 thinking 块，已跳过（无法回传）")
@@ -640,7 +704,7 @@ def _tool_call(raw_id: Any, raw_name: Any, arguments_json: Any) -> ToolCallReque
 
 
 def _usage_payload(usage: Mapping[str, int]) -> Dict[str, int]:
-    """Anthropic 用量 → 与 OpenAI 适配**同名**的字段（界面与累计器无分支）。"""
+    """Anthropic 用量 → 与 OpenAI 适配同名的字段（界面与累计器无分支）。"""
     prompt = usage["input"] + usage["cache_read"] + usage["cache_create"]
     if prompt <= 0 and usage["output"] <= 0:
         return {}

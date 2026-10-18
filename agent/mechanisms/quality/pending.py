@@ -28,7 +28,7 @@ class PendingStore:
 
     @property
     def records(self) -> Dict[str, Dict[str, Any]]:
-        """底层字典的**快照**（测试与兼容层读长度 / 键，不能借此改动真表）。"""
+        """底层字典的快照（测试与兼容层读长度 / 键，不能借此改动真表）。"""
         with self._lock:
             return dict(self._pending)
 

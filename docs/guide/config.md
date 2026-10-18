@@ -1,6 +1,6 @@
 # 配置
 
-配置文件是仓库根目录的 `config.ini`，从 `config.ini.example` 复制后填写：
+配置文件是仓库根目录的 `config.ini`；`config.ini.example` 是不含密钥的模板：
 
 ```bash
 cp config.ini.example config.ini
@@ -17,9 +17,10 @@ cp config.ini.example config.ini
 ```ini
 [model_reasoning]
 api_base_url = https://api.deepseek.com
-api_key      = 你的 API Key
+api_key      = sk-请替换
 model        = deepseek-flash
 models       = deepseek-flash, deepseek-v4-pro
+context_window = 1000000
 ```
 
 | 键 | 内置缺省 | 含义 |
@@ -28,6 +29,7 @@ models       = deepseek-flash, deepseek-v4-pro
 | `api_key` | 空 | 鉴权密钥。**留空时服务启动失败**（壳层装配阶段报错退出，退出码 2）。设置页只回是否已填写，不回明文；密码框留空不改这一项，填了新值才替换 |
 | `model` | `deepseek-v4-flash-vision-exp` | 默认模型名；配置里给了值就以它为准 |
 | `models` | 空 | 会话内可选的模型名，逗号分隔。留空则只能用 `model` |
+| `context_window` | `1000000` | 该模型的上下文窗口（token）。界面按它算"上下文占用率"；**物理上限**，与 `[context]` 的压缩阈值（预算）不是一回事。换模型时一起改；多模型由插件按条目各自声明 |
 
 接口需兼容 OpenAI Chat Completions 格式。
 
@@ -44,7 +46,7 @@ plugin_tree_only = 0
 
 | 键 | 默认 | 含义 |
 |---|---|---|
-| `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可在界面上临时切换，**会话级选择优先** |
+| `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可切换，**会话级选择优先**，且按会话落盘（`data/session_state/`） |
 | `backup_retention_days` | `7` | 版本化备份保留天数。启动时清理更早的；`0` = 永久保留 |
 | `max_passes` | `64` | 一回合最多跑多少次模型往返；小于 1 按 1 处理。一趟可带多个工具调用 |
 | `user_rules_file` | 空 | 用户自定义规则文件（`.md` / `.txt`）。留空则不加规则段 |
@@ -100,7 +102,6 @@ summary_output_max_chars = 5000
 image_turns              = 999999
 image_max                = 999999
 reasoning_replay_tokens = 8000
-model_context_window     = 1000000
 ```
 
 | 键 | 缺省或留空时 | 含义 | 建议范围 |
@@ -110,8 +111,7 @@ model_context_window     = 1000000
 | `summary_output_max_chars` | `5000` | 摘要的篇幅上限，单位为字。它作为约束写进摘要提示词，实际长度由模型遵守程度决定 | `2000`–`8000` |
 | `image_turns` | `999999` | 只把**最近这么多轮用户发言**里的图片带进模型请求，更早的转文本占位。`0` = 一张都不带，负数 = 不限；缺省不剥 | 正整数 / 负数 |
 | `image_max` | `999999` | 这几轮里最多带几张图；**最近一轮优先保**，超量的从最老的那一轮开始砍。`0` = 一张都不带，负数 = 不限 | 正整数 / 负数 |
-| `reasoning_replay_tokens` | `8000` | 思维链回传预算（token）。`-1` = 全量回传；`0` = 不回传；正数 = 超出就**取两头、中间以 `<此处省略 N token 的推理>` 代替**（前后文够模型脑补中间）。思维链是模型产生的中间稿，必然未命中缓存，全量回传等于每轮多背几万 token | `-1` / `0` / 正数 |
-| `model_context_window` | `1000000` | 模型上下文窗口（token）。界面按它算"上下文占用率"；**物理上限**，与压缩阈值（预算）不是一回事 | 正整数 |
+| `reasoning_replay_tokens` | `8000` | 思维链回传预算（token）。`-1` = 全量回传；`0` = 不回传；正数 = 超出就**取两头、中间以 `<此处省略 N token 的推理>` 代替**（模型可据前后文推断中间）。思维链是模型产生的中间稿，必然未命中缓存，全量回传等于每轮多背几万 token | `-1` / `0` / 正数 |
 
 图片只从**发给模型的请求**里被裁掉，事实流里的字节不动 —— 历史回显与重新提问都还能拿到原图。
 
@@ -179,8 +179,8 @@ version = 1.0
 | 目录 | 内容 |
 |---|---|
 | `data/sessions/` | 会话事实日志 |
-| `data/titles/` | 会话标题 |
-| `data/todo_lists/` | 执行清单状态 |
+| `data/titles/` | 会话标题（纯文本派生缓存） |
+| `data/session_state/` | 会话状态（模型 / 模式 / 推理档位 / 清单，一个会话一份 JSON） |
 | `data/temp/` | 临时产物（写盘前备份见上节「文件备份」） |
 | `data/mesh/` | 会话间消息（`agents.json` 注册表 + `inbox/<cid>.jsonl` 队列） |
 | `data/mesh/runs/` | 运行态登记（`<cid>.json`） |

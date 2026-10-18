@@ -1,6 +1,6 @@
 /* render/markdown.js —— Markdown 渲染：marked 扩展、代码围栏、diff 卡片、渲染入口。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 var _mdParser=null;
@@ -21,7 +21,7 @@ var _markedRenderer=null;
 function markedRenderer(){
 if(_markedRenderer)return _markedRenderer;
 var r=new marked.Renderer();
-/* 路径改写**只在渲染这一步做**，不改 token：`walkTokens` 改过 `href` 之后
+/* 路径改写只在渲染这一步做，不改 token：`walkTokens` 改过 `href` 之后
    就取不回本地路径了，而悬停提示要显示文件在哪。
    视频用 `<video>` 而不是 `<img>`：`<img>` 对 mp4 只会显示成破图。 */
 r.image=function(token){
@@ -47,7 +47,7 @@ return r;
 function renderMarkdownBlocks(seg){
 var parser=mdParser();
 if(!parser||typeof parser.parse!=="function"){
-/* 解析器缺失时回落成纯文本：宁可少排版，也不要把 markdown 源码当 HTML 插进去 */
+/* 解析器缺失时回落成纯文本：排版减少，markdown 源码不会被当作 HTML 插入 */
 return '<p>'+escapeHtml(seg||"").replace(/\n/g,"<br/>")+'</p>';
 }
 return sanitizeRenderedHtml(parser.parse(String(seg||""),{gfm:true,breaks:false,html:false}));
@@ -198,7 +198,7 @@ html+='<div class="chat-diff-card">'+cap+box+'</div>';
 return html;
 }
 /* 围栏缩进上限（空格数）。
-   按 CommonMark，围栏可以缩进 0–3 个空格；**列表项里的围栏通常缩进 1–3 格**
+   按 CommonMark，围栏可以缩进 0–3 个空格；列表项里的围栏通常缩进 1–3 格
    （`- 说明：\n  ```python\n  …\n  ```），只认行首会让这些围栏裸露成正文。
    缩进 4 格及以上是缩进式代码块，不是围栏，不在此处理。 */
 var FENCE_MAX_INDENT=3;

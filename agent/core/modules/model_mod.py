@@ -34,17 +34,17 @@ from agent.core.tool_call import ToolCallRequest
 
 
 class ModelModule(ModuleBase):
-    """调用模型；增量**边到边出**（`yield`），本步结论落成 `model_message` 事实。
+    """调用模型；增量边到边出（`yield`），本步结论落成 `model_message` 事实。
 
-    **什么时候该跑**：只看事实末端——
+    什么时候该跑：只看事实末端——
       - 末端是新用户输入（`input_claimed`）→ 该跑；
       - 末端是未消费的工具结果（`tool_result`）→ 该跑（模型得看结果）；
       - 末端已是模型自己的消息 → 不跑，返回 `ok`。
 
     模型与工具轮替推进，每次推进都把新事实追加到末端，
-    所以看**末端是谁**就能判断该不该跑，不需要额外的记账。
+    所以看末端是谁就能判断该不该跑，不需要额外的记账。
 
-    **不要求续行**：模型只负责"说话"；"还要不要再调一轮工具"是工具模块的语义
+    不要求续行：模型只负责"说话"；"还要不要再调一轮工具"是工具模块的语义
     （它是收尾模块）。
     """
 
@@ -60,14 +60,14 @@ class ModelModule(ModuleBase):
         self._compactor = compactor
         self._effort = str(effort or "high")
         #: 本次请求要用哪个模型（空串 = 用 provider 的默认）。
-        #: 与 `effort` 同源：都在**每个回合装配引擎时**由会话级设置解析而来。
+        #: 与 `effort` 同源：都在每个回合装配引擎时由会话级设置解析而来。
         self._model = str(model or "")
-        #: 只把**最近这么多轮**用户发言里的图带进请求；负数 = 不限。
+        #: 只把最近这么多轮用户发言里的图带进请求；负数 = 不限。
         #: 缺省 999999 = 不剥（前缀稳定、缓存可复用）。
         self._image_turns = int(image_turns)
         #: 这些轮里最多带几张图；负数 = 不限。最近一轮优先保。
         self._image_max = int(image_max)
-        #: 执行模式说明：**只加在发给模型的这一份请求尾部**，不落记录、不发事件。
+        #: 执行模式说明：只加在发给模型的这一份请求尾部，不落记录、不发事件。
         #: 放在最后一项是为了让切模式只影响尾部这一条，前面的前缀缓存照旧命中。
         self._mode_note = str(mode_note or "")
 
@@ -129,7 +129,7 @@ class ModelModule(ModuleBase):
             turn_start=len(messages) - len(dialogue) + turn_start,
             conversation_id=str(getattr(ports, "conversation_id", "") or ""),
         )
-        # 装配完成 → 发一条**分段快照**（上下文示意图的数据源）。
+        # 装配完成 → 发一条分段快照（上下文示意图的数据源）。
         # 分段统计走把装配结果拆开的方式：模式与工具结果的内部注入只在这份
         # 装配里，落记录里没有，所以只能在这里算。
         #
@@ -143,7 +143,7 @@ class ModelModule(ModuleBase):
         segments = _segment_snapshot(self.context_pass, messages, budget_tokens=budget)
         if segments is not None:
             yield ports.emit(CONTEXT_SEGMENTS, **segments)
-        # 模型模块**自己的**细粒度事件：调用边界。有了它，监控能算出调用 RT
+        # 模型模块自己的细粒度事件：调用边界。有了它，监控能算出调用 RT
         # （以及首帧时延），而不必去猜"哪两个事件之间算一次调用"。
         # 这是"各个模块内部管理自己的事件"的落点——宿主不掺和。
         from time import perf_counter
@@ -163,19 +163,19 @@ class ModelModule(ModuleBase):
             for delta in model.stream(request):
                 if ports.canceled():
                     # 取消检查点（流式消费中每帧）：长回答能被立刻打断，
-                    # 不必等它说完。已产出的增量**保留**（那是已发生的事实）。
+                    # 不必等它说完。已产出的增量保留（那是已发生的事实）。
                     yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
                                      error="CanceledByUser", elapsed_ms=int((perf_counter() - started) * 1000),
                                      chunks=chunks)
                     yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
                                      status="canceled", elapsed_ms=int((perf_counter() - started) * 1000),
                                      chunks=chunks)
-                    # **返回 `stopped`**：同一次用户动作在工具路径
+                    # 返回 `stopped`：同一次用户动作在工具路径
                     # 已经被归一成 `stopped`（见下面的工具取消分支与 `host.py` 的
                     # `_asked_to_stop`）。模型路径若返回 `halt`，宿主就报
                     # `turn_ended{halted:true}` → 适配层只认 `paused`/`stopped`
-                    # → 发出 `done{ok:true}`、**不发 `stopped`** —— 于是
-                    # "用户停止"在**最常见的打断路径（流式生成中）**上到不了观察面：
+                    # → 发出 `done{ok:true}`、不发 `stopped` —— 于是
+                    # "用户停止"在最常见的打断路径（流式生成中）上到不了观察面：
                     # 步骤卡被收成绿色 `Done`/"思考完毕"，别的标签页/API 客户端
                     # 永远以为"正常完成"。同一个动作两种终态，也违反
                     # `outcome.py` 自己写的"stopped ≠ halt，观察面要能分辨"。
@@ -193,15 +193,15 @@ class ModelModule(ModuleBase):
                 elif kind == "tool_call" and getattr(delta, "tool_call", None) is not None:
                     tool_calls.append(delta.tool_call)
                 elif kind == "meta" and getattr(delta, "meta", None):
-                    # 厂商私有元数据：内核**不解释**，只按键合并后落进事实。
+                    # 厂商私有元数据：内核不解释，只按键合并后落进事实。
                     # 后到的同键覆盖先到的（适配器按轮次只发一次，合并只是兜底）。
                     provider_meta.update(delta.meta)
                 elif kind == "usage" and getattr(delta, "usage", None):
                     usage = dict(delta.usage)
         except Exception as exc:
-            # 模型调用失败：**结构化上报**（结果 + 终态都发），然后让回合停。
+            # 模型调用失败：结构化上报（结果 + 终态都发），然后让回合停。
             # 交给模型模块是因为只有它知道"这次调用失败了"；
-            # 重试是**策略**，属于钩子（尚未接线），不在这里偷偷重试。
+            # 重试是策略，属于钩子（尚未接线），不在这里偷偷重试。
             failure = f"{type(exc).__name__}: {exc}"
             report_error("core.model", exc)
         elapsed = int((perf_counter() - started) * 1000)

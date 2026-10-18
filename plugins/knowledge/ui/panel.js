@@ -1,6 +1,6 @@
 /* 知识库面板逻辑。
    属于 knowledge 插件：面板 HTML、样式、脚本都由插件提供，壳层只按 `_asset` 路由送达。
-   取数走**插件自己的端点**（`/api/plugin/knowledge/*`）——
+   取数走插件自己的端点（`/api/plugin/knowledge/*`）——
    经 `aiAgentPlugins` 客户端拿地址，插件不必知道自己的 URL 前缀。
 */
 (function () {
@@ -16,7 +16,7 @@
       .replace(/"/g, "&quot;");
   }
 
-  /* 当前会话 id：勾选是**按会话**记的，所以每次取数都要带上它。
+  /* 当前会话 id：勾选是按会话记的，所以每次取数都要带上它。
      壳层把会话 id 放在 `#cid` 上（前 8 位是显示用的，完整值在 dataset 或全局变量里），
      这里优先用壳层暴露的取值函数，取不到再退回读 `#cid`。 */
   function currentCid() {
@@ -52,7 +52,7 @@
   }
 
   function renderList(container, files, checkedSet, cid) {
-    /* 小标题右侧挂刷新：知识库目录是**外部**目录，用户随时会往里加文件，
+    /* 小标题右侧挂刷新：知识库目录是外部目录，用户随时会往里加文件，
         面板不重开也要能取到新的。按钮用壳层的 `.pane-btn` —— 与文件查看器
         那个刷新是同一套样式，两处不会长得不一样。 */
     var html =
@@ -138,7 +138,7 @@
     return !!document.getElementById("kbBody");
   }
 
-  /* 面板**打开时**渲染：脚本在开屏就被预载，那时面板 DOM 还不存在，首次 render() 是空跑；
+  /* 面板打开时渲染：脚本在开屏就被预载，那时面板 DOM 还不存在，首次 render() 是空跑；
      而脚本只载一次，开面板时不会再执行。段色由 plugin.py 的 add_ctx_segment_style 登记。
      所以渲染由壳层广播的打开事件驱动 —— 壳层不点名任何插件，插件也不要求壳层认识自己。 */
   document.addEventListener("ai-agent:panel-opened", function (ev) {
@@ -158,7 +158,7 @@
     }
   });
 
-  /* 勾选是**按会话**记的，所以会话一切换就要重取。 */
+  /* 勾选是按会话记的，所以会话一切换就要重取。 */
   document.addEventListener("ai-agent:conversation-changed", function () {
     if (visible()) render();
   });

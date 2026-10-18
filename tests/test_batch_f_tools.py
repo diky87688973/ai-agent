@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """集成与外围测试：ip 定位 / 天气 / review 提交 / Skills 库与工具 / GitHub。
 
-网络类以 unittest.mock 替换模块内 HTTP 层；storage 类（Skills 库）用临时目录实测。
+网络类以 unittest.mock 替换模块内 HTTP 层；storage 类（Skills 库）用临时目录。
 """
 from __future__ import annotations
 

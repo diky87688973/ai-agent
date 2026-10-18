@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""校验 GitHub workflow 与 `scripts/ci_steps.py` **逐字节一致**。
+"""校验 GitHub workflow 与 `scripts/ci_steps.py` 逐字节一致。
 
 以前这里只比对步骤名，命令参数少一个 `--flag`、超时改了都发现不了。
 现在 `.github/workflows/ci.yml` 由 `scripts/gen_ci_workflow.py` 生成，
@@ -54,7 +54,7 @@ def check() -> list[str]:
                 f"{_display(WORKFLOW)}:{lineno} 与生成结果不一致",
                 f"  实际：{got!r}",
                 f"  期望：{want!r}",
-                "修法：python scripts/gen_ci_workflow.py（不要手改 yml）",
+                "修法：python scripts/gen_ci_workflow.py（直接改 yml 会被下一次生成覆盖）",
             ]
     if len(actual_lines) != len(expected_lines):
         return [

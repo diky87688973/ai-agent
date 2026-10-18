@@ -92,7 +92,7 @@ class ProcessServiceRegistryTest(_AppFixture):
         self.assertIsNone(self.app.store)
 
     def test_context_and_compactor_factories_default_on(self) -> None:
-        """上下文管线与压缩器**默认装配**。"""
+        """上下文管线与压缩器默认装配。"""
 
         self.assertTrue(self.app.context.has(SERVICE_SESSION_FACTORY))
         self.assertTrue(self.app.context.has(SERVICE_COMPACTOR_FACTORY))

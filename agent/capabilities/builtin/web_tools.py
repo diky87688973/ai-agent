@@ -294,7 +294,7 @@ class WebFetchRenderTool(ToolPlugin):
                 try:
                     meta_desc = page.get_attribute("meta[name=description]", "content") or ""
                 except Exception:
-                    # **旁路，刻意吞掉**：meta 描述是抓取时的**可选**信息，
+                    # 旁路，刻意吞掉：meta 描述是抓取时的可选信息，
                     # 页面没有这个标签（或选择器不合法）就拿空串，不影响正文抓取。
                     pass
                 browser.close()

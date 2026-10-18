@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""执行模式是**请求尾部的临时后缀**：不进系统提示词、不进历史、不发事件。
+"""执行模式是请求尾部的临时后缀：不进系统提示词、不进历史、不发事件。
 
 理由：模式一变就改动系统提示词的话，从系统提示词那一位起整段上下文的前缀缓存
 全部作废（切一次 plan 就等于把整个上下文按原价重发一遍）。把它放到请求最末尾，
@@ -22,6 +22,7 @@ from agent.shell.prompts import (  # noqa: E402
     resolve_system_prompt,
     split_mode_section,
 )
+from tests.testkit import no_plugins  # noqa: E402
 
 MODES = ("auto", "plan", "execute")
 
@@ -75,7 +76,7 @@ class SystemPromptHasNoModeTest(unittest.TestCase):
 
 
 class ModeTailShapeTest(unittest.TestCase):
-    """模式说明是请求的**最后一条**，且不改动别处。"""
+    """模式说明是请求的最后一条，且不改动别处。"""
 
     def _base(self):
         return [
@@ -145,6 +146,9 @@ class ModeIsNotPersistedTest(unittest.TestCase):
         from agent.core.model_call import StreamDelta
         from agent.mechanisms.session_store import SessionStore
 
+        # 不装插件：本用例断言的是"模式说明不进事实流"，与插件贡献无关。
+        # 不隔离的话，开发者本机的插件配置（目录权威 / 注入源）会改变这一轮的请求。
+        no_plugins(self)
         class _Spy:
             def __init__(self):
                 self.reqs = []

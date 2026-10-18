@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """模型目录：跨厂商的模型描述注册表 + provider 缓存。
 
-**唯一权威来源**，语义是"替换"而不是"合并"：同一来源再注册一次就是配置变了，
+唯一权威来源，语义是"替换"而不是"合并"：同一来源再注册一次就是配置变了，
 整批覆盖。合并式注册表一旦真出现第二个来源，`default_id` 该听谁的就没法回答。
 
 三条纪律：
 
-1. **权威是算出来的**：`authoritative = len(有效条目) > 0`。不能把布尔值固化在
+1. 权威是算出来的：`authoritative = len(有效条目) > 0`。不能把布尔值固化在
    设置那一刻——配置从 3 条改成 0 条时，布尔值不会跟着变，权威就会指着一个空目录。
-2. **锁内不做 I/O**：条目回调可能读配置文件，解析与校验在锁外完成，进锁只做一次
+2. 锁内不做 I/O：条目回调可能读配置文件，解析与校验在锁外完成，进锁只做一次
    引用替换。任意一次快照要么全旧、要么全新。
-3. **provider 缓存按整批重建**：条目任一字段变化就丢光缓存。条目数是十几个，
+3. provider 缓存按整批重建：条目任一字段变化就丢光缓存。条目数是十几个，
    重建成本可忽略，换来的是没有"指纹算错拿了旧实例"这类难复现的问题。
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ EntrySource = Union[Sequence["ModelEntry"], Callable[[], Sequence["ModelEntry"]]
 class ModelEntry:
     """一条模型描述。
 
-    `options_json` 存**规范化 JSON** 而不是共享 dict：`frozen` 只保证字段不能重新赋值，
+    `options_json` 存规范化 JSON 而不是共享 dict：`frozen` 只保证字段不能重新赋值，
     字段里塞一个可变 dict 仍然能被调用方改写——那样的"只读视图"是假的。
     """
 
@@ -70,13 +70,25 @@ class ModelEntry:
 
     @property
     def options(self) -> Dict[str, Any]:
-        """选项的**新副本**：调用方改它不会影响目录里的那份。"""
+        """选项的新副本：调用方改它不会影响目录里的那份。"""
         try:
             data = json.loads(self.options_json or "{}")
         except (TypeError, ValueError):
             # 单条目录的 options 坏了只影响这一条；按空选项继续，目录仍可用。
             return {}
         return dict(data) if isinstance(data, dict) else {}
+
+    @property
+    def context_window(self) -> int:
+        """模型上下文窗口（token）；条目没声明时为 0（调用方用缺省值兜底）。
+
+        它是物理上限，只用于界面算占用率；压缩阈值是预算，两者不能混用。
+        """
+        try:
+            return max(0, int(self.options.get("context_window") or 0))
+        except (TypeError, ValueError):
+            # 窗口写坏了按未声明处理：只影响占用率展示，模型照常可用。
+            return 0
 
 
 @dataclass(frozen=True)
@@ -107,7 +119,7 @@ class ModelCatalog:
         self._lock = threading.Lock()
         self._source = ""
         self._entries: EntrySource = ()
-        #: 每次登记/注销自增；disposer 只对**自己那次登记**生效。
+        #: 每次登记/注销自增；disposer 只对自己那次登记生效。
         self._generation = 0
         #: 最近一次成功解析出的条目；热读失败时继续用它，不让模型列表凭空消失。
         self._last_good: Tuple[ModelEntry, ...] = ()
@@ -121,7 +133,7 @@ class ModelCatalog:
     def set_source(self, source: str, entries: EntrySource) -> Disposer:
         """登记（或整批替换）一个来源；返回幂等 disposer。
 
-        第二个**不同**来源被拒绝：目录只允许一个权威。拒绝时保留原来源并留痕，
+        第二个不同来源被拒绝：目录只允许一个权威。拒绝时保留原来源并留痕，
         插件装载不因此失败（装载顺序不是契约，必须确定且可审计）。
         """
         name = str(source or "").strip()

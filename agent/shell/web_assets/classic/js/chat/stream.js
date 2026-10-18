@@ -1,6 +1,6 @@
 /* chat/stream.js —— SSE 流：读 `/api/chat/stream` 帧、分发事件、开屏订阅全局事件流。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function escapeHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
@@ -15,7 +15,7 @@ if(window.DEBUG){try{console.log("[SSE] 流结束 EOF",{streamCid:String(streamC
 const sseCloseCid=normalizeConversationId(streamCid||"");if(!sseCloseCid){if(window.DEBUG)console.error("[SSE] 流结束：stream 绑定缺少有效 conversation_id，已跳过收尾渲染",{streamCid:String(streamCid||"")});break;}withConversationContext(sseCloseCid,function(){
 if(endedAwaitingUserConfirm){hideChatLoading();return;}
 if(!anyToolThisTurn&&!streamAssistantEl&&!lastLlm){hideChatLoading();}else if(toolOpen.size>0||pendingToolTags.length>0){
-add("a","⚠️ **系统检测到意外断开连接。** 可能原因：网络波动、服务器繁忙、调用工具次数达到上限。部分工具已运行完毕（见右侧步骤面板），你可重新发起对话尝试恢复，或将复杂任务拆分为多步逐步执行。");
+add("a","⚠️ 系统检测到意外断开连接。可能原因：网络波动、服务器繁忙、调用工具次数达到上限。部分工具已运行完毕（见右侧步骤面板），可重新发起对话尝试恢复，或将复杂任务拆分为多步执行。");
 abortPendingToolTags();resetTurnState();hideChatLoading();if(lastLlm){finishLlmTitle(false);lastLlm.tag.className="tag bad";lastLlm.tag.textContent="截断";lastLlm=null;}
 }
 });
@@ -28,9 +28,9 @@ if(line.indexOf("data:")!==0)continue;
 const raw=line.slice(5).trim();let ev;try{ev=JSON.parse(raw);}catch(_jsonErr){if(window.DEBUG){console.warn("[SSE recv] JSON 解析失败",{error:String(_jsonErr&&_jsonErr.message||_jsonErr),sample:String(raw||"").slice(0,400)});console.error("[SSE] JSON 解析失败，已跳过本行（不渲染）",{error:String(_jsonErr&&_jsonErr.message||_jsonErr),sample:String(raw||"").slice(0,240)});}continue;}
 if(window.DEBUG){try{console.log("[SSE recv]",{streamCid:String(streamCid||""),type:ev&&ev.type,conversation_id:ev&&ev.conversation_id,ev:ev});}catch(e){}}
 const packetCid=normalizeConversationId(ev.conversation_id);if(!packetCid){if(window.DEBUG){console.warn("[SSE recv] 已丢弃（conversation_id 缺失或非法）",{streamCid:String(streamCid||""),type:ev&&ev.type,conversation_id:ev&&ev.conversation_id,ev:ev});console.error("[SSE] 数据包缺少或非法 conversation_id，已跳过渲染（不写入任何会话）",{type:ev&&ev.type,conversation_id:ev&&ev.conversation_id});}continue;}withConversationContext(packetCid,function(_ctxTab){if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);/* 服务端不推送 model（outbound 的 conversation 帧不含该字段）；
-       此处不覆盖用户当场的选择。*/if(renderingContextVisible){if(ev.mode)applyMode(ev.mode);}}
+       此处不覆盖用户当场的选择。*/if(renderingContextVisible){if(ev.mode)applyMode(ev.mode,false);}}
 else if(ev.type==="run_started"){_ctxTab.activeRunId=String(ev.run_id||"");}
-else if(ev.type==="mode_changed"&&ev.mode){_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible)applyMode(normalizeMode(ev.mode));}
+else if(ev.type==="mode_changed"&&ev.mode){_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible)applyMode(normalizeMode(ev.mode),false);}
 else if(ev.type==="dispatch_title")addDispatchTitle(ev.title||"");
 else if(ev.type==="llm_round")addLlmRound(ev.round);
 else if(ev.type==="llm_request")onLlmRequest(ev);
@@ -77,9 +77,9 @@ if(!ev||ev.type==="heartbeat"||ev.type==="global_sse_ready")return;
 if(ev.type==="plugins_changed"){applyPluginsChanged(ev);return;}
 const packetCid=normalizeConversationId(ev.conversation_id);if(!packetCid)return;
 withConversationContext(packetCid,function(_ctxTab){
-if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);if(ev.model)_ctxTab.selectedModel=String(ev.model||"");if(renderingContextVisible){if(ev.mode)applyMode(ev.mode);if(ev.model)applyModel(ev.model);}}
+if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);if(ev.model)_ctxTab.selectedModel=String(ev.model||"");if(renderingContextVisible){if(ev.mode)applyMode(ev.mode,false);if(ev.model)applyModel(ev.model);}}
 else if(ev.type==="run_started"){_ctxTab.activeRunId=String(ev.run_id||"");_ctxTab.abortController=_ctxTab.abortController||{global:true};showChatLoading();}
-else if(ev.type==="mode_changed"&&ev.mode){_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible)applyMode(normalizeMode(ev.mode));}
+else if(ev.type==="mode_changed"&&ev.mode){_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible)applyMode(normalizeMode(ev.mode),false);}
 else if(ev.type==="dispatch_title")addDispatchTitle(ev.title||"");
 else if(ev.type==="llm_round")addLlmRound(ev.round);
 else if(ev.type==="llm_request")onLlmRequest(ev);

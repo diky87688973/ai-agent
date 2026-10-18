@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""压缩检视：对某个会话打印上下文分段与压缩判定，**只读不写**。
+"""压缩检视：对某个会话打印上下文分段与压缩判定，只读不写。
 
 回答的问题是"这一轮到底压了什么、为什么"，比看代码猜快：
 
@@ -111,7 +111,7 @@ def _chunk_report(pipeline: Any) -> List[Tuple[str, int]]:
             try:
                 _role, text, _flag = item
             except (TypeError, ValueError):
-                # **旁路，刻意跳过**：块内容的结构由管线决定，这里只做统计展示。
+                # 旁路，刻意跳过：块内容的结构由管线决定，这里只做统计展示。
                 # 形态对不上的条目直接不计入，不能让一次估算失败打断整个检视。
                 continue
             total += default_message_tokens({"role": "system", "content": str(text)})
@@ -173,7 +173,7 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
     print(f"  管线估算 token  {_fmt_tokens(total)}   （钩子 + 已放入窗口的块）")
     print(f"  阈值            {_fmt_tokens(threshold)}")
     over = full_tokens > threshold
-    print(f"  判定            {'**超过阈值 → 会触发压缩**' if over else '未超阈值 → 不触发压缩'}")
+    print(f"  判定            {'超过阈值 → 会触发压缩' if over else '未超阈值 → 不触发压缩'}")
     if threshold > 0:
         print(f"  占用            {full_tokens / threshold * 100:.1f}%")
 
@@ -229,7 +229,7 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
             body = str(m.get("content") or "")
             print(f"      {len(body)} 字符：{' '.join(body.split())[:70]}")
         pending = {"messages": messages[-2:]} if len(messages) >= 2 else None
-        # 与 `ModelModule` 同序：**先把这一轮真正要发的样子装进管线**（摘要 + 未覆盖对话），
+        # 与 `ModelModule` 同序：先把这一轮真正要发的样子装进管线（摘要 + 未覆盖对话），
         # 再让压缩器估体积。反过来（管线里还是占位对话）算出来的体积偏小，
         # 会得出"不会压缩"的假结论。
         pipeline.set_summary_messages(sm)

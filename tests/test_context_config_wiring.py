@@ -29,9 +29,11 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
         src = inspect.getsource(factory)
         cfg = get_context()
         sig = inspect.signature(ContextPipeline.__init__).parameters
-        # 管线构造参数里凡是 [context] 有的项，工厂都必须传
+        # 管线构造参数里凡是 [context] 有的项，工厂都必须传。
+        # `model_context_window` 不在其中：窗口是模型的属性，由 `App.session`
+        # 按会话当前模型回填（见 `App.context_window_for`），不属于上下文预算。
         for name in sig:
-            if name in ("self", "conversation_id", "sources"):
+            if name in ("self", "conversation_id", "sources", "model_context_window"):
                 continue
             self.assertIn(name, cfg, msg=f"管线参数 {name} 在配置里没有对应项")
             self.assertIn(f"{name}=", src,
@@ -46,8 +48,10 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
         cfg = get_context()
         self.assertEqual(pipe.summary_token_threshold, cfg["summary_token_threshold"])
         self.assertEqual(pipe.reasoning_replay_tokens, cfg["reasoning_replay_tokens"])
-        self.assertEqual(pipe.model_context_window, cfg["model_context_window"])
         self.assertEqual(pipe.full_user_rounds, cfg["full_user_rounds"])
+        # 工厂不猜窗口；会话装配时按模型回填。
+        self.assertEqual(pipe.model_context_window, 0)
+        self.assertGreater(app.context_window_for("probe-cid"), 0)
 
 
 class SegmentEventCarriesTheWindowTest(unittest.TestCase):
@@ -75,6 +79,9 @@ class SegmentEventCarriesTheWindowTest(unittest.TestCase):
         data = dict(segs[-1].data)
         self.assertGreater(int(data.get("model_max_context_tokens") or 0), 0)
         self.assertGreater(int(data.get("budget_tokens") or 0), 0)
+        self.assertEqual(int(data.get("model_max_context_tokens")),
+                         app.context_window_for("win-cid"),
+                         msg="事件里的分母必须就是该会话当前模型的窗口")
         self.assertNotEqual(data.get("model_max_context_tokens"),
                             data.get("budget_tokens"),
                             msg="窗口与预算不是一回事，不该相等（相等说明有人拿预算当窗口）")

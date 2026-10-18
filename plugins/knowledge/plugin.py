@@ -46,8 +46,8 @@ INJECT_PREFIX = "【知识库：{rel}】"
 #: 按表格解析的扩展名（需要 openpyxl）
 TABLE_SUFFIXES = (".xlsx", ".xls", ".xlsm")
 
-#: 可收录的文本类扩展名。**知识库只收文本**：非文本文件读出来是替换字符与 NUL，
-#: 注进上下文等于白占预算，还会把模型带偏。没有扩展名的文件按文本对待（README 之类）。
+#: 可收录的文本类扩展名。知识库只收文本：非文本文件读出来是替换字符与 NUL，
+#: 注进上下文会占用预算而无信息量，还会干扰模型对文档内容的判断。没有扩展名的文件按文本对待（README 之类）。
 TEXT_SUFFIXES = (
     ".md", ".markdown", ".txt", ".text", ".rst", ".log", ".csv", ".tsv",
     ".json", ".jsonl", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".env",
@@ -56,8 +56,6 @@ TEXT_SUFFIXES = (
     ".java", ".kt", ".go", ".rs", ".c", ".h", ".cpp", ".hpp", ".cs", ".rb", ".php", ".lua",
     ".properties", ".gradle", ".dockerfile", ".gitignore",
 )
-#: 无扩展名时也收的常见文件名
-TEXT_FILENAMES = ("dockerfile", "makefile", "readme", "license", "changelog")
 
 
 def parse_extra_suffixes(raw: Any) -> Tuple[str, ...]:
@@ -233,8 +231,8 @@ class _KnowledgeFiles:
     def read_text(self, target: Path) -> str:
         """读文件正文：表格转文本（Sheet 头 + 制表符分行），其余按 utf-8 容错解码。
 
-        按 `(路径, mtime, 大小)` 缓存：装配一趟会收集三次，每次勾选文件都全量重读
-        纯属白烧磁盘；文件一改（mtime/大小变）缓存自动失效。
+        按 `(路径, mtime, 大小)` 缓存：装配一趟会收集三次，否则每次勾选文件都要全量重读磁盘；
+        文件一改（mtime/大小变）缓存自动失效。
         """
         try:
             info = target.stat()
@@ -264,7 +262,7 @@ class _KnowledgeFiles:
         try:
             book = openpyxl.load_workbook(str(target), read_only=True, data_only=True)
         except Exception:
-            # **旁路，刻意吞掉**：一个坏掉的表格只该给出这一行的说明，
+            # 旁路，刻意吞掉：一个坏掉的表格只该给出这一行的说明，
             # 不该让整次注入失败（同批其它文件仍然要送出去）。
             return "（无法解析该 Excel 文件）"
         lines: List[str] = []
@@ -281,7 +279,7 @@ class _KnowledgeFiles:
             try:
                 book.close()
             except Exception:
-                # **旁路，刻意吞掉**：关不掉只影响句柄回收，内容已经读完了。
+                # 旁路，刻意吞掉：关不掉只影响句柄回收，内容已经读完了。
                 pass
         return "\n".join(lines)
 
@@ -290,7 +288,7 @@ class _KnowledgeFiles:
     def list_files(self) -> List[Dict[str, Any]]:
         """列出可收录的文件：rglob 递归；排除隐藏段、`__pycache__` 与非文本文件。
 
-        只列能勾的 —— 列出来却勾不了（`file_allowed` 会拒）等于给界面挖坑。
+        只列能勾的 —— 列出来却勾不了（`file_allowed` 会拒）会让界面出现不可选项。
         每项 `{path, name, mtime}`；`path` 为相对根的 POSIX 风格路径。
         未启用时返回空列表（不报错）。
         """
@@ -371,7 +369,7 @@ class KBRuntime(_KnowledgeFiles):
             state_file.write_text(
                 json.dumps(payload, ensure_ascii=False), encoding="utf-8")
         except OSError:
-            # **旁路，刻意吞掉**：状态文件写不进去只影响下次启动的记忆，
+            # 旁路，刻意吞掉：状态文件写不进去只影响下次启动的记忆，
             # 当前会话的勾选仍在内存里、注入照常生效。
             pass
 
@@ -441,7 +439,7 @@ def _read_kb_file_text(fpath: Any) -> str:
     return _KnowledgeFiles().read_text(fpath)
 
 
-#: 面板 HTML 片段。样式与脚本都是**插件自己的文件**（`ui/` 下），
+#: 面板 HTML 片段。样式与脚本都是插件自己的文件（`ui/` 下），
 #: 由壳层经 `_asset` 路由随面板送达，不占壳层的公共资源。
 _PANEL_HTML = (
     '<div class="kb-body" id="kbBody">'
@@ -453,7 +451,7 @@ _PANEL_HTML = (
 def register(ctx: Any) -> List[Callable[[], None]]:
     """插件入口：装配运行时，注册注入源、界面贡献与端点。
 
-    知识库**不依赖内核额外的口子**：配置自己读，文件访问是自己的层，
+    知识库不依赖内核的专用接口：配置自己读，文件访问是自己的层，
     注入用现成的 `add_context_source`，界面用面板 / 动作 / 端点贡献，
     状态用自己的 `data_dir`。
     """

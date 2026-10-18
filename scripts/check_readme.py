@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """核对 README 里的事实性数字（防漂移）。
 
-README 里写"多少个验收脚本""多少个用例""data/xxx/"——这些数字**没有任何机制核对**，
+README 里写"多少个验收脚本""多少个用例""data/xxx/"——这些数字没有任何机制核对，
 改代码时它们不会跟着变，于是文档开始不可信。
 
-本脚本只核对**能从代码里算出来的事实**，不核对叙述性内容（那靠人读）。
+本脚本只核对能从代码里算出来的事实，不核对叙述性内容（那靠人读）。
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
-    # **旁路，刻意吞掉**：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
+    # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
     # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
     pass
 
@@ -56,21 +56,21 @@ def _path_segments(node: ast.AST) -> list[str]:
 
 
 def _data_dirs() -> list[str]:
-    """`data/` 下**代码里实际用到**的一级子目录名（不是「当前磁盘上存在」的那些）。
+    """`data/` 下代码里实际用到的一级子目录名（不是「当前磁盘上存在」的那些）。
 
-    **判据必须以代码为准**：这些子目录在代码里都真的用，只是**按需惰性创建**，
-    清理 `data/` 之后磁盘上就没有了。运行期目录是**状态**，不是事实；
+    判据必须以代码为准：这些子目录在代码里都真的用，只是按需惰性创建，
+    清理 `data/` 之后磁盘上就没有了。运行期目录是状态，不是事实；
     取代码里的引用，才能在「全新克隆（什么都没有）」与「跑过一轮」两种情况下都成立。
-    磁盘上真实存在的目录另外**并入**，万一有代码之外的子目录也不会漏报。
+    磁盘上真实存在的目录另外并入，万一有代码之外的子目录也不会漏报。
 
-    **只取路径链的第一段**：`data_root / "temp" / "file_backup"` 里只有 `temp` 是
+    只取路径链的第一段：`data_root / "temp" / "file_backup"` 里只有 `temp` 是
     `data/` 的一级子目录，`file_backup` 嵌在它下面。把链上每一段都当成一级子目录，
     会要求文档写 `data/file_backup/` —— 一个并不存在的路径。
 
-    **判据走 AST**：要判定的问题是「这个字符串是不是拼在数据根后面的路径段」，
+    判据走 AST：要判定的问题是「这个字符串是不是拼在数据根后面的路径段」，
     正则只能近似（`root = getattr(store, "data_root", None)`、`skills = root / "inbox"`
     都会被误捕，而误捕会让检查器去要求文档写一个不存在的 `data/inbox/`）。
-    AST 直接看表达式形状：左侧是**数据根**（`data_root` 变量，或已知的目录形参），
+    AST 直接看表达式形状：左侧是数据根（`data_root` 变量，或已知的目录形参），
     右侧是 `/ "字面量"`。
     """
     #: 这些形参的缺省值是数据根下的路径，形状与 `data_root / "xxx"` 等价
@@ -91,7 +91,7 @@ def _data_dirs() -> list[str]:
                 first = _path_segments(node)
                 if not first:
                     continue
-                # 只看最外层拼接的**第一段**（它才是 data/ 的直接子目录）
+                # 只看最外层拼接的第一段（它才是 data/ 的直接子目录）
                 left = node.left
                 is_root = ((isinstance(left, ast.Name) and left.id in ROOT_NAMES)
                            or (isinstance(left, ast.Attribute) and left.attr in ROOT_NAMES))
@@ -148,7 +148,7 @@ def check(readme: str, acceptance: int, tests: int,
         problems.append(f"文档说 {m.group(1)} 个验收脚本，ci.py 实际跑 {acceptance} 个")
 
     # ③ 用例数
-    # **匹配不到必须报错**：只写 `if m and …` 的话，README 一旦改措辞
+    # 匹配不到必须报错：只写 `if m and …` 的话，README 一旦改措辞
     # （例如把"个用例"写成"个"），这里就静默放行 —— 检查器自己失效却报"一致"。
     m = re.search(r"单元测试（(\d+) 个用例）", readme)
     if m is None:

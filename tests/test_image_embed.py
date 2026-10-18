@@ -2,8 +2,8 @@
 """视觉嵌图：本地缩放与请求体预算。
 
 图片以原样内联进请求体，单图尺寸与请求体总量由本模块负责：
-不缩，请求体白大一圈（反正还会再缩）；不设预算，多张截图会把
-48 MiB 请求体顶爆，症状是**整轮请求被拒**而不是"这张图看不到"。
+不缩，请求体体积明显偏大（随后仍会被缩小）；不设预算，多张截图会把
+48 MiB 请求体顶爆，症状是整轮请求被拒而不是"这张图看不到"。
 """
 from __future__ import annotations
 
@@ -63,19 +63,19 @@ class ShrinkImageTest(unittest.TestCase):
         self.assertEqual(_dims(out), (492, 42))
 
     def test_garbage_bytes_are_returned_as_is(self) -> None:
-        """判据：缩放是优化，解不开就**原样发**，不能让图片发不出去。"""
+        """判据：缩放是优化，解不开就原样发，不能让图片发不出去。"""
         out, _mime = shrink_image(b"not an image at all")
         self.assertEqual(out, b"not an image at all")
 
     def test_mime_is_detected_from_content(self) -> None:
-        """官方以文件**实际内容**判格式，所以我们也按内容判。"""
+        """网关以文件实际内容判格式，本模块同样按内容判。"""
         _out, mime = shrink_image(_png(10, 10), declared_mime="image/jpeg")
         self.assertEqual(mime, "image/png")
 
 class EmbedBudgetTest(unittest.TestCase):
 
     def test_over_budget_becomes_skipped_not_dropped(self) -> None:
-        """超预算必须**可察觉**：进 skipped，由调用方转占位。"""
+        """超预算必须可察觉：进 skipped，由调用方转占位。"""
         big = base64.b64encode(_png(900, 900)).decode()
         parts, skipped = build_embed_parts(
             [{"mime": "image/png", "data_base64": big}], max_bytes=100
@@ -100,7 +100,7 @@ class EmbedBudgetTest(unittest.TestCase):
 class DerivedMessageShrinksTest(unittest.TestCase):
 
     def test_derived_message_carries_a_shrunk_image(self) -> None:
-        """端到端：进事实的是原图，**派生给模型的**是缩过的。"""
+        """端到端：进事实的是原图，派生给模型的是缩过的。"""
         from agent.core.events import Event
         from agent.core.session_log import SessionLog
 

@@ -36,7 +36,7 @@ def _prepare_dialogue(dialogue: Any, image_turns: int,
 
 
 def _with_mode_note(messages: Any, mode_note: str) -> List[Dict[str, Any]]:
-    """把执行模式说明附加到请求消息的**最末尾**（不动原列表、不动事实流）。
+    """把执行模式说明附加到请求消息的最末尾（不动原列表、不动事实流）。
 
     模式说明是宿主附加的指令，不是用户发言 —— 用 `role=system`。
     非用户发起的请求一律走 system：用户消息的位置只放用户真正发的东西。
@@ -106,14 +106,14 @@ def _mode_tail(messages: Any) -> List[Dict[str, Any]]:
 
 
 def _tail_expects_model(log: SessionLog) -> bool:
-    """上下文末端是否**在等模型说话**。
+    """上下文末端是否在等模型说话。
 
     倒着扫事实，先撞到这两个之一就是要跑模型：
       - `input_claimed`：新用户发言；
       - `tool_result`：工具结果回来了，模型得看。
     撞到 `model_message` 说明模型已经答过、且其后没有新东西 → 不用跑。
 
-    **只看末端即可判定**：一轮里模型与工具交替推进，每次推进都会把新事实追加到
+    只看末端即可判定：一轮里模型与工具交替推进，每次推进都会把新事实追加到
     末端，所以不需要额外的记账。
     """
     for event in reversed(list(getattr(log, "events", ()))):
@@ -126,10 +126,10 @@ def _tail_expects_model(log: SessionLog) -> bool:
 
 
 def _pending_tool_calls(log: SessionLog) -> List[ToolCallRequest]:
-    """最新一条模型消息要求、但**还没有任何结果**的调用（保持原顺序）。
+    """最新一条模型消息要求、但还没有任何结果的调用（保持原顺序）。
 
     判据只看事实：模型消息里要求了，且没有对应的 `tool_result`。
-    **已被挂起的调用不再重复执行**——它等的是外部输入，不是再来一次。
+    已被挂起的调用不再重复执行——它等的是外部输入，不是再来一次。
     """
     events = list(getattr(log, "events", ()))
     newest: List[Dict[str, Any]] = []
@@ -173,10 +173,10 @@ def _safe(value: Any) -> Any:
     return str(value)
 
 
-#: 一条工具结果进上下文的字符上限。超过就**只保留头部**并标注截断 ——
+#: 一条工具结果进上下文的字符上限。超过就只保留头部并标注截断 ——
 #: 结果本身仍然完整落事实（`data/sessions/*.raw`），模型要看全文可以再调工具读区间。
 #: 没有这道闸时，一次 `read_file`（默认 20 万字符）就能让这一轮的请求体翻倍，
-#: 而且它此后**永久留在上下文里**（事实 append-only，只有压缩才动）。
+#: 而且它此后永久留在上下文里（事实 append-only，只有压缩才动）。
 TOOL_RESULT_MAX_CHARS = 40000
 
 
@@ -201,7 +201,7 @@ def _clip_tool_result(value: Any, limit: int = TOOL_RESULT_MAX_CHARS) -> Any:
 
 
 def _progress_emitter(ports: Ports):
-    """把工具的进度上报转成 `tool_progress` 事实（进度是**副作用**，不是内核特办）。"""
+    """把工具的进度上报转成 `tool_progress` 事实（进度是副作用，不是内核特办）。"""
     def _report(call_id: str, name: str, payload: Dict[str, Any]) -> None:
         event_payload: Dict[str, Any] = {
             "call_id": str(call_id),

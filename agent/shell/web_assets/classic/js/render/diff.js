@@ -1,6 +1,6 @@
 /* render/diff.js —— diff 渲染与滚动辅助：行级 diff、统一 diff 行样式。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function linesDiff(oldT,newT){

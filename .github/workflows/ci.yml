@@ -14,7 +14,7 @@ concurrency:
 permissions:
   contents: read
 
-# 本文件由 scripts/gen_ci_workflow.py 从 scripts/ci_steps.py 生成，不要手改。
+# 本文件由 scripts/gen_ci_workflow.py 从 scripts/ci_steps.py 生成；直接改动会被下一次生成覆盖。
 # `python scripts/gen_ci_workflow.py --check` 校验逐字节一致。
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      # 只装两个**运行时**依赖。可选依赖（playwright / pytesseract / easyocr /
+      # 只装两个运行时依赖。可选依赖（playwright / pytesseract / easyocr /
       # rarfile / edge-tts）不装：不装时对应工具自行降级或明确报错；
       # 装了会让"缺依赖"那几个用例走 skip 分支、失去覆盖。
       - name: 安装依赖
@@ -45,7 +45,7 @@ jobs:
       - name: 门禁 依赖方向
         timeout-minutes: 3
         run: python -u scripts/check_imports.py
-      - name: 门禁 架构洁癖
+      - name: 门禁 架构约束
         timeout-minutes: 3
         run: python -u scripts/check_architecture_hygiene.py
       - name: 门禁 CI 工作流一致

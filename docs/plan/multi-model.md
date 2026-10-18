@@ -93,13 +93,13 @@ class ModelCatalog:
 也免掉了一个可变的缓存键。
 
 `provider_for` 的返回类型是 `ModelProvider | None`，不是 `Any`：目录与 provider
-之间的契约只有 `stream()`，用基类表达就够，不需要在端口上开一个任意口子。
+之间的契约只有 `stream()`，用基类表达就够，不需要在端口上开任意扩展点。
 
 ### 4.2 行为
 
 1. `set_source` 是**替换**：同一 `source` 再调一次就是"配置变了"，整批覆盖，
    不是追加。这与不变量 1「唯一权威」一致——合并式注册表一旦真出现第二个来源，
-   `default_id` 该听谁的就没法回答了，那是设计事故，不是功能。
+   `default_id` 该听谁的就没法回答了，那是设计缺陷，不是功能。
 2. `entries` 可以是回调。每次 `snapshot()` 调用它，插件自行决定是否重读配置文件，
    配置改动不需要重启进程。
 3. **第二个来源被拒绝**：`set_source` 遇到已存在的不同 `source` 时抛 `RuntimeError`。
@@ -221,13 +221,32 @@ class AnthropicProvider(ModelProvider):
 约束：
 
 1. `thinking` 开启时不下发 `temperature`（Anthropic 要求 `temperature=1`，省略等价）。
-2. `thinking` 的有效条件是 `budget_tokens >= 1024` **且** `max_tokens > budget_tokens`。
-   任一不满足就关闭 thinking 并写一条 stderr 诊断，请求照常发出——配置瑕疵不该让
-   整轮对话失败。
-3. `LogicalRequest.effort` 对 Anthropic 不生效；思考深度由每条条目的
-   `thinking_budget_tokens` 决定。该差异写进适配器文档串与插件配置注释。
-4. `tools` 为空时不下发 `tools` 与 `tool_choice`。
-5. `max_tokens` 是该 API 的必填项，缺省取构造参数，插件可覆盖。
+   思考模式下 DeepSeek 也忽略 `temperature`（官方文档：不报错但不生效）。
+2. `thinking` 的有效条件是 `budget_tokens >= 1024` **且** `max_tokens > budget_tokens`
+   （Anthropic 官方的硬约束）。任一不满足就关闭 thinking 并写一条 stderr 诊断，
+   请求照常发出——配置瑕疵不该让整轮对话失败。
+   **关闭必须显式下发 `{"type":"disabled"}`**：DeepSeek 兼容层的思考模式默认打开，
+   省略字段等于继续思考；而思考模式下带 `tool_use` 的消息必须回传 thinking 块，
+   静默省略会让工具轮直接 400。
+3. DeepSeek 兼容层按官方文档**忽略** `budget_tokens`，深度走 `output_config.effort`
+   （`low/high/max`）。适配器不下发 `output_config`——Anthropic 官方会拒绝这个未知
+   字段，而同一个适配器要服务两家。因此 `LogicalRequest.effort` 对本适配器不生效，
+   DeepSeek 侧取服务端默认（high）；要按档位调深度就用同一模型的 openai 协议条目。
+4. 思考模式 + 工具调用：两家都要求把**本轮**带 `tool_use` 的 assistant 消息里的
+   thinking 块原样回传（DeepSeek：`content[].thinking ... must be passed back`）。
+   跨轮不要求回传（去掉旧块仍可正常请求），所以 `strip_stale_thinking` 只留本轮。
+   本轮块丢了（签名缺失被丢弃 / 历史来自另一协议条目）就补不回来，此时
+   `_tool_turn_missing_thinking` 让本次请求关掉 thinking，避免会话永久打不开。
+5. `tools` 为空时不下发 `tools` 与 `tool_choice`。
+6. `max_tokens` 是该 API 的必填项，缺省取构造参数，插件可覆盖。
+7. `input_schema` 必须是**带 `type` 的 object schema**。`ToolRegistry.schemas()` 给的
+   `parameters` 是「参数名 → 片段」的属性映射，跟 OpenAI 侧共用
+   `model_provider.tool_parameters()` 规范化后再下发；直接把它当 schema 会得到
+   `type: null`，Anthropic 一侧报 `Invalid schema for function ...`（400）。
+   OpenAI 兼容网关不校验这个字段，所以这个缺陷只在 Anthropic 协议上暴露。
+8. 图片支持 `source.type=base64`（`data:` URL）与 `source.type=url`（http(s)）。
+   只认 base64 会让图片链接在 anthropic 条目上静默消失，而同一张图在 openai 条目
+   照常发送。
 
 ### 7.2 消息转换
 
@@ -382,7 +401,7 @@ Anthropic 的 extended thinking 在带工具的同轮循环里要求把 thinking
    一直拿着一个已被删掉的 id 撞错误。
 6. `MissingProvider` 的 `stream()` 只抛 `ModelRequestError("未配置任何模型")`。
    **报错文案不含插件目录名**：`mechanisms` 里出现插件名会直接命中原有的
-   内核洁癖门禁，而且是把"去哪配"这种运维信息焊进了内核。
+   内核架构约束门禁，而且是把"去哪配"这种运维信息焊进了内核。
 7. `shell/web.py` 与 `shell/chat.py` 删除各自的凭据预检与 provider 直接构造，
    统一走 `build_app`；但保留**启动期判定**：
    `model_config_state == "none"` 时快速失败，提示里给出两处配置路径
@@ -446,9 +465,9 @@ plugins/multi_model/
 
 目录名不叫 `models` / `model` / `llm`：这几个词会被
 `check_kernel_plugin_names` 当成 `core` / `mechanisms` 的禁用词。
-实测 `model` 在该范围命中 59 处（`agent/core/engine.py:47` 等），
-`llm` 命中 1 处；`models` 今天为 0，但它是通用复数名词，
-迟早会在内核里被顺手用作变量名。`multi_model` 与 `model_config` 都是 0 命中，
+`model` 在该范围命中 59 处（`agent/core/engine.py:47` 等），
+`llm` 命中 1 处；`models` 为 0 命中，但它是通用复数名词，
+后续容易被内核当作变量名。`multi_model` 与 `model_config` 都是 0 命中，
 取前者：插件名会出现在 URL、上下文段键、日志前缀里，说"能力"比说"实现"更容易被读懂。
 
 
@@ -466,8 +485,8 @@ description = 每条模型自带网关与厂商
 provider = openai
 base_url = https://api.deepseek.com
 api_key = sk-…
-model = deepseek-chat
-label = DeepSeek Chat
+model = deepseek-flash
+label = DeepSeek Flash
 default = 1
 
 [model:claude]
@@ -493,7 +512,7 @@ thinking_budget_tokens = 4096
 8. 配置用 `utf-8-sig` 读：Windows 记事本存 UTF-8 会带 BOM，
    用 `utf-8` 读会得到一个指不到根因的 `MissingSectionHeaderError`。
 9. 每条诊断都必须能定位：`[plugin:multi_model] <文件路径> [model:<id>] <键> 无效：<原因>`。
-   只说"配置有误"等于没留痕。
+   只写"配置有误"无法定位到文件、条目与键。
 
 ### 10.4 register
 
@@ -613,9 +632,11 @@ window.aiAgentShell.styles = {
 
 ### 11.4 设置页
 
-1. `model_config_state == "catalog"` 时，设置页的「模型」节整体隐藏。
+1. `model_config_state == "catalog"` 时，设置页的「模型」节整体隐藏；
+   插件开关切换后面板会重取宿主设置，关掉开关「模型」节即时回来，不必刷新页面。
 2. 非权威时保持现状，继续读写 `config.ini [model_reasoning]`。
-3. 模型条目通过插件的 `plugin-config.ini` 维护，设置页不提供条目级编辑。
+3. 模型条目由插件的 `settings-schema.json` 驱动结构化编辑（新增/删除/逐条改），
+   保存时只替换 `[model:*]` 节，`[base]` 与其它节逐字节保留。
 4. 隐藏只是界面收敛；保存接口仍然会拒绝越权写入并留痕（见 9.3）。
 
 ## 12. 文件清单
@@ -748,7 +769,7 @@ router 的默认实例被替换。
 | `E1` / `E3` 不丢错误、要留痕 | 坏条目、描述回调异常、越权保存都带定位信息写 stderr | 单测 |
 | `E2` / `Y7` 无全局豁免 | 不新增任何门禁豁免 | 审 |
 | `P6` 键名不硬编码 | `PROVIDER_META_KEY` 由 core 导出，读写两侧共用 | 审 |
-| `R5` 无兼容坟场 | 内建下拉的 HTML/JS/CSS 按 15.3 清单同 PR 删净，不留别名与空守卫 | 审 + 文件清单 |
+| `R5` 无遗留兼容层 | 内建下拉的 HTML/JS/CSS 按 15.3 清单同 PR 删净，不留别名与空守卫 | 审 + 文件清单 |
 | `S6` 秘密不进版本库 | 真实配置被 `.gitignore` 覆盖，只提交 `.example` | `git ls-files` |
 | `T1` 配置错误可定位 | `utf-8-sig`；诊断含文件、节、键、原因 | 单测（BOM 文件） |
 | `T4` 配置漂移检查 | 插件 `.example` 键集合与 `config_schema` 双向比对 | `check_config_drift.py`（15.6） |

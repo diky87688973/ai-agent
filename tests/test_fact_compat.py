@@ -3,7 +3,7 @@
 
 老记录里有些事实用的是当时的写法（例如用户作答写成 `tool_result`，
 当前内核写 `tool_done` / `tool_failed`）。不认它的后果不是"少一条消息"，
-而是**用户的作答在模型眼里消失** —— 请求层只能补一句占位。
+而是用户的作答在模型眼里消失 —— 请求层只能补一句占位。
 """
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ from agent.core.events import Event
 
 
 class ClassicToolResultTest(unittest.TestCase):
-    """**历史记录里的 `tool_result` 结果事实必须仍被消费**。
+    """历史记录里的 `tool_result` 结果事实必须仍被消费。
 
     用户作答在旧记录里写成 `tool_result`（当前内核写 `tool_done` / `tool_failed`）。
-    不认它的后果不是"少一条消息"，而是**用户的作答在模型眼里消失** ——
+    不认它的后果不是"少一条消息"，而是用户的作答在模型眼里消失 ——
     请求层只能补一句"这次工具调用没有产生结果"的占位。
     """
 
@@ -55,7 +55,7 @@ class ClassicToolResultTest(unittest.TestCase):
                           msg=f"[{label}] 用户的作答必须真的到模型手里")
 
     def test_new_format_result_is_not_duplicated(self) -> None:
-        """新格式（`tool_done` + `tool_ended`）下**不得**因为认 `tool_result` 而多一条。"""
+        """新格式（`tool_done` + `tool_ended`）下不得因为认 `tool_result` 而多一条。"""
         from agent.core.events import Event
         from agent.core.session_log import SessionLog
 
@@ -75,7 +75,7 @@ class ClassicToolResultTest(unittest.TestCase):
         )
 
     def test_await_user_intermediate_result_does_not_reach_the_model(self) -> None:
-        """标了 `await_user` 的**中间**结果不交给模型（按定义还没返回）。"""
+        """标了 `await_user` 的中间结果不交给模型（按定义还没返回）。"""
         from agent.core.events import Event
         from agent.core.session_log import SessionLog
 

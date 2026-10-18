@@ -3,20 +3,20 @@
 
 ## 边界
 
-本模块只管**一件事**：把事件变成 SSE 帧、可靠地送到若干个订阅连接。
-它**不认识**会话、路由、适配层 —— 那些留在 `web.py`。
+本模块只管一件事：把事件变成 SSE 帧、可靠地送到若干个订阅连接。
+它不认识会话、路由、适配层 —— 那些留在 `web.py`。
 本模块的失效模式（慢消费者丢帧、空闲心跳、关闭语义）
 自成一类，可以独立测、独立改。
 
 ## 背压设计
 
-`_Channel` 是**有界队列**：慢消费者**丢最旧的帧、保最新的**。
+`_Channel` 是有界队列：慢消费者丢最旧的帧、保最新的。
 理由：`EventSource` 断线会自动重连，重连后靠 `Last-Event-ID` 续传 ——
 所以"丢中间几帧但保住最新状态"比"卡住整条广播"对用户更有利。
 
 ## 导入路径
 
-`web.py` 会**再导出**这三个名字，
+`web.py` 会再导出这三个名字，
 `from agent.shell.web import _Channel` 这类写法依赖本模块的再导出。
 """
 from __future__ import annotations
@@ -31,7 +31,7 @@ from agent.core import events as ev
 def _event_seq(event: ev.Event) -> Optional[int]:
     """取事件的存储坐标 `_seq`（无则 None）。
 
-    它由 `App.session` 的落盘旁路标进载荷——**存储坐标，不是事件语义**，
+    它由 `App.session` 的落盘旁路标进载荷——存储坐标，不是事件语义，
     所以放在 `data` 里，不给 `Event` 加字段。
     """
     raw = (getattr(event, "data", None) or {}).get("_seq")
@@ -45,7 +45,7 @@ def _sse_payload(event: ev.Event) -> str:
 
     有存储坐标时额外发一行 `id: <seq>` —— 这是 SSE 协议原生的续传游标：
     浏览器 `EventSource` 断线重连会把最后收到的 id 作为 `Last-Event-ID` 请求头带回，
-    服务端据此从该位置之后继续，而不是重放全部或干脆丢掉中间那段。
+    服务端据此从该位置之后继续，而不是重放全部或丢弃中间那段。
     """
     try:
         body = json.dumps(

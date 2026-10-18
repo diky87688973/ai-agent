@@ -4,8 +4,8 @@
 执行器、HTTP 端点与界面，都由插件声明。**内核不认任何具体插件** —— 它只提供贡献
 注册表与 HTTP 转发。
 
-内置能力也走这条路：知识库与 Skills 都是插件，从 `plugins.ini` 里去掉对应节，
-它们的注入源、工具、面板、按钮、端点一起消失，内核不受影响。
+内置能力也走这条路：知识库与 Skills 都是插件，对应插件节移除后，它们的注入源、
+工具、面板、按钮与端点一并撤销，内核不受影响。
 
 ## 包
 
@@ -27,11 +27,10 @@ plugins/<插件名>/
 `add_boot_script` / `add_ctx_segment_style` 等）——返回值只为幂等记账；卸载时逆序调用。
 `register` 抛错时经 `ctx` 完成的注册全部回滚，插件不会留半截状态。
 
-插件可以把实现拆成同目录的多个模块（`plugins/skills/library.py`、`tools.py`），
-用绝对包名导入自己那部分：
+插件可以把实现拆成同目录的多个模块，用相对导入引用自己那部分：
 
 ```python
-from .library import SkillManager
+from .library import Thing
 ```
 
 ## 清单：`plugins.ini`
@@ -46,7 +45,7 @@ version = 1.0
 version = 1.0
 
 [plugin:local-lab]
-path = D:/lab/my-plugin
+path = /opt/local/my-plugin
 ```
 
 | 字段 | 必填 | 说明 |
@@ -69,9 +68,7 @@ path = D:/lab/my-plugin
 `[ext]` 只放这个插件自己的键。插件用 `agent.config.load_ini()` 读 `[ext]`：
 
 ```
-plugins/knowledge/plugin-config.ini     ← 知识库自己的配置
-plugins/skills/plugin-config.ini        ← Skills 自己的配置
-plugins/tts/plugin-config.ini           ← 语音合成自己的配置
+plugins/<插件名>/plugin-config.ini     ← 该插件自己的配置
 ```
 
 **内核的 `config.ini` 只含内核设置，不放任何插件设置。** 插件的设置在插件自己
@@ -79,16 +76,27 @@ plugins/tts/plugin-config.ini           ← 语音合成自己的配置
 每个插件目录下配有 `plugin-config.ini.example` 作模板；配置文件本身不入库。
 
 文件名固定是 `plugin-config.ini`（不是 `config.ini`）——`config.ini` 这个名字专指
-内核配置，同名两份文件必然会有人改错那一份。`[base]` 固定，`[ext]` 由插件自己定。
+内核配置，同名两份文件会产生歧义。`[base]` 固定，`[ext]` 由插件自己定。
+各插件的 `[ext]` 键写在对应子系统文档里。
 
-| 插件 | 配置文件 | `[base]` | `[ext]` |
-|---|---|---|---|
-| `knowledge` | `plugins/knowledge/plugin-config.ini` | `id`、`name`、`desc`、`enable`、`icon`、`version` | `dir`、`max_file_size`、`extra_suffixes` |
-| `skills` | `plugins/skills/plugin-config.ini` | 同上 | `dir`、`max_file_size` |
-| `tts` | `plugins/tts/plugin-config.ini` | 同上 | `engine`、`voice`、`max_segment_chars` |
+**设置页只能改插件自己的节。** `[base]` 是身份与开关，设置页既不回显也不回写——
+一次误编辑就能让插件改名、失联或无法装载。编辑视图分两种：
+
+- 声明了 `settings-schema.json` 的插件：按 schema 渲染结构化表单，
+  逐条编辑 `[ext]` 里的结构化条目，保存时只替换这些节；
+- 其余插件：正文就是 `[ext]` 的内容，节头不显示，保存时替换 `[ext]`。
+
+两种形态都逐字节保留 `[base]` 与文件里的其它节；密钥字段只回显"是否已配置"，
+留空表示沿用原值。
 
 `enable`：`1` 装载，`0` 留在清单里但不装载。没写时按 `1`。设置页的开关写的就是这一项。
 `name` / `desc` / `icon` 是设置页卡片上的展示名、一句话和图标。`version` 与 `plugins.ini` 里的 `version` 核对。
+
+**身份键回退到 `.example`**：`id` / `name` / `desc` / `icon` / `version` 是插件
+**声明**，真实文件缺失或某键为空时取模板值（`plugin_config_fields()` 统一处理）。
+不回退的话，没建过配置的插件在列表里显示目录名（`multi_model` 而不是「多模型」），
+旁边的插件却显示 `name` —— 同一个列表出现两套规则。`enable` **不回退**：它是
+用户状态，模板里的开关不该替用户决定装载与否。
 
 插件自己的键由插件自己读、自己解释：内核不解析插件配置，`agent/config.py` 里
 没有任何插件节的读取口。`dir` 一类的相对路径按**工程根**解析（不是按插件目录），
@@ -131,8 +139,8 @@ ctx.add_context_source(fn)   # fn(conversation_id: str) -> list[str]
 ```python
 ctx.add_context_source(
     runtime.build_system_messages,
-    {"label": "知识库",                    # 段名，界面显示
-     "prefix": "【知识库：a.md】\n",         # 注入前缀，告诉模型这段是什么
+    {"label": "示例来源",                   # 段名，界面显示
+     "prefix": "【示例：a.md】\n",           # 注入前缀，标明这段是什么
      "count": runtime.attached_count},     # fn(cid) -> int，主体数量
 )
 ```
@@ -156,7 +164,7 @@ ctx.add_context_source(
 class MyTool(ToolPlugin):
     name = "my_tool"
     description = "……"
-    label = "我的工具"      # 界面上的中文短名
+    label = "示例工具"      # 界面上的中文短名
     icon = "🧰"            # 界面图标（一个字符）
     parameters = {...}
     def execute(self, arguments): ...
@@ -172,8 +180,7 @@ def register(ctx):
 工具进内核注册表，与内置工具走**同一条执行管道**：门控、确认流程、写盘四步协议
 都照旧。插件不能绕过管道。
 
-**工具只在插件装载时存在**：`skill_manage` 由 Skills 插件注册，把 `[plugin:skills]`
-从清单里去掉，它就不在工具清单里。
+**工具只在插件装载时存在**：插件注册的工具随 `[plugin:<名字>]` 节移除而消失。
 
 ### 写类工具的提交执行器
 
@@ -225,9 +232,9 @@ ctx.add_route("DELETE", "tasks/:sid", drop_task)
 ### 界面
 
 ```python
-ctx.add_panel("kb", title="知识库", html="<div id='kb'></div>",
+ctx.add_panel("notes", title="便签", html="<div id='notes'></div>",
               script_file="ui/panel.js", css_file="ui/panel.css", pinned=False)
-ctx.add_action("kb", label="📚 知识库", title="知识库")   # 输入框下面一个按钮，点了开同名面板
+ctx.add_action("notes", label="🗒 便签", title="便签")   # 输入框下面一个按钮，点了开同名面板
 ```
 
 面板进右栏的标签容器，与「步骤」栏并列。标题就是标签上的字，面板里不再有标题行。
@@ -301,8 +308,9 @@ window.aiAgentShell.styles.load("ui/model-picker.css");
 `applyPluginsChanged` 会摘掉带 `data-plugin-style` 的 `<link>`，并清掉
 `#modelPickerSlot` 里 `data-plugin` 已不在装载名单的子元素。
 
-**已知限制**：`loadPluginScript` 按 URL 去重，所以"停用 → 再启用"在不刷新页面的
-前提下开屏脚本不会重跑，输入区的下拉也不会自动回来。插件变更后刷新页面。
+**已知限制**：`loadPluginScript` 按 URL 去重，所以在不刷新页面的前提下，
+「停用 → 再启用」不会重跑开屏脚本，输入区的下拉也不会自动恢复；
+插件变更后需刷新页面。
 
 #### 会话切换通知
 
@@ -347,34 +355,16 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 
 卸载兜底会按插件名把面板、动作、端点、订阅全部撤掉。
 
-## 模型与厂商
+## 模型目录来源
 
-`multi_model` 把模型条目声明成目录来源，内核每轮按请求里的 id 路由到对应实例：
+`add_model_catalog(entries)` 把一组模型条目交给内核的 `ModelCatalog`。条目是
+`ModelEntry`（id / label / provider / base_url / api_key / model / options / default），
+内核按请求里的 id 取对应实例，未命中时回落到目录默认条目。
 
-```ini
-[model:claude]
-provider = anthropic
-base_url = https://api.anthropic.com
-api_key = sk-ant-…
-model = claude-sonnet-4-5
-label = Claude Sonnet 4.5
-max_tokens = 16000
-thinking = 1
-thinking_budget_tokens = 4096
-```
+目录只有存在有效条目时才成为权威；权威成立后，`config.ini` 的 `[model_reasoning]`
+不再参与路由。条目构造、去重与校验由插件负责，内核只消费快照。
 
-- 节名 `[model:<id>]`；`id` 是请求与界面里的唯一标识，`model` 缺省等于 `id`；
-- `provider` 缺省 `openai`；未知厂商、缺 `api_key` / `base_url` 只会让该条目无效；
-- `default = 1` 至多一个，没有时取第一条；重复 id 由目录整批拒绝；
-- `thinking` / `max_tokens` / `thinking_budget_tokens` 只对 anthropic 条目生效；
-- 配置用 `utf-8-sig` 读，Windows 记事本的 BOM 不会让服务起不来；
-- 诊断格式：`[plugin:multi_model] <文件> [model:<id>] <键> 无效：<原因>`。
-
-目录权威只在**存在有效条目**时成立：启用插件但一条都没配好，会回落到
-`config.ini` 的 `[model_reasoning]`；两处都没有凭据时启动即失败。
-`GET /api/plugin/multi_model/catalog` 返回 `{models, default, invalid}`，
-**不含** `api_key` 与 `base_url`。设置页在目录权威时隐藏「模型」节，
-条目改完下一次请求生效，不需要重启。
+`multi_model` 是该扩展点的实现，配置与行为见 [multi-model.md](multi-model.md)。
 
 
 
@@ -383,17 +373,11 @@ thinking_budget_tokens = 4096
 | 插件 | 注册了什么 | 形态 |
 |---|---|---|
 | `plugins/skills` | `skill_manage` 工具 + 提交执行器 + 两条注入 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
-| `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir` |
-| `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [模型与厂商](#模型与厂商) |
+| `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.md) |
+| `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.md) |
 | `plugins/tts` | 只订阅事件 | 最小形态 |
 
-Skills 插件的实现拆在三个文件里，可作"插件怎么组织代码"的例子：
-
-```
-plugins/skills/plugin.py     入口：读配置、装配 Skills 库、注册工具与两条注入
-plugins/skills/library.py    Skills 库：扫描 / 元数据 / 读取 / 复制计划
-plugins/skills/tools.py      skill_manage 工具与其执行器
-```
+各插件的配置与行为写在各自的子系统文档里，本文只描述它们用到的扩展点。
 
 ## 边界
 
@@ -411,29 +395,54 @@ plugins/skills/tools.py      skill_manage 工具与其执行器
 | 装载期记录来源路径与入口文件摘要（sha256 / mtime） | 子进程隔离或权限降级（见 [评估笔记](../adr/plugin-subprocess-isolation.md)） |
 | 开关打开时拒绝对 `plugins/` 树外的路径装载 | 对「受信目录里的坏代码」自动免疫 |
 
-运营建议：
+信任边界由三项约束维持：
 
-- 只装载自己审查过的插件；`plugins.ini` 与各插件目录一并纳入版本控制或部署清单
-- 需要收紧外置 `path` 时：配置 `[agent] plugin_tree_only = 1`，或环境变量 `AI_AGENT_PLUGIN_TREE_ONLY=1`
-- 装载日志形如 `[plugin.load] <名> source=… sha256=… mtime=… bytes=…`，便于对照部署哈希
+- `plugins.ini` 与各插件目录一并纳入版本控制或部署清单；
+- `[agent] plugin_tree_only = 1`（或环境变量 `AI_AGENT_PLUGIN_TREE_ONLY=1`）把装载范围
+  限制在 `plugins/` 树内；
+- 装载日志形如 `[plugin.load] <名> source=… sha256=… mtime=… bytes=…`，可与部署哈希对照。
 
-因此约束落在约定上：
+界面与端点侧的约定：
 
-- 界面资产的类名加自己的前缀，样式是同源注入的
+- 界面资产的类名带自己的前缀，样式同源注入
 - 端点注册限于 `/api/plugin/<插件名>/` 命名空间，内核路由不开放注册
 - 面板的数据由插件自己的端点提供
 - 渲染相关的信息（颜色、图标、布局）由插件的界面脚本自己注册，
   不经过服务端 —— 服务端只给数据（段 key / 段名 / 计数）
 
-## 写一个插件
+## 接入新插件
 
-从 `plugins/knowledge` 抄起：它有完整的四件套 —— 注入源、面板、动作、端点，
-并且状态落在 `ctx.data_dir`。`plugins/skills` 是另一半形态：只有工具与注入，
-没有界面。`plugins/tts` 是最小形态：只订阅事件。
+1. **建目录**：`plugins/<名字>/`，目录名即插件名，也是 `plugins.ini` 里的节名后缀。
+2. **写入口**：`plugin.py` 暴露 `register(ctx)`。最小实现只注册一项能力：
+
+   ```python
+   def ping(args):
+       return 200, {"ok": True}
+
+   def register(ctx):
+       ctx.add_route("GET", "ping", ping)
+   ```
+
+   需要拆文件时用同目录模块，以绝对包名导入（`from .library import Thing`）。
+3. **建配置**（可选）：`plugin-config.ini.example` 至少含 `[base]` 的 `id` / `name` /
+   `desc` / `icon` / `version`；插件自己的键放 `[ext]`，用 `agent.config.load_ini()` 读取。
+   真实文件 `plugin-config.ini` 不入库。需要结构化表单时另加 `settings-schema.json`，
+   声明 `kind` / `section_prefix` / `identity` / `fields`。
+4. **登记界面**（可选）：面板、输入区动作、开屏脚本、段色分别用
+   `add_panel` / `add_action` / `add_boot_script` / `add_ctx_segment_style` 注册；
+   资产放插件目录内，经 `/api/plugin/<名字>/_asset/<相对路径>` 送达。
+5. **加清单**：在 `plugins.ini` 写一节 `[plugin:<名字>]`，可带 `version` 与 `path`。
+   节在即进入装载候选，实际是否装载看 `[base] enable`。
+6. **校验**：`python scripts/ci.py` 覆盖依赖方向、注释文案、目录结构与单测；
+   插件的端点与界面由 `scripts/acceptance_web.py` 一类的验收脚本覆盖。
+
+`register` 抛错时宿主回滚该插件已完成的注册，不会留下半截状态。
 
 ## 延伸阅读
 
 - [上下文管理](context.md)：注入源怎么进上下文、组装顺序怎么定
+- [知识库](knowledge.md)：`knowledge` 的文件收录、勾选与注入
+- [多模型](multi-model.md)：`multi_model` 的目录条目与设置页表单
 - [Skills](skills.md)：`skills` 插件的三层披露与 `skill_manage`
 - [工具](tools.md)：工具的注册、执行管道与写盘协议
 - [壳层](shell.md)：HTTP 路由与界面打包

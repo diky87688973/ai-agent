@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""配置 schema：内核配置文件里**允许出现**的节与键（唯一事实源）。
+"""配置 schema：内核配置文件里允许出现的节与键（唯一事实源）。
 
 用途有两个，缺一不可：
 
 1. `check_config_drift.py` 用它做双向比对 —— `.example` 缺键 / 多键、真实文件多键都失败；
 2. `get_*` 的默认值可以在这里对照，避免"模板写 700000、代码默认 600000"。
 
-这里**不**替调用方决定"缺键怎么办"：缺键一律回落到调用方默认值（配置是增强项），
-但**多出来的键**必须在门禁里被拦住 —— 打错一个键名却静默无效，比报错难查得多。
+这里不替调用方决定"缺键怎么办"：缺键一律回落到调用方默认值（配置是增强项），
+但多出来的键必须在门禁里被拦住 —— 打错一个键名却静默无效，比报错难查得多。
 """
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "api_key": "",
         "model": "",
         "models": "",
+        "context_window": "1000000",
     },
     "agent": {
         "reasoning_effort": "max",
@@ -34,7 +35,6 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "summary_output_max_chars": "5000",
         "image_turns": "999999",
         "image_max": "999999",
-        "model_context_window": "1000000",
         "reasoning_replay_tokens": "8000",
     },
 }
@@ -65,6 +65,7 @@ MULTI_MODEL_SCHEMA: Dict[str, Dict[str, str]] = {
         "api_key": "",
         "model": "",
         "label": "",
+        "context_window": "",
         "default": "",
         "max_tokens": "",
         "thinking": "",

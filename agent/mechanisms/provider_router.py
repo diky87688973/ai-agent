@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """模型路由：把 `request.model` 解析成一个 provider 实例。
 
-它是 `ModelProvider` 的**唯一外壳**：内核只看见"一个提供者"，路由内部才有多厂商。
+它是 `ModelProvider` 的唯一外壳：内核只看见"一个提供者"，路由内部才有多厂商。
 三条硬约束：
 
-1. **不静默回退**：未配置的 id 直接抛 `ModelRequestError`。悄悄换个模型回答，
+1. 不静默回退：未配置的 id 直接抛 `ModelRequestError`。悄悄换个模型回答，
    用户会以为自己在问 A，实际答的是 B —— 这比报错更难发现。
-2. **不认识厂商名**：厂商分发在 `provider_registry`，路由只拿注入的 `resolve` 回调。
+2. 不认识厂商名：厂商分发在 `provider_registry`，路由只拿注入的 `resolve` 回调。
    在这里写 `if kind == "anthropic"` 就等于把扩展点挪回了路由。
-3. **默认实例可热替换**：设置页保存后调 `reload_default()`；换实例必须进锁，
+3. 默认实例可热替换：设置页保存后调 `reload_default()`；换实例必须进锁，
    否则并发请求可能拿到构造到一半的对象。
 """
 from __future__ import annotations
@@ -95,7 +95,7 @@ class ProviderRouter(ModelProvider):
             return
         provider = self._resolve(mid)
         if provider is not None:
-            # 目录条目的 id 是**路由键**，线格式模型名归 provider 自己（`options.model`）。
+            # 目录条目的 id 是路由键，线格式模型名归 provider 自己（`options.model`）。
             # 两者可能不同（`[model:claude]` + `model = claude-sonnet-4-5`），
             # 因此命中目录时必须把请求里的 id 换成实例的模型名。
             yield from provider.stream(_with_wire_model(request, provider))

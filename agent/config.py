@@ -16,6 +16,8 @@ from agent.core.host import MAX_PASSES_DEFAULT
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.ini"
 DEFAULT_MODEL = "deepseek-v4-flash-vision-exp"
+#: 模型上下文窗口的缺省值（token）。界面按它算上下文占用率。
+DEFAULT_CONTEXT_WINDOW = 1_000_000
 
 
 def _clean(value: object) -> str:
@@ -28,12 +30,12 @@ def load_ini(path: Optional[Path] = None) -> configparser.ConfigParser:
 
     ## 编码取 `utf-8-sig`
 
-    配置文件由用户手工编辑，**Windows 记事本另存默认会写 UTF-8 BOM**（`\\ufeff`）。
+    配置文件由用户手工编辑，Windows 记事本另存默认会写 UTF-8 BOM（`\\ufeff`）。
     用 `utf-8` 读时，BOM 会粘在第一个节名上 → `configparser` 抛
     `MissingSectionHeaderError: File contains no section headers`，
-    **服务直接起不来**，而错误信息完全指不到"配置被加了 BOM"。
+    服务直接起不来，而错误信息完全指不到"配置被加了 BOM"。
 
-    `utf-8-sig` 会**吞掉可选的 BOM**，对无 BOM 文件行为完全一致 —— 两种都能读。
+    `utf-8-sig` 会吞掉可选的 BOM，对无 BOM 文件行为完全一致 —— 两种都能读。
     """
     parser = configparser.ConfigParser()
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
@@ -45,9 +47,10 @@ def load_ini(path: Optional[Path] = None) -> configparser.ConfigParser:
 def get_model_reasoning(path: Optional[Path] = None) -> Dict[str, Any]:
     """读取 [model_reasoning] 节。
 
-    返回 `{api_base_url, api_key, model, models}`：
+    返回 `{api_base_url, api_key, model, models, context_window}`：
     前两个缺失为空串，`model` 缺省取 DEFAULT_MODEL，
     `models` 是同一网关下的可选模型名（逗号分隔；留空 = 只能用 `model`）。
+    `context_window` 是该模型的物理上限（token），界面按它算上下文占用率。
     """
     parser = load_ini(path)
     values: Dict[str, str] = {}
@@ -55,11 +58,16 @@ def get_model_reasoning(path: Optional[Path] = None) -> Dict[str, Any]:
         values = {k: _clean(v) for k, v in parser.items("model_reasoning")}
     raw_models = str(values.get("models") or "")
     models = [x.strip() for x in raw_models.split(",") if x.strip()]
+    try:
+        window = int(values.get("context_window") or DEFAULT_CONTEXT_WINDOW)
+    except (TypeError, ValueError):
+        window = DEFAULT_CONTEXT_WINDOW
     return {
         "api_base_url": values.get("api_base_url") or "",
         "api_key": values.get("api_key") or "",
         "model": values.get("model") or DEFAULT_MODEL,
         "models": models,
+        "context_window": max(0, window),
     }
 
 
@@ -85,17 +93,14 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         # 压缩时遮盖的末尾用户轮数（压不出空间时连它们一起压）。
         "full_user_rounds": _int("full_user_rounds", 1),
         "summary_output_max_chars": _int("summary_output_max_chars", 5000),
-        # 只把最近这么多轮**带图的**用户发言里的图带进请求（负数 = 不限）。
+        # 只把最近这么多轮带图的用户发言里的图带进请求（负数 = 不限）。
         # 缺省 999999 = 不剥：历史图片全保留，KV 缓存前缀稳定；代价是内联 base64
         # 随会话线性增长（受官方 48 MiB 请求体上限约束）。配小即按用户轮剥图。
         # 这两项由装配根取走交给模型模块，不进 `ContextPipeline` 的构造参数。
         "image_turns": _int("image_turns", 999999),
         "image_max": _int("image_max", 999999),
-        # 模型上下文窗口（token）：界面按它算"上下文占用率"。
-        # 压缩阈值是**预算**（留多少余量），窗口是**物理上限**，两者不是一回事。
-        "model_context_window": _int("model_context_window", 1000000),
         # 思维链回传预算（token）：-1 = 全量回传，0 = 不回传，
-        # 正数 = 超出就取两头、中间以省略标记代替（模型按前后脑补）。
+        # 正数 = 超出就取两头、中间以省略标记代替（模型按前后文推断）。
         # 思维链必然未命中缓存，全量回传等于每轮多背几万 token。
         "reasoning_replay_tokens": _int("reasoning_replay_tokens", DEFAULT_REASONING_REPLAY_TOKENS),
     }
@@ -143,7 +148,7 @@ def get_user_rules(path: Optional[Path] = None) -> str:
 
     取 `[agent]` 节的 `user_rules_file`：相对路径按 `PROJECT_ROOT` 解析，
     也可以给绝对路径。指向的文件不存在、不是文件或读失败都返回空串 ——
-    规则是**增强项**，缺了不该让服务起不来。
+    规则是增强项，缺了不该让服务起不来。
 
     超长只取前 `USER_RULES_MAX_CHARS` 个字符并附一句截断说明：
     系统提示越长越贵，而一份失控的文件会把预算全吃掉。
@@ -226,10 +231,10 @@ def get_max_passes(path: Optional[Path] = None) -> int:
 def default_data_root():
     """默认数据根：`AI_AGENT_DATA_ROOT` 优先，否则 `PROJECT_ROOT/data`。
 
-    **默认数据根只能有这一个来源**：多一处自己拼接，落盘隔离口就漏一处
+    默认数据根只能有这一个来源：多一处自己拼接，落盘隔离口就漏一处
     （单测的文件会落进工程 `data/`）。
 
-    这个环境变量**只给测试与 CI 用**：不设它时行为是 `PROJECT_ROOT/data`；
+    这个环境变量只给测试与 CI 用：不设它时行为是 `PROJECT_ROOT/data`；
     CI (`scripts/ci.py`) 会把它指到临时目录，跑完工程目录保持干净。
     """
     import os

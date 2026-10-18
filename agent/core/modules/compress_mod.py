@@ -16,7 +16,7 @@ from agent.core.ports import Ports
 class CompressModule(ModuleBase):
     """上下文预算与压缩：把循环里的三处检查收拢成一个模块。
 
-    **从不要求续行**：压缩是准备动作，不产生"该跑模型了"的意图。
+    从不要求续行：压缩是准备动作，不产生"该跑模型了"的意图。
     压缩器缺省或出错一律放行——压缩是增强项，绝不阻断回合。
     """
 
@@ -52,7 +52,7 @@ class CompressModule(ModuleBase):
             return Outcome.ok()
         from time import perf_counter
         started = perf_counter()
-        # 发给模型的请求序列：**必须成对**（`derive_request_messages`
+        # 发给模型的请求序列：必须成对（`derive_request_messages`
         # 会为悬空的 tool_calls 补说明性占位，否则模型 API 硬拒绝 400）。
         # 请求序列取自 derive_request_messages()；derive_messages() 保留悬空——那是日志的忠实折叠，会保留悬空。
         dialogue = _prepare_dialogue(ports.log.derive_request_messages(),
@@ -64,7 +64,7 @@ class CompressModule(ModuleBase):
         report: Any = None
         if self._compactor is not None:
             try:
-                # 压缩走**同一条装配入口**：头部 + 对话（+ 尾部仅执行模式，随后剔除）。
+                # 压缩走同一条装配入口：头部 + 对话（+ 尾部仅执行模式，随后剔除）。
                 # 压缩器拿到的这份与随后模型请求的前缀是同一份装配结果。
                 whole = _assemble_with(self.context_pass, dialogue, self._mode_note,
                                        self._covered_end())
@@ -72,7 +72,7 @@ class CompressModule(ModuleBase):
                     self.context_pass, dialogue, pending=None, tools=schemas,
                     mode_note=self._mode_note, assembled=whole)
             except Exception as exc:
-                # 压缩异常 → 放行，不阻断回合；但**必须留痕**：静默吞掉会让
+                # 压缩异常 → 放行，不阻断回合；但必须留痕：静默吞掉会让
                 # "压缩从未生效"看起来像"没超阈值"，排查时会往完全错的方向找。
                 report = None
                 report_error("core.compress", exc)

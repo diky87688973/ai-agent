@@ -63,7 +63,7 @@ class FourStepGateTest(unittest.TestCase):
         cid = self.gate.register_preview("write_file", {"path": str(target), "content": "draft"})
         decision = self.gate.check_write(WriteContext(confirm_id=cid))
         self.assertFalse(decision.allow)
-        # 语义：明确是"未解锁"，且**必须点明解锁入口** ——
+        # 语义：明确是"未解锁"，且必须点明解锁入口 ——
         # 只说"请先完成确认"有歧义，模型会误去问用户（`user_confirm`）；
         # 这里要的是 review 确认（`review_conclusion` 带 `confirm_id` 解锁）。
         self.assertIn("未解锁", decision.reason)

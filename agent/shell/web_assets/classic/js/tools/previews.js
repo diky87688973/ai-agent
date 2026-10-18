@@ -1,6 +1,6 @@
 /* tools/previews.js —— 工具结果预览：stdout / 检索 / diff 预览卡填充。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function fillToolPreview(o,ev){
@@ -83,7 +83,7 @@ return;}
 /* 编辑类工具的 diff 预览：write_file / replace_in_file / apply_patch / read_write
    共用一条渲染路径。
    四个工具（write_file / replace_in_file / apply_patch / read_write）走同一条路径：
-   在界面上**一点预览都没有**（工具返回里明明带着 `_change.diff`）。
+   在界面上一点预览都没有（工具返回里明明带着 `_change.diff`）。
    判据只有一条 —— 结果里取得到 diff 就画，取不到就什么都不画（不画空卡片）。 */
 if(sc.indexOf("write_file")>=0||sc.indexOf("replace_in_file")>=0
    ||sc.indexOf("apply_patch")>=0||sc.indexOf("read_write")>=0){

@@ -24,7 +24,7 @@ registry.names()            # 已注册的工具名（排序后）
 registry.schemas()          # 导出模型可见的工具声明
 ```
 
-三条纪律：
+三条约束：
 
 - **注册表只存不跑**。执行调度与门控由管道这个唯一入口统一承载。
 - `name` 唯一，重复注册被拒。
@@ -83,7 +83,7 @@ registry.schemas()          # 导出模型可见的工具声明
 | 红灯限面 | 同一文件连续改写要重读 |
 | 跨文件 review | 一次改动涉及多文件时的 review 语义 |
 | 大删除检测 | 写中记账，检测异常大的删除量（删除 ≥30 行且新增不足删除量 35%） |
-| 空口已修复 | 声称修好但无证据时拒绝 |
+| 无证据的修复声明 | 声称修好但无证据时拒绝 |
 | 模式门控 | Plan 模式禁止写盘；Execute 模式须先有非空执行清单 |
 
 ## 内置工具（41 个）
@@ -171,31 +171,17 @@ registry.schemas()          # 导出模型可见的工具声明
 | `unified_diagnose` | 对目录下 Python 文件做 AST 语法诊断，PATH 中有 ruff 时一并调用 |
 | `echo` | 回显输入文本（样板） |
 
-## 插件
+## 插件工具
 
-`plugins/` 下的外部能力默认不加载，在工程根的 `plugins.ini` 里按名字列出。
+插件可以通过 `ctx.register_tool(tool)` 向注册表贡献工具，执行仍走同一条管道。
+工具声明 `needs_preview=True` 时同样受写盘四步协议约束。
 
-```ini
-[plugin:knowledge]
-version = 1.0
-
-[plugin:tts]
-```
-
-加载器在 `agent/capabilities/plugins.py`：按清单装载 `plugin.py`，调用其注册入口 `register(ctx)`，把工具挂进注册表。插件经 `agent.config.load_ini()` 读自己目录下的 `config.ini`。`PluginHost` 记录加载报告，单个插件装载失败只记报告，不阻断启动。
-
-| 插件 | 能力 |
-|---|---|
-| `skills` | Skills 库与管理工具：声明 `needs_preview` 的写类工具走同一门控；工具卡视图经开屏脚本贡献，见 [skills.md](skills.md) |
-| `knowledge` | 知识库：配置判定、文件访问、表格解析、勾选状态、`add_context_source` 注入，加上右栏面板、输入区按钮与 `/api/plugin/knowledge/*` 端点 —— 全在插件里（只收文本类文件与表格，非文本不列也不可勾；`extra_suffixes` 可追加）|
-| `tts` | 语音合成：只订阅事件（`assistant_delta` / `turn_ended` / `error`），不注册工具也不贡献界面 |
-
-插件的完整说明见 [plugins.md](plugins.md)。
-
-插件的运行时对象（需要被壳层操作的那些）用 `ctx.set_runtime(obj)` 登记到宿主，壳层经 `plugin_host.runtime(name)` 取**同一个实例**。插件是被 `importlib` 以动态模块名加载的，壳层 `import` 不到同一个模块对象，不登记就会各持一份状态。
+插件包形态、清单、扩展点与生命周期见 [plugins.md](plugins.md)；运行时实例的登记
+（`ctx.set_runtime` / `plugin_host.runtime`）也在那里说明。
 
 ## 延伸阅读
 
 - [architecture.md](../architecture.md)：`ToolPort` 与模块链
-- [guide/config.md](../guide/config.md)：插件与知识库配置
+- [plugins.md](plugins.md)：插件系统与工具扩展点
+- [guide/config.md](../guide/config.md)：配置项
 - [session.md](session.md)：跨会话协作工具背后的网格

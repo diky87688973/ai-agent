@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """依赖图不变量（A2）：环为零、装配根不被反向依赖、层序可机检。
 
-`scripts/check_imports.py` 是门禁实现；这里把它当**断言库**用，
+`scripts/check_imports.py` 是门禁实现；这里把它当断言库用，
 再补一条门禁扫不到的：运行期导入 `agent.shell.web` 不得把 `agent.app` 带进来。
 """
 from __future__ import annotations

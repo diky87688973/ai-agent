@@ -237,7 +237,7 @@ def select_page(rounds, *, before, budget=HISTORY_PAGE_CHARS):
    `_ATTACH_REGISTER_MAX_BYTES`（它们的语义本来就是"每次 history 最多登记多少"，
    翻页后自然变成"每页最多登记多少"）。
 3. 不做全局裁剪：缓存总量上界 = 每页 24 张 × 已加载页数，且单张 ≤ 2 MB。
-   若实测出现内存压力，再加全局上限，并按"已离开视口的页"淘汰——那需要新增
+   出现内存压力时再加全局上限，并按"已离开视口的页"淘汰——那需要新增
    淘汰集合，属于另一项设计，不在本方案里顺带做。
 4. 唯一权威仍是 `ClassicState`：`inbound` 只提供本页增量，不自己再存一份。
 5. 会话切换与清空继续走 `clear_attachments`，语义不变。
@@ -421,7 +421,7 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 ## 9. 边界与代价
 
 1. 每次翻页服务端仍 `load()` 全量事件并折一遍，复杂度 O(n)。
-   本方案不引入轮次索引；只有在实测出现明显延迟时才值得为它单独设计索引结构。
+   本方案不引入轮次索引；只有出现明显延迟时才值得为它单独设计索引结构。
 2. 不实现视口虚拟化，已加载的旧页不卸载。旧页只在用户主动翻页后出现。
 3. 不新增 `round` 字段，轮次由前端与服务端都不额外记账。
 4. 不改内核事件接口，不改 SSE 断线重放。
@@ -494,14 +494,14 @@ PR 里附三条"只改一侧"的变异演示（改完必红，再改回），作
 |---|---|---|
 | `agent/shell/classic_adapter/history_page.py` | ≤ 350 行 | 纯分页/折叠，不含 HTTP |
 | `agent/shell/web_assets/classic/js/history-paging.js` | ≤ 300 行 | 状态机 + 前插 |
-| `agent/shell/classic_adapter/inbound.py` | 净减（1054 → ≤ 950） | 折叠规则外移后的实测值写进 PR |
+| `agent/shell/classic_adapter/inbound.py` | 净减（1054 → ≤ 950） | 折叠规则外移后的行数写进 PR 说明 |
 
-新文件**不得**进 `docs/complexity.md` 登记表（进表等于承认超标）。
+新文件不进 `docs/complexity.md` 登记表：进表即表示超过 800 行的门限。
 
 ### 10.5 `D3` 生成文档
 
 新增 3 个测试文件后重跑 `python scripts/gen_unit_tests_md.py`；
-`standards-alignment` P3 落地后由 `--check` 门禁接管，本方案不再靠人记得。
+`standards-alignment` P3 落地后由 `--check` 门禁接管，本方案由该门禁覆盖。
 README 里"单元测试（N 个用例）"随用例数同步（`check_readme.py` 会拦）。
 
 ### 10.6 `K4` 并发：翻页与附件写入

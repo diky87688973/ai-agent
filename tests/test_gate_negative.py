@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""门禁负向用例（X2）：每条门禁都要能**真的红**。
+"""门禁负向用例（X2）：每条门禁都要能真的红。
 
 只测"当前仓库能过"等于没测：门禁写成 `return []` 也能过。这里给每个检查器
-喂一个**必须失败**的最小输入，再喂一个合法输入，钉住"判据存在且方向正确"。
+喂一个必须失败的最小输入，再喂一个合法输入，钉住"判据存在且方向正确"。
 """
 from __future__ import annotations
 
@@ -322,7 +322,7 @@ class CoverageGateTest(unittest.TestCase):
 
 
 class GeneratedArtifactDriftTest(unittest.TestCase):
-    """生成物门禁：手改 CI / 单测清单必须被 --check 抓到。"""
+    """生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到。"""
 
     def test_ci_workflow_byte_drift_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -439,6 +439,25 @@ class CommentStyleGateTest(unittest.TestCase):
 
     def test_clean_comment_passes(self) -> None:
         hits = check_comment_style.scan_text("# 先清再写：失败也不重复写已写的\nx = 1\n", ".py",
+                                             {**check_comment_style.UNIVERSAL,
+                                              **check_comment_style.PRODUCTION_ONLY})
+        self.assertEqual(hits, [])
+
+    def test_markdown_emphasis_comment_fails(self) -> None:
+        hits = check_comment_style.scan_text("# 这里**必须**先读\nx = 1\n", ".py",
+                                             {**check_comment_style.UNIVERSAL,
+                                              **check_comment_style.PRODUCTION_ONLY})
+        self.assertTrue(any(name == "排版标记" for _ln, name, _text in hits))
+
+    def test_markdown_emphasis_across_lines_fails(self) -> None:
+        src = 'def f():\n    """说明会**折成两行\n    的强调**。"""\n    return 1\n'
+        hits = check_comment_style.scan_text(src, ".py",
+                                             {**check_comment_style.UNIVERSAL,
+                                              **check_comment_style.PRODUCTION_ONLY})
+        self.assertTrue(any(name == "排版标记" for _ln, name, _text in hits))
+
+    def test_code_unpacking_is_not_emphasis(self) -> None:
+        hits = check_comment_style.scan_text("def f(**kw):\n    return {**kw}\n", ".py",
                                              {**check_comment_style.UNIVERSAL,
                                               **check_comment_style.PRODUCTION_ONLY})
         self.assertEqual(hits, [])

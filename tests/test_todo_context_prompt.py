@@ -206,7 +206,7 @@ class SystemPromptTest(unittest.TestCase):
     def test_coding_and_tooling_disciplines_present(self) -> None:
         """系统提示必须含「改前必读」/「大文件局部读」/「失败处理」等纪律条目。
 
-        ⚠️ 提示词用「**先问清后操作**」这一措辞：「先确认后操作」里的"确认"会与术语表的
+        ⚠️ 提示词用「先问清后操作」这一措辞：「先确认后操作」里的"确认"会与术语表的
         「review 确认」撞词，模型会把它理解成去问用户，白跑一轮 `user_confirm`。
         """
 

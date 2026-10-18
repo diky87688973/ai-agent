@@ -1,6 +1,6 @@
 /* chat-messages.css —— 对话区：气泡、markdown 正文排版、消息间距。
  *
- * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，**顺序即层叠顺序**，
+ * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，顺序即层叠顺序，
  * 调整清单顺序会改变覆盖关系。
  */
 /* 助手正文的阅读排版。
@@ -26,7 +26,7 @@
 /* 列表项内的段落不再撑开段距，否则每条之间空一大截 */
 .b.a li > p{margin:0 0 4px 0}
 .b.a li > p:last-child{margin-bottom:0}
-/* 嵌套列表贴着父项，不要额外下边距 */
+/* 嵌套列表贴着父项，无额外下边距 */
 .b.a li > ul,.b.a li > ol{margin:3px 0 0 0}
 .b.a .task-item{list-style:none;margin-left:-18px;display:flex;align-items:flex-start;gap:6px}
 .b.a .task-item input{margin:2px 0 0 0;accent-color:#4da3ff}
@@ -50,7 +50,7 @@
 .attach-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid #555;background:#111}
 .attach-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .attach-thumb button{position:absolute;top:2px;right:2px;width:18px;height:18px;border:0;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-size:11px;line-height:18px;cursor:pointer;padding:0}
-/* 用户气泡里**图片在上、文字在下**。
+/* 用户气泡里图片在上、文字在下。
    气泡（.b.u）是 flex 纵向布局，`order` 让附件条排到文字之前 ——
    只改视觉顺序，不动 DOM 插入时序。 */
 .b.u>.b-text{order:2}

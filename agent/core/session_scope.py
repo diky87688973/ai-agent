@@ -3,15 +3,15 @@
 
 `ToolPipeline.execute` 在调用期把该轮次的上下文摆进 contextvar：
 - `current_session_id()`：会话 id；
-- `current_context()`：完整的 `ToolTurnContext`——**进程级 AppContext + 会话级
-  SessionContext + 回合级上下文 + 本次调用**。
+- `current_context()`：完整的 `ToolTurnContext`——进程级 AppContext + 会话级
+  SessionContext + 回合级上下文 + 本次调用。
 
 两条通路并存：cid 是最常用的一个字段，单独留一条最简通路省掉到处 `getattr`；
-而完整上下文让工具**显式**拿到会话态（`session.gate` / `session.live` /
+而完整上下文让工具显式拿到会话态（`session.gate` / `session.live` /
 `session.pending_confirm`）与全局服务（`ctx.service(NAME)`），不必再在构造期注入
 "能摸到会话态的函数"。调用结束还原，不跨调用泄漏。
 
-进度通道（`tool_progress` 事实）：工具**不能**直接发事件——那会绕开
+进度通道（`tool_progress` 事实）：工具不能直接发事件——那会绕开
 事件流的唯一时序。它只能"报告一段输出"，由管道决定是否转成事件。所以这里是
 一个单向回调：`emit_progress` 报告，`set_progress_reporter` 装配，未装配时静默丢弃。
 """
@@ -76,9 +76,9 @@ def reset_progress_reporter(token: Token) -> None:
 def current_progress_reporter() -> Optional[Callable[[dict], None]]:
     """取出当前上报器（可为 None）。
 
-    给**子线程**用：`contextvars` 不会自动传进 `threading.Thread`，线程里调
+    给子线程用：`contextvars` 不会自动传进 `threading.Thread`，线程里调
     `emit_progress` 会拿到默认值（None）而静默丢弃。所以开线程前先在当前上下文取出
-    上报器，把它作为参数传进去，由线程**显式**调用。
+    上报器，把它作为参数传进去，由线程显式调用。
     """
     return _REPORTER.get()
 
@@ -103,6 +103,6 @@ def emit_progress(
     try:
         reporter(payload)
     except Exception:
-        # **旁路，刻意吞掉**：`reporter` 是会话级事件的观察者回调，
+        # 旁路，刻意吞掉：`reporter` 是会话级事件的观察者回调，
         # 与上面同一条判据——失败只丢"过程显示"，不丢回合结果。
         pass

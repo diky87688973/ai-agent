@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """目标驱动的续跑：取消必须生效、轮数有上限、paused/done 不触发。
 
-关键约束：续跑判定必须同时看目标状态**和**取消位——只看目标状态时，
+关键约束：续跑判定必须同时看目标状态和取消位——只看目标状态时，
 用户点「停止」后运行器仍会以约 90 轮/秒空转（起一轮 → 开头被取消 → 又续跑），
 CPU 打满且事实流被灌爆。用真实 `MeshState` + 假 app 构造，不依赖模型。
 """
@@ -78,7 +78,7 @@ class ContinuationTextTest(_RunnerBase):
         self.assertEqual(runner._next_continuation_text(cid), "把登录页改成深色主题")
 
     def test_paused_and_done_stop_even_when_autonomy_on(self) -> None:
-        """**目标说了算**：暂停/达成后不能再被自主开关顶回去。"""
+        """目标说了算：暂停/达成后不能再被自主开关顶回去。"""
         state, runner, _ = self._make("goal-text-0003")
         cid = "goal-text-0003"
         state.set_autonomy(cid, True)

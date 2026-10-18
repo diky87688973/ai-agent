@@ -1,6 +1,6 @@
 /* composer/goal.js —— 目标（Goal）按钮三态与设置弹窗。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 const modePlus=document.getElementById("modePlus"),modeMenu=document.getElementById("modeMenu"),modeChip=document.getElementById("modeChip"),modeChipText=document.getElementById("modeChipText"),modeChipClear=document.getElementById("modeChipClear"),goBtn=document.getElementById("go"),stopTaskBtn=document.getElementById("stopTask"),autoToggleBtn=document.getElementById("autoToggle"),chatMoreBtn=document.getElementById("chatMoreBtn"),chatSessionMenu=document.getElementById("chatSessionMenu");
@@ -20,7 +20,7 @@ autoToggleBtn.title="目标（"+label+"）"+(g&&g.rounds?(" · 已自动推进 "
 }else{
 autoToggleBtn.title="目标：设定后每轮结束自动用这段文案发起新一轮（点击设置）";
 }}
-/* 目标状态是**服务端权威**：页面打开时取一次，之后由 `goal` 工具的调用结果刷新。
+/* 目标状态是服务端权威：页面打开时取一次，之后由 `goal` 工具的调用结果刷新。
    不在前端持久化 —— 目标属于会话，不属于这个浏览器标签页。 */
 function renderGoalDialog(){
 var cid=getActiveConversationId();if(!cid)return;
@@ -40,7 +40,7 @@ head.appendChild(badge);
 box.appendChild(head);
 box.appendChild(el("div","goal-dialog-sub",
 g?"每轮结束时会自动用这段文案发起新一轮；暂停或标记达成后停止。"
- :"写一句你想让它持续推进的事，之后每轮结束都会自动接着做。"));
+ :"设定一句持续推进的目标，之后每轮结束都会自动接着做。"));
 
 var ta2=el("textarea");
 ta2.value=g?String(g.text||""):"";
@@ -85,9 +85,9 @@ ta2.addEventListener("input",syncSave);syncSave();
 
 box.appendChild(row);
 document.body.appendChild(mask);document.body.appendChild(box);
-/* 定位必须**在挂载之后**：`getBoundingClientRect()` 只有元素进了文档才有真实几何，
+/* 定位必须在挂载之后：`getBoundingClientRect()` 只有元素进了文档才有真实几何，
    提前量到的是 0，算出来的 left 全是错的（弹窗会跑到视口最左）。
-   对齐的是**触发它的那个「目标」按钮**：
+   对齐的是触发它的那个「目标」按钮：
      - 竖直：贴着输入区上沿（按输入区实际高度算），输入框换行变高时自动抬高；
      - 水平：弹窗中线对齐按钮中线，再夹在视口内（按钮靠右时不顶出屏幕）。
    不用固定 right 值：按钮位置随输入区布局变化（有/无停止键都会挪）。 */

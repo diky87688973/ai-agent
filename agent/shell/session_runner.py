@@ -29,7 +29,7 @@ _HEARTBEAT_INTERVAL_SECONDS = 60.0
 #: 用户重新发消息会重置这个链（新一轮 runner），所以正常使用不受影响。
 _MAX_AUTO_ROUNDS = 50
 
-#: 自主续跑提示的兜底文案：**只有开了自主开关却没有目标**时才会走到它。
+#: 自主续跑提示的兜底文案：只有开了自主开关却没有目标时才会走到它。
 #: 有目标时触发文案是目标（`goal`）里那条可编辑的文本。
 AUTO_CONTINUE_PROMPT = (
     "（自主模式）请继续推进未完成的工作；若已全部完成或需要用户决策，"
@@ -43,10 +43,10 @@ class SessionRunner:
     `auto_continue`：注入的判断函数（cid → bool）。回合结束后若为真，则自动再跑一轮
     ——这是「自主模式」的落地（`_autoEnabled` + `/api/chat/autonomous`）。
 
-    `goal_row`：注入的取目标函数（cid → dict | None）。**目标存在时它说了算**：
-    `active` 用目标文案续跑；`paused`/`done` 就停 —— 此时**不看** `auto_continue`，
+    `goal_row`：注入的取目标函数（cid → dict | None）。目标存在时它说了算：
+    `active` 用目标文案续跑；`paused`/`done` 就停 —— 此时不看 `auto_continue`，
     否则"暂停"会被自主开关顶回去，用户点了暂停却看到模型继续跑。
-    只有**完全没有目标**时才回落到 `auto_continue` + `AUTO_CONTINUE_PROMPT`。
+    只有完全没有目标时才回落到 `auto_continue` + `AUTO_CONTINUE_PROMPT`。
 
     `user_rules`：用户自定义规则正文，拼进系统提示。缺省在构造时从配置读一次
     —— 规则在一次进程生命周期内不变，每回合重读文件是白费 IO。
@@ -78,8 +78,8 @@ class SessionRunner:
         `message` 可带：
         - `content`：用户文本；
         - `attachments`：随本轮注入模型请求的附件；
-        - `resume`：**外部结果回灌**——形如
-          `{"call_id": ..., "ok": True, "data": ...}`。带它时这一轮**没有用户发言**，
+        - `resume`：外部结果回灌——形如
+          `{"call_id": ..., "ok": True, "data": ...}`。带它时这一轮没有用户发言，
           运行器先把结果写成 `tool_result` 事实，再跑回合让模型消费它。
         """
         key = str(cid or "").strip()
@@ -163,14 +163,14 @@ class SessionRunner:
                     report_error("shell.session_runner", exc, conversation_id=cid)
                 resume = None
                 nxt = self._mesh.end_run(cid)
-                # **取消优先**：用户点了停止就不能再续跑。
+                # 取消优先：用户点了停止就不能再续跑。
                 # 不判它会死循环 —— 取消位一经置位无人清除，而续跑判定只看目标状态，
                 # 于是"起新一轮 → 新一轮开头立刻被取消 → 又续跑"会无限转下去，
                 # CPU 打满、事实与 SSE 一起被灌爆，界面上"停止"等于没按。
                 if self._is_canceled(cid):
                     break
                 if nxt is None:
-                    # 队列空：有 active 目标则用**目标文案**再续一轮；
+                    # 队列空：有 active 目标则用目标文案再续一轮；
                     # 只有开了自主开关却没有目标时才回落到 `AUTO_CONTINUE_PROMPT`。
                     nxt_text = self._next_continuation_text(cid)
                     if not nxt_text:
@@ -196,7 +196,7 @@ class SessionRunner:
             report_error("shell.session_runner", exc, conversation_id=cid, where="aborted")
         finally:
             stop_beat.set()
-            # **会话终点必须补投一次**：`SessionStore.flush_pending` 只在
+            # 会话终点必须补投一次：`SessionStore.flush_pending` 只在
             # 下一次 `append` 时才顺带补投，收尾那一趟之后不会再有 `append`。
             # 不补投的话，某一趟落盘失败的事实就永远留在积压里，
             # 进程退出即彻底丢失。
@@ -243,7 +243,7 @@ class SessionRunner:
     def _next_continuation_text(self, cid: str) -> str:
         """回合结束后该自动发的下一条 user 输入；空串 = 到此为止。
 
-        目标优先且**目标说了算**：只要这个会话有目标，触发与否完全由它的状态决定
+        目标优先且目标说了算：只要这个会话有目标，触发与否完全由它的状态决定
         （`active` 发文案、`paused`/`done` 停），不叠加自主开关 ——
         否则暂停会被自主开关顶回去。
         没有目标时才回落到自主开关 + `AUTO_CONTINUE_PROMPT`。
@@ -266,7 +266,7 @@ class SessionRunner:
                  resume: Any = None) -> None:
         """执行单个回合：迭代事件至尽（回合过）；注入停止检查。
 
-        `resume` 非空时（外部结果回灌）：先把结果**写成 `tool_result` 事实**，
+        `resume` 非空时（外部结果回灌）：先把结果写成 `tool_result` 事实，
         再跑回合。写法就是"拼接到上下文末尾"——这一刻上下文末端正好是那次工具调用，
         拼上去恰好是 `…assistant(tool_calls) → tool`（天然对齐，模型 API 才接受）。
 
@@ -298,7 +298,7 @@ class SessionRunner:
                         if e.type in ("tool_done", "tool_failed")}
             if call_id in existing:
                 return                      # 已交付过：不重复拼（幂等由这里保证）
-            # 结果事实必须用**内核当前认的名字**：内核把 `tool_done` / `tool_failed`
+            # 结果事实必须用内核当前认的名字：内核把 `tool_done` / `tool_failed`
             # 攒成"这次调用的结果"，再由随后的 `tool_ended` 取出交给模型。
             # 若写成别的名字，`tool_ended` 取不到结果 → 模型收到
             # 「已结束，但未记录结果」，而且要等这条被单独算作一条 tool 消息，
@@ -331,7 +331,7 @@ class SessionRunner:
         系统提示必须有内容：只读 mesh 的 `system` 时它常为空串，
         模型便只知工具 schema、不知使用纪律。
 
-        **不含模式段**：模式由 `_mode_note` 单独产出、只附加在请求尾部，
+        不含模式段：模式由 `_mode_note` 单独产出、只附加在请求尾部，
         这样切模式不会改动这一段，前缀缓存不失效。
         """
         meta = self._mesh.get_agent(cid)

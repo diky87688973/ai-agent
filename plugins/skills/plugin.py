@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Skills 插件：Skills 库（扫描 / 读取 / 复制）+ `skill_manage` 工具 + 上下文注入。
 
-Skills 走**渐进式披露**：
+Skills 走渐进式披露：
 
 - 可用 Skills 清单（名字 + 描述）常驻上下文，模型据此判断该用哪个；
 - `auto_load/` 目录下 Skills 的正文始终随上下文携带；
-- 其余 Skills 的正文**不进上下文**，由模型用 `skill_manage action=read` 按需读取。
+- 其余 Skills 的正文不进上下文，由模型用 `skill_manage action=read` 按需读取。
 
 没有界面交互，唯一对外可见的是上下文分层里的用量（段名与数量）。
 
@@ -57,7 +57,7 @@ def _load_config(path: Optional[Path] = None) -> Dict[str, Any]:
                   for k, v in parser.items(CONFIG_SECTION)}
 
     root: Optional[Path] = None
-    # 环境变量优先：给测试/CI 一个换数据位的口子（与数据根同一套做法）。
+    # 环境变量优先：为测试与 CI 提供独立的数据目录入口（与数据根同一套做法）。
     raw_dir = os.environ.get("AI_AGENT_SKILLS_DIR") or values.get("dir") or ""
     if raw_dir:
         candidate = Path(raw_dir)
@@ -97,7 +97,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         ctx.add_context_source(
             lambda cid, _lib=library: _lib.build_auto_load_messages(),
             {"label": "Skills 常驻", "prefix": RESIDENT_PREFIX,
-             # 只数条数：为取长度去把常驻正文全拼一遍是白烧（每次收集都跑）。
+             # 只数条数：为取长度去把常驻正文全拼一遍是重复开销（每次收集都跑）。
              "count": lambda _cid, _lib=library: _lib.auto_load_count()},
         ),
     ]

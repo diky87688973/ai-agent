@@ -1,6 +1,6 @@
 /* render/paths.js —— 路径与文本工具：转义、高亮、Windows 路径归一、链接化、HTML 白名单清洗。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function localAbsPath(p){
@@ -25,7 +25,7 @@ return raw;
 function markedIsVideo(url){
 return /\.(mp4|mov|webm|avi)(\?|$)/i.test(String(url||""));
 }
-/* 音频/视频扩展名。这类本地路径当**链接**给出时（如 `[播放音频](D:\...\a.mp3)`），
+/* 音频/视频扩展名。这类本地路径当链接给出时（如 `[播放音频](D:\...\a.mp3)`），
    也要转成 `/api/media`，否则点开是死链。
    只认媒体扩展名：文本文件（.md/.py 等）的本地路径链接另有文件查看路由，
    不能在这里一并改掉。 */
@@ -33,7 +33,7 @@ function markedIsMediaFile(url){
 return /\.(mp4|mov|webm|avi|mp3|wav|m4a|aac|flac|ogg|png|jpe?g|gif|webp|bmp)(\?|$)/i.test(String(url||""));
 }
 /* 正文里的 `@<绝对路径>` → 可点击引用，点了在右栏打开该文件。
-   这是**展示层**的事：composer 里插入的仍是 `@<路径>` 纯文本（模型认这个格式），
+   这是展示层的事：composer 里插入的仍是 `@<路径>` 纯文本（模型认这个格式），
    这里只把它渲染成一个 chip。 */
 /* 正文里的本地文件链接：盘符路径进右栏，外链与站内地址留给浏览器。 */
 function filePathFromHref(href){
@@ -59,9 +59,9 @@ return parts.length<=2?s:(parts[parts.length-2]+"/"+parts[parts.length-1]);
 /* 识别「文件路径」写法。模型经常把路径写成行内代码（`` `E:\test.txt` ``），
    那种没有 `@` 前缀，靠 atFileExtension 认不出来。
 
-   判据要严：`agent/mechanisms/quality_gate.py` 这类相对路径也可能是**行内代码里的
-   代码引用**，一律变成 chip 会把正文里的普通代码引用也点成文件面板。
-   所以只认**盘符开头的绝对路径**（`E:\…` / `E:/…`），且必须带扩展名。 */
+   判据要严：`agent/mechanisms/quality_gate.py` 这类相对路径也可能是行内代码里的
+   代码引用，一律变成 chip 会把正文里的普通代码引用也点成文件面板。
+   所以只认盘符开头的绝对路径（`E:\…` / `E:/…`），且必须带扩展名。 */
 var _WIN_PATH_RE=/^@?([A-Za-z]:[\\/][^\s`<>"|?*]*\.[A-Za-z0-9]{1,8})$/;
 function absoluteFilePathOf(s){
 var t=String(s||"").trim();
@@ -75,7 +75,7 @@ return '<a class="file-ref" data-file-path="'+escapeHtml(p)+'" title="'+escapeHt
 }
 var _atFileExt=null;
 /* 用户输入里的 `@<路径>` 也要能点开。
-   用户消息走 `textContent`（纯文本，不过 markdown），所以这里做一次**只认文件引用**的
+   用户消息走 `textContent`（纯文本，不过 markdown），所以这里做一次只认文件引用的
    轻量转换：先把整段转义，再把 `@<盘符路径>` 换成 chip。
    不整段跑 markdown —— 用户输入里的 `*`、`_`、`#` 是字面内容，不该被解释。 */
 function linkifyUserText(s){
@@ -110,7 +110,7 @@ return fileRefHtml(p,true);
 return _atFileExt;
 }
 /* 行内代码里的绝对路径也变成可点 chip。
-   `marked.use({renderer})` 收的是**对象**（键为渲染方法名），不是函数 ——
+   `marked.use({renderer})` 收的是对象（键为渲染方法名），不是函数 ——
    传函数会静默什么都不注册。返回 `false` 时回落默认渲染。 */
 var _codespanExt=null;
 function filePathCodespanExtension(){
@@ -125,10 +125,10 @@ return fileRefHtml(p,/^@/.test(String(token.text||"").trim()));
 return _codespanExt;
 }
 /* markdown 输出的消毒。
-   解析器对**原始 HTML 直通**，而且它的 `html:false` 选项实测不起作用（三种配置都直通），
+   解析器对原始 HTML 直通，而且它的 `html:false` 选项不生效（三种配置都直通），
    所以防线只能做在渲染之后。
 
-   做法是**元素级白名单**，不是字符串黑名单：逐个标签过，白名单外的标签**转义成文本**。
+   做法是元素级白名单，不是字符串黑名单：逐个标签过，白名单外的标签转义成文本。
    黑名单挡不住 `<ScRiPt>`、`<script/x>`、`<svg/onload=…>` 这类变体 —— 漏一个就是执行。
    白名单只收渲染器自己会产出的标签（含 `markedRenderer` 产出的 `<video>`），
    正文里的原始 HTML 全被转义，想放新标签必须显式加进来。 */
@@ -195,7 +195,7 @@ continue;
 var m=/^<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/.exec(src.slice(lt));
 if(!m||m[0].indexOf("\n")>=0){
 /* 不是完整标签（正文里的裸 `<`）：转义它，后面的内容继续扫。
-   标签**必须同行闭合** —— 跨行匹配会把正文里的 `<` 一路吃到后面的 `>`，
+   标签必须同行闭合 —— 跨行匹配会把正文里的 `<` 一路吃到后面的 `>`，
    把本该显示的文本当成标签吞掉。 */
 out+="&lt;";i=lt+1;continue;
 }
@@ -203,7 +203,7 @@ var closing=m[1]==="/";
 var rawName=m[2];
 var name=rawName.toLowerCase();
 if(_SAFE_TAGS[name]!==1){
-/* 白名单外：**整段转义成文本**，不留在 DOM 里 */
+/* 白名单外：整段转义成文本，不留在 DOM 里 */
 out+=escapeHtml(m[0]);
 i=lt+m[0].length;
 continue;
@@ -219,7 +219,7 @@ i=lt+m[0].length;
 return out;
 }
 /* markdown 解析器实例。
-   **不要**在 `parse` 选项里再传 `renderer`：那会整体替换渲染器链，
+   在 `parse` 选项里再传 `renderer` 会整体替换渲染器链，
    把 `use()` 注册的渲染方法覆盖（`codespan` 那类）整个丢掉。
    所以所有渲染定制都在 `mdParser()` 里经 `use()` 装好，parse 只传解析选项。
    注入防线在 `sanitizeRenderedHtml`（解析器的 `html:false` 不起作用，见上）。 */

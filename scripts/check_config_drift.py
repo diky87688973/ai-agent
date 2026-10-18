@@ -3,11 +3,11 @@
 
 规则（双向，任何一条不满足都退出 1）：
 
-1. `config.ini.example` 的节/键 **必须精确等于** `agent.config_schema.SCHEMA`：
+1. `config.ini.example` 的节/键 必须精确等于 `agent.config_schema.SCHEMA`：
    模板缺键 → 用户照抄后功能静默失效；模板多键 → 模板在承诺不存在的功能。
 2. `web-ui-config.ini.example` 必须存在且精确等于 `WEB_UI_SCHEMA`
    （真实 `web-ui-config.ini` 不入库，见 `.gitignore`）。
-3. 真实的 `config.ini` / `web-ui-config.ini` 若存在，**只允许**是 schema 的子集：
+3. 真实的 `config.ini` / `web-ui-config.ini` 若存在，只允许是 schema 的子集：
    多出来的键通常是拼写错误，必须报出来（报行号）。
 
 用法：python scripts/check_config_drift.py
@@ -55,7 +55,7 @@ def _line_of_key(text: str, section: str, key: str) -> int:
 
 
 def compare_exact(text: str, name: str, schema: Dict[str, Dict[str, str]]) -> List[str]:
-    """模板必须与 schema **精确相等**（节与键都双向比对）。"""
+    """模板必须与 schema 精确相等（节与键都双向比对）。"""
     problems: List[str] = []
     try:
         parser = parse_ini(text, name)
@@ -108,7 +108,7 @@ def compare_plugin_model_template(
     """插件模型配置模板：`[base]` 精确、动态的 `[model:*]` 取键并集双向比对。
 
     单条目允许省略不适用于自己的键（openai 条目不写 thinking），所以不能
-    逐节精确比对；但**模板整体**必须把所有合法键示范出来，且不能多出 schema
+    逐节精确比对；但模板整体必须把所有合法键示范出来，且不能多出 schema
     未登记的键 —— 少一个键，用户照抄后功能静默失效；多一个键，模板在承诺
     解析器不认的功能。
     """

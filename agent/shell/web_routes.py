@@ -33,12 +33,12 @@ class _Handler(BaseHTTPRequestHandler):
     # ── 工具 ──────────────────────────────────────────────
 
     def handle_one_request(self) -> None:
-        """读下一条请求行时，客户端提前断开**不算错误**。
+        """读下一条请求行时，客户端提前断开不算错误。
 
         每次 SSE 连接被浏览器关掉（刷新标签、关标签、探针读够就走）时，
-        `BaseHTTPRequestHandler.handle_one_request` 在**读下一条请求行**时抛
+        `BaseHTTPRequestHandler.handle_one_request` 在读下一条请求行时抛
         `ConnectionAbortedError [WinError 10053]`，`socketserver` 把它当"处理请求时
-        发生异常"打**整屏 traceback**。而 `_events_stream` 里已经吞掉了同类异常 ——
+        发生异常"打整屏 traceback。而 `_events_stream` 里已经吞掉了同类异常 ——
         噪声来自响应写完之后的那次读，与业务无关。
         这里按"正常断开"处理，让 stderr 只剩真正的问题。
         """
@@ -111,7 +111,7 @@ class _Handler(BaseHTTPRequestHandler):
     def _plugin_asset(self, plugin: str, rel: str) -> None:
         """送出插件目录内的面板脚本。
 
-        路径必须是**该插件目录下的真实文件**：先解析绝对路径，再校验它落在插件目录内
+        路径必须是该插件目录下的真实文件：先解析绝对路径，再校验它落在插件目录内
         （挡 `..` 与符号链接绕行）。只送文本类脚本，不送任意文件。
         """
         host = getattr(self.shell.app, "plugin_host", None) if self.shell.app else None
@@ -190,12 +190,12 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _classic_sse(self, query: Dict[str, str]) -> None:
-        """事件流。两种格式任选，**默认经典界面格式**：
+        """事件流。两种格式任选，默认经典界面格式：
 
         - 默认（无 `format` 或 `format=classic`）：适配层翻译过的老事件
           （`conversation` / `tool_start` / `llm_round` …），经典 UI 用这条。
         - `format=kernel`：内核原生事件（`turn_started` / `tool_call` …）原样透传。
-          给测试、运维探针，以及**未来的其它交互层**（命令行等）用——
+          给测试、运维探针，以及未来的其它交互层（命令行等）用——
           它们要的是内核事实，不是给经典界面的翻译结果。
 
         两条流分开：把内核事件名暴露成"另一套公开契约"会让适配层失去意义，
@@ -212,9 +212,9 @@ class _Handler(BaseHTTPRequestHandler):
             return
         channel = ClassicSseChannel(classic)
         # 断线续传：游标取 SSE 原生的 `Last-Event-ID`（浏览器自动带）或 `?last_event_id=`。
-        # 坐标是**全局单调**的，所以一个游标就够了——不需要客户端告诉服务端"续哪个会话"，
+        # 坐标是全局单调的，所以一个游标就够了——不需要客户端告诉服务端"续哪个会话"，
         # 浏览器的 `EventSource` 也就无需任何定制。
-        # **没有游标就不续传**：经典界面各自 `GET /api/chat/history` 渲染已有内容，
+        # 没有游标就不续传：经典界面各自 `GET /api/chat/history` 渲染已有内容，
         # 适配层再回放一遍就是重复气泡。
         cursor = classic.cursor_of(self.headers, query)
         if cursor >= 0:
@@ -367,7 +367,7 @@ class _Handler(BaseHTTPRequestHandler):
                     self._json(status, payload)
             elif path == "/api/chat/ui-state":
                 # 语义不同：内核存「模式/todo/自主」，经典界面存「布局(tabs)」。
-                # 经典界面的 GET **不带 conversation_id**（经典界面），
+                # 经典界面的 GET 不带 conversation_id（经典界面），
                 # 所以有适配层时一律走它，不落到内核那套上。
                 classic = self._classic()
                 if classic is not None and not query.get("conversation_id"):
@@ -422,7 +422,7 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 self._json(status, payload)
             elif path == "/api/media":
-                # 传 None：按**全部可见根**校验。`media_root` 只覆盖第一个盘根，
+                # 传 None：按全部可见根校验。`media_root` 只覆盖第一个盘根，
                 # 生成物在别的盘上会被一律 403（`WebShell.media` 按全部可见根校验）。
                 status, payload, ctype = self.shell.media(query.get("path", ""), None)
                 if status == 200 and isinstance(payload, (bytes, bytearray)):
@@ -491,7 +491,7 @@ class _Handler(BaseHTTPRequestHandler):
                         }
                 self._json(status, payload)
             elif path == "/api/chat/user-confirm":
-                # 确认端点承载**两类**请求（经典界面两种情况共用一个端点）：
+                # 确认端点承载两类请求（经典界面两种情况共用一个端点）：
                 #   ① 写盘门控：带 `confirm_id` → 解锁预览快照（内核既有行为）；
                 #   ② 选择回填：带 `confirm` 文本 → 把用户选择送回模型
                 #      （`user_confirm` 工具的第二段；经典界面期待返回体带 `run_id`）。
@@ -531,8 +531,8 @@ class _Handler(BaseHTTPRequestHandler):
                     return
                 try:
                     if action == "save":
-                        # 「保存」只改文案：paused/done 保持原状态，
-                        # （那会让"只想改个字"变成重开自动续跑），也不要清掉备注。
+                        # 「保存」只改文案：paused/done 保持原状态
+                        # （否则改成重开会让自动续跑被重新触发），备注也不清除。
                         text = str(body.get("text") or "")
                         existing = state.get_goal(cid)
                         if existing is None:
@@ -579,7 +579,7 @@ class _Handler(BaseHTTPRequestHandler):
             path = self._path()
             body = self._read_body()
             if path == "/api/chat/ui-state":
-                # 经典界面的 PUT 直接发布局对象（经典界面），**不带 conversation_id**；
+                # 经典界面的 PUT 直接发布局对象（经典界面），不带 conversation_id；
                 # 内核那套要求 conversation_id。用有无该字段区分两套语义。
                 classic = self._classic()
                 if classic is not None and not body.get("conversation_id"):

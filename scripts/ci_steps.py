@@ -15,11 +15,11 @@ Kind = Literal["gate", "unittest", "acceptance", "post"]
 #: 验收脚本「本机跑不了」退出码（与 ci.py / run_acceptance_step 一致）
 SKIPPED = 2
 
-#: 允许 skip 的验收脚本白名单（仅缺凭据等**预期**跳过）。
+#: 允许 skip 的验收脚本白名单（仅缺凭据等预期跳过）。
 #: 其它验收一旦 skip / fail → CI 失败。mvp3 依赖真模型 config.ini，CI 无密钥故在名单内。
 ALLOWED_ACCEPTANCE_SKIPS = frozenset({"acceptance_mvp3"})
 
-#: 白名单长度上限（防名单膨胀时静默放宽）。与白名单**分开**设置：
+#: 白名单长度上限（防名单膨胀时静默放宽）。与白名单分开设置：
 #: 写成 `len(白名单)` 会让上限永远不可触发（X7）。
 MAX_ACCEPTANCE_SKIPS = ACCEPTANCE_SKIP_BUDGET
 
@@ -55,7 +55,7 @@ def gate_steps() -> List[CiStep]:
     return [
         CiStep("依赖方向", "gate", "scripts/check_imports.py",
                ["scripts/check_imports.py"], 3),
-        CiStep("架构洁癖", "gate", "scripts/check_architecture_hygiene.py",
+        CiStep("架构约束", "gate", "scripts/check_architecture_hygiene.py",
                ["scripts/check_architecture_hygiene.py"], 3),
         CiStep("CI 工作流一致", "gate", "scripts/check_ci_workflow.py",
                ["scripts/check_ci_workflow.py"], 3),

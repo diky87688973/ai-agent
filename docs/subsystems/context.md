@@ -80,7 +80,7 @@ class SourceMeta:
     plugin_rank: int | None = None              # 插件在清单里的位次 = 组装位次
 ```
 
-插件侧一条口子：
+插件侧一个入口：
 
 ```python
 ctx.add_context_source(fn, {"label": "段名", "prefix": "【前缀】\n",
@@ -264,7 +264,7 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 
 ## 摘要请求复用前缀
 
-摘要也是一次模型调用，**结构与平常请求相同，只有尾巴不同**：
+摘要也是一次模型调用，**结构与平常请求相同，只有结尾不同**：
 
 ```
 平常请求  系统提示词 + 插件各段 + 记忆摘要 + 对话 + 新输入 / 工具结果 + 执行模式
@@ -349,8 +349,8 @@ Skills 本身的分层做法见 [skills.md](skills.md)。
 ## 估算
 
 估算器 `approx_tokens_text()` 按字符分区算：**CJK 每字 1 token，其余每 4 字符 1 token**，
-`tool_calls` 的 `arguments` 也算进去。整体按 `len // 4` 会把中文正文低估约四倍 ——
-实测一条会话估出 17 万而真实 prompt 100 万，阈值因此形同虚设、压缩永远晚触发。
+`tool_calls` 的 `arguments` 也算进去。整体按 `len // 4` 会把中文正文低估约四倍，
+阈值随之失效、压缩时点大幅推后。
 
 压缩判定另外加上工具声明与模式说明的固定开销（它们不在 messages 里，却是请求体的一部分）。
 

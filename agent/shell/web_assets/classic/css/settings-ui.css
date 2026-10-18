@@ -73,14 +73,27 @@ header .hdr-settings-btn svg{
 .st-hint{margin-top:4px;color:var(--c-text-4);font-size:12px;line-height:1.4}
 .st-dir{display:flex;gap:8px;align-items:center}
 .st-dir input{flex:1;min-width:0}
-.st-mini,.st-save,.st-back{
+.st-mini,.st-save,.st-apply{
   border:1px solid var(--c-line-2);border-radius:8px;
   background:var(--c-bg-layer);color:var(--c-text-1);
   font:inherit;font-size:13px;padding:6px 12px;cursor:pointer;
 }
-.st-mini:hover,.st-save:hover,.st-back:hover{background:var(--c-bg-hover)}
-.st-save{background:var(--c-brand);border-color:transparent;color:#fff}
-.st-save:disabled,.st-mini:disabled{opacity:.55;cursor:default}
+.st-mini:hover,.st-apply:hover{background:var(--c-bg-hover);border-color:var(--c-line-3)}
+.st-save,.st-apply.is-primary{
+  background:var(--c-brand);border-color:transparent;color:#fff;
+}
+.st-save:hover{filter:brightness(1.06)}
+.st-save:disabled,.st-apply:disabled,.st-mini:disabled{opacity:.55;cursor:default}
+/* 返回：只有一枚箭头，靠悬停底色传达"可点"，不用带框的按钮抢视线。 */
+.st-back{
+  flex:0 0 auto;width:26px;height:26px;padding:0;border:1px solid transparent;
+  border-radius:999px;background:transparent;color:var(--c-text-3);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.st-back svg{width:16px;height:16px;display:block}
+.st-back:hover{background:var(--c-bg-hover);border-color:var(--c-line-2);color:var(--c-text-1)}
+.st-foot-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.st-apply{background:transparent;color:var(--c-text-2)}
 .st-foot{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:10px 16px;border-top:1px solid var(--c-line-1);
@@ -112,6 +125,59 @@ header .hdr-settings-btn svg{
 .st-card .st-meta{color:var(--c-text-3);font-size:12px;margin-top:4px;line-height:1.4}
 .st-card-actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
 .st-card .st-switch{margin-top:0}
-.st-editor-bar{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.st-editor-bar{display:flex;align-items:center;gap:8px;margin:0 0 8px}
 .st-editor-bar b{font-size:14px}
 .st-empty{color:var(--c-text-3);font-size:13px;padding:12px 0}
+
+/* ── 结构化插件配置（多模型）：每条一条卡片，节名不露出来 ────────────── */
+.st-models{display:flex;flex-direction:column;gap:10px;margin:0 0 10px}
+.st-model{
+  border:1px solid var(--c-line-2);border-radius:10px;
+  background:var(--c-bg-base);padding:10px 12px 4px;
+}
+.st-model-head{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.st-model-index{color:var(--c-text-4);font-size:12px;flex:0 0 auto}
+.st-form .st-model-id{
+  flex:1;min-width:0;font-weight:600;
+}
+.st-model-del{
+  flex:0 0 auto;width:26px;height:26px;padding:0;border:1px solid transparent;
+  border-radius:8px;background:transparent;color:var(--c-text-4);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.st-model-del svg{width:14px;height:14px;display:block}
+.st-model-del:hover{background:var(--c-bad-bg);border-color:transparent;color:var(--c-bad)}
+.st-model-body .st-row{
+  grid-template-columns:132px minmax(0,1fr);gap:10px;margin:0 0 10px;
+}
+.st-model-body .st-row[hidden]{display:none}
+.st-model-body .st-row > label{padding-top:6px;font-size:12px}
+.st-add{
+  width:100%;padding:9px 12px;margin:0 0 4px;
+  border:1px dashed var(--c-line-3);border-radius:10px;
+  background:transparent;color:var(--c-text-3);
+  font:inherit;font-size:13px;cursor:pointer;
+}
+.st-add:hover{background:var(--c-bg-hover);border-color:var(--c-line-3);color:var(--c-text-1)}
+/* 插件配置编辑器：整块占满表单区，滚动交给 textarea 自己。
+   全局滚动条是"指针进入才显色"，代码框这里改成常显 —— 否则内容还有下文
+   也看不出来，用户会以为下面没东西了。 */
+.st-form.st-form-editor{display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.st-editor{display:flex;flex-direction:column;flex:1;min-height:0}
+.st-editor-hint{color:var(--c-text-3);font-size:12px;line-height:1.5;margin:0 0 8px}
+.st-editor textarea{
+  flex:1;min-height:160px;max-height:none;resize:none;overflow:auto;
+  scrollbar-width:thin;scrollbar-color:var(--st-sb) transparent;
+  scrollbar-gutter:stable;
+}
+/* 常显的拇指：--c-line-3 在暗色下只有 12% 白，缩到 6px 宽几乎看不见。 */
+.st-editor textarea{--st-sb:rgba(140,144,154,.42)}
+html[data-ui-theme="light"] .st-editor textarea{--st-sb:rgba(90,98,112,.38)}
+.st-editor textarea::-webkit-scrollbar{width:10px;height:10px}
+.st-editor textarea::-webkit-scrollbar-track{background:transparent}
+.st-editor textarea::-webkit-scrollbar-thumb{
+  background:var(--st-sb);border-radius:6px;
+  border:2px solid transparent;background-clip:padding-box;
+}
+.st-editor textarea::-webkit-scrollbar-thumb:hover{background:var(--c-text-4);background-clip:padding-box}
+.st-editor textarea::-webkit-scrollbar-corner{background:transparent}

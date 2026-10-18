@@ -86,7 +86,7 @@ class LayoutTest(unittest.TestCase):
         self.assertNotIn("timestamp", meta)
 
     def test_long_diff_is_clipped_and_marked(self) -> None:
-        """超长 diff 截断后要**标明**截断了 —— 静默截断会被读成"改动就这么点"。"""
+        """超长 diff 截断后要标明截断了 —— 静默截断会被读成"改动就这么点"。"""
         mid = self.backups.create(self.f, mode="write", diff_text="x" * 5000)
         assert mid is not None
         group, ver = mid.split(":")

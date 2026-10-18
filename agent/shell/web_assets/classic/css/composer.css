@@ -1,6 +1,6 @@
 /* composer.css —— 输入区：步骤与命令卡、按钮与状态标签。
  *
- * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，**顺序即层叠顺序**，
+ * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，顺序即层叠顺序，
  * 调整清单顺序会改变覆盖关系。
  *
  * 模型下拉的样式属于 `multi_model` 插件（`plugins/multi_model/ui/model-picker.css`）；
@@ -207,7 +207,7 @@ html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
 .plugin-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .plugin-actions:empty{display:none}
 /* 通用面板正文容器（`openPane` 建的面板都用它），以及右栏文件查看器 */
-/* 面板正文容器：**不给内边距**。
+/* 面板正文容器：不给内边距。
    边距是插件内容自己的排版，容器不知道插件要贴边还是要留白；容器给一份、
    插件再声明一份，两层会叠加（插件声明 `padding:0` 也压不住外层）。
    需要边距的插件在自己 HTML 的根元素上给。 */

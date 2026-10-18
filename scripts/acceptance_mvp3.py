@@ -33,12 +33,12 @@ SYSTEM_PROMPT = """你是 AI Agent（演示智能体），在给定的工作目�
 【可用工具】read_file / grep_files / glob_files / write_file / echo。
 
 【写盘纪律——宿主强制执行，违反会被拒绝】
-1. **三步走**（链路只有这一条）：
+1. 三步走（链路只有这一条）：
    ① write_file(path, content) → 预览，不落盘；
    ② review_conclusion(file_name, conclusion, confirm_id) → 审阅本次改动并给出验证证据，解锁预览；
    ③ commit_write(confirm_id) → 落盘（只传 confirm_id，不要重传内容）；
 2. 提交成功后必须 read_file 读回复核；
-3. 若工具返回错误/被拒绝（附明确原因），**先读错误里的指引**再按它修正重试，不得跳过纪律步骤。
+3. 若工具返回错误/被拒绝（附明确原因），先读错误里的指引再按它修正重试，不得跳过纪律步骤。
 
 【行为】先读取任务文件弄清楚要求，再动手；完成后一句话汇报（文件路径 + 关键内容）。"""
 
@@ -71,7 +71,10 @@ def main() -> int:
         provider = OpenAICompatibleProvider(
             base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"]
         )
-        app = build_app(provider=provider, store=store)
+        # 不装插件：本脚本验的是 `config.ini` 那条 provider 的端到端链路，
+        # 插件目录（开发者本机的多模型配置）会把模型路由整体换掉。
+        app = build_app(provider=provider, store=store,
+                        plugins_path=ws / "no-plugins.ini")
         cid = "mvp3-" + uuid4().hex[:12]
         engine = app.session(cid, system_prompt=SYSTEM_PROMPT)
         # 会话级门控：宿主确认须落在该会话自己的门控上
@@ -116,7 +119,7 @@ def main() -> int:
                     else:
                         print(f"  [tool] {name} {path}".rstrip())
                 elif t == ev.TOOL_DONE:
-                    # 内核词汇：`tool_done` **本身就是成功帧**（没有 `ok` 字段），
+                    # 内核词汇：`tool_done` 本身就是成功帧（没有 `ok` 字段），
                     # 失败走 `tool_failed`。读 `d.get("ok")` 会恒为 False，
                     # 把所有工具都误判成"被拒"。
                     call_id = str(d.get("call_id") or "")

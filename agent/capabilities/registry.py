@@ -23,7 +23,7 @@ Disposer = Callable[[], None]
 class ToolPlugin:
     """工具插件协议：子类声明 name / description / parameters / label / icon / parallel_safe。
 
-    `label` 与 `icon` 是**界面展示信息**，由工具自己声明：界面不该为认出一个工具而在
+    `label` 与 `icon` 是界面展示信息，由工具自己声明：界面不该为认出一个工具而在
     前端维护一张工具名表（那样每加一个插件工具都得改界面）。内核只把它们透出去，
     不做任何解释。
     """
@@ -103,7 +103,7 @@ class ToolRegistry:
     def display_list(self) -> List[Dict[str, str]]:
         """导出界面展示清单：`[{name, label, icon}]`（按名称排序）。
 
-        界面据此认识**所有**工具（含插件工具），不必在前端维护工具名表。
+        界面据此认识所有工具（含插件工具），不必在前端维护工具名表。
         `label` 留空时界面退回显示 `name`。
         """
         return [

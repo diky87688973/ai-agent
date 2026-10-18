@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """一条命令跑完全部校验（CI 入口）。
 
-步骤清单的**唯一事实源**是 `scripts/ci_steps.py`；GitHub Actions 逐步跑同一集合，
+步骤清单的唯一事实源是 `scripts/ci_steps.py`；GitHub Actions 逐步跑同一集合，
 并由 `scripts/check_ci_workflow.py` 防止 yml 漂移。
 
 ## 用法

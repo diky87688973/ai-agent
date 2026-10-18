@@ -1,6 +1,6 @@
 /* theme-light.css —— 白天模式覆盖（`html[data-ui-theme="light"]`）。
  *
- * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，**顺序即层叠顺序**，
+ * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，顺序即层叠顺序，
  * 调整清单顺序会改变覆盖关系。
  */
 /* ── 白天模式（html[data-ui-theme="light"]）── */
@@ -315,7 +315,7 @@ html[data-ui-theme="light"] .ctx-layout-tooltip .ctx-tip-track {
   user-select:none;
   box-shadow:0 1px 3px rgba(0,0,0,.25);
 }
-/* 箭头只在气泡上，头像禁止任何尾巴 */
+/* 箭头只在气泡上，头像不画箭头 */
 .peer-avatar::before,
 .peer-avatar::after{
   display:none !important;
@@ -444,7 +444,7 @@ html[data-ui-theme="light"] .peer-meta-tag{
 html[data-ui-theme="light"] .peer-bubble .peer-agent-body.b.a{color:#1a2233;font-weight:400}
 
 /* 恢复 markdown 语义样式（reset.css 把 margin / padding 全清零了）。
-   只补内联语义与**用户气泡**（`.u`，走 textContent，不产标签但保留以防万一）。
+   只补内联语义与用户气泡（`.u`，走 textContent，不产标签但保留以防万一）。
    助手的块级排版（标题 / 列表 / 引用）统一由上面的 `.b.a` 负责 ——
    `.b.a h1` 特异性 (0,2,1) 高于 `.b h1` (0,1,1)，在这里再写一套只会被盖掉，
    留下两处声明会让"改哪一处生效"变成猜谜。 */
@@ -469,7 +469,7 @@ html[data-ui-theme="light"] .peer-bubble .peer-agent-body.b.a{color:#1a2233;font
      - 已暂停 paused → 暗红色
      - 已达成 done / 无目标 → 默认灰（`.mode-plus` 基色，自动回落，不用额外类）
    用描边+文字色而不是实心底：这一排按钮（模式/推理/目标）都是"轻量开关"，
-   实心会把注意力全吸过去，与输入区其余部分失衡。 */
+   实心会与输入区其余部分形成明显的视觉权重差。 */
 .mode-plus.goal-active,
 .mode-plus.goal-active:hover{background:rgba(184,134,11,.10);border-color:#8a6508;color:#d9b25f}
 .mode-plus.goal-paused,
@@ -477,7 +477,7 @@ html[data-ui-theme="light"] .peer-bubble .peer-agent-body.b.a{color:#1a2233;font
 
 /* 目标弹窗：沿用卡片底色与描边，避免"浮在上面的另一套皮" */
 .goal-mask{position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.45)}
-/* 位置：**对齐那个「目标」按钮**（`left`/`bottom` 由 JS 按按钮与输入区的实际
+/* 位置：对齐那个「目标」按钮（`left`/`bottom` 由 JS 按按钮与输入区的实际
    几何算出来），而不是贴屏幕右缘或浮在页面中部 ——
    弹窗是因为点了那个按钮才出现的，就该长在它正上方。 */
 .goal-dialog{position:fixed;z-index:9999;left:50%;bottom:120px;
@@ -567,7 +567,7 @@ html[data-ui-theme="light"] .chat-run-status.run-bad{color:#c1272d}
 
 /* ══ 白天模式：补全"选择器浮层 / 步骤面板 / 状态标签" ══════════════════
    这几块只有深色一套时，浅色主题下会露出深底浅字或浅底浅字：
-     - `@` 文件补全与 `/` 命令补全的**选中/悬停**：深蓝块压在浅底上；
+     - `@` 文件补全与 `/` 命令补全的选中/悬停：深蓝块压在浅底上；
      - 右侧步骤面板内部的命令原文框与输出框：`#12151a` 近黑底；
      - `.tag.ok/.bad/.stoped/.tag-run`：深色底 + 浅色字，在白色卡片里格格不入。
    统一用"浅底 + 深字 + 描边区分状态"，与其余浅色规则同一套取色。 */
@@ -610,7 +610,7 @@ html[data-ui-theme="light"] .dispatch-title{background:#f6f8fc}
 
 /* 确认卡（user_confirm）：卡片本体与表头在浅色主题下也有一套，
    只给深色一套时会是一块近黑方框压在白色对话区上。
-   `.uc-radio/.uc-check` 的**选中态**（`.uc-on`）单独覆盖。 */
+   `.uc-radio/.uc-check` 的选中态（`.uc-on`）单独覆盖。 */
 html[data-ui-theme="light"] .user-confirm-card{border-color:#d0dae8;background:#ffffff}
 html[data-ui-theme="light"] .user-confirm-cap.user-confirm-cap{background:#f6f8fc;border-bottom-color:#e2e8f4}
 html[data-ui-theme="light"] .user-confirm-cap-line>span.uc-title{color:#1a2233}

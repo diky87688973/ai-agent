@@ -117,6 +117,29 @@ class ParseTest(_ConfigCase):
         self.assertEqual(entries[0].id, "claude")
         self.assertEqual(entries[0].label, "Claude Sonnet 4.5")
 
+    def test_context_window_is_carried_as_entry_metadata(self) -> None:
+        entries, invalid = self.parse(
+            "[model:a]\n"
+            "base_url = http://x\n"
+            "api_key = k\n"
+            "context_window = 128000\n"
+        )
+        self.assertEqual(invalid, ())
+        self.assertEqual(entries[0].context_window, 128000)
+        self.assertEqual(entries[0].options["context_window"], 128000)
+
+    def test_bad_context_window_keeps_the_entry_usable(self) -> None:
+        """窗口只服务展示；写坏了丢这一项，不该让整条模型消失。"""
+        entries, invalid = self.parse(
+            "[model:a]\n"
+            "base_url = http://x\n"
+            "api_key = k\n"
+            "context_window = lots\n"
+        )
+        self.assertEqual(invalid, ())
+        self.assertEqual(entries[0].context_window, 0)
+        self.assertNotIn("context_window", entries[0].options)
+
     def test_anthropic_options_are_typed(self) -> None:
         entries, _ = self.parse(
             "[model:claude]\n"
@@ -198,6 +221,46 @@ class ParseTest(_ConfigCase):
         )
         self.assertEqual([item.is_default for item in entries], [True, False])
 
+    def test_duplicate_section_is_a_file_level_error(self) -> None:
+        """INI 不允许同名节：重复 id 会让整份文件解析失败，所以只能用不同 id。"""
+        self.write(
+            "[model:dup]\nbase_url = http://x\napi_key = k\n"
+            "[model:dup]\nprovider = anthropic\nbase_url = http://x\napi_key = k\n"
+        )
+        with contextlib.redirect_stderr(io.StringIO()):
+            entries, invalid = _PLUGIN.parse_config(self.path)
+        self.assertEqual(entries, ())
+        self.assertEqual(len(invalid), 1)
+        self.assertIn("DuplicateSectionError", invalid[0]["reason"])
+
+    def test_placeholder_keys_are_rejected(self) -> None:
+        """照抄示例留下的占位符不算已配置，插件继续走回落路径。"""
+        entries, invalid = self.parse(
+            "[model:a]\nbase_url = http://x\napi_key = sk-请替换\n"
+            "[model:b]\nbase_url = http://x\napi_key = sk-ant-请替换\n"
+            "[model:ok]\nbase_url = http://x\napi_key = sk-real-key\n"
+        )
+        self.assertEqual([item.id for item in entries], ["ok"])
+        self.assertEqual([item["id"] for item in invalid], ["a", "b"])
+        self.assertIn("占位符", invalid[0]["reason"])
+
+    def test_same_vendor_twice_with_distinct_ids(self) -> None:
+        """同一家厂商同时走两套协议：id 必须唯一，`provider` 决定各走哪套。"""
+        entries, invalid = self.parse(
+            "[model:ds-openai]\n"
+            "provider = openai\nbase_url = http://x\napi_key = k\nmodel = deepseek-chat\n"
+            "[model:ds-anthropic]\n"
+            "provider = anthropic\nbase_url = http://x\napi_key = k\n"
+            "model = deepseek-chat\nmax_tokens = 16000\n"
+        )
+        self.assertEqual(invalid, ())
+        self.assertEqual([item.id for item in entries], ["ds-openai", "ds-anthropic"])
+        self.assertEqual([item.provider for item in entries], ["openai", "anthropic"])
+        self.assertEqual(entries[0].options["model"], "deepseek-chat")
+        self.assertEqual(entries[1].options["model"], "deepseek-chat")
+        self.assertNotIn("max_tokens", entries[0].options)
+        self.assertIn("max_tokens", entries[1].options)
+
     def test_bad_default_flag_keeps_entry_non_default(self) -> None:
         entries, invalid = self.parse(
             "[model:a]\nbase_url = http://x\napi_key = k\ndefault = 2\n"
@@ -240,14 +303,16 @@ class PluginTemplateTest(unittest.TestCase):
                 seen |= set(parser[section])
         self.assertEqual(seen, set(MULTI_MODEL_SCHEMA["model"]))
 
-    def test_example_parses_without_invalid_entries(self) -> None:
+    def test_example_is_a_template_until_keys_are_filled(self) -> None:
+        """示例里的占位密钥不算已配置：照抄后仍回落到 config.ini，不会拿假密钥发包。"""
         path = _ROOT / "plugins" / "multi_model" / "plugin-config.ini.example"
         with contextlib.redirect_stderr(io.StringIO()):
             entries, invalid = _PLUGIN.parse_config(path)
-        self.assertEqual(invalid, ())
-        self.assertEqual([item.id for item in entries], ["deepseek", "claude"])
-        self.assertEqual(entries[0].provider, "openai")
-        self.assertEqual(entries[1].provider, "anthropic")
+        self.assertEqual(entries, ())
+        self.assertEqual([item["id"] for item in invalid], ["deepseek", "claude"])
+        for item in invalid:
+            self.assertIn("占位符", item["reason"])
+
 
 
 class CatalogPayloadTest(_ConfigCase):
@@ -264,7 +329,8 @@ class CatalogPayloadTest(_ConfigCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["default"], "claude")
         self.assertEqual(payload["models"], [{
-            "id": "claude", "label": "Claude", "provider": "anthropic", "default": True,
+            "id": "claude", "label": "Claude", "provider": "anthropic",
+            "context_window": 0, "default": True,
         }])
         dumped = json.dumps(payload, ensure_ascii=False)
         self.assertNotIn("super-secret", dumped)

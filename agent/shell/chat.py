@@ -150,7 +150,7 @@ def build_session(
 ) -> "tuple[Any, str, Any, Any, str]":
     """在给定 app 上装配一次交互会话：返回 (app, cid, engine, gate, single_text)。
 
-    门控解析：一律用 `app.gate_for(cid)` 取**该会话自己的**门控——
+    门控解析：一律用 `app.gate_for(cid)` 取该会话自己的门控——
     预览快照由管道路径登记在会话门控上，若此处用默认桶门控确认，确认会落空、
     提交被拒（"预览尚未确认"）。
 

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""会话实时状态：模式覆盖 / todo 清单 / 自主与休眠请求。
+"""会话实时状态：模式 / 推理档位 / 模型选择 / todo 清单 / 自主与休眠请求。
 
 - 线程安全：实例级锁保护全部会话字典；
-- todo 清单可持久化：存储目录由装配注入（缺省纯内存）；变更即时落盘、close 删文件；
-  cid 白名单（[A-Za-z0-9_-]{8,128}）才可拼路径（防穿越）；
-- 读取容错：坏 JSON / 缺字段忽略；listId 键名映射为 list_id。
+- 会话状态可持久化：存储目录由装配注入（缺省纯内存）；变更即时落盘，
+  一个会话一份 JSON（模型 / 模式 / 档位 / 清单同住）；
+- cid 白名单（[A-Za-z0-9_-]{8,128}）才可拼路径（防穿越）；
+- 读取容错：坏 JSON / 缺字段忽略，读不出就当没有（`None` / 默认值）。
 """
 from __future__ import annotations
 
@@ -14,6 +15,8 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+from agent.core.error_report import report_error
 
 _CID_RE = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
 _MODES = ("auto", "plan", "execute")
@@ -30,7 +33,11 @@ class GoalError(Exception):
 
 
 class LiveState:
-    """会话级实时状态容器（装配时单例注入；模式 / 清单 / 自主 / 休眠）。"""
+    """会话级实时状态容器（装配时单例注入）。
+
+    内存态覆盖：模式 / 推理档位 / 模型选择 / 清单 / 自主 / 休眠 / 目标。
+    前四项随会话落盘，其余是回合内的临时事实。
+    """
 
     def __init__(
         self,
@@ -41,7 +48,7 @@ class LiveState:
         self._lock = threading.Lock()
         self._modes: Dict[str, str] = {}
         self._todos: Dict[str, Dict[str, Any]] = {}
-        self._todo_loaded: set = set()
+        self._state_loaded: set = set()
         self._autonomy: Dict[str, Dict[str, Any]] = {}
         #: 目标表 `{cid: {text, status, note, created_at, updated_at, rounds}}`。
         self._goals: Dict[str, Dict[str, Any]] = {}
@@ -57,9 +64,11 @@ class LiveState:
     # ── 模式──────────────────────────────────────
 
     def get_mode(self, conversation_id: str) -> str:
-        """当前模式；无覆盖时默认 auto。"""
+        """当前模式；无覆盖时默认 auto（显式选择会落盘，刷新后仍在）。"""
+        cid = str(conversation_id or "")
         with self._lock:
-            return self._modes.get(str(conversation_id or ""), "auto")
+            self._ensure_loaded(cid)
+            return self._modes.get(cid, "auto")
 
     def set_mode(self, conversation_id: str, run_type: str) -> str:
         """切换模式：auto 清除覆盖（回默认），plan / execute 落状态；返回生效值。"""
@@ -68,10 +77,13 @@ class LiveState:
         if rt not in _MODES:
             raise ValueError(f"run_type 必须是 auto / plan / execute 之一，收到 {run_type}")
         with self._lock:
+            # 写盘前必须先读回同文件的其余分量，否则这次写入会抹掉模型 / 清单。
+            self._ensure_loaded(cid)
             if rt == "auto":
                 self._modes.pop(cid, None)
             else:
                 self._modes[cid] = rt
+            self._persist(cid)
         return rt
 
     # ── todo 清单─────────────────────────
@@ -91,10 +103,11 @@ class LiveState:
             }
 
     def set_todo(self, conversation_id: str, todo: Optional[Dict[str, Any]]) -> None:
-        """写入 / 清除清单并落盘（None = close：内存清除 + 删文件）。"""
+        """写入 / 清除清单并落盘（None = close：内存清除 + 从状态文件里摘掉清单）。"""
         cid = str(conversation_id or "")
         with self._lock:
-            self._todo_loaded.add(cid)
+            # 先读回同文件的模型 / 模式 / 档位：close 只该删清单，不应清空其它分量。
+            self._ensure_loaded(cid)
             if todo is None:
                 self._todos.pop(cid, None)
             else:
@@ -138,8 +151,8 @@ class LiveState:
 
     # ── 目标（Goal：可编辑的任务对象）──────────────────────
     #
-    # 触发机制与"自主模式"一致：**回合结束后自动再发一条 user 输入**；
-    # 区别是那条输入取**这份目标文案** —— 于是自动续跑有了方向，
+    # 触发机制与"自主模式"一致：回合结束后自动再发一条 user 输入；
+    # 区别是那条输入取这份目标文案 —— 于是自动续跑有了方向，
     # 也能被用户和模型随时改写、暂停、结束。
 
     def set_goal(self, conversation_id: str, text: str, *, note: str = "") -> Dict[str, Any]:
@@ -221,20 +234,24 @@ class LiveState:
 
     def get_reasoning_effort(self, conversation_id: str) -> str:
         """会话级推理档位；未设置时回落全局默认（`default_effort`，缺省 high）。"""
+        cid = str(conversation_id or "")
         with self._lock:
-            val = self._efforts.get(str(conversation_id or ""))
+            self._ensure_loaded(cid)
+            val = self._efforts.get(cid)
         if val in ("high", "max"):
             return val
         return self.default_effort
 
     def set_reasoning_effort(self, conversation_id: str, effort: str) -> bool:
-        """设置会话级推理档位；非法值拒绝（返回 False），合法值生效（返回 True）。"""
+        """设置会话级推理档位；非法值拒绝（返回 False），合法值生效并落盘（True）。"""
         cid = str(conversation_id or "").strip()
         value = str(effort or "").strip().lower()
         if not cid or value not in ("high", "max"):
             return False
         with self._lock:
+            self._ensure_loaded(cid)
             self._efforts[cid] = value
+            self._persist(cid)
         return True
 
     # ── 模型选择（按会话）────────────────────────────
@@ -242,8 +259,8 @@ class LiveState:
     def get_model(self, conversation_id: str) -> str:
         """会话级模型；未选择时回落全局默认（空串 = 由 provider 的默认决定）。
 
-        **落盘持久化**（与 todo 同一份 JSON）：刷新页面、乃至换一个进程，
-        同一个会话选的都是同一个模型 —— 选择不能只活在内存里。
+        落盘持久化（与清单 / 模式 / 档位同一份会话状态文件）：刷新页面、
+        乃至换一个进程，同一个会话选的都是同一个模型 —— 选择不能只活在内存里。
         """
         cid = str(conversation_id or "")
         with self._lock:
@@ -267,60 +284,94 @@ class LiveState:
         return want or self.default_model
 
     # ── 内部：持久化──────────────────────────────
+    #
+    # 一个会话一份 JSON：`<state_dir>/<cid>.json`。模型 / 模式 / 档位 / 清单
+    # 同住是因为生命周期完全一致（都按 cid、都随会话走），而不是因为它们同类。
+    # 任一分量为空就不写这个键 —— 缺键即"回到默认"，不存空值；四项全空就删文件。
+    #
+    #   {"model": "...", "mode": "plan", "effort": "max",
+    #    "todo": {"list_id": "...", "items": [...], "collapsed": false}}
 
-    def _todo_file(self, cid: str) -> Optional[Path]:
+    def _state_file(self, cid: str) -> Optional[Path]:
         if self._storage_dir is None or not _CID_RE.match(cid):
             return None
         return self._storage_dir / f"{cid}.json"
 
     def _ensure_loaded(self, cid: str) -> None:
-        """懒加载磁盘清单（调用方持锁）；坏文件 / 缺字段忽略。"""
-        if cid in self._todo_loaded:
+        """懒加载会话状态（调用方持锁）；坏文件 / 缺字段忽略。
+
+        `_state_loaded` 只跑一次：之后所有分量都在内存里，写盘可以直接整份重建。
+        否则每次 `_persist` 都得先合并磁盘，反而更容易丢字段。
+
+        读不出来就当"这个会话没有状态"：状态文件是选择的缓存，不是事实源，
+        让它阻塞会话打开（或抛到回合里）比退回默认值更坏。因此这里只捕
+        文件与解析两类异常，其余（例如内存分配失败）照常冒泡。
+        """
+        if cid in self._state_loaded:
             return
-        self._todo_loaded.add(cid)
-        fp = self._todo_file(cid)
+        self._state_loaded.add(cid)
+        fp = self._state_file(cid)
         if fp is None or not fp.is_file():
             return
+        raw: Any = None
         try:
             raw = json.loads(fp.read_text(encoding="utf-8"))
-            if not isinstance(raw, dict):
-                return
-            if "items" in raw and ("list_id" in raw or "listId" in raw):
-                if "listId" in raw and "list_id" not in raw:
-                    raw["list_id"] = raw.pop("listId")
-                self._todos[cid] = {k: v for k, v in raw.items() if k != "model"}
-            # 模型选择与清单同住一份文件：读清单时**必须**把它一并读回，
-            # 否则"清单还在、模型选择却丢了"——而 _ensure_loaded 只跑一次。
-            picked = str(raw.get("model") or "").strip()
-            if picked:
-                self._models[cid] = picked
-        except Exception:
+        except (OSError, ValueError):
+            # 判据见 docstring：坏文件按默认处理，不在这里伪装成成功读取。
             pass
+        if not isinstance(raw, dict):
+            return
+        todo = raw.get("todo")
+        if isinstance(todo, dict) and "items" in todo:
+            self._todos[cid] = dict(todo)
+        model = str(raw.get("model") or "").strip()
+        if model:
+            self._models[cid] = model
+        mode = str(raw.get("mode") or "").strip()
+        if mode in _MODES and mode != "auto":
+            self._modes[cid] = mode
+        effort = str(raw.get("effort") or "").strip()
+        if effort in ("high", "max"):
+            self._efforts[cid] = effort
 
     def _persist(self, cid: str) -> None:
-        """落盘（调用方持锁）；非法 cid / 无目录 / 写失败均静默跳过。"""
-        fp = self._todo_file(cid)
+        """落盘（调用方持锁）；非法 cid / 无目录直接跳过，写失败留痕。
+
+        写失败不冒泡：调用点在回合发包、工具调用与接口处理上，让磁盘错误
+        打断一次对话得不偿失。但必须留痕 —— 否则用户以为"选上了"、重启后却
+        回到默认，是最难查的一类缺陷。
+        """
+        fp = self._state_file(cid)
         if fp is None or self._storage_dir is None:
             return
         try:
-            lst = self._todos.get(cid)
+            body: Dict[str, Any] = {}
+            todo = self._todos.get(cid)
+            if isinstance(todo, dict) and todo:
+                body["todo"] = dict(todo)
             model = self._models.get(cid)
-            if lst is None and not model:
+            if model:
+                body["model"] = model
+            mode = self._modes.get(cid)
+            if mode:
+                body["mode"] = mode
+            effort = self._efforts.get(cid)
+            if effort:
+                body["effort"] = effort
+            if not body:
+                # 四个分量都空 = 这个会话没有状态了：删文件，不留空壳。
                 if fp.exists():
                     fp.unlink()
                 return
-            body: Dict[str, Any] = dict(lst) if isinstance(lst, dict) else {}
-            if model:
-                body["model"] = model
             self._storage_dir.mkdir(parents=True, exist_ok=True)
             fp.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
-        except Exception:
-            pass
+        except (OSError, TypeError, ValueError) as exc:
+            report_error("live_state.persist", exc, conversation_id=cid)
 
 
 # ── 交互式命令的 stdin 通道─────────────
 #
-# 场景：`run_command` 跑 winget / npm init 这类**会停下来问话**的命令时，
+# 场景：`run_command` 跑 winget / npm init 这类会停下来问话的命令时，
 # 子进程在等 stdin。模型和宿主都推不动它 —— 只有人能回答。
 #
 # 数据流向（逐字段一致）：
@@ -329,7 +380,7 @@ class LiveState:
 #   → `run_command` 的轮询循环取出并写进子进程 stdin。
 #
 # 键是 `"{conversation_id}:{tool_call_id}"`：同一会话可能有多次命令调用，
-# 用 tool_call_id 才能把输入投递给**正在等的那一个**。
+# 用 tool_call_id 才能把输入投递给正在等的那一个。
 _COMMAND_INPUT_LOCK = threading.Lock()
 _COMMAND_INPUT_TARGETS: Dict[str, Dict[str, Any]] = {}
 

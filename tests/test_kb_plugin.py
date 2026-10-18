@@ -23,6 +23,7 @@ from agent.app import build_app  # noqa: E402
 from agent.core.model_call import StreamDelta  # noqa: E402
 from agent.mechanisms.context_pipeline import ContextPipeline, ContextSources  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402  # noqa: E402
+from tests.testkit import no_plugins  # noqa: E402
 
 _PLUGIN_DIR = _ROOT / "plugins"
 _PLUGIN_MOD = "fan_agent_plugins.knowledge"
@@ -171,7 +172,7 @@ class KBRuntimeTest(unittest.TestCase):
         state = self.base / "checked_state.json"
         state.write_text(json.dumps({"c2": ["docs/b.txt"]}, ensure_ascii=False), encoding="utf-8")
         r = _PLUGIN.KBRuntime(self.root, data_dir=self.base)
-        # 落盘状态在启动时**全量**读入（`load_checked`）；
+        # 落盘状态在启动时全量读入（`load_checked`）；
         # 不读就没有，所以先 load 再断言
         r.load_checked()
         self.assertEqual(r.get_checked("c2"), {"docs/b.txt"})
@@ -350,6 +351,9 @@ class InjectionTest(unittest.TestCase):
 
     def test_turn_end_to_end_injection(self) -> None:
 
+        # 本用例手工注册注入源，不需要装载任何插件：不隔离的话，开发者本机的
+        # 多模型插件配置会让目录接管路由，请求就不走这里注入的 provider 了。
+        no_plugins(self)
         rec = _RecordingProvider()
         app = build_app(provider=rec)
         app.context_sources.add(lambda cid: ["【知识库：probe】\n内容P"])
@@ -375,6 +379,9 @@ class PluginSourceContractTest(unittest.TestCase):
         return spy.requests[-1].messages
 
     def _app(self, root: Path):
+        # 注入源在本类里手工注册，插件装配只会带来环境差异（尤其是开发者本机的
+        # 多模型配置会让目录接管路由，spy 收不到请求）。
+        no_plugins(self)
         spy = _RecordingProvider()
         app = build_app(provider=spy, store=SessionStore(root / "data"),
                         backup_root=root / "bk", recycle_root=root / "rc")
@@ -536,7 +543,7 @@ class PluginConfigIsolationTest(unittest.TestCase):
         self.assertIsNone(mod._load_config(empty)["dir"])
 
 class KnowledgeTextOnlyTest(unittest.TestCase):
-    """知识库只收文本类文件：非文本不列、不可勾（读出来是替换字符与 NUL，白占预算）。"""
+    """知识库只收文本类文件：非文本不列、不可勾（读出来是替换字符与 NUL，只占预算）。"""
 
     def _files(self, tmp):
         import importlib.util

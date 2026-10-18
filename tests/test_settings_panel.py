@@ -2,6 +2,7 @@
 """设置页：写回原文件时留下注释，保存后当前进程对象换成新值。"""
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -335,17 +336,114 @@ class PluginSettingsTest(unittest.TestCase):
             folder.mkdir(parents=True)
             (folder / "plugin.py").write_text("PLUGIN_VERSION = '1.0'\n", encoding="utf-8")
             written = write_plugin_config(
-                "knowledge", "[knowledge]\ndir = D:/kb\n", plugins_dir=root)
+                "knowledge", "dir = D:/kb\n", plugins_dir=root)
             self.assertTrue(written["ok"])
             loaded = read_plugin_config("knowledge", plugins_dir=root)
-            self.assertEqual(loaded["text"], "[knowledge]\ndir = D:/kb\n")
+            self.assertEqual(loaded["editor"]["text"], "dir = D:/kb\n")
             rejected = write_plugin_config("..", "x", plugins_dir=root)
             self.assertFalse(rejected["ok"])
+
+    def test_missing_plugin_config_seeds_the_example_without_writing(self) -> None:
+        """没有真实配置时把 `.example` 当草稿给出来；读一次不落盘。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "plugins"
+            folder = root / "multi_model"
+            folder.mkdir(parents=True)
+            (folder / "plugin.py").write_text("PLUGIN_VERSION = '1.0'\n", encoding="utf-8")
+            (folder / "plugin-config.ini.example").write_text(
+                "[base]\nname = 多模型\n", encoding="utf-8")
+            payload = read_plugin_config("multi_model", plugins_dir=root)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["exists"])
+            self.assertTrue(payload["seeded"])
+            # 只有 [base] 时没有可编辑的插件节；正文为空，[base] 不露面。
+            self.assertEqual(payload["editor"]["kind"], "text")
+            self.assertEqual(payload["editor"]["text"], "")
+            self.assertFalse((folder / "plugin-config.ini").exists())
 
     def test_unknown_route(self) -> None:
         status, payload = handle_post("/api/settings/nope", {}, None)
         self.assertEqual(status, 404)
         self.assertFalse(payload["ok"])
+
+
+class StructuredPluginConfigTest(unittest.TestCase):
+    """声明了 `settings-schema.json` 的插件：按组编辑，`[base]` 与密钥都受保护。"""
+
+    SCHEMA = {
+        "kind": "sections",
+        "title": "模型",
+        "section_prefix": "model:",
+        "identity": {"key": "id", "label": "模型 ID"},
+        "fields": [
+            {"key": "provider", "kind": "enum", "label": "协议", "default": "openai",
+             "options": [{"value": "openai", "label": "OpenAI"},
+                         {"value": "anthropic", "label": "Anthropic"}]},
+            {"key": "base_url", "kind": "text", "label": "网关"},
+            {"key": "api_key", "kind": "secret", "label": "密钥"},
+            {"key": "context_window", "kind": "number", "label": "窗口",
+             "default": "1000000", "min": 1},
+            {"key": "max_tokens", "kind": "number", "label": "回复上限", "min": 1,
+             "show_if": {"key": "provider", "equals": "anthropic"}},
+        ],
+    }
+
+    def _setup(self, tmp: str, config_text: str):
+        root = Path(tmp) / "plugins"
+        folder = root / "demo"
+        folder.mkdir(parents=True)
+        (folder / "plugin.py").write_text("PLUGIN_VERSION = '1.0'\n", encoding="utf-8")
+        (folder / "settings-schema.json").write_text(
+            json.dumps(self.SCHEMA, ensure_ascii=False), encoding="utf-8")
+        (folder / "plugin-config.ini").write_text(config_text, encoding="utf-8")
+        return root, folder
+
+    def test_read_hides_base_and_masks_the_secret(self) -> None:
+        config = (
+            "[base]\nid = demo\nenable = 1\nname = 演示\n\n"
+            "[model:a]\nprovider = openai\nbase_url = http://x\napi_key = sk-secret\n"
+            "; 窗口说明\ncontext_window = 128000\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _folder = self._setup(tmp, config)
+            payload = read_plugin_config("demo", plugins_dir=root)
+            self.assertTrue(payload["ok"])
+            editor = payload["editor"]
+            self.assertEqual(editor["kind"], "sections")
+            self.assertEqual([g["id"] for g in editor["groups"]], ["a"])
+            group = editor["groups"][0]
+            self.assertEqual(group["values"]["api_key"], "")
+            self.assertTrue(group["configured"]["api_key"])
+            self.assertEqual(group["values"]["context_window"], "128000")
+            self.assertNotIn("base", group["values"])
+            self.assertNotIn("sk-secret", json.dumps(payload))
+
+    def test_save_keeps_base_and_an_untouched_secret(self) -> None:
+        config = (
+            "[base]\nid = demo\nenable = 1\nname = 演示\n\n"
+            "[model:a]\nprovider = openai\nbase_url = http://x\napi_key = sk-secret\n"
+            "context_window = 128000\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root, folder = self._setup(tmp, config)
+            payload = read_plugin_config("demo", plugins_dir=root)
+            group = payload["editor"]["groups"][0]
+            group["values"]["context_window"] = "256000"
+            written = write_plugin_config(
+                "demo", groups=[group], plugins_dir=root)
+            self.assertTrue(written["ok"], written.get("error"))
+            text = (folder / "plugin-config.ini").read_text(encoding="utf-8")
+            self.assertIn("[base]\nid = demo\nenable = 1\nname = 演示\n", text)
+            self.assertIn("api_key = sk-secret", text)
+            self.assertIn("context_window = 256000", text)
+
+    def test_save_rejects_an_unknown_key(self) -> None:
+        config = "[base]\nname = 演示\n[model:a]\napi_key = sk-secret\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _folder = self._setup(tmp, config)
+            bad = {"id": "a", "values": {"nope": "1"}, "configured": {}}
+            result = write_plugin_config("demo", groups=[bad], plugins_dir=root)
+            self.assertFalse(result["ok"])
 
 
 class SettingsPageAssetsTest(unittest.TestCase):

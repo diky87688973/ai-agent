@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Anthropic 适配测试：SSE 归并、消息折叠与修补、请求体、错误映射。
 
-断言只碰**契约**：`StreamDelta` 的形状与 Anthropic 线格式。
+断言只碰契约：`StreamDelta` 的形状与 Anthropic 线格式。
 不测内部临时字典，避免把实现细节写死成测试。
 """
 from __future__ import annotations
@@ -180,7 +180,7 @@ class MessageConversionTest(unittest.TestCase):
         self.assertNotIn("system", [m["role"] for m in payload["messages"]])
         self.assertEqual(payload["messages"][0]["content"], [{"type": "text", "text": "你好"}])
 
-    def test_image_data_url_is_split_into_an_image_block(self) -> None:
+    def test_image_urls_are_split_into_image_blocks(self) -> None:
         request = LogicalRequest(messages=[{"role": "user", "content": [
             {"type": "text", "text": "看图"},
             {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
@@ -193,7 +193,13 @@ class MessageConversionTest(unittest.TestCase):
             "type": "image",
             "source": {"type": "base64", "media_type": "image/png", "data": "AAAA"},
         })
-        self.assertEqual(len(content), 2, msg="远程 URL 无法转成 base64，应直接跳过")
+        # 远程 URL 走 `source.type=url`：官方与 DeepSeek 兼容层都支持这种源。
+        # 直接丢掉的后果是同一张图在 openai 条目里发得出去、在 anthropic 条目里消失。
+        self.assertEqual(content[2], {
+            "type": "image",
+            "source": {"type": "url", "url": "https://example.com/x.png"},
+        })
+        self.assertEqual(len(content), 3)
 
     def test_assistant_tool_calls_become_tool_use_blocks(self) -> None:
         messages = [
@@ -289,6 +295,33 @@ class MessageConversionTest(unittest.TestCase):
         self.assertNotIn("tools", no_tools)
         self.assertNotIn("tool_choice", no_tools)
 
+    def test_logic_shaped_tool_becomes_a_valid_object_schema(self) -> None:
+        """`ToolRegistry.schemas()` 给的是属性映射，必须包装成 object schema。
+
+        直接把它当 `input_schema` 下发，线上会变成 `type: null`，Anthropic 报
+        `Invalid schema for function ... got 'type: null'`（400）。OpenAI 兼容网关
+        不校验这个字段，所以只有在 Anthropic 协议上才会暴露。
+        """
+        request = LogicalRequest(messages=[{"role": "user", "content": "x"}], tools=[
+            {
+                "name": "apply_patch",
+                "description": "预览补丁",
+                "parameters": {
+                    "path": {"type": "string", "description": "根目录"},
+                    "patch_text": {"type": "string", "description": "补丁正文"},
+                },
+                "parallel_safe": False,
+            },
+        ])
+        payload = AnthropicProvider(
+            base_url="u", api_key="k", model="m",
+        ).build_payload(request)
+        schema = payload["tools"][0]["input_schema"]
+        self.assertEqual(schema["type"], "object")
+        self.assertEqual(sorted(schema["properties"]), ["patch_text", "path"])
+        self.assertNotIn("parallel_safe", json.dumps(payload["tools"], ensure_ascii=False),
+                         msg="注册表内部字段不得漏进线格式")
+
     def test_thinking_is_enabled_only_when_the_budget_fits(self) -> None:
         payload = AnthropicProvider(
             base_url="u", api_key="k", model="m", max_tokens=8000,
@@ -302,8 +335,69 @@ class MessageConversionTest(unittest.TestCase):
                 base_url="u", api_key="k", model="m", max_tokens=4096,
                 thinking_budget_tokens=4096,
             ).build_payload(LogicalRequest(messages=[], tools=[]))
-        self.assertNotIn("thinking", too_small)
+        # 关闭必须是显式的：DeepSeek 兼容层不传 thinking 等于默认开启思考，
+        # 而思考模式下带 tool_use 的消息必须回传 thinking 块，静默省略会让工具轮 400。
+        self.assertEqual(too_small["thinking"], {"type": "disabled"})
         self.assertTrue(warn.called)
+
+    def test_thinking_off_is_sent_as_disabled_not_omitted(self) -> None:
+        payload = AnthropicProvider(
+            base_url="u", api_key="k", model="m", thinking=False,
+        ).build_payload(LogicalRequest(messages=[{"role": "user", "content": "x"}], tools=[]))
+        self.assertEqual(payload["thinking"], {"type": "disabled"})
+
+    def test_tool_turn_without_thinking_blocks_disables_thinking(self) -> None:
+        """历史工具轮丢了 thinking 块就补不回来，本轮只能关掉思考，否则必被拒。
+
+        DeepSeek：`content[].thinking in the thinking mode must be passed back`。
+        """
+        messages = [
+            {"role": "user", "content": "查文件"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "c1", "name": "read_file", "arguments": {"path": "a.txt"}},
+            ]},
+            {"role": "tool", "tool_call_id": "c1", "content": "内容"},
+        ]
+        with mock.patch.object(ap, "_warn") as warn:
+            payload = AnthropicProvider(
+                base_url="u", api_key="k", model="m", max_tokens=16000,
+                thinking=True, thinking_budget_tokens=4096,
+            ).build_payload(LogicalRequest(messages=messages, tools=[], turn_start=0))
+        self.assertEqual(payload["thinking"], {"type": "disabled"})
+        self.assertEqual(warn.call_count, 1)
+        self.assertNotIn("thinking", json.dumps(payload["messages"], ensure_ascii=False))
+
+    def test_disabled_thinking_does_not_replay_stored_blocks(self) -> None:
+        """思考关闭时不带 thinking 块：官方端点会拒“思考未开启却带块”。"""
+        messages = [
+            {"role": "user", "content": "查文件"},
+            {"role": "assistant", "content": "读完了", "provider_meta": {
+                "anthropic": {"thinking_blocks": [
+                    {"thinking": "想一想", "signature": "sig-1"}]}}},
+        ]
+        payload = AnthropicProvider(
+            base_url="u", api_key="k", model="m", thinking=False,
+        ).build_payload(LogicalRequest(messages=messages, tools=[], turn_start=0))
+        self.assertNotIn("thinking", json.dumps(payload["messages"], ensure_ascii=False))
+
+    def test_thinking_block_with_empty_text_is_still_replayed(self) -> None:
+        """正文为空、签名在的思考块也要回传。
+
+        有的模型（旧名 `deepseek-chat`）思考块正文就是空串；丢掉块会让带
+        `tool_use` 的下一子请求被拒（`content[].thinking must be passed back`）。
+        """
+        messages = [
+            {"role": "user", "content": "查文件"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "c1", "name": "read_file", "arguments": {"path": "a.txt"}},
+            ], "provider_meta": {"anthropic": {"thinking_blocks": [
+                {"thinking": "", "signature": "sig-empty"},
+            ]}}},
+        ]
+        converted = _to_anthropic_messages(messages, turn_start=0)
+        blocks = converted[1]["content"]
+        self.assertEqual(blocks[0], {"type": "thinking", "thinking": "",
+                                     "signature": "sig-empty"})
 
 
 def thinking_blocks(message: dict) -> list[dict]:

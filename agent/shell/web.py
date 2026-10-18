@@ -7,7 +7,7 @@
 - `web_routes` HTTP 路由
 - `sse` SSE 传输层
 
-本模块只负责**装配壳对象**（`create_server` 返回未启动的 server）：
+本模块只负责装配壳对象（`create_server` 返回未启动的 server）：
 进程入口与 `build_app()` 的调用在 `agent/entry/web.py`（A2：壳层不得反向依赖装配根）。
 对外导入约定保持：`from agent.shell.web import _Channel` / `WebShell` / `create_server` 等仍可用。
 """
@@ -94,7 +94,7 @@ def create_server(
         server = _Server((host, int(port)), handler)
     except OSError as exc:
         print(f"[web] 无法绑定 {host}:{port} —— {exc}", file=sys.stderr, flush=True)
-        print("[web] 端口已被占用。请换端口；并注意**改代码后必须重启服务**，"
+        print("[web] 端口已被占用。请换端口；并注意改代码后必须重启服务，"
               "否则连上的仍是旧代码（`ui_bundle.inline_ui_html` 还有 `lru_cache`，"
               "连 JS 都要重启才生效）。", file=sys.stderr, flush=True)
         raise

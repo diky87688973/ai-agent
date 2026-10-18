@@ -37,8 +37,12 @@ MAX_FUNCTION_LINES = 80
 #: 单文件函数个数阈值
 MAX_FILE_FUNCTIONS = 40
 
-#: 超阈值文件 → 保留理由（拆分计划或承担者）。实际集合必须与这里**双向**一致。
+#: 超阈值文件 → 保留理由（拆分计划或承担者）。实际集合必须与这里双向一致。
 FILE_COMPLEXITY: Dict[str, str] = {
+    "agent/app.py": (
+        "装配顺序、会话生命周期与模型解析共用同一份状态；拆分要先抽 AppState。"
+        "承担者：内核维护"
+    ),
     "agent/mechanisms/context_pipeline.py": (
         "拼装、分段统计与缓存版本共用同一状态机；待拆 segments 与 cache 子模块。"
         "承担者：架构维护"

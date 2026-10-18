@@ -1,14 +1,14 @@
 /* layout/splitters.js —— 布局：左右分栏拖拽、会话栏宽度、尺寸持久化与开屏初始化。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 var STORAGE_KEY="aiAgent.classicMainSplit";
 /* 对话区最小宽度（与样式表 `.chat{min-width}` 同值）。
-   实测口径：把对话区逐步压窄，量输入区那一行**最右侧控件**何时越过容器右边界 ——
+   取值口径：逐步压窄对话区，观察输入区那一行最右侧控件何时越过容器右边界 ——
    669px 时"发送"越界 1px，670px 起为 0。写死一个数而不是每次运行时量：
-   布局是跟着拖拽连续变的，运行时量会一路抖动；插件按钮让这一行变长时，
-   把两个数字一起往上调。 */
+   布局跟着拖拽连续变化，运行时量会一路抖动；插件按钮使这一行变长时，
+   两个数字需同步上调。 */
 var MIN_CHAT_PX=670,MIN_STEPS_PX=300,RESIZER_PX=3;
 /* 会话清单宽度：上限 500。下限要能放下标题和「已打开」，再窄就只剩省略号。 */
 var MAX_RAIL_PX=500,MIN_RAIL_PX=180,DEFAULT_RAIL_PX=240;
@@ -125,7 +125,7 @@ if(typeof _updateUsageBottom==="function")_updateUsageBottom();
 });
 });
 void loadPluginActions();
-/* 工具展示清单（中文名 + 图标）与面板/动作清单一样，都是**数据驱动**的入口：
+/* 工具展示清单（中文名 + 图标）与面板/动作清单一样，都是数据驱动的入口：
    工具自己声明自己长什么样，界面不维护工具名表。 */
 void loadToolLabels();
 if(goBtn)goBtn.addEventListener("click",function(){void sendChatMessage();});
@@ -137,9 +137,9 @@ if(chatMoreBtn)chatMoreBtn.addEventListener("click",function(){void toggleSessio
 if(ta){ta.addEventListener("keydown",function(e){if(e.isComposing)return;var sh=slashPop&&!slashPop.classList.contains("hidden");var atp2=getAtPop();var ah=atp2&&atp2.style.visibility!=="hidden";var k=e.key,kl=k.toLowerCase(),ci=(slashPop&&slashPop.children)?slashPop.children:[];if(ah){if(k==="Escape"){e.preventDefault();hideAtPop();return;}if(k==="ArrowDown"||k==="ArrowUp"){e.preventDefault();var ai=getAtList().querySelectorAll(".at-item");var vi=[];for(var i2=0;i2<ai.length;i2++){if(ai[i2].style.display!=="none")vi.push(i2);}if(!vi.length)return;var idx=vi.indexOf(atSelectedIndex);if(idx<0)idx=(k==="ArrowDown"?0:vi.length-1);else if(k==="ArrowDown"){if(idx<vi.length-1)idx++;}else{if(idx>0)idx--;}atSelectedIndex=vi[idx];updateAtSelection();var row=ai[atSelectedIndex];if(row&&row.scrollIntoView)try{row.scrollIntoView({block:"nearest"});}catch(_){}return;}if(k==="ArrowRight"){e.preventDefault();var aiR=getAtList().querySelectorAll(".at-item");var pR=atSelectedIndex;if(pR<0||pR>=aiR.length)pR=0;if(aiR.length&&aiR[pR]&&aiR[pR].dataset.type==="dir")loadAtDir(aiR[pR].dataset.path);return;}if(k==="ArrowLeft"){e.preventDefault();var curL=getAtCurPath().textContent.trim();var parentStored=getAtCurPath().dataset.parent||"";if(!parentStored)return;var pU=parentStored||curL.substring(0,curL.lastIndexOf("/"));if(!pU||pU.length<3){if(pU&&pU.length===2&&pU.charAt(1)===":"){pU=pU+"/";}else{pU=curL;}}if(pU!==curL)atRestoreSelectPath=curL;loadAtDir(pU);return;}if(k==="Enter"||e.code==="Enter"||e.code==="NumpadEnter"){e.preventDefault();var ai2=getAtList().querySelectorAll(".at-item");var pick=atSelectedIndex;if(pick<0||pick>=ai2.length)pick=0;if(ai2.length&&ai2[pick]){var sel=ai2[pick];selectAtFile(sel.dataset.path);}return;}if(atMentionActiveAtCursor()){return;}hideSlashPop();hideAtPop();return;}if(!sh&&!ah){if(!e.shiftKey&&(e.key==="Enter"||e.code==="Enter"||e.code==="NumpadEnter")){e.preventDefault();if(goBtn)goBtn.click();else void sendChatMessage();}return;}if(sh&&k==="Escape"){e.preventDefault();hideSlashPop();return;}if(sh&&(k==="ArrowDown"||k==="ArrowUp")){e.preventDefault();var vi3=[];for(var i3=0;i3<ci.length;i3++){if(ci[i3].style.display!=="none")vi3.push(i3);}if(!vi3.length)return;var idx3=vi3.indexOf(slashSelectedIndex);if(idx3<0)idx3=(k==="ArrowDown"?-1:0);else if(k==="ArrowDown"){if(idx3<vi3.length-1)idx3++;}else{if(idx3>0)idx3--;}var cur3=ci[slashSelectedIndex];if(cur3)cur3.classList.remove("selected");slashSelectedIndex=vi3[idx3];var nxt3=ci[slashSelectedIndex];if(nxt3)nxt3.classList.add("selected");updateSlashPopHints();return;}if(sh&&(k==="Enter"||e.code==="Enter"||e.code==="NumpadEnter")){e.preventDefault();var sel4=ci[slashSelectedIndex];if(sel4&&sel4.dataset&&sel4.dataset.slash){applyMode(sel4.dataset.slash);ta.value="";}else hideSlashPop();return;}if(kl==="a"||kl==="p"||kl==="e"){e.preventDefault();hideSlashPop();ta.value="";if(kl==="a")applyMode("auto");else if(kl==="p")applyMode("plan");else applyMode("execute");return;}hideSlashPop();});ta.addEventListener("blur",function(){if(slashPop&&!slashPop.classList.contains("hidden"))hideSlashPop();});ta.addEventListener("mouseup",function(){if(slashPop&&!slashPop.classList.contains("hidden"))hideSlashPop();});}
 document.getElementById("tabSteps")?.addEventListener("click",function(){selectSidePane("steps");});
 window.addEventListener("beforeunload",function(){try{saveActiveConversationView();storeConversationLayoutLocal();}catch(e){}});
-/* **先恢复会话，再取用量**。
+/* 先恢复会话，再取用量。
    `loadUsageAccumulator()` 若排在 `restoreConversationLayoutFromServer()` 之前：
-   `activeConversationId` 初始值来自本地（URL/sessionStorage），**可能为空**，
+   `activeConversationId` 初始值来自本地（URL/sessionStorage），可能为空，
    用量 GET 于是打到空槽、取回全 0；随后 UI 才切到服务端恢复的真正会话
    → 刷新后用量显示 0。服务端数据本身是好的，问题只在取值时机。 */
 void loadUsageAccumulator();

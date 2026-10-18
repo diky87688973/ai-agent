@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""恢复 = 往上下文末尾**拼接**工具结果。
+"""恢复 = 往上下文末尾拼接工具结果。
 
-    接口确认**没有用户输入** → 恢复轮的上下文末端就是那次工具调用
-    → 把结果**拼接**进去 → `…assistant(tool_calls) → tool` 天然对齐
+    接口确认没有用户输入 → 恢复轮的上下文末端就是那次工具调用
+    → 把结果拼接进去 → `…assistant(tool_calls) → tool` 天然对齐
     → 宿主重新调模型，闭环。
 
 要证明三件事：
-  ① 拼接后的消息序列**恰好合法**（`tool` 紧跟带 `tool_calls` 的 `assistant`；
+  ① 拼接后的消息序列恰好合法（`tool` 紧跟带 `tool_calls` 的 `assistant`；
      不插入任何用户消息）——这正是模型 API 的硬规则。
   ② 确认那一刻写入 `tool_result` 事实即完成拼接，恢复路径上没有外部结果暂存表。
-  ③ 用**现有真实存储**（core.session_store）承载，端到端可跑。
+  ③ 用现有真实存储（core.session_store）承载，端到端可跑。
 """
 from __future__ import annotations
 
@@ -53,8 +53,8 @@ class ContextSpliceTest(unittest.TestCase):
     def test_spliced_result_lands_exactly_after_the_tool_call(self) -> None:
         """① 拼接后 `tool` 紧跟带 `tool_calls` 的 `assistant`——不插任何用户消息。"""
         rows = self._suspended_rows()
-        # 用户确认 → **直接**把结果拼到上下文末尾（没有暂存表）
-        # 内核写结果的**真实形态**是两条：结果事实 `tool_done` + 终态 `tool_ended`
+        # 用户确认 → 直接把结果拼到上下文末尾（没有暂存表）
+        # 内核写结果的真实形态是两条：结果事实 `tool_done` + 终态 `tool_ended`
         rows.append({"type": "tool_done", "call_id": "call-1", "name": "ask_user",
                      "data": {"confirm": "甲"}})
         rows.append({"type": "tool_ended", "call_id": "call-1", "name": "ask_user",
@@ -75,7 +75,7 @@ class ContextSpliceTest(unittest.TestCase):
         )
 
     def test_no_user_message_is_inserted_on_resume(self) -> None:
-        """恢复轮**没有用户输入**：绝不能凭空多一条 user 消息——那会让请求序列非法。"""
+        """恢复轮没有用户输入：绝不能凭空多一条 user 消息——那会让请求序列非法。"""
         rows = self._suspended_rows()
         rows.append({"type": "tool_done", "call_id": "call-1", "name": "ask_user", "data": "甲"})
         rows.append({"type": "tool_ended", "call_id": "call-1", "name": "ask_user", "status": "ok"})
@@ -86,14 +86,14 @@ class ContextSpliceTest(unittest.TestCase):
         self.assertEqual(len(users), 1, msg="只有最初那条用户输入，恢复轮不产生新的")
 
     def test_stale_empty_input_in_old_records_is_tolerated(self) -> None:
-        """**第二道防线**：会话记录里存着空的 `input_claimed` 时，派生仍必须给出合法序列。
+        """第二道防线：会话记录里存着空的 `input_claimed` 时，派生仍必须给出合法序列。
 
         回合层按"无新输入不发 `input_claimed`"处理是第一道；但落盘的历史里可能已经
         存了空的那条。若派生层据此造一条空的 user 消息，那段记录就永远打不开——
         一加载就是非法序列。所以派生层也必须守住"无输入 = 无用户消息"。
         """
         rows = self._suspended_rows()
-        # 在 `assistant(tool_calls)` 与 `tool_call` 之间插一条**空的** input_claimed
+        # 在 `assistant(tool_calls)` 与 `tool_call` 之间插一条空的 input_claimed
         broken = rows[:2] + [{"type": "input_claimed", "content": ""}] + rows[2:]
         broken.append({"type": "tool_done", "call_id": "call-1", "name": "ask_user", "data": "甲"})
         broken.append({"type": "tool_ended", "call_id": "call-1", "name": "ask_user", "status": "ok"})
@@ -105,7 +105,7 @@ class ContextSpliceTest(unittest.TestCase):
         self.assertEqual(messages[2]["tool_call_id"], "call-1")
 
     def test_real_store_carries_the_splice(self) -> None:
-        """③ 用**现有真实存储**：确认那一刻写下结果事实就完成了拼接。"""
+        """③ 用现有真实存储：确认那一刻写下结果事实就完成了拼接。"""
         from agent.mechanisms.session_store import SessionStore
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -131,7 +131,7 @@ class ContextSpliceTest(unittest.TestCase):
             self.assertEqual(again, messages)
 
     def test_no_staging_table_is_needed(self) -> None:
-        """② 恢复路径上**不需要**外部结果暂存表之类的东西：事实源里只有工具结果。"""
+        """② 恢复路径上不需要外部结果暂存表之类的东西：事实源里只有工具结果。"""
         store = _Facts()
         for r in self._suspended_rows():
             store.append(r["type"], **{k: v for k, v in r.items() if k != "type"})
@@ -192,7 +192,7 @@ class AwaitingFactTest(unittest.TestCase):
                          msg="待解决 = 已挂起且未回灌")
 
     def test_pending_state_is_readable_from_facts_not_from_session_context(self) -> None:
-        """挂起状态**从事实源可读** —— 判定"有待解决的调用"只凭事实就够。
+        """挂起状态从事实源可读 —— 判定"有待解决的调用"只凭事实就够。
 
         `SessionContext.pending_confirm` 上另存的一份是冗余的；这里钉住"仅凭事实就能判定待解决调用"，
         使该字段不再是判定依据。
@@ -213,9 +213,9 @@ if __name__ == "__main__":
     unittest.main()
 
 class ResumeSpliceNamingTest(unittest.TestCase):
-    """`_splice_resume` 必须写**内核当前认的结果事实名**。
+    """`_splice_resume` 必须写内核当前认的结果事实名。
 
-    写错名字的后果不是"没效果"，而是**派生出一条多余的 tool 消息**：
+    写错名字的后果不是"没效果"，而是派生出一条多余的 tool 消息：
     同一 `tool_call_id` 出现两条，模型 API 直接 400
     （`Messages with role 'tool' must be a response to a preceding message with 'tool_calls'`）。
     这条用例钉住那个名字。

@@ -1,6 +1,6 @@
 ; AI Agent 配置模板
 ;
-; 复制成同目录下的 `config.ini` 并填入自己的值；本模板不含密钥。
+; 同目录下的 `config.ini` 为实际配置（不入版本库）；本模板不含密钥。
 ;
 ; 缺 `[model_reasoning]` 节里 api_base_url / api_key 这两项时，服务启动报错并指出缺哪项；
 ; 其余各节留空即禁用对应功能（config.ini 文件缺失本身不报错，只得到空配置）。
@@ -8,11 +8,14 @@
 [model_reasoning]
 ; 推理模型网关（OpenAI 兼容 /chat/completions）。api_base_url / api_key 必填，缺一则无法对话；model 留空取内置默认模型。
 api_base_url = https://api.deepseek.com
-api_key = 在这里填你的 API Key
+api_key = sk-请替换
 model = deepseek-flash
 ; 同一网关下可选的模型名（逗号分隔）；会话可从中选一个。
 ; 留空 = 只能用上面那个 `model`。每个 provider 绑定一个网关地址与密钥，换网关要多建 provider。
 models = deepseek-flash, deepseek-v4-pro
+; 当前模型的上下文窗口（token）：界面按它算"上下文占用率"。
+; 每个模型的物理上限不同（128k / 256k / 1M），换模型时同改。
+context_window = 1000000
 
 [agent]
 ; 全局推理档位：max（深度推理）或 high（标准推理）。会话内可在界面上临时切换。
@@ -39,7 +42,7 @@ plugin_tree_only = 0
 ; summary_output_max_chars 摘要的篇幅上限（字数，写进提示词，不作强制截断）
 ; image_turns / image_max   不设置 = 不剥图（缺省 999999）：历史图片全保留，
 ;                           消息前缀恒定，KV 缓存可复用。代价是内联 base64 随会话增长。
-;                           设置成具体轮数 = 按用户轮剥图：只带最近这么多轮**带图的**
+;                           设置成具体轮数 = 按用户轮剥图：只带最近这么多轮带图的
 ;                           用户发言，image_max 再限制总数。请求体小，但每逢滑窗
 ;                           历史消息被改写，缓存前缀从第一条起作废。
 summary_token_threshold = 700000
@@ -49,11 +52,8 @@ summary_output_max_chars = 5000
 ; 不剥图的缺省值；要按轮剥图就改成具体数字（如 3 / 10）。
 image_turns = 999999
 image_max = 999999
-; model_context_window     模型上下文窗口（token）。界面按它算"上下文占用率"；
-;                          它是**物理上限**，与上面的压缩阈值（预算）不是一回事。
-model_context_window = 1000000
 ; reasoning_replay_tokens   思维链回传预算（token）：-1 = 全量回传；0 = 不回传；
 ;                           正数 = 超出就取两头、中间用 <此处省略 N token 的推理> 代替
-;                           （前后文够模型脑补中间）。思维链必定未命中缓存，
+;                           （模型可据前后文推断中间）。思维链必定未命中缓存，
 ;                           全量回传等于每轮多背几万 token。
 reasoning_replay_tokens = 8000

@@ -149,8 +149,8 @@ def clip_reasoning(messages: List[Dict[str, Any]],
                    budget_tokens: int) -> List[Dict[str, Any]]:
     """按预算裁掉消息里的思维链（不改原列表、不改原消息）。
 
-    思维链是模型的中间稿：整段回传就是让每次请求多背一大段**必然未命中缓存**的内容
-    （实测一条会话里它占 prompt 的 72%）。按预算裁到两头保留，既省掉大部分钱，
+    思维链是模型的中间稿：整段回传就是让每次请求多背一大段必然未命中缓存的内容。
+    按预算裁到两头保留，既省掉大部分钱，
     又让模型看得到"上一轮打算干什么、得出了什么"。
 
     统计口径（分段 token、预算估算）用的也是这一份 —— 两处不一致时，
@@ -236,7 +236,7 @@ def find_first_user_index(messages: List[Dict[str, Any]]) -> Optional[int]:
 
 
 def user_turn_starts(messages: List[Dict[str, Any]]) -> List[int]:
-    """每个**用户轮**的起始下标（一条 user 起到下一条 user 前，为原子单位）。
+    """每个用户轮的起始下标（一条 user 起到下一条 user 前，为原子单位）。
 
     轮的边界只认 `user`：一条 user 之后的所有 `assistant` / `tool` 都属于这一轮 ——
     工具往返、悬空调用、多段回复都算轮内。压缩只允许整轮处理。
@@ -246,9 +246,9 @@ def user_turn_starts(messages: List[Dict[str, Any]]) -> List[int]:
 
 
 def turn_boundary_floor(messages: List[Dict[str, Any]], index: int) -> int:
-    """把下标**向下取整**到最近的用户轮起始位置。
+    """把下标向下取整到最近的用户轮起始位置。
 
-    不是轮边界时向**前**退到本轮的起点（宁可少压，也不从轮中间切开）::
+    不是轮边界时向前退到本轮的起点（宁可少压，也不从轮中间切开）::
 
         [user0][A][tool][A]  [user1][A]  [user2][A]
                         ↑ index=4（轮内）→ 取整到 3（user1 的位置）
@@ -285,7 +285,7 @@ def turn_spans(messages: List[Dict[str, Any]]) -> List[Tuple[int, int]]:
 
 
 def tool_chain_balanced(messages: List[Dict[str, Any]], start: int, end: int) -> bool:
-    """区间 `[start, end)` 内工具链是否**闭合**。
+    """区间 `[start, end)` 内工具链是否闭合。
 
     闭合 = 每条 `assistant.tool_calls` 的结果都在区间内，且没有孤立 `tool`
     （发起它的 assistant 落在区间外）。模型 API 对不闭合是硬拒绝。
@@ -310,15 +310,18 @@ def layout_from_messages(
     head: Optional[List[Dict[str, Any]]] = None,
     plugin_segments: Optional[List[Tuple[str, str, int]]] = None,
     budget_tokens: int = 0,
+    model_max_context_tokens: int = 0,
     token_fn: Optional[Callable[[Dict[str, Any]], int]] = None,
 ) -> Dict[str, Any]:
-    """把请求的**头部 + 对话**切开分段并统计 token（观察面用）。
+    """把请求的头部 + 对话切开分段并统计 token（观察面用）。
 
-    `head` 是装配出来的头部：第 1 条是系统提示词，其后依次是**插件各段**
+    `head` 是装配出来的头部：第 1 条是系统提示词，其后依次是插件各段
     （顺序与 `plugin_segments` 一致），再往后是记忆摘要。
     `plugin_segments` 是 `[(段 key, 段名, 主体数量)]` —— 由插件给，宿主不猜。
+    `model_max_context_tokens` 是该模型的上下文窗口（占用率的分母）：
+    调用方知道当前用哪个模型就传，不知道时留 0，界面退回用预算当分母。
 
-    插件内容与 Skills 清单**不在事实记录里**（每回合装配时注入），所以不传 `head`
+    插件内容与 Skills 清单不在事实记录里（每回合装配时注入），所以不传 `head`
     就只能退化：按位置猜，插件各段与摘要分不出来。
 
     模式从对话段里按正文认（`## 当前模式` 开头），单列一段。
@@ -328,7 +331,7 @@ def layout_from_messages(
     budget_in = max(int(budget_tokens or 0), 1)
     if not msgs and not head:
         return {"segments": [], "total_tokens": 0, "budget_tokens": budget_in,
-                "model_max_context_tokens": 0}
+                "model_max_context_tokens": int(model_max_context_tokens or 0)}
 
     if head is not None:
         head_msgs = [m for m in head if isinstance(m, dict)]
@@ -396,7 +399,7 @@ def layout_from_messages(
         seg_count = int(seg[2]) if len(seg) > 2 else len(plugin[i])
         _row(f"plugin:{seg_key}", plugin[i], count=seg_count, label=seg_label)
     _row("summary", summary)
-    # 对话段计**用户轮数**（不是消息条数）：一轮里有问有答还有工具往返。
+    # 对话段计用户轮数（不是消息条数）：一轮里有问有答还有工具往返。
     _row("full_recent", dialogue,
          count=sum(1 for m in dialogue if str(m.get("role") or "") == "user"))
     if mode:
@@ -419,7 +422,7 @@ def layout_from_messages(
         "segments": segments,
         "total_tokens": total,
         "budget_tokens": budget,
-        "model_max_context_tokens": 0,
+        "model_max_context_tokens": int(model_max_context_tokens or 0),
     }
 
 
@@ -428,18 +431,18 @@ def excerpt_by_target_tokens(
     keep_turns: int,
     token_fn: Optional[Callable[[Dict[str, Any]], int]] = None,
 ) -> Optional[Tuple[int, int]]:
-    """要压缩掉的区间 `[0, end)`：**遮盖末尾 `keep_turns` 轮，压它前面的**。
+    """要压缩掉的区间 `[0, end)`：遮盖末尾 `keep_turns` 轮，压它前面的。
 
-    遮盖是**偏好**（正常情况）：
+    遮盖是偏好（正常情况）：
 
     - 末尾 `keep_turns` 个用户轮不压 —— 那是模型的近场，手里的活全在那里；
-    - 压缩区域只能是**「最后一个前置 system 之后 → 遮盖起点之前」**那一段。
+    - 压缩区域只能是「最后一个前置 system 之后 → 遮盖起点之前」那一段。
       系统提示词 / Skills / 知识库 / 记忆摘要都是 `system`，位置在对话之前，
       所以这个区域天然只覆盖对话，不含任何系统设定。
 
-    **压不动就连近场一起压**（这一条亘古不变）：遮盖前面没有可压的轮
+    压不动就连近场一起压（这一条亘古不变）：遮盖前面没有可压的轮
     （例如总共只剩 1 轮、或遮盖已经盖住全部）时，连遮盖一起压掉 ——
-    极端情况压缩后整个上下文 **0 个用户轮**，摘要接管全部历史，
+    极端情况压缩后整个上下文 0 个用户轮，摘要接管全部历史，
     剩下的只有头部（系统提示 / 知识库 / 摘要）。
     遮盖是偏好，不是拒绝压缩的理由：压不动就是请求超上限直接失败。
 
@@ -457,7 +460,7 @@ def excerpt_by_target_tokens(
         # 正常路径：压遮盖前面那一段（`spans[0][0]` 恒为 0，落点即遮盖起点）。
         cut = spans[start][0]
     if cut <= 0:
-        # 遮盖前面没有可压的轮 → **连遮盖一起压**（压到末尾）。
+        # 遮盖前面没有可压的轮 → 连遮盖一起压（压到末尾）。
         cut = len(msgs)
     # 落点不能切在悬空工具链上：往前收到工具链闭合为止。
     while cut > 0 and not tool_chain_balanced(msgs, 0, cut):
@@ -518,7 +521,7 @@ def adjust_excerpt_range_half_open(
 class SourceMeta:
     """插件段落的描述：段 key 与段名。
 
-    `key` 是**前端认的字段名**，也进 `context_layout.segments[].key`，
+    `key` 是前端认的字段名，也进 `context_layout.segments[].key`，
     所以与插件名一致；宿主不解释它的含义。
     """
 
@@ -531,7 +534,7 @@ class SourceMeta:
     # 主体数量的取数口 `fn(conversation_id) -> int`（插件自报，如"勾选了几个文件"、
     # "清单里列了几个 Skills"）；不给时按消息条数算。
     count: Optional[Callable[[str], int]] = None
-    # 插件在清单（`plugins.ini`）里的位次。插件段之间的组装顺序**按它排** ——
+    # 插件在清单（`plugins.ini`）里的位次。插件段之间的组装顺序按它排 ——
     # 清单靠前的插件，它的段也靠前。应用级来源（非插件）没有位次，排在最后。
     plugin_rank: Optional[int] = None
 
@@ -541,7 +544,7 @@ class PluginSegments:
     """插件贡献的段落：段落表 + 各段主体数量。
 
     `items` 是 `[(段 key, 段名, 正文)]`，顺序即装配顺序；
-    `counts` 是**按位置**对应的主体数量（同一个插件可以声明多段，按 key 存会互相覆盖）；
+    `counts` 是按位置对应的主体数量（同一个插件可以声明多段，按 key 存会互相覆盖）；
     """
 
     items: Tuple[Tuple[str, str, str], ...] = ()
@@ -575,7 +578,7 @@ def slug(text: str) -> str:
 class ContextSources:
     """上下文注入源注册表（扩展点）。
 
-    每个来源贡献**一段** `system` 文本，并自带段名（`SourceMeta`）：
+    每个来源贡献一段 `system` 文本，并自带段名（`SourceMeta`）：
     段 key 是插件名（前端按它找插件注册的渲染钩子），段名与主体数量由插件给。
 
     宿主不认识任何具体插件 —— 知识库、Skills 清单都只是"某个插件注册的一段"；
@@ -632,13 +635,13 @@ class ContextSources:
     def collect_segments(self, conversation_id: str) -> "PluginSegments":
         """收集注入源，返回 `PluginSegments`（异常隔离）。
 
-        `items` 是 `[(段 key, 段名, 正文)]`；`counts` **按位置**对应 `items` ——
+        `items` 是 `[(段 key, 段名, 正文)]`；`counts` 按位置对应 `items` ——
         同一个插件可以注册多个来源，它们共用段 key，按 key 存会互相覆盖。
         数量由来源自报，没有自报口的按消息条数算。
         """
         with self._lock:
             sources = list(self._sources)
-        # 插件段按**插件清单位次**排：清单靠前的插件排在前面；
+        # 插件段按插件清单位次排：清单靠前的插件排在前面；
         # 没有位次的（应用级来源）排最后。稳定排序，同位次保持注册序。
         sources.sort(key=lambda s: (s[5] is None, s[5] if s[5] is not None else 0))
         items: List[Tuple[str, str, str]] = []
@@ -671,7 +674,7 @@ class ContextSources:
                 items.append((key, label, f"{prefix}{text}" if prefix else text))
                 # 一个来源给多条正文时只有第一条带自报数量，其余按条数算。
                 counts.append(amount if i == 0 and amount is not None else 1)
-        # 不变量：数量与正文**逐条对齐**。少了数量，管线那边会把别人的数量贴到
+        # 不变量：数量与正文逐条对齐。少了数量，管线那边会把别人的数量贴到
         # 自己的段上（按位置取值）；错位是静默的，只在浮层上表现为数字离谱。
         while len(counts) < len(items):
             counts.append(1)
@@ -719,12 +722,12 @@ class ContextPipeline:
         self.reasoning_replay_tokens = int(reasoning_replay_tokens)
         #: 模型上下文窗口（token）：界面按它算占用率；0 = 未配置，界面用预算兜底。
         self.model_context_window = int(model_context_window or 0)
-        #: 最近这么多**用户轮**原样保留（含工具往返）；更早的轮剥掉轮内工具往返。
+        #: 最近这么多用户轮原样保留（含工具往返）；更早的轮剥掉轮内工具往返。
         #: 负数 = 不剥（全部保留）。
         self._sources = sources
         # 插件段落：`[(段 key, 段名)]`；有正文的段才与 CHUNK_PLUGIN 消息对齐。
         self._plugin_sources: List[Tuple[str, str]] = []
-        # 插件自报的主体数量，**按段的位置**对应（缺省时段落行按消息条数算）。
+        # 插件自报的主体数量，按段的位置对应（缺省时段落行按消息条数算）。
         self._plugin_counts: List[int] = []
         #: 与 `_plugin_sources` 对齐：是否带进模型的正文（空占位为 False）。
         self._plugin_has_body: List[bool] = []
@@ -758,13 +761,13 @@ class ContextPipeline:
         *,
         token_fn: Optional[Callable[[Dict[str, Any]], int]] = None,
     ) -> List[Dict[str, Any]]:
-        """按**当前装配**逐段统计 token：系统提示词 + 插件各段 + 记忆摘要 + 对话。
+        """按当前装配逐段统计 token：系统提示词 + 插件各段 + 记忆摘要 + 对话。
 
         口径与真正发出去的请求一致（同一个 `default_message_tokens`）。
         插件各段一段一条，key 是 `plugin:<插件名>`、段名与数量由插件给 ——
         内核不认识知识库、Skills 这些具体名字。
 
-        **模式不在管线里** —— 它是请求尾部的临时后缀，由调用方单独算。
+        模式不在管线里 —— 它是请求尾部的临时后缀，由调用方单独算。
 
         返回 `[{key, label, tokens, count}]`（按装配顺序）。
         """
@@ -790,7 +793,7 @@ class ContextPipeline:
                 # 计「个」的口径按段定：头部各段按消息条数，对话段按用户轮数。
                 "count": users if key == "full_recent" else msgs,
             })
-        # 段顺序**逐条对齐装配顺序**：系统提示词 → 插件各段 → 记忆摘要 → 近期记忆。
+        # 段顺序逐条对齐装配顺序：系统提示词 → 插件各段 → 记忆摘要 → 近期记忆。
         # 前端就按这个顺序画，所以不能为了方便把摘要挪到末尾。
         head = [rows[0]] if rows else []
         tail = [r for r in rows[1:] if r["key"] == "full_recent"]
@@ -802,7 +805,7 @@ class ContextPipeline:
     ) -> List[Dict[str, Any]]:
         """插件贡献的段落：一段一条，key 用插件来源声明的名字。
 
-        消息与段落**按顺序对齐**：`set_plugin_segments` 保证每条消息各成一轮、
+        消息与段落按顺序对齐：`set_plugin_segments` 保证每条消息各成一轮、
         顺序与来源一致，所以这里按展平顺序数过去即可。
         """
         flat: List[Dict[str, Any]] = []
@@ -821,7 +824,7 @@ class ContextPipeline:
             if body and msg_i < len(flat):
                 msg = flat[msg_i]
                 msg_i += 1
-            # 自报数量**按位置**对来源：数量表比来源表长说明两者已经错位，
+            # 自报数量按位置对来源：数量表比来源表长说明两者已经错位，
             # 此时宁可退回"按消息条数"（1），也不要拿别人的数量去贴自己的段。
             reported = counts[i] if i < len(counts) else None
             rows.append({
@@ -843,7 +846,7 @@ class ContextPipeline:
         """上下文分段快照（前端画上下文条与浮层用）。
 
         每段 `{key, label, tokens, pct, count}`，末尾补 `剩余容量`；
-        `pct` 相对**预算**（取预算与已用中的较大者，保证各段之和不超过 100%）。
+        `pct` 相对预算（取预算与已用中的较大者，保证各段之和不超过 100%）。
 
         `tail_messages` 是请求尾部的临时后缀（本轮新输入 / 工具结果 / 执行模式），
         不在管线里持有，由调用方传进来单独算 `mode` 段。
@@ -891,7 +894,7 @@ class ContextPipeline:
 
     # ── 三段式装配（唯一装配入口）──────────────
     #
-    # 发给模型的 messages 只有三段，顺序拼接，**不做任何重建**：
+    # 发给模型的 messages 只有三段，顺序拼接，不做任何重建：
     #
     #   ① 头部（host）  系统提示 / Skills / 知识库 / 摘要 —— 本回合内逐字节稳定
     #   ② 对话（dialogue） 事实折叠出来的对话（含工具调用与工具结果）
@@ -918,7 +921,7 @@ class ContextPipeline:
 
         `reasoning_budget`：思维链回传预算（token）。`-1` 全量、`0` 全丢、
         正数取两头中间省略；缺省用实例上的 `reasoning_replay_tokens`。
-        **在这里裁**而不是在线上裁：分段统计与预算估算看的是同一份，
+        在这里裁而不是在线上裁：分段统计与预算估算看的是同一份，
         两处不一致时界面会把窗口算满、压缩也会提前或滞后触发。
         事实流不动，记录与界面的事件照旧带完整推理。
 
@@ -935,7 +938,7 @@ class ContextPipeline:
         self._refresh_sources()
 
     def set_summary_messages(self, summaries: Any) -> None:
-        """装摘要段（属头部①）。每次压缩后调用一次，装的是**全部**摘要。"""
+        """装摘要段（属头部①）。每次压缩后调用一次，装的是全部摘要。"""
         chunk = self.name_map[CHUNK_MEM]
         chunk.rounds = []
         for sm in summaries or []:
@@ -974,7 +977,7 @@ class ContextPipeline:
         return [copy.deepcopy(m) for rnd in chunk.rounds for m in rnd.messages]
 
     def assembles(self, tail: Any = None) -> List[Dict[str, Any]]:
-        """三段拼接：头部 + 对话 + 尾部。**唯一装配入口**，无重建。"""
+        """三段拼接：头部 + 对话 + 尾部。唯一装配入口，无重建。"""
         out = self.host_messages() + self.dialogue_messages()
         for m in tail or []:
             if isinstance(m, dict):
@@ -1008,7 +1011,7 @@ class ContextPipeline:
     def append_plugin(self, text: str, key: str = "", label: str = "") -> None:
         """追加一段插件内容（每段独立成轮）。
 
-        `text` 可能是列表（注入源常按"条目"给），必须**归一成字符串正文** ——
+        `text` 可能是列表（注入源常按"条目"给），必须归一成字符串正文 ——
         直接把列表塞进 `content` 会让模型收到 Python 字面量
         （`['条目一']`），而不是条目本身。
         """
@@ -1023,7 +1026,7 @@ class ContextPipeline:
         """整体设置插件段落（清空重建；空列表清空）。
 
         收 `PluginSegments`（段落表 + 数量表）；也接受裸的 `[(key, 段名, 正文)]`。
-        **顺序即装配顺序**，每条正文各成一轮，所以统计时能按顺序逐段对上。
+        顺序即装配顺序，每条正文各成一轮，所以统计时能按顺序逐段对上。
         """
         if isinstance(segments, PluginSegments):
             items, counts = segments.items, list(segments.counts)
@@ -1075,7 +1078,7 @@ class ContextPipeline:
     def rebuild_from_messages(self, flat_messages: List[Dict[str, Any]]) -> None:
         """兼容入口：装对话段（等价 `set_dialogue(..., covered_end=0)`）。
 
-        保留旧名只为不打断既有调用方；**内部不再"按 role 重建"** ——
+        保留旧名只为不打断既有调用方；内部不再"按 role 重建" ——
         那种重建会打乱分块归属，装配一律走 `set_dialogue()` + `assembles()`。
         """
         self.set_dialogue(flat_messages, covered_end=0)
@@ -1105,14 +1108,14 @@ class ContextPipeline:
         self._refresh_sources()
 
     def _refresh_sources(self) -> None:
-        """从注入源刷新**知识库**与 **Skills** 块（无来源时不动）。
+        """从注入源刷新知识库与 Skills 块（无来源时不动）。
 
         Skills 也走注入源：Skills 库注册「可用 Skills 清单」（渐进式披露第一层）
         与 `auto_load/` 常驻 Skills 正文（第二层）。
 
-        **一趟链只收集一次**：压缩模块、压缩器内部、模型模块会各装一次对话。
+        一趟链只收集一次：压缩模块、压缩器内部、模型模块会各装一次对话。
         每次收集都要重列 Skills 目录、重读全部勾选文件。同一趟里收集两遍不只是
-        白烧磁盘 —— 两遍之间源可变，于是"压缩看到的那份"和"发出去的那份"
+        重复读盘 —— 两遍之间源可变，于是"压缩看到的那份"和"发出去的那份"
         数字可能对不上。快照由 `begin_pass()` 在一趟开始时收集，
         `end_pass()` 在一趟结束时丢掉 —— 不留到下一趟，下一趟没来也不会占着内存。
         需要在本趟中途拿到新数据时调 `refresh_sources()`，或由来源 `bump()`。

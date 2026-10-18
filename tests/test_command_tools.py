@@ -256,7 +256,7 @@ if __name__ == "__main__":
     unittest.main()
 
 class CancelKillsProcessTest(unittest.TestCase):
-    """**停止要真的停子进程**：只退出内核循环不够。
+    """停止要真的停子进程：只退出内核循环不够。
 
     `request_cancel` 记下「已请求停止」后，宿主退出自己的循环、界面显示"已停止"；
     `run_command` 不在读取循环里看这个状态时，子进程会继续跑到自然结束
@@ -279,14 +279,14 @@ class CancelKillsProcessTest(unittest.TestCase):
         state = {"canceled": False}
         threading.Timer(2.0, lambda: state.__setitem__("canceled", True)).start()
 
-        # 用**真实载体**：管道执行期工具看到的是 `_ToolCallScope`，
+        # 用真实载体：管道执行期工具看到的是 `_ToolCallScope`，
         # 停止检查由 `_ToolPort.execute(..., canceled=...)` 带进来；
         # 自造替身的形状与真实载体不一致，测不出真问题。
         from agent.core.ports import _ToolCallScope
 
         scope = _ToolCallScope(conversation_id="cancel-probe",
                                canceled=lambda: state["canceled"])
-        # 上下文是 contextvar：**必须还原**，否则会漏给同一进程里的后续用例
+        # 上下文是 contextvar：必须还原，否则会漏给同一进程里的后续用例
         token = set_tool_turn_context(ToolTurnContext(turn=scope, session=None))
         try:
             # 自然结束要 60 秒；取消在 2 秒时置位 —— 及时返回即证明取消生效。
@@ -323,7 +323,7 @@ class CancelKillsProcessTest(unittest.TestCase):
         self.assertEqual(survivors, [], msg=f"子进程必须被真的杀掉；残留：{survivors}")
 
 class CancelWiringTest(unittest.TestCase):
-    """停止检查必须**从模块一路带到工具**（装配层，不是工具自己猜）。
+    """停止检查必须从模块一路带到工具（装配层，不是工具自己猜）。
 
     工具的取消分支只有在装配层把检查函数一路传到底时才拿得到真值；只在工具内部
     检查取消位、装配层不接线，取消永远不生效。这条用例钉住那条接线。
@@ -351,7 +351,7 @@ class CancelWiringTest(unittest.TestCase):
             def get(self, name):
                 return _Probe()
 
-        # 用**真实管道**：上下文 contextvar 由它设置，假管道会让工具看不到 scope
+        # 用真实管道：上下文 contextvar 由它设置，假管道会让工具看不到 scope
         from agent.core.tool_call import ToolPipeline
 
         port = ToolPort(registry=_Registry(), pipeline=ToolPipeline())

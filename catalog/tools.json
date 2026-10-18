@@ -418,7 +418,7 @@
       }
     },
     {
-      "description": "管理本会话的目标文案。目标处于 active 时，每轮结束后系统会自动用该文案发起新一轮，直到你用 action=pause/done 停下。action: create=新建或整体改写；get=查询；update=局部改（文案/状态/备注）；pause=暂停触发；resume=恢复触发；done=标记达成；delete=删除。**不要每轮都调 get 自查**：自动触发的那一轮里，目标文案本身就是发来的消息，你不需要再查一次；只在用户问起目标状态、或你要动手改它之前查一次。",
+      "description": "管理本会话的目标文案。目标处于 active 时，每轮结束后系统会自动用该文案发起新一轮，直到你用 action=pause/done 停下。action: create=新建或整体改写；get=查询；update=局部改（文案/状态/备注）；pause=暂停触发；resume=恢复触发；done=标记达成；delete=删除。不要每轮都调 get 自查：自动触发的那一轮里，目标文案本身就是发来的消息，你不需要再查一次；只在用户问起目标状态、或你要动手改它之前查一次。",
       "display": {
         "icon": "🎯",
         "label": "目标"

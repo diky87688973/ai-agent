@@ -16,10 +16,15 @@ from unittest import mock
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.capabilities.plugins import PluginContext, PluginHost  # noqa: E402
+from agent.capabilities.plugins import (  # noqa: E402
+    PluginContext,
+    PluginHost,
+    plugin_config_fields,
+)
 from agent.capabilities.registry import ToolRegistry  # noqa: E402
 from agent.config import get_plugins  # noqa: E402
 from agent.core.tool_call import ToolCallRequest, ToolPipeline  # noqa: E402
+from agent.shell.settings_panel import list_plugins  # noqa: E402
 
 _GOOD_PLUGIN = '''\
 from agent.capabilities.registry import ToolPlugin
@@ -280,6 +285,78 @@ class PluginGateTest(unittest.TestCase):
         self.assertEqual(reports["boom"], "error")
         call = ToolCallRequest(call_id="c3", name="rb_target", arguments={})
         self.assertTrue(self.pipeline.execute(self.registry, call, SimpleNamespace(conversation_id="c")).ok)
+
+class PluginIdentityFallbackTest(unittest.TestCase):
+    """`[base]` 身份回退到 `.example`：列表里所有插件走同一条规则。"""
+
+    @staticmethod
+    def _plugin(root: Path, name: str) -> Path:
+        folder = root / name
+        folder.mkdir(parents=True)
+        (folder / "plugin.py").write_text("PLUGIN_VERSION = '1.0'\n", encoding="utf-8")
+        return folder
+
+    def test_template_supplies_identity_when_config_is_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self._plugin(Path(tmp), "multi_model")
+            (folder / "plugin-config.ini.example").write_text(
+                "[base]\nid = multi_model\nname = 多模型\n"
+                "desc = 每条模型自带网关与厂商\nicon = 🧩\nversion = 1.0\n"
+                "enable = 0\n",
+                encoding="utf-8")
+            fields = plugin_config_fields(folder)
+            self.assertEqual(fields["name"], "多模型")
+            self.assertEqual(fields["desc"], "每条模型自带网关与厂商")
+            self.assertEqual(fields["icon"], "🧩")
+            self.assertEqual(fields["version"], "1.0")
+            # 开关是用户状态，模板里的 0 不生效
+            self.assertEqual(fields["enable"], "1")
+
+    def test_real_config_wins_and_missing_keys_fall_back(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self._plugin(Path(tmp), "skills")
+            (folder / "plugin-config.ini.example").write_text(
+                "[base]\nname = 模板名\ndesc = 模板描述\nversion = 9.9\n",
+                encoding="utf-8")
+            # 用户只改过开关（例如从设置页关掉），身份键应当仍取模板
+            (folder / "plugin-config.ini").write_text(
+                "[base]\nenable = 0\n", encoding="utf-8")
+            fields = plugin_config_fields(folder)
+            self.assertEqual(fields["name"], "模板名")
+            self.assertEqual(fields["desc"], "模板描述")
+            self.assertEqual(fields["version"], "9.9")
+            self.assertEqual(fields["enable"], "0")
+
+            (folder / "plugin-config.ini").write_text(
+                "[base]\nname = 我的名字\nenable = 1\n", encoding="utf-8")
+            fields = plugin_config_fields(folder)
+            self.assertEqual(fields["name"], "我的名字")
+            self.assertEqual(fields["desc"], "模板描述")
+
+    def test_no_files_falls_back_to_folder_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self._plugin(Path(tmp), "bare")
+            fields = plugin_config_fields(folder)
+            self.assertEqual(fields["id"], "bare")
+            self.assertEqual(fields["name"], "")
+            self.assertEqual(fields["enable"], "1")
+
+    def test_list_plugins_shows_declared_name_without_a_config(self) -> None:
+        """卡片标题取 `name` 而不是目录名 —— 不能只有配过的插件才显示中文名。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = self._plugin(root, "multi_model")
+            (folder / "plugin-config.ini.example").write_text(
+                "[base]\nname = 多模型\ndesc = 每条模型自带网关与厂商\nversion = 1.0\n",
+                encoding="utf-8")
+            manifest = root / "plugins.ini"
+            manifest.write_text("[plugin:multi_model]\nversion = 1.0\n", encoding="utf-8")
+            cards = list_plugins(plugins_path=manifest, plugins_dir=root)["plugins"]
+            self.assertEqual(len(cards), 1)
+            self.assertEqual(cards[0]["title"], "多模型")
+            self.assertEqual(cards[0]["description"], "每条模型自带网关与厂商")
+            self.assertEqual(cards[0]["version"], "v1.0")
+
 
 class ConfigParseTest(unittest.TestCase):
     def test_get_plugins_parse(self) -> None:

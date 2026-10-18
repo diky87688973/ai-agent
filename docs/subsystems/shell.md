@@ -22,9 +22,11 @@
 适配层原样转发（字段名见 `classic_adapter/contract.py` 的 `SSE_USAGE_FIELDS`），
 界面显示的命中率就是"命中 / (命中 + 未命中)"这两个官方值之比 —— 不掺任何估算。
 
-**上下文占用率的分母是模型窗口**（`[context] model_context_window`，内核随
-`context_layout` 一起下发 `model_max_context_tokens`），不是压缩阈值：
-阈值是"留多少余量触发压缩"的预算，窗口是物理上限，两者混用会让人以为"还剩 75%"。
+**上下文占用率的分母是模型窗口**（配置态读 `[model_reasoning] context_window`，
+目录态读模型条目的 `context_window`；内核随 `context_layout` 一起下发
+`model_max_context_tokens`），不是压缩阈值：阈值是"留多少余量触发压缩"的预算，
+窗口是物理上限，两者混用会让人以为"还剩 75%"。窗口跟着**会话当前模型**走，
+换模型后下一回合的分母就换。
 
 **分段浮层里的 token 是估算**（对装配后的消息求和，中文按每字 1 token），
 与用量条里的官方 `prompt_tokens` 不是同一个数：前者是"这段大概多少"，
@@ -51,14 +53,14 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | 路径 | 作用 |
 |---|---|
 | `/` | 单页界面 |
-| `/health` | 健康检查：工具数、模型、内核、允许的模型列表 |
+| `/health` | 健康检查：工具数、模型、全局默认推理档位、内核、允许的模型列表 |
 | `/favicon.ico` | 站点图标 |
 | `/assets/*` | 静态资源 |
 | `/workspace/*` | 工作区文件（界面里图片视频的重写目标） |
 | `/api/events/stream` | **SSE 事件流** |
 | `/api/chat/history` | 会话历史 |
 | `/api/chat/sessions` | 会话列表（带日期分组） |
-| `/api/chat/ui-state` | 会话运行态：哪些会话在跑（**不存客户端布局**） |
+| `/api/chat/ui-state` | 会话状态：模式 / 模型 / 推理档位 / 清单 / 目标（带 `conversation_id`）；不带 id 时只回**哪些会话在跑**（**不存客户端布局**） |
 | `/api/chat/attachment` | 附件读取 |
 | `/api/fs/list` `/api/fs/read` | 右栏文件查看器 |
 | `/api/dir-browse` | 目录浏览（补全用） |
@@ -66,7 +68,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/plugin/<插件>/<路径>` | 插件自己的端点命名空间（精确匹配，无通配） |
 | `/api/settings` | 设置页目录。密钥字段 `value` 恒为空，另给 `configured`（是否已填写）和 `placeholder` |
 | `/api/settings/plugins` | 插件卡片：名字、描述、图标、是否装载 |
-| `/api/settings/plugin-file` | 某个插件的 `plugin-config.ini` 文本 |
+| `/api/settings/plugin-file` | 某个插件的 `plugin-config.ini` 编辑视图（`[base]` 不回显，密钥已掩码） |
 | `/api/reasoning-effort` | 推理档位 |
 | `/api/usage-accumulator` | 用量累计 |
 | `/api/media` | 媒体代理，根由 `--media-root` 指定 |
@@ -84,7 +86,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/chat/command-input` | 交互式命令的 stdin 输入 |
 | `/api/settings` | 写回宿主配置。密钥字段为空不写，有内容才覆盖文件里的原值 |
 | `/api/settings/plugins` | 插件开关，写 `[base] enable` |
-| `/api/settings/plugin-file` | 整份写回某个插件的 `plugin-config.ini` |
+| `/api/settings/plugin-file` | 写回某个插件的**可编辑节**：`[base]` 与文件里其它节逐字节保留 |
 | `/api/settings/pick-dir` | 弹出系统目录选择窗口 |
 
 ### PUT
@@ -94,6 +96,12 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 写操作走 body、读操作走 query，全工程统一。
 
 设置页在界面右上角，读写的就是 `config.ini`、`web-ui-config.ini` 和各插件的 `plugin-config.ini`。密钥只允许覆盖：密码框留空则文件里的值不动；有内容才替换。`GET /api/settings` 不回明文，只说明是否已填写。已填写时密码框提示「已设置秘钥,可重新设置并替换」，未填写时提示「未配置秘钥」。
+
+「保存」是保存并关窗（只有失败才留在窗口里），「应用」是保存但不关窗。插件配置的
+`[base]`（身份与开关）既不回显也不回写；编辑区只覆盖插件自己的节 —— 有
+`settings-schema.json` 的插件（多模型）按结构化表单逐条编辑，其余插件只显示
+`[ext]` 的正文，节头不露出。密钥字段在结构化表单里同样只回显"是否已配置"，
+留空表示沿用原值。
 
 保存模型相关设置时，`apply_host()` 只调 `app.reload_model_config()`：重建默认 provider、
 刷新可选清单与会话默认模型，不在设置页直接改 provider 属性（路由包装后那三个属性
@@ -155,7 +163,7 @@ inline_ui_html()        # 拼成完整单页
 
 - 分割条拖到极限、或窗口缩到很窄时，右栏先被压到自己的下界 `300px`，对话区不再被压；
 - 到这个数是因为输入区那一行控件（附件 / 模式 / 思考 / 模型 / 插件按钮 + 发送提示 +
-  目标 / 发送）在更窄时会顶出面板右边界 —— 实测 669px 时"发送"越界 1px，670px 起为 0。
+  目标 / 发送）在更窄时会顶出面板右边界：669px 时「发送」越界 1px，670px 起不越界。
 
 插件按钮会让这一行变长：加了一个按钮之后要重量一次，把样式表与脚本里两个数字一起往上调。
 

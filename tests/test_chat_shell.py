@@ -113,7 +113,7 @@ class ChatConfirmRoundTripTest(unittest.TestCase):
         self.assertFalse(self.app.gate.confirm(confirm_id))
         blocked = self._call("commit_write", {"confirm_id": confirm_id}, CID)
         self.assertFalse(blocked.ok)
-        # 钉**实质**而非"确认"二字：文案必须说明预览未解锁、
+        # 钉实质而非"确认"二字：文案必须说明预览未解锁、
         # 并点明解锁入口 `review_conclusion`。
         self.assertIn("未解锁", blocked.error)
         self.assertIn("review_conclusion", blocked.error)

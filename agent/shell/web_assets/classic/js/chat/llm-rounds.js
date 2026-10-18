@@ -1,6 +1,6 @@
 /* chat/llm-rounds.js —— LLM 轮次与工具生命周期：思考卡、工具开始/进度/结束、回合状态复位。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function analysisFollowupPhrase(script,args){
@@ -24,16 +24,16 @@ if(s.indexOf("python_inline")>=0)return "内联代码输出";
 return "工具调度";}
 function clearLlmAnim(){
 if(lastLlm&&lastLlm.dotsTimer){clearInterval(lastLlm.dotsTimer);lastLlm.dotsTimer=null;}}
-/* **当前无调用方**：它把「模型只产出了思考、没有正文」时的
+/* 当前无调用方：它把「模型只产出了思考、没有正文」时的
    `lastLlm.reasoningText` 在 `done` 时刻兜底追加成回答。
-   追加的内容是**实时渲染的产物、不是数据** —— 刷新后走 `loadConversationHistory()`，
-   那段内容**会消失**，因此它不构成一条「回答」。
-   思考**另有归宿**：`reasoning_delta` → `appendReasoningDelta()` →
+   追加的内容是实时渲染的产物、不是数据 —— 刷新后走 `loadConversationHistory()`，
+   那段内容会消失，因此它不构成一条「回答」。
+   思考另有归宿：`reasoning_delta` → `appendReasoningDelta()` →
    右侧步骤面板的思考区（`lastLlm.thPb`）。
    追加还有一处副作用：`done` 时 `streamAssistantText` 已被此前的 `assistant` 分支
    （`finalizeAssistantStream()` 会清空它）清掉，守卫会放行，
-   思考于是成为**对话区里的又一个回答气泡**。
-   **函数体保留**：`lastLlm.reasoningText` 仍被工具卡合并思考面板（`onToolStart`）读取。 */
+   思考于是成为对话区里的又一个回答气泡。
+   函数体保留：`lastLlm.reasoningText` 仍被工具卡合并思考面板（`onToolStart`）读取。 */
 function promoteReasoningToChatIfNeeded(){
 var rt=(lastLlm&&lastLlm.reasoningText||"").trim();
 if(!rt)return;
@@ -306,7 +306,7 @@ if(head)head.setAttribute("aria-expanded","true");
 o.cmdInputBar=bar;
 }
 function onToolStart(ev){
-/* 目标工具的**查询类调用不进步骤区**。
+/* 目标工具的查询类调用不进步骤区。
    模型为了判断"目标还在不在、要不要继续"会每轮问一次，
    这类调用会刷出大量同名的「目标 Done」卡，把真正的执行步骤挤下去。
    这类调用是模型的自查，不是对外动作，用户不需要逐条看。

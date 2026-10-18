@@ -1,6 +1,6 @@
 /* chat/context-usage.js —— 上下文分层：段配色、悬浮明细、用量环与底部用量条。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 /* 已知段显式配色：段名固定，就不该让哈希决定颜色（哈希会撞色）。 */
@@ -118,16 +118,16 @@ el.innerHTML='';el.appendChild(sheet);el.appendChild(row3);
 
 function applyUsageAccumulatorPayload(j){if(!j||typeof j!=="object")return;sessionTokenUsed=Number(j.session_token_used??0)||0;totalPromptTokens=Number(j.total_prompt_tokens??0)||0;totalCompletionTokens=Number(j.total_completion_tokens??0)||0;totalCacheHitTokens=Number(j.total_cache_hit_tokens??0)||0;totalCacheMissTokens=Number(j.total_cache_miss_tokens??0)||0;if(conv)_updateUsageBottom();}
 async function loadUsageAccumulator(){try{/* 带上 conversation_id。
-   后端用**单个全局文件**存用量，不带参数也能取到；
-   适配层**按会话存**，缺参数会取到空槽 → 刷新后用量归零。
-   位置遵循统一约定：**读=query，写=body**。 */
+   后端用单个全局文件存用量，不带参数也能取到；
+   适配层按会话存，缺参数会取到空槽 → 刷新后用量归零。
+   位置遵循统一约定：读=query，写=body。 */
 const r=await fetch("/api/usage-accumulator?conversation_id="+encodeURIComponent(activeConversationId||""));if(!r.ok)return;const j=await r.json();applyUsageAccumulatorPayload(j);}catch(e){}}
-async function persistUsageAccumulator(){try{/* cid 为空时**不发**写请求 —— 空 cid 必被后端拒（invalid conversation_id），纯噪音。 */
-if(!String(activeConversationId||""))return;/* **写操作走 body**（约定：写=body，读=query）。
+async function persistUsageAccumulator(){try{/* cid 为空时不发写请求 —— 空 cid 必被后端拒（invalid conversation_id），纯噪音。 */
+if(!String(activeConversationId||""))return;/* 写操作走 body（约定：写=body，读=query）。
          缺 conversation_id 时后端返回 `invalid conversation_id`，
          会话用量永不落盘（刷新即归零）。 */
 await fetch("/api/usage-accumulator",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:String(activeConversationId||""),session_token_used:sessionTokenUsed,total_prompt_tokens:totalPromptTokens,total_completion_tokens:totalCompletionTokens,total_cache_hit_tokens:totalCacheHitTokens,total_cache_miss_tokens:totalCacheMissTokens})});}catch(e){}}
-/* 工具展示清单（`/api/tool-labels`）：中文名与图标由**工具自己**声明。
+/* 工具展示清单（`/api/tool-labels`）：中文名与图标由工具自己声明。
    界面据此认识所有工具（含插件工具）—— 加一个插件工具不必改这里。
    下面的旧表只作兜底：清单还没到时至少不是空白。 */
 var toolLabels={};

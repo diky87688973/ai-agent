@@ -36,7 +36,7 @@ _MODULE_PREFIX = "fan_agent_plugins"
 def resolve_plugin_root(plugins_dir: Path, name: str, path_raw: str = "") -> Path:
     """清单里的 `path` → 插件目录。空值取 `<插件根>/<名字>`。
 
-    相对路径**按插件根解析**，不是按工程根：插件根是可配置的，写死工程根会让
+    相对路径按插件根解析，不是按工程根：插件根是可配置的，写死工程根会让
     换了目录的部署全解析错。清单里写 `plugins/knowledge` 这种带前缀的路径也认 ——
     前缀与插件根同名时先剥掉，否则会拼成 `<插件根>/plugins/knowledge`。
     """
@@ -52,13 +52,49 @@ def resolve_plugin_root(plugins_dir: Path, name: str, path_raw: str = "") -> Pat
     return (base.joinpath(*parts) if parts else base).resolve()
 
 
+def _base_section(path: Path) -> Dict[str, str]:
+    """读一份 ini 的 `[base]`。文件缺失、读不了、没有该节都返回空表。
+
+    身份回退只是显示层的兜底，不该让一个坏模板把插件列表整页打挂。
+    """
+    if not path.is_file():
+        return {}
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(path, encoding="utf-8-sig")
+    except (OSError, configparser.Error):
+        # 旁路，刻意吞掉：身份回退只是显示层的兜底，坏模板/读不了就让该插件
+        # 按目录名显示；不该因为一份可选模板把整页插件列表打成 500。
+        return {}
+    if not parser.has_section("base"):
+        return {}
+    return {
+        str(key).strip(): str(value or "").strip()
+        for key, value in parser.items("base")
+    }
+
+
+#: `[base]` 里属于插件声明的键：模板是它们的权威来源，可回退。
+_IDENTITY_KEYS = ("id", "name", "desc", "icon", "version")
+
+
 def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
-    """读插件 `plugin-config.ini` 的 `[base]`：身份与开关。
+    """读插件 `[base]`：身份与开关。
 
     每个插件都有这一节：`id` / `name` / `desc` / `enable` / `icon` / `version`。
     `enable` 为 `0` 时不装载；没写时按 `1`。插件自己的键在 `[ext]`，这里不读。
+
+    身份键回退到同目录的 `plugin-config.ini.example`。真实配置是私有文件
+    （被 `.gitignore` 忽略），新克隆的仓库里只有模板；身份是插件声明，
+    模板里写的就是权威值。不回退的话，没建过配置的插件在列表里显示目录名
+    （`multi_model` 而不是「多模型」），而它旁边的插件显示的是 `name` ——
+    同一个列表出现两套规则。
+
+    `enable` 不回退：它是用户状态，模板里的开关不该替用户决定装载与否。
     """
     root = Path(plugin_root)
+    real = _base_section(root / "plugin-config.ini")
+    template = _base_section(root / "plugin-config.ini.example")
     fields = {
         "id": root.name,
         "name": "",
@@ -67,28 +103,12 @@ def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
         "icon": "",
         "version": "",
     }
-    path = root / "plugin-config.ini"
-    if not path.is_file():
-        return fields
-    parser = configparser.ConfigParser(interpolation=None)
-    try:
-        parser.read(path, encoding="utf-8-sig")
-    except (OSError, configparser.Error):
-        return fields
-    if not parser.has_section("base"):
-        return fields
-
-    def _get(key: str) -> str:
-        return str(parser.get("base", key, fallback="") or "").strip()
-
-    if _get("id"):
-        fields["id"] = _get("id")
-    fields["name"] = _get("name")
-    fields["desc"] = _get("desc")
-    if _get("enable") == "0":
+    for key in _IDENTITY_KEYS:
+        value = real.get(key) or template.get(key) or ""
+        if value:
+            fields[key] = value
+    if real.get("enable") == "0":
         fields["enable"] = "0"
-    fields["icon"] = _get("icon")
-    fields["version"] = _get("version")
     return fields
 
 
@@ -220,7 +240,7 @@ class PluginContext:
         """注册上下文注入源（上下文注入扩展点；需接入 sources）。
 
         `meta` 是这一段的描述（`SourceMeta` 或 `{"label": ...}` 这类映射）：
-        段 key 一律以**插件名**为首（宿主不解释它的含义），段名由插件给。
+        段 key 一律以插件名为首（宿主不解释它的含义），段名由插件给。
         不给描述时用插件名当段名。
         """
         if self._context_sources is None:
@@ -244,7 +264,7 @@ class PluginContext:
     def _source_meta(self, meta: Any) -> Any:
         """把插件给的描述补上插件名，成为内核认的 `SourceMeta`。
 
-        **段 key 一律是插件名** —— 前端按这个名字找插件注册的渲染钩子。
+        段 key 一律是插件名 —— 前端按这个名字找插件注册的渲染钩子。
         段名、注入前缀与主体数量的取数口由插件给：
         `{"label": ..., "prefix": ..., "count": fn(cid)}`。
         组装顺序不由插件声明：它取插件在清单里的位次。
@@ -265,7 +285,7 @@ class PluginContext:
             prefix = str(getattr(meta, "prefix", "") or "")
             count = getattr(meta, "count", None)
         name = slug(self.name)
-        # 组装顺序按**插件清单位次**：清单靠前的插件，它的段也排在前面。
+        # 组装顺序按插件清单位次：清单靠前的插件，它的段也排在前面。
         return SourceMeta(key=name, label=label or name, plugin=self.name,
                           prefix=prefix, count=count,
                           plugin_rank=self._rank)
@@ -300,7 +320,7 @@ class PluginContext:
     def app(self) -> Any:
         """内核 App；装配完成前为 None。
 
-        插件要从内核取服务（如 `ctx.app.registry`）时用它 —— 只在**处理器内部**
+        插件要从内核取服务（如 `ctx.app.registry`）时用它 —— 只在处理器内部
         取而不是在 `register` 里取：插件在装配末尾加载，但处理器是后来才被调用的。
         """
         return getattr(self._host, "app", None) if self._host is not None else None
@@ -309,7 +329,7 @@ class PluginContext:
     def data_dir(self) -> Optional[Path]:
         """本插件的专属存储根（`<数据根>/plugin/<插件名>/`），首次访问时创建。
 
-        插件**只看到自己这一层**，不需要知道外层目录在哪 —— 换个数据根、换个目录
+        插件只看到自己这一层，不需要知道外层目录在哪 —— 换个数据根、换个目录
         层级都不影响插件。各插件的目录互相隔离，同名文件也不会撞。
         未接入宿主时返回 None（插件应自己判空或只在有值时落盘）。
         """
@@ -320,7 +340,7 @@ class PluginContext:
         try:
             target.mkdir(parents=True, exist_ok=True)
         except OSError:
-            # **旁路，刻意吞掉**：建不出目录不该让插件加载失败；插件拿到路径后
+            # 旁路，刻意吞掉：建不出目录不该让插件加载失败；插件拿到路径后
             # 自己写文件时会再次遇到并处理（写失败是它的事），这里只保证不在这里炸。
             return target
         return target
@@ -348,7 +368,7 @@ class PluginContext:
 
         `html` 与 `url` 二选一：`html` 是同源 HTML 片段（按可信代码对待），
         `url` 交给壳层按需加载。
-        `script_file` / `css_file` 是**插件目录内**的相对路径（如 `ui/panel.js`、
+        `script_file` / `css_file` 是插件目录内的相对路径（如 `ui/panel.js`、
         `ui/panel.css`）：声明它们，壳层就按 `_asset` 路由送出，面板首次打开时注入。
         面板的脚本与样式都属于插件，不必自己挂路由、也不要写进壳层的公共资源。
         """
@@ -416,7 +436,7 @@ class PluginContext:
     def add_model_catalog(self, entries: Any) -> Disposer:
         """声明本插件的模型清单；`entries` 是条目序列或每次重读配置的回调。
 
-        来源名固定是**插件名**：目录只认一个权威，冲突时保留先登记的来源并留痕，
+        来源名固定是插件名：目录只认一个权威，冲突时保留先登记的来源并留痕，
         插件装载不因此失败（装载顺序不是契约，但结果必须确定且可审计）。
         """
         if self._model_catalog is None:
@@ -488,7 +508,7 @@ class PluginHost:
     def runtime(self, name: str, default: Any = None) -> Any:
         """取某插件的运行时对象；未加载或未登记返回 `default`。
 
-        壳层用它拿到**插件自己那一份**运行时（`importlib` 以动态模块名加载，
+        壳层用它拿到插件自己那一份运行时（`importlib` 以动态模块名加载，
         壳层 import 不到同一个模块对象，只能经宿主取）。
         """
         return self._runtimes.get(str(name or "").strip(), default)
@@ -498,7 +518,7 @@ class PluginHost:
     def discover(self) -> List[PluginInfo]:
         """扫描插件根目录：`<name>/plugin.py` 为插件；忽略隐藏/私有目录与无入口项。
 
-        这是**不依赖清单**的枚举，用于列出磁盘上有哪些插件。
+        这是不依赖清单的枚举，用于列出磁盘上有哪些插件。
         真正装载哪些由清单（`plugins.ini`）决定，装载入口是 `load_manifest`。
         """
         if not self._dir.is_dir():
@@ -569,7 +589,7 @@ class PluginHost:
         return fresh
 
     def load_enabled(self, enabled: List[str]) -> List[LoadReport]:
-        """按**名字白名单**装载（不写清单的场景：测试、脚本、临时装配）。
+        """按名字白名单装载（不写清单的场景：测试、脚本、临时装配）。
 
         正式装配走 `load_manifest`：清单里能声明版本与目录，白名单不能。
         """

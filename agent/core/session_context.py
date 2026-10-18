@@ -4,16 +4,16 @@
 三级上下文的中间一级：进程级（AppContext）/ 会话级（本模块）/ 回合级。
 一切可变状态按生命周期分三级存放，禁止混放、禁止跨级占用。
 
-它是**数据结构**（"会话态长什么样"的约定），不是机制实现。上下文类是**模块间传输数据
-的约定**，所有用到的地方都该直接 import 它；`scripts/check_imports.py` 约束的是
-**行为依赖方向**（谁调用谁），不是"谁能使用同一份数据形状"。
+它是数据结构（"会话态长什么样"的约定），不是机制实现。上下文类是模块间传输数据
+的约定，所有用到的地方都该直接 import 它；`scripts/check_imports.py` 约束的是
+行为依赖方向（谁调用谁），不是"谁能使用同一份数据形状"。
 工具轮次经 `ToolPort` 把本会话桶填进管道上下文，工具读 `current_context().session.gate`。
 
 本模块承担两件事：
 
 1. `SessionContext` —— 单会话局部状态的载体：
    - `gate`：写盘门控（确认 ID 与预览 kv / 待重读 / 待 review / 红灯 / 意图证据），
-     **每会话独占一个实例**：一个会话的预览快照不得被另一个会话看到或提交；
+     每会话独占一个实例：一个会话的预览快照不得被另一个会话看到或提交；
    - `live`：实时状态（模式 / todo / 自主 / 休眠）；实例由装配共享，内部按 cid 分键；
    - `inbox`：收件队列；实例由装配共享，内部按 cid 分键；
    - `pending_confirm`：待用户确认（两段式首段留下的挂起调用）。
@@ -24,13 +24,13 @@
 
 解析路径（唯一）：工具与管道钩子执行期内经 `core.session_scope.current_session_id()`
 取当前会话 id，再经注册表解析——会话态不进全局单例、不跨会话直读。
-（回合期的组件另有**显式**引用：回合级原对象上的 `.session` / `.app`——
+（回合期的组件另有显式引用：回合级原对象上的 `.session` / `.app`——
 显式引用优先，contextvar 只服务"没有显式引用可用"的场合。）
 
 不在本模块驻留之物：会话记录 / 上下文管线 / 压缩器——属"可由事实源
 重建的会话运行态"，由回合引擎按会话构建（App.session）。
 
-回收：注册表提供**显式释放**——`release(cid)` 丢单会话、`close_all()` 丢全部、
+回收：注册表提供显式释放——`release(cid)` 丢单会话、`close_all()` 丢全部、
 `active_count()` 诊断驻留量。释放只丢进程内运行态，不动已落盘的会话记录（事实源不变，
 重新解析会话即从记录重建运行态）。不引入自动淘汰（TTL / LRU）：静默丢弃不活跃会话的
 门控状态会让用户回来时"待 review / 红灯"凭空消失，属正确性风险；何时回收由壳层按
@@ -60,10 +60,10 @@ class SessionContext:
     inbox: Any = None
     extras: Dict[str, Any] = field(default_factory=dict)
     # 待用户确认（两段式 / 挂起）：`user_confirm` 类工具首段返回信封后，
-    # 回合把它置为 `{call_id, title, confirms, multi}`，然后**放行结束**（不阻塞、不再调模型）；
+    # 回合把它置为 `{call_id, title, confirms, multi}`，然后放行结束（不阻塞、不再调模型）；
     # 用户在宿主界面作答后，宿主查这里、把选择写成那次调用的 `tool_result`，再起新回合。
     #
-    # 放在会话级：它要**跨回合**存活（暂停发生在上一回合，作答在下一回合），
+    # 放在会话级：它要跨回合存活（暂停发生在上一回合，作答在下一回合），
     # 而回合级上下文随回合消亡。放这里也符合分级纪律——
     # 会话态归 SessionContext，不塞全局单例、也不跨会话直读。
     pending_confirm: Optional[Dict[str, Any]] = None
@@ -88,7 +88,7 @@ class SessionContexts:
     - `live` / `inbox`：装配级共享容器（内部按 cid 分键，同为按 cid 字典）；
     - `resolve_sync(cid)`：显式取某会话上下文（脚本 / 测试 / 无 contextvar 场景）；
     - `resolve()`：取当前会话上下文（经 core.session_scope 的 contextvar）；
-    - `get(cid)` / `buckets()`：只读查询，**不创建**会话上下文。
+    - `get(cid)` / `buckets()`：只读查询，不创建会话上下文。
     """
 
     def __init__(
@@ -123,7 +123,7 @@ class SessionContexts:
     def resolve_sync(self, conversation_id: str) -> SessionContext:
         """按 cid 取会话上下文；无则创建（同 cid 复用，线程安全）。
 
-        `gate_factory` 在持锁期间**之外**调用——避免工厂重入注册表导致死锁。
+        `gate_factory` 在持锁期间之外调用——避免工厂重入注册表导致死锁。
         """
         bucket = _bucket(conversation_id)
         with self._lock:
@@ -161,8 +161,8 @@ class SessionContexts:
     def release(self, conversation_id: str) -> bool:
         """显式释放某会话的上下文（丢弃门控状态）；返回是否命中。
 
-        语义边界：只丢**进程内会话运行态**（门控 kv / 预览快照 / 红灯 / 意图证据 /
-        待重读 / 待 review、以及 SessionContext 对共享容器的引用），**不动**已落盘的
+        语义边界：只丢进程内会话运行态（门控 kv / 预览快照 / 红灯 / 意图证据 /
+        待重读 / 待 review、以及 SessionContext 对共享容器的引用），不动已落盘的
         会话记录（事实源仍在，重新解析会话即从记录重建运行态）。
         """
         with self._lock:

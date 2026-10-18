@@ -1,6 +1,6 @@
 /* chat/send.js —— 发送消息与附件：请求、错误文案、图片粘贴/选择。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 async function sendChatMessage(){
@@ -12,7 +12,7 @@ if(isConversationBusy()){alert("当前会话仍在执行中，请等待模型响
 var sendCid=getActiveConversationId();
 /* 有效新消息才清本轮编辑清单；/api/chat/user-confirm 不走这里。 */
 if(typeof clearLiveEdits==="function")clearLiveEdits(findConversationTab(sendCid));
-/* 气泡只显示文字：图片由下方的附件条（缩略图）表达，不再追加 `[图片 ×N]` 尾巴。
+/* 气泡只显示文字：图片由下方的附件条（缩略图）表达，不再追加 `[图片 ×N]` 后缀。
    只发图不打字时给个占位，否则气泡是空的。 */
 var display=text||"（截图）";
 var bubble=add("u",display);

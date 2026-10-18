@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """经典界面内联打包。
 
-把 CSS 与 JS **全部内联进一个 HTML**，运行时页面零额外请求：
-素材位于 `agent/shell/web_assets/classic/`，按下面的**模块清单**顺序拼成完整页面。
+把 CSS 与 JS 全部内联进一个 HTML，运行时页面零额外请求：
+素材位于 `agent/shell/web_assets/classic/`，按下面的模块清单顺序拼成完整页面。
 
-模块清单是**唯一事实来源**：`scripts/check_ui_js.py`、测试与验收脚本都从这里取，
+模块清单是唯一事实来源：`scripts/check_ui_js.py`、测试与验收脚本都从这里取，
 新增/删除模块只改这一处。
 
 四件关键细节：
-  1. **顺序即语义**：JS 模块共用一个 `<script>` 作用域，CSS 模块顺序即层叠顺序，
+  1. 顺序即语义：JS 模块共用一个 `<script>` 作用域，CSS 模块顺序即层叠顺序，
      调整清单顺序可能改变行为，不能随手重排；
-  2. **hljs 浅色 CSS 要做作用域隔离**（`html[data-ui-theme="light"] .hljs`）——
+  2. hljs 浅色 CSS 要做作用域隔离（`html[data-ui-theme="light"] .hljs`）——
      两套高亮配色同页共存，不隔离就会互相覆盖；
   3. JS 之间用 `;` 连接 —— 各文件末尾可能没有分号，直接拼会粘成语法错误；
   4. `{{APP_VERSION}}` 由服务端注入。
@@ -24,7 +24,7 @@ from typing import Optional
 
 CLASSIC_DIR = Path(__file__).resolve().parent / "web_assets" / "classic"
 
-#: 经典界面 JS 模块（相对 `classic/js/`，**顺序即脚本执行顺序**）。
+#: 经典界面 JS 模块（相对 `classic/js/`，顺序即脚本执行顺序）。
 UI_JS_MODULES = (
     "core/boot.js",
     "chat/todo.js",
@@ -54,7 +54,7 @@ UI_JS_MODULES = (
     "layout/splitters.js",
 )
 
-#: 主脚本**之前**加载的脚本（vendor 与独立工具）。顺序同样有意义。
+#: 主脚本之前加载的脚本（vendor 与独立工具）。顺序同样有意义。
 UI_PRE_JS_MODULES = (
     "js/theme-ui.js",
     "js/vendor/marked.min.js",
@@ -63,7 +63,7 @@ UI_PRE_JS_MODULES = (
     "js/image-lightbox.js",
 )
 
-#: 主脚本**之后**加载的脚本：工具视图、文件图标、本轮编辑清单、设置页。
+#: 主脚本之后加载的脚本：工具视图、文件图标、本轮编辑清单、设置页。
 UI_POST_JS_MODULES = (
     "js/chat-tool-views.js",
     "js/file-icons.js",
@@ -71,7 +71,7 @@ UI_POST_JS_MODULES = (
     "js/settings-ui.js",
 )
 
-#: 经典界面 CSS 模块（相对 `classic/css/`，**顺序即层叠顺序**）。
+#: 经典界面 CSS 模块（相对 `classic/css/`，顺序即层叠顺序）。
 UI_CSS_MODULES = (
     "reset.css",
     "layout.css",
@@ -103,7 +103,7 @@ def _read(path: Path) -> str:
 
 
 def read_ui_js() -> str:
-    """按清单顺序拼出经典界面**同作用域**脚本（测试与静态检查共用）。"""
+    """按清单顺序拼出经典界面同作用域脚本（测试与静态检查共用）。"""
     return "\n;".join(
         _read(CLASSIC_DIR / "js" / rel).rstrip("\n") for rel in UI_JS_MODULES
     )

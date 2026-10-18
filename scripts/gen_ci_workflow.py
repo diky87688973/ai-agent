@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""由 `scripts/ci_steps.py` **生成** `.github/workflows/ci.yml`。
+"""由 `scripts/ci_steps.py` 生成 `.github/workflows/ci.yml`。
 
     python scripts/gen_ci_workflow.py            # 重新生成
     python scripts/gen_ci_workflow.py --check    # 只校验（yml 与清单不一致即退出 1）
 
 为什么生成而不是"再写一份"：`check_ci_workflow.py` 以前只比对步骤名，
-命令参数改了、超时改了、少了一个 `--flag` 都发现不了。生成后是**逐字节**一致：
+命令参数改了、超时改了、少了一个 `--flag` 都发现不了。生成后是逐字节一致：
 想改 CI 就改 `ci_steps.py`，再跑本脚本。
 """
 from __future__ import annotations
@@ -37,7 +37,7 @@ concurrency:
 permissions:
   contents: read
 
-# 本文件由 scripts/gen_ci_workflow.py 从 scripts/ci_steps.py 生成，不要手改。
+# 本文件由 scripts/gen_ci_workflow.py 从 scripts/ci_steps.py 生成；直接改动会被下一次生成覆盖。
 # `python scripts/gen_ci_workflow.py --check` 校验逐字节一致。
 
 jobs:
@@ -56,7 +56,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      # 只装两个**运行时**依赖。可选依赖（playwright / pytesseract / easyocr /
+      # 只装两个运行时依赖。可选依赖（playwright / pytesseract / easyocr /
       # rarfile / edge-tts）不装：不装时对应工具自行降级或明确报错；
       # 装了会让"缺依赖"那几个用例走 skip 分支、失去覆盖。
       - name: 安装依赖

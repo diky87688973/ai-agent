@@ -140,9 +140,9 @@ class Ports:
 装配根（`app.py`）与入口层（`entry/`）是最上面两层：任何层都不得运行期导入它们，
 `entry/` 也不得被任何层导入。`python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` 是三个进程入口。
 
-## 反苟且清单
+## 架构硬约束
 
-下列纪律必须保持为零例外（由 `scripts/check_architecture_hygiene.py` 与单测共同钉住）：
+下列约束由 `scripts/check_architecture_hygiene.py` 与单测按零例外核对：
 
 - `ToolCallScope` 在执行期填入 `app` 与 `session`；工具读 `current_context().session.gate`，不另开全局门控旁路（无 `gate=` / `_fallback_gate` / `gate_resolver`）。
 - 无 `session_contexts` 时 `gate_for` 报错；`build_pipeline_gate` 必填 `registry` 与 `sessions`，预览只认工具 `needs_preview`（无 `preview_tools=`）。
@@ -157,7 +157,7 @@ class Ports:
 - TTS 等插件不向界面承诺内核未提供的能力。
 - 禁止跨层私有导入（`from agent.X import _priv`）；同层私有导入允许。
 - `SERVICE_CLASSIC_ADAPTER` 只住在壳层键表，不进 `core`。
-- 不保留死的 `changeset_mod_ids` 引用。
+- 不保留失效的 `changeset_mod_ids` 引用。
 - 会话关闭时释放对应 `SessionContext` 桶。
 
 ## 延伸阅读
@@ -169,7 +169,9 @@ class Ports:
 | 上下文管理 | [subsystems/context.md](subsystems/context.md) |
 | 模型调用 | [subsystems/llm.md](subsystems/llm.md) |
 | 工具与插件 | [subsystems/tools.md](subsystems/tools.md)、[subsystems/plugins.md](subsystems/plugins.md) |
+| 知识库 | [subsystems/knowledge.md](subsystems/knowledge.md) |
 | Skills | [subsystems/skills.md](subsystems/skills.md) |
+| 多模型 | [subsystems/multi-model.md](subsystems/multi-model.md) |
 | 会话存储与协作 | [subsystems/session.md](subsystems/session.md) |
 | HTTP 服务与界面 | [subsystems/shell.md](subsystems/shell.md) |
 | 配置项 | [guide/config.md](guide/config.md) |

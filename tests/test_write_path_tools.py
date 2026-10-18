@@ -78,7 +78,7 @@ class WritePathToolsTest(unittest.TestCase):
         return self._commit(cid)
 
     def _backup_meta(self, f: Path, index: int = 0) -> dict:
-        """备份的 metadata（列表是**新→旧**，`index=0` 即最近一次）。"""
+        """备份的 metadata（列表是新→旧，`index=0` 即最近一次）。"""
         import json
 
         versions = FileBackups(self.root / "bk").list_for(f)
@@ -93,7 +93,7 @@ class WritePathToolsTest(unittest.TestCase):
     def test_backup_records_what_the_write_changed(self) -> None:
         """写盘触发的备份要记下「这一版改了什么」。
 
-        旧内容与新内容在提交时都在手边，diff 是顺手就能留下的；
+        旧内容与新内容在提交时都在手边，diff 可以直接留下；
         不留的话事后只能看到一份孤立的旧内容，看不出改动。
         """
         f = self.root / "b1.txt"

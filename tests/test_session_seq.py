@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """会话日志存储坐标（`seq`）测试。
 
-**为什么需要坐标**：SSE 断线重连要知道"从哪继续"。没有坐标就只有两个坏选择——
-重放全部（重复内容）或干脆丢掉中间那段（静默缺口）。`seq` 就是那个坐标。
+坐标的用途：SSE 断线重连需要知道"从哪继续"。没有坐标就只能在两种错误之间选择——
+重放全部（重复内容）或丢弃中间段（静默缺口）。`seq` 就是那个坐标。
 
-它是**存储位置**（该会话日志内的 0 基行号），不是事件语义：
+它是存储位置（该会话日志内的 0 基行号），不是事件语义：
 - 写进落盘行的 `seq` 字段；
-- **不给 `Event` 加字段**（否则波及所有构造点与相等性比较）；
+- 不给 `Event` 加字段（否则波及所有构造点与相等性比较）；
 - 实时路径由 `App.session` 的落盘旁路标进载荷 `_seq`；
 - 缺少 `seq` 的日志读取时按行位置补号，两类行的坐标口径一致。
 """
@@ -66,16 +66,16 @@ class SeqAssignmentTest(unittest.TestCase):
         self.assertEqual([e.type for _, e in pairs], ["a", "b"])
 
     def test_load_still_returns_plain_events(self) -> None:
-        """`load()` 的返回形状**不变**（既有调用方与测试都按纯事件列表用）。"""
+        """`load()` 的返回形状不变（既有调用方与测试都按纯事件列表用）。"""
         self.store.append(CID, [Event("a"), Event("b")])
         events = self.store.load(CID)
         self.assertEqual([e.type for e in events], ["a", "b"])
         self.assertTrue(all(isinstance(e, Event) for e in events))
 
     def test_seq_lives_in_payload_and_top_level_only(self) -> None:
-        """坐标在落盘行里只占顶层 `seq` 一处；**业务字段不被污染**。
+        """坐标在落盘行里只占顶层 `seq` 一处；业务字段不被污染。
 
-        设计要点：坐标必须在事件**产出瞬间**由 `emit` 标进载荷（`_seq`）——
+        设计要点：坐标必须在事件产出瞬间由 `emit` 标进载荷（`_seq`）——
         事件一产出就被发布到总线，落盘在其后；落盘时才标的话实时订阅者永远看不到它
         （落盘 9 行 seq 连续，实时流 0 帧带 seq）。
         给前端的帧由适配层负责把它摘掉（见 `test_replay_never_leaks_seq_into_frame_payloads`）。
@@ -87,14 +87,14 @@ class SeqAssignmentTest(unittest.TestCase):
                           if k not in ("_seq", "conversation_id")}, {"keep": 1})
         row = json.loads(self.store.raw_path(CID).read_text(encoding="utf-8").splitlines()[0])
         self.assertEqual(row["s"], 0)
-        # **落盘行里没有第二份坐标**（data 里不重复存 `_seq`）
+        # 落盘行里没有第二份坐标（data 里不重复存 `_seq`）
         self.assertNotIn("_seq", row["d"])
 
     def test_conversation_id_is_not_persisted(self) -> None:
         """会话 ID 由文件名承载，落盘行里不存；读回时按会话补进载荷。
 
         落盘每行存一遍会话 ID（36 字节）纯属重复：读盘的人手上已经有文件名。
-        但**内存里的事件必须带它** —— SSE 靠它把帧分派到正确的会话页面。
+        但内存里的事件必须带它 —— SSE 靠它把帧分派到正确的会话页面。
         """
         self.store.append(CID, [Event("a", {"keep": 1})])
         row = json.loads(self.store.raw_path(CID).read_text(encoding="utf-8").splitlines()[0])
@@ -105,7 +105,7 @@ class SeqAssignmentTest(unittest.TestCase):
         self.assertEqual(event.data.get("conversation_id"), CID)
 
 class SeqMissingTest(unittest.TestCase):
-    """缺坐标的行按**行位置**补号 —— 手写或外部工具产生的日志也要能读。"""
+    """缺坐标的行按行位置补号 —— 手写或外部工具产生的日志也要能读。"""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -135,7 +135,7 @@ class SeqMissingTest(unittest.TestCase):
                          ["turn_started", "input_claimed", "turn_ended"])
 
     def test_appended_rows_use_global_seq(self) -> None:
-        """继续追加时新行用**全局坐标**，必然大于同文件里的补号。
+        """继续追加时新行用全局坐标，必然大于同文件里的补号。
 
         全局坐标跨会话唯一，续传游标才成立；补号只服务"全量回放"。
         """
@@ -198,9 +198,9 @@ class SeqEmptyAndErrorTest(unittest.TestCase):
         self.assertFalse(self.store.raw_path(CID).exists())
 
     def test_unparseable_line_is_skipped(self) -> None:
-        """坏行跳过不渲染；**已有事件仍保留各自的落盘坐标**（坐标来自字段，不靠数位置）。
+        """坏行跳过不渲染；已有事件仍保留各自的落盘坐标（坐标来自字段，不靠数位置）。
 
-        （`"foo"` 这种是**合法 JSON**（字符串字面量），只是不是对象；
+        （`"foo"` 这种是合法 JSON（字符串字面量），只是不是对象；
         真正不可解析的是 `{oops`。）
         """
         self.store.append(CID, [Event("a"), Event("b")])
@@ -224,7 +224,7 @@ class SeqEmptyAndErrorTest(unittest.TestCase):
         self.assertEqual([seq for seq, _ in pairs], [0])
 
     def test_append_after_external_edit_does_not_collide(self) -> None:
-        """外部插入行后追加，新事件**不与既有坐标撞号**（全局分配器在存储层，不受文件行数影响）。
+        """外部插入行后追加，新事件不与既有坐标撞号（全局分配器在存储层，不受文件行数影响）。
 
         坐标必须由存储层单点分配，并与磁盘最大值播种对齐：若在内存里维护下一个序号，
         外部改动文件后它会与真实位置错开，新事件就会被编上已被占用的号（如 `[0, 1]` 撞号）。
@@ -243,7 +243,7 @@ class SeqEmptyAndErrorTest(unittest.TestCase):
         self.assertEqual(seqs, sorted(seqs))       # 与文件顺序一致（单调）
 
     def test_coordinates_are_global_across_conversations(self) -> None:
-        """坐标**跨会话单调**：这是续传游标能只用一条流一个光标的前提。"""
+        """坐标跨会话单调：这是续传游标能只用一条流一个光标的前提。"""
         other = "seq-test-0002"
         self.store.append(CID, [Event("a"), Event("b")])
         self.store.append(other, [Event("c")])

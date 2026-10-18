@@ -21,6 +21,7 @@ from agent.app import build_app  # noqa: E402
 from agent.core.model_call import StreamDelta  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
+from tests.testkit import no_plugins  # noqa: E402
 
 CID_A = "senderagent1"
 CID_B = "targetagent1"
@@ -310,6 +311,8 @@ class RunnerE2ETest(unittest.TestCase):
         self.mesh = MeshState(storage_dir=self.root / "mesh")
         self.provider = _ProbeProvider(gate_first=True)
         self.addCleanup(self.provider.gate.set)  # 兜底放行，防线程悬挂
+        # 不装插件：本类验的是运行器与 mesh，插件目录会把注入源与模型路由换掉。
+        no_plugins(self)
         self.app = build_app(provider=self.provider, mesh=self.mesh)
         self._seq = 0
 

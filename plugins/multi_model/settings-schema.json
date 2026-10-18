@@ -1,0 +1,85 @@
+{
+  "kind": "sections",
+  "title": "模型",
+  "section_prefix": "model:",
+  "add_label": "添加模型",
+  "empty_text": "还没有模型。至少添加一条，填上网关与密钥。",
+  "identity": {
+    "key": "id",
+    "label": "模型 ID",
+    "hint": "请求与界面里的唯一标识，只能包含字母、数字、下划线与短横"
+  },
+  "fields": [
+    {
+      "key": "provider",
+      "kind": "enum",
+      "label": "协议",
+      "default": "openai",
+      "options": [
+        {"value": "openai", "label": "OpenAI 兼容"},
+        {"value": "anthropic", "label": "Anthropic"}
+      ]
+    },
+    {
+      "key": "base_url",
+      "kind": "text",
+      "label": "网关地址",
+      "placeholder": "https://api.deepseek.com"
+    },
+    {
+      "key": "api_key",
+      "kind": "secret",
+      "label": "API 密钥"
+    },
+    {
+      "key": "model",
+      "kind": "text",
+      "label": "模型名",
+      "hint": "发给网关的模型名；留空时等于模型 ID",
+      "placeholder": "deepseek-flash"
+    },
+    {
+      "key": "label",
+      "kind": "text",
+      "label": "显示名称",
+      "hint": "下拉与顶栏里显示的名字；留空时等于模型 ID"
+    },
+    {
+      "key": "context_window",
+      "kind": "number",
+      "label": "上下文窗口（token）",
+      "hint": "该模型的物理上限，界面按它算上下文占用率（如 128000 / 256000 / 1000000）",
+      "default": "1000000",
+      "min": 1
+    },
+    {
+      "key": "default",
+      "kind": "bool",
+      "label": "默认模型",
+      "hint": "至多一条；都没标时取第一条"
+    },
+    {
+      "key": "max_tokens",
+      "kind": "number",
+      "label": "回复上限（token）",
+      "hint": "Anthropic 协议必填；这是回复的长度上限，不是上下文窗口",
+      "min": 1,
+      "show_if": {"key": "provider", "equals": "anthropic"}
+    },
+    {
+      "key": "thinking",
+      "kind": "bool",
+      "label": "深度思考",
+      "hint": "关闭会显式下发 disabled（DeepSeek 默认是开的）",
+      "show_if": {"key": "provider", "equals": "anthropic"}
+    },
+    {
+      "key": "thinking_budget_tokens",
+      "kind": "number",
+      "label": "思考预算（token）",
+      "hint": "必须小于回复上限；DeepSeek 兼容层会忽略它",
+      "min": 1,
+      "show_if": {"key": "provider", "equals": "anthropic"}
+    }
+  ]
+}

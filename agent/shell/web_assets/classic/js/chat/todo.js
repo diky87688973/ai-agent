@@ -1,6 +1,6 @@
 /* chat/todo.js —— Todo 清单区域：创建、显示/隐藏、按事件渲染。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 /* ===== Todo-List ===== */

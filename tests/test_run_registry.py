@@ -2,10 +2,10 @@
 """`RunRegistry` 的回归测试：运行态登记必须"可跨进程查、崩溃自愈、抽干不留空窗"。
 
 两条硬约束：
-① 登记必须**跨进程可见**——放在进程内存字典里，多实例部署会把别的实例正在跑的
+① 登记必须跨进程可见——放在进程内存字典里，多实例部署会把别的实例正在跑的
    回合报成"没在跑"；
-② 抽干链**不得露出空闲窗口**——`release → pop → claim` 的中间态会让另一次投递
-   **再激活一趟**，同一个回合被执行两遍。
+② 抽干链不得露出空闲窗口——`release → pop → claim` 的中间态会让另一次投递
+   再激活一趟，同一个回合被执行两遍。
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ class InMemoryRunRegistryTest(unittest.TestCase):
         self.assertFalse(reg.claim(CID, "r2"), "已占位时不能再占（这是「忙」的判据）")
         self.assertTrue(reg.running(CID))
         self.assertEqual(reg.active_run_id(CID), "r1")
-        # renew：换 id 但**不释放**（抽干下一条时用）
+        # renew：换 id 但不释放（抽干下一条时用）
         self.assertTrue(reg.renew(CID, "r2"))
         self.assertEqual(reg.active_run_id(CID), "r2")
         self.assertTrue(reg.running(CID), "renew 不得释放占位")
@@ -61,7 +61,7 @@ class FileRunRegistryTest(unittest.TestCase):
         self.dir = Path(self._tmp.name) / "runs"
 
     def test_state_is_visible_across_instances(self) -> None:
-        """**核心诉求**：另一个实例（另一个 registry 对象）能看到"在跑"。"""
+        """核心诉求：另一个实例（另一个 registry 对象）能看到"在跑"。"""
         a = FileRunRegistry(self.dir)
         b = FileRunRegistry(self.dir)
         self.assertFalse(b.running(CID))
@@ -79,7 +79,7 @@ class FileRunRegistryTest(unittest.TestCase):
         self.assertTrue(reg.running(CID))
         time.sleep(0.12)
         self.assertFalse(reg.running(CID), "过期条目不得再算作在跑")
-        self.assertFalse((self.dir / f"{CID}.json").is_file(), "过期条目应被顺手清掉")
+        self.assertFalse((self.dir / f"{CID}.json").is_file(), "过期条目应被清理")
         self.assertTrue(reg.claim(CID, "r2"), "清掉之后应能重新占位")
 
     def test_touch_keeps_long_run_alive(self) -> None:
@@ -105,7 +105,7 @@ class FileRunRegistryTest(unittest.TestCase):
 
 
 class DrainWindowTest(unittest.TestCase):
-    """抽干链**不得露出空闲窗口**：`end_run` 返回下一条时必须已占位。"""
+    """抽干链不得露出空闲窗口：`end_run` 返回下一条时必须已占位。"""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -113,9 +113,9 @@ class DrainWindowTest(unittest.TestCase):
         self.mesh = MeshState(storage_dir=Path(self._tmp.name) / "mesh")
 
     def test_drain_never_exposes_idle_window(self) -> None:
-        """`end_run` 返回下一条时，占位必须**一次都没松过**。
+        """`end_run` 返回下一条时，占位必须一次都没松过。
 
-        做法：在 `end_run` 执行期间，从**另一个线程**反复问 `is_running` ——
+        做法：在 `end_run` 执行期间，从另一个线程反复问 `is_running` ——
         只有全程不释放（`renew`）才会从头到尾都是 True；`release → pop → claim`
         会在中间被观察到 False。
         """
@@ -158,11 +158,11 @@ if __name__ == "__main__":
 class PidAliveTest(unittest.TestCase):
     """`_pid_alive` 的判活边界。
 
-    判活必须覆盖**无控制台**的进程（Windows 服务 / 计划任务 / `pythonw` /
-    分离启动）：这条路径上 `os.kill(pid, 0)` 对**活着的**进程也会抛
+    判活必须覆盖无控制台的进程（Windows 服务 / 计划任务 / `pythonw` /
+    分离启动）：这条路径上 `os.kill(pid, 0)` 对活着的进程也会抛
     `OSError [WinError 87]`，所以探活不能以 `OSError` 判定死亡 ——
     判死的后果是 `claim()` 成功之后 `running()` 立刻返回 False，
-    同会话并发保护（`/api/chat/send` 的 409）与界面停止键**同时失效**。
+    同会话并发保护（`/api/chat/send` 的 409）与界面停止键同时失效。
 
     实现按此约定：Windows 走 `OpenProcess`（不需要控制台），其它错误一律按"活着"处理。
     本组用例不依赖控制台，所以在有/无控制台两种跑法下都应通过。

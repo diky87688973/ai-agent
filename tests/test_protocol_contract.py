@@ -2,7 +2,7 @@
 """HTTP/SSE 协议契约测试。
 
 契约的可回归化：把"前端消费契约 → 内核事件模型"的映射钉死，避免换前端时
-契约悄悄漂移。本文件不测网络层，只测**事件词汇表与映射落点**。
+契约悄悄漂移。本文件不测网络层，只测事件词汇表与映射落点。
 """
 from __future__ import annotations
 
@@ -195,8 +195,8 @@ class UiStateContractTest(unittest.TestCase):
     def test_usage_and_reasoning_are_provider_side(self) -> None:
         """用量经 usage 事件；推理档位属 provider 请求参数。
 
-        **真断言**：直接读 provider 的源码，确认 `payload["reasoning_effort"]`
-        取自**请求**而不是写死的常量。
+        真断言：直接读 provider 的源码，确认 `payload["reasoning_effort"]`
+        取自请求而不是写死的常量。
 
         写死常量会让前端「思考 · High / Max」两档失效——用户选 Max，发出去的还是 high。
         """

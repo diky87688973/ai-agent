@@ -1,6 +1,6 @@
 /* chat/steps.js —— 步骤区骨架：工具步骤挂载、token 占比、未定义变量的静默兜底。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function _muteEl(){return document.createElement("span");}
@@ -107,7 +107,7 @@ v=String(v||"").trim();
 return v||fallback;
 }
 /* 两套主题各一组段色：色名 → {dark, light}。插件注册色名就自动跟着主题走；
-   兜底也按同一张色名表取，所以**分段条与弹窗永远同色**。 */
+   兜底也按同一张色名表取，所以分段条与弹窗永远同色。 */
 var CTX_SEG_NAMED={
 "amber":  {dark:"#ffb020",light:"#f59e0b"},
 "blue":   {dark:"#4c8dff",light:"#2563eb"},

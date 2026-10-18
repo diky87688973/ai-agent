@@ -40,7 +40,7 @@ def build_engine(
 ) -> Any:
     """组装引擎；`system_prompt` 已由调用方决定，这里不再二次注入。
 
-    `cancel` **一路透传到宿主与端口**：宿主在每趟开始前问一次、模型模块逐帧问、
+    `cancel` 一路透传到宿主与端口：宿主在每趟开始前问一次、模型模块逐帧问、
     工具模块逐调用问（见 `core/host.py` 与 `core/modules.py`）。取消时发出
     `turn_ended{stopped: true}`，适配层据此翻成经典界面的 `stopped` 帧。
     """
@@ -63,10 +63,10 @@ def build_engine(
         event_sink=event_sink,
         session_context=session_context,
         cancel=cancel,
-        # **这一行不能少**：签名收了 `seq_allocator`，漏传则「事件带存储坐标」
+        # 这一行不能少：签名收了 `seq_allocator`，漏传则「事件带存储坐标」
         # 在真实装配链路上完全失效 —— 内核层 `Ports`/`Host` 的盖章逻辑照常工作、
         # 单元测试直接构造 `Host(...)` 也能过，但真实运行里帧 `id:` 行为 0 条，
-        # 浏览器 `Last-Event-ID` 恒空 → **断线期间的事件静默丢失**（不重放、不报错）。
+        # 浏览器 `Last-Event-ID` 恒空 → 断线期间的事件静默丢失（不重放、不报错）。
         # 存储侧的兜底补号会掩盖它（存储行有坐标、总线上的没有）。
         seq_allocator=seq_allocator,
         app_context=app_context,

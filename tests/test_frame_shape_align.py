@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """两条前端路径各自的返回契约。
 
-刷新渲染走 `/api/chat/history`：**只读** `items`（气泡与工具卡）、顶层
+刷新渲染走 `/api/chat/history`：只读 `items`（气泡与工具卡）、顶层
 `context_layout`（右栏分段条）、`todo_list`（清单）。这三样就是回显的全部依据 ——
 `events`（逐条老事件）曾占该响应体的 99.6%，而浏览器一个字段都不读它，已删除。
 
 实时与重连走 SSE：帧由 `ClassicStream.translate` 产出，每帧带合法
-`conversation_id`（前端按它分派到正确的会话页面），且**不漏内核坐标 `_seq`** ——
+`conversation_id`（前端按它分派到正确的会话页面），且不漏内核坐标 `_seq` ——
 漏了它会带过期坐标，客户端拿旧坐标重连会重复收到那批帧。
 """
 from __future__ import annotations

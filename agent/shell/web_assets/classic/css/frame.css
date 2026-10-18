@@ -1,6 +1,6 @@
 /* frame.css —— 极简窗框、分隔条与滚动条收尾样式。
  *
- * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，**顺序即层叠顺序**，
+ * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，顺序即层叠顺序，
  * 调整清单顺序会改变覆盖关系。
  */
 /* ══ 极简壳层（借鉴 deepseek-harness 窗框气质，不改 HTML 布局）════════

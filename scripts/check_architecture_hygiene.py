@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""架构洁癖检查：跨层私有导入、内核插件名、壳层 skill_manage 硬编码。
+"""架构约束检查：跨层私有导入、内核插件名、壳层 skill_manage 硬编码。
 
 用法：python scripts/check_architecture_hygiene.py（工程根运行；违规时退出码 1）
 """
@@ -248,7 +248,7 @@ def check_no_silent_system_prompt(package_root: Path = PACKAGE_ROOT) -> list[str
     needle = "system_text = \"\""
     for py in sorted((package_root / "shell").rglob("*.py")):
         text = py.read_text(encoding="utf-8")
-        # 仅禁止 except 后赋空串的苟且；初始赋值另论
+        # 仅覆盖 except 后赋空串的兜底写法；初始赋值另论
         if "except" in text and needle in text:
             # 粗检：同一文件里 except 与 system_text = "" 同时出现且含 resolve_system_prompt
             if "resolve_system_prompt" in text and "except Exception:\n        system_text = \"\"" in text.replace("\r\n", "\n"):
@@ -316,7 +316,7 @@ def check(
     js_root: Path = CLASSIC_JS,
     prompts: Path = PROMPTS_PY,
 ) -> list[str]:
-    """跑全部洁癖规则，返回违规列表（空 = 通过）。"""
+    """跑全部约束规则，返回违规列表（空 = 通过）。"""
     out: list[str] = []
     out.extend(check_cross_layer_private_imports(package_root))
     out.extend(check_kernel_plugin_names(package_root, plugins_dir))
@@ -332,12 +332,12 @@ def check(
 def main() -> int:
     violations = check()
     if violations:
-        print("架构洁癖违规：")
+        print("架构约束违规：")
         for v in violations:
             print(" - " + v)
         return 1
     print(
-        "架构洁癖检查通过（跨层私有导入 / 内核插件名 / 壳层 skill_manage / "
+        "架构约束检查通过（跨层私有导入 / 内核插件名 / 壳层 skill_manage / "
         "门控单通路 / 提示词注册表 / 无 quality_gate 兼容层）"
     )
     return 0

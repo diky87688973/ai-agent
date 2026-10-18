@@ -64,7 +64,7 @@ class ToolResult:
     # 由工具异常上的 `await_user` 属性带上（`task_tools.UserConfirmRequired` 即此类异常），
     # 回合循环据此暂停——否则模型会把 `ok=False` 读成失败并反复重试。
     await_user: bool = False
-    # 这次调用**还没有返回**（两段式首段：等用户在宿主界面作答）。
+    # 这次调用还没有返回（两段式首段：等用户在宿主界面作答）。
     # 与 `await_user` 的区别：`await_user` 是"回合要停下"，
     # `deferred` 标记调用尚未返回，结果不写入事实流——一个还没返回的调用不该有结果记录，
     # 否则同一个 `tool_call_id` 会先后出现两条 `tool_result`（待定的 + 用户作答后的），
@@ -110,7 +110,7 @@ class ToolPipeline:
 
         进度通道：调用期装配进度上报器，工具经
         `core.session_scope.emit_progress()` 报告输出；上报内容经 `ctx.progress_sink`
-        （若提供）转成事件。**工具不能自己发事件**——那会绕开事件流的唯一时序。
+        （若提供）转成事件。工具不能自己发事件——那会绕开事件流的唯一时序。
         """
         cid = ""
         if ctx is not None:
@@ -168,10 +168,10 @@ class ToolPipeline:
                     if isinstance(carried, list) and carried:
                         result.attachments = list(carried)
                 except Exception as exc:  # 工具异常结构化回灌，不终止回合
-                    # 两段式首段（待用户确认）：这次调用**还没返回**，所以标 `deferred`
-                    # ——回合循环据此**不把它写进事实流**。选择由宿主在用户作答后写进来。
+                    # 两段式首段（待用户确认）：这次调用还没返回，所以标 `deferred`
+                    # ——回合循环据此不把它写进事实流。选择由宿主在用户作答后写进来。
                     #
-                    # 这里**不上报 error_log**：异常已经收成 ToolResult(ok=False)
+                    # 这里不上报 error_log：异常已经收成 ToolResult(ok=False)
                     # 回灌模型 / 落 tool_failed，属于业务结果，不是进程故障。
                     # 再记 errors.log 会把 ValueError / 文件不存在 / 黑名单等刷成误报。
                     awaiting = bool(getattr(exc, "await_user", False))

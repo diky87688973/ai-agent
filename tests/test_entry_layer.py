@@ -24,12 +24,18 @@ from agent.entry import cli as entry_cli  # noqa: E402
 from agent.entry import headless as entry_headless  # noqa: E402
 from agent.entry import web as entry_web  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
+from tests.testkit import no_plugins  # noqa: E402
 
 
 class _TempDataRoot(unittest.TestCase):
-    """把 `AI_AGENT_DATA_ROOT` 指到临时目录：入口装配会真的落盘。"""
+    """把 `AI_AGENT_DATA_ROOT` 指到临时目录：入口装配会真的落盘。
+
+    同时不装任何插件：本文件断言的是入口装配，而插件会改变装配结果
+    （多模型插件有有效条目时目录接管模型，`model_config_state` 就不再是 `none`）。
+    """
 
     def setUp(self) -> None:
+        no_plugins(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)

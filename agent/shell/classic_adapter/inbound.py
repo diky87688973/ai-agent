@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """入站适配：经典 UI 的请求 → 内核调用 → 经典 UI 期望的返回体（前端 → 服务端）。
 
-这里只做**形状翻译**，不实现业务：
+这里只做形状翻译，不实现业务：
 业务一律落到内核既有面（`app.runner` / `app.store` / `app.live_state` / …）。
 
-三个不对称（任一踩中都是静默失效）：
-  1. `/api/chat/history` **必须返回 `ok:true`**，否则经典界面直接 return、整段历史不渲染
-     （agent-ui.js:339）；而 `/api/chat/sessions` **完全不看** `ok`（agent-ui.js:309）。
+三个不对称（任一命中都会静默失效）：
+  1. `/api/chat/history` 必须返回 `ok:true`，否则经典界面直接 return、整段历史不渲染
+     （agent-ui.js:339）；而 `/api/chat/sessions` 完全不看 `ok`（agent-ui.js:309）。
   2. 用量字段名有两套：contract.SSE_USAGE_FIELDS（SSE）与 ACCUMULATOR_USAGE_FIELDS（累计接口），互不通用。
   3. `ui-state` 的 PUT 直接收布局对象、GET 返 `{state:{...}}`（不是平铺）。
 """
@@ -58,7 +58,7 @@ def _scan_title(path: Path) -> str:
     return ""
 
 
-#: 单张图超过它就**不登记字节**（只置 `had_images` 给"预览已失效"提示），
+#: 单张图超过它就不登记字节（只置 `had_images` 给"预览已失效"提示），
 #: 免得一次刷新把几十 MB 拉进内存。前端仍会显示提示条，不会静默消失。
 _ATTACH_REGISTER_MAX_BYTES = 2 * 1024 * 1024
 #: 每次 history 最多登记多少张（只影响"这次刷新能不能立刻看图"，不影响提示）
@@ -66,9 +66,9 @@ _ATTACH_REGISTER_MAX_COUNT = 24
 
 
 def _attachment_id(data_base64: Any, index: int) -> str:
-    """附件的稳定 id —— **从图片字节派生**，两端都能算出同一个。
+    """附件的稳定 id —— 从图片字节派生，两端都能算出同一个。
 
-    不能用"事实序号 + 下标"：那个序号是**文件行数**，而发出请求的那一刻
+    不能用"事实序号 + 下标"：那个序号是文件行数，而发出请求的那一刻
     与刷新时读到的行数不同（发图时那一行还没落盘），同一个附件会算出两个 id，
     `<img src>` 因此指向不存在的 id（`/api/chat/attachment` 返回 404）。
 
@@ -82,14 +82,14 @@ def _attachment_id(data_base64: Any, index: int) -> str:
 def _split_user_content(content: Any) -> Tuple[str, List[Dict[str, Any]]]:
     """用户消息 content → `(正文, 内联附件列表)`。
 
-    兼容**两种形态**（历史记录里都出现过）：
+    兼容两种形态（历史记录里都出现过）：
 
     1. `str` —— 当前事实的形态（附件在 `data["attachments"]` 里）；
     2. 多模态数组 —— `[{type:text}, {type:image_url, ...}]`，
-       由 `core/session_log._user_content` 为**模型请求**派生；这种形态也可能
+       由 `core/session_log._user_content` 为模型请求派生；这种形态也可能
        直接以它落盘，所以这里一并认。
 
-    图片字节**就在事实里**，所以回显不需要另找来源 —— 事实是唯一事实源。
+    图片字节就在事实里，所以回显不需要另找来源 —— 事实是唯一事实源。
     """
     if not isinstance(content, list):
         return (str(content or ""), [])
@@ -118,15 +118,15 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
 
     回显条目：
       - `input_claimed.content` → `{role:"user", content[, attachments][, had_images]}`；
-      - `model_message.reasoning_content` **非空** → `{role:"think", content[, elapsed_ms]}`，
+      - `model_message.reasoning_content` 非空 → `{role:"think", content[, elapsed_ms]}`，
         排在同条助手正文之前。用时取这条消息之前最近一次 `llm_ended.elapsed_ms`；
-      - `model_message.content` **非空** → `{role:"assistant", content}`。
+      - `model_message.content` 非空 → `{role:"assistant", content}`。
         （工具调用轮的 `model_message` 正文为空，跳过——否则会渲染空气泡。）
 
     助手正文优先用 `model_message.content`（该轮定稿），不用 `assistant_delta`
     拼接：增量在历史里可能不完整（例如被中断），定稿更可信。
 
-    **附件的 id 与实时路径同源**（`remember_attachments` 用同一函数算），
+    附件的 id 与实时路径同源（`remember_attachments` 用同一函数算），
     否则刷新前后的 `<img src>` 指向不同 id，浏览器不会重试那张失败的图。
     实时路径按请求里的 `images[index]` 编号，而一个回合只发一次输入，
     所以那里的 index 就是事实序号 —— 两边自然对齐。
@@ -139,7 +139,7 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
         data = dict(getattr(ev, "data", None) or {})
         if kind == "input_claimed":
             text, inline = _split_user_content(data.get("content"))
-            # 附件的**真实位置**是 `data["attachments"]`（`InputModule` 在这里放
+            # 附件的真实位置是 `data["attachments"]`（`InputModule` 在这里放
             # `[{mime, data_base64}]`（由 `core/modules.py` 的 `InputModule` 写入）。
             # `content` 里的多模态数组只是历史/派生形态，作为兜底一并认。
             attachments = inline
@@ -222,7 +222,7 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
                         envelope = data.get("envelope")
                         if envelope is not None:
                             item["envelope"] = envelope
-                    # `preview` 与实时帧**同一形状**（与模型信封同形的 JSON 串）：
+                    # `preview` 与实时帧同一形状（与模型信封同形的 JSON 串）：
                     # 成功 `{"ok":true,"data":…}` / 失败 `{"ok":false,"error":…}`。
                     # 编辑类工具的 `diffText` / `diff_text` 在 `data` 里，前端靠它重画 diff。
                     # 不补这一项，刷新后 diff 预览整片消失（实时看得见、回显看不见）。
@@ -278,7 +278,7 @@ def _last_payload(events: List[Any], kind: str) -> Optional[Dict[str, Any]]:
 
 #: 上下文布局的小缓存：`{cid: ((事实条数, 注入源版本), 布局)}`。
 #
-# 本函数在**每一步**都会被调（实时帧一路），每次都做
+# 本函数在每一步都会被调（实时帧一路），每次都做
 # 一次全量 `store.load` + 折叠，一轮几十步就是几百毫秒的纯浪费
 # （同一步内事实没变，算出来必然一样）。
 #
@@ -399,9 +399,9 @@ def _last_segments(events: List[Any],
                    budget_tokens: int = 0) -> Optional[Dict[str, Any]]:
     """最后一条 `context_segments`（内核发的装配快照）。
 
-    快照里的 `pct` 是**产出那一刻**按当时预算算好的，会随配置与版本漂移
+    快照里的 `pct` 是产出那一刻按当时预算算好的，会随配置与版本漂移
     （早先的装配点没把预算传下来，快照里 `budget_tokens` 等于"已用"，
-    于是界面那条「剩余容量」永远是 0%）。所以这里按**当前**预算把各段 pct 重算一遍 ——
+    于是界面那条「剩余容量」永远是 0%）。所以这里按当前预算把各段 pct 重算一遍 ——
     渲染时点一下算术，比留一条永远为 0 的段强。
     """
     for event in reversed(list(events or [])):
@@ -464,9 +464,9 @@ def _mode_of(events: List[Any]) -> str:
 
 
 def _fallback_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str, Any]]:
-    """兜底：**没有装配快照的旧会话**（快照是后加的，老记录里没有）也分层。
+    """兜底：没有装配快照的旧会话（快照是后加的，老记录里没有）也分层。
 
-    Skills 清单、知识库、摘要都**不在事实记录里** —— 它们是每回合装配时注入的，
+    Skills 清单、知识库、摘要都不在事实记录里 —— 它们是每回合装配时注入的，
     所以只从事实折叠不出来。这里真装一次上下文（与内核同一套注入源），
     读它的头部来切段；事实只提供对话与覆盖点。
     """
@@ -512,8 +512,19 @@ def _fallback_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str
         head=head,
         plugin_segments=plugin_segments,
         budget_tokens=budget,
+        # 旧会话没有装配快照，但终点仍是界面：分母按当前模型窗口给，
+        # 否则这条分支永远回 0，界面只好拿预算冒充窗口。
+        model_max_context_tokens=_context_window(app, cid),
     )
     return payload if payload.get("segments") else None
+
+
+def _context_window(app: Any, cid: str) -> int:
+    """当前模型窗口；app 未提供解析能力时返回 0（界面按预算兜底）。"""
+    resolver = getattr(app, "context_window_for", None)
+    if not callable(resolver):
+        return 0
+    return int(resolver(str(cid or "")))
 
 
 def _covered_end_of(events: List[Any]) -> int:
@@ -531,7 +542,7 @@ def _covered_end_of(events: List[Any]) -> int:
 
 
 def _current_todo(app: Any, cid: str) -> List[Dict[str, Any]]:
-    """当前会话的清单条目：**只读 `live_state`**，不从历史事件里猜。
+    """当前会话的清单条目：只读 `live_state`，不从历史事件里猜。
 
     历史事件里按 `items` 形状找会抓错：`find_in_file` / `file_search` /
     `python_inline` 的结果同样是 `{"items": [...]}`，取最后一个就把搜索结果
@@ -595,10 +606,10 @@ class ClassicState:
             acc["total_tokens"] += int(data.get("total_tokens") or (prompt + completion))
 
     def set_usage(self, cid: str, data: Dict[str, Any]) -> None:
-        """**覆盖**该会话的累计用量（`accumulator` 那套字段名）。
+        """覆盖该会话的累计用量（`accumulator` 那套字段名）。
 
         与 `add_usage` 的区别就是这个方法的全部意义：`/api/usage-accumulator` 的
-        PUT 上报的是**会话累计值**，不是本轮增量 —— 用累加就等于每上报一次翻一倍。
+        PUT 上报的是会话累计值，不是本轮增量 —— 用累加就等于每上报一次翻一倍。
         """
         if not cid:
             return
@@ -618,7 +629,7 @@ class ClassicState:
     def get_usage(self, cid: str) -> Dict[str, int]:
         """返回累计量（`accumulator` 那套字段名）。
 
-        **`session_token_used` 是派生值**（输入 + 输出），不是独立计数器：
+        `session_token_used` 是派生值（输入 + 输出），不是独立计数器：
         经典界面的圆环用它显示「已用」，而 PUT 上来的字段里就有它 ——
         不从 `total_*` 推导就会出现"圆环显示 0、同一提示里却写着
         `输入: 18,631 输出: 8`"这种自相矛盾。由 `total_*` 推导，只有一个权威。
@@ -685,7 +696,7 @@ class Inbound:
     def _model(self, cid: str = "") -> str:
         """当前会话用哪个模型（`conversation` 帧据此同步前端下拉）。
 
-        与 `adapter._model` 同一条纪律：**按会话取**，不能恒取全局默认 ——
+        与 `adapter._model` 同一条纪律：按会话取，不能恒取全局默认 ——
         否则每轮开场都把用户的模型选择覆盖回默认。
         """
         live = getattr(self._app, "live_state", None)
@@ -706,7 +717,7 @@ class Inbound:
     def sessions(self) -> Dict[str, Any]:
         """会话名录：经典界面读 `s.id` + `s.date_group`（不是 `conversation_id`）。
 
-        经典界面**不看 `ok`**（agent-ui.js:309），所以这里返回体只求字段齐。
+        经典界面不看 `ok`（agent-ui.js:309），所以这里返回体只求字段齐。
         数据源与内核 `/api/chat/sessions` 一致：`<store>/sessions/*.raw` 的 mtime 倒序。
         """
 
@@ -745,7 +756,7 @@ class Inbound:
         }
 
     def _derived_title(self, path: Path) -> str:
-        """派生标题：**优先复用内核的实现**，保证两侧口径一致（截断长度、省略号）。
+        """派生标题：优先复用内核的实现，保证两侧口径一致（截断长度、省略号）。
 
         内核 `/api/chat/sessions` 用 `WebShell._derive_title(cid)` 并截到 40 字 + `…`。
         这里如果自己写一套，两边迟早会漂移；所以先问内核要，拿不到才回落本地读文件。
@@ -759,7 +770,7 @@ class Inbound:
                 if title:
                     return title
             except Exception:
-                # 标题推导是可选的**增强**（读索引文件），失败即跳过。
+                # 标题推导是可选的增强（读索引文件），失败即跳过。
                 # 推导器坏了 / 索引缺失就走下面的 `_scan_title`（扫事实日志）兜底
                 # ——那才是权威来源。这里失败只影响"少一次快速命中"。
                 pass
@@ -767,22 +778,22 @@ class Inbound:
 
     # ── /api/chat/history ─────────────────────────────────
     def history(self, cid: str) -> Dict[str, Any]:
-        """会话历史。经典界面从这个返回体里读**三样不同的东西**：
+        """会话历史。经典界面从这个返回体里读三样不同的东西：
 
         1. `j.items` —— `{role:"user"|"assistant"|"tool", content, attachments}`，
            由 `renderHistoryItems` 渲染成气泡与工具卡（agent-ui.js 内）；
-        2. `j.context_layout` —— 顶部级别（**不是**埋在 events 里），
+        2. `j.context_layout` —— 顶部级别（不是埋在 events 里），
            由 `applyContextLayoutFromHistory` 读（agent-ui.js 内）；
         3. `j.todo_list` —— 清单数组。
 
-        **必须带 `ok:true`**：`if(!j||j.ok!==true)return;` —— 少了就整段静默不渲染
+        必须带 `ok:true`：`if(!j||j.ok!==true)return;` —— 少了就整段静默不渲染
         （对比 `/api/chat/sessions` 完全不看 ok，两者判据不对称）。
 
-        这里**不给**逐条老事件：刷新页面一个字段都不读它，而它按事件条数增长
+        这里不给逐条老事件：刷新页面一个字段都不读它，而它按事件条数增长
         （一次真实刷新里 events 曾占响应体 99.6%，items 只占 0.3%），
         要逐条事件的是 SSE 流（实时帧与重连重放，走 `adapter.replay_after`）。
 
-        `items` **必须由内核事件折出来**：经典界面的 30 种事件里没有"用户消息"这一种
+        `items` 必须由内核事件折出来：经典界面的 30 种事件里没有"用户消息"这一种
         （用户气泡在实时路径由前端乐观渲染），所以用户侧只能从 `input_claimed` 取。
         """
         cid = C.normalize_cid(cid)
@@ -790,7 +801,7 @@ class Inbound:
             return {"ok": False, "error": "invalid conversation_id", "items": []}
         events = self._load_events(cid)
         items, resolved = _history_items(events)
-        # 把解出的**字节**登记进内存，供 `/api/chat/attachment?id=…` 取用。
+        # 把解出的字节登记进内存，供 `/api/chat/attachment?id=…` 取用。
         # 这个 dict 是从事实派生的缓存，内容一律来自 `.raw`，
         # 因此刷新、重启、两个标签页看到的都一致（id 也是可重算的）。
         if resolved:
@@ -806,7 +817,7 @@ class Inbound:
             "ok": True,
             "conversation_id": cid,
             "items": items,
-            # 事实里没有就**按同一口径重算**（`context_layout` 是派生数据、从不落盘，
+            # 事实里没有就按同一口径重算（`context_layout` 是派生数据、从不落盘，
             # 不兜底的话刷新后右栏分段条会回落「—」）。
             "context_layout": (_last_payload(events, "context_layout")
                                or compute_context_layout(self._app, events, cid)),
@@ -821,36 +832,36 @@ class Inbound:
 
     # ── /api/chat/ui-state ────────────────────────────────
     #
-    # ⚠️ **语义冲突**：内核的 `/api/chat/ui-state` 存的是
-    # 「模式 / todo / 自主」（**按会话**），而经典界面 GET 不带 `conversation_id`。
-    # 不带 id 的那种请求，适配层只回**与客户端无关**的那部分：哪些会话在跑。
+    # ⚠️ 语义冲突：内核的 `/api/chat/ui-state` 存的是
+    # 「模式 / todo / 自主」（按会话），而经典界面 GET 不带 `conversation_id`。
+    # 不带 id 的那种请求，适配层只回与客户端无关的那部分：哪些会话在跑。
     #
-    # **布局（打开过哪些标签、激活哪一个）存在浏览器本地**：
+    # 布局（打开过哪些标签、激活哪一个）存在浏览器本地：
     # 「激活的是哪个会话」是某个客户端的选择，不是服务器的事实 —— 两个浏览器各自
     # 激活不同会话时，一个全局字段无法表示，谁后写谁覆盖，另一个刷新就跳到别人的会话。
     # 所以这两个都在浏览器本地（`localStorage`）；服务端不提供、也不接收。
     def ui_state_get(self) -> Dict[str, Any]:
-        """经典界面不带 `conversation_id` 的 GET：只回**在跑的会话**。
+        """经典界面不带 `conversation_id` 的 GET：只回在跑的会话。
 
         ## `running` 字段的作用
 
-        **中途接入的跟跑页面点不到「停止」**。
+        中途接入的跟跑页面点不到「停止」。
         时序是"page1 先开跑 → page2 才打开 `?conversation_id=<cid>`"或"跟跑中 F5" ——
         此时 page2 拿不到 `run_started`（SSE 没有游标就不回放），
-        于是 `serverBusy` 恒为 false、停止键永不出现，而**任务其实正在跑**。
+        于是 `serverBusy` 恒为 false、停止键永不出现，而任务其实正在跑。
 
         所以这里透出服务端的权威忙闲（运行态登记），前端在切会话/F5 后
         拉一次本端点把 `serverBusy` 回填。
 
-        这项是**按会话**的事实，与"哪个客户端激活了哪个会话"无关。
+        这项是按会话的事实，与"哪个客户端激活了哪个会话"无关。
         """
         return self._with_running({"ok": True, "state": {}})
 
     def _with_running(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """给返回体补上"哪些会话正在跑"（**服务端权威**）。
+        """给返回体补上"哪些会话正在跑"（服务端权威）。
 
-        读不出来就当都没有在跑（前端退回"靠 SSE 推断"的老行为），**不抛**。
-        `running` 键**总在**：客户端按固定形状取字段，缺键会把"没在跑"和"字段没给"
+        读不出来就当都没有在跑（前端退回"靠 SSE 推断"的老行为），不抛。
+        `running` 键总在：客户端按固定形状取字段，缺键会把"没在跑"和"字段没给"
         混成同一种情况。
         """
         state = payload.get("state")
@@ -875,7 +886,7 @@ class Inbound:
         return payload
 
     def ui_state_put(self, body: Dict[str, Any]) -> Dict[str, Any]:
-        """经典界面不带 `conversation_id` 的 PUT：**不存任何东西**。
+        """经典界面不带 `conversation_id` 的 PUT：不存任何东西。
 
         布局（标签列表 / 激活会话）在浏览器本地，服务端不做记录：一个全局字段
         表示不了"两个客户端各自激活不同会话"，只会互相覆盖。
@@ -885,10 +896,10 @@ class Inbound:
 
     # ── /api/chat/title ───────────────────────────────────
     def title(self, cid: str) -> Dict[str, Any]:
-        """会话标题：**直接复用内核 `WebShell.title()`**。
+        """会话标题：直接复用内核 `WebShell.title()`。
 
         它已经处理了"有缓存就返回 / 否则调一次模型 / 失败回落派生标题"的完整逻辑；
-        适配层自己重写一遍只会让两处口径漂移（而且 `fallback_title` 收的是**消息列表**，
+        适配层自己重写一遍只会让两处口径漂移（而且 `fallback_title` 收的是消息列表，
         不是事件列表——传错类型就会抛异常）。
 
         经典界面只读 `j.title`（agent-ui.js:255 附近），所以把内核返回体里的 `title` 取出来即可。
@@ -932,16 +943,16 @@ class Inbound:
 
     # ── /api/usage-accumulator ───────────────────────────
     def usage_get(self, cid: str) -> Dict[str, Any]:
-        """返回**累计**量，字段名是 accumulator 那套（与 SSE 不同）。"""
+        """返回累计量，字段名是 accumulator 那套（与 SSE 不同）。"""
         cid = C.normalize_cid(cid)
         acc = self.state.get_usage(cid)
         return {"ok": True, **acc}
 
     def usage_put(self, cid: str, body: Dict[str, Any]) -> Dict[str, Any]:
-        """写入累计用量 —— **覆盖语义**，不是累加。
+        """写入累计用量 —— 覆盖语义，不是累加。
 
         ⚠️ 写入走 `set_usage`（覆盖语义），`add_usage`（累加语义）在此会重复计数：
-        前端 PUT 的字段名是 `total_prompt_tokens` 等 —— **会话累计值**，
+        前端 PUT 的字段名是 `total_prompt_tokens` 等 —— 会话累计值，
         不是"本轮的增量"。用累加语义等于每上报一次就翻一倍。
 
         覆盖语义也是 `/api/usage-accumulator` 这一路自己的口径：上报的是当前总量。
@@ -999,7 +1010,7 @@ class Inbound:
         """返回 `(status, body, content_type)`；找不到给 404。
 
         经典界面用 `<img src="/api/chat/attachment?...">` 直接引用（il.js:7），
-        所以这里必须返回**图片字节**，不能返回 JSON。
+        所以这里必须返回图片字节，不能返回 JSON。
         """
         cid = C.normalize_cid(cid)
         item = self.state.get_attachment(cid, ident) if cid else None
@@ -1015,7 +1026,7 @@ class Inbound:
     def remember_attachments(self, cid: str, images: Any) -> List[Dict[str, Any]]:
         """把本轮 `images` 存进来并编上 id，供 `send` 的返回体回给经典界面。
 
-        id 由**图片字节**派生（与 `_history_items` 同一函数），所以这个 id 与
+        id 由图片字节派生（与 `_history_items` 同一函数），所以这个 id 与
         刷新后历史里的 id 相同 —— 前端不必知道是刚发的还是从历史读的。
         """
         items: List[Dict[str, Any]] = []

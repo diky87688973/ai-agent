@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """四个真实模块：输入 / 压缩 / 模型 / 工具。
 
-每个模块的 `execute` 是**生成器**：**`yield` 事实，`return` 控制信号**
+每个模块的 `execute` 是生成器：`yield` 事实，`return` 控制信号
 （`execute` 为生成器的契约见 `module.py` 顶部）。
 
-模块**只经端口访问外界**（`Ports`），**数据走事件**，模块之间不互相 import、
-不共享字段——它们共享的是**事实日志**与**端口接口**。
+模块只经端口访问外界（`Ports`），数据走事件，模块之间不互相 import、
+不共享字段——它们共享的是事实日志与端口接口。
 """
 from __future__ import annotations
 

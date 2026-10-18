@@ -1,6 +1,6 @@
 /* tools/titles.js —— 工具标题：脚本名中文化、参数摘要、图标与 diff 统计格式化。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function pickFileHint(args){if(!args||typeof args!=="object")return "";
@@ -239,7 +239,7 @@ const fp=pathLeaf(String(argGet(args,"path")||""))||"";
 let ts="";
 const mid=String(argGet(args,"mod_id")||"").trim();
 /* 版本目录名的形状由 file_safety._version_dir_name 产出：`YYYYMMDD_HHMMSS_mmm_序号_随机`。
-   按固定形状取，**不靠数段数** —— 名字里增删一段（例如加同毫秒序号）就会取错位置，
+   按固定形状取，不靠数段数 —— 名字里增删一段（例如加同毫秒序号）就会取错位置，
    卡片标题上显示的就不再是时刻。 */
 if(mid){const mv=/_(\d{6})_\d{3}_\d{4}_[0-9a-z]+$/.exec(mid);if(mv)ts=mv[1].slice(0,2)+":"+mv[1].slice(2,4)+":"+mv[1].slice(4,6);}
 const label=ac==="list"?"检查可回滚清单":ac==="diff"?"版本比较":ac==="undo"?"预览回滚":"预览回滚";

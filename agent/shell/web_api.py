@@ -142,7 +142,7 @@ class WebShell:
             return len(self._channels)
 
     def available_models(self) -> List[str]:
-        """可选的模型 id 列表（**只给 id，绝不给 key / url**）。
+        """可选的模型 id 列表（只给 id，绝不给 key / url）。
 
         凭据不下发：浏览器能拿到的东西，任何能打开页面的人都能抄走。
         会话选模型选的是"服务端已配置的哪一个 id"，凭据始终留在服务端。
@@ -165,9 +165,9 @@ class WebShell:
         """提交输入：忙则 409，成功则后台回合并立即返回 run_id。
 
         `images`：可选截图附件，形如 `[{mime, data_base64}]`。仅接受图片 MIME，上限 `MAX_IMAGES` 张；
-        **有图无字也算有效输入**（纯截图提问是常见用法）。
+        有图无字也算有效输入（纯截图提问是常见用法）。
 
-        `model`：会话级模型选择（空串 = 不改动既有选择）。**落 `live_state` 持久化** ——
+        `model`：会话级模型选择（空串 = 不改动既有选择）。落 `live_state` 持久化 ——
         刷新页面乃至换进程，同一会话选的都是同一个模型。校验放在解析器落位之后，
         未配置的名字一律拒绝（400），避免"选择了却悄悄用默认模型"。
         """
@@ -282,7 +282,7 @@ class WebShell:
     def _derive_title(self, cid: str) -> str:
         """会话标题：优先已生成并落盘的标题，其次从事实源派生（首条用户输入）。
 
-        会话日志可达数万条事件，**标题只需要开头**——故只读文件前若干行
+        会话日志可达数万条事件，标题只需要开头——故只读文件前若干行
         （`_TITLE_SCAN_LINES`），不整档 load；超限则退化为空（由前端显示短 id）。
         """
         stored = self.titles.load(cid) if self.titles is not None else ""
@@ -423,7 +423,7 @@ class WebShell:
     def tool_list(self) -> List[Dict[str, Any]]:
         """工具展示清单：`[{name, label, icon}]`（来自工具自己的声明）。
 
-        界面据此认识**所有**工具（含插件工具），不必在前端维护工具名表 ——
+        界面据此认识所有工具（含插件工具），不必在前端维护工具名表 ——
         加一个插件工具不需要改界面。
         """
         registry = getattr(self.app, "registry", None)
@@ -436,7 +436,7 @@ class WebShell:
     def fs_list(self, path: str) -> Tuple[int, Dict[str, Any]]:
         """列目录（供右栏文件树 / @ 补全）；限定在可见根内。
 
-        `rel` 是相对**命中的那个根**的路径；命不中根时退回文件名。
+        `rel` 是相对命中的那个根的路径；命不中根时退回文件名。
         """
         target, reason = self._resolve_fs(path or ".", must_exist=True)
         if target is None:
@@ -627,7 +627,7 @@ class WebShell:
           - 盘符根（如 `D:/`）的 `parent` 也是 `_drives_`（可从盘根回到计算机层）；
           - 空 `path` → `_browse_base()` 给出的基准目录；
           - 目录排前、名称不区分大小写升序；
-          - **访问不到就回落**（不报错），免得上层补全卡死。
+          - 访问不到就回落（不报错），免得上层补全卡死。
         """
         base = self._browse_base()
         raw = str(path or "").strip()
@@ -700,7 +700,7 @@ class WebShell:
           - `"missing"`：在可见根内但不存在（404，状态边界）
           - `"unknown"`：路径无法解析
 
-        相对路径依次在**每个根**下试（命中即用）；绝对路径只有落在某个根内才接受——
+        相对路径依次在每个根下试（命中即用）；绝对路径只有落在某个根内才接受——
         工具参数常带绝对路径（如 D:\\proj\\a.py、E:\\test.txt），查看器应能直接打开。
         越界与"不存在"必须分开报告：预览阶段尚未落盘的文件是 404，不是越权。
         """
@@ -763,6 +763,8 @@ class WebShell:
             # 只给 id —— 凭据（key / url）始终留在服务端。
             "model": current,
             "available_models": self.available_models(),
+            # 会话级设置同源回填：模式 / 推理档位都属于会话，不属于某个标签页。
+            "reasoning_effort": live.get_reasoning_effort(cid),
             "running": self.app.mesh.is_running(cid),
             # 也在跑的全部会话（供中途接入的页面拉 `/api/chat/ui-state` 回填忙闲）。
             "running_cids": self.app.mesh.running_cids(),
@@ -787,7 +789,7 @@ class WebShell:
         return self.ui_state(cid)
 
     def confirm(self, cid: str, confirm_id: str) -> Tuple[int, Dict[str, Any]]:
-        """确认一个写盘预览：**按 cid 解析会话门控**，不落默认桶。"""
+        """确认一个写盘预览：按 cid 解析会话门控，不落默认桶。"""
         cid = str(cid or "").strip()
         confirm_id = str(confirm_id or "").strip()
         if not cid:
@@ -857,6 +859,9 @@ class WebShell:
             "tools": len(self.app.registry.names()),
             "model": model,
             "allowed_models": allowed,
+            # 全局默认档位：会话还没回填前，顶栏先按它显示（会话值以 ui-state 为准）。
+            "reasoning_effort": (self.app.live_state.default_effort
+                                 if self.app.live_state is not None else "high"),
             "model_config": model_config,
         }
 
@@ -867,7 +872,7 @@ class WebShell:
 
         返回 (status, body_bytes | error_payload, content_type)。
 
-        `root` 为 None 时改用**全部可见根**：经典界面的 Markdown 会把正文里
+        `root` 为 None 时改用全部可见根：经典界面的 Markdown 会把正文里
         绝对路径指向的本地文件交给 `/api/media`，而它可能不在第一个根所在的盘上
         —— 只认单根会让别的盘一律 403。
         """

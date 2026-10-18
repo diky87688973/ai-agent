@@ -23,8 +23,8 @@ from agent.mechanisms.live_state import GoalError, LiveState
 class UserConfirmRequired(Exception):
     """待确认信封：结构化 data（title / confirms 等）随 ToolResult.data 透传。
 
-    `await_user=True` 告诉**回合循环**："这一轮到此为止，等用户在宿主界面上作答"。
-    没有这个标记，模型会把 `ok=False` 读成工具失败并**反复重试**，直到步数上限。
+    `await_user=True` 告诉回合循环："这一轮到此为止，等用户在宿主界面上作答"。
+    没有这个标记，模型会把 `ok=False` 读成工具失败并反复重试，直到步数上限。
     """
 
     await_user = True
@@ -403,11 +403,11 @@ class TaskSleepTool(ToolPlugin):
 class GoalTool(ToolPlugin):
     """目标（Goal）：可编辑的自主续跑任务对象。
 
-    与"自主模式"同一机制 —— **回合结束后自动再发一条 user 输入**；
+    与"自主模式"同一机制 —— 回合结束后自动再发一条 user 输入；
     区别是那条输入就是这里的目标文案，所以自动续跑有了方向，也能随时改写。
 
     `active` 的目标会在每轮结束后持续触发；`paused` 保留但不触发；
-    `done` 是终态。触发文案由**用户或模型**任一方设定。
+    `done` 是终态。触发文案由用户或模型任一方设定。
     """
 
     name = "goal"
@@ -418,7 +418,7 @@ class GoalTool(ToolPlugin):
         "发起新一轮，直到你用 action=pause/done 停下。"
         "action: create=新建或整体改写；get=查询；update=局部改（文案/状态/备注）；"
         "pause=暂停触发；resume=恢复触发；done=标记达成；delete=删除。"
-        "**不要每轮都调 get 自查**：自动触发的那一轮里，目标文案本身就是发来的消息，"
+        "不要每轮都调 get 自查：自动触发的那一轮里，目标文案本身就是发来的消息，"
         "你不需要再查一次；只在用户问起目标状态、或你要动手改它之前查一次。"
     )
     parameters = {
@@ -433,7 +433,7 @@ class GoalTool(ToolPlugin):
         self._state = live_state
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """按 `action` 管理目标；返回**扁平** dict（与 todo_list 等同约定）。
+        """按 `action` 管理目标；返回扁平 dict（与 todo_list 等同约定）。
 
         参数错误一律 `raise ValueError` —— 管线会把它翻成 `ok=False` 的结果回灌给模型，
         比返回 `{"ok": False, ...}` 更直接：后者会被裹成 `data`，模型看到的是嵌套信封。
@@ -461,7 +461,7 @@ class GoalTool(ToolPlugin):
             if action == "delete":
                 return {"deleted": bool(self._state.delete_goal(cid))}
         except GoalError as exc:
-            # 目标的语义错误（没有目标 / 空文案 / 非法状态）是**可纠正的参数问题**，
+            # 目标的语义错误（没有目标 / 空文案 / 非法状态）是可纠正的参数问题，
             # 交给管线回灌成 ok=False，模型看得到原因并自己改。
             raise ValueError(str(exc)) from exc
         raise ValueError(f"未知 action：{action}")

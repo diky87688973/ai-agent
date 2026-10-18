@@ -5,7 +5,7 @@
 ## 思维链的回传预算
 
 思考模式下模型逐轮产出思维链（`reasoning_content`）。它是模型产生的**中间稿**：
-全量回传等于每次请求的输入里多一大段**必然未命中缓存**的内容（实测一条会话里占 prompt 的 72%），
+全量回传等于每次请求的输入里多一大段**必然未命中缓存**的内容，
 而且同一轮内每次请求的前缀都在变，前缀缓存落不住。
 
 预算由 `[context] reasoning_replay_tokens` 控制（token）：
@@ -18,6 +18,13 @@
 
 取两头而不是只留尾部：推理的开头是"打算干什么"、结尾是"得出了什么"，
 中间的过程模型能按这两头补出来。
+
+**键不能丢**：DeepSeek 思考模式下，带 `tool_calls` 的 assistant 消息必须把
+`reasoning_content` 回传给 API（空串也接受），缺键直接 400
+`The reasoning_content in the thinking mode must be passed back to the API`。
+所以历史轮的工具消息只清空内容、保留键；老记录里本来没存思维链的工具消息补一个
+空串。纯文本 assistant 消息没有这条要求，历史轮照旧整个摘键。历史轮里的工具消息
+丢了键，**整条会话在第二次提问时就会 400**。
 
 裁剪在**装配期**做（`set_dialogue` 调 `clip_reasoning`），不在线上做 ——
 分段统计、预算估算、真正发出去的请求三者看的是同一份；两处不一致时界面会把窗口算满、
@@ -57,6 +64,7 @@ class ModelProvider:
 两处取值来源：
 
 - **`reasoning_effort` 取自请求**（`LogicalRequest.effort`，由会话级设置解析而来），不是写死的常量。官方取值 `none` / `low` / `high` / `max`，缺省回落 `high`，非空值如实下发。
+- **`temperature` 在思考模式下不生效**：DeepSeek 官方文档写明思考模式不支持该参数（**不报错，但也不会生效**），所以 `0.2` 只在非思考请求或其它兼容网关上起作用。
 - **本地模型整键剥离** `thinking` / `reasoning_effort` / `temperature`。`_is_local_model()` 判定（模型名是 `local-model` 或以它开头），走浏览器页面的本地模型不支持这几个参数。
 
 ## 地址推导

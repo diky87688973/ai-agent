@@ -262,7 +262,7 @@ class AppWiringTest(unittest.TestCase):
         self.app.gate_for("conv-b").confirm(cid)
         blocked = self._call("commit_write", {"confirm_id": cid}, cid="conv-a")
         self.assertFalse(blocked.ok)
-        # 断言钉**实质**：这条错误文案点明预览未解锁与解锁入口 `review_conclusion`。
+        # 断言钉实质：这条错误文案点明预览未解锁与解锁入口 `review_conclusion`。
         self.assertIn("未解锁", blocked.error)
         self.assertIn("review_conclusion", blocked.error)
         self.assertFalse(target.exists())

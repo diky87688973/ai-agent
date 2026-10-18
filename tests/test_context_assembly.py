@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 """上下文组装与压缩：逐条穷举验收。
 
-装配只有三段，顺序拼接，**不做任何重建**::
+装配只有三段，顺序拼接，不做任何重建::
 
     messages = 头部 + 对话 + 尾部
     头部 = 系统提示 + skill-1..n + 知识库-1..n + 摘要-1..n      （系统类，永久携带）
     对话 = 事实折叠出来的对话（含工具调用与工具结果）
     尾部 = 本轮新输入 / 工具结果（在对话末尾，由事实带来）+ 执行模式
 
-压缩请求用**同一份装配结果**，末尾换成压缩指令::
+压缩请求用同一份装配结果，末尾换成压缩指令::
 
     压缩请求 = 头部 + 对话 + [压缩指令]        ← 剔除执行模式
 
-本文件把这些结构**写死成期望值**逐条断言：任何一条改变装配顺序、少一格、
+本文件把这些结构写死成期望值逐条断言：任何一条改变装配顺序、少一格、
 多一格、把执行模式塞进压缩请求，都会在具体那条用例上失败。
 
 设 `DEEPSEEK_CONTEXT_AUDIT=1` 时逐条打印"用例 / 期望 / 实际"，用于人工核对
@@ -597,7 +597,7 @@ class CompactionLoop(_Case):
     """覆盖点推进、摘要累积、重拼后的请求。"""
 
     def _run(self, *, rounds=3, summaries=(), threshold=1, text="新摘要"):
-        """跑一次压缩；`summaries` 是**已有**摘要（进管道头部，也预置给压缩器）。"""
+        """跑一次压缩；`summaries` 是已有摘要（进管道头部，也预置给压缩器）。"""
         from agent.core.events import Event
 
         p, _ = make_pipe(summaries=summaries, dialogue=dlg(rounds))
@@ -631,7 +631,7 @@ class CompactionLoop(_Case):
 
     def test_summary_appended_with_bridge(self) -> None:
         _p, _s, comp, _r = self._run()
-        self.check("摘要带桥接尾巴", (1, True),
+        self.check("摘要带桥接后缀", (1, True),
                    (len(comp.summaries), comp.summaries[0].endswith(SUMMARY_BRIDGE_TAIL)))
 
     def test_summary_text_comes_from_model(self) -> None:
@@ -639,7 +639,7 @@ class CompactionLoop(_Case):
         self.check_true("摘要正文来自模型输出", comp.summaries[0].startswith("模型给的摘要"))
 
     def test_second_compaction_appends_second_summary(self) -> None:
-        """第二次压缩产出的摘要**追加**在已有摘要之后，不合并、不替换。"""
+        """第二次压缩产出的摘要追加在已有摘要之后，不合并、不替换。"""
         _p1, _s1, comp1, _r1 = self._run()
         _p2, _s2, comp2, _r2 = self._run(summaries=(SUM1,))
         self.check("第一次：只有新的一条", 1, len(comp1.summaries))
@@ -858,7 +858,7 @@ class Invariants(_Case):
 # 原子性 = 一条 user 起到下一条 user 前是一个整体。压缩只允许整轮处理：
 # 边界一律向下取整到轮起点，宁可压 0 个用户轮，也不切半截轮。
 #
-# 这一节既有参数表（逐条写死期望），也有**随机形态穷举**：让"边界不切轮、
+# 这一节既有参数表（逐条写死期望），也有随机形态穷举：让"边界不切轮、
 # 工具链闭合、user 不丢"这几条性质在任意输入下都被验证，
 # 而不是只验证我恰好想到的那几个形态。
 # ══════════════════════════════════════════════════════════════
@@ -970,7 +970,7 @@ def _random_conv(rng: random.Random, *, max_turns: int = 7) -> list:
 
 
 class RandomShapeInvariants(_Case):
-    """随机形态穷举：几条**永远必须成立**的性质。
+    """随机形态穷举：几条永远必须成立的性质。
 
     重点不是某个具体结果，而是"任何输入都不许破坏"：
     边界不切轮、工具链闭合、user 不增不减、剥离幂等。
@@ -1012,7 +1012,7 @@ class RandomShapeInvariants(_Case):
                     if not tool_chain_balanced(msgs, 0, r[1]):
                         self.fail(f"区间工具链不闭合 seed={seed} keep={keep}")
         self.check_true(f"检查了 {checked} 个区间", checked > 100)
-# 硬不变量：上下文超阈值时**必须**腾出空间。
+# 硬不变量：上下文超阈值时必须腾出空间。
 # 保留近场是偏好；坚持保留近场导致"压不动"、请求直接超上限，才是真的坏。
 # ══════════════════════════════════════════════════════════════
 
@@ -1070,12 +1070,12 @@ def _run_compaction(msgs, *, threshold, reserve):
 # ══════════════════════════════════════════════════════════════
 # 九、遮盖是硬约束
 #
-# 末尾 N 个用户轮**永远不压**（`full_user_rounds`，至少 1 轮）。
+# 末尾 N 个用户轮永远不压（`full_user_rounds`，至少 1 轮）。
 # 压缩区域只能是「最后一个前置 system 之后 → 遮盖起点之前」那一段 ——
 # 系统提示 / Skills / 知识库 / 记忆摘要都是 system、排在对话之前，
 # 所以区域天然不含任何系统设定。
 #
-# **没有"压不动就连近场一起压"的兜底**：遮盖住的部分超预算，是这个配置本身
+# 没有"压不动就连近场一起压"的兜底：遮盖住的部分超预算，是这个配置本身
 # 撑不住，不该由压缩去动近景。
 # ══════════════════════════════════════════════════════════════
 
@@ -1099,7 +1099,7 @@ class MaskIsHard(_Case):
         self.check("区域从第 1 个用户轮起", 0, rng[0])
 
     def test_single_turn_is_compressed_when_nothing_else_can_be(self) -> None:
-        """只有 1 轮：遮盖前面没东西可压 → **连它一起压**（压到 0 轮）。"""
+        """只有 1 轮：遮盖前面没东西可压 → 连它一起压（压到 0 轮）。"""
         msgs = conv([2])
         rng = excerpt_by_target_tokens(msgs, 1)
         self.check("压到末尾", (0, len(msgs)), rng)
@@ -1137,7 +1137,7 @@ class MaskSurvivesOverflow(_Case):
         return out
 
     def test_masked_last_turn_stays_when_it_is_huge(self) -> None:
-        """**核心**：末尾那一轮自己就吃满预算，仍然不许压它。"""
+        """核心：末尾那一轮自己就吃满预算，仍然不许压它。"""
         msgs = self._msgs(big_last=True)
         p = ContextPipeline("cid-mask-0001", full_user_rounds=1)
         p.append_system(SYS)
@@ -1174,7 +1174,7 @@ class MaskSurvivesOverflow(_Case):
                    comp.full_user_rounds)
 
     def test_only_masked_turns_still_get_compressed(self) -> None:
-        """只有被遮盖的轮 → **连它一起压**（压不动就是超上限失败）。"""
+        """只有被遮盖的轮 → 连它一起压（压不动就是超上限失败）。"""
         msgs = conv([4])
         p = ContextPipeline("cid-mask-0003", full_user_rounds=1)
         p.append_system(SYS)
@@ -1223,7 +1223,7 @@ class MaskSurvivesOverflow(_Case):
 # 两层：
 #   第一层「Skills 清单」—— 名字 + 描述，常驻上下文前端，模型据此挑 Skills；
 #   第二层 `auto_load/` 下的 Skills 正文 —— 始终随上下文携带，不必模型主动读。
-# 普通 Skills 的**正文不进上下文**，由模型按需用 `skill_manage` 读取。
+# 普通 Skills 的正文不进上下文，由模型按需用 `skill_manage` 读取。
 # ══════════════════════════════════════════════════════════════
 
 import shutil  # noqa: E402
@@ -1530,7 +1530,7 @@ class LayoutFromMessages(_Case):
                 {"role": "system", "content": "【历史摘要】\n旧摘要"}] + dlg(1)
         rows = {s["key"]: s for s in layout_from_messages(msgs)["segments"]}
         # 头部只有两条：第 1 条是系统提示词，第 2 条才是摘要。
-        # 系统提示词**不能**被系统段与摘要段各算一次。
+        # 系统提示词不能被系统段与摘要段各算一次。
         self.check("摘要段只有那一条", 1, rows["summary"]["count"])
 
     def test_dialogue_starts_at_the_first_user(self) -> None:
@@ -1716,7 +1716,7 @@ class SegmentOrderMatchesAssembly(_Case):
                    [s["key"] for s in payload["segments"]])
 
 class SourceOrderDeclaration(_Case):
-    """注入源的组装顺序：插件段按**插件清单位次**排，注册先后不影响结果。"""
+    """注入源的组装顺序：插件段按插件清单位次排，注册先后不影响结果。"""
 
     def _sources(self, pairs):
         from agent.mechanisms.context_pipeline import ContextSources, SourceMeta

@@ -51,7 +51,14 @@ class Acceptance:
         self.root = root
         self.mesh = MeshState(storage_dir=root / "mesh")
         self.provider = _GatedProbe()
-        self.app = build_app(provider=self.provider, mesh=self.mesh)
+        # 不装插件：本脚本验的是会话协作与队列，替身 provider 必须真的收到请求。
+        # 让清单指向一个不存在的文件 = 没有任何插件（否则开发者本机的多模型配置
+        # 会让目录接管路由，替身收 0 个请求，脚本在别人的机器上就"过不了"）。
+        self.app = build_app(
+            provider=self.provider,
+            mesh=self.mesh,
+            plugins_path=root / "no-plugins.ini",
+        )
         self.seq = 0
         self.failures: list = []
         self.worker = ""

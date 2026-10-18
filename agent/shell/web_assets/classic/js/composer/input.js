@@ -1,6 +1,6 @@
 /* composer/input.js —— 输入区交互：斜杠菜单、命令输入条、事件委托、快捷键提示。
  *
- * 经典界面的**同作用域模块**：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
+ * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function initKbAndSlashUi(){
@@ -112,20 +112,20 @@ if(window.codeHighlight)return window.codeHighlight.hljsCodeClass(lang);
 return '';
 }
 /* markdown 渲染用 `marked`（`js/vendor/marked.min.js`，内联在共用脚本里）。
-   自研块渲染器的问题在**块级语义**：`<li>` 里不产出 `<p>`，松散列表的段距整段丢失；
+   自研块渲染器的问题在块级语义：`<li>` 里不产出 `<p>`，松散列表的段距整段丢失；
    表格 / 任务清单 / 嵌套列表也各有偏差。markdown 的块级规则细节多，交给成熟实现。
 
-   `breaks` 保持 CommonMark 默认（false）：模型输出的长段在源里是**软换行**，
+   `breaks` 保持 CommonMark 默认（false）：模型输出的长段在源里是软换行，
    按硬换行渲染会把整段切成一行一断的碎片。段落靠空行（`\n\n`）分隔。
 
-   代码围栏**不走 marked**：`renderMarkdown()` 先把围栏切出去交给既有逻辑
+   代码围栏不走 marked：`renderMarkdown()` 先把围栏切出去交给既有逻辑
    （diff 卡片 / hljs 高亮），只把散文块交到这里。 */
 
 /* 本地媒体文件的绝对路径 → 浏览器能取的 URL。
    两条路由，按路径落在哪选：
      · 工作区内（路径里有 `workspace` 段）→ `/workspace/<rel>`
        静态路由根是 `data/workspace`（web.py 的 `/workspace/` 路由）。
-       取**最后**一个 `workspace` 段之后的部分：更靠前的目录也可能同名。
+       取最后一个 `workspace` 段之后的部分：更靠前的目录也可能同名。
      · 其余本地绝对路径（正文里任意位置的本地图片 / 音频 / 视频）→ `/api/media?path=`
        它的根是各盘根，按 `mimetypes` 出类型，不做扩展名白名单。
    裸本地路径不能直接当 `src`：浏览器不认，图会破。

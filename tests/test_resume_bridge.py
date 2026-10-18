@@ -2,10 +2,10 @@
 """挂起是终态、恢复是新一轮、衔接靠事实（含"重启后恢复"）。
 
 要证明的三件事：
-  ① 挂起后宿主循环**已退出**（无内存游标）；恢复是**新一轮**循环，不是回到旧循环。
-  ② 衔接靠**事实**：挂起与外部结果都落盘；工具模块在新一轮里从上下文看到
-     "已解决但未回灌"的调用，回灌成**一次普通的 `tool_result`** 并要求续行。
-  ③ **重启后仍能恢复**：丢掉宿主与全部模块对象，只从事实重建，恢复照样成立。
+  ① 挂起后宿主循环已退出（无内存游标）；恢复是新一轮循环，不是回到旧循环。
+  ② 衔接靠事实：挂起与外部结果都落盘；工具模块在新一轮里从上下文看到
+     "已解决但未回灌"的调用，回灌成一次普通的 `tool_result` 并要求续行。
+  ③ 重启后仍能恢复：丢掉宿主与全部模块对象，只从事实重建，恢复照样成立。
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ class Event:
 # 端口：一次模块执行能拿到的全部入口（只读集合，无可写字段）
 
 class FactStore(Protocol):
-    """规则接口：事实源（落盘）。**挂起与恢复都经它**，所以重启不失忆。"""
+    """规则接口：事实源（落盘）。挂起与恢复都经它，所以重启不失忆。"""
 
     def append(self, type_: str, **data: Any) -> str: ...
     def scan(self, type_: str) -> List[Dict[str, Any]]: ...
@@ -70,7 +70,7 @@ class ModuleBase:
         raise NotImplementedError
 
 class Host:
-    """宿主：只遍历、读四态、看"这趟有没有人要求续行"。**不保存任何挂起游标**。"""
+    """宿主：只遍历、读四态、看"这趟有没有人要求续行"。不保存任何挂起游标。"""
 
     def __init__(self, modules: Sequence[ModuleBase], sink: Callable[[Event], None]) -> None:
         self._modules = list(modules)
@@ -87,7 +87,7 @@ class Host:
                 if outcome.status == "halt":
                     return "halted"
                 if outcome.status == "suspend":
-                    # 终态：直接退出。**不留游标**——恢复时另起一轮。
+                    # 终态：直接退出。不留游标——恢复时另起一轮。
                     return "suspended"
                 if outcome.status == "next":
                     wants_another = True
@@ -98,7 +98,7 @@ class Host:
 # 具体模块
 
 class ModelModule(ModuleBase):
-    """模型模块：上下文里有**未消费的新事实**（新用户输入 / 新工具结果）才调模型。"""
+    """模型模块：上下文里有未消费的新事实（新用户输入 / 新工具结果）才调模型。"""
 
     name = "model"
 
@@ -118,10 +118,10 @@ class ModelModule(ModuleBase):
         return Outcome.ok()
 
 class ToolModule(ModuleBase):
-    """工具模块 = **收尾模块**。两个职责：
+    """工具模块 = 收尾模块。两个职责：
 
     ① 处理模型这轮请求的工具调用；
-    ② **回灌**已解决但还没交回模型的外部结果（用户确认走这条）。
+    ② 回灌已解决但还没交回模型的外部结果（用户确认走这条）。
 
     它不认识"确认"——它只知道"某个挂起的调用现在有结果了"。
     """
@@ -195,16 +195,16 @@ class ResumeBridgeTest(unittest.TestCase):
         return [InputModule(), ModelModule(replies), ToolModule(need_input_on_first_call=True)]
 
     def test_suspend_is_terminal_and_resume_is_a_new_run(self) -> None:
-        """① 挂起即终态；恢复是**新一轮宿主循环**，不是回到旧循环。"""
+        """① 挂起即终态；恢复是新一轮宿主循环，不是回到旧循环。"""
         host = Host(self._modules(["我先问你"]), self.events.append)
         self.assertEqual(host.run(self.facts), "suspended")
         first_passes = host.passes
         self.assertTrue(any(e.type == "tool_suspended" for e in self.events))
 
-        # 用户确认 → API 把答案写成**事实**
+        # 用户确认 → API 把答案写成事实
         self.facts.append("extern_result", call_id="call-1", payload="甲")
 
-        # 恢复：**新建**宿主与模块（挂起那趟的循环已退出，没有游标可回）
+        # 恢复：新建宿主与模块（挂起那趟的循环已退出，没有游标可回）
         resumed_host = Host(self._modules(["收到：甲"]), self.events.append)
         self.assertEqual(resumed_host.run(self.facts), "done")
         self.assertGreater(resumed_host.passes, 0)
@@ -212,7 +212,7 @@ class ResumeBridgeTest(unittest.TestCase):
         self.assertNotEqual(first_passes, 0)
 
     def test_resume_delivers_the_result_as_an_ordinary_tool_result(self) -> None:
-        """② 回灌就是**一次普通的 tool_result**，没有特殊规则。"""
+        """② 回灌就是一次普通的 tool_result，没有特殊规则。"""
         Host(self._modules(["问"]), self.events.append).run(self.facts)
         self.facts.append("extern_result", call_id="call-1", payload="甲")
 
@@ -245,7 +245,7 @@ class ResumeBridgeTest(unittest.TestCase):
                          msg="已回灌过的调用不得再交一次")
 
     def test_recovers_after_restart(self) -> None:
-        """③ **重启后仍能恢复**：丢掉宿主与全部模块对象，只从事实重建。
+        """③ 重启后仍能恢复：丢掉宿主与全部模块对象，只从事实重建。
 
         恢复只依赖事实源：丢掉宿主与全部模块对象后，仍能从事实重建出恢复流程。
         """
@@ -265,7 +265,7 @@ class ResumeBridgeTest(unittest.TestCase):
         self.assertEqual(model.calls, 1)
 
     def test_host_holds_no_suspend_state(self) -> None:
-        """宿主**不保存挂起游标**：它的实例字段里没有"停在哪"这类信息。"""
+        """宿主不保存挂起游标：它的实例字段里没有"停在哪"这类信息。"""
         host = Host(self._modules(["问"]), self.events.append)
         host.run(self.facts)
         fields = {k for k in vars(host) if not k.startswith("__")}

@@ -147,3 +147,14 @@ a:visited {
 :focus:not(:focus-visible) {
   outline: none;
 }
+
+/* 控件只保留常态边框：聚焦不再套一圈系统色的外框（输入框 / 下拉框 / 多行框）。
+   键盘可达性不靠那圈外框——控件本身仍有可见边框与光标。 */
+input:focus,
+input:focus-visible,
+select:focus,
+select:focus-visible,
+textarea:focus,
+textarea:focus-visible {
+  outline: none;
+}

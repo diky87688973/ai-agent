@@ -42,7 +42,7 @@ class CollectOncePerPassTest(unittest.TestCase):
     def test_repeated_assembly_shares_one_snapshot(self) -> None:
         for _ in range(3):
             self.pipe.set_dialogue([{"role": "user", "content": "问"}])
-        self.assertEqual(self.calls, 1, msg="同一趟里每次装配都重收集，会白烧磁盘且数字可能对不上")
+        self.assertEqual(self.calls, 1, msg="同一趟里每次装配都重收集，会重复读盘且数字可能对不上")
 
     def test_bump_forces_recollection(self) -> None:
         self.pipe.set_dialogue([{"role": "user", "content": "问"}])

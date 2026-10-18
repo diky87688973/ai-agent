@@ -7,9 +7,10 @@
   ③ 门控闭环：预览回传 confirm_id（未落盘）→ 未确认提交被拒 → 经 Web 确认端点确认 →
      提交落盘 → 跨会话确认被拒（`/api/chat/user-confirm` 的协议侧）；
   ④ 并发与停止：同会话并发 send → 409；stop 下发协作式取消；
-  ⑤ **Markdown 注入防线**（浏览器，需 Playwright）：XSS 向量在真实页面上必须被转义。
+  ⑤ Markdown 注入防线（浏览器，需 Playwright）：XSS 向量在真实页面上必须被转义；
+  ⑥ 设置面板（浏览器，需 Playwright）：分区、插件清单与各编辑器都要真的渲染。
 
-运行：python scripts/acceptance_web.py（全部通过退出码 0；场景 ⑤ 需 Playwright）
+运行：python scripts/acceptance_web.py（全部通过退出码 0；场景 ⑤⑥ 需 Playwright）
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -33,7 +35,7 @@ from agent.mechanisms.session_store import SessionStore  # noqa: E402
 from agent.shell.web import create_server  # noqa: E402
 
 #: XSS 向量 → (名称, 断言说明)
-#: 判据统一为：**渲染结果里不得出现可执行的注入面**。
+#: 判据统一为：渲染结果里不得出现可执行的注入面。
 XSS_VECTORS = [
     ("script 标签", "<script>alert(1)</script>text"),
     ("带事件处理器的标签", '<img src=x onerror="alert(1)">'),
@@ -42,19 +44,56 @@ XSS_VECTORS = [
     ("iframe", '<iframe src="javascript:alert(1)"></iframe>'),
 ]
 
+#: 设置面板结构化编辑器的替身数据：与 `settings-schema.json` 同一套字段类型，
+#: 覆盖 enum / secret / number / bool 与 `show_if` 联动。
+SETTINGS_SCHEMA = {
+    "kind": "sections",
+    "title": "模型",
+    "section_prefix": "model:",
+    "add_label": "添加模型",
+    "empty_text": "还没有模型。",
+    "identity": {"key": "id", "label": "模型 ID", "hint": ""},
+    "fields": [
+        {"key": "provider", "kind": "enum", "label": "协议", "hint": "",
+         "default": "openai",
+         "options": [{"value": "openai", "label": "OpenAI"},
+                     {"value": "anthropic", "label": "Anthropic"}]},
+        {"key": "api_key", "kind": "secret", "label": "密钥", "hint": "",
+         "default": "", "placeholder": "sk-..."},
+        {"key": "context_window", "kind": "number", "label": "上下文窗口",
+         "hint": "", "default": "1000000", "min": 1},
+        {"key": "max_tokens", "kind": "number", "label": "输出上限", "hint": "",
+         "default": "16000", "min": 1,
+         "show_if": {"key": "provider", "equals": "anthropic"}},
+        {"key": "thinking", "kind": "bool", "label": "思考", "hint": "",
+         "default": "0"},
+    ],
+}
+
+SETTINGS_GROUPS = [
+    {"id": "a", "notes": "", "configured": {"api_key": True},
+     "comments": {}, "extras": [],
+     "values": {"provider": "openai", "api_key": "", "context_window": "1000000",
+                "max_tokens": "16000", "thinking": "1"}},
+    {"id": "b", "notes": "", "configured": {"api_key": True},
+     "comments": {}, "extras": [],
+     "values": {"provider": "anthropic", "api_key": "", "context_window": "1000000",
+                "max_tokens": "16000", "thinking": "1"}},
+]
+
 
 class ScriptedProvider:
-    """**三步写盘**的 provider 替身：
+    """三步写盘的 provider 替身：
 
     ① write_file 预览（不落盘）→ ② review_conclusion 审阅并解锁 → ③ commit_write 落盘。
-    每步在**各自的回合**里发一个工具调用（脚本按序驱动多个回合）。
+    每步在各自的回合里发一个工具调用（脚本按序驱动多个回合）。
     """
 
     def __init__(self, target: Path) -> None:
         self.target = target
         self.confirm_id = ""
         self.reviewed = False
-        #: 置 True 时：拿到 confirm_id 就**直接提交**（跳过 review），用于验证门控拒绝
+        #: 置 True 时：拿到 confirm_id 就直接提交（跳过 review），用于验证门控拒绝
         self.commit_before_review = False
 
     @staticmethod
@@ -150,6 +189,10 @@ class Acceptance:
             store=SessionStore(root / "data"),
             backup_root=root / "bk",
             recycle_root=root / "rc",
+            # 只装本脚本要验的插件（知识库的勾选端点）。多模型插件不装：
+            # 它一旦有有效条目就会接管模型路由，替身 provider 收不到请求，
+            # 脚本的结果就取决于开发机上的私有配置了。
+            plugins_path=self._manifest(root),
         )
         # 显式钉住媒体根与文件根：默认值跟随宿主机（多盘），
         # 只有自己掌控边界才能验证"根内可读 / 根外被拒"。
@@ -159,6 +202,17 @@ class Acceptance:
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.frames: list = []
         self._stop = threading.Event()
+
+    @staticmethod
+    def _manifest(root: Path) -> Path:
+        """本脚本的插件清单：只有知识库（要验它的勾选端点）。
+
+        不用工程根的 `plugins.ini`：那会把多模型插件一起装上，而它的私有配置
+        一旦有效，模型路由就被目录接管——结果取决于开发机上有没有配置过。
+        """
+        path = root / "plugins.ini"
+        path.write_text("[plugin:knowledge]\nversion = 1.0\n", encoding="utf-8")
+        return path
 
     def check(self, label: str, cond: bool, detail: str = "") -> None:
         status = "PASS" if cond else "FAIL"
@@ -192,7 +246,7 @@ class Acceptance:
 
     def _read_sse(self) -> None:
         try:
-            # `format=kernel`：要**内核原生事件**。默认那条流是适配层翻译过的经典 UI 事件
+            # `format=kernel`：要内核原生事件。默认那条流是适配层翻译过的经典 UI 事件
             # （conversation / llm_round / tool_start…），本脚本验的是内核行为，
             # 所以显式要原生格式——这也是未来其它交互层（命令行等）观察内核的入口。
             response = urllib.request.urlopen(
@@ -258,11 +312,11 @@ class Acceptance:
         time.sleep(0.35)
 
     def confirm_id_of(self, cid: str) -> str:
-        """从**内核原生帧**里取最近一个预览的 `confirm_id`。
+        """从内核原生帧里取最近一个预览的 `confirm_id`。
 
         本脚本用 `?format=kernel` 要内核原生事件，工具结果是 `tool_done`，
           `confirm_id` 在它的 `data` 里。
-        成功提交后门控会**清掉**预览快照，所以判据不是"门控里还有没有"。
+        成功提交后门控会清掉预览快照，所以判据不是"门控里还有没有"。
         """
         found = ""
         for frame in self.frames:
@@ -277,7 +331,7 @@ class Acceptance:
 
     def scenario_1(self) -> None:
         print("\n场景① 服务与静态资源")
-        # 首页是**经典界面**（素材，内联成单页）。素材按原名躺在
+        # 首页是经典界面（素材，内联成单页）。素材按原名躺在
         # `web_assets/classic/` 下，可经 `/assets/classic/...` 直接取到。
         for path, needle, label in (
             ("/", "AI Agent", "主界面（经典 UI）"),
@@ -366,7 +420,7 @@ class Acceptance:
         self.wait_turn("accept-web-02")
         status, payload = self.get_json("/api/chat/ui-state?conversation_id=accept-web-02")
         self.check("ui-state 按会话记模式", payload.get("mode") == "plan", str(payload))
-        # 布局端点**不再存任何东西**：激活哪个会话是客户端本地状态，服务端一个
+        # 布局端点不再存任何东西：激活哪个会话是客户端本地状态，服务端一个
         # 全局字段表示不了"两个客户端各自激活不同会话"。这里验它确实不存。
         self.put_json("/api/chat/ui-state", {
             "tabs": [{"id": cid, "title": "验收"}], "active_conversation_id": cid,
@@ -385,7 +439,7 @@ class Acceptance:
             status == 200 and "total_prompt_tokens" in payload,
             str(payload)[:120],
         )
-        # 知识库勾选走**插件自己的端点**，内核不再代持这条通道
+        # 知识库勾选走插件自己的端点，内核不再代持这条通道
         status, payload = self.get_json(
             f"/api/plugin/knowledge/checked?conversation_id={cid}")
         self.check(
@@ -479,7 +533,7 @@ class Acceptance:
     # ── 场景 ⑤：Markdown 注入防线（真实页面）─────────────────
 
     def scenario_5(self) -> None:
-        """XSS 向量在**真实页面的真实渲染器**上必须被转义。
+        """XSS 向量在真实页面的真实渲染器上必须被转义。
 
         经典 UI 的 `renderMarkdown` 依赖 `renderMarkdownBlocks` / `hljsCodeClass` /
         代码高亮 / diff 卡片等一整套（同一个 168 KB 文件里），无法单独抽出，
@@ -506,8 +560,8 @@ class Acceptance:
                     return
 
                 for label, payload in XSS_VECTORS:
-                    # **判据必须看真实 DOM**，不能看 HTML 字符串：
-                    # 转义后的 `&lt;img onerror=…&gt;` 里仍然**包含** "onerror=" 这几个字符，
+                    # 判据必须看真实 DOM，不能看 HTML 字符串：
+                    # 转义后的 `&lt;img onerror=…&gt;` 里仍然包含 "onerror=" 这几个字符，
                     # 字符串包含判断会把"正确转义"误判成"存在注入面"。
                     # 正确做法：把渲染结果塞进真实 DOM，再问浏览器
                     # "有没有生成元素 / 有没有真的执行"。
@@ -519,7 +573,7 @@ class Acceptance:
                           document.body.appendChild(host);
                           const out = {
                             html: html,
-                            // 判据是**可执行面**，不是标签名：
+                            // 判据是可执行面，不是标签名：
                             // `img` / `video` 是正文刻意支持的（`![alt](path)` 要能显示），
                             // 标记它存在本身不构成注入；能执行的是脚本类元素。
                             elements: host.querySelectorAll('script,iframe,svg,object,embed').length,
@@ -547,7 +601,7 @@ class Acceptance:
                     self.check(f"XSS 防线：{label}", not bad,
                                f"{bad}；渲染={probe['html'][:90]!r}")
 
-                # 而且**脚本必须真的没执行**：注入一个会置全局标志的向量
+                # 而且脚本必须真的没执行：注入一个会置全局标志的向量
                 executed = page.evaluate(
                     """() => {
                       window.__xssProbe = 0;
@@ -575,6 +629,124 @@ class Acceptance:
             finally:
                 browser.close()
 
+    def _wait_visible(self, page: Any, selector: str, label: str,
+                      timeout: int = 8000) -> bool:
+        """等元素出现；超时记一条失败而不是抛异常（报告要能读完）。"""
+        try:
+            page.wait_for_selector(selector, timeout=timeout)
+            return True
+        except Exception:
+            self.check(label, False, f"等待 {selector} 超时")
+            return False
+
+    def scenario_6(self) -> None:
+        """设置面板：分区、插件清单与每个编辑器都要真的渲染出内容。
+
+        编辑器是纯前端按数据搭 DOM 的，后端 200 不代表面板可用：取值时机不对
+        （例如在节点挂载前读 `parentNode`）只会让面板剩一行错误文案。
+        所以判据放在真实浏览器的 DOM 上：有节点、没有 `is-bad` 状态、没有
+        未捕获异常。
+        """
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            print("  [SKIP] 设置面板渲染（未安装 playwright：pip install -e \".[ui]\"）")
+            return
+        with sync_playwright() as pw:
+            try:
+                browser = pw.chromium.launch()
+            except Exception as exc:                      # 浏览器二进制缺失
+                print(f"  [SKIP] 设置面板渲染（Chromium 不可用：{type(exc).__name__}）")
+                return
+            try:
+                self._panel_real_plugins(browser)
+                self._panel_structured(browser)
+            finally:
+                browser.close()
+
+    def _panel_real_plugins(self, browser: Any) -> None:
+        """宿主分区与真实插件编辑器：后端返回 200 之后面板还要真的建出节点。"""
+        page = browser.new_page()
+        errors: list = []
+        page.on("pageerror", lambda exc: errors.append(str(exc)))
+        page.goto(self.base + "/", wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(1500)
+        page.click("#hdrSettingsBtn")
+        if not self._wait_visible(page, "#stNav button", "设置面板打开", 10000):
+            return
+        for tab in ("Agent", "上下文", "界面"):
+            page.click(f"#stNav button:text-is('{tab}')")
+            page.wait_for_timeout(200)
+            rows = page.eval_on_selector(
+                "#stForm", "el => el.querySelectorAll('.st-row').length")
+            self.check(f"设置分区「{tab}」有字段", rows > 0, f"字段数={rows}")
+        page.click("#stNav button:text-is('插件')")
+        if not self._wait_visible(page, "#stForm .st-card", "插件清单渲染", 10000):
+            return
+        cards = page.eval_on_selector_all("#stForm .st-card", "els => els.length")
+        self.check("插件清单有条目", cards > 0, f"{cards} 条")
+        page.eval_on_selector("#stForm .st-card .st-mini", "el => el.click()")
+        page.wait_for_timeout(600)
+        filled = page.eval_on_selector("#stForm", "el => el.children.length")
+        bad = page.eval_on_selector(
+            "#stStatus", "el => el.classList.contains('is-bad')")
+        status = page.eval_on_selector("#stStatus", "el => el.textContent")
+        self.check("插件配置编辑器有内容", filled > 0, f"子节点={filled}")
+        self.check("插件配置编辑器无错误状态", not bad, f"状态={status!r}")
+        self.check("设置面板无未捕获异常", not errors, f"{errors[:2]}")
+
+    def _panel_structured(self, browser: Any) -> None:
+        """结构化编辑器：按 schema 建表单，且协议切换能就地联动字段显隐。"""
+        page = browser.new_page()
+        errors: list = []
+        page.on("pageerror", lambda exc: errors.append(str(exc)))
+        payload = json.dumps({"ok": True, "name": "demo", "exists": True,
+                              "seeded": False,
+                              "editor": {"kind": "sections",
+                                         "schema": SETTINGS_SCHEMA,
+                                         "groups": SETTINGS_GROUPS}})
+        cards = json.dumps({"ok": True, "plugins": [
+            {"name": "demo", "title": "示例插件", "description": "",
+             "icon": "", "enabled": True, "version": "v1.0", "configurable": True}]})
+        page.route("**/api/settings/plugins", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=cards))
+        page.route("**/api/settings/plugin-file*", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=payload))
+        page.goto(self.base + "/", wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(1500)
+        page.click("#hdrSettingsBtn")
+        if not self._wait_visible(page, "#stNav button", "设置面板打开（结构化）", 10000):
+            return
+        page.click("#stNav button:text-is('插件')")
+        if not self._wait_visible(page, "#stForm .st-card", "插件清单渲染（结构化）", 10000):
+            return
+        page.eval_on_selector("#stForm .st-card .st-mini", "el => el.click()")
+        if not self._wait_visible(page, "#stForm .st-model", "结构化编辑器渲染", 10000):
+            return
+        models = page.eval_on_selector_all("#stForm .st-model", "els => els.length")
+        self.check("结构化编辑器渲染出每条配置", models == 2, f"{models} 条")
+        hidden = """(i) => document.querySelectorAll('#stForm .st-model')[i]
+                          .querySelectorAll('.st-row[hidden]').length"""
+        self.check("按协议隐藏不适用字段（第 1 条 OpenAI）",
+                   page.evaluate(hidden, 0) > 0, f"隐藏行={page.evaluate(hidden, 0)}")
+        self.check("按协议显示适用字段（第 2 条 Anthropic）",
+                   page.evaluate(hidden, 1) == 0, f"隐藏行={page.evaluate(hidden, 1)}")
+        page.evaluate(
+            """() => {
+              const card = document.querySelectorAll('#stForm .st-model')[0];
+              const select = card.querySelector('select');
+              select.value = 'anthropic';
+              select.dispatchEvent(new Event('change', {bubbles: true}));
+            }""")
+        page.wait_for_timeout(200)
+        self.check("切换协议后就地联动字段", page.evaluate(hidden, 0) == 0,
+                   f"切换后隐藏行={page.evaluate(hidden, 0)}")
+        bad = page.eval_on_selector(
+            "#stStatus", "el => el.classList.contains('is-bad')")
+        status = page.eval_on_selector("#stStatus", "el => el.textContent")
+        self.check("结构化编辑器无错误状态", not bad, f"状态={status!r}")
+        self.check("结构化编辑器无未捕获异常", not errors, f"{errors[:2]}")
+
 
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="accept-web-") as tmp:
@@ -586,6 +758,7 @@ def main() -> int:
             acc.scenario_3()
             acc.scenario_4()
             acc.scenario_5()
+            acc.scenario_6()
         finally:
             acc.close()
         print()

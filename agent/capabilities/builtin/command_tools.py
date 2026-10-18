@@ -59,13 +59,13 @@ _INTERACTIVE_PROMPT_RE = re.compile(
 #: 等输入的最长时间（秒）：超时就不再提示，命令继续按原样等/结束。
 _INPUT_WAIT_SEC = 180.0
 
-#: stdin 优雅期（秒）：命令启动后这么久**还没有任何输出**，就认为它不会问人，
+#: stdin 优雅期（秒）：命令启动后这么久还没有任何输出，就认为它不会问人，
 #: 直接把 stdin 关掉（给到 EOF）。
 #:
 #: 为什么必须有这一条：stdin 一旦是管道，`sort` / `cat` / 无参 `findstr` /
-#: `python -c "sys.stdin.read()"` 这类"读到 EOF 才干活"的命令就会**一直等**，
+#: `python -c "sys.stdin.read()"` 这类"读到 EOF 才干活"的命令就会一直等，
 #: 从"瞬间完成"变成"干等到 timeout 并被误报超时强杀"。会问人的命令一定
-#: **先打印提示**，所以"迟迟没有输出"就是"不需要人回答"的判据。
+#: 先打印提示，所以"迟迟没有输出"就是"不需要人回答"的判据。
 _STDIN_EOF_GRACE_SEC = 1.5
 
 
@@ -115,8 +115,8 @@ def _close_streams(proc: "subprocess.Popen[bytes]") -> None:
 def _read_available(stream: Any, chunk: int = 4096) -> bytes:
     """从管道读「当前已到达」的数据（阻塞到至少有 1 字节或 EOF）。
 
-    直接 `stream.read(4096)` 不行：Windows 上对管道的定长读会**一直等到读满 4096
-    字节或 EOF** 才返回，一段小输出要等命令结束才一次性吐出来。这里先 `read(1)`
+    直接 `stream.read(4096)` 不行：Windows 上对管道的定长读会一直等到读满 4096
+    字节或 EOF 才返回，一段小输出要等命令结束才一次性吐出来。这里先 `read(1)`
     （只等"有数据"，一旦有就立刻返回），再把已到达的其余部分读出来，
     兼顾及时性与吞吐。
     """
@@ -147,18 +147,18 @@ def _pump(
     timeout: float,
     progress: Any = None,
 ) -> str:
-    """边读边上报 stdout/stderr；返回 **"ok" / "timeout" / "canceled"**。
+    """边读边上报 stdout/stderr；返回 "ok" / "timeout" / "canceled"。
 
-    **两个流各用一条后台线程读**，主线程只做截止轮询——这一步是必须的：
+    两个流各用一条后台线程读，主线程只做截止轮询——这一步是必须的：
     管道上的 `read()` 是阻塞的，若在主线程里读，一条长时间不输出的命令
     （如 `sleep 30`）就永远回不到截止检查——截止检查不执行，timeout 设多少都拦不住。
     Windows 上 `select` 不能用于管道，所以只能靠线程。
     两个流都必须被读，否则其中一个缓冲区写满会把子进程卡死。
 
-    上报器**显式传进线程**：`contextvars` 不会自动跨线程，线程里直接调
+    上报器显式传进线程：`contextvars` 不会自动跨线程，线程里直接调
     `emit_progress` 会拿到默认的 None 而静默丢弃（正常结束只剩 done 帧）。
 
-    **取消（"停止"）必须在这里生效**：宿主收到停止请求后只会退出自己的循环，
+    取消（"停止"）必须在这里生效：宿主收到停止请求后只会退出自己的循环，
     子进程仍在跑 —— 不在这里杀，用户点了停止却看到命令继续跑（编译/安装尤其明显），
     而界面早已显示"已停止"。取消状态经 `current_context().turn.canceled()` 读，
     它就是内核给模块的停止检查（`Ports.canceled`）。
@@ -178,7 +178,7 @@ def _pump(
             return
         text = decode_output(chunk)
         payload = {"stream": name, "text": text, "done": False}
-        # 顺手识别"命令在问人"：判定结果挂到进度上，UI 据此弹输入条。
+        # 同时识别"命令在问人"：判定结果挂到进度上，UI 据此弹输入条。
         if isinstance(progress, dict) and not progress.get("awaiting_input"):
             with tail_lock:
                 tail["text"] = (tail["text"] + text)[-3000:]
@@ -302,7 +302,7 @@ class RunCommandTool(ToolPlugin):
         return self._run(command, cwd, arguments)
 
     def _run(self, command: str, cwd: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """执行并收集：登记 PID → 限时等待（**边读边报进度**）→ 超时强杀 → 输出净化。
+        """执行并收集：登记 PID → 限时等待（边读边报进度）→ 超时强杀 → 输出净化。
 
         进度：把 stdout/stderr 逐块读出并经 `emit_progress` 上报，
         这样 UI 能在命令跑的时候就看到输出，而不是等它结束。
@@ -331,7 +331,7 @@ class RunCommandTool(ToolPlugin):
             stderr=subprocess.PIPE,
             # 子进程必须自成一个进程组：取消与超时走 `kill_shell_process_tree`，
             # 它在 Unix 上是 `os.killpg(os.getpgid(pid))`。子进程若与 agent 同组，
-            # 那个组就是 agent 自己的组，一杀连宿主一起死（实测退出码 137）。
+            # 那个组就是 agent 自己的组，一杀连宿主一起死（退出码 137）。
             # 它同时也是 Ctrl-C 与终端信号的隔离边界。
             start_new_session=True,
         )
@@ -344,7 +344,7 @@ class RunCommandTool(ToolPlugin):
         try:
             outcome = _pump(proc, out_chunks, err_chunks, timeout, progress)
             if outcome in ("timeout", "canceled"):
-                # 超时与"用户停止"都要**真的杀掉进程树**：只退出内核循环不够，
+                # 超时与"用户停止"都要真的杀掉进程树：只退出内核循环不够，
                 # 子进程会继续跑到自然结束。
                 kill_shell_process_tree(proc.pid)
                 _pump(proc, out_chunks, err_chunks, 10.0, progress)

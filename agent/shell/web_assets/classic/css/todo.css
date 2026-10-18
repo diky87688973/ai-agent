@@ -1,6 +1,6 @@
 /* todo.css —— Todo 清单区域样式。
  *
- * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，**顺序即层叠顺序**，
+ * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，顺序即层叠顺序，
  * 调整清单顺序会改变覆盖关系。
  */
 /* ===== Todo-List 区域 ===== */
