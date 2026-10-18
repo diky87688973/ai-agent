@@ -739,9 +739,9 @@ function selectSidePane(name){
 document.querySelectorAll(".side-tab").forEach(function(el){el.classList.toggle("active",el.dataset.pane===name);});
 document.querySelectorAll(".side-pane").forEach(function(el){el.classList.toggle("active",el.dataset.pane===name);});
 }
-/* 通用面板容器：标签与面板都按 `data-pane` 驱动，新增面板不必改这里。
-   面板要能被插件注入，所以标签与面板都按 `data-pane` 数据驱动，加面板不必改这里。
-   就必须是**按数据**遍历而不是按名字写死。
+/* 通用面板容器：标签与面板都由 `data-pane` 驱动，新增面板不必改这里。
+   插件注入的面板同样只有 `data-pane` 这一条身份线索，所以遍历必须按数据走；
+   按名字写死会让插件面板永远打不开。
 
    `opts.pinned` 的面板不显示关闭按钮（步骤栏就是这种）。
    `opts.onOpen` 在每次激活时调用，供面板刷新自己的内容。 */

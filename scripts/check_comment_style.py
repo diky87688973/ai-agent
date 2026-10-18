@@ -190,8 +190,9 @@ def _docstring_spans(tree: ast.AST) -> list[tuple[int, str]]:
     return out
 
 
-def _scan(path: Path, patterns: dict[str, re.Pattern[str]]) -> list[tuple[int, str, str]]:
-    """返回 [(行号, 类别, 该行)]。**只吃注释与文档串**。
+def scan_text(text: str, suffix: str,
+              patterns: dict[str, re.Pattern[str]]) -> list[tuple[int, str, str]]:
+    """返回 [(行号, 类别, 该行)]；`text` 是文件全文，`suffix` 决定解析方式。
 
     `.py` 用 `tokenize` 取注释、用 `ast` 取文档串（见 `_docstring_spans`）。
     **普通字符串与赋值用的三引号串不算** —— 异常里的"必须 > 0"是给用户/模型的
@@ -201,12 +202,7 @@ def _scan(path: Path, patterns: dict[str, re.Pattern[str]]) -> list[tuple[int, s
     非 `.py`（`.ini`/`.js`/…）没有 parser，按行首标记取注释。
     """
     out: list[tuple[int, str, str]] = []
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (UnicodeDecodeError, OSError):
-        return out
-
-    if path.suffix == ".py":
+    if suffix == ".py":
         try:
             toks = list(tokenize.generate_tokens(io.StringIO(text).readline))
         except (tokenize.TokenError, IndentationError, SyntaxError):
@@ -238,6 +234,16 @@ def _scan(path: Path, patterns: dict[str, re.Pattern[str]]) -> list[tuple[int, s
                 out.append((lineno, name, s))
                 break
     return out
+
+
+def _scan(path: Path, patterns: dict[str, re.Pattern[str]]) -> list[tuple[int, str, str]]:
+    """读文件后交给 `scan_text`；读不到按"无命中"处理（可见的读失败由调用方别的检查管）。"""
+    out: list[tuple[int, str, str]] = []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return out
+    return scan_text(text, path.suffix, patterns)
 
 
 def main() -> int:

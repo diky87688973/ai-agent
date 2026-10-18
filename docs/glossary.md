@@ -8,7 +8,7 @@
 内核的行为结构。宿主反复按固定顺序跑一串模块，每个模块只实现 `execute(ports) -> Outcome`。顺序为 `输入 → 收件箱 → 压缩 → 模型 → 工具`。见 [architecture.md](architecture.md)。
 
 **装配根**
-`agent/app.py`。唯一同时引用四层的文件，负责构建 `AppContext` 并登记服务。它不属于任何一层。
+`agent/app.py`。唯一同时引用五层的文件，负责构建 `AppContext` 并登记服务。它不属于任何一层。
 
 **双轨**
 决策链与事件总线两条互不干扰的轨道。决策链参与控制流，事件总线只做通知。见 [architecture.md](architecture.md)。

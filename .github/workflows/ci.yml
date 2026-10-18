@@ -14,8 +14,8 @@ concurrency:
 permissions:
   contents: read
 
-# 步骤「跑哪些」以 scripts/ci_steps.py 为唯一事实源；本 yml 逐步跑便于超时定位。
-# 漂移由 scripts/check_ci_workflow.py 门禁拦截。
+# 本文件由 scripts/gen_ci_workflow.py 从 scripts/ci_steps.py 生成，不要手改。
+# `python scripts/gen_ci_workflow.py --check` 校验逐字节一致。
 
 jobs:
   verify:
@@ -51,6 +51,12 @@ jobs:
       - name: 门禁 CI 工作流一致
         timeout-minutes: 3
         run: python -u scripts/check_ci_workflow.py
+      - name: 门禁 配置一致性
+        timeout-minutes: 3
+        run: python -u scripts/check_config_drift.py
+      - name: 门禁 单测文档一致
+        timeout-minutes: 5
+        run: python -u scripts/gen_unit_tests_md.py --check
       - name: 门禁 静态检查
         timeout-minutes: 5
         run: python -u -m ruff check agent tests scripts
@@ -75,6 +81,18 @@ jobs:
       - name: 门禁 注册表一致性
         timeout-minutes: 3
         run: python -u scripts/check_catalog.py
+      - name: 门禁 复杂度登记
+        timeout-minutes: 5
+        run: python -u scripts/check_complexity.py
+      - name: 门禁 复杂度文档一致
+        timeout-minutes: 5
+        run: python -u scripts/gen_complexity_md.py --check
+      - name: 门禁 适用性登记
+        timeout-minutes: 3
+        run: python -u scripts/check_applicability.py
+      - name: 门禁 并发争用
+        timeout-minutes: 3
+        run: python -u -X dev -m unittest tests.test_concurrency
 
       - name: 单测（按文件，各限时 150 秒）
         timeout-minutes: 15
@@ -116,7 +134,7 @@ jobs:
           echo "ACC_SKIP_FILE=$RUNNER_TEMP/fan_acc_skips.txt" >> "$GITHUB_ENV"
           : > "$RUNNER_TEMP/fan_acc_skips.txt"
 
-      - name: 验收 batch a
+      - name: acceptance batch a
         timeout-minutes: 4
         shell: bash
         run: |
@@ -125,7 +143,7 @@ jobs:
           code=$?
           if [ "$code" -eq 2 ]; then echo "acceptance_batch_a" >> "$ACC_SKIP_FILE"; exit 0; fi
           exit "$code"
-      - name: 验收 batch b
+      - name: acceptance batch b
         timeout-minutes: 4
         shell: bash
         run: |
@@ -134,7 +152,7 @@ jobs:
           code=$?
           if [ "$code" -eq 2 ]; then echo "acceptance_batch_b" >> "$ACC_SKIP_FILE"; exit 0; fi
           exit "$code"
-      - name: 验收 batch c
+      - name: acceptance batch c
         timeout-minutes: 4
         shell: bash
         run: |
@@ -143,7 +161,7 @@ jobs:
           code=$?
           if [ "$code" -eq 2 ]; then echo "acceptance_batch_c" >> "$ACC_SKIP_FILE"; exit 0; fi
           exit "$code"
-      - name: 验收 batch d
+      - name: acceptance batch d
         timeout-minutes: 4
         shell: bash
         run: |
@@ -152,7 +170,7 @@ jobs:
           code=$?
           if [ "$code" -eq 2 ]; then echo "acceptance_batch_d" >> "$ACC_SKIP_FILE"; exit 0; fi
           exit "$code"
-      - name: 验收 batch e
+      - name: acceptance batch e
         timeout-minutes: 4
         shell: bash
         run: |
@@ -161,7 +179,7 @@ jobs:
           code=$?
           if [ "$code" -eq 2 ]; then echo "acceptance_batch_e" >> "$ACC_SKIP_FILE"; exit 0; fi
           exit "$code"
-      - name: 验收 batch f
+      - name: acceptance batch f
         timeout-minutes: 4
         shell: bash
         run: |
@@ -170,7 +188,7 @@ jobs:
           code=$?
           if [ "$code" -eq 2 ]; then echo "acceptance_batch_f" >> "$ACC_SKIP_FILE"; exit 0; fi
           exit "$code"
-      - name: 验收 mvp2
+      - name: acceptance mvp2
         timeout-minutes: 4
         shell: bash
         run: |
@@ -179,7 +197,7 @@ jobs:
           code=$?
           if [ "$code" -eq 2 ]; then echo "acceptance_mvp2" >> "$ACC_SKIP_FILE"; exit 0; fi
           exit "$code"
-      - name: 验收 mvp3
+      - name: acceptance mvp3
         timeout-minutes: 5
         shell: bash
         run: |
@@ -188,7 +206,7 @@ jobs:
           code=$?
           if [ "$code" -eq 2 ]; then echo "acceptance_mvp3" >> "$ACC_SKIP_FILE"; exit 0; fi
           exit "$code"
-      - name: 验收 phase3
+      - name: acceptance phase3
         timeout-minutes: 4
         shell: bash
         run: |
@@ -197,7 +215,7 @@ jobs:
           code=$?
           if [ "$code" -eq 2 ]; then echo "acceptance_phase3" >> "$ACC_SKIP_FILE"; exit 0; fi
           exit "$code"
-      - name: 验收 web
+      - name: acceptance web
         timeout-minutes: 6
         shell: bash
         run: |
@@ -211,14 +229,15 @@ jobs:
         timeout-minutes: 2
         run: python -u scripts/check_acceptance_skips.py
 
-      # 覆盖率只在 3.12 矩阵跑一遍，避免双倍单测墙钟；下限保守，只增不减靠审 PR。
-      - name: 覆盖率 core/mechanisms
+      # 覆盖率只在 3.12 矩阵跑一遍，避免双倍单测墙钟。
+      # 下限按顶层包分开登记在 scripts/quality_budgets.py，缺数据/低于下限都会失败。
+      - name: 覆盖率（分包下限）
         if: matrix.python-version == '3.12'
         timeout-minutes: 20
         run: |
-          python -m coverage run --source=agent/core,agent/mechanisms \
+          python -m coverage run --branch --source=agent,plugins --omit="*/web_assets/*" \
             -m unittest discover -s tests -p "test_*.py" -t tests
-          python -m coverage report --include="agent/core/*,agent/mechanisms/*" --fail-under=80
+          python -u scripts/check_coverage.py
           python -m coverage html -d coverage_html
       - name: 上传覆盖率报告
         if: matrix.python-version == '3.12' && always()

@@ -6,9 +6,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
+import agent.mechanisms.quality.checks as _checks
+import agent.mechanisms.quality.diagnose as _diagnose
 from agent.core.tool_call import GateDecision
-from agent.mechanisms.quality import checks as _checks
-from agent.mechanisms.quality import diagnose as _diagnose
 from agent.mechanisms.quality.checks import WriteContext
 from agent.mechanisms.quality.path_keys import _norm_path
 from agent.mechanisms.quality.pending import PendingStore

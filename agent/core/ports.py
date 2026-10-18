@@ -22,11 +22,53 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional, Protocol
 
 from agent.core.error_report import report_error
 from agent.core.events import Event
+from agent.core.model_call import StreamDelta
 from agent.core.session_log import SessionLog
+from agent.core.tool_call import ToolCallRequest, ToolResult
+
+#: 进度上报出口：`(tool_call_id, tool_name, payload)`。
+ProgressSink = Callable[[str, str, Dict[str, Any]], None]
+#: 协作式取消检查：返回 True 表示宿主已请求停止。
+CancelCheck = Callable[[], bool]
+
+
+class ProviderPort(Protocol):
+    """模型提供者的**结构契约**（装配侧注入，内核只按这个形状用）。
+
+    不 import 具体 provider：`mechanisms` 可以换实现，内核的端口签名不变。
+    """
+
+    model: str
+
+    def stream(self, request: "LogicalRequest") -> Iterator[StreamDelta]:
+        ...
+
+
+class RegistryPort(Protocol):
+    """工具注册表的结构契约：本轮可用的工具声明。"""
+
+    def schemas(self) -> List[Dict[str, Any]]:
+        ...
+
+
+class PipelinePort(Protocol):
+    """工具管道的结构契约：唯一执行入口。"""
+
+    def execute(self, registry: RegistryPort, call: ToolCallRequest,
+                ctx: "_ToolCallScope") -> ToolResult:
+        ...
+
+
+class SessionsPort(Protocol):
+    """会话注册表的结构契约：按会话 id 解析运行态。"""
+
+    def resolve_sync(self, conversation_id: str) -> Any:
+        ...
+
 
 
 class ModelPort:
@@ -36,11 +78,11 @@ class ModelPort:
     模块**不关心**供应商是谁、线格式长什么样。
     """
 
-    def __init__(self, provider: Any) -> None:
+    def __init__(self, provider: ProviderPort) -> None:
         self._provider = provider
 
     @property
-    def provider(self) -> Any:
+    def provider(self) -> ProviderPort:
         """底层提供者（诊断 / 装配期查询用；模块逻辑不该依赖它）。"""
         return self._provider
 
@@ -48,12 +90,12 @@ class ModelPort:
         """当前模型名（供展示与日志；取不到时空串）。"""
         return str(getattr(self._provider, "model", "") or "")
 
-    def name_for(self, request: Any) -> str:
+    def name_for(self, request: "LogicalRequest") -> str:
         """**本次请求实际会用的**模型名：请求里指定了就报它，否则报实例默认。"""
         want = str(getattr(request, "model", "") or "").strip()
         return want or self.name()
 
-    def stream(self, request: Any):
+    def stream(self, request: "LogicalRequest") -> Iterator[StreamDelta]:
         """发起流式请求，逐个产出归一化的流帧。"""
         return self._provider.stream(request)
 
@@ -69,10 +111,10 @@ class ToolPort:
     def __init__(
         self,
         *,
-        registry: Any,
-        pipeline: Any,
+        registry: Optional[RegistryPort],
+        pipeline: Optional[PipelinePort],
         app: Any = None,
-        sessions: Any = None,
+        sessions: Optional[SessionsPort] = None,
     ) -> None:
         self._registry = registry
         self._pipeline = pipeline
@@ -80,7 +122,7 @@ class ToolPort:
         self._sessions = sessions
 
     @property
-    def registry(self) -> Any:
+    def registry(self) -> Optional[RegistryPort]:
         return self._registry
 
     def schemas(self) -> List[Dict[str, Any]]:
@@ -89,8 +131,10 @@ class ToolPort:
             return []
         return list(self._registry.schemas())
 
-    def execute(self, call: Any, *, conversation_id: str = "", progress: Any = None,
-                canceled: Any = None, tool_call_id: str = "") -> Any:
+    def execute(self, call: ToolCallRequest, *, conversation_id: str = "",
+                progress: Optional[ProgressSink] = None,
+                canceled: Optional[CancelCheck] = None,
+                tool_call_id: str = "") -> ToolResult:
         """执行一次调用，返回 `ToolResult`。
 
         `conversation_id` / `progress` / `canceled` 由模块从端口带过来；
@@ -128,8 +172,8 @@ class _ToolCallScope:
         self,
         *,
         conversation_id: str = "",
-        progress_sink: Any = None,
-        canceled: Any = None,
+        progress_sink: Optional[ProgressSink] = None,
+        canceled: Optional[CancelCheck] = None,
         tool_call_id: str = "",
         app: Any = None,
         session: Any = None,

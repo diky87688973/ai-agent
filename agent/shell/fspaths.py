@@ -136,3 +136,23 @@ def _env_path(name: str) -> Optional[Path]:
     """读环境变量里的路径；空值视为未设置。"""
     value = os.environ.get(name, "").strip()
     return Path(value) if value else None
+
+
+# ── 公开入口（entry 层用）─────────────────────────────────────
+# 入口层不该知道 `_normalize_roots` 的优先级细节，只需"给我要用的根"。
+# 这两个函数把 `--fs-root` / 环境变量 / 默认盘根的三级优先写成一处。
+
+#: `--fs-root` 的环境变量名（帮助文案与解析共用，避免两处写死）。
+FS_ROOT_ENV = "AI_AGENT_FS_ROOT"
+#: `/api/media` 可读根的环境变量名。
+MEDIA_ROOT_ENV = "AI_AGENT_MEDIA_ROOT"
+
+
+def resolve_fs_roots(spec: Any = None) -> List[Path]:
+    """解析文件可见根：显式参数 > 环境变量 > 本机盘根。"""
+    return _normalize_roots(spec) or _env_roots(FS_ROOT_ENV) or _default_fs_roots()
+
+
+def resolve_media_root(roots: List[Path], spec: Any = None) -> Path:
+    """/api/media 可读根：显式参数 > 环境变量 > 第一个可见根。"""
+    return spec or _env_path(MEDIA_ROOT_ENV) or (roots[0] if roots else Path.cwd())

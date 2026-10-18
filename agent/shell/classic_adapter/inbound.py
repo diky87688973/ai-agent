@@ -22,9 +22,10 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import agent.shell.classic_adapter.contract as C
 from agent.mechanisms.session_store import KEY_DATA, KEY_TYPE
-from agent.shell.classic_adapter import contract as C
 from agent.shell.classic_adapter.contract import EV_CONTEXT_SEGMENTS
+from agent.shell.timefmt import date_group
 
 
 def _scan_title(path: Path) -> str:
@@ -551,13 +552,8 @@ def _todo_items(events: List[Any]) -> List[Dict[str, Any]]:
 
 
 def _date_group(mtime: float, now: Optional[float] = None) -> str:
-    """修改时间 → 中文日期分组（今天 / 昨天 / `xx月xx日`，按**自然日**比较）。
-
-    经典界面的会话菜单靠它插分组标题；口径直接取内核那一份，避免两处漂移。
-    """
-    from agent.shell.web import _date_group as kernel_date_group
-
-    return kernel_date_group(mtime, now)
+    """修改时间 → 中文日期分组（口径直接取 `agent.shell.timefmt`，避免两处漂移）。"""
+    return date_group(mtime, now)
 
 
 # ── 内存态：经典界面需要、但内核不持有的三样东西 ─────────────────

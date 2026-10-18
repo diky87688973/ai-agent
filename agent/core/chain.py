@@ -92,7 +92,6 @@ class _Pass:
                 except StopIteration as stop:
                     outcome = stop.value
                 _require_outcome(module, outcome)
-                assert isinstance(outcome, Outcome)
                 if outcome.is_terminal:
                     self.result = PassResult(terminal=outcome, wants_another=wants_another)
                     return
@@ -130,7 +129,8 @@ class _Pass:
         """跑完本趟（丢弃事件），返回结论。非流式场合用。"""
         for _event in self:
             pass
-        assert self.result is not None
+        if self.result is None:
+            raise RuntimeError("链已跑完但没有结论：模块链未产出 Outcome")
         return self.result
 
 

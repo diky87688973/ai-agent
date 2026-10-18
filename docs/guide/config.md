@@ -24,7 +24,7 @@ models       = deepseek-flash, deepseek-v4-pro
 
 | 键 | 内置缺省 | 含义 |
 |---|---|---|
-| `api_base_url` | `https://api.deepseek.com` | 网关地址。地址推导见 [llm.md](../subsystems/llm.md) |
+| `api_base_url` | 空 | 网关地址；模板填 `https://api.deepseek.com`。**留空时服务启动失败**（退出码 2）。地址推导见 [llm.md](../subsystems/llm.md) |
 | `api_key` | 空 | 鉴权密钥。**留空时服务启动失败**（壳层装配阶段报错退出，退出码 2）。设置页只回是否已填写，不回明文；密码框留空不改这一项，填了新值才替换 |
 | `model` | `deepseek-v4-flash-vision-exp` | 默认模型名；配置里给了值就以它为准 |
 | `models` | 空 | 会话内可选的模型名，逗号分隔。留空则只能用 `model` |
@@ -37,6 +37,7 @@ models       = deepseek-flash, deepseek-v4-pro
 [agent]
 reasoning_effort = max
 backup_retention_days = 7
+max_passes = 64
 user_rules_file =
 plugin_tree_only = 0
 ```
@@ -45,6 +46,7 @@ plugin_tree_only = 0
 |---|---|---|
 | `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可在界面上临时切换，**会话级选择优先** |
 | `backup_retention_days` | `7` | 版本化备份保留天数。启动时清理更早的；`0` = 永久保留 |
+| `max_passes` | `64` | 一回合最多跑多少次模型往返；小于 1 按 1 处理。一趟可带多个工具调用 |
 | `user_rules_file` | 空 | 用户自定义规则文件（`.md` / `.txt`）。留空则不加规则段 |
 | `plugin_tree_only` | `0` | `1` 时只允许装载落在 `plugins/` 树内的插件目录；清单里的绝对/外置 `path` 会被拒。环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先 |
 
@@ -95,8 +97,8 @@ plugin_tree_only = 0
 summary_token_threshold  = 700000
 full_user_rounds         = 1
 summary_output_max_chars = 5000
-image_turns              = 3
-image_max                = 10
+image_turns              = 999999
+image_max                = 999999
 reasoning_replay_tokens = 8000
 model_context_window     = 1000000
 ```
@@ -106,8 +108,8 @@ model_context_window     = 1000000
 | `summary_token_threshold` | `700000` | 上下文估算 token 数超过此值时触发压缩。调大保留更多原文、请求更贵；调小更省但更早丢失细节 | `60000`–`1000000` |
 | `full_user_rounds` | `1` | 压缩时的遮盖轮数：末尾这么多用户轮不压，只压它们前面的 | `1`–`10` |
 | `summary_output_max_chars` | `5000` | 摘要的篇幅上限，单位为字。它作为约束写进摘要提示词，实际长度由模型遵守程度决定 | `2000`–`8000` |
-| `image_turns` | `3` | 只把**最近这么多轮用户发言**里的图片带进模型请求，更早的转文本占位。`0` = 一张都不带，负数 = 不限 | `1`–`10` |
-| `image_max` | `10` | 这几轮里最多带几张图；**最近一轮优先保**，超量的从最老的那一轮开始砍。`0` = 一张都不带，负数 = 不限 | `1`–`30` |
+| `image_turns` | `999999` | 只把**最近这么多轮用户发言**里的图片带进模型请求，更早的转文本占位。`0` = 一张都不带，负数 = 不限；缺省不剥 | 正整数 / 负数 |
+| `image_max` | `999999` | 这几轮里最多带几张图；**最近一轮优先保**，超量的从最老的那一轮开始砍。`0` = 一张都不带，负数 = 不限 | 正整数 / 负数 |
 | `reasoning_replay_tokens` | `8000` | 思维链回传预算（token）。`-1` = 全量回传；`0` = 不回传；正数 = 超出就**取两头、中间以 `<此处省略 N token 的推理>` 代替**（前后文够模型脑补中间）。思维链是模型产生的中间稿，必然未命中缓存，全量回传等于每轮多背几万 token | `-1` / `0` / 正数 |
 | `model_context_window` | `1000000` | 模型上下文窗口（token）。界面按它算"上下文占用率"；**物理上限**，与压缩阈值（预算）不是一回事 | 正整数 |
 

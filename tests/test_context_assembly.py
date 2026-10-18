@@ -1949,7 +1949,7 @@ class PluginSegmentCountAlignmentTest(unittest.TestCase):
                          msg=f"实际拿到 {[(k, l) for k, l, _ in got.items]}")
         # 自报数只贴在该来源的第一条上；同一来源的其余条按条数算；
         # 空来源仍占一段（示意图可见），数量用自报值。
-        self.assertEqual(got.counts, [7, 1, 1, 3])
+        self.assertEqual(got.counts, (7, 1, 1, 3))
         self.assertEqual(got.items[-1][2], "", msg="空来源正文应为空串占位")
 
     def test_missing_reported_count_falls_back_to_one(self) -> None:
@@ -1959,7 +1959,7 @@ class PluginSegmentCountAlignmentTest(unittest.TestCase):
         srcs.add(lambda cid: ["x"], SourceMeta(key="x", label="没有自报口"))
         got = srcs.collect_segments("c")
         self.assertEqual(len(got.counts), len(got.items))
-        self.assertEqual(got.counts, [1])
+        self.assertEqual(got.counts, (1,))
 
     def test_short_count_table_does_not_borrow_neighbours(self) -> None:
         """数量表比来源表短时，多出来的段按自身条数算，不拿别的段的数字。"""
@@ -1976,6 +1976,50 @@ class PluginSegmentCountAlignmentTest(unittest.TestCase):
         rows = [r for r in pipe.segment_tokens() if str(r["key"]).startswith("plugin:")]
         self.assertEqual([r["label"] for r in rows], ["清单", "常驻"])
         self.assertEqual([r["count"] for r in rows], [62, 1])
+
+class PluginSegmentsImmutableTest(unittest.TestCase):
+    """B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不影响它）。"""
+
+    def _segments(self):
+        from agent.mechanisms.context_pipeline import PluginSegments
+
+        items = [("skills", "清单", "正文一"), ("skills", "常驻", "正文二")]
+        counts = [7]
+        return PluginSegments(items=items, counts=counts), items, counts
+
+    def test_source_lists_are_copied(self) -> None:
+        seg, items, counts = self._segments()
+        items.append(("kb", "知识库", "正文三"))
+        counts.append(9)
+        self.assertEqual(len(seg.items), 2)
+        self.assertEqual(seg.counts, (7,))
+
+    def test_containers_are_tuples(self) -> None:
+        seg, _items, _counts = self._segments()
+        self.assertIsInstance(seg.items, tuple)
+        self.assertIsInstance(seg.counts, tuple)
+        self.assertTrue(all(isinstance(row, tuple) for row in seg.items))
+
+    def test_assignment_is_rejected(self) -> None:
+        from dataclasses import FrozenInstanceError
+
+        seg, _items, _counts = self._segments()
+        with self.assertRaises(FrozenInstanceError):
+            seg.items = ()  # type: ignore[misc]
+
+    def test_tuple_containers_reject_mutation(self) -> None:
+        seg, _items, _counts = self._segments()
+        with self.assertRaises(AttributeError):
+            seg.items.append(("kb", "知识库", "正文三"))  # type: ignore[attr-defined]
+        with self.assertRaises(TypeError):
+            seg.counts[0] = 9  # type: ignore[index]
+
+    def test_wrong_arity_is_rejected_loudly(self) -> None:
+        from agent.mechanisms.context_pipeline import PluginSegments
+
+        with self.assertRaises(ValueError):
+            PluginSegments(items=[("skills", "缺正文")], counts=[])  # type: ignore[list-item]
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from agent.shell.classic_adapter import contract as C
+import agent.shell.classic_adapter.contract as C
 
 
 @dataclass

@@ -27,9 +27,9 @@ class ChatGateWiringTest(unittest.TestCase):
     """壳层门控解析：必须是会话自己的门控，不是默认桶。"""
 
     def setUp(self) -> None:
-        built = build_session(["--session", CID])
-        if built is None:
-            self.skipTest("未配置 [model_reasoning]（config.ini 不在本地），无法装配交互壳")
+        self.app = build_app()
+        self.addCleanup(self.app.dispose)
+        built = build_session(["--session", CID], app=self.app)
         self.app, self.cid, self.engine, self.gate, self.single = built  # type: ignore[misc]
         self.addCleanup(self.app.session_contexts.release, self.cid)
 
@@ -126,7 +126,6 @@ class ChatConfirmRoundTripTest(unittest.TestCase):
 
 class ChatExitReleaseTest(unittest.TestCase):
     """交互壳退出时释放会话运行态。"""
-
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
@@ -147,12 +146,12 @@ class ChatExitReleaseTest(unittest.TestCase):
 
         original_build = chat.build_session
         original_run = chat.run_one
-        chat.build_session = lambda argv=None: (  # type: ignore[assignment]
+        chat.build_session = lambda argv=None, app=None, parsed=None: (  # type: ignore[assignment]
             self.app, self.cid, self.engine, self.gate, "single text"
         )
         chat.run_one = lambda engine, gate, text: None  # type: ignore[assignment]
         try:
-            return chat.main([])
+            return chat.main([], app_factory=lambda: self.app)
         finally:
             chat.build_session = original_build  # type: ignore[assignment]
             chat.run_one = original_run  # type: ignore[assignment]
@@ -255,6 +254,42 @@ class ExplicitReleaseTest(unittest.TestCase):
             ctxs.release(CID)
             self.assertEqual(len(store.load(CID)), 1)
             self.assertIsNotNone(ctxs.resolve_sync(CID))
+
+class ChatArgParsingTest(unittest.TestCase):
+    """入口参数在装配之前解析：缺配置时 `--help` 仍可用。"""
+
+    def test_help_exits_before_building_app(self) -> None:
+        import agent.shell.chat as chat
+
+        built: list[int] = []
+
+        def factory():
+            built.append(1)
+            raise AssertionError("--help 不应触发 app 装配")
+
+        with self.assertRaises(SystemExit) as caught:
+            chat.main(["--help"], app_factory=factory)
+        self.assertEqual(caught.exception.code, 0)
+        self.assertEqual(built, [])
+
+    def test_session_and_text_are_parsed(self) -> None:
+        import agent.shell.chat as chat
+
+        parsed = chat.parse_args(["--session", CID, "你好"])
+        self.assertEqual(parsed.session, CID)
+        self.assertEqual(parsed.text, "你好")
+
+    def test_build_session_accepts_parsed_args(self) -> None:
+        import agent.shell.chat as chat
+
+        app = build_app()
+        self.addCleanup(app.dispose)
+        parsed = chat.parse_args(["--session", CID, "单回合"])
+        built = chat.build_session(None, app=app, parsed=parsed)
+        self.addCleanup(app.session_contexts.release, CID)
+        self.assertEqual(built[1], CID)
+        self.assertEqual(built[4], "单回合")
+
 
 if __name__ == "__main__":
     unittest.main()

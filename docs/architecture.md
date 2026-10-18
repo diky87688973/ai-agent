@@ -2,12 +2,12 @@
 
 本文说明代码如何组织、一次请求如何流经系统。
 
-## 四层结构
+## 五层结构
 
-依赖只允许由外向内，反向引用由 `scripts/check_imports.py` 扫描 AST 强制，违规即失败。
+依赖只允许由内向外单向：反向引用与循环依赖由 `scripts/check_imports.py` 扫描 AST 强制，违规即失败。
 
 ```
-shell  →  capabilities  →  mechanisms  →  core
+entry  →  shell  →  capabilities  →  mechanisms  →  core
 ```
 
 | 层 | 目录 | 职责 | 依赖 |
@@ -16,8 +16,11 @@ shell  →  capabilities  →  mechanisms  →  core
 | L1 机制 | `agent/mechanisms/` | 模型调用、上下文管线与压缩、写盘门控、会话存储、协作网格 | core |
 | L2 能力 | `agent/capabilities/` | 工具注册表、内置工具、插件加载 | core, mechanisms |
 | L3 壳层 | `agent/shell/` | HTTP + SSE 服务、界面打包、系统提示词、经典界面适配 | 全部下层 |
+| L4 入口 | `agent/entry/` | 进程入口：读配置 → 建 `App` → 交给壳跑 | 全部下层 |
 
-`agent/app.py` 是**装配根**，不属于任何一层。它是唯一同时引用四层的文件，负责构建 `AppContext` 并登记服务。
+`agent/app.py` 是**装配根**，不属于任何一层。它是唯一同时引用五层的文件，负责构建 `AppContext` 并登记服务。
+装配根与入口层都不允许被任何层运行期导入（`if TYPE_CHECKING:` 的纯注解除外）；
+这条规则和"层间单向"由同一道门禁检查，`--scc` 可打印全包强连通分量用于审计。
 
 ## 双轨：决策链与事件总线
 
@@ -133,7 +136,9 @@ class Ports:
 3. 装配上下文管线工厂与压缩器工厂。
 4. 构建 `AppContext`，按逆序即清理序登记全部进程级服务；返回 `App`，其属性是 `context.get(name)` 的快捷方式。
 
-`build_shell_app()` 在 `shell/web.py` 里包一层：按配置建真实 provider 与会话存储，再交给 `build_app()`。
+`build_shell_app()` 在 `agent/entry/web.py` 里包一层：按配置建真实 provider 与会话存储，再交给 `build_app()`。
+装配根（`app.py`）与入口层（`entry/`）是最上面两层：任何层都不得运行期导入它们，
+`entry/` 也不得被任何层导入。`python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` 是三个进程入口。
 
 ## 反苟且清单
 

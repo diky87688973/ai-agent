@@ -320,7 +320,7 @@ class DateGroupTest(unittest.TestCase):
 
     def test_groups_by_natural_day(self) -> None:
 
-        from agent.shell.web import _date_group
+        from agent.shell.timefmt import date_group as _date_group
 
         now = time.time()
         self.assertEqual(_date_group(now, now), "今天")
@@ -329,7 +329,7 @@ class DateGroupTest(unittest.TestCase):
 
     def test_older_is_grouped_by_date(self) -> None:
 
-        from agent.shell.web import _date_group
+        from agent.shell.timefmt import date_group as _date_group
 
         now = time.time()
         # 更早的按具体日期分组（「本周」「更早」看不出是哪天）。

@@ -92,16 +92,21 @@ def main(argv: list[str] | None = None) -> int:
     data_before = _data_files()
     failed: list[str] = []
     skipped: list[str] = []
+    skipped_post: list[str] = []
     for step in steps:
         cmd = [PY, *step.argv]
         status, line = _run(step.label, cmd)
         print("  " + line)
         if status == "skipped":
-            # 用脚本名对白名单（与 ACC_SKIP_FILE / ALLOWED_ACCEPTANCE_SKIPS 同源）
-            key = ""
-            if step.argv and str(step.argv[0]).endswith("run_acceptance_step.py"):
-                key = str(step.argv[-1]).removesuffix(".py")
-            skipped.append(key or step.label)
+            if step.kind == "acceptance":
+                # 用脚本名对白名单（与 ACC_SKIP_FILE / ALLOWED_ACCEPTANCE_SKIPS 同源）
+                key = ""
+                if step.argv and str(step.argv[0]).endswith("run_acceptance_step.py"):
+                    key = str(step.argv[-1]).removesuffix(".py")
+                skipped.append(key or step.label)
+            else:
+                # 覆盖率等 post 步在本地可能没有 .coverage：可见但不计入验收 skip 预算
+                skipped_post.append(step.label)
         elif status == "failed":
             failed.append(step.label)
             if not args.keep_going:
@@ -119,6 +124,9 @@ def main(argv: list[str] | None = None) -> int:
             for p in problems:
                 print(f"\n❌ {p}")
             return 1
+    if skipped_post:
+        print(f"\nℹ️ 本地跳过后置校验：{', '.join(skipped_post)}"
+              "（覆盖率需要先跑 coverage，CI 里由 3.12 矩阵执行）")
     if not args.fast:
         left = sorted(_data_files() - data_before)
         if left:
@@ -131,8 +139,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("\n✅ 工程 `data/` 无新增文件")
 
-    passed = len(steps) - len(skipped)
-    print(f"\n✅ 通过 {passed} 步" + (f"，跳过 {len(skipped)} 步" if skipped else "（全部）"))
+    passed = len(steps) - len(skipped) - len(skipped_post)
+    print(f"\n✅ 通过 {passed} 步"
+          + (f"，跳过 {len(skipped) + len(skipped_post)} 步"
+             if (skipped or skipped_post) else "（全部）"))
     return 0
 
 

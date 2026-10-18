@@ -161,7 +161,10 @@ class Host:
                 for event in chain:
                     yield event
                 result = chain.result
-                assert result is not None
+                if result is None:
+                    raise RuntimeError(
+                        f"模块链跑完没有结论（会话 {conversation_id}，第 {passes} 趟）"
+                    )
                 self._report_pass_end()
                 if result.terminal is not None:
                     status = result.terminal.status
@@ -228,7 +231,10 @@ class Host:
                                     model=model, tools=tools,
                                     cancel=cancel):
             pass
-        assert self.last_result is not None
+        if self.last_result is None:
+            raise RuntimeError(
+                f"回合已结束但没有结论（会话 {conversation_id}）：run_iter 未产出终态"
+            )
         return self.last_result
 
     def _report_pass_end(self) -> None:

@@ -7,11 +7,12 @@ import mimetypes
 import os
 import sys
 import threading
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from agent.app import App
+if TYPE_CHECKING:  # 只为注解：壳层不得在运行期依赖装配根（A2）
+    from agent.app import App
+
 from agent.config import PROJECT_ROOT, get_reasoning_effort
 from agent.core import event_name as ev
 from agent.mechanisms.session_store import (
@@ -35,6 +36,7 @@ from agent.shell.fspaths import (
 )
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.sse import _Channel, _sse_payload
+from agent.shell.timefmt import date_group
 from agent.shell.web_static import (
     _IMAGE_MIMES,
     _TITLE_SCAN_LINES,
@@ -234,7 +236,7 @@ class WebShell:
                             "title": self._derive_title(cid),
                             "mtime": int(mtime),
                             # 日期分组
-                            "date_group": _date_group(mtime),
+                            "date_group": date_group(mtime),
                         }
                     )
         return 200, {"sessions": [r["conversation_id"] for r in rows], "items": rows}
@@ -879,31 +881,5 @@ def _normalize_images(raw: Any) -> List[Dict[str, str]]:
             continue
         out.append({"mime": mime, "data_base64": data.strip()})
     return out
-
-
-def _date_group(mtime: float, now: Optional[float] = None) -> str:
-    """把修改时间归入中文日期分组。
-
-    分组：今天 / 昨天 / `xx月xx日`（按自然日比较，不按 24 小时）。
-    """
-    if not mtime:
-        return ""
-    reference = time.time() if now is None else now
-    try:
-        stamp = time.localtime(mtime)
-        today = time.localtime(reference)
-    except (OverflowError, OSError, ValueError):
-        # 非法/溢出时间戳：无法归组，交给调用方显示空分组
-        return ""
-    day = (stamp.tm_year, stamp.tm_yday)
-    today_day = (today.tm_year, today.tm_yday)
-    if day == today_day:
-        return "今天"
-    # 昨天：把参考时间倒退一天比较（跨年由 tm_year 一起比对）
-    yesterday = time.localtime(reference - 86400)
-    if day == (yesterday.tm_year, yesterday.tm_yday):
-        return "昨天"
-    # 更早的按具体日期分组：「本周」「更早」看不出是哪天。
-    return f"{stamp.tm_mon}月{stamp.tm_mday}日"
 
 

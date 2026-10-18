@@ -33,12 +33,14 @@
 ## 启动
 
 ```bash
-python -m agent.shell.web --host 127.0.0.1 --port 8765
+python -m agent.entry.web --host 127.0.0.1 --port 8765
 ```
 
-`main()` 做的事：读配置 → 建 `App` → `create_server()` → 打印地址 → `serve_forever()`。
+`main()` 做的事：读配置 → 建 `App` → `serve()` → 打印地址 → `serve_forever()`。
 
-`create_server()` 返回 `(server, shell)`，不启动；测试可以直接拿到实例。`build_shell_app()` 是壳层的装配函数（同在 `web.py`），按配置建真实 provider 与会话存储。
+`create_server()` 返回 `(server, shell)`，不启动；测试可以直接拿到实例。`serve()` 接收已装配的 app，
+负责可见根/媒体根/标题与工作目录的落点并阻塞运行。`build_shell_app()` 是入口层的装配函数
+（`agent/entry/web.py`）：按配置建真实 provider 与会话存储——壳层不导入装配根（A2）。
 
 启动时如果缺少模型配置，会打印说明并以退出码 2 结束。
 
@@ -182,8 +184,8 @@ inline_ui_html()        # 拼成完整单页
 ## 命令行壳
 
 ```bash
-python -m agent.shell.chat --session <cid>   # 交互式，真实模型 + 工具 + 写盘门控
-python -m agent.shell.headless               # 跑一轮并打印事件流
+python -m agent.entry.cli --session <cid>     # 交互式，真实模型 + 工具 + 写盘门控
+python -m agent.entry.headless               # 跑一轮并打印事件流
 ```
 
 `chat.py` 的 `build_session()` 装配一个可用的会话，`run_one()` 跑一轮。这两个在测试里被大量复用。
@@ -211,6 +213,6 @@ python scripts/inspect_compact.py <会话 id> --digest
 
 ## 延伸阅读
 
-- [architecture.md](../architecture.md)：四层结构与装配
+- [architecture.md](../architecture.md)：五层结构与装配
 - [tools.md](tools.md)：写盘门控
 - [guide/config.md](../guide/config.md)：参数与环境变量

@@ -85,5 +85,5 @@ echo   Stop:   Ctrl+C
 echo ============================================
 echo.
 
-python -m agent.shell.web --host 127.0.0.1 --port 8765
+python -m agent.entry.web --host 127.0.0.1 --port 8765
 pause

@@ -125,7 +125,7 @@ set_progress_reporter(fn) / emit_progress(payload)
 
 - `shrink_image()` / `shrink_path()`：本地按长边缩放，压 base64 预算（长边上限 `EMBED_MAX_SIDE = 800`）；
 - `build_embed_parts()`：拼成 OpenAI 的 `image_url` 内容块；
-- `strip_old_images()`：只留最近几轮用户发言里的图，并在这些轮内设总量上限（`keep_turns` / `max_images`，缺省 3 轮 / 10 张，来自 `[context]` 的 `image_turns` / `image_max`）。超量的从**最老的那一轮**开始砍，所以最近一轮优先保住；
+- `strip_old_images()`：只留最近几轮用户发言里的图，并在这些轮内设总量上限（`keep_turns` / `max_images`，缺省 999999 即不剥，来自 `[context]` 的 `image_turns` / `image_max`）。超量的从**最老的那一轮**开始砍，所以最近一轮优先保住；
 - `placeholder_text()`：图片被剥离后留下的占位文本。
 
 被剥掉的图只从**发给模型的这一份**里消失：事实流里的 base64 一个字节都不动，历史回显与重新提问都还能拿到原图。
@@ -143,6 +143,6 @@ set_progress_reporter(fn) / emit_progress(payload)
 
 ## 延伸阅读
 
-- [architecture.md](../architecture.md)：四层结构与装配
+- [architecture.md](../architecture.md)：五层结构与装配
 - [context.md](context.md)：上下文管理
 - [tools.md](tools.md)：工具执行管道

@@ -17,7 +17,7 @@ import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from agent.shell.classic_adapter import contract as C
+import agent.shell.classic_adapter.contract as C
 from agent.shell.classic_adapter.inbound import ClassicState, Inbound
 from agent.shell.classic_adapter.outbound import ClassicStream
 

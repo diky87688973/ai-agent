@@ -9,7 +9,7 @@ import ast
 import re
 from pathlib import Path
 
-LAYERS = ("core", "mechanisms", "capabilities", "shell")
+LAYERS = ("core", "mechanisms", "capabilities", "shell", "entry")
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_ROOT = ROOT / "agent"
 PLUGINS_DIR = ROOT / "plugins"

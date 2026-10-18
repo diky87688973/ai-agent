@@ -13,6 +13,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ci_steps import catalog, gate_steps
+
 # 在 GBK 控制台直接跑本脚本时，打印 ✅/中文会抛 UnicodeEncodeError ——
 # 表现为「检查全过但退出码 1」（`ci.py` 用 PYTHONIOENCODING 掩盖了它）。
 try:
@@ -119,31 +122,43 @@ def _public_docs() -> str:
     return "\n".join(parts)
 
 
-def main() -> int:
-    readme = _public_docs()
+def check(readme: str, acceptance: int, tests: int,
+          data_dirs: list[str], steps: int, gates: int) -> list[str]:
+    """核对文档事实；返回问题列表（空 = 一致）。纯函数，供负向用例直接调用。"""
     problems: list[str] = []
 
-    # ① 验收脚本数
-    real = _ci_acceptance_scripts()
+    # ① 流水线步数与门禁数
+    m = re.search(r"流水线 (\d+) 步", readme)
+    if m is None:
+        problems.append("README 与 docs 里都找不到「流水线 N 步」，检查器无法核对")
+    elif int(m.group(1)) != steps:
+        problems.append(f"文档说流水线 {m.group(1)} 步，ci.py 实际跑 {steps} 步")
+
+    m = re.search(r"(\d+) 项门禁", readme)
+    if m is None:
+        problems.append("README 与 docs 里都找不到「N 项门禁」，检查器无法核对")
+    elif int(m.group(1)) != gates:
+        problems.append(f"文档说 {m.group(1)} 项门禁，ci.py 实际跑 {gates} 项")
+
+    # ② 验收脚本数
     m = re.search(r"→ 单测 → (\d+) 个验收脚本", readme)
     if m is None:
         problems.append("README 与 docs 里都找不到「→ 单测 → N 个验收脚本」，检查器无法核对")
-    elif int(m.group(1)) != real:
-        problems.append(f"文档说 {m.group(1)} 个验收脚本，ci.py 实际跑 {real} 个")
+    elif int(m.group(1)) != acceptance:
+        problems.append(f"文档说 {m.group(1)} 个验收脚本，ci.py 实际跑 {acceptance} 个")
 
-    # ② 用例数
+    # ③ 用例数
     # **匹配不到必须报错**：只写 `if m and …` 的话，README 一旦改措辞
     # （例如把"个用例"写成"个"），这里就静默放行 —— 检查器自己失效却报"一致"。
-    real_tests = _test_method_count()
     m = re.search(r"单元测试（(\d+) 个用例）", readme)
     if m is None:
         problems.append("README 与 docs 里都找不到「单元测试（N 个用例）」，检查器无法核对")
-    elif int(m.group(1)) != real_tests:
-        problems.append(f"文档说 {m.group(1)} 个用例，实际 {real_tests} 个")
+    elif int(m.group(1)) != tests:
+        problems.append(f"文档说 {m.group(1)} 个用例，实际 {tests} 个")
 
-    # ③ data/ 子目录名（README 里出现的每个 data/xxx 都必须是真实目录）
+    # ④ data/ 子目录名（README 里出现的每个 data/xxx 都必须是真实目录）
     mentioned = set(re.findall(r"data/([a-z_]+)/", readme))
-    real_dirs = set(_data_dirs())
+    real_dirs = set(data_dirs)
     if real_dirs:
         wrong = sorted(mentioned - real_dirs)
         if wrong:
@@ -152,6 +167,17 @@ def main() -> int:
         missing = sorted(real_dirs - mentioned)
         if missing:
             problems.append(f"文档漏掉代码里用到的 data 子目录：{missing}")
+    return problems
+
+
+def main() -> int:
+    readme = _public_docs()
+    real = _ci_acceptance_scripts()
+    real_tests = _test_method_count()
+    real_dirs = _data_dirs()
+    steps = len(catalog())
+    gates = len(gate_steps())
+    problems = check(readme, real, real_tests, real_dirs, steps, gates)
 
     if problems:
         print("事实性数字漂移：")
@@ -160,8 +186,9 @@ def main() -> int:
         print()
         print("修法：改文档里的数字/目录名，而不是改这个脚本。")
         return 1
-    print(f"✅ 文档事实一致（验收脚本 {real} 个、用例 {real_tests} 个、"
-          f"data 子目录 {len(_data_dirs())} 个）")
+    print(f"✅ 文档事实一致（流水线 {steps} 步 / 门禁 {gates} 项、"
+          f"验收脚本 {real} 个、用例 {real_tests} 个、"
+          f"data 子目录 {len(real_dirs)} 个）")
     return 0
 
 

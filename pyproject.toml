@@ -22,7 +22,7 @@ dev = ["ruff>=0.5"]
 tts = ["edge-tts>=6.1"]
 
 [project.scripts]
-ai-agent-web = "agent.shell.web:main"
+ai-agent-web = "agent.entry.web:main"
 
 [tool.setuptools.packages.find]
 namespaces = true

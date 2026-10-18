@@ -2,9 +2,9 @@
 """交互式真实对话壳（headless）：真实模型 + 工具 + id 制四步门控 + 会话持久化。
 
 用法（工程根目录运行）：
-  python -m agent.shell.chat                  # 交互模式（新建会话）
-  python -m agent.shell.chat --session <ID>   # 恢复并继续指定会话
-  python -m agent.shell.chat "一句话问题"      # 单回合模式
+  python -m agent.entry.cli                  # 交互模式（新建会话）
+  python -m agent.entry.cli --session <ID>   # 恢复并继续指定会话
+  python -m agent.entry.cli "一句话问题"      # 单回合模式
 写盘确认：模型预览写文件时，终端展示变更内容并询问 [y/N]，输入 y 确认该预览；
 模型随后凭 confirm_id 提交（commit_write），提交内容由预览快照恢复。
 退出：/exit、/quit 或 Ctrl+C。
@@ -17,11 +17,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from agent.app import build_app
-from agent.config import default_data_root, get_context, get_model_reasoning
 from agent.core import event_name as ev
-from agent.mechanisms.model_provider import OpenAICompatibleProvider
-from agent.mechanisms.session_store import SessionStore, new_conversation_id
+from agent.mechanisms.session_store import new_conversation_id
 
 _PREVIEW_TOOL_NAMES = (
     "write_file",
@@ -130,35 +127,38 @@ def run_one(engine: Any, gate: Any, text: str) -> None:
     print()
 
 
-def build_session(
-    argv: Optional[list] = None,
-) -> "tuple[Any, str, Any, Any, str] | None":
-    """装配一次交互会话：返回 (app, cid, engine, gate, single_text)；缺配置返回 None。
+def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
+    """解析入口参数。
 
-    门控解析：一律用 `app.gate_for(cid)` 取**该会话自己的**门控——
-    预览快照由管道路径登记在会话门控上，若此处用默认桶门控确认，确认会落空、
-    提交被拒（"预览尚未确认"）。
+    与装配分开：`--help` 与参数错误都在建 app 之前返回，
+    缺配置时也能读到用法说明。
     """
     parser = argparse.ArgumentParser(
-        prog="agent.shell.chat", description="AI Agent 交互式对话（真实模型）"
+        prog="agent.entry.cli", description="AI Agent 交互式对话（真实模型）"
     )
     parser.add_argument("text", nargs="?", default="", help="单回合文本；缺省进入交互模式")
     parser.add_argument("--session", default="", help="会话 ID（恢复/继续）")
     parser.add_argument("--system", default="", help="附加系统指令")
-    args = parser.parse_args(list(argv) if argv is not None else None)
+    return parser.parse_args(list(argv) if argv is not None else None)
 
-    cfg = get_model_reasoning()
-    if not cfg["api_key"] or not cfg["api_base_url"]:
-        print("缺少配置：agent/config.ini 的 [model_reasoning]（api_base_url / api_key / model）")
-        return None
 
-    provider = OpenAICompatibleProvider(
-        base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
-        # 与 Web 壳同一口径：历史轮次的思维链默认不回传。
-        replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
-    )
-    store = SessionStore(default_data_root())
-    app = build_app(provider=provider, store=store)
+def build_session(
+    argv: Optional[list] = None,
+    *,
+    app: Any,
+    parsed: Optional[argparse.Namespace] = None,
+) -> "tuple[Any, str, Any, Any, str]":
+    """在给定 app 上装配一次交互会话：返回 (app, cid, engine, gate, single_text)。
+
+    门控解析：一律用 `app.gate_for(cid)` 取**该会话自己的**门控——
+    预览快照由管道路径登记在会话门控上，若此处用默认桶门控确认，确认会落空、
+    提交被拒（"预览尚未确认"）。
+
+    `app` 必须是装配好的底座：壳层不导入装配根，构造 app 是 `agent.entry.cli` 的职责。
+    `parsed` 是已经解析好的参数；不给才解析 `argv`（`main` 先解析、后装配）。
+    """
+    args = parsed if parsed is not None else parse_args(argv)
+
     cid = str(args.session).strip() or new_conversation_id()
     system_prompt = _SYSTEM_TEMPLATE.format(cwd=Path.cwd())
     if str(args.system).strip():
@@ -168,11 +168,16 @@ def build_session(
     return app, cid, engine, gate, str(args.text or "")
 
 
-def main(argv: Optional[list] = None) -> int:
-    built = build_session(argv)
-    if built is None:
+def main(argv: Optional[list] = None, *, app_factory: Any) -> int:
+    """交互式入口。`app_factory` 由 `agent.entry.cli` 提供（壳层不装配 app）。"""
+    parsed = parse_args(argv)
+    app = app_factory()
+    if app is None:
         return 2
-    app, cid, engine, gate, single = built
+    app, cid, engine, gate, single = build_session(None, app=app, parsed=parsed)
+
+    from agent.config import get_model_reasoning
+
     cfg = get_model_reasoning()
 
     print("=== AI Agent 对话（真实模型）===")
@@ -201,6 +206,3 @@ def main(argv: Optional[list] = None) -> int:
         # 会话生命周期落点：退出即释放本会话运行态（已落盘记录不受影响）
         app.dispose()
 
-
-if __name__ == "__main__":
-    raise SystemExit(main())

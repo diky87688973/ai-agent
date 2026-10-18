@@ -1,70 +1,75 @@
 # 单元测试用例清单
 
-共 **1146** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1247** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
-本文件可由 `python scripts/_gen_unit_tests_md.py` 重新生成。
+本文件由 `python scripts/gen_unit_tests_md.py` 生成；`--check` 在 CI 里校验是否漂移，**不要手改**。
 
 ## 目录
 
 1. [test_app_context.py](#test_app_contextpy)（11）
 2. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
-3. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
-4. [test_batch_f_tools.py](#test_batch_f_toolspy)（25）
-5. [test_catalog.py](#test_catalogpy)（8）
-6. [test_chat_shell.py](#test_chat_shellpy)（13）
-7. [test_classic_adapter.py](#test_classic_adapterpy)（96）
-8. [test_command_tools.py](#test_command_toolspy)（30）
-9. [test_context_assembly.py](#test_context_assemblypy)（179）
-10. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
-11. [test_context_pipeline.py](#test_context_pipelinepy)（19）
-12. [test_context_plumbing.py](#test_context_plumbingpy)（5）
-13. [test_context_splice.py](#test_context_splicepy)（9）
-14. [test_core.py](#test_corepy)（56）
-15. [test_edited_files.py](#test_edited_filespy)（1）
-16. [test_error_log.py](#test_error_logpy)（8）
-17. [test_event_bus.py](#test_event_buspy)（9）
-18. [test_fact_compat.py](#test_fact_compatpy)（4）
-19. [test_file_safety.py](#test_file_safetypy)（24）
-20. [test_file_size_format.py](#test_file_size_formatpy)（4）
-21. [test_four_step_gate.py](#test_four_step_gatepy)（7）
-22. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-23. [test_goal_runner.py](#test_goal_runnerpy)（6）
-24. [test_image_embed.py](#test_image_embedpy)（10）
-25. [test_image_tool.py](#test_image_toolpy)（23）
-26. [test_image_turns.py](#test_image_turnspy)（23）
-27. [test_invest_tools.py](#test_invest_toolspy)（24）
-28. [test_kb_plugin.py](#test_kb_pluginpy)（49）
-29. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-30. [test_mode_note.py](#test_mode_notepy)（12）
-31. [test_model_provider.py](#test_model_providerpy)（23）
-32. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-33. [test_plugin_http.py](#test_plugin_httppy)（18）
-34. [test_plugins.py](#test_pluginspy)（21）
-35. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-36. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
-37. [test_readonly_tools.py](#test_readonly_toolspy)（25）
-38. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-39. [test_run_registry.py](#test_run_registrypy)（13）
-40. [test_session_context.py](#test_session_contextpy)（22）
-41. [test_session_seq.py](#test_session_seqpy)（23）
-42. [test_session_store.py](#test_session_storepy)（17）
-43. [test_session_tools.py](#test_session_toolspy)（17）
-44. [test_settings_panel.py](#test_settings_panelpy)（12）
-45. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-46. [test_task_tools.py](#test_task_toolspy)（27）
-47. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
-48. [test_tool_registry.py](#test_tool_registrypy)（17）
-49. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-50. [test_usage_metrics.py](#test_usage_metricspy)（7）
-51. [test_version_stamp.py](#test_version_stamppy)（4）
-52. [test_web_frontend.py](#test_web_frontendpy)（5）
-53. [test_web_shell.py](#test_web_shellpy)（50）
-54. [test_web_ui_config.py](#test_web_ui_configpy)（4）
-55. [test_write_gate.py](#test_write_gatepy)（16）
-56. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-57. [test_write_path_tools.py](#test_write_path_toolspy)（30）
+3. [test_architecture_hygiene.py](#test_architecture_hygienepy)（11）
+4. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
+5. [test_batch_f_tools.py](#test_batch_f_toolspy)（25）
+6. [test_catalog.py](#test_catalogpy)（8）
+7. [test_chat_shell.py](#test_chat_shellpy)（16）
+8. [test_classic_adapter.py](#test_classic_adapterpy)（96）
+9. [test_command_tools.py](#test_command_toolspy)（30）
+10. [test_concurrency.py](#test_concurrencypy)（8）
+11. [test_context_assembly.py](#test_context_assemblypy)（184）
+12. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
+13. [test_context_pipeline.py](#test_context_pipelinepy)（19）
+14. [test_context_plumbing.py](#test_context_plumbingpy)（5）
+15. [test_context_splice.py](#test_context_splicepy)（9）
+16. [test_core.py](#test_corepy)（56）
+17. [test_edited_files.py](#test_edited_filespy)（1）
+18. [test_entry_layer.py](#test_entry_layerpy)（13）
+19. [test_error_log.py](#test_error_logpy)（8）
+20. [test_event_bus.py](#test_event_buspy)（9）
+21. [test_fact_compat.py](#test_fact_compatpy)（4）
+22. [test_file_safety.py](#test_file_safetypy)（24）
+23. [test_file_size_format.py](#test_file_size_formatpy)（4）
+24. [test_four_step_gate.py](#test_four_step_gatepy)（7）
+25. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+26. [test_gate_negative.py](#test_gate_negativepy)（53）
+27. [test_goal_runner.py](#test_goal_runnerpy)（6）
+28. [test_image_embed.py](#test_image_embedpy)（10）
+29. [test_image_tool.py](#test_image_toolpy)（23）
+30. [test_image_turns.py](#test_image_turnspy)（23）
+31. [test_import_graph.py](#test_import_graphpy)（5）
+32. [test_invest_tools.py](#test_invest_toolspy)（24）
+33. [test_kb_plugin.py](#test_kb_pluginpy)（49）
+34. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+35. [test_mode_note.py](#test_mode_notepy)（12）
+36. [test_model_provider.py](#test_model_providerpy)（24）
+37. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+38. [test_plugin_http.py](#test_plugin_httppy)（18）
+39. [test_plugins.py](#test_pluginspy)（23）
+40. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+41. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
+42. [test_readonly_tools.py](#test_readonly_toolspy)（25）
+43. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+44. [test_run_registry.py](#test_run_registrypy)（13）
+45. [test_session_context.py](#test_session_contextpy)（22）
+46. [test_session_seq.py](#test_session_seqpy)（23）
+47. [test_session_store.py](#test_session_storepy)（17）
+48. [test_session_tools.py](#test_session_toolspy)（17）
+49. [test_settings_panel.py](#test_settings_panelpy)（12）
+50. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+51. [test_task_tools.py](#test_task_toolspy)（27）
+52. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+53. [test_tool_registry.py](#test_tool_registrypy)（17）
+54. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+55. [test_usage_metrics.py](#test_usage_metricspy)（7）
+56. [test_version_stamp.py](#test_version_stamppy)（4）
+57. [test_web_frontend.py](#test_web_frontendpy)（5）
+58. [test_web_shell.py](#test_web_shellpy)（50）
+59. [test_web_ui_config.py](#test_web_ui_configpy)（4）
+60. [test_write_gate.py](#test_write_gatepy)（16）
+61. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+62. [test_write_path_tools.py](#test_write_path_toolspy)（30）
 
 ## test_app_context.py
 
@@ -105,6 +110,24 @@
 | 13 | `ProcessServiceRegistryTest` | `test_duplicate_registration_still_rejected` | 覆盖「进程级服务登记」：duplicate registration still rejected |
 | 14 | `ProcessServiceRegistryTest` | `test_optional_services_registered_when_injected` | 覆盖「进程级服务登记」：optional services registered when injected |
 | 15 | `ProcessServiceRegistryTest` | `test_store_absent_when_not_injected` | store 未注入时不登记（会话持久化是可选面）。 |
+
+## test_architecture_hygiene.py
+
+共 11 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `GateSinglePathAstTest` | `test_content_tools_assign_attr` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：content tools assign attr |
+| 2 | `GateSinglePathAstTest` | `test_fallback_gate_attribute` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：fallback gate attribute |
+| 3 | `GateSinglePathAstTest` | `test_gate_resolver_call_attr` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：gate resolver call attr |
+| 4 | `GateSinglePathAstTest` | `test_innocuous_code_passes` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：innocuous code passes |
+| 5 | `GateSinglePathAstTest` | `test_preview_tools_keyword` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：preview tools keyword |
+| 6 | `GateSinglePathAstTest` | `test_preview_tools_tuple_unpack` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：preview tools tuple unpack |
+| 7 | `GateSinglePathAstTest` | `test_register_write_path_keys_call` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：register write path keys call |
+| 8 | `GateSinglePathAstTest` | `test_tool_path_keys_name` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：tool path keys name |
+| 9 | `GateSinglePathAstTest` | `test_unregister_write_path_keys_import_alias` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：unregister write path keys import alias |
+| 10 | `QualityGateShimAstTest` | `test_comment_mention_passes` | 覆盖「A class whose instances are single test cases」：comment mention passes |
+| 11 | `QualityGateShimAstTest` | `test_import_quality_gate_caught` | 覆盖「A class whose instances are single test cases」：import quality gate caught |
 
 ## test_attachments_autonomy.py
 
@@ -181,23 +204,26 @@
 
 ## test_chat_shell.py
 
-共 13 个用例。
+共 16 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ChatConfirmRoundTripTest` | `test_default_bucket_gate_cannot_confirm_named_session` | 反面：默认桶门控确认不了具名会话的预览。 |
-| 2 | `ChatConfirmRoundTripTest` | `test_preview_tool_names_include_write_path_tools` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：preview tool names include write path tools |
-| 3 | `ChatConfirmRoundTripTest` | `test_shell_confirm_releases_preview_and_commit_lands` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：shell confirm releases preview and commit lands |
-| 4 | `ChatExitReleaseTest` | `test_main_releases_session_on_exit` | 覆盖「交互壳退出时释放会话运行态」：main releases session on exit |
-| 5 | `ChatExitReleaseTest` | `test_released_session_reparses_clean` | 释放后同 cid 重新解析得到干净上下文（红灯 / 待 review 不残留）。 |
-| 6 | `ChatGateWiringTest` | `test_build_session_returns_named_conversation` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：build session returns named conversation |
-| 7 | `ChatGateWiringTest` | `test_engine_runs_on_same_conversation_id` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：engine runs on same conversation id |
-| 8 | `ChatGateWiringTest` | `test_gate_is_the_conversation_gate_not_default_bucket` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：gate is the conversation gate not default bucket |
-| 9 | `ExplicitReleaseTest` | `test_close_all_clears_registry` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：close all clears registry |
-| 10 | `ExplicitReleaseTest` | `test_release_does_not_touch_persisted_records` | 释放只丢进程内运行态：会话记录（事实源）不受影响。 |
-| 11 | `ExplicitReleaseTest` | `test_release_drops_only_that_conversation` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release drops only that conversation |
-| 12 | `ExplicitReleaseTest` | `test_release_unknown_and_blank_are_safe` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release unknown and blank are safe |
-| 13 | `ExplicitReleaseTest` | `test_web_release_conversation_reduces_active_count` | 关闭会话 API 调用 release 后 active_count 下降。 |
+| 1 | `ChatArgParsingTest` | `test_build_session_accepts_parsed_args` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：build session accepts parsed args |
+| 2 | `ChatArgParsingTest` | `test_help_exits_before_building_app` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：help exits before building app |
+| 3 | `ChatArgParsingTest` | `test_session_and_text_are_parsed` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：session and text are parsed |
+| 4 | `ChatConfirmRoundTripTest` | `test_default_bucket_gate_cannot_confirm_named_session` | 反面：默认桶门控确认不了具名会话的预览。 |
+| 5 | `ChatConfirmRoundTripTest` | `test_preview_tool_names_include_write_path_tools` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：preview tool names include write path tools |
+| 6 | `ChatConfirmRoundTripTest` | `test_shell_confirm_releases_preview_and_commit_lands` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：shell confirm releases preview and commit lands |
+| 7 | `ChatExitReleaseTest` | `test_main_releases_session_on_exit` | 覆盖「交互壳退出时释放会话运行态」：main releases session on exit |
+| 8 | `ChatExitReleaseTest` | `test_released_session_reparses_clean` | 释放后同 cid 重新解析得到干净上下文（红灯 / 待 review 不残留）。 |
+| 9 | `ChatGateWiringTest` | `test_build_session_returns_named_conversation` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：build session returns named conversation |
+| 10 | `ChatGateWiringTest` | `test_engine_runs_on_same_conversation_id` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：engine runs on same conversation id |
+| 11 | `ChatGateWiringTest` | `test_gate_is_the_conversation_gate_not_default_bucket` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：gate is the conversation gate not default bucket |
+| 12 | `ExplicitReleaseTest` | `test_close_all_clears_registry` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：close all clears registry |
+| 13 | `ExplicitReleaseTest` | `test_release_does_not_touch_persisted_records` | 释放只丢进程内运行态：会话记录（事实源）不受影响。 |
+| 14 | `ExplicitReleaseTest` | `test_release_drops_only_that_conversation` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release drops only that conversation |
+| 15 | `ExplicitReleaseTest` | `test_release_unknown_and_blank_are_safe` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release unknown and blank are safe |
+| 16 | `ExplicitReleaseTest` | `test_web_release_conversation_reduces_active_count` | 关闭会话 API 调用 release 后 active_count 下降。 |
 
 ## test_classic_adapter.py
 
@@ -339,9 +365,24 @@
 | 29 | `PythonInlineTest` | `test_inline_prints_push_progress` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline prints push progress |
 | 30 | `PythonInlineTest` | `test_inline_system_exit` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline system exit |
 
+## test_concurrency.py
+
+共 8 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ContextSourcesContentionTest` | `test_collect_sees_a_consistent_snapshot` | 覆盖「注入源注册表：并发注册/卸载后条目数与版本号仍然自洽」：collect sees a consistent snapshot |
+| 2 | `ContextSourcesContentionTest` | `test_register_and_dispose_are_balanced` | 覆盖「注入源注册表：并发注册/卸载后条目数与版本号仍然自洽」：register and dispose are balanced |
+| 3 | `LiveStateContentionTest` | `test_distinct_conversations_do_not_interfere` | 覆盖「实时状态：不同会话互不串写；同一会话的并发写不丢结构」：distinct conversations do not interfere |
+| 4 | `LiveStateContentionTest` | `test_same_conversation_writes_stay_well_formed` | 覆盖「实时状态：不同会话互不串写；同一会话的并发写不丢结构」：same conversation writes stay well formed |
+| 5 | `PendingStoreContentionTest` | `test_capacity_is_never_exceeded` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：capacity is never exceeded |
+| 6 | `PendingStoreContentionTest` | `test_confirm_is_visible_to_concurrent_peek` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：confirm is visible to concurrent peek |
+| 7 | `PendingStoreContentionTest` | `test_same_path_keeps_exactly_one_latest` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：same path keeps exactly one latest |
+| 8 | `PendingStoreContentionTest` | `test_take_is_exactly_once` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：take is exactly once |
+
 ## test_context_assembly.py
 
-共 179 个用例。
+共 184 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -443,87 +484,92 @@
 | 96 | `PluginSegmentCountAlignmentTest` | `test_collect_segments_counts_match_items` | 覆盖「段与自报数量必须逐条对齐：错位是静默的，只在浮层上显示成离谱的数字」：collect segments counts match items |
 | 97 | `PluginSegmentCountAlignmentTest` | `test_missing_reported_count_falls_back_to_one` | 覆盖「段与自报数量必须逐条对齐：错位是静默的，只在浮层上显示成离谱的数字」：missing reported count falls back to one |
 | 98 | `PluginSegmentCountAlignmentTest` | `test_short_count_table_does_not_borrow_neighbours` | 数量表比来源表短时，多出来的段按自身条数算，不拿别的段的数字。 |
-| 99 | `RandomShapeInvariants` | `test_compaction_range_never_splits_a_turn` | ① 压缩区间首尾都必须落在用户轮边界上。 |
-| 100 | `RandomShapeInvariants` | `test_compaction_range_tool_chain_always_closed` | ② 压缩区间内的工具链必须闭合（否则切出残链）。 |
-| 101 | `ReasoningReplayBudgetTest` | `test_config_default_matches_constant` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：config default matches constant |
-| 102 | `ReasoningReplayBudgetTest` | `test_dialogue_segment_uses_the_budget` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：dialogue segment uses the budget |
-| 103 | `ReasoningReplayBudgetTest` | `test_messages_clip_does_not_mutate_input` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：messages clip does not mutate input |
-| 104 | `ReasoningReplayBudgetTest` | `test_negative_keeps_everything` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：negative keeps everything |
-| 105 | `ReasoningReplayBudgetTest` | `test_positive_keeps_both_ends_and_marks_the_gap` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：positive keeps both ends and marks the gap |
-| 106 | `ReasoningReplayBudgetTest` | `test_short_text_untouched` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：short text untouched |
-| 107 | `ReasoningReplayBudgetTest` | `test_zero_drops_everything` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：zero drops everything |
-| 108 | `RemainingCapacityTest` | `test_budget_zero_would_make_remaining_zero` | 不传预算（= 老装配点的行为）剩余容量就是 0 —— 这条守着别再退回去。 |
-| 109 | `RemainingCapacityTest` | `test_old_snapshot_is_rescaled_on_read` | 事件里那份 `budget=已用` 的旧快照，渲染时按当前预算补正。 |
-| 110 | `RemainingCapacityTest` | `test_rescale_falls_back_when_budget_unknown` | 拿不到预算时按"已用"归一（不再更差），段序与字段不变。 |
-| 111 | `RemainingCapacityTest` | `test_snapshot_carries_the_budget` | 覆盖「「剩余容量」按压缩阈值算，不是按"已用"算 —— 否则界面那条永远是 0%」：snapshot carries the budget |
-| 112 | `SegmentCountSemantics` | `test_dialogue_counts_user_turns_not_messages` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：dialogue counts user turns not messages |
-| 113 | `SegmentCountSemantics` | `test_layout_from_messages_counts_turns_too` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：layout from messages counts turns too |
-| 114 | `SegmentCountSemantics` | `test_system_prompt_counts_messages` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：system prompt counts messages |
-| 115 | `SegmentFieldParity` | `test_both_paths_expose_the_same_fields` | 覆盖「分段快照（内核事件）与兜底重算（适配层）必须给同一套字段」：both paths expose the same fields |
-| 116 | `SegmentFieldParity` | `test_layout_event_forwards_every_field` | 适配层转发分段事件时不筛字段（白名单漏一个 = 前端少一样东西）。 |
-| 117 | `SegmentKeysAndCounts` | `test_keys_and_labels` | 覆盖「段 key 与数量口径：插件段一律 `plugin:<插件名>`」：keys and labels |
-| 118 | `SegmentKeysAndCounts` | `test_plugin_may_declare_more_than_one_segment` | 同一插件两段：数量按位置对上，不会互相覆盖。 |
-| 119 | `SegmentOrderMatchesAssembly` | `test_header_order_is_system_plugins_summary` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：header order is system plugins summary |
-| 120 | `SegmentOrderMatchesAssembly` | `test_layout_payload_keeps_the_same_order` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：layout payload keeps the same order |
-| 121 | `SegmentOrderMatchesAssembly` | `test_segment_order_matches_header_order` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：segment order matches header order |
-| 122 | `SegmentOrderMatchesAssembly` | `test_summary_sits_before_dialogue` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：summary sits before dialogue |
-| 123 | `SegmentTokens` | `test_dialogue_split_into_two_segments` | 覆盖「逐段统计与段名」：dialogue split into two segments |
-| 124 | `SegmentTokens` | `test_segments_sum_equals_assembled_total` | 关键一致性：分段之和 == 装配出来的消息总量（同估算器）。 |
-| 125 | `SegmentTokens` | `test_summary_segment_counts_both_summaries` | 覆盖「逐段统计与段名」：summary segment counts both summaries |
-| 126 | `SegmentTokens` | `test_system_segment_matches_its_message` | 覆盖「逐段统计与段名」：system segment matches its message |
-| 127 | `SkillInjectionIntoRequest` | `test_empty_segments_leave_head_empty` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：empty segments leave head empty |
-| 128 | `SkillInjectionIntoRequest` | `test_plugin_segments_are_not_duplicated_across_passes` | `set_plugin_segments` 是整体重建：多跑几趟不会累积。 |
-| 129 | `SkillInjectionIntoRequest` | `test_plugin_segments_sit_after_system_prompt` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：plugin segments sit after system prompt |
-| 130 | `SkillInjectionIntoRequest` | `test_plugin_segments_used_by_compaction_request` | 插件段落属头部：压缩请求必须带上同一份。 |
-| 131 | `SkillInjectionIntoRequest` | `test_segment_stats_follow_the_plugin` | 分段统计里两段都挂在插件名下，段名与数量由插件给。 |
-| 132 | `SkillInjectionIntoRequest` | `test_summary_sits_after_plugin_segments` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：summary sits after plugin segments |
-| 133 | `SkillProgressiveDisclosure` | `test_auto_load_empty_when_no_auto_load_dir` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load empty when no auto load dir |
-| 134 | `SkillProgressiveDisclosure` | `test_auto_load_excludes_normal_skills` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load excludes normal skills |
-| 135 | `SkillProgressiveDisclosure` | `test_auto_load_messages_carry_bodies` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load messages carry bodies |
-| 136 | `SkillProgressiveDisclosure` | `test_registry_excludes_auto_load_skill` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry excludes auto load skill |
-| 137 | `SkillProgressiveDisclosure` | `test_registry_excludes_skill_bodies` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry excludes skill bodies |
-| 138 | `SkillProgressiveDisclosure` | `test_registry_is_absent_when_no_skills` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry is absent when no skills |
-| 139 | `SkillProgressiveDisclosure` | `test_registry_lists_names_and_descriptions` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry lists names and descriptions |
-| 140 | `SkillProgressiveDisclosure` | `test_skill_manager_lists_normal_skills_only` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：skill manager lists normal skills only |
-| 141 | `SourceOrderDeclaration` | `test_kernel_pipeline_follows_the_same_order` | 真管线：Skills 两段 → 知识库 → 摘要 → 对话。 |
-| 142 | `SourceOrderDeclaration` | `test_no_rank_sorts_last` | 没有位次的（应用级来源，不属于任何插件）排在插件段之后。 |
-| 143 | `SourceOrderDeclaration` | `test_rank_beats_registration` | 先注册知识库（位次 1）、后注册 Skills（位次 0），组装仍是 Skills 在前。 |
-| 144 | `SourceOrderDeclaration` | `test_same_rank_keeps_registration_order` | 覆盖「注入源的组装顺序：插件段按**插件清单位次**排，注册先后不影响结果」：same rank keeps registration order |
-| 145 | `StripRules` | `test_empty` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty |
-| 146 | `StripRules` | `test_empty_mode_note_and_no_marker` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty mode note and no marker |
-| 147 | `StripRules` | `test_kb_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：kb never stripped |
-| 148 | `StripRules` | `test_mode_in_the_middle_untouched` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode in the middle untouched |
-| 149 | `StripRules` | `test_mode_removed_by_exact_text` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by exact text |
-| 150 | `StripRules` | `test_mode_removed_by_marker_fallback` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by marker fallback |
-| 151 | `StripRules` | `test_new_input_removed_before_mode` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed before mode |
-| 152 | `StripRules` | `test_new_input_removed_when_last` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed when last |
-| 153 | `StripRules` | `test_non_dict_entry` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：non dict entry |
-| 154 | `StripRules` | `test_only_last_user_removed` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：only last user removed |
-| 155 | `StripRules` | `test_previous_reply_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：previous reply is kept |
-| 156 | `StripRules` | `test_summary_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：summary never stripped |
-| 157 | `StripRules` | `test_system_prompt_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：system prompt never stripped |
-| 158 | `StripRules` | `test_tool_result_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：tool result is kept |
-| 159 | `StripRules` | `test_two_trailing_systems_both_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：two trailing systems both stripped |
-| 160 | `TailShape` | `test_mode_is_last` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is last |
-| 161 | `TailShape` | `test_mode_is_system_role` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is system role |
-| 162 | `TailShape` | `test_mode_swap_changes_only_the_last_entry` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode swap changes only the last entry |
-| 163 | `TailShape` | `test_mode_text_is_exact` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode text is exact |
-| 164 | `TailShape` | `test_neither` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：neither |
-| 165 | `TailShape` | `test_new_input_is_user_role` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：new input is user role |
-| 166 | `TailShape` | `test_no_mode_means_input_is_last` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：no mode means input is last |
-| 167 | `TailShape` | `test_no_new_input_means_mode_follows_dialogue` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：no new input means mode follows dialogue |
-| 168 | `TailShape` | `test_plan_mode_text_is_exact` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：plan mode text is exact |
-| 169 | `TailShape` | `test_tool_result_tail` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：tool result tail |
-| 170 | `TurnAtomicity` | `test_floor_before_first_user` | 覆盖「轮边界的定位与向下取整」：floor before first user |
-| 171 | `TurnAtomicity` | `test_floor_beyond_end` | 覆盖「轮边界的定位与向下取整」：floor beyond end |
-| 172 | `TurnAtomicity` | `test_floor_inside_turn_goes_back` | 覆盖「轮边界的定位与向下取整」：floor inside turn goes back |
-| 173 | `TurnAtomicity` | `test_floor_on_boundary_is_identity` | 覆盖「轮边界的定位与向下取整」：floor on boundary is identity |
-| 174 | `TurnAtomicity` | `test_is_boundary` | 覆盖「轮边界的定位与向下取整」：is boundary |
-| 175 | `TurnAtomicity` | `test_tool_chain_balanced_missing_result` | 覆盖「轮边界的定位与向下取整」：tool chain balanced missing result |
-| 176 | `TurnAtomicity` | `test_tool_chain_balanced_ok` | 覆盖「轮边界的定位与向下取整」：tool chain balanced ok |
-| 177 | `TurnAtomicity` | `test_tool_chain_balanced_orphan_result` | 覆盖「轮边界的定位与向下取整」：tool chain balanced orphan result |
-| 178 | `TurnAtomicity` | `test_turn_spans` | 覆盖「轮边界的定位与向下取整」：turn spans |
-| 179 | `TurnAtomicity` | `test_turn_starts` | 覆盖「轮边界的定位与向下取整」：turn starts |
+| 99 | `PluginSegmentsImmutableTest` | `test_assignment_is_rejected` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：assignment is rejected |
+| 100 | `PluginSegmentsImmutableTest` | `test_containers_are_tuples` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：containers are tuples |
+| 101 | `PluginSegmentsImmutableTest` | `test_source_lists_are_copied` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：source lists are copied |
+| 102 | `PluginSegmentsImmutableTest` | `test_tuple_containers_reject_mutation` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：tuple containers reject mutation |
+| 103 | `PluginSegmentsImmutableTest` | `test_wrong_arity_is_rejected_loudly` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：wrong arity is rejected loudly |
+| 104 | `RandomShapeInvariants` | `test_compaction_range_never_splits_a_turn` | ① 压缩区间首尾都必须落在用户轮边界上。 |
+| 105 | `RandomShapeInvariants` | `test_compaction_range_tool_chain_always_closed` | ② 压缩区间内的工具链必须闭合（否则切出残链）。 |
+| 106 | `ReasoningReplayBudgetTest` | `test_config_default_matches_constant` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：config default matches constant |
+| 107 | `ReasoningReplayBudgetTest` | `test_dialogue_segment_uses_the_budget` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：dialogue segment uses the budget |
+| 108 | `ReasoningReplayBudgetTest` | `test_messages_clip_does_not_mutate_input` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：messages clip does not mutate input |
+| 109 | `ReasoningReplayBudgetTest` | `test_negative_keeps_everything` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：negative keeps everything |
+| 110 | `ReasoningReplayBudgetTest` | `test_positive_keeps_both_ends_and_marks_the_gap` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：positive keeps both ends and marks the gap |
+| 111 | `ReasoningReplayBudgetTest` | `test_short_text_untouched` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：short text untouched |
+| 112 | `ReasoningReplayBudgetTest` | `test_zero_drops_everything` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：zero drops everything |
+| 113 | `RemainingCapacityTest` | `test_budget_zero_would_make_remaining_zero` | 不传预算（= 老装配点的行为）剩余容量就是 0 —— 这条守着别再退回去。 |
+| 114 | `RemainingCapacityTest` | `test_old_snapshot_is_rescaled_on_read` | 事件里那份 `budget=已用` 的旧快照，渲染时按当前预算补正。 |
+| 115 | `RemainingCapacityTest` | `test_rescale_falls_back_when_budget_unknown` | 拿不到预算时按"已用"归一（不再更差），段序与字段不变。 |
+| 116 | `RemainingCapacityTest` | `test_snapshot_carries_the_budget` | 覆盖「「剩余容量」按压缩阈值算，不是按"已用"算 —— 否则界面那条永远是 0%」：snapshot carries the budget |
+| 117 | `SegmentCountSemantics` | `test_dialogue_counts_user_turns_not_messages` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：dialogue counts user turns not messages |
+| 118 | `SegmentCountSemantics` | `test_layout_from_messages_counts_turns_too` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：layout from messages counts turns too |
+| 119 | `SegmentCountSemantics` | `test_system_prompt_counts_messages` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：system prompt counts messages |
+| 120 | `SegmentFieldParity` | `test_both_paths_expose_the_same_fields` | 覆盖「分段快照（内核事件）与兜底重算（适配层）必须给同一套字段」：both paths expose the same fields |
+| 121 | `SegmentFieldParity` | `test_layout_event_forwards_every_field` | 适配层转发分段事件时不筛字段（白名单漏一个 = 前端少一样东西）。 |
+| 122 | `SegmentKeysAndCounts` | `test_keys_and_labels` | 覆盖「段 key 与数量口径：插件段一律 `plugin:<插件名>`」：keys and labels |
+| 123 | `SegmentKeysAndCounts` | `test_plugin_may_declare_more_than_one_segment` | 同一插件两段：数量按位置对上，不会互相覆盖。 |
+| 124 | `SegmentOrderMatchesAssembly` | `test_header_order_is_system_plugins_summary` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：header order is system plugins summary |
+| 125 | `SegmentOrderMatchesAssembly` | `test_layout_payload_keeps_the_same_order` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：layout payload keeps the same order |
+| 126 | `SegmentOrderMatchesAssembly` | `test_segment_order_matches_header_order` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：segment order matches header order |
+| 127 | `SegmentOrderMatchesAssembly` | `test_summary_sits_before_dialogue` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：summary sits before dialogue |
+| 128 | `SegmentTokens` | `test_dialogue_split_into_two_segments` | 覆盖「逐段统计与段名」：dialogue split into two segments |
+| 129 | `SegmentTokens` | `test_segments_sum_equals_assembled_total` | 关键一致性：分段之和 == 装配出来的消息总量（同估算器）。 |
+| 130 | `SegmentTokens` | `test_summary_segment_counts_both_summaries` | 覆盖「逐段统计与段名」：summary segment counts both summaries |
+| 131 | `SegmentTokens` | `test_system_segment_matches_its_message` | 覆盖「逐段统计与段名」：system segment matches its message |
+| 132 | `SkillInjectionIntoRequest` | `test_empty_segments_leave_head_empty` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：empty segments leave head empty |
+| 133 | `SkillInjectionIntoRequest` | `test_plugin_segments_are_not_duplicated_across_passes` | `set_plugin_segments` 是整体重建：多跑几趟不会累积。 |
+| 134 | `SkillInjectionIntoRequest` | `test_plugin_segments_sit_after_system_prompt` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：plugin segments sit after system prompt |
+| 135 | `SkillInjectionIntoRequest` | `test_plugin_segments_used_by_compaction_request` | 插件段落属头部：压缩请求必须带上同一份。 |
+| 136 | `SkillInjectionIntoRequest` | `test_segment_stats_follow_the_plugin` | 分段统计里两段都挂在插件名下，段名与数量由插件给。 |
+| 137 | `SkillInjectionIntoRequest` | `test_summary_sits_after_plugin_segments` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：summary sits after plugin segments |
+| 138 | `SkillProgressiveDisclosure` | `test_auto_load_empty_when_no_auto_load_dir` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load empty when no auto load dir |
+| 139 | `SkillProgressiveDisclosure` | `test_auto_load_excludes_normal_skills` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load excludes normal skills |
+| 140 | `SkillProgressiveDisclosure` | `test_auto_load_messages_carry_bodies` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load messages carry bodies |
+| 141 | `SkillProgressiveDisclosure` | `test_registry_excludes_auto_load_skill` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry excludes auto load skill |
+| 142 | `SkillProgressiveDisclosure` | `test_registry_excludes_skill_bodies` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry excludes skill bodies |
+| 143 | `SkillProgressiveDisclosure` | `test_registry_is_absent_when_no_skills` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry is absent when no skills |
+| 144 | `SkillProgressiveDisclosure` | `test_registry_lists_names_and_descriptions` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry lists names and descriptions |
+| 145 | `SkillProgressiveDisclosure` | `test_skill_manager_lists_normal_skills_only` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：skill manager lists normal skills only |
+| 146 | `SourceOrderDeclaration` | `test_kernel_pipeline_follows_the_same_order` | 真管线：Skills 两段 → 知识库 → 摘要 → 对话。 |
+| 147 | `SourceOrderDeclaration` | `test_no_rank_sorts_last` | 没有位次的（应用级来源，不属于任何插件）排在插件段之后。 |
+| 148 | `SourceOrderDeclaration` | `test_rank_beats_registration` | 先注册知识库（位次 1）、后注册 Skills（位次 0），组装仍是 Skills 在前。 |
+| 149 | `SourceOrderDeclaration` | `test_same_rank_keeps_registration_order` | 覆盖「注入源的组装顺序：插件段按**插件清单位次**排，注册先后不影响结果」：same rank keeps registration order |
+| 150 | `StripRules` | `test_empty` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty |
+| 151 | `StripRules` | `test_empty_mode_note_and_no_marker` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty mode note and no marker |
+| 152 | `StripRules` | `test_kb_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：kb never stripped |
+| 153 | `StripRules` | `test_mode_in_the_middle_untouched` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode in the middle untouched |
+| 154 | `StripRules` | `test_mode_removed_by_exact_text` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by exact text |
+| 155 | `StripRules` | `test_mode_removed_by_marker_fallback` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by marker fallback |
+| 156 | `StripRules` | `test_new_input_removed_before_mode` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed before mode |
+| 157 | `StripRules` | `test_new_input_removed_when_last` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed when last |
+| 158 | `StripRules` | `test_non_dict_entry` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：non dict entry |
+| 159 | `StripRules` | `test_only_last_user_removed` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：only last user removed |
+| 160 | `StripRules` | `test_previous_reply_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：previous reply is kept |
+| 161 | `StripRules` | `test_summary_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：summary never stripped |
+| 162 | `StripRules` | `test_system_prompt_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：system prompt never stripped |
+| 163 | `StripRules` | `test_tool_result_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：tool result is kept |
+| 164 | `StripRules` | `test_two_trailing_systems_both_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：two trailing systems both stripped |
+| 165 | `TailShape` | `test_mode_is_last` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is last |
+| 166 | `TailShape` | `test_mode_is_system_role` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is system role |
+| 167 | `TailShape` | `test_mode_swap_changes_only_the_last_entry` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode swap changes only the last entry |
+| 168 | `TailShape` | `test_mode_text_is_exact` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode text is exact |
+| 169 | `TailShape` | `test_neither` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：neither |
+| 170 | `TailShape` | `test_new_input_is_user_role` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：new input is user role |
+| 171 | `TailShape` | `test_no_mode_means_input_is_last` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：no mode means input is last |
+| 172 | `TailShape` | `test_no_new_input_means_mode_follows_dialogue` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：no new input means mode follows dialogue |
+| 173 | `TailShape` | `test_plan_mode_text_is_exact` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：plan mode text is exact |
+| 174 | `TailShape` | `test_tool_result_tail` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：tool result tail |
+| 175 | `TurnAtomicity` | `test_floor_before_first_user` | 覆盖「轮边界的定位与向下取整」：floor before first user |
+| 176 | `TurnAtomicity` | `test_floor_beyond_end` | 覆盖「轮边界的定位与向下取整」：floor beyond end |
+| 177 | `TurnAtomicity` | `test_floor_inside_turn_goes_back` | 覆盖「轮边界的定位与向下取整」：floor inside turn goes back |
+| 178 | `TurnAtomicity` | `test_floor_on_boundary_is_identity` | 覆盖「轮边界的定位与向下取整」：floor on boundary is identity |
+| 179 | `TurnAtomicity` | `test_is_boundary` | 覆盖「轮边界的定位与向下取整」：is boundary |
+| 180 | `TurnAtomicity` | `test_tool_chain_balanced_missing_result` | 覆盖「轮边界的定位与向下取整」：tool chain balanced missing result |
+| 181 | `TurnAtomicity` | `test_tool_chain_balanced_ok` | 覆盖「轮边界的定位与向下取整」：tool chain balanced ok |
+| 182 | `TurnAtomicity` | `test_tool_chain_balanced_orphan_result` | 覆盖「轮边界的定位与向下取整」：tool chain balanced orphan result |
+| 183 | `TurnAtomicity` | `test_turn_spans` | 覆盖「轮边界的定位与向下取整」：turn spans |
+| 184 | `TurnAtomicity` | `test_turn_starts` | 覆盖「轮边界的定位与向下取整」：turn starts |
 
 ## test_context_config_wiring.py
 
@@ -660,6 +706,26 @@
 |---:|---|---|---|
 | 1 | `EditedFilesPageTest` | `test_list_is_assembled_on_the_live_stream_only` | 覆盖「A class whose instances are single test cases」：list is assembled on the live stream only |
 
+## test_entry_layer.py
+
+共 13 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `BuildShellAppTest` | `test_default_data_root_is_used_when_omitted` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：default data root is used when omitted |
+| 2 | `BuildShellAppTest` | `test_given_provider_and_store_are_used` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：given provider and store are used |
+| 3 | `BuildShellAppTest` | `test_missing_config_raises_with_actionable_message` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：missing config raises with actionable message |
+| 4 | `BuildShellAppTest` | `test_provider_is_built_from_config` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：provider is built from config |
+| 5 | `CliEntryTest` | `test_builds_app_with_provider_from_config` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：builds app with provider from config |
+| 6 | `CliEntryTest` | `test_main_delegates_to_chat_main` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：main delegates to chat main |
+| 7 | `CliEntryTest` | `test_missing_config_returns_none` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：missing config returns none |
+| 8 | `HeadlessEntryTest` | `test_main_defaults_to_smoke_text` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main defaults to smoke text |
+| 9 | `HeadlessEntryTest` | `test_main_passes_first_argument_and_uses_factory` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main passes first argument and uses factory |
+| 10 | `HeadlessEntryTest` | `test_run_prints_one_line_per_event` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run prints one line per event |
+| 11 | `WebMainTest` | `test_args_are_forwarded_to_shell_serve` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；配置缺失返回 2」：args are forwarded to shell serve |
+| 12 | `WebMainTest` | `test_config_missing_returns_2` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；配置缺失返回 2」：config missing returns 2 |
+| 13 | `WebMainTest` | `test_empty_fs_root_passes_none` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；配置缺失返回 2」：empty fs root passes none |
+
 ## test_error_log.py
 
 共 8 个用例。
@@ -771,6 +837,66 @@
 | 5 | `SseFrameContractTest` | `test_frames_are_single_line_json` | 一帧一行 JSON（SSE 的 `data:` 行按行发，不能含裸换行）。 |
 | 6 | `SseFrameContractTest` | `test_seq_never_leaks_into_frame_payloads` | 内核坐标只用于 SSE 的 `id:` 行，不能留在帧载荷里。 |
 
+## test_gate_negative.py
+
+共 53 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `AcceptanceSkipGateTest` | `test_duplicates_do_not_count_twice` | 覆盖「验收 skip：预算上限与白名单都必须能触发」：duplicates do not count twice |
+| 2 | `AcceptanceSkipGateTest` | `test_non_whitelisted_fails` | 覆盖「验收 skip：预算上限与白名单都必须能触发」：non whitelisted fails |
+| 3 | `AcceptanceSkipGateTest` | `test_over_budget_fails` | 覆盖「验收 skip：预算上限与白名单都必须能触发」：over budget fails |
+| 4 | `AcceptanceSkipGateTest` | `test_whitelisted_within_budget_passes` | 覆盖「验收 skip：预算上限与白名单都必须能触发」：whitelisted within budget passes |
+| 5 | `ApplicabilityGateTest` | `test_short_reason_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则」：short reason fails |
+| 6 | `ApplicabilityGateTest` | `test_unknown_rule_id_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则」：unknown rule id fails |
+| 7 | `ApplicabilityGateTest` | `test_well_formed_row_passes` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则」：well formed row passes |
+| 8 | `ArchitectureHygieneGateTest` | `test_cross_layer_private_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：cross layer private import fails |
+| 9 | `ArchitectureHygieneGateTest` | `test_plugin_name_in_core_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：plugin name in core fails |
+| 10 | `ArchitectureHygieneGateTest` | `test_quality_gate_real_module_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate real module passes |
+| 11 | `ArchitectureHygieneGateTest` | `test_quality_gate_shim_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate shim import fails |
+| 12 | `ArchitectureHygieneGateTest` | `test_same_layer_private_import_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：same layer private import passes |
+| 13 | `CommentStyleGateTest` | `test_clean_comment_passes` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：clean comment passes |
+| 14 | `CommentStyleGateTest` | `test_command_to_reader_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：command to reader fails |
+| 15 | `CommentStyleGateTest` | `test_string_literal_is_not_comment` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：string literal is not comment |
+| 16 | `CommentStyleGateTest` | `test_todo_comment_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：todo comment fails |
+| 17 | `ComplexityGateTest` | `test_registered_big_file_only_reports_doc_drift` | 覆盖「复杂度：未登记的超阈值文件必须失败」：registered big file only reports doc drift |
+| 18 | `ComplexityGateTest` | `test_unregistered_big_file_fails` | 覆盖「复杂度：未登记的超阈值文件必须失败」：unregistered big file fails |
+| 19 | `ConfigDriftGateTest` | `test_real_file_extra_key_reports_line_number` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：real file extra key reports line number |
+| 20 | `ConfigDriftGateTest` | `test_template_extra_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template extra key fails |
+| 21 | `ConfigDriftGateTest` | `test_template_missing_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template missing key fails |
+| 22 | `ConfigDriftGateTest` | `test_valid_pair_passes` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：valid pair passes |
+| 23 | `ConfirmWordingGateTest` | `test_compliant_wording_passes` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：compliant wording passes |
+| 24 | `ConfirmWordingGateTest` | `test_explanatory_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：explanatory wording fails |
+| 25 | `ConfirmWordingGateTest` | `test_gate_without_next_step_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：gate without next step fails |
+| 26 | `ConfirmWordingGateTest` | `test_missing_unlock_tool_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：missing unlock tool fails |
+| 27 | `ConfirmWordingGateTest` | `test_vague_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：vague wording fails |
+| 28 | `CoverageGateTest` | `test_at_or_above_floor_passes` | 覆盖「覆盖率：低于下限、缺数据都要失败」：at or above floor passes |
+| 29 | `CoverageGateTest` | `test_below_floor_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：below floor fails |
+| 30 | `CoverageGateTest` | `test_missing_group_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：missing group fails |
+| 31 | `GeneratedArtifactDriftTest` | `test_ci_workflow_byte_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow byte drift fails |
+| 32 | `GeneratedArtifactDriftTest` | `test_ci_workflow_current_is_clean` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow current is clean |
+| 33 | `GeneratedArtifactDriftTest` | `test_render_contains_every_gate_and_acceptance` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：render contains every gate and acceptance |
+| 34 | `GeneratedArtifactDriftTest` | `test_unit_tests_md_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：unit tests md drift fails |
+| 35 | `ImportDirectionGateTest` | `test_composition_root_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：composition root import fails |
+| 36 | `ImportDirectionGateTest` | `test_downward_import_passes` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：downward import passes |
+| 37 | `ImportDirectionGateTest` | `test_type_checking_annotation_is_allowed` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：type checking annotation is allowed |
+| 38 | `ImportDirectionGateTest` | `test_upward_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：upward import fails |
+| 39 | `PythonFloorGateTest` | `test_ordinary_function_passes` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：ordinary function passes |
+| 40 | `PythonFloorGateTest` | `test_pep695_generic_fails` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：pep695 generic fails |
+| 41 | `ReadmeGateTest` | `test_acceptance_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：acceptance count drift fails |
+| 42 | `ReadmeGateTest` | `test_consistent_readme_passes` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：consistent readme passes |
+| 43 | `ReadmeGateTest` | `test_gate_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：gate count drift fails |
+| 44 | `ReadmeGateTest` | `test_missing_marker_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：missing marker fails |
+| 45 | `ReadmeGateTest` | `test_step_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：step count drift fails |
+| 46 | `ReadmeGateTest` | `test_test_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：test count drift fails |
+| 47 | `ReadmeGateTest` | `test_unknown_data_dir_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：unknown data dir fails |
+| 48 | `SilentExceptGateTest` | `test_bare_pass_is_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：bare pass is silent |
+| 49 | `SilentExceptGateTest` | `test_budget_at_limit_passes` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget at limit passes |
+| 50 | `SilentExceptGateTest` | `test_budget_overflow_fails` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget overflow fails |
+| 51 | `SilentExceptGateTest` | `test_explicit_logging_is_not_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：explicit logging is not silent |
+| 52 | `UiJsGateTest` | `test_defined_helper_passes` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：defined helper passes |
+| 53 | `UiJsGateTest` | `test_undefined_helper_call_fails` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：undefined helper call fails |
+
 ## test_goal_runner.py
 
 共 6 个用例。
@@ -860,6 +986,18 @@
 | 21 | `StripByTurnTest` | `test_text_only_messages_are_untouched` | 覆盖「按轮保留，不是按张」：text only messages are untouched |
 | 22 | `StripByTurnTest` | `test_within_limit_is_untouched` | 覆盖「按轮保留，不是按张」：within limit is untouched |
 | 23 | `StripByTurnTest` | `test_zero_turns_drops_every_image` | 覆盖「按轮保留，不是按张」：zero turns drops every image |
+
+## test_import_graph.py
+
+共 5 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `DependencyGraphTest` | `test_entry_is_the_top_layer` | 覆盖「当前仓库必须零违规、零强连通分量」：entry is the top layer |
+| 2 | `DependencyGraphTest` | `test_entry_may_import_the_composition_root` | 入口层是唯一允许导入装配根的地方（这正是它存在的理由）。 |
+| 3 | `DependencyGraphTest` | `test_no_cycles` | 覆盖「当前仓库必须零违规、零强连通分量」：no cycles |
+| 4 | `DependencyGraphTest` | `test_no_direction_violations` | 覆盖「当前仓库必须零违规、零强连通分量」：no direction violations |
+| 5 | `DependencyGraphTest` | `test_shell_does_not_import_the_composition_root` | 运行期导入壳层不应把装配根拉进 `sys.modules`。 |
 
 ## test_invest_tools.py
 
@@ -978,7 +1116,7 @@
 
 ## test_model_provider.py
 
-共 23 个用例。
+共 24 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1004,7 +1142,8 @@
 | 20 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：model module marks turn start |
 | 21 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：port default keeps everything |
 | 22 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
-| 23 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
+| 23 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
+| 24 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
 
 ## test_plugin_contributions.py
 
@@ -1070,31 +1209,33 @@
 
 ## test_plugins.py
 
-共 21 个用例。
+共 23 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `AppWiringTest` | `test_build_app_empty_whitelist_noop` | 覆盖「A class whose instances are single test cases」：build app empty whitelist noop |
 | 2 | `AppWiringTest` | `test_build_app_loads_whitelisted_plugin` | 覆盖「A class whose instances are single test cases」：build app loads whitelisted plugin |
 | 3 | `ConfigParseTest` | `test_get_plugins_parse` | 清单解析只做解析：`[plugin:<名字>]` 节，节里没有字段也合法。 |
-| 4 | `ConfigParseTest` | `test_load_manifest_resolves_paths_and_reports_errors` | 装载方把 `path` 落到自己的插件根，并把配置错误变成报告。 |
-| 5 | `PluginGateTest` | `test_gate_rollback_on_register_error` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：gate rollback on register error |
-| 6 | `PluginGateTest` | `test_missing_pipeline_guards_and_post_observer` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：missing pipeline guards and post observer |
-| 7 | `PluginGateTest` | `test_pre_gate_blocks_then_unload_releases` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：pre gate blocks then unload releases |
-| 8 | `PluginHostTest` | `test_broken_import_isolated` | 覆盖「加载器行为（临时目录造插件）」：broken import isolated |
-| 9 | `PluginHostTest` | `test_discover_filters` | 覆盖「加载器行为（临时目录造插件）」：discover filters |
-| 10 | `PluginHostTest` | `test_discover_missing_dir` | 覆盖「加载器行为（临时目录造插件）」：discover missing dir |
-| 11 | `PluginHostTest` | `test_load_enabled_filters_by_whitelist` | 覆盖「加载器行为（临时目录造插件）」：load enabled filters by whitelist |
-| 12 | `PluginHostTest` | `test_missing_register_reports_error` | 覆盖「加载器行为（临时目录造插件）」：missing register reports error |
-| 13 | `PluginHostTest` | `test_module_namespace_and_unload` | 覆盖「加载器行为（临时目录造插件）」：module namespace and unload |
-| 14 | `PluginHostTest` | `test_plugin_tool_runs_via_pipeline` | 覆盖「加载器行为（临时目录造插件）」：plugin tool runs via pipeline |
-| 15 | `PluginHostTest` | `test_register_raises_rolls_back` | 覆盖「加载器行为（临时目录造插件）」：register raises rolls back |
-| 16 | `PluginHostTest` | `test_register_via_ctx_returns_none` | 覆盖「加载器行为（临时目录造插件）」：register via ctx returns none |
-| 17 | `PluginHostTest` | `test_reload_skips_loaded` | 覆盖「加载器行为（临时目录造插件）」：reload skips loaded |
-| 18 | `PluginHostTest` | `test_reports_accumulate` | 覆盖「加载器行为（临时目录造插件）」：reports accumulate |
-| 19 | `PluginHostTest` | `test_returned_disposer_list_reverse_order` | 覆盖「加载器行为（临时目录造插件）」：returned disposer list reverse order |
-| 20 | `PluginHostTest` | `test_unknown_name_reports_error` | 覆盖「加载器行为（临时目录造插件）」：unknown name reports error |
-| 21 | `PluginHostTest` | `test_unload_all_idempotent` | 覆盖「加载器行为（临时目录造插件）」：unload all idempotent |
+| 4 | `ConfigParseTest` | `test_load_logs_source_integrity` | 装载时 stderr 须留下入口文件来源与完整性摘要。 |
+| 5 | `ConfigParseTest` | `test_load_manifest_resolves_paths_and_reports_errors` | 装载方把 `path` 落到自己的插件根，并把配置错误变成报告。 |
+| 6 | `ConfigParseTest` | `test_tree_only_rejects_external_path` | plugin_tree_only 打开时，清单里的树外 path 不得装载。 |
+| 7 | `PluginGateTest` | `test_gate_rollback_on_register_error` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：gate rollback on register error |
+| 8 | `PluginGateTest` | `test_missing_pipeline_guards_and_post_observer` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：missing pipeline guards and post observer |
+| 9 | `PluginGateTest` | `test_pre_gate_blocks_then_unload_releases` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：pre gate blocks then unload releases |
+| 10 | `PluginHostTest` | `test_broken_import_isolated` | 覆盖「加载器行为（临时目录造插件）」：broken import isolated |
+| 11 | `PluginHostTest` | `test_discover_filters` | 覆盖「加载器行为（临时目录造插件）」：discover filters |
+| 12 | `PluginHostTest` | `test_discover_missing_dir` | 覆盖「加载器行为（临时目录造插件）」：discover missing dir |
+| 13 | `PluginHostTest` | `test_load_enabled_filters_by_whitelist` | 覆盖「加载器行为（临时目录造插件）」：load enabled filters by whitelist |
+| 14 | `PluginHostTest` | `test_missing_register_reports_error` | 覆盖「加载器行为（临时目录造插件）」：missing register reports error |
+| 15 | `PluginHostTest` | `test_module_namespace_and_unload` | 覆盖「加载器行为（临时目录造插件）」：module namespace and unload |
+| 16 | `PluginHostTest` | `test_plugin_tool_runs_via_pipeline` | 覆盖「加载器行为（临时目录造插件）」：plugin tool runs via pipeline |
+| 17 | `PluginHostTest` | `test_register_raises_rolls_back` | 覆盖「加载器行为（临时目录造插件）」：register raises rolls back |
+| 18 | `PluginHostTest` | `test_register_via_ctx_returns_none` | 覆盖「加载器行为（临时目录造插件）」：register via ctx returns none |
+| 19 | `PluginHostTest` | `test_reload_skips_loaded` | 覆盖「加载器行为（临时目录造插件）」：reload skips loaded |
+| 20 | `PluginHostTest` | `test_reports_accumulate` | 覆盖「加载器行为（临时目录造插件）」：reports accumulate |
+| 21 | `PluginHostTest` | `test_returned_disposer_list_reverse_order` | 覆盖「加载器行为（临时目录造插件）」：returned disposer list reverse order |
+| 22 | `PluginHostTest` | `test_unknown_name_reports_error` | 覆盖「加载器行为（临时目录造插件）」：unknown name reports error |
+| 23 | `PluginHostTest` | `test_unload_all_idempotent` | 覆盖「加载器行为（临时目录造插件）」：unload all idempotent |
 
 ## test_protocol_contract.py
 
@@ -1585,10 +1726,10 @@
 | 3 | `WritePathToolsTest` | `test_backup_records_what_the_write_changed` | 写盘触发的备份要记下「这一版改了什么」。 |
 | 4 | `WritePathToolsTest` | `test_cross_file_review_block` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：cross file review block |
 | 5 | `WritePathToolsTest` | `test_delete_file_dir_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：delete file dir rejected |
-| 6 | `WritePathToolsTest` | `test_delete_file_missing_is_already_absent` | 路径已不在 → already_absent（与真删 already_applied 区分）。 |
+| 6 | `WritePathToolsTest` | `test_delete_file_missing_is_already_absent` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：delete file missing is already absent |
 | 7 | `WritePathToolsTest` | `test_delete_file_to_recycle` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：delete file to recycle |
 | 8 | `WritePathToolsTest` | `test_file_ops_copy_and_overwrite_refused` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：file ops copy and overwrite refused |
-| 9 | `WritePathToolsTest` | `test_file_ops_source_missing_is_not_already_applied` | copy/move/rename 源不在 → source_missing（ok=false），不得因目标已在改判。 |
+| 9 | `WritePathToolsTest` | `test_file_ops_source_missing_is_not_already_applied` | copy/move/rename：源不在一律 source_missing（ok=false），不得因目标已在改判。 |
 | 10 | `WritePathToolsTest` | `test_file_undo_requires_path` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：file undo requires path |
 | 11 | `WritePathToolsTest` | `test_file_undo_restore_and_list` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：file undo restore and list |
 | 12 | `WritePathToolsTest` | `test_patch_commit_applies` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch commit applies |
@@ -1601,7 +1742,7 @@
 | 19 | `WritePathToolsTest` | `test_replace_commit_applies` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace commit applies |
 | 20 | `WritePathToolsTest` | `test_replace_expected_mismatch_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace expected mismatch rejected |
 | 21 | `WritePathToolsTest` | `test_replace_line_mode` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace line mode |
-| 22 | `WritePathToolsTest` | `test_replace_old_absent_never_already_applied` | old 未命中一律 old_text_not_found，不得因 new 已在改判。 |
+| 22 | `WritePathToolsTest` | `test_replace_old_absent_never_already_applied` | old 字面未命中一律 old_text_not_found；不得因 new 已在或删除语义改判。 |
 | 23 | `WritePathToolsTest` | `test_replace_old_text_not_found` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace old text not found |
 | 24 | `WritePathToolsTest` | `test_replace_preview_no_write` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace preview no write |
 | 25 | `WritePathToolsTest` | `test_replace_same_text_already_applied` | 同值替换不得发空 diff 的 confirm_id。 |
@@ -1609,5 +1750,5 @@
 | 27 | `WritePathToolsTest` | `test_reread_block_before_second_write` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：reread block before second write |
 | 28 | `WritePathToolsTest` | `test_undo_backup_records_what_the_rollback_undid` | 回滚前的留档也要记 diff —— 否则"回滚"这一动作本身无迹可查。 |
 | 29 | `WritePathToolsTest` | `test_write_file_same_content_already_applied` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：write file same content already applied |
-| 30 | `WritePathToolsTest` | `test_write_file_trailing_newline_only_shows_diff` | 仅差结尾换行时预览不得空 diff（`splitlines` 曾吃掉换行）。 |
+| 30 | `WritePathToolsTest` | `test_write_file_trailing_newline_only_shows_diff` | 仅差结尾换行时预览不得空 diff（splitlines 曾吃掉 \n）。 |
 

@@ -45,6 +45,9 @@ MUST_NAME_REVIEW = {
     REVIEW: "review_conclusion 的工具描述",
 }
 
+#: 门控拒绝文案的固定标签（`check_texts` 与 `check` 共用）
+GATE_LABEL = "checks.py 的拒绝文案"
+
 #: 「只说确认、不说哪种」的含糊写法（出现在写盘链路文案里即判不合格）
 VAGUE = (
     "请先完成确认",          # 只说"确认"不说哪种的典型含糊写法
@@ -61,15 +64,15 @@ def _read(p: Path) -> str:
         return ""
 
 
-def check() -> list[str]:
-    """返回问题列表（空 = 无歧义）。"""
+def check_texts(texts: dict[str, str]) -> list[str]:
+    """核对给定文案；`texts` 的键是固定标签，值为文件全文。空 = 无歧义。"""
     problems: list[str] = []
 
     # ── ① 写盘链路必须点明 review_conclusion ──
-    for path, label in MUST_NAME_REVIEW.items():
-        text = _read(path)
+    for label in MUST_NAME_REVIEW.values():
+        text = texts.get(label, "")
         if not text:
-            problems.append(f"{label}：文件读不到（{path.relative_to(ROOT)}）")
+            problems.append(f"{label}：文件读不到")
             continue
         if "review_conclusion" not in text:
             problems.append(
@@ -78,7 +81,7 @@ def check() -> list[str]:
             )
 
     # ── ② 门控拒绝文案：给**可执行的下一步**（工具 + 参数）──
-    gate = _read(GATE)
+    gate = texts.get(GATE_LABEL, "")
     m = re.search(r'if not rec\.get\("confirmed"\):(.*?)\n    args = ', gate, re.S)
     block = m.group(1) if m else ""
     if "review_conclusion" not in block:
@@ -92,8 +95,8 @@ def check() -> list[str]:
         )
 
     # ── ③ 写盘链路里不得出现含糊写法 ──
-    for path, label in MUST_NAME_REVIEW.items():
-        text = _read(path)
+    for label in MUST_NAME_REVIEW.values():
+        text = texts.get(label, "")
         for vague in VAGUE:
             if vague in text:
                 ln = text[: text.find(vague)].count("\n") + 1
@@ -112,10 +115,8 @@ def check() -> list[str]:
         "这是写盘链路里",
         "同名不同物",
     )
-    targets = dict(MUST_NAME_REVIEW)
-    targets[GATE] = "checks.py 的拒绝文案"
-    for path, label in targets.items():
-        text = _read(path)
+    for label in (*MUST_NAME_REVIEW.values(), GATE_LABEL):
+        text = texts.get(label, "")
         for phrase in EXPLANATORY:
             if phrase in text:
                 ln = text[: text.find(phrase)].count("\n") + 1
@@ -124,6 +125,13 @@ def check() -> list[str]:
                     "指引只写下一步做什么，不要写解释"
                 )
     return problems
+
+
+def check() -> list[str]:
+    """读真实文件后交给 `check_texts`。"""
+    texts = {label: _read(path) for path, label in MUST_NAME_REVIEW.items()}
+    texts[GATE_LABEL] = _read(GATE)
+    return check_texts(texts)
 
 
 def main() -> int:

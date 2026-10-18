@@ -447,7 +447,7 @@ class PluginSourceContractTest(unittest.TestCase):
         self.assertEqual([t for _, _, t in sources.collect_segments("c1").items], ["文本"])
         self.assertEqual(seen, ["c1"])
         disposer()
-        self.assertEqual(sources.collect_segments("c1").items, [])
+        self.assertEqual(sources.collect_segments("c1").items, ())
 
     def test_segments_carry_their_own_name_and_prefix(self) -> None:
         """段名与注入前缀由来源声明：内核不解释正文是什么。"""
@@ -469,7 +469,7 @@ class PluginSourceContractTest(unittest.TestCase):
                                                    count=lambda cid: 1))
         seg = sources.collect_segments("c1")
         self.assertEqual([lb for _k, lb, _t in seg.items], ["Skills", "常驻 Skills"])
-        self.assertEqual(seg.counts, [31, 1])
+        self.assertEqual(seg.counts, (31, 1))
 
 
 class PluginConfigIsolationTest(unittest.TestCase):

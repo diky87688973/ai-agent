@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import copy
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from agent.core.error_report import report_error
@@ -544,8 +544,26 @@ class PluginSegments:
     `counts` 是**按位置**对应的主体数量（同一个插件可以声明多段，按 key 存会互相覆盖）；
     """
 
-    items: List[Tuple[str, str, str]] = field(default_factory=list)
-    counts: List[int] = field(default_factory=list)
+    items: Tuple[Tuple[str, str, str], ...] = ()
+    counts: Tuple[int, ...] = ()
+
+    def __post_init__(self) -> None:
+        """入口即冻结：调用方传 list 也落成 tuple（B1）。
+
+        冻结对象却留着可变容器，等于只锁了门框：外部改一下原列表，
+        装配顺序与数量就跟着变。这里逐项复制成元组，之后任何人都改不到。
+        正文元素保持原样（可能已经是 `list[str]`，由装配侧再展开）。
+        """
+        frozen: List[Tuple[str, str, str]] = []
+        for item in self.items:
+            parts = tuple(item)
+            if len(parts) != 3:
+                raise ValueError(
+                    f"PluginSegments 每项须为 (key, 段名, 正文)，收到 {parts!r}"
+                )
+            frozen.append((parts[0], parts[1], parts[2]))
+        object.__setattr__(self, "items", tuple(frozen))
+        object.__setattr__(self, "counts", tuple(int(c) for c in self.counts))
 
 
 def slug(text: str) -> str:
@@ -657,7 +675,7 @@ class ContextSources:
         # 自己的段上（按位置取值）；错位是静默的，只在浮层上表现为数字离谱。
         while len(counts) < len(items):
             counts.append(1)
-        return PluginSegments(items=items, counts=counts)
+        return PluginSegments(items=tuple(items), counts=tuple(counts))
 
     @staticmethod
     def _gather(

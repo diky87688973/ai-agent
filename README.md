@@ -33,12 +33,12 @@
 
 ```bash
 pip install -e . -c constraints.txt
-python -m agent.shell.web --host 127.0.0.1 --port 8765
+python -m agent.entry.web --host 127.0.0.1 --port 8765
 ```
 
 ## 配置
 
-配置文件为仓库根目录的 `config.ini`，从 `config.ini.example` 复制后填写。**必填项只有 `api_key`**。
+配置文件为仓库根目录的 `config.ini`，从 `config.ini.example` 复制后填写。模板里 `api_base_url` 已填好，通常只需补 `api_key`；两项缺任一，服务启动即报错退出。
 
 装载哪些插件由仓库根目录的 `plugins.ini` 决定（节在就进入候选）。开关、名字、描述、图标、版本写在各插件 `plugin-config.ini` 的 `[base]`，自己的键在 `[ext]`，见 [插件](docs/subsystems/plugins.md)。
 
@@ -58,16 +58,16 @@ user_rules_file =            # 可选：自定义规则文件（.md / .txt），
 [context]
 summary_token_threshold  = 700000
 summary_output_max_chars = 5000
-full_user_rounds         = 10
+full_user_rounds         = 1
 ```
 
-`[context]` 的四个默认值：
+`[context]` 的三个主要默认值：
 
 | 键 | 默认 | 含义 |
 |---|---|---|
 | `summary_token_threshold` | `700000` | 估算 token 超过该值触发压缩 |
 | `summary_output_max_chars` | `5000` | 摘要篇幅上限（字） |
-| `full_user_rounds` | `10` | 近期记忆保留的用户轮数，始终按原文发送 |
+| `full_user_rounds` | `1` | 近期记忆保留的用户轮数，始终按原文发送 |
 
 末尾 `full_user_rounds` 个用户轮被遮盖、按原文保留，它们前面的轮次压缩成摘要。
 
@@ -77,7 +77,7 @@ full_user_rounds         = 10
 
 | 文档 | 内容 |
 |---|---|
-| [架构](docs/architecture.md) | 四层结构、模块链、端口、事件协议、状态生命周期 |
+| [架构](docs/architecture.md) | 五层结构、模块链、端口、事件协议、状态生命周期 |
 | [术语](docs/glossary.md) | 项目自定义词的定义 |
 | [内核](docs/subsystems/core.md) | 模块契约、链执行器、宿主循环 |
 | [上下文管理](docs/subsystems/context.md) | 三拼接装、分段统计、压缩与摘要 |
@@ -87,16 +87,20 @@ full_user_rounds         = 10
 | [Skills](docs/subsystems/skills.md) | `skills` 插件的三层披露与 `skill_manage` |
 | [会话与协作](docs/subsystems/session.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
 | [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
+| [标准对齐优化方案](docs/plan/standards-alignment.md) | 依赖环、门禁可信度、覆盖率口径、预算与登记表 |
+| [会话历史分页方案](docs/plan/history-paging.md) | 轮次分页、游标、前插与超长报文延迟渲染 |
+| [多模型配置方案](docs/plan/multi-model.md) | 模型目录、Provider 路由、Anthropic 适配、模型插件 |
 | [配置](docs/guide/config.md) | 配置项全表、启动参数、环境变量 |
 
 ## 开发
 
 依赖安装请带锁文件：`pip install -e . -c constraints.txt`（与 CI 同源）。
 
-`scripts/ci.py` 的流水线 22 步（清单唯一事实源是 `scripts/ci_steps.py`，由
-`check_ci_workflow` 与 GitHub Actions 对齐）：十一项门禁（依赖方向、架构洁癖、
-CI 工作流一致、ruff、Python 下限、UI JS 自检、静默异常、README 一致性、确认文案、
-注释文案、注册表一致性）→ 单测 → 10 个验收脚本。
+`scripts/ci.py` 的流水线 29 步（清单唯一事实源是 `scripts/ci_steps.py`，由
+`check_ci_workflow` 与 GitHub Actions 对齐）：17 项门禁（依赖方向、架构洁癖、
+CI 工作流一致、配置一致性、生成文档一致、ruff、Python 下限、UI JS 自检、
+静默异常、README 一致性、确认文案、注释文案、注册表一致性、复杂度登记、
+适用性登记、并发争用等，完整清单用 `--list` 查看）→ 单测 → 10 个验收脚本 → 分包覆盖率。
 
 ```bash
 python scripts/ci.py           # 全部检查
@@ -104,7 +108,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1160 个用例）：
+单元测试（1247 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Literal, Sequence
 
+from quality_budgets import ACCEPTANCE_SKIP_BUDGET
+
 Kind = Literal["gate", "unittest", "acceptance", "post"]
 
 #: 验收脚本「本机跑不了」退出码（与 ci.py / run_acceptance_step 一致）
@@ -17,8 +19,9 @@ SKIPPED = 2
 #: 其它验收一旦 skip / fail → CI 失败。mvp3 依赖真模型 config.ini，CI 无密钥故在名单内。
 ALLOWED_ACCEPTANCE_SKIPS = frozenset({"acceptance_mvp3"})
 
-#: 白名单长度上限（防名单膨胀时静默放宽）；与 ALLOWED 同步维护
-MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
+#: 白名单长度上限（防名单膨胀时静默放宽）。与白名单**分开**设置：
+#: 写成 `len(白名单)` 会让上限永远不可触发（X7）。
+MAX_ACCEPTANCE_SKIPS = ACCEPTANCE_SKIP_BUDGET
 
 ACCEPTANCE = [
     "acceptance_batch_a",
@@ -56,6 +59,10 @@ def gate_steps() -> List[CiStep]:
                ["scripts/check_architecture_hygiene.py"], 3),
         CiStep("CI 工作流一致", "gate", "scripts/check_ci_workflow.py",
                ["scripts/check_ci_workflow.py"], 3),
+        CiStep("配置一致性", "gate", "scripts/check_config_drift.py",
+               ["scripts/check_config_drift.py"], 3),
+        CiStep("单测文档一致", "gate", "scripts/gen_unit_tests_md.py --check",
+               ["scripts/gen_unit_tests_md.py", "--check"], 5),
         CiStep("静态检查", "gate", "ruff check",
                ["-m", "ruff", "check", "agent", "tests", "scripts"], 5),
         CiStep("Python 下限", "gate", "scripts/check_python_floor.py",
@@ -72,6 +79,16 @@ def gate_steps() -> List[CiStep]:
                ["scripts/check_comment_style.py"], 5),
         CiStep("注册表一致性", "gate", "scripts/check_catalog.py",
                ["scripts/check_catalog.py"], 3),
+        CiStep("复杂度登记", "gate", "scripts/check_complexity.py",
+               ["scripts/check_complexity.py"], 5),
+        CiStep("复杂度文档一致", "gate", "scripts/gen_complexity_md.py --check",
+               ["scripts/gen_complexity_md.py", "--check"], 5),
+        CiStep("适用性登记", "gate", "scripts/check_applicability.py",
+               ["scripts/check_applicability.py"], 3),
+        # K4：并发争用单独一步，开 `-X dev`（等价 PYTHONDEVMODE=1）让
+        # ResourceWarning / 线程未回收等问题暴露出来，而不是被普通单测吞掉。
+        CiStep("并发争用", "gate", "tests.test_concurrency",
+               ["-X", "dev", "-m", "unittest", "tests.test_concurrency"], 3),
     ]
 
 
@@ -107,6 +124,15 @@ def catalog(fast: bool = False) -> List[CiStep]:
     )
     if not fast:
         steps.extend(acceptance_steps())
+        steps.append(
+            CiStep(
+                "分包覆盖率",
+                "post",
+                "scripts/check_coverage.py",
+                ["scripts/check_coverage.py"],
+                3,
+            )
+        )
     return steps
 
 
@@ -122,13 +148,14 @@ def acceptance_skip_problems(names: Sequence[str]) -> List[str]:
         seen.add(n)
         uniq.append(n)
     problems: list[str] = []
+    # 先比预算再验白名单：白名单扩容时预算仍是硬约束，上限不会被同步放宽
+    if len(uniq) > MAX_ACCEPTANCE_SKIPS:
+        problems.append(
+            f"验收 skip 数 {len(uniq)} > 上限 {MAX_ACCEPTANCE_SKIPS}"
+        )
     stray = [n for n in uniq if n not in ALLOWED_ACCEPTANCE_SKIPS]
     if stray:
         problems.append(
             f"非预期 skip（仅允许 {sorted(ALLOWED_ACCEPTANCE_SKIPS)}）：{stray}"
-        )
-    if len(uniq) > MAX_ACCEPTANCE_SKIPS:
-        problems.append(
-            f"验收 skip 数 {len(uniq)} > 上限 {MAX_ACCEPTANCE_SKIPS}"
         )
     return problems

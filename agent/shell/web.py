@@ -7,24 +7,21 @@
 - `web_routes` HTTP 路由
 - `sse` SSE 传输层
 
+本模块只负责**装配壳对象**（`create_server` 返回未启动的 server）：
+进程入口与 `build_app()` 的调用在 `agent/entry/web.py`（A2：壳层不得反向依赖装配根）。
 对外导入约定保持：`from agent.shell.web import _Channel` / `WebShell` / `create_server` 等仍可用。
 """
 from __future__ import annotations
 
-import os
 import sys
 from http.server import ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional, Tuple
 
-from agent.app import App, build_app
-from agent.config import (
-    default_data_root,
-    get_context,
-    get_model_reasoning,
-)
-from agent.mechanisms.model_provider import OpenAICompatibleProvider
-from agent.mechanisms.session_store import SessionStore
+if TYPE_CHECKING:  # 只为注解：运行期不导入装配根
+    from agent.app import App
+
+
 from agent.mechanisms.session_title import make_provider_title_generator
 
 # 路径安全：外部按 `agent.shell.web` 导入这些名字。
@@ -38,12 +35,13 @@ from agent.shell.fspaths import (  # noqa: F401
     _normalize_roots,
     _parse_roots,
     _within_any_root,
+    resolve_fs_roots,
+    resolve_media_root,
 )
 from agent.shell.sse import _Channel, _event_seq, _sse_payload  # noqa: F401
-from agent.shell.web_api import WebShell, _date_group, _normalize_images  # noqa: F401
+from agent.shell.web_api import WebShell, _normalize_images  # noqa: F401
 from agent.shell.web_routes import _Handler
 from agent.shell.web_static import (  # noqa: F401
-    _FS_ROOT_ENV,
     _IMAGE_MIMES,
     ASSETS_DIR,
     MAX_BODY_BYTES,
@@ -104,54 +102,27 @@ def create_server(
     return server, shell
 
 
-def build_shell_app(
-    *,
-    provider: Any = None,
-    store: Any = None,
-    data_root: Optional[Path] = None,
-) -> App:
-    """装配供 Web 壳使用的底座：默认真实 provider（按 config）+ 会话存储。"""
-    if provider is None:
-        cfg = get_model_reasoning()
-        if not cfg["api_key"] or not cfg["api_base_url"]:
-            raise RuntimeError(
-                "缺少配置：config.ini 的 [model_reasoning]（api_base_url / api_key / model）"
-            )
-        provider = OpenAICompatibleProvider(
-            base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
-            replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
-        )
-    if store is None:
-        store = SessionStore(Path(data_root) if data_root else default_data_root())
-    return build_app(provider=provider, store=store)
-
-
 def serve(
+    app: App,
     *,
     host: str = "127.0.0.1",
     port: int = 8765,
-    provider: Any = None,
-    store: Any = None,
     data_root: Optional[Path] = None,
-    media_root: Optional[Path] = None,
+    media_root: Any = None,
     fs_root: Any = None,
 ) -> int:
-    """启动 Web 壳（阻塞）；Ctrl+C 退出。"""
-    root = Path(data_root) if data_root else default_data_root()
-    try:
-        app = build_shell_app(provider=provider, store=store, data_root=root)
-    except RuntimeError as exc:
-        print(str(exc))
-        return 2
-    roots = _normalize_roots(fs_root) or _env_roots("AI_AGENT_FS_ROOT") or _default_fs_roots()
-    resolved_media = media_root or _env_path("AI_AGENT_MEDIA_ROOT") or (
-        roots[0] if roots else Path.cwd()
-    )
+    """在已装配的 app 上启动 Web 壳（阻塞）；Ctrl+C 退出。
+
+    这里只做"壳怎么跑"：可见根、媒体根、标题与工作目录的落点都在壳内决定。
+    app 从哪来由入口层负责（A2：shell 不导入装配根）。
+    """
+    root = Path(data_root) if data_root else Path.cwd()
+    roots = resolve_fs_roots(fs_root)
     server, _shell = create_server(
         app,
         host=host,
         port=port,
-        media_root=resolved_media,
+        media_root=resolve_media_root(roots, media_root),
         fs_root=roots,
         titles_dir=root / "titles",
         workspace_root=root / "workspace",
@@ -173,38 +144,3 @@ def serve(
         app.dispose()
     return 0
 
-
-def main(argv: Optional[list] = None) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(prog="agent.shell.web", description="AI Agent Web 壳")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--data-root", default="")
-    parser.add_argument(
-        "--fs-root",
-        action="append",
-        default=[],
-        metavar="PATH",
-        help=(
-            "右栏文件查看器 / @ 补全的可见根；可重复指定多个。"
-            f"默认 = 本机各盘根（与 agent 的读写范围一致）。亦可用 {_FS_ROOT_ENV}（{os.pathsep} 分隔）"
-        ),
-    )
-    parser.add_argument(
-        "--media-root",
-        default="",
-        help="/api/media 可读根（默认与第一个 --fs-root 相同）",
-    )
-    args = parser.parse_args(list(argv) if argv is not None else None)
-    return serve(
-        host=args.host,
-        port=args.port,
-        data_root=Path(args.data_root) if args.data_root else None,
-        fs_root=[Path(p) for p in args.fs_root] if args.fs_root else None,
-        media_root=Path(args.media_root) if args.media_root else None,
-    )
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

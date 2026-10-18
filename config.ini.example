@@ -28,6 +28,9 @@ max_passes = 64
 ; 相对路径按项目根解析，也可给绝对路径；文件不存在或读不到时静默不加载。
 ; 正文拼进系统提示的「用户自定义规则」段，长度上限 20000 字符，超出截断。
 user_rules_file =
+; 是否只允许从 plugins/ 树内装载插件：1 只允许，0 允许清单里的绝对/外置路径。
+; 环境变量 AI_AGENT_PLUGIN_TREE_ONLY 优先于本项。
+plugin_tree_only = 0
 
 [context]
 ; 上下文预算与压缩。会话在内存中分两段：近期记忆 / 摘要。
@@ -43,8 +46,9 @@ summary_token_threshold = 700000
 full_user_rounds = 1
 ; 最近这么多用户轮保留完整工具往返；更早的轮剥掉轮内工具往返（负数 = 不剥）
 summary_output_max_chars = 5000
-; image_turns = 3
-; image_max = 10
+; 不剥图的缺省值；要按轮剥图就改成具体数字（如 3 / 10）。
+image_turns = 999999
+image_max = 999999
 ; model_context_window     模型上下文窗口（token）。界面按它算"上下文占用率"；
 ;                          它是**物理上限**，与上面的压缩阈值（预算）不是一回事。
 model_context_window = 1000000

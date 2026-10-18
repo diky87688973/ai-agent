@@ -79,4 +79,4 @@ echo "  停止服务:  Ctrl+C"
 echo "============================================"
 echo
 
-exec $PY -m agent.shell.web --host 127.0.0.1 --port 8765
+exec $PY -m agent.entry.web --host 127.0.0.1 --port 8765

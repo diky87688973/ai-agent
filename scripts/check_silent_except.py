@@ -77,6 +77,9 @@ except Exception:
     pass
 
 ROOT = Path(__file__).resolve().parent.parent
+#: 惯用法命中上限：与登记表同源，只降不升（E2a）
+from quality_budgets import SILENT_EXCEPT_IDIOM_BUDGET  # noqa: E402
+
 #: 内核路径：这些目录里不允许无法解释的静默吞
 KERNEL_DIRS = ("agent/core",)
 SCAN_DIRS = ("agent", "tests", "scripts")
@@ -239,6 +242,13 @@ def _try_body(node: ast.ExceptHandler, lines: list[str]) -> str:
     return ""
 
 
+def budget_problems(count: int, budget: int) -> list[str]:
+    """惯用法命中数与预算比对（纯函数，供负向用例直接调用）。"""
+    if count > budget:
+        return [f"惯用法命中 {count} 处 > 预算 {budget}"]
+    return []
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="检查静默吞异常")
     ap.add_argument("--strict", action="store_true",
@@ -311,9 +321,13 @@ def main(argv: list[str] | None = None) -> int:
                     )
 
     print(f"静默 except 共 {checked} 处")
-    print(f"  · 已说明（惯用法）：{len(idiom_hits)} 处")
+    print(f"  · 已说明（惯用法）：{len(idiom_hits)}/{SILENT_EXCEPT_IDIOM_BUDGET} 处"
+          "（预算只降不升）")
     print(f"  · 内核路径未说明：{len(kernel_bad)} 处（必须为 0）")
     print(f"  · 旁路未说明：    {len(bypass_bad)} 处（存量债，见本文件顶部说明）")
+    over_budget = budget_problems(len(idiom_hits), SILENT_EXCEPT_IDIOM_BUDGET)
+    for problem in over_budget:
+        print(f"  [FAIL] {problem}；新增惯用法必须逐点说明，不得扩表")
     if idiom_hits and args.show_idioms:
         print()
         print("  命中的惯用法：")
@@ -328,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
         for line in bypass_bad:
             print(f"  [FAIL] {line}")
 
-    if syntax_bad or kernel_bad or (args.all_strict and bypass_bad):
+    if syntax_bad or kernel_bad or over_budget or (args.all_strict and bypass_bad):
         print()
         print("修法（二选一）：")
         print("  · 留痕：`except Exception as exc: print(f'[...] {exc}', file=sys.stderr, flush=True)`")

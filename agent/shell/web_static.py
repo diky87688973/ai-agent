@@ -15,7 +15,6 @@ MAX_IMAGES = 4
 _IMAGE_MIMES = ("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif")
 _BINARY_SNIFF_BYTES = 4096
 _TITLE_SCAN_LINES = 400
-_FS_ROOT_ENV = "AI_AGENT_FS_ROOT"
 
 _LANG_BY_EXT = {
     "py": "python", "js": "javascript", "mjs": "javascript", "cjs": "javascript",
