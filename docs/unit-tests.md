@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1247** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1253** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -15,7 +15,7 @@
 5. [test_batch_f_tools.py](#test_batch_f_toolspy)（25）
 6. [test_catalog.py](#test_catalogpy)（8）
 7. [test_chat_shell.py](#test_chat_shellpy)（16）
-8. [test_classic_adapter.py](#test_classic_adapterpy)（96）
+8. [test_classic_adapter.py](#test_classic_adapterpy)（98）
 9. [test_command_tools.py](#test_command_toolspy)（30）
 10. [test_concurrency.py](#test_concurrencypy)（8）
 11. [test_context_assembly.py](#test_context_assemblypy)（184）
@@ -33,7 +33,7 @@
 23. [test_file_size_format.py](#test_file_size_formatpy)（4）
 24. [test_four_step_gate.py](#test_four_step_gatepy)（7）
 25. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-26. [test_gate_negative.py](#test_gate_negativepy)（53）
+26. [test_gate_negative.py](#test_gate_negativepy)（57）
 27. [test_goal_runner.py](#test_goal_runnerpy)（6）
 28. [test_image_embed.py](#test_image_embedpy)（10）
 29. [test_image_tool.py](#test_image_toolpy)（23）
@@ -227,7 +227,7 @@
 
 ## test_classic_adapter.py
 
-共 96 个用例。
+共 98 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -246,87 +246,89 @@
 | 13 | `InboundContractTest` | `test_history_rejects_bad_id` | 覆盖「老入参 → 内核 → 老返回体」：history rejects bad id |
 | 14 | `InboundContractTest` | `test_history_returns_items_for_bubbles` | `items` 是刷新页面渲染气泡与工具卡的**唯一**来源（`renderHistoryItems`）。 |
 | 15 | `InboundContractTest` | `test_history_returns_ok_true` | 回显必须带 `ok:true`，否则经典界面直接 return、整段历史不渲染。 |
-| 16 | `InboundContractTest` | `test_invalid_conversation_id_rejected_on_write` | 覆盖「老入参 → 内核 → 老返回体」：invalid conversation id rejected on write |
-| 17 | `InboundContractTest` | `test_sessions_read_id_not_conversation_id` | 经典界面读 `s.id`（agent-ui.js:309 附近）；`conversation_id` 不是它要的名字。 |
-| 18 | `InboundContractTest` | `test_title_never_raises` | 覆盖「老入参 → 内核 → 老返回体」：title never raises |
-| 19 | `InboundContractTest` | `test_ui_state_get_returns_only_client_independent_state` | GET 只回**与客户端无关**的那部分：哪些会话在跑。 |
-| 20 | `InboundContractTest` | `test_ui_state_put_stores_nothing` | PUT 收到布局也**不落盘**；旧前端不会因此报错。 |
-| 21 | `InboundContractTest` | `test_ui_state_put_writes_no_layout_file` | 确认没有留下布局文件（服务端不该有客户端状态的副本）。 |
-| 22 | `InboundContractTest` | `test_usage_accumulates_across_events` | 覆盖「老入参 → 内核 → 老返回体」：usage accumulates across events |
-| 23 | `InboundContractTest` | `test_usage_accumulator_uses_different_field_names` | 累计端点用 `total_*`，与 SSE 的 `prompt_tokens` **不是一套**（agent-ui.js:1176）。 |
-| 24 | `OutboundContractTest` | `test_approval_suspension_is_not_a_choice_card` | 审批挂起发 `approval_required`，不发选项卡。 |
-| 25 | `OutboundContractTest` | `test_assistant_delta_uses_delta_field` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：assistant delta uses delta field |
-| 26 | `OutboundContractTest` | `test_assistant_only_on_final_message_with_content` | 工具调用轮没有正文，发空 `assistant` 会让经典界面渲染一个空气泡。 |
-| 27 | `OutboundContractTest` | `test_audio_never_emitted` | `audio` 事件永远不该出现：TTS 不在能力面内。 |
-| 28 | `OutboundContractTest` | `test_cancel_on_confirm_modal_records_a_declined_result` | 模态点「取消」（空 `confirm`）**当作拒绝作答、记成工具结果**， 与在端点里就地 `return 200 {"confirmed": False}` 行为不同。 |
-| 29 | `OutboundContractTest` | `test_cancel_without_pending_does_not_start_an_empty_turn` | 没有挂起调用时的取消**不得**起新回合。 |
-| 30 | `OutboundContractTest` | `test_chat_bubble_layout_puts_image_above_text` | 图文气泡：**图片在上、文字在下**。 |
-| 31 | `OutboundContractTest` | `test_confirm_card_comes_from_the_kernel_fact` | 待确认卡由内核专用事实 `turn_awaiting_user` 驱动。 |
-| 32 | `OutboundContractTest` | `test_context_layout_is_flat_with_segments` | `lastContextLayout = ev` 整包存下，所以 segments 在**顶层**（agent-ui.js:157）。 |
-| 33 | `OutboundContractTest` | `test_failed_run_type_switch_does_not_emit_mode_changed` | 失败时不能报"模式已切换"——那会让按钮显示一个并未生效的模式。 |
-| 34 | `OutboundContractTest` | `test_incomplete_awaiting_fact_is_ignored` | 缺 `call_id` 或缺选项的事实不发卡（残缺数据不猜、不半渲染）。 |
-| 35 | `OutboundContractTest` | `test_llm_request_model_is_never_empty` | 请求快照里的 `params.model` 不能是空串。 |
-| 36 | `OutboundContractTest` | `test_malformed_arguments_do_not_break_the_stream` | `arguments` 不是对象时按空对象处理（经典界面只把它 JSON 化显示，不校验）。 |
-| 37 | `OutboundContractTest` | `test_model_message_with_content_emits_response_done_and_assistant` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：model message with content emits response done and assistant |
-| 38 | `OutboundContractTest` | `test_only_a_real_suspension_asks_the_user` | **只有工具真挂起**才发 `user_confirm_required`——经典界面收到它就弹模态。 |
-| 39 | `OutboundContractTest` | `test_plain_failure_is_not_mistaken_for_confirm` | 普通失败不得被判成待确认——否则每个报错都会弹出确认框。 |
-| 40 | `OutboundContractTest` | `test_reasoning_delta_requires_round` | `round` 必须与 `lastLlm.round` 相等，否则经典界面丢弃（agent-ui.js:1674）。 |
-| 41 | `OutboundContractTest` | `test_reasoning_is_not_promoted_into_chat_area` | 思考内容不经对话区填充（它属于右侧步骤卡）。 |
-| 42 | `OutboundContractTest` | `test_run_type_query_does_not_emit_mode_changed` | 查询模式不该发 `mode_changed`（会把按钮刷成同一个值，纯噪声）。 |
-| 43 | `OutboundContractTest` | `test_run_type_switch_emits_mode_changed` | `run_type` 切模式后必须补 `mode_changed`，否则经典界面的模式按钮停在旧值。 |
-| 44 | `OutboundContractTest` | `test_step_started_emits_llm_round_then_request` | `llm_round` 是 `reasoning_*` / `llm_request` 的**前置**（agent-ui.js:1685）。 |
-| 45 | `OutboundContractTest` | `test_todo_list_rides_on_tool_end` | 清单**没有独立事件**，挂在 `tool_end.todo_list_data` 上（agent-ui.js:160）。 |
-| 46 | `OutboundContractTest` | `test_tool_call_becomes_tool_start_with_call_id` | `tool_call_id` 是配对的唯一键；空则后续 `tool_end` 被整个忽略（agent-ui.js:2013）。 |
-| 47 | `OutboundContractTest` | `test_tool_call_does_not_pre_empt_the_confirm_card` | `tool_call` 期**不发**待确认卡——卡片由内核事实驱动，避免重复发两张。 |
-| 48 | `OutboundContractTest` | `test_tool_call_without_id_is_skipped` | 没有 id 就配不上 tool_end，宁可一条都不发（发了就是永远转圈的卡）。 |
-| 49 | `OutboundContractTest` | `test_tool_done_images_ride_beside_preview` | 看图的像素走 `images`，不写进 `preview` 文本。 |
-| 50 | `OutboundContractTest` | `test_tool_result_preview_is_json_string` | `preview` 必须是 **JSON 字符串**（经典界面会 `JSON.parse`，agent-ui.js:2022）。 |
-| 51 | `OutboundContractTest` | `test_tool_result_without_start_is_skipped` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：tool result without start is skipped |
-| 52 | `OutboundContractTest` | `test_turn_ended_emits_done` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：turn ended emits done |
-| 53 | `OutboundContractTest` | `test_turn_started_emits_conversation_first` | `conversation` 必须发，且要带头。 |
-| 54 | `OutboundContractTest` | `test_unknown_kernel_event_is_ignored_not_raised` | 观察面纪律：翻译不认识的事件不能把事件流打断。 |
-| 55 | `OutboundContractTest` | `test_usage_must_be_nested` | 用量**嵌套在 `usage` 键下**：经典界面读 `ev.usage.prompt_tokens`（agent-ui.js:156）。 |
-| 56 | `OutboundContractTest` | `test_user_confirm_multi_flag_passes_through` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：user confirm multi flag passes through |
-| 57 | `OutboundContractTest` | `test_write_gate_confirm_id_does_not_fake_a_confirmation` | `confirm_id` 是**写盘门控的二阶提交锁**：门控给预览类工具的 **成功结果**挂上它，意思是"锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。 用户交互**不发生在这一步**（解锁入口是 `review_conclusion`）。 |
-| 58 | `ResumeContractTest` | `test_cursor_prefers_header_then_query` | `Last-Event-ID`（浏览器自动带）优先于 `?last_event_id=`；非法值回落 -1。 |
-| 59 | `ResumeContractTest` | `test_latest_seq_reports_global_log_end` | `latest_seq` 是**全局**最大坐标；空仓库返回 -1。 |
-| 60 | `ResumeContractTest` | `test_replay_frames_carry_seq` | 回放的帧必须带坐标，否则浏览器重连时没有游标可用。 |
-| 61 | `ResumeContractTest` | `test_replay_never_leaks_seq_into_frame_payloads` | `_seq` 是位置元数据，不该以原名出现在给前端的帧里（会污染契约）。 |
-| 62 | `ResumeContractTest` | `test_replay_only_targets_given_channel` | 续传只补**这一条**连接：别的连接的队列不能被塞进历史。 |
-| 63 | `ResumeContractTest` | `test_replay_respects_cursor` | `seq > after` 且不重复补游标那一帧。 |
-| 64 | `ResumeContractTest` | `test_sse_id_line_is_emitted_for_seq_frames` | SSE 的 `id:` 行是浏览器重连带 `Last-Event-ID` 的唯一来源。 |
-| 65 | `SubscriptionLifecycleTest` | `test_bus_subscription_reaches_channels` | 端到端：事件经**真总线**发布 → 翻译 → 到达连接队列。 |
-| 66 | `SubscriptionLifecycleTest` | `test_dispose_is_idempotent` | 覆盖「适配层对事件总线的订阅必须**按需**，不能是常驻观察者」：dispose is idempotent |
-| 67 | `SubscriptionLifecycleTest` | `test_no_subscription_without_clients` | 覆盖「适配层对事件总线的订阅必须**按需**，不能是常驻观察者」：no subscription without clients |
-| 68 | `SubscriptionLifecycleTest` | `test_subscribe_on_first_client_and_release_on_last` | 覆盖「适配层对事件总线的订阅必须**按需**，不能是常驻观察者」：subscribe on first client and release on last |
-| 69 | `UiBundleTest` | `test_each_model_call_opens_its_own_card` | 多趟往返时每轮各起一卡（工具前后各一张）。 |
-| 70 | `UiBundleTest` | `test_inline_html_contains_all_five_scripts` | 漏注入 `image-lightbox.js` 会让 `window.AIA` 缺失 → 附件四条链路**静默**失效。 |
-| 71 | `UiBundleTest` | `test_inline_html_has_no_placeholders_left` | 覆盖「素材与内联打包」：inline html has no placeholders left |
-| 72 | `UiBundleTest` | `test_light_hljs_sheet_is_scoped` | 两套高亮配色同页共存，浅色那套必须限定在 `[data-ui-theme="light"]` 下。 |
-| 73 | `UiBundleTest` | `test_llm_call_start_opens_a_step_card` | **步骤卡必须起得来**。 |
-| 74 | `UiBundleTest` | `test_reasoning_stays_out_of_the_chat_area` | **思考内容不能出现在对话区**（它属于右侧步骤卡）。 |
-| 75 | `UiBundleTest` | `test_tool_tag_shows_final_state_immediately` | 工具结束时**立刻**写标签终态。 |
-| 76 | `UiBundleTest` | `test_tts_entry_is_gone` | TTS 的**入口元素**应从素材里删掉。 |
-| 77 | `UsageSemanticsTest` | `test_put_overwrites_instead_of_accumulating` | 覆盖语义：连报两次累计值，第二次必须**替换**而不是相加。 |
-| 78 | `UserConfirmRoundTripTest` | `test_agree_mints_approval_id_for_the_option` | 同意：结果是「同意」加宿主签发的 approval_id，并记下 option_id。 |
-| 79 | `UserConfirmRoundTripTest` | `test_cancel_posts_empty_confirm_and_submits_nothing` | 模态的「取消」发空 `confirm`：不能把它当成一次用户发言送出去。 |
-| 80 | `UserConfirmRoundTripTest` | `test_choice_is_filled_back_as_the_tool_result` | 直通：用户的选择被写成**那次 `user_confirm` 调用的返回值**，不是新用户发言。 |
-| 81 | `UserConfirmRoundTripTest` | `test_confirm_id_and_text_together_do_both` | 两者同时给：门控解锁 + 选择回填（同一个端点的两类语义）。 |
-| 82 | `UserConfirmRoundTripTest` | `test_confirm_text_does_not_answer_an_approval` | 选项文本不能冒充审批结果，待审批保持原样。 |
-| 83 | `UserConfirmRoundTripTest` | `test_invalid_conversation_id_rejected` | 覆盖「确认的**回路**：用户在模态里选完，选择必须真的送到模型」：invalid conversation id rejected |
-| 84 | `UserConfirmRoundTripTest` | `test_mesh_failure_reports_error_without_raising` | `mesh` 不可用时给结构化错误，不要抛——确认端点是 UI 的关键路径。 |
-| 85 | `UserConfirmRoundTripTest` | `test_reject_returns_disagree_and_stores_nothing` | 驳回：结果是「不同意」，不签发通行证。 |
-| 86 | `UserConfirmRoundTripTest` | `test_write_gate_confirm_id_still_works` | 带 `confirm_id` 的写盘确认走内核既有的门控解锁，不经 mesh。 |
-| 87 | `WireHygieneTest` | `test_channel_emits_heartbeat_when_idle` | 空闲时发心跳（经典界面靠它判连接存活）；非 `data:` 行经典界面会安全忽略。 |
-| 88 | `WireHygieneTest` | `test_cid_exempt_set_is_exactly_two` | 契约豁免的事件必须在前端先接住，否则会被静默丢掉。 |
-| 89 | `WireHygieneTest` | `test_detach_stops_delivery` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：detach stops delivery |
-| 90 | `WireHygieneTest` | `test_every_frame_carries_valid_conversation_id` | 没带合法 cid 的帧会被经典界面**整包静默丢弃**（agent-ui.js:100/146）。 |
-| 91 | `WireHygieneTest` | `test_frame_without_cid_is_dropped_silently` | 入站事件没有 cid 时直接丢，不要造一个假 cid 塞给前端。 |
-| 92 | `WireHygieneTest` | `test_frames_broadcast_to_every_channel` | **广播**而非共享队列：两个标签页必须各自收到完整事件流。 |
-| 93 | `WireHygieneTest` | `test_heartbeat_is_cid_exempt` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：heartbeat is cid exempt |
-| 94 | `WireHygieneTest` | `test_normalize_cid_matches_ui_rule` | 经典界面的规则是 `/^[A-Za-z0-9_-]{8,128}$/`（agent-ui.js:8）。 |
-| 95 | `WireHygieneTest` | `test_sse_payload_is_single_line_data_frame` | 帧格式必须是 `data: <单行 json>\n\n`（agent-ui.js:94-98）。 |
-| 96 | `WireHygieneTest` | `test_tool_script_mapping_covers_known_tools` | 工具名要翻成经典界面认识的 `script`，否则图标与中文名退化成默认。 |
+| 16 | `InboundContractTest` | `test_history_todo_empty_when_none_active` | 没有清单（或已 `close`）时返回空数组，界面据此 `hideTodoList`。 |
+| 17 | `InboundContractTest` | `test_history_todo_ignores_other_tools_items` | 检索结果的 `items`（`file` / `match`）不能进清单。 |
+| 18 | `InboundContractTest` | `test_invalid_conversation_id_rejected_on_write` | 覆盖「老入参 → 内核 → 老返回体」：invalid conversation id rejected on write |
+| 19 | `InboundContractTest` | `test_sessions_read_id_not_conversation_id` | 经典界面读 `s.id`（agent-ui.js:309 附近）；`conversation_id` 不是它要的名字。 |
+| 20 | `InboundContractTest` | `test_title_never_raises` | 覆盖「老入参 → 内核 → 老返回体」：title never raises |
+| 21 | `InboundContractTest` | `test_ui_state_get_returns_only_client_independent_state` | GET 只回**与客户端无关**的那部分：哪些会话在跑。 |
+| 22 | `InboundContractTest` | `test_ui_state_put_stores_nothing` | PUT 收到布局也**不落盘**；旧前端不会因此报错。 |
+| 23 | `InboundContractTest` | `test_ui_state_put_writes_no_layout_file` | 确认没有留下布局文件（服务端不该有客户端状态的副本）。 |
+| 24 | `InboundContractTest` | `test_usage_accumulates_across_events` | 覆盖「老入参 → 内核 → 老返回体」：usage accumulates across events |
+| 25 | `InboundContractTest` | `test_usage_accumulator_uses_different_field_names` | 累计端点用 `total_*`，与 SSE 的 `prompt_tokens` **不是一套**（agent-ui.js:1176）。 |
+| 26 | `OutboundContractTest` | `test_approval_suspension_is_not_a_choice_card` | 审批挂起发 `approval_required`，不发选项卡。 |
+| 27 | `OutboundContractTest` | `test_assistant_delta_uses_delta_field` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：assistant delta uses delta field |
+| 28 | `OutboundContractTest` | `test_assistant_only_on_final_message_with_content` | 工具调用轮没有正文，发空 `assistant` 会让经典界面渲染一个空气泡。 |
+| 29 | `OutboundContractTest` | `test_audio_never_emitted` | `audio` 事件永远不该出现：TTS 不在能力面内。 |
+| 30 | `OutboundContractTest` | `test_cancel_on_confirm_modal_records_a_declined_result` | 模态点「取消」（空 `confirm`）**当作拒绝作答、记成工具结果**， 与在端点里就地 `return 200 {"confirmed": False}` 行为不同。 |
+| 31 | `OutboundContractTest` | `test_cancel_without_pending_does_not_start_an_empty_turn` | 没有挂起调用时的取消**不得**起新回合。 |
+| 32 | `OutboundContractTest` | `test_chat_bubble_layout_puts_image_above_text` | 图文气泡：**图片在上、文字在下**。 |
+| 33 | `OutboundContractTest` | `test_confirm_card_comes_from_the_kernel_fact` | 待确认卡由内核专用事实 `turn_awaiting_user` 驱动。 |
+| 34 | `OutboundContractTest` | `test_context_layout_is_flat_with_segments` | `lastContextLayout = ev` 整包存下，所以 segments 在**顶层**（agent-ui.js:157）。 |
+| 35 | `OutboundContractTest` | `test_failed_run_type_switch_does_not_emit_mode_changed` | 失败时不能报"模式已切换"——那会让按钮显示一个并未生效的模式。 |
+| 36 | `OutboundContractTest` | `test_incomplete_awaiting_fact_is_ignored` | 缺 `call_id` 或缺选项的事实不发卡（残缺数据不猜、不半渲染）。 |
+| 37 | `OutboundContractTest` | `test_llm_request_model_is_never_empty` | 请求快照里的 `params.model` 不能是空串。 |
+| 38 | `OutboundContractTest` | `test_malformed_arguments_do_not_break_the_stream` | `arguments` 不是对象时按空对象处理（经典界面只把它 JSON 化显示，不校验）。 |
+| 39 | `OutboundContractTest` | `test_model_message_with_content_emits_response_done_and_assistant` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：model message with content emits response done and assistant |
+| 40 | `OutboundContractTest` | `test_only_a_real_suspension_asks_the_user` | **只有工具真挂起**才发 `user_confirm_required`——经典界面收到它就弹模态。 |
+| 41 | `OutboundContractTest` | `test_plain_failure_is_not_mistaken_for_confirm` | 普通失败不得被判成待确认——否则每个报错都会弹出确认框。 |
+| 42 | `OutboundContractTest` | `test_reasoning_delta_requires_round` | `round` 必须与 `lastLlm.round` 相等，否则经典界面丢弃（agent-ui.js:1674）。 |
+| 43 | `OutboundContractTest` | `test_reasoning_is_not_promoted_into_chat_area` | 思考内容不经对话区填充（它属于右侧步骤卡）。 |
+| 44 | `OutboundContractTest` | `test_run_type_query_does_not_emit_mode_changed` | 查询模式不该发 `mode_changed`（会把按钮刷成同一个值，纯噪声）。 |
+| 45 | `OutboundContractTest` | `test_run_type_switch_emits_mode_changed` | `run_type` 切模式后必须补 `mode_changed`，否则经典界面的模式按钮停在旧值。 |
+| 46 | `OutboundContractTest` | `test_step_started_emits_llm_round_then_request` | `llm_round` 是 `reasoning_*` / `llm_request` 的**前置**（agent-ui.js:1685）。 |
+| 47 | `OutboundContractTest` | `test_todo_list_rides_on_tool_end` | 清单**没有独立事件**，挂在 `tool_end.todo_list_data` 上（agent-ui.js:160）。 |
+| 48 | `OutboundContractTest` | `test_tool_call_becomes_tool_start_with_call_id` | `tool_call_id` 是配对的唯一键；空则后续 `tool_end` 被整个忽略（agent-ui.js:2013）。 |
+| 49 | `OutboundContractTest` | `test_tool_call_does_not_pre_empt_the_confirm_card` | `tool_call` 期**不发**待确认卡——卡片由内核事实驱动，避免重复发两张。 |
+| 50 | `OutboundContractTest` | `test_tool_call_without_id_is_skipped` | 没有 id 就配不上 tool_end，宁可一条都不发（发了就是永远转圈的卡）。 |
+| 51 | `OutboundContractTest` | `test_tool_done_images_ride_beside_preview` | 看图的像素走 `images`，不写进 `preview` 文本。 |
+| 52 | `OutboundContractTest` | `test_tool_result_preview_is_json_string` | `preview` 必须是 **JSON 字符串**（经典界面会 `JSON.parse`，agent-ui.js:2022）。 |
+| 53 | `OutboundContractTest` | `test_tool_result_without_start_is_skipped` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：tool result without start is skipped |
+| 54 | `OutboundContractTest` | `test_turn_ended_emits_done` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：turn ended emits done |
+| 55 | `OutboundContractTest` | `test_turn_started_emits_conversation_first` | `conversation` 必须发，且要带头。 |
+| 56 | `OutboundContractTest` | `test_unknown_kernel_event_is_ignored_not_raised` | 观察面纪律：翻译不认识的事件不能把事件流打断。 |
+| 57 | `OutboundContractTest` | `test_usage_must_be_nested` | 用量**嵌套在 `usage` 键下**：经典界面读 `ev.usage.prompt_tokens`（agent-ui.js:156）。 |
+| 58 | `OutboundContractTest` | `test_user_confirm_multi_flag_passes_through` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：user confirm multi flag passes through |
+| 59 | `OutboundContractTest` | `test_write_gate_confirm_id_does_not_fake_a_confirmation` | `confirm_id` 是**写盘门控的二阶提交锁**：门控给预览类工具的 **成功结果**挂上它，意思是"锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。 用户交互**不发生在这一步**（解锁入口是 `review_conclusion`）。 |
+| 60 | `ResumeContractTest` | `test_cursor_prefers_header_then_query` | `Last-Event-ID`（浏览器自动带）优先于 `?last_event_id=`；非法值回落 -1。 |
+| 61 | `ResumeContractTest` | `test_latest_seq_reports_global_log_end` | `latest_seq` 是**全局**最大坐标；空仓库返回 -1。 |
+| 62 | `ResumeContractTest` | `test_replay_frames_carry_seq` | 回放的帧必须带坐标，否则浏览器重连时没有游标可用。 |
+| 63 | `ResumeContractTest` | `test_replay_never_leaks_seq_into_frame_payloads` | `_seq` 是位置元数据，不该以原名出现在给前端的帧里（会污染契约）。 |
+| 64 | `ResumeContractTest` | `test_replay_only_targets_given_channel` | 续传只补**这一条**连接：别的连接的队列不能被塞进历史。 |
+| 65 | `ResumeContractTest` | `test_replay_respects_cursor` | `seq > after` 且不重复补游标那一帧。 |
+| 66 | `ResumeContractTest` | `test_sse_id_line_is_emitted_for_seq_frames` | SSE 的 `id:` 行是浏览器重连带 `Last-Event-ID` 的唯一来源。 |
+| 67 | `SubscriptionLifecycleTest` | `test_bus_subscription_reaches_channels` | 端到端：事件经**真总线**发布 → 翻译 → 到达连接队列。 |
+| 68 | `SubscriptionLifecycleTest` | `test_dispose_is_idempotent` | 覆盖「适配层对事件总线的订阅必须**按需**，不能是常驻观察者」：dispose is idempotent |
+| 69 | `SubscriptionLifecycleTest` | `test_no_subscription_without_clients` | 覆盖「适配层对事件总线的订阅必须**按需**，不能是常驻观察者」：no subscription without clients |
+| 70 | `SubscriptionLifecycleTest` | `test_subscribe_on_first_client_and_release_on_last` | 覆盖「适配层对事件总线的订阅必须**按需**，不能是常驻观察者」：subscribe on first client and release on last |
+| 71 | `UiBundleTest` | `test_each_model_call_opens_its_own_card` | 多趟往返时每轮各起一卡（工具前后各一张）。 |
+| 72 | `UiBundleTest` | `test_inline_html_contains_all_five_scripts` | 漏注入 `image-lightbox.js` 会让 `window.AIA` 缺失 → 附件四条链路**静默**失效。 |
+| 73 | `UiBundleTest` | `test_inline_html_has_no_placeholders_left` | 覆盖「素材与内联打包」：inline html has no placeholders left |
+| 74 | `UiBundleTest` | `test_light_hljs_sheet_is_scoped` | 两套高亮配色同页共存，浅色那套必须限定在 `[data-ui-theme="light"]` 下。 |
+| 75 | `UiBundleTest` | `test_llm_call_start_opens_a_step_card` | **步骤卡必须起得来**。 |
+| 76 | `UiBundleTest` | `test_reasoning_stays_out_of_the_chat_area` | **思考内容不能出现在对话区**（它属于右侧步骤卡）。 |
+| 77 | `UiBundleTest` | `test_tool_tag_shows_final_state_immediately` | 工具结束时**立刻**写标签终态。 |
+| 78 | `UiBundleTest` | `test_tts_entry_is_gone` | TTS 的**入口元素**应从素材里删掉。 |
+| 79 | `UsageSemanticsTest` | `test_put_overwrites_instead_of_accumulating` | 覆盖语义：连报两次累计值，第二次必须**替换**而不是相加。 |
+| 80 | `UserConfirmRoundTripTest` | `test_agree_mints_approval_id_for_the_option` | 同意：结果是「同意」加宿主签发的 approval_id，并记下 option_id。 |
+| 81 | `UserConfirmRoundTripTest` | `test_cancel_posts_empty_confirm_and_submits_nothing` | 模态的「取消」发空 `confirm`：不能把它当成一次用户发言送出去。 |
+| 82 | `UserConfirmRoundTripTest` | `test_choice_is_filled_back_as_the_tool_result` | 直通：用户的选择被写成**那次 `user_confirm` 调用的返回值**，不是新用户发言。 |
+| 83 | `UserConfirmRoundTripTest` | `test_confirm_id_and_text_together_do_both` | 两者同时给：门控解锁 + 选择回填（同一个端点的两类语义）。 |
+| 84 | `UserConfirmRoundTripTest` | `test_confirm_text_does_not_answer_an_approval` | 选项文本不能冒充审批结果，待审批保持原样。 |
+| 85 | `UserConfirmRoundTripTest` | `test_invalid_conversation_id_rejected` | 覆盖「确认的**回路**：用户在模态里选完，选择必须真的送到模型」：invalid conversation id rejected |
+| 86 | `UserConfirmRoundTripTest` | `test_mesh_failure_reports_error_without_raising` | `mesh` 不可用时给结构化错误，不要抛——确认端点是 UI 的关键路径。 |
+| 87 | `UserConfirmRoundTripTest` | `test_reject_returns_disagree_and_stores_nothing` | 驳回：结果是「不同意」，不签发通行证。 |
+| 88 | `UserConfirmRoundTripTest` | `test_write_gate_confirm_id_still_works` | 带 `confirm_id` 的写盘确认走内核既有的门控解锁，不经 mesh。 |
+| 89 | `WireHygieneTest` | `test_channel_emits_heartbeat_when_idle` | 空闲时发心跳（经典界面靠它判连接存活）；非 `data:` 行经典界面会安全忽略。 |
+| 90 | `WireHygieneTest` | `test_cid_exempt_set_is_exactly_two` | 契约豁免的事件必须在前端先接住，否则会被静默丢掉。 |
+| 91 | `WireHygieneTest` | `test_detach_stops_delivery` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：detach stops delivery |
+| 92 | `WireHygieneTest` | `test_every_frame_carries_valid_conversation_id` | 没带合法 cid 的帧会被经典界面**整包静默丢弃**（agent-ui.js:100/146）。 |
+| 93 | `WireHygieneTest` | `test_frame_without_cid_is_dropped_silently` | 入站事件没有 cid 时直接丢，不要造一个假 cid 塞给前端。 |
+| 94 | `WireHygieneTest` | `test_frames_broadcast_to_every_channel` | **广播**而非共享队列：两个标签页必须各自收到完整事件流。 |
+| 95 | `WireHygieneTest` | `test_heartbeat_is_cid_exempt` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：heartbeat is cid exempt |
+| 96 | `WireHygieneTest` | `test_normalize_cid_matches_ui_rule` | 经典界面的规则是 `/^[A-Za-z0-9_-]{8,128}$/`（agent-ui.js:8）。 |
+| 97 | `WireHygieneTest` | `test_sse_payload_is_single_line_data_frame` | 帧格式必须是 `data: <单行 json>\n\n`（agent-ui.js:94-98）。 |
+| 98 | `WireHygieneTest` | `test_tool_script_mapping_covers_known_tools` | 工具名要翻成经典界面认识的 `script`，否则图标与中文名退化成默认。 |
 
 ## test_command_tools.py
 
@@ -839,7 +841,7 @@
 
 ## test_gate_negative.py
 
-共 53 个用例。
+共 57 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -847,55 +849,59 @@
 | 2 | `AcceptanceSkipGateTest` | `test_non_whitelisted_fails` | 覆盖「验收 skip：预算上限与白名单都必须能触发」：non whitelisted fails |
 | 3 | `AcceptanceSkipGateTest` | `test_over_budget_fails` | 覆盖「验收 skip：预算上限与白名单都必须能触发」：over budget fails |
 | 4 | `AcceptanceSkipGateTest` | `test_whitelisted_within_budget_passes` | 覆盖「验收 skip：预算上限与白名单都必须能触发」：whitelisted within budget passes |
-| 5 | `ApplicabilityGateTest` | `test_short_reason_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则」：short reason fails |
-| 6 | `ApplicabilityGateTest` | `test_unknown_rule_id_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则」：unknown rule id fails |
-| 7 | `ApplicabilityGateTest` | `test_well_formed_row_passes` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则」：well formed row passes |
-| 8 | `ArchitectureHygieneGateTest` | `test_cross_layer_private_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：cross layer private import fails |
-| 9 | `ArchitectureHygieneGateTest` | `test_plugin_name_in_core_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：plugin name in core fails |
-| 10 | `ArchitectureHygieneGateTest` | `test_quality_gate_real_module_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate real module passes |
-| 11 | `ArchitectureHygieneGateTest` | `test_quality_gate_shim_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate shim import fails |
-| 12 | `ArchitectureHygieneGateTest` | `test_same_layer_private_import_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：same layer private import passes |
-| 13 | `CommentStyleGateTest` | `test_clean_comment_passes` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：clean comment passes |
-| 14 | `CommentStyleGateTest` | `test_command_to_reader_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：command to reader fails |
-| 15 | `CommentStyleGateTest` | `test_string_literal_is_not_comment` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：string literal is not comment |
-| 16 | `CommentStyleGateTest` | `test_todo_comment_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：todo comment fails |
-| 17 | `ComplexityGateTest` | `test_registered_big_file_only_reports_doc_drift` | 覆盖「复杂度：未登记的超阈值文件必须失败」：registered big file only reports doc drift |
-| 18 | `ComplexityGateTest` | `test_unregistered_big_file_fails` | 覆盖「复杂度：未登记的超阈值文件必须失败」：unregistered big file fails |
-| 19 | `ConfigDriftGateTest` | `test_real_file_extra_key_reports_line_number` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：real file extra key reports line number |
-| 20 | `ConfigDriftGateTest` | `test_template_extra_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template extra key fails |
-| 21 | `ConfigDriftGateTest` | `test_template_missing_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template missing key fails |
-| 22 | `ConfigDriftGateTest` | `test_valid_pair_passes` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：valid pair passes |
-| 23 | `ConfirmWordingGateTest` | `test_compliant_wording_passes` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：compliant wording passes |
-| 24 | `ConfirmWordingGateTest` | `test_explanatory_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：explanatory wording fails |
-| 25 | `ConfirmWordingGateTest` | `test_gate_without_next_step_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：gate without next step fails |
-| 26 | `ConfirmWordingGateTest` | `test_missing_unlock_tool_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：missing unlock tool fails |
-| 27 | `ConfirmWordingGateTest` | `test_vague_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：vague wording fails |
-| 28 | `CoverageGateTest` | `test_at_or_above_floor_passes` | 覆盖「覆盖率：低于下限、缺数据都要失败」：at or above floor passes |
-| 29 | `CoverageGateTest` | `test_below_floor_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：below floor fails |
-| 30 | `CoverageGateTest` | `test_missing_group_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：missing group fails |
-| 31 | `GeneratedArtifactDriftTest` | `test_ci_workflow_byte_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow byte drift fails |
-| 32 | `GeneratedArtifactDriftTest` | `test_ci_workflow_current_is_clean` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow current is clean |
-| 33 | `GeneratedArtifactDriftTest` | `test_render_contains_every_gate_and_acceptance` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：render contains every gate and acceptance |
-| 34 | `GeneratedArtifactDriftTest` | `test_unit_tests_md_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：unit tests md drift fails |
-| 35 | `ImportDirectionGateTest` | `test_composition_root_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：composition root import fails |
-| 36 | `ImportDirectionGateTest` | `test_downward_import_passes` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：downward import passes |
-| 37 | `ImportDirectionGateTest` | `test_type_checking_annotation_is_allowed` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：type checking annotation is allowed |
-| 38 | `ImportDirectionGateTest` | `test_upward_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：upward import fails |
-| 39 | `PythonFloorGateTest` | `test_ordinary_function_passes` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：ordinary function passes |
-| 40 | `PythonFloorGateTest` | `test_pep695_generic_fails` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：pep695 generic fails |
-| 41 | `ReadmeGateTest` | `test_acceptance_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：acceptance count drift fails |
-| 42 | `ReadmeGateTest` | `test_consistent_readme_passes` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：consistent readme passes |
-| 43 | `ReadmeGateTest` | `test_gate_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：gate count drift fails |
-| 44 | `ReadmeGateTest` | `test_missing_marker_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：missing marker fails |
-| 45 | `ReadmeGateTest` | `test_step_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：step count drift fails |
-| 46 | `ReadmeGateTest` | `test_test_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：test count drift fails |
-| 47 | `ReadmeGateTest` | `test_unknown_data_dir_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：unknown data dir fails |
-| 48 | `SilentExceptGateTest` | `test_bare_pass_is_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：bare pass is silent |
-| 49 | `SilentExceptGateTest` | `test_budget_at_limit_passes` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget at limit passes |
-| 50 | `SilentExceptGateTest` | `test_budget_overflow_fails` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget overflow fails |
-| 51 | `SilentExceptGateTest` | `test_explicit_logging_is_not_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：explicit logging is not silent |
-| 52 | `UiJsGateTest` | `test_defined_helper_passes` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：defined helper passes |
-| 53 | `UiJsGateTest` | `test_undefined_helper_call_fails` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：undefined helper call fails |
+| 5 | `ApplicabilityGateTest` | `test_counts_and_ratio_visible` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：counts and ratio visible |
+| 6 | `ApplicabilityGateTest` | `test_missing_table_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：missing table fails |
+| 7 | `ApplicabilityGateTest` | `test_rule_ids_are_wellformed` | 编号格式错会让整张表无法申报；分节标题混进来会稀释占比。 |
+| 8 | `ApplicabilityGateTest` | `test_short_reason_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：short reason fails |
+| 9 | `ApplicabilityGateTest` | `test_stale_id_fails_through_main` | 端到端：拿真实编号集合比对一条不存在的编号，门禁必须退出 1。 |
+| 10 | `ApplicabilityGateTest` | `test_unknown_rule_id_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：unknown rule id fails |
+| 11 | `ApplicabilityGateTest` | `test_well_formed_row_passes` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：well formed row passes |
+| 12 | `ArchitectureHygieneGateTest` | `test_cross_layer_private_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：cross layer private import fails |
+| 13 | `ArchitectureHygieneGateTest` | `test_plugin_name_in_core_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：plugin name in core fails |
+| 14 | `ArchitectureHygieneGateTest` | `test_quality_gate_real_module_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate real module passes |
+| 15 | `ArchitectureHygieneGateTest` | `test_quality_gate_shim_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate shim import fails |
+| 16 | `ArchitectureHygieneGateTest` | `test_same_layer_private_import_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：same layer private import passes |
+| 17 | `CommentStyleGateTest` | `test_clean_comment_passes` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：clean comment passes |
+| 18 | `CommentStyleGateTest` | `test_command_to_reader_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：command to reader fails |
+| 19 | `CommentStyleGateTest` | `test_string_literal_is_not_comment` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：string literal is not comment |
+| 20 | `CommentStyleGateTest` | `test_todo_comment_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：todo comment fails |
+| 21 | `ComplexityGateTest` | `test_registered_big_file_only_reports_doc_drift` | 覆盖「复杂度：未登记的超阈值文件必须失败」：registered big file only reports doc drift |
+| 22 | `ComplexityGateTest` | `test_unregistered_big_file_fails` | 覆盖「复杂度：未登记的超阈值文件必须失败」：unregistered big file fails |
+| 23 | `ConfigDriftGateTest` | `test_real_file_extra_key_reports_line_number` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：real file extra key reports line number |
+| 24 | `ConfigDriftGateTest` | `test_template_extra_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template extra key fails |
+| 25 | `ConfigDriftGateTest` | `test_template_missing_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template missing key fails |
+| 26 | `ConfigDriftGateTest` | `test_valid_pair_passes` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：valid pair passes |
+| 27 | `ConfirmWordingGateTest` | `test_compliant_wording_passes` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：compliant wording passes |
+| 28 | `ConfirmWordingGateTest` | `test_explanatory_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：explanatory wording fails |
+| 29 | `ConfirmWordingGateTest` | `test_gate_without_next_step_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：gate without next step fails |
+| 30 | `ConfirmWordingGateTest` | `test_missing_unlock_tool_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：missing unlock tool fails |
+| 31 | `ConfirmWordingGateTest` | `test_vague_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：vague wording fails |
+| 32 | `CoverageGateTest` | `test_at_or_above_floor_passes` | 覆盖「覆盖率：低于下限、缺数据都要失败」：at or above floor passes |
+| 33 | `CoverageGateTest` | `test_below_floor_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：below floor fails |
+| 34 | `CoverageGateTest` | `test_missing_group_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：missing group fails |
+| 35 | `GeneratedArtifactDriftTest` | `test_ci_workflow_byte_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow byte drift fails |
+| 36 | `GeneratedArtifactDriftTest` | `test_ci_workflow_current_is_clean` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow current is clean |
+| 37 | `GeneratedArtifactDriftTest` | `test_render_contains_every_gate_and_acceptance` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：render contains every gate and acceptance |
+| 38 | `GeneratedArtifactDriftTest` | `test_unit_tests_md_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：unit tests md drift fails |
+| 39 | `ImportDirectionGateTest` | `test_composition_root_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：composition root import fails |
+| 40 | `ImportDirectionGateTest` | `test_downward_import_passes` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：downward import passes |
+| 41 | `ImportDirectionGateTest` | `test_type_checking_annotation_is_allowed` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：type checking annotation is allowed |
+| 42 | `ImportDirectionGateTest` | `test_upward_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：upward import fails |
+| 43 | `PythonFloorGateTest` | `test_ordinary_function_passes` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：ordinary function passes |
+| 44 | `PythonFloorGateTest` | `test_pep695_generic_fails` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：pep695 generic fails |
+| 45 | `ReadmeGateTest` | `test_acceptance_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：acceptance count drift fails |
+| 46 | `ReadmeGateTest` | `test_consistent_readme_passes` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：consistent readme passes |
+| 47 | `ReadmeGateTest` | `test_gate_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：gate count drift fails |
+| 48 | `ReadmeGateTest` | `test_missing_marker_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：missing marker fails |
+| 49 | `ReadmeGateTest` | `test_step_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：step count drift fails |
+| 50 | `ReadmeGateTest` | `test_test_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：test count drift fails |
+| 51 | `ReadmeGateTest` | `test_unknown_data_dir_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：unknown data dir fails |
+| 52 | `SilentExceptGateTest` | `test_bare_pass_is_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：bare pass is silent |
+| 53 | `SilentExceptGateTest` | `test_budget_at_limit_passes` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget at limit passes |
+| 54 | `SilentExceptGateTest` | `test_budget_overflow_fails` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget overflow fails |
+| 55 | `SilentExceptGateTest` | `test_explicit_logging_is_not_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：explicit logging is not silent |
+| 56 | `UiJsGateTest` | `test_defined_helper_passes` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：defined helper passes |
+| 57 | `UiJsGateTest` | `test_undefined_helper_call_fails` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：undefined helper call fails |
 
 ## test_goal_runner.py
 

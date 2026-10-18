@@ -41,7 +41,7 @@
 | 注册表一致性 | `check_catalog.py` | 文档/注册表与代码不一致 |
 | 复杂度登记 | `check_complexity.py` | 新增/过期复杂度债务 |
 | 复杂度文档一致 | `gen_complexity_md.py --check` | `docs/complexity.md` 与登记表不一致 |
-| 适用性登记 | `check_applicability.py` | 申报结构错误；提供标准文档时做 ID 双向比对 |
+| 适用性登记 | `check_applicability.py` | 申报结构错误；编号与 `scripts/standards_rules.py` 双向比对，并打印 N/A 占比 |
 | 并发争用 | `tests.test_concurrency`（`-X dev`） | 共享可变状态的线程争用（K4） |
 
 ### 2.1 覆盖率（post）

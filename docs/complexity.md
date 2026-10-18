@@ -8,7 +8,7 @@
 | 文件 | 行数 | 函数数 | 保留理由 |
 |---|---|---|---|
 | `agent/mechanisms/context_pipeline.py` | 1183 | 67 | 拼装、分段统计与缓存版本共用同一状态机；待拆 segments 与 cache 子模块。承担者：架构维护 |
-| `agent/shell/classic_adapter/inbound.py` | 1050 | 45 | HTTP 事件投影与折叠规则同文件；折叠外移到 history_page 后净减。承担者：壳层维护 |
+| `agent/shell/classic_adapter/inbound.py` | 1049 | 45 | HTTP 事件投影与折叠规则同文件；折叠外移到 history_page 后净减。承担者：壳层维护 |
 | `agent/mechanisms/session_store.py` | 936 | 39 | 事件日志读写、行索引与压缩同文件；待拆索引层。承担者：机制维护 |
 | `agent/shell/web_api.py` | 885 | 39 | SSE 连接表、会话运行表、附件与设置读取同文件；待拆 sse 与 attachments。承担者：壳层维护 |
 
@@ -48,4 +48,4 @@
 
 - 目录：`agent/`、`scripts/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 134 个、函数 1377 个；超阈值文件 4 个、函数 27 个。
+- 文件 135 个、函数 1378 个；超阈值文件 4 个、函数 27 个。

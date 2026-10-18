@@ -406,10 +406,11 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 
 1. 新增 `docs/applicability.md`，逐条列标准 ID：`适用` / `不适用` + 理由 + 风险承担者 + 证据路径。不适用项必须有≥20 字理由和可点击证据。
 2. `scripts/check_applicability.py`：
-   - 校验表结构（五列齐全）、ID 不重复、`不适用` 项的证据路径存在；
-   - 若设置环境变量 `STANDARDS_DOC=<标准文件>`，解析其中的 ID 并与表做双向比对（缺项 / 多项都失败）；
-   - 未设置时打印 `[SKIP] 未提供标准文档，仅校验表结构（ID 覆盖未验证）`，退出 0。CI 没有该文件，按此跳过；本地需要在跑 `ci.py` 前自行设置该环境变量，仓库脚本不写死任何人的绝对路径。
-3. 负向用例：临时标准文档少一个 ID → 失败；表里多一个未知 ID → 失败。
+   - 校验表结构（四列齐全）、ID 不重复；
+   - 编号集合在 `scripts/standards_rules.py`（手册 v1.1 的 95 条可申报准则），CI 不依赖外部路径；
+   - 表里出现集合外的编号 → 失败；集合内的编号未申报 → 继续适用；
+   - 输出打印准则版本与"申报 N 条 / 标准 M 条（N/A x%）"。
+3. 负向用例：拿真实编号集合比对一条不存在的编号 → 退出 1；申报表原因过短 → 退出 1；申报表缺失 → 退出 1。
 
 ### 2.13 `Y1` CI 单一事实源
 
@@ -485,7 +486,7 @@ plugins/          仅在包外向下依赖 agent
 |---|---|
 | 预算单一事实源 | `scripts/quality_budgets.py`（新增） |
 | 复杂度登记与生成 | `scripts/check_complexity.py`、`scripts/gen_complexity_md.py`、`docs/complexity.md` |
-| 适用性表 | `docs/applicability.md`、`scripts/check_applicability.py` |
+| 适用性表 | `docs/applicability.md`、`scripts/standards_rules.py`、`scripts/check_applicability.py` |
 | 门禁清单文档 | `docs/quality-gates.md` |
 | 接入 CI | `ci_steps.py` + `ci.yml`（本阶段仍手写，P3 再切生成式） |
 
@@ -521,7 +522,7 @@ plugins/          仅在包外向下依赖 agent
 
 `ports.py` 协议化、全仓注释抽检、`docs/architecture.md` 补 `entry` 层、README 文档索引。
 
-**退出条件**：`docs/applicability.md` 所有 `不适用` 项有证据；`ci.py` 全绿。
+**退出条件**：`docs/applicability.md` 所有 `不适用` 项有原因与风险承担者，编号与 `scripts/standards_rules.py` 双向对齐，`ci.py` 全绿。
 
 合计约 **6–7 人日**。
 
@@ -537,7 +538,7 @@ plugins/          仅在包外向下依赖 agent
 | `check_readme` | 用例数写错、文档提到不存在的 `data/` 子目录 | 报期望值与实际值 |
 | `check_ci_workflow` | yml 多一步、少一步 | 打印 diff |
 | `check_config_drift` | `.example` 少键 / 多键 | 报节、键 |
-| `check_applicability` | 缺列、未知 ID、证据路径不存在 | 各报一条 |
+| `check_applicability` | 缺列、未知 ID、原因过短、申报表缺失 | 各报一条 |
 | `check_complexity` | 801 行文件未登记 | 报文件与实测行数 |
 | `gen_*_md --check` | 文档少一行 | 打印首处差异 |
 | `check_silent_except` | 120 处惯用法 | 报超预算数与新增位置 |

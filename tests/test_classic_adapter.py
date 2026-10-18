@@ -766,6 +766,67 @@ class InboundContractTest(unittest.TestCase):
         self.assertEqual(payload["context_layout"]["total_tokens"], 100)
         self.assertIsInstance(payload["todo_list"], list)
 
+    def test_history_todo_ignores_other_tools_items(self) -> None:
+        """检索结果的 `items`（`file` / `match`）不能进清单。
+
+        `find_in_file` / `file_search` 与 `todo_list` 一样返回 `{"items": [...]}`。
+        从事件里按形状取最后一个，清单就会变成搜索结果，界面渲染出没有文字的复选框。
+        清单的唯一事实源是 `live_state`。
+        """
+        from agent.core.events import Event
+
+        events = [Event("tool_done", {"call_id": "t2", "name": "file_search", "data": {
+            "count": 2, "items": [
+                {"file": "a.py", "line": 1, "match": "def check"},
+                {"file": "a.py", "line": 9, "match": "def cycles"},
+            ]}})]
+
+        class _Live:
+            def get_todo(self, cid):
+                return {"list_id": "l1", "items": [{"text": "读代码", "done": False}],
+                        "collapsed": False}
+
+        class _Store:
+            data_root = Path(r"D:\nonexistent-never-used")
+
+            def load(self, cid):
+                return events
+
+        class _App(_FakeApp):
+            def __init__(self):
+                super().__init__(Path(r"D:\nonexistent-never-used"))
+                self.store = _Store()
+                self.live_state = _Live()
+
+        todo = ClassicAdapter(_App()).history(CID)["todo_list"]
+        self.assertEqual([it["text"] for it in todo], ["读代码"])
+
+    def test_history_todo_empty_when_none_active(self) -> None:
+        """没有清单（或已 `close`）时返回空数组，界面据此 `hideTodoList`。"""
+        from agent.core.events import Event
+
+        events = [Event("tool_done", {"call_id": "t1", "name": "todo_list", "data": {
+            "list_id": "l1", "items": [{"text": "旧的", "done": False}],
+            "collapsed": False, "close": True}})]
+
+        class _Live:
+            def get_todo(self, cid):
+                return None
+
+        class _Store:
+            data_root = Path(r"D:\nonexistent-never-used")
+
+            def load(self, cid):
+                return events
+
+        class _App(_FakeApp):
+            def __init__(self):
+                super().__init__(Path(r"D:\nonexistent-never-used"))
+                self.store = _Store()
+                self.live_state = _Live()
+
+        self.assertEqual(ClassicAdapter(_App()).history(CID)["todo_list"], [])
+
     def test_history_rejects_bad_id(self) -> None:
         payload = self.adapter.history("x")
         self.assertFalse(payload["ok"])

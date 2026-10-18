@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import ast
+import io
 import sys
 import tempfile
 import textwrap
@@ -156,9 +157,22 @@ class PythonFloorGateTest(unittest.TestCase):
 
 
 class ApplicabilityGateTest(unittest.TestCase):
-    """例外申报表：列数、准则编号、原因长度、未知准则。"""
+    """例外申报表：列数、准则编号、原因长度、未知准则、缺表。"""
 
     _HEADER = "| 准则 | 申报 | 原因 | 风险由谁承担 |\n|---|---|---|---|\n"
+    _OK_ROW = "| A1 | 不适用 | 这个仓库没有对应的运行时依赖，因此不适用 | 维护者 |\n"
+
+    def _docs(self, text: str) -> Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return _write(Path(tmp.name) / "applicability.md", text)
+
+    def _run(self, docs: Path) -> tuple[int, str]:
+        out = io.StringIO()
+        with mock.patch.object(check_applicability, "DOCS", docs), \
+                mock.patch("sys.stdout", out):
+            code = check_applicability.main()
+        return code, out.getvalue()
 
     def test_unknown_rule_id_fails(self) -> None:
         text = self._HEADER + "| Z9 | 不适用 | 这条规则与本地部署无关 | 维护者 |\n"
@@ -167,11 +181,41 @@ class ApplicabilityGateTest(unittest.TestCase):
 
     def test_short_reason_fails(self) -> None:
         text = self._HEADER + "| A1 | 不适用 | 短 | 维护者 |\n"
-        self.assertTrue(any("原因少于" in p for p in check_applicability.check(text)))
+        problems = check_applicability.check(text, known_ids={"A1"})
+        self.assertTrue(any("原因少于" in p for p in problems))
 
     def test_well_formed_row_passes(self) -> None:
-        text = self._HEADER + "| A1 | 不适用 | 这个仓库没有对应的运行时依赖，因此不适用 | 维护者 |\n"
+        text = self._HEADER + self._OK_ROW
         self.assertEqual(check_applicability.check(text, known_ids={"A1"}), [])
+
+    def test_rule_ids_are_wellformed(self) -> None:
+        """编号格式错会让整张表无法申报；分节标题混进来会稀释占比。"""
+        ids = check_applicability.RULE_IDS
+        self.assertGreaterEqual(len(ids), 90)
+        self.assertTrue({"A1", "A2", "G1", "X2"} <= ids)
+        self.assertNotIn("0.5", ids)
+        self.assertNotIn("1.1", ids)
+        bad = [i for i in ids if not check_applicability._ID_RE.match(i)]
+        self.assertEqual(bad, [])
+
+    def test_stale_id_fails_through_main(self) -> None:
+        """端到端：拿真实编号集合比对一条不存在的编号，门禁必须退出 1。"""
+        docs = self._docs(self._HEADER + "| Z9 | 不适用 | 这条规则与本地部署无关 | 维护者 |\n")
+        code, out = self._run(docs)
+        self.assertEqual(code, 1)
+        self.assertIn("标准手册里没有", out)
+
+    def test_counts_and_ratio_visible(self) -> None:
+        code, out = self._run(self._docs(self._HEADER + self._OK_ROW))
+        self.assertEqual(code, 0)
+        self.assertRegex(out, r"申报 1 条 / 标准 \d+ 条（N/A \d+\.\d+%）")
+        self.assertIn(f"v{check_applicability.VERSION}", out)
+
+    def test_missing_table_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out = self._run(Path(tmp) / "absent.md")
+        self.assertEqual(code, 1)
+        self.assertIn("缺少", out)
 
 
 class ComplexityGateTest(unittest.TestCase):

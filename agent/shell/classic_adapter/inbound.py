@@ -530,25 +530,24 @@ def _covered_end_of(events: List[Any]) -> int:
     return covered
 
 
-def _todo_items(events: List[Any]) -> List[Dict[str, Any]]:
-    """取最后一次清单状态（`todo_list` 工具的结果里带 `items`）。
+def _current_todo(app: Any, cid: str) -> List[Dict[str, Any]]:
+    """当前会话的清单条目：**只读 `live_state`**，不从历史事件里猜。
 
-    结果事实有两种命名，**都要认**：
-      · `tool_done`；
-      · `tool_result`。
-    只认一种时，另一种记录的会话刷新后 `history.todo_list` 恒为空 → 经典界面
-    `loadConversationHistory` 读不到 → `hideTodoList()`。**两侧都不报错**，
-    正是适配层最该防的那种静默失效。
+    历史事件里按 `items` 形状找会抓错：`find_in_file` / `file_search` /
+    `python_inline` 的结果同样是 `{"items": [...]}`，取最后一个就把搜索结果
+    当成清单，前端读 `it.text` 得到空串、渲染出没有文字的复选框。
+
+    `live_state` 也是 `close` 生效的地方（清除清单即删文件），从它读不会在刷新后
+    复活已关闭的清单；`todo_list` 的每次增删都经它落盘，事实流只是它的派生物。
     """
-    latest: List[Dict[str, Any]] = []
-    for ev in events:
-        if str(getattr(ev, "type", "")) not in ("tool_result", "tool_done"):
-            continue
-        data = dict(getattr(ev, "data", None) or {})
-        payload = data.get("data") if isinstance(data.get("data"), dict) else {}
-        if isinstance(payload.get("items"), list):
-            latest = payload["items"]
-    return latest
+    live = getattr(app, "live_state", None)
+    if live is None:
+        return []
+    todo = live.get_todo(cid)
+    if not isinstance(todo, dict):
+        return []
+    items = todo.get("items")
+    return [dict(it) for it in items] if isinstance(items, list) else []
 
 
 def _date_group(mtime: float, now: Optional[float] = None) -> str:
@@ -811,7 +810,7 @@ class Inbound:
             # 不兜底的话刷新后右栏分段条会回落「—」）。
             "context_layout": (_last_payload(events, "context_layout")
                                or compute_context_layout(self._app, events, cid)),
-            "todo_list": _todo_items(events),
+            "todo_list": _current_todo(self._app, cid),
         }
 
     def _load_events(self, cid: str) -> List[Any]:
