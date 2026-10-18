@@ -649,6 +649,7 @@ class PluginHost:
                 raise ImportError(f"无法加载插件模块：{info.path}")
             module: ModuleType = importlib.util.module_from_spec(spec)
             sys.modules[mod_name] = module
+            _ensure_parent_package(self._dir)
             spec.loader.exec_module(module)
             register = getattr(module, "register", None)
             if not callable(register):
@@ -712,6 +713,22 @@ def _drop_plugin_modules(mod_name: str) -> None:
     for key in list(sys.modules):
         if key == mod_name or key.startswith(prefix):
             sys.modules.pop(key, None)
+
+
+def _ensure_parent_package(plugins_dir: Path) -> None:
+    """补上 `fan_agent_plugins` 父包，插件内的相对导入（含子包）才解析得到。
+
+    插件以动态模块名 `fan_agent_plugins.<名字>` 装载，父包本身从未真正导入：
+    单文件插件不需要它，`from .helper import …` 会在这里断掉。父包不持有状态，
+    卸载时只回收插件自己的模块。
+    """
+    parent = sys.modules.get(_MODULE_PREFIX)
+    if parent is None:
+        parent = ModuleType(_MODULE_PREFIX)
+        parent.__path__ = [str(plugins_dir)]
+        sys.modules[_MODULE_PREFIX] = parent
+    elif not getattr(parent, "__path__", None):
+        parent.__path__ = [str(plugins_dir)]
 
 
 def _collect_disposers(ctx: PluginContext, returned: Any) -> List[Disposer]:

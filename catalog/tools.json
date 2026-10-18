@@ -136,6 +136,140 @@
       }
     },
     {
+      "description": "截取桌面并作为图片直接查看（不是 OCR）。支持整屏与区域。图上叠坐标网格，刻度数字与 desktop_mouse 使用同一套屏幕坐标。返回屏幕矩形、光标位置与实发尺寸。",
+      "display": {
+        "icon": "👁",
+        "label": "看屏"
+      },
+      "name": "desktop_eye",
+      "parallel_safe": false,
+      "parameters": {
+        "grid": {
+          "description": "叠加坐标网格与刻度（默认 true）",
+          "type": "boolean"
+        },
+        "height": {
+          "description": "区域高度（屏幕坐标）",
+          "type": "integer"
+        },
+        "max_side": {
+          "description": "长边缩到不超过该像素；0 = 不缩放；缺省取插件配置",
+          "type": "integer"
+        },
+        "width": {
+          "description": "区域宽度（屏幕坐标）",
+          "type": "integer"
+        },
+        "x": {
+          "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出",
+          "type": "integer"
+        },
+        "y": {
+          "description": "区域左上角 y（屏幕坐标）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "操作键盘。type 输入任意 Unicode 文本；key 按单个键（enter / tab / esc / 方向键 / f1–f20 / 字母 / 数字 / 符号）；hotkey 按组合键（如 ctrl+c、alt+tab、cmd+space）。Plan 模式下拒绝。",
+      "display": {
+        "icon": "⌨",
+        "label": "键盘"
+      },
+      "name": "desktop_keyboard",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "type 输入文本 / key 单键 / hotkey 组合键",
+          "enum": [
+            "type",
+            "key",
+            "hotkey"
+          ],
+          "type": "string"
+        },
+        "key": {
+          "description": "单键规范名或常见别名（key 必填）",
+          "type": "string"
+        },
+        "keys": {
+          "description": "组合键，如 \"ctrl+c\" / \"alt+tab\" / \"cmd+space\"（hotkey 必填）",
+          "type": "string"
+        },
+        "repeat": {
+          "description": "重复次数 1–20（默认 1）",
+          "type": "integer"
+        },
+        "text": {
+          "description": "要输入的文本（type 必填）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "操作鼠标。坐标是屏幕坐标，与 desktop_eye 的网格刻度同一坐标系。click / scroll 省略 x、y 时作用在当前光标位置。action=cursor 只读查询，Plan 模式可用；其余动作在 Plan 模式被拒绝。",
+      "display": {
+        "icon": "🖱",
+        "label": "鼠标"
+      },
+      "name": "desktop_mouse",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "move 移动 / click 点击 / drag 拖拽 / scroll 滚动 / cursor 查询光标",
+          "enum": [
+            "move",
+            "click",
+            "drag",
+            "scroll",
+            "cursor"
+          ],
+          "type": "string"
+        },
+        "amount": {
+          "description": "滚动量 -50 ~ 50，正数向下 / 向右（scroll 必填）",
+          "type": "integer"
+        },
+        "button": {
+          "description": "按键（默认 left）",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ],
+          "type": "string"
+        },
+        "count": {
+          "description": "点击次数 1–3（默认 1）",
+          "type": "integer"
+        },
+        "duration_ms": {
+          "description": "移动 / 拖拽时长 0–5000 毫秒（默认 0）",
+          "type": "integer"
+        },
+        "horizontal": {
+          "description": "横向滚动（默认 false）",
+          "type": "boolean"
+        },
+        "to_x": {
+          "description": "拖拽终点 x",
+          "type": "integer"
+        },
+        "to_y": {
+          "description": "拖拽终点 y",
+          "type": "integer"
+        },
+        "x": {
+          "description": "屏幕坐标 x",
+          "type": "integer"
+        },
+        "y": {
+          "description": "屏幕坐标 y",
+          "type": "integer"
+        }
+      }
+    },
+    {
       "description": "回显输入文本。",
       "display": {
         "icon": "🔔",

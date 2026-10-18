@@ -176,6 +176,10 @@ registry.schemas()          # 导出模型可见的工具声明
 插件可以通过 `ctx.register_tool(tool)` 向注册表贡献工具，执行仍走同一条管道。
 工具声明 `needs_preview=True` 时同样受写盘四步协议约束。
 
+`plugins/desktop_io` 贡献 `desktop_eye` / `desktop_mouse` / `desktop_keyboard`：
+截屏结果作为图片附件回灌模型，鼠标与键盘动作按会话做 Plan 门控；坐标契约与
+平台后端见 [desktop-io.md](desktop-io.md)。
+
 插件包形态、清单、扩展点与生命周期见 [plugins.md](plugins.md)；运行时实例的登记
 （`ctx.set_runtime` / `plugin_host.runtime`）也在那里说明。
 
@@ -183,5 +187,6 @@ registry.schemas()          # 导出模型可见的工具声明
 
 - [architecture.md](../architecture.md)：`ToolPort` 与模块链
 - [plugins.md](plugins.md)：插件系统与工具扩展点
+- [desktop-io.md](desktop-io.md)：插件工具的图片附件与输入门控示例
 - [guide/config.md](../guide/config.md)：配置项
 - [session.md](session.md)：跨会话协作工具背后的网格

@@ -87,6 +87,7 @@ full_user_rounds         = 1
 | [知识库](docs/subsystems/knowledge.md) | `knowledge` 的文件收录、勾选状态、注入与端点 |
 | [多模型](docs/subsystems/multi-model.md) | `multi_model` 的目录条目、设置页表单与模型下拉 |
 | [Skills](docs/subsystems/skills.md) | `skills` 插件的三层披露与 `skill_manage` |
+| [桌面 IO](docs/subsystems/desktop-io.md) | `desktop_io` 的截屏、坐标网格与鼠标键盘工具 |
 | [会话与协作](docs/subsystems/session.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
 | [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
 | [标准对齐优化方案](docs/plan/standards-alignment.md) | 依赖环、门禁可信度、覆盖率口径、预算与登记表 |
@@ -110,7 +111,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1397 个用例）：
+单元测试（1441 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

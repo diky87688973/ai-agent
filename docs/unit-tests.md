@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1397** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1441** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -25,57 +25,58 @@
 15. [test_context_plumbing.py](#test_context_plumbingpy)（5）
 16. [test_context_splice.py](#test_context_splicepy)（9）
 17. [test_core.py](#test_corepy)（56）
-18. [test_edited_files.py](#test_edited_filespy)（1）
-19. [test_entry_layer.py](#test_entry_layerpy)（13）
-20. [test_error_log.py](#test_error_logpy)（8）
-21. [test_event_bus.py](#test_event_buspy)（9）
-22. [test_fact_compat.py](#test_fact_compatpy)（4）
-23. [test_file_safety.py](#test_file_safetypy)（24）
-24. [test_file_size_format.py](#test_file_size_formatpy)（4）
-25. [test_four_step_gate.py](#test_four_step_gatepy)（7）
-26. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-27. [test_gate_negative.py](#test_gate_negativepy)（64）
-28. [test_goal_runner.py](#test_goal_runnerpy)（6）
-29. [test_image_embed.py](#test_image_embedpy)（10）
-30. [test_image_tool.py](#test_image_toolpy)（23）
-31. [test_image_turns.py](#test_image_turnspy)（23）
-32. [test_import_graph.py](#test_import_graphpy)（5）
-33. [test_invest_tools.py](#test_invest_toolspy)（24）
-34. [test_kb_plugin.py](#test_kb_pluginpy)（49）
-35. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-36. [test_mode_note.py](#test_mode_notepy)（12）
-37. [test_model_catalog.py](#test_model_catalogpy)（23）
-38. [test_model_provider.py](#test_model_providerpy)（41）
-39. [test_model_window.py](#test_model_windowpy)（9）
-40. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（26）
-41. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-42. [test_plugin_http.py](#test_plugin_httppy)（18）
-43. [test_plugins.py](#test_pluginspy)（27）
-44. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-45. [test_provider_meta.py](#test_provider_metapy)（8）
-46. [test_provider_router.py](#test_provider_routerpy)（14）
-47. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
-48. [test_readonly_tools.py](#test_readonly_toolspy)（25）
-49. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-50. [test_run_registry.py](#test_run_registrypy)（13）
-51. [test_session_context.py](#test_session_contextpy)（22）
-52. [test_session_seq.py](#test_session_seqpy)（23）
-53. [test_session_store.py](#test_session_storepy)（17）
-54. [test_session_tools.py](#test_session_toolspy)（17）
-55. [test_settings_panel.py](#test_settings_panelpy)（17）
-56. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-57. [test_task_tools.py](#test_task_toolspy)（27）
-58. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
-59. [test_tool_registry.py](#test_tool_registrypy)（17）
-60. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-61. [test_usage_metrics.py](#test_usage_metricspy)（7）
-62. [test_version_stamp.py](#test_version_stamppy)（4）
-63. [test_web_frontend.py](#test_web_frontendpy)（5）
-64. [test_web_shell.py](#test_web_shellpy)（50）
-65. [test_web_ui_config.py](#test_web_ui_configpy)（4）
-66. [test_write_gate.py](#test_write_gatepy)（16）
-67. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-68. [test_write_path_tools.py](#test_write_path_toolspy)（30）
+18. [test_desktop_io.py](#test_desktop_iopy)（43）
+19. [test_edited_files.py](#test_edited_filespy)（1）
+20. [test_entry_layer.py](#test_entry_layerpy)（13）
+21. [test_error_log.py](#test_error_logpy)（8）
+22. [test_event_bus.py](#test_event_buspy)（9）
+23. [test_fact_compat.py](#test_fact_compatpy)（4）
+24. [test_file_safety.py](#test_file_safetypy)（24）
+25. [test_file_size_format.py](#test_file_size_formatpy)（4）
+26. [test_four_step_gate.py](#test_four_step_gatepy)（7）
+27. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+28. [test_gate_negative.py](#test_gate_negativepy)（64）
+29. [test_goal_runner.py](#test_goal_runnerpy)（6）
+30. [test_image_embed.py](#test_image_embedpy)（10）
+31. [test_image_tool.py](#test_image_toolpy)（23）
+32. [test_image_turns.py](#test_image_turnspy)（23）
+33. [test_import_graph.py](#test_import_graphpy)（5）
+34. [test_invest_tools.py](#test_invest_toolspy)（24）
+35. [test_kb_plugin.py](#test_kb_pluginpy)（49）
+36. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+37. [test_mode_note.py](#test_mode_notepy)（12）
+38. [test_model_catalog.py](#test_model_catalogpy)（23）
+39. [test_model_provider.py](#test_model_providerpy)（41）
+40. [test_model_window.py](#test_model_windowpy)（9）
+41. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（26）
+42. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+43. [test_plugin_http.py](#test_plugin_httppy)（18）
+44. [test_plugins.py](#test_pluginspy)（28）
+45. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+46. [test_provider_meta.py](#test_provider_metapy)（8）
+47. [test_provider_router.py](#test_provider_routerpy)（14）
+48. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
+49. [test_readonly_tools.py](#test_readonly_toolspy)（25）
+50. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+51. [test_run_registry.py](#test_run_registrypy)（13）
+52. [test_session_context.py](#test_session_contextpy)（22）
+53. [test_session_seq.py](#test_session_seqpy)（23）
+54. [test_session_store.py](#test_session_storepy)（17）
+55. [test_session_tools.py](#test_session_toolspy)（17）
+56. [test_settings_panel.py](#test_settings_panelpy)（17）
+57. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+58. [test_task_tools.py](#test_task_toolspy)（27）
+59. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+60. [test_tool_registry.py](#test_tool_registrypy)（17）
+61. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+62. [test_usage_metrics.py](#test_usage_metricspy)（7）
+63. [test_version_stamp.py](#test_version_stamppy)（4）
+64. [test_web_frontend.py](#test_web_frontendpy)（5）
+65. [test_web_shell.py](#test_web_shellpy)（50）
+66. [test_web_ui_config.py](#test_web_ui_configpy)（4）
+67. [test_write_gate.py](#test_write_gatepy)（16）
+68. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+69. [test_write_path_tools.py](#test_write_path_toolspy)（30）
 
 ## test_anthropic_provider.py
 
@@ -744,6 +745,56 @@
 | 55 | `WiringTest` | `test_factory_receives_every_dependency_it_is_given` | `build_engine` 收到的依赖必须真的传进引擎（防"收了不用"）。 |
 | 56 | `WiringTest` | `test_live_events_carry_a_storage_coordinate_through_app_session` | 经 `App.session` 跑一轮，总线上的事件必须带 `_seq`。 |
 
+## test_desktop_io.py
+
+共 43 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `CanvasTest` | `test_bad_png_raises` | 覆盖「A class whose instances are single test cases」：bad png raises |
+| 2 | `CanvasTest` | `test_blank_and_tiny_images` | 覆盖「A class whose instances are single test cases」：blank and tiny images |
+| 3 | `CanvasTest` | `test_cursor_mark_follows_screen_extent` | 覆盖「A class whose instances are single test cases」：cursor mark follows screen extent |
+| 4 | `CanvasTest` | `test_grid_and_cursor_change_pixels` | 覆盖「A class whose instances are single test cases」：grid and cursor change pixels |
+| 5 | `CanvasTest` | `test_offset_maps_screen_units_to_sent_pixels` | 覆盖「A class whose instances are single test cases」：offset maps screen units to sent pixels |
+| 6 | `CanvasTest` | `test_scales_and_reports` | 覆盖「A class whose instances are single test cases」：scales and reports |
+| 7 | `ConfigTest` | `test_bad_values_fall_back` | 覆盖「A class whose instances are single test cases」：bad values fall back |
+| 8 | `ConfigTest` | `test_missing_file_uses_defaults` | 覆盖「A class whose instances are single test cases」：missing file uses defaults |
+| 9 | `ConfigTest` | `test_values_are_read_and_clamped` | 覆盖「A class whose instances are single test cases」：values are read and clamped |
+| 10 | `CoordsTest` | `test_geometry_reports_ratio` | 覆盖「A class whose instances are single test cases」：geometry reports ratio |
+| 11 | `CoordsTest` | `test_rect_bounds_and_intersection` | 覆盖「A class whose instances are single test cases」：rect bounds and intersection |
+| 12 | `CoordsTest` | `test_rect_rejects_empty` | 覆盖「A class whose instances are single test cases」：rect rejects empty |
+| 13 | `EyeToolTest` | `test_grid_switch_is_reported` | 覆盖「A class whose instances are single test cases」：grid switch is reported |
+| 14 | `EyeToolTest` | `test_note_reports_mixed_scale` | 覆盖「A class whose instances are single test cases」：note reports mixed scale |
+| 15 | `EyeToolTest` | `test_notes_report_shrinking_and_blank` | 覆盖「A class whose instances are single test cases」：notes report shrinking and blank |
+| 16 | `EyeToolTest` | `test_oversized_region_rejected` | 覆盖「A class whose instances are single test cases」：oversized region rejected |
+| 17 | `EyeToolTest` | `test_region_is_clipped_to_screen` | 覆盖「A class whose instances are single test cases」：region is clipped to screen |
+| 18 | `EyeToolTest` | `test_region_needs_four_numbers` | 覆盖「A class whose instances are single test cases」：region needs four numbers |
+| 19 | `EyeToolTest` | `test_returns_image_attachment` | 覆盖「A class whose instances are single test cases」：returns image attachment |
+| 20 | `EyeToolTest` | `test_unknown_argument_rejected` | 覆盖「A class whose instances are single test cases」：unknown argument rejected |
+| 21 | `IsolationTest` | `test_input_lock_times_out` | 覆盖「A class whose instances are single test cases」：input lock times out |
+| 22 | `IsolationTest` | `test_unavailable_backend_reports` | 覆盖「A class whose instances are single test cases」：unavailable backend reports |
+| 23 | `KeyboardToolTest` | `test_bad_parameters` | 覆盖「A class whose instances are single test cases」：bad parameters |
+| 24 | `KeyboardToolTest` | `test_plan_gate_blocks` | 覆盖「A class whose instances are single test cases」：plan gate blocks |
+| 25 | `KeyboardToolTest` | `test_type_key_and_hotkey` | 覆盖「A class whose instances are single test cases」：type key and hotkey |
+| 26 | `KeysTest` | `test_aliases_normalize` | 覆盖「A class whose instances are single test cases」：aliases normalize |
+| 27 | `KeysTest` | `test_canonical_set_is_coverable` | 覆盖「A class whose instances are single test cases」：canonical set is coverable |
+| 28 | `KeysTest` | `test_hotkey_forms` | 覆盖「A class whose instances are single test cases」：hotkey forms |
+| 29 | `KeysTest` | `test_hotkey_rejects_bad_shapes` | 覆盖「A class whose instances are single test cases」：hotkey rejects bad shapes |
+| 30 | `KeysTest` | `test_unknown_key_names_hint` | 覆盖「A class whose instances are single test cases」：unknown key names hint |
+| 31 | `MacOSTableTest` | `test_keycodes_cover_canonical_names` | 覆盖「不启动系统库，只校验键码表与结构体拼装」：keycodes cover canonical names |
+| 32 | `MacOSTableTest` | `test_point_and_unknown_key` | 覆盖「不启动系统库，只校验键码表与结构体拼装」：point and unknown key |
+| 33 | `MacOSTableTest` | `test_scroll_delta_matches_contract` | 覆盖「不启动系统库，只校验键码表与结构体拼装」：scroll delta matches contract |
+| 34 | `MouseToolTest` | `test_drag_scroll_and_cursor` | 覆盖「A class whose instances are single test cases」：drag scroll and cursor |
+| 35 | `MouseToolTest` | `test_move_and_click` | 覆盖「A class whose instances are single test cases」：move and click |
+| 36 | `MouseToolTest` | `test_out_of_screen_point_rejected` | 覆盖「A class whose instances are single test cases」：out of screen point rejected |
+| 37 | `MouseToolTest` | `test_parameter_matrix` | 覆盖「A class whose instances are single test cases」：parameter matrix |
+| 38 | `MouseToolTest` | `test_plan_gate` | 覆盖「A class whose instances are single test cases」：plan gate |
+| 39 | `PluginTest` | `test_build_tools_honours_switches` | 覆盖「A class whose instances are single test cases」：build tools honours switches |
+| 40 | `PluginTest` | `test_register_returns_disposers` | 覆盖「A class whose instances are single test cases」：register returns disposers |
+| 41 | `Win32TableTest` | `test_key_table_covers_canonical_names` | 覆盖「A class whose instances are single test cases」：key table covers canonical names |
+| 42 | `Win32TableTest` | `test_scroll_delta_matches_contract` | 覆盖「A class whose instances are single test cases」：scroll delta matches contract |
+| 43 | `Win32TableTest` | `test_utf16_units_and_unknown_key` | 覆盖「A class whose instances are single test cases」：utf16 units and unknown key |
+
 ## test_edited_files.py
 
 共 1 个用例。
@@ -1362,7 +1413,7 @@
 
 ## test_plugins.py
 
-共 27 个用例。
+共 28 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1384,15 +1435,16 @@
 | 16 | `PluginHostTest` | `test_plugin_tool_runs_via_pipeline` | 覆盖「加载器行为（临时目录造插件）」：plugin tool runs via pipeline |
 | 17 | `PluginHostTest` | `test_register_raises_rolls_back` | 覆盖「加载器行为（临时目录造插件）」：register raises rolls back |
 | 18 | `PluginHostTest` | `test_register_via_ctx_returns_none` | 覆盖「加载器行为（临时目录造插件）」：register via ctx returns none |
-| 19 | `PluginHostTest` | `test_reload_skips_loaded` | 覆盖「加载器行为（临时目录造插件）」：reload skips loaded |
-| 20 | `PluginHostTest` | `test_reports_accumulate` | 覆盖「加载器行为（临时目录造插件）」：reports accumulate |
-| 21 | `PluginHostTest` | `test_returned_disposer_list_reverse_order` | 覆盖「加载器行为（临时目录造插件）」：returned disposer list reverse order |
-| 22 | `PluginHostTest` | `test_unknown_name_reports_error` | 覆盖「加载器行为（临时目录造插件）」：unknown name reports error |
-| 23 | `PluginHostTest` | `test_unload_all_idempotent` | 覆盖「加载器行为（临时目录造插件）」：unload all idempotent |
-| 24 | `PluginIdentityFallbackTest` | `test_list_plugins_shows_declared_name_without_a_config` | 卡片标题取 `name` 而不是目录名 —— 不能只有配过的插件才显示中文名。 |
-| 25 | `PluginIdentityFallbackTest` | `test_no_files_falls_back_to_folder_name` | 覆盖「`[base]` 身份回退到 `.example`：列表里所有插件走同一条规则」：no files falls back to folder name |
-| 26 | `PluginIdentityFallbackTest` | `test_real_config_wins_and_missing_keys_fall_back` | 覆盖「`[base]` 身份回退到 `.example`：列表里所有插件走同一条规则」：real config wins and missing keys fall back |
-| 27 | `PluginIdentityFallbackTest` | `test_template_supplies_identity_when_config_is_absent` | 覆盖「`[base]` 身份回退到 `.example`：列表里所有插件走同一条规则」：template supplies identity when config is absent |
+| 19 | `PluginHostTest` | `test_relative_submodule_import` | 覆盖「加载器行为（临时目录造插件）」：relative submodule import |
+| 20 | `PluginHostTest` | `test_reload_skips_loaded` | 覆盖「加载器行为（临时目录造插件）」：reload skips loaded |
+| 21 | `PluginHostTest` | `test_reports_accumulate` | 覆盖「加载器行为（临时目录造插件）」：reports accumulate |
+| 22 | `PluginHostTest` | `test_returned_disposer_list_reverse_order` | 覆盖「加载器行为（临时目录造插件）」：returned disposer list reverse order |
+| 23 | `PluginHostTest` | `test_unknown_name_reports_error` | 覆盖「加载器行为（临时目录造插件）」：unknown name reports error |
+| 24 | `PluginHostTest` | `test_unload_all_idempotent` | 覆盖「加载器行为（临时目录造插件）」：unload all idempotent |
+| 25 | `PluginIdentityFallbackTest` | `test_list_plugins_shows_declared_name_without_a_config` | 卡片标题取 `name` 而不是目录名 —— 不能只有配过的插件才显示中文名。 |
+| 26 | `PluginIdentityFallbackTest` | `test_no_files_falls_back_to_folder_name` | 覆盖「`[base]` 身份回退到 `.example`：列表里所有插件走同一条规则」：no files falls back to folder name |
+| 27 | `PluginIdentityFallbackTest` | `test_real_config_wins_and_missing_keys_fall_back` | 覆盖「`[base]` 身份回退到 `.example`：列表里所有插件走同一条规则」：real config wins and missing keys fall back |
+| 28 | `PluginIdentityFallbackTest` | `test_template_supplies_identity_when_config_is_absent` | 覆盖「`[base]` 身份回退到 `.example`：列表里所有插件走同一条规则」：template supplies identity when config is absent |
 
 ## test_protocol_contract.py
 

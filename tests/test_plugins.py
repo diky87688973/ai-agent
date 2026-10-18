@@ -179,6 +179,24 @@ class PluginHostTest(unittest.TestCase):
         self.host.unload("ns")
         self.assertNotIn("fan_agent_plugins.ns", sys.modules)
 
+    def test_relative_submodule_import(self) -> None:
+
+        root = self.dir / "pkg"
+        root.mkdir()
+        (root / "helper.py").write_text("VALUE = 'ok'\n", encoding="utf-8")
+        (root / "plugin.py").write_text(
+            "from .helper import VALUE\n"
+            "\n"
+            "def register(ctx):\n"
+            "    return None\n",
+            encoding="utf-8",
+        )
+        report = self.host.load_enabled(["pkg"])[0]
+        self.assertEqual(report.status, "loaded", report.message)
+        self.assertEqual(sys.modules["fan_agent_plugins.pkg.helper"].VALUE, "ok")
+        self.host.unload("pkg")
+        self.assertNotIn("fan_agent_plugins.pkg.helper", sys.modules)
+
     def test_unload_all_idempotent(self) -> None:
 
         self._write_plugin("a", _GOOD_PLUGIN.replace("plugin_demo", "tool_a"))
