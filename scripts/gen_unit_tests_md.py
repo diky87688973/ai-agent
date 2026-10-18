@@ -18,6 +18,10 @@ from collections import OrderedDict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# 直接用 `python scripts/gen_unit_tests_md.py` 运行时，sys.path[0] 是 scripts/；
+# 测试模块要 `import agent`，必须把仓库根放进来（与 `python -m unittest` 一致）。
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 TESTS = ROOT / "tests"
 OUT = ROOT / "docs" / "unit-tests.md"
 
