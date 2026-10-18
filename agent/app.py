@@ -35,6 +35,7 @@ from agent.capabilities.builtin import (
     write_file,
 )
 from agent.capabilities.contributions import ContributionRegistry
+from agent.capabilities.model_catalog import ModelCatalog
 from agent.capabilities.plugins import PluginHost
 from agent.capabilities.registry import ToolRegistry
 from agent.config import (
@@ -55,6 +56,7 @@ from agent.core.context import (
     SERVICE_EVENT_BUS,
     SERVICE_LIVE_STATE,
     SERVICE_MESH,
+    SERVICE_MODEL_CATALOG,
     SERVICE_PIPELINE,
     SERVICE_PLUGIN_HOST,
     SERVICE_PROVIDER,
@@ -64,6 +66,7 @@ from agent.core.context import (
     SERVICE_STORE,
     AppContext,
 )
+from agent.core.engine_factory import build_engine
 from agent.core.error_report import bind_error_sink, report_error
 from agent.core.event_bus import EventBus
 from agent.core.events import Event
@@ -81,7 +84,9 @@ from agent.mechanisms.file_safety import (
 )
 from agent.mechanisms.live_state import LiveState
 from agent.mechanisms.mesh import MeshState
-from agent.mechanisms.model_provider import EchoProvider
+from agent.mechanisms.model_provider import EchoProvider, MissingProvider
+from agent.mechanisms.provider_registry import build_provider
+from agent.mechanisms.provider_router import ProviderRouter
 from agent.mechanisms.quality import QualityGate, build_pipeline_gate
 from agent.shell.classic_adapter import ClassicAdapter
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER
@@ -109,6 +114,9 @@ class App:
         #: 可选的模型 id 列表（装配时由配置注入；空 = 未配置，不做白名单校验）。
         #: 该字段只保存模型 id；凭据由 provider 持有，不下发到浏览器。
         self._available_models: list = []
+        #: 模型来源三态：catalog（插件目录权威）/ config（config.ini）/ none。
+        #: 装配末尾由 `build_app` 计算；`reload_model_config` 之后可能从 config 变 none。
+        self.model_config_state = "none"
         #: 只把**最近这么多轮**用户发言里的图带进请求（负数 = 不限）。
         #: 缺省 999999 = 不剥：历史图片全保留 → 前缀稳定 → 缓存可复用。
         self.image_turns = int(image_turns)
@@ -131,10 +139,132 @@ class App:
     def available_models(self) -> list:
         """可选的模型 id 列表（会话选模型只能从中挑）。
 
-        清单为空表示"未配置多模型"，此时不做白名单校验 ——
-        单模型部署不该因为没配清单就不能用。
+        目录权威时**每次现读快照**：插件配置是热读的，缓存名单会让下拉、
+        白名单与配置各说各话。非权威态才用装配注入的 `_available_models`。
         """
+        snapshot = self._catalog_snapshot()
+        if snapshot is not None and snapshot.authoritative:
+            return [item.id for item in snapshot.entries]
         return list(self._available_models)
+
+    def _catalog_snapshot(self) -> Any:
+        """当前目录快照；未接入目录或快照失败时返回 None（调用方按非权威处理）。"""
+        catalog = self.model_catalog
+        snapshot = getattr(catalog, "snapshot", None)
+        if not callable(snapshot):
+            return None
+        try:
+            return snapshot()
+        except Exception as exc:
+            # 快照失败不能把整条请求链路带崩：目录是增强项，配置态仍可用。
+            report_error("app.model_catalog", exc)
+            return None
+
+    @property
+    def model_catalog(self) -> Any:
+        """模型目录（唯一权威来源）；未接入时返回 None。"""
+        return (self.context.get(SERVICE_MODEL_CATALOG)
+                if self.context.has(SERVICE_MODEL_CATALOG) else None)
+
+    def model_config(self) -> Dict[str, Any]:
+        """`/health` 的模型配置态：来源 / 权威 / 降级，三者都可机读。"""
+        snapshot = self._catalog_snapshot()
+        return {
+            "source": self.model_config_state,
+            "authoritative": bool(snapshot is not None and snapshot.authoritative),
+            "degraded": self.model_config_state == "none",
+        }
+
+    def model_for(self, conversation_id: str) -> str:
+        """解析会话模型，并把已被删掉的 id 收敛回默认值（读取点收敛）。
+
+        插件改配置后，旧标签页可能还拿着一个已经不存在的 id。这里写回默认值，
+        而不是让它一路撞到 `未配置的模型` 错误 —— 显示同步与状态写入必须分开。
+        """
+        state = self.live_state
+        current = str(state.get_model(conversation_id) or "").strip()
+        allowed = self.available_models()
+        if not allowed or not current or current in allowed:
+            return current
+        snapshot = self._catalog_snapshot()
+        fallback = (str(snapshot.default_id or "") if snapshot is not None
+                    and snapshot.authoritative else str(state.default_model or "")).strip() or allowed[0]
+        state.set_model(conversation_id, fallback)
+        report_error(
+            "app.model",
+            f"会话模型 {current!r} 不在可用清单，已回落 {fallback!r}",
+            conversation_id=str(conversation_id or ""),
+        )
+        return fallback
+
+    def reload_model_config(self, config_path: Optional[Path] = None) -> str:
+        """设置页保存后的唯一入口：重建默认 provider 并刷新清单。
+
+        目录权威时**不**动配置（`config.ini` 模型节忽略但保留）；返回空串
+        表示成功，非空是给界面看的说明（不进异常路径）。
+        """
+        if self.model_config_state == "catalog":
+            note = "目录权威，忽略 config.ini 模型设置"
+            print(f"[app] {note}", file=sys.stderr, flush=True)
+            return note
+        return self._reload_config_model(config_path)
+
+    def refresh_model_config(self, config_path: Optional[Path] = None) -> str:
+        """插件装卸后重算权威来源：目录接管则刷新路由，否则回退 config.ini。
+
+        必须**先看快照**：插件停用后状态仍是 `catalog`，只看状态会把请求
+        继续路由到已注销的条目。
+        """
+        snapshot = self._catalog_snapshot()
+        if snapshot is not None and snapshot.authoritative:
+            self.model_config_state = "catalog"
+            self._available_models = [item.id for item in snapshot.entries]
+            self.live_state.default_model = snapshot.default_id
+            self._reload_policy(self._available_models, snapshot.default_id, False)
+            return ""
+        return self._reload_config_model(config_path)
+
+    def _reload_policy(self, allowed_ids: Any, default_id: str, fallback: bool) -> None:
+        policy = getattr(self.provider, "reload_policy", None)
+        if callable(policy):
+            policy(allowed_ids=list(allowed_ids),
+                   default_id=default_id, fallback_to_default=fallback)
+
+    def _reload_config_model(self, config_path: Optional[Path] = None) -> str:
+        cfg = get_model_reasoning(config_path)
+        if not cfg["api_key"] or not cfg["api_base_url"]:
+            return self._mark_model_config_none()
+        try:
+            provider = build_provider("openai", {
+                "base_url": cfg["api_base_url"],
+                "api_key": cfg["api_key"],
+                "model": cfg["model"],
+                "replay_history_reasoning": bool(
+                    get_context(config_path).get("replay_history_reasoning")),
+            })
+        except Exception as exc:
+            report_error("app.model_reload", exc)
+            return f"重建模型失败：{type(exc).__name__}: {exc}"
+        reloader = getattr(self.provider, "reload_default", None)
+        if callable(reloader):
+            reloader(provider)
+        models = [str(m).strip() for m in (cfg.get("models") or []) if str(m).strip()]
+        default_model = str(cfg.get("model") or "")
+        self._available_models = models or ([default_model] if default_model else [])
+        self.live_state.default_model = default_model
+        self._reload_policy(self._available_models, default_model, True)
+        self.model_config_state = "config"
+        return ""
+
+    def _mark_model_config_none(self) -> str:
+        self.model_config_state = "none"
+        self._available_models = []
+        self.live_state.default_model = ""
+        reloader = getattr(self.provider, "reload_default", None)
+        if callable(reloader):
+            reloader(MissingProvider())
+        self._reload_policy((), "", False)
+        return "缺少配置：config.ini 的 [model_reasoning]（api_base_url / api_key / model）"
 
     @property
     def registry(self) -> ToolRegistry:
@@ -323,7 +453,7 @@ class App:
         if conversation_id and self.session_contexts is not None:
             session_ctx = self.session_contexts.resolve_sync(conversation_id)
         # 引擎只有一个：`Engine`，没有可选的第二条路径。
-        return _build_engine(
+        return build_engine(
             conversation_id=conversation_id,
             log=log,
             provider=self.provider,
@@ -336,7 +466,7 @@ class App:
             system_prompt=system_prompt,
             cancel=cancel,
             effort=str(effort_resolver(conversation_id)) if effort_resolver else "high",
-            model=str(self.live_state.get_model(conversation_id) or "") if self.live_state else "",
+            model=self.model_for(conversation_id),
             image_turns=self.image_turns,
             image_max=self.image_max,
             max_passes=self.max_passes,
@@ -379,73 +509,6 @@ class App:
 
 
 
-def _build_engine(
-    *,
-    conversation_id: str,
-    log: Any,
-    provider: Any = None,
-    registry: Any = None,
-    pipeline: Any = None,
-    context: Any = None,
-    compactor: Any = None,
-    inbox: Any = None,
-    fact_sink: Any = None,
-    system_prompt: str = "",
-    cancel: Any = None,
-    effort: str = "high",
-    model: str = "",
-    image_turns: int = KEEP_IMAGE_TURNS,
-    image_max: int = MAX_EMBED_IMAGES,
-    max_passes: int = DEFAULT_MAX_PASSES,
-    mode_note: str = "",
-    event_sink: Any = None,
-    session_context: Any = None,
-    seq_allocator: Any = None,
-    app_context: Any = None,
-    session_contexts: Any = None,
-) -> Any:
-    """引擎工厂：把装配参数翻成模块链引擎。
-
-    `system_prompt` 在这里注入上下文管线。
-
-    `cancel` **一路透传到宿主与端口**：宿主在每趟开始前问一次、模型模块逐帧问、
-    工具模块逐调用问（见 `core/host.py` 与 `core/modules.py`）。取消时发出
-    `turn_ended{stopped: true}`，适配层据此翻成经典界面的 `stopped` 帧。
-    """
-    from agent.core.engine import Engine
-
-    # `system_prompt` 由 `App.session()` 注入一次。这里再注入一次就会**每个请求
-    # 把系统提示发两遍** —— 真实身份块上千 token，等于每请求双付。
-    return Engine(
-        conversation_id=conversation_id,
-        log=log,
-        provider=provider,
-        registry=registry,
-        pipeline=pipeline,
-        context=context,
-        compactor=compactor,
-        inbox=inbox,
-        effort=effort,
-        model=model,
-        image_turns=image_turns,
-        image_max=image_max,
-        max_passes=max_passes,
-        mode_note=mode_note,
-        fact_sink=fact_sink,
-        event_sink=event_sink,
-        session_context=session_context,
-        cancel=cancel,
-        # **这一行不能少**：本函数签名收了 `seq_allocator`，漏传则「事件带存储坐标」
-        # 在真实装配链路上完全失效 —— 内核层 `Ports`/`Host` 的盖章逻辑照常工作、
-        # 单元测试直接构造 `Host(...)` 也能过，但真实运行里帧 `id:` 行为 0 条，
-        # 浏览器 `Last-Event-ID` 恒空 → **断线期间的事件静默丢失**（不重放、不报错）。
-        # 存储侧的兜底补号会掩盖它（存储行有坐标、总线上的没有）。
-        seq_allocator=seq_allocator,
-        app_context=app_context,
-        session_contexts=session_contexts,
-    )
-
-
 def build_app(
     *,
     provider: Any = None,
@@ -458,6 +521,7 @@ def build_app(
     backup_retention_days: Optional[int] = None,
     plugins_dir: Optional[Path] = None,
     compactor_factory: Optional[Callable[[str], Any]] = None,
+    config_ready: Optional[bool] = None,
 ) -> App:
     """组装底座：默认 Echo 假模型；可选真实 provider / 存储 / 上下文工厂。
 
@@ -466,7 +530,8 @@ def build_app(
     live_state：会话实时状态（模式 / todo 清单）；默认落 PROJECT_ROOT/data/todo_lists。
     mesh：会话协作网格（Agent 注册表 / inbox）；默认落 PROJECT_ROOT/data/mesh。
     plugins_dir：插件根目录；默认 PROJECT_ROOT/plugins。装载哪些取工程根 plugins.ini 清单。
-    compactor_factory：上下文压缩器工厂；默认为对话提供 provider 摘要 + config [context] 阈值。"""
+    compactor_factory：上下文压缩器工厂；默认为对话提供 provider 摘要 + config [context] 阈值。
+    config_ready：`config.ini` 是否已有可用凭据；None = 由本函数读取配置判定。"""
     # 默认数据根：认 `AI_AGENT_DATA_ROOT`（只给测试/CI 的落盘隔离口）——
     # 见 `config.default_data_root` 的说明。
     data_root = default_data_root()
@@ -573,6 +638,9 @@ def build_app(
     # 插件贡献注册表：面板（界面）与插件命名空间端点（HTTP）都记在这里，
     # 壳层只按数据枚举，不必为每个插件加分支。
     contributions = ContributionRegistry()
+    # 模型目录：插件声明条目，装配末尾据"有效条目数"判定是否权威。
+    # 它与 provider 实例、内存缓存一样是进程级单例 —— 权威只能有一个。
+    model_catalog = ModelCatalog()
     _plugins_root = Path(plugins_dir) if plugins_dir is not None else PROJECT_ROOT / "plugins"
     plugin_host = PluginHost(
         _plugins_root,
@@ -585,8 +653,19 @@ def build_app(
         # 插件专属存储根：各插件拿到 `<数据根>/plugin/<插件名>/`，互相隔离
         plugin_data_root=data_root / "plugin",
         executors=executor_registry,
+        model_catalog=model_catalog,
     )
     provider_inst = provider if provider is not None else EchoProvider()
+    # 路由从一开始就是 SERVICE_PROVIDER：内核只见一个 provider。
+    # 非权威阶段 `fallback_to_default=True`（config.ini 的 models 由同一个网关服务）；
+    # 插件装载完成后按目录权威性刷新策略（见下方 `reload_policy`）。
+    router = ProviderRouter(
+        default=provider_inst,
+        resolve=model_catalog.provider_for,
+        allowed_ids=_available,
+        default_id=_default_model,
+        fallback_to_default=True,
+    )
     ctx_cfg = get_context()
     if context_factory is None:
         # 默认装配上下文管线：
@@ -612,7 +691,7 @@ def build_app(
             # 每次建会话再读阈值和摘要长度，设置页保存后下一回合用新值。
             fresh = get_context()
             summarizer = make_provider_summarizer(
-                provider_inst,
+                router,
                 max_chars=int(fresh["summary_output_max_chars"]),
                 # 摘要请求带上与平常请求相同的前缀，这次调用才能命中已有缓存。
                 prefix_reuse=True,
@@ -634,7 +713,8 @@ def build_app(
     # 逆序即清理序（后注册先清理）：先会话注册表与运行器，再各机制，最后管道与注册表。
     context.register(SERVICE_REGISTRY, registry)
     context.register(SERVICE_PIPELINE, pipeline)
-    context.register(SERVICE_PROVIDER, provider_inst)
+    context.register(SERVICE_PROVIDER, router)
+    context.register(SERVICE_MODEL_CATALOG, model_catalog)
     context.register(SERVICE_EVENT_BUS, event_bus)
     context.register(SERVICE_PLUGIN_HOST, plugin_host)
     context.register(SERVICE_CONTEXT_SOURCES, context_sources)
@@ -662,6 +742,11 @@ def build_app(
     )
     app._available_models = list(_available)
     app._error_unbind = _unbind_error
+    _config_ready = (
+        bool(model_cfg["api_key"] and model_cfg["api_base_url"])
+        if config_ready is None else bool(config_ready)
+    )
+    app.model_config_state = "config" if _config_ready else "none"
     runner = SessionRunner(
         app=app,
         mesh=mesh_state,
@@ -684,4 +769,29 @@ def build_app(
     # 注册贡献（面板 / 端点）本身是纯记账，放这里不影响工具与管道的装配顺序。
     plugin_host.app = app
     plugin_host.load_manifest(get_plugins())
+    # 插件装载完成后才算得出权威：目录"启用了"不等于"可用"，看有效条目数。
+    snapshot = model_catalog.snapshot()
+    if snapshot.authoritative:
+        app.model_config_state = "catalog"
+        app._available_models = [item.id for item in snapshot.entries]
+        state.default_model = snapshot.default_id
+        router.reload_policy(
+            allowed_ids=app._available_models,
+            default_id=snapshot.default_id,
+            fallback_to_default=False,
+        )
+    elif app.model_config_state == "config":
+        # 非权威：回退 config.ini 的模型名清单，由同一个默认网关服务。
+        app._available_models = list(_available)
+        state.default_model = _default_model
+        router.reload_policy(
+            allowed_ids=app._available_models,
+            default_id=_default_model,
+            fallback_to_default=True,
+        )
+    else:
+        # 两处都没有可用模型：清单必须为空（`/health.allowed_models` 不能报出选不了的 id）。
+        app._available_models = []
+        state.default_model = ""
+        router.reload_policy(allowed_ids=[], default_id="", fallback_to_default=True)
     return app

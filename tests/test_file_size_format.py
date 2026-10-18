@@ -20,13 +20,14 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-_UI_JS = _ROOT / "agent/shell/web_assets/classic/js/agent-ui.js"
+from agent.shell.ui_bundle import read_ui_js  # noqa: E402
 
 
 def _function_source(name: str) -> str:
-    src = _UI_JS.read_text(encoding="utf-8")
+    src = read_ui_js()
     i = src.index(f"function {name}(")
-    j = src.find("\nfunction ", i + 10)
+    ends = [x for x in (src.find("\nfunction ", i + 10), src.find("\n;", i + 10)) if x > 0]
+    j = min(ends) if ends else -1
     return src[i:j if j > 0 else len(src)]
 
 

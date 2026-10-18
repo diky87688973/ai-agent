@@ -95,6 +95,12 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 设置页在界面右上角，读写的就是 `config.ini`、`web-ui-config.ini` 和各插件的 `plugin-config.ini`。密钥只允许覆盖：密码框留空则文件里的值不动；有内容才替换。`GET /api/settings` 不回明文，只说明是否已填写。已填写时密码框提示「已设置秘钥,可重新设置并替换」，未填写时提示「未配置秘钥」。
 
+保存模型相关设置时，`apply_host()` 只调 `app.reload_model_config()`：重建默认 provider、
+刷新可选清单与会话默认模型，不在设置页直接改 provider 属性（路由包装后那三个属性
+并不存在，直接改会静默失效）。模型目录权威时，`GET /api/settings` 隐藏「模型」节
+并返回 `reload_note`；保存接口仍会拒绝越权写入。`config.ini` 的模型配置保留在磁盘上，
+停用插件即恢复生效。
+
 ## SSE 事件流
 
 `/api/events/stream` 是界面看到的事实投影。每一帧带 `conversation_id`，界面按会话分派。
@@ -157,7 +163,7 @@ inline_ui_html()        # 拼成完整单页
 
 散文块由 `marked`（`web_assets/classic/js/vendor/marked.min.js`）渲染 —— markdown 的块级规则细节多（松散列表的段距、表格、任务清单、嵌套列表），自研实现容易在边角处丢样式。
 
-`agent-ui.js` 的 `renderMarkdown()` 先按代码围栏切段，围栏交既有逻辑（`diff` / `patch` 走 diff 卡片，其余走 hljs 高亮），只把散文块交给 `renderMarkdownBlocks()`。
+`classic/js/render/markdown.js` 的 `renderMarkdown()` 先按代码围栏切段，围栏交既有逻辑（`diff` / `patch` 走 diff 卡片，其余走 hljs 高亮），只把散文块交给 `renderMarkdownBlocks()`。
 
 两项配置是必须的：
 
@@ -167,6 +173,12 @@ inline_ui_html()        # 拼成完整单页
 流式渲染每个动画帧最多渲染一次（`scheduleStreamRender()`）：`marked` 每次都是全量重解析，delta 密集时逐条渲染会把同一段文本反复解析几十遍。
 
 结果被 `@lru_cache` 缓存，所以改界面资源后需要重启服务。
+
+资源按功能拆成 `classic/js/**`、`classic/css/**` 的多个模块，由 `ui_bundle.py` 的
+清单按顺序内联；**没有**动辄几千行的 `agent-ui.js` / `agent-ui.css`。模型下拉不是
+壳层内建 UI：壳层只留 `#modelPickerSlot`，按钮与菜单由 `plugins/multi_model/ui/`
+渲染，样式经 `window.aiAgentShell.styles.load()` 注入，壳层公共样式里没有它。
+两条公共桥与停用清理见 [plugins.md](plugins.md#壳层公共桥)。
 
 ## 适配层
 

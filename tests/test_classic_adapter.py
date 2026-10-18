@@ -5,7 +5,7 @@
 `window.AIA && …` 或"取不到就静默 return"，形状对不上时**一行错误都不报**，只是功能
 默默消失（例如 `tool_call_id` 为空 → `tool_end` 永远配不上 → 步骤卡停在"进行中"）。
 
-断言对象是**经典界面源码真正读的那些名字**（每条断言旁边标 `agent-ui.js:行号`），
+断言对象是**经典界面源码真正读的那些名字**（每条断言旁边标出对应的界面模块），
 不测"大致像"。
 
 三组：
@@ -28,6 +28,7 @@ sys.path.insert(0, str(_ROOT))
 from agent.shell.classic_adapter import contract as C  # noqa: E402
 from agent.shell.classic_adapter.adapter import ClassicAdapter  # noqa: E402
 from agent.shell.classic_adapter.outbound import ClassicStream  # noqa: E402
+from agent.shell.ui_bundle import read_ui_css, read_ui_js  # noqa: E402
 from tests.testkit import no_plugins  # noqa: E402
 
 try:                                    # 服务名常量（装配层用）
@@ -166,15 +167,15 @@ class OutboundContractTest(unittest.TestCase):
         self.assertNotIn("model", frames[0],
                          msg="服务端不得把模型推给前端（会把用户当场的选择覆盖回默认）")
         self.assertIn("run_started", _types(frames))
-        self.assertEqual(frames[1]["run_id"], "r1")          # agent-ui.js:149
+        self.assertEqual(frames[1]["run_id"], "r1")          # 经典界面
 
     def test_step_started_emits_llm_round_then_request(self) -> None:
-        """`llm_round` 是 `reasoning_*` / `llm_request` 的**前置**（agent-ui.js:1685）。"""
+        """`llm_round` 是 `reasoning_*` / `llm_request` 的**前置**（`classic/js/chat/llm-rounds.js` 的 `addLlmRound`）。"""
         frames = _stream().translate("step_started", {"messages_count": 3, "tools_count": 41})
         self.assertEqual(_types(frames), [C.EV_LLM_ROUND, C.EV_LLM_REQUEST])
-        self.assertEqual(frames[0]["round"], 1)              # agent-ui.js:1685
-        self.assertEqual(frames[1]["round"], 1)              # agent-ui.js:1721
-        params = frames[1]["params"]                          # agent-ui.js:1722
+        self.assertEqual(frames[0]["round"], 1)              # `classic/js/chat/llm-rounds.js` 的 `addLlmRound`
+        self.assertEqual(frames[1]["round"], 1)              # 经典界面
+        params = frames[1]["params"]                          # 经典界面
         self.assertEqual(params["messagesCount"], 3)
         self.assertEqual(params["toolsCount"], 41)
 
@@ -184,7 +185,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertTrue(frames[1]["params"]["model"], msg="model 不得为空")
 
     def test_reasoning_delta_requires_round(self) -> None:
-        """`round` 必须与 `lastLlm.round` 相等，否则经典界面丢弃（agent-ui.js:1674）。"""
+        """`round` 必须与 `lastLlm.round` 相等，否则经典界面丢弃（`classic/js/chat/llm-rounds.js` 的 `appendReasoningDelta`）。"""
         stream = _stream()
         # 没有前置 llm_round → 丢弃
         self.assertEqual(stream.translate("reasoning_delta", {"text": "想"}), [])
@@ -195,16 +196,16 @@ class OutboundContractTest(unittest.TestCase):
 
     def test_assistant_delta_uses_delta_field(self) -> None:
         frames = _stream().translate("assistant_delta", {"text": "正文"})
-        self.assertEqual(frames[0]["delta"], "正文")          # agent-ui.js:163
+        self.assertEqual(frames[0]["delta"], "正文")          # 经典界面
 
     def test_tool_call_becomes_tool_start_with_call_id(self) -> None:
-        """`tool_call_id` 是配对的唯一键；空则后续 `tool_end` 被整个忽略（agent-ui.js:2013）。"""
+        """`tool_call_id` 是配对的唯一键；空则后续 `tool_end` 被整个忽略（`classic/js/chat/llm-rounds.js` 的 `onToolStart`）。"""
         frames = _stream().translate(
             "tool_call", {"call_id": "c1", "name": "read_file", "arguments": {"path": "a.md"}}
         )
         self.assertEqual(frames[0]["type"], C.EV_TOOL_START)
-        self.assertEqual(frames[0]["tool_call_id"], "c1")     # agent-ui.js:1934
-        self.assertEqual(frames[0]["script"], "read_file")    # agent-ui.js:1935
+        self.assertEqual(frames[0]["tool_call_id"], "c1")     # 经典界面
+        self.assertEqual(frames[0]["script"], "read_file")    # 经典界面
         self.assertEqual(frames[0]["args"], {"path": "a.md"})
 
     def test_tool_call_without_id_is_skipped(self) -> None:
@@ -214,7 +215,7 @@ class OutboundContractTest(unittest.TestCase):
 
     def test_tool_result_preview_is_json_string(self) -> None:
 
-        """`preview` 必须是 **JSON 字符串**（经典界面会 `JSON.parse`，agent-ui.js:2022）。"""
+        """`preview` 必须是 **JSON 字符串**（经典界面会 `JSON.parse`，`classic/js/tools/previews.js` 的 `fillToolPreview`）。"""
         stream = _stream()
         stream.translate("tool_call", {"call_id": "c1", "name": "run_command", "arguments": {}})
         frames = stream.translate(
@@ -225,7 +226,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertTrue(end["ok"])
         parsed = json.loads(end["preview"])                   # 必须能 parse
         self.assertEqual(parsed.get("ok"), True)
-        self.assertEqual(parsed["data"]["stdout"], "hi")      # agent-ui.js:1550/2029 读 data.stdout
+        self.assertEqual(parsed["data"]["stdout"], "hi")      # 经典界面 读 data.stdout
 
     def test_tool_done_images_ride_beside_preview(self) -> None:
         """看图的像素走 `images`，不写进 `preview` 文本。"""
@@ -358,7 +359,7 @@ class OutboundContractTest(unittest.TestCase):
     def test_only_a_real_suspension_asks_the_user(self) -> None:
         """**只有工具真挂起**才发 `user_confirm_required`——经典界面收到它就弹模态。
 
-        `agent-ui.js` 里这条是 100% 走弹窗的（`openUserConfirmModalFromToolEnd`
+        `classic/js/chat/confirm.js` 里这条是 100% 走弹窗的（`openUserConfirmModalFromToolEnd`
         会 `userConfirmBlocking=true` + `goBtn.disabled=true`）。所以这个字段的
         语义是"整个运行被阻塞、必须用户作答"；"顺便选一下"不属于这个字段。
         """
@@ -465,8 +466,7 @@ class OutboundContractTest(unittest.TestCase):
         做法：用户气泡是纵向 flex，文字包在 `.b-text` 里，附件条用 CSS `order`
         排到它前面（`.b.u > .msg-attach-strip{order:1}` / `.b.u > .b-text{order:2}`）。
         """
-        css = ((_ROOT / "agent" / "shell" / "web_assets" / "classic"
-                / "css" / "agent-ui.css").read_text(encoding="utf-8"))
+        css = read_ui_css()
         flat = "".join(css.split())
         self.assertIn(".b.u>.msg-attach-strip{order:1", flat,
                       msg="附件条缺少 order:1，图片会掉到文字下面")
@@ -479,8 +479,7 @@ class OutboundContractTest(unittest.TestCase):
         `promoteReasoningToChatIfNeeded` 的函数体保留但**不得被调用**：
         一旦调用，思考会混进对话正文。
         """
-        js = ((_ROOT / "agent" / "shell" / "web_assets" / "classic"
-               / "js" / "agent-ui.js").read_text(encoding="utf-8"))
+        js = read_ui_js()
         self.assertIn("function promoteReasoningToChatIfNeeded", js,
                       msg="函数被删了；本项只约束它不被调用")
         # 定义之后的正文里**不得**出现调用（注释里的提及不算）
@@ -533,7 +532,7 @@ class OutboundContractTest(unittest.TestCase):
 
     def test_todo_list_rides_on_tool_end(self) -> None:
 
-        """清单**没有独立事件**，挂在 `tool_end.todo_list_data` 上（agent-ui.js:160）。"""
+        """清单**没有独立事件**，挂在 `tool_end.todo_list_data` 上（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。"""
         stream = _stream()
         stream.translate("tool_call", {"call_id": "c9", "name": "todo_list", "arguments": {}})
         frames = stream.translate("tool_result", {
@@ -545,7 +544,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertEqual(end["todo_list_data"]["items"][0]["text"], "甲")
 
     def test_usage_must_be_nested(self) -> None:
-        """用量**嵌套在 `usage` 键下**：经典界面读 `ev.usage.prompt_tokens`（agent-ui.js:156）。
+        """用量**嵌套在 `usage` 键下**：经典界面读 `ev.usage.prompt_tokens`（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。
 
         平铺到顶层时经典界面读不到，表现是"用量永远是 0"。
         """
@@ -561,7 +560,7 @@ class OutboundContractTest(unittest.TestCase):
         self.assertNotIn("prompt_tokens", frame)
 
     def test_context_layout_is_flat_with_segments(self) -> None:
-        """`lastContextLayout = ev` 整包存下，所以 segments 在**顶层**（agent-ui.js:157）。"""
+        """`lastContextLayout = ev` 整包存下，所以 segments 在**顶层**（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。"""
         frames = _stream().translate("context_layout", {
             "segments": [{"key": "system", "tokens": 100}], "total_tokens": 100,
         })
@@ -583,7 +582,7 @@ class OutboundContractTest(unittest.TestCase):
         stream.translate("step_started", {})
         frames = stream.translate("model_message", {"content": "答"})
         self.assertEqual(_types(frames), [C.EV_LLM_RESPONSE, C.EV_LLM_DONE, C.EV_ASSISTANT])
-        self.assertEqual(frames[2]["content"], "答")          # agent-ui.js:167
+        self.assertEqual(frames[2]["content"], "答")          # 经典界面
 
     def test_turn_ended_emits_done(self) -> None:
         frames = _stream().translate("turn_ended", {})
@@ -623,7 +622,7 @@ class InboundContractTest(unittest.TestCase):
         self.state = self.adapter.state
 
     def test_sessions_read_id_not_conversation_id(self) -> None:
-        """经典界面读 `s.id`（agent-ui.js:309 附近）；`conversation_id` 不是它要的名字。"""
+        """经典界面读 `s.id`（`classic/js/chat/conversation.js` 的 `loadSessionRailList`）；`conversation_id` 不是它要的名字。"""
         payload = self.adapter.sessions()
         self.assertTrue(payload["ok"])
         self.assertIn("items", payload)
@@ -660,7 +659,7 @@ class InboundContractTest(unittest.TestCase):
         self.assertFalse((root / "ui_layout.json").is_file())
 
     def test_usage_accumulator_uses_different_field_names(self) -> None:
-        """累计端点用 `total_*`，与 SSE 的 `prompt_tokens` **不是一套**（agent-ui.js:1176）。"""
+        """累计端点用 `total_*`，与 SSE 的 `prompt_tokens` **不是一套**（`classic/js/chat/context-usage.js` 的 `loadUsageAccumulator`）。"""
         self.state.add_usage(CID, {"prompt_tokens": 10, "completion_tokens": 2,
                                    "prompt_cache_hit_tokens": 8, "prompt_cache_miss_tokens": 2})
         payload = self.adapter.usage_get(CID)
@@ -843,7 +842,7 @@ class WireHygieneTest(unittest.TestCase):
         self.adapter = ClassicAdapter(_FakeApp(Path(self._tmp.name)))
 
     def test_every_frame_carries_valid_conversation_id(self) -> None:
-        """没带合法 cid 的帧会被经典界面**整包静默丢弃**（agent-ui.js:100/146）。"""
+        """没带合法 cid 的帧会被经典界面**整包静默丢弃**（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。"""
         # 必须先 attach 再 feed：事件是**广播给当前已连接通道**的，
         # 没有通道时没有"待收件箱"，事件不会被留到以后（这是有意的：
         # 重连补齐靠 /api/chat/history 回放，而不是靠无限积压）。
@@ -913,7 +912,7 @@ class WireHygieneTest(unittest.TestCase):
         self.assertIsNone(self.adapter.next_frame(box, timeout=0.05))
 
     def test_sse_payload_is_single_line_data_frame(self) -> None:
-        """帧格式必须是 `data: <单行 json>\\n\\n`（agent-ui.js:94-98）。"""
+        """帧格式必须是 `data: <单行 json>\\n\\n`（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。"""
         from agent.shell.classic_adapter.adapter import ClassicSseChannel
 
         # 先建通道（连接）再喂事件——事件只广播给已连接的通道
@@ -941,7 +940,7 @@ class WireHygieneTest(unittest.TestCase):
             self.assertEqual(frame["type"], C.EV_HEARTBEAT)
 
     def test_normalize_cid_matches_ui_rule(self) -> None:
-        """经典界面的规则是 `/^[A-Za-z0-9_-]{8,128}$/`（agent-ui.js:8）。"""
+        """经典界面的规则是 `/^[A-Za-z0-9_-]{8,128}$/`（`classic/js/core/boot.js` 的 `normalizeConversationId`）。"""
         self.assertEqual(C.normalize_cid(CID), CID)
         for bad in ("", "short", "has space", "a" * 129, None, "带中文"):
             self.assertEqual(C.normalize_cid(bad), "", msg=repr(bad))
@@ -1164,7 +1163,7 @@ class UserConfirmRoundTripTest(unittest.TestCase):
     """确认的**回路**：用户在模态里选完，选择必须真的送到模型。
 
     经典界面的模态在「确认」后 POST `{conversation_id, confirm: <选择>, mode, model}`
-    并读返回体的 `run_id`（见 `agent-ui.js` 的 `submitUserConfirm`）——
+    并读返回体的 `run_id`（见 `classic/js/chat/confirm.js` 的 `submitUserConfirm`）——
     也就是说它期待**服务端把选择投回会话**。只回一个 `{ok:true}` 会让模型永远
     等不到第二段，工具回路就断在"待确认"。
     """
@@ -1345,8 +1344,7 @@ class UiBundleTest(unittest.TestCase):
         直到整轮结束；取消场景还会把**已完成**的工具刷成失败。
         所以 `tool_end` 分支里必须当场定标签。
         """
-        js = ((_ROOT / "agent" / "shell" / "web_assets" / "classic"
-               / "js" / "agent-ui.js").read_text(encoding="utf-8"))
+        js = read_ui_js()
         start = js.find("function onToolEnd(ev){")
         self.assertNotEqual(start, -1, msg="onToolEnd 不见了")
         body = js[start:start + 1100]

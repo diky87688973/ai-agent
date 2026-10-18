@@ -16,6 +16,7 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.core import event_name as ev  # noqa: E402
+from agent.shell.ui_bundle import read_ui_js  # noqa: E402
 
 # 经典界面曾消费 / 仍需映射表覆盖的事件类型
 FRONTEND_CONSUMED = (
@@ -167,7 +168,7 @@ class AssetReusePolicyTest(unittest.TestCase):
         """媒体以 Markdown 图片语法嵌入，非 base64 / HTML。"""
 
         # 消费侧用 markdown 解析器把图片 token 渲染成 `<img>`，且渲染链路不内联 base64。
-        ui = (_ROOT / "agent/shell/web_assets/classic/js/agent-ui.js").read_text(encoding="utf-8")
+        ui = read_ui_js()
         self.assertIn("marked.Renderer", ui, "经典 UI 应把图片 token 交给解析器的 Renderer")
         self.assertIn("r.image=", ui)
         self.assertIn("function mdParser(", ui, "散文块应由 markdown 解析器实例渲染")

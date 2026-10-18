@@ -7,7 +7,7 @@
 `node --check` 只验语法。有一类错**语法完全合法、运行时才炸**：定义那行被删掉、
 引用还在，例如
 
-    const tag=document.createElement("span");tag.className="tag tag-run";
+    10|    const tag=document.createElement("span");tag.className="tag tag-run";
     tag.textContent="运行中";          ← 定义行不见了，这里就是 `tag is not defined`
 
 - `node --check` → **通过**（语法没问题）；
@@ -29,6 +29,10 @@
 不做完整的 JS 作用域分析（那需要解析器）；只做**针对已知故障模式**的检查，
 误报可接受（宁可多看一眼）。
 
+主脚本已按模块拆分（`agent/shell/ui_bundle.py` 的清单）。模块共用同一个
+`<script>` 作用域，所以这里把**所有同作用域模块拼成一份文本**再检查，
+报错行号会映射回具体模块文件。
+
 运行：python scripts/check_ui_js.py（通过退出码 0）
 """
 from __future__ import annotations
@@ -48,23 +52,22 @@ except Exception:
     pass
 
 ROOT = Path(__file__).resolve().parent.parent
-UI_ASSETS = ROOT / "agent" / "shell" / "web_assets"
-UI_JS = UI_ASSETS / "classic" / "js" / "agent-ui.js"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-#: 界面脚本（每个都要过 `node --check` 之外的静态检查）
-UI_SCRIPTS = (
-    "js/agent-ui.js",
-    "js/theme-ui.js",
-    "js/code-highlight.js",
-    "js/image-lightbox.js",
-    "js/edited-files.js",
+from agent.shell.ui_bundle import (  # noqa: E402  （路径注入后才能导入）
+    CLASSIC_DIR,
+    UI_JS_MODULES,
+    UI_POST_JS_MODULES,
+    UI_PRE_JS_MODULES,
 )
 
-#: 与主脚本拼进同一个 script 的界面文件。函数声明落在同一作用域，主脚本可以直接调用。
-SHARED_SCOPE_JS = UI_SCRIPTS + ("js/chat-tool-views.js",)
-
-#: 设置页脚本跟主脚本拼在同一页。函数包在闭包里，不参与主脚本的未定义调用检查。
-SETTINGS_SCRIPTS = ("js/settings-ui.js",)
+#: 与主脚本拼进同一个 script 的其它脚本（vendor 是第三方压缩代码，不参与检查；
+#: 设置页脚本包在闭包里，也不参与"未定义调用"检查）。
+SHARED_EXTRA_JS = tuple(
+    rel for rel in UI_PRE_JS_MODULES + UI_POST_JS_MODULES
+    if "/vendor/" not in rel and not rel.endswith("settings-ui.js")
+)
 
 #: 这些是经典 UI 的骨架函数，被误删会**静默**失效（页面不报错，功能没了）
 REQUIRED_FUNCTIONS = (
@@ -79,6 +82,21 @@ REQUIRED_FUNCTIONS = (
 
 #: 检查"裸用"的临时变量名（UI 代码里高频复用、最容易被误删定义）
 WATCH_VARS = ("tag", "tid", "ic", "sn", "left", "wrap", "card")
+
+#: 厂商模型 id 字面量：模型清单只能来自服务端 `/health` 与插件目录，
+#: 前端一旦写死就变成第二权威（切换插件后仍然显示旧模型）。
+_MODEL_ID_RE = re.compile(
+    r"\b(?:deepseek|glm|claude|gpt|gemini|qwen|llama)-[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
+def model_id_literals(text: str) -> list[tuple[int, str]]:
+    """返回含厂商模型 id 的行号与内容（0 条即通过）。"""
+    return [
+        (lineno, line.strip())
+        for lineno, line in enumerate(text.splitlines(), 1)
+        if _MODEL_ID_RE.search(line)
+    ]
+
 
 
 #: 像"辅助函数"的名字前缀 —— 只查这类，避免把业务字符串/外部 API 误判
@@ -149,22 +167,58 @@ def _undefined_called(text: str, also_defined: set | None = None) -> list:
                   if n.startswith(_HELPER_PREFIXES))
 
 
+def _load_shared() -> tuple[list[str], list[tuple[str, int]], set[str]]:
+    """把同作用域模块拼成一份文本，并给出每行的 (模块, 模块内行号) 映射。
+
+    用 `\\n;\\n` 连接：分隔符独占一行，行号映射简单且不改变脚本语义。
+    """
+    lines: list[str] = [""]  # 让行号从 1 开始，与编辑器一致
+    owner: list[tuple[str, int]] = [("", 0)]
+    for rel in UI_JS_MODULES:
+        text = (CLASSIC_DIR / "js" / rel).read_text(encoding="utf-8")
+        lines.append(";")
+        owner.append((rel, 0))
+        for i, ln in enumerate(text.splitlines(), 1):
+            lines.append(ln)
+            owner.append((rel, i))
+    extra_defined: set[str] = set()
+    for rel in SHARED_EXTRA_JS:
+        path = CLASSIC_DIR / rel
+        if path.is_file():
+            extra_defined |= _defined_names(path.read_text(encoding="utf-8"))
+    return lines, owner, extra_defined
+
+
+def _where(owner: list[tuple[str, int]], lineno: int) -> str:
+    rel, local = owner[lineno] if 0 < lineno < len(owner) else ("?", lineno)
+    return f"{rel}:{local}" if rel else f"?:{lineno}"
+
+
+def _js_path(rel: str) -> Path:
+    """模块清单里的相对路径：主脚本相对 `classic/js/`，其余相对 `classic/`。"""
+    if rel in UI_JS_MODULES:
+        return CLASSIC_DIR / "js" / rel
+    return CLASSIC_DIR / rel
+
+
 def main() -> int:
-    if not UI_JS.is_file():
-        print(f"[FAIL] 找不到 UI 脚本：{UI_JS}")
+    missing = [
+        rel for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES
+        if not _js_path(rel).is_file()
+    ]
+    if missing:
+        print(f"[FAIL] 找不到 UI 脚本：{', '.join(missing)}")
         return 1
-    text = UI_JS.read_text(encoding="utf-8")
-    lines = text.splitlines()
+
+    lines, owner, extra_defined = _load_shared()
+    text = "\n".join(lines)
     problems: list[str] = []
+    total = sum(len((CLASSIC_DIR / "js" / rel).read_text(encoding="utf-8").splitlines())
+                for rel in UI_JS_MODULES)
 
     # ⑥ 被调用但从未定义的"辅助函数名"（`getAtUpBtn is not defined` 这类错
     #    会让整个交互层挂掉，而 `node --check` 与其它检查项都查不出）
-    shared: set[str] = set()
-    for rel in SHARED_SCOPE_JS:
-        path = UI_ASSETS / "classic" / rel
-        if path.is_file() and path != UI_JS:
-            shared |= _defined_names(path.read_text(encoding="utf-8"))
-    undef = _undefined_called(text, shared)
+    undef = _undefined_called(text, extra_defined)
     if undef:
         problems.append(
             "被调用但**从未定义**的函数名（只有真跑页面才会炸）：" + "、".join(undef))
@@ -178,12 +232,12 @@ def main() -> int:
             if not re.match(rf"^{name}\s*(=|\.|\[)", s):
                 continue
             # 往上看 **200 行**内是否有声明。UI 是长函数，窗口太窄会误报
-            # （40 行时 `card` 会被误判成未声明）。
+            # （40 行时 `card` 会被误判成未声明）；跨模块拼接后窗口依旧有效。
             window = decl.search("\n".join(lines[max(0, i - 200):i]))
             if not window:
                 uses.append((i, s[:110]))
         for i, s in uses:
-            problems.append(f"{UI_JS.name}:{i}  裸用 `{name}`（往前 200 行找不到声明）：{s}")
+            problems.append(f"{_where(owner, i)}  裸用 `{name}`（往前 200 行找不到声明）：{s}")
 
     # ── ② 骨架函数是否还在 ──
     for fn in REQUIRED_FUNCTIONS:
@@ -195,7 +249,7 @@ def main() -> int:
             rf"\b{fn}\s*=\s*(async\s*)?(function|\()",
         )
         if not any(re.search(p, text) for p in patterns):
-            problems.append(f"{UI_JS.name}  骨架函数 `{fn}` 不见了（被误删会让功能静默失效）")
+            problems.append(f"骨架函数 `{fn}` 不见了（被误删会让功能静默失效）")
 
     # ── ④ 内层函数被"外部"调用（作用域缺陷）──
     #
@@ -206,7 +260,7 @@ def main() -> int:
     #   （页面 `pageerror` 仍是 0），于是「本页点停运行中命令」的收尾不生效 ——
     #   卡面一直停在「⏳ 等待执行结果中…」，只有量 DOM 才看得见。
     #
-    # 判据刻意**不用花括号计数**：本文件模板串与注释里的代码片段含大量不配对花括号，
+    # 判据刻意**不用花括号计数**：模板串与注释里的代码片段含大量不配对花括号，
     # 逐行计数会把脚本作用域的声明算到深处（`stopTextFor` 会被算成深度 3）。
     # 改用「**找不到合法的调用来源**」这个语义。
     def _scrub(s: str) -> str:
@@ -218,7 +272,7 @@ def main() -> int:
         """每个 `function name(` 的 (name, 起行, 止行)。
 
         用**净花括号深度**定界（从函数头数到归零）——不能用"行首 function"，
-        本文件里有**缩进**的函数声明（跟在注释块后面），用行首判会漏掉它。
+        模块里也有**缩进**的函数声明（跟在注释块后面），用行首判会漏掉它。
         """
         out = []
         for i, ln in enumerate(lines):
@@ -251,7 +305,7 @@ def main() -> int:
         (m.group(1), k + 1, None)
         for k, ln in enumerate(lines)
         for m in [re.match(
-            r"^[ \t]+(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:function\b|\()",
+            r"^[ \t]+(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\()",
             ln)]
         if m
     ]:
@@ -272,22 +326,35 @@ def main() -> int:
                 callers.append(k)
         if callers:
             problems.append(
-                f"{UI_JS.name}:{decl_ln}  `{name}` 是 `{decl_in}` **内部**的函数表达式声明，"
-                f"但第 {callers[:3]} 行在**别处**调用了它 —— 会抛 `ReferenceError`；"
-                f"这类异常常被同行 `catch{{}}` 静默吞掉（`pageerror` 仍为 0），"
-                f"功能**静默失效**。请提升到脚本作用域。")
+                f"{_where(owner, decl_ln)}  `{name}` 是 `{decl_in}` **内部**的函数表达式声明，"
+                f"但 {_where(owner, callers[0])} 等处在**别处**调用了它 —— 会抛 "
+                f"`ReferenceError`；这类异常常被同行 `catch{{}}` 静默吞掉"
+                f"（`pageerror` 仍为 0），功能**静默失效**。请提升到脚本作用域。")
 
     # ── ③ 界面脚本都必须存在且非空 ──
     # 少注入一个脚本会让整块功能**静默消失**（页面不报错，功能没了），
     # 所以这里逐个核对它们在磁盘上、且 `ui_bundle` 真的会把它们内联进去。
-    for rel in UI_SCRIPTS + SETTINGS_SCRIPTS:
-        path = UI_ASSETS / "classic" / rel
-        if not path.is_file():
-            problems.append(f"界面脚本缺失：classic/{rel}")
-        elif not path.read_text(encoding="utf-8").strip():
-            problems.append(f"界面脚本为空：classic/{rel}")
+    for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES:
+        path = _js_path(rel)
+        if path.is_file() and not path.read_text(encoding="utf-8").strip():
+            problems.append(f"界面脚本为空：{path.relative_to(CLASSIC_DIR)}")
 
-    print(f"UI JS 自检：{UI_JS.name}（{len(lines)} 行）")
+    # ── ⑤ 前端不得有厂商模型 id 种子 ──
+    # 种子会在 `/health` 失败或插件切换后变成第二权威：页面显示旧模型、
+    # 请求却按服务端清单拒绝，用户看到的是"保存了却没生效"。
+    for path in sorted(CLASSIC_DIR.rglob("*.js")):
+        if "vendor" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            # 单个静态文件读不到就跳过；它不该让整个检查无法给出其余结论。
+            continue
+        for lineno, line in model_id_literals(text):
+            problems.append(
+                f"{path.relative_to(CLASSIC_DIR)}:{lineno} 出现厂商模型 id 字面量：{line[:90]}")
+
+    print(f"UI JS 自检：{len(UI_JS_MODULES)} 个主脚本模块（{total} 行）")
     for p in problems:
         print(f"  [FAIL] {p}")
     if problems:

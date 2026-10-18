@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1253** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1360** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -8,68 +8,104 @@
 
 ## 目录
 
-1. [test_app_context.py](#test_app_contextpy)（11）
-2. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
-3. [test_architecture_hygiene.py](#test_architecture_hygienepy)（11）
-4. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
-5. [test_batch_f_tools.py](#test_batch_f_toolspy)（25）
-6. [test_catalog.py](#test_catalogpy)（8）
-7. [test_chat_shell.py](#test_chat_shellpy)（16）
-8. [test_classic_adapter.py](#test_classic_adapterpy)（98）
-9. [test_command_tools.py](#test_command_toolspy)（30）
-10. [test_concurrency.py](#test_concurrencypy)（8）
-11. [test_context_assembly.py](#test_context_assemblypy)（184）
-12. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
-13. [test_context_pipeline.py](#test_context_pipelinepy)（19）
-14. [test_context_plumbing.py](#test_context_plumbingpy)（5）
-15. [test_context_splice.py](#test_context_splicepy)（9）
-16. [test_core.py](#test_corepy)（56）
-17. [test_edited_files.py](#test_edited_filespy)（1）
-18. [test_entry_layer.py](#test_entry_layerpy)（13）
-19. [test_error_log.py](#test_error_logpy)（8）
-20. [test_event_bus.py](#test_event_buspy)（9）
-21. [test_fact_compat.py](#test_fact_compatpy)（4）
-22. [test_file_safety.py](#test_file_safetypy)（24）
-23. [test_file_size_format.py](#test_file_size_formatpy)（4）
-24. [test_four_step_gate.py](#test_four_step_gatepy)（7）
-25. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-26. [test_gate_negative.py](#test_gate_negativepy)（57）
-27. [test_goal_runner.py](#test_goal_runnerpy)（6）
-28. [test_image_embed.py](#test_image_embedpy)（10）
-29. [test_image_tool.py](#test_image_toolpy)（23）
-30. [test_image_turns.py](#test_image_turnspy)（23）
-31. [test_import_graph.py](#test_import_graphpy)（5）
-32. [test_invest_tools.py](#test_invest_toolspy)（24）
-33. [test_kb_plugin.py](#test_kb_pluginpy)（49）
-34. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-35. [test_mode_note.py](#test_mode_notepy)（12）
-36. [test_model_provider.py](#test_model_providerpy)（24）
-37. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-38. [test_plugin_http.py](#test_plugin_httppy)（18）
-39. [test_plugins.py](#test_pluginspy)（23）
-40. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-41. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
-42. [test_readonly_tools.py](#test_readonly_toolspy)（25）
-43. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-44. [test_run_registry.py](#test_run_registrypy)（13）
-45. [test_session_context.py](#test_session_contextpy)（22）
-46. [test_session_seq.py](#test_session_seqpy)（23）
-47. [test_session_store.py](#test_session_storepy)（17）
-48. [test_session_tools.py](#test_session_toolspy)（17）
-49. [test_settings_panel.py](#test_settings_panelpy)（12）
-50. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-51. [test_task_tools.py](#test_task_toolspy)（27）
-52. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
-53. [test_tool_registry.py](#test_tool_registrypy)（17）
-54. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-55. [test_usage_metrics.py](#test_usage_metricspy)（7）
-56. [test_version_stamp.py](#test_version_stamppy)（4）
-57. [test_web_frontend.py](#test_web_frontendpy)（5）
-58. [test_web_shell.py](#test_web_shellpy)（50）
-59. [test_web_ui_config.py](#test_web_ui_configpy)（4）
-60. [test_write_gate.py](#test_write_gatepy)（16）
-61. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-62. [test_write_path_tools.py](#test_write_path_toolspy)（30）
+1. [test_anthropic_provider.py](#test_anthropic_providerpy)（24）
+2. [test_app_context.py](#test_app_contextpy)（11）
+3. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
+4. [test_architecture_hygiene.py](#test_architecture_hygienepy)（11）
+5. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
+6. [test_batch_f_tools.py](#test_batch_f_toolspy)（25）
+7. [test_catalog.py](#test_catalogpy)（8）
+8. [test_chat_shell.py](#test_chat_shellpy)（16）
+9. [test_classic_adapter.py](#test_classic_adapterpy)（98）
+10. [test_command_tools.py](#test_command_toolspy)（30）
+11. [test_concurrency.py](#test_concurrencypy)（10）
+12. [test_context_assembly.py](#test_context_assemblypy)（184）
+13. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
+14. [test_context_pipeline.py](#test_context_pipelinepy)（19）
+15. [test_context_plumbing.py](#test_context_plumbingpy)（5）
+16. [test_context_splice.py](#test_context_splicepy)（9）
+17. [test_core.py](#test_corepy)（56）
+18. [test_edited_files.py](#test_edited_filespy)（1）
+19. [test_entry_layer.py](#test_entry_layerpy)（13）
+20. [test_error_log.py](#test_error_logpy)（8）
+21. [test_event_bus.py](#test_event_buspy)（9）
+22. [test_fact_compat.py](#test_fact_compatpy)（4）
+23. [test_file_safety.py](#test_file_safetypy)（24）
+24. [test_file_size_format.py](#test_file_size_formatpy)（4）
+25. [test_four_step_gate.py](#test_four_step_gatepy)（7）
+26. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+27. [test_gate_negative.py](#test_gate_negativepy)（61）
+28. [test_goal_runner.py](#test_goal_runnerpy)（6）
+29. [test_image_embed.py](#test_image_embedpy)（10）
+30. [test_image_tool.py](#test_image_toolpy)（23）
+31. [test_image_turns.py](#test_image_turnspy)（23）
+32. [test_import_graph.py](#test_import_graphpy)（5）
+33. [test_invest_tools.py](#test_invest_toolspy)（24）
+34. [test_kb_plugin.py](#test_kb_pluginpy)（49）
+35. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+36. [test_mode_note.py](#test_mode_notepy)（12）
+37. [test_model_catalog.py](#test_model_catalogpy)（23）
+38. [test_model_provider.py](#test_model_providerpy)（34）
+39. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（21）
+40. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+41. [test_plugin_http.py](#test_plugin_httppy)（18）
+42. [test_plugins.py](#test_pluginspy)（23）
+43. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+44. [test_provider_meta.py](#test_provider_metapy)（8）
+45. [test_provider_router.py](#test_provider_routerpy)（14）
+46. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
+47. [test_readonly_tools.py](#test_readonly_toolspy)（25）
+48. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+49. [test_run_registry.py](#test_run_registrypy)（13）
+50. [test_session_context.py](#test_session_contextpy)（22）
+51. [test_session_seq.py](#test_session_seqpy)（23）
+52. [test_session_store.py](#test_session_storepy)（17）
+53. [test_session_tools.py](#test_session_toolspy)（17）
+54. [test_settings_panel.py](#test_settings_panelpy)（13）
+55. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+56. [test_task_tools.py](#test_task_toolspy)（27）
+57. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+58. [test_tool_registry.py](#test_tool_registrypy)（17）
+59. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+60. [test_usage_metrics.py](#test_usage_metricspy)（7）
+61. [test_version_stamp.py](#test_version_stamppy)（4）
+62. [test_web_frontend.py](#test_web_frontendpy)（5）
+63. [test_web_shell.py](#test_web_shellpy)（50）
+64. [test_web_ui_config.py](#test_web_ui_configpy)（4）
+65. [test_write_gate.py](#test_write_gatepy)（16）
+66. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+67. [test_write_path_tools.py](#test_write_path_toolspy)（30）
+
+## test_anthropic_provider.py
+
+共 24 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `EndpointAndErrorTest` | `test_http_error_response_is_mapped` | 覆盖「A class whose instances are single test cases」：http error response is mapped |
+| 2 | `EndpointAndErrorTest` | `test_http_errors_use_the_anthropic_table_and_keep_upstream_detail` | 覆盖「A class whose instances are single test cases」：http errors use the anthropic table and keep upstream detail |
+| 3 | `EndpointAndErrorTest` | `test_messages_url_variants` | 覆盖「A class whose instances are single test cases」：messages url variants |
+| 4 | `EndpointAndErrorTest` | `test_missing_credentials_fail_before_any_network_call` | 覆盖「A class whose instances are single test cases」：missing credentials fail before any network call |
+| 5 | `EndpointAndErrorTest` | `test_stream_posts_headers_and_payload_then_parses_sse` | 覆盖「A class whose instances are single test cases」：stream posts headers and payload then parses sse |
+| 6 | `MessageConversionTest` | `test_assistant_tool_calls_become_tool_use_blocks` | 覆盖「A class whose instances are single test cases」：assistant tool calls become tool use blocks |
+| 7 | `MessageConversionTest` | `test_consecutive_tool_results_merge_into_one_user_message` | 覆盖「A class whose instances are single test cases」：consecutive tool results merge into one user message |
+| 8 | `MessageConversionTest` | `test_dangling_tool_result_is_dropped` | 覆盖「A class whose instances are single test cases」：dangling tool result is dropped |
+| 9 | `MessageConversionTest` | `test_duplicate_tool_ids_are_suffixed_and_results_follow` | 覆盖「A class whose instances are single test cases」：duplicate tool ids are suffixed and results follow |
+| 10 | `MessageConversionTest` | `test_image_data_url_is_split_into_an_image_block` | 覆盖「A class whose instances are single test cases」：image data url is split into an image block |
+| 11 | `MessageConversionTest` | `test_leading_assistant_is_dropped` | 覆盖「A class whose instances are single test cases」：leading assistant is dropped |
+| 12 | `MessageConversionTest` | `test_system_is_hoisted_and_user_text_becomes_a_block` | 覆盖「A class whose instances are single test cases」：system is hoisted and user text becomes a block |
+| 13 | `MessageConversionTest` | `test_thinking_blocks_replay_only_within_the_current_turn` | 覆盖「A class whose instances are single test cases」：thinking blocks replay only within the current turn |
+| 14 | `MessageConversionTest` | `test_thinking_is_enabled_only_when_the_budget_fits` | 覆盖「A class whose instances are single test cases」：thinking is enabled only when the budget fits |
+| 15 | `MessageConversionTest` | `test_tools_payload_accepts_both_declaration_shapes` | 覆盖「A class whose instances are single test cases」：tools payload accepts both declaration shapes |
+| 16 | `StreamAssemblyTest` | `test_cache_fields_default_to_zero_when_absent` | 覆盖「A class whose instances are single test cases」：cache fields default to zero when absent |
+| 17 | `StreamAssemblyTest` | `test_error_event_becomes_model_request_error` | 覆盖「A class whose instances are single test cases」：error event becomes model request error |
+| 18 | `StreamAssemblyTest` | `test_invalid_tool_json_degrades_to_empty_arguments` | 覆盖「A class whose instances are single test cases」：invalid tool json degrades to empty arguments |
+| 19 | `StreamAssemblyTest` | `test_meta_is_emitted_only_when_thinking_and_tools_coexist` | 覆盖「A class whose instances are single test cases」：meta is emitted only when thinking and tools coexist |
+| 20 | `StreamAssemblyTest` | `test_missing_tool_id_gets_a_generated_one` | 覆盖「A class whose instances are single test cases」：missing tool id gets a generated one |
+| 21 | `StreamAssemblyTest` | `test_ping_and_unknown_events_are_ignored` | 覆盖「A class whose instances are single test cases」：ping and unknown events are ignored |
+| 22 | `StreamAssemblyTest` | `test_text_deltas_stream_through_and_usage_is_mapped` | 覆盖「A class whose instances are single test cases」：text deltas stream through and usage is mapped |
+| 23 | `StreamAssemblyTest` | `test_thinking_and_tool_use_are_reassembled` | 覆盖「A class whose instances are single test cases」：thinking and tool use are reassembled |
+| 24 | `StreamAssemblyTest` | `test_thinking_without_signature_is_skipped_with_a_warning` | 覆盖「A class whose instances are single test cases」：thinking without signature is skipped with a warning |
 
 ## test_app_context.py
 
@@ -249,13 +285,13 @@
 | 16 | `InboundContractTest` | `test_history_todo_empty_when_none_active` | 没有清单（或已 `close`）时返回空数组，界面据此 `hideTodoList`。 |
 | 17 | `InboundContractTest` | `test_history_todo_ignores_other_tools_items` | 检索结果的 `items`（`file` / `match`）不能进清单。 |
 | 18 | `InboundContractTest` | `test_invalid_conversation_id_rejected_on_write` | 覆盖「老入参 → 内核 → 老返回体」：invalid conversation id rejected on write |
-| 19 | `InboundContractTest` | `test_sessions_read_id_not_conversation_id` | 经典界面读 `s.id`（agent-ui.js:309 附近）；`conversation_id` 不是它要的名字。 |
+| 19 | `InboundContractTest` | `test_sessions_read_id_not_conversation_id` | 经典界面读 `s.id`（`classic/js/chat/conversation.js` 的 `loadSessionRailList`）；`conversation_id` 不是它要的名字。 |
 | 20 | `InboundContractTest` | `test_title_never_raises` | 覆盖「老入参 → 内核 → 老返回体」：title never raises |
 | 21 | `InboundContractTest` | `test_ui_state_get_returns_only_client_independent_state` | GET 只回**与客户端无关**的那部分：哪些会话在跑。 |
 | 22 | `InboundContractTest` | `test_ui_state_put_stores_nothing` | PUT 收到布局也**不落盘**；旧前端不会因此报错。 |
 | 23 | `InboundContractTest` | `test_ui_state_put_writes_no_layout_file` | 确认没有留下布局文件（服务端不该有客户端状态的副本）。 |
 | 24 | `InboundContractTest` | `test_usage_accumulates_across_events` | 覆盖「老入参 → 内核 → 老返回体」：usage accumulates across events |
-| 25 | `InboundContractTest` | `test_usage_accumulator_uses_different_field_names` | 累计端点用 `total_*`，与 SSE 的 `prompt_tokens` **不是一套**（agent-ui.js:1176）。 |
+| 25 | `InboundContractTest` | `test_usage_accumulator_uses_different_field_names` | 累计端点用 `total_*`，与 SSE 的 `prompt_tokens` **不是一套**（`classic/js/chat/context-usage.js` 的 `loadUsageAccumulator`）。 |
 | 26 | `OutboundContractTest` | `test_approval_suspension_is_not_a_choice_card` | 审批挂起发 `approval_required`，不发选项卡。 |
 | 27 | `OutboundContractTest` | `test_assistant_delta_uses_delta_field` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：assistant delta uses delta field |
 | 28 | `OutboundContractTest` | `test_assistant_only_on_final_message_with_content` | 工具调用轮没有正文，发空 `assistant` 会让经典界面渲染一个空气泡。 |
@@ -264,7 +300,7 @@
 | 31 | `OutboundContractTest` | `test_cancel_without_pending_does_not_start_an_empty_turn` | 没有挂起调用时的取消**不得**起新回合。 |
 | 32 | `OutboundContractTest` | `test_chat_bubble_layout_puts_image_above_text` | 图文气泡：**图片在上、文字在下**。 |
 | 33 | `OutboundContractTest` | `test_confirm_card_comes_from_the_kernel_fact` | 待确认卡由内核专用事实 `turn_awaiting_user` 驱动。 |
-| 34 | `OutboundContractTest` | `test_context_layout_is_flat_with_segments` | `lastContextLayout = ev` 整包存下，所以 segments 在**顶层**（agent-ui.js:157）。 |
+| 34 | `OutboundContractTest` | `test_context_layout_is_flat_with_segments` | `lastContextLayout = ev` 整包存下，所以 segments 在**顶层**（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。 |
 | 35 | `OutboundContractTest` | `test_failed_run_type_switch_does_not_emit_mode_changed` | 失败时不能报"模式已切换"——那会让按钮显示一个并未生效的模式。 |
 | 36 | `OutboundContractTest` | `test_incomplete_awaiting_fact_is_ignored` | 缺 `call_id` 或缺选项的事实不发卡（残缺数据不猜、不半渲染）。 |
 | 37 | `OutboundContractTest` | `test_llm_request_model_is_never_empty` | 请求快照里的 `params.model` 不能是空串。 |
@@ -272,22 +308,22 @@
 | 39 | `OutboundContractTest` | `test_model_message_with_content_emits_response_done_and_assistant` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：model message with content emits response done and assistant |
 | 40 | `OutboundContractTest` | `test_only_a_real_suspension_asks_the_user` | **只有工具真挂起**才发 `user_confirm_required`——经典界面收到它就弹模态。 |
 | 41 | `OutboundContractTest` | `test_plain_failure_is_not_mistaken_for_confirm` | 普通失败不得被判成待确认——否则每个报错都会弹出确认框。 |
-| 42 | `OutboundContractTest` | `test_reasoning_delta_requires_round` | `round` 必须与 `lastLlm.round` 相等，否则经典界面丢弃（agent-ui.js:1674）。 |
+| 42 | `OutboundContractTest` | `test_reasoning_delta_requires_round` | `round` 必须与 `lastLlm.round` 相等，否则经典界面丢弃（`classic/js/chat/llm-rounds.js` 的 `appendReasoningDelta`）。 |
 | 43 | `OutboundContractTest` | `test_reasoning_is_not_promoted_into_chat_area` | 思考内容不经对话区填充（它属于右侧步骤卡）。 |
 | 44 | `OutboundContractTest` | `test_run_type_query_does_not_emit_mode_changed` | 查询模式不该发 `mode_changed`（会把按钮刷成同一个值，纯噪声）。 |
 | 45 | `OutboundContractTest` | `test_run_type_switch_emits_mode_changed` | `run_type` 切模式后必须补 `mode_changed`，否则经典界面的模式按钮停在旧值。 |
-| 46 | `OutboundContractTest` | `test_step_started_emits_llm_round_then_request` | `llm_round` 是 `reasoning_*` / `llm_request` 的**前置**（agent-ui.js:1685）。 |
-| 47 | `OutboundContractTest` | `test_todo_list_rides_on_tool_end` | 清单**没有独立事件**，挂在 `tool_end.todo_list_data` 上（agent-ui.js:160）。 |
-| 48 | `OutboundContractTest` | `test_tool_call_becomes_tool_start_with_call_id` | `tool_call_id` 是配对的唯一键；空则后续 `tool_end` 被整个忽略（agent-ui.js:2013）。 |
+| 46 | `OutboundContractTest` | `test_step_started_emits_llm_round_then_request` | `llm_round` 是 `reasoning_*` / `llm_request` 的**前置**（`classic/js/chat/llm-rounds.js` 的 `addLlmRound`）。 |
+| 47 | `OutboundContractTest` | `test_todo_list_rides_on_tool_end` | 清单**没有独立事件**，挂在 `tool_end.todo_list_data` 上（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。 |
+| 48 | `OutboundContractTest` | `test_tool_call_becomes_tool_start_with_call_id` | `tool_call_id` 是配对的唯一键；空则后续 `tool_end` 被整个忽略（`classic/js/chat/llm-rounds.js` 的 `onToolStart`）。 |
 | 49 | `OutboundContractTest` | `test_tool_call_does_not_pre_empt_the_confirm_card` | `tool_call` 期**不发**待确认卡——卡片由内核事实驱动，避免重复发两张。 |
 | 50 | `OutboundContractTest` | `test_tool_call_without_id_is_skipped` | 没有 id 就配不上 tool_end，宁可一条都不发（发了就是永远转圈的卡）。 |
 | 51 | `OutboundContractTest` | `test_tool_done_images_ride_beside_preview` | 看图的像素走 `images`，不写进 `preview` 文本。 |
-| 52 | `OutboundContractTest` | `test_tool_result_preview_is_json_string` | `preview` 必须是 **JSON 字符串**（经典界面会 `JSON.parse`，agent-ui.js:2022）。 |
+| 52 | `OutboundContractTest` | `test_tool_result_preview_is_json_string` | `preview` 必须是 **JSON 字符串**（经典界面会 `JSON.parse`，`classic/js/tools/previews.js` 的 `fillToolPreview`）。 |
 | 53 | `OutboundContractTest` | `test_tool_result_without_start_is_skipped` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：tool result without start is skipped |
 | 54 | `OutboundContractTest` | `test_turn_ended_emits_done` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：turn ended emits done |
 | 55 | `OutboundContractTest` | `test_turn_started_emits_conversation_first` | `conversation` 必须发，且要带头。 |
 | 56 | `OutboundContractTest` | `test_unknown_kernel_event_is_ignored_not_raised` | 观察面纪律：翻译不认识的事件不能把事件流打断。 |
-| 57 | `OutboundContractTest` | `test_usage_must_be_nested` | 用量**嵌套在 `usage` 键下**：经典界面读 `ev.usage.prompt_tokens`（agent-ui.js:156）。 |
+| 57 | `OutboundContractTest` | `test_usage_must_be_nested` | 用量**嵌套在 `usage` 键下**：经典界面读 `ev.usage.prompt_tokens`（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。 |
 | 58 | `OutboundContractTest` | `test_user_confirm_multi_flag_passes_through` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：user confirm multi flag passes through |
 | 59 | `OutboundContractTest` | `test_write_gate_confirm_id_does_not_fake_a_confirmation` | `confirm_id` 是**写盘门控的二阶提交锁**：门控给预览类工具的 **成功结果**挂上它，意思是"锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。 用户交互**不发生在这一步**（解锁入口是 `review_conclusion`）。 |
 | 60 | `ResumeContractTest` | `test_cursor_prefers_header_then_query` | `Last-Event-ID`（浏览器自动带）优先于 `?last_event_id=`；非法值回落 -1。 |
@@ -322,12 +358,12 @@
 | 89 | `WireHygieneTest` | `test_channel_emits_heartbeat_when_idle` | 空闲时发心跳（经典界面靠它判连接存活）；非 `data:` 行经典界面会安全忽略。 |
 | 90 | `WireHygieneTest` | `test_cid_exempt_set_is_exactly_two` | 契约豁免的事件必须在前端先接住，否则会被静默丢掉。 |
 | 91 | `WireHygieneTest` | `test_detach_stops_delivery` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：detach stops delivery |
-| 92 | `WireHygieneTest` | `test_every_frame_carries_valid_conversation_id` | 没带合法 cid 的帧会被经典界面**整包静默丢弃**（agent-ui.js:100/146）。 |
+| 92 | `WireHygieneTest` | `test_every_frame_carries_valid_conversation_id` | 没带合法 cid 的帧会被经典界面**整包静默丢弃**（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。 |
 | 93 | `WireHygieneTest` | `test_frame_without_cid_is_dropped_silently` | 入站事件没有 cid 时直接丢，不要造一个假 cid 塞给前端。 |
 | 94 | `WireHygieneTest` | `test_frames_broadcast_to_every_channel` | **广播**而非共享队列：两个标签页必须各自收到完整事件流。 |
 | 95 | `WireHygieneTest` | `test_heartbeat_is_cid_exempt` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：heartbeat is cid exempt |
-| 96 | `WireHygieneTest` | `test_normalize_cid_matches_ui_rule` | 经典界面的规则是 `/^[A-Za-z0-9_-]{8,128}$/`（agent-ui.js:8）。 |
-| 97 | `WireHygieneTest` | `test_sse_payload_is_single_line_data_frame` | 帧格式必须是 `data: <单行 json>\n\n`（agent-ui.js:94-98）。 |
+| 96 | `WireHygieneTest` | `test_normalize_cid_matches_ui_rule` | 经典界面的规则是 `/^[A-Za-z0-9_-]{8,128}$/`（`classic/js/core/boot.js` 的 `normalizeConversationId`）。 |
+| 97 | `WireHygieneTest` | `test_sse_payload_is_single_line_data_frame` | 帧格式必须是 `data: <单行 json>\n\n`（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。 |
 | 98 | `WireHygieneTest` | `test_tool_script_mapping_covers_known_tools` | 工具名要翻成经典界面认识的 `script`，否则图标与中文名退化成默认。 |
 
 ## test_command_tools.py
@@ -369,7 +405,7 @@
 
 ## test_concurrency.py
 
-共 8 个用例。
+共 10 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -377,10 +413,12 @@
 | 2 | `ContextSourcesContentionTest` | `test_register_and_dispose_are_balanced` | 覆盖「注入源注册表：并发注册/卸载后条目数与版本号仍然自洽」：register and dispose are balanced |
 | 3 | `LiveStateContentionTest` | `test_distinct_conversations_do_not_interfere` | 覆盖「实时状态：不同会话互不串写；同一会话的并发写不丢结构」：distinct conversations do not interfere |
 | 4 | `LiveStateContentionTest` | `test_same_conversation_writes_stay_well_formed` | 覆盖「实时状态：不同会话互不串写；同一会话的并发写不丢结构」：same conversation writes stay well formed |
-| 5 | `PendingStoreContentionTest` | `test_capacity_is_never_exceeded` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：capacity is never exceeded |
-| 6 | `PendingStoreContentionTest` | `test_confirm_is_visible_to_concurrent_peek` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：confirm is visible to concurrent peek |
-| 7 | `PendingStoreContentionTest` | `test_same_path_keeps_exactly_one_latest` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：same path keeps exactly one latest |
-| 8 | `PendingStoreContentionTest` | `test_take_is_exactly_once` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：take is exactly once |
+| 5 | `ModelCatalogContentionTest` | `test_provider_cache_is_keyed_by_entry_fingerprint` | 覆盖「模型目录：热替换期间快照不得混批，provider 缓存不得把旧实例交给新条目」：provider cache is keyed by entry fingerprint |
+| 6 | `ModelCatalogContentionTest` | `test_snapshot_is_never_mixed_during_replacement` | 覆盖「模型目录：热替换期间快照不得混批，provider 缓存不得把旧实例交给新条目」：snapshot is never mixed during replacement |
+| 7 | `PendingStoreContentionTest` | `test_capacity_is_never_exceeded` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：capacity is never exceeded |
+| 8 | `PendingStoreContentionTest` | `test_confirm_is_visible_to_concurrent_peek` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：confirm is visible to concurrent peek |
+| 9 | `PendingStoreContentionTest` | `test_same_path_keeps_exactly_one_latest` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：same path keeps exactly one latest |
+| 10 | `PendingStoreContentionTest` | `test_take_is_exactly_once` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：take is exactly once |
 
 ## test_context_assembly.py
 
@@ -697,7 +735,7 @@
 | 52 | `ToolLoopTest` | `test_tool_call_then_model_continues` | 覆盖「工具调用驱动多趟：**续行由事实末端表达，不需要谁发续行信号**」：tool call then model continues |
 | 53 | `ToolLoopTest` | `test_tool_is_not_executed_twice` | 覆盖「工具调用驱动多趟：**续行由事实末端表达，不需要谁发续行信号**」：tool is not executed twice |
 | 54 | `ToolLoopTest` | `test_two_round_trips` | 覆盖「工具调用驱动多趟：**续行由事实末端表达，不需要谁发续行信号**」：two round trips |
-| 55 | `WiringTest` | `test_factory_receives_every_dependency_it_is_given` | `_build_engine` 收到的依赖必须真的传进引擎（防"收了不用"）。 |
+| 55 | `WiringTest` | `test_factory_receives_every_dependency_it_is_given` | `build_engine` 收到的依赖必须真的传进引擎（防"收了不用"）。 |
 | 56 | `WiringTest` | `test_live_events_carry_a_storage_coordinate_through_app_session` | 经 `App.session` 跑一轮，**总线上的事件必须带 `_seq`**。 |
 
 ## test_edited_files.py
@@ -841,7 +879,7 @@
 
 ## test_gate_negative.py
 
-共 57 个用例。
+共 61 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -867,41 +905,45 @@
 | 20 | `CommentStyleGateTest` | `test_todo_comment_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：todo comment fails |
 | 21 | `ComplexityGateTest` | `test_registered_big_file_only_reports_doc_drift` | 覆盖「复杂度：未登记的超阈值文件必须失败」：registered big file only reports doc drift |
 | 22 | `ComplexityGateTest` | `test_unregistered_big_file_fails` | 覆盖「复杂度：未登记的超阈值文件必须失败」：unregistered big file fails |
-| 23 | `ConfigDriftGateTest` | `test_real_file_extra_key_reports_line_number` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：real file extra key reports line number |
-| 24 | `ConfigDriftGateTest` | `test_template_extra_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template extra key fails |
-| 25 | `ConfigDriftGateTest` | `test_template_missing_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template missing key fails |
-| 26 | `ConfigDriftGateTest` | `test_valid_pair_passes` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：valid pair passes |
-| 27 | `ConfirmWordingGateTest` | `test_compliant_wording_passes` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：compliant wording passes |
-| 28 | `ConfirmWordingGateTest` | `test_explanatory_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：explanatory wording fails |
-| 29 | `ConfirmWordingGateTest` | `test_gate_without_next_step_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：gate without next step fails |
-| 30 | `ConfirmWordingGateTest` | `test_missing_unlock_tool_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：missing unlock tool fails |
-| 31 | `ConfirmWordingGateTest` | `test_vague_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：vague wording fails |
-| 32 | `CoverageGateTest` | `test_at_or_above_floor_passes` | 覆盖「覆盖率：低于下限、缺数据都要失败」：at or above floor passes |
-| 33 | `CoverageGateTest` | `test_below_floor_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：below floor fails |
-| 34 | `CoverageGateTest` | `test_missing_group_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：missing group fails |
-| 35 | `GeneratedArtifactDriftTest` | `test_ci_workflow_byte_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow byte drift fails |
-| 36 | `GeneratedArtifactDriftTest` | `test_ci_workflow_current_is_clean` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow current is clean |
-| 37 | `GeneratedArtifactDriftTest` | `test_render_contains_every_gate_and_acceptance` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：render contains every gate and acceptance |
-| 38 | `GeneratedArtifactDriftTest` | `test_unit_tests_md_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：unit tests md drift fails |
-| 39 | `ImportDirectionGateTest` | `test_composition_root_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：composition root import fails |
-| 40 | `ImportDirectionGateTest` | `test_downward_import_passes` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：downward import passes |
-| 41 | `ImportDirectionGateTest` | `test_type_checking_annotation_is_allowed` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：type checking annotation is allowed |
-| 42 | `ImportDirectionGateTest` | `test_upward_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：upward import fails |
-| 43 | `PythonFloorGateTest` | `test_ordinary_function_passes` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：ordinary function passes |
-| 44 | `PythonFloorGateTest` | `test_pep695_generic_fails` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：pep695 generic fails |
-| 45 | `ReadmeGateTest` | `test_acceptance_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：acceptance count drift fails |
-| 46 | `ReadmeGateTest` | `test_consistent_readme_passes` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：consistent readme passes |
-| 47 | `ReadmeGateTest` | `test_gate_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：gate count drift fails |
-| 48 | `ReadmeGateTest` | `test_missing_marker_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：missing marker fails |
-| 49 | `ReadmeGateTest` | `test_step_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：step count drift fails |
-| 50 | `ReadmeGateTest` | `test_test_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：test count drift fails |
-| 51 | `ReadmeGateTest` | `test_unknown_data_dir_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：unknown data dir fails |
-| 52 | `SilentExceptGateTest` | `test_bare_pass_is_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：bare pass is silent |
-| 53 | `SilentExceptGateTest` | `test_budget_at_limit_passes` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget at limit passes |
-| 54 | `SilentExceptGateTest` | `test_budget_overflow_fails` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget overflow fails |
-| 55 | `SilentExceptGateTest` | `test_explicit_logging_is_not_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：explicit logging is not silent |
-| 56 | `UiJsGateTest` | `test_defined_helper_passes` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：defined helper passes |
-| 57 | `UiJsGateTest` | `test_undefined_helper_call_fails` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：undefined helper call fails |
+| 23 | `ConfigDriftGateTest` | `test_model_plugin_template_rejects_unknown_key` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：model plugin template rejects unknown key |
+| 24 | `ConfigDriftGateTest` | `test_model_plugin_template_requires_every_key` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：model plugin template requires every key |
+| 25 | `ConfigDriftGateTest` | `test_real_file_extra_key_reports_line_number` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：real file extra key reports line number |
+| 26 | `ConfigDriftGateTest` | `test_template_extra_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template extra key fails |
+| 27 | `ConfigDriftGateTest` | `test_template_missing_key_fails` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：template missing key fails |
+| 28 | `ConfigDriftGateTest` | `test_valid_pair_passes` | 覆盖「配置漂移：模板缺键/多键、真实文件多键都要失败」：valid pair passes |
+| 29 | `ConfirmWordingGateTest` | `test_compliant_wording_passes` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：compliant wording passes |
+| 30 | `ConfirmWordingGateTest` | `test_explanatory_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：explanatory wording fails |
+| 31 | `ConfirmWordingGateTest` | `test_gate_without_next_step_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：gate without next step fails |
+| 32 | `ConfirmWordingGateTest` | `test_missing_unlock_tool_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：missing unlock tool fails |
+| 33 | `ConfirmWordingGateTest` | `test_vague_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：vague wording fails |
+| 34 | `CoverageGateTest` | `test_at_or_above_floor_passes` | 覆盖「覆盖率：低于下限、缺数据都要失败」：at or above floor passes |
+| 35 | `CoverageGateTest` | `test_below_floor_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：below floor fails |
+| 36 | `CoverageGateTest` | `test_missing_group_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：missing group fails |
+| 37 | `GeneratedArtifactDriftTest` | `test_ci_workflow_byte_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow byte drift fails |
+| 38 | `GeneratedArtifactDriftTest` | `test_ci_workflow_current_is_clean` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：ci workflow current is clean |
+| 39 | `GeneratedArtifactDriftTest` | `test_render_contains_every_gate_and_acceptance` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：render contains every gate and acceptance |
+| 40 | `GeneratedArtifactDriftTest` | `test_unit_tests_md_drift_fails` | 覆盖「生成物门禁：手改 CI / 单测清单必须被 --check 抓到」：unit tests md drift fails |
+| 41 | `ImportDirectionGateTest` | `test_composition_root_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：composition root import fails |
+| 42 | `ImportDirectionGateTest` | `test_downward_import_passes` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：downward import passes |
+| 43 | `ImportDirectionGateTest` | `test_type_checking_annotation_is_allowed` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：type checking annotation is allowed |
+| 44 | `ImportDirectionGateTest` | `test_upward_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：upward import fails |
+| 45 | `PythonFloorGateTest` | `test_ordinary_function_passes` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：ordinary function passes |
+| 46 | `PythonFloorGateTest` | `test_pep695_generic_fails` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：pep695 generic fails |
+| 47 | `ReadmeGateTest` | `test_acceptance_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：acceptance count drift fails |
+| 48 | `ReadmeGateTest` | `test_consistent_readme_passes` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：consistent readme passes |
+| 49 | `ReadmeGateTest` | `test_gate_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：gate count drift fails |
+| 50 | `ReadmeGateTest` | `test_missing_marker_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：missing marker fails |
+| 51 | `ReadmeGateTest` | `test_step_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：step count drift fails |
+| 52 | `ReadmeGateTest` | `test_test_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：test count drift fails |
+| 53 | `ReadmeGateTest` | `test_unknown_data_dir_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：unknown data dir fails |
+| 54 | `SilentExceptGateTest` | `test_bare_pass_is_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：bare pass is silent |
+| 55 | `SilentExceptGateTest` | `test_budget_at_limit_passes` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget at limit passes |
+| 56 | `SilentExceptGateTest` | `test_budget_overflow_fails` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget overflow fails |
+| 57 | `SilentExceptGateTest` | `test_explicit_logging_is_not_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：explicit logging is not silent |
+| 58 | `UiJsGateTest` | `test_defined_helper_passes` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：defined helper passes |
+| 59 | `UiJsGateTest` | `test_model_id_literal_is_rejected` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：model id literal is rejected |
+| 60 | `UiJsGateTest` | `test_plain_words_are_not_model_ids` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：plain words are not model ids |
+| 61 | `UiJsGateTest` | `test_undefined_helper_call_fails` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：undefined helper call fails |
 
 ## test_goal_runner.py
 
@@ -1120,36 +1162,104 @@
 | 11 | `SystemPromptHasNoModeTest` | `test_split_helper_drops_the_mode_section` | 覆盖「模式段必须从系统提示词里出去」：split helper drops the mode section |
 | 12 | `SystemPromptHasNoModeTest` | `test_switching_mode_keeps_system_prompt_byte_identical` | 覆盖「模式段必须从系统提示词里出去」：switching mode keeps system prompt byte identical |
 
-## test_model_provider.py
+## test_model_catalog.py
 
-共 24 个用例。
+共 23 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `AvailableModelsWireTest` | `test_current_model_is_always_in_the_list` | `model` 必须在清单里，否则 UI 的白名单校验会丢弃它（顶栏永远"加载中"）。 |
-| 2 | `AvailableModelsWireTest` | `test_health_lists_all_configured_models` | 覆盖「`/health` 的 `allowed_models` 必须给出**完整清单**」：health lists all configured models |
-| 3 | `AvailableModelsWireTest` | `test_shell_health_also_lists_all_models` | 覆盖「`/health` 的 `allowed_models` 必须给出**完整清单**」：shell health also lists all models |
-| 4 | `ImagesAlwaysReachTheWireTest` | `test_image_block_survives_into_the_payload` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：image block survives into the payload |
-| 5 | `ImagesAlwaysReachTheWireTest` | `test_plain_text_message_is_untouched` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：plain text message is untouched |
-| 6 | `ReasonNotReplayedTest` | `test_cut_drops_everything_before_it` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：cut drops everything before it |
-| 7 | `ReasonNotReplayedTest` | `test_cut_none_keeps_everything` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：cut none keeps everything |
-| 8 | `ReasonNotReplayedTest` | `test_original_messages_are_not_mutated` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：original messages are not mutated |
-| 9 | `ReasonNotReplayedTest` | `test_provider_passes_the_boundary_and_defaults_to_stripping` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：provider passes the boundary and defaults to stripping |
-| 10 | `ReasonNotReplayedTest` | `test_tool_calls_survive_the_cut` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：tool calls survive the cut |
-| 11 | `RequestLevelModelTest` | `test_effort_still_reaches_the_wire` | 推理档位照常透传到请求载荷。 |
-| 12 | `RequestLevelModelTest` | `test_empty_request_model_falls_back_to_instance_default` | 空串 = 不指定 ⇒ 用实例默认模型，既有调用方行为不变。 |
-| 13 | `RequestLevelModelTest` | `test_local_model_check_is_per_requested_model` | 本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。 |
-| 14 | `RequestLevelModelTest` | `test_request_model_wins_over_instance_default` | 覆盖「A class whose instances are single test cases」：request model wins over instance default |
-| 15 | `RequestLevelModelTest` | `test_whitespace_is_treated_as_unspecified` | 覆盖「A class whose instances are single test cases」：whitespace is treated as unspecified |
-| 16 | `SessionModelSelectionTest` | `test_choice_survives_a_new_process` | 换一个 LiveState 实例（= 换进程）后选择仍在 —— 靠落盘，不靠内存。 |
-| 17 | `SessionModelSelectionTest` | `test_empty_clears_the_choice` | 覆盖「会话级模型选择：选中即生效、可读回、**跨进程仍在**」：empty clears the choice |
-| 18 | `SessionModelSelectionTest` | `test_read_only_is_never_used` | **只读**会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。 |
-| 19 | `SessionModelSelectionTest` | `test_select_then_read_back` | 覆盖「会话级模型选择：选中即生效、可读回、**跨进程仍在**」：select then read back |
-| 20 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：model module marks turn start |
-| 21 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：port default keeps everything |
-| 22 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
-| 23 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
-| 24 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
+| 1 | `ModelCatalogTest` | `test_default_prefers_flag_then_first` | 覆盖「A class whose instances are single test cases」：default prefers flag then first |
+| 2 | `ModelCatalogTest` | `test_disposer_is_scoped_to_its_own_registration` | 覆盖「A class whose instances are single test cases」：disposer is scoped to its own registration |
+| 3 | `ModelCatalogTest` | `test_duplicate_ids_reject_the_whole_batch` | 覆盖「A class whose instances are single test cases」：duplicate ids reject the whole batch |
+| 4 | `ModelCatalogTest` | `test_empty_replacement_flips_authoritative` | 覆盖「A class whose instances are single test cases」：empty replacement flips authoritative |
+| 5 | `ModelCatalogTest` | `test_hot_read_duplicate_ids_fall_back_to_last_good` | 覆盖「A class whose instances are single test cases」：hot read duplicate ids fall back to last good |
+| 6 | `ModelCatalogTest` | `test_hot_read_failure_keeps_last_good_entries` | 覆盖「A class whose instances are single test cases」：hot read failure keeps last good entries |
+| 7 | `ModelCatalogTest` | `test_hot_read_is_re_evaluated_each_snapshot` | 覆盖「A class whose instances are single test cases」：hot read is re evaluated each snapshot |
+| 8 | `ModelCatalogTest` | `test_replacing_source_drops_removed_models` | 覆盖「A class whose instances are single test cases」：replacing source drops removed models |
+| 9 | `ModelCatalogTest` | `test_second_distinct_source_is_rejected_without_clobbering` | 覆盖「A class whose instances are single test cases」：second distinct source is rejected without clobbering |
+| 10 | `ModelCatalogTest` | `test_unconfigured_catalog_is_empty_and_not_authoritative` | 覆盖「A class whose instances are single test cases」：unconfigured catalog is empty and not authoritative |
+| 11 | `ModelCatalogTest` | `test_unknown_provider_only_means_not_authoritative` | 覆盖「A class whose instances are single test cases」：unknown provider only means not authoritative |
+| 12 | `ModelCatalogTest` | `test_unknown_provider_skips_only_that_entry` | 覆盖「A class whose instances are single test cases」：unknown provider skips only that entry |
+| 13 | `ModelEntryTest` | `test_bad_options_json_degrades_to_empty` | 覆盖「A class whose instances are single test cases」：bad options json degrades to empty |
+| 14 | `ModelEntryTest` | `test_options_are_canonical_and_isolated` | 覆盖「A class whose instances are single test cases」：options are canonical and isolated |
+| 15 | `PluginContextCatalogTest` | `test_disposer_removes_only_its_own_source` | 覆盖「插件注册口：来源名取插件名、冲突不抛、disposer 随 ctx 回收」：disposer removes only its own source |
+| 16 | `PluginContextCatalogTest` | `test_hot_read_callback_is_accepted` | 覆盖「插件注册口：来源名取插件名、冲突不抛、disposer 随 ctx 回收」：hot read callback is accepted |
+| 17 | `PluginContextCatalogTest` | `test_missing_catalog_is_a_wiring_error` | 覆盖「插件注册口：来源名取插件名、冲突不抛、disposer 随 ctx 回收」：missing catalog is a wiring error |
+| 18 | `PluginContextCatalogTest` | `test_plugin_name_becomes_the_catalog_source` | 覆盖「插件注册口：来源名取插件名、冲突不抛、disposer 随 ctx 回收」：plugin name becomes the catalog source |
+| 19 | `PluginContextCatalogTest` | `test_second_plugin_source_is_reported_not_raised` | 覆盖「插件注册口：来源名取插件名、冲突不抛、disposer 随 ctx 回收」：second plugin source is reported not raised |
+| 20 | `ProviderCacheTest` | `test_option_change_invalidates_the_cached_provider` | 覆盖「A class whose instances are single test cases」：option change invalidates the cached provider |
+| 21 | `ProviderCacheTest` | `test_provider_is_built_once_per_entry` | 覆盖「A class whose instances are single test cases」：provider is built once per entry |
+| 22 | `ProviderCacheTest` | `test_unknown_model_id_returns_none` | 覆盖「A class whose instances are single test cases」：unknown model id returns none |
+| 23 | `SnapshotShapeTest` | `test_entry_lookup_ignores_surrounding_whitespace` | 覆盖「A class whose instances are single test cases」：entry lookup ignores surrounding whitespace |
+
+## test_model_provider.py
+
+共 34 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `AppModelConfigTest` | `test_known_session_model_is_kept` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：known session model is kept |
+| 2 | `AppModelConfigTest` | `test_model_catalog_is_optional` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：model catalog is optional |
+| 3 | `AppModelConfigTest` | `test_model_config_reports_source_and_degrade` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：model config reports source and degrade |
+| 4 | `AppModelConfigTest` | `test_refresh_switches_catalog_on_and_off` | 插件装卸必须重算权威：目录接管时刷新路由，注销后回退且清空清单。 |
+| 5 | `AppModelConfigTest` | `test_reload_failure_returns_readable_note` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：reload failure returns readable note |
+| 6 | `AppModelConfigTest` | `test_reload_is_ignored_when_catalog_is_authoritative` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：reload is ignored when catalog is authoritative |
+| 7 | `AppModelConfigTest` | `test_reload_rebuilds_default_and_refreshes_models` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：reload rebuilds default and refreshes models |
+| 8 | `AppModelConfigTest` | `test_reload_without_credentials_marks_none` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：reload without credentials marks none |
+| 9 | `AppModelConfigTest` | `test_unknown_session_model_falls_back_to_default` | 旧标签页拿着已删除的模型 id 时，读取点收敛到默认值并写回。 |
+| 10 | `AvailableModelsWireTest` | `test_current_model_is_always_in_the_list` | `model` 必须在清单里，否则 UI 的白名单校验会丢弃它（顶栏永远"加载中"）。 |
+| 11 | `AvailableModelsWireTest` | `test_health_does_not_invent_a_model_in_degraded_state` | `none` 时不能拿 provider 的占位模型充数：那个 id 实际选不了。 |
+| 12 | `AvailableModelsWireTest` | `test_health_lists_all_configured_models` | 覆盖「`/health` 的 `allowed_models` 必须给出**完整清单**」：health lists all configured models |
+| 13 | `AvailableModelsWireTest` | `test_shell_health_also_lists_all_models` | 覆盖「`/health` 的 `allowed_models` 必须给出**完整清单**」：shell health also lists all models |
+| 14 | `ImagesAlwaysReachTheWireTest` | `test_image_block_survives_into_the_payload` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：image block survives into the payload |
+| 15 | `ImagesAlwaysReachTheWireTest` | `test_plain_text_message_is_untouched` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：plain text message is untouched |
+| 16 | `ReasonNotReplayedTest` | `test_cut_drops_everything_before_it` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：cut drops everything before it |
+| 17 | `ReasonNotReplayedTest` | `test_cut_none_keeps_everything` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：cut none keeps everything |
+| 18 | `ReasonNotReplayedTest` | `test_original_messages_are_not_mutated` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：original messages are not mutated |
+| 19 | `ReasonNotReplayedTest` | `test_provider_passes_the_boundary_and_defaults_to_stripping` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：provider passes the boundary and defaults to stripping |
+| 20 | `ReasonNotReplayedTest` | `test_tool_calls_survive_the_cut` | 覆盖「历史推理不回传：它必然未命中缓存，回传等于每轮多算几万 token」：tool calls survive the cut |
+| 21 | `RequestLevelModelTest` | `test_effort_still_reaches_the_wire` | 推理档位照常透传到请求载荷。 |
+| 22 | `RequestLevelModelTest` | `test_empty_request_model_falls_back_to_instance_default` | 空串 = 不指定 ⇒ 用实例默认模型，既有调用方行为不变。 |
+| 23 | `RequestLevelModelTest` | `test_local_model_check_is_per_requested_model` | 本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。 |
+| 24 | `RequestLevelModelTest` | `test_request_model_wins_over_instance_default` | 覆盖「A class whose instances are single test cases」：request model wins over instance default |
+| 25 | `RequestLevelModelTest` | `test_whitespace_is_treated_as_unspecified` | 覆盖「A class whose instances are single test cases」：whitespace is treated as unspecified |
+| 26 | `SessionModelSelectionTest` | `test_choice_survives_a_new_process` | 换一个 LiveState 实例（= 换进程）后选择仍在 —— 靠落盘，不靠内存。 |
+| 27 | `SessionModelSelectionTest` | `test_empty_clears_the_choice` | 覆盖「会话级模型选择：选中即生效、可读回、**跨进程仍在**」：empty clears the choice |
+| 28 | `SessionModelSelectionTest` | `test_read_only_is_never_used` | **只读**会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。 |
+| 29 | `SessionModelSelectionTest` | `test_select_then_read_back` | 覆盖「会话级模型选择：选中即生效、可读回、**跨进程仍在**」：select then read back |
+| 30 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：model module marks turn start |
+| 31 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：port default keeps everything |
+| 32 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
+| 33 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
+| 34 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
+
+## test_multi_model_plugin.py
+
+共 21 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `CatalogPayloadTest` | `test_invalid_entries_are_exposed_for_ops` | 覆盖「A class whose instances are single test cases」：invalid entries are exposed for ops |
+| 2 | `CatalogPayloadTest` | `test_payload_carries_no_credentials` | 覆盖「A class whose instances are single test cases」：payload carries no credentials |
+| 3 | `ParseTest` | `test_anthropic_options_are_ignored_for_openai` | 覆盖「A class whose instances are single test cases」：anthropic options are ignored for openai |
+| 4 | `ParseTest` | `test_anthropic_options_are_typed` | 覆盖「A class whose instances are single test cases」：anthropic options are typed |
+| 5 | `ParseTest` | `test_bad_default_flag_keeps_entry_non_default` | 覆盖「A class whose instances are single test cases」：bad default flag keeps entry non default |
+| 6 | `ParseTest` | `test_bad_entry_does_not_hide_good_ones` | 覆盖「A class whose instances are single test cases」：bad entry does not hide good ones |
+| 7 | `ParseTest` | `test_bad_numbers_invalidate_the_entry` | 覆盖「A class whose instances are single test cases」：bad numbers invalidate the entry |
+| 8 | `ParseTest` | `test_bad_thinking_flag_invalidates_the_entry` | 覆盖「A class whose instances are single test cases」：bad thinking flag invalidates the entry |
+| 9 | `ParseTest` | `test_diagnostic_points_at_file_section_and_key` | 覆盖「A class whose instances are single test cases」：diagnostic points at file section and key |
+| 10 | `ParseTest` | `test_malformed_file_is_reported_not_raised` | 覆盖「A class whose instances are single test cases」：malformed file is reported not raised |
+| 11 | `ParseTest` | `test_missing_credentials_invalidates_only_that_entry` | 覆盖「A class whose instances are single test cases」：missing credentials invalidates only that entry |
+| 12 | `ParseTest` | `test_missing_file_is_empty_not_an_error` | 覆盖「A class whose instances are single test cases」：missing file is empty not an error |
+| 13 | `ParseTest` | `test_multiple_defaults_keep_the_first` | 覆盖「A class whose instances are single test cases」：multiple defaults keep the first |
+| 14 | `ParseTest` | `test_no_default_marks_the_first_entry` | 覆盖「A class whose instances are single test cases」：no default marks the first entry |
+| 15 | `ParseTest` | `test_openai_defaults_and_first_entry_is_default` | 覆盖「A class whose instances are single test cases」：openai defaults and first entry is default |
+| 16 | `ParseTest` | `test_utf8_bom_is_accepted` | 覆盖「A class whose instances are single test cases」：utf8 bom is accepted |
+| 17 | `PluginTemplateTest` | `test_example_covers_schema_keys` | 覆盖「`.example` 的键集合必须与 schema/解析器一致（双向）」：example covers schema keys |
+| 18 | `PluginTemplateTest` | `test_example_parses_without_invalid_entries` | 覆盖「`.example` 的键集合必须与 schema/解析器一致（双向）」：example parses without invalid entries |
+| 19 | `RegisterTest` | `test_catalog_callback_hot_reads_the_file` | 覆盖「A class whose instances are single test cases」：catalog callback hot reads the file |
+| 20 | `RegisterTest` | `test_register_contributes_catalog_route_and_boot_script` | 覆盖「A class whose instances are single test cases」：register contributes catalog route and boot script |
+| 21 | `RegisterTest` | `test_reregister_does_not_duplicate_defaults` | 覆盖「A class whose instances are single test cases」：reregister does not duplicate defaults |
 
 ## test_plugin_contributions.py
 
@@ -1262,6 +1372,42 @@
 | 11 | `SessionIsolationContractTest` | `test_events_of_two_sessions_carry_distinct_cids` | 覆盖「多会话隔离与门控确认按 cid 解析（前端分派契约的后端前提）」：events of two sessions carry distinct cids |
 | 12 | `UiStateContractTest` | `test_transient_ui_state_is_per_session` | 模式 / 折叠态归 live_state（按 cid），不落全局单例。 |
 | 13 | `UiStateContractTest` | `test_usage_and_reasoning_are_provider_side` | 用量经 usage 事件；推理档位属 provider 请求参数。 |
+
+## test_provider_meta.py
+
+共 8 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `DeriveMessagesMetaTest` | `test_old_logs_without_the_key_still_derive` | 覆盖「A class whose instances are single test cases」：old logs without the key still derive |
+| 2 | `DeriveMessagesMetaTest` | `test_provider_meta_survives_replay` | 覆盖「A class whose instances are single test cases」：provider meta survives replay |
+| 3 | `DeriveMessagesMetaTest` | `test_unknown_subkeys_are_carried_not_validated` | 覆盖「A class whose instances are single test cases」：unknown subkeys are carried not validated |
+| 4 | `LlmEventModelTest` | `test_done_reports_request_model` | 覆盖「模型生命周期事件必须报告**本次请求**的模型，而不是 provider 默认值」：done reports request model |
+| 5 | `ModelMessageMetaTest` | `test_later_meta_wins_on_shared_keys` | 覆盖「A class whose instances are single test cases」：later meta wins on shared keys |
+| 6 | `ModelMessageMetaTest` | `test_meta_delta_is_collected_verbatim` | 覆盖「A class whose instances are single test cases」：meta delta is collected verbatim |
+| 7 | `ModelMessageMetaTest` | `test_no_meta_delta_leaves_the_key_absent` | 覆盖「A class whose instances are single test cases」：no meta delta leaves the key absent |
+| 8 | `OpenAiWireNeverSeesMetaTest` | `test_wire_messages_strip_provider_meta` | 覆盖「A class whose instances are single test cases」：wire messages strip provider meta |
+
+## test_provider_router.py
+
+共 14 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `RoutedStreamTest` | `test_allowed_models_is_an_immutable_record` | 覆盖「A class whose instances are single test cases」：allowed models is an immutable record |
+| 2 | `RoutedStreamTest` | `test_catalog_id_is_rewritten_to_the_provider_model_name` | 覆盖「A class whose instances are single test cases」：catalog id is rewritten to the provider model name |
+| 3 | `RoutedStreamTest` | `test_empty_model_falls_back_to_default_id_resolution` | 覆盖「A class whose instances are single test cases」：empty model falls back to default id resolution |
+| 4 | `RoutedStreamTest` | `test_fallback_applies_only_to_allowed_ids` | 覆盖「A class whose instances are single test cases」：fallback applies only to allowed ids |
+| 5 | `RoutedStreamTest` | `test_fallback_is_off_by_default` | 覆盖「A class whose instances are single test cases」：fallback is off by default |
+| 6 | `RoutedStreamTest` | `test_model_property_prefers_default_id` | 覆盖「A class whose instances are single test cases」：model property prefers default id |
+| 7 | `RoutedStreamTest` | `test_provider_without_model_name_gets_the_request_unchanged` | 覆盖「A class whose instances are single test cases」：provider without model name gets the request unchanged |
+| 8 | `RoutedStreamTest` | `test_reload_default_is_visible_through_default_provider` | 覆盖「A class whose instances are single test cases」：reload default is visible through default provider |
+| 9 | `RoutedStreamTest` | `test_reload_default_takes_effect_on_the_next_request` | 覆盖「A class whose instances are single test cases」：reload default takes effect on the next request |
+| 10 | `RoutedStreamTest` | `test_reload_policy_can_disable_fallback` | 覆盖「A class whose instances are single test cases」：reload policy can disable fallback |
+| 11 | `RoutedStreamTest` | `test_reload_policy_updates_model_and_allowed_models` | 覆盖「A class whose instances are single test cases」：reload policy updates model and allowed models |
+| 12 | `RoutedStreamTest` | `test_router_without_default_id_uses_default_instance` | 覆盖「A class whose instances are single test cases」：router without default id uses default instance |
+| 13 | `RoutedStreamTest` | `test_routes_to_the_requested_model` | 覆盖「A class whose instances are single test cases」：routes to the requested model |
+| 14 | `RoutedStreamTest` | `test_unknown_model_raises_instead_of_silently_using_default` | 覆盖「A class whose instances are single test cases」：unknown model raises instead of silently using default |
 
 ## test_quality_pipeline.py
 
@@ -1456,22 +1602,23 @@
 
 ## test_settings_panel.py
 
-共 12 个用例。
+共 13 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ApplyHostTest` | `test_apply_updates_provider_and_limits` | 覆盖「A class whose instances are single test cases」：apply updates provider and limits |
-| 2 | `IniEditTest` | `test_append_does_not_duplicate_a_section` | 覆盖「A class whose instances are single test cases」：append does not duplicate a section |
-| 3 | `IniEditTest` | `test_remove_section_leaves_commented_header` | 覆盖「A class whose instances are single test cases」：remove section leaves commented header |
-| 4 | `IniEditTest` | `test_update_keeps_comments_and_other_sections` | 覆盖「A class whose instances are single test cases」：update keeps comments and other sections |
-| 5 | `PluginSettingsTest` | `test_enable_and_disable_edit_the_manifest` | 覆盖「A class whose instances are single test cases」：enable and disable edit the manifest |
-| 6 | `PluginSettingsTest` | `test_missing_plugin_is_not_enabled` | 覆盖「A class whose instances are single test cases」：missing plugin is not enabled |
-| 7 | `PluginSettingsTest` | `test_plugin_config_roundtrip_rejects_a_bad_name` | 覆盖「A class whose instances are single test cases」：plugin config roundtrip rejects a bad name |
-| 8 | `PluginSettingsTest` | `test_unknown_route` | 覆盖「A class whose instances are single test cases」：unknown route |
-| 9 | `SaveHostTest` | `test_catalog_echoes_the_key_from_the_file` | 覆盖「A class whose instances are single test cases」：catalog echoes the key from the file |
-| 10 | `SaveHostTest` | `test_invalid_number_does_not_write` | 覆盖「A class whose instances are single test cases」：invalid number does not write |
-| 11 | `SaveHostTest` | `test_save_rewrites_the_key_and_keeps_the_comment` | 覆盖「A class whose instances are single test cases」：save rewrites the key and keeps the comment |
-| 12 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
+| 1 | `ApplyHostTest` | `test_apply_delegates_model_reload_and_updates_limits` | 覆盖「A class whose instances are single test cases」：apply delegates model reload and updates limits |
+| 2 | `ApplyHostTest` | `test_catalog_note_is_returned` | 覆盖「A class whose instances are single test cases」：catalog note is returned |
+| 3 | `IniEditTest` | `test_append_does_not_duplicate_a_section` | 覆盖「A class whose instances are single test cases」：append does not duplicate a section |
+| 4 | `IniEditTest` | `test_remove_section_leaves_commented_header` | 覆盖「A class whose instances are single test cases」：remove section leaves commented header |
+| 5 | `IniEditTest` | `test_update_keeps_comments_and_other_sections` | 覆盖「A class whose instances are single test cases」：update keeps comments and other sections |
+| 6 | `PluginSettingsTest` | `test_enable_and_disable_edit_the_manifest` | 覆盖「A class whose instances are single test cases」：enable and disable edit the manifest |
+| 7 | `PluginSettingsTest` | `test_missing_plugin_is_not_enabled` | 覆盖「A class whose instances are single test cases」：missing plugin is not enabled |
+| 8 | `PluginSettingsTest` | `test_plugin_config_roundtrip_rejects_a_bad_name` | 覆盖「A class whose instances are single test cases」：plugin config roundtrip rejects a bad name |
+| 9 | `PluginSettingsTest` | `test_unknown_route` | 覆盖「A class whose instances are single test cases」：unknown route |
+| 10 | `SaveHostTest` | `test_catalog_echoes_the_key_from_the_file` | 覆盖「A class whose instances are single test cases」：catalog echoes the key from the file |
+| 11 | `SaveHostTest` | `test_invalid_number_does_not_write` | 覆盖「A class whose instances are single test cases」：invalid number does not write |
+| 12 | `SaveHostTest` | `test_save_rewrites_the_key_and_keeps_the_comment` | 覆盖「A class whose instances are single test cases」：save rewrites the key and keeps the comment |
+| 13 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
 
 ## test_source_snapshot.py
 

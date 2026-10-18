@@ -2,14 +2,18 @@
 """经典界面内联打包。
 
 把 CSS 与 JS **全部内联进一个 HTML**，运行时页面零额外请求：
-素材位于 `agent/shell/web_assets/classic/`，
-这里负责在进程启动时拼成一份完整 HTML。
+素材位于 `agent/shell/web_assets/classic/`，按下面的**模块清单**顺序拼成完整页面。
 
-三处关键细节：
-  1. **hljs 浅色 CSS 要做作用域隔离**（`html[data-ui-theme="light"] .hljs`）——
+模块清单是**唯一事实来源**：`scripts/check_ui_js.py`、测试与验收脚本都从这里取，
+新增/删除模块只改这一处。
+
+四件关键细节：
+  1. **顺序即语义**：JS 模块共用一个 `<script>` 作用域，CSS 模块顺序即层叠顺序，
+     调整清单顺序可能改变行为，不能随手重排；
+  2. **hljs 浅色 CSS 要做作用域隔离**（`html[data-ui-theme="light"] .hljs`）——
      两套高亮配色同页共存，不隔离就会互相覆盖；
-  2. JS 之间用 `;` 连接 —— 各文件末尾可能没有分号，直接拼会粘成语法错误；
-  3. `{{APP_VERSION}}` 由服务端注入。
+  3. JS 之间用 `;` 连接 —— 各文件末尾可能没有分号，直接拼会粘成语法错误；
+  4. `{{APP_VERSION}}` 由服务端注入。
 """
 from __future__ import annotations
 
@@ -20,25 +24,72 @@ from typing import Optional
 
 CLASSIC_DIR = Path(__file__).resolve().parent / "web_assets" / "classic"
 
+#: 经典界面 JS 模块（相对 `classic/js/`，**顺序即脚本执行顺序**）。
+UI_JS_MODULES = (
+    "core/boot.js",
+    "chat/todo.js",
+    "chat/stream.js",
+    "chat/confirm.js",
+    "chat/conversation.js",
+    "composer/goal.js",
+    "composer/state.js",
+    "composer/pickers.js",
+    "panels/panes.js",
+    "plugins/host.js",
+    "panels/file-viewer.js",
+    "composer/model-sync.js",
+    "composer/input.js",
+    "render/paths.js",
+    "render/markdown.js",
+    "chat/bubbles.js",
+    "chat/steps.js",
+    "chat/context-usage.js",
+    "tools/titles.js",
+    "render/diff.js",
+    "tools/previews.js",
+    "chat/llm-rounds.js",
+    "chat/tool-events.js",
+    "chat/errors.js",
+    "chat/send.js",
+    "layout/splitters.js",
+)
+
+#: 主脚本**之前**加载的脚本（vendor 与独立工具）。顺序同样有意义。
+UI_PRE_JS_MODULES = (
+    "js/theme-ui.js",
+    "js/vendor/marked.min.js",
+    "js/vendor/highlight.min.js",
+    "js/code-highlight.js",
+    "js/image-lightbox.js",
+)
+
+#: 主脚本**之后**加载的脚本：工具视图、文件图标、本轮编辑清单、设置页。
+UI_POST_JS_MODULES = (
+    "js/chat-tool-views.js",
+    "js/file-icons.js",
+    "js/edited-files.js",
+    "js/settings-ui.js",
+)
+
+#: 经典界面 CSS 模块（相对 `classic/css/`，**顺序即层叠顺序**）。
+UI_CSS_MODULES = (
+    "reset.css",
+    "layout.css",
+    "chat-messages.css",
+    "composer.css",
+    "todo.css",
+    "theme-light.css",
+    "theme-tokens.css",
+    "frame.css",
+    "chat-tool-views.css",
+    "file-icons.css",
+    "edited-files.css",
+    "settings-ui.css",
+)
+
 _HTML_FILE = CLASSIC_DIR / "agent-ui.html"
-_RESET_CSS = CLASSIC_DIR / "css" / "reset.css"
-_UI_CSS = CLASSIC_DIR / "css" / "agent-ui.css"
-_TOOL_CSS = CLASSIC_DIR / "css" / "chat-tool-views.css"
-_EDITED_CSS = CLASSIC_DIR / "css" / "edited-files.css"
-_FILE_ICO_CSS = CLASSIC_DIR / "css" / "file-icons.css"
-_SETTINGS_CSS = CLASSIC_DIR / "css" / "settings-ui.css"
 _HLJS_DARK_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github-dark.min.css"
 _HLJS_LIGHT_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github.min.css"
-_THEME_JS = CLASSIC_DIR / "js" / "theme-ui.js"
-_MARKED_JS = CLASSIC_DIR / "js" / "vendor" / "marked.min.js"
-_HLJS_JS = CLASSIC_DIR / "js" / "vendor" / "highlight.min.js"
-_CODE_HIGHLIGHT_JS = CLASSIC_DIR / "js" / "code-highlight.js"
-_LIGHTBOX_JS = CLASSIC_DIR / "js" / "image-lightbox.js"
-_UI_JS = CLASSIC_DIR / "js" / "agent-ui.js"
-_TOOL_JS = CLASSIC_DIR / "js" / "chat-tool-views.js"
-_FILE_ICO_JS = CLASSIC_DIR / "js" / "file-icons.js"
-_EDITED_JS = CLASSIC_DIR / "js" / "edited-files.js"
-_SETTINGS_JS = CLASSIC_DIR / "js" / "settings-ui.js"
 
 APP_VERSION = "v0.1"
 
@@ -51,6 +102,20 @@ def _read(path: Path) -> str:
         return ""
 
 
+def read_ui_js() -> str:
+    """按清单顺序拼出经典界面**同作用域**脚本（测试与静态检查共用）。"""
+    return "\n;".join(
+        _read(CLASSIC_DIR / "js" / rel).rstrip("\n") for rel in UI_JS_MODULES
+    )
+
+
+def read_ui_css() -> str:
+    """按清单顺序拼出经典界面样式（测试与静态检查共用）。"""
+    return "\n\n".join(
+        _read(CLASSIC_DIR / "css" / rel).rstrip("\n") for rel in UI_CSS_MODULES
+    )
+
+
 def scope_hljs_css(css: str, prefix: str) -> str:
     """把 `.hljs` 选择器限定到某主题下。
 
@@ -60,14 +125,9 @@ def scope_hljs_css(css: str, prefix: str) -> str:
 
 
 def build_inline_css() -> str:
-    """CSS 段：reset + 主样式 + hljs 深色 + hljs 浅色（作用域隔离）。"""
+    """CSS 段：模块清单顺序 + hljs 深色 + hljs 浅色（作用域隔离）。"""
     parts = [
-        _read(_RESET_CSS).rstrip(),
-        _read(_UI_CSS),
-        _read(_TOOL_CSS),
-        _read(_FILE_ICO_CSS),
-        _read(_EDITED_CSS),
-        _read(_SETTINGS_CSS),
+        read_ui_css(),
         _read(_HLJS_DARK_CSS),
         scope_hljs_css(_read(_HLJS_LIGHT_CSS), 'html[data-ui-theme="light"]'),
     ]
@@ -75,23 +135,14 @@ def build_inline_css() -> str:
 
 
 def build_inline_js() -> str:
-    """JS 段：主题 → markdown 解析器 → 高亮库 → 高亮封装 → 灯箱 → 主脚本 → 工具视图 → 本轮编辑清单 → 设置页，用 `;` 连接。
+    """JS 段：前置脚本 → 主脚本模块（共用作用域）→ 后置脚本，用 `;` 连接。
 
     `marked` 排在主脚本前：主脚本在顶层就引用 `window.marked`。
     """
-    parts = [
-        _read(_THEME_JS),
-        _read(_MARKED_JS),
-        _read(_HLJS_JS),
-        _read(_CODE_HIGHLIGHT_JS),
-        _read(_LIGHTBOX_JS),
-        _read(_UI_JS),
-        _read(_TOOL_JS),
-        _read(_FILE_ICO_JS),
-        _read(_EDITED_JS),
-        _read(_SETTINGS_JS),
-    ]
-    return "\n;".join(p for p in parts if p)
+    parts = [*(_read(CLASSIC_DIR / rel) for rel in UI_PRE_JS_MODULES),
+             read_ui_js(),
+             *(_read(CLASSIC_DIR / rel) for rel in UI_POST_JS_MODULES)]
+    return "\n;".join(p.rstrip("\n") for p in parts if p)
 
 
 @lru_cache(maxsize=1)
@@ -113,8 +164,10 @@ def inline_ui_html(version: Optional[str] = None) -> str:
 
 def classic_assets_present() -> bool:
     """素材是否齐全（供 /health 自检）。"""
+    js_sources = {
+        CLASSIC_DIR / rel for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES
+    }
+    css_sources = {CLASSIC_DIR / "css" / rel for rel in UI_CSS_MODULES}
     return all(p.is_file() for p in (
-        _HTML_FILE, _RESET_CSS, _UI_CSS, _TOOL_CSS, _EDITED_CSS, _HLJS_DARK_CSS, _HLJS_LIGHT_CSS,
-        _THEME_JS, _MARKED_JS, _HLJS_JS, _CODE_HIGHLIGHT_JS, _LIGHTBOX_JS, _UI_JS,
-        _TOOL_JS, _EDITED_JS, _SETTINGS_CSS, _SETTINGS_JS,
+        _HTML_FILE, _HLJS_DARK_CSS, _HLJS_LIGHT_CSS, *js_sources, *css_sources,
     ))

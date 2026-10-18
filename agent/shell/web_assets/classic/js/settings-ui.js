@@ -294,7 +294,13 @@
       }
       applyWebUi(data.web_ui);
       clearSavedSecrets();
-      setStatus(data.reload_error ? ("已写入，但生效失败：" + data.reload_error) : "已保存", !!data.reload_error);
+      if (data.reload_error) {
+        setStatus("已写入，但生效失败：" + data.reload_error, true);
+      } else if (data.reload_note) {
+        setStatus("已写入；" + data.reload_note);
+      } else {
+        setStatus("已保存");
+      }
     }).catch(function () {
       if (save) save.disabled = false;
       setStatus("保存失败", true);

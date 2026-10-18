@@ -23,10 +23,9 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.mechanisms.file_safety import _version_dir_name  # noqa: E402
+from agent.shell.ui_bundle import read_ui_js  # noqa: E402
 
-_UI_JS = _ROOT / "agent/shell/web_assets/classic/js/agent-ui.js"
-
-#: 前端取时刻用的正则（与 agent-ui.js 里 `const mv=/…/` 保持一致）
+#: 前端取时刻用的正则（与主脚本 `const mv=/…/` 保持一致）
 _FRONT_RE = re.compile(r"_(\d{6})_\d{3}_\d{4}_[0-9a-z]+$")
 
 
@@ -53,7 +52,7 @@ class VersionStampTest(unittest.TestCase):
 
     def test_frontend_has_two_unescaped_stamp_regexes(self) -> None:
         """前端两处取时刻（建标题 / 补文件段）正则同形，且不得写成 `\\\\d`。"""
-        src = _UI_JS.read_text(encoding="utf-8")
+        src = read_ui_js()
         self.assertNotIn("slice(-2,-1)", src, msg="仍有按段数取时间戳的旧写法")
         found = 0
         for i, line in enumerate(src.splitlines(), 1):

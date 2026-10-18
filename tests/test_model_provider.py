@@ -152,6 +152,167 @@ class SessionModelSelectionTest(unittest.TestCase):
         self.assertEqual(list(self.dir.iterdir()), [],
                          msg="非法 cid 不得拼出路径")
 
+class AppModelConfigTest(unittest.TestCase):
+    """装配层的模型设置入口：来源状态、回落与重建。
+
+    设置页只经 `App.reload_model_config` 改模型；这些用例守住三件事：
+    目录权威时不改配置、重建成功要刷新路由与清单、失败要返回可读说明而不是抛。
+    """
+
+    def setUp(self) -> None:
+        import tempfile
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _app(self):
+        from agent.app import App
+        from agent.core.context import (
+            SERVICE_LIVE_STATE,
+            SERVICE_PROVIDER,
+            AppContext,
+        )
+        from agent.mechanisms.live_state import LiveState
+
+        ctx = AppContext()
+        state = LiveState(storage_dir=self.dir / "state", default_model="base-model")
+        router = _RecordingRouter()
+        ctx.register(SERVICE_LIVE_STATE, state)
+        ctx.register(SERVICE_PROVIDER, router)
+        return App(ctx), state, router
+
+    def test_model_catalog_is_optional(self) -> None:
+        app, _state, _router = self._app()
+        self.assertIsNone(app.model_catalog)
+
+        from agent.core.context import SERVICE_MODEL_CATALOG
+
+        catalog = object()
+        app.context.register(SERVICE_MODEL_CATALOG, catalog)
+        self.assertIs(app.model_catalog, catalog)
+
+    def test_model_config_reports_source_and_degrade(self) -> None:
+        from types import SimpleNamespace
+
+        from agent.core.context import SERVICE_MODEL_CATALOG
+
+        app, _state, _router = self._app()
+        self.assertEqual(app.model_config(), {
+            "source": "none", "authoritative": False, "degraded": True})
+        catalog = SimpleNamespace(snapshot=lambda: SimpleNamespace(authoritative=True))
+        app.context.register(SERVICE_MODEL_CATALOG, catalog)
+        app.model_config_state = "catalog"
+        self.assertEqual(app.model_config(), {
+            "source": "catalog", "authoritative": True, "degraded": False})
+
+    def test_unknown_session_model_falls_back_to_default(self) -> None:
+        """旧标签页拿着已删除的模型 id 时，读取点收敛到默认值并写回。"""
+        app, state, _router = self._app()
+        app._available_models = ["m-one", "m-two"]
+        state.set_model("cid-model-1", "gone-model")
+        self.assertEqual(app.model_for("cid-model-1"), "base-model")
+        self.assertEqual(state.get_model("cid-model-1"), "base-model")
+
+    def test_known_session_model_is_kept(self) -> None:
+        app, state, _router = self._app()
+        app._available_models = ["m-one", "m-two"]
+        state.set_model("cid-model-2", "m-two")
+        self.assertEqual(app.model_for("cid-model-2"), "m-two")
+
+    def test_reload_is_ignored_when_catalog_is_authoritative(self) -> None:
+        app, _state, _router = self._app()
+        app.model_config_state = "catalog"
+        note = app.reload_model_config(config_path=self.dir / "missing.ini")
+        self.assertIn("目录权威", note)
+        self.assertEqual(app.model_config_state, "catalog")
+
+    def test_reload_without_credentials_marks_none(self) -> None:
+        app, _state, _router = self._app()
+        note = app.reload_model_config(config_path=self.dir / "missing.ini")
+        self.assertIn("缺少配置", note)
+        self.assertEqual(app.model_config_state, "none")
+
+    def test_refresh_switches_catalog_on_and_off(self) -> None:
+        """插件装卸必须重算权威：目录接管时刷新路由，注销后回退且清空清单。"""
+        from agent.capabilities.model_catalog import ModelCatalog, ModelEntry
+        from agent.core.context import SERVICE_MODEL_CATALOG
+
+        app, state, router = self._app()
+        catalog = ModelCatalog()
+        app.context.register(SERVICE_MODEL_CATALOG, catalog)
+        drop = catalog.set_source("multi_model", [
+            ModelEntry.from_options(id="a", provider="openai", is_default=True),
+            ModelEntry.from_options(id="b", provider="openai"),
+        ])
+        self.assertEqual(app.refresh_model_config(config_path=self.dir / "missing.ini"), "")
+        self.assertEqual(app.model_config_state, "catalog")
+        self.assertEqual(app.available_models(), ["a", "b"])
+        self.assertEqual(state.default_model, "a")
+        self.assertEqual(router.policy, {
+            "allowed_ids": ["a", "b"], "default_id": "a",
+            "fallback_to_default": False})
+        drop()
+        note = app.refresh_model_config(config_path=self.dir / "missing.ini")
+        self.assertIn("缺少配置", note)
+        self.assertEqual(app.model_config_state, "none")
+        self.assertEqual(app.available_models(), [])
+        self.assertEqual(router.policy, {
+            "allowed_ids": [], "default_id": "", "fallback_to_default": False})
+
+    def test_reload_rebuilds_default_and_refreshes_models(self) -> None:
+        app, state, router = self._app()
+        cfg = self.dir / "config.ini"
+        cfg.write_text(
+            "[model_reasoning]\n"
+            "api_base_url = https://example.invalid/v1\n"
+            "api_key = secret\n"
+            "model = m1\n"
+            "models = m1, m2\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(app.reload_model_config(config_path=cfg), "")
+        self.assertEqual(app.model_config_state, "config")
+        self.assertEqual(app.available_models(), ["m1", "m2"])
+        self.assertEqual(state.default_model, "m1")
+        self.assertIsNotNone(router.provider,
+                             msg="重建后的 provider 必须装回路由器")
+        self.assertEqual(router.policy, {
+            "allowed_ids": ["m1", "m2"], "default_id": "m1",
+            "fallback_to_default": True})
+
+    def test_reload_failure_returns_readable_note(self) -> None:
+        from unittest import mock
+
+        app, _state, _router = self._app()
+        cfg = self.dir / "config.ini"
+        cfg.write_text(
+            "[model_reasoning]\napi_base_url = https://example.invalid/v1\n"
+            "api_key = secret\nmodel = m1\n",
+            encoding="utf-8",
+        )
+        with mock.patch("agent.app.build_provider", side_effect=RuntimeError("bad")):
+            note = app.reload_model_config(config_path=cfg)
+        self.assertIn("重建模型失败", note)
+        self.assertIn("RuntimeError", note)
+
+
+class _RecordingRouter:
+    """记录 reload 调用；不真正建 provider（重建逻辑由 provider_registry 测）。"""
+
+    def __init__(self) -> None:
+        self.provider = object()
+        self.policy = None
+
+    def reload_default(self, provider) -> None:
+        self.provider = provider
+
+    def reload_policy(self, **kwargs) -> None:
+        self.policy = dict(kwargs)
+
+
 class AvailableModelsWireTest(unittest.TestCase):
     """`/health` 的 `allowed_models` 必须给出**完整清单**。
 
@@ -169,9 +330,9 @@ class AvailableModelsWireTest(unittest.TestCase):
     def test_health_lists_all_configured_models(self) -> None:
         from agent.shell.classic_adapter.adapter import ClassicAdapter
 
-        adapter = ClassicAdapter(self._app())
-        body = adapter.health()
-        self.assertEqual(body.get("allowed_models"), ["m-one", "m-two", "m-three"])
+        app = self._app()
+        body = ClassicAdapter(app).health()
+        self._assert_complete(body, str(getattr(app.provider, "model", "") or ""))
 
     def test_current_model_is_always_in_the_list(self) -> None:
         """`model` 必须在清单里，否则 UI 的白名单校验会丢弃它（顶栏永远"加载中"）。"""
@@ -191,6 +352,27 @@ class AvailableModelsWireTest(unittest.TestCase):
         _srv, shell = create_server(app, host="127.0.0.1", port=0)
         _status, body = shell.health()
         self.assertEqual(body.get("allowed_models"), ["m-one", "m-two", "m-three"])
+
+    def test_health_does_not_invent_a_model_in_degraded_state(self) -> None:
+        """`none` 时不能拿 provider 的占位模型充数：那个 id 实际选不了。"""
+        from agent.shell.web import create_server
+
+        app = self._app()
+        app.model_config_state = "none"
+        app._available_models = []
+        app.live_state.default_model = ""
+        _srv, shell = create_server(app, host="127.0.0.1", port=0)
+        _status, body = shell.health()
+        self.assertEqual(body.get("allowed_models"), [])
+        self.assertEqual(body.get("model"), "")
+
+    def _assert_complete(self, body, provider_model: str) -> None:
+        """清单 = 装配面名单 + 当前模型（当前模型会被前置，不能按位置断言）。"""
+        expected = {"m-one", "m-two", "m-three"}
+        allowed = list(body.get("allowed_models") or [])
+        self.assertTrue(expected <= set(allowed), allowed)
+        extra = set(allowed) - expected
+        self.assertEqual(extra, {provider_model} if provider_model else set(), allowed)
 
 class UserFacingTextTest(unittest.TestCase):
     """用户可见的文案不得混入内部术语。

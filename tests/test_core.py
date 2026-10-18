@@ -878,7 +878,7 @@ class WiringTest(unittest.TestCase):
     """**必须走 `App.session`** 的测试。
 
     为什么单独一个类：`_seq` 只有在装配层把 `seq_allocator` 真的传进引擎时才生效
-    （`_build_engine` 收了它就要往引擎传）。直接构造 `Host(...)` / `Engine(...)`
+    （`build_engine` 收了它就要往引擎传）。直接构造 `Host(...)` / `Engine(...)`
     的用例绕过 `App.session`，**测不到这条接线** —— 装配链因此是测试盲区。
 
     这条测试补上那个盲区：它只断言"**实时发布的帧带存储坐标**"——
@@ -938,7 +938,7 @@ class WiringTest(unittest.TestCase):
                          msg=f"这些总线帧没有存储坐标（续传会失效）：{missing}")
 
     def test_factory_receives_every_dependency_it_is_given(self) -> None:
-        """`_build_engine` 收到的依赖必须真的传进引擎（防"收了不用"）。
+        """`build_engine` 收到的依赖必须真的传进引擎（防"收了不用"）。
 
         这是一类**静默装配缺陷**：签名收了参数、函数体里忘了传，单元测试
         直接构造下层对象时全绿，真实运行里功能整条缺失。
@@ -951,10 +951,10 @@ class WiringTest(unittest.TestCase):
             calls["n"] = calls.get("n", 0) + 1
             return calls["n"]
 
-        from agent.app import _build_engine
+        from agent.core.engine_factory import build_engine
         from agent.core.session_log import SessionLog
 
-        engine = _build_engine(
+        engine = build_engine(
             conversation_id="wiring-0002", log=SessionLog(),
             provider=ScriptedProvider([{"text": "x"}]),
             seq_allocator=_alloc,

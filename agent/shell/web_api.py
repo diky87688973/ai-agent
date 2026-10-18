@@ -116,6 +116,22 @@ class WebShell:
         for channel in channels:
             channel.push(frame)
 
+    def _announce_model(self, cid: str, model: str) -> None:
+        """把模型变化广播给同会话的其它标签页（与 announce_plugins 同构）。
+
+        只有发起方写服务端；接收方只更新页头与本地 tab 字段，不再回写，
+        否则两个标签页会互相触发写服务端，形成重复写与竞态。
+        """
+        ctx = getattr(self.app, "context", None)
+        classic = (
+            ctx.get(SERVICE_CLASSIC_ADAPTER)
+            if ctx is not None and ctx.has(SERVICE_CLASSIC_ADAPTER)
+            else None
+        )
+        announce = getattr(classic, "announce_model", None) if classic is not None else None
+        if callable(announce):
+            announce(cid, model)
+
     def active_run(self, cid: str) -> str:
         with self._lock:
             return str(self._runs.get(str(cid or "").strip()) or "")
@@ -175,7 +191,10 @@ class WebShell:
             if allowed and want_model not in allowed:
                 # 有清单就按清单拒；清单为空（未配置）时不拦，交由 provider 决定
                 return 400, {"error": f"unknown model: {want_model}"}
+            before = str(self.app.live_state.get_model(cid) or "")
             self.app.live_state.set_model(cid, want_model)
+            if before != want_model:
+                self._announce_model(cid, want_model)
         # 忙闲事实源 = mesh 活跃集：同会话并发 → 409
         if self.app.mesh.is_running(cid):
             return 409, {"error": "当前会话仍在执行中，请等待完成或先停止。"}
@@ -728,6 +747,11 @@ class WebShell:
         """UI 状态快照（模式 / todo / 自主 / 模型；落点 = live_state 按 cid）。"""
         cid = str(cid or "").strip()
         live = self.app.live_state
+        model_for = getattr(self.app, "model_for", None)
+        current = (
+            model_for(cid) if callable(model_for)
+            else str(live.get_model(cid) or "")
+        )
         return 200, {
             "conversation_id": cid,
             "mode": live.get_mode(cid),
@@ -737,7 +761,7 @@ class WebShell:
             "goal": live.get_goal(cid),
             # 模型选择与可选清单：前端据此回填下拉（刷新后不丢）。
             # 只给 id —— 凭据（key / url）始终留在服务端。
-            "model": live.get_model(cid),
+            "model": current,
             "available_models": self.available_models(),
             "running": self.app.mesh.is_running(cid),
             # 也在跑的全部会话（供中途接入的页面拉 `/api/chat/ui-state` 回填忙闲）。
@@ -756,7 +780,10 @@ class WebShell:
             allowed = self.available_models()
             if want and allowed and want not in allowed:
                 return 400, {"error": f"unknown model: {want}"}
+            before = str(self.app.live_state.get_model(cid) or "")
             self.app.live_state.set_model(cid, want)
+            if want and before != want:
+                self._announce_model(cid, want)
         return self.ui_state(cid)
 
     def confirm(self, cid: str, confirm_id: str) -> Tuple[int, Dict[str, Any]]:
@@ -802,16 +829,22 @@ class WebShell:
         # 可选模型清单必须以装配面的清单为准（`config.ini` 的 `[model_reasoning] models`）：
         # provider 可能不持有 `allowed_models` 属性，只回一个模型会让前端模型下拉只剩一项，
         # 用户选其它模型还会被当非法拒掉。
+        source = str(getattr(self.app, "model_config_state", "") or "")
         allowed = self.available_models()
-        if not allowed:
-            allowed = list(getattr(provider, "allowed_models", ()) or ())
+        if source != "none":
             if not allowed:
-                name = str(getattr(provider, "model", "") or "")
-                allowed = [name] if name else []
-        # 无白名单清单时把当前模型作为唯一候选下发（前端据此渲染模型菜单）；
-        # 真正的多模型名单由装配面的配置提供。
-        if not allowed and model:
-            allowed = [model]
+                allowed = list(getattr(provider, "allowed_models", ()) or ())
+                if not allowed:
+                    allowed = [model] if model else []
+            # 无白名单清单时把当前模型作为唯一候选下发（前端据此渲染模型菜单）；
+            # 真正的多模型名单由装配面的配置提供。
+            if not allowed and model:
+                allowed = [model]
+        elif not allowed:
+            # 降级态保持空清单：不能报出一个实际选不了的 id（顶栏也不会假装有模型）。
+            model = ""
+        settings = getattr(self.app, "model_config", None)
+        model_config = settings() if callable(settings) else {}
         return 200, {
             "ok": True,
             "service": "agent.web",
@@ -824,6 +857,7 @@ class WebShell:
             "tools": len(self.app.registry.names()),
             "model": model,
             "allowed_models": allowed,
+            "model_config": model_config,
         }
 
     # ── 媒体（本地绝对路径 → 浏览器可访问）──

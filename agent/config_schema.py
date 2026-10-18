@@ -47,6 +47,31 @@ WEB_UI_SCHEMA: Dict[str, Dict[str, str]] = {
     },
 }
 
+#: `plugins/multi_model/plugin-config.ini.example` 的节与键。
+#: `model` 这一组的节名是动态的（`[model:<id>]`），键集合对所有条目一致；
+#: 单个条目可以省略不适用于自己的键（例如 openai 条目不写 `thinking`）。
+MULTI_MODEL_SCHEMA: Dict[str, Dict[str, str]] = {
+    "base": {
+        "id": "multi_model",
+        "enable": "1",
+        "name": "",
+        "icon": "",
+        "version": "",
+        "desc": "",
+    },
+    "model": {
+        "provider": "openai",
+        "base_url": "",
+        "api_key": "",
+        "model": "",
+        "label": "",
+        "default": "",
+        "max_tokens": "",
+        "thinking": "",
+        "thinking_budget_tokens": "",
+    },
+}
+
 
 def schema_keys(section: str, schema: Dict[str, Dict[str, str]] | None = None) -> set[str]:
     """该节允许的键集合（节不存在返回空集）。"""

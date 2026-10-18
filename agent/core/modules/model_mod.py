@@ -18,6 +18,7 @@ from agent.core.event_name import (
     USAGE,
 )
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
+from agent.core.model_call import PROVIDER_META_KEY
 from agent.core.module import ModuleBase
 from agent.core.modules.support import (
     _assemble_with,
@@ -156,16 +157,17 @@ class ModelModule(ModuleBase):
         reasoning_parts: List[str] = []
         tool_calls: List[ToolCallRequest] = []
         usage: Dict[str, Any] = {}
+        provider_meta: Dict[str, Any] = {}
         failure = ""
         try:
             for delta in model.stream(request):
                 if ports.canceled():
                     # 取消检查点（流式消费中每帧）：长回答能被立刻打断，
                     # 不必等它说完。已产出的增量**保留**（那是已发生的事实）。
-                    yield ports.emit(LLM_FAILED, model=model.name() or "",
+                    yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
                                      error="CanceledByUser", elapsed_ms=int((perf_counter() - started) * 1000),
                                      chunks=chunks)
-                    yield ports.emit(LLM_ENDED, model=model.name() or "",
+                    yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
                                      status="canceled", elapsed_ms=int((perf_counter() - started) * 1000),
                                      chunks=chunks)
                     # **返回 `stopped`**：同一次用户动作在工具路径
@@ -190,6 +192,10 @@ class ModelModule(ModuleBase):
                     yield ports.emit(REASONING_DELTA, text=str(delta.text or ""))
                 elif kind == "tool_call" and getattr(delta, "tool_call", None) is not None:
                     tool_calls.append(delta.tool_call)
+                elif kind == "meta" and getattr(delta, "meta", None):
+                    # 厂商私有元数据：内核**不解释**，只按键合并后落进事实。
+                    # 后到的同键覆盖先到的（适配器按轮次只发一次，合并只是兜底）。
+                    provider_meta.update(delta.meta)
                 elif kind == "usage" and getattr(delta, "usage", None):
                     usage = dict(delta.usage)
         except Exception as exc:
@@ -200,17 +206,17 @@ class ModelModule(ModuleBase):
             report_error("core.model", exc)
         elapsed = int((perf_counter() - started) * 1000)
         if failure:
-            yield ports.emit(LLM_FAILED, model=model.name() or "", error=failure,
+            yield ports.emit(LLM_FAILED, model=model.name_for(request) or "", error=failure,
                              elapsed_ms=elapsed, chunks=chunks)
-            yield ports.emit(LLM_ENDED, model=model.name() or "", status="failed",
+            yield ports.emit(LLM_ENDED, model=model.name_for(request) or "", status="failed",
                              elapsed_ms=elapsed, chunks=chunks)
             yield ports.emit(ERROR, where="model", detail=failure)
             return Outcome.halt(f"模型调用失败：{failure}")
-        yield ports.emit(LLM_DONE, model=model.name() or "",
+        yield ports.emit(LLM_DONE, model=model.name_for(request) or "",
                          elapsed_ms=elapsed,
                          first_chunk_ms=(first_chunk_ms if first_chunk_ms is not None else -1),
                          chunks=chunks, tool_calls=len(tool_calls))
-        yield ports.emit(LLM_ENDED, model=model.name() or "", status="done",
+        yield ports.emit(LLM_ENDED, model=model.name_for(request) or "", status="done",
                          elapsed_ms=elapsed, chunks=chunks,
                          tool_calls=len(tool_calls))
 
@@ -223,5 +229,7 @@ class ModelModule(ModuleBase):
         reasoning = "".join(reasoning_parts)
         if reasoning:
             message_data["reasoning_content"] = reasoning
+        if provider_meta:
+            message_data[PROVIDER_META_KEY] = provider_meta
         yield ports.emit(MODEL_MESSAGE, **message_data)
         return Outcome.ok()

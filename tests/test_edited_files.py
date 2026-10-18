@@ -2,10 +2,15 @@
 """本轮编辑清单：会话页内存拼装，不进内核，刷新不回放。"""
 from __future__ import annotations
 
+import sys
 import unittest
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from agent.shell.ui_bundle import read_ui_js  # noqa: E402
 
 
 class EditedFilesPageTest(unittest.TestCase):
@@ -13,9 +18,7 @@ class EditedFilesPageTest(unittest.TestCase):
         feat = (_ROOT / "agent/shell/web_assets/classic/js/edited-files.js").read_text(
             encoding="utf-8"
         )
-        ui = (_ROOT / "agent/shell/web_assets/classic/js/agent-ui.js").read_text(
-            encoding="utf-8"
-        )
+        ui = read_ui_js()
         bundle = (_ROOT / "agent/shell/ui_bundle.py").read_text(encoding="utf-8")
         from agent.shell.ui_bundle import build_inline_css, build_inline_js
 

@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent.shell.ui_bundle import read_ui_js
 from agent.shell.web_ui_config import get_web_ui
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -48,9 +49,7 @@ class WebUiConfigTest(unittest.TestCase):
         html = (ROOT / "agent/shell/web_assets/classic/agent-ui.html").read_text(
             encoding="utf-8"
         )
-        js = (ROOT / "agent/shell/web_assets/classic/js/agent-ui.js").read_text(
-            encoding="utf-8"
-        )
+        js = read_ui_js()
         tool_js = (
             ROOT / "agent/shell/web_assets/classic/js/chat-tool-views.js"
         ).read_text(encoding="utf-8")

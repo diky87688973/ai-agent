@@ -39,6 +39,9 @@ if errorlevel 1 (
 )
 
 rem ---- 3. Config ----
+rem 多模型插件可独立提供模型与凭据；有它就不强制 config.ini 的密钥。
+if exist "plugins\multi_model\plugin-config.ini" goto config_ok
+
 if not exist "config.ini" (
     if exist "config.ini.example" copy "config.ini.example" "config.ini" >nul
     echo.
@@ -72,11 +75,15 @@ if errorlevel 1 (
     echo       [model_reasoning]
     echo       api_key = your-api-key
     echo.
+    echo   Or configure a plugin model:
+    echo       plugins\multi_model\plugin-config.ini
+    echo.
     start "" notepad "config.ini"
     pause
     exit /b 1
 )
 
+:config_ok
 echo [3/3] Config OK
 echo.
 echo ============================================

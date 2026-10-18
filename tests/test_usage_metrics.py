@@ -20,8 +20,7 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.shell.classic_adapter import contract as C  # noqa: E402
 from agent.shell.classic_adapter.outbound import ClassicStream  # noqa: E402
-
-_UI = _ROOT / "agent" / "shell" / "web_assets" / "classic" / "js" / "agent-ui.js"
+from agent.shell.ui_bundle import read_ui_js  # noqa: E402
 
 #: 官方返回的字段（DeepSeek 文档：usage 里的缓存命中情况）
 OFFICIAL = {
@@ -70,7 +69,7 @@ class UiReadsTheOfficialFieldsTest(unittest.TestCase):
     """界面读的字段名与契约一致；命中率只用官方两个值算。"""
 
     def _src(self) -> str:
-        return _UI.read_text(encoding="utf-8")
+        return read_ui_js()
 
     def test_ui_reads_the_official_names(self) -> None:
         src = self._src()
@@ -109,7 +108,7 @@ class WindowComesFromKernelTest(unittest.TestCase):
         self.assertEqual(payload["model_max_context_tokens"], 1_000_000)
         self.assertEqual(payload["budget_tokens"], 700_000)
         # 界面经 context_layout 灌入同一字段
-        src = _UI.read_text(encoding="utf-8")
+        src = read_ui_js()
         self.assertIn("function setModelContextWindow(", src)
         self.assertIn("setModelContextWindow(ev.model_max_context_tokens)", src)
 

@@ -22,12 +22,14 @@ from typing import Dict, List, Tuple
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from agent.config_schema import SCHEMA, WEB_UI_SCHEMA  # noqa: E402
+from agent.config_schema import MULTI_MODEL_SCHEMA, SCHEMA, WEB_UI_SCHEMA  # noqa: E402
 
 CONFIG_TEMPLATE = ROOT / "config.ini.example"
 CONFIG_REAL = ROOT / "config.ini"
 WEB_UI_TEMPLATE = ROOT / "web-ui-config.ini.example"
 WEB_UI_REAL = ROOT / "web-ui-config.ini"
+MODEL_PLUGIN_TEMPLATE = ROOT / "plugins" / "multi_model" / "plugin-config.ini.example"
+MODEL_PLUGIN_REAL = ROOT / "plugins" / "multi_model" / "plugin-config.ini"
 
 
 def parse_ini(text: str, name: str) -> configparser.ConfigParser:
@@ -98,11 +100,91 @@ def compare_subset(text: str, name: str, schema: Dict[str, Dict[str, str]]) -> L
     return problems
 
 
+def compare_plugin_model_template(
+    text: str,
+    name: str,
+    schema: Dict[str, Dict[str, str]] = MULTI_MODEL_SCHEMA,
+) -> List[str]:
+    """插件模型配置模板：`[base]` 精确、动态的 `[model:*]` 取键并集双向比对。
+
+    单条目允许省略不适用于自己的键（openai 条目不写 thinking），所以不能
+    逐节精确比对；但**模板整体**必须把所有合法键示范出来，且不能多出 schema
+    未登记的键 —— 少一个键，用户照抄后功能静默失效；多一个键，模板在承诺
+    解析器不认的功能。
+    """
+    problems: List[str] = []
+    try:
+        parser = parse_ini(text, name)
+    except configparser.Error as exc:
+        return [f"{name}: 无法解析（{exc}）"]
+    base = schema.get("base", {})
+    model = schema.get("model", {})
+    seen_model: set = set()
+    has_model_section = False
+    for section in parser.sections():
+        if section == "base":
+            actual = set(parser[section].keys())
+            problems.extend(
+                f"{name}: [base] 缺键 `{key}`" for key in sorted(set(base) - actual))
+            problems.extend(
+                f"{name}:{_line_of_key(text, section, key)}: [base] 未登记的键 `{key}`"
+                for key in sorted(actual - set(base)))
+        elif section.startswith("model:"):
+            has_model_section = True
+            actual = set(parser[section].keys())
+            seen_model |= actual
+            problems.extend(
+                f"{name}:{_line_of_key(text, section, key)}: "
+                f"[{section}] 未登记的键 `{key}`"
+                for key in sorted(actual - set(model)))
+        else:
+            problems.append(f"{name}: 多出未登记的节 [{section}]")
+    if "base" not in parser.sections():
+        problems.append(f"{name}: 缺节 [base]")
+    if not has_model_section:
+        problems.append(f"{name}: 缺 [model:<id>] 示例节")
+    problems.extend(
+        f"{name}: [model:*] 模板缺键 `{key}`（schema 已登记）"
+        for key in sorted(set(model) - seen_model))
+    return problems
+
+
+def compare_plugin_model_real(
+    text: str,
+    name: str,
+    schema: Dict[str, Dict[str, str]] = MULTI_MODEL_SCHEMA,
+) -> List[str]:
+    """真实插件配置只允许是 schema 的子集：多节、多键都失败，缺键合法。"""
+    problems: List[str] = []
+    try:
+        parser = parse_ini(text, name)
+    except configparser.Error as exc:
+        return [f"{name}: 无法解析（{exc}）"]
+    base = set(schema.get("base", {}))
+    model = set(schema.get("model", {}))
+    for section in parser.sections():
+        if section == "base":
+            allowed = base
+        elif section.startswith("model:"):
+            allowed = model
+        else:
+            problems.append(f"{name}: 多出未登记的节 [{section}]")
+            continue
+        for key in sorted(set(parser[section].keys()) - allowed):
+            problems.append(
+                f"{name}:{_line_of_key(text, section, key)}: "
+                f"[{section}] 未登记的键 `{key}`（拼写错误？）"
+            )
+    return problems
+
+
 def check_files(
     template: Path = CONFIG_TEMPLATE,
     real: Path = CONFIG_REAL,
     web_template: Path = WEB_UI_TEMPLATE,
     web_real: Path = WEB_UI_REAL,
+    model_plugin_template: Path = MODEL_PLUGIN_TEMPLATE,
+    model_plugin_real: Path = MODEL_PLUGIN_REAL,
 ) -> Tuple[List[str], List[str]]:
     """返回 `(违规, 跳过说明)`：违规非空即失败；跳过说明只打印。"""
     problems: List[str] = []
@@ -128,6 +210,21 @@ def check_files(
                                       web_real.name, WEB_UI_SCHEMA))
     else:
         skipped.append(f"{web_real.name} 不存在（默认值生效，跳过子集检查）")
+
+    if not model_plugin_template.is_file():
+        problems.append(f"{model_plugin_template.name}: 模板不存在")
+    else:
+        problems.extend(compare_plugin_model_template(
+            model_plugin_template.read_text(encoding="utf-8-sig"),
+            model_plugin_template.name,
+        ))
+    if model_plugin_real.is_file():
+        problems.extend(compare_plugin_model_real(
+            model_plugin_real.read_text(encoding="utf-8-sig"),
+            model_plugin_real.name,
+        ))
+    else:
+        skipped.append(f"{model_plugin_real.name} 不存在（插件未配置，跳过子集检查）")
     return problems, skipped
 
 

@@ -102,6 +102,16 @@ class ClassicAdapter:
         **必须按会话取**，不能恒取全局的 `provider.model`：那个 `conversation` 帧
         会把用户选好的模型覆盖回默认，表现为下拉自己跳回默认。
         """
+        resolver = getattr(self._app, "model_for", None)
+        if callable(resolver):
+            try:
+                want = str(resolver(cid) or "")
+                if want:
+                    return want
+            except Exception:
+                # 判据同下：取会话模型只是给前端展示名，失败退回 live_state/默认名；
+                # 这里抛出去会让整条 conversation 帧丢失。
+                pass
         live = getattr(self._app, "live_state", None)
         if live is not None:
             try:
@@ -561,7 +571,25 @@ class ClassicAdapter:
         开关是进程级的，这帧不带会话号。页面据此改按钮、关面板、重画上下文条。
         """
         names = sorted({str(name) for name in loaded if str(name or "").strip()})
-        frame = {"type": C.EV_PLUGINS_CHANGED, "loaded": names}
+        self._broadcast({"type": C.EV_PLUGINS_CHANGED, "loaded": names})
+
+    def announce_model(self, cid: str, model: str) -> None:
+        """把模型变化推给同会话的其它标签页（发起方已写过服务端）。
+
+        与 `announce_plugins` 同构：不是内核事件，不伪装成内核事件。
+        接收方只更新页头与本地 tab 字段，**不再回写** `live_state`。
+        """
+        key = C.normalize_cid(cid)
+        if not key:
+            return
+        self._broadcast({
+            "type": C.EV_CONVERSATION,
+            "conversation_id": key,
+            "model": str(model or ""),
+        })
+
+    def _broadcast(self, frame: Dict[str, Any]) -> None:
+        """把一帧推给所有已连接通道；通道满则丢最旧，绝不阻塞事件流。"""
         with self._lock:
             channels = list(self._channels)
         for box in channels:
@@ -657,18 +685,17 @@ class ClassicAdapter:
         """
         cid = C.normalize_cid(cid)
         live = getattr(self._app, "live_state", None)
-        provider = getattr(self._app, "provider", None)
         mode = live.get_mode(cid) if live is not None else "auto"
         # 模型取**会话级选择**（没选过才回落 provider 默认）。
         # 不能恒取 `provider.model`：那样每来一帧就把用户的模型选择覆盖回默认
         # （表现为"发一条消息，模型下拉自己就跳回默认"），
         # 而用户接着发图时后端按**默认**模型的名字判能力（不认视觉）→ 图片被剥掉。
-        model = live.get_model(cid) if live is not None else ""
+        model = self._model(cid)
         return {
             "type": C.EV_CONVERSATION,
             "conversation_id": cid,
             "mode": C.normalize_mode(mode),
-            "model": model or str(getattr(provider, "model", "") or ""),
+            "model": model,
         }
 
     def health(self) -> Dict[str, Any]:
@@ -685,13 +712,17 @@ class ClassicAdapter:
         # ——模型下拉只画一项，而且选择会被白名单校验拒掉。
         resolver = getattr(self._app, "available_models", None)
         allowed = [str(m) for m in (resolver() if callable(resolver) else []) or []]
-        if not allowed:
+        source = str(getattr(self._app, "model_config_state", "") or "")
+        if not allowed and source != "none":
             allowed = [str(m) for m in (getattr(provider, "allowed_models", None) or [])]
+        if not allowed and source == "none":
+            model = ""
         if model and model not in allowed:
             allowed = [model, *allowed]
         contexts = getattr(self._app, "session_contexts", None)
         buckets = contexts.active_count() if contexts is not None else 0
         tools = len(self._app.registry.names())
+        settings = getattr(self._app, "model_config", None)
         return {
             "ok": True,
             "service": "agent.web",
@@ -700,6 +731,7 @@ class ClassicAdapter:
             "tools": tools,
             "model": model,
             "allowed_models": allowed,
+            "model_config": settings() if callable(settings) else {},
             # 停在"等用户作答"的会话（宿主状态，非内核阻塞态）。
             "paused_conversations": sorted(cid for cid, on in self._paused.items() if on),
             # 权威待确认状态来自内核的 `SessionContext`（`cid → call_id`）：

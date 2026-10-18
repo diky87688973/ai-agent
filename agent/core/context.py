@@ -24,7 +24,8 @@ Disposer = Callable[[], None]
 # 集中定义防拼写漂移：装配点与解析方引用同一常量。
 SERVICE_REGISTRY = "registry"                    # 工具注册表
 SERVICE_PIPELINE = "pipeline"                    # 工具执行管道（唯一入口）
-SERVICE_PROVIDER = "provider"                    # 模型提供者
+SERVICE_PROVIDER = "provider"                    # 模型提供者（ProviderRouter）
+SERVICE_MODEL_CATALOG = "model_catalog"          # 模型描述目录（唯一权威来源）
 SERVICE_STORE = "store"                          # 会话存储（事实源）
 SERVICE_EVENT_BUS = "event_bus"                  # 事件总线（旁路）
 SERVICE_PLUGIN_HOST = "plugin_host"              # 插件宿主

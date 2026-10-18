@@ -360,24 +360,25 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 | 修改 | `agent/shell/classic_adapter/adapter.py` |
 | 修改 | `agent/shell/web_routes.py` |
 | 新增 | `agent/shell/web_assets/classic/js/history-paging.js` |
-| 修改 | `agent/shell/web_assets/classic/js/agent-ui.js` |
+| 修改 | `agent/shell/web_assets/classic/js/chat/conversation.js`（分页入口） |
+| 修改 | `agent/shell/web_assets/classic/js/chat/stream.js`（分页帧处理） |
 | 修改 | `agent/shell/web_assets/classic/js/chat-tool-views.js` |
-| 修改 | `agent/shell/web_assets/classic/css/agent-ui.css`（仅分页提示行） |
-| 修改 | `agent/shell/ui_bundle.py`（把新 JS 拼进内联脚本） |
-| 修改 | `scripts/check_ui_js.py`（把新 JS 加进检查口径） |
+| 修改 | `agent/shell/web_assets/classic/css/chat-messages.css`（仅分页提示行） |
+| 修改 | `agent/shell/ui_bundle.py`（把新 JS 加进模块清单） |
+| 修改 | `scripts/check_ui_js.py`（模块清单变化后自动覆盖） |
 | 新增测试 | `tests/test_history_page.py` |
 | 修改测试 | `tests/test_web_shell.py` 与经典适配层现有用例 |
 | 同步 | `README.md` 的用例数（`scripts/check_readme.py` 核对） |
 
-分页逻辑放进新文件 `history-paging.js`，不继续往 `agent-ui.js` 里堆：后者已经
-3515 行，远超单文件 800 行的关注阈值。新文件必须同时满足三条登记，否则它
-就是一个"不被门禁看见"的模块：
+分页逻辑放进新文件 `history-paging.js`，不继续往会话模块里堆：经典界面的主脚本
+已按职责拆成多个模块（见 `ui_bundle.UI_JS_MODULES`），单文件普遍在数百行内。
+新文件必须同时满足三条登记，否则它就是一个"不被门禁看见"的模块：
 
-1. `ui_bundle.build_inline_js` 的 `parts` 里加一项，位置**在 `_UI_JS` 之前**。
-   `agent-ui.js` 末尾有立即执行的启动代码，排在它后面的文件，其顶层 `var`
-   在启动时还没初始化。
-2. `check_ui_js.UI_SCRIPTS` 加一项（过 `node --check` 与裸用未定义标识符检查）。
-3. `check_ui_js.SHARED_SCOPE_JS` 加一项（与主脚本同作用域，主脚本可直接调用）。
+1. `ui_bundle` 的模块清单里加一项：启动代码在 `core/boot.js` 与
+   `layout/splitters.js`，新文件若依赖同作用域全局，位置要排在这些模块之后。
+2. `scripts/check_ui_js.py` 从同一份清单取文件（过 `node --check` 与裸用未定义标识符检查），
+   不需要单独登记。
+3. 同作用域即可直接调用主脚本函数 —— 拼进同一个 `<script>`，不需要额外声明。
 
 `setLazyText` / `materializeLazy` 属于工具视图，落在 `chat-tool-views.js`，
 不放进分页文件：它们服务的是"任何长文本"，与"历史翻页"无关。

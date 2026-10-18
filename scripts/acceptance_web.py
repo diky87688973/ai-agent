@@ -285,8 +285,8 @@ class Acceptance:
             ("/", 'id="usage-bottom"', "用量底栏"),
             ("/", "global.AIA", "附件链路（image-lightbox 已内联）"),
             ("/assets/classic/agent-ui.html", "{{CSS}}", "经典 UI 模板（原名）"),
-            ("/assets/classic/css/agent-ui.css", 'html[data-ui-theme="light"]', "经典 UI 样式表"),
-            ("/assets/classic/js/agent-ui.js", "normalizeConversationId", "经典 UI 主脚本"),
+            ("/assets/classic/css/theme-light.css", 'html[data-ui-theme="light"]', "经典 UI 主题样式"),
+            ("/assets/classic/js/core/boot.js", "normalizeConversationId", "经典 UI 启动脚本"),
             ("/assets/classic/js/vendor/highlight.min.js", "hljs", "vendor 高亮（直取）"),
         ):
             status, body = self.get(path)

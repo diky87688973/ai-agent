@@ -28,6 +28,7 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.shell import web as web_mod  # noqa: E402
+from agent.shell.ui_bundle import read_ui_css, read_ui_js  # noqa: E402
 
 _FIXTURE_PLUGIN = '''# -*- coding: utf-8 -*-
 """测试夹具插件：把一个有状态的业务暴露成 web 接口。"""
@@ -196,11 +197,10 @@ class PluginHttpTest(unittest.TestCase):
 
         插件样式写进公共文件的话，插件没加载时页面也白带一份，而且插件的类名会和
         页面样式混在同一个文件里。
-        只查样式表：`agent-ui.js` 里出现 `.kb-*` 是**控制逻辑**的选择器
+        只查样式表：主脚本模块里出现 `.kb-*` 是**控制逻辑**的选择器
         （面板渲染与事件绑定），那不是样式，也不该由插件提供。
         """
-        text = (_ROOT / "agent/shell/web_assets/classic/css/agent-ui.css").read_text(
-            encoding="utf-8")
+        text = read_ui_css()
         for sel in (".kb-cb", ".kb-file-row", ".kb-hint-bar", ".kb-body", ".kb-fpath"):
             with self.subTest(selector=sel):
                 self.assertNotIn(sel, text)
@@ -264,8 +264,7 @@ class PluginHttpTest(unittest.TestCase):
         self.assertIn("aiAgentPlugins", plugin_js)
         self.assertIn('api.get("files")', plugin_js)
 
-        shell_js = (_ROOT / "agent/shell/web_assets/classic/js/agent-ui.js").read_text(
-            encoding="utf-8")
+        shell_js = read_ui_js()
         for token in ("kb-cb", "kb-file-row", "kb-fpath", "kb-hint-bar", "kbBody"):
             with self.subTest(token=token):
                 self.assertNotIn(token, shell_js)

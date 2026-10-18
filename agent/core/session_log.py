@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from agent.core.events import Event
+from agent.core.model_call import PROVIDER_META_KEY
 
 
 def _user_content(text: str, attachments: Any) -> Any:
@@ -215,6 +216,11 @@ class SessionLog:
                 tool_calls = ev.data.get("tool_calls") or []
                 if tool_calls:
                     msg["tool_calls"] = tool_calls
+                provider_meta = ev.data.get(PROVIDER_META_KEY)
+                if provider_meta:
+                    # 厂商私有元数据（例如 thinking 块与签名）**原样透传**：
+                    # 内核不解释内容，适配器在回放时自行决定要不要用（B6 可选新增键）。
+                    msg[PROVIDER_META_KEY] = provider_meta
                 messages.append(msg)
             elif ev.type == "tool_ended":
                 # **工具终态事实**：`tool_ended{status, elapsed_ms}`。

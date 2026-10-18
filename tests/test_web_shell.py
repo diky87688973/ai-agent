@@ -255,8 +255,8 @@ class EndpointTest(_ServerFixture):
             ("/", "id=\"usage-bottom\""),          # 用量底栏
             ("/", "global.AIA"),                   # 附件链路（image-lightbox）内联在单页里
             ("/assets/classic/agent-ui.html", "{{CSS}}"),
-            ("/assets/classic/css/agent-ui.css", 'html[data-ui-theme="light"]'),
-            ("/assets/classic/js/agent-ui.js", "normalizeConversationId"),
+            ("/assets/classic/css/theme-light.css", 'html[data-ui-theme="light"]'),
+            ("/assets/classic/js/core/boot.js", "normalizeConversationId"),
             ("/assets/classic/js/image-lightbox.js", "AIA"),
             ("/assets/classic/js/vendor/highlight.min.js", "hljs"),
             ("/favicon.ico", ""),

@@ -646,10 +646,8 @@ class PluginPanelRenderContractTest(unittest.TestCase):
     """
 
     def _shell_js(self) -> str:
-        from pathlib import Path as _P
-        root = _P(__file__).resolve().parent.parent
-        return (root / "agent" / "shell" / "web_assets" / "classic" / "js"
-                / "agent-ui.js").read_text(encoding="utf-8")
+        from agent.shell.ui_bundle import read_ui_js
+        return read_ui_js()
 
     def test_open_pane_broadcasts_panel_opened(self) -> None:
         js = self._shell_js()

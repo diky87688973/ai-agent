@@ -281,13 +281,23 @@ def _effective_values(config_path: Path, web_ui_path: Path) -> Dict[str, Dict[st
 
 
 def host_catalog(config_path: Optional[Path] = None,
-                 web_ui_path: Optional[Path] = None) -> Dict[str, Any]:
-    """设置页左侧各节和当前值。"""
+                 web_ui_path: Optional[Path] = None,
+                 *,
+                 hide_model: bool = False) -> Dict[str, Any]:
+    """设置页左侧各节和当前值。
+
+    `hide_model`：模型目录权威时隐藏「模型」节 —— 条目由插件
+    `plugin-config.ini` 维护，设置页继续编辑 `config.ini` 只会造成
+    "改了却没生效"的错觉。保存接口照常写盘，但 `reload_model_config`
+    会忽略模型节并在响应里给出说明。
+    """
     config_target = Path(config_path) if config_path is not None else DEFAULT_CONFIG_PATH
     web_target = Path(web_ui_path) if web_ui_path is not None else WEB_UI_CONFIG_PATH
     current = _effective_values(config_target, web_target)
     sections = []
     for spec in _fields():
+        if hide_model and spec["id"] == "model_reasoning":
+            continue
         fields = []
         for field in spec["fields"]:
             stored = str(current.get(spec["id"], {}).get(field["key"], ""))
@@ -399,35 +409,26 @@ def save_host(values: Any, app: Any = None, *,
     payload = {"ok": True, "web_ui": get_web_ui(web_target)}
     if applied.get("error"):
         payload["reload_error"] = applied["error"]
+    elif applied.get("note"):
+        payload["reload_note"] = applied["note"]
     return payload
 
 
 def apply_host(app: Any, *, config_path: Optional[Path] = None) -> Dict[str, str]:
     """把已经落盘的宿主配置写进当前进程拿着的对象。
 
-    上下文管线在每次建会话时自己再读文件，这里补的是启动时抄进对象里的那一份：
-    网关、默认模型、推理档位、图片上限、往返上限。
+    模型相关（网关 / 默认模型 / 可选清单）只能经 `app.reload_model_config()`
+    重建，避免设置页和启动路径各改一半。其余启动期抄进对象的副本在这里补：
+    推理档位、图片上限、往返上限。
     """
     if app is None:
         return {}
     target = Path(config_path) if config_path is not None else DEFAULT_CONFIG_PATH
+    applied: Dict[str, str] = {}
     try:
-        cfg = get_model_reasoning(target)
-        provider = getattr(app, "provider", None)
-        if provider is not None and all(
-            hasattr(provider, name) for name in ("base_url", "api_key", "model")
-        ):
-            provider.base_url = str(cfg.get("api_base_url") or "")
-            provider.api_key = str(cfg.get("api_key") or "")
-            provider.model = str(cfg.get("model") or "")
-        models = [str(item).strip() for item in (cfg.get("models") or []) if str(item).strip()]
-        default_model = str(cfg.get("model") or "")
-        if hasattr(app, "_available_models"):
-            app._available_models = models or ([default_model] if default_model else [])
         state = getattr(app, "live_state", None)
         if state is not None:
             state.default_effort = get_reasoning_effort(target)
-            state.default_model = default_model
         ctx = get_context(target)
         defaults = getattr(app, "context_defaults", None)
         if isinstance(defaults, dict):
@@ -445,7 +446,16 @@ def apply_host(app: Any, *, config_path: Optional[Path] = None) -> Dict[str, str
             app.max_passes = get_max_passes(target)
     except Exception as exc:
         return {"error": f"{type(exc).__name__}: {exc}"}
-    return {}
+    reload_model_config = getattr(app, "reload_model_config", None)
+    if callable(reload_model_config):
+        try:
+            note = str(reload_model_config(config_path=target) or "").strip()
+        except Exception as exc:
+            return {"error": f"{type(exc).__name__}: {exc}"}
+        if note:
+            applied["note"] = note
+    return applied
+
 
 
 def _valid_name(name: str) -> bool:
@@ -608,6 +618,12 @@ def sync_plugins(app: Any, *, plugins_path: Optional[Path] = None,
             "status": str(report.status),
             "message": str(report.message or ""),
         })
+    # 目录贡献随插件装卸而来去；不重算权威，停用后路由仍指着已注销的条目。
+    refresh = getattr(app, "refresh_model_config", None)
+    if callable(refresh):
+        note = str(refresh() or "")
+        if note:
+            reports.append({"name": "", "status": "note", "message": note})
     _announce_plugins(app, host.loaded_names())
     return reports
 
@@ -706,9 +722,11 @@ def pick_directory() -> Dict[str, Any]:
     return {"ok": True, "path": chosen}
 
 
-def handle_get(path: str, query: Dict[str, str]) -> Tuple[int, Dict[str, Any]]:
+def handle_get(path: str, query: Dict[str, str],
+               app: Any = None) -> Tuple[int, Dict[str, Any]]:
     if path == "/api/settings":
-        return 200, host_catalog()
+        state = str(getattr(app, "model_config_state", "") or "")
+        return 200, host_catalog(hide_model=state == "catalog")
     if path == "/api/settings/plugins":
         return 200, list_plugins()
     if path == "/api/settings/plugin-file":

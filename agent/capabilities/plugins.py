@@ -5,7 +5,7 @@
 装载清单：工程根 `plugins.ini` 的 `[plugin:<名字>]` 节（可声明 version 与 path）；
 未列出的插件不装载。见 `docs/subsystems/plugins.md`。
 插件契约：plugin.py 暴露 `register(ctx) -> None | disposer | list[disposer]`；
-ctx（PluginContext）提供 name、register_tool（挂 ToolRegistry）、subscribe（挂事件总线）、add_context_source（挂上下文注入源）与 add_pre_gate / add_post_observer（挂工具管道门控与观察者）；均返回幂等 disposer。
+ctx（PluginContext）提供 name、register_tool（挂 ToolRegistry）、subscribe（挂事件总线）、add_context_source（挂上下文注入源）、add_model_catalog（声明模型清单）、add_panel / add_route / add_boot_script（界面与端点贡献）与 add_pre_gate / add_post_observer（挂工具管道门控与观察者）；均返回幂等 disposer。
 
 纪律：
 - 单插件装载失败降级为报告（不中断宿主与其余插件）；
@@ -171,6 +171,7 @@ class PluginContext:
         host: Any = None,
         contributions: Any = None,
         executors: Any = None,
+        model_catalog: Any = None,
     ) -> None:
         self.name = name
         self._registry = registry
@@ -180,6 +181,7 @@ class PluginContext:
         self._host = host
         self._contributions = contributions
         self._executors = executors
+        self._model_catalog = model_catalog
         #: 本插件在清单里的位次（宿主装载时写入；测试直构时为 None）
         self._rank: Optional[int] = None
         self._disposers: List[Disposer] = []
@@ -411,11 +413,27 @@ class PluginContext:
         self._disposers.append(disposer)
         return disposer
 
+    def add_model_catalog(self, entries: Any) -> Disposer:
+        """声明本插件的模型清单；`entries` 是条目序列或每次重读配置的回调。
+
+        来源名固定是**插件名**：目录只认一个权威，冲突时保留先登记的来源并留痕，
+        插件装载不因此失败（装载顺序不是契约，但结果必须确定且可审计）。
+        """
+        if self._model_catalog is None:
+            raise RuntimeError("插件未接入模型目录（PluginHost 未传 model_catalog）")
+        try:
+            disposer = self._model_catalog.set_source(self.name, entries)
+        except RuntimeError as exc:
+            report_error("plugin.model_catalog", exc, plugin=self.name)
+            return lambda: None
+        self._disposers.append(disposer)
+        return disposer
+
 
 class PluginHost:
     """插件宿主：发现 / 按清单装载 / 卸载 / 报告。"""
 
-    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None) -> None:
+    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None) -> None:
         self._dir = Path(plugins_dir)
         self._registry = registry
         self._event_bus = event_bus
@@ -423,6 +441,7 @@ class PluginHost:
         self._pipeline = pipeline
         self._contributions = contributions
         self._executors = executors
+        self._model_catalog = model_catalog
         #: 插件专属存储的根（`<数据根>/plugin/`）。插件只拿到自己的子目录，见 `PluginContext.data_dir`。
         self.plugin_data_root: Optional[Path] = (
             Path(plugin_data_root) if plugin_data_root is not None else None
@@ -580,7 +599,8 @@ class PluginHost:
     ) -> LoadReport:
         ctx = PluginContext(info.name, self._registry, self._event_bus,
                             self._context_sources, self._pipeline, self,
-                            self._contributions, self._executors)
+                            self._contributions, self._executors,
+                            self._model_catalog)
         ctx.set_rank(rank)
         mod_name = f"{_MODULE_PREFIX}.{info.name}"
         plugin_root = Path(root).resolve() if root is not None else info.path.parent.resolve()

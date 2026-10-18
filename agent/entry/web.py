@@ -22,6 +22,12 @@ from agent.shell.web import serve
 
 _DEFAULT_PORT = 8765
 
+_MISSING_MODEL_HINT = (
+    "未配置任何可用模型。请在以下任一处配置：\n"
+    "  1. config.ini 的 [model_reasoning]（api_base_url / api_key / model）\n"
+    "  2. plugins/multi_model/plugin-config.ini（至少一个可用的 [model:<id>] 节）"
+)
+
 
 def build_shell_app(
     *,
@@ -29,20 +35,25 @@ def build_shell_app(
     store: Any = None,
     data_root: Optional[Path] = None,
 ) -> App:
-    """装配供 Web 壳使用的底座：默认真实 provider（按 config）+ 会话存储。"""
+    """装配供 Web 壳使用的底座：默认真实 provider（按 config）+ 会话存储。
+
+    没有 `config.ini` 凭据时仍然装配（插件可能接管模型），装配后按
+    `model_config_state` 决定是否快速失败（`V5`）。
+    """
     if provider is None:
         cfg = get_model_reasoning()
-        if not cfg["api_key"] or not cfg["api_base_url"]:
-            raise RuntimeError(
-                "缺少配置：config.ini 的 [model_reasoning]（api_base_url / api_key / model）"
+        if cfg["api_key"] and cfg["api_base_url"]:
+            provider = OpenAICompatibleProvider(
+                base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
+                replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
             )
-        provider = OpenAICompatibleProvider(
-            base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
-            replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
-        )
     if store is None:
         store = SessionStore(Path(data_root) if data_root else default_data_root())
-    return build_app(provider=provider, store=store)
+    app = build_app(provider=provider, store=store,
+                    config_ready=provider is not None)
+    if app.model_config_state == "none":
+        raise RuntimeError(_MISSING_MODEL_HINT)
+    return app
 
 
 def main(argv: Optional[list] = None) -> int:

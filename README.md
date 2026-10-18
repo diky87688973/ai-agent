@@ -108,7 +108,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1253 个用例）：
+单元测试（1360 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

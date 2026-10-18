@@ -333,7 +333,7 @@ class _Handler(BaseHTTPRequestHandler):
             elif path == "/api/settings" or path.startswith("/api/settings/"):
                 from agent.shell.settings_panel import handle_get
 
-                status, payload = handle_get(path, query)
+                status, payload = handle_get(path, query, self.shell.app)
                 self._json(status, payload)
             elif path == "/api/events/stream":
                 self._classic_sse(query)
@@ -367,7 +367,7 @@ class _Handler(BaseHTTPRequestHandler):
                     self._json(status, payload)
             elif path == "/api/chat/ui-state":
                 # 语义不同：内核存「模式/todo/自主」，经典界面存「布局(tabs)」。
-                # 经典界面的 GET **不带 conversation_id**（agent-ui.js:186），
+                # 经典界面的 GET **不带 conversation_id**（经典界面），
                 # 所以有适配层时一律走它，不落到内核那套上。
                 classic = self._classic()
                 if classic is not None and not query.get("conversation_id"):
@@ -579,7 +579,7 @@ class _Handler(BaseHTTPRequestHandler):
             path = self._path()
             body = self._read_body()
             if path == "/api/chat/ui-state":
-                # 经典界面的 PUT 直接发布局对象（agent-ui.js:1173），**不带 conversation_id**；
+                # 经典界面的 PUT 直接发布局对象（经典界面），**不带 conversation_id**；
                 # 内核那套要求 conversation_id。用有无该字段区分两套语义。
                 classic = self._classic()
                 if classic is not None and not body.get("conversation_id"):

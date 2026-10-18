@@ -282,6 +282,27 @@ class ConfigDriftGateTest(unittest.TestCase):
         )
         self.assertEqual(problems, [])
 
+    def test_model_plugin_template_requires_every_key(self) -> None:
+        problems = check_config_drift.compare_plugin_model_template(
+            "[base]\nid = multi_model\nenable = 1\n"
+            "[model:a]\nbase_url = http://x\napi_key = k\n",
+            "p.ini",
+        )
+        self.assertTrue(any("[base] 缺键" in p for p in problems))
+        self.assertTrue(any("[model:*] 模板缺键" in p for p in problems))
+
+    def test_model_plugin_template_rejects_unknown_key(self) -> None:
+        text = (
+            "[base]\nid = multi_model\nenable = 1\nname = n\nicon = i\n"
+            "version = 1.0\ndesc = d\nextra = x\n"
+            "[model:a]\nprovider = openai\nbase_url = http://x\napi_key = k\n"
+            "model = m\nlabel = l\ndefault = 1\nmax_tokens = 1\nthinking = 1\n"
+            "thinking_budget_tokens = 1\n"
+        )
+        problems = check_config_drift.compare_plugin_model_template(text, "p.ini")
+        self.assertTrue(any("[base] 未登记的键 `extra`" in p for p in problems))
+
+
 
 class CoverageGateTest(unittest.TestCase):
     """覆盖率：低于下限、缺数据都要失败。"""
@@ -341,6 +362,14 @@ class UiJsGateTest(unittest.TestCase):
         self.assertEqual(
             check_ui_js._undefined_called("function renderThing(){}\nrenderThing();"), []
         )
+
+    def test_model_id_literal_is_rejected(self) -> None:
+        hits = check_ui_js.model_id_literals(
+            "var m = 'deepseek-v4-pro';\nvar ok = 'deepseek';\n")
+        self.assertEqual([line for line, _ in hits], [1])
+
+    def test_plain_words_are_not_model_ids(self) -> None:
+        self.assertEqual(check_ui_js.model_id_literals("var x = 'claude';\n"), [])
 
 
 class ReadmeGateTest(unittest.TestCase):

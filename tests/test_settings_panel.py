@@ -159,6 +159,9 @@ class SaveHostTest(unittest.TestCase):
             )
             web.write_text("", encoding="utf-8")
             catalog = host_catalog(config, web)
+            self.assertIn("model_reasoning", [s["id"] for s in catalog["sections"]])
+            hidden = host_catalog(config, web, hide_model=True)
+            self.assertNotIn("model_reasoning", [s["id"] for s in hidden["sections"]])
             dumped = str(catalog)
             self.assertNotIn("unit-test-key", dumped)
             model = next(sec for sec in catalog["sections"] if sec["id"] == "model_reasoning")
@@ -205,7 +208,7 @@ class SaveHostTest(unittest.TestCase):
 
 
 class ApplyHostTest(unittest.TestCase):
-    def test_apply_updates_provider_and_limits(self) -> None:
+    def test_apply_delegates_model_reload_and_updates_limits(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp) / "config.ini"
             config.write_text(
@@ -225,16 +228,35 @@ class ApplyHostTest(unittest.TestCase):
                 encoding="utf-8",
             )
             app = _App()
+            seen = {}
+
+            def reload(config_path=None):
+                seen["path"] = Path(config_path)
+                return ""
+
+            app.reload_model_config = reload
             self.assertEqual(apply_host(app, config_path=config), {})
-            self.assertEqual(app.provider.base_url, "http://example.test/v1")
-            self.assertEqual(app.provider.api_key, "unit-test-key")
-            self.assertEqual(app.provider.model, "demo-model")
-            self.assertEqual(app._available_models, ["demo-model", "other"])
+            self.assertEqual(seen["path"], config)
+            # 网关与模型清单只能由 reload 重建，设置页不得直接改
+            self.assertEqual(app.provider.base_url, "")
+            self.assertEqual(app.provider.model, "")
+            self.assertEqual(app._available_models, [])
             self.assertEqual(app.live_state.default_effort, "high")
             self.assertEqual(app.max_passes, 3)
             self.assertEqual(app.image_turns, 4)
             self.assertEqual(app.image_max, 2)
             self.assertEqual(app.context_defaults["full_user_rounds"], 2)
+
+    def test_catalog_note_is_returned(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.ini"
+            config.write_text("[model_reasoning]\nmodel = x\n", encoding="utf-8")
+            app = _App()
+            app.reload_model_config = lambda config_path=None: "目录权威，忽略配置"
+            self.assertEqual(
+                apply_host(app, config_path=config),
+                {"note": "目录权威，忽略配置"},
+            )
 
 
 class PluginSettingsTest(unittest.TestCase):

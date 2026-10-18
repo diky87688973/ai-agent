@@ -15,6 +15,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
+from agent.capabilities.model_catalog import ModelCatalog, ModelEntry  # noqa: E402
 from agent.mechanisms.context_pipeline import ContextSources, SourceMeta  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.quality.pending import MAX_PENDING_PREVIEWS, PendingStore  # noqa: E402
@@ -187,6 +188,85 @@ class LiveStateContentionTest(unittest.TestCase):
         _run_threads(worker)
         self.assertIn(state.get_mode(cid), allowed)
         self.assertIn(state.get_reasoning_effort(cid), ("high", "max"))
+
+
+class ModelCatalogContentionTest(unittest.TestCase):
+    """模型目录：热替换期间快照不得混批，provider 缓存不得把旧实例交给新条目。"""
+
+    _OPTIONS = {
+        "base_url": "https://example.invalid/v1",
+        "api_key": "k-test",
+        "model": "m-test",
+    }
+
+    @classmethod
+    def _batch(cls, prefix: str, count: int = 3):
+        return tuple(
+            ModelEntry.from_options(
+                id=f"{prefix}{i}", provider="openai", options=cls._OPTIONS,
+                is_default=(i == 0),
+            )
+            for i in range(count)
+        )
+
+    def test_snapshot_is_never_mixed_during_replacement(self) -> None:
+        catalog = ModelCatalog()
+        batches = {"a": self._batch("a"), "b": self._batch("b")}
+        catalog.set_source("churn", batches["a"])
+        stop = threading.Event()
+
+        def churn() -> None:
+            for i in range(ROUNDS):
+                key = "a" if i % 2 else "b"
+                catalog.set_source("churn", batches[key])
+
+        def reader() -> None:
+            valid = {frozenset(item.id for item in batch) for batch in batches.values()}
+            while not stop.is_set():
+                snap = catalog.snapshot()
+                ids = frozenset(item.id for item in snap.entries)
+                self.assertIn(ids, valid, msg="快照必须整批来自同一次登记")
+                self.assertEqual(snap.authoritative, bool(snap.entries))
+                if snap.entries:
+                    self.assertIn(snap.default_id, ids)
+
+        churn_threads = [threading.Thread(target=churn) for _ in range(THREADS // 2)]
+        readers = [threading.Thread(target=reader) for _ in range(3)]
+        for thread in readers + churn_threads:
+            thread.start()
+        for thread in churn_threads:
+            thread.join()
+        stop.set()
+        for thread in readers:
+            thread.join()
+
+    def test_provider_cache_is_keyed_by_entry_fingerprint(self) -> None:
+        catalog = ModelCatalog()
+        catalog.set_source("churn", self._batch("a"))
+        rotated = tuple(
+            ModelEntry.from_options(
+                id=f"a{i}", provider="openai",
+                options={**self._OPTIONS, "api_key": "rotated"},
+            )
+            for i in range(3)
+        )
+
+        def worker() -> None:
+            for _ in range(ROUNDS):
+                provider = catalog.provider_for("a1")
+                self.assertIsNotNone(provider)
+                self.assertEqual(provider.model, self._OPTIONS["model"])
+
+        def churn() -> None:
+            for i in range(ROUNDS):
+                catalog.set_source("churn", rotated if i % 2 else self._batch("a"))
+
+        threads = [threading.Thread(target=worker) for _ in range(THREADS // 2)]
+        threads.append(threading.Thread(target=churn))
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
 
 
 if __name__ == "__main__":

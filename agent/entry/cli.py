@@ -21,18 +21,25 @@ from agent.shell import chat
 
 
 def build_app_from_config() -> Optional[Any]:
-    """按 config.ini 装配 app；缺配置时打印原因并返回 None（不抛）。"""
+    """按 config.ini 装配 app；两处都没有可用模型时打印原因并返回 None（不抛）。"""
     cfg = get_model_reasoning()
-    if not cfg["api_key"] or not cfg["api_base_url"]:
-        print("缺少配置：agent/config.ini 的 [model_reasoning]（api_base_url / api_key / model）")
-        return None
-    provider = OpenAICompatibleProvider(
-        base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
-        # 与 Web 壳同一口径：历史轮次的思维链默认不回传。
-        replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
-    )
+    provider = None
+    if cfg["api_key"] and cfg["api_base_url"]:
+        provider = OpenAICompatibleProvider(
+            base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
+            # 与 Web 壳同一口径：历史轮次的思维链默认不回传。
+            replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
+        )
     store = SessionStore(Path(default_data_root()))
-    return build_app(provider=provider, store=store)
+    app = build_app(provider=provider, store=store,
+                    config_ready=provider is not None)
+    if app.model_config_state == "none":
+        print("未配置任何可用模型。请在以下任一处配置：")
+        print("  1. config.ini 的 [model_reasoning]（api_base_url / api_key / model）")
+        print("  2. plugins/multi_model/plugin-config.ini（至少一个 [model:<id>] 节）")
+        app.dispose()
+        return None
+    return app
 
 
 def main(argv: Optional[list] = None) -> int:

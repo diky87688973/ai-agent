@@ -114,6 +114,7 @@ plugins/tts/plugin-config.ini           ← 语音合成自己的配置
 | `add_panel(id, ...)` / `add_action(id, ...)` | 面板 / 输入区按钮 | 贡献注册表（壳层按数据枚举） |
 | `add_ctx_segment_style(label=..., color=...)` | 上下文段外观 | 贡献注册表 → `/api/ctx-segment-styles` |
 | `add_boot_script(rel_path)` | 开屏预载脚本（无面板也可） | 贡献注册表 → `/api/boot-scripts` |
+| `add_model_catalog(entries)` | 模型清单（静态序列或热读回调） | `ModelCatalog`（唯一权威来源） |
 | `set_runtime(obj)` | 自己的运行时实例 | `plugin_host.runtime(名字)` 取同一份 |
 
 ### 上下文注入
@@ -273,6 +274,36 @@ await api.del("tasks/t-1");                               // DELETE
 预载是**串行**的：脚本读全局 `window.aiAgentPluginCurrent` 判断自己属于哪个插件，
 并行加载会互相覆盖这个值。
 
+#### 壳层公共桥
+
+插件在**面板之外**（输入区、页头）放置 UI 时，用壳层桥而不是自己拼 URL、
+不读壳层内部变量、不碰 `document.head`：
+
+```js
+// 模型：list() → Promise<[{id,label,provider}]>；current() → string；
+// select(id) → Promise<boolean>；onChange(fn) → 取消订阅函数。
+const models = window.aiAgentShell.models;
+const stop = models.onChange((id) => renderLabel(id));
+await models.select("claude");
+stop();
+
+// 样式：relPath 是插件目录内相对路径；同一路径只注入一次。
+window.aiAgentShell.styles.load("ui/model-picker.css");
+```
+
+`aiAgentShell` 与 `aiAgentPlugins` 平级：前者是壳层能力，后者是插件自己的端点。
+桥本身**不持有当前模型** —— `current()` 每次读活动标签页，多份状态必然分叉。
+`select()` 先乐观更新界面，再写 `/api/chat/ui-state` 并广播；写失败会回滚并返回
+`false`。服务端下发的值（会话恢复 / SSE）不受本地清单限制。
+
+`styles.load()` 复用面板样式的去重表与 `/api/plugin/<插件>/_asset/` 路由：
+绝对路径、盘符、协议与 `..` 一律返回 `false` 并 `console.error`；插件停用后，
+`applyPluginsChanged` 会摘掉带 `data-plugin-style` 的 `<link>`，并清掉
+`#modelPickerSlot` 里 `data-plugin` 已不在装载名单的子元素。
+
+**已知限制**：`loadPluginScript` 按 URL 去重，所以"停用 → 再启用"在不刷新页面的
+前提下开屏脚本不会重跑，输入区的下拉也不会自动回来。插件变更后刷新页面。
+
 #### 会话切换通知
 
 面板内容带会话级状态时（如勾选），会话一换就要重取。壳层广播一个通用事件，
@@ -316,12 +347,44 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 
 卸载兜底会按插件名把面板、动作、端点、订阅全部撤掉。
 
+## 模型与厂商
+
+`multi_model` 把模型条目声明成目录来源，内核每轮按请求里的 id 路由到对应实例：
+
+```ini
+[model:claude]
+provider = anthropic
+base_url = https://api.anthropic.com
+api_key = sk-ant-…
+model = claude-sonnet-4-5
+label = Claude Sonnet 4.5
+max_tokens = 16000
+thinking = 1
+thinking_budget_tokens = 4096
+```
+
+- 节名 `[model:<id>]`；`id` 是请求与界面里的唯一标识，`model` 缺省等于 `id`；
+- `provider` 缺省 `openai`；未知厂商、缺 `api_key` / `base_url` 只会让该条目无效；
+- `default = 1` 至多一个，没有时取第一条；重复 id 由目录整批拒绝；
+- `thinking` / `max_tokens` / `thinking_budget_tokens` 只对 anthropic 条目生效；
+- 配置用 `utf-8-sig` 读，Windows 记事本的 BOM 不会让服务起不来；
+- 诊断格式：`[plugin:multi_model] <文件> [model:<id>] <键> 无效：<原因>`。
+
+目录权威只在**存在有效条目**时成立：启用插件但一条都没配好，会回落到
+`config.ini` 的 `[model_reasoning]`；两处都没有凭据时启动即失败。
+`GET /api/plugin/multi_model/catalog` 返回 `{models, default, invalid}`，
+**不含** `api_key` 与 `base_url`。设置页在目录权威时隐藏「模型」节，
+条目改完下一次请求生效，不需要重启。
+
+
+
 ## 内置插件示例
 
 | 插件 | 注册了什么 | 形态 |
 |---|---|---|
 | `plugins/skills` | `skill_manage` 工具 + 提交执行器 + 两条注入 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
 | `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir` |
+| `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [模型与厂商](#模型与厂商) |
 | `plugins/tts` | 只订阅事件 | 最小形态 |
 
 Skills 插件的实现拆在三个文件里，可作"插件怎么组织代码"的例子：

@@ -32,12 +32,8 @@
 <button type="button" id="attachBtn" class="mode-plus" title="添加截图">🖼</button>
 <button id="modePlus" class="mode-plus" title="选择模式">Auto +</button>
 <button id="reasoningBtn" class="mode-plus reasoning-btn" title="推理强度">思考 · <span id="reasoningLabel">Max</span></button>
-<!-- 模型选择是 composer 里的独立下拉
-     （#modelPicker / #modelPickerBtn / #modelPickerMenu），与模式菜单平级、没有二级菜单。 -->
-<div class="model-picker" id="modelPicker">
-<button type="button" id="modelPickerBtn" class="mode-plus model-picker-btn" title="选择模型" aria-haspopup="listbox" aria-expanded="false">🧠 <span id="modelPickerLabel">模型加载中…</span> ▾</button>
-<div id="modelPickerMenu" class="mode-menu model-picker-menu hidden" role="listbox"></div>
-</div>
+<!-- 模型下拉由插件渲染（multi_model）；壳层只留挂载点，不内建任何模型 UI。 -->
+<div id="modelPickerSlot" class="model-picker-slot"></div>
 <div id="pluginActions" class="plugin-actions"></div>
 <div id="reasoningMenu" class="mode-menu reasoning-menu hidden">
 <button type="button" class="mode-item reasoning-choice reasoning-current" data-effort="max">Max — 深度推理</button>

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional
 from uuid import uuid4
 
-from agent.core.model_call import StreamDelta
+from agent.core.model_call import PROVIDER_META_KEY, StreamDelta
 from agent.core.tool_call import ToolCallRequest
 
 _REASONING_FIELDS = ("reasoning_content", "reasoning")
@@ -334,6 +334,9 @@ def _to_wire_messages(messages: List[Any],
         if not isinstance(m, dict):
             continue
         msg = dict(m)
+        # 厂商私有元数据只对产出它的适配器有意义；发给 OpenAI 兼容网关会被当成
+        # 未知字段（部分网关直接 400），所以**永远剥掉**，与回放下标无关。
+        msg.pop(PROVIDER_META_KEY, None)
         if cut is not None and index < cut:
             msg.pop("reasoning_content", None)
             msg.pop("reasoning", None)
@@ -429,6 +432,16 @@ def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
     except (TypeError, ValueError):
         pass
     return " ".join(parts)
+
+
+class MissingProvider(ModelProvider):
+    """没有任何可用模型时的占位：报错文案不提插件目录（内核不认插件名）。"""
+
+    model = ""
+
+    def stream(self, request: Any) -> Iterator[StreamDelta]:
+        raise ModelRequestError("未配置任何模型")
+        yield  # pragma: no cover - 生成器形状，永不产出
 
 
 class OpenAICompatibleProvider(ModelProvider):

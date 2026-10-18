@@ -1,0 +1,36 @@
+; 多模型插件配置。复制为 plugin-config.ini 后填写（真实文件已被 .gitignore 忽略）。
+;
+; [base] 是插件身份与开关；[model:<id>] 每条模型一节。
+; id 是请求与界面里的唯一标识；model 缺省等于 id。
+; provider 缺省 openai；api_key / base_url 缺失会让该条目无效，但不影响其它条目。
+; default = 1 至多一个；没写时取第一条有效条目。
+; thinking / max_tokens / thinking_budget_tokens 只对 anthropic 条目生效。
+;
+; 诊断格式：[plugin:multi_model] <文件路径> [model:<id>] <键> 无效：<原因>
+; 条目改完下一次请求即生效，不需要重启。
+
+[base]
+id = multi_model
+enable = 1
+name = 多模型
+icon = 🧩
+version = 1.0
+desc = 每条模型自带网关与厂商
+
+[model:deepseek]
+provider = openai
+base_url = https://api.deepseek.com
+api_key = sk-请替换
+model = deepseek-chat
+label = DeepSeek Chat
+default = 1
+
+[model:claude]
+provider = anthropic
+base_url = https://api.anthropic.com
+api_key = sk-ant-请替换
+model = claude-sonnet-4-5
+label = Claude Sonnet 4.5
+max_tokens = 16000
+thinking = 1
+thinking_budget_tokens = 4096

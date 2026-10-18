@@ -56,7 +56,7 @@ class BuildShellAppTest(_TempDataRoot):
             provider=provider, store=self._store(), data_root=self.root
         )
         self.addCleanup(app.dispose)
-        self.assertIs(app.provider, provider)
+        self.assertIs(app.provider.default_provider, provider)
 
     def test_missing_config_raises_with_actionable_message(self) -> None:
         with mock.patch.object(entry_web, "get_model_reasoning",
@@ -151,7 +151,7 @@ class CliEntryTest(_TempDataRoot):
                 mock.patch.object(entry_cli, "OpenAICompatibleProvider", _Provider):
             app = entry_cli.build_app_from_config()
         self.addCleanup(app.dispose)
-        self.assertEqual(app.provider.kwargs["model"], "m")
+        self.assertEqual(app.provider.default_provider.kwargs["model"], "m")
 
     def test_main_delegates_to_chat_main(self) -> None:
         seen = {}
