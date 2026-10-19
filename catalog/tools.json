@@ -339,7 +339,7 @@
       "description": "等桌面出现可观测的变化，满足条件立即返回（不是盲睡）。until=change：等指定区域或指定窗口的画面变化超过 threshold；until=window_appears / window_disappears：等标题包含 window 的窗口出现或消失。超时不算错误：返回 satisfied=false，由你决定换动作还是延长等待。典型用法：等预告播完、等加载完成、等弹窗消失，不要用 task_sleep 猜秒数。Plan 模式下可用（只读）。",
       "display": {
         "icon": "⏳",
-        "label": "等待"
+        "label": "等待条件"
       },
       "name": "desktop_wait",
       "parallel_safe": false,
@@ -1264,7 +1264,7 @@
       "description": "暂停自主执行：宿主停止自动激活，N 秒后携提醒重新激活（1~86400 秒）。",
       "display": {
         "icon": "⏱️",
-        "label": "等待一段时间"
+        "label": "等待"
       },
       "name": "task_sleep",
       "parallel_safe": false,

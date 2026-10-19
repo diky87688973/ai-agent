@@ -13,14 +13,20 @@
   var PLUGIN = String(window.aiAgentPluginCurrent || "").trim();
   var shell = window.aiAgentShell;
   if (!PLUGIN || !shell || !shell.models || !shell.styles) return;
-  if (window.__multiModelPickerBooted) return;
-  window.__multiModelPickerBooted = true;
 
   shell.styles.load("ui/model-picker.css");
 
   function boot() {
     var slot = document.getElementById("modelPickerSlot");
     if (!slot) return;
+    /* 插件被停用再启用时，壳层会重新执行这段开屏脚本。
+       先拆掉上一次挂上去的 DOM 与监听，再按最新目录重建 ——
+       只靠"已经启动过"的全局开关的话，重新启用后挂载点会一直空着。 */
+    if (typeof window.__multiModelPickerTeardown === "function") {
+      try { window.__multiModelPickerTeardown(); } catch (e) {}
+      window.__multiModelPickerTeardown = null;
+    }
+
     var api = window.aiAgentPlugins && window.aiAgentPlugins.for
       ? window.aiAgentPlugins.for(PLUGIN)
       : null;
@@ -212,19 +218,29 @@
       if (state.open) close();
       else open();
     });
-    menu.addEventListener("click", function (event) {
-      event.stopPropagation();
-    });
-    document.addEventListener("click", function (event) {
+    function onMenuClick(event) { event.stopPropagation(); }
+    function onDocClick(event) {
       if (state.open && !root.contains(event.target)) close();
-    });
-    document.addEventListener("keydown", function (event) {
+    }
+    function onDocKeydown(event) {
       if (event.key === "Escape" && state.open) close();
-    });
-    shell.models.onChange(function (id) {
+    }
+    var offModelChange = shell.models.onChange(function (id) {
       state.current = String(id || "");
       render();
     });
+    menu.addEventListener("click", onMenuClick);
+    document.addEventListener("click", onDocClick);
+    document.addEventListener("keydown", onDocKeydown);
+    /* 重新启用时旧实例必须把这三样一起还回去：DOM、文档级监听、模型订阅。
+       漏一样就会在新实例之外留一份仍会响应事件的幽灵下拉。 */
+    window.__multiModelPickerTeardown = function () {
+      menu.removeEventListener("click", onMenuClick);
+      document.removeEventListener("click", onDocClick);
+      document.removeEventListener("keydown", onDocKeydown);
+      if (typeof offModelChange === "function") offModelChange();
+      if (root.parentNode) root.parentNode.removeChild(root);
+    };
 
     render();
     loadCatalog();

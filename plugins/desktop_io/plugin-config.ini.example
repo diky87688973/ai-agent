@@ -8,7 +8,7 @@ name = 桌面 IO
 desc = 看屏（截屏）与操作鼠标、键盘。
 ; 1 装载，0 留在清单里但不装载。没写时按 1。
 enable = 1
-icon = 🖥
+icon = 🖥️
 version = 1.0
 
 [ext]

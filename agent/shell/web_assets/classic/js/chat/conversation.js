@@ -104,7 +104,9 @@ chatToolSyncStatusTitle(row);
 appendChatToolRow(row);
 }
 function renderHistoryToolItem(it){
-var ev={tool_call_id:String(it.tool_call_id||""),script:String(it.script||""),args:it.args||{}};
+/* `_replay`：这条来自历史回放，不是正在发生。等待类工具据此不启动倒计时 ——
+   否则刷新页面会把早已结束的等待重新数一遍。 */
+var ev={tool_call_id:String(it.tool_call_id||""),script:String(it.script||""),args:it.args||{},_replay:true};
 if(!ev.tool_call_id)return;
 onToolStart(ev);
 var o=toolOpen.get(ev.tool_call_id);

@@ -272,7 +272,7 @@ parameters = {
 id = desktop_io
 enable = 1
 name = 桌面操作
-icon = 🖥
+icon = 🖥️
 version = 1.0
 desc = 看屏、动鼠标、敲键盘
 

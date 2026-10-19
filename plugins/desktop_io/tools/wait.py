@@ -30,7 +30,7 @@ class DesktopWaitTool(ToolPlugin):
     """等条件成立。"""
 
     name = "desktop_wait"
-    label = "等待"
+    label = "等待条件"
     icon = "⏳"
     description = (
         "等桌面出现可观测的变化，满足条件立即返回（不是盲睡）。"

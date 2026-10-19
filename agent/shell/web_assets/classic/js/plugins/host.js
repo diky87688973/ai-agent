@@ -152,6 +152,9 @@ return new Promise(function(resolve){
 var s=document.createElement("script");
 s.src=u;
 s.setAttribute("data-plugin-script",String(plugin||""));
+/* 记下传入时的原样 URL：`src` 属性会被浏览器解析成绝对地址，
+   卸载插件时按 `src` 删不到缓存表里的键，脚本就再也不会重新执行。 */
+s.setAttribute("data-plugin-src",u);
 s.onload=function(){resolve(true);};
 s.onerror=function(){resolve(false);};
 document.head.appendChild(s);
@@ -299,6 +302,22 @@ try{delete _pluginStylesLoaded[link.href];}catch(_e2){}
 try{if(src)delete _pluginStylesLoaded[src];}catch(_e3){}
 }
 }
+/* 插件停用后，它的开屏脚本必须能再次执行：
+   `_pluginScriptsLoaded` 是一次性闸门，只卸 DOM 不销账的话，插件重新启用时
+   `preloadBootScripts` 会认为"已经加载过"，脚本不再跑，挂载点也就空着。
+   `prunePluginMounts` 清掉的是停用那一刻的残留；这里清的是"下次还愿不愿意跑"。 */
+function prunePluginScripts(){
+if(!loadedPlugins)return;
+var nodes=document.querySelectorAll("script[data-plugin-script]");
+for(var i=nodes.length-1;i>=0;i--){
+var node=nodes[i];
+var owner=String(node.getAttribute("data-plugin-script")||"");
+if(owner&&loadedPlugins[owner])continue;
+var src=String(node.getAttribute("data-plugin-src")||"");
+try{delete _pluginScriptsLoaded[src];}catch(_e){}
+try{if(node.parentNode)node.parentNode.removeChild(node);}catch(_e2){}
+}
+}
 /* 插件停用后，它塞进通用挂载点的内容也必须消失：
    按钮还在、端点已经注销，点下去只会得到一个 404。挂载点不认插件名，
    只看子元素自己声明的 `data-plugin`。 */
@@ -314,6 +333,7 @@ if(owner&&!loadedPlugins[owner])slots[i].parentNode.removeChild(slots[i]);
 function applyPluginsChanged(ev){
 rememberLoadedPlugins(ev&&ev.loaded);
 prunePluginStyles();
+prunePluginScripts();
 prunePluginMounts();
 closeUnloadedPluginPanes();
 void loadPluginActions();

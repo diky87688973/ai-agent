@@ -366,7 +366,7 @@ class TaskSleepTool(ToolPlugin):
     """自主休眠指令：校验 + 信封 + 会话状态记录。"""
 
     name = "task_sleep"
-    label = "等待一段时间"
+    label = "等待"
     icon = "⏱️"
     description = "暂停自主执行：宿主停止自动激活，N 秒后携提醒重新激活（1~86400 秒）。"
     parameters = {

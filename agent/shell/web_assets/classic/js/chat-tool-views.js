@@ -710,6 +710,85 @@ var lines=chatGlobLines(ev, o&&o.args);
 pane.textContent=lines.length?lines.join("\n"):"（没有匹配的路径）";
 }
 });
+
+/* ── 桌面 IO 的详情区 ─────────────────────────────────────────────────────
+   `看屏` 与带 `shot=true` 的手部动作，回执里带的是图片附件（`tool_end.images`），
+   报文里只有尺寸与窗口信息 —— 不把图铺进详情，用户就只能看到一串坐标。
+   图与动作后的界面同源：同一帧 `images`，与 read_image 用同一套渲染。 */
+function chatDesktopData(ev){
+var j=chatToolParsePreview(ev);
+if(!j||typeof j!=="object")return null;
+if(j.data&&typeof j.data==="object")return j.data;
+return j;}
+function chatDesktopWantsShot(o){
+if(chatToolName(o&&o.script)==="desktop_eye")return true;
+var v=argGet(o&&o.args,"shot");
+return v===true||v===1||v==="true"||v==="1";}
+function chatDesktopFillShot(pane,ev,hint){
+if(!pane)return;
+pane.textContent="";
+if(chatToolIsFailed(ev)){chatToolPaintFailText(pane);return;}
+chatToolClearFailMark(pane);
+var images=ev&&ev.images,shown=false;
+if(Array.isArray(images)){
+for(var i=0;i<images.length;i++){
+var im=images[i];
+if(!im||!im.data_base64)continue;
+var img=document.createElement("img");
+img.className="chat-tool-shot";
+img.alt=hint||"截图";
+var mime=String(im.mime||"image/png");
+if(mime.indexOf("image/")!==0)mime="image/png";
+img.src="data:"+mime+";base64,"+String(im.data_base64);
+pane.appendChild(img);
+shown=true;
+}
+}
+if(!shown){
+var miss=document.createElement("div");
+miss.className="chat-tool-shot-miss";
+miss.textContent=hint||"（没有可显示的截图）";
+pane.appendChild(miss);
+}
+}
+function chatDesktopMount(row,o,cap){
+chatToolViewDefault.mount(row,o);
+if(chatDesktopWantsShot(o))o.chatToolShot=addChatToolLayer(row._body,cap||"截图","shot");
+}
+function chatDesktopFill(row,o,ev,missHint){
+chatToolViewDefault.fill(row,o,ev);
+var summary=desktopToolSummary(o.script,o.args,chatDesktopData(ev));
+if(summary)chatToolSetSummary(row,summary);
+chatDesktopFillShot(o.chatToolShot,ev,missHint);
+}
+registerChatToolView({
+match:function(script){return chatToolName(script)==="desktop_eye";},
+summary:function(o){return desktopToolSummary(o.script,o.args,null);},
+mount:function(row,o){chatDesktopMount(row,o,"截图");},
+fill:function(row,o,ev){chatDesktopFill(row,o,ev,"（没有可显示的截图）");}
+});
+registerChatToolView({
+match:function(script){return chatToolName(script)==="desktop_mouse";},
+summary:function(o){return desktopToolSummary(o.script,o.args,null);},
+mount:function(row,o){chatDesktopMount(row,o,"动作回执");},
+fill:function(row,o,ev){chatDesktopFill(row,o,ev,"（本次没有回执截图；要回图请给 shot=true）");}
+});
+registerChatToolView({
+match:function(script){return chatToolName(script)==="desktop_keyboard";},
+summary:function(o){return desktopToolSummary(o.script,o.args,null);},
+mount:function(row,o){chatDesktopMount(row,o,"动作回执");},
+fill:function(row,o,ev){chatDesktopFill(row,o,ev,"（本次没有回执截图；要回图请给 shot=true）");}
+});
+/* 等待类工具没有图片区，但摘要必须从"参数里的秒数"换成"回执里的事实"：
+   `desktop_wait` 收尾后是 `画面变化 · 已达成 1.2 秒`，`task_sleep` 仍是请求时长。
+   不登记这一条的话，`fill` 走默认视图，倒计时停在停止那一刻的值（例如 `· 2 秒`）。 */
+registerChatToolView({
+match:function(script){return desktopToolKind(script)==="wait"||desktopToolKind(script)==="sleep";},
+summary:function(o){return desktopToolSummary(o.script,o.args,null);},
+fill:function(row,o,ev){
+var summary=desktopToolSummary(o.script,o.args,chatDesktopData(ev));
+if(summary)chatToolSetSummary(row,summary);}
+});
 window.aiAgentChatTools={register:registerChatToolView};
 function appendChatToolRow(row, opts){
 if(!msgs||!row)return;
@@ -730,6 +809,9 @@ row.classList.add("is-running");
 chatToolSyncStatusTitle(row);
 o.chatToolRow=row;
 if(view.mount)view.mount(row, o);
+/* 等待类工具：标题后的秒数逐秒减，与步骤卡同一份倒计时。
+   回放历史时不重启倒计时 —— 那是已经发生过的等待，重新从总数往下数会像还在等。 */
+if(!o.replay)desktopStartWaitTicker(o.tid,o.script,o.args,function(left){row._sum.textContent=desktopWaitTickText(o.script,o.args,left);});
 attachChatToolPacket(row, o);
 appendChatToolRow(row);
 }

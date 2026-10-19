@@ -6,7 +6,7 @@
 function _muteEl(){return document.createElement("span");}
 function beginChatToolOnly(ev){
 var tid=ev.tool_call_id!=null&&String(ev.tool_call_id).trim()!==""?String(ev.tool_call_id).trim():String(Math.random());
-var o={tag:_muteEl(),resLb:_muteEl(),resPb:_muteEl(),previewSlot:_muteEl(),args:ev.args||{},script:ev.script||"",spinWrap:null,stepTitle:String(ev.step_title||"").trim(),fileSpan:null,progressBadge:null,liveOutPre:null,cmdInputBar:null,chatRunCard:null,chatRunOutPre:null,chatToolRow:null,chatToolRes:null};
+var o={tid:tid,tag:_muteEl(),resLb:_muteEl(),resPb:_muteEl(),previewSlot:_muteEl(),args:ev.args||{},script:ev.script||"",spinWrap:null,stepTitle:String(ev.step_title||"").trim(),fileSpan:null,progressBadge:null,liveOutPre:null,cmdInputBar:null,chatRunCard:null,chatRunOutPre:null,chatToolRow:null,chatToolRes:null,replay:!!ev._replay};
 toolOpen.set(tid,o);
 if(showToolItems())mountChatToolItem(o);
 if(showToolItems()&&isStreamOutputToolScript(ev.script)&&!o.chatToolRow)ensureChatRunCard(o);

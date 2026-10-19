@@ -256,6 +256,8 @@ const tids=argGet(args,"target_ids");
 let grp=ch||"";
 if(!grp&&Array.isArray(tids)&&tids.length)grp="组"+(tids.length>1?tids.length+"个":"1个");
 return {main:"多Agent协作"+(grp?" · to "+grp:""),fname:""};}
+const dt=desktopToolTitle(script,args,full,null);
+if(dt)return dt;
 const unk='(unknown)';
 if(s===unk)return {main:"无法识别的工具（见下方参数）",fname:""};
 /* 兜底：拿得到路径就带上文件名。
@@ -265,3 +267,163 @@ if(s===unk)return {main:"无法识别的工具（见下方参数）",fname:""};
 {const p=String(argGet(args,"path")||argGet(args,"dest_path")||argGet(args,"source_path")||"").trim();
 if(p){const leaf=pathLeaf(p);if(leaf)return {main:toolZh(script),fname:leaf};}}
 return {main:toolZh(script),fname:""};}
+
+/* ── 桌面 IO：标题后的执行摘要 ─────────────────────────────────────────────
+   这四个工具的动作全在参数里，标题只写「看屏 / 鼠标 / 键盘」等于什么都没说：
+   用户看不出模型是点哪儿、打什么字、等哪块画面。摘要统一成
+   `动作 -> 目标 (位置)`，参数里没有目标时留位置，执行完再用回执里的
+   窗口标题 / 命中窗口补一次（`desktopToolTitle(..., data)`）。
+   摘要只做展示，不参与任何门控；取不到就退回参数摘要，绝不编造。 */
+function desktopToolKind(script){
+var s=String(script||"").toLowerCase();
+if(s.indexOf("desktop_eye")>=0)return "eye";
+if(s.indexOf("desktop_mouse")>=0)return "mouse";
+if(s.indexOf("desktop_keyboard")>=0)return "keyboard";
+if(s.indexOf("desktop_wait")>=0)return "wait";
+if(s.indexOf("task_sleep")>=0)return "sleep";
+return "";}
+function desktopPointText(args){
+var x=argGet(args,"x"),y=argGet(args,"y");
+if(x==null||x===""||y==null||y==="")return "";
+return "("+x+", "+y+")";}
+function desktopRegionText(args){
+var x=argGet(args,"x"),y=argGet(args,"y"),w=argGet(args,"width"),h=argGet(args,"height");
+if(x==null||x===""||y==null||y===""||w==null||w===""||h==null||h==="")return "";
+return "("+x+", "+y+", "+w+"×"+h+")";}
+function desktopClipText(text,n){
+var s=String(text==null?"":text);
+return s.length>n?s.slice(0,n)+"…":s;}
+function _desktopData(data){
+return (data&&typeof data==="object")?data:null;}
+/* 取回执里的窗口标题：`desktop_eye` 放在 data.window，鼠标的 `hit` 在顶层或 performed 里。 */
+function desktopTargetTitle(data){
+var d=_desktopData(data);if(!d)return "";
+if(d.window&&typeof d.window==="object"&&d.window.title)return String(d.window.title);
+var p=(d.performed&&typeof d.performed==="object")?d.performed:d;
+if(p.hit&&typeof p.hit==="object"&&p.hit.title)return String(p.hit.title);
+if(d.hit&&typeof d.hit==="object"&&d.hit.title)return String(d.hit.title);
+return "";}
+function desktopToolTitle(script,args,full,data){
+var kind=desktopToolKind(script);if(!kind)return null;
+var a=(args&&typeof args==="object")?args:{};
+var d=_desktopData(data);
+var title=desktopTargetTitle(d);
+function cut(text,n){var s=String(text==null?"":text);if(full||s.length<=n)return s;return s.slice(0,n)+"…";}
+if(kind==="eye"){
+var win=cut(String(argGet(a,"window")||"").trim(),24);
+var hwnd=argGet(a,"hwnd");
+var where="全屏";
+if(title)where="窗口 -> "+cut(title,24);
+else if(win)where="窗口 -> "+win;
+else if(hwnd!=null&&hwnd!=="")where="窗口 -> hwnd "+hwnd;
+else if(d&&d.capture&&d.capture.width!=null)where="局部 -> ("+d.capture.x+", "+d.capture.y+", "+d.capture.width+"×"+d.capture.height+")";
+else {var reg=desktopRegionText(a);if(reg)where="局部 -> "+reg;}
+var hover=argGet(a,"hover");
+if(Array.isArray(hover)&&hover.length===2)where+=" · 悬停 ("+hover[0]+", "+hover[1]+")";
+else if(d&&d.hover&&d.hover.x!=null)where+=" · 悬停 ("+d.hover.x+", "+d.hover.y+")";
+return {main:"看屏",fname:where};}
+if(kind==="mouse"){
+var act=String(argGet(a,"action")||"click").toLowerCase();
+var pos=desktopPointText(a);
+var target=title?cut(title,24):cut(String(argGet(a,"window")||"").trim(),24);
+if(act==="cursor")return {main:"鼠标",fname:"查询光标"};
+if(act==="move")return {main:"鼠标",fname:"移动 -> "+(pos||"光标处")};
+if(act==="drag"){
+var tx=argGet(a,"to_x"),ty=argGet(a,"to_y");
+return {main:"鼠标",fname:"拖拽 -> "+(pos||"光标处")+" → ("+tx+", "+ty+")"};}
+if(act==="scroll"){
+var amount=argGet(a,"amount");
+return {main:"鼠标",fname:"滚动 "+(amount==null?"":amount)+(pos?" -> "+pos:"")};}
+return {main:"鼠标",fname:"点击 -> "+(target?target+" ":"")+(pos||"光标处")};}
+if(kind==="keyboard"){
+var kact=String(argGet(a,"action")||"type").toLowerCase();
+var repeat=argGet(a,"repeat");
+var times=(repeat!=null&&Number(repeat)>1)?" ×"+repeat:"";
+if(kact==="key")return {main:"键盘",fname:"按键 -> "+cut(String(argGet(a,"key")||""),18)+times};
+if(kact==="hotkey")return {main:"键盘",fname:"组合键 -> "+cut(String(argGet(a,"keys")||""),24)+times};
+return {main:"键盘",fname:"输入 -> "+cut(String(argGet(a,"text")||""),18)+times};}
+if(kind==="wait"){
+var until=String(argGet(a,"until")||"change").toLowerCase();
+var wtitle=title?cut(title,24):cut(String(argGet(a,"window")||"").trim(),24);
+var label=until==="window_appears"?"窗口出现 -> "+(wtitle||"（未指定窗口）")
+:until==="window_disappears"?"窗口消失 -> "+(wtitle||"（未指定窗口）"):"画面变化";
+if(until!=="window_appears"&&until!=="window_disappears"){
+if(wtitle)label+=" -> "+wtitle;
+else if(d&&d.capture&&d.capture.width!=null)label+=" -> ("+d.capture.x+", "+d.capture.y+", "+d.capture.width+"×"+d.capture.height+")";
+else {var wreg=desktopRegionText(a);if(wreg)label+=" -> "+wreg;}}
+if(d&&d.waited_ms!=null){
+var sec=(Number(d.waited_ms)||0)/1000;
+label+=" · "+(d.satisfied===false?"超时 ":"已达成 ")+(Math.round(sec*10)/10)+" 秒";}
+return {main:"等待条件",fname:label};}
+var sleepSec=Number(argGet(a,"seconds"));
+return {main:"等待",fname:(sleepSec>0?sleepSec:0)+" 秒"};}
+function desktopToolSummary(script,args,data){
+var t=desktopToolTitle(script,args,true,data);
+return t?String(t.fname||""):"";}
+/* 步骤卡标题后的摘要位：没有 `.step-fname` 时按需补一个（倒计时要能落到卡上）。 */
+function desktopSetStepSummary(stepWrap,text,ensure){
+if(!stepWrap)return;
+var shown=String(text==null?"":text);
+var f=stepWrap.querySelector(".step-fname");
+if(!f){
+if(!ensure||!shown)return;
+var dot=document.createElement("span");dot.textContent=" · ";
+stepWrap.appendChild(dot);
+f=document.createElement("span");f.className="step-fname";stepWrap.appendChild(f);
+}
+f.textContent=shown;}
+function desktopUpdateStepSummary(tid,script,args,data){
+if(!desktopToolKind(script))return;
+var text=desktopToolSummary(script,args,data);
+if(!text)return;
+var card=(typeof findStepCardForToolCall==="function")?findStepCardForToolCall(tid):null;
+if(!card)return;
+desktopSetStepSummary(card.querySelector(".step-title-wrap"),text,true);}
+/* 等待类工具的倒计时：`task_sleep` 从秒数往下数，`desktop_wait` 从超时往下数。
+   逐秒递减由时间戳算出来，不靠累加；标签页被节流时也不会越数越偏。 */
+function desktopWaitSeconds(script,args){
+var kind=desktopToolKind(script);
+if(kind==="sleep"){
+var sec=Number(argGet(args,"seconds"));
+return sec>0?Math.round(sec):0;}
+if(kind==="wait"){
+var ms=Number(argGet(args,"timeout_ms")||10000);
+return ms>0?Math.ceil(ms/1000):0;}
+return 0;}
+function desktopWaitTickText(script,args,left){
+var kind=desktopToolKind(script);
+if(kind==="sleep"){
+/* `task_sleep` 只登记休眠请求、立即返回；倒计时跟着请求时长走完，
+   到点写「已到点」而不是停在「0 秒」，否则读起来像没等。 */
+if(left>0)return left+" 秒";
+var total=desktopWaitSeconds(script,args);
+return (total>0?total+" 秒 · ":"")+"已到点";}
+var base=desktopToolSummary(script,args,null);
+return (base?base+" · ":"")+left+" 秒";}
+var _desktopWaitTickers={};
+function desktopStopWaitTicker(tid){
+var key=String(tid==null?"":tid);if(!key)return;
+var entry=_desktopWaitTickers[key];if(!entry)return;
+try{clearInterval(entry.timer);}catch(_e){}
+delete _desktopWaitTickers[key];}
+/* 同一个调用可能在两处显示（步骤卡 + 对话区工具行），两处共用一个计时器：
+   第二个登记方只挂自己的刷新函数，不重置截止时间，否则倒计时会被"重启"。 */
+function desktopStartWaitTicker(tid,script,args,apply){
+var key=String(tid==null?"":tid);if(!key)return;
+var total=desktopWaitSeconds(script,args);
+if(!total||typeof apply!=="function")return;
+function paint(){
+var entry=_desktopWaitTickers[key];if(!entry)return;
+var left=Math.max(0,Math.ceil((entry.deadline-Date.now())/1000));
+if(left===entry.last)return;
+entry.last=left;
+for(var i=0;i<entry.applys.length;i++){try{entry.applys[i](left,entry.total);}catch(_e){}}
+if(left<=0)desktopStopWaitTicker(key);}
+var entry=_desktopWaitTickers[key];
+if(!entry){
+entry={deadline:Date.now()+total*1000,total:total,applys:[],last:-1,timer:null};
+_desktopWaitTickers[key]=entry;
+entry.timer=setInterval(paint,200);
+}
+entry.applys.push(apply);
+paint();}
