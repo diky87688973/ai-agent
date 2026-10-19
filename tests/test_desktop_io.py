@@ -60,7 +60,12 @@ from fan_agent_plugins.desktop_io.errors import (  # noqa: E402
     ScreenCaptureFailed,
 )
 from fan_agent_plugins.desktop_io.input_lock import input_guard  # noqa: E402
-from fan_agent_plugins.desktop_io.ports import Backend, Screenshot  # noqa: E402
+from fan_agent_plugins.desktop_io.ports import (  # noqa: E402
+    Backend,
+    Screenshot,
+    WindowActivation,
+    WindowInfo,
+)
 from fan_agent_plugins.desktop_io.tools import (  # noqa: E402
     DesktopEyeTool,
     DesktopKeyboardTool,
@@ -83,8 +88,9 @@ class Recorder:
         self._returns = returns
 
     def __getattr__(self, name):
-        def call(*args):
-            self.calls.append((name,) + args)
+        def call(*args, **kwargs):
+            # 关键字参数按传入顺序展平到末尾，断言里能直接看出"有没有要置前"。
+            self.calls.append((name,) + args + tuple(kwargs.values()))
             return self._returns.get(name)
         return call
 
@@ -98,13 +104,20 @@ class LiveState:
 
 
 def _backend(rect: ScreenRect | None = None, png: bytes | None = None,
-             cursor: ScreenPoint | None = None, mixed_scale: bool = False):
+             cursor: ScreenPoint | None = None, mixed_scale: bool = False,
+             windows=None):
     rect = rect or ScreenRect(0, 0, 40, 30)
     screen = Recorder(geometry=ScreenGeometry(rect=rect, mixed_scale=mixed_scale),
                       capture=Screenshot(png or _png(rect.width, rect.height), rect))
     mouse = Recorder(cursor=cursor or ScreenPoint(7, 8))
     keyboard = Recorder()
-    return Backend("test", screen, mouse, keyboard), screen, mouse, keyboard
+    return Backend("test", screen, mouse, keyboard, windows=windows), screen, mouse, keyboard
+
+
+def _window_info(hwnd: int = 4242, rect: ScreenRect | None = None) -> WindowInfo:
+    rect = rect or ScreenRect(0, 0, 40, 30)
+    return WindowInfo(hwnd=hwnd, title="腾讯视频", rect=rect,
+                      minimized=False, visible=True)
 
 
 class CoordsTest(unittest.TestCase):
@@ -304,6 +317,179 @@ class EyeToolTest(unittest.TestCase):
             DesktopEyeTool(backend, self.config).execute({"zoom": 2})
 
 
+class WindowCaptureTest(unittest.TestCase):
+    """按窗口取图：走 windows 端口，而不是屏幕端口。"""
+
+    def setUp(self) -> None:
+        self.config = DesktopConfig(settle_ms=0)
+        rect = ScreenRect(0, 0, 40, 30)
+        self.info = _window_info(rect=rect)
+        self.windows = Recorder(
+            get=self.info,
+            find=(self.info,),
+            capture=Screenshot(_png(40, 30), rect, source="window"),
+        )
+
+    def test_window_title_routes_to_window_port(self) -> None:
+        backend, screen, _mouse, _keyboard = _backend(windows=self.windows)
+        result = DesktopEyeTool(backend, self.config).execute({"window": "腾讯视频"})
+        self.assertEqual(result.data["source"], "window")
+        self.assertEqual(result.data["window"]["hwnd"], 4242)
+        self.assertIn(("capture", 4242, None, False), self.windows.calls)
+        self.assertNotIn("capture", [call[0] for call in screen.calls])
+
+    def test_hwnd_skips_title_lookup(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend(windows=self.windows)
+        DesktopEyeTool(backend, self.config).execute({"hwnd": 4242})
+        self.assertIn(("get", 4242), self.windows.calls)
+        self.assertNotIn("find", [call[0] for call in self.windows.calls])
+
+    def test_region_is_passed_through(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend(windows=self.windows)
+        DesktopEyeTool(backend, self.config).execute(
+            {"window": "腾讯视频", "x": 1, "y": 2, "width": 10, "height": 12})
+        self.assertIn(("capture", 4242, ScreenRect(1, 2, 10, 12), False),
+                      self.windows.calls)
+
+    def test_window_and_hwnd_are_exclusive(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend(windows=self.windows)
+        with self.assertRaises(ValueError):
+            DesktopEyeTool(backend, self.config).execute({"window": "x", "hwnd": 4242})
+
+    def test_missing_window_port_reports_clearly(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend()
+        with self.assertRaises(DesktopUnavailable) as raised:
+            DesktopEyeTool(backend, self.config).execute({"window": "腾讯视频"})
+        self.assertIn("不支持按窗口操作", str(raised.exception))
+
+    def test_no_matching_window(self) -> None:
+        empty = Recorder(get=self.info, find=(), capture=None)
+        backend, _screen, _mouse, _keyboard = _backend(windows=empty)
+        with self.assertRaises(ValueError) as raised:
+            DesktopEyeTool(backend, self.config).execute({"window": "不存在的标题"})
+        self.assertIn("没有标题包含", str(raised.exception))
+
+    def test_screen_fallback_is_reported(self) -> None:
+        fallback = Recorder(
+            get=self.info, find=(self.info,),
+            capture=Screenshot(_png(40, 30), self.info.rect, source="screen"),
+        )
+        backend, _screen, _mouse, _keyboard = _backend(windows=fallback)
+        result = DesktopEyeTool(backend, self.config).execute({"window": "腾讯视频"})
+        self.assertEqual(result.data["source"], "screen")
+        self.assertIn("回退为屏幕截图", result.data["note"])
+
+    def test_window_content_has_no_fallback_note(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend(windows=self.windows)
+        result = DesktopEyeTool(backend, self.config).execute({"window": "腾讯视频"})
+        self.assertNotIn("note", result.data)
+
+    def test_restore_only_does_not_steal_foreground(self) -> None:
+        windows = Recorder(
+            get=self.info, find=(self.info,),
+            capture=Screenshot(_png(40, 30), self.info.rect, source="window",
+                               restored=True, activation="none"),
+        )
+        backend, _screen, _mouse, _keyboard = _backend(windows=windows)
+        result = DesktopEyeTool(backend, self.config).execute({"window": "腾讯视频"})
+        self.assertTrue(result.data["restored"])
+        self.assertNotIn("activated", result.data)
+        self.assertIn("未置前", result.data["note"])
+        # 恢复后要重取窗口信息，否则回执里的 rect 还是 -32000（title 路径原本不调 get）
+        self.assertIn(("get", 4242), windows.calls)
+
+    def test_activate_requested_reports_success(self) -> None:
+        windows = Recorder(
+            get=self.info, find=(self.info,),
+            capture=Screenshot(_png(40, 30), self.info.rect, source="window",
+                               restored=True, activation="ok"),
+        )
+        backend, _screen, _mouse, _keyboard = _backend(windows=windows)
+        result = DesktopEyeTool(backend, self.config).execute(
+            {"window": "腾讯视频", "activate": True})
+        self.assertTrue(result.data["activated"])
+        self.assertIn(("capture", 4242, None, True), windows.calls)
+        self.assertIn("已恢复并置前", result.data["note"])
+
+    def test_activate_failure_is_reported(self) -> None:
+        windows = Recorder(
+            get=self.info, find=(self.info,),
+            capture=Screenshot(_png(40, 30), self.info.rect, source="window",
+                               activation="failed"),
+        )
+        backend, _screen, _mouse, _keyboard = _backend(windows=windows)
+        result = DesktopEyeTool(backend, self.config).execute(
+            {"window": "腾讯视频", "activate": True})
+        self.assertFalse(result.data["activated"])
+        self.assertIn("没抢到前台", result.data["note"])
+
+    def test_activate_rejected_for_plain_screen(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend()
+        with self.assertRaises(ValueError) as raised:
+            DesktopEyeTool(backend, self.config).execute({"activate": True})
+        self.assertIn("只对 window / hwnd 有意义", str(raised.exception))
+
+
+class WindowActivationTest(unittest.TestCase):
+    """手部动作可以带 window / hwnd：先置前，再落点。"""
+
+    def setUp(self) -> None:
+        self.config = DesktopConfig(settle_ms=0)
+        self.info = _window_info()
+        self.active = WindowActivation(window=self.info, active=True, restored=True)
+
+    def test_mouse_activates_before_click(self) -> None:
+        windows = Recorder(get=self.info, find=(self.info,), activate=self.active)
+        backend, _screen, mouse, _keyboard = _backend(windows=windows)
+        result = DesktopMouseTool(backend, self.config).execute(
+            {"action": "click", "x": 5, "y": 6, "window": "腾讯视频"})
+        self.assertIn(("activate", 4242), windows.calls)
+        self.assertIn(("click", ScreenPoint(5, 6), "left", 1), mouse.calls)
+        self.assertEqual(result["focus"]["hwnd"], 4242)
+        self.assertTrue(result["focus"]["active"])
+
+    def test_keyboard_activates_before_typing(self) -> None:
+        windows = Recorder(get=self.info, find=(self.info,), activate=self.active)
+        backend, _screen, _mouse, keyboard = _backend(windows=windows)
+        result = DesktopKeyboardTool(backend, self.config).execute(
+            {"action": "type", "text": "斗破苍穹", "window": "腾讯视频"})
+        self.assertIn(("activate", 4242), windows.calls)
+        self.assertIn(("type_text", "斗破苍穹", DesktopConfig(settle_ms=0).type_interval_ms),
+                      keyboard.calls)
+        self.assertEqual(result["focus"]["hwnd"], 4242)
+
+    def test_failed_activation_blocks_input(self) -> None:
+        blocked = WindowActivation(window=self.info, active=False, restored=False,
+                                   foreground="Cursor")
+        windows = Recorder(get=self.info, find=(self.info,), activate=blocked)
+        backend, _screen, mouse, keyboard = _backend(windows=windows)
+        with self.assertRaises(DesktopError) as raised:
+            DesktopKeyboardTool(backend, self.config).execute(
+                {"action": "type", "text": "x", "window": "腾讯视频"})
+        self.assertIn("没有拿到前台", str(raised.exception))
+        self.assertIn("Cursor", str(raised.exception))
+        self.assertEqual(keyboard.calls, [])
+        with self.assertRaises(DesktopError):
+            DesktopMouseTool(backend, self.config).execute(
+                {"action": "click", "x": 1, "y": 2, "hwnd": 4242})
+        self.assertEqual(mouse.calls, [])
+
+    def test_cursor_query_does_not_activate(self) -> None:
+        windows = Recorder(get=self.info, find=(self.info,), activate=self.active)
+        backend, _screen, _mouse, _keyboard = _backend(windows=windows)
+        DesktopMouseTool(backend, self.config).execute(
+            {"action": "cursor", "window": "腾讯视频"})
+        self.assertEqual(windows.calls, [])
+
+    def test_activation_reports_matched_when_titles_collide(self) -> None:
+        windows = Recorder(get=self.info, find=(self.info, self.info),
+                           activate=self.active)
+        backend, _screen, _mouse, _keyboard = _backend(windows=windows)
+        result = DesktopMouseTool(backend, self.config).execute(
+            {"action": "click", "x": 5, "y": 6, "window": "腾讯视频"})
+        self.assertEqual(result["focus"]["matched"], 2)
+
+
 class MouseToolTest(unittest.TestCase):
     def setUp(self) -> None:
         self.config = DesktopConfig(settle_ms=0)
@@ -480,6 +666,78 @@ class Win32TableTest(unittest.TestCase):
                          (win32.MOUSEEVENTF_WHEEL, (-360) & 0xFFFFFFFF))
         self.assertEqual(send.call_args_list[1].args,
                          (win32.MOUSEEVENTF_HWHEEL, 360))
+
+    def test_uniform_detection_catches_black_frames(self) -> None:
+        from fan_agent_plugins.desktop_io.backends import win32
+        black = b"\x00\x00\x00\x00" * 64
+        self.assertTrue(win32._is_uniform(black))
+        varied = black[:4] + b"\x01\x02\x03\x00" + black[8:]
+        self.assertFalse(win32._is_uniform(varied))
+
+    def test_crop_bgra_uses_top_down_rows(self) -> None:
+        from fan_agent_plugins.desktop_io.backends import win32
+        # 3x2，每像素 4 字节，行主序；取右下 2x1 应为第 2 行后两个像素
+        pixels = [bytes([row, col, 0, 0]) for row in range(2) for col in range(3)]
+        data = b"".join(pixels)
+        cropped = win32._crop_bgra(data, 3, 2, 1, 1, 2, 1)
+        self.assertEqual(cropped, pixels[4] + pixels[5])
+
+    def test_window_capture_does_not_touch_screen_grab(self) -> None:
+        from fan_agent_plugins.desktop_io.backends import win32
+        rect = ScreenRect(0, 0, 4, 2)
+        with mock.patch.object(win32.user32, "IsWindow", return_value=1), \
+                mock.patch.object(win32.user32, "IsIconic", return_value=0), \
+                mock.patch.object(win32, "_window_rect", return_value=rect), \
+                mock.patch.object(win32, "_print_window",
+                                  return_value=b"\x10\x20\x30\x00\x11\x22\x33\x00" * 4), \
+                mock.patch.object(win32, "_grab") as grab:
+            shot = win32.Win32Windows().capture(1234, None)
+        self.assertEqual(shot.source, "window")
+        self.assertEqual((shot.rect.width, shot.rect.height), (4, 2))
+        grab.assert_not_called()
+
+    def _capture(self, iconic: bool, activate: bool, **patches):
+        from fan_agent_plugins.desktop_io.backends import win32
+        rect = ScreenRect(0, 0, 4, 2)
+        with mock.patch.object(win32.user32, "IsWindow", return_value=1), \
+                mock.patch.object(win32.user32, "IsIconic", return_value=int(iconic)), \
+                mock.patch.object(win32, "_is_foreground", return_value=False), \
+                mock.patch.object(win32, "_window_rect", return_value=rect), \
+                mock.patch.object(win32, "_print_window",
+                                  return_value=b"\x10\x20\x30\x00\x11\x22\x33\x00" * 4), \
+                mock.patch.object(win32, "_restore_without_activation") as restore, \
+                mock.patch.object(win32, "_bring_to_front") as front:
+            front.return_value = (iconic, True)
+            shot = win32.Win32Windows().capture(1234, None, activate=activate)
+        return shot, restore, front
+
+    def test_minimized_capture_restores_without_stealing_focus(self) -> None:
+        shot, restore, front = self._capture(iconic=True, activate=False)
+        restore.assert_called_once_with(1234)
+        front.assert_not_called()
+        self.assertTrue(shot.restored)
+        self.assertEqual(shot.activation, "none")
+
+    def test_activate_uses_foreground_path(self) -> None:
+        shot, restore, front = self._capture(iconic=True, activate=True)
+        front.assert_called_once_with(1234)
+        restore.assert_not_called()
+        self.assertTrue(shot.restored)
+        self.assertEqual(shot.activation, "ok")
+
+    def test_visible_window_is_left_alone(self) -> None:
+        shot, restore, front = self._capture(iconic=False, activate=False)
+        restore.assert_not_called()
+        front.assert_not_called()
+        self.assertFalse(shot.restored)
+        self.assertEqual(shot.activation, "none")
+
+    def test_visible_window_activates_only_when_asked(self) -> None:
+        shot, restore, front = self._capture(iconic=False, activate=True)
+        front.assert_called_once_with(1234)
+        restore.assert_not_called()
+        self.assertFalse(shot.restored)
+        self.assertEqual(shot.activation, "ok")
 
 
 class MacOSTableTest(unittest.TestCase):

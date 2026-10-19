@@ -13,6 +13,7 @@ from ..guard import reject_in_plan
 from ..input_lock import input_guard
 from ..ports import Backend
 from ._params import as_bool, as_int, choice, point_argument, reject_unknown, require_range
+from ._windows import WINDOW_FIELDS, focus_target, require_active
 
 BUTTONS = ("left", "right", "middle")
 
@@ -34,6 +35,8 @@ class DesktopMouseTool(ToolPlugin):
     description = (
         "操作鼠标。坐标是屏幕坐标，与 desktop_eye 的网格刻度同一坐标系。"
         "click / scroll 省略 x、y 时作用在当前光标位置。"
+        "给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再动作，回执带 focus；"
+        "置前失败时不会盲点，直接报错，避免点到遮挡物。"
         "action=cursor 只读查询，Plan 模式可用；其余动作在 Plan 模式被拒绝。"
     )
     parameters = {
@@ -49,6 +52,8 @@ class DesktopMouseTool(ToolPlugin):
                    "description": "滚动量 -50 ~ 50，正数向下 / 向右（scroll 必填）"},
         "horizontal": {"type": "boolean", "description": "横向滚动（默认 false）"},
         "duration_ms": {"type": "integer", "description": "移动 / 拖拽时长 0–5000 毫秒（默认 0）"},
+        "window": {"type": "string", "description": "目标窗口标题片段；先置前再动作"},
+        "hwnd": {"type": "integer", "description": "目标窗口句柄；与 window 二选一，hwnd 更精确"},
     }
 
     def __init__(self, backend: Backend, config: DesktopConfig,
@@ -59,11 +64,15 @@ class DesktopMouseTool(ToolPlugin):
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
         action = choice(arguments, "action", _ACTIONS)
-        reject_unknown(arguments, set(_ACTIONS[action]) | {"action"}, action=action)
+        reject_unknown(arguments, set(_ACTIONS[action]) | {"action"} | set(WINDOW_FIELDS),
+                       action=action)
         if action == "cursor":
             return self._snapshot(action)
 
         reject_in_plan(self._live_state, "桌面鼠标输入")
+        # 人点目标应用之前会先把它弄到前台；置前失败就不能落点，否则点到的是遮挡物。
+        focus = focus_target(self._backend, arguments)
+        require_active(focus, "鼠标动作")
         point = point_argument(arguments)
         port = self._backend.mouse
 
@@ -98,7 +107,10 @@ class DesktopMouseTool(ToolPlugin):
                 port.scroll(point, amount, horizontal)
 
         self._settle()
-        return self._snapshot(action)
+        result = self._snapshot(action)
+        if focus is not None:
+            result["focus"] = focus
+        return result
 
     def _settle(self) -> None:
         if self._config.settle_ms:

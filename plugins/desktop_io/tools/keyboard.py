@@ -14,6 +14,7 @@ from ..keys import canonical as canonical_key
 from ..keys import normalize_hotkey
 from ..ports import Backend
 from ._params import as_int, as_text, choice, reject_unknown, require_range
+from ._windows import WINDOW_FIELDS, focus_target, require_active
 
 _ACTIONS = {
     "type": ("text",),
@@ -31,6 +32,8 @@ class DesktopKeyboardTool(ToolPlugin):
     description = (
         "操作键盘。type 输入任意 Unicode 文本；key 按单个键（enter / tab / esc / "
         "方向键 / f1–f20 / 字母 / 数字 / 符号）；hotkey 按组合键（如 ctrl+c、alt+tab、cmd+space）。"
+        "给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再输入，回执带 focus；"
+        "置前失败时不会盲打，直接报错，避免字落进别的窗口。"
         "Plan 模式下拒绝。"
     )
     parameters = {
@@ -41,6 +44,8 @@ class DesktopKeyboardTool(ToolPlugin):
         "keys": {"type": "string",
                  "description": "组合键，如 \"ctrl+c\" / \"alt+tab\" / \"cmd+space\"（hotkey 必填）"},
         "repeat": {"type": "integer", "description": "重复次数 1–20（默认 1）"},
+        "window": {"type": "string", "description": "目标窗口标题片段；先置前再输入"},
+        "hwnd": {"type": "integer", "description": "目标窗口句柄；与 window 二选一，hwnd 更精确"},
     }
 
     def __init__(self, backend: Backend, config: DesktopConfig,
@@ -51,8 +56,12 @@ class DesktopKeyboardTool(ToolPlugin):
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
         action = choice(arguments, "action", _ACTIONS)
-        reject_unknown(arguments, set(_ACTIONS[action]) | {"action"}, action=action)
+        reject_unknown(arguments, set(_ACTIONS[action]) | {"action"} | set(WINDOW_FIELDS),
+                       action=action)
         reject_in_plan(self._live_state, "桌面键盘输入")
+
+        focus = focus_target(self._backend, arguments)
+        require_active(focus, "键盘输入")
 
         port = self._backend.keyboard
         if action == "type":
@@ -73,6 +82,8 @@ class DesktopKeyboardTool(ToolPlugin):
                 port.hotkey(keys, repeat)
             result = {"action": action, "keys": list(keys), "repeat": repeat}
 
+        if focus is not None:
+            result["focus"] = focus
         if self._config.settle_ms:
             time.sleep(self._config.settle_ms / 1000.0)
         return result

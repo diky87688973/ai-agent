@@ -136,7 +136,7 @@
       }
     },
     {
-      "description": "截取桌面并作为图片直接查看（不是 OCR）。支持整屏与区域。图上叠坐标网格，刻度数字与 desktop_mouse 使用同一套屏幕坐标。返回屏幕矩形、光标位置与实发尺寸。",
+      "description": "截取桌面并作为图片直接查看（不是 OCR）。支持整屏、区域与指定窗口。给 window（标题片段）或 hwnd 时取该窗口自身内容，目标被别的窗口盖住也能看到；窗口若已最小化会先恢复再取图，回执标 restored。activate=false（默认）只恢复不置前，不改变用户正在用的窗口；需要把窗口亮到前台时给 activate=true。不给窗口则取屏幕合成结果（会包含遮挡物）。图上叠坐标网格，刻度数字与 desktop_mouse 使用同一套屏幕坐标。",
       "display": {
         "icon": "👁",
         "label": "看屏"
@@ -144,12 +144,20 @@
       "name": "desktop_eye",
       "parallel_safe": false,
       "parameters": {
+        "activate": {
+          "description": "取图前是否把窗口带到前台（默认 false：只恢复不置前，不打断当前操作）",
+          "type": "boolean"
+        },
         "grid": {
           "description": "叠加坐标网格与刻度（默认 true）",
           "type": "boolean"
         },
         "height": {
           "description": "区域高度（屏幕坐标）",
+          "type": "integer"
+        },
+        "hwnd": {
+          "description": "窗口句柄；与 window 二选一，hwnd 更精确",
           "type": "integer"
         },
         "max_side": {
@@ -159,6 +167,10 @@
         "width": {
           "description": "区域宽度（屏幕坐标）",
           "type": "integer"
+        },
+        "window": {
+          "description": "窗口标题片段；取该窗口自身内容，遮挡不影响",
+          "type": "string"
         },
         "x": {
           "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出",
@@ -171,7 +183,7 @@
       }
     },
     {
-      "description": "操作键盘。type 输入任意 Unicode 文本；key 按单个键（enter / tab / esc / 方向键 / f1–f20 / 字母 / 数字 / 符号）；hotkey 按组合键（如 ctrl+c、alt+tab、cmd+space）。Plan 模式下拒绝。",
+      "description": "操作键盘。type 输入任意 Unicode 文本；key 按单个键（enter / tab / esc / 方向键 / f1–f20 / 字母 / 数字 / 符号）；hotkey 按组合键（如 ctrl+c、alt+tab、cmd+space）。给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再输入，回执带 focus；置前失败时不会盲打，直接报错，避免字落进别的窗口。Plan 模式下拒绝。",
       "display": {
         "icon": "⌨",
         "label": "键盘"
@@ -188,6 +200,10 @@
           ],
           "type": "string"
         },
+        "hwnd": {
+          "description": "目标窗口句柄；与 window 二选一，hwnd 更精确",
+          "type": "integer"
+        },
         "key": {
           "description": "单键规范名或常见别名（key 必填）",
           "type": "string"
@@ -203,11 +219,15 @@
         "text": {
           "description": "要输入的文本（type 必填）",
           "type": "string"
+        },
+        "window": {
+          "description": "目标窗口标题片段；先置前再输入",
+          "type": "string"
         }
       }
     },
     {
-      "description": "操作鼠标。坐标是屏幕坐标，与 desktop_eye 的网格刻度同一坐标系。click / scroll 省略 x、y 时作用在当前光标位置。action=cursor 只读查询，Plan 模式可用；其余动作在 Plan 模式被拒绝。",
+      "description": "操作鼠标。坐标是屏幕坐标，与 desktop_eye 的网格刻度同一坐标系。click / scroll 省略 x、y 时作用在当前光标位置。给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再动作，回执带 focus；置前失败时不会盲点，直接报错，避免点到遮挡物。action=cursor 只读查询，Plan 模式可用；其余动作在 Plan 模式被拒绝。",
       "display": {
         "icon": "🖱",
         "label": "鼠标"
@@ -251,6 +271,10 @@
           "description": "横向滚动（默认 false）",
           "type": "boolean"
         },
+        "hwnd": {
+          "description": "目标窗口句柄；与 window 二选一，hwnd 更精确",
+          "type": "integer"
+        },
         "to_x": {
           "description": "拖拽终点 x",
           "type": "integer"
@@ -258,6 +282,10 @@
         "to_y": {
           "description": "拖拽终点 y",
           "type": "integer"
+        },
+        "window": {
+          "description": "目标窗口标题片段；先置前再动作",
+          "type": "string"
         },
         "x": {
           "description": "屏幕坐标 x",

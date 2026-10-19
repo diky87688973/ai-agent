@@ -93,7 +93,10 @@ label = "看屏"
 icon = "👁"
 parallel_safe = False
 description = (
-    "截取桌面并作为图片直接查看（不是 OCR）。支持整屏与区域。"
+    "截取桌面并作为图片直接查看（不是 OCR）。支持整屏、区域与指定窗口。"
+    "给 window / hwnd 时取该窗口自身内容：被遮挡也能看到；若已最小化，"
+    "先恢复再取图（默认不置前，不动当前前台窗口），回执带 restored。"
+    "要把它亮到前台时给 activate=true。"
     "图上叠坐标网格，刻度数字与 desktop_mouse 使用同一套屏幕坐标。"
     "返回屏幕矩形、光标位置与实发尺寸。"
 )
@@ -102,6 +105,9 @@ parameters = {
     "y": {"type": "integer", "description": "区域左上角 y"},
     "width": {"type": "integer", "description": "区域宽度（屏幕坐标）"},
     "height": {"type": "integer", "description": "区域高度（屏幕坐标）"},
+    "window": {"type": "string", "description": "窗口标题片段；取该窗口自身内容，遮挡不影响"},
+    "hwnd": {"type": "integer", "description": "窗口句柄；与 window 二选一，hwnd 更精确"},
+    "activate": {"type": "boolean", "description": "取图前是否置前（默认 false：只恢复，不改变当前前台）"},
     "grid": {"type": "boolean", "description": "叠加坐标网格与刻度（默认 true）"},
     "max_side": {"type": "integer", "description": "长边缩到不超过该像素；0 = 不缩放；缺省取插件配置"},
 }
@@ -118,12 +124,20 @@ parameters = {
             "scale": 2.4, "bytes": 812345},
   "cursor": {"x": 412, "y": 300},
   "grid": {"step": 100, "unit": "屏幕坐标"},
-  "dpi": "per-monitor-v2"
+  "dpi": "per-monitor-v2",
+  "window": {"hwnd": 2363600, "title": "腾讯视频", "rect": {"...": "..."},
+             "minimized": false, "visible": true},
+  "restored": true
 }
 ```
 
-`note` 只在三种情况下出现：缩放过（给出换算关系）、画面全黑（锁屏 / 安全桌面 /
-受保护内容）、多屏缩放不一致（坐标可能偏移）。常态不写提示语，省请求体积。
+`window` / `restored` / `activated` 只在给了 `window` 或 `hwnd` 时出现：
+`restored` 表示取图前窗口最小化、已恢复；`activated` 只在显式给了 `activate`
+时出现，写置前是否成功。
+
+`note` 只在这些情况下出现：缩放过（给出换算关系）、恢复过窗口（说明有没有置前）、
+窗口内容取不到而回退屏幕（可能含遮挡物）、画面全黑（锁屏 / 安全桌面 / 受保护内容）、
+多屏缩放不一致（坐标可能偏移）。常态不写提示语，省请求体积。
 
 校验：
 
@@ -131,6 +145,18 @@ parameters = {
 - `width`、`height` 必须为正；区域与屏幕无交集 → `ValueError` 附屏幕矩形。
 - 区域超出屏幕按屏幕裁剪，裁剪后的矩形放在 `capture` 里。
 - 像素数超过 `MAX_CAPTURE_PIXELS`（40M）→ `ValueError`，请模型给更小的区域。
+- `activate` 只对 `window` / `hwnd` 有意义；整屏取图给了它就 → `ValueError`。
+
+#### 取图与置前的关系
+
+| 窗口状态 | `activate` 缺省（false） | `activate=true` |
+|---|---|---|
+| 正常显示、被遮挡 | 不碰窗口状态，直接取窗口自身重绘 | 先置前，再取图 |
+| 最小化 | **恢复**（`SW_SHOWNOACTIVATE`）后取图，当前前台不变 | 恢复 + 置前，等价于点任务栏 |
+
+恢复是必须的：最小化窗口的 `GetWindowRect` 是 `(-32000,-32000,160,28)`，
+`PrintWindow` 只会得到空帧。实测 `SW_SHOWNOACTIVATE` 能触发 CEF/Electron 真实重绘
+（5.78MB 非空帧，与 `SW_RESTORE` 一致），所以「不打扰用户」和「取到内容」可以同时成立。
 
 ### 4.2 `desktop_mouse`
 
@@ -141,6 +167,8 @@ icon = "🖱"
 description = (
     "操作鼠标：move 移动 / click 点击 / drag 拖拽 / scroll 滚轮 / cursor 只读查询位置。"
     "坐标是屏幕坐标，与 desktop_eye 的网格刻度一致；click 不给 x/y 时在原地点击。"
+    "给 window / hwnd 时先把该窗口恢复并置前再动作，回执带 focus；"
+    "置前失败则拒绝落点，避免点到遮挡物。"
     "返回动作后的光标位置。"
 )
 parameters = {
@@ -156,6 +184,8 @@ parameters = {
     "amount": {"type": "integer", "description": "滚轮格数，正数向下或向右；绝对值 ≤ 50"},
     "horizontal": {"type": "boolean", "description": "横向滚动（默认 false）"},
     "duration_ms": {"type": "integer", "description": "移动或拖拽的过渡时长 0–5000（默认 0 = 直接落点）"},
+    "window": {"type": "string", "description": "目标窗口标题片段；先置前再动作"},
+    "hwnd": {"type": "integer", "description": "目标窗口句柄；与 window 二选一，hwnd 更精确"},
 }
 ```
 
@@ -193,6 +223,7 @@ description = (
     "操作键盘：type 输入文本 / key 按一次键 / hotkey 按组合键。"
     "文本按 Unicode 逐字投递，不受当前键盘布局影响；\\n 走回车，\\t 走制表。"
     "键名小写，组合键如 [\"ctrl\", \"c\"]、[\"cmd\", \"space\"]。"
+    "给 window / hwnd 时先恢复并置前再输入，回执带 focus；置前失败则拒绝投递。"
 )
 parameters = {
     "action": {"type": "string", "description": "type / key / hotkey",
@@ -201,6 +232,8 @@ parameters = {
     "key": {"type": "string", "description": "action=key 时的键名，如 enter / esc / f5 / a"},
     "keys": {"type": "array", "description": "action=hotkey 时的键名数组，2–4 个"},
     "repeat": {"type": "integer", "description": "key / hotkey 重复次数 1–20（默认 1）"},
+    "window": {"type": "string", "description": "目标窗口标题片段；先置前再输入"},
+    "hwnd": {"type": "integer", "description": "目标窗口句柄；与 window 二选一，hwnd 更精确"},
 }
 ```
 

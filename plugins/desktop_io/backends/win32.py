@@ -15,7 +15,7 @@ from typing import Optional, Sequence, Tuple
 from ..coords import ScreenGeometry, ScreenPoint, ScreenRect
 from ..errors import DesktopError, DesktopUnavailable, ScreenCaptureFailed
 from ..keys import DIGITS, LETTERS
-from ..ports import Backend, Screenshot
+from ..ports import Backend, Screenshot, WindowActivation, WindowInfo
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
@@ -135,6 +135,23 @@ _MONITORENUMPROC = ctypes.WINFUNCTYPE(
     wintypes.BOOL, wintypes.HMONITOR, wintypes.HDC,
     ctypes.POINTER(wintypes.RECT), wintypes.LPARAM,
 )
+_WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+PW_RENDERFULLCONTENT = 0x00000002
+SW_RESTORE = 9
+SW_SHOWNOACTIVATE = 4
+GW_OWNER = 4
+GWL_EXSTYLE = -20
+WS_EX_TOOLWINDOW = 0x00000080
+
+# 窗口从最小化恢复后，Chromium/CEF 一类自绘窗口需要一次真实重绘才产出内容。
+# 实测约 440ms；给 1.2s 上限，超时就走屏幕回退并如实标注。
+_REPAINT_TIMEOUT_SECONDS = 1.2
+_REPAINT_INTERVAL_SECONDS = 0.06
+# 激活是一次系统级交接：窗口管理器要处理置前与重绘。实测 3/3 在 100ms 内完成，
+# 给 0.6s 上限足够判定成败，又不会让一次失败的激活拖慢整批动作。
+_ACTIVATE_TIMEOUT_SECONDS = 0.6
+_UNIFORM_SAMPLE = 4096
 
 user32.SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
 user32.SendInput.restype = wintypes.UINT
@@ -163,6 +180,34 @@ gdi32.GetDIBits.argtypes = (
 gdi32.GetDIBits.restype = ctypes.c_int
 gdi32.DeleteObject.argtypes = (wintypes.HGDIOBJ,)
 gdi32.DeleteDC.argtypes = (wintypes.HDC,)
+user32.PrintWindow.argtypes = (wintypes.HWND, wintypes.HDC, wintypes.UINT)
+user32.PrintWindow.restype = wintypes.BOOL
+user32.GetWindowRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
+user32.GetWindowRect.restype = wintypes.BOOL
+user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
+user32.GetWindowTextLengthW.restype = ctypes.c_int
+user32.GetWindowTextW.argtypes = (wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
+user32.GetWindowTextW.restype = ctypes.c_int
+user32.IsWindow.argtypes = (wintypes.HWND,)
+user32.IsWindow.restype = wintypes.BOOL
+user32.IsWindowVisible.argtypes = (wintypes.HWND,)
+user32.IsWindowVisible.restype = wintypes.BOOL
+user32.IsIconic.argtypes = (wintypes.HWND,)
+user32.IsIconic.restype = wintypes.BOOL
+user32.GetWindow.argtypes = (wintypes.HWND, wintypes.UINT)
+user32.GetWindow.restype = wintypes.HWND
+user32.GetWindowLongW.argtypes = (wintypes.HWND, ctypes.c_int)
+user32.GetWindowLongW.restype = wintypes.LONG
+user32.EnumWindows.argtypes = (_WNDENUMPROC, wintypes.LPARAM)
+user32.EnumWindows.restype = wintypes.BOOL
+user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
+user32.ShowWindow.restype = wintypes.BOOL
+user32.SwitchToThisWindow.argtypes = (wintypes.HWND, wintypes.BOOL)
+user32.SwitchToThisWindow.restype = None
+user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
+user32.SetForegroundWindow.restype = wintypes.BOOL
+user32.GetForegroundWindow.argtypes = ()
+user32.GetForegroundWindow.restype = wintypes.HWND
 user32.MonitorFromPoint.argtypes = (POINT, wintypes.DWORD)
 user32.MonitorFromPoint.restype = wintypes.HMONITOR
 if shcore is not None:
@@ -307,6 +352,254 @@ def _grab(rect: ScreenRect) -> bytes:
         user32.ReleaseDC(None, screen_dc)
 
 
+def _window_rect(hwnd: int) -> Optional[ScreenRect]:
+    raw = wintypes.RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(raw)):
+        return None
+    try:
+        return ScreenRect(raw.left, raw.top, raw.right - raw.left, raw.bottom - raw.top)
+    except ValueError:
+        return None
+
+
+def _window_title(hwnd: int) -> str:
+    length = user32.GetWindowTextLengthW(hwnd)
+    if length <= 0:
+        return ""
+    buffer = ctypes.create_unicode_buffer(length + 1)
+    user32.GetWindowTextW(hwnd, buffer, length + 1)
+    return buffer.value
+
+
+def _is_foreground(hwnd: int) -> bool:
+    """目标是否真的拿到了前台。
+
+    只信 `GetForegroundWindow` 与实际图标态：`SetForegroundWindow` 的返回值
+    和 `GetForegroundWindow` 都可能在窗口仍最小化时给出"成功"的假象。
+    """
+    return (int(user32.GetForegroundWindow() or 0) == int(hwnd)
+            and not user32.IsIconic(hwnd))
+
+
+def _bring_to_front(hwnd: int) -> Tuple[bool, bool]:
+    """等价于用户点任务栏图标：最小化先恢复，再把窗口带到前台。
+
+    返回 (是否恢复过, 是否真的到了前台)。`SwitchToThisWindow` 对最小化与纯遮挡
+    都有效，且不像 `SetForegroundWindow` 那样返回不可信的 true；两个都发，
+    后一个兜底。成败只按 `_is_foreground` 判，不看 API 返回值。
+    """
+    restored = False
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, SW_RESTORE)
+        restored = True
+    user32.SwitchToThisWindow(hwnd, True)
+    if not _is_foreground(hwnd):
+        user32.SetForegroundWindow(hwnd)
+    deadline = time.monotonic() + _ACTIVATE_TIMEOUT_SECONDS
+    while (user32.IsIconic(hwnd) or not _is_foreground(hwnd)) \
+            and time.monotonic() < deadline:
+        time.sleep(_REPAINT_INTERVAL_SECONDS)
+    return restored, _is_foreground(hwnd)
+
+
+def _restore_without_activation(hwnd: int) -> None:
+    """恢复最小化窗口但不抢前台：用户眼前的窗口不变，键盘焦点不跳。
+
+    实测 `SW_SHOWNOACTIVATE` 会触发 CEF/Electron 的真实重绘
+    （5.78MB 非空帧，与 `SW_RESTORE` 一致），所以"不打扰"与"取到内容"可以同时成立。
+    """
+    user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+    deadline = time.monotonic() + _ACTIVATE_TIMEOUT_SECONDS
+    while user32.IsIconic(hwnd) and time.monotonic() < deadline:
+        time.sleep(_REPAINT_INTERVAL_SECONDS)
+
+
+def _is_uniform(data: bytes) -> bool:
+    """整幅只有一个颜色（含全黑）：PrintWindow 没拿到内容的典型表现。
+
+    抽样比较，不逐像素扫完 5MB 位图。
+    """
+    total = len(data) // 4
+    if total <= 1:
+        return True
+    first = data[0:3]
+    step = max(1, total // _UNIFORM_SAMPLE)
+    for index in range(0, total, step):
+        offset = index * 4
+        if data[offset:offset + 3] != first:
+            return False
+    return True
+
+
+def _crop_bgra(data: bytes, width: int, height: int,
+               x: int, y: int, crop_width: int, crop_height: int) -> bytes:
+    """从自上而下的 BGRA 位图里裁一块。"""
+    if (x, y, crop_width, crop_height) == (0, 0, width, height):
+        return data
+    left = x * 4
+    span = crop_width * 4
+    rows = []
+    for row in range(y, y + crop_height):
+        start = row * width * 4 + left
+        rows.append(data[start:start + span])
+    return b"".join(rows)
+
+
+def _print_window(hwnd: int, rect: ScreenRect) -> bytes:
+    """PrintWindow(PW_RENDERFULLCONTENT)：取窗口自身重绘，遮挡不影响内容。"""
+    window_dc = user32.GetWindowDC(hwnd)
+    if not window_dc:
+        raise ScreenCaptureFailed(_last_error("GetWindowDC"))
+    memory_dc = gdi32.CreateCompatibleDC(window_dc)
+    bitmap = gdi32.CreateCompatibleBitmap(window_dc, rect.width, rect.height)
+    if not memory_dc or not bitmap:
+        if bitmap:
+            gdi32.DeleteObject(bitmap)
+        if memory_dc:
+            gdi32.DeleteDC(memory_dc)
+        user32.ReleaseDC(hwnd, window_dc)
+        raise ScreenCaptureFailed(_last_error("创建窗口位图"))
+    previous = gdi32.SelectObject(memory_dc, bitmap)
+    try:
+        if not user32.PrintWindow(hwnd, memory_dc, PW_RENDERFULLCONTENT):
+            raise ScreenCaptureFailed(_last_error("PrintWindow"))
+        info = BITMAPINFO()
+        info.bmiHeader.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+        info.bmiHeader.biWidth = rect.width
+        info.bmiHeader.biHeight = -rect.height
+        info.bmiHeader.biPlanes = 1
+        info.bmiHeader.biBitCount = 32
+        info.bmiHeader.biCompression = 0
+        buffer = ctypes.create_string_buffer(rect.width * rect.height * 4)
+        if not gdi32.GetDIBits(memory_dc, bitmap, 0, rect.height, buffer,
+                               ctypes.byref(info), DIB_RGB_COLORS):
+            raise ScreenCaptureFailed(_last_error("GetDIBits"))
+        return buffer.raw
+    finally:
+        gdi32.SelectObject(memory_dc, previous)
+        gdi32.DeleteObject(bitmap)
+        gdi32.DeleteDC(memory_dc)
+        user32.ReleaseDC(hwnd, window_dc)
+
+
+class Win32Windows:
+    """按窗口取图。
+
+    与 `Win32Screen.capture` 的区别：后者取屏幕合成结果，目标被别的窗口盖住时
+    拿到的是遮挡物；这里取目标窗口自己的重绘，遮挡与前台与否都不影响。
+
+    已知边界：窗口最小化时内容不可取。先 `SW_RESTORE`，再等一次真实重绘
+    （实测约 440ms，上限 1.2s）；等不到就回退屏幕截图，并把 `source` 标成
+    `screen`，让调用侧知道这张图不是窗口内容。
+    """
+
+    def get(self, hwnd: int) -> WindowInfo:
+        if not user32.IsWindow(hwnd):
+            raise DesktopError(f"窗口句柄 {hwnd} 已失效；重新列窗口再取")
+        rect = _window_rect(hwnd)
+        if rect is None:
+            raise ScreenCaptureFailed(_last_error("GetWindowRect"))
+        return WindowInfo(hwnd=int(hwnd), title=_window_title(hwnd), rect=rect,
+                          minimized=bool(user32.IsIconic(hwnd)),
+                          visible=bool(user32.IsWindowVisible(hwnd)))
+
+    def find(self, title_contains: str) -> Sequence[WindowInfo]:
+        needle = (title_contains or "").strip().lower()
+        if not needle:
+            raise ValueError("window 需要非空的标题片段")
+        found = []
+
+        def _collect(hwnd, _data):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            if int(user32.GetWindowLongW(hwnd, GWL_EXSTYLE)) & WS_EX_TOOLWINDOW:
+                return True
+            title = _window_title(hwnd)
+            if not title or needle not in title.lower():
+                return True
+            rect = _window_rect(hwnd)
+            if rect is None or rect.width < 2 or rect.height < 2:
+                return True
+            iconic = bool(user32.IsIconic(hwnd))
+            # CEF/Electron 会留一批 (32767,32767) 的屏幕外辅助窗口；
+            # 最小化的真窗口坐标同样是 -32000，不能用同一个判据一起排掉。
+            if not iconic and (rect.x > 30000 or rect.y > 30000
+                               or rect.right <= -30000 or rect.bottom <= -30000):
+                return True
+            found.append(WindowInfo(hwnd=int(hwnd), title=title, rect=rect,
+                                    minimized=iconic, visible=True))
+            return True
+
+        user32.EnumWindows(_WNDENUMPROC(_collect), 0)
+        found.sort(key=lambda info: info.rect.width * info.rect.height, reverse=True)
+        return tuple(found)
+
+    def activate(self, hwnd: int) -> WindowActivation:
+        if not user32.IsWindow(hwnd):
+            raise DesktopError(f"窗口句柄 {hwnd} 已失效；重新列窗口再取")
+        restored, active = _bring_to_front(hwnd)
+        foreground = "" if active else _window_title(user32.GetForegroundWindow())
+        return WindowActivation(window=self.get(hwnd), active=active,
+                                restored=restored, foreground=foreground)
+
+    def capture(self, hwnd: int, region: Optional[ScreenRect],
+                *, activate: bool = False) -> Screenshot:
+        if not user32.IsWindow(hwnd):
+            raise DesktopError(f"窗口句柄 {hwnd} 已失效；重新列窗口再取")
+        rect = _window_rect(hwnd)
+        if rect is None:
+            raise ScreenCaptureFailed(_last_error("GetWindowRect"))
+
+        # 最小化必须恢复，否则取到的是 (-32000, -32000) 的空帧；
+        # 但"恢复"不等于"抢前台"：默认只恢复（SW_SHOWNOACTIVATE），
+        # 用户正在用的窗口与键盘焦点都不动。需要亮出来时由调用侧显式要 activate。
+        restored = bool(user32.IsIconic(hwnd))
+        activation = "none"
+        if activate:
+            was_restored, ok = _bring_to_front(hwnd)
+            restored = restored or was_restored
+            activation = "ok" if ok else "failed"
+        elif restored:
+            _restore_without_activation(hwnd)
+            activation = "none"
+        if restored:
+            rect = _window_rect(hwnd) or rect
+        foreground = _is_foreground(hwnd)
+
+        data = _print_window(hwnd, rect)
+        if restored or _is_uniform(data):
+            # 恢复后需要一次真实重绘；只有非空内容才算拿到了窗口画面。
+            deadline = time.monotonic() + _REPAINT_TIMEOUT_SECONDS
+            while _is_uniform(data) and time.monotonic() < deadline:
+                time.sleep(_REPAINT_INTERVAL_SECONDS)
+                data = _print_window(hwnd, rect)
+
+        source = "window"
+        if _is_uniform(data):
+            if not user32.IsWindowVisible(hwnd):
+                raise ScreenCaptureFailed(
+                    "窗口不可见且取不到内容；先恢复窗口（ShowWindow）再截图"
+                )
+            # 回退到屏幕截图：可能含遮挡物，用 source 如实告知。
+            data = _grab(rect)
+            source = "screen"
+
+        if region is not None:
+            clipped = region.intersect(rect)
+            if clipped is None:
+                raise ValueError(
+                    f"区域与窗口 {hwnd} 没有交集；窗口是 {rect.to_dict()}"
+                )
+            data = _crop_bgra(data, rect.width, rect.height,
+                              clipped.x - rect.x, clipped.y - rect.y,
+                              clipped.width, clipped.height)
+            rect = clipped
+
+        return Screenshot(png=_encode_bgra(data, rect.width, rect.height),
+                          rect=rect, source=source, restored=restored,
+                          foreground=foreground, activation=activation)
+
+
 def _encode_bgra(data: bytes, width: int, height: int) -> bytes:
     try:
         from PIL import Image
@@ -445,4 +738,5 @@ class Win32Backend(Backend):
     def __init__(self) -> None:
         _enable_dpi_awareness()
         super().__init__(platform="win32", screen=Win32Screen(),
-                         mouse=Win32Mouse(), keyboard=Win32Keyboard())
+                         mouse=Win32Mouse(), keyboard=Win32Keyboard(),
+                         windows=Win32Windows())
