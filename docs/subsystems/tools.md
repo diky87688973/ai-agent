@@ -176,7 +176,7 @@ registry.schemas()          # 导出模型可见的工具声明
 插件可以通过 `ctx.register_tool(tool)` 向注册表贡献工具，执行仍走同一条管道。
 工具声明 `needs_preview=True` 时同样受写盘四步协议约束。
 
-`plugins/desktop_io` 贡献 `desktop_eye` / `desktop_mouse` / `desktop_keyboard`：
+`plugins/desktop_io` 贡献 `desktop_eye` / `desktop_mouse` / `desktop_keyboard` / `desktop_wait`：
 截屏结果作为图片附件回灌模型，鼠标与键盘动作按会话做 Plan 门控；坐标契约与
 平台后端见 [desktop-io.md](desktop-io.md)。
 

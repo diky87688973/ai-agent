@@ -25,21 +25,26 @@ INT_RANGES: Mapping[str, tuple] = {
     "grid_step": (20, 500),
     "settle_ms": (0, 2000),
     "type_interval_ms": (0, 200),
+    "hover_settle_ms": (0, 2000),
+    "wait_interval_ms": (50, 2000),
 }
 
 
 @dataclass(frozen=True)
 class DesktopConfig:
-    """三个能力开关与截图、输入的时间参数。"""
+    """能力开关与截图、输入、等待的时间参数。"""
 
     eye: bool = True
     mouse: bool = True
     keyboard: bool = True
+    wait: bool = True
     max_side: int = 1600
     grid_step: int = 100
     cursor_mark: bool = True
     settle_ms: int = 60
     type_interval_ms: int = 12
+    hover_settle_ms: int = 250
+    wait_interval_ms: int = 200
 
 
 DEFAULTS = DesktopConfig()
@@ -76,9 +81,12 @@ def load_config(plugin_root: Optional[Path] = None) -> DesktopConfig:
         eye=_as_bool(values.get("eye"), DEFAULTS.eye),
         mouse=_as_bool(values.get("mouse"), DEFAULTS.mouse),
         keyboard=_as_bool(values.get("keyboard"), DEFAULTS.keyboard),
+        wait=_as_bool(values.get("wait"), DEFAULTS.wait),
         max_side=_as_int(values.get("max_side"), "max_side"),
         grid_step=_as_int(values.get("grid_step"), "grid_step"),
         cursor_mark=_as_bool(values.get("cursor_mark"), DEFAULTS.cursor_mark),
         settle_ms=_as_int(values.get("settle_ms"), "settle_ms"),
         type_interval_ms=_as_int(values.get("type_interval_ms"), "type_interval_ms"),
+        hover_settle_ms=_as_int(values.get("hover_settle_ms"), "hover_settle_ms"),
+        wait_interval_ms=_as_int(values.get("wait_interval_ms"), "wait_interval_ms"),
     )

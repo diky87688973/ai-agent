@@ -10,7 +10,7 @@ import ctypes
 import io
 import time
 from ctypes import wintypes
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 from ..coords import ScreenGeometry, ScreenPoint, ScreenRect
 from ..errors import DesktopError, DesktopUnavailable, ScreenCaptureFailed
@@ -141,6 +141,7 @@ PW_RENDERFULLCONTENT = 0x00000002
 SW_RESTORE = 9
 SW_SHOWNOACTIVATE = 4
 GW_OWNER = 4
+GA_ROOT = 2
 GWL_EXSTYLE = -20
 WS_EX_TOOLWINDOW = 0x00000080
 
@@ -210,6 +211,12 @@ user32.GetForegroundWindow.argtypes = ()
 user32.GetForegroundWindow.restype = wintypes.HWND
 user32.MonitorFromPoint.argtypes = (POINT, wintypes.DWORD)
 user32.MonitorFromPoint.restype = wintypes.HMONITOR
+user32.WindowFromPoint.argtypes = (POINT,)
+user32.WindowFromPoint.restype = wintypes.HWND
+user32.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
+user32.GetAncestor.restype = wintypes.HWND
+user32.GetClassNameW.argtypes = (wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
+user32.GetClassNameW.restype = ctypes.c_int
 if shcore is not None:
     shcore.GetDpiForMonitor.argtypes = (
         wintypes.HMONITOR, ctypes.c_int,
@@ -371,6 +378,13 @@ def _window_title(hwnd: int) -> str:
     return buffer.value
 
 
+def _window_class(hwnd: int) -> str:
+    """窗口类名；拿不到返回空串（探测不因此失败）。"""
+    buffer = ctypes.create_unicode_buffer(256)
+    written = user32.GetClassNameW(hwnd, buffer, 256)
+    return buffer.value if written > 0 else ""
+
+
 def _is_foreground(hwnd: int) -> bool:
     """目标是否真的拿到了前台。
 
@@ -504,12 +518,24 @@ class Win32Windows:
                           visible=bool(user32.IsWindowVisible(hwnd)))
 
     def find(self, title_contains: str) -> Sequence[WindowInfo]:
+        """标题包含 `title_contains` 的可见顶层窗口。
+
+        同名窗口不止一个时（CEF/Electron 常见：主窗 + 播放窗 + 隐藏辅助窗），
+        排序规则是「前台 → Z 序 → 面积」，不是单纯的面积：
+        用户眼前那个窗口几乎总是他想操作的那个，而面积最大的可能是
+        一个盖在画面上的播放层。`foreground` 一并写进结果，
+        让调用侧能在回执里说清"选中的是不是前台那个"。
+        """
         needle = (title_contains or "").strip().lower()
         if not needle:
             raise ValueError("window 需要非空的标题片段")
+        foreground = int(user32.GetForegroundWindow() or 0)
         found = []
+        # EnumWindows 按 Z 序自上而下枚举：序号越小越靠前。
+        z_index = [0]
 
         def _collect(hwnd, _data):
+            z_index[0] += 1
             if not user32.IsWindowVisible(hwnd):
                 return True
             if int(user32.GetWindowLongW(hwnd, GWL_EXSTYLE)) & WS_EX_TOOLWINDOW:
@@ -526,13 +552,19 @@ class Win32Windows:
             if not iconic and (rect.x > 30000 or rect.y > 30000
                                or rect.right <= -30000 or rect.bottom <= -30000):
                 return True
-            found.append(WindowInfo(hwnd=int(hwnd), title=title, rect=rect,
-                                    minimized=iconic, visible=True))
+            found.append((
+                0 if int(hwnd) == foreground else 1,
+                z_index[0],
+                -rect.width * rect.height,
+                WindowInfo(hwnd=int(hwnd), title=title, rect=rect,
+                           minimized=iconic, visible=True,
+                           foreground=int(hwnd) == foreground),
+            ))
             return True
 
         user32.EnumWindows(_WNDENUMPROC(_collect), 0)
-        found.sort(key=lambda info: info.rect.width * info.rect.height, reverse=True)
-        return tuple(found)
+        found.sort(key=lambda item: item[:3])
+        return tuple(item[3] for item in found)
 
     def activate(self, hwnd: int) -> WindowActivation:
         if not user32.IsWindow(hwnd):
@@ -543,7 +575,8 @@ class Win32Windows:
                                 restored=restored, foreground=foreground)
 
     def capture(self, hwnd: int, region: Optional[ScreenRect],
-                *, activate: bool = False) -> Screenshot:
+                *, activate: bool = False,
+                prepare: Optional[Callable[[], None]] = None) -> Screenshot:
         if not user32.IsWindow(hwnd):
             raise DesktopError(f"窗口句柄 {hwnd} 已失效；重新列窗口再取")
         rect = _window_rect(hwnd)
@@ -563,6 +596,11 @@ class Win32Windows:
             _restore_without_activation(hwnd)
             activation = "none"
         if restored:
+            rect = _window_rect(hwnd) or rect
+        if prepare is not None:
+            # 悬停必须发生在窗口已恢复/置前之后：否则光标落在原前台窗口上，
+            # 展开的是别人的控件，拍到的却是目标窗口。
+            prepare()
             rect = _window_rect(hwnd) or rect
         foreground = _is_foreground(hwnd)
 
@@ -732,6 +770,30 @@ def _send_unicode(char: str) -> None:
         _send_key(0, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, unit)
 
 
+class Win32Hit:
+    """落点探测：`WindowFromPoint` + 类名 + 所属顶层窗口标题。
+
+    返回的是"谁在这一点"而不是"这一点的语义"：模型据此判断自己点的是
+    卡片、按钮还是画面背景，不必靠下一次截图猜。
+    """
+
+    def probe(self, point: ScreenPoint) -> dict:
+        hwnd = int(user32.WindowFromPoint(POINT(int(point.x), int(point.y))) or 0)
+        if not hwnd:
+            return {}
+        root = int(user32.GetAncestor(hwnd, GA_ROOT) or hwnd)
+        probe = {
+            "hwnd": hwnd,
+            "class": _window_class(hwnd),
+        }
+        if root != hwnd:
+            probe["root"] = root
+        title = _window_title(root)
+        if title:
+            probe["title"] = title
+        return probe
+
+
 class Win32Backend(Backend):
     """Windows 上的一套可用后端。"""
 
@@ -739,4 +801,4 @@ class Win32Backend(Backend):
         _enable_dpi_awareness()
         super().__init__(platform="win32", screen=Win32Screen(),
                          mouse=Win32Mouse(), keyboard=Win32Keyboard(),
-                         windows=Win32Windows())
+                         windows=Win32Windows(), hit=Win32Hit())

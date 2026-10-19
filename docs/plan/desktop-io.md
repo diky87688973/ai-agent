@@ -2,31 +2,35 @@
 
 ## 1. 结论
 
-把 Windows / macOS 的桌面看与动做成一个内置插件 `plugins/desktop_io`，由它注册三个工具：
+把 Windows / macOS 的桌面看与动做成一个内置插件 `plugins/desktop_io`，由它注册四个工具：
 
 | 工具 | 心智 | 能力 |
 |---|---|---|
-| `desktop_eye` | 看 | 截屏（整屏或区域），叠坐标网格，图片直接交给模型 |
-| `desktop_mouse` | 手 | 移动 / 点击 / 拖拽 / 滚轮 / 只读查询光标 |
-| `desktop_keyboard` | 手 | 输入文本 / 单键 / 组合键 |
+| `desktop_eye` | 看 | 截屏（整屏、区域或窗口），叠坐标网格，图片直接交给模型；`hover` 可拍悬停后才出现的控件 |
+| `desktop_mouse` | 手 | 移动 / 点击 / 拖拽 / 滚轮 / 只读查询光标；回执带 `hit` / `changed`，可带 `shot` |
+| `desktop_keyboard` | 手 | 输入文本 / 单键 / 组合键；可带 `shot` |
+| `desktop_wait` | 等 | 等画面变化、窗口出现或窗口消失，命中即返回 |
+
+`desktop_wait` 与三个 L0 工具共用后端与输入锁（它本身只读）。参数级契约以
+[desktop-io.md](../subsystems/desktop-io.md) 为准，本文记录设计取舍。
 
 形态选择：插件贡献工具，而不是把 15 个动作塞进一个 `desktop_action`。
 三类能力各自有独立的参数面（坐标、按键、文本），合成一个工具后参数描述必须写成
 「当 action=click 时看 x/y，当 action=type 时看 text」，模型错配参数的概率显著上升。
 
-插件写进工程根的 `plugins.ini`，默认启用：新克隆的仓库起来就有这三个工具。
+插件写进工程根的 `plugins.ini`，默认启用：新克隆的仓库起来就有这四个工具。
 关掉开关时 `set_plugin_enabled` 保留清单节、把 `[base] enable` 写成 0，
-三个工具随之注销并从列表消失；再打开即热装载，不需要重启。
+对应工具随之注销并从列表消失；再打开即热装载，不需要重启。
 
-默认开启带来两条硬约束：`catalog/tools.json` 必须把三个工具登记进去；
+默认开启带来两条硬约束：`catalog/tools.json` 必须把四个工具登记进去；
 插件在 Linux 上必须能正常 import 与注册（平台能力在执行期判定，见不变量 1）。
 CI 跑在 Ubuntu 上，装配集与 Windows 本机必须是同一份。
 
-插件不贡献面板、端点、上下文注入与开屏脚本。对外可见面只有三个工具声明与三张工具卡。
+插件不贡献面板、端点、上下文注入与开屏脚本。对外可见面只有工具声明与工具卡。
 
 ## 2. 不变量
 
-1. 工具注册与平台无关：三个工具在任何平台都注册。平台能力在执行期判定，
+1. 工具注册与平台无关：四个工具在任何平台都注册。平台能力在执行期判定，
    不支持时回结构化错误。装配集在 Windows 与 Linux 上必须是同一份。
 2. 坐标只有一个空间：屏幕坐标（Windows 物理像素，macOS 显示点）。截图返回的尺寸、网格刻度、
    鼠标参数、返回值里的光标位置全在这个空间里。平台内部的倍率换算只发生在截图加工，
@@ -36,9 +40,9 @@ CI 跑在 Ubuntu 上，装配集与 Windows 本机必须是同一份。
    不存在需要模型再 `read_image` 的落盘路径，也没有清理动作。
 4. 图片缩放不改变坐标语义：网格刻度写的是屏幕坐标，缩放只改变图片尺寸，
    模型按刻度读数，不需要做换算。
-5. 三类能力各自可关：`eye` / `mouse` / `keyboard` 为 0 时该工具不注册，
+5. 四类能力各自可关：`eye` / `mouse` / `keyboard` / `wait` 为 0 时该工具不注册，
    而不是注册后拒绝调用。
-6. Plan 模式禁止桌面输入，允许截屏。读取桌面不改变任何状态。
+6. Plan 模式禁止桌面输入与移光标，允许截屏与条件等待。读取桌面不改变任何状态。
 7. 输入动作串行：同一进程内鼠标与键盘动作共用一把锁，跨会话也不会交错。
    拖拽中途被另一会话的点击插入会留下按下的键。
 8. 失败必须带可执行的下一步：缺权限说清去哪一栏勾选，平台不支持说清支持哪两个平台，
@@ -51,23 +55,24 @@ CI 跑在 Ubuntu 上，装配集与 Windows 本机必须是同一份。
 
 ```
 plugins/desktop_io/
-  plugin.py                    入口：读配置 → 取后端 → 按开关注册三个工具
+  plugin.py                    入口：读配置 → 取后端 → 按开关注册四个工具
   config.py                    DesktopConfig + load_config()（纯函数，含夹取规则）
   coords.py                    ScreenRect / ScreenPoint / 裁剪与交集（纯函数）
   keys.py                      规范键名、别名归一、组合键校验（纯函数）
   errors.py                    四类异常
   canvas.py                    网格 / 光标 / 缩放 / PNG 编码（Pillow）
-  ports.py                     三个端口协议 + Screenshot / Backend 数据结构
+  ports.py                     端口协议 + Screenshot / WindowInfo / Backend 数据结构
   guard.py                     Plan 模式拒绝
   input_lock.py                输入动作串行锁
   backends/__init__.py         load_backend()：按平台惰性导入；不可用后端
   backends/win32.py            GDI 截图、DPI、虚拟屏、SendInput 鼠标键盘
   backends/macos.py            screencapture、CGEvent、TCC 权限、Retina 倍率
-  tools/__init__.py            三个工具类的统一出口
-  tools/_params.py             参数取值与动作矩阵校验（三个工具共用）
+  tools/__init__.py            四个工具类的统一出口
+  tools/_params.py             参数取值与动作矩阵校验（四个工具共用）
   tools/eye.py                 DesktopEyeTool
   tools/mouse.py               DesktopMouseTool
   tools/keyboard.py            DesktopKeyboardTool
+  tools/wait.py                DesktopWaitTool
   plugin-config.ini.example    [base] + [ext]
 ```
 
@@ -275,11 +280,14 @@ desc = 看屏、动鼠标、敲键盘
 eye = 1
 mouse = 1
 keyboard = 1
+wait = 1
 max_side = 1600
 grid_step = 100
 cursor_mark = 1
 settle_ms = 60
 type_interval_ms = 12
+hover_settle_ms = 250
+wait_interval_ms = 200
 ```
 
 | 键 | 默认 | 范围 | 作用 |
@@ -287,11 +295,14 @@ type_interval_ms = 12
 | `eye` | 1 | 0/1 | 是否注册 `desktop_eye` |
 | `mouse` | 1 | 0/1 | 是否注册 `desktop_mouse` |
 | `keyboard` | 1 | 0/1 | 是否注册 `desktop_keyboard` |
+| `wait` | 1 | 0/1 | 是否注册 `desktop_wait` |
 | `max_side` | 1600 | 0–8192 | 截图长边上限，0 = 不缩放 |
 | `grid_step` | 100 | 20–500 | 网格间距（屏幕坐标） |
 | `cursor_mark` | 1 | 0/1 | 网格图上画光标十字并标坐标 |
 | `settle_ms` | 60 | 0–2000 | 鼠标键盘动作后的停顿，给界面刷新留时间 |
 | `type_interval_ms` | 12 | 0–200 | 逐字输入的字符间隔 |
+| `hover_settle_ms` | 250 | 0–2000 | `hover` 移完光标后等界面展开 |
+| `wait_interval_ms` | 200 | 50–2000 | `desktop_wait` 的默认轮询间隔 |
 
 解析规则（`config.py`，纯函数，无 IO 副作用）：
 
@@ -433,7 +444,7 @@ Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐�
 | 机制 | 位置 | 行为 |
 |---|---|---|
 | Plan 模式 | `guard.py`，`desktop_mouse` / `desktop_keyboard` 的 `execute` 首行 | 抛 `ModeConflict("Plan 模式下禁止桌面输入（可先 run_type 切回 auto / execute）")`；`desktop_mouse action=cursor` 只读，放行 |
-| 能力开关 | `plugin.py` | 三个工具各自按配置注册；关闭即不出现 |
+| 能力开关 | `plugin.py` | 四个工具各自按配置注册；关闭即不出现 |
 | 输入串行 | `input_lock.py` | 鼠标与键盘动作共用 `threading.Lock`，10 秒拿不到抛 `DesktopBusy` |
 | 默认启用 | `plugins.ini` 有节 | 开箱即用；关掉开关即注销工具，清单节保留 |
 | 截屏 | 无额外门控 | 只读，Plan 模式同样可用 |
@@ -479,18 +490,18 @@ Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐�
 
 | 类 | 覆盖 |
 |---|---|
-| `RegistrationTest` | 全开注册三个工具；单开只注册一个；全关注册零个；后端不可用仍注册 |
-| `SchemaTest` | 三个工具的 `name/label/icon/parameters` 与 `catalog` 风格一致（无 `required` 键，参数是属性映射） |
+| `RegistrationTest` | 全开注册四个工具；单开只注册一个；全关注册零个；后端不可用仍注册 |
+| `SchemaTest` | 四个工具的 `name/label/icon/parameters` 与 `catalog` 风格一致（无 `required` 键，参数是属性映射） |
 | `PlanGuardTest` | 假 `live_state` 返回 plan：鼠标键盘抛 `ModeConflict`，截图放行 |
 | `LockTest` | 两个线程同时点击时串行；持锁超时抛 `DesktopBusy` |
-| `UnavailableTest` | 假平台下三个工具都抛 `DesktopUnavailable`，文案含当前平台 |
-| `ManifestTest` | 临时清单 + `PluginHost.load_enabled` 后三个工具在注册表里；卸下后消失 |
+| `UnavailableTest` | 假平台下四个工具都抛 `DesktopUnavailable`，文案含当前平台 |
+| `ManifestTest` | 临时清单 + `PluginHost.load_enabled` 后四个工具在注册表里；卸下后消失 |
 
 测试加载方式：`spec_from_file_location(名称, plugin.py, submodule_search_locations=[插件目录])`，
 与 `PluginHost._load_one` 同形，使插件内部的相对导入可用。该加载器放
 `tests/testkit.py`，两个测试文件共用。
 
-覆盖率：纯逻辑文件（`config` / `coords` / `keys` / `canvas` / 三个工具 / `guard`）
+覆盖率：纯逻辑文件（`config` / `coords` / `keys` / `canvas` / `diff` / 四个工具 / `guard`）
 目标 85% 以上；平台后端在 Linux 不被 import，不计入 CI 覆盖率。
 本机提交前跑一次 `coverage run -m unittest` + `check_coverage.py --print` 核对
 `plugins` 组不低于 60%。
@@ -507,16 +518,16 @@ Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐�
 代码：
 
 - `plugins/desktop_io/` 全部文件、两个测试文件、`tests/testkit.py` 的加载器。
-- 需要改 `catalog/tools.json`：插件进了 `plugins.ini`，装配集包含这三个工具，
+- 需要改 `catalog/tools.json`：插件进了 `plugins.ini`，装配集包含这四个工具，
   提交前运行 `python scripts/gen_catalog.py` 重新生成，再跑 `python scripts/check_catalog.py`。
 
 文档：
 
 | 文件 | 改动 |
 |---|---|
-| `docs/subsystems/desktop-io.md` | 新增：三个工具、坐标约定、配置全表、权限、已知限制 |
+| `docs/subsystems/desktop-io.md` | 新增：四个工具、坐标约定、配置全表、权限、已知限制 |
 | `docs/subsystems/plugins.md` | 内置插件表加一行；启用方式一句话 |
-| `docs/subsystems/tools.md` | 插件工具小节补一句这三个工具的存在 |
+| `docs/subsystems/tools.md` | 插件工具小节补一句这四个工具的存在 |
 | `README.md` | 子系统表加链接；用例数按实际同步 |
 | `docs/plan/desktop-io.md` | 本方案 |
 
@@ -542,15 +553,15 @@ python scripts/ci.py
 |---|---|---|
 | 1 | `config` / `coords` / `keys` / `errors` + 单测 | 三个文件的用例全绿，键码表覆盖校验通过 |
 | 2 | `canvas` + 单测 | 缩放、网格、标签、全黑检测的像素级断言通过 |
-| 3 | `ports` / `guard` / `input_lock` / 三个工具 + 单测 | 动作矩阵与返回值稳定，不 import 任何平台 API |
+| 3 | `ports` / `guard` / `input_lock` / 四个工具 + 单测 | 动作矩阵与返回值稳定，不 import 任何平台 API |
 | 4 | `backends/win32.py` + 假 FFI 单测 | Linux 上单测全绿；本机手动截图与点击可用 |
-| 5 | `plugin.py` + `plugin-config.ini.example` + 注册/Plan/并发单测 + `plugins.ini` 节 + catalog 重生成 | 临时清单与工程清单都注册出三个工具，`check_catalog` 零漂移 |
+| 5 | `plugin.py` + `plugin-config.ini.example` + 注册/Plan/并发单测 + `plugins.ini` 节 + catalog 重生成 | 临时清单与工程清单都注册出四个工具，`check_catalog` 零漂移 |
 | 6 | `backends/macos.py` + 假 FFI 单测 | 换算、双击、flags、权限路径有断言 |
 | 7 | 文档、README 数字、全量门禁、本机手动回归 | `ci.py` 全绿，Windows 闭环通过 |
 
 手动回归（Windows，本机）：
 
-1. 启动服务，设置页打开「桌面操作」开关，确认工具列表出现三个工具。
+1. 启动服务，设置页打开「桌面操作」开关，确认工具列表出现四个工具。
 2. `desktop_eye` 整屏截图，核对网格刻度与光标十字位置。
 3. `desktop_mouse` 用网格坐标点击记事本窗口标题栏。
 4. `desktop_keyboard` 输入中英混排文本，`desktop_eye` 复核屏幕内容。

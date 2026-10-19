@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.tool_call import ToolResult
 
 from ..config import DesktopConfig
 from ..guard import reject_in_plan
@@ -13,7 +14,8 @@ from ..input_lock import input_guard
 from ..keys import canonical as canonical_key
 from ..keys import normalize_hotkey
 from ..ports import Backend
-from ._params import as_int, as_text, choice, reject_unknown, require_range
+from ._capture import CaptureRequest, capture_payload
+from ._params import as_bool, as_int, as_text, choice, reject_unknown, require_range
 from ._windows import WINDOW_FIELDS, focus_target, require_active
 
 _ACTIONS = {
@@ -21,6 +23,8 @@ _ACTIONS = {
     "key": ("key", "repeat"),
     "hotkey": ("keys", "repeat"),
 }
+
+_SHOT_FIELDS = ("shot", "shot_max_side")
 
 
 class DesktopKeyboardTool(ToolPlugin):
@@ -34,6 +38,8 @@ class DesktopKeyboardTool(ToolPlugin):
         "方向键 / f1–f20 / 字母 / 数字 / 符号）；hotkey 按组合键（如 ctrl+c、alt+tab、cmd+space）。"
         "给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再输入，回执带 focus；"
         "置前失败时不会盲打，直接报错，避免字落进别的窗口。"
+        "要给输入后的界面同时拍一张，加 shot=true："
+        "同一调用内完成「打完就截」，省掉一次「再调 desktop_eye」的往返。"
         "Plan 模式下拒绝。"
     )
     parameters = {
@@ -46,6 +52,10 @@ class DesktopKeyboardTool(ToolPlugin):
         "repeat": {"type": "integer", "description": "重复次数 1–20（默认 1）"},
         "window": {"type": "string", "description": "目标窗口标题片段；先置前再输入"},
         "hwnd": {"type": "integer", "description": "目标窗口句柄；与 window 二选一，hwnd 更精确"},
+        "shot": {"type": "boolean",
+                 "description": "动作完成后在本次调用内截图并作为图片附件返回（默认 false）"},
+        "shot_max_side": {"type": "integer",
+                          "description": "shot 的长边上限；缺省取插件配置"},
     }
 
     def __init__(self, backend: Backend, config: DesktopConfig,
@@ -56,7 +66,8 @@ class DesktopKeyboardTool(ToolPlugin):
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
         action = choice(arguments, "action", _ACTIONS)
-        reject_unknown(arguments, set(_ACTIONS[action]) | {"action"} | set(WINDOW_FIELDS),
+        reject_unknown(arguments, set(_ACTIONS[action]) | {"action"}
+                       | set(WINDOW_FIELDS) | set(_SHOT_FIELDS),
                        action=action)
         reject_in_plan(self._live_state, "桌面键盘输入")
 
@@ -86,4 +97,22 @@ class DesktopKeyboardTool(ToolPlugin):
             result["focus"] = focus
         if self._config.settle_ms:
             time.sleep(self._config.settle_ms / 1000.0)
-        return result
+
+        if not as_bool(arguments, "shot", False):
+            return result
+        request = CaptureRequest(
+            window=_optional_text(arguments, "window"),
+            hwnd=as_int(arguments, "hwnd") if arguments.get("hwnd") else None,
+            grid=True,
+            max_side=require_range(
+                as_int(arguments, "shot_max_side", self._config.max_side),
+                "shot_max_side", 0, 8192),
+        )
+        summary, attachments = capture_payload(self._backend, self._config, request)
+        summary["performed"] = result
+        return ToolResult.attach(summary, attachments)
+
+
+def _optional_text(arguments: Dict[str, Any], key: str):
+    value = arguments.get(key)
+    return str(value) if value not in (None, "") else None

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""桌面 IO 插件：眼（截屏）与手（鼠标 / 键盘）三类工具。
+"""桌面 IO 插件：眼（截屏）、手（鼠标 / 键盘）与等待四类工具。
 
 `register(ctx)` 读本插件目录的 `plugin-config.ini`，按平台装配后端并注册工具。
 `[ext]` 里任一能力关闭时对应的工具不注册；后端不可用（无 Pillow、缺辅助功能
@@ -15,26 +15,33 @@ from agent.capabilities.registry import ToolPlugin
 from .backends import load_backend
 from .config import DesktopConfig, load_config
 from .ports import Backend
-from .tools import DesktopEyeTool, DesktopKeyboardTool, DesktopMouseTool
+from .tools import (
+    DesktopEyeTool,
+    DesktopKeyboardTool,
+    DesktopMouseTool,
+    DesktopWaitTool,
+)
 
 PLUGIN_VERSION = "1.0"
 
 
 def build_tools(config: DesktopConfig, backend: Backend,
                 live_state: Any = None) -> List[ToolPlugin]:
-    """按开关装配工具；`live_state` 交给鼠标 / 键盘做 Plan 门控。"""
+    """按开关装配工具；`live_state` 交给会动桌面的工具做 Plan 门控。"""
     tools: List[ToolPlugin] = []
     if config.eye:
-        tools.append(DesktopEyeTool(backend, config))
+        tools.append(DesktopEyeTool(backend, config, live_state))
     if config.mouse:
         tools.append(DesktopMouseTool(backend, config, live_state))
     if config.keyboard:
         tools.append(DesktopKeyboardTool(backend, config, live_state))
+    if config.wait:
+        tools.append(DesktopWaitTool(backend, config))
     return tools
 
 
 def register(ctx: Any) -> List[Any]:
-    """插件入口：注册三个工具，返回它们的 disposer。"""
+    """插件入口：注册四个工具，返回它们的 disposer。"""
     config = load_config()
     backend = load_backend()
 

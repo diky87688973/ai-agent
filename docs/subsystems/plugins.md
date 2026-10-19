@@ -378,7 +378,7 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 | `plugins/skills` | `skill_manage` 工具 + 提交执行器 + 两条注入 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
 | `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.md) |
 | `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.md) |
-| `plugins/desktop_io` | 三个工具（截屏 / 鼠标 / 键盘）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时只报错不消失；见 [desktop-io.md](desktop-io.md) |
+| `plugins/desktop_io` | 四个工具（截屏 / 鼠标 / 键盘 / 等待）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时只报错不消失；见 [desktop-io.md](desktop-io.md) |
 | `plugins/tts` | 只订阅事件 | 最小形态 |
 
 各插件的配置与行为写在各自的子系统文档里，本文只描述它们用到的扩展点。

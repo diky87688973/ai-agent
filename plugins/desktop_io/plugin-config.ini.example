@@ -12,10 +12,11 @@ icon = 🖥
 version = 1.0
 
 [ext]
-; 三个能力各自开关：关掉后对应工具不注册。
+; 四个能力各自开关：关掉后对应工具不注册。
 eye = 1
 mouse = 1
 keyboard = 1
+wait = 1
 ; 发给模型前把长边缩到不超过该像素；0 = 不缩放。
 max_side = 1600
 ; 坐标网格间距（屏幕坐标单位）。
@@ -26,3 +27,7 @@ cursor_mark = 1
 settle_ms = 60
 ; type 每个字符之间的毫秒数。
 type_interval_ms = 12
+; desktop_eye 用 hover 时，移完光标等界面展开的毫秒数。
+hover_settle_ms = 250
+; desktop_wait 的默认轮询间隔（毫秒）。
+wait_interval_ms = 200
