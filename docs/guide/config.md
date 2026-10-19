@@ -12,7 +12,7 @@ cp config.ini.example config.ini
 
 ## `[model_reasoning]`
 
-模型网关。`api_key` 与 `api_base_url` 都必须有值（缺任一项时服务启动即报错退出）；`model` 可缺省，取内置默认值。
+模型网关。`api_key` 与 `api_base_url` 是实际请求所需，但缺任一项时服务仍会启动，并打开 `/setup` 浏览器向导；保存后当前进程立即重建 provider。`model` 可缺省，取内置默认值。
 
 ```ini
 [model_reasoning]
@@ -25,8 +25,8 @@ context_window = 1000000
 
 | 键 | 内置缺省 | 含义 |
 |---|---|---|
-| `api_base_url` | 空 | 网关地址；模板填 `https://api.deepseek.com`。**留空时服务启动失败**（退出码 2）。地址推导见 [llm.md](../subsystems/llm.md) |
-| `api_key` | 空 | 鉴权密钥。**留空时服务启动失败**（壳层装配阶段报错退出，退出码 2）。设置页只回是否已填写，不回明文；密码框留空不改这一项，填了新值才替换 |
+| `api_base_url` | 空 | 网关地址；模板填 `https://api.deepseek.com`。留空时进入 `/setup`，不影响服务启动。地址推导见 [llm.md](../subsystems/llm.md) |
+| `api_key` | 空 | 鉴权密钥。留空时进入 `/setup`，不影响服务启动。设置页只回是否已填写，不回明文；密码框留空不改这一项，填了新值才替换 |
 | `model` | `deepseek-v4-flash-vision-exp` | 默认模型名；配置里给了值就以它为准 |
 | `models` | 空 | 会话内可选的模型名，逗号分隔。留空则只能用 `model` |
 | `context_window` | `1000000` | 该模型的上下文窗口（token）。界面按它算"上下文占用率"；**物理上限**，与 `[context]` 的压缩阈值（预算）不是一回事。换模型时一起改；多模型由插件按条目各自声明 |

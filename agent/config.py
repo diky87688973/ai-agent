@@ -25,6 +25,17 @@ def _clean(value: object) -> str:
     return str(value or "").strip().strip("'\"")
 
 
+_PLACEHOLDER_API_KEYS = (
+    "请替换", "your-api-key", "your_api_key", "sk-xxx", "changeme", "placeholder",
+)
+
+
+def is_placeholder_api_key(value: object) -> bool:
+    """模板里的占位密钥不算已配置，避免把首次启动误判成已配置。"""
+    text = _clean(value).lower()
+    return any(marker in text for marker in _PLACEHOLDER_API_KEYS)
+
+
 def load_ini(path: Optional[Path] = None) -> configparser.ConfigParser:
     """读取 config.ini；文件缺失返回空配置（不抛错）。
 

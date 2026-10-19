@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 cd /d "%~dp0"
 
 echo ============================================
@@ -7,90 +7,81 @@ echo   AI Agent
 echo ============================================
 echo.
 
-rem ---- 1. Python ----
-where python >nul 2>nul
-if errorlevel 1 (
-    echo [ERROR] Python not found.
-    echo         Install Python 3.10+ and check "Add Python to PATH".
-    echo         https://www.python.org/downloads/
+rem ---- 1. Find Python 3.10+ ----
+set "PY="
+for %%C in ("py -3.13" "py -3.12" "py -3.14" "py -3.11" "py -3.10" "py -3.15" "py -3" "python" "python3") do (
+    if not defined PY (
+        %%~C -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
+        if not errorlevel 1 set "PY=%%~C"
+    )
+)
+
+if not defined PY (
+    echo [ERROR] Python 3.10+ not found.
+    echo         Install it from https://www.python.org/downloads/
+    echo         Check "Add python.exe to PATH", then run start.bat again.
     echo.
     pause
     exit /b 1
 )
 
-for /f "tokens=2" %%v in ('python --version 2^>^&1') do set "PYVER=%%v"
-echo [1/3] Python %PYVER%
+for /f "tokens=*" %%V in ('%PY% --version 2^>^&1') do set "PYVER=%%V"
+echo [1/4] %PYVER%  (%PY%)
 
-rem ---- 2. Dependencies ----
-python -c "import openpyxl, PIL" >nul 2>nul
+rem ---- 2. Ensure pip through Python, never bare pip ----
+%PY% -m pip --version >nul 2>&1
 if errorlevel 1 (
-    echo [2/3] Installing dependencies...
-    python -m pip install -e .
+    echo [2/4] pip is missing; trying ensurepip...
+    %PY% -m ensurepip --upgrade
     if errorlevel 1 (
         echo.
-        echo [ERROR] Install failed. Retry manually:
-        echo         python -m pip install -e .
+        echo [ERROR] pip could not be installed. Reinstall Python 3.10+.
+        echo.
+        pause
+        exit /b 1
+    )
+)
+echo [2/4] pip is ready
+
+rem ---- 3. Dependencies ----
+%PY% -c "import openpyxl, PIL" >nul 2>&1
+if errorlevel 1 (
+    echo [3/4] Installing dependencies...
+    %PY% -m pip install -e . -c constraints.txt
+    if errorlevel 1 (
+        echo.
+        echo [ERROR] Dependency install failed. Retry:
+        echo         %PY% -m pip install -e . -c constraints.txt
         echo.
         pause
         exit /b 1
     )
 ) else (
-    echo [2/3] Dependencies OK
+    echo [3/4] Runtime dependencies are ready
 )
 
-rem ---- 3. Config ----
-rem 多模型插件可独立提供模型与凭据；有它就不强制 config.ini 的密钥。
-if exist "plugins\multi_model\plugin-config.ini" goto config_ok
+%PY% -c "import edge_tts" >nul 2>&1
+if errorlevel 1 (
+    echo [3/4] Installing optional speech dependency...
+    %PY% -m pip install -e ".[tts]" -c constraints.txt
+    if errorlevel 1 echo [WARN] edge-tts not installed; AI speech will be unavailable.
+)
 
+rem ---- 4. Browser setup; no key gate ----
 if not exist "config.ini" (
     if exist "config.ini.example" copy "config.ini.example" "config.ini" >nul
-    echo.
-    echo ============================================
-    echo   API key required
-    echo ============================================
-    echo.
-    echo   File: %CD%\config.ini
-    echo.
-    echo   Fill in:
-    echo.
-    echo       [model_reasoning]
-    echo       api_key = your-api-key
-    echo.
-    start "" notepad "config.ini"
-    pause
-    exit /b 1
+    echo [4/4] Created config.ini. Fill the model in the browser setup page.
+) else (
+    echo [4/4] Configuration is handled by the browser setup page.
 )
-
-python -c "import sys;sys.path.insert(0,'.');from agent.config import get_model_reasoning as g;sys.exit(0 if g().get('api_key') else 1)" >nul 2>nul
-if errorlevel 1 (
-    echo.
-    echo ============================================
-    echo   API key not set
-    echo ============================================
-    echo.
-    echo   File: %CD%\config.ini
-    echo.
-    echo   Fill in:
-    echo.
-    echo       [model_reasoning]
-    echo       api_key = your-api-key
-    echo.
-    echo   Or configure a plugin model:
-    echo       plugins\multi_model\plugin-config.ini
-    echo.
-    start "" notepad "config.ini"
-    pause
-    exit /b 1
-)
-
-:config_ok
-echo [3/3] Config OK
 echo.
+
 echo ============================================
 echo   URL:    http://127.0.0.1:8765/
+echo   Setup:  http://127.0.0.1:8765/setup
 echo   Stop:   Ctrl+C
 echo ============================================
 echo.
 
-python -m agent.entry.web --host 127.0.0.1 --port 8765
+%PY% -m agent.entry.web --host 127.0.0.1 --port 8765 --open
 pause

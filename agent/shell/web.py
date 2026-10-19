@@ -14,6 +14,8 @@
 from __future__ import annotations
 
 import sys
+import threading
+import webbrowser
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Tuple
@@ -110,6 +112,7 @@ def serve(
     data_root: Optional[Path] = None,
     media_root: Any = None,
     fs_root: Any = None,
+    open_url: Optional[str] = None,
 ) -> int:
     """在已装配的 app 上启动 Web 壳（阻塞）；Ctrl+C 退出。
 
@@ -129,11 +132,25 @@ def serve(
     )
     print("=== AI Agent Web 壳 ===")
     print(f"主界面   http://{host}:{port}/")
+    if getattr(app, "model_config_state", "") == "none":
+        print(f"设置向导 http://{host}:{port}/setup")
     print(f"事件流   http://{host}:{port}/api/events/stream")
     shown = "；".join(str(r) for r in roots) if roots else "（不限根）"
     print(f"文件根   {shown}")
     print("         （右栏文件查看器 / @ 补全的可见范围；--fs-root 可改，多个用 ; 分隔）")
     print("（Ctrl+C 退出）")
+    if open_url:
+        def _open() -> None:
+            try:
+                if not webbrowser.open(open_url):
+                    print(f"[web] 未能自动打开浏览器，请访问 {open_url}", file=sys.stderr)
+            except Exception as exc:
+                print(f"[web] 打开浏览器失败：{type(exc).__name__}: {exc}；请访问 {open_url}",
+                      file=sys.stderr)
+
+        timer = threading.Timer(0.5, _open)
+        timer.daemon = True
+        timer.start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

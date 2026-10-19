@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AI Agent · 连接模型</title>
+<style>
+:root{color-scheme:dark;--bg:#0f1115;--card:#171a21;--line:#2b303a;--text:#e8edf3;--muted:#8b949e;--accent:#5aa9ff;--danger:#f28b82}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 0%,#1a2230 0,#0f1115 55%);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;padding:28px}
+.card{width:min(560px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:30px 32px;box-shadow:0 24px 70px rgba(0,0,0,.38)}
+h1{font-size:24px;line-height:1.25;margin:0 0 8px}
+p{margin:0 0 16px;color:var(--muted)}
+.badge{display:inline-block;margin-bottom:16px;padding:3px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px}
+label{display:block;margin:14px 0 0;font-size:13px;color:var(--text)}
+input{width:100%;margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#0f1218;color:var(--text);font:inherit;outline:none}
+input:focus{border-color:var(--accent)}
+.hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+button{margin-top:20px;width:100%;padding:11px 14px;border:0;border-radius:9px;background:var(--accent);color:#08111e;font:inherit;font-weight:700;cursor:pointer}
+button:disabled{opacity:.55;cursor:wait}
+details{margin-top:16px;color:var(--muted)}
+summary{cursor:pointer;font-size:13px}
+.msg{min-height:22px;margin-top:14px;color:var(--muted);font-size:13px;word-break:break-word}
+.msg.err{color:var(--danger)}
+.ready{display:none;border-top:1px solid var(--line);margin-top:20px;padding-top:18px}
+.ready a{color:var(--accent)}
+form{display:none}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="badge">AI Agent · 首次设置</div>
+  <h1 id="title">连接你的模型</h1>
+  <p id="subtitle">填一次网关和密钥。保存后立即生效，不需要重启服务。</p>
+  <form id="form">
+    <label for="base">网关地址</label>
+    <input id="base" type="url" autocomplete="url" placeholder="https://api.deepseek.com" required/>
+    <label for="key">API Key</label>
+    <input id="key" type="password" autocomplete="off" placeholder="sk-..." required/>
+    <div class="hint" id="keyHint">只保存在本机 config.ini，不会显示在页面上。</div>
+    <label for="model">模型名</label>
+    <input id="model" type="text" autocomplete="off" placeholder="deepseek-flash"/>
+    <details>
+      <summary>高级：上下文窗口</summary>
+      <label for="window">上下文窗口（token）</label>
+      <input id="window" type="number" min="1" step="1" placeholder="1000000"/>
+    </details>
+    <button id="submit" type="submit">保存并开始</button>
+    <div class="msg" id="msg" role="status"></div>
+  </form>
+  <section class="ready" id="ready">
+    <h1>模型已配置</h1>
+    <p>可以直接进入对话；模型设置已即时生效。</p>
+    <p><a href="/">进入 AI Agent →</a></p>
+  </section>
+  <p class="hint">已经用多模型插件配置了模型？<a href="/?setup=skip">进入界面 → 设置 → 插件</a></p>
+</main>
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id);};
+  var form=$("form"), msg=$("msg"), submit=$("submit");
+  function setMsg(text, error){
+    msg.textContent=text||"";
+    msg.className=error?"msg err":"msg";
+  }
+  function showReady(){
+    $("title").textContent="连接好了";
+    $("subtitle").textContent="设置已保存，无需重启。";
+    form.style.display="none";
+    $("ready").style.display="block";
+  }
+  function fill(data){
+    $("base").value=data.api_base_url||"https://api.deepseek.com";
+    $("model").value=data.model||"deepseek-flash";
+    $("window").value=data.context_window||"";
+    if(data.has_key){
+      $("key").required=false;
+      $("key").placeholder="已配置，留空不修改";
+      $("keyHint").textContent="已保存密钥；留空不会覆盖。";
+    }
+  }
+  fetch("/api/setup").then(function(r){return r.json();}).then(function(data){
+    if(!data.ok){setMsg(data.error||"读取配置失败",true);return;}
+    if(data.configured){showReady();return;}
+    fill(data);
+    form.style.display="block";
+    setMsg("填好后点保存；密钥只写入本机配置文件。");
+  }).catch(function(){setMsg("无法读取设置状态，请刷新页面重试。",true);});
+  form.addEventListener("submit",function(event){
+    event.preventDefault();
+    setMsg("正在保存…");
+    submit.disabled=true;
+    var body={
+      api_base_url:$("base").value.trim(),
+      api_key:$("key").value,
+      model:$("model").value.trim(),
+      context_window:$("window").value.trim()
+    };
+    fetch("/api/setup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+      .then(function(r){return r.json().then(function(data){return {status:r.status,data:data};});})
+      .then(function(result){
+        submit.disabled=false;
+        if(!result.data.ok){setMsg(result.data.error||"保存失败",true);return;}
+        setMsg("保存成功，正在进入…");
+        setTimeout(function(){location.href="/";},250);
+      })
+      .catch(function(){submit.disabled=false;setMsg("保存请求失败，请检查服务是否仍在运行。",true);});
+  });
+})();
+</script>
+</body>
+</html>

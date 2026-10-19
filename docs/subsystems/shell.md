@@ -44,7 +44,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 负责可见根/媒体根/标题与工作目录的落点并阻塞运行。`build_shell_app()` 是入口层的装配函数
 （`agent/entry/web.py`）：按配置建真实 provider 与会话存储——壳层不导入装配根（A2）。
 
-启动时如果缺少模型配置，会打印说明并以退出码 2 结束。
+缺少模型配置不再阻断启动：服务以 `MissingProvider` 起来，入口把浏览器指向 `/setup`；
+向导保存后调用 `app.reload_model_config()` 立即生效。已有插件模型时目录权威接管，直接进入主界面。
 
 ## HTTP 路由
 
@@ -53,6 +54,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | 路径 | 作用 |
 |---|---|
 | `/` | 单页界面 |
+| `/setup` | 首次启动的模型设置向导 |
+| `/api/setup` | 向导状态（不返回密钥明文） |
 | `/health` | 健康检查：工具数、模型、全局默认推理档位、内核、允许的模型列表 |
 | `/favicon.ico` | 站点图标 |
 | `/assets/*` | 静态资源 |
@@ -77,6 +80,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 | 路径 | 作用 |
 |---|---|
+| `/api/setup` | 保存向导字段并热加载模型；保存后无需重启 |
 | `/api/chat/send` | 发起一轮对话。同会话已在跑时返回 **409** |
 | `/api/chat/stop` | 停止当前回合 |
 | `/api/chat/user-confirm` | 提交用户确认（写盘确认与 `user_confirm` 作答共用此端点） |

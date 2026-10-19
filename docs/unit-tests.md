@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1609** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1615** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -30,7 +30,7 @@
 20. [test_context_splice.py](#test_context_splicepy)（9）
 21. [test_core.py](#test_corepy)（56）
 22. [test_edited_files.py](#test_edited_filespy)（1）
-23. [test_entry_layer.py](#test_entry_layerpy)（13）
+23. [test_entry_layer.py](#test_entry_layerpy)（15）
 24. [test_error_log.py](#test_error_logpy)（8）
 25. [test_event_bus.py](#test_event_buspy)（9）
 26. [test_fact_compat.py](#test_fact_compatpy)（4）
@@ -52,35 +52,36 @@
 42. [test_model_provider.py](#test_model_providerpy)（41）
 43. [test_model_window.py](#test_model_windowpy)（9）
 44. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（29）
-45. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-46. [test_plugin_http.py](#test_plugin_httppy)（18）
-47. [test_plugins.py](#test_pluginspy)（28）
-48. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-49. [test_provider_meta.py](#test_provider_metapy)（8）
-50. [test_provider_router.py](#test_provider_routerpy)（14）
-51. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
-52. [test_readonly_tools.py](#test_readonly_toolspy)（25）
-53. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-54. [test_run_registry.py](#test_run_registrypy)（13）
-55. [test_session_context.py](#test_session_contextpy)（22）
-56. [test_session_seq.py](#test_session_seqpy)（23）
-57. [test_session_store.py](#test_session_storepy)（17）
-58. [test_session_tools.py](#test_session_toolspy)（17）
-59. [test_settings_panel.py](#test_settings_panelpy)（17）
-60. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-61. [test_task_tools.py](#test_task_toolspy)（27）
-62. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
-63. [test_tool_registry.py](#test_tool_registrypy)（17）
-64. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-65. [test_usage_metrics.py](#test_usage_metricspy)（7）
-66. [test_version_stamp.py](#test_version_stamppy)（4）
-67. [test_visual_operator.py](#test_visual_operatorpy)（130）
-68. [test_web_frontend.py](#test_web_frontendpy)（5）
-69. [test_web_shell.py](#test_web_shellpy)（50）
-70. [test_web_ui_config.py](#test_web_ui_configpy)（13）
-71. [test_write_gate.py](#test_write_gatepy)（16）
-72. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-73. [test_write_path_tools.py](#test_write_path_toolspy)（30）
+45. [test_onboarding.py](#test_onboardingpy)（4）
+46. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+47. [test_plugin_http.py](#test_plugin_httppy)（18）
+48. [test_plugins.py](#test_pluginspy)（28）
+49. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+50. [test_provider_meta.py](#test_provider_metapy)（8）
+51. [test_provider_router.py](#test_provider_routerpy)（14）
+52. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
+53. [test_readonly_tools.py](#test_readonly_toolspy)（25）
+54. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+55. [test_run_registry.py](#test_run_registrypy)（13）
+56. [test_session_context.py](#test_session_contextpy)（22）
+57. [test_session_seq.py](#test_session_seqpy)（23）
+58. [test_session_store.py](#test_session_storepy)（17）
+59. [test_session_tools.py](#test_session_toolspy)（17）
+60. [test_settings_panel.py](#test_settings_panelpy)（17）
+61. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+62. [test_task_tools.py](#test_task_toolspy)（27）
+63. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+64. [test_tool_registry.py](#test_tool_registrypy)（17）
+65. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+66. [test_usage_metrics.py](#test_usage_metricspy)（7）
+67. [test_version_stamp.py](#test_version_stamppy)（4）
+68. [test_visual_operator.py](#test_visual_operatorpy)（130）
+69. [test_web_frontend.py](#test_web_frontendpy)（5）
+70. [test_web_shell.py](#test_web_shellpy)（50）
+71. [test_web_ui_config.py](#test_web_ui_configpy)（13）
+72. [test_write_gate.py](#test_write_gatepy)（16）
+73. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+74. [test_write_path_tools.py](#test_write_path_toolspy)（30）
 
 ## test_ai_speak_plugin.py
 
@@ -856,23 +857,25 @@
 
 ## test_entry_layer.py
 
-共 13 个用例。
+共 15 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `BuildShellAppTest` | `test_default_data_root_is_used_when_omitted` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：default data root is used when omitted |
 | 2 | `BuildShellAppTest` | `test_given_provider_and_store_are_used` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：given provider and store are used |
-| 3 | `BuildShellAppTest` | `test_missing_config_raises_with_actionable_message` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：missing config raises with actionable message |
-| 4 | `BuildShellAppTest` | `test_provider_is_built_from_config` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：provider is built from config |
-| 5 | `CliEntryTest` | `test_builds_app_with_provider_from_config` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：builds app with provider from config |
-| 6 | `CliEntryTest` | `test_main_delegates_to_chat_main` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：main delegates to chat main |
-| 7 | `CliEntryTest` | `test_missing_config_returns_none` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：missing config returns none |
-| 8 | `HeadlessEntryTest` | `test_main_defaults_to_smoke_text` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main defaults to smoke text |
-| 9 | `HeadlessEntryTest` | `test_main_passes_first_argument_and_uses_factory` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main passes first argument and uses factory |
-| 10 | `HeadlessEntryTest` | `test_run_prints_one_line_per_event` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run prints one line per event |
-| 11 | `WebMainTest` | `test_args_are_forwarded_to_shell_serve` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；配置缺失返回 2」：args are forwarded to shell serve |
-| 12 | `WebMainTest` | `test_config_missing_returns_2` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；配置缺失返回 2」：config missing returns 2 |
-| 13 | `WebMainTest` | `test_empty_fs_root_passes_none` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；配置缺失返回 2」：empty fs root passes none |
+| 3 | `BuildShellAppTest` | `test_missing_config_starts_in_setup_mode` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：missing config starts in setup mode |
+| 4 | `BuildShellAppTest` | `test_placeholder_key_also_starts_in_setup_mode` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：placeholder key also starts in setup mode |
+| 5 | `BuildShellAppTest` | `test_provider_is_built_from_config` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：provider is built from config |
+| 6 | `CliEntryTest` | `test_builds_app_with_provider_from_config` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：builds app with provider from config |
+| 7 | `CliEntryTest` | `test_main_delegates_to_chat_main` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：main delegates to chat main |
+| 8 | `CliEntryTest` | `test_missing_config_returns_none` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：missing config returns none |
+| 9 | `HeadlessEntryTest` | `test_main_defaults_to_smoke_text` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main defaults to smoke text |
+| 10 | `HeadlessEntryTest` | `test_main_passes_first_argument_and_uses_factory` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main passes first argument and uses factory |
+| 11 | `HeadlessEntryTest` | `test_run_prints_one_line_per_event` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run prints one line per event |
+| 12 | `WebMainTest` | `test_args_are_forwarded_to_shell_serve` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：args are forwarded to shell serve |
+| 13 | `WebMainTest` | `test_empty_fs_root_passes_none` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：empty fs root passes none |
+| 14 | `WebMainTest` | `test_open_flag_uses_setup_url_without_model` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：open flag uses setup url without model |
+| 15 | `WebMainTest` | `test_unexpected_build_error_returns_2` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：unexpected build error returns 2 |
 
 ## test_error_log.py
 
@@ -1402,6 +1405,17 @@
 | 27 | `RegisterTest` | `test_catalog_callback_hot_reads_the_file` | 覆盖「A class whose instances are single test cases」：catalog callback hot reads the file |
 | 28 | `RegisterTest` | `test_register_contributes_catalog_route_and_boot_script` | 覆盖「A class whose instances are single test cases」：register contributes catalog route and boot script |
 | 29 | `RegisterTest` | `test_reregister_does_not_duplicate_defaults` | 覆盖「A class whose instances are single test cases」：reregister does not duplicate defaults |
+
+## test_onboarding.py
+
+共 4 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `OnboardingTest` | `test_missing_model_can_start_and_save_without_restart` | 覆盖「A class whose instances are single test cases」：missing model can start and save without restart |
+| 2 | `OnboardingTest` | `test_placeholder_and_empty_key_are_rejected` | 覆盖「A class whose instances are single test cases」：placeholder and empty key are rejected |
+| 3 | `OnboardingTest` | `test_root_redirects_to_setup_when_model_missing` | 覆盖「A class whose instances are single test cases」：root redirects to setup when model missing |
+| 4 | `OnboardingTest` | `test_setup_page_is_shipped` | 覆盖「A class whose instances are single test cases」：setup page is shipped |
 
 ## test_plugin_contributions.py
 

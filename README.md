@@ -25,20 +25,20 @@
 ./start.sh
 ```
 
-脚本依次检查 Python、依赖、配置文件。首次运行会从模板生成 `config.ini` 并打开编辑器，填写 `api_key` 后重新运行。
+脚本自动查找 Python 3.10+，用当前 Python 的 `-m pip` 安装缺失依赖；不需要先在命令行配 key。首次启动会生成 `config.ini` 并自动打开浏览器设置向导。
 
-启动后访问 <http://127.0.0.1:8765/>
+启动后访问 <http://127.0.0.1:8765/>；未配置模型时进入 <http://127.0.0.1:8765/setup>。向导保存后立即生效，不需要重启。
 
 ### 手动启动
 
 ```bash
-pip install -e . -c constraints.txt
-python -m agent.entry.web --host 127.0.0.1 --port 8765
+python3 -m pip install -e ".[tts]" -c constraints.txt
+python3 -m agent.entry.web --host 127.0.0.1 --port 8765 --open
 ```
 
 ## 配置
 
-配置文件为仓库根目录的 `config.ini`，模板是 `config.ini.example`。模板里 `api_base_url` 已填好，通常只需补 `api_key`；两项缺任一，服务启动即报错退出。
+配置文件为仓库根目录的 `config.ini`，模板是 `config.ini.example`。没有密钥也能启动；首次打开 `/setup` 填写网关和密钥，保存后当前进程立即重建模型 provider，不需要重启。已有 `plugins/multi_model/plugin-config.ini` 时也可以直接使用插件模型。
 
 装载哪些插件由仓库根目录的 `plugins.ini` 决定（节在就进入候选）。开关、名字、描述、图标、版本写在各插件 `plugin-config.ini` 的 `[base]`，自己的键在 `[ext]`，见 [插件](docs/subsystems/plugins.md)。
 
@@ -113,7 +113,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1609 个用例）：
+单元测试（1615 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

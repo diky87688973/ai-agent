@@ -2,11 +2,11 @@
 ;
 ; 同目录下的 `config.ini` 为实际配置（不入版本库）；本模板不含密钥。
 ;
-; 缺 `[model_reasoning]` 节里 api_base_url / api_key 这两项时，服务启动报错并指出缺哪项；
-; 其余各节留空即禁用对应功能（config.ini 文件缺失本身不报错，只得到空配置）。
+; 缺 `[model_reasoning]` 节里 api_base_url / api_key 时，服务仍会启动并打开 /setup 向导；
+; 向导保存后立即生效，不需要重启。其余各节留空即禁用对应功能。
 
 [model_reasoning]
-; 推理模型网关（OpenAI 兼容 /chat/completions）。api_base_url / api_key 必填，缺一则无法对话；model 留空取内置默认模型。
+; 推理模型网关（OpenAI 兼容 /chat/completions）。api_base_url / api_key 缺任一项时进入 /setup；model 留空取内置默认模型。
 api_base_url = https://api.deepseek.com
 api_key = sk-请替换
 model = deepseek-flash
