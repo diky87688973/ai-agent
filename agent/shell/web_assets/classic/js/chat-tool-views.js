@@ -714,7 +714,10 @@ pane.textContent=lines.length?lines.join("\n"):"（没有匹配的路径）";
 /* ── 桌面 IO 的详情区 ─────────────────────────────────────────────────────
    `看屏` 与带 `shot=true` 的手部动作，回执里带的是图片附件（`tool_end.images`），
    报文里只有尺寸与窗口信息 —— 不把图铺进详情，用户就只能看到一串坐标。
-   图与动作后的界面同源：同一帧 `images`，与 read_image 用同一套渲染。 */
+   与 `read_image` 完全同构：自定义视图里只有图片与尺寸/来源两行，
+   请求与响应收进「查看报文」按钮后面（由 `attachChatToolPacket` 统一装箱）。
+   这里绝不能自己挂 `请求` / `响应` 两层：一旦出现 `.chat-tool-layer--req/res`，
+   `chatToolShowsRaw` 就为真，装箱逻辑会直接跳过，JSON 便会挤在图片上面。 */
 function chatDesktopData(ev){
 var j=chatToolParsePreview(ev);
 if(!j||typeof j!=="object")return null;
@@ -724,7 +727,7 @@ function chatDesktopWantsShot(o){
 if(chatToolName(o&&o.script)==="desktop_eye")return true;
 var v=argGet(o&&o.args,"shot");
 return v===true||v===1||v==="true"||v==="1";}
-function chatDesktopFillShot(pane,ev,hint){
+function chatDesktopFillShot(pane,ev){
 if(!pane)return;
 pane.textContent="";
 if(chatToolIsFailed(ev)){chatToolPaintFailText(pane);return;}
@@ -736,7 +739,7 @@ var im=images[i];
 if(!im||!im.data_base64)continue;
 var img=document.createElement("img");
 img.className="chat-tool-shot";
-img.alt=hint||"截图";
+img.alt="截图";
 var mime=String(im.mime||"image/png");
 if(mime.indexOf("image/")!==0)mime="image/png";
 img.src="data:"+mime+";base64,"+String(im.data_base64);
@@ -747,37 +750,67 @@ shown=true;
 if(!shown){
 var miss=document.createElement("div");
 miss.className="chat-tool-shot-miss";
-miss.textContent=hint||"（没有可显示的截图）";
+miss.textContent="（没有可显示的图片）";
 pane.appendChild(miss);
+return;
 }
+var lines=chatDesktopShotMeta(ev);
+if(!lines.length)return;
+var meta=document.createElement("div");
+meta.className="chat-tool-shot-meta";
+for(var k=0;k<lines.length;k++){
+var line=document.createElement("div");
+line.className="chat-tool-shot-path";
+line.textContent=lines[k];
+meta.appendChild(line);
 }
-function chatDesktopMount(row,o,cap){
-chatToolViewDefault.mount(row,o);
-if(chatDesktopWantsShot(o))o.chatToolShot=addChatToolLayer(row._body,cap||"截图","shot");
+pane.appendChild(meta);
 }
-function chatDesktopFill(row,o,ev,missHint){
-chatToolViewDefault.fill(row,o,ev);
+/* 图片下面两行，字段顺序照 `read_image`：先尺寸，再来源。 */
+function chatDesktopShotMeta(ev){
+var d=chatDesktopData(ev)||{};
+var lines=[];
+var im=d.image&&typeof d.image==="object"?d.image:null;
+if(im&&im.width>0&&im.height>0){
+lines.push("尺寸: "+Math.round(im.width)+" × "+Math.round(im.height)+" px");
+if(im.sent_width>0&&im.sent_height>0&&
+(im.sent_width!==im.width||im.sent_height!==im.height))
+lines.push("发送: "+im.sent_width+" × "+im.sent_height+" px（缩放 "+
+(Math.round(Number(im.scale||1)*100)/100)+"x）");
+}
+var win=d.window&&typeof d.window==="object"?d.window:null;
+var cap=d.capture&&typeof d.capture==="object"?d.capture:null;
+if(win&&win.hwnd!=null)lines.push("窗口: "+(win.title||"（无标题）")+" (hwnd="+win.hwnd+")");
+else if(cap&&cap.width>0)lines.push("屏幕: ("+cap.x+", "+cap.y+", "+cap.width+"×"+cap.height+")");
+return lines;
+}
+function chatDesktopMount(row,o){
+if(!chatDesktopWantsShot(o))return;
+/* 不挂请求/响应层：报文由 attachChatToolPacket 收进「查看报文」。 */
+o.chatToolShot=addChatToolLayer(row._body,"","shot");
+}
+function chatDesktopFill(row,o,ev){
 var summary=desktopToolSummary(o.script,o.args,chatDesktopData(ev));
 if(summary)chatToolSetSummary(row,summary);
-chatDesktopFillShot(o.chatToolShot,ev,missHint);
+chatDesktopFillShot(o.chatToolShot,ev);
 }
 registerChatToolView({
 match:function(script){return chatToolName(script)==="desktop_eye";},
 summary:function(o){return desktopToolSummary(o.script,o.args,null);},
-mount:function(row,o){chatDesktopMount(row,o,"截图");},
-fill:function(row,o,ev){chatDesktopFill(row,o,ev,"（没有可显示的截图）");}
+mount:function(row,o){chatDesktopMount(row,o);},
+fill:function(row,o,ev){chatDesktopFill(row,o,ev);}
 });
 registerChatToolView({
 match:function(script){return chatToolName(script)==="desktop_mouse";},
 summary:function(o){return desktopToolSummary(o.script,o.args,null);},
-mount:function(row,o){chatDesktopMount(row,o,"动作回执");},
-fill:function(row,o,ev){chatDesktopFill(row,o,ev,"（本次没有回执截图；要回图请给 shot=true）");}
+mount:function(row,o){chatDesktopMount(row,o);},
+fill:function(row,o,ev){chatDesktopFill(row,o,ev);}
 });
 registerChatToolView({
 match:function(script){return chatToolName(script)==="desktop_keyboard";},
 summary:function(o){return desktopToolSummary(o.script,o.args,null);},
-mount:function(row,o){chatDesktopMount(row,o,"动作回执");},
-fill:function(row,o,ev){chatDesktopFill(row,o,ev,"（本次没有回执截图；要回图请给 shot=true）");}
+mount:function(row,o){chatDesktopMount(row,o);},
+fill:function(row,o,ev){chatDesktopFill(row,o,ev);}
 });
 /* 等待类工具没有图片区，但摘要必须从"参数里的秒数"换成"回执里的事实"：
    `desktop_wait` 收尾后是 `画面变化 · 已达成 1.2 秒`，`task_sleep` 仍是请求时长。
