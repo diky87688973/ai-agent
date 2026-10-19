@@ -776,10 +776,13 @@ def build_app(
     )
     app._available_models = list(_available)
     app._error_unbind = _unbind_error
-    _config_ready = (
-        bool(model_cfg["api_key"] and model_cfg["api_base_url"])
-        if config_ready is None else bool(config_ready)
-    )
+    # 显式传入 provider 的装配（测试替身 / 自定义入口）本身就有模型可用；
+    # 只有调用方明确声明 config_ready=False 时才进入设置向导。
+    if config_ready is None:
+        _config_ready = bool(provider is not None) or bool(
+            model_cfg["api_key"] and model_cfg["api_base_url"])
+    else:
+        _config_ready = bool(config_ready)
     app.model_config_state = "config" if _config_ready else "none"
     runner = SessionRunner(
         app=app,

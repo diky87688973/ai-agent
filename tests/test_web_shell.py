@@ -258,10 +258,10 @@ class EndpointTest(_ServerFixture):
         # 首页是经典界面单页：素材内联，原件仍按原名躺在 `web_assets/classic/` 下，
         # 可用 `/assets/classic/...` 直接取到。
         for path, needle in (
-            ("/?setup=skip", "AI Agent"),          # 无模型时显式进入经典 UI
-            ("/?setup=skip", "id=\"chatTabs\""),   # 顶部会话标签栏
-            ("/?setup=skip", "id=\"usage-bottom\""),  # 用量底栏
-            ("/?setup=skip", "global.AIA"),        # 附件链路（image-lightbox）内联在单页里
+            ("/", "AI Agent"),                     # 经典 UI 标题
+            ("/", "id=\"chatTabs\""),              # 顶部会话标签栏
+            ("/", "id=\"usage-bottom\""),          # 用量底栏
+            ("/", "global.AIA"),                   # 附件链路（image-lightbox）内联在单页里
             ("/assets/classic/agent-ui.html", "{{CSS}}"),
             ("/assets/classic/css/theme-light.css", 'html[data-ui-theme="light"]'),
             ("/assets/classic/js/core/boot.js", "normalizeConversationId"),
