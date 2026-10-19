@@ -38,40 +38,63 @@ else
 fi
 
 # ── 3. 检查配置文件 ────────────────────────────
-if [ ! -f config.ini ]; then
-    [ -f config.ini.example ] && cp config.ini.example config.ini
-    echo
-    echo "============================================"
-    echo "  需要填写模型 API Key"
-    echo "============================================"
-    echo
-    echo "  已生成配置文件: $ROOT/config.ini"
-    echo
-    echo "  请填写:"
-    echo
-    echo "      [model_reasoning]"
-    echo "      api_key = sk-请替换"
-    echo
-    exit 1
-fi
+# 多模型插件可以独立提供模型与凭据；有它就不强制内核 config.ini 的密钥。
+if [ -f "plugins/multi_model/plugin-config.ini" ]; then
+    echo "[3/3] 插件模型配置已就绪"
+else
+    if [ ! -f config.ini ]; then
+        [ -f config.ini.example ] && cp config.ini.example config.ini
+        echo
+        echo "============================================"
+        echo "  需要填写模型 API Key"
+        echo "============================================"
+        echo
+        echo "  已生成配置文件: $ROOT/config.ini"
+        echo
+        echo "  请填写 [model_reasoning] 下的 api_base_url / api_key。"
+        echo
+        if command -v open >/dev/null 2>&1; then
+            open -e "$ROOT/config.ini" >/dev/null 2>&1 || true
+        fi
+        exit 1
+    fi
 
-if ! $PY -c "import sys;sys.path.insert(0,'.');from agent.config import get_model_reasoning as g;sys.exit(0 if g().get('api_key') else 1)" >/dev/null 2>&1; then
-    echo
-    echo "============================================"
-    echo "  模型 API Key 未填写"
-    echo "============================================"
-    echo
-    echo "  配置文件: $ROOT/config.ini"
-    echo
-    echo "  请填写:"
-    echo
-    echo "      [model_reasoning]"
-    echo "      api_key = sk-请替换"
-    echo
-    exit 1
-fi
+    if ! "$PY" - "$ROOT/config.ini" <<'PY'
+import sys
 
-echo "[3/3] 配置已就绪"
+from agent.config import get_model_reasoning
+
+try:
+    config = get_model_reasoning(sys.argv[1])
+except Exception as exc:
+    print(f"[错误] 无法读取配置: {type(exc).__name__}: {exc}", file=sys.stderr)
+    raise SystemExit(2)
+missing = [name for name in ("api_base_url", "api_key")
+           if not config.get(name) or config.get(name) == "sk-请替换"]
+if missing:
+    print("[错误] [model_reasoning] 缺少或仍是占位值: " + ", ".join(missing),
+          file=sys.stderr)
+    raise SystemExit(1)
+PY
+    then
+        echo
+        echo "============================================"
+        echo "  模型配置未就绪"
+        echo "============================================"
+        echo
+        echo "  配置文件: $ROOT/config.ini"
+        echo
+        echo "  确认改的是这个文件，并且 [model_reasoning] 下 api_base_url、"
+        echo "  api_key 都有值；已填写仍失败时看上一行的具体错误。"
+        echo
+        if command -v open >/dev/null 2>&1; then
+            open -e "$ROOT/config.ini" >/dev/null 2>&1 || true
+        fi
+        exit 1
+    fi
+
+    echo "[3/3] 配置已就绪"
+fi
 echo
 echo "============================================"
 echo "  服务地址:  http://127.0.0.1:8765/"
