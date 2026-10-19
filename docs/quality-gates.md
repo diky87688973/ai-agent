@@ -46,16 +46,26 @@
 
 ### 2.1 覆盖率（post）
 
-`ci.py` 读取 `coverage run` 产出的 `.coverage`，按顶层包校验 `COVERAGE_FLOORS`。
+`ci.py` 读取 `run_coverage.py` 发布的 `.coverage`，按顶层包校验 `COVERAGE_FLOORS`。
 覆盖率数据的生成方式（CI 在 3.12 矩阵里执行）：
 
 ```bash
-python -m coverage run --branch --source=agent,plugins --omit="*/web_assets/*" \
-  -m unittest discover -s tests -p "test_*.py" -t tests
+python scripts/run_coverage.py        # 跑全量单测并发布 .coverage
 python scripts/check_coverage.py
 ```
 
-没有 `.coverage` 时该步返回 `2`（SKIP），在 CI 输出里可见，不计为通过。
+`run_coverage.py` 把 `coverage run` 的产物先写到 `.coverage.tmp.<pid>`，再持锁
+`os.replace` 成 `.coverage`：读侧只会看到完整的旧文件或完整的新文件，不会读到
+并行采集写了一半的数据。同一份产物的写者与读者通过 `.locks/coverage.lock` 串行。
+
+没有 `.coverage` 时该步返回 `2`（SKIP），在 CI 输出里可见，不计为通过；
+校验期间数据文件被外部进程改写时同样返回 `2`，不拿半份数据出结论。
+
+### 2.2 并行 CI
+
+同一仓库同时只允许一条 `ci.py`：入口先拿 `.locks/ci.lock`（`mkdir` 原子创建），
+被占用时按 `--lock-wait` 秒等待后报错，持有进程被强杀留下的锁按 PID 存活判定回收。
+`--force-lock` 用于确认对方已失联后强拆。锁目录 `.locks/` 不进版本库。
 
 ## 3. 漂移与回退
 

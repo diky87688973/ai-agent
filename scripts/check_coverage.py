@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """分包覆盖率下限校验（X5 / X6）。
 
-读 `.coverage`（`coverage run` 的产物），按顶层包分别算语句覆盖率，
+读 `.coverage`（`run_coverage.py` 发布的产物），按顶层包分别算语句覆盖率，
 与 `scripts/quality_budgets.py` 的 `COVERAGE_FLOORS` 比对。
 
 用法：
     python scripts/check_coverage.py            # 校验（低于下限退出 1）
     python scripts/check_coverage.py --print    # 只打印测得值（确定基线用）
 
-`.coverage` 不存在 / `coverage` 未安装 → 退出码 2（CI 记为 SKIP，可见）。
+`.coverage` 不存在 / `coverage` 未安装 / 数据正在被写入 → 退出码 2（CI 记为 SKIP，可见）。
+校验期间数据文件被改写同样按 SKIP 处理：半份数据不能用来判下限。
 """
 from __future__ import annotations
 
@@ -17,7 +18,11 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from artifact_lock import ArtifactLock, LockBusy  # type: ignore
 from quality_budgets import COVERAGE_FLOORS  # type: ignore
+
+#: 等写者放手的最长时间：超过就按"数据不可用"跳过，不拿半份数据出结论
+LOCK_WAIT_S = 5.0
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -91,19 +96,18 @@ def check(measured: Dict[str, Tuple[int, int]],
     return problems
 
 
-def main() -> int:
+def stamp(data_file: Path) -> Tuple[int, int] | None:
+    """数据文件的 (mtime_ns, size)；不存在时返回 None。"""
     try:
-        measured = measure()
-    except ImportError:
-        print("[SKIP] 未安装 coverage（pip install coverage 后重试）")
-        return 2
-    except Exception as exc:
-        print(f"[SKIP] 读不到 .coverage：{type(exc).__name__}: {exc}")
-        return 2
-    if not measured:
-        print("[SKIP] .coverage 里没有 agent/plugins 的数据")
-        return 2
+        info = data_file.stat()
+    except OSError:
+        # 文件不存在或被别的进程挪走
+        return None
+    return info.st_mtime_ns, info.st_size
 
+
+def report(measured: Dict[str, Tuple[int, int]]) -> None:
+    """打印分包覆盖率表。"""
     print("分包语句覆盖率：")
     for group in sorted(measured):
         statements, missing = measured[group]
@@ -111,6 +115,40 @@ def main() -> int:
         mark = "" if floor is None else f"  下限 {float(floor):.1f}%"
         print(f"  {group:20} {percent(statements, missing):6.1f}%"
               f"（语句 {statements}，未覆盖 {missing}）{mark}")
+
+
+def main() -> int:
+    data_file = ROOT / ".coverage"
+    lock = ArtifactLock(ROOT, "coverage", purpose="check_coverage")
+    try:
+        lock.acquire(wait_s=LOCK_WAIT_S)
+    except LockBusy as exc:
+        print(f"[SKIP] 覆盖率数据正在被写入：{exc}")
+        return 2
+    try:
+        return _check_locked(data_file)
+    finally:
+        lock.release()
+
+
+def _check_locked(data_file: Path) -> int:
+    before = stamp(data_file)
+    try:
+        measured = measure(data_file)
+    except ImportError:
+        print("[SKIP] 未安装 coverage（pip install coverage 后重试）")
+        return 2
+    except Exception as exc:
+        print(f"[SKIP] 读不到 .coverage：{type(exc).__name__}: {exc}")
+        return 2
+    if stamp(data_file) != before:
+        print("[SKIP] .coverage 在校验期间被改写（并发写），本次不出结论")
+        return 2
+    if not measured:
+        print("[SKIP] .coverage 里没有 agent/plugins 的数据")
+        return 2
+
+    report(measured)
 
     if "--print" in sys.argv[1:]:
         return 0

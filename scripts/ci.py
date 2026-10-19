@@ -11,6 +11,9 @@
     python scripts/ci.py --keep-going    # 全跑，最后汇总
     python scripts/ci.py --fast          # 跳过验收脚本
     python scripts/ci.py --list          # 只列出会跑什么
+
+同一仓库同时只允许一条 CI：入口先拿 `.locks/ci.lock`，被占用时按 `--lock-wait`
+等待，确认持有进程已失联后可用 `--force-lock` 强拆。
 """
 from __future__ import annotations
 
@@ -35,7 +38,8 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from ci_steps import SKIPPED, acceptance_skip_problems, catalog  # noqa: E402
+from artifact_lock import ArtifactLock, LockBusy  # noqa: E402
+from ci_steps import SKIPPED, CiStep, acceptance_skip_problems, catalog  # noqa: E402
 
 
 def _data_files() -> set:
@@ -79,6 +83,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--keep-going", action="store_true", help="出错也继续，最后汇总")
     ap.add_argument("--fast", action="store_true", help="跳过验收脚本")
     ap.add_argument("--list", action="store_true", help="只列出会跑什么")
+    ap.add_argument("--lock-wait", type=float, default=60.0,
+                    help="同一仓库已有 CI 在跑时最多等多少秒（默认 60）")
+    ap.add_argument("--force-lock", action="store_true",
+                    help="无视持有进程强拆 CI 锁（确认对方已失联时用）")
     args = ap.parse_args(argv)
 
     steps = catalog(fast=args.fast)
@@ -87,6 +95,21 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {step.label:16} {step.kind:11} {step.script_key}")
         return 0
 
+    # 两条 CI 并行会互抢 .coverage、缓存与临时目录，先拿仓库级锁再开跑
+    lock = ArtifactLock(ROOT, "ci", purpose="ci.py")
+    try:
+        lock.acquire(wait_s=args.lock_wait, force=args.force_lock)
+    except LockBusy as exc:
+        print(f"\n❌ {exc}")
+        print("   同一仓库同时只能跑一条 CI；确认对方已退出后可用 --force-lock 强拆。")
+        return 1
+    try:
+        return _run_steps(args, steps)
+    finally:
+        lock.release()
+
+
+def _run_steps(args: argparse.Namespace, steps: list[CiStep]) -> int:
     _prepare_data_root()
     print(f"=== 校验开始（{len(steps)} 步）===")
     data_before = _data_files()

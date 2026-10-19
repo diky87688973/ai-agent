@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1501** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1517** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -12,71 +12,72 @@
 2. [test_app_context.py](#test_app_contextpy)（11）
 3. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
 4. [test_architecture_hygiene.py](#test_architecture_hygienepy)（11）
-5. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
-6. [test_batch_f_tools.py](#test_batch_f_toolspy)（25）
-7. [test_catalog.py](#test_catalogpy)（8）
-8. [test_chat_shell.py](#test_chat_shellpy)（16）
-9. [test_classic_adapter.py](#test_classic_adapterpy)（98）
-10. [test_command_tools.py](#test_command_toolspy)（30）
-11. [test_concurrency.py](#test_concurrencypy)（10）
-12. [test_context_assembly.py](#test_context_assemblypy)（184）
-13. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
-14. [test_context_pipeline.py](#test_context_pipelinepy)（19）
-15. [test_context_plumbing.py](#test_context_plumbingpy)（5）
-16. [test_context_splice.py](#test_context_splicepy)（9）
-17. [test_core.py](#test_corepy)（56）
-18. [test_desktop_io.py](#test_desktop_iopy)（103）
-19. [test_edited_files.py](#test_edited_filespy)（1）
-20. [test_entry_layer.py](#test_entry_layerpy)（13）
-21. [test_error_log.py](#test_error_logpy)（8）
-22. [test_event_bus.py](#test_event_buspy)（9）
-23. [test_fact_compat.py](#test_fact_compatpy)（4）
-24. [test_file_safety.py](#test_file_safetypy)（24）
-25. [test_file_size_format.py](#test_file_size_formatpy)（4）
-26. [test_four_step_gate.py](#test_four_step_gatepy)（7）
-27. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-28. [test_gate_negative.py](#test_gate_negativepy)（64）
-29. [test_goal_runner.py](#test_goal_runnerpy)（6）
-30. [test_image_embed.py](#test_image_embedpy)（10）
-31. [test_image_tool.py](#test_image_toolpy)（23）
-32. [test_image_turns.py](#test_image_turnspy)（23）
-33. [test_import_graph.py](#test_import_graphpy)（5）
-34. [test_invest_tools.py](#test_invest_toolspy)（24）
-35. [test_kb_plugin.py](#test_kb_pluginpy)（49）
-36. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-37. [test_mode_note.py](#test_mode_notepy)（12）
-38. [test_model_catalog.py](#test_model_catalogpy)（23）
-39. [test_model_provider.py](#test_model_providerpy)（41）
-40. [test_model_window.py](#test_model_windowpy)（9）
-41. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（26）
-42. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-43. [test_plugin_http.py](#test_plugin_httppy)（18）
-44. [test_plugins.py](#test_pluginspy)（28）
-45. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-46. [test_provider_meta.py](#test_provider_metapy)（8）
-47. [test_provider_router.py](#test_provider_routerpy)（14）
-48. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
-49. [test_readonly_tools.py](#test_readonly_toolspy)（25）
-50. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-51. [test_run_registry.py](#test_run_registrypy)（13）
-52. [test_session_context.py](#test_session_contextpy)（22）
-53. [test_session_seq.py](#test_session_seqpy)（23）
-54. [test_session_store.py](#test_session_storepy)（17）
-55. [test_session_tools.py](#test_session_toolspy)（17）
-56. [test_settings_panel.py](#test_settings_panelpy)（17）
-57. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-58. [test_task_tools.py](#test_task_toolspy)（27）
-59. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
-60. [test_tool_registry.py](#test_tool_registrypy)（17）
-61. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-62. [test_usage_metrics.py](#test_usage_metricspy)（7）
-63. [test_version_stamp.py](#test_version_stamppy)（4）
-64. [test_web_frontend.py](#test_web_frontendpy)（5）
-65. [test_web_shell.py](#test_web_shellpy)（50）
-66. [test_web_ui_config.py](#test_web_ui_configpy)（4）
-67. [test_write_gate.py](#test_write_gatepy)（16）
-68. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-69. [test_write_path_tools.py](#test_write_path_toolspy)（30）
+5. [test_artifact_lock.py](#test_artifact_lockpy)（16）
+6. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
+7. [test_batch_f_tools.py](#test_batch_f_toolspy)（25）
+8. [test_catalog.py](#test_catalogpy)（8）
+9. [test_chat_shell.py](#test_chat_shellpy)（16）
+10. [test_classic_adapter.py](#test_classic_adapterpy)（98）
+11. [test_command_tools.py](#test_command_toolspy)（30）
+12. [test_concurrency.py](#test_concurrencypy)（10）
+13. [test_context_assembly.py](#test_context_assemblypy)（184）
+14. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
+15. [test_context_pipeline.py](#test_context_pipelinepy)（19）
+16. [test_context_plumbing.py](#test_context_plumbingpy)（5）
+17. [test_context_splice.py](#test_context_splicepy)（9）
+18. [test_core.py](#test_corepy)（56）
+19. [test_desktop_io.py](#test_desktop_iopy)（103）
+20. [test_edited_files.py](#test_edited_filespy)（1）
+21. [test_entry_layer.py](#test_entry_layerpy)（13）
+22. [test_error_log.py](#test_error_logpy)（8）
+23. [test_event_bus.py](#test_event_buspy)（9）
+24. [test_fact_compat.py](#test_fact_compatpy)（4）
+25. [test_file_safety.py](#test_file_safetypy)（24）
+26. [test_file_size_format.py](#test_file_size_formatpy)（4）
+27. [test_four_step_gate.py](#test_four_step_gatepy)（7）
+28. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+29. [test_gate_negative.py](#test_gate_negativepy)（64）
+30. [test_goal_runner.py](#test_goal_runnerpy)（6）
+31. [test_image_embed.py](#test_image_embedpy)（10）
+32. [test_image_tool.py](#test_image_toolpy)（23）
+33. [test_image_turns.py](#test_image_turnspy)（23）
+34. [test_import_graph.py](#test_import_graphpy)（5）
+35. [test_invest_tools.py](#test_invest_toolspy)（24）
+36. [test_kb_plugin.py](#test_kb_pluginpy)（49）
+37. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+38. [test_mode_note.py](#test_mode_notepy)（12）
+39. [test_model_catalog.py](#test_model_catalogpy)（23）
+40. [test_model_provider.py](#test_model_providerpy)（41）
+41. [test_model_window.py](#test_model_windowpy)（9）
+42. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（26）
+43. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+44. [test_plugin_http.py](#test_plugin_httppy)（18）
+45. [test_plugins.py](#test_pluginspy)（28）
+46. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+47. [test_provider_meta.py](#test_provider_metapy)（8）
+48. [test_provider_router.py](#test_provider_routerpy)（14）
+49. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
+50. [test_readonly_tools.py](#test_readonly_toolspy)（25）
+51. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+52. [test_run_registry.py](#test_run_registrypy)（13）
+53. [test_session_context.py](#test_session_contextpy)（22）
+54. [test_session_seq.py](#test_session_seqpy)（23）
+55. [test_session_store.py](#test_session_storepy)（17）
+56. [test_session_tools.py](#test_session_toolspy)（17）
+57. [test_settings_panel.py](#test_settings_panelpy)（17）
+58. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+59. [test_task_tools.py](#test_task_toolspy)（27）
+60. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+61. [test_tool_registry.py](#test_tool_registrypy)（17）
+62. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+63. [test_usage_metrics.py](#test_usage_metricspy)（7）
+64. [test_version_stamp.py](#test_version_stamppy)（4）
+65. [test_web_frontend.py](#test_web_frontendpy)（5）
+66. [test_web_shell.py](#test_web_shellpy)（50）
+67. [test_web_ui_config.py](#test_web_ui_configpy)（4）
+68. [test_write_gate.py](#test_write_gatepy)（16）
+69. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+70. [test_write_path_tools.py](#test_write_path_toolspy)（30）
 
 ## test_anthropic_provider.py
 
@@ -171,6 +172,29 @@
 | 9 | `GateSinglePathAstTest` | `test_unregister_write_path_keys_import_alias` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：unregister write path keys import alias |
 | 10 | `QualityGateShimAstTest` | `test_comment_mention_passes` | 覆盖「A class whose instances are single test cases」：comment mention passes |
 | 11 | `QualityGateShimAstTest` | `test_import_quality_gate_caught` | 覆盖「A class whose instances are single test cases」：import quality gate caught |
+
+## test_artifact_lock.py
+
+共 16 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ArtifactLockTest` | `test_acquire_records_holder` | 覆盖「锁的互斥、回收与释放语义」：acquire records holder |
+| 2 | `ArtifactLockTest` | `test_force_breaks_live_holder` | 覆盖「锁的互斥、回收与释放语义」：force breaks live holder |
+| 3 | `ArtifactLockTest` | `test_half_written_lock_holds_until_grace_period` | 覆盖「锁的互斥、回收与释放语义」：half written lock holds until grace period |
+| 4 | `ArtifactLockTest` | `test_half_written_lock_is_reclaimed_after_grace_period` | 覆盖「锁的互斥、回收与释放语义」：half written lock is reclaimed after grace period |
+| 5 | `ArtifactLockTest` | `test_holder_with_dead_pid_is_reclaimed` | 覆盖「锁的互斥、回收与释放语义」：holder with dead pid is reclaimed |
+| 6 | `ArtifactLockTest` | `test_parse_holder_rejects_garbage` | 覆盖「锁的互斥、回收与释放语义」：parse holder rejects garbage |
+| 7 | `ArtifactLockTest` | `test_release_frees_lock_for_next_owner` | 覆盖「锁的互斥、回收与释放语义」：release frees lock for next owner |
+| 8 | `ArtifactLockTest` | `test_release_is_idempotent` | 覆盖「锁的互斥、回收与释放语义」：release is idempotent |
+| 9 | `ArtifactLockTest` | `test_release_keeps_foreign_lock` | 覆盖「锁的互斥、回收与释放语义」：release keeps foreign lock |
+| 10 | `ArtifactLockTest` | `test_second_owner_is_rejected_with_holder_info` | 覆盖「锁的互斥、回收与释放语义」：second owner is rejected with holder info |
+| 11 | `ArtifactLockTest` | `test_wait_succeeds_after_holder_releases` | 覆盖「锁的互斥、回收与释放语义」：wait succeeds after holder releases |
+| 12 | `CoverageBusyTest` | `test_check_locked_skips_when_data_changes_during_measure` | 覆盖「有写者持锁时，覆盖率校验必须跳过而不是拿半份数据判失败」：check locked skips when data changes during measure |
+| 13 | `CoverageBusyTest` | `test_main_skips_when_writer_holds_lock` | 覆盖「有写者持锁时，覆盖率校验必须跳过而不是拿半份数据判失败」：main skips when writer holds lock |
+| 14 | `CoverageBusyTest` | `test_stamp_is_none_for_missing_file` | 覆盖「有写者持锁时，覆盖率校验必须跳过而不是拿半份数据判失败」：stamp is none for missing file |
+| 15 | `CoveragePublishTest` | `test_build_command_writes_unique_data_file` | 覆盖「覆盖率数据先落独立文件再发布，读侧不会读到半份数据」：build command writes unique data file |
+| 16 | `CoveragePublishTest` | `test_publish_replaces_target` | 覆盖「覆盖率数据先落独立文件再发布，读侧不会读到半份数据」：publish replaces target |
 
 ## test_attachments_autonomy.py
 

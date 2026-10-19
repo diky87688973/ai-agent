@@ -503,7 +503,7 @@ Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐�
 
 覆盖率：纯逻辑文件（`config` / `coords` / `keys` / `canvas` / `diff` / 四个工具 / `guard`）
 目标 85% 以上；平台后端在 Linux 不被 import，不计入 CI 覆盖率。
-本机提交前跑一次 `coverage run -m unittest` + `check_coverage.py --print` 核对
+本机提交前跑一次 `python scripts/run_coverage.py --print` 核对
 `plugins` 组不低于 60%。
 
 平台后端的验证分两层：

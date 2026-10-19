@@ -117,12 +117,12 @@ _TAIL = """      - name: 验收 skip 预算
 
       # 覆盖率只在 3.12 矩阵跑一遍，避免双倍单测墙钟。
       # 下限按顶层包分开登记在 scripts/quality_budgets.py，缺数据/低于下限都会失败。
+      # 数据由 scripts/run_coverage.py 先写独立文件、再原子发布，并行采集不会留下半份数据。
       - name: 覆盖率（分包下限）
         if: matrix.python-version == '3.12'
         timeout-minutes: 20
         run: |
-          python -m coverage run --branch --source=agent,plugins --omit="*/web_assets/*" \\
-            -m unittest discover -s tests -p "test_*.py" -t tests
+          python -u scripts/run_coverage.py
           python -u scripts/check_coverage.py
           python -m coverage html -d coverage_html
       - name: 上传覆盖率报告
