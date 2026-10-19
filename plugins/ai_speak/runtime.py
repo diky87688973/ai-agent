@@ -26,9 +26,11 @@ from .provider import (
 
 PLUGIN_NAME = "ai_speak"
 MAX_PENDING_SEGMENTS = 1024
+MAX_PLAYBACK_WAITERS = 64
 STOP_JOIN_SECONDS = 3.0
 
 Publisher = Callable[[str, str, Dict[str, Any]], int]
+CancelCheck = Callable[[], bool]
 
 
 class SpeechBusy(SpeechError):
@@ -38,6 +40,69 @@ class SpeechBusy(SpeechError):
         self.queued = int(queued)
         self.limit = int(limit)
         super().__init__(f"待合成语音过多（{self.queued}/{self.limit}），稍后再试")
+
+
+class SpeechPlaybackFailed(SpeechError):
+    """同步播放没有完成：停止、错误、丢帧或超时。"""
+
+    def __init__(self, status: str, waited_ms: int = 0) -> None:
+        self.status = str(status or "failed")
+        self.waited_ms = max(0, int(waited_ms))
+        message = {
+            "stopped": "播放被用户中止",
+            "error": "前端播放失败",
+            "dropped": "音频没有送达前端",
+            "timeout": "等待前端播放超时",
+        }.get(self.status, f"播放未完成（{self.status}）")
+        super().__init__(message)
+
+
+class PlaybackWaiter:
+    """一次 ai_speak 调用的播放完成等待。"""
+
+    def __init__(self, conversation_id: str, call_id: str) -> None:
+        self.conversation_id = str(conversation_id or "")
+        self.call_id = str(call_id or "")
+        self._event = threading.Event()
+        self._lock = threading.Lock()
+        self._status: Optional[str] = None
+        self._started_at = time.monotonic()
+
+    @property
+    def status(self) -> Optional[str]:
+        with self._lock:
+            return self._status
+
+    @property
+    def waited_ms(self) -> int:
+        return max(0, int((time.monotonic() - self._started_at) * 1000))
+
+    def resolve(self, status: str) -> str:
+        """首次结果生效；重复 ack 不会覆盖已完成的播放结果。"""
+        value = str(status or "error")
+        with self._lock:
+            if self._status is None:
+                self._status = value
+                self._event.set()
+            return self._status
+
+    def wait(self, timeout_s: float, canceled: Optional[CancelCheck] = None) -> str:
+        """等 ack；取消检查会把它收成 stopped，超时收成 timeout。"""
+        deadline = time.monotonic() + max(0.0, float(timeout_s))
+        while True:
+            if self._event.wait(0.05):
+                return self.status or "timeout"
+            if canceled is not None:
+                try:
+                    if canceled():
+                        return self.resolve("stopped")
+                except Exception as exc:
+                    report_error(
+                        "plugin.ai_speak.cancel_check", exc, plugin=PLUGIN_NAME,
+                        conversation_id=self.conversation_id,
+                    )
+            if time.monotonic() >= deadline:
+                return self.resolve("timeout")
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,15 +240,21 @@ class _SessionWorker:
                         )
                     except SpeechSynthesisError as exc:
                         self._runtime._mark_failed(self._cid, exc)
+                        self._runtime._finish_playback(
+                            job.conversation_id, job.call_id, "error")
                         self._publish_raw(publisher, "error", self._error_payload(job, exc))
                         continue
                     except SpeechEngineUnavailable as exc:
                         self._runtime._mark_failed(self._cid, exc)
+                        self._runtime._finish_playback(
+                            job.conversation_id, job.call_id, "error")
                         self._publish_raw(publisher, "error", self._error_payload(job, exc))
                         self._stop.set()
                         return
                     except Exception as exc:
                         self._runtime._mark_failed(self._cid, exc)
+                        self._runtime._finish_playback(
+                            job.conversation_id, job.call_id, "error")
                         self._publish_raw(publisher, "error", self._error_payload(job, exc))
                         continue
 
@@ -194,6 +265,8 @@ class _SessionWorker:
                     )
                     if delivered <= 0:
                         self._runtime._mark_dropped(self._cid)
+                        self._runtime._finish_playback(
+                            job.conversation_id, job.call_id, "dropped")
                         self._stop.set()
                         self._reason = "no_sse_channel"
                         return
@@ -228,7 +301,9 @@ class AISpeakRuntime:
         self._synthesis_timeout_s = float(synthesis_timeout_s)
         self._lock = threading.Lock()
         self._stats_lock = threading.Lock()
+        self._playback_lock = threading.Lock()
         self._workers: Dict[str, _SessionWorker] = {}
+        self._playback: Dict[Tuple[str, str], PlaybackWaiter] = {}
         self._stats: Dict[str, Dict[str, int]] = {}
         self._totals = {"queued": 0, "spoken": 0, "failed": 0, "dropped": 0}
         self._last_error: Optional[Dict[str, str]] = None
@@ -302,12 +377,88 @@ class AISpeakRuntime:
                 raise
         return len(jobs)
 
+    # ── 播放完成等待 ──
+
+    def begin_playback(self, conversation_id: str, call_id: str) -> PlaybackWaiter:
+        """登记一次播放等待；必须在 enqueue 之前调用，避免 ack 先到。"""
+        cid = str(conversation_id or "").strip()
+        call = str(call_id or "").strip()
+        if not cid or not call:
+            raise ValueError("同步播放需要 conversation_id 与 call_id")
+        with self._playback_lock:
+            if self._disposed:
+                raise SpeechEngineUnavailable("语音插件已卸载")
+            key = (cid, call)
+            existing = self._playback.get(key)
+            if existing is not None:
+                return existing
+            if len(self._playback) >= MAX_PLAYBACK_WAITERS:
+                oldest_key = max(
+                    self._playback,
+                    key=lambda item: self._playback[item].waited_ms,
+                )
+                self._playback.pop(oldest_key).resolve("dropped")
+            waiter = PlaybackWaiter(cid, call)
+            self._playback[key] = waiter
+            return waiter
+
+    def ack_playback(self, conversation_id: str, call_id: str, status: str) -> bool:
+        """前端 ack；未知/已完成的调用返回 False，不影响播放器。"""
+        call = str(call_id or "").strip()
+        if not call:
+            return False
+        value = str(status or "error").strip().lower()
+        if value not in ("played", "stopped", "error", "incomplete"):
+            value = "error"
+        cid = str(conversation_id or "").strip()
+        with self._playback_lock:
+            key = (cid, call)
+            waiter = self._playback.pop(key, None)
+            if waiter is None and not cid:
+                matches = [item for item in self._playback if item[1] == call]
+                if len(matches) == 1:
+                    waiter = self._playback.pop(matches[0])
+            if waiter is not None:
+                waiter.resolve("dropped" if value == "incomplete" else value)
+                return True
+        return False
+
+    def forget_playback(self, conversation_id: str, call_id: str) -> None:
+        """工具结束等待后清理登记；ack 已经先到时是空操作。"""
+        with self._playback_lock:
+            self._playback.pop((str(conversation_id or ""), str(call_id or "")), None)
+
+    def _finish_playback(self, conversation_id: str, call_id: str, status: str) -> None:
+        """worker 侧失败信号：合成错误、无连接或丢段。"""
+        with self._playback_lock:
+            waiter = self._playback.pop(
+                (str(conversation_id or ""), str(call_id or "")), None
+            )
+        if waiter is not None:
+            waiter.resolve(status)
+
+    def _resolve_playback_cid(self, conversation_id: str, status: str) -> None:
+        cid = str(conversation_id or "")
+        with self._playback_lock:
+            keys = [key for key in self._playback if key[0] == cid]
+            waiters = [self._playback.pop(key) for key in keys]
+        for waiter in waiters:
+            waiter.resolve(status)
+
+    def _resolve_all_playback(self, status: str) -> None:
+        with self._playback_lock:
+            waiters = list(self._playback.values())
+            self._playback.clear()
+        for waiter in waiters:
+            waiter.resolve(status)
+
     # ── 停止 ──
 
     def stop_cid(self, conversation_id: str, reason: str = "stopped") -> None:
         cid = str(conversation_id or "").strip()
         if not cid:
             return
+        self._resolve_playback_cid(cid, "stopped")
         with self._lock:
             worker = self._workers.pop(cid, None)
         if worker is None:
@@ -323,6 +474,7 @@ class AISpeakRuntime:
             self._disposed = True
             workers = list(self._workers.values())
             self._workers.clear()
+        self._resolve_all_playback("stopped")
         for worker in workers:
             worker.stop("plugin_unloaded")
             worker.publish_stop()
@@ -391,12 +543,16 @@ class AISpeakRuntime:
             ]
             totals = dict(self._totals)
             last_error = dict(self._last_error) if self._last_error else None
+        with self._playback_lock:
+            playback_waiting = len(self._playback)
         return {
             "engine": self._config.engine,
             "engine_ready": self.provider_ready(),
             "voice": self._config.voice,
             "max_segment_chars": self._config.max_segment_chars,
             "play_interval_ms": self._config.play_interval_ms,
+            "sync_playback": self._config.sync_playback,
+            "playback_waiting": playback_waiting,
             "sessions": sessions,
             "totals": totals,
             "last_error": last_error,

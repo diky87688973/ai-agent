@@ -61,11 +61,30 @@ def _config_payload(runtime: AISpeakRuntime) -> Any:
         "voice": config.voice,
         "max_segment_chars": config.max_segment_chars,
         "play_interval_ms": config.play_interval_ms,
+        "sync_playback": config.sync_playback,
     }
 
 
 def _status_payload(runtime: AISpeakRuntime) -> Any:
     return 200, {"ok": True, **runtime.status()}
+
+
+def _played_handler(runtime: AISpeakRuntime) -> Callable[[dict], Any]:
+    def _handler(args: dict) -> Any:
+        body = args.get("body") if isinstance(args, dict) else None
+        payload = body if isinstance(body, dict) else {}
+        cid = str(payload.get("conversation_id")
+                  or args.get("conversation_id") or "")
+        call_id = str(payload.get("call_id") or "").strip()
+        status = str(payload.get("status") or "played").strip().lower()
+        if not call_id:
+            return 400, {"ok": False, "error": "缺少 call_id"}
+        if status not in ("played", "stopped", "error", "incomplete"):
+            return 400, {"ok": False, "error": "未知播放状态"}
+        matched = runtime.ack_playback(cid, call_id, status)
+        return 200, {"ok": True, "matched": matched}
+
+    return _handler
 
 
 def register(ctx: Any) -> List[Callable[[], None]]:
@@ -80,6 +99,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         disposers.append(ctx.add_boot_script("ui/tool-view.js"))
         disposers.append(ctx.add_route("GET", "config", lambda _query: _config_payload(runtime)))
         disposers.append(ctx.add_route("GET", "status", lambda _query: _status_payload(runtime)))
+        disposers.append(ctx.add_route("POST", "played", _played_handler(runtime)))
         disposers.append(ctx.subscribe(ev.TURN_ENDED, _turn_handler(runtime)))
         disposers.append(ctx.subscribe(ev.ERROR, _error_handler(runtime)))
         ctx.set_runtime(runtime)

@@ -33,8 +33,8 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "summary_token_threshold": "700000",
         "full_user_rounds": "1",
         "summary_output_max_chars": "5000",
-        "image_turns": "999999",
-        "image_max": "999999",
+        "image_turns": "1",
+        "image_max": "8",
         "reasoning_replay_tokens": "8000",
     },
 }

@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import io
 import sys
@@ -95,6 +96,36 @@ class Recorder:
             self.calls.append((name,) + args + tuple(kwargs.values()))
             return self._returns.get(name)
         return call
+
+
+class TrackingMouse:
+    """记录移动并更新真实落点的鼠标替身。"""
+
+    def __init__(self, cursor: ScreenPoint) -> None:
+        self.current = cursor
+        self.calls = []
+
+    def cursor(self) -> ScreenPoint:
+        return self.current
+
+    def move(self, point: ScreenPoint, duration_ms: int) -> None:
+        self.calls.append(("move", point, duration_ms))
+        self.current = point
+
+
+class WarpingMouse(TrackingMouse):
+    """模拟目标窗口在落点把光标抢偏一次。"""
+
+    def __init__(self, cursor: ScreenPoint, target: ScreenPoint) -> None:
+        super().__init__(cursor)
+        self.target = target
+        self.warped = False
+
+    def move(self, point: ScreenPoint, duration_ms: int) -> None:
+        super().move(point, duration_ms)
+        if point == self.target and not self.warped:
+            self.warped = True
+            self.current = ScreenPoint(point.x, point.y - 2)
 
 
 class LiveState:
@@ -265,8 +296,43 @@ class CanvasTest(unittest.TestCase):
                                  cursor_mark=True, max_side=0)
         from PIL import Image
         image = Image.open(io.BytesIO(rendered.png))
-        self.assertNotEqual(image.getpixel((400, 100)), (255, 255, 255))
+        self.assertNotEqual(image.getpixel((400, 280)), (255, 255, 255))
+        self.assertEqual(image.getpixel((400, 100)), (255, 255, 255),
+                         msg="短十字不应铺满整张图")
         self.assertEqual(image.getpixel((200, 100)), (255, 255, 255))
+
+    def test_cursor_crosshair_is_wide_and_labelled(self) -> None:
+        rendered = canvas.render(_png(400, 300, (255, 255, 255)),
+                                 rect=ScreenRect(0, 0, 400, 300), grid=False,
+                                 step=100, cursor=ScreenPoint(200, 150),
+                                 cursor_mark=True, max_side=0)
+        from PIL import Image
+        image = Image.open(io.BytesIO(rendered.png))
+        white = (255, 255, 255)
+        self.assertNotEqual(image.getpixel((199, 130)), white,
+                            msg="短十字仍只有一像素，缩图后会消失")
+        self.assertNotEqual(image.getpixel((220, 140)), white,
+                            msg="光标标签没有深色底框")
+
+    def test_tiny_area_hides_cursor_label(self) -> None:
+        self.assertFalse(canvas.cursor_label_visible(60, 38))
+        self.assertFalse(canvas.cursor_label_visible(70, 53))
+        self.assertTrue(canvas.cursor_label_visible(120, 120))
+
+    def test_cursor_font_screen_size_is_scale_consistent(self) -> None:
+        full = canvas.cursor_font_size(1400, 764, 1.3829) * 1.3829
+        shrunk = canvas.cursor_font_size(800, 436, 2.42) * 2.42
+        self.assertLess(max(full, shrunk) / min(full, shrunk), 1.05)
+
+    def test_cursor_center_pixel_stays_visible(self) -> None:
+        rendered = canvas.render(_png(400, 300, (0, 180, 0)),
+                                 rect=ScreenRect(0, 0, 400, 300), grid=False,
+                                 step=100, cursor=ScreenPoint(200, 150),
+                                 cursor_mark=True, max_side=0)
+        from PIL import Image
+        image = Image.open(io.BytesIO(rendered.png))
+        self.assertEqual(image.getpixel((200, 150)), (0, 180, 0),
+                         msg="中心留空后，落点像素应保持原样")
 
     def test_grid_and_cursor_change_pixels(self) -> None:
         rect = ScreenRect(100, 200, 400, 300)
@@ -297,6 +363,34 @@ class EyeToolTest(unittest.TestCase):
     def setUp(self) -> None:
         self.config = DesktopConfig(settle_ms=0)
 
+    def test_description_names_the_guide_lines(self) -> None:
+        self.assertIn("CURSOR", DesktopEyeTool.description)
+        self.assertIn("辅助线", DesktopEyeTool.description)
+
+    def test_annotate_both_returns_annotated_then_raw(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend()
+        result = DesktopEyeTool(backend, self.config).execute({"annotate": "both"})
+        self.assertEqual(result.data["annotate"], "both")
+        self.assertEqual(result.data["attachment_order"], ["annotated", "raw"])
+        self.assertIn("raw_image", result.data)
+        self.assertEqual(len(result.attachments), 2)
+        self.assertNotEqual(result.attachments[0]["data_base64"],
+                            result.attachments[1]["data_base64"])
+
+    def test_annotate_raw_skips_grid_and_overlay(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend()
+        result = DesktopEyeTool(backend, self.config).execute(
+            {"annotate": "raw", "grid": True})
+        self.assertEqual(result.data["annotate"], "raw")
+        self.assertEqual(result.data["attachment_order"], ["raw"])
+        self.assertNotIn("grid", result.data)
+        self.assertEqual(len(result.attachments), 1)
+
+    def test_annotate_unknown_value_is_rejected(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend()
+        with self.assertRaises(ValueError):
+            DesktopEyeTool(backend, self.config).execute({"annotate": "minimal"})
+
     def test_returns_image_attachment(self) -> None:
         backend, screen, _mouse, _keyboard = _backend()
         result = DesktopEyeTool(backend, self.config).execute({})
@@ -305,6 +399,8 @@ class EyeToolTest(unittest.TestCase):
         self.assertTrue(result.attachments[0]["data_base64"])
         self.assertEqual(result.data["capture"], {"x": 0, "y": 0, "width": 40, "height": 30})
         self.assertEqual(result.data["cursor"], {"x": 7, "y": 8})
+        self.assertEqual(result.data["annotate"], "annotated")
+        self.assertEqual(result.data["attachment_order"], ["annotated"])
         self.assertNotIn("note", result.data)
         self.assertIn(("capture", None), screen.calls)
 
@@ -674,8 +770,10 @@ class HoverCaptureTest(unittest.TestCase):
         # 基础用例只关心"何时移、何时拍"：轨迹与微移动单独测。
         self.config = DesktopConfig(settle_ms=0, hover_settle_ms=0,
                                     hover_approach_ms=0, hover_wiggle=False)
-        self.backend, _screen, self.mouse, _keyboard = _backend(
+        self.backend, _screen, _mouse, _keyboard = _backend(
             rect=ScreenRect(0, 0, 800, 700))
+        self.mouse = TrackingMouse(ScreenPoint(7, 8))
+        self.backend = dataclasses.replace(self.backend, mouse=self.mouse)
         self.tool = DesktopEyeTool(self.backend, self.config)
 
     def test_hover_moves_cursor_before_capture(self) -> None:
@@ -693,8 +791,20 @@ class HoverCaptureTest(unittest.TestCase):
         self.assertEqual(points[0], ScreenPoint(700, 640))
         self.assertGreater(len(points), 2)
         self.assertEqual(points[-1], ScreenPoint(700, 640))
+        self.assertEqual(self.mouse.current, ScreenPoint(700, 640))
         self.assertTrue(any(point != ScreenPoint(700, 640) for point in points))
         self.assertTrue(result.data["hover"]["wiggle"])
+
+    def test_hover_wiggle_recovers_if_target_warps_cursor(self) -> None:
+        target = ScreenPoint(700, 640)
+        mouse = WarpingMouse(ScreenPoint(7, 8), target)
+        backend = dataclasses.replace(self.backend, mouse=mouse)
+        config = DesktopConfig(settle_ms=0, hover_settle_ms=0,
+                               hover_approach_ms=0, hover_wiggle=True)
+        result = DesktopEyeTool(backend, config).execute({"hover": [target.x, target.y]})
+        self.assertTrue(mouse.warped)
+        self.assertEqual(mouse.current, target)
+        self.assertEqual(result.data["cursor"], target.to_dict())
 
     def test_hover_path_is_walked_before_the_endpoint(self) -> None:
         result = self.tool.execute({

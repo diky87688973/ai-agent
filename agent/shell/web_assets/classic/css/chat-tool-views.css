@@ -104,11 +104,14 @@ html[data-ui-theme="light"] .chat-tool-packet-btn:hover{color:#1a2233}
 html[data-ui-theme="light"] .chat-tool-raw{border-top-color:#e6ebf3}
 .chat-tool-pane--shot{max-height:none;overflow:visible;padding:8px 12px 4px 8px}
 .chat-tool-shot{display:block;max-width:100%;max-height:400px;width:auto;height:auto;object-fit:contain}
+.chat-tool-shot-item+.chat-tool-shot-item{margin-top:8px}
+.chat-tool-shot-label{margin-bottom:2px;font-size:11px;line-height:1.4;color:#8b949e}
 .chat-tool-shot-meta{margin-top:8px}
 .chat-tool-shot-path{font-size:12px;line-height:1.45;color:#8b949e;word-break:break-all}
 .chat-tool-shot-meta .chat-tool-shot-path+.chat-tool-shot-path{margin-top:2px}
 .chat-tool-shot-miss{font-size:12px;line-height:1.45;color:#8b949e}
 html[data-ui-theme="light"] .chat-tool-shot-path,
+html[data-ui-theme="light"] .chat-tool-shot-label,
 html[data-ui-theme="light"] .chat-tool-shot-miss{color:#5c6b80}
 /* 思考展开：正文左缘与标题「思考」重合。标题起点 = 行内边距 8 + 箭头 12 + 间距 8。 */
 .chat-tool-body:has(.chat-tool-pane--think){border:none;border-radius:0;background:transparent;box-shadow:none}

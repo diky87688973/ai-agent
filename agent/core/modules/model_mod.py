@@ -2,7 +2,7 @@
 """模型模块：流式调用模型并落 model_message。"""
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 
 from agent.core.error_report import report_error
 from agent.core.event_name import (
@@ -31,6 +31,13 @@ from agent.core.modules.support import (
 from agent.core.outcome import Outcome
 from agent.core.ports import LogicalRequest, Ports
 from agent.core.tool_call import ToolCallRequest
+
+
+def _reasoning_ms(started: float, last_at: Optional[float]) -> int:
+    """推理流最后一个增量的时间点；没有推理增量时返回 -1。"""
+    if last_at is None:
+        return -1
+    return max(0, int((last_at - started) * 1000))
 
 
 class ModelModule(ModuleBase):
@@ -63,9 +70,9 @@ class ModelModule(ModuleBase):
         #: 与 `effort` 同源：都在每个回合装配引擎时由会话级设置解析而来。
         self._model = str(model or "")
         #: 只把最近这么多轮用户发言里的图带进请求；负数 = 不限。
-        #: 缺省 999999 = 不剥（前缀稳定、缓存可复用）。
+        #: 缺省 1 轮：截图体积大，历史全带会撞上游请求体上限。
         self._image_turns = int(image_turns)
-        #: 这些轮里最多带几张图；负数 = 不限。最近一轮优先保。
+        #: 这些轮里最多带几张图；负数 = 不限。缺省 8，最近一轮优先保。
         self._image_max = int(image_max)
         #: 执行模式说明：只加在发给模型的这一份请求尾部，不落记录、不发事件。
         #: 放在最后一项是为了让切模式只影响尾部这一条，前面的前缀缓存照旧命中。
@@ -149,6 +156,7 @@ class ModelModule(ModuleBase):
         from time import perf_counter
         started = perf_counter()
         first_chunk_ms = None
+        reasoning_last_at = None
         chunks = 0
         yield ports.emit(LLM_STARTED, model=model.name_for(request) or "",
                          effort=self._effort, messages=len(messages),
@@ -166,9 +174,11 @@ class ModelModule(ModuleBase):
                     # 不必等它说完。已产出的增量保留（那是已发生的事实）。
                     yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
                                      error="CanceledByUser", elapsed_ms=int((perf_counter() - started) * 1000),
+                                     reasoning_ms=_reasoning_ms(started, reasoning_last_at),
                                      chunks=chunks)
                     yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
                                      status="canceled", elapsed_ms=int((perf_counter() - started) * 1000),
+                                     reasoning_ms=_reasoning_ms(started, reasoning_last_at),
                                      chunks=chunks)
                     # 返回 `stopped`：同一次用户动作在工具路径
                     # 已经被归一成 `stopped`（见下面的工具取消分支与 `host.py` 的
@@ -189,6 +199,7 @@ class ModelModule(ModuleBase):
                     yield ports.emit(ASSISTANT_DELTA, text=str(delta.text or ""))
                 elif kind == "reasoning":
                     reasoning_parts.append(str(delta.text or ""))
+                    reasoning_last_at = perf_counter()
                     yield ports.emit(REASONING_DELTA, text=str(delta.text or ""))
                 elif kind == "tool_call" and getattr(delta, "tool_call", None) is not None:
                     tool_calls.append(delta.tool_call)
@@ -205,19 +216,21 @@ class ModelModule(ModuleBase):
             failure = f"{type(exc).__name__}: {exc}"
             report_error("core.model", exc)
         elapsed = int((perf_counter() - started) * 1000)
+        reasoning_ms = _reasoning_ms(started, reasoning_last_at)
         if failure:
             yield ports.emit(LLM_FAILED, model=model.name_for(request) or "", error=failure,
-                             elapsed_ms=elapsed, chunks=chunks)
+                             elapsed_ms=elapsed, reasoning_ms=reasoning_ms, chunks=chunks)
             yield ports.emit(LLM_ENDED, model=model.name_for(request) or "", status="failed",
-                             elapsed_ms=elapsed, chunks=chunks)
+                             elapsed_ms=elapsed, reasoning_ms=reasoning_ms, chunks=chunks)
             yield ports.emit(ERROR, where="model", detail=failure)
             return Outcome.halt(f"模型调用失败：{failure}")
         yield ports.emit(LLM_DONE, model=model.name_for(request) or "",
                          elapsed_ms=elapsed,
                          first_chunk_ms=(first_chunk_ms if first_chunk_ms is not None else -1),
+                         reasoning_ms=reasoning_ms,
                          chunks=chunks, tool_calls=len(tool_calls))
         yield ports.emit(LLM_ENDED, model=model.name_for(request) or "", status="done",
-                         elapsed_ms=elapsed, chunks=chunks,
+                         elapsed_ms=elapsed, reasoning_ms=reasoning_ms, chunks=chunks,
                          tool_calls=len(tool_calls))
 
         if usage:

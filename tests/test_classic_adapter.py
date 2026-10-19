@@ -1619,6 +1619,20 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
         self.assertEqual(items[2]["elapsed_ms"], 4100)
         self.assertEqual(items[4]["content"], "只有正文")
 
+    def test_history_prefers_reasoning_time(self) -> None:
+        """思考卡只显示推理时长，不再用整次模型调用时长。"""
+        from agent.core.events import Event
+        from agent.shell.classic_adapter.inbound import _history_items
+
+        items, _resolved = _history_items([
+            Event("llm_ended", {"status": "done", "elapsed_ms": 3200,
+                                "reasoning_ms": 1200}),
+            Event("model_message", {"content": "正文", "reasoning_content": "想"}),
+        ])
+        self.assertEqual(items[0]["role"], "think")
+        self.assertEqual(items[0]["elapsed_ms"], 1200)
+        self.assertEqual(items[1], {"role": "assistant", "content": "正文"})
+
     def test_attachment_id_is_recomputable(self) -> None:
         """id 必须从事实派生：刷新前后一致，否则浏览器不会重试那张失败的图。"""
         from agent.shell.classic_adapter.inbound import _history_items

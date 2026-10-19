@@ -20,6 +20,7 @@ DEFAULT_ENGINE = "edge"
 DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
 DEFAULT_MAX_SEGMENT_CHARS = 128
 DEFAULT_PLAY_INTERVAL_MS = 0
+DEFAULT_SYNC_PLAYBACK = False
 
 #: 插件读取的 `[ext]` 键；模板必须与它双向一致。
 CONFIG_KEYS = frozenset({
@@ -27,6 +28,7 @@ CONFIG_KEYS = frozenset({
     "voice",
     "max_segment_chars",
     "play_interval_ms",
+    "sync_playback",
 })
 
 
@@ -46,6 +48,7 @@ class AISpeakConfig:
     voice: str = DEFAULT_VOICE
     max_segment_chars: int = DEFAULT_MAX_SEGMENT_CHARS
     play_interval_ms: int = DEFAULT_PLAY_INTERVAL_MS
+    sync_playback: bool = DEFAULT_SYNC_PLAYBACK
     warnings: Tuple[str, ...] = ()
 
     @property
@@ -70,6 +73,18 @@ def _int_value(raw: str, default: int) -> Tuple[int, Optional[str]]:
         return int(raw), None
     except (TypeError, ValueError):
         return default, f"非整数值 {raw!r}，使用默认值 {default}"
+
+
+def _bool_value(raw: str, default: bool) -> Tuple[bool, Optional[str]]:
+    """解析布尔值；无法识别时回退默认值并给出警告。"""
+    if not raw:
+        return default, None
+    text = str(raw).strip().lower()
+    if text in ("1", "true", "yes", "on"):
+        return True, None
+    if text in ("0", "false", "no", "off"):
+        return False, None
+    return default, f"非布尔值 {raw!r}，使用默认值 {default}"
 
 
 def load_config(path: Optional[Path] = None) -> AISpeakConfig:
@@ -124,10 +139,17 @@ def load_config(path: Optional[Path] = None) -> AISpeakConfig:
         )
         play_interval_ms = 0
 
+    sync_playback, warning = _bool_value(
+        values.get("sync_playback", ""), DEFAULT_SYNC_PLAYBACK
+    )
+    if warning:
+        warnings.append(f"sync_playback {warning}")
+
     return AISpeakConfig(
         engine=engine,
         voice=voice,
         max_segment_chars=max_segment_chars,
         play_interval_ms=play_interval_ms,
+        sync_playback=sync_playback,
         warnings=tuple(warnings),
     )

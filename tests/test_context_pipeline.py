@@ -217,8 +217,8 @@ class DefaultConfigValues(unittest.TestCase):
         from agent.config import get_context
         c = get_context()
         self.assertEqual(c["summary_output_max_chars"], 5000)
-        self.assertEqual(c["image_turns"], 999999)
-        self.assertEqual(c["image_max"], 999999)
+        self.assertEqual(c["image_turns"], 1)
+        self.assertEqual(c["image_max"], 8)
 
 
 class MaxPassesConfigTest(unittest.TestCase):

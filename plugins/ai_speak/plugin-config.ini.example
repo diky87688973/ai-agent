@@ -4,7 +4,7 @@
 
 [base]
 id = ai_speak
-name = AI嘴巴
+name = AI说话
 desc = 让 AI 工作的时候说人话
 enable = 1
 icon = 🔊
@@ -19,3 +19,5 @@ voice = zh-CN-XiaoxiaoNeural
 max_segment_chars = 128
 ; 段间播放间隔（毫秒），0 表示不等待
 play_interval_ms = 0
+; 1 = 工具等到前端播完再返回；0 = 入队后立即返回
+sync_playback = 0

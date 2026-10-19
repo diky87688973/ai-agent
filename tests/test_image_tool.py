@@ -241,8 +241,7 @@ class ReadImageToolTest(unittest.TestCase):
 class StripProtectsToolImagesTest(unittest.TestCase):
     """工具图受总量闸管，但不按"最近几轮"的窗口剥。
 
-    这些用例都显式传窗口参数（等价于配小 `[context] image_turns`）；
-    不传时缺省 999999 = 一条都不剥。
+    这些用例都显式传窗口参数；不传时按默认 1 轮 / 8 张，旧图会被换成占位。
     """
 
     def _tool_msg(self, n_images: int = 1):

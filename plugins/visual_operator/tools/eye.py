@@ -17,8 +17,8 @@ from ._capture import capture_payload, request_from_arguments
 from ._params import as_bool, as_int, reject_unknown, require_range
 
 _FIELDS = ("x", "y", "width", "height", "grid", "grid_step", "grid_unit", "max_side",
-           "window", "hwnd", "activate", "hover", "hover_path", "hover_settle_ms",
-           "hover_approach_ms", "hover_wiggle")
+           "window", "hwnd", "activate", "annotate", "hover", "hover_path",
+           "hover_settle_ms", "hover_approach_ms", "hover_wiggle")
 
 
 class DesktopEyeTool(ToolPlugin):
@@ -46,6 +46,16 @@ class DesktopEyeTool(ToolPlugin):
         "分开调用「先移鼠标、再截图」在多数播放器与网页上都会失败——"
         "控件的自动隐藏通常只有 2–3 秒，撑不过一次模型往返。"
         "不给窗口则取屏幕合成结果（会包含遮挡物）。"
+        "默认每张图都带坐标辅助线：光标位置是黑色描边、白色分隔的亮绿短十字、"
+        "小圆环和黑底或黑色描边的 CURSOR 标签；短十字只画在光标附近，不铺满全图，"
+        "中心留空，落点像素本身不被盖住。小区域的标签只写坐标，省略 CURSOR "
+        "前缀；短边小于 90 的区域完全不画标签，坐标从回执 cursor 读取。"
+        "网格主线是红色粗线，细线是蓝色，刻度数字在边缘。"
+        "这些线不是截图里的界面元素，是读坐标的参照；先读 CURSOR 标签和绿十字，"
+        "再用网格定位，回执的 cursor 给出同一坐标。图片压缩后辅助线和标签仍保留；"
+        "仍看不清时缩小取图区域、把 grid_step 调到 20–40，或提高 max_side。"
+        "要同时看标注图和干净原图时给 annotate=both：同一张图先回标注图、再回"
+        "无辅助线原图；annotate=raw 只回原图，默认 annotated 只回标注图。"
         "回执带 capture_id；要按图内坐标点击时，先让这张图的网格用图内像素"
         "（grid_unit=image），再把 capture_id 与图内 x/y 交给 desktop_mouse"
         "（space=image）。默认网格仍是屏幕坐标；两种坐标不要混用。"
@@ -76,7 +86,7 @@ class DesktopEyeTool(ToolPlugin):
                                              "0 = 一次跳变。"},
         "hover_wiggle": {"type": "boolean",
                          "description": "到达后是否在落点附近做几次 1–2px 微移动（默认 true）；"
-                                        "播放器控制条通常需要它才会出现"},
+                                        "播放器控制条通常需要它才会出现。微动结束会回到落点"},
         "grid": {"type": "boolean", "description": "叠加坐标网格与刻度（默认 true）"},
         "grid_step": {"type": "integer",
                       "description": "网格间距（屏幕坐标）20–500；缺省取插件配置。"
@@ -86,6 +96,9 @@ class DesktopEyeTool(ToolPlugin):
                                      "图内像素配合 capture_id 交给 desktop_mouse"},
         "max_side": {"type": "integer",
                      "description": "长边缩到不超过该像素；0 = 不缩放；缺省取插件配置"},
+        "annotate": {"type": "string", "enum": ["annotated", "raw", "both"],
+                     "description": "annotated 只回标注图（默认）/ raw 只回原图 / "
+                                    "both 先回标注图再回原图"},
     }
 
     def __init__(self, backend: Backend, config: DesktopConfig,

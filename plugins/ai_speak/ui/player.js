@@ -14,6 +14,8 @@
   var gapMs = 0;
   var dropped = 0;
   var errorText = "";
+  var syncPlayback = false;
+  var callProgress = Object.create(null);
   var api = window.aiAgentPlugins && window.aiAgentPlugins.for
     ? window.aiAgentPlugins.for(window.aiAgentPluginCurrent || PLUGIN)
     : null;
@@ -114,7 +116,9 @@
           return;
         }
         showError(err && err.message ? err.message : "播放失败");
+        var failed = current;
         finishCurrent();
+        if (failed) ackPlayback(failed, "error");
         playNext();
       });
     }
@@ -132,7 +136,9 @@
 
   function afterItem() {
     if (destroyed) return;
+    var item = current;
     finishCurrent();
+    if (item) markPlayed(item);
     render();
     var wait = Math.max(0, Number(gapMs) || 0);
     clearTimer();
@@ -145,6 +151,75 @@
   function showError(message) {
     errorText = short(message, 80);
     render();
+  }
+
+  function callState(item) {
+    if (!item || !item.callId) return null;
+    var state = callProgress[item.callId];
+    if (!state) {
+      state = {
+        cid: text(item.cid),
+        total: Math.max(1, Number(item.total) || 1),
+        done: Object.create(null),
+        acked: false
+      };
+      callProgress[item.callId] = state;
+    } else {
+      if (!state.cid && item.cid) state.cid = text(item.cid);
+      state.total = Math.max(state.total, Number(item.total) || 1);
+    }
+    return state;
+  }
+
+  function ackPlayback(item, status) {
+    var state = callState(item);
+    if (!state || state.acked) return;
+    if (!api || typeof api.post !== "function") return;
+    state.acked = true;
+    var cid = state.cid || text(item.cid);
+    if (!cid && typeof getActiveConversationId === "function") {
+      cid = text(getActiveConversationId());
+    }
+    api.post("played", {
+      conversation_id: cid,
+      call_id: item.callId,
+      status: status
+    }).catch(function () {
+      state.acked = false;
+    });
+  }
+
+  function markPlayed(item) {
+    var state = callState(item);
+    if (!state || state.acked) return;
+    state.done[String(item.index)] = true;
+    var done = 0;
+    for (var key in state.done) {
+      if (Object.prototype.hasOwnProperty.call(state.done, key)) done += 1;
+    }
+    if (done >= state.total) ackPlayback(item, "played");
+  }
+
+  function requestChatStop() {
+    try {
+      var cid = current && current.cid ? current.cid : "";
+      if (!cid && typeof getActiveConversationId === "function") {
+        cid = text(getActiveConversationId());
+      }
+      if (!cid) return;
+      var runId = "";
+      var tab = null;
+      if (typeof findConversationTab === "function") {
+        tab = findConversationTab(cid);
+      }
+      if (!tab && typeof getActiveTab === "function") tab = getActiveTab();
+      if (tab) runId = String(tab.activeRunId || "");
+      fetch("/api/chat/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_id: cid, run_id: runId })
+      }).catch(function () {});
+    } catch (e) {}
   }
 
   function enqueue(frame) {
@@ -186,8 +261,13 @@
     }
     items.push(item);
     if (items.length > MAX_QUEUE) {
-      revoke(items.shift());
+      var droppedItem = items.shift();
+      revoke(droppedItem);
       dropped += 1;
+      if (droppedItem) {
+        ackPlayback(droppedItem, "incomplete");
+        if (droppedItem.callId) stop({ call_id: droppedItem.callId });
+      }
     }
     errorText = "";
     blocked = false;
@@ -210,19 +290,32 @@
     blocked = false;
     errorText = "";
     if (current && matches(current, frame)) {
+      var stoppedCurrent = current;
       audio.pause();
       finishCurrent();
+      ackPlayback(stoppedCurrent, "stopped");
     }
     var kept = [];
     for (var i = 0; i < items.length; i++) {
-      if (matches(items[i], frame)) revoke(items[i]);
-      else kept.push(items[i]);
+      if (matches(items[i], frame)) {
+        revoke(items[i]);
+        ackPlayback(items[i], "stopped");
+      } else {
+        kept.push(items[i]);
+      }
     }
     items = kept;
     if (!frame || (!text(frame.conversation_id) && !text(frame.call_id))) {
       audio.pause();
-      finishCurrent();
-      for (var j = 0; j < items.length; j++) revoke(items[j]);
+      if (current) {
+        var stoppedAll = current;
+        finishCurrent();
+        ackPlayback(stoppedAll, "stopped");
+      }
+      for (var j = 0; j < items.length; j++) {
+        revoke(items[j]);
+        ackPlayback(items[j], "stopped");
+      }
       items = [];
     }
     render();
@@ -256,6 +349,12 @@
     if (data.event === "segment") enqueue(data);
     else if (data.event === "error") {
       showError(data.message || "语音合成失败");
+      ackPlayback({
+        cid: text(data.conversation_id),
+        callId: text(data.call_id),
+        index: Number(data.index) || 0,
+        total: 1
+      }, "error");
       render();
     } else if (data.event === "stop") stop(data);
   }
@@ -271,11 +370,13 @@
   }
 
   function onStopClick() {
+    if (syncPlayback) requestChatStop();
     stop({});
   }
 
   function destroy() {
     if (destroyed) return;
+    stop({});
     destroyed = true;
     clearTimer();
     try { audio.pause(); } catch (e) {}
@@ -315,7 +416,10 @@
   audio.addEventListener("ended", afterItem);
   audio.addEventListener("error", function () {
     showError("播放失败");
-    afterItem();
+    var failed = current;
+    finishCurrent();
+    if (failed) ackPlayback(failed, "error");
+    playNext();
   });
   document.addEventListener("ai-agent:plugin-event", onPlayerEvent);
   document.addEventListener("ai-agent:plugins-changed", onPluginsChanged);
@@ -332,6 +436,7 @@
       var data = res && res.data ? res.data : {};
       if (data && data.ok && Number(data.play_interval_ms) >= 0) {
         gapMs = Number(data.play_interval_ms) || 0;
+        syncPlayback = !!data.sync_playback;
       }
     }).catch(function () {});
   }

@@ -79,7 +79,8 @@ return "用时 "+m+" 分 "+s+" 秒";
 }
 function sealChatThinkElapsed(){
 if(!lastLlm||!lastLlm.chatThink||!lastLlm.chatThinkStartedAt)return;
-var label=chatThinkElapsedLabel(Date.now()-lastLlm.chatThinkStartedAt);
+var endedAt=lastLlm.chatThinkLastAt||Date.now();
+var label=chatThinkElapsedLabel(Math.max(0, endedAt-lastLlm.chatThinkStartedAt));
 var sum=lastLlm.chatThink._sum;
 if(sum)sum.textContent=label;
 lastLlm.chatThinkSealed=true;
@@ -733,17 +734,29 @@ pane.textContent="";
 if(chatToolIsFailed(ev)){chatToolPaintFailText(pane);return;}
 chatToolClearFailMark(pane);
 var images=ev&&ev.images,shown=false;
+var data=chatDesktopData(ev)||{};
+var order=Array.isArray(data.attachment_order)?data.attachment_order:[];
 if(Array.isArray(images)){
 for(var i=0;i<images.length;i++){
 var im=images[i];
 if(!im||!im.data_base64)continue;
+var role=order[i]==="raw"?"原图":(order[i]==="annotated"?"标注图":"");
+var item=document.createElement("div");
+item.className="chat-tool-shot-item";
 var img=document.createElement("img");
 img.className="chat-tool-shot";
-img.alt="截图";
+img.alt=role||"截图";
 var mime=String(im.mime||"image/png");
 if(mime.indexOf("image/")!==0)mime="image/png";
 img.src="data:"+mime+";base64,"+String(im.data_base64);
-pane.appendChild(img);
+if(role){
+var cap=document.createElement("div");
+cap.className="chat-tool-shot-label";
+cap.textContent=role;
+item.appendChild(cap);
+}
+item.appendChild(img);
+pane.appendChild(item);
 shown=true;
 }
 }

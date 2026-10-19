@@ -198,6 +198,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.voice, "zh-CN-XiaoxiaoNeural")
         self.assertEqual(cfg.max_segment_chars, 128)
         self.assertEqual(cfg.play_interval_ms, 0)
+        self.assertFalse(cfg.sync_playback)
         self.assertEqual(cfg.warnings, ())
 
     def test_values_and_limits(self) -> None:
@@ -205,21 +206,25 @@ class ConfigTest(unittest.TestCase):
             path = Path(tmp) / "plugin-config.ini"
             path.write_text(
                 "[ext]\nengine = edge\nvoice = v\n"
-                "max_segment_chars = 300\nplay_interval_ms = 250\n",
+                "max_segment_chars = 300\nplay_interval_ms = 250\n"
+                "sync_playback = on\n",
                 encoding="utf-8",
             )
             cfg = _CONFIG.load_config(path)
             self.assertEqual(cfg.max_segment_chars, 300)
             self.assertEqual(cfg.play_interval_ms, 250)
+            self.assertTrue(cfg.sync_playback)
 
             path.write_text(
-                "[ext]\nmax_segment_chars = 0\nplay_interval_ms = -3\n",
+                "[ext]\nmax_segment_chars = 0\nplay_interval_ms = -3\n"
+                "sync_playback = maybe\n",
                 encoding="utf-8",
             )
             cfg = _CONFIG.load_config(path)
             self.assertEqual(cfg.max_segment_chars, 128)
             self.assertEqual(cfg.play_interval_ms, 0)
-            self.assertEqual(len(cfg.warnings), 2)
+            self.assertFalse(cfg.sync_playback)
+            self.assertEqual(len(cfg.warnings), 3)
 
     def test_invalid_engine_and_voice_fail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

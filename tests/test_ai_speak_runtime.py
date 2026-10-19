@@ -68,6 +68,7 @@ def _config(**kwargs: Any):
         "voice": "test-voice",
         "max_segment_chars": 128,
         "play_interval_ms": 0,
+        "sync_playback": False,
     }
     base.update(kwargs)
     return _CONFIG.AISpeakConfig(**base)
@@ -211,6 +212,15 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(frames[0][2]["text"], "第一段。")
         self.assertTrue(_wait(lambda: self.runtime.status()["totals"]["spoken"] == 2))
 
+    def test_playback_wait_timeout_and_cancel(self) -> None:
+        waiter = self.runtime.begin_playback("cid-12345678", "call-timeout")
+        self.assertEqual(waiter.wait(0.01), "timeout")
+        self.runtime.forget_playback("cid-12345678", "call-timeout")
+
+        waiter = self.runtime.begin_playback("cid-12345678", "call-cancel")
+        self.assertEqual(waiter.wait(1.0, canceled=lambda: True), "stopped")
+        self.runtime.forget_playback("cid-12345678", "call-cancel")
+
     def test_synthesis_failure_is_isolated(self) -> None:
         self.runtime = _RUNTIME.AISpeakRuntime(
             _config(), RecordingProvider(fail_texts=["坏"])
@@ -314,6 +324,80 @@ class ToolTest(unittest.TestCase):
         self.assertEqual(result["segments"], 1)
         self.assertTrue(_wait(lambda: len(publisher.snapshot()) == 1))
         self.assertEqual(publisher.snapshot()[0][1], "segment")
+
+    def test_sync_playback_waits_for_frontend_ack(self) -> None:
+        runtime = _RUNTIME.AISpeakRuntime(
+            _config(sync_playback=True), RecordingProvider()
+        )
+        self.addCleanup(runtime.dispose)
+        publisher = FakePublisher()
+        result: Dict[str, Any] = {}
+
+        def _run() -> None:
+            try:
+                result["value"] = self._call(runtime, "主子，文件写好了。", publisher)
+            except BaseException as exc:  # 线程里的异常要带回主线程
+                result["error"] = exc
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+        self.assertTrue(_wait(lambda: any(
+            frame[1] == "segment" for frame in publisher.snapshot())))
+        self.assertTrue(thread.is_alive())
+        self.assertTrue(runtime.ack_playback("cid-12345678", "call-1", "played"))
+        thread.join(2.0)
+        self.assertFalse(thread.is_alive())
+        self.assertNotIn("error", result)
+        self.assertTrue(result["value"]["played"])
+        self.assertGreaterEqual(result["value"]["waited_ms"], 0)
+
+    def test_sync_playback_times_out_without_ack(self) -> None:
+        runtime = _RUNTIME.AISpeakRuntime(
+            _config(sync_playback=True), RecordingProvider()
+        )
+        self.addCleanup(runtime.dispose)
+        publisher = FakePublisher()
+        result: Dict[str, Any] = {}
+
+        def _run() -> None:
+            try:
+                self._call(runtime, "主子，文件写好了。", publisher)
+            except BaseException as exc:
+                result["error"] = exc
+
+        with mock.patch.object(_TOOL, "_playback_timeout_s", return_value=0.05):
+            thread = threading.Thread(target=_run, daemon=True)
+            thread.start()
+            self.assertTrue(_wait(lambda: any(
+                frame[1] == "segment" for frame in publisher.snapshot())))
+            thread.join(2.0)
+        self.assertFalse(thread.is_alive())
+        self.assertIsInstance(result.get("error"), _RUNTIME.SpeechPlaybackFailed)
+        self.assertEqual(result["error"].status, "timeout")
+
+    def test_sync_playback_releases_on_stop(self) -> None:
+        runtime = _RUNTIME.AISpeakRuntime(
+            _config(sync_playback=True), RecordingProvider()
+        )
+        self.addCleanup(runtime.dispose)
+        publisher = FakePublisher()
+        result: Dict[str, Any] = {}
+
+        def _run() -> None:
+            try:
+                self._call(runtime, "主子，文件写好了。", publisher)
+            except BaseException as exc:
+                result["error"] = exc
+
+        thread = threading.Thread(target=_run, daemon=True)
+        thread.start()
+        self.assertTrue(_wait(lambda: any(
+            frame[1] == "segment" for frame in publisher.snapshot())))
+        runtime.stop_cid("cid-12345678", "turn_stopped")
+        thread.join(2.0)
+        self.assertFalse(thread.is_alive())
+        self.assertIsInstance(result.get("error"), _RUNTIME.SpeechPlaybackFailed)
+        self.assertEqual(result["error"].status, "stopped")
 
     def test_invalid_message_fails_before_enqueue(self) -> None:
         runtime = self._runtime()
@@ -421,7 +505,8 @@ class RegistrationTest(unittest.TestCase):
         disposers = _PLUGIN.register(ctx)
         self.assertEqual([tool.name for tool in ctx.tools], ["ai_speak"])
         self.assertEqual(ctx.boot_scripts, ["ui/player.js", "ui/tool-view.js"])
-        self.assertEqual([(m, p) for m, p, _h in ctx.routes], [("GET", "config"), ("GET", "status")])
+        self.assertEqual([(m, p) for m, p, _h in ctx.routes],
+                         [("GET", "config"), ("GET", "status"), ("POST", "played")])
         self.assertEqual(sorted(ctx.subscriptions), ["error", "turn_ended"])
         self.assertEqual(ctx.runtime.config.engine, "edge")
         for disposer in reversed(disposers):
@@ -434,6 +519,12 @@ class RegistrationTest(unittest.TestCase):
         status, config = handlers["config"]({})
         self.assertEqual(status, 200)
         self.assertEqual(config["max_segment_chars"], 128)
+        self.assertFalse(config["sync_playback"])
+        played, ack = handlers["played"]({
+            "body": {"conversation_id": "cid", "call_id": "missing",
+                     "status": "played"}})
+        self.assertEqual(played, 200)
+        self.assertFalse(ack["matched"])
         status, report = handlers["status"]({})
         self.assertEqual(status, 200)
         self.assertTrue(report["ok"])

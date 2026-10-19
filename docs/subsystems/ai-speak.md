@@ -1,7 +1,7 @@
 # AI说话（`ai_speak` 插件）
 
 AI说话把模型正在做的步骤交给后端合成语音，再通过插件事件送到浏览器播放条。
-工具只负责接收、校验和入队；合成、播放与开关各自在独立模块里。
+工具负责接收、校验、入队，并在同步模式下等待播放完成；合成、播放与开关各自在独立模块里。
 
 ## 包结构
 
@@ -28,8 +28,10 @@ icon = "🔊"
 parameters = {"msg": {"type": "string"}}
 ```
 
-工具描述要求模型代入当前角色、使用人类口语，并把每一步直接说出来。成功返回
-`{"accepted": true, "segments": N, "characters": N}`，由内核包成统一工具信封。
+工具描述要求模型代入当前角色、使用人类口语，并把每一步直接说出来。异步模式返回
+`{"accepted": true, "segments": N, "characters": N}`；同步模式在播放结束后返回
+`{"accepted": true, "played": true, "segments": N, "characters": N, "waited_ms": N}`。
+两种结果都由内核包成统一工具信封。
 校验失败、引擎未安装、没有 Web 连接或队列满时抛错，内核收成 `ok=false`。
 
 工具调用自动产生 `tool_started` / `tool_done` / `tool_ended` 事实。对话区工具卡
@@ -86,6 +88,7 @@ engine = edge
 voice = zh-CN-XiaoxiaoNeural
 max_segment_chars = 128
 play_interval_ms = 0
+sync_playback = 0
 ```
 
 | 键 | 默认 | 范围 | 说明 |
@@ -94,6 +97,7 @@ play_interval_ms = 0
 | `voice` | `zh-CN-XiaoxiaoNeural` | 非空 | edge-tts 音色名 |
 | `max_segment_chars` | 128 | ≥1 的整数，无上限 | 单段字符上限 |
 | `play_interval_ms` | 0 | ≥0 | 段间播放间隔（毫秒） |
+| `sync_playback` | 0 | `0` / `1` | 1 = 工具等前端播完再返回 |
 
 配置文件是插件目录下的 `plugin-config.ini`；模板与解析器键集合一致。
 `edge-tts` 属于可选依赖，安装命令是 `pip install -e ".[tts]"`。它延迟导入，
@@ -118,6 +122,28 @@ play_interval_ms = 0
 播放器提供暂停/继续、停止与「点击播放」；自动播放被浏览器拦截时保留队列。
 `stop` 按会话或调用过滤队列；插件卸载时后端发布 stop，壳层派发
 `ai-agent:plugins-changed` 作为第二道停止信号。
+
+## 同步播放
+
+`sync_playback = 1` 时，`ai_speak` 不是入队即返回：工具先登记本次 `call_id`，
+再等前端确认最后一段音频播完才返回。模型因此不会在读屏或改文件之前抢跑。
+
+播放器按 `call_id` 记录段数，最后一段 `ended` 后 `POST /api/plugin/ai_speak/played`：
+
+| 字段 | 说明 |
+|---|---|
+| `conversation_id` | 会话 id；缺省时后端按 `call_id` 唯一匹配 |
+| `call_id` | `ai_speak` 工具调用 id，必须与入队时一致 |
+| `status` | `played` / `stopped` / `error` / `incomplete` |
+
+`incomplete` 表示队列丢弃或段不齐；后端按 `dropped` 处理。
+播放被用户停止、播放器报错、无 SSE 连接或等待超时，工具返回失败，不把未播完
+当成已播完。停止按钮在同步模式下同时请求 `/api/chat/stop`，让工具等待和回合取消
+一起收口；等待期间会检查回合的取消标记，避免工具线程卡死。
+
+安全超时按文本长度计算：`max(30s, min(600s, 15s + 字符数 × 0.35))`。
+自动播放被拦截时播放器不 ack，等用户点击播放；用户一直不点则超时失败。
+多标签页各播一份，当前按**首个 ack** 放行；同步模式默认假设只有一个活动播放页。
 
 ## 边界
 

@@ -16,7 +16,7 @@
 4. 工具调用进入现有工具事实流；对话区工具壳显示「AI说话 | 消息」，
    展开详情沿用默认的请求/响应报文。
 5. 设置页开关控制插件装载与卸载；关闭时停止播放并清空队列。
-6. 配置沿用 `engine` / `voice` / `max_segment_chars`，增加串行播放间隔。
+6. 配置沿用 `engine` / `voice` / `max_segment_chars`，增加串行播放间隔与同步播放开关。
 7. 旧 `tts` 的所有代码、测试与文档引用清理干净。
 
 ## 范围外
@@ -192,6 +192,7 @@ max_segment_chars（默认 128 字），超过上限会失败并返回规范。
 }
 ```
 
+同步模式在播放完成后额外返回 `"played": true` 与 `"waited_ms": N`。
 内核把它包成 `{"ok": true, "data": {...}}` 回灌模型；工具卡响应面板显示同一信封。
 
 失败返回：
@@ -541,6 +542,20 @@ items = [
 
 每个浏览器标签页各自创建播放器、`<audio>` 与队列。SSE 广播到每一页，各页独立
 播放；一个页面暂停或停止不影响其它页面，也不做跨标签页的同步。
+同步播放按首个 ack 放行，默认假设只有一个活动播放页。
+
+### 同步播放
+
+`sync_playback = 1` 时，工具在入队前登记 `(conversation_id, call_id)`，等前端把
+最后一段播完后返回。播放器按 `call_id` 统计段数，最后一段 `ended` 后调用
+`POST /api/plugin/ai_speak/played`；`status` 为 `played` / `stopped` /
+`error` / `incomplete`。
+
+- `incomplete` 按 `dropped` 处理；队列丢弃、无 SSE、合成失败都不能报已播完。
+- 用户停止时播放器同时请求 `/api/chat/stop`；工具等待期间检查回合取消标记。
+- 等待超时按文本长度计算，`max(30s, min(600s, 15s + 字符数 × 0.35))`。
+- 自动播放被拦截时播放器不 ack；用户点击播放并播完后才 ack。
+- 等待者只存 `(conversation_id, call_id)` 与状态，不改变音频帧契约。
 
 ### 配置
 
@@ -548,7 +563,8 @@ items = [
 
 ```json
 {"ok": true, "play_interval_ms": 0, "max_segment_chars": 128,
- "voice": "zh-CN-XiaoxiaoNeural", "engine": "edge"}
+ "voice": "zh-CN-XiaoxiaoNeural", "engine": "edge",
+ "sync_playback": false}
 ```
 
 `segment` 帧的 `gap_ms` 覆盖本地值。配置读取失败时 `gap_ms` 取 0，
@@ -593,7 +609,7 @@ items = [
 2. 建 `AISpeakRuntime`，此时不创建线程。
 3. 注册 `AISpeakTool`。
 4. 注册两个开屏脚本：`ui/player.js`、`ui/tool-view.js`。
-5. 注册只读端点 `GET config`、`GET status`。
+5. 注册只读端点 `GET config`、`GET status`，以及播放完成的 `POST played`。
 6. 订阅 `turn_ended` 与 `error`：回合被停止/中断时停该会话的队列。
 7. `ctx.set_runtime(runtime)`，供壳层与测试按名字取同一实例。
 8. 工具执行时从 `current_context().app` 取 `SERVICE_PLUGIN_EVENTS`；
@@ -637,6 +653,7 @@ engine = edge
 voice = zh-CN-XiaoxiaoNeural
 max_segment_chars = 128
 play_interval_ms = 0
+sync_playback = 0
 ```
 
 | 键 | 默认 | 范围 | 说明 |
@@ -645,6 +662,7 @@ play_interval_ms = 0
 | `voice` | `zh-CN-XiaoxiaoNeural` | 非空 | edge-tts 音色名；未知音色在合成期报错 |
 | `max_segment_chars` | 128 | ≥ 1 的整数，无上限 | 单段字符上限；300 按 300 贪心，1000 按 1000 贪心 |
 | `play_interval_ms` | 0 | ≥ 0 | 段间播放间隔（毫秒） |
+| `sync_playback` | 0 | `0` / `1` | 1 = 工具等前端播完再返回 |
 
 解析规则：
 
@@ -853,7 +871,7 @@ class _SessionWorker:
 ### 验收
 
 - `scripts/acceptance_phase3.py`：临时清单装载 `ai_speak` + 知识库；
-  断言工具存在、两个启动脚本、两个只读端点、两个事件订阅、运行时已登记；
+  断言工具存在、两个启动脚本、两个只读端点加 `POST played`、两个事件订阅、运行时已登记；
   卸载后全部消失、worker 停止、无残留线程。
 - `scripts/acceptance_web.py`（播放器场景在 `acceptance_web_player.py`）：
   打开页面、确认播放条注入、派发 `plugin_event` 与 `plugins-changed`，断言无未捕获

@@ -82,10 +82,10 @@ class StripByTurnTest(unittest.TestCase):
         self.assertEqual(stripped, 0)
         self.assertEqual(out, msgs)
 
-    def test_default_sentinel_disables_stripping(self) -> None:
-        """模块默认值也是哨兵值：不传参数时等于不剥。"""
-        self.assertGreaterEqual(KEEP_IMAGE_TURNS, 999999)
-        self.assertGreaterEqual(MAX_EMBED_IMAGES, 999999)
+    def test_defaults_are_bounded(self) -> None:
+        """模块默认值有界：最近 1 轮、最多 8 张。"""
+        self.assertEqual(KEEP_IMAGE_TURNS, 1)
+        self.assertEqual(MAX_EMBED_IMAGES, 8)
 
     def test_image_only_turn_keeps_a_placeholder(self) -> None:
         """被剥的那轮如果只有图没有字，占位不能是空串（空 content 会被 API 拒）。"""
@@ -153,26 +153,26 @@ class StripByTotalCapTest(unittest.TestCase):
                         if isinstance(p, dict))
         self.assertIn("原有 2 张", text)
 
-    def test_default_cap_is_sentinel(self) -> None:
-        self.assertGreaterEqual(MAX_EMBED_IMAGES, 999999)
+    def test_default_cap_is_eight(self) -> None:
+        self.assertEqual(MAX_EMBED_IMAGES, 8)
 
-    def test_default_call_applies_no_cap(self) -> None:
-        """默认两道上限都大到不起作用：20 张图一张不剥。"""
+    def test_default_call_applies_bounded_defaults(self) -> None:
+        """默认保留最近 1 轮；20 张里只留最新一轮的 4 张。"""
         msgs = [_img_msg(f"第 {i} 轮", 4) for i in range(5)]
         out, stripped = strip_old_images(msgs)
-        self.assertEqual(stripped, 0)
-        self.assertEqual(_count_images(out), 20)
+        self.assertEqual(stripped, 16)
+        self.assertEqual(_count_images(out), 4)
 
 
-class DefaultNoStripTest(unittest.TestCase):
-    """缺省不剥：不传窗口参数时一条都不动，消息前缀恒定（KV 缓存因此可复用）。"""
+class DefaultBoundedTest(unittest.TestCase):
+    """默认带图窗口有界：不传参数也会剥掉旧图，避免请求体膨胀。"""
 
-    def test_default_is_noop(self) -> None:
+    def test_default_is_bounded(self) -> None:
         msgs = [_img_msg(f"第 {i} 轮") for i in range(6)]
         out, stripped = strip_old_images(msgs)
-        self.assertEqual(stripped, 0)
-        self.assertEqual(_count_images(out), 6)
-        self.assertIs(out[0], msgs[0], msg="不剥时不该重建任何消息")
+        self.assertEqual(stripped, 5)
+        self.assertEqual(_count_images(out), 1)
+        self.assertIsNot(out[0], msgs[0], msg="旧图应被换成占位")
 
     def test_narrow_window_strips(self) -> None:
         """配小 image_turns 即按用户轮剥图。"""
@@ -189,8 +189,8 @@ class ConfigWiringTest(unittest.TestCase):
         from agent.config import get_context
 
         cfg = get_context()
-        self.assertEqual(cfg["image_turns"], 999999, msg="缺省不剥")
-        self.assertGreaterEqual(cfg["image_max"], 999999)
+        self.assertEqual(cfg["image_turns"], 1)
+        self.assertEqual(cfg["image_max"], 8)
 
     def test_module_receives_the_value(self) -> None:
         from agent.core.modules import ModelModule

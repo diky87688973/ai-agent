@@ -103,7 +103,7 @@ class Acceptance:
                    str([p.as_dict()["id"] for p in contribs.all_panels()]))
         self.check("KB 动作已贡献（=1）", len(contribs.all_actions()) == 1,
                    str([a.as_dict()["id"] for a in contribs.all_actions()]))
-        self.check("插件端点已贡献（=5）", len(contribs.all_routes()) == 5,
+        self.check("插件端点已贡献（=6）", len(contribs.all_routes()) == 6,
                    str([r.full_path for r in contribs.all_routes()]))
         self.check("KB 面板资产已声明（样式 + 脚本）",
                    all((p.as_dict()["style"] and p.as_dict()["script"])

@@ -41,10 +41,10 @@ if((streamAssistantText||"").trim())return;
 appendAssistantDelta(rt);}
 function appendReasoningDelta(ev){
 var d=String(ev.delta||"");if(!d)return;if(!lastLlm)return;if(ev.round!=null&&lastLlm.round!=null&&ev.round!==lastLlm.round)return;
-lastLlm.reasoningText=(lastLlm.reasoningText||"")+d;if(lastLlm.thLb&&lastLlm.thPb){lastLlm.thLb.style.display="block";lastLlm.thPb.style.display="block";lastLlm.thPb.textContent=lastLlm.reasoningText;scrollToBottom(lastLlm.thPb);}paintChatThink();}
+lastLlm.reasoningText=(lastLlm.reasoningText||"")+d;lastLlm.chatThinkLastAt=Date.now();if(lastLlm.thLb&&lastLlm.thPb){lastLlm.thLb.style.display="block";lastLlm.thPb.style.display="block";lastLlm.thPb.textContent=lastLlm.reasoningText;scrollToBottom(lastLlm.thPb);}paintChatThink();}
 function applyReasoningSync(ev){
 var t=String(ev.text||"");if(!lastLlm)return;if(ev.round!=null&&lastLlm.round!=null&&ev.round!==lastLlm.round)return;
-lastLlm.reasoningText=t;if(lastLlm.thLb&&lastLlm.thPb){lastLlm.thLb.style.display="block";lastLlm.thPb.style.display="block";lastLlm.thPb.textContent=lastLlm.reasoningText;scrollToBottom(lastLlm.thPb);}paintChatThink();}
+lastLlm.reasoningText=t;lastLlm.chatThinkLastAt=Date.now();if(lastLlm.thLb&&lastLlm.thPb){lastLlm.thLb.style.display="block";lastLlm.thPb.style.display="block";lastLlm.thPb.textContent=lastLlm.reasoningText;scrollToBottom(lastLlm.thPb);}paintChatThink();}
 function finishLlmTitle(ok){
 if(!lastLlm||!lastLlm.msgSpan)return;
 if(lastLlm.dotsTimer){clearInterval(lastLlm.dotsTimer);lastLlm.dotsTimer=null;}
@@ -62,7 +62,7 @@ if(n>1&&streamAssistantEl){pendingDeltaSeparator=true;}
 let baseMsg="正在思考中";
 if(n>1){const tail=lastAnalysisTail||"工具调度";baseMsg="分析"+tail;lastAnalysisTail="";}
 if(!showToolSteps()){
-lastLlm={tag:_muteEl(),msgSpan:_muteEl(),dotsSpan:_muteEl(),dotsTimer:null,round:n,thLb:null,thPb:null,reasoningText:"",reqLb:null,reqPb:null,resLb:null,resPb:null,cardEl:null,stepNum:stepSeq,chatThink:null,chatThinkFull:null,chatThinkStartedAt:Date.now()};
+lastLlm={tag:_muteEl(),msgSpan:_muteEl(),dotsSpan:_muteEl(),dotsTimer:null,round:n,thLb:null,thPb:null,reasoningText:"",reqLb:null,reqPb:null,resLb:null,resPb:null,cardEl:null,stepNum:stepSeq,chatThink:null,chatThinkFull:null,chatThinkStartedAt:Date.now(),chatThinkLastAt:0};
 return;
 }
 const c=document.createElement("div");c.className="step card";
@@ -89,7 +89,7 @@ h.onclick=function(){c.classList.toggle("open");};
 appendStep(c);
 let d=0;
 const timer=setInterval(function(){d=(d+1)%4;dotsSpan.textContent=".".repeat(d);},400);
-lastLlm={tag:tag,msgSpan:msgSpan,dotsSpan:dotsSpan,dotsTimer:timer,round:n,thLb:thLb,thPb:thPb,reasoningText:"",reqLb:rqLb,reqPb:rqPb,resLb:rsLb,resPb:rsPb,cardEl:c,stepNum:stepSeq,chatThink:null,chatThinkFull:null,chatThinkStartedAt:Date.now()};
+lastLlm={tag:tag,msgSpan:msgSpan,dotsSpan:dotsSpan,dotsTimer:timer,round:n,thLb:thLb,thPb:thPb,reasoningText:"",reqLb:rqLb,reqPb:rqPb,resLb:rsLb,resPb:rsPb,cardEl:c,stepNum:stepSeq,chatThink:null,chatThinkFull:null,chatThinkStartedAt:Date.now(),chatThinkLastAt:0};
 }
 function onLlmRequest(ev){
 if(!lastLlm)return;

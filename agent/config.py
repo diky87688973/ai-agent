@@ -94,11 +94,10 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         "full_user_rounds": _int("full_user_rounds", 1),
         "summary_output_max_chars": _int("summary_output_max_chars", 5000),
         # 只把最近这么多轮带图的用户发言里的图带进请求（负数 = 不限）。
-        # 缺省 999999 = 不剥：历史图片全保留，KV 缓存前缀稳定；代价是内联 base64
-        # 随会话线性增长（受官方 48 MiB 请求体上限约束）。配小即按用户轮剥图。
+        # 缺省 1 轮 / 8 张：截图工具很占字节，历史全带会先撞上游请求体上限。
         # 这两项由装配根取走交给模型模块，不进 `ContextPipeline` 的构造参数。
-        "image_turns": _int("image_turns", 999999),
-        "image_max": _int("image_max", 999999),
+        "image_turns": _int("image_turns", 1),
+        "image_max": _int("image_max", 8),
         # 思维链回传预算（token）：-1 = 全量回传，0 = 不回传，
         # 正数 = 超出就取两头、中间以省略标记代替（模型按前后文推断）。
         # 思维链必然未命中缓存，全量回传等于每轮多背几万 token。

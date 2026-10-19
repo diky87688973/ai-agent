@@ -99,7 +99,7 @@ def _fields() -> List[Dict[str, Any]]:
                 {"key": "reasoning_replay_tokens", "kind": "number", "label": "思维链回传预算",
                  "hint": "-1 全量回传，0 不回传，正数超出后取两头"},
                 {"key": "image_turns", "kind": "number", "label": "带图用户轮数",
-                 "hint": "最近多少轮用户发言里的图会发给模型；999999 表示不剥"},
+                 "hint": "最近多少轮用户发言里的图会发给模型；负数表示不剥"},
                 {"key": "image_max", "kind": "number", "label": "带图张数上限"},
             ],
         },

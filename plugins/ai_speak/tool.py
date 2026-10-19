@@ -9,7 +9,7 @@ from agent.core.context import SERVICE_PLUGIN_EVENTS
 from agent.core.session_scope import current_context
 
 from .provider import SpeechEngineUnavailable
-from .runtime import AISpeakRuntime
+from .runtime import AISpeakRuntime, SpeechPlaybackFailed
 from .text import MessageValidationError, split_message
 
 _DESCRIPTION = (
@@ -73,18 +73,60 @@ class AISpeakTool(ToolPlugin):
         if callable(connected) and not connected():
             raise SpeechEngineUnavailable("没有已连接的 Web 界面")
 
-        queued = self._runtime.enqueue(
-            conversation_id=conversation_id,
-            call_id=str(turn.call_id or ""),
-            segments=segments,
-            voice=self._runtime.config.voice,
-            publisher=publisher,
-        )
+        call_id = str(turn.call_id or "").strip()
+        sync = bool(self._runtime.config.sync_playback)
+        waiter = None
+        if sync:
+            if not call_id:
+                raise SpeechEngineUnavailable("同步播放缺少工具调用 id")
+            waiter = self._runtime.begin_playback(conversation_id, call_id)
+        try:
+            queued = self._runtime.enqueue(
+                conversation_id=conversation_id,
+                call_id=call_id,
+                segments=segments,
+                voice=self._runtime.config.voice,
+                publisher=publisher,
+            )
+        except Exception:
+            if waiter is not None:
+                self._runtime.forget_playback(conversation_id, call_id)
+            raise
+        if waiter is None:
+            return {
+                "accepted": True,
+                "segments": queued,
+                "characters": len(raw.strip()),
+            }
+
+        timeout_s = _playback_timeout_s(len(raw.strip()))
+        status = waiter.wait(timeout_s, canceled=lambda: _turn_canceled(turn))
+        waited_ms = waiter.waited_ms
+        self._runtime.forget_playback(conversation_id, call_id)
+        if status != "played":
+            self._runtime.stop_cid(conversation_id, f"playback_{status}")
+            raise SpeechPlaybackFailed(status, waited_ms)
         return {
             "accepted": True,
+            "played": True,
             "segments": queued,
             "characters": len(raw.strip()),
+            "waited_ms": waited_ms,
         }
+
+
+def _turn_canceled(turn: Any) -> bool:
+    """读取回合级取消检查；工具上下文只暴露原始回合引用。"""
+    raw = getattr(turn, "turn", None)
+    check = getattr(raw, "canceled", None)
+    if not callable(check):
+        return False
+    return bool(check())
+
+
+def _playback_timeout_s(characters: int) -> float:
+    """给播放留出与文本长度相称的安全等待；上限 10 分钟。"""
+    return max(30.0, min(600.0, 15.0 + max(0, int(characters)) * 0.35))
 
 
 def build(runtime: AISpeakRuntime) -> AISpeakTool:

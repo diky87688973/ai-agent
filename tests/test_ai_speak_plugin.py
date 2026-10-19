@@ -42,7 +42,7 @@ class AISpeakAppTest(unittest.TestCase):
         contribs = self.app.plugin_host.contributions
         self.assertEqual(
             [(route.method, route.path) for route in contribs.routes_of("ai_speak")],
-            [("GET", "config"), ("GET", "status")],
+            [("GET", "config"), ("GET", "status"), ("POST", "played")],
         )
         scripts = [row["rel_path"] for row in
                    (item.as_dict() for item in contribs.all_boot_scripts())]

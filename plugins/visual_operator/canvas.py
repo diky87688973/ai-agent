@@ -18,13 +18,24 @@ MAJOR_EVERY = 5
 #: 细线间距小于该像素时只画主线，避免糊成一片。
 MIN_MINOR_GAP = 8
 #: 刻度字号范围（像素）。
-FONT_MIN = 11
-FONT_MAX = 16
+FONT_MIN = 8
+FONT_MAX = 18
+#: 光标标签的屏幕目标字号；按图片缩放比例反推图上字号，保证不同缩放下观感一致。
+CURSOR_FONT_MIN = 7
+CURSOR_FONT_MAX = 16
+CURSOR_FONT_SCREEN = 16
+#: 短边小于它的区域用紧凑标签：只写坐标，不铺黑底。
+COMPACT_SIDE = 140
+#: 短边小于它的区域不画坐标标签，坐标只从回执 cursor 读取。
+LABEL_MIN_SIDE = 90
 
-_THIN_COLOR = (90, 200, 255, 70)
-_MAJOR_COLOR = (255, 90, 90, 150)
-_CURSOR_COLOR = (0, 255, 0, 235)
-_SHADOW_COLOR = (0, 0, 0, 200)
+_THIN_COLOR = (80, 190, 255, 120)
+_MAJOR_COLOR = (255, 70, 70, 220)
+_CURSOR_COLOR = (0, 255, 0, 255)
+_CURSOR_WHITE = (255, 255, 255, 255)
+_CURSOR_HALO = (0, 0, 0, 245)
+_GRID_HALO = (0, 0, 0, 110)
+_SHADOW_COLOR = (0, 0, 0, 220)
 
 
 @dataclass(frozen=True)
@@ -65,6 +76,20 @@ def _font(image_font: Any, size: int) -> Any:
         return image_font.load_default()
 
 
+def cursor_label_visible(width: int, height: int) -> bool:
+    """极小区域不画标签：标签本身比十字更占地方。"""
+    return min(width, height) >= LABEL_MIN_SIDE
+
+
+def cursor_font_size(width: int, height: int, scale: float) -> int:
+    """按短边和截图缩放选图上字号；屏幕观感在不同缩放下保持一致。"""
+    return max(
+        CURSOR_FONT_MIN,
+        min(CURSOR_FONT_MAX, round(min(width, height) / 18),
+            round(CURSOR_FONT_SCREEN / max(scale, 1e-6))),
+    )
+
+
 def _text_size(draw: Any, text: str, font: Any) -> Tuple[int, int]:
     left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
     return right - left, bottom - top
@@ -79,6 +104,44 @@ def _draw_label(draw: Any, position: Tuple[int, int], text: str, font: Any,
     y = max(2, min(int(position[1]), height - text_height - 2))
     draw.text((x + 1, y + 1), text, font=font, fill=_SHADOW_COLOR)
     draw.text((x, y), text, font=font, fill=color)
+
+
+def _draw_cursor_badge(draw: Any, cursor_x: int, cursor_y: int, radius: int,
+                       title: str, coords: str, font: Any,
+                       width: int, height: int) -> None:
+    """光标读数用紧凑的黑底绿框标签，优先放在光标右侧。"""
+    title_width, title_height = (_text_size(draw, title, font) if title else (0, 0))
+    coord_width, coord_height = _text_size(draw, coords, font)
+    compact = min(width, height) < COMPACT_SIDE
+    pad = 2 if compact else 3
+    line_gap = 3 if title else 0
+    box_width = max(title_width, coord_width) + pad * 2
+    box_height = title_height + coord_height + line_gap + pad * 2
+    x = cursor_x + radius + 6
+    if x + box_width > width - 2:
+        x = cursor_x - radius - 6 - box_width
+    x = max(2, min(x, width - box_width - 2))
+    y = max(2, min(cursor_y - box_height // 2, height - box_height - 2))
+    if compact:
+        # 小区域只描字，不铺黑底，底下原有内容仍能透出来。
+        if title:
+            draw.text((x + pad, y + pad), title, font=font, fill=_CURSOR_WHITE,
+                      stroke_width=1, stroke_fill=_CURSOR_HALO)
+        draw.text((x + pad, y + pad + title_height + line_gap), coords,
+                  font=font, fill=_CURSOR_WHITE,
+                  stroke_width=1, stroke_fill=_CURSOR_HALO)
+        return
+    draw.rounded_rectangle(
+        (x, y, x + box_width, y + box_height),
+        radius=3,
+        fill=(0, 0, 0, 200),
+        outline=_CURSOR_COLOR,
+        width=1,
+    )
+    if title:
+        draw.text((x + pad, y + pad), title, font=font, fill=_CURSOR_WHITE)
+    draw.text((x + pad, y + pad + title_height + line_gap), coords,
+              font=font, fill=_CURSOR_WHITE)
 
 
 def _offset(origin: int, value: int, extent: int, pixels: int) -> int:
@@ -96,7 +159,8 @@ def _label_value(value: int, origin: int, extent: int, pixels: int,
 
 def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: Any, *,
                   rect: ScreenRect, step: int, grid: bool,
-                  cursor: Optional[ScreenPoint], grid_unit: str = "screen") -> None:
+                  cursor: Optional[ScreenPoint], grid_unit: str = "screen",
+                  scale: float = 1.0) -> None:
     """在图片上叠坐标网格与光标十字；刻度单位由 `grid_unit` 决定。"""
     width, height = image.size
     step = max(1, int(step))
@@ -105,6 +169,8 @@ def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: An
     draw = image_draw.Draw(canvas)
     font = _font(image_font, max(FONT_MIN, min(FONT_MAX, round(width / 120))))
     text_height = _text_size(draw, "0", font)[1] + 2
+    major_width = max(2, min(3, round(width / 600)))
+    minor_width = max(1, min(2, round(width / 900)))
 
     if grid:
         gap = step * width / rect.width
@@ -118,9 +184,12 @@ def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: An
             screen_x = index * step
             offset = _offset(rect.x, screen_x, rect.width, width)
             if 0 <= offset < width:
+                line_width = major_width if major else minor_width
+                draw.line([(offset, 0), (offset, height)],
+                          fill=_GRID_HALO, width=line_width + 1)
                 draw.line([(offset, 0), (offset, height)],
                           fill=_MAJOR_COLOR if major else _THIN_COLOR,
-                          width=2 if major else 1)
+                          width=line_width)
                 if major:
                     label = _label_value(screen_x, rect.x, rect.width, width, grid_unit)
                     _draw_label(draw, (offset + 3, 2), label,
@@ -137,9 +206,12 @@ def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: An
             screen_y = index * step
             offset = _offset(rect.y, screen_y, rect.height, height)
             if 0 <= offset < height:
+                line_width = major_width if major else minor_width
+                draw.line([(0, offset), (width, offset)],
+                          fill=_GRID_HALO, width=line_width + 1)
                 draw.line([(0, offset), (width, offset)],
                           fill=_MAJOR_COLOR if major else _THIN_COLOR,
-                          width=2 if major else 1)
+                          width=line_width)
                 if major:
                     label = _label_value(screen_y, rect.y, rect.height, height, grid_unit)
                     _draw_label(draw, (2, offset + 3), label,
@@ -152,12 +224,47 @@ def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: An
         cursor_x = _offset(rect.x, cursor.x, rect.width, width)
         cursor_y = _offset(rect.y, cursor.y, rect.height, height)
         if 0 <= cursor_x < width and 0 <= cursor_y < height:
-            draw.line([(0, cursor_y), (width, cursor_y)], fill=_CURSOR_COLOR, width=1)
-            draw.line([(cursor_x, 0), (cursor_x, height)], fill=_CURSOR_COLOR, width=1)
-            label = _label_value(cursor.x, rect.x, rect.width, width, grid_unit) + "," \
-                + _label_value(cursor.y, rect.y, rect.height, height, grid_unit)
-            _draw_label(draw, (cursor_x + 6, cursor_y + 6), label,
-                        font, text_height, width, height, color=(0, 255, 0, 245))
+            halo_width = max(3, min(5, round(width / 400)))
+            cursor_width = max(1, min(3, round(width / 700)))
+            white_width = cursor_width + 1
+            radius = max(4, min(12, round(width / 70), round(16 / scale)))
+            arm = max(8, min(36, round(min(width, height) / 12),
+                             round(50 / scale)))
+            gap = max(2, cursor_width + 1)
+            # 只画光标周围的短十字；中心留空，落点像素本身不被盖住。
+            for color, line_width in (
+                (_CURSOR_HALO, halo_width),
+                (_CURSOR_WHITE, white_width),
+                (_CURSOR_COLOR, cursor_width),
+            ):
+                draw.line([(cursor_x - arm, cursor_y), (cursor_x - gap, cursor_y)],
+                          fill=color, width=line_width)
+                draw.line([(cursor_x + gap, cursor_y), (cursor_x + arm, cursor_y)],
+                          fill=color, width=line_width)
+                draw.line([(cursor_x, cursor_y - arm), (cursor_x, cursor_y - gap)],
+                          fill=color, width=line_width)
+                draw.line([(cursor_x, cursor_y + gap), (cursor_x, cursor_y + arm)],
+                          fill=color, width=line_width)
+            for color, line_width in (
+                (_CURSOR_HALO, max(3, halo_width)),
+                (_CURSOR_WHITE, max(2, white_width)),
+                (_CURSOR_COLOR, max(1, cursor_width + 1)),
+            ):
+                draw.ellipse(
+                    (cursor_x - radius, cursor_y - radius,
+                     cursor_x + radius, cursor_y + radius),
+                    outline=color, width=line_width,
+                )
+            if cursor_label_visible(width, height):
+                coords = _label_value(cursor.x, rect.x, rect.width, width, grid_unit) + "," \
+                    + _label_value(cursor.y, rect.y, rect.height, height, grid_unit)
+                cursor_font = _font(
+                    image_font, cursor_font_size(width, height, scale))
+                title = "" if min(width, height) < COMPACT_SIDE else "CURSOR"
+                _draw_cursor_badge(
+                    draw, cursor_x, cursor_y, radius, title, coords,
+                    cursor_font, width, height,
+                )
 
     image.paste(image_module.alpha_composite(base, canvas).convert("RGB"))
 
@@ -193,7 +300,8 @@ def render(png: bytes, *, rect: ScreenRect, grid: bool, step: int,
     mark = cursor if cursor_mark else None
     if grid or mark is not None:
         _draw_overlay(image, Image, ImageDraw, ImageFont, rect=rect,
-                      step=step, grid=grid, cursor=mark, grid_unit=unit)
+                      step=step, grid=grid, cursor=mark, grid_unit=unit,
+                      scale=scale)
 
     buffer = io.BytesIO()
     image.save(buffer, format="PNG", compress_level=6)

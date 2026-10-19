@@ -119,7 +119,8 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
     回显条目：
       - `input_claimed.content` → `{role:"user", content[, attachments][, had_images]}`；
       - `model_message.reasoning_content` 非空 → `{role:"think", content[, elapsed_ms]}`，
-        排在同条助手正文之前。用时取这条消息之前最近一次 `llm_ended.elapsed_ms`；
+        排在同条助手正文之前。用时优先取最近一次 `llm_ended.reasoning_ms`，
+        没有该字段时回退 `elapsed_ms`；
       - `model_message.content` 非空 → `{role:"assistant", content}`。
         （工具调用轮的 `model_message` 正文为空，跳过——否则会渲染空气泡。）
 
@@ -134,6 +135,7 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
     items: List[Dict[str, Any]] = []
     resolved: List[Dict[str, Any]] = []
     think_ms: Optional[int] = None
+    think_reasoning_ms: Optional[int] = None
     for ev in events:
         kind = str(getattr(ev, "type", ""))
         data = dict(getattr(ev, "data", None) or {})
@@ -174,14 +176,24 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
                 think_ms = int(raw_ms) if raw_ms is not None else None
             except (TypeError, ValueError):
                 think_ms = None
+            raw_reasoning_ms = data.get("reasoning_ms")
+            try:
+                think_reasoning_ms = (int(raw_reasoning_ms)
+                                      if raw_reasoning_ms is not None else None)
+            except (TypeError, ValueError):
+                think_reasoning_ms = None
         elif kind == "model_message":
             reasoning = str(data.get("reasoning_content") or "")
             if reasoning.strip():
                 think_item: Dict[str, Any] = {"role": "think", "content": reasoning}
-                if think_ms is not None and think_ms >= 0:
-                    think_item["elapsed_ms"] = think_ms
+                elapsed = (think_reasoning_ms
+                           if think_reasoning_ms is not None and think_reasoning_ms >= 0
+                           else think_ms)
+                if elapsed is not None and elapsed >= 0:
+                    think_item["elapsed_ms"] = elapsed
                 items.append(think_item)
             think_ms = None
+            think_reasoning_ms = None
             content = str(data.get("content") or "")
             if content.strip():
                 items.append({"role": "assistant", "content": content})

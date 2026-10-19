@@ -73,6 +73,7 @@ class DesktopMouseTool(ToolPlugin):
         "要给动作后的界面同时拍一张，加 shot=true："
         "同一调用内完成「点完就截」，省掉一次「再调 desktop_eye」的往返；"
         "回图默认拍落点实际所在的窗口（shot_of=hit），不是按标题重新解析的那个。"
+        "shot 回图的辅助线与 desktop_eye 相同：短十字、小圆环、CURSOR 标签和网格。"
         "action=cursor 只读查询，Plan 模式可用；其余动作在 Plan 模式被拒绝。"
     )
     parameters = {

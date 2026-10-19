@@ -40,18 +40,17 @@ plugin_tree_only = 0
 ; summary_token_threshold  估算 token 超过该值触发压缩
 ; full_user_rounds         压缩时的遮盖轮数：末尾这么多用户轮不压，只压它们前面的
 ; summary_output_max_chars 摘要的篇幅上限（字数，写进提示词，不作强制截断）
-; image_turns / image_max   不设置 = 不剥图（缺省 999999）：历史图片全保留，
-;                           消息前缀恒定，KV 缓存可复用。代价是内联 base64 随会话增长。
-;                           设置成具体轮数 = 按用户轮剥图：只带最近这么多轮带图的
-;                           用户发言，image_max 再限制总数。请求体小，但每逢滑窗
-;                           历史消息被改写，缓存前缀从第一条起作废。
+; image_turns / image_max   只带最近这么多轮用户发言里的图，image_max 再限制总数。
+;                           缺省 1 轮 / 8 张：截图类工具每步产生大图，历史全带会
+;                           先撞上游请求体大小限制。负数 = 不剥图；剥图会改写
+;                           历史消息前缀，缓存前缀随之失效。
 summary_token_threshold = 700000
 full_user_rounds = 1
 ; 最近这么多用户轮保留完整工具往返；更早的轮剥掉轮内工具往返（负数 = 不剥）
 summary_output_max_chars = 5000
-; 不剥图的缺省值；要按轮剥图就改成具体数字（如 3 / 10）。
-image_turns = 999999
-image_max = 999999
+; 最近 1 轮最多 8 张图；要更长历史或更多图再调大。
+image_turns = 1
+image_max = 8
 ; reasoning_replay_tokens   思维链回传预算（token）：-1 = 全量回传；0 = 不回传；
 ;                           正数 = 超出就取两头、中间用 <此处省略 N token 的推理> 代替
 ;                           （模型可据前后文推断中间）。思维链必定未命中缓存，

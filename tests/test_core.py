@@ -214,6 +214,9 @@ class BasicTurnTest(CoreHarness):
         self.assertIn("reasoning_delta", kinds)
         self.assertIn("assistant_delta", kinds)
         self.assertIn("model_message", kinds)
+        done = [e for e in self.events if e.type == "llm_done"][-1]
+        self.assertGreaterEqual(done.data["reasoning_ms"], 0)
+        self.assertLessEqual(done.data["reasoning_ms"], done.data["elapsed_ms"])
 
     def test_model_sees_the_real_tool_result_not_null(self) -> None:
         """模型必须看到工具的真实结果——不能是 `null`。

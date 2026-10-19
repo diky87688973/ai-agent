@@ -18,6 +18,7 @@ from .. import canvas
 from ..capture_store import CaptureStore
 from ..config import DesktopConfig
 from ..coords import ScreenPoint, ScreenRect
+from ..errors import DesktopError
 from ..ports import Backend, WindowInfo
 from ._params import as_bool, as_int, has, require_range
 from ._windows import MAX_CANDIDATES, alternatives, window_candidates
@@ -39,6 +40,8 @@ class CaptureRequest:
     grid: bool = True
     max_side: int = 0
     activate: bool = False
+    #: `annotated` 只回标注图；`raw` 只回原图；`both` 先标注图后原图。
+    annotate: str = "annotated"
     #: 取图前把光标移到这里，用来展开悬停控件；None 表示不动光标。
     hover: Optional[ScreenPoint] = None
     hover_settle_ms: int = 0
@@ -73,8 +76,19 @@ def request_from_arguments(backend: Backend, config: DesktopConfig,
         max_side=require_range(
             as_int(arguments, "max_side", config.max_side), "max_side", 0, 8192),
         activate=as_bool(arguments, "activate", activate_default),
+        annotate=_annotate(arguments),
         grid_unit=_grid_unit(arguments),
     )
+
+
+def _annotate(arguments: Dict[str, Any]) -> str:
+    """标注图模式：annotated / raw / both；未知值直接拒绝。"""
+    value = str(arguments.get("annotate") or "annotated").strip().lower()
+    if value not in ("annotated", "raw", "both"):
+        raise ValueError(
+            f"annotate 只能是 annotated / raw / both，实际 {arguments.get('annotate')!r}"
+        )
+    return value
 
 
 def _grid_unit(arguments: Dict[str, Any]) -> str:
@@ -166,30 +180,47 @@ def capture_payload(backend: Backend, config: DesktopConfig,
     _check_area(screenshot.rect.width * screenshot.rect.height)
     cursor = backend.mouse.cursor()
     step = request.grid_step or config.grid_step
+    annotated = request.annotate in ("annotated", "both")
     rendered = canvas.render(
         screenshot.png,
         rect=screenshot.rect,
-        grid=request.grid,
+        grid=request.grid if annotated else False,
         step=step,
-        cursor=cursor,
-        cursor_mark=config.cursor_mark,
+        cursor=cursor if annotated else None,
+        cursor_mark=config.cursor_mark if annotated else False,
         max_side=request.max_side,
         grid_unit=request.grid_unit,
     )
+    raw_rendered = None
+    if request.annotate == "both":
+        raw_rendered = canvas.render(
+            screenshot.png,
+            rect=screenshot.rect,
+            grid=False,
+            step=step,
+            cursor=None,
+            cursor_mark=False,
+            max_side=request.max_side,
+            grid_unit=request.grid_unit,
+        )
+
+    def image_info(item: canvas.Rendered) -> Dict[str, Any]:
+        return {
+            "width": item.width,
+            "height": item.height,
+            "sent_width": item.sent_width,
+            "sent_height": item.sent_height,
+            "scale": item.scale,
+            "bytes": len(item.png),
+        }
 
     summary: Dict[str, Any] = {
         "platform": backend.platform,
         "screen": geometry.rect.to_dict(),
         "capture": screenshot.rect.to_dict(),
         "source": screenshot.source,
-        "image": {
-            "width": rendered.width,
-            "height": rendered.height,
-            "sent_width": rendered.sent_width,
-            "sent_height": rendered.sent_height,
-            "scale": rendered.scale,
-            "bytes": len(rendered.png),
-        },
+        "annotate": request.annotate,
+        "image": image_info(rendered),
         "image_to_screen": {
             "scale_x": round(screenshot.rect.width / rendered.sent_width, 6),
             "scale_y": round(screenshot.rect.height / rendered.sent_height, 6),
@@ -198,6 +229,13 @@ def capture_payload(backend: Backend, config: DesktopConfig,
         },
         "dpi": geometry.dpi or "unknown",
     }
+    if raw_rendered is not None:
+        summary["raw_image"] = image_info(raw_rendered)
+        summary["attachment_order"] = ["annotated", "raw"]
+    elif request.annotate == "raw":
+        summary["attachment_order"] = ["raw"]
+    else:
+        summary["attachment_order"] = ["annotated"]
     if captures is not None:
         ref = captures.put(
             session_id if session_id is not None else current_session_id(),
@@ -239,7 +277,7 @@ def capture_payload(backend: Backend, config: DesktopConfig,
         if hover_hit:
             hover_data["hit"] = hover_hit
         summary["hover"] = hover_data
-    if request.grid:
+    if request.grid and annotated:
         summary["grid"] = {
             "step": step,
             "unit": request.grid_unit,
@@ -257,11 +295,16 @@ def capture_payload(backend: Backend, config: DesktopConfig,
         summary["note"] = note
     summary.update(request.extra)
 
-    attachment = {
+    attachments = [{
         "mime": "image/png",
         "data_base64": base64.b64encode(rendered.png).decode("ascii"),
-    }
-    return summary, [attachment]
+    }]
+    if raw_rendered is not None:
+        attachments.append({
+            "mime": "image/png",
+            "data_base64": base64.b64encode(raw_rendered.png).decode("ascii"),
+        })
+    return summary, attachments
 
 
 def build_note(rendered: Any, mixed_scale: bool, step: int, *,
@@ -348,6 +391,7 @@ def _hover(request: CaptureRequest, backend: Backend) -> None:
     移动不是一次瞬移：先走完 `hover_path` 的中间点，再用 `hover_approach_ms`
     连续移到落点，最后（可选）在 1–2px 内来回几次。播放器与网页的自动隐藏
     控件靠连续的 `WM_MOUSEMOVE` 判断"鼠标在动"，一次跳变后静止会被当成没动。
+    微动结束必须收回落点；目标窗口抢光标时直接报错，不把偏移后的坐标当落点。
     """
     if request.hover is None:
         return
@@ -356,8 +400,23 @@ def _hover(request: CaptureRequest, backend: Backend) -> None:
     backend.mouse.move(request.hover, request.hover_approach_ms)
     if request.hover_wiggle:
         _wiggle(request.hover, backend)
+        _return_to(request.hover, backend)
     if request.hover_settle_ms > 0:
         time.sleep(request.hover_settle_ms / 1000.0)
+
+
+def _return_to(point: ScreenPoint, backend: Backend) -> None:
+    """微动后把真实光标收回落点；窗口若抢光标则明确失败。"""
+    actual = backend.mouse.cursor()
+    for _attempt in range(3):
+        if actual == point:
+            return
+        backend.mouse.move(point, 0)
+        time.sleep(0.01)
+        actual = backend.mouse.cursor()
+    raise DesktopError(
+        f"hover 微动后光标未能回到落点 {point.to_dict()}，实际 {actual.to_dict()}"
+    )
 
 
 def _wiggle(point: ScreenPoint, backend: Backend) -> None:

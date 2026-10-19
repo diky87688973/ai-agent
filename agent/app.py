@@ -122,9 +122,9 @@ class App:
         #: 装配末尾由 `build_app` 计算；`reload_model_config` 之后可能从 config 变 none。
         self.model_config_state = "none"
         #: 只把最近这么多轮用户发言里的图带进请求（负数 = 不限）。
-        #: 缺省 999999 = 不剥：历史图片全保留 → 前缀稳定 → 缓存可复用。
+        #: 缺省 1 轮：截图体积大，历史全带会撞上游请求体上限。
         self.image_turns = int(image_turns)
-        #: 这些轮里最多带几张图（负数 = 不限）；最近一轮优先保。
+        #: 这些轮里最多带几张图（负数 = 不限）；缺省 8，最近一轮优先保。
         self.image_max = int(image_max)
         #: 一回合的模型往返上限（`[agent] max_passes`）。
         self.max_passes = max(1, int(max_passes))
