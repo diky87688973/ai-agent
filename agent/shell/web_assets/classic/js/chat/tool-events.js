@@ -50,10 +50,9 @@ if(ok&&o.script==="goal"){var _gp=null;try{_gp=JSON.parse(ev.preview||"{}").data
 if(_gp&&Object.prototype.hasOwnProperty.call(_gp,"goal")){_goalInfo=_gp.goal;updateAutoToggleUI();}
 else if(_gp&&_gp.deleted){_goalInfo=null;updateAutoToggleUI();}}
 fillChatToolResult(o,ev);
-/* 等待类工具收尾：`desktop_wait` 停掉倒计时，用回执里的实际耗时改写摘要。
+/* 等待类工具收尾：`desktop_wait` 停掉本地倒计时，标题回到条件描述。
    `task_sleep` 只是登记休眠请求、工具立即返回；这里不能停表 ——
-   停了就只剩一个静止的「N 秒」，用户看不到请求内的逐秒减少。
-   倒计时由请求时长自己走到 0，到点写「已到点」。 */
+   停了就只剩一个静止的「N 秒」，用户看不到请求内的逐秒减少。 */
 if(desktopToolKind(o.script||ev.script)!=="sleep")desktopStopWaitTicker(tid);
 try{
 var _dws=typeof ev.preview==="string"?JSON.parse(ev.preview||"{}"):ev.preview;

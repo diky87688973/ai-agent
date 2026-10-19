@@ -332,6 +332,7 @@ if(owner&&!loadedPlugins[owner])slots[i].parentNode.removeChild(slots[i]);
 /* 插件开关的广播：重画按钮，关掉卸下插件的面板。上下文条重画一次，画的时候跳过未装载的插件。 */
 function applyPluginsChanged(ev){
 rememberLoadedPlugins(ev&&ev.loaded);
+try{document.dispatchEvent(new CustomEvent("ai-agent:plugins-changed",{detail:{loaded:(ev&&Array.isArray(ev.loaded))?ev.loaded.slice():[]}}));}catch(_e){}
 prunePluginStyles();
 prunePluginScripts();
 prunePluginMounts();

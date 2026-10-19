@@ -8,6 +8,7 @@ from typing import Any, Dict
 from agent.capabilities.registry import ToolPlugin
 from agent.core.tool_call import ToolResult
 
+from ..capture_store import CaptureStore
 from ..config import DesktopConfig
 from ..guard import reject_in_plan
 from ..input_lock import input_guard
@@ -59,10 +60,12 @@ class DesktopKeyboardTool(ToolPlugin):
     }
 
     def __init__(self, backend: Backend, config: DesktopConfig,
-                 live_state: Any = None) -> None:
+                 live_state: Any = None,
+                 captures: CaptureStore | None = None) -> None:
         self._backend = backend
         self._config = config
         self._live_state = live_state
+        self._captures = captures
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
         action = choice(arguments, "action", _ACTIONS)
@@ -108,7 +111,8 @@ class DesktopKeyboardTool(ToolPlugin):
                 as_int(arguments, "shot_max_side", self._config.max_side),
                 "shot_max_side", 0, 8192),
         )
-        summary, attachments = capture_payload(self._backend, self._config, request)
+        summary, attachments = capture_payload(
+            self._backend, self._config, request, captures=self._captures)
         summary["performed"] = result
         return ToolResult.attach(summary, attachments)
 

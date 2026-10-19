@@ -13,7 +13,7 @@ from ..coords import ScreenGeometry, ScreenPoint, ScreenRect
 from ..errors import DesktopUnavailable
 from ..ports import Backend, Screenshot
 
-_REASON = f"桌面 IO 在 {sys.platform} 上不可用（支持 Windows 与 macOS）"
+_REASON = f"Visual Operator 在 {sys.platform} 上不可用（支持 Windows 与 macOS）"
 
 
 class UnavailableScreen:

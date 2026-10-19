@@ -498,7 +498,7 @@ class PluginConfigIsolationTest(unittest.TestCase):
         import importlib.util
         from pathlib import Path as _P
         root = _P(__file__).resolve().parent.parent
-        for name in ("knowledge", "skills", "tts"):
+        for name in ("knowledge", "skills", "ai_speak"):
             entry = root / "plugins" / name / "plugin.py"
             plugin_root = entry.parent
             mod_name = f"fan_agent_plugins.cfgprobe_{name}"
@@ -695,7 +695,7 @@ class PluginPanelRenderContractTest(unittest.TestCase):
     def test_panels_render_on_the_event(self) -> None:
         from pathlib import Path as _P
         root = _P(__file__).resolve().parent.parent
-        for name in ("knowledge", "tts"):
+        for name in ("knowledge",):
             panel = root / "plugins" / name / "ui" / "panel.js"
             if not panel.exists():
                 continue

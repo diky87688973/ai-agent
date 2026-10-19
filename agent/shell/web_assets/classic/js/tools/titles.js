@@ -268,7 +268,7 @@ if(s===unk)return {main:"无法识别的工具（见下方参数）",fname:""};
 if(p){const leaf=pathLeaf(p);if(leaf)return {main:toolZh(script),fname:leaf};}}
 return {main:toolZh(script),fname:""};}
 
-/* ── 桌面 IO：标题后的执行摘要 ─────────────────────────────────────────────
+/* ── Visual Operator：标题后的执行摘要 ─────────────────────────────────────────────
    这四个工具的动作全在参数里，标题只写「看屏 / 鼠标 / 键盘」等于什么都没说：
    用户看不出模型是点哪儿、打什么字、等哪块画面。摘要统一成
    `动作 -> 目标 (位置)`，参数里没有目标时留位置，执行完再用回执里的
@@ -293,6 +293,20 @@ return "("+x+", "+y+", "+w+"×"+h+")";}
 function desktopClipText(text,n){
 var s=String(text==null?"":text);
 return s.length>n?s.slice(0,n)+"…":s;}
+/* 毫秒 → 时长文本：按 秒 / 分 / 时 / 天 展开，不足 10 秒保留一位小数。 */
+function desktopDurationText(ms){
+var total=Math.max(0,Math.round(Number(ms)||0));
+if(total<10000)return (Math.round(total/100)/10)+" 秒";
+var rest=Math.round(total/1000);
+var days=Math.floor(rest/86400);rest-=days*86400;
+var hours=Math.floor(rest/3600);rest-=hours*3600;
+var mins=Math.floor(rest/60);rest-=mins*60;
+var parts=[];
+if(days)parts.push(days+" 天");
+if(hours)parts.push(hours+" 小时");
+if(mins)parts.push(mins+" 分");
+if(rest)parts.push(rest+" 秒");
+return parts.length?parts.join(" "):"0 秒";}
 function _desktopData(data){
 return (data&&typeof data==="object")?data:null;}
 /* 取回执里的窗口标题：`desktop_eye` 放在 data.window，鼠标的 `hit` 在顶层或 performed 里。 */
@@ -351,12 +365,10 @@ if(until!=="window_appears"&&until!=="window_disappears"){
 if(wtitle)label+=" -> "+wtitle;
 else if(d&&d.capture&&d.capture.width!=null)label+=" -> ("+d.capture.x+", "+d.capture.y+", "+d.capture.width+"×"+d.capture.height+")";
 else {var wreg=desktopRegionText(a);if(wreg)label+=" -> "+wreg;}}
-if(d&&d.waited_ms!=null){
-var sec=(Number(d.waited_ms)||0)/1000;
-label+=" · "+(d.satisfied===false?"超时 ":"已达成 ")+(Math.round(sec*10)/10)+" 秒";}
+if(d&&d.waited_ms!=null)label+=" · "+desktopDurationText(d.waited_ms);
 return {main:"等待条件",fname:label};}
 var sleepSec=Number(argGet(a,"seconds"));
-return {main:"等待",fname:(sleepSec>0?sleepSec:0)+" 秒"};}
+return {main:"等待",fname:(sleepSec>0?desktopDurationText(sleepSec*1000):"0 秒")};}
 function desktopToolSummary(script,args,data){
 var t=desktopToolTitle(script,args,true,data);
 return t?String(t.fname||""):"";}
@@ -379,8 +391,9 @@ if(!text)return;
 var card=(typeof findStepCardForToolCall==="function")?findStepCardForToolCall(tid):null;
 if(!card)return;
 desktopSetStepSummary(card.querySelector(".step-title-wrap"),text,true);}
-/* 等待类工具的倒计时：`task_sleep` 从秒数往下数，`desktop_wait` 从超时往下数。
-   逐秒递减由时间戳算出来，不靠累加；标签页被节流时也不会越数越偏。 */
+/* 等待类工具自己数秒：`task_sleep` 数请求的秒数，`desktop_wait` 数超时上限。
+   都以截止时间戳算，不靠累加。`desktop_wait` 越过上限还没收到结果，
+   就继续往上数「已超时」，直到工具结束。 */
 function desktopWaitSeconds(script,args){
 var kind=desktopToolKind(script);
 if(kind==="sleep"){
@@ -390,16 +403,14 @@ if(kind==="wait"){
 var ms=Number(argGet(args,"timeout_ms")||10000);
 return ms>0?Math.ceil(ms/1000):0;}
 return 0;}
-function desktopWaitTickText(script,args,left){
+function desktopWaitTickText(script,args,left,elapsedMs){
 var kind=desktopToolKind(script);
-if(kind==="sleep"){
-/* `task_sleep` 只登记休眠请求、立即返回；倒计时跟着请求时长走完，
-   到点写「已到点」而不是停在「0 秒」，否则读起来像没等。 */
-if(left>0)return left+" 秒";
-var total=desktopWaitSeconds(script,args);
-return (total>0?total+" 秒 · ":"")+"已到点";}
 var base=desktopToolSummary(script,args,null);
-return (base?base+" · ":"")+left+" 秒";}
+if(kind==="sleep")return "剩余 "+desktopDurationText(left*1000);
+if(left>0)return (base?base+" · ":"")+"剩余 "+desktopDurationText(left*1000);
+var total=desktopWaitSeconds(script,args);
+var over=Math.max(0,elapsedMs-total*1000);
+return (base?base+" · ":"")+"已超时 "+Math.max(1,Math.floor(over/1000))+" 秒";}
 var _desktopWaitTickers={};
 function desktopStopWaitTicker(tid){
 var key=String(tid==null?"":tid);if(!key)return;
@@ -410,18 +421,27 @@ delete _desktopWaitTickers[key];}
    第二个登记方只挂自己的刷新函数，不重置截止时间，否则倒计时会被"重启"。 */
 function desktopStartWaitTicker(tid,script,args,apply){
 var key=String(tid==null?"":tid);if(!key)return;
+var kind=desktopToolKind(script);
 var total=desktopWaitSeconds(script,args);
 if(!total||typeof apply!=="function")return;
 function paint(){
 var entry=_desktopWaitTickers[key];if(!entry)return;
-var left=Math.max(0,Math.ceil((entry.deadline-Date.now())/1000));
-if(left===entry.last)return;
-entry.last=left;
-for(var i=0;i<entry.applys.length;i++){try{entry.applys[i](left,entry.total);}catch(_e){}}
-if(left<=0)desktopStopWaitTicker(key);}
+var now=Date.now();
+var leftMs=entry.deadline-now;
+var left=leftMs>0?Math.ceil(leftMs/1000):0;
+var over=leftMs>0?0:Math.floor(-leftMs/1000)+1;
+var step=left>0?left:-over;
+if(step===entry.last)return;
+entry.last=step;
+var elapsed=Math.max(0,now-entry.started);
+for(var i=0;i<entry.applys.length;i++){try{entry.applys[i](left,entry.total,elapsed);}catch(_e){}}
+/* `desktop_wait` 到点后还要接着数超时，等工具结果来收尾；
+   其它等待到点就停在 0。 */
+if(kind!=="wait"&&left<=0)desktopStopWaitTicker(key);}
 var entry=_desktopWaitTickers[key];
 if(!entry){
-entry={deadline:Date.now()+total*1000,total:total,applys:[],last:-1,timer:null};
+var now=Date.now();
+entry={deadline:now+total*1000,total:total,started:now,applys:[],last:-1,timer:null};
 _desktopWaitTickers[key]=entry;
 entry.timer=setInterval(paint,200);
 }

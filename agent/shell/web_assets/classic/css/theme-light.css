@@ -458,11 +458,6 @@ html[data-ui-theme="light"] .peer-bubble .peer-agent-body.b.a{color:#1a2233;font
 .u li{margin:.1em 0}
 .b blockquote,.a blockquote,.u blockquote{border-left:3px solid #5a6a82;padding:4px 12px;margin:.4em 0;color:#b0b8c4}
 
-/* 语音开关按钮 */
-.tts-toggle-btn{display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:600;color:#aeb9c8;background:transparent;border:1px solid #5a6a82;cursor:pointer;font:inherit;white-space:nowrap;box-sizing:border-box;gap:3px}
-.tts-toggle-btn.on{border-color:#4a9c6a;color:#6acc8a}
-.tts-toggle-btn.off{border-color:#6a5a5a;color:#b08888}
-
 /* ══ 目标（Goal）：按钮三态 + 设置弹窗 ══════════════════════════════
    三态与既有 `.mode-plus` 视觉语言一致（金色走 active、暗红走 paused）：
      - 进行中 active → 暗金色（与 `.mode-plus.active` 同色系，稍暗以区分"模式"与"目标"）

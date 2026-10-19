@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""桌面 IO 插件测试。
+"""Visual Operator 插件测试。
 
 覆盖：坐标契约 / 键名归一 / 配置回退与夹取 / 截图加工（缩放、网格、空白）/
 三个工具的参数矩阵与结果 / Plan 门控 / 输入锁 / 平台表与后端选择。
@@ -32,8 +32,8 @@ def _load_plugin_module():
         parent = types.ModuleType("fan_agent_plugins")
         parent.__path__ = [str(_PLUGIN_DIR)]
         sys.modules["fan_agent_plugins"] = parent
-    path = _PLUGIN_DIR / "desktop_io" / "plugin.py"
-    name = "fan_agent_plugins.desktop_io"
+    path = _PLUGIN_DIR / "visual_operator" / "plugin.py"
+    name = "fan_agent_plugins.visual_operator"
     spec = importlib.util.spec_from_file_location(
         name, str(path), submodule_search_locations=[str(path.parent)])
     assert spec is not None and spec.loader is not None
@@ -45,28 +45,29 @@ def _load_plugin_module():
 
 _PLUGIN = _load_plugin_module()
 
-from fan_agent_plugins.desktop_io import canvas, diff, keys  # noqa: E402
-from fan_agent_plugins.desktop_io.backends._unavailable import unavailable_backend  # noqa: E402
-from fan_agent_plugins.desktop_io.config import DesktopConfig, load_config  # noqa: E402
-from fan_agent_plugins.desktop_io.coords import (  # noqa: E402
+from fan_agent_plugins.visual_operator import canvas, diff, keys  # noqa: E402
+from fan_agent_plugins.visual_operator.backends._unavailable import unavailable_backend  # noqa: E402
+from fan_agent_plugins.visual_operator.capture_store import CaptureStore  # noqa: E402
+from fan_agent_plugins.visual_operator.config import DesktopConfig, load_config  # noqa: E402
+from fan_agent_plugins.visual_operator.coords import (  # noqa: E402
     ScreenGeometry,
     ScreenPoint,
     ScreenRect,
 )
-from fan_agent_plugins.desktop_io.errors import (  # noqa: E402
+from fan_agent_plugins.visual_operator.errors import (  # noqa: E402
     DesktopBusy,
     DesktopError,
     DesktopUnavailable,
     ScreenCaptureFailed,
 )
-from fan_agent_plugins.desktop_io.input_lock import input_guard  # noqa: E402
-from fan_agent_plugins.desktop_io.ports import (  # noqa: E402
+from fan_agent_plugins.visual_operator.input_lock import input_guard  # noqa: E402
+from fan_agent_plugins.visual_operator.ports import (  # noqa: E402
     Backend,
     Screenshot,
     WindowActivation,
     WindowInfo,
 )
-from fan_agent_plugins.desktop_io.tools import (  # noqa: E402
+from fan_agent_plugins.visual_operator.tools import (  # noqa: E402
     DesktopEyeTool,
     DesktopKeyboardTool,
     DesktopMouseTool,
@@ -141,6 +142,39 @@ class CoordsTest(unittest.TestCase):
         self.assertEqual(geometry.to_dict()["pixel_ratio"], 2.0)
         self.assertTrue(geometry.to_dict()["mixed_scale"])
         self.assertEqual(geometry.to_dict()["dpi"], "2x")
+
+
+class CaptureStoreTest(unittest.TestCase):
+    def test_image_coordinates_map_with_origin_and_scale(self) -> None:
+        store = CaptureStore()
+        ref = store.put("cid", ScreenRect(-8, -8, 1936, 1056), 1400, 764)
+        self.assertEqual(ref.to_screen(700, 382), ScreenPoint(960, 520))
+        self.assertEqual(ref.to_dict()["capture"]["x"], -8)
+        self.assertAlmostEqual(ref.to_dict()["image_to_screen"]["scale_x"], 1936 / 1400, 6)
+
+    def test_out_of_image_and_wrong_session_are_rejected(self) -> None:
+        store = CaptureStore()
+        ref = store.put("cid", ScreenRect(0, 0, 100, 100), 40, 40)
+        with self.assertRaises(ValueError):
+            ref.to_screen(40, 0)
+        with self.assertRaises(ValueError):
+            ref.to_screen(-1, 0)
+        self.assertIsNone(store.resolve("other", ref.capture_id))
+        self.assertEqual(store.resolve("cid", ref.capture_id), ref)
+
+    def test_ttl_and_capacity_evict_old_entries(self) -> None:
+        now = [0.0]
+        store = CaptureStore(max_items=2, ttl_seconds=10, clock=lambda: now[0])
+        first = store.put("cid", ScreenRect(0, 0, 10, 10), 10, 10)
+        now[0] = 1.0
+        second = store.put("cid", ScreenRect(0, 0, 10, 10), 10, 10)
+        now[0] = 2.0
+        third = store.put("cid", ScreenRect(0, 0, 10, 10), 10, 10)
+        self.assertIsNone(store.resolve("cid", first.capture_id))
+        self.assertIsNotNone(store.resolve("cid", second.capture_id))
+        self.assertIsNotNone(store.resolve("cid", third.capture_id))
+        now[0] = 20.0
+        self.assertIsNone(store.resolve("cid", third.capture_id))
 
 
 class KeysTest(unittest.TestCase):
@@ -316,6 +350,24 @@ class EyeToolTest(unittest.TestCase):
         self.assertNotIn("grid", plain.data)
         gridded = DesktopEyeTool(backend, self.config).execute({"grid": True})
         self.assertEqual(gridded.data["grid"]["step"], 100)
+        image_grid = DesktopEyeTool(backend, self.config).execute(
+            {"grid": True, "grid_unit": "image"})
+        self.assertEqual(image_grid.data["grid"]["unit"], "image")
+
+    def test_capture_id_and_image_mapping_are_returned(self) -> None:
+        rect = ScreenRect(10, 20, 80, 60)
+        backend, _screen, _mouse, _keyboard = _backend(rect=rect, png=_png(40, 30))
+        store = CaptureStore()
+        token = set_session_scope("desktop-eye-capture")
+        self.addCleanup(reset_session_scope, token)
+        result = DesktopEyeTool(backend, self.config, None, store).execute({})
+        capture_id = result.data["capture_id"]
+        self.assertTrue(capture_id)
+        self.assertEqual(result.data["image_to_screen"],
+                         {"scale_x": 2.0, "scale_y": 2.0, "ox": 10, "oy": 20})
+        ref = store.resolve("desktop-eye-capture", capture_id)
+        self.assertIsNotNone(ref)
+        self.assertEqual(ref.to_screen(20, 15), ScreenPoint(50, 50))
 
     def test_unknown_argument_rejected(self) -> None:
         backend, _screen, _mouse, _keyboard = _backend()
@@ -523,6 +575,37 @@ class MouseToolTest(unittest.TestCase):
     def test_out_of_screen_point_rejected(self) -> None:
         with self.assertRaises(ValueError):
             self.tool.execute({"action": "move", "x": 100, "y": 0})
+
+    def test_image_coordinates_are_converted_by_the_tool(self) -> None:
+        rect = ScreenRect(10, 20, 80, 60)
+        backend, _screen, mouse, _keyboard = _backend(rect=rect)
+        store = CaptureStore()
+        token = set_session_scope("desktop-mouse-capture")
+        self.addCleanup(reset_session_scope, token)
+        ref = store.put("desktop-mouse-capture", rect, 40, 30)
+        tool = DesktopMouseTool(backend, self.config, None, store)
+        result = tool.execute({
+            "action": "click", "capture_id": ref.capture_id, "x": 20, "y": 15,
+        })
+        self.assertIn(("click", ScreenPoint(50, 50), "left", 1), mouse.calls)
+        self.assertEqual(result["capture_id"], ref.capture_id)
+        self.assertEqual(result["space"], "image")
+
+    def test_image_coordinates_need_a_valid_capture(self) -> None:
+        store = CaptureStore()
+        token = set_session_scope("desktop-mouse-capture")
+        self.addCleanup(reset_session_scope, token)
+        tool = DesktopMouseTool(self.backend, self.config, None, store)
+        with self.assertRaises(ValueError):
+            tool.execute({"action": "click", "capture_id": "missing", "x": 1, "y": 2})
+        with self.assertRaises(ValueError):
+            tool.execute({"action": "click", "space": "image", "x": 1, "y": 2})
+        with self.assertRaises(ValueError):
+            tool.execute({"action": "click", "space": "screen",
+                          "capture_id": store.put(
+                              "desktop-mouse-capture", ScreenRect(0, 0, 40, 30),
+                              40, 30).capture_id,
+                          "x": 1, "y": 2})
 
     def test_parameter_matrix(self) -> None:
         bad = [
@@ -1004,6 +1087,33 @@ class WaitToolTest(unittest.TestCase):
             {"until": "window_appears", "window": "腾讯视频", "timeout_ms": 2000})
         self.assertTrue(result["satisfied"])
         self.assertEqual(result["window"]["hwnd"], 4242)
+        # 真的等到了，不是"本来就在"。
+        self.assertNotIn("already", result)
+        self.assertNotIn("note", result)
+
+    def test_window_that_already_exists_is_flagged_as_already(self) -> None:
+        windows = _Scripted(find=lambda _title: (_window_info(),))
+        backend = Backend("test", Recorder(geometry=ScreenGeometry(
+            rect=ScreenRect(0, 0, 40, 30))), Recorder(cursor=ScreenPoint(1, 1)),
+            Recorder(), windows=windows)
+        result = DesktopWaitTool(backend, self.config).execute(
+            {"until": "window_appears", "window": "腾讯视频", "timeout_ms": 2000})
+        self.assertTrue(result["satisfied"])
+        self.assertTrue(result["already"])
+        self.assertLess(result["waited_ms"], 50)
+        self.assertIn("没有实际等待", result["note"])
+        self.assertIn("更具体的标题", result["note"])
+
+    def test_window_disappeared_before_waiting_is_flagged_as_already(self) -> None:
+        windows = _Scripted(find=lambda _title: ())
+        backend = Backend("test", Recorder(geometry=ScreenGeometry(
+            rect=ScreenRect(0, 0, 40, 30))), Recorder(cursor=ScreenPoint(1, 1)),
+            Recorder(), windows=windows)
+        result = DesktopWaitTool(backend, self.config).execute(
+            {"until": "window_disappears", "window": "腾讯视频", "timeout_ms": 2000})
+        self.assertTrue(result["satisfied"])
+        self.assertTrue(result["already"])
+        self.assertIn("没有实际等待", result["note"])
 
     def test_window_disappears_times_out(self) -> None:
         windows = _Scripted(find=lambda _title: (_window_info(),))
@@ -1164,8 +1274,8 @@ class PluginTest(unittest.TestCase):
 
 def _load_macos_module():
     """用替身 CDLL 加载 macOS 后端：只校验纯表与结构，不加载系统库。"""
-    name = "fan_agent_plugins.desktop_io.backends.macos"
-    path = _PLUGIN_DIR / "desktop_io" / "backends" / "macos.py"
+    name = "fan_agent_plugins.visual_operator.backends.macos"
+    path = _PLUGIN_DIR / "visual_operator" / "backends" / "macos.py"
     with mock.patch("ctypes.CDLL", return_value=mock.MagicMock()):
         spec = importlib.util.spec_from_file_location(name, str(path))
         assert spec is not None and spec.loader is not None
@@ -1178,19 +1288,19 @@ def _load_macos_module():
 @unittest.skipUnless(sys.platform == "win32", "只在 Windows 上校验键码表")
 class Win32TableTest(unittest.TestCase):
     def test_key_table_covers_canonical_names(self) -> None:
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
         missing = [key for key in keys.CANONICAL_KEYS if key not in win32._VK_NAMED]
         self.assertEqual(missing, [])
 
     def test_utf16_units_and_unknown_key(self) -> None:
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
         self.assertEqual(win32._utf16_units("a"), (97,))
         self.assertEqual(win32._utf16_units("😀"), (0xD83D, 0xDE00))
         with self.assertRaises(DesktopError):
             win32._virtual_key("hyper")
 
     def test_scroll_delta_matches_contract(self) -> None:
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
         mouse = win32.Win32Mouse()
         with mock.patch.object(win32, "_send_mouse") as send:
             mouse.scroll(None, 3, False)
@@ -1201,14 +1311,14 @@ class Win32TableTest(unittest.TestCase):
                          (win32.MOUSEEVENTF_HWHEEL, 360))
 
     def test_uniform_detection_catches_black_frames(self) -> None:
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
         black = b"\x00\x00\x00\x00" * 64
         self.assertTrue(win32._is_uniform(black))
         varied = black[:4] + b"\x01\x02\x03\x00" + black[8:]
         self.assertFalse(win32._is_uniform(varied))
 
     def test_crop_bgra_uses_top_down_rows(self) -> None:
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
         # 3x2，每像素 4 字节，行主序；取右下 2x1 应为第 2 行后两个像素
         pixels = [bytes([row, col, 0, 0]) for row in range(2) for col in range(3)]
         data = b"".join(pixels)
@@ -1216,7 +1326,7 @@ class Win32TableTest(unittest.TestCase):
         self.assertEqual(cropped, pixels[4] + pixels[5])
 
     def test_window_capture_does_not_touch_screen_grab(self) -> None:
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
         rect = ScreenRect(0, 0, 4, 2)
         with mock.patch.object(win32.user32, "IsWindow", return_value=1), \
                 mock.patch.object(win32.user32, "IsIconic", return_value=0), \
@@ -1230,7 +1340,7 @@ class Win32TableTest(unittest.TestCase):
         grab.assert_not_called()
 
     def _capture(self, iconic: bool, activate: bool, **patches):
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
         rect = ScreenRect(0, 0, 4, 2)
         with mock.patch.object(win32.user32, "IsWindow", return_value=1), \
                 mock.patch.object(win32.user32, "IsIconic", return_value=int(iconic)), \
@@ -1278,7 +1388,7 @@ class Win32TableTest(unittest.TestCase):
         按面积排序会把盖在画面上的播放层当成主窗：这正是实测会话里
         窗口从 1418x1020 悄悄换成 1542x963 的原因。
         """
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
 
         rects = {
             100: ScreenRect(0, 0, 1200, 800),
@@ -1306,7 +1416,7 @@ class Win32TableTest(unittest.TestCase):
         self.assertFalse(found[1].foreground)
 
     def test_find_without_foreground_falls_back_to_z_order(self) -> None:
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
 
         def fake_enum(callback, _data):
             for hwnd in (100, 200):
@@ -1326,7 +1436,7 @@ class Win32TableTest(unittest.TestCase):
         self.assertEqual([info.hwnd for info in found], [100, 200])
 
     def test_hit_probe_reports_class_and_root_title(self) -> None:
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
 
         with mock.patch.object(win32.user32, "WindowFromPoint", return_value=555), \
                 mock.patch.object(win32.user32, "GetAncestor", return_value=777), \
@@ -1341,7 +1451,7 @@ class Win32TableTest(unittest.TestCase):
         self.assertEqual(probe["title"], "腾讯视频")
 
     def test_hit_probe_returns_empty_when_nothing_is_there(self) -> None:
-        from fan_agent_plugins.desktop_io.backends import win32
+        from fan_agent_plugins.visual_operator.backends import win32
 
         with mock.patch.object(win32.user32, "WindowFromPoint", return_value=0):
             self.assertEqual(win32.Win32Hit().probe(ScreenPoint(5, 6)), {})

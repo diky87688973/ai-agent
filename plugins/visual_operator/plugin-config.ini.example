@@ -1,11 +1,11 @@
-; 桌面 IO 插件配置。
+; Visual Operator 插件配置。
 ; [base] 每个插件都有：身份与开关。
 ; [ext] 只放这个插件自己的键。
 
 [base]
-id = desktop_io
-name = 桌面 IO
-desc = 看屏（截屏）与操作鼠标、键盘。
+id = visual_operator
+name = Visual Operator
+desc = 让Agent具备视觉操作能力，利用视觉+键鼠完成任务
 ; 1 装载，0 留在清单里但不装载。没写时按 1。
 enable = 1
 icon = 🖥️

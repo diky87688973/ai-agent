@@ -7,8 +7,12 @@
 """
 from __future__ import annotations
 
+import importlib
+import importlib.util
 import sys
 import threading
+import time
+import types
 import unittest
 from pathlib import Path
 
@@ -267,6 +271,93 @@ class ModelCatalogContentionTest(unittest.TestCase):
             thread.start()
         for thread in threads:
             thread.join()
+
+
+def _load_ai_speak_modules():
+    plugin_dir = _ROOT / "plugins" / "ai_speak"
+    package = "fan_agent_plugins.ai_speak_concurrency"
+    parent = sys.modules.get("fan_agent_plugins")
+    if parent is None:
+        parent = types.ModuleType("fan_agent_plugins")
+        parent.__path__ = [str(plugin_dir)]
+        sys.modules["fan_agent_plugins"] = parent
+    spec = importlib.util.spec_from_file_location(
+        package,
+        str(plugin_dir / "plugin.py"),
+        submodule_search_locations=[str(plugin_dir)],
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[package] = module
+    spec.loader.exec_module(module)
+    return (
+        importlib.import_module(package + ".config"),
+        importlib.import_module(package + ".provider"),
+        importlib.import_module(package + ".runtime"),
+    )
+
+
+class AISpeakRuntimeContentionTest(unittest.TestCase):
+    """AI说话运行时：多线程向同一会话入队不丢段、不重复、顺序可核。"""
+
+    def test_many_threads_keep_every_segment(self) -> None:
+        config_mod, provider_mod, runtime_mod = _load_ai_speak_modules()
+
+        class _Provider:
+            name = "concurrency"
+
+            def available(self) -> bool:
+                return True
+
+            def synthesize(self, text, *, voice, timeout_s):
+                return provider_mod.SpeechAudio(
+                    data=text.encode("utf-8"), mime="audio/mpeg", voice=voice
+                )
+
+        class _Publisher:
+            def __init__(self) -> None:
+                self.frames = []
+                self._lock = threading.Lock()
+
+            def __call__(self, plugin, event, payload):
+                with self._lock:
+                    self.frames.append((plugin, event, dict(payload)))
+                return 1
+
+            def connected(self) -> bool:
+                return True
+
+        runtime = runtime_mod.AISpeakRuntime(
+            config_mod.AISpeakConfig(voice="v", max_segment_chars=128), _Provider()
+        )
+        self.addCleanup(runtime.dispose)
+        publisher = _Publisher()
+        per_thread = 10
+
+        def worker() -> None:
+            call_id = f"call-{threading.get_ident()}"
+            segments = tuple(f"第{index}步。" for index in range(per_thread))
+            runtime.enqueue(
+                "cid-12345678",
+                call_id,
+                segments,
+                "v",
+                publisher,
+            )
+
+        _run_threads(worker)
+        expected = THREADS * per_thread
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline and len(publisher.frames) < expected:
+            time.sleep(0.01)
+        self.assertEqual(len(publisher.frames), expected)
+        keys = {
+            (frame[2]["call_id"], frame[2]["index"])
+            for frame in publisher.frames
+            if frame[1] == "segment"
+        }
+        self.assertEqual(len(keys), expected)
+        self.assertEqual(runtime.status()["totals"]["spoken"], expected)
 
 
 if __name__ == "__main__":

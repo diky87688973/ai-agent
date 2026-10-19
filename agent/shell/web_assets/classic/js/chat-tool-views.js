@@ -711,7 +711,7 @@ pane.textContent=lines.length?lines.join("\n"):"（没有匹配的路径）";
 }
 });
 
-/* ── 桌面 IO 的详情区 ─────────────────────────────────────────────────────
+/* ── Visual Operator 的详情区 ─────────────────────────────────────────────────────
    `看屏` 与带 `shot=true` 的手部动作，回执里带的是图片附件（`tool_end.images`），
    报文里只有尺寸与窗口信息 —— 不把图铺进详情，用户就只能看到一串坐标。
    与 `read_image` 完全同构：自定义视图里只有图片与尺寸/来源两行，
@@ -812,9 +812,9 @@ summary:function(o){return desktopToolSummary(o.script,o.args,null);},
 mount:function(row,o){chatDesktopMount(row,o);},
 fill:function(row,o,ev){chatDesktopFill(row,o,ev);}
 });
-/* 等待类工具没有图片区，但摘要必须从"参数里的秒数"换成"回执里的事实"：
-   `desktop_wait` 收尾后是 `画面变化 · 已达成 1.2 秒`，`task_sleep` 仍是请求时长。
-   不登记这一条的话，`fill` 走默认视图，倒计时停在停止那一刻的值（例如 `· 2 秒`）。 */
+/* 等待类工具没有图片区，但摘要必须能从参数描述刷新成回执描述：
+   `desktop_wait` 的窗口标题来自回执，`task_sleep` 仍是请求时长。
+   不登记这一条的话，`fill` 走默认视图，摘要停在停止那一刻的倒计时值。 */
 registerChatToolView({
 match:function(script){return desktopToolKind(script)==="wait"||desktopToolKind(script)==="sleep";},
 summary:function(o){return desktopToolSummary(o.script,o.args,null);},
@@ -844,7 +844,7 @@ o.chatToolRow=row;
 if(view.mount)view.mount(row, o);
 /* 等待类工具：标题后的秒数逐秒减，与步骤卡同一份倒计时。
    回放历史时不重启倒计时 —— 那是已经发生过的等待，重新从总数往下数会像还在等。 */
-if(!o.replay)desktopStartWaitTicker(o.tid,o.script,o.args,function(left){row._sum.textContent=desktopWaitTickText(o.script,o.args,left);});
+if(!o.replay)desktopStartWaitTicker(o.tid,o.script,o.args,function(left,total,elapsed){row._sum.textContent=desktopWaitTickText(o.script,o.args,left,elapsed);});
 attachChatToolPacket(row, o);
 appendChatToolRow(row);
 }

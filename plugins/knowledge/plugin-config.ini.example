@@ -5,7 +5,7 @@
 [base]
 id = knowledge
 name = 知识库
-desc = 把勾选的资料注入当前会话。
+desc = 则一目录当知识库，勾选的资料会注入当前会话
 ; 1 装载，0 留在清单里但不装载。没写时按 1。
 enable = 1
 icon = 📚

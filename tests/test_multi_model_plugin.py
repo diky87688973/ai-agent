@@ -396,5 +396,40 @@ class RegisterTest(_ConfigCase):
         self.assertEqual([item.is_default for item in second], [True])
 
 
+class PickerStyleTest(unittest.TestCase):
+    """模型名是唯一辨识依据：下拉与按钮都不许截断它。
+
+    同前缀的模型（`deepseek-flash-openai` / `deepseek-flash-anthropic`）
+    一旦被 `max-width` + `ellipsis` 截成同一个 `deepseek-flash-ant...`，
+    菜单就退化成"看不出选的是哪个版本"。宽度只能由内容决定。
+    """
+
+    def setUp(self) -> None:
+        self.css = (_ROOT / "plugins" / "multi_model" / "ui" / "model-picker.css"
+                    ).read_text(encoding="utf-8")
+
+    def _rule(self, selector: str) -> str:
+        start = self.css.index(selector + "{")
+        return self.css[start:self.css.index("}", start) + 1]
+
+    def test_button_has_no_width_cap(self) -> None:
+        rule = self._rule(".mm-picker-btn")
+        self.assertNotIn("max-width", rule)
+        self.assertNotIn("text-overflow", self._rule(".mm-picker-label"))
+
+    def test_menu_grows_with_its_items(self) -> None:
+        rule = self._rule(".mm-picker-menu")
+        self.assertIn("width:max-content", rule)
+        self.assertIn("max-width:calc(100vw - 24px)", rule)
+        self.assertNotIn("360px", rule)
+
+    def test_names_and_ids_are_not_ellipsized(self) -> None:
+        for selector in (".mm-picker-name", ".mm-picker-meta"):
+            rule = self._rule(selector)
+            self.assertIn("white-space:nowrap", rule)
+            self.assertNotIn("text-overflow", rule)
+            self.assertNotIn("max-width", rule)
+
+
 if __name__ == "__main__":
     unittest.main()

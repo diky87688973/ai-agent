@@ -8,9 +8,11 @@
      提交落盘 → 跨会话确认被拒（`/api/chat/user-confirm` 的协议侧）；
   ④ 并发与停止：同会话并发 send → 409；stop 下发协作式取消；
   ⑤ Markdown 注入防线（浏览器，需 Playwright）：XSS 向量在真实页面上必须被转义；
-  ⑥ 设置面板（浏览器，需 Playwright）：分区、插件清单与各编辑器都要真的渲染。
+  ⑥ 设置面板（浏览器，需 Playwright）：分区、插件清单与各编辑器都要真的渲染；
+  ⑦ AI说话播放器（浏览器，需 Playwright）：启动脚本注入播放条，插件事件可送达，
+    关闭插件后播放条撤销。
 
-运行：python scripts/acceptance_web.py（全部通过退出码 0；场景 ⑤⑥ 需 Playwright）
+运行：python scripts/acceptance_web.py（全部通过退出码 0；场景 ⑤⑥⑦ 需 Playwright）
 """
 from __future__ import annotations
 
@@ -30,6 +32,8 @@ sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
+from agent.mechanisms.live_state import LiveState  # noqa: E402
+from agent.mechanisms.mesh import MeshState  # noqa: E402
 from agent.mechanisms.model_provider import StreamDelta  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
 from agent.shell.web import create_server  # noqa: E402
@@ -189,6 +193,8 @@ class Acceptance:
             store=SessionStore(root / "data"),
             backup_root=root / "bk",
             recycle_root=root / "rc",
+            live_state=LiveState(storage_dir=root / "state"),
+            mesh=MeshState(storage_dir=root / "mesh"),
             # 只装本脚本要验的插件（知识库的勾选端点）。多模型插件不装：
             # 它一旦有有效条目就会接管模型路由，替身 provider 收不到请求，
             # 脚本的结果就取决于开发机上的私有配置了。
@@ -205,13 +211,17 @@ class Acceptance:
 
     @staticmethod
     def _manifest(root: Path) -> Path:
-        """本脚本的插件清单：只有知识库（要验它的勾选端点）。
+        """本脚本的插件清单：知识库（勾选端点）与 AI说话（播放器启动脚本）。
 
         不用工程根的 `plugins.ini`：那会把多模型插件一起装上，而它的私有配置
         一旦有效，模型路由就被目录接管——结果取决于开发机上有没有配置过。
         """
         path = root / "plugins.ini"
-        path.write_text("[plugin:knowledge]\nversion = 1.0\n", encoding="utf-8")
+        path.write_text(
+            "[plugin:knowledge]\nversion = 1.0\n\n"
+            "[plugin:ai_speak]\nversion = 1.0\n",
+            encoding="utf-8",
+        )
         return path
 
     def check(self, label: str, cond: bool, detail: str = "") -> None:
@@ -748,6 +758,15 @@ class Acceptance:
         self.check("结构化编辑器无未捕获异常", not errors, f"{errors[:2]}")
 
 
+    def scenario_7(self) -> None:
+        """AI说话播放器：启动脚本注入、插件事件送达、关闭插件后撤销。"""
+        try:
+            from acceptance_web_player import run
+        except ImportError:
+            from scripts.acceptance_web_player import run
+        run(self)
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="accept-web-") as tmp:
         acc = Acceptance(Path(tmp))
@@ -759,6 +778,7 @@ def main() -> int:
             acc.scenario_4()
             acc.scenario_5()
             acc.scenario_6()
+            acc.scenario_7()
         finally:
             acc.close()
         print()

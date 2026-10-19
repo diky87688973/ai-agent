@@ -12,7 +12,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from agent.core.session_scope import current_session_id
+
 from .. import canvas
+from ..capture_store import CaptureStore
 from ..config import DesktopConfig
 from ..coords import ScreenPoint, ScreenRect
 from ..ports import Backend, WindowInfo
@@ -47,6 +50,8 @@ class CaptureRequest:
     hover_wiggle: bool = False
     #: 网格间距（屏幕坐标）；None 取插件配置。小目标用更细的网格定位。
     grid_step: Optional[int] = None
+    #: 网格刻度单位：screen 屏幕坐标 / image 图内像素坐标。
+    grid_unit: str = "screen"
     #: 回执里额外并入的字段（`shot` 用它标出"这是哪个动作之后的图"）。
     extra: Dict[str, Any] = field(default_factory=dict)
 
@@ -68,7 +73,16 @@ def request_from_arguments(backend: Backend, config: DesktopConfig,
         max_side=require_range(
             as_int(arguments, "max_side", config.max_side), "max_side", 0, 8192),
         activate=as_bool(arguments, "activate", activate_default),
+        grid_unit=_grid_unit(arguments),
     )
+
+
+def _grid_unit(arguments: Dict[str, Any]) -> str:
+    """网格刻度单位；未知值直接拒绝，不做猜测。"""
+    value = str(arguments.get("grid_unit") or "screen").strip().lower()
+    if value not in ("screen", "image"):
+        raise ValueError(f"grid_unit 只能是 screen 或 image，实际 {arguments.get('grid_unit')!r}")
+    return value
 
 
 def region_from_arguments(arguments: Dict[str, Any],
@@ -94,7 +108,10 @@ def region_from_arguments(arguments: Dict[str, Any],
 
 
 def capture_payload(backend: Backend, config: DesktopConfig,
-                    request: CaptureRequest) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+                    request: CaptureRequest, *,
+                    captures: Optional[CaptureStore] = None,
+                    session_id: Optional[str] = None,
+                    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """取图、加工并组装回执；返回 (data, 图片附件列表)。"""
     geometry = backend.screen.geometry()
     if request.hover is not None and not geometry.rect.contains(request.hover):
@@ -157,6 +174,7 @@ def capture_payload(backend: Backend, config: DesktopConfig,
         cursor=cursor,
         cursor_mark=config.cursor_mark,
         max_side=request.max_side,
+        grid_unit=request.grid_unit,
     )
 
     summary: Dict[str, Any] = {
@@ -172,8 +190,24 @@ def capture_payload(backend: Backend, config: DesktopConfig,
             "scale": rendered.scale,
             "bytes": len(rendered.png),
         },
+        "image_to_screen": {
+            "scale_x": round(screenshot.rect.width / rendered.sent_width, 6),
+            "scale_y": round(screenshot.rect.height / rendered.sent_height, 6),
+            "ox": screenshot.rect.x,
+            "oy": screenshot.rect.y,
+        },
         "dpi": geometry.dpi or "unknown",
     }
+    if captures is not None:
+        ref = captures.put(
+            session_id if session_id is not None else current_session_id(),
+            screenshot.rect,
+            rendered.sent_width,
+            rendered.sent_height,
+            hwnd=target.hwnd if target is not None else None,
+            title=target.title if target is not None else "",
+        )
+        summary["capture_id"] = ref.capture_id
     if target is not None:
         summary["window"] = target.to_dict()
         if auto_target:
@@ -208,7 +242,7 @@ def capture_payload(backend: Backend, config: DesktopConfig,
     if request.grid:
         summary["grid"] = {
             "step": step,
-            "unit": "屏幕坐标",
+            "unit": request.grid_unit,
             "scale": rendered.scale,
         }
     note = build_note(

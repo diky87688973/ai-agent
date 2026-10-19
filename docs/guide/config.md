@@ -135,7 +135,7 @@ version = 1.0
 |---|---|---|
 | `skills` | Skills 库与 `skill_manage` 工具 | `plugins/skills/plugin-config.ini` |
 | `knowledge` | 本地知识库检索 | `plugins/knowledge/plugin-config.ini` |
-| `tts` | 语音合成 | `plugins/tts/plugin-config.ini` |
+| `ai_speak` | 人类口语播报与语音播放 | `plugins/ai_speak/plugin-config.ini` |
 
 **节的先后即上下文组装顺序**：越不容易变动的插件排在越前面。
 

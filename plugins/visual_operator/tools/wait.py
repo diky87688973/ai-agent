@@ -120,6 +120,7 @@ class DesktopWaitTool(ToolPlugin):
         want = until == "window_appears"
         started = time.monotonic()
         deadline = started + timeout_ms / 1000.0
+        first_probe = True
         while True:
             found = tuple(port.find(title))
             if bool(found) == want:
@@ -128,11 +129,25 @@ class DesktopWaitTool(ToolPlugin):
                     "satisfied": True,
                     "waited_ms": _elapsed_ms(started),
                 }
+                if first_probe:
+                    # 标记「等待开始前已满足」：否则回执只有 satisfied=true 与
+                    # waited_ms=0，模型无法区分「真的等到了」和「本来就在」。
+                    result["already"] = True
+                    if want:
+                        result["note"] = (
+                            f"标题包含「{title}」的窗口在等待开始时就已存在，"
+                            "本次没有实际等待；若等的是新弹出的窗口，"
+                            "换更具体的标题，或先确认旧窗口已关闭")
+                    else:
+                        result["note"] = (
+                            f"标题包含「{title}」的窗口在等待开始时就已不存在，"
+                            "本次没有实际等待")
                 if found:
                     result["window"] = found[0].to_dict()
                     if len(found) > 1:
                         result["window"]["matched"] = len(found)
                 return result
+            first_probe = False
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return {

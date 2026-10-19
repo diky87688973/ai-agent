@@ -43,7 +43,6 @@ else if(ev.type==="tool_progress")onToolProgress(ev);
 else if(ev.type==="tool_end"){noteLiveEdit(ev,_ctxTab);onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}
 else if(ev.type==="open_session"){var sid=normalizeConversationId(ev.session_id);if(sid){ensureConversationTab(sid);var _ot=findConversationTab(sid);if(_ot)_ot.title=ev.name||("会话 "+sid.slice(0,8));}}
 else if(ev.type==="tool_preview_update"){var tid2=String(ev.tool_call_id||"").trim();if(tid2){var card=findStepCardForToolCall(tid2);if(card){var pb2=card.querySelector("pre.tool-res");if(pb2){try{var _pj2=JSON.parse(ev.preview||"{}");pb2.textContent=JSON.stringify(_pj2,null,2);}catch(e2){pb2.textContent=String(ev.preview||"");}var lb2=pb2.previousElementSibling;if(lb2&&lb2.classList&&lb2.classList.contains("lbl"))lb2.style.display="block";pb2.style.display="block";}var tag2=card.querySelector(".ch .tag");if(tag2){try{var _pj3=JSON.parse(ev.preview||"{}");if(_pj3&&_pj3.ok){tag2.textContent="Done";tag2.className="tag ok";}else{tag2.textContent="Fail";tag2.className="tag bad";}}catch(e3){}}}}}
-else if(ev.type==="audio"){playAudio(packetCid||ev.conversation_id,ev.audio,ev.voice||"",ev._dbg||"");}
 else if(ev.type==="assistant_delta"){if(anyToolThisTurn){flushPendingSteps();}appendAssistantDelta(ev.delta||"");}
 else if(ev.type==="reasoning_delta")appendReasoningDelta(ev);
 else if(ev.type==="reasoning_sync")applyReasoningSync(ev);
@@ -75,6 +74,7 @@ _routeEventBySource(ev);
 function handleGlobalSseEvent(ev){
 if(!ev||ev.type==="heartbeat"||ev.type==="global_sse_ready")return;
 if(ev.type==="plugins_changed"){applyPluginsChanged(ev);return;}
+if(ev.type==="plugin_event"){try{document.dispatchEvent(new CustomEvent("ai-agent:plugin-event",{detail:ev}));}catch(_e){}return;}
 const packetCid=normalizeConversationId(ev.conversation_id);if(!packetCid)return;
 withConversationContext(packetCid,function(_ctxTab){
 if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);if(ev.model)_ctxTab.selectedModel=String(ev.model||"");if(renderingContextVisible){if(ev.mode)applyMode(ev.mode,false);if(ev.model)applyModel(ev.model);}}
@@ -99,7 +99,6 @@ else if(ev.type==="assistant_markdown"){if(anyToolThisTurn){flushPendingSteps();
 else if(ev.type==="assistant"){if(anyToolThisTurn){flushPendingSteps();}if(!finalizeAssistantStream(ev.content||"")){add("a",ev.content||"");}}
 else if(ev.type==="peer_message"){addPeerMessage(ev.content||"",ev.sender_name||"",ev.sender||"");}
 else if(ev.type==="inbox_queued"){add("a","已收到来自 "+(ev.from_name||ev.from||"其他 Agent")+" 的排队消息。");}
-else if(ev.type==="audio"){playAudio(packetCid||ev.conversation_id,ev.audio,ev.voice||"",ev._dbg||"");}
 else if(ev.type==="done"){finalizeAssistantStream("");finishLiveEdits(_ctxTab);_ctxTab.abortController=null;_ctxTab.activeRunId="";hideChatLoading();updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();void refreshConversationTitle(packetCid);}
 else if(ev.type==="stopped"){finishLiveEdits(_ctxTab);markCurrentTurnStoped();resetTurnState();hideChatLoading();if(ev.message)add("a",ev.message);_ctxTab.abortController=null;_ctxTab.activeRunId="";updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();}
 else if(ev.type==="paused_for_user_confirm"){_ctxTab.editedHold=true;hideChatLoading();}

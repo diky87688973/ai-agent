@@ -11,13 +11,13 @@
 | `agent/shell/classic_adapter/inbound.py` | 1060 | 46 | HTTP 事件投影与折叠规则同文件；折叠外移到 history_page 后净减。承担者：壳层维护 |
 | `agent/mechanisms/session_store.py` | 936 | 39 | 事件日志读写、行索引与压缩同文件；待拆索引层。承担者：机制维护 |
 | `agent/shell/web_api.py` | 924 | 40 | SSE 连接表、会话运行表、附件与设置读取同文件；待拆 sse 与 attachments。承担者：壳层维护 |
-| `agent/app.py` | 829 | 36 | 装配顺序、会话生命周期与模型解析共用同一份状态；拆分要先抽 AppState。承担者：内核维护 |
+| `agent/app.py` | 832 | 36 | 装配顺序、会话生命周期与模型解析共用同一份状态；拆分要先抽 AppState。承担者：内核维护 |
 
 ## 超阈值函数
 
 | 文件::函数 | 行数 | 保留理由 |
 |---|---|---|
-| `agent/app.py::build_app` | 291 | 装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处 |
+| `agent/app.py::build_app` | 292 | 装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处 |
 | `scripts/check_ui_js.py::main` | 162 | 扫描与报告同流程；待拆扫描/报告两段 |
 | `scripts/acceptance_mvp3.py::main` | 159 | 验收脚本按线性步骤写，拆函数会切断断言与步骤的对应 |
 | `agent/core/modules/model_mod.py::ModelModule.execute` | 154 | 模块执行四步同函数；待抽执行协议对象 |
@@ -49,4 +49,4 @@
 
 - 目录：`agent/`、`scripts/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 144 个、函数 1517 个；超阈值文件 5 个、函数 27 个。
+- 文件 146 个、函数 1524 个；超阈值文件 5 个、函数 27 个。

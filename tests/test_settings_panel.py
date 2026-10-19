@@ -94,14 +94,14 @@ class IniEditTest(unittest.TestCase):
     def test_remove_section_leaves_commented_header(self) -> None:
         text = (
             "; 插件清单\n"
-            "; [plugin:tts]\n"
+            "; [plugin:ai_speak]\n"
             "; version = 1.0\n"
             "\n"
             "[plugin:knowledge]\n"
             "version = 1.0\n"
         )
         updated = remove_ini_section(text, "plugin:knowledge")
-        self.assertIn("; [plugin:tts]\n", updated)
+        self.assertIn("; [plugin:ai_speak]\n", updated)
         self.assertIn("; version = 1.0\n", updated)
         self.assertNotIn("[plugin:knowledge]", updated)
         self.assertNotIn("\nversion = 1.0\n", "\n" + updated)
@@ -276,7 +276,7 @@ class PluginSettingsTest(unittest.TestCase):
                 encoding="utf-8",
             )
             plugins.write_text(
-                "; 插件清单\n; [plugin:tts]\n; version = 1.0\n\n"
+                "; 插件清单\n; [plugin:ai_speak]\n; version = 1.0\n\n"
                 "[plugin:oldplug]\nversion = 1.0\n",
                 encoding="utf-8",
             )
@@ -293,7 +293,7 @@ class PluginSettingsTest(unittest.TestCase):
             cfg = (folder / "plugin-config.ini").read_text(encoding="utf-8")
             self.assertIn("enable = 1\n", cfg)
             self.assertIn("desc = 清单常驻。\n", cfg)
-            self.assertIn("; [plugin:tts]\n", text)
+            self.assertIn("; [plugin:ai_speak]\n", text)
             self.assertEqual(host.loaded, ["oldplug", "skills"])
             self.assertEqual([item["name"] for item in host.seen], ["oldplug", "skills"])
             cards = list_plugins(plugins_path=plugins, plugins_dir=root / "plugins")["plugins"]
@@ -310,7 +310,7 @@ class PluginSettingsTest(unittest.TestCase):
             self.assertIn("[plugin:skills]", text)
             cfg = (folder / "plugin-config.ini").read_text(encoding="utf-8")
             self.assertIn("enable = 0\n", cfg)
-            self.assertIn("; [plugin:tts]\n", text)
+            self.assertIn("; [plugin:ai_speak]\n", text)
             self.assertEqual(host.loaded, ["oldplug"])
             skill = next(
                 item for item in list_plugins(

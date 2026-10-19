@@ -7,8 +7,10 @@ import time
 from typing import Any, Dict, Optional
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.session_scope import current_session_id
 from agent.core.tool_call import ToolResult
 
+from ..capture_store import CaptureRef, CaptureStore
 from ..config import DesktopConfig
 from ..coords import ScreenPoint, ScreenRect
 from ..diff import change_ratio, probe_region
@@ -40,6 +42,8 @@ _ACTIONS = {
 _MEASURED = ("click", "drag", "scroll")
 #: `shot` 只对有落点的动作开放：`cursor` 是只读查询，没有落点可拍。
 _SHOT_FIELDS = ("shot", "shot_region", "shot_max_side")
+#: 图内坐标需要截图登记；screen 是默认空间。
+_SPACE_FIELDS = ("space", "capture_id")
 #: 落点原地没变时，再等一小会儿复采一次：页面跳转通常比 60ms 慢。
 _LATE_SAMPLE_MS = 250
 #: 小于它视为"落点没动"；`changed` 是三位小数，0.005 约等于 0。
@@ -55,8 +59,10 @@ class DesktopMouseTool(ToolPlugin):
     label = "鼠标"
     icon = "🖱"
     description = (
-        "操作鼠标。坐标是屏幕坐标，与 desktop_eye 的网格刻度同一坐标系。"
-        "click / scroll 省略 x、y 时作用在当前光标位置。"
+        "操作鼠标。默认坐标是屏幕坐标；给 capture_id 时按 desktop_eye 截图里的"
+        "图内像素坐标解释，由工具查截图登记并换算，模型不用乘缩放比例。"
+        "图内坐标用 space=image 更明确；capture_id 不存在或过期会直接报错。"
+        "click / scroll 省略 x、y 时作用在当前光标位置；图像坐标必须给点。"
         "给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再动作，回执带 focus；"
         "置前失败时不会盲点，直接报错，避免点到遮挡物。"
         "点击回执带三份证据：hit（落点所在窗口与控件类名）、"
@@ -72,10 +78,16 @@ class DesktopMouseTool(ToolPlugin):
     parameters = {
         "action": {"type": "string", "enum": list(_ACTIONS),
                    "description": "move 移动 / click 点击 / drag 拖拽 / scroll 滚动 / cursor 查询光标"},
-        "x": {"type": "integer", "description": "屏幕坐标 x"},
-        "y": {"type": "integer", "description": "屏幕坐标 y"},
-        "to_x": {"type": "integer", "description": "拖拽终点 x"},
-        "to_y": {"type": "integer", "description": "拖拽终点 y"},
+        "x": {"type": "integer",
+              "description": "x；默认屏幕坐标，space=image / 给 capture_id 时是图内像素"},
+        "y": {"type": "integer",
+              "description": "y；默认屏幕坐标，space=image / 给 capture_id 时是图内像素"},
+        "to_x": {"type": "integer", "description": "拖拽终点 x；坐标空间同 x"},
+        "to_y": {"type": "integer", "description": "拖拽终点 y；坐标空间同 y"},
+        "space": {"type": "string", "enum": ["screen", "image"],
+                  "description": "坐标空间：screen 屏幕（默认）/ image 图内像素（需 capture_id）"},
+        "capture_id": {"type": "string",
+                       "description": "desktop_eye 回执里的 capture_id；给了它即按图内坐标解释"},
         "button": {"type": "string", "enum": list(BUTTONS), "description": "按键（默认 left）"},
         "count": {"type": "integer", "description": "点击次数 1–3（默认 1）"},
         "amount": {"type": "integer",
@@ -94,25 +106,31 @@ class DesktopMouseTool(ToolPlugin):
     }
 
     def __init__(self, backend: Backend, config: DesktopConfig,
-                 live_state: Any = None) -> None:
+                 live_state: Any = None,
+                 captures: Optional[CaptureStore] = None) -> None:
         self._backend = backend
         self._config = config
         self._live_state = live_state
+        self._captures = captures
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
         action = choice(arguments, "action", _ACTIONS)
         allowed = set(_ACTIONS[action]) | {"action"} | set(WINDOW_FIELDS)
         if action != "cursor":
-            allowed |= set(_SHOT_FIELDS)
+            allowed |= set(_SHOT_FIELDS) | set(_SPACE_FIELDS)
         reject_unknown(arguments, allowed, action=action)
         if action == "cursor":
             return self._snapshot(action)
 
+        space = _coordinate_space(arguments)
+        capture = self._resolve_capture(arguments, space)
         reject_in_plan(self._live_state, "桌面鼠标输入")
         # 人点目标应用之前会先把它弄到前台；置前失败就不能落点，否则点到的是遮挡物。
         focus = focus_target(self._backend, arguments)
         require_active(focus, "鼠标动作")
-        point = point_argument(arguments)
+        point = _mapped_point(point_argument(arguments), capture)
+        if space == "image" and point is None:
+            raise ValueError("space=image 需要 x、y（截图内像素坐标）")
         port = self._backend.mouse
         measured = action in _MEASURED
         anchor = point or port.cursor()
@@ -135,7 +153,8 @@ class DesktopMouseTool(ToolPlugin):
         elif action == "drag":
             start = _require_point(point, "drag 需要起点 x、y")
             end = _require_point(
-                point_argument(arguments, "to_x", "to_y"), "drag 需要终点 to_x、to_y")
+                _mapped_point(point_argument(arguments, "to_x", "to_y"), capture),
+                "drag 需要终点 to_x、to_y")
             button = choice(arguments, "button", BUTTONS, "left")
             duration = require_range(as_int(arguments, "duration_ms", 300), "duration_ms", 0, 5000)
             self._ensure_inside(start, end)
@@ -152,6 +171,9 @@ class DesktopMouseTool(ToolPlugin):
 
         self._settle()
         result = self._snapshot(action)
+        result["space"] = space
+        if capture is not None:
+            result["capture_id"] = capture.capture_id
         if hit:
             result["hit"] = hit
         ratio: Optional[float] = None
@@ -183,11 +205,27 @@ class DesktopMouseTool(ToolPlugin):
             return result
 
         request, shot_note = self._shot_request(arguments, anchor, result)
-        summary, attachments = capture_payload(self._backend, self._config, request)
+        summary, attachments = capture_payload(
+            self._backend, self._config, request, captures=self._captures)
         summary["performed"] = result
         if shot_note:
             summary["note"] = f"{shot_note}；{summary['note']}" if summary.get("note") else shot_note
         return ToolResult.attach(summary, attachments)
+
+    def _resolve_capture(self, arguments: Dict[str, Any],
+                         space: str) -> Optional[CaptureRef]:
+        """取图内坐标对应的截图映射；屏幕空间不需要。"""
+        if space != "image":
+            return None
+        capture_id = str(arguments.get("capture_id") or "").strip()
+        if not capture_id:
+            raise ValueError("space=image 需要 capture_id（来自 desktop_eye 回执）")
+        if self._captures is None:
+            raise ValueError("截图登记不可用；请重新调用 desktop_eye")
+        ref = self._captures.resolve(current_session_id(), capture_id)
+        if ref is None:
+            raise ValueError("capture_id 不存在、已过期或不属于当前会话；重新截图")
+        return ref
 
     def _shot_request(self, arguments: Dict[str, Any], point: ScreenPoint,
                       performed: Dict[str, Any]):
@@ -241,7 +279,7 @@ class DesktopMouseTool(ToolPlugin):
                 return None
             return {info.hwnd: info.title for info in listed}
         except Exception as exc:
-            print(f"[desktop_io] 窗口清单读取跳过：{exc}", file=sys.stderr, flush=True)
+            print(f"[visual_operator] 窗口清单读取跳过：{exc}", file=sys.stderr, flush=True)
             return None
 
     def _window_delta(self, before_hit: Optional[Dict[str, Any]],
@@ -334,6 +372,28 @@ class DesktopMouseTool(ToolPlugin):
             "cursor": cursor.to_dict(),
             "screen": self._backend.screen.geometry().rect.to_dict(),
         }
+
+
+def _coordinate_space(arguments: Dict[str, Any]) -> str:
+    """坐标空间：显式 space 优先；只给 capture_id 时按图内坐标。"""
+    capture_id = str(arguments.get("capture_id") or "").strip()
+    raw = arguments.get("space")
+    if raw is None or str(raw).strip() == "":
+        return "image" if capture_id else "screen"
+    value = choice(arguments, "space", ("screen", "image"))
+    if value == "image" and not capture_id:
+        raise ValueError("space=image 需要 capture_id（来自 desktop_eye 回执）")
+    if value == "screen" and capture_id:
+        raise ValueError("space=screen 不接受 capture_id；图内坐标请用 space=image")
+    return value
+
+
+def _mapped_point(point: Optional[ScreenPoint],
+                  capture: Optional[CaptureRef]) -> Optional[ScreenPoint]:
+    """图内点 → 屏幕点；屏幕空间原样返回。"""
+    if point is None or capture is None:
+        return point
+    return capture.to_screen(point.x, point.y)
 
 
 def _require_point(point: Optional[ScreenPoint], message: str) -> ScreenPoint:

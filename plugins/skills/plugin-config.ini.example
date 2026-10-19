@@ -5,7 +5,7 @@
 [base]
 id = skills
 name = Skills
-desc = Skills 清单常驻上下文，正文按需读取。
+desc = Skills插件，三层式渐进披露拓展Agent能力
 ; 1 装载，0 留在清单里但不装载。没写时按 1。
 enable = 1
 icon = 🧩

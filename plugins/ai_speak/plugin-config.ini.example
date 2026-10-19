@@ -1,0 +1,21 @@
+; AI说话插件配置。
+; [base] 每个插件都有：身份与开关。
+; [ext] 只放这个插件自己的键。
+
+[base]
+id = ai_speak
+name = AI嘴巴
+desc = 让 AI 工作的时候说人话
+enable = 1
+icon = 🔊
+version = 1.0
+
+[ext]
+; 合成引擎；当前只接受 edge
+engine = edge
+; edge-tts 音色名
+voice = zh-CN-XiaoxiaoNeural
+; 单段字符上限；设为 300 就按 300 字贪心装段，不设上限
+max_segment_chars = 128
+; 段间播放间隔（毫秒），0 表示不等待
+play_interval_ms = 0

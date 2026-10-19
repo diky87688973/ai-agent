@@ -205,7 +205,7 @@ class MacScreen:
     def capture(self, region: Optional[ScreenRect]) -> Screenshot:
         _require_screen_access()
         rect = region or self.geometry().rect
-        handle, path = tempfile.mkstemp(prefix="desktop_io_", suffix=".png")
+        handle, path = tempfile.mkstemp(prefix="visual_operator_", suffix=".png")
         os.close(handle)
         try:
             command = [

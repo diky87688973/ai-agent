@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 from agent.capabilities.registry import ToolPlugin
 from agent.core.tool_call import ToolResult
 
+from ..capture_store import CaptureStore
 from ..config import DesktopConfig
 from ..coords import ScreenPoint
 from ..guard import reject_in_plan
@@ -15,8 +16,8 @@ from ..ports import Backend
 from ._capture import capture_payload, request_from_arguments
 from ._params import as_bool, as_int, reject_unknown, require_range
 
-_FIELDS = ("x", "y", "width", "height", "grid", "grid_step", "max_side", "window",
-           "hwnd", "activate", "hover", "hover_path", "hover_settle_ms",
+_FIELDS = ("x", "y", "width", "height", "grid", "grid_step", "grid_unit", "max_side",
+           "window", "hwnd", "activate", "hover", "hover_path", "hover_settle_ms",
            "hover_approach_ms", "hover_wiggle")
 
 
@@ -45,7 +46,9 @@ class DesktopEyeTool(ToolPlugin):
         "分开调用「先移鼠标、再截图」在多数播放器与网页上都会失败——"
         "控件的自动隐藏通常只有 2–3 秒，撑不过一次模型往返。"
         "不给窗口则取屏幕合成结果（会包含遮挡物）。"
-        "图上叠坐标网格，刻度数字与 desktop_mouse 使用同一套屏幕坐标。"
+        "回执带 capture_id；要按图内坐标点击时，先让这张图的网格用图内像素"
+        "（grid_unit=image），再把 capture_id 与图内 x/y 交给 desktop_mouse"
+        "（space=image）。默认网格仍是屏幕坐标；两种坐标不要混用。"
         "点小目标时把 grid_step 调到 20–40，网格刻度更细，坐标不用估；"
         "细节看不清时用 x/y/width/height 取局部，局部通常按原尺寸发送。"
     )
@@ -78,15 +81,20 @@ class DesktopEyeTool(ToolPlugin):
         "grid_step": {"type": "integer",
                       "description": "网格间距（屏幕坐标）20–500；缺省取插件配置。"
                                      "点小目标（如剧集卡片）时给 20–40，坐标读数更细"},
+        "grid_unit": {"type": "string", "enum": ["screen", "image"],
+                      "description": "网格刻度单位：screen 屏幕坐标（默认）/ image 图内像素。"
+                                     "图内像素配合 capture_id 交给 desktop_mouse"},
         "max_side": {"type": "integer",
                      "description": "长边缩到不超过该像素；0 = 不缩放；缺省取插件配置"},
     }
 
     def __init__(self, backend: Backend, config: DesktopConfig,
-                 live_state: Any = None) -> None:
+                 live_state: Any = None,
+                 captures: Optional[CaptureStore] = None) -> None:
         self._backend = backend
         self._config = config
         self._live_state = live_state
+        self._captures = captures
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
         reject_unknown(arguments, set(_FIELDS), action=self.name)
@@ -124,7 +132,8 @@ class DesktopEyeTool(ToolPlugin):
                 hover_settle_ms=settle, hover_approach_ms=approach,
                 hover_wiggle=wiggle)
 
-        summary, attachments = capture_payload(self._backend, self._config, request)
+        summary, attachments = capture_payload(
+            self._backend, self._config, request, captures=self._captures)
         return ToolResult.attach(summary, attachments)
 
 

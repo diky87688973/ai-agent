@@ -1,8 +1,8 @@
-# 桌面眼手插件方案
+# Visual Operator 插件方案
 
 ## 1. 结论
 
-把 Windows / macOS 的桌面看与动做成一个内置插件 `plugins/desktop_io`，由它注册四个工具：
+把 Windows / macOS 的桌面看与动做成一个内置插件 `plugins/visual_operator`，由它注册四个工具：
 
 | 工具 | 心智 | 能力 |
 |---|---|---|
@@ -12,7 +12,7 @@
 | `desktop_wait` | 等 | 等画面变化、窗口出现或窗口消失，命中即返回 |
 
 `desktop_wait` 与三个 L0 工具共用后端与输入锁（它本身只读）。参数级契约以
-[desktop-io.md](../subsystems/desktop-io.md) 为准，本文记录设计取舍。
+[visual-operator.md](../subsystems/visual-operator.md) 为准，本文记录设计取舍。
 
 形态选择：插件贡献工具，而不是把 15 个动作塞进一个 `desktop_action`。
 三类能力各自有独立的参数面（坐标、按键、文本），合成一个工具后参数描述必须写成
@@ -45,7 +45,7 @@ CI 跑在 Ubuntu 上，装配集与 Windows 本机必须是同一份。
 6. Plan 模式禁止桌面输入与移光标，允许截屏与条件等待。读取桌面不改变任何状态。
 7. 输入动作串行：同一进程内鼠标与键盘动作共用一把锁，跨会话也不会交错。
    拖拽中途被另一会话的点击插入会留下按下的键。
-8. 失败必须带可执行的下一步：缺权限说清去哪一栏勾选，平台不支持说清支持哪两个平台，
+8. 失败必须带可执行动作：缺权限说清去哪一栏勾选，平台不支持说清支持哪两个平台，
    参数不对说清该用哪个 action。
 9. 插件不 import `agent.app` / `agent.entry`，只依赖 `capabilities`、`mechanisms`、`core`。
 10. 平台模块只在对应平台导入：`backends/__init__.py` 在 `load_backend()` 里按
@@ -54,7 +54,7 @@ CI 跑在 Ubuntu 上，装配集与 Windows 本机必须是同一份。
 ## 3. 包结构
 
 ```
-plugins/desktop_io/
+plugins/visual_operator/
   plugin.py                    入口：读配置 → 取后端 → 按开关注册四个工具
   config.py                    DesktopConfig + load_config()（纯函数，含夹取规则）
   coords.py                    ScreenRect / ScreenPoint / 裁剪与交集（纯函数）
@@ -265,11 +265,11 @@ parameters = {
 
 ## 5. 配置
 
-`plugins/desktop_io/plugin-config.ini.example`：
+`plugins/visual_operator/plugin-config.ini.example`：
 
 ```ini
 [base]
-id = desktop_io
+id = visual_operator
 enable = 1
 name = 桌面操作
 icon = 🖥️
@@ -478,7 +478,7 @@ Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐�
 
 新增两个测试文件，全部在 Linux CI 上可跑（不触碰真实桌面）：
 
-`tests/test_desktop_io.py`
+`tests/test_visual_operator.py`
 
 | 类 | 覆盖 |
 |---|---|
@@ -490,7 +490,7 @@ Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐�
 | `MouseToolTest` | 五个动作的矩阵校验、拒绝越权参数、拖拽顺序（按下→移动→抬起）、滚动先移动 |
 | `KeyboardTest` | 文本必填、`\n`/`\t` 走特殊键、repeat 范围、hotkey 传参、间隔取配置 |
 
-`tests/test_desktop_plugin.py`
+`tests/test_visual_operator.py`（注册与契约测试同文件）
 
 | 类 | 覆盖 |
 |---|---|
@@ -521,7 +521,7 @@ Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐�
 
 代码：
 
-- `plugins/desktop_io/` 全部文件、两个测试文件、`tests/testkit.py` 的加载器。
+- `plugins/visual_operator/` 全部文件、两个测试文件、`tests/testkit.py` 的加载器。
 - 需要改 `catalog/tools.json`：插件进了 `plugins.ini`，装配集包含这四个工具，
   提交前运行 `python scripts/gen_catalog.py` 重新生成，再跑 `python scripts/check_catalog.py`。
 
@@ -529,16 +529,16 @@ Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐�
 
 | 文件 | 改动 |
 |---|---|
-| `docs/subsystems/desktop-io.md` | 新增：四个工具、坐标约定、配置全表、权限、已知限制 |
+| `docs/subsystems/visual-operator.md` | 新增：四个工具、坐标约定、配置全表、权限、已知限制 |
 | `docs/subsystems/plugins.md` | 内置插件表加一行；启用方式一句话 |
 | `docs/subsystems/tools.md` | 插件工具小节补一句这四个工具的存在 |
 | `README.md` | 子系统表加链接；用例数按实际同步 |
-| `docs/plan/desktop-io.md` | 本方案 |
+| `docs/plan/visual-operator.md` | 本方案 |
 
 命令（提交前逐条跑过）：
 
 ```
-python -m ruff check plugins/desktop_io tests/test_desktop_io.py tests/test_desktop_plugin.py
+python -m ruff check plugins/visual_operator tests/test_visual_operator.py
 python scripts/check_comment_style.py
 python scripts/check_architecture_hygiene.py
 python scripts/check_catalog.py
@@ -583,7 +583,7 @@ python scripts/ci.py
 
 | 限制 | 影响 | 处置 |
 |---|---|---|
-| macOS 无真机验证 | 坐标与权限路径只经假 FFI 验证 | 交付说明标注；真机清单交给用户或后续在 Mac 上补 |
+| macOS 无真机验证 | 坐标与权限路径只经假 FFI 验证 | 交付说明标注；真机清单交给用户或在 Mac 上补 |
 | 混合 DPI 多屏 | Windows 副屏不同缩放时可能偏移数像素 | 返回值给 `dpi` 与 `note`；文档标注 |
 | UIPI 提权窗口 | 管理员程序丢弃输入且不报错 | 文档标注；必要时提示以管理员启动服务 |
 | 安全桌面 / 锁屏 | 截图全黑 | 全黑检测给出 `note` |

@@ -1,17 +1,18 @@
-# 桌面 IO（`desktop_io` 插件）
+# Visual Operator（`visual_operator` 插件）
 
-桌面 IO 把「看屏幕」与「操作鼠标键盘」做成四个工具，交给模型在真实桌面上
+Visual Operator 把「看屏幕」与「操作鼠标键盘」做成四个工具，交给模型在真实桌面上
 读图、定位、点击、输入与等待。截屏结果以图片附件直接进入模型上下文，不落盘；
 鼠标与键盘动作走输入锁串行投递。插件机制本身见 [plugins.md](plugins.md)。
 
 ## 包结构
 
 ```
-plugins/desktop_io/
+plugins/visual_operator/
   plugin.py                  入口：读配置、选后端、注册四个工具
   plugin-config.ini          真实配置（不入库）
   plugin-config.ini.example  模板
   config.py                  [ext] 读取、回退与夹取
+  capture_store.py           截图映射登记（只存元数据，不存图片）
   keys.py                    键名规范、别名与组合键校验
   coords.py                  屏幕矩形 / 点 / 几何比例
   ports.py                   后端端口与数据结构
@@ -62,6 +63,7 @@ plugins/desktop_io/
 | `hover_wiggle` | 到达后在落点附近做几次 1–2px 微移动，默认 `true` |
 | `grid` | 是否叠网格与刻度，默认 `true` |
 | `grid_step` | 网格间距（屏幕坐标），`20–500`；缺省取配置。点小目标时可调到 20–40 |
+| `grid_unit` | 刻度单位：`screen` 屏幕坐标（默认）/ `image` 图内像素 |
 | `max_side` | 长边上限，`0` 不缩放；缺省取配置 |
 
 `hover` 是「移光标 + 截图」能成立的前提。悬停控件普遍 2–3 秒自动收起，
@@ -93,15 +95,26 @@ plugins/desktop_io/
   "capture": {"x": 0, "y": 0, "width": 1920, "height": 1080},
   "image": {"width": 1920, "height": 1080, "sent_width": 1600, "sent_height": 900,
             "scale": 1.2, "bytes": 548735},
+  "image_to_screen": {"scale_x": 1.2, "scale_y": 1.2, "ox": 0, "oy": 0},
+  "capture_id": "a1b2c3d4e5f6",
   "dpi": "96 dpi",
   "cursor": {"x": 734, "y": 709},
-  "grid": {"step": 100, "unit": "屏幕坐标", "scale": 1.2},
-  "note": "图片已从 1920x1080 缩到 1600x900；…；换算：图上像素 × 1.2 = 屏幕坐标，…"
+  "grid": {"step": 100, "unit": "screen", "scale": 1.2},
+  "note": "图片已从 1920x1080 缩到 1600x900；…"
 }
 ```
 
 图片经 `ToolResult.attach` 作为 `image/png` 附件返回。附件走结果信封的独立字段，
 不并入 `data`，也不写临时文件。
+
+`capture_id` 是**内存映射的键**，不是文件路径：登记表只保存
+`capture` 矩形、图片宽高、hwnd 与创建时间，不保存 PNG。默认 TTL 300 秒、
+每个插件最多 64 条；服务重启或条目淘汰后旧 ID 失效，要求重新截图。
+`image_to_screen` 是同一份映射的可读形式，给排障和前端展示用，模型不需要拿它做乘法。
+
+`grid_unit=image` 时刻度与光标标签是图内像素；默认 `screen` 保持屏幕坐标，
+`hover`、区域参数和 `desktop_wait` 的区域仍使用屏幕坐标。要用图内坐标点击，
+先取图内网格，再把 `capture_id` 与图内 x/y 交给 `desktop_mouse`。
 
 单张截图上限定为 4000 万像素；超过时在调用侧报错并提示改用区域参数。
 
@@ -119,10 +132,22 @@ plugins/desktop_io/
 ### 缩放与换算
 
 整屏图通常会被缩到 `max_side`，窗口图往往不到上限、按原尺寸发送。
-同一任务里出现两种比例尺时，模型每次点击都要心算倍数，是实测误点的来源之一。
-所以只要发生缩放，`note` 必须给出换算例句（`图上像素 × 1.2 = 屏幕坐标`），
-`grid.scale` 同时给出倍数。细节看不清时用区域参数取局部：局部通常按原尺寸发送。
-点小目标时给 `grid_step=20–40`：网格更细，坐标可以直接读，不必在 100px 的格子里估。
+截图的图内坐标与屏幕坐标可能缩放、也可能带负原点（窗口阴影）。
+
+`desktop_mouse` 接受 `capture_id` + 图内 x/y 时，用登记表里的
+`capture` 与图片宽高换算，模型不做乘法：
+
+```
+screen_x = capture.x + image_x * capture.width / image.width
+screen_y = capture.y + image_y * capture.height / image.height
+```
+
+`space=image` 显式声明图内坐标；只给 `capture_id` 时也按图内解释。
+`space=screen`（默认）仍接受屏幕坐标；两种空间不混用。
+ID 不存在、过期或不属于当前会话时直接报错，不退回屏幕坐标。
+
+细节看不清时用区域参数取局部：局部通常按原尺寸发送。点小目标时给
+`grid_step=20–40`：网格更细，坐标可以直接读，不必在 100px 的格子里估。
 
 ### `desktop_mouse`
 
@@ -133,6 +158,10 @@ plugins/desktop_io/
 | `drag` | `x`、`y`、`to_x`、`to_y` | `button`、`duration_ms`（默认 300） |
 | `scroll` | `amount`（-50–50，正数向下 / 向右） | `x`、`y`、`horizontal` |
 | `cursor` | — | — |
+
+`x` / `y` / `to_x` / `to_y` 默认是屏幕坐标。给 `capture_id` 时按该截图内的
+像素坐标解释；再加 `space=image` 更明确。`space=screen` 不接受 `capture_id`，
+避免同一组数字被两套坐标系重复解释。图内坐标必须给点，不回退到当前光标位置。
 
 `click` / `scroll` 省略坐标时作用在当前光标位置。动作完成后返回光标位置与屏幕矩形；
 `cursor` 只读，不触发模式门控。
@@ -226,22 +255,28 @@ plugins/desktop_io/
 自定义视图不能自己挂 `请求` / `响应` 面板：一旦出现 `.chat-tool-layer--req/res`，
 壳就会判定"这行用的还是默认视图"并跳过装箱，JSON 便会挤在图片上面。
 
-`task_sleep` 的标题是「等待」，摘要为 `N 秒`，
+`task_sleep` 的标题是「等待」，摘要为请求时长（`5 秒` / `1 分 30 秒` / `1 天`），
 等待期间逐秒递减；`desktop_wait` 按 `timeout_ms` 同样倒计时。
 
-`desktop_wait` 收尾时停表，用回执里的 `waited_ms` 写成 `已达成 1.2 秒`（超时写
-`超时 N 秒`）。`task_sleep` 只是登记休眠请求、工具立即返回，倒计时不会在
-`tool_end` 时停下，而是按请求时长走到 0 并写成 `N 秒 · 已到点` —— 否则用户在
-界面上只看得到一个静止的秒数。历史回放（刷新页面、切回会话）不重启倒计时：
+倒计时完全由前端按参数自己数，服务端不推送计时帧。`desktop_wait` 的超时只是上限：
+数到 0 还没收到工具结果，就把摘要改成 `已超时 3 秒` 继续往上数，直到 `tool_end`。
+结束时停表，在标题末尾直接接上回执里的实际等待时长（`窗口出现 -> 腾讯视频 · 0 秒`），
+不写「已达成」/「未达成」这类状态文字——结束与否由 `done` 与标题颜色表达。
+`task_sleep` 只是登记休眠请求、工具立即返回，倒计时不会在 `tool_end` 时停下，
+而是按请求时长走到 0。时长文本统一按毫秒 / 秒 / 分 / 时 / 天展开，
+`86400 秒` 写成 `1 天`，跨天等待不必自己换算。历史回放（刷新页面、切回会话）不重启倒计时：
 那一次等待已经结束，重新从总数往下数会读成「还在等」。
 
 ## 坐标契约
 
-- 工具参数里的 x / y 与网格刻度都是同一套屏幕坐标：Windows 为物理像素，
-  macOS 为全局显示坐标（点）。
+- 默认坐标空间是屏幕坐标：Windows 为物理像素，macOS 为全局显示坐标（点）。
+  `grid_unit=image` 时网格与光标标签是图内像素；图内坐标只通过 `capture_id`
+  交给 `desktop_mouse`，不直接当屏幕坐标使用。
 - macOS Retina 上截图是点的两倍像素：`pixel_ratio` 记录这个比例，鼠标坐标仍按点投递。
-- 网格刻度画在缩放后的图上，但数字是原屏幕坐标，可以直接填回 `desktop_mouse`。
-  网格线与光标十字按「屏幕矩形 → 实发图片尺寸」的比例落位，Retina 上不会偏移半屏。
+- 网格线按「屏幕矩形 → 实发图片尺寸」的比例落位；`grid_unit=image` 时
+  刻度数字由同一比例反推为图内像素。Retina 上不会偏移半屏。
+- `capture` 是截图的屏幕矩形，原点是窗口/裁剪区域左上角，可能为负；
+  `image_to_screen` 给出 `scale_x/scale_y/ox/oy`，换算由服务端完成。
 - 多显示器时屏幕矩形是虚拟桌面的并集，左上角可能为负（主屏左侧的副屏）。
   缩放比例不一致时返回 `note` 提示跨屏坐标可能有偏差。
 
@@ -254,15 +289,16 @@ plugins/desktop_io/
 3. 长边超过 `max_side` 时用 Lanczos 缩到上限，记录 `scale`；
 4. `grid` 打开时叠网格：每 `grid_step` 个屏幕坐标一条细线，每 5 条一条带刻度的主线；
    线距过密时只画主线。刻度在最终尺寸下渲染，缩图不会把字糊掉；
-5. `cursor_mark` 打开时画光标十字与坐标标签，与 `grid` 开关无关；
+   `grid_unit=image` 时刻度文字用图内像素，但线距仍按 `grid_step` 的屏幕坐标布点；
+5. `cursor_mark` 打开时画光标十字与坐标标签，标签单位跟随 `grid_unit`；
 6. 以 PNG 编码，交给 `desktop_eye` 放进附件。
 
 ## 配置
 
 ```ini
 [base]
-id = desktop_io
-name = 桌面 IO
+id = visual_operator
+name = Visual Operator
 enable = 1
 version = 1.0
 
@@ -353,7 +389,7 @@ Linux 与未识别平台装配不可用后端：工具照常注册，调用截�
 
 ## 测试
 
-`tests/test_desktop_io.py` 覆盖坐标、键名、配置、截图加工（缩放 / 网格 / 空白 /
+`tests/test_visual_operator.py` 覆盖坐标、键名、配置、截图加工（缩放 / 网格 / 空白 /
 坏数据）、四个工具的参数矩阵与返回值、`hover` / `hover_path` / `hover_wiggle` /
 `shot` / `hit` / `changed` / `window_changed` / `navigated`、条件等待、
 同名窗口消歧、Plan 门控、输入锁、平台后端选择；

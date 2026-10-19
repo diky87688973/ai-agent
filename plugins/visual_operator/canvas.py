@@ -86,10 +86,18 @@ def _offset(origin: int, value: int, extent: int, pixels: int) -> int:
     return round((value - origin) * pixels / extent)
 
 
+def _label_value(value: int, origin: int, extent: int, pixels: int,
+                 grid_unit: str) -> str:
+    """刻度标签：屏幕坐标或图内像素坐标。"""
+    if grid_unit == "image":
+        return str(round((value - origin) * pixels / extent))
+    return str(value)
+
+
 def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: Any, *,
                   rect: ScreenRect, step: int, grid: bool,
-                  cursor: Optional[ScreenPoint]) -> None:
-    """在图片上叠坐标网格与光标十字；刻度是屏幕坐标值。"""
+                  cursor: Optional[ScreenPoint], grid_unit: str = "screen") -> None:
+    """在图片上叠坐标网格与光标十字；刻度单位由 `grid_unit` 决定。"""
     width, height = image.size
     step = max(1, int(step))
     base = image.convert("RGBA")
@@ -114,10 +122,11 @@ def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: An
                           fill=_MAJOR_COLOR if major else _THIN_COLOR,
                           width=2 if major else 1)
                 if major:
-                    _draw_label(draw, (offset + 3, 2), str(screen_x),
+                    label = _label_value(screen_x, rect.x, rect.width, width, grid_unit)
+                    _draw_label(draw, (offset + 3, 2), label,
                                 font, text_height, width, height)
                     _draw_label(draw, (offset + 3, height - text_height - 2),
-                                str(screen_x), font, text_height, width, height)
+                                label, font, text_height, width, height)
 
         first = -(-rect.y // step)
         last = (rect.bottom - 1) // step
@@ -132,11 +141,12 @@ def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: An
                           fill=_MAJOR_COLOR if major else _THIN_COLOR,
                           width=2 if major else 1)
                 if major:
-                    _draw_label(draw, (2, offset + 3), str(screen_y),
+                    label = _label_value(screen_y, rect.y, rect.height, height, grid_unit)
+                    _draw_label(draw, (2, offset + 3), label,
                                 font, text_height, width, height)
-                    _draw_label(draw, (width - 4 - _text_size(draw, str(screen_y), font)[0],
+                    _draw_label(draw, (width - 4 - _text_size(draw, label, font)[0],
                                        offset + 3),
-                                str(screen_y), font, text_height, width, height)
+                                label, font, text_height, width, height)
 
     if cursor is not None:
         cursor_x = _offset(rect.x, cursor.x, rect.width, width)
@@ -144,15 +154,21 @@ def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: An
         if 0 <= cursor_x < width and 0 <= cursor_y < height:
             draw.line([(0, cursor_y), (width, cursor_y)], fill=_CURSOR_COLOR, width=1)
             draw.line([(cursor_x, 0), (cursor_x, height)], fill=_CURSOR_COLOR, width=1)
-            _draw_label(draw, (cursor_x + 6, cursor_y + 6), f"{cursor.x},{cursor.y}",
+            label = _label_value(cursor.x, rect.x, rect.width, width, grid_unit) + "," \
+                + _label_value(cursor.y, rect.y, rect.height, height, grid_unit)
+            _draw_label(draw, (cursor_x + 6, cursor_y + 6), label,
                         font, text_height, width, height, color=(0, 255, 0, 245))
 
     image.paste(image_module.alpha_composite(base, canvas).convert("RGB"))
 
 
 def render(png: bytes, *, rect: ScreenRect, grid: bool, step: int,
-           cursor: Optional[ScreenPoint], cursor_mark: bool, max_side: int) -> Rendered:
+           cursor: Optional[ScreenPoint], cursor_mark: bool, max_side: int,
+           grid_unit: str = "screen") -> Rendered:
     """把原始截图加工成要发给模型的那一张。"""
+    unit = str(grid_unit or "screen").strip().lower()
+    if unit not in ("screen", "image"):
+        raise ValueError(f"grid_unit 只能是 screen 或 image，实际 {grid_unit!r}")
     Image, ImageDraw, ImageFont = _pillow()
     try:
         image = Image.open(io.BytesIO(png))
@@ -177,7 +193,7 @@ def render(png: bytes, *, rect: ScreenRect, grid: bool, step: int,
     mark = cursor if cursor_mark else None
     if grid or mark is not None:
         _draw_overlay(image, Image, ImageDraw, ImageFont, rect=rect,
-                      step=step, grid=grid, cursor=mark)
+                      step=step, grid=grid, cursor=mark, grid_unit=unit)
 
     buffer = io.BytesIO()
     image.save(buffer, format="PNG", compress_level=6)

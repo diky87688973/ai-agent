@@ -48,7 +48,7 @@ enable = 1
 name = 多模型
 icon = 🧠
 version = 1.0
-desc = 每条模型自带网关与厂商
+desc = 支持配置多个模型网关
 
 [model:deepseek]
 provider = openai

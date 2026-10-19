@@ -56,6 +56,7 @@ animation:chat-tool-marquee 1.8s linear infinite;
 .chat-tool-pane--diff .diff-unified{max-height:220px;overflow:auto}
 .chat-tool-body .cmd-input-bar{margin:0;border:0;border-top:1px solid rgba(255,255,255,.06);border-radius:0}
 .chat-tool-custom-view{max-height:220px;overflow:auto}
+.chat-tool-custom:has(.chat-tool-pane--shot) .chat-tool-custom-view{max-height:400px}
 .chat-tool-custom-view .chat-tool-pane,
 .chat-tool-custom-view .chat-tool-pane--diff,
 .chat-tool-custom-view .chat-tool-pane--shot,
@@ -102,7 +103,7 @@ html[data-ui-theme="light"] .chat-tool-packet-btn{color:#5c6b80}
 html[data-ui-theme="light"] .chat-tool-packet-btn:hover{color:#1a2233}
 html[data-ui-theme="light"] .chat-tool-raw{border-top-color:#e6ebf3}
 .chat-tool-pane--shot{max-height:none;overflow:visible;padding:8px 12px 4px 8px}
-.chat-tool-shot{display:block;max-width:400px;max-height:400px;width:auto;height:auto;object-fit:contain;border-radius:4px}
+.chat-tool-shot{display:block;max-width:100%;max-height:400px;width:auto;height:auto;object-fit:contain}
 .chat-tool-shot-meta{margin-top:8px}
 .chat-tool-shot-path{font-size:12px;line-height:1.45;color:#8b949e;word-break:break-all}
 .chat-tool-shot-meta .chat-tool-shot-path+.chat-tool-shot-path{margin-top:2px}

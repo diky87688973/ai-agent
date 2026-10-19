@@ -129,6 +129,11 @@ INI 的节名必须唯一，因此两套协议不能共用一个 id。
 样式经 `window.aiAgentShell.styles.load()` 按需注入。桥的契约见
 [plugins.md](plugins.md#壳层公共桥)。
 
+按钮与下拉都不设宽度上限：模型名是唯一的辨识依据，`deepseek-flash-openai` 与
+`deepseek-flash-anthropic` 截断成同一个 `deepseek-flash-ant...` 后就分不出选的是
+哪个版本。菜单用 `width:max-content` 跟着条目走，只在视口边界（`100vw - 24px`）
+收口。
+
 ## 延伸阅读
 
 - [plugins.md](plugins.md)：插件包形态、扩展点、界面资产与生命周期

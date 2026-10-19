@@ -588,7 +588,12 @@ class ClassicAdapter:
             "model": str(model or ""),
         })
 
-    def _broadcast(self, frame: Dict[str, Any]) -> None:
+    def announce_plugin_event(self, plugin: str, event: str,
+                              payload: Optional[Dict[str, Any]] = None) -> int:
+        """广播一条插件事件，返回实际送达的 SSE 连接数。"""
+        return self._broadcast(C.plugin_event_frame(plugin, event, payload))
+
+    def _broadcast(self, frame: Dict[str, Any]) -> int:
         """把一帧推给所有已连接通道；通道满则丢最旧，绝不阻塞事件流。"""
         with self._lock:
             channels = list(self._channels)
@@ -601,6 +606,7 @@ class ClassicAdapter:
                     box.put_nowait(frame)
                 except queue.Empty:
                     pass
+        return len(channels)
 
     # ── 续传（断线重连从游标继续）──────────────────────────
 

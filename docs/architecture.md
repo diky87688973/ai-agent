@@ -154,7 +154,7 @@ class Ports:
 - 外部 `path=` 插件的资产根走 `plugin_root`，不写死 `plugins/<名>`。
 - 仅为段色登记时用 `add_ctx_segment_style`，不挂空面板。
 - 壳层经典 JS 与 `prompts.py` 不含 `skill_manage`（工具名只在插件侧）。
-- TTS 等插件不向界面承诺内核未提供的能力。
+- 插件自有界面与实时事件由插件声明；内核只提供通用贡献点与事件出口。
 - 禁止跨层私有导入（`from agent.X import _priv`）；同层私有导入允许。
 - `SERVICE_CLASSIC_ADAPTER` 只住在壳层键表，不进 `core`。
 - 不保留失效的 `changeset_mod_ids` 引用。

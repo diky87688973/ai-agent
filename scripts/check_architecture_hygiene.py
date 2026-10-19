@@ -16,7 +16,7 @@ PLUGINS_DIR = ROOT / "plugins"
 CLASSIC_JS = PACKAGE_ROOT / "shell" / "web_assets" / "classic" / "js"
 PROMPTS_PY = PACKAGE_ROOT / "shell" / "prompts.py"
 
-# 标识符边界：避免 `atts` 误伤 `tts` 这类短名。
+# 标识符边界：避免 `atts` 误伤三字母短名。
 _WORD = r"(?<![A-Za-z0-9_]){name}(?![A-Za-z0-9_])"
 
 

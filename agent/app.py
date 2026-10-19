@@ -59,6 +59,7 @@ from agent.core.context import (
     SERVICE_MESH,
     SERVICE_MODEL_CATALOG,
     SERVICE_PIPELINE,
+    SERVICE_PLUGIN_EVENTS,
     SERVICE_PLUGIN_HOST,
     SERVICE_PROVIDER,
     SERVICE_REGISTRY,
@@ -90,6 +91,7 @@ from agent.mechanisms.provider_registry import build_provider
 from agent.mechanisms.provider_router import ProviderRouter
 from agent.mechanisms.quality import QualityGate, build_pipeline_gate
 from agent.shell.classic_adapter import ClassicAdapter
+from agent.shell.classic_adapter.plugin_events import PluginEventPublisher
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER
 from agent.shell.session_runner import SessionRunner
 
@@ -796,6 +798,7 @@ def build_app(
     classic = ClassicAdapter(app)
     classic.bind_bus(event_bus)
     context.register(SERVICE_CLASSIC_ADAPTER, classic)
+    context.register(SERVICE_PLUGIN_EVENTS, PluginEventPublisher(classic))
     # 插件加载放在装配末尾：插件的端点处理器要在调用时取内核服务
     # （`ctx.app.registry` 之类），服务没注册完就加载会让它们全都取到 None。
     # 注册贡献（面板 / 端点）本身是纯记账，放这里不影响工具与管道的装配顺序。

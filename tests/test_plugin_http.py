@@ -118,7 +118,7 @@ class PluginHttpTest(unittest.TestCase):
         (plugins / "probe" / "ui" / "panel.css").write_text(_PANEL_CSS, encoding="utf-8")
 
         # 数据根走环境变量（`build_app` 不接受该参数）；装载清单走临时 `plugins.ini`
-        # —— 真实工程那份列的是 knowledge / tts，测试不该依赖它，也不该打补丁绕过。
+        # —— 真实工程那份列的是 knowledge / ai_speak，测试不该依赖它，也不该打补丁绕过。
         cls._env = mock.patch.dict(
             os.environ, {"AI_AGENT_DATA_ROOT": str(base / "data")})
         cls._env.start()

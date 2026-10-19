@@ -23,7 +23,7 @@ def load_backend() -> Backend:
             return MacOSBackend()
     except Exception as exc:  # 降级到不可用后端：注册面不随系统库缺失而漂移
         print(
-            f"[plugin:desktop_io] 后端装配失败：{type(exc).__name__}: {exc}",
+            f"[plugin:visual_operator] 后端装配失败：{type(exc).__name__}: {exc}",
             file=sys.stderr,
             flush=True,
         )

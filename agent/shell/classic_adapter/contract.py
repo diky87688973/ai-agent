@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Final, List
+from typing import Any, Dict, Final, List, Optional
 
 # ── 会话 ID（经典界面的校验口径，agent-ui.js:8）────────────────
 CID_PATTERN: Final = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
@@ -29,7 +29,7 @@ def normalize_cid(value: object) -> str:
 
 
 # ── 事件名（服务端 → 前端）──────────────────────────────────
-# 经典界面读的 30 种；`handleGlobalSseEvent`（agent-ui.js:144-178）是超集口径。
+# 经典界面读的事件名；`plugin_event` 由 `stream.js` 转发给插件。
 EV_CONVERSATION: Final = "conversation"
 EV_RUN_STARTED: Final = "run_started"
 EV_ASSISTANT: Final = "assistant"
@@ -56,12 +56,12 @@ EV_ERROR: Final = "error"
 EV_STOPPED: Final = "stopped"
 EV_INBOX_QUEUED: Final = "inbox_queued"
 EV_PEER_MESSAGE: Final = "peer_message"
-EV_AUDIO: Final = "audio"                      # 保留常量以便自检"不发它"
 EV_OPEN_SESSION: Final = "open_session"
 EV_PAUSED_FOR_CONFIRM: Final = "paused_for_user_confirm"
 EV_HEARTBEAT: Final = "heartbeat"
 EV_GLOBAL_SSE_READY: Final = "global_sse_ready"
 EV_PLUGINS_CHANGED: Final = "plugins_changed"
+EV_PLUGIN_EVENT: Final = "plugin_event"
 
 #: 经典界面豁免 `conversation_id` 校验的事件。
 #: `plugins_changed` 是进程级的：插件开关不属于某一个会话。
@@ -69,8 +69,36 @@ CID_EXEMPT_EVENTS: Final = frozenset({
     EV_HEARTBEAT, EV_GLOBAL_SSE_READY, EV_PLUGINS_CHANGED,
 })
 
-#: 适配层明确不发的事件（当前没有对应能力）
-NEVER_EMIT: Final = frozenset({EV_AUDIO})
+#: 插件事件帧的保留键；`seq` 是 SSE 续传游标，插件载荷不能占用。
+_PLUGIN_EVENT_RESERVED: Final = frozenset({"type", "plugin", "event", "seq"})
+_PLUGIN_NAME_RE: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+_PLUGIN_EVENT_RE: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+def plugin_event_frame(plugin: str, event: str,
+                       payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """构造一条插件事件帧；不落盘，不参与断线续传。
+
+    插件名与事件名只允许稳定标识符；`payload` 不能覆盖帧头，也不能带 `seq`。
+    """
+    name = str(plugin or "").strip()
+    kind = str(event or "").strip()
+    if not _PLUGIN_NAME_RE.match(name):
+        raise ValueError(f"插件名非法：{plugin!r}")
+    if not _PLUGIN_EVENT_RE.match(kind):
+        raise ValueError(f"插件事件名非法：{event!r}")
+    if payload is None:
+        body: Dict[str, Any] = {}
+    elif isinstance(payload, dict):
+        body = dict(payload)
+    else:
+        raise ValueError("插件事件 payload 必须是 dict 或 None")
+    reserved = _PLUGIN_EVENT_RESERVED.intersection(body)
+    if reserved:
+        raise ValueError(f"插件事件 payload 含保留键：{sorted(reserved)}")
+    frame: Dict[str, Any] = {"type": EV_PLUGIN_EVENT, "plugin": name, "event": kind}
+    frame.update(body)
+    return frame
 
 
 # ── 工具名映射：内核工具 → 经典界面的 `script` 标识 ─────────────

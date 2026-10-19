@@ -11,5 +11,5 @@
 ; [plugin:knowledge]
 ; version = 1.0
 ;
-; [plugin:tts]
+; [plugin:ai_speak]
 ; version = 1.0

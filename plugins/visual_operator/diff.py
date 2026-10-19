@@ -51,7 +51,7 @@ def change_ratio(before: bytes, after: bytes) -> Optional[float]:
         right = _thumb(Image, after)
     except OSError as exc:
         # 已投递的动作不该因为"事后量不出来"被改判失败；留痕即可。
-        print(f"[desktop_io] 差异比较跳过：{exc}", file=sys.stderr, flush=True)
+        print(f"[visual_operator] 差异比较跳过：{exc}", file=sys.stderr, flush=True)
         return None
     changed = 0
     total = 0

@@ -113,6 +113,45 @@ def _stream(**kwargs) -> ClassicStream:
 def _types(frames):
     return [f["type"] for f in frames]
 
+class PluginEventTest(unittest.TestCase):
+    """插件事件出口：帧头固定、保留键拒绝、广播计数准确。"""
+
+    def test_frame_shape_and_copy(self) -> None:
+        payload = {"conversation_id": CID, "index": 0}
+        frame = C.plugin_event_frame("ai_speak", "segment", payload)
+        self.assertEqual(frame["type"], C.EV_PLUGIN_EVENT)
+        self.assertEqual(frame["plugin"], "ai_speak")
+        self.assertEqual(frame["event"], "segment")
+        self.assertEqual(frame["conversation_id"], CID)
+        payload["index"] = 9
+        self.assertEqual(frame["index"], 0)
+        self.assertNotIn("seq", frame)
+
+    def test_frame_rejects_reserved_and_bad_names(self) -> None:
+        for payload in ({"type": "x"}, {"plugin": "x"}, {"event": "x"}, {"seq": 1}):
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValueError):
+                    C.plugin_event_frame("ai_speak", "segment", payload)
+        with self.assertRaises(ValueError):
+            C.plugin_event_frame("../bad", "segment", {})
+        with self.assertRaises(ValueError):
+            C.plugin_event_frame("ai_speak", "", {})
+        with self.assertRaises(ValueError):
+            C.plugin_event_frame("ai_speak", "segment", [])
+
+    def test_announce_broadcasts_to_channels(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = ClassicAdapter(_FakeApp(Path(tmp)))
+            self.addCleanup(adapter.dispose)
+            first = adapter.attach()
+            second = adapter.attach()
+            self.assertEqual(adapter.announce_plugin_event("ai_speak", "stop", {}), 2)
+            self.assertEqual(first.get_nowait()["type"], C.EV_PLUGIN_EVENT)
+            self.assertEqual(second.get_nowait()["event"], "stop")
+            adapter.detach(first)
+            self.assertEqual(adapter.announce_plugin_event("ai_speak", "stop", {}), 1)
+            second.get_nowait()
+
 class UsageSemanticsTest(unittest.TestCase):
     """`/api/usage-accumulator` 的 PUT 必须是覆盖语义。
 
@@ -606,10 +645,6 @@ class OutboundContractTest(unittest.TestCase):
         self.assertEqual(frames[0]["args"], {})
         # 后续事件仍能正常翻译
         self.assertEqual(_types(stream.translate("turn_ended", {})), [C.EV_DONE])
-
-    def test_audio_never_emitted(self) -> None:
-        """`audio` 事件永远不该出现：TTS 不在能力面内。"""
-        self.assertIn(C.EV_AUDIO, C.NEVER_EMIT)
 
 class InboundContractTest(unittest.TestCase):
     """老入参 → 内核 → 老返回体。"""
@@ -1106,7 +1141,7 @@ class SubscriptionLifecycleTest(unittest.TestCase):
         from agent.app import build_app
 
         # 本类数的是总线订阅总数，所以必须排除插件贡献的订阅：
-        # `tts` 插件按设计会挂三条，混进来就分不清"适配层的订阅"与"插件的订阅"。
+        # 插件可注册任意数量的订阅，混进来就分不清"适配层的订阅"与"插件的订阅"。
         no_plugins(self)
         self.app = build_app()
         self.addCleanup(self.app.dispose)
@@ -1423,11 +1458,17 @@ class UiBundleTest(unittest.TestCase):
         r2 = [f for f in second if f["type"] == C.EV_LLM_ROUND][0]["round"]
         self.assertEqual((r1, r2), (1, 2), msg="轮次必须递增（经典界面靠它分卡）")
 
+    def test_plugin_event_bridges(self) -> None:
+        """插件事件经 DOM 事件交给插件；插件开关也派发 DOM 事件。"""
+        js = read_ui_js()
+        self.assertIn('ai-agent:plugin-event', js)
+        self.assertIn('ai-agent:plugins-changed', js)
+
     def test_inline_html_has_no_placeholders_left(self) -> None:
         from agent.shell.ui_bundle import inline_ui_html
 
         html = inline_ui_html()
-        for token in ("{{CSS}}", "{{agent-ui.js}}", "{{agent-tts.js}}", "{{APP_VERSION}}"):
+        for token in ("{{CSS}}", "{{agent-ui.js}}", "{{APP_VERSION}}"):
             self.assertNotIn(token, html, msg=token)
 
     def test_inline_html_contains_all_five_scripts(self) -> None:
@@ -1456,19 +1497,6 @@ class UiBundleTest(unittest.TestCase):
         self.assertEqual(scope_hljs_css(".hljs{color:red}", "P"), "P .hljs{color:red}")
         # 不能误伤 `xxx.hljs` 这类复合选择器
         self.assertEqual(scope_hljs_css("a.hljs{color:red}", "P"), "a.hljs{color:red}")
-
-    def test_tts_entry_is_gone(self) -> None:
-        """TTS 的入口元素应从素材里删掉。
-
-        查的是入口元素而不是裸字符串：文件头注释为记录改动会提到这个 id，
-        查字符串会误报。
-        """
-        from agent.shell.ui_bundle import inline_ui_html
-
-        html = inline_ui_html()
-        self.assertNotIn('<button type="button" id="hdrTtsBtn"', html)
-        # 主题按钮必须还在（不在删除范围内）
-        self.assertIn('id="hdrThemeBtn"', html)
 
 if __name__ == "__main__":
     unittest.main()

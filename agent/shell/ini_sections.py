@@ -18,7 +18,7 @@ def newline(text: str) -> str:
 def section_at(line: str) -> Optional[str]:
     """该行是不是节头；是则返回节名（去空白），否则 None。
 
-    注释行与不完整的方括号都不算节头 —— `; [plugin:tts]` 是注释示例，
+    注释行与不完整的方括号都不算节头 —— `; [plugin:ai_speak]` 是注释示例，
     不能当成真实节参与查找。
     """
     raw = line.strip()

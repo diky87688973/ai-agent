@@ -29,6 +29,7 @@ SERVICE_MODEL_CATALOG = "model_catalog"          # 模型描述目录（唯一�
 SERVICE_STORE = "store"                          # 会话存储（事实源）
 SERVICE_EVENT_BUS = "event_bus"                  # 事件总线（旁路）
 SERVICE_PLUGIN_HOST = "plugin_host"              # 插件宿主
+SERVICE_PLUGIN_EVENTS = "plugin_events"          # 插件事件出口（非事实 SSE）
 SERVICE_CONTEXT_SOURCES = "context_sources"      # 上下文注入源
 SERVICE_SESSION_CONTEXTS = "session_contexts"    # 会话注册表（cid → SessionContext）
 SERVICE_LIVE_STATE = "live_state"                # 实时状态容器（按 cid 分键）

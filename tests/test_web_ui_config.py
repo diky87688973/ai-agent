@@ -79,7 +79,7 @@ class ToolDetailLayoutTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
     def test_desktop_views_do_not_mount_raw_panels(self) -> None:
-        block = self.js[self.js.index("/* ── 桌面 IO 的详情区"):
+        block = self.js[self.js.index("/* ── Visual Operator 的详情区"):
                         self.js.index("window.aiAgentChatTools")]
         self.assertNotIn("chatToolViewDefault.mount", block)
         self.assertNotIn("chatToolViewDefault.fill", block)
@@ -90,12 +90,75 @@ class ToolDetailLayoutTest(unittest.TestCase):
         self.assertEqual(block.count('addChatToolLayer(row._body,"","shot")'), 1)
 
     def test_desktop_shot_reuses_the_read_image_meta_block(self) -> None:
-        block = self.js[self.js.index("/* ── 桌面 IO 的详情区"):
+        block = self.js[self.js.index("/* ── Visual Operator 的详情区"):
                         self.js.index("window.aiAgentChatTools")]
         for cls in ("chat-tool-shot", "chat-tool-shot-miss", "chat-tool-shot-meta",
                     "chat-tool-shot-path"):
             self.assertIn(cls, block)
         self.assertLess(block.index('"尺寸: "'), block.index('"窗口: "'))
+
+
+class WaitTitleFormatTest(unittest.TestCase):
+    """`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长。"""
+
+    def setUp(self) -> None:
+        self.js = (ROOT / "agent/shell/web_assets/classic/js/tools/titles.js"
+                   ).read_text(encoding="utf-8")
+
+    def test_short_durations_keep_one_decimal_of_seconds(self) -> None:
+        self.assertIn("function desktopDurationText(ms)", self.js)
+        block = self.js[self.js.index("function desktopDurationText(ms)"):][:400]
+        self.assertIn("total<10000", block)
+        self.assertIn('" 秒"', block)
+        self.assertNotIn("毫秒", block)
+
+    def test_wait_title_prints_the_waited_time(self) -> None:
+        block = self.js[self.js.index('if(kind==="wait"){'):]
+        block = block[:block.index('return {main:"等待条件"')]
+        self.assertIn('label+=" · "+desktopDurationText(d.waited_ms)', block)
+        self.assertNotIn("已达成", block)
+        self.assertNotIn("未达成", block)
+        self.assertNotIn("已等待", block)
+
+    def test_countdown_uses_the_timeout_as_its_duration(self) -> None:
+        block = self.js[self.js.index("function desktopWaitSeconds("):]
+        block = block[:block.index("function desktopWaitTickText(")]
+        self.assertIn('argGet(args,"timeout_ms")', block)
+        self.assertIn("Math.ceil(ms/1000)", block)
+
+    def test_countdown_says_timeout_once_the_deadline_passes(self) -> None:
+        block = self.js[self.js.index("function desktopWaitTickText("):]
+        block = block[:block.index("var _desktopWaitTickers")]
+        self.assertIn("function desktopWaitTickText(script,args,left,elapsedMs)", block)
+        self.assertIn('"剩余 "', block)
+        self.assertIn('"已超时 "', block)
+        self.assertNotIn("已达成", block)
+        self.assertNotIn("未达成", block)
+
+    def test_ticker_keeps_counting_overtime_until_the_result_arrives(self) -> None:
+        block = self.js[self.js.index("function desktopStartWaitTicker("):]
+        self.assertIn("if(kind!==\"wait\"&&left<=0)desktopStopWaitTicker(key)", block)
+        self.assertIn("entry.applys[i](left,entry.total,elapsed)", block)
+        for rel in ("chat/llm-rounds.js", "chat-tool-views.js"):
+            text = (ROOT / "agent/shell/web_assets/classic/js" / rel).read_text(
+                encoding="utf-8")
+            self.assertIn("function(left,total,elapsed)", text, msg=rel)
+            self.assertIn("desktopWaitTickText(", text, msg=rel)
+
+    def test_nothing_is_reported_from_the_server_while_waiting(self) -> None:
+        stream = (ROOT / "agent/shell/web_assets/classic/js/chat/llm-rounds.js"
+                  ).read_text(encoding="utf-8")
+        self.assertNotIn("desktopWaitAnchor", stream)
+        self.assertNotIn("desktopWaitAnchor", self.js)
+        wait_tool = (ROOT / "plugins/visual_operator/tools/wait.py").read_text(
+            encoding="utf-8")
+        self.assertNotIn("emit_progress", wait_tool)
+
+    def test_long_durations_are_written_in_units(self) -> None:
+        block = self.js[self.js.index("function desktopDurationText(ms)"):][:1400]
+        for unit in ('" 天"', '" 小时"', '" 分"'):
+            self.assertIn(unit, block)
+        self.assertIn("rest/86400", block)
 
 
 if __name__ == "__main__":

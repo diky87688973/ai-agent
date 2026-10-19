@@ -363,7 +363,7 @@ h.onclick=function(){c.classList.toggle("open");};
 appendStep(c);if(mergeKeepOpen)c.classList.add("open");toolOpen.set(tid,{tid:tid,tag:tag,resLb:lb,resPb:pb,previewSlot:pv,args:ev.args||{},script:ev.script||"",spinWrap:spinWrap,stepTitle:_stt,fileSpan:null,progressBadge:null,liveOutPre:isStreamOutputToolScript(ev.script)?pb:null,cmdInputBar:null,chatRunCard:null,chatRunOutPre:null,chatToolRow:null,chatToolRes:null,replay:!!ev._replay});
 /* 等待类工具：标题后的秒数逐秒减，用户不用猜模型在睡还是在跑。
    历史回放不启动（见 `renderHistoryToolItem` 的 `_replay`）。 */
-if(!ev._replay)desktopStartWaitTicker(tid,ev.script,ev.args||{},function(left){desktopSetStepSummary(tx,desktopWaitTickText(ev.script,ev.args||{},left),true);});
+if(!ev._replay)desktopStartWaitTicker(tid,ev.script,ev.args||{},function(left,total,elapsed){desktopSetStepSummary(tx,desktopWaitTickText(ev.script,ev.args||{},left,elapsed),true);});
 if(showToolItems())mountChatToolItem(toolOpen.get(tid));
 if(isStreamOutputToolScript(ev.script)){var _opened=toolOpen.get(tid);if(!_opened||!_opened.chatToolRow)ensureChatRunCard(_opened);}}
 
