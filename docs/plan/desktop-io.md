@@ -287,6 +287,8 @@ cursor_mark = 1
 settle_ms = 60
 type_interval_ms = 12
 hover_settle_ms = 250
+hover_approach_ms = 120
+hover_wiggle = 1
 wait_interval_ms = 200
 ```
 
@@ -302,6 +304,8 @@ wait_interval_ms = 200
 | `settle_ms` | 60 | 0–2000 | 鼠标键盘动作后的停顿，给界面刷新留时间 |
 | `type_interval_ms` | 12 | 0–200 | 逐字输入的字符间隔 |
 | `hover_settle_ms` | 250 | 0–2000 | `hover` 移完光标后等界面展开 |
+| `hover_approach_ms` | 120 | 0–2000 | `hover` 移到落点用多少毫秒，0 = 一次跳变 |
+| `hover_wiggle` | 1 | 0/1 | 到达后是否做 1–2px 微移动，唤醒只认连续 mousemove 的控件 |
 | `wait_interval_ms` | 200 | 50–2000 | `desktop_wait` 的默认轮询间隔 |
 
 解析规则（`config.py`，纯函数，无 IO 副作用）：

@@ -188,6 +188,7 @@ class ConfigTest(unittest.TestCase):
         self._write(
             "[ext]\neye = 0\nkeyboard = off\nmax_side = 99999\n"
             "grid_step = 5\nsettle_ms = -3\ntype_interval_ms = 500\n"
+            "hover_approach_ms = 9999\nhover_wiggle = 0\n"
         )
         config = load_config(self.root)
         self.assertFalse(config.eye)
@@ -197,6 +198,8 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(config.grid_step, 20)
         self.assertEqual(config.settle_ms, 0)
         self.assertEqual(config.type_interval_ms, 200)
+        self.assertEqual(config.hover_approach_ms, 2000)
+        self.assertFalse(config.hover_wiggle)
 
     def test_bad_values_fall_back(self) -> None:
         self._write("[ext]\nmax_side = huge\ncursor_mark = maybe\n")
@@ -585,7 +588,9 @@ class HoverCaptureTest(unittest.TestCase):
     """悬停取图：移光标与截图必须在同一次调用内完成。"""
 
     def setUp(self) -> None:
-        self.config = DesktopConfig(settle_ms=0, hover_settle_ms=0)
+        # 基础用例只关心"何时移、何时拍"：轨迹与微移动单独测。
+        self.config = DesktopConfig(settle_ms=0, hover_settle_ms=0,
+                                    hover_approach_ms=0, hover_wiggle=False)
         self.backend, _screen, self.mouse, _keyboard = _backend(
             rect=ScreenRect(0, 0, 800, 700))
         self.tool = DesktopEyeTool(self.backend, self.config)
@@ -593,7 +598,48 @@ class HoverCaptureTest(unittest.TestCase):
     def test_hover_moves_cursor_before_capture(self) -> None:
         result = self.tool.execute({"hover": [700, 640]})
         self.assertEqual(self.mouse.calls[0], ("move", ScreenPoint(700, 640), 0))
-        self.assertEqual(result.data["hover"], {"x": 700, "y": 640, "settle_ms": 0})
+        self.assertEqual(
+            result.data["hover"],
+            {"x": 700, "y": 640, "settle_ms": 0, "approach_ms": 0, "wiggle": False})
+
+    def test_hover_wiggle_moves_around_and_returns(self) -> None:
+        config = DesktopConfig(settle_ms=0, hover_settle_ms=0,
+                               hover_approach_ms=0, hover_wiggle=True)
+        result = DesktopEyeTool(self.backend, config).execute({"hover": [700, 640]})
+        points = [call[1] for call in self.mouse.calls if call[0] == "move"]
+        self.assertEqual(points[0], ScreenPoint(700, 640))
+        self.assertGreater(len(points), 2)
+        self.assertEqual(points[-1], ScreenPoint(700, 640))
+        self.assertTrue(any(point != ScreenPoint(700, 640) for point in points))
+        self.assertTrue(result.data["hover"]["wiggle"])
+
+    def test_hover_path_is_walked_before_the_endpoint(self) -> None:
+        result = self.tool.execute({
+            "hover": [300, 200],
+            "hover_path": [[100, 100], [200, 150]],
+        })
+        points = [call[1] for call in self.mouse.calls if call[0] == "move"]
+        self.assertEqual(points, [ScreenPoint(100, 100), ScreenPoint(200, 150),
+                                  ScreenPoint(300, 200)])
+        self.assertEqual(result.data["hover"]["path"],
+                         [{"x": 100, "y": 100}, {"x": 200, "y": 150}])
+
+    def test_hover_path_requires_hover(self) -> None:
+        with self.assertRaises(ValueError):
+            self.tool.execute({"hover_path": [[1, 2]]})
+
+    def test_hover_path_length_is_limited(self) -> None:
+        with self.assertRaises(ValueError):
+            self.tool.execute({
+                "hover": [300, 200],
+                "hover_path": [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]],
+            })
+
+    def test_grid_step_can_be_tightened_for_small_targets(self) -> None:
+        result = self.tool.execute({"grid_step": 20})
+        self.assertEqual(result.data["grid"]["step"], 20)
+        with self.assertRaises(ValueError):
+            self.tool.execute({"grid_step": 5})
 
     def test_hover_requires_two_integers(self) -> None:
         for value in ([1], [1, 2, 3], ["a", 2], [True, 2], 5):
@@ -626,7 +672,8 @@ class WindowHoverTest(unittest.TestCase):
     """窗口悬停：先恢复/置前，再移光标，最后取图。"""
 
     def test_hover_runs_after_activation_and_before_capture(self) -> None:
-        config = DesktopConfig(settle_ms=0, hover_settle_ms=0)
+        config = DesktopConfig(settle_ms=0, hover_settle_ms=0,
+                               hover_approach_ms=0, hover_wiggle=False)
         info = _window_info()
         events = []
 
@@ -689,6 +736,52 @@ class WindowHoverTest(unittest.TestCase):
                           Recorder(), windows=Probe())
         DesktopEyeTool(backend, config).execute({"window": "腾讯视频"})
         self.assertEqual(seen, [None])
+
+    def test_cursor_layer_different_from_capture_window_is_reported(self) -> None:
+        """播放器画面是独立顶层窗口：取图窗口与光标那层不同时必须点明。"""
+        config = DesktopConfig(settle_ms=0, hover_settle_ms=0,
+                               hover_approach_ms=0, hover_wiggle=False)
+        info = _window_info(hwnd=100, rect=ScreenRect(0, 0, 800, 700))
+        probe = Recorder(probe={
+            "hwnd": 555, "root": 555, "class": "EVO_WidgetWin_0",
+            "title": "ViewsPlayerPluginWnd",
+        })
+        windows = Recorder(
+            get=info, find=(info,),
+            capture=Screenshot(_png(40, 30), info.rect, source="window"),
+        )
+        screen = Recorder(geometry=ScreenGeometry(rect=info.rect),
+                          capture=Screenshot(_png(40, 30), info.rect))
+        backend = Backend("test", screen, Recorder(cursor=ScreenPoint(7, 8)),
+                          Recorder(), windows=windows, hit=probe)
+        result = DesktopEyeTool(backend, config).execute(
+            {"window": "腾讯视频", "hover": [300, 200]})
+
+        self.assertEqual(result.data["hover"]["hit"]["title"], "ViewsPlayerPluginWnd")
+        self.assertIn("hwnd=555", result.data["note"])
+        self.assertIn("不是同一个", result.data["note"])
+
+    def test_hover_without_window_captures_the_cursor_layer(self) -> None:
+        """没给窗口时按光标落点取那一层，避免整屏缩放后看不清控件文字。"""
+        config = DesktopConfig(settle_ms=0, hover_settle_ms=0,
+                               hover_approach_ms=0, hover_wiggle=False)
+        info = _window_info(hwnd=555, rect=ScreenRect(0, 0, 800, 700))
+        probe = Recorder(probe={"hwnd": 555, "class": "EVO_WidgetWin_0",
+                                "title": "ViewsPlayerPluginWnd"})
+        windows = Recorder(
+            get=info,
+            capture=Screenshot(_png(80, 60), info.rect, source="window"),
+        )
+        screen = Recorder(geometry=ScreenGeometry(rect=info.rect),
+                          capture=Screenshot(_png(80, 60), info.rect))
+        backend = Backend("test", screen, Recorder(cursor=ScreenPoint(7, 8)),
+                          Recorder(), windows=windows, hit=probe)
+        result = DesktopEyeTool(backend, config).execute({"hover": [300, 200]})
+
+        self.assertEqual(result.data["source"], "window")
+        self.assertEqual(result.data["window"]["hwnd"], 555)
+        self.assertEqual(result.data["window"]["auto"], "hover.hit")
+        self.assertIn("未指定窗口", result.data["note"])
 
 
 class ShotTest(unittest.TestCase):
@@ -781,6 +874,56 @@ class ClickEvidenceTest(unittest.TestCase):
             {"action": "move", "x": 5, "y": 6})
         self.assertNotIn("changed", result)
         self.assertNotIn("hit", result)
+
+    def test_navigation_is_reported_when_local_pixels_do_not_move(self) -> None:
+        """点卡片跳详情页：落点 200×200 没变，但顶层窗口换了，不能读成没点中。"""
+        main = _window_info(hwnd=1, rect=ScreenRect(0, 0, 400, 300))
+        player = _window_info(hwnd=2, rect=ScreenRect(0, 0, 400, 300))
+        hits = [
+            {"hwnd": 1, "class": "EVO_WidgetWin_0", "title": "腾讯视频"},
+            {"hwnd": 2, "class": "EVO_WidgetWin_0", "title": "ViewsPlayerPluginWnd"},
+        ]
+        lists = [(main,), (main, player)]
+        hit = _Scripted(probe=lambda *_args, **_kwargs: hits.pop(0))
+        windows = _Scripted(list_visible=lambda: lists.pop(0))
+        backend, _screen, _mouse, _keyboard = _backend(hit=hit, windows=windows)
+
+        result = DesktopMouseTool(backend, self.config).execute(
+            {"action": "click", "x": 5, "y": 6})
+
+        self.assertEqual(result["changed"], 0.0)
+        self.assertTrue(result["window_changed"]["changed"])
+        self.assertTrue(result["window_changed"]["navigated"])
+        self.assertEqual(result["window_changed"]["opened"][0]["hwnd"], 2)
+        self.assertEqual(result["window_changed"]["hit_after"]["hwnd"], 2)
+
+    def test_shot_follows_the_landed_window_not_the_title(self) -> None:
+        """点击落在播放器窗口时，回图必须拍播放器，而不是标题命中的详情页。"""
+        landed = _window_info(hwnd=555, rect=ScreenRect(0, 0, 80, 60))
+        windows = Recorder(
+            get=landed,
+            capture=Screenshot(_png(80, 60), landed.rect, source="window"),
+        )
+        hit = Recorder(probe={
+            "hwnd": 666, "root": 555, "class": "EVO_WidgetWin_0",
+            "title": "ViewsPlayerPluginWnd",
+        })
+        backend, screen, _mouse, _keyboard = _backend(hit=hit, windows=windows)
+
+        result = DesktopMouseTool(backend, self.config).execute(
+            {"action": "click", "x": 5, "y": 6, "shot": True})
+
+        self.assertEqual(result.data["window"]["hwnd"], 555)
+        self.assertEqual(result.data["shot_of"], "hit")
+        self.assertEqual(result.data["source"], "window")
+        self.assertTrue(result.data["image"]["bytes"])
+
+    def test_local_still_is_resampled_once(self) -> None:
+        backend, _screen, _mouse, _keyboard = _backend()
+        result = DesktopMouseTool(backend, self.config).execute(
+            {"action": "click", "x": 5, "y": 6})
+        self.assertEqual(result["changed_late"], 0.0)
+        self.assertEqual(result["changed_late_after_ms"], 250)
 
 
 class DiffTest(unittest.TestCase):

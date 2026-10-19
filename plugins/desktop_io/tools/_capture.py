@@ -39,6 +39,14 @@ class CaptureRequest:
     #: 取图前把光标移到这里，用来展开悬停控件；None 表示不动光标。
     hover: Optional[ScreenPoint] = None
     hover_settle_ms: int = 0
+    #: 中间路径点：先经过它们再到 hover，产生连续的移动轨迹。
+    hover_path: Tuple[ScreenPoint, ...] = ()
+    #: 每一段移动的时长；0 表示每个点一次跳变。
+    hover_approach_ms: int = 0
+    #: 到达后是否在落点附近做几次 1–2px 微移动。
+    hover_wiggle: bool = False
+    #: 网格间距（屏幕坐标）；None 取插件配置。小目标用更细的网格定位。
+    grid_step: Optional[int] = None
     #: 回执里额外并入的字段（`shot` 用它标出"这是哪个动作之后的图"）。
     extra: Dict[str, Any] = field(default_factory=dict)
 
@@ -98,9 +106,29 @@ def capture_payload(backend: Backend, config: DesktopConfig,
     target: Optional[WindowInfo] = candidates[0] if candidates else None
     region = request.region
 
+    # 光标下面那层是谁：先粗探一次，用来决定"没给窗口时该拍哪个窗口"。
+    # 回执里的 hover.hit 会在悬停与置前都完成后再探一次，避免把动作前的
+    # 遮挡关系当成结果。
+    initial_probe: Optional[Dict[str, Any]] = None
+    if request.hover is not None and backend.hit is not None:
+        initial_probe = backend.hit.probe(request.hover)
+
+    if request.activate and not (request.window or request.hwnd):
+        raise ValueError("activate 只对 window / hwnd 有意义；整屏取图不涉及窗口")
+
+    auto_target = False
+    if target is None and region is None and request.hover is not None \
+            and backend.windows is not None:
+        landed = (initial_probe or {}).get("root") or (initial_probe or {}).get("hwnd")
+        if landed:
+            # 只想看悬停控件时按光标那层取窗口内容：原尺寸、无遮挡、无整屏缩放。
+            try:
+                target = backend.windows.get(int(landed))
+                auto_target = True
+            except Exception:
+                target = None
+
     if target is None:
-        if request.activate:
-            raise ValueError("activate 只对 window / hwnd 有意义；整屏取图不涉及窗口")
         _hover(request, backend)
         planned = region or geometry.rect
         _check_area(planned.width * planned.height)
@@ -120,11 +148,12 @@ def capture_payload(backend: Backend, config: DesktopConfig,
 
     _check_area(screenshot.rect.width * screenshot.rect.height)
     cursor = backend.mouse.cursor()
+    step = request.grid_step or config.grid_step
     rendered = canvas.render(
         screenshot.png,
         rect=screenshot.rect,
         grid=request.grid,
-        step=config.grid_step,
+        step=step,
         cursor=cursor,
         cursor_mark=config.cursor_mark,
         max_side=request.max_side,
@@ -147,6 +176,8 @@ def capture_payload(backend: Backend, config: DesktopConfig,
     }
     if target is not None:
         summary["window"] = target.to_dict()
+        if auto_target:
+            summary["window"]["auto"] = "hover.hit"
         if matched > 1:
             summary["window"]["matched"] = matched
             summary["window"]["alternatives"] = alternatives(candidates)
@@ -156,24 +187,37 @@ def capture_payload(backend: Backend, config: DesktopConfig,
             summary["activated"] = screenshot.activation == "ok"
     if cursor is not None:
         summary["cursor"] = cursor.to_dict()
+    hover_hit: Optional[Dict[str, Any]] = None
     if request.hover is not None:
-        summary["hover"] = {
+        # 悬停与置前都已完成：这里探到的是"拍这张图时"光标下的真实窗口。
+        # 它必须和"拍了哪个窗口"一起回执：两者常常不是同一个
+        # （播放器画面是独立顶层窗口，截图拍的却是它上面的详情页壳）。
+        hover_hit = backend.hit.probe(request.hover) if backend.hit is not None else None
+        hover_data: Dict[str, Any] = {
             "x": request.hover.x,
             "y": request.hover.y,
             "settle_ms": request.hover_settle_ms,
+            "approach_ms": request.hover_approach_ms,
+            "wiggle": request.hover_wiggle,
         }
+        if request.hover_path:
+            hover_data["path"] = [point.to_dict() for point in request.hover_path]
+        if hover_hit:
+            hover_data["hit"] = hover_hit
+        summary["hover"] = hover_data
     if request.grid:
         summary["grid"] = {
-            "step": config.grid_step,
+            "step": step,
             "unit": "屏幕坐标",
             "scale": rendered.scale,
         }
     note = build_note(
-        rendered, geometry.mixed_scale, config.grid_step,
+        rendered, geometry.mixed_scale, step,
         source=screenshot.source, windowed=target is not None,
         restored=screenshot.restored, activation=screenshot.activation,
         matched=matched, candidates=candidates, target=target,
         hovered=request.hover is not None, foreground=screenshot.foreground,
+        hover_hit=hover_hit, auto_target=auto_target,
     )
     if note:
         summary["note"] = note
@@ -191,7 +235,9 @@ def build_note(rendered: Any, mixed_scale: bool, step: int, *,
                restored: bool = False, activation: str = "none",
                matched: int = 0, candidates: Sequence[WindowInfo] = (),
                target: Optional[WindowInfo] = None,
-               hovered: bool = False, foreground: bool = False) -> str:
+               hovered: bool = False, foreground: bool = False,
+               hover_hit: Optional[Dict[str, Any]] = None,
+               auto_target: bool = False) -> str:
     """拼回执里的人话提示：只写模型据此能改动作的事实。"""
     parts = []
     if restored and activation == "ok":
@@ -210,6 +256,14 @@ def build_note(rendered: Any, mixed_scale: bool, step: int, *,
     if hovered and windowed and not foreground:
         parts.append("窗口不在前台，hover 可能落在遮挡它的窗口上；"
                      "要让悬停生效请给 activate=true")
+    if hovered:
+        mismatch = _hover_mismatch(hover_hit, target, windowed=windowed)
+        if mismatch:
+            parts.append(mismatch)
+    if auto_target and target is not None:
+        parts.append(
+            f"未指定窗口，已按 hover 落点取 hwnd={target.hwnd} 自身内容"
+            "（原尺寸、无遮挡）；要看整屏再显式给区域或 window")
     if rendered.shrunk:
         parts.append(
             f"图片已从 {rendered.width}x{rendered.height} 缩到 "
@@ -256,12 +310,57 @@ def _hover(request: CaptureRequest, backend: Backend) -> None:
 
     这是"移鼠标 + 截图"能成立的前提：悬停控件普遍 2–3 秒自动收起，
     而两次工具调用之间隔着一次模型往返（实测 2–8 秒），分两步必然错过。
+
+    移动不是一次瞬移：先走完 `hover_path` 的中间点，再用 `hover_approach_ms`
+    连续移到落点，最后（可选）在 1–2px 内来回几次。播放器与网页的自动隐藏
+    控件靠连续的 `WM_MOUSEMOVE` 判断"鼠标在动"，一次跳变后静止会被当成没动。
     """
     if request.hover is None:
         return
-    backend.mouse.move(request.hover, 0)
+    for waypoint in request.hover_path:
+        backend.mouse.move(waypoint, request.hover_approach_ms)
+    backend.mouse.move(request.hover, request.hover_approach_ms)
+    if request.hover_wiggle:
+        _wiggle(request.hover, backend)
     if request.hover_settle_ms > 0:
         time.sleep(request.hover_settle_ms / 1000.0)
+
+
+def _wiggle(point: ScreenPoint, backend: Backend) -> None:
+    """在落点附近做几次亚像素级的位移，再回到落点。
+
+    位移必须是真实的光标移动（`SetCursorPos` 会投递 `WM_MOUSEMOVE`），
+    不能只是改回执里的数字；否则播放器依然认为鼠标没动。
+    """
+    for dx, dy in ((1, 0), (-1, 1), (1, -1), (-1, 0)):
+        backend.mouse.move(ScreenPoint(point.x + dx, point.y + dy), 0)
+    backend.mouse.move(point, 0)
+
+
+def _hover_mismatch(hover_hit: Optional[Dict[str, Any]],
+                    target: Optional[WindowInfo], *, windowed: bool) -> str:
+    """光标所在层与取图窗口不是同一个时，把这件事说清楚。
+
+    这是"控制条唤不出来"最常见的真相：播放器画面是独立顶层窗口，
+    而按标题取图选中的是承载详情页的另一个窗口。控制条即使出现，
+    也不会出现在这张图里；换 y 坐标重试多少次都一样。
+    """
+    if not hover_hit:
+        return ""
+    root = hover_hit.get("root") or hover_hit.get("hwnd")
+    if not root:
+        return ""
+    if not windowed or target is None:
+        return ""
+    if int(root) == int(target.hwnd):
+        return ""
+    title = hover_hit.get("title") or ""
+    label = f"「{title}」" if title else ""
+    return (
+        f"光标落在 hwnd={root}{label}，与这次取图的窗口 hwnd={target.hwnd}"
+        f"「{target.title}」不是同一个；悬停展开的控件属于光标那层，"
+        f"要拍它请改用 hwnd={root}"
+    )
 
 
 def _check_area(pixels: int) -> None:

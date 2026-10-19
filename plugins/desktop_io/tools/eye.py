@@ -13,10 +13,11 @@ from ..coords import ScreenPoint
 from ..guard import reject_in_plan
 from ..ports import Backend
 from ._capture import capture_payload, request_from_arguments
-from ._params import as_int, reject_unknown, require_range
+from ._params import as_bool, as_int, reject_unknown, require_range
 
-_FIELDS = ("x", "y", "width", "height", "grid", "max_side", "window", "hwnd",
-           "activate", "hover", "hover_settle_ms")
+_FIELDS = ("x", "y", "width", "height", "grid", "grid_step", "max_side", "window",
+           "hwnd", "activate", "hover", "hover_path", "hover_settle_ms",
+           "hover_approach_ms", "hover_wiggle")
 
 
 class DesktopEyeTool(ToolPlugin):
@@ -33,10 +34,19 @@ class DesktopEyeTool(ToolPlugin):
         "需要把窗口亮到前台时给 activate=true。"
         "要给悬停才出现的控件拍照（视频控制条、下拉菜单、提示气泡），"
         "用 hover=[x,y]：同一次调用内先移光标、等界面展开、再截图。"
+        "默认会连续移动并在落点做几次 1–2px 微移动（hover_wiggle），"
+        "因为播放器只认连续的 mousemove，瞬移后静止会被当成鼠标没动；"
+        "要更接近真实轨迹可给 hover_path 中间点。"
+        "回执的 hover.hit 会说明光标下是哪一层窗口；"
+        "若它与这次取图的窗口不是同一个，note 会直接指出该改用哪个 hwnd——"
+        "播放器画面常是独立顶层窗口，按标题取的却是它上面的详情页壳。"
+        "不给 window / hwnd 而给了 hover 时，直接取光标那一层窗口的原尺寸内容，"
+        "既不会被遮挡，也不会因为整屏缩放而看不清控件上的字。"
         "分开调用「先移鼠标、再截图」在多数播放器与网页上都会失败——"
         "控件的自动隐藏通常只有 2–3 秒，撑不过一次模型往返。"
         "不给窗口则取屏幕合成结果（会包含遮挡物）。"
         "图上叠坐标网格，刻度数字与 desktop_mouse 使用同一套屏幕坐标。"
+        "点小目标时把 grid_step 调到 20–40，网格刻度更细，坐标不用估；"
         "细节看不清时用 x/y/width/height 取局部，局部通常按原尺寸发送。"
     )
     parameters = {
@@ -51,9 +61,23 @@ class DesktopEyeTool(ToolPlugin):
         "hover": {"type": "array", "items": {"type": "integer"}, "minItems": 2,
                   "maxItems": 2,
                   "description": "取图前把光标移到这里 [x, y]（屏幕坐标），用来展开悬停控件"},
+        "hover_path": {"type": "array", "items": {"type": "array",
+                                                  "items": {"type": "integer"},
+                                                  "minItems": 2, "maxItems": 2},
+                       "description": "到 hover 之前先经过的中间点 [[x, y], ...]，最多 4 个；"
+                                      "用它模拟真实移动轨迹，唤醒只认连续 mousemove 的播放器控件"},
         "hover_settle_ms": {"type": "integer",
                             "description": "移完光标等界面展开的毫秒数 0–5000；缺省取插件配置"},
+        "hover_approach_ms": {"type": "integer",
+                              "description": "移动到落点用多少毫秒 0–2000（默认 120）；"
+                                             "0 = 一次跳变。"},
+        "hover_wiggle": {"type": "boolean",
+                         "description": "到达后是否在落点附近做几次 1–2px 微移动（默认 true）；"
+                                        "播放器控制条通常需要它才会出现"},
         "grid": {"type": "boolean", "description": "叠加坐标网格与刻度（默认 true）"},
+        "grid_step": {"type": "integer",
+                      "description": "网格间距（屏幕坐标）20–500；缺省取插件配置。"
+                                     "点小目标（如剧集卡片）时给 20–40，坐标读数更细"},
         "max_side": {"type": "integer",
                      "description": "长边缩到不超过该像素；0 = 不缩放；缺省取插件配置"},
     }
@@ -67,15 +91,38 @@ class DesktopEyeTool(ToolPlugin):
     def execute(self, arguments: Dict[str, Any]) -> Any:
         reject_unknown(arguments, set(_FIELDS), action=self.name)
         hover = _hover_point(arguments)
+        hover_path = _hover_path(arguments)
+        if hover_path and hover is None:
+            raise ValueError("hover_path 必须与 hover 一起给：hover 是终点")
         if hover is not None:
             # 悬停会移动真实光标：它已经不属于"只读看屏"，Plan 模式必须拦住。
             reject_in_plan(self._live_state, "桌面悬停取图")
+            bounds = self._backend.screen.geometry().rect
+            for waypoint in hover_path:
+                if not bounds.contains(waypoint):
+                    raise ValueError(
+                        f"hover_path 的点 {waypoint.to_dict()} 不在屏幕 {bounds.to_dict()} 内")
         request = request_from_arguments(self._backend, self._config, arguments)
+        # 小目标（剧集卡片、播放器按钮）用更细的网格才能把坐标读准；
+        # 这是纯视觉精度，不引入任何文字识别。
+        request = dataclasses.replace(
+            request,
+            grid_step=require_range(
+                as_int(arguments, "grid_step", self._config.grid_step),
+                "grid_step", 20, 500),
+        )
         if hover is not None:
             settle = require_range(
                 as_int(arguments, "hover_settle_ms", self._config.hover_settle_ms),
                 "hover_settle_ms", 0, 5000)
-            request = dataclasses.replace(request, hover=hover, hover_settle_ms=settle)
+            approach = require_range(
+                as_int(arguments, "hover_approach_ms", self._config.hover_approach_ms),
+                "hover_approach_ms", 0, 2000)
+            wiggle = as_bool(arguments, "hover_wiggle", self._config.hover_wiggle)
+            request = dataclasses.replace(
+                request, hover=hover, hover_path=hover_path,
+                hover_settle_ms=settle, hover_approach_ms=approach,
+                hover_wiggle=wiggle)
 
         summary, attachments = capture_payload(self._backend, self._config, request)
         return ToolResult.attach(summary, attachments)
@@ -86,10 +133,24 @@ def _hover_point(arguments: Dict[str, Any]) -> Optional[ScreenPoint]:
     value = arguments.get("hover")
     if value is None:
         return None
+    return _as_point(value, "hover")
+
+
+def _hover_path(arguments: Dict[str, Any]) -> tuple:
+    """读 hover_path=[[x, y], ...]；只收终点之前的中间点。"""
+    value = arguments.get("hover_path")
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)) or not 1 <= len(value) <= 4:
+        raise ValueError("hover_path 要给 1–4 个中间点，每个点是 [x, y]")
+    return tuple(_as_point(item, "hover_path") for item in value)
+
+
+def _as_point(value: Any, name: str) -> ScreenPoint:
     if not isinstance(value, (list, tuple)) or len(value) != 2:
-        raise ValueError("hover 要给两个整数 [x, y]（屏幕坐标）")
+        raise ValueError(f"{name} 要给两个整数 [x, y]（屏幕坐标）")
     x, y = value
-    for name, number in (("x", x), ("y", y)):
+    for axis, number in (("x", x), ("y", y)):
         if isinstance(number, bool) or not isinstance(number, int):
-            raise ValueError(f"hover 的 {name} 必须是整数，实际 {number!r}")
+            raise ValueError(f"{name} 的 {axis} 必须是整数，实际 {number!r}")
     return ScreenPoint(int(x), int(y))

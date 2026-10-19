@@ -102,7 +102,11 @@ class ScreenPort(Protocol):
 
 
 class WindowPort(Protocol):
-    """按窗口取图：先找窗口，再取它自己的内容，不依赖它是否在前台。"""
+    """按窗口取图：先找窗口，再取它自己的内容，不依赖它是否在前台。
+
+    可选能力：`list_visible()` 返回当前可见顶层窗口。提供了它，鼠标动作才能
+    在前后对比窗口层（`window_changed.opened` / `closed`）；没有则只对比落点窗口。
+    """
 
     def get(self, hwnd: int) -> WindowInfo:
         """按句柄取窗口信息；句柄失效时报错。"""

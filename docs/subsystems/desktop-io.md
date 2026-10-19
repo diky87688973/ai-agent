@@ -56,8 +56,12 @@ plugins/desktop_io/
 | `window` / `hwnd` | 取该窗口自身内容；二选一，`hwnd` 更精确 |
 | `activate` | 取图前是否置前，默认 `false`（只恢复最小化窗口，不动前台） |
 | `hover` | `[x, y]`：取图前把光标移到这里，用来展开控制条、下拉菜单、提示气泡 |
+| `hover_path` | `[[x, y], ...]`：到 `hover` 之前先经过的中间点，最多 4 个；模拟真实移动轨迹 |
 | `hover_settle_ms` | 移完光标等界面展开的毫秒数，`0–5000`；缺省取配置 |
+| `hover_approach_ms` | 移到落点用多少毫秒，`0–2000`，默认 120；`0` = 一次跳变 |
+| `hover_wiggle` | 到达后在落点附近做几次 1–2px 微移动，默认 `true` |
 | `grid` | 是否叠网格与刻度，默认 `true` |
+| `grid_step` | 网格间距（屏幕坐标），`20–500`；缺省取配置。点小目标时可调到 20–40 |
 | `max_side` | 长边上限，`0` 不缩放；缺省取配置 |
 
 `hover` 是「移光标 + 截图」能成立的前提。悬停控件普遍 2–3 秒自动收起，
@@ -66,6 +70,19 @@ plugins/desktop_io/
 真正取图之前：顺序反了，拍到的要么是没展开的画面，要么是别的窗口上的展开。
 移光标会改变桌面状态，所以 Plan 模式下带 `hover` 的调用被拒绝，
 不带 `hover` 的取图照常可用。
+
+移动不是一次瞬移：先走完 `hover_path` 的中间点，再用 `hover_approach_ms`
+连续移到落点，最后在 1–2px 内来回几次。播放器与网页的自动隐藏控件靠连续的
+`WM_MOUSEMOVE` 判断「鼠标在动」；一次 `SetCursorPos` 后静止会被当成没动。
+轨迹与微移动都是真实的光标移动，不是只改回执里的数字。
+
+回执的 `hover.hit` 给出光标下的窗口。它与这次取图的窗口不是同一个时，
+`note` 会直接点明——播放器画面常是独立顶层窗口，而按标题命中的往往是
+承载详情页的另一个窗口。此时换多少次 y 坐标都没用，必须改用 `hwnd`。
+
+不带 `window` / `hwnd` 而带 `hover` 时，取图目标就是光标那一层窗口
+（回执 `window.auto="hover.hit"`）：原尺寸、无遮挡，不会因为整屏被缩到
+`max_side` 而把控件上的小字糊掉。要看整屏就显式给区域或窗口。
 
 返回值（`data`）：
 
@@ -105,6 +122,7 @@ plugins/desktop_io/
 同一任务里出现两种比例尺时，模型每次点击都要心算倍数，是实测误点的来源之一。
 所以只要发生缩放，`note` 必须给出换算例句（`图上像素 × 1.2 = 屏幕坐标`），
 `grid.scale` 同时给出倍数。细节看不清时用区域参数取局部：局部通常按原尺寸发送。
+点小目标时给 `grid_step=20–40`：网格更细，坐标可以直接读，不必在 100px 的格子里估。
 
 ### `desktop_mouse`
 
@@ -119,15 +137,23 @@ plugins/desktop_io/
 `click` / `scroll` 省略坐标时作用在当前光标位置。动作完成后返回光标位置与屏幕矩形；
 `cursor` 只读，不触发模式门控。
 
-改变界面的动作（`click` / `drag` / `scroll`）额外回执两份证据：
+改变界面的动作（`click` / `drag` / `scroll`）额外回执三份证据：
 
 | 字段 | 含义 |
 |---|---|
 | `hit` | 落点所在的窗口句柄、控件类名与所属顶层窗口标题；平台不支持探测时省略 |
-| `changed` | 落点周围 200×200 区域在动作前后的差异比例（0–1）；`0` 表示画面完全没动 |
+| `changed` / `changed_scope` | 落点周围 200×200 的区域差异比例（0–1），`scope` 固定为 `point_200`；只说明落点原地动没动 |
+| `window_changed` | 窗口层对比：`hit_before` / `hit_after`、`opened` / `closed`、`changed`、`navigated` |
 
-`hit` 回答「打中了什么」，`changed` 回答「有没有生效」。两者都不是语义判断，
-但足以让一次点空当场暴露，而不是留到下一轮靠截图重新推理。
+`hit` 回答「打中了什么」，`changed` 回答「落点原地有没有生效」。
+跳转类点击（卡片 → 详情页、点开新窗口）的变化发生在窗口层：
+`changed` 可能仍是 `0.0`，此时以 `window_changed.navigated=true` 为准，
+不要重复点击同一坐标。`changed` 首次采样仍为 0 时会再等 250ms 复采一次，
+结果放在 `changed_late`；`changed` 取两次中的较大值并附 `changed_note`。
+
+`window_changed` 只在动作前后确实发生变化时带 `opened` / `closed`
+（各最多 3 条，更多用 `*_more` 计数）；窗口清单读取失败只跳过这项观测，
+不会把已经投递的动作改判为失败。
 
 `shot=true` 在动作完成后于同一次调用内截图并返回图片附件，省掉
 「再调一次 `desktop_eye`」的往返：
@@ -135,10 +161,15 @@ plugins/desktop_io/
 | 参数 | 说明 |
 |---|---|
 | `shot` | 是否随动作回图，默认 `false` |
-| `shot_region` | `[x, y, width, height]`；省略则取目标窗口或整屏 |
+| `shot_region` | `[x, y, width, height]`；省略则取落点所在窗口或整屏 |
 | `shot_max_side` | 回图的长边上限；缺省取配置 |
 
 带 `shot` 时返回体是取图回执，动作本身的结果收在 `performed` 字段。
+回图默认跟着**落点实际所在的窗口**走（`shot_of: "hit"`），而不是按 `window`
+标题重新解析：点击可能落在播放器这类独立顶层窗口上，按标题取到的却是
+承载详情页的另一个窗口。显式给了 `window` / `hwnd` 时以显式参数为准
+（`shot_of: "window"` / `"hwnd"`）；都没有且没有落点探测时才拍整屏。
+落点窗口与置前窗口不是同一个时，`note` 会写明两者 hwnd。
 `shot` 对 `move` / `click` / `drag` / `scroll` 开放；`cursor` 是只读查询，不接受它。
 `move` 只回图，不做 `hit` / `changed` 比较——移动本身不改变界面，
 但悬停可能展开控件，所以回图仍有意义。
@@ -239,6 +270,8 @@ cursor_mark = 1
 settle_ms = 60
 type_interval_ms = 12
 hover_settle_ms = 250
+hover_approach_ms = 120
+hover_wiggle = 1
 wait_interval_ms = 200
 ```
 
@@ -251,6 +284,8 @@ wait_interval_ms = 200
 | `settle_ms` | `60` | 输入动作后等待界面响应的毫秒数；夹到 `0–2000` |
 | `type_interval_ms` | `12` | `type` 每字符间隔；夹到 `0–200` |
 | `hover_settle_ms` | `250` | `hover` 移完光标等界面展开的毫秒数；夹到 `0–2000` |
+| `hover_approach_ms` | `120` | `hover` 移到落点用多少毫秒；夹到 `0–2000`，`0` = 一次跳变 |
+| `hover_wiggle` | `1` | 到达后是否做 1–2px 微移动，唤醒只认连续 mousemove 的播放器控件 |
 | `wait_interval_ms` | `200` | `desktop_wait` 默认轮询间隔；夹到 `50–2000` |
 
 配置文件缺失、节缺失或值写坏时回退缺省；越界值夹到边界。配置错误不阻断工具注册，
@@ -265,6 +300,8 @@ wait_interval_ms = 200
   被别的窗口遮挡也能拿到内容。像素按 `BGRX` 直接编码 PNG，不额外翻转。
 - 落点探测：`WindowFromPoint` 拿坐标下的子窗口，`GetAncestor(GA_ROOT)` 拿所属顶层窗口，
   `GetClassNameW` 拿控件类名。拿不到就省略 `hit`，不猜。
+- 窗口清单：`EnumWindows` 枚举可见顶层窗口（跳过工具窗与 CEF 屏幕外辅助窗），
+  只用于动作前后的 `window_changed` 对比；清单本身不进上下文。
 - DPI：装载时声明 per-monitor v2；宿主已经声明过则沿用宿主的选择。声明失败时
   依次退回 `SetProcessDpiAwareness` 与 `SetProcessDPIAware`。
 - 输入：定位用 `SetCursorPos`，按键用 `SendInput`；文本走 `KEYEVENTF_UNICODE`
@@ -310,8 +347,9 @@ Linux 与未识别平台装配不可用后端：工具照常注册，调用截�
 ## 测试
 
 `tests/test_desktop_io.py` 覆盖坐标、键名、配置、截图加工（缩放 / 网格 / 空白 /
-坏数据）、四个工具的参数矩阵与返回值、`hover` / `shot` / `hit` / `changed`、
-条件等待、同名窗口消歧、Plan 门控、输入锁、平台后端选择；
+坏数据）、四个工具的参数矩阵与返回值、`hover` / `hover_path` / `hover_wiggle` /
+`shot` / `hit` / `changed` / `window_changed` / `navigated`、条件等待、
+同名窗口消歧、Plan 门控、输入锁、平台后端选择；
 Windows 上额外校验虚拟键码表覆盖全部规范键名与 UTF-16 代理对拆分。
 后端用记录型替身，测试不移动真实光标、不注入真实按键。
 

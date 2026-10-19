@@ -26,6 +26,7 @@ INT_RANGES: Mapping[str, tuple] = {
     "settle_ms": (0, 2000),
     "type_interval_ms": (0, 200),
     "hover_settle_ms": (0, 2000),
+    "hover_approach_ms": (0, 2000),
     "wait_interval_ms": (50, 2000),
 }
 
@@ -44,6 +45,12 @@ class DesktopConfig:
     settle_ms: int = 60
     type_interval_ms: int = 12
     hover_settle_ms: int = 250
+    #: 悬停时用多久移到落点。0 = 一次跳变；有值的移动会连续产生
+    #: WM_MOUSEMOVE，播放器/网页的自动隐藏控件才认"鼠标在动"。
+    hover_approach_ms: int = 120
+    #: 落点附近做几次 1–2px 的微移动。部分播放器只在"连续移动"时才唤出控制条，
+    #: 一次跳变后静止会被当成"鼠标没动"。
+    hover_wiggle: bool = True
     wait_interval_ms: int = 200
 
 
@@ -88,5 +95,7 @@ def load_config(plugin_root: Optional[Path] = None) -> DesktopConfig:
         settle_ms=_as_int(values.get("settle_ms"), "settle_ms"),
         type_interval_ms=_as_int(values.get("type_interval_ms"), "type_interval_ms"),
         hover_settle_ms=_as_int(values.get("hover_settle_ms"), "hover_settle_ms"),
+        hover_approach_ms=_as_int(values.get("hover_approach_ms"), "hover_approach_ms"),
+        hover_wiggle=_as_bool(values.get("hover_wiggle"), DEFAULTS.hover_wiggle),
         wait_interval_ms=_as_int(values.get("wait_interval_ms"), "wait_interval_ms"),
     )

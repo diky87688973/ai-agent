@@ -515,7 +515,8 @@ class Win32Windows:
             raise ScreenCaptureFailed(_last_error("GetWindowRect"))
         return WindowInfo(hwnd=int(hwnd), title=_window_title(hwnd), rect=rect,
                           minimized=bool(user32.IsIconic(hwnd)),
-                          visible=bool(user32.IsWindowVisible(hwnd)))
+                          visible=bool(user32.IsWindowVisible(hwnd)),
+                          foreground=_is_foreground(hwnd))
 
     def find(self, title_contains: str) -> Sequence[WindowInfo]:
         """标题包含 `title_contains` 的可见顶层窗口。
@@ -565,6 +566,37 @@ class Win32Windows:
         user32.EnumWindows(_WNDENUMPROC(_collect), 0)
         found.sort(key=lambda item: item[:3])
         return tuple(item[3] for item in found)
+
+    def list_visible(self) -> Sequence[WindowInfo]:
+        """当前所有可见顶层窗口。
+
+        只用于动作前后的窗口层对比：点击卡片后是否弹出了播放页、
+        是否关掉了弹层。列表本身不进上下文，回执只留"新出现/消失了谁"。
+        过滤规则与 `find` 一致：跳过工具窗与 CEF 的屏幕外辅助窗。
+        """
+        foreground = int(user32.GetForegroundWindow() or 0)
+        windows = []
+
+        def _collect(hwnd, _data):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            if int(user32.GetWindowLongW(hwnd, GWL_EXSTYLE)) & WS_EX_TOOLWINDOW:
+                return True
+            rect = _window_rect(hwnd)
+            if rect is None or rect.width < 2 or rect.height < 2:
+                return True
+            iconic = bool(user32.IsIconic(hwnd))
+            if not iconic and (rect.x > 30000 or rect.y > 30000
+                               or rect.right <= -30000 or rect.bottom <= -30000):
+                return True
+            windows.append(WindowInfo(
+                hwnd=int(hwnd), title=_window_title(hwnd), rect=rect,
+                minimized=iconic, visible=True,
+                foreground=int(hwnd) == foreground))
+            return True
+
+        user32.EnumWindows(_WNDENUMPROC(_collect), 0)
+        return tuple(windows)
 
     def activate(self, hwnd: int) -> WindowActivation:
         if not user32.IsWindow(hwnd):
