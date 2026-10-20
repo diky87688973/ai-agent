@@ -52,34 +52,34 @@ html[data-ui-theme="dark"]{
 
 /* 白天配色：与夜间同一套令牌名，只换值 */
 html[data-ui-theme="light"]{
-  --c-bg-base:#f5f6f8;
-  --c-bg-raise:#ffffff;
-  --c-bg-layer:#eef1f6;
-  --c-bg-layer-2:#e7ebf2;
-  --c-bg-layer-3:#dfe4ed;
-  --c-bg-overlay:#ffffff;
-  --c-bg-hover:rgba(15,23,42,.05);
-  --c-bg-active:rgba(15,23,42,.09);
-  --c-line-1:rgba(15,23,42,.08);
-  --c-line-2:rgba(15,23,42,.13);
-  --c-line-3:rgba(15,23,42,.20);
-  --c-sep:#c8d0da;
-  --c-text-1:#0a1220;
-  --c-text-2:#1a2233;
-  --c-text-3:#46506a;
-  --c-text-4:#5a6474;
-  --c-text-5:#7b8496;
-  --c-brand:#2f6fd0;
-  --c-brand-strong:#1f5fbf;
-  --c-code-bg:#f0f3f8;
-  --c-code-text:#1a2233;
-  --c-code-inline:#9a5b13;
-  --c-ok:#1f7a44;--c-ok-bg:rgba(31,122,68,.12);
-  --c-bad:#b3341f;--c-bad-bg:rgba(179,52,31,.12);
-  --c-run:#8a5a12;--c-run-bg:rgba(217,138,22,.16);
-  --c-shadow:0 8px 24px rgba(15,23,42,.12);
-  --c-track:#e4e9f2;
-  --c-seg-idle:#c3cad6;
+  --c-bg-base:#f8f8f8;
+  --c-bg-raise:#f3f3f3;
+  --c-bg-layer:#f0f0f0;
+  --c-bg-layer-2:#e9e9e9;
+  --c-bg-layer-3:#e2e2e2;
+  --c-bg-overlay:#fcfcfc;
+  --c-bg-hover:rgba(0,0,0,.045);
+  --c-bg-active:rgba(0,0,0,.08);
+  --c-line-1:#ececec;
+  --c-line-2:#e2e2e2;
+  --c-line-3:#d4d4d4;
+  --c-sep:#e0e0e0;
+  --c-text-1:#141414;
+  --c-text-2:#2b2b2b;
+  --c-text-3:#4a4a4a;
+  --c-text-4:#6e6e6e;
+  --c-text-5:#8a8a8a;
+  --c-brand:#2563eb;
+  --c-brand-strong:#1d4ed8;
+  --c-code-bg:#f2f2f2;
+  --c-code-text:#242424;
+  --c-code-inline:#a15c00;
+  --c-ok:#1a7f37;--c-ok-bg:#eaf5ed;
+  --c-bad:#c0392b;--c-bad-bg:#fdecea;
+  --c-run:#9a6700;--c-run-bg:#fbf3df;
+  --c-shadow:0 8px 24px rgba(0,0,0,.10);
+  --c-track:#e4e4e4;
+  --c-seg-idle:#c7c7c7;
 }
 
 /* ── 两套主题共用的结构（只定义一次，主题不覆盖）──────────────────────── */

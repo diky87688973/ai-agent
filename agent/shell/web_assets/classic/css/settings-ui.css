@@ -168,7 +168,7 @@ header .hdr-settings-btn svg{
 }
 /* 常显的拇指：--c-line-3 在暗色下只有 12% 白，缩到 6px 宽几乎看不见。 */
 .st-editor textarea{--st-sb:rgba(140,144,154,.42)}
-html[data-ui-theme="light"] .st-editor textarea{--st-sb:rgba(90,98,112,.38)}
+html[data-ui-theme="light"] .st-editor textarea{--st-sb:rgba(0,0,0,.38)}
 .st-editor textarea::-webkit-scrollbar{width:10px;height:10px}
 .st-editor textarea::-webkit-scrollbar-track{background:transparent}
 .st-editor textarea::-webkit-scrollbar-thumb{

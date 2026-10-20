@@ -32,7 +32,7 @@ html[data-ui-theme="light"] .edited-files .chat-diff-card{margin:0;border:0;bord
 .edited-files .edited-op-k.is-del{color:var(--diff-stat-del)}
 .edited-files .edited-op-k.is-add{color:var(--diff-stat-add)}
 .edited-files .edited-op-path{font-size:12.5px;line-height:1.5;color:var(--c-text-2);word-break:break-all}
-html[data-ui-theme="light"] .edited-files{background:#fff;border-color:#e4e7ee}
-html[data-ui-theme="light"] .edited-files .chat-tool-title{color:#1a2233}
+html[data-ui-theme="light"] .edited-files{background:#fcfcfc;border-color:#e4e7ee}
+html[data-ui-theme="light"] .edited-files .chat-tool-title{color:#1f1f1f}
 html[data-ui-theme="light"] .edited-files .chat-tool-row.is-del .chat-tool-title{color:var(--diff-stat-del)}
 html[data-ui-theme="light"] .edited-files .diff-unified.diff-surface-adaptive{color:var(--diff-surface-text)}

@@ -70,11 +70,11 @@ animation:chat-tool-marquee 1.8s linear infinite;
 .chat-tool-packet-label{font:inherit;font-size:inherit;line-height:inherit;color:inherit}
 .chat-tool-raw{border-top:1px solid rgba(255,255,255,.06)}
 .chat-tool-raw .chat-tool-pane{max-height:220px;overflow:auto}
-html[data-ui-theme="light"] .chat-tool-head:hover{background:rgba(20,40,80,.05)}
-html[data-ui-theme="light"] .chat-tool-title{color:#1a2233}
-html[data-ui-theme="light"] .chat-tool-sum{color:#5c6b80}
-html[data-ui-theme="light"] .chat-tool-sum:not(:empty)::before{background:#d0d7e2}
-html[data-ui-theme="light"] .chat-tool-chev{color:#8b97a8}
+html[data-ui-theme="light"] .chat-tool-head:hover{background:rgba(0,0,0,.05)}
+html[data-ui-theme="light"] .chat-tool-title{color:#1f1f1f}
+html[data-ui-theme="light"] .chat-tool-sum{color:#666666}
+html[data-ui-theme="light"] .chat-tool-sum:not(:empty)::before{background:#d6d6d6}
+html[data-ui-theme="light"] .chat-tool-chev{color:#8f8f8f}
 html[data-ui-theme="light"] .chat-tool-row.is-running .chat-tool-title{
 background-image:linear-gradient(90deg,#d4892a 0%,#d4892a 38%,#6e4324 50%,#d4892a 62%,#d4892a 100%);
 }
@@ -86,22 +86,22 @@ html[data-ui-theme="light"] .chat-tool-custom-view .chat-tool-fail{color:#c4453c
 @media (prefers-reduced-motion:reduce){
 html[data-ui-theme="light"] .chat-tool-row.is-running .chat-tool-title{color:#c47a22;-webkit-text-fill-color:#c47a22}
 }
-html[data-ui-theme="light"] .chat-tool-body{background:#f8f9fb;background:color-mix(in srgb,var(--c-bg-base) 62%,var(--c-bg-raise) 38%);border-color:transparent;box-shadow:inset 0 0 0 1px rgba(15,23,42,.08)}
+html[data-ui-theme="light"] .chat-tool-body{background:#f8f9fb;background:color-mix(in srgb,var(--c-bg-base) 62%,var(--c-bg-raise) 38%);border-color:transparent;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
 html[data-ui-theme="light"] .chat-tool-layer{border-top-color:transparent}
-html[data-ui-theme="light"] .chat-tool-layer+.chat-tool-layer{box-shadow:inset 0 1px 0 rgba(15,23,42,.06)}
+html[data-ui-theme="light"] .chat-tool-layer+.chat-tool-layer{box-shadow:inset 0 1px 0 rgba(0,0,0,.06)}
 html[data-ui-theme="light"] .chat-tool-pane-cap{color:#6a7688}
 html[data-ui-theme="light"] .chat-tool-layer--cmd .chat-tool-pane-cap{background:#f7f9fc}
 html[data-ui-theme="light"] .chat-tool-pane pre,
-html[data-ui-theme="light"] .chat-tool-pane code{color:#1a2233}
-html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md pre{background:#fafbfc;border-color:#e6ebf3;color:#1a2233}
-html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md code{background:rgba(9,105,218,.08);color:#0a3069}
+html[data-ui-theme="light"] .chat-tool-pane code{color:#1f1f1f}
+html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md pre{background:#f7f7f7;border-color:#e6e6e6;color:#1f1f1f}
+html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md code{background:rgba(37,99,235,.08);color:#a15c00}
 html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md pre code{background:transparent;color:inherit}
 html[data-ui-theme="light"] .chat-tool-pane--cmd{background:transparent}
 html[data-ui-theme="light"] .chat-tool-pane--diff{background:transparent}
-html[data-ui-theme="light"] .chat-tool-body .cmd-input-bar{border-top-color:#e6ebf3}
-html[data-ui-theme="light"] .chat-tool-packet-btn{color:#5c6b80}
-html[data-ui-theme="light"] .chat-tool-packet-btn:hover{color:#1a2233}
-html[data-ui-theme="light"] .chat-tool-raw{border-top-color:#e6ebf3}
+html[data-ui-theme="light"] .chat-tool-body .cmd-input-bar{border-top-color:#e6e6e6}
+html[data-ui-theme="light"] .chat-tool-packet-btn{color:#666666}
+html[data-ui-theme="light"] .chat-tool-packet-btn:hover{color:#1f1f1f}
+html[data-ui-theme="light"] .chat-tool-raw{border-top-color:#e6e6e6}
 .chat-tool-pane--shot{max-height:none;overflow:visible;padding:8px 12px 4px 8px}
 .chat-tool-shot{display:block;max-width:100%;max-height:400px;width:auto;height:auto;object-fit:contain}
 .chat-tool-shot-item+.chat-tool-shot-item{margin-top:8px}
@@ -112,7 +112,7 @@ html[data-ui-theme="light"] .chat-tool-raw{border-top-color:#e6ebf3}
 .chat-tool-shot-miss{font-size:12px;line-height:1.45;color:#8b949e}
 html[data-ui-theme="light"] .chat-tool-shot-path,
 html[data-ui-theme="light"] .chat-tool-shot-label,
-html[data-ui-theme="light"] .chat-tool-shot-miss{color:#5c6b80}
+html[data-ui-theme="light"] .chat-tool-shot-miss{color:#666666}
 /* 思考展开：正文左缘与标题「思考」重合。标题起点 = 行内边距 8 + 箭头 12 + 间距 8。 */
 .chat-tool-body:has(.chat-tool-pane--think){border:none;border-radius:0;background:transparent;box-shadow:none}
 .chat-tool-pane--think{max-height:400px;padding-left:0}
@@ -120,4 +120,4 @@ html[data-ui-theme="light"] .chat-tool-shot-miss{color:#5c6b80}
 .chat-tool-pane--think code{color:var(--c-text-3)}
 html[data-ui-theme="light"] .chat-tool-body:has(.chat-tool-pane--think){border:none;background:transparent;box-shadow:none}
 html[data-ui-theme="light"] .chat-tool-pane--think pre,
-html[data-ui-theme="light"] .chat-tool-pane--think code{color:#5a6474}
+html[data-ui-theme="light"] .chat-tool-pane--think code{color:#666666}

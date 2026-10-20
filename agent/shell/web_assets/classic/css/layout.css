@@ -7,7 +7,7 @@
 body{margin:0;height:100vh;display:flex;flex-direction:column;background:#1e1e1e;color:#ccc;font-family:system-ui,Segoe UI,"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;font-size:13px}
 :root{--sb-thumb:rgba(120,120,130,.18)}
 html[data-ui-theme="dark"]{--sb-thumb:rgba(120,120,130,.18)}
-html[data-ui-theme="light"]{--sb-thumb:rgba(90,98,112,.22)}
+html[data-ui-theme="light"]{--sb-thumb:rgba(0,0,0,.22)}
 *{scrollbar-width:thin;scrollbar-color:transparent transparent}
 /* 只在指针进入该滚动区域时才上色，移出立即回到透明；纯 CSS，无 JS、无过渡。 */
 *:hover{scrollbar-color:var(--sb-thumb) transparent}
@@ -55,7 +55,7 @@ html[data-side-empty] #classicSplitResizer{flex:0 0 0;width:0;min-width:0;border
 /* 首屏脚本还没跑时，用上次记下的开合把栏撑开，避免刷新先闪成关闭。 */
 html[data-session-rail="open"] .session-rail.is-collapsed{flex:0 0 var(--session-rail-w,240px);width:var(--session-rail-w,240px);max-width:var(--session-rail-w,240px)}
 html[data-session-rail="open"] .session-rail-resizer.is-collapsed{flex:0 0 3px;width:3px;min-width:3px;border-left:1px solid #333;border-right:1px solid #333;pointer-events:auto;overflow:visible}
-html[data-ui-theme="light"][data-session-rail="open"] .session-rail-resizer.is-collapsed{background-color:#e4e9f2;border-left-color:#c8d4e8;border-right-color:#c8d4e8}
+html[data-ui-theme="light"][data-session-rail="open"] .session-rail-resizer.is-collapsed{background-color:#e4e4e4;border-left-color:#d2d2d2;border-right-color:#d2d2d2}
 .session-rail.is-animating,.session-rail-resizer.is-animating{transition:width .22s ease,flex-basis .22s ease,max-width .22s ease}
 .session-rail.is-dragging,.session-rail-resizer.is-dragging{transition:none}
 @media (prefers-reduced-motion:reduce){

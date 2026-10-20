@@ -5,40 +5,40 @@
  */
 /* ── 白天模式（html[data-ui-theme="light"]）── */
 html[data-ui-theme="light"]{
---diff-surface-bg:#ffffff;--diff-surface-border:#e2e8f4;--diff-surface-text:#24292f;
---diff-eq-text:#57606a;--diff-eq-gutter-bg:#f6f8fa;
+--diff-surface-bg:#fcfcfc;--diff-surface-border:#e2e2e2;--diff-surface-text:#242424;
+--diff-eq-text:#666666;--diff-eq-gutter-bg:#f5f5f5;
 --diff-del-bg:#ffeef0;--diff-del-border:#cf222e;--diff-del-gutter-text:#9a1c1c;--diff-del-gutter-bg:#ffd7d5;
 --diff-add-bg:#e6ffed;--diff-add-border:#1a7f37;--diff-add-gutter-text:#116329;--diff-add-gutter-bg:#ccffd8;
---diff-meta-bg:#f6f8fa;--diff-meta-text:#57606a;--diff-meta-border:#d0d7de;
+--diff-meta-bg:#f5f5f5;--diff-meta-text:#666666;--diff-meta-border:#d0d7de;
 --diff-stat-del:#d73a49;--diff-stat-add:#2ea043;
---diff-card-bg:#ffffff;--diff-card-border:#d0dae8;--diff-cap-bg:#f6f8fa;--diff-cap-border:#e8edf4;--diff-cap-text:#2c3545;
+--diff-card-bg:#fcfcfc;--diff-card-border:#d6d6d6;--diff-cap-bg:#f5f5f5;--diff-cap-border:#e8edf4;--diff-cap-text:#3a3a3a;
 --diff-run-cmd-bg:#f0f4fa;
---diff-run-out-bg:#fafbfc;
+--diff-run-out-bg:#f7f7f7;
 --diff-run-sep:#c5ceda;
 }
 html[data-ui-theme="light"] body {
-  background: #f5f6f8;
-  color: #1a2233;
+  background: #f8f8f8;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] header {
-  background: #f5f6f8;
+  background: #f8f8f8;
   border-bottom-color: #e4e8ef;
 }
 html[data-ui-theme="light"] header .muted {
-  color: #5a6474;
+  color: #666666;
 }
 html[data-ui-theme="light"] header .hdr-theme-btn {
   color: #3a4a5f;
-  border-color: #9eb0cc;
+  border-color: #a0a0a0;
   background: rgba(255, 255, 255, 0.75);
 }
 html[data-ui-theme="light"] header .hdr-theme-btn:hover {
-  color: #0a1220;
-  border-color: #7a8db0;
-  background: #fff;
+  color: #111111;
+  border-color: #8c8c8c;
+  background: #fcfcfc;
 }
 html[data-ui-theme="light"] .chat {
-  background: #f5f6f8;
+  background: #f8f8f8;
 }
 html[data-ui-theme="dark"] .chat {
   background: #151517;
@@ -50,30 +50,30 @@ html[data-ui-theme="dark"] .usage-bottom {
   background: #1b1b1c;
 }
 html[data-ui-theme="light"] .classic-split-resizer {
-  background-color: #e4e9f2;
-  border-left-color: #c8d4e8;
-  border-right-color: #c8d4e8;
+  background-color: #e4e4e4;
+  border-left-color: #d2d2d2;
+  border-right-color: #d2d2d2;
 }
 html[data-ui-theme="light"] .classic-split-resizer:hover {
-  background-color: #d0dae8;
-  border-left-color: #9eb0cc;
-  border-right-color: #9eb0cc;
+  background-color: #d6d6d6;
+  border-left-color: #a0a0a0;
+  border-right-color: #a0a0a0;
 }
 html[data-ui-theme="light"] .side {
-  background: #eef1f6;
+  background: #f3f3f3;
 }
 html[data-ui-theme="light"] .p-title {
-  color: #5a6474;
-  border-bottom-color: #d8e0ee;
-  background: #eef1f6;
+  color: #666666;
+  border-bottom-color: #e2e2e2;
+  background: #f3f3f3;
 }
 html[data-ui-theme="light"] .msgs {
-  background: #f5f6f8;
+  background: #f8f8f8;
 }
 html[data-ui-theme="light"] .b.u {
-  background: #e8eef6;
+  background: #ececec;
   border-color: #d5dce8;
-  color: #1a2233;
+  color: #1f1f1f;
 }
 /* 助手消息无气泡底与描边，与 .msgs 背板融合 */
 html[data-ui-theme="light"] .b.a {
@@ -82,16 +82,16 @@ html[data-ui-theme="light"] .b.a {
   box-shadow: none;
   border-radius: 0;
   padding: 8px 0 8px 8px;
-  color: #1a2233;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] .b.a pre {
-  background: #fafbfc;
+  background: #f7f7f7;
   border: none;
-  color: #1a2233;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] .b.a code {
   background: rgba(9, 105, 218, 0.08);
-  color: #0a3069;
+  color: #a15c00;
 }
 html[data-ui-theme="light"] .b.a pre code {
   background: transparent;
@@ -107,149 +107,149 @@ html[data-ui-theme="light"] .b.a pre code[data-lang="json"] {
   color: inherit;
 }
 html[data-ui-theme="light"] .b.a blockquote {
-  border-left-color: #b8c5dc;
-  color: #3a4456;
+  border-left-color: #c4c4c4;
+  color: #3a3a3a;
 }
 html[data-ui-theme="light"] .b.a hr {
-  border-top-color: #d0dae8;
+  border-top-color: #d6d6d6;
 }
 html[data-ui-theme="light"] .b.a th {
-  background: #eef2fa;
-  color: #1a2233;
+  background: #e8e8e8;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] .b.a th,
 html[data-ui-theme="light"] .b.a td {
-  border-color: #d0dae8;
+  border-color: #d6d6d6;
 }
 html[data-ui-theme="light"] .row {
   border-top-color: #e4e8ef;
-  background: #f5f6f8;
+  background: #f8f8f8;
 }
 html[data-ui-theme="light"] .composer {
   background: transparent;
   border-color: transparent;
-  color: #1a2233;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] .composer-foot {
   background: transparent;
 }
 html[data-ui-theme="light"] textarea {
-  color: #1a2233;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] textarea::placeholder {
-  color: #9aa6b8;
+  color: #9a9a9a;
   opacity: 0.62;
 }
 html[data-ui-theme="light"] .mode-plus {
-  color: #5a6474;
-  border-color: #c9d2de;
+  color: #666666;
+  border-color: #d2d2d2;
 }
 html[data-ui-theme="light"] .mode-plus:hover {
   background: rgba(9, 105, 218, 0.06);
 }
 html[data-ui-theme="light"] .chat-tab {
-  color: #5a6474;
+  color: #666666;
 }
 html[data-ui-theme="light"] .chat-tab.active {
-  background: #ffffff;
-  border-color: #b8c8e0;
-  color: #0a1220;
+  background: #fcfcfc;
+  border-color: #c4c4c4;
+  color: #111111;
 }
 html[data-ui-theme="light"] .mode-menu,
 html[data-ui-theme="light"] .reasoning-menu,
 html[data-ui-theme="light"] .mode-submenu {
-  background: #ffffff;
-  border-color: #c8d4e8;
+  background: #fcfcfc;
+  border-color: #d2d2d2;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
 }
 html[data-ui-theme="light"] .mode-menu .mode-item,
 html[data-ui-theme="light"] .reasoning-menu .reasoning-choice {
-  color: #1a2233;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] .mode-menu .mode-item:hover,
 html[data-ui-theme="light"] .reasoning-menu .reasoning-choice:hover {
-  background: #eef2fa;
-  color: #0a1220;
+  background: #e8e8e8;
+  color: #111111;
 }
 html[data-ui-theme="light"] .side-tabbar {
-  background: #f5f6f8;
-  border-bottom-color: #d8e0ea;
+  background: #f8f8f8;
+  border-bottom-color: #e2e2e2;
 }
 html[data-ui-theme="light"] .side-tab {
-  background: #fafbfc;
-  color: #5a6474;
+  background: #f7f7f7;
+  color: #666666;
 }
 html[data-ui-theme="light"] .side-tab.active {
-  background: #ffffff;
-  color: #1a2233;
+  background: #fcfcfc;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] .usage-bottom {
-  background: #eef1f6;
+  background: #f3f3f3;
   border-top-color: #e4e8ef;
-  color: #3a4456;
+  color: #3a3a3a;
 }
 html[data-ui-theme="light"] .usage-ring{
   background:conic-gradient(var(--ring-color) calc(var(--p) * 1%), #d5dce8 0);
 }
-html[data-ui-theme="light"] .usage-ring::after{background:#eef1f6}
-html[data-ui-theme="light"] .usage-ring .usage-num{color:#1a2233}
+html[data-ui-theme="light"] .usage-ring::after{background:#f3f3f3}
+html[data-ui-theme="light"] .usage-ring .usage-num{color:#1f1f1f}
 html[data-ui-theme="light"] .card,
 html[data-ui-theme="light"] .step.card {
-  background: #ffffff;
-  border-color: #d0dae8;
+  background: #fcfcfc;
+  border-color: #d6d6d6;
 }
 html[data-ui-theme="light"] .ch {
-  border-bottom-color: #e2e8f4;
+  border-bottom-color: #e2e2e2;
 }
 html[data-ui-theme="light"] .slash-pop {
-  background: #ffffff;
-  border-color: #c8d4e8;
+  background: #fcfcfc;
+  border-color: #d2d2d2;
 }
 html[data-ui-theme="light"] .at-pop-head {
-  border-bottom-color: #e2e8f4;
+  border-bottom-color: #e2e2e2;
 }
 html[data-ui-theme="light"] .session-rail {
-  background: #eef1f6;
+  background: #f3f3f3;
 }
 html[data-ui-theme="light"] .session-rail-head {
-  border-bottom-color: #d8e0ee;
+  border-bottom-color: #e2e2e2;
 }
 html[data-ui-theme="light"] .chat-session-group {
-  color: #5a6474;
+  color: #666666;
 }
 html[data-ui-theme="light"] .chat-session-row {
-  color: #1a2233;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] .chat-session-row:hover {
-  background: #eef2fa;
+  background: #e8e8e8;
 }
 html[data-ui-theme="light"] .todo-list-area {
-  border-top-color: #d8e0ea;
-  border-bottom-color: #d8e0ea;
-  background: #f7f8fa;
+  border-top-color: #e2e2e2;
+  border-bottom-color: #e2e2e2;
+  background: #f5f5f5;
 }
 html[data-ui-theme="light"] .todo-list-header {
-  border-bottom-color: #d8e0ea;
-  background: #f0f2f5;
+  border-bottom-color: #e2e2e2;
+  background: #ededed;
 }
 html[data-ui-theme="light"] .todo-list-title {
-  color: #1a2233;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] .todo-list-count {
-  color: #5a6474;
-  background: #e4e9f2;
+  color: #666666;
+  background: #e4e4e4;
 }
 html[data-ui-theme="light"] .todo-collapse-icon {
-  color: #8a96a8;
+  color: #8f8f8f;
 }
 html[data-ui-theme="light"] .todo-item {
-  color: #2c3545;
+  color: #3a3a3a;
 }
 html[data-ui-theme="light"] .todo-item:hover {
   background: rgba(0,0,0,.03);
 }
 html[data-ui-theme="light"] .todo-text.done {
-  color: #9aa6b8;
+  color: #9a9a9a;
 }
 html[data-ui-theme="light"] .chat-run-pre--cmd code,
 html[data-ui-theme="light"] .chat-run-pre--out code {
@@ -257,24 +257,24 @@ html[data-ui-theme="light"] .chat-run-pre--out code {
 }
 
 /* ── 白天模式：Auto+ 菜单文字颜色 ── */
-html[data-ui-theme="light"] .mode-item[data-mode="auto"] { color: #2c5585; }
+html[data-ui-theme="light"] .mode-item[data-mode="auto"] { color: #2f5f8f; }
 html[data-ui-theme="light"] .mode-item[data-mode="plan"] { color: #8a6a20; }
 html[data-ui-theme="light"] .mode-item[data-mode="execute"] { color: #7a3eb0; }
 /* ── 白天模式：上下文视图悬浮弹窗 ── */
 html[data-ui-theme="light"] .ctx-layout-tooltip {
-  background: #ffffff;
-  border-color: #c8d4e8;
+  background: #fcfcfc;
+  border-color: #d2d2d2;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
-  color: #1a2233;
+  color: #1f1f1f;
 }
 html[data-ui-theme="light"] .ctx-layout-tooltip .ctx-tip-br {
-  color: #0a1220;
+  color: #111111;
 }
 html[data-ui-theme="light"] .ctx-layout-tooltip .ctx-tip-rest {
-  color: #5a6474;
+  color: #666666;
 }
 html[data-ui-theme="light"] .ctx-layout-tooltip .ctx-tip-track {
-  background: #e4e9f2;
+  background: #e4e4e4;
 }
 
 /* 其他 Agent 气泡：头区紧凑；标签仅包字宽；气泡贴头像下，顶三角接驳 */
@@ -422,26 +422,26 @@ html[data-ui-theme="light"] .peer-avatar{
   background:linear-gradient(145deg,#d4b87a,#a88b4a);
   color:#3d2f10;
 }
-html[data-ui-theme="light"] .peer-agent-name{color:#1a2233}
-html[data-ui-theme="light"] .peer-agent-cid{color:#57606a}
+html[data-ui-theme="light"] .peer-agent-name{color:#1f1f1f}
+html[data-ui-theme="light"] .peer-agent-cid{color:#666666}
 html[data-ui-theme="light"] .peer-bubble{
-  background:#f6f8fa;
-  border-color:#c8d0da;
-  color:#1a2233;
-  box-shadow:0 1px 2px rgba(15,23,42,.06);
+  background:#f5f5f5;
+  border-color:#d2d2d2;
+  color:#1f1f1f;
+  box-shadow:0 1px 2px rgba(0,0,0,.06);
 }
 html[data-ui-theme="light"] .peer-bubble::before{
-  border-color:transparent transparent #f6f8fa transparent;
+  border-color:transparent transparent #f5f5f5 transparent;
 }
 html[data-ui-theme="light"] .peer-bubble::after{
-  border-color:transparent transparent #c8d0da transparent;
+  border-color:transparent transparent #d2d2d2 transparent;
 }
 html[data-ui-theme="light"] .peer-meta-tag{
   color: #525252;
-  border-color: #b8c0cc;
+  border-color: #c4c4c4;
   background: #ececec;
 }
-html[data-ui-theme="light"] .peer-bubble .peer-agent-body.b.a{color:#1a2233;font-weight:400}
+html[data-ui-theme="light"] .peer-bubble .peer-agent-body.b.a{color:#1f1f1f;font-weight:400}
 
 /* 恢复 markdown 语义样式（reset.css 把 margin / padding 全清零了）。
    只补内联语义与用户气泡（`.u`，走 textContent，不产标签但保留以防万一）。
@@ -498,17 +498,17 @@ html[data-ui-theme="light"] .peer-bubble .peer-agent-body.b.a{color:#1a2233;font
 .goal-btn{height:28px;padding:0 14px;border-radius:6px;cursor:pointer;
   border:1px solid #30363d;background:#21262d;color:#c9d1d9;font-size:12px;font-weight:600}
 .goal-btn:hover{background:#2b3138}
-.goal-btn.primary{background:#8a6508;border-color:#8a6508;color:#fff}
+.goal-btn.primary{background:#8a6508;border-color:#8a6508;color:#fcfcfc}
 .goal-btn.primary:hover{background:#9c7409}
 .goal-btn.danger{border-color:#8a3a3a;color:#d98a8a}
 .goal-btn.danger:hover{background:rgba(160,60,60,.15)}
 .goal-btn[disabled]{opacity:.5;cursor:not-allowed}
 /* 浅色主题：描边与文字跟着提亮，否则暗金/暗红在浅底上读不出来 */
-html[data-ui-theme="light"] .goal-dialog{background:#fff;border-color:#d7dde5;color:#1a2233}
-html[data-ui-theme="light"] .goal-dialog textarea{background:#fff;color:#1a2233;border-color:#d7dde3}
+html[data-ui-theme="light"] .goal-dialog{background:#fcfcfc;border-color:#d7dde5;color:#1f1f1f}
+html[data-ui-theme="light"] .goal-dialog textarea{background:#fcfcfc;color:#1f1f1f;border-color:#d7dde3}
 html[data-ui-theme="light"] .goal-dialog-sub,
 html[data-ui-theme="light"] .goal-dialog-hint{color:#5b6673}
-html[data-ui-theme="light"] .goal-btn{background:#f2f4f7;border-color:#d7dde5;color:#1a2233}
+html[data-ui-theme="light"] .goal-btn{background:#f2f4f7;border-color:#d7dde5;color:#1f1f1f}
 html[data-ui-theme="light"] .mode-plus.goal-active,
 html[data-ui-theme="light"] .mode-plus.goal-active:hover{border-color:#a8791a;color:#8a6508}
 html[data-ui-theme="light"] .mode-plus.goal-paused,
@@ -526,15 +526,15 @@ html[data-ui-theme="light"] .mode-plus.goal-paused:hover{border-color:#a8434a;co
 .reasoning-btn.effort-high:hover{border-color:#888}
 
 /* 白天模式：一律白底 + 深字，"当前项"用蓝色描边区分而不是深色块 */
-html[data-ui-theme="light"] .reasoning-menu .reasoning-choice{color:#1a2233}
+html[data-ui-theme="light"] .reasoning-menu .reasoning-choice{color:#1f1f1f}
 html[data-ui-theme="light"] .reasoning-menu .reasoning-choice.reasoning-current{
-  background:#eef4ff;border:1px solid #7aa7e8;color:#1f5fbf;font-weight:600}
+  background:#e8e8e8;border:1px solid #a8a8a8;color:#2563eb;font-weight:600}
 html[data-ui-theme="light"] .reasoning-menu .reasoning-choice[data-effort="max"].reasoning-current{
   background:#fdf6e6;border-color:#c9a24a;color:#7a5c15}
 html[data-ui-theme="light"] .reasoning-btn.effort-max{border-color:#c9a24a;color:#7a5c15}
-html[data-ui-theme="light"] .reasoning-btn.effort-high{border-color:#9eb0cc;color:#5a6474}
+html[data-ui-theme="light"] .reasoning-btn.effort-high{border-color:#a0a0a0;color:#666666}
 /* 菜单里的说明文字（若日后加了副标题）也要跟着主题走 */
-html[data-ui-theme="light"] .reasoning-menu .reasoning-choice small{color:#5a6474}
+html[data-ui-theme="light"] .reasoning-menu .reasoning-choice small{color:#666666}
 
 /* ── 交互式命令的输入条 ──────────────────────────────────────────────
    色值写在 JS 的 `style.cssText` 里时只有深色一套，切到白天模式就变成
@@ -551,12 +551,12 @@ html[data-ui-theme="light"] .reasoning-menu .reasoning-choice small{color:#5a647
 .chat-run-status.run-ok{color:#3fb950}
 .chat-run-status.run-bad{color:#f85149}
 
-html[data-ui-theme="light"] .cmd-input-bar{background:#f6f8fc;border-color:#d0dae8}
-html[data-ui-theme="light"] .cmd-input-cap{color:#24292f}
-html[data-ui-theme="light"] .cmd-input-hint{color:#5a6474}
-html[data-ui-theme="light"] .cmd-input-btn{background:#eef2fa;color:#1a2233;border-color:#c8d4e8}
-html[data-ui-theme="light"] .cmd-input-btn:hover{background:#e2e8f4}
-html[data-ui-theme="light"] .cmd-input-field{background:#fff;color:#1a2233;border-color:#c8d4e8}
+html[data-ui-theme="light"] .cmd-input-bar{background:#f2f2f2;border-color:#d6d6d6}
+html[data-ui-theme="light"] .cmd-input-cap{color:#242424}
+html[data-ui-theme="light"] .cmd-input-hint{color:#666666}
+html[data-ui-theme="light"] .cmd-input-btn{background:#e8e8e8;color:#1f1f1f;border-color:#d2d2d2}
+html[data-ui-theme="light"] .cmd-input-btn:hover{background:#e2e2e2}
+html[data-ui-theme="light"] .cmd-input-field{background:#fcfcfc;color:#1f1f1f;border-color:#d2d2d2}
 html[data-ui-theme="light"] .chat-run-status.run-ok{color:#1a7f37}
 html[data-ui-theme="light"] .chat-run-status.run-bad{color:#c1272d}
 
@@ -566,34 +566,34 @@ html[data-ui-theme="light"] .chat-run-status.run-bad{color:#c1272d}
      - 右侧步骤面板内部的命令原文框与输出框：`#12151a` 近黑底；
      - `.tag.ok/.bad/.stoped/.tag-run`：深色底 + 浅色字，在白色卡片里格格不入。
    统一用"浅底 + 深字 + 描边区分状态"，与其余浅色规则同一套取色。 */
-html[data-ui-theme="light"] .at-pop{background:#ffffff;border-color:#c8d4e8}
-html[data-ui-theme="light"] .at-pop-head{border-bottom-color:#e2e8f4}
-html[data-ui-theme="light"] .at-item{color:#24292f}
+html[data-ui-theme="light"] .at-pop{background:#fcfcfc;border-color:#d2d2d2}
+html[data-ui-theme="light"] .at-pop-head{border-bottom-color:#e2e2e2}
+html[data-ui-theme="light"] .at-item{color:#242424}
 html[data-ui-theme="light"] .at-item:hover,
-html[data-ui-theme="light"] .at-item.selected{background:#eef4ff}
-html[data-ui-theme="light"] .at-item.selected{box-shadow:inset 0 0 0 1px #7aa7e8}
-html[data-ui-theme="light"] .at-item.dir .at-name{color:#1f5fbf}
-html[data-ui-theme="light"] .at-up-btn{background:#eef2fa;color:#1f5fbf}
-html[data-ui-theme="light"] .at-up-btn:hover{background:#e2e8f4}
+html[data-ui-theme="light"] .at-item.selected{background:#e8e8e8}
+html[data-ui-theme="light"] .at-item.selected{box-shadow:inset 0 0 0 1px #a8a8a8}
+html[data-ui-theme="light"] .at-item.dir .at-name{color:#2563eb}
+html[data-ui-theme="light"] .at-up-btn{background:#e8e8e8;color:#2563eb}
+html[data-ui-theme="light"] .at-up-btn:hover{background:#e2e2e2}
 
-html[data-ui-theme="light"] .slash-pop{background:#ffffff;border-color:#c8d4e8}
-html[data-ui-theme="light"] .slash-item{color:#24292f}
-html[data-ui-theme="light"] .slash-item[data-slash="auto"]{color:#5a6474}
+html[data-ui-theme="light"] .slash-pop{background:#fcfcfc;border-color:#d2d2d2}
+html[data-ui-theme="light"] .slash-item{color:#242424}
+html[data-ui-theme="light"] .slash-item[data-slash="auto"]{color:#666666}
 html[data-ui-theme="light"] .slash-item[data-slash="plan"]{color:#7a5c15}
 html[data-ui-theme="light"] .slash-item[data-slash="execute"]{color:#6b3fa0}
-html[data-ui-theme="light"] .slash-item.selected{background:#eef4ff;box-shadow:inset 0 0 0 1px #7aa7e8}
-html[data-ui-theme="light"] .slash-item .sh{color:#5a6474}
+html[data-ui-theme="light"] .slash-item.selected{background:#e8e8e8;box-shadow:inset 0 0 0 1px #a8a8a8}
+html[data-ui-theme="light"] .slash-item .sh{color:#666666}
 
-html[data-ui-theme="light"] .step .ch-toggle .tit{color:#24292f}
-html[data-ui-theme="light"] .step .lbl{color:#5a6474}
-html[data-ui-theme="light"] .step-current-file{color:#5a6474}
-html[data-ui-theme="light"] .step-dots{color:#5a6474}
+html[data-ui-theme="light"] .step .ch-toggle .tit{color:#242424}
+html[data-ui-theme="light"] .step .lbl{color:#666666}
+html[data-ui-theme="light"] .step-current-file{color:#666666}
+html[data-ui-theme="light"] .step-dots{color:#666666}
 html[data-ui-theme="light"] .step-num{color:#8a6d1f}
-html[data-ui-theme="light"] .step-fname{color:#1f5fbf}
-html[data-ui-theme="light"] .step pre.sub{background:#f6f8fc;border-color:#d0dae8;color:#24292f}
+html[data-ui-theme="light"] .step-fname{color:#2563eb}
+html[data-ui-theme="light"] .step pre.sub{background:#f2f2f2;border-color:#d6d6d6;color:#242424}
 html[data-ui-theme="light"] .step pre.sub.reasoning-pre{
-  background:#f6f8fc;border-color:#d0dae8;border-left-color:#7aa7e8;color:#24292f}
-html[data-ui-theme="light"] .step .lbl.reasoning-section-lbl{color:#1f5fbf}
+  background:#f2f2f2;border-color:#d6d6d6;border-left-color:#a8a8a8;color:#242424}
+html[data-ui-theme="light"] .step .lbl.reasoning-section-lbl{color:#2563eb}
 
 html[data-ui-theme="light"] .tag.ok{background:#e6f4ea;color:#1a7f37}
 html[data-ui-theme="light"] .tag.bad{background:#fdecea;color:#c1272d}
@@ -601,16 +601,16 @@ html[data-ui-theme="light"] .tag.stoped{background:#eeeaf6;color:#6b5b95}
 html[data-ui-theme="light"] .step .tag.tag-run{background:#fdf6e6;color:#7a5c15}
 html[data-ui-theme="light"] .todo-all-done{background:#e6f4ea}
 html[data-ui-theme="light"] .done-banner{background:#e6f4ea}
-html[data-ui-theme="light"] .dispatch-title{background:#f6f8fc}
+html[data-ui-theme="light"] .dispatch-title{background:#f2f2f2}
 
 /* 确认卡（user_confirm）：卡片本体与表头在浅色主题下也有一套，
    只给深色一套时会是一块近黑方框压在白色对话区上。
    `.uc-radio/.uc-check` 的选中态（`.uc-on`）单独覆盖。 */
-html[data-ui-theme="light"] .user-confirm-card{border-color:#d0dae8;background:#ffffff}
-html[data-ui-theme="light"] .user-confirm-cap.user-confirm-cap{background:#f6f8fc;border-bottom-color:#e2e8f4}
-html[data-ui-theme="light"] .user-confirm-cap-line>span.uc-title{color:#1a2233}
-html[data-ui-theme="light"] .user-confirm-body{background:#ffffff}
-html[data-ui-theme="light"] .approval-desc{color:#1a2233}
+html[data-ui-theme="light"] .user-confirm-card{border-color:#d6d6d6;background:#fcfcfc}
+html[data-ui-theme="light"] .user-confirm-cap.user-confirm-cap{background:#f2f2f2;border-bottom-color:#e2e2e2}
+html[data-ui-theme="light"] .user-confirm-cap-line>span.uc-title{color:#1f1f1f}
+html[data-ui-theme="light"] .user-confirm-body{background:#fcfcfc}
+html[data-ui-theme="light"] .approval-desc{color:#1f1f1f}
 html[data-ui-theme="light"] .user-confirm-actions .approval-agree{border-color:#b8924a;color:#6e5420}
 html[data-ui-theme="light"] .uc-radio.uc-on{border-color:#b8924a}
 html[data-ui-theme="light"] .uc-radio.uc-on::after{background:#8a6d1f}
@@ -644,9 +644,9 @@ html[data-ui-theme="light"] .uc-check.uc-on{border-color:#b8924a;color:#7a6220}
   border-radius:0 0 6px 6px;background:var(--diff-card-bg);
   overflow:visible;max-width:100%}
 .diff-bubble .diff-unified{border:0;border-radius:0;max-height:420px;overflow:auto}
-html[data-ui-theme="light"] .diff-bubble{border-color:#d0dae8;background:#ffffff}
-html[data-ui-theme="light"] .diff-bubble-cap{color:#1a2233;background:#f6f8fc;border-bottom-color:#e2e8f4}
-html[data-ui-theme="light"] .diff-bubble .chat-diff-card{background:#ffffff}
+html[data-ui-theme="light"] .diff-bubble{border-color:#d6d6d6;background:#fcfcfc}
+html[data-ui-theme="light"] .diff-bubble-cap{color:#1f1f1f;background:#f2f2f2;border-bottom-color:#e2e2e2}
+html[data-ui-theme="light"] .diff-bubble .chat-diff-card{background:#fcfcfc}
 
 
 /* 字体渲染：Windows 走系统次像素渲染（不开 -webkit-font-smoothing，

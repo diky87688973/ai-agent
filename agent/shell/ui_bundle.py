@@ -87,6 +87,7 @@ UI_CSS_MODULES = (
     "file-icons.css",
     "edited-files.css",
     "settings-ui.css",
+    "theme-light-cursor.css",
 )
 
 _HTML_FILE = CLASSIC_DIR / "agent-ui.html"

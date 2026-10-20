@@ -131,6 +131,8 @@ inserting
   ├─ 回合提前结束 → queued
   └─ 取消 → cancelled
 
+队列行进入 inserting 后显示「已插入」，修改、删除与再次插入均禁用。
+
 draft
   ├─ 重新提交 → queued / inserting
   └─ 丢弃 → cancelled

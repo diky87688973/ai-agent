@@ -123,13 +123,13 @@ pre{margin:0;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;wor
 .user-confirm-opts .uc-opt-row:hover{background:rgba(255,255,255,.05);border-color:#454a50}
 .user-confirm-opts .uc-opt-row.uc-row-picked{border-color:#4a5058;background:rgba(255,255,255,.06)}
 .user-confirm-opts .uc-radio{flex:0 0 16px;width:16px;height:16px;border-radius:50%;border:1.5px solid #6e655a;box-sizing:border-box;background:transparent;display:flex;align-items:center;justify-content:center}
-html[data-ui-theme="light"] .user-confirm-opts .uc-radio:not(.uc-on){border-color:#d2cdc5}
+html[data-ui-theme="light"] .user-confirm-opts .uc-radio:not(.uc-on){border-color:#d0d0d0}
 .user-confirm-opts .uc-radio::after{content:"";display:block;width:0;height:0;border-radius:50%}
 .user-confirm-opts .uc-radio.uc-on{border-color:#d4b87a}
 .user-confirm-opts .uc-radio.uc-on::after{width:8px;height:8px;background:#c9a962}
 /* 方框内不铺底色，仅描边 + ✓ */
 .user-confirm-opts .uc-check{flex:0 0 16px;width:16px;height:16px;border-radius:3px;border:1.5px solid #6e655a;box-sizing:border-box;display:flex;align-items:center;justify-content:center;background:transparent;color:transparent;font-size:10px;font-weight:700;line-height:1;transition:all .12s}
-html[data-ui-theme="light"] .user-confirm-opts .uc-check:not(.uc-on){border-color:#d2cdc5}
+html[data-ui-theme="light"] .user-confirm-opts .uc-check:not(.uc-on){border-color:#d0d0d0}
 .user-confirm-opts .uc-check.uc-on{border-color:#c9a962;background:transparent;color:#dfc08c}
 .user-confirm-opts .uc-check.uc-on::after{content:"✓";font-size:11px;line-height:1}
 html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
@@ -231,12 +231,12 @@ html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
 /* 正文里的 `@文件` 引用：可点击，点了在右栏打开 */
 .file-ref{color:#79b8ff;text-decoration:none;cursor:pointer;border-bottom:1px dashed rgba(121,184,255,.5)}
 .file-ref:hover{color:#a5d6ff;background:rgba(121,184,255,.1);border-bottom-color:#a5d6ff}
-html[data-ui-theme="light"] .pane-body pre.file-view{color:#1a2233}
-html[data-ui-theme="light"] .pane-meta{border-bottom-color:#d8e0ee;color:#5a6474}
-html[data-ui-theme="light"] .pane-btn{background:#f0f3f8;border-color:#c8d0da;color:#2c3545}
-html[data-ui-theme="light"] .pane-btn:hover{background:#e4e9f2}
-html[data-ui-theme="light"] .file-ref{color:#0969da;border-bottom-color:rgba(9,105,218,.5)}
-html[data-ui-theme="light"] .file-ref:hover{color:#0550ae;background:rgba(9,105,218,.08)}
+html[data-ui-theme="light"] .pane-body pre.file-view{color:#1f1f1f}
+html[data-ui-theme="light"] .pane-meta{border-bottom-color:#e2e2e2;color:#666666}
+html[data-ui-theme="light"] .pane-btn{background:#ededed;border-color:#d2d2d2;color:#3a3a3a}
+html[data-ui-theme="light"] .pane-btn:hover{background:#e4e4e4}
+html[data-ui-theme="light"] .file-ref{color:#2563eb;border-bottom-color:rgba(37,99,235,.5)}
+html[data-ui-theme="light"] .file-ref:hover{color:#1d4ed8;background:rgba(37,99,235,.08)}
 .mode-item-with-sub{position:relative;width:100%}
 .mode-menu .mode-sub-trigger{width:100%;text-align:left}
 .mode-submenu{position:absolute;left:calc(100% + 10px);bottom:0;display:flex;flex-direction:column;min-width:0;padding:6px 8px;background:#1a1e24;border:1px solid #3a3f47;border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.42);z-index:50}

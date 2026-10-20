@@ -96,7 +96,7 @@ function renderChatQueue(snapshot) {
 
 function chatQueueRow(item) {
   var row = document.createElement("div");
-  row.className = "chat-queue-row";
+  row.className = "chat-queue-row" + (item.state === "inserting" ? " is-inserting" : "");
   row.setAttribute("data-queue-id", String(item.id || ""));
 
   var index = document.createElement("span");
@@ -128,12 +128,28 @@ function chatQueueRow(item) {
   text.title = text.textContent;
   row.appendChild(text);
 
+  var inserting = item.state === "inserting";
+  if (inserting) {
+    var status = document.createElement("span");
+    status.className = "chat-queue-status";
+    status.textContent = "已插入";
+    status.title = "已插入当前回合，等待发送";
+    row.appendChild(status);
+  }
+
   var actions = document.createElement("span");
   actions.className = "chat-queue-actions";
   var insert = iconButton("queue-insert", "插入发送", "up", "insert");
-  insert.disabled = item.state === "inserting";
   var edit = iconButton("queue-edit", "修改", "edit", "recall");
   var cancel = iconButton("queue-cancel", "取消", "trash", "cancel");
+  insert.disabled = inserting;
+  edit.disabled = inserting;
+  cancel.disabled = inserting;
+  if (inserting) {
+    edit.title = "已插入，不能修改";
+    cancel.title = "已插入，不能删除";
+    insert.title = "已插入，等待发送";
+  }
   actions.appendChild(edit);
   actions.appendChild(cancel);
   actions.appendChild(insert);
@@ -152,6 +168,12 @@ function loadChatQueue(cid) {
 function queueInsert(item) {
   var cid = chatQueueCid();
   if (!cid || !item || item.state === "inserting") return;
+  item.state = "inserting";
+  renderChatQueue({
+    conversation_id: cid,
+    revision: chatQueueRevision,
+    items: chatQueueItems,
+  });
   chatQueueApi(
     "/api/chat/queue/" + encodeURIComponent(item.id) + "/insert",
     {
@@ -161,6 +183,7 @@ function queueInsert(item) {
     }
   ).then(function () { return loadChatQueue(cid); }).catch(function (err) {
     if (window.DEBUG) console.error("[queue] insert failed", err);
+    loadChatQueue(cid);
   });
 }
 

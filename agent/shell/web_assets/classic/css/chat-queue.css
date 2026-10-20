@@ -56,6 +56,16 @@
   transition:background .12s;
 }
 .chat-queue-row:hover{background:var(--c-bg-hover,rgba(255,255,255,.05))}
+.chat-queue-row.is-inserting{opacity:.72}
+.chat-queue-status{
+  flex:0 0 auto;
+  padding:1px 5px;
+  border-radius:999px;
+  background:var(--c-ok-bg,rgba(31,122,68,.12));
+  color:var(--c-ok,#1f7a44);
+  font-size:10.5px;
+  white-space:nowrap;
+}
 .chat-queue-index{
   flex:0 0 auto;
   min-width:22px;

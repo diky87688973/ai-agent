@@ -85,12 +85,12 @@ html[data-ui-theme] .composer textarea::-webkit-scrollbar{width:3px;height:3px}
 html[data-ui-theme] .composer textarea::-webkit-scrollbar-track{background:transparent}
 html[data-ui-theme] .composer textarea::-webkit-scrollbar-thumb{background:transparent;border-radius:3px}
 html[data-ui-theme="dark"] .composer textarea:hover::-webkit-scrollbar-thumb{background:rgba(140,144,154,.22)}
-html[data-ui-theme="light"] .composer textarea:hover::-webkit-scrollbar-thumb{background:rgba(90,98,112,.22)}
+html[data-ui-theme="light"] .composer textarea:hover::-webkit-scrollbar-thumb{background:rgba(0,0,0,.22)}
 html[data-ui-theme] .composer textarea::-webkit-scrollbar-corner{background:transparent}
 @supports not selector(::-webkit-scrollbar){
   html[data-ui-theme] .composer textarea{scrollbar-width:thin;scrollbar-color:transparent transparent}
   html[data-ui-theme="dark"] .composer textarea:hover{scrollbar-color:rgba(140,144,154,.28) transparent}
-  html[data-ui-theme="light"] .composer textarea:hover{scrollbar-color:rgba(90,98,112,.28) transparent}
+  html[data-ui-theme="light"] .composer textarea:hover{scrollbar-color:rgba(0,0,0,.28) transparent}
 }
 
 /* 壳：左右上融为一体；对话面单独抬起 */
@@ -160,12 +160,12 @@ html[data-ui-theme] .composer textarea{
   min-height:56px;
   box-sizing:border-box;
 }
-html[data-ui-theme="light"] .composer{box-shadow:inset 0 0 0 1px rgba(15,23,42,.08)}
+html[data-ui-theme="light"] .composer{box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
 html[data-ui-theme="dark"] .composer{color:var(--c-text-2)}
 .b.u{border:0!important;background:var(--c-bg-layer)}
 .card,.step.card{border:0!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
 html[data-ui-theme="light"] .card,
-html[data-ui-theme="light"] .step.card{box-shadow:inset 0 0 0 1px rgba(15,23,42,.08)}
+html[data-ui-theme="light"] .step.card{box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
 .ch{border-bottom:0!important}
 .chat-tab{border-color:transparent!important}
 .chat-tab.active{
@@ -175,7 +175,7 @@ html[data-ui-theme="light"] .step.card{box-shadow:inset 0 0 0 1px rgba(15,23,42,
   box-shadow:none!important;
 }
 .mode-plus{border-color:rgba(255,255,255,.08)!important}
-html[data-ui-theme="light"] .mode-plus{border-color:rgba(15,23,42,.12)!important}
+html[data-ui-theme="light"] .mode-plus{border-color:rgba(0,0,0,.12)!important}
 .todo-list-area{border:0!important;background:var(--c-bg-layer)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
-html[data-ui-theme="light"] .todo-list-area{box-shadow:inset 0 0 0 1px rgba(15,23,42,.08)}
+html[data-ui-theme="light"] .todo-list-area{box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
 .todo-list-header{border-bottom:0!important;background:transparent!important}
