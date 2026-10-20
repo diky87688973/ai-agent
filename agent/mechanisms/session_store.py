@@ -357,7 +357,7 @@ class SessionStore:
                             highest = seq
             except OSError:
                 continue
-            # 没有 `seq` 的行按位置补号，本文件会用到 0..lines-1
+            # 没有 `seq` 的行按位置补号；行号范围 0..lines-1
             if lines - 1 > highest:
                 highest = lines - 1
         return highest
@@ -781,7 +781,7 @@ class SessionStore:
         两种行的坐标来源：
         - 有 `seq` 字段：直接用它——它是全局坐标，跨会话唯一；
         - 没有 `seq` 字段：这一行没有全局坐标可用，按行位置补一个。
-          这类坐标只在本文件内有意义（可能与别的文件同位置的补号重复），
+          这类坐标只在该会话日志内有意义（可能与别的文件同位置的补号重复），
           但足以让"刷新后从头回放"工作；新事件永远走全局坐标，
           所以续传游标不会与补号混淆。
         """

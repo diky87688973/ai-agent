@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1627** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1628** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -29,7 +29,7 @@
 19. [test_context_plumbing.py](#test_context_plumbingpy)（5）
 20. [test_context_splice.py](#test_context_splicepy)（9）
 21. [test_conversation_queue.py](#test_conversation_queuepy)（6）
-22. [test_core.py](#test_corepy)（56）
+22. [test_core.py](#test_corepy)（57）
 23. [test_edited_files.py](#test_edited_filespy)（1）
 24. [test_entry_layer.py](#test_entry_layerpy)（15）
 25. [test_error_log.py](#test_error_logpy)（8）
@@ -803,7 +803,7 @@
 
 ## test_core.py
 
-共 56 个用例。
+共 57 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -849,20 +849,21 @@
 | 40 | `InfrastructureTest` | `test_seq_does_not_stick_after_a_replay` | 适配层的存储坐标每事件独立 —— 回放一次不能让之后所有帧粘住旧坐标。 |
 | 41 | `InfrastructureTest` | `test_suspend_emits_exactly_one_tool_end` | 挂起时同一 `tool_call_id` 只能有一帧 `tool_end`。 |
 | 42 | `PortConflictTest` | `test_second_bind_on_same_port_raises` | 覆盖「端口被占时 `create_server` 必须抛错」：second bind on same port raises |
-| 43 | `StoreIntegrationTest` | `test_facts_persist_and_reload` | 覆盖「写入的事实能落进现有 `SessionStore`，且重启后能重建」：facts persist and reload |
-| 44 | `SuspendBatchTest` | `test_placeholder_says_why_not_just_null` | 占位内容要说明原因，不能是空串或 `null`。 |
-| 45 | `SuspendBatchTest` | `test_request_sequence_stays_valid_when_user_talks_instead_of_answering` | 挂起后用户不答确认、直接发新消息 → 请求序列仍必须合法。 |
-| 46 | `SuspendBatchTest` | `test_suspend_mid_batch_gives_the_rest_a_terminal_fact` | 一条消息要求 [ask_user(c1), echo(c2)]，c1 挂起时 c2 必须有终态事实。 |
-| 47 | `SuspendResumeTest` | `test_resume_needs_no_memory_state` | 恢复不依赖任何内存游标：丢掉宿主与模块，仅凭事实重建即可。 |
-| 48 | `SuspendResumeTest` | `test_resume_splices_result_and_model_continues` | 覆盖「工具需要外部输入 → 挂起（终态）；用户作答 → 拼接结果 → 新一轮」：resume splices result and model continues |
-| 49 | `SuspendResumeTest` | `test_second_splice_would_duplicate_so_delivery_is_once` | 拼接没有幂等性：同一 `call_id` 交两次即非法。宿主须写前查重。 |
-| 50 | `SuspendResumeTest` | `test_suspend_is_terminal_and_writes_no_tool_result` | 覆盖「工具需要外部输入 → 挂起（终态）；用户作答 → 拼接结果 → 新一轮」：suspend is terminal and writes no tool result |
-| 51 | `SuspendResumeTest` | `test_suspended_call_is_not_retried_within_the_turn` | 覆盖「工具需要外部输入 → 挂起（终态）；用户作答 → 拼接结果 → 新一轮」：suspended call is not retried within the turn |
-| 52 | `ToolLoopTest` | `test_tool_call_then_model_continues` | 覆盖「工具调用驱动多趟：续行由事实末端表达，不需要谁发续行信号」：tool call then model continues |
-| 53 | `ToolLoopTest` | `test_tool_is_not_executed_twice` | 覆盖「工具调用驱动多趟：续行由事实末端表达，不需要谁发续行信号」：tool is not executed twice |
-| 54 | `ToolLoopTest` | `test_two_round_trips` | 覆盖「工具调用驱动多趟：续行由事实末端表达，不需要谁发续行信号」：two round trips |
-| 55 | `WiringTest` | `test_factory_receives_every_dependency_it_is_given` | `build_engine` 收到的依赖必须真的传进引擎（防"收了不用"）。 |
-| 56 | `WiringTest` | `test_live_events_carry_a_storage_coordinate_through_app_session` | 经 `App.session` 跑一轮，总线上的事件必须带 `_seq`。 |
+| 43 | `SessionLogViewIsolationTest` | `test_events_are_deep_copies` | 覆盖「只读视图不得让调用方穿过元素改到事实源」：events are deep copies |
+| 44 | `StoreIntegrationTest` | `test_facts_persist_and_reload` | 覆盖「写入的事实能落进现有 `SessionStore`，且重启后能重建」：facts persist and reload |
+| 45 | `SuspendBatchTest` | `test_placeholder_says_why_not_just_null` | 占位内容要说明原因，不能是空串或 `null`。 |
+| 46 | `SuspendBatchTest` | `test_request_sequence_stays_valid_when_user_talks_instead_of_answering` | 挂起后用户不答确认、直接发新消息 → 请求序列仍必须合法。 |
+| 47 | `SuspendBatchTest` | `test_suspend_mid_batch_gives_the_rest_a_terminal_fact` | 一条消息要求 [ask_user(c1), echo(c2)]，c1 挂起时 c2 必须有终态事实。 |
+| 48 | `SuspendResumeTest` | `test_resume_needs_no_memory_state` | 恢复不依赖任何内存游标：丢掉宿主与模块，仅凭事实重建即可。 |
+| 49 | `SuspendResumeTest` | `test_resume_splices_result_and_model_continues` | 覆盖「工具需要外部输入 → 挂起（终态）；用户作答 → 拼接结果 → 新一轮」：resume splices result and model continues |
+| 50 | `SuspendResumeTest` | `test_second_splice_would_duplicate_so_delivery_is_once` | 拼接没有幂等性：同一 `call_id` 交两次即非法。宿主须写前查重。 |
+| 51 | `SuspendResumeTest` | `test_suspend_is_terminal_and_writes_no_tool_result` | 覆盖「工具需要外部输入 → 挂起（终态）；用户作答 → 拼接结果 → 新一轮」：suspend is terminal and writes no tool result |
+| 52 | `SuspendResumeTest` | `test_suspended_call_is_not_retried_within_the_turn` | 覆盖「工具需要外部输入 → 挂起（终态）；用户作答 → 拼接结果 → 新一轮」：suspended call is not retried within the turn |
+| 53 | `ToolLoopTest` | `test_tool_call_then_model_continues` | 覆盖「工具调用驱动多趟：续行由事实末端表达，不需要谁发续行信号」：tool call then model continues |
+| 54 | `ToolLoopTest` | `test_tool_is_not_executed_twice` | 覆盖「工具调用驱动多趟：续行由事实末端表达，不需要谁发续行信号」：tool is not executed twice |
+| 55 | `ToolLoopTest` | `test_two_round_trips` | 覆盖「工具调用驱动多趟：续行由事实末端表达，不需要谁发续行信号」：two round trips |
+| 56 | `WiringTest` | `test_factory_receives_every_dependency_it_is_given` | `build_engine` 收到的依赖必须真的传进引擎（防"收了不用"）。 |
+| 57 | `WiringTest` | `test_live_events_carry_a_storage_coordinate_through_app_session` | 经 `App.session` 跑一轮，总线上的事件必须带 `_seq`。 |
 
 ## test_edited_files.py
 

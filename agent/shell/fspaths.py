@@ -6,7 +6,7 @@
 1. 可见范围从哪来：`_normalize_roots` / `_parse_roots` / `_env_roots` /
    `_env_path` / `_default_fs_roots` —— 命令行、环境变量、默认值。
 2. 一个请求的路径允不允许访问：`_resolve_fs` / `_fs_rejection`
-   —— 这是安全边界；越界判定的改动面限于本文件。
+   —— 这是安全边界；越界判定集中在此模块。
 3. 人看的展示形态：`_rel_to_root` / `_is_drive_root` / `_list_drives`。
 
 ## 安全语义

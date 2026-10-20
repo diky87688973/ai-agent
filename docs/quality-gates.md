@@ -1,7 +1,7 @@
 # 质量门禁与预算
 
-本文登记门禁与预算的当前值。数字的单一事实源是 `scripts/quality_budgets.py`；
-预算常量调整后，本文与 `docs/complexity.md` 由生成器与校验器保持同步。
+门禁与预算的当前值如下。数字的单一事实源是 `scripts/quality_budgets.py`；
+预算常量调整后，`docs/complexity.md` 由生成器与校验器保持同步。
 
 ## 1. 预算总表
 

@@ -12,7 +12,7 @@
 | `desktop_wait` | 等 | 等画面变化、窗口出现或窗口消失，命中即返回 |
 
 `desktop_wait` 与三个 L0 工具共用后端与输入锁（它本身只读）。参数级契约以
-[visual-operator.md](../subsystems/visual-operator.md) 为准，本文记录设计取舍。
+[visual-operator.md](../subsystems/visual-operator.md) 为准，设计取舍见下。
 
 形态选择：插件贡献工具，而不是把 15 个动作塞进一个 `desktop_action`。
 三类能力各自有独立的参数面（坐标、按键、文本），合成一个工具后参数描述必须写成

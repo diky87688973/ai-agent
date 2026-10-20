@@ -406,7 +406,7 @@ def build_run_registry(
     """按目录可用性选择实现：有目录 → 落盘；没有 → 纯内存。
 
     调用方（装配层）只拿 `RunRegistry`，不知道也不需要知道是哪个实现 ——
-    将来换 Redis / DB 时改这里一处即可。
+    更换后端只改这一处。
     """
     if directory is None:
         return InMemoryRunRegistry()

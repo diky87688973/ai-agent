@@ -1,7 +1,7 @@
 # 项目标准对齐优化方案
 
 > 适用标准：`production-standards.md` v1.1（MUST / SHOULD 两级）
-> 本文只解决**存量工程债**；两个新需求的方案见 [history-paging.md](history-paging.md)、[multi-model.md](multi-model.md)。
+> 该方案只解决**存量工程债**；两个新需求的方案见 [history-paging.md](history-paging.md)、[multi-model.md](multi-model.md)。
 > 结论：标准里的 **13 项 MUST、2 项 SHOULD** 均已达标，验收证据见 §0.4。
 
 ## 0. 结论先行
@@ -82,7 +82,7 @@ python scripts/check_ci_workflow.py
 git ls-files "*.ini"
 ```
 
-`--scc` 与 `--list` 已随 P0/P1 落地；本文的数字取自它们的输出，可直接复跑复核。
+`--scc` 与 `--list` 已随 P0/P1 落地；这里的数字取自它们的输出，可直接复跑复核。
 
 ### 1.1 依赖图的解析规则（必须先定死，否则环数会随实现者口味变化）
 
@@ -293,7 +293,7 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 **改法**
 
 1. 预算独立：`scripts/quality_budgets.py` 定义 `ACCEPTANCE_SKIP_BUDGET = 1`，`ci_steps` 只引用。
-2. 顺序调整：先比预算、再验白名单。这样即使白名单将来扩到 3 项，预算仍是硬约束。
+2. 顺序调整：先比预算、再验白名单。这样即使白名单扩到 3 项，预算仍是硬约束。
 3. 负向用例：直接调用 `evaluate(["a", "b"])`，断言在 `BUDGET=1` 下失败；再断言 `["a"]` 通过。
 
 **为什么不是把预算设成 0**：当前 `acceptance_mvp3` 在 CI 上确实按设计跳过（依赖 `edge-tts` 不安装），设 0 会让 CI 常红。1 是"已知且唯一"的诚实值。
@@ -490,7 +490,7 @@ plugins/          仅在包外向下依赖 agent
 | 门禁清单文档 | `docs/quality-gates.md` |
 | 接入 CI | `ci_steps.py` + 生成式 `ci.yml`（逐字节校验） |
 
-**退出条件**：新门禁全绿；`rg -c "Any"`、行数等数字与本文一致。
+**退出条件**：新门禁全绿；`rg -c "Any"`、行数等数字与这里一致。
 
 ### P1 小范围硬伤（0.5 人日）
 
@@ -572,7 +572,7 @@ python scripts/ci.py                            # 全绿
 | 新增测试文件 | P3（覆盖率口径包含新文件）后才有下限意义 | 已满足 |
 | 合并 PR | P4 完成（负向用例与并发作业已就位） | 已满足 |
 
-新需求方案里原本"项目既存缺口不在本方案修"的段落，已改为引用本文；两份方案不再重复描述存量债。
+新需求方案里原本"项目既存缺口不在本方案修"的段落，已改为引用该方案；两份方案不再重复描述存量债。
 
 ## 9. 风险与回退
 

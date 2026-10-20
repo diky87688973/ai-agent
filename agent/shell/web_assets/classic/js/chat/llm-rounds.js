@@ -30,7 +30,7 @@ if(lastLlm&&lastLlm.dotsTimer){clearInterval(lastLlm.dotsTimer);lastLlm.dotsTime
    那段内容会消失，因此它不构成一条「回答」。
    思考另有归宿：`reasoning_delta` → `appendReasoningDelta()` →
    右侧步骤面板的思考区（`lastLlm.thPb`）。
-   追加还有一处副作用：`done` 时 `streamAssistantText` 已被此前的 `assistant` 分支
+   追加还有一处副作用：`done` 时 `streamAssistantText` 已被 `assistant` 分支
    （`finalizeAssistantStream()` 会清空它）清掉，守卫会放行，
    思考于是成为对话区里的又一个回答气泡。
    函数体保留：`lastLlm.reasoningText` 仍被工具卡合并思考面板（`onToolStart`）读取。 */

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -111,23 +112,17 @@ class SessionLogView:
 
     @property
     def events(self) -> tuple:
-        """事实序列的不可变快照（`tuple`）。
+        """事实序列的防御性快照：容器与载荷都不与内部共享。
 
-        返回元组而不是底层列表：返回列表本身时，"只读"只是
-        "没有 `append` 方法"——`view.events.append(...)` 仍能造出
-        "模型可见、观察面不可见"的秘密事实，`view.events.clear()` 甚至能清空整段历史。
-        元组让这些都不可行（`append` / `clear` / `+=` / `[0]=` 全部
-        `AttributeError`）。
-
-        代价是每次访问一次 O(n) 拷贝；但 `derive_messages` 本来就要全量遍历，
-        而事实条数是百量级 —— 用这点代价换"真不可变"值得。
-        （就地修改会绕过事实出口：事实只能经 `Ports.emit` 追加。）
+        元组挡住 `append` / `clear` / `[0]=`；事件逐条深拷贝，挡住
+        `view.events[0].data[...] = ...` 这类穿过元素改内部状态的做法。
+        事实只能经 `Ports.emit` 追加。
         """
-        return tuple(self._log.events)
+        return tuple(deepcopy(event) for event in self._log.events)
 
     def __getitem__(self, index: int) -> Event:
         """按序号取事实（`log.events[i]` 与 `len(log.events)` 这类读法仍可用）。"""
-        return self._log.events[index]
+        return deepcopy(self._log.events[index])
 
     def derive_messages(self) -> list[dict[str, Any]]:
         return self._log.derive_messages()
@@ -139,7 +134,7 @@ class SessionLogView:
         return len(self._log.events)
 
     def __iter__(self):
-        return iter(self._log.events)
+        return iter(self.events)
 
     def __repr__(self) -> str:            # pragma: no cover - 诊断用
         return f"<SessionLogView {len(self._log.events)} events>"

@@ -117,6 +117,27 @@ class _Registry:
 # 装配辅助
 # ══════════════════════════════════════════════════════════════════
 
+class SessionLogViewIsolationTest(unittest.TestCase):
+    """只读视图不得让调用方穿过元素改到事实源。"""
+
+    def test_events_are_deep_copies(self) -> None:
+        log = SessionLog()
+        log.events.append(Event("probe", {
+            "nested": {"value": 1},
+            "items": [1],
+        }))
+        view = log.readonly()
+
+        snapshot = view.events
+        snapshot[0].data["nested"]["value"] = 2
+        snapshot[0].data["items"].append(2)
+        self.assertEqual(log.events[0].data["nested"]["value"], 1)
+        self.assertEqual(log.events[0].data["items"], [1])
+
+        view[0].data["nested"]["value"] = 3
+        next(iter(view)).data["nested"]["value"] = 4
+        self.assertEqual(log.events[0].data["nested"]["value"], 1)
+
 class CoreHarness(unittest.TestCase):
     """统一装配：真管道 + 脚本模型 + 事实日志。"""
 

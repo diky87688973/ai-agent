@@ -374,7 +374,7 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 | `plugins/visual_operator` | 四个工具（截屏 / 鼠标 / 键盘 / 等待）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时只报错不消失；见 [visual-operator.md](visual-operator.md) |
 | `plugins/ai_speak` | `ai_speak` 工具 + 两个只读端点 + 两个开屏脚本 + 两个事件订阅 | 后端合成、前端播放条；见 [ai-speak.md](ai-speak.md) |
 
-各插件的配置与行为写在各自的子系统文档里，本文只描述它们用到的扩展点。
+各插件的配置与行为写在各自的子系统文档里，这里只描述它们用到的扩展点。
 
 ## 边界
 

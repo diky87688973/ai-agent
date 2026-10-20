@@ -5,7 +5,7 @@ Skills 库、`skill_manage` 工具、以及它在上下文里的两段注入，�
 这个插件提供 —— 移除 `[plugin:skills]` 节后，这些能力一起消失，
 内核不受影响。
 
-插件怎么组织、扩展点怎么用见 [plugins.md](plugins.md)；本文只讲这个插件本身。
+插件怎么组织、扩展点怎么用见 [plugins.md](plugins.md)；这里只讲这个插件本身。
 
 ## 渐进式披露
 

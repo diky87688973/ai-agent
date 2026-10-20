@@ -1,6 +1,6 @@
 # 写盘门控：设计意图与当前链路
 
-本文记录写盘门控的真实行为与设计意图。权威实现在 `agent/mechanisms/quality/`（入口 `QualityGate` / `build_pipeline_gate`），提交结论工具见 `agent/capabilities/builtin/review_conclusion.py`。
+写盘门控的真实行为与设计意图如下。权威实现在 `agent/mechanisms/quality/`（入口 `QualityGate` / `build_pipeline_gate`），提交结论工具见 `agent/capabilities/builtin/review_conclusion.py`。
 
 相关代码：
 
