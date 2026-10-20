@@ -2,11 +2,10 @@
 
 ## 1. 背景与目标
 
-现有实现只有一条模型链路：
+核心模型链路：
 
-- `mechanisms/model_provider.py` 提供 `OpenAICompatibleProvider`，适配所有 OpenAI 兼容网关；
-- `config.ini` 的 `[model_reasoning]` 提供单个网关的 `api_base_url` / `api_key` /
-  `model` 与同网关下的可选模型名 `models`；
+- `mechanisms/model_provider.py` 提供各协议适配器；
+- 模型配置只由 `plugins/multi_model/plugin-config.ini` 提供；
 - 会话级模型选择落在 `live_state`，请求经 `LogicalRequest.model` 传给 provider。
 
 目标：
@@ -15,13 +14,12 @@
 2. 增加 Anthropic 原生 Messages API 适配，支持文本、工具调用、extended thinking。
 3. 模型配置由插件管理，结构对齐知识库插件：自己的配置文件、端点、界面资产。
 4. 界面提供模型下拉，切换后会话级持久化，并广播到同一会话的其它标签页与页头模型名。
-5. 插件停用或多模型条目为空时，回退到内核配置。
+5. 插件停用或多模型条目为空时，模型清单为空，不回退到内核配置。
 
 ## 2. 不变量
 
 1. 模型配置的唯一权威是 `plugins/multi_model/plugin-config.ini`。
-   只有该插件启用**且至少一条有效条目**时它才接管；否则回退
-   `config.ini [model_reasoning]`。
+   该插件启用且至少一条有效条目时提供模型；没有有效条目时清单为空。
 2. 凭据只留在服务端。任何 HTTP 响应都不下发 `api_key` 与 `base_url`。
 3. 依赖方向不变：`shell → capabilities → mechanisms → core`。
    插件在包外，只能向下依赖；`mechanisms` 与 `core` 永不 import 插件，
@@ -625,12 +623,10 @@ window.aiAgentShell.styles = {
 
 ### 11.4 设置页
 
-1. `model_config_state == "catalog"` 时，设置页的「模型」节整体隐藏；
-   插件开关切换后面板会重取宿主设置，关掉开关「模型」节即时回来，不必刷新页面。
-2. 非权威时保持现状，继续读写 `config.ini [model_reasoning]`。
-3. 模型条目由插件的 `settings-schema.json` 驱动结构化编辑（新增/删除/逐条改），
+1. 设置页不提供内核「模型」节；模型条目只由多模型插件表单维护。
+2. 模型条目由插件的 `settings-schema.json` 驱动结构化编辑（新增/删除/逐条改），
    保存时只替换 `[model:*]` 节，其它节逐字节保留。
-4. 隐藏只是界面收敛；保存接口仍然会拒绝越权写入并留痕（见 9.3）。
+3. 保存接口只写插件自己的节，不写内核配置。
 
 ## 12. 文件清单
 
@@ -704,8 +700,8 @@ router 的默认实例被替换。
 ### 13.2 集成与验收
 
 1. `/health` 与 `ui-state` 返回目录 ids，响应体不含 `api_key` 与 `base_url`。
-2. 插件停用后回退 `config.ini`，`/health.model_config.source` 随之变化。
-3. 两处都没有凭据时，`web.py` / `chat.py` 启动即失败并给出两处配置路径；
+2. 插件停用后模型清单为空，`/health.model_config.source` 变为 `none`。
+3. 没有有效模型时，`chat.py` 启动失败并提示配置 multi_model；
    `build_app` 本身仍可构造（测试与无模型场景）。
 4. 切换模型后页头模型名更新，同会话第二个标签页同步更新，且服务端只被写一次。
 5. 未配置的模型 id 在 `send` 与 `ui_state_put` 都被拒绝。
@@ -732,8 +728,7 @@ router 的默认实例被替换。
    需要改用 `aiAgentShell.models` 桥。
 6. Anthropic 的 `max_tokens` 必填且必须大于 thinking 预算；不满足时关闭 thinking。
 7. `effort`（High / Max）对 Anthropic 不生效；该差异写进插件配置注释。
-8. 目录权威时设置页隐藏模型节，`config.ini` 的模型配置被忽略但保留在磁盘上，
-   停用插件即恢复生效——这是回退路径，不是死配置。
+8. 设置页不提供内核模型节；模型只由多模型插件维护。
 9. 每次 `snapshot()` 都会重读插件配置。配置文件在 10k 会话规模下的读盘成本
    可忽略；条目数上千时再加 mtime 缓存，当前不提前优化。
 10. 插件开关后开屏脚本不重跑（`loadPluginScript` 按 URL 去重），

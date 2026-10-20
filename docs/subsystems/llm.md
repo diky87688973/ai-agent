@@ -126,4 +126,4 @@ class ModelProvider:
 
 - [architecture.md](../architecture.md)：端口与请求契约
 - [context.md](context.md)：messages 的组装
-- [guide/config.md](../guide/config.md)：`[model_reasoning]` 配置
+- [guide/config.md](../guide/config.md)：宿主配置

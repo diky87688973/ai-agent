@@ -933,9 +933,8 @@ class WebShell:
         """服务健康 + 顶栏所需的模型信息。"""
         provider = self.app.provider
         model = str(getattr(provider, "model", "") or "")
-        # 可选模型清单必须以装配面的清单为准（`config.ini` 的 `[model_reasoning] models`）：
-        # provider 可能不持有 `allowed_models` 属性，只回一个模型会让前端模型下拉只剩一项，
-        # 用户选其它模型还会被当非法拒掉。
+        # 可选模型清单以多模型插件目录为准；provider 可能不持有 `allowed_models`，
+        # 只回一个模型会让前端模型下拉只剩一项，用户选其它模型还会被当非法拒掉。
         source = str(getattr(self.app, "model_config_state", "") or "")
         allowed = self.available_models()
         if source != "none":
@@ -944,7 +943,7 @@ class WebShell:
                 if not allowed:
                     allowed = [model] if model else []
             # 无白名单清单时把当前模型作为唯一候选下发（前端据此渲染模型菜单）；
-            # 真正的多模型名单由装配面的配置提供。
+            # 真正的多模型名单由多模型插件目录提供。
             if not allowed and model:
                 allowed = [model]
         elif not allowed:

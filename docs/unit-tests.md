@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1628** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1617** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -31,7 +31,7 @@
 21. [test_conversation_queue.py](#test_conversation_queuepy)（6）
 22. [test_core.py](#test_corepy)（57）
 23. [test_edited_files.py](#test_edited_filespy)（1）
-24. [test_entry_layer.py](#test_entry_layerpy)（15）
+24. [test_entry_layer.py](#test_entry_layerpy)（13）
 25. [test_error_log.py](#test_error_logpy)（8）
 26. [test_event_bus.py](#test_event_buspy)（9）
 27. [test_fact_compat.py](#test_fact_compatpy)（4）
@@ -50,8 +50,8 @@
 40. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
 41. [test_mode_note.py](#test_mode_notepy)（12）
 42. [test_model_catalog.py](#test_model_catalogpy)（23）
-43. [test_model_provider.py](#test_model_providerpy)（41）
-44. [test_model_window.py](#test_model_windowpy)（9）
+43. [test_model_provider.py](#test_model_providerpy)（38）
+44. [test_model_window.py](#test_model_windowpy)（5）
 45. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（27）
 46. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
 47. [test_plugin_http.py](#test_plugin_httppy)（18）
@@ -70,7 +70,7 @@
 60. [test_session_seq.py](#test_session_seqpy)（23）
 61. [test_session_store.py](#test_session_storepy)（17）
 62. [test_session_tools.py](#test_session_toolspy)（17）
-63. [test_settings_panel.py](#test_settings_panelpy)（20）
+63. [test_settings_panel.py](#test_settings_panelpy)（18）
 64. [test_source_snapshot.py](#test_source_snapshotpy)（10）
 65. [test_task_tools.py](#test_task_toolspy)（27）
 66. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
@@ -875,25 +875,23 @@
 
 ## test_entry_layer.py
 
-共 15 个用例。
+共 13 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `BuildShellAppTest` | `test_default_data_root_is_used_when_omitted` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：default data root is used when omitted |
-| 2 | `BuildShellAppTest` | `test_given_provider_and_store_are_used` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：given provider and store are used |
-| 3 | `BuildShellAppTest` | `test_missing_config_starts_without_model` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：missing config starts without model |
-| 4 | `BuildShellAppTest` | `test_placeholder_key_also_starts_without_model` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：placeholder key also starts without model |
-| 5 | `BuildShellAppTest` | `test_provider_is_built_from_config` | 覆盖「`build_shell_app`：默认按配置建 provider；给了就原样用」：provider is built from config |
-| 6 | `CliEntryTest` | `test_builds_app_with_provider_from_config` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：builds app with provider from config |
-| 7 | `CliEntryTest` | `test_main_delegates_to_chat_main` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：main delegates to chat main |
-| 8 | `CliEntryTest` | `test_missing_config_returns_none` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：missing config returns none |
-| 9 | `HeadlessEntryTest` | `test_main_defaults_to_smoke_text` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main defaults to smoke text |
-| 10 | `HeadlessEntryTest` | `test_main_passes_first_argument_and_uses_factory` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main passes first argument and uses factory |
-| 11 | `HeadlessEntryTest` | `test_run_prints_one_line_per_event` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run prints one line per event |
-| 12 | `WebMainTest` | `test_args_are_forwarded_to_shell_serve` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：args are forwarded to shell serve |
-| 13 | `WebMainTest` | `test_empty_fs_root_passes_none` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：empty fs root passes none |
-| 14 | `WebMainTest` | `test_open_flag_uses_main_page_without_model` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：open flag uses main page without model |
-| 15 | `WebMainTest` | `test_unexpected_build_error_returns_2` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：unexpected build error returns 2 |
+| 1 | `BuildShellAppTest` | `test_default_data_root_is_used_when_omitted` | 覆盖「`build_shell_app`：默认交给多模型插件；显式 provider 原样使用」：default data root is used when omitted |
+| 2 | `BuildShellAppTest` | `test_default_starts_without_model` | 覆盖「`build_shell_app`：默认交给多模型插件；显式 provider 原样使用」：default starts without model |
+| 3 | `BuildShellAppTest` | `test_given_provider_and_store_are_used` | 覆盖「`build_shell_app`：默认交给多模型插件；显式 provider 原样使用」：given provider and store are used |
+| 4 | `BuildShellAppTest` | `test_repository_config_has_no_model_section` | 覆盖「`build_shell_app`：默认交给多模型插件；显式 provider 原样使用」：repository config has no model section |
+| 5 | `CliEntryTest` | `test_main_delegates_to_chat_main` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：main delegates to chat main |
+| 6 | `CliEntryTest` | `test_no_models_returns_none` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：no models returns none |
+| 7 | `HeadlessEntryTest` | `test_main_defaults_to_smoke_text` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main defaults to smoke text |
+| 8 | `HeadlessEntryTest` | `test_main_passes_first_argument_and_uses_factory` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main passes first argument and uses factory |
+| 9 | `HeadlessEntryTest` | `test_run_prints_one_line_per_event` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run prints one line per event |
+| 10 | `WebMainTest` | `test_args_are_forwarded_to_shell_serve` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：args are forwarded to shell serve |
+| 11 | `WebMainTest` | `test_empty_fs_root_passes_none` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：empty fs root passes none |
+| 12 | `WebMainTest` | `test_open_flag_uses_main_page_without_model` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：open flag uses main page without model |
+| 13 | `WebMainTest` | `test_unexpected_build_error_returns_2` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：unexpected build error returns 2 |
 
 ## test_error_log.py
 
@@ -1324,67 +1322,60 @@
 
 ## test_model_provider.py
 
-共 41 个用例。
+共 38 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `AppModelConfigTest` | `test_known_session_model_is_kept` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：known session model is kept |
-| 2 | `AppModelConfigTest` | `test_model_catalog_is_optional` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：model catalog is optional |
-| 3 | `AppModelConfigTest` | `test_model_config_reports_source_and_degrade` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：model config reports source and degrade |
+| 1 | `AppModelConfigTest` | `test_known_session_model_is_kept` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：known session model is kept |
+| 2 | `AppModelConfigTest` | `test_model_catalog_is_optional` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：model catalog is optional |
+| 3 | `AppModelConfigTest` | `test_model_config_reports_source_and_degrade` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：model config reports source and degrade |
 | 4 | `AppModelConfigTest` | `test_refresh_switches_catalog_on_and_off` | 插件装卸必须重算权威：目录接管时刷新路由，注销后回退且清空清单。 |
-| 5 | `AppModelConfigTest` | `test_reload_failure_returns_readable_note` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：reload failure returns readable note |
-| 6 | `AppModelConfigTest` | `test_reload_is_ignored_when_catalog_is_authoritative` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：reload is ignored when catalog is authoritative |
-| 7 | `AppModelConfigTest` | `test_reload_rebuilds_default_and_refreshes_models` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：reload rebuilds default and refreshes models |
-| 8 | `AppModelConfigTest` | `test_reload_without_credentials_marks_none` | 覆盖「装配层的模型设置入口：来源状态、回落与重建」：reload without credentials marks none |
-| 9 | `AppModelConfigTest` | `test_unknown_session_model_falls_back_to_default` | 旧标签页拿着已删除的模型 id 时，读取点收敛到默认值并写回。 |
-| 10 | `AvailableModelsWireTest` | `test_current_model_is_always_in_the_list` | `model` 必须在清单里，否则 UI 的白名单校验会丢弃它（顶栏永远"加载中"）。 |
-| 11 | `AvailableModelsWireTest` | `test_health_does_not_invent_a_model_in_degraded_state` | `none` 时不能拿 provider 的占位模型充数：那个 id 实际选不了。 |
-| 12 | `AvailableModelsWireTest` | `test_health_lists_all_configured_models` | 覆盖「`/health` 的 `allowed_models` 必须给出完整清单」：health lists all configured models |
-| 13 | `AvailableModelsWireTest` | `test_shell_health_also_lists_all_models` | 覆盖「`/health` 的 `allowed_models` 必须给出完整清单」：shell health also lists all models |
-| 14 | `CatalogAuthorityAtAssemblyTest` | `test_catalog_entries_become_the_model_list` | 覆盖「插件目录一旦权威，装配末尾就把模型清单与路由策略换成目录的」：catalog entries become the model list |
-| 15 | `ImagesAlwaysReachTheWireTest` | `test_image_block_survives_into_the_payload` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：image block survives into the payload |
-| 16 | `ImagesAlwaysReachTheWireTest` | `test_plain_text_message_is_untouched` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：plain text message is untouched |
-| 17 | `ReasonNotReplayedTest` | `test_cut_clears_the_content_but_keeps_the_key_for_tool_messages` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：cut clears the content but keeps the key for tool messages |
-| 18 | `ReasonNotReplayedTest` | `test_cut_none_keeps_everything` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：cut none keeps everything |
-| 19 | `ReasonNotReplayedTest` | `test_original_messages_are_not_mutated` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：original messages are not mutated |
-| 20 | `ReasonNotReplayedTest` | `test_plain_assistant_before_the_cut_drops_the_key` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：plain assistant before the cut drops the key |
-| 21 | `ReasonNotReplayedTest` | `test_provider_passes_the_boundary_and_defaults_to_stripping` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：provider passes the boundary and defaults to stripping |
-| 22 | `ReasonNotReplayedTest` | `test_tool_calls_survive_the_cut` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：tool calls survive the cut |
-| 23 | `ReasonNotReplayedTest` | `test_tool_message_without_reasoning_gets_an_empty_key` | 没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。 |
-| 24 | `RequestLevelModelTest` | `test_effort_still_reaches_the_wire` | 推理档位照常透传到请求载荷。 |
-| 25 | `RequestLevelModelTest` | `test_empty_request_model_falls_back_to_instance_default` | 空串 = 不指定 ⇒ 用实例默认模型，既有调用方行为不变。 |
-| 26 | `RequestLevelModelTest` | `test_local_model_check_is_per_requested_model` | 本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。 |
-| 27 | `RequestLevelModelTest` | `test_request_model_wins_over_instance_default` | 覆盖「A class whose instances are single test cases」：request model wins over instance default |
-| 28 | `RequestLevelModelTest` | `test_whitespace_is_treated_as_unspecified` | 覆盖「A class whose instances are single test cases」：whitespace is treated as unspecified |
-| 29 | `SessionModelSelectionTest` | `test_choice_survives_a_new_process` | 换一个 LiveState 实例（= 换进程）后选择仍在 —— 靠落盘，不靠内存。 |
-| 30 | `SessionModelSelectionTest` | `test_empty_clears_the_choice` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：empty clears the choice |
-| 31 | `SessionModelSelectionTest` | `test_read_only_is_never_used` | 只读会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。 |
-| 32 | `SessionModelSelectionTest` | `test_select_then_read_back` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：select then read back |
-| 33 | `SessionStateFileTest` | `test_closing_todo_does_not_wipe_the_model` | `close` 只清清单：写盘前必须读回其余分量，否则会覆盖模型。 |
-| 34 | `SessionStateFileTest` | `test_every_component_survives_a_new_process` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：every component survives a new process |
-| 35 | `SessionStateFileTest` | `test_file_nests_todo_and_keeps_state_flat` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：file nests todo and keeps state flat |
-| 36 | `SessionStateFileTest` | `test_stale_flat_file_is_ignored` | 只认嵌套结构：平铺把清单字段写在顶层的文件不算会话状态。 |
-| 37 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：model module marks turn start |
-| 38 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：port default keeps everything |
-| 39 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
-| 40 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
-| 41 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
+| 5 | `AppModelConfigTest` | `test_reload_is_ignored_when_catalog_is_authoritative` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：reload is ignored when catalog is authoritative |
+| 6 | `AppModelConfigTest` | `test_unknown_session_model_falls_back_to_default` | 旧标签页拿着已删除的模型 id 时，读取点收敛到默认值并写回。 |
+| 7 | `AvailableModelsWireTest` | `test_current_model_is_always_in_the_list` | `model` 必须在清单里，否则 UI 的白名单校验会丢弃它（顶栏永远"加载中"）。 |
+| 8 | `AvailableModelsWireTest` | `test_health_does_not_invent_a_model_in_degraded_state` | `none` 时不能拿 provider 的占位模型充数：那个 id 实际选不了。 |
+| 9 | `AvailableModelsWireTest` | `test_health_lists_all_configured_models` | 覆盖「`/health` 的 `allowed_models` 必须给出完整清单」：health lists all configured models |
+| 10 | `AvailableModelsWireTest` | `test_shell_health_also_lists_all_models` | 覆盖「`/health` 的 `allowed_models` 必须给出完整清单」：shell health also lists all models |
+| 11 | `CatalogAuthorityAtAssemblyTest` | `test_catalog_entries_become_the_model_list` | 覆盖「插件目录一旦权威，装配末尾就把模型清单与路由策略换成目录的」：catalog entries become the model list |
+| 12 | `ImagesAlwaysReachTheWireTest` | `test_image_block_survives_into_the_payload` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：image block survives into the payload |
+| 13 | `ImagesAlwaysReachTheWireTest` | `test_plain_text_message_is_untouched` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：plain text message is untouched |
+| 14 | `ReasonNotReplayedTest` | `test_cut_clears_the_content_but_keeps_the_key_for_tool_messages` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：cut clears the content but keeps the key for tool messages |
+| 15 | `ReasonNotReplayedTest` | `test_cut_none_keeps_everything` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：cut none keeps everything |
+| 16 | `ReasonNotReplayedTest` | `test_original_messages_are_not_mutated` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：original messages are not mutated |
+| 17 | `ReasonNotReplayedTest` | `test_plain_assistant_before_the_cut_drops_the_key` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：plain assistant before the cut drops the key |
+| 18 | `ReasonNotReplayedTest` | `test_provider_passes_the_boundary_and_defaults_to_stripping` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：provider passes the boundary and defaults to stripping |
+| 19 | `ReasonNotReplayedTest` | `test_tool_calls_survive_the_cut` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：tool calls survive the cut |
+| 20 | `ReasonNotReplayedTest` | `test_tool_message_without_reasoning_gets_an_empty_key` | 没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。 |
+| 21 | `RequestLevelModelTest` | `test_effort_still_reaches_the_wire` | 推理档位照常透传到请求载荷。 |
+| 22 | `RequestLevelModelTest` | `test_empty_request_model_falls_back_to_instance_default` | 空串 = 不指定 ⇒ 用实例默认模型，既有调用方行为不变。 |
+| 23 | `RequestLevelModelTest` | `test_local_model_check_is_per_requested_model` | 本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。 |
+| 24 | `RequestLevelModelTest` | `test_request_model_wins_over_instance_default` | 覆盖「A class whose instances are single test cases」：request model wins over instance default |
+| 25 | `RequestLevelModelTest` | `test_whitespace_is_treated_as_unspecified` | 覆盖「A class whose instances are single test cases」：whitespace is treated as unspecified |
+| 26 | `SessionModelSelectionTest` | `test_choice_survives_a_new_process` | 换一个 LiveState 实例（= 换进程）后选择仍在 —— 靠落盘，不靠内存。 |
+| 27 | `SessionModelSelectionTest` | `test_empty_clears_the_choice` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：empty clears the choice |
+| 28 | `SessionModelSelectionTest` | `test_read_only_is_never_used` | 只读会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。 |
+| 29 | `SessionModelSelectionTest` | `test_select_then_read_back` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：select then read back |
+| 30 | `SessionStateFileTest` | `test_closing_todo_does_not_wipe_the_model` | `close` 只清清单：写盘前必须读回其余分量，否则会覆盖模型。 |
+| 31 | `SessionStateFileTest` | `test_every_component_survives_a_new_process` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：every component survives a new process |
+| 32 | `SessionStateFileTest` | `test_file_nests_todo_and_keeps_state_flat` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：file nests todo and keeps state flat |
+| 33 | `SessionStateFileTest` | `test_stale_flat_file_is_ignored` | 只认嵌套结构：平铺把清单字段写在顶层的文件不算会话状态。 |
+| 34 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：model module marks turn start |
+| 35 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：port default keeps everything |
+| 36 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
+| 37 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
+| 38 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
 
 ## test_model_window.py
 
-共 9 个用例。
+共 5 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ConfigWindowTest` | `test_bad_value_falls_back_instead_of_raising` | 覆盖「A class whose instances are single test cases」：bad value falls back instead of raising |
-| 2 | `ConfigWindowTest` | `test_missing_value_falls_back_to_the_module_default` | 覆盖「A class whose instances are single test cases」：missing value falls back to the module default |
-| 3 | `ConfigWindowTest` | `test_reads_the_model_section` | 覆盖「A class whose instances are single test cases」：reads the model section |
-| 4 | `EntryWindowTest` | `test_bad_metadata_is_zero_not_an_exception` | 覆盖「A class whose instances are single test cases」：bad metadata is zero not an exception |
-| 5 | `EntryWindowTest` | `test_entry_exposes_the_window` | 覆盖「A class whose instances are single test cases」：entry exposes the window |
-| 6 | `_AppWindowTest` | `test_catalog_entry_window_wins` | 覆盖「A class whose instances are single test cases」：catalog entry window wins |
-| 7 | `_AppWindowTest` | `test_config_state_uses_the_configured_window` | 覆盖「A class whose instances are single test cases」：config state uses the configured window |
-| 8 | `_AppWindowTest` | `test_entry_without_window_uses_the_shared_default` | 覆盖「A class whose instances are single test cases」：entry without window uses the shared default |
-| 9 | `_AppWindowTest` | `test_stale_model_converges_to_the_default_window` | 会话还拿着已删除的模型 id：先收敛回默认，窗口跟着默认走。 |
+| 1 | `EntryWindowTest` | `test_bad_metadata_is_zero_not_an_exception` | 覆盖「A class whose instances are single test cases」：bad metadata is zero not an exception |
+| 2 | `EntryWindowTest` | `test_entry_exposes_the_window` | 覆盖「A class whose instances are single test cases」：entry exposes the window |
+| 3 | `_AppWindowTest` | `test_catalog_entry_window_wins` | 覆盖「A class whose instances are single test cases」：catalog entry window wins |
+| 4 | `_AppWindowTest` | `test_entry_without_window_uses_the_shared_default` | 覆盖「A class whose instances are single test cases」：entry without window uses the shared default |
+| 5 | `_AppWindowTest` | `test_stale_model_converges_to_the_default_window` | 会话还拿着已删除的模型 id：先收敛回默认，窗口跟着默认走。 |
 
 ## test_multi_model_plugin.py
 
@@ -1796,30 +1787,28 @@
 
 ## test_settings_panel.py
 
-共 20 个用例。
+共 18 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ApplyHostTest` | `test_apply_delegates_model_reload_and_updates_limits` | 覆盖「A class whose instances are single test cases」：apply delegates model reload and updates limits |
-| 2 | `ApplyHostTest` | `test_catalog_note_is_returned` | 覆盖「A class whose instances are single test cases」：catalog note is returned |
-| 3 | `IniEditTest` | `test_append_does_not_duplicate_a_section` | 覆盖「A class whose instances are single test cases」：append does not duplicate a section |
-| 4 | `IniEditTest` | `test_remove_section_leaves_commented_header` | 覆盖「A class whose instances are single test cases」：remove section leaves commented header |
-| 5 | `IniEditTest` | `test_update_keeps_comments_and_other_sections` | 覆盖「A class whose instances are single test cases」：update keeps comments and other sections |
-| 6 | `PluginSettingsTest` | `test_enable_and_disable_edit_the_manifest` | 覆盖「A class whose instances are single test cases」：enable and disable edit the manifest |
-| 7 | `PluginSettingsTest` | `test_fields_schema_creates_real_config_from_form` | 覆盖「A class whose instances are single test cases」：fields schema creates real config from form |
+| 1 | `ApplyHostTest` | `test_apply_updates_limits` | 覆盖「A class whose instances are single test cases」：apply updates limits |
+| 2 | `IniEditTest` | `test_append_does_not_duplicate_a_section` | 覆盖「A class whose instances are single test cases」：append does not duplicate a section |
+| 3 | `IniEditTest` | `test_remove_section_leaves_commented_header` | 覆盖「A class whose instances are single test cases」：remove section leaves commented header |
+| 4 | `IniEditTest` | `test_update_keeps_comments_and_other_sections` | 覆盖「A class whose instances are single test cases」：update keeps comments and other sections |
+| 5 | `PluginSettingsTest` | `test_enable_and_disable_edit_the_manifest` | 覆盖「A class whose instances are single test cases」：enable and disable edit the manifest |
+| 6 | `PluginSettingsTest` | `test_fields_schema_creates_real_config_from_form` | 覆盖「A class whose instances are single test cases」：fields schema creates real config from form |
+| 7 | `PluginSettingsTest` | `test_kernel_model_tab_is_absent` | 覆盖「A class whose instances are single test cases」：kernel model tab is absent |
 | 8 | `PluginSettingsTest` | `test_missing_plugin_config_returns_empty_editor` | 没有真实配置时返回空编辑器；不伪造示例、不落盘。 |
 | 9 | `PluginSettingsTest` | `test_missing_plugin_is_not_enabled` | 覆盖「A class whose instances are single test cases」：missing plugin is not enabled |
-| 10 | `PluginSettingsTest` | `test_multi_model_plugin_hides_kernel_model_tab` | 覆盖「A class whose instances are single test cases」：multi model plugin hides kernel model tab |
-| 11 | `PluginSettingsTest` | `test_plugin_config_roundtrip_rejects_a_bad_name` | 覆盖「A class whose instances are single test cases」：plugin config roundtrip rejects a bad name |
-| 12 | `PluginSettingsTest` | `test_unknown_route` | 覆盖「A class whose instances are single test cases」：unknown route |
-| 13 | `SaveHostTest` | `test_catalog_echoes_the_key_from_the_file` | 覆盖「A class whose instances are single test cases」：catalog echoes the key from the file |
-| 14 | `SaveHostTest` | `test_invalid_number_does_not_write` | 覆盖「A class whose instances are single test cases」：invalid number does not write |
-| 15 | `SaveHostTest` | `test_save_rewrites_the_key_and_keeps_the_comment` | 覆盖「A class whose instances are single test cases」：save rewrites the key and keeps the comment |
-| 16 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
-| 17 | `StructuredPluginConfigTest` | `test_new_model_group_gets_a_generated_id` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：new model group gets a generated id |
-| 18 | `StructuredPluginConfigTest` | `test_read_masks_the_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：read masks the secret |
-| 19 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
-| 20 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
+| 10 | `PluginSettingsTest` | `test_plugin_config_roundtrip_rejects_a_bad_name` | 覆盖「A class whose instances are single test cases」：plugin config roundtrip rejects a bad name |
+| 11 | `PluginSettingsTest` | `test_unknown_route` | 覆盖「A class whose instances are single test cases」：unknown route |
+| 12 | `SaveHostTest` | `test_invalid_number_does_not_write` | 覆盖「A class whose instances are single test cases」：invalid number does not write |
+| 13 | `SaveHostTest` | `test_save_rewrites_the_key_and_keeps_the_comment` | 覆盖「A class whose instances are single test cases」：save rewrites the key and keeps the comment |
+| 14 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
+| 15 | `StructuredPluginConfigTest` | `test_new_model_group_gets_a_generated_id` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：new model group gets a generated id |
+| 16 | `StructuredPluginConfigTest` | `test_read_masks_the_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：read masks the secret |
+| 17 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
+| 18 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
 
 ## test_source_snapshot.py
 

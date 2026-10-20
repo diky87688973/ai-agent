@@ -14,29 +14,17 @@ from pathlib import Path
 from typing import Any, Optional
 
 from agent.app import build_app
-from agent.config import default_data_root, get_context, get_model_reasoning
-from agent.mechanisms.model_provider import OpenAICompatibleProvider
+from agent.config import default_data_root
 from agent.mechanisms.session_store import SessionStore
 from agent.shell import chat
 
 
 def build_app_from_config() -> Optional[Any]:
-    """按 config.ini 装配 app；两处都没有可用模型时打印原因并返回 None（不抛）。"""
-    cfg = get_model_reasoning()
-    provider = None
-    if cfg["api_key"] and cfg["api_base_url"]:
-        provider = OpenAICompatibleProvider(
-            base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
-            # 与 Web 壳同一口径：历史轮次的思维链默认不回传。
-            replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
-        )
+    """装配 app；模型由 multi_model 插件提供，未配置时返回 None（不抛）。"""
     store = SessionStore(Path(default_data_root()))
-    app = build_app(provider=provider, store=store,
-                    config_ready=provider is not None)
+    app = build_app(provider=None, store=store)
     if app.model_config_state == "none":
-        print("未配置任何可用模型。请在以下任一处配置：")
-        print("  1. config.ini 的 [model_reasoning]（api_base_url / api_key / model）")
-        print("  2. plugins/multi_model/plugin-config.ini（至少一个 [model:<id>] 节）")
+        print("未配置任何可用模型。请在 plugins/multi_model/plugin-config.ini 中配置至少一个 [model:<id>] 节。")
         app.dispose()
         return None
     return app

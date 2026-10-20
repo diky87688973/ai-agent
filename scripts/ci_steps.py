@@ -16,7 +16,7 @@ Kind = Literal["gate", "unittest", "acceptance", "post"]
 SKIPPED = 2
 
 #: 允许 skip 的验收脚本白名单（仅缺凭据等预期跳过）。
-#: 其它验收一旦 skip / fail → CI 失败。mvp3 依赖真模型 config.ini，CI 无密钥故在名单内。
+#: 其它验收一旦 skip / fail → CI 失败。mvp3 需要显式启用真实模型验收，CI 默认跳过。
 ALLOWED_ACCEPTANCE_SKIPS = frozenset({"acceptance_mvp3"})
 
 #: 白名单长度上限（防名单膨胀时静默放宽）。与白名单分开设置：

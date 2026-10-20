@@ -46,7 +46,6 @@ from agent.config import (
     get_backup_retention_days,
     get_context,
     get_max_passes,
-    get_model_reasoning,
     get_plugins,
     get_reasoning_effort,
 )
@@ -92,7 +91,6 @@ from agent.mechanisms.live_state import LiveState
 from agent.mechanisms.mesh import MeshState
 from agent.mechanisms.model_provider import EchoProvider, MissingProvider
 from agent.mechanisms.prompt_tail import PromptTail
-from agent.mechanisms.provider_registry import build_provider
 from agent.mechanisms.provider_router import ProviderRouter
 from agent.mechanisms.quality import QualityGate, build_pipeline_gate
 from agent.shell.classic_adapter import ClassicAdapter
@@ -116,15 +114,13 @@ class App:
         image_turns: int = KEEP_IMAGE_TURNS,
         image_max: int = MAX_EMBED_IMAGES,
         max_passes: int = DEFAULT_MAX_PASSES,
-        config_context_window: int = DEFAULT_CONTEXT_WINDOW,
     ) -> None:
         self.context = context
         self.context_defaults = dict(context_defaults or {})
         #: 可选的模型 id 列表（装配时由配置注入；空 = 未配置，不做白名单校验）。
         #: 该字段只保存模型 id；凭据由 provider 持有，不下发到浏览器。
         self._available_models: list = []
-        #: 模型来源三态：catalog（插件目录权威）/ config（config.ini）/ none。
-        #: 装配末尾由 `build_app` 计算；`reload_model_config` 之后可能从 config 变 none。
+        #: 模型来源：catalog（插件目录权威）/ none；显式注入 provider 的测试装配为 config。
         self.model_config_state = "none"
         #: 只把最近这么多轮用户发言里的图带进请求（负数 = 不限）。
         #: 缺省 1 轮：截图体积大，历史全带会撞上游请求体上限。
@@ -133,9 +129,6 @@ class App:
         self.image_max = int(image_max)
         #: 一回合的模型往返上限（`[agent] max_passes`）。
         self.max_passes = max(1, int(max_passes))
-        #: 配置态模型的上下文窗口（`[model_reasoning] context_window`）。
-        #: 目录态按条目自带的窗口走；这里只作为回退。
-        self.config_context_window = max(0, int(config_context_window or 0))
 
     # ── 服务解析（进程级上下文）──
 
@@ -168,7 +161,7 @@ class App:
         try:
             return snapshot()
         except Exception as exc:
-            # 快照失败不能把整条请求链路带崩：目录是增强项，配置态仍可用。
+            # 快照失败不能把整条请求链路带崩：按无模型处理，下一轮重读。
             report_error("app.model_catalog", exc)
             return None
 
@@ -213,8 +206,7 @@ class App:
         """会话当前所用模型的上下文窗口（token）。
 
         窗口是模型的物理上限，同一份配置下换模型就该换分母：
-        目录态取条目自带的 `context_window`，配置态取
-        `[model_reasoning] context_window`。都拿不到时给 0，
+        目录取条目自带的 `context_window`。拿不到时给 0，
         界面退回用压缩阈值当分母（并标明口径），不编一个假窗口。
         """
         snapshot = self._catalog_snapshot()
@@ -222,27 +214,16 @@ class App:
             entry = snapshot.entry(self.model_for(conversation_id))
             if entry is not None:
                 return entry.context_window or DEFAULT_CONTEXT_WINDOW
-            return 0
-        return int(self.config_context_window or 0)
+        return 0
 
     def reload_model_config(self, config_path: Optional[Path] = None) -> str:
-        """设置页保存后的唯一入口：重建默认 provider 并刷新清单。
-
-        目录权威时不动配置（`config.ini` 模型节忽略但保留）；返回空串
-        表示成功，非空是给界面看的说明（不进异常路径）。
-        """
+        """兼容设置页旧入口：模型只由多模型插件维护。"""
         if self.model_config_state == "catalog":
-            note = "目录权威，忽略 config.ini 模型设置"
-            print(f"[app] {note}", file=sys.stderr, flush=True)
-            return note
-        return self._reload_config_model(config_path)
+            return "模型目录权威，配置由多模型插件维护"
+        return "模型由多模型插件维护"
 
     def refresh_model_config(self, config_path: Optional[Path] = None) -> str:
-        """插件装卸后重算权威来源：目录接管则刷新路由，否则回退 config.ini。
-
-        必须先看快照：插件停用后状态仍是 `catalog`，只看状态会把请求
-        继续路由到已注销的条目。
-        """
+        """插件装卸后重算权威来源：目录接管则刷新路由，否则清空模型。"""
         snapshot = self._catalog_snapshot()
         if snapshot is not None and snapshot.authoritative:
             self.model_config_state = "catalog"
@@ -250,40 +231,13 @@ class App:
             self.live_state.default_model = snapshot.default_id
             self._reload_policy(self._available_models, snapshot.default_id, False)
             return ""
-        return self._reload_config_model(config_path)
+        return self._mark_model_config_none()
 
     def _reload_policy(self, allowed_ids: Any, default_id: str, fallback: bool) -> None:
         policy = getattr(self.provider, "reload_policy", None)
         if callable(policy):
             policy(allowed_ids=list(allowed_ids),
                    default_id=default_id, fallback_to_default=fallback)
-
-    def _reload_config_model(self, config_path: Optional[Path] = None) -> str:
-        cfg = get_model_reasoning(config_path)
-        if not cfg["api_key"] or not cfg["api_base_url"]:
-            return self._mark_model_config_none()
-        try:
-            provider = build_provider("openai", {
-                "base_url": cfg["api_base_url"],
-                "api_key": cfg["api_key"],
-                "model": cfg["model"],
-                "replay_history_reasoning": bool(
-                    get_context(config_path).get("replay_history_reasoning")),
-            })
-        except Exception as exc:
-            report_error("app.model_reload", exc)
-            return f"重建模型失败：{type(exc).__name__}: {exc}"
-        reloader = getattr(self.provider, "reload_default", None)
-        if callable(reloader):
-            reloader(provider)
-        models = [str(m).strip() for m in (cfg.get("models") or []) if str(m).strip()]
-        default_model = str(cfg.get("model") or "")
-        self._available_models = models or ([default_model] if default_model else [])
-        self.live_state.default_model = default_model
-        self.config_context_window = int(cfg.get("context_window") or 0)
-        self._reload_policy(self._available_models, default_model, True)
-        self.model_config_state = "config"
-        return ""
 
     def _mark_model_config_none(self) -> str:
         self.model_config_state = "none"
@@ -293,7 +247,7 @@ class App:
         if callable(reloader):
             reloader(MissingProvider())
         self._reload_policy((), "", False)
-        return "缺少配置：config.ini 的 [model_reasoning]（api_base_url / api_key / model）"
+        return "未配置可用模型：请在 multi_model 插件中配置至少一个模型"
 
     @property
     def registry(self) -> ToolRegistry:
@@ -569,7 +523,7 @@ def build_app(
     plugins_dir：插件根目录；默认 PROJECT_ROOT/plugins。装载哪些取工程根 plugins.ini 清单。
     plugins_path：插件清单文件；默认工程根 plugins.ini。给一个不存在的路径即"不装插件"（验收脚本与测试用它排除环境里的开发配置）。
     compactor_factory：上下文压缩器工厂；默认为对话提供 provider 摘要 + config [context] 阈值。
-    config_ready：`config.ini` 是否已有可用凭据；None = 由本函数读取配置判定。"""
+    config_ready：是否有显式注入的可用 provider；None = 由 provider 参数判定。"""
     # 默认数据根：认 `AI_AGENT_DATA_ROOT`（只给测试/CI 的落盘隔离口）——
     # 见 `config.default_data_root` 的说明。
     data_root = default_data_root()
@@ -590,20 +544,12 @@ def build_app(
                       f"保留期 {_retention_days} 天）", file=sys.stderr, flush=True)
         except Exception as exc:
             report_error("core.backup_prune", exc)
-    model_cfg = get_model_reasoning()
-    # 多模型：`[model_reasoning] models` 是同一个网关下的可选模型名，
-    # 逗号分隔；未配置时清单只有当前模型（单模型部署照常工作）。
-    # 只支持"同网关多模型"：provider 实例绑定一个 base_url / key，
-    # 而模型名是请求级的 —— 换网关需要按 id 建多个 provider。
-    # `get_model_reasoning` 已经把 `models` 解析成列表；这里只做去空与去重，
-    # 它已是列表；再 `str()` 会得到 "['a', 'b']" 这一类字面量，随后按逗号切开就是一堆带引号的碎片。
-    _cfg_models = [str(m).strip() for m in (model_cfg.get("models") or []) if str(m).strip()]
-    _default_model = str(model_cfg.get("model") or "")
-    _available = _cfg_models or ([_default_model] if _default_model else [])
+    _available: list = []
+    _default_model = ""
     state = live_state if live_state is not None else LiveState(
         storage_dir=data_root / "session_state",
         default_effort=get_reasoning_effort(),
-        default_model=_default_model,
+        default_model="",
     )
     if mesh is None:
         conversation_queue = ConversationQueue(data_root / "queues")
@@ -708,14 +654,14 @@ def build_app(
     )
     provider_inst = provider if provider is not None else EchoProvider()
     # 路由从一开始就是 SERVICE_PROVIDER：内核只见一个 provider。
-    # 非权威阶段 `fallback_to_default=True`（config.ini 的 models 由同一个网关服务）；
     # 插件装载完成后按目录权威性刷新策略（见下方 `reload_policy`）。
+    # 没有目录条目时路由不允许回落到默认实例。
     router = ProviderRouter(
         default=provider_inst,
         resolve=model_catalog.provider_for,
         allowed_ids=_available,
         default_id=_default_model,
-        fallback_to_default=True,
+        fallback_to_default=False,
     )
     ctx_cfg = get_context()
     if context_factory is None:
@@ -793,15 +739,13 @@ def build_app(
         image_turns=int(ctx_cfg["image_turns"]),
         image_max=int(ctx_cfg["image_max"]),
         max_passes=get_max_passes(),
-        config_context_window=int(model_cfg.get("context_window") or 0),
     )
     app._available_models = list(_available)
     app._error_unbind = _unbind_error
     # 显式传入 provider 的装配（测试替身 / 自定义入口）本身就有模型可用；
-    # 只有调用方明确声明 config_ready=False 时才进入设置向导。
+    # 只有显式注入且不是 MissingProvider 的装配才直接标记为可用。
     if config_ready is None:
-        _config_ready = bool(provider is not None) or bool(
-            model_cfg["api_key"] and model_cfg["api_base_url"])
+        _config_ready = bool(provider is not None) and not isinstance(provider, MissingProvider)
     else:
         _config_ready = bool(config_ready)
     app.model_config_state = "config" if _config_ready else "none"
@@ -840,17 +784,17 @@ def build_app(
             fallback_to_default=False,
         )
     elif app.model_config_state == "config":
-        # 非权威：回退 config.ini 的模型名清单，由同一个默认网关服务。
+        # 显式注入 provider 的测试/自定义装配：没有目录条目，保留默认 provider。
         app._available_models = list(_available)
         state.default_model = _default_model
         router.reload_policy(
             allowed_ids=app._available_models,
             default_id=_default_model,
-            fallback_to_default=True,
+            fallback_to_default=False,
         )
     else:
-        # 两处都没有可用模型：清单必须为空（`/health.allowed_models` 不能报出选不了的 id）。
+        # 没有目录条目：清单为空，不能报出选不了的 id。
         app._available_models = []
         state.default_model = ""
-        router.reload_policy(allowed_ids=[], default_id="", fallback_to_default=True)
+        router.reload_policy(allowed_ids=[], default_id="", fallback_to_default=False)
     return app

@@ -1,31 +1,8 @@
 # 配置
 
-配置文件是仓库根目录的 `config.ini`，只保留真实文件，不提供样例；文件不存在时使用代码默认值。`config.ini` 不入版本库（见 `.gitignore`）。缺省值与全部键见下。
+配置文件是仓库根目录的 `config.ini`，随仓库入库，只保留非敏感的宿主配置；文件不存在时使用代码默认值。模型不在此文件配置，由 `plugins/multi_model/plugin-config.ini` 和多模型设置页维护。缺省值与全部键见下。
 
 插件清单是另一份文件 `plugins.ini`（工程根），它**入库**——里面没有密钥，列的是装载哪些插件。见 [插件](../subsystems/plugins.md)。
-
-## `[model_reasoning]`
-
-模型网关。`api_base_url` / `api_key` / `model` 均不预置；缺任一项时服务仍会启动，主页面保留，模型下拉为空；从设置页保存后当前进程立即重建 provider。
-
-```ini
-[model_reasoning]
-api_base_url =
-api_key      =
-model        =
-models       =
-context_window =
-```
-
-| 键 | 内置缺省 | 含义 |
-|---|---|---|
-| `api_base_url` | 空 | 网关地址。留空时服务照常启动，模型下拉为空。地址推导见 [llm.md](../subsystems/llm.md) |
-| `api_key` | 空 | 鉴权密钥。留空时服务照常启动，模型下拉为空。设置页只回是否已填写，不回明文；密码框留空不改这一项，填了新值才替换 |
-| `model` | 空 | 模型名 |
-| `models` | 空 | 会话内可选的模型名，逗号分隔。留空则只能用 `model` |
-| `context_window` | 空 | 该模型的上下文窗口（token）。界面按它算"上下文占用率"；**物理上限**，与 `[context]` 的压缩阈值（预算）不是一回事。换模型时一起改；多模型由插件按条目各自声明 |
-
-接口需兼容 Chat Completions 请求格式。
 
 ## `[agent]`
 

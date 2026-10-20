@@ -38,18 +38,13 @@ python3 -m agent.entry.web --host 127.0.0.1 --port 8765 --open
 
 ## 配置
 
-配置文件为仓库根目录的 `config.ini`，只保留真实配置，不提供样例文件。没有密钥也能启动；设置页保存后当前进程立即重建模型 provider，不需要重启。模型也可以完全由 `plugins/multi_model/plugin-config.ini` 提供。
+配置文件为仓库根目录的 `config.ini`，随仓库入库，只保留非敏感的宿主配置。模型不在此文件配置，全部由 `plugins/multi_model/plugin-config.ini` 和多模型设置页维护；没有模型时服务仍能启动，主页面模型下拉为空。
 
 装载哪些插件由仓库根目录的 `plugins.ini` 决定（节在就进入候选）。开关写在 `plugins.ini` 的插件节；名字、描述、图标、版本由 `plugin-meta.json` 声明。插件自己的键在 `[config]`，见 [插件](docs/subsystems/plugins.md)。
 
 页面右上角「设置」改的是同一批文件。密钥框留空不覆盖，接口也不回明文。
 
 ```ini
-[model_reasoning]
-api_base_url =
-api_key      =
-model        =
-
 [agent]
 reasoning_effort = max       # 全局推理档位：max（深度推理）/ high（标准推理）
 backup_retention_days = 7    # 版本化备份保留天数；0 = 永久保留
@@ -114,7 +109,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1628 个用例）：
+单元测试（1617 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

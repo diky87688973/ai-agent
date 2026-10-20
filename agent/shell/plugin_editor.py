@@ -19,7 +19,6 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from agent.config import is_placeholder_api_key
 from agent.shell.ini_sections import (
     append_section,
     newline,
@@ -35,6 +34,15 @@ KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_-]+)(\s*=\s*)(.*)$")
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 SECTION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_:-]*")
 _FIELD_KINDS = ("text", "secret", "number", "bool", "enum")
+_PLACEHOLDER_API_KEYS = (
+    "请替换", "your-api-key", "your_api_key", "sk-xxx", "changeme", "placeholder",
+)
+
+
+def is_placeholder_api_key(value: object) -> bool:
+    """占位密钥不算已配置；插件表单只据此决定是否显示“已设置”。"""
+    text = str(value or "").strip().strip("'\"").lower()
+    return any(marker in text for marker in _PLACEHOLDER_API_KEYS)
 
 
 def _parse_fields(raw_fields: Any) -> List[Dict[str, Any]]:

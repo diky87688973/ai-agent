@@ -14,13 +14,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from agent.app import App, build_app
-from agent.config import (
-    default_data_root,
-    get_context,
-    get_model_reasoning,
-    is_placeholder_api_key,
-)
-from agent.mechanisms.model_provider import MissingProvider, OpenAICompatibleProvider
+from agent.config import default_data_root
+from agent.mechanisms.model_provider import MissingProvider
 from agent.mechanisms.session_store import SessionStore
 from agent.shell.fspaths import FS_ROOT_ENV
 from agent.shell.web import serve
@@ -33,26 +28,13 @@ def build_shell_app(
     store: Any = None,
     data_root: Optional[Path] = None,
 ) -> App:
-    """装配供 Web 壳使用的底座：默认真实 provider（按 config）+ 会话存储。
-
-    没有 `config.ini` 凭据时以 `MissingProvider` 启动，页面进入设置向导；
-    插件模型可以在启动后接管，不需要先有内核密钥。
-    """
+    """装配供 Web 壳使用的底座：默认没有模型，交给多模型插件接管。"""
     given_provider = provider is not None
     if provider is None:
-        cfg = get_model_reasoning()
-        if (cfg["api_key"] and cfg["api_base_url"]
-                and not is_placeholder_api_key(cfg["api_key"])):
-            provider = OpenAICompatibleProvider(
-                base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"],
-                replay_history_reasoning=bool(get_context().get("replay_history_reasoning")),
-            )
-        else:
-            provider = MissingProvider()
+        provider = MissingProvider()
     if store is None:
         store = SessionStore(Path(data_root) if data_root else default_data_root())
-    config_ready = given_provider and not isinstance(provider, MissingProvider)
-    return build_app(provider=provider, store=store, config_ready=config_ready)
+    return build_app(provider=provider, store=store, config_ready=given_provider)
 
 
 def main(argv: Optional[list] = None) -> int:

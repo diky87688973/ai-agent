@@ -6,14 +6,12 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 from agent.shell.settings_panel import (
     append_ini_section,
     apply_host,
     handle_get,
     handle_post,
-    host_catalog,
     list_plugins,
     read_plugin_config,
     remove_ini_section,
@@ -150,74 +148,11 @@ class SaveHostTest(unittest.TestCase):
             self.assertIn("max_passes = 6\n", text)
             self.assertIn("display_tool_steps = 1\n", web.read_text(encoding="utf-8"))
 
-    def test_catalog_echoes_the_key_from_the_file(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            config = Path(tmp) / "config.ini"
-            web = Path(tmp) / "web-ui-config.ini"
-            config.write_text(
-                "[model_reasoning]\napi_key = unit-test-key\nmodel = demo\n",
-                encoding="utf-8",
-            )
-            web.write_text("", encoding="utf-8")
-            catalog = host_catalog(config, web)
-            self.assertIn("model_reasoning", [s["id"] for s in catalog["sections"]])
-            hidden = host_catalog(config, web, hide_model=True)
-            self.assertNotIn("model_reasoning", [s["id"] for s in hidden["sections"]])
-            dumped = str(catalog)
-            self.assertNotIn("unit-test-key", dumped)
-            model = next(sec for sec in catalog["sections"] if sec["id"] == "model_reasoning")
-            key = next(field for field in model["fields"] if field["key"] == "api_key")
-            self.assertEqual(key["kind"], "secret")
-            self.assertEqual(key["value"], "")
-            self.assertTrue(key["configured"])
-            self.assertEqual(key["placeholder"], "已设置秘钥,可重新设置并替换")
-            config.write_text("[model_reasoning]\nmodel = demo\n", encoding="utf-8")
-            bare = host_catalog(config, web)
-            bare_key = next(
-                field for field in next(
-                    sec["fields"] for sec in bare["sections"] if sec["id"] == "model_reasoning"
-                ) if field["key"] == "api_key"
-            )
-            self.assertFalse(bare_key["configured"])
-            self.assertEqual(bare_key["placeholder"], "示例: sk-...")
-            kept = save_host(
-                {"model_reasoning": {"api_key": "", "model": "other"}},
-                config_path=config,
-                web_ui_path=web,
-            )
-            self.assertTrue(kept["ok"])
-            config.write_text(
-                "[model_reasoning]\napi_key = unit-test-key\nmodel = demo\n",
-                encoding="utf-8",
-            )
-            kept = save_host(
-                {"model_reasoning": {"api_key": "  ", "model": "other"}},
-                config_path=config,
-                web_ui_path=web,
-            )
-            self.assertTrue(kept["ok"])
-            text = config.read_text(encoding="utf-8")
-            self.assertIn("api_key = unit-test-key\n", text)
-            self.assertIn("model = other\n", text)
-            replaced = save_host(
-                {"model_reasoning": {"api_key": "unit-test-new"}},
-                config_path=config,
-                web_ui_path=web,
-            )
-            self.assertTrue(replaced["ok"])
-            self.assertIn("api_key = unit-test-new\n", config.read_text(encoding="utf-8"))
-
-
 class ApplyHostTest(unittest.TestCase):
-    def test_apply_delegates_model_reload_and_updates_limits(self) -> None:
+    def test_apply_updates_limits(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp) / "config.ini"
             config.write_text(
-                "[model_reasoning]\n"
-                "api_base_url = http://example.test/v1\n"
-                "api_key = unit-test-key\n"
-                "model = demo-model\n"
-                "models = demo-model, other\n"
                 "[agent]\n"
                 "reasoning_effort = high\n"
                 "max_passes = 3\n"
@@ -229,35 +164,12 @@ class ApplyHostTest(unittest.TestCase):
                 encoding="utf-8",
             )
             app = _App()
-            seen = {}
-
-            def reload(config_path=None):
-                seen["path"] = Path(config_path)
-                return ""
-
-            app.reload_model_config = reload
             self.assertEqual(apply_host(app, config_path=config), {})
-            self.assertEqual(seen["path"], config)
-            # 网关与模型清单只能由 reload 重建，设置页不得直接改
-            self.assertEqual(app.provider.base_url, "")
-            self.assertEqual(app.provider.model, "")
-            self.assertEqual(app._available_models, [])
             self.assertEqual(app.live_state.default_effort, "high")
             self.assertEqual(app.max_passes, 3)
             self.assertEqual(app.image_turns, 4)
             self.assertEqual(app.image_max, 2)
             self.assertEqual(app.context_defaults["full_user_rounds"], 2)
-
-    def test_catalog_note_is_returned(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            config = Path(tmp) / "config.ini"
-            config.write_text("[model_reasoning]\nmodel = x\n", encoding="utf-8")
-            app = _App()
-            app.reload_model_config = lambda config_path=None: "目录权威，忽略配置"
-            self.assertEqual(
-                apply_host(app, config_path=config),
-                {"note": "目录权威，忽略配置"},
-            )
 
 
 class PluginSettingsTest(unittest.TestCase):
@@ -392,14 +304,8 @@ class PluginSettingsTest(unittest.TestCase):
             self.assertFalse(bad["ok"])
             self.assertIn("整数", bad["error"])
 
-    def test_multi_model_plugin_hides_kernel_model_tab(self) -> None:
-        class _Host:
-            @staticmethod
-            def loaded_names():
-                return ["multi_model"]
-
-        app = SimpleNamespace(model_config_state="none", plugin_host=_Host())
-        status, payload = handle_get("/api/settings", {}, app)
+    def test_kernel_model_tab_is_absent(self) -> None:
+        status, payload = handle_get("/api/settings", {}, None)
         self.assertEqual(status, 200)
         self.assertNotIn("model_reasoning", [item["id"] for item in payload["sections"]])
 

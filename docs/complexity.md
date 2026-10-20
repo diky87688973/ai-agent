@@ -9,19 +9,18 @@
 |---|---|---|---|
 | `agent/mechanisms/context_pipeline.py` | 1186 | 67 | 拼装、分段统计与缓存版本共用同一状态机；待拆 segments 与 cache 子模块。承担者：架构维护 |
 | `agent/shell/classic_adapter/inbound.py` | 1110 | 49 | HTTP 事件投影与折叠规则同文件；折叠外移到 history_page 后净减。承担者：壳层维护 |
-| `agent/shell/web_api.py` | 1003 | 44 | SSE 连接表、会话运行表、附件与设置读取同文件；待拆 sse 与 attachments。承担者：壳层维护 |
+| `agent/shell/web_api.py` | 1002 | 44 | SSE 连接表、会话运行表、附件与设置读取同文件；待拆 sse 与 attachments。承担者：壳层维护 |
 | `agent/mechanisms/session_store.py` | 936 | 39 | 事件日志读写、行索引与压缩同文件；待拆索引层。承担者：机制维护 |
-| `agent/app.py` | 856 | 38 | 装配顺序、会话生命周期与模型解析共用同一份状态；拆分要先抽 AppState。承担者：内核维护 |
 
 ## 超阈值函数
 
 | 文件::函数 | 行数 | 保留理由 |
 |---|---|---|
-| `agent/app.py::build_app` | 310 | 装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处 |
+| `agent/app.py::build_app` | 300 | 装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处 |
 | `agent/shell/classic_adapter/inbound.py::_history_items` | 164 | 历史投影边界条件集中一处；折叠外移后回收 |
 | `scripts/check_ui_js.py::main` | 162 | 扫描与报告同流程；待拆扫描/报告两段 |
 | `agent/core/modules/model_mod.py::ModelModule.execute` | 160 | 模块执行四步同函数；待抽执行协议对象 |
-| `scripts/acceptance_mvp3.py::main` | 159 | 验收脚本按线性步骤写，拆函数会切断断言与步骤的对应 |
+| `scripts/acceptance_mvp3.py::main` | 155 | 验收脚本按线性步骤写，拆函数会切断断言与步骤的对应 |
 | `agent/shell/web_routes.py::_Handler.do_GET` | 150 | 路由分派按前缀线性展开；待拆路由表 + 处理器 |
 | `agent/mechanisms/session_store.py::SessionStore._write_rows` | 139 | 行写入与截断/刷新策略同函数；待拆写入器 |
 | `agent/capabilities/builtin/geo_weather_tools.py::OpenMeteoWeatherTool._run_core` | 134 | 参数清洗、调用与错误映射同函数 |
@@ -49,4 +48,4 @@
 
 - 目录：`agent/`、`scripts/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 149 个、函数 1586 个；超阈值文件 5 个、函数 27 个。
+- 文件 149 个、函数 1583 个；超阈值文件 4 个、函数 27 个。

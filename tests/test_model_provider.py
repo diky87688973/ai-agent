@@ -251,11 +251,7 @@ class SessionStateFileTest(unittest.TestCase):
                          msg="顶层 model 仍是合法键，只有清单必须嵌套")
 
 class AppModelConfigTest(unittest.TestCase):
-    """装配层的模型设置入口：来源状态、回落与重建。
-
-    设置页只经 `App.reload_model_config` 改模型；这些用例守住三件事：
-    目录权威时不改配置、重建成功要刷新路由与清单、失败要返回可读说明而不是抛。
-    """
+    """装配层的模型来源状态：目录接管、回落与清空。"""
 
     def setUp(self) -> None:
         import tempfile
@@ -327,12 +323,6 @@ class AppModelConfigTest(unittest.TestCase):
         self.assertIn("目录权威", note)
         self.assertEqual(app.model_config_state, "catalog")
 
-    def test_reload_without_credentials_marks_none(self) -> None:
-        app, _state, _router = self._app()
-        note = app.reload_model_config(config_path=self.dir / "missing.ini")
-        self.assertIn("缺少配置", note)
-        self.assertEqual(app.model_config_state, "none")
-
     def test_refresh_switches_catalog_on_and_off(self) -> None:
         """插件装卸必须重算权威：目录接管时刷新路由，注销后回退且清空清单。"""
         from agent.capabilities.model_catalog import ModelCatalog, ModelEntry
@@ -354,48 +344,11 @@ class AppModelConfigTest(unittest.TestCase):
             "fallback_to_default": False})
         drop()
         note = app.refresh_model_config(config_path=self.dir / "missing.ini")
-        self.assertIn("缺少配置", note)
+        self.assertIn("未配置可用模型", note)
         self.assertEqual(app.model_config_state, "none")
         self.assertEqual(app.available_models(), [])
         self.assertEqual(router.policy, {
             "allowed_ids": [], "default_id": "", "fallback_to_default": False})
-
-    def test_reload_rebuilds_default_and_refreshes_models(self) -> None:
-        app, state, router = self._app()
-        cfg = self.dir / "config.ini"
-        cfg.write_text(
-            "[model_reasoning]\n"
-            "api_base_url = https://example.invalid/v1\n"
-            "api_key = secret\n"
-            "model = m1\n"
-            "models = m1, m2\n",
-            encoding="utf-8",
-        )
-        self.assertEqual(app.reload_model_config(config_path=cfg), "")
-        self.assertEqual(app.model_config_state, "config")
-        self.assertEqual(app.available_models(), ["m1", "m2"])
-        self.assertEqual(state.default_model, "m1")
-        self.assertIsNotNone(router.provider,
-                             msg="重建后的 provider 必须装回路由器")
-        self.assertEqual(router.policy, {
-            "allowed_ids": ["m1", "m2"], "default_id": "m1",
-            "fallback_to_default": True})
-
-    def test_reload_failure_returns_readable_note(self) -> None:
-        from unittest import mock
-
-        app, _state, _router = self._app()
-        cfg = self.dir / "config.ini"
-        cfg.write_text(
-            "[model_reasoning]\napi_base_url = https://example.invalid/v1\n"
-            "api_key = secret\nmodel = m1\n",
-            encoding="utf-8",
-        )
-        with mock.patch("agent.app.build_provider", side_effect=RuntimeError("bad")):
-            note = app.reload_model_config(config_path=cfg)
-        self.assertIn("重建模型失败", note)
-        self.assertIn("RuntimeError", note)
-
 
 class _RecordingRouter:
     """记录 reload 调用；不真正建 provider（重建逻辑由 provider_registry 测）。"""

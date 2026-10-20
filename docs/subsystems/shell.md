@@ -22,8 +22,7 @@
 适配层原样转发（字段名见 `classic_adapter/contract.py` 的 `SSE_USAGE_FIELDS`），
 界面显示的命中率就是"命中 / (命中 + 未命中)"这两个官方值之比 —— 不掺任何估算。
 
-**上下文占用率的分母是模型窗口**（配置态读 `[model_reasoning] context_window`，
-目录态读模型条目的 `context_window`；内核随 `context_layout` 一起下发
+**上下文占用率的分母是模型窗口**（读模型条目的 `context_window`；内核随 `context_layout` 一起下发
 `model_max_context_tokens`），不是压缩阈值：阈值是"留多少余量触发压缩"的预算，
 窗口是物理上限，两者混用会让人以为"还剩 75%"。窗口跟着**会话当前模型**走，
 换模型后下一回合的分母就换。
@@ -108,11 +107,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 `[config]` 的正文，节头不露出。密钥字段在结构化表单里同样只回显"是否已配置"，
 留空表示沿用原值。
 
-保存模型相关设置时，`apply_host()` 只调 `app.reload_model_config()`：重建默认 provider、
-刷新可选清单与会话默认模型，不在设置页直接改 provider 属性（路由包装后那三个属性
-并不存在，直接改会静默失效）。模型目录权威时，`GET /api/settings` 隐藏「模型」节
-并返回 `reload_note`；保存接口仍会拒绝越权写入。`config.ini` 的模型配置保留在磁盘上，
-停用插件即恢复生效。
+模型配置只由多模型插件维护；宿主设置页不提供内核模型节，也不写模型凭据。
+插件目录变化时由插件宿主刷新模型路由与清单。
 
 ## SSE 事件流
 

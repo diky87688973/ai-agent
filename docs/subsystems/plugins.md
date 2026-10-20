@@ -357,8 +357,7 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 `ModelEntry`（id / label / provider / base_url / api_key / model / options / default），
 内核按请求里的 id 取对应实例，未命中时回落到目录默认条目。
 
-目录只有存在有效条目时才成为权威；权威成立后，`config.ini` 的 `[model_reasoning]`
-不再参与路由。条目构造、去重与校验由插件负责，内核只消费快照。
+目录是模型路由的唯一来源；没有有效条目时模型清单为空。条目构造、去重与校验由插件负责，内核只消费快照。
 
 `multi_model` 是该扩展点的实现，配置与行为见 [multi-model.md](multi-model.md)。
 

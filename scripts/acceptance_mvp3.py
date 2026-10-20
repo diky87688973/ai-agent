@@ -6,11 +6,13 @@
 检查项：① 文件产出正确；② 预览发生且确认生效；③ 提交成功且完成重读；
 ④ 对话收束无 error；⑤ 事件落盘且可重载。
 运行：python scripts/acceptance_mvp3.py
-前置：工程根 `config.ini` 的 [model_reasoning]（api_base_url / api_key / model）。
-退出码：0 = 全部 PASS；1 = 有 FAIL；2 = 缺配置（CI 按跳过处理）。
+前置：`plugins/multi_model/plugin-config.ini` 至少有一个有效模型；
+需显式设置 `AI_AGENT_REAL_MODEL_ACCEPTANCE=1` 才运行。
+退出码：0 = 全部 PASS；1 = 有 FAIL；2 = 缺模型或未启用（CI 按跳过处理）。
 """
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -21,9 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
-from agent.config import get_model_reasoning  # noqa: E402
 from agent.core import event_name as ev  # noqa: E402
-from agent.mechanisms.model_provider import OpenAICompatibleProvider  # noqa: E402
 
 # 写盘辅助在 QualityGate 上（gate.peek / gate.confirm）
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
@@ -56,26 +56,22 @@ def _is_target(path: str) -> bool:
 
 
 def main() -> int:
-    cfg = get_model_reasoning()
-    if not cfg["api_key"] or not cfg["api_base_url"]:
-        print("缺少配置：工程根 config.ini 的 [model_reasoning]（api_base_url / api_key）")
+    if os.environ.get("AI_AGENT_REAL_MODEL_ACCEPTANCE") != "1":
+        print("跳过真实模型验收：设置 AI_AGENT_REAL_MODEL_ACCEPTANCE=1 后运行")
         return 2
-
-    print("=== MVP-3 验收：真实模型端到端（headless）===")
-    print(f"模型：{cfg['model']} @ {cfg['api_base_url']}")
-
     with tempfile.TemporaryDirectory(prefix="mvp3-") as tmp:
         ws = Path(tmp)
         (ws / "task.txt").write_text(TASK_TEXT, encoding="utf-8")
         store = SessionStore(ws / "data")
-        provider = OpenAICompatibleProvider(
-            base_url=cfg["api_base_url"], api_key=cfg["api_key"], model=cfg["model"]
-        )
-        # 不装插件：本脚本验的是 `config.ini` 那条 provider 的端到端链路，
-        # 插件目录（开发者本机的多模型配置）会把模型路由整体换掉。
-        app = build_app(provider=provider, store=store,
-                        plugins_path=ws / "no-plugins.ini")
+        app = build_app(store=store)
+        if app.model_config_state != "catalog" or not app.available_models():
+            app.dispose()
+            print("缺少模型：请在 plugins/multi_model/plugin-config.ini 配置至少一个 [model:<id>] 节")
+            return 2
         cid = "mvp3-" + uuid4().hex[:12]
+        model = app.model_for(cid) or app.available_models()[0]
+        print("=== MVP-3 验收：真实模型端到端（headless）===")
+        print(f"模型：{model}")
         engine = app.session(cid, system_prompt=SYSTEM_PROMPT)
         # 会话级门控：宿主确认须落在该会话自己的门控上
         session_gate = app.gate_for(cid)

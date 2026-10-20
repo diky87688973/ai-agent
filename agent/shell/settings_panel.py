@@ -25,7 +25,6 @@ from agent.config import (
     get_backup_retention_days,
     get_context,
     get_max_passes,
-    get_model_reasoning,
     get_plugins,
     get_reasoning_effort,
 )
@@ -51,7 +50,6 @@ _NUMBER_MIN = {
     "summary_token_threshold": 1,
     "full_user_rounds": 0,
     "summary_output_max_chars": 1,
-    "context_window": 1,
     "reasoning_replay_tokens": -1,
 }
 
@@ -59,23 +57,6 @@ _NUMBER_MIN = {
 def _fields() -> List[Dict[str, Any]]:
     """宿主设置的节与控件。值在读取时填，这里只放控件形状。"""
     return [
-        {
-            "id": "model_reasoning",
-            "file": "config.ini",
-            "title": "模型",
-            "fields": [
-                {"key": "api_base_url", "kind": "text", "label": "网关地址",
-                 "placeholder": "示例: https://..."},
-                {"key": "api_key", "kind": "secret", "label": "API 密钥",
-                 "placeholder": "示例: sk-..."},
-                {"key": "model", "kind": "text", "label": "默认模型",
-                 "hint": "与模型提供商保持一致"},
-                {"key": "models", "kind": "text", "label": "可选模型",
-                 "hint": "与模型提供商保持一致，逗号分隔"},
-                {"key": "context_window", "kind": "number", "label": "上下文窗口（token）",
-                 "hint": "模型供应商声明的最大上下文窗口"},
-            ],
-        },
         {
             "id": "agent",
             "file": "config.ini",
@@ -219,18 +200,9 @@ def _write_text(path: Path, text: str) -> None:
 
 def _effective_values(config_path: Path, web_ui_path: Path) -> Dict[str, Dict[str, str]]:
     """表单回显用的当前值：文件里有的用文件的，没有的用运行时缺省。"""
-    reasoning = get_model_reasoning(config_path)
     ctx = get_context(config_path)
     web = get_web_ui(web_ui_path)
     return {
-        "model_reasoning": {
-            "api_base_url": str(reasoning["api_base_url"]),
-            "api_key": str(reasoning["api_key"]),
-            "model": str(reasoning["model"]),
-            "models": ",".join(str(item) for item in reasoning["models"]),
-            "context_window": (str(reasoning["context_window"])
-                               if reasoning["context_window"] else ""),
-        },
         "agent": {
             "reasoning_effort": get_reasoning_effort(config_path),
             "max_passes": str(get_max_passes(config_path)),
@@ -251,43 +223,14 @@ def _effective_values(config_path: Path, web_ui_path: Path) -> Dict[str, Dict[st
     }
 
 
-def _model_tab_hidden(app: Any) -> bool:
-    """多模型插件接管模型配置时，内核「模型」节不再展示。
-
-    即使插件目录暂时没有有效条目也要隐藏：模型由插件表单维护，
-    内核节继续可编辑只会造成“改了不生效”的错觉。
-    """
-    if str(getattr(app, "model_config_state", "") or "") == "catalog":
-        return True
-    host = getattr(app, "plugin_host", None)
-    if host is None:
-        return False
-    try:
-        return "multi_model" in list(host.loaded_names())
-    except (AttributeError, RuntimeError):
-        # 测试替身或半装配 host 不提供 loaded_names / 查询失败时保持显示
-        # 内核模型节，避免设置页因为探测失败而少掉入口。
-        return False
-
-
 def host_catalog(config_path: Optional[Path] = None,
-                 web_ui_path: Optional[Path] = None,
-                 *,
-                 hide_model: bool = False) -> Dict[str, Any]:
-    """设置页左侧各节和当前值。
-
-    `hide_model`：模型目录权威时隐藏「模型」节 —— 条目由插件
-    `plugin-config.ini` 维护，设置页继续编辑 `config.ini` 只会造成
-    "改了却没生效"的错觉。保存接口照常写盘，但 `reload_model_config`
-    会忽略模型节并在响应里给出说明。
-    """
+                 web_ui_path: Optional[Path] = None) -> Dict[str, Any]:
+    """设置页左侧各节和当前值。"""
     config_target = Path(config_path) if config_path is not None else DEFAULT_CONFIG_PATH
     web_target = Path(web_ui_path) if web_ui_path is not None else WEB_UI_CONFIG_PATH
     current = _effective_values(config_target, web_target)
     sections = []
     for spec in _fields():
-        if hide_model and spec["id"] == "model_reasoning":
-            continue
         fields = []
         for field in spec["fields"]:
             stored = str(current.get(spec["id"], {}).get(field["key"], ""))
@@ -409,9 +352,8 @@ def save_host(values: Any, app: Any = None, *,
 def apply_host(app: Any, *, config_path: Optional[Path] = None) -> Dict[str, str]:
     """把已经落盘的宿主配置写进当前进程拿着的对象。
 
-    模型相关（网关 / 默认模型 / 可选清单）只能经 `app.reload_model_config()`
-    重建，避免设置页和启动路径各改一半。其余启动期抄进对象的副本在这里补：
-    推理档位、图片上限、往返上限。
+    启动期抄进对象的副本在这里补：推理档位、图片上限、往返上限。
+    模型由多模型插件维护。
     """
     if app is None:
         return {}
@@ -437,14 +379,6 @@ def apply_host(app: Any, *, config_path: Optional[Path] = None) -> Dict[str, str
             app.max_passes = get_max_passes(target)
     except Exception as exc:
         return {"error": f"{type(exc).__name__}: {exc}"}
-    reload_model_config = getattr(app, "reload_model_config", None)
-    if callable(reload_model_config):
-        try:
-            note = str(reload_model_config(config_path=target) or "").strip()
-        except Exception as exc:
-            return {"error": f"{type(exc).__name__}: {exc}"}
-        if note:
-            applied["note"] = note
     return applied
 
 
@@ -735,7 +669,7 @@ def pick_directory() -> Dict[str, Any]:
 def handle_get(path: str, query: Dict[str, str],
                app: Any = None) -> Tuple[int, Dict[str, Any]]:
     if path == "/api/settings":
-        return 200, host_catalog(hide_model=_model_tab_hidden(app))
+        return 200, host_catalog()
     if path == "/api/settings/plugins":
         return 200, list_plugins()
     if path == "/api/settings/plugin-file":

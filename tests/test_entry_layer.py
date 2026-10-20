@@ -54,7 +54,7 @@ class _TempDataRoot(unittest.TestCase):
 
 
 class BuildShellAppTest(_TempDataRoot):
-    """`build_shell_app`：默认按配置建 provider；给了就原样用。"""
+    """`build_shell_app`：默认交给多模型插件；显式 provider 原样使用。"""
 
     def test_given_provider_and_store_are_used(self) -> None:
         provider = object()
@@ -64,36 +64,15 @@ class BuildShellAppTest(_TempDataRoot):
         self.addCleanup(app.dispose)
         self.assertIs(app.provider.default_provider, provider)
 
-    def test_missing_config_starts_without_model(self) -> None:
-        with mock.patch.object(entry_web, "get_model_reasoning",
-                               return_value={"api_key": "", "api_base_url": "", "model": ""}):
-            app = entry_web.build_shell_app(data_root=self.root)
+    def test_default_starts_without_model(self) -> None:
+        app = entry_web.build_shell_app(data_root=self.root)
         self.addCleanup(app.dispose)
         self.assertEqual(app.model_config_state, "none")
 
-    def test_placeholder_key_also_starts_without_model(self) -> None:
-        with mock.patch.object(entry_web, "get_model_reasoning",
-                               return_value={"api_key": "sk-请替换",
-                                             "api_base_url": "https://api.deepseek.com",
-                                             "model": "m"}):
-            app = entry_web.build_shell_app(data_root=self.root)
-        self.addCleanup(app.dispose)
-        self.assertEqual(app.model_config_state, "none")
-
-    def test_provider_is_built_from_config(self) -> None:
-        cfg = {"api_key": "k", "api_base_url": "http://example.invalid", "model": "m"}
-        built = []
-
-        class _Provider:
-            def __init__(self, **kwargs):
-                built.append(kwargs)
-
-        with mock.patch.object(entry_web, "get_model_reasoning", return_value=cfg), \
-                mock.patch.object(entry_web, "OpenAICompatibleProvider", _Provider):
-            app = entry_web.build_shell_app(store=self._store(), data_root=self.root)
-        self.addCleanup(app.dispose)
-        self.assertEqual(built[0]["model"], "m")
-        self.assertEqual(built[0]["base_url"], "http://example.invalid")
+    def test_repository_config_has_no_model_section(self) -> None:
+        text = (_ROOT / "config.ini").read_text(encoding="utf-8")
+        self.assertNotIn("[model_reasoning]", text)
+        self.assertIn("[agent]", text)
 
     def test_default_data_root_is_used_when_omitted(self) -> None:
         self.assertEqual(Path(str(default_data_root())), self.root)
@@ -165,23 +144,8 @@ class WebMainTest(_TempDataRoot):
 class CliEntryTest(_TempDataRoot):
     """`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工厂。"""
 
-    def test_missing_config_returns_none(self) -> None:
-        with mock.patch.object(entry_cli, "get_model_reasoning",
-                               return_value={"api_key": "", "api_base_url": "", "model": ""}):
-            self.assertIsNone(entry_cli.build_app_from_config())
-
-    def test_builds_app_with_provider_from_config(self) -> None:
-        cfg = {"api_key": "k", "api_base_url": "http://example.invalid", "model": "m"}
-
-        class _Provider:
-            def __init__(self, **kwargs):
-                self.kwargs = kwargs
-
-        with mock.patch.object(entry_cli, "get_model_reasoning", return_value=cfg), \
-                mock.patch.object(entry_cli, "OpenAICompatibleProvider", _Provider):
-            app = entry_cli.build_app_from_config()
-        self.addCleanup(app.dispose)
-        self.assertEqual(app.provider.default_provider.kwargs["model"], "m")
+    def test_no_models_returns_none(self) -> None:
+        self.assertIsNone(entry_cli.build_app_from_config())
 
     def test_main_delegates_to_chat_main(self) -> None:
         seen = {}

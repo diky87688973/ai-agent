@@ -15,13 +15,6 @@ from typing import Dict
 
 #: `config.ini` 的节 → 键 → 默认值（值只用于文档对照与模板一致性，读取仍由 `config.py` 负责）。
 SCHEMA: Dict[str, Dict[str, str]] = {
-    "model_reasoning": {
-        "api_base_url": "",
-        "api_key": "",
-        "model": "",
-        "models": "",
-        "context_window": "",
-    },
     "agent": {
         "reasoning_effort": "max",
         "backup_retention_days": "7",

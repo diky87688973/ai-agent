@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """配置读取：项目根 config.ini（按需取用，未使用的项留空）。
 
-[model_reasoning] 节字段：api_base_url / api_key / model / models / context_window。
-读取策略：文件缺失或节缺失 → 空值/缺省返回（调用方决定报错策略）。
 本模块只认内核设置；插件设置在插件自己目录的 plugin-config.ini 里，由插件自己读。
 """
 from __future__ import annotations
@@ -15,7 +13,6 @@ from agent.core.host import MAX_PASSES_DEFAULT
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.ini"
-DEFAULT_MODEL = ""
 #: 模型上下文窗口的缺省值（token）。未配置时为 0，界面显示为空。
 DEFAULT_CONTEXT_WINDOW = 0
 
@@ -23,17 +20,6 @@ DEFAULT_CONTEXT_WINDOW = 0
 def _clean(value: object) -> str:
     """去空白与包裹引号（容忍 ini 值带单/双引号）。"""
     return str(value or "").strip().strip("'\"")
-
-
-_PLACEHOLDER_API_KEYS = (
-    "请替换", "your-api-key", "your_api_key", "sk-xxx", "changeme", "placeholder",
-)
-
-
-def is_placeholder_api_key(value: object) -> bool:
-    """模板里的占位密钥不算已配置，避免把首次启动误判成已配置。"""
-    text = _clean(value).lower()
-    return any(marker in text for marker in _PLACEHOLDER_API_KEYS)
 
 
 def load_ini(path: Optional[Path] = None) -> configparser.ConfigParser:
@@ -53,33 +39,6 @@ def load_ini(path: Optional[Path] = None) -> configparser.ConfigParser:
     if target.is_file():
         parser.read(str(target), encoding="utf-8-sig")
     return parser
-
-
-def get_model_reasoning(path: Optional[Path] = None) -> Dict[str, Any]:
-    """读取 [model_reasoning] 节。
-
-    返回 `{api_base_url, api_key, model, models, context_window}`：
-    前三个缺失为空串；`model` 不预填任何厂商或模型名，
-    `models` 是同一网关下的可选模型名（逗号分隔；留空 = 只能用 `model`）。
-    `context_window` 是该模型的物理上限（token）；未配置时为 0。
-    """
-    parser = load_ini(path)
-    values: Dict[str, str] = {}
-    if parser.has_section("model_reasoning"):
-        values = {k: _clean(v) for k, v in parser.items("model_reasoning")}
-    raw_models = str(values.get("models") or "")
-    models = [x.strip() for x in raw_models.split(",") if x.strip()]
-    try:
-        window = int(values.get("context_window") or DEFAULT_CONTEXT_WINDOW)
-    except (TypeError, ValueError):
-        window = DEFAULT_CONTEXT_WINDOW
-    return {
-        "api_base_url": values.get("api_base_url") or "",
-        "api_key": values.get("api_key") or "",
-        "model": values.get("model") or DEFAULT_MODEL,
-        "models": models,
-        "context_window": max(0, window),
-    }
 
 
 #: 思维链回传预算默认值（token）：超出取两头，中间省略。

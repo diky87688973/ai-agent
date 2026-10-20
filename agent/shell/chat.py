@@ -176,12 +176,11 @@ def main(argv: Optional[list] = None, *, app_factory: Any) -> int:
         return 2
     app, cid, engine, gate, single = build_session(None, app=app, parsed=parsed)
 
-    from agent.config import get_model_reasoning
-
-    cfg = get_model_reasoning()
+    models = app.available_models()
+    model = app.model_for(cid) or (models[0] if models else "")
 
     print("=== AI Agent 对话（真实模型）===")
-    print(f"模型：{cfg['model']}    会话：{cid}")
+    print(f"模型：{model}    会话：{cid}")
     print(f"（再次运行加 --session {cid} 可继续本会话；/exit 退出）")
 
     try:
