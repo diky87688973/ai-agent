@@ -3,10 +3,26 @@
  * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
+var pendingConfirmToolRow=null;
+
+function cancelUserConfirmForNewMessage(){
+if(!userConfirmCardHost)return false;
+var row=pendingConfirmToolRow;
+pendingConfirmToolRow=null;
+closeUserConfirmCardHost();
+if(row){
+if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(row,"canceled");
+if(typeof chatToolSetResultText==="function")chatToolSetResultText(row,"用户取消了这次确认（未作答）");
+}
+updateTaskControls();
+return true;
+}
+
 function openUserConfirmModalFromToolEnd(ev, toolRow){
 if(userConfirmCardHost||!ev.user_confirm_required)return;
+pendingConfirmToolRow=toolRow||null;
 userConfirmBlocking=true;
-if(goBtn)goBtn.disabled=true;
+if(goBtn)goBtn.disabled=false;
 hideChatLoading();
 var opts=Array.isArray(ev.user_confirm_options)?ev.user_confirm_options:[];
 var title=String(ev.user_confirm_title||"请确认");
@@ -79,7 +95,7 @@ var cancel=document.createElement("button");cancel.type="button";cancel.classNam
 var ok=document.createElement("button");ok.type="button";ok.className="mode-plus uc-ok";ok.textContent="确认";
 act.appendChild(cancel);act.appendChild(ok);body.appendChild(act);
 card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;scrollMsgsToBottom();
-function cleanup(){closeUserConfirmCardHost();updateTaskControls();}
+function cleanup(){pendingConfirmToolRow=null;closeUserConfirmCardHost();updateTaskControls();}
 var submitUserConfirm=async function(finalTxt){
 var confirmCid=getActiveConversationId();cleanup();showChatLoading();var gb=goBtn;if(gb)gb.disabled=true;var tab=findConversationTab(confirmCid);if(tab){tab.abortController={global:true};tab.stopRequested=false;}updateTaskControls();
 try{
@@ -89,7 +105,7 @@ var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id
 }catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","确认请求失败: "+(err&&err.message?err.message:String(err)));});}
 finally{updateTaskControls();}
 };
-card.addEventListener("click",function(e){
+card._confirmClick=function(e){
 var hit=e.target;
 if(!hit||!hit.closest)return;
 if(hit.closest(".uc-opt-input"))return;
@@ -99,12 +115,13 @@ var rowHit=hit.closest(".uc-opt-row");
 if(!rowHit||!card.contains(rowHit))return;
 var picked=parseInt(rowHit.dataset.ucIdx,10);
 if(!isNaN(picked))toggleIdx(picked);
-});
+};
 }
 function openApprovalModalFromToolEnd(ev, toolRow){
 if(userConfirmCardHost||!ev.approval_required)return;
+pendingConfirmToolRow=toolRow||null;
 userConfirmBlocking=true;
-if(goBtn)goBtn.disabled=true;
+if(goBtn)goBtn.disabled=false;
 hideChatLoading();
 var desc=String(ev.approval_desc||"").trim()||"（无描述）";
 var wrap=document.createElement("div");wrap.className="b a user-confirm-card-outer";
@@ -121,7 +138,7 @@ var reject=document.createElement("button");reject.type="button";reject.classNam
 var agree=document.createElement("button");agree.type="button";agree.className="mode-plus approval-agree";agree.textContent="同意";
 act.appendChild(reject);act.appendChild(agree);body.appendChild(act);
 card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;scrollMsgsToBottom();
-function cleanup(){closeUserConfirmCardHost();updateTaskControls();}
+function cleanup(){pendingConfirmToolRow=null;closeUserConfirmCardHost();updateTaskControls();}
 var submitApproval=async function(agreed){
 var confirmCid=getActiveConversationId();cleanup();showChatLoading();var gb=goBtn;if(gb)gb.disabled=true;var tab=findConversationTab(confirmCid);if(tab){tab.abortController={global:true};tab.stopRequested=false;}updateTaskControls();
 try{
@@ -131,10 +148,15 @@ var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id
 }catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","审批请求失败: "+(err&&err.message?err.message:String(err)));});}
 finally{updateTaskControls();}
 };
-card.addEventListener("click",function(e){
+card._confirmClick=function(e){
 var hit=e.target;
 if(!hit||!hit.closest)return;
 if(hit.closest(".approval-reject"))void submitApproval(false);
 else if(hit.closest(".approval-agree"))void submitApproval(true);
-});
+};
 }
+document.addEventListener("click",function(ev){
+var card=ev.target&&ev.target.closest?ev.target.closest(".user-confirm-card"):null;
+if(!card||typeof card._confirmClick!=="function")return;
+card._confirmClick(ev);
+});

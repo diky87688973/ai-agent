@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """会话协作工具测试。
 
-覆盖：mesh 注册表 / inbox / 原子投递与持久化容错、会话创建与命名、点对点发送
+覆盖：mesh 注册表 / 待发送队列 / 原子投递与持久化容错、会话创建与命名、点对点发送
 （包装 / 身份 / 校验 / 排队与直启）、多播与广播信封、运行器端到端（触发执行 + 队列抽干）。
 """
 from __future__ import annotations
@@ -78,21 +78,26 @@ class MeshCoreTest(_MeshBase):
         self.assertEqual(len(self.mesh.list_agents()), 1)
         self.assertEqual(self.mesh.get_agent("nobody0000"), {})
 
-    def test_inbox_fifo_and_size(self):
+    def test_queue_fifo_and_size(self):
 
-        self.assertEqual(self.mesh.inbox_size(CID_B), 0)
-        self.mesh.enqueue(CID_B, {"content": "m1"})
-        self.mesh.enqueue(CID_B, {"content": "m2"})
-        self.assertEqual(self.mesh.inbox_size(CID_B), 2)
-        self.assertEqual(self.mesh.pop(CID_B)["content"], "m1")
-        self.assertEqual(self.mesh.pop(CID_B)["content"], "m2")
-        self.assertIsNone(self.mesh.pop(CID_B))
+        self.assertEqual(self.mesh.queue_size(CID_B), 0)
+        self.mesh.queue.enqueue(CID_B, content="m1")
+        self.mesh.queue.enqueue(CID_B, content="m2")
+        self.assertEqual(self.mesh.queue_size(CID_B), 2)
+        first = self.mesh.queue.claim_after_turn(CID_B)
+        second = self.mesh.queue.claim_after_turn(CID_B)
+        self.assertEqual(first["content"], "m1")
+        self.assertEqual(second["content"], "m2")
+        self.mesh.queue.complete(CID_B, first["id"])
+        self.mesh.queue.complete(CID_B, second["id"])
+        self.assertIsNone(self.mesh.queue.claim_after_turn(CID_B))
 
     def test_submit_paths(self):
 
         r1 = self.mesh.submit(CID_B, {"content": "x"})  # 无激活器 → 排队
         self.assertTrue(r1["queued"] and r1["queued_count"] == 1 and r1["run_id"] == "")
-        self.mesh.pop(CID_B)
+        claimed = self.mesh.queue.claim_after_turn(CID_B)
+        self.mesh.queue.complete(CID_B, claimed["id"])
         self.mesh.set_activator(lambda cid, msg: "run-1")
         r2 = self.mesh.submit(CID_B, {"content": "y"})  # 闲 → 启动
         self.assertFalse(r2["queued"])
@@ -105,37 +110,24 @@ class MeshCoreTest(_MeshBase):
         r4 = self.mesh.submit(CID_B, {"content": "w"})
         self.assertTrue(r4["queued"] and r4["queued_count"] == 2)
 
-    def test_end_run_drains_queue(self):
+    def test_renew_run_keeps_claim(self):
 
         self.mesh.set_activator(lambda cid, msg: "run-x")
-        self.mesh.try_begin_run(CID_B)
-        self.mesh.submit(CID_B, {"content": "q1"})
-        self.mesh.submit(CID_B, {"content": "q2"})
-        nxt1 = self.mesh.end_run(CID_B)
-        self.assertEqual(nxt1["content"], "q1")
-        self.assertTrue(self.mesh.is_running(CID_B))  # 续占位
-        nxt2 = self.mesh.end_run(CID_B)
-        self.assertEqual(nxt2["content"], "q2")
-        self.assertIsNone(self.mesh.end_run(CID_B))
+        self.assertTrue(self.mesh.try_begin_run(CID_B))
+        self.assertTrue(self.mesh.renew_run(CID_B))
+        self.assertTrue(self.mesh.is_running(CID_B))
+        self.mesh.end_run(CID_B)
         self.assertFalse(self.mesh.is_running(CID_B))
-        self.assertEqual(self.mesh.inbox_size(CID_B), 0)
 
-    def test_persistence_roundtrip_and_tolerance(self):
+    def test_agents_persistence_roundtrip(self):
 
         self._register(CID_B, name="小B", tags=["grp"])
-        self.mesh.enqueue(CID_B, {"content": "hello"})
         again = MeshState(storage_dir=self.root / "mesh")
         self.assertEqual(again.get_agent(CID_B)["name"], "小B")
-        self.assertEqual(again.pop(CID_B)["content"], "hello")
         d = self.root / "mesh"
         (d / "agents.json").write_text("{ bad json", encoding="utf-8")
-        inbox = d / "inbox"
-        inbox.mkdir(parents=True, exist_ok=True)
-        (inbox / f"{CID_C}.jsonl").write_text('{"content": "good"}\n{bad line\n', encoding="utf-8")
         m2 = MeshState(storage_dir=d)
         self.assertEqual(m2.get_agent(CID_C), {})
-        self.assertEqual(m2.inbox_size(CID_C), 1)
-        self.assertEqual(m2.pop(CID_C)["content"], "good")
 
     def test_session_exists_registry_and_callback(self):
 
@@ -189,7 +181,7 @@ class CreateListTest(_MeshBase):
         self.assertEqual([a["name"] for a in r.data["agents"]], ["小A", "小B"])
         self.assertEqual(r.data["agents"][0]["status"], "idle")
         self.assertEqual(r.data["agents"][0]["queueSize"], 0)
-        self.mesh.enqueue(CID_B, {"content": "x"})
+        self.mesh.queue.enqueue(CID_B, content="x")
         row = [a for a in self._call("session_list", {}).data["agents"] if a["cid"] == CID_B][0]
         self.assertEqual(row["status"], "queued")
         self.assertTrue(self.mesh.try_begin_run(CID_B))
@@ -208,15 +200,15 @@ class SendTest(_MeshBase):
         self.assertEqual(r.data["_sender"]["_sender"], CID_A)
         self.assertEqual(r.data["_sender"]["_sender_name"], CID_A[:12])  # 未注册发送方 → 缺省
         self.assertEqual(r.data["_sender"]["_sender_role"], "agent")
-        msg = self.mesh.pop(CID_B)
+        msg = self.mesh.queue.claim_after_turn(CID_B)
         self.assertTrue(msg["content"].startswith(f"[from={CID_A[:12]} | sender_cid={CID_A} | thread_id=auto-{CID_A[:8]}-"))
         self.assertIn("channel=direct", msg["content"])
         self.assertIn("requires_reply=true", msg["content"])
         self.assertTrue(msg["content"].endswith("你好呀"))
-        self.assertTrue(msg["_agent_peer_message"])
-        self.assertEqual(msg["_sender"], CID_A)
-        self.assertTrue(msg["_requires_reply"])
-        self.assertTrue(msg["_thread_id"].startswith(f"auto-{CID_A[:8]}-"))
+        self.assertTrue(msg["payload"]["_agent_peer_message"])
+        self.assertEqual(msg["sender"]["cid"], CID_A)
+        self.assertTrue(msg["sender"]["requires_reply"])
+        self.assertTrue(msg["sender"]["thread_id"].startswith(f"auto-{CID_A[:8]}-"))
 
     def test_send_sender_identity_from_registry(self):
 
@@ -224,20 +216,20 @@ class SendTest(_MeshBase):
         self._register(CID_B)
         r = self._call("session_send", {"target_id": CID_B, "message": "hi", "requires_reply": False})
         self.assertTrue(r.ok)
-        msg = self.mesh.pop(CID_B)
+        msg = self.mesh.queue.claim_after_turn(CID_B)
         self.assertTrue(msg["content"].startswith("[from=小A | "))
         self.assertNotIn("requires_reply=true", msg["content"])
-        self.assertEqual(msg["_sender_name"], "小A")
-        self.assertFalse(msg["_requires_reply"])
+        self.assertEqual(msg["sender"]["name"], "小A")
+        self.assertFalse(msg["sender"]["requires_reply"])
 
     def test_send_custom_thread_and_channel(self):
 
         self._register(CID_B)
         self._call("session_send", {"target_id": CID_B, "message": "x", "requires_reply": False, "thread_id": "t-1", "channel": "group"})
-        msg = self.mesh.pop(CID_B)
-        self.assertEqual(msg["_thread_id"], "t-1")
+        msg = self.mesh.queue.claim_after_turn(CID_B)
+        self.assertEqual(msg["sender"]["thread_id"], "t-1")
         self.assertIn("thread_id=t-1", msg["content"])
-        self.assertEqual(msg["_channel"], "group")
+        self.assertEqual(msg["payload"]["_channel"], "group")
 
     def test_send_validations(self):
 
@@ -267,8 +259,8 @@ class MultisendBroadcastTest(_MeshBase):
         self.assertFalse(r.data["partial"])
         self.assertTrue(r.data["all_sent"])
         self.assertEqual([s["target_id"] for s in r.data["sent"]], [CID_B, CID_C])
-        self.assertEqual(self.mesh.inbox_size(CID_B), 1)
-        self.assertEqual(self.mesh.inbox_size(CID_C), 1)
+        self.assertEqual(self.mesh.queue_size(CID_B), 1)
+        self.assertEqual(self.mesh.queue_size(CID_C), 1)
         r2 = self._call("session_multisend", {"target_ids": f"{CID_B}，ghost0000000", "message": "x", "requires_reply": True})
         self.assertTrue(r2.ok)
         self.assertTrue(r2.data["partial"])
@@ -331,8 +323,7 @@ class RunnerE2ETest(unittest.TestCase):
         self.assertFalse(r1.data["queued"])
         self.assertTrue(r1.data["run_id"])
         self.assertTrue(self.mesh.is_running(target))
-        # 占位成功还没进模型：一趟开始先收集注入源，这期间后到的消息
-        # 会被收件箱并进当前回合。抽干要测的是模型已经挂起之后的排队。
+        # 占位成功还没进模型：后到消息进入待发送队列，等当前回合结束再起下一轮。
         deadline = time.monotonic() + 5
         while not self.provider.seen and time.monotonic() < deadline:
             time.sleep(0.01)

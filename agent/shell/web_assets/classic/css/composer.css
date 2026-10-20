@@ -22,9 +22,9 @@
 .mode-chip.hidden{display:none}
 .mode-chip .x{background:transparent;border:0;color:#aab3bf;padding:0;line-height:1;font-size:12px;cursor:pointer}
 .mode-chip .x:hover{color:#e1e6ed}
-.right-actions{display:flex;align-items:center;gap:6px}
+.right-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px;min-width:0;margin-left:auto}
 .right-actions .hidden{display:none}
-.send-hint{font-size:12px;color:#79808a;user-select:none}
+.send-hint{font-size:12px;color:#79808a;user-select:none;white-space:normal;text-align:right}
 .stop-task{border-color:#7a3d3d;color:#f0b8b8}
 .stop-task:hover{background:rgba(160,70,70,.16)}
 .stop-task.hidden{display:none}
@@ -179,16 +179,18 @@ html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
 .usage-bottom .ub-note{color:#9aa0a6;font-size:11px;line-height:1.45}
 .usage-bottom .ub-row-ctx{margin-top:8px;align-items:center;gap:8px;flex-wrap:nowrap;width:100%}
 .usage-bottom .ctx-bar-host{flex:1;min-width:0;display:flex;align-items:center;position:relative}
-.usage-bottom .ctx-bar{display:flex;flex-direction:row;flex-wrap:nowrap;gap:2px;width:100%;min-height:10px;align-items:stretch;box-sizing:border-box}
-.usage-bottom .ctx-seg-col{display:flex;flex-direction:column;justify-content:flex-end;flex:1 1 0;min-width:2px;min-height:10px;box-sizing:border-box;cursor:default}
+.usage-bottom .ctx-bar{display:flex;flex-direction:row;flex-wrap:nowrap;gap:0;width:100%;min-height:10px;align-items:stretch;box-sizing:border-box}
+.usage-bottom .ctx-seg-col{display:flex;flex-direction:column;justify-content:flex-end;flex:1 1 0;min-width:2px;min-height:10px;box-sizing:border-box;cursor:default;border-radius:0}
 .usage-bottom .ctx-seg-col.ctx-seg-col-zero{flex:0 0 2px;max-width:2px;min-width:2px}
-.usage-bottom .ctx-seg{display:block;min-height:10px;min-width:2px;cursor:inherit;box-sizing:border-box}
+.usage-bottom .ctx-seg{display:block;min-height:10px;min-width:2px;cursor:inherit;box-sizing:border-box;border-radius:0}
 .usage-bottom .ctx-bar-empty{color:#6e7681;font-size:10px;white-space:nowrap}
-.usage-bottom .ctx-seg-remaining{box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.usage-bottom .ctx-seg-remaining{box-shadow:none;background-color:var(--c-track)}
 .ctx-layout-tooltip{box-sizing:border-box;max-width:min(640px,92vw);padding:8px 10px;background:#252526;border:1px solid #3c3c3c;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.45);font-size:11px;line-height:1.55;color:#d0d7de;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
 .ctx-layout-tooltip .ctx-tip-line{display:grid;grid-template-columns:5.5rem 120px minmax(0,1fr);align-items:center;column-gap:8px;margin:4px 0}
 .ctx-layout-tooltip .ctx-tip-br{color:#e6edf3;font-weight:600;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .ctx-layout-tooltip .ctx-tip-track{display:flex;width:120px;height:8px;flex-shrink:0;background:#2a2d32;border-radius:3px;overflow:hidden;box-sizing:border-box}
+.ctx-layout-tooltip .ctx-tip-track{position:relative}
+.ctx-layout-tooltip .ctx-tip-marker{position:absolute;left:0;top:0;bottom:0;background:transparent;border-right:1px solid red;box-sizing:border-box;pointer-events:none}
 .ctx-layout-tooltip .ctx-tip-track-fill{display:block;height:100%;min-width:0;border-radius:2px;box-sizing:border-box}
 .ctx-layout-tooltip .ctx-tip-rest{color:#9aa0a6;text-align:left;min-width:0;white-space:nowrap;font-variant-numeric:tabular-nums}
 .side-tabbar{display:flex;align-items:stretch;gap:2px;padding:4px 6px 0 6px;border-bottom:1px solid #333;background:#252526;flex-wrap:wrap}
@@ -264,3 +266,21 @@ html[data-ui-theme="light"] .file-ref:hover{color:#0550ae;background:rgba(9,105,
 .at-icon{flex:0 0 20px;text-align:center;font-size:14px}
 .at-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .at-item.dir .at-name{color:#a0c0ff}
+
+#attachBtn{
+  width:30px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+#attachBtn svg{
+  width:15px;
+  height:15px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.7;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  pointer-events:none;
+}

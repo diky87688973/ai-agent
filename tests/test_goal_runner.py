@@ -45,7 +45,7 @@ class _RunnerBase(unittest.TestCase):
         )
         rounds = {"n": 0}
 
-        def _execute(c, text, attachments=None, resume=None):
+        def _execute(c, text, attachments=None, resume=None, sender=None, from_queue=False):
             rounds["n"] += 1
             time.sleep(0.005)
 

@@ -52,6 +52,7 @@ UI_JS_MODULES = (
     "chat/errors.js",
     "chat/send.js",
     "layout/splitters.js",
+    "chat/queue.js",
 )
 
 #: 主脚本之前加载的脚本（vendor 与独立工具）。顺序同样有意义。
@@ -77,6 +78,7 @@ UI_CSS_MODULES = (
     "layout.css",
     "chat-messages.css",
     "composer.css",
+    "chat-queue.css",
     "todo.css",
     "theme-light.css",
     "theme-tokens.css",

@@ -189,6 +189,9 @@ class ConfigTest(unittest.TestCase):
         cfg = _CONFIG.load_config(Path(tempfile.gettempdir()) / "ai_speak_missing.ini")
         self.assertEqual(cfg.engine, "edge")
         self.assertEqual(cfg.voice, "zh-CN-XiaoxiaoNeural")
+        self.assertEqual(cfg.user_salutation, "陛下")
+        self.assertEqual(cfg.assistant_salutation, "臣妾")
+        self.assertEqual(cfg.tone, "温婉")
         self.assertEqual(cfg.max_segment_chars, 128)
         self.assertEqual(cfg.play_interval_ms, 0)
         self.assertFalse(cfg.sync_playback)
@@ -199,23 +202,29 @@ class ConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "plugin-config.ini"
             path.write_text(
-                "[config]\nengine = edge\nvoice = v\n"
+                "[config]\nengine = edge\nvoice = v\nuser_salutation = 老板\nassistant_salutation = 属下\ntone = 简洁\n"
                 "max_segment_chars = 300\nplay_interval_ms = 250\n"
                 "sync_playback = on\nspeed = 1.5\n",
                 encoding="utf-8",
             )
             cfg = _CONFIG.load_config(path)
+            self.assertEqual(cfg.user_salutation, "老板")
+            self.assertEqual(cfg.assistant_salutation, "属下")
+            self.assertEqual(cfg.tone, "简洁")
             self.assertEqual(cfg.max_segment_chars, 300)
             self.assertEqual(cfg.play_interval_ms, 250)
             self.assertTrue(cfg.sync_playback)
             self.assertEqual(cfg.speed, 1.5)
 
             path.write_text(
-                "[config]\nmax_segment_chars = 0\nplay_interval_ms = -3\n"
+                "[config]\nuser_salutation = \nassistant_salutation = \ntone = \nmax_segment_chars = 0\nplay_interval_ms = -3\n"
                 "sync_playback = maybe\nspeed = 9\n",
                 encoding="utf-8",
             )
             cfg = _CONFIG.load_config(path)
+            self.assertEqual(cfg.user_salutation, "陛下")
+            self.assertEqual(cfg.assistant_salutation, "臣妾")
+            self.assertEqual(cfg.tone, "温婉")
             self.assertEqual(cfg.max_segment_chars, 128)
             self.assertEqual(cfg.play_interval_ms, 0)
             self.assertFalse(cfg.sync_playback)

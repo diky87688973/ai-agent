@@ -6,7 +6,7 @@
 - 数据契约：`Outcome`（模块结果的唯一形状）、`Event`（事实的形状）、
   `StreamDelta`（模型流帧）、`ToolCallRequest` / `ToolResult` / `GateDecision`；
 - 端口：`Ports` / `ModelPort` / `ToolPort` / `LogicalRequest`——模块操作外界的唯一通路；
-- 模块链：`ModuleBase` + 五个内置模块（输入 / 收件箱 / 压缩 / 模型 / 工具），
+- 模块链：`ModuleBase` + 五个内置模块（输入 / 待发送队列 / 压缩 / 模型 / 工具），
   由 `build_default_chain()` 组装；`chain.py` 与 `host.py` 负责执行与回合边界；
 - 会话作用域：`session_scope.py` 用 contextvar 承载"当前在哪条会话"，
   供工具与管道钩子在深层调用里解析会话级状态。
@@ -34,9 +34,9 @@ from agent.core.model_call import StreamDelta
 from agent.core.module import ModuleBase
 from agent.core.modules import (
     CompressModule,
-    InboxModule,
     InputModule,
     ModelModule,
+    QueuedInputModule,
     ToolModule,
     build_default_chain,
 )
@@ -54,7 +54,6 @@ __all__ = [
     "EventBus",
     "GateDecision",
     "Host",
-    "InboxModule",
     "InputModule",
     "LogicalRequest",
     "ModelModule",
@@ -63,6 +62,7 @@ __all__ = [
     "Outcome",
     "PassResult",
     "Ports",
+    "QueuedInputModule",
     "SessionContext",
     "SessionContexts",
     "SessionLog",

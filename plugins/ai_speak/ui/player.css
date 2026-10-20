@@ -1,4 +1,4 @@
-/* AI说话播放条：固定在右下角，不参与页面布局。 */
+/* AI说话播放条：插槽存在时排入输入框上方；否则悬浮在右下角。 */
 .ai-speak-player {
   position: fixed;
   right: 18px;
@@ -17,21 +17,36 @@
   font: inherit;
 }
 .ai-speak-player[hidden] { display: none; }
+#aiSpeakSlot .ai-speak-player {
+  position: relative;
+  inset: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-color: var(--c-line-2, #2a2d32);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .16);
+}
+#aiSpeakSlot .ai-speak-btn { width: 22px; height: 22px; padding: 0; }
 .ai-speak-audio { display: none; }
 .ai-speak-icon { flex: 0 0 auto; font-size: 15px; line-height: 1; }
 .ai-speak-main { flex: 1 1 auto; min-width: 0; }
-.ai-speak-title {
-  font-size: var(--fs-xs, 11px);
-  font-weight: 600;
-  color: var(--c-text-3, #adb2b8);
-}
+
 .ai-speak-text {
-  margin-top: 2px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fs-sm, 12px);
   color: var(--c-text-1, #f9fafb);
+}
+.ai-speak-text-inner {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
 }
 .ai-speak-count {
   flex: 0 0 auto;
@@ -41,15 +56,28 @@
 }
 .ai-speak-btn {
   flex: 0 0 auto;
+  width: 24px;
   height: 24px;
-  padding: 0 8px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--c-line-3, rgba(255, 255, 255, .12));
   border-radius: var(--r-md, 6px);
   background: transparent;
   color: var(--c-text-2, #cfd3d6);
   font: inherit;
-  font-size: var(--fs-xs, 11px);
   cursor: pointer;
+}
+.ai-speak-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
 .ai-speak-btn:hover { background: var(--c-bg-hover, rgba(255, 255, 255, .05)); }
 .ai-speak-btn:focus-visible { outline: 1px solid var(--c-brand, #5686fe); outline-offset: 1px; }

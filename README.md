@@ -5,7 +5,7 @@
 ## 特点
 
 - **三步写盘防错** —— 预览改动 → 提交审阅 → 确认落盘，随时可退回任意版本。
-- **模块化内核** —— 输入 → 收件箱 → 压缩 → 模型 → 工具，各段可替换。
+- **模块化内核** —— 输入 → 待发送队列插入 → 压缩 → 模型 → 工具，各段可替换。
 - **插件式扩展** —— 替换界面、改上下文、扩展门控与 HTTP 端点。
 - **多会话与协同** —— 多任务互不干扰，多 Agent 协同工作。
 - **目标自动续跑** —— 设定目标，长任务自动跟进至完结。
@@ -91,6 +91,7 @@ full_user_rounds         = 1
 | [AI说话](docs/subsystems/ai-speak.md) | `ai_speak` 的文本规范、语音合成、插件事件与播放器 |
 | [会话与协作](docs/subsystems/session.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
 | [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
+| [会话消息队列方案](docs/plan/conversation-queue.md) | 忙时入队、回合结束投递、安全插入、修改恢复与 Agent 来源 |
 | [标准对齐优化方案](docs/plan/standards-alignment.md) | 依赖环、门禁可信度、覆盖率口径、预算与登记表 |
 | [会话历史分页方案](docs/plan/history-paging.md) | 轮次分页、游标、前插与超长报文延迟渲染 |
 | [多模型配置方案](docs/plan/multi-model.md) | 模型目录、Provider 路由、Messages 协议适配、模型插件 |
@@ -113,7 +114,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1614 个用例）：
+单元测试（1627 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

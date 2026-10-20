@@ -250,6 +250,17 @@ return pluginPanels;
 function renderPluginActions(){
 var host=document.getElementById("pluginActions");
 if(!host)return;
+if(!host._pluginActionDelegated){
+host._pluginActionDelegated=true;
+host.addEventListener("click",function(ev){
+var btn=ev.target&&ev.target.closest?ev.target.closest("[data-plugin-action]"):null;
+if(!btn||!host.contains(btn))return;
+var plugin=String(btn.getAttribute("data-plugin")||"");
+var action=String(btn.getAttribute("data-plugin-action")||"");
+var panel=String(btn.getAttribute("data-panel")||"")||action;
+if(plugin)openPluginPanel(plugin,panel);
+});
+}
 host.innerHTML="";
 for(var i=0;i<pluginActions.length;i++){
 (function(act){
@@ -257,10 +268,10 @@ var b=document.createElement("button");
 b.type="button";
 b.className="mode-plus plugin-action";
 b.setAttribute("data-plugin",String(act.plugin||""));
-b.setAttribute("data-action",String(act.id||""));
+b.setAttribute("data-plugin-action",String(act.id||""));
+b.setAttribute("data-panel",String(act.panel||act.id||""));
 if(act.title)b.title=String(act.title);
 b.textContent=String(act.label||act.id||"");
-b.addEventListener("click",function(){openPluginPanel(act.plugin,act.panel||act.id);});
 host.appendChild(b);
 })(pluginActions[i]);
 }

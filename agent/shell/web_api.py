@@ -15,6 +15,8 @@ if TYPE_CHECKING:  # 只为注解：壳层不得在运行期依赖装配根（A2
 
 from agent.config import PROJECT_ROOT, get_reasoning_effort
 from agent.core import event_name as ev
+from agent.core.input_attachments import MAX_IMAGES, normalize_images
+from agent.mechanisms.conversation_queue import QueueError
 from agent.mechanisms.session_store import (
     KEY_DATA,
     KEY_TYPE,
@@ -38,9 +40,7 @@ from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.sse import _Channel, _sse_payload
 from agent.shell.timefmt import date_group
 from agent.shell.web_static import (
-    _IMAGE_MIMES,
     _TITLE_SCAN_LINES,
-    MAX_IMAGES,
     MODE_VALUES,
     _lang_from_path,
     _looks_binary,
@@ -154,6 +154,39 @@ class WebShell:
 
     # ── 业务动作──────────────────────────────────
 
+    def _send_draft(self, cid: str, text: str, attachments: Any, draft_id: str) -> Tuple[int, Dict[str, Any]]:
+        """重发已召回草稿；身份由队列项决定。"""
+        try:
+            item = self.app.conversation_queue.resubmit_draft(
+                cid, draft_id, content=text, attachments=attachments,
+            )
+        except QueueError as exc:
+            return 409, {"ok": False, "error": str(exc)}
+        if self.app.mesh.is_running(cid):
+            return 200, {
+                "ok": True, "conversation_id": cid, "run_id": "",
+                "queued": True, "queue_item": item,
+                "revision": self.app.conversation_queue.revision(cid),
+            }
+        claimed = self.app.conversation_queue.claim_item(cid, item["id"])
+        if claimed is None:
+            return 409, {"ok": False, "error": "消息已不在队列"}
+        sender = claimed.get("sender") if isinstance(claimed.get("sender"), dict) else None
+        start_payload: Dict[str, Any] = {
+            "content": str(claimed.get("content") or ""),
+            "attachments": claimed.get("attachments") or None,
+        }
+        if sender:
+            start_payload["_sender"] = sender.get("cid")
+            start_payload["_sender_name"] = sender.get("name")
+        started = self.app.runner.start(cid, start_payload)
+        if not started:
+            self.app.conversation_queue.release(cid, item["id"])
+            return 503, {"ok": False, "error": "会话启动失败"}
+        self.app.conversation_queue.complete(cid, item["id"])
+        return 200, {"ok": True, "conversation_id": cid,
+                     "run_id": started, "queued": False}
+
     def send(
         self,
         cid: str,
@@ -161,10 +194,12 @@ class WebShell:
         mode: str = "",
         images: Any = None,
         model: str = "",
+        draft_id: str = "",
     ) -> Tuple[int, Dict[str, Any]]:
-        """提交输入：忙则 409，成功则后台回合并立即返回 run_id。
+        """提交输入：空闲直接启动，忙时进入待发送队列。
 
-        `images`：可选截图附件，形如 `[{mime, data_base64}]`。仅接受图片 MIME，上限 `MAX_IMAGES` 张；
+        `images`：可选截图附件，形如 `[{mime, data_base64}]`；数量口径由
+        `normalize_images` 统一控制；
         有图无字也算有效输入（纯截图提问是常见用法）。
 
         `model`：会话级模型选择（空串 = 不改动既有选择）。落 `live_state` 持久化 ——
@@ -172,7 +207,7 @@ class WebShell:
         未配置的名字一律拒绝（400），避免"选择了却悄悄用默认模型"。
         """
         text = str(text or "").strip()
-        attachments = _normalize_images(images)
+        attachments = normalize_images(images)
         if not text and not attachments:
             return 400, {"error": "empty message"}
         cid = str(cid or "").strip()
@@ -195,21 +230,91 @@ class WebShell:
             self.app.live_state.set_model(cid, want_model)
             if before != want_model:
                 self._announce_model(cid, want_model)
-        # 忙闲事实源 = mesh 活跃集：同会话并发 → 409
-        if self.app.mesh.is_running(cid):
-            return 409, {"error": "当前会话仍在执行中，请等待完成或先停止。"}
+        if draft_id:
+            return self._send_draft(cid, text, attachments, draft_id)
         payload: Dict[str, Any] = {"content": text}
         if attachments:
             payload["attachments"] = attachments
-        started = self.app.runner.start(cid, payload)
+        try:
+            result = self.app.mesh.submit(cid, payload)
+        except QueueError as exc:
+            return 503, {"ok": False, "error": str(exc)}
+        if result.get("queued"):
+            return 200, {
+                "ok": True,
+                "conversation_id": cid,
+                "run_id": "",
+                "queued": True,
+                "queue_item": result.get("queue_item"),
+                "revision": self.app.conversation_queue.revision(cid),
+            }
+        started = str(result.get("run_id") or "")
         if not started:
-            return 409, {"error": "当前会话仍在执行中，请等待完成或先停止。"}
+            return 503, {"error": "会话启动失败"}
         return 200, {
             "ok": True,
             "conversation_id": cid,
             "run_id": started,
             "queued": False,
         }
+
+    # ── 会话待发送队列 ────────────────────────────────
+
+    def queue(self, cid: str) -> Tuple[int, Dict[str, Any]]:
+        cid = str(cid or "").strip()
+        if not cid or not is_valid_conversation_id(cid):
+            return 400, {"ok": False, "error": "invalid conversation_id"}
+        return 200, self.app.conversation_queue.list(cid)
+
+    def queue_insert(self, cid: str, item_id: str) -> Tuple[int, Dict[str, Any]]:
+        cid = str(cid or "").strip()
+        if not cid or not is_valid_conversation_id(cid):
+            return 400, {"ok": False, "error": "invalid conversation_id"}
+        try:
+            item = self.app.conversation_queue.set_insert(cid, item_id)
+            if not self.app.mesh.is_running(cid):
+                claimed = self.app.conversation_queue.claim_item(cid, item_id)
+                if claimed is not None:
+                    sender = claimed.get("sender") if isinstance(claimed.get("sender"), dict) else None
+                    payload: Dict[str, Any] = {
+                        "content": str(claimed.get("content") or ""),
+                        "attachments": claimed.get("attachments") or None,
+                    }
+                    if sender:
+                        payload["_sender"] = sender.get("cid")
+                        payload["_sender_name"] = sender.get("name")
+                    started = self.app.runner.start(cid, payload)
+                    if not started:
+                        self.app.conversation_queue.release(cid, item_id)
+                        return 503, {"ok": False, "error": "会话启动失败"}
+                    self.app.conversation_queue.complete(cid, item_id)
+                    return 200, {"ok": True, "run_id": started,
+                                 "revision": self.app.conversation_queue.revision(cid)}
+        except QueueError as exc:
+            return 409, {"ok": False, "error": str(exc)}
+        return 200, {"ok": True, "item": item,
+                     "revision": self.app.conversation_queue.revision(cid)}
+
+    def queue_recall(self, cid: str, item_id: str) -> Tuple[int, Dict[str, Any]]:
+        cid = str(cid or "").strip()
+        if not cid or not is_valid_conversation_id(cid):
+            return 400, {"ok": False, "error": "invalid conversation_id"}
+        try:
+            item = self.app.conversation_queue.recall(cid, item_id)
+        except QueueError as exc:
+            return 409, {"ok": False, "error": str(exc)}
+        return 200, {"ok": True, "draft_queue_id": item["id"], "item": item,
+                     "revision": self.app.conversation_queue.revision(cid)}
+
+    def queue_cancel(self, cid: str, item_id: str) -> Tuple[int, Dict[str, Any]]:
+        cid = str(cid or "").strip()
+        if not cid or not is_valid_conversation_id(cid):
+            return 400, {"ok": False, "error": "invalid conversation_id"}
+        try:
+            self.app.conversation_queue.cancel(cid, item_id)
+        except QueueError as exc:
+            return 409, {"ok": False, "error": str(exc)}
+        return 200, {"ok": True, "revision": self.app.conversation_queue.revision(cid)}
 
     def history(self, cid: str) -> Tuple[int, Dict[str, Any]]:
         """会话历史投影（从事实源 derive）。"""
@@ -862,6 +967,7 @@ class WebShell:
             # 全局默认档位：会话还没回填前，顶栏先按它显示（会话值以 ui-state 为准）。
             "reasoning_effort": (self.app.live_state.default_effort
                                  if self.app.live_state is not None else "high"),
+            "max_images": MAX_IMAGES,
             "model_config": model_config,
         }
 
@@ -895,30 +1001,3 @@ class WebShell:
             return 200, target.read_bytes(), ctype
         except OSError as exc:
             return 500, {"error": f"{type(exc).__name__}"}, "application/json"
-
-
-
-def _normalize_images(raw: Any) -> List[Dict[str, str]]:
-    """校验并归一化截图附件。
-
-    只接受 `{mime, data_base64}` 且 `mime` 为图片类型；超过 `MAX_IMAGES` 截断；
-    非法项静默丢弃（附件是增强项，不应因单张坏图整体失败）。
-    """
-    if not isinstance(raw, list):
-        return []
-    out: List[Dict[str, str]] = []
-    for item in raw:
-        if len(out) >= MAX_IMAGES:
-            break
-        if not isinstance(item, dict):
-            continue
-        mime = str(item.get("mime") or "").strip().lower()
-        data = item.get("data_base64")
-        if not isinstance(data, str) or not data.strip():
-            continue
-        if mime not in _IMAGE_MIMES:
-            continue
-        out.append({"mime": mime, "data_base64": data.strip()})
-    return out
-
-

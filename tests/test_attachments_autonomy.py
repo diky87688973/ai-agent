@@ -20,10 +20,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.core.events import make_event  # noqa: E402
+from agent.core.input_attachments import MAX_IMAGES, normalize_images  # noqa: E402
 from agent.core.ports import LogicalRequest  # noqa: E402
 from agent.core.session_log import SessionLog, _user_content  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
-from agent.shell.web import MAX_IMAGES, _normalize_images  # noqa: E402
 
 PNG_B64 = base64.b64encode(b"\x89PNG fake bytes").decode()
 
@@ -35,41 +35,41 @@ class NormalizeImagesTest(unittest.TestCase):
 
     def test_accepts_valid_image(self) -> None:
 
-        out = _normalize_images([_img()])
+        out = normalize_images([_img()])
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["mime"], "image/png")
         self.assertEqual(out[0]["data_base64"], PNG_B64)
 
     def test_mime_is_lowercased(self) -> None:
 
-        out = _normalize_images([_img("IMAGE/PNG")])
+        out = normalize_images([_img("IMAGE/PNG")])
         self.assertEqual(out[0]["mime"], "image/png")
 
     def test_drops_non_image_mime(self) -> None:
 
-        self.assertEqual(_normalize_images([_img("text/plain")]), [])
-        self.assertEqual(_normalize_images([_img("application/pdf")]), [])
+        self.assertEqual(normalize_images([_img("text/plain")]), [])
+        self.assertEqual(normalize_images([_img("application/pdf")]), [])
 
     def test_drops_empty_or_missing_data(self) -> None:
 
-        self.assertEqual(_normalize_images([_img(data="   ")]), [])
-        self.assertEqual(_normalize_images([{"mime": "image/png"}]), [])
+        self.assertEqual(normalize_images([_img(data="   ")]), [])
+        self.assertEqual(normalize_images([{"mime": "image/png"}]), [])
 
     def test_drops_non_dict_and_non_list(self) -> None:
 
-        self.assertEqual(_normalize_images(["nope"]), [])
-        self.assertEqual(_normalize_images("nope"), [])
-        self.assertEqual(_normalize_images(None), [])
+        self.assertEqual(normalize_images(["nope"]), [])
+        self.assertEqual(normalize_images("nope"), [])
+        self.assertEqual(normalize_images(None), [])
 
     def test_caps_at_max_images(self) -> None:
 
-        self.assertEqual(len(_normalize_images([_img()] * 9)), MAX_IMAGES)
+        self.assertEqual(len(normalize_images([_img()] * 9)), MAX_IMAGES)
         self.assertEqual(MAX_IMAGES, 4, msg="单条消息的截图上限应为 4")
 
     def test_keeps_valid_when_mixed_with_invalid(self) -> None:
         """非法项静默丢弃，不连累合法项（附件是增强项）。"""
 
-        out = _normalize_images([_img("text/plain"), _img(), {"mime": "image/png"}])
+        out = normalize_images([_img("text/plain"), _img(), {"mime": "image/png"}])
         self.assertEqual(len(out), 1)
 
 class UserContentTest(unittest.TestCase):

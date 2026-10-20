@@ -183,7 +183,7 @@ class SessionSendTool(ToolPlugin):
     name = "session_send"
     label = "发送到会话"
     icon = "💬"
-    description = "向目标 Agent 发送消息并触发其执行；目标忙时进入 inbox 队列（requires_reply 必填）。"
+    description = "向目标 Agent 发送消息并触发其执行；目标忙时进入待发送队列（requires_reply 必填）。"
     parameters = {
         "target_id": {"type": "string", "description": "目标会话 id"},
         "message": {"type": "string", "description": "消息内容"},
@@ -460,7 +460,7 @@ class SessionListTool(ToolPlugin):
         agents: List[Dict[str, Any]] = []
         items = sorted(self._mesh.list_agents().items(), key=lambda kv: str(kv[1].get("name") or kv[0]))
         for cid, meta in items:
-            qn = self._mesh.inbox_size(cid)
+            qn = self._mesh.queue_size(cid)
             if self._mesh.is_running(cid):
                 status = "running"
             elif qn:

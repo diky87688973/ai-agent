@@ -105,23 +105,15 @@ class FileRunRegistryTest(unittest.TestCase):
 
 
 class DrainWindowTest(unittest.TestCase):
-    """抽干链不得露出空闲窗口：`end_run` 返回下一条时必须已占位。"""
+    """续占必须全程不露出空闲窗口。"""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.mesh = MeshState(storage_dir=Path(self._tmp.name) / "mesh")
 
-    def test_drain_never_exposes_idle_window(self) -> None:
-        """`end_run` 返回下一条时，占位必须一次都没松过。
-
-        做法：在 `end_run` 执行期间，从另一个线程反复问 `is_running` ——
-        只有全程不释放（`renew`）才会从头到尾都是 True；`release → pop → claim`
-        会在中间被观察到 False。
-        """
+    def test_renew_never_exposes_idle_window(self) -> None:
         self.assertTrue(self.mesh.try_begin_run(CID))
-        self.mesh.submit(CID, {"content": "第二条"})     # 入队，等抽干
-
         seen: list = []
         stop = threading.Event()
 
@@ -132,22 +124,18 @@ class DrainWindowTest(unittest.TestCase):
         watcher = threading.Thread(target=poll, daemon=True)
         watcher.start()
         try:
-            nxt = self.mesh.end_run(CID)
+            self.assertTrue(self.mesh.renew_run(CID))
         finally:
             stop.set()
             watcher.join(timeout=2)
 
-        self.assertEqual((nxt or {}).get("content"), "第二条")
-        self.assertTrue(self.mesh.is_running(CID), "抽干后应仍占位（下一条正在跑）")
+        self.assertTrue(self.mesh.is_running(CID))
         self.assertTrue(seen, "观察线程应采到样本")
-        self.assertNotIn(False, seen,
-                         "抽干期间露出了空闲窗口 —— 别的投递会据此再激活一趟，"
-                         "导致同一个回合被执行两遍")
+        self.assertNotIn(False, seen, "续占期间露出了空闲窗口")
 
-    def test_drain_then_release(self) -> None:
-        """队列空时才释放。"""
+    def test_end_run_releases_when_idle(self) -> None:
         self.assertTrue(self.mesh.try_begin_run(CID))
-        self.assertIsNone(self.mesh.end_run(CID))
+        self.mesh.end_run(CID)
         self.assertFalse(self.mesh.is_running(CID))
 
 

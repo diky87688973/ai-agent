@@ -4,7 +4,7 @@
  * 调整清单顺序会改变覆盖关系。
  */
 /* ===== Todo-List 区域 ===== */
-.todo-list-area{flex:0 0 auto;border-top:1px solid #333;border-bottom:1px solid #333;background:#1b1d21;padding:0;max-height:160px;overflow:hidden;display:flex;flex-direction:column;transition:max-height .35s ease}
+.todo-list-area{flex:0 0 auto;width:70%;width:min(calc(100% - 32px),var(--content-max,840px));margin:0 auto;border-top:1px solid #333;border-bottom:1px solid #333;background:#1b1d21;padding:0 5px 5px;max-height:160px;overflow:hidden;display:flex;flex-direction:column;transition:max-height .35s ease}
 .todo-list-area.hidden{display:none}
 .todo-list-header{display:flex;align-items:center;padding:3px 10px;border-bottom:1px solid #2a2d32;background:#202328;flex-shrink:0;cursor:pointer;user-select:none}
 .todo-list-title{font-size:11px;font-weight:600;color:#d6dde5}

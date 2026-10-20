@@ -15,7 +15,18 @@
   var dropped = 0;
   var errorText = "";
   var syncPlayback = false;
+  var textScrollAnim = null;
+  var textScrollKey = "";
+  var textScrollFrame = 0;
   var callProgress = Object.create(null);
+  var PLAYER_ICONS = {
+    pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>',
+    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7Z"/></svg>',
+    stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>'
+  };
+  function setPlayerIcon(button, name) {
+    if (button) button.innerHTML = PLAYER_ICONS[name] || "";
+  }
   var api = window.aiAgentPlugins && window.aiAgentPlugins.for
     ? window.aiAgentPlugins.for(window.aiAgentPluginCurrent || PLUGIN)
     : null;
@@ -41,19 +52,20 @@
   bar.hidden = true;
   var icon = element("span", "ai-speak-icon", "🔊");
   var main = element("div", "ai-speak-main");
-  var titleEl = element("div", "ai-speak-title", "AI说话");
   var textEl = element("div", "ai-speak-text", "");
-  main.appendChild(titleEl);
+  var textInner = element("span", "ai-speak-text-inner", "");
+  textEl.appendChild(textInner);
   main.appendChild(textEl);
   var countEl = element("span", "ai-speak-count", "");
-  var toggleBtn = element("button", "ai-speak-btn", "暂停");
+  var toggleBtn = element("button", "ai-speak-btn", "");
   toggleBtn.type = "button";
-  toggleBtn.setAttribute("aria-label", "暂停或继续");
-  var stopBtn = element("button", "ai-speak-btn", "停止");
+  toggleBtn.title = "暂停";
+  toggleBtn.setAttribute("aria-label", "暂停");
+  var stopBtn = element("button", "ai-speak-btn", "");
   stopBtn.type = "button";
   stopBtn.title = "停止并清空语音";
   stopBtn.setAttribute("aria-label", "停止并清空语音");
-  toggleBtn.title = "暂停或继续";
+  setPlayerIcon(stopBtn, "stop");
   bar.appendChild(icon);
   bar.appendChild(main);
   bar.appendChild(countEl);
@@ -64,17 +76,83 @@
   audio.className = "ai-speak-audio";
   audio.preload = "auto";
 
+  function stopTextScroll() {
+    if (textScrollFrame) {
+      cancelAnimationFrame(textScrollFrame);
+      textScrollFrame = 0;
+    }
+    if (textScrollAnim) {
+      try { textScrollAnim.cancel(); } catch (e) {}
+      textScrollAnim = null;
+    }
+    textScrollKey = "";
+    textInner.style.transform = "";
+  }
+
+  function updateTextScroll() {
+    if (!current || blocked || destroyed) {
+      stopTextScroll();
+      return;
+    }
+    if (paused) {
+      if (textScrollAnim && textScrollAnim.playState === "running") {
+        textScrollAnim.pause();
+      }
+      return;
+    }
+    var audioDuration = Number(audio.duration);
+    if (!isFinite(audioDuration) || audioDuration <= 0) {
+      stopTextScroll();
+      return;
+    }
+    var viewport = textEl.clientWidth;
+    var content = textInner.scrollWidth;
+    if (!viewport || content <= viewport) {
+      stopTextScroll();
+      return;
+    }
+    var key = (current.callId || "") + "#" + current.index + "|" +
+      textInner.textContent;
+    if (textScrollKey === key && textScrollAnim) return;
+    stopTextScroll();
+    textScrollKey = key;
+    if (typeof textInner.animate !== "function") return;
+    var distance = content - viewport;
+    var duration = Math.max(500, Math.round(audioDuration * 1000));
+    textScrollAnim = textInner.animate([
+      { transform: "translateX(0)" },
+      { transform: "translateX(-" + distance + "px)" }
+    ], {
+      duration: duration,
+      iterations: 1,
+      fill: "forwards",
+      easing: "linear"
+    });
+  }
+
+  function scheduleTextScroll() {
+    if (textScrollFrame) return;
+    textScrollFrame = requestAnimationFrame(function () {
+      textScrollFrame = 0;
+      updateTextScroll();
+    });
+  }
+
   function render() {
     if (destroyed) return;
     var active = !!(current || items.length || blocked || errorText);
     bar.hidden = !active;
-    textEl.textContent = current
-      ? short(current.text, 60)
-      : (blocked ? "点击播放" : errorText);
-    textEl.title = current ? current.text : errorText;
+    var label = current ? String(current.text || "") : (blocked ? "点击播放" : errorText);
+    textInner.textContent = label;
+    textEl.title = label;
     countEl.textContent = items.length ? ("队列 " + items.length) : "";
     countEl.title = dropped ? ("已丢弃 " + dropped + " 条待播") : "";
-    toggleBtn.textContent = blocked ? "点击播放" : (paused ? "继续" : "暂停");
+    var toggleName = blocked || paused ? "play" : "pause";
+    setPlayerIcon(toggleBtn, toggleName);
+    var toggleLabel = blocked ? "点击播放" : (paused ? "继续" : "暂停");
+    toggleBtn.title = toggleLabel;
+    toggleBtn.setAttribute("aria-label", toggleLabel);
+    scheduleTextScroll();
   }
 
   function revoke(item) {
@@ -379,6 +457,7 @@
     stop({});
     destroyed = true;
     clearTimer();
+    stopTextScroll();
     try { audio.pause(); } catch (e) {}
     audio.removeAttribute("src");
     finishCurrent();
@@ -414,6 +493,20 @@
   window.aiAgentAISpeak = player;
 
   audio.addEventListener("ended", afterItem);
+  audio.addEventListener("loadedmetadata", scheduleTextScroll);
+  audio.addEventListener("durationchange", scheduleTextScroll);
+  audio.addEventListener("play", function () {
+    if (textScrollAnim && textScrollAnim.playState === "paused") {
+      textScrollAnim.play();
+      return;
+    }
+    scheduleTextScroll();
+  });
+  audio.addEventListener("pause", function () {
+    if (textScrollAnim && textScrollAnim.playState === "running") {
+      textScrollAnim.pause();
+    }
+  });
   audio.addEventListener("error", function () {
     showError("播放失败");
     var failed = current;
@@ -425,7 +518,8 @@
   document.addEventListener("ai-agent:plugins-changed", onPluginsChanged);
   toggleBtn.addEventListener("click", toggle);
   stopBtn.addEventListener("click", onStopClick);
-  (document.body || document.documentElement).appendChild(bar);
+  var slot = document.getElementById("aiSpeakSlot");
+  (slot || document.body || document.documentElement).appendChild(bar);
   (document.body || document.documentElement).appendChild(audio);
 
   if (window.aiAgentShell && window.aiAgentShell.styles && window.aiAgentShell.styles.load) {
@@ -434,9 +528,12 @@
   if (api && typeof api.get === "function") {
     api.get("config").then(function (res) {
       var data = res && res.data ? res.data : {};
-      if (data && data.ok && Number(data.play_interval_ms) >= 0) {
-        gapMs = Number(data.play_interval_ms) || 0;
+      if (data && data.ok) {
+        if (Number(data.play_interval_ms) >= 0) {
+          gapMs = Number(data.play_interval_ms) || 0;
+        }
         syncPlayback = !!data.sync_playback;
+        render();
       }
     }).catch(function () {});
   }

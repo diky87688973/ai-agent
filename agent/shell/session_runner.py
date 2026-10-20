@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""会话运行器：后台执行会话回合，消费 inbox 队列。
+"""会话运行器：后台执行会话回合，消费会话待发送队列。
 
 - 装配为 MeshState 激活器（activator）：闲时直启、忙时由 mesh 排队；
 - 生命周期：try_begin_run（原子占位）→ 线程执行回合 → end_run（释放 + 队列抽干）；
@@ -89,12 +89,26 @@ class SessionRunner:
         text = str(message.get("content") or "")
         attachments = message.get("attachments")
         resume = message.get("resume")
+        if not isinstance(resume, dict) and (text or attachments):
+            pending_call = self._cancel_pending_for_new_input(key)
+            if pending_call:
+                resume = {
+                    "call_id": pending_call,
+                    "ok": False,
+                    "error": "用户取消了这次确认（未作答）",
+                }
+        sender = message.get("sender") if isinstance(message.get("sender"), dict) else None
+        if sender is None and str(message.get("_sender") or "").strip():
+            sender = {
+                "cid": str(message.get("_sender") or "").strip(),
+                "name": str(message.get("_sender_name") or "").strip(),
+            }
         cancel_event = threading.Event()
         with self._lock:
             self._cancels[key] = cancel_event
         thread = threading.Thread(
             target=self._run_loop,
-            args=(key, text, attachments, resume),
+            args=(key, text, attachments, resume, sender),
             name=f"fan-mesh-{key[:12]}",
             daemon=True,
         )
@@ -142,7 +156,7 @@ class SessionRunner:
                 pass
 
     def _run_loop(self, cid: str, text: str, attachments: Any = None,
-                  resume: Any = None) -> None:
+                  resume: Any = None, sender: Optional[Dict[str, Any]] = None) -> None:
         # 运行态心跳由旁路线程周期性续期：这一趟从占位到释放可能持续很久，
         # 而 `RunRegistry` 用"心跳 + 存活期"判定在跑 —— 一次长工具调用
         # （`run_command` 跑 `ping -n 120`）期间没有心跳就会被误判成"已结束"，
@@ -155,42 +169,55 @@ class SessionRunner:
         beater.start()
         # 因目标/自主而起的自动轮次计数，只用于兜底限流。
         _auto_rounds = 0
+        current_queue_item = None
+        from_queue = False
         try:
             while True:
+                paused = False
                 try:
-                    self._execute(cid, text, attachments, resume)
+                    paused = self._execute(cid, text, attachments, resume, sender,
+                                           from_queue=from_queue)
                 except Exception as exc:  # 单回合失败不打断抽干链
                     report_error("shell.session_runner", exc, conversation_id=cid)
+                if current_queue_item is not None:
+                    self._complete_queued(cid, current_queue_item)
+                    current_queue_item = None
+                if paused or self._is_paused(cid):
+                    self._mesh.end_run(cid)
+                    break
                 resume = None
-                nxt = self._mesh.end_run(cid)
+                sender = None
+                from_queue = False
+                queued = self._claim_queued(cid)
+                if queued is not None:
+                    if self._is_canceled(cid):
+                        self._release_queued(cid, queued)
+                        self._mesh.end_run(cid)
+                        break
+                    if not self._mesh.renew_run(cid):
+                        self._release_queued(cid, queued)
+                        self._mesh.end_run(cid)
+                        break
+                    text, attachments, resume, sender = self._queued_input(queued)
+                    current_queue_item = queued
+                    from_queue = True
+                    continue
                 # 取消优先：用户点了停止就不能再续跑。
                 # 不判它会死循环 —— 取消位一经置位无人清除，而续跑判定只看目标状态，
                 # 于是"起新一轮 → 新一轮开头立刻被取消 → 又续跑"会无限转下去，
                 # CPU 打满、事实与 SSE 一起被灌爆，界面上"停止"等于没按。
                 if self._is_canceled(cid):
+                    self._mesh.end_run(cid)
                     break
-                if nxt is None:
-                    # 队列空：有 active 目标则用目标文案再续一轮；
-                    # 只有开了自主开关却没有目标时才回落到 `AUTO_CONTINUE_PROMPT`。
-                    nxt_text = self._next_continuation_text(cid)
-                    if not nxt_text:
-                        break
-                    # 上限兜底：目标写歪了或模型每轮都"没做完"时，不能无限烧下去。
-                    if _auto_rounds >= _MAX_AUTO_ROUNDS:
-                        print(f"[session_runner] 自动轮次已达上限 {_MAX_AUTO_ROUNDS}，暂停续跑 "
-                              f"cid={cid}", file=sys.stderr, flush=True)
-                        break
-                    rid = self._mesh.try_begin_run(cid)
-                    if not rid:
-                        break          # 被别的路径占位（或已停止）：不抢
-                    _auto_rounds += 1
-                    self._note_goal_round(cid)
-                    text = nxt_text
-                    attachments = None
-                    continue
-                text = str(nxt.get("content") or "")
-                attachments = nxt.get("attachments")  # 后续入队消息可各自带附件
-                resume = nxt.get("resume")
+                self._mesh.end_run(cid)
+                nxt_text = self._claim_goal_turn(cid, _auto_rounds)
+                if nxt_text is None:
+                    break
+                _auto_rounds += 1
+                text = nxt_text
+                attachments = None
+                resume = None
+                sender = None
         except Exception as exc:  # 兜底：释放占位（不续跑）
             self._mesh.abort_run(cid)
             report_error("shell.session_runner", exc, conversation_id=cid, where="aborted")
@@ -205,6 +232,68 @@ class SessionRunner:
                 if self._threads.get(cid) is threading.current_thread():
                     self._threads.pop(cid, None)
                 self._cancels.pop(cid, None)
+
+    def _claim_goal_turn(self, cid: str, auto_rounds: int) -> Optional[str]:
+        text = self._next_continuation_text(cid)
+        if not text:
+            return None
+        if auto_rounds >= _MAX_AUTO_ROUNDS:
+            print(f"[session_runner] 自动轮次已达上限 {_MAX_AUTO_ROUNDS}，暂停续跑 "
+                  f"cid={cid}", file=sys.stderr, flush=True)
+            return None
+        if not self._mesh.try_begin_run(cid):
+            return None
+        self._note_goal_round(cid)
+        return text
+
+    def _cancel_pending_for_new_input(self, cid: str) -> str:
+        contexts = getattr(self._app, "session_contexts", None)
+        if contexts is None:
+            return ""
+        session = contexts.resolve_sync(cid)
+        pending = getattr(session, "pending_confirm", None)
+        if not isinstance(pending, dict):
+            return ""
+        call_id = str(pending.get("call_id") or "").strip()
+        if not call_id:
+            return ""
+        session.pending_confirm = None
+        return call_id
+
+    def _is_paused(self, cid: str) -> bool:
+        contexts = getattr(self._app, "session_contexts", None)
+        if contexts is None:
+            return False
+        session = contexts.resolve_sync(cid)
+        return bool(getattr(session, "pending_confirm", None))
+
+    def _queue(self) -> Any:
+        return getattr(self._app, "conversation_queue", None)
+
+    def _claim_queued(self, cid: str) -> Any:
+        queue = self._queue()
+        return queue.claim_after_turn(cid) if queue is not None else None
+
+    def _release_queued(self, cid: str, item: Dict[str, Any]) -> None:
+        queue = self._queue()
+        if queue is not None:
+            queue.release(cid, str(item.get("id") or ""))
+
+    def _complete_queued(self, cid: str, item: Dict[str, Any]) -> None:
+        queue = self._queue()
+        if queue is not None:
+            queue.complete(cid, str(item.get("id") or ""))
+
+    def _queued_input(self, item: Dict[str, Any]) -> Any:
+        payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+        content = str(item.get("content") or payload.get("content") or "")
+        attachments = item.get("attachments") or payload.get("attachments")
+        if isinstance(attachments, list):
+            attachments = [row for row in attachments
+                           if not isinstance(row, dict) or "data_base64" in row]
+        resume = payload.get("resume")
+        sender = item.get("sender") if isinstance(item.get("sender"), dict) else None
+        return content, attachments, resume, sender
 
     def _flush_pending(self, cid: str) -> None:
         """把该会话积压的待重试事实补投出去（失败只留痕，不影响收尾）。"""
@@ -263,7 +352,8 @@ class SessionRunner:
         return bool(self._auto_continue(cid))
 
     def _execute(self, cid: str, text: str, attachments: Any = None,
-                 resume: Any = None) -> None:
+                 resume: Any = None, sender: Optional[Dict[str, Any]] = None,
+                 from_queue: bool = False) -> bool:
         """执行单个回合：迭代事件至尽（回合过）；注入停止检查。
 
         `resume` 非空时（外部结果回灌）：先把结果写成 `tool_result` 事实，
@@ -282,8 +372,12 @@ class SessionRunner:
             mode_note=self._mode_note(cid),
             cancel=self._cancel_check(cid),
         )
-        for _event in engine.start_turn(text, attachments=attachments):
-            pass
+        paused = False
+        for event in engine.start_turn(text, attachments=attachments,
+                                       sender=sender, from_queue=from_queue):
+            if str(getattr(event, "type", "")) == "turn_ended":
+                paused = bool((getattr(event, "data", None) or {}).get("paused"))
+        return paused
 
     def _splice_resume(self, cid: str, resume: Dict[str, Any]) -> None:
         """把外部结果拼进会话事实（写前查重；失败不抛，回合照跑）。"""

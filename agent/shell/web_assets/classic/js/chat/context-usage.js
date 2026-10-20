@@ -23,6 +23,7 @@ return _ctxIsLight()?e.light:e.dark;
 }
 function ctxSegmentColor(key){
 var k=String(key||"");
+if(k==="mode")return "#f3ce0d";
 var theme=_ctxIsLight()?"light":"dark";
 var cacheKey=theme+"|"+k;
 if(_ctxSegColorCache[cacheKey])return _ctxSegColorCache[cacheKey];
@@ -44,14 +45,14 @@ col=_ctxNamedColor(CTX_SEG_FALLBACK[h%CTX_SEG_FALLBACK.length]);
 _ctxSegColorCache[cacheKey]=col;
 return col;
 }
-function bindCtxLayoutTooltip(barHost, segs, colors){
+function bindCtxLayoutTooltip(barHost, segs, colors, markerPct){
 var tt=ensureCtxLayoutTooltip();
 var filtered=[];
 for(var i=0;i<segs.length;i++){var s=segs[i];if(!s)continue;filtered.push(s);}
 function showTip(){
 if(ctxLayoutTipHideTimer){clearTimeout(ctxLayoutTipHideTimer);ctxLayoutTipHideTimer=null;}
 if(!filtered.length){if(tt){tt.style.display="none";tt.innerHTML="";}return;}
-tt.innerHTML=buildCtxLayoutTooltipHtml(filtered,colors);
+tt.innerHTML=buildCtxLayoutTooltipHtml(filtered,colors,markerPct);
 tt.style.display="block";
 positionCtxLayoutTooltip(tt,barHost);
 }
@@ -60,6 +61,39 @@ barHost.addEventListener("mouseleave",function(){scheduleHideCtxLayoutTooltip();
 }
 function formatCompactTokens(n){var x=Math.max(0,Math.floor(Number(n)||0));if(x>=1e9){var v=x/1e9;return (v>=100?v.toFixed(0):v>=10?v.toFixed(1):v.toFixed(2)).replace(/\.?0+$/,"")+"B";}if(x>=1e6){var v2=x/1e6;return (v2>=100?v2.toFixed(0):v2>=10?v2.toFixed(1):v2.toFixed(2)).replace(/\.?0+$/,"")+"M";}if(x>=1e3){var v3=x/1e3;return (v3>=100?v3.toFixed(0):v3.toFixed(1)).replace(/\.0+$/,"")+"K";}return String(x);}
 function buildUsageRing(){const million=Math.floor(sessionTokenUsed/SESSION_TOKEN_LIMIT);const p=tokenPercent();const used=Math.max(0,Math.floor(sessionTokenUsed));const ring=document.createElement("span");ring.className="usage-ring";ring.style.setProperty("--p",String(p));const totalCache=totalCacheHitTokens+totalCacheMissTokens;const hitPct=totalCache>0?Math.round(totalCacheHitTokens/totalCache*100):0;ring.title="已用: "+used.toLocaleString()+"\n输入: "+totalPromptTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalPromptTokens)+")\n输出: "+totalCompletionTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalCompletionTokens)+")\nKV缓存命中: "+totalCacheHitTokens.toLocaleString()+" ("+hitPct+"%)\n未命中: "+totalCacheMissTokens.toLocaleString();const num=document.createElement("span");num.className="usage-num";num.textContent=million;ring.appendChild(num);return ring;}
+function ctxDisplaySegments(lay){
+var raw=lay&&Array.isArray(lay.segments)?lay.segments:[];
+var total=0;
+for(var i=0;i<raw.length;i++){
+var key=String(raw[i]&&raw[i].key||"");
+if(key!=="remaining")total+=Math.max(0,Math.floor(Number(raw[i]&&raw[i].tokens)||0));
+}
+var limit=Math.max(0,Math.floor(Number(lay&&lay.model_max_context_tokens)||0));
+var budget=Math.max(0,Math.floor(Number(lay&&lay.budget_tokens)||0));
+var denom=limit>0?Math.max(limit,total,1):Math.max(budget,total,1);
+var out=[];
+for(var j=0;j<raw.length;j++){
+var seg=raw[j];
+if(!seg)continue;
+var key2=String(seg.key||"");
+if(key2==="remaining")continue;
+var copy={};
+for(var k in seg)copy[k]=seg[k];
+copy.pct=roundPct(100*Math.max(0,Math.floor(Number(seg.tokens)||0))/denom);
+out.push(copy);
+}
+var rest=Math.max(0,denom-total);
+out.push({key:"remaining",label:"剩余容量",tokens:rest,pct:roundPct(100*rest/denom)});
+return out;
+}
+function roundPct(v){return Math.round((Number(v)||0)*1000000)/1000000;}
+function compactMarkerPct(lay){
+var windowTokens=Math.max(0,Math.floor(Number(lay&&lay.model_max_context_tokens)||0));
+var budget=Math.max(0,Math.floor(Number(lay&&lay.budget_tokens)||0));
+if(!windowTokens||!budget||budget>=windowTokens)return -1;
+return Math.max(0,Math.min(100,(windowTokens-budget)*100/windowTokens));
+}
+
 function _updateUsageBottom(){
 const el=document.getElementById("usage-bottom");if(!el)return;
 if(ctxLayoutTooltipEl){ctxLayoutTooltipEl.style.display="none";}
@@ -85,7 +119,7 @@ var t3=document.createElement("span");t3.className="ub-title";t3.textContent="�
 var barHost=document.createElement("div");barHost.className="ctx-bar-host";
 var tabCtx=typeof getActiveTab==="function"?getActiveTab():null;
 var lay=tabCtx&&tabCtx.lastContextLayout;
-var segs=lay&&Array.isArray(lay.segments)?lay.segments.slice():[];
+var segs=ctxDisplaySegments(lay);
 /* 快照里还留着上一次的插件段。未装载的不画。 */
 if(loadedPlugins){
 segs=segs.filter(function(sg){
@@ -106,22 +140,27 @@ if(!segs.length){var empty=document.createElement("span");empty.className="ctx-b
 else{var bar=document.createElement("div");bar.className="ctx-bar";
 for(var si=0;si<segs.length;si++){var sg=segs[si];if(!sg)continue;
 var tok=Math.max(0,Math.floor(Number(sg.tokens)||0));
-var col=ctxSegmentColor(String(sg.key));
+var segKey=String(sg.key||"");
+var col=segKey==="remaining"?_segVar("--c-track","#2a2d32"):ctxSegmentColor(segKey);
 var colEl=document.createElement("span");colEl.className="ctx-seg-col"+(tok>0?"":" ctx-seg-col-zero");
 if(tok>0){colEl.style.flex=String(tok)+" 1 0";colEl.style.minWidth="2px";}else{colEl.style.flex="0 0 2px";colEl.style.minWidth="2px";colEl.style.maxWidth="2px";}
-var fill=document.createElement("span");fill.className="ctx-seg ctx-seg-"+String(sg.key||"").replace(/[^a-z0-9_-]/gi,"");fill.style.background=col;fill.style.height="10px";fill.style.borderRadius="2px";fill.style.flexShrink="0";fill.style.width="100%";fill.style.display="block";fill.style.boxSizing="border-box";
+var fill=document.createElement("span");fill.className="ctx-seg ctx-seg-"+String(sg.key||"").replace(/[^a-z0-9_-]/gi,"");fill.style.background=col;fill.style.height="10px";fill.style.borderRadius="0";fill.style.flexShrink="0";fill.style.width="100%";fill.style.display="block";fill.style.boxSizing="border-box";
 colEl.appendChild(fill);bar.appendChild(colEl);}
-barHost.appendChild(bar);bindCtxLayoutTooltip(barHost,segs,colors);}
+barHost.appendChild(bar);bindCtxLayoutTooltip(barHost,segs,colors,compactMarkerPct(lay));}
 row3.appendChild(t3);row3.appendChild(barHost);
 el.innerHTML='';el.appendChild(sheet);el.appendChild(row3);
 }
 
 function applyUsageAccumulatorPayload(j){if(!j||typeof j!=="object")return;sessionTokenUsed=Number(j.session_token_used??0)||0;totalPromptTokens=Number(j.total_prompt_tokens??0)||0;totalCompletionTokens=Number(j.total_completion_tokens??0)||0;totalCacheHitTokens=Number(j.total_cache_hit_tokens??0)||0;totalCacheMissTokens=Number(j.total_cache_miss_tokens??0)||0;if(conv)_updateUsageBottom();}
-async function loadUsageAccumulator(){try{/* 带上 conversation_id。
-   后端用单个全局文件存用量，不带参数也能取到；
-   适配层按会话存，缺参数会取到空槽 → 刷新后用量归零。
-   位置遵循统一约定：读=query，写=body。 */
-const r=await fetch("/api/usage-accumulator?conversation_id="+encodeURIComponent(activeConversationId||""));if(!r.ok)return;const j=await r.json();applyUsageAccumulatorPayload(j);}catch(e){}}
+var usageAccumulatorSeq=0;
+async function loadUsageAccumulator(){try{
+const cid=String(activeConversationId||"");if(!cid)return;
+const seq=++usageAccumulatorSeq;
+const r=await fetch("/api/usage-accumulator?conversation_id="+encodeURIComponent(cid));if(!r.ok)return;
+const j=await r.json();
+if(seq!==usageAccumulatorSeq||String(activeConversationId||"")!==cid)return;
+applyUsageAccumulatorPayload(j);
+}catch(e){}}
 async function persistUsageAccumulator(){try{/* cid 为空时不发写请求 —— 空 cid 必被后端拒（invalid conversation_id），纯噪音。 */
 if(!String(activeConversationId||""))return;/* 写操作走 body（约定：写=body，读=query）。
          缺 conversation_id 时后端返回 `invalid conversation_id`，

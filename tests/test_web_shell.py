@@ -863,9 +863,9 @@ class DirBrowseQueryTest(_ServerFixture):
         self.assertEqual(payload.get("mode"), "plan")
 
 class ConcurrencyTest(_ServerFixture):
-    """同会话并发 409；停止请求可下发。"""
+    """同会话并发发送进入待发送队列；停止请求可下发。"""
 
-    def test_concurrent_send_returns_409(self) -> None:
+    def test_concurrent_send_queues(self) -> None:
 
         cid = "conc-00000001"
         self.app.mesh.try_begin_run(cid)  # 占住会话
@@ -873,8 +873,26 @@ class ConcurrencyTest(_ServerFixture):
             status, payload = self.post(
                 "/api/chat/send", {"message": "再来", "conversation_id": cid}
             )
-            self.assertEqual(status, 409, msg=str(payload))
-            self.assertIn("执行中", payload.get("error", ""))
+            self.assertEqual(status, 200, msg=str(payload))
+            self.assertTrue(payload.get("queued"))
+            self.assertEqual(payload["queue_item"]["content"], "再来")
+            self.assertEqual(self.app.mesh.queue_size(cid), 1)
+            item_id = payload["queue_item"]["id"]
+            _, queue = self.get_json(f"/api/chat/queue?conversation_id={cid}")
+            self.assertEqual(queue["items"][0]["id"], item_id)
+            status, inserted = self.post(
+                f"/api/chat/queue/{item_id}/insert",
+                {"conversation_id": cid},
+            )
+            self.assertEqual(status, 200, msg=str(inserted))
+            self.assertEqual(inserted["item"]["state"], "inserting")
+            status, recalled = self.post(
+                f"/api/chat/queue/{item_id}/recall",
+                {"conversation_id": cid},
+            )
+            self.assertEqual(status, 200, msg=str(recalled))
+            self.assertEqual(recalled["item"]["content"], "再来")
+            self.assertEqual(self.app.mesh.queue_size(cid), 0)
         finally:
             self.app.mesh.end_run(cid)
 

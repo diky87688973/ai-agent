@@ -32,6 +32,7 @@ SERVICE_PLUGIN_HOST = "plugin_host"              # 插件宿主
 SERVICE_PLUGIN_EVENTS = "plugin_events"          # 插件事件出口（非事实 SSE）
 SERVICE_CONTEXT_SOURCES = "context_sources"      # 上下文注入源
 SERVICE_PROMPT_TAIL = "prompt_tail"              # 请求尾部片段（执行模式之后）
+SERVICE_CONVERSATION_QUEUE = "conversation_queue"  # 会话待发送消息队列
 SERVICE_SESSION_CONTEXTS = "session_contexts"    # 会话注册表（cid → SessionContext）
 SERVICE_LIVE_STATE = "live_state"                # 实时状态容器（按 cid 分键）
 SERVICE_MESH = "mesh"                            # 协作网格 / 收件队列（按 cid 分键）
@@ -100,7 +101,7 @@ class ToolTurnContext:
     - `app`：进程级 `AppContext`（服务注册表）——需要全局能力时经 `app.get(NAME)` 解析，
       或先 `has(NAME)` 判存在（可选服务不得假设存在）；
     - `session`：会话级 `SessionContext`——写盘门控 `session.gate`、实时状态
-      `session.live`、收件队列 `session.inbox`、待确认 `session.pending_confirm`；
+      `session.live`、待确认 `session.pending_confirm`；
     - `turn`：回合级原对象——只在确实要看回合内部状态时才用；
     - `call`：本轮次的工具调用（`call_id` / 工具名 / 入参）；
     - `progress`：进度上报器（`report(payload)`；`None` 表示本场合不上报）。

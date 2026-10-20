@@ -1267,7 +1267,7 @@
       }
     },
     {
-      "description": "向目标 Agent 发送消息并触发其执行；目标忙时进入 inbox 队列（requires_reply 必填）。",
+      "description": "向目标 Agent 发送消息并触发其执行；目标忙时进入待发送队列（requires_reply 必填）。",
       "display": {
         "icon": "💬",
         "label": "发送到会话"

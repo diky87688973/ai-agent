@@ -133,8 +133,9 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 | `full_recent` | 近期对话 | **用户轮数**（一轮里有问有答还有工具往返） |
 | `mode` | **请求尾部**，不在管线里 | 由 `layout_payload(tail_messages=…)` 单独算 |
 
-`layout_payload()` 补 `remaining`（剩余容量）与 `pct`；`pct` 相对预算
-（预算 = 压缩阈值，取预算与已用中的较大者）。
+`layout_payload()` 补 `remaining`（剩余容量）与 `pct`；服务端 `pct` 相对预算
+（预算 = 压缩阈值，取预算与已用中的较大者）。界面按 `model_max_context_tokens`
+重新计算展示百分比与剩余容量；预算只作为压缩触发口径。
 
 自报数量**按位置**与来源对齐：`collect_segments()` 返回的数量表与段落表等长，
 某个来源少了自报数就按它自己的条数算。错位是静默的（段名、token 都对，只有数字离谱），

@@ -41,13 +41,11 @@ from agent.shell.fspaths import (  # noqa: F401
     resolve_media_root,
 )
 from agent.shell.sse import _Channel, _event_seq, _sse_payload  # noqa: F401
-from agent.shell.web_api import WebShell, _normalize_images  # noqa: F401
+from agent.shell.web_api import WebShell
 from agent.shell.web_routes import _Handler
 from agent.shell.web_static import (  # noqa: F401
-    _IMAGE_MIMES,
     ASSETS_DIR,
     MAX_BODY_BYTES,
-    MAX_IMAGES,
     MODE_VALUES,
     SSE_HEARTBEAT_SEC,
     _lang_from_path,

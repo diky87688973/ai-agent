@@ -15,7 +15,7 @@ plugins/ai_speak/
   tool.py                      ai_speak 工具
   plugin-meta.json            身份元数据
   plugin-config.ini           真实配置（入库）
-  ui/player.js                 悬浮播放条与队列
+  ui/player.js                 输入框上方的播放条与队列
   ui/player.css                播放条样式
   ui/tool-view.js              对话区工具卡
 ```
@@ -79,6 +79,9 @@ parameters = {"msg": {"type": "string"}}
 [config]
 engine = edge
 voice = zh-CN-XiaoxiaoNeural
+user_salutation = 陛下
+assistant_salutation = 臣妾
+tone = 温婉
 max_segment_chars = 128
 play_interval_ms = 0
 sync_playback = 0
@@ -91,6 +94,9 @@ speed = 1.0
 |---|---|---|---|
 | `engine` | `edge` | 仅 `edge` | 合成引擎；其它值装载期报错 |
 | `voice` | `zh-CN-XiaoxiaoNeural` | 非空 | edge-tts 音色名 |
+| `user_salutation` | `陛下` | 非空 | 模型对用户的称呼 |
+| `assistant_salutation` | `臣妾` | 非空 | 模型对自己的称呼 |
+| `tone` | `温婉` | 非空 | 模型说话的语气约束 |
 | `max_segment_chars` | 128 | ≥1 的整数，无上限 | 单段字符上限 |
 | `play_interval_ms` | 0 | ≥0 | 段间播放间隔（毫秒） |
 | `sync_playback` | 0 | `0` / `1` | 1 = 工具等前端播完再返回 |

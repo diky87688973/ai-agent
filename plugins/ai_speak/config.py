@@ -18,6 +18,9 @@ CONFIG_FILE = "plugin-config.ini"
 CONFIG_SECTION = "config"
 DEFAULT_ENGINE = "edge"
 DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
+DEFAULT_USER_SALUTATION = "陛下"
+DEFAULT_ASSISTANT_SALUTATION = "臣妾"
+DEFAULT_TONE = "温婉"
 DEFAULT_MAX_SEGMENT_CHARS = 128
 DEFAULT_PLAY_INTERVAL_MS = 0
 DEFAULT_SYNC_PLAYBACK = False
@@ -29,6 +32,9 @@ MAX_SPEED = 2.0
 CONFIG_KEYS = frozenset({
     "engine",
     "voice",
+    "user_salutation",
+    "assistant_salutation",
+    "tone",
     "max_segment_chars",
     "play_interval_ms",
     "sync_playback",
@@ -50,6 +56,9 @@ class AISpeakConfig:
 
     engine: str = DEFAULT_ENGINE
     voice: str = DEFAULT_VOICE
+    user_salutation: str = DEFAULT_USER_SALUTATION
+    assistant_salutation: str = DEFAULT_ASSISTANT_SALUTATION
+    tone: str = DEFAULT_TONE
     max_segment_chars: int = DEFAULT_MAX_SEGMENT_CHARS
     play_interval_ms: int = DEFAULT_PLAY_INTERVAL_MS
     sync_playback: bool = DEFAULT_SYNC_PLAYBACK
@@ -130,6 +139,18 @@ def load_config(path: Optional[Path] = None) -> AISpeakConfig:
     if not voice:
         raise ConfigError(f"[{CONFIG_SECTION}] voice 不能为空", path=target)
 
+    user_salutation = values.get("user_salutation", DEFAULT_USER_SALUTATION)
+    if not user_salutation:
+        user_salutation = DEFAULT_USER_SALUTATION
+    assistant_salutation = values.get(
+        "assistant_salutation", DEFAULT_ASSISTANT_SALUTATION
+    )
+    if not assistant_salutation:
+        assistant_salutation = DEFAULT_ASSISTANT_SALUTATION
+    tone = values.get("tone", DEFAULT_TONE)
+    if not tone:
+        tone = DEFAULT_TONE
+
     warnings = []
     max_segment_chars, warning = _int_value(
         values.get("max_segment_chars", ""), DEFAULT_MAX_SEGMENT_CHARS
@@ -172,6 +193,9 @@ def load_config(path: Optional[Path] = None) -> AISpeakConfig:
     return AISpeakConfig(
         engine=engine,
         voice=voice,
+        user_salutation=user_salutation,
+        assistant_salutation=assistant_salutation,
+        tone=tone,
         max_segment_chars=max_segment_chars,
         play_interval_ms=play_interval_ms,
         sync_playback=sync_playback,

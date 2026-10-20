@@ -835,7 +835,19 @@ fill:function(row,o,ev){
 var summary=desktopToolSummary(o.script,o.args,chatDesktopData(ev));
 if(summary)chatToolSetSummary(row,summary);}
 });
-window.aiAgentChatTools={register:registerChatToolView};
+function refreshChatToolSummaries(){
+var rows=document.querySelectorAll(".chat-tool-row");
+for(var i=0;i<rows.length;i++){
+var row=rows[i];
+var data=row._toolData;
+if(!data||!row._sum)continue;
+var view=chatToolViewFor(data.script,data.args);
+if(!view||typeof view.summary!=="function")continue;
+var text=String(view.summary({script:data.script,args:data.args})||"").trim();
+if(text)row._sum.textContent=text;
+}
+}
+window.aiAgentChatTools={register:registerChatToolView,refresh:refreshChatToolSummaries};
 function appendChatToolRow(row, opts){
 if(!msgs||!row)return;
 opts=opts||{};
@@ -854,6 +866,7 @@ var row=makeChatToolRow(title, summary);
 row.classList.add("is-running");
 chatToolSyncStatusTitle(row);
 o.chatToolRow=row;
+row._toolData={script:o.script,args:o.args};
 if(view.mount)view.mount(row, o);
 /* 等待类工具：标题后的秒数逐秒减，与步骤卡同一份倒计时。
    回放历史时不重启倒计时 —— 那是已经发生过的等待，重新从总数往下数会像还在等。 */

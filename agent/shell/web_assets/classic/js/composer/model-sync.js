@@ -65,5 +65,5 @@ if(st.reasoning_effort&&typeof applyReasoningEffort==="function")applyReasoningE
    会话已回填（`settingsLoaded`）时不能再拿全局默认盖它 —— 两个请求都是异步的，
    谁后到就谁生效会让切换会话偶尔退回默认值。 */
 async function loadHealthModel(){
-try{var r=await fetch("/health");if(!r.ok)return;var j=await r.json();if(Array.isArray(j.allowed_models))setAllowedModels(j.allowed_models);var ht=getActiveTab();var hydrated=!!(ht&&ht.settingsLoaded);if(j.model&&!hydrated)applyModel(j.model);if(j.reasoning_effort&&!hydrated&&typeof applyReasoningEffort==="function")applyReasoningEffort(j.reasoning_effort,false);}catch(e){}
+try{var r=await fetch("/health");if(!r.ok)return;var j=await r.json();if(Array.isArray(j.allowed_models))setAllowedModels(j.allowed_models);var ht=getActiveTab();var hydrated=!!(ht&&ht.settingsLoaded);if(j.max_images)window.AI_AGENT_MAX_IMAGES=Number(j.max_images)||window.AI_AGENT_MAX_IMAGES;if(j.model&&!hydrated)applyModel(j.model);if(j.reasoning_effort&&!hydrated&&typeof applyReasoningEffort==="function")applyReasoningEffort(j.reasoning_effort,false);}catch(e){}
 }

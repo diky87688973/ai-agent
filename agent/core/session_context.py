@@ -15,8 +15,7 @@
    - `gate`：写盘门控（确认 ID 与预览 kv / 待重读 / 待 review / 红灯 / 意图证据），
      每会话独占一个实例：一个会话的预览快照不得被另一个会话看到或提交；
    - `live`：实时状态（模式 / todo / 自主 / 休眠）；实例由装配共享，内部按 cid 分键；
-   - `inbox`：收件队列；实例由装配共享，内部按 cid 分键；
-   - `pending_confirm`：待用户确认（两段式首段留下的挂起调用）。
+      - `pending_confirm`：待用户确认（两段式首段留下的挂起调用）。
    - `approvals`：已同意的审批，`approval_id` → `option_id`。驳回不写入。
 
 2. `SessionContexts` —— 会话注册表（cid → SessionContext）：懒创建、线程安全、同 cid 复用；
@@ -52,12 +51,11 @@ GateFactory = Callable[[str], Any]
 
 @dataclass
 class SessionContext:
-    """单会话局部状态（gate 独占；live / inbox 为装配共享的按 cid 分键容器）。"""
+    """单会话局部状态（gate 独占；live 为装配共享的按 cid 分键容器）。"""
 
     conversation_id: str = DEFAULT_BUCKET
     gate: Any = None
     live: Any = None
-    inbox: Any = None
     extras: Dict[str, Any] = field(default_factory=dict)
     # 待用户确认（两段式 / 挂起）：`user_confirm` 类工具首段返回信封后，
     # 回合把它置为 `{call_id, title, confirms, multi}`，然后放行结束（不阻塞、不再调模型）；
@@ -85,7 +83,7 @@ class SessionContexts:
     """会话注册表：按 cid 懒创建、线程安全、同 cid 复用。
 
     - `gate_factory(cid)`：门控工厂——每会话调用一次，产出该会话独占的写盘门控；
-    - `live` / `inbox`：装配级共享容器（内部按 cid 分键，同为按 cid 字典）；
+    - `live`：装配级共享容器（内部按 cid 分键）；
     - `resolve_sync(cid)`：显式取某会话上下文（脚本 / 测试 / 无 contextvar 场景）；
     - `resolve()`：取当前会话上下文（经 core.session_scope 的 contextvar）；
     - `get(cid)` / `buckets()`：只读查询，不创建会话上下文。
@@ -96,13 +94,11 @@ class SessionContexts:
         gate_factory: Optional[GateFactory] = None,
         *,
         live: Any = None,
-        inbox: Any = None,
     ) -> None:
         if gate_factory is None:
             raise ValueError("SessionContexts 需要 gate_factory（每会话产出独占门控）")
         self._gate_factory: GateFactory = gate_factory
         self._live = live
-        self._inbox = inbox
         self._buckets: Dict[str, SessionContext] = {}
         self._lock = threading.Lock()
 
@@ -112,11 +108,6 @@ class SessionContexts:
     def live(self) -> Any:
         """装配级共享的实时状态容器（内部按 cid 分键）。"""
         return self._live
-
-    @property
-    def inbox(self) -> Any:
-        """装配级共享的收件队列容器（内部按 cid 分键）。"""
-        return self._inbox
 
     # ── 解析 ────────────────────────────────────────────────
 
@@ -139,8 +130,7 @@ class SessionContexts:
                 conversation_id=bucket,
                 gate=gate,
                 live=self._live,
-                inbox=self._inbox,
-            )
+                )
             self._buckets[bucket] = ctx
             return ctx
 

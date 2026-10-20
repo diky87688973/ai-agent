@@ -154,17 +154,16 @@ class ExclusiveGateTest(unittest.TestCase):
         self.assertFalse(gate_b.pending_diagnose_red)
 
 class SharedContainerTest(unittest.TestCase):
-    """live / inbox 为装配级共享容器。"""
+    """live 为装配级共享容器。"""
 
-    def test_live_and_inbox_shared_by_reference(self):
+    def test_live_shared_by_reference(self):
 
         live = LiveState()
-        ctxs = _contexts(live=live, inbox=object())
+        ctxs = _contexts(live=live)
         a = ctxs.resolve_sync("conv-a")
         b = ctxs.resolve_sync("conv-b")
         self.assertIs(a.live, b.live)
         self.assertIs(a.live, live)
-        self.assertIs(a.inbox, b.inbox)
 
     def test_shared_live_is_still_partitioned_by_cid(self):
 
@@ -236,7 +235,6 @@ class AppWiringTest(unittest.TestCase):
 
         self.assertIsInstance(self.app.session_contexts, SessionContexts)
         self.assertIs(self.app.session_contexts.live, self.app.live_state)
-        self.assertIs(self.app.session_contexts.inbox, self.app.mesh)
 
     def test_preview_and_confirm_land_in_same_session_gate(self):
 

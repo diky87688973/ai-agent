@@ -6,7 +6,7 @@
   ② 协议闭环：send → 后台回合 → SSE 单流多路复用（每帧带 cid）→ history / sessions / ui-state；
   ③ 门控闭环：预览回传 confirm_id（未落盘）→ 未确认提交被拒 → 经 Web 确认端点确认 →
      提交落盘 → 跨会话确认被拒（`/api/chat/user-confirm` 的协议侧）；
-  ④ 并发与停止：同会话并发 send → 409；stop 下发协作式取消；
+  ④ 并发与停止：同会话并发 send → 入队；stop 下发协作式取消；
   ⑤ Markdown 注入防线（浏览器，需 Playwright）：XSS 向量在真实页面上必须被转义；
   ⑥ 设置面板（浏览器，需 Playwright）：分区、插件清单与各编辑器都要真的渲染；
   ⑦ AI说话播放器（浏览器，需 Playwright）：启动脚本注入播放条，插件事件可送达，
@@ -522,7 +522,11 @@ class Acceptance:
         cid = "accept-conc-01"
         self.app.mesh.try_begin_run(cid)
         status, payload = self.post("/api/chat/send", {"message": "再来", "conversation_id": cid})
-        self.check("同会话并发 send → 409", status == 409, f"{status} {payload}")
+        self.check("同会话并发 send → 入队", status == 200 and bool(payload.get("queued")), f"{status} {payload}")
+        queue = self.app.conversation_queue.list(cid)
+        self.check("并发消息进入待发送队列", len(queue.get("items") or []) == 1, str(queue))
+        for item in queue.get("items") or []:
+            self.app.conversation_queue.cancel(cid, item["id"])
         self.app.mesh.end_run(cid)
 
         status, payload = self.post("/api/chat/stop", {"conversation_id": cid})

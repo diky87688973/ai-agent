@@ -21,11 +21,15 @@ from .tool import AISpeakTool
 PLUGIN_VERSION = "1.0"
 
 
-_VOICE_DIRECTIVE = (
-    "【AI说话】必须主动使用 ai_speak 工具与用户沟通。"
-    "这是正文以外的另一条输出通道，内容会经过语音播放。"
-    "因此要注意扮演和语气，更重要的是模仿人类口语说话。"
-)
+def _voice_directive(user_salutation: str, assistant_salutation: str,
+                     tone: str) -> str:
+    return (
+        "【AI说话】必须主动使用 ai_speak 工具与用户沟通。\n"
+        "这是正文以外的另一条输出通道，内容会经过语音播放。\n"
+        f"对用户称「{user_salutation}」，自称「{assistant_salutation}」。\n"
+        f"语气保持{tone}。\n"
+        "说话要自然、贴合当前角色和语气，更重要的是模仿人类口语说话。"
+    )
 
 
 def _config_path() -> Path:
@@ -66,6 +70,9 @@ def _config_payload(runtime: AISpeakRuntime) -> Any:
         "ok": True,
         "engine": config.engine,
         "voice": config.voice,
+        "user_salutation": config.user_salutation,
+        "assistant_salutation": config.assistant_salutation,
+        "tone": config.tone,
         "max_segment_chars": config.max_segment_chars,
         "play_interval_ms": config.play_interval_ms,
         "sync_playback": config.sync_playback,
@@ -111,7 +118,11 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         disposers.append(ctx.subscribe(ev.TURN_ENDED, _turn_handler(runtime)))
         disposers.append(ctx.subscribe(ev.ERROR, _error_handler(runtime)))
         disposers.append(ctx.add_mode_tail(
-            lambda _cid: _VOICE_DIRECTIVE if runtime.provider_ready() else ""
+            lambda _cid: _voice_directive(
+                runtime.config.user_salutation,
+                runtime.config.assistant_salutation,
+                runtime.config.tone,
+            ) if runtime.provider_ready() else ""
         ))
         ctx.set_runtime(runtime)
     except Exception:

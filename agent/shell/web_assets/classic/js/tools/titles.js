@@ -167,7 +167,7 @@ const d=take(argGet(args,"option_desc"),40);
 return {main:"审批",fname:d||"（无描述）"};}
 if(s.indexOf("user_confirm")>=0){
 const t=take(argGet(args,"title"),40);
-return {main:"等待用户确认",fname:t||"（无标题）"};}
+return {main:"用户确认",fname:t||"（无标题）"};}
 if(s.indexOf("run_type")>=0){
 const rt=String(argGet(args,"run_type")||"").trim().toLowerCase();
 return {main:rt?"切换运行模式":"查询运行模式",fname:rt||"auto/plan/execute"};}

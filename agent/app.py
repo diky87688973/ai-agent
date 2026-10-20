@@ -50,9 +50,11 @@ from agent.config import (
     get_plugins,
     get_reasoning_effort,
 )
+from agent.core import event_name as ev
 from agent.core.context import (
     SERVICE_COMPACTOR_FACTORY,
     SERVICE_CONTEXT_SOURCES,
+    SERVICE_CONVERSATION_QUEUE,
     SERVICE_ERROR_LOG,
     SERVICE_EVENT_BUS,
     SERVICE_LIVE_STATE,
@@ -79,6 +81,7 @@ from agent.core.session_log import SessionLog
 from agent.core.tool_call import ToolPipeline
 from agent.mechanisms.context_compactor import ContextCompactor, make_provider_summarizer
 from agent.mechanisms.context_pipeline import ContextPipeline, ContextSources
+from agent.mechanisms.conversation_queue import ConversationQueue
 from agent.mechanisms.error_log import ErrorLog
 from agent.mechanisms.executors import ExecutorRegistry
 from agent.mechanisms.file_safety import (
@@ -341,6 +344,14 @@ class App:
         )
 
     @property
+    def conversation_queue(self) -> Any:
+        return (
+            self.context.get(SERVICE_CONVERSATION_QUEUE)
+            if self.context.has(SERVICE_CONVERSATION_QUEUE)
+            else None
+        )
+
+    @property
     def prompt_tail(self) -> Any:
         return (
             self.context.get(SERVICE_PROMPT_TAIL)
@@ -422,14 +433,11 @@ class App:
         *,
         system_prompt: str = "",
         cancel: Optional[Callable[[], bool]] = None,
-        inbox: Any = None,
         mode_note: str = "",
     ) -> Any:
         """创建会话引擎：装载既有记录（store 可用时）、装配上下文与持久化旁路。
 
         cancel：壳层传入的停止检查——内核只认"是否要求停止"。
-        inbox：取队首消息的可调用对象 `(cid) -> dict | None`；缺省时用会话消息队列，
-        这样"别的会话投进来的消息"不必每次由壳层显式接线。
         """
         store = self.store
         log = SessionLog()
@@ -461,18 +469,6 @@ class App:
             cid = conversation_id
             fact_sink = lambda events, _cid=cid: store.append(_cid, events)
 
-        # 入站消息出口：默认取协作网格（`MeshState`）的 inbox 队列 ——
-        # 它就是 `session_send` 投递的目标队列（持久化在 `mesh/inbox/<cid>.jsonl`）。
-        # 装配方显式传 `inbox` 时以传入的为准（便于替换存储）。
-        # 没装配协作网格（单会话/嵌入式）→ 没有入站消息；用 has 判定，不吞异常装 None。
-        mesh = (
-            self.context.get(SERVICE_MESH)
-            if self.context.has(SERVICE_MESH)
-            else None
-        )
-        if inbox is None and mesh is not None:
-            inbox = mesh.pop
-
         # 推理档位解析器：按会话从 live_state 取，缺省全局默认。
         state = self.live_state
         effort_resolver = (
@@ -500,7 +496,7 @@ class App:
             pipeline=self.pipeline,
             context=context,
             compactor=compactor,
-            inbox=inbox,
+            queued_input=self.conversation_queue,
             fact_sink=fact_sink,
             system_prompt=system_prompt,
             cancel=cancel,
@@ -569,7 +565,7 @@ def build_app(
     写类工具覆盖前留备份供 file_undo 回滚，删除类操作移入回收目录可恢复）。
     live_state：会话实时状态（模型 / 模式 / 档位 / todo 清单）；
         默认落 PROJECT_ROOT/data/session_state（一个会话一份 JSON）。
-    mesh：会话协作网格（Agent 注册表 / inbox）；默认落 PROJECT_ROOT/data/mesh。
+    mesh：会话协作网格（Agent 注册表 / 运行占位）；默认落 PROJECT_ROOT/data/mesh。
     plugins_dir：插件根目录；默认 PROJECT_ROOT/plugins。装载哪些取工程根 plugins.ini 清单。
     plugins_path：插件清单文件；默认工程根 plugins.ini。给一个不存在的路径即"不装插件"（验收脚本与测试用它排除环境里的开发配置）。
     compactor_factory：上下文压缩器工厂；默认为对话提供 provider 摘要 + config [context] 阈值。
@@ -609,7 +605,13 @@ def build_app(
         default_effort=get_reasoning_effort(),
         default_model=_default_model,
     )
-    mesh_state = mesh if mesh is not None else MeshState(storage_dir=data_root / "mesh")
+    if mesh is None:
+        conversation_queue = ConversationQueue(data_root / "queues")
+        mesh_state = MeshState(storage_dir=data_root / "mesh",
+                               input_queue=conversation_queue)
+    else:
+        mesh_state = mesh
+        conversation_queue = mesh_state.queue
 
     registry = ToolRegistry()
     registry.register(echo.build())
@@ -653,7 +655,6 @@ def build_app(
     contexts = SessionContexts(
         lambda cid: QualityGate(path_keys_for=_path_keys_for),
         live=state,
-        inbox=mesh_state,
     )
     # 写盘工具经管道上下文取 session.gate；直调单测可另传门控实例。
     registry.register(review_conclusion.build())
@@ -675,6 +676,11 @@ def build_app(
     pipeline.add_pre(pre)
     pipeline.add_post(post)
     event_bus = EventBus()
+    conversation_queue.set_change_listener(
+        lambda cid, snapshot: event_bus.publish(
+            Event(ev.QUEUE_UPDATED, {**dict(snapshot), "conversation_id": cid})
+        )
+    )
     # 上下文注入源：插件按段注册（宿主不认具体插件，段名与数量由插件给）。
     context_sources = ContextSources()
     # 请求尾部片段：插件注入的临时文本，拼在执行模式之后，不进入系统提示词前缀。
@@ -765,6 +771,7 @@ def build_app(
     context.register(SERVICE_EVENT_BUS, event_bus)
     context.register(SERVICE_PLUGIN_HOST, plugin_host)
     context.register(SERVICE_CONTEXT_SOURCES, context_sources)
+    context.register(SERVICE_CONVERSATION_QUEUE, conversation_queue)
     context.register(SERVICE_PROMPT_TAIL, prompt_tail)
     context.register(SERVICE_LIVE_STATE, state)
     context.register(SERVICE_MESH, mesh_state)

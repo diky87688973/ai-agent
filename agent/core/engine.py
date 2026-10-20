@@ -42,7 +42,7 @@ class Engine:
         pipeline: Any = None,
         context: Any = None,
         compactor: Any = None,
-        inbox: Any = None,
+        queued_input: Any = None,
         effort: str = "high",
         model: str = "",
         image_turns: int = KEEP_IMAGE_TURNS,
@@ -94,7 +94,7 @@ class Engine:
         self._host = Host(
             modules if modules is not None
             else build_default_chain(input_module=self._input, context=context,
-                                     compactor=compactor, inbox=inbox,
+                                     compactor=compactor, queued_input=queued_input,
                                      effort=effort, model=model,
                                      image_turns=image_turns, image_max=image_max,
                                      mode_note=mode_note),
@@ -202,7 +202,8 @@ class Engine:
                 batch_size=len(batch),
             )
 
-    def start_turn(self, user_text: str, attachments: Any = None) -> Iterator[Event]:
+    def start_turn(self, user_text: str, attachments: Any = None,
+                   sender: Any = None, from_queue: bool = False) -> Iterator[Event]:
         """跑一个回合，边跑边产出事实（保实时流语义）。
 
         顺序保证：事件由宿主/模块先入日志再出事件流，所以消费者看到的事实
@@ -211,7 +212,8 @@ class Engine:
         流式靠 `Host.run_iter`：宿主在事件产出那一刻就让出控制权，本生成器逐个吐。
         """
         atts = list(attachments) if isinstance(attachments, (list, tuple)) else []
-        self._input.feed(str(user_text or ""), atts)
+        self._input.feed(str(user_text or ""), atts, sender=sender,
+                          from_queue=from_queue)
 
         # 开新回合：就地清空上一回合没来得及落盘的事实（`clear()`，不重绑字段）。
         self._turn_events.clear()

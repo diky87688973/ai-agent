@@ -62,12 +62,9 @@ var tw=tt.offsetWidth||0;
 if(left+tw>vw-8)tt.style.left=Math.max(8,vw-tw-8)+"px";
 });
 }
-function buildCtxLayoutTooltipHtml(segs, colors){
+function buildCtxLayoutTooltipHtml(segs, colors, markerPct){
 var rows=[];
 for(var i=0;i<segs.length;i++){var s=segs[i];if(!s)continue;rows.push(s);}
-var maxTok=0;
-for(var j=0;j<rows.length;j++)maxTok=Math.max(maxTok,Math.max(0,Math.floor(Number(rows[j].tokens)||0)));
-if(maxTok<1)maxTok=1;
 var trackW=120;
 var parts=[];
 for(var m=0;m<rows.length;m++){
@@ -78,7 +75,8 @@ var tok=Math.max(0,Math.floor(Number(sg.tokens)||0));
 var pct=formatContextPct(sg.pct);
 var col=ctxSegmentColor(key);
 var csafe=String(col).replace(/[^#0-9a-fA-F]/g,"").slice(0,9)||"#5c5c5c";
-var wpx=tok<=0?0:Math.max(2,Math.round(trackW*tok/maxTok));
+var pctNum=Math.max(0,Math.min(100,Number(sg.pct)||0));
+var wpx=tok<=0?0:Math.max(2,Math.round(trackW*pctNum/100));
 var mid="—";
 /* 数量一律按段显示"几个主体"：插件段的数量由插件自报（勾选文件数、Skills 数…），
    内核与壳层都不解释它的含义。 */
@@ -87,11 +85,16 @@ var cnt=Math.max(0,Math.floor(Number(sg.count)||0));
 mid=String(cnt)+"个";
 }
 var meta=pct+"% | "+mid+" | "+tok.toLocaleString()+" tokens";
+var marker="";
+if(key==="remaining"&&markerPct>=0){
+marker='<span class="ctx-tip-marker" style="width:'+markerPct+'%"></span>';
+}
 parts.push(
 '<div class="ctx-tip-line">'+
 '<span class="ctx-tip-br">'+escapeHtml(lab)+'</span>'+
 '<span class="ctx-tip-track">'+
 '<span class="ctx-tip-track-fill" style="width:'+wpx+"px;background-color:"+csafe+'"></span>'+
+marker+
 "</span>"+
 '<span class="ctx-tip-rest">'+escapeHtml(meta)+"</span>"+
 "</div>"

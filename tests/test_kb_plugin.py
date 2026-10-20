@@ -687,7 +687,7 @@ class PluginPanelRenderContractTest(unittest.TestCase):
         from pathlib import Path as _P
         root = _P(__file__).resolve().parent.parent
         js = (root / "plugins" / "knowledge" / "ui" / "panel.js").read_text(encoding="utf-8")
-        idx = js.index('querySelector(".kb-refresh")')
+        idx = js.index('target.closest(".kb-refresh")')
         self.assertIn("render()", js[idx:idx + 300], msg="点了刷新要重新取数并渲染")
 
     def test_panels_render_on_the_event(self) -> None:

@@ -174,7 +174,8 @@ enabled = 1
 | `data/titles/` | 会话标题（纯文本派生缓存） |
 | `data/session_state/` | 会话状态（模型 / 模式 / 推理档位 / 清单，一个会话一份 JSON） |
 | `data/temp/` | 临时产物（写盘前备份见上节「文件备份」） |
-| `data/mesh/` | 会话间消息（`agents.json` 注册表 + `inbox/<cid>.jsonl` 队列） |
+| `data/mesh/` | 会话间协作（`agents.json` 注册表 + 运行态） |
+| `data/queues/` | 会话待发送消息队列（用户与 Agent 消息、附件） |
 | `data/mesh/runs/` | 运行态登记（`<cid>.json`） |
 | `data/workspace/` | `/workspace/` 静态路由根 |
 | `data/recycle/` | 删除操作的回收目录 |

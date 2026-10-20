@@ -85,7 +85,7 @@ const rsLb=document.createElement("p");rsLb.className="lbl";rsLb.textContent="�
 const rsPb=document.createElement("pre");rsPb.className="sub";rsPb.style.display="none";rsPb.textContent="";
 inner.appendChild(thLb);inner.appendChild(thPb);inner.appendChild(rqLb);inner.appendChild(rqPb);inner.appendChild(rsLb);inner.appendChild(rsPb);body.appendChild(inner);
 c.appendChild(h);c.appendChild(body);
-h.onclick=function(){c.classList.toggle("open");};
+
 appendStep(c);
 let d=0;
 const timer=setInterval(function(){d=(d+1)%4;dotsSpan.textContent=".".repeat(d);},400);
@@ -359,7 +359,7 @@ if(merged){if(lastLlm&&(lastLlm.reasoningText||"").length>0){var rw=document.cre
 flushPendingSteps();
 body.appendChild(inner);
 c.appendChild(h);c.appendChild(body);
-h.onclick=function(){c.classList.toggle("open");};
+
 appendStep(c);if(mergeKeepOpen)c.classList.add("open");toolOpen.set(tid,{tid:tid,tag:tag,resLb:lb,resPb:pb,previewSlot:pv,args:ev.args||{},script:ev.script||"",spinWrap:spinWrap,stepTitle:_stt,fileSpan:null,progressBadge:null,liveOutPre:isStreamOutputToolScript(ev.script)?pb:null,cmdInputBar:null,chatRunCard:null,chatRunOutPre:null,chatToolRow:null,chatToolRes:null,replay:!!ev._replay});
 /* 等待类工具：标题后的秒数逐秒减，用户不用猜模型在睡还是在跑。
    历史回放不启动（见 `renderHistoryToolItem` 的 `_replay`）。 */
@@ -418,3 +418,15 @@ if(o.fileSpan){o.fileSpan.textContent=_cfOnly;if(_cfOnly)o.fileSpan.title=_cfOnl
 }
 
 function resetTurnState(){closeUserConfirmCardHost();clearLlmAnim();hideChatLoading();lastLlm=null;llmStreamBuffer={round:null,reqHtml:"",resHtml:"",consumed:false};pendingToolTags=[];lastAnalysisTail="";try{toolOpen.forEach(function(o){stopChatRunCountdown(o);});}catch(e){}toolOpen.clear();anyToolThisTurn=false;pendingStepEls=[];streamAssistantEl=null;streamAssistantText="";pendingDeltaSeparator=false;seenDispatchTitle="";endedAwaitingUserConfirm=false;}
+function initLlmRoundsDelegation(){
+var root=document.getElementById("steps");
+if(!root||root._llmClickDelegated)return;
+root._llmClickDelegated=true;
+root.addEventListener("click",function(ev){
+var head=ev.target&&ev.target.closest?ev.target.closest(".ch-toggle"):null;
+if(!head||!root.contains(head))return;
+var card=head.closest(".step.card");
+if(card)card.classList.toggle("open");
+});
+}
+initLlmRoundsDelegation();

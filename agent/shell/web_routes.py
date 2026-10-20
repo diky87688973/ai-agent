@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
 import sys
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -336,6 +337,9 @@ class _Handler(BaseHTTPRequestHandler):
 
                 status, payload = handle_get(path, query, self.shell.app)
                 self._json(status, payload)
+            elif path == "/api/chat/queue":
+                status, payload = self.shell.queue(query.get("conversation_id", ""))
+                self._json(status, payload)
             elif path == "/api/events/stream":
                 self._classic_sse(query)
             elif path == "/api/usage-accumulator":
@@ -474,6 +478,7 @@ class _Handler(BaseHTTPRequestHandler):
                     str(body.get("mode") or ""),
                     body.get("images"),
                     str(body.get("model") or ""),
+                    str(body.get("draft_id") or ""),
                 )
                 # 经典界面会读返回体里的 `attachments`（Array 且非空才重建附件条，
                 # il.js:168 用它拼 /api/chat/attachment 的 URL）。内核返回体不含该字段，
@@ -561,6 +566,22 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(200, classic.command_input(
                     str(body.get("conversation_id") or ""), body)
                     if classic else {"ok": False, "error": "适配层未装配"})
+            elif path.startswith("/api/chat/queue/"):
+                match = re.fullmatch(
+                    r"/api/chat/queue/([A-Za-z0-9_-]{8,64})/(insert|recall)", path
+                )
+                if match is None:
+                    self._json(404, {"error": "not found", "path": path})
+                elif match.group(2) == "insert":
+                    status, payload = self.shell.queue_insert(
+                        str(body.get("conversation_id") or ""), match.group(1)
+                    )
+                    self._json(status, payload)
+                else:
+                    status, payload = self.shell.queue_recall(
+                        str(body.get("conversation_id") or ""), match.group(1)
+                    )
+                    self._json(status, payload)
             elif path.startswith("/api/plugin/"):
                 # 插件业务提交（生成任务、保存配置等）走这条
                 self._plugin_route("POST", body)
@@ -618,6 +639,17 @@ class _Handler(BaseHTTPRequestHandler):
                     query.get("conversation_id", "") or query.get("id", "")
                 )
                 self._json(status, payload)
+            elif path.startswith("/api/chat/queue/"):
+                match = re.fullmatch(
+                    r"/api/chat/queue/([A-Za-z0-9_-]{8,64})", path
+                )
+                if match is None:
+                    self._json(404, {"error": "not found", "path": path})
+                else:
+                    status, payload = self.shell.queue_cancel(
+                        query.get("conversation_id", ""), match.group(1)
+                    )
+                    self._json(status, payload)
             elif path.startswith("/api/plugin/"):
                 self._plugin_route("DELETE")
             else:

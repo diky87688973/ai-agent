@@ -175,6 +175,7 @@ title.className="edited-files-title";
 var review=document.createElement("button");
 review.type="button";
 review.className="edited-files-review";
+review.setAttribute("data-edited-review","1");
 review.textContent="查看";
 head.appendChild(title);
 head.appendChild(review);
@@ -207,7 +208,11 @@ count++;
 }
 if(!count)return;
 title.textContent=count+" 个文件已更改";
-review.addEventListener("click",function(){
+if(!e._editedReviewDelegated){
+e._editedReviewDelegated=true;
+e.addEventListener("click",function(ev){
+var hit=ev.target&&ev.target.closest?ev.target.closest("[data-edited-review]"):null;
+if(!hit||!e.contains(hit))return;
 var rows=e.querySelectorAll(".chat-tool-row");
 var allOpen=rows.length>0;
 for(var i=0;i<rows.length;i++){if(!rows[i].classList.contains("is-open"))allOpen=false;}
@@ -218,6 +223,7 @@ var item=rows[j].querySelector(".chat-tool-head");
 if(item)item.setAttribute("aria-expanded", open?"true":"false");
 }
 });
+}
 msgs.appendChild(e);
 scrollMsgsToBottom();
 }

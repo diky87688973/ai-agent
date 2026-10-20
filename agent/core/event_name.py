@@ -50,8 +50,8 @@ MODEL_MESSAGE = "model_message"
 USAGE = "usage"
 ERROR = "error"
 TOOL_PROGRESS = "tool_progress"
-#: 会话消息队列：本轮从队列里收进了几条别的会话投来的消息。
-INBOX_DEQUEUED = "inbox_dequeued"
+#: 会话待发送队列发生变化（只推 UI，不落事实）。
+QUEUE_UPDATED = "queue_updated"
 CONTEXT_COMPACTED = "context_compacted"
 #: 请求装配完成时的分段快照（上下文示意图用）：段名与各段估算 token。
 #: 模式说明与工具轮的内部 system 注入都不落记录，只有这条快照留着它们。

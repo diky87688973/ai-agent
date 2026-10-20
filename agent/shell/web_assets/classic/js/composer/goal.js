@@ -66,7 +66,8 @@ if(j&&j.goal){_goalInfo=j.goal;}else if(action==="delete"){_goalInfo=null;}
 updateAutoToggleUI();close();
 });
 }
-function addBtn(text,cls,fn){var b=el("button","goal-btn"+(cls?(" "+cls):""),text);b.type="button";b.onclick=fn;row.appendChild(b);return b;}
+function addBtn(text,cls,fn){var b=el("button","goal-btn"+(cls?(" "+cls):""),text);b.type="button";b._goalClick=fn;row.appendChild(b);return b;}
+row.addEventListener("click",function(ev){var b=ev.target&&ev.target.closest?ev.target.closest(".goal-btn"):null;if(b&&row.contains(b)&&typeof b._goalClick==="function")b._goalClick();});
 
 if(g&&st==="active")addBtn("暂停","",function(){act("pause");});
 if(g&&st==="paused")addBtn("恢复","",function(){act("resume");});

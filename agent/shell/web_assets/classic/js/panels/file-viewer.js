@@ -42,6 +42,17 @@ function renderFilePane(body,path){
 /* 文件查看器的内容自带边距：面板容器不给内边距（边距归内容），
    所以这里给自己打个类让样式表能定位到。 */
 if(body)body.className="pane-body pane-file";
+if(body){
+  body._panePath=path;
+  if(!body._filePaneClickDelegated){
+    body._filePaneClickDelegated=true;
+    body.addEventListener("click",function(ev){
+      var btn=ev.target&&ev.target.closest?ev.target.closest("[data-pane-refresh]"):null;
+      if(!btn||!body.contains(btn))return;
+      renderFilePane(body,body._panePath);
+    });
+  }
+}
 body.innerHTML='<div class="pane-empty">读取中…</div>';
 fetch("/api/fs/read?path="+encodeURIComponent(path)).then(function(r){return r.json();}).then(function(d){
 if(!d||d.error){
@@ -65,8 +76,6 @@ inner=(d.message?'<div class="pane-empty">'+escapeHtml(String(d.message))+"</div
 inner='<pre class="file-view">'+highlightCode(String(d.content!=null?d.content:""),String(d.lang||""))+"</pre>";
 }
 body.innerHTML=meta+inner;
-var btn=body.querySelector("[data-pane-refresh]");
-if(btn)btn.addEventListener("click",function(){renderFilePane(body,path);});
 }).catch(function(){body.innerHTML='<div class="pane-empty">读取失败</div>';});
 }
 function openFileTab(path){

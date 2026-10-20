@@ -45,13 +45,13 @@ class ModuleBase:
 宿主反复跑整条链，直到没有任何模块要求续行。链上五个模块按固定顺序执行：
 
 ```
-输入 → 收件箱 → 压缩 → 模型 → 工具
+输入 → 待发送队列插入 → 压缩 → 模型 → 工具
 ```
 
 | 模块 | 作用 |
 |---|---|
 | `InputModule` | 把本轮的新用户输入认领成事实；**无输入时不发任何事件** |
-| `InboxModule` | 把别的会话投进来的消息收进上下文；排在压缩之前，让压缩看得见它们 |
+| `QueuedInputModule` | 把待发送队列中标记插入的消息收进上下文；排在压缩之前，让压缩看得见它们 |
 | `CompressModule` | 拼入前做预算检查，超阈值则压缩历史；压缩失败一律放行，不阻断回合 |
 | `ModelModule` | 按事实末端判定该不该跑；跑就发请求、消费流式增量，落成 `model_message` |
 | `ToolModule` | 执行模型要求但尚无结果的工具调用；执行过就要求续行 |
@@ -110,7 +110,7 @@ class Ports:
 | 级别 | 容器 | 内容 | 生命周期 |
 |---|---|---|---|
 | 进程级 | `AppContext`（`core/context.py`） | 工具注册表、执行管道、模型 provider、会话存储、事件总线、插件宿主、协作网格、各类工厂 | 进程全程 |
-| 会话级 | `SessionContext` / `SessionContexts`（`core/session_context.py`） | 写盘门控、实时状态、收件队列 | 按 `conversation_id` 懒创建 |
+| 会话级 | `SessionContext` / `SessionContexts`（`core/session_context.py`） | 写盘门控、实时状态 | 按 `conversation_id` 懒创建 |
 | 回合级 | `ToolTurnContext`（`core/context.py`） | 单回合内的工具轮次状态 | 单回合 |
 
 会话注册表 `SessionContexts` 是跨端访问的**唯一入口**：`sessions.resolve()`，或按 id 取 `sessions.get(cid)`。工具与管道钩子在执行期内经 `core/session_scope.py` 的 `current_session_id()` 取当前会话，不得把会话态塞进全局单例，也不得跨会话直读。

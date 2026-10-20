@@ -526,6 +526,9 @@ class RegistrationTest(unittest.TestCase):
         handlers = {path: handler for _m, path, handler in ctx.routes}
         status, config = handlers["config"]({})
         self.assertEqual(status, 200)
+        self.assertEqual(config["user_salutation"], ctx.runtime.config.user_salutation)
+        self.assertEqual(config["assistant_salutation"], ctx.runtime.config.assistant_salutation)
+        self.assertEqual(config["tone"], ctx.runtime.config.tone)
         self.assertEqual(config["max_segment_chars"], ctx.runtime.config.max_segment_chars)
         self.assertEqual(config["sync_playback"], ctx.runtime.config.sync_playback)
         played, ack = handlers["played"]({

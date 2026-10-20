@@ -704,6 +704,24 @@ class InboundContractTest(unittest.TestCase):
         self.assertEqual(payload["total_completion_tokens"], 2)
         self.assertEqual(payload["total_tokens"], 12)
 
+    def test_usage_hydrates_from_facts_after_state_reset(self) -> None:
+        from agent.core.events import Event
+        from agent.shell.classic_adapter.inbound import ClassicState, Inbound
+
+        class _Store:
+            def load(self, cid):
+                return [Event("usage", {"prompt_tokens": 10, "completion_tokens": 2,
+                                        "prompt_cache_hit_tokens": 8,
+                                        "prompt_cache_miss_tokens": 2})]
+
+        state = ClassicState()
+        app = type("A", (), {"store": _Store(), "live_state": state})()
+        inbound = Inbound(app, state)
+        got = inbound.usage_get("usage-hydrate-01")
+        self.assertEqual(got["total_prompt_tokens"], 10)
+        self.assertEqual(got["total_completion_tokens"], 2)
+        self.assertEqual(got["total_tokens"], 12)
+
     def test_usage_accumulates_across_events(self) -> None:
         for _ in range(3):
             self.state.add_usage(CID, {"prompt_tokens": 10, "completion_tokens": 1})
@@ -778,6 +796,35 @@ class InboundContractTest(unittest.TestCase):
         self.assertEqual([i["role"] for i in items], ["user", "assistant"])
         self.assertEqual(items[0]["content"], "你好")
         self.assertEqual(items[1]["content"], "在的")   # 空气泡被跳过
+
+    def test_history_cancels_suspended_tool_after_new_input(self) -> None:
+        from agent.core.events import Event
+
+        events = [
+            Event("tool_started", {"call_id": "c1", "name": "user_confirm",
+                                   "arguments": {}}),
+            Event("tool_suspended", {"call_id": "c1", "name": "user_confirm",
+                                     "envelope": {"title": "选一个",
+                                                  "confirms": ["甲", "乙"]}}),
+            Event("input_claimed", {"content": "用户发了新消息"}),
+            Event("turn_ended", {"paused": False}),
+        ]
+
+        class _Store:
+            data_root = Path(r"D:\nonexistent-never-used")
+
+            def load(self, cid):
+                return events
+
+        class _App(_FakeApp):
+            def __init__(self):
+                super().__init__(Path(r"D:\nonexistent-never-used"))
+                self.store = _Store()
+
+        items = ClassicAdapter(_App()).history(CID)["items"]
+        tool = [item for item in items if item["role"] == "tool"][0]
+        self.assertEqual(tool["status"], "canceled")
+        self.assertIn("取消", tool["error"])
 
     def test_history_carries_context_layout_at_top_level(self) -> None:
         """`context_layout` 在顶层，`applyContextLayoutFromHistory` 读那里。"""

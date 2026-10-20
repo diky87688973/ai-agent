@@ -11,8 +11,6 @@ ASSETS_DIR = Path(__file__).resolve().parent / "web_assets"
 MAX_BODY_BYTES = 4 * 1024 * 1024  # 4 MB 请求体上限
 SSE_HEARTBEAT_SEC = 15.0
 MODE_VALUES = ("auto", "plan", "execute")
-MAX_IMAGES = 4
-_IMAGE_MIMES = ("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif")
 _BINARY_SNIFF_BYTES = 4096
 _TITLE_SCAN_LINES = 400
 

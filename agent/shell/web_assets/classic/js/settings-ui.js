@@ -50,6 +50,14 @@
     node.addEventListener("click", function (ev) {
       if (ev.target === node) closeSettings();
     });
+    var delegateSettingsButton = function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("button") : null;
+      if (btn && typeof btn._settingsClick === "function") btn._settingsClick();
+    };
+    var nav = document.getElementById("stNav");
+    var form = document.getElementById("stForm");
+    if (nav) nav.addEventListener("click", delegateSettingsButton);
+    if (form) form.addEventListener("click", delegateSettingsButton);
     document.getElementById("stClose").addEventListener("click", closeSettings);
     document.getElementById("stSave").addEventListener("click", function () {
       onSave(true);
@@ -193,7 +201,7 @@
     btn.type = "button";
     btn.textContent = label;
     if (on) btn.className = "is-on";
-    btn.addEventListener("click", click);
+    btn._settingsClick = click;
     return btn;
   }
 
@@ -317,12 +325,12 @@
     btn.type = "button";
     btn.className = "st-mini";
     btn.textContent = "选择目录";
-    btn.addEventListener("click", function () {
+    btn._settingsClick = function () {
       pickDir(btn, function (path) {
         input.value = path;
         onChange(path);
       });
-    });
+    };
     wrap.appendChild(input);
     wrap.appendChild(btn);
     return wrap;
@@ -472,7 +480,7 @@
     setting.className = "st-mini";
     setting.textContent = "设置";
     setting.disabled = !card.configurable;
-    setting.addEventListener("click", function () { openPlugin(card); });
+    setting._settingsClick = function () { openPlugin(card); };
     actions.appendChild(setting);
     actions.appendChild(pluginSwitch(card));
     row.appendChild(info);
@@ -575,14 +583,14 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
       'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       '<path d="M14.5 5.5L8 12l6.5 6.5"/></svg>';
-    back.addEventListener("click", function () {
+    back._settingsClick = function () {
       state.mode = "plugins";
       state.plugin = null;
       state.editor = null;
       setStatus("");
       renderNav();
       renderPlugins();
-    });
+    };
     var title = document.createElement("b");
     title.textContent = (card.title || card.name) + "配置";
     bar.appendChild(back);
@@ -628,11 +636,11 @@
     add.type = "button";
     add.className = "st-add";
     add.textContent = "+ " + (schema.add_label || "添加");
-    add.addEventListener("click", function () {
+    add._settingsClick = function () {
       editor.groups = editor.groups || [];
       editor.groups.push({id: "", notes: "", values: {}, configured: {}, extras: []});
       drawModels(list, schema, editor.groups);
-    });
+    };
     wrap.appendChild(editorBar(card));
     wrap.appendChild(list);
     wrap.appendChild(add);
@@ -669,11 +677,11 @@
     del.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
       'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-    del.addEventListener("click", function () {
+    del._settingsClick = function () {
       var groups = state.editor.groups || [];
       groups.splice(index, 1);
       drawModels(list, schema, groups);
-    });
+    };
     head.appendChild(badge);
     head.appendChild(del);
     card.appendChild(head);

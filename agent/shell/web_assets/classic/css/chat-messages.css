@@ -44,7 +44,7 @@
 .b.a img{max-width:100%;height:auto;border-radius:4px;border:1px solid #3c3c3c}
 .b.a del{color:#9aa0a6}
 .row{flex-shrink:0;flex-grow:0;border-top:1px solid #333;padding:10px}
-.composer{position:relative;border:1px solid #3c3c3c;border-radius:16px;background:#1e1e1e;padding:0;display:flex;flex-direction:column;gap:8px}
+.composer{position:relative;width:70%;width:min(calc(100% - 32px),var(--content-max,840px));margin:0 auto;border:1px solid #3c3c3c;border-radius:16px;background:#1e1e1e;padding:0;display:flex;flex-direction:column;gap:8px}
 .attach-strip{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 4px}
 .attach-strip.hidden{display:none}
 .attach-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid #555;background:#111}
@@ -72,10 +72,10 @@
 textarea{width:100%;min-height:50px;max-height:320px;background:transparent;color:#ccc;border:0;border-radius:8px;padding:2px 4px;font:inherit;resize:none;overflow-y:hidden;overflow-x:hidden;transition:height .08s ease}
 textarea::placeholder{color:#5f6772;opacity:0.58;line-height:1.5;white-space:pre-line;font-weight:400;font-size:12.5px}
 textarea:focus{outline:0;box-shadow:none;border-color:transparent}
-.composer-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.composer-foot{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:8px 10px;min-width:0}
 button{background:#007acc;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font:inherit}
 button.sec{background:#444;color:#ccc}
-.left-tools{position:relative;display:flex;align-items:center;gap:8px;min-height:34px}
+.left-tools{position:relative;display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-height:34px;min-width:0;flex:1 1 auto}
 .mode-plus{height:24px;padding:0 10px;border-radius:999px;background:transparent;color:#aeb9c8;font-weight:400;font-size:12px;border:1px solid #4f5f76;line-height:1;white-space:nowrap}
 .mode-plus:hover{background:rgba(120,130,145,.10)}
 .mode-plus.plan{background:transparent;border-color:#8b6a2d;color:#e8c98a}

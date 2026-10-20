@@ -6,7 +6,7 @@
 |---|---|
 | `web.py` | HTTP + SSE 服务，路由分发，服务启动 |
 | `sse.py` | SSE 传输层 |
-| `session_runner.py` | 回合调度与心跳，消费 inbox 队列 |
+| `session_runner.py` | 回合调度与心跳，消费待发送队列 |
 | `prompts.py` | 系统提示词 |
 | `ui_bundle.py` | 界面资源内联打包 |
 | `settings_panel.py` | 设置页：宿主配置与插件开关的读写 |
@@ -71,6 +71,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/settings/plugins` | 插件卡片：名字、描述、图标、是否装载 |
 | `/api/settings/plugin-file` | 某个插件的 `plugin-config.ini` 编辑视图（密钥已掩码） |
 | `/api/reasoning-effort` | 推理档位 |
+| `/api/chat/queue` | 当前会话的待发送队列快照 |
 | `/api/usage-accumulator` | 用量累计 |
 | `/api/media` | 媒体代理，根由 `--media-root` 指定 |
 
@@ -78,13 +79,16 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 | 路径 | 作用 |
 |---|---|
-| `/api/chat/send` | 发起一轮对话。同会话已在跑时返回 **409** |
+| `/api/chat/send` | 发起一轮对话。同会话已在跑时进入待发送队列 |
+| `/api/chat/queue/<id>/insert` | 把队列消息标记为下一个安全轮次插入 |
+| `/api/chat/queue/<id>/recall` | 撤回队列消息并返回文本、图片与来源 |
 | `/api/chat/stop` | 停止当前回合 |
 | `/api/chat/user-confirm` | 提交用户确认（写盘确认与 `user_confirm` 作答共用此端点） |
 | `/api/chat/title` | 生成或读取会话标题 |
 | `/api/chat/autonomous` | 自主模式开关 |
 | `/api/chat/goal` | 目标文案读写 |
 | `/api/chat/command-input` | 交互式命令的 stdin 输入 |
+| `/api/chat/queue/<id>` | 取消一条未发送队列消息（DELETE） |
 | `/api/settings` | 写回宿主配置。密钥字段为空不写，有内容才覆盖文件里的原值 |
 | `/api/settings/plugins` | 插件开关，写 `plugins.ini` 的 `enabled` |
 | `/api/settings/plugin-file` | 写回某个插件的**可编辑节**，其它节逐字节保留 |
@@ -126,11 +130,11 @@ SSE 连接表由 `WebShell` 持有，断开时从表里移除。
 
 **客户端布局（打开过哪些标签、激活哪一个）存在浏览器 `localStorage`**：布局属于某一个浏览器，服务端不提供也不接收。多个客户端各自激活不同会话时，服务端的一个全局字段会被后写者覆盖，先写的刷新后被带到别人的会话。
 
-`/api/chat/send` 对同会话并发返回 409，依据同一个登记。
+`/api/chat/send` 对同会话并发进入待发送队列，依据同一个登记。
 
 ## 回合调度
 
-`session_runner.py` 的 `SessionRunner` 在后台执行回合：从 inbox 取输入、通过 `Engine` 跑模块链、把事件推给 SSE、续心跳。
+`session_runner.py` 的 `SessionRunner` 在后台执行回合：从待发送队列取输入、通过 `Engine` 跑模块链、把事件推给 SSE、续心跳。
 
 心跳让运行态登记在长任务期间不被判为过期。任务结束或取消时释放登记。
 

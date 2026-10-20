@@ -62,7 +62,7 @@ class ContextPlumbingTest(unittest.TestCase):
         self.app.register("demo_service", {"hello": "world"})
         # 门控住在会话上下文里（真实装配同形：`SessionContexts(lambda cid: QualityGate())`）
         self.gate = QualityGate()
-        self.contexts = SessionContexts(lambda cid: self.gate, live="LIVE", inbox="INBOX")
+        self.contexts = SessionContexts(lambda cid: self.gate, live="LIVE")
         self.session = self.contexts.resolve_sync("ctx-smoke-01")
         self.call = ToolCallRequest(call_id="call-1", name="probe", arguments={"a": 1})
 
@@ -95,7 +95,6 @@ class ContextPlumbingTest(unittest.TestCase):
         ctx = self.tool.seen[0]
         self.assertIs(ctx.session.gate, self.gate)
         self.assertEqual(ctx.session.live, "LIVE")
-        self.assertEqual(ctx.session.inbox, "INBOX")
         self.assertEqual(ctx.session.pending_confirm["call_id"], "call-9")
         self.assertEqual(ctx.conversation_id, "ctx-smoke-01")
 

@@ -13,9 +13,23 @@ document.querySelectorAll(".side-pane").forEach(function(el){el.classList.toggle
 
    `opts.pinned` 的面板不显示关闭按钮（步骤栏就是这种）。
    `opts.onOpen` 在每次激活时调用，供面板刷新自己的内容。 */
+function bindSideTabDelegation(){
+if(!sideTabbar||sideTabbar._paneClickDelegated)return;
+sideTabbar._paneClickDelegated=true;
+sideTabbar.addEventListener("click",function(ev){
+var target=ev.target;
+var tab=target&&target.closest?target.closest(".side-tab"):null;
+if(!tab||!sideTabbar.contains(tab))return;
+var id=String(tab.getAttribute("data-pane")||"");
+if(!id)return;
+if(target.closest(".tab-x")){closePane(id);return;}
+selectSidePane(id);
+});
+}
 function openPane(opts){
 var id=String(opts&&opts.id||"").trim();
 if(!id||!sideTabbar||!sidePaneWrap)return null;
+bindSideTabDelegation();
 var title=String(opts.title||id);
 var ex=document.getElementById("pane-"+id);
 if(!ex){
@@ -53,10 +67,8 @@ x.type="button";
 x.className="tab-x";
 x.textContent="×";
 x.title="关闭";
-x.addEventListener("click",function(ev){ev.stopPropagation();closePane(id);});
 w.appendChild(x);
 }
-w.addEventListener("click",function(ev){if(ev.target&&ev.target.classList&&ev.target.classList.contains("tab-x"))return;selectSidePane(id);});
 sideTabbar.appendChild(w);
 }
 selectSidePane(id);

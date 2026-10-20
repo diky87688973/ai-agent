@@ -34,4 +34,8 @@
       if (o.chatToolRes) o.chatToolRes.textContent = chatToolResponseText(o, ev);
     }
   });
+
+  if (window.aiAgentChatTools && window.aiAgentChatTools.refresh) {
+    window.aiAgentChatTools.refresh();
+  }
 })();

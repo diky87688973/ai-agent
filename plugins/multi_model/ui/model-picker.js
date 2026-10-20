@@ -114,11 +114,7 @@
           configure.type = "button";
           configure.className = "mm-picker-item";
           configure.textContent = "打开设置";
-          configure.addEventListener("click", function () {
-            close();
-            var settings = document.getElementById("hdrSettingsBtn");
-            if (settings) settings.click();
-          });
+          configure.setAttribute("data-mm-settings", "1");
           menu.appendChild(configure);
         }
       } else {
@@ -142,9 +138,6 @@
                 ? "Anthropic" : item.provider;
             choice.appendChild(badge);
           }
-          choice.addEventListener("click", function () {
-            select(item.id);
-          });
           menu.appendChild(choice);
         });
       }
@@ -229,7 +222,20 @@
       if (state.open) close();
       else open();
     });
-    function onMenuClick(event) { event.stopPropagation(); }
+    function onMenuClick(event) {
+      event.stopPropagation();
+      var target = event.target;
+      var choice = target && target.closest ? target.closest("[data-model]") : null;
+      if (choice) {
+        select(choice.getAttribute("data-model"));
+        return;
+      }
+      if (target && target.closest && target.closest("[data-mm-settings]")) {
+        close();
+        var settings = document.getElementById("hdrSettingsBtn");
+        if (settings) settings.click();
+      }
+    }
     function onDocClick(event) {
       if (state.open && !root.contains(event.target)) close();
     }

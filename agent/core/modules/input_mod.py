@@ -30,11 +30,16 @@ class InputModule(ModuleBase):
                  attachments: Optional[Sequence[Dict[str, Any]]] = None) -> None:
         self._text = str(text or "")
         self._attachments = list(attachments or [])
+        self._sender: Optional[Dict[str, Any]] = None
+        self._from_queue = False
 
-    def feed(self, text: str, attachments: Optional[Sequence[Dict[str, Any]]] = None) -> None:
+    def feed(self, text: str, attachments: Optional[Sequence[Dict[str, Any]]] = None,
+             sender: Optional[Dict[str, Any]] = None, from_queue: bool = False) -> None:
         """投喂一轮新输入（壳层在每轮开始前调用）。"""
         self._text = str(text or "")
         self._attachments = list(attachments or [])
+        self._sender = dict(sender) if isinstance(sender, dict) else None
+        self._from_queue = bool(from_queue)
 
     def execute(self, ports: Ports) -> Iterator[Any]:
         if not self._text and not self._attachments:
@@ -43,15 +48,26 @@ class InputModule(ModuleBase):
             yield ports.emit(INPUT_ENDED, claimed=False)
             return Outcome.ok()
         text, attachments = self._text, self._attachments
-        self._text, self._attachments = "", []      # 消费掉，本趟之后就没有新输入了
+        sender = self._sender
+        from_queue = self._from_queue
+        self._text, self._attachments, self._sender, self._from_queue = "", [], None, False
         from time import perf_counter
         started = perf_counter()
         yield ports.emit(INPUT_STARTED, length=len(text),
                          attachments=len(attachments))
+        payload: Dict[str, Any] = {"content": text}
         if attachments:
-            yield ports.emit(INPUT_CLAIMED, content=text, attachments=attachments)
-        else:
-            yield ports.emit(INPUT_CLAIMED, content=text)
+            payload["attachments"] = attachments
+        if sender:
+            cid = str(sender.get("cid") or sender.get("_sender") or "").strip()
+            if cid:
+                payload["_sender"] = cid
+                name = str(sender.get("name") or sender.get("_sender_name") or "").strip()
+                if name:
+                    payload["_sender_name"] = name
+        if from_queue:
+            payload["_from_queue"] = 1
+        yield ports.emit(INPUT_CLAIMED, **payload)
         yield ports.emit(INPUT_ENDED, claimed=True,
                          elapsed_ms=int((perf_counter() - started) * 1000))
         return Outcome.ok()

@@ -60,6 +60,9 @@ class AISpeakAppTest(unittest.TestCase):
             note = runner._mode_note("cid-12345678")
         self.assertIn("ai_speak", text)
         self.assertIn("必须", text)
+        self.assertIn("陛下", text)
+        self.assertIn("臣妾", text)
+        self.assertIn("温婉", text)
         self.assertTrue(note.startswith("## 当前模式"))
         self.assertIn(text, note)
 

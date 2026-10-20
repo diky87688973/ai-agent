@@ -125,7 +125,7 @@ plugins/ai_speak/
   runtime.py                AISpeakRuntime + 每会话 worker
   tool.py                   AISpeakTool
   plugin-config.ini [config]
-  ui/player.js              浮动播放条与队列
+  ui/player.js              输入框上方的播放条与队列
   ui/player.css             播放条样式
   ui/tool-view.js           对话区工具卡视图
 ```
@@ -499,7 +499,7 @@ def announce_plugin_event(self, plugin: str, event: str,
 
 ### 形态
 
-右下角悬浮迷你条，固定定位，不占布局：
+输入框上方左侧的迷你条，与待发送队列同宽：
 
 ```
 ┌──────────────────────────────────────┐
@@ -643,6 +643,9 @@ items = [
 [config]
 engine = edge
 voice = zh-CN-XiaoxiaoNeural
+user_salutation = 陛下
+assistant_salutation = 臣妾
+tone = 温婉
 max_segment_chars = 128
 play_interval_ms = 0
 sync_playback = 0
@@ -652,6 +655,9 @@ sync_playback = 0
 |---|---|---|---|
 | `engine` | `edge` | 仅 `edge` | 合成引擎；其它值在装载期报错 |
 | `voice` | `zh-CN-XiaoxiaoNeural` | 非空 | edge-tts 音色名；未知音色在合成期报错 |
+| `user_salutation` | `陛下` | 非空 | 模型对用户的称呼 |
+| `assistant_salutation` | `臣妾` | 非空 | 模型对自己的称呼 |
+| `tone` | `温婉` | 非空 | 模型说话的语气约束 |
 | `max_segment_chars` | 128 | ≥ 1 的整数，无上限 | 单段字符上限；300 按 300 贪心，1000 按 1000 贪心 |
 | `play_interval_ms` | 0 | ≥ 0 | 段间播放间隔（毫秒） |
 | `sync_playback` | 0 | `0` / `1` | 1 = 工具等前端播完再返回 |

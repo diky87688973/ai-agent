@@ -48,18 +48,18 @@ class ModuleBase:
 | 模块 | 做什么 | 产出的事件 |
 |---|---|---|
 | `InputModule` | 把本轮新用户输入认领成事实 | `input_started` / `input_claimed` / `input_ended` |
-| `InboxModule` | 把别的会话投进来的消息收进上下文 | `inbox_dequeued` |
+| `QueuedInputModule` | 把待发送队列中标记插入的消息收进上下文 | `input_claimed` |
 | `CompressModule` | 拼入前预算检查，超阈值压缩 | `compress_started` / `context_compacted` / `compress_ended` |
 | `ModelModule` | 发请求、消费流、聚合工具调用 | `llm_started` / `assistant_delta` / `reasoning_delta` / `llm_done` / `llm_failed` / `llm_ended` |
 | `ToolModule` | 执行工具、回灌结果 | `tool_started` / `tool_progress` / `tool_done` / `tool_failed` / `tool_canceled` / `tool_suspended` / `tool_ended` |
 
-`build_default_chain()` 按 `输入 → 收件箱 → 压缩 → 模型 → 工具` 的顺序组装。
+`build_default_chain()` 按 `输入 → 待发送队列插入 → 压缩 → 模型 → 工具` 的顺序组装。
 
 ### 各模块的判定依据
 
 **`InputModule`**：有输入就发 `input_claimed` 并返回 `ok`；**无输入时不发 `input_claimed`**，只发终态 `input_ended`。后者是硬要求——接口确认触发的恢复轮没有用户发言，此时凭空发一条空的 `input_claimed` 会让消息序列变成 `…assistant(tool_calls) → user("") → tool`，模型接口直接拒绝。
 
-**`InboxModule`**：位置固定在压缩之前。入站消息会变成新的用户轮次，压缩得看得见它们，否则"刚收到消息就按旧预算压缩"会把新消息挤掉。从不要求续行。
+**`QueuedInputModule`**：位置固定在压缩之前。插入消息会变成新的用户轮次，压缩得看得见它们，否则"刚插入消息就按旧预算压缩"会把新消息挤掉。每次最多消费一条插入请求。
 
 **`CompressModule`**：把循环里的三处预算检查收拢成一个模块。从不要求续行——压缩是准备动作。压缩器缺省或出错一律放行：压缩是增强项，绝不阻断回合。
 
@@ -91,7 +91,7 @@ class Host:
 退出条件（三条同时满足）：
 
 1. 没有待回灌的工具结果；
-2. inbox 没有新输入；
+2. 待发送队列没有新输入；
 3. 没有任何模块要求续行（`Outcome.next`）。
 
 有安全阀 `MAX_PASSES_DEFAULT = 32`：一个回合最多跑这么多趟，防止续行信号形成死循环。
@@ -105,7 +105,7 @@ class Host:
 - **开始回合**：投递输入、启动宿主循环；
 - **事件流**：把内核事件以迭代器形式交出去。
 
-`App.session(cid, system_prompt, cancel, inbox)` 每次构建一个新的 `Engine`，会话之间不共享回合状态。
+`App.session(cid, system_prompt, cancel)` 每次构建一个新的 `Engine`，会话之间不共享回合状态。
 
 ## 会话作用域
 

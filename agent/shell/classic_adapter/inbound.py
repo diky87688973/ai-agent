@@ -658,6 +658,10 @@ class ClassicState:
         )
         return acc
 
+    def has_usage(self, cid: str) -> bool:
+        with self._lock:
+            return cid in self.usage
+
     def reset_usage(self, cid: str) -> None:
         with self._lock:
             self.usage.pop(cid, None)
@@ -698,6 +702,7 @@ class Inbound:
         self.state = state
         # 由 `ClassicAdapter` 注入 WebShell（用于复用内核的标题派生）
         self._shell: Any = None
+        self._usage_hydrated: set[str] = set()
 
     def _mode_of(self, cid: str) -> str:
         live = getattr(self._app, "live_state", None)
@@ -813,6 +818,7 @@ class Inbound:
             return {"ok": False, "error": "invalid conversation_id", "items": []}
         events = self._load_events(cid)
         items, resolved = _history_items(events)
+        self._mark_stale_suspends(cid, items)
         # 把解出的字节登记进内存，供 `/api/chat/attachment?id=…` 取用。
         # 这个 dict 是从事实派生的缓存，内容一律来自 `.raw`，
         # 因此刷新、重启、两个标签页看到的都一致（id 也是可重算的）。
@@ -835,6 +841,18 @@ class Inbound:
                                or compute_context_layout(self._app, events, cid)),
             "todo_list": _current_todo(self._app, cid),
         }
+
+    def _mark_stale_suspends(self, cid: str, items: List[Dict[str, Any]]) -> None:
+        contexts = getattr(self._app, "session_contexts", None)
+        session = contexts.resolve_sync(cid) if contexts is not None else None
+        pending = getattr(session, "pending_confirm", None) if session is not None else None
+        pending_call = str((pending or {}).get("call_id") or "").strip()
+        for item in items:
+            if (item.get("role") == "tool"
+                    and item.get("status") == "suspended"
+                    and str(item.get("tool_call_id") or "") != pending_call):
+                item["status"] = "canceled"
+                item["error"] = "用户取消了这次确认（未作答）"
 
     def _load_events(self, cid: str) -> List[Any]:
         store = getattr(self._app, "store", None)
@@ -954,9 +972,28 @@ class Inbound:
         return Path(root) / "sessions" / f"{cid}.raw"
 
     # ── /api/usage-accumulator ───────────────────────────
+    def _hydrate_usage(self, cid: str) -> None:
+        store = getattr(self._app, "store", None)
+        loader = getattr(store, "load", None)
+        if not cid or not callable(loader):
+            return
+        for event in loader(cid):
+            if str(getattr(event, "type", "") or "") != "usage":
+                continue
+            data = getattr(event, "data", None)
+            if isinstance(data, dict):
+                self.state.add_usage(cid, data)
+
     def usage_get(self, cid: str) -> Dict[str, Any]:
-        """返回累计量，字段名是 accumulator 那套（与 SSE 不同）。"""
+        """返回累计量，字段名是 accumulator 那套（与 SSE 不同）。
+
+        进程重启后内存状态为空，但 `.raw` 里的 `usage` 事实仍在；
+        首次读取时从事实回填，刷新或重启不会把累计用量清零。
+        """
         cid = C.normalize_cid(cid)
+        if cid and not self.state.has_usage(cid) and cid not in self._usage_hydrated:
+            self._usage_hydrated.add(cid)
+            self._hydrate_usage(cid)
         acc = self.state.get_usage(cid)
         return {"ok": True, **acc}
 
@@ -974,6 +1011,7 @@ class Inbound:
         cid = C.normalize_cid(cid)
         if not cid:
             return {"ok": False, "error": "invalid conversation_id"}
+        self._usage_hydrated.add(cid)
         if body.get("reset"):
             self.state.reset_usage(cid)
             return {"ok": True, **self.state.get_usage(cid)}

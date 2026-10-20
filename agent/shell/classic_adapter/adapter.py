@@ -18,6 +18,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import agent.shell.classic_adapter.contract as C
+from agent.core.input_attachments import MAX_IMAGES
 from agent.shell.classic_adapter.inbound import ClassicState, Inbound
 from agent.shell.classic_adapter.outbound import ClassicStream
 
@@ -740,6 +741,7 @@ class ClassicAdapter:
             # 全局默认档位：会话回填前顶栏先按它显示（会话值见 `/api/chat/ui-state`）。
             "reasoning_effort": (self._app.live_state.default_effort
                                  if self._app.live_state is not None else "high"),
+            "max_images": MAX_IMAGES,
             "model_config": settings() if callable(settings) else {},
             # 停在"等用户作答"的会话（宿主状态，非内核阻塞态）。
             "paused_conversations": sorted(cid for cid, on in self._paused.items() if on),

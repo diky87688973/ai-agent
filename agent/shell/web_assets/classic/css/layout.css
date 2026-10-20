@@ -24,7 +24,7 @@ header .hdr-theme-btn:hover{color:#e6edf5;border-color:#7a8aa3;background:rgba(1
 main{flex:1;display:flex;min-height:0;align-items:stretch}
 /* 对话区最小宽度：输入区那一行控件（附件 / 模式 / 思考 / 模型 / 插件按钮 + 发送提示 +
    目标 / 发送）在更窄时会顶出右边界。改这一行要连带改 `agent-ui.js` 里的同名常量。 */
-.chat{flex:1 1 0;min-height:0;display:flex;flex-direction:column;min-width:670px}
+.chat{--content-max:840px;--content-half:420px;flex:1 1 0;min-height:0;display:flex;flex-direction:column;min-width:0}
 .classic-split-resizer{cursor:col-resize;align-self:stretch;flex:0 0 3px;box-sizing:border-box;background-color:#2a2a2a;border-left:1px solid #333;border-right:1px solid #333;flex-shrink:0}
 .classic-split-resizer:hover{background-color:#3a3f47;border-left-color:#4a4f57;border-right-color:#4a4f57}
 .side{flex:0 0 auto;width:min(600px,46vw);background:#252526;display:flex;flex-direction:column;min-width:300px}
@@ -96,7 +96,7 @@ html[data-ui-theme="light"][data-session-rail="open"] .session-rail-resizer.is-c
 .chat-tab-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chat-tab-close{margin-left:0;padding:0;border:0;background:transparent;color:#7f8792;font-size:13px;line-height:1;border-radius:4px}
 .chat-tab-close:hover{color:#e1e6ed;background:rgba(120,130,145,.16)}
-.msgs{flex:1;min-height:0;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+.msgs{flex:1;min-height:0;width:100%;box-sizing:border-box;overflow:auto;padding:10px 15%;padding:10px max(16px,calc(50% - var(--content-half,420px)));display:flex;flex-direction:column;gap:8px}
 .b{padding:8px 10px;border-radius:6px;white-space:pre-wrap;word-break:break-word;line-height:1.45}
 .b.u{max-width:92%;align-self:flex-end;background:#171717;border:1px solid #2c2c30;color:#aeb6c0;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
 .b.a{align-self:stretch;max-width:100%;width:100%;box-sizing:border-box;background:transparent;border:0;padding:8px 0 8px 8px;white-space:normal}

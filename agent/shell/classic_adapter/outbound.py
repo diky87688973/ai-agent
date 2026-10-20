@@ -144,6 +144,13 @@ class ClassicStream:
             return ""
         return str(self.model_resolver(self.cid) or "")
 
+    def _on_queue_updated(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [self._ev(
+            C.EV_QUEUE_UPDATED,
+            revision=int(d.get("revision") or 0),
+            items=list(d.get("items") or []),
+        )]
+
     def _on_input_claimed(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         # 经典界面乐观渲染用户气泡（agent-ui.js:2053），这里再发一次会重复。
         # 所以只回一个空的确认帧，供适配层更新自身状态。
@@ -152,14 +159,20 @@ class ClassicStream:
         # 前端没有乐观渲染它 —— 不回帧的话它在实时视图里完全看不见，
         # 只有刷新后才冒出来（而且会被当成用户自己说的话）。
         sender = str(d.get("_sender") or "").strip()
-        if not sender:
-            return []
-        return [self._ev(
-            C.EV_PEER_MESSAGE,
-            content=str(d.get("content") or ""),
-            sender=sender,
-            sender_name=str(d.get("_sender_name") or ""),
-        )]
+        if sender:
+            return [self._ev(
+                C.EV_PEER_MESSAGE,
+                content=str(d.get("content") or ""),
+                sender=sender,
+                sender_name=str(d.get("_sender_name") or ""),
+            )]
+        if bool(d.get("_from_queue")):
+            return [self._ev(
+                C.EV_QUEUED_USER,
+                content=str(d.get("content") or ""),
+                attachments=list(d.get("attachments") or []),
+            )]
+        return []
 
     def _on_step_started(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         """新的 LLM 轮：经典界面以 `llm_round` 起卡，`reasoning_*` / `llm_request` 都依赖它。"""
