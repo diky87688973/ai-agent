@@ -28,7 +28,7 @@
 | 6 | `X7` | 验收 skip 上限恒等于白名单长度，永远不可触发 | MUST | P3 |
 | 7 | `E2a` | 静默异常惯用法无数量、无预算、无递减约束 | MUST | P3 |
 | 8 | `R1` | 超阈值文件与函数无登记表 | MUST | P0 |
-| 9 | `T4` | 配置漂移且无校验；`web-ui-config.ini` 不入库、无样例文件 | MUST | P0/P2 |
+| 9 | `T4` | 配置漂移且无校验；`web-ui-config.ini` 正本入库、无样例文件 | MUST | P0/P2 |
 | 10 | `D3` | `docs/unit-tests.md` 已漂 14 个用例，生成器无 `--check` | MUST | P3 |
 | 11 | `K4` | 无并发/争用检测作业 | MUST | P4 |
 | 12 | `0.5` | 无 `docs/applicability.md` | MUST | P0 |
@@ -350,21 +350,21 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 
 | 问题 | 证据 |
 |---|---|
-| 正本不入库、无样例文件 | `git check-ignore -v web-ui-config.ini` 命中；不存在 `web-ui-config.ini.example` |
+| 正本入库、无样例文件 | `git ls-files web-ui-config.ini` 命中；不存在 `web-ui-config.ini.example` |
 | 本地正本多出键 | `config.ini` 有 `[context] summary_prefix_reuse`，schema 未登记 |
 | 无 schema，真实配置无法双向校验 | `plugins.ini` 的 `plugin:*` 节是"启用集合"，与插件配置天然不同，直接比键集会误报 |
 
 **改法**
 
 1. 新增 `agent/config_schema.py`：`SCHEMA: dict[str, dict[str, str]]`（节 → 键 → 默认值），`agent/config.py` 的 `get_*` 改为按 schema 取键；未登记的键读取即报错（带节、键、文件）。
-2. `web-ui-config.ini` 不入库；`.gitignore` 包含 `web-ui-config.ini`；加载器在文件缺失时使用 schema 默认值（不报错）。
+2. `web-ui-config.ini` 入库；不提供样例文件；加载器在文件缺失时使用 schema 默认值（不报错）。
 3. `scripts/check_config_drift.py`：
    - 真实配置 ↔ `SCHEMA` 比对（未登记键失败）；
    - 若真实文件存在，额外检查"真实键 ⊆ schema"，多出的键失败并给出行号（`configparser` 不给行号，用文本扫描定位节）；
    - 真实文件不存在只打印 `[SKIP] 未找到 config.ini（干净克隆）`，不失败——这是 `E5` 要求的可见跳过。
 4. 删除 `config.ini` 里 schema 未登记的 `summary_prefix_reuse`，或在 schema 中登记该键。
 
-**验收**：给 `config.ini` 加一个未登记键 → 门禁失败；无真实配置时跳过并通过。
+**验收**：给 `config.ini` 或 `web-ui-config.ini` 加一个未登记键 → 门禁失败；无真实配置时跳过并通过。
 
 ### 2.10 `D3` 生成文档漂移
 

@@ -1,6 +1,5 @@
 # 私有配置与凭据
 config.ini
-web-ui-config.ini
 plugins/*/plugin-config.ini
 !plugins/ai_speak/plugin-config.ini
 !plugins/knowledge/plugin-config.ini

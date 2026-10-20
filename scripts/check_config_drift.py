@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """配置漂移门禁：真实配置只允许使用 schema 已登记的节与键。
 
-配置样例文件已移除；真实配置由设置表单生成并被 `.gitignore` 忽略。
+配置样例文件已移除；内核配置与 Web UI 配置入库，多模型密钥配置被 `.gitignore` 忽略。
 门禁只检查现有真实文件，缺文件表示使用代码默认值，不报错。
 """
 from __future__ import annotations
