@@ -53,11 +53,13 @@ class AISpeakAppTest(unittest.TestCase):
         )
 
     def test_voice_directive_is_in_request_tail(self) -> None:
-        text = self.app.prompt_tail.render("cid-12345678")
+        runtime = self.app.plugin_host.runtime("ai_speak")
+        with mock.patch.object(runtime, "provider_ready", return_value=True):
+            text = self.app.prompt_tail.render("cid-12345678")
+            runner = self.app.context.get(SERVICE_RUNNER)
+            note = runner._mode_note("cid-12345678")
         self.assertIn("ai_speak", text)
         self.assertIn("必须", text)
-        runner = self.app.context.get(SERVICE_RUNNER)
-        note = runner._mode_note("cid-12345678")
         self.assertTrue(note.startswith("## 当前模式"))
         self.assertIn(text, note)
 
