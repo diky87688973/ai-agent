@@ -44,8 +44,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 负责可见根/媒体根/标题与工作目录的落点并阻塞运行。`build_shell_app()` 是入口层的装配函数
 （`agent/entry/web.py`）：按配置建真实 provider 与会话存储——壳层不导入装配根（A2）。
 
-缺少模型配置不再阻断启动：服务以 `MissingProvider` 起来，入口把浏览器指向 `/setup`；
-向导保存后调用 `app.reload_model_config()` 立即生效。已有插件模型时目录权威接管，直接进入主界面。
+缺少模型配置不阻断启动：服务以 `MissingProvider` 起来，浏览器打开主页面，模型下拉为空；
+设置页保存后调用 `app.reload_model_config()` 立即生效。已有插件模型时目录权威接管。
 
 ## HTTP 路由
 
@@ -54,8 +54,6 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | 路径 | 作用 |
 |---|---|
 | `/` | 单页界面 |
-| `/setup` | 首次启动的模型设置向导 |
-| `/api/setup` | 向导状态（不返回密钥明文） |
 | `/health` | 健康检查：工具数、模型、全局默认推理档位、内核、允许的模型列表 |
 | `/favicon.ico` | 站点图标 |
 | `/assets/*` | 静态资源 |
@@ -71,7 +69,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/plugin/<插件>/<路径>` | 插件自己的端点命名空间（精确匹配，无通配） |
 | `/api/settings` | 设置页目录。密钥字段 `value` 恒为空，另给 `configured`（是否已填写）和 `placeholder` |
 | `/api/settings/plugins` | 插件卡片：名字、描述、图标、是否装载 |
-| `/api/settings/plugin-file` | 某个插件的 `plugin-config.ini` 编辑视图（`[base]` 不回显，密钥已掩码） |
+| `/api/settings/plugin-file` | 某个插件的 `plugin-config.ini` 编辑视图（密钥已掩码） |
 | `/api/reasoning-effort` | 推理档位 |
 | `/api/usage-accumulator` | 用量累计 |
 | `/api/media` | 媒体代理，根由 `--media-root` 指定 |
@@ -80,7 +78,6 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 | 路径 | 作用 |
 |---|---|
-| `/api/setup` | 保存向导字段并热加载模型；保存后无需重启 |
 | `/api/chat/send` | 发起一轮对话。同会话已在跑时返回 **409** |
 | `/api/chat/stop` | 停止当前回合 |
 | `/api/chat/user-confirm` | 提交用户确认（写盘确认与 `user_confirm` 作答共用此端点） |
@@ -89,8 +86,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/chat/goal` | 目标文案读写 |
 | `/api/chat/command-input` | 交互式命令的 stdin 输入 |
 | `/api/settings` | 写回宿主配置。密钥字段为空不写，有内容才覆盖文件里的原值 |
-| `/api/settings/plugins` | 插件开关，写 `[base] enable` |
-| `/api/settings/plugin-file` | 写回某个插件的**可编辑节**：`[base]` 与文件里其它节逐字节保留 |
+| `/api/settings/plugins` | 插件开关，写 `plugins.ini` 的 `enabled` |
+| `/api/settings/plugin-file` | 写回某个插件的**可编辑节**，其它节逐字节保留 |
 | `/api/settings/pick-dir` | 弹出系统目录选择窗口 |
 
 ### PUT
@@ -102,9 +99,9 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 设置页在界面右上角，读写的就是 `config.ini`、`web-ui-config.ini` 和各插件的 `plugin-config.ini`。密钥只允许覆盖：密码框留空则文件里的值不动；有内容才替换。`GET /api/settings` 不回明文，只说明是否已填写。已填写时密码框提示「已设置秘钥,可重新设置并替换」，未填写时提示「未配置秘钥」。
 
 「保存」是保存并关窗（只有失败才留在窗口里），「应用」是保存但不关窗。插件配置的
-`[base]`（身份与开关）既不回显也不回写；编辑区只覆盖插件自己的节 —— 有
+身份与开关不在插件配置里；编辑区只覆盖插件自己的节 —— 有
 `settings-schema.json` 的插件（多模型）按结构化表单逐条编辑，其余插件只显示
-`[ext]` 的正文，节头不露出。密钥字段在结构化表单里同样只回显"是否已配置"，
+`[config]` 的正文，节头不露出。密钥字段在结构化表单里同样只回显"是否已配置"，
 留空表示沿用原值。
 
 保存模型相关设置时，`apply_host()` 只调 `app.reload_model_config()`：重建默认 provider、

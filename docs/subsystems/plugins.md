@@ -14,7 +14,8 @@
 ```
 plugins/<插件名>/
   plugin.py        必须。唯一入口，暴露 register(ctx)
-  plugin-config.ini  可选。插件自己的配置（不入库，只入库 plugin-config.ini.example）
+  plugin-meta.json  必须。插件身份：name / desc / icon / version
+  plugin-config.ini  可选。插件自己的真实配置；无敏感信息的插件入库，多模型等含密钥的插件被忽略
   ui/              可选。面板的样式与脚本
   <其它文件>        可选。插件自己的数据文件、库、模板
 ```
@@ -37,75 +38,63 @@ from .library import Thing
 
 ## 清单：`plugins.ini`
 
-工程根的 `plugins.ini` 列出插件。节在就进入装载候选。开或关、卡片上一句话写在该插件自己的 `plugin-config.ini`。
+工程根的 `plugins.ini` 列出插件。节在就进入装载候选；开关写在该节的 `enabled`。
 
 ```ini
 [plugin:skills]
-version = 1.0
 
 [plugin:knowledge]
-version = 1.0
 
 [plugin:local-lab]
 path = /opt/local/my-plugin
+enabled = 1
 ```
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
 | 节名 | 是 | 固定 `[plugin:<名字>]`。名字即模块名后缀与默认目录名 |
-| `version` | 否 | 插件版本。与该插件 `plugin-config.ini` 的 `[base] version` 核对，不一致记一条加载报告（**照常装载**） |
 | `path` | 否 | 插件目录（可在 `plugins/` 外）。相对路径按插件根解析；空则 `plugins/<名字>`。装载后资产与配置一律经宿主的 `plugin_root(名字)`，不写死 `plugins/<名字>` |
+| `enabled` | 否 | `0` 不装载；缺省按 `1`。设置页开关写这一项 |
 
 **节的先后有意义**：它就是插件的装载位次，也是**上下文里插件段的组装顺序**
 （见 [context.md](context.md#组装顺序)）。越不容易变动的插件排在越前面。
-
-`plugins.ini.example` 是模板，默认什么都不列（= 不装载任何插件）。
 
 配置错了要看得见：名字非法、目录不存在、缺 `plugin.py` 都会记一条 `error` 报告，
 不阻断启动，也不会静默当没写。
 
 ## 插件自己的配置
 
-插件自己的配置放**插件自己目录下的 `plugin-config.ini`**。`[base]` 每个插件都有，
-`[ext]` 只放这个插件自己的键。插件用 `agent.config.load_ini()` 读 `[ext]`：
+插件自己的配置放**插件自己目录下的 `plugin-config.ini`**，只含插件自己的键。
+插件用 `agent.config.load_ini()` 读取：
 
 ```
-plugins/<插件名>/plugin-config.ini     ← 该插件自己的配置
+plugins/<插件名>/plugin-config.ini     ← 只放插件自己的设置
+plugins/<插件名>/plugin-meta.json      ← 身份声明
 ```
 
 **内核的 `config.ini` 只含内核设置，不放任何插件设置。** 插件的设置在插件自己
 目录下，随插件一起装卸、一起删除。
-每个插件目录下配有 `plugin-config.ini.example` 作模板；配置文件本身不入库。
+`plugin-config.ini` 是唯一真实配置，不提供样例文件；文件不存在时插件使用代码默认值。AI说话 / 视觉操作 / 知识库 / Skills 的配置入库，`multi_model` 的配置被忽略。
 
 文件名固定是 `plugin-config.ini`（不是 `config.ini`）——`config.ini` 这个名字专指
-内核配置，同名两份文件会产生歧义。`[base]` 固定，`[ext]` 由插件自己定。
-各插件的 `[ext]` 键写在对应子系统文档里。
+内核配置，同名两份文件会产生歧义。
 
-**设置页只能改插件自己的节。** `[base]` 是身份与开关，设置页既不回显也不回写——
-一次误编辑就能让插件改名、失联或无法装载。编辑视图分两种：
+**设置页只能改插件自己的节。** 身份与开关不在这份文件里：`name` / `desc` / `icon` /
+`version` 由 `plugin-meta.json` 声明，`enabled` 由 `plugins.ini` 控制。
+编辑视图分三种：
 
-- 声明了 `settings-schema.json` 的插件：按 schema 渲染结构化表单，
-  逐条编辑 `[ext]` 里的结构化条目，保存时只替换这些节；
-- 其余插件：正文就是 `[ext]` 的内容，节头不显示，保存时替换 `[ext]`。
+- 声明了 `kind: sections` 的插件：按 schema 渲染可增删条目；
+- 声明了 `kind: fields` 的插件：按 schema 渲染字段表单，保存只更新声明字段；
+- 其余插件：正文就是插件自己的键，保存时替换对应节。
 
-两种形态都逐字节保留 `[base]` 与文件里的其它节；密钥字段只回显"是否已配置"，
-留空表示沿用原值。
-
-`enable`：`1` 装载，`0` 留在清单里但不装载。没写时按 `1`。设置页的开关写的就是这一项。
-`name` / `desc` / `icon` 是设置页卡片上的展示名、一句话和图标。`version` 与 `plugins.ini` 里的 `version` 核对。
-
-**身份键回退到 `.example`**：`id` / `name` / `desc` / `icon` / `version` 是插件
-**声明**，真实文件缺失或某键为空时取模板值（`plugin_config_fields()` 统一处理）。
-不回退的话，没建过配置的插件在列表里显示目录名（`multi_model` 而不是「多模型」），
-旁边的插件却显示 `name` —— 同一个列表出现两套规则。`enable` **不回退**：它是
-用户状态，模板里的开关不该替用户决定装载与否。
+密钥字段只回显"是否已配置"，留空表示沿用原值。
 
 插件自己的键由插件自己读、自己解释：内核不解析插件配置，`agent/config.py` 里
 没有任何插件节的读取口。`dir` 一类的相对路径按**工程根**解析（不是按插件目录），
 与内核配置保持同一口径。
 插件的定位不依赖内核 API：`Path(__file__).resolve().parent` 就是插件目录。
 
-权限边界要说清：`plugin-config.ini` 存的是密钥这类敏感值，同机进程读得到它就能读插件配置。
+权限边界要说清：含密钥的插件配置不入库；同机进程读得到它就能读插件配置。
 这与「插件与本机代码同等信任」是同一条边界（见下文）。
 
 ## 扩展点全表
@@ -118,6 +107,7 @@ plugins/<插件名>/plugin-config.ini     ← 该插件自己的配置
 | `add_executor(name, fn)` | 写类工具的提交执行器 | `ExecutorRegistry`（`commit_write` 提交时按名取） |
 | `subscribe(event_type, handler)` | 事件处理 `handler(event)` | 事件总线 |
 | `add_context_source(fn, meta?)` | 上下文注入源 | `ContextSources`（见下节） |
+| `add_mode_tail(fn)` | 执行模式后的请求尾部文本 | `PromptTail`（见「请求尾部」） |
 | `add_pre_gate(gate)` | 工具执行前门控 | 工具管道 |
 | `add_post_observer(obs)` | 工具执行后观察 | 工具管道 |
 | `add_route(method, path, handler)` | HTTP 端点 | `/api/plugin/<插件名>/…` |
@@ -249,7 +239,11 @@ ctx.add_action("notes", label="🗒 便签", title="便签")   # 输入框下面
 | 插件 | 面板的 HTML 片段、脚本、样式；内容怎么渲染 |
 | 壳层 | 标签容器、按数据枚举、把资产按路径送达、同源注入 |
 
-#### 界面资产
+## 请求尾部
+
+`ctx.add_mode_tail(fn)` 注册 `fn(conversation_id) -> str`。文本拼在执行模式之后，只进入当前请求尾部，不进入系统提示词前缀；插件装卸只改变尾部，不使前面的 KV 缓存失效。空串不占位，异常来源被隔离。
+
+## 界面资产
 
 面板可以带自己的样式与脚本，声明的是**插件目录内的相对路径**；
 壳层按 `/api/plugin/<插件名>/_asset/<相对路径>` 送达，**目录根取自**
@@ -427,15 +421,15 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
    ```
 
    需要拆文件时用同目录模块，以绝对包名导入（`from .library import Thing`）。
-3. **建配置**（可选）：`plugin-config.ini.example` 至少含 `[base]` 的 `id` / `name` /
-   `desc` / `icon` / `version`；插件自己的键放 `[ext]`，用 `agent.config.load_ini()` 读取。
-   真实文件 `plugin-config.ini` 不入库。需要结构化表单时另加 `settings-schema.json`，
-   声明 `kind` / `section_prefix` / `identity` / `fields`。
+3. **建元数据与表单**：`plugin-meta.json` 声明 `name` / `desc` / `icon` / `version`；
+   需要结构化表单时加 `settings-schema.json`，声明 `kind` /
+   `fields`（或 `section_prefix` / `identity` / `fields`）。无敏感信息的 `plugin-config.ini`
+   入库；含密钥的插件配置由 `.gitignore` 排除。
 4. **登记界面**（可选）：面板、输入区动作、开屏脚本、段色分别用
    `add_panel` / `add_action` / `add_boot_script` / `add_ctx_segment_style` 注册；
    资产放插件目录内，经 `/api/plugin/<名字>/_asset/<相对路径>` 送达。
-5. **加清单**：在 `plugins.ini` 写一节 `[plugin:<名字>]`，可带 `version` 与 `path`。
-   节在即进入装载候选，实际是否装载看 `[base] enable`。
+5. **加清单**：在 `plugins.ini` 写一节 `[plugin:<名字>]`，可带 `path` / `enabled`。
+   节在即进入装载候选，实际是否装载看 `enabled`。
 6. **校验**：`python scripts/ci.py` 覆盖依赖方向、注释文案、目录结构与单测；
    插件的端点与界面由 `scripts/acceptance_web.py` 一类的验收脚本覆盖。
 

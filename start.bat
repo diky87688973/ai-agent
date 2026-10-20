@@ -44,7 +44,7 @@ if errorlevel 1 (
 echo [2/4] pip is ready
 
 rem ---- 3. Dependencies ----
-%PY% -c "import openpyxl, PIL" >nul 2>&1
+%PY% -c "import openpyxl, PIL, et_xmlfile" >nul 2>&1
 if errorlevel 1 (
     echo [3/4] Installing dependencies...
     %PY% -m pip install -e . -c constraints.txt
@@ -60,25 +60,19 @@ if errorlevel 1 (
     echo [3/4] Runtime dependencies are ready
 )
 
-%PY% -c "import edge_tts" >nul 2>&1
+%PY% -c "import edge_tts; from importlib.metadata import version; v=version('edge-tts').split('.'); raise SystemExit(0 if (int(v[0]), int(v[1]), int(v[2])) >= (7, 3, 1) else 1)" >nul 2>&1
 if errorlevel 1 (
-    echo [3/4] Installing optional speech dependency...
+    echo [3/4] Installing or upgrading speech dependency...
     %PY% -m pip install -e ".[tts]" -c constraints.txt
-    if errorlevel 1 echo [WARN] edge-tts not installed; AI speech will be unavailable.
+    if errorlevel 1 echo [WARN] edge-tts missing or too old; AI speech will be unavailable.
 )
 
-rem ---- 4. Browser setup; no key gate ----
-if not exist "config.ini" (
-    if exist "config.ini.example" copy "config.ini.example" "config.ini" >nul
-    echo [4/4] Created config.ini. Fill the model in the browser setup page.
-) else (
-    echo [4/4] Configuration is handled by the browser setup page.
-)
+rem ---- 4. Configuration is handled by the settings page ----
+echo [4/4] Configuration is handled by the settings page
 echo.
 
 echo ============================================
 echo   URL:    http://127.0.0.1:8765/
-echo   Setup:  http://127.0.0.1:8765/setup
 echo   Stop:   Ctrl+C
 echo ============================================
 echo.

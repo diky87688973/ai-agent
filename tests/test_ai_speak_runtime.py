@@ -84,8 +84,8 @@ class RecordingProvider:
     def available(self) -> bool:
         return True
 
-    def synthesize(self, text: str, *, voice: str, timeout_s: float):
-        self.calls.append((text, voice, timeout_s))
+    def synthesize(self, text: str, *, voice: str, timeout_s: float, speed: float = 1.0):
+        self.calls.append((text, voice, timeout_s, speed))
         if any(marker in text for marker in self.fail_texts):
             raise _PROVIDER.SpeechSynthesisError("simulated failure")
         return _PROVIDER.SpeechAudio(
@@ -99,7 +99,7 @@ class MissingProvider(RecordingProvider):
     def available(self) -> bool:
         return False
 
-    def synthesize(self, text: str, *, voice: str, timeout_s: float):
+    def synthesize(self, text: str, *, voice: str, timeout_s: float, speed: float = 1.0):
         raise _PROVIDER.SpeechEngineUnavailable("edge-tts missing")
 
 
@@ -109,10 +109,10 @@ class BlockingProvider(RecordingProvider):
         self.started = threading.Event()
         self.release = threading.Event()
 
-    def synthesize(self, text: str, *, voice: str, timeout_s: float):
+    def synthesize(self, text: str, *, voice: str, timeout_s: float, speed: float = 1.0):
         self.started.set()
         self.release.wait(2.0)
-        return super().synthesize(text, voice=voice, timeout_s=timeout_s)
+        return super().synthesize(text, voice=voice, timeout_s=timeout_s, speed=speed)
 
 
 class FakePublisher:
@@ -148,9 +148,10 @@ class ProviderTest(unittest.TestCase):
         module = types.ModuleType("edge_tts")
 
         class Communicate:
-            def __init__(self, text: str, voice: str) -> None:
+            def __init__(self, text: str, voice: str, rate: str = "") -> None:
                 self.text = text
                 self.voice = voice
+                self.rate = rate
 
             async def stream(self):
                 if delay:
@@ -476,6 +477,7 @@ class _FakeCtx:
         self.boot_scripts: List[str] = []
         self.routes: List[tuple] = []
         self.subscriptions: List[str] = []
+        self.mode_tails: List[Any] = []
         self.runtime: Any = None
         self.disposed = 0
 
@@ -495,6 +497,10 @@ class _FakeCtx:
         self.subscriptions.append(event_type)
         return lambda: self.subscriptions.remove(event_type)
 
+    def add_mode_tail(self, fn: Any):
+        self.mode_tails.append(fn)
+        return lambda: self.mode_tails.remove(fn)
+
     def set_runtime(self, runtime: Any) -> None:
         self.runtime = runtime
 
@@ -508,9 +514,11 @@ class RegistrationTest(unittest.TestCase):
         self.assertEqual([(m, p) for m, p, _h in ctx.routes],
                          [("GET", "config"), ("GET", "status"), ("POST", "played")])
         self.assertEqual(sorted(ctx.subscriptions), ["error", "turn_ended"])
+        self.assertEqual(len(ctx.mode_tails), 1)
         self.assertEqual(ctx.runtime.config.engine, "edge")
         for disposer in reversed(disposers):
             disposer()
+        self.assertEqual(ctx.mode_tails, [])
 
     def test_config_and_status_routes(self) -> None:
         ctx = _FakeCtx()
@@ -518,8 +526,8 @@ class RegistrationTest(unittest.TestCase):
         handlers = {path: handler for _m, path, handler in ctx.routes}
         status, config = handlers["config"]({})
         self.assertEqual(status, 200)
-        self.assertEqual(config["max_segment_chars"], 128)
-        self.assertFalse(config["sync_playback"])
+        self.assertEqual(config["max_segment_chars"], ctx.runtime.config.max_segment_chars)
+        self.assertEqual(config["sync_playback"], ctx.runtime.config.sync_playback)
         played, ack = handlers["played"]({
             "body": {"conversation_id": "cid", "call_id": "missing",
                      "status": "played"}})

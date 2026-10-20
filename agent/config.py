@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """配置读取：项目根 config.ini（按需取用，未使用的项留空）。
 
-[model_reasoning] 节字段：api_base_url / api_key / model（model 可缺省，取 DEFAULT_MODEL）。
+[model_reasoning] 节字段：api_base_url / api_key / model / models / context_window。
 读取策略：文件缺失或节缺失 → 空值/缺省返回（调用方决定报错策略）。
 本模块只认内核设置；插件设置在插件自己目录的 plugin-config.ini 里，由插件自己读。
 """
@@ -15,9 +15,9 @@ from agent.core.host import MAX_PASSES_DEFAULT
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.ini"
-DEFAULT_MODEL = "deepseek-v4-flash-vision-exp"
-#: 模型上下文窗口的缺省值（token）。界面按它算上下文占用率。
-DEFAULT_CONTEXT_WINDOW = 1_000_000
+DEFAULT_MODEL = ""
+#: 模型上下文窗口的缺省值（token）。未配置时为 0，界面显示为空。
+DEFAULT_CONTEXT_WINDOW = 0
 
 
 def _clean(value: object) -> str:
@@ -59,9 +59,9 @@ def get_model_reasoning(path: Optional[Path] = None) -> Dict[str, Any]:
     """读取 [model_reasoning] 节。
 
     返回 `{api_base_url, api_key, model, models, context_window}`：
-    前两个缺失为空串，`model` 缺省取 DEFAULT_MODEL，
+    前三个缺失为空串；`model` 不预填任何厂商或模型名，
     `models` 是同一网关下的可选模型名（逗号分隔；留空 = 只能用 `model`）。
-    `context_window` 是该模型的物理上限（token），界面按它算上下文占用率。
+    `context_window` 是该模型的物理上限（token）；未配置时为 0。
     """
     parser = load_ini(path)
     values: Dict[str, str] = {}
@@ -124,11 +124,11 @@ PLUGIN_SECTION_PREFIX = "plugin:"
 
 
 def get_plugins(path: Optional[Path] = None) -> List[Dict[str, str]]:
-    """读取插件清单，返回 `[{name, version, path}, ...]`。
+    """读取插件清单，返回 `[{name, path, enabled}, ...]`。
 
     每个插件一个节 `[plugin:<名字>]`。节在就进入装载候选。
-    开或关写在该插件自己的 `plugin-config.ini`：`[base] enable = 1` 装载，`0` 不装载。
-    `path` 留空时本函数不填，由装载方按插件根解析。
+    开或关写在清单节：`enabled = 1` 装载，`0` 不装载；缺省按 1。
+    `path` 留空时本函数不填，由装载方按插件根解析。插件版本只在 `plugin-meta.json` 声明。
     名字非法、目录不存在归装载方判断。
     """
     parser = load_ini(path if path is not None else DEFAULT_PLUGINS_PATH)
@@ -139,8 +139,8 @@ def get_plugins(path: Optional[Path] = None) -> List[Dict[str, str]]:
         name = section[len(PLUGIN_SECTION_PREFIX):].strip()
         out.append({
             "name": name,
-            "version": str(parser.get(section, "version", fallback="") or "").strip(),
             "path": str(parser.get(section, "path", fallback="") or "").strip(),
+            "enabled": str(parser.get(section, "enabled", fallback="1") or "1").strip(),
         })
     return out
 

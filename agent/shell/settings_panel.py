@@ -3,8 +3,8 @@
 
 宿主配置按节回显，按键写回原来的 ini，注释行留在原处。
 插件是否进入装载候选看 `plugins.ini` 里有没有 `[plugin:<名字>]`。
-开关、名字、描述、图标、版本写在插件 `plugin-config.ini` 的 `[base]`。
-插件自己的键在同一文件的 `[ext]`。整份当文本编辑。
+开关在 `plugins.ini`，名字、描述、图标、版本在 `plugin-meta.json`。
+插件自己的键在同一文件的 `[config]`。整份当文本编辑。
 保存之后更新当前进程里已经拿着的配置，并按清单重新装载插件。
 """
 from __future__ import annotations
@@ -35,7 +35,7 @@ from agent.shell.ini_sections import (
 from agent.shell.ini_sections import (
     section_span as _section_span,
 )
-from agent.shell.plugin_editor import build_editor, merge_groups, merge_text
+from agent.shell.plugin_editor import build_editor, merge_fields, merge_groups, merge_text
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.web_ui_config import WEB_UI_CONFIG_PATH, get_web_ui
 
@@ -64,13 +64,16 @@ def _fields() -> List[Dict[str, Any]]:
             "file": "config.ini",
             "title": "模型",
             "fields": [
-                {"key": "api_base_url", "kind": "text", "label": "网关地址"},
-                {"key": "api_key", "kind": "secret", "label": "API 密钥"},
-                {"key": "model", "kind": "text", "label": "默认模型"},
+                {"key": "api_base_url", "kind": "text", "label": "网关地址",
+                 "placeholder": "示例: https://..."},
+                {"key": "api_key", "kind": "secret", "label": "API 密钥",
+                 "placeholder": "示例: sk-..."},
+                {"key": "model", "kind": "text", "label": "默认模型",
+                 "hint": "与模型提供商保持一致"},
                 {"key": "models", "kind": "text", "label": "可选模型",
-                 "hint": "逗号分隔，同一网关下的模型名"},
+                 "hint": "与模型提供商保持一致，逗号分隔"},
                 {"key": "context_window", "kind": "number", "label": "上下文窗口（token）",
-                 "hint": "该模型的物理上限，界面按它算上下文占用率"},
+                 "hint": "模型供应商声明的最大上下文窗口"},
             ],
         },
         {
@@ -82,10 +85,10 @@ def _fields() -> List[Dict[str, Any]]:
                  "options": [{"value": "high", "label": "high"},
                              {"value": "max", "label": "max"}]},
                 {"key": "max_passes", "kind": "number", "label": "单回合模型往返上限",
-                 "hint": "一趟 = 模型回复一次 + 这次回复里的工具调用全部执行完；一趟可含多个工具调用"},
+                 },
                 {"key": "backup_retention_days", "kind": "number",
                  "label": "AI 修改文件时的备份保存天数",
-                 "hint": "下次启动时按这个天数清理更早的备份"},
+                 },
             ],
         },
         {
@@ -93,14 +96,18 @@ def _fields() -> List[Dict[str, Any]]:
             "file": "config.ini",
             "title": "上下文",
             "fields": [
-                {"key": "summary_token_threshold", "kind": "number", "label": "压缩阈值（token）"},
-                {"key": "full_user_rounds", "kind": "number", "label": "保留完整用户轮数"},
-                {"key": "summary_output_max_chars", "kind": "number", "label": "摘要字数上限"},
+                {"key": "summary_token_threshold", "kind": "number", "label": "压缩阈值（token）",
+                 },
+                {"key": "full_user_rounds", "kind": "number", "label": "保留完整用户轮数",
+                 },
+                {"key": "summary_output_max_chars", "kind": "number", "label": "摘要字数上限",
+                 },
                 {"key": "reasoning_replay_tokens", "kind": "number", "label": "思维链回传预算",
-                 "hint": "-1 全量回传，0 不回传，正数超出后取两头"},
+                 },
                 {"key": "image_turns", "kind": "number", "label": "带图用户轮数",
-                 "hint": "最近多少轮用户发言里的图会发给模型；负数表示不剥"},
-                {"key": "image_max", "kind": "number", "label": "带图张数上限"},
+                 },
+                {"key": "image_max", "kind": "number", "label": "带图张数上限",
+                 },
             ],
         },
         {
@@ -108,12 +115,13 @@ def _fields() -> List[Dict[str, Any]]:
             "file": "web-ui-config.ini",
             "title": "界面",
             "fields": [
-                {"key": "display_tool_items", "kind": "bool", "label": "工作区展示工具步骤"},
-                {"key": "display_tool_steps", "kind": "bool", "label": "侧边栏展示工具步骤"},
+                {"key": "display_tool_items", "kind": "bool", "label": "工作区展示工具步骤",
+                 },
+                {"key": "display_tool_steps", "kind": "bool", "label": "侧边栏展示工具步骤",
+                 },
             ],
         },
     ]
-
 
 def update_ini_keys(text: str, section: str, updates: Dict[str, str]) -> str:
     """在指定节里改键。已有的键换掉那一行，没有的键补在节尾。其它行不动。"""
@@ -220,7 +228,8 @@ def _effective_values(config_path: Path, web_ui_path: Path) -> Dict[str, Dict[st
             "api_key": str(reasoning["api_key"]),
             "model": str(reasoning["model"]),
             "models": ",".join(str(item) for item in reasoning["models"]),
-            "context_window": str(reasoning["context_window"]),
+            "context_window": (str(reasoning["context_window"])
+                               if reasoning["context_window"] else ""),
         },
         "agent": {
             "reasoning_effort": get_reasoning_effort(config_path),
@@ -240,6 +249,25 @@ def _effective_values(config_path: Path, web_ui_path: Path) -> Dict[str, Dict[st
             "display_tool_steps": "1" if web["display_tool_steps"] else "0",
         },
     }
+
+
+def _model_tab_hidden(app: Any) -> bool:
+    """多模型插件接管模型配置时，内核「模型」节不再展示。
+
+    即使插件目录暂时没有有效条目也要隐藏：模型由插件表单维护，
+    内核节继续可编辑只会造成“改了不生效”的错觉。
+    """
+    if str(getattr(app, "model_config_state", "") or "") == "catalog":
+        return True
+    host = getattr(app, "plugin_host", None)
+    if host is None:
+        return False
+    try:
+        return "multi_model" in list(host.loaded_names())
+    except (AttributeError, RuntimeError):
+        # 测试替身或半装配 host 不提供 loaded_names / 查询失败时保持显示
+        # 内核模型节，避免设置页因为探测失败而少掉入口。
+        return False
 
 
 def host_catalog(config_path: Optional[Path] = None,
@@ -269,6 +297,7 @@ def host_catalog(config_path: Optional[Path] = None,
                 "label": field["label"],
                 "value": stored,
                 "hint": field.get("hint") or "",
+                "placeholder": field.get("placeholder") or "",
             }
             if field["kind"] == "secret":
                 # 回显只说明有没有配过。明文密钥不出接口。
@@ -276,7 +305,8 @@ def host_catalog(config_path: Optional[Path] = None,
                 item["value"] = ""
                 item["configured"] = configured
                 item["placeholder"] = (
-                    "已设置秘钥,可重新设置并替换" if configured else "未配置秘钥"
+                    "已设置秘钥,可重新设置并替换" if configured
+                    else (field.get("placeholder") or "未配置秘钥")
                 )
             if field.get("options"):
                 item["options"] = list(field["options"])
@@ -496,8 +526,9 @@ def list_plugins(plugins_path: Optional[Path] = None,
         meta = plugin_config_fields(entry.parent) if entry is not None else {
             "name": "", "desc": "", "enable": "0", "icon": "", "version": "",
         }
-        declared = meta["version"] or str(listed.get(name, {}).get("version") or "")
-        on = name in listed and meta["enable"] != "0"
+        declared = meta["version"]
+        on = (name in listed
+              and str(listed[name].get("enabled", "1")) != "0")
         cards.append({
             "name": name,
             "title": meta["name"] or name,
@@ -514,10 +545,7 @@ def list_plugins(plugins_path: Optional[Path] = None,
 def set_plugin_enabled(name: str, enabled: bool, app: Any = None, *,
                        plugins_path: Optional[Path] = None,
                        plugins_dir: Optional[Path] = None) -> Dict[str, Any]:
-    """把插件 `[base] enable` 写成 1 或 0，再按它装载或卸下。
-
-    打开时若总清单还没有这一节，补上 `[plugin:<名字>]`。关掉时节留着，只改开关。
-    """
+    """把插件清单节的 `enabled` 写成 1 或 0，再按它装载或卸下。"""
     plugin = str(name or "").strip()
     if not _valid_name(plugin):
         return {"ok": False, "error": "插件名不合法"}
@@ -531,17 +559,13 @@ def set_plugin_enabled(name: str, enabled: bool, app: Any = None, *,
         text = _read_text(manifest_path)
         section = f"plugin:{plugin}"
         flag = "1" if enabled else "0"
-        config_path = folder / "plugin-config.ini"
-        cfg = _read_text(config_path)
-        if _section_span(cfg.splitlines(keepends=True), "base") is None:
-            cfg = append_ini_section(cfg, "base", [("enable", flag)])
+        if _section_span(text.splitlines(keepends=True), section) is None:
+            if enabled:
+                text = append_ini_section(text, section, [("enabled", flag)])
+                _write_text(manifest_path, text)
         else:
-            cfg = update_ini_keys(cfg, "base", {"enable": flag})
-        _write_text(config_path, cfg)
-        if enabled and _section_span(text.splitlines(keepends=True), section) is None:
-            version = plugin_config_fields(folder)["version"] or "1.0"
-            text = append_ini_section(text, section, [("version", version)])
-            _write_text(manifest_path, text)
+            _write_text(
+                manifest_path, update_ini_keys(text, section, {"enabled": flag}))
         reports = sync_plugins(
             app, plugins_path=manifest_path, plugins_dir=root) if app is not None else []
     return {"ok": True, "reports": reports}
@@ -549,25 +573,14 @@ def set_plugin_enabled(name: str, enabled: bool, app: Any = None, *,
 
 def sync_plugins(app: Any, *, plugins_path: Optional[Path] = None,
                  plugins_dir: Optional[Path] = None) -> List[Dict[str, str]]:
-    """卸掉未开启的插件，再装载清单里 `[base] enable` 不是 0 的。"""
+    """卸掉未开启的插件，再装载清单里 `enabled` 不是 0 的。"""
     host = getattr(app, "plugin_host", None) if app is not None else None
     if host is None:
         return []
-    base = Path(plugins_dir) if plugins_dir is not None else (
-        Path(getattr(host, "plugins_dir", _PLUGINS_DIR))
-    )
-    resolve = getattr(host, "resolve_plugin_root", None)
-    desired = []
-    for item in get_plugins(plugins_path):
-        name = str(item.get("name") or "")
-        path_raw = str(item.get("path") or "").strip()
-        if callable(resolve):
-            folder = resolve(name, path_raw)
-        else:
-            folder = resolve_plugin_root(base, name, path_raw)
-        if plugin_config_fields(folder)["enable"] == "0":
-            continue
-        desired.append(item)
+    desired = [
+        item for item in get_plugins(plugins_path)
+        if str(item.get("enabled", "1")) != "0"
+    ]
     wanted = {str(item["name"]) for item in desired}
     for name in list(host.loaded_names()):
         if name not in wanted:
@@ -611,12 +624,9 @@ def _config_file(plugin_root: Path) -> Path:
 def read_plugin_config(name: str, *, plugins_dir: Optional[Path] = None,
                        plugins_path: Optional[Path] = None,
                        app: Any = None) -> Dict[str, Any]:
-    """读插件配置的编辑视图；文件还不存在时把同目录的 `.example` 当作草稿。
+    """读插件配置的编辑视图；真实文件不存在时返回空表单。
 
-    不落盘：示例里的密钥是占位符，自动写进真实配置会让"打开设置"变成
-    一次隐式配置动作。用户改完点保存才创建文件。
-
-    `editor` 只包含插件自己的节：`[base]` 既不回显也不回写。
+    `editor` 只包含插件自己的节；身份与开关不在插件配置里。
     """
     plugin = str(name or "").strip()
     if not _valid_name(plugin):
@@ -629,22 +639,21 @@ def read_plugin_config(name: str, *, plugins_dir: Optional[Path] = None,
     except ValueError as exc:
         return {"ok": False, "error": str(exc)}
     exists = path.is_file()
-    source = path if exists else path.with_name(path.name + ".example")
-    text = _read_text(source) if source.is_file() else ""
+    text = _read_text(path) if exists else ""
     return {
         "ok": True,
         "name": plugin,
         "exists": exists,
-        "seeded": (not exists and source.is_file()),
         "editor": build_editor(text, folder),
     }
 
 
 def write_plugin_config(name: str, text: Any = None, groups: Any = None,
+                        fields: Any = None,
                         app: Any = None, *,
                         plugins_dir: Optional[Path] = None,
                         plugins_path: Optional[Path] = None) -> Dict[str, Any]:
-    """只写插件自己的节：`[base]` 与其它节保持原样。
+    """只写插件自己的节；身份与开关不在插件配置里。
 
     插件正在装载时卸下再装，让它重新读文件。
     """
@@ -664,6 +673,10 @@ def write_plugin_config(name: str, text: Any = None, groups: Any = None,
         if not isinstance(groups, list):
             return {"ok": False, "error": "这份配置要用表单提交"}
         merged, error = merge_groups(base_text, groups, editor["schema"])
+    elif editor["kind"] == "fields":
+        if not isinstance(fields, dict):
+            return {"ok": False, "error": "这份配置要用字段表单提交"}
+        merged, error = merge_fields(base_text, fields, editor["schema"])
     else:
         if not isinstance(text, str):
             return {"ok": False, "error": "配置内容要是文本"}
@@ -684,11 +697,8 @@ def write_plugin_config(name: str, text: Any = None, groups: Any = None,
 
 
 def _plugin_config_source(path: Path) -> str:
-    """真实配置优先；还没有时用同目录模板作底稿（`[base]` 因此能保留）。"""
-    if path.is_file():
-        return _read_text(path)
-    example = path.with_name(path.name + ".example")
-    return _read_text(example) if example.is_file() else ""
+    """只读真实插件配置；文件不存在时从空文本开始生成。"""
+    return _read_text(path) if path.is_file() else ""
 
 
 def pick_directory() -> Dict[str, Any]:
@@ -725,8 +735,7 @@ def pick_directory() -> Dict[str, Any]:
 def handle_get(path: str, query: Dict[str, str],
                app: Any = None) -> Tuple[int, Dict[str, Any]]:
     if path == "/api/settings":
-        state = str(getattr(app, "model_config_state", "") or "")
-        return 200, host_catalog(hide_model=state == "catalog")
+        return 200, host_catalog(hide_model=_model_tab_hidden(app))
     if path == "/api/settings/plugins":
         return 200, list_plugins()
     if path == "/api/settings/plugin-file":
@@ -747,7 +756,8 @@ def handle_post(path: str, body: Dict[str, Any], app: Any) -> Tuple[int, Dict[st
         return (200 if payload.get("ok") else 400), payload
     if path == "/api/settings/plugin-file":
         payload = write_plugin_config(
-            str(body.get("name") or ""), body.get("text"), body.get("groups"), app)
+            str(body.get("name") or ""), body.get("text"), body.get("groups"),
+            body.get("fields"), app)
         return (200 if payload.get("ok") else 400), payload
     if path == "/api/settings/pick-dir":
         payload = pick_directory()

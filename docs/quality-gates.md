@@ -29,7 +29,7 @@
 | 依赖方向 | `check_imports.py` | 上层被下层导入；`--scc` 打印全包强连通分量（当前 0 组） |
 | 架构约束 | `check_architecture_hygiene.py` | 跨层私有导入、内核插件名、单通路门控、`assert` 控制流 |
 | CI 工作流一致 | `check_ci_workflow.py` | `ci.yml` 与 `ci_steps.py` 渲染结果不逐字节一致 |
-| 配置一致性 | `check_config_drift.py` | `.example` ↔ `config_schema.py` 双向漂移；真实配置多键 |
+| 配置一致性 | `check_config_drift.py` | 真实配置多键 / 未登记节 |
 | 单测文档一致 | `gen_unit_tests_md.py --check` | `docs/unit-tests.md` 与测试方法集合不一致 |
 | 静态检查 | `ruff check` | 未用导入、导入顺序、明显缺陷 |
 | Python 下限 | `check_python_floor.py` | 用了高于声明下限（3.10）的语法 |

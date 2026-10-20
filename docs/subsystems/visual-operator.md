@@ -9,9 +9,9 @@ Visual Operator 把「看屏幕」与「操作鼠标键盘」做成四个工具�
 ```
 plugins/visual_operator/
   plugin.py                  入口：读配置、选后端、注册四个工具
-  plugin-config.ini          真实配置（不入库）
-  plugin-config.ini.example  模板
-  config.py                  [ext] 读取、回退与夹取
+  plugin-config.ini          真实配置（入库）
+  plugin-meta.json           身份元数据
+  config.py                  [config] 读取、回退与夹取
   capture_store.py           截图映射登记（只存元数据，不存图片）
   keys.py                    键名规范、别名与组合键校验
   coords.py                  屏幕矩形 / 点 / 几何比例
@@ -94,16 +94,16 @@ plugins/visual_operator/
 ```json
 {
   "platform": "win32",
-  "screen": {"x": 0, "y": 0, "width": 1920, "height": 1080},
-  "capture": {"x": 0, "y": 0, "width": 1920, "height": 1080},
-  "image": {"width": 1920, "height": 1080, "sent_width": 1600, "sent_height": 900,
-            "scale": 1.2, "bytes": 548735},
-  "image_to_screen": {"scale_x": 1.2, "scale_y": 1.2, "ox": 0, "oy": 0},
+  "screen": {"x": 0, "y": 0, "width": 2560, "height": 1440},
+  "capture": {"x": 0, "y": 0, "width": 2560, "height": 1440},
+  "image": {"width": 2560, "height": 1440, "sent_width": 1920, "sent_height": 1080,
+            "scale": 1.3333, "bytes": 548735},
+  "image_to_screen": {"scale_x": 1.3333, "scale_y": 1.3333, "ox": 0, "oy": 0},
   "capture_id": "a1b2c3d4e5f6",
   "dpi": "96 dpi",
   "cursor": {"x": 734, "y": 709},
-  "grid": {"step": 100, "unit": "screen", "scale": 1.2},
-  "note": "图片已从 1920x1080 缩到 1600x900；…"
+  "grid": {"step": 100, "unit": "screen", "scale": 1.3333},
+  "note": "图片已从 2560x1440 缩到 1920x1080；…"
 }
 ```
 
@@ -304,19 +304,15 @@ ID 不存在、过期或不属于当前会话时直接报错，不退回屏幕�
 
 ## 配置
 
-```ini
-[base]
-id = visual_operator
-name = Visual Operator
-enable = 1
-version = 1.0
+身份在 `plugin-meta.json`，开关在 `plugins.ini`。
 
-[ext]
+```ini
+[config]
 eye = 1
 mouse = 1
 keyboard = 1
 wait = 1
-max_side = 1600
+max_side = 1920
 grid_step = 100
 cursor_mark = 1
 settle_ms = 60
@@ -330,7 +326,7 @@ wait_interval_ms = 200
 | 键 | 缺省 | 说明 |
 |---|---|---|
 | `eye` / `mouse` / `keyboard` / `wait` | `1` | 能力开关；关掉后对应工具不注册 |
-| `max_side` | `1600` | 发送前长边上限，`0` 不缩放；夹到 `0–8192` |
+| `max_side` | `1920` | 发送前长边上限，`0` 不缩放；夹到 `0–8192` |
 | `grid_step` | `100` | 网格间距（屏幕坐标）；夹到 `20–500` |
 | `cursor_mark` | `1` | 截图是否画光标十字 |
 | `settle_ms` | `60` | 输入动作后等待界面响应的毫秒数；夹到 `0–2000` |

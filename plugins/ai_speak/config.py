@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """AI说话插件的配置读取。
 
-`plugin-config.ini` 的 `[ext]` 是唯一配置来源。读取只做解析与校验，
+`plugin-config.ini` 的 `[config]` 是唯一配置来源。读取只做解析与校验，
 不创建线程、不访问网络；调用方拿到 `AISpeakConfig` 后自行决定如何记录
 `warnings`。
 """
@@ -15,20 +15,24 @@ from typing import Optional, Tuple
 from agent.config import load_ini
 
 CONFIG_FILE = "plugin-config.ini"
-CONFIG_SECTION = "ext"
+CONFIG_SECTION = "config"
 DEFAULT_ENGINE = "edge"
 DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
 DEFAULT_MAX_SEGMENT_CHARS = 128
 DEFAULT_PLAY_INTERVAL_MS = 0
 DEFAULT_SYNC_PLAYBACK = False
+DEFAULT_SPEED = 1.0
+MIN_SPEED = 0.5
+MAX_SPEED = 2.0
 
-#: 插件读取的 `[ext]` 键；模板必须与它双向一致。
+#: 插件读取的 `[config]` 键；模板必须与它双向一致。
 CONFIG_KEYS = frozenset({
     "engine",
     "voice",
     "max_segment_chars",
     "play_interval_ms",
     "sync_playback",
+    "speed",
 })
 
 
@@ -49,6 +53,7 @@ class AISpeakConfig:
     max_segment_chars: int = DEFAULT_MAX_SEGMENT_CHARS
     play_interval_ms: int = DEFAULT_PLAY_INTERVAL_MS
     sync_playback: bool = DEFAULT_SYNC_PLAYBACK
+    speed: float = DEFAULT_SPEED
     warnings: Tuple[str, ...] = ()
 
     @property
@@ -57,7 +62,7 @@ class AISpeakConfig:
 
 
 def config_path() -> Path:
-    """插件自己的配置文件；真实文件不入库，模板与它同目录。"""
+    """插件自己的配置文件；与插件同目录。"""
     return Path(__file__).resolve().parent / CONFIG_FILE
 
 
@@ -75,6 +80,16 @@ def _int_value(raw: str, default: int) -> Tuple[int, Optional[str]]:
         return default, f"非整数值 {raw!r}，使用默认值 {default}"
 
 
+def _float_value(raw: str, default: float) -> Tuple[float, Optional[str]]:
+    """解析浮点数；非数字返回默认值并给出一条警告。"""
+    if not raw:
+        return default, None
+    try:
+        return float(raw), None
+    except (TypeError, ValueError):
+        return default, f"非数字值 {raw!r}，使用默认值 {default}"
+
+
 def _bool_value(raw: str, default: bool) -> Tuple[bool, Optional[str]]:
     """解析布尔值；无法识别时回退默认值并给出警告。"""
     if not raw:
@@ -88,7 +103,7 @@ def _bool_value(raw: str, default: bool) -> Tuple[bool, Optional[str]]:
 
 
 def load_config(path: Optional[Path] = None) -> AISpeakConfig:
-    """读取并校验 `[ext]`。
+    """读取并校验 `[config]`。
 
     `engine` 只接受 `edge`；`voice` 必须非空。两者不可用时抛
     `ConfigError`，让插件装载失败并在插件列表里可见。数值错误回退默认值，
@@ -145,11 +160,21 @@ def load_config(path: Optional[Path] = None) -> AISpeakConfig:
     if warning:
         warnings.append(f"sync_playback {warning}")
 
+    speed, warning = _float_value(values.get("speed", ""), DEFAULT_SPEED)
+    if warning:
+        warnings.append(f"speed {warning}")
+    if not MIN_SPEED <= speed <= MAX_SPEED:
+        warnings.append(
+            f"speed={speed} 超出 {MIN_SPEED:g}–{MAX_SPEED:g}，使用默认值 {DEFAULT_SPEED:g}"
+        )
+        speed = DEFAULT_SPEED
+
     return AISpeakConfig(
         engine=engine,
         voice=voice,
         max_segment_chars=max_segment_chars,
         play_interval_ms=play_interval_ms,
         sync_playback=sync_playback,
+        speed=speed,
         warnings=tuple(warnings),
     )

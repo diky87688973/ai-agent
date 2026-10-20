@@ -1,15 +1,5 @@
 # -*- coding: utf-8 -*-
-"""多模型插件：把每条模型的网关与厂商声明交给内核的模型目录。
-
-配置在本插件目录下的 `plugin-config.ini`：`[base]` 是身份与开关，
-`[model:<id>]` 每条模型一节。插件只声明（id / 厂商 / 选项 / 标签），
-不构造 provider、不接触路由 —— 厂商分发在 `provider_registry` 里，
-请求路由在 `provider_router` 里，模型目录负责给每个条目缓存实例。
-
-`register(ctx)` 贡献模型目录回调、只读 `/catalog` 端点与开屏下拉脚本；
-卸载时三者的 disposer 一起回收（`ctx` 已记账）。解析规则：任一条目坏掉
-只影响它自己；每条诊断都带文件路径与节名，仅写"配置有误"无法定位。
-"""
+"""多模型插件：模型目录、只读端点与开屏下拉脚本。"""
 from __future__ import annotations
 
 import configparser
@@ -264,9 +254,9 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         return 200, _catalog_payload(path)
 
     base = plugin_config_fields(path.parent)
-    if not base["name"] and path.is_file():
-        # 身份只影响设置页展示，不阻断装载；没有配置文件时不算错误。
-        print(f"[plugin:multi_model] {path.parent} [base] name 缺失", file=sys.stderr)
+    if not base["name"]:
+        # 身份只影响设置页展示，不阻断装载。
+        print(f"[plugin:multi_model] {path.parent} plugin-meta.json 缺少 name", file=sys.stderr)
 
     return [
         ctx.add_model_catalog(lambda: parse_config(path)[0]),

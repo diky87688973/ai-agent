@@ -1,7 +1,7 @@
 (function () {
   var state = {
     sections: [], values: {}, tab: "", mode: "host",
-    plugin: null, editor: null, seeded: false, saving: false
+    plugin: null, editor: null, saving: false
   };
 
   function bootSettingsPanel() {
@@ -255,10 +255,13 @@
     if (field.kind === "secret") {
       input.value = "";
       input.autocomplete = "off";
-      input.placeholder = secretPlaceholder(!!field.configured);
+      input.placeholder = field.configured
+        ? secretPlaceholder(true)
+        : (field.placeholder || secretPlaceholder(false));
       state.values[sectionId][field.key] = "";
     } else {
       input.value = value;
+      if (field.placeholder) input.placeholder = field.placeholder;
     }
     input.addEventListener("input", function () {
       state.values[sectionId][field.key] = input.value;
@@ -513,7 +516,6 @@
     state.mode = "plugin-file";
     state.plugin = card;
     state.editor = null;
-    state.seeded = false;
     renderNav();
     var form = document.getElementById("stForm");
     var save = document.getElementById("stSave");
@@ -529,7 +531,6 @@
         return;
       }
       state.editor = data.editor || {kind: "text", text: ""};
-      state.seeded = !!data.seeded;
       try {
         renderPluginEditor(card);
       } catch (err) {
@@ -537,9 +538,7 @@
         setStatus("配置已读取，但编辑器渲染失败：" + ((err && err.message) || "未知错误"), true);
         return;
       }
-      setStatus(state.seeded
-        ? "还没有配置文件，已载入示例模板：把密钥占位符换成真实密钥后保存"
-        : "");
+      setStatus("");
     }).catch(function (err) {
       setStatus("读取插件配置失败" + (err && err.message ? "：" + err.message : ""), true);
     });
@@ -553,6 +552,11 @@
     if (editor.kind === "sections") {
       form.classList.remove("st-form-editor");
       form.appendChild(structuredEditor(card, editor));
+      return;
+    }
+    if (editor.kind === "fields") {
+      form.classList.remove("st-form-editor");
+      form.appendChild(fieldsEditor(card, editor));
       return;
     }
     form.classList.add("st-form-editor");
@@ -589,18 +593,27 @@
   function textEditor(card, editor) {
     var wrap = document.createElement("div");
     wrap.className = "st-editor";
-    var hint = document.createElement("div");
-    hint.className = "st-editor-hint";
-    hint.textContent = "只编辑插件自己的配置项；节头与插件元数据由系统维护。";
     var area = document.createElement("textarea");
     area.id = "stPluginText";
+    area.placeholder = "plugin-config.ini";
     area.value = editor.text || "";
     area.spellcheck = false;
-    if (!area.value) area.placeholder = "这里编辑 plugin-config.ini。还没有这个文件时，保存会创建它。";
     area.addEventListener("input", function () { editor.text = area.value; });
     wrap.appendChild(editorBar(card));
-    wrap.appendChild(hint);
     wrap.appendChild(area);
+    return wrap;
+  }
+
+  function fieldsEditor(card, editor) {
+    var schema = editor.schema || {};
+    var values = editor.values || {};
+    var wrap = document.createElement("div");
+    wrap.className = "st-editor st-editor-form";
+    wrap.appendChild(editorBar(card));
+    var group = {values: values, configured: editor.configured || {}};
+    (schema.fields || []).forEach(function (field) {
+      wrap.appendChild(structuredRow(schema, group, field));
+    });
     return wrap;
   }
 
@@ -608,11 +621,6 @@
     var schema = editor.schema || {};
     var wrap = document.createElement("div");
     wrap.className = "st-editor st-editor-form";
-    var hint = document.createElement("div");
-    hint.className = "st-editor-hint";
-    hint.textContent = state.seeded
-      ? "这是示例模板：先把每条模型的密钥占位符换成真实密钥，再保存；保存后立即生效。"
-      : "每条模型一节；密钥留空表示沿用已保存的值。";
     var list = document.createElement("div");
     list.className = "st-models";
     drawModels(list, schema, editor.groups || []);
@@ -626,7 +634,6 @@
       drawModels(list, schema, editor.groups);
     });
     wrap.appendChild(editorBar(card));
-    wrap.appendChild(hint);
     wrap.appendChild(list);
     wrap.appendChild(add);
     return wrap;
@@ -654,13 +661,6 @@
     var badge = document.createElement("span");
     badge.className = "st-model-index";
     badge.textContent = "#" + (index + 1);
-    var idInput = document.createElement("input");
-    idInput.type = "text";
-    idInput.className = "st-model-id";
-    idInput.value = group.id || "";
-    idInput.placeholder = (schema.identity && schema.identity.label) || "ID";
-    if (schema.identity && schema.identity.hint) idInput.title = schema.identity.hint;
-    idInput.addEventListener("input", function () { group.id = idInput.value; });
     var del = document.createElement("button");
     del.type = "button";
     del.className = "st-model-del";
@@ -675,7 +675,6 @@
       drawModels(list, schema, groups);
     });
     head.appendChild(badge);
-    head.appendChild(idInput);
     head.appendChild(del);
     card.appendChild(head);
     var body = document.createElement("div");
@@ -735,12 +734,14 @@
       input.value = "";
       input.autocomplete = "off";
       var configured = !!(group.configured && group.configured[key]);
-      input.placeholder = secretPlaceholder(configured);
+      input.placeholder = configured
+        ? secretPlaceholder(true)
+        : (field.placeholder || secretPlaceholder(false));
       group.values[key] = "";
     } else {
       input.value = value == null ? "" : String(value);
+      if (field.placeholder) input.placeholder = field.placeholder;
     }
-    if (field.placeholder) input.placeholder = field.placeholder;
     input.addEventListener("input", function () {
       group.values[key] = input.value;
     });
@@ -796,6 +797,8 @@
     var body = {name: state.plugin.name};
     if (state.editor.kind === "sections") {
       body.groups = state.editor.groups || [];
+    } else if (state.editor.kind === "fields") {
+      body.fields = state.editor.values || {};
     } else {
       body.text = state.editor.text || "";
     }

@@ -3,7 +3,7 @@
 
 用途有两个，缺一不可：
 
-1. `check_config_drift.py` 用它做双向比对 —— `.example` 缺键 / 多键、真实文件多键都失败；
+1. `check_config_drift.py` 用它校验真实文件：未登记的节/键失败；
 2. `get_*` 的默认值可以在这里对照，避免"模板写 700000、代码默认 600000"。
 
 这里不替调用方决定"缺键怎么办"：缺键一律回落到调用方默认值（配置是增强项），
@@ -20,7 +20,7 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "api_key": "",
         "model": "",
         "models": "",
-        "context_window": "1000000",
+        "context_window": "",
     },
     "agent": {
         "reasoning_effort": "max",
@@ -47,18 +47,10 @@ WEB_UI_SCHEMA: Dict[str, Dict[str, str]] = {
     },
 }
 
-#: `plugins/multi_model/plugin-config.ini.example` 的节与键。
+#: 多模型插件的真实配置节与键。
 #: `model` 这一组的节名是动态的（`[model:<id>]`），键集合对所有条目一致；
 #: 单个条目可以省略不适用于自己的键（例如 openai 条目不写 `thinking`）。
 MULTI_MODEL_SCHEMA: Dict[str, Dict[str, str]] = {
-    "base": {
-        "id": "multi_model",
-        "enable": "1",
-        "name": "",
-        "icon": "",
-        "version": "",
-        "desc": "",
-    },
     "model": {
         "provider": "openai",
         "base_url": "",

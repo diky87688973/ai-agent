@@ -351,7 +351,10 @@ class SessionRunner:
         explicit = str(meta.get("system") or "")
         state = getattr(self._app, "live_state", None)
         mode = state.get_mode(cid) if state is not None else "auto"
-        return resolve_mode_note(mode=mode, explicit=explicit or None)
+        note = resolve_mode_note(mode=mode, explicit=explicit or None)
+        prompt_tail = getattr(self._app, "prompt_tail", None)
+        extra = prompt_tail.render(cid).strip() if prompt_tail is not None else ""
+        return note + ("\n\n" + extra if extra else "")
 
     # ── 等待（测试 / 壳层）────────────────────────────────
 

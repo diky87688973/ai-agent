@@ -8,12 +8,13 @@ AI说话把模型正在做的步骤交给后端合成语音，再通过插件事
 ```
 plugins/ai_speak/
   plugin.py                    入口：配置、运行时、工具/端点/启动脚本/订阅
-  config.py                    [ext] 读取与校验
+  config.py                    [config] 读取与校验
   text.py                      字符规范、切段、合成前净化
   provider.py                  edge-tts 端口与适配
   runtime.py                   每会话串行合成、SSE 发布、停止与计数
   tool.py                      ai_speak 工具
-  plugin-config.ini.example    [base] + [ext]
+  plugin-meta.json            身份元数据
+  plugin-config.ini           真实配置（入库）
   ui/player.js                 悬浮播放条与队列
   ui/player.css                播放条样式
   ui/tool-view.js              对话区工具卡
@@ -75,21 +76,16 @@ parameters = {"msg": {"type": "string"}}
 ## 配置
 
 ```ini
-[base]
-id = ai_speak
-name = AI说话
-desc = 把 AI 正在做的事用人类语气说出来。
-enable = 1
-icon = 🔊
-version = 1.0
-
-[ext]
+[config]
 engine = edge
 voice = zh-CN-XiaoxiaoNeural
 max_segment_chars = 128
 play_interval_ms = 0
 sync_playback = 0
+speed = 1.0
 ```
+
+身份在 `plugin-meta.json`，开关在 `plugins.ini`。
 
 | 键 | 默认 | 范围 | 说明 |
 |---|---|---|---|
@@ -98,10 +94,15 @@ sync_playback = 0
 | `max_segment_chars` | 128 | ≥1 的整数，无上限 | 单段字符上限 |
 | `play_interval_ms` | 0 | ≥0 | 段间播放间隔（毫秒） |
 | `sync_playback` | 0 | `0` / `1` | 1 = 工具等前端播完再返回 |
+| `speed` | `1.0` | `0.5`–`2.0` | 合成语速倍率；`1.0` 为原速 |
 
-配置文件是插件目录下的 `plugin-config.ini`；模板与解析器键集合一致。
-`edge-tts` 属于可选依赖，安装命令是 `pip install -e ".[tts]"`。它延迟导入，
+配置文件是插件目录下的 `plugin-config.ini`；解析器读取同一组键。
+`edge-tts>=7.3.1` 属于可选依赖，安装命令是 `pip install -e ".[tts]"`。它延迟导入，
 缺库时插件可装载，工具执行时返回安装提示。
+
+## 系统指令注入
+
+插件启用后通过 `add_mode_tail` 把指令追加在执行模式之后，不进入系统提示词前缀。指令要求模型主动调用 `ai_speak` 与用户沟通；语音引擎不可用时不追加。
 
 ## 事件与播放
 

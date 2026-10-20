@@ -305,7 +305,7 @@ class PluginGateTest(unittest.TestCase):
         self.assertTrue(self.pipeline.execute(self.registry, call, SimpleNamespace(conversation_id="c")).ok)
 
 class PluginIdentityFallbackTest(unittest.TestCase):
-    """`[base]` 身份回退到 `.example`：列表里所有插件走同一条规则。"""
+    """插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则。"""
 
     @staticmethod
     def _plugin(root: Path, name: str) -> Path:
@@ -314,42 +314,32 @@ class PluginIdentityFallbackTest(unittest.TestCase):
         (folder / "plugin.py").write_text("PLUGIN_VERSION = '1.0'\n", encoding="utf-8")
         return folder
 
-    def test_template_supplies_identity_when_config_is_absent(self) -> None:
+    def test_meta_supplies_identity_when_config_is_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             folder = self._plugin(Path(tmp), "multi_model")
-            (folder / "plugin-config.ini.example").write_text(
-                "[base]\nid = multi_model\nname = 多模型\n"
-                "desc = 每条模型自带网关与厂商\nicon = 🧩\nversion = 1.0\n"
-                "enable = 0\n",
-                encoding="utf-8")
+            (folder / "plugin-meta.json").write_text(
+                '{"name":"多模型","desc":"每条模型自带网关与厂商","icon":"🧩",'
+                '"version":"1.0"}\n', encoding="utf-8")
             fields = plugin_config_fields(folder)
             self.assertEqual(fields["name"], "多模型")
             self.assertEqual(fields["desc"], "每条模型自带网关与厂商")
             self.assertEqual(fields["icon"], "🧩")
             self.assertEqual(fields["version"], "1.0")
-            # 开关是用户状态，模板里的 0 不生效
             self.assertEqual(fields["enable"], "1")
 
-    def test_real_config_wins_and_missing_keys_fall_back(self) -> None:
+    def test_identity_ignores_plugin_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             folder = self._plugin(Path(tmp), "skills")
-            (folder / "plugin-config.ini.example").write_text(
-                "[base]\nname = 模板名\ndesc = 模板描述\nversion = 9.9\n",
+            (folder / "plugin-meta.json").write_text(
+                '{"name":"元数据名","desc":"元数据描述","version":"9.9"}\n',
                 encoding="utf-8")
-            # 用户只改过开关（例如从设置页关掉），身份键应当仍取模板
             (folder / "plugin-config.ini").write_text(
-                "[base]\nenable = 0\n", encoding="utf-8")
+                "[config]\ndir = D:/skills\n", encoding="utf-8")
             fields = plugin_config_fields(folder)
-            self.assertEqual(fields["name"], "模板名")
-            self.assertEqual(fields["desc"], "模板描述")
+            self.assertEqual(fields["name"], "元数据名")
+            self.assertEqual(fields["desc"], "元数据描述")
             self.assertEqual(fields["version"], "9.9")
-            self.assertEqual(fields["enable"], "0")
-
-            (folder / "plugin-config.ini").write_text(
-                "[base]\nname = 我的名字\nenable = 1\n", encoding="utf-8")
-            fields = plugin_config_fields(folder)
-            self.assertEqual(fields["name"], "我的名字")
-            self.assertEqual(fields["desc"], "模板描述")
+            self.assertEqual(fields["enable"], "1")
 
     def test_no_files_falls_back_to_folder_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -364,11 +354,11 @@ class PluginIdentityFallbackTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             folder = self._plugin(root, "multi_model")
-            (folder / "plugin-config.ini.example").write_text(
-                "[base]\nname = 多模型\ndesc = 每条模型自带网关与厂商\nversion = 1.0\n",
+            (folder / "plugin-meta.json").write_text(
+                '{"name":"多模型","desc":"每条模型自带网关与厂商","version":"1.0"}\n',
                 encoding="utf-8")
             manifest = root / "plugins.ini"
-            manifest.write_text("[plugin:multi_model]\nversion = 1.0\n", encoding="utf-8")
+            manifest.write_text("[plugin:multi_model]\n", encoding="utf-8")
             cards = list_plugins(plugins_path=manifest, plugins_dir=root)["plugins"]
             self.assertEqual(len(cards), 1)
             self.assertEqual(cards[0]["title"], "多模型")
@@ -387,12 +377,11 @@ class ConfigParseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ini = Path(tmp) / "plugins.ini"
             ini.write_text(
-                "[plugin:a]\nversion = 1.0\n\n[plugin:b]\n\n[plugin:c]\npath = D:/lab/c\n",
+                "[plugin:a]\n\n[plugin:b]\n\n[plugin:c]\npath = D:/lab/c\n",
                 encoding="utf-8")
             got = get_plugins(ini)
             self.assertEqual([e["name"] for e in got], ["a", "b", "c"])
-            self.assertEqual(got[0]["version"], "1.0")
-            self.assertEqual(got[1]["version"], "")
+            self.assertNotIn("version", got[0])
             # path 留空时本函数不填 —— 解析留给装载方按自己的插件根做
             self.assertEqual(got[0]["path"], "")
             self.assertEqual(got[2]["path"], "D:/lab/c")
@@ -471,15 +460,13 @@ class ConfigParseTest(unittest.TestCase):
             (root / "off").mkdir(parents=True)
             (root / "off" / "plugin.py").write_text(
                 "def register(ctx):\n    return []\n", encoding="utf-8")
-            (root / "off" / "plugin-config.ini").write_text(
-                "[base]\nenable = 0\ndesc = 停着\n", encoding="utf-8")
             host = PluginHost(root, ToolRegistry(), event_bus=None,
                               context_sources=ContextSources(),
                               contributions=ContributionRegistry(),
                               plugin_data_root=Path(tmp) / "data")
             reports = {r.name: r for r in host.load_manifest([
                 {"name": "good", "version": "", "path": ""},
-                {"name": "off"},
+                {"name": "off", "enabled": "0"},
                 {"name": "missing", "version": "", "path": ""},
                 {"name": "../evil", "version": "", "path": ""},
             ])}

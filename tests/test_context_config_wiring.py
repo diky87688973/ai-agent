@@ -12,9 +12,14 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
+from tests.testkit import no_plugins  # noqa: E402
+
 
 class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
     """`_default_context_factory` 必须把 [context] 的每一项都传给管线。"""
+
+    def setUp(self) -> None:
+        no_plugins(self)
 
     def test_factory_passes_every_pipeline_setting(self) -> None:
         import inspect
@@ -51,11 +56,14 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
         self.assertEqual(pipe.full_user_rounds, cfg["full_user_rounds"])
         # 工厂不猜窗口；会话装配时按模型回填。
         self.assertEqual(pipe.model_context_window, 0)
-        self.assertGreater(app.context_window_for("probe-cid"), 0)
+        self.assertEqual(app.context_window_for("probe-cid"), 0)
 
 
 class SegmentEventCarriesTheWindowTest(unittest.TestCase):
     """分段快照必须带上模型窗口：界面按它算占用率。"""
+
+    def setUp(self) -> None:
+        no_plugins(self)
 
     def test_event_has_window_and_budget(self) -> None:
         from typing import Iterator
@@ -77,7 +85,7 @@ class SegmentEventCarriesTheWindowTest(unittest.TestCase):
         segs = [e for e in events if str(getattr(e, "type", "")) == "context_segments"]
         self.assertTrue(segs, msg="没有分段快照事件")
         data = dict(segs[-1].data)
-        self.assertGreater(int(data.get("model_max_context_tokens") or 0), 0)
+        self.assertEqual(int(data.get("model_max_context_tokens") or 0), 0)
         self.assertGreater(int(data.get("budget_tokens") or 0), 0)
         self.assertEqual(int(data.get("model_max_context_tokens")),
                          app.context_window_for("win-cid"),

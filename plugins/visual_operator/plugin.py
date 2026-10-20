@@ -2,7 +2,7 @@
 """Visual Operator 插件：眼（截屏）、手（鼠标 / 键盘）与等待四类工具。
 
 `register(ctx)` 读本插件目录的 `plugin-config.ini`，按平台装配后端并注册工具。
-`[ext]` 里任一能力关闭时对应的工具不注册；后端不可用（无 Pillow、缺辅助功能
+`[config]` 里任一能力关闭时对应的工具不注册；后端不可用（无 Pillow、缺辅助功能
 权限、非 win/mac）不阻断注册 —— 动作执行时再报 `DesktopUnavailable`，
 工具表在不同机器与 CI 上保持一致。
 """

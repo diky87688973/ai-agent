@@ -27,12 +27,6 @@ from agent.shell.web import serve
 
 _DEFAULT_PORT = 8765
 
-_SETUP_HINT = (
-    "尚未配置模型。服务已启动，浏览器会打开设置向导；"
-    "也可以访问 /setup 填写网关和密钥，保存后立即生效。"
-)
-
-
 def build_shell_app(
     *,
     provider: Any = None,
@@ -90,13 +84,9 @@ def main(argv: Optional[list] = None) -> int:
     except RuntimeError as exc:
         print(str(exc))
         return 2
-    setup = app.model_config_state == "none"
-    if setup:
-        print(_SETUP_HINT)
     open_url = None
     if args.open_browser:
-        path = "/setup" if setup else "/"
-        open_url = f"http://127.0.0.1:{args.port}{path}"
+        open_url = f"http://127.0.0.1:{args.port}/"
     return serve(
         app,
         host=args.host,

@@ -16,7 +16,7 @@ if str(_ROOT) not in sys.path:
 from agent.app import build_app  # noqa: E402
 from agent.core.context import SERVICE_PLUGIN_EVENTS  # noqa: E402
 from agent.shell.classic_adapter.plugin_events import PluginEventPublisher  # noqa: E402
-from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER  # noqa: E402
+from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER  # noqa: E402
 
 
 class AISpeakAppTest(unittest.TestCase):
@@ -25,7 +25,7 @@ class AISpeakAppTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         base = Path(self._tmp.name)
         manifest = base / "plugins.ini"
-        manifest.write_text("[plugin:ai_speak]\nversion = 1.0\n", encoding="utf-8")
+        manifest.write_text("[plugin:ai_speak]\n", encoding="utf-8")
         env = mock.patch.dict(os.environ, {"AI_AGENT_DATA_ROOT": str(base / "data")})
         env.start()
         self.addCleanup(env.stop)
@@ -51,6 +51,15 @@ class AISpeakAppTest(unittest.TestCase):
         self.assertIsInstance(
             self.app.context.get(SERVICE_PLUGIN_EVENTS), PluginEventPublisher
         )
+
+    def test_voice_directive_is_in_request_tail(self) -> None:
+        text = self.app.prompt_tail.render("cid-12345678")
+        self.assertIn("ai_speak", text)
+        self.assertIn("必须", text)
+        runner = self.app.context.get(SERVICE_RUNNER)
+        note = runner._mode_note("cid-12345678")
+        self.assertTrue(note.startswith("## 当前模式"))
+        self.assertIn(text, note)
 
     def test_publisher_tracks_connections(self) -> None:
         publisher = self.app.context.get(SERVICE_PLUGIN_EVENTS)

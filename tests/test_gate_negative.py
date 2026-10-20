@@ -252,21 +252,7 @@ class ComplexityGateTest(unittest.TestCase):
 
 
 class ConfigDriftGateTest(unittest.TestCase):
-    """配置漂移：模板缺键/多键、真实文件多键都要失败。"""
-
-    def test_template_missing_key_fails(self) -> None:
-        problems = check_config_drift.compare_exact(
-            "[model_reasoning]\napi_key = x\n", "t.ini",
-            {"model_reasoning": {"api_key": "", "api_base_url": ""}},
-        )
-        self.assertTrue(any("缺键" in p for p in problems))
-
-    def test_template_extra_key_fails(self) -> None:
-        problems = check_config_drift.compare_exact(
-            "[model_reasoning]\napi_key = x\napi_base_url = y\nz = 1\n", "t.ini",
-            {"model_reasoning": {"api_key": "", "api_base_url": ""}},
-        )
-        self.assertTrue(any("未登记的键" in p for p in problems))
+    """配置漂移：真实文件只允许使用 schema 登记的键。"""
 
     def test_real_file_extra_key_reports_line_number(self) -> None:
         problems = check_config_drift.compare_subset(
@@ -275,32 +261,26 @@ class ConfigDriftGateTest(unittest.TestCase):
         )
         self.assertTrue(any("c.ini:3" in p for p in problems))
 
-    def test_valid_pair_passes(self) -> None:
-        problems = check_config_drift.compare_exact(
-            "[context]\nsummary_token_threshold = 1\n", "t.ini",
-            {"context": {"summary_token_threshold": "1"}},
+    def test_real_file_subset_passes(self) -> None:
+        problems = check_config_drift.compare_subset(
+            "[context]\nsummary_token_threshold = 1\n", "c.ini",
+            {"context": {"summary_token_threshold": "700000"}},
         )
         self.assertEqual(problems, [])
 
-    def test_model_plugin_template_requires_every_key(self) -> None:
-        problems = check_config_drift.compare_plugin_model_template(
-            "[base]\nid = multi_model\nenable = 1\n"
-            "[model:a]\nbase_url = http://x\napi_key = k\n",
-            "p.ini",
+    def test_unknown_section_fails(self) -> None:
+        problems = check_config_drift.compare_subset(
+            "[unknown]\nx = 1\n", "c.ini", {"context": {}},
         )
-        self.assertTrue(any("[base] 缺键" in p for p in problems))
-        self.assertTrue(any("[model:*] 模板缺键" in p for p in problems))
+        self.assertTrue(any("未登记的节" in p for p in problems))
 
-    def test_model_plugin_template_rejects_unknown_key(self) -> None:
+    def test_model_plugin_rejects_unknown_key(self) -> None:
         text = (
-            "[base]\nid = multi_model\nenable = 1\nname = n\nicon = i\n"
-            "version = 1.0\ndesc = d\nextra = x\n"
-            "[model:a]\nprovider = openai\nbase_url = http://x\napi_key = k\n"
-            "model = m\nlabel = l\ndefault = 1\nmax_tokens = 1\nthinking = 1\n"
-            "thinking_budget_tokens = 1\n"
+            "[model:a]\nprovider = openai\nbase_url = http://x\n"
+            "api_key = k\nextra = x\n"
         )
-        problems = check_config_drift.compare_plugin_model_template(text, "p.ini")
-        self.assertTrue(any("[base] 未登记的键 `extra`" in p for p in problems))
+        problems = check_config_drift.compare_plugin_model_real(text, "p.ini")
+        self.assertTrue(any("[model:a] 未登记的键 `extra`" in p for p in problems))
 
 
 

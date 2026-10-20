@@ -318,26 +318,10 @@ class _Handler(BaseHTTPRequestHandler):
             path = self._path()
             query = self._query()
             if path == "/":
-                app = getattr(self.shell, "app", None)
-                setup_flag = query.get("setup")
-                if isinstance(setup_flag, list):
-                    setup_flag = setup_flag[0] if setup_flag else ""
-                if (getattr(app, "model_config_state", "none") == "none"
-                        and str(setup_flag or "") != "skip"):
-                    self.send_response(302)
-                    self.send_header("Location", "/setup")
-                    self.send_header("Content-Length", "0")
-                    self.end_headers()
-                else:
-                    self._classic_page()
+                self._classic_page()
             elif path == "/favicon.ico":
                 self._asset("img/app_icon_128x128.png", "image/png")
-            elif path == "/setup":
-                self._asset("setup.html", "text/html")
-            elif path == "/api/setup":
-                from agent.shell.onboarding import status
 
-                self._json(200, status(self.shell.app))
             elif path.startswith("/assets/"):
                 self._asset(path[len("/assets/") :])
             elif path == "/health":
@@ -580,11 +564,6 @@ class _Handler(BaseHTTPRequestHandler):
             elif path.startswith("/api/plugin/"):
                 # 插件业务提交（生成任务、保存配置等）走这条
                 self._plugin_route("POST", body)
-            elif path == "/api/setup":
-                from agent.shell.onboarding import save
-
-                status, payload = save(self.shell.app, body)
-                self._json(status, payload)
             elif path == "/api/settings" or path.startswith("/api/settings/"):
                 from agent.shell.settings_panel import handle_post
 

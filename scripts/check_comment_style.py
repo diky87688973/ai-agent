@@ -35,10 +35,10 @@
 ## 查哪些文件
 
 `.py`（`agent/` `scripts/` `tests/` `plugins/`）与配置文件、界面资产、文档：
-`.ini` `.example` `.toml` `.js` `.css` `.html` `.md`。
+`.ini` `.toml` `.js` `.css` `.html` `.md`。
 
 配置模板与 JS 注释同样是对外文案：只查 `.py` 会漏掉
-`plugins/*/config.ini.example` 里的"不写在这里""模板见…"。
+`plugins/*/plugin-config.ini` 里的"不写在这里""模板见…"。
 
 ## 刻意不查的（工程约定，删了会坏）
 
@@ -152,7 +152,7 @@ PRODUCTION_ONLY = {
 }
 
 #: 非 .py 的受检文本文件（配置模板、界面资产、文档）
-TEXT_SUFFIXES = (".ini", ".example", ".toml", ".js", ".css", ".html", ".md")
+TEXT_SUFFIXES = (".ini", ".toml", ".js", ".css", ".html", ".md")
 #: 文档里的"见 [x](y)"是交叉引用，属文档本职
 DOC_SUFFIXES = (".md",)
 #: 压缩过的第三方资产不查

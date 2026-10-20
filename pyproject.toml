@@ -19,7 +19,7 @@ ui = ["playwright>=1.40"]
 ocr = ["easyocr>=1.7", "pytesseract>=0.3"]
 archive = ["rarfile>=4.0"]
 dev = ["ruff>=0.5"]
-tts = ["edge-tts>=6.1"]
+tts = ["edge-tts>=7.3.1"]
 
 [project.scripts]
 ai-agent-web = "agent.entry.web:main"

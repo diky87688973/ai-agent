@@ -41,7 +41,6 @@ box.appendChild(head);
 box.appendChild(el("div","goal-dialog-sub",
 g?"每轮结束时会自动用这段文案发起新一轮；暂停或标记达成后停止。"
  :"设定一句持续推进的目标，之后每轮结束都会自动接着做。"));
-
 var ta2=el("textarea");
 ta2.value=g?String(g.text||""):"";
 ta2.placeholder="例如：把登录页改成深色主题，并补一份改动说明";

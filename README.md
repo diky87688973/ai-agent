@@ -25,9 +25,9 @@
 ./start.sh
 ```
 
-脚本自动查找 Python 3.10+，用当前 Python 的 `-m pip` 安装缺失依赖；不需要先在命令行配 key。首次启动会生成 `config.ini` 并自动打开浏览器设置向导。
+脚本自动查找 Python 3.10+，用当前 Python 的 `-m pip` 安装缺失依赖；不需要先在命令行配 key，也不生成配置样例。
 
-启动后访问 <http://127.0.0.1:8765/>；未配置模型时进入 <http://127.0.0.1:8765/setup>。向导保存后立即生效，不需要重启。
+启动后访问 <http://127.0.0.1:8765/>。未配置模型时主页面保留，模型下拉为空；从「设置 → 插件 → 多模型」添加网关后立即生效，不需要重启。
 
 ### 手动启动
 
@@ -38,17 +38,17 @@ python3 -m agent.entry.web --host 127.0.0.1 --port 8765 --open
 
 ## 配置
 
-配置文件为仓库根目录的 `config.ini`，模板是 `config.ini.example`。没有密钥也能启动；首次打开 `/setup` 填写网关和密钥，保存后当前进程立即重建模型 provider，不需要重启。已有 `plugins/multi_model/plugin-config.ini` 时也可以直接使用插件模型。
+配置文件为仓库根目录的 `config.ini`，只保留真实配置，不提供样例文件。没有密钥也能启动；设置页保存后当前进程立即重建模型 provider，不需要重启。模型也可以完全由 `plugins/multi_model/plugin-config.ini` 提供。
 
-装载哪些插件由仓库根目录的 `plugins.ini` 决定（节在就进入候选）。开关、名字、描述、图标、版本写在各插件 `plugin-config.ini` 的 `[base]`，自己的键在 `[ext]`，见 [插件](docs/subsystems/plugins.md)。
+装载哪些插件由仓库根目录的 `plugins.ini` 决定（节在就进入候选）。开关写在 `plugins.ini` 的插件节；名字、描述、图标、版本由 `plugin-meta.json` 声明。插件自己的键在 `[config]`，见 [插件](docs/subsystems/plugins.md)。
 
 页面右上角「设置」改的是同一批文件。密钥框留空不覆盖，接口也不回明文。
 
 ```ini
 [model_reasoning]
-api_base_url = https://api.deepseek.com
-api_key      = sk-请替换
-model        = deepseek-flash
+api_base_url =
+api_key      =
+model        =
 
 [agent]
 reasoning_effort = max       # 全局推理档位：max（深度推理）/ high（标准推理）
@@ -93,7 +93,7 @@ full_user_rounds         = 1
 | [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
 | [标准对齐优化方案](docs/plan/standards-alignment.md) | 依赖环、门禁可信度、覆盖率口径、预算与登记表 |
 | [会话历史分页方案](docs/plan/history-paging.md) | 轮次分页、游标、前插与超长报文延迟渲染 |
-| [多模型配置方案](docs/plan/multi-model.md) | 模型目录、Provider 路由、Anthropic 适配、模型插件 |
+| [多模型配置方案](docs/plan/multi-model.md) | 模型目录、Provider 路由、Messages 协议适配、模型插件 |
 | [AI说话方案](docs/plan/ai-speak.md) | `ai_speak` 的文本、切段、SSE 与播放器设计 |
 | [配置](docs/guide/config.md) | 配置项全表、启动参数、环境变量 |
 
@@ -113,7 +113,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1615 个用例）：
+单元测试（1614 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

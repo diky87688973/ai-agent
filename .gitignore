@@ -1,9 +1,11 @@
 # 私有配置与凭据
 config.ini
-# 界面展示开关的正本也是私有配置（模板 `web-ui-config.ini.example` 入库）
 web-ui-config.ini
-# 插件自己的配置也是私有配置（模板 `plugin-config.ini.example` 入库）
 plugins/*/plugin-config.ini
+!plugins/ai_speak/plugin-config.ini
+!plugins/knowledge/plugin-config.ini
+!plugins/skills/plugin-config.ini
+!plugins/visual_operator/plugin-config.ini
 *.local.ini
 *.local.toml
 .env

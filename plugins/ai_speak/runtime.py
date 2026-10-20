@@ -209,6 +209,7 @@ class _SessionWorker:
             "audio": encoded,
             "bytes": len(audio.data),
             "gap_ms": self._config.play_interval_ms,
+            "speed": self._config.speed,
         }
 
     def _error_payload(self, job: _SegmentJob, exc: Exception) -> Dict[str, Any]:
@@ -237,6 +238,7 @@ class _SessionWorker:
                             self._runtime.speech_text(job.text),
                             voice=job.voice,
                             timeout_s=self._runtime.synthesis_timeout_s,
+                            speed=self._config.speed,
                         )
                     except SpeechSynthesisError as exc:
                         self._runtime._mark_failed(self._cid, exc)
@@ -552,6 +554,7 @@ class AISpeakRuntime:
             "max_segment_chars": self._config.max_segment_chars,
             "play_interval_ms": self._config.play_interval_ms,
             "sync_playback": self._config.sync_playback,
+            "speed": self._config.speed,
             "playback_waiting": playback_waiting,
             "sessions": sessions,
             "totals": totals,

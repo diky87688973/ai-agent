@@ -1,0 +1,21 @@
+{
+  "kind": "fields",
+  "title": "Skills 配置",
+  "section": "config",
+  "fields": [
+    {
+      "key": "dir",
+      "kind": "text",
+      "label": "目录",
+      "placeholder": "示例: D:/Skills",
+      "hint": "Skills 目录"
+    },
+    {
+      "key": "max_file_size",
+      "kind": "number",
+      "label": "单文件上限（字节）",
+      "default": "200000",
+      "min": 1
+    }
+  ]
+}

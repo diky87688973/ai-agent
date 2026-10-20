@@ -38,22 +38,16 @@ Skills 名取相对路径去掉 `.md`；`auto_load/` 里的 Skills 名仍带这�
 
 ```ini
 ; plugins/skills/plugin-config.ini
-[base]
-id = skills
-name = Skills
-desc = Skills 清单常驻上下文，正文按需读取。
-enable = 1
-icon = 🧩
-version = 1.0
-
-[ext]
+[config]
 dir =
 max_file_size = 200000
 ```
 
+身份在 `plugin-meta.json`，开关在 `plugins.ini`。
+
 | 键 | 说明 |
 |---|---|
-| `[base]` | 每个插件都有：`id`、`name`、`desc`、`enable`、`icon`、`version`。`enable` 为 `0` 时不装载 |
+| `plugin-meta.json` | 身份：`name`、`desc`、`icon`、`version` |
 | `dir` | Skills 目录。相对路径按**工程根**解析；留空或目录不存在则 Skills 库为空、注入为空，不报错 |
 | `max_file_size` | 单个 Skills 文件的字节上限，超过则截断；留空取 200000 |
 

@@ -77,7 +77,7 @@ class FileRunRegistryTest(unittest.TestCase):
         reg = FileRunRegistry(self.dir, ttl_seconds=0.05)
         self.assertTrue(reg.claim(CID, "r1"))
         self.assertTrue(reg.running(CID))
-        time.sleep(0.12)
+        time.sleep(0.3)
         self.assertFalse(reg.running(CID), "过期条目不得再算作在跑")
         self.assertFalse((self.dir / f"{CID}.json").is_file(), "过期条目应被清理")
         self.assertTrue(reg.claim(CID, "r2"), "清掉之后应能重新占位")

@@ -2,10 +2,10 @@
 """插件加载器——能力层的插件装卸落点。
 
 目录约定：`plugins/<name>/plugin.py`（工程根 plugins/；忽略 `_`/`.` 开头目录）。
-装载清单：工程根 `plugins.ini` 的 `[plugin:<名字>]` 节（可声明 version 与 path）；
+装载清单：工程根 `plugins.ini` 的 `[plugin:<名字>]` 节（可声明 path 与 enabled）；
 未列出的插件不装载。见 `docs/subsystems/plugins.md`。
 插件契约：plugin.py 暴露 `register(ctx) -> None | disposer | list[disposer]`；
-ctx（PluginContext）提供 name、register_tool（挂 ToolRegistry）、subscribe（挂事件总线）、add_context_source（挂上下文注入源）、add_model_catalog（声明模型清单）、add_panel / add_route / add_boot_script（界面与端点贡献）与 add_pre_gate / add_post_observer（挂工具管道门控与观察者）；均返回幂等 disposer。
+ctx（PluginContext）提供 name、register_tool（挂 ToolRegistry）、subscribe（挂事件总线）、add_context_source（挂上下文注入源）、add_mode_tail（挂执行模式后的请求尾部）、add_model_catalog（声明模型清单）、add_panel / add_route / add_boot_script（界面与端点贡献）与 add_pre_gate / add_post_observer（挂工具管道门控与观察者）；均返回幂等 disposer。
 
 纪律：
 - 单插件装载失败降级为报告（不中断宿主与其余插件）；
@@ -14,9 +14,9 @@ ctx（PluginContext）提供 name、register_tool（挂 ToolRegistry）、subscr
 """
 from __future__ import annotations
 
-import configparser
 import hashlib
 import importlib.util
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -52,49 +52,18 @@ def resolve_plugin_root(plugins_dir: Path, name: str, path_raw: str = "") -> Pat
     return (base.joinpath(*parts) if parts else base).resolve()
 
 
-def _base_section(path: Path) -> Dict[str, str]:
-    """读一份 ini 的 `[base]`。文件缺失、读不了、没有该节都返回空表。
-
-    身份回退只是显示层的兜底，不该让一个坏模板把插件列表整页打挂。
-    """
-    if not path.is_file():
-        return {}
-    parser = configparser.ConfigParser(interpolation=None)
-    try:
-        parser.read(path, encoding="utf-8-sig")
-    except (OSError, configparser.Error):
-        # 旁路，刻意吞掉：身份回退只是显示层的兜底，坏模板/读不了就让该插件
-        # 按目录名显示；不该因为一份可选模板把整页插件列表打成 500。
-        return {}
-    if not parser.has_section("base"):
-        return {}
-    return {
-        str(key).strip(): str(value or "").strip()
-        for key, value in parser.items("base")
-    }
-
-
-#: `[base]` 里属于插件声明的键：模板是它们的权威来源，可回退。
+#: 插件身份声明键。真实配置只放插件自己的设置，不重复声明身份。
 _IDENTITY_KEYS = ("id", "name", "desc", "icon", "version")
 
 
 def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
-    """读插件 `[base]`：身份与开关。
+    """读插件身份：`plugin-meta.json` 是唯一来源。
 
-    每个插件都有这一节：`id` / `name` / `desc` / `enable` / `icon` / `version`。
-    `enable` 为 `0` 时不装载；没写时按 `1`。插件自己的键在 `[ext]`，这里不读。
-
-    身份键回退到同目录的 `plugin-config.ini.example`。真实配置是私有文件
-    （被 `.gitignore` 忽略），新克隆的仓库里只有模板；身份是插件声明，
-    模板里写的就是权威值。不回退的话，没建过配置的插件在列表里显示目录名
-    （`multi_model` 而不是「多模型」），而它旁边的插件显示的是 `name` ——
-    同一个列表出现两套规则。
-
-    `enable` 不回退：它是用户状态，模板里的开关不该替用户决定装载与否。
+    不读 `plugin-config.ini`，也不提供任何样例回退。开关属于插件清单
+    `plugins.ini`，不在身份元数据里。
     """
     root = Path(plugin_root)
-    real = _base_section(root / "plugin-config.ini")
-    template = _base_section(root / "plugin-config.ini.example")
+    meta = _plugin_meta(root)
     fields = {
         "id": root.name,
         "name": "",
@@ -104,12 +73,24 @@ def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
         "version": "",
     }
     for key in _IDENTITY_KEYS:
-        value = real.get(key) or template.get(key) or ""
+        value = str(meta.get(key) or "")
         if value:
             fields[key] = value
-    if real.get("enable") == "0":
-        fields["enable"] = "0"
     return fields
+
+
+def _plugin_meta(root: Path) -> Dict[str, str]:
+    """插件的身份声明：不是用户配置，不参与热保存。"""
+    path = Path(root) / "plugin-meta.json"
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(key): str(value or "").strip() for key, value in data.items()}
 
 
 def _safe_dir_name(name: str) -> str:
@@ -192,6 +173,7 @@ class PluginContext:
         contributions: Any = None,
         executors: Any = None,
         model_catalog: Any = None,
+        prompt_tail: Any = None,
     ) -> None:
         self.name = name
         self._registry = registry
@@ -202,6 +184,7 @@ class PluginContext:
         self._contributions = contributions
         self._executors = executors
         self._model_catalog = model_catalog
+        self._prompt_tail = prompt_tail
         #: 本插件在清单里的位次（宿主装载时写入；测试直构时为 None）
         self._rank: Optional[int] = None
         self._disposers: List[Disposer] = []
@@ -246,6 +229,14 @@ class PluginContext:
         if self._context_sources is None:
             raise RuntimeError("插件未接入上下文注入源（PluginHost 未传 context_sources）")
         disposer = self._context_sources.add(fn, self._source_meta(meta))
+        self._disposers.append(disposer)
+        return disposer
+
+    def add_mode_tail(self, fn: Callable[[str], Any]) -> Disposer:
+        """注册请求尾部片段（执行模式之后；不进系统提示词前缀）。"""
+        if self._prompt_tail is None:
+            raise RuntimeError("插件未接入请求尾部（PluginHost 未传 prompt_tail）")
+        disposer = self._prompt_tail.add(fn)
         self._disposers.append(disposer)
         return disposer
 
@@ -453,7 +444,7 @@ class PluginContext:
 class PluginHost:
     """插件宿主：发现 / 按清单装载 / 卸载 / 报告。"""
 
-    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None) -> None:
+    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None) -> None:
         self._dir = Path(plugins_dir)
         self._registry = registry
         self._event_bus = event_bus
@@ -462,6 +453,7 @@ class PluginHost:
         self._contributions = contributions
         self._executors = executors
         self._model_catalog = model_catalog
+        self._prompt_tail = prompt_tail
         #: 插件专属存储的根（`<数据根>/plugin/`）。插件只拿到自己的子目录，见 `PluginContext.data_dir`。
         self.plugin_data_root: Optional[Path] = (
             Path(plugin_data_root) if plugin_data_root is not None else None
@@ -471,7 +463,7 @@ class PluginHost:
         self._runtimes: Dict[str, Any] = {}
         #: 已装载插件名 → 插件目录（清单 `path` 解析后的绝对路径）
         self._plugin_roots: Dict[str, Path] = {}
-        #: 版本，来自 `[base] version`；没写时沿用模块里的 `PLUGIN_VERSION`。没声明就是空串。
+        #: 版本，来自 `plugin-meta.json`；没写时沿用模块里的 `PLUGIN_VERSION`。没声明就是空串。
         self._versions: Dict[str, str] = {}
         self._reports: List[LoadReport] = []
         #: 内核 App；`build_app` 装配完登记（插件取内核服务用，见 `PluginContext.app`）
@@ -537,15 +529,13 @@ class PluginHost:
     def load_manifest(self, entries: List[Any]) -> List[LoadReport]:
         """按清单装载。每项是 `{name, version, path}`；也接受纯名字（取默认目录）。
 
-        插件 `plugin-config.ini` 的 `[base] enable = 0` 时卸下后跳过，不记错误。
-        条目自己带 `enabled = 0` 时同样跳过。
+        清单条目 `enabled = 0` 时卸下后跳过，不记错误。
         名字非法、目录缺失、缺 `plugin.py`、版本对不上都记下来。
         """
         fresh: List[LoadReport] = []
         for rank, entry in enumerate(entries):
             raw = entry if isinstance(entry, dict) else {"name": entry}
             name = str(raw.get("name") or "").strip()
-            declared = str(raw.get("version") or "").strip()
             path_raw = str(raw.get("path") or "").strip()
             if isinstance(raw, dict) and str(raw.get("enabled", "1")).strip() == "0":
                 if name in self._loaded:
@@ -560,10 +550,6 @@ class PluginHost:
                 continue
             root = resolve_plugin_root(self._dir, name, path_raw)
             base = plugin_config_fields(root)
-            if base["enable"] == "0":
-                if name in self._loaded:
-                    self.unload(name)
-                continue
             if name in self._loaded:
                 continue
 
@@ -578,12 +564,6 @@ class PluginHost:
                 PluginInfo(name=name, path=entry_file), rank=rank, root=root)
             if base["version"]:
                 self._versions[name] = base["version"]
-            if report.status == "loaded" and declared:
-                actual = str(self._versions.get(name) or "")
-                if actual and actual != declared:
-                    report = LoadReport(
-                        name=name, status="loaded",
-                        message=f"清单声明版本 {declared}，插件自报 {actual}")
             fresh.append(report)
         self._reports.extend(fresh)
         return fresh
@@ -620,7 +600,7 @@ class PluginHost:
         ctx = PluginContext(info.name, self._registry, self._event_bus,
                             self._context_sources, self._pipeline, self,
                             self._contributions, self._executors,
-                            self._model_catalog)
+                            self._model_catalog, prompt_tail=self._prompt_tail)
         ctx.set_rank(rank)
         mod_name = f"{_MODULE_PREFIX}.{info.name}"
         plugin_root = Path(root).resolve() if root is not None else info.path.parent.resolve()
@@ -658,7 +638,7 @@ class PluginHost:
             self._loaded[info.name] = _collect_disposers(ctx, returned)
             self._modules[info.name] = mod_name
             self._plugin_roots[info.name] = plugin_root
-            # 模块级 PLUGIN_VERSION。`[base] version` 有值时调用方改用那一份，再与清单核对。
+            # 模块级 PLUGIN_VERSION。元数据 version 有值时调用方改用那一份，再与清单核对。
             self._versions[info.name] = str(getattr(module, "PLUGIN_VERSION", "") or "")
             return LoadReport(name=info.name, status="loaded")
         except Exception as exc:

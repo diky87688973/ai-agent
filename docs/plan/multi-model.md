@@ -454,14 +454,14 @@ router 包装之后，`getattr(app, "provider")` 拿到的是 router，
 ```
 plugins/multi_model/
   plugin.py
-  plugin-config.ini.example
+  plugin-config.ini
   ui/model-picker.js
   ui/model-picker.css
 ```
 
 `plugins.ini` 增加 `[plugin:multi_model]` 节。
 `plugin-config.ini` 已被 `.gitignore` 的 `plugins/*/plugin-config.ini` 覆盖，
-只提交 `.example`，且提交前用 `git ls-files` 确认历史与索引里都没有真实配置。
+真实配置只留在工作区，提交前用 `git ls-files` 确认历史与索引里都没有真实配置。
 
 目录名不叫 `models` / `model` / `llm`：这几个词会被
 `check_kernel_plugin_names` 当成 `core` / `mechanisms` 的禁用词。
@@ -474,13 +474,6 @@ plugins/multi_model/
 ### 10.2 配置格式
 
 ```ini
-[base]
-enable = 1
-name = 多模型
-icon = 🧩
-version = 1.0
-description = 每条模型自带网关与厂商
-
 [model:deepseek]
 provider = openai
 base_url = https://api.deepseek.com
@@ -636,7 +629,7 @@ window.aiAgentShell.styles = {
    插件开关切换后面板会重取宿主设置，关掉开关「模型」节即时回来，不必刷新页面。
 2. 非权威时保持现状，继续读写 `config.ini [model_reasoning]`。
 3. 模型条目由插件的 `settings-schema.json` 驱动结构化编辑（新增/删除/逐条改），
-   保存时只替换 `[model:*]` 节，`[base]` 与其它节逐字节保留。
+   保存时只替换 `[model:*]` 节，其它节逐字节保留。
 4. 隐藏只是界面收敛；保存接口仍然会拒绝越权写入并留痕（见 9.3）。
 
 ## 12. 文件清单
@@ -663,7 +656,7 @@ window.aiAgentShell.styles = {
 | 修改 | `agent/shell/web_assets/classic/agent-ui.html` |
 | 修改 | `agent/shell/web_assets/classic/js/agent-ui.js`（`aiAgentShell` 两条桥、样式摘除） |
 | 新增 | `plugins/multi_model/plugin.py` |
-| 新增 | `plugins/multi_model/plugin-config.ini.example` |
+| 新增 | `plugins/multi_model/plugin-config.ini` |
 | 新增 | `plugins/multi_model/ui/model-picker.js` |
 | 新增 | `plugins/multi_model/ui/model-picker.css` |
 | 修改 | `plugins.ini` |
@@ -698,7 +691,7 @@ window.aiAgentShell.styles = {
 `authoritative` 随条目数变化（3 条 → 0 条后失效）、`entries` 抛异常按空表并留痕、
 条目变化后整批重建 provider、disposer 注销并清缓存、`options` 返回副本。
 
-`tests/test_multi_model_plugin.py`：`.example` 的键集合与解析器读取的键集合一致
+`tests/test_multi_model_plugin.py`：解析器读取真实配置的键集合
 （防配置漂移）、BOM 文件可读、坏条目只影响自身、`default` 多于一个时的取舍、
 `catalog` 响应不含凭据。
 
@@ -770,9 +763,9 @@ router 的默认实例被替换。
 | `E2` / `Y7` 无全局豁免 | 不新增任何门禁豁免 | 审 |
 | `P6` 键名不硬编码 | `PROVIDER_META_KEY` 由 core 导出，读写两侧共用 | 审 |
 | `R5` 无遗留兼容层 | 内建下拉的 HTML/JS/CSS 按 15.3 清单同 PR 删净，不留别名与空守卫 | 审 + 文件清单 |
-| `S6` 秘密不进版本库 | 真实配置被 `.gitignore` 覆盖，只提交 `.example` | `git ls-files` |
+| `S6` 秘密不进版本库 | 真实配置被 `.gitignore` 覆盖，不提交配置 | `git ls-files` |
 | `T1` 配置错误可定位 | `utf-8-sig`；诊断含文件、节、键、原因 | 单测（BOM 文件） |
-| `T4` 配置漂移检查 | 插件 `.example` 键集合与 `config_schema` 双向比对 | `check_config_drift.py`（15.6） |
+| `T4` 配置漂移检查 | 插件真实配置的键与 `config_schema` 比对 | `check_config_drift.py` |
 | `V5` / `V6` 快速失败 + 降级可见 | `none` 时启动失败；`/health.model_config` 显式降级位 | 验收 |
 | `X2` 负向测试 | 重复 id、线格式不含 `provider_meta`、未知子键忽略、缺 signature 降级（15.5） | 单测 |
 | `X3` 失败路径有测试 | BOM、坏条目、预算不足、悬空 tool_result、未配置模型 | 单测 |
@@ -858,7 +851,7 @@ router 的默认实例被替换。
 - `docs/unit-tests.md` 重生成并由 `gen_unit_tests_md.py --check` 接管；
 - `docs/subsystems/plugins.md` 补 `multi_model` 的扩展点（目录权威、`aiAgentShell.models`、样式桥）；
 - README 用例数同步；
-- `plugins/multi_model/plugin-config.ini.example` 的键集合必须与 schema 双向一致，
+- `plugins/multi_model/plugin-config.ini` 的键集合必须与 schema 双向一致，
   接入 `standards-alignment` P3 的 `check_config_drift.py`（插件配置也纳入口径）。
 
 ### 15.7 `R1` / 覆盖率归属

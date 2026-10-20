@@ -61,6 +61,7 @@ from agent.core.context import (
     SERVICE_PIPELINE,
     SERVICE_PLUGIN_EVENTS,
     SERVICE_PLUGIN_HOST,
+    SERVICE_PROMPT_TAIL,
     SERVICE_PROVIDER,
     SERVICE_REGISTRY,
     SERVICE_SESSION_CONTEXTS,
@@ -87,6 +88,7 @@ from agent.mechanisms.file_safety import (
 from agent.mechanisms.live_state import LiveState
 from agent.mechanisms.mesh import MeshState
 from agent.mechanisms.model_provider import EchoProvider, MissingProvider
+from agent.mechanisms.prompt_tail import PromptTail
 from agent.mechanisms.provider_registry import build_provider
 from agent.mechanisms.provider_router import ProviderRouter
 from agent.mechanisms.quality import QualityGate, build_pipeline_gate
@@ -335,6 +337,14 @@ class App:
         return (
             self.context.get(SERVICE_CONTEXT_SOURCES)
             if self.context.has(SERVICE_CONTEXT_SOURCES)
+            else None
+        )
+
+    @property
+    def prompt_tail(self) -> Any:
+        return (
+            self.context.get(SERVICE_PROMPT_TAIL)
+            if self.context.has(SERVICE_PROMPT_TAIL)
             else None
         )
 
@@ -667,6 +677,8 @@ def build_app(
     event_bus = EventBus()
     # 上下文注入源：插件按段注册（宿主不认具体插件，段名与数量由插件给）。
     context_sources = ContextSources()
+    # 请求尾部片段：插件注入的临时文本，拼在执行模式之后，不进入系统提示词前缀。
+    prompt_tail = PromptTail()
     # 插件贡献注册表：面板（界面）与插件命名空间端点（HTTP）都记在这里，
     # 壳层只按数据枚举，不必为每个插件加分支。
     contributions = ContributionRegistry()
@@ -686,6 +698,7 @@ def build_app(
         plugin_data_root=data_root / "plugin",
         executors=executor_registry,
         model_catalog=model_catalog,
+        prompt_tail=prompt_tail,
     )
     provider_inst = provider if provider is not None else EchoProvider()
     # 路由从一开始就是 SERVICE_PROVIDER：内核只见一个 provider。
@@ -752,6 +765,7 @@ def build_app(
     context.register(SERVICE_EVENT_BUS, event_bus)
     context.register(SERVICE_PLUGIN_HOST, plugin_host)
     context.register(SERVICE_CONTEXT_SOURCES, context_sources)
+    context.register(SERVICE_PROMPT_TAIL, prompt_tail)
     context.register(SERVICE_LIVE_STATE, state)
     context.register(SERVICE_MESH, mesh_state)
     context.register(SERVICE_SESSION_CONTEXTS, contexts)

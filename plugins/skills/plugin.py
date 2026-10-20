@@ -9,7 +9,7 @@ Skills 走渐进式披露：
 
 没有界面交互，唯一对外可见的是上下文分层里的用量（段名与数量）。
 
-配置在插件自己目录下的 `plugin-config.ini`：`[base]` 是身份与开关，`[ext]` 是 `dir` / `max_file_size`。
+配置在插件自己目录下的 `plugin-config.ini`：`[config]` 是 `dir` / `max_file_size`；身份在 `plugin-meta.json`，开关在 `plugins.ini`。
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from .library import SkillManager
 from .tools import build as build_tool
 from .tools import build_executors
 
-CONFIG_SECTION = "ext"
+CONFIG_SECTION = "config"
 DEFAULT_MAX_FILE_SIZE = 200000
 CONFIG_FILE = "plugin-config.ini"
 
@@ -44,7 +44,7 @@ def _config_path() -> Path:
 
 
 def _load_config(path: Optional[Path] = None) -> Dict[str, Any]:
-    """读本插件配置的 `[ext]` 节：`dir` / `max_file_size`。
+    """读本插件配置的 `[config]` 节：`dir` / `max_file_size`。
 
     `dir` 缺失、不存在或不是目录时为 `None`，于是 Skills 库为空、注入为空 ——
     判定失败时静默降级，不报错。相对路径按工程根解析。

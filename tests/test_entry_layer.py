@@ -64,14 +64,14 @@ class BuildShellAppTest(_TempDataRoot):
         self.addCleanup(app.dispose)
         self.assertIs(app.provider.default_provider, provider)
 
-    def test_missing_config_starts_in_setup_mode(self) -> None:
+    def test_missing_config_starts_without_model(self) -> None:
         with mock.patch.object(entry_web, "get_model_reasoning",
                                return_value={"api_key": "", "api_base_url": "", "model": ""}):
             app = entry_web.build_shell_app(data_root=self.root)
         self.addCleanup(app.dispose)
         self.assertEqual(app.model_config_state, "none")
 
-    def test_placeholder_key_also_starts_in_setup_mode(self) -> None:
+    def test_placeholder_key_also_starts_without_model(self) -> None:
         with mock.patch.object(entry_web, "get_model_reasoning",
                                return_value={"api_key": "sk-请替换",
                                              "api_base_url": "https://api.deepseek.com",
@@ -111,7 +111,7 @@ class WebMainTest(_TempDataRoot):
         self.assertEqual(code, 2)
         self.assertIn("缺少配置", out.getvalue())
 
-    def test_open_flag_uses_setup_url_without_model(self) -> None:
+    def test_open_flag_uses_main_page_without_model(self) -> None:
         app = mock.MagicMock()
         app.model_config_state = "none"
         captured = {}
@@ -124,7 +124,7 @@ class WebMainTest(_TempDataRoot):
                 mock.patch.object(entry_web, "serve", _serve):
             code = entry_web.main(["--open", "--data-root", str(self.root)])
         self.assertEqual(code, 0)
-        self.assertEqual(captured["open_url"], "http://127.0.0.1:8765/setup")
+        self.assertEqual(captured["open_url"], "http://127.0.0.1:8765/")
 
     def test_args_are_forwarded_to_shell_serve(self) -> None:
         app = mock.MagicMock()

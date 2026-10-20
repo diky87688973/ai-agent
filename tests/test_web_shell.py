@@ -283,6 +283,10 @@ class EndpointTest(_ServerFixture):
         self.assertEqual(payload.get("service"), "agent.web")
         self.assertGreater(payload.get("tools", 0), 40)
 
+    def test_setup_route_is_removed(self) -> None:
+        status, _body = self.get("/setup")
+        self.assertEqual(status, 404)
+
     def test_unknown_path_404(self) -> None:
 
         status, payload = self.get_json("/api/nope")

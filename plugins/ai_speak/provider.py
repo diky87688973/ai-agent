@@ -42,7 +42,8 @@ class TTSProvider(Protocol):
 
     def available(self) -> bool: ...
 
-    def synthesize(self, text: str, *, voice: str, timeout_s: float) -> SpeechAudio: ...
+    def synthesize(self, text: str, *, voice: str, timeout_s: float,
+                   speed: float = 1.0) -> SpeechAudio: ...
 
 
 def _import_edge_tts() -> Any:
@@ -67,7 +68,8 @@ class EdgeTTSProvider:
             return False
         return True
 
-    def synthesize(self, text: str, *, voice: str, timeout_s: float) -> SpeechAudio:
+    def synthesize(self, text: str, *, voice: str, timeout_s: float,
+                   speed: float = 1.0) -> SpeechAudio:
         body = str(text or "").strip()
         if not body:
             raise SpeechSynthesisError("合成文本为空")
@@ -78,7 +80,8 @@ class EdgeTTSProvider:
         edge_tts = _import_edge_tts()
 
         async def _collect() -> bytes:
-            communicate = edge_tts.Communicate(body, selected)
+            rate = f"{(float(speed) - 1.0) * 100:+.0f}%" if abs(float(speed) - 1.0) > 1e-9 else ""
+            communicate = edge_tts.Communicate(body, selected, rate=rate) if rate else edge_tts.Communicate(body, selected)
             chunks: List[bytes] = []
             async for chunk in communicate.stream():
                 if not isinstance(chunk, dict):

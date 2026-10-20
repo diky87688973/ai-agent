@@ -103,7 +103,7 @@
 |---|---|---|
 | 工具 | `plugins/ai_speak/tool.py` | 校验 `msg`、取会话与插件事件发布器、调用运行时入队 |
 | 文本 | `plugins/ai_speak/text.py` | 字符白名单、配对校验、切分与装段（纯函数） |
-| 配置 | `plugins/ai_speak/config.py` | 读 `[ext]`、取默认值、校验范围（无副作用） |
+| 配置 | `plugins/ai_speak/config.py` | 读 `[config]`、取默认值、校验范围（无副作用） |
 | 合成 | `plugins/ai_speak/provider.py` | edge-tts 适配、超时、异常归类 |
 | 运行时 | `plugins/ai_speak/runtime.py` | 每会话串行队列、worker、停止、计数 |
 | 入口 | `plugins/ai_speak/plugin.py` | 装配、注册工具/端点/启动脚本/事件订阅 |
@@ -124,7 +124,7 @@ plugins/ai_speak/
   provider.py               SpeechAudio / TTSProvider / EdgeTTSProvider
   runtime.py                AISpeakRuntime + 每会话 worker
   tool.py                   AISpeakTool
-  plugin-config.ini.example [base] + [ext]
+  plugin-config.ini [config]
   ui/player.js              浮动播放条与队列
   ui/player.css             播放条样式
   ui/tool-view.js           对话区工具卡视图
@@ -605,7 +605,7 @@ items = [
 
 ### 装载
 
-1. 读 `plugin-config.ini` 的 `[ext]`，校验 `engine`、解析数值。
+1. 读 `plugin-config.ini` 的 `[config]`，校验 `engine`、解析数值。
 2. 建 `AISpeakRuntime`，此时不创建线程。
 3. 注册 `AISpeakTool`。
 4. 注册两个开屏脚本：`ui/player.js`、`ui/tool-view.js`。
@@ -637,18 +637,10 @@ items = [
 
 ## 配置
 
-`plugins/ai_speak/plugin-config.ini.example`：
+`plugins/ai_speak/plugin-config.ini`：
 
 ```ini
-[base]
-id = ai_speak
-name = AI说话
-desc = 把 AI 正在做的事用人类语气说出来。
-enable = 1
-icon = 🔊
-version = 1.0
-
-[ext]
+[config]
 engine = edge
 voice = zh-CN-XiaoxiaoNeural
 max_segment_chars = 128
@@ -666,12 +658,12 @@ sync_playback = 0
 
 解析规则：
 
-- 文件缺失 → 全部取默认值；新克隆只有 `.example`。
+- 文件缺失 → 全部取默认值；真实配置由设置页生成。
 - 整数键：非数字取默认；`max_segment_chars` 小于 1 取默认 128；
   `play_interval_ms` 小于 0 取 0。两者回退时记一条 `report_error`。
   `max_segment_chars` 不设上限。
-- 开关键沿用 `[base] enable`，`0` 不装载。
-- 未知 `[ext]` 键忽略，不阻断装载。
+- 开关在 `plugins.ini` 的 `enabled`，`0` 不装载。
+- 未知 `[config]` 键忽略，不阻断装载。
 - `engine` 非 `edge`、`voice` 为空、配置解析抛错：记 `report_error` 并让插件
   装载失败，错误出现在插件列表与 stderr。
 
@@ -792,7 +784,7 @@ class _SessionWorker:
 |---|---|
 | `plugins/tts/` | 整目录删除（含真实 `plugin-config.ini`，删除前备份） |
 | `plugins.ini` | 去掉 tts 注释节，加入 `[plugin:ai_speak]` |
-| `plugins.ini.example` | 注释示例改为 `ai_speak` |
+| `plugins.ini` | 注释示例改为 `ai_speak` |
 | `agent/core/context.py` | 增加 `SERVICE_PLUGIN_EVENTS` 服务名 |
 | `agent/app.py` | 把 `PluginEventPublisher(classic)` 登记为 `SERVICE_PLUGIN_EVENTS`（装配末尾、插件装载之前） |
 | `agent/shell/classic_adapter/plugin_events.py` | 新增窄发布器：`__call__` 返回送达连接数，`connected()` 查询是否有连接 |

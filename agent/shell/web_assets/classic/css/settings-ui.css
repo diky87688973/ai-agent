@@ -55,6 +55,7 @@ header .hdr-settings-btn svg{
   gap:12px;align-items:start;margin:0 0 14px;
 }
 .st-row > label{padding-top:7px;color:var(--c-text-2);font-size:13px}
+.st-hint{margin-top:4px;color:var(--c-text-4);font-size:12px;line-height:1.4}
 .st-form input[type="text"],
 .st-form input[type="password"],
 .st-form input[type="number"],
@@ -70,7 +71,6 @@ header .hdr-settings-btn svg{
   min-height:320px;resize:vertical;
   font-family:var(--f-code);line-height:1.45;
 }
-.st-hint{margin-top:4px;color:var(--c-text-4);font-size:12px;line-height:1.4}
 .st-dir{display:flex;gap:8px;align-items:center}
 .st-dir input{flex:1;min-width:0}
 .st-mini,.st-save,.st-apply{
@@ -137,9 +137,6 @@ header .hdr-settings-btn svg{
 }
 .st-model-head{display:flex;align-items:center;gap:8px;margin:0 0 10px}
 .st-model-index{color:var(--c-text-4);font-size:12px;flex:0 0 auto}
-.st-form .st-model-id{
-  flex:1;min-width:0;font-weight:600;
-}
 .st-model-del{
   flex:0 0 auto;width:26px;height:26px;padding:0;border:1px solid transparent;
   border-radius:8px;background:transparent;color:var(--c-text-4);cursor:pointer;
@@ -164,7 +161,6 @@ header .hdr-settings-btn svg{
    也看不出来，用户会以为下面没东西了。 */
 .st-form.st-form-editor{display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .st-editor{display:flex;flex-direction:column;flex:1;min-height:0}
-.st-editor-hint{color:var(--c-text-3);font-size:12px;line-height:1.5;margin:0 0 8px}
 .st-editor textarea{
   flex:1;min-height:160px;max-height:none;resize:none;overflow:auto;
   scrollbar-width:thin;scrollbar-color:var(--st-sb) transparent;

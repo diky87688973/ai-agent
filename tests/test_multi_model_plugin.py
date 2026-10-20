@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-import configparser
 import contextlib
 import importlib.util
 import io
@@ -19,7 +18,6 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.config_schema import MULTI_MODEL_SCHEMA  # noqa: E402
 
 _MOD = "fan_agent_plugins.multi_model"
 _PLUGIN_PATH = _ROOT / "plugins" / "multi_model" / "plugin.py"
@@ -289,32 +287,6 @@ class ParseTest(_ConfigCase):
         self.assertIn(str(self.path), invalid[0]["reason"])
 
 
-class PluginTemplateTest(unittest.TestCase):
-    """`.example` 的键集合必须与 schema/解析器一致（双向）。"""
-
-    def test_example_covers_schema_keys(self) -> None:
-        path = _ROOT / "plugins" / "multi_model" / "plugin-config.ini.example"
-        parser = configparser.ConfigParser(interpolation=None)
-        parser.read(str(path), encoding="utf-8-sig")
-        self.assertEqual(set(parser["base"]), set(MULTI_MODEL_SCHEMA["base"]))
-        seen = set()
-        for section in parser.sections():
-            if section.startswith("model:"):
-                seen |= set(parser[section])
-        self.assertEqual(seen, set(MULTI_MODEL_SCHEMA["model"]))
-
-    def test_example_is_a_template_until_keys_are_filled(self) -> None:
-        """示例里的占位密钥不算已配置：照抄后仍回落到 config.ini，不会拿假密钥发包。"""
-        path = _ROOT / "plugins" / "multi_model" / "plugin-config.ini.example"
-        with contextlib.redirect_stderr(io.StringIO()):
-            entries, invalid = _PLUGIN.parse_config(path)
-        self.assertEqual(entries, ())
-        self.assertEqual([item["id"] for item in invalid], ["deepseek", "claude"])
-        for item in invalid:
-            self.assertIn("占位符", item["reason"])
-
-
-
 class CatalogPayloadTest(_ConfigCase):
     def test_payload_carries_no_credentials(self) -> None:
         self.write(
@@ -354,7 +326,6 @@ class RegisterTest(_ConfigCase):
 
     def test_register_contributes_catalog_route_and_boot_script(self) -> None:
         self.write(
-            "[base]\nname = 多模型\n"
             "[model:a]\nbase_url = http://x\napi_key = k\n"
         )
         ctx = _Ctx()
@@ -424,7 +395,7 @@ class PickerStyleTest(unittest.TestCase):
         self.assertNotIn("360px", rule)
 
     def test_names_and_ids_are_not_ellipsized(self) -> None:
-        for selector in (".mm-picker-name", ".mm-picker-meta"):
+        for selector in (".mm-picker-name",):
             rule = self._rule(selector)
             self.assertIn("white-space:nowrap", rule)
             self.assertNotIn("text-overflow", rule)

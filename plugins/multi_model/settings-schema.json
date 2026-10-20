@@ -6,8 +6,8 @@
   "empty_text": "还没有模型。至少添加一条，填上网关与密钥。",
   "identity": {
     "key": "id",
-    "label": "模型 ID",
-    "hint": "请求与界面里的唯一标识，只能包含字母、数字、下划线与短横"
+    "label": "配置 ID",
+    "hint": "请求与界面使用的唯一标识，不是模型名"
   },
   "fields": [
     {
@@ -16,70 +16,85 @@
       "label": "协议",
       "default": "openai",
       "options": [
-        {"value": "openai", "label": "OpenAI 兼容"},
-        {"value": "anthropic", "label": "Anthropic"}
+        {
+          "value": "openai",
+          "label": "OpenAI（Chat Completions）"
+        },
+        {
+          "value": "anthropic",
+          "label": "Anthropic（Messages）"
+        }
       ]
     },
     {
       "key": "base_url",
       "kind": "text",
       "label": "网关地址",
-      "placeholder": "https://api.deepseek.com"
+      "placeholder": "示例: https://..."
     },
     {
       "key": "api_key",
       "kind": "secret",
-      "label": "API 密钥"
+      "label": "API 密钥",
+      "placeholder": "示例: sk-..."
     },
     {
       "key": "model",
       "kind": "text",
       "label": "模型名",
-      "hint": "发给网关的模型名；留空时等于模型 ID",
-      "placeholder": "deepseek-flash"
+      "hint": "与模型提供商保持一致"
     },
     {
       "key": "label",
       "kind": "text",
       "label": "显示名称",
-      "hint": "下拉与顶栏里显示的名字；留空时等于模型 ID"
+      "placeholder": "示例: Model A"
     },
     {
       "key": "context_window",
       "kind": "number",
       "label": "上下文窗口（token）",
-      "hint": "该模型的物理上限，界面按它算上下文占用率（如 128000 / 256000 / 1000000）",
-      "default": "1000000",
-      "min": 1
+      "min": 1,
+      "hint": "模型供应商声明的最大上下文窗口"
     },
     {
       "key": "default",
       "kind": "bool",
-      "label": "默认模型",
-      "hint": "至多一条；都没标时取第一条"
+      "label": "默认模型"
     },
     {
       "key": "max_tokens",
       "kind": "number",
       "label": "回复上限（token）",
-      "hint": "Anthropic 协议必填；这是回复的长度上限，不是上下文窗口",
       "min": 1,
-      "show_if": {"key": "provider", "equals": "anthropic"}
+      "show_if": {
+        "key": "provider",
+        "equals": "anthropic"
+      },
+      "default": "16000",
+      "placeholder": "示例: 16000"
     },
     {
       "key": "thinking",
       "kind": "bool",
-      "label": "深度思考",
-      "hint": "关闭会显式下发 disabled（DeepSeek 默认是开的）",
-      "show_if": {"key": "provider", "equals": "anthropic"}
+      "label": "启用深度思考",
+      "show_if": {
+        "key": "provider",
+        "equals": "anthropic"
+      }
     },
     {
       "key": "thinking_budget_tokens",
       "kind": "number",
       "label": "思考预算（token）",
-      "hint": "必须小于回复上限；DeepSeek 兼容层会忽略它",
       "min": 1,
-      "show_if": {"key": "provider", "equals": "anthropic"}
+      "show_if": {
+        "key": "provider",
+        "equals": "anthropic"
+      },
+      "default": "4096",
+      "placeholder": "示例: 4096"
     }
-  ]
+  ],
+  "identity_mode": "index"
 }

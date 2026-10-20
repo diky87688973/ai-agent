@@ -86,7 +86,6 @@
     }
 
     function open() {
-      if (!state.models.length) return;
       state.open = true;
       menu.classList.remove("hidden");
       button.setAttribute("aria-expanded", "true");
@@ -106,8 +105,22 @@
       if (!state.models.length) {
         var empty = document.createElement("div");
         empty.className = "mm-picker-empty";
-        empty.textContent = state.loading ? "模型加载中…" : "无可用模型";
+        empty.textContent = state.loading
+          ? "模型加载中…"
+          : "未配置模型。打开设置 → 插件 → 多模型，添加网关。";
         menu.appendChild(empty);
+        if (!state.loading) {
+          var configure = document.createElement("button");
+          configure.type = "button";
+          configure.className = "mm-picker-item";
+          configure.textContent = "打开设置";
+          configure.addEventListener("click", function () {
+            close();
+            var settings = document.getElementById("hdrSettingsBtn");
+            if (settings) settings.click();
+          });
+          menu.appendChild(configure);
+        }
       } else {
         state.models.forEach(function (item) {
           var choice = document.createElement("button");
@@ -120,15 +133,13 @@
           var name = document.createElement("span");
           name.className = "mm-picker-name";
           name.textContent = item.label || item.id;
-          var meta = document.createElement("span");
-          meta.className = "mm-picker-meta";
-          meta.textContent = item.id;
           choice.appendChild(name);
-          choice.appendChild(meta);
           if (item.provider) {
             var badge = document.createElement("span");
             badge.className = "mm-picker-provider";
-            badge.textContent = item.provider;
+            badge.textContent = item.provider === "openai"
+              ? "OpenAI" : item.provider === "anthropic"
+                ? "Anthropic" : item.provider;
             choice.appendChild(badge);
           }
           choice.addEventListener("click", function () {
@@ -148,9 +159,9 @@
       }
       var shown = state.current || state.defaultId
         || (state.models.length ? state.models[0].id : "");
-      caption.textContent = labelFor(shown) || (state.loading ? "模型加载中…" : "无可用模型");
-      button.disabled = !state.models.length;
-      button.title = state.models.length ? "选择模型" : caption.textContent;
+      caption.textContent = labelFor(shown) || (state.loading ? "模型加载中…" : "未配置模型");
+      button.disabled = false;
+      button.title = state.models.length ? "选择模型" : "未配置模型，打开设置 → 插件 → 多模型";
     }
 
     function select(id) {

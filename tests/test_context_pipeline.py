@@ -273,43 +273,5 @@ class MaxPassesConfigTest(unittest.TestCase):
         sig = inspect.signature(Engine.__init__)
         self.assertEqual(sig.parameters["max_passes"].default, get_max_passes())
 
-class CodeDefaultsMatchTemplateTest(unittest.TestCase):
-    """代码里的默认值必须与 `config.ini.example` 一致。
-
-    `config.ini` 不入库：开发机上它一直在，代码默认值漂了也看不出来；
-    干净环境（CI）读的正是代码默认值。两处不一致时以模板为准。
-    """
-
-    def _template(self) -> dict:
-        import configparser
-
-        from agent.config import PROJECT_ROOT
-        parser = configparser.ConfigParser()
-        parser.read(PROJECT_ROOT / "config.ini.example", encoding="utf-8")
-        out = {}
-        for section in parser.sections():
-            for key, value in parser[section].items():
-                try:
-                    out[key] = int(value)
-                except ValueError:
-                    pass
-        return out
-
-    def _code_defaults(self) -> dict:
-        import re
-
-        from agent.config import PROJECT_ROOT
-        src = (PROJECT_ROOT / "agent" / "config.py").read_text(encoding="utf-8")
-        return {m.group(1): int(m.group(2))
-                for m in re.finditer(r'_int\("([a-z_]+)",\s*(-?\d+)\)', src)}
-
-    def test_every_default_matches_template(self) -> None:
-        template = self._template()
-        code = self._code_defaults()
-        self.assertTrue(code, msg="没从 config.py 里解析出默认值，解析口径要跟着改")
-        drift = {k: (v, template[k]) for k, v in code.items()
-                 if k in template and template[k] != v}
-        self.assertEqual(drift, {}, msg=f"代码默认值与模板不一致（键：(代码, 模板)）：{drift}")
-
 if __name__ == "__main__":
     unittest.main()

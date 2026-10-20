@@ -309,7 +309,7 @@ class AISpeakRuntimeContentionTest(unittest.TestCase):
             def available(self) -> bool:
                 return True
 
-            def synthesize(self, text, *, voice, timeout_s):
+            def synthesize(self, text, *, voice, timeout_s, speed=1.0):
                 return provider_mod.SpeechAudio(
                     data=text.encode("utf-8"), mime="audio/mpeg", voice=voice
                 )

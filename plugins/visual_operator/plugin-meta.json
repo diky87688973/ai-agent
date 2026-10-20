@@ -1,0 +1,6 @@
+﻿{
+  "name": "Visual Operator",
+  "desc": "让Agent具备视觉操作能力，利用视觉+键鼠完成任务",
+  "icon": "🖥️",
+  "version": "1.0"
+}

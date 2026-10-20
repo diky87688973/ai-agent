@@ -21,6 +21,13 @@ from .tool import AISpeakTool
 PLUGIN_VERSION = "1.0"
 
 
+_VOICE_DIRECTIVE = (
+    "【AI说话】必须主动使用 ai_speak 工具与用户沟通。"
+    "这是正文以外的另一条输出通道，内容会经过语音播放。"
+    "因此要注意扮演和语气，更重要的是模仿人类口语说话。"
+)
+
+
 def _config_path() -> Path:
     """本插件配置文件路径；配置归属测试用同一入口。"""
     return config_path()
@@ -62,6 +69,7 @@ def _config_payload(runtime: AISpeakRuntime) -> Any:
         "max_segment_chars": config.max_segment_chars,
         "play_interval_ms": config.play_interval_ms,
         "sync_playback": config.sync_playback,
+        "speed": config.speed,
     }
 
 
@@ -102,6 +110,9 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         disposers.append(ctx.add_route("POST", "played", _played_handler(runtime)))
         disposers.append(ctx.subscribe(ev.TURN_ENDED, _turn_handler(runtime)))
         disposers.append(ctx.subscribe(ev.ERROR, _error_handler(runtime)))
+        disposers.append(ctx.add_mode_tail(
+            lambda _cid: _VOICE_DIRECTIVE if runtime.provider_ready() else ""
+        ))
         ctx.set_runtime(runtime)
     except Exception:
         runtime.dispose()

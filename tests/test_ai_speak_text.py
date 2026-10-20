@@ -2,7 +2,6 @@
 """AI说话文本规范、切分、合成净化与配置测试。"""
 from __future__ import annotations
 
-import configparser
 import importlib.util
 import sys
 import tempfile
@@ -186,12 +185,6 @@ class SpeechTextTest(unittest.TestCase):
 
 
 class ConfigTest(unittest.TestCase):
-    def test_template_keys_match_reader(self) -> None:
-        path = _PLUGIN / "plugin-config.ini.example"
-        parser = configparser.ConfigParser(interpolation=None)
-        parser.read(path, encoding="utf-8-sig")
-        self.assertEqual(set(parser["ext"].keys()), set(_CONFIG.CONFIG_KEYS))
-
     def test_missing_file_uses_defaults(self) -> None:
         cfg = _CONFIG.load_config(Path(tempfile.gettempdir()) / "ai_speak_missing.ini")
         self.assertEqual(cfg.engine, "edge")
@@ -199,40 +192,43 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(cfg.max_segment_chars, 128)
         self.assertEqual(cfg.play_interval_ms, 0)
         self.assertFalse(cfg.sync_playback)
+        self.assertEqual(cfg.speed, 1.0)
         self.assertEqual(cfg.warnings, ())
 
     def test_values_and_limits(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "plugin-config.ini"
             path.write_text(
-                "[ext]\nengine = edge\nvoice = v\n"
+                "[config]\nengine = edge\nvoice = v\n"
                 "max_segment_chars = 300\nplay_interval_ms = 250\n"
-                "sync_playback = on\n",
+                "sync_playback = on\nspeed = 1.5\n",
                 encoding="utf-8",
             )
             cfg = _CONFIG.load_config(path)
             self.assertEqual(cfg.max_segment_chars, 300)
             self.assertEqual(cfg.play_interval_ms, 250)
             self.assertTrue(cfg.sync_playback)
+            self.assertEqual(cfg.speed, 1.5)
 
             path.write_text(
-                "[ext]\nmax_segment_chars = 0\nplay_interval_ms = -3\n"
-                "sync_playback = maybe\n",
+                "[config]\nmax_segment_chars = 0\nplay_interval_ms = -3\n"
+                "sync_playback = maybe\nspeed = 9\n",
                 encoding="utf-8",
             )
             cfg = _CONFIG.load_config(path)
             self.assertEqual(cfg.max_segment_chars, 128)
             self.assertEqual(cfg.play_interval_ms, 0)
             self.assertFalse(cfg.sync_playback)
-            self.assertEqual(len(cfg.warnings), 3)
+            self.assertEqual(cfg.speed, 1.0)
+            self.assertEqual(len(cfg.warnings), 4)
 
     def test_invalid_engine_and_voice_fail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "plugin-config.ini"
-            path.write_text("[ext]\nengine = console\n", encoding="utf-8")
+            path.write_text("[config]\nengine = console\n", encoding="utf-8")
             with self.assertRaises(_CONFIG.ConfigError):
                 _CONFIG.load_config(path)
-            path.write_text("[ext]\nengine = edge\nvoice = \n", encoding="utf-8")
+            path.write_text("[config]\nengine = edge\nvoice = \n", encoding="utf-8")
             with self.assertRaises(_CONFIG.ConfigError):
                 _CONFIG.load_config(path)
 

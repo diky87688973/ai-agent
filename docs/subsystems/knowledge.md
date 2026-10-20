@@ -9,8 +9,8 @@
 ```
 plugins/knowledge/
   plugin.py                  入口：配置读取、文件层、勾选状态、注入与端点
-  plugin-config.ini          真实配置（不入库）
-  plugin-config.ini.example  模板
+  plugin-config.ini          真实配置（入库）
+  plugin-meta.json           身份元数据
   ui/panel.js                右栏面板脚本
   ui/panel.css               面板样式
 ```
@@ -19,19 +19,13 @@ plugins/knowledge/
 
 ```ini
 ; plugins/knowledge/plugin-config.ini
-[base]
-id = knowledge
-name = 知识库
-desc = 把勾选的资料注入当前会话。
-enable = 1
-icon = 📚
-version = 1.0
-
-[ext]
+[config]
 dir =
 max_file_size = 200000
 extra_suffixes =
 ```
+
+身份在 `plugin-meta.json`，开关在 `plugins.ini`。
 
 | 键 | 缺省 | 说明 |
 |---|---|---|
@@ -39,7 +33,7 @@ extra_suffixes =
 | `max_file_size` | `200000` | 单文件字节上限，超过则不读取；`0` 表示不限 |
 | `extra_suffixes` | 空 | 追加收录的扩展名，英文逗号分隔，`txt` 与 `.txt` 等价；写错只忽略该项 |
 
-`[base]` 的 `enable` 为 `0` 时插件留在清单里但不装载。`name` / `icon` 同时用作
+`plugins.ini` 的 `enabled` 为 `0` 时插件留在清单里但不装载。`name` / `icon` 来自 `plugin-meta.json`，
 面板标题与输入区按钮文案。
 
 ## 可收录的文件

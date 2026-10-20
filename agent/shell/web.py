@@ -133,7 +133,7 @@ def serve(
     print("=== AI Agent Web 壳 ===")
     print(f"主界面   http://{host}:{port}/")
     if getattr(app, "model_config_state", "") == "none":
-        print(f"设置向导 http://{host}:{port}/setup")
+        print("模型尚未配置：可在页面右上角「设置 → 插件 → 多模型」里添加。")
     print(f"事件流   http://{host}:{port}/api/events/stream")
     shown = "；".join(str(r) for r in roots) if roots else "（不限根）"
     print(f"文件根   {shown}")

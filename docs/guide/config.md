@@ -1,37 +1,31 @@
 # 配置
 
-配置文件是仓库根目录的 `config.ini`；`config.ini.example` 是不含密钥的模板：
-
-```bash
-cp config.ini.example config.ini
-```
-
-`config.ini` 不入版本库（见 `.gitignore`），只提交无密钥的模板。缺省值与全部键见下。
+配置文件是仓库根目录的 `config.ini`，只保留真实文件，不提供样例；文件不存在时使用代码默认值。`config.ini` 不入版本库（见 `.gitignore`）。缺省值与全部键见下。
 
 插件清单是另一份文件 `plugins.ini`（工程根），它**入库**——里面没有密钥，列的是装载哪些插件。见 [插件](../subsystems/plugins.md)。
 
 ## `[model_reasoning]`
 
-模型网关。`api_key` 与 `api_base_url` 是实际请求所需，但缺任一项时服务仍会启动，并打开 `/setup` 浏览器向导；保存后当前进程立即重建 provider。`model` 可缺省，取内置默认值。
+模型网关。`api_base_url` / `api_key` / `model` 均不预置；缺任一项时服务仍会启动，主页面保留，模型下拉为空；从设置页保存后当前进程立即重建 provider。
 
 ```ini
 [model_reasoning]
-api_base_url = https://api.deepseek.com
-api_key      = sk-请替换
-model        = deepseek-flash
-models       = deepseek-flash, deepseek-v4-pro
-context_window = 1000000
+api_base_url =
+api_key      =
+model        =
+models       =
+context_window =
 ```
 
 | 键 | 内置缺省 | 含义 |
 |---|---|---|
-| `api_base_url` | 空 | 网关地址；模板填 `https://api.deepseek.com`。留空时进入 `/setup`，不影响服务启动。地址推导见 [llm.md](../subsystems/llm.md) |
-| `api_key` | 空 | 鉴权密钥。留空时进入 `/setup`，不影响服务启动。设置页只回是否已填写，不回明文；密码框留空不改这一项，填了新值才替换 |
-| `model` | `deepseek-v4-flash-vision-exp` | 默认模型名；配置里给了值就以它为准 |
+| `api_base_url` | 空 | 网关地址。留空时服务照常启动，模型下拉为空。地址推导见 [llm.md](../subsystems/llm.md) |
+| `api_key` | 空 | 鉴权密钥。留空时服务照常启动，模型下拉为空。设置页只回是否已填写，不回明文；密码框留空不改这一项，填了新值才替换 |
+| `model` | 空 | 模型名 |
 | `models` | 空 | 会话内可选的模型名，逗号分隔。留空则只能用 `model` |
-| `context_window` | `1000000` | 该模型的上下文窗口（token）。界面按它算"上下文占用率"；**物理上限**，与 `[context]` 的压缩阈值（预算）不是一回事。换模型时一起改；多模型由插件按条目各自声明 |
+| `context_window` | 空 | 该模型的上下文窗口（token）。界面按它算"上下文占用率"；**物理上限**，与 `[context]` 的压缩阈值（预算）不是一回事。换模型时一起改；多模型由插件按条目各自声明 |
 
-接口需兼容 OpenAI Chat Completions 格式。
+接口需兼容 Chat Completions 请求格式。
 
 ## `[agent]`
 
@@ -115,20 +109,19 @@ reasoning_replay_tokens = 8000
 
 图片只从**发给模型的请求**里被裁掉，事实流里的字节不动 —— 历史回显与重新提问都还能拿到原图。
 
-「缺省或留空时」是 `config.ini` 缺该节或缺该键时生效的值；`config.ini.example` 给出的是上例中的值。
+「缺省或留空时」是 `config.ini` 缺该节或缺该键时生效的值。
 
 机制细节见 [context.md](../subsystems/context.md)。
 
 ## 插件
 
-插件的装载在**另一份文件** `plugins.ini`（工程根）。节在就进入装载候选。开关、名字、描述、图标、版本在各插件 `plugin-config.ini` 的 `[base]`（`enable`、`name`、`desc`、`icon`、`version`）。插件自己的键在 `[ext]`。
+插件的装载在**另一份文件** `plugins.ini`（工程根）。节在就进入装载候选；开关写在该节的 `enabled`。名字、描述、图标、版本由 `plugin-meta.json` 声明。插件自己的键在 `[config]`。
 
 ```ini
 [plugin:skills]
-version = 1.0
 
 [plugin:knowledge]
-version = 1.0
+enabled = 1
 ```
 
 | 名称 | 能力 | 自己的配置文件 |
@@ -139,8 +132,7 @@ version = 1.0
 
 **节的先后即上下文组装顺序**：越不容易变动的插件排在越前面。
 
-**插件自己的配置跟着插件走。** 每个插件目录下都有 `plugin-config.ini.example` 作为模板，
-自用配置不入库；**内核的 `config.ini` 里没有插件设置**。
+**插件自己的配置跟着插件走。** AI说话 / 视觉操作 / 知识库 / Skills 的配置入库；`multi_model` 的密钥配置被 `.gitignore` 排除；**内核的 `config.ini` 里没有插件设置**。
 插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.md)。
 
 

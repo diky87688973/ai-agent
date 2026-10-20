@@ -35,10 +35,6 @@ background:var(--c-bg-active,rgba(255,255,255,.08));
 color:var(--c-brand-strong,#7aaaff);
 }
 .mm-picker-name{flex:0 0 auto;white-space:nowrap}
-.mm-picker-meta{
-flex:0 0 auto;white-space:nowrap;
-color:var(--c-text-5,#81858c);font-size:var(--fs-xs,11px);font-family:var(--f-code,Consolas,monospace);
-}
 .mm-picker-provider{
 flex:0 0 auto;padding:1px 6px;border-radius:999px;
 background:var(--c-bg-layer-2,#26272c);color:var(--c-text-4,#979da6);

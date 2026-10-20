@@ -6,7 +6,7 @@
 （`ctx.add_context_source` / `add_panel` / `add_action` / `add_route` / `data_dir`）
 与通用的 INI 读取（`agent.config.load_ini`）。
 
-配置在插件自己目录下的 `plugin-config.ini`：`[base]` 是身份与开关，`[ext]` 是 `dir` / `max_file_size`。
+配置在插件自己目录下的 `plugin-config.ini`：`[config]` 是 `dir` / `max_file_size`；身份在 `plugin-meta.json`，开关在 `plugins.ini`。
 
 注入走 `ctx.add_context_source`（上下文注入扩展点）：管线每一步组装请求时，
 会把注入源产出的文本刷进上下文的「知识库」块。勾选状态落在 `ctx.data_dir`
@@ -95,7 +95,7 @@ def _has_hidden_segment(rel: Path) -> bool:
 
 
 #: 本插件配置文件的节名（文件在插件自己目录下）
-CONFIG_SECTION = "ext"
+CONFIG_SECTION = "config"
 
 
 def _config_path() -> Path:
@@ -108,7 +108,7 @@ def _config_path() -> Path:
 
 
 def _load_kb_config(path: Optional[Path] = None) -> Dict[str, Any]:
-    """读本插件配置的 `[ext]` 节：`dir` / `max_file_size` / `extra_suffixes`。
+    """读本插件配置的 `[config]` 节：`dir` / `max_file_size` / `extra_suffixes`。
 
     `dir` 缺失、不存在或不是目录时返回 `None`，于是 `enabled` 为假、全部操作返回空
     —— 判定失败时静默降级，不报错。相对路径按工程根解析。

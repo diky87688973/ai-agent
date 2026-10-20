@@ -28,7 +28,7 @@
 | 6 | `X7` | 验收 skip 上限恒等于白名单长度，永远不可触发 | MUST | P3 |
 | 7 | `E2a` | 静默异常惯用法无数量、无预算、无递减约束 | MUST | P3 |
 | 8 | `R1` | 超阈值文件与函数无登记表 | MUST | P0 |
-| 9 | `T4` | 配置模板漂移且无校验；`web-ui-config.ini` 正本入库、无 `.example` | MUST | P0/P2 |
+| 9 | `T4` | 配置漂移且无校验；`web-ui-config.ini` 不入库、无样例文件 | MUST | P0/P2 |
 | 10 | `D3` | `docs/unit-tests.md` 已漂 14 个用例，生成器无 `--check` | MUST | P3 |
 | 11 | `K4` | 无并发/争用检测作业 | MUST | P4 |
 | 12 | `0.5` | 无 `docs/applicability.md` | MUST | P0 |
@@ -350,21 +350,21 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 
 | 问题 | 证据 |
 |---|---|
-| 正本入库、无模板 | `git ls-files` 含 `web-ui-config.ini`；`web-ui-config.ini.example` 不存在 |
-| 本地正本多出键 | `config.ini` 有 `[context] summary_prefix_reuse`，`config.ini.example` 没有 |
-| 无 schema，模板无法双向校验 | `plugins.ini` 的 `plugin:*` 节是"启用集合"，与 `.example` 天然不同，直接比键集会误报 |
+| 正本不入库、无样例文件 | `git check-ignore -v web-ui-config.ini` 命中；不存在 `web-ui-config.ini.example` |
+| 本地正本多出键 | `config.ini` 有 `[context] summary_prefix_reuse`，schema 未登记 |
+| 无 schema，真实配置无法双向校验 | `plugins.ini` 的 `plugin:*` 节是"启用集合"，与插件配置天然不同，直接比键集会误报 |
 
 **改法**
 
 1. 新增 `agent/config_schema.py`：`SCHEMA: dict[str, dict[str, str]]`（节 → 键 → 默认值），`agent/config.py` 的 `get_*` 改为按 schema 取键；未登记的键读取即报错（带节、键、文件）。
-2. `web-ui-config.ini` 从版本库移除，提交 `web-ui-config.ini.example`；`.gitignore` 增加 `web-ui-config.ini`；加载器在文件缺失时使用 schema 默认值（不报错）。
+2. `web-ui-config.ini` 不入库；`.gitignore` 包含 `web-ui-config.ini`；加载器在文件缺失时使用 schema 默认值（不报错）。
 3. `scripts/check_config_drift.py`：
-   - `.example` ↔ `SCHEMA` 双向比对（缺键、多键都失败）；
+   - 真实配置 ↔ `SCHEMA` 比对（未登记键失败）；
    - 若真实文件存在，额外检查"真实键 ⊆ schema"，多出的键失败并给出行号（`configparser` 不给行号，用文本扫描定位节）；
    - 真实文件不存在只打印 `[SKIP] 未找到 config.ini（干净克隆）`，不失败——这是 `E5` 要求的可见跳过。
-4. 删除 `config.ini` 里 schema 未登记的 `summary_prefix_reuse`，或在 schema 中登记并补进 `.example`；二选一，在 PR 里说明该键是否仍被代码读取。
+4. 删除 `config.ini` 里 schema 未登记的 `summary_prefix_reuse`，或在 schema 中登记该键。
 
-**验收**：删掉 `config.ini.example` 一行键 → 门禁失败；干净克隆（只有 `.example`）→ 通过。
+**验收**：给 `config.ini` 加一个未登记键 → 门禁失败；无真实配置时跳过并通过。
 
 ### 2.10 `D3` 生成文档漂移
 
@@ -537,7 +537,7 @@ plugins/          仅在包外向下依赖 agent
 | `check_ui_js` | 语法错误 JS / 缺 `;` 的共享作用域 | 报文件与错误 |
 | `check_readme` | 用例数写错、文档提到不存在的 `data/` 子目录 | 报期望值与实际值 |
 | `check_ci_workflow` | yml 多一步、少一步 | 打印 diff |
-| `check_config_drift` | `.example` 少键 / 多键 | 报节、键 |
+| `check_config_drift` | 真实配置多键 | 报节、键 |
 | `check_applicability` | 缺列、未知 ID、原因过短、申报表缺失 | 各报一条 |
 | `check_complexity` | 801 行文件未登记 | 报出文件与行数 |
 | `gen_*_md --check` | 文档少一行 | 打印首处差异 |

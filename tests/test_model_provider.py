@@ -506,7 +506,7 @@ def register(ctx):
         plugins.mkdir(parents=True)
         (plugins / "plugin.py").write_text(self._PLUGIN, encoding="utf-8")
         manifest = tmp / "plugins.ini"
-        manifest.write_text("[plugin:catalog_demo]\nversion = 1.0\n", encoding="utf-8")
+        manifest.write_text("[plugin:catalog_demo]\n", encoding="utf-8")
 
         app = build_app(
             plugins_dir=tmp / "plugins",

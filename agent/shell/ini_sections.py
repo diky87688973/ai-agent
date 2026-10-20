@@ -2,12 +2,15 @@
 """INI 文本的节定位与节级改写。
 
 设置页要按节读写配置：宿主配置按节回显，插件配置只动插件自己的节，
-`[base]` 这类元数据节必须逐字节保留。这里只做行级定位与节内容替换，
+无关节必须逐字节保留。这里只做行级定位与节内容替换，
 不解析键值语义 —— 键的校验属于调用方。
 """
 from __future__ import annotations
 
+import re
 from typing import Iterable, List, Optional, Tuple
+
+_KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_-]+)(\s*=\s*)(.*)$")
 
 
 def newline(text: str) -> str:
@@ -79,7 +82,7 @@ def replace_sections(
     *,
     remove: Iterable[str] = (),
 ) -> str:
-    """替换若干节的正文、删除若干节；其余行（含注释与 `[base]`）原样保留。
+    """替换若干节的正文、删除若干节；其余行（含注释与其它节）原样保留。
 
     `bodies` 的节必须已存在；正文按原文换行风格补齐。删除与替换都按当前
     行号重新定位，避免前一次改动让后面的区间错位。
@@ -115,6 +118,47 @@ def append_section(text: str, section: str, body: Iterable[str]) -> str:
     if text and not text.endswith(nl + nl):
         text += nl
     return text + block
+
+
+def update_ini_keys(text: str, section: str, updates: dict) -> str:
+    """在指定节里改键：已有键原地换值，没有的补在节尾，其它行不动。"""
+    if not updates:
+        return text
+    pending = {str(key): str(value) for key, value in updates.items()}
+    for value in pending.values():
+        if "\n" in value or "\r" in value:
+            raise ValueError("配置值不能换行")
+    lines = text.splitlines(keepends=True)
+    nl = newline(text) if text else "\n"
+    span = section_span(lines, section)
+    if span is None:
+        block = [f"[{section}]{nl}"]
+        block.extend(f"{key} = {value}{nl}" for key, value in pending.items())
+        if text and not text.endswith(("\n", "\r")):
+            text += nl
+        if text and not text.endswith(nl + nl):
+            text += nl
+        return text + "".join(block)
+    start, end = span
+    for index in range(start + 1, end):
+        body = lines[index].rstrip("\r\n")
+        matched = _KEY_RE.match(body)
+        if matched is None:
+            continue
+        key = matched.group(2)
+        found = next((want for want in pending if want.lower() == key.lower()), None)
+        if found is None:
+            continue
+        ending = lines[index][len(body):] or nl
+        lines[index] = f"{matched.group(1)}{key}{matched.group(3)}{pending.pop(found)}{ending}"
+    if pending:
+        insert_at = end
+        while insert_at > start + 1 and lines[insert_at - 1].strip() == "":
+            insert_at -= 1
+        lines[insert_at:insert_at] = [
+            f"{key} = {value}{nl}" for key, value in pending.items()
+        ]
+    return "".join(lines)
 
 
 def _with_newline(line: str, nl: str) -> str:

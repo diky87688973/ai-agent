@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""插件配置：`[ext]` 的读取、回退与夹取。
+"""插件配置：`[config]` 的读取、回退与夹取。
 
-解析只看 `[ext]`，不碰 `[base]`。真实配置缺失时整份取默认值，
+解析只看 `[config]`。真实配置缺失时整份取默认值，
 非法值回退默认、越界值夹到边界：配置错误不阻断工具注册，
 生效值可由 `desktop_eye` 的返回值反查。
 """
@@ -14,7 +14,7 @@ from typing import Any, Dict, Mapping, Optional
 from agent.config import load_ini
 
 CONFIG_FILE = "plugin-config.ini"
-SECTION = "ext"
+SECTION = "config"
 
 _TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 _FALSE_VALUES = frozenset({"0", "false", "no", "off"})
@@ -39,7 +39,7 @@ class DesktopConfig:
     mouse: bool = True
     keyboard: bool = True
     wait: bool = True
-    max_side: int = 1600
+    max_side: int = 1920
     grid_step: int = 100
     cursor_mark: bool = True
     settle_ms: int = 60
@@ -77,7 +77,7 @@ def _as_int(raw: Optional[str], key: str) -> int:
 
 
 def load_config(plugin_root: Optional[Path] = None) -> DesktopConfig:
-    """读插件目录下的配置；文件缺失或没有 `[ext]` 时全部取默认值。"""
+    """读插件目录下的配置；文件缺失或没有 `[config]` 时全部取默认值。"""
     root = Path(plugin_root) if plugin_root is not None else Path(__file__).resolve().parent
     parser = load_ini(root / CONFIG_FILE)
     values: Dict[str, Any] = {}

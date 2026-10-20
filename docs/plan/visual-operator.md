@@ -19,7 +19,7 @@
 「当 action=click 时看 x/y，当 action=type 时看 text」，模型错配参数的概率显著上升。
 
 插件写进工程根的 `plugins.ini`，默认启用：新克隆的仓库起来就有这四个工具。
-关掉开关时 `set_plugin_enabled` 保留清单节、把 `[base] enable` 写成 0，
+关掉开关时 `set_plugin_enabled` 保留清单节、把 `enabled` 写成 0，
 对应工具随之注销并从列表消失；再打开即热装载，不需要重启。
 
 默认开启带来两条硬约束：`catalog/tools.json` 必须把四个工具登记进去；
@@ -73,7 +73,7 @@ plugins/visual_operator/
   tools/mouse.py               DesktopMouseTool
   tools/keyboard.py            DesktopKeyboardTool
   tools/wait.py                DesktopWaitTool
-  plugin-config.ini.example    [base] + [ext]
+  plugin-config.ini    [config]
 ```
 
 估算：平台后端各 350–450 行，其余文件 60–180 行，合计约 1500 行（不含测试）。
@@ -125,7 +125,7 @@ parameters = {
   "platform": "win32",
   "screen": {"x": -1920, "y": 0, "width": 3840, "height": 1080},
   "capture": {"x": -1920, "y": 0, "width": 3840, "height": 1080},
-  "image": {"width": 3840, "height": 1080, "sent_width": 1600, "sent_height": 450,
+  "image": {"width": 3840, "height": 1080, "sent_width": 1920, "sent_height": 540,
             "scale": 2.4, "bytes": 812345},
   "cursor": {"x": 412, "y": 300},
   "grid": {"step": 100, "unit": "屏幕坐标"},
@@ -265,23 +265,15 @@ parameters = {
 
 ## 5. 配置
 
-`plugins/visual_operator/plugin-config.ini.example`：
+`plugins/visual_operator/plugin-config.ini`：
 
 ```ini
-[base]
-id = visual_operator
-enable = 1
-name = 桌面操作
-icon = 🖥️
-version = 1.0
-desc = 看屏、动鼠标、敲键盘
-
-[ext]
+[config]
 eye = 1
 mouse = 1
 keyboard = 1
 wait = 1
-max_side = 1600
+max_side = 1920
 grid_step = 100
 cursor_mark = 1
 settle_ms = 60
@@ -298,7 +290,7 @@ wait_interval_ms = 200
 | `mouse` | 1 | 0/1 | 是否注册 `desktop_mouse` |
 | `keyboard` | 1 | 0/1 | 是否注册 `desktop_keyboard` |
 | `wait` | 1 | 0/1 | 是否注册 `desktop_wait` |
-| `max_side` | 1600 | 0–8192 | 截图长边上限，0 = 不缩放 |
+| `max_side` | 1920 | 0–8192 | 截图长边上限，0 = 不缩放 |
 | `grid_step` | 100 | 20–500 | 网格间距（屏幕坐标） |
 | `cursor_mark` | 1 | 0/1 | 网格图上画光标十字并标坐标 |
 | `settle_ms` | 60 | 0–2000 | 鼠标键盘动作后的停顿，给界面刷新留时间 |
@@ -310,10 +302,10 @@ wait_interval_ms = 200
 
 解析规则（`config.py`，纯函数，无 IO 副作用）：
 
-- 真实配置缺失 → 全部取默认值（新克隆的仓库只有 `.example`）。
+- 真实配置缺失 → 全部取默认值。
 - 整数键：非数字取默认；越界夹到边界（`grid_step=1000 → 500`）。
 - 开关键：接受 `1/0`、`true/false`、`yes/no`、`on/off`（大小写不敏感），其余取默认。
-- 未知键忽略：`.example` 与真实文件允许带注释与其它节，不因多一个键装载失败。
+- 未知键忽略：真实配置允许带注释与其它节，不因多一个键装载失败。
 - 夹取与回退不写日志：配置错误在装载期不阻断，也不该刷错误日志；
   生效值可由 `desktop_eye` 的 `grid.step` 与 `image` 字段反查。
 
@@ -482,7 +474,7 @@ Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐�
 
 | 类 | 覆盖 |
 |---|---|
-| `ConfigTest` | 缺文件取默认、越界夹取、开关解析、未知键忽略、`.example` 与真实文件优先级 |
+| `ConfigTest` | 缺文件取默认、越界夹取、开关解析、未知键忽略 |
 | `KeysTest` | 别名归一、未知键报错、组合键数量与修饰键校验、两张平台键码表覆盖全部规范名 |
 | `CoordsTest` | 区域成组校验、越界裁剪、无交集报错、负原点、Retina 比例换算 |
 | `CanvasTest` | 缩放后尺寸与 `scale`、网格像素落点、标签存在（像素差断言）、光标在区域外不画、全黑检测 |
@@ -559,7 +551,7 @@ python scripts/ci.py
 | 2 | `canvas` + 单测 | 缩放、网格、标签、全黑检测的像素级断言通过 |
 | 3 | `ports` / `guard` / `input_lock` / 四个工具 + 单测 | 动作矩阵与返回值稳定，不 import 任何平台 API |
 | 4 | `backends/win32.py` + 假 FFI 单测 | Linux 上单测全绿；本机手动截图与点击可用 |
-| 5 | `plugin.py` + `plugin-config.ini.example` + 注册/Plan/并发单测 + `plugins.ini` 节 + catalog 重生成 | 临时清单与工程清单都注册出四个工具，`check_catalog` 零漂移 |
+| 5 | `plugin.py` + `plugin-config.ini` + 注册/Plan/并发单测 + `plugins.ini` 节 + catalog 重生成 | 临时清单与工程清单都注册出四个工具，`check_catalog` 零漂移 |
 | 6 | `backends/macos.py` + 假 FFI 单测 | 换算、双击、flags、权限路径有断言 |
 | 7 | 文档、README 数字、全量门禁、本机手动回归 | `ci.py` 全绿，Windows 闭环通过 |
 

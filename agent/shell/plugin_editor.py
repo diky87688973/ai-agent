@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
-"""插件配置的可编辑区域：`[base]` 由宿主维护，设置页只读写插件自己的节。
+"""插件配置的可编辑区域：只读写插件自己的节。
 
-插件配置的元数据（`id` / `name` / `desc` / `icon` / `version` / `enable`）写在
-`[base]`。它是插件声明与装载开关，设置页既不该展示也不该回写 —— 一次误编辑
-就能让插件改名、失联或无法装载。
+插件身份在 `plugin-meta.json`，装载开关在 `plugins.ini`；`plugin-config.ini`
+不保存这两类信息。可编辑区域按插件形态取：
 
-可编辑区域按插件形态取：
-
-- 声明了 `settings-schema.json` 的插件（多模型）：按 schema 把 `[model:*]` 等
-  节渲染成结构化表单，保存时只替换这些节；
-- 只有 `[ext]` 的插件（知识库 / Skills / 语音）：正文即 `[ext]` 的内容，
-  节头不展示；
-- 其余情形（没有 `[ext]`、也没声明 schema）：除 `[base]` 外的节都算插件自己的，
+- 声明了 `kind: sections` 的插件（多模型）：按 schema 把 `[model:*]` 等
+  节渲染成可增删条目的表单，保存时只替换这些节；
+- 声明了 `kind: fields` 的插件（知识库 / Skills）：按 schema 渲染字段表单，
+  保存时只更新 `[config]` 声明的键；
+- 只有 `[config]` 的插件（语音）：正文即 `[config]` 的内容，节头不展示；
+- 其余情形（没有 `[config]`、也没声明 schema）：文件里的节都算插件自己的，
   多节时保留节头，否则无法区分多个条目。
 """
 from __future__ import annotations
@@ -21,6 +19,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from agent.config import is_placeholder_api_key
 from agent.shell.ini_sections import (
     append_section,
     newline,
@@ -28,9 +27,9 @@ from agent.shell.ini_sections import (
     section_at,
     section_body,
     section_names,
+    update_ini_keys,
 )
 
-BASE = "base"
 SCHEMA_FILE = "settings-schema.json"
 KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_-]+)(\s*=\s*)(.*)$")
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
@@ -38,30 +37,10 @@ SECTION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_:-]*")
 _FIELD_KINDS = ("text", "secret", "number", "bool", "enum")
 
 
-def load_schema(folder: Path) -> Optional[Dict[str, Any]]:
-    """读插件目录下的结构化表单声明；缺失或结构不完整返回 None。
-
-    坏 schema 不阻断设置页：退回文本编辑，插件仍可配置。
-    """
-    path = Path(folder) / SCHEMA_FILE
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError):
-        # 读不出或不是合法 JSON 就是没声明，设置页退回文本编辑。
-        return None
-    if not isinstance(data, dict) or str(data.get("kind") or "") != "sections":
-        return None
-    prefix = str(data.get("section_prefix") or "").strip()
-    identity = data.get("identity")
-    raw_fields = data.get("fields")
-    if not prefix or not isinstance(identity, dict) or not isinstance(raw_fields, list):
-        return None
-    id_key = str(identity.get("key") or "").strip()
-    if not id_key:
-        return None
+def _parse_fields(raw_fields: Any) -> List[Dict[str, Any]]:
     fields: List[Dict[str, Any]] = []
+    if not isinstance(raw_fields, list):
+        return fields
     for item in raw_fields:
         if not isinstance(item, dict):
             continue
@@ -80,7 +59,8 @@ def load_schema(folder: Path) -> Optional[Dict[str, Any]]:
         }
         if kind == "enum":
             options = [
-                {"value": str(opt.get("value") or ""), "label": str(opt.get("label") or opt.get("value") or "")}
+                {"value": str(opt.get("value") or ""),
+                 "label": str(opt.get("label") or opt.get("value") or "")}
                 for opt in (item.get("options") or [])
                 if isinstance(opt, dict) and str(opt.get("value") or "").strip()
             ]
@@ -91,7 +71,6 @@ def load_schema(folder: Path) -> Optional[Dict[str, Any]]:
             try:
                 field["min"] = int(item["min"])
             except (TypeError, ValueError):
-                # 边界写坏了只是少一条校验，字段本身仍要能编辑。
                 pass
         show_if = item.get("show_if")
         if isinstance(show_if, dict) and str(show_if.get("key") or "").strip():
@@ -100,12 +79,54 @@ def load_schema(folder: Path) -> Optional[Dict[str, Any]]:
                 "equals": str(show_if.get("equals") or ""),
             }
         fields.append(field)
+    return fields
+
+
+def load_schema(folder: Path) -> Optional[Dict[str, Any]]:
+    """读插件目录下的结构化表单声明；缺失或结构不完整返回 None。
+
+    坏 schema 不阻断设置页：退回文本编辑，插件仍可配置。
+    """
+    path = Path(folder) / SCHEMA_FILE
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        # 读不出或不是合法 JSON 就是没声明，设置页退回文本编辑。
+        return None
+    if not isinstance(data, dict):
+        return None
+    kind = str(data.get("kind") or "")
+    if kind == "fields":
+        section = str(data.get("section") or "config").strip()
+        fields = _parse_fields(data.get("fields"))
+        if not section or not fields:
+            return None
+        return {
+            "kind": "fields",
+            "title": str(data.get("title") or "配置"),
+            "section": section,
+            "fields": fields,
+        }
+    if kind != "sections":
+        return None
+    prefix = str(data.get("section_prefix") or "").strip()
+    identity = data.get("identity")
+    raw_fields = data.get("fields")
+    if not prefix or not isinstance(identity, dict) or not isinstance(raw_fields, list):
+        return None
+    id_key = str(identity.get("key") or "").strip()
+    if not id_key:
+        return None
+    fields = _parse_fields(raw_fields)
     if not fields:
         return None
     return {
         "kind": "sections",
         "title": str(data.get("title") or "配置"),
         "section_prefix": prefix,
+        "identity_mode": str(data.get("identity_mode") or ""),
         "add_label": str(data.get("add_label") or "添加"),
         "empty_text": str(data.get("empty_text") or ""),
         "identity": {
@@ -120,6 +141,23 @@ def load_schema(folder: Path) -> Optional[Dict[str, Any]]:
 def build_editor(text: str, folder: Path) -> Dict[str, Any]:
     """把插件配置文本转成设置页可渲染的编辑视图。"""
     schema = load_schema(folder)
+    if schema and schema["kind"] == "fields":
+        values = _section_values(text, schema["section"])
+        configured: Dict[str, bool] = {}
+        for field in schema["fields"]:
+            key = field["key"]
+            if field["kind"] == "secret":
+                raw = str(values.get(key) or "").strip()
+                configured[key] = bool(raw) and not is_placeholder_api_key(raw)
+                values[key] = ""
+            elif not str(values.get(key) or "").strip() and field.get("default"):
+                values[key] = field["default"]
+        return {
+            "kind": "fields",
+            "schema": schema,
+            "values": values,
+            "configured": configured,
+        }
     if schema:
         return {
             "kind": "sections",
@@ -136,17 +174,43 @@ def build_editor(text: str, folder: Path) -> Dict[str, Any]:
     }
 
 
-def text_sections(text: str) -> List[str]:
-    """文本编辑器负责的节：有 `[ext]` 就只认它，否则除 `[base]` 外的全部。
+def _section_values(text: str, section: str) -> Dict[str, str]:
+    body = section_body(text.splitlines(keepends=True), section) or []
+    values: Dict[str, str] = {}
+    for raw in body:
+        matched = KEY_RE.match(raw.rstrip("\r\n"))
+        if matched is not None:
+            values[matched.group(2)] = matched.group(4).strip()
+    return values
 
-    只有 `[base]` 的配置还没有插件自己的节，编辑器按 `[ext]` 新建。
-    """
+
+def merge_fields(text: str, values: Dict[str, Any], schema: Dict[str, Any]) -> Tuple[Optional[str], str]:
+    """字段表单保存：只更新声明字段，未知键与注释原样保留。"""
+    fields = {str(item["key"]): item for item in schema["fields"]}
+    updates: Dict[str, str] = {}
+    for key, value in values.items():
+        if key not in fields:
+            return None, f"未知配置项 {key}"
+        text_value = str(value if value is not None else "").strip()
+        if fields[key]["kind"] == "secret" and not text_value:
+            continue
+        if fields[key]["kind"] == "number" and text_value:
+            try:
+                number = int(text_value)
+            except (TypeError, ValueError):
+                return None, f"{fields[key]['label']}必须是整数"
+            if "min" in fields[key] and number < int(fields[key]["min"]):
+                return None, f"{fields[key]['label']}不能小于 {fields[key]['min']}"
+            text_value = str(number)
+        updates[key] = text_value
+    return update_ini_keys(text, schema["section"], updates), ""
+
+
+def text_sections(text: str) -> List[str]:
+    """文本编辑器负责的节：有 `[config]` 就只认它，否则取文件里的全部节。"""
     names = section_names(text)
-    ext = [name for name in names if name.lower() == "ext"]
-    if ext:
-        return ext
-    rest = [name for name in names if name.lower() != BASE]
-    return rest or ["ext"]
+    config = [name for name in names if name.lower() == "config"]
+    return config or names or ["config"]
 
 
 def render_text(text: str, sections: Iterable[str], *, show_headers: bool) -> str:
@@ -182,7 +246,8 @@ def _mask_secrets(groups: List[Dict[str, Any]], schema: Dict[str, Any]) -> List[
         values = dict(group.get("values") or {})
         configured: Dict[str, bool] = {}
         for key in secret_keys:
-            configured[key] = bool(str(values.get(key) or "").strip())
+            raw = str(values.get(key) or "").strip()
+            configured[key] = bool(raw) and not is_placeholder_api_key(raw)
             values[key] = ""
         item = dict(group)
         item["values"] = values
@@ -252,7 +317,7 @@ def parse_groups(text: str, schema: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def merge_text(text: str, submitted: str, sections: Iterable[str]) -> Tuple[Optional[str], str]:
-    """文本编辑器保存：替换/删除这些节，`[base]` 与其它节逐字节保留。
+    """文本编辑器保存：替换/删除这些节，其它节逐字节保留。
 
     返回 `(新文本, "")`；校验失败返回 `(None, 原因)`。
     """
@@ -263,6 +328,24 @@ def merge_text(text: str, submitted: str, sections: Iterable[str]) -> Tuple[Opti
         return None, error
     result = _merge_parsed(text, parsed, allowed)
     return result, ""
+
+
+def _auto_group_id(schema: Dict[str, Any], group: Dict[str, Any], reserved: set) -> str:
+    """给新条目生成本地唯一 ID；不改已有条目的 ID。"""
+    values = group.get("values") if isinstance(group.get("values"), dict) else {}
+    raw = ""
+    for key in ("label", "model", "provider"):
+        raw = str(values.get(key) or "").strip()
+        if raw:
+            break
+    base = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-").lower()
+    base = (base or "model")[:48]
+    candidate = base
+    number = 2
+    while candidate.lower() in reserved:
+        candidate = f"{base}-{number}"
+        number += 1
+    return candidate
 
 
 def merge_groups(text: str, groups: Any, schema: Dict[str, Any]) -> Tuple[Optional[str], str]:
@@ -281,13 +364,21 @@ def merge_groups(text: str, groups: Any, schema: Dict[str, Any]) -> Tuple[Option
         body = section_body(lines, name) or []
         previous[name[len(prefix):].strip().lower()] = _scan_section(body, schema)
     parsed: List[Tuple[str, List[str]]] = []
+    index_ids = str(schema.get("identity_mode") or "") == "index"
+    reserved = {
+        str(group.get("id") or "").strip().lower()
+        for group in groups
+        if isinstance(group, dict) and str(group.get("id") or "").strip()
+    }
     seen: set = set()
     for index, group in enumerate(groups, start=1):
         if not isinstance(group, dict):
             return None, "配置项格式不对"
-        group_id = str(group.get("id") or "").strip()
+        source_id = str(group.get("id") or "").strip().lower()
+        group_id = str(index) if index_ids else str(group.get("id") or "").strip()
         if not group_id:
-            return None, f"第 {index} 条的 ID 不能为空"
+            group_id = _auto_group_id(schema, group, reserved)
+            reserved.add(group_id.lower())
         if not NAME_RE.fullmatch(group_id):
             return None, f"第 {index} 条的 ID 只能包含字母、数字、下划线与短横"
         low = group_id.lower()
@@ -297,7 +388,9 @@ def merge_groups(text: str, groups: Any, schema: Dict[str, Any]) -> Tuple[Option
         values = group.get("values")
         if not isinstance(values, dict):
             return None, f"{group_id} 的配置项格式不对"
-        old_values, old_extras = previous.get(low, ({}, []))
+        old_values, old_extras = previous.get(source_id, ({}, []))
+        if index_ids:
+            old_extras = []
         body, error = _group_body(group, schema, values, old_extras, old_values)
         if error:
             return None, f"{group_id}：{error}"
@@ -419,7 +512,7 @@ def _parse_submitted(submitted: str, allowed: List[str],
         name = allowed[0]
         for line in text.splitlines():
             if section_at(line) is not None:
-                return [], "这一项只填键值，节头由系统维护"
+                return [], "不允许填写节头"
         return [(name, text.splitlines())], ""
     lines = text.splitlines()
     parsed: List[Tuple[str, List[str]]] = []
@@ -431,8 +524,6 @@ def _parse_submitted(submitted: str, allowed: List[str],
         if name is not None:
             if current is not None:
                 parsed.append((current, body))
-            if name.lower() == BASE:
-                return [], "`[base]` 由系统维护，不能在这里修改"
             if not SECTION_RE.fullmatch(name):
                 return [], f"节名不合法：{name}"
             low = name.lower()

@@ -52,7 +52,7 @@ fi
 echo "[2/4] pip: $("$PY" -m pip --version 2>&1 | head -n 1)"
 
 # ── 3. 依赖（缺什么用 python -m pip 装什么）────
-if ! "$PY" -c "import openpyxl, PIL" >/dev/null 2>&1; then
+if ! "$PY" -c "import openpyxl, PIL, et_xmlfile" >/dev/null 2>&1; then
     echo "[3/4] 缺少运行依赖，正在安装..."
     if ! "$PY" -m pip install -e . -c constraints.txt; then
         echo
@@ -64,26 +64,20 @@ else
     echo "[3/4] 运行依赖已就绪"
 fi
 
-# edge-tts 是可选能力：失败只提示，不阻断启动。
-if ! "$PY" -c "import edge_tts" >/dev/null 2>&1; then
-    echo "[3/4] 安装语音合成依赖（可选）..."
+# edge-tts 是语音功能的运行时依赖；旧版本会被上游拒绝，必须满足最低版本。
+if ! "$PY" -c "import edge_tts; from importlib.metadata import version; v=version('edge-tts').split('.'); raise SystemExit(0 if (int(v[0]), int(v[1]), int(v[2])) >= (7, 3, 1) else 1)" >/dev/null 2>&1; then
+    echo "[3/4] 安装或升级语音合成依赖..."
     if ! "$PY" -m pip install -e ".[tts]" -c constraints.txt; then
-        echo "[提示] edge-tts 未安装，AI说话会不可用；不影响其它功能。"
+        echo "[提示] edge-tts 未安装或版本过低，AI说话会不可用；不影响其它功能。"
     fi
 fi
 
-# ── 4. 配置交给浏览器向导，不再用命令行卡住启动 ──
-if [ ! -f config.ini ] && [ -f config.ini.example ]; then
-    cp config.ini.example config.ini
-    echo "[4/4] 已生成 config.ini；首次启动请在浏览器向导里填写模型。"
-else
-    echo "[4/4] 配置检查交给浏览器向导"
-fi
+# ── 4. 配置由设置页维护，命令行不拦截 ─────────
+echo "[4/4] 配置由页面设置维护"
 echo
 
 echo "============================================"
 echo "  服务地址:  http://127.0.0.1:8765/"
-echo "  首次设置:  http://127.0.0.1:8765/setup"
 echo "  停止服务:  Ctrl+C"
 echo "============================================"
 echo
