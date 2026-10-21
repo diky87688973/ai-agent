@@ -1302,12 +1302,12 @@
       }
     },
     {
-      "description": "Skills 管理：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。",
+      "description": "Skills：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。 外部 Skills 目录未配置，action=copy 不可用；请提示用户启用 Skills 插件并在设置 → 插件 → Skills 中配置 dir。",
       "display": {
         "icon": "🧩",
         "label": "Skills 管理"
       },
-      "name": "skill_manage",
+      "name": "skills",
       "parallel_safe": false,
       "parameters": {
         "action": {

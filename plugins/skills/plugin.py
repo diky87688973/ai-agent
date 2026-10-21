@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Skills 插件：Skills 库（扫描 / 读取 / 复制）+ `skill_manage` 工具 + 上下文注入。
+"""Skills 插件：Skills 库（扫描 / 读取 / 复制）+ `skills` 工具 + 上下文注入。
 
 Skills 走渐进式披露：
 
 - 可用 Skills 清单（名字 + 描述）常驻上下文，模型据此判断该用哪个；
 - `auto_load/` 目录下 Skills 的正文始终随上下文携带；
-- 其余 Skills 的正文不进上下文，由模型用 `skill_manage action=read` 按需读取。
+- 其余 Skills 的正文不进上下文，由模型用 `skills action=read` 按需读取。
 
 没有界面交互，唯一对外可见的是上下文分层里的用量（段名与数量）。
 
@@ -27,6 +27,8 @@ from .tools import build_executors
 CONFIG_SECTION = "config"
 DEFAULT_MAX_FILE_SIZE = 200000
 CONFIG_FILE = "plugin-config.ini"
+#: 随代码发布的内置 Skills 根；用户外置目录由 [config] dir 指定。
+BUILTIN_SKILLS_DIR = PROJECT_ROOT / "skills"
 
 # 注入前缀：让模型一眼看出这段是 Skills 说明，不是用户对话，也不是知识库素材。
 # 抬头在清单/常驻正文里拼（library 出口），这里不再叠一次。
@@ -46,9 +48,8 @@ def _config_path() -> Path:
 def _load_config(path: Optional[Path] = None) -> Dict[str, Any]:
     """读本插件配置的 `[config]` 节：`dir` / `max_file_size`。
 
-    `dir` 缺失、不存在或不是目录时为 `None`，于是 Skills 库为空、注入为空 ——
-    判定失败时静默降级，不报错。相对路径按工程根解析。
-    文件不在就用缺省值。
+    `dir` 是用户外置 Skills 根；未配置时为 `None`。路径存在与否都保留，
+    由库里决定能否读取/写入。相对路径按工程根解析。
     """
     parser = load_ini(path if path is not None else _config_path())
     values: Dict[str, str] = {}
@@ -57,17 +58,16 @@ def _load_config(path: Optional[Path] = None) -> Dict[str, Any]:
                   for k, v in parser.items(CONFIG_SECTION)}
 
     root: Optional[Path] = None
-    # 环境变量优先：为测试与 CI 提供独立的数据目录入口（与数据根同一套做法）。
+    # 环境变量优先：为测试与 CI 提供独立的外部 Skills 目录入口。
     raw_dir = os.environ.get("AI_AGENT_SKILLS_DIR") or values.get("dir") or ""
     if raw_dir:
         candidate = Path(raw_dir)
         if not candidate.is_absolute():
             candidate = PROJECT_ROOT / candidate
         try:
-            if candidate.is_dir():
-                root = candidate.resolve()
+            root = candidate.resolve()
         except OSError:
-            root = None
+            root = candidate.absolute()
 
     try:
         max_size = int(values.get("max_file_size") or DEFAULT_MAX_FILE_SIZE)
@@ -79,7 +79,8 @@ def _load_config(path: Optional[Path] = None) -> Dict[str, Any]:
 def register(ctx: Any) -> List[Callable[[], None]]:
     """插件入口：装配 Skills 库，注册工具、两条上下文注入与提交执行器。"""
     cfg = _load_config()
-    library = SkillManager(cfg["dir"], int(cfg["max_file_size"]))
+    library = SkillManager(cfg["dir"], int(cfg["max_file_size"]),
+                           builtin_dir=BUILTIN_SKILLS_DIR)
     base = plugin_config_fields(Path(__file__).resolve().parent)
     style_label = base["name"] or "Skills"
 
@@ -103,7 +104,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     ]
     # 提交执行器登记到宿主的执行器注册表：`commit_write` 提交时按工具名取。
     disposers.append(
-        ctx.add_executor("skill_manage", build_executors(library)["skill_manage"]))
+        ctx.add_executor("skills", build_executors(library)["skills"]))
     # 上下文分层外观：无面板，经贡献表交给壳层开屏注册。
     disposers.append(ctx.add_ctx_segment_style(label=style_label, color="plum"))
     # 工具卡视图：开屏脚本，不必挂空面板。

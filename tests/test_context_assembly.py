@@ -70,7 +70,8 @@ def short(m) -> str:
         return "SYSTEM"
     if c.startswith("skill-"):
         return "SKILL" + c.split("-", 1)[1][:1]
-    if c.startswith("【Skills 清单】") or c.startswith("【Skills "):
+    if (c.startswith("【Skills 清单】") or c.startswith("【内置 Skills")
+            or c.startswith("【用户 Skills") or c.startswith("【Skills ")):
         return "SKILLBLOCK"
     if c.startswith(KB1):
         return "KB1"
@@ -1223,7 +1224,7 @@ class MaskSurvivesOverflow(_Case):
 # 两层：
 #   第一层「Skills 清单」—— 名字 + 描述，常驻上下文前端，模型据此挑 Skills；
 #   第二层 `auto_load/` 下的 Skills 正文 —— 始终随上下文携带，不必模型主动读。
-# 普通 Skills 的正文不进上下文，由模型按需用 `skill_manage` 读取。
+# 普通 Skills 的正文不进上下文，由模型按需用 `skills` 读取。
 # ══════════════════════════════════════════════════════════════
 
 import shutil  # noqa: E402
@@ -1282,7 +1283,7 @@ class SkillProgressiveDisclosure(_Case):
     def test_auto_load_messages_carry_bodies(self) -> None:
         got = self.lib.build_auto_load_messages()
         self.check("自动加载 1 条", 1, len(got))
-        self.check_true("带 Skills 名抬头", "【Skills " in got[0])
+        self.check_true("带来源与 Skills 名抬头", "【用户 Skills " in got[0])
         self.check_true("带 Skills 名", "house" in got[0])
         self.check_true("带正文", "必须遵守的规范正文" in got[0])
 
@@ -1298,7 +1299,7 @@ class SkillProgressiveDisclosure(_Case):
         lib = SkillManager(root, 200000)
         self.check("没有 auto_load → 空列表", [], lib.build_auto_load_messages())
 
-    def test_skill_manager_lists_normal_skills_only(self) -> None:
+    def test_skillsr_lists_normal_skills_only(self) -> None:
         names = [s["name"] for s in self.lib.list_skills()]
         self.check("list_skills 只给普通 Skills", ["deploy", "review"], names)
 

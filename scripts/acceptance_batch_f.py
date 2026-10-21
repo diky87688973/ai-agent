@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """验收：集成与外围 5 件（ip_geolocate / open_meteo_weather / review_conclusion /
-skill_manage / github_api）headless 演示。
+skills / github_api）headless 演示。
 
-场景：① 门控闭环——skill_manage copy 走完整 id 制四步；跨文件写后经 review_conclusion
+场景：① 门控闭环——skills copy 走完整 id 制四步；跨文件写后经 review_conclusion
 放行；cancel_preview 取消；短结论拒绝；
 ② 工具族管道冒烟——5 件经 ToolPipeline 唯一入口；网络类以 mock 替换模块 HTTP 层；
-③ 注册与一致性——5 件工具注册（41 工具）、catalog 成员、门控预览名单含 skill_manage、discard 在位。
+③ 注册与一致性——5 件工具注册（41 工具）、catalog 成员、门控预览名单含 skills、discard 在位。
 运行：python scripts/acceptance_batch_f.py（全部通过退出码 0）
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ from agent.mechanisms.mesh import MeshState  # noqa: E402
 
 CID_DRIVER = "accept-batch-f"
 
-BATCH_F_TOOLS = ["ip_geolocate", "open_meteo_weather", "review_conclusion", "skill_manage", "github_api"]
+BATCH_F_TOOLS = ["ip_geolocate", "open_meteo_weather", "review_conclusion", "skills", "github_api"]
 
 _LONG_CONCLUSION = "review结论：验收链路复核通过，落盘内容已 read 复核，ast 与 py_compile 检查通过。"
 
@@ -73,15 +73,15 @@ class Acceptance:
         if not cond:
             self.failures.append(label)
 
-    # ── 场景 ① 门控闭环（skill_manage + review_conclusion）──────
+    # ── 场景 ① 门控闭环（skills + review_conclusion）──────
 
     def scenario_1(self) -> None:
-        print("\n场景① 门控闭环（skill_manage copy 四步 + review_conclusion）")
+        print("\n场景① 门控闭环（skills copy 四步 + review_conclusion）")
         incoming = self.root / "incoming"
         incoming.mkdir()
         (incoming / "one.md").write_text("---\nname: one\ndescription: demo\n---\n\n正文一\n", encoding="utf-8")
 
-        r1 = self.call("skill_manage", {"action": "copy", "source": str(incoming)})
+        r1 = self.call("skills", {"action": "copy", "source": str(incoming)})
         cid = (r1.data or {}).get("confirm_id") if r1.ok else None
         self.check(
             "copy 预览：confirm_id 发出且不落盘",
@@ -119,14 +119,14 @@ class Acceptance:
         r3 = self.call("commit_write", {"confirm_id": cid})
         self.check("提交：一次性消费（重放拒绝）", (not r3.ok) and "无效或已使用" in (r3.error or ""), str(r3.error))
 
-        r_list = self.call("skill_manage", {"action": "list"})
+        r_list = self.call("skills", {"action": "list"})
         names = [s["name"] for s in (r_list.data or {}).get("skills", [])]
         self.check(
             "list 只读：不登记快照且含新 Skills",
             r_list.ok and (r_list.data or {}).get("needs_commit") is False and "confirm_id" not in (r_list.data or {}) and "one" in names,
             str(r_list.data),
         )
-        r_read = self.call("skill_manage", {"action": "read", "name": "one"})
+        r_read = self.call("skills", {"action": "read", "name": "one"})
         self.check(
             "read：返回正文（frontmatter 剥离）",
             r_read.ok and (r_read.data or {}).get("content") == "正文一",
@@ -136,7 +136,7 @@ class Acceptance:
         incoming2 = self.root / "incoming2"
         incoming2.mkdir()
         (incoming2 / "two.md").write_text("---\nname: two\n---\n\n正文二\n", encoding="utf-8")
-        r4 = self.call("skill_manage", {"action": "copy", "source": str(incoming2)})
+        r4 = self.call("skills", {"action": "copy", "source": str(incoming2)})
         cid2 = str((r4.data or {}).get("confirm_id") or "")
         self.gate.confirm(cid2)
         r_blocked = self.call("commit_write", {"confirm_id": cid2})
@@ -166,7 +166,7 @@ class Acceptance:
         incoming3 = self.root / "incoming3"
         incoming3.mkdir()
         (incoming3 / "three.md").write_text("---\nname: three\n---\n\n正文三\n", encoding="utf-8")
-        r6 = self.call("skill_manage", {"action": "copy", "source": str(incoming3)})
+        r6 = self.call("skills", {"action": "copy", "source": str(incoming3)})
         cid3 = str((r6.data or {}).get("confirm_id") or "")
         r_cancel = self.call("review_conclusion", {"file_name": "three.md", "confirm_id": cid3, "cancel_preview": True})
         self.check(
@@ -243,9 +243,9 @@ class Acceptance:
         not_in_catalog = [n for n in BATCH_F_TOOLS if n not in tool_names]
         self.check("catalog 成员含 5 件工具", not not_in_catalog, str(not_in_catalog))
         self.check("catalog 工具总数 ≥ 41", len(tool_names) >= 41, str(len(tool_names)))
-        skill = self.app.registry.get("skill_manage")
+        skill = self.app.registry.get("skills")
         self.check(
-            "skill_manage 声明 write_path_keys 且 discard 在位",
+            "skills 声明 write_path_keys 且 discard 在位",
             skill is not None
             and tuple(getattr(skill, "write_path_keys", ()) or ())
             == ("source", "name")

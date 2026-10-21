@@ -106,7 +106,7 @@ enabled = 1
 
 | 名称 | 能力 | 自己的配置文件 |
 |---|---|---|
-| `skills` | Skills 库与 `skill_manage` 工具 | `plugins/skills/plugin-config.ini` |
+| `skills` | Skills 库（内置 + 外置）与 `skills` 工具 | `plugins/skills/plugin-config.ini` |
 | `knowledge` | 本地知识库检索 | `plugins/knowledge/plugin-config.ini` |
 | `ai_speak` | 人类口语播报与语音播放 | `plugins/ai_speak/plugin-config.ini` |
 

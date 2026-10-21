@@ -112,7 +112,7 @@ class CatalogDisplayTest(unittest.TestCase):
 
         from gen_catalog import collect_display, collect_schemas, render_catalog
         payload = _json.loads(render_catalog(collect_schemas(), collect_display()))
-        row = [t for t in payload["tools"] if t["name"] == "skill_manage"][0]
+        row = [t for t in payload["tools"] if t["name"] == "skills"][0]
         self.assertEqual(row["display"], {"icon": "🧩", "label": "Skills 管理"})
 
 if __name__ == "__main__":

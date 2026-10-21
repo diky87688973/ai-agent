@@ -254,8 +254,8 @@ class SkillsLibraryTest(unittest.TestCase):
         (src / "new1.md").write_text("changed\n", encoding="utf-8")
         self.assertTrue(mgr.plan_copy(src)["conflicts"])
 
-class SkillManageToolTest(unittest.TestCase):
-    """skill_manage 工具。"""
+class SkillsToolTest(unittest.TestCase):
+    """skills 工具。"""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -287,7 +287,7 @@ class SkillManageToolTest(unittest.TestCase):
         self.assertEqual(pv["would_copy"], 1)
         self.assertFalse((self.skills_dir / "c1.md").exists())
         executors = skill_tools.build_executors(self.library)
-        done = executors["skill_manage"]({"action": "copy", "source": str(src)})
+        done = executors["skills"]({"action": "copy", "source": str(src)})
         self.assertTrue(done["written"])
         self.assertTrue((self.skills_dir / "c1.md").exists())
         # 冲突预览标注（name 源已存在）
@@ -297,6 +297,78 @@ class SkillManageToolTest(unittest.TestCase):
     def test_copy_missing_source(self) -> None:
         with self.assertRaises(ValueError):
             self.tool.execute({"action": "copy"})
+
+class SkillsSourceTest(unittest.TestCase):
+    """内置根与外置根：合并、覆盖、auto_load、复制目标。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.builtin = self.root / "builtin"
+        self.external = self.root / "external"
+        self.builtin.mkdir()
+        self.external.mkdir()
+        (self.builtin / "shared.md").write_text(
+            "---\nname: shared\ndescription: 内置版\n---\n内置正文\n", encoding="utf-8")
+        (self.builtin / "only_builtin.md").write_text(
+            "---\nname: only_builtin\ndescription: 仅内置\n---\n内置独有\n", encoding="utf-8")
+        (self.external / "shared.md").write_text(
+            "---\nname: shared\ndescription: 外置版\n---\n外置正文\n", encoding="utf-8")
+        builtin_auto = self.builtin / "auto_load"
+        builtin_auto.mkdir()
+        (builtin_auto / "house.md").write_text(
+            "---\nname: house\n---\n内置常驻\n", encoding="utf-8")
+        external_auto = self.external / "auto_load"
+        external_auto.mkdir()
+        (external_auto / "user_rule.md").write_text(
+            "---\nname: user_rule\n---\n用户常驻\n", encoding="utf-8")
+
+    def test_external_overrides_builtin_and_both_auto_loads(self) -> None:
+        lib = SkillManager(self.external, builtin_dir=self.builtin)
+        skills = {s["name"]: s for s in lib.list_skills()}
+        self.assertEqual(skills["shared"]["description"], "外置版")
+        self.assertIn("only_builtin", skills)
+        self.assertEqual(lib.get_skill("shared"), "外置正文")
+        self.assertEqual(lib.auto_load_count(), 2)
+        auto = "\n".join(lib.build_auto_load_messages())
+        self.assertIn("【内置 Skills auto_load/house】", auto)
+        self.assertIn("【用户 Skills auto_load/user_rule】", auto)
+
+    def test_catalog_separates_builtin_and_external(self) -> None:
+        lib = SkillManager(self.external, builtin_dir=self.builtin)
+        msg = lib.build_registry_message()
+        self.assertIn("【内置 Skills】", msg)
+        self.assertIn("【用户 Skills】", msg)
+        self.assertIn("- only_builtin: 仅内置", msg)
+        self.assertIn("- shared: 外置版", msg)
+
+    def test_copy_targets_external_and_keeps_builtin_read_only(self) -> None:
+        lib = SkillManager(self.external, builtin_dir=self.builtin)
+        src = self.root / "incoming"
+        src.mkdir()
+        (src / "new.md").write_text("---\nname: new\n---\nx\n", encoding="utf-8")
+        plan = lib.plan_copy(src)
+        self.assertEqual(Path(plan["target_dir"]), self.external)
+        lib.execute_copy(src)
+        self.assertTrue((self.external / "new.md").is_file())
+        self.assertFalse((self.builtin / "new.md").exists())
+
+    def test_missing_external_dir_is_actionable(self) -> None:
+        lib = SkillManager(None, builtin_dir=self.builtin)
+        tool = skill_tools.build(lib)
+        self.assertEqual(tool.name, "skills")
+        self.assertIn("请提示用户启用 Skills 插件", tool.description)
+        with self.assertRaises(ValueError) as ctx:
+            tool.execute({"action": "copy", "source": str(self.builtin / "only_builtin.md")})
+        self.assertIn("配置 dir", str(ctx.exception))
+
+    def test_tool_description_contains_external_dir(self) -> None:
+        lib = SkillManager(self.external, builtin_dir=self.builtin)
+        tool = skill_tools.build(lib)
+        self.assertIn(str(self.external), tool.description)
+        self.assertEqual(tool.name, "skills")
+
 
 class GithubApiTest(unittest.TestCase):
     """github_api。"""

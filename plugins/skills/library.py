@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Skills 库：扫描 / 元数据解析 / 读取 / 复制计划（Skills 插件内部）。
+"""Skills 库：扫描内置与外置来源 / 元数据解析 / 读取 / 复制计划（Skills 插件内部）。
 
 范围：不做 LLM 元数据生成、不做缺 frontmatter 自动写回、
 不携带 side_usage / notifications（无旁支模型；静默写文件违反写盘纪律）。
@@ -14,6 +14,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 CATALOG_HEAD = "【Skills 清单】"
+EXTERNAL_DIR_HELP = (
+    "外部 Skills 目录未配置或不存在。"
+    "请提示用户启用 Skills 插件，并在设置 → 插件 → Skills 中配置 dir。"
+)
+
+
+class SkillDirUnavailable(ValueError):
+    """外置 Skills 目录不可写：模型据此提示用户配置。"""
 
 
 def _canonical_key(path: Path) -> str:
@@ -33,31 +41,50 @@ def _canonical_key(path: Path) -> str:
 class SkillMeta:
     """单个 Skills 元数据。"""
 
-    __slots__ = ("name", "description", "file_path", "is_auto_load")
+    __slots__ = ("name", "description", "file_path", "is_auto_load", "source")
 
-    def __init__(self, name: str, description: str, file_path: Path, is_auto_load: bool = False) -> None:
+    def __init__(self, name: str, description: str, file_path: Path,
+                 is_auto_load: bool = False, source: str = "external") -> None:
         self.name = str(name or "").strip()
         self.description = str(description or "").strip()
         self.file_path = file_path
         self.is_auto_load = bool(is_auto_load)
+        self.source = source if source in ("builtin", "external") else "external"
 
 
 class SkillManager:
-    """Skills 库：扫描目录、缓存元数据与正文、mtime 增量重扫。"""
+    """Skills 库：扫描内置与外置目录、缓存元数据与正文、mtime 增量重扫。"""
 
-    def __init__(self, skills_dir: Optional[Path], max_file_size: int = 200000) -> None:
+    def __init__(self, skills_dir: Optional[Path], max_file_size: int = 200000,
+                 *, builtin_dir: Optional[Path] = None) -> None:
         self.skills_dir = Path(skills_dir) if skills_dir else None
+        self.external_dir = self.skills_dir
+        self.builtin_dir = Path(builtin_dir) if builtin_dir else None
         self.max_file_size = int(max_file_size)
         self.skills: List[SkillMeta] = []
         self._content_cache: Dict[str, str] = {}
         self._last_mtimes: Dict[str, float] = {}
         #: 扫描与读取共用。重扫必须整表换上，不能一边清空一边追加。
         self._lock = threading.RLock()
-        if self.skills_dir and self.skills_dir.is_dir():
+        if self._root_specs():
             self._scan()
             # 首次扫描后就把 mtime 记下来：不记的话下面每次 `_check_rescan`
             # 都会判成"变了"再扫一遍（首次加载后紧接着的重扫纯属白做）。
             self._last_mtimes = self._current_mtimes()
+
+    def _root_specs(self) -> List[Tuple[Path, str]]:
+        """现有来源根，按内置 → 外置排列；外置同名覆盖内置。"""
+        specs: List[Tuple[Path, str]] = []
+        if self.builtin_dir and self.builtin_dir.is_dir():
+            specs.append((self.builtin_dir, "builtin"))
+        if self.external_dir and self.external_dir.is_dir():
+            specs.append((self.external_dir, "external"))
+        return specs
+
+    def _external_root(self) -> Path:
+        if not self.external_dir or not self.external_dir.is_dir():
+            raise SkillDirUnavailable(EXTERNAL_DIR_HELP)
+        return self.external_dir
 
     # ── 隐藏目录过滤 ────────────────────────────────────
 
@@ -77,17 +104,16 @@ class SkillManager:
             return sum(1 for s in self._deduped() if s.is_auto_load)
 
     def _current_mtimes(self) -> Dict[str, float]:
-        """当前全部 Skills 文件的 mtime 表（键是绝对路径）。"""
+        """当前全部来源根里的 Skills 文件 mtime 表（键是绝对路径）。"""
         out: Dict[str, float] = {}
-        if not self.skills_dir or not self.skills_dir.is_dir():
-            return out
-        for md_file in self.skills_dir.rglob("*.md"):
-            if not md_file.is_file() or self._should_skip(md_file):
-                continue
-            try:
-                out[str(md_file.resolve())] = md_file.stat().st_mtime
-            except OSError:
-                continue
+        for root, _source in self._root_specs():
+            for md_file in root.rglob("*.md"):
+                if not md_file.is_file() or self._should_skip(md_file):
+                    continue
+                try:
+                    out[str(md_file.resolve())] = md_file.stat().st_mtime
+                except OSError:
+                    continue
         return out
 
     def _check_rescan(self) -> None:
@@ -96,14 +122,14 @@ class SkillManager:
         界面/工具改完 Skills 文件后，下一次收集就能看到（这里每次都核对 mtime）。
         调用方若已持有 `_lock` 会重入，不会和自己死锁。
         """
-        if not self.skills_dir or not self.skills_dir.is_dir():
+        if not self._root_specs():
             return
         with self._lock:
             current = self._current_mtimes()
             if current == self._last_mtimes:
                 return
             # 先记下这份 mtime，再整表换上。换上的是新列表，不是往旧列表里追加：
-            # `clear()` 之后两边一起 `append`，31 个文件会被装进同一份列表两次，
+            # `clear()` 之后两边一起 `append`，同一文件会被装进同一份列表两次，
             # 段上的数字只是 `len(...)` 的一次赋值，赋到的却是 62。
             self._last_mtimes = current
             self.skills = self._collect_skills()
@@ -117,49 +143,51 @@ class SkillManager:
             self._last_mtimes = self._current_mtimes()
 
     def _scan(self) -> None:
-        """整表换上当前目录里的 Skills（赋值，不追加）。"""
+        """整表换上当前来源里的 Skills（赋值，不追加）。"""
         built = self._collect_skills()
         with self._lock:
             self.skills = built
             self._content_cache.clear()
 
     def _collect_skills(self) -> List[SkillMeta]:
-        """扫描 skills_dir 下全部 .md，返回一份新列表（不碰 `self.skills`）。
+        """扫描内置与外置根下全部 .md，返回一份新列表（不碰 `self.skills`）。
 
-        `auto_load/` 子目录标记常驻；隐藏目录跳过。同一文件只留一条。
+        `auto_load/` 子目录标记常驻；隐藏目录跳过。同一物理文件只留一条。
+        同名条目先全部保留，由 `_deduped` 按外置优先收敛。
         """
         built: List[SkillMeta] = []
-        if not self.skills_dir or not self.skills_dir.is_dir():
-            return built
         seen: Set[str] = set()
-        auto_dir = self.skills_dir / "auto_load"
+        for root, source in self._root_specs():
+            auto_dir = root / "auto_load"
 
-        def _collect_one(md_file: Path, is_auto_load: bool) -> None:
-            key = _canonical_key(md_file)
-            if key in seen:
-                return
-            seen.add(key)
-            try:
-                rel_name = str(md_file.relative_to(self.skills_dir)).replace("\\", "/")
-            except ValueError:
-                rel_name = md_file.name
-            if rel_name.lower().endswith(".md"):
-                rel_name = rel_name[:-3]
-            _, desc = self._parse_meta(md_file)
-            built.append(SkillMeta(rel_name, desc, md_file, is_auto_load=is_auto_load))
+            def _collect_one(md_file: Path, is_auto_load: bool,
+                             _root: Path = root, _source: str = source) -> None:
+                key = _canonical_key(md_file)
+                if key in seen:
+                    return
+                seen.add(key)
+                try:
+                    rel_name = str(md_file.relative_to(_root)).replace("\\", "/")
+                except ValueError:
+                    rel_name = md_file.name
+                if rel_name.lower().endswith(".md"):
+                    rel_name = rel_name[:-3]
+                _, desc = self._parse_meta(md_file)
+                built.append(SkillMeta(rel_name, desc, md_file,
+                                       is_auto_load=is_auto_load, source=_source))
 
-        if auto_dir.is_dir():
-            for md_file in sorted(auto_dir.rglob("*.md")):
-                if md_file.is_file() and not self._should_skip(md_file):
-                    _collect_one(md_file, is_auto_load=True)
+            if auto_dir.is_dir():
+                for md_file in sorted(auto_dir.rglob("*.md")):
+                    if md_file.is_file() and not self._should_skip(md_file):
+                        _collect_one(md_file, is_auto_load=True)
 
-        skip_prefix = auto_dir.resolve() if auto_dir.is_dir() else None
-        for md_file in sorted(self.skills_dir.rglob("*.md")):
-            if not md_file.is_file() or self._should_skip(md_file):
-                continue
-            if skip_prefix and skip_prefix in md_file.resolve().parents:
-                continue
-            _collect_one(md_file, is_auto_load=False)
+            skip_prefix = auto_dir.resolve() if auto_dir.is_dir() else None
+            for md_file in sorted(root.rglob("*.md")):
+                if not md_file.is_file() or self._should_skip(md_file):
+                    continue
+                if skip_prefix and skip_prefix in md_file.resolve().parents:
+                    continue
+                _collect_one(md_file, is_auto_load=False)
         return built
 
     # ── frontmatter 解析 ───────────────────────────────
@@ -201,15 +229,22 @@ class SkillManager:
     # ── 公开 API ───────────────────────────────────────
 
     def _deduped(self) -> List[SkillMeta]:
-        """当前表里每个文件只留第一条。调用方应已持有 `_lock`。"""
+        """按文件身份去重，并按名字让外置覆盖内置。调用方应已持有 `_lock`。"""
         out: List[SkillMeta] = []
+        by_name: Dict[str, int] = {}
         seen: Set[str] = set()
+        rank = {"builtin": 0, "external": 1}
         for s in self.skills:
             key = _canonical_key(s.file_path)
             if key in seen:
                 continue
             seen.add(key)
-            out.append(s)
+            index = by_name.get(s.name)
+            if index is None:
+                by_name[s.name] = len(out)
+                out.append(s)
+            elif rank[s.source] > rank[out[index].source]:
+                out[index] = s
         return out
 
     def list_skills(self) -> List[Dict[str, Any]]:
@@ -270,7 +305,8 @@ class SkillManager:
                 stem_matches = [
                     s
                     for s in skills
-                    if s.file_path.stem.lower() == key_lower and s.file_path.parent == self.skills_dir
+                    if s.file_path.stem.lower() == key_lower
+                    and any(s.file_path.parent == root for root, _source in self._root_specs())
                 ]
                 if len(stem_matches) == 1:
                     return self._read_content(stem_matches[0])
@@ -279,7 +315,7 @@ class SkillManager:
     def build_registry_message(self) -> str:
         """构建可用 Skills 清单（一条 system 消息，注入上下文前端）。
 
-        渐进式披露的第一层：清单里只有名字与描述，正文按需用 `skill_manage`
+        渐进式披露的第一层：清单里只有名字与描述，正文按需用 `skills`
         读取。模型据此知道"有哪些 Skills、什么时候该用"，而不必把所有正文塞进请求。
         没有普通 Skills → 空串（不注入空清单）。
         """
@@ -289,17 +325,24 @@ class SkillManager:
     def build_registry_message_parts(self) -> List[str]:
         """清单的消息列表形态（没有 Skills → 空列表）。
 
-        注入源按 `List[str]` 收内容，这里给它列表；单条内容与
-        `build_registry_message()` 完全一致。
+        内置与用户来源分组注入，让模型知道默认能力与用户扩展的边界；
+        条目字段仍与 `list_skills()` 一致，UI 不感知来源。
         """
-        items = self.list_skills()
-        if not items:
+        with self._lock:
+            self._check_rescan()
+            rows = [s for s in self._deduped() if not s.is_auto_load]
+        if not rows:
             return []
         lines = [CATALOG_HEAD,
-                 "需要用某个 Skills 时，先用 skill_manage 读取它的正文再照做。"]
-        for s in items:
-            desc = str(s.get("description") or "").strip() or "（无描述）"
-            lines.append(f"- {s.get('name')}: {desc}")
+                 "需要用某个 Skills 时，先用 skills 读取它的正文再照做。"]
+        for source, label in (("builtin", "内置 Skills"), ("external", "用户 Skills")):
+            group = [s for s in rows if s.source == source]
+            if not group:
+                continue
+            lines.append(f"【{label}】")
+            for s in group:
+                desc = s.description.strip() or "（无描述）"
+                lines.append(f"- {s.name}: {desc}")
         return ["\n".join(lines)]
 
     def build_auto_load_messages(self) -> List[str]:
@@ -316,12 +359,14 @@ class SkillManager:
                     continue
                 content = self._read_content(s)
                 if content.strip():
-                    out.append(f"【Skills {s.name}】\n{content}")
+                    label = "内置 Skills" if s.source == "builtin" else "用户 Skills"
+                    out.append(f"【{label} {s.name}】\n{content}")
             return out
 
     def _read_content(self, meta: SkillMeta) -> str:
-        if meta.name in self._content_cache:
-            return self._content_cache[meta.name]
+        cache_key = _canonical_key(meta.file_path)
+        if cache_key in self._content_cache:
+            return self._content_cache[cache_key]
         try:
             text = meta.file_path.read_text(encoding="utf-8")
         except OSError:
@@ -330,18 +375,17 @@ class SkillManager:
             text = text[: self.max_file_size // 2] + "\n\n...(文件过大，已截断)"
         _, body = self._strip_frontmatter(text)
         content = body.strip()
-        self._content_cache[meta.name] = content
+        self._content_cache[cache_key] = content
         return content
 
     # ── 复制（两段式：计划 → 执行）──────────────────────
 
     def plan_copy(self, source: Path, subdir: str = "") -> Dict[str, Any]:
-        """复制计划（预览，不落盘）：解析源与目标、列出将复制文件与冲突。"""
-        if not self.skills_dir:
-            raise ValueError("skills 目录未配置")
+        """复制计划（预览，不落盘）：目标只能是外置 Skills 根。"""
+        target_root = self._external_root()
         sub = str(subdir or "").strip().strip("/")
         if source.is_file():
-            target_dir = (self.skills_dir / sub) if sub else self.skills_dir
+            target_dir = (target_root / sub) if sub else target_root
             dest = target_dir / source.name
             return {
                 "mode": "file",
@@ -356,7 +400,7 @@ class SkillManager:
         src = (source / sub) if sub else source
         if not src.is_dir():
             raise FileNotFoundError(f"子目录不存在: {src}")
-        target_dir = (self.skills_dir / sub) if sub else self.skills_dir
+        target_dir = (target_root / sub) if sub else target_root
         files: List[str] = []
         skipped = 0
         for f in sorted(src.iterdir()):

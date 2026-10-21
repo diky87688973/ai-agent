@@ -368,7 +368,7 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 
 | 插件 | 注册了什么 | 形态 |
 |---|---|---|
-| `plugins/skills` | `skill_manage` 工具 + 提交执行器 + 两条注入 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
+| `plugins/skills` | `skills` 工具 + 提交执行器 + 两条注入 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
 | `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.md) |
 | `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.md) |
 | `plugins/visual_operator` | 四个工具（截屏 / 鼠标 / 键盘 / 等待）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时只报错不消失；见 [visual-operator.md](visual-operator.md) |
@@ -440,7 +440,7 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 - [上下文管理](context.md)：注入源怎么进上下文、组装顺序怎么定
 - [知识库](knowledge.md)：`knowledge` 的文件收录、勾选与注入
 - [多模型](multi-model.md)：`multi_model` 的目录条目与设置页表单
-- [Skills](skills.md)：`skills` 插件的三层披露与 `skill_manage`
+- [Skills](skills.md)：`skills` 插件的三层披露与 `skills` 工具
 - [Visual Operator](visual-operator.md)：`visual_operator` 的截屏、坐标契约与平台后端
 - [工具](tools.md)：工具的注册、执行管道与写盘协议
 - [壳层](shell.md)：HTTP 路由与界面打包

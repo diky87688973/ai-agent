@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1633** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1638** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -17,7 +17,7 @@
 7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（11）
 8. [test_artifact_lock.py](#test_artifact_lockpy)（16）
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
-10. [test_batch_f_tools.py](#test_batch_f_toolspy)（25）
+10. [test_batch_f_tools.py](#test_batch_f_toolspy)（30）
 11. [test_catalog.py](#test_catalogpy)（8）
 12. [test_chat_shell.py](#test_chat_shellpy)（16）
 13. [test_classic_adapter.py](#test_classic_adapterpy)（103）
@@ -302,7 +302,7 @@
 
 ## test_batch_f_tools.py
 
-共 25 个用例。
+共 30 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -316,21 +316,26 @@
 | 8 | `ReviewConclusionTest` | `test_cancel_preview_and_invalid` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：cancel preview and invalid |
 | 9 | `ReviewConclusionTest` | `test_confirm_unlock_and_review_done` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：confirm unlock and review done |
 | 10 | `ReviewConclusionTest` | `test_short_conclusion_and_missing_file_name_rejected` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：short conclusion and missing file name rejected |
-| 11 | `SkillManageToolTest` | `test_copy_missing_source` | 覆盖「skill_manage 工具」：copy missing source |
-| 12 | `SkillManageToolTest` | `test_copy_preview_and_executor` | 覆盖「skill_manage 工具」：copy preview and executor |
-| 13 | `SkillManageToolTest` | `test_list_read_and_lookup_error` | 覆盖「skill_manage 工具」：list read and lookup error |
-| 14 | `SkillsLibraryTest` | `test_copy_plan_execute_and_conflict` | 覆盖「Skills 库」：copy plan execute and conflict |
-| 15 | `SkillsLibraryTest` | `test_scan_list_and_matching` | 覆盖「Skills 库」：scan list and matching |
-| 16 | `SkillsLibraryTest` | `test_truncation_and_incremental_rescan` | 覆盖「Skills 库」：truncation and incremental rescan |
-| 17 | `SkillsListNeverDoublesTest` | `test_auto_load_count_ignores_duplicate_entries` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：auto load count ignores duplicate entries |
-| 18 | `SkillsListNeverDoublesTest` | `test_concurrent_rescan_replaces_the_list` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：concurrent rescan replaces the list |
-| 19 | `SkillsListNeverDoublesTest` | `test_different_path_spelling_counts_once` | 同一文件的两种路径写法不能让 `len(list_skills())` 变成两倍。 |
-| 20 | `SkillsListNeverDoublesTest` | `test_duplicate_entries_do_not_double_the_catalog` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：duplicate entries do not double the catalog |
-| 21 | `SkillsListNeverDoublesTest` | `test_rescan_does_not_append_twice` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：rescan does not append twice |
-| 22 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
-| 23 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
-| 24 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
-| 25 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
+| 11 | `SkillsLibraryTest` | `test_copy_plan_execute_and_conflict` | 覆盖「Skills 库」：copy plan execute and conflict |
+| 12 | `SkillsLibraryTest` | `test_scan_list_and_matching` | 覆盖「Skills 库」：scan list and matching |
+| 13 | `SkillsLibraryTest` | `test_truncation_and_incremental_rescan` | 覆盖「Skills 库」：truncation and incremental rescan |
+| 14 | `SkillsListNeverDoublesTest` | `test_auto_load_count_ignores_duplicate_entries` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：auto load count ignores duplicate entries |
+| 15 | `SkillsListNeverDoublesTest` | `test_concurrent_rescan_replaces_the_list` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：concurrent rescan replaces the list |
+| 16 | `SkillsListNeverDoublesTest` | `test_different_path_spelling_counts_once` | 同一文件的两种路径写法不能让 `len(list_skills())` 变成两倍。 |
+| 17 | `SkillsListNeverDoublesTest` | `test_duplicate_entries_do_not_double_the_catalog` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：duplicate entries do not double the catalog |
+| 18 | `SkillsListNeverDoublesTest` | `test_rescan_does_not_append_twice` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：rescan does not append twice |
+| 19 | `SkillsSourceTest` | `test_catalog_separates_builtin_and_external` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：catalog separates builtin and external |
+| 20 | `SkillsSourceTest` | `test_copy_targets_external_and_keeps_builtin_read_only` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：copy targets external and keeps builtin read only |
+| 21 | `SkillsSourceTest` | `test_external_overrides_builtin_and_both_auto_loads` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：external overrides builtin and both auto loads |
+| 22 | `SkillsSourceTest` | `test_missing_external_dir_is_actionable` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：missing external dir is actionable |
+| 23 | `SkillsSourceTest` | `test_tool_description_contains_external_dir` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：tool description contains external dir |
+| 24 | `SkillsToolTest` | `test_copy_missing_source` | 覆盖「skills 工具」：copy missing source |
+| 25 | `SkillsToolTest` | `test_copy_preview_and_executor` | 覆盖「skills 工具」：copy preview and executor |
+| 26 | `SkillsToolTest` | `test_list_read_and_lookup_error` | 覆盖「skills 工具」：list read and lookup error |
+| 27 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
+| 28 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
+| 29 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
+| 30 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
 
 ## test_catalog.py
 
@@ -685,7 +690,7 @@
 | 142 | `SkillProgressiveDisclosure` | `test_registry_excludes_skill_bodies` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry excludes skill bodies |
 | 143 | `SkillProgressiveDisclosure` | `test_registry_is_absent_when_no_skills` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry is absent when no skills |
 | 144 | `SkillProgressiveDisclosure` | `test_registry_lists_names_and_descriptions` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry lists names and descriptions |
-| 145 | `SkillProgressiveDisclosure` | `test_skill_manager_lists_normal_skills_only` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：skill manager lists normal skills only |
+| 145 | `SkillProgressiveDisclosure` | `test_skillsr_lists_normal_skills_only` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：skillsr lists normal skills only |
 | 146 | `SourceOrderDeclaration` | `test_kernel_pipeline_follows_the_same_order` | 真管线：Skills 两段 → 知识库 → 摘要 → 对话。 |
 | 147 | `SourceOrderDeclaration` | `test_no_rank_sorts_last` | 没有位次的（应用级来源，不属于任何插件）排在插件段之后。 |
 | 148 | `SourceOrderDeclaration` | `test_rank_beats_registration` | 先注册知识库（位次 1）、后注册 Skills（位次 0），组装仍是 Skills 在前。 |
@@ -2216,7 +2221,7 @@
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `WritePathKeysLifecycleTest` | `test_drop_plugin_removes_skill_manage_from_registry` | 覆盖「A class whose instances are single test cases」：drop plugin removes skill manage from registry |
+| 1 | `WritePathKeysLifecycleTest` | `test_drop_plugin_removes_skills_from_registry` | 覆盖「A class whose instances are single test cases」：drop plugin removes skills from registry |
 | 2 | `WritePathKeysLifecycleTest` | `test_gate_lookup_tracks_registry` | 覆盖「A class whose instances are single test cases」：gate lookup tracks registry |
 | 3 | `WritePathKeysLifecycleTest` | `test_plugin_context_rollback_drops_tool_from_registry` | 覆盖「A class whose instances are single test cases」：plugin context rollback drops tool from registry |
 | 4 | `WritePathKeysLifecycleTest` | `test_resolve_uses_declared_keys_not_default_path` | 覆盖「A class whose instances are single test cases」：resolve uses declared keys not default path |

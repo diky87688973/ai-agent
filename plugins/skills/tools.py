@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Skills 管理工具：skill_manage——list / read 只读直通；copy 走预览 + 提交执行器。
+"""Skills 工具：skills——list / read 只读直通；copy 走预览 + 提交执行器。
 
 copy 预览（不落盘，返回 confirm_id；冲突时明示 would_overwrite，是否覆盖由确认环节决定）；
 提交执行器由 commit_write 统一分派（app.py 装配）。
@@ -39,13 +39,13 @@ def _resolve_copy_source(library: SkillManager, arguments: Dict[str, Any]) -> Pa
     raise ValueError("action=copy 需要指定 source（路径）或 name（skill 名称）")
 
 
-class SkillManageTool(ToolPlugin):
+class SkillsTool(ToolPlugin):
     """Skills 工具：list / read 直通；copy 预览。"""
 
-    name = "skill_manage"
+    name = "skills"
     label = "Skills 管理"
     icon = "🧩"
-    description = "Skills 管理：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。"
+    description = "Skills：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。"
     needs_preview = True
     write_path_keys = ("source", "name")
     parameters = {
@@ -57,6 +57,24 @@ class SkillManageTool(ToolPlugin):
 
     def __init__(self, library: SkillManager) -> None:
         self._library = library
+        self.description = self._description(library)
+
+    @staticmethod
+    def _description(library: SkillManager) -> str:
+        base = ("Skills：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；"
+                "`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。")
+        target = library.external_dir
+        if target and Path(target).is_dir():
+            return base + f" 新增 Skills 的复制目标目录：{target}。"
+        if target:
+            return base + (
+                f" 外部 Skills 目录不存在：{target}。action=copy 不可用；"
+                "请提示用户启用 Skills 插件并在设置 → 插件 → Skills 中配置 dir。"
+            )
+        return base + (
+            " 外部 Skills 目录未配置，action=copy 不可用；"
+            "请提示用户启用 Skills 插件并在设置 → 插件 → Skills 中配置 dir。"
+        )
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         action = str(arguments.get("action") or "").strip().lower()
@@ -104,7 +122,7 @@ def _execute_skill_copy(library: SkillManager, arguments: Dict[str, Any]) -> Dic
     """提交：执行 Skills 复制（真实落盘）。"""
     action = str(arguments.get("action") or "").strip().lower()
     if action != "copy":
-        raise ValueError("预览快照不完整：请重新预览（skill_manage）")
+        raise ValueError("预览快照不完整：请重新预览（skills）")
     src_path = _resolve_copy_source(library, arguments)
     subdir = str(arguments.get("subdir") or "").strip()
     result = library.execute_copy(src_path, subdir)
@@ -118,11 +136,11 @@ def _execute_skill_copy(library: SkillManager, arguments: Dict[str, Any]) -> Dic
     }
 
 
-def build(library: SkillManager) -> SkillManageTool:
-    """构造 skill_manage 插件（需 Skills 库引用）。"""
-    return SkillManageTool(library)
+def build(library: SkillManager) -> SkillsTool:
+    """构造 skills 工具（需 Skills 库引用）。"""
+    return SkillsTool(library)
 
 
 def build_executors(library: SkillManager) -> Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]]:
     """构造本工具提交执行器表。"""
-    return {"skill_manage": lambda args: _execute_skill_copy(library, args)}
+    return {"skills": lambda args: _execute_skill_copy(library, args)}

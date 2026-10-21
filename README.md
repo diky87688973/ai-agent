@@ -84,7 +84,7 @@ full_user_rounds         = 1
 | [插件](docs/subsystems/plugins.md) | 插件包形态、可贡献的能力、界面资产、生命周期与边界 |
 | [知识库](docs/subsystems/knowledge.md) | `knowledge` 的文件收录、勾选状态、注入与端点 |
 | [多模型](docs/subsystems/multi-model.md) | `multi_model` 的目录条目、设置页表单与模型下拉 |
-| [Skills](docs/subsystems/skills.md) | `skills` 插件的三层披露与 `skill_manage` |
+| [Skills](docs/subsystems/skills.md) | `skills` 插件的三层披露、内置/外置来源与 `skills` 工具 |
 | [Visual Operator](docs/subsystems/visual-operator.md) | `visual_operator` 的截屏、坐标网格与鼠标键盘工具 |
 | [AI说话](docs/subsystems/ai-speak.md) | `ai_speak` 的文本规范、语音合成、插件事件与播放器 |
 | [会话与协作](docs/subsystems/session.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
@@ -112,7 +112,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1633 个用例）：
+单元测试（1638 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

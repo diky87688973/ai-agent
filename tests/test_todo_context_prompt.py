@@ -216,7 +216,7 @@ class SystemPromptTest(unittest.TestCase):
                       "复核不使已解锁的 confirm_id 失效",
                       "fake_preview_write"):
             self.assertIn(needle, prompt, msg=needle)
-        self.assertNotIn("skill_manage", prompt)
+        self.assertNotIn("skills", prompt)
 
     def test_preview_write_tools_line_tracks_registry(self) -> None:
         """预览写类名单随 registry 增减，不手写固定串。"""

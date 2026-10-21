@@ -1,4 +1,4 @@
-/* Skills 工具卡视图：skill_manage action=read。
+/* Skills 工具卡视图：skills action=read。
    经开屏脚本贡献预载；壳层不点名本工具。 */
 (function () {
   "use strict";
@@ -20,7 +20,7 @@
 
   register({
     match: function (script, args) {
-      return chatToolName(script) === "skill_manage"
+      return chatToolName(script) === "skills"
         && String(argGet(args, "action") || "").toLowerCase() === "read";
     },
     title: function () { return "加载 Skills"; },

@@ -72,7 +72,7 @@ class WritePathKeysLifecycleTest(unittest.TestCase):
                 raise
         self.assertIsNone(reg.get("keyed_write_tool"))
 
-    def test_drop_plugin_removes_skill_manage_from_registry(self) -> None:
+    def test_drop_plugin_removes_skills_from_registry(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         base = Path(tmp.name)
@@ -91,11 +91,11 @@ class WritePathKeysLifecycleTest(unittest.TestCase):
         reports = host.load_enabled(["skills"])
         self.assertEqual(len(reports), 1)
         self.assertEqual(reports[0].status, "loaded", msg=reports[0].message)
-        plugin = reg.get("skill_manage")
+        plugin = reg.get("skills")
         self.assertIsNotNone(plugin)
         self.assertEqual(tuple(plugin.write_path_keys), ("source", "name"))
         host.unload("skills")
-        self.assertIsNone(reg.get("skill_manage"))
+        self.assertIsNone(reg.get("skills"))
 
 
 if __name__ == "__main__":
