@@ -61,13 +61,33 @@ class FindInFileTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.tool.execute({"path": str(self.fp), "pattern": "alpha", "occurrence": 9})
 
-    def test_blank_pattern_points_to_next_tool(self) -> None:
-        """字面模式 pattern 为空：报错要点名下一步换哪个工具。"""
+    def test_blank_pattern_says_what_to_fix(self) -> None:
+        """字面模式 pattern 为空：只说 pattern 本身该怎么改。"""
         with self.assertRaises(ValueError) as ctx:
             self.tool.execute({"path": str(self.fp), "pattern": ""})
         message = str(ctx.exception)
-        self.assertIn("glob_files", message)
-        self.assertIn("read_file", message)
+        self.assertIn("pattern", message)
+        # 错在 pattern，不在工具：罗列换工具只会误导。
+        for unrelated in ("glob_files", "read_file"):
+            self.assertNotIn(unrelated, message)
+
+    def test_path_is_dir_points_to_directory_tools(self) -> None:
+        """path 传了目录：说清本工具只处理单文件，并指向能搜目录的工具。"""
+        root = Path(self._tmp.name)
+        with self.assertRaises(ValueError) as ctx:
+            self.tool.execute({"path": str(root), "pattern": "alpha"})
+        message = str(ctx.exception)
+        self.assertIn("目录", message)
+        self.assertIn("grep_files", message)
+
+    def test_missing_file_is_not_reported_as_dir(self) -> None:
+        """文件不存在与传了目录必须分开说 —— 旧版两者都报「不是已存在文件」。"""
+        root = Path(self._tmp.name)
+        with self.assertRaises(FileNotFoundError) as ctx:
+            self.tool.execute({"path": str(root / "nope.md"), "pattern": "x"})
+        message = str(ctx.exception)
+        self.assertIn("不存在", message)
+        self.assertNotIn("目录", message)
 
     def test_regex_invalid(self) -> None:
         with self.assertRaises(ValueError):
@@ -98,12 +118,12 @@ class RegexLocateTest(unittest.TestCase):
         self.assertTrue(r["truncated"])
 
     def test_blank_pattern_raises(self) -> None:
-        """空 pattern 报错：空正则会命中每一个位置，结果没有意义。"""
+        """空 pattern 报错：空正则会命中每个位置。"""
         with self.assertRaises(ValueError) as ctx:
             self.tool.execute({"path": str(self.root), "pattern": ""})
         message = str(ctx.exception)
         self.assertIn("pattern 不能为空", message)
-        self.assertIn("glob_files", message)
+        self.assertIn("非空正则", message)
 
     def test_invalid_regex_and_limit(self) -> None:
         with self.assertRaises(ValueError):
@@ -134,12 +154,12 @@ class FileSearchTest(unittest.TestCase):
         self.assertEqual(r2["total_matches"], 2)
 
     def test_blank_pattern_raises(self) -> None:
-        """空 pattern 报错：不要悄悄把每个位置都当成命中。"""
+        """空 pattern 报错，不要静默把每个位置都当成命中。"""
         with self.assertRaises(ValueError) as ctx:
             self.tool.execute({"path": str(self.root), "pattern": ""})
         message = str(ctx.exception)
         self.assertIn("pattern 不能为空", message)
-        self.assertIn("glob_files", message)
+        self.assertIn("非空 pattern", message)
 
     def test_limit(self) -> None:
         r = self.tool.execute({"path": str(self.root), "pattern": "needle", "no_gitignore": True, "limit": 1})

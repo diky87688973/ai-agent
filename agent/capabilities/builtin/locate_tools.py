@@ -45,8 +45,7 @@ def _collect_spans(full: str, pattern: str, *, regex: bool, ignore_case: bool) -
     if not regex:
         if not pattern:
             raise ValueError(
-                "pattern 不能为空（字面模式）：给一个非空 pattern 后重试；"
-                "只想列文件名用 glob_files，读整个文件内容用 read_file，"
+                "pattern 不能为空（字面模式）：给一个非空 pattern；"
                 "要按正则匹配传 regex=true。"
             )
         flags = re.IGNORECASE if ignore_case else 0
@@ -141,8 +140,13 @@ class FindInFileTool(ToolPlugin):
         if not raw_path:
             raise ValueError("缺少 path")
         fp = Path(raw_path)
+        if not fp.exists():
+            raise FileNotFoundError(f"文件不存在：{fp.resolve()}")
         if not fp.is_file():
-            raise FileNotFoundError(f"不是已存在文件: {fp}")
+            raise ValueError(
+                "path 是目录，本工具只处理单个文件。在目录里搜内容用 grep_files；"
+                "只列文件名用 glob_files。"
+            )
         pattern = str(arguments.get("pattern") or "")
         regex = bool(arguments.get("regex", False))
         encoding = str(arguments.get("encoding") or "utf-8")
@@ -214,9 +218,8 @@ class RegexLocateTool(ToolPlugin):
         pattern = str(arguments.get("pattern") or "")
         if not pattern:
             raise ValueError(
-                "pattern 不能为空：regex_locate 按正则匹配，空正则会命中每一个位置。"
-                "给一个非空正则后重试；只找字面用 find_in_file 或 grep_files，"
-                "只想列文件名用 glob_files，读整个文件内容用 read_file。"
+                "pattern 不能为空：regex_locate 按正则匹配，空正则会命中每个位置。"
+                "给一个非空正则。"
             )
         raw_limit = arguments.get("limit")
         try:
@@ -225,9 +228,9 @@ class RegexLocateTool(ToolPlugin):
             raise ValueError("limit 须为整数")
         if limit <= 0:
             raise ValueError("limit 必须 > 0")
-        root = Path(raw_path)
+        root = Path(raw_path).resolve()
         if not root.exists():
-            raise FileNotFoundError(f"路径不存在: {root}")
+            raise FileNotFoundError(f"路径不存在：{root}")
         flags = re.MULTILINE
         if bool(arguments.get("ignore_case", False)):
             flags |= re.IGNORECASE
@@ -456,15 +459,13 @@ class FileSearchTool(ToolPlugin):
         raw_path = str(arguments.get("path") or "").strip()
         if not raw_path:
             raise ValueError("缺少 path")
-        target = Path(raw_path)
+        target = Path(raw_path).resolve()
         if not target.exists():
-            raise FileNotFoundError(f"目标不存在: {target}")
+            raise FileNotFoundError(f"路径不存在：{target}")
         pattern = str(arguments.get("pattern") or "")
         if not pattern:
             raise ValueError(
-                "pattern 不能为空：空 pattern 会把每个位置都算成命中，结果没有意义。"
-                "给一个非空 pattern 后重试；只想列文件名用 glob_files，"
-                "读整个文件内容用 read_file，定位单文件用 find_in_file 或 regex_locate。"
+                "pattern 不能为空：空 pattern 会把每个位置都算成命中。给一个非空 pattern。"
             )
         raw_exclude = arguments.get("exclude")
         exclude = (

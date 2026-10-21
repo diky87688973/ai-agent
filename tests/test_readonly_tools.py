@@ -134,13 +134,16 @@ class GrepFilesToolTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.tool.execute({"path": str(self.root)})
 
-    def test_blank_pattern_points_to_next_tool(self) -> None:
-        """字面模式 | 分隔后没有非空段：报错要点名下一步换哪个工具。"""
+    def test_blank_pattern_says_what_to_fix(self) -> None:
+        """字面模式 | 分隔后无有效段：只说 pattern 与 regex 两个真正相关的处置。"""
         with self.assertRaises(ValueError) as ctx:
             self.tool.execute({"pattern": " | ", "path": str(self.root)})
         message = str(ctx.exception)
-        self.assertIn("glob_files", message)
-        self.assertIn("read_file", message)
+        self.assertIn("pattern", message)
+        self.assertIn("regex=true", message)
+        # 错在 pattern，不在工具：罗列换工具只会误导，也白花 token。
+        for unrelated in ("glob_files", "read_file", "find_in_file"):
+            self.assertNotIn(unrelated, message)
 
     def test_binary_file_skipped(self) -> None:
         """含 NUL 字节的文件被跳过（二进制嗅探）。"""
@@ -150,9 +153,22 @@ class GrepFilesToolTest(unittest.TestCase):
         self.assertEqual(data["count"], 0)
 
     def test_path_not_dir_raises(self) -> None:
-        """path 指向文件而非目录时抛 ValueError。"""
-        with self.assertRaises(ValueError):
+        """path 指向文件：说清本工具只搜目录，并给出真能吃下单文件的工具。"""
+        with self.assertRaises(ValueError) as ctx:
             self.tool.execute({"pattern": "alpha", "path": str(self.root / "a.txt")})
+        message = str(ctx.exception)
+        self.assertIn("只搜目录", message)
+        self.assertIn("find_in_file", message)
+
+    def test_missing_path_is_not_reported_as_wrong_type(self) -> None:
+        """路径不存在与类型不对必须分开说：两者处置完全不同。"""
+        with self.assertRaises(ValueError) as ctx:
+            self.tool.execute({"pattern": "alpha", "path": str(self.root / "nope")})
+        message = str(ctx.exception)
+        self.assertIn("不存在", message)
+        # 换工具找不到不存在的东西，不得在这里罗列工具名。
+        for tool_name in ("find_in_file", "regex_locate", "glob_files"):
+            self.assertNotIn(tool_name, message)
 
 
 class ScopeTest(unittest.TestCase):

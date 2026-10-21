@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1684** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1687** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -45,7 +45,7 @@
 35. [test_image_tool.py](#test_image_toolpy)（23）
 36. [test_image_turns.py](#test_image_turnspy)（23）
 37. [test_import_graph.py](#test_import_graphpy)（5）
-38. [test_invest_tools.py](#test_invest_toolspy)（27）
+38. [test_invest_tools.py](#test_invest_toolspy)（29）
 39. [test_kb_plugin.py](#test_kb_pluginpy)（49）
 40. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
 41. [test_mode_note.py](#test_mode_notepy)（12）
@@ -64,7 +64,7 @@
 54. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
 55. [test_queue_runner.py](#test_queue_runnerpy)（3）
 56. [test_queued_input.py](#test_queued_inputpy)（2）
-57. [test_readonly_tools.py](#test_readonly_toolspy)（31）
+57. [test_readonly_tools.py](#test_readonly_toolspy)（32）
 58. [test_resume_bridge.py](#test_resume_bridgepy)（6）
 59. [test_rules_plugin.py](#test_rules_pluginpy)（12）
 60. [test_run_registry.py](#test_run_registrypy)（13）
@@ -1196,37 +1196,39 @@
 
 ## test_invest_tools.py
 
-共 27 个用例。
+共 29 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `BatchERegistrationTest` | `test_archive_declares_write_path_keys` | 覆盖「工具注册链路（六个来源共 12 件）+ 门控预览名单一致性」：archive declares write path keys |
 | 2 | `BatchERegistrationTest` | `test_batch_e_plugins_register` | 覆盖「工具注册链路（六个来源共 12 件）+ 门控预览名单一致性」：batch e plugins register |
-| 3 | `FileSearchTest` | `test_blank_pattern_raises` | 空 pattern 报错：不要悄悄把每个位置都当成命中。 |
+| 3 | `FileSearchTest` | `test_blank_pattern_raises` | 空 pattern 报错，不要静默把每个位置都当成命中。 |
 | 4 | `FileSearchTest` | `test_context_and_gitignore` | 覆盖「大目录内容搜索」：context and gitignore |
 | 5 | `FileSearchTest` | `test_limit` | 覆盖「大目录内容搜索」：limit |
-| 6 | `FindInFileTest` | `test_blank_pattern_points_to_next_tool` | 字面模式 pattern 为空：报错要点名下一步换哪个工具。 |
+| 6 | `FindInFileTest` | `test_blank_pattern_says_what_to_fix` | 字面模式 pattern 为空：只说 pattern 本身该怎么改。 |
 | 7 | `FindInFileTest` | `test_literal_or_and_occurrence` | 覆盖「单文件定位」：literal or and occurrence |
-| 8 | `FindInFileTest` | `test_not_found_and_out_of_range` | 覆盖「单文件定位」：not found and out of range |
-| 9 | `FindInFileTest` | `test_regex_invalid` | 覆盖「单文件定位」：regex invalid |
-| 10 | `FindInFileTest` | `test_region_and_rowcols` | 覆盖「单文件定位」：region and rowcols |
-| 11 | `OcrAndArchiveTest` | `test_archive_list_create_extract` | 覆盖「image_ocr / archive」：archive list create extract |
-| 12 | `OcrAndArchiveTest` | `test_archive_unknown_format` | 覆盖「image_ocr / archive」：archive unknown format |
-| 13 | `OcrAndArchiveTest` | `test_ocr_region_validation_and_dependency` | 覆盖「image_ocr / archive」：ocr region validation and dependency |
-| 14 | `RegexLocateTest` | `test_blank_pattern_raises` | 空 pattern 报错：空正则会命中每一个位置，结果没有意义。 |
-| 15 | `RegexLocateTest` | `test_directory_recursive_and_glob` | 覆盖「单文件/目录正则定位」：directory recursive and glob |
-| 16 | `RegexLocateTest` | `test_invalid_regex_and_limit` | 覆盖「单文件/目录正则定位」：invalid regex and limit |
-| 17 | `RegexLocateTest` | `test_limit_truncation` | 覆盖「单文件/目录正则定位」：limit truncation |
-| 18 | `SystemToolsTest` | `test_env_probe_shape` | 覆盖「env_probe / unified_diagnose / git_workspace」：env probe shape |
-| 19 | `SystemToolsTest` | `test_git_workspace_modes` | 覆盖「env_probe / unified_diagnose / git_workspace」：git workspace modes |
-| 20 | `SystemToolsTest` | `test_unified_diagnose_red_green` | 覆盖「env_probe / unified_diagnose / git_workspace」：unified diagnose red green |
-| 21 | `TextDataToolsTest` | `test_data_table_csv_actions` | 覆盖「text_diff / data_table」：data table csv actions |
-| 22 | `TextDataToolsTest` | `test_data_table_xlsx_dependency_path` | 覆盖「text_diff / data_table」：data table xlsx dependency path |
-| 23 | `TextDataToolsTest` | `test_text_diff_file_vs_text` | 覆盖「text_diff / data_table」：text diff file vs text |
-| 24 | `WebToolsTest` | `test_fetch_acceptance_failure_keeps_data` | 覆盖「web_fetch / web_fetch_render」：fetch acceptance failure keeps data |
-| 25 | `WebToolsTest` | `test_fetch_invalid_scheme` | 覆盖「web_fetch / web_fetch_render」：fetch invalid scheme |
-| 26 | `WebToolsTest` | `test_fetch_ok_and_checks` | 覆盖「web_fetch / web_fetch_render」：fetch ok and checks |
-| 27 | `WebToolsTest` | `test_render_dependency_path` | 覆盖「web_fetch / web_fetch_render」：render dependency path |
+| 8 | `FindInFileTest` | `test_missing_file_is_not_reported_as_dir` | 文件不存在与传了目录必须分开说 —— 旧版两者都报「不是已存在文件」。 |
+| 9 | `FindInFileTest` | `test_not_found_and_out_of_range` | 覆盖「单文件定位」：not found and out of range |
+| 10 | `FindInFileTest` | `test_path_is_dir_points_to_directory_tools` | path 传了目录：说清本工具只处理单文件，并指向能搜目录的工具。 |
+| 11 | `FindInFileTest` | `test_regex_invalid` | 覆盖「单文件定位」：regex invalid |
+| 12 | `FindInFileTest` | `test_region_and_rowcols` | 覆盖「单文件定位」：region and rowcols |
+| 13 | `OcrAndArchiveTest` | `test_archive_list_create_extract` | 覆盖「image_ocr / archive」：archive list create extract |
+| 14 | `OcrAndArchiveTest` | `test_archive_unknown_format` | 覆盖「image_ocr / archive」：archive unknown format |
+| 15 | `OcrAndArchiveTest` | `test_ocr_region_validation_and_dependency` | 覆盖「image_ocr / archive」：ocr region validation and dependency |
+| 16 | `RegexLocateTest` | `test_blank_pattern_raises` | 空 pattern 报错：空正则会命中每个位置。 |
+| 17 | `RegexLocateTest` | `test_directory_recursive_and_glob` | 覆盖「单文件/目录正则定位」：directory recursive and glob |
+| 18 | `RegexLocateTest` | `test_invalid_regex_and_limit` | 覆盖「单文件/目录正则定位」：invalid regex and limit |
+| 19 | `RegexLocateTest` | `test_limit_truncation` | 覆盖「单文件/目录正则定位」：limit truncation |
+| 20 | `SystemToolsTest` | `test_env_probe_shape` | 覆盖「env_probe / unified_diagnose / git_workspace」：env probe shape |
+| 21 | `SystemToolsTest` | `test_git_workspace_modes` | 覆盖「env_probe / unified_diagnose / git_workspace」：git workspace modes |
+| 22 | `SystemToolsTest` | `test_unified_diagnose_red_green` | 覆盖「env_probe / unified_diagnose / git_workspace」：unified diagnose red green |
+| 23 | `TextDataToolsTest` | `test_data_table_csv_actions` | 覆盖「text_diff / data_table」：data table csv actions |
+| 24 | `TextDataToolsTest` | `test_data_table_xlsx_dependency_path` | 覆盖「text_diff / data_table」：data table xlsx dependency path |
+| 25 | `TextDataToolsTest` | `test_text_diff_file_vs_text` | 覆盖「text_diff / data_table」：text diff file vs text |
+| 26 | `WebToolsTest` | `test_fetch_acceptance_failure_keeps_data` | 覆盖「web_fetch / web_fetch_render」：fetch acceptance failure keeps data |
+| 27 | `WebToolsTest` | `test_fetch_invalid_scheme` | 覆盖「web_fetch / web_fetch_render」：fetch invalid scheme |
+| 28 | `WebToolsTest` | `test_fetch_ok_and_checks` | 覆盖「web_fetch / web_fetch_render」：fetch ok and checks |
+| 29 | `WebToolsTest` | `test_render_dependency_path` | 覆盖「web_fetch / web_fetch_render」：render dependency path |
 
 ## test_kb_plugin.py
 
@@ -1664,7 +1666,7 @@
 
 ## test_readonly_tools.py
 
-共 31 个用例。
+共 32 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1675,30 +1677,31 @@
 | 5 | `GlobFilesToolTest` | `test_path_not_dir_raises` | path 指向文件而非目录时抛 ValueError。 |
 | 6 | `GlobFilesToolTest` | `test_recursive_default` | 默认递归；**/ 前缀剥除。 |
 | 7 | `GrepFilesToolTest` | `test_binary_file_skipped` | 含 NUL 字节的文件被跳过（二进制嗅探）。 |
-| 8 | `GrepFilesToolTest` | `test_blank_pattern_points_to_next_tool` | 字面模式 \| 分隔后没有非空段：报错要点名下一步换哪个工具。 |
+| 8 | `GrepFilesToolTest` | `test_blank_pattern_says_what_to_fix` | 字面模式 \| 分隔后无有效段：只说 pattern 与 regex 两个真正相关的处置。 |
 | 9 | `GrepFilesToolTest` | `test_limit_truncation` | limit 截断并标记。 |
 | 10 | `GrepFilesToolTest` | `test_literal_hits` | 字面命中（含子目录；相对路径输出）。 |
-| 11 | `GrepFilesToolTest` | `test_missing_pattern_raises` | 缺少 pattern 抛 ValueError。 |
-| 12 | `GrepFilesToolTest` | `test_no_match` | 无命中：空结果不截断。 |
-| 13 | `GrepFilesToolTest` | `test_or_separator` | 字面模式 \| 为 OR 分隔。 |
-| 14 | `GrepFilesToolTest` | `test_path_not_dir_raises` | path 指向文件而非目录时抛 ValueError。 |
-| 15 | `GrepFilesToolTest` | `test_regex_and_ignore_case` | 正则 + 忽略大小写（三个文件行首均命中：alpha / Alpha / alpha deep）。 |
-| 16 | `ReadFileToolTest` | `test_empty_file` | 空文件：返回空内容与 0 行，不报错。 |
-| 17 | `ReadFileToolTest` | `test_invalid_range_raises` | start 超出总行数时抛 ValueError。 |
-| 18 | `ReadFileToolTest` | `test_max_chars_truncation` | max_chars 截断并标记。 |
-| 19 | `ReadFileToolTest` | `test_missing_file_raises` | 文件不存在抛 FileNotFoundError（管道回灌）。 |
-| 20 | `ReadFileToolTest` | `test_missing_path_raises` | 缺少 path 抛 ValueError。 |
-| 21 | `ReadFileToolTest` | `test_range_clamped_to_end` | line_end 超界时 clamp 到文件尾。 |
-| 22 | `ReadFileToolTest` | `test_read_full_text` | 全文读取。 |
-| 23 | `ReadFileToolTest` | `test_read_line_range` | 行区间切片（1-based 闭区间）。 |
-| 24 | `RegistryPipelineIntegrationTest` | `test_register_and_execute_via_pipeline` | 三工具注册进 ToolRegistry；经 ToolPipeline.execute 驱动 read_file。 |
-| 25 | `RegistryPipelineIntegrationTest` | `test_tool_error_structured` | 工具异常：管道捕获为 ok=False 回灌。 |
-| 26 | `RegistryPipelineIntegrationTest` | `test_unknown_tool_via_pipeline` | 未注册工具名：管道结构化回灌（不抛异常）。 |
-| 27 | `ScopeTest` | `test_data_is_searched_by_default` | data 不是通用产物目录名，默认就该被搜到。 |
-| 28 | `ScopeTest` | `test_default_only_prunes_git_and_bytecode` | 默认名单只含 .git 与 __pycache__，跳过数如实报出。 |
-| 29 | `ScopeTest` | `test_exclude_echoes_what_was_asked` | 回执原样回显调用方传的排除名单，便于自查是否漏传。 |
-| 30 | `ScopeTest` | `test_exclude_names_are_honoured` | 点名排除的目录两个工具都不再搜。 |
-| 31 | `ScopeTest` | `test_include_derived_does_not_undo_exclude` | include_derived 只放开默认名单，点名排除的仍排除。 |
+| 11 | `GrepFilesToolTest` | `test_missing_path_is_not_reported_as_wrong_type` | 路径不存在与类型不对必须分开说：两者处置完全不同。 |
+| 12 | `GrepFilesToolTest` | `test_missing_pattern_raises` | 缺少 pattern 抛 ValueError。 |
+| 13 | `GrepFilesToolTest` | `test_no_match` | 无命中：空结果不截断。 |
+| 14 | `GrepFilesToolTest` | `test_or_separator` | 字面模式 \| 为 OR 分隔。 |
+| 15 | `GrepFilesToolTest` | `test_path_not_dir_raises` | path 指向文件：说清本工具只搜目录，并给出真能吃下单文件的工具。 |
+| 16 | `GrepFilesToolTest` | `test_regex_and_ignore_case` | 正则 + 忽略大小写（三个文件行首均命中：alpha / Alpha / alpha deep）。 |
+| 17 | `ReadFileToolTest` | `test_empty_file` | 空文件：返回空内容与 0 行，不报错。 |
+| 18 | `ReadFileToolTest` | `test_invalid_range_raises` | start 超出总行数时抛 ValueError。 |
+| 19 | `ReadFileToolTest` | `test_max_chars_truncation` | max_chars 截断并标记。 |
+| 20 | `ReadFileToolTest` | `test_missing_file_raises` | 文件不存在抛 FileNotFoundError（管道回灌）。 |
+| 21 | `ReadFileToolTest` | `test_missing_path_raises` | 缺少 path 抛 ValueError。 |
+| 22 | `ReadFileToolTest` | `test_range_clamped_to_end` | line_end 超界时 clamp 到文件尾。 |
+| 23 | `ReadFileToolTest` | `test_read_full_text` | 全文读取。 |
+| 24 | `ReadFileToolTest` | `test_read_line_range` | 行区间切片（1-based 闭区间）。 |
+| 25 | `RegistryPipelineIntegrationTest` | `test_register_and_execute_via_pipeline` | 三工具注册进 ToolRegistry；经 ToolPipeline.execute 驱动 read_file。 |
+| 26 | `RegistryPipelineIntegrationTest` | `test_tool_error_structured` | 工具异常：管道捕获为 ok=False 回灌。 |
+| 27 | `RegistryPipelineIntegrationTest` | `test_unknown_tool_via_pipeline` | 未注册工具名：管道结构化回灌（不抛异常）。 |
+| 28 | `ScopeTest` | `test_data_is_searched_by_default` | data 不是通用产物目录名，默认就该被搜到。 |
+| 29 | `ScopeTest` | `test_default_only_prunes_git_and_bytecode` | 默认名单只含 .git 与 __pycache__，跳过数如实报出。 |
+| 30 | `ScopeTest` | `test_exclude_echoes_what_was_asked` | 回执原样回显调用方传的排除名单，便于自查是否漏传。 |
+| 31 | `ScopeTest` | `test_exclude_names_are_honoured` | 点名排除的目录两个工具都不再搜。 |
+| 32 | `ScopeTest` | `test_include_derived_does_not_undo_exclude` | include_derived 只放开默认名单，点名排除的仍排除。 |
 
 ## test_resume_bridge.py
 

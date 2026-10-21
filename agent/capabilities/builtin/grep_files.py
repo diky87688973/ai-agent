@@ -85,17 +85,24 @@ class GrepFilesTool(ToolPlugin):
         pattern = str(arguments.get("pattern") or "")
         if not pattern:
             raise ValueError("缺少 pattern")
-        root = Path(str(arguments.get("path") or ".")).resolve()
+        raw_path = str(arguments.get("path") or ".")
+        root = Path(raw_path).resolve()
+        if not root.exists():
+            # 报已解析的绝对路径就够：它既指出看到了哪里，也隐式说明了相对路径怎么解析。
+            raise ValueError(f"path 不存在：{root}")
         if not root.is_dir():
-            raise ValueError(f"path 不是目录：{root}")
+            # 不回显绝对路径：模型刚传的 path 还在它自己的上下文里，再贴一遍只是重复。
+            raise ValueError(
+                "path 是文件，本工具只搜目录。搜单个文件用 find_in_file；"
+                "要取正则的每一处命中用 regex_locate。"
+            )
         matcher = _compile_pattern(
             pattern, bool(arguments.get("regex")), bool(arguments.get("ignore_case"))
         )
         if matcher is None:
             raise ValueError(
-                "pattern 为空（字面模式）：按 | 分隔后没有任何非空段，模型无可匹配。"
-                "给一个非空 pattern 后重试；只想列文件名用 glob_files，"
-                "读整个文件内容用 read_file，要按正则匹配传 regex=true。"
+                "pattern 无效：字面模式下 | 分隔后没有非空段。"
+                "给一个非空 pattern；搜正则时传 regex=true。"
             )
         limit = int(arguments.get("limit") or DEFAULT_LIMIT)
         include_derived = bool(arguments.get("include_derived", False))
