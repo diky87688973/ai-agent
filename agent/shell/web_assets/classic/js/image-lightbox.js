@@ -33,7 +33,7 @@
       "</div>" +
       '<button type="button" class="img-lightbox-close" aria-label="关闭">×</button>';
     document.body.appendChild(el);
-    el._cwaMode = "fit";
+    el._cwaMode = "pixel";
     function close() {
       el.classList.add("hidden");
       var stage = el.querySelector(".img-lightbox-stage");
@@ -86,17 +86,25 @@
     var iw = img.naturalWidth | 0;
     var ih = img.naturalHeight | 0;
     if (!iw || !ih) return;
-    var mode = el._cwaMode || "fit";
+    var mode = el._cwaMode || "pixel";
     var pad = 8;
     var sw = Math.max(1, stage.clientWidth - pad * 2);
     var sh = Math.max(1, stage.clientHeight - pad * 2);
     if (mode === "pixel") {
+      /* 1:1 只改“是否缩放”，不改“在哪”。
+         图片比视口小时四周有富余，用 auto 外边距把它推出居中位置；
+         比视口大时富余为负，auto 退化为 0，自然回到可滚动起点。
+         一条规则同时管住两种情形，不必分两套定位。 */
       img.style.width = iw + "px";
       img.style.height = ih + "px";
+      img.style.margin = "auto";
       stage.classList.add("is-pixel");
       stage.classList.remove("is-fit");
+      centerLightboxStage(el);
       if (meta) {
-        meta.textContent = "实际像素 " + iw + "×" + ih + " · 1:1 可滚动";
+        var scrollable = iw > sw || ih > sh;
+        meta.textContent =
+          "实际像素 " + iw + "×" + ih + (scrollable ? " · 1:1 可滚动" : " · 1:1");
       }
       return;
     }
@@ -106,6 +114,7 @@
     var dh = Math.max(1, Math.round(ih * scale));
     img.style.width = dw + "px";
     img.style.height = dh + "px";
+    img.style.margin = "0";
     stage.classList.add("is-fit");
     stage.classList.remove("is-pixel");
     stage.scrollTop = 0;
@@ -114,6 +123,16 @@
       meta.textContent =
         "实际像素 " + iw + "×" + ih + " · 显示 " + dw + "×" + dh + "（铺满）";
     }
+  }
+
+  /* 把可滚动容器滚到正中。
+     只写 margin:auto 不够：容器若先因为上一次大图滚到过中间，
+     换成小图后 scrollLeft 仍停在旧值，看上去就偏了。这里显式归中。 */
+  function centerLightboxStage(el) {
+    var stage = el.querySelector(".img-lightbox-stage");
+    if (!stage) return;
+    stage.scrollLeft = Math.max(0, (stage.scrollWidth - stage.clientWidth) / 2);
+    stage.scrollTop = Math.max(0, (stage.scrollHeight - stage.clientHeight) / 2);
   }
 
   function openImageLightbox(url) {
@@ -126,7 +145,7 @@
     stage.scrollTop = 0;
     stage.scrollLeft = 0;
     if (meta) meta.textContent = "加载中…";
-    el._cwaMode = el._cwaMode || "fit";
+    el._cwaMode = "pixel";
     syncModeButtons(el);
     var img = document.createElement("img");
     img.className = "img-lightbox-img";
@@ -145,7 +164,7 @@
     if (!img || img._cwaLbBound) return;
     img._cwaLbBound = true;
     img.classList.add("msg-attach-thumb");
-    img.title = img.title || "点击预览（默认铺满屏幕）";
+    img.title = img.title || "点击预览（默认 1:1 实际像素）";
     img.style.cursor = "zoom-in";
   }
 

@@ -53,7 +53,7 @@ messages     = pipeline.assembles([新输入, 模式说明])
 ```text
 身份 → 回复语言 → 动手指令
 → 插件章节（PromptSections，按插件清单顺序；如 `## 资源目录`）
-→ 编码准则 → 术语 → 工具使用纪律 → 工具速查
+→ 环境信息 → 编码准则 → 术语 → 工具使用纪律 → 工具速查
 ```
 
 - 基础段由 `prompts.py:build_system_prompt()` 产出；模式段由
@@ -61,6 +61,7 @@ messages     = pipeline.assembles([新输入, 模式说明])
 - 插件用 `ctx.add_prompt_section(section, fn)` 注册章节；`section` 是完整标题，
   同一标题的正文合并，不重复出现标题。章节属于系统提示词，不占独立上下文段。
 - `## 资源目录` 由 Skills 插件与 Rules 插件注册；`## 动手指令` 是基础段，固定在回复语言之后。
+- `## 环境信息` 由会话运行器按当前会话生成：操作系统与本会话 ID。
 - `## 可用工具` 是名字与一句话摘要；完整 schema 只走请求的 `tools` 字段。
 
 ## 组装顺序

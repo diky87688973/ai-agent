@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1687** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1698** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -25,68 +25,70 @@
 15. [test_concurrency.py](#test_concurrencypy)（11）
 16. [test_context_assembly.py](#test_context_assemblypy)（184）
 17. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
-18. [test_context_pipeline.py](#test_context_pipelinepy)（18）
-19. [test_context_plumbing.py](#test_context_plumbingpy)（5）
-20. [test_context_splice.py](#test_context_splicepy)（9）
-21. [test_conversation_queue.py](#test_conversation_queuepy)（6）
-22. [test_core.py](#test_corepy)（57）
-23. [test_edited_files.py](#test_edited_filespy)（1）
-24. [test_entry_layer.py](#test_entry_layerpy)（13）
-25. [test_error_log.py](#test_error_logpy)（8）
-26. [test_event_bus.py](#test_event_buspy)（9）
-27. [test_fact_compat.py](#test_fact_compatpy)（4）
-28. [test_file_safety.py](#test_file_safetypy)（24）
-29. [test_file_size_format.py](#test_file_size_formatpy)（4）
-30. [test_four_step_gate.py](#test_four_step_gatepy)（9）
-31. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-32. [test_gate_negative.py](#test_gate_negativepy)（62）
-33. [test_goal_runner.py](#test_goal_runnerpy)（6）
-34. [test_image_embed.py](#test_image_embedpy)（10）
-35. [test_image_tool.py](#test_image_toolpy)（23）
-36. [test_image_turns.py](#test_image_turnspy)（23）
-37. [test_import_graph.py](#test_import_graphpy)（5）
-38. [test_invest_tools.py](#test_invest_toolspy)（29）
-39. [test_kb_plugin.py](#test_kb_pluginpy)（49）
-40. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-41. [test_mode_note.py](#test_mode_notepy)（12）
-42. [test_model_catalog.py](#test_model_catalogpy)（23）
-43. [test_model_provider.py](#test_model_providerpy)（38）
-44. [test_model_window.py](#test_model_windowpy)（14）
-45. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
-46. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-47. [test_plugin_http.py](#test_plugin_httppy)（18）
-48. [test_plugins.py](#test_pluginspy)（28）
-49. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-50. [test_prompt_tail.py](#test_prompt_tailpy)（4）
-51. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-52. [test_provider_meta.py](#test_provider_metapy)（8）
-53. [test_provider_router.py](#test_provider_routerpy)（14）
-54. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
-55. [test_queue_runner.py](#test_queue_runnerpy)（3）
-56. [test_queued_input.py](#test_queued_inputpy)（2）
-57. [test_readonly_tools.py](#test_readonly_toolspy)（32）
-58. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-59. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-60. [test_run_registry.py](#test_run_registrypy)（13）
-61. [test_session_context.py](#test_session_contextpy)（22）
-62. [test_session_seq.py](#test_session_seqpy)（23）
-63. [test_session_store.py](#test_session_storepy)（17）
-64. [test_session_tools.py](#test_session_toolspy)（17）
-65. [test_settings_panel.py](#test_settings_panelpy)（19）
-66. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-67. [test_task_tools.py](#test_task_toolspy)（29）
-68. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
-69. [test_tool_registry.py](#test_tool_registrypy)（17）
-70. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-71. [test_usage_metrics.py](#test_usage_metricspy)（7）
-72. [test_version_stamp.py](#test_version_stamppy)（4）
-73. [test_visual_operator.py](#test_visual_operatorpy)（130）
-74. [test_web_frontend.py](#test_web_frontendpy)（5）
-75. [test_web_shell.py](#test_web_shellpy)（51）
-76. [test_web_ui_config.py](#test_web_ui_configpy)（13）
-77. [test_write_gate.py](#test_write_gatepy)（16）
-78. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-79. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+18. [test_context_dump.py](#test_context_dumppy)（2）
+19. [test_context_pipeline.py](#test_context_pipelinepy)（18）
+20. [test_context_plumbing.py](#test_context_plumbingpy)（5）
+21. [test_context_splice.py](#test_context_splicepy)（9）
+22. [test_conversation_queue.py](#test_conversation_queuepy)（6）
+23. [test_core.py](#test_corepy)（57）
+24. [test_edited_files.py](#test_edited_filespy)（1）
+25. [test_entry_layer.py](#test_entry_layerpy)（13）
+26. [test_environment_info.py](#test_environment_infopy)（1）
+27. [test_error_log.py](#test_error_logpy)（8）
+28. [test_event_bus.py](#test_event_buspy)（9）
+29. [test_fact_compat.py](#test_fact_compatpy)（4）
+30. [test_file_safety.py](#test_file_safetypy)（24）
+31. [test_file_size_format.py](#test_file_size_formatpy)（4）
+32. [test_four_step_gate.py](#test_four_step_gatepy)（9）
+33. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+34. [test_gate_negative.py](#test_gate_negativepy)（62）
+35. [test_goal_runner.py](#test_goal_runnerpy)（6）
+36. [test_image_embed.py](#test_image_embedpy)（10）
+37. [test_image_tool.py](#test_image_toolpy)（23）
+38. [test_image_turns.py](#test_image_turnspy)（23）
+39. [test_import_graph.py](#test_import_graphpy)（5）
+40. [test_invest_tools.py](#test_invest_toolspy)（29）
+41. [test_kb_plugin.py](#test_kb_pluginpy)（49）
+42. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+43. [test_mode_note.py](#test_mode_notepy)（12）
+44. [test_model_catalog.py](#test_model_catalogpy)（23）
+45. [test_model_provider.py](#test_model_providerpy)（38）
+46. [test_model_window.py](#test_model_windowpy)（14）
+47. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
+48. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+49. [test_plugin_http.py](#test_plugin_httppy)（18）
+50. [test_plugins.py](#test_pluginspy)（28）
+51. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+52. [test_prompt_tail.py](#test_prompt_tailpy)（4）
+53. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+54. [test_provider_meta.py](#test_provider_metapy)（8）
+55. [test_provider_router.py](#test_provider_routerpy)（14）
+56. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
+57. [test_queue_runner.py](#test_queue_runnerpy)（3）
+58. [test_queued_input.py](#test_queued_inputpy)（2）
+59. [test_readonly_tools.py](#test_readonly_toolspy)（32）
+60. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+61. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+62. [test_run_registry.py](#test_run_registrypy)（13）
+63. [test_session_context.py](#test_session_contextpy)（22）
+64. [test_session_seq.py](#test_session_seqpy)（23）
+65. [test_session_store.py](#test_session_storepy)（17）
+66. [test_session_tools.py](#test_session_toolspy)（17）
+67. [test_settings_panel.py](#test_settings_panelpy)（19）
+68. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+69. [test_task_tools.py](#test_task_toolspy)（29）
+70. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+71. [test_tool_registry.py](#test_tool_registrypy)（17）
+72. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+73. [test_usage_metrics.py](#test_usage_metricspy)（7）
+74. [test_version_stamp.py](#test_version_stamppy)（4）
+75. [test_visual_operator.py](#test_visual_operatorpy)（130）
+76. [test_web_frontend.py](#test_web_frontendpy)（5）
+77. [test_web_shell.py](#test_web_shellpy)（51）
+78. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+79. [test_write_gate.py](#test_write_gatepy)（16）
+80. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+81. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -752,6 +754,15 @@
 | 2 | `ContextFactoryCarriesEveryContextSettingTest` | `test_pipeline_gets_the_configured_values` | 覆盖「`_default_context_factory` 必须把 [context] 的每一项都传给…」：pipeline gets the configured values |
 | 3 | `SegmentEventCarriesTheWindowTest` | `test_event_has_window_and_budget` | 覆盖「分段快照必须带上模型窗口：界面按它算占用率」：event has window and budget |
 
+## test_context_dump.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ContextDumpTest` | `test_missing_conversation_is_an_error` | 覆盖「A class whose instances are single test cases」：missing conversation is an error |
+| 2 | `ContextDumpTest` | `test_snapshot_uses_real_assembly_and_does_not_call_model` | 覆盖「A class whose instances are single test cases」：snapshot uses real assembly and does not call model |
+
 ## test_context_pipeline.py
 
 共 18 个用例。
@@ -909,6 +920,14 @@
 | 11 | `WebMainTest` | `test_empty_fs_root_passes_none` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：empty fs root passes none |
 | 12 | `WebMainTest` | `test_open_flag_uses_main_page_without_model` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：open flag uses main page without model |
 | 13 | `WebMainTest` | `test_unexpected_build_error_returns_2` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：unexpected build error returns 2 |
+
+## test_environment_info.py
+
+共 1 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `EnvironmentSectionTest` | `test_section_is_after_resource_and_before_coding` | 覆盖「A class whose instances are single test cases」：section is after resource and before coding |
 
 ## test_error_log.py
 
@@ -2233,23 +2252,31 @@
 
 ## test_web_ui_config.py
 
-共 13 个用例。
+共 21 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ToolDetailLayoutTest` | `test_desktop_shot_reuses_the_read_image_meta_block` | 覆盖「工具详情只有两种形态，不能混着来」：desktop shot reuses the read image meta block |
-| 2 | `ToolDetailLayoutTest` | `test_desktop_views_do_not_mount_raw_panels` | 覆盖「工具详情只有两种形态，不能混着来」：desktop views do not mount raw panels |
-| 3 | `WaitTitleFormatTest` | `test_countdown_says_timeout_once_the_deadline_passes` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：countdown says timeout once the deadline passes |
-| 4 | `WaitTitleFormatTest` | `test_countdown_uses_the_timeout_as_its_duration` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：countdown uses the timeout as its duration |
-| 5 | `WaitTitleFormatTest` | `test_long_durations_are_written_in_units` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：long durations are written in units |
-| 6 | `WaitTitleFormatTest` | `test_nothing_is_reported_from_the_server_while_waiting` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：nothing is reported from the server while waiting |
-| 7 | `WaitTitleFormatTest` | `test_short_durations_keep_one_decimal_of_seconds` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：short durations keep one decimal of seconds |
-| 8 | `WaitTitleFormatTest` | `test_ticker_keeps_counting_overtime_until_the_result_arrives` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：ticker keeps counting overtime until the result arrives |
-| 9 | `WaitTitleFormatTest` | `test_wait_title_prints_the_waited_time` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：wait title prints the waited time |
-| 10 | `WebUiConfigTest` | `test_blank_value_keeps_the_default` | 覆盖「A class whose instances are single test cases」：blank value keeps the default |
-| 11 | `WebUiConfigTest` | `test_classic_page_wires_the_placeholder` | 配置注入与工具卡拆分：占位符、开关属性、工具视图脚本进包。 |
-| 12 | `WebUiConfigTest` | `test_missing_file_defaults_items_on_steps_off` | 覆盖「A class whose instances are single test cases」：missing file defaults items on steps off |
-| 13 | `WebUiConfigTest` | `test_only_digit_one_turns_a_flag_on` | 覆盖「A class whose instances are single test cases」：only digit one turns a flag on |
+| 1 | `ImageLightboxDefaultModeTest` | `test_css_does_not_pin_pixel_mode_to_a_corner` | 覆盖「预览默认以 1:1 打开并双向居中」：css does not pin pixel mode to a corner |
+| 2 | `ImageLightboxDefaultModeTest` | `test_default_mode_is_pixel_not_fit` | 覆盖「预览默认以 1:1 打开并双向居中」：default mode is pixel not fit |
+| 3 | `ImageLightboxDefaultModeTest` | `test_pixel_mode_centers_both_axes` | 覆盖「预览默认以 1:1 打开并双向居中」：pixel mode centers both axes |
+| 4 | `ImageLightboxDefaultModeTest` | `test_pixel_padding_is_small_enough_to_still_center` | 1:1 的内边距不能大：图+内边距超过视口时，margin:auto 失效、图贴顶。 |
+| 5 | `ImageLightboxDefaultModeTest` | `test_stage_scroll_is_centered_not_left_top` | 覆盖「预览默认以 1:1 打开并双向居中」：stage scroll is centered not left top |
+| 6 | `ToolDetailLayoutTest` | `test_desktop_shot_reuses_the_read_image_meta_block` | 覆盖「工具详情只有两种形态，不能混着来」：desktop shot reuses the read image meta block |
+| 7 | `ToolDetailLayoutTest` | `test_desktop_views_do_not_mount_raw_panels` | 覆盖「工具详情只有两种形态，不能混着来」：desktop views do not mount raw panels |
+| 8 | `ToolShotPreviewClickTest` | `test_both_image_views_are_clickable` | 覆盖「工具壳详情里的图片点开同一个预览」：both image views are clickable |
+| 9 | `ToolShotPreviewClickTest` | `test_click_delegates_to_the_shared_lightbox` | 覆盖「工具壳详情里的图片点开同一个预览」：click delegates to the shared lightbox |
+| 10 | `ToolShotPreviewClickTest` | `test_missing_aia_degrades_without_breaking_the_card` | 预览是附加能力：拿不到 `AIA` 就不该把工具卡弄坏。 |
+| 11 | `WaitTitleFormatTest` | `test_countdown_says_timeout_once_the_deadline_passes` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：countdown says timeout once the deadline passes |
+| 12 | `WaitTitleFormatTest` | `test_countdown_uses_the_timeout_as_its_duration` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：countdown uses the timeout as its duration |
+| 13 | `WaitTitleFormatTest` | `test_long_durations_are_written_in_units` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：long durations are written in units |
+| 14 | `WaitTitleFormatTest` | `test_nothing_is_reported_from_the_server_while_waiting` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：nothing is reported from the server while waiting |
+| 15 | `WaitTitleFormatTest` | `test_short_durations_keep_one_decimal_of_seconds` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：short durations keep one decimal of seconds |
+| 16 | `WaitTitleFormatTest` | `test_ticker_keeps_counting_overtime_until_the_result_arrives` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：ticker keeps counting overtime until the result arrives |
+| 17 | `WaitTitleFormatTest` | `test_wait_title_prints_the_waited_time` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：wait title prints the waited time |
+| 18 | `WebUiConfigTest` | `test_blank_value_keeps_the_default` | 覆盖「A class whose instances are single test cases」：blank value keeps the default |
+| 19 | `WebUiConfigTest` | `test_classic_page_wires_the_placeholder` | 配置注入与工具卡拆分：占位符、开关属性、工具视图脚本进包。 |
+| 20 | `WebUiConfigTest` | `test_missing_file_defaults_items_on_steps_off` | 覆盖「A class whose instances are single test cases」：missing file defaults items on steps off |
+| 21 | `WebUiConfigTest` | `test_only_digit_one_turns_a_flag_on` | 覆盖「A class whose instances are single test cases」：only digit one turns a flag on |
 
 ## test_write_gate.py
 

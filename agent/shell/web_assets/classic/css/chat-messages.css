@@ -62,7 +62,10 @@
 .img-lightbox.hidden{display:none}
 .img-lightbox-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.86)}
 .img-lightbox-stage{position:absolute;inset:0;z-index:1;overflow:auto;overscroll-behavior:contain;padding:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
-.img-lightbox-stage.is-pixel{align-items:flex-start;justify-content:flex-start;padding:48px 24px 56px}
+.img-lightbox-stage.is-pixel{align-items:safe center;justify-content:safe center;padding:8px}
+/* 底部工具栏悬浮在图上，不占布局：1:1 下若再给它留出高额内边距，
+   一张接近视口高度的图就会因“图+内边距 > 视口”而溢出，
+   margin:auto 随之失效、图片贴顶。留小内边距才能让这类图真正居中。 */
 .img-lightbox-img{display:block;flex-shrink:0;max-width:none!important;max-height:none!important;border-radius:0;box-shadow:none;background:#111}
 .img-lightbox-tools{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.72);color:#ddd;font-size:12px;line-height:1.3;max-width:calc(100vw - 24px)}
 .img-lightbox-mode{height:28px;padding:0 10px;border:1px solid #555;border-radius:8px;background:transparent;color:#ddd;font-size:12px;cursor:pointer}

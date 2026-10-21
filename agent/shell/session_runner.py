@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, Optional
 
 from agent.core.error_report import report_error
 from agent.core.events import Event
+from agent.shell.environment_info import environment_section
 from agent.shell.prompts import (
     TODO_LIST_NOTE,
     resolve_mode_note,
@@ -430,7 +431,8 @@ class SessionRunner:
         state = getattr(self._app, "live_state", None)
         mode = state.get_mode(cid) if state is not None else "auto"
         extra = (self._prompt_sections.render(cid)
-                 if self._prompt_sections is not None else None)
+                 if self._prompt_sections is not None else [])
+        extra = list(extra) + [environment_section(cid)]
         return resolve_system_prompt(
             mode=mode,
             registry=getattr(self._app, "registry", None),

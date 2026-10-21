@@ -3,6 +3,30 @@ var s=String(script||"").toLowerCase();
 var parts=s.match(/[a-z0-9_]+/g);
 return parts&&parts.length?parts[parts.length-1]:s;
 }
+/* 工具壳详情里的图片交给统一预览。
+   不自己再写一层弹层：缩放、居中、关闭与键盘响应已经有 `image-lightbox.js`，
+   两套实现必然漂。`AIA` 缺失时只降级为不可点击，不报错 ——
+   预览是附加能力，拿不到就不该把整个工具卡弄坏。 */
+function bindToolShotPreview(img){
+if(!img)return;
+if(window.AIA&&typeof AIA.openImageLightbox==="function"){
+img.classList.add("chat-tool-shot-clickable");
+img.title=img.title||"点击查看大图（默认 1:1）";
+img.style.cursor="zoom-in";
+}
+}
+/* 事件收在 document 上，与缩略图同一条思路：
+   卡片是流式重画出来的，每次重画都重新绑监听既浪费也会漏。 */
+document.addEventListener("click",function(ev){
+var t=ev.target;
+if(!t||!t.closest)return;
+var img=t.closest(".chat-tool-shot-clickable");
+if(!img)return;
+if(!window.AIA||typeof AIA.openImageLightbox!=="function")return;
+ev.preventDefault();
+ev.stopPropagation();
+AIA.openImageLightbox(img.currentSrc||img.src);
+});
 function isPreviewEditTool(script, args){
 var n=chatToolName(script);
 if(n!=="write_file"&&n!=="replace_in_file"&&n!=="read_write"&&n!=="apply_patch")return false;
@@ -602,6 +626,7 @@ img.alt=path||"图片";
 var mime=String(im.mime||"image/png");
 if(mime.indexOf("image/")!==0)mime="image/png";
 img.src="data:"+mime+";base64,"+String(im.data_base64);
+bindToolShotPreview(img);
 pane.appendChild(img);
 shown=true;
 }
@@ -749,6 +774,7 @@ img.alt=role||"截图";
 var mime=String(im.mime||"image/png");
 if(mime.indexOf("image/")!==0)mime="image/png";
 img.src="data:"+mime+";base64,"+String(im.data_base64);
+bindToolShotPreview(img);
 if(role){
 var cap=document.createElement("div");
 cap.className="chat-tool-shot-label";
