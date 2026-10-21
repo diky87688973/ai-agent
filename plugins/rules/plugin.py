@@ -2,7 +2,7 @@
 """Rules 插件：`<项目根>/rules` 下的每个 `.md` 作为一条系统消息注入。
 
 规则目录固定，没有配置项、没有勾选、没有面板 —— 目录里有什么就注入什么，
-一个文件对一条系统消息，抬头是 `【用户规则 Rules <相对路径>】`。
+一个文件对一条系统消息，抬头是 `【规则 Rules <相对路径>】`。
 
 注入走 `ctx.add_context_source`：管线每一步组装请求时把本插件产出的文本
 刷进上下文的插件段。段名与主体数量（文件数）随注入源一起声明，界面据此
@@ -35,8 +35,8 @@ RESOURCE_HEAD = "## 资源目录"
 #: 规则根：工程根下的 `rules/`，与 `skills/` 平级。不提供配置项。
 RULES_DIR = PROJECT_ROOT / "rules"
 
-#: 注入抬头：模型靠这一行认出「这是用户立的规矩」，不是对话内容。
-INJECT_PREFIX = "【用户规则 Rules {rel}】"
+#: 注入抬头：模型靠这一行认出「这是规则条款」，不是对话内容。
+INJECT_PREFIX = "【规则 Rules {rel}】"
 
 #: 上下文段名（界面那一行显示的字）。
 SEGMENT_LABEL = "Rules"
@@ -177,8 +177,8 @@ def resource_directory_lines(runtime: "RulesRuntime") -> List[str]:
     """`## 资源目录` 章节里本插件的正文；章节标题由 PromptSections 添加。"""
     suffix = "" if runtime.enabled else "（不存在）"
     return [
-        f"- 用户rules: {RULES_DIR}{suffix}",
-        "  该目录中规则文件(*.md)会自动注入到上下文，为用户编辑规则时请在该目录下操作，USER_RULES.md为默认用户规则文件",
+        f"- 规则rules: {RULES_DIR}{suffix}",
+        "  该目录中规则文件（*.md）会自动注入到上下文，为用户编辑规则时请在该目录下操作，USER_RULES.md为默认用户规则文件",
     ]
 
 

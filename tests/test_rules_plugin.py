@@ -111,8 +111,8 @@ class RulesRuntimeTest(unittest.TestCase):
         messages = runtime.build_system_messages("c1")
         # empty.md 正文只有空白 → 不占条目
         self.assertEqual(len(messages), 2)
-        self.assertEqual(messages[0], "【用户规则 Rules a.md】\n规则A")
-        self.assertEqual(messages[1], "【用户规则 Rules deps/b.md】\n规则B")
+        self.assertEqual(messages[0], "【规则 Rules a.md】\n规则A")
+        self.assertEqual(messages[1], "【规则 Rules deps/b.md】\n规则B")
 
     def test_count_matches_messages(self) -> None:
         runtime = _PLUGIN.RulesRuntime(self.root)
@@ -172,14 +172,14 @@ class RulesRegisterTest(unittest.TestCase):
         heading, fn = ctx.sections[0]
         self.assertEqual(heading, _PLUGIN.RESOURCE_HEAD)
         lines = fn("c1")
-        self.assertEqual(lines[0], f"- 用户rules: {_PLUGIN.RULES_DIR}")
-        self.assertIn("该目录中规则文件(*.md)会自动注入到上下文", lines[1])
+        self.assertEqual(lines[0], f"- 规则rules: {_PLUGIN.RULES_DIR}")
+        self.assertIn("该目录中规则文件（*.md）会自动注入到上下文", lines[1])
         self.assertIn("USER_RULES.md为默认用户规则文件", lines[1])
 
     def test_resource_section_marks_missing_dir(self) -> None:
         runtime = _PLUGIN.RulesRuntime(self.root / "nope")
         lines = _PLUGIN.resource_directory_lines(runtime)
-        self.assertEqual(lines[0], f"- 用户rules: {_PLUGIN.RULES_DIR}（不存在）")
+        self.assertEqual(lines[0], f"- 规则rules: {_PLUGIN.RULES_DIR}（不存在）")
 
     def test_segment_style_registered(self) -> None:
         ctx, _ = self._register(self.root)
