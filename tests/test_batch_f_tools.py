@@ -373,8 +373,8 @@ class SkillsSourceTest(unittest.TestCase):
         from plugins.skills.plugin import _resource_directory_lines
         lib = SkillManager(self.external, builtin_dir=self.builtin)
         lines = _resource_directory_lines(lib)
-        self.assertIn(f"系统skills: {self.builtin}", lines)
-        self.assertIn(f"用户skills: {self.external}", lines)
+        self.assertIn(f"- 内置skills: {self.builtin}", lines)
+        self.assertIn(f"- 外置skills: {self.external}", lines)
 
 
 class GithubApiTest(unittest.TestCase):

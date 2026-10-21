@@ -56,12 +56,21 @@ def resolve_plugin_root(plugins_dir: Path, name: str, path_raw: str = "") -> Pat
 #: 插件身份声明键。真实配置只放插件自己的设置，不重复声明身份。
 _IDENTITY_KEYS = ("id", "name", "desc", "icon", "version", "settings_tab")
 
+#: 能力声明键：不是身份，是插件对自己能力的表态。
+#: `config = false` 表示本插件没有可编辑的设置，设置页不该给它编辑入口 ——
+#: 判据由插件声明、内核只按声明执行，不去猜"有没有配置文件"。
+_CAPABILITY_KEYS = ("config",)
+
+#: 能力声明里表示"关"的字面值。
+_CAPABILITY_OFF = ("0", "false", "no", "off")
+
 
 def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
     """读插件身份：`plugin-meta.json` 是唯一来源。
 
     不读 `plugin-config.ini`，也不提供任何样例回退。开关属于插件清单
     `plugins.ini`，不在身份元数据里。
+    能力声明（`config`）缺省为开：既有插件不写这一项，行为保持不变。
     """
     root = Path(plugin_root)
     meta = _plugin_meta(root)
@@ -73,11 +82,16 @@ def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
         "icon": "",
         "version": "",
         "settings_tab": "",
+        "config": "1",
     }
     for key in _IDENTITY_KEYS:
         value = str(meta.get(key) or "")
         if value:
             fields[key] = value
+    for key in _CAPABILITY_KEYS:
+        raw = str(meta.get(key, "") or "").strip().lower()
+        if raw in _CAPABILITY_OFF:
+            fields[key] = "0"
     return fields
 
 

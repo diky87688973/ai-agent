@@ -88,6 +88,10 @@ plugins/<插件名>/plugin-meta.json      ← 身份声明
 - 声明了 `kind: fields` 的插件：按 schema 渲染字段表单，保存只更新声明字段；
 - 其余插件：正文就是插件自己的键，保存时替换对应节。
 
+**没有可编辑设置的插件由它自己声明**：`plugin-meta.json` 里写 `"config": "false"`，
+设置页就不再给它「设置」按钮（判据是插件声明，不是内核去猜有没有配置文件）。
+`plugins/rules` 就是这样：只有开关，没有配置。
+
 密钥字段只回显"是否已配置"，留空表示沿用原值。
 
 插件自己的键由插件自己读、自己解释：内核不解析插件配置，`agent/config.py` 里
@@ -381,6 +385,7 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 | 插件 | 注册了什么 | 形态 |
 |---|---|---|
 | `plugins/skills` | `skills` 工具 + 提交执行器 + 两条注入 + 系统提示词章节 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
+| `plugins/rules` | 一条注入（`.md` 一文件一条）+ 系统提示词章节 + 段色 | 无面板、无配置、无端点；见 [rules.md](rules.md) |
 | `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.md) |
 | `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.md) |
 | `plugins/visual_operator` | 四个工具（截屏 / 鼠标 / 键盘 / 等待）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时只报错不消失；见 [visual-operator.md](visual-operator.md) |

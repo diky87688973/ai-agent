@@ -37,9 +37,10 @@ class PromptSections:
     @staticmethod
     def _texts(raw: Any) -> List[str]:
         if isinstance(raw, (list, tuple)):
-            return [str(x or "").strip() for x in raw if str(x or "").strip()]
-        text = str(raw or "").strip()
-        return [text] if text else []
+            texts = [str(x or "").rstrip() for x in raw]
+            return [text for text in texts if text.strip()]
+        text = str(raw or "").rstrip()
+        return [text] if text.strip() else []
 
     def render(self, conversation_id: str) -> List[str]:
         """渲染章节列表；同一章节的正文合并在一个标题下。"""

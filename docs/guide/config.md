@@ -10,8 +10,7 @@
 [agent]
 reasoning_effort = max
 backup_retention_days = 7
-max_passes = 64
-user_rules_file =
+max_passes = 512
 plugin_tree_only = 0
 ```
 
@@ -19,17 +18,13 @@ plugin_tree_only = 0
 |---|---|---|
 | `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可切换，**会话级选择优先**，且按会话落盘（`data/session_state/`） |
 | `backup_retention_days` | `7` | 版本化备份保留天数。启动时清理更早的；`0` = 永久保留 |
-| `max_passes` | `64` | 每回合模型往返上限；小于 1 按 1 处理。每次往返可调用 0 个或多个工具，不是工具调用次数上限 |
-| `user_rules_file` | 空 | 用户自定义规则文件（`.md` / `.txt`）。留空则不加规则段 |
+| `max_passes` | `512` | 每回合模型往返上限；小于 1 按 1 处理。每次往返可调用 0 个或多个工具，不是工具调用次数上限 |
 | `plugin_tree_only` | `0` | `1` 时只允许装载落在 `plugins/` 树内的插件目录；清单里的绝对/外置 `path` 会被拒。环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先 |
 
 `reasoning_effort` 的取值直接进请求体的 `reasoning_effort` 字段。值非法时回落 `max`。
 
-规则文件是**纯文本**，正文会被拼进系统提示的「用户自定义规则」段，内容自定。
-
-- 相对路径按项目根解析，也可以给绝对路径
-- 文件不存在、不是文件或读失败 → **静默不加载**，不报错
-- 长度上限 `20000` 字符，超出截断并附一句说明
+Rules 不在这里配：规则文件放在工程根的 `rules/` 目录，由 `plugins/rules`
+插件全量注入，见 [Rules](../subsystems/rules.md)。
 
 两项都在**进程启动时读一次**，改配置后需重启服务。
 
@@ -107,6 +102,7 @@ enabled = 1
 | 名称 | 能力 | 自己的配置文件 |
 |---|---|---|
 | `skills` | Skills 库（内置 + 外置）与 `skills` 工具 | `plugins/skills/plugin-config.ini` |
+| `rules` | `rules/` 下的 `.md` 全量注入上下文 | 无配置（只有开关）；见 [Rules](../subsystems/rules.md) |
 | `knowledge` | 本地知识库检索 | `plugins/knowledge/plugin-config.ini` |
 | `ai_speak` | 人类口语播报与语音播放 | `plugins/ai_speak/plugin-config.ini` |
 

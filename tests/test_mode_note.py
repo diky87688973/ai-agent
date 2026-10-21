@@ -42,10 +42,10 @@ class SystemPromptHasNoModeTest(unittest.TestCase):
 
     def test_switching_mode_keeps_system_prompt_byte_identical(self) -> None:
         reg = _empty_reg()
-        base = resolve_system_prompt(mode="auto", registry=reg, user_rules="规则一段")
+        base = resolve_system_prompt(mode="auto", registry=reg)
         for mode in MODES[1:]:
             self.assertEqual(
-                resolve_system_prompt(mode=mode, registry=reg, user_rules="规则一段"),
+                resolve_system_prompt(mode=mode, registry=reg),
                 base,
                 msg=f"切到 {mode} 改动了系统提示词 —— 前缀缓存会整段作废",
             )
@@ -60,13 +60,13 @@ class SystemPromptHasNoModeTest(unittest.TestCase):
         full = build_system_prompt(
             registry=_empty_reg(),
             mode="plan",
-            user_rules="规则",
+            extra_sections=["## 资源目录\n系统skills: /system"],
             tool_summary="- `a` — b",
         )
         self.assertIn("## 当前模式", full, msg="构造函数本身仍应产出模式段（供拆分用）")
         cut = split_mode_section(full)
         self.assertNotIn("## 当前模式", cut)
-        self.assertIn("规则", cut, msg="拆分不能连带吃掉用户规则")
+        self.assertIn("## 资源目录", cut, msg="拆分不能连带吃掉插件章节")
         self.assertIn("`a`", cut, msg="拆分不能连带吃掉工具速查")
 
     def test_explicit_system_prompt_gets_no_note(self) -> None:

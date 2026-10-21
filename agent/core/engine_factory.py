@@ -41,7 +41,7 @@ def build_engine(
     """组装引擎；`system_prompt` 已由调用方决定，这里不再二次注入。
 
     `cancel` 一路透传到宿主与端口：宿主在每趟开始前问一次、模型模块逐帧问、
-    工具模块逐调用问（见 `core/host.py` 与 `core/modules.py`）。取消时发出
+    工具模块逐调用问（见 `core/host.py` 与 `core/modules/`）。取消时发出
     `turn_ended{stopped: true}`，适配层据此翻成经典界面的 `stopped` 帧。
     """
     return Engine(

@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1641** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1653** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -66,26 +66,27 @@
 56. [test_queued_input.py](#test_queued_inputpy)（2）
 57. [test_readonly_tools.py](#test_readonly_toolspy)（25）
 58. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-59. [test_run_registry.py](#test_run_registrypy)（13）
-60. [test_session_context.py](#test_session_contextpy)（22）
-61. [test_session_seq.py](#test_session_seqpy)（23）
-62. [test_session_store.py](#test_session_storepy)（17）
-63. [test_session_tools.py](#test_session_toolspy)（17）
-64. [test_settings_panel.py](#test_settings_panelpy)（19）
-65. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-66. [test_task_tools.py](#test_task_toolspy)（29）
-67. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
-68. [test_tool_registry.py](#test_tool_registrypy)（17）
-69. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-70. [test_usage_metrics.py](#test_usage_metricspy)（7）
-71. [test_version_stamp.py](#test_version_stamppy)（4）
-72. [test_visual_operator.py](#test_visual_operatorpy)（130）
-73. [test_web_frontend.py](#test_web_frontendpy)（5）
-74. [test_web_shell.py](#test_web_shellpy)（51）
-75. [test_web_ui_config.py](#test_web_ui_configpy)（13）
-76. [test_write_gate.py](#test_write_gatepy)（16）
-77. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-78. [test_write_path_tools.py](#test_write_path_toolspy)（30）
+59. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+60. [test_run_registry.py](#test_run_registrypy)（13）
+61. [test_session_context.py](#test_session_contextpy)（22）
+62. [test_session_seq.py](#test_session_seqpy)（23）
+63. [test_session_store.py](#test_session_storepy)（17）
+64. [test_session_tools.py](#test_session_toolspy)（17）
+65. [test_settings_panel.py](#test_settings_panelpy)（19）
+66. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+67. [test_task_tools.py](#test_task_toolspy)（29）
+68. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+69. [test_tool_registry.py](#test_tool_registrypy)（17）
+70. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+71. [test_usage_metrics.py](#test_usage_metricspy)（7）
+72. [test_version_stamp.py](#test_version_stamppy)（4）
+73. [test_visual_operator.py](#test_visual_operatorpy)（130）
+74. [test_web_frontend.py](#test_web_frontendpy)（5）
+75. [test_web_shell.py](#test_web_shellpy)（51）
+76. [test_web_ui_config.py](#test_web_ui_configpy)（13）
+77. [test_write_gate.py](#test_write_gatepy)（16）
+78. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+79. [test_write_path_tools.py](#test_write_path_toolspy)（30）
 
 ## test_ai_speak_plugin.py
 
@@ -1686,6 +1687,25 @@
 | 4 | `ResumeBridgeTest` | `test_result_is_not_delivered_twice` | 回灌不会重复：`tool_result` 已存在就不再发（同一调用只交一次）。 |
 | 5 | `ResumeBridgeTest` | `test_resume_delivers_the_result_as_an_ordinary_tool_result` | ② 回灌就是一次普通的 tool_result，没有特殊规则。 |
 | 6 | `ResumeBridgeTest` | `test_suspend_is_terminal_and_resume_is_a_new_run` | ① 挂起即终态；恢复是新一轮宿主循环，不是回到旧循环。 |
+
+## test_rules_plugin.py
+
+共 12 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `RulesRegisterTest` | `test_dispose_removes_injection` | 覆盖「A class whose instances are single test cases」：dispose removes injection |
+| 2 | `RulesRegisterTest` | `test_resource_section_lines` | 覆盖「A class whose instances are single test cases」：resource section lines |
+| 3 | `RulesRegisterTest` | `test_resource_section_marks_missing_dir` | 覆盖「A class whose instances are single test cases」：resource section marks missing dir |
+| 4 | `RulesRegisterTest` | `test_segment_key_label_and_count` | 覆盖「A class whose instances are single test cases」：segment key label and count |
+| 5 | `RulesRegisterTest` | `test_segment_style_registered` | 覆盖「A class whose instances are single test cases」：segment style registered |
+| 6 | `RulesRuntimeTest` | `test_cache_reuses_content_until_file_changes` | 覆盖「A class whose instances are single test cases」：cache reuses content until file changes |
+| 7 | `RulesRuntimeTest` | `test_count_matches_messages` | 覆盖「A class whose instances are single test cases」：count matches messages |
+| 8 | `RulesRuntimeTest` | `test_missing_dir_stays_quiet` | 覆盖「A class whose instances are single test cases」：missing dir stays quiet |
+| 9 | `RulesRuntimeTest` | `test_missing_file_read_returns_empty` | 覆盖「A class whose instances are single test cases」：missing file read returns empty |
+| 10 | `RulesRuntimeTest` | `test_one_message_per_file_with_prefix` | 覆盖「A class whose instances are single test cases」：one message per file with prefix |
+| 11 | `RulesRuntimeTest` | `test_only_markdown_recursive_and_skips_hidden` | 覆盖「A class whose instances are single test cases」：only markdown recursive and skips hidden |
+| 12 | `RulesRuntimeTest` | `test_oversized_file_is_skipped` | 覆盖「A class whose instances are single test cases」：oversized file is skipped |
 
 ## test_run_registry.py
 

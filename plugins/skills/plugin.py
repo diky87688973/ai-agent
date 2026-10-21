@@ -121,14 +121,17 @@ def register(ctx: Any) -> List[Callable[[], None]]:
 def _resource_directory_lines(library: SkillManager) -> List[str]:
     """资源目录正文行；章节标题由 PromptSections 统一添加。"""
     builtin = library.builtin_dir or BUILTIN_SKILLS_DIR
-    lines = [f"系统skills: {builtin}"]
+    lines = [f"- 内置skills: {builtin}"]
     external = library.external_dir
     if external and external.is_dir():
-        lines.append(f"用户skills: {external}")
+        lines.append(f"- 外置skills: {external}")
     elif external:
-        lines.append(f"用户skills: {external}（不存在）")
+        lines.append(f"- 外置skills: {external}（不存在）")
     else:
-        lines.append("用户skills: 未配置")
+        lines.extend([
+            "- 外置skills: 未配置",
+            "  当前未配置外置skills目录，必要时提醒用户在skills插件中配置dir即可",
+        ])
     return lines
 
 

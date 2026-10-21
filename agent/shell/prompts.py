@@ -6,7 +6,7 @@
 不知使用纪律；上下文分段里的「系统提示词」块也永远是 0。
 
 分段：回复语言 · 先确认后工具 · 改前链路铁律 · 大文件读取纪律 · 失败处理 ·
-AI 编码准则（摘取可操作项）· 三模式提示 · 用户自定义规则（配置给才加）。
+AI 编码准则（摘取可操作项）· 三模式提示。
 """
 from __future__ import annotations
 
@@ -137,7 +137,6 @@ def build_system_prompt(
     registry: Any,
     mode: str = "auto",
     tool_summary: str = "",
-    user_rules: str = "",
     extra_sections: Optional[list] = None,
 ) -> str:
     """组装基础系统提示词。
@@ -150,17 +149,17 @@ def build_system_prompt(
         "你是 AI Agent，一个可以读写文件、执行命令的通用助手。",
         _REPLY_LANGUAGE,
         _ACTION_DISCIPLINE,
-        _TERMINOLOGY,
-        tooling_discipline(registry),
-        _CODING_DISCIPLINE,
-        mode_section(mode),
     ]
     for section in (extra_sections or []):
         text = str(section or "").strip()
         if text:
             parts.append(text)
-    if str(user_rules or "").strip():
-        parts.append("## 用户自定义规则\n" + str(user_rules).strip())
+    parts.extend([
+        _CODING_DISCIPLINE,
+        _TERMINOLOGY,
+        tooling_discipline(registry),
+        mode_section(mode),
+    ])
     if str(tool_summary or "").strip():
         parts.append(
             _TOOL_SUMMARY_HEADER + "\n" + str(tool_summary).strip()
@@ -197,7 +196,7 @@ def mode_note(mode: str = "auto") -> str:
 def split_mode_section(system_prompt: str) -> str:
     """去掉系统提示词里的模式段本身，其余段落原样保留。
 
-    只删到下一个段头（`\\n## `）为止：模式段后面通常还有用户自定义规则与工具速查，
+    只删到下一个段头（`\\n## `）为止：模式段后面通常还有插件章节与工具速查，
     从模式段一路删到末尾会把它们一起吃掉。
     """
     text = str(system_prompt or "")
@@ -239,13 +238,12 @@ def resolve_system_prompt(
     mode: str = "auto",
     registry: Any = None,
     explicit: Optional[str] = None,
-    user_rules: str = "",
     extra_sections: Optional[list] = None,
 ) -> str:
     """会话系统提示的解析入口，不含模式段。
 
     `explicit`（mesh 里显式设过 `system`）优先——调用方要能覆盖；
-    否则用基础提示词 + 用户规则 + 工具速查（须传 `registry`）。
+    否则用基础提示词 + 插件章节 + 工具速查（须传 `registry`）。
     """
     if explicit is not None and str(explicit).strip():
         return str(explicit)
@@ -255,7 +253,6 @@ def resolve_system_prompt(
         registry=registry,
         mode=mode,
         tool_summary=tool_summary(registry),
-        user_rules=user_rules,
         extra_sections=extra_sections,
     ))
 
@@ -273,14 +270,3 @@ def resolve_mode_note(
     if explicit is not None and str(explicit).strip():
         return ""
     return mode_note(mode)
-
-
-def load_user_rules_from_config() -> str:
-    """从配置读取用户自定义规则正文；未配置或读不到返回空串。
-
-    配置读取由 `agent.config` 提供，本函数只做一层薄封装，
-    好让调用方不必同时 import 两个模块。
-    """
-    from agent.config import get_user_rules
-
-    return get_user_rules()

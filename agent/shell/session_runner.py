@@ -16,7 +16,6 @@ from typing import Any, Callable, Dict, Optional
 from agent.core.error_report import report_error
 from agent.core.events import Event
 from agent.shell.prompts import (
-    load_user_rules_from_config,
     resolve_mode_note,
     resolve_system_prompt,
 )
@@ -47,9 +46,6 @@ class SessionRunner:
     `active` 用目标文案续跑；`paused`/`done` 就停 —— 此时不看 `auto_continue`，
     否则"暂停"会被自主开关顶回去，用户点了暂停却看到模型继续跑。
     只有完全没有目标时才回落到 `auto_continue` + `AUTO_CONTINUE_PROMPT`。
-
-    `user_rules`：用户自定义规则正文，拼进系统提示。缺省在构造时从配置读一次
-    —— 规则在一次进程生命周期内不变，每回合重读文件是白费 IO。
     """
 
     def __init__(
@@ -59,14 +55,12 @@ class SessionRunner:
         mesh: Any,
         auto_continue: Optional[Callable[[str], bool]] = None,
         goal_row: Optional[Callable[[str], Any]] = None,
-        user_rules: Optional[str] = None,
         prompt_sections: Any = None,
     ) -> None:
         self._app = app
         self._mesh = mesh
         self._auto_continue = auto_continue
         self._goal_row = goal_row
-        self._user_rules = load_user_rules_from_config() if user_rules is None else str(user_rules)
         self._prompt_sections = prompt_sections
         self._lock = threading.Lock()
         self._threads: Dict[str, threading.Thread] = {}
@@ -440,7 +434,6 @@ class SessionRunner:
             mode=mode,
             registry=getattr(self._app, "registry", None),
             explicit=explicit or None,
-            user_rules=self._user_rules,
             extra_sections=extra,
         )
 

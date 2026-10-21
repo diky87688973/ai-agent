@@ -518,13 +518,16 @@
     }
     var actions = document.createElement("div");
     actions.className = "st-card-actions";
-    var setting = document.createElement("button");
-    setting.type = "button";
-    setting.className = "st-mini";
-    setting.textContent = "设置";
-    setting.disabled = !card.configurable;
-    setting._settingsClick = function () { openPlugin(card); };
-    actions.appendChild(setting);
+    /* 编辑入口由插件声明决定：configurable 为假就是没有可改的东西，
+       不渲染一个点不动的按钮占位。 */
+    if (card.configurable) {
+      var setting = document.createElement("button");
+      setting.type = "button";
+      setting.className = "st-mini";
+      setting.textContent = "设置";
+      setting._settingsClick = function () { openPlugin(card); };
+      actions.appendChild(setting);
+    }
     actions.appendChild(pluginSwitch(card));
     row.appendChild(info);
     row.appendChild(actions);

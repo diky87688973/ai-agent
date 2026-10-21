@@ -56,7 +56,8 @@ class ModuleBase:
 | `ModelModule` | 按事实末端判定该不该跑；跑就发请求、消费流式增量，落成 `model_message` |
 | `ToolModule` | 执行模型要求但尚无结果的工具调用；执行过就要求续行 |
 
-全部实现在 `core/modules.py`，由 `build_default_chain()` 组装。
+全部实现在 `agent/core/modules/` 包，由 `build_default_chain()` 组装：
+`input_mod.py`、`queued_input_mod.py`、`compress_mod.py`、`model_mod.py`、`tool_mod.py`、`support.py`。
 
 `chain.py` 负责"一趟怎么跑"（`run_chain_iter` / `run_chain`），`host.py` 负责"跑到什么时候停"和回合边界。
 

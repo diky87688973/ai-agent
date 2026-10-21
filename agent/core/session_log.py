@@ -310,7 +310,7 @@ class SessionLog:
         此后每个请求都带着它 —— 会话彻底打不开。两条产生缺口的路径：
 
           ① 批量挂起：模型一条消息要求 [ask_user(c1), echo(c2)]，c1 挂起后
-             c2 若被静默丢弃就留下缺口（`core/modules.py` 的 deferred 分支必须补终态）；
+             c2 若被静默丢弃就留下缺口（`core/modules/` 的 deferred 分支必须补终态）；
           ② 挂起后用户改说话（或刷新页面后直接打字）：挂起调用的结果只能靠
              用户作答补上；用户不答而是继续说话时，序列就成了
              `user → assistant(tool_calls) → user`。这是自然的用户路径，

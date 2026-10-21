@@ -19,7 +19,6 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "reasoning_effort": "max",
         "backup_retention_days": "7",
         "max_passes": "64",
-        "user_rules_file": "",
         "plugin_tree_only": "0",
     },
     "context": {

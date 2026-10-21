@@ -142,7 +142,7 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
         if kind == "input_claimed":
             text, inline = _split_user_content(data.get("content"))
             # 附件的真实位置是 `data["attachments"]`（`InputModule` 在这里放
-            # `[{mime, data_base64}]`（由 `core/modules.py` 的 `InputModule` 写入）。
+            # `[{mime, data_base64}]`（由 `core/modules/` 的 `InputModule` 写入）。
             # `content` 里的多模态数组只是历史/派生形态，作为兜底一并认。
             attachments = inline
             raw_atts = data.get("attachments")

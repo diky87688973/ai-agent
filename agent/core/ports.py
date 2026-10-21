@@ -288,7 +288,7 @@ class Ports:
 class LogicalRequest:
     """与模型无关的请求—— 端口契约，provider 侧消费它。
 
-    它是"内核 → provider"的端口契约：消费者只有 `modules.py`（构造）与 provider（消费），
+    它是"内核 → provider"的端口契约：消费者只有 `agent/core/modules/`（构造）与 provider（消费），
     不属于任何一段回合循环。
 
     `effort`：推理档位（"high" | "max"），由会话级设置解析而来。

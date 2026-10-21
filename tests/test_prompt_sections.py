@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""系统提示词章节：同章节合并，注入位置在用户规则之前。"""
+"""系统提示词章节：同章节合并，注入位置在工具速查之前。"""
 from __future__ import annotations
 
 import sys
@@ -27,11 +27,11 @@ class PromptSectionsTest(unittest.TestCase):
     def test_extra_sections_sit_inside_the_system_prompt(self) -> None:
         prompt = build_system_prompt(
             registry=ToolRegistry(),
-            user_rules="规则正文",
+            tool_summary="- `demo` — 一句话",
             extra_sections=["## 资源目录\n系统skills: /system"],
         )
         self.assertIn("## 资源目录\n系统skills: /system", prompt)
-        self.assertLess(prompt.index("## 资源目录"), prompt.index("## 用户自定义规则"))
+        self.assertLess(prompt.index("## 资源目录"), prompt.index("## 可用工具"))
 
 
 if __name__ == "__main__":

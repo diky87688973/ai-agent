@@ -134,42 +134,9 @@ def get_plugins(path: Optional[Path] = None) -> List[Dict[str, str]]:
     return out
 
 
-#: 用户规则文件的大小上限（字符）。超限只取前这么多，避免一份巨型文件顶爆系统提示。
-USER_RULES_MAX_CHARS = 20000
-
 #: 推理档位的合法取值与默认值。
 REASONING_EFFORTS = ("high", "max")
 DEFAULT_REASONING_EFFORT = "max"
-
-
-def get_user_rules(path: Optional[Path] = None) -> str:
-    """读取用户自定义规则文件，返回其正文；未配置或读不到时返回空串。
-
-    取 `[agent]` 节的 `user_rules_file`：相对路径按 `PROJECT_ROOT` 解析，
-    也可以给绝对路径。指向的文件不存在、不是文件或读失败都返回空串 ——
-    规则是增强项，缺了不该让服务起不来。
-
-    超长只取前 `USER_RULES_MAX_CHARS` 个字符并附一句截断说明：
-    系统提示越长越贵，而一份失控的文件会把预算全吃掉。
-    """
-    parser = load_ini(path)
-    raw = ""
-    if parser.has_section("agent"):
-        raw = _clean(parser.get("agent", "user_rules_file", fallback=""))
-    if not raw:
-        return ""
-    candidate = Path(raw)
-    if not candidate.is_absolute():
-        candidate = PROJECT_ROOT / candidate
-    try:
-        if not candidate.is_file():
-            return ""
-        text = candidate.read_text(encoding="utf-8", errors="replace").strip()
-    except OSError:
-        return ""
-    if len(text) > USER_RULES_MAX_CHARS:
-        text = text[:USER_RULES_MAX_CHARS] + "\n\n（规则文件超出长度上限，已截断）"
-    return text
 
 
 def get_reasoning_effort(path: Optional[Path] = None) -> str:

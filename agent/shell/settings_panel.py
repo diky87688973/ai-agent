@@ -466,7 +466,7 @@ def list_plugins(plugins_path: Optional[Path] = None,
             "icon": meta["icon"],
             "enabled": on,
             "version": _version_label(declared),
-            "configurable": entry is not None,
+            "configurable": entry is not None and str(meta.get("config", "1")) != "0",
             "settings_tab": str(meta.get("settings_tab") or ""),
         })
     cards.sort(key=lambda item: (not item["enabled"], item["title"]))
