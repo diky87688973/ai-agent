@@ -15,7 +15,6 @@ from __future__ import annotations
 from agent.mechanisms.quality.checks import (
     MAX_DIFF_LINES,
     PREVIEW_DIFF_MAX_LINES,
-    PREVIEW_TEXT_MAX_CHARS,
     WriteContext,
     change_payload,
     check_write,
@@ -36,7 +35,6 @@ __all__ = [
     "MAX_DIFF_LINES",
     "MAX_PENDING_PREVIEWS",
     "PREVIEW_DIFF_MAX_LINES",
-    "PREVIEW_TEXT_MAX_CHARS",
     "PendingStore",
     "QualityGate",
     "WriteContext",

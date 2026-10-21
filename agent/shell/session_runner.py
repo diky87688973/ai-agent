@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, Optional
 from agent.core.error_report import report_error
 from agent.core.events import Event
 from agent.shell.prompts import (
+    TODO_LIST_NOTE,
     resolve_mode_note,
     resolve_system_prompt,
 )
@@ -446,7 +447,10 @@ class SessionRunner:
         note = resolve_mode_note(mode=mode, explicit=explicit or None)
         prompt_tail = getattr(self._app, "prompt_tail", None)
         extra = prompt_tail.render(cid).strip() if prompt_tail is not None else ""
-        return note + ("\n\n" + extra if extra else "")
+        parts = [part for part in (note, TODO_LIST_NOTE if note else "") if part]
+        if extra:
+            parts.append(extra)
+        return "\n\n".join(parts)
 
     # ── 等待（测试 / 壳层）────────────────────────────────
 

@@ -30,9 +30,9 @@
 | `agent/core/session_log.py::SessionLog.derive_messages` | 127 | 消息派生规则集中；拆分风险高于收益 |
 | `agent/capabilities/builtin/command_tools.py::_pump` | 121 | 输出泵与超时/编码处理同函数 |
 | `agent/mechanisms/context_pipeline.py::layout_from_messages` | 121 | 布局统计与渲染同函数；待拆统计器 |
+| `agent/mechanisms/quality/checks.py::check_write` | 117 | 检查项顺序即语义，拆开会让判定顺序变得可改 |
 | `scripts/acceptance_batch_e.py::Acceptance.scenario_2` | 108 | 验收脚本线性断言 |
 | `scripts/check_silent_except.py::main` | 106 | 扫描与汇总同流程；待拆报告器 |
-| `agent/mechanisms/quality/checks.py::check_write` | 104 | 检查项顺序即语义，拆开会让判定顺序变得可改 |
 | `agent/core/host.py::Host.run_iter` | 101 | 单轮的四条终止路径集中，拆开会让终止语义分散 |
 | `scripts/acceptance_batch_f.py::Acceptance.scenario_1` | 101 | 验收脚本线性断言 |
 | `agent/mechanisms/context_compactor.py::ContextCompactor.ensure_before_append` | 98 | 触发判定与执行同函数；待拆判定器 |
@@ -49,4 +49,4 @@
 
 - 目录：`agent/`、`scripts/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 150 个、函数 1592 个；超阈值文件 5 个、函数 27 个。
+- 文件 151 个、函数 1604 个；超阈值文件 5 个、函数 27 个。

@@ -11,6 +11,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.capabilities.builtin import glob_files, grep_files, read_file  # noqa: E402
+from agent.capabilities.builtin.locate_tools import FileSearchTool  # noqa: E402
 from agent.capabilities.registry import ToolRegistry  # noqa: E402
 from agent.core.tool_call import ToolCallRequest, ToolPipeline  # noqa: E402
 
@@ -133,6 +134,14 @@ class GrepFilesToolTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.tool.execute({"path": str(self.root)})
 
+    def test_blank_pattern_points_to_next_tool(self) -> None:
+        """字面模式 | 分隔后没有非空段：报错要点名下一步换哪个工具。"""
+        with self.assertRaises(ValueError) as ctx:
+            self.tool.execute({"pattern": " | ", "path": str(self.root)})
+        message = str(ctx.exception)
+        self.assertIn("glob_files", message)
+        self.assertIn("read_file", message)
+
     def test_binary_file_skipped(self) -> None:
         """含 NUL 字节的文件被跳过（二进制嗅探）。"""
         blob = self.root / "blob.bin"
@@ -144,6 +153,77 @@ class GrepFilesToolTest(unittest.TestCase):
         """path 指向文件而非目录时抛 ValueError。"""
         with self.assertRaises(ValueError):
             self.tool.execute({"pattern": "alpha", "path": str(self.root / "a.txt")})
+
+
+class ScopeTest(unittest.TestCase):
+    """搜索范围：只默认剪通用产物目录；要排别的目录须由调用方点名。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        for name in ("data", ".git", "__pycache__", "build", "src"):
+            d = self.root / name
+            d.mkdir()
+            (d / "n.txt").write_text("needle in " + name, encoding="utf-8")
+
+    def _grep(self, **extra) -> dict:
+        args = {"pattern": "needle", "path": str(self.root)}
+        args.update(extra)
+        return grep_files.build().execute(args)
+
+    def _search(self, **extra) -> dict:
+        args = {"pattern": "needle", "path": str(self.root)}
+        args.update(extra)
+        return FileSearchTool().execute(args)
+
+    def _grep_tops(self, **extra) -> list:
+        return sorted({m["file"].split("/")[0] for m in self._grep(**extra)["matches"]})
+
+    def _search_tops(self, **extra) -> list:
+        return sorted({Path(m["file"]).relative_to(self.root).parts[0]
+                       for m in self._search(**extra)["matches"]})
+
+    def test_data_is_searched_by_default(self) -> None:
+        """data 不是通用产物目录名，默认就该被搜到。
+
+        它只是某些项目自己的临时目录，换了项目可能正是源码 ——
+        工具不该替调用方猜。
+        """
+
+        self.assertIn("data", self._grep_tops())
+        self.assertIn("data", self._search_tops())
+
+    def test_default_only_prunes_git_and_bytecode(self) -> None:
+        """默认名单只含 .git 与 __pycache__，跳过数如实报出。"""
+
+        data = self._grep()
+        self.assertEqual(data["skipped_derived_dirs"], 2)
+        self.assertEqual(self._grep_tops(), ["build", "data", "src"])
+
+    def test_exclude_names_are_honoured(self) -> None:
+        """点名排除的目录两个工具都不再搜。"""
+
+        self.assertEqual(self._grep_tops(exclude=["data"]), ["build", "src"])
+        self.assertEqual(self._search_tops(exclude=["data"]), ["build", "src"])
+        self.assertEqual(self._grep(exclude=["data"])["skipped_derived_dirs"], 3)
+
+    def test_include_derived_does_not_undo_exclude(self) -> None:
+        """include_derived 只放开默认名单，点名排除的仍排除。"""
+
+        tops = self._grep_tops(include_derived=True, exclude=["build"])
+        self.assertIn(".git", tops)
+        self.assertIn("__pycache__", tops)
+        self.assertNotIn("build", tops)
+
+    def test_exclude_echoes_what_was_asked(self) -> None:
+        """回执原样回显调用方传的排除名单，便于自查是否漏传。"""
+
+        data = self._grep(exclude=["data", "build"])
+        self.assertEqual(data["exclude"], ["data", "build"])
+        self.assertEqual(self._grep_tops(exclude=["data", "build"]), ["src"])
+        self.assertEqual(self._search(exclude=["data", "build"])["exclude"], ["data", "build"])
+        self.assertEqual(self._search_tops(exclude=["data", "build"]), ["src"])
 
 
 class GlobFilesToolTest(unittest.TestCase):

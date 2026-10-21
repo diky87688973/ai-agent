@@ -9,10 +9,12 @@
 from __future__ import annotations
 
 import fnmatch
+import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+from agent.capabilities.builtin.scan_scope import relative_parts, skip_set
 from agent.capabilities.registry import ToolPlugin
 
 
@@ -42,7 +44,11 @@ def _collect_spans(full: str, pattern: str, *, regex: bool, ignore_case: bool) -
     spans: List[Tuple[int, int, str]] = []
     if not regex:
         if not pattern:
-            raise ValueError("pattern 不能为空")
+            raise ValueError(
+                "pattern 不能为空（字面模式）：给一个非空 pattern 后重试；"
+                "只想列文件名用 glob_files，读整个文件内容用 read_file，"
+                "要按正则匹配传 regex=true。"
+            )
         flags = re.IGNORECASE if ignore_case else 0
         parts = [re.escape(p) for p in pattern.split("|") if p]
         rx = re.compile("|".join(parts), flags) if parts else re.compile(re.escape(pattern), flags)
@@ -74,6 +80,44 @@ def _collect_source_files(root: Path, glob_pattern: str, recursive: bool) -> Lis
     else:
         it = root.rglob("*") if recursive else root.glob("*")
     return sorted(p for p in it if p.is_file())
+
+
+def _iter_source_files(root: Path, glob_pattern: str, recursive: bool,
+                       skip_names: frozenset,
+                       skipped: Optional[Dict[str, int]] = None
+                       ) -> Iterator[Path]:
+    """按搜索范围收集文件，产出 path（`skip_names` 里的目录默认整枝剪掉）。
+
+    剪枝而不是收进来再过滤：这些目录下动辄上万文件，逐个过滤等于让
+    「跳过」也付出全量遍历的代价。`skipped` 传入字典时累计跳过数量：
+    剪枝时记 `dirs`（目录数），带目录分隔符的通配无法按名字剪枝，
+    退回原收集器逐个判定并记 `files`（文件数）。
+    """
+    pattern = str(glob_pattern or "").strip()
+    if pattern.startswith("**/"):
+        pattern = pattern[3:]
+        recursive = True
+    if pattern and ("/" in pattern or "\\" in pattern):
+        for path in _collect_source_files(root, pattern, recursive):
+            if any(str(part) in skip_names for part in relative_parts(path, root)):
+                if skipped is not None and path.is_file():
+                    skipped["files"] = skipped.get("files", 0) + 1
+                continue
+            yield path
+        return
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        if not recursive:
+            dirnames[:] = []
+        if skip_names:
+            kept = [name for name in dirnames if name not in skip_names]
+            if skipped is not None:
+                skipped["dirs"] = skipped.get("dirs", 0) + (len(dirnames) - len(kept))
+            dirnames[:] = kept
+        for name in sorted(filenames):
+            if pattern and not fnmatch.fnmatch(name, pattern):
+                continue
+            yield Path(dirpath) / name
 
 
 class FindInFileTool(ToolPlugin):
@@ -168,6 +212,12 @@ class RegexLocateTool(ToolPlugin):
         if not raw_path:
             raise ValueError("缺少 path")
         pattern = str(arguments.get("pattern") or "")
+        if not pattern:
+            raise ValueError(
+                "pattern 不能为空：regex_locate 按正则匹配，空正则会命中每一个位置。"
+                "给一个非空正则后重试；只找字面用 find_in_file 或 grep_files，"
+                "只想列文件名用 glob_files，读整个文件内容用 read_file。"
+            )
         raw_limit = arguments.get("limit")
         try:
             limit = int(raw_limit) if raw_limit is not None and str(raw_limit).strip() != "" else 200
@@ -244,6 +294,14 @@ class FileSearchTool(ToolPlugin):
         "context_lines": {"type": "integer", "description": "命中前后附带的上下文行数"},
         "ignore_case": {"type": "boolean", "description": "忽略大小写"},
         "no_gitignore": {"type": "boolean", "description": "true 时不按 .gitignore 过滤"},
+        "exclude": {
+            "type": "array",
+            "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+        },
+        "include_derived": {
+            "type": "boolean",
+            "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
+        },
         "limit": {"type": "integer", "description": "命中上限（缺省不限）"},
     }
 
@@ -347,6 +405,53 @@ class FileSearchTool(ToolPlugin):
             )
         return results
 
+    def _search_tree(self, target: Path, compiled: re.Pattern, context_lines: int,
+                     limit: Any, arguments: Dict[str, Any], exclude: List[str]
+                     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int, int, Dict[str, int]]:
+        """目录分支：收集范围 + gitignore 过滤 + 逐文件搜索。
+
+        返回 (命中, 错误, 扫描文件数, 命中文件数, 跳过统计)。抽出来是为了让
+        `execute` 只负责参数解析与回执拼装 —— 两个分支的回执字段必须逐字对齐，
+        逻辑混在一起时最容易漏改一边。
+
+        `exclude` 由 `execute` 解析后传进来：回执要原样回显它，
+        两处各解析一份必然漂移。
+        """
+        ignore_patterns = [] if bool(arguments.get("no_gitignore", False)) else self._load_gitignore(target)
+        results: List[Dict[str, Any]] = []
+        errors: List[Dict[str, Any]] = []
+        scanned = 0
+        matched_files = 0
+        skipped: Dict[str, int] = {}
+        for entry in _iter_source_files(
+            target,
+            str(arguments.get("glob_pattern") or ""),
+            bool(arguments.get("recursive", True)),
+            skip_set(bool(arguments.get("include_derived", False)), exclude),
+            skipped,
+        ):
+            if ignore_patterns:
+                try:
+                    rel = entry.relative_to(target)
+                    if self._is_ignored(str(rel), ignore_patterns):
+                        continue
+                except ValueError:
+                    pass
+            file_results = self._search_file(entry, compiled, context_lines, limit)
+            scanned += 1
+            if self.MAX_SCANNED and scanned >= self.MAX_SCANNED:
+                break
+            if file_results:
+                if any("error" in r for r in file_results):
+                    errors.extend(r for r in file_results if "error" in r)
+                else:
+                    matched_files += 1
+                    results.extend(file_results)
+            if limit is not None and len(results) >= limit:
+                results = results[:limit]
+                break
+        return results, errors, scanned, matched_files, skipped
+
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         raw_path = str(arguments.get("path") or "").strip()
         if not raw_path:
@@ -355,6 +460,17 @@ class FileSearchTool(ToolPlugin):
         if not target.exists():
             raise FileNotFoundError(f"目标不存在: {target}")
         pattern = str(arguments.get("pattern") or "")
+        if not pattern:
+            raise ValueError(
+                "pattern 不能为空：空 pattern 会把每个位置都算成命中，结果没有意义。"
+                "给一个非空 pattern 后重试；只想列文件名用 glob_files，"
+                "读整个文件内容用 read_file，定位单文件用 find_in_file 或 regex_locate。"
+            )
+        raw_exclude = arguments.get("exclude")
+        exclude = (
+            [str(x).strip() for x in raw_exclude if str(x).strip()]
+            if isinstance(raw_exclude, list) else []
+        )
         regex = bool(arguments.get("regex", False))
         flags = re.IGNORECASE if bool(arguments.get("ignore_case", False)) else 0
         if regex:
@@ -389,34 +505,14 @@ class FileSearchTool(ToolPlugin):
                 "total_matches": len(results),
                 "matches": results,
                 "errors": None,
+                "skipped_derived_dirs": 0,
+                "skipped_derived_files": 0,
+                "exclude": exclude,
+                "include_derived": bool(arguments.get("include_derived", False)),
                 "hint": hint,
             }
-        ignore_patterns = [] if bool(arguments.get("no_gitignore", False)) else self._load_gitignore(target)
-        results = []
-        errors: List[Dict[str, Any]] = []
-        scanned = 0
-        matched_files = 0
-        for entry in _collect_source_files(target, str(arguments.get("glob_pattern") or ""), bool(arguments.get("recursive", True))):
-            if ignore_patterns:
-                try:
-                    rel = entry.relative_to(target)
-                    if self._is_ignored(str(rel), ignore_patterns):
-                        continue
-                except ValueError:
-                    pass
-            file_results = self._search_file(entry, compiled, context_lines, limit)
-            scanned += 1
-            if self.MAX_SCANNED and scanned >= self.MAX_SCANNED:
-                break
-            if file_results:
-                if any("error" in r for r in file_results):
-                    errors.extend(r for r in file_results if "error" in r)
-                else:
-                    matched_files += 1
-                    results.extend(file_results)
-            if limit is not None and len(results) >= limit:
-                results = results[:limit]
-                break
+        results, errors, scanned, matched_files, skipped = self._search_tree(
+            target, compiled, context_lines, limit, arguments, exclude)
         return {
             "path": str(target),
             "pattern": pattern,
@@ -425,6 +521,10 @@ class FileSearchTool(ToolPlugin):
             "total_matches": len(results),
             "matches": results,
             "errors": errors if errors else None,
+            "skipped_derived_dirs": int(skipped.get("dirs", 0)),
+            "skipped_derived_files": int(skipped.get("files", 0)),
+            "exclude": exclude,
+            "include_derived": bool(arguments.get("include_derived", False)),
             "hint": hint,
         }
 

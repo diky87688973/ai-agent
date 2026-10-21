@@ -52,8 +52,112 @@ def _required_dir(arguments: Dict[str, Any], key: str) -> Path:
 # ── replace_in_file ────────────────────────────────────
 
 
+def _apply_one_literal(text: str, old_text: str, new_text: str,
+                       replace_all: bool, expected: Any = None,
+                       index: int = 0) -> Dict[str, Any]:
+    """单条字面替换；未命中或命中数不符抛带 data 的 ValueError。
+
+    `index` 是批量里的序号（0-based），用于指明是哪一条出的问题。
+    """
+    label = f"第 {index + 1} 条：" if index else ""
+    count = text.count(old_text)
+    if count == 0:
+        # 锁死：old 字面未命中一律 old_text_not_found。
+        # 不得用「new 已在文件中」或删除语义反推 already_applied——
+        # 那是全局属性猜局部操作，会掩盖找错串/找错文件；也不做大小写折叠。
+        exc = ValueError(label + "old_text 未找到")
+        exc.data = {
+            "status": "old_text_not_found",
+            "needs_commit": False,
+            "matches": 0,
+            "edit_index": index,
+            "message": label + "old_text 未找到，未生成预览",
+        }
+        raise exc
+    if expected is not None and int(expected) != count:
+        exc = ValueError(
+            f"{label}命中数不符：old_text 出现 {count} 次，expected_replacements={int(expected)}"
+        )
+        exc.data = {
+            "status": "replacement_count_mismatch",
+            "needs_commit": False,
+            "matches": count,
+            "expected_replacements": int(expected),
+            "edit_index": index,
+            "message": str(exc),
+        }
+        raise exc
+    replaced = count if replace_all else 1
+    new_content = text.replace(old_text, new_text) if replace_all else text.replace(old_text, new_text, 1)
+    return {"text": new_content, "matches": count, "replaced": replaced}
+
+
+def _apply_edits(text: str, edits: Any) -> Dict[str, Any]:
+    """批量字面替换：按顺序逐条应用，任一条不命中即整批失败。
+
+    顺序敏感是刻意的：后一条看到的是前一条替换后的文本，与逐次手工调用一致，
+    这样「先改 A 再改 B」的既有工作方式原样成立；出错时指明是第几条。
+    """
+    if not isinstance(edits, list) or not edits:
+        raise ValueError("edits 必须是非空数组")
+    current = text
+    total_matches = 0
+    total_replaced = 0
+    for index, item in enumerate(edits):
+        if not isinstance(item, dict):
+            raise ValueError(f"第 {index + 1} 条：edits 的每项须是对象")
+        old_text = str(item.get("old_text") or "")
+        if not old_text:
+            raise ValueError(f"第 {index + 1} 条：缺少 old_text")
+        outcome = _apply_one_literal(
+            current,
+            old_text,
+            str(item.get("new_text") or ""),
+            bool(item.get("replace_all", True)),
+            item.get("expected_replacements"),
+            index,
+        )
+        current = outcome["text"]
+        total_matches += int(outcome["matches"])
+        total_replaced += int(outcome["replaced"])
+    if current == text:
+        return {
+            "text": text,
+            "mode": "edits",
+            "matches": total_matches,
+            "replaced": 0,
+            "status": "already_applied",
+            "reason": "noop_replace",
+        }
+    return {
+        "text": current,
+        "mode": "edits",
+        "matches": total_matches,
+        "replaced": total_replaced,
+    }
+
+
+def _reject_conflicting_edits_keys(arguments: Dict[str, Any]) -> None:
+    """edits 模式下的参数互斥检查；不合规直接抛，绝不静默忽略。
+
+    顶层 `replace_all` / `expected_replacements` 在批量模式下不生效（每条自己带）。
+    放着不管就是静默忽略：用户写 `replace_all: false` 会以为只改第一处，
+    实际每条都按默认把全部命中替换掉 —— 多改内容且没人报警。
+    """
+    if (arguments.get("old_text") or arguments.get("line_start") is not None
+            or arguments.get("line_end") is not None):
+        raise ValueError("edits 不能与 old_text / line_start / line_end 同时使用")
+    for key in ("replace_all", "expected_replacements"):
+        if arguments.get(key) is not None:
+            raise ValueError(f"edits 模式下 {key} 须写进每一条 edit 里，不接受顶层设置")
+
+
 def _apply_replace(text: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     """在 text 上执行替换（不落盘）；返回 {text, mode, matches, replaced}；失败抛 ValueError。"""
+    edits = arguments.get("edits")
+    if edits is not None:
+        _reject_conflicting_edits_keys(arguments)
+        return _apply_edits(text, edits)
     line_start = arguments.get("line_start")
     line_end = arguments.get("line_end")
     if line_start is not None or line_end is not None:
@@ -133,6 +237,7 @@ class ReplaceInFileTool(ToolPlugin):
     description = (
         "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）"
         "或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。"
+        "多处字面替换可改用 edits 数组一次提交（按顺序应用，任一条未命中则整批拒绝并指明第几条）。"
         "old_text 字面未命中时一律 ok=false 且 data.status=old_text_not_found"
         "（不因 new_text 已在文件中、也不做大小写折叠而改判 already_applied）。"
         "old 命中但替换后内容不变（如同值替换）时 status=already_applied（needs_commit=false）。"
@@ -144,6 +249,13 @@ class ReplaceInFileTool(ToolPlugin):
         "path": {"type": "string", "description": "目标文件路径"},
         "old_text": {"type": "string", "description": "字面替换：待替换文本"},
         "new_text": {"type": "string", "description": "替换为的文本（字面 / 行区间均用）"},
+        "edits": {
+            "type": "array",
+            "description": (
+                "批量字面替换：每项 {old_text, new_text, replace_all?, expected_replacements?}，"
+                "按顺序应用；不能与 old_text / line_start / line_end 同时使用"
+            ),
+        },
         "replace_all": {"type": "boolean", "description": "字面替换：是否替换全部命中，默认 true"},
         "expected_replacements": {"type": "integer", "description": "字面替换：可选，命中数不符则拒绝"},
         "line_start": {"type": "integer", "description": "行区间替换：起始行（1-based 含）"},

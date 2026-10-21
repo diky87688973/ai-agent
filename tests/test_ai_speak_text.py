@@ -105,10 +105,55 @@ class ValidationTest(unittest.TestCase):
         self.assert_code("abc", "missing_end")
         self.assert_code('"Hello"', "missing_end")
 
-    def test_rejects_forbidden_characters(self) -> None:
-        for ch in ("😀", "@", "#", "&", "[", "]", "=", "\\", "\n", "\t", "１"):
+    def test_rejects_control_characters(self) -> None:
+        """控制字符会改变切段后各段拼接的含义，必须在输入侧拦住。"""
+
+        for ch in ("\n", "\t", "\r"):
             with self.subTest(ch=ch):
                 self.assert_code(f"abc{ch}。", "invalid_char")
+
+    def test_non_speakable_symbols_are_accepted(self) -> None:
+        """不发音的符号不在输入侧拦，交给合成前清洗。
+
+        在输入侧逐个列举只会不断漏（书名号就是这样漏进来的），
+        所以这里确认它们都能过校验。
+        """
+
+        for text in ("abc😀。", "abc@。", "abc#&[]=。", "abc→。", "abc１。"):
+            with self.subTest(text=text):
+                self.assertEqual(len(_TEXT.split_message(text, 128)), 1)
+
+    def test_reports_rule_in_error(self) -> None:
+        """报错要说明规则是什么，别只说这个字符不行。"""
+
+        with self.assertRaises(_TEXT.MessageValidationError) as ctx:
+            _TEXT.split_message("abc\ndef。", 128)
+        self.assertEqual(ctx.exception.code, "invalid_char")
+        self.assertIn("控制字符", str(ctx.exception))
+        self.assertIn("自动移除", str(ctx.exception))
+
+    def test_invisible_character_named_in_error(self) -> None:
+        """换行这类不可见字符以名字出现，不塞一个看不见的字符进报错。"""
+
+        with self.assertRaises(_TEXT.MessageValidationError) as ctx:
+            _TEXT.split_message("abc\ndef。", 128)
+        self.assertIn("换行", str(ctx.exception))
+
+    def test_path_and_book_title_chars_allowed(self) -> None:
+        """文件名符号与书名号可以念，且不破坏切段。"""
+
+        segments = _TEXT.split_message("看 USER_RULES.md 与 a/b.py。", 128)
+        self.assertEqual(len(segments), 1)
+        self.assertIn("USER_RULES.md", segments[0])
+        segments = _TEXT.split_message("见《规则说明》。", 128)
+        self.assertEqual(len(segments), 1)
+        self.assertIn("《规则说明》", segments[0])
+
+    def test_rejects_unmatched_book_title(self) -> None:
+        """书名号同样要求配对。"""
+
+        self.assert_code("他说《规则。", "unmatched_open")
+        self.assert_code("他说规则》。", "unmatched_close")
 
     def test_rejects_empty_pairs(self) -> None:
         for msg in ("“”。", '"".', "()。", "''。"):
@@ -119,6 +164,15 @@ class ValidationTest(unittest.TestCase):
         self.assert_code("他说“好。", "unmatched_open")
         self.assert_code("他说好。”", "unmatched_close")
         self.assert_code('He said "hi.', "unmatched_open")
+
+    def test_bracket_quotes_pair_and_do_not_split(self) -> None:
+        """「」成对可用，且引号内的标点不切段。"""
+
+        segments = _TEXT.split_message("他说「第一句。第二句。」然后走了。", 128)
+        self.assertEqual(segments, ("他说「第一句。第二句。」然后走了。",))
+        self.assert_code("他说「没闭合。", "unmatched_open")
+        self.assert_code("他说没开」。", "unmatched_close")
+        self.assert_code("「」。", "empty_pair")
 
     def test_rejects_math_context(self) -> None:
         for msg in ("5+。", "5--3。", "5**3。", "-abc。", "abc-。", "5+3-。",
@@ -142,6 +196,19 @@ class SpeechTextTest(unittest.TestCase):
         self.assertEqual(_TEXT.to_speech_text('他说“好。”'), "他说好。")
         self.assertEqual(_TEXT.to_speech_text('He said "hi."'), "He said hi.")
         self.assertEqual(_TEXT.to_speech_text("don't stop."), "don't stop.")
+
+    def test_bracket_and_book_title_quotes_are_dropped(self) -> None:
+        """各种引号都不发音：合成前统一清掉，不靠逐个列举。
+
+        书名号曾经漏在清洗表外，一路原样送到引擎。
+        """
+
+        self.assertEqual(_TEXT.to_speech_text("补上「下一步」的提示。"), "补上下一步的提示。")
+        self.assertEqual(_TEXT.to_speech_text("请读《配置》文档。"), "请读配置文档。")
+
+    def test_non_speakable_symbols_are_dropped(self) -> None:
+        self.assertEqual(_TEXT.to_speech_text("表情😀加@符号。"), "表情加符号。")
+        self.assertEqual(_TEXT.to_speech_text("走→停。"), "走停。")
 
     def test_percent(self) -> None:
         cases = {

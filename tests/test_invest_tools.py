@@ -61,6 +61,14 @@ class FindInFileTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.tool.execute({"path": str(self.fp), "pattern": "alpha", "occurrence": 9})
 
+    def test_blank_pattern_points_to_next_tool(self) -> None:
+        """字面模式 pattern 为空：报错要点名下一步换哪个工具。"""
+        with self.assertRaises(ValueError) as ctx:
+            self.tool.execute({"path": str(self.fp), "pattern": ""})
+        message = str(ctx.exception)
+        self.assertIn("glob_files", message)
+        self.assertIn("read_file", message)
+
     def test_regex_invalid(self) -> None:
         with self.assertRaises(ValueError):
             self.tool.execute({"path": str(self.fp), "pattern": "([", "regex": True})
@@ -89,6 +97,14 @@ class RegexLocateTest(unittest.TestCase):
         self.assertEqual(r["count"], 2)
         self.assertTrue(r["truncated"])
 
+    def test_blank_pattern_raises(self) -> None:
+        """空 pattern 报错：空正则会命中每一个位置，结果没有意义。"""
+        with self.assertRaises(ValueError) as ctx:
+            self.tool.execute({"path": str(self.root), "pattern": ""})
+        message = str(ctx.exception)
+        self.assertIn("pattern 不能为空", message)
+        self.assertIn("glob_files", message)
+
     def test_invalid_regex_and_limit(self) -> None:
         with self.assertRaises(ValueError):
             self.tool.execute({"path": str(self.root), "pattern": "(["})
@@ -116,6 +132,14 @@ class FileSearchTest(unittest.TestCase):
         self.assertEqual([x["text"] for x in hit["context_after"]], ["line3"])
         r2 = self.tool.execute({"path": str(self.root), "pattern": "needle", "no_gitignore": True})
         self.assertEqual(r2["total_matches"], 2)
+
+    def test_blank_pattern_raises(self) -> None:
+        """空 pattern 报错：不要悄悄把每个位置都当成命中。"""
+        with self.assertRaises(ValueError) as ctx:
+            self.tool.execute({"path": str(self.root), "pattern": ""})
+        message = str(ctx.exception)
+        self.assertIn("pattern 不能为空", message)
+        self.assertIn("glob_files", message)
 
     def test_limit(self) -> None:
         r = self.tool.execute({"path": str(self.root), "pattern": "needle", "no_gitignore": True, "limit": 1})

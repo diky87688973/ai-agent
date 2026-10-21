@@ -247,6 +247,96 @@ class WritePathToolsTest(unittest.TestCase):
         self.assertFalse(r.ok)
         self.assertEqual(f.read_text(encoding="utf-8"), "zzz")
 
+    # ── replace_in_file：edits 批量 ──────────────────────
+
+    def test_edits_applies_all_in_order(self) -> None:
+        """批量字面替换：按顺序一次改完多处。"""
+
+        f = self.root / "e1.txt"
+        f.write_text("alpha beta gamma\n", encoding="utf-8")
+        cid = self._ready("replace_in_file", {
+            "path": str(f),
+            "edits": [
+                {"old_text": "alpha", "new_text": "ALPHA"},
+                {"old_text": "gamma", "new_text": "GAMMA"},
+            ],
+        })
+        r = self._commit(cid)
+        self.assertTrue(r.ok, msg=str(r.error))
+        self.assertEqual(f.read_text(encoding="utf-8"), "ALPHA beta GAMMA\n")
+
+    def test_edits_are_sequential_not_parallel(self) -> None:
+        """后一条看得见前一条的结果：先 A→B 再把 B→C，最终应为 C。"""
+
+        f = self.root / "e2.txt"
+        f.write_text("A\n", encoding="utf-8")
+        cid = self._ready("replace_in_file", {
+            "path": str(f),
+            "edits": [
+                {"old_text": "A", "new_text": "B"},
+                {"old_text": "B", "new_text": "C"},
+            ],
+        })
+        r = self._commit(cid)
+        self.assertTrue(r.ok, msg=str(r.error))
+        self.assertEqual(f.read_text(encoding="utf-8"), "C\n")
+
+    def test_edits_rejects_whole_batch_when_one_misses(self) -> None:
+        """任一条未命中整批拒绝，并指明是第几条；文件一个字节都不动。"""
+
+        f = self.root / "e3.txt"
+        f.write_text("alpha beta\n", encoding="utf-8")
+        r = self._call("replace_in_file", {
+            "path": str(f),
+            "edits": [
+                {"old_text": "alpha", "new_text": "ALPHA"},
+                {"old_text": "nonexistent", "new_text": "X"},
+            ],
+        })
+        self.assertFalse(r.ok)
+        self.assertEqual(r.data.get("status"), "old_text_not_found")
+        self.assertEqual(r.data.get("edit_index"), 1)
+        self.assertIn("第 2 条", str(r.data.get("message") or ""))
+        self.assertEqual(f.read_text(encoding="utf-8"), "alpha beta\n")
+
+    def test_edits_rejects_mixing_with_literal_or_line_params(self) -> None:
+        """edits 与 old_text / 行区间互斥，避免两套语义同时生效。"""
+
+        f = self.root / "e4.txt"
+        f.write_text("alpha\n", encoding="utf-8")
+        for extra in ({"old_text": "alpha"}, {"line_start": 1, "line_end": 1}):
+            with self.subTest(extra=extra):
+                args = {"path": str(f), "edits": [{"old_text": "a", "new_text": "b"}]}
+                args.update(extra)
+                r = self._call("replace_in_file", args)
+                self.assertFalse(r.ok)
+
+    def test_edits_empty_list_rejected(self) -> None:
+        """空数组不是有效批量：拒绝而不是静默当成无事发生。"""
+
+        f = self.root / "e5.txt"
+        f.write_text("alpha\n", encoding="utf-8")
+        r = self._call("replace_in_file", {"path": str(f), "edits": []})
+        self.assertFalse(r.ok)
+
+    def test_edits_rejects_top_level_replace_all(self) -> None:
+        """顶层 replace_all 在批量模式下不生效，必须拒绝而不是静默忽略。
+
+        静默忽略的后果是：写 `replace_all: false` 的人以为只改第一处，
+        实际每条都按默认把全部命中替换掉 —— 多改内容且没人报警。
+        """
+
+        f = self.root / "e6.txt"
+        f.write_text("alpha alpha\n", encoding="utf-8")
+        r = self._call("replace_in_file", {
+            "path": str(f),
+            "edits": [{"old_text": "alpha", "new_text": "A"}],
+            "replace_all": False,
+        })
+        self.assertFalse(r.ok)
+        self.assertIn("replace_all", str(r.error))
+        self.assertEqual(f.read_text(encoding="utf-8"), "alpha alpha\n")
+
     # ── apply_patch ──────────────────────────────────────
 
     def test_patch_preview_stats_no_write(self) -> None:

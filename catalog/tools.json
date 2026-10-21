@@ -1,7 +1,7 @@
 {
   "tools": [
     {
-      "description": "把你要对用户说的话直接说出来。用当前角色的第一人称、人类口语，像当面汇报，不使用播音腔、书面语，不解释自己在调用工具。每完成一步就调用一次，不等到全部做完。允许：中文、英文、数字、空格；中文标点 ，。？！；、：“”‘’（）；英文标点 . , ? ! ; : ' \" ( )；四则符号 + - * / × ÷（含全角 ＋－＊／）；百分号 % 或 ％。英文单词内可用 - 和 '。禁止其他符号、emoji、换行、Markdown、代码、链接。每个分句以边界标点结尾；后端按标点贪心拼装，单段上限取插件配置 max_segment_chars（默认 128 字），超过上限会失败并返回规范。一次最多 512 字。例如「进度 10%。」会读成「进度 百分之十。」；「5+3。」会读成「五加三。」。示例：主子，文件已经写好了，您要不要看一眼？",
+      "description": "把你要对用户说的话直接说出来。用当前角色的第一人称、人类口语，像当面汇报，不使用播音腔、书面语，不解释自己在调用工具。每完成一步就调用一次，不等到全部做完。允许：中文、英文、数字、空格；中文标点 ，。？！；、：“”‘’（）；英文标点 . , ? ! ; : ' \" ( )；四则符号 + - * / × ÷（含全角 ＋－＊／）；百分号 % 或 ％。英文单词内可用 - 和 '。引号括号需成对（含「」与《》）。其他符号与 emoji 不必刻意删：合成前会自动移除不发音的符号。但禁止换行与制表符、Markdown、代码、链接。每个分句以边界标点结尾；后端按标点贪心拼装，单段上限取插件配置 max_segment_chars（默认 128 字），超过上限会失败并返回规范。一次最多 512 字。例如「进度 10%。」会读成「进度 百分之十。」；「5+3。」会读成「五加三。」。示例：主子，文件已经写好了，您要不要看一眼？",
       "display": {
         "icon": "🔊",
         "label": "AI说话"
@@ -528,12 +528,20 @@
           "description": "命中前后附带的上下文行数",
           "type": "integer"
         },
+        "exclude": {
+          "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+          "type": "array"
+        },
         "glob_pattern": {
           "description": "文件名通配过滤（如 *.py）",
           "type": "string"
         },
         "ignore_case": {
           "description": "忽略大小写",
+          "type": "boolean"
+        },
+        "include_derived": {
+          "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
           "type": "boolean"
         },
         "limit": {
@@ -769,7 +777,7 @@
       }
     },
     {
-      "description": "按字面（| 为 OR 分隔）或正则搜索目录内文本文件内容。需要 gitignore 过滤 / 上下文行 / 编码嗅探时用 file_search。",
+      "description": "按字面（| 为 OR 分隔）或正则搜索目录内文本文件内容。默认只剪掉 .git/ 与 __pycache__/ 这两类通用产物目录，剪掉了几个会在回执 skipped_derived_dirs 里如实报出；要排除别的目录（如本项目自己的临时目录）用 exclude 指定；连默认名单一起搜时传 include_derived=true。需要 gitignore 过滤 / 上下文行 / 编码嗅探时用 file_search。",
       "display": {
         "icon": "🔎",
         "label": "搜索文件内容"
@@ -777,8 +785,16 @@
       "name": "grep_files",
       "parallel_safe": false,
       "parameters": {
+        "exclude": {
+          "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+          "type": "array"
+        },
         "ignore_case": {
           "description": "忽略大小写，默认 false",
+          "type": "boolean"
+        },
+        "include_derived": {
+          "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
           "type": "boolean"
         },
         "limit": {
@@ -1028,7 +1044,7 @@
       }
     },
     {
-      "description": "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。old_text 字面未命中时一律 ok=false 且 data.status=old_text_not_found（不因 new_text 已在文件中、也不做大小写折叠而改判 already_applied）。old 命中但替换后内容不变（如同值替换）时 status=already_applied（needs_commit=false）。",
+      "description": "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。多处字面替换可改用 edits 数组一次提交（按顺序应用，任一条未命中则整批拒绝并指明第几条）。old_text 字面未命中时一律 ok=false 且 data.status=old_text_not_found（不因 new_text 已在文件中、也不做大小写折叠而改判 already_applied）。old 命中但替换后内容不变（如同值替换）时 status=already_applied（needs_commit=false）。",
       "display": {
         "icon": "✏️",
         "label": "替换文件内容"
@@ -1036,6 +1052,10 @@
       "name": "replace_in_file",
       "parallel_safe": false,
       "parameters": {
+        "edits": {
+          "description": "批量字面替换：每项 {old_text, new_text, replace_all?, expected_replacements?}，按顺序应用；不能与 old_text / line_start / line_end 同时使用",
+          "type": "array"
+        },
         "expected_replacements": {
           "description": "字面替换：可选，命中数不符则拒绝",
           "type": "integer"

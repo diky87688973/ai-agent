@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1653** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1684** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -10,7 +10,7 @@
 
 1. [test_ai_speak_plugin.py](#test_ai_speak_pluginpy)（4）
 2. [test_ai_speak_runtime.py](#test_ai_speak_runtimepy)（24）
-3. [test_ai_speak_text.py](#test_ai_speak_textpy)（22）
+3. [test_ai_speak_text.py](#test_ai_speak_textpy)（30）
 4. [test_anthropic_provider.py](#test_anthropic_providerpy)（29）
 5. [test_app_context.py](#test_app_contextpy)（11）
 6. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
@@ -37,7 +37,7 @@
 27. [test_fact_compat.py](#test_fact_compatpy)（4）
 28. [test_file_safety.py](#test_file_safetypy)（24）
 29. [test_file_size_format.py](#test_file_size_formatpy)（4）
-30. [test_four_step_gate.py](#test_four_step_gatepy)（7）
+30. [test_four_step_gate.py](#test_four_step_gatepy)（9）
 31. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
 32. [test_gate_negative.py](#test_gate_negativepy)（62）
 33. [test_goal_runner.py](#test_goal_runnerpy)（6）
@@ -45,7 +45,7 @@
 35. [test_image_tool.py](#test_image_toolpy)（23）
 36. [test_image_turns.py](#test_image_turnspy)（23）
 37. [test_import_graph.py](#test_import_graphpy)（5）
-38. [test_invest_tools.py](#test_invest_toolspy)（24）
+38. [test_invest_tools.py](#test_invest_toolspy)（27）
 39. [test_kb_plugin.py](#test_kb_pluginpy)（49）
 40. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
 41. [test_mode_note.py](#test_mode_notepy)（12）
@@ -61,10 +61,10 @@
 51. [test_protocol_contract.py](#test_protocol_contractpy)（13）
 52. [test_provider_meta.py](#test_provider_metapy)（8）
 53. [test_provider_router.py](#test_provider_routerpy)（14）
-54. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
+54. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
 55. [test_queue_runner.py](#test_queue_runnerpy)（3）
 56. [test_queued_input.py](#test_queued_inputpy)（2）
-57. [test_readonly_tools.py](#test_readonly_toolspy)（25）
+57. [test_readonly_tools.py](#test_readonly_toolspy)（31）
 58. [test_resume_bridge.py](#test_resume_bridgepy)（6）
 59. [test_rules_plugin.py](#test_rules_pluginpy)（12）
 60. [test_run_registry.py](#test_run_registrypy)（13）
@@ -86,7 +86,7 @@
 76. [test_web_ui_config.py](#test_web_ui_configpy)（13）
 77. [test_write_gate.py](#test_write_gatepy)（16）
 78. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-79. [test_write_path_tools.py](#test_write_path_toolspy)（30）
+79. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -132,32 +132,40 @@
 
 ## test_ai_speak_text.py
 
-共 22 个用例。
+共 30 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `ConfigTest` | `test_invalid_engine_and_voice_fail` | 覆盖「A class whose instances are single test cases」：invalid engine and voice fail |
 | 2 | `ConfigTest` | `test_missing_file_uses_defaults` | 覆盖「A class whose instances are single test cases」：missing file uses defaults |
 | 3 | `ConfigTest` | `test_values_and_limits` | 覆盖「A class whose instances are single test cases」：values and limits |
-| 4 | `SpeechTextTest` | `test_dates_and_identifiers_are_not_math` | 覆盖「A class whose instances are single test cases」：dates and identifiers are not math |
-| 5 | `SpeechTextTest` | `test_math` | 覆盖「A class whose instances are single test cases」：math |
-| 6 | `SpeechTextTest` | `test_percent` | 覆盖「A class whose instances are single test cases」：percent |
-| 7 | `SpeechTextTest` | `test_quotes_and_apostrophes` | 覆盖「A class whose instances are single test cases」：quotes and apostrophes |
-| 8 | `SpeechTextTest` | `test_thousands_separator_removed` | 覆盖「A class whose instances are single test cases」：thousands separator removed |
-| 9 | `SplitTest` | `test_chinese_and_english_sentences` | 覆盖「A class whose instances are single test cases」：chinese and english sentences |
-| 10 | `SplitTest` | `test_configured_limit_is_not_capped` | 覆盖「A class whose instances are single test cases」：configured limit is not capped |
-| 11 | `SplitTest` | `test_message_limit` | 覆盖「A class whose instances are single test cases」：message limit |
-| 12 | `SplitTest` | `test_numeric_separators_are_not_boundaries` | 覆盖「A class whose instances are single test cases」：numeric separators are not boundaries |
-| 13 | `SplitTest` | `test_packing_respects_limit` | 覆盖「A class whose instances are single test cases」：packing respects limit |
-| 14 | `SplitTest` | `test_quoted_end_is_a_boundary` | 覆盖「A class whose instances are single test cases」：quoted end is a boundary |
-| 15 | `SplitTest` | `test_single_piece_over_limit` | 覆盖「A class whose instances are single test cases」：single piece over limit |
-| 16 | `ValidationTest` | `test_rejects_empty_and_missing_end` | 覆盖「A class whose instances are single test cases」：rejects empty and missing end |
-| 17 | `ValidationTest` | `test_rejects_empty_pairs` | 覆盖「A class whose instances are single test cases」：rejects empty pairs |
-| 18 | `ValidationTest` | `test_rejects_forbidden_characters` | 覆盖「A class whose instances are single test cases」：rejects forbidden characters |
-| 19 | `ValidationTest` | `test_rejects_leading_boundary` | 覆盖「A class whose instances are single test cases」：rejects leading boundary |
-| 20 | `ValidationTest` | `test_rejects_math_context` | 覆盖「A class whose instances are single test cases」：rejects math context |
-| 21 | `ValidationTest` | `test_rejects_percent_without_number` | 覆盖「A class whose instances are single test cases」：rejects percent without number |
-| 22 | `ValidationTest` | `test_rejects_unmatched_pairs` | 覆盖「A class whose instances are single test cases」：rejects unmatched pairs |
+| 4 | `SpeechTextTest` | `test_bracket_and_book_title_quotes_are_dropped` | 各种引号都不发音：合成前统一清掉，不靠逐个列举。 |
+| 5 | `SpeechTextTest` | `test_dates_and_identifiers_are_not_math` | 覆盖「A class whose instances are single test cases」：dates and identifiers are not math |
+| 6 | `SpeechTextTest` | `test_math` | 覆盖「A class whose instances are single test cases」：math |
+| 7 | `SpeechTextTest` | `test_non_speakable_symbols_are_dropped` | 覆盖「A class whose instances are single test cases」：non speakable symbols are dropped |
+| 8 | `SpeechTextTest` | `test_percent` | 覆盖「A class whose instances are single test cases」：percent |
+| 9 | `SpeechTextTest` | `test_quotes_and_apostrophes` | 覆盖「A class whose instances are single test cases」：quotes and apostrophes |
+| 10 | `SpeechTextTest` | `test_thousands_separator_removed` | 覆盖「A class whose instances are single test cases」：thousands separator removed |
+| 11 | `SplitTest` | `test_chinese_and_english_sentences` | 覆盖「A class whose instances are single test cases」：chinese and english sentences |
+| 12 | `SplitTest` | `test_configured_limit_is_not_capped` | 覆盖「A class whose instances are single test cases」：configured limit is not capped |
+| 13 | `SplitTest` | `test_message_limit` | 覆盖「A class whose instances are single test cases」：message limit |
+| 14 | `SplitTest` | `test_numeric_separators_are_not_boundaries` | 覆盖「A class whose instances are single test cases」：numeric separators are not boundaries |
+| 15 | `SplitTest` | `test_packing_respects_limit` | 覆盖「A class whose instances are single test cases」：packing respects limit |
+| 16 | `SplitTest` | `test_quoted_end_is_a_boundary` | 覆盖「A class whose instances are single test cases」：quoted end is a boundary |
+| 17 | `SplitTest` | `test_single_piece_over_limit` | 覆盖「A class whose instances are single test cases」：single piece over limit |
+| 18 | `ValidationTest` | `test_bracket_quotes_pair_and_do_not_split` | 「」成对可用，且引号内的标点不切段。 |
+| 19 | `ValidationTest` | `test_invisible_character_named_in_error` | 换行这类不可见字符以名字出现，不塞一个看不见的字符进报错。 |
+| 20 | `ValidationTest` | `test_non_speakable_symbols_are_accepted` | 不发音的符号不在输入侧拦，交给合成前清洗。 |
+| 21 | `ValidationTest` | `test_path_and_book_title_chars_allowed` | 文件名符号与书名号可以念，且不破坏切段。 |
+| 22 | `ValidationTest` | `test_rejects_control_characters` | 控制字符会改变切段后各段拼接的含义，必须在输入侧拦住。 |
+| 23 | `ValidationTest` | `test_rejects_empty_and_missing_end` | 覆盖「A class whose instances are single test cases」：rejects empty and missing end |
+| 24 | `ValidationTest` | `test_rejects_empty_pairs` | 覆盖「A class whose instances are single test cases」：rejects empty pairs |
+| 25 | `ValidationTest` | `test_rejects_leading_boundary` | 覆盖「A class whose instances are single test cases」：rejects leading boundary |
+| 26 | `ValidationTest` | `test_rejects_math_context` | 覆盖「A class whose instances are single test cases」：rejects math context |
+| 27 | `ValidationTest` | `test_rejects_percent_without_number` | 覆盖「A class whose instances are single test cases」：rejects percent without number |
+| 28 | `ValidationTest` | `test_rejects_unmatched_book_title` | 书名号同样要求配对。 |
+| 29 | `ValidationTest` | `test_rejects_unmatched_pairs` | 覆盖「A class whose instances are single test cases」：rejects unmatched pairs |
+| 30 | `ValidationTest` | `test_reports_rule_in_error` | 报错要说明规则是什么，别只说这个字符不行。 |
 
 ## test_anthropic_provider.py
 
@@ -988,17 +996,19 @@
 
 ## test_four_step_gate.py
 
-共 7 个用例。
+共 9 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `FourStepGateTest` | `test_happy_path_four_steps` | 四步全流程：预览 → 确认 → 提交（真实写入）→ 重读。 |
-| 2 | `FourStepGateTest` | `test_no_preview_denied` | 无预览的直接提交被拒。 |
-| 3 | `FourStepGateTest` | `test_pending_cap_evicts_oldest` | 未提交预览满额时，新登记挤掉最旧的一条。 |
-| 4 | `FourStepGateTest` | `test_reread_required_for_next_edit` | 写后未重读前，再次提交被拒；read 后放行。 |
-| 5 | `FourStepGateTest` | `test_same_path_keeps_only_latest_preview` | 同一写目标再次预览时，旧 confirm_id 被挤掉。 |
-| 6 | `FourStepGateTest` | `test_snapshot_binding_and_single_use` | 提交内容以快照为准；confirm_id 一次性。 |
-| 7 | `FourStepGateTest` | `test_unconfirmed_preview_denied` | 协议顺序：预览后未确认即提交，被拒。 |
+| 1 | `ChangePayloadTest` | `test_new_file_flag_for_empty_old` | 旧内容为空表示新文件；这一判定不依赖被删掉的字段。 |
+| 2 | `ChangePayloadTest` | `test_payload_has_only_diff_not_full_text` | 字段集合固定：有 diff 与统计，没有 old_text/new_text。 |
+| 3 | `FourStepGateTest` | `test_happy_path_four_steps` | 四步全流程：预览 → 确认 → 提交（真实写入）→ 重读。 |
+| 4 | `FourStepGateTest` | `test_no_preview_denied` | 无预览的直接提交被拒。 |
+| 5 | `FourStepGateTest` | `test_pending_cap_evicts_oldest` | 未提交预览满额时，新登记挤掉最旧的一条。 |
+| 6 | `FourStepGateTest` | `test_reread_required_for_next_edit` | 写后未重读前，再次提交被拒；read 后放行。 |
+| 7 | `FourStepGateTest` | `test_same_path_keeps_only_latest_preview` | 同一写目标再次预览时，旧 confirm_id 被挤掉。 |
+| 8 | `FourStepGateTest` | `test_snapshot_binding_and_single_use` | 提交内容以快照为准；confirm_id 一次性。 |
+| 9 | `FourStepGateTest` | `test_unconfirmed_preview_denied` | 协议顺序：预览后未确认即提交，被拒。 |
 
 ## test_frame_shape_align.py
 
@@ -1186,34 +1196,37 @@
 
 ## test_invest_tools.py
 
-共 24 个用例。
+共 27 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `BatchERegistrationTest` | `test_archive_declares_write_path_keys` | 覆盖「工具注册链路（六个来源共 12 件）+ 门控预览名单一致性」：archive declares write path keys |
 | 2 | `BatchERegistrationTest` | `test_batch_e_plugins_register` | 覆盖「工具注册链路（六个来源共 12 件）+ 门控预览名单一致性」：batch e plugins register |
-| 3 | `FileSearchTest` | `test_context_and_gitignore` | 覆盖「大目录内容搜索」：context and gitignore |
-| 4 | `FileSearchTest` | `test_limit` | 覆盖「大目录内容搜索」：limit |
-| 5 | `FindInFileTest` | `test_literal_or_and_occurrence` | 覆盖「单文件定位」：literal or and occurrence |
-| 6 | `FindInFileTest` | `test_not_found_and_out_of_range` | 覆盖「单文件定位」：not found and out of range |
-| 7 | `FindInFileTest` | `test_regex_invalid` | 覆盖「单文件定位」：regex invalid |
-| 8 | `FindInFileTest` | `test_region_and_rowcols` | 覆盖「单文件定位」：region and rowcols |
-| 9 | `OcrAndArchiveTest` | `test_archive_list_create_extract` | 覆盖「image_ocr / archive」：archive list create extract |
-| 10 | `OcrAndArchiveTest` | `test_archive_unknown_format` | 覆盖「image_ocr / archive」：archive unknown format |
-| 11 | `OcrAndArchiveTest` | `test_ocr_region_validation_and_dependency` | 覆盖「image_ocr / archive」：ocr region validation and dependency |
-| 12 | `RegexLocateTest` | `test_directory_recursive_and_glob` | 覆盖「单文件/目录正则定位」：directory recursive and glob |
-| 13 | `RegexLocateTest` | `test_invalid_regex_and_limit` | 覆盖「单文件/目录正则定位」：invalid regex and limit |
-| 14 | `RegexLocateTest` | `test_limit_truncation` | 覆盖「单文件/目录正则定位」：limit truncation |
-| 15 | `SystemToolsTest` | `test_env_probe_shape` | 覆盖「env_probe / unified_diagnose / git_workspace」：env probe shape |
-| 16 | `SystemToolsTest` | `test_git_workspace_modes` | 覆盖「env_probe / unified_diagnose / git_workspace」：git workspace modes |
-| 17 | `SystemToolsTest` | `test_unified_diagnose_red_green` | 覆盖「env_probe / unified_diagnose / git_workspace」：unified diagnose red green |
-| 18 | `TextDataToolsTest` | `test_data_table_csv_actions` | 覆盖「text_diff / data_table」：data table csv actions |
-| 19 | `TextDataToolsTest` | `test_data_table_xlsx_dependency_path` | 覆盖「text_diff / data_table」：data table xlsx dependency path |
-| 20 | `TextDataToolsTest` | `test_text_diff_file_vs_text` | 覆盖「text_diff / data_table」：text diff file vs text |
-| 21 | `WebToolsTest` | `test_fetch_acceptance_failure_keeps_data` | 覆盖「web_fetch / web_fetch_render」：fetch acceptance failure keeps data |
-| 22 | `WebToolsTest` | `test_fetch_invalid_scheme` | 覆盖「web_fetch / web_fetch_render」：fetch invalid scheme |
-| 23 | `WebToolsTest` | `test_fetch_ok_and_checks` | 覆盖「web_fetch / web_fetch_render」：fetch ok and checks |
-| 24 | `WebToolsTest` | `test_render_dependency_path` | 覆盖「web_fetch / web_fetch_render」：render dependency path |
+| 3 | `FileSearchTest` | `test_blank_pattern_raises` | 空 pattern 报错：不要悄悄把每个位置都当成命中。 |
+| 4 | `FileSearchTest` | `test_context_and_gitignore` | 覆盖「大目录内容搜索」：context and gitignore |
+| 5 | `FileSearchTest` | `test_limit` | 覆盖「大目录内容搜索」：limit |
+| 6 | `FindInFileTest` | `test_blank_pattern_points_to_next_tool` | 字面模式 pattern 为空：报错要点名下一步换哪个工具。 |
+| 7 | `FindInFileTest` | `test_literal_or_and_occurrence` | 覆盖「单文件定位」：literal or and occurrence |
+| 8 | `FindInFileTest` | `test_not_found_and_out_of_range` | 覆盖「单文件定位」：not found and out of range |
+| 9 | `FindInFileTest` | `test_regex_invalid` | 覆盖「单文件定位」：regex invalid |
+| 10 | `FindInFileTest` | `test_region_and_rowcols` | 覆盖「单文件定位」：region and rowcols |
+| 11 | `OcrAndArchiveTest` | `test_archive_list_create_extract` | 覆盖「image_ocr / archive」：archive list create extract |
+| 12 | `OcrAndArchiveTest` | `test_archive_unknown_format` | 覆盖「image_ocr / archive」：archive unknown format |
+| 13 | `OcrAndArchiveTest` | `test_ocr_region_validation_and_dependency` | 覆盖「image_ocr / archive」：ocr region validation and dependency |
+| 14 | `RegexLocateTest` | `test_blank_pattern_raises` | 空 pattern 报错：空正则会命中每一个位置，结果没有意义。 |
+| 15 | `RegexLocateTest` | `test_directory_recursive_and_glob` | 覆盖「单文件/目录正则定位」：directory recursive and glob |
+| 16 | `RegexLocateTest` | `test_invalid_regex_and_limit` | 覆盖「单文件/目录正则定位」：invalid regex and limit |
+| 17 | `RegexLocateTest` | `test_limit_truncation` | 覆盖「单文件/目录正则定位」：limit truncation |
+| 18 | `SystemToolsTest` | `test_env_probe_shape` | 覆盖「env_probe / unified_diagnose / git_workspace」：env probe shape |
+| 19 | `SystemToolsTest` | `test_git_workspace_modes` | 覆盖「env_probe / unified_diagnose / git_workspace」：git workspace modes |
+| 20 | `SystemToolsTest` | `test_unified_diagnose_red_green` | 覆盖「env_probe / unified_diagnose / git_workspace」：unified diagnose red green |
+| 21 | `TextDataToolsTest` | `test_data_table_csv_actions` | 覆盖「text_diff / data_table」：data table csv actions |
+| 22 | `TextDataToolsTest` | `test_data_table_xlsx_dependency_path` | 覆盖「text_diff / data_table」：data table xlsx dependency path |
+| 23 | `TextDataToolsTest` | `test_text_diff_file_vs_text` | 覆盖「text_diff / data_table」：text diff file vs text |
+| 24 | `WebToolsTest` | `test_fetch_acceptance_failure_keeps_data` | 覆盖「web_fetch / web_fetch_render」：fetch acceptance failure keeps data |
+| 25 | `WebToolsTest` | `test_fetch_invalid_scheme` | 覆盖「web_fetch / web_fetch_render」：fetch invalid scheme |
+| 26 | `WebToolsTest` | `test_fetch_ok_and_checks` | 覆盖「web_fetch / web_fetch_render」：fetch ok and checks |
+| 27 | `WebToolsTest` | `test_render_dependency_path` | 覆盖「web_fetch / web_fetch_render」：render dependency path |
 
 ## test_kb_plugin.py
 
@@ -1607,7 +1620,7 @@
 
 ## test_quality_pipeline.py
 
-共 12 个用例。
+共 18 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1623,6 +1636,12 @@
 | 10 | `QualityPipelineTest` | `test_post_write_checks_py` | Python 文件本地检查：坏→红灯，修复→转绿。 |
 | 11 | `QualityPipelineTest` | `test_report_structure` | 质量报告结构。 |
 | 12 | `QualityPipelineTest` | `test_review_clears_large_delete_not_diag` | 大删除因 review 解除；诊断红灯不解除。 |
+| 13 | `RereadAnchorTest` | `test_anchor_follows_file_not_stale_number` | 文件前面插入一行后，同一个 old_text 的锚点行号跟着变。 |
+| 14 | `RereadAnchorTest` | `test_anchor_for_whole_file_write` | 整体覆盖类：给当前行数与字节数，供对照自己预期覆盖的内容。 |
+| 15 | `RereadAnchorTest` | `test_anchor_reports_missing_old_text` | old_text 已被上次写入改掉：如实说找不到，不给假行号。 |
+| 16 | `RereadAnchorTest` | `test_anchor_reports_stale_line_range` | 行区间超出当前文件：直接说行号过期。 |
+| 17 | `RereadAnchorTest` | `test_anchor_when_file_missing` | 目标文件读不到：如实说明，不编造锚点。 |
+| 18 | `RereadAnchorTest` | `test_literal_anchor_shows_current_line` | 字面替换：给出 old_text 在当前文件里的行号与那一行内容。 |
 
 ## test_queue_runner.py
 
@@ -1645,7 +1664,7 @@
 
 ## test_readonly_tools.py
 
-共 25 个用例。
+共 31 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1656,24 +1675,30 @@
 | 5 | `GlobFilesToolTest` | `test_path_not_dir_raises` | path 指向文件而非目录时抛 ValueError。 |
 | 6 | `GlobFilesToolTest` | `test_recursive_default` | 默认递归；**/ 前缀剥除。 |
 | 7 | `GrepFilesToolTest` | `test_binary_file_skipped` | 含 NUL 字节的文件被跳过（二进制嗅探）。 |
-| 8 | `GrepFilesToolTest` | `test_limit_truncation` | limit 截断并标记。 |
-| 9 | `GrepFilesToolTest` | `test_literal_hits` | 字面命中（含子目录；相对路径输出）。 |
-| 10 | `GrepFilesToolTest` | `test_missing_pattern_raises` | 缺少 pattern 抛 ValueError。 |
-| 11 | `GrepFilesToolTest` | `test_no_match` | 无命中：空结果不截断。 |
-| 12 | `GrepFilesToolTest` | `test_or_separator` | 字面模式 \| 为 OR 分隔。 |
-| 13 | `GrepFilesToolTest` | `test_path_not_dir_raises` | path 指向文件而非目录时抛 ValueError。 |
-| 14 | `GrepFilesToolTest` | `test_regex_and_ignore_case` | 正则 + 忽略大小写（三个文件行首均命中：alpha / Alpha / alpha deep）。 |
-| 15 | `ReadFileToolTest` | `test_empty_file` | 空文件：返回空内容与 0 行，不报错。 |
-| 16 | `ReadFileToolTest` | `test_invalid_range_raises` | start 超出总行数时抛 ValueError。 |
-| 17 | `ReadFileToolTest` | `test_max_chars_truncation` | max_chars 截断并标记。 |
-| 18 | `ReadFileToolTest` | `test_missing_file_raises` | 文件不存在抛 FileNotFoundError（管道回灌）。 |
-| 19 | `ReadFileToolTest` | `test_missing_path_raises` | 缺少 path 抛 ValueError。 |
-| 20 | `ReadFileToolTest` | `test_range_clamped_to_end` | line_end 超界时 clamp 到文件尾。 |
-| 21 | `ReadFileToolTest` | `test_read_full_text` | 全文读取。 |
-| 22 | `ReadFileToolTest` | `test_read_line_range` | 行区间切片（1-based 闭区间）。 |
-| 23 | `RegistryPipelineIntegrationTest` | `test_register_and_execute_via_pipeline` | 三工具注册进 ToolRegistry；经 ToolPipeline.execute 驱动 read_file。 |
-| 24 | `RegistryPipelineIntegrationTest` | `test_tool_error_structured` | 工具异常：管道捕获为 ok=False 回灌。 |
-| 25 | `RegistryPipelineIntegrationTest` | `test_unknown_tool_via_pipeline` | 未注册工具名：管道结构化回灌（不抛异常）。 |
+| 8 | `GrepFilesToolTest` | `test_blank_pattern_points_to_next_tool` | 字面模式 \| 分隔后没有非空段：报错要点名下一步换哪个工具。 |
+| 9 | `GrepFilesToolTest` | `test_limit_truncation` | limit 截断并标记。 |
+| 10 | `GrepFilesToolTest` | `test_literal_hits` | 字面命中（含子目录；相对路径输出）。 |
+| 11 | `GrepFilesToolTest` | `test_missing_pattern_raises` | 缺少 pattern 抛 ValueError。 |
+| 12 | `GrepFilesToolTest` | `test_no_match` | 无命中：空结果不截断。 |
+| 13 | `GrepFilesToolTest` | `test_or_separator` | 字面模式 \| 为 OR 分隔。 |
+| 14 | `GrepFilesToolTest` | `test_path_not_dir_raises` | path 指向文件而非目录时抛 ValueError。 |
+| 15 | `GrepFilesToolTest` | `test_regex_and_ignore_case` | 正则 + 忽略大小写（三个文件行首均命中：alpha / Alpha / alpha deep）。 |
+| 16 | `ReadFileToolTest` | `test_empty_file` | 空文件：返回空内容与 0 行，不报错。 |
+| 17 | `ReadFileToolTest` | `test_invalid_range_raises` | start 超出总行数时抛 ValueError。 |
+| 18 | `ReadFileToolTest` | `test_max_chars_truncation` | max_chars 截断并标记。 |
+| 19 | `ReadFileToolTest` | `test_missing_file_raises` | 文件不存在抛 FileNotFoundError（管道回灌）。 |
+| 20 | `ReadFileToolTest` | `test_missing_path_raises` | 缺少 path 抛 ValueError。 |
+| 21 | `ReadFileToolTest` | `test_range_clamped_to_end` | line_end 超界时 clamp 到文件尾。 |
+| 22 | `ReadFileToolTest` | `test_read_full_text` | 全文读取。 |
+| 23 | `ReadFileToolTest` | `test_read_line_range` | 行区间切片（1-based 闭区间）。 |
+| 24 | `RegistryPipelineIntegrationTest` | `test_register_and_execute_via_pipeline` | 三工具注册进 ToolRegistry；经 ToolPipeline.execute 驱动 read_file。 |
+| 25 | `RegistryPipelineIntegrationTest` | `test_tool_error_structured` | 工具异常：管道捕获为 ok=False 回灌。 |
+| 26 | `RegistryPipelineIntegrationTest` | `test_unknown_tool_via_pipeline` | 未注册工具名：管道结构化回灌（不抛异常）。 |
+| 27 | `ScopeTest` | `test_data_is_searched_by_default` | data 不是通用产物目录名，默认就该被搜到。 |
+| 28 | `ScopeTest` | `test_default_only_prunes_git_and_bytecode` | 默认名单只含 .git 与 __pycache__，跳过数如实报出。 |
+| 29 | `ScopeTest` | `test_exclude_echoes_what_was_asked` | 回执原样回显调用方传的排除名单，便于自查是否漏传。 |
+| 30 | `ScopeTest` | `test_exclude_names_are_honoured` | 点名排除的目录两个工具都不再搜。 |
+| 31 | `ScopeTest` | `test_include_derived_does_not_undo_exclude` | include_derived 只放开默认名单，点名排除的仍排除。 |
 
 ## test_resume_bridge.py
 
@@ -2259,7 +2284,7 @@
 
 ## test_write_path_tools.py
 
-共 30 个用例。
+共 36 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2270,27 +2295,33 @@
 | 5 | `WritePathToolsTest` | `test_delete_file_dir_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：delete file dir rejected |
 | 6 | `WritePathToolsTest` | `test_delete_file_missing_is_already_absent` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：delete file missing is already absent |
 | 7 | `WritePathToolsTest` | `test_delete_file_to_recycle` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：delete file to recycle |
-| 8 | `WritePathToolsTest` | `test_file_ops_copy_and_overwrite_refused` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：file ops copy and overwrite refused |
-| 9 | `WritePathToolsTest` | `test_file_ops_source_missing_is_not_already_applied` | copy/move/rename：源不在一律 source_missing（ok=false），不得因目标已在改判。 |
-| 10 | `WritePathToolsTest` | `test_file_undo_requires_path` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：file undo requires path |
-| 11 | `WritePathToolsTest` | `test_file_undo_restore_and_list` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：file undo restore and list |
-| 12 | `WritePathToolsTest` | `test_patch_commit_applies` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch commit applies |
-| 13 | `WritePathToolsTest` | `test_patch_context_mismatch_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch context mismatch rejected |
-| 14 | `WritePathToolsTest` | `test_patch_missing_target_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch missing target rejected |
-| 15 | `WritePathToolsTest` | `test_patch_outside_root_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch outside root rejected |
-| 16 | `WritePathToolsTest` | `test_patch_preview_stats_no_write` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch preview stats no write |
-| 17 | `WritePathToolsTest` | `test_patch_second_needs_review` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch second needs review |
-| 18 | `WritePathToolsTest` | `test_read_write_slice_and_backup` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：read write slice and backup |
-| 19 | `WritePathToolsTest` | `test_replace_commit_applies` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace commit applies |
-| 20 | `WritePathToolsTest` | `test_replace_expected_mismatch_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace expected mismatch rejected |
-| 21 | `WritePathToolsTest` | `test_replace_line_mode` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace line mode |
-| 22 | `WritePathToolsTest` | `test_replace_old_absent_never_already_applied` | old 字面未命中一律 old_text_not_found；不得因 new 已在或删除语义改判。 |
-| 23 | `WritePathToolsTest` | `test_replace_old_text_not_found` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace old text not found |
-| 24 | `WritePathToolsTest` | `test_replace_preview_no_write` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace preview no write |
-| 25 | `WritePathToolsTest` | `test_replace_same_text_already_applied` | 同值替换不得发空 diff 的 confirm_id。 |
-| 26 | `WritePathToolsTest` | `test_replace_stale_file_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace stale file rejected |
-| 27 | `WritePathToolsTest` | `test_reread_block_before_second_write` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：reread block before second write |
-| 28 | `WritePathToolsTest` | `test_undo_backup_records_what_the_rollback_undid` | 回滚前的留档也要记 diff —— 否则"回滚"这一动作本身无迹可查。 |
-| 29 | `WritePathToolsTest` | `test_write_file_same_content_already_applied` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：write file same content already applied |
-| 30 | `WritePathToolsTest` | `test_write_file_trailing_newline_only_shows_diff` | 仅差结尾换行时预览不得空 diff（splitlines 曾吃掉 \n）。 |
+| 8 | `WritePathToolsTest` | `test_edits_applies_all_in_order` | 批量字面替换：按顺序一次改完多处。 |
+| 9 | `WritePathToolsTest` | `test_edits_are_sequential_not_parallel` | 后一条看得见前一条的结果：先 A→B 再把 B→C，最终应为 C。 |
+| 10 | `WritePathToolsTest` | `test_edits_empty_list_rejected` | 空数组不是有效批量：拒绝而不是静默当成无事发生。 |
+| 11 | `WritePathToolsTest` | `test_edits_rejects_mixing_with_literal_or_line_params` | edits 与 old_text / 行区间互斥，避免两套语义同时生效。 |
+| 12 | `WritePathToolsTest` | `test_edits_rejects_top_level_replace_all` | 顶层 replace_all 在批量模式下不生效，必须拒绝而不是静默忽略。 |
+| 13 | `WritePathToolsTest` | `test_edits_rejects_whole_batch_when_one_misses` | 任一条未命中整批拒绝，并指明是第几条；文件一个字节都不动。 |
+| 14 | `WritePathToolsTest` | `test_file_ops_copy_and_overwrite_refused` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：file ops copy and overwrite refused |
+| 15 | `WritePathToolsTest` | `test_file_ops_source_missing_is_not_already_applied` | copy/move/rename：源不在一律 source_missing（ok=false），不得因目标已在改判。 |
+| 16 | `WritePathToolsTest` | `test_file_undo_requires_path` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：file undo requires path |
+| 17 | `WritePathToolsTest` | `test_file_undo_restore_and_list` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：file undo restore and list |
+| 18 | `WritePathToolsTest` | `test_patch_commit_applies` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch commit applies |
+| 19 | `WritePathToolsTest` | `test_patch_context_mismatch_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch context mismatch rejected |
+| 20 | `WritePathToolsTest` | `test_patch_missing_target_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch missing target rejected |
+| 21 | `WritePathToolsTest` | `test_patch_outside_root_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch outside root rejected |
+| 22 | `WritePathToolsTest` | `test_patch_preview_stats_no_write` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch preview stats no write |
+| 23 | `WritePathToolsTest` | `test_patch_second_needs_review` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：patch second needs review |
+| 24 | `WritePathToolsTest` | `test_read_write_slice_and_backup` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：read write slice and backup |
+| 25 | `WritePathToolsTest` | `test_replace_commit_applies` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace commit applies |
+| 26 | `WritePathToolsTest` | `test_replace_expected_mismatch_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace expected mismatch rejected |
+| 27 | `WritePathToolsTest` | `test_replace_line_mode` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace line mode |
+| 28 | `WritePathToolsTest` | `test_replace_old_absent_never_already_applied` | old 字面未命中一律 old_text_not_found；不得因 new 已在或删除语义改判。 |
+| 29 | `WritePathToolsTest` | `test_replace_old_text_not_found` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace old text not found |
+| 30 | `WritePathToolsTest` | `test_replace_preview_no_write` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace preview no write |
+| 31 | `WritePathToolsTest` | `test_replace_same_text_already_applied` | 同值替换不得发空 diff 的 confirm_id。 |
+| 32 | `WritePathToolsTest` | `test_replace_stale_file_rejected` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：replace stale file rejected |
+| 33 | `WritePathToolsTest` | `test_reread_block_before_second_write` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：reread block before second write |
+| 34 | `WritePathToolsTest` | `test_undo_backup_records_what_the_rollback_undid` | 回滚前的留档也要记 diff —— 否则"回滚"这一动作本身无迹可查。 |
+| 35 | `WritePathToolsTest` | `test_write_file_same_content_already_applied` | 覆盖「六工具：正向提交 / 违规拒绝 / 门控联动」：write file same content already applied |
+| 36 | `WritePathToolsTest` | `test_write_file_trailing_newline_only_shows_diff` | 仅差结尾换行时预览不得空 diff（splitlines 曾吃掉 \n）。 |
 

@@ -18,6 +18,7 @@ from agent.core.tool_call import GateDecision  # noqa: E402
 from agent.mechanisms.quality import (  # noqa: E402
     MAX_PENDING_PREVIEWS,
     WriteContext,
+    change_payload,
 )
 from tests.gate_fixtures import make_gate  # noqa: E402
 
@@ -148,6 +149,34 @@ class FourStepGateTest(unittest.TestCase):
         self.assertIsNotNone(self.gate.peek(newest))
         self.assertEqual(len(self.gate._pending), MAX_PENDING_PREVIEWS)
         self.assertIsNotNone(self.gate.peek(keep[1]))
+
+
+class ChangePayloadTest(unittest.TestCase):
+    """预览回执只带 diff，不重复整文件正文。"""
+
+    def test_payload_has_only_diff_not_full_text(self) -> None:
+        """字段集合固定：有 diff 与统计，没有 old_text/new_text。"""
+
+        old = "a\nb\nc\n"
+        new = "a\nB\nc\n"
+        payload = change_payload(old, new, "x.txt")
+        self.assertEqual(
+            set(payload),
+            {"path", "new_file", "added", "deleted", "diff", "truncated"},
+        )
+        self.assertEqual(payload["added"], 1)
+        self.assertEqual(payload["deleted"], 1)
+        self.assertIn("-b", payload["diff"])
+        self.assertIn("+B", payload["diff"])
+        self.assertFalse(payload["new_file"])
+        self.assertFalse(payload["truncated"])
+
+    def test_new_file_flag_for_empty_old(self) -> None:
+        """旧内容为空表示新文件；这一判定不依赖被删掉的字段。"""
+
+        payload = change_payload("", "hello\n", "y.txt")
+        self.assertTrue(payload["new_file"])
+        self.assertIn("+hello", payload["diff"])
 
 
 if __name__ == "__main__":

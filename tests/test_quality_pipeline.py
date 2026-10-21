@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any, Dict
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -194,6 +195,88 @@ class QualityPipelineTest(unittest.TestCase):
         self.assertTrue(self.gate.claim_fixed_blocked)
         self.gate.review_done()
         self.assertFalse(self.gate.claim_fixed_blocked)
+
+class RereadAnchorTest(unittest.TestCase):
+    """重读锚点：拒绝时给出「当前磁盘上的落点」，行号现算，不沿用旧行号。"""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.gate = make_gate()
+
+    def _commit_after_write(self, path: Path, args: Dict[str, Any], tool: str):
+        """先记一次真写（触发重读要求），再登记并确认一份预览用于提交尝试。"""
+        self.gate.note_committed(str(path), tool=tool)
+        cid = self.gate.register_preview(tool, args)
+        self.gate.confirm(cid)
+        return self.gate.check_write(WriteContext(confirm_id=cid))
+
+    def test_literal_anchor_shows_current_line(self) -> None:
+        """字面替换：给出 old_text 在当前文件里的行号与那一行内容。"""
+
+        target = self.root / "a.py"
+        target.write_text("one\ntwo\nTARGET\nfour\n", encoding="utf-8")
+        decision = self._commit_after_write(
+            target,
+            {"path": str(target), "old_text": "TARGET", "new_text": "X"},
+            "replace_in_file",
+        )
+        self.assertFalse(decision.allow)
+        self.assertIn("第 3 行", decision.reason)
+        self.assertIn("TARGET", decision.reason)
+
+    def test_anchor_follows_file_not_stale_number(self) -> None:
+        """文件前面插入一行后，同一个 old_text 的锚点行号跟着变。"""
+
+        target = self.root / "b.py"
+        args = {"path": str(target), "old_text": "TARGET", "new_text": "X"}
+        target.write_text("TARGET\n", encoding="utf-8")
+        self.assertIn("第 1 行", self._commit_after_write(target, args, "replace_in_file").reason)
+        target.write_text("new head\nTARGET\n", encoding="utf-8")
+        self.assertIn("第 2 行", self._commit_after_write(target, args, "replace_in_file").reason)
+
+    def test_anchor_reports_missing_old_text(self) -> None:
+        """old_text 已被上次写入改掉：如实说找不到，不给假行号。"""
+
+        target = self.root / "c.py"
+        target.write_text("nothing here\n", encoding="utf-8")
+        decision = self._commit_after_write(
+            target,
+            {"path": str(target), "old_text": "GONE", "new_text": "X"},
+            "replace_in_file",
+        )
+        self.assertIn("已找不到", decision.reason)
+
+    def test_anchor_reports_stale_line_range(self) -> None:
+        """行区间超出当前文件：直接说行号过期。"""
+
+        target = self.root / "d.py"
+        target.write_text("one\n", encoding="utf-8")
+        decision = self._commit_after_write(
+            target,
+            {"path": str(target), "line_start": 50, "line_end": 60, "new_text": "X"},
+            "replace_in_file",
+        )
+        self.assertIn("行号已过期", decision.reason)
+
+    def test_anchor_for_whole_file_write(self) -> None:
+        """整体覆盖类：给当前行数与字节数，供对照自己预期覆盖的内容。"""
+
+        target = self.root / "e.txt"
+        target.write_text("a\nb\nc\n", encoding="utf-8")
+        decision = self._commit_after_write(
+            target, {"path": str(target), "content": "z"}, "write_file")
+        self.assertIn("当前文件共", decision.reason)
+
+    def test_anchor_when_file_missing(self) -> None:
+        """目标文件读不到：如实说明，不编造锚点。"""
+
+        target = self.root / "gone.txt"
+        decision = self._commit_after_write(
+            target, {"path": str(target), "content": "z"}, "write_file")
+        self.assertIn("读不到", decision.reason)
+
 
 if __name__ == "__main__":
     unittest.main()

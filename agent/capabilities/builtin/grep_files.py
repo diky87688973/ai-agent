@@ -2,28 +2,42 @@
 """grep_files 工具：目录内文本内容搜索（字面含 | 分隔 / 正则）。"""
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+from agent.capabilities.builtin.scan_scope import skip_set
 from agent.capabilities.registry import ToolPlugin
 
 DEFAULT_LIMIT = 200
 _BINARY_SNIFF = "\x00"
 
 
-def _iter_text_files(root: Path) -> Iterator[Tuple[Path, str]]:
-    """遍历 root 下文件，产出 (path, text)；不可读或疑似二进制跳过。"""
-    for p in sorted(root.rglob("*")):
-        if not p.is_file():
-            continue
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if _BINARY_SNIFF in text:
-            continue
-        yield p, text
+def _iter_text_files(root: Path, skip_names: frozenset, skipped: Optional[Dict[str, int]] = None
+                     ) -> Iterator[Tuple[Path, str]]:
+    """遍历 root 下文本文件，产出 (path, text)；坏文件与二进制不出现在结果里。
+
+    `skip_names` 里的目录整枝剪掉：不进入、不读、不逐文件产出 ——
+    这些目录下动辄成千上万文件，逐个过滤等于让「跳过」也付出全量遍历的代价。
+    `skipped` 传入字典时累计剪掉的目录数，供回执如实说明。
+    """
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        if skip_names:
+            kept = [name for name in dirnames if name not in skip_names]
+            if skipped is not None:
+                skipped["dirs"] = skipped.get("dirs", 0) + (len(dirnames) - len(kept))
+            dirnames[:] = kept
+        for name in sorted(filenames):
+            p = Path(dirpath) / name
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if _BINARY_SNIFF in text:
+                continue
+            yield p, text
 
 
 def _compile_pattern(pattern: str, regex: bool, ignore_case: bool):
@@ -45,6 +59,10 @@ class GrepFilesTool(ToolPlugin):
     icon = "🔎"
     description = (
         "按字面（| 为 OR 分隔）或正则搜索目录内文本文件内容。"
+        "默认只剪掉 .git/ 与 __pycache__/ 这两类通用产物目录，"
+        "剪掉了几个会在回执 skipped_derived_dirs 里如实报出；"
+        "要排除别的目录（如本项目自己的临时目录）用 exclude 指定；"
+        "连默认名单一起搜时传 include_derived=true。"
         "需要 gitignore 过滤 / 上下文行 / 编码嗅探时用 file_search。"
     )
     parameters = {
@@ -52,6 +70,14 @@ class GrepFilesTool(ToolPlugin):
         "path": {"type": "string", "description": "搜索根目录，默认 ."},
         "regex": {"type": "boolean", "description": "true 时按 Python 正则解析，默认 false"},
         "ignore_case": {"type": "boolean", "description": "忽略大小写，默认 false"},
+        "exclude": {
+            "type": "array",
+            "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+        },
+        "include_derived": {
+            "type": "boolean",
+            "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
+        },
         "limit": {"type": "integer", "description": "结果上限，默认 200"},
     }
 
@@ -66,11 +92,23 @@ class GrepFilesTool(ToolPlugin):
             pattern, bool(arguments.get("regex")), bool(arguments.get("ignore_case"))
         )
         if matcher is None:
-            raise ValueError("pattern 为空（字面模式）")
+            raise ValueError(
+                "pattern 为空（字面模式）：按 | 分隔后没有任何非空段，模型无可匹配。"
+                "给一个非空 pattern 后重试；只想列文件名用 glob_files，"
+                "读整个文件内容用 read_file，要按正则匹配传 regex=true。"
+            )
         limit = int(arguments.get("limit") or DEFAULT_LIMIT)
+        include_derived = bool(arguments.get("include_derived", False))
+        raw_exclude = arguments.get("exclude")
+        exclude = (
+            [str(x).strip() for x in raw_exclude if str(x).strip()]
+            if isinstance(raw_exclude, list) else []
+        )
+        skipped: Dict[str, int] = {}
         matches: List[Dict[str, Any]] = []
         truncated = False
-        for file_path, text in _iter_text_files(root):
+        for file_path, text in _iter_text_files(
+                root, skip_set(include_derived, exclude), skipped):
             rel = str(file_path.relative_to(root)).replace("\\", "/")
             for lineno, line in enumerate(text.splitlines(), 1):
                 if not matcher.search(line):
@@ -87,6 +125,9 @@ class GrepFilesTool(ToolPlugin):
             "matches": matches,
             "count": len(matches),
             "truncated": truncated,
+            "skipped_derived_dirs": int(skipped.get("dirs", 0)),
+            "exclude": exclude,
+            "include_derived": include_derived,
         }
 
 

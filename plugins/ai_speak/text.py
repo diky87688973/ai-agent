@@ -13,14 +13,15 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import List, Optional, Tuple
 
 MAX_MESSAGE_CHARS = 512
 DEFAULT_MAX_SEGMENT_CHARS = 128
 
 _CJK_RANGES = ((0x3400, 0x4DBF), (0x4E00, 0x9FFF))
-_CN_OPENERS = {"“": "”", "‘": "’", "（": "）"}
-_CN_CLOSERS = {"”": "“", "’": "‘", "）": "（"}
+_CN_OPENERS = {"“": "”", "‘": "’", "（": "）", "《": "》", "「": "」"}
+_CN_CLOSERS = {"”": "“", "’": "‘", "）": "（", "》": "《", "」": "「"}
 _EN_OPENERS = {"(": ")"}
 _EN_CLOSERS = {'"': '"', ")": "("}
 _OPENERS = set(_CN_OPENERS) | set(_EN_OPENERS) | {"'", '"'}
@@ -30,13 +31,18 @@ _BOUNDARY_EN = set(".,?!;:")
 _MATH = set("+-*/×÷＋－＊／")
 _PERCENT = set("%％")
 _SPACES = set(" \u3000")
+#: 文件名与路径里最常见、也念得出来的符号。
+#: 说文件名不该比说英文单词更难 —— 后者本来就允许 `-` 与 `'`。
+_PATH_CHARS = set("_.\\/")
 _START_CLOSERS = _CLOSERS - {'"', "'"}
-_TRAILING_OPENERS = {"“", "‘", "（", "("}
+_TRAILING_OPENERS = {"“", "‘", "（", "(", "「"}
 
 _OPEN_CLOSER = {
     "“": "”",
     "‘": "’",
     "（": "）",
+    "《": "》",
+    "「": "」",
     '"': '"',
     "(": ")",
     "'": "'",
@@ -116,17 +122,63 @@ def _numeric_separator(text: str, index: int) -> bool:
     return _is_ascii_digit(text[index - 1]) and _is_ascii_digit(text[index + 1])
 
 
+def _path_char(ch: str) -> bool:
+    """文件名内部的字符：字母、数字、下划线、连字符。"""
+    return _is_ascii_alnum(ch) or ch in "_-"
+
+
+def _extension_dot(text: str, index: int) -> bool:
+    """文件名的点不是分句边界：`USER_RULES.md`、`a/b.py` 要整体念出来。
+
+    判定收紧到「点前是名字字符、点后是 1–5 个字母且不再接名字字符」——
+    扩展名长度有界，避免把 `end. Next` 这类正常句号也吞掉。
+    """
+    if text[index] != ".":
+        return False
+    if index == 0 or not _path_char(text[index - 1]):
+        return False
+    cursor = index + 1
+    letters = 0
+    while cursor < len(text) and _is_ascii_letter(text[cursor]):
+        cursor += 1
+        letters += 1
+    if not 1 <= letters <= 5:
+        return False
+    return cursor >= len(text) or not _path_char(text[cursor])
+
+
 def _allowed_char(ch: str) -> bool:
-    return (
-        _is_cjk(ch)
-        or _is_ascii_alnum(ch)
-        or _is_space(ch)
-        or ch in _OPENERS
-        or ch in _CLOSERS
-        or _is_boundary(ch)
-        or ch in _MATH
-        or ch in _PERCENT
-    )
+    """字符合法性：只拦破坏结构的控制字符，其余一律放行。
+
+    不在这一层拦“念不出来”的符号：模型天生想用各种引号、箭头、emoji，
+    在这一层逐个列举只会不断漏（书名号就是漏进来的那一个）。
+    不发音的符号交给 `to_speech_text` 在合成前统一清掉。
+
+    控制字符必须拦：换行与制表符会改变切段后各段的拼接含义，
+    它们不是“念不出来”，而是“结构不成立”。
+    """
+    if _is_space(ch):
+        return True
+    return unicodedata.category(ch)[0] != "C"
+
+
+#: 报错时给模型看的允许字符一览。
+#: 只说“这个字符不行”等于让它反复试；说清零了就不存在须要试的东西。
+_ALLOWED_SUMMARY = (
+    "除换行、制表符等控制字符外均可；引号括号需成对；"
+    "不发音的符号（各种引号、箭头、emoji 等）会在合成前自动移除，不必删。"
+)
+
+
+def _describe_char(ch: str) -> str:
+    """不可见字符用可读名字，避免报错里出现一个看不见的字符。"""
+    if ch == "\n":
+        return "换行"
+    if ch == "\t":
+        return "制表符"
+    if ch == "\r":
+        return "回车"
+    return ch
 
 
 def _scan_structure(text: str) -> List[int]:
@@ -143,7 +195,11 @@ def _scan_structure(text: str) -> List[int]:
 
     for index, ch in enumerate(text):
         if not _allowed_char(ch):
-            _fail(f"不允许的字符「{ch}」", index + 1, "invalid_char")
+            _fail(
+                f"不允许的字符「{_describe_char(ch)}」；{_ALLOWED_SUMMARY}",
+                index + 1,
+                "invalid_char",
+            )
 
         if ch == '"':
             if stack and stack[-1][0] == '"':
@@ -181,7 +237,7 @@ def _scan_structure(text: str) -> List[int]:
             continue
 
         if _is_boundary(ch) and not stack:
-            if not _numeric_separator(text, index):
+            if not _numeric_separator(text, index) and not _extension_dot(text, index):
                 add_boundary(index)
 
     if stack:
@@ -388,8 +444,25 @@ def _negative_replacement(match: "re.Match[str]") -> str:
     return "负" + _chinese_number(match.group(1))
 
 
+#: 合成前保留的标点：分句边界与文件名符号。
+#: 撇号留着是为了 don't 这类词内撇号；成对的引号已在前面删掉。
+_SPEAKABLE_PUNCT = set("，。？！；、：.,?!;:") | set("_.\\/-") | {"'"}
+
+
+def _is_speakable(ch: str) -> bool:
+    """这个字符念得出来吗。字母与数字一律保留（含全角），标点只留清单内的。"""
+    if ch in _SPEAKABLE_PUNCT or ch in _SPACES:
+        return True
+    return unicodedata.category(ch)[0] in ("L", "N")
+
+
 def to_speech_text(text: str) -> str:
-    """去掉不发音的引号/括号，并把百分比与四则运算转成中文读法。"""
+    """把一段话转成送给引擎的文本：去掉不发音符号，百分比与四则转中文读法。
+
+    清洗用“保留可发音字符”而不是“逐个删掉已知符号”：后者每遇到一种新引号
+    就漏一次（书名号就是这样一路留到引擎的）。这里只保证一件事——
+    留下的每一个字符都有声音。
+    """
     source = str(text or "")
     source = re.sub(r'[“”‘’（）"()]', "", source)
     source = re.sub(r"(?<![A-Za-z])'|'(?![A-Za-z])", "", source)
@@ -409,4 +482,5 @@ def to_speech_text(text: str) -> str:
 
     for index, value in enumerate(protected):
         source = source.replace(f"\x00{index}\x00", value)
-    return source
+    spoken = "".join(ch for ch in source if _is_speakable(ch))
+    return re.sub(r"[ \u3000]+", " ", spoken).strip()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from agent.core.tool_call import GateDecision
@@ -15,7 +16,10 @@ if TYPE_CHECKING:
 MAX_DIFF_LINES = 80
 # 预览卡片：diff 展示上限（超出只给统计，避免把整文件塞进事件流）
 PREVIEW_DIFF_MAX_LINES = 600
-PREVIEW_TEXT_MAX_CHARS = 20000
+# 重读锚点：命中位置的展示条数与单行字符上限。锚点是一句供核对的话，
+# 给多了它自己就变成需要阅读的正文。
+REREAD_ANCHOR_MAX_LINES = 3
+REREAD_ANCHOR_LINE_CHARS = 120
 
 
 @dataclass
@@ -35,6 +39,69 @@ def _in_paths(path: str, paths: List[str]) -> bool:
         if q and (norm == q or norm.endswith("/" + q) or q.endswith("/" + norm)):
             return True
     return False
+
+
+def _clip_line(text: str, limit: int = REREAD_ANCHOR_LINE_CHARS) -> str:
+    """压成一行摘要：折叠行内空白，超长截断。"""
+    flat = " ".join(str(text or "").split())
+    if len(flat) <= limit:
+        return flat
+    return flat[: limit - 1] + "…"
+
+
+def _line_no_at(text: str, index: int) -> int:
+    """字符下标 → 1-based 行号。"""
+    return text.count("\n", 0, index) + 1
+
+
+def reread_anchors(tool: str, arguments: Dict[str, Any], path: str) -> List[str]:
+    """在「当前磁盘内容」上定位这份预览的落点，作为重读复核的核对目标。
+
+    行号一律现算：不取模型记住的位置，也不取快照里登记的历史位置 ——
+    文件改过之后旧行号就是错的，让它当锚点等于把模型往错处引。
+    读不到文件时如实说明，不编造锚点。
+    """
+    try:
+        current = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return [f"  当前内容读不到（{path}）：请先用 read_file 确认文件是否还在"]
+    lines = current.split("\n")
+    args = dict(arguments or {})
+
+    if tool == "replace_in_file":
+        old_text = str(args.get("old_text") or "")
+        if old_text:
+            total = current.count(old_text)
+            if not total:
+                return [
+                    "  old_text 在当前文件里已找不到：上次写入可能已改掉它，"
+                    "请重新取当前内容再构造替换"
+                ]
+            no = _line_no_at(current, current.find(old_text))
+            return [
+                f"  old_text 命中 {total} 次，首处位于第 {no} 行",
+                f"  第 {no} 行当前：{_clip_line(lines[no - 1])}",
+            ]
+        line_start = args.get("line_start")
+        line_end = args.get("line_end")
+        if line_start is not None or line_end is not None:
+            try:
+                start = int(line_start) if line_start is not None else 1
+                end = int(line_end) if line_end is not None else len(lines)
+            except (TypeError, ValueError):
+                return ["  行区间参数无法解析：请核对 line_start / line_end"]
+            if not (1 <= start <= end <= len(lines)):
+                return [
+                    f"  目标区间 {start}-{end} 行超出当前文件（共 {len(lines)} 行）："
+                    "行号已过期，请重新取当前内容"
+                ]
+            out = [f"  目标区间 {start}-{end} 行，当前文件共 {len(lines)} 行"]
+            last = min(end, start + REREAD_ANCHOR_MAX_LINES - 1)
+            for no in range(start, last + 1):
+                out.append(f"  第 {no} 行当前：{_clip_line(lines[no - 1])}")
+            return out
+
+    return [f"  当前文件共 {len(lines)} 行、{len(current.encode('utf-8'))} 字节"]
 
 
 def _join_unified_diff(lines: Any) -> str:
@@ -80,9 +147,12 @@ def diff_text(old: str, new: str, path: str = "") -> str:
 def change_payload(old_text: str, new_text: str, path: str = "") -> Dict[str, Any]:
     """构造"变更预览"载荷（供 Web 壳的文件编辑 / diff 卡片）。
 
-    字段：path / new_file（原文件不存在）/ added / deleted / diff（unified，带上下文）/
-    old_text / new_text / truncated。文本超限时截断并置 truncated=True——
-    卡片仍可渲染，只是不展示全文（完整内容走右栏文件查看器）。
+    字段：path / new_file（原文件不存在）/ added / deleted /
+    diff（unified，带上下文）/ truncated。diff 超过展示上限时截断并置
+    truncated=True —— 卡片仍可渲染，完整内容走右栏文件查看器。
+
+    只回 diff，不回整文件正文：diff 已经带着改动的上下文行，再附一份全文
+    等于同一份内容在回执里出现两遍；回执的唯一读方（界面）只读 diff。
     """
     old = str(old_text or "")
     new = str(new_text or "")
@@ -101,20 +171,12 @@ def change_payload(old_text: str, new_text: str, path: str = "") -> Dict[str, An
     if len(diff_lines) > PREVIEW_DIFF_MAX_LINES:
         diff_lines = diff_lines[:PREVIEW_DIFF_MAX_LINES]
         truncated = True
-    if len(old) > PREVIEW_TEXT_MAX_CHARS:
-        old = old[:PREVIEW_TEXT_MAX_CHARS]
-        truncated = True
-    if len(new) > PREVIEW_TEXT_MAX_CHARS:
-        new = new[:PREVIEW_TEXT_MAX_CHARS]
-        truncated = True
     return {
         "path": str(path or ""),
         "new_file": not old,
         "added": added,
         "deleted": deleted,
         "diff": _join_unified_diff(diff_lines),
-        "old_text": old,
-        "new_text": new,
         "truncated": truncated,
     }
 
@@ -184,14 +246,27 @@ def check_write(gate: "QualityGate", wc: WriteContext) -> GateDecision:
         return GateDecision(
             allow=False,
             reason=(
-                f"该路径刚落盘过：请先 read_file 复核当前内容与行号（{path}）。"
-                "复核不使已解锁的 confirm_id 失效；确认无误后用原 confirm_id 继续 "
-                "commit_write，不必重新预览。"
+                "\n".join(
+                    [f"该路径写入后尚未复核：请先 read_file 核对这些锚点（{path}）。"]
+                    + reread_anchors(tool, args, path)
+                    + [
+                        "复核不使已解锁的 confirm_id 失效；确认无误后用原 confirm_id "
+                        "继续 commit_write，不必重新预览。"
+                    ]
+                )
             ),
         )
     if tool == "replace_in_file":
         new_text = str(args.get("new_text") or "")
         new_lines = new_text.count("\n") + 1
+        # 批量替换（edits）同样要过行数上限：只合计各条 new_text 的行数，
+        # 否则把它当成 1 行就等于给大改留了一条旁路。
+        edits = args.get("edits")
+        if isinstance(edits, list) and edits and not new_text:
+            new_lines = sum(
+                str(item.get("new_text") or "").count("\n") + 1
+                for item in edits if isinstance(item, dict)
+            )
         if new_lines > MAX_DIFF_LINES:
             span: Optional[int] = None
             line_start = args.get("line_start")
