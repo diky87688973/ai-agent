@@ -80,15 +80,25 @@ class ModelEntry:
 
     @property
     def context_window(self) -> int:
-        """模型上下文窗口（token）；条目没声明时为 0（调用方用缺省值兜底）。
-
-        它是物理上限，只用于界面算占用率；压缩阈值是预算，两者不能混用。
-        """
+        """模型上下文窗口（token）；条目没声明时为 0（调用方用缺省值兜底）。"""
         try:
             return max(0, int(self.options.get("context_window") or 0))
         except (TypeError, ValueError):
-            # 窗口写坏了按未声明处理：只影响占用率展示，模型照常可用。
             return 0
+
+    @property
+    def compression_percent(self) -> int:
+        """该模型的压缩触发百分比；缺失或越界按 70。"""
+        raw = self.options.get("compression_percent")
+        if isinstance(raw, bool):
+            return 70
+        if isinstance(raw, int):
+            value = raw
+        elif isinstance(raw, str) and raw.strip().isdigit():
+            value = int(raw.strip())
+        else:
+            return 70
+        return value if 10 <= value <= 90 else 70
 
 
 @dataclass(frozen=True)

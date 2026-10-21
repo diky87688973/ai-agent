@@ -47,7 +47,6 @@ _KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_-]+)(\s*=\s*)(.*)$")
 _NUMBER_MIN = {
     "max_passes": 1,
     "backup_retention_days": 0,
-    "summary_token_threshold": 1,
     "full_user_rounds": 0,
     "summary_output_max_chars": 1,
     "reasoning_replay_tokens": -1,
@@ -65,7 +64,8 @@ def _fields() -> List[Dict[str, Any]]:
                 {"key": "reasoning_effort", "kind": "enum", "label": "推理档位",
                  "options": [{"value": "high", "label": "high"},
                              {"value": "max", "label": "max"}]},
-                {"key": "max_passes", "kind": "number", "label": "单回合模型往返上限",
+                {"key": "max_passes", "kind": "number", "label": "每回合往返上限",
+                 "hint": "每回合往返上限≠每回合工具调用次数上限，每次往返可调用 0 个或多个工具",
                  },
                 {"key": "backup_retention_days", "kind": "number",
                  "label": "AI 修改文件时的备份保存天数",
@@ -77,9 +77,7 @@ def _fields() -> List[Dict[str, Any]]:
             "file": "config.ini",
             "title": "上下文",
             "fields": [
-                {"key": "summary_token_threshold", "kind": "number", "label": "压缩阈值（token）",
-                 },
-                {"key": "full_user_rounds", "kind": "number", "label": "保留完整用户轮数",
+                {"key": "full_user_rounds", "kind": "number", "label": "压缩时保留最近对话轮数",
                  },
                 {"key": "summary_output_max_chars", "kind": "number", "label": "摘要字数上限",
                  },
@@ -209,7 +207,6 @@ def _effective_values(config_path: Path, web_ui_path: Path) -> Dict[str, Dict[st
             "backup_retention_days": str(get_backup_retention_days(config_path)),
         },
         "context": {
-            "summary_token_threshold": str(ctx["summary_token_threshold"]),
             "full_user_rounds": str(ctx["full_user_rounds"]),
             "summary_output_max_chars": str(ctx["summary_output_max_chars"]),
             "reasoning_replay_tokens": str(ctx["reasoning_replay_tokens"]),
@@ -368,7 +365,6 @@ def apply_host(app: Any, *, config_path: Optional[Path] = None) -> Dict[str, str
         if isinstance(defaults, dict):
             defaults.update({
                 "full_user_rounds": int(ctx["full_user_rounds"]),
-                "summary_token_threshold": int(ctx["summary_token_threshold"]),
                 "reasoning_replay_tokens": int(ctx["reasoning_replay_tokens"]),
             })
         if hasattr(app, "image_turns"):
@@ -471,6 +467,7 @@ def list_plugins(plugins_path: Optional[Path] = None,
             "enabled": on,
             "version": _version_label(declared),
             "configurable": entry is not None,
+            "settings_tab": str(meta.get("settings_tab") or ""),
         })
     cards.sort(key=lambda item: (not item["enabled"], item["title"]))
     return {"ok": True, "plugins": cards}

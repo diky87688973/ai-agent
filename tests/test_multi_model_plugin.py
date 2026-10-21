@@ -10,6 +10,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -69,8 +70,17 @@ class _ConfigCase(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.path = self.root / "plugin-config.ini"
 
-    def write(self, text: str, *, bom: bool = False) -> Path:
+    def write(self, text: str, *, bom: bool = False, raw: bool = False) -> Path:
         encoding = "utf-8-sig" if bom else "utf-8"
+        if not raw:
+            parts = re.split(r"(?m)(?=^\[model:)", text)
+            out = []
+            for part in parts:
+                match = re.match(r"(?s)(\[model:[^\]]+\]\n)", part)
+                if match and "context_window" not in part.lower():
+                    part = match.group(1) + "context_window = 1000000\n" + part[match.end():]
+                out.append(part)
+            text = "".join(out)
         self.path.write_text(text, encoding=encoding)
         return self.path
 
@@ -126,17 +136,41 @@ class ParseTest(_ConfigCase):
         self.assertEqual(entries[0].context_window, 128000)
         self.assertEqual(entries[0].options["context_window"], 128000)
 
-    def test_bad_context_window_keeps_the_entry_usable(self) -> None:
-        """窗口只服务展示；写坏了丢这一项，不该让整条模型消失。"""
+    def test_bad_context_window_invalidates_the_entry(self) -> None:
         entries, invalid = self.parse(
             "[model:a]\n"
             "base_url = http://x\n"
             "api_key = k\n"
             "context_window = lots\n"
         )
+        self.assertEqual(entries, ())
+        self.assertIn("context_window", invalid[0]["reason"])
+
+    def test_missing_context_window_invalidates_the_entry(self) -> None:
+        self.write(
+            "[model:a]\nbase_url = http://x\napi_key = k\n",
+            raw=True,
+        )
+        with contextlib.redirect_stderr(io.StringIO()):
+            entries, invalid = _PLUGIN.parse_config(self.path)
+        self.assertEqual(entries, ())
+        self.assertIn("context_window", invalid[0]["reason"])
+
+    def test_compression_percent_defaults_to_70(self) -> None:
+        entries, invalid = self.parse(
+            "[model:a]\nbase_url = http://x\napi_key = k\n"
+        )
         self.assertEqual(invalid, ())
-        self.assertEqual(entries[0].context_window, 0)
-        self.assertNotIn("context_window", entries[0].options)
+        self.assertEqual(entries[0].compression_percent, 70)
+        self.assertEqual(entries[0].options["compression_percent"], 70)
+
+    def test_compression_percent_rejects_out_of_range(self) -> None:
+        entries, invalid = self.parse(
+            "[model:a]\nbase_url = http://x\napi_key = k\n"
+            "compression_percent = 95\n"
+        )
+        self.assertEqual(entries, ())
+        self.assertIn("compression_percent", invalid[0]["reason"])
 
     def test_anthropic_options_are_typed(self) -> None:
         entries, _ = self.parse(
@@ -302,7 +336,7 @@ class CatalogPayloadTest(_ConfigCase):
         self.assertEqual(payload["default"], "claude")
         self.assertEqual(payload["models"], [{
             "id": "claude", "label": "Claude", "provider": "anthropic",
-            "context_window": 0, "default": True,
+            "context_window": 1000000, "default": True,
         }])
         dumped = json.dumps(payload, ensure_ascii=False)
         self.assertNotIn("super-secret", dumped)

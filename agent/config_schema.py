@@ -23,7 +23,7 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "plugin_tree_only": "0",
     },
     "context": {
-        "summary_token_threshold": "700000",
+        "summary_token_fallback": "64000",
         "full_user_rounds": "1",
         "summary_output_max_chars": "5000",
         "image_turns": "1",

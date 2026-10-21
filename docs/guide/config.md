@@ -19,7 +19,7 @@ plugin_tree_only = 0
 |---|---|---|
 | `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可切换，**会话级选择优先**，且按会话落盘（`data/session_state/`） |
 | `backup_retention_days` | `7` | 版本化备份保留天数。启动时清理更早的；`0` = 永久保留 |
-| `max_passes` | `64` | 一回合最多跑多少次模型往返；小于 1 按 1 处理。一趟可带多个工具调用 |
+| `max_passes` | `64` | 每回合模型往返上限；小于 1 按 1 处理。每次往返可调用 0 个或多个工具，不是工具调用次数上限 |
 | `user_rules_file` | 空 | 用户自定义规则文件（`.md` / `.txt`）。留空则不加规则段 |
 | `plugin_tree_only` | `0` | `1` 时只允许装载落在 `plugins/` 树内的插件目录；清单里的绝对/外置 `path` 会被拒。环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先 |
 
@@ -67,7 +67,7 @@ plugin_tree_only = 0
 
 ```ini
 [context]
-summary_token_threshold  = 700000
+summary_token_fallback   = 64000
 full_user_rounds         = 1
 summary_output_max_chars = 5000
 image_turns              = 1
@@ -77,12 +77,15 @@ reasoning_replay_tokens = 8000
 
 | 键 | 缺省或留空时 | 含义 | 建议范围 |
 |---|---|---|---|
-| `summary_token_threshold` | `700000` | 上下文估算 token 数超过此值时触发压缩。调大保留更多原文、请求更贵；调小更省但更早丢失细节 | `60000`–`1000000` |
-| `full_user_rounds` | `1` | 压缩时的遮盖轮数：末尾这么多用户轮不压，只压它们前面的 | `1`–`10` |
+| `summary_token_fallback` | `64000` | 仅在当前模型没有声明 `context_window` 时使用的回退压缩阈值；不提供设置页入口 | 正整数 |
+| `full_user_rounds` | `1` | 压缩时保留最近对话轮数：末尾这么多用户轮不压，只压它们前面的 | `1`–`10` |
 | `summary_output_max_chars` | `5000` | 摘要的篇幅上限，单位为字。它作为约束写进摘要提示词，实际长度由模型遵守程度决定 | `2000`–`8000` |
 | `image_turns` | `1` | 只把**最近这么多轮用户发言**里的图片带进模型请求，更早的转文本占位。`0` = 一张都不带，负数 = 不限 | 正整数 / 负数 |
 | `image_max` | `8` | 这几轮里最多带几张图；**最近一轮优先保**，超量的从最老的那一轮开始砍。`0` = 一张都不带，负数 = 不限 | 正整数 / 负数 |
 | `reasoning_replay_tokens` | `8000` | 思维链回传预算（token）。`-1` = 全量回传；`0` = 不回传；正数 = 超出就**取两头、中间以 `<此处省略 N token 的推理>` 代替**（模型可据前后文推断中间）。思维链是模型产生的中间稿，必然未命中缓存，全量回传等于每轮多背几万 token | `-1` / `0` / 正数 |
+
+有模型窗口时，实际压缩阈值 = `context_window × compression_percent / 100`；
+`compression_percent` 是模型条目字段，默认 70，范围 10–90。
 
 图片只从**发给模型的请求**里被裁掉，事实流里的字节不动 —— 历史回显与重新提问都还能拿到原图。
 

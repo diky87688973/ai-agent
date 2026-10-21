@@ -51,7 +51,7 @@ backup_retention_days = 7    # 版本化备份保留天数；0 = 永久保留
 user_rules_file =            # 可选：自定义规则文件（.md / .txt），留空不加规则段
 
 [context]
-summary_token_threshold  = 700000
+summary_token_fallback   = 64000
 summary_output_max_chars = 5000
 full_user_rounds         = 1
 ```
@@ -60,9 +60,12 @@ full_user_rounds         = 1
 
 | 键 | 默认 | 含义 |
 |---|---|---|
-| `summary_token_threshold` | `700000` | 估算 token 超过该值触发压缩 |
+| `summary_token_fallback` | `64000` | 模型没有声明上下文窗口时的回退压缩阈值；仅配置文件 |
 | `summary_output_max_chars` | `5000` | 摘要篇幅上限（字） |
-| `full_user_rounds` | `1` | 近期记忆保留的用户轮数，始终按原文发送 |
+| `full_user_rounds` | `1` | 压缩时保留最近对话轮数，始终按原文发送 |
+
+模型有 `context_window` 时，压缩阈值为该窗口 × 模型自己的 `compression_percent`；
+窗口缺失才使用 `summary_token_fallback`。模型条目见 [多模型](docs/subsystems/multi-model.md)。
 
 末尾 `full_user_rounds` 个用户轮保持原文发送；更早的轮次压缩成摘要。
 
@@ -109,7 +112,7 @@ python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
 ```
 
-单元测试（1617 个用例）：
+单元测试（1630 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

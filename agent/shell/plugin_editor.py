@@ -75,9 +75,16 @@ def _parse_fields(raw_fields: Any) -> List[Dict[str, Any]]:
             if not options:
                 continue
             field["options"] = options
+        if item.get("required") is True:
+            field["required"] = True
         if item.get("min") is not None:
             try:
                 field["min"] = int(item["min"])
+            except (TypeError, ValueError):
+                pass
+        if item.get("max") is not None:
+            try:
+                field["max"] = int(item["max"])
             except (TypeError, ValueError):
                 pass
         show_if = item.get("show_if")
@@ -440,6 +447,8 @@ def _group_body(group: Dict[str, Any], schema: Dict[str, Any],
             continue
         if not value:
             value = str(field.get("default") or "")
+        if field.get("required") and not value:
+            return [], f"{field['label']}不能为空"
         if not value:
             continue
         if "\n" in value or "\r" in value:
@@ -456,6 +465,9 @@ def _group_body(group: Dict[str, Any], schema: Dict[str, Any],
             floor = field.get("min")
             if floor is not None and number < int(floor):
                 return [], f"{field['label']}不能小于 {floor}"
+            ceiling = field.get("max")
+            if ceiling is not None and number > int(ceiling):
+                return [], f"{field['label']}不能大于 {ceiling}"
             value = str(number)
         body.extend(_comment_lines(comments.get(key.lower())))
         body.append(f"{key} = {value}")

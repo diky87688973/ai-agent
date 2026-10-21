@@ -376,6 +376,17 @@ class ToolTest(unittest.TestCase):
         self.assertIsInstance(result.get("error"), _RUNTIME.SpeechPlaybackFailed)
         self.assertEqual(result["error"].status, "timeout")
 
+    def test_sync_synthesis_failure_is_not_reported_as_playback_failure(self) -> None:
+        runtime = _RUNTIME.AISpeakRuntime(
+            _config(sync_playback=True), RecordingProvider(fail_texts=["坏"])
+        )
+        self.addCleanup(runtime.dispose)
+        with self.assertRaises(_RUNTIME.SpeechSynthesisFailed) as ctx:
+            self._call(runtime, "坏的。", FakePublisher())
+        self.assertIn("语音合成失败", str(ctx.exception))
+        self.assertIn("simulated failure", str(ctx.exception))
+        self.assertNotIn("前端播放失败", str(ctx.exception))
+
     def test_sync_playback_releases_on_stop(self) -> None:
         runtime = _RUNTIME.AISpeakRuntime(
             _config(sync_playback=True), RecordingProvider()

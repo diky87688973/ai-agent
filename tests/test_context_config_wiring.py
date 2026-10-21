@@ -40,7 +40,8 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
         for name in sig:
             if name in ("self", "conversation_id", "sources", "model_context_window"):
                 continue
-            self.assertIn(name, cfg, msg=f"管线参数 {name} 在配置里没有对应项")
+            cfg_name = "summary_token_fallback" if name == "summary_token_threshold" else name
+            self.assertIn(cfg_name, cfg, msg=f"管线参数 {name} 在配置里没有对应项")
             self.assertIn(f"{name}=", src,
                           msg=f"工厂没把 {name} 传给管线（配置写了也不生效）")
 
@@ -51,7 +52,7 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
         app = build_app(provider=None)
         pipe = app.context_factory("probe-cid")
         cfg = get_context()
-        self.assertEqual(pipe.summary_token_threshold, cfg["summary_token_threshold"])
+        self.assertEqual(pipe.summary_token_threshold, cfg["summary_token_fallback"])
         self.assertEqual(pipe.reasoning_replay_tokens, cfg["reasoning_replay_tokens"])
         self.assertEqual(pipe.full_user_rounds, cfg["full_user_rounds"])
         # 工厂不猜窗口；会话装配时按模型回填。

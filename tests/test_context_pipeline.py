@@ -198,8 +198,8 @@ class DefaultConfigValues(unittest.TestCase):
         from agent.config import get_context
         from agent.mechanisms.context_pipeline import DEFAULT_SUMMARY_TOKEN_THRESHOLD
         c = get_context()
-        self.assertEqual(c["summary_token_threshold"], 700000)
-        self.assertEqual(DEFAULT_SUMMARY_TOKEN_THRESHOLD, 700000)
+        self.assertEqual(c["summary_token_fallback"], 64000)
+        self.assertEqual(DEFAULT_SUMMARY_TOKEN_THRESHOLD, 64000)
 
     def test_compactor_signature_matches_config(self) -> None:
         import inspect
@@ -209,7 +209,7 @@ class DefaultConfigValues(unittest.TestCase):
         sig = inspect.signature(ContextCompactor.__init__)
         c = get_context()
         self.assertEqual(sig.parameters["summary_token_threshold"].default,
-                         c["summary_token_threshold"])
+                         c["summary_token_fallback"])
         self.assertEqual(sig.parameters["full_user_rounds"].default,
                          c["full_user_rounds"])
 
@@ -225,11 +225,15 @@ class MaxPassesConfigTest(unittest.TestCase):
     """`[agent] max_passes`：一回合的操作次数上限，可配。"""
 
     def test_default_is_64(self) -> None:
+        import tempfile
+        from pathlib import Path
+
         from agent.config import DEFAULT_MAX_PASSES, get_max_passes
         from agent.core.host import MAX_PASSES_DEFAULT
         self.assertEqual(MAX_PASSES_DEFAULT, 64)
         self.assertEqual(DEFAULT_MAX_PASSES, 64, msg="config 转出的默认值要与内核一致")
-        self.assertEqual(get_max_passes(), 64)
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(get_max_passes(Path(tmp) / "missing.ini"), 64)
 
     def test_config_value_wins(self) -> None:
         import tempfile
@@ -268,10 +272,10 @@ class MaxPassesConfigTest(unittest.TestCase):
     def test_engine_carries_the_value(self) -> None:
         import inspect
 
-        from agent.config import get_max_passes
+        from agent.config import DEFAULT_MAX_PASSES
         from agent.core.engine import Engine
         sig = inspect.signature(Engine.__init__)
-        self.assertEqual(sig.parameters["max_passes"].default, get_max_passes())
+        self.assertEqual(sig.parameters["max_passes"].default, DEFAULT_MAX_PASSES)
 
 if __name__ == "__main__":
     unittest.main()

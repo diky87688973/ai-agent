@@ -53,7 +53,7 @@ def resolve_plugin_root(plugins_dir: Path, name: str, path_raw: str = "") -> Pat
 
 
 #: 插件身份声明键。真实配置只放插件自己的设置，不重复声明身份。
-_IDENTITY_KEYS = ("id", "name", "desc", "icon", "version")
+_IDENTITY_KEYS = ("id", "name", "desc", "icon", "version", "settings_tab")
 
 
 def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
@@ -71,6 +71,7 @@ def plugin_config_fields(plugin_root: Path) -> Dict[str, str]:
         "enable": "1",
         "icon": "",
         "version": "",
+        "settings_tab": "",
     }
     for key in _IDENTITY_KEYS:
         value = str(meta.get(key) or "")

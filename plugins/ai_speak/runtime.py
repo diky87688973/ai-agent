@@ -42,18 +42,32 @@ class SpeechBusy(SpeechError):
         super().__init__(f"待合成语音过多（{self.queued}/{self.limit}），稍后再试")
 
 
-class SpeechPlaybackFailed(SpeechError):
-    """同步播放没有完成：停止、错误、丢帧或超时。"""
+class SpeechSynthesisFailed(SpeechError):
+    """语音合成失败：没有音频可播；detail 是引擎给出的原因。"""
 
-    def __init__(self, status: str, waited_ms: int = 0) -> None:
+    def __init__(self, detail: str = "") -> None:
+        self.detail = str(detail or "")
+        message = "语音合成失败"
+        if self.detail:
+            message += f"：{self.detail}"
+        super().__init__(message)
+
+
+class SpeechPlaybackFailed(SpeechError):
+    """播放没有完成：播放出错、停止、丢帧或超时。"""
+
+    def __init__(self, status: str, waited_ms: int = 0, detail: str = "") -> None:
         self.status = str(status or "failed")
         self.waited_ms = max(0, int(waited_ms))
+        self.detail = str(detail or "")
         message = {
             "stopped": "播放被用户中止",
-            "error": "前端播放失败",
+            "error": "播放失败",
             "dropped": "音频没有送达前端",
             "timeout": "等待前端播放超时",
         }.get(self.status, f"播放未完成（{self.status}）")
+        if self.detail:
+            message += f"：{self.detail}"
         super().__init__(message)
 
 
@@ -66,6 +80,7 @@ class PlaybackWaiter:
         self._event = threading.Event()
         self._lock = threading.Lock()
         self._status: Optional[str] = None
+        self._detail = ""
         self._started_at = time.monotonic()
 
     @property
@@ -77,12 +92,18 @@ class PlaybackWaiter:
     def waited_ms(self) -> int:
         return max(0, int((time.monotonic() - self._started_at) * 1000))
 
-    def resolve(self, status: str) -> str:
+    @property
+    def detail(self) -> str:
+        with self._lock:
+            return self._detail
+
+    def resolve(self, status: str, detail: str = "") -> str:
         """首次结果生效；重复 ack 不会覆盖已完成的播放结果。"""
         value = str(status or "error")
         with self._lock:
             if self._status is None:
                 self._status = value
+                self._detail = str(detail or "")
                 self._event.set()
             return self._status
 
@@ -243,20 +264,23 @@ class _SessionWorker:
                     except SpeechSynthesisError as exc:
                         self._runtime._mark_failed(self._cid, exc)
                         self._runtime._finish_playback(
-                            job.conversation_id, job.call_id, "error")
+                            job.conversation_id, job.call_id, "synthesis_failed",
+                            f"{type(exc).__name__}: {exc}")
                         self._publish_raw(publisher, "error", self._error_payload(job, exc))
                         continue
                     except SpeechEngineUnavailable as exc:
                         self._runtime._mark_failed(self._cid, exc)
                         self._runtime._finish_playback(
-                            job.conversation_id, job.call_id, "error")
+                            job.conversation_id, job.call_id, "synthesis_failed",
+                            f"{type(exc).__name__}: {exc}")
                         self._publish_raw(publisher, "error", self._error_payload(job, exc))
                         self._stop.set()
                         return
                     except Exception as exc:
                         self._runtime._mark_failed(self._cid, exc)
                         self._runtime._finish_playback(
-                            job.conversation_id, job.call_id, "error")
+                            job.conversation_id, job.call_id, "synthesis_failed",
+                            f"{type(exc).__name__}: {exc}")
                         self._publish_raw(publisher, "error", self._error_payload(job, exc))
                         continue
 
@@ -404,7 +428,8 @@ class AISpeakRuntime:
             self._playback[key] = waiter
             return waiter
 
-    def ack_playback(self, conversation_id: str, call_id: str, status: str) -> bool:
+    def ack_playback(self, conversation_id: str, call_id: str, status: str,
+                     detail: str = "") -> bool:
         """前端 ack；未知/已完成的调用返回 False，不影响播放器。"""
         call = str(call_id or "").strip()
         if not call:
@@ -421,7 +446,7 @@ class AISpeakRuntime:
                 if len(matches) == 1:
                     waiter = self._playback.pop(matches[0])
             if waiter is not None:
-                waiter.resolve("dropped" if value == "incomplete" else value)
+                waiter.resolve("dropped" if value == "incomplete" else value, detail)
                 return True
         return False
 
@@ -430,14 +455,15 @@ class AISpeakRuntime:
         with self._playback_lock:
             self._playback.pop((str(conversation_id or ""), str(call_id or "")), None)
 
-    def _finish_playback(self, conversation_id: str, call_id: str, status: str) -> None:
+    def _finish_playback(self, conversation_id: str, call_id: str, status: str,
+                         detail: str = "") -> None:
         """worker 侧失败信号：合成错误、无连接或丢段。"""
         with self._playback_lock:
             waiter = self._playback.pop(
                 (str(conversation_id or ""), str(call_id or "")), None
             )
         if waiter is not None:
-            waiter.resolve(status)
+            waiter.resolve(status, detail)
 
     def _resolve_playback_cid(self, conversation_id: str, status: str) -> None:
         cid = str(conversation_id or "")

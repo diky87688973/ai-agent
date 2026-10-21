@@ -133,12 +133,29 @@ def _parse_entry(path: Path, section: str, parser: configparser.ConfigParser,
         "api_key": api_key,
         "model": get("model") or model_id,
     }
-    # 上下文窗口是该模型的物理上限，只给界面算占用率用（provider 构造器不认它，
-    # 注册表按白名单过滤）。坏值只留痕、不塞进条目：一个展示字段不该让整条模型失效。
-    window = _positive_int(
-        get("context_window"), path, section, "context_window", lines)
-    if window is not None:
-        options["context_window"] = window
+    # 上下文窗口是压缩阈值的分母，也是界面占用率的分母；没有它无法计算百分比。
+    window_raw = get("context_window")
+    if not window_raw:
+        lines.append(_diag(path, section, "context_window", "缺少最大上下文窗口"))
+        return None
+    window = _positive_int(window_raw, path, section, "context_window", lines)
+    if window is None:
+        return None
+    options["context_window"] = window
+    percent_raw = get("compression_percent")
+    percent = 70
+    if percent_raw:
+        try:
+            percent = int(percent_raw)
+        except (TypeError, ValueError):
+            lines.append(_diag(path, section, "compression_percent",
+                               f"应为整数，实际为 {percent_raw!r}"))
+            return None
+        if percent < 10 or percent > 90:
+            lines.append(_diag(path, section, "compression_percent",
+                               f"应为 10–90，实际为 {percent!r}"))
+            return None
+    options["compression_percent"] = percent
     if provider == "anthropic":
         # 这些键只对 Anthropic 有意义；写在 openai 条目上就忽略，避免把
         # 不属于该厂商的参数塞进构造器。

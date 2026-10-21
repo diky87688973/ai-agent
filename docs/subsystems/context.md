@@ -188,21 +188,30 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 
 ## 压缩触发
 
-### `summary_token_threshold` 是什么
+### 压缩阈值如何得到
 
-它是**请求体积的软上限**，不是模型窗口、也不是"压到多少"的目标：
+有模型窗口时：
+
+```text
+threshold = floor(context_window × compression_percent / 100)
+```
+
+`compression_percent` 属于模型条目，默认 70，范围 10–90。模型没有窗口时使用
+`[context] summary_token_fallback`（默认 64000）。
+
+它是**请求体积的软上限**，不是"压到多少"的目标：
 
 ```
 估算体积 = 串起来发给模型的那份请求的估算 token
          = 系统提示词 + 插件各段 + 记忆摘要 + 未覆盖的对话 + 待并入的消息
 
-估算体积 <= summary_token_threshold  →  放行，照原样发
-估算体积 >  summary_token_threshold  →  先压既有历史，再用压缩后的上下文发
+估算体积 <= threshold  →  放行，照原样发
+估算体积 >  threshold  →  先压既有历史，再用压缩后的上下文发
 ```
 
 体积是**估算**（`approx_tokens_text` / `default_message_tokens`），不是精确计数。
 它同时也是**分层视图的百分比基准**：`context_layout.budget_tokens` 就是它，
-各段 `pct` 相对它算。默认 700000，按实际模型的窗口大小调。
+各段 `pct` 相对它算。阈值随会话当前模型变化；模型切换后下一回合重算。
 
 超过阈值**不是错误**：超了就压，压完接着发。它是这套机制里唯一决定"该不该压"的数。
 
@@ -251,7 +260,8 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 
 | 参数 | 默认 | 含义 |
 |---|---|---|
-| `summary_token_threshold` | 700000 | 请求体积的软上限；超了才压，同时是分层百分比的基准 |
+| `threshold` | 按模型计算 | 请求体积的软上限；超了才压，同时是分层百分比的基准 |
+| `summary_token_fallback` | 64000 | 模型没有声明窗口时的回退阈值；仅配置文件 |
 | `full_user_rounds` | 1 | 遮盖的末尾用户轮数（压不出空间时连它们一起压）|
 | `summary_output_max_chars` | 5000 | 摘要篇幅上限（字） |
 | 摘要前缀 | 固定复用 | 摘要请求带上与平常请求相同的前缀，这次调用才能命中已有缓存 |

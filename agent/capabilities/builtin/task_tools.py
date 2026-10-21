@@ -455,6 +455,11 @@ class GoalTool(ToolPlugin):
             if action == "pause":
                 return {"goal": self._state.update_goal(cid, status="paused")}
             if action == "resume":
+                if text:
+                    # 恢复时给出的文案优先：同会话已有目标也整体替换。
+                    return {"goal": self._state.set_goal(cid, text)}
+                if self._state.get_goal(cid) is None:
+                    raise GoalError("目标不存在，且没有可恢复的文案")
                 return {"goal": self._state.update_goal(cid, status="active")}
             if action == "done":
                 return {"goal": self._state.update_goal(cid, status="done")}

@@ -324,6 +324,22 @@ class TaskSleepAutonomousTest(_TaskToolsBase):
         self.assertFalse(self._call("goal", {"action": "create"}).ok)
         self.assertFalse(self._call("goal", {"action": "bogus"}).ok)
 
+    def test_resume_creates_missing_goal_from_text(self):
+        r = self._call("goal", {"action": "resume", "text": "继续往下讲"})
+        self.assertTrue(r.ok)
+        self.assertEqual(r.data["goal"]["status"], "active")
+        self.assertEqual(r.data["goal"]["text"], "继续往下讲")
+        self.assertEqual(self.state.goal_trigger_text(CID), "继续往下讲")
+
+    def test_resume_replaces_existing_goal_text(self):
+        self._call("goal", {"action": "create", "text": "旧目标"})
+        self._call("goal", {"action": "pause"})
+        r = self._call("goal", {"action": "resume", "text": "新目标"})
+        self.assertTrue(r.ok)
+        self.assertEqual(r.data["goal"]["status"], "active")
+        self.assertEqual(r.data["goal"]["text"], "新目标")
+        self.assertEqual(self.state.goal_trigger_text(CID), "新目标")
+
 class ModeGateTest(_TaskToolsBase):
     def _preview_ready(self, name):
         prev = self._call("write_file", {"path": str(self.root / name), "content": "hi"})

@@ -39,9 +39,12 @@ from agent.capabilities.model_catalog import ModelCatalog
 from agent.capabilities.plugins import PluginHost
 from agent.capabilities.registry import ToolRegistry
 from agent.config import (
+    DEFAULT_COMPRESSION_PERCENT,
     DEFAULT_CONTEXT_WINDOW,
     DEFAULT_MAX_PASSES,
+    DEFAULT_SUMMARY_TOKEN_FALLBACK,
     PROJECT_ROOT,
+    compression_threshold,
     default_data_root,
     get_backup_retention_days,
     get_context,
@@ -205,9 +208,8 @@ class App:
     def context_window_for(self, conversation_id: str) -> int:
         """会话当前所用模型的上下文窗口（token）。
 
-        窗口是模型的物理上限，同一份配置下换模型就该换分母：
-        目录取条目自带的 `context_window`。拿不到时给 0，
-        界面退回用压缩阈值当分母（并标明口径），不编一个假窗口。
+        窗口是模型的物理上限；压缩阈值按它计算，换模型后下一回合重算。
+        目录取条目自带的 `context_window`；拿不到时给 0。
         """
         snapshot = self._catalog_snapshot()
         if snapshot is not None and snapshot.authoritative:
@@ -216,8 +218,17 @@ class App:
                 return entry.context_window or DEFAULT_CONTEXT_WINDOW
         return 0
 
+    def compression_percent_for(self, conversation_id: str) -> int:
+        """会话当前模型的压缩百分比；模型缺失时用默认 70。"""
+        snapshot = self._catalog_snapshot()
+        if snapshot is not None and snapshot.authoritative:
+            entry = snapshot.entry(self.model_for(conversation_id))
+            if entry is not None:
+                return entry.compression_percent
+        return DEFAULT_COMPRESSION_PERCENT
+
     def reload_model_config(self, config_path: Optional[Path] = None) -> str:
-        """兼容设置页旧入口：模型只由多模型插件维护。"""
+        """返回模型配置来源说明；模型由多模型插件维护。"""
         if self.model_config_state == "catalog":
             return "模型目录权威，配置由多模型插件维护"
         return "模型由多模型插件维护"
@@ -418,6 +429,14 @@ class App:
             compactor = compactor_factory(conversation_id)
             if compactor is not None:
                 compactor.restore_from_events(list(log.events))
+        # 压缩阈值按当前模型窗口 × 该模型百分比；窗口缺失时用配置回退值。
+        fallback = int(get_context().get("summary_token_fallback") or DEFAULT_SUMMARY_TOKEN_FALLBACK)
+        threshold = compression_threshold(
+            window, self.compression_percent_for(conversation_id), fallback)
+        if context is not None and hasattr(context, "summary_token_threshold"):
+            context.summary_token_threshold = threshold
+        if compactor is not None and hasattr(compactor, "summary_token_threshold"):
+            compactor.summary_token_threshold = threshold
         fact_sink = None
         if store is not None and conversation_id:
             cid = conversation_id
@@ -676,7 +695,7 @@ def build_app(
             return ContextPipeline(
                 conversation_id,
                 full_user_rounds=int(fresh["full_user_rounds"]),
-                summary_token_threshold=int(fresh["summary_token_threshold"]),
+                summary_token_threshold=int(fresh["summary_token_fallback"]),
                 reasoning_replay_tokens=int(fresh["reasoning_replay_tokens"]),
                 # 上下文窗口属于"模型"而不是"上下文预算"：由会话按当前模型
                 # 在 `App.session` 里回填，工厂不猜。
@@ -697,7 +716,7 @@ def build_app(
             )
             return ContextCompactor(
                 summarizer,
-                summary_token_threshold=int(fresh["summary_token_threshold"]),
+                summary_token_threshold=int(fresh["summary_token_fallback"]),
                 full_user_rounds=int(fresh["full_user_rounds"]),
             )
 
@@ -733,7 +752,6 @@ def build_app(
         context,
         context_defaults={
             "full_user_rounds": int(ctx_cfg["full_user_rounds"]),
-            "summary_token_threshold": int(ctx_cfg["summary_token_threshold"]),
             "reasoning_replay_tokens": int(ctx_cfg["reasoning_replay_tokens"]),
         },
         image_turns=int(ctx_cfg["image_turns"]),

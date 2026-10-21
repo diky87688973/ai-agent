@@ -547,9 +547,20 @@ class _Handler(BaseHTTPRequestHandler):
                             goal = state.update_goal(cid, text=text)
                     elif action == "get":
                         goal = state.get_goal(cid)
-                    elif action in ("pause", "resume", "done"):
-                        goal = state.update_goal(cid, status={"pause": "paused", "resume": "active",
-                                                              "done": "done"}[action])
+                    elif action == "resume":
+                        text = str(body.get("text") or "").strip()
+                        if text:
+                            # 页面文案就是恢复后的目标：同会话已有目标也整体替换。
+                            goal = state.set_goal(cid, text)
+                        elif state.get_goal(cid) is None:
+                            self._json(400, {"ok": False,
+                                             "error": "目标不存在，且没有可恢复的文案"})
+                            return
+                        else:
+                            goal = state.update_goal(cid, status="active")
+                    elif action in ("pause", "done"):
+                        goal = state.update_goal(
+                            cid, status={"pause": "paused", "done": "done"}[action])
                     elif action == "delete":
                         state.delete_goal(cid)
                         goal = None

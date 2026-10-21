@@ -330,7 +330,7 @@ class StructuredPluginConfigTest(unittest.TestCase):
             {"key": "base_url", "kind": "text", "label": "网关"},
             {"key": "api_key", "kind": "secret", "label": "密钥"},
             {"key": "context_window", "kind": "number", "label": "窗口",
-             "default": "1000000", "min": 1},
+             "min": 1, "required": True},
             {"key": "max_tokens", "kind": "number", "label": "回复上限", "min": 1,
              "show_if": {"key": "provider", "equals": "anthropic"}},
         ],
@@ -364,6 +364,22 @@ class StructuredPluginConfigTest(unittest.TestCase):
             self.assertEqual(group["values"]["context_window"], "128000")
             self.assertNotIn("sk-secret", json.dumps(payload))
 
+    def test_required_field_rejects_an_empty_value(self) -> None:
+        config = (
+            "[model:a]\nprovider = openai\nbase_url = http://x\napi_key = sk-secret\n"
+            "context_window = 128000\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root, folder = self._setup(tmp, config)
+            payload = read_plugin_config("demo", plugins_dir=root)
+            group = payload["editor"]["groups"][0]
+            group["values"]["context_window"] = ""
+            written = write_plugin_config("demo", groups=[group], plugins_dir=root)
+            self.assertFalse(written["ok"])
+            self.assertIn("不能为空", written["error"])
+            text = (folder / "plugin-config.ini").read_text(encoding="utf-8")
+            self.assertIn("context_window = 128000", text)
+
     def test_save_keeps_other_sections_and_an_untouched_secret(self) -> None:
         config = (
             "[custom]\nkeep = 1\n\n"
@@ -386,9 +402,11 @@ class StructuredPluginConfigTest(unittest.TestCase):
     def test_new_model_group_gets_a_generated_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root, folder = self._setup(
-                tmp, "[model:a]\nprovider = openai\nmodel = first\n")
+                tmp, "[model:a]\nprovider = openai\nmodel = first\n"
+                "context_window = 128000\n")
             groups = read_plugin_config("demo", plugins_dir=root)["editor"]["groups"]
-            groups.append({"id": "", "values": {"provider": "openai", "base_url": "http://x"}})
+            groups.append({"id": "", "values": {"provider": "openai", "base_url": "http://x",
+                                                "context_window": "128000"}})
             written = write_plugin_config(
                 "demo", groups=groups, plugins_dir=root)
             self.assertTrue(written["ok"], written.get("error"))

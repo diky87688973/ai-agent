@@ -1,7 +1,7 @@
 (function () {
   var state = {
     sections: [], values: {}, tab: "", mode: "host",
-    plugin: null, editor: null, saving: false
+    pluginCards: [], plugin: null, editor: null, direct: false, saving: false
   };
 
   function bootSettingsPanel() {
@@ -117,16 +117,24 @@
     mask();
     document.addEventListener("keydown", onKey);
     setStatus("");
-    request("GET", "/api/settings").then(function (data) {
+    Promise.all([
+      request("GET", "/api/settings"),
+      request("GET", "/api/settings/plugins")
+    ]).then(function (result) {
+      var data = result[0] || {};
+      var plugins = result[1] || {};
       if (!data.ok) {
         setStatus(data.error || "读取设置失败", true);
         return;
       }
       adoptSections(data.sections, true);
+      state.pluginCards = plugins.ok && Array.isArray(plugins.plugins)
+        ? plugins.plugins : [];
       state.mode = "host";
       state.tab = state.sections.length ? state.sections[0].id : "";
       state.plugin = null;
       state.editor = null;
+      state.direct = false;
       renderNav();
       renderHost();
     }).catch(function () {
@@ -151,20 +159,41 @@
     state.values = values;
   }
 
-  /* 目录权威态会隐藏「模型」节。插件开关切换后立即重取，标签的出现与消失
-     属于面板状态，页面刷新不是前置条件。 */
+  /* 插件开关会改变可用入口；重取目录与插件卡片后重绘导航。 */
   function refreshHostSections() {
-    return request("GET", "/api/settings").then(function (data) {
+    return Promise.all([
+      request("GET", "/api/settings"),
+      request("GET", "/api/settings/plugins")
+    ]).then(function (result) {
+      var data = result[0] || {};
+      var plugins = result[1] || {};
       if (!data.ok) return;
       adoptSections(data.sections, false);
+      state.pluginCards = plugins.ok && Array.isArray(plugins.plugins)
+        ? plugins.plugins : [];
       if (state.mode === "host" && !currentSection()) {
+        state.tab = state.sections.length ? state.sections[0].id : "";
+      }
+      if (state.mode === "plugin-file" && state.direct && !directCards().some(function (card) {
+        return state.plugin && card.name === state.plugin.name;
+      })) {
+        state.mode = "host";
+        state.plugin = null;
+        state.editor = null;
+        state.direct = false;
         state.tab = state.sections.length ? state.sections[0].id : "";
       }
       renderNav();
       if (state.mode === "host") renderHost();
     }).catch(function () {
-      // 目录刷新失败不影响当前面板：开关本身已经写盘了。
+      setStatus("设置入口刷新失败", true);
       return null;
+    });
+  }
+
+  function directCards() {
+    return (state.pluginCards || []).filter(function (card) {
+      return card.settings_tab && card.enabled && card.configurable;
     });
   }
 
@@ -178,18 +207,29 @@
         state.tab = sec.id;
         state.plugin = null;
         state.editor = null;
+        state.direct = false;
         setStatus("");
         renderNav();
         renderHost();
       }));
     });
+    directCards().forEach(function (card) {
+      var on = state.mode === "plugin-file" && state.direct
+        && state.plugin && state.plugin.name === card.name;
+      nav.appendChild(navButton(card.settings_tab, !!on, function () {
+        openPlugin(card, true);
+      }));
+    });
     var gap = document.createElement("div");
     gap.className = "st-nav-gap";
     nav.appendChild(gap);
-    nav.appendChild(navButton("插件", state.mode !== "host", function () {
+    var pluginTabOn = state.mode === "plugins"
+      || (state.mode === "plugin-file" && !state.direct);
+    nav.appendChild(navButton("插件", pluginTabOn, function () {
       state.mode = "plugins";
       state.plugin = null;
       state.editor = null;
+      state.direct = false;
       setStatus("");
       renderNav();
       renderPlugins();
@@ -298,6 +338,7 @@
 
   function enumControl(field, value, onChange) {
     var select = document.createElement("select");
+    if (field.required) select.required = true;
     (field.options || []).forEach(function (opt) {
       var option = document.createElement("option");
       option.value = opt.value;
@@ -308,6 +349,7 @@
     onChange(select.value);
     select.addEventListener("change", function () {
       onChange(select.value);
+      setStatus("");
     });
     return select;
   }
@@ -430,6 +472,7 @@
         return;
       }
       var cards = data.plugins || [];
+      state.pluginCards = cards;
       if (!cards.length) {
         var empty = document.createElement("div");
         empty.className = "st-empty";
@@ -506,7 +549,7 @@
         }
         var bad = (data.reports || []).filter(function (item) { return item.status === "error"; });
         setStatus(bad.length ? bad[0].message : "", bad.length > 0);
-        // 开关会改变"目录是否权威"，模型标签随之出现或消失 —— 立即重算。
+        // 开关会改变可用插件入口；立即重取并重绘。
         refreshHostSections();
       }).catch(function () {
         input.disabled = false;
@@ -520,10 +563,11 @@
     return wrap;
   }
 
-  function openPlugin(card) {
+  function openPlugin(card, direct) {
     state.mode = "plugin-file";
     state.plugin = card;
     state.editor = null;
+    state.direct = !!direct;
     renderNav();
     var form = document.getElementById("stForm");
     var save = document.getElementById("stSave");
@@ -574,26 +618,29 @@
   function editorBar(card) {
     var bar = document.createElement("div");
     bar.className = "st-editor-bar";
-    var back = document.createElement("button");
-    back.type = "button";
-    back.className = "st-back";
-    back.setAttribute("aria-label", "返回");
-    back.title = "返回";
-    back.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-      '<path d="M14.5 5.5L8 12l6.5 6.5"/></svg>';
-    back._settingsClick = function () {
-      state.mode = "plugins";
-      state.plugin = null;
-      state.editor = null;
-      setStatus("");
-      renderNav();
-      renderPlugins();
-    };
+    if (!state.direct) {
+      var back = document.createElement("button");
+      back.type = "button";
+      back.className = "st-back";
+      back.setAttribute("aria-label", "返回");
+      back.title = "返回";
+      back.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M14.5 5.5L8 12l6.5 6.5"/></svg>';
+      back._settingsClick = function () {
+        state.mode = "plugins";
+        state.plugin = null;
+        state.editor = null;
+        state.direct = false;
+        setStatus("");
+        renderNav();
+        renderPlugins();
+      };
+      bar.appendChild(back);
+    }
     var title = document.createElement("b");
     title.textContent = (card.title || card.name) + "配置";
-    bar.appendChild(back);
     bar.appendChild(title);
     return bar;
   }
@@ -737,7 +784,9 @@
     if (field.kind === "number") {
       input.step = "1";
       if (field.min != null) input.min = String(field.min);
+      if (field.max != null) input.max = String(field.max);
     }
+    if (field.required) input.required = true;
     if (field.kind === "secret") {
       input.value = "";
       input.autocomplete = "off";
@@ -752,6 +801,7 @@
     }
     input.addEventListener("input", function () {
       group.values[key] = input.value;
+      setStatus("");
     });
     return input;
   }
@@ -798,8 +848,45 @@
     return null;
   }
 
+  function validateStructuredEditor() {
+    var editor = state.editor;
+    if (!editor || editor.kind !== "sections") return "";
+    var schema = editor.schema || {};
+    var groups = editor.groups || [];
+    for (var g = 0; g < groups.length; g++) {
+      var group = groups[g] || {};
+      for (var i = 0; i < (schema.fields || []).length; i++) {
+        var field = schema.fields[i];
+        if (!fieldVisible(schema, group, field)) continue;
+        var value = String(groupValue(schema, group, field) == null
+          ? "" : groupValue(schema, group, field)).trim();
+        if (field.required && !value) {
+          return (field.label || field.key) + "不能为空";
+        }
+        if (field.kind === "number" && value) {
+          var n = Number(value);
+          if (!isFinite(n) || Math.floor(n) !== n) {
+            return (field.label || field.key) + "要填整数";
+          }
+          if (field.min != null && n < field.min) {
+            return (field.label || field.key) + "不能小于 " + field.min;
+          }
+          if (field.max != null && n > field.max) {
+            return (field.label || field.key) + "不能大于 " + field.max;
+          }
+        }
+      }
+    }
+    return "";
+  }
+
   function savePluginFile(closeAfter) {
     if (!state.plugin || !state.editor) return;
+    var invalid = validateStructuredEditor();
+    if (invalid) {
+      setStatus(invalid, true);
+      return;
+    }
     setBusy(true);
     setStatus("保存中…");
     var body = {name: state.plugin.name};

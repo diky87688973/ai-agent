@@ -201,7 +201,7 @@ class ContextCompactor:
         self,
         summarize_fn: Optional[Callable[..., str]] = None,
         *,
-        summary_token_threshold: int = 700000,
+        summary_token_threshold: int = 64000,
         full_user_rounds: int = DEFAULT_FULL_USER_ROUNDS,
     ) -> None:
         self._summarize_fn = summarize_fn

@@ -94,7 +94,7 @@ class Host:
 2. 待发送队列没有新输入；
 3. 没有任何模块要求续行（`Outcome.next`）。
 
-有安全阀 `MAX_PASSES_DEFAULT = 32`：一个回合最多跑这么多趟，防止续行信号形成死循环。
+有安全阀 `MAX_PASSES_DEFAULT = 64`：一个回合最多跑这么多趟，防止续行信号形成死循环。
 
 `TurnResult` 汇总一个回合的结果：结束原因（`done` / `halted` / `suspended` / `stopped` / `max_passes` / `abandoned`）、跑过的趟数与终态说明。事实本身在 `SessionLog` 里，不在它身上。
 

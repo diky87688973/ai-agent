@@ -319,12 +319,13 @@ class PluginIdentityFallbackTest(unittest.TestCase):
             folder = self._plugin(Path(tmp), "multi_model")
             (folder / "plugin-meta.json").write_text(
                 '{"name":"多模型","desc":"每条模型自带网关与厂商","icon":"🧩",'
-                '"version":"1.0"}\n', encoding="utf-8")
+                '"version":"1.0","settings_tab":"模型"}\n', encoding="utf-8")
             fields = plugin_config_fields(folder)
             self.assertEqual(fields["name"], "多模型")
             self.assertEqual(fields["desc"], "每条模型自带网关与厂商")
             self.assertEqual(fields["icon"], "🧩")
             self.assertEqual(fields["version"], "1.0")
+            self.assertEqual(fields["settings_tab"], "模型")
             self.assertEqual(fields["enable"], "1")
 
     def test_identity_ignores_plugin_config(self) -> None:
@@ -355,8 +356,8 @@ class PluginIdentityFallbackTest(unittest.TestCase):
             root = Path(tmp)
             folder = self._plugin(root, "multi_model")
             (folder / "plugin-meta.json").write_text(
-                '{"name":"多模型","desc":"每条模型自带网关与厂商","version":"1.0"}\n',
-                encoding="utf-8")
+                '{"name":"多模型","desc":"每条模型自带网关与厂商","version":"1.0",'
+                '"settings_tab":"模型"}\n', encoding="utf-8")
             manifest = root / "plugins.ini"
             manifest.write_text("[plugin:multi_model]\n", encoding="utf-8")
             cards = list_plugins(plugins_path=manifest, plugins_dir=root)["plugins"]
@@ -364,6 +365,7 @@ class PluginIdentityFallbackTest(unittest.TestCase):
             self.assertEqual(cards[0]["title"], "多模型")
             self.assertEqual(cards[0]["description"], "每条模型自带网关与厂商")
             self.assertEqual(cards[0]["version"], "v1.0")
+            self.assertEqual(cards[0]["settings_tab"], "模型")
 
 
 class ConfigParseTest(unittest.TestCase):

@@ -149,8 +149,9 @@ A/B 会话互不干扰。支持 Web Locks 的浏览器中，同一 cid 跨标签
 | `status` | `played` / `stopped` / `error` / `incomplete` |
 
 `incomplete` 表示队列丢弃或段不齐；后端按 `dropped` 处理。
-播放被用户停止、播放器报错、无 SSE 连接或等待超时，工具返回失败，不把未播完
-当成已播完。停止按钮在同步模式下同时请求 `/api/chat/stop`，让工具等待和回合取消
+合成失败单独标记为 `synthesis_failed`，工具返回 `SpeechSynthesisFailed` 并带引擎原因；
+播放报错、被用户停止、无 SSE 连接或等待超时，工具返回 `SpeechPlaybackFailed`，
+不把未播完当成已播完。停止按钮在同步模式下同时请求 `/api/chat/stop`，让工具等待和回合取消
 一起收口；等待期间会检查回合的取消标记，避免工具线程卡死。
 
 安全超时按文本长度计算：`max(30s, min(600s, 15s + 字符数 × 0.35))`。

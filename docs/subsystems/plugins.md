@@ -14,7 +14,7 @@
 ```
 plugins/<插件名>/
   plugin.py        必须。唯一入口，暴露 register(ctx)
-  plugin-meta.json  必须。插件身份：name / desc / icon / version
+  plugin-meta.json  必须。插件身份：name / desc / icon / version / settings_tab
   plugin-config.ini  可选。插件自己的真实配置；无敏感信息的插件入库，多模型等含密钥的插件被忽略
   ui/              可选。面板的样式与脚本
   <其它文件>        可选。插件自己的数据文件、库、模板
@@ -80,7 +80,8 @@ plugins/<插件名>/plugin-meta.json      ← 身份声明
 内核配置，同名两份文件会产生歧义。
 
 **设置页只能改插件自己的节。** 身份与开关不在这份文件里：`name` / `desc` / `icon` /
-`version` 由 `plugin-meta.json` 声明，`enabled` 由 `plugins.ini` 控制。
+`version` / `settings_tab` 由 `plugin-meta.json` 声明，`enabled` 由 `plugins.ini` 控制。
+`settings_tab` 非空时，设置页在左侧增加同名入口，点击直接打开该插件的配置编辑器。
 编辑视图分三种：
 
 - 声明了 `kind: sections` 的插件：按 schema 渲染可增删条目；

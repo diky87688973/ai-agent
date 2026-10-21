@@ -13,8 +13,38 @@ from agent.core.host import MAX_PASSES_DEFAULT
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.ini"
-#: 模型上下文窗口的缺省值（token）。未配置时为 0，界面显示为空。
+#: 模型上下文窗口缺省值（token）。未声明时为 0，压缩阈值改用回退值。
 DEFAULT_CONTEXT_WINDOW = 0
+#: 模型未声明窗口时的压缩阈值（token）。
+DEFAULT_SUMMARY_TOKEN_FALLBACK = 64000
+#: 模型压缩百分比的默认值与允许范围。
+DEFAULT_COMPRESSION_PERCENT = 70
+MIN_COMPRESSION_PERCENT = 10
+MAX_COMPRESSION_PERCENT = 90
+
+
+def _coerce_int(value: Any, default: int) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        raw = value.strip()
+        if raw.isdigit() or (raw.startswith("-") and raw[1:].isdigit()):
+            return int(raw)
+    return default
+
+
+def compression_threshold(window: int, percent: int = DEFAULT_COMPRESSION_PERCENT,
+                          fallback: int = DEFAULT_SUMMARY_TOKEN_FALLBACK) -> int:
+    """按模型窗口计算压缩触发阈值；窗口不可用时回退绝对 token。"""
+    win = max(0, _coerce_int(window, 0))
+    if win <= 0:
+        return max(1, _coerce_int(fallback, DEFAULT_SUMMARY_TOKEN_FALLBACK))
+    pct = _coerce_int(percent, DEFAULT_COMPRESSION_PERCENT)
+    if pct < MIN_COMPRESSION_PERCENT or pct > MAX_COMPRESSION_PERCENT:
+        pct = DEFAULT_COMPRESSION_PERCENT
+    return max(1, min(win, int(win * pct / 100)))
 
 
 def _clean(value: object) -> str:
@@ -59,7 +89,7 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
             return default
 
     return {
-        "summary_token_threshold": _int("summary_token_threshold", 700000),
+        "summary_token_fallback": _int("summary_token_fallback", 64000),
         # 压缩时遮盖的末尾用户轮数（压不出空间时连它们一起压）。
         "full_user_rounds": _int("full_user_rounds", 1),
         "summary_output_max_chars": _int("summary_output_max_chars", 5000),

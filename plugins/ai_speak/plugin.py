@@ -92,11 +92,12 @@ def _played_handler(runtime: AISpeakRuntime) -> Callable[[dict], Any]:
                   or args.get("conversation_id") or "")
         call_id = str(payload.get("call_id") or "").strip()
         status = str(payload.get("status") or "played").strip().lower()
+        detail = str(payload.get("detail") or "").strip()[:300]
         if not call_id:
             return 400, {"ok": False, "error": "缺少 call_id"}
         if status not in ("played", "stopped", "error", "incomplete"):
             return 400, {"ok": False, "error": "未知播放状态"}
-        matched = runtime.ack_playback(cid, call_id, status)
+        matched = runtime.ack_playback(cid, call_id, status, detail)
         return 200, {"ok": True, "matched": matched}
 
     return _handler

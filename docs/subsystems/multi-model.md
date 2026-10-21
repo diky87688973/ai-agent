@@ -12,7 +12,7 @@
 plugins/multi_model/
   plugin.py                  入口：解析配置、注册目录来源与端点、登记开屏脚本
   plugin-config.ini          真实配置（不入库）
-  plugin-meta.json           身份元数据（name / desc / icon / version）
+  plugin-meta.json           身份元数据（name / desc / icon / version / settings_tab）
   settings-schema.json       设置页的结构化表单声明
   ui/model-picker.js         输入区模型下拉
   ui/picker.css              下拉样式
@@ -30,6 +30,7 @@ api_key =
 model =
 label =
 context_window =
+compression_percent = 70
 max_tokens =
 thinking = 0
 ```
@@ -42,7 +43,8 @@ thinking = 0
 | `api_key` | 空 | 鉴权密钥；模板占位符（如 `sk-请替换`）不算已配置 |
 | `model` | 等于 `id` | 发给网关的线格式模型名 |
 | `label` | 等于 `id` | 下拉与顶栏的显示名 |
-| `context_window` | 空 | 该模型的上下文窗口（token），界面按它算占用率；它是物理上限，与 `[context]` 的压缩阈值不是一回事 |
+| `context_window` | 必填 | 该模型的最大上下文窗口（token）；用于占用率和压缩阈值计算 |
+| `compression_percent` | `70` | 压缩触发百分比，范围 10–90；阈值 = 窗口 × 百分比 / 100 |
 | `default` | 无 | `1` 至多一条；都没标时取第一条有效条目 |
 | `max_tokens` | 无 | 仅 Messages 协议：**回复**的 token 上限，不是上下文长度 |
 | `thinking` | 无 | 仅 Messages 协议：`1` 下发 `enabled`，`0` 显式下发 `disabled`；省略时由网关取默认 |
@@ -100,7 +102,7 @@ INI 的节名必须唯一，因此两套协议不能共用一个 id。
   "ok": true,
   "default": "model-a",
   "models": [{"id": "1", "label": "Model A", "provider": "openai",
-              "context_window": 0, "default": true}],
+              "context_window": 1000000, "default": true}],
   "invalid": []
 }
 ```
@@ -113,6 +115,8 @@ INI 的节名必须唯一，因此两套协议不能共用一个 id。
 留空表示沿用原值。
 
 设置页不提供内核模型节；模型配置只由多模型插件的结构化表单维护。
+插件在 `plugin-meta.json` 声明 `settings_tab = 模型`，设置页左侧直接出现「模型」入口；
+进入的是同一份多模型表单，不显示返回按钮。
 
 ## 模型下拉
 

@@ -38,7 +38,7 @@ DEFAULT_FULL_USER_ROUNDS = 1
 #: 思维链回传预算默认值（token）：超出取两头、中间以省略标记代替。
 DEFAULT_REASONING_REPLAY_TOKENS = 8000
 
-DEFAULT_SUMMARY_TOKEN_THRESHOLD = 700000
+DEFAULT_SUMMARY_TOKEN_THRESHOLD = 64000
 #: 最近这么多用户轮保留完整工具往返；更早的轮剥掉轮内工具往返。
 #: 压缩时保留的最近用户轮数（0 = 允许压到 0 个用户轮）。
 #: 剥掉工具往返的轮补的标注：不补的话模型会以为这些轮没调用过工具。

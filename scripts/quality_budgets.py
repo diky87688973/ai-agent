@@ -39,6 +39,10 @@ MAX_FILE_FUNCTIONS = 40
 
 #: 超阈值文件 → 保留理由（拆分计划或承担者）。实际集合必须与这里双向一致。
 FILE_COMPLEXITY: Dict[str, str] = {
+    "agent/app.py": (
+        "进程装配与会话入口同文件；阈值解析跨模型目录与配置，拆分需先抽会话装配上下文。"
+        "承担者：架构维护"
+    ),
     "agent/mechanisms/context_pipeline.py": (
         "拼装、分段统计与缓存版本共用同一状态机；待拆 segments 与 cache 子模块。"
         "承担者：架构维护"

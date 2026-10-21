@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1617** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1630** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -9,7 +9,7 @@
 ## 目录
 
 1. [test_ai_speak_plugin.py](#test_ai_speak_pluginpy)（4）
-2. [test_ai_speak_runtime.py](#test_ai_speak_runtimepy)（23）
+2. [test_ai_speak_runtime.py](#test_ai_speak_runtimepy)（24）
 3. [test_ai_speak_text.py](#test_ai_speak_textpy)（22）
 4. [test_anthropic_provider.py](#test_anthropic_providerpy)（29）
 5. [test_app_context.py](#test_app_contextpy)（11）
@@ -51,8 +51,8 @@
 41. [test_mode_note.py](#test_mode_notepy)（12）
 42. [test_model_catalog.py](#test_model_catalogpy)（23）
 43. [test_model_provider.py](#test_model_providerpy)（38）
-44. [test_model_window.py](#test_model_windowpy)（5）
-45. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（27）
+44. [test_model_window.py](#test_model_windowpy)（11）
+45. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
 46. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
 47. [test_plugin_http.py](#test_plugin_httppy)（18）
 48. [test_plugins.py](#test_pluginspy)（28）
@@ -70,9 +70,9 @@
 60. [test_session_seq.py](#test_session_seqpy)（23）
 61. [test_session_store.py](#test_session_storepy)（17）
 62. [test_session_tools.py](#test_session_toolspy)（17）
-63. [test_settings_panel.py](#test_settings_panelpy)（18）
+63. [test_settings_panel.py](#test_settings_panelpy)（19）
 64. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-65. [test_task_tools.py](#test_task_toolspy)（27）
+65. [test_task_tools.py](#test_task_toolspy)（29）
 66. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
 67. [test_tool_registry.py](#test_tool_registrypy)（17）
 68. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
@@ -99,7 +99,7 @@
 
 ## test_ai_speak_runtime.py
 
-共 23 个用例。
+共 24 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -125,7 +125,8 @@
 | 20 | `ToolTest` | `test_sync_playback_releases_on_stop` | 覆盖「A class whose instances are single test cases」：sync playback releases on stop |
 | 21 | `ToolTest` | `test_sync_playback_times_out_without_ack` | 覆盖「A class whose instances are single test cases」：sync playback times out without ack |
 | 22 | `ToolTest` | `test_sync_playback_waits_for_frontend_ack` | 覆盖「A class whose instances are single test cases」：sync playback waits for frontend ack |
-| 23 | `ToolTest` | `test_tool_contract` | 覆盖「A class whose instances are single test cases」：tool contract |
+| 23 | `ToolTest` | `test_sync_synthesis_failure_is_not_reported_as_playback_failure` | 覆盖「A class whose instances are single test cases」：sync synthesis failure is not reported as playback failure |
+| 24 | `ToolTest` | `test_tool_contract` | 覆盖「A class whose instances are single test cases」：tool contract |
 
 ## test_ai_speak_text.py
 
@@ -1367,19 +1368,25 @@
 
 ## test_model_window.py
 
-共 5 个用例。
+共 11 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `EntryWindowTest` | `test_bad_metadata_is_zero_not_an_exception` | 覆盖「A class whose instances are single test cases」：bad metadata is zero not an exception |
-| 2 | `EntryWindowTest` | `test_entry_exposes_the_window` | 覆盖「A class whose instances are single test cases」：entry exposes the window |
-| 3 | `_AppWindowTest` | `test_catalog_entry_window_wins` | 覆盖「A class whose instances are single test cases」：catalog entry window wins |
-| 4 | `_AppWindowTest` | `test_entry_without_window_uses_the_shared_default` | 覆盖「A class whose instances are single test cases」：entry without window uses the shared default |
-| 5 | `_AppWindowTest` | `test_stale_model_converges_to_the_default_window` | 会话还拿着已删除的模型 id：先收敛回默认，窗口跟着默认走。 |
+| 1 | `CompressionThresholdTest` | `test_bad_percent_uses_70` | 覆盖「A class whose instances are single test cases」：bad percent uses 70 |
+| 2 | `CompressionThresholdTest` | `test_missing_window_uses_fallback` | 覆盖「A class whose instances are single test cases」：missing window uses fallback |
+| 3 | `CompressionThresholdTest` | `test_window_percent` | 覆盖「A class whose instances are single test cases」：window percent |
+| 4 | `EntryWindowTest` | `test_bad_metadata_is_zero_not_an_exception` | 覆盖「A class whose instances are single test cases」：bad metadata is zero not an exception |
+| 5 | `EntryWindowTest` | `test_compression_percent_defaults_and_clamps` | 覆盖「A class whose instances are single test cases」：compression percent defaults and clamps |
+| 6 | `EntryWindowTest` | `test_entry_exposes_the_window` | 覆盖「A class whose instances are single test cases」：entry exposes the window |
+| 7 | `_AppWindowTest` | `test_catalog_entry_window_wins` | 覆盖「A class whose instances are single test cases」：catalog entry window wins |
+| 8 | `_AppWindowTest` | `test_compression_percent_comes_from_the_current_model` | 覆盖「A class whose instances are single test cases」：compression percent comes from the current model |
+| 9 | `_AppWindowTest` | `test_compression_percent_defaults_to_70` | 覆盖「A class whose instances are single test cases」：compression percent defaults to 70 |
+| 10 | `_AppWindowTest` | `test_entry_without_window_uses_the_shared_default` | 覆盖「A class whose instances are single test cases」：entry without window uses the shared default |
+| 11 | `_AppWindowTest` | `test_stale_model_converges_to_the_default_window` | 会话还拿着已删除的模型 id：先收敛回默认，窗口跟着默认走。 |
 
 ## test_multi_model_plugin.py
 
-共 27 个用例。
+共 30 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1387,29 +1394,32 @@
 | 2 | `CatalogPayloadTest` | `test_payload_carries_no_credentials` | 覆盖「A class whose instances are single test cases」：payload carries no credentials |
 | 3 | `ParseTest` | `test_anthropic_options_are_ignored_for_openai` | 覆盖「A class whose instances are single test cases」：anthropic options are ignored for openai |
 | 4 | `ParseTest` | `test_anthropic_options_are_typed` | 覆盖「A class whose instances are single test cases」：anthropic options are typed |
-| 5 | `ParseTest` | `test_bad_context_window_keeps_the_entry_usable` | 窗口只服务展示；写坏了丢这一项，不该让整条模型消失。 |
+| 5 | `ParseTest` | `test_bad_context_window_invalidates_the_entry` | 覆盖「A class whose instances are single test cases」：bad context window invalidates the entry |
 | 6 | `ParseTest` | `test_bad_default_flag_keeps_entry_non_default` | 覆盖「A class whose instances are single test cases」：bad default flag keeps entry non default |
 | 7 | `ParseTest` | `test_bad_entry_does_not_hide_good_ones` | 覆盖「A class whose instances are single test cases」：bad entry does not hide good ones |
 | 8 | `ParseTest` | `test_bad_numbers_invalidate_the_entry` | 覆盖「A class whose instances are single test cases」：bad numbers invalidate the entry |
 | 9 | `ParseTest` | `test_bad_thinking_flag_invalidates_the_entry` | 覆盖「A class whose instances are single test cases」：bad thinking flag invalidates the entry |
-| 10 | `ParseTest` | `test_context_window_is_carried_as_entry_metadata` | 覆盖「A class whose instances are single test cases」：context window is carried as entry metadata |
-| 11 | `ParseTest` | `test_diagnostic_points_at_file_section_and_key` | 覆盖「A class whose instances are single test cases」：diagnostic points at file section and key |
-| 12 | `ParseTest` | `test_duplicate_section_is_a_file_level_error` | INI 不允许同名节：重复 id 会让整份文件解析失败，所以只能用不同 id。 |
-| 13 | `ParseTest` | `test_malformed_file_is_reported_not_raised` | 覆盖「A class whose instances are single test cases」：malformed file is reported not raised |
-| 14 | `ParseTest` | `test_missing_credentials_invalidates_only_that_entry` | 覆盖「A class whose instances are single test cases」：missing credentials invalidates only that entry |
-| 15 | `ParseTest` | `test_missing_file_is_empty_not_an_error` | 覆盖「A class whose instances are single test cases」：missing file is empty not an error |
-| 16 | `ParseTest` | `test_multiple_defaults_keep_the_first` | 覆盖「A class whose instances are single test cases」：multiple defaults keep the first |
-| 17 | `ParseTest` | `test_no_default_marks_the_first_entry` | 覆盖「A class whose instances are single test cases」：no default marks the first entry |
-| 18 | `ParseTest` | `test_openai_defaults_and_first_entry_is_default` | 覆盖「A class whose instances are single test cases」：openai defaults and first entry is default |
-| 19 | `ParseTest` | `test_placeholder_keys_are_rejected` | 照抄示例留下的占位符不算已配置，插件继续走回落路径。 |
-| 20 | `ParseTest` | `test_same_vendor_twice_with_distinct_ids` | 同一家厂商同时走两套协议：id 必须唯一，`provider` 决定各走哪套。 |
-| 21 | `ParseTest` | `test_utf8_bom_is_accepted` | 覆盖「A class whose instances are single test cases」：utf8 bom is accepted |
-| 22 | `PickerStyleTest` | `test_button_has_no_width_cap` | 覆盖「模型名是唯一辨识依据：下拉与按钮都不许截断它」：button has no width cap |
-| 23 | `PickerStyleTest` | `test_menu_grows_with_its_items` | 覆盖「模型名是唯一辨识依据：下拉与按钮都不许截断它」：menu grows with its items |
-| 24 | `PickerStyleTest` | `test_names_and_ids_are_not_ellipsized` | 覆盖「模型名是唯一辨识依据：下拉与按钮都不许截断它」：names and ids are not ellipsized |
-| 25 | `RegisterTest` | `test_catalog_callback_hot_reads_the_file` | 覆盖「A class whose instances are single test cases」：catalog callback hot reads the file |
-| 26 | `RegisterTest` | `test_register_contributes_catalog_route_and_boot_script` | 覆盖「A class whose instances are single test cases」：register contributes catalog route and boot script |
-| 27 | `RegisterTest` | `test_reregister_does_not_duplicate_defaults` | 覆盖「A class whose instances are single test cases」：reregister does not duplicate defaults |
+| 10 | `ParseTest` | `test_compression_percent_defaults_to_70` | 覆盖「A class whose instances are single test cases」：compression percent defaults to 70 |
+| 11 | `ParseTest` | `test_compression_percent_rejects_out_of_range` | 覆盖「A class whose instances are single test cases」：compression percent rejects out of range |
+| 12 | `ParseTest` | `test_context_window_is_carried_as_entry_metadata` | 覆盖「A class whose instances are single test cases」：context window is carried as entry metadata |
+| 13 | `ParseTest` | `test_diagnostic_points_at_file_section_and_key` | 覆盖「A class whose instances are single test cases」：diagnostic points at file section and key |
+| 14 | `ParseTest` | `test_duplicate_section_is_a_file_level_error` | INI 不允许同名节：重复 id 会让整份文件解析失败，所以只能用不同 id。 |
+| 15 | `ParseTest` | `test_malformed_file_is_reported_not_raised` | 覆盖「A class whose instances are single test cases」：malformed file is reported not raised |
+| 16 | `ParseTest` | `test_missing_context_window_invalidates_the_entry` | 覆盖「A class whose instances are single test cases」：missing context window invalidates the entry |
+| 17 | `ParseTest` | `test_missing_credentials_invalidates_only_that_entry` | 覆盖「A class whose instances are single test cases」：missing credentials invalidates only that entry |
+| 18 | `ParseTest` | `test_missing_file_is_empty_not_an_error` | 覆盖「A class whose instances are single test cases」：missing file is empty not an error |
+| 19 | `ParseTest` | `test_multiple_defaults_keep_the_first` | 覆盖「A class whose instances are single test cases」：multiple defaults keep the first |
+| 20 | `ParseTest` | `test_no_default_marks_the_first_entry` | 覆盖「A class whose instances are single test cases」：no default marks the first entry |
+| 21 | `ParseTest` | `test_openai_defaults_and_first_entry_is_default` | 覆盖「A class whose instances are single test cases」：openai defaults and first entry is default |
+| 22 | `ParseTest` | `test_placeholder_keys_are_rejected` | 照抄示例留下的占位符不算已配置，插件继续走回落路径。 |
+| 23 | `ParseTest` | `test_same_vendor_twice_with_distinct_ids` | 同一家厂商同时走两套协议：id 必须唯一，`provider` 决定各走哪套。 |
+| 24 | `ParseTest` | `test_utf8_bom_is_accepted` | 覆盖「A class whose instances are single test cases」：utf8 bom is accepted |
+| 25 | `PickerStyleTest` | `test_button_has_no_width_cap` | 覆盖「模型名是唯一辨识依据：下拉与按钮都不许截断它」：button has no width cap |
+| 26 | `PickerStyleTest` | `test_menu_grows_with_its_items` | 覆盖「模型名是唯一辨识依据：下拉与按钮都不许截断它」：menu grows with its items |
+| 27 | `PickerStyleTest` | `test_names_and_ids_are_not_ellipsized` | 覆盖「模型名是唯一辨识依据：下拉与按钮都不许截断它」：names and ids are not ellipsized |
+| 28 | `RegisterTest` | `test_catalog_callback_hot_reads_the_file` | 覆盖「A class whose instances are single test cases」：catalog callback hot reads the file |
+| 29 | `RegisterTest` | `test_register_contributes_catalog_route_and_boot_script` | 覆盖「A class whose instances are single test cases」：register contributes catalog route and boot script |
+| 30 | `RegisterTest` | `test_reregister_does_not_duplicate_defaults` | 覆盖「A class whose instances are single test cases」：reregister does not duplicate defaults |
 
 ## test_plugin_contributions.py
 
@@ -1787,7 +1797,7 @@
 
 ## test_settings_panel.py
 
-共 18 个用例。
+共 19 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1807,8 +1817,9 @@
 | 14 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
 | 15 | `StructuredPluginConfigTest` | `test_new_model_group_gets_a_generated_id` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：new model group gets a generated id |
 | 16 | `StructuredPluginConfigTest` | `test_read_masks_the_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：read masks the secret |
-| 17 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
-| 18 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
+| 17 | `StructuredPluginConfigTest` | `test_required_field_rejects_an_empty_value` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：required field rejects an empty value |
+| 18 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
+| 19 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
 
 ## test_source_snapshot.py
 
@@ -1829,7 +1840,7 @@
 
 ## test_task_tools.py
 
-共 27 个用例。
+共 29 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1846,20 +1857,22 @@
 | 11 | `RunTypeTest` | `test_switch_and_query` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：switch and query |
 | 12 | `SessionScopeTest` | `test_scope_set_and_restored` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：scope set and restored |
 | 13 | `TaskSleepAutonomousTest` | `test_goal_shapes` | 目标工具：建 / 查 / 改 / 暂停 / 恢复 / 达成 / 删，以及触发文案的语义。 |
-| 14 | `TaskSleepAutonomousTest` | `test_sleep_bounds` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：sleep bounds |
-| 15 | `TaskSleepAutonomousTest` | `test_sleep_ok_and_clamp` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：sleep ok and clamp |
-| 16 | `TodoListTest` | `test_add_remove_replace` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：add remove replace |
-| 17 | `TodoListTest` | `test_check_uncheck_and_bounds` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：check uncheck and bounds |
-| 18 | `TodoListTest` | `test_create_and_shape` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：create and shape |
-| 19 | `TodoListTest` | `test_create_replaces_and_validates` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：create replaces and validates |
-| 20 | `TodoListTest` | `test_no_list_unknown_and_query_close` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：no list unknown and query close |
-| 21 | `TodoListTest` | `test_persistence_reload` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：persistence reload |
-| 22 | `TodoListTest` | `test_persistence_tolerance_and_cid_defense` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：persistence tolerance and cid defense |
-| 23 | `UserConfirmTest` | `test_confirm_roundtrip` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：confirm roundtrip |
-| 24 | `UserConfirmTest` | `test_envelope_still_works_without_tty` | 无 TTY 时不给 interactive，必须照常返回待确认信封（宿主 UI 负责交互）。 |
-| 25 | `UserConfirmTest` | `test_interactive_without_tty_gives_actionable_error` | 无 TTY 时 interactive 必须给出可照做的指引，而不是"未读取到用户输入"。 |
-| 26 | `UserConfirmTest` | `test_pending_envelope` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：pending envelope |
-| 27 | `UserConfirmTest` | `test_validations` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：validations |
+| 14 | `TaskSleepAutonomousTest` | `test_resume_creates_missing_goal_from_text` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：resume creates missing goal from text |
+| 15 | `TaskSleepAutonomousTest` | `test_resume_replaces_existing_goal_text` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：resume replaces existing goal text |
+| 16 | `TaskSleepAutonomousTest` | `test_sleep_bounds` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：sleep bounds |
+| 17 | `TaskSleepAutonomousTest` | `test_sleep_ok_and_clamp` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：sleep ok and clamp |
+| 18 | `TodoListTest` | `test_add_remove_replace` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：add remove replace |
+| 19 | `TodoListTest` | `test_check_uncheck_and_bounds` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：check uncheck and bounds |
+| 20 | `TodoListTest` | `test_create_and_shape` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：create and shape |
+| 21 | `TodoListTest` | `test_create_replaces_and_validates` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：create replaces and validates |
+| 22 | `TodoListTest` | `test_no_list_unknown_and_query_close` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：no list unknown and query close |
+| 23 | `TodoListTest` | `test_persistence_reload` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：persistence reload |
+| 24 | `TodoListTest` | `test_persistence_tolerance_and_cid_defense` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：persistence tolerance and cid defense |
+| 25 | `UserConfirmTest` | `test_confirm_roundtrip` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：confirm roundtrip |
+| 26 | `UserConfirmTest` | `test_envelope_still_works_without_tty` | 无 TTY 时不给 interactive，必须照常返回待确认信封（宿主 UI 负责交互）。 |
+| 27 | `UserConfirmTest` | `test_interactive_without_tty_gives_actionable_error` | 无 TTY 时 interactive 必须给出可照做的指引，而不是"未读取到用户输入"。 |
+| 28 | `UserConfirmTest` | `test_pending_envelope` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：pending envelope |
+| 29 | `UserConfirmTest` | `test_validations` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：validations |
 
 ## test_todo_context_prompt.py
 

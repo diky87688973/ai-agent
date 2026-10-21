@@ -70,7 +70,7 @@ function addBtn(text,cls,fn){var b=el("button","goal-btn"+(cls?(" "+cls):""),tex
 row.addEventListener("click",function(ev){var b=ev.target&&ev.target.closest?ev.target.closest(".goal-btn"):null;if(b&&row.contains(b)&&typeof b._goalClick==="function")b._goalClick();});
 
 if(g&&st==="active")addBtn("暂停","",function(){act("pause");});
-if(g&&st==="paused")addBtn("恢复","",function(){act("resume");});
+if(g&&st==="paused")addBtn("恢复","",function(){act("resume",{text:String(ta2.value||"").trim()});});
 if(g&&st!=="done")addBtn("标记达成","",function(){act("done");});
 if(g)addBtn("删除","danger",function(){act("delete");});
 addBtn("取消","",close);

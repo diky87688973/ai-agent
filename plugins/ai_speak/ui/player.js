@@ -243,7 +243,8 @@
         st.errorText = short(err && err.message ? err.message : "播放失败", 80);
         var failed = st.current;
         finishCurrent(st);
-        if (failed) ackPlayback(st, failed, "error");
+        if (failed) ackPlayback(st, failed, "error",
+          err && err.message ? err.message : "播放失败");
         if (st === currentState()) render();
         playNext(st);
       });
@@ -325,7 +326,7 @@
     return state;
   }
 
-  function ackPlayback(st, item, status) {
+  function ackPlayback(st, item, status, detail) {
     var state = callState(st, item);
     if (!state || state.acked) return;
     if (!api || typeof api.post !== "function") return;
@@ -337,7 +338,8 @@
     api.post("played", {
       conversation_id: cid,
       call_id: item.callId,
-      status: status
+      status: status,
+      detail: detail || ""
     }).catch(function () {
       state.acked = false;
     });
@@ -605,8 +607,10 @@
     audio.addEventListener("error", function () {
       st.errorText = "播放失败";
       var failed = st.current;
+      var mediaError = st.audio.error;
       finishCurrent(st);
-      if (failed) ackPlayback(st, failed, "error");
+      if (failed) ackPlayback(st, failed, "error",
+        mediaError && mediaError.message ? mediaError.message : "播放失败");
       if (st === currentState()) render();
       playNext(st);
     });
@@ -631,7 +635,7 @@
         callId: text(data.call_id),
         index: Number(data.index) || 0,
         total: 1
-      }, "error");
+      }, "error", data.message || "合成失败");
       if (st === currentState()) render();
     } else if (data.event === "stop") stopState(st, data);
   }

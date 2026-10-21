@@ -9,7 +9,7 @@ from agent.core.context import SERVICE_PLUGIN_EVENTS
 from agent.core.session_scope import current_context
 
 from .provider import SpeechEngineUnavailable
-from .runtime import AISpeakRuntime, SpeechPlaybackFailed
+from .runtime import AISpeakRuntime, SpeechPlaybackFailed, SpeechSynthesisFailed
 from .text import MessageValidationError, split_message
 
 _DESCRIPTION = (
@@ -103,9 +103,12 @@ class AISpeakTool(ToolPlugin):
         status = waiter.wait(timeout_s, canceled=lambda: _turn_canceled(turn))
         waited_ms = waiter.waited_ms
         self._runtime.forget_playback(conversation_id, call_id)
+        if status == "synthesis_failed":
+            self._runtime.stop_cid(conversation_id, "synthesis_failed")
+            raise SpeechSynthesisFailed(waiter.detail)
         if status != "played":
             self._runtime.stop_cid(conversation_id, f"playback_{status}")
-            raise SpeechPlaybackFailed(status, waited_ms)
+            raise SpeechPlaybackFailed(status, waited_ms, waiter.detail)
         return {
             "accepted": True,
             "played": True,
