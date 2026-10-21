@@ -109,6 +109,7 @@ plugins/<插件名>/plugin-meta.json      ← 身份声明
 | `subscribe(event_type, handler)` | 事件处理 `handler(event)` | 事件总线 |
 | `add_context_source(fn, meta?)` | 上下文注入源 | `ContextSources`（见下节） |
 | `add_mode_tail(fn)` | 执行模式后的请求尾部文本 | `PromptTail`（见「请求尾部」） |
+| `add_prompt_section(section, fn)` | 系统提示词章节正文 | `PromptSections`（同章节合并） |
 | `add_pre_gate(gate)` | 工具执行前门控 | 工具管道 |
 | `add_post_observer(obs)` | 工具执行后观察 | 工具管道 |
 | `add_route(method, path, handler)` | HTTP 端点 | `/api/plugin/<插件名>/…` |
@@ -149,7 +150,18 @@ ctx.add_context_source(
   它们共用这个 key、各占一行；
 - 组装位次由宿主按清单位次写入，插件不需要声明。
 
-一个插件注册两条以上的例子见 `plugins/skills`：清单一条、常驻正文一条。
+一个插件注册多条注入源的例子见 `plugins/skills`：清单一条、常驻正文一条；
+资源目录走系统提示词章节，不占独立上下文段。
+
+### 系统提示词章节
+
+```python
+ctx.add_prompt_section("## 资源目录", fn)
+```
+
+`fn(conversation_id) -> str | list[str]` 返回章节正文；`section` 是完整标题（含 `## `）。
+同一标题可由多个插件注册，正文按插件清单位次合并，标题只出现一次。章节进入系统提示词，
+不产生 `CHUNK_PLUGIN` 段；来源异常或空正文跳过。
 
 ### 工具
 
@@ -368,7 +380,7 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 
 | 插件 | 注册了什么 | 形态 |
 |---|---|---|
-| `plugins/skills` | `skills` 工具 + 提交执行器 + 两条注入 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
+| `plugins/skills` | `skills` 工具 + 提交执行器 + 两条注入 + 系统提示词章节 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
 | `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.md) |
 | `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.md) |
 | `plugins/visual_operator` | 四个工具（截屏 / 鼠标 / 键盘 / 等待）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时只报错不消失；见 [visual-operator.md](visual-operator.md) |

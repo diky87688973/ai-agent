@@ -27,6 +27,7 @@ from typing import Any, Callable, Dict, List, Optional
 from agent.capabilities.registry import ToolPlugin, ToolRegistry
 from agent.config import get_plugin_tree_only
 from agent.core.error_report import report_error
+from agent.mechanisms.prompt_sections import PromptSections
 
 Disposer = Callable[[], None]
 
@@ -175,6 +176,7 @@ class PluginContext:
         executors: Any = None,
         model_catalog: Any = None,
         prompt_tail: Any = None,
+        prompt_sections: Any = None,
     ) -> None:
         self.name = name
         self._registry = registry
@@ -186,6 +188,7 @@ class PluginContext:
         self._executors = executors
         self._model_catalog = model_catalog
         self._prompt_tail = prompt_tail
+        self._prompt_sections = prompt_sections
         #: 本插件在清单里的位次（宿主装载时写入；测试直构时为 None）
         self._rank: Optional[int] = None
         self._disposers: List[Disposer] = []
@@ -238,6 +241,14 @@ class PluginContext:
         if self._prompt_tail is None:
             raise RuntimeError("插件未接入请求尾部（PluginHost 未传 prompt_tail）")
         disposer = self._prompt_tail.add(fn)
+        self._disposers.append(disposer)
+        return disposer
+
+    def add_prompt_section(self, section: str, fn: Callable[[str], Any]) -> Disposer:
+        """注册系统提示词章节来源；同一章节由多个插件合并。"""
+        if self._prompt_sections is None:
+            raise RuntimeError("插件未接入系统提示词章节（PluginHost 未传 prompt_sections）")
+        disposer = self._prompt_sections.add(section, fn, rank=self._rank)
         self._disposers.append(disposer)
         return disposer
 
@@ -445,7 +456,7 @@ class PluginContext:
 class PluginHost:
     """插件宿主：发现 / 按清单装载 / 卸载 / 报告。"""
 
-    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None) -> None:
+    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None, prompt_sections: Any = None) -> None:
         self._dir = Path(plugins_dir)
         self._registry = registry
         self._event_bus = event_bus
@@ -455,6 +466,7 @@ class PluginHost:
         self._executors = executors
         self._model_catalog = model_catalog
         self._prompt_tail = prompt_tail
+        self._prompt_sections = prompt_sections if prompt_sections is not None else PromptSections()
         #: 插件专属存储的根（`<数据根>/plugin/`）。插件只拿到自己的子目录，见 `PluginContext.data_dir`。
         self.plugin_data_root: Optional[Path] = (
             Path(plugin_data_root) if plugin_data_root is not None else None
@@ -601,7 +613,8 @@ class PluginHost:
         ctx = PluginContext(info.name, self._registry, self._event_bus,
                             self._context_sources, self._pipeline, self,
                             self._contributions, self._executors,
-                            self._model_catalog, prompt_tail=self._prompt_tail)
+                            self._model_catalog, prompt_tail=self._prompt_tail,
+            prompt_sections=self._prompt_sections)
         ctx.set_rank(rank)
         mod_name = f"{_MODULE_PREFIX}.{info.name}"
         plugin_root = Path(root).resolve() if root is not None else info.path.parent.resolve()

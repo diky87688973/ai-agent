@@ -32,6 +32,7 @@ SERVICE_PLUGIN_HOST = "plugin_host"              # 插件宿主
 SERVICE_PLUGIN_EVENTS = "plugin_events"          # 插件事件出口（非事实 SSE）
 SERVICE_CONTEXT_SOURCES = "context_sources"      # 上下文注入源
 SERVICE_PROMPT_TAIL = "prompt_tail"              # 请求尾部片段（执行模式之后）
+SERVICE_PROMPT_SECTIONS = "prompt_sections"      # 系统提示词章节（按章节合并）
 SERVICE_CONVERSATION_QUEUE = "conversation_queue"  # 会话待发送消息队列
 SERVICE_SESSION_CONTEXTS = "session_contexts"    # 会话注册表（cid → SessionContext）
 SERVICE_LIVE_STATE = "live_state"                # 实时状态容器（按 cid 分键）

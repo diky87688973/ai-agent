@@ -16,7 +16,12 @@ from typing import Any, Optional
 _REPLY_LANGUAGE = """\
 ## 回复语言
 
-正文与用户用同一种语言。用户写中文就回中文，不要改用英文。只有用户明确要求换一种语言时才换。"""
+正文与推理都保持与用户用同一种语言。用户写中文就回中文，不要改用英文。只有用户明确要求换一种语言时才换。"""
+
+_ACTION_DISCIPLINE = """\
+## 动手指令
+
+仅在用户下达明确且强烈的行动指令后才允许动手，严禁把询问句或带问号的行动识别成动手指令，只要用户是询问，则取消一切行动先回答问题，这是不可触碰的红线，必须遵守！！！"""
 
 # 术语表：防歧义
 #
@@ -98,7 +103,7 @@ _CODING_DISCIPLINE = """\
 - 手术式修改：只改必要的地方，不扩大改动面。
 - 目标驱动：每步都服务于用户的目标（不确定怎么做时按纪律第 1 条先问）。
 - 自审再交：交付前自己复核一遍改动是否真的解决了问题。
-- 注释克制：只在"为什么"不显然时写注释，不复述代码在做什么。
+- 注释克制：只在"为什么"不显然时写注释，不复述代码在做什么，更不要写面向用户的解释与用户对助手的要求。
 - 回合完整性：一个回合内把该做的做完；确实做不完时明确说明还差什么。"""
 
 # 三模式提示
@@ -133,6 +138,7 @@ def build_system_prompt(
     mode: str = "auto",
     tool_summary: str = "",
     user_rules: str = "",
+    extra_sections: Optional[list] = None,
 ) -> str:
     """组装基础系统提示词。
 
@@ -143,11 +149,16 @@ def build_system_prompt(
     parts = [
         "你是 AI Agent，一个可以读写文件、执行命令的通用助手。",
         _REPLY_LANGUAGE,
+        _ACTION_DISCIPLINE,
         _TERMINOLOGY,
         tooling_discipline(registry),
         _CODING_DISCIPLINE,
         mode_section(mode),
     ]
+    for section in (extra_sections or []):
+        text = str(section or "").strip()
+        if text:
+            parts.append(text)
     if str(user_rules or "").strip():
         parts.append("## 用户自定义规则\n" + str(user_rules).strip())
     if str(tool_summary or "").strip():
@@ -195,9 +206,10 @@ def split_mode_section(system_prompt: str) -> str:
         return text
     rest = text[idx:]
     nxt = _NEXT_SECTION_RE.search(rest)
-    tail = rest[nxt.start():] if nxt else ""
-    merged = text[:idx].rstrip() + tail
-    return merged.strip()
+    tail = rest[nxt.start():].lstrip("\n") if nxt else ""
+    if tail:
+        return (text[:idx].rstrip() + "\n\n" + tail).strip()
+    return text[:idx].strip()
 
 
 def tool_summary(registry: Any, *, limit: int = 40) -> str:
@@ -228,6 +240,7 @@ def resolve_system_prompt(
     registry: Any = None,
     explicit: Optional[str] = None,
     user_rules: str = "",
+    extra_sections: Optional[list] = None,
 ) -> str:
     """会话系统提示的解析入口，不含模式段。
 
@@ -243,6 +256,7 @@ def resolve_system_prompt(
         mode=mode,
         tool_summary=tool_summary(registry),
         user_rules=user_rules,
+        extra_sections=extra_sections,
     ))
 
 

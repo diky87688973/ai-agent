@@ -60,12 +60,14 @@ class SessionRunner:
         auto_continue: Optional[Callable[[str], bool]] = None,
         goal_row: Optional[Callable[[str], Any]] = None,
         user_rules: Optional[str] = None,
+        prompt_sections: Any = None,
     ) -> None:
         self._app = app
         self._mesh = mesh
         self._auto_continue = auto_continue
         self._goal_row = goal_row
         self._user_rules = load_user_rules_from_config() if user_rules is None else str(user_rules)
+        self._prompt_sections = prompt_sections
         self._lock = threading.Lock()
         self._threads: Dict[str, threading.Thread] = {}
         self._cancels: Dict[str, threading.Event] = {}  # cid → 取消信号（协作式）
@@ -432,11 +434,14 @@ class SessionRunner:
         explicit = str(meta.get("system") or "")
         state = getattr(self._app, "live_state", None)
         mode = state.get_mode(cid) if state is not None else "auto"
+        extra = (self._prompt_sections.render(cid)
+                 if self._prompt_sections is not None else None)
         return resolve_system_prompt(
             mode=mode,
             registry=getattr(self._app, "registry", None),
             explicit=explicit or None,
             user_rules=self._user_rules,
+            extra_sections=extra,
         )
 
     def _mode_note(self, cid: str) -> str:

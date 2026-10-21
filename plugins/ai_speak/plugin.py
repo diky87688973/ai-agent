@@ -24,7 +24,7 @@ PLUGIN_VERSION = "1.0"
 def _voice_directive(user_salutation: str, assistant_salutation: str,
                      tone: str) -> str:
     return (
-        "【AI说话】必须主动使用 ai_speak 工具与用户沟通。\n"
+        "## AI说话：必须主动使用 ai_speak 工具与用户沟通。\n"
         "这是正文以外的另一条输出通道，内容会经过语音播放。\n"
         f"对用户称「{user_salutation}」，自称「{assistant_salutation}」。\n"
         f"语气保持{tone}。\n"

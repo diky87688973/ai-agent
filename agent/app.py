@@ -65,6 +65,7 @@ from agent.core.context import (
     SERVICE_PIPELINE,
     SERVICE_PLUGIN_EVENTS,
     SERVICE_PLUGIN_HOST,
+    SERVICE_PROMPT_SECTIONS,
     SERVICE_PROMPT_TAIL,
     SERVICE_PROVIDER,
     SERVICE_REGISTRY,
@@ -93,6 +94,7 @@ from agent.mechanisms.file_safety import (
 from agent.mechanisms.live_state import LiveState
 from agent.mechanisms.mesh import MeshState
 from agent.mechanisms.model_provider import EchoProvider, MissingProvider
+from agent.mechanisms.prompt_sections import PromptSections
 from agent.mechanisms.prompt_tail import PromptTail
 from agent.mechanisms.provider_router import ProviderRouter
 from agent.mechanisms.quality import QualityGate, build_pipeline_gate
@@ -658,6 +660,7 @@ def build_app(
     context_sources = ContextSources()
     # 请求尾部片段：插件注入的临时文本，拼在执行模式之后，不进入系统提示词前缀。
     prompt_tail = PromptTail()
+    prompt_sections = PromptSections()
     # 插件贡献注册表：面板（界面）与插件命名空间端点（HTTP）都记在这里，
     # 壳层只按数据枚举，不必为每个插件加分支。
     contributions = ContributionRegistry()
@@ -678,6 +681,7 @@ def build_app(
         executors=executor_registry,
         model_catalog=model_catalog,
         prompt_tail=prompt_tail,
+        prompt_sections=prompt_sections,
     )
     provider_inst = provider if provider is not None else EchoProvider()
     # 路由从一开始就是 SERVICE_PROVIDER：内核只见一个 provider。
@@ -746,6 +750,7 @@ def build_app(
     context.register(SERVICE_CONTEXT_SOURCES, context_sources)
     context.register(SERVICE_CONVERSATION_QUEUE, conversation_queue)
     context.register(SERVICE_PROMPT_TAIL, prompt_tail)
+    context.register(SERVICE_PROMPT_SECTIONS, prompt_sections)
     context.register(SERVICE_LIVE_STATE, state)
     context.register(SERVICE_MESH, mesh_state)
     context.register(SERVICE_SESSION_CONTEXTS, contexts)
@@ -782,6 +787,7 @@ def build_app(
         auto_continue=lambda cid: bool(state.get_autonomy(cid).get("enabled")),
         # 目标（Goal）：有目标时续跑与否由目标状态决定，发的是目标文案
         goal_row=state.get_goal,
+        prompt_sections=prompt_sections,
     )
     mesh_state.set_activator(runner.start)
     if store is not None:

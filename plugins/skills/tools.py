@@ -45,7 +45,9 @@ class SkillsTool(ToolPlugin):
     name = "skills"
     label = "Skills 管理"
     icon = "🧩"
-    description = "Skills：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。"
+    description = ("Skills：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；"
+                   "`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。")
+
     needs_preview = True
     write_path_keys = ("source", "name")
     parameters = {
@@ -57,24 +59,6 @@ class SkillsTool(ToolPlugin):
 
     def __init__(self, library: SkillManager) -> None:
         self._library = library
-        self.description = self._description(library)
-
-    @staticmethod
-    def _description(library: SkillManager) -> str:
-        base = ("Skills：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；"
-                "`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。")
-        target = library.external_dir
-        if target and Path(target).is_dir():
-            return base + f" 新增 Skills 的复制目标目录：{target}。"
-        if target:
-            return base + (
-                f" 外部 Skills 目录不存在：{target}。action=copy 不可用；"
-                "请提示用户启用 Skills 插件并在设置 → 插件 → Skills 中配置 dir。"
-            )
-        return base + (
-            " 外部 Skills 目录未配置，action=copy 不可用；"
-            "请提示用户启用 Skills 插件并在设置 → 插件 → Skills 中配置 dir。"
-        )
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         action = str(arguments.get("action") or "").strip().lower()

@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1638** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1641** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -17,7 +17,7 @@
 7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（11）
 8. [test_artifact_lock.py](#test_artifact_lockpy)（16）
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
-10. [test_batch_f_tools.py](#test_batch_f_toolspy)（30）
+10. [test_batch_f_tools.py](#test_batch_f_toolspy)（31）
 11. [test_catalog.py](#test_catalogpy)（8）
 12. [test_chat_shell.py](#test_chat_shellpy)（16）
 13. [test_classic_adapter.py](#test_classic_adapterpy)（103）
@@ -56,35 +56,36 @@
 46. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
 47. [test_plugin_http.py](#test_plugin_httppy)（18）
 48. [test_plugins.py](#test_pluginspy)（28）
-49. [test_prompt_tail.py](#test_prompt_tailpy)（4）
-50. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-51. [test_provider_meta.py](#test_provider_metapy)（8）
-52. [test_provider_router.py](#test_provider_routerpy)（14）
-53. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
-54. [test_queue_runner.py](#test_queue_runnerpy)（3）
-55. [test_queued_input.py](#test_queued_inputpy)（2）
-56. [test_readonly_tools.py](#test_readonly_toolspy)（25）
-57. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-58. [test_run_registry.py](#test_run_registrypy)（13）
-59. [test_session_context.py](#test_session_contextpy)（22）
-60. [test_session_seq.py](#test_session_seqpy)（23）
-61. [test_session_store.py](#test_session_storepy)（17）
-62. [test_session_tools.py](#test_session_toolspy)（17）
-63. [test_settings_panel.py](#test_settings_panelpy)（19）
-64. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-65. [test_task_tools.py](#test_task_toolspy)（29）
-66. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
-67. [test_tool_registry.py](#test_tool_registrypy)（17）
-68. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-69. [test_usage_metrics.py](#test_usage_metricspy)（7）
-70. [test_version_stamp.py](#test_version_stamppy)（4）
-71. [test_visual_operator.py](#test_visual_operatorpy)（130）
-72. [test_web_frontend.py](#test_web_frontendpy)（5）
-73. [test_web_shell.py](#test_web_shellpy)（51）
-74. [test_web_ui_config.py](#test_web_ui_configpy)（13）
-75. [test_write_gate.py](#test_write_gatepy)（16）
-76. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-77. [test_write_path_tools.py](#test_write_path_toolspy)（30）
+49. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+50. [test_prompt_tail.py](#test_prompt_tailpy)（4）
+51. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+52. [test_provider_meta.py](#test_provider_metapy)（8）
+53. [test_provider_router.py](#test_provider_routerpy)（14）
+54. [test_quality_pipeline.py](#test_quality_pipelinepy)（12）
+55. [test_queue_runner.py](#test_queue_runnerpy)（3）
+56. [test_queued_input.py](#test_queued_inputpy)（2）
+57. [test_readonly_tools.py](#test_readonly_toolspy)（25）
+58. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+59. [test_run_registry.py](#test_run_registrypy)（13）
+60. [test_session_context.py](#test_session_contextpy)（22）
+61. [test_session_seq.py](#test_session_seqpy)（23）
+62. [test_session_store.py](#test_session_storepy)（17）
+63. [test_session_tools.py](#test_session_toolspy)（17）
+64. [test_settings_panel.py](#test_settings_panelpy)（19）
+65. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+66. [test_task_tools.py](#test_task_toolspy)（29）
+67. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+68. [test_tool_registry.py](#test_tool_registrypy)（17）
+69. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+70. [test_usage_metrics.py](#test_usage_metricspy)（7）
+71. [test_version_stamp.py](#test_version_stamppy)（4）
+72. [test_visual_operator.py](#test_visual_operatorpy)（130）
+73. [test_web_frontend.py](#test_web_frontendpy)（5）
+74. [test_web_shell.py](#test_web_shellpy)（51）
+75. [test_web_ui_config.py](#test_web_ui_configpy)（13）
+76. [test_write_gate.py](#test_write_gatepy)（16）
+77. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+78. [test_write_path_tools.py](#test_write_path_toolspy)（30）
 
 ## test_ai_speak_plugin.py
 
@@ -302,7 +303,7 @@
 
 ## test_batch_f_tools.py
 
-共 30 个用例。
+共 31 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -328,14 +329,15 @@
 | 20 | `SkillsSourceTest` | `test_copy_targets_external_and_keeps_builtin_read_only` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：copy targets external and keeps builtin read only |
 | 21 | `SkillsSourceTest` | `test_external_overrides_builtin_and_both_auto_loads` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：external overrides builtin and both auto loads |
 | 22 | `SkillsSourceTest` | `test_missing_external_dir_is_actionable` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：missing external dir is actionable |
-| 23 | `SkillsSourceTest` | `test_tool_description_contains_external_dir` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：tool description contains external dir |
-| 24 | `SkillsToolTest` | `test_copy_missing_source` | 覆盖「skills 工具」：copy missing source |
-| 25 | `SkillsToolTest` | `test_copy_preview_and_executor` | 覆盖「skills 工具」：copy preview and executor |
-| 26 | `SkillsToolTest` | `test_list_read_and_lookup_error` | 覆盖「skills 工具」：list read and lookup error |
-| 27 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
-| 28 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
-| 29 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
-| 30 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
+| 23 | `SkillsSourceTest` | `test_resource_directory_section_has_both_sources` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：resource directory section has both sources |
+| 24 | `SkillsSourceTest` | `test_tool_description_does_not_embed_external_dir` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：tool description does not embed external dir |
+| 25 | `SkillsToolTest` | `test_copy_missing_source` | 覆盖「skills 工具」：copy missing source |
+| 26 | `SkillsToolTest` | `test_copy_preview_and_executor` | 覆盖「skills 工具」：copy preview and executor |
+| 27 | `SkillsToolTest` | `test_list_read_and_lookup_error` | 覆盖「skills 工具」：list read and lookup error |
+| 28 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
+| 29 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
+| 30 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
+| 31 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
 
 ## test_catalog.py
 
@@ -1525,6 +1527,15 @@
 | 26 | `PluginIdentityFallbackTest` | `test_list_plugins_shows_declared_name_without_a_config` | 卡片标题取 `name` 而不是目录名 —— 不能只有配过的插件才显示中文名。 |
 | 27 | `PluginIdentityFallbackTest` | `test_meta_supplies_identity_when_config_is_absent` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：meta supplies identity when config is absent |
 | 28 | `PluginIdentityFallbackTest` | `test_no_files_falls_back_to_folder_name` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：no files falls back to folder name |
+
+## test_prompt_sections.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `PromptSectionsTest` | `test_extra_sections_sit_inside_the_system_prompt` | 覆盖「同名章节合并与系统提示词注入位置」：extra sections sit inside the system prompt |
+| 2 | `PromptSectionsTest` | `test_same_heading_is_merged_once` | 覆盖「同名章节合并与系统提示词注入位置」：same heading is merged once |
 
 ## test_prompt_tail.py
 

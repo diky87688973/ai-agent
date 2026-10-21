@@ -358,16 +358,23 @@ class SkillsSourceTest(unittest.TestCase):
         lib = SkillManager(None, builtin_dir=self.builtin)
         tool = skill_tools.build(lib)
         self.assertEqual(tool.name, "skills")
-        self.assertIn("请提示用户启用 Skills 插件", tool.description)
+        self.assertNotIn("外部 Skills 目录", tool.description)
         with self.assertRaises(ValueError) as ctx:
             tool.execute({"action": "copy", "source": str(self.builtin / "only_builtin.md")})
         self.assertIn("配置 dir", str(ctx.exception))
 
-    def test_tool_description_contains_external_dir(self) -> None:
+    def test_tool_description_does_not_embed_external_dir(self) -> None:
         lib = SkillManager(self.external, builtin_dir=self.builtin)
         tool = skill_tools.build(lib)
-        self.assertIn(str(self.external), tool.description)
+        self.assertNotIn(str(self.external), tool.description)
         self.assertEqual(tool.name, "skills")
+
+    def test_resource_directory_section_has_both_sources(self) -> None:
+        from plugins.skills.plugin import _resource_directory_lines
+        lib = SkillManager(self.external, builtin_dir=self.builtin)
+        lines = _resource_directory_lines(lib)
+        self.assertIn(f"系统skills: {self.builtin}", lines)
+        self.assertIn(f"用户skills: {self.external}", lines)
 
 
 class GithubApiTest(unittest.TestCase):

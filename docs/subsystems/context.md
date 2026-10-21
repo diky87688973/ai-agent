@@ -40,11 +40,28 @@ messages     = pipeline.assembles([新输入, 模式说明])
 
 | 常量 | 块 | 内容 |
 |---|---|---|
-| `CHUNK_SYSTEM` | 系统提示词 | 基础提示词 + 工具速查 |
+| `CHUNK_SYSTEM` | 系统提示词 | 基础提示词 + 插件系统提示词章节 + 工具速查 |
 | `CHUNK_PLUGIN` | 插件段落 | 插件按段注册的注入内容 |
 | `CHUNK_MEM` | 记忆摘要 | 历次压缩产出的摘要，各占一条 `system` |
 | `CHUNK_FULL` | 近期记忆 | 对话轮次，按原文保留 |
 | `CHUNK_MODE` | 模式 | 保留结构；执行模式现由请求尾部现拼，不落此块 |
+
+## 系统提示词章节
+
+系统提示词最终是一条 `system` 消息，但由多个有序章节组成：
+
+```text
+身份 → 回复语言 → 动手指令 → 术语 → 工具使用纪律 → 编码准则
+→ 插件章节（PromptSections，按插件清单顺序）
+→ 用户自定义规则 → 工具速查
+```
+
+- 基础段由 `prompts.py:build_system_prompt()` 产出；模式段由
+  `resolve_system_prompt()` 切掉，执行模式走请求尾部。
+- 插件用 `ctx.add_prompt_section(section, fn)` 注册章节；`section` 是完整标题，
+  同一标题的正文合并，不重复出现标题。章节属于系统提示词，不占独立上下文段。
+- `## 资源目录` 由 Skills 插件注册；`## 动手指令` 是基础段，固定在回复语言之后。
+- `## 可用工具` 是名字与一句话摘要；完整 schema 只走请求的 `tools` 字段。
 
 ## 组装顺序
 
@@ -143,15 +160,26 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 
 ### 字段与边界
 
+`context_layout` 顶层字段：
+
+| 字段 | 含义 |
+|---|---|
+| `segments` | 分段列表，末尾固定包含 `remaining` |
+| `total_tokens` | 各段与尾部合计占用（不含剩余容量） |
+| `budget_tokens` | 分段 `pct` 的实际分母（取压缩预算与已用中的较大者） |
+| `model_max_context_tokens` | 当前模型窗口；未知为 0，界面退回预算口径 |
+
 `context_layout.segments[]` 只给**数据**：
 
 | 字段 | 含义 |
 |---|---|
-| `key` | 段标识；插件段是 `plugin:<插件名>` |
+| `key` | 段标识；插件段是 `plugin:<插件名>`，剩余容量段是 `remaining` |
 | `label` | 段名（插件自报） |
 | `tokens` | 该段占用 |
 | `count` | 主体数量（插件自报；缺省按消息条数） |
 | `pct` | 相对预算的占比 |
+
+`segments` 末尾固定追加 `{"key": "remaining", "label": "剩余容量", "tokens": ..., "pct": ...}`，这一项没有 `count`。
 
 **颜色、图标、布局由界面决定**：服务端不下发色号。插件经
 `ctx.add_ctx_segment_style(label=..., color=...)` 登记外观，壳层开屏拉
@@ -231,8 +259,8 @@ threshold = floor(context_window × compression_percent / 100)
                      （tool_chain_balanced）；退不回去就放弃本次压缩
 5. 调摘要器        用 base 当前缀，末尾接压缩指令（前缀逐字节等于平常请求）
                    被压那一段（含工具结果原文）就在前缀里，不再另算素材
-7. 记录            covered_end += 区间长度；摘要追加进 summaries
-8. 立刻装回管线    set_summary_messages()：同一次请求随后就装配，
+6. 记录            covered_end += 区间长度；摘要追加进 summaries
+7. 立刻装回管线    set_summary_messages()：同一次请求随后就装配，
                    读到的必须是新摘要（晚一步就会用旧上下文发请求）
 ```
 
@@ -315,7 +343,7 @@ provider 的 KV 缓存，只按压缩指令那点新增内容付费。
 ```
 
 `build_system_prompt()` 仍会产出模式段（供单独取用），`split_mode_section()` 负责把它
-从系统提示词里切掉，只删模式段本身、保留其后的用户自定义规则与工具速查。
+从系统提示词里切掉，只删模式段本身、保留其后的插件章节、用户自定义规则与工具速查。
 调用方显式给了系统提示词（mesh 的 `system`）时不再附加模式说明。
 
 `_strip_mode_tail()` 在压缩前摘掉尾部模式，避免把它当对话内容压进摘要。

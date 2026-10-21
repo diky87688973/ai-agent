@@ -35,6 +35,7 @@ BUILTIN_SKILLS_DIR = PROJECT_ROOT / "skills"
 CATALOG_PREFIX = ""
 # 常驻抬头带 Skills 名，模型一眼看出这是哪个 Skills 的正文，由 library 逐条拼。
 RESIDENT_PREFIX = ""
+RESOURCE_HEAD = "## 资源目录"
 
 
 def _config_path() -> Path:
@@ -77,7 +78,7 @@ def _load_config(path: Optional[Path] = None) -> Dict[str, Any]:
 
 
 def register(ctx: Any) -> List[Callable[[], None]]:
-    """插件入口：装配 Skills 库，注册工具、两条上下文注入与提交执行器。"""
+    """插件入口：装配 Skills 库，注册工具、系统提示词章节与提交执行器。"""
     cfg = _load_config()
     library = SkillManager(cfg["dir"], int(cfg["max_file_size"]),
                            builtin_dir=BUILTIN_SKILLS_DIR)
@@ -87,6 +88,11 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     tool = build_tool(library)
     disposers: List[Callable[[], None]] = [
         ctx.register_tool(tool),
+        # 资源目录：写入系统提示词章节；Rules 插件后续向同一章节追加自己的行。
+        ctx.add_prompt_section(
+            RESOURCE_HEAD,
+            lambda cid, _lib=library: _resource_directory_lines(_lib),
+        ),
         # 清单：只有名字与描述（渐进式披露第一层）。
         ctx.add_context_source(
             lambda cid, _lib=library: _catalog_parts(_lib),
@@ -110,6 +116,20 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     # 工具卡视图：开屏脚本，不必挂空面板。
     disposers.append(ctx.add_boot_script("ui/tool-view.js"))
     return disposers
+
+
+def _resource_directory_lines(library: SkillManager) -> List[str]:
+    """资源目录正文行；章节标题由 PromptSections 统一添加。"""
+    builtin = library.builtin_dir or BUILTIN_SKILLS_DIR
+    lines = [f"系统skills: {builtin}"]
+    external = library.external_dir
+    if external and external.is_dir():
+        lines.append(f"用户skills: {external}")
+    elif external:
+        lines.append(f"用户skills: {external}（不存在）")
+    else:
+        lines.append("用户skills: 未配置")
+    return lines
 
 
 def _catalog_parts(library: SkillManager) -> List[str]:
