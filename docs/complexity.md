@@ -8,10 +8,10 @@
 | 文件 | 行数 | 函数数 | 保留理由 |
 |---|---|---|---|
 | `agent/mechanisms/context_pipeline.py` | 1186 | 67 | 拼装、分段统计与缓存版本共用同一状态机；待拆 segments 与 cache 子模块。承担者：架构维护 |
-| `agent/shell/classic_adapter/inbound.py` | 1110 | 49 | HTTP 事件投影与折叠规则同文件；折叠外移到 history_page 后净减。承担者：壳层维护 |
+| `agent/shell/classic_adapter/inbound.py` | 1113 | 49 | HTTP 事件投影与折叠规则同文件；折叠外移到 history_page 后净减。承担者：壳层维护 |
 | `agent/shell/web_api.py` | 1002 | 44 | SSE 连接表、会话运行表、附件与设置读取同文件；待拆 sse 与 attachments。承担者：壳层维护 |
 | `agent/mechanisms/session_store.py` | 936 | 39 | 事件日志读写、行索引与压缩同文件；待拆索引层。承担者：机制维护 |
-| `agent/app.py` | 818 | 38 | 进程装配与会话入口同文件；阈值解析跨模型目录与配置，拆分需先抽会话装配上下文。承担者：架构维护 |
+| `agent/app.py` | 826 | 39 | 进程装配与会话入口同文件；阈值解析跨模型目录与配置，拆分需先抽会话装配上下文。承担者：架构维护 |
 
 ## 超阈值函数
 
@@ -39,7 +39,7 @@
 | `agent/mechanisms/quality/pipeline_bridge.py::build_pipeline_gate` | 97 | 门控对象图在一处，拆开需引入 builder 类型 |
 | `agent/core/image_embed.py::strip_old_images` | 96 | 剥离游标推进与保留策略同函数 |
 | `scripts/acceptance_web.py::Acceptance.scenario_5` | 96 | 验收脚本线性断言 |
-| `agent/app.py::App.session` | 93 | 会话生命周期与事件转发在同一生成器；待拆中间对象 |
+| `agent/app.py::App.session` | 91 | 会话生命周期与事件转发在同一生成器；待拆中间对象 |
 | `agent/core/modules/tool_mod.py::ToolModule.execute` | 90 | 工具执行四步同函数；待抽协议对象 |
 | `scripts/acceptance_batch_e.py::Acceptance.scenario_1` | 89 | 验收脚本线性断言 |
 | `agent/core/tool_call.py::ToolPipeline.execute` | 88 | 调用管道顺序即语义，拆开会让确认与执行脱节 |
@@ -49,4 +49,4 @@
 
 - 目录：`agent/`、`scripts/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 149 个、函数 1587 个；超阈值文件 5 个、函数 27 个。
+- 文件 149 个、函数 1588 个；超阈值文件 5 个、函数 27 个。

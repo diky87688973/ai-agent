@@ -227,6 +227,16 @@ class App:
                 return entry.compression_percent
         return DEFAULT_COMPRESSION_PERCENT
 
+    def compression_threshold_for(self, conversation_id: str) -> int:
+        """会话当前模型的压缩触发阈值；窗口缺失时用配置回退值。"""
+        fallback = int(get_context().get("summary_token_fallback")
+                       or DEFAULT_SUMMARY_TOKEN_FALLBACK)
+        return compression_threshold(
+            self.context_window_for(conversation_id),
+            self.compression_percent_for(conversation_id),
+            fallback,
+        )
+
     def reload_model_config(self, config_path: Optional[Path] = None) -> str:
         """返回模型配置来源说明；模型由多模型插件维护。"""
         if self.model_config_state == "catalog":
@@ -430,9 +440,7 @@ class App:
             if compactor is not None:
                 compactor.restore_from_events(list(log.events))
         # 压缩阈值按当前模型窗口 × 该模型百分比；窗口缺失时用配置回退值。
-        fallback = int(get_context().get("summary_token_fallback") or DEFAULT_SUMMARY_TOKEN_FALLBACK)
-        threshold = compression_threshold(
-            window, self.compression_percent_for(conversation_id), fallback)
+        threshold = self.compression_threshold_for(conversation_id)
         if context is not None and hasattr(context, "summary_token_threshold"):
             context.summary_token_threshold = threshold
         if compactor is not None and hasattr(compactor, "summary_token_threshold"):

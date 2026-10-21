@@ -83,6 +83,29 @@ class _AppWindowTest(unittest.TestCase):
         ])
         self.assertEqual(app.compression_percent_for("cid"), 70)
 
+    def test_compression_threshold_uses_the_model_percent(self) -> None:
+        app = self._app(entries=[
+            ModelEntry.from_options(
+                id="a", provider="openai",
+                options={"context_window": 128000, "compression_percent": 70}),
+        ])
+        self.assertEqual(app.compression_threshold_for("cid"), 89_600)
+
+    def test_compression_threshold_falls_back_without_a_window(self) -> None:
+        app = self._app(entries=[
+            ModelEntry.from_options(id="a", provider="openai"),
+        ])
+        self.assertEqual(app.compression_threshold_for("cid"), 64_000)
+
+    def test_context_layout_budget_uses_the_model_threshold(self) -> None:
+        from agent.shell.classic_adapter.inbound import _budget_of
+        app = self._app(entries=[
+            ModelEntry.from_options(
+                id="a", provider="openai",
+                options={"context_window": 128000, "compression_percent": 70}),
+        ])
+        self.assertEqual(_budget_of(app, "cid"), 89_600)
+
 
 class CompressionThresholdTest(unittest.TestCase):
     def test_window_percent(self) -> None:

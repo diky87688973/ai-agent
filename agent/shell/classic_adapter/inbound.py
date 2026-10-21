@@ -397,10 +397,13 @@ def _overlay_plugin_segments(app: Any, cid: str,
 
 
 def _budget_of(app: Any, cid: str) -> int:
-    """本次会话的上下文预算 = 压缩阈值（`[context] summary_token_threshold`）。
+    """本次会话的上下文预算 = 当前模型的压缩阈值。
 
     取不到就给 0，调用方各自退回自己的兜底口径。
     """
+    resolver = getattr(app, "compression_threshold_for", None)
+    if callable(resolver):
+        return int(resolver(cid) or 0)
     factory = getattr(app, "compactor_factory", None)
     if not callable(factory):
         return 0

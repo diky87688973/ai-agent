@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1630** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1633** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -51,7 +51,7 @@
 41. [test_mode_note.py](#test_mode_notepy)（12）
 42. [test_model_catalog.py](#test_model_catalogpy)（23）
 43. [test_model_provider.py](#test_model_providerpy)（38）
-44. [test_model_window.py](#test_model_windowpy)（11）
+44. [test_model_window.py](#test_model_windowpy)（14）
 45. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
 46. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
 47. [test_plugin_http.py](#test_plugin_httppy)（18）
@@ -1368,7 +1368,7 @@
 
 ## test_model_window.py
 
-共 11 个用例。
+共 14 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1381,8 +1381,11 @@
 | 7 | `_AppWindowTest` | `test_catalog_entry_window_wins` | 覆盖「A class whose instances are single test cases」：catalog entry window wins |
 | 8 | `_AppWindowTest` | `test_compression_percent_comes_from_the_current_model` | 覆盖「A class whose instances are single test cases」：compression percent comes from the current model |
 | 9 | `_AppWindowTest` | `test_compression_percent_defaults_to_70` | 覆盖「A class whose instances are single test cases」：compression percent defaults to 70 |
-| 10 | `_AppWindowTest` | `test_entry_without_window_uses_the_shared_default` | 覆盖「A class whose instances are single test cases」：entry without window uses the shared default |
-| 11 | `_AppWindowTest` | `test_stale_model_converges_to_the_default_window` | 会话还拿着已删除的模型 id：先收敛回默认，窗口跟着默认走。 |
+| 10 | `_AppWindowTest` | `test_compression_threshold_falls_back_without_a_window` | 覆盖「A class whose instances are single test cases」：compression threshold falls back without a window |
+| 11 | `_AppWindowTest` | `test_compression_threshold_uses_the_model_percent` | 覆盖「A class whose instances are single test cases」：compression threshold uses the model percent |
+| 12 | `_AppWindowTest` | `test_context_layout_budget_uses_the_model_threshold` | 覆盖「A class whose instances are single test cases」：context layout budget uses the model threshold |
+| 13 | `_AppWindowTest` | `test_entry_without_window_uses_the_shared_default` | 覆盖「A class whose instances are single test cases」：entry without window uses the shared default |
+| 14 | `_AppWindowTest` | `test_stale_model_converges_to_the_default_window` | 会话还拿着已删除的模型 id：先收敛回默认，窗口跟着默认走。 |
 
 ## test_multi_model_plugin.py
 
