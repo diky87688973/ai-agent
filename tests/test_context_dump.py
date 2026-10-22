@@ -50,8 +50,8 @@ class ContextDumpTest(unittest.TestCase):
                 snapshot = build_snapshot(app, "0123456789abcdef0123456789abcdef")
                 self.assertEqual(len(provider.requests), before)
                 self.assertTrue(snapshot["messages"])
-                self.assertNotIn("## Todo-List:", snapshot["mode_note"])
-                self.assertNotIn("## Todo-List:", render_text(snapshot))
+                self.assertNotIn("## Todo-List：", snapshot["mode_note"])
+                self.assertNotIn("## Todo-List：", render_text(snapshot))
                 users = [str(m.get("content") or "") for m in snapshot["messages"]
                          if str(m.get("role") or "") == "user"]
                 self.assertIn("导出测试", "\n".join(users))
@@ -84,7 +84,7 @@ class ContextDumpTest(unittest.TestCase):
                 self.assertTrue(runner.wait_idle(cid, 10))
                 snapshot = build_snapshot(app, cid)
                 text = render_text(snapshot)
-                self.assertIn("## Todo-List:", snapshot["mode_note"])
+                self.assertIn("## Todo-List：", snapshot["mode_note"])
                 self.assertIn("当前进度：1 已完成，1 进行中，0 待处理", snapshot["mode_note"])
                 self.assertIn("当前进度：1 已完成，1 进行中，0 待处理", text)
             finally:

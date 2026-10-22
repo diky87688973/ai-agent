@@ -6,8 +6,8 @@ import unittest
 from types import SimpleNamespace
 
 from agent.core.model_call import StreamDelta
-from agent.mechanisms.model_provider import ModelRequestError
 from agent.mechanisms.provider_router import ProviderRouter
+from agent.mechanisms.providers.base import ModelRequestError
 
 
 class _FakeProvider:

@@ -31,10 +31,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
+from agent.core.model_call import StreamDelta  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
-from agent.mechanisms.model_provider import StreamDelta  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
 from agent.shell.web import create_server  # noqa: E402
 

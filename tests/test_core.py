@@ -25,10 +25,10 @@ from agent.core import (
     build_default_chain,
 )
 from agent.core.events import Event
+from agent.core.model_call import StreamDelta
 from agent.core.module import ModuleBase
 from agent.core.session_log import SessionLog
 from agent.core.tool_call import ToolCallRequest, ToolPipeline
-from agent.mechanisms.model_provider import StreamDelta
 from agent.mechanisms.session_store import SessionStore
 
 # ══════════════════════════════════════════════════════════════════
@@ -1356,7 +1356,7 @@ class ContextSegmentsEventTest(CoreHarness):
 
     def _run_with_context(self, steps, *, text: str = "", dialogue=()):
         """带真上下文管线跑一遍：分段快照需要装配能力才会发。"""
-        from agent.mechanisms.context_pipeline import ContextPipeline
+        from agent.mechanisms.context import ContextPipeline
 
         ctx = ContextPipeline(self.cid, full_user_rounds=1)
         ctx.append_system("系统提示")

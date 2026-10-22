@@ -9,7 +9,6 @@
 
 本模块只负责装配壳对象（`create_server` 返回未启动的 server）：
 进程入口与 `build_app()` 的调用在 `agent/entry/web.py`（A2：壳层不得反向依赖装配根）。
-对外导入约定保持：`from agent.shell.web import _Channel` / `WebShell` / `create_server` 等仍可用。
 """
 from __future__ import annotations
 
@@ -25,33 +24,15 @@ if TYPE_CHECKING:  # 只为注解：运行期不导入装配根
 
 
 from agent.mechanisms.session_title import make_provider_title_generator
-
-# 路径安全：外部按 `agent.shell.web` 导入这些名字。
-from agent.shell.fspaths import (  # noqa: F401
+from agent.shell.fspaths import (
     _default_fs_roots,
-    _env_path,
-    _env_roots,
-    _fs_rejection,
-    _is_drive_root,
-    _list_drives,
     _normalize_roots,
-    _parse_roots,
-    _within_any_root,
     resolve_fs_roots,
     resolve_media_root,
 )
-from agent.shell.sse import _Channel, _event_seq, _sse_payload  # noqa: F401
 from agent.shell.web_api import WebShell
 from agent.shell.web_routes import _Handler
-from agent.shell.web_static import (  # noqa: F401
-    ASSETS_DIR,
-    MAX_BODY_BYTES,
-    MODE_VALUES,
-    SSE_HEARTBEAT_SEC,
-    _lang_from_path,
-    _looks_binary,
-    _plugin_asset_rel,
-)
+from agent.shell.web_static import ASSETS_DIR
 
 
 def create_server(

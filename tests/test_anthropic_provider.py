@@ -15,8 +15,8 @@ from unittest import mock
 
 from agent.core.model_call import PROVIDER_META_KEY
 from agent.core.ports import LogicalRequest
-from agent.mechanisms import anthropic_provider as ap
-from agent.mechanisms.anthropic_provider import (
+from agent.mechanisms.providers import anthropic as ap
+from agent.mechanisms.providers.anthropic import (
     AnthropicProvider,
     _assemble_deltas,
     _to_anthropic_messages,
@@ -24,7 +24,7 @@ from agent.mechanisms.anthropic_provider import (
     messages_url,
     strip_stale_thinking,
 )
-from agent.mechanisms.model_provider import ModelRequestError
+from agent.mechanisms.providers.base import ModelRequestError
 
 # ── SSE 夹具 ────────────────────────────────
 
@@ -458,7 +458,7 @@ class EndpointAndErrorTest(unittest.TestCase):
         request = LogicalRequest(messages=[{"role": "user", "content": "q"}], tools=[])
         provider = AnthropicProvider(base_url="https://api.anthropic.com", api_key="sk-ant",
                                      model="claude-x", thinking=False)
-        with mock.patch.object(ap, "_LOG_REQUESTS", False), \
+        with mock.patch.object(ap, "LOG_REQUESTS", False), \
                 mock.patch.object(ap.urllib.request, "urlopen", side_effect=fake_urlopen):
             deltas = list(provider.stream(request))
         self.assertEqual(captured["url"], "https://api.anthropic.com/v1/messages")
@@ -480,7 +480,7 @@ class EndpointAndErrorTest(unittest.TestCase):
         provider = AnthropicProvider(
             base_url="https://x", api_key="k", model="m", timeout=0.02,
         )
-        with mock.patch.object(ap, "_LOG_REQUESTS", False), \
+        with mock.patch.object(ap, "LOG_REQUESTS", False), \
                 mock.patch.object(ap.urllib.request, "urlopen",
                                   return_value=_StalledResponse()):
             with self.assertRaises(ModelRequestError) as caught:
@@ -494,7 +494,7 @@ class EndpointAndErrorTest(unittest.TestCase):
             io.BytesIO(b'{"error":{"message":"rate limited"}}'),
         )
         provider = AnthropicProvider(base_url="https://x", api_key="k", model="m")
-        with mock.patch.object(ap, "_LOG_REQUESTS", False), \
+        with mock.patch.object(ap, "LOG_REQUESTS", False), \
                 mock.patch.object(ap.urllib.request, "urlopen", side_effect=error):
             with self.assertRaises(ModelRequestError) as caught:
                 list(provider.stream(LogicalRequest(messages=[], tools=[])))

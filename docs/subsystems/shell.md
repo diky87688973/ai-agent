@@ -4,9 +4,19 @@
 
 | 文件 | 职责 |
 |---|---|
-| `web.py` | HTTP + SSE 服务，路由分发，服务启动 |
+| `web.py` | HTTP + SSE 服务装配与启动 |
+| `web_routes.py` | HTTP 动词与路径分派 |
+| `web_static.py` | 静态资源、路径与协议常量 |
+| `web_classic.py` | 经典页面与经典 SSE |
+| `web_plugin.py` | 插件端点与插件资产转发 |
+| `web_api.py` | WebShell 业务动作与连接/运行态 |
 | `sse.py` | SSE 传输层 |
-| `session_runner.py` | 回合调度与心跳，消费待发送队列 |
+| `session/runner.py` | 回合调度、取消、队列抽干与生命周期 |
+| `session/queue.py` | 队列领取、释放、补投 |
+| `session/goal.py` | 目标与自主续跑判定 |
+| `session/prompt.py` | 系统提示与运行态尾部 |
+| `session/resume.py` | 外部工具结果恢复 |
+| `session/heartbeat.py` | 运行态心跳 |
 | `prompts.py` | 系统提示词 |
 | `ui_bundle.py` | 界面资源内联打包 |
 | `settings_panel.py` | 设置页：宿主配置与插件开关的读写 |
@@ -130,7 +140,7 @@ SSE 连接表由 `WebShell` 持有，断开时从表里移除。
 
 ## 回合调度
 
-`session_runner.py` 的 `SessionRunner` 在后台执行回合：从待发送队列取输入、通过 `Engine` 跑模块链、把事件推给 SSE、续心跳。
+`session/runner.py` 的 `SessionRunner` 在后台执行回合：从待发送队列取输入、通过 `Engine` 跑模块链、把事件推给 SSE、续心跳。
 
 心跳让运行态登记在长任务期间不被判为过期。任务结束或取消时释放登记。
 
@@ -197,6 +207,10 @@ inline_ui_html()        # 拼成完整单页
 |---|---|
 | `outbound.py` | 内核事件 → 界面事件 |
 | `inbound.py` | 界面请求 → 内核调用 → 界面期望的返回体 |
+| `history.py` | 历史折叠、附件、工具回显 |
+| `layout.py` | 上下文布局、覆盖、缩放 |
+| `state.py` | 经典会话级状态 |
+| `sessions.py` | 会话标题与日期分组 |
 | `contract.py` | 事件与字段常量，适配层的单一事实源 |
 | `adapter.py` | 门面 `ClassicAdapter`、SSE 通道 `ClassicSseChannel` |
 

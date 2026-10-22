@@ -286,7 +286,7 @@ class PluginContext:
         `{"label": ..., "prefix": ..., "count": fn(cid)}`。
         组装顺序不由插件声明：它取插件在清单里的位次。
         """
-        from agent.mechanisms.context_pipeline import SourceMeta, slug
+        from agent.mechanisms.context import SourceMeta, slug
 
         label = ""
         prefix = ""

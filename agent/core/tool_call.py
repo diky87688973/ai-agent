@@ -61,7 +61,7 @@ class ToolResult:
     # 允许以元组 `(ToolResult, attachments)` 回传（旧式工具少改一处）
     # 由管道统一归一化，工具侧只认 `attach`。
     # 工具声明"这一轮必须停下等用户在宿主界面作答"（如 `user_confirm` 首段）。
-    # 由工具异常上的 `await_user` 属性带上（`task_tools.UserConfirmRequired` 即此类异常），
+    # 由工具异常上的 `await_user` 属性带上（`tasks.confirm.UserConfirmRequired` 即此类异常），
     # 回合循环据此暂停——否则模型会把 `ok=False` 读成失败并反复重试。
     await_user: bool = False
     # 这次调用还没有返回（两段式首段：等用户在宿主界面作答）。

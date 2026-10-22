@@ -26,7 +26,7 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
 
         from agent.app import build_app
         from agent.config import get_context
-        from agent.mechanisms.context_pipeline import ContextPipeline
+        from agent.mechanisms.context import ContextPipeline
 
         app = build_app(provider=None)
         factory = app.context_factory

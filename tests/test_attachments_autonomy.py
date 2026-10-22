@@ -121,7 +121,7 @@ class VisionDegradeTest(unittest.TestCase):
     """图片一律原样下发：没有任何按模型名降级剥图的分支。"""
 
     def setUp(self) -> None:
-        import agent.mechanisms.model_provider as mp
+        import agent.mechanisms.providers.openai as mp
 
         self.mp = mp
         self.sent: list = []
@@ -183,7 +183,7 @@ class AutonomyTest(unittest.TestCase):
     def test_runner_auto_continue_check_used(self) -> None:
         """`SessionRunner(auto_continue=...)` 被真正查询；判断函数抛错必须原样抛出，不得吞掉。"""
 
-        from agent.shell.session_runner import SessionRunner
+        from agent.shell.session.runner import SessionRunner
 
         calls: list = []
         runner = SessionRunner(app=None, mesh=None, auto_continue=lambda cid: calls.append(cid) or False)
@@ -198,7 +198,7 @@ class AutonomyTest(unittest.TestCase):
 
     def test_no_auto_continue_means_no_continue(self) -> None:
 
-        from agent.shell.session_runner import SessionRunner
+        from agent.shell.session.runner import SessionRunner
 
         self.assertFalse(SessionRunner(app=None, mesh=None)._should_auto_continue("c1"))
 

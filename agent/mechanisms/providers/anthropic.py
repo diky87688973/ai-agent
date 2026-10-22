@@ -29,13 +29,10 @@ from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
 from agent.core.model_call import StreamDelta
 from agent.core.tool_call import ToolCallRequest
-from agent.mechanisms.model_provider import (
-    _LOG_REQUESTS,
-    ModelProvider,
-    ModelRequestError,
-    _stream_with_timeout,
-    tool_parameters,
-)
+from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
+from agent.mechanisms.providers.debug import LOG_REQUESTS
+from agent.mechanisms.providers.sse import stream_with_timeout
+from agent.mechanisms.providers.tool_schema import tool_parameters
 
 #: HTTP 状态 → 面向用户的提示。与 DeepSeek 的表分开：同一状态码在两家的含义
 #: 不完全一致（例如 529 只有 Anthropic 侧常见）。
@@ -93,7 +90,7 @@ def _upstream_message(body: str) -> str:
 
 def _warn(message: str) -> None:
     """诊断必须留痕：只吞不记等于把配置问题埋掉。"""
-    print(f"[anthropic_provider] {message}", file=sys.stderr, flush=True)
+    print(f"[providers.anthropic] {message}", file=sys.stderr, flush=True)
 
 
 # ── 消息折叠（纯函数，便于单测）──────────────
@@ -531,7 +528,7 @@ class AnthropicProvider(ModelProvider):
             raise self._http_error(exc.code, body) from exc
         except urllib.error.URLError as exc:
             raise ModelRequestError(f"网络错误：{getattr(exc, 'reason', exc)}") from exc
-        yield from _stream_with_timeout(resp, self.timeout, label="anthropic")
+        yield from stream_with_timeout(resp, self.timeout, label="anthropic")
 
     def stream(self, request: Any) -> Iterator[StreamDelta]:
         if not self.api_key:
@@ -540,7 +537,7 @@ class AnthropicProvider(ModelProvider):
         if not url:
             raise ModelRequestError("base_url 未配置。")
         payload = self.build_payload(request)
-        if _LOG_REQUESTS:
+        if LOG_REQUESTS:
             print(
                 f"[llm→] url={url} model={payload['model']} "
                 f"messages={len(payload['messages'])} tools={len(payload.get('tools') or [])} "

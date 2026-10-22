@@ -15,7 +15,7 @@ from typing import Any, Dict, Tuple
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.mechanisms.context_pipeline import (  # noqa: E402
+from agent.mechanisms.context import (  # noqa: E402
     CHUNK_ORDER,
     ContextChunk,
     ContextPipeline,
@@ -196,7 +196,7 @@ class DefaultConfigValues(unittest.TestCase):
 
     def test_summary_token_threshold_default(self) -> None:
         from agent.config import get_context
-        from agent.mechanisms.context_pipeline import DEFAULT_SUMMARY_TOKEN_THRESHOLD
+        from agent.mechanisms.context import DEFAULT_SUMMARY_TOKEN_THRESHOLD
         c = get_context()
         self.assertEqual(c["summary_token_fallback"], 64000)
         self.assertEqual(DEFAULT_SUMMARY_TOKEN_THRESHOLD, 64000)
@@ -205,7 +205,7 @@ class DefaultConfigValues(unittest.TestCase):
         import inspect
 
         from agent.config import get_context
-        from agent.mechanisms.context_compactor import ContextCompactor
+        from agent.mechanisms.compaction.compactor import ContextCompactor
         sig = inspect.signature(ContextCompactor.__init__)
         c = get_context()
         self.assertEqual(sig.parameters["summary_token_threshold"].default,

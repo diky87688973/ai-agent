@@ -21,8 +21,9 @@ from agent.shell import chat
 
 def build_app_from_config() -> Optional[Any]:
     """装配 app；模型由 multi_model 插件提供，未配置时返回 None（不抛）。"""
-    store = SessionStore(Path(default_data_root()))
-    app = build_app(provider=None, store=store)
+    data_root = Path(default_data_root())
+    store = SessionStore(data_root)
+    app = build_app(provider=None, store=store, data_root=data_root)
     if app.model_config_state == "none":
         print("未配置任何可用模型。请在 plugins/multi_model/plugin-config.ini 中配置至少一个 [model:<id>] 节。")
         app.dispose()

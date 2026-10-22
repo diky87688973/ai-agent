@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, Optional
 
+from agent.capabilities import tasks
 from agent.capabilities.builtin import (
     archive_tool,
     command_tools,
@@ -30,7 +31,6 @@ from agent.capabilities.builtin import (
     review_conclusion,
     session_tools,
     system_tools,
-    task_tools,
     text_data_tools,
     web_tools,
     write_file,
@@ -83,8 +83,8 @@ from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.session_context import SessionContexts
 from agent.core.session_log import SessionLog
 from agent.core.tool_call import ToolPipeline
-from agent.mechanisms.context_compactor import ContextCompactor, make_provider_summarizer
-from agent.mechanisms.context_pipeline import ContextPipeline, ContextSources
+from agent.mechanisms.compaction.compactor import ContextCompactor, make_provider_summarizer
+from agent.mechanisms.context import ContextPipeline, ContextSources
 from agent.mechanisms.conversation_queue import ConversationQueue
 from agent.mechanisms.error_log import ErrorLog
 from agent.mechanisms.executors import ExecutorRegistry
@@ -94,15 +94,16 @@ from agent.mechanisms.file_safety import (
 )
 from agent.mechanisms.live_state import LiveState
 from agent.mechanisms.mesh import MeshState
-from agent.mechanisms.model_provider import EchoProvider, MissingProvider
 from agent.mechanisms.prompt_sections import PromptSections
 from agent.mechanisms.prompt_tail import PromptTail
 from agent.mechanisms.provider_router import ProviderRouter
+from agent.mechanisms.providers.echo import EchoProvider
+from agent.mechanisms.providers.missing import MissingProvider
 from agent.mechanisms.quality import QualityGate, build_pipeline_gate
 from agent.shell.classic_adapter import ClassicAdapter
 from agent.shell.classic_adapter.plugin_events import PluginEventPublisher
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER
-from agent.shell.session_runner import SessionRunner
+from agent.shell.session.runner import SessionRunner
 
 
 class App:
@@ -606,7 +607,7 @@ def build_app(
         registry.register(plugin)
     for plugin in command_tools.build_plugins(state):
         registry.register(plugin)
-    for plugin in task_tools.build_plugins(state):
+    for plugin in tasks.build_plugins(state):
         registry.register(plugin)
     for plugin in session_tools.build_plugins(mesh_state):
         registry.register(plugin)

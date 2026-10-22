@@ -18,9 +18,9 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
-from agent.shell.session_runner import (  # noqa: E402
+from agent.shell.session.goal import AUTO_CONTINUE_PROMPT  # noqa: E402
+from agent.shell.session.runner import (  # noqa: E402
     _MAX_AUTO_ROUNDS,
-    AUTO_CONTINUE_PROMPT,
     SessionRunner,
 )
 

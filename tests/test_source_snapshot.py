@@ -18,7 +18,7 @@ from agent.core.module import ModuleBase  # noqa: E402
 from agent.core.outcome import Outcome  # noqa: E402
 from agent.core.ports import Ports  # noqa: E402
 from agent.core.session_log import SessionLog  # noqa: E402
-from agent.mechanisms.context_pipeline import (  # noqa: E402
+from agent.mechanisms.context import (  # noqa: E402
     ContextPipeline,
     ContextSources,
     SourceMeta,

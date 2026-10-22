@@ -1,20 +1,11 @@
 # -*- coding: utf-8 -*-
-"""模型提供者：协议 + Echo 假实现 + OpenAI 兼容真实适配。
-
-- 协议（替换点）：`provider.stream(request) -> Iterator[StreamDelta]`；
-  request 为 core.ports.LogicalRequest（messages + tools）。
-- EchoProvider：MVP 假模型（内核循环验证，不依赖真实 API）；
-- OpenAICompatibleProvider：真实适配（stdlib urllib）——SSE 流式解析、
-  工具调用分片归并、末帧快照兜底、DeepSeek 错误映射、
-  usage 结算。
-"""
+"""OpenAI 兼容模型适配。"""
 from __future__ import annotations
 
 import json
 import os
 import re
 import sys
-import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -23,6 +14,10 @@ from uuid import uuid4
 
 from agent.core.model_call import PROVIDER_META_KEY, StreamDelta
 from agent.core.tool_call import ToolCallRequest
+from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
+from agent.mechanisms.providers.debug import LOG_REQUESTS
+from agent.mechanisms.providers.sse import stream_with_timeout
+from agent.mechanisms.providers.tool_schema import tool_parameters
 
 _REASONING_FIELDS = ("reasoning_content", "reasoning")
 
@@ -38,50 +33,6 @@ _DEEPSEEK_HTTP_HINTS: Dict[int, str] = {
     500: "模型服务端错误，请稍后再试。",
     503: "模型服务端繁忙，请稍后再试。",
 }
-
-
-#: 发送前打印请求摘要（`AI_AGENT_LOG_REQUESTS=0` 可关）。
-#: 默认开：视觉/多模态出问题时，"图片有没有进请求、是不是被剥了"必须一眼可见。
-_LOG_REQUESTS = str(os.environ.get("AI_AGENT_LOG_REQUESTS", "1")).strip().lower() \
-    not in ("0", "false", "no", "off")
-
-
-class ModelRequestError(Exception):
-    """模型请求失败（网络 / HTTP 错误）；detail 为面向用户的说明文本。"""
-
-    def __init__(self, detail: str, *, status: int = 0) -> None:
-        super().__init__(detail)
-        self.detail = str(detail)
-        self.status = int(status)
-
-
-class ModelProvider:
-    """提供者协议（替换点）：实现 `stream(request) -> Iterator[StreamDelta]`。"""
-
-    def stream(self, request: Any) -> Iterator[StreamDelta]:
-        raise NotImplementedError
-
-
-class EchoProvider(ModelProvider):
-    """假模型：首次请求发起 echo 工具调用；拿到工具结果后给出文本应答。
-
-    用途：MVP 验证内核循环（模型→工具→回灌→再模型→结束），不依赖真实 API。
-    """
-
-    def stream(self, request: Any) -> Iterator[StreamDelta]:
-        has_tool_result = any(m.get("role") == "tool" for m in request.messages)
-        if not has_tool_result:
-            yield StreamDelta(
-                kind="tool_call",
-                tool_call=ToolCallRequest(
-                    call_id=f"call-{uuid4().hex[:8]}",
-                    name="echo",
-                    arguments={"text": "来自内核的第一次工具调用"},
-                ),
-            )
-            return
-        yield StreamDelta(kind="text", text="收到工具结果，")
-        yield StreamDelta(kind="text", text="内核循环验证完成。")
 
 
 # ── OpenAI 兼容真实适配──────────────────
@@ -102,79 +53,6 @@ def _chat_completions_url(base_url: str) -> str:
     if re.match(r"^v\d+", tail):
         return f"{base}/chat/completions"
     return f"{base}/v1/chat/completions"
-
-
-def _parse_sse_lines(lines: Iterable[str]) -> Iterator[Dict[str, Any]]:
-    """SSE 行流 → chunk 字典。
-
-    只处理 data: 行；空行 / 其他字段（event: / id: / 注释）跳过；
-    [DONE] 终止；JSON 解析失败的行跳过不中断。
-    """
-    for raw in lines:
-        line = str(raw or "").rstrip("\r\n")
-        if not line or not line.startswith("data:"):
-            continue
-        data = line[5:].strip()
-        if not data:
-            continue
-        if data == "[DONE]":
-            return
-        try:
-            obj = json.loads(data)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(obj, dict):
-            yield obj
-
-
-def _stream_with_timeout(
-    resp: Any,
-    timeout: float,
-    *,
-    label: str = "model",
-) -> Iterator[Dict[str, Any]]:
-    """SSE 流总超时：到期关闭响应，避免上游心跳把读取永久拖住。
-
-    传输层只负责把流读干净、把超时抛成 ModelRequestError。日志固定走本模块的
-    标准错误出口，不接受调用方注入——协议适配器不该决定日志去哪。
-    """
-    timed_out = threading.Event()
-
-    def _warn_close(exc: Exception) -> None:
-        """关闭失败必须留痕。定时器线程里不能把异常抛回主线程，只能就地打印。"""
-        print(
-            f"[model_provider] {label} 超时关闭响应流失败："
-            f"{type(exc).__name__}: {exc}",
-            file=sys.stderr, flush=True,
-        )
-
-    def _expire() -> None:
-        timed_out.set()
-        try:
-            resp.close()
-        except Exception as exc:
-            _warn_close(exc)
-
-    watchdog = threading.Timer(max(0.001, float(timeout)), _expire)
-    watchdog.daemon = True
-    watchdog.start()
-    try:
-        try:
-            lines = (raw.decode("utf-8", errors="replace") for raw in resp)
-            yield from _parse_sse_lines(lines)
-        except Exception as exc:
-            if timed_out.is_set():
-                raise ModelRequestError(f"{label} 模型流超时（{timeout:g}s）") from exc
-            raise
-        if timed_out.is_set():
-            raise ModelRequestError(f"{label} 模型流超时（{timeout:g}s）")
-    finally:
-        watchdog.cancel()
-        try:
-            resp.close()
-        except Exception:
-            # 已经拿到流/即将抛出的错误更重要，关闭失败不覆盖它们。
-            pass
 
 
 def _best_reasoning_field(message: Dict[str, Any]) -> str:
@@ -345,40 +223,6 @@ def _upstream_error_message(body: str) -> str:
 # ── 逻辑→线格式适配 ─────────────
 
 
-def tool_parameters(tool: Dict[str, Any]) -> Dict[str, Any]:
-    """工具声明 → 完整的 JSON Schema 对象（供两家线格式共用）。
-
-    三种声明形状，来源是同一份 `ToolRegistry.schemas()`：
-
-    1. 逻辑形 `{"name", "description", "parameters": {参数名: 片段}}` —— `parameters`
-       是属性映射，必须包装成 `{"type": "object", "properties": {...}}`；
-    2. OpenAI 线形 `{"type": "function", "function": {...}}` —— `parameters` 已是完整 schema；
-    3. Anthropic 形（自带 `input_schema`）—— 已是完整 schema。
-
-    包装时必定补 `type: "object"`：把属性映射直接当 schema 下发，线上会得到
-    `type: null`，Anthropic 一侧直接 400（OpenAI 兼容网关不校验，所以这个缺陷只在
-    Anthropic 协议上暴露）。
-    """
-    fn = tool.get("function") if isinstance(tool.get("function"), dict) else tool
-    raw = fn.get("input_schema")
-    if not isinstance(raw, dict):
-        raw = fn.get("parameters")
-        if fn is tool and tool.get("type") != "function":
-            # 逻辑形：`parameters` 是属性映射，不是 schema
-            raw = {"type": "object", "properties": raw if isinstance(raw, dict) else {}}
-    return _object_schema(raw)
-
-
-def _object_schema(raw: Any) -> Dict[str, Any]:
-    """补齐 `type` / `properties`，保证拿到的是合法 object schema。"""
-    schema = dict(raw) if isinstance(raw, dict) else {}
-    if not isinstance(schema.get("type"), str) or not schema["type"]:
-        schema["type"] = "object"
-    if schema["type"] == "object" and not isinstance(schema.get("properties"), dict):
-        schema["properties"] = {}
-    return schema
-
-
 def _to_wire_tool(tool: Dict[str, Any]) -> Dict[str, Any]:
     """逻辑工具（name / description / parameters 属性映射）→ OpenAI tools 项。
 
@@ -527,16 +371,6 @@ def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
     return " ".join(parts)
 
 
-class MissingProvider(ModelProvider):
-    """没有任何可用模型时的占位：报错文案不提插件目录（内核不认插件名）。"""
-
-    model = ""
-
-    def stream(self, request: Any) -> Iterator[StreamDelta]:
-        raise ModelRequestError("未配置任何模型")
-        yield  # pragma: no cover - 生成器形状，永不产出
-
-
 class OpenAICompatibleProvider(ModelProvider):
     """OpenAI 兼容真实适配（SSE 流式；stdlib urllib）。
 
@@ -626,7 +460,7 @@ class OpenAICompatibleProvider(ModelProvider):
         uid = re.sub(r"[^a-zA-Z0-9_-]", "", str(getattr(request, "conversation_id", "") or ""))[:512]
         if uid:
             payload["user"] = uid
-        if _LOG_REQUESTS:
+        if LOG_REQUESTS:
             # 发送前留痕：出问题时第一件要回答的是"图片有没有进请求"。
             # 同时写 stderr 与文件：控制台可能被重定向/管道吞掉，
             # 而"图片有没有发出去"这种证据不能只寄望于终端能看到。
@@ -677,7 +511,7 @@ class OpenAICompatibleProvider(ModelProvider):
             raise self._http_error(exc.code, detail_body) from exc
         except urllib.error.URLError as exc:
             raise ModelRequestError(f"网络错误：{getattr(exc, 'reason', exc)}") from exc
-        yield from _stream_with_timeout(resp, self.timeout, label="openai")
+        yield from stream_with_timeout(resp, self.timeout, label="openai")
 
     def _http_error(self, status: int, body: str) -> ModelRequestError:
         plain = f"HTTP {status}: {body[:8000]}" if (body or "").strip() else f"HTTP {status}"

@@ -54,7 +54,7 @@ class WebUiConfigTest(unittest.TestCase):
             ROOT / "agent/shell/web_assets/classic/js/chat-tool-views.js"
         ).read_text(encoding="utf-8")
         bundle = (ROOT / "agent/shell/ui_bundle.py").read_text(encoding="utf-8")
-        routes = (ROOT / "agent/shell/web_routes.py").read_text(encoding="utf-8")
+        routes = (ROOT / "agent/shell/web_classic.py").read_text(encoding="utf-8")
         self.assertIn("{{WEB_UI_JSON}}", html)
         self.assertIn("data-tool-steps", html)
         self.assertIn("function showToolSteps()", js)

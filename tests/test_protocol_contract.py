@@ -19,7 +19,7 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.core import event_name as ev  # noqa: E402
-from agent.mechanisms.model_provider import EchoProvider  # noqa: E402
+from agent.mechanisms.providers.echo import EchoProvider  # noqa: E402
 from agent.shell.ui_bundle import read_ui_js  # noqa: E402
 
 #: 本文件专用的隔离根：替身 provider、空插件清单与独立数据根都落在它下面。
@@ -239,7 +239,7 @@ class UiStateContractTest(unittest.TestCase):
         写死常量会让前端「思考 · High / Max」两档失效——用户选 Max，发出去的还是 high。
         """
 
-        src = (_ROOT / "agent/mechanisms/model_provider.py").read_text(encoding="utf-8")
+        src = (_ROOT / "agent/mechanisms/providers/openai.py").read_text(encoding="utf-8")
         self.assertIn('payload["reasoning_effort"] = effort', src,
                       "推理档位必须来自 LogicalRequest.effort；写死常量会让 High/Max 失效")
         self.assertIn('getattr(request, "effort"', src,

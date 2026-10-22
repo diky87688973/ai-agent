@@ -101,7 +101,7 @@ class WindowComesFromKernelTest(unittest.TestCase):
     """用量环分母 = 内核给的模型窗口，不是写死的常量。"""
 
     def test_pipeline_reports_the_configured_window(self) -> None:
-        from agent.mechanisms.context_pipeline import ContextPipeline
+        from agent.mechanisms.context import ContextPipeline
 
         pipe = ContextPipeline("c", model_context_window=1_000_000)
         payload = pipe.layout_payload(budget_tokens=700_000)

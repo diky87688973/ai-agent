@@ -2,6 +2,8 @@
 
 代码按五层组织，一次请求依次流经入口、壳层、能力、机制与内核。
 
+模块结构、单一职责与资产归属的强制规则见 [工程标准](engineering-standards.md)。
+
 ## 五层结构
 
 依赖只允许由内向外单向：反向引用与循环依赖由 `scripts/check_imports.py` 扫描 AST 强制，违规即失败。
@@ -17,6 +19,19 @@ entry  →  shell  →  capabilities  →  mechanisms  →  core
 | L2 能力 | `agent/capabilities/` | 工具注册表、内置工具、插件加载 | core, mechanisms |
 | L3 壳层 | `agent/shell/` | HTTP + SSE 服务、界面打包、系统提示词、经典界面适配 | 全部下层 |
 | L4 入口 | `agent/entry/` | 进程入口：读配置 → 建 `App` → 交给壳跑 | 全部下层 |
+
+### 层内包
+
+| 包 | 职责 |
+|---|---|
+| `agent/mechanisms/providers/` | provider 协议、SSE、OpenAI/Anthropic/Echo/Missing 实现；装配只在 `provider_registry.py` |
+| `agent/mechanisms/context/` | 轮次、token、布局、来源、压缩窄接口、三拼接装 |
+| `agent/mechanisms/compaction/` | 压缩触发、覆盖前缀与摘要接入 |
+| `agent/capabilities/tasks/` | 任务工具与确认协议，每个工具一个文件 |
+| `agent/shell/session/` | 回合运行、队列、目标、提示词、恢复、心跳 |
+| `agent/shell/classic_adapter/` | 入站/出站门面、历史、布局、状态、会话、经典契约 |
+| `agent/shell/web_*.py` | 路由、静态资源、经典页面/SSE、插件端点、WebShell 业务 |
+| `plugins/<name>/` | 插件自有工具、配置、UI、主题与图标 |
 
 `agent/app.py` 是**装配根**，不属于任何一层。它是唯一同时引用五层的文件，负责构建 `AppContext` 并登记服务。
 装配根与入口层都不允许被任何层运行期导入（`if TYPE_CHECKING:` 的纯注解除外）；

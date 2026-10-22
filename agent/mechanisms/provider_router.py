@@ -19,7 +19,7 @@ import threading
 from typing import Callable, Iterator, Optional, Sequence, Tuple
 
 from agent.core.model_call import StreamDelta
-from agent.mechanisms.model_provider import ModelProvider, ModelRequestError
+from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
 
 
 class ProviderRouter(ModelProvider):

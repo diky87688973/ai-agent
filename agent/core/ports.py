@@ -305,7 +305,7 @@ class LogicalRequest:
     effort: str = "high"
     model: str = ""
     #: 本轮在 `messages` 里的起始下标（含）：该下标之前的消息属于已结束的轮次，
-    #: provider 可以据此丢掉它们的 `reasoning_content`（见 model_provider 的同名处理）。
+    #: provider 可以据此丢掉它们的 `reasoning_content`（见 providers/openai 的同名处理）。
     #: None = 不知道边界，按原样下发。
     turn_start: Optional[int] = None
     #: 会话身份：provider 侧把它过滤成官方 `user` 字段下发。

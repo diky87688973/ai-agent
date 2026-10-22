@@ -15,7 +15,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
-from agent.capabilities.builtin.task_tools import ApprovalConfirmTool  # noqa: E402
+from agent.capabilities.tasks.confirm import ApprovalConfirmTool  # noqa: E402
 from agent.core import session_scope  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402

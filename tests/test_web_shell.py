@@ -26,9 +26,9 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
+from agent.core.model_call import StreamDelta  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
-from agent.mechanisms.model_provider import StreamDelta  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
 from agent.shell.web import create_server  # noqa: E402
 from tests.testkit import no_plugins  # noqa: E402
@@ -563,7 +563,7 @@ class MultiRootFileViewerTest(unittest.TestCase):
 
     def test_roots_are_resolved_and_deduplicated_by_normalize(self) -> None:
 
-        from agent.shell.web import _normalize_roots
+        from agent.shell.fspaths import _normalize_roots
 
         self.assertEqual(_normalize_roots(None), [])
         self.assertEqual(_normalize_roots(self.root_a), [self.root_a.resolve()])

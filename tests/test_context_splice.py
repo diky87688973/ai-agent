@@ -223,7 +223,7 @@ class ResumeSpliceNamingTest(unittest.TestCase):
 
     def test_written_fact_name_is_the_one_kernel_consumes(self) -> None:
         from agent.mechanisms.session_store import SessionStore
-        from agent.shell.session_runner import SessionRunner
+        from agent.shell.session.runner import SessionRunner
 
         class _Store:
             def __init__(self, s):

@@ -116,7 +116,7 @@ class DeriveMessagesMetaTest(unittest.TestCase):
 
 class OpenAiWireNeverSeesMetaTest(unittest.TestCase):
     def test_wire_messages_strip_provider_meta(self) -> None:
-        from agent.mechanisms.model_provider import _to_wire_messages
+        from agent.mechanisms.providers.openai import _to_wire_messages
 
         wire = _to_wire_messages([
             {"role": "user", "content": "u"},

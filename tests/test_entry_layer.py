@@ -63,6 +63,7 @@ class BuildShellAppTest(_TempDataRoot):
         )
         self.addCleanup(app.dispose)
         self.assertIs(app.provider.default_provider, provider)
+        self.assertEqual(Path(app.conversation_queue._root), self.root / "queues")
 
     def test_default_starts_without_model(self) -> None:
         app = entry_web.build_shell_app(data_root=self.root)

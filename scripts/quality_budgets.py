@@ -43,14 +43,6 @@ FILE_COMPLEXITY: Dict[str, str] = {
         "进程装配与会话入口同文件；阈值解析跨模型目录与配置，拆分需先抽会话装配上下文。"
         "承担者：架构维护"
     ),
-    "agent/mechanisms/context_pipeline.py": (
-        "拼装、分段统计与缓存版本共用同一状态机；待拆 segments 与 cache 子模块。"
-        "承担者：架构维护"
-    ),
-    "agent/shell/classic_adapter/inbound.py": (
-        "HTTP 事件投影与折叠规则同文件；折叠外移到 history_page 后净减。"
-        "承担者：壳层维护"
-    ),
     "agent/mechanisms/session_store.py": (
         "事件日志读写、行索引与压缩同文件；待拆索引层。承担者：机制维护"
     ),
@@ -65,7 +57,7 @@ FUNCTION_COMPLEXITY: Dict[str, str] = {
     "agent/app.py::build_app": "装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处",
     "agent/app.py::App.session": "会话生命周期与事件转发在同一生成器；待拆中间对象",
     "scripts/acceptance_mvp3.py::main": "验收脚本按线性步骤写，拆函数会切断断言与步骤的对应",
-    "agent/shell/classic_adapter/inbound.py::_history_items": "历史投影边界条件集中一处；折叠外移后回收",
+    "agent/shell/classic_adapter/history.py::_history_items": "历史投影边界条件集中一处；待拆事件类型",
     "scripts/check_ui_js.py::main": "扫描与报告同流程；待拆扫描/报告两段",
     "agent/core/modules/model_mod.py::ModelModule.execute": "模块执行四步同函数；待抽执行协议对象",
     "agent/shell/web_routes.py::_Handler.do_GET": "路由分派按前缀线性展开；待拆路由表 + 处理器",
@@ -74,13 +66,13 @@ FUNCTION_COMPLEXITY: Dict[str, str] = {
     "scripts/inspect_compact.py::inspect": "诊断脚本一次产出多组统计，拆开收益低",
     "agent/core/session_log.py::SessionLog.derive_messages": "消息派生规则集中；拆分风险高于收益",
     "agent/capabilities/builtin/command_tools.py::_pump": "输出泵与超时/编码处理同函数",
-    "agent/mechanisms/context_pipeline.py::layout_from_messages": "布局统计与渲染同函数；待拆统计器",
+    "agent/mechanisms/context/layout.py::layout_from_messages": "布局统计与渲染同函数；待拆统计器",
     "agent/shell/web_routes.py::_Handler.do_POST": "POST 分派与请求体校验线性展开；待拆路由表",
     "scripts/acceptance_batch_e.py::Acceptance.scenario_2": "验收脚本线性断言",
     "agent/mechanisms/quality/checks.py::check_write": "检查项顺序即语义，拆开会让判定顺序变得可改",
     "scripts/check_silent_except.py::main": "扫描与汇总同流程；待拆报告器",
     "scripts/acceptance_batch_f.py::Acceptance.scenario_1": "验收脚本线性断言",
-    "agent/mechanisms/context_compactor.py::ContextCompactor.ensure_before_append": "触发判定与执行同函数；待拆判定器",
+    "agent/mechanisms/compaction/compactor.py::ContextCompactor.ensure_before_append": "触发判定与执行同函数；待拆判定器",
     "agent/core/host.py::Host.run_iter": "单轮的四条终止路径集中，拆开会让终止语义分散",
     "agent/mechanisms/quality/pipeline_bridge.py::build_pipeline_gate": "门控对象图在一处，拆开需引入 builder 类型",
     "scripts/acceptance_web.py::Acceptance.scenario_5": "验收脚本线性断言",

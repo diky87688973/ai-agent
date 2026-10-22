@@ -1,6 +1,6 @@
 # 模型调用
 
-`agent/mechanisms/model_provider.py` 定义模型调用协议与它的两个实现。
+`agent/mechanisms/providers/` 定义模型调用协议与具体实现；路由只在 `provider_router.py`。
 
 ## 思维链的回传预算
 
@@ -42,8 +42,10 @@ class ModelProvider:
 
 | 实现 | 用途 |
 |---|---|
-| `EchoProvider` | 不依赖网络。首次请求发起一次 `echo` 工具调用，拿到结果后给出文本应答 |
-| `OpenAICompatibleProvider` | 真实适配。标准库 `urllib` 发请求，流式解析 SSE |
+| `EchoProvider` | 不依赖网络；首次请求发起一次 `echo` 工具调用，拿到结果后给出文本应答 |
+| `MissingProvider` | 缺少可用模型时的占位实现，不访问网络 |
+| `OpenAICompatibleProvider` | OpenAI 兼容真实适配，流式解析 SSE |
+| `AnthropicProvider` | Anthropic Messages 真实适配，独立导入协议与 SSE 工具 |
 
 ## 请求体
 

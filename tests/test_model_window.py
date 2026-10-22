@@ -98,7 +98,7 @@ class _AppWindowTest(unittest.TestCase):
         self.assertEqual(app.compression_threshold_for("cid"), 64_000)
 
     def test_context_layout_budget_uses_the_model_threshold(self) -> None:
-        from agent.shell.classic_adapter.inbound import _budget_of
+        from agent.shell.classic_adapter.layout import _budget_of
         app = self._app(entries=[
             ModelEntry.from_options(
                 id="a", provider="openai",

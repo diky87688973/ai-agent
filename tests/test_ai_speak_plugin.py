@@ -64,7 +64,7 @@ class AISpeakAppTest(unittest.TestCase):
         self.assertIn("臣妾", text)
         self.assertIn("温婉", text)
         self.assertTrue(note.startswith("## 当前模式"))
-        self.assertNotIn("## Todo-List: 请主动维护执行清单勾选状态", note)
+        self.assertNotIn("## Todo-List：**必须实时追踪并更新任务进度**", note)
         self.assertLess(note.index("## 当前模式"), note.index("## AI说话"))
         self.assertIn(text, note)
 

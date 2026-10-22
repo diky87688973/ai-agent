@@ -21,7 +21,7 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.core.model_call import StreamDelta  # noqa: E402
-from agent.mechanisms.context_pipeline import ContextPipeline, ContextSources  # noqa: E402
+from agent.mechanisms.context import ContextPipeline, ContextSources  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402  # noqa: E402
 from tests.testkit import no_plugins  # noqa: E402
 
@@ -447,7 +447,7 @@ class PluginSourceContractTest(unittest.TestCase):
 
     def test_plugin_sources_do_not_touch_the_kernel(self) -> None:
         """插件来源只经注册表进出；内核不持有插件对象。"""
-        from agent.mechanisms.context_pipeline import ContextSources
+        from agent.mechanisms.context import ContextSources
         sources = ContextSources()
         seen = []
         disposer = sources.add(lambda cid: seen.append(cid) or ["文本"])
@@ -458,7 +458,7 @@ class PluginSourceContractTest(unittest.TestCase):
 
     def test_segments_carry_their_own_name_and_prefix(self) -> None:
         """段名与注入前缀由来源声明：内核不解释正文是什么。"""
-        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        from agent.mechanisms.context import ContextSources, SourceMeta
         sources = ContextSources()
         sources.add(lambda cid: ["正文"], SourceMeta(key="kb", label="知识库",
                                                    prefix="【知识库：a.md】\n"))
@@ -468,7 +468,7 @@ class PluginSourceContractTest(unittest.TestCase):
 
     def test_two_sources_of_one_plugin_stay_separate(self) -> None:
         """同一插件可以贡献多段：数量按位置对，不互相覆盖。"""
-        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        from agent.mechanisms.context import ContextSources, SourceMeta
         sources = ContextSources()
         sources.add(lambda cid: ["清单"], SourceMeta(key="skills", label="Skills",
                                                    count=lambda cid: 31))

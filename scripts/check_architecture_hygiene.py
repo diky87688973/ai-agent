@@ -279,6 +279,66 @@ def _quality_gate_import_hits(tree: ast.AST) -> list[tuple[int, str]]:
     return hits
 
 
+_PROVIDER_NEUTRAL = frozenset({"base", "sse", "debug", "tool_schema"})
+
+
+def check_provider_module_boundary(package_root: Path = PACKAGE_ROOT) -> list[str]:
+    """Provider 具体实现只能依赖中性模块，不能互导。"""
+    root = package_root / "mechanisms" / "providers"
+    out: list[str] = []
+    if not root.is_dir():
+        return out
+    for py in sorted(root.glob("*.py")):
+        if py.name == "__init__.py":
+            continue
+        own = py.stem
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+        except SyntaxError as exc:
+            out.append(f"{_rel_to_root(py)}: 无法解析（{exc}）")
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            mod = node.module or ""
+            if not mod.startswith("agent.mechanisms.providers."):
+                continue
+            target = mod.rsplit(".", 1)[-1]
+            if target == own or target in _PROVIDER_NEUTRAL:
+                continue
+            out.append(f"{_rel_to_root(py)}:{node.lineno}: Provider 互导 {own} -> {target}")
+    return out
+
+
+def check_compactor_contract_boundary(package_root: Path = PACKAGE_ROOT) -> list[str]:
+    """压缩器不得导入上下文管线的内部实现。"""
+    path = package_root / "mechanisms" / "compaction" / "compactor.py"
+    if not path.is_file():
+        return []
+    forbidden = (
+        "agent.mechanisms.context.pipeline",
+        "agent.mechanisms.context.layout",
+        "agent.mechanisms.context.rounds",
+        "agent.mechanisms.context.sources",
+        "agent.mechanisms.context.tokens",
+    )
+    out: list[str] = []
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except SyntaxError as exc:
+        return [f"{_rel_to_root(path)}: 无法解析（{exc}）"]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            if mod in forbidden:
+                out.append(f"{_rel_to_root(path)}:{node.lineno}: 压缩器直依赖 {mod}")
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in forbidden:
+                    out.append(f"{_rel_to_root(path)}:{node.lineno}: 压缩器直依赖 {alias.name}")
+    return out
+
+
 def check_no_quality_gate_shim(
     package_root: Path = PACKAGE_ROOT,
     plugins_dir: Path = PLUGINS_DIR,
@@ -326,6 +386,8 @@ def check(
     out.extend(check_prompts_preview_from_registry(prompts))
     out.extend(check_no_silent_system_prompt(package_root))
     out.extend(check_no_quality_gate_shim(package_root, plugins_dir))
+    out.extend(check_provider_module_boundary(package_root))
+    out.extend(check_compactor_contract_boundary(package_root))
     return out
 
 
@@ -338,7 +400,7 @@ def main() -> int:
         return 1
     print(
         "架构约束检查通过（跨层私有导入 / 内核插件名 / 壳层 skill_manage / "
-        "门控单通路 / 提示词注册表 / 无 quality_gate 兼容层）"
+        "门控单通路 / 提示词注册表 / 无 quality_gate 兼容层 / Provider 边界 / 压缩器接口）"
     )
     return 0
 

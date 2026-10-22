@@ -2,8 +2,8 @@
 
 上下文管线回答两个问题：**发给模型的请求体由哪些部分组成**，以及**历史太长时怎么压缩**。
 
-实现在 `agent/mechanisms/context_pipeline.py`（装配与分段）与
-`agent/mechanisms/context_compactor.py`（压缩与摘要）。
+实现在 `agent/mechanisms/context/`（轮次、布局、来源与装配）与
+`agent/mechanisms/compaction/compactor.py`（压缩与摘要）。
 
 ## 三拼接装
 
@@ -302,7 +302,7 @@ threshold = floor(context_window × compression_percent / 100)
 ```text
 ## 当前模式：...
 有清单时：
-## Todo-List: ...
+## Todo-List：**必须实时追踪并更新任务进度**
 当前进度：X 已完成，Y 进行中，Z 待处理
 
 无清单时不注入 Todo-List 段。
@@ -356,7 +356,7 @@ provider 的 KV 缓存，只按压缩指令那点新增内容付费。
 
 执行模式（Auto / Plan / Execute）**不在系统提示词里**，也不进会话记录与事件：
 `shell/prompts.py` 的 `resolve_mode_note()` 单独产出，组装请求时追加到**最后一条**。
-模式之后固定追加 `## Todo-List:` 维护提示，再追加插件自己的请求尾部（如 AI说话）。
+模式之后固定追加 `## Todo-List：**必须实时追踪并更新任务进度**` 维护提示，再追加插件自己的请求尾部（如 AI说话）。
 
 模式若写在系统提示词里，切一次模式就会改动上下文最前面那一块，从该位置起整段前缀
 缓存全部作废。放到末尾后，切换只改动最后一条。

@@ -15,7 +15,7 @@ from typing import Any, Optional
 
 from agent.app import App, build_app
 from agent.config import default_data_root
-from agent.mechanisms.model_provider import MissingProvider
+from agent.mechanisms.providers.missing import MissingProvider
 from agent.mechanisms.session_store import SessionStore
 from agent.shell.fspaths import FS_ROOT_ENV
 from agent.shell.web import serve
@@ -34,7 +34,7 @@ def build_shell_app(
         provider = MissingProvider()
     if store is None:
         store = SessionStore(Path(data_root) if data_root else default_data_root())
-    return build_app(provider=provider, store=store, config_ready=given_provider)
+    return build_app(provider=provider, store=store, config_ready=given_provider, data_root=data_root)
 
 
 def main(argv: Optional[list] = None) -> int:

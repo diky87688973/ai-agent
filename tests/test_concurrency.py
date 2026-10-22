@@ -20,7 +20,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.capabilities.model_catalog import ModelCatalog, ModelEntry  # noqa: E402
-from agent.mechanisms.context_pipeline import ContextSources, SourceMeta  # noqa: E402
+from agent.mechanisms.context import ContextSources, SourceMeta  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.quality.pending import MAX_PENDING_PREVIEWS, PendingStore  # noqa: E402
 

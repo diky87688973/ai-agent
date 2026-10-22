@@ -20,14 +20,12 @@ from typing import Any, Callable, Dict, List, Optional
 from agent.core.mode_marker import MODE_MARKER
 from agent.core.ports import LogicalRequest
 from agent.core.session_log import ensure_tool_pairs
-from agent.mechanisms.context_pipeline import (
+from agent.mechanisms.context.contract import (
     DEFAULT_FULL_USER_ROUNDS,
-    clip_reasoning,
-    excerpt_by_target_tokens,
-    tool_chain_balanced,
-    turn_boundary_floor,
+    ContextCompactionPolicy,
 )
-from agent.mechanisms.context_tokens import approx_tokens_text, default_message_tokens
+
+_DEFAULT_POLICY = ContextCompactionPolicy()
 
 #: 摘要桥接后缀：接在摘要正文之后，向模型标明上文是历史摘要、下文续当前对话。
 SUMMARY_BRIDGE_TAIL = "\n\n【以上为历史摘要，下面继续当前对话】"
@@ -81,7 +79,7 @@ def _approx_message_tokens(message: Optional[Dict[str, Any]]) -> int:
     两处各写一份必然漂移：一处算了 `tool_calls`、另一处算了思维链，
     于是"压缩判定的体积"与"实际发出去的体积"对不上，阈值跟着失准。
     """
-    return int(default_message_tokens(message or {}))
+    return _DEFAULT_POLICY.message_tokens(message)
 
 
 def _schemas_tokens(tools: Optional[List[Dict[str, Any]]]) -> int:
@@ -89,14 +87,14 @@ def _schemas_tokens(tools: Optional[List[Dict[str, Any]]]) -> int:
     if not tools:
         return 0
     try:
-        return approx_tokens_text(json.dumps(tools, ensure_ascii=False))
+        return _DEFAULT_POLICY.approx_tokens(json.dumps(tools, ensure_ascii=False))
     except (TypeError, ValueError):
         return 0
 
 
 def _mode_note_tokens(mode_note: str) -> int:
     """尾部执行模式说明的 token 估算（也算进请求体）。"""
-    return approx_tokens_text(str(mode_note or ""))
+    return _DEFAULT_POLICY.approx_tokens(mode_note)
 
 
 def _material_messages(prefix: Optional[List[Dict[str, Any]]],
@@ -176,7 +174,7 @@ def make_provider_summarizer(
             # `assistant(tool_calls)` 是悬空的。模型 API 对悬空调用硬拒绝
             # （400：must be followed by tool messages）。
             # 两边补法一致，前缀逐字节相同不受影响。
-            messages=ensure_tool_pairs(clip_reasoning(head, 0)
+            messages=ensure_tool_pairs(_DEFAULT_POLICY.clip(head, 0)
                                         + [{"role": "system", "content": tail}]),
             # 工具定义照平常请求带上（前缀的一部分，少一项整段缓存作废）。
             tools=list(tools or []) if prefix_reuse else [],
@@ -203,6 +201,7 @@ class ContextCompactor:
         *,
         summary_token_threshold: int = 64000,
         full_user_rounds: int = DEFAULT_FULL_USER_ROUNDS,
+        policy: Optional[ContextCompactionPolicy] = None,
     ) -> None:
         self._summarize_fn = summarize_fn
         self.summary_token_threshold = max(1, int(summary_token_threshold))
@@ -211,6 +210,9 @@ class ContextCompactor:
         #: 连它们一起压（压不动就是请求超上限）。取值与 `[context] full_user_rounds`
         #: 同一个配置项。
         self.full_user_rounds = max(0, int(full_user_rounds))
+        self._policy = policy or ContextCompactionPolicy(
+            full_user_rounds=self.full_user_rounds,
+        )
         #: 历次压缩产生的摘要，各占一条 system 消息（不合并、不持续更新）：
         #: 压缩范围只含 user/assistant 内容，摘要属系统设定、不在范围内。
         self.summaries: List[str] = []
@@ -305,16 +307,15 @@ class ContextCompactor:
             #
             # 遮盖前面没有可压的轮时，`excerpt_by_target_tokens` 会连遮盖一起压
             # （压不动就是请求超上限）；返回 None 表示对话一条都没有，放行。
-            rng = excerpt_by_target_tokens(
-                view, keep_turns=self.full_user_rounds,
-                token_fn=context.message_tokens)
+            rng = self._policy.excerpt(
+                view, token_fn=context.message_tokens)
             if not rng:
                 return None
             s, e = int(rng[0]), min(int(rng[1]), len(view))
             if e <= 0:
                 return None
-            s = turn_boundary_floor(view, s)
-            if not tool_chain_balanced(view, s, e):
+            s = self._policy.floor(view, s)
+            if not self._policy.balanced(view, s, e):
                 return None
             # 压缩上下文就用 base（上轮上下文），末尾由摘要器接指令。
             # 要压掉的那一段本身就在 base 里，不另算素材：前缀逐字节等于上一次

@@ -29,12 +29,12 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.core.model_call import StreamDelta  # noqa: E402
-from agent.mechanisms.context_compactor import (  # noqa: E402
+from agent.mechanisms.compaction.compactor import (  # noqa: E402
     SUMMARY_BRIDGE_TAIL,
     ContextCompactor,
     make_provider_summarizer,
 )
-from agent.mechanisms.context_pipeline import ContextPipeline  # noqa: E402
+from agent.mechanisms.context import ContextPipeline  # noqa: E402
 
 MODE_AUTO = "## 当前模式：Auto"
 MODE_PLAN = "## 当前模式：Plan（只读）"
@@ -866,7 +866,7 @@ class Invariants(_Case):
 
 import random  # noqa: E402
 
-from agent.mechanisms.context_pipeline import (  # noqa: E402
+from agent.mechanisms.context import (  # noqa: E402
     is_turn_boundary,
     layout_from_messages,
     tool_chain_balanced,
@@ -1018,7 +1018,7 @@ class RandomShapeInvariants(_Case):
 # ══════════════════════════════════════════════════════════════
 
 from agent.core.model_call import StreamDelta as _SD  # noqa: E402
-from agent.mechanisms.context_pipeline import (  # noqa: E402
+from agent.mechanisms.context import (  # noqa: E402
     excerpt_by_target_tokens,
 )
 
@@ -1394,7 +1394,7 @@ class SkillInjectionIntoRequest(_Case):
 # 逐段：系统提示词 / Skills / 知识库 / 记忆摘要 / 近期 + 尾部模式。
 # ══════════════════════════════════════════════════════════════
 
-from agent.mechanisms.context_pipeline import default_message_tokens  # noqa: E402
+from agent.mechanisms.context import default_message_tokens  # noqa: E402
 
 
 class SegmentTokens(_Case):
@@ -1602,7 +1602,7 @@ class LayoutWithHead(_Case):
 
     def test_same_key_and_label_are_merged_in_layout(self) -> None:
         """同一插件同一段名的多条消息只显示一行；count 取来源自报总数。"""
-        from agent.mechanisms.context_pipeline import PluginSegments
+        from agent.mechanisms.context import PluginSegments
         p = ContextPipeline("cid-merge-0001", full_user_rounds=1)
         p.append_system(SYS)
         p.set_plugin_segments(PluginSegments(
@@ -1735,7 +1735,7 @@ class SourceOrderDeclaration(_Case):
     """注入源的组装顺序：插件段按插件清单位次排，注册先后不影响结果。"""
 
     def _sources(self, pairs):
-        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        from agent.mechanisms.context import ContextSources, SourceMeta
         cs = ContextSources()
         for key, rank in pairs:
             cs.add(lambda cid, k=key: [f"{k}-正文"],
@@ -1825,7 +1825,7 @@ class OrdinaryRequestNeverRewritesHistory(unittest.TestCase):
         p.set_dialogue(list(msgs), covered_end=8)
         self.assertEqual(p.dialogue_messages(), full[8:])
         self.assertEqual(len(p.dialogue_messages()), 8)
-        from agent.mechanisms.context_pipeline import tool_chain_balanced
+        from agent.mechanisms.context import tool_chain_balanced
         self.assertTrue(tool_chain_balanced(p.dialogue_messages(), 0,
                                             len(p.dialogue_messages())))
 
@@ -1836,7 +1836,7 @@ class SegmentFieldParity(unittest.TestCase):
     """
 
     def test_both_paths_expose_the_same_fields(self) -> None:
-        from agent.mechanisms.context_pipeline import ContextPipeline, layout_from_messages
+        from agent.mechanisms.context import ContextPipeline, layout_from_messages
         p = ContextPipeline("cid-fields-0001", full_user_rounds=1)
         p.append_system("系统提示词")
         p.set_plugin_segments([("skills", "Skills 清单", "清单正文"),
@@ -1871,7 +1871,7 @@ class RemainingCapacityTest(unittest.TestCase):
 
     def test_snapshot_carries_the_budget(self) -> None:
         from agent.core.modules import _segment_snapshot
-        from agent.mechanisms.context_pipeline import ContextPipeline
+        from agent.mechanisms.context import ContextPipeline
         p = ContextPipeline("cid-rem-0001")
         p.append_system(SYS)
         p.set_dialogue([{"role": "user", "content": "问"},
@@ -1885,7 +1885,7 @@ class RemainingCapacityTest(unittest.TestCase):
 
     def test_budget_zero_would_make_remaining_zero(self) -> None:
         """不传预算（= 老装配点的行为）剩余容量就是 0 —— 这条守着别再退回去。"""
-        from agent.mechanisms.context_pipeline import ContextPipeline
+        from agent.mechanisms.context import ContextPipeline
         p = ContextPipeline("cid-rem-0002")
         p.append_system(SYS)
         p.set_dialogue([{"role": "user", "content": "问"}], covered_end=0)
@@ -1896,7 +1896,7 @@ class RemainingCapacityTest(unittest.TestCase):
     def test_old_snapshot_is_rescaled_on_read(self) -> None:
         """事件里那份 `budget=已用` 的旧快照，渲染时按当前预算补正。"""
         from agent.core.events import make_event
-        from agent.shell.classic_adapter.inbound import _last_segments
+        from agent.shell.classic_adapter.layout import _last_segments
         stale = make_event("context_segments",
                            segments=[{"key": "system", "label": "系统提示词",
                                       "tokens": 1000, "count": 1, "pct": 100.0},
@@ -1909,7 +1909,7 @@ class RemainingCapacityTest(unittest.TestCase):
         self.assertEqual(rows["remaining"]["tokens"], 99000)
         self.assertAlmostEqual(rows["remaining"]["pct"], 99.0, places=3)
         self.assertAlmostEqual(rows["system"]["pct"], 1.0, places=3)
-        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        from agent.mechanisms.context import ContextSources, SourceMeta
         from agent.shell.classic_adapter.inbound import compute_context_layout
 
         sources = ContextSources()
@@ -1935,8 +1935,8 @@ class RemainingCapacityTest(unittest.TestCase):
 
     def test_overlay_merges_same_key_and_label(self) -> None:
         """刷新时的插件段重算也要按 key+label 合并，不能绕过管线再拆成两行。"""
-        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
-        from agent.shell.classic_adapter.inbound import _overlay_plugin_segments
+        from agent.mechanisms.context import ContextSources, SourceMeta
+        from agent.shell.classic_adapter.layout import _overlay_plugin_segments
         sources = ContextSources()
         sources.add(lambda cid: ["甲", "乙"],
                     SourceMeta(key="rules", label="Rules", count=lambda cid: 2))
@@ -1965,7 +1965,7 @@ class RemainingCapacityTest(unittest.TestCase):
 
     def test_rescale_falls_back_when_budget_unknown(self) -> None:
         """拿不到预算时按"已用"归一（不再更差），段序与字段不变。"""
-        from agent.shell.classic_adapter.inbound import _rescale
+        from agent.shell.classic_adapter.layout import _rescale
         payload = {"segments": [{"key": "system", "label": "系统提示词",
                                  "tokens": 500, "count": 1, "pct": 0},
                                 {"key": "remaining", "label": "剩余容量",
@@ -1981,7 +1981,7 @@ class PluginSegmentCountAlignmentTest(unittest.TestCase):
     """段与自报数量必须逐条对齐：错位是静默的，只在浮层上显示成离谱的数字。"""
 
     def test_collect_segments_counts_match_items(self) -> None:
-        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        from agent.mechanisms.context import ContextSources, SourceMeta
 
         srcs = ContextSources()
         srcs.add(lambda cid: ["一条正文"],
@@ -1999,7 +1999,7 @@ class PluginSegmentCountAlignmentTest(unittest.TestCase):
         self.assertEqual(got.items[-1][2], "", msg="空来源正文应为空串占位")
 
     def test_missing_reported_count_falls_back_to_one(self) -> None:
-        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        from agent.mechanisms.context import ContextSources, SourceMeta
 
         srcs = ContextSources()
         srcs.add(lambda cid: ["x"], SourceMeta(key="x", label="没有自报口"))
@@ -2009,7 +2009,7 @@ class PluginSegmentCountAlignmentTest(unittest.TestCase):
 
     def test_short_count_table_does_not_borrow_neighbours(self) -> None:
         """数量表比来源表短时，多出来的段按自身条数算，不拿别的段的数字。"""
-        from agent.mechanisms.context_pipeline import (
+        from agent.mechanisms.context import (
             ContextPipeline,
             PluginSegments,
         )
@@ -2027,7 +2027,7 @@ class PluginSegmentsImmutableTest(unittest.TestCase):
     """B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不影响它）。"""
 
     def _segments(self):
-        from agent.mechanisms.context_pipeline import PluginSegments
+        from agent.mechanisms.context import PluginSegments
 
         items = [("skills", "清单", "正文一"), ("skills", "常驻", "正文二")]
         counts = [7]
@@ -2061,7 +2061,7 @@ class PluginSegmentsImmutableTest(unittest.TestCase):
             seg.counts[0] = 9  # type: ignore[index]
 
     def test_wrong_arity_is_rejected_loudly(self) -> None:
-        from agent.mechanisms.context_pipeline import PluginSegments
+        from agent.mechanisms.context import PluginSegments
 
         with self.assertRaises(ValueError):
             PluginSegments(items=[("skills", "缺正文")], counts=[])  # type: ignore[list-item]
@@ -2078,18 +2078,18 @@ class ReasoningReplayBudgetTest(unittest.TestCase):
         return "".join(f"第{i}步：先看配置，再改装配，然后跑测试。" for i in range(steps))
 
     def test_negative_keeps_everything(self) -> None:
-        from agent.mechanisms.context_pipeline import clip_reasoning_text
+        from agent.mechanisms.context import clip_reasoning_text
 
         text = self._long()
         self.assertEqual(clip_reasoning_text(text, -1), text)
 
     def test_zero_drops_everything(self) -> None:
-        from agent.mechanisms.context_pipeline import clip_reasoning_text
+        from agent.mechanisms.context import clip_reasoning_text
 
         self.assertEqual(clip_reasoning_text(self._long(), 0), "")
 
     def test_positive_keeps_both_ends_and_marks_the_gap(self) -> None:
-        from agent.mechanisms.context_pipeline import approx_tokens_text, clip_reasoning_text
+        from agent.mechanisms.context import approx_tokens_text, clip_reasoning_text
 
         text = self._long()
         got = clip_reasoning_text(text, 500)
@@ -2100,12 +2100,12 @@ class ReasoningReplayBudgetTest(unittest.TestCase):
                              msg="截断后不该还超预算太多")
 
     def test_short_text_untouched(self) -> None:
-        from agent.mechanisms.context_pipeline import clip_reasoning_text
+        from agent.mechanisms.context import clip_reasoning_text
 
         self.assertEqual(clip_reasoning_text("短推理", 1000), "短推理")
 
     def test_messages_clip_does_not_mutate_input(self) -> None:
-        from agent.mechanisms.context_pipeline import clip_reasoning
+        from agent.mechanisms.context import clip_reasoning
 
         msg = {"role": "assistant", "content": "答",
                "reasoning_content": self._long()}
@@ -2114,7 +2114,7 @@ class ReasoningReplayBudgetTest(unittest.TestCase):
         self.assertIn("reasoning_content", msg, msg="原消息不能被改")
 
     def test_dialogue_segment_uses_the_budget(self) -> None:
-        from agent.mechanisms.context_pipeline import ContextPipeline
+        from agent.mechanisms.context import ContextPipeline
 
         msgs = [{"role": "user", "content": "问"},
                 {"role": "assistant", "content": "答",
@@ -2127,7 +2127,7 @@ class ReasoningReplayBudgetTest(unittest.TestCase):
 
     def test_config_default_matches_constant(self) -> None:
         from agent.config import get_context
-        from agent.mechanisms.context_pipeline import DEFAULT_REASONING_REPLAY_TOKENS
+        from agent.mechanisms.context import DEFAULT_REASONING_REPLAY_TOKENS
 
         self.assertEqual(get_context()["reasoning_replay_tokens"],
                          DEFAULT_REASONING_REPLAY_TOKENS)

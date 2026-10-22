@@ -21,7 +21,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.core.ports import LogicalRequest  # noqa: E402
-from agent.mechanisms.model_provider import ModelRequestError, OpenAICompatibleProvider  # noqa: E402
+from agent.mechanisms.providers.base import ModelRequestError  # noqa: E402
+from agent.mechanisms.providers.openai import OpenAICompatibleProvider  # noqa: E402
 from tests.testkit import no_plugins  # noqa: E402
 
 _PNG_B64 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
@@ -62,7 +63,7 @@ class ProviderStreamTimeoutTest(unittest.TestCase):
         )
         request = LogicalRequest(messages=[{"role": "user", "content": "q"}], tools=[])
         with mock.patch(
-            "agent.mechanisms.model_provider.urllib.request.urlopen",
+            "agent.mechanisms.providers.openai.urllib.request.urlopen",
             return_value=_StalledResponse(),
         ):
             with self.assertRaises(ModelRequestError) as caught:
@@ -514,7 +515,7 @@ class UserFacingTextTest(unittest.TestCase):
     INTERNAL_TERMS = ("上一版", "原项目", "重构", "移植")
 
     def test_http_hints_are_user_facing_and_history_free(self) -> None:
-        from agent.mechanisms.model_provider import _DEEPSEEK_HTTP_HINTS
+        from agent.mechanisms.providers.openai import _DEEPSEEK_HTTP_HINTS
 
         self.assertEqual(len(self.INTERNAL_TERMS), 4, "禁用词表不得被误改")
         self.assertEqual(len(set(self.INTERNAL_TERMS)), 4, "禁用词不得重复")
@@ -527,7 +528,7 @@ class UserFacingTextTest(unittest.TestCase):
                     "它直接显示给用户，应说清是「模型服务端」的问题")
 
     def test_500_and_503_name_the_model_server(self) -> None:
-        from agent.mechanisms.model_provider import _DEEPSEEK_HTTP_HINTS
+        from agent.mechanisms.providers.openai import _DEEPSEEK_HTTP_HINTS
 
         for status in (500, 503):
             self.assertIn("服务端", _DEEPSEEK_HTTP_HINTS[status],
@@ -535,7 +536,7 @@ class UserFacingTextTest(unittest.TestCase):
 
     def test_deepseek_official_error_codes_are_mapped(self) -> None:
         """与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。"""
-        from agent.mechanisms.model_provider import _DEEPSEEK_HTTP_HINTS
+        from agent.mechanisms.providers.openai import _DEEPSEEK_HTTP_HINTS
 
         self.assertEqual(
             sorted(_DEEPSEEK_HTTP_HINTS),
@@ -562,7 +563,7 @@ class ReasonNotReplayedTest(unittest.TestCase):
         ]
 
     def test_cut_clears_the_content_but_keeps_the_key_for_tool_messages(self) -> None:
-        from agent.mechanisms.model_provider import _to_wire_messages
+        from agent.mechanisms.providers.openai import _to_wire_messages
 
         wire = _to_wire_messages(self._sample(), keep_reasoning_from=5)
         self.assertEqual(wire[2].get("reasoning_content"), "",
@@ -570,7 +571,7 @@ class ReasonNotReplayedTest(unittest.TestCase):
         self.assertEqual(wire[5].get("reasoning_content"), "本轮推理")
 
     def test_plain_assistant_before_the_cut_drops_the_key(self) -> None:
-        from agent.mechanisms.model_provider import _to_wire_messages
+        from agent.mechanisms.providers.openai import _to_wire_messages
 
         wire = _to_wire_messages([
             {"role": "user", "content": "u1"},
@@ -582,7 +583,7 @@ class ReasonNotReplayedTest(unittest.TestCase):
 
     def test_tool_message_without_reasoning_gets_an_empty_key(self) -> None:
         """没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。"""
-        from agent.mechanisms.model_provider import _to_wire_messages
+        from agent.mechanisms.providers.openai import _to_wire_messages
 
         wire = _to_wire_messages([
             {"role": "user", "content": "u"},
@@ -593,13 +594,13 @@ class ReasonNotReplayedTest(unittest.TestCase):
         self.assertEqual(wire[1].get("reasoning_content"), "")
 
     def test_cut_none_keeps_everything(self) -> None:
-        from agent.mechanisms.model_provider import _to_wire_messages
+        from agent.mechanisms.providers.openai import _to_wire_messages
 
         wire = _to_wire_messages(self._sample(), keep_reasoning_from=None)
         self.assertEqual(wire[2].get("reasoning_content"), "旧推理")
 
     def test_tool_calls_survive_the_cut(self) -> None:
-        from agent.mechanisms.model_provider import _to_wire_messages
+        from agent.mechanisms.providers.openai import _to_wire_messages
 
         wire = _to_wire_messages(self._sample(), keep_reasoning_from=5)
         calls = wire[2].get("tool_calls") or []
@@ -607,16 +608,16 @@ class ReasonNotReplayedTest(unittest.TestCase):
         self.assertEqual(calls[0]["function"]["name"], "t")
 
     def test_original_messages_are_not_mutated(self) -> None:
-        from agent.mechanisms.model_provider import _to_wire_messages
+        from agent.mechanisms.providers.openai import _to_wire_messages
 
         sample = self._sample()
         _to_wire_messages(sample, keep_reasoning_from=5)
         self.assertEqual(sample[2].get("reasoning_content"), "旧推理")
 
     def test_provider_passes_the_boundary_and_defaults_to_stripping(self) -> None:
-        from agent.mechanisms.model_provider import OpenAICompatibleProvider
+        from agent.mechanisms.providers.openai import OpenAICompatibleProvider
 
-        src = (ROOT / "agent/mechanisms/model_provider.py").read_text(encoding="utf-8")
+        src = (ROOT / "agent/mechanisms/providers/openai.py").read_text(encoding="utf-8")
         self.assertIn('getattr(request, "turn_start", None)', src)
         provider = OpenAICompatibleProvider(base_url="http://x/v1", api_key="k", model="m")
         self.assertFalse(provider.replay_history_reasoning)

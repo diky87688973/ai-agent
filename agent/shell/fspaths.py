@@ -16,7 +16,6 @@
 都会被 `..` 绕过 —— 所以顺序是先 resolve 再判界，且判界用 `relative_to`
 抛异常与否来定，不用字符串前缀比较（前缀比较会被 `/root2` 骗过 `/root`）。
 
-导入路径：`web.py` 再导出这些名字。
 """
 from __future__ import annotations
 

@@ -12,7 +12,7 @@ if str(_ROOT) not in sys.path:
 
 from agent.mechanisms.conversation_queue import ConversationQueue  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
-from agent.shell.session_runner import SessionRunner  # noqa: E402
+from agent.shell.session.runner import SessionRunner  # noqa: E402
 
 
 class _Session:

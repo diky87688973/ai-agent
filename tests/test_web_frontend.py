@@ -21,7 +21,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.shell.web import _Channel  # noqa: E402
+from agent.shell.sse import _Channel  # noqa: E402
 
 
 class ChannelBackpressureTest(unittest.TestCase):

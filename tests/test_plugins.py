@@ -452,7 +452,7 @@ class ConfigParseTest(unittest.TestCase):
 
         from agent.capabilities.contributions import ContributionRegistry
         from agent.capabilities.plugins import PluginHost
-        from agent.mechanisms.context_pipeline import ContextSources
+        from agent.mechanisms.context import ContextSources
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "plugins"

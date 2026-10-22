@@ -13,8 +13,10 @@ sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_ROOT / "scripts"))
 
 from check_architecture_hygiene import (  # noqa: E402
+    check_compactor_contract_boundary,
     check_gate_single_path,
     check_no_quality_gate_shim,
+    check_provider_module_boundary,
 )
 
 
@@ -181,5 +183,52 @@ class QualityGateShimAstTest(unittest.TestCase):
             self.assertEqual(hits, [])
 
 
+class ModuleBoundaryAstTest(unittest.TestCase):
+    def test_provider_concrete_sibling_caught(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-provider-") as tmp:
+            pkg = _agent_tree(Path(tmp))
+            _write(
+                pkg,
+                "mechanisms/providers/anthropic.py",
+                "from agent.mechanisms.providers.openai import OpenAICompatibleProvider\n",
+            )
+            hits = check_provider_module_boundary(pkg)
+            self.assertTrue(any("anthropic" in h and "openai" in h for h in hits), hits)
+
+    def test_provider_neutral_imports_pass(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-provider-ok-") as tmp:
+            pkg = _agent_tree(Path(tmp))
+            _write(
+                pkg,
+                "mechanisms/providers/anthropic.py",
+                "from agent.mechanisms.providers.base import ModelProvider\n"
+                "from agent.mechanisms.providers.sse import stream_with_timeout\n",
+            )
+            self.assertEqual(check_provider_module_boundary(pkg), [])
+
+    def test_compactor_pipeline_import_caught(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-compactor-") as tmp:
+            pkg = _agent_tree(Path(tmp))
+            _write(
+                pkg,
+                "mechanisms/compaction/compactor.py",
+                "from agent.mechanisms.context.pipeline import ContextPipeline\n",
+            )
+            hits = check_compactor_contract_boundary(pkg)
+            self.assertTrue(any("pipeline" in h for h in hits), hits)
+
+    def test_compactor_contract_import_passes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-compactor-ok-") as tmp:
+            pkg = _agent_tree(Path(tmp))
+            _write(
+                pkg,
+                "mechanisms/compaction/compactor.py",
+                "from agent.mechanisms.context.contract import ContextCompactionPolicy\n",
+            )
+            self.assertEqual(check_compactor_contract_boundary(pkg), [])
+
+
 if __name__ == "__main__":
+    unittest.main()
+
     unittest.main()

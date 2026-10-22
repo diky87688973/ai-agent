@@ -16,7 +16,7 @@ from unittest import mock
 from agent.capabilities.model_catalog import CatalogSnapshot, ModelCatalog, ModelEntry
 from agent.capabilities.plugins import PluginContext
 from agent.capabilities.registry import ToolRegistry
-from agent.mechanisms.model_provider import OpenAICompatibleProvider
+from agent.mechanisms.providers.openai import OpenAICompatibleProvider
 
 _OPENAI = {
     "base_url": "https://example.invalid/v1",

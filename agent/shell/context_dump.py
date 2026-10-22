@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from agent.core.session_log import SessionLog
-from agent.mechanisms.context_pipeline import ContextPipeline
+from agent.mechanisms.context import ContextPipeline
 from agent.shell.service_keys import SERVICE_RUNNER
 
 

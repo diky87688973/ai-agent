@@ -14,13 +14,7 @@ import time
 from typing import Any, Callable, Dict, Optional
 
 from agent.core.error_report import report_error
-from agent.core.events import Event
-from agent.shell.environment_info import environment_section
-from agent.shell.prompts import (
-    TODO_LIST_NOTE,
-    resolve_mode_note,
-    resolve_system_prompt,
-)
+from agent.shell.session import goal, heartbeat, prompt, queue, resume
 
 # 运行态心跳的间隔（秒）：远小于 `RunRegistry` 的存活期（默认 900 秒），
 # 又不会有任何可观测开销（一次小文件写入）。
@@ -30,12 +24,6 @@ _HEARTBEAT_INTERVAL_SECONDS = 60.0
 #: 用户重新发消息会重置这个链（新一轮 runner），所以正常使用不受影响。
 _MAX_AUTO_ROUNDS = 50
 
-#: 自主续跑提示的兜底文案：只有开了自主开关却没有目标时才会走到它。
-#: 有目标时触发文案是目标（`goal`）里那条可编辑的文本。
-AUTO_CONTINUE_PROMPT = (
-    "（自主模式）请继续推进未完成的工作；若已全部完成或需要用户决策，"
-    "请直接给出结论并停止，不要再调用工具。"
-)
 
 
 class SessionRunner:
@@ -140,18 +128,10 @@ class SessionRunner:
     # ── 回合执行与队列抽干 ────────────────────────────────
 
     def _heartbeat_until(self, cid: str, stop: threading.Event) -> None:
-        """在 `stop` 被置位前，周期性续运行态心跳（旁路线程，异常不外抛）。
-
-        间隔取 60 秒：远小于 `RunRegistry` 的存活期（默认 900 秒），
-        又不会有任何可观测开销（一次小文件写入）。
-        """
-        while not stop.wait(_HEARTBEAT_INTERVAL_SECONDS):
-            try:
-                self._mesh.touch_run(cid)
-            except Exception:
-                # 心跳失败不影响回合本身；
-                # 真的失败时 `RunRegistry` 会按 TTL 判定过期，行为退化成"没心跳"。
-                pass
+        heartbeat.heartbeat_until(
+            mesh=self._mesh, cid=cid, stop=stop,
+            interval=_HEARTBEAT_INTERVAL_SECONDS,
+        )
 
     def _run_loop(self, cid: str, text: str, attachments: Any = None,
                   resume: Any = None, sender: Optional[Dict[str, Any]] = None) -> None:
@@ -266,48 +246,22 @@ class SessionRunner:
         return bool(getattr(session, "pending_confirm", None))
 
     def _queue(self) -> Any:
-        return getattr(self._app, "conversation_queue", None)
+        return queue.queue_of(self._app)
 
     def _claim_queued(self, cid: str) -> Any:
-        queue = self._queue()
-        return queue.claim_after_turn(cid) if queue is not None else None
+        return queue.claim(cid, self._app)
 
     def _release_queued(self, cid: str, item: Dict[str, Any]) -> None:
-        queue = self._queue()
-        if queue is not None:
-            queue.release(cid, str(item.get("id") or ""))
+        queue.release(cid, item, self._app)
 
     def _complete_queued(self, cid: str, item: Dict[str, Any]) -> None:
-        queue = self._queue()
-        if queue is not None:
-            queue.complete(cid, str(item.get("id") or ""))
+        queue.complete(cid, item, self._app)
 
     def _queued_input(self, item: Dict[str, Any]) -> Any:
-        payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
-        content = str(item.get("content") or payload.get("content") or "")
-        attachments = item.get("attachments") or payload.get("attachments")
-        if isinstance(attachments, list):
-            attachments = [row for row in attachments
-                           if not isinstance(row, dict) or "data_base64" in row]
-        resume = payload.get("resume")
-        sender = item.get("sender") if isinstance(item.get("sender"), dict) else None
-        return content, attachments, resume, sender
+        return queue.input_of(item)
 
     def _flush_pending(self, cid: str) -> None:
-        """把该会话积压的待重试事实补投出去（失败只留痕，不影响收尾）。"""
-        store = getattr(self._app, "store", None)
-        flusher = getattr(store, "flush_pending", None)
-        if not cid or not callable(flusher):
-            return
-        try:
-            written = flusher(cid)
-        except Exception as exc:
-            print(f"[session_runner] 待重试事实补投失败 cid={cid}: "
-                  f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
-            return
-        if written:
-            print(f"[session_runner] 补投了 {written} 条先前落盘失败的事实 "
-                  f"（cid={cid}）", file=sys.stderr, flush=True)
+        queue.flush_pending(cid, self._app)
 
     def _is_canceled(self, cid: str) -> bool:
         """该会话是否已被请求停止。"""
@@ -316,38 +270,15 @@ class SessionRunner:
         return bool(event is not None and event.is_set())
 
     def _note_goal_round(self, cid: str) -> None:
-        """给目标记一轮自动推进（供界面显示"已自动推进 N 轮"）。"""
-        state = getattr(self._app, "live_state", None)
-        note = getattr(state, "note_goal_round", None)
-        if not callable(note):
-            return
-        try:
-            note(cid)
-        except Exception:
-            # 计数只用于展示，记不上不影响续跑。
-            pass
+        goal.note_round(self._app, cid)
 
     def _next_continuation_text(self, cid: str) -> str:
-        """回合结束后该自动发的下一条 user 输入；空串 = 到此为止。
-
-        目标优先且目标说了算：只要这个会话有目标，触发与否完全由它的状态决定
-        （`active` 发文案、`paused`/`done` 停），不叠加自主开关 ——
-        否则暂停会被自主开关顶回去。
-        没有目标时才回落到自主开关 + `AUTO_CONTINUE_PROMPT`。
-        """
-        if self._goal_row is not None:
-            row = self._goal_row(cid)
-            if isinstance(row, dict):
-                if str(row.get("status") or "") != "active":
-                    return ""
-                return str(row.get("text") or "").strip()
-        return AUTO_CONTINUE_PROMPT if self._should_auto_continue(cid) else ""
+        return goal.next_continuation_text(
+            cid=cid, goal_row=self._goal_row, auto_continue=self._auto_continue,
+        )
 
     def _should_auto_continue(self, cid: str) -> bool:
-        """自主模式：回合结束后是否再自动跑一轮。"""
-        if self._auto_continue is None:
-            return False
-        return bool(self._auto_continue(cid))
+        return self._auto_continue is not None and bool(self._auto_continue(cid))
 
     def _execute(self, cid: str, text: str, attachments: Any = None,
                  resume: Any = None, sender: Optional[Dict[str, Any]] = None,
@@ -378,96 +309,17 @@ class SessionRunner:
                 paused = bool((getattr(event, "data", None) or {}).get("paused"))
         return paused
 
-    def _splice_resume(self, cid: str, resume: Dict[str, Any]) -> None:
-        """把外部结果拼进会话事实（写前查重；失败不抛，回合照跑）。"""
-        store = getattr(self._app, "store", None)
-        call_id = str(resume.get("call_id") or "")
-        if store is None or not call_id:
-            return
-        try:
-            ok = bool(resume.get("ok", True))
-            existing = {str((e.data or {}).get("call_id") or "")
-                        for e in store.load(cid)
-                        if e.type in ("tool_done", "tool_failed")}
-            if call_id in existing:
-                return                      # 已交付过：不重复拼（幂等由这里保证）
-            # 结果事实必须用内核当前认的名字：内核把 `tool_done` / `tool_failed`
-            # 攒成"这次调用的结果"，再由随后的 `tool_ended` 取出交给模型。
-            # 若写成别的名字，`tool_ended` 取不到结果 → 模型收到
-            # 「已结束，但未记录结果」，而且要等这条被单独算作一条 tool 消息，
-            # 同一个 `tool_call_id` 就有了两条 —— 模型 API 直接 400。
-            name = str(resume.get("name") or "")
-            # 结果事实本身不进模型上下文，要靠紧随的 tool_ended 收成 tool 消息。
-            # 挂起时已经有过一条 status=suspended 的终态，那条不产出消息；
-            # 这里再补一条 done/failed，模型才能看见用户的选择或取消。
-            store.append(cid, [
-                Event("tool_done" if ok else "tool_failed", {
-                    "call_id": call_id,
-                    "name": name,
-                    "data": resume.get("data"),
-                    "error": str(resume.get("error") or ""),
-                }),
-                Event("tool_ended", {
-                    "call_id": call_id,
-                    "name": name,
-                    "status": "done" if ok else "failed",
-                    "elapsed_ms": 0,
-                }),
-            ])
-        except Exception as exc:
-            print(f"[session_runner] resume 拼接失败 cid={cid}: {exc}",
-                  file=sys.stderr, flush=True)
+    def _splice_resume(self, cid: str, resume_data: Dict[str, Any]) -> None:
+        resume.splice_resume(app=self._app, cid=cid, resume=resume_data)
 
     def _system_prompt(self, cid: str) -> str:
-        """系统提示：mesh 显式设过就用它，否则基础提示词（含工具速查）。
-
-        系统提示必须有内容：只读 mesh 的 `system` 时它常为空串，
-        模型便只知工具 schema、不知使用纪律。
-
-        不含模式段：模式由 `_mode_note` 单独产出、只附加在请求尾部，
-        这样切模式不会改动这一段，前缀缓存不失效。
-        """
-        meta = self._mesh.get_agent(cid)
-        explicit = str(meta.get("system") or "")
-        state = getattr(self._app, "live_state", None)
-        mode = state.get_mode(cid) if state is not None else "auto"
-        extra = (self._prompt_sections.render(cid)
-                 if self._prompt_sections is not None else [])
-        extra = list(extra) + [environment_section(cid)]
-        return resolve_system_prompt(
-            mode=mode,
-            registry=getattr(self._app, "registry", None),
-            explicit=explicit or None,
-            extra_sections=extra,
+        return prompt.system_prompt(
+            app=self._app, mesh=self._mesh, cid=cid,
+            prompt_sections=self._prompt_sections,
         )
 
     def _mode_note(self, cid: str) -> str:
-        """请求尾部要附加的执行模式说明（临时；不落记录、不发事件）。"""
-        meta = self._mesh.get_agent(cid)
-        explicit = str(meta.get("system") or "")
-        state = getattr(self._app, "live_state", None)
-        mode = state.get_mode(cid) if state is not None else "auto"
-        note = resolve_mode_note(mode=mode, explicit=explicit or None)
-        prompt_tail = getattr(self._app, "prompt_tail", None)
-        extra = prompt_tail.render(cid).strip() if prompt_tail is not None else ""
-        todo_note = ""
-        todo = state.get_todo(cid) if state is not None and hasattr(state, "get_todo") else None
-        items = todo.get("items") if isinstance(todo, dict) else None
-        if isinstance(items, list) and items:
-            total = len(items)
-            done = sum(1 for item in items if isinstance(item, dict) and item.get("done"))
-            active = 0 if done == total else 1
-            pending = max(0, total - done - active)
-            todo_note = (
-                f"{TODO_LIST_NOTE}\n"
-                f"当前进度：{done} 已完成，{active} 进行中，{pending} 待处理"
-            )
-        parts = [part for part in (note, todo_note if note else "") if part]
-        if extra:
-            parts.append(extra)
-        return "\n\n".join(parts)
-
-    # ── 等待（测试 / 壳层）────────────────────────────────
+        return prompt.mode_note(app=self._app, mesh=self._mesh, cid=cid)
 
     def wait_idle(self, cid: str, timeout: float = 10.0) -> bool:
         """等待 cid 无活跃运行（含队列抽干链）；超时返回 False。"""

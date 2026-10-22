@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.capabilities.registry import ToolPlugin, ToolRegistry  # noqa: E402
-from agent.mechanisms.context_pipeline import ContextPipeline  # noqa: E402
+from agent.mechanisms.context import ContextPipeline  # noqa: E402
 from agent.shell.prompts import (  # noqa: E402
     build_system_prompt,
     preview_write_tools_line,
@@ -46,7 +46,7 @@ class TodoProgressTest(unittest.TestCase):
     """清单进度字段。"""
 
     def _tool(self):
-        from agent.capabilities.builtin.task_tools import TodoListTool
+        from agent.capabilities.tasks.todo import TodoListTool
         from agent.mechanisms.live_state import LiveState
 
         return TodoListTool(LiveState())
@@ -118,7 +118,7 @@ class RuntimeTailTodoProgressTest(unittest.TestCase):
         import tempfile
 
         from agent.mechanisms.live_state import LiveState
-        from agent.shell.session_runner import SessionRunner
+        from agent.shell.session.runner import SessionRunner
 
         with tempfile.TemporaryDirectory(prefix="runtime-tail-") as raw:
             class _App:
@@ -144,7 +144,7 @@ class RuntimeTailTodoProgressTest(unittest.TestCase):
         import tempfile
 
         from agent.mechanisms.live_state import LiveState
-        from agent.shell.session_runner import SessionRunner
+        from agent.shell.session.runner import SessionRunner
 
         with tempfile.TemporaryDirectory(prefix="runtime-tail-empty-") as raw:
             class _App:
@@ -158,7 +158,7 @@ class RuntimeTailTodoProgressTest(unittest.TestCase):
 
             runner = SessionRunner(app=_App(), mesh=_Mesh())
             note = runner._mode_note("runtime-tail-0002")
-        self.assertNotIn("## Todo-List:", note)
+        self.assertNotIn("## Todo-List：", note)
         self.assertNotIn("当前进度：", note)
 
 

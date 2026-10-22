@@ -16,8 +16,9 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Mapping, Tuple
 
-from agent.mechanisms.anthropic_provider import AnthropicProvider
-from agent.mechanisms.model_provider import ModelProvider, OpenAICompatibleProvider
+from agent.mechanisms.providers.anthropic import AnthropicProvider
+from agent.mechanisms.providers.base import ModelProvider
+from agent.mechanisms.providers.openai import OpenAICompatibleProvider
 
 #: 各厂商接受的构造参数。白名单而不是透传：配置文件是外部输入，
 #: 多一个键就让构造器抛 TypeError 属于"配置笔误升级成启动失败"。

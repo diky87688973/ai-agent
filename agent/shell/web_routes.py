@@ -11,17 +11,16 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
-from agent.core.error_report import report_error
-from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.web_api import WebShell
+from agent.shell.web_classic import ClassicRoutes
+from agent.shell.web_plugin import PluginRoutes
 from agent.shell.web_static import (
     MAX_BODY_BYTES,
     SSE_HEARTBEAT_SEC,
-    _plugin_asset_rel,
 )
 
 
-class _Handler(BaseHTTPRequestHandler):
+class _Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
     """路由分发。"""
 
     server_version = "ai-agent-web/1.0"
@@ -61,95 +60,6 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _plugin_route(self, method: str, body: Optional[Dict[str, Any]] = None) -> None:
-        """把 `/api/plugin/<插件>/<段>` 转发给插件注册的端点。
-
-        路径与查询串自己从请求行取（三个动词共用这一条，调用点不必各传一份）。
-        路径里声明的 `:名字` 段由壳层按位置取值后交给 handler；除参数段外不做通配，
-        「某插件挂了哪些端点形状」始终可枚举。无匹配时 404 并列出全部已注册端点。
-
-        handler 收到的 dict：查询串 + 路径参数 + （有请求体时）`body`。
-        """
-        path = self._path()
-        query = self._query()
-        host = getattr(self.shell.app, "plugin_host", None) if self.shell.app else None
-        contribs = getattr(host, "contributions", None) if host is not None else None
-        if contribs is None:
-            self._json(404, {"error": "插件系统未接入"})
-            return
-        # 面板脚本资产：`/api/plugin/<插件>/_asset/<插件目录内相对路径>`
-        asset = _plugin_asset_rel(path)
-        if asset is not None and method == "GET":
-            self._plugin_asset(asset[0], asset[1])
-            return
-        hit = contribs.match(method, path)
-        if hit is None:
-            self._json(404, {"error": "插件端点不存在", "method": method, "path": path,
-                             "available": [r.as_dict() for r in contribs.all_routes()]})
-            return
-        route, params = hit
-        args: Dict[str, Any] = dict(query or {})
-        if params:
-            args.update(params)
-        if body:
-            args["body"] = body
-        try:
-            result = route.handler(args)
-        except Exception as exc:  # 插件端点异常不该打挂壳层
-            report_error("plugin.route", exc, plugin=str(route.plugin or ""))
-            self._json(500, {"error": f"{type(exc).__name__}: {exc}",
-                             "plugin": route.plugin})
-            return
-        if isinstance(result, tuple) and len(result) == 2:
-            status, payload = int(result[0]), result[1]
-        else:
-            status, payload = 200, result
-        if isinstance(payload, (dict, list)):
-            self._json(status, payload if isinstance(payload, dict) else {"ok": True, "items": payload})
-        else:
-            self._bytes(status, str(payload).encode("utf-8"), "text/plain; charset=utf-8")
-
-    def _plugin_asset(self, plugin: str, rel: str) -> None:
-        """送出插件目录内的面板脚本。
-
-        路径必须是该插件目录下的真实文件：先解析绝对路径，再校验它落在插件目录内
-        （挡 `..` 与符号链接绕行）。只送文本类脚本，不送任意文件。
-        """
-        host = getattr(self.shell.app, "plugin_host", None) if self.shell.app else None
-        base = getattr(host, "plugins_dir", None) if host is not None else None
-        if base is None:
-            self._json(404, {"error": "插件目录未接入"})
-            return
-        tracked = host.plugin_root(plugin) if host is not None else None
-        root = Path(tracked).resolve() if tracked is not None else (Path(base) / plugin).resolve()
-        target = (root / rel).resolve()
-        try:
-            target.relative_to(root)
-        except ValueError:
-            self._json(403, {"error": "路径越出插件目录"})
-            return
-        if not target.is_file():
-            self._json(404, {"error": "脚本不存在", "path": f"{plugin}/{rel}"})
-            return
-        suffix = target.suffix.lower()
-        ctype = {
-            ".js": "application/javascript; charset=utf-8",
-            ".mjs": "application/javascript; charset=utf-8",
-            ".css": "text/css; charset=utf-8",
-            ".html": "text/html; charset=utf-8",
-            ".json": "application/json; charset=utf-8",
-            ".svg": "image/svg+xml",
-        }.get(suffix)
-        if ctype is None:
-            self._json(415, {"error": f"不送该类型：{suffix or '(无扩展名)'}"})
-            return
-        try:
-            body = target.read_bytes()
-        except OSError as exc:
-            self._json(500, {"error": f"{type(exc).__name__}"})
-            return
-        self._bytes(200, body, ctype)
-
     def _bytes(self, status: int, body: bytes, content_type: str) -> None:
         """二进制响应（附件走这条：经典界面用 `<img src>` 直接引用）。"""
         self.send_response(status)
@@ -160,85 +70,6 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     # ── 经典界面适配层 ────────────────────────────────
-
-    def _classic(self) -> Any:
-        """适配层实例；未装配时返回 None（旧页面仍可用）。"""
-        app = getattr(self.shell, "app", None)
-        if app is None or not hasattr(app, "context"):
-            return None
-        ctx = app.context
-        if not hasattr(ctx, "has") or not ctx.has(SERVICE_CLASSIC_ADAPTER):
-            return None
-        return ctx.get(SERVICE_CLASSIC_ADAPTER)
-
-    def _classic_page(self) -> None:
-        """经典界面页面：把经典界面素材内联成单页返回。"""
-        from agent.shell.ui_bundle import APP_VERSION, inline_ui_html
-        from agent.shell.web_ui_config import get_web_ui
-
-        html = inline_ui_html(APP_VERSION)
-        # 开关按请求注入：素材缓存不含 ini，改 web-ui-config.ini 后刷新页面即生效。
-        html = html.replace(
-            "{{WEB_UI_JSON}}",
-            json.dumps(get_web_ui(), ensure_ascii=False, separators=(",", ":")),
-        )
-        body = html.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-cache")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _classic_sse(self, query: Dict[str, str]) -> None:
-        """事件流。两种格式任选，默认经典界面格式：
-
-        - 默认（无 `format` 或 `format=classic`）：适配层翻译过的老事件
-          （`conversation` / `tool_start` / `llm_round` …），经典 UI 用这条。
-        - `format=kernel`：内核原生事件（`turn_started` / `tool_call` …）原样透传。
-          给测试、运维探针，以及未来的其它交互层（命令行等）用——
-          它们要的是内核事实，不是给经典界面的翻译结果。
-
-        两条流分开：把内核事件名暴露成"另一套公开契约"会让适配层失去意义，
-        但完全堵死原生事件又会让内核行为无法被直接观察。
-        """
-        if query.get("format") == "kernel":
-            self._events_stream()
-            return
-        from agent.shell.classic_adapter.adapter import ClassicSseChannel
-
-        classic = self._classic()
-        if classic is None:
-            self._json(503, {"error": "适配层未装配"})
-            return
-        channel = ClassicSseChannel(classic)
-        # 断线续传：游标取 SSE 原生的 `Last-Event-ID`（浏览器自动带）或 `?last_event_id=`。
-        # 坐标是全局单调的，所以一个游标就够了——不需要客户端告诉服务端"续哪个会话"，
-        # 浏览器的 `EventSource` 也就无需任何定制。
-        # 没有游标就不续传：经典界面各自 `GET /api/chat/history` 渲染已有内容，
-        # 适配层再回放一遍就是重复气泡。
-        cursor = classic.cursor_of(self.headers, query)
-        if cursor >= 0:
-            channel.resume(cursor)
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
-        try:
-            if hasattr(self.wfile, "flush"):
-                self.wfile.write(b": connected\n\n")
-                self.wfile.flush()
-            while True:
-                payload = channel.next_payload()
-                self.wfile.write(payload.encode("utf-8"))
-                self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
-            pass  # 浏览器刷新 / 关标签：正常断开
-        finally:
-            channel.close()   # 摘掉本连接的广播队列，避免长跑进程里堆积
-
 
     def _read_body(self) -> Dict[str, Any]:
         try:

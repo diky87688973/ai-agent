@@ -75,6 +75,7 @@ full_user_rounds         = 5
 | 文档 | 内容 |
 |---|---|
 | [架构](docs/architecture.md) | 五层结构、模块链、端口、事件协议、状态生命周期 |
+| [工程标准](docs/engineering-standards.md) | 模块结构、单一职责、资产归属、扩展路径与门禁 |
 | [术语](docs/glossary.md) | 项目自定义词的定义 |
 | [内核](docs/subsystems/core.md) | 模块契约、链执行器、宿主循环 |
 | [上下文管理](docs/subsystems/context.md) | 三拼接装、分段统计、压缩与摘要 |
@@ -91,6 +92,7 @@ full_user_rounds         = 5
 | [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
 | [会话消息队列方案](docs/plan/conversation-queue.md) | 忙时入队、回合结束投递、安全插入、修改恢复与 Agent 来源 |
 | [标准对齐优化方案](docs/plan/standards-alignment.md) | 依赖环、门禁可信度、覆盖率口径、预算与登记表 |
+| [结构整改方案](docs/plan/structural-remediation.md) | Provider、上下文、壳层与门禁的职责拆分、依赖规则与实施顺序 |
 | [会话历史分页方案](docs/plan/history-paging.md) | 轮次分页、游标、前插与超长报文延迟渲染 |
 | [多模型配置方案](docs/plan/multi-model.md) | 模型目录、Provider 路由、Messages 协议适配、模型插件 |
 | [AI说话方案](docs/plan/ai-speak.md) | `ai_speak` 的文本、切段、SSE 与播放器设计 |
@@ -120,7 +122,7 @@ python scripts/scan_js_events.py  # 本地 JS 事件绑定审计
 python scripts/dump_context.py --cid <会话ID> --format json --out context.json
 ```
 
-单元测试（1762 个用例）：
+单元测试（1766 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

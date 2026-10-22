@@ -13,7 +13,7 @@ sys.path.insert(0, str(_ROOT))
 from agent.capabilities.contributions import ContributionRegistry  # noqa: E402
 from agent.capabilities.plugins import PluginContext, PluginHost  # noqa: E402
 from agent.capabilities.registry import ToolPlugin, ToolRegistry  # noqa: E402
-from agent.mechanisms.context_pipeline import ContextSources  # noqa: E402
+from agent.mechanisms.context import ContextSources  # noqa: E402
 from agent.mechanisms.executors import ExecutorRegistry  # noqa: E402
 from agent.mechanisms.quality import QualityGate, resolve_write_path  # noqa: E402
 

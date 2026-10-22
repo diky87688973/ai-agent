@@ -14,10 +14,6 @@
 理由：`EventSource` 断线会自动重连，重连后靠 `Last-Event-ID` 续传 ——
 所以"丢中间几帧但保住最新状态"比"卡住整条广播"对用户更有利。
 
-## 导入路径
-
-`web.py` 会再导出这三个名字，
-`from agent.shell.web import _Channel` 这类写法依赖本模块的再导出。
 """
 from __future__ import annotations
 

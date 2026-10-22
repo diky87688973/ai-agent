@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1762** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1766** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -14,7 +14,7 @@
 4. [test_anthropic_provider.py](#test_anthropic_providerpy)（30）
 5. [test_app_context.py](#test_app_contextpy)（11）
 6. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
-7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（11）
+7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（15）
 8. [test_artifact_lock.py](#test_artifact_lockpy)（16）
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
 10. [test_batch_f_tools.py](#test_batch_f_toolspy)（31）
@@ -250,7 +250,7 @@
 
 ## test_architecture_hygiene.py
 
-共 11 个用例。
+共 15 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -263,8 +263,12 @@
 | 7 | `GateSinglePathAstTest` | `test_register_write_path_keys_call` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：register write path keys call |
 | 8 | `GateSinglePathAstTest` | `test_tool_path_keys_name` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：tool path keys name |
 | 9 | `GateSinglePathAstTest` | `test_unregister_write_path_keys_import_alias` | 覆盖「负例：Attribute / Call / Assign / 导入别名伪装须被 AST 抓住」：unregister write path keys import alias |
-| 10 | `QualityGateShimAstTest` | `test_comment_mention_passes` | 覆盖「A class whose instances are single test cases」：comment mention passes |
-| 11 | `QualityGateShimAstTest` | `test_import_quality_gate_caught` | 覆盖「A class whose instances are single test cases」：import quality gate caught |
+| 10 | `ModuleBoundaryAstTest` | `test_compactor_contract_import_passes` | 覆盖「A class whose instances are single test cases」：compactor contract import passes |
+| 11 | `ModuleBoundaryAstTest` | `test_compactor_pipeline_import_caught` | 覆盖「A class whose instances are single test cases」：compactor pipeline import caught |
+| 12 | `ModuleBoundaryAstTest` | `test_provider_concrete_sibling_caught` | 覆盖「A class whose instances are single test cases」：provider concrete sibling caught |
+| 13 | `ModuleBoundaryAstTest` | `test_provider_neutral_imports_pass` | 覆盖「A class whose instances are single test cases」：provider neutral imports pass |
+| 14 | `QualityGateShimAstTest` | `test_comment_mention_passes` | 覆盖「A class whose instances are single test cases」：comment mention passes |
+| 15 | `QualityGateShimAstTest` | `test_import_quality_gate_caught` | 覆盖「A class whose instances are single test cases」：import quality gate caught |
 
 ## test_artifact_lock.py
 

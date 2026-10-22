@@ -36,7 +36,7 @@ except Exception:
     pass
 
 from agent.config import default_data_root, get_context  # noqa: E402
-from agent.mechanisms.context_tokens import default_message_tokens  # noqa: E402
+from agent.mechanisms.context.tokens import default_message_tokens  # noqa: E402
 
 SEP = "─" * 68
 
@@ -94,7 +94,7 @@ def _round_labels(rounds: List[Any]) -> List[str]:
 
 def _chunk_report(pipeline: Any) -> List[Tuple[str, int]]:
     """分块 token 估算；拿不到时返回空列表。"""
-    from agent.mechanisms.context_tokens import default_message_tokens
+    from agent.mechanisms.context.tokens import default_message_tokens
 
     out: List[Tuple[str, int]] = []
     try:
@@ -127,11 +127,11 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
         return 2
 
     cfg = get_context()
-    threshold = int(cfg["summary_token_threshold"])
+    threshold = int(cfg.get("summary_token_fallback") or 64000)
     full = int(cfg["full_user_rounds"])
 
     from agent.core.session_log import SessionLog
-    from agent.mechanisms.context_pipeline import (
+    from agent.mechanisms.context import (
         ContextPipeline,
         excerpt_by_target_tokens,
         flat_messages_to_user_rounds,
@@ -214,9 +214,9 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
 
     if digest:
         print("\n【压缩器视角】")
-        from agent.mechanisms.context_compactor import ContextCompactor
+        from agent.mechanisms.compaction.compactor import ContextCompactor
 
-        def _no_summary(_material: str) -> str:
+        def _no_summary(_material: str, **_: Any) -> str:
             return ""
 
         comp = ContextCompactor(_no_summary, summary_token_threshold=threshold)

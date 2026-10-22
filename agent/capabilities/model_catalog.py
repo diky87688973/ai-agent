@@ -22,8 +22,8 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
 
 from agent.capabilities.contributions import Disposer
-from agent.mechanisms.model_provider import ModelProvider
 from agent.mechanisms.provider_registry import build_provider, known_kinds
+from agent.mechanisms.providers.base import ModelProvider
 
 #: 条目来源：静态序列，或每次快照时重新求值的回调（插件用它实现热读配置）。
 EntrySource = Union[Sequence["ModelEntry"], Callable[[], Sequence["ModelEntry"]]]

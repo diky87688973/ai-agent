@@ -16,7 +16,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.mechanisms.context_pipeline import ContextSources  # noqa: E402
+from agent.mechanisms.context import ContextSources  # noqa: E402
 
 _PLUGIN_MOD = "fan_agent_plugins.rules"
 
@@ -52,7 +52,7 @@ class _FakeCtx:
         return self.sources.add(fn, self._meta(meta))
 
     def _meta(self, meta):
-        from agent.mechanisms.context_pipeline import SourceMeta
+        from agent.mechanisms.context import SourceMeta
 
         payload = meta if isinstance(meta, dict) else {}
         return SourceMeta(key="rules", label=str(payload.get("label") or ""),

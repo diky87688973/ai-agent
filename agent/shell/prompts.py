@@ -108,7 +108,7 @@ _CODING_DISCIPLINE = """\
 
 # 三模式提示
 #: 执行模式之后的固定维护提示；没有待办清单时由模型自行忽略。
-TODO_LIST_NOTE = "## Todo-List: 请主动维护执行清单勾选状态，仅在无清单时可忽略此叮嘱"
+TODO_LIST_NOTE = "## Todo-List：**必须实时追踪并更新任务进度**"
 
 _MODE_PROMPTS = {
     "auto": (
