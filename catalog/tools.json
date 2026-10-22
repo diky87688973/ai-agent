@@ -1500,7 +1500,7 @@
       }
     },
     {
-      "description": "向用户发起分岔确认：首段提交 title + confirms 选项（返回待确认信封）；用户确认后携带 confirm 再次调用回填。",
+      "description": "向用户发起分岔确认。首段只用 title + confirms 挂起，等待宿主界面作答；宿主回填确认结果后才产生工具结果。模型不得在首段自行传 confirm。",
       "display": {
         "icon": "⚠️",
         "label": "等待确认"
@@ -1508,14 +1508,6 @@
       "name": "user_confirm",
       "parallel_safe": false,
       "parameters": {
-        "confirm": {
-          "description": "用户确认结果（次段传入）",
-          "type": "string"
-        },
-        "confirm_id": {
-          "description": "宿主确认单 ID（次段回显）",
-          "type": "string"
-        },
         "confirms": {
           "description": "候选项（首段必填；非空字符串数组）",
           "type": "array"
@@ -1523,10 +1515,6 @@
         "custom_option_index": {
           "description": "自由输入绑定的选项下标（可选）",
           "type": "integer"
-        },
-        "interactive": {
-          "description": "TTY 下直接交互解析（默认 false）",
-          "type": "boolean"
         },
         "multi": {
           "description": "是否支持多选（透传给宿主）",

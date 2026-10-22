@@ -116,6 +116,16 @@ class ModeTailShapeTest(unittest.TestCase):
         self.assertEqual(_with_mode_note(base, ""), base)
         self.assertEqual(_with_mode_note(base, "   "), base)
 
+    def test_existing_runtime_tail_is_replaced_not_duplicated(self) -> None:
+        """同一上下文再次装配时，旧临时尾条要被替换，不能叠成两条。"""
+        base = self._base() + [
+            {"role": "system", "content": "## 当前模式：Plan\n旧进度：1 已完成"},
+        ]
+        out = _with_mode_note(base, "## 当前模式：Auto\n当前进度：2 已完成")
+        self.assertEqual(len(out), len(self._base()) + 1)
+        self.assertIn("当前进度：2 已完成", out[-1]["content"])
+        self.assertNotIn("旧进度", "\n".join(str(m.get("content") or "") for m in out))
+
     def test_note_works_after_multimodal_tail(self) -> None:
         """最后一条是多模态数组时也必须能附加（不能拼坏它的结构）。"""
         base = [{"role": "user", "content": [

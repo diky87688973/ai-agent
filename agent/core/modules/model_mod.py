@@ -23,6 +23,7 @@ from agent.core.module import ModuleBase
 from agent.core.modules.support import (
     _assemble_with,
     _prepare_dialogue,
+    _resolve_runtime_note,
     _segment_snapshot,
     _serialize_call,
     _tail_expects_model,
@@ -62,7 +63,7 @@ class ModelModule(ModuleBase):
                  effort: str = "high", model: str = "",
                  image_turns: int = KEEP_IMAGE_TURNS,
                  image_max: int = MAX_EMBED_IMAGES,
-                 mode_note: str = "") -> None:
+                 mode_note: Any = "") -> None:
         self.context_pass = context
         self._compactor = compactor
         self._effort = str(effort or "high")
@@ -76,7 +77,7 @@ class ModelModule(ModuleBase):
         self._image_max = int(image_max)
         #: 执行模式说明：只加在发给模型的这一份请求尾部，不落记录、不发事件。
         #: 放在最后一项是为了让切模式只影响尾部这一条，前面的前缀缓存照旧命中。
-        self._mode_note = str(mode_note or "")
+        self._mode_note = mode_note
 
     def _covered_end(self) -> int:
         """已覆盖前缀长度（压缩器维护）；没有压缩器就是 0。"""
@@ -93,6 +94,7 @@ class ModelModule(ModuleBase):
         if model is None:
             yield ports.emit(ERROR, where="model", detail="未装配模型端口")
             return Outcome.halt("未装配模型端口")
+        runtime_note = _resolve_runtime_note(self._mode_note)
 
         # 请求前补齐悬空的 tool_calls。挂起的终态不产生 tool 消息；
         # 取消若没到达服务器，事实里就一直缺配对，此后每次请求都会被拒绝。
@@ -115,17 +117,17 @@ class ModelModule(ModuleBase):
         # 对话 = 事实折叠出来的对话
         # 尾部 = 执行模式（本轮新输入已在对话末尾，由事实带来）
         if self.context_pass is not None:
-            assembled = _assemble_with(self.context_pass, dialogue, self._mode_note,
+            assembled = _assemble_with(self.context_pass, dialogue, runtime_note,
                                        self._covered_end())
             if assembled is None:
                 # 上下文缺装配能力 → 退回只有对话（不阻断回合），但必须留痕：
                 # 这种请求缺头部，模型看不到系统提示，属于异常状态。
                 report_error("core.model", "上下文缺装配能力（本轮请求可能缺系统前缀）")
-                messages = _with_mode_note(dialogue, self._mode_note)
+                messages = _with_mode_note(dialogue, runtime_note)
             else:
                 messages = assembled
         else:
-            messages = _with_mode_note(dialogue, self._mode_note)
+            messages = _with_mode_note(dialogue, runtime_note)
 
         request = LogicalRequest(
             messages=messages,

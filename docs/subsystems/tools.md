@@ -162,7 +162,7 @@ Markdown 的本地绝对路径链接同样进入右栏；正文里的行内代�
 |---|---|
 | `run_type` | 查询或切换会话运行模式 |
 | `todo_list` | 会话待办清单 |
-| `user_confirm` | 向用户发起分岔确认 |
+| `user_confirm` | 首段挂起等待宿主人工作答；`confirm` / `confirm_id` 为宿主回填字段，不暴露给模型 |
 | `task_sleep` | 暂停自主执行，N 秒后携提醒重新激活 |
 | `goal` | 管理本会话的目标文案 |
 | `session_send` | 向目标会话发消息并触发执行 |

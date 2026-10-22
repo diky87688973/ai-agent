@@ -862,7 +862,21 @@ var summary=desktopToolSummary(o.script,o.args,chatDesktopData(ev));
 if(summary)chatToolSetSummary(row,summary);}
 });
 function refreshChatToolSummaries(){
-var rows=document.querySelectorAll(".chat-tool-row");
+/* 每个会话有独立消息宿主；非激活宿主不在 document 里。
+   只查 document 会让未激活标签的摘要停留在空串或旧默认视图。 */
+var roots=[document];
+if(typeof conversationTabs!=="undefined"){
+for(var ti=0;ti<conversationTabs.length;ti++){
+var host=conversationTabs[ti]&&conversationTabs[ti].msgsHost;
+if(host)roots.push(host);
+}
+}
+var seen=[];
+for(var ri=0;ri<roots.length;ri++){
+var root=roots[ri];
+if(!root||seen.indexOf(root)>=0)continue;
+seen.push(root);
+var rows=root.querySelectorAll(".chat-tool-row");
 for(var i=0;i<rows.length;i++){
 var row=rows[i];
 var data=row._toolData;
@@ -871,6 +885,7 @@ var view=chatToolViewFor(data.script,data.args);
 if(!view||typeof view.summary!=="function")continue;
 var text=String(view.summary({script:data.script,args:data.args})||"").trim();
 if(text)row._sum.textContent=text;
+}
 }
 }
 

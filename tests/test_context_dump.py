@@ -50,11 +50,43 @@ class ContextDumpTest(unittest.TestCase):
                 snapshot = build_snapshot(app, "0123456789abcdef0123456789abcdef")
                 self.assertEqual(len(provider.requests), before)
                 self.assertTrue(snapshot["messages"])
-                self.assertIn("## Todo-List:", snapshot["mode_note"])
-                self.assertIn("## Todo-List:", render_text(snapshot))
+                self.assertNotIn("## Todo-List:", snapshot["mode_note"])
+                self.assertNotIn("## Todo-List:", render_text(snapshot))
                 users = [str(m.get("content") or "") for m in snapshot["messages"]
                          if str(m.get("role") or "") == "user"]
                 self.assertIn("导出测试", "\n".join(users))
+            finally:
+                app.dispose()
+
+    def test_snapshot_reports_todo_progress_when_list_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            manifest = root / "plugins.ini"
+            manifest.write_text("", encoding="utf-8")
+            app = build_app(
+                provider=_Provider(),
+                store=SessionStore(root / "data"),
+                plugins_path=manifest,
+                plugins_dir=root / "plugins",
+            )
+            cid = "fedcba9876543210fedcba9876543210"
+            try:
+                app.live_state.set_todo(cid, {
+                    "list_id": "dump-list",
+                    "collapsed": False,
+                    "items": [
+                        {"text": "已完成项", "done": True},
+                        {"text": "进行中项", "done": False},
+                    ],
+                })
+                runner = app.context.get(SERVICE_RUNNER)
+                runner.start(cid, {"content": "导出测试"})
+                self.assertTrue(runner.wait_idle(cid, 10))
+                snapshot = build_snapshot(app, cid)
+                text = render_text(snapshot)
+                self.assertIn("## Todo-List:", snapshot["mode_note"])
+                self.assertIn("当前进度：1 已完成，1 进行中，0 待处理", snapshot["mode_note"])
+                self.assertIn("当前进度：1 已完成，1 进行中，0 待处理", text)
             finally:
                 app.dispose()
 

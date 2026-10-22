@@ -194,22 +194,16 @@ class UserConfirmTest(_TaskToolsBase):
         for args in cases:
             self.assertFalse(self._call("user_confirm", args).ok, msg=str(args))
 
-    def test_interactive_without_tty_gives_actionable_error(self):
-        """无 TTY 时 interactive 必须给出可照做的指引，而不是"未读取到用户输入"。
+    def test_interactive_flag_is_ignored_without_host_support(self):
+        """宿主未注入 TTY 能力时，旧 interactive 入参不能阻断两段式确认。"""
 
-        非 TTY stdin（Web 环境）下模型仍可能照描述传 interactive=true：
-        继续走交互分支只会报"未读取到用户输入"，模型无从修正。
-        这里显式把 isatty 钉成 False，不依赖测试运行器的 stdin 类型。
-        """
-
-        from unittest import mock
-
-        with mock.patch("sys.stdin") as fake:
-            fake.isatty.return_value = False
-            r = self._call("user_confirm", {"title": "t", "confirms": ["A", "B"], "interactive": True})
+        params = self.app.registry.get("user_confirm").parameters
+        for hidden in ("interactive", "confirm", "confirm_id"):
+            self.assertNotIn(hidden, params)
+        r = self._call("user_confirm", {"title": "t", "confirms": ["A", "B"], "interactive": True})
         self.assertFalse(r.ok)
-        self.assertIn("没有 TTY", r.error)
-        self.assertIn("两段式信封", r.error, msg="指引须告诉模型改用信封")
+        self.assertIn("UserConfirmRequired", r.error)
+        self.assertEqual(r.data["confirms"], ["A", "B"])
 
     def test_envelope_still_works_without_tty(self):
         """无 TTY 时不给 interactive，必须照常返回待确认信封（宿主 UI 负责交互）。"""

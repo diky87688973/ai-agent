@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+import time
 import unittest
 import urllib.error
 from unittest import mock
@@ -466,6 +467,26 @@ class EndpointAndErrorTest(unittest.TestCase):
         self.assertTrue(captured["body"]["stream"])
         self.assertEqual(captured["body"]["model"], "claude-x")
         self.assertEqual([d.text for d in deltas if d.kind == "text"], ["hi"])
+
+    def test_stream_watchdog_stops_a_stalled_upstream(self) -> None:
+        class _StalledResponse:
+            def __iter__(self):
+                time.sleep(0.2)
+                return iter(())
+
+            def close(self) -> None:
+                pass
+
+        provider = AnthropicProvider(
+            base_url="https://x", api_key="k", model="m", timeout=0.02,
+        )
+        with mock.patch.object(ap, "_LOG_REQUESTS", False), \
+                mock.patch.object(ap.urllib.request, "urlopen",
+                                  return_value=_StalledResponse()):
+            with self.assertRaises(ModelRequestError) as caught:
+                list(provider.stream(LogicalRequest(messages=[{"role": "user", "content": "q"}],
+                                                    tools=[])))
+        self.assertIn("超时", caught.exception.detail)
 
     def test_http_error_response_is_mapped(self) -> None:
         error = urllib.error.HTTPError(

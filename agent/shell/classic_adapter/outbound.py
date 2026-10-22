@@ -513,7 +513,9 @@ class ClassicStream:
         # （由 `_on_tool_suspended` 处理）——只有那时才弹模态。
         #
         # 清单：经典界面从 `todo_list_data` 读（`todo_list` 为真才继续读）
-        if pend.script == "todo_list" and envelope.get("items") is not None:
+        if pend.script == "todo_list" and (
+            envelope.get("items") is not None or envelope.get("close")
+        ):
             frame["todo_list"] = True
             frame["todo_list_data"] = {
                 "items": envelope.get("items") or [],

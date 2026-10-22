@@ -164,8 +164,8 @@ class SegmentsStayAlignedTest(unittest.TestCase):
         for _ in range(3):
             pipe.set_dialogue([{"role": "user", "content": "问"}])
         rows = [r for r in pipe.segment_tokens() if str(r["key"]).startswith("plugin:")]
-        self.assertEqual([r["label"] for r in rows], ["两条", "两条", "一条"])
-        self.assertEqual([r["count"] for r in rows], [7, 1, 1])
+        self.assertEqual([r["label"] for r in rows], ["两条", "一条"])
+        self.assertEqual([r["count"] for r in rows], [7, 1])
 
     def test_repeated_assembly_does_not_grow_rows(self) -> None:
         sources = ContextSources()

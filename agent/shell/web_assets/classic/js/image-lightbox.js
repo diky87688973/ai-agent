@@ -17,7 +17,11 @@
     if (el && el.querySelector(".img-lightbox-stage") && el.querySelector(".img-lightbox-tools")) {
       return el;
     }
-    if (el) el.remove();
+    if (el) {
+      /* 重建前先把旧的全局监听摘掉：留着就是每重建一次多一组，闭包还引用着已移除的节点。 */
+      if (typeof el._cwaDetach === "function") el._cwaDetach();
+      el.remove();
+    }
     el = document.createElement("div");
     el.id = "cwaImgLightbox";
     el.className = "img-lightbox hidden";
@@ -46,27 +50,39 @@
       if (meta) meta.textContent = "";
       el._cwaImg = null;
     }
-    el.querySelector(".img-lightbox-backdrop").addEventListener("click", close);
-    el.querySelector(".img-lightbox-close").addEventListener("click", close);
-    var stage = el.querySelector(".img-lightbox-stage");
-    stage.addEventListener("click", function (ev) {
-      if (ev.target === stage) close();
-    });
-    el.querySelectorAll(".img-lightbox-mode").forEach(function (btn) {
-      btn.addEventListener("click", function (ev) {
+    /* 交互收拢到一个容器委托：遮罩、关闭、舞台留白、模式切换都靠 closest 认目标，
+       重建节点时不新增监听。 */
+    el.addEventListener("click", function (ev) {
+      var target = ev.target;
+      if (!target || !target.closest) return;
+      var mode = target.closest(".img-lightbox-mode");
+      if (mode && el.contains(mode)) {
         ev.preventDefault();
         ev.stopPropagation();
-        el._cwaMode = btn.getAttribute("data-mode") || "fit";
+        el._cwaMode = mode.getAttribute("data-mode") || "fit";
         syncModeButtons(el);
         applyLightboxSize(el);
-      });
+        return;
+      }
+      if (target.closest(".img-lightbox-close") || target.closest(".img-lightbox-backdrop")) {
+        close();
+        return;
+      }
+      var stage = el.querySelector(".img-lightbox-stage");
+      if (stage && target === stage) close();
     });
-    document.addEventListener("keydown", function (ev) {
+    function onKeydown(ev) {
       if (ev.key === "Escape" && !el.classList.contains("hidden")) close();
-    });
-    window.addEventListener("resize", function () {
+    }
+    function onResize() {
       if (!el.classList.contains("hidden")) applyLightboxSize(el);
-    });
+    }
+    el._cwaDetach = function () {
+      document.removeEventListener("keydown", onKeydown);
+      window.removeEventListener("resize", onResize);
+    };
+    document.addEventListener("keydown", onKeydown);
+    window.addEventListener("resize", onResize);
     el._cwaClose = close;
     return el;
   }

@@ -31,7 +31,7 @@ def build_engine(
     image_turns: int = KEEP_IMAGE_TURNS,
     image_max: int = MAX_EMBED_IMAGES,
     max_passes: int = MAX_PASSES_DEFAULT,
-    mode_note: str = "",
+    mode_note: Any = "",
     event_sink: Any = None,
     session_context: Any = None,
     seq_allocator: Any = None,

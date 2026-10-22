@@ -12,14 +12,16 @@ import json
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.core.ports import LogicalRequest  # noqa: E402
-from agent.mechanisms.model_provider import OpenAICompatibleProvider  # noqa: E402
+from agent.mechanisms.model_provider import ModelRequestError, OpenAICompatibleProvider  # noqa: E402
 from tests.testkit import no_plugins  # noqa: E402
 
 _PNG_B64 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
@@ -44,6 +46,29 @@ class _Capturing(OpenAICompatibleProvider):
 
 def _provider(model: str = "default-model") -> _Capturing:
     return _Capturing(base_url="https://example.invalid", api_key="k", model=model)
+
+class ProviderStreamTimeoutTest(unittest.TestCase):
+    def test_openai_stream_timeout_is_bounded(self) -> None:
+        class _StalledResponse:
+            def __iter__(self):
+                time.sleep(0.2)
+                return iter(())
+
+            def close(self) -> None:
+                pass
+
+        provider = OpenAICompatibleProvider(
+            base_url="https://example.invalid", api_key="k", model="m", timeout=0.02,
+        )
+        request = LogicalRequest(messages=[{"role": "user", "content": "q"}], tools=[])
+        with mock.patch(
+            "agent.mechanisms.model_provider.urllib.request.urlopen",
+            return_value=_StalledResponse(),
+        ):
+            with self.assertRaises(ModelRequestError) as caught:
+                list(provider.stream(request))
+        self.assertIn("超时", caught.exception.detail)
+
 
 class RequestLevelModelTest(unittest.TestCase):
 

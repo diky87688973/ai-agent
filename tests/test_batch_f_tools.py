@@ -338,8 +338,8 @@ class SkillsSourceTest(unittest.TestCase):
     def test_catalog_separates_builtin_and_external(self) -> None:
         lib = SkillManager(self.external, builtin_dir=self.builtin)
         msg = lib.build_registry_message()
-        self.assertIn("【内置 Skills】", msg)
-        self.assertIn("【用户 Skills】", msg)
+        self.assertIn("【内置 Skills 清单】", msg)
+        self.assertIn("【用户 Skills 清单】", msg)
         self.assertIn("- only_builtin: 仅内置", msg)
         self.assertIn("- shared: 外置版", msg)
 

@@ -335,7 +335,7 @@ class SkillManager:
             return []
         lines = [CATALOG_HEAD,
                  "需要用某个 Skills 时，先用 skills 读取它的正文再照做。"]
-        for source, label in (("builtin", "内置 Skills"), ("external", "用户 Skills")):
+        for source, label in (("builtin", "内置 Skills 清单"), ("external", "用户 Skills 清单")):
             group = [s for s in rows if s.source == source]
             if not group:
                 continue

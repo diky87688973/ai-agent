@@ -111,6 +111,57 @@ class TodoProgressTest(unittest.TestCase):
         self.assertTrue(data.get("close"))
         self.assertNotIn("items", data)
 
+class RuntimeTailTodoProgressTest(unittest.TestCase):
+    """运行态尾部每次求值都读最新 Todo 进度。"""
+
+    def test_mode_note_contains_latest_progress(self) -> None:
+        import tempfile
+
+        from agent.mechanisms.live_state import LiveState
+        from agent.shell.session_runner import SessionRunner
+
+        with tempfile.TemporaryDirectory(prefix="runtime-tail-") as raw:
+            class _App:
+                live_state = LiveState(storage_dir=Path(raw))
+                prompt_tail = None
+
+            class _Mesh:
+                @staticmethod
+                def get_agent(_cid):
+                    return {}
+
+            runner = SessionRunner(app=_App(), mesh=_Mesh())
+            cid = "runtime-tail-0001"
+            _App.live_state.set_todo(cid, {
+                "list_id": "l1",
+                "collapsed": False,
+                "items": [{"text": "a", "done": True}, {"text": "b", "done": False}],
+            })
+            note = runner._mode_note(cid)
+        self.assertIn("当前进度：1 已完成，1 进行中，0 待处理", note)
+
+    def test_no_todo_omits_todo_note(self) -> None:
+        import tempfile
+
+        from agent.mechanisms.live_state import LiveState
+        from agent.shell.session_runner import SessionRunner
+
+        with tempfile.TemporaryDirectory(prefix="runtime-tail-empty-") as raw:
+            class _App:
+                live_state = LiveState(storage_dir=Path(raw))
+                prompt_tail = None
+
+            class _Mesh:
+                @staticmethod
+                def get_agent(_cid):
+                    return {}
+
+            runner = SessionRunner(app=_App(), mesh=_Mesh())
+            note = runner._mode_note("runtime-tail-0002")
+        self.assertNotIn("## Todo-List:", note)
+        self.assertNotIn("当前进度：", note)
+
+
 class ContextLayoutTest(unittest.TestCase):
     """上下文分段。"""
 

@@ -39,6 +39,7 @@ html[data-ui-theme] .todo-list-header {
 .todo-title-ico {
   width: 15px;
   height: 15px;
+  margin-top: -2px;
   flex: 0 0 auto;
   color: var(--c-text-4);
 }
@@ -152,8 +153,22 @@ html[data-ui-theme] .todo-list-header {
 }
 
 .todo-cb.active {
-  border-color: var(--c-warn, #c9a45c);
-  background: color-mix(in srgb, var(--c-warn, #c9a45c) 14%, transparent);
+  border-color: color-mix(in srgb, var(--c-warn, #c9a45c) 24%, transparent);
+  border-top-color: var(--c-warn, #c9a45c);
+  background: transparent;
+  animation: todo-check-spin .8s linear infinite;
+}
+
+@keyframes todo-check-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .todo-cb.active {
+    animation: none;
+    border-color: var(--c-warn, #c9a45c);
+    background: color-mix(in srgb, var(--c-warn, #c9a45c) 14%, transparent);
+  }
 }
 
 .todo-cb.done {

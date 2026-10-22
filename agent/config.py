@@ -91,7 +91,7 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
     return {
         "summary_token_fallback": _int("summary_token_fallback", 64000),
         # 压缩时遮盖的末尾用户轮数（压不出空间时连它们一起压）。
-        "full_user_rounds": _int("full_user_rounds", 1),
+        "full_user_rounds": _int("full_user_rounds", 5),
         "summary_output_max_chars": _int("summary_output_max_chars", 5000),
         # 只把最近这么多轮带图的用户发言里的图带进请求（负数 = 不限）。
         # 缺省 1 轮 / 8 张：截图工具很占字节，历史全带会先撞上游请求体上限。

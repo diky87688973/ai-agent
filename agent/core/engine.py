@@ -47,7 +47,7 @@ class Engine:
         model: str = "",
         image_turns: int = KEEP_IMAGE_TURNS,
         image_max: int = MAX_EMBED_IMAGES,
-        mode_note: str = "",
+        mode_note: Any = "",
         modules: Optional[List[ModuleBase]] = None,
         input_module: Optional[InputModule] = None,
         max_passes: int = MAX_PASSES_DEFAULT,

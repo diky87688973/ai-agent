@@ -119,12 +119,16 @@ class _ServerFixture(unittest.TestCase):
         self.provider = self.provider_factory(self.target)
         # 会话状态显式钉在临时目录：模型 / 模式 / 档位都会落盘，
         # 用缺省数据根会让同一用例第二次运行读到上一次写的值。
+        # data_root 也必须显式钉：队列 / 协作网格只认它，而它缺省会回落到
+        # `PROJECT_ROOT/data`——只靠 `AI_AGENT_DATA_ROOT` 的话，绕开 ci.py
+        # 直跑 unittest 会把队列项攒进工程 data/（历史上就是这么多出 20 多个）。
         self.app = build_app(
             provider=self.provider,
             store=SessionStore(self.root / "data"),
             live_state=LiveState(storage_dir=self.root / "session_state"),
             backup_root=self.root / "bk",
             recycle_root=self.root / "rc",
+            data_root=self.root,
         )
         # 端口 0：由系统分配空闲端口，避免测试间抢端口
         # fs_root 显式钉在临时目录：文件查看器的越界判定才可复现（不依赖进程 cwd）
@@ -485,6 +489,7 @@ class MultiRootFileViewerTest(unittest.TestCase):
             live_state=LiveState(storage_dir=base / "session_state"),
             backup_root=base / "bk",
             recycle_root=base / "rc",
+            data_root=base,
         )
         self.server, self.shell = create_server(
             self.app, host="127.0.0.1", port=0, fs_root=[self.root_a, self.root_b]

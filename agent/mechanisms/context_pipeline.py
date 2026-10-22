@@ -34,7 +34,7 @@ CHUNK_FULL = "近期记忆"
 CHUNK_MODE = "模式"
 CHUNK_ORDER = (CHUNK_SYSTEM, CHUNK_PLUGIN, CHUNK_MEM, CHUNK_FULL, CHUNK_MODE)
 
-DEFAULT_FULL_USER_ROUNDS = 1
+DEFAULT_FULL_USER_ROUNDS = 5
 #: 思维链回传预算默认值（token）：超出取两头、中间以省略标记代替。
 DEFAULT_REASONING_REPLAY_TOKENS = 8000
 
@@ -303,6 +303,21 @@ def tool_chain_balanced(messages: List[Dict[str, Any]], start: int, end: int) ->
                 return False
             pending.remove(key)
     return not pending
+def _merge_segment_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """按 key+label 合并同一个插件的多条消息；tokens 相加，count 取首条自报数。"""
+    merged: List[Dict[str, Any]] = []
+    index: Dict[Tuple[str, str], int] = {}
+    for row in rows:
+        group = (str(row.get("key") or ""), str(row.get("label") or ""))
+        pos = index.get(group)
+        if pos is None:
+            index[group] = len(merged)
+            merged.append(dict(row))
+            continue
+        merged[pos]["tokens"] = int(merged[pos].get("tokens") or 0) + int(row.get("tokens") or 0)
+    return merged
+
+
 def layout_from_messages(
     messages: List[Dict[str, Any]],
     *,
@@ -833,7 +848,7 @@ class ContextPipeline:
                 "tokens": int(counter(msg)) if msg is not None else 0,
                 "count": (1 if msg is not None else 0) if reported is None else int(reported),
             })
-        return rows
+        return _merge_segment_rows(rows)
 
     def layout_payload(
         self,
@@ -949,10 +964,21 @@ class ContextPipeline:
             chunk.rounds.append(r)
 
     def plugin_segments(self) -> List[Tuple[str, str, int]]:
-        """当前插件段落的 `[(段 key, 段名, 主体数量)]`（顺序与头部一致）。"""
-        return [(key, label,
-                 int(self._plugin_counts[i]) if i < len(self._plugin_counts) else 0)
-                for i, (key, label) in enumerate(self._plugin_sources)]
+        """当前插件段落的 `[(段 key, 段名, 主体数量)]`。
+
+        同一插件可发多条消息；同 key+label 的消息在视图里合并为一段，
+        count 取该来源第一条的自报数，避免把后续消息的默认 1 相加。
+        """
+        out: List[Tuple[str, str, int]] = []
+        seen = set()
+        for i, (key, label) in enumerate(self._plugin_sources):
+            group = (key, label)
+            if group in seen:
+                continue
+            seen.add(group)
+            count = int(self._plugin_counts[i]) if i < len(self._plugin_counts) else 0
+            out.append((key, label, count))
+        return out
 
     def host_messages(self) -> List[Dict[str, Any]]:
         """头部①：系统提示 / Skills / 插件段落 / 摘要，按 `CHUNK_ORDER` 顺序。

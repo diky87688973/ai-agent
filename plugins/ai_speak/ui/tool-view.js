@@ -23,12 +23,10 @@
         addChatToolLayer(row._body, "请求", "req"),
         JSON.stringify(o.args || {}, null, 2)
       );
-      request.title = message(o);
       o.chatToolRes = addChatToolText(
         addChatToolLayer(row._body, "响应", "res"),
         "（等待结果…）"
       );
-      if (row._sum) row._sum.title = message(o);
     },
     fill: function (row, o, ev) {
       if (o.chatToolRes) o.chatToolRes.textContent = chatToolResponseText(o, ev);

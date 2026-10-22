@@ -14,7 +14,7 @@ function atLastTriggerIndexIn(t){var re=/(?:^|\s)@/g,m,last=-1;while((m=re.exec(
 var ICON_MAP={txt:"📄",json:"📋",py:"🐍",java:"☕",html:"🌐",js:"📜",css:"🎨",xml:"📰",yml:"⚙️",yaml:"⚙️",properties:"🔧",sql:"🗄️",md:"📝",jpg:"🖼️",jpeg:"🖼️",png:"🖼️",gif:"🖼️",svg:"🖼️",bmp:"🖼️",xlsx:"📊",xls:"📊",docx:"📃",doc:"📃",pdf:"📕",pptx:"📽️",ppt:"📽️",zip:"📦",rar:"📦",exe:"⚙️",dll:"⚙️",log:"📋",csv:"📊",ts:"📜",tsx:"📜",jsx:"📜",vue:"📜",c:"📄",cpp:"📄",h:"📄",go:"📄",rs:"📄",kt:"📄",swift:"📄"};
 function iconFor(ext){return ICON_MAP[ext]||"📄";}
 async function loadAtDir(path){try{var resp=await fetch("/api/dir-browse?path="+encodeURIComponent(path||""));var data=await resp.json();renderAtList(data);}catch(e){atRestoreSelectPath=null;getAtList().innerHTML='<div class="at-item" style="color:#f66">加载失败: '+e.message+"</div>";}}
-function renderAtList(data){bindAtListDelegation();getAtCurPath().textContent=data.current;getAtCurPath().dataset.parent=data.parent||"";getAtUpBtn().style.display=(!data.parent||data.parent===data.current)?"none":"";getAtList().innerHTML="";atSelectedIndex=-1;data.items.forEach(function(item,idx){var div=document.createElement("div");div.className="at-item"+(item.type==="dir"?" dir":"");div.id="atPop_item_"+idx;div.dataset.idx=idx;div.dataset.type=item.type;div.dataset.path=item.path;if(item.type==="dir")div.title="单击进入子目录；回车插入该目录路径";var icon=item.type==="dir"?"📁":iconFor(item.ext.replace(".",""));div.innerHTML='<span class="at-icon">'+icon+'</span><span class="at-name">'+item.name+"</span>";div.addEventListener("mouseenter",function(){atSelectedIndex=idx;updateAtSelection();});getAtList().appendChild(div);});var pick=0;if(atRestoreSelectPath){var want=atRestoreSelectPath;atRestoreSelectPath=null;for(var rj=0;rj<data.items.length;rj++){if(data.items[rj].type==="dir"&&atNormPath(data.items[rj].path)===atNormPath(want)){pick=rj;break;}}}if(data.items&&data.items.length){atSelectedIndex=pick;updateAtSelection();}}
+function renderAtList(data){bindAtListDelegation();getAtCurPath().textContent=data.current;getAtCurPath().dataset.parent=data.parent||"";getAtUpBtn().style.display=(!data.parent||data.parent===data.current)?"none":"";getAtList().innerHTML="";atSelectedIndex=-1;data.items.forEach(function(item,idx){var div=document.createElement("div");div.className="at-item"+(item.type==="dir"?" dir":"");div.id="atPop_item_"+idx;div.dataset.idx=idx;div.dataset.type=item.type;div.dataset.path=item.path;if(item.type==="dir")div.title="单击进入子目录；回车插入该目录路径";var icon=item.type==="dir"?"📁":iconFor(item.ext.replace(".",""));div.innerHTML='<span class="at-icon">'+icon+'</span><span class="at-name">'+item.name+"</span>";getAtList().appendChild(div);});var pick=0;if(atRestoreSelectPath){var want=atRestoreSelectPath;atRestoreSelectPath=null;for(var rj=0;rj<data.items.length;rj++){if(data.items[rj].type==="dir"&&atNormPath(data.items[rj].path)===atNormPath(want)){pick=rj;break;}}}if(data.items&&data.items.length){atSelectedIndex=pick;updateAtSelection();}}
 function bindAtListDelegation(){
 var list=getAtList();
 if(!list||list._atClickDelegated)return;
@@ -26,6 +26,15 @@ var path=String(item.dataset.path||"");
 if(!path)return;
 if(item.dataset.type==="dir")loadAtDir(path);
 else selectAtFile(path);
+});
+/* 悬停只同步选中项，视觉高亮交给 CSS 的 :hover。
+   这里必须用 mouseover：mouseenter 不冒泡，做不到委托。 */
+list.addEventListener("mouseover",function(ev){
+var item=ev.target&&ev.target.closest?ev.target.closest(".at-item"):null;
+if(!item||!list.contains(item))return;
+var idx=Number(item.dataset.idx);
+if(!isFinite(idx)||idx===atSelectedIndex)return;
+atSelectedIndex=idx;updateAtSelection();
 });
 }
 function updateAtSelection(){var items=getAtList().querySelectorAll(".at-item");items.forEach(function(it,idx){it.classList.toggle("selected",idx===atSelectedIndex);});}

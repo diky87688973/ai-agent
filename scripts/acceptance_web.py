@@ -10,9 +10,9 @@
   ⑤ Markdown 注入防线（浏览器，需 Playwright）：XSS 向量在真实页面上必须被转义；
   ⑥ 设置面板（浏览器，需 Playwright）：分区、插件清单与各编辑器都要真的渲染；
   ⑦ AI说话播放器（浏览器，需 Playwright）：启动脚本注入播放条，插件事件可送达，
-    关闭插件后播放条撤销。
-
-运行：python scripts/acceptance_web.py（全部通过退出码 0；场景 ⑤⑥⑦ 需 Playwright）
+    关闭插件后播放条撤销；
+  ⑧ Todo 清单关闭（浏览器，需 Playwright）：close 后清单 DOM 隐藏。
+运行：python scripts/acceptance_web.py（全部通过退出码 0；场景 ⑤⑥⑦⑧ 需 Playwright）
 """
 from __future__ import annotations
 
@@ -761,7 +761,6 @@ class Acceptance:
         self.check("结构化编辑器无错误状态", not bad, f"状态={status!r}")
         self.check("结构化编辑器无未捕获异常", not errors, f"{errors[:2]}")
 
-
     def scenario_7(self) -> None:
         """AI说话播放器：启动脚本注入、插件事件送达、关闭插件后撤销。"""
         try:
@@ -783,6 +782,8 @@ def main() -> int:
             acc.scenario_5()
             acc.scenario_6()
             acc.scenario_7()
+            from scripts.acceptance_web_todo import run as run_todo_close
+            run_todo_close(acc)
         finally:
             acc.close()
         print()

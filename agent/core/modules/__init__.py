@@ -65,7 +65,7 @@ def build_default_chain(
     model: str = "",
     image_turns: int = KEEP_IMAGE_TURNS,
     image_max: int = MAX_EMBED_IMAGES,
-    mode_note: str = "",
+    mode_note: Any = "",
 ) -> List[ModuleBase]:
     """默认模块链：输入 → 待发送队列插入 → 压缩 → 模型 → 工具。
 

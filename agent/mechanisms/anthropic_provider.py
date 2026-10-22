@@ -33,7 +33,7 @@ from agent.mechanisms.model_provider import (
     _LOG_REQUESTS,
     ModelProvider,
     ModelRequestError,
-    _parse_sse_lines,
+    _stream_with_timeout,
     tool_parameters,
 )
 
@@ -92,7 +92,7 @@ def _upstream_message(body: str) -> str:
 
 
 def _warn(message: str) -> None:
-    """诊断必须留痕（`E3`）：只吞不记等于把配置问题埋掉。"""
+    """诊断必须留痕：只吞不记等于把配置问题埋掉。"""
     print(f"[anthropic_provider] {message}", file=sys.stderr, flush=True)
 
 
@@ -531,15 +531,7 @@ class AnthropicProvider(ModelProvider):
             raise self._http_error(exc.code, body) from exc
         except urllib.error.URLError as exc:
             raise ModelRequestError(f"网络错误：{getattr(exc, 'reason', exc)}") from exc
-        try:
-            lines = (raw.decode("utf-8", errors="replace") for raw in resp)
-            yield from _parse_sse_lines(lines)
-        finally:
-            try:
-                resp.close()
-            except Exception:
-                # 已经拿到流/即将抛出的错误更重要，关闭失败不覆盖它们。
-                pass
+        yield from _stream_with_timeout(resp, self.timeout, label="anthropic")
 
     def stream(self, request: Any) -> Iterator[StreamDelta]:
         if not self.api_key:

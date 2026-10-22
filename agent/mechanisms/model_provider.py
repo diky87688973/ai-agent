@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sys
+import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -124,6 +125,56 @@ def _parse_sse_lines(lines: Iterable[str]) -> Iterator[Dict[str, Any]]:
             continue
         if isinstance(obj, dict):
             yield obj
+
+
+def _stream_with_timeout(
+    resp: Any,
+    timeout: float,
+    *,
+    label: str = "model",
+) -> Iterator[Dict[str, Any]]:
+    """SSE 流总超时：到期关闭响应，避免上游心跳把读取永久拖住。
+
+    传输层只负责把流读干净、把超时抛成 ModelRequestError。日志固定走本模块的
+    标准错误出口，不接受调用方注入——协议适配器不该决定日志去哪。
+    """
+    timed_out = threading.Event()
+
+    def _warn_close(exc: Exception) -> None:
+        """关闭失败必须留痕。定时器线程里不能把异常抛回主线程，只能就地打印。"""
+        print(
+            f"[model_provider] {label} 超时关闭响应流失败："
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr, flush=True,
+        )
+
+    def _expire() -> None:
+        timed_out.set()
+        try:
+            resp.close()
+        except Exception as exc:
+            _warn_close(exc)
+
+    watchdog = threading.Timer(max(0.001, float(timeout)), _expire)
+    watchdog.daemon = True
+    watchdog.start()
+    try:
+        try:
+            lines = (raw.decode("utf-8", errors="replace") for raw in resp)
+            yield from _parse_sse_lines(lines)
+        except Exception as exc:
+            if timed_out.is_set():
+                raise ModelRequestError(f"{label} 模型流超时（{timeout:g}s）") from exc
+            raise
+        if timed_out.is_set():
+            raise ModelRequestError(f"{label} 模型流超时（{timeout:g}s）")
+    finally:
+        watchdog.cancel()
+        try:
+            resp.close()
+        except Exception:
+            # 已经拿到流/即将抛出的错误更重要，关闭失败不覆盖它们。
+            pass
 
 
 def _best_reasoning_field(message: Dict[str, Any]) -> str:
@@ -626,14 +677,7 @@ class OpenAICompatibleProvider(ModelProvider):
             raise self._http_error(exc.code, detail_body) from exc
         except urllib.error.URLError as exc:
             raise ModelRequestError(f"网络错误：{getattr(exc, 'reason', exc)}") from exc
-        try:
-            lines = (raw.decode("utf-8", errors="replace") for raw in resp)
-            yield from _parse_sse_lines(lines)
-        finally:
-            try:
-                resp.close()
-            except Exception:
-                pass
+        yield from _stream_with_timeout(resp, self.timeout, label="openai")
 
     def _http_error(self, status: int, body: str) -> ModelRequestError:
         plain = f"HTTP {status}: {body[:8000]}" if (body or "").strip() else f"HTTP {status}"

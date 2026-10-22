@@ -6,8 +6,11 @@
 """
 from __future__ import annotations
 
+import atexit
 import inspect
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,7 +19,42 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
 from agent.core import event_name as ev  # noqa: E402
+from agent.mechanisms.model_provider import EchoProvider  # noqa: E402
 from agent.shell.ui_bundle import read_ui_js  # noqa: E402
+
+#: 本文件专用的隔离根：替身 provider、空插件清单与独立数据根都落在它下面。
+_ISOLATION_ROOT: "Path | None" = None
+
+
+def _isolation_root() -> Path:
+    """懒建隔离根；进程退出时整目录清掉（一份就够，多个用例复用）。"""
+    global _ISOLATION_ROOT
+    if _ISOLATION_ROOT is None:
+        root = Path(tempfile.mkdtemp(prefix="protocol_contract_"))
+        atexit.register(shutil.rmtree, root, True)
+        (root / "plugins.ini").write_text(
+            "; 空清单：本文件断言内核契约，不装载任何插件\n", encoding="utf-8"
+        )
+        _ISOLATION_ROOT = root
+    return _ISOLATION_ROOT
+
+
+def _isolated_app(**kwargs):
+    """装配一个钉死替身 provider 与空插件清单的 App。
+
+    断言的对象是内核事件词汇表，不是「本机 config.ini 配了什么」。不注入 provider 时
+    装配出的路由会真的访问网络，模型返回内容随实现而变（可能只给思维链不给正文），
+    断言就成了随机的：同一份代码跑三次两次通过一次失败。数据根也钉到隔离根，
+    测试不落工程 `data/`。
+    """
+    root = _isolation_root()
+    return build_app(
+        provider=EchoProvider(),
+        plugins_path=root / "plugins.ini",
+        data_root=root / "data",
+        **kwargs,
+    )
+
 
 # 经典界面曾消费 / 仍需映射表覆盖的事件类型
 FRONTEND_CONSUMED = (
@@ -103,7 +141,7 @@ class KernelEventEmissionTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        app = build_app()
+        app = _isolated_app()
         engine = app.session("probe-events-contract", system_prompt="SYS")
         cls.seen = [e.type for e in engine.start_turn("跑一次工具")]
         cls.app = app
@@ -130,7 +168,7 @@ class KernelEventEmissionTest(unittest.TestCase):
     def test_every_event_carries_conversation_id(self) -> None:
         """单流多路复用依赖每个事件绑定 conversation_id。"""
 
-        app = build_app()
+        app = _isolated_app()
         engine = app.session("probe-cid-binding", system_prompt="SYS")
         events = list(engine.start_turn("你好"))
         self.assertTrue(events)
@@ -142,7 +180,7 @@ class KernelEventEmissionTest(unittest.TestCase):
     def test_event_envelope_is_type_plus_data(self) -> None:
         """载荷为统一信封（type + data），前端 JSON.parse 后按 type 分派。"""
 
-        app = build_app()
+        app = _isolated_app()
         engine = app.session("probe-envelope", system_prompt="SYS")
         for event in engine.start_turn("你好"):
             self.assertIsInstance(event.type, str)
@@ -154,7 +192,7 @@ class AssetReusePolicyTest(unittest.TestCase):
     def test_media_and_markdown_rendering_is_frontend_side(self) -> None:
         """后端载荷不含 HTML——工具结果与事件均为结构化数据。"""
 
-        app = build_app()
+        app = _isolated_app()
         engine = app.session("h006-render", system_prompt="SYS")
         for event in engine.start_turn("你好"):
             data = event.data
@@ -183,7 +221,7 @@ class UiStateContractTest(unittest.TestCase):
     def test_transient_ui_state_is_per_session(self) -> None:
         """模式 / 折叠态归 live_state（按 cid），不落全局单例。"""
 
-        app = build_app()
+        app = _isolated_app()
         app.live_state.set_mode("h010-a", "execute")
         app.live_state.set_todo("h010-a", {"list_id": "L1", "items": [{"text": "x", "done": False}]})
         self.assertEqual(app.live_state.get_mode("h010-a"), "execute")
@@ -212,7 +250,7 @@ class UiStateContractTest(unittest.TestCase):
 class SessionIsolationContractTest(unittest.TestCase):
     """多会话隔离与门控确认按 cid 解析（前端分派契约的后端前提）。"""
     def setUp(self) -> None:
-        self.app = build_app()
+        self.app = _isolated_app()
         self.addCleanup(self.app.session_contexts.close_all)
 
     def test_events_of_two_sessions_carry_distinct_cids(self) -> None:

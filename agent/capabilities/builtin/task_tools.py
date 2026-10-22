@@ -275,21 +275,27 @@ class TodoListTool(ToolPlugin):
         raise ValueError(f"未知 action: {action}")
 
 
+#: 宿主交互能力：Web 壳层当前只支持两段式确认；TTY 宿主接入后再由宿主打开。
+#: 环境判断不能放在模型或工具里，必须由壳层注入。
+INTERACTIVE_UI_ENABLED = False
+
+
 class UserConfirmTool(ToolPlugin):
     """用户分岔确认：两段式信封。"""
 
     name = "user_confirm"
     label = "等待确认"
     icon = "⚠️"
-    description = "向用户发起分岔确认：首段提交 title + confirms 选项（返回待确认信封）；用户确认后携带 confirm 再次调用回填。"
+    description = (
+        "向用户发起分岔确认。首段只用 title + confirms 挂起，等待宿主界面作答；"
+        "宿主回填确认结果后才产生工具结果。模型不得在首段自行传 confirm。"
+    )
     parameters = {
         "title": {"type": "string", "description": "标题（首段必填）"},
         "confirms": {"type": "array", "description": "候选项（首段必填；非空字符串数组）"},
-        "confirm": {"type": "string", "description": "用户确认结果（次段传入）"},
         "multi": {"type": "boolean", "description": "是否支持多选（透传给宿主）"},
         "custom_option_index": {"type": "integer", "description": "自由输入绑定的选项下标（可选）"},
-        "interactive": {"type": "boolean", "description": "TTY 下直接交互解析（默认 false）"},
-        "confirm_id": {"type": "string", "description": "宿主确认单 ID（次段回显）"},
+        # confirm / confirm_id 是宿主回填字段，不在模型可见 schema 中。
     }
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -311,16 +317,9 @@ class UserConfirmTool(ToolPlugin):
         title = str(arguments.get("title") or "").strip()
         if not title:
             raise ValueError("首次发起须提供 title")
-        if bool(arguments.get("interactive", False)):
-            # interactive 只在真 TTY 下有意义。Web / 无头环境下 stdin 不是 TTY，
-            # 若继续走交互分支会以"未读取到用户输入"失败——那是照做不了的错。
-            # 这里给模型一条可执行的指引：改用两段式信封，交互由宿主 UI 完成。
-            if not sys.stdin.isatty():
-                raise ValueError(
-                    "当前环境没有 TTY，interactive 模式不可用；"
-                    "请去掉 interactive，改用两段式信封（首段只传 title + confirms，"
-                    "宿主会把候选项呈现给用户，用户在界面上选择后你会在下一轮拿到结果）"
-                )
+        # 当前壳层没有接入 TTY 交互，固定走两段式。未来由宿主打开该能力，
+        # 不在工具内用 isatty() 猜运行环境。
+        if INTERACTIVE_UI_ENABLED and bool(arguments.get("interactive", False)):
             return {"confirm": _interactive_resolve(title, confirms)}
         raise UserConfirmRequired(
             title,

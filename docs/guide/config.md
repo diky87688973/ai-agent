@@ -63,7 +63,7 @@ Rules 不在这里配：规则文件放在工程根的 `rules/` 目录，由 `pl
 ```ini
 [context]
 summary_token_fallback   = 64000
-full_user_rounds         = 1
+full_user_rounds         = 5
 summary_output_max_chars = 5000
 image_turns              = 1
 image_max                = 8
@@ -73,7 +73,7 @@ reasoning_replay_tokens = 8000
 | 键 | 缺省或留空时 | 含义 | 建议范围 |
 |---|---|---|---|
 | `summary_token_fallback` | `64000` | 仅在当前模型没有声明 `context_window` 时使用的回退压缩阈值；不提供设置页入口 | 正整数 |
-| `full_user_rounds` | `1` | 压缩时保留最近对话轮数：末尾这么多用户轮不压，只压它们前面的 | `1`–`10` |
+| `full_user_rounds` | `5` | 压缩时保留最近对话轮数：末尾这么多用户轮不压，只压它们前面的 | `1`–`10` |
 | `summary_output_max_chars` | `5000` | 摘要的篇幅上限，单位为字。它作为约束写进摘要提示词，实际长度由模型遵守程度决定 | `2000`–`8000` |
 | `image_turns` | `1` | 只把**最近这么多轮用户发言**里的图片带进模型请求，更早的转文本占位。`0` = 一张都不带，负数 = 不限 | 正整数 / 负数 |
 | `image_max` | `8` | 这几轮里最多带几张图；**最近一轮优先保**，超量的从最老的那一轮开始砍。`0` = 一张都不带，负数 = 不限 | 正整数 / 负数 |

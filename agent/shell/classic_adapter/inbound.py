@@ -368,14 +368,22 @@ def _overlay_plugin_segments(app: Any, cid: str,
     items = list(getattr(packed, "items", None) or [])
     counts = list(getattr(packed, "counts", None) or [])
     fresh: List[Dict[str, Any]] = []
+    index_by_group: Dict[Tuple[str, str], int] = {}
     for index, item in enumerate(items):
         key, label, text = item[0], item[1], item[2]
         reported = counts[index] if index < len(counts) else 1
+        group = (f"plugin:{key}", str(label or key))
+        tokens = int(default_message_tokens(
+            {"role": "system", "content": str(text or "")}))
+        pos = index_by_group.get(group)
+        if pos is not None:
+            fresh[pos]["tokens"] = int(fresh[pos]["tokens"]) + tokens
+            continue
+        index_by_group[group] = len(fresh)
         fresh.append({
-            "key": f"plugin:{key}",
-            "label": str(label or key),
-            "tokens": int(default_message_tokens(
-                {"role": "system", "content": str(text or "")})),
+            "key": group[0],
+            "label": group[1],
+            "tokens": tokens,
             "count": int(reported),
         })
     tail_keys = {"summary", "full_recent", "mode"}

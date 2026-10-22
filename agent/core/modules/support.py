@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from agent.core.error_report import report_error
 from agent.core.event_name import (
     INPUT_CLAIMED,
     MODEL_MESSAGE,
@@ -34,6 +35,34 @@ def _prepare_dialogue(dialogue: Any, image_turns: int,
     return prepared
 
 
+_RUNTIME_NOTE_PREFIXES = ("## 当前模式", "## Todo-List")
+
+
+def _strip_runtime_note(messages: Any) -> List[Dict[str, Any]]:
+    """去掉末尾遗留的临时运行态消息，避免重复拼接。"""
+    out = list(messages or [])
+    while out:
+        last = out[-1]
+        if not isinstance(last, dict) or str(last.get("role") or "") != "system":
+            break
+        content = str(last.get("content") or "")
+        if not content.startswith(_RUNTIME_NOTE_PREFIXES):
+            break
+        out.pop()
+    return out
+
+
+def _resolve_runtime_note(value: Any) -> str:
+    """把字符串或每次求值的回调解析成当前运行态文本。"""
+    if callable(value):
+        try:
+            return str(value() or "").strip()
+        except Exception as exc:
+            report_error("core.runtime_note", exc)
+            return ""
+    return str(value or "").strip()
+
+
 def _with_mode_note(messages: Any, mode_note: str) -> List[Dict[str, Any]]:
     """把执行模式说明附加到请求消息的最末尾（不动原列表、不动事实流）。
 
@@ -43,10 +72,13 @@ def _with_mode_note(messages: Any, mode_note: str) -> List[Dict[str, Any]]:
     追加一条独立消息而不是拼进最后一条的正文：最后一条可能是多模态数组
     或工具结果，拼接会改坏它的结构；独立成条也保证"改动只落在尾部"这件事一眼可见。
     """
+    base = _strip_runtime_note(messages)
     note = str(mode_note or "").strip()
     if not note:
-        return list(messages or [])
-    return list(messages or []) + [{"role": "system", "content": note}]
+        return base
+    if base and str(base[-1].get("content") or "") == note:
+        return base
+    return base + [{"role": "system", "content": note}]
 
 
 def _assemble_with(context: Any, dialogue: Any, mode_note: str,
@@ -60,7 +92,7 @@ def _assemble_with(context: Any, dialogue: Any, mode_note: str,
         return None
     if not (hasattr(context, "set_dialogue") and hasattr(context, "assembles")):
         return None
-    context.set_dialogue(dialogue, covered_end=covered_end)
+    context.set_dialogue(_strip_runtime_note(dialogue), covered_end=covered_end)
     note = str(mode_note or "").strip()
     tail = [{"role": "system", "content": note}] if note else []
     return list(context.assembles(tail))

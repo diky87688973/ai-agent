@@ -1600,6 +1600,21 @@ class LayoutWithHead(_Case):
                     ("remaining", "剩余容量", None)],
                    rows)
 
+    def test_same_key_and_label_are_merged_in_layout(self) -> None:
+        """同一插件同一段名的多条消息只显示一行；count 取来源自报总数。"""
+        from agent.mechanisms.context_pipeline import PluginSegments
+        p = ContextPipeline("cid-merge-0001", full_user_rounds=1)
+        p.append_system(SYS)
+        p.set_plugin_segments(PluginSegments(
+            items=[("rules", "Rules", "【规则】甲"), ("rules", "Rules", "【规则】乙")],
+            counts=[2, 1],
+        ))
+        p.set_dialogue(dlg(1), covered_end=0)
+        rows = [r for r in p.segment_tokens() if r["key"] == "plugin:rules"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["count"], 2)
+        self.assertGreater(rows[0]["tokens"], 0)
+
     def test_dialogue_does_not_include_head(self) -> None:
         rows = {s["key"]: s for s in self._layout(dlg(2))["segments"]}
         self.check("对话段计用户轮数", 2, rows["full_recent"]["count"])
@@ -1917,6 +1932,36 @@ class RemainingCapacityTest(unittest.TestCase):
         kb = next(row for row in laid["segments"] if row["key"] == "plugin:knowledge")
         self.assertEqual(kb["count"], 1)
         self.assertGreater(kb["tokens"], 0)
+
+    def test_overlay_merges_same_key_and_label(self) -> None:
+        """刷新时的插件段重算也要按 key+label 合并，不能绕过管线再拆成两行。"""
+        from agent.mechanisms.context_pipeline import ContextSources, SourceMeta
+        from agent.shell.classic_adapter.inbound import _overlay_plugin_segments
+        sources = ContextSources()
+        sources.add(lambda cid: ["甲", "乙"],
+                    SourceMeta(key="rules", label="Rules", count=lambda cid: 2))
+
+        class _App:
+            context_sources = sources
+            @staticmethod
+            def compactor_factory(_cid):
+                class _Compactor:
+                    summary_token_threshold = 100000
+                return _Compactor()
+
+        payload = {
+            "segments": [
+                {"key": "system", "label": "系统提示词", "tokens": 10, "count": 1},
+                {"key": "remaining", "label": "剩余容量", "tokens": 0},
+            ],
+            "total_tokens": 10,
+            "budget_tokens": 100000,
+        }
+        out = _overlay_plugin_segments(_App(), "cid-overlay-rules", payload)
+        rows = [r for r in out["segments"] if r["key"] == "plugin:rules"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["count"], 2)
+        self.assertGreater(rows[0]["tokens"], 0)
 
     def test_rescale_falls_back_when_budget_unknown(self) -> None:
         """拿不到预算时按"已用"归一（不再更差），段序与字段不变。"""

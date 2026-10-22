@@ -75,3 +75,6 @@ scripts/retired/
 
 # 本地草稿（图标目录预览等，不入库）
 scripts/_icon_catalog.html
+
+# 本地私有规则（规则插件仍会注入，但不随仓库分发）
+rules/_PRIVATE_RULE.md

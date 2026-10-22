@@ -411,7 +411,7 @@ class App:
         *,
         system_prompt: str = "",
         cancel: Optional[Callable[[], bool]] = None,
-        mode_note: str = "",
+        mode_note: Any = "",
     ) -> Any:
         """创建会话引擎：装载既有记录（store 可用时）、装配上下文与持久化旁路。
 
@@ -489,7 +489,7 @@ class App:
             image_turns=self.image_turns,
             image_max=self.image_max,
             max_passes=self.max_passes,
-            mode_note=str(mode_note or ""),
+            mode_note=mode_note,
             event_sink=self.event_bus.publish if self.event_bus is not None else None,
             session_context=session_ctx,
             seq_allocator=seq_allocator,
@@ -542,6 +542,7 @@ def build_app(
     plugins_path: Optional[Path] = None,
     compactor_factory: Optional[Callable[[str], Any]] = None,
     config_ready: Optional[bool] = None,
+    data_root: Optional[Path] = None,
 ) -> App:
     """组装底座：默认 Echo 假模型；可选真实 provider / 存储 / 上下文工厂。
 
@@ -553,10 +554,14 @@ def build_app(
     plugins_dir：插件根目录；默认 PROJECT_ROOT/plugins。装载哪些取工程根 plugins.ini 清单。
     plugins_path：插件清单文件；默认工程根 plugins.ini。给一个不存在的路径即"不装插件"（验收脚本与测试用它排除环境里的开发配置）。
     compactor_factory：上下文压缩器工厂；默认为对话提供 provider 摘要 + config [context] 阈值。
-    config_ready：是否有显式注入的可用 provider；None = 由 provider 参数判定。"""
-    # 默认数据根：认 `AI_AGENT_DATA_ROOT`（只给测试/CI 的落盘隔离口）——
+    config_ready：是否有显式注入的可用 provider；None = 由 provider 参数判定。
+    data_root：队列 / 协作网格 / 插件数据 / 错误日志的落盘根。显式传入优先，
+        否则认 `AI_AGENT_DATA_ROOT`（进程级隔离口），再否则 `PROJECT_ROOT/data`。
+        测试必须传它：只靠环境变量的话，绕开 `scripts/ci.py` 直跑 unittest
+        会漏进工程 `data/`（队列项就是这么攒下来的）。"""
+    # 默认数据根：显式注入 > `AI_AGENT_DATA_ROOT` > `PROJECT_ROOT/data`——
     # 见 `config.default_data_root` 的说明。
-    data_root = default_data_root()
+    data_root = Path(data_root) if data_root is not None else default_data_root()
     backup_dir = data_root / "temp" / "file_backup"
     recycle_dir = data_root / "recycle"
     backups = FileBackups(Path(backup_root) if backup_root is not None else backup_dir)

@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1702** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1762** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -11,7 +11,7 @@
 1. [test_ai_speak_plugin.py](#test_ai_speak_pluginpy)（4）
 2. [test_ai_speak_runtime.py](#test_ai_speak_runtimepy)（24）
 3. [test_ai_speak_text.py](#test_ai_speak_textpy)（30）
-4. [test_anthropic_provider.py](#test_anthropic_providerpy)（29）
+4. [test_anthropic_provider.py](#test_anthropic_providerpy)（30）
 5. [test_app_context.py](#test_app_contextpy)（11）
 6. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
 7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（11）
@@ -23,9 +23,9 @@
 13. [test_classic_adapter.py](#test_classic_adapterpy)（103）
 14. [test_command_tools.py](#test_command_toolspy)（30）
 15. [test_concurrency.py](#test_concurrencypy)（11）
-16. [test_context_assembly.py](#test_context_assemblypy)（184）
+16. [test_context_assembly.py](#test_context_assemblypy)（186）
 17. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
-18. [test_context_dump.py](#test_context_dumppy)（2）
+18. [test_context_dump.py](#test_context_dumppy)（3）
 19. [test_context_pipeline.py](#test_context_pipelinepy)（18）
 20. [test_context_plumbing.py](#test_context_plumbingpy)（5）
 21. [test_context_splice.py](#test_context_splicepy)（9）
@@ -50,9 +50,9 @@
 40. [test_invest_tools.py](#test_invest_toolspy)（29）
 41. [test_kb_plugin.py](#test_kb_pluginpy)（49）
 42. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-43. [test_mode_note.py](#test_mode_notepy)（12）
+43. [test_mode_note.py](#test_mode_notepy)（13）
 44. [test_model_catalog.py](#test_model_catalogpy)（23）
-45. [test_model_provider.py](#test_model_providerpy)（38）
+45. [test_model_provider.py](#test_model_providerpy)（39）
 46. [test_model_window.py](#test_model_windowpy)（14）
 47. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
 48. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
@@ -71,7 +71,7 @@
 61. [test_resume_bridge.py](#test_resume_bridgepy)（6）
 62. [test_rules_plugin.py](#test_rules_pluginpy)（12）
 63. [test_run_registry.py](#test_run_registrypy)（13）
-64. [test_scan_js_events.py](#test_scan_js_eventspy)（2）
+64. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
 65. [test_session_context.py](#test_session_contextpy)（22）
 66. [test_session_seq.py](#test_session_seqpy)（23）
 67. [test_session_store.py](#test_session_storepy)（17）
@@ -79,7 +79,7 @@
 69. [test_settings_panel.py](#test_settings_panelpy)（19）
 70. [test_source_snapshot.py](#test_source_snapshotpy)（10）
 71. [test_task_tools.py](#test_task_toolspy)（29）
-72. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+72. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
 73. [test_tool_registry.py](#test_tool_registrypy)（17）
 74. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
 75. [test_usage_metrics.py](#test_usage_metricspy)（7）
@@ -173,7 +173,7 @@
 
 ## test_anthropic_provider.py
 
-共 29 个用例。
+共 30 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -182,30 +182,31 @@
 | 3 | `EndpointAndErrorTest` | `test_messages_url_variants` | 覆盖「A class whose instances are single test cases」：messages url variants |
 | 4 | `EndpointAndErrorTest` | `test_missing_credentials_fail_before_any_network_call` | 覆盖「A class whose instances are single test cases」：missing credentials fail before any network call |
 | 5 | `EndpointAndErrorTest` | `test_stream_posts_headers_and_payload_then_parses_sse` | 覆盖「A class whose instances are single test cases」：stream posts headers and payload then parses sse |
-| 6 | `MessageConversionTest` | `test_assistant_tool_calls_become_tool_use_blocks` | 覆盖「A class whose instances are single test cases」：assistant tool calls become tool use blocks |
-| 7 | `MessageConversionTest` | `test_consecutive_tool_results_merge_into_one_user_message` | 覆盖「A class whose instances are single test cases」：consecutive tool results merge into one user message |
-| 8 | `MessageConversionTest` | `test_dangling_tool_result_is_dropped` | 覆盖「A class whose instances are single test cases」：dangling tool result is dropped |
-| 9 | `MessageConversionTest` | `test_disabled_thinking_does_not_replay_stored_blocks` | 思考关闭时不带 thinking 块：官方端点会拒“思考未开启却带块”。 |
-| 10 | `MessageConversionTest` | `test_duplicate_tool_ids_are_suffixed_and_results_follow` | 覆盖「A class whose instances are single test cases」：duplicate tool ids are suffixed and results follow |
-| 11 | `MessageConversionTest` | `test_image_urls_are_split_into_image_blocks` | 覆盖「A class whose instances are single test cases」：image urls are split into image blocks |
-| 12 | `MessageConversionTest` | `test_leading_assistant_is_dropped` | 覆盖「A class whose instances are single test cases」：leading assistant is dropped |
-| 13 | `MessageConversionTest` | `test_logic_shaped_tool_becomes_a_valid_object_schema` | `ToolRegistry.schemas()` 给的是属性映射，必须包装成 object schema。 |
-| 14 | `MessageConversionTest` | `test_system_is_hoisted_and_user_text_becomes_a_block` | 覆盖「A class whose instances are single test cases」：system is hoisted and user text becomes a block |
-| 15 | `MessageConversionTest` | `test_thinking_block_with_empty_text_is_still_replayed` | 正文为空、签名在的思考块也要回传。 |
-| 16 | `MessageConversionTest` | `test_thinking_blocks_replay_only_within_the_current_turn` | 覆盖「A class whose instances are single test cases」：thinking blocks replay only within the current turn |
-| 17 | `MessageConversionTest` | `test_thinking_is_enabled_only_when_the_budget_fits` | 覆盖「A class whose instances are single test cases」：thinking is enabled only when the budget fits |
-| 18 | `MessageConversionTest` | `test_thinking_off_is_sent_as_disabled_not_omitted` | 覆盖「A class whose instances are single test cases」：thinking off is sent as disabled not omitted |
-| 19 | `MessageConversionTest` | `test_tool_turn_without_thinking_blocks_disables_thinking` | 历史工具轮丢了 thinking 块就补不回来，本轮只能关掉思考，否则必被拒。 |
-| 20 | `MessageConversionTest` | `test_tools_payload_accepts_both_declaration_shapes` | 覆盖「A class whose instances are single test cases」：tools payload accepts both declaration shapes |
-| 21 | `StreamAssemblyTest` | `test_cache_fields_default_to_zero_when_absent` | 覆盖「A class whose instances are single test cases」：cache fields default to zero when absent |
-| 22 | `StreamAssemblyTest` | `test_error_event_becomes_model_request_error` | 覆盖「A class whose instances are single test cases」：error event becomes model request error |
-| 23 | `StreamAssemblyTest` | `test_invalid_tool_json_degrades_to_empty_arguments` | 覆盖「A class whose instances are single test cases」：invalid tool json degrades to empty arguments |
-| 24 | `StreamAssemblyTest` | `test_meta_is_emitted_only_when_thinking_and_tools_coexist` | 覆盖「A class whose instances are single test cases」：meta is emitted only when thinking and tools coexist |
-| 25 | `StreamAssemblyTest` | `test_missing_tool_id_gets_a_generated_one` | 覆盖「A class whose instances are single test cases」：missing tool id gets a generated one |
-| 26 | `StreamAssemblyTest` | `test_ping_and_unknown_events_are_ignored` | 覆盖「A class whose instances are single test cases」：ping and unknown events are ignored |
-| 27 | `StreamAssemblyTest` | `test_text_deltas_stream_through_and_usage_is_mapped` | 覆盖「A class whose instances are single test cases」：text deltas stream through and usage is mapped |
-| 28 | `StreamAssemblyTest` | `test_thinking_and_tool_use_are_reassembled` | 覆盖「A class whose instances are single test cases」：thinking and tool use are reassembled |
-| 29 | `StreamAssemblyTest` | `test_thinking_without_signature_is_skipped_with_a_warning` | 覆盖「A class whose instances are single test cases」：thinking without signature is skipped with a warning |
+| 6 | `EndpointAndErrorTest` | `test_stream_watchdog_stops_a_stalled_upstream` | 覆盖「A class whose instances are single test cases」：stream watchdog stops a stalled upstream |
+| 7 | `MessageConversionTest` | `test_assistant_tool_calls_become_tool_use_blocks` | 覆盖「A class whose instances are single test cases」：assistant tool calls become tool use blocks |
+| 8 | `MessageConversionTest` | `test_consecutive_tool_results_merge_into_one_user_message` | 覆盖「A class whose instances are single test cases」：consecutive tool results merge into one user message |
+| 9 | `MessageConversionTest` | `test_dangling_tool_result_is_dropped` | 覆盖「A class whose instances are single test cases」：dangling tool result is dropped |
+| 10 | `MessageConversionTest` | `test_disabled_thinking_does_not_replay_stored_blocks` | 思考关闭时不带 thinking 块：官方端点会拒“思考未开启却带块”。 |
+| 11 | `MessageConversionTest` | `test_duplicate_tool_ids_are_suffixed_and_results_follow` | 覆盖「A class whose instances are single test cases」：duplicate tool ids are suffixed and results follow |
+| 12 | `MessageConversionTest` | `test_image_urls_are_split_into_image_blocks` | 覆盖「A class whose instances are single test cases」：image urls are split into image blocks |
+| 13 | `MessageConversionTest` | `test_leading_assistant_is_dropped` | 覆盖「A class whose instances are single test cases」：leading assistant is dropped |
+| 14 | `MessageConversionTest` | `test_logic_shaped_tool_becomes_a_valid_object_schema` | `ToolRegistry.schemas()` 给的是属性映射，必须包装成 object schema。 |
+| 15 | `MessageConversionTest` | `test_system_is_hoisted_and_user_text_becomes_a_block` | 覆盖「A class whose instances are single test cases」：system is hoisted and user text becomes a block |
+| 16 | `MessageConversionTest` | `test_thinking_block_with_empty_text_is_still_replayed` | 正文为空、签名在的思考块也要回传。 |
+| 17 | `MessageConversionTest` | `test_thinking_blocks_replay_only_within_the_current_turn` | 覆盖「A class whose instances are single test cases」：thinking blocks replay only within the current turn |
+| 18 | `MessageConversionTest` | `test_thinking_is_enabled_only_when_the_budget_fits` | 覆盖「A class whose instances are single test cases」：thinking is enabled only when the budget fits |
+| 19 | `MessageConversionTest` | `test_thinking_off_is_sent_as_disabled_not_omitted` | 覆盖「A class whose instances are single test cases」：thinking off is sent as disabled not omitted |
+| 20 | `MessageConversionTest` | `test_tool_turn_without_thinking_blocks_disables_thinking` | 历史工具轮丢了 thinking 块就补不回来，本轮只能关掉思考，否则必被拒。 |
+| 21 | `MessageConversionTest` | `test_tools_payload_accepts_both_declaration_shapes` | 覆盖「A class whose instances are single test cases」：tools payload accepts both declaration shapes |
+| 22 | `StreamAssemblyTest` | `test_cache_fields_default_to_zero_when_absent` | 覆盖「A class whose instances are single test cases」：cache fields default to zero when absent |
+| 23 | `StreamAssemblyTest` | `test_error_event_becomes_model_request_error` | 覆盖「A class whose instances are single test cases」：error event becomes model request error |
+| 24 | `StreamAssemblyTest` | `test_invalid_tool_json_degrades_to_empty_arguments` | 覆盖「A class whose instances are single test cases」：invalid tool json degrades to empty arguments |
+| 25 | `StreamAssemblyTest` | `test_meta_is_emitted_only_when_thinking_and_tools_coexist` | 覆盖「A class whose instances are single test cases」：meta is emitted only when thinking and tools coexist |
+| 26 | `StreamAssemblyTest` | `test_missing_tool_id_gets_a_generated_one` | 覆盖「A class whose instances are single test cases」：missing tool id gets a generated one |
+| 27 | `StreamAssemblyTest` | `test_ping_and_unknown_events_are_ignored` | 覆盖「A class whose instances are single test cases」：ping and unknown events are ignored |
+| 28 | `StreamAssemblyTest` | `test_text_deltas_stream_through_and_usage_is_mapped` | 覆盖「A class whose instances are single test cases」：text deltas stream through and usage is mapped |
+| 29 | `StreamAssemblyTest` | `test_thinking_and_tool_use_are_reassembled` | 覆盖「A class whose instances are single test cases」：thinking and tool use are reassembled |
+| 30 | `StreamAssemblyTest` | `test_thinking_without_signature_is_skipped_with_a_warning` | 覆盖「A class whose instances are single test cases」：thinking without signature is skipped with a warning |
 
 ## test_app_context.py
 
@@ -557,7 +558,7 @@
 
 ## test_context_assembly.py
 
-共 184 个用例。
+共 186 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -641,110 +642,112 @@
 | 78 | `LayoutWithHead` | `test_dialogue_does_not_include_head` | 覆盖「兜底带装配出来的头部：能分清 Skills / 知识库 / 摘要」：dialogue does not include head |
 | 79 | `LayoutWithHead` | `test_mode_splits_from_dialogue` | 覆盖「兜底带装配出来的头部：能分清 Skills / 知识库 / 摘要」：mode splits from dialogue |
 | 80 | `LayoutWithHead` | `test_plugin_segments_are_one_row_each` | 同一插件两段各成一行，段名与数量都按描述来。 |
-| 81 | `LayoutWithHead` | `test_total_equals_sum_without_remaining` | 覆盖「兜底带装配出来的头部：能分清 Skills / 知识库 / 摘要」：total equals sum without remaining |
-| 82 | `LayoutWithHead` | `test_without_head_falls_back_to_position` | 不传 head：只能按位置猜，插件段落一律归到摘要之后的那一堆。 |
-| 83 | `MaskIsHard` | `test_excerpt_never_touches_the_masked_tail` | 覆盖「遮盖的轮一律原样保留；压缩只在它前面发生」：excerpt never touches the masked tail |
-| 84 | `MaskIsHard` | `test_excerpt_starts_at_zero` | 覆盖「遮盖的轮一律原样保留；压缩只在它前面发生」：excerpt starts at zero |
-| 85 | `MaskIsHard` | `test_region_excludes_every_system_message` | 压缩区域落在对话段里，一条 system 都不含。 |
-| 86 | `MaskIsHard` | `test_region_tool_chain_closed` | 覆盖「遮盖的轮一律原样保留；压缩只在它前面发生」：region tool chain closed |
-| 87 | `MaskIsHard` | `test_single_turn_is_compressed_when_nothing_else_can_be` | 只有 1 轮：遮盖前面没东西可压 → 连它一起压（压到 0 轮）。 |
-| 88 | `MaskSurvivesOverflow` | `test_mask_invariant_over_random_shapes` | 随机形态：任何一次压缩之后，被遮盖的轮数必须 ≥ 配置值。 |
-| 89 | `MaskSurvivesOverflow` | `test_masked_last_turn_stays_when_it_is_huge` | 核心：末尾那一轮自己就吃满预算，仍然不许压它。 |
-| 90 | `MaskSurvivesOverflow` | `test_only_masked_turns_still_get_compressed` | 只有被遮盖的轮 → 连它一起压（压不动就是超上限失败）。 |
-| 91 | `MaskSurvivesOverflow` | `test_reserve_two_keeps_two_turns` | 覆盖「内层管线：超阈值时遮盖仍然不被压」：reserve two keeps two turns |
-| 92 | `MaskSurvivesOverflow` | `test_reserve_zero_means_no_mask` | 覆盖「内层管线：超阈值时遮盖仍然不被压」：reserve zero means no mask |
-| 93 | `OrdinaryRequestNeverRewritesHistory` | `test_adding_a_turn_does_not_touch_earlier_messages` | 加一轮 → 前缀逐字节不变（只有末尾多出来）。 |
-| 94 | `OrdinaryRequestNeverRewritesHistory` | `test_compression_only_drops_a_prefix` | 压缩之后对话段 = 原序列的一个后缀（不是被改写过的版本）。 |
-| 95 | `OrdinaryRequestNeverRewritesHistory` | `test_tool_traffic_survives_set_dialogue` | 覆盖「普通请求只做追加：已发过的消息逐字节不变（改中间一条 = 缓存从那里起全废）」：tool traffic survives set dialogue |
-| 96 | `PluginSegmentCountAlignmentTest` | `test_collect_segments_counts_match_items` | 覆盖「段与自报数量必须逐条对齐：错位是静默的，只在浮层上显示成离谱的数字」：collect segments counts match items |
-| 97 | `PluginSegmentCountAlignmentTest` | `test_missing_reported_count_falls_back_to_one` | 覆盖「段与自报数量必须逐条对齐：错位是静默的，只在浮层上显示成离谱的数字」：missing reported count falls back to one |
-| 98 | `PluginSegmentCountAlignmentTest` | `test_short_count_table_does_not_borrow_neighbours` | 数量表比来源表短时，多出来的段按自身条数算，不拿别的段的数字。 |
-| 99 | `PluginSegmentsImmutableTest` | `test_assignment_is_rejected` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：assignment is rejected |
-| 100 | `PluginSegmentsImmutableTest` | `test_containers_are_tuples` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：containers are tuples |
-| 101 | `PluginSegmentsImmutableTest` | `test_source_lists_are_copied` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：source lists are copied |
-| 102 | `PluginSegmentsImmutableTest` | `test_tuple_containers_reject_mutation` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：tuple containers reject mutation |
-| 103 | `PluginSegmentsImmutableTest` | `test_wrong_arity_is_rejected_loudly` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：wrong arity is rejected loudly |
-| 104 | `RandomShapeInvariants` | `test_compaction_range_never_splits_a_turn` | ① 压缩区间首尾都必须落在用户轮边界上。 |
-| 105 | `RandomShapeInvariants` | `test_compaction_range_tool_chain_always_closed` | ② 压缩区间内的工具链必须闭合（否则切出残链）。 |
-| 106 | `ReasoningReplayBudgetTest` | `test_config_default_matches_constant` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：config default matches constant |
-| 107 | `ReasoningReplayBudgetTest` | `test_dialogue_segment_uses_the_budget` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：dialogue segment uses the budget |
-| 108 | `ReasoningReplayBudgetTest` | `test_messages_clip_does_not_mutate_input` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：messages clip does not mutate input |
-| 109 | `ReasoningReplayBudgetTest` | `test_negative_keeps_everything` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：negative keeps everything |
-| 110 | `ReasoningReplayBudgetTest` | `test_positive_keeps_both_ends_and_marks_the_gap` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：positive keeps both ends and marks the gap |
-| 111 | `ReasoningReplayBudgetTest` | `test_short_text_untouched` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：short text untouched |
-| 112 | `ReasoningReplayBudgetTest` | `test_zero_drops_everything` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：zero drops everything |
-| 113 | `RemainingCapacityTest` | `test_budget_zero_would_make_remaining_zero` | 不传预算（= 老装配点的行为）剩余容量就是 0 —— 这条守着别再退回去。 |
-| 114 | `RemainingCapacityTest` | `test_old_snapshot_is_rescaled_on_read` | 事件里那份 `budget=已用` 的旧快照，渲染时按当前预算补正。 |
-| 115 | `RemainingCapacityTest` | `test_rescale_falls_back_when_budget_unknown` | 拿不到预算时按"已用"归一（不再更差），段序与字段不变。 |
-| 116 | `RemainingCapacityTest` | `test_snapshot_carries_the_budget` | 覆盖「「剩余容量」按压缩阈值算，不是按"已用"算 —— 否则界面那条永远是 0%」：snapshot carries the budget |
-| 117 | `SegmentCountSemantics` | `test_dialogue_counts_user_turns_not_messages` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：dialogue counts user turns not messages |
-| 118 | `SegmentCountSemantics` | `test_layout_from_messages_counts_turns_too` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：layout from messages counts turns too |
-| 119 | `SegmentCountSemantics` | `test_system_prompt_counts_messages` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：system prompt counts messages |
-| 120 | `SegmentFieldParity` | `test_both_paths_expose_the_same_fields` | 覆盖「分段快照（内核事件）与兜底重算（适配层）必须给同一套字段」：both paths expose the same fields |
-| 121 | `SegmentFieldParity` | `test_layout_event_forwards_every_field` | 适配层转发分段事件时不筛字段（白名单漏一个 = 前端少一样东西）。 |
-| 122 | `SegmentKeysAndCounts` | `test_keys_and_labels` | 覆盖「段 key 与数量口径：插件段一律 `plugin:<插件名>`」：keys and labels |
-| 123 | `SegmentKeysAndCounts` | `test_plugin_may_declare_more_than_one_segment` | 同一插件两段：数量按位置对上，不会互相覆盖。 |
-| 124 | `SegmentOrderMatchesAssembly` | `test_header_order_is_system_plugins_summary` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：header order is system plugins summary |
-| 125 | `SegmentOrderMatchesAssembly` | `test_layout_payload_keeps_the_same_order` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：layout payload keeps the same order |
-| 126 | `SegmentOrderMatchesAssembly` | `test_segment_order_matches_header_order` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：segment order matches header order |
-| 127 | `SegmentOrderMatchesAssembly` | `test_summary_sits_before_dialogue` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：summary sits before dialogue |
-| 128 | `SegmentTokens` | `test_dialogue_split_into_two_segments` | 覆盖「逐段统计与段名」：dialogue split into two segments |
-| 129 | `SegmentTokens` | `test_segments_sum_equals_assembled_total` | 关键一致性：分段之和 == 装配出来的消息总量（同估算器）。 |
-| 130 | `SegmentTokens` | `test_summary_segment_counts_both_summaries` | 覆盖「逐段统计与段名」：summary segment counts both summaries |
-| 131 | `SegmentTokens` | `test_system_segment_matches_its_message` | 覆盖「逐段统计与段名」：system segment matches its message |
-| 132 | `SkillInjectionIntoRequest` | `test_empty_segments_leave_head_empty` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：empty segments leave head empty |
-| 133 | `SkillInjectionIntoRequest` | `test_plugin_segments_are_not_duplicated_across_passes` | `set_plugin_segments` 是整体重建：多跑几趟不会累积。 |
-| 134 | `SkillInjectionIntoRequest` | `test_plugin_segments_sit_after_system_prompt` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：plugin segments sit after system prompt |
-| 135 | `SkillInjectionIntoRequest` | `test_plugin_segments_used_by_compaction_request` | 插件段落属头部：压缩请求必须带上同一份。 |
-| 136 | `SkillInjectionIntoRequest` | `test_segment_stats_follow_the_plugin` | 分段统计里两段都挂在插件名下，段名与数量由插件给。 |
-| 137 | `SkillInjectionIntoRequest` | `test_summary_sits_after_plugin_segments` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：summary sits after plugin segments |
-| 138 | `SkillProgressiveDisclosure` | `test_auto_load_empty_when_no_auto_load_dir` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load empty when no auto load dir |
-| 139 | `SkillProgressiveDisclosure` | `test_auto_load_excludes_normal_skills` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load excludes normal skills |
-| 140 | `SkillProgressiveDisclosure` | `test_auto_load_messages_carry_bodies` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load messages carry bodies |
-| 141 | `SkillProgressiveDisclosure` | `test_registry_excludes_auto_load_skill` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry excludes auto load skill |
-| 142 | `SkillProgressiveDisclosure` | `test_registry_excludes_skill_bodies` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry excludes skill bodies |
-| 143 | `SkillProgressiveDisclosure` | `test_registry_is_absent_when_no_skills` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry is absent when no skills |
-| 144 | `SkillProgressiveDisclosure` | `test_registry_lists_names_and_descriptions` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry lists names and descriptions |
-| 145 | `SkillProgressiveDisclosure` | `test_skillsr_lists_normal_skills_only` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：skillsr lists normal skills only |
-| 146 | `SourceOrderDeclaration` | `test_kernel_pipeline_follows_the_same_order` | 真管线：Skills 两段 → 知识库 → 摘要 → 对话。 |
-| 147 | `SourceOrderDeclaration` | `test_no_rank_sorts_last` | 没有位次的（应用级来源，不属于任何插件）排在插件段之后。 |
-| 148 | `SourceOrderDeclaration` | `test_rank_beats_registration` | 先注册知识库（位次 1）、后注册 Skills（位次 0），组装仍是 Skills 在前。 |
-| 149 | `SourceOrderDeclaration` | `test_same_rank_keeps_registration_order` | 覆盖「注入源的组装顺序：插件段按插件清单位次排，注册先后不影响结果」：same rank keeps registration order |
-| 150 | `StripRules` | `test_empty` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty |
-| 151 | `StripRules` | `test_empty_mode_note_and_no_marker` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty mode note and no marker |
-| 152 | `StripRules` | `test_kb_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：kb never stripped |
-| 153 | `StripRules` | `test_mode_in_the_middle_untouched` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode in the middle untouched |
-| 154 | `StripRules` | `test_mode_removed_by_exact_text` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by exact text |
-| 155 | `StripRules` | `test_mode_removed_by_marker_fallback` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by marker fallback |
-| 156 | `StripRules` | `test_new_input_removed_before_mode` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed before mode |
-| 157 | `StripRules` | `test_new_input_removed_when_last` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed when last |
-| 158 | `StripRules` | `test_non_dict_entry` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：non dict entry |
-| 159 | `StripRules` | `test_only_last_user_removed` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：only last user removed |
-| 160 | `StripRules` | `test_previous_reply_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：previous reply is kept |
-| 161 | `StripRules` | `test_summary_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：summary never stripped |
-| 162 | `StripRules` | `test_system_prompt_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：system prompt never stripped |
-| 163 | `StripRules` | `test_tool_result_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：tool result is kept |
-| 164 | `StripRules` | `test_two_trailing_systems_both_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：two trailing systems both stripped |
-| 165 | `TailShape` | `test_mode_is_last` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is last |
-| 166 | `TailShape` | `test_mode_is_system_role` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is system role |
-| 167 | `TailShape` | `test_mode_swap_changes_only_the_last_entry` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode swap changes only the last entry |
-| 168 | `TailShape` | `test_mode_text_is_exact` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode text is exact |
-| 169 | `TailShape` | `test_neither` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：neither |
-| 170 | `TailShape` | `test_new_input_is_user_role` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：new input is user role |
-| 171 | `TailShape` | `test_no_mode_means_input_is_last` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：no mode means input is last |
-| 172 | `TailShape` | `test_no_new_input_means_mode_follows_dialogue` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：no new input means mode follows dialogue |
-| 173 | `TailShape` | `test_plan_mode_text_is_exact` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：plan mode text is exact |
-| 174 | `TailShape` | `test_tool_result_tail` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：tool result tail |
-| 175 | `TurnAtomicity` | `test_floor_before_first_user` | 覆盖「轮边界的定位与向下取整」：floor before first user |
-| 176 | `TurnAtomicity` | `test_floor_beyond_end` | 覆盖「轮边界的定位与向下取整」：floor beyond end |
-| 177 | `TurnAtomicity` | `test_floor_inside_turn_goes_back` | 覆盖「轮边界的定位与向下取整」：floor inside turn goes back |
-| 178 | `TurnAtomicity` | `test_floor_on_boundary_is_identity` | 覆盖「轮边界的定位与向下取整」：floor on boundary is identity |
-| 179 | `TurnAtomicity` | `test_is_boundary` | 覆盖「轮边界的定位与向下取整」：is boundary |
-| 180 | `TurnAtomicity` | `test_tool_chain_balanced_missing_result` | 覆盖「轮边界的定位与向下取整」：tool chain balanced missing result |
-| 181 | `TurnAtomicity` | `test_tool_chain_balanced_ok` | 覆盖「轮边界的定位与向下取整」：tool chain balanced ok |
-| 182 | `TurnAtomicity` | `test_tool_chain_balanced_orphan_result` | 覆盖「轮边界的定位与向下取整」：tool chain balanced orphan result |
-| 183 | `TurnAtomicity` | `test_turn_spans` | 覆盖「轮边界的定位与向下取整」：turn spans |
-| 184 | `TurnAtomicity` | `test_turn_starts` | 覆盖「轮边界的定位与向下取整」：turn starts |
+| 81 | `LayoutWithHead` | `test_same_key_and_label_are_merged_in_layout` | 同一插件同一段名的多条消息只显示一行；count 取来源自报总数。 |
+| 82 | `LayoutWithHead` | `test_total_equals_sum_without_remaining` | 覆盖「兜底带装配出来的头部：能分清 Skills / 知识库 / 摘要」：total equals sum without remaining |
+| 83 | `LayoutWithHead` | `test_without_head_falls_back_to_position` | 不传 head：只能按位置猜，插件段落一律归到摘要之后的那一堆。 |
+| 84 | `MaskIsHard` | `test_excerpt_never_touches_the_masked_tail` | 覆盖「遮盖的轮一律原样保留；压缩只在它前面发生」：excerpt never touches the masked tail |
+| 85 | `MaskIsHard` | `test_excerpt_starts_at_zero` | 覆盖「遮盖的轮一律原样保留；压缩只在它前面发生」：excerpt starts at zero |
+| 86 | `MaskIsHard` | `test_region_excludes_every_system_message` | 压缩区域落在对话段里，一条 system 都不含。 |
+| 87 | `MaskIsHard` | `test_region_tool_chain_closed` | 覆盖「遮盖的轮一律原样保留；压缩只在它前面发生」：region tool chain closed |
+| 88 | `MaskIsHard` | `test_single_turn_is_compressed_when_nothing_else_can_be` | 只有 1 轮：遮盖前面没东西可压 → 连它一起压（压到 0 轮）。 |
+| 89 | `MaskSurvivesOverflow` | `test_mask_invariant_over_random_shapes` | 随机形态：任何一次压缩之后，被遮盖的轮数必须 ≥ 配置值。 |
+| 90 | `MaskSurvivesOverflow` | `test_masked_last_turn_stays_when_it_is_huge` | 核心：末尾那一轮自己就吃满预算，仍然不许压它。 |
+| 91 | `MaskSurvivesOverflow` | `test_only_masked_turns_still_get_compressed` | 只有被遮盖的轮 → 连它一起压（压不动就是超上限失败）。 |
+| 92 | `MaskSurvivesOverflow` | `test_reserve_two_keeps_two_turns` | 覆盖「内层管线：超阈值时遮盖仍然不被压」：reserve two keeps two turns |
+| 93 | `MaskSurvivesOverflow` | `test_reserve_zero_means_no_mask` | 覆盖「内层管线：超阈值时遮盖仍然不被压」：reserve zero means no mask |
+| 94 | `OrdinaryRequestNeverRewritesHistory` | `test_adding_a_turn_does_not_touch_earlier_messages` | 加一轮 → 前缀逐字节不变（只有末尾多出来）。 |
+| 95 | `OrdinaryRequestNeverRewritesHistory` | `test_compression_only_drops_a_prefix` | 压缩之后对话段 = 原序列的一个后缀（不是被改写过的版本）。 |
+| 96 | `OrdinaryRequestNeverRewritesHistory` | `test_tool_traffic_survives_set_dialogue` | 覆盖「普通请求只做追加：已发过的消息逐字节不变（改中间一条 = 缓存从那里起全废）」：tool traffic survives set dialogue |
+| 97 | `PluginSegmentCountAlignmentTest` | `test_collect_segments_counts_match_items` | 覆盖「段与自报数量必须逐条对齐：错位是静默的，只在浮层上显示成离谱的数字」：collect segments counts match items |
+| 98 | `PluginSegmentCountAlignmentTest` | `test_missing_reported_count_falls_back_to_one` | 覆盖「段与自报数量必须逐条对齐：错位是静默的，只在浮层上显示成离谱的数字」：missing reported count falls back to one |
+| 99 | `PluginSegmentCountAlignmentTest` | `test_short_count_table_does_not_borrow_neighbours` | 数量表比来源表短时，多出来的段按自身条数算，不拿别的段的数字。 |
+| 100 | `PluginSegmentsImmutableTest` | `test_assignment_is_rejected` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：assignment is rejected |
+| 101 | `PluginSegmentsImmutableTest` | `test_containers_are_tuples` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：containers are tuples |
+| 102 | `PluginSegmentsImmutableTest` | `test_source_lists_are_copied` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：source lists are copied |
+| 103 | `PluginSegmentsImmutableTest` | `test_tuple_containers_reject_mutation` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：tuple containers reject mutation |
+| 104 | `PluginSegmentsImmutableTest` | `test_wrong_arity_is_rejected_loudly` | 覆盖「B1：`PluginSegments` 入口即冻结（传 list 也存成 tuple，改原列表不…」：wrong arity is rejected loudly |
+| 105 | `RandomShapeInvariants` | `test_compaction_range_never_splits_a_turn` | ① 压缩区间首尾都必须落在用户轮边界上。 |
+| 106 | `RandomShapeInvariants` | `test_compaction_range_tool_chain_always_closed` | ② 压缩区间内的工具链必须闭合（否则切出残链）。 |
+| 107 | `ReasoningReplayBudgetTest` | `test_config_default_matches_constant` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：config default matches constant |
+| 108 | `ReasoningReplayBudgetTest` | `test_dialogue_segment_uses_the_budget` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：dialogue segment uses the budget |
+| 109 | `ReasoningReplayBudgetTest` | `test_messages_clip_does_not_mutate_input` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：messages clip does not mutate input |
+| 110 | `ReasoningReplayBudgetTest` | `test_negative_keeps_everything` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：negative keeps everything |
+| 111 | `ReasoningReplayBudgetTest` | `test_positive_keeps_both_ends_and_marks_the_gap` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：positive keeps both ends and marks the gap |
+| 112 | `ReasoningReplayBudgetTest` | `test_short_text_untouched` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：short text untouched |
+| 113 | `ReasoningReplayBudgetTest` | `test_zero_drops_everything` | 覆盖「思维链回传预算：三种取值的行为与统计口径」：zero drops everything |
+| 114 | `RemainingCapacityTest` | `test_budget_zero_would_make_remaining_zero` | 不传预算（= 老装配点的行为）剩余容量就是 0 —— 这条守着别再退回去。 |
+| 115 | `RemainingCapacityTest` | `test_old_snapshot_is_rescaled_on_read` | 事件里那份 `budget=已用` 的旧快照，渲染时按当前预算补正。 |
+| 116 | `RemainingCapacityTest` | `test_overlay_merges_same_key_and_label` | 刷新时的插件段重算也要按 key+label 合并，不能绕过管线再拆成两行。 |
+| 117 | `RemainingCapacityTest` | `test_rescale_falls_back_when_budget_unknown` | 拿不到预算时按"已用"归一（不再更差），段序与字段不变。 |
+| 118 | `RemainingCapacityTest` | `test_snapshot_carries_the_budget` | 覆盖「「剩余容量」按压缩阈值算，不是按"已用"算 —— 否则界面那条永远是 0%」：snapshot carries the budget |
+| 119 | `SegmentCountSemantics` | `test_dialogue_counts_user_turns_not_messages` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：dialogue counts user turns not messages |
+| 120 | `SegmentCountSemantics` | `test_layout_from_messages_counts_turns_too` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：layout from messages counts turns too |
+| 121 | `SegmentCountSemantics` | `test_system_prompt_counts_messages` | 覆盖「`count` 的计「个」口径按段定：头部按 system 条数，对话按用户轮数」：system prompt counts messages |
+| 122 | `SegmentFieldParity` | `test_both_paths_expose_the_same_fields` | 覆盖「分段快照（内核事件）与兜底重算（适配层）必须给同一套字段」：both paths expose the same fields |
+| 123 | `SegmentFieldParity` | `test_layout_event_forwards_every_field` | 适配层转发分段事件时不筛字段（白名单漏一个 = 前端少一样东西）。 |
+| 124 | `SegmentKeysAndCounts` | `test_keys_and_labels` | 覆盖「段 key 与数量口径：插件段一律 `plugin:<插件名>`」：keys and labels |
+| 125 | `SegmentKeysAndCounts` | `test_plugin_may_declare_more_than_one_segment` | 同一插件两段：数量按位置对上，不会互相覆盖。 |
+| 126 | `SegmentOrderMatchesAssembly` | `test_header_order_is_system_plugins_summary` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：header order is system plugins summary |
+| 127 | `SegmentOrderMatchesAssembly` | `test_layout_payload_keeps_the_same_order` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：layout payload keeps the same order |
+| 128 | `SegmentOrderMatchesAssembly` | `test_segment_order_matches_header_order` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：segment order matches header order |
+| 129 | `SegmentOrderMatchesAssembly` | `test_summary_sits_before_dialogue` | 覆盖「分层顺序必须逐条对齐装配顺序 —— 前端就按这个顺序画」：summary sits before dialogue |
+| 130 | `SegmentTokens` | `test_dialogue_split_into_two_segments` | 覆盖「逐段统计与段名」：dialogue split into two segments |
+| 131 | `SegmentTokens` | `test_segments_sum_equals_assembled_total` | 关键一致性：分段之和 == 装配出来的消息总量（同估算器）。 |
+| 132 | `SegmentTokens` | `test_summary_segment_counts_both_summaries` | 覆盖「逐段统计与段名」：summary segment counts both summaries |
+| 133 | `SegmentTokens` | `test_system_segment_matches_its_message` | 覆盖「逐段统计与段名」：system segment matches its message |
+| 134 | `SkillInjectionIntoRequest` | `test_empty_segments_leave_head_empty` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：empty segments leave head empty |
+| 135 | `SkillInjectionIntoRequest` | `test_plugin_segments_are_not_duplicated_across_passes` | `set_plugin_segments` 是整体重建：多跑几趟不会累积。 |
+| 136 | `SkillInjectionIntoRequest` | `test_plugin_segments_sit_after_system_prompt` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：plugin segments sit after system prompt |
+| 137 | `SkillInjectionIntoRequest` | `test_plugin_segments_used_by_compaction_request` | 插件段落属头部：压缩请求必须带上同一份。 |
+| 138 | `SkillInjectionIntoRequest` | `test_segment_stats_follow_the_plugin` | 分段统计里两段都挂在插件名下，段名与数量由插件给。 |
+| 139 | `SkillInjectionIntoRequest` | `test_summary_sits_after_plugin_segments` | 覆盖「Skills 作为插件段落注入：顺序、压缩请求同源、整体重建」：summary sits after plugin segments |
+| 140 | `SkillProgressiveDisclosure` | `test_auto_load_empty_when_no_auto_load_dir` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load empty when no auto load dir |
+| 141 | `SkillProgressiveDisclosure` | `test_auto_load_excludes_normal_skills` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load excludes normal skills |
+| 142 | `SkillProgressiveDisclosure` | `test_auto_load_messages_carry_bodies` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：auto load messages carry bodies |
+| 143 | `SkillProgressiveDisclosure` | `test_registry_excludes_auto_load_skill` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry excludes auto load skill |
+| 144 | `SkillProgressiveDisclosure` | `test_registry_excludes_skill_bodies` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry excludes skill bodies |
+| 145 | `SkillProgressiveDisclosure` | `test_registry_is_absent_when_no_skills` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry is absent when no skills |
+| 146 | `SkillProgressiveDisclosure` | `test_registry_lists_names_and_descriptions` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：registry lists names and descriptions |
+| 147 | `SkillProgressiveDisclosure` | `test_skillsr_lists_normal_skills_only` | 覆盖「清单只给名字 + 描述；常驻 Skills 给正文；普通 Skills 正文不进上下文」：skillsr lists normal skills only |
+| 148 | `SourceOrderDeclaration` | `test_kernel_pipeline_follows_the_same_order` | 真管线：Skills 两段 → 知识库 → 摘要 → 对话。 |
+| 149 | `SourceOrderDeclaration` | `test_no_rank_sorts_last` | 没有位次的（应用级来源，不属于任何插件）排在插件段之后。 |
+| 150 | `SourceOrderDeclaration` | `test_rank_beats_registration` | 先注册知识库（位次 1）、后注册 Skills（位次 0），组装仍是 Skills 在前。 |
+| 151 | `SourceOrderDeclaration` | `test_same_rank_keeps_registration_order` | 覆盖「注入源的组装顺序：插件段按插件清单位次排，注册先后不影响结果」：same rank keeps registration order |
+| 152 | `StripRules` | `test_empty` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty |
+| 153 | `StripRules` | `test_empty_mode_note_and_no_marker` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty mode note and no marker |
+| 154 | `StripRules` | `test_kb_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：kb never stripped |
+| 155 | `StripRules` | `test_mode_in_the_middle_untouched` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode in the middle untouched |
+| 156 | `StripRules` | `test_mode_removed_by_exact_text` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by exact text |
+| 157 | `StripRules` | `test_mode_removed_by_marker_fallback` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by marker fallback |
+| 158 | `StripRules` | `test_new_input_removed_before_mode` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed before mode |
+| 159 | `StripRules` | `test_new_input_removed_when_last` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed when last |
+| 160 | `StripRules` | `test_non_dict_entry` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：non dict entry |
+| 161 | `StripRules` | `test_only_last_user_removed` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：only last user removed |
+| 162 | `StripRules` | `test_previous_reply_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：previous reply is kept |
+| 163 | `StripRules` | `test_summary_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：summary never stripped |
+| 164 | `StripRules` | `test_system_prompt_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：system prompt never stripped |
+| 165 | `StripRules` | `test_tool_result_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：tool result is kept |
+| 166 | `StripRules` | `test_two_trailing_systems_both_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：two trailing systems both stripped |
+| 167 | `TailShape` | `test_mode_is_last` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is last |
+| 168 | `TailShape` | `test_mode_is_system_role` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is system role |
+| 169 | `TailShape` | `test_mode_swap_changes_only_the_last_entry` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode swap changes only the last entry |
+| 170 | `TailShape` | `test_mode_text_is_exact` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode text is exact |
+| 171 | `TailShape` | `test_neither` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：neither |
+| 172 | `TailShape` | `test_new_input_is_user_role` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：new input is user role |
+| 173 | `TailShape` | `test_no_mode_means_input_is_last` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：no mode means input is last |
+| 174 | `TailShape` | `test_no_new_input_means_mode_follows_dialogue` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：no new input means mode follows dialogue |
+| 175 | `TailShape` | `test_plan_mode_text_is_exact` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：plan mode text is exact |
+| 176 | `TailShape` | `test_tool_result_tail` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：tool result tail |
+| 177 | `TurnAtomicity` | `test_floor_before_first_user` | 覆盖「轮边界的定位与向下取整」：floor before first user |
+| 178 | `TurnAtomicity` | `test_floor_beyond_end` | 覆盖「轮边界的定位与向下取整」：floor beyond end |
+| 179 | `TurnAtomicity` | `test_floor_inside_turn_goes_back` | 覆盖「轮边界的定位与向下取整」：floor inside turn goes back |
+| 180 | `TurnAtomicity` | `test_floor_on_boundary_is_identity` | 覆盖「轮边界的定位与向下取整」：floor on boundary is identity |
+| 181 | `TurnAtomicity` | `test_is_boundary` | 覆盖「轮边界的定位与向下取整」：is boundary |
+| 182 | `TurnAtomicity` | `test_tool_chain_balanced_missing_result` | 覆盖「轮边界的定位与向下取整」：tool chain balanced missing result |
+| 183 | `TurnAtomicity` | `test_tool_chain_balanced_ok` | 覆盖「轮边界的定位与向下取整」：tool chain balanced ok |
+| 184 | `TurnAtomicity` | `test_tool_chain_balanced_orphan_result` | 覆盖「轮边界的定位与向下取整」：tool chain balanced orphan result |
+| 185 | `TurnAtomicity` | `test_turn_spans` | 覆盖「轮边界的定位与向下取整」：turn spans |
+| 186 | `TurnAtomicity` | `test_turn_starts` | 覆盖「轮边界的定位与向下取整」：turn starts |
 
 ## test_context_config_wiring.py
 
@@ -758,12 +761,13 @@
 
 ## test_context_dump.py
 
-共 2 个用例。
+共 3 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `ContextDumpTest` | `test_missing_conversation_is_an_error` | 覆盖「A class whose instances are single test cases」：missing conversation is an error |
-| 2 | `ContextDumpTest` | `test_snapshot_uses_real_assembly_and_does_not_call_model` | 覆盖「A class whose instances are single test cases」：snapshot uses real assembly and does not call model |
+| 2 | `ContextDumpTest` | `test_snapshot_reports_todo_progress_when_list_exists` | 覆盖「A class whose instances are single test cases」：snapshot reports todo progress when list exists |
+| 3 | `ContextDumpTest` | `test_snapshot_uses_real_assembly_and_does_not_call_model` | 覆盖「A class whose instances are single test cases」：snapshot uses real assembly and does not call model |
 
 ## test_context_pipeline.py
 
@@ -1318,22 +1322,23 @@
 
 ## test_mode_note.py
 
-共 12 个用例。
+共 13 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `ModeIsNotPersistedTest` | `test_mode_note_is_system_role` | 模式说明不是用户发言：控制台里它不该被当成用户消息。 |
 | 2 | `ModeIsNotPersistedTest` | `test_no_event_carries_the_mode_note` | 覆盖「模式说明只存在于发给模型的那一份：不落记录、不发事件」：no event carries the mode note |
 | 3 | `ModeTailShapeTest` | `test_empty_note_changes_nothing` | 覆盖「模式说明是请求的最后一条，且不改动别处」：empty note changes nothing |
-| 4 | `ModeTailShapeTest` | `test_input_list_is_not_mutated` | 覆盖「模式说明是请求的最后一条，且不改动别处」：input list is not mutated |
-| 5 | `ModeTailShapeTest` | `test_note_is_appended_last` | 覆盖「模式说明是请求的最后一条，且不改动别处」：note is appended last |
-| 6 | `ModeTailShapeTest` | `test_note_works_after_multimodal_tail` | 最后一条是多模态数组时也必须能附加（不能拼坏它的结构）。 |
-| 7 | `ModeTailShapeTest` | `test_switching_mode_changes_only_the_tail` | 覆盖「模式说明是请求的最后一条，且不改动别处」：switching mode changes only the tail |
-| 8 | `SystemPromptHasNoModeTest` | `test_explicit_system_prompt_gets_no_note` | 调用方自己给的系统提示：模式怎么表达由他决定，不另加。 |
-| 9 | `SystemPromptHasNoModeTest` | `test_mode_note_still_differs_per_mode` | 覆盖「模式段必须从系统提示词里出去」：mode note still differs per mode |
-| 10 | `SystemPromptHasNoModeTest` | `test_resolved_system_prompt_has_no_mode` | 覆盖「模式段必须从系统提示词里出去」：resolved system prompt has no mode |
-| 11 | `SystemPromptHasNoModeTest` | `test_split_helper_drops_the_mode_section` | 覆盖「模式段必须从系统提示词里出去」：split helper drops the mode section |
-| 12 | `SystemPromptHasNoModeTest` | `test_switching_mode_keeps_system_prompt_byte_identical` | 覆盖「模式段必须从系统提示词里出去」：switching mode keeps system prompt byte identical |
+| 4 | `ModeTailShapeTest` | `test_existing_runtime_tail_is_replaced_not_duplicated` | 同一上下文再次装配时，旧临时尾条要被替换，不能叠成两条。 |
+| 5 | `ModeTailShapeTest` | `test_input_list_is_not_mutated` | 覆盖「模式说明是请求的最后一条，且不改动别处」：input list is not mutated |
+| 6 | `ModeTailShapeTest` | `test_note_is_appended_last` | 覆盖「模式说明是请求的最后一条，且不改动别处」：note is appended last |
+| 7 | `ModeTailShapeTest` | `test_note_works_after_multimodal_tail` | 最后一条是多模态数组时也必须能附加（不能拼坏它的结构）。 |
+| 8 | `ModeTailShapeTest` | `test_switching_mode_changes_only_the_tail` | 覆盖「模式说明是请求的最后一条，且不改动别处」：switching mode changes only the tail |
+| 9 | `SystemPromptHasNoModeTest` | `test_explicit_system_prompt_gets_no_note` | 调用方自己给的系统提示：模式怎么表达由他决定，不另加。 |
+| 10 | `SystemPromptHasNoModeTest` | `test_mode_note_still_differs_per_mode` | 覆盖「模式段必须从系统提示词里出去」：mode note still differs per mode |
+| 11 | `SystemPromptHasNoModeTest` | `test_resolved_system_prompt_has_no_mode` | 覆盖「模式段必须从系统提示词里出去」：resolved system prompt has no mode |
+| 12 | `SystemPromptHasNoModeTest` | `test_split_helper_drops_the_mode_section` | 覆盖「模式段必须从系统提示词里出去」：split helper drops the mode section |
+| 13 | `SystemPromptHasNoModeTest` | `test_switching_mode_keeps_system_prompt_byte_identical` | 覆盖「模式段必须从系统提示词里出去」：switching mode keeps system prompt byte identical |
 
 ## test_model_catalog.py
 
@@ -1367,7 +1372,7 @@
 
 ## test_model_provider.py
 
-共 38 个用例。
+共 39 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1384,31 +1389,32 @@
 | 11 | `CatalogAuthorityAtAssemblyTest` | `test_catalog_entries_become_the_model_list` | 覆盖「插件目录一旦权威，装配末尾就把模型清单与路由策略换成目录的」：catalog entries become the model list |
 | 12 | `ImagesAlwaysReachTheWireTest` | `test_image_block_survives_into_the_payload` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：image block survives into the payload |
 | 13 | `ImagesAlwaysReachTheWireTest` | `test_plain_text_message_is_untouched` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：plain text message is untouched |
-| 14 | `ReasonNotReplayedTest` | `test_cut_clears_the_content_but_keeps_the_key_for_tool_messages` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：cut clears the content but keeps the key for tool messages |
-| 15 | `ReasonNotReplayedTest` | `test_cut_none_keeps_everything` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：cut none keeps everything |
-| 16 | `ReasonNotReplayedTest` | `test_original_messages_are_not_mutated` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：original messages are not mutated |
-| 17 | `ReasonNotReplayedTest` | `test_plain_assistant_before_the_cut_drops_the_key` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：plain assistant before the cut drops the key |
-| 18 | `ReasonNotReplayedTest` | `test_provider_passes_the_boundary_and_defaults_to_stripping` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：provider passes the boundary and defaults to stripping |
-| 19 | `ReasonNotReplayedTest` | `test_tool_calls_survive_the_cut` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：tool calls survive the cut |
-| 20 | `ReasonNotReplayedTest` | `test_tool_message_without_reasoning_gets_an_empty_key` | 没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。 |
-| 21 | `RequestLevelModelTest` | `test_effort_still_reaches_the_wire` | 推理档位照常透传到请求载荷。 |
-| 22 | `RequestLevelModelTest` | `test_empty_request_model_falls_back_to_instance_default` | 空串 = 不指定 ⇒ 用实例默认模型，既有调用方行为不变。 |
-| 23 | `RequestLevelModelTest` | `test_local_model_check_is_per_requested_model` | 本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。 |
-| 24 | `RequestLevelModelTest` | `test_request_model_wins_over_instance_default` | 覆盖「A class whose instances are single test cases」：request model wins over instance default |
-| 25 | `RequestLevelModelTest` | `test_whitespace_is_treated_as_unspecified` | 覆盖「A class whose instances are single test cases」：whitespace is treated as unspecified |
-| 26 | `SessionModelSelectionTest` | `test_choice_survives_a_new_process` | 换一个 LiveState 实例（= 换进程）后选择仍在 —— 靠落盘，不靠内存。 |
-| 27 | `SessionModelSelectionTest` | `test_empty_clears_the_choice` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：empty clears the choice |
-| 28 | `SessionModelSelectionTest` | `test_read_only_is_never_used` | 只读会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。 |
-| 29 | `SessionModelSelectionTest` | `test_select_then_read_back` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：select then read back |
-| 30 | `SessionStateFileTest` | `test_closing_todo_does_not_wipe_the_model` | `close` 只清清单：写盘前必须读回其余分量，否则会覆盖模型。 |
-| 31 | `SessionStateFileTest` | `test_every_component_survives_a_new_process` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：every component survives a new process |
-| 32 | `SessionStateFileTest` | `test_file_nests_todo_and_keeps_state_flat` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：file nests todo and keeps state flat |
-| 33 | `SessionStateFileTest` | `test_stale_flat_file_is_ignored` | 只认嵌套结构：平铺把清单字段写在顶层的文件不算会话状态。 |
-| 34 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：model module marks turn start |
-| 35 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：port default keeps everything |
-| 36 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
-| 37 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
-| 38 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
+| 14 | `ProviderStreamTimeoutTest` | `test_openai_stream_timeout_is_bounded` | 覆盖「A class whose instances are single test cases」：openai stream timeout is bounded |
+| 15 | `ReasonNotReplayedTest` | `test_cut_clears_the_content_but_keeps_the_key_for_tool_messages` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：cut clears the content but keeps the key for tool messages |
+| 16 | `ReasonNotReplayedTest` | `test_cut_none_keeps_everything` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：cut none keeps everything |
+| 17 | `ReasonNotReplayedTest` | `test_original_messages_are_not_mutated` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：original messages are not mutated |
+| 18 | `ReasonNotReplayedTest` | `test_plain_assistant_before_the_cut_drops_the_key` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：plain assistant before the cut drops the key |
+| 19 | `ReasonNotReplayedTest` | `test_provider_passes_the_boundary_and_defaults_to_stripping` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：provider passes the boundary and defaults to stripping |
+| 20 | `ReasonNotReplayedTest` | `test_tool_calls_survive_the_cut` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token」：tool calls survive the cut |
+| 21 | `ReasonNotReplayedTest` | `test_tool_message_without_reasoning_gets_an_empty_key` | 没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。 |
+| 22 | `RequestLevelModelTest` | `test_effort_still_reaches_the_wire` | 推理档位照常透传到请求载荷。 |
+| 23 | `RequestLevelModelTest` | `test_empty_request_model_falls_back_to_instance_default` | 空串 = 不指定 ⇒ 用实例默认模型，既有调用方行为不变。 |
+| 24 | `RequestLevelModelTest` | `test_local_model_check_is_per_requested_model` | 本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。 |
+| 25 | `RequestLevelModelTest` | `test_request_model_wins_over_instance_default` | 覆盖「A class whose instances are single test cases」：request model wins over instance default |
+| 26 | `RequestLevelModelTest` | `test_whitespace_is_treated_as_unspecified` | 覆盖「A class whose instances are single test cases」：whitespace is treated as unspecified |
+| 27 | `SessionModelSelectionTest` | `test_choice_survives_a_new_process` | 换一个 LiveState 实例（= 换进程）后选择仍在 —— 靠落盘，不靠内存。 |
+| 28 | `SessionModelSelectionTest` | `test_empty_clears_the_choice` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：empty clears the choice |
+| 29 | `SessionModelSelectionTest` | `test_read_only_is_never_used` | 只读会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。 |
+| 30 | `SessionModelSelectionTest` | `test_select_then_read_back` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：select then read back |
+| 31 | `SessionStateFileTest` | `test_closing_todo_does_not_wipe_the_model` | `close` 只清清单：写盘前必须读回其余分量，否则会覆盖模型。 |
+| 32 | `SessionStateFileTest` | `test_every_component_survives_a_new_process` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：every component survives a new process |
+| 33 | `SessionStateFileTest` | `test_file_nests_todo_and_keeps_state_flat` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：file nests todo and keeps state flat |
+| 34 | `SessionStateFileTest` | `test_stale_flat_file_is_ignored` | 只认嵌套结构：平铺把清单字段写在顶层的文件不算会话状态。 |
+| 35 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：model module marks turn start |
+| 36 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本轮起点"标出来，provider 才有裁的依据」：port default keeps everything |
+| 37 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
+| 38 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
+| 39 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
 
 ## test_model_window.py
 
@@ -1787,12 +1793,64 @@
 
 ## test_scan_js_events.py
 
-共 2 个用例。
+共 54 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ScanJsEventsTest` | `test_collects_add_listener_property_and_delegation` | 覆盖「A class whose instances are single test cases」：collects add listener property and delegation |
-| 2 | `ScanJsEventsTest` | `test_collects_inline_html_and_renders_report` | 覆盖「A class whose instances are single test cases」：collects inline html and renders report |
+| 1 | `ArrowAnonymousTest` | `test_arrow_callback_is_anonymous` | 覆盖「第 2 条：箭头回调也算匿名，否则全局监听的泄漏会被降级」：arrow callback is anonymous |
+| 2 | `ArrowAnonymousTest` | `test_arrow_global_listener_in_render_fn_is_leak_risk` | 覆盖「第 2 条：箭头回调也算匿名，否则全局监听的泄漏会被降级」：arrow global listener in render fn is leak risk |
+| 3 | `ArrowAnonymousTest` | `test_async_arrow_callback_is_anonymous` | 覆盖「第 2 条：箭头回调也算匿名，否则全局监听的泄漏会被降级」：async arrow callback is anonymous |
+| 4 | `ArrowAnonymousTest` | `test_named_handler_reference_is_not_anonymous` | 负向：具名函数引用可以摘除，不算匿名。 |
+| 5 | `ArrowAnonymousTest` | `test_paren_arrow_callback_is_anonymous` | 覆盖「第 2 条：箭头回调也算匿名，否则全局监听的泄漏会被降级」：paren arrow callback is anonymous |
+| 6 | `ArrowRenderFnTest` | `test_arrow_assigned_non_render_fn_is_not_render` | 负向：非渲染名的箭头函数不该被当成渲染路径。 |
+| 7 | `ArrowRenderFnTest` | `test_arrow_assigned_render_fn_is_named` | 覆盖「第 3 条：箭头函数赋值也要认成具名函数」：arrow assigned render fn is named |
+| 8 | `ArrowRenderFnTest` | `test_expression_body_arrow_has_no_span` | 负向：表达式体箭头没有块体，不该吞掉后面的代码。 |
+| 9 | `CollectTest` | `test_collects_add_listener_property_and_delegation` | 覆盖「A class whose instances are single test cases」：collects add listener property and delegation |
+| 10 | `CollectTest` | `test_collects_inline_html_and_renders_report` | 覆盖「A class whose instances are single test cases」：collects inline html and renders report |
+| 11 | `CollectTest` | `test_property_assignment_matches_camel_case` | `onMouseDown` 这类大写事件名也要认，不能只匹配 `on[a-z]+`。 |
+| 12 | `CommentTest` | `test_bindings_inside_comments_are_ignored` | 注释里的示例代码不是绑定——块注释与行内 `//` 都不算。 |
+| 13 | `CommentTest` | `test_double_slash_inside_string_is_not_a_comment` | URL 里的 `//` 不得把后面的代码当成注释吞掉。 |
+| 14 | `DelegateScopeTest` | `test_current_target_contains_is_delegation` | 覆盖「第 5 条：contains 只在事件对象上才算委托」：current target contains is delegation |
+| 15 | `DelegateScopeTest` | `test_event_target_closest_is_delegation` | 覆盖「第 5 条：contains 只在事件对象上才算委托」：event target closest is delegation |
+| 16 | `DelegateScopeTest` | `test_unrelated_contains_is_not_delegation` | 覆盖「第 5 条：contains 只在事件对象上才算委托」：unrelated contains is not delegation |
+| 17 | `EphemeralTest` | `test_bare_assignment_is_recognised` | 模块级申明、函数内懒赋值（无 var 前缀）也要认出来。 |
+| 18 | `EphemeralTest` | `test_create_element_and_factory_count_as_new_node` | `createElement` 与本项目 `el()` 工厂都算新建节点。 |
+| 19 | `EphemeralTest` | `test_lookup_wins_over_create` | 取节点的函数优先：`getXxx()` 指向已有容器，内部用 createElement 也不算新节点。 |
+| 20 | `EphemeralTest` | `test_new_node_binding_is_excluded_as_ephemeral` | 覆盖「A class whose instances are single test cases」：new node binding is excluded as ephemeral |
+| 21 | `GuardTest` | `test_container_delegation_in_render_fn_is_not_render_path` | 容器根委托写在渲染函数里也是正确写法，不该报可能累积。 |
+| 22 | `GuardTest` | `test_existing_guard_marker_is_recognised` | 项目既有的 `_xxxDelegated` 惯例要被认出来，不能与可疑项同形。 |
+| 23 | `LeakRiskTest` | `test_anonymous_callback_is_not_paired` | 覆盖「A class whose instances are single test cases」：anonymous callback is not paired |
+| 24 | `LeakRiskTest` | `test_anonymous_global_listener_in_render_fn_is_leak_risk` | 覆盖「A class whose instances are single test cases」：anonymous global listener in render fn is leak risk |
+| 25 | `LeakRiskTest` | `test_capture_mismatch_is_not_paired` | 覆盖「A class whose instances are single test cases」：capture mismatch is not paired |
+| 26 | `LeakRiskTest` | `test_different_callback_is_not_paired` | 覆盖「A class whose instances are single test cases」：different callback is not paired |
+| 27 | `LeakRiskTest` | `test_module_level_global_listener_is_not_leak_risk` | 模块级只绑一次，不是泄漏——负向用例，防止判准退回旧版。 |
+| 28 | `LeakRiskTest` | `test_paired_remove_clears_leak_risk` | 同文件、同目标、同事件、同回调、同 capture 才清除泄漏。 |
+| 29 | `LoopBodyTest` | `test_binding_after_for_header_is_not_loop` | 负向：循环体结束之后的绑定不算循环内。 |
+| 30 | `LoopBodyTest` | `test_create_element_inside_for_is_per_item` | 目标随节点新建也不能顶掉循环内这个结论。 |
+| 31 | `LoopBodyTest` | `test_for_in_body_counts_as_loop` | 覆盖「第 1、4 条：语句式循环的循环体必须进 span，光配平头部括号不够」：for in body counts as loop |
+| 32 | `LoopBodyTest` | `test_for_loop_body_counts_as_loop` | 覆盖「第 1、4 条：语句式循环的循环体必须进 span，光配平头部括号不够」：for loop body counts as loop |
+| 33 | `LoopBodyTest` | `test_for_of_body_counts_as_loop` | 覆盖「第 1、4 条：语句式循环的循环体必须进 span，光配平头部括号不够」：for of body counts as loop |
+| 34 | `LoopBodyTest` | `test_while_loop_body_counts_as_loop` | 覆盖「第 1、4 条：语句式循环的循环体必须进 span，光配平头部括号不够」：while loop body counts as loop |
+| 35 | `LoopVerdictTest` | `test_binding_after_loop_is_not_per_item` | 循环结束后的绑定不算逐项绑——按花括号配平判，不按缩进或行序。 |
+| 36 | `LoopVerdictTest` | `test_binding_inside_loop_is_per_item` | 覆盖「A class whose instances are single test cases」：binding inside loop is per item |
+| 37 | `NamedGlobalListenerTest` | `test_named_global_listener_at_module_level_is_global_once` | 负向：模块级只绑一次，具名与否都不算泄漏。 |
+| 38 | `NamedGlobalListenerTest` | `test_named_global_listener_in_render_fn_is_leak_risk` | 覆盖「具名回调只代表「能摘除」，不代表「已摘除」」：named global listener in render fn is leak risk |
+| 39 | `NamedGlobalListenerTest` | `test_named_global_listener_with_remove_is_global_once` | 负向：真摘了就不算泄漏。 |
+| 40 | `NestedRenderContextTest` | `test_binding_in_nested_fn_inside_render_is_render_path` | 覆盖「渲染上下文看整条函数链：绑定写在内层小函数里，外层重建一样会反复安装」：binding in nested fn inside render is render path |
+| 41 | `NestedRenderContextTest` | `test_binding_in_nested_fn_outside_render_is_not_render_path` | 负向：外层不叫渲染名时，不能因为嵌套就报渲染路径。 |
+| 42 | `ObjectMethodRenderTest` | `test_control_flow_header_is_not_a_method` | 负向：`if(...){` 这类语句头不能被当成对象方法。 |
+| 43 | `ObjectMethodRenderTest` | `test_function_valued_object_method_is_named` | 覆盖「对象方法两种写法都要认成具名函数」：function valued object method is named |
+| 44 | `ObjectMethodRenderTest` | `test_shorthand_object_method_is_named` | 覆盖「对象方法两种写法都要认成具名函数」：shorthand object method is named |
+| 45 | `PairedRemoveTest` | `test_different_event_remove_keeps_leak_risk` | 负向：同目标但事件名不同，不算配对。 |
+| 46 | `PairedRemoveTest` | `test_other_element_remove_keeps_leak_risk` | 覆盖「第 6 条：摘除要同目标同事件，别的元素摘同名事件不解绑这一个」：other element remove keeps leak risk |
+| 47 | `PairedRemoveTest` | `test_same_target_remove_clears_leak_risk` | 覆盖「第 6 条：摘除要同目标同事件，别的元素摘同名事件不解绑这一个」：same target remove clears leak risk |
+| 48 | `ReadGuideTest` | `test_read_guide_counts_match_constants` | 覆盖「第 10 条：文案里的类别数要和常量一致，不靠手写」：read guide counts match constants |
+| 49 | `RenderOutputTest` | `test_clean_input_reports_nothing_to_review` | 覆盖「A class whose instances are single test cases」：clean input reports nothing to review |
+| 50 | `RenderOutputTest` | `test_report_states_intent_and_read_guide` | 输出本身要写明初衷与读法，换一个会话说不用翻文档也懂。 |
+| 51 | `ScopeVerdictTest` | `test_global_container_element_are_distinguished` | 绑全局 / 容器根+closest / 元素自身，是三种不同结论。 |
+| 52 | `StringBracketTest` | `test_string_with_paren_does_not_truncate_callback` | 覆盖「第 7 条：配平要跳过字符串，否则回调会被提前截断」：string with paren does not truncate callback |
+| 53 | `StringBracketTest` | `test_string_with_paren_keeps_handler_detection` | 负向对照：字符串里的括号不得让具名回调被误判成匿名。 |
+| 54 | `StringBracketTest` | `test_template_literal_with_braces_is_skipped` | 覆盖「第 7 条：配平要跳过字符串，否则回调会被提前截断」：template literal with braces is skipped |
 
 ## test_session_context.py
 
@@ -1976,13 +2034,13 @@
 | 24 | `TodoListTest` | `test_persistence_tolerance_and_cid_defense` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：persistence tolerance and cid defense |
 | 25 | `UserConfirmTest` | `test_confirm_roundtrip` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：confirm roundtrip |
 | 26 | `UserConfirmTest` | `test_envelope_still_works_without_tty` | 无 TTY 时不给 interactive，必须照常返回待确认信封（宿主 UI 负责交互）。 |
-| 27 | `UserConfirmTest` | `test_interactive_without_tty_gives_actionable_error` | 无 TTY 时 interactive 必须给出可照做的指引，而不是"未读取到用户输入"。 |
+| 27 | `UserConfirmTest` | `test_interactive_flag_is_ignored_without_host_support` | 宿主未注入 TTY 能力时，旧 interactive 入参不能阻断两段式确认。 |
 | 28 | `UserConfirmTest` | `test_pending_envelope` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：pending envelope |
 | 29 | `UserConfirmTest` | `test_validations` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：validations |
 
 ## test_todo_context_prompt.py
 
-共 19 个用例。
+共 21 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1992,19 +2050,21 @@
 | 4 | `ContextLayoutTest` | `test_counts_present` | 覆盖「上下文分段」：counts present |
 | 5 | `ContextLayoutTest` | `test_labels_are_chinese_names` | 覆盖「上下文分段」：labels are chinese names |
 | 6 | `ContextLayoutTest` | `test_pct_sums_to_100` | 覆盖「上下文分段」：pct sums to 100 |
-| 7 | `SystemPromptTest` | `test_blank_explicit_falls_back` | 覆盖「基础系统提示词」：blank explicit falls back |
-| 8 | `SystemPromptTest` | `test_coding_and_tooling_disciplines_present` | 系统提示必须含「改前必读」/「大文件局部读」/「失败处理」等纪律条目。 |
-| 9 | `SystemPromptTest` | `test_explicit_prompt_wins` | 覆盖「基础系统提示词」：explicit prompt wins |
-| 10 | `SystemPromptTest` | `test_mode_section_differs` | 覆盖「基础系统提示词」：mode section differs |
-| 11 | `SystemPromptTest` | `test_non_empty_by_default` | 系统提示不得为空——空提示让模型只凭 schema 猜纪律。 |
-| 12 | `SystemPromptTest` | `test_preview_write_tools_line_tracks_registry` | 预览写类名单随 registry 增减，不手写固定串。 |
-| 13 | `SystemPromptTest` | `test_tool_summary_propagates_registry_errors` | 覆盖「基础系统提示词」：tool summary propagates registry errors |
-| 14 | `SystemPromptTest` | `test_tool_summary_shape` | 覆盖「基础系统提示词」：tool summary shape |
-| 15 | `SystemPromptTest` | `test_unknown_mode_falls_back_to_auto` | 覆盖「基础系统提示词」：unknown mode falls back to auto |
-| 16 | `TodoProgressTest` | `test_check_then_all_done` | 覆盖「清单进度字段」：check then all done |
-| 17 | `TodoProgressTest` | `test_close_has_no_items` | 关闭清单只回 `{close: True}`——前端据此隐藏并清未读。 |
-| 18 | `TodoProgressTest` | `test_create_reports_progress` | 覆盖「清单进度字段」：create reports progress |
-| 19 | `TodoProgressTest` | `test_uncheck_revokes_all_done` | 覆盖「清单进度字段」：uncheck revokes all done |
+| 7 | `RuntimeTailTodoProgressTest` | `test_mode_note_contains_latest_progress` | 覆盖「运行态尾部每次求值都读最新 Todo 进度」：mode note contains latest progress |
+| 8 | `RuntimeTailTodoProgressTest` | `test_no_todo_omits_todo_note` | 覆盖「运行态尾部每次求值都读最新 Todo 进度」：no todo omits todo note |
+| 9 | `SystemPromptTest` | `test_blank_explicit_falls_back` | 覆盖「基础系统提示词」：blank explicit falls back |
+| 10 | `SystemPromptTest` | `test_coding_and_tooling_disciplines_present` | 系统提示必须含「改前必读」/「大文件局部读」/「失败处理」等纪律条目。 |
+| 11 | `SystemPromptTest` | `test_explicit_prompt_wins` | 覆盖「基础系统提示词」：explicit prompt wins |
+| 12 | `SystemPromptTest` | `test_mode_section_differs` | 覆盖「基础系统提示词」：mode section differs |
+| 13 | `SystemPromptTest` | `test_non_empty_by_default` | 系统提示不得为空——空提示让模型只凭 schema 猜纪律。 |
+| 14 | `SystemPromptTest` | `test_preview_write_tools_line_tracks_registry` | 预览写类名单随 registry 增减，不手写固定串。 |
+| 15 | `SystemPromptTest` | `test_tool_summary_propagates_registry_errors` | 覆盖「基础系统提示词」：tool summary propagates registry errors |
+| 16 | `SystemPromptTest` | `test_tool_summary_shape` | 覆盖「基础系统提示词」：tool summary shape |
+| 17 | `SystemPromptTest` | `test_unknown_mode_falls_back_to_auto` | 覆盖「基础系统提示词」：unknown mode falls back to auto |
+| 18 | `TodoProgressTest` | `test_check_then_all_done` | 覆盖「清单进度字段」：check then all done |
+| 19 | `TodoProgressTest` | `test_close_has_no_items` | 关闭清单只回 `{close: True}`——前端据此隐藏并清未读。 |
+| 20 | `TodoProgressTest` | `test_create_reports_progress` | 覆盖「清单进度字段」：create reports progress |
+| 21 | `TodoProgressTest` | `test_uncheck_revokes_all_done` | 覆盖「清单进度字段」：uncheck revokes all done |
 
 ## test_tool_registry.py
 

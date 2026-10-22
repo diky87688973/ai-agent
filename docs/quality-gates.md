@@ -63,16 +63,45 @@ python scripts/check_coverage.py
 
 ### 2.2 本地 JS 事件审计
 
-`scripts/scan_js_events.py` 扫描 `agent/` 与 `plugins/` 下的 JS/HTML，列出
-`addEventListener`、`onclick` 等属性绑定和内联 HTML 事件。它只输出候选清单，
-不自动失败；动态列表是否应改为顶层委托由模型判断。
+**初衷**：重渲染的列表——每次刷新都重建节点的那种——不给每个列表项单独绑事件。
+事件只在顶层 `document` 上绑一次，靠冒泡加 `closest()` / `contains()` 认目标。
+逐项绑的代价是每次重建都新建一批监听，节点移除后监听若被闭包引用就一起泄漏。
 
-`scripts/ci.py` 在本地流水线末尾自动调用它。GitHub Actions 不执行这一项，
-脚本自身也在 `GITHUB_ACTIONS=true` 时直接跳过。单独运行：
+`scripts/scan_js_events.py` 扫描 `agent/` 与 `plugins/` 下的 JS/HTML，把每条
+`addEventListener`、`onXxx=` 属性赋值与内联 HTML 事件按静态依据分级：
+
+| 分级 | 含义 | 需复核 |
+|---|---|---|
+| `per-item` | 落在循环体内（按花括号配平判，不看缩进） | 是 |
+| `leak-risk` | 渲染路径上的全局监听，且无配对摘除 | 是 |
+| `render-path` | 渲染函数内绑在持久目标上 | 是 |
+| `inline` | 内联 HTML 事件，无法委托 | 是 |
+| `delegated-ok` | 容器根 + `closest` / `contains` 目标识别 | 否 |
+| `global-once` | 模块级或一次性初始化的全局监听 | 否 |
+| `guarded-ok` | 同函数内有 `_xxxDelegated` / `dataset.bound` 守卫 | 否 |
+| `ephemeral` | 目标由 `createElement` / `el()` 工厂新建，随节点销毁 | 否 |
+| `ok` | 其余元素自身绑定 | 否 |
+
+只输出清单，不自动失败。判准是静态近似，`render-path` 与 `leak-risk` 仍需
+模型确认（例如 `ensureXxx()` 若有早退守卫，实际只绑一次）。
+
+两个字段的含义容易混淆：
+
+- **配对摘除**要求同目标 + 同事件 + 同回调 + 同 capture。任一不同都解绑不了，
+  仍按无摘除计——具名回调只说明「能摘」，不等于「已摘」。
+- **匿名**只在报告里展示，不参与分级。
+
+单独运行：
 
 ```bash
-python scripts/scan_js_events.py
+python scripts/scan_js_events.py                    # 全部
+python scripts/scan_js_events.py --only per-item    # 只看某一类
+python scripts/scan_js_events.py --path composer    # 只看某目录
 ```
+
+`scripts/ci.py` 在本地流水线末尾自动调用它。GitHub Actions 不执行这一项——
+判断要读业务语义，CI 上没有模型；脚本自身也在 `GITHUB_ACTIONS=true` 时直接
+跳过，属有意为之，不是漏配。
 
 ### 2.3 并行 CI
 

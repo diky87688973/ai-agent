@@ -64,8 +64,8 @@ class AISpeakAppTest(unittest.TestCase):
         self.assertIn("臣妾", text)
         self.assertIn("温婉", text)
         self.assertTrue(note.startswith("## 当前模式"))
-        self.assertIn("## Todo-List: 请主动维护执行清单勾选状态", note)
-        self.assertLess(note.index("## Todo-List:"), note.index("ai_speak"))
+        self.assertNotIn("## Todo-List: 请主动维护执行清单勾选状态", note)
+        self.assertLess(note.index("## 当前模式"), note.index("## AI说话"))
         self.assertIn(text, note)
 
     def test_publisher_tracks_connections(self) -> None:

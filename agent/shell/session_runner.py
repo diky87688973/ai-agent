@@ -367,7 +367,8 @@ class SessionRunner:
         engine = self._app.session(
             cid,
             system_prompt=self._system_prompt(cid),
-            mode_note=self._mode_note(cid),
+            # 每个 pass 重新求值：工具勾选后下一趟才能看到最新进度。
+            mode_note=lambda: self._mode_note(cid),
             cancel=self._cancel_check(cid),
         )
         paused = False
@@ -449,7 +450,19 @@ class SessionRunner:
         note = resolve_mode_note(mode=mode, explicit=explicit or None)
         prompt_tail = getattr(self._app, "prompt_tail", None)
         extra = prompt_tail.render(cid).strip() if prompt_tail is not None else ""
-        parts = [part for part in (note, TODO_LIST_NOTE if note else "") if part]
+        todo_note = ""
+        todo = state.get_todo(cid) if state is not None and hasattr(state, "get_todo") else None
+        items = todo.get("items") if isinstance(todo, dict) else None
+        if isinstance(items, list) and items:
+            total = len(items)
+            done = sum(1 for item in items if isinstance(item, dict) and item.get("done"))
+            active = 0 if done == total else 1
+            pending = max(0, total - done - active)
+            todo_note = (
+                f"{TODO_LIST_NOTE}\n"
+                f"当前进度：{done} 已完成，{active} 进行中，{pending} 待处理"
+            )
+        parts = [part for part in (note, todo_note if note else "") if part]
         if extra:
             parts.append(extra)
         return "\n\n".join(parts)

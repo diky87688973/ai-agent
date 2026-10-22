@@ -582,6 +582,15 @@ class OutboundContractTest(unittest.TestCase):
         self.assertTrue(end["todo_list"])
         self.assertEqual(end["todo_list_data"]["items"][0]["text"], "甲")
 
+        stream.translate("tool_call", {"call_id": "c10", "name": "todo_list", "arguments": {}})
+        frames = stream.translate("tool_result", {
+            "call_id": "c10", "ok": True, "data": {"close": True},
+        })
+        end = frames[0]
+        self.assertTrue(end["todo_list"])
+        self.assertEqual(end["todo_list_data"]["items"], [])
+        self.assertTrue(end["todo_list_data"]["close"])
+
     def test_usage_must_be_nested(self) -> None:
         """用量嵌套在 `usage` 键下：经典界面读 `ev.usage.prompt_tokens`（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。
 
