@@ -35,9 +35,14 @@ return '<img src="'+escapeHtml(href)+'" alt="'+escapeHtml(alt)+'"'+t+' loading="
 };
 r.link=function(token){
 var raw=String((token&&token.href)||"");
+var text=token&&token.tokens?this.parser.parseInline(token.tokens):escapeHtml((token&&token.text)||"");
+/* 本地文本文件链接 → 文件引用，点击进右栏；媒体仍交给 /api/media 预览。 */
+var local=filePathFromHref(raw);
+if(local&&!markedIsMediaFile(raw)){
+return '<a class="file-ref" data-file-path="'+escapeHtml(local)+'" title="'+escapeHtml(raw)+'">'+text+'</a>';
+}
 /* 媒体文件的本地路径 → `/api/media`；其余链接原样（外链带 `target=_blank`） */
 var href=(markedIsMediaFile(raw)&&localAbsPath(raw))?markedImageHref(raw):raw;
-var text=token&&token.tokens?this.parser.parseInline(token.tokens):escapeHtml((token&&token.text)||"");
 var ext=/^https?:/i.test(href);
 return '<a href="'+escapeHtml(href)+'"'+(ext?' target="_blank" rel="noopener noreferrer"':'')+'>'+text+'</a>';
 };

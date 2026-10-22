@@ -129,3 +129,28 @@ syncClassicSide();
      await api.put("checked", { conversation_id, checked });
      await api.del("tasks/t-1");
 */
+
+/* 会话标签换行时，右栏内容要与左侧对话内容的起点对齐：
+   标签条保持一行高，差额补在它下方，避免左右内容高度错位。 */
+function syncSideTabbarGap(){
+var titleRow=document.querySelector(".chat-title-row");
+var bar=document.getElementById("sideTabbar");
+if(!titleRow||!bar)return;
+var titleBottom=titleRow.getBoundingClientRect().bottom;
+var barBottom=bar.getBoundingClientRect().bottom;
+bar.style.marginBottom=Math.max(0,Math.round(titleBottom-barBottom))+"px";
+}
+function bindSideTabbarGap(){
+var titleRow=document.querySelector(".chat-title-row");
+if(!titleRow)return;
+if(typeof ResizeObserver==="function"){
+if(!bindSideTabbarGap._observer){
+bindSideTabbarGap._observer=new ResizeObserver(syncSideTabbarGap);
+bindSideTabbarGap._observer.observe(titleRow);
+}
+}else{
+window.addEventListener("resize",syncSideTabbarGap);
+}
+syncSideTabbarGap();
+}
+bindSideTabbarGap();

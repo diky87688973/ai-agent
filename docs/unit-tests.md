@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1698** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1702** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -58,37 +58,39 @@
 48. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
 49. [test_plugin_http.py](#test_plugin_httppy)（18）
 50. [test_plugins.py](#test_pluginspy)（28）
-51. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-52. [test_prompt_tail.py](#test_prompt_tailpy)（4）
-53. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-54. [test_provider_meta.py](#test_provider_metapy)（8）
-55. [test_provider_router.py](#test_provider_routerpy)（14）
-56. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
-57. [test_queue_runner.py](#test_queue_runnerpy)（3）
-58. [test_queued_input.py](#test_queued_inputpy)（2）
-59. [test_readonly_tools.py](#test_readonly_toolspy)（32）
-60. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-61. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-62. [test_run_registry.py](#test_run_registrypy)（13）
-63. [test_session_context.py](#test_session_contextpy)（22）
-64. [test_session_seq.py](#test_session_seqpy)（23）
-65. [test_session_store.py](#test_session_storepy)（17）
-66. [test_session_tools.py](#test_session_toolspy)（17）
-67. [test_settings_panel.py](#test_settings_panelpy)（19）
-68. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-69. [test_task_tools.py](#test_task_toolspy)（29）
-70. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
-71. [test_tool_registry.py](#test_tool_registrypy)（17）
-72. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-73. [test_usage_metrics.py](#test_usage_metricspy)（7）
-74. [test_version_stamp.py](#test_version_stamppy)（4）
-75. [test_visual_operator.py](#test_visual_operatorpy)（130）
-76. [test_web_frontend.py](#test_web_frontendpy)（5）
-77. [test_web_shell.py](#test_web_shellpy)（51）
-78. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-79. [test_write_gate.py](#test_write_gatepy)（16）
-80. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-81. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+51. [test_present_tool.py](#test_present_toolpy)（2）
+52. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+53. [test_prompt_tail.py](#test_prompt_tailpy)（4）
+54. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+55. [test_provider_meta.py](#test_provider_metapy)（8）
+56. [test_provider_router.py](#test_provider_routerpy)（14）
+57. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
+58. [test_queue_runner.py](#test_queue_runnerpy)（3）
+59. [test_queued_input.py](#test_queued_inputpy)（2）
+60. [test_readonly_tools.py](#test_readonly_toolspy)（32）
+61. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+62. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+63. [test_run_registry.py](#test_run_registrypy)（13）
+64. [test_scan_js_events.py](#test_scan_js_eventspy)（2）
+65. [test_session_context.py](#test_session_contextpy)（22）
+66. [test_session_seq.py](#test_session_seqpy)（23）
+67. [test_session_store.py](#test_session_storepy)（17）
+68. [test_session_tools.py](#test_session_toolspy)（17）
+69. [test_settings_panel.py](#test_settings_panelpy)（19）
+70. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+71. [test_task_tools.py](#test_task_toolspy)（29）
+72. [test_todo_context_prompt.py](#test_todo_context_promptpy)（19）
+73. [test_tool_registry.py](#test_tool_registrypy)（17）
+74. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+75. [test_usage_metrics.py](#test_usage_metricspy)（7）
+76. [test_version_stamp.py](#test_version_stamppy)（4）
+77. [test_visual_operator.py](#test_visual_operatorpy)（130）
+78. [test_web_frontend.py](#test_web_frontendpy)（5）
+79. [test_web_shell.py](#test_web_shellpy)（51）
+80. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+81. [test_write_gate.py](#test_write_gatepy)（16）
+82. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+83. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -1563,6 +1565,15 @@
 | 27 | `PluginIdentityFallbackTest` | `test_meta_supplies_identity_when_config_is_absent` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：meta supplies identity when config is absent |
 | 28 | `PluginIdentityFallbackTest` | `test_no_files_falls_back_to_folder_name` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：no files falls back to folder name |
 
+## test_present_tool.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `PresentToolTest` | `test_rejects_missing_and_empty_lists` | 覆盖「A class whose instances are single test cases」：rejects missing and empty lists |
+| 2 | `PresentToolTest` | `test_returns_metadata_without_reading_content` | 覆盖「A class whose instances are single test cases」：returns metadata without reading content |
+
 ## test_prompt_sections.py
 
 共 2 个用例。
@@ -1773,6 +1784,15 @@
 | 11 | `PidAliveTest` | `test_invalid_pid_forms_are_dead` | 非法形态不抛异常，一律判死（None / 0 / 负数 / 非数字）。 |
 | 12 | `PidAliveTest` | `test_live_pid_is_alive` | 当前进程的 pid 必须判活 —— 这是最直接的判据。 |
 | 13 | `PidAliveTest` | `test_nonexistent_pid_is_dead` | 不存在的 pid 必须判死，否则过期记录永远不回收。 |
+
+## test_scan_js_events.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ScanJsEventsTest` | `test_collects_add_listener_property_and_delegation` | 覆盖「A class whose instances are single test cases」：collects add listener property and delegation |
+| 2 | `ScanJsEventsTest` | `test_collects_inline_html_and_renders_report` | 覆盖「A class whose instances are single test cases」：collects inline html and renders report |
 
 ## test_session_context.py
 

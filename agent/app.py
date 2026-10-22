@@ -25,6 +25,7 @@ from agent.capabilities.builtin import (
     image_tool,
     locate_tools,
     ocr_tool,
+    present_tool,
     read_file,
     review_conclusion,
     session_tools,
@@ -633,6 +634,7 @@ def build_app(
     )
     # 写盘工具经管道上下文取 session.gate；直调单测可另传门控实例。
     registry.register(review_conclusion.build())
+    registry.register(present_tool.build())
     executors: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
     # 插件贡献的写类工具执行器登记在这里：提交那一刻才查，装配顺序无关。
     executor_registry = ExecutorRegistry()

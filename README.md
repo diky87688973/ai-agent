@@ -79,7 +79,7 @@ full_user_rounds         = 1
 | [内核](docs/subsystems/core.md) | 模块契约、链执行器、宿主循环 |
 | [上下文管理](docs/subsystems/context.md) | 三拼接装、分段统计、压缩与摘要 |
 | [模型调用](docs/subsystems/llm.md) | 请求体、流式解析、工具调用归并、错误映射 |
-| [工具](docs/subsystems/tools.md) | 注册、执行管道、写盘四步协议、41 个内置工具 |
+| [工具](docs/subsystems/tools.md) | 注册、执行管道、写盘四步协议、42 个内置工具 |
 | [插件](docs/subsystems/plugins.md) | 插件包形态、可贡献的能力、界面资产、生命周期与边界 |
 | [知识库](docs/subsystems/knowledge.md) | `knowledge` 的文件收录、勾选状态、注入与端点 |
 | [多模型](docs/subsystems/multi-model.md) | `multi_model` 的目录条目、设置页表单与模型下拉 |
@@ -111,6 +111,7 @@ CI 工作流一致、配置一致性、生成文档一致、ruff、Python 下限
 python scripts/ci.py           # 全部检查
 python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
+python scripts/scan_js_events.py  # 本地 JS 事件绑定审计
 ```
 
 导出某个会话的真实请求上下文（开发者只读工具）：
@@ -119,7 +120,7 @@ python scripts/ci.py --list    # 列出检查项
 python scripts/dump_context.py --cid <会话ID> --format json --out context.json
 ```
 
-单元测试（1698 个用例）：
+单元测试（1702 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

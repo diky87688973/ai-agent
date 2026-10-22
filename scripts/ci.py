@@ -109,6 +109,21 @@ def main(argv: list[str] | None = None) -> int:
         lock.release()
 
 
+def _run_local_js_event_audit() -> None:
+    """本地 CI 的模型审计：只打印候选，不自动失败，GitHub Actions 不进入这里。"""
+    script = ROOT / "scripts" / "scan_js_events.py"
+    if not script.is_file():
+        return
+    print("\n=== 本地 JS 事件审计（仅供模型判断）===")
+    proc = subprocess.run(
+        [PY, str(script)],
+        cwd=str(ROOT),
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    if proc.returncode != 0:
+        print("⚠️ JS 事件审计脚本异常，未作为 CI 失败项")
+
+
 def _run_steps(args: argparse.Namespace, steps: list[CiStep]) -> int:
     _prepare_data_root()
     print(f"=== 校验开始（{len(steps)} 步）===")
@@ -150,6 +165,8 @@ def _run_steps(args: argparse.Namespace, steps: list[CiStep]) -> int:
     if skipped_post:
         print(f"\nℹ️ 本地跳过后置校验：{', '.join(skipped_post)}"
               "（覆盖率需要先跑 coverage，CI 里由 3.12 矩阵执行）")
+    _run_local_js_event_audit()
+
     if not args.fast:
         left = sorted(_data_files() - data_before)
         if left:

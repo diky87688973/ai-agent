@@ -18,19 +18,30 @@ var items=Array.isArray(ev.items)?ev.items:[];
 if(!items.length){if(ev.close&&todoListArea){todoListArea.style.display="none";todoListArea.classList.add("hidden");}hideTodoList();var _ocDn=normalizeConversationId(ownerCid||"");if(_ocDn){var _tDn=findConversationTab(_ocDn);if(_tDn){_tDn.todoUnread=false;if(typeof syncTodoUnreadBadgeForConversation==="function")syncTodoUnreadBadgeForConversation(_ocDn);}}return;}
 showTodoList();
 var doneCount=0;
+var activeMarked=false;
 var html="";
 for(var i=0;i<items.length;i++){
 var it=items[i];
 var done=!!it.done;
 if(done)doneCount++;
-var cbClass="todo-cb"+(done?" done":"");
+var active=!done&&!activeMarked;
+if(active)activeMarked=true;
+var cbClass="todo-cb"+(done?" done":(active?" active":""));
 var txtClass="todo-text"+(done?" done":"");
-html+='<div class="todo-item"><span class="'+cbClass+'"></span><span class="'+txtClass+'">'+escapeHtml(String(it.text||""))+'</span></div>';
+html+='<div class="todo-item'+(active?" active":"")+'"><span class="'+cbClass+'"></span><span class="'+txtClass+'">'+escapeHtml(String(it.text||""))+'</span></div>';
 }
 if(todoListBody){var sc=todoListBody.querySelector(".todo-list-scroll");if(sc)sc.innerHTML=html;else todoListBody.innerHTML=html;}
-if(todoListCount)todoListCount.textContent=doneCount+"/"+items.length;
-if(ev.all_done&&todoListArea){todoListArea.style.borderLeft="3px solid #3daf3f";if(!todoListArea.querySelector(".todo-close-btn")){var cb=document.createElement("button");cb.className="todo-close-btn";cb.textContent="✕";cb.title="关闭清单";var hd=todoListArea.querySelector(".todo-list-header");if(hd)hd.appendChild(cb);}}
-else if(todoListArea){todoListArea.style.borderLeft="3px solid #a68b4a";var oldBtn=todoListArea.querySelector(".todo-close-btn");if(oldBtn)oldBtn.remove();}
+var totalCount=items.length;
+var allDone=doneCount===totalCount;
+var activeCount=allDone?0:1;
+var pendingCount=Math.max(0,totalCount-doneCount-activeCount);
+if(todoListCount){
+var stats=[{n:doneCount,label:"已完成",cls:"done"}];
+if(!allDone){stats.push({n:activeCount,label:"进行中",cls:"active"});stats.push({n:pendingCount,label:"待处理",cls:"pending"});}
+todoListCount.innerHTML=stats.map(function(s){return '<span class="todo-stat todo-stat-'+s.cls+'"><b>'+s.n+'</b> '+s.label+'</span>';}).join("");
+}
+if(allDone&&todoListArea){if(!todoListArea.querySelector(".todo-close-btn")){var cb=document.createElement("button");cb.className="todo-close-btn";cb.textContent="✕";cb.title="关闭清单";var hd=todoListArea.querySelector(".todo-list-header");if(hd)hd.appendChild(cb);}}
+else if(todoListArea){var oldBtn=todoListArea.querySelector(".todo-close-btn");if(oldBtn)oldBtn.remove();}
 if(ev.collapsed&&todoListArea){todoListArea.classList.add("collapsed");}
 else if(ev.collapsed===false&&todoListArea){todoListArea.classList.remove("collapsed");}
 if(ev.close&&todoListArea){todoListArea.style.display="none";}

@@ -1,0 +1,212 @@
+/* todo-card.css —— Todo 清单卡片外观。 */
+html[data-ui-theme] .todo-list-area {
+  width: min(calc(100% - 32px), var(--content-max, 840px));
+  margin: 8px auto 0;
+  padding: 0;
+  max-height: 280px;
+  overflow: hidden;
+  border: 1px solid var(--c-line-2) !important;
+  border-radius: var(--r-xl);
+  background: var(--c-bg-layer) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+
+html[data-ui-theme="light"] .todo-list-area {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .08);
+}
+
+html[data-ui-theme] .todo-list-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+}
+
+.todo-list-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  color: var(--c-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.todo-title-ico {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  color: var(--c-text-4);
+}
+
+.todo-list-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-text-4);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.todo-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.todo-stat b {
+  color: var(--c-text-3);
+  font-weight: 500;
+}
+
+.todo-stat-done b {
+  color: var(--c-ok, #55b77b);
+}
+
+.todo-stat-active b {
+  color: var(--c-warn, #c9a45c);
+}
+
+.todo-collapse-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  color: var(--c-text-4);
+  transition: transform .18s ease;
+}
+
+.todo-collapse-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.todo-list-area.collapsed {
+  max-height: 41px;
+}
+
+.todo-list-area.collapsed .todo-list-body {
+  display: none;
+}
+
+.todo-list-area.collapsed .todo-collapse-icon {
+  transform: rotate(-90deg);
+}
+
+.todo-list-body {
+  min-height: 0;
+}
+
+.todo-list-scroll {
+  max-height: 200px;
+  padding: 0 6px 8px;
+  overflow-y: auto;
+}
+
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-height: 28px;
+  margin: 0;
+  padding: 5px 6px;
+  border-radius: var(--r-sm);
+  color: var(--c-text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.todo-item:hover {
+  background: var(--c-bg-layer-2);
+}
+
+.todo-item.active .todo-text {
+  color: var(--c-text-1);
+}
+
+.todo-cb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border: 1.5px solid var(--c-line-2);
+  border-radius: 50%;
+  color: transparent;
+  box-sizing: border-box;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+
+.todo-cb.active {
+  border-color: var(--c-warn, #c9a45c);
+  background: color-mix(in srgb, var(--c-warn, #c9a45c) 14%, transparent);
+}
+
+.todo-cb.done {
+  border-color: #4aa877;
+  background: #2f6b4b;
+  color: #f2fff7;
+  box-shadow: none;
+}
+
+html[data-ui-theme="light"] .todo-cb.done {
+  border-color: #2f7d4f;
+  background: #e3f4e8;
+  color: #1b6b3e;
+}
+
+.todo-cb.done::after {
+  content: "✓";
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.todo-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.todo-text.done {
+  color: var(--c-text-3);
+  text-decoration: none;
+}
+
+.todo-close-btn {
+  flex: 0 0 auto;
+  margin-left: 2px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--c-text-4);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity .12s ease, color .12s ease;
+}
+
+.todo-list-area:hover .todo-close-btn,
+.todo-close-btn:focus-visible {
+  opacity: .7;
+}
+
+.todo-close-btn:hover {
+  color: var(--c-bad, #e06c75);
+  opacity: 1;
+}

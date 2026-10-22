@@ -873,6 +873,116 @@ var text=String(view.summary({script:data.script,args:data.args})||"").trim();
 if(text)row._sum.textContent=text;
 }
 }
+
+
+function chatFileCardSize(n){
+if(typeof formatFileSize==="function")return formatFileSize(n);
+var v=Number(n);
+return (v>=1024?(Math.round(v/1024*10)/10+" KB"):(Math.max(0,v)+" B"));
+}
+function chatFileCardKindLabel(kind){
+var labels={image:"图片",video:"视频",audio:"音频",table:"表格",archive:"压缩包",pdf:"PDF",file:"文件"};
+return labels[String(kind||"file")]||"文件";
+}
+function chatFileCardElement(file){
+var path=String(file&&file.path||"").trim();
+var name=String(file&&(file.title||file.name)||"").trim()||baseNameOnly(path);
+var card=document.createElement("div");
+card.className="chat-file-card";
+card.setAttribute("role","button");
+card.tabIndex=0;
+card.title=path;
+card.setAttribute("data-file-path",path);
+var icon=document.createElement("span");
+icon.className="chat-file-card-icon";
+var kind=String(file&&file.kind||"file");
+if(kind==="image"&&path){
+var img=document.createElement("img");
+img.alt="";
+img.loading="lazy";
+img.src="/api/media?path="+encodeURIComponent(path);
+img.onerror=function(){icon.innerHTML="";if(window.aiAgentFileIcons)icon.appendChild(window.aiAgentFileIcons.el(path));};
+icon.appendChild(img);
+}else if(window.aiAgentFileIcons){
+icon.appendChild(window.aiAgentFileIcons.el(path));
+}else{
+icon.textContent="📄";
+}
+var body=document.createElement("span");
+body.className="chat-file-card-body";
+var title=document.createElement("span");
+title.className="chat-file-card-name";
+title.textContent=name;
+var meta=document.createElement("span");
+meta.className="chat-file-card-meta";
+var bits=[chatFileCardKindLabel(kind)];
+if(file&&file.size!=null)bits.push(chatFileCardSize(file.size));
+bits.push("在侧边栏预览");
+meta.textContent=bits.join(" · ");
+body.appendChild(title);
+body.appendChild(meta);
+var action=document.createElement("span");
+action.className="chat-file-card-action";
+action.textContent="预览";
+card.appendChild(icon);
+card.appendChild(body);
+card.appendChild(action);
+return card;
+}
+var chatToolViewPresent=registerChatToolView({
+match:function(script){return chatToolName(script)==="present";},
+title:function(){return "文件";},
+summary:function(o){return "";},
+mount:function(row, o){
+row.classList.add("chat-file-card-row");
+var host=document.createElement("div");
+host.className="chat-file-card-stack";
+row._body.appendChild(host);
+o.chatFileCardHost=host;
+},
+fill:function(row, o, ev){
+var host=o.chatFileCardHost;
+if(!host)return;
+host.textContent="";
+var parsed=chatToolParsePreview(ev);
+var data=parsed&&parsed.data&&typeof parsed.data==="object"?parsed.data:parsed;
+var files=data&&Array.isArray(data.files)?data.files:[];
+if(!ev||!ev.ok||!files.length){
+var requested="";
+try{
+var rawArgs=Array.isArray(o.args&&o.args.files)?o.args.files:[];
+if(rawArgs.length)requested=String(rawArgs[0]&&rawArgs[0].path||"");
+}catch(_e){}
+var fail=document.createElement("div");
+fail.className="chat-file-card chat-file-card-error-card";
+var failIcon=document.createElement("span");
+failIcon.className="chat-file-card-icon chat-file-card-error-icon";
+failIcon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 2.4 17.4A1.8 1.8 0 0 0 4 20h16a1.8 1.8 0 0 0 1.6-2.6L13.7 3.9a1.8 1.8 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+var failBody=document.createElement("span");
+failBody.className="chat-file-card-body";
+var failName=document.createElement("span");
+failName.className="chat-file-card-name chat-file-card-error-name";
+failName.textContent="无法展示文件";
+var failMeta=document.createElement("span");
+failMeta.className="chat-file-card-meta";
+failMeta.textContent=requested||"文件路径无效";
+var failText=document.createElement("span");
+failText.className="chat-file-card-error-text";
+failText.textContent=String((parsed&&parsed.error)||"文件卡片无法展示");
+failBody.appendChild(failName);
+failBody.appendChild(failMeta);
+failBody.appendChild(failText);
+fail.appendChild(failIcon);
+fail.appendChild(failBody);
+host.appendChild(fail);
+row.classList.add("is-open");
+return;
+}
+for(var i=0;i<files.length;i++)host.appendChild(chatFileCardElement(files[i]||{}));
+row.classList.add("is-open");
+}
+});
+
 window.aiAgentChatTools={register:registerChatToolView,refresh:refreshChatToolSummaries};
 function appendChatToolRow(row, opts){
 if(!msgs||!row)return;
@@ -883,7 +993,9 @@ else msgs.appendChild(row);
 scrollMsgsToBottom();
 }
 function mountChatToolItem(o){
-if(!showToolItems()||!o||o.chatToolRow)return;
+if(!o||o.chatToolRow)return;
+var _always=chatToolName(o.script)==="present";
+if(!_always&&!showToolItems())return;
 var view=chatToolViewFor(o.script, o.args);
 o.chatToolView=view;
 var title=view.title?view.title(o):chatToolViewDefault.title(o);

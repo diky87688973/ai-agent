@@ -48,12 +48,16 @@ return;
 }
 var todoHead=el.closest(".todo-list-header");
 if(todoHead){
-if(el.closest(".todo-list-count"))return;
 var todoBox=todoHead.closest(".todo-list-area");
 if(todoBox)todoBox.classList.toggle("collapsed");
 return;
 }
 while(el&&el!==document){
+if(el.classList&&el.classList.contains("chat-file-card")){
+var fp=el.getAttribute("data-file-path")||"";
+if(fp){ev.preventDefault();openFileTab(fp);}
+return;
+}
 if(el.classList&&el.classList.contains("file-ref")){
 var p=el.getAttribute("data-file-path")||"";
 if(p){ev.preventDefault();openFileTab(p);}
@@ -68,6 +72,19 @@ return;
 }
 el=el.parentNode;
 }
+});
+}
+if(!document._fileCardKeydownBound){
+document._fileCardKeydownBound=true;
+document.addEventListener("keydown",function(ev){
+if(ev.key!=="Enter"&&ev.key!==" ")return;
+var t=ev.target;
+if(!t||!t.closest)return;
+var card=t.closest(".chat-file-card");
+if(!card)return;
+var p=card.getAttribute("data-file-path")||"";
+if(!p)return;
+ev.preventDefault();openFileTab(p);
 });
 }
 function updateSlashPopHints(){

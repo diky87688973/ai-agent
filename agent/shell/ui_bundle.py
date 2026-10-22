@@ -84,10 +84,13 @@ UI_CSS_MODULES = (
     "theme-tokens.css",
     "frame.css",
     "chat-tool-views.css",
+    "chat-file-cards.css",
     "file-icons.css",
     "edited-files.css",
     "settings-ui.css",
     "theme-light-cursor.css",
+    "side-tabs.css",
+    "todo-card.css",
 )
 
 _HTML_FILE = CLASSIC_DIR / "agent-ui.html"

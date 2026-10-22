@@ -61,7 +61,20 @@ python scripts/check_coverage.py
 没有 `.coverage` 时该步返回 `2`（SKIP），在 CI 输出里可见，不计为通过；
 校验期间数据文件被外部进程改写时同样返回 `2`，不拿半份数据出结论。
 
-### 2.2 并行 CI
+### 2.2 本地 JS 事件审计
+
+`scripts/scan_js_events.py` 扫描 `agent/` 与 `plugins/` 下的 JS/HTML，列出
+`addEventListener`、`onclick` 等属性绑定和内联 HTML 事件。它只输出候选清单，
+不自动失败；动态列表是否应改为顶层委托由模型判断。
+
+`scripts/ci.py` 在本地流水线末尾自动调用它。GitHub Actions 不执行这一项，
+脚本自身也在 `GITHUB_ACTIONS=true` 时直接跳过。单独运行：
+
+```bash
+python scripts/scan_js_events.py
+```
+
+### 2.3 并行 CI
 
 同一仓库同时只允许一条 `ci.py`：入口先拿 `.locks/ci.lock`（`mkdir` 原子创建），
 被占用时按 `--lock-wait` 秒等待后报错，持有进程被强杀留下的锁按 PID 存活判定回收。

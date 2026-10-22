@@ -237,7 +237,6 @@ html[data-ui-theme="light"] .todo-list-title {
 }
 html[data-ui-theme="light"] .todo-list-count {
   color: #666666;
-  background: #e4e4e4;
 }
 html[data-ui-theme="light"] .todo-collapse-icon {
   color: #8f8f8f;
