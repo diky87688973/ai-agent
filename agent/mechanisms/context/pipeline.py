@@ -8,9 +8,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from agent.mechanisms.context.constants import SEGMENT_LABELS as SEGMENT_LABELS_DEFAULT
 from agent.mechanisms.context.contract import DEFAULT_FULL_USER_ROUNDS
 from agent.mechanisms.context.layout import (
-    _as_text_parts,
-    _merge_segment_rows,
+    as_text_parts,
     clip_reasoning,
+    merge_segment_rows,
 )
 from agent.mechanisms.context.rounds import (
     ContextChunk,
@@ -166,7 +166,7 @@ class ContextPipeline:
                 "tokens": int(counter(msg)) if msg is not None else 0,
                 "count": (1 if msg is not None else 0) if reported is None else int(reported),
             })
-        return _merge_segment_rows(rows)
+        return merge_segment_rows(rows)
 
     def layout_payload(
         self,
@@ -359,7 +359,7 @@ class ContextPipeline:
         直接把列表塞进 `content` 会让模型收到 Python 字面量
         （`['条目一']`），而不是条目本身。
         """
-        for part in _as_text_parts(text):
+        for part in as_text_parts(text):
             if not str(part).strip():
                 continue
             self.name_map[CHUNK_PLUGIN].append("system", part, True)
@@ -383,7 +383,7 @@ class ContextPipeline:
         #: 与 `_plugin_sources` 对齐：这段是否带了进模型的正文（空占位为 False）
         self._plugin_has_body: List[bool] = []
         for key, label, text in items:
-            parts = [p for p in _as_text_parts(text) if str(p).strip()]
+            parts = [p for p in as_text_parts(text) if str(p).strip()]
             if not parts:
                 self._plugin_sources.append((key, label))
                 self._plugin_has_body.append(False)

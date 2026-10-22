@@ -13,13 +13,31 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+# 在 GBK 控制台直接跑本脚本时，打印 ✅/中文会抛 UnicodeEncodeError ——
+# 表现为「检查全过但退出码 1」（`ci.py` 用 PYTHONIOENCODING 掩盖了它）。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
+    # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
+    pass
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from complexity_scan import FUNC_SEP, collect, over_threshold, render  # noqa: E402
+from complexity_scan import (  # noqa: E402
+    FUNC_SEP,
+    collect,
+    over_file_functions,
+    over_threshold,
+    render,
+)
 from quality_budgets import (  # noqa: E402
     FILE_COMPLEXITY,
+    FILE_FUNCTION_COMPLEXITY,
     FUNCTION_COMPLEXITY,
+    MAX_FILE_FUNCTIONS,
     MAX_FILE_LINES,
     MAX_FUNCTION_LINES,
 )
@@ -37,6 +55,8 @@ def _render(root: Path) -> str:
         FUNCTION_COMPLEXITY,
         MAX_FILE_LINES,
         MAX_FUNCTION_LINES,
+        FILE_FUNCTION_COMPLEXITY,
+        MAX_FILE_FUNCTIONS,
     )
 
 
@@ -51,12 +71,20 @@ def check(
     func_reasons: dict | None = None,
     max_file_lines: int = MAX_FILE_LINES,
     max_function_lines: int = MAX_FUNCTION_LINES,
+    function_count_reasons: dict | None = None,
+    max_file_functions: int = MAX_FILE_FUNCTIONS,
 ) -> list[str]:
     """返回违规列表（空 = 通过）。登记表与文档都可注入，便于负向用例。"""
     file_reasons = FILE_COMPLEXITY if file_reasons is None else file_reasons
     func_reasons = FUNCTION_COMPLEXITY if func_reasons is None else func_reasons
+    function_count_reasons = (
+        FILE_FUNCTION_COMPLEXITY
+        if function_count_reasons is None
+        else function_count_reasons
+    )
     files, funcs, per_file = collect(root)
     bad_files, bad_funcs = over_threshold(files, funcs, max_file_lines, max_function_lines)
+    bad_counts = over_file_functions(per_file, max_file_functions)
 
     out: list[str] = []
     for path in sorted(bad_files):
@@ -70,6 +98,14 @@ def check(
     for path in sorted(file_reasons):
         if path not in bad_files:
             out.append(f"过期登记（文件已不超阈值）：{path}")
+    for path in sorted(bad_counts):
+        if path not in function_count_reasons:
+            out.append(f"未登记的函数数超阈值文件：{path}（{bad_counts[path]} 个函数）")
+        elif not str(function_count_reasons[path]).strip():
+            out.append(f"登记缺少理由：{path}")
+    for path in sorted(function_count_reasons):
+        if path not in bad_counts:
+            out.append(f"过期登记（函数数已不超阈值）：{path}")
     for key in sorted(bad_funcs):
         if key not in func_reasons:
             out.append(f"未登记的超阈值函数：{key}（{bad_funcs[key]} 行）")
@@ -79,6 +115,7 @@ def check(
     expected = render(
         files, funcs, per_file, file_reasons, func_reasons,
         max_file_lines, max_function_lines,
+        function_count_reasons, max_file_functions,
     )
     if not docs.is_file():
         out.append(f"缺少生成文档：{docs}")
@@ -116,7 +153,8 @@ def main(argv: list[str] | None = None) -> int:
     files, funcs, _ = collect(ROOT)
     print(
         f"✅ 复杂度登记一致（文件 {len(files)}、函数 {len(funcs)}、"
-        f"超阈值 {len(FILE_COMPLEXITY)} 文件 / {len(FUNCTION_COMPLEXITY)} 函数）"
+        f"超阈值 {len(FILE_COMPLEXITY)} 文件 / {len(FUNCTION_COMPLEXITY)} 函数 / "
+        f"{len(FILE_FUNCTION_COMPLEXITY)} 函数数文件）"
     )
     return 0
 

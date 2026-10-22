@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable
 
 
-def _norm_path(p: str) -> str:
+def norm_path(p: str) -> str:
     """路径规范化：统一斜杠、去首尾空白。"""
     return str(p or "").replace("\\", "/").strip()
 
@@ -22,5 +22,5 @@ def resolve_write_path(args: Dict[str, Any], keys: Iterable[str]) -> str:
             continue
         value = str((args or {}).get(name) or "").strip()
         if value:
-            return _norm_path(value)
+            return norm_path(value)
     return ""

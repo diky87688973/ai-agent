@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
-from agent.mechanisms.quality.path_keys import _norm_path
+from agent.mechanisms.quality.path_keys import norm_path
 
 if TYPE_CHECKING:
     from agent.mechanisms.quality.gate import QualityGate
@@ -81,7 +81,7 @@ def run_post_write_checks(gate: "QualityGate", path: str) -> List[Dict[str, Any]
 
 def build_quality_report(gate: "QualityGate", path: str) -> Dict[str, Any]:
     """写后质量报告：overall / checks / required_next_actions。"""
-    norm = _norm_path(path)
+    norm = norm_path(path)
     checks = run_post_write_checks(gate, path)
     actions: List[str] = []
     if gate.large_delete_flag:

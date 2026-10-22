@@ -13,6 +13,7 @@ from agent.core.tool_call import (
     ToolResult,
 )
 from agent.mechanisms.quality.checks import WriteContext
+from agent.mechanisms.quality.diagnose import build_quality_report
 from agent.mechanisms.quality.gate import QualityGate
 
 
@@ -104,7 +105,7 @@ def build_pipeline_gate(
                 tool=tool,
                 reread=_needs_reread(tool),
             )
-            report = session_gate.build_quality_report(path)
+            report = build_quality_report(session_gate, path)
             result.data["host_quality"] = report
             return
         if call.name in read_names:

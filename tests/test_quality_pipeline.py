@@ -14,7 +14,10 @@ from typing import Any, Dict
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.mechanisms.quality import WriteContext  # noqa: E402
+from agent.mechanisms.quality import (  # noqa: E402
+    WriteContext,
+    diagnose,
+)
 from tests.gate_fixtures import make_gate  # noqa: E402
 
 
@@ -132,7 +135,7 @@ class QualityPipelineTest(unittest.TestCase):
         self.gate.review_done()
         self.assertFalse(self.gate.large_delete_flag)
         self.assertFalse(self.gate.pending_diagnose_red)
-        self.gate._flag_diag_fail("demo")
+        diagnose.flag_diag_fail(self.gate, "demo")
         self.gate.review_done()
         self.assertTrue(self.gate.pending_diagnose_red)
         self.assertTrue(self.gate.diag_fail_flag)
@@ -142,15 +145,15 @@ class QualityPipelineTest(unittest.TestCase):
 
         good = self.root / "good.py"
         good.write_text("x = 1\n", encoding="utf-8")
-        checks = self.gate.run_post_write_checks(str(good))
+        checks = diagnose.run_post_write_checks(self.gate, str(good))
         self.assertTrue(checks and all(c["status"] == "pass" for c in checks))
         bad = self.root / "bad.py"
         bad.write_text("def f(:\n", encoding="utf-8")
-        checks_bad = self.gate.run_post_write_checks(str(bad))
+        checks_bad = diagnose.run_post_write_checks(self.gate, str(bad))
         self.assertEqual(checks_bad[-1]["status"], "fail")
         self.assertTrue(self.gate.diag_fail_flag)
         bad.write_text("def f():\n    return 1\n", encoding="utf-8")
-        checks_fix = self.gate.run_post_write_checks(str(bad))
+        checks_fix = diagnose.run_post_write_checks(self.gate, str(bad))
         self.assertTrue(all(c["status"] == "pass" for c in checks_fix))
         self.assertFalse(self.gate.diag_fail_flag)
 
@@ -159,11 +162,11 @@ class QualityPipelineTest(unittest.TestCase):
 
         good = self.root / "ok.json"
         good.write_text('{"a": 1}', encoding="utf-8")
-        checks = self.gate.run_post_write_checks(str(good))
+        checks = diagnose.run_post_write_checks(self.gate, str(good))
         self.assertTrue(all(c["status"] == "pass" for c in checks))
         bad = self.root / "bad.json"
         bad.write_text("{a: 1", encoding="utf-8")
-        checks_bad = self.gate.run_post_write_checks(str(bad))
+        checks_bad = diagnose.run_post_write_checks(self.gate, str(bad))
         self.assertEqual(checks_bad[-1]["status"], "fail")
 
     def test_report_structure(self) -> None:
@@ -172,7 +175,7 @@ class QualityPipelineTest(unittest.TestCase):
         a = self.root / "rep.py"
         a.write_text("x = 1\n", encoding="utf-8")
         self.gate.note_committed(str(a))
-        report = self.gate.build_quality_report(str(a))
+        report = diagnose.build_quality_report(self.gate, str(a))
         self.assertEqual(report["overall"], "green")
         self.assertTrue(report["checks"])
         self.assertIn(
@@ -181,7 +184,7 @@ class QualityPipelineTest(unittest.TestCase):
         )
         b = self.root / "rep_bad.py"
         b.write_text("def f(:\n", encoding="utf-8")
-        report_red = self.gate.build_quality_report(str(b))
+        report_red = diagnose.build_quality_report(self.gate, str(b))
         self.assertEqual(report_red["overall"], "red")
 
     def test_assistant_claim_fixed(self) -> None:

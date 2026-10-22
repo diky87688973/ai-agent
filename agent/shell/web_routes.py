@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Web HTTP 路由分发（_Handler）。"""
+"""Web HTTP 路由分发（Handler）。"""
 from __future__ import annotations
 
 import json
@@ -20,7 +20,7 @@ from agent.shell.web_static import (
 )
 
 
-class _Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
+class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
     """路由分发。"""
 
     server_version = "ai-agent-web/1.0"

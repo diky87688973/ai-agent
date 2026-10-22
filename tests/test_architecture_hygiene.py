@@ -16,7 +16,10 @@ from check_architecture_hygiene import (  # noqa: E402
     check_compactor_contract_boundary,
     check_gate_single_path,
     check_no_quality_gate_shim,
+    check_no_silent_system_prompt,
     check_provider_module_boundary,
+    check_same_layer_private_imports,
+    check_test_method_names,
 )
 
 
@@ -226,6 +229,69 @@ class ModuleBoundaryAstTest(unittest.TestCase):
                 "from agent.mechanisms.context.contract import ContextCompactionPolicy\n",
             )
             self.assertEqual(check_compactor_contract_boundary(pkg), [])
+
+
+class SameLayerPrivateImportTest(unittest.TestCase):
+    def test_private_same_layer_caught(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-same-layer-") as tmp:
+            pkg = _agent_tree(Path(tmp))
+            _write(pkg, "mechanisms/a.py", "SECRET = 1\n")
+            _write(pkg, "mechanisms/b.py", "from agent.mechanisms.a import _secret\n")
+            hits = check_same_layer_private_imports(pkg)
+            self.assertTrue(any("_secret" in h for h in hits), hits)
+
+    def test_public_same_layer_passes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-same-layer-ok-") as tmp:
+            pkg = _agent_tree(Path(tmp))
+            _write(pkg, "mechanisms/a.py", "SECRET = 1\n")
+            _write(pkg, "mechanisms/b.py", "from agent.mechanisms.a import SECRET\n")
+            self.assertEqual(check_same_layer_private_imports(pkg), [])
+
+
+class TestMethodNameGateTest(unittest.TestCase):
+    def test_bad_test_prefix_caught(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-testname-") as tmp:
+            root = Path(tmp)
+            _write(root, "test_bad.py", "def testbad() -> None:\n    pass\n")
+            self.assertTrue(check_test_method_names(root))
+
+    def test_public_test_prefix_passes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-testname-ok-") as tmp:
+            root = Path(tmp)
+            _write(root, "test_ok.py", "def test_good() -> None:\n    pass\n")
+            self.assertEqual(check_test_method_names(root), [])
+
+
+class SilentSystemPromptCheckTest(unittest.TestCase):
+    def test_nonstandard_indent_and_as_clause_caught(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-prompt-") as tmp:
+            pkg = _agent_tree(Path(tmp))
+            _write(
+                pkg,
+                "shell/a.py",
+                """
+                def f():
+                    resolve_system_prompt()
+                    try:
+                        work()
+                    except Exception as exc:
+                        # 说明
+                        system_text = ""
+                """,
+            )
+            hits = check_no_silent_system_prompt(pkg)
+            self.assertTrue(any("system_text" in h for h in hits), hits)
+
+    def test_external_package_root_does_not_crash(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hygiene-prompt-ext-") as tmp:
+            pkg = _agent_tree(Path(tmp))
+            _write(
+                pkg,
+                "shell/a.py",
+                "resolve_system_prompt()\ntry:\n    work()\nexcept Exception:\n"
+                "    system_text = \"\"\n",
+            )
+            self.assertTrue(check_no_silent_system_prompt(pkg))
 
 
 if __name__ == "__main__":

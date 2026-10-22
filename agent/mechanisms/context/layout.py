@@ -94,7 +94,7 @@ def clip_reasoning(messages: List[Dict[str, Any]],
     return out
 
 
-def _as_text_parts(text: Any) -> List[str]:
+def as_text_parts(text: Any) -> List[str]:
     """把可能为列表/字符串的注入内容归一成"每段一条"的正文列表。
 
     注入源（知识库 / Skills）常按条目给列表；直接塞进 `content` 会让模型收到
@@ -112,7 +112,7 @@ def _as_text_parts(text: Any) -> List[str]:
     return out
 
 
-def _merge_segment_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def merge_segment_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """按 key+label 合并同一个插件的多条消息；tokens 相加，count 取首条自报数。"""
     merged: List[Dict[str, Any]] = []
     index: Dict[Tuple[str, str], int] = {}

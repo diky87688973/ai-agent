@@ -84,6 +84,13 @@ def over_threshold(
     return bad_files, bad_funcs
 
 
+def over_file_functions(
+    per_file: Mapping[str, int], max_file_functions: int,
+) -> Dict[str, int]:
+    """筛出单文件函数数超阈值的文件。"""
+    return {k: v for k, v in per_file.items() if v > max_file_functions}
+
+
 def _sorted_rows(values: Mapping[str, int]) -> list[Tuple[str, int]]:
     return sorted(values.items(), key=lambda kv: (-kv[1], kv[0]))
 
@@ -96,15 +103,20 @@ def render(
     func_reasons: Mapping[str, str],
     max_file_lines: int,
     max_function_lines: int,
+    function_count_reasons: Mapping[str, str] | None = None,
+    max_file_functions: int = 40,
 ) -> str:
     """渲染 `docs/complexity.md`（确定性输出）。"""
     bad_files, bad_funcs = over_threshold(
         files, funcs, max_file_lines, max_function_lines
     )
+    function_count_reasons = function_count_reasons or {}
+    bad_counts = over_file_functions(per_file, max_file_functions)
     lines = [
         "# 复杂度登记",
         "",
-        f"> 阈值：单文件 > {max_file_lines} 行、单函数 > {max_function_lines} 行。",
+        f"> 阈值：单文件 > {max_file_lines} 行、单函数 > {max_function_lines} 行、"
+        f"单文件 > {max_file_functions} 个函数。",
         "> 本文件由 `python scripts/gen_complexity_md.py` 生成；"
         "`scripts/check_complexity.py` 比对实际集合与本表。",
         "",
@@ -118,6 +130,18 @@ def render(
         lines.append(f"| `{path}` | {size} | {per_file.get(path, 0)} | {reason} |")
     if not bad_files:
         lines.append("| （无） | - | - | - |")
+
+    lines += [
+        "",
+        "## 函数数超阈值文件",
+        "",
+        "| 文件 | 函数数 | 保留理由 |",
+        "|---|---|---|",
+    ]
+    for path, count in _sorted_rows(bad_counts):
+        lines.append(f"| `{path}` | {count} | {function_count_reasons.get(path, '')} |")
+    if not bad_counts:
+        lines.append("| （无） | - | - |")
 
     lines += [
         "",
@@ -139,7 +163,8 @@ def render(
         f"- 目录：{'、'.join('`' + d + '/`' for d in SCAN_DIRS)}",
         f"- 排除：{'、'.join('`' + p + '/`' for p in SKIP_PARTS)}",
         f"- 文件 {len(files)} 个、函数 {len(funcs)} 个；"
-        f"超阈值文件 {len(bad_files)} 个、函数 {len(bad_funcs)} 个。",
+        f"超阈值文件 {len(bad_files)} 个、函数 {len(bad_funcs)} 个、"
+        f"函数数超阈值文件 {len(bad_counts)} 个。",
         "",
     ]
     return "\n".join(lines)

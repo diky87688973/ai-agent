@@ -9,9 +9,9 @@ from agent.core.event_name import COMPRESS_ENDED, COMPRESS_STARTED, CONTEXT_COMP
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.module import ModuleBase
 from agent.core.modules.support import (
-    _assemble_with,
-    _prepare_dialogue,
-    _resolve_runtime_note,
+    assemble_with,
+    prepare_dialogue,
+    resolve_runtime_note,
 )
 from agent.core.outcome import Outcome
 from agent.core.ports import Ports
@@ -56,11 +56,11 @@ class CompressModule(ModuleBase):
             return Outcome.ok()
         from time import perf_counter
         started = perf_counter()
-        runtime_note = _resolve_runtime_note(self._mode_note)
+        runtime_note = resolve_runtime_note(self._mode_note)
         # 发给模型的请求序列：必须成对（`derive_request_messages`
         # 会为悬空的 tool_calls 补说明性占位，否则模型 API 硬拒绝 400）。
         # 请求序列取自 derive_request_messages()；derive_messages() 保留悬空——那是日志的忠实折叠，会保留悬空。
-        dialogue = _prepare_dialogue(ports.log.derive_request_messages(),
+        dialogue = prepare_dialogue(ports.log.derive_request_messages(),
                                      self._image_turns, self._image_max)
         # 工具定义照平常请求取同一份：摘要复用前缀时它是前缀的一部分，
         # 少一项或换一份就整段缓存作废。
@@ -71,7 +71,7 @@ class CompressModule(ModuleBase):
             try:
                 # 压缩走同一条装配入口：头部 + 对话（+ 尾部仅执行模式，随后剔除）。
                 # 压缩器拿到的这份与随后模型请求的前缀是同一份装配结果。
-                whole = _assemble_with(self.context_pass, dialogue, runtime_note,
+                whole = assemble_with(self.context_pass, dialogue, runtime_note,
                                        self._covered_end())
                 report = self._compactor.ensure_before_append(
                     self.context_pass, dialogue, pending=None, tools=schemas,
@@ -83,7 +83,7 @@ class CompressModule(ModuleBase):
                 report_error("core.compress", exc)
         elif self.context_pass is not None:
             # 没有压缩能力：至少把对话装进上下文，后续模块才看得到。
-            _assemble_with(self.context_pass, dialogue, runtime_note, 0)
+            assemble_with(self.context_pass, dialogue, runtime_note, 0)
         compacted = isinstance(report, dict) and bool(report)
         if compacted:
             yield ports.emit(CONTEXT_COMPACTED, **report)

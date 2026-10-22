@@ -20,14 +20,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import agent.shell.classic_adapter.contract as C
 from agent.shell.classic_adapter.history import (
-    _ATTACH_REGISTER_MAX_BYTES,
-    _ATTACH_REGISTER_MAX_COUNT,
-    _attachment_id,
-    _history_items,
-    _last_payload,
+    ATTACH_REGISTER_MAX_BYTES,
+    ATTACH_REGISTER_MAX_COUNT,
+    attachment_id,
+    history_items,
+    last_payload,
 )
-from agent.shell.classic_adapter.layout import _current_todo, compute_context_layout
-from agent.shell.classic_adapter.sessions import _date_group, _scan_title
+from agent.shell.classic_adapter.layout import compute_context_layout, current_todo
+from agent.shell.classic_adapter.sessions import scan_title, session_date_group
 from agent.shell.classic_adapter.state import ClassicState
 
 
@@ -99,7 +99,7 @@ class Inbound:
                         "conversation_id": cid,                     # 内核口径，一并给（超集）
                         "short_id": cid[:8],                        # 无标题时前端回落显示
                         "title": title,
-                        "date_group": _date_group(mtime, now),
+                        "date_group": session_date_group(mtime, now),
                         "mtime": int(mtime),
                     })
         return {
@@ -125,10 +125,10 @@ class Inbound:
                     return title
             except Exception:
                 # 标题推导是可选的增强（读索引文件），失败即跳过。
-                # 推导器坏了 / 索引缺失就走下面的 `_scan_title`（扫事实日志）兜底
+                # 推导器坏了 / 索引缺失就走下面的 `scan_title`（扫事实日志）兜底
                 # ——那才是权威来源。这里失败只影响"少一次快速命中"。
                 pass
-        return _scan_title(path)
+        return scan_title(path)
 
     # ── /api/chat/history ─────────────────────────────────
     def history(self, cid: str) -> Dict[str, Any]:
@@ -154,17 +154,17 @@ class Inbound:
         if not cid:
             return {"ok": False, "error": "invalid conversation_id", "items": []}
         events = self._load_events(cid)
-        items, resolved = _history_items(events)
+        items, resolved = history_items(events)
         self._mark_stale_suspends(cid, items)
         # 把解出的字节登记进内存，供 `/api/chat/attachment?id=…` 取用。
         # 这个 dict 是从事实派生的缓存，内容一律来自 `.raw`，
         # 因此刷新、重启、两个标签页看到的都一致（id 也是可重算的）。
         if resolved:
             register = []
-            for item in resolved[-_ATTACH_REGISTER_MAX_COUNT:]:
+            for item in resolved[-ATTACH_REGISTER_MAX_COUNT:]:
                 raw = item.get("data_base64") if isinstance(item, dict) else None
                 size = len(raw or "") if isinstance(raw, str) else 0
-                if size and size <= _ATTACH_REGISTER_MAX_BYTES:
+                if size and size <= ATTACH_REGISTER_MAX_BYTES:
                     register.append(item)
             if register:
                 self.state.put_attachments(cid, register)
@@ -174,9 +174,9 @@ class Inbound:
             "items": items,
             # 事实里没有就按同一口径重算（`context_layout` 是派生数据、从不落盘，
             # 不兜底的话刷新后右栏分段条会回落「—」）。
-            "context_layout": (_last_payload(events, "context_layout")
+            "context_layout": (last_payload(events, "context_layout")
                                or compute_context_layout(self._app, events, cid)),
-            "todo_list": _current_todo(self._app, cid),
+            "todo_list": current_todo(self._app, cid),
         }
 
     def _mark_stale_suspends(self, cid: str, items: List[Dict[str, Any]]) -> None:
@@ -299,7 +299,7 @@ class Inbound:
         path = self._session_path(cid)
         if path is None or not path.is_file():
             return ""
-        return _scan_title(path)
+        return scan_title(path)
 
     def _session_path(self, cid: str) -> Optional[Path]:
         store = getattr(self._app, "store", None)
@@ -413,7 +413,7 @@ class Inbound:
     def remember_attachments(self, cid: str, images: Any) -> List[Dict[str, Any]]:
         """把本轮 `images` 存进来并编上 id，供 `send` 的返回体回给经典界面。
 
-        id 由图片字节派生（与 `_history_items` 同一函数），所以这个 id 与
+        id 由图片字节派生（与 `history_items` 同一函数），所以这个 id 与
         刷新后历史里的 id 相同 —— 前端不必知道是刚发的还是从历史读的。
         """
         items: List[Dict[str, Any]] = []
@@ -426,7 +426,7 @@ class Inbound:
             if not isinstance(data, str) or not data:
                 continue
             items.append({
-                "id": _attachment_id(data, index),
+                "id": attachment_id(data, index),
                 "name": str(raw.get("name") or f"image{index}.png"),
                 "mime": str(raw.get("mime") or "image/png"),
                 "data_base64": data,

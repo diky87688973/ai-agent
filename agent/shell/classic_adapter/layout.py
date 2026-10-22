@@ -284,7 +284,7 @@ def _covered_end_of(events: List[Any]) -> int:
     return covered
 
 
-def _current_todo(app: Any, cid: str) -> List[Dict[str, Any]]:
+def current_todo(app: Any, cid: str) -> List[Dict[str, Any]]:
     """当前会话的清单条目：只读 `live_state`，不从历史事件里猜。
 
     历史事件里按 `items` 形状找会抓错：`find_in_file` / `file_search` /

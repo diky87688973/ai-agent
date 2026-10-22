@@ -29,21 +29,21 @@ from agent.mechanisms.session_title import (
     is_placeholder_title,
 )
 from agent.shell.fspaths import (
-    _default_fs_roots,
-    _fs_rejection,
-    _is_drive_root,
-    _list_drives,
-    _normalize_roots,
-    _within_any_root,
+    default_fs_roots,
+    fs_rejection,
+    is_drive_root,
+    list_drives,
+    normalize_roots,
+    within_any_root,
 )
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
-from agent.shell.sse import _Channel, _sse_payload
+from agent.shell.sse import Channel, sse_payload
 from agent.shell.timefmt import date_group
 from agent.shell.web_static import (
-    _TITLE_SCAN_LINES,
     MODE_VALUES,
-    _lang_from_path,
-    _looks_binary,
+    TITLE_SCAN_LINES,
+    lang_from_path,
+    looks_binary,
 )
 
 
@@ -67,10 +67,10 @@ class WebShell:
         # `markedImageHref`）。命名沿用，缺省 `<data_root>/workspace`。
         self.workspace_root = Path(workspace_root).resolve() if workspace_root else None
         # 可见根：单个 Path / Path 列表 / None（None = 不限根，仅供测试与显式放开）
-        self.fs_roots: List[Path] = _normalize_roots(fs_roots)
+        self.fs_roots: List[Path] = normalize_roots(fs_roots)
         self.titles = TitleStore(Path(titles_dir) if titles_dir else None)
         self.title_generator = title_generator
-        self._channels: List[_Channel] = []
+        self._channels: List[Channel] = []
         self._lock = threading.Lock()
         self._runs: Dict[str, str] = {}  # cid → run_id（当前活跃回合）
         # 把壳自己交给适配层：它会复用本壳的 `_derive_title` 派生会话标题，
@@ -86,13 +86,13 @@ class WebShell:
 
     # ── SSE 连接表 ────────────────────────────────────────
 
-    def attach(self) -> _Channel:
-        channel = _Channel()
+    def attach(self) -> Channel:
+        channel = Channel()
         with self._lock:
             self._channels.append(channel)
         return channel
 
-    def detach(self, channel: _Channel) -> None:
+    def detach(self, channel: Channel) -> None:
         channel.close()
         with self._lock:
             if channel in self._channels:
@@ -100,7 +100,7 @@ class WebShell:
 
     def broadcast(self, event: ev.Event) -> None:
         """把内核事件广播到全部 SSE 连接（EventBus 通配订阅者）。"""
-        frame = _sse_payload(event)
+        frame = sse_payload(event)
         if event.type == ev.TURN_STARTED:
             cid = str((event.data or {}).get("conversation_id") or "")
             rid = str((event.data or {}).get("run_id") or "")
@@ -388,7 +388,7 @@ class WebShell:
         """会话标题：优先已生成并落盘的标题，其次从事实源派生（首条用户输入）。
 
         会话日志可达数万条事件，标题只需要开头——故只读文件前若干行
-        （`_TITLE_SCAN_LINES`），不整档 load；超限则退化为空（由前端显示短 id）。
+        （`TITLE_SCAN_LINES`），不整档 load；超限则退化为空（由前端显示短 id）。
         """
         stored = self.titles.load(cid) if self.titles is not None else ""
         if stored and not is_placeholder_title(stored):
@@ -402,7 +402,7 @@ class WebShell:
         try:
             with path.open("r", encoding="utf-8", errors="replace") as handle:
                 for index, line in enumerate(handle):
-                    if index >= _TITLE_SCAN_LINES:
+                    if index >= TITLE_SCAN_LINES:
                         break
                     try:
                         payload = json.loads(line)
@@ -545,7 +545,7 @@ class WebShell:
         """
         target, reason = self._resolve_fs(path or ".", must_exist=True)
         if target is None:
-            return _fs_rejection(reason)
+            return fs_rejection(reason)
         if not target.is_dir():
             return 400, {"error": "not a directory"}
         entries: List[Dict[str, Any]] = []
@@ -575,13 +575,13 @@ class WebShell:
         """读文件（供右栏标签页）；文本 / 代码直读，xlsx 转表格，二进制给结构化提示。"""
         target, reason = self._resolve_fs(path, must_exist=True)
         if target is None:
-            return _fs_rejection(reason)
+            return fs_rejection(reason)
         if not target.is_file():
             return 404, {"error": "not a file"}
         suffix = target.suffix.lower()
         if suffix in (".xlsx", ".xlsm", ".xls"):
             return self._read_table(target)
-        if _looks_binary(target):
+        if looks_binary(target):
             return 200, {
                 "path": str(target),
                 "kind": "binary",
@@ -602,7 +602,7 @@ class WebShell:
         return 200, {
             "path": str(target),
             "kind": "text",
-            "lang": _lang_from_path(target.name),
+            "lang": lang_from_path(target.name),
             "content": text,
             "truncated": truncated,
             "size": int(stat.st_size) if stat else len(text.encode("utf-8")),
@@ -697,7 +697,7 @@ class WebShell:
         盘根（`agent/core` 会变成 `C:/`）。所以按具体程度挑：
         项目根（若在可见范围内）→ 进程工作目录（若在范围内）→ 第一个可见根。
         """
-        roots = self.fs_roots or _default_fs_roots()
+        roots = self.fs_roots or default_fs_roots()
         if not roots:
             return Path.cwd()
 
@@ -717,7 +717,7 @@ class WebShell:
         # 显式给出的第一个根通常就是用户有意指定的工作区（夹具 / --fs-root），优先它；
         # 只有它是"太宽的根"（盘根）时才往下找更具体的位置。
         first = roots[0]
-        if not _is_drive_root(first) and first.is_dir():
+        if not is_drive_root(first) and first.is_dir():
             return first
         for candidate in (PROJECT_ROOT, Path.cwd()):
             if candidate.is_dir() and inside(candidate):
@@ -738,7 +738,7 @@ class WebShell:
         raw = str(path or "").strip()
 
         if raw == "_drives_":
-            return 200, {"current": "计算机", "parent": "", "items": _list_drives()}
+            return 200, {"current": "计算机", "parent": "", "items": list_drives()}
 
         if not raw:
             target = base
@@ -986,7 +986,7 @@ class WebShell:
             return 400, {"error": "missing path"}, "application/json"
         target = Path(raw)
         if root is None:
-            if not _within_any_root(target, self.fs_roots or _default_fs_roots()):
+            if not within_any_root(target, self.fs_roots or default_fs_roots()):
                 return 403, {"error": "path outside media root"}, "application/json"
         else:
             try:

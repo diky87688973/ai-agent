@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Web 事件通道测试 —— `_Channel` 背压与生命周期（纯 Python，与用哪套 UI 无关）。
+"""Web 事件通道测试 —— `Channel` 背压与生命周期（纯 Python，与用哪套 UI 无关）。
 
 前端是经典界面单页。
 
@@ -21,7 +21,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.shell.sse import _Channel  # noqa: E402
+from agent.shell.sse import Channel  # noqa: E402
 
 
 class ChannelBackpressureTest(unittest.TestCase):
@@ -29,7 +29,7 @@ class ChannelBackpressureTest(unittest.TestCase):
 
     def test_frames_arrive_in_order(self) -> None:
 
-        channel = _Channel()
+        channel = Channel()
         for i in range(5):
             channel.push(f"data: {i}\n\n")
         got = [channel.next_frame(1.0) for _ in range(5)]
@@ -37,14 +37,14 @@ class ChannelBackpressureTest(unittest.TestCase):
 
     def test_idle_returns_heartbeat_not_none(self) -> None:
 
-        channel = _Channel()
+        channel = Channel()
         frame = channel.next_frame(0.05)
         self.assertEqual(frame, ": keep-alive\n\n")
 
     def test_slow_consumer_drops_oldest_keeps_latest(self) -> None:
         """队列满时丢最旧一帧——保证流不断且最终状态可见。"""
 
-        channel = _Channel(maxsize=3)
+        channel = Channel(maxsize=3)
         for i in range(10):
             channel.push(f"data: {i}\n\n")
         got = []
@@ -58,7 +58,7 @@ class ChannelBackpressureTest(unittest.TestCase):
 
     def test_close_returns_none_and_stops_accepting(self) -> None:
 
-        channel = _Channel()
+        channel = Channel()
         channel.close()
         self.assertIsNone(channel.next_frame(0.05))
         channel.push("data: late\n\n")  # 关闭后入队应被忽略
@@ -66,7 +66,7 @@ class ChannelBackpressureTest(unittest.TestCase):
 
     def test_concurrent_push_and_pop_is_safe(self) -> None:
 
-        channel = _Channel(maxsize=500)
+        channel = Channel(maxsize=500)
         received = []
         done = threading.Event()
 

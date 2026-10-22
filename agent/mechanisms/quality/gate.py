@@ -10,7 +10,7 @@ import agent.mechanisms.quality.checks as _checks
 import agent.mechanisms.quality.diagnose as _diagnose
 from agent.core.tool_call import GateDecision
 from agent.mechanisms.quality.checks import WriteContext
-from agent.mechanisms.quality.path_keys import _norm_path
+from agent.mechanisms.quality.path_keys import norm_path
 from agent.mechanisms.quality.pending import PendingStore
 
 PathKeysFor = Callable[[str], Sequence[str]]
@@ -100,7 +100,7 @@ class QualityGate:
     ) -> None:
         """真写成功后的记账 + 大删除检测；reread=False 用于结构性操作（删除/移动/重命名）。"""
         self._write_generation += 1
-        norm = _norm_path(path)
+        norm = norm_path(path)
         if reread:
             self.needs_reread.add(norm)
         if norm not in self.pending_review:
@@ -125,7 +125,7 @@ class QualityGate:
 
     def note_read(self, path: str) -> None:
         """read 复核后清除该路径的"需重读"标记。"""
-        self.needs_reread.discard(_norm_path(path))
+        self.needs_reread.discard(norm_path(path))
 
     def review_done(self) -> None:
         """写后复核完成：大删除红灯因 review 解除（视为有意确认）；
@@ -159,17 +159,3 @@ class QualityGate:
         if re.search(r"(已修复|已解决|修复完成|搞定了)", str(text or "")):
             self.claim_fixed_blocked = True
 
-    # ── 写后 feedback（本地可跑的检查）────
-    def run_post_write_checks(self, path: str) -> List[Dict[str, Any]]:
-        """写后本地检查：.py / .json。"""
-        return _diagnose.run_post_write_checks(self, path)
-
-    def build_quality_report(self, path: str) -> Dict[str, Any]:
-        """写后质量报告：overall / checks / required_next_actions。"""
-        return _diagnose.build_quality_report(self, path)
-
-    def _flag_diag_fail(self, summary: str) -> None:
-        _diagnose.flag_diag_fail(self, summary)
-
-    def _maybe_flag_large_delete(self, path: str, diff_text: str) -> None:
-        _diagnose.maybe_flag_large_delete(self, path, diff_text)

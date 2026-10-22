@@ -1870,14 +1870,14 @@ class RemainingCapacityTest(unittest.TestCase):
     """「剩余容量」按压缩阈值算，不是按"已用"算 —— 否则界面那条永远是 0%。"""
 
     def test_snapshot_carries_the_budget(self) -> None:
-        from agent.core.modules import _segment_snapshot
+        from agent.core.modules import segment_snapshot
         from agent.mechanisms.context import ContextPipeline
         p = ContextPipeline("cid-rem-0001")
         p.append_system(SYS)
         p.set_dialogue([{"role": "user", "content": "问"},
                         {"role": "assistant", "content": "答"}], covered_end=0)
         msgs = p.assembles([{"role": "user", "content": "本轮"}])
-        snap = _segment_snapshot(p, msgs, budget_tokens=700000)
+        snap = segment_snapshot(p, msgs, budget_tokens=700000)
         remaining = [s for s in snap["segments"] if s["key"] == "remaining"][0]
         self.assertEqual(snap["budget_tokens"], 700000)
         self.assertEqual(remaining["tokens"], 700000 - snap["total_tokens"])

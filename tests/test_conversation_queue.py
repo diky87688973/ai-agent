@@ -50,6 +50,7 @@ class ConversationQueueTest(unittest.TestCase):
         recalled = self.queue.recall(self.CID, item["id"])
         self.assertEqual(recalled["attachments"][0]["data_base64"], _PNG)
         self.assertEqual(self.queue.size(self.CID), 0)
+        self.queue.cancel(self.CID, recalled["id"])
 
     def test_draft_resubmit_preserves_agent_origin(self) -> None:
         item = self.queue.enqueue(

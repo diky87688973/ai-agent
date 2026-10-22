@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from agent.core.error_report import report_error
-from agent.shell.web_static import _plugin_asset_rel
+from agent.shell.web_static import plugin_asset_rel
 
 
 class PluginRoutes:
@@ -31,7 +31,7 @@ class PluginRoutes:
             self._json(404, {"error": "插件系统未接入"})
             return
         # 面板脚本资产：`/api/plugin/<插件>/_asset/<插件目录内相对路径>`
-        asset = _plugin_asset_rel(path)
+        asset = plugin_asset_rel(path)
         if asset is not None and method == "GET":
             self._plugin_asset(asset[0], asset[1])
             return

@@ -6,7 +6,7 @@
 
 运行形态：起真实 HTTP 服务（127.0.0.1，临时端口），用标准库 urllib 打真实请求；
 provider 用脚本替身（不触网），故测试离线可跑。
-SSE 连接与背压由 `tests/test_web_frontend.py` 的 `_Channel` 用例覆盖，
+SSE 连接与背压由 `tests/test_web_frontend.py` 的 `Channel` 用例覆盖，
 前端渲染边界与注入防线由 `scripts/acceptance_web.py` 的实时场景覆盖。
 """
 from __future__ import annotations
@@ -336,24 +336,24 @@ class DateGroupTest(unittest.TestCase):
 
     def test_groups_by_natural_day(self) -> None:
 
-        from agent.shell.timefmt import date_group as _date_group
+        from agent.shell.timefmt import date_group as date_group
 
         now = time.time()
-        self.assertEqual(_date_group(now, now), "今天")
-        self.assertEqual(_date_group(now - 86400, now), "昨天")
-        self.assertEqual(_date_group(0, now), "")
+        self.assertEqual(date_group(now, now), "今天")
+        self.assertEqual(date_group(now - 86400, now), "昨天")
+        self.assertEqual(date_group(0, now), "")
 
     def test_older_is_grouped_by_date(self) -> None:
 
-        from agent.shell.timefmt import date_group as _date_group
+        from agent.shell.timefmt import date_group as date_group
 
         now = time.time()
         # 更早的按具体日期分组（「本周」「更早」看不出是哪天）。
         day = time.localtime(now - 3 * 86400)
-        self.assertEqual(_date_group(now - 3 * 86400, now),
+        self.assertEqual(date_group(now - 3 * 86400, now),
                          f"{day.tm_mon}月{day.tm_mday}日")
         old_day = time.localtime(now - 40 * 86400)
-        self.assertEqual(_date_group(now - 40 * 86400, now),
+        self.assertEqual(date_group(now - 40 * 86400, now),
                          f"{old_day.tm_mon}月{old_day.tm_mday}日")
 
 class FileViewerContractTest(_ServerFixture):
@@ -563,12 +563,12 @@ class MultiRootFileViewerTest(unittest.TestCase):
 
     def test_roots_are_resolved_and_deduplicated_by_normalize(self) -> None:
 
-        from agent.shell.fspaths import _normalize_roots
+        from agent.shell.fspaths import normalize_roots
 
-        self.assertEqual(_normalize_roots(None), [])
-        self.assertEqual(_normalize_roots(self.root_a), [self.root_a.resolve()])
+        self.assertEqual(normalize_roots(None), [])
+        self.assertEqual(normalize_roots(self.root_a), [self.root_a.resolve()])
         self.assertEqual(
-            _normalize_roots([self.root_a, str(self.root_b)]),
+            normalize_roots([self.root_a, str(self.root_b)]),
             [self.root_a.resolve(), self.root_b.resolve()],
         )
 
@@ -802,10 +802,10 @@ class SseContractTest(_ServerFixture):
         current = payload["current"]
         self.assertTrue(current.startswith(self.root.as_posix()),
                         msg=f"相对路径应落在夹具根内：{current}")
-        self.assertFalse(_is_drive_root_text(current),
+        self.assertFalse(is_drive_root_text(current),
                          msg=f"相对路径被钉在盘根上了：{current}")
 
-def _is_drive_root_text(path_text: str) -> bool:
+def is_drive_root_text(path_text: str) -> bool:
     """路径文本是否盘符根（如 `C:/`）——这种根太宽，不适合作相对路径基准。"""
     text = str(path_text or "").replace("\\", "/").rstrip("/")
     return len(text) == 2 and text[1] == ":"

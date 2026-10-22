@@ -251,6 +251,7 @@ class SessionIsolationContractTest(unittest.TestCase):
     """多会话隔离与门控确认按 cid 解析（前端分派契约的后端前提）。"""
     def setUp(self) -> None:
         self.app = _isolated_app()
+        self.addCleanup(self.app.dispose)
         self.addCleanup(self.app.session_contexts.close_all)
 
     def test_events_of_two_sessions_carry_distinct_cids(self) -> None:

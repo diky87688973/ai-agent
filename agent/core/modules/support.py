@@ -20,7 +20,7 @@ from agent.core.tool_call import ToolCallRequest
 
 _TOOL_ENDED = TOOL_ENDED
 
-def _prepare_dialogue(dialogue: Any, image_turns: int,
+def prepare_dialogue(dialogue: Any, image_turns: int,
                       image_max: int) -> List[Dict[str, Any]]:
     """对话 → 请求用对话：按配置剥掉窗口外的图。
 
@@ -52,7 +52,7 @@ def _strip_runtime_note(messages: Any) -> List[Dict[str, Any]]:
     return out
 
 
-def _resolve_runtime_note(value: Any) -> str:
+def resolve_runtime_note(value: Any) -> str:
     """把字符串或每次求值的回调解析成当前运行态文本。"""
     if callable(value):
         try:
@@ -63,7 +63,7 @@ def _resolve_runtime_note(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _with_mode_note(messages: Any, mode_note: str) -> List[Dict[str, Any]]:
+def with_mode_note(messages: Any, mode_note: str) -> List[Dict[str, Any]]:
     """把执行模式说明附加到请求消息的最末尾（不动原列表、不动事实流）。
 
     模式说明是宿主附加的指令，不是用户发言 —— 用 `role=system`。
@@ -81,7 +81,7 @@ def _with_mode_note(messages: Any, mode_note: str) -> List[Dict[str, Any]]:
     return base + [{"role": "system", "content": note}]
 
 
-def _assemble_with(context: Any, dialogue: Any, mode_note: str,
+def assemble_with(context: Any, dialogue: Any, mode_note: str,
                    covered_end: int) -> Optional[List[Dict[str, Any]]]:
     """把对话装进上下文并装配出整份请求消息（头部 + 对话 + 尾部）。
 
@@ -98,7 +98,7 @@ def _assemble_with(context: Any, dialogue: Any, mode_note: str,
     return list(context.assembles(tail))
 
 
-def _segment_snapshot(context: Any, messages: Any,
+def segment_snapshot(context: Any, messages: Any,
                       budget_tokens: int = 0) -> Optional[Dict[str, Any]]:
     """把装配好的请求拆成分段快照（段名 + 各段估算 token）。
 
@@ -113,7 +113,7 @@ def _segment_snapshot(context: Any, messages: Any,
     """
     if context is None or not hasattr(context, "layout_payload"):
         return None
-    mode = _mode_tail(messages)
+    mode = mode_tail(messages)
     payload = context.layout_payload(tail_messages=mode,
                                      budget_tokens=int(budget_tokens or 0))
     if not payload or not payload.get("segments"):
@@ -121,7 +121,7 @@ def _segment_snapshot(context: Any, messages: Any,
     return payload
 
 
-def _mode_tail(messages: Any) -> List[Dict[str, Any]]:
+def mode_tail(messages: Any) -> List[Dict[str, Any]]:
     """请求尾部的执行模式说明（正文以 `MODE_MARKER` 开头）。
 
     位置不固定：用户输入轮末尾是 `[本轮新输入][执行模式]`，工具轮里是
@@ -136,7 +136,7 @@ def _mode_tail(messages: Any) -> List[Dict[str, Any]]:
     return []
 
 
-def _tail_expects_model(log: SessionLog) -> bool:
+def tail_expects_model(log: SessionLog) -> bool:
     """上下文末端是否在等模型说话。
 
     倒着扫事实，先撞到这两个之一就是要跑模型：
@@ -156,7 +156,7 @@ def _tail_expects_model(log: SessionLog) -> bool:
     return False
 
 
-def _pending_tool_calls(log: SessionLog) -> List[ToolCallRequest]:
+def pending_tool_calls(log: SessionLog) -> List[ToolCallRequest]:
     """最新一条模型消息要求、但还没有任何结果的调用（保持原顺序）。
 
     判据只看事实：模型消息里要求了，且没有对应的 `tool_result`。
@@ -188,19 +188,19 @@ def _pending_tool_calls(log: SessionLog) -> List[ToolCallRequest]:
     return out
 
 
-def _serialize_call(call: ToolCallRequest) -> Dict[str, Any]:
+def serialize_call(call: ToolCallRequest) -> Dict[str, Any]:
     """工具调用 → 事实里的形状（保证历史事实可混装）。"""
     return {"id": call.call_id, "name": call.name, "arguments": dict(call.arguments)}
 
 
-def _safe(value: Any) -> Any:
+def safe_value(value: Any) -> Any:
     """落事实前把不可序列化的东西换成可读文本（事实必须能写进 JSONL）。"""
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, dict):
-        return {str(k): _safe(v) for k, v in value.items()}
+        return {str(k): safe_value(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
-        return [_safe(v) for v in value]
+        return [safe_value(v) for v in value]
     return str(value)
 
 
@@ -211,7 +211,7 @@ def _safe(value: Any) -> Any:
 TOOL_RESULT_MAX_CHARS = 40000
 
 
-def _clip_tool_result(value: Any, limit: int = TOOL_RESULT_MAX_CHARS) -> Any:
+def clip_tool_result(value: Any, limit: int = TOOL_RESULT_MAX_CHARS) -> Any:
     """把过长的工具结果裁到上限（递归处理 dict/list 里的长字符串）。
 
     dict 里最长的那个字符串是正文（`stdout` / `content` / `text`），裁它即可；
@@ -222,16 +222,16 @@ def _clip_tool_result(value: Any, limit: int = TOOL_RESULT_MAX_CHARS) -> Any:
             return value
         return value[:limit] + f"\n…（结果已截断，原文 {len(value)} 字符）"
     if isinstance(value, dict):
-        out: Dict[str, Any] = {str(k): _clip_tool_result(v, limit) for k, v in value.items()}
+        out: Dict[str, Any] = {str(k): clip_tool_result(v, limit) for k, v in value.items()}
         if out != value:
             out.setdefault("_truncated", True)
         return out
     if isinstance(value, list):
-        return [_clip_tool_result(v, limit) for v in value]
+        return [clip_tool_result(v, limit) for v in value]
     return value
 
 
-def _progress_emitter(ports: Ports):
+def progress_emitter(ports: Ports):
     """把工具的进度上报转成 `tool_progress` 事实（进度是副作用，不是内核特办）。"""
     def _report(call_id: str, name: str, payload: Dict[str, Any]) -> None:
         event_payload: Dict[str, Any] = {

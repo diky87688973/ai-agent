@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from agent.core import event_name as ev  # noqa: E402
 from agent.core.error_report import bind_error_sink  # noqa: E402
 from agent.core.event_bus import EventBus  # noqa: E402
 from agent.core.events import make_event  # noqa: E402
+from agent.mechanisms.providers.echo import EchoProvider  # noqa: E402
 
 
 class EventBusTest(unittest.TestCase):
@@ -107,9 +109,22 @@ class EventBusTest(unittest.TestCase):
 class EngineEventSinkTest(unittest.TestCase):
     """引擎侧接线：回合事件流同步旁路发布。"""
 
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory(prefix="event-bus-")
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        manifest = root / "plugins.ini"
+        manifest.write_text("", encoding="utf-8")
+        self.app = build_app(
+            provider=EchoProvider(),
+            plugins_path=manifest,
+            data_root=root / "data",
+        )
+        self.addCleanup(self.app.dispose)
+
     def test_turn_events_published_to_bus(self):
 
-        app = build_app()
+        app = self.app
         deltas, ends = [], []
         app.event_bus.subscribe(ev.ASSISTANT_DELTA, lambda e: deltas.append(e))
         app.event_bus.subscribe(ev.TURN_ENDED, lambda e: ends.append(e))
@@ -121,7 +136,7 @@ class EngineEventSinkTest(unittest.TestCase):
 
     def test_sink_exception_does_not_break_turn(self):
 
-        app = build_app()
+        app = self.app
         reported: list = []
 
         def _sink(tag, exc, **kw):

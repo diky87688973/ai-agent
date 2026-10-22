@@ -49,6 +49,21 @@ def _data_files() -> set:
     return {str(p.relative_to(ROOT)) for p in d.rglob("*") if p.is_file()}
 
 
+_RUNTIME_DATA_PREFIXES = (
+    "data/queues/",
+    "data/mesh/",
+    "data/logs/",
+    "data/plugin/",
+    "data/session_state/",
+    "data/recycle/",
+    "data/cache/",
+)
+
+
+def _is_runtime_data(rel: str) -> bool:
+    return any(rel.startswith(prefix) for prefix in _RUNTIME_DATA_PREFIXES)
+
+
 def _prepare_data_root() -> None:
     _tmp_data = tempfile.mkdtemp(prefix="fan_ci_data_")
     os.environ["AI_AGENT_DATA_ROOT"] = _tmp_data
@@ -169,14 +184,18 @@ def _run_steps(args: argparse.Namespace, steps: list[CiStep]) -> int:
 
     if not args.fast:
         left = sorted(_data_files() - data_before)
-        if left:
-            print(f"\n⚠️ 工程 `data/` 多了 {len(left)} 个文件"
-                  f"（不是运行期数据，删掉即可）：")
-            for p in left[:10]:
+        runtime_left = [p for p in left if _is_runtime_data(p)]
+        extra_left = [p for p in left if not _is_runtime_data(p)]
+        if runtime_left:
+            print(f"\nℹ️ 工程 `data/` 多了 {len(runtime_left)} 个运行态文件"
+                  "（宿主运行产生，不计为测试污染）")
+        if extra_left:
+            print(f"\n⚠️ 工程 `data/` 多了 {len(extra_left)} 个非运行态文件：")
+            for p in extra_left[:10]:
                 print(f"     {p}")
-            if len(left) > 10:
-                print(f"     …还有 {len(left) - 10} 个")
-        else:
+            if len(extra_left) > 10:
+                print(f"     …还有 {len(extra_left) - 10} 个")
+        if not runtime_left and not extra_left:
             print("\n✅ 工程 `data/` 无新增文件")
 
     passed = len(steps) - len(skipped) - len(skipped_post)

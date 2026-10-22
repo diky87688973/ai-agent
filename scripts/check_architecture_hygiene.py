@@ -9,6 +9,8 @@ import ast
 import re
 from pathlib import Path
 
+from quality_budgets import SAME_LAYER_PRIVATE_BUDGET
+
 LAYERS = ("core", "mechanisms", "capabilities", "shell", "entry")
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_ROOT = ROOT / "agent"
@@ -88,6 +90,54 @@ def check_cross_layer_private_imports(
                             f"[{own}] → [{target}]：import {alias.name}"
                         )
     return violations
+
+
+def check_same_layer_private_imports(package_root: Path = PACKAGE_ROOT) -> list[str]:
+    """同层跨模块私有名导入：只报告，超过预算才失败。"""
+    hits: list[str] = []
+    for py in sorted(package_root.rglob("*.py")):
+        if "__pycache__" in py.parts:
+            continue
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+        except SyntaxError:
+            continue
+        source_parts = py.relative_to(package_root).parts
+        if len(source_parts) < 2:
+            continue
+        source_layer = source_parts[0]
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            mod = node.module or ""
+            parts = mod.split(".")
+            if len(parts) < 2 or parts[0] != "agent":
+                continue
+            if parts[1] != source_layer or parts[1] == "app":
+                continue
+            for alias in node.names:
+                if alias.name.startswith("_") and not alias.name.startswith("__"):
+                    hits.append(f"{_rel_to_root(py)}:{node.lineno}: {mod}.{alias.name}")
+    return hits
+
+
+def check_test_method_names(tests_dir: Path | None = None) -> list[str]:
+    """测试方法名必须是 test_ 前缀，避免批量改名把前缀吃掉。"""
+    root = tests_dir if tests_dir is not None else ROOT / "tests"
+    if not root.is_dir():
+        return []
+    out: list[str] = []
+    for py in sorted(root.glob("test_*.py")):
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+        except SyntaxError as exc:
+            out.append(f"{_rel_to_root(py)}: 无法解析（{exc}）")
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if node.name.startswith("test") and not node.name.startswith("test_"):
+                    out.append(f"{_rel_to_root(py)}:{node.lineno}: 测试方法名不规范：{node.name}")
+    return out
 
 
 def check_kernel_plugin_names(
@@ -242,18 +292,44 @@ def check_prompts_preview_from_registry(prompts: Path = PROMPTS_PY) -> list[str]
     return out
 
 
+def _assigns_empty_system_text(node: ast.AST) -> bool:
+    if isinstance(node, ast.Assign):
+        targets = node.targets
+        value = node.value
+    elif isinstance(node, ast.AnnAssign):
+        targets = [node.target]
+        value = node.value
+    else:
+        return False
+    if not isinstance(value, ast.Constant) or value.value != "":
+        return False
+    return any(isinstance(t, ast.Name) and t.id == "system_text" for t in targets)
+
+
 def check_no_silent_system_prompt(package_root: Path = PACKAGE_ROOT) -> list[str]:
     """禁把系统提示词失败吞成空串。"""
     violations: list[str] = []
-    needle = "system_text = \"\""
     for py in sorted((package_root / "shell").rglob("*.py")):
-        text = py.read_text(encoding="utf-8")
-        # 仅覆盖 except 后赋空串的兜底写法；初始赋值另论
-        if "except" in text and needle in text:
-            # 粗检：同一文件里 except 与 system_text = "" 同时出现且含 resolve_system_prompt
-            if "resolve_system_prompt" in text and "except Exception:\n        system_text = \"\"" in text.replace("\r\n", "\n"):
-                rel = py.relative_to(ROOT)
-                violations.append(f"{rel}: 禁静默 system_text 空串")
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+        except SyntaxError as exc:
+            violations.append(f"{_rel_to_root(py)}: 无法解析（{exc}）")
+            continue
+        has_resolve = any(
+            isinstance(node, ast.Name) and node.id == "resolve_system_prompt"
+            for node in ast.walk(tree)
+        ) or any(
+            isinstance(node, ast.ImportFrom)
+            and any(alias.name == "resolve_system_prompt" for alias in node.names)
+            for node in ast.walk(tree)
+        )
+        if not has_resolve:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ExceptHandler):
+                continue
+            if any(_assigns_empty_system_text(stmt) for stmt in node.body):
+                violations.append(f"{_rel_to_root(py)}:{node.lineno}: 禁静默 system_text 空串")
     return violations
 
 
@@ -379,6 +455,13 @@ def check(
     """跑全部约束规则，返回违规列表（空 = 通过）。"""
     out: list[str] = []
     out.extend(check_cross_layer_private_imports(package_root))
+    out.extend(check_test_method_names())
+    same_layer = check_same_layer_private_imports(package_root)
+    if len(same_layer) > SAME_LAYER_PRIVATE_BUDGET:
+        out.extend(
+            f"同层私有导入存量 {len(same_layer)} > 预算 {SAME_LAYER_PRIVATE_BUDGET}: {h}"
+            for h in same_layer[:10]
+        )
     out.extend(check_kernel_plugin_names(package_root, plugins_dir))
     out.extend(check_shell_js_skill_manage(js_root))
     out.extend(check_shell_prompts_skill_manage(prompts))
@@ -400,7 +483,8 @@ def main() -> int:
         return 1
     print(
         "架构约束检查通过（跨层私有导入 / 内核插件名 / 壳层 skill_manage / "
-        "门控单通路 / 提示词注册表 / 无 quality_gate 兼容层 / Provider 边界 / 压缩器接口）"
+        "门控单通路 / 提示词注册表 / 无 quality_gate 兼容层 / Provider 边界 / "
+        "压缩器接口 / 同层私有导入 / 系统提示词静默兜底 / 测试命名）"
     )
     return 0
 

@@ -10,7 +10,7 @@ from agent.mechanisms.session_store import KEY_DATA, KEY_TYPE
 from agent.shell.timefmt import date_group
 
 
-def _scan_title(path: Path) -> str:
+def scan_title(path: Path) -> str:
     """回落实现：从 .raw 前若干行找首条用户输入派生标题。
 
     只读文件前 400 行——一个会话可能有上万条事件，为标题读全文件不值得。
@@ -42,7 +42,7 @@ def _scan_title(path: Path) -> str:
 
 
 
-def _date_group(mtime: float, now: Optional[float] = None) -> str:
+def session_date_group(mtime: float, now: Optional[float] = None) -> str:
     """修改时间 → 中文日期分组（口径直接取 `agent.shell.timefmt`，避免两处漂移）。"""
     return date_group(mtime, now)
 

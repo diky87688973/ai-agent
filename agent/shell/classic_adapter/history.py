@@ -8,10 +8,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import agent.shell.classic_adapter.contract as C
 
-_ATTACH_REGISTER_MAX_BYTES = 2 * 1024 * 1024
-_ATTACH_REGISTER_MAX_COUNT = 24
+ATTACH_REGISTER_MAX_BYTES = 2 * 1024 * 1024
+ATTACH_REGISTER_MAX_COUNT = 24
 
-def _attachment_id(data_base64: Any, index: int) -> str:
+def attachment_id(data_base64: Any, index: int) -> str:
     """附件的稳定 id —— 从图片字节派生，两端都能算出同一个。
 
     不能用"事实序号 + 下标"：那个序号是文件行数，而发出请求的那一刻
@@ -59,7 +59,7 @@ def _split_user_content(content: Any) -> Tuple[str, List[Dict[str, Any]]]:
     return ("".join(text_parts), attachments)
 
 
-def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """内核事件 → `(经典界面的 items, 本次解析出的附件)`。
 
     回显条目：
@@ -107,7 +107,7 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
                 pub: List[Dict[str, Any]] = []
                 for index, att in enumerate(attachments):
                     raw = str(att.get("data_base64") or "")
-                    ident = _attachment_id(raw, index)
+                    ident = attachment_id(raw, index)
                     mime = str(att.get("mime") or "image/png")
                     name = f"image{index}.png"
                     pub.append({"id": ident, "name": name, "mime": mime})
@@ -225,7 +225,7 @@ def _history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[s
     return items, resolved
 
 
-def _last_payload(events: List[Any], kind: str) -> Optional[Dict[str, Any]]:
+def last_payload(events: List[Any], kind: str) -> Optional[Dict[str, Any]]:
     """取最后一帧某类事件的载荷（`context_layout` 用——刷新后底部条要能立刻显示）。"""
     found: Optional[Dict[str, Any]] = None
     for ev in events:

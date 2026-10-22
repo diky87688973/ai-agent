@@ -9,9 +9,9 @@ from agent.capabilities.tasks.common import (
     INTERACTIVE_UI_ENABLED,
     ApprovalRequired,
     UserConfirmRequired,
-    _approval_text,
-    _interactive_resolve,
-    _normalize_confirms,
+    approval_text,
+    interactive_resolve,
+    normalize_confirms,
 )
 
 
@@ -43,7 +43,7 @@ class UserConfirmTool(ToolPlugin):
             return result
         if arguments.get("confirms") is None:
             raise ValueError("须提供 confirms（非空字符串数组）")
-        confirms = _normalize_confirms(arguments.get("confirms"))
+        confirms = normalize_confirms(arguments.get("confirms"))
         custom_index = arguments.get("custom_option_index")
         if custom_index is not None:
             cix = int(custom_index)
@@ -55,7 +55,7 @@ class UserConfirmTool(ToolPlugin):
         # 当前壳层没有接入 TTY 交互，固定走两段式。未来由宿主打开该能力，
         # 不在工具内用 isatty() 猜运行环境。
         if INTERACTIVE_UI_ENABLED and bool(arguments.get("interactive", False)):
-            return {"confirm": _interactive_resolve(title, confirms)}
+            return {"confirm": interactive_resolve(title, confirms)}
         raise UserConfirmRequired(
             title,
             confirms,
@@ -91,6 +91,6 @@ class ApprovalConfirmTool(ToolPlugin):
                 "approval_id 由宿主在用户同意后写入这次调用的结果。"
                 "本工具不接收 approval_id。"
             )
-        option_id = _approval_text(arguments.get("option_id"), "option_id", 200)
-        option_desc = _approval_text(arguments.get("option_desc"), "option_desc", 500)
+        option_id = approval_text(arguments.get("option_id"), "option_id", 200)
+        option_desc = approval_text(arguments.get("option_desc"), "option_desc", 500)
         raise ApprovalRequired(option_id, option_desc)

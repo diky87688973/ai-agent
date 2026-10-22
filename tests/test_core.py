@@ -1121,8 +1121,8 @@ class ArchitectureTest(CoreHarness):
                 self.calls = 0
 
             def execute(self, ports):
-                from agent.core.modules import _tail_expects_model
-                if not _tail_expects_model(ports.log):
+                from agent.core.modules import tail_expects_model
+                if not tail_expects_model(ports.log):
                     return Outcome.ok()
                 self.calls += 1
                 yield ports.emit("model_message", content="固定答复", tool_calls=[])

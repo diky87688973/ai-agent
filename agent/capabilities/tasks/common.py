@@ -51,7 +51,7 @@ class ApprovalRequired(Exception):
         }
 
 
-def _approval_text(raw: Any, name: str, limit: int) -> str:
+def approval_text(raw: Any, name: str, limit: int) -> str:
     """审批入参：非空字符串。超过上限时拒绝。"""
     if not isinstance(raw, str):
         raise ValueError(f"{name} 须为非空字符串")
@@ -63,7 +63,7 @@ def _approval_text(raw: Any, name: str, limit: int) -> str:
     return text
 
 
-def _normalize_confirms(raw: Any) -> List[str]:
+def normalize_confirms(raw: Any) -> List[str]:
     """confirms 校验：非空字符串数组、逐项非空白。"""
     if not isinstance(raw, list) or len(raw) < 1:
         raise ValueError("confirms 须为非空字符串数组")
@@ -75,7 +75,7 @@ def _normalize_confirms(raw: Any) -> List[str]:
     return out
 
 
-def _interactive_resolve(title: str, confirms: List[str]) -> str:
+def interactive_resolve(title: str, confirms: List[str]) -> str:
     """TTY 交互解析：编号取对应项，否则自由输入原样返回。"""
     print(title, file=sys.stderr)
     for i, c in enumerate(confirms, start=1):

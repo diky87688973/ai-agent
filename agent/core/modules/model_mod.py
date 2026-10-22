@@ -21,13 +21,13 @@ from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.model_call import PROVIDER_META_KEY
 from agent.core.module import ModuleBase
 from agent.core.modules.support import (
-    _assemble_with,
-    _prepare_dialogue,
-    _resolve_runtime_note,
-    _segment_snapshot,
-    _serialize_call,
-    _tail_expects_model,
-    _with_mode_note,
+    assemble_with,
+    prepare_dialogue,
+    resolve_runtime_note,
+    segment_snapshot,
+    serialize_call,
+    tail_expects_model,
+    with_mode_note,
 )
 from agent.core.outcome import Outcome
 from agent.core.ports import LogicalRequest, Ports
@@ -88,17 +88,17 @@ class ModelModule(ModuleBase):
             return 0
 
     def execute(self, ports: Ports) -> Iterator[Any]:
-        if not _tail_expects_model(ports.log):
+        if not tail_expects_model(ports.log):
             return Outcome.ok()
         model = ports.model_port
         if model is None:
             yield ports.emit(ERROR, where="model", detail="未装配模型端口")
             return Outcome.halt("未装配模型端口")
-        runtime_note = _resolve_runtime_note(self._mode_note)
+        runtime_note = resolve_runtime_note(self._mode_note)
 
         # 请求前补齐悬空的 tool_calls。挂起的终态不产生 tool 消息；
         # 取消若没到达服务器，事实里就一直缺配对，此后每次请求都会被拒绝。
-        dialogue = _prepare_dialogue(ports.log.derive_request_messages(),
+        dialogue = prepare_dialogue(ports.log.derive_request_messages(),
                                      self._image_turns, self._image_max)
         # 本轮起点 = 对话里最后一条用户消息的下标（含）。它之前的思维链一律不回传
         # （provider 侧按这个下标裁）：思维链是模型的中间产物，回传只是让每轮输入
@@ -117,17 +117,17 @@ class ModelModule(ModuleBase):
         # 对话 = 事实折叠出来的对话
         # 尾部 = 执行模式（本轮新输入已在对话末尾，由事实带来）
         if self.context_pass is not None:
-            assembled = _assemble_with(self.context_pass, dialogue, runtime_note,
+            assembled = assemble_with(self.context_pass, dialogue, runtime_note,
                                        self._covered_end())
             if assembled is None:
                 # 上下文缺装配能力 → 退回只有对话（不阻断回合），但必须留痕：
                 # 这种请求缺头部，模型看不到系统提示，属于异常状态。
                 report_error("core.model", "上下文缺装配能力（本轮请求可能缺系统前缀）")
-                messages = _with_mode_note(dialogue, runtime_note)
+                messages = with_mode_note(dialogue, runtime_note)
             else:
                 messages = assembled
         else:
-            messages = _with_mode_note(dialogue, runtime_note)
+            messages = with_mode_note(dialogue, runtime_note)
 
         request = LogicalRequest(
             messages=messages,
@@ -149,7 +149,7 @@ class ModelModule(ModuleBase):
             budget = int(getattr(self._compactor, "summary_token_threshold", 0) or 0)
         except (TypeError, ValueError):
             budget = 0
-        segments = _segment_snapshot(self.context_pass, messages, budget_tokens=budget)
+        segments = segment_snapshot(self.context_pass, messages, budget_tokens=budget)
         if segments is not None:
             yield ports.emit(CONTEXT_SEGMENTS, **segments)
         # 模型模块自己的细粒度事件：调用边界。有了它，监控能算出调用 RT
@@ -239,7 +239,7 @@ class ModelModule(ModuleBase):
             yield ports.emit(USAGE, **usage)
         message_data: Dict[str, Any] = {
             "content": "".join(text_parts),
-            "tool_calls": [_serialize_call(c) for c in tool_calls],
+            "tool_calls": [serialize_call(c) for c in tool_calls],
         }
         reasoning = "".join(reasoning_parts)
         if reasoning:

@@ -12,6 +12,9 @@ from typing import Dict
 #: 惯用法（IDIOMS）允许命中的上限。只许降；调高必须在 PR 里逐条说明新增理由。
 SILENT_EXCEPT_IDIOM_BUDGET = 119
 
+#: 同层跨模块私有导入存量：只降不升；新增门禁先锁存量再分批清理。
+SAME_LAYER_PRIVATE_BUDGET = 0
+
 # ── 验收 skip（X7）───────────────────────────────────────────────────────
 #: 允许跳过的验收脚本数上限。与白名单分开写，白名单扩容不会自动放宽上限。
 ACCEPTANCE_SKIP_BUDGET = 1
@@ -37,6 +40,13 @@ MAX_FUNCTION_LINES = 80
 #: 单文件函数个数阈值
 MAX_FILE_FUNCTIONS = 40
 
+#: 单文件函数数超阈值 → 保留理由。实际集合必须与这里双向一致。
+FILE_FUNCTION_COMPLEXITY: Dict[str, str] = {
+    "agent/capabilities/plugins.py": "插件装载、贡献记账与运行时同文件；待拆贡献注册表。承担者：能力维护",
+    "agent/shell/classic_adapter/adapter.py": "经典适配门面与事件通道同文件；待拆 SSE 通道。承担者：壳层维护",
+    "agent/shell/web_api.py": "连接/运行态、附件与设置读取同文件；待拆 sse 与 attachments。承担者：壳层维护",
+}
+
 #: 超阈值文件 → 保留理由（拆分计划或承担者）。实际集合必须与这里双向一致。
 FILE_COMPLEXITY: Dict[str, str] = {
     "agent/app.py": (
@@ -57,17 +67,17 @@ FUNCTION_COMPLEXITY: Dict[str, str] = {
     "agent/app.py::build_app": "装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处",
     "agent/app.py::App.session": "会话生命周期与事件转发在同一生成器；待拆中间对象",
     "scripts/acceptance_mvp3.py::main": "验收脚本按线性步骤写，拆函数会切断断言与步骤的对应",
-    "agent/shell/classic_adapter/history.py::_history_items": "历史投影边界条件集中一处；待拆事件类型",
+    "agent/shell/classic_adapter/history.py::history_items": "历史投影边界条件集中一处；待拆事件类型",
     "scripts/check_ui_js.py::main": "扫描与报告同流程；待拆扫描/报告两段",
     "agent/core/modules/model_mod.py::ModelModule.execute": "模块执行四步同函数；待抽执行协议对象",
-    "agent/shell/web_routes.py::_Handler.do_GET": "路由分派按前缀线性展开；待拆路由表 + 处理器",
+    "agent/shell/web_routes.py::Handler.do_GET": "路由分派按前缀线性展开；待拆路由表 + 处理器",
     "agent/mechanisms/session_store.py::SessionStore._write_rows": "行写入与截断/刷新策略同函数；待拆写入器",
     "agent/capabilities/builtin/geo_weather_tools.py::OpenMeteoWeatherTool._run_core": "参数清洗、调用与错误映射同函数",
     "scripts/inspect_compact.py::inspect": "诊断脚本一次产出多组统计，拆开收益低",
     "agent/core/session_log.py::SessionLog.derive_messages": "消息派生规则集中；拆分风险高于收益",
     "agent/capabilities/builtin/command_tools.py::_pump": "输出泵与超时/编码处理同函数",
     "agent/mechanisms/context/layout.py::layout_from_messages": "布局统计与渲染同函数；待拆统计器",
-    "agent/shell/web_routes.py::_Handler.do_POST": "POST 分派与请求体校验线性展开；待拆路由表",
+    "agent/shell/web_routes.py::Handler.do_POST": "POST 分派与请求体校验线性展开；待拆路由表",
     "scripts/acceptance_batch_e.py::Acceptance.scenario_2": "验收脚本线性断言",
     "agent/mechanisms/quality/checks.py::check_write": "检查项顺序即语义，拆开会让判定顺序变得可改",
     "scripts/check_silent_except.py::main": "扫描与汇总同流程；待拆报告器",

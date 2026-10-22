@@ -1,6 +1,6 @@
 # 复杂度登记
 
-> 阈值：单文件 > 800 行、单函数 > 80 行。
+> 阈值：单文件 > 800 行、单函数 > 80 行、单文件 > 40 个函数。
 > 本文件由 `python scripts/gen_complexity_md.py` 生成；`scripts/check_complexity.py` 比对实际集合与本表。
 
 ## 超阈值文件
@@ -11,18 +11,26 @@
 | `agent/mechanisms/session_store.py` | 936 | 39 | 事件日志读写、行索引与压缩同文件；待拆索引层。承担者：机制维护 |
 | `agent/app.py` | 840 | 39 | 进程装配与会话入口同文件；阈值解析跨模型目录与配置，拆分需先抽会话装配上下文。承担者：架构维护 |
 
+## 函数数超阈值文件
+
+| 文件 | 函数数 | 保留理由 |
+|---|---|---|
+| `agent/shell/classic_adapter/adapter.py` | 50 | 经典适配门面与事件通道同文件；待拆 SSE 通道。承担者：壳层维护 |
+| `agent/capabilities/plugins.py` | 49 | 插件装载、贡献记账与运行时同文件；待拆贡献注册表。承担者：能力维护 |
+| `agent/shell/web_api.py` | 44 | 连接/运行态、附件与设置读取同文件；待拆 sse 与 attachments。承担者：壳层维护 |
+
 ## 超阈值函数
 
 | 文件::函数 | 行数 | 保留理由 |
 |---|---|---|
 | `agent/app.py::build_app` | 309 | 装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处 |
-| `agent/shell/classic_adapter/history.py::_history_items` | 164 | 历史投影边界条件集中一处；待拆事件类型 |
+| `agent/shell/classic_adapter/history.py::history_items` | 164 | 历史投影边界条件集中一处；待拆事件类型 |
 | `scripts/check_ui_js.py::main` | 162 | 扫描与报告同流程；待拆扫描/报告两段 |
 | `agent/core/modules/model_mod.py::ModelModule.execute` | 161 | 模块执行四步同函数；待抽执行协议对象 |
 | `scripts/acceptance_mvp3.py::main` | 155 | 验收脚本按线性步骤写，拆函数会切断断言与步骤的对应 |
-| `agent/shell/web_routes.py::_Handler.do_GET` | 150 | 路由分派按前缀线性展开；待拆路由表 + 处理器 |
+| `agent/shell/web_routes.py::Handler.do_GET` | 150 | 路由分派按前缀线性展开；待拆路由表 + 处理器 |
 | `agent/mechanisms/session_store.py::SessionStore._write_rows` | 139 | 行写入与截断/刷新策略同函数；待拆写入器 |
-| `agent/shell/web_routes.py::_Handler.do_POST` | 139 | POST 分派与请求体校验线性展开；待拆路由表 |
+| `agent/shell/web_routes.py::Handler.do_POST` | 139 | POST 分派与请求体校验线性展开；待拆路由表 |
 | `agent/capabilities/builtin/geo_weather_tools.py::OpenMeteoWeatherTool._run_core` | 134 | 参数清洗、调用与错误映射同函数 |
 | `scripts/inspect_compact.py::inspect` | 130 | 诊断脚本一次产出多组统计，拆开收益低 |
 | `agent/core/session_log.py::SessionLog.derive_messages` | 127 | 消息派生规则集中；拆分风险高于收益 |
@@ -47,4 +55,4 @@
 
 - 目录：`agent/`、`scripts/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 189 个、函数 1668 个；超阈值文件 3 个、函数 27 个。
+- 文件 189 个、函数 1669 个；超阈值文件 3 个、函数 27 个、函数数超阈值文件 3 个。

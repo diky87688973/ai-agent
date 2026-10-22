@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from agent.core.tool_call import GateDecision
-from agent.mechanisms.quality.path_keys import _norm_path, resolve_write_path
+from agent.mechanisms.quality.path_keys import norm_path, resolve_write_path
 
 if TYPE_CHECKING:
     from agent.mechanisms.quality.gate import QualityGate
@@ -31,11 +31,11 @@ class WriteContext:
 
 def _in_paths(path: str, paths: List[str]) -> bool:
     """path 是否命中 paths 之一（全等或路径后缀匹配）。"""
-    norm = _norm_path(path)
+    norm = norm_path(path)
     if not norm:
         return False
     for p in paths:
-        q = _norm_path(p)
+        q = norm_path(p)
         if q and (norm == q or norm.endswith("/" + q) or q.endswith("/" + norm)):
             return True
     return False

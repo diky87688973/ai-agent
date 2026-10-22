@@ -10,10 +10,21 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Iterable, Set
 
 from standards_rules import RULE_IDS, UPDATED, VERSION
+
+# 在 GBK 控制台直接跑本脚本时，打印 ✅/中文会抛 UnicodeEncodeError ——
+# 表现为「检查全过但退出码 1」（`ci.py` 用 PYTHONIOENCODING 掩盖了它）。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
+    # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
+    pass
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs" / "applicability.md"

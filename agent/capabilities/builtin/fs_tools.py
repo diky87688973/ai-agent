@@ -21,7 +21,7 @@ from agent.mechanisms.file_safety import FileBackups, Recycle
 from agent.mechanisms.quality import diff_text
 
 
-def _norm_path(value: Any) -> str:
+def norm_path(value: Any) -> str:
     """路径规范化（统一斜杠、去首尾空白）。"""
     return str(value or "").replace("\\", "/").strip()
 
@@ -364,7 +364,7 @@ class FileUndoTool(ToolPlugin):
             record = self._backups.meta(mid)
             if record is None:
                 raise ValueError(f"mod_id 不存在或已过期：{mid}")
-            if _norm_path(Path(path_raw).resolve()) != _norm_path(record.get("path")):
+            if norm_path(Path(path_raw).resolve()) != norm_path(record.get("path")):
                 raise ValueError(f"mod_id 与 path 不匹配（该备份属于：{record.get('path')}）")
             old = self._backups.read(mid)
             if old is None:
@@ -446,7 +446,7 @@ def _execute_undo(backups: FileBackups, arguments: Dict[str, Any]) -> Dict[str, 
     record = backups.meta(mid)
     if record is None:
         raise ValueError(f"mod_id 不存在或已过期：{mid}")
-    if _norm_path(Path(path_raw).resolve()) != _norm_path(record.get("path")):
+    if norm_path(Path(path_raw).resolve()) != norm_path(record.get("path")):
         raise ValueError(f"mod_id 与 path 不匹配（该备份属于：{record.get('path')}）")
     old = backups.read(mid)
     if old is None:

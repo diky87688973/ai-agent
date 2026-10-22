@@ -15,10 +15,10 @@ from agent.core.event_name import (
 )
 from agent.core.module import ModuleBase
 from agent.core.modules.support import (
-    _clip_tool_result,
-    _pending_tool_calls,
-    _progress_emitter,
-    _safe,
+    clip_tool_result,
+    pending_tool_calls,
+    progress_emitter,
+    safe_value,
 )
 from agent.core.outcome import Outcome
 from agent.core.ports import Ports
@@ -69,7 +69,7 @@ class ToolModule(ModuleBase):
     requires = ("tool_port",)
 
     def execute(self, ports: Ports) -> Iterator[Any]:
-        pending = _pending_tool_calls(ports.log)
+        pending = pending_tool_calls(ports.log)
         if not pending:
             return Outcome.ok()
         tools = ports.tool_port
@@ -77,7 +77,7 @@ class ToolModule(ModuleBase):
             yield ports.emit(ERROR, where="tool", detail="未装配工具端口")
             return Outcome.halt("未装配工具端口")
 
-        on_progress = _progress_emitter(ports)
+        on_progress = progress_emitter(ports)
         for index, call in enumerate(pending):
             if index > 0 and ports.canceled():
                 # 取消检查点（"每个工具执行前"）：不再启动新调用，
@@ -107,7 +107,7 @@ class ToolModule(ModuleBase):
                 # 但生命周期到此为止（控制权交回）——仍补 `tool_ended`，
                 # 状态标 `suspended`，好与 `tool_started` 配对。
                 yield ports.emit(TOOL_SUSPENDED, call_id=call.call_id, name=call.name,
-                                 envelope=_safe(getattr(result, "data", None)))
+                                 envelope=safe_value(getattr(result, "data", None)))
                 yield ports.emit(TOOL_ENDED, call_id=call.call_id, name=call.name,
                                  status="suspended", elapsed_ms=elapsed)
                 # 本批剩下的调用必须补终态：模型一条消息要求
@@ -134,11 +134,11 @@ class ToolModule(ModuleBase):
                 # 进上下文前统一裁一刀：工具自己的 `max_chars` 是默认值不是上限，
                 # 一次读 20 万字符的结果会永久留在上下文里，把每轮请求都撑大。
                 #
-                # 附件不过裁刀：`_clip_tool_result` 按字符截断，图片是 base64，
+                # 附件不过裁刀：`clip_tool_result` 按字符截断，图片是 base64，
                 # 截断即损坏；其体积由 `build_tool_parts` 的预算单独约束。
                 result_images = getattr(result, "attachments", None)
                 yield ports.emit(TOOL_DONE, call_id=call.call_id, name=call.name,
-                                 data=_clip_tool_result(_safe(getattr(result, "data", None))),
+                                 data=clip_tool_result(safe_value(getattr(result, "data", None))),
                                  attachments=(list(result_images)
                                               if isinstance(result_images, list) and result_images
                                               else None),
@@ -148,7 +148,7 @@ class ToolModule(ModuleBase):
                 # old_text_not_found），回灌模型信封为 {ok:false,error,data}。
                 fail_raw = getattr(result, "data", None)
                 fail_data = (
-                    _clip_tool_result(_safe(fail_raw))
+                    clip_tool_result(safe_value(fail_raw))
                     if fail_raw is not None else None
                 )
                 yield ports.emit(TOOL_FAILED, call_id=call.call_id, name=call.name,

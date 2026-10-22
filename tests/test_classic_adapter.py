@@ -1561,7 +1561,7 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
     """带附件的会话刷新后必须能再看图。
 
     事实里图片以 `data:<mime>;base64,<数据>` 内联在多模态 content 数组里，
-    所以回显不需要另找来源 —— 但 `_history_items` 得真的把它们解出来，
+    所以回显不需要另找来源 —— 但 `history_items` 得真的把它们解出来，
     否则前端只会显示「图片预览已失效」。
     """
 
@@ -1600,9 +1600,9 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
         ]
 
     def test_history_items_carry_attachments_and_had_images(self) -> None:
-        from agent.shell.classic_adapter.inbound import _history_items
+        from agent.shell.classic_adapter.inbound import history_items
 
-        items, resolved = _history_items(self._events())
+        items, resolved = history_items(self._events())
         user = items[0]
         self.assertEqual(user["role"], "user")
         self.assertEqual(user["content"], "看这张图",
@@ -1617,9 +1617,9 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
     def test_history_tool_done_keeps_images(self) -> None:
         """刷新后看图条目仍带着像素，展开面板才能把图画出来。"""
         from agent.core.events import Event
-        from agent.shell.classic_adapter.inbound import _history_items
+        from agent.shell.classic_adapter.inbound import history_items
 
-        items, _resolved = _history_items([
+        items, _resolved = history_items([
             Event("tool_started", {
                 "call_id": "c1", "name": "read_image",
                 "arguments": {"path": r"C:\Temp\qq5.png"},
@@ -1638,9 +1638,9 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
     def test_history_tool_canceled_stays_distinct_from_failed(self) -> None:
         """停止是独立终态，刷新后标题才能和失败分开上色。"""
         from agent.core.events import Event
-        from agent.shell.classic_adapter.inbound import _history_items
+        from agent.shell.classic_adapter.inbound import history_items
 
-        items, _resolved = _history_items([
+        items, _resolved = history_items([
             Event("tool_started", {"call_id": "c1", "name": "run_command", "arguments": {}}),
             Event("tool_canceled", {"call_id": "c1", "reason": "user_stop"}),
         ])
@@ -1649,9 +1649,9 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
     def test_history_replays_each_reasoning_before_its_tools(self) -> None:
         """思考定稿在 `model_message.reasoning_content`，刷新后按轮插回工具卡前面。"""
         from agent.core.events import Event
-        from agent.shell.classic_adapter.inbound import _history_items
+        from agent.shell.classic_adapter.inbound import history_items
 
-        items, _resolved = _history_items([
+        items, _resolved = history_items([
             Event("llm_ended", {"status": "done", "elapsed_ms": 3200}),
             Event("model_message", {
                 "content": "",
@@ -1678,9 +1678,9 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
     def test_history_prefers_reasoning_time(self) -> None:
         """思考卡只显示推理时长，不再用整次模型调用时长。"""
         from agent.core.events import Event
-        from agent.shell.classic_adapter.inbound import _history_items
+        from agent.shell.classic_adapter.inbound import history_items
 
-        items, _resolved = _history_items([
+        items, _resolved = history_items([
             Event("llm_ended", {"status": "done", "elapsed_ms": 3200,
                                 "reasoning_ms": 1200}),
             Event("model_message", {"content": "正文", "reasoning_content": "想"}),
@@ -1691,25 +1691,25 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
 
     def test_attachment_id_is_recomputable(self) -> None:
         """id 必须从事实派生：刷新前后一致，否则浏览器不会重试那张失败的图。"""
-        from agent.shell.classic_adapter.inbound import _history_items
+        from agent.shell.classic_adapter.inbound import history_items
 
-        first = _history_items(self._events())[0][0]["attachments"][0]["id"]
-        again = _history_items(self._events())[0][0]["attachments"][0]["id"]
+        first = history_items(self._events())[0][0]["attachments"][0]["id"]
+        again = history_items(self._events())[0][0]["attachments"][0]["id"]
         self.assertEqual(first, again)
 
     def test_inline_multimodal_content_is_also_accepted(self) -> None:
         """兜底形态：content 直接是多模态数组时也要解出附件。"""
-        from agent.shell.classic_adapter.inbound import _history_items
+        from agent.shell.classic_adapter.inbound import history_items
 
-        items, resolved = _history_items(self._events_inline_multimodal())
+        items, resolved = history_items(self._events_inline_multimodal())
         self.assertEqual(items[0]["content"], "看这张图")
         self.assertEqual(len(items[0].get("attachments") or []), 1)
         self.assertEqual(len(resolved), 1)
 
     def test_plain_text_message_is_unaffected(self) -> None:
         from agent.core.events import Event
-        from agent.shell.classic_adapter.inbound import _history_items
+        from agent.shell.classic_adapter.inbound import history_items
 
-        items, resolved = _history_items([Event("input_claimed", {"content": "只有文字"})])
+        items, resolved = history_items([Event("input_claimed", {"content": "只有文字"})])
         self.assertEqual(items, [{"role": "user", "content": "只有文字"}])
         self.assertEqual(resolved, [])

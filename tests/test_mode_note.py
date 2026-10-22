@@ -15,7 +15,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.capabilities.registry import ToolRegistry  # noqa: E402
-from agent.core.modules import _with_mode_note  # noqa: E402
+from agent.core.modules import with_mode_note  # noqa: E402
 from agent.shell.prompts import (  # noqa: E402
     build_system_prompt,
     resolve_mode_note,
@@ -88,7 +88,7 @@ class ModeTailShapeTest(unittest.TestCase):
 
     def test_note_is_appended_last(self) -> None:
         base = self._base()
-        out = _with_mode_note(base, resolve_mode_note(mode="auto"))
+        out = with_mode_note(base, resolve_mode_note(mode="auto"))
         self.assertEqual(len(out), len(base) + 1)
         self.assertEqual(out[-1]["role"], "system",
                          msg="非用户发起的指令一律 system")
@@ -97,9 +97,9 @@ class ModeTailShapeTest(unittest.TestCase):
 
     def test_switching_mode_changes_only_the_tail(self) -> None:
         base = self._base()
-        auto = _with_mode_note(base, resolve_mode_note(mode="auto"))
+        auto = with_mode_note(base, resolve_mode_note(mode="auto"))
         for mode in ("plan", "execute"):
-            other = _with_mode_note(base, resolve_mode_note(mode=mode))
+            other = with_mode_note(base, resolve_mode_note(mode=mode))
             self.assertEqual(len(auto), len(other))
             self.assertEqual(auto[:-1], other[:-1],
                              msg=f"切到 {mode} 改动了尾条之外的内容")
@@ -108,20 +108,20 @@ class ModeTailShapeTest(unittest.TestCase):
     def test_input_list_is_not_mutated(self) -> None:
         base = self._base()
         before = list(base)
-        _with_mode_note(base, "## 当前模式：Plan")
+        with_mode_note(base, "## 当前模式：Plan")
         self.assertEqual(base, before, msg="不得就地修改传入的消息列表")
 
     def test_empty_note_changes_nothing(self) -> None:
         base = self._base()
-        self.assertEqual(_with_mode_note(base, ""), base)
-        self.assertEqual(_with_mode_note(base, "   "), base)
+        self.assertEqual(with_mode_note(base, ""), base)
+        self.assertEqual(with_mode_note(base, "   "), base)
 
     def test_existing_runtime_tail_is_replaced_not_duplicated(self) -> None:
         """同一上下文再次装配时，旧临时尾条要被替换，不能叠成两条。"""
         base = self._base() + [
             {"role": "system", "content": "## 当前模式：Plan\n旧进度：1 已完成"},
         ]
-        out = _with_mode_note(base, "## 当前模式：Auto\n当前进度：2 已完成")
+        out = with_mode_note(base, "## 当前模式：Auto\n当前进度：2 已完成")
         self.assertEqual(len(out), len(self._base()) + 1)
         self.assertIn("当前进度：2 已完成", out[-1]["content"])
         self.assertNotIn("旧进度", "\n".join(str(m.get("content") or "") for m in out))
@@ -132,7 +132,7 @@ class ModeTailShapeTest(unittest.TestCase):
             {"type": "text", "text": "看图"},
             {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA"}},
         ]}]
-        out = _with_mode_note(base, resolve_mode_note(mode="plan"))
+        out = with_mode_note(base, resolve_mode_note(mode="plan"))
         self.assertEqual(len(out), 2)
         self.assertIsInstance(out[0]["content"], list, msg="原数组结构必须不变")
         self.assertEqual(len(out[0]["content"]), 2)
@@ -144,7 +144,7 @@ class ModeIsNotPersistedTest(unittest.TestCase):
     def test_mode_note_is_system_role(self) -> None:
         """模式说明不是用户发言：控制台里它不该被当成用户消息。"""
         base = [{"role": "user", "content": "第一轮"}]
-        out = _with_mode_note(base, resolve_mode_note(mode="plan"))
+        out = with_mode_note(base, resolve_mode_note(mode="plan"))
         self.assertEqual(out[-1]["role"], "system")
         self.assertTrue(all(m["role"] == "system"
                             for m in out if "当前模式" in str(m.get("content"))))

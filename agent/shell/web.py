@@ -25,13 +25,13 @@ if TYPE_CHECKING:  # 只为注解：运行期不导入装配根
 
 from agent.mechanisms.session_title import make_provider_title_generator
 from agent.shell.fspaths import (
-    _default_fs_roots,
-    _normalize_roots,
+    default_fs_roots,
+    normalize_roots,
     resolve_fs_roots,
     resolve_media_root,
 )
 from agent.shell.web_api import WebShell
-from agent.shell.web_routes import _Handler
+from agent.shell.web_routes import Handler
 from agent.shell.web_static import ASSETS_DIR
 
 
@@ -49,7 +49,7 @@ def create_server(
     """构造（不启动）Web 服务；返回 (server, shell)。调 server.serve_forever() 启动。"""
     if title_generator is None and app.provider is not None:
         title_generator = make_provider_title_generator(app.provider)
-    roots = _normalize_roots(fs_root) or _default_fs_roots()
+    roots = normalize_roots(fs_root) or default_fs_roots()
     shell = WebShell(
         app,
         media_root=media_root or (roots[0] if roots else Path.cwd()),
@@ -64,7 +64,7 @@ def create_server(
 
     handler = type(
         "_BoundHandler",
-        (_Handler,),
+        (Handler,),
         {"shell": shell, "assets_dir": Path(assets_dir) if assets_dir else ASSETS_DIR},
     )
 

@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1766** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1772** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -14,7 +14,7 @@
 4. [test_anthropic_provider.py](#test_anthropic_providerpy)（30）
 5. [test_app_context.py](#test_app_contextpy)（11）
 6. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
-7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（15）
+7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（21）
 8. [test_artifact_lock.py](#test_artifact_lockpy)（16）
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
 10. [test_batch_f_tools.py](#test_batch_f_toolspy)（31）
@@ -250,7 +250,7 @@
 
 ## test_architecture_hygiene.py
 
-共 15 个用例。
+共 21 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -269,6 +269,12 @@
 | 13 | `ModuleBoundaryAstTest` | `test_provider_neutral_imports_pass` | 覆盖「A class whose instances are single test cases」：provider neutral imports pass |
 | 14 | `QualityGateShimAstTest` | `test_comment_mention_passes` | 覆盖「A class whose instances are single test cases」：comment mention passes |
 | 15 | `QualityGateShimAstTest` | `test_import_quality_gate_caught` | 覆盖「A class whose instances are single test cases」：import quality gate caught |
+| 16 | `SameLayerPrivateImportTest` | `test_private_same_layer_caught` | 覆盖「A class whose instances are single test cases」：private same layer caught |
+| 17 | `SameLayerPrivateImportTest` | `test_public_same_layer_passes` | 覆盖「A class whose instances are single test cases」：public same layer passes |
+| 18 | `SilentSystemPromptCheckTest` | `test_external_package_root_does_not_crash` | 覆盖「A class whose instances are single test cases」：external package root does not crash |
+| 19 | `SilentSystemPromptCheckTest` | `test_nonstandard_indent_and_as_clause_caught` | 覆盖「A class whose instances are single test cases」：nonstandard indent and as clause caught |
+| 20 | `TestMethodNameGateTest` | `test_bad_test_prefix_caught` | 覆盖「A class whose instances are single test cases」：bad test prefix caught |
+| 21 | `TestMethodNameGateTest` | `test_public_test_prefix_passes` | 覆盖「A class whose instances are single test cases」：public test prefix passes |
 
 ## test_artifact_lock.py
 

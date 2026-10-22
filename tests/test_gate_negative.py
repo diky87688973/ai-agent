@@ -99,11 +99,11 @@ class ArchitectureHygieneGateTest(unittest.TestCase):
         return root, plugins
 
     def test_cross_layer_private_import_fails(self) -> None:
-        root, _ = self._package({"core/a.py": "from agent.shell.web_api import _date_group\n"})
+        root, _ = self._package({"core/a.py": "from agent.shell.fspaths import _env_path\n"})
         self.assertTrue(hygiene.check_cross_layer_private_imports(root))
 
     def test_same_layer_private_import_passes(self) -> None:
-        root, _ = self._package({"shell/a.py": "from agent.shell.web_api import _date_group\n"})
+        root, _ = self._package({"shell/a.py": "from agent.shell.web_api import date_group\n"})
         self.assertEqual(hygiene.check_cross_layer_private_imports(root), [])
 
     def test_plugin_name_in_core_fails(self) -> None:

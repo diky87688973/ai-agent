@@ -12,6 +12,8 @@
 | 覆盖率分包下限 | `COVERAGE_FLOORS` | 7 个包（60%–90%） | 只升不降 | `agent/core 85`、`agent/mechanisms 80`、`agent/capabilities 75`、`agent/shell 70`、`agent/entry 60`、`agent (top-level) 90`、`plugins 60` |
 | 超阈值文件 | `FILE_COMPLEXITY` | 5 | 双向一致 | 登记项必须有承担者或拆分计划 |
 | 超阈值函数 | `FUNCTION_COMPLEXITY` | 27 | 双向一致 | 键为 `相对路径::限定名`，类方法带类名，避免同名覆盖 |
+| 函数数超阈值文件 | `FILE_FUNCTION_COMPLEXITY` | 3 | 双向一致 | 与文件/函数行数同样登记理由 |
+| 同层私有导入 | `SAME_LAYER_PRIVATE_BUDGET` | 0 | 只降不升 | 同层跨模块 `_` 符号导入；超过预算失败 |
 
 `check_complexity.py` 的双向约束：
 

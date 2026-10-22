@@ -25,7 +25,7 @@ from agent.mechanisms.quality.diagnose import (
     LARGE_DELETE_MIN_LINES,
 )
 from agent.mechanisms.quality.gate import QualityGate
-from agent.mechanisms.quality.path_keys import _norm_path, resolve_write_path
+from agent.mechanisms.quality.path_keys import norm_path, resolve_write_path
 from agent.mechanisms.quality.pending import MAX_PENDING_PREVIEWS, PendingStore
 from agent.mechanisms.quality.pipeline_bridge import build_pipeline_gate
 
@@ -38,7 +38,7 @@ __all__ = [
     "PendingStore",
     "QualityGate",
     "WriteContext",
-    "_norm_path",
+    "norm_path",
     "build_pipeline_gate",
     "change_payload",
     "check_write",

@@ -10,7 +10,7 @@
 
 ## 背压设计
 
-`_Channel` 是有界队列：慢消费者丢最旧的帧、保最新的。
+`Channel` 是有界队列：慢消费者丢最旧的帧、保最新的。
 理由：`EventSource` 断线会自动重连，重连后靠 `Last-Event-ID` 续传 ——
 所以"丢中间几帧但保住最新状态"比"卡住整条广播"对用户更有利。
 
@@ -36,7 +36,7 @@ def _event_seq(event: ev.Event) -> Optional[int]:
     return raw
 
 
-def _sse_payload(event: ev.Event) -> str:
+def sse_payload(event: ev.Event) -> str:
     """事件 → SSE 数据帧（`data: {json}\\n\\n`；载荷统一信封 type + data）。
 
     有存储坐标时额外发一行 `id: <seq>` —— 这是 SSE 协议原生的续传游标：
@@ -58,7 +58,7 @@ def _sse_payload(event: ev.Event) -> str:
     return f"id: {seq}\ndata: {body}\n\n"
 
 
-class _Channel:
+class Channel:
     """一条 SSE 连接：独占队列 + 关闭信号（线程安全）。"""
 
     def __init__(self, maxsize: int = 2000) -> None:

@@ -293,17 +293,17 @@ class PluginAssetUrlTest(unittest.TestCase):
     """面板脚本资产路径的解析（壳层按它取文件）。"""
 
     def test_asset_rel_parsing(self) -> None:
-        from agent.shell.web_static import _plugin_asset_rel
+        from agent.shell.web_static import plugin_asset_rel
 
         self.assertEqual(
-            _plugin_asset_rel("/api/plugin/a/_asset/ui/panel.js"), ("a", "ui/panel.js"))
-        self.assertIsNone(_plugin_asset_rel("/api/plugin/a/tasks"))
-        self.assertIsNone(_plugin_asset_rel("/api/plugin/_asset/x.js"))
-        self.assertIsNone(_plugin_asset_rel("/api/plugin/a/_asset/"))
-        self.assertIsNone(_plugin_asset_rel("/api/plugin/a/_asset/../x.js"))
-        self.assertIsNone(_plugin_asset_rel("/other/a/_asset/x.js"))
+            plugin_asset_rel("/api/plugin/a/_asset/ui/panel.js"), ("a", "ui/panel.js"))
+        self.assertIsNone(plugin_asset_rel("/api/plugin/a/tasks"))
+        self.assertIsNone(plugin_asset_rel("/api/plugin/_asset/x.js"))
+        self.assertIsNone(plugin_asset_rel("/api/plugin/a/_asset/"))
+        self.assertIsNone(plugin_asset_rel("/api/plugin/a/_asset/../x.js"))
+        self.assertIsNone(plugin_asset_rel("/other/a/_asset/x.js"))
         # 插件自己声明的端点若正好叫 _asset，只有 `GET` 走资产分支；解析函数本身不管动词
-        self.assertEqual(_plugin_asset_rel("/api/plugin/a/_asset/x.svg"), ("a", "x.svg"))
+        self.assertEqual(plugin_asset_rel("/api/plugin/a/_asset/x.svg"), ("a", "x.svg"))
 
 
 class ExternalPluginRootAssetTest(unittest.TestCase):
@@ -311,7 +311,7 @@ class ExternalPluginRootAssetTest(unittest.TestCase):
 
     def test_plugin_asset_uses_tracked_root(self) -> None:
         from agent.shell.web import WebShell
-        from agent.shell.web_routes import _Handler
+        from agent.shell.web_routes import Handler
 
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -339,7 +339,7 @@ class ExternalPluginRootAssetTest(unittest.TestCase):
         shell = WebShell(app)
         captured: Dict[str, Any] = {}
 
-        handler = object.__new__(_Handler)
+        handler = object.__new__(Handler)
         handler.shell = shell
 
         def _json(status: int, payload: Any) -> None:
