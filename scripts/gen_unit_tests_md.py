@@ -84,7 +84,8 @@ def render() -> str:
         "按测试文件分组；「测试目标」优先取方法 docstring，"
         "无则结合类 docstring 与方法名，再否则仅由方法名转写。",
         "",
-        "本文件由 `python scripts/gen_unit_tests_md.py` 生成；"
+        "本文件是生成的可读测试目录，不是事实源；事实源是 `tests/`。",
+        "由 `python scripts/gen_unit_tests_md.py` 生成；"
         "`--check` 在 CI 里校验是否漂移，直接改动会被下一次生成覆盖。",
         "",
         "## 目录",

@@ -4,13 +4,13 @@
 
 | 文件 | 职责 |
 |---|---|
-| `web.py` | HTTP + SSE 服务装配与启动 |
-| `web_routes.py` | HTTP 动词与路径分派 |
-| `web_static.py` | 静态资源、路径与协议常量 |
-| `web_classic.py` | 经典页面与经典 SSE |
-| `web_plugin.py` | 插件端点与插件资产转发 |
-| `web_api.py` | WebShell 入口、SSE 连接/运行态 |
-| `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` | WebShell 的聊天、会话、文件、贡献、UI 状态动作 |
+| `web/server.py` | HTTP + SSE 服务装配与启动 |
+| `web/web_routes.py` | HTTP 动词与路径分派 |
+| `web/web_static.py` | 静态资源、路径与协议常量 |
+| `web/web_classic.py` | 经典页面与经典 SSE |
+| `web/web_plugin.py` | 插件端点与插件资产转发 |
+| `web/web_api.py` | WebShell 入口、SSE 连接/运行态 |
+| `web/web_chat.py` / `web/web_sessions.py` / `web/web_files.py` / `web/web_contributions.py` / `web/web_state.py` | WebShell 的聊天、会话、文件、贡献、UI 状态动作 |
 | `sse.py` | SSE 传输层 |
 | `session/runner.py` | 回合调度、取消、队列抽干与生命周期 |
 | `session/queue.py` | 队列领取、释放、补投 |
@@ -19,12 +19,13 @@
 | `session/resume.py` | 外部工具结果恢复 |
 | `session/heartbeat.py` | 运行态心跳 |
 | `prompts.py` | 系统提示词 |
-| `ui_bundle.py` | 界面资源内联打包 |
+| `web/ui_bundle.py` | 界面资源内联打包 |
 | `settings_panel.py` / `settings_io.py` / `plugin_settings.py` | 设置页宿主配置、INI 原语、插件配置 |
-| `chat.py` | 交互式对话壳（命令行） |
-| `headless.py` | 无 UI 跑一轮并打印事件流 |
+| `cli/interactive.py` | 交互式对话壳（命令行） |
+| `cli/headless.py` | 无 UI 跑一轮并打印事件流 |
 | `fspaths.py` | 可见范围的来源、路径判界与展示形态 |
 | `classic_adapter/` | 事件翻译、历史回读、用户作答 |
+| `web/web_assets/` | 壳层页面、样式与前端脚本 |
 
 ## 用量与命中率的口径
 
@@ -153,7 +154,7 @@ SSE 连接表由 `WebShell` 持有，断开时从表里移除。
 
 ## 界面打包
 
-`ui_bundle.py` 把界面资源内联成单页 HTML，运行时页面零额外请求。
+`web/ui_bundle.py` 把界面资源内联成单页 HTML，运行时页面零额外请求。
 
 ```python
 build_inline_css()      # reset + 主样式 + 工具视图 + 本轮编辑清单 + 两份代码高亮主题
@@ -181,7 +182,7 @@ inline_ui_html()        # 拼成完整单页
 
 ## 对话区 Markdown
 
-散文块由 `marked`（`web_assets/classic/js/vendor/marked.min.js`）渲染 —— markdown 的块级规则细节多（松散列表的段距、表格、任务清单、嵌套列表），自研实现容易在边角处丢样式。
+散文块由 `marked`（`web/web_assets/classic/js/vendor/marked.min.js`）渲染 —— markdown 的块级规则细节多（松散列表的段距、表格、任务清单、嵌套列表），自研实现容易在边角处丢样式。
 
 `classic/js/render/markdown.js` 的 `renderMarkdown()` 先按代码围栏切段，围栏交既有逻辑（`diff` / `patch` 走 diff 卡片，其余走 hljs 高亮），只把散文块交给 `renderMarkdownBlocks()`。
 
@@ -194,7 +195,7 @@ inline_ui_html()        # 拼成完整单页
 
 结果被 `@lru_cache` 缓存，所以改界面资源后需要重启服务。
 
-资源按功能拆成 `classic/js/**`、`classic/css/**` 的多个模块，由 `ui_bundle.py` 的
+资源按功能拆成 `classic/js/**`、`classic/css/**` 的多个模块，由 `web/ui_bundle.py` 的
 清单按顺序内联；**没有**动辄几千行的 `agent-ui.js` / `agent-ui.css`。模型下拉不是
 壳层内建 UI：壳层只留 `#modelPickerSlot`，按钮与菜单由 `plugins/multi_model/ui/`
 渲染，样式经 `window.aiAgentShell.styles.load()` 注入，壳层公共样式里没有它。
@@ -222,11 +223,23 @@ inline_ui_html()        # 拼成完整单页
 ## 命令行壳
 
 ```bash
-python -m agent.entry.cli --session <cid>     # 交互式，真实模型 + 工具 + 写盘门控
-python -m agent.entry.headless               # 跑一轮并打印事件流
+agent-cli --session <cid>                      # 交互式，真实模型 + 工具 + 写盘门控
+agent-headless "问题"                          # 单轮，打印事件流与会话 ID
+agent-headless --session <cid> --timeout 300 "问题"
+agent-web                                     # Web 服务
+agent-gui                                     # 原生启动器 + Python 桌面壳
 ```
 
-`chat.py` 的 `build_session()` 装配一个可用的会话，`run_one()` 跑一轮。这两个在测试里被大量复用。
+`headless` 使用与 Web 相同的完整系统提示词、插件提示词段、压缩与会话存储，
+默认加载 `plugins.headless.ini` 覆盖层（当前关闭 `ai_speak`）。单轮结束会打印：
+
+```text
+[session] <cid>
+```
+
+退出码：`0` 正常，`1` 失败/停止/取消，`2` 等待用户确认，`3` 超时。
+
+`cli/interactive.py` 的 `build_session()` 使用 `SessionRunner.build_engine()`，与 Web、headless 共用完整系统提示词、插件章节与动态尾部；`run_one()` 只负责终端 I/O 与写盘确认。CLI 默认加载 `plugins.cli.ini`，关闭依赖浏览器播放的 `ai_speak`。
 
 ## 路径可见范围
 

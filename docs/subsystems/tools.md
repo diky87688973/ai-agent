@@ -120,7 +120,7 @@ Markdown 的本地绝对路径链接同样进入右栏；正文里的行内代�
 
 | 工具 | 做什么 |
 |---|---|
-| `glob_files` | 按 glob 模式列出路径 |
+| `glob_files` | 按 glob 模式列出路径；默认剪 `.git/`、`__pycache__/`，回执报跳过数 |
 | `grep_files` | 目录内文本搜索（字面，`|` 为 OR；或正则） |
 | `file_search` | 大范围内容搜索，支持 gitignore 过滤、编码嗅探、上下文行 |
 | `find_in_file` | 单文件内定位第 N 处命中，返回 region 与行列 |

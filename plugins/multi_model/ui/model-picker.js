@@ -219,8 +219,12 @@
 
     button.addEventListener("click", function (event) {
       event.stopPropagation();
-      if (state.open) close();
-      else open();
+      if (state.open) {
+        close();
+        return;
+      }
+      state.loading = true;
+      loadCatalog().then(open).catch(open);
     });
     function onMenuClick(event) {
       event.stopPropagation();
@@ -248,6 +252,16 @@
     });
     menu.addEventListener("click", onMenuClick);
     document.addEventListener("click", onDocClick);
+    document.addEventListener("ai-agent:plugins-changed", function () {
+      state.loading = true;
+      loadCatalog();
+    });
+    document.addEventListener("ai-agent:plugin-config-saved", function (event) {
+      var detail = event && event.detail ? event.detail : {};
+      if (String(detail.plugin || "") !== PLUGIN) return;
+      state.loading = true;
+      loadCatalog();
+    });
     document.addEventListener("keydown", onDocKeydown);
     /* 重新启用时旧实例必须把这三样一起还回去：DOM、文档级监听、模型订阅。
        漏一样就会在新实例之外留一份仍会响应事件的幽灵下拉。 */

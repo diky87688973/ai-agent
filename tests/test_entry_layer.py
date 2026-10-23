@@ -10,6 +10,7 @@ import io
 import os
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -146,7 +147,10 @@ class CliEntryTest(_TempDataRoot):
     """`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工厂。"""
 
     def test_no_models_returns_none(self) -> None:
-        self.assertIsNone(entry_cli.build_app_from_config())
+        with mock.patch.object(
+            entry_cli, "CLI_PLUGINS_PATH", self.root / "no-plugins.ini"
+        ):
+            self.assertIsNone(entry_cli.build_app_from_config())
 
     def test_main_delegates_to_chat_main(self) -> None:
         seen = {}
@@ -171,7 +175,7 @@ class HeadlessEntryTest(unittest.TestCase):
             def run_turn(self, text):
                 self.text = text
                 yield Event("started", {"text": "hi"})
-                yield Event("done", {"ok": True})
+                yield Event("turn_ended", {"ok": True})
 
         out = io.StringIO()
         with redirect_stdout(out):
@@ -180,7 +184,7 @@ class HeadlessEntryTest(unittest.TestCase):
         lines = out.getvalue().strip().splitlines()
         self.assertEqual(len(lines), 2)
         self.assertIn("[started]", lines[0])
-        self.assertIn("[done]", lines[1])
+        self.assertIn("[turn_ended]", lines[1])
 
     def test_main_passes_first_argument_and_uses_factory(self) -> None:
         seen = {}
@@ -188,7 +192,7 @@ class HeadlessEntryTest(unittest.TestCase):
         class _App:
             def run_turn(self, text):
                 seen["text"] = text
-                return iter(())
+                return iter([Event("turn_ended", {"ok": True})])
 
         out = io.StringIO()
         with redirect_stdout(out):
@@ -202,11 +206,128 @@ class HeadlessEntryTest(unittest.TestCase):
         class _App:
             def run_turn(self, text):
                 seen["text"] = text
-                return iter(())
+                return iter([Event("turn_ended", {"ok": True})])
 
         with redirect_stdout(io.StringIO()):
             entry_headless.main([], app_factory=lambda: _App())
         self.assertTrue(seen["text"])
+
+    def test_real_app_uses_full_prompt_and_dynamic_mode_note(self) -> None:
+        seen = {}
+
+        class _Runner:
+            def build_engine(self, cid, **kwargs):
+                seen["engine_cid"] = cid
+                seen["engine_kwargs"] = kwargs
+                return _Engine()
+
+        class _Engine:
+            def start_turn(self, text):
+                yield Event("turn_ended", {"ok": True})
+
+        class _App:
+            runner = _Runner()
+
+            def run_turn(self, text):
+                raise AssertionError("真实 app 不应回落到 run_turn")
+
+        with redirect_stdout(io.StringIO()):
+            code = entry_headless.headless.run(
+                _App(), "问题", conversation_id="probe-cid"
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(seen["engine_cid"], "probe-cid")
+        self.assertIs(seen["engine_kwargs"]["cancel"], seen["engine_kwargs"]["cancel"])
+
+    def test_default_factory_wires_session_store(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(entry_headless, "default_data_root", return_value=tmp), \
+                    mock.patch.object(entry_headless, "SessionStore") as store, \
+                    mock.patch.object(entry_headless, "build_app") as build:
+                store.return_value = object()
+                app = entry_headless._default_app_factory()
+        self.assertIs(app, build.return_value)
+        store.assert_called_once_with(Path(tmp))
+        build.assert_called_once()
+        kwargs = build.call_args.kwargs
+        self.assertIs(kwargs["store"], store.return_value)
+        self.assertEqual(kwargs["data_root"], Path(tmp))
+        self.assertEqual(kwargs["plugins_path"], entry_headless.HEADLESS_PLUGINS_PATH)
+
+    def test_run_session_returns_generated_cid(self) -> None:
+        class _Runner:
+            def build_engine(self, cid, **kwargs):
+                self.cid = cid
+                return _Engine()
+
+        class _Engine:
+            def start_turn(self, text):
+                yield Event("turn_ended", {"ok": True})
+
+        class _App:
+            runner = _Runner()
+
+        app = _App()
+        with redirect_stdout(io.StringIO()):
+            cid, code = entry_headless.headless.run_session(app, "问题")
+        self.assertEqual(code, 0)
+        self.assertTrue(cid)
+        self.assertEqual(cid, app.runner.cid)
+
+    def test_run_session_maps_terminal_states(self) -> None:
+        class _Runner:
+            def __init__(self, terminal):
+                self.terminal = terminal
+
+            def build_engine(self, cid, **kwargs):
+                terminal = self.terminal
+
+                class _Engine:
+                    def start_turn(self, text):
+                        yield Event("turn_ended", terminal)
+
+                return _Engine()
+
+        class _App:
+            def __init__(self, terminal):
+                self.runner = _Runner(terminal)
+
+        for terminal, expected in (
+            ({"halted": True}, entry_headless.headless.EXIT_FAIL),
+            ({"stopped": True}, entry_headless.headless.EXIT_FAIL),
+            ({"paused": True}, entry_headless.headless.EXIT_NEEDS_INPUT),
+        ):
+            with redirect_stdout(io.StringIO()):
+                _, code = entry_headless.headless.run_session(
+                    _App(terminal), "问题"
+                )
+            self.assertEqual(code, expected, terminal)
+
+    def test_run_session_timeout_cancels(self) -> None:
+        class _Runner:
+            def build_engine(self, cid, **kwargs):
+                class _Engine:
+                    def start_turn(self, text):
+                        yield Event("started", {"text": text})
+                        time.sleep(0.02)
+                        yield Event("turn_ended", {"ok": True})
+
+                return _Engine()
+
+        class _App:
+            runner = _Runner()
+
+        with redirect_stdout(io.StringIO()):
+            _, code = entry_headless.headless.run_session(
+                _App(), "问题", timeout=0.001
+            )
+        self.assertEqual(code, entry_headless.headless.EXIT_TIMEOUT)
+
+    def test_main_fails_when_model_is_missing(self) -> None:
+        self.assertEqual(
+            entry_headless.main([], app_factory=lambda: None),
+            entry_headless.headless.EXIT_FAIL,
+        )
 
 
 if __name__ == "__main__":

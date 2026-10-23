@@ -10,17 +10,17 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from agent.shell.ui_bundle import read_ui_js  # noqa: E402
+from agent.shell.web.ui_bundle import read_ui_js  # noqa: E402
 
 
 class EditedFilesPageTest(unittest.TestCase):
     def test_list_is_assembled_on_the_live_stream_only(self) -> None:
-        feat = (_ROOT / "agent/shell/web_assets/classic/js/edited-files.js").read_text(
+        feat = (_ROOT / "agent/shell/web/web_assets/classic/js/edited-files.js").read_text(
             encoding="utf-8"
         )
         ui = read_ui_js()
-        bundle = (_ROOT / "agent/shell/ui_bundle.py").read_text(encoding="utf-8")
-        from agent.shell.ui_bundle import build_inline_css, build_inline_js
+        bundle = (_ROOT / "agent/shell/web/ui_bundle.py").read_text(encoding="utf-8")
+        from agent.shell.web.ui_bundle import build_inline_css, build_inline_js
 
         self.assertIn("function noteLiveEdit(", feat)
         self.assertIn("function finishLiveEdits(", feat)

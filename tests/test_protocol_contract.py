@@ -20,7 +20,7 @@ sys.path.insert(0, str(_ROOT))
 from agent.app import build_app  # noqa: E402
 from agent.core import event_name as ev  # noqa: E402
 from agent.mechanisms.providers.echo import EchoProvider  # noqa: E402
-from agent.shell.ui_bundle import read_ui_js  # noqa: E402
+from agent.shell.web.ui_bundle import read_ui_js  # noqa: E402
 
 #: 本文件专用的隔离根：替身 provider、空插件清单与独立数据根都落在它下面。
 _ISOLATION_ROOT: "Path | None" = None
@@ -212,7 +212,7 @@ class AssetReusePolicyTest(unittest.TestCase):
         self.assertIn("function mdParser(", ui, "散文块应由 markdown 解析器实例渲染")
         self.assertIn(".use({renderer:", ui, "渲染定制应经 marked.use 安装")
         self.assertNotIn("base64,", ui, "渲染链路不得内联 base64")
-        vendor = (_ROOT / "agent/shell/web_assets/classic/js/vendor/marked.min.js")
+        vendor = (_ROOT / "agent/shell/web/web_assets/classic/js/vendor/marked.min.js")
         self.assertTrue(vendor.is_file(), "markdown 解析器应随素材分发")
 
 class UiStateContractTest(unittest.TestCase):

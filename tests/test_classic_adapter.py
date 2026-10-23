@@ -28,7 +28,7 @@ sys.path.insert(0, str(_ROOT))
 from agent.shell.classic_adapter import contract as C  # noqa: E402
 from agent.shell.classic_adapter.adapter import ClassicAdapter  # noqa: E402
 from agent.shell.classic_adapter.outbound import ClassicStream  # noqa: E402
-from agent.shell.ui_bundle import read_ui_css, read_ui_js  # noqa: E402
+from agent.shell.web.ui_bundle import read_ui_css, read_ui_js  # noqa: E402
 from tests.testkit import no_plugins  # noqa: E402
 
 try:                                    # 服务名常量（装配层用）
@@ -1464,7 +1464,7 @@ class UiBundleTest(unittest.TestCase):
 
         断言：`done` 分支里不得出现这个调用。
         """
-        from agent.shell.ui_bundle import inline_ui_html
+        from agent.shell.web.ui_bundle import inline_ui_html
 
         html = inline_ui_html()
         self.assertIn("function promoteReasoningToChatIfNeeded(){", html,
@@ -1521,7 +1521,7 @@ class UiBundleTest(unittest.TestCase):
         self.assertIn('ai-agent:plugins-changed', js)
 
     def test_inline_html_has_no_placeholders_left(self) -> None:
-        from agent.shell.ui_bundle import inline_ui_html
+        from agent.shell.web.ui_bundle import inline_ui_html
 
         html = inline_ui_html()
         for token in ("{{CSS}}", "{{agent-ui.js}}", "{{APP_VERSION}}"):
@@ -1532,7 +1532,7 @@ class UiBundleTest(unittest.TestCase):
 
         它们全都写成 `window.AIA && …`，所以没有报错、只是功能不见。
         """
-        from agent.shell.ui_bundle import inline_ui_html
+        from agent.shell.web.ui_bundle import inline_ui_html
 
         html = inline_ui_html()
         # window.AIA 的唯一来源
@@ -1548,7 +1548,7 @@ class UiBundleTest(unittest.TestCase):
 
     def test_light_hljs_sheet_is_scoped(self) -> None:
         """两套高亮配色同页共存，浅色那套必须限定在 `[data-ui-theme="light"]` 下。"""
-        from agent.shell.ui_bundle import scope_hljs_css
+        from agent.shell.web.ui_bundle import scope_hljs_css
 
         self.assertEqual(scope_hljs_css(".hljs{color:red}", "P"), "P .hljs{color:red}")
         # 不能误伤 `xxx.hljs` 这类复合选择器

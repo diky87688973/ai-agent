@@ -6,13 +6,20 @@
 from __future__ import annotations
 
 import configparser
+import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from agent.core.host import MAX_PASSES_DEFAULT
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.ini"
+PROJECT_ROOT = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent.parent
+)
+APP_HOME = PROJECT_ROOT
+DEFAULT_CONFIG_PATH = APP_HOME / "config.ini"
 #: 模型上下文窗口缺省值（token）。未声明时为 0，压缩阈值改用回退值。
 DEFAULT_CONTEXT_WINDOW = 0
 #: 模型未声明窗口时的压缩阈值（token）。
@@ -106,10 +113,26 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
 
 
 #: 插件清单文件（工程根）。节在就进入装载候选；开关在插件自己的 plugin-config.ini。
-DEFAULT_PLUGINS_PATH = PROJECT_ROOT / "plugins.ini"
+DEFAULT_PLUGINS_PATH = APP_HOME / "plugins.ini"
 
 #: 插件清单的节名前缀：`[plugin:名字]`。
 PLUGIN_SECTION_PREFIX = "plugin:"
+
+
+def _plugin_entries(parser, *, defaults: bool) -> List[Dict[str, str]]:
+    """把清单节读成条目；overlay 只保留显式字段，避免覆盖基底 path。"""
+    out: List[Dict[str, str]] = []
+    for section in parser.sections():
+        if not section.startswith(PLUGIN_SECTION_PREFIX):
+            continue
+        name = section[len(PLUGIN_SECTION_PREFIX):].strip()
+        entry = {"name": name}
+        if defaults or parser.has_option(section, "path"):
+            entry["path"] = str(parser.get(section, "path", fallback="") or "").strip()
+        if defaults or parser.has_option(section, "enabled"):
+            entry["enabled"] = str(parser.get(section, "enabled", fallback="1") or "1").strip()
+        out.append(entry)
+    return out
 
 
 def get_plugins(path: Optional[Path] = None) -> List[Dict[str, str]]:
@@ -119,19 +142,37 @@ def get_plugins(path: Optional[Path] = None) -> List[Dict[str, str]]:
     开或关写在清单节：`enabled = 1` 装载，`0` 不装载；缺省按 1。
     `path` 留空时本函数不填，由装载方按插件根解析。插件版本只在 `plugin-meta.json` 声明。
     名字非法、目录不存在归装载方判断。
+
+    带 `[profile] base = <清单>` 的文件是覆盖层：先读基底，再按插件名覆盖显式字段；
+    未出现在覆盖层的插件继承基底。覆盖层只适合模式差异，不复制完整清单。
     """
-    parser = load_ini(path if path is not None else DEFAULT_PLUGINS_PATH)
-    out: List[Dict[str, str]] = []
-    for section in parser.sections():
-        if not section.startswith(PLUGIN_SECTION_PREFIX):
-            continue
-        name = section[len(PLUGIN_SECTION_PREFIX):].strip()
-        out.append({
-            "name": name,
-            "path": str(parser.get(section, "path", fallback="") or "").strip(),
-            "enabled": str(parser.get(section, "enabled", fallback="1") or "1").strip(),
-        })
-    return out
+    target = Path(path if path is not None else DEFAULT_PLUGINS_PATH)
+    parser = load_ini(target)
+    base_raw = ""
+    if parser.has_section("profile"):
+        base_raw = str(parser.get("profile", "base", fallback="") or "").strip()
+    if not base_raw:
+        return _plugin_entries(parser, defaults=True)
+
+    base = Path(base_raw)
+    if not base.is_absolute():
+        base = target.parent / base
+    base = base.resolve()
+    if base == target.resolve():
+        raise ValueError(f"插件 profile 不能引用自身: {target}")
+    if not base.is_file():
+        raise ValueError(f"插件 profile 基底不存在: {base}")
+    merged = get_plugins(base)
+    by_name = {item["name"]: item for item in merged}
+    for item in _plugin_entries(parser, defaults=False):
+        name = item["name"]
+        if name in by_name:
+            by_name[name].update(item)
+        else:
+            by_name[name] = {"path": "", "enabled": "1", **item}
+    return [by_name[item["name"]] for item in merged] + [
+        item for name, item in by_name.items() if name not in {x["name"] for x in merged}
+    ]
 
 
 #: 推理档位的合法取值与默认值。
@@ -194,19 +235,48 @@ def get_max_passes(path: Optional[Path] = None) -> int:
         return DEFAULT_MAX_PASSES
 
 
+def is_frozen() -> bool:
+    """当前是否运行在 PyInstaller 等冻结程序中。"""
+    return bool(getattr(sys, "frozen", False))
+
+
+def prepare_user_home() -> Path:
+    """冻结的 onedir 程序使用安装目录作为可写应用根。"""
+    global APP_HOME, DEFAULT_CONFIG_PATH, DEFAULT_PLUGINS_PATH
+    APP_HOME = PROJECT_ROOT
+    DEFAULT_CONFIG_PATH = APP_HOME / "config.ini"
+    DEFAULT_PLUGINS_PATH = APP_HOME / "plugins.ini"
+    return APP_HOME
+
+
+def default_plugins_root() -> Path:
+    """插件根：冻结程序使用用户目录中的可写副本。"""
+    return APP_HOME / "plugins"
+
+
+def user_data_root() -> Path:
+    """冻结程序的用户数据目录（不写安装目录）。"""
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    return base / "ai-agent"
+
+
 def default_data_root():
-    """默认数据根：`AI_AGENT_DATA_ROOT` 优先，否则 `PROJECT_ROOT/data`。
+    """默认数据根：`AI_AGENT_DATA_ROOT` 优先。
 
-    默认数据根只能有这一个来源：多一处自己拼接，落盘隔离口就漏一处
-    （单测的文件会落进工程 `data/`）。
-
-    这个环境变量只给测试与 CI 用：不设它时行为是 `PROJECT_ROOT/data`；
-    CI (`scripts/ci.py`) 会把它指到临时目录，跑完工程目录保持干净。
+    源码运行落到 `PROJECT_ROOT/data`；冻结程序落到用户数据目录，
+    避免写入只读安装目录或 PyInstaller 临时解包目录。
     """
-    import os
-
     env_root = os.environ.get("AI_AGENT_DATA_ROOT", "").strip()
-    return Path(env_root) if env_root else PROJECT_ROOT / "data"
+    if env_root:
+        return Path(env_root)
+    if is_frozen():
+        return user_data_root()
+    return PROJECT_ROOT / "data"
 
 
 def get_plugin_tree_only(path: Optional[Path] = None) -> bool:

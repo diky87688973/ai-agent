@@ -27,8 +27,8 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
-from agent.shell import web as web_mod  # noqa: E402
-from agent.shell.ui_bundle import read_ui_css, read_ui_js  # noqa: E402
+from agent.shell.web import server as web_mod  # noqa: E402
+from agent.shell.web.ui_bundle import read_ui_css, read_ui_js  # noqa: E402
 
 _FIXTURE_PLUGIN = '''# -*- coding: utf-8 -*-
 """测试夹具插件：把一个有状态的业务暴露成 web 接口。"""

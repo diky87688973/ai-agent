@@ -30,7 +30,7 @@ entry  →  shell  →  capabilities  →  mechanisms  →  core
 | `agent/capabilities/tasks/` | 任务工具与确认协议，每个工具一个文件 |
 | `agent/shell/session/` | 回合运行、队列、目标、提示词、恢复、心跳 |
 | `agent/shell/classic_adapter/` | 入站/出站门面、历史、布局、状态、会话、经典契约 |
-| `agent/shell/web_*.py` | 路由、静态资源、经典页面/SSE、插件端点、WebShell 业务 |
+| `agent/shell/web/` | 路由、静态资源、经典页面/SSE、插件端点、WebShell 业务 |
 | `plugins/<name>/` | 插件自有工具、配置、UI、主题与图标 |
 
 `agent/app.py` 是**装配根**，不属于任何一层。它是唯一同时引用五层的文件，负责构建 `AppContext` 并登记服务。

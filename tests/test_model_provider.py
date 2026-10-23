@@ -426,7 +426,7 @@ class AvailableModelsWireTest(unittest.TestCase):
             self.assertIn(provider_model, body.get("allowed_models") or [])
 
     def test_shell_health_also_lists_all_models(self) -> None:
-        from agent.shell.web import create_server
+        from agent.shell.web.server import create_server
 
         app = self._app()
         _srv, shell = create_server(app, host="127.0.0.1", port=0)
@@ -435,7 +435,7 @@ class AvailableModelsWireTest(unittest.TestCase):
 
     def test_health_does_not_invent_a_model_in_degraded_state(self) -> None:
         """`none` 时不能拿 provider 的占位模型充数：那个 id 实际选不了。"""
-        from agent.shell.web import create_server
+        from agent.shell.web.server import create_server
 
         app = self._app()
         app.model_config_state = "none"

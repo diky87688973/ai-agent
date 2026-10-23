@@ -1,76 +1,93 @@
-# AI Agent
+# AI Agent <kbd>v0.1</kbd>
 
-本地运行的智能助手 <kbd>v0.1</kbd>
+<p align="center">
+  <strong>灵活扩展、按需定制，组装属于你自己的本地 Agent</strong>
+  <br>
+  工具、插件、提示词、门控与入口按需组合，满足不同场景的诉求。
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-v0.1-blue" alt="version">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-brightgreen" alt="Python">
+  <img src="https://img.shields.io/badge/License-Apache%202.0-green" alt="License">
+</p>
 
 ## 特点
 
-- **三步写盘防错** —— 预览改动 → 提交审阅 → 确认落盘，随时可退回任意版本。
-- **模块化内核** —— 输入 → 待发送队列插入 → 压缩 → 模型 → 工具，各段可替换。
-- **插件式扩展** —— 替换界面、改上下文、扩展门控与 HTTP 端点。
-- **多会话与协同** —— 多任务互不干扰，多 Agent 协同工作。
-- **目标自动续跑** —— 设定目标，长任务自动跟进至完结。
-- **上下文自动管理** —— 分段预算、超预算自动摘要，占用可查。
+- **本地运行** —— 会话、文件与工具在本机执行；模型端点与推理档自行配置。
+- **模块化内核** —— 输入 → 待发送队列 → 压缩 → 模型 → 工具，各段可替换。
+- **写盘四步** —— 预览、确认、提交、重读，支持备份与回滚。
+- **插件式扩展** —— 插件增加工具、执行器、上下文、提示词、门控、模型目录、HTTP 端点与界面资产，不修改内核。
+- **内置插件** —— Skills、Rules、知识库、多模型、Visual Operator、AI 说话，可独立装卸。
+- **多会话与协作** —— 多任务互不干扰，支持 Agent 消息、队列与运行态管理。
+- **上下文管理** —— 分段预算、超预算自动摘要、占用可查，并可导出真实请求上下文。
 - **会话即事实** —— 事件事实落盘，断线重连从断点续传。
-- **无头可跑** —— 内核不绑界面，可只跑 API 或换自己的前端。
+- **目标自动续跑** —— 设定目标后自动推进到结束。
+- **一套内核，三种入口** —— Web 控制台、交互终端与无头执行共用同一内核和门控规则，切换入口不改变行为。
+  - `agent-web`：浏览器控制台，提供多会话、插件面板与实时事件。
+  - `agent-cli`：终端交互，适合本机排查、连续对话与写盘确认。
+  - `agent-headless`：无头执行，适用于工单流转、客服支持、故障排查等服务化场景，也可接入 CI、脚本或嵌入业务流程。
 
 ## 快速开始
 
-### Windows
+### 桌面方式
 
-双击 `start.bat`
+保持项目目录完整，双击根目录 `agent-gui.exe`。
 
-### Linux / macOS
+需要本机 Python 3.10+ 和系统 WebView2；首次运行会联网准备 pywebview。桌面壳使用固定端口 `3156`。
 
-```bash
-./start.sh
-```
+<img src="docs/assets/desktop.png" alt="桌面窗口" width="960">
 
-脚本自动查找 Python 3.10+，用当前 Python 的 `-m pip` 安装缺失依赖；不需要先在命令行配 key，也不生成配置样例。
+### 命令行方式
 
-启动后访问 <http://127.0.0.1:8765/>。未配置模型时主页面保留，模型下拉为空；从「设置 → 插件 → 多模型」添加网关后立即生效，不需要重启。
-
-### 手动启动
+安装：
 
 ```bash
-python3 -m pip install -e ".[tts]" -c constraints.txt
-python3 -m agent.entry.web --host 127.0.0.1 --port 8765 --open
+python3 -m pip install -e ".[gui,tts]" -c constraints.txt
 ```
 
-## 配置
+#### Web 控制台
 
-配置文件为仓库根目录的 `config.ini`，随仓库入库，只保留非敏感的宿主配置。模型不在此文件配置，全部由 `plugins/multi_model/plugin-config.ini` 和多模型设置页维护；没有模型时服务仍能启动，主页面模型下拉为空。
-
-装载哪些插件由仓库根目录的 `plugins.ini` 决定（节在就进入候选）。开关写在 `plugins.ini` 的插件节；名字、描述、图标、版本由 `plugin-meta.json` 声明。插件自己的键在 `[config]`，见 [插件](docs/subsystems/plugins.md)。
-
-页面右上角「设置」改的是同一批文件。密钥框留空不覆盖，接口也不回明文。
-
-```ini
-[agent]
-reasoning_effort = max       # 全局推理档位：max（深度推理）/ high（标准推理）
-backup_retention_days = 7    # 版本化备份保留天数；0 = 永久保留
-
-[context]
-summary_token_fallback   = 64000
-summary_output_max_chars = 5000
-full_user_rounds         = 5
+```bash
+agent-web --host 127.0.0.1 --port 8765
 ```
 
-`[context]` 的三个主要默认值：
+打开 <http://127.0.0.1:8765/>。Windows 也可双击 `start.bat`，Linux/macOS 可运行 `./start.sh`。
 
-| 键 | 默认 | 含义 |
-|---|---|---|
-| `summary_token_fallback` | `64000` | 模型没有声明上下文窗口时的回退压缩阈值；仅配置文件 |
-| `summary_output_max_chars` | `5000` | 摘要篇幅上限（字） |
-| `full_user_rounds` | `5` | 压缩时保留最近对话轮数，始终按原文发送 |
+#### 交互终端
 
-模型有 `context_window` 时，压缩阈值为该窗口 × 模型自己的 `compression_percent`；
-窗口缺失才使用 `summary_token_fallback`。模型条目见 [多模型](docs/subsystems/multi-model.md)。
+```bash
+agent-cli
+agent-cli --session <会话ID>
+```
 
-末尾 `full_user_rounds` 个用户轮保持原文发送；更早的轮次压缩成摘要。
+#### 无头执行
 
-全部配置项、启动参数与环境变量见 [配置](docs/guide/config.md)。
+```bash
+agent-headless "问题"
+agent-headless --session <会话ID> "问题"
+```
+
+输出事件流与会话 ID；适合工单、排障、CI 和脚本集成。
+
+#### 桌面窗口
+
+```bash
+python3 -m agent.gui.launcher
+```
+
+端口 `3156`；与 `agent-web` 的 `8765` 相互独立。
 
 ## 文档
+
+### 用户文档
+
+| 文档 | 内容 |
+|---|---|
+| [配置](docs/guide/config.md) | 配置项、启动参数与环境变量 |
+| [桌面入口](docs/guide/desktop.md) | `agent-gui.exe`、Python 桌面壳与运行前提 |
+
+### 开发者文档
 
 | 文档 | 内容 |
 |---|---|
@@ -90,45 +107,71 @@ full_user_rounds         = 5
 | [AI说话](docs/subsystems/ai-speak.md) | `ai_speak` 的文本规范、语音合成、插件事件与播放器 |
 | [会话与协作](docs/subsystems/session.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
 | [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
-| [会话消息队列方案](docs/plan/conversation-queue.md) | 忙时入队、回合结束投递、安全插入、修改恢复与 Agent 来源 |
-| [标准对齐优化方案](docs/plan/standards-alignment.md) | 依赖环、门禁可信度、覆盖率口径、预算与登记表 |
-| [结构整改方案](docs/plan/structural-remediation.md) | Provider、上下文、壳层与门禁的职责拆分、依赖规则与实施顺序 |
-| [会话历史分页方案](docs/plan/history-paging.md) | 轮次分页、游标、前插与超长报文延迟渲染 |
-| [多模型配置方案](docs/plan/multi-model.md) | 模型目录、Provider 路由、Messages 协议适配、模型插件 |
-| [AI说话方案](docs/plan/ai-speak.md) | `ai_speak` 的文本、切段、SSE 与播放器设计 |
-| [配置](docs/guide/config.md) | 配置项全表、启动参数、环境变量 |
-| [上下文导出](docs/guide/context-dump.md) | 开发者用会话上下文导出 CLI |
 
-## 开发
+### 设计文档（内部）
 
-依赖安装带锁文件，与 CI 同源：`pip install -e . -c constraints.txt`。
+以下为设计记录与取舍，不是用户手册。
 
-`scripts/ci.py` 的流水线 29 步（清单唯一事实源是 `scripts/ci_steps.py`，由
-`check_ci_workflow` 与 GitHub Actions 对齐）：17 项门禁（依赖方向、架构约束、
-CI 工作流一致、配置一致性、生成文档一致、ruff、Python 下限、UI JS 自检、
-静默异常、README 一致性、确认文案、注释文案、注册表一致性、复杂度登记、
-适用性登记、并发争用等，完整清单用 `--list` 查看）→ 单测 → 10 个验收脚本 → 分包覆盖率。
+<details>
+<summary>展开设计文档</summary>
+
+| 文档 | 内容 |
+|---|---|
+| [会话消息队列](docs/plan/conversation-queue.md) | 忙时入队、回合结束投递、安全插入与修改恢复 |
+| [标准对齐](docs/plan/standards-alignment.md) | 依赖环、门禁可信度、覆盖率口径与预算 |
+| [结构整改](docs/plan/structural-remediation.md) | Provider、上下文、壳层与门禁的职责拆分 |
+| [历史分页](docs/plan/history-paging.md) | 轮次分页、游标、前插与超长报文延迟渲染 |
+| [多模型](docs/plan/multi-model.md) | 模型目录、Provider 路由与协议适配 |
+| [AI说话](docs/plan/ai-speak.md) | 文本切片、SSE 与播放器设计 |
+| [Visual Operator 交互](docs/plan/visual-operator-interaction.md) | 截屏、UIA 与坐标控制的设计判断 |
+| [Visual Operator](docs/plan/visual-operator.md) | 视觉操作子系统的设计记录 |
+| [ADR：插件子进程隔离](docs/adr/plugin-subprocess-isolation.md) | 隔离方案的决策记录 |
+
+</details>
+
+## 开发帮助
+
+### 环境
+
+依赖安装带锁文件，与 CI 同源：
+
+```bash
+pip install -e . -c constraints.txt
+```
+
+### CI
+
+`scripts/ci.py` 的流水线 29 步：17 项门禁 → 单测 → 10 个验收脚本 → 分包覆盖率。
+
+17 项门禁覆盖依赖方向、架构约束、配置漂移、生成文档一致性、静态检查、UI/文案、复杂度、适用性与并发争用；完整清单用 `--list` 查看。
+
+门禁清单的唯一事实源是 `scripts/ci_steps.py`，由 `check_ci_workflow` 与 GitHub Actions 对齐。
 
 ```bash
 python scripts/ci.py           # 全部检查
 python scripts/ci.py --fast    # 跳过验收
 python scripts/ci.py --list    # 列出检查项
-python scripts/scan_js_events.py  # 本地 JS 事件绑定审计
 ```
 
-导出某个会话的真实请求上下文（开发者只读工具）：
+### 测试
 
-```bash
-python scripts/dump_context.py --cid <会话ID> --format json --out context.json
-```
+`docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（1780 个用例）：
+单元测试（1798 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests
 ```
 
-检视某个会话的上下文分段与压缩判定（只读）：
+### 调试工具
+
+导出某个会话的真实请求上下文：
+
+```bash
+python scripts/dump_context.py --cid <会话ID> --format json --out context.json
+```
+
+检视会话的上下文分段与压缩判定：
 
 ```bash
 python scripts/inspect_compact.py                 # 列出有日志的会话
@@ -136,8 +179,15 @@ python scripts/inspect_compact.py <会话 id>        # 检视其中一个
 python scripts/inspect_compact.py <会话 id> --digest
 ```
 
+审计本地 JS 事件绑定：
+
+```bash
+python scripts/scan_js_events.py
+```
+
 ## 作者
 
+- 作者：Fan
 - 邮箱：diky87@qq.com
 
 ## 许可

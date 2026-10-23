@@ -403,6 +403,13 @@ class Inbound:
         """
         cid = C.normalize_cid(cid)
         item = self.state.get_attachment(cid, ident) if cid else None
+        if not item and cid:
+            # 服务重启后内存表为空；历史是附件的唯一事实源，按会话重新登记。
+            try:
+                self.history(cid)
+            except Exception as exc:
+                report_error("agent.shell.classic_adapter.inbound.Inbound.attachment", exc)
+            item = self.state.get_attachment(cid, ident)
         if not item:
             return 404, b"not found", "text/plain; charset=utf-8"
         data = str(item.get("data_base64") or "")

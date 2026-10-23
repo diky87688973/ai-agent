@@ -769,7 +769,7 @@ class PortConflictTest(unittest.TestCase):
 
     def test_second_bind_on_same_port_raises(self) -> None:
         from agent.app import build_app
-        from agent.shell.web import create_server
+        from agent.shell.web.server import create_server
 
         app = build_app()
         first = None

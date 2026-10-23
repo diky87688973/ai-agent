@@ -20,7 +20,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.shell.ui_bundle import read_ui_js  # noqa: E402
+from agent.shell.web.ui_bundle import read_ui_js  # noqa: E402
 
 
 def _function_source(name: str) -> str:

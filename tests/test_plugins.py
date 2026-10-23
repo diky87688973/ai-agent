@@ -396,6 +396,28 @@ class ConfigParseTest(unittest.TestCase):
             ini.write_text("; 什么都不列\n", encoding="utf-8")
             self.assertEqual(get_plugins(ini), [])
 
+    def test_profile_overlay_overrides_named_fields(self) -> None:
+        """profile 只覆盖显式字段，未声明项继承基底。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base = root / "plugins.ini"
+            base.write_text(
+                "[plugin:a]\npath = D:/lab/a\n\n[plugin:b]\n",
+                encoding="utf-8",
+            )
+            profile = root / "plugins.headless.ini"
+            profile.write_text(
+                "[profile]\nbase = plugins.ini\n\n"
+                "[plugin:a]\nenabled = 0\n\n[plugin:c]\n",
+                encoding="utf-8",
+            )
+            got = {entry["name"]: entry for entry in get_plugins(profile)}
+            self.assertEqual(list(got), ["a", "b", "c"])
+            self.assertEqual(got["a"]["enabled"], "0")
+            self.assertEqual(got["a"]["path"], "D:/lab/a")
+            self.assertEqual(got["b"]["enabled"], "1")
+            self.assertEqual(got["c"]["enabled"], "1")
+
     def test_tree_only_rejects_external_path(self) -> None:
         """plugin_tree_only 打开时，清单里的树外 path 不得装载。"""
         from agent.capabilities.plugins import PluginHost

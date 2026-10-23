@@ -293,7 +293,7 @@ class PluginAssetUrlTest(unittest.TestCase):
     """面板脚本资产路径的解析（壳层按它取文件）。"""
 
     def test_asset_rel_parsing(self) -> None:
-        from agent.shell.web_static import plugin_asset_rel
+        from agent.shell.web.web_static import plugin_asset_rel
 
         self.assertEqual(
             plugin_asset_rel("/api/plugin/a/_asset/ui/panel.js"), ("a", "ui/panel.js"))
@@ -310,8 +310,8 @@ class ExternalPluginRootAssetTest(unittest.TestCase):
     """外部 path= 插件：资产根走 plugin_root，而不是 plugins_dir/<name>。"""
 
     def test_plugin_asset_uses_tracked_root(self) -> None:
-        from agent.shell.web import WebShell
-        from agent.shell.web_routes import Handler
+        from agent.shell.web.server import WebShell
+        from agent.shell.web.web_routes import Handler
 
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)

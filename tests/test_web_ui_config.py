@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent.shell.ui_bundle import read_ui_js
-from agent.shell.web_ui_config import get_web_ui
+from agent.shell.web.ui_bundle import read_ui_js
+from agent.shell.web.web_ui_config import get_web_ui
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -46,15 +46,15 @@ class WebUiConfigTest(unittest.TestCase):
 
     def test_classic_page_wires_the_placeholder(self) -> None:
         """配置注入与工具卡拆分：占位符、开关属性、工具视图脚本进包。"""
-        html = (ROOT / "agent/shell/web_assets/classic/agent-ui.html").read_text(
+        html = (ROOT / "agent/shell/web/web_assets/classic/agent-ui.html").read_text(
             encoding="utf-8"
         )
         js = read_ui_js()
         tool_js = (
-            ROOT / "agent/shell/web_assets/classic/js/chat-tool-views.js"
+            ROOT / "agent/shell/web/web_assets/classic/js/chat-tool-views.js"
         ).read_text(encoding="utf-8")
-        bundle = (ROOT / "agent/shell/ui_bundle.py").read_text(encoding="utf-8")
-        routes = (ROOT / "agent/shell/web_classic.py").read_text(encoding="utf-8")
+        bundle = (ROOT / "agent/shell/web/ui_bundle.py").read_text(encoding="utf-8")
+        routes = (ROOT / "agent/shell/web/web_classic.py").read_text(encoding="utf-8")
         self.assertIn("{{WEB_UI_JSON}}", html)
         self.assertIn("data-tool-steps", html)
         self.assertIn("function showToolSteps()", js)
@@ -75,7 +75,7 @@ class ToolDetailLayoutTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.js = (
-            ROOT / "agent/shell/web_assets/classic/js/chat-tool-views.js"
+            ROOT / "agent/shell/web/web_assets/classic/js/chat-tool-views.js"
         ).read_text(encoding="utf-8")
 
     def test_desktop_views_do_not_mount_raw_panels(self) -> None:
@@ -107,10 +107,10 @@ class ImageLightboxDefaultModeTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.js = (
-            ROOT / "agent/shell/web_assets/classic/js/image-lightbox.js"
+            ROOT / "agent/shell/web/web_assets/classic/js/image-lightbox.js"
         ).read_text(encoding="utf-8")
         self.css = (
-            ROOT / "agent/shell/web_assets/classic/css/chat-messages.css"
+            ROOT / "agent/shell/web/web_assets/classic/css/chat-messages.css"
         ).read_text(encoding="utf-8")
 
     def test_default_mode_is_pixel_not_fit(self) -> None:
@@ -157,7 +157,7 @@ class ToolShotPreviewClickTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.js = (
-            ROOT / "agent/shell/web_assets/classic/js/chat-tool-views.js"
+            ROOT / "agent/shell/web/web_assets/classic/js/chat-tool-views.js"
         ).read_text(encoding="utf-8")
 
     def test_both_image_views_are_clickable(self) -> None:
@@ -182,7 +182,7 @@ class WaitTitleFormatTest(unittest.TestCase):
     """`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长。"""
 
     def setUp(self) -> None:
-        self.js = (ROOT / "agent/shell/web_assets/classic/js/tools/titles.js"
+        self.js = (ROOT / "agent/shell/web/web_assets/classic/js/tools/titles.js"
                    ).read_text(encoding="utf-8")
 
     def test_short_durations_keep_one_decimal_of_seconds(self) -> None:
@@ -220,13 +220,13 @@ class WaitTitleFormatTest(unittest.TestCase):
         self.assertIn("if(kind!==\"wait\"&&left<=0)desktopStopWaitTicker(key)", block)
         self.assertIn("entry.applys[i](left,entry.total,elapsed)", block)
         for rel in ("chat/llm-rounds.js", "chat-tool-views.js"):
-            text = (ROOT / "agent/shell/web_assets/classic/js" / rel).read_text(
+            text = (ROOT / "agent/shell/web/web_assets/classic/js" / rel).read_text(
                 encoding="utf-8")
             self.assertIn("function(left,total,elapsed)", text, msg=rel)
             self.assertIn("desktopWaitTickText(", text, msg=rel)
 
     def test_nothing_is_reported_from_the_server_while_waiting(self) -> None:
-        stream = (ROOT / "agent/shell/web_assets/classic/js/chat/llm-rounds.js"
+        stream = (ROOT / "agent/shell/web/web_assets/classic/js/chat/llm-rounds.js"
                   ).read_text(encoding="utf-8")
         self.assertNotIn("desktopWaitAnchor", stream)
         self.assertNotIn("desktopWaitAnchor", self.js)

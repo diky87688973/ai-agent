@@ -30,7 +30,7 @@ from agent.core.model_call import StreamDelta  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
-from agent.shell.web import create_server  # noqa: E402
+from agent.shell.web.server import create_server  # noqa: E402
 from tests.testkit import no_plugins  # noqa: E402
 
 

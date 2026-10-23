@@ -25,8 +25,8 @@
 | `scripts/check_ui_js.py::main` | 163 | 扫描与报告同流程；待拆扫描/报告两段 |
 | `agent/core/modules/model_mod.py::ModelModule.execute` | 161 | 模块执行四步同函数；待抽执行协议对象 |
 | `scripts/acceptance_mvp3.py::main` | 156 | 验收脚本按线性步骤写，拆函数会切断断言与步骤的对应 |
-| `agent/shell/web_routes.py::Handler.do_GET` | 151 | 路由分派按前缀线性展开；待拆路由表 + 处理器 |
-| `agent/shell/web_routes.py::Handler.do_POST` | 141 | POST 分派与请求体校验线性展开；待拆路由表 |
+| `agent/shell/web/web_routes.py::Handler.do_GET` | 151 | 路由分派按前缀线性展开；待拆路由表 + 处理器 |
+| `agent/shell/web/web_routes.py::Handler.do_POST` | 141 | POST 分派与请求体校验线性展开；待拆路由表 |
 | `agent/capabilities/builtin/geo_weather_tools.py::OpenMeteoWeatherTool._run_core` | 134 | 参数清洗、调用与错误映射同函数 |
 | `scripts/inspect_compact.py::inspect` | 131 | 诊断脚本一次产出多组统计，拆开收益低 |
 | `agent/mechanisms/session_store.py::SessionStore._write_rows` | 130 | 行写入与截断/刷新策略同函数；待拆写入器 |
@@ -50,4 +50,4 @@
 
 - 目录：`agent/`、`scripts/`、`plugins/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 247 个、函数 2054 个；超阈值文件 0 个、函数 26 个、函数数超阈值文件 0 个。
+- 文件 252 个、函数 2109 个；超阈值文件 0 个、函数 26 个、函数数超阈值文件 0 个。

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Web 进程入口：按配置装配 app，再交给 `agent.shell.web.serve`。
+"""Web 进程入口：按配置装配 app，再交给 `agent.shell.web.server.serve`。
 
     python -m agent.entry.web --host 127.0.0.1 --port 8765
 
@@ -18,7 +18,7 @@ from agent.config import default_data_root
 from agent.mechanisms.providers.missing import MissingProvider
 from agent.mechanisms.session_store import SessionStore
 from agent.shell.fspaths import FS_ROOT_ENV
-from agent.shell.web import serve
+from agent.shell.web.server import serve
 
 _DEFAULT_PORT = 8765
 

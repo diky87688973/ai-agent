@@ -42,8 +42,8 @@ from agent.capabilities.plugins import PluginHost
 from agent.capabilities.registry import ToolRegistry
 from agent.config import (
     DEFAULT_MAX_PASSES,
-    PROJECT_ROOT,
     default_data_root,
+    default_plugins_root,
     get_backup_retention_days,
     get_context,
     get_max_passes,
@@ -450,7 +450,7 @@ def build_app(
     # 模型目录：插件声明条目，装配末尾据"有效条目数"判定是否权威。
     # 它与 provider 实例、内存缓存一样是进程级单例 —— 权威只能有一个。
     model_catalog = ModelCatalog()
-    _plugins_root = Path(plugins_dir) if plugins_dir is not None else PROJECT_ROOT / "plugins"
+    _plugins_root = Path(plugins_dir) if plugins_dir is not None else default_plugins_root()
     plugin_host = PluginHost(
         _plugins_root,
         registry,

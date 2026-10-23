@@ -173,7 +173,7 @@ TEXT_SKIP_NAMES = ("highlight.min.js",)
 #: （其余文件里主语是读者的祈使句由本检查报出。）
 PROMPT_FILES = (
     ROOT / "agent/shell/prompts.py",
-    ROOT / "agent/shell/chat.py",
+    ROOT / "agent/shell/cli/interactive.py",
 )
 
 #: 生产代码目录（这些目录下的 .py 全查）

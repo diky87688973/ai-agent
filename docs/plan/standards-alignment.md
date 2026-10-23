@@ -116,8 +116,8 @@ agent.shell.classic_adapter.adapter
 agent.shell.classic_adapter.inbound
 agent.shell.classic_adapter.outbound
 agent.shell.web
-agent.shell.web_api
-agent.shell.web_routes
+agent.shell.web.web_api
+agent.shell.web.web_routes
 ```
 
 ## 2. MUST 缺陷逐项方案
@@ -194,8 +194,8 @@ import agent.mechanisms.quality.diagnose as _diagnose
    ```
    agent/entry/__init__.py
    agent/entry/web.py      # 装配 app 后调用 agent.shell.web.serve(app, ...)；含 build_shell_app / main
-   agent/entry/cli.py      # 装配 app 后调用 agent.shell.chat.main(argv, app_factory=...)
-   agent/entry/headless.py # 装配 app 后调用 agent.shell.headless.main(argv, app_factory=...)
+   agent/entry/cli.py      # 装配 app 后调用 agent.shell.cli.cli.main(argv, app_factory=...)
+   agent/entry/headless.py # 装配 app 后调用 agent.shell.cli.headless.main(argv, app_factory=...)
    ```
 2. `agent/shell/web.py`：删除 `from agent.app import ...`（`web.py:20`）与 `build_shell_app`/`main`/`__main__`；保留 `serve(app, ...)`（只负责壳怎么跑）与 `create_server(app, ...)`。`create_server` 签名不变（`scripts/acceptance_web.py:33` 与 `scripts/retired/acceptance_ui.py:49` 在用）。
 3. `agent/shell/web_api.py`：`App`（`web_api.py:14`）改为 `TYPE_CHECKING` + 字符串注解；若实施时发现存在运行期 `isinstance(x, App)`，改用协议判断，不允许为了去掉导入而保留运行期依赖。

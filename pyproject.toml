@@ -19,10 +19,16 @@ ui = ["playwright>=1.40"]
 ocr = ["easyocr>=1.7", "pytesseract>=0.3"]
 archive = ["rarfile>=4.0"]
 dev = ["ruff>=0.5"]
+gui = ["pywebview>=6"]
 tts = ["edge-tts>=7.3.1"]
 
 [project.scripts]
-ai-agent-web = "agent.entry.web:main"
+agent-cli = "agent.entry.cli:main"
+agent-web = "agent.entry.web:main"
+agent-headless = "agent.entry.headless:main"
+
+[project.gui-scripts]
+agent-gui = "agent.gui.launcher:main"
 
 [tool.setuptools.packages.find]
 namespaces = true

@@ -280,6 +280,25 @@ class SessionRunner:
     def _should_auto_continue(self, cid: str) -> bool:
         return self._auto_continue is not None and bool(self._auto_continue(cid))
 
+    def build_engine(self, cid: str, *, cancel: Any = None,
+                     extra_system: str = "") -> Any:
+        """构建一个完整上下文的会话引擎。
+
+        Web、CLI、headless 共用同一份装配：系统提示词、插件章节、动态尾部
+        与取消检查都在这里决定，调用方只负责 I/O 与生命周期。
+        """
+        system_prompt = self.system_prompt(cid)
+        extra = str(extra_system or "").strip()
+        if extra:
+            system_prompt += "\n\n[附加指令]\n" + extra
+        return self._app.session(
+            cid,
+            system_prompt=system_prompt,
+            # 每个 pass 重新求值：工具勾选后下一趟才能看到最新进度。
+            mode_note=lambda: self.mode_note(cid),
+            cancel=cancel,
+        )
+
     def _execute(self, cid: str, text: str, attachments: Any = None,
                  resume: Any = None, sender: Optional[Dict[str, Any]] = None,
                  from_queue: bool = False) -> bool:
@@ -295,13 +314,7 @@ class SessionRunner:
         """
         if isinstance(resume, dict):
             self._splice_resume(cid, resume)
-        engine = self._app.session(
-            cid,
-            system_prompt=self._system_prompt(cid),
-            # 每个 pass 重新求值：工具勾选后下一趟才能看到最新进度。
-            mode_note=lambda: self._mode_note(cid),
-            cancel=self._cancel_check(cid),
-        )
+        engine = self.build_engine(cid, cancel=self._cancel_check(cid))
         paused = False
         for event in engine.start_turn(text, attachments=attachments,
                                        sender=sender, from_queue=from_queue):
@@ -311,6 +324,14 @@ class SessionRunner:
 
     def _splice_resume(self, cid: str, resume_data: Dict[str, Any]) -> None:
         resume.splice_resume(app=self._app, cid=cid, resume=resume_data)
+
+    def system_prompt(self, cid: str) -> str:
+        """当前会话的完整系统提示词（与 Web 回合使用同一份装配）。"""
+        return self._system_prompt(cid)
+
+    def mode_note(self, cid: str) -> str:
+        """当前会话的动态请求尾部：模式、Todo 与插件尾部。"""
+        return self._mode_note(cid)
 
     def _system_prompt(self, cid: str) -> str:
         return prompt.system_prompt(

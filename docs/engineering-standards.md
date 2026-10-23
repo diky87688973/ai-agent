@@ -51,12 +51,12 @@ entry → shell → capabilities → mechanisms → core
 | `agent/capabilities/builtin/` | 内置工具，每个文件一个工具域 | 任务协议、插件加载 |
 | `agent/capabilities/tasks/` | 任务工具：run_type、todo、confirm、sleep、goal | 内核链、HTTP |
 | `agent/capabilities/plugins.py` | 插件装载与 Host；PluginContext / 贡献账本分离在 `plugin_context.py` / `plugin_ledger.py` | 内核业务、具体插件名 |
-| `agent/shell/web.py` | HTTP 服务装配与启动 | 路由分派、静态资源、SSE 帧 |
-| `agent/shell/web_routes.py` | HTTP 动词与路径分派、请求体/错误出口 | 具体业务动作、经典页面实现 |
-| `agent/shell/web_static.py` | 壳层静态资源、路径与协议常量 | 插件私有资产 |
-| `agent/shell/web_classic.py` | 经典页面与经典 SSE | JSON API 业务 |
-| `agent/shell/web_plugin.py` | 插件端点与插件资产转发 | 插件内部业务 |
-| `agent/shell/web_api.py` | `WebShell` 入口与连接/运行态；业务动作按 mixin 分在 `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` | 路由分派 |
+| `agent/shell/web/server.py` | HTTP 服务装配与启动 | 路由分派、静态资源、SSE 帧 |
+| `agent/shell/web/web_routes.py` | HTTP 动词与路径分派、请求体/错误出口 | 具体业务动作、经典页面实现 |
+| `agent/shell/web/web_static.py` | 壳层静态资源、路径与协议常量 | 插件私有资产 |
+| `agent/shell/web/web_classic.py` | 经典页面与经典 SSE | JSON API 业务 |
+| `agent/shell/web/web_plugin.py` | 插件端点与插件资产转发 | 插件内部业务 |
+| `agent/shell/web/web_api.py` | `WebShell` 入口与连接/运行态；业务动作按 mixin 分在 `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` | 路由分派 |
 | `agent/shell/session/runner.py` | 回合线程、取消、队列抽干、生命周期 | 队列/目标/提示/恢复实现 |
 | `agent/shell/session/queue.py` | 队列领取、释放、补投 | 回合循环 |
 | `agent/shell/session/goal.py` | 目标与自主续跑判定 | 运行线程 |
@@ -128,10 +128,10 @@ inbound 直接持有历史/布局/状态实现
 | 模型目录 | `capabilities/model_catalog.py` + 多模型插件 | 插件运行时刷新 | 模型配置不由宿主页写凭据 |
 | 事件名与事件载荷 | `agent/core/event_name.py`、`agent/core/events.py` | 模块 `ports.emit` | 未知事件跳过；字段变更须声明兼容 |
 | 经典事件/字段投影 | `classic_adapter/contract.py` | `outbound*.py` / `inbound.py` | 适配层只做形状翻译 |
-| HTTP 路由 | `shell/web_routes.py` | `web.py` 绑定 `_Handler` | 业务动作在 `web_api.py` 及动作 mixin |
-| 经典页面/SSE | `shell/web_classic.py` | `_Handler` 混入 | 不复制 JSON API |
-| 插件 HTTP 端点 | `shell/web_plugin.py` | `PluginHost.add_route` | 精确匹配，不做通配 |
-| 壳层公共 UI/CSS/JS | `shell/web_assets/`、`shell/ui_bundle.py` | `ui_bundle` 内联清单 | 公共资产归壳层 |
+| HTTP 路由 | `shell/web/web_routes.py` | `web.py` 绑定 `_Handler` | 业务动作在 `web_api.py` 及动作 mixin |
+| 经典页面/SSE | `shell/web/web_classic.py` | `_Handler` 混入 | 不复制 JSON API |
+| 插件 HTTP 端点 | `shell/web/web_plugin.py` | `PluginHost.add_route` | 精确匹配，不做通配 |
+| 壳层公共 UI/CSS/JS | `shell/web/web_assets/`、`shell/web/ui_bundle.py` | `ui_bundle` 内联清单 | 公共资产归壳层 |
 | 插件 UI/主题/图标 | `plugins/<name>/ui/` | 插件 `add_panel`/`add_ctx_segment_style` | 用 `plugin_root`，不写死 `plugins/<name>` |
 | 界面配置 | `web-ui-config.ini` | 壳层读取 | 非插件私有配置 |
 | 会话事实 | `data/sessions/*.raw` | `mechanisms/session_store.py` | append-only；不得直接改写 |
@@ -153,7 +153,7 @@ inbound 直接持有历史/布局/状态实现
 - 新增模型工具必须同时提供参数 schema、注册点、失败测试；不得只加 handler。
 - 新增前端资产必须在 `ui_bundle` 清单或插件贡献中登记；孤儿文件不得留在仓库。
 - 新增静态资源必须说明加载路径、缓存策略、缺失时行为。
-- 插件资产不得放进 `agent/shell/web_assets/`；壳层公共资产不得放进插件目录。
+- 插件资产不得放进 `agent/shell/web/web_assets/`；壳层公共资产不得放进插件目录。
 - 测试夹具、截图、上下文导出、缓存和备份不得进入源码树或发布包。
 
 ## 4. 扩展路径

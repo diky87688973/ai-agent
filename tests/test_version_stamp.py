@@ -23,7 +23,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.mechanisms.file_safety import _version_dir_name  # noqa: E402
-from agent.shell.ui_bundle import read_ui_js  # noqa: E402
+from agent.shell.web.ui_bundle import read_ui_js  # noqa: E402
 
 #: 前端取时刻用的正则（与主脚本 `const mv=/…/` 保持一致）
 _FRONT_RE = re.compile(r"_(\d{6})_\d{3}_\d{4}_[0-9a-z]+$")

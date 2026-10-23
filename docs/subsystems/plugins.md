@@ -62,6 +62,24 @@ enabled = 1
 配置错了要看得见：名字非法、目录不存在、缺 `plugin.py` 都会记一条 `error` 报告，
 不阻断启动，也不会静默当没写。
 
+### 模式覆盖层
+
+运行模式只覆盖差异，不复制完整清单：
+
+```ini
+# plugins.headless.ini
+[profile]
+base = plugins.ini
+
+[plugin:ai_speak]
+enabled = 0
+```
+
+`[profile] base` 先读基底清单，再按插件名覆盖显式字段；未出现的插件继承基底，
+新增插件追加在末尾。`agent.entry.headless` 默认加载 `plugins.headless.ini`，
+`agent.entry.cli` 默认加载 `plugins.cli.ini`，Web 入口继续使用 `plugins.ini`。
+覆盖层只写 `path` / `enabled` 差异。
+
 ## 插件自己的配置
 
 插件自己的配置放**插件自己目录下的 `plugin-config.ini`**，只含插件自己的键。

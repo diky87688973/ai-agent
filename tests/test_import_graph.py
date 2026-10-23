@@ -37,7 +37,7 @@ class DependencyGraphTest(unittest.TestCase):
         """运行期导入壳层不应把装配根拉进 `sys.modules`。"""
         code = (
             "import sys;"
-            "import agent.shell.web, agent.shell.chat, agent.shell.headless;"
+            "import agent.shell.web.server, agent.shell.cli.interactive, agent.shell.cli.headless;"
             "assert 'agent.app' not in sys.modules, 'shell 反向导入了装配根';"
             "print('ok')"
         )

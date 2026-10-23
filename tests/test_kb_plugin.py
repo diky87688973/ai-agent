@@ -651,7 +651,7 @@ class PluginPanelRenderContractTest(unittest.TestCase):
     """
 
     def _shell_js(self) -> str:
-        from agent.shell.ui_bundle import read_ui_js
+        from agent.shell.web.ui_bundle import read_ui_js
         return read_ui_js()
 
     def test_open_pane_broadcasts_panel_opened(self) -> None:

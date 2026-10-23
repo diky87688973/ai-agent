@@ -672,7 +672,7 @@
       }
     },
     {
-      "description": "按 glob 模式列出路径；可选递归与 file/dir/all 过滤。",
+      "description": "按 glob 模式列出路径；可选递归与 file/dir/all 过滤。默认只剪掉 .git/ 与 __pycache__/ 两类通用产物目录，剪掉的目录数在回执 skipped_derived_dirs 中报出；要用 include_derived=true 连默认名单一起列出。",
       "display": {
         "icon": "📂",
         "label": "列出路径"
@@ -684,9 +684,17 @@
           "description": "file / dir / all，默认 file",
           "type": "string"
         },
+        "exclude": {
+          "description": "额外排除的目录名（按路径段全等匹配）",
+          "type": "array"
+        },
         "glob_pattern": {
           "description": "glob 模式，默认 **/*",
           "type": "string"
+        },
+        "include_derived": {
+          "description": "连 .git/、__pycache__/ 默认名单一起列出，默认 false",
+          "type": "boolean"
         },
         "limit": {
           "description": "条数上限，默认 200",

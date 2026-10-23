@@ -288,6 +288,30 @@ class GlobFilesToolTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.tool.execute({"path": str(self.root), "entry_type": "what"})
 
+    def test_derived_dirs_skipped_and_reported(self) -> None:
+        """默认剪 .git / __pycache__；回执报数；include_derived 可显式放开。"""
+        (self.root / ".git").mkdir()
+        (self.root / ".git" / "secret.txt").write_text("git", encoding="utf-8")
+        (self.root / "__pycache__").mkdir()
+        (self.root / "__pycache__" / "x.pyc").write_text("pyc", encoding="utf-8")
+        data = self.tool.execute(
+            {"path": str(self.root), "glob_pattern": "**/*", "entry_type": "all"}
+        )
+        self.assertNotIn(".git", data["entries"])
+        self.assertNotIn("__pycache__", data["entries"])
+        self.assertEqual(data["skipped_derived_dirs"], 2)
+        opened = self.tool.execute(
+            {
+                "path": str(self.root),
+                "glob_pattern": "**/*",
+                "entry_type": "all",
+                "include_derived": True,
+            }
+        )
+        self.assertIn(".git", opened["entries"])
+        self.assertIn("__pycache__", opened["entries"])
+        self.assertEqual(opened["skipped_derived_dirs"], 0)
+
     def test_path_not_dir_raises(self) -> None:
         """path 指向文件而非目录时抛 ValueError。"""
         with self.assertRaises(ValueError):

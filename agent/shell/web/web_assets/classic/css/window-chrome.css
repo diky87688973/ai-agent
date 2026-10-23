@@ -1,0 +1,22 @@
+/* 无边框窗口控件 */
+.window-controls { display: none; align-items: center; gap: 4px; margin-left: 12px; padding-left: 12px; border-left: 1px solid rgba(255,255,255,.14); }
+html.pywebview-shell .window-controls { display: inline-flex; }
+.window-btn { width: 36px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--fg, #e6e6e6); font: 18px/1 system-ui, sans-serif; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background .12s ease, color .12s ease; }
+.window-btn:hover { background: rgba(255,255,255,.12); }
+.window-btn:active { background: rgba(255,255,255,.2); }
+.window-btn.window-close:hover { background: #d33b3b; color: #fff; }
+html[data-ui-theme="light"] .window-btn { color: #222; }
+html[data-ui-theme="light"] .window-btn:hover { background: rgba(0,0,0,.09); }
+html[data-ui-theme="light"] .window-btn.window-close:hover { background: #c42b1c; color: #fff; }
+.app-brand { display: inline-flex; align-items: center; gap: 0; flex: 0 0 auto; min-width: 0; }
+.app-icon { width: 33px; height: 33px; border-radius: 7px; object-fit: contain; margin-right: 0; flex: 0 0 auto; background: transparent !important; border: 0 !important; }
+.app-title { font-size: 14px; font-weight: 700; color: var(--fg, #e6e6e6); margin-right: 0; margin-bottom: -4px; white-space: nowrap; }
+.app-badge { margin-left: 6px; padding: 2px; border-radius: 3px; background: #fff; color: #111; font-size: 9px; font-weight: 700; line-height: 1; letter-spacing: .03em; white-space: nowrap; }
+html[data-ui-theme="light"] .app-badge { background: #111; color: #fff; }
+html[data-ui-theme="light"] .app-title { color: #1b1f24; }
+html[data-ui-theme="light"] .app-icon { filter: invert(1); }
+
+html.edge-ew, html.edge-ew * { cursor: ew-resize !important; }
+html.edge-ns, html.edge-ns * { cursor: ns-resize !important; }
+html.edge-nwse, html.edge-nwse * { cursor: nwse-resize !important; }
+html.edge-nesw, html.edge-nesw * { cursor: nesw-resize !important; }

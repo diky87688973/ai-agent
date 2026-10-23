@@ -103,7 +103,7 @@ class ArchitectureHygieneGateTest(unittest.TestCase):
         self.assertTrue(hygiene.check_cross_layer_private_imports(root))
 
     def test_same_layer_private_import_passes(self) -> None:
-        root, _ = self._package({"shell/a.py": "from agent.shell.web_api import date_group\n"})
+        root, _ = self._package({"shell/a.py": "from agent.shell.web.web_api import date_group\n"})
         self.assertEqual(hygiene.check_cross_layer_private_imports(root), [])
 
     def test_plugin_name_in_core_fails(self) -> None:

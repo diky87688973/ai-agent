@@ -29,7 +29,7 @@
 不做完整的 JS 作用域分析（那需要解析器）；只做针对已知故障模式的检查，
 误报可接受（宁可多看一眼）。
 
-主脚本已按模块拆分（`agent/shell/ui_bundle.py` 的清单）。模块共用同一个
+主脚本已按模块拆分（`agent/shell/web/ui_bundle.py` 的清单）。模块共用同一个
 `<script>` 作用域，所以这里把所有同作用域模块拼成一份文本再检查，
 报错行号会映射回具体模块文件。
 
@@ -55,7 +55,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agent.shell.ui_bundle import (  # noqa: E402  （路径注入后才能导入）
+from agent.shell.web.ui_bundle import (  # noqa: E402  （路径注入后才能导入）
     CLASSIC_DIR,
     UI_JS_MODULES,
     UI_POST_JS_MODULES,

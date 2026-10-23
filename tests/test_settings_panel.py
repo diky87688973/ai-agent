@@ -425,7 +425,7 @@ class StructuredPluginConfigTest(unittest.TestCase):
 
 class SettingsPageAssetsTest(unittest.TestCase):
     def test_gear_and_settings_script_are_inlined(self) -> None:
-        from agent.shell.ui_bundle import inline_ui_html
+        from agent.shell.web.ui_bundle import inline_ui_html
 
         html = inline_ui_html()
         self.assertIn('id="hdrSettingsBtn"', html)

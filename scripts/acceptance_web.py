@@ -36,7 +36,7 @@ from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
-from agent.shell.web import create_server  # noqa: E402
+from agent.shell.web.server import create_server  # noqa: E402
 
 #: XSS 向量 → (名称, 断言说明)
 #: 判据统一为：渲染结果里不得出现可执行的注入面。

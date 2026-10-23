@@ -33,7 +33,7 @@ from agent.shell.settings_io import (
     update_ini_keys,
     write_text,
 )
-from agent.shell.web_ui_config import WEB_UI_CONFIG_PATH, get_web_ui
+from agent.shell.web.web_ui_config import WEB_UI_CONFIG_PATH, get_web_ui
 
 __all__ = [
     "append_ini_section",

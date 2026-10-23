@@ -1,10 +1,11 @@
 # 单元测试用例清单
 
-共 **1780** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1798** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
-本文件由 `python scripts/gen_unit_tests_md.py` 生成；`--check` 在 CI 里校验是否漂移，直接改动会被下一次生成覆盖。
+本文件是生成的可读测试目录，不是事实源；事实源是 `tests/`。
+由 `python scripts/gen_unit_tests_md.py` 生成；`--check` 在 CI 里校验是否漂移，直接改动会被下一次生成覆盖。
 
 ## 目录
 
@@ -19,8 +20,8 @@
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
 10. [test_batch_f_tools.py](#test_batch_f_toolspy)（23）
 11. [test_catalog.py](#test_catalogpy)（8）
-12. [test_chat_shell.py](#test_chat_shellpy)（16）
-13. [test_classic_adapter.py](#test_classic_adapterpy)（103）
+12. [test_classic_adapter.py](#test_classic_adapterpy)（103）
+13. [test_cli_shell.py](#test_cli_shellpy)（19）
 14. [test_command_tools.py](#test_command_toolspy)（30）
 15. [test_concurrency.py](#test_concurrencypy)（11）
 16. [test_context_assembly.py](#test_context_assemblypy)（186）
@@ -33,7 +34,7 @@
 23. [test_conversation_queue.py](#test_conversation_queuepy)（6）
 24. [test_core.py](#test_corepy)（57）
 25. [test_edited_files.py](#test_edited_filespy)（1）
-26. [test_entry_layer.py](#test_entry_layerpy)（13）
+26. [test_entry_layer.py](#test_entry_layerpy)（19）
 27. [test_environment_info.py](#test_environment_infopy)（1）
 28. [test_error_log.py](#test_error_logpy)（8）
 29. [test_event_bus.py](#test_event_buspy)（9）
@@ -42,57 +43,59 @@
 32. [test_file_size_format.py](#test_file_size_formatpy)（4）
 33. [test_four_step_gate.py](#test_four_step_gatepy)（9）
 34. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-35. [test_gate_negative.py](#test_gate_negativepy)（66）
-36. [test_goal_runner.py](#test_goal_runnerpy)（6）
-37. [test_image_embed.py](#test_image_embedpy)（10）
-38. [test_image_tool.py](#test_image_toolpy)（23）
-39. [test_image_turns.py](#test_image_turnspy)（23）
-40. [test_import_graph.py](#test_import_graphpy)（5）
-41. [test_invest_tools.py](#test_invest_toolspy)（29）
-42. [test_kb_plugin.py](#test_kb_pluginpy)（49）
-43. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-44. [test_mode_note.py](#test_mode_notepy)（13）
-45. [test_model_catalog.py](#test_model_catalogpy)（23）
-46. [test_model_provider.py](#test_model_providerpy)（39）
-47. [test_model_window.py](#test_model_windowpy)（14）
-48. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
-49. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-50. [test_plugin_http.py](#test_plugin_httppy)（18）
-51. [test_plugins.py](#test_pluginspy)（28）
-52. [test_present_tool.py](#test_present_toolpy)（2）
-53. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-54. [test_prompt_tail.py](#test_prompt_tailpy)（4）
-55. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-56. [test_provider_meta.py](#test_provider_metapy)（8）
-57. [test_provider_router.py](#test_provider_routerpy)（14）
-58. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
-59. [test_queue_runner.py](#test_queue_runnerpy)（3）
-60. [test_queued_input.py](#test_queued_inputpy)（2）
-61. [test_readonly_tools.py](#test_readonly_toolspy)（32）
-62. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-63. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-64. [test_run_registry.py](#test_run_registrypy)（13）
-65. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-66. [test_session_context.py](#test_session_contextpy)（22）
-67. [test_session_seq.py](#test_session_seqpy)（23）
-68. [test_session_store.py](#test_session_storepy)（17）
-69. [test_session_tools.py](#test_session_toolspy)（17）
-70. [test_settings_panel.py](#test_settings_panelpy)（19）
-71. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-72. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-73. [test_task_tools.py](#test_task_toolspy)（29）
-74. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-75. [test_tool_registry.py](#test_tool_registrypy)（17）
-76. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-77. [test_usage_metrics.py](#test_usage_metricspy)（7）
-78. [test_version_stamp.py](#test_version_stamppy)（4）
-79. [test_visual_operator.py](#test_visual_operatorpy)（130）
-80. [test_web_frontend.py](#test_web_frontendpy)（5）
-81. [test_web_shell.py](#test_web_shellpy)（52）
-82. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-83. [test_write_gate.py](#test_write_gatepy)（16）
-84. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-85. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+35. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
+36. [test_gate_negative.py](#test_gate_negativepy)（66）
+37. [test_goal_runner.py](#test_goal_runnerpy)（6）
+38. [test_gui_launcher.py](#test_gui_launcherpy)（4）
+39. [test_image_embed.py](#test_image_embedpy)（10）
+40. [test_image_tool.py](#test_image_toolpy)（23）
+41. [test_image_turns.py](#test_image_turnspy)（23）
+42. [test_import_graph.py](#test_import_graphpy)（5）
+43. [test_invest_tools.py](#test_invest_toolspy)（29）
+44. [test_kb_plugin.py](#test_kb_pluginpy)（49）
+45. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+46. [test_mode_note.py](#test_mode_notepy)（13）
+47. [test_model_catalog.py](#test_model_catalogpy)（23）
+48. [test_model_provider.py](#test_model_providerpy)（39）
+49. [test_model_window.py](#test_model_windowpy)（14）
+50. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
+51. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+52. [test_plugin_http.py](#test_plugin_httppy)（18）
+53. [test_plugins.py](#test_pluginspy)（29）
+54. [test_present_tool.py](#test_present_toolpy)（2）
+55. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+56. [test_prompt_tail.py](#test_prompt_tailpy)（4）
+57. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+58. [test_provider_meta.py](#test_provider_metapy)（8）
+59. [test_provider_router.py](#test_provider_routerpy)（14）
+60. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
+61. [test_queue_runner.py](#test_queue_runnerpy)（3）
+62. [test_queued_input.py](#test_queued_inputpy)（2）
+63. [test_readonly_tools.py](#test_readonly_toolspy)（33）
+64. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+65. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+66. [test_run_registry.py](#test_run_registrypy)（13）
+67. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+68. [test_session_context.py](#test_session_contextpy)（22）
+69. [test_session_seq.py](#test_session_seqpy)（23）
+70. [test_session_store.py](#test_session_storepy)（17）
+71. [test_session_tools.py](#test_session_toolspy)（17）
+72. [test_settings_panel.py](#test_settings_panelpy)（19）
+73. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+74. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+75. [test_task_tools.py](#test_task_toolspy)（29）
+76. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+77. [test_tool_registry.py](#test_tool_registrypy)（17）
+78. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+79. [test_usage_metrics.py](#test_usage_metricspy)（7）
+80. [test_version_stamp.py](#test_version_stamppy)（4）
+81. [test_visual_operator.py](#test_visual_operatorpy)（130）
+82. [test_web_frontend.py](#test_web_frontendpy)（5）
+83. [test_web_shell.py](#test_web_shellpy)（52）
+84. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+85. [test_write_gate.py](#test_write_gatepy)（16）
+86. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+87. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -372,29 +375,6 @@
 | 7 | `RenderCatalogTest` | `test_render_sorted_and_complete` | JSON 可解析；工具按名称排序；四个字段齐全。 |
 | 8 | `RenderCatalogTest` | `test_write_catalog_roundtrip` | 写出文件与渲染文本逐字节一致（临时目录），无 CRLF。 |
 
-## test_chat_shell.py
-
-共 16 个用例。
-
-| # | 类 | 方法 | 测试目标 |
-|---:|---|---|---|
-| 1 | `ChatArgParsingTest` | `test_build_session_accepts_parsed_args` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：build session accepts parsed args |
-| 2 | `ChatArgParsingTest` | `test_help_exits_before_building_app` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：help exits before building app |
-| 3 | `ChatArgParsingTest` | `test_session_and_text_are_parsed` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：session and text are parsed |
-| 4 | `ChatConfirmRoundTripTest` | `test_default_bucket_gate_cannot_confirm_named_session` | 反面：默认桶门控确认不了具名会话的预览。 |
-| 5 | `ChatConfirmRoundTripTest` | `test_preview_tool_names_include_write_path_tools` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：preview tool names include write path tools |
-| 6 | `ChatConfirmRoundTripTest` | `test_shell_confirm_releases_preview_and_commit_lands` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：shell confirm releases preview and commit lands |
-| 7 | `ChatExitReleaseTest` | `test_main_releases_session_on_exit` | 覆盖「交互壳退出时释放会话运行态」：main releases session on exit |
-| 8 | `ChatExitReleaseTest` | `test_released_session_reparses_clean` | 释放后同 cid 重新解析得到干净上下文（红灯 / 待 review 不残留）。 |
-| 9 | `ChatGateWiringTest` | `test_build_session_returns_named_conversation` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：build session returns named conversation |
-| 10 | `ChatGateWiringTest` | `test_engine_runs_on_same_conversation_id` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：engine runs on same conversation id |
-| 11 | `ChatGateWiringTest` | `test_gate_is_the_conversation_gate_not_default_bucket` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：gate is the conversation gate not default bucket |
-| 12 | `ExplicitReleaseTest` | `test_close_all_clears_registry` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：close all clears registry |
-| 13 | `ExplicitReleaseTest` | `test_release_does_not_touch_persisted_records` | 释放只丢进程内运行态：会话记录（事实源）不受影响。 |
-| 14 | `ExplicitReleaseTest` | `test_release_drops_only_that_conversation` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release drops only that conversation |
-| 15 | `ExplicitReleaseTest` | `test_release_unknown_and_blank_are_safe` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release unknown and blank are safe |
-| 16 | `ExplicitReleaseTest` | `test_web_release_conversation_reduces_active_count` | 关闭会话 API 调用 release 后 active_count 下降。 |
-
 ## test_classic_adapter.py
 
 共 103 个用例。
@@ -504,6 +484,32 @@
 | 101 | `WireHygieneTest` | `test_normalize_cid_matches_ui_rule` | 经典界面的规则是 `/^[A-Za-z0-9_-]{8,128}$/`（`classic/js/core/boot.js` 的 `normalizeConversationId`）。 |
 | 102 | `WireHygieneTest` | `test_sse_payload_is_single_line_data_frame` | 帧格式必须是 `data: <单行 json>\n\n`（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。 |
 | 103 | `WireHygieneTest` | `test_tool_script_mapping_covers_known_tools` | 工具名要翻成经典界面认识的 `script`，否则图标与中文名退化成默认。 |
+
+## test_cli_shell.py
+
+共 19 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ChatArgParsingTest` | `test_build_session_accepts_parsed_args` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：build session accepts parsed args |
+| 2 | `ChatArgParsingTest` | `test_help_exits_before_building_app` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：help exits before building app |
+| 3 | `ChatArgParsingTest` | `test_session_and_text_are_parsed` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：session and text are parsed |
+| 4 | `ChatConfirmRoundTripTest` | `test_default_bucket_gate_cannot_confirm_named_session` | 反面：默认桶门控确认不了具名会话的预览。 |
+| 5 | `ChatConfirmRoundTripTest` | `test_preview_tool_names_include_write_path_tools` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：preview tool names include write path tools |
+| 6 | `ChatConfirmRoundTripTest` | `test_shell_confirm_releases_preview_and_commit_lands` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：shell confirm releases preview and commit lands |
+| 7 | `ChatExitReleaseTest` | `test_main_prints_session_on_exit` | 覆盖「交互壳退出时释放会话运行态」：main prints session on exit |
+| 8 | `ChatExitReleaseTest` | `test_main_releases_session_on_exit` | 覆盖「交互壳退出时释放会话运行态」：main releases session on exit |
+| 9 | `ChatExitReleaseTest` | `test_released_session_reparses_clean` | 释放后同 cid 重新解析得到干净上下文（红灯 / 待 review 不残留）。 |
+| 10 | `ChatGateWiringTest` | `test_build_session_returns_named_conversation` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：build session returns named conversation |
+| 11 | `ChatGateWiringTest` | `test_build_session_uses_shared_runner_engine` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：build session uses shared runner engine |
+| 12 | `ChatGateWiringTest` | `test_engine_runs_on_same_conversation_id` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：engine runs on same conversation id |
+| 13 | `ChatGateWiringTest` | `test_gate_is_the_conversation_gate_not_default_bucket` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：gate is the conversation gate not default bucket |
+| 14 | `ChatToolEventTest` | `test_success_is_not_reported_as_failure` | 覆盖「工具事件显示：成功是 tool_done，失败才是 tool_failed」：success is not reported as failure |
+| 15 | `ExplicitReleaseTest` | `test_close_all_clears_registry` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：close all clears registry |
+| 16 | `ExplicitReleaseTest` | `test_release_does_not_touch_persisted_records` | 释放只丢进程内运行态：会话记录（事实源）不受影响。 |
+| 17 | `ExplicitReleaseTest` | `test_release_drops_only_that_conversation` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release drops only that conversation |
+| 18 | `ExplicitReleaseTest` | `test_release_unknown_and_blank_are_safe` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release unknown and blank are safe |
+| 19 | `ExplicitReleaseTest` | `test_web_release_conversation_reduces_active_count` | 关闭会话 API 调用 release 后 active_count 下降。 |
 
 ## test_command_tools.py
 
@@ -921,7 +927,7 @@
 
 ## test_entry_layer.py
 
-共 13 个用例。
+共 19 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -931,13 +937,19 @@
 | 4 | `BuildShellAppTest` | `test_repository_config_has_no_model_section` | 覆盖「`build_shell_app`：默认交给多模型插件；显式 provider 原样使用」：repository config has no model section |
 | 5 | `CliEntryTest` | `test_main_delegates_to_chat_main` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：main delegates to chat main |
 | 6 | `CliEntryTest` | `test_no_models_returns_none` | 覆盖「`agent.entry.cli`：配置检查在入口做，`chat.main` 只拿到 app 工…」：no models returns none |
-| 7 | `HeadlessEntryTest` | `test_main_defaults_to_smoke_text` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main defaults to smoke text |
-| 8 | `HeadlessEntryTest` | `test_main_passes_first_argument_and_uses_factory` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main passes first argument and uses factory |
-| 9 | `HeadlessEntryTest` | `test_run_prints_one_line_per_event` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run prints one line per event |
-| 10 | `WebMainTest` | `test_args_are_forwarded_to_shell_serve` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：args are forwarded to shell serve |
-| 11 | `WebMainTest` | `test_empty_fs_root_passes_none` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：empty fs root passes none |
-| 12 | `WebMainTest` | `test_open_flag_uses_main_page_without_model` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：open flag uses main page without model |
-| 13 | `WebMainTest` | `test_unexpected_build_error_returns_2` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：unexpected build error returns 2 |
+| 7 | `HeadlessEntryTest` | `test_default_factory_wires_session_store` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：default factory wires session store |
+| 8 | `HeadlessEntryTest` | `test_main_defaults_to_smoke_text` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main defaults to smoke text |
+| 9 | `HeadlessEntryTest` | `test_main_fails_when_model_is_missing` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main fails when model is missing |
+| 10 | `HeadlessEntryTest` | `test_main_passes_first_argument_and_uses_factory` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：main passes first argument and uses factory |
+| 11 | `HeadlessEntryTest` | `test_real_app_uses_full_prompt_and_dynamic_mode_note` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：real app uses full prompt and dynamic mode note |
+| 12 | `HeadlessEntryTest` | `test_run_prints_one_line_per_event` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run prints one line per event |
+| 13 | `HeadlessEntryTest` | `test_run_session_maps_terminal_states` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run session maps terminal states |
+| 14 | `HeadlessEntryTest` | `test_run_session_returns_generated_cid` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run session returns generated cid |
+| 15 | `HeadlessEntryTest` | `test_run_session_timeout_cancels` | 覆盖「`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印」：run session timeout cancels |
+| 16 | `WebMainTest` | `test_args_are_forwarded_to_shell_serve` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：args are forwarded to shell serve |
+| 17 | `WebMainTest` | `test_empty_fs_root_passes_none` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：empty fs root passes none |
+| 18 | `WebMainTest` | `test_open_flag_uses_main_page_without_model` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：open flag uses main page without model |
+| 19 | `WebMainTest` | `test_unexpected_build_error_returns_2` | 覆盖「`agent.entry.web.main`：解析参数 → 装配 → 交给壳；真正的装配故障返回…」：unexpected build error returns 2 |
 
 ## test_environment_info.py
 
@@ -1060,6 +1072,16 @@
 | 5 | `SseFrameContractTest` | `test_frames_are_single_line_json` | 一帧一行 JSON（SSE 的 `data:` 行按行发，不能含裸换行）。 |
 | 6 | `SseFrameContractTest` | `test_seq_never_leaks_into_frame_payloads` | 内核坐标只用于 SSE 的 `id:` 行，不能留在帧载荷里。 |
 
+## test_frozen_data_root.py
+
+共 3 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `FrozenDataRootTest` | `test_env_override_wins_over_frozen` | 覆盖「A class whose instances are single test cases」：env override wins over frozen |
+| 2 | `FrozenDataRootTest` | `test_frozen_uses_user_data_root` | 覆盖「A class whose instances are single test cases」：frozen uses user data root |
+| 3 | `FrozenDataRootTest` | `test_windows_user_data_root` | 覆盖「A class whose instances are single test cases」：windows user data root |
+
 ## test_gate_negative.py
 
 共 66 个用例。
@@ -1145,6 +1167,17 @@
 | 4 | `ContinuationTextTest` | `test_active_goal_wins_over_hardcoded_prompt` | 覆盖「`_next_continuation_text` 的判定表（不启线程，直接问）」：active goal wins over hardcoded prompt |
 | 5 | `ContinuationTextTest` | `test_goal_absent_falls_back_to_autonomy_switch` | 覆盖「`_next_continuation_text` 的判定表（不启线程，直接问）」：goal absent falls back to autonomy switch |
 | 6 | `ContinuationTextTest` | `test_paused_and_done_stop_even_when_autonomy_on` | 目标说了算：暂停/达成后不能再被自主开关顶回去。 |
+
+## test_gui_launcher.py
+
+共 4 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `GuiLauncherTest` | `test_failed_window_still_stops_child` | 覆盖「A class whose instances are single test cases」：failed window still stops child |
+| 2 | `GuiLauncherTest` | `test_launch_owns_child_and_stops_it` | 覆盖「A class whose instances are single test cases」：launch owns child and stops it |
+| 3 | `GuiLauncherTest` | `test_missing_entry_returns_nonzero` | 覆盖「A class whose instances are single test cases」：missing entry returns nonzero |
+| 4 | `GuiLauncherTest` | `test_occupied_explicit_port_does_not_spawn` | 覆盖「A class whose instances are single test cases」：occupied explicit port does not spawn |
 
 ## test_image_embed.py
 
@@ -1554,7 +1587,7 @@
 
 ## test_plugins.py
 
-共 28 个用例。
+共 29 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1563,29 +1596,30 @@
 | 3 | `ConfigParseTest` | `test_get_plugins_parse` | 清单解析只做解析：`[plugin:<名字>]` 节，节里没有字段也合法。 |
 | 4 | `ConfigParseTest` | `test_load_logs_source_integrity` | 装载时 stderr 须留下入口文件来源与完整性摘要。 |
 | 5 | `ConfigParseTest` | `test_load_manifest_resolves_paths_and_reports_errors` | 装载方把 `path` 落到自己的插件根，并把配置错误变成报告。 |
-| 6 | `ConfigParseTest` | `test_tree_only_rejects_external_path` | plugin_tree_only 打开时，清单里的树外 path 不得装载。 |
-| 7 | `PluginGateTest` | `test_gate_rollback_on_register_error` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：gate rollback on register error |
-| 8 | `PluginGateTest` | `test_missing_pipeline_guards_and_post_observer` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：missing pipeline guards and post observer |
-| 9 | `PluginGateTest` | `test_pre_gate_blocks_then_unload_releases` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：pre gate blocks then unload releases |
-| 10 | `PluginHostTest` | `test_broken_import_isolated` | 覆盖「加载器行为（临时目录造插件）」：broken import isolated |
-| 11 | `PluginHostTest` | `test_discover_filters` | 覆盖「加载器行为（临时目录造插件）」：discover filters |
-| 12 | `PluginHostTest` | `test_discover_missing_dir` | 覆盖「加载器行为（临时目录造插件）」：discover missing dir |
-| 13 | `PluginHostTest` | `test_load_enabled_filters_by_whitelist` | 覆盖「加载器行为（临时目录造插件）」：load enabled filters by whitelist |
-| 14 | `PluginHostTest` | `test_missing_register_reports_error` | 覆盖「加载器行为（临时目录造插件）」：missing register reports error |
-| 15 | `PluginHostTest` | `test_module_namespace_and_unload` | 覆盖「加载器行为（临时目录造插件）」：module namespace and unload |
-| 16 | `PluginHostTest` | `test_plugin_tool_runs_via_pipeline` | 覆盖「加载器行为（临时目录造插件）」：plugin tool runs via pipeline |
-| 17 | `PluginHostTest` | `test_register_raises_rolls_back` | 覆盖「加载器行为（临时目录造插件）」：register raises rolls back |
-| 18 | `PluginHostTest` | `test_register_via_ctx_returns_none` | 覆盖「加载器行为（临时目录造插件）」：register via ctx returns none |
-| 19 | `PluginHostTest` | `test_relative_submodule_import` | 覆盖「加载器行为（临时目录造插件）」：relative submodule import |
-| 20 | `PluginHostTest` | `test_reload_skips_loaded` | 覆盖「加载器行为（临时目录造插件）」：reload skips loaded |
-| 21 | `PluginHostTest` | `test_reports_accumulate` | 覆盖「加载器行为（临时目录造插件）」：reports accumulate |
-| 22 | `PluginHostTest` | `test_returned_disposer_list_reverse_order` | 覆盖「加载器行为（临时目录造插件）」：returned disposer list reverse order |
-| 23 | `PluginHostTest` | `test_unknown_name_reports_error` | 覆盖「加载器行为（临时目录造插件）」：unknown name reports error |
-| 24 | `PluginHostTest` | `test_unload_all_idempotent` | 覆盖「加载器行为（临时目录造插件）」：unload all idempotent |
-| 25 | `PluginIdentityFallbackTest` | `test_identity_ignores_plugin_config` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：identity ignores plugin config |
-| 26 | `PluginIdentityFallbackTest` | `test_list_plugins_shows_declared_name_without_a_config` | 卡片标题取 `name` 而不是目录名 —— 不能只有配过的插件才显示中文名。 |
-| 27 | `PluginIdentityFallbackTest` | `test_meta_supplies_identity_when_config_is_absent` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：meta supplies identity when config is absent |
-| 28 | `PluginIdentityFallbackTest` | `test_no_files_falls_back_to_folder_name` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：no files falls back to folder name |
+| 6 | `ConfigParseTest` | `test_profile_overlay_overrides_named_fields` | profile 只覆盖显式字段，未声明项继承基底。 |
+| 7 | `ConfigParseTest` | `test_tree_only_rejects_external_path` | plugin_tree_only 打开时，清单里的树外 path 不得装载。 |
+| 8 | `PluginGateTest` | `test_gate_rollback_on_register_error` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：gate rollback on register error |
+| 9 | `PluginGateTest` | `test_missing_pipeline_guards_and_post_observer` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：missing pipeline guards and post observer |
+| 10 | `PluginGateTest` | `test_pre_gate_blocks_then_unload_releases` | 覆盖「插件门控接缝：注册期可加检查扩展点（pre-gate）」：pre gate blocks then unload releases |
+| 11 | `PluginHostTest` | `test_broken_import_isolated` | 覆盖「加载器行为（临时目录造插件）」：broken import isolated |
+| 12 | `PluginHostTest` | `test_discover_filters` | 覆盖「加载器行为（临时目录造插件）」：discover filters |
+| 13 | `PluginHostTest` | `test_discover_missing_dir` | 覆盖「加载器行为（临时目录造插件）」：discover missing dir |
+| 14 | `PluginHostTest` | `test_load_enabled_filters_by_whitelist` | 覆盖「加载器行为（临时目录造插件）」：load enabled filters by whitelist |
+| 15 | `PluginHostTest` | `test_missing_register_reports_error` | 覆盖「加载器行为（临时目录造插件）」：missing register reports error |
+| 16 | `PluginHostTest` | `test_module_namespace_and_unload` | 覆盖「加载器行为（临时目录造插件）」：module namespace and unload |
+| 17 | `PluginHostTest` | `test_plugin_tool_runs_via_pipeline` | 覆盖「加载器行为（临时目录造插件）」：plugin tool runs via pipeline |
+| 18 | `PluginHostTest` | `test_register_raises_rolls_back` | 覆盖「加载器行为（临时目录造插件）」：register raises rolls back |
+| 19 | `PluginHostTest` | `test_register_via_ctx_returns_none` | 覆盖「加载器行为（临时目录造插件）」：register via ctx returns none |
+| 20 | `PluginHostTest` | `test_relative_submodule_import` | 覆盖「加载器行为（临时目录造插件）」：relative submodule import |
+| 21 | `PluginHostTest` | `test_reload_skips_loaded` | 覆盖「加载器行为（临时目录造插件）」：reload skips loaded |
+| 22 | `PluginHostTest` | `test_reports_accumulate` | 覆盖「加载器行为（临时目录造插件）」：reports accumulate |
+| 23 | `PluginHostTest` | `test_returned_disposer_list_reverse_order` | 覆盖「加载器行为（临时目录造插件）」：returned disposer list reverse order |
+| 24 | `PluginHostTest` | `test_unknown_name_reports_error` | 覆盖「加载器行为（临时目录造插件）」：unknown name reports error |
+| 25 | `PluginHostTest` | `test_unload_all_idempotent` | 覆盖「加载器行为（临时目录造插件）」：unload all idempotent |
+| 26 | `PluginIdentityFallbackTest` | `test_identity_ignores_plugin_config` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：identity ignores plugin config |
+| 27 | `PluginIdentityFallbackTest` | `test_list_plugins_shows_declared_name_without_a_config` | 卡片标题取 `name` 而不是目录名 —— 不能只有配过的插件才显示中文名。 |
+| 28 | `PluginIdentityFallbackTest` | `test_meta_supplies_identity_when_config_is_absent` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：meta supplies identity when config is absent |
+| 29 | `PluginIdentityFallbackTest` | `test_no_files_falls_back_to_folder_name` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：no files falls back to folder name |
 
 ## test_present_tool.py
 
@@ -1718,42 +1752,43 @@
 
 ## test_readonly_tools.py
 
-共 32 个用例。
+共 33 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `GlobFilesToolTest` | `test_entry_type_dir` | 目录过滤。 |
-| 2 | `GlobFilesToolTest` | `test_invalid_entry_type_raises` | 非法 entry_type 抛 ValueError。 |
-| 3 | `GlobFilesToolTest` | `test_limit_truncation` | limit 截断并标记。 |
-| 4 | `GlobFilesToolTest` | `test_non_recursive` | 非递归仅当前层。 |
-| 5 | `GlobFilesToolTest` | `test_path_not_dir_raises` | path 指向文件而非目录时抛 ValueError。 |
-| 6 | `GlobFilesToolTest` | `test_recursive_default` | 默认递归；**/ 前缀剥除。 |
-| 7 | `GrepFilesToolTest` | `test_binary_file_skipped` | 含 NUL 字节的文件被跳过（二进制嗅探）。 |
-| 8 | `GrepFilesToolTest` | `test_blank_pattern_says_what_to_fix` | 字面模式 \| 分隔后无有效段：只说 pattern 与 regex 两个真正相关的处置。 |
-| 9 | `GrepFilesToolTest` | `test_limit_truncation` | limit 截断并标记。 |
-| 10 | `GrepFilesToolTest` | `test_literal_hits` | 字面命中（含子目录；相对路径输出）。 |
-| 11 | `GrepFilesToolTest` | `test_missing_path_is_not_reported_as_wrong_type` | 路径不存在与类型不对必须分开说：两者处置完全不同。 |
-| 12 | `GrepFilesToolTest` | `test_missing_pattern_raises` | 缺少 pattern 抛 ValueError。 |
-| 13 | `GrepFilesToolTest` | `test_no_match` | 无命中：空结果不截断。 |
-| 14 | `GrepFilesToolTest` | `test_or_separator` | 字面模式 \| 为 OR 分隔。 |
-| 15 | `GrepFilesToolTest` | `test_path_not_dir_raises` | path 指向文件：说清本工具只搜目录，并给出真能吃下单文件的工具。 |
-| 16 | `GrepFilesToolTest` | `test_regex_and_ignore_case` | 正则 + 忽略大小写（三个文件行首均命中：alpha / Alpha / alpha deep）。 |
-| 17 | `ReadFileToolTest` | `test_empty_file` | 空文件：返回空内容与 0 行，不报错。 |
-| 18 | `ReadFileToolTest` | `test_invalid_range_raises` | start 超出总行数时抛 ValueError。 |
-| 19 | `ReadFileToolTest` | `test_max_chars_truncation` | max_chars 截断并标记。 |
-| 20 | `ReadFileToolTest` | `test_missing_file_raises` | 文件不存在抛 FileNotFoundError（管道回灌）。 |
-| 21 | `ReadFileToolTest` | `test_missing_path_raises` | 缺少 path 抛 ValueError。 |
-| 22 | `ReadFileToolTest` | `test_range_clamped_to_end` | line_end 超界时 clamp 到文件尾。 |
-| 23 | `ReadFileToolTest` | `test_read_full_text` | 全文读取。 |
-| 24 | `ReadFileToolTest` | `test_read_line_range` | 行区间切片（1-based 闭区间）。 |
-| 25 | `RegistryPipelineIntegrationTest` | `test_register_and_execute_via_pipeline` | 三工具注册进 ToolRegistry；经 ToolPipeline.execute 驱动 read_file。 |
-| 26 | `RegistryPipelineIntegrationTest` | `test_tool_error_structured` | 工具异常：管道捕获为 ok=False 回灌。 |
-| 27 | `RegistryPipelineIntegrationTest` | `test_unknown_tool_via_pipeline` | 未注册工具名：管道结构化回灌（不抛异常）。 |
-| 28 | `ScopeTest` | `test_data_is_searched_by_default` | data 不是通用产物目录名，默认就该被搜到。 |
-| 29 | `ScopeTest` | `test_default_only_prunes_git_and_bytecode` | 默认名单只含 .git 与 __pycache__，跳过数如实报出。 |
-| 30 | `ScopeTest` | `test_exclude_echoes_what_was_asked` | 回执原样回显调用方传的排除名单，便于自查是否漏传。 |
-| 31 | `ScopeTest` | `test_exclude_names_are_honoured` | 点名排除的目录两个工具都不再搜。 |
-| 32 | `ScopeTest` | `test_include_derived_does_not_undo_exclude` | include_derived 只放开默认名单，点名排除的仍排除。 |
+| 1 | `GlobFilesToolTest` | `test_derived_dirs_skipped_and_reported` | 默认剪 .git / __pycache__；回执报数；include_derived 可显式放开。 |
+| 2 | `GlobFilesToolTest` | `test_entry_type_dir` | 目录过滤。 |
+| 3 | `GlobFilesToolTest` | `test_invalid_entry_type_raises` | 非法 entry_type 抛 ValueError。 |
+| 4 | `GlobFilesToolTest` | `test_limit_truncation` | limit 截断并标记。 |
+| 5 | `GlobFilesToolTest` | `test_non_recursive` | 非递归仅当前层。 |
+| 6 | `GlobFilesToolTest` | `test_path_not_dir_raises` | path 指向文件而非目录时抛 ValueError。 |
+| 7 | `GlobFilesToolTest` | `test_recursive_default` | 默认递归；**/ 前缀剥除。 |
+| 8 | `GrepFilesToolTest` | `test_binary_file_skipped` | 含 NUL 字节的文件被跳过（二进制嗅探）。 |
+| 9 | `GrepFilesToolTest` | `test_blank_pattern_says_what_to_fix` | 字面模式 \| 分隔后无有效段：只说 pattern 与 regex 两个真正相关的处置。 |
+| 10 | `GrepFilesToolTest` | `test_limit_truncation` | limit 截断并标记。 |
+| 11 | `GrepFilesToolTest` | `test_literal_hits` | 字面命中（含子目录；相对路径输出）。 |
+| 12 | `GrepFilesToolTest` | `test_missing_path_is_not_reported_as_wrong_type` | 路径不存在与类型不对必须分开说：两者处置完全不同。 |
+| 13 | `GrepFilesToolTest` | `test_missing_pattern_raises` | 缺少 pattern 抛 ValueError。 |
+| 14 | `GrepFilesToolTest` | `test_no_match` | 无命中：空结果不截断。 |
+| 15 | `GrepFilesToolTest` | `test_or_separator` | 字面模式 \| 为 OR 分隔。 |
+| 16 | `GrepFilesToolTest` | `test_path_not_dir_raises` | path 指向文件：说清本工具只搜目录，并给出真能吃下单文件的工具。 |
+| 17 | `GrepFilesToolTest` | `test_regex_and_ignore_case` | 正则 + 忽略大小写（三个文件行首均命中：alpha / Alpha / alpha deep）。 |
+| 18 | `ReadFileToolTest` | `test_empty_file` | 空文件：返回空内容与 0 行，不报错。 |
+| 19 | `ReadFileToolTest` | `test_invalid_range_raises` | start 超出总行数时抛 ValueError。 |
+| 20 | `ReadFileToolTest` | `test_max_chars_truncation` | max_chars 截断并标记。 |
+| 21 | `ReadFileToolTest` | `test_missing_file_raises` | 文件不存在抛 FileNotFoundError（管道回灌）。 |
+| 22 | `ReadFileToolTest` | `test_missing_path_raises` | 缺少 path 抛 ValueError。 |
+| 23 | `ReadFileToolTest` | `test_range_clamped_to_end` | line_end 超界时 clamp 到文件尾。 |
+| 24 | `ReadFileToolTest` | `test_read_full_text` | 全文读取。 |
+| 25 | `ReadFileToolTest` | `test_read_line_range` | 行区间切片（1-based 闭区间）。 |
+| 26 | `RegistryPipelineIntegrationTest` | `test_register_and_execute_via_pipeline` | 三工具注册进 ToolRegistry；经 ToolPipeline.execute 驱动 read_file。 |
+| 27 | `RegistryPipelineIntegrationTest` | `test_tool_error_structured` | 工具异常：管道捕获为 ok=False 回灌。 |
+| 28 | `RegistryPipelineIntegrationTest` | `test_unknown_tool_via_pipeline` | 未注册工具名：管道结构化回灌（不抛异常）。 |
+| 29 | `ScopeTest` | `test_data_is_searched_by_default` | data 不是通用产物目录名，默认就该被搜到。 |
+| 30 | `ScopeTest` | `test_default_only_prunes_git_and_bytecode` | 默认名单只含 .git 与 __pycache__，跳过数如实报出。 |
+| 31 | `ScopeTest` | `test_exclude_echoes_what_was_asked` | 回执原样回显调用方传的排除名单，便于自查是否漏传。 |
+| 32 | `ScopeTest` | `test_exclude_names_are_honoured` | 点名排除的目录两个工具都不再搜。 |
+| 33 | `ScopeTest` | `test_include_derived_does_not_undo_exclude` | include_derived 只放开默认名单，点名排除的仍排除。 |
 
 ## test_resume_bridge.py
 

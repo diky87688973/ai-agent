@@ -20,7 +20,7 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.shell.classic_adapter import contract as C  # noqa: E402
 from agent.shell.classic_adapter.outbound import ClassicStream  # noqa: E402
-from agent.shell.ui_bundle import read_ui_js  # noqa: E402
+from agent.shell.web.ui_bundle import read_ui_js  # noqa: E402
 
 #: 官方返回的字段（DeepSeek 文档：usage 里的缓存命中情况）
 OFFICIAL = {

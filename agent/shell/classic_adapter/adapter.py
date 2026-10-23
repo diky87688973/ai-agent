@@ -233,6 +233,11 @@ class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
             "tools": tools,
             "model": model,
             "allowed_models": allowed,
+            "model_labels": {
+                item.id: (item.label or item.id)
+                for item in (getattr(self._app, "model_catalog", None).snapshot().entries
+                             if getattr(self._app, "model_catalog", None) is not None else [])
+            },
             # 全局默认档位：会话回填前顶栏先按它显示（会话值见 `/api/chat/ui-state`）。
             "reasoning_effort": (self._app.live_state.default_effort
                                  if self._app.live_state is not None else "high"),
