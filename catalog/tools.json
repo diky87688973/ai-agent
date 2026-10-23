@@ -1306,7 +1306,7 @@
       }
     },
     {
-      "description": "Skills：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文；`action=copy` 预览复制（不落盘，返回 confirm_id，凭 commit_write 提交）。",
+      "description": "Skills：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文。不负责复制或迁移文件。",
       "display": {
         "icon": "🧩",
         "label": "Skills 管理"
@@ -1315,19 +1315,15 @@
       "parallel_safe": false,
       "parameters": {
         "action": {
-          "description": "list / read / copy",
+          "description": "list / read",
+          "enum": [
+            "list",
+            "read"
+          ],
           "type": "string"
         },
         "name": {
-          "description": "Skills 名称（read 必填；copy 可作源）",
-          "type": "string"
-        },
-        "source": {
-          "description": "copy 源路径（文件或目录；与 name 二选一）",
-          "type": "string"
-        },
-        "subdir": {
-          "description": "copy 子目录名（源子目录与目标子目录一致）",
+          "description": "Skills 名称（read 必填）",
           "type": "string"
         }
       }

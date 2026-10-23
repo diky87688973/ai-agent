@@ -77,7 +77,8 @@ class FileViewerActions:
             text = target.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             return 500, {"error": f"{type(exc).__name__}"}
-        truncated = len(text) > max_chars
+        full = max_chars <= 0
+        truncated = not full and len(text) > max_chars
         if truncated:
             text = text[:max_chars]
         try:

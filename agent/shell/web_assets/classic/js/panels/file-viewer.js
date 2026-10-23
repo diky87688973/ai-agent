@@ -54,7 +54,7 @@ if(body){
   }
 }
 body.innerHTML='<div class="pane-empty">读取中…</div>';
-fetch("/api/fs/read?path="+encodeURIComponent(path)).then(function(r){return r.json();}).then(function(d){
+fetch("/api/fs/read?max_chars=0&path="+encodeURIComponent(path)).then(function(r){return r.json();}).then(function(d){
 if(!d||d.error){
 body.innerHTML='<div class="pane-empty">打开失败：'+escapeHtml(String((d&&d.error)||"未知错误"))+"</div>";
 return;

@@ -433,6 +433,23 @@ class FileViewerContractTest(_ServerFixture):
         )
         self.assertEqual(status, 404, msg=str(payload))
 
+    def test_max_chars_zero_returns_full_file(self) -> None:
+        """文件查看器显式传 0：不截断；默认调用仍保留 400000 字符保护。"""
+        text = "x" * 500000
+        self._write("large.txt", text)
+        status, payload = self.get_json(
+            "/api/fs/read?path=" + urllib.parse.quote("large.txt")
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["truncated"])
+        self.assertEqual(len(payload["content"]), 400000)
+        status, payload = self.get_json(
+            "/api/fs/read?max_chars=0&path=" + urllib.parse.quote("large.txt")
+        )
+        self.assertEqual(status, 200)
+        self.assertFalse(payload["truncated"])
+        self.assertEqual(len(payload["content"]), len(text))
+
     def test_binary_is_reported_not_dumped(self) -> None:
 
         target = self.root / "blob.bin"

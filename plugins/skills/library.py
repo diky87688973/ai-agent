@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -16,16 +15,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from agent.core.error_report import report_error
 
 CATALOG_HEAD = "【Skills 清单】"
-EXTERNAL_DIR_HELP = (
-    "外部 Skills 目录未配置或不存在。"
-    "请提示用户启用 Skills 插件，并在设置 → 插件 → Skills 中配置 dir。"
-)
-
-
-class SkillDirUnavailable(ValueError):
-    """外置 Skills 目录不可写：模型据此提示用户配置。"""
-
-
 def _canonical_key(path: Path) -> str:
     """同一文件的稳定身份。
 
@@ -82,11 +71,6 @@ class SkillManager:
         if self.external_dir and self.external_dir.is_dir():
             specs.append((self.external_dir, "external"))
         return specs
-
-    def _external_root(self) -> Path:
-        if not self.external_dir or not self.external_dir.is_dir():
-            raise SkillDirUnavailable(EXTERNAL_DIR_HELP)
-        return self.external_dir
 
     # ── 隐藏目录过滤 ────────────────────────────────────
 
@@ -380,73 +364,3 @@ class SkillManager:
         content = body.strip()
         self._content_cache[cache_key] = content
         return content
-
-    # ── 复制（两段式：计划 → 执行）──────────────────────
-
-    def plan_copy(self, source: Path, subdir: str = "") -> Dict[str, Any]:
-        """复制计划（预览，不落盘）：目标只能是外置 Skills 根。"""
-        target_root = self._external_root()
-        sub = str(subdir or "").strip().strip("/")
-        if source.is_file():
-            target_dir = (target_root / sub) if sub else target_root
-            dest = target_dir / source.name
-            return {
-                "mode": "file",
-                "source": str(source),
-                "target_dir": str(target_dir),
-                "files": [source.name],
-                "conflicts": [str(dest)] if dest.exists() else [],
-                "skipped": 0,
-            }
-        if not source.is_dir():
-            raise FileNotFoundError(f"源路径不存在: {source}")
-        src = (source / sub) if sub else source
-        if not src.is_dir():
-            raise FileNotFoundError(f"子目录不存在: {src}")
-        target_dir = (target_root / sub) if sub else target_root
-        files: List[str] = []
-        skipped = 0
-        for f in sorted(src.iterdir()):
-            if not f.is_file() or f.suffix != ".md":
-                skipped += 1
-                continue
-            files.append(f.name)
-        conflicts = [str(target_dir / name) for name in files if (target_dir / name).exists()]
-        return {
-            "mode": "dir",
-            "source": str(src),
-            "target_dir": str(target_dir),
-            "files": files,
-            "conflicts": conflicts,
-            "skipped": skipped,
-        }
-
-    def execute_copy(self, source: Path, subdir: str = "") -> Dict[str, Any]:
-        """执行复制（提交）：仅 .md 文件；返回 copied / skipped / errors / path。"""
-        plan = self.plan_copy(source, subdir)
-        target_dir = Path(plan["target_dir"])
-        target_dir.mkdir(parents=True, exist_ok=True)
-        copied = 0
-        errors: List[str] = []
-        if plan["mode"] == "file":
-            try:
-                shutil.copy2(str(source), str(target_dir / source.name))
-                copied = 1
-            except Exception as exc:
-                report_error("plugin.skills.copy", exc)
-                errors.append(str(exc))
-            dest_path = str(target_dir / source.name)
-        else:
-            src_dir = Path(plan["source"])
-            for f in sorted(src_dir.iterdir()):
-                if not f.is_file() or f.suffix != ".md":
-                    continue
-                try:
-                    shutil.copy2(str(f), str(target_dir / f.name))
-                    copied += 1
-                except Exception as exc:
-                    report_error("plugin.skills.copy", exc)
-                    errors.append(f"{f.name}: {exc}")
-            dest_path = str(target_dir)
-        self._force_rescan()
-        return {"copied": copied, "skipped": plan["skipped"], "errors": errors, "path": dest_path}

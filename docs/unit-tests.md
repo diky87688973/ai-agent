@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1784** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1780** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -17,7 +17,7 @@
 7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（21）
 8. [test_artifact_lock.py](#test_artifact_lockpy)（16）
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
-10. [test_batch_f_tools.py](#test_batch_f_toolspy)（28）
+10. [test_batch_f_tools.py](#test_batch_f_toolspy)（23）
 11. [test_catalog.py](#test_catalogpy)（8）
 12. [test_chat_shell.py](#test_chat_shellpy)（16）
 13. [test_classic_adapter.py](#test_classic_adapterpy)（103）
@@ -88,7 +88,7 @@
 78. [test_version_stamp.py](#test_version_stamppy)（4）
 79. [test_visual_operator.py](#test_visual_operatorpy)（130）
 80. [test_web_frontend.py](#test_web_frontendpy)（5）
-81. [test_web_shell.py](#test_web_shellpy)（51）
+81. [test_web_shell.py](#test_web_shellpy)（52）
 82. [test_web_ui_config.py](#test_web_ui_configpy)（21）
 83. [test_write_gate.py](#test_write_gatepy)（16）
 84. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
@@ -329,7 +329,7 @@
 
 ## test_batch_f_tools.py
 
-共 28 个用例。
+共 23 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -340,27 +340,22 @@
 | 5 | `ReviewConclusionTest` | `test_cancel_preview_and_invalid` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：cancel preview and invalid |
 | 6 | `ReviewConclusionTest` | `test_confirm_unlock_and_review_done` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：confirm unlock and review done |
 | 7 | `ReviewConclusionTest` | `test_short_conclusion_and_missing_file_name_rejected` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：short conclusion and missing file name rejected |
-| 8 | `SkillsLibraryTest` | `test_copy_plan_execute_and_conflict` | 覆盖「Skills 库」：copy plan execute and conflict |
-| 9 | `SkillsLibraryTest` | `test_scan_list_and_matching` | 覆盖「Skills 库」：scan list and matching |
-| 10 | `SkillsLibraryTest` | `test_truncation_and_incremental_rescan` | 覆盖「Skills 库」：truncation and incremental rescan |
-| 11 | `SkillsListNeverDoublesTest` | `test_auto_load_count_ignores_duplicate_entries` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：auto load count ignores duplicate entries |
-| 12 | `SkillsListNeverDoublesTest` | `test_concurrent_rescan_replaces_the_list` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：concurrent rescan replaces the list |
-| 13 | `SkillsListNeverDoublesTest` | `test_different_path_spelling_counts_once` | 同一文件的两种路径写法不能让 `len(list_skills())` 变成两倍。 |
-| 14 | `SkillsListNeverDoublesTest` | `test_duplicate_entries_do_not_double_the_catalog` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：duplicate entries do not double the catalog |
-| 15 | `SkillsListNeverDoublesTest` | `test_rescan_does_not_append_twice` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：rescan does not append twice |
-| 16 | `SkillsSourceTest` | `test_catalog_separates_builtin_and_external` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：catalog separates builtin and external |
-| 17 | `SkillsSourceTest` | `test_copy_targets_external_and_keeps_builtin_read_only` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：copy targets external and keeps builtin read only |
-| 18 | `SkillsSourceTest` | `test_external_overrides_builtin_and_both_auto_loads` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：external overrides builtin and both auto loads |
-| 19 | `SkillsSourceTest` | `test_missing_external_dir_is_actionable` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：missing external dir is actionable |
-| 20 | `SkillsSourceTest` | `test_resource_directory_section_has_both_sources` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：resource directory section has both sources |
-| 21 | `SkillsSourceTest` | `test_tool_description_does_not_embed_external_dir` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：tool description does not embed external dir |
-| 22 | `SkillsToolTest` | `test_copy_missing_source` | 覆盖「skills 工具」：copy missing source |
-| 23 | `SkillsToolTest` | `test_copy_preview_and_executor` | 覆盖「skills 工具」：copy preview and executor |
-| 24 | `SkillsToolTest` | `test_list_read_and_lookup_error` | 覆盖「skills 工具」：list read and lookup error |
-| 25 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
-| 26 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
-| 27 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
-| 28 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
+| 8 | `SkillsLibraryTest` | `test_scan_list_and_matching` | 覆盖「Skills 库」：scan list and matching |
+| 9 | `SkillsLibraryTest` | `test_truncation_and_incremental_rescan` | 覆盖「Skills 库」：truncation and incremental rescan |
+| 10 | `SkillsListNeverDoublesTest` | `test_auto_load_count_ignores_duplicate_entries` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：auto load count ignores duplicate entries |
+| 11 | `SkillsListNeverDoublesTest` | `test_concurrent_rescan_replaces_the_list` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：concurrent rescan replaces the list |
+| 12 | `SkillsListNeverDoublesTest` | `test_different_path_spelling_counts_once` | 同一文件的两种路径写法不能让 `len(list_skills())` 变成两倍。 |
+| 13 | `SkillsListNeverDoublesTest` | `test_duplicate_entries_do_not_double_the_catalog` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：duplicate entries do not double the catalog |
+| 14 | `SkillsListNeverDoublesTest` | `test_rescan_does_not_append_twice` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：rescan does not append twice |
+| 15 | `SkillsSourceTest` | `test_catalog_separates_builtin_and_external` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：catalog separates builtin and external |
+| 16 | `SkillsSourceTest` | `test_external_overrides_builtin_and_both_auto_loads` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：external overrides builtin and both auto loads |
+| 17 | `SkillsSourceTest` | `test_resource_directory_section_has_both_sources` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：resource directory section has both sources |
+| 18 | `SkillsSourceTest` | `test_tool_description_does_not_embed_external_dir` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：tool description does not embed external dir |
+| 19 | `SkillsToolTest` | `test_list_read_and_lookup_error` | 覆盖「skills 工具」：list read and lookup error |
+| 20 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
+| 21 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
+| 22 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
+| 23 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
 
 ## test_catalog.py
 
@@ -2312,7 +2307,7 @@
 
 ## test_web_shell.py
 
-共 51 个用例。
+共 52 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2338,35 +2333,36 @@
 | 20 | `FileViewerContractTest` | `test_list_absolute_path_inside_root` | 覆盖「文件读取端点的路径解析与越界边界」：list absolute path inside root |
 | 21 | `FileViewerContractTest` | `test_list_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：list outside root is forbidden |
 | 22 | `FileViewerContractTest` | `test_list_returns_entries_with_rel_and_type` | 覆盖「文件读取端点的路径解析与越界边界」：list returns entries with rel and type |
-| 23 | `FileViewerContractTest` | `test_missing_file_inside_root_is_404_not_403` | 不存在的文件与越界必须分开报告：预览期未落盘的文件是 404，不是越权。 |
-| 24 | `FileViewerContractTest` | `test_relative_path_reads_text` | 覆盖「文件读取端点的路径解析与越界边界」：relative path reads text |
-| 25 | `FileViewerContractTest` | `test_traversal_cannot_escape_roots` | 穿越语义：不允许逃出可见根（不是"禁止 `..`"）。 |
-| 26 | `MultiRootFileViewerTest` | `test_absolute_path_in_first_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：absolute path in first root |
-| 27 | `MultiRootFileViewerTest` | `test_absolute_path_in_second_root` | 第二个根同样可达——单根实现会把它判成越界。 |
-| 28 | `MultiRootFileViewerTest` | `test_list_reports_rel_against_matched_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：list reports rel against matched root |
-| 29 | `MultiRootFileViewerTest` | `test_missing_in_a_root_is_404_not_403` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：missing in a root is 404 not 403 |
-| 30 | `MultiRootFileViewerTest` | `test_outside_all_roots_is_forbidden` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：outside all roots is forbidden |
-| 31 | `MultiRootFileViewerTest` | `test_relative_path_resolves_against_each_root` | 相对路径逐个根试：命中哪个根就用哪个。 |
-| 32 | `MultiRootFileViewerTest` | `test_roots_are_resolved_and_deduplicated_by_normalize` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：roots are resolved and deduplicated by normalize |
-| 33 | `SseContractTest` | `test_derived_title_truncates_and_flattens` | 覆盖「/ ：单流多路复用与事件信封」：derived title truncates and flattens |
-| 34 | `SseContractTest` | `test_dir_browse_drives_layer` | `path=_drives_` 返回「计算机」层。 |
-| 35 | `SseContractTest` | `test_dir_browse_item_shape_and_ordering` | 条目形状 {name,type,ext,path}；目录排前。 |
-| 36 | `SseContractTest` | `test_dir_browse_missing_path_falls_back` | 访问不到的路径回落（不报错）——补全不能因为一个坏路径卡死。 |
-| 37 | `SseContractTest` | `test_dir_browse_relative_path_uses_workspace_base` | 相对路径应基于可见根解析，且不得落到盘根。 |
-| 38 | `SseContractTest` | `test_dir_browse_root_parent_is_drives` | 盘符根的 parent 是 `_drives_`，可从盘根回到计算机层。 |
-| 39 | `SseContractTest` | `test_every_frame_carries_conversation_id` | 覆盖「/ ：单流多路复用与事件信封」：every frame carries conversation id |
-| 40 | `SseContractTest` | `test_health_reports_model_for_header` | `/health` 须给出 model / allowed_models / 全局默认档位（顶栏与模型菜单）。 |
-| 41 | `SseContractTest` | `test_history_and_sessions_endpoints` | 覆盖「/ ：单流多路复用与事件信封」：history and sessions endpoints |
-| 42 | `SseContractTest` | `test_reasoning_effort_is_per_conversation` | 会话级档位不串会话：改一个不影响另一个（另一个回全局默认）。 |
-| 43 | `SseContractTest` | `test_reasoning_effort_rejects_invalid` | 非法档位拒设且保留原值；缺 cid 报错。 |
-| 44 | `SseContractTest` | `test_reasoning_effort_roundtrip` | 推理档位 GET/PUT 往返。 |
-| 45 | `SseContractTest` | `test_sessions_carry_date_group` | 会话名录须带 date_group（会话菜单按它插分组标题）。 |
-| 46 | `SseContractTest` | `test_sessions_carry_derived_title_not_raw_id` | 会话名录须带派生标题（首条用户输入），否则侧栏只能显示裸 UUID。 |
-| 47 | `SseContractTest` | `test_sessions_sorted_by_recent_activity` | 覆盖「/ ：单流多路复用与事件信封」：sessions sorted by recent activity |
-| 48 | `SseContractTest` | `test_turn_events_reach_the_stream` | 覆盖「/ ：单流多路复用与事件信封」：turn events reach the stream |
-| 49 | `SseContractTest` | `test_two_sessions_do_not_cross` | 覆盖「/ ：单流多路复用与事件信封」：two sessions do not cross |
-| 50 | `WriteGateOverWebTest` | `test_confirm_is_session_scoped` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：confirm is session scoped |
-| 51 | `WriteGateOverWebTest` | `test_unconfirmed_commit_rejected_then_review_unlocks` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：unconfirmed commit rejected then review unlocks |
+| 23 | `FileViewerContractTest` | `test_max_chars_zero_returns_full_file` | 文件查看器显式传 0：不截断；默认调用仍保留 400000 字符保护。 |
+| 24 | `FileViewerContractTest` | `test_missing_file_inside_root_is_404_not_403` | 不存在的文件与越界必须分开报告：预览期未落盘的文件是 404，不是越权。 |
+| 25 | `FileViewerContractTest` | `test_relative_path_reads_text` | 覆盖「文件读取端点的路径解析与越界边界」：relative path reads text |
+| 26 | `FileViewerContractTest` | `test_traversal_cannot_escape_roots` | 穿越语义：不允许逃出可见根（不是"禁止 `..`"）。 |
+| 27 | `MultiRootFileViewerTest` | `test_absolute_path_in_first_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：absolute path in first root |
+| 28 | `MultiRootFileViewerTest` | `test_absolute_path_in_second_root` | 第二个根同样可达——单根实现会把它判成越界。 |
+| 29 | `MultiRootFileViewerTest` | `test_list_reports_rel_against_matched_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：list reports rel against matched root |
+| 30 | `MultiRootFileViewerTest` | `test_missing_in_a_root_is_404_not_403` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：missing in a root is 404 not 403 |
+| 31 | `MultiRootFileViewerTest` | `test_outside_all_roots_is_forbidden` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：outside all roots is forbidden |
+| 32 | `MultiRootFileViewerTest` | `test_relative_path_resolves_against_each_root` | 相对路径逐个根试：命中哪个根就用哪个。 |
+| 33 | `MultiRootFileViewerTest` | `test_roots_are_resolved_and_deduplicated_by_normalize` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：roots are resolved and deduplicated by normalize |
+| 34 | `SseContractTest` | `test_derived_title_truncates_and_flattens` | 覆盖「/ ：单流多路复用与事件信封」：derived title truncates and flattens |
+| 35 | `SseContractTest` | `test_dir_browse_drives_layer` | `path=_drives_` 返回「计算机」层。 |
+| 36 | `SseContractTest` | `test_dir_browse_item_shape_and_ordering` | 条目形状 {name,type,ext,path}；目录排前。 |
+| 37 | `SseContractTest` | `test_dir_browse_missing_path_falls_back` | 访问不到的路径回落（不报错）——补全不能因为一个坏路径卡死。 |
+| 38 | `SseContractTest` | `test_dir_browse_relative_path_uses_workspace_base` | 相对路径应基于可见根解析，且不得落到盘根。 |
+| 39 | `SseContractTest` | `test_dir_browse_root_parent_is_drives` | 盘符根的 parent 是 `_drives_`，可从盘根回到计算机层。 |
+| 40 | `SseContractTest` | `test_every_frame_carries_conversation_id` | 覆盖「/ ：单流多路复用与事件信封」：every frame carries conversation id |
+| 41 | `SseContractTest` | `test_health_reports_model_for_header` | `/health` 须给出 model / allowed_models / 全局默认档位（顶栏与模型菜单）。 |
+| 42 | `SseContractTest` | `test_history_and_sessions_endpoints` | 覆盖「/ ：单流多路复用与事件信封」：history and sessions endpoints |
+| 43 | `SseContractTest` | `test_reasoning_effort_is_per_conversation` | 会话级档位不串会话：改一个不影响另一个（另一个回全局默认）。 |
+| 44 | `SseContractTest` | `test_reasoning_effort_rejects_invalid` | 非法档位拒设且保留原值；缺 cid 报错。 |
+| 45 | `SseContractTest` | `test_reasoning_effort_roundtrip` | 推理档位 GET/PUT 往返。 |
+| 46 | `SseContractTest` | `test_sessions_carry_date_group` | 会话名录须带 date_group（会话菜单按它插分组标题）。 |
+| 47 | `SseContractTest` | `test_sessions_carry_derived_title_not_raw_id` | 会话名录须带派生标题（首条用户输入），否则侧栏只能显示裸 UUID。 |
+| 48 | `SseContractTest` | `test_sessions_sorted_by_recent_activity` | 覆盖「/ ：单流多路复用与事件信封」：sessions sorted by recent activity |
+| 49 | `SseContractTest` | `test_turn_events_reach_the_stream` | 覆盖「/ ：单流多路复用与事件信封」：turn events reach the stream |
+| 50 | `SseContractTest` | `test_two_sessions_do_not_cross` | 覆盖「/ ：单流多路复用与事件信封」：two sessions do not cross |
+| 51 | `WriteGateOverWebTest` | `test_confirm_is_session_scoped` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：confirm is session scoped |
+| 52 | `WriteGateOverWebTest` | `test_unconfirmed_commit_rejected_then_review_unlocks` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：unconfirmed commit rejected then review unlocks |
 
 ## test_web_ui_config.py
 

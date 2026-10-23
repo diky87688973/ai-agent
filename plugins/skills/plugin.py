@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Skills 插件：Skills 库（扫描 / 读取 / 复制）+ `skills` 工具 + 上下文注入。
+"""Skills 插件：Skills 库（扫描 / 读取）+ `skills` 工具 + 上下文注入。
 
 Skills 走渐进式披露：
 
@@ -22,7 +22,6 @@ from agent.config import PROJECT_ROOT, load_ini
 
 from .library import SkillManager
 from .tools import build as build_tool
-from .tools import build_executors
 
 CONFIG_SECTION = "config"
 DEFAULT_MAX_FILE_SIZE = 200000
@@ -108,9 +107,6 @@ def register(ctx: Any) -> List[Callable[[], None]]:
              "count": lambda _cid, _lib=library: _lib.auto_load_count()},
         ),
     ]
-    # 提交执行器登记到宿主的执行器注册表：`commit_write` 提交时按工具名取。
-    disposers.append(
-        ctx.add_executor("skills", build_executors(library)["skills"]))
     # 上下文分层外观：无面板，经贡献表交给壳层开屏注册。
     disposers.append(ctx.add_ctx_segment_style(label=style_label, color="plum"))
     # 工具卡视图：开屏脚本，不必挂空面板。
@@ -130,7 +126,7 @@ def _resource_directory_lines(library: SkillManager) -> List[str]:
     else:
         lines.extend([
             "- 外置skills: 未配置",
-            "  当前未配置外置skills目录，必要时提醒用户在skills插件中配置dir即可",
+            "  外置skills目录为用户skills目录，当前未配置外置skills目录，必要时提醒用户在\"Skills\"插件中配置dir即可",
         ])
     return lines
 

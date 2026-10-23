@@ -236,23 +236,6 @@ class SkillsLibraryTest(unittest.TestCase):
         names = [s["name"] for s in small.list_skills()]
         self.assertIn("gamma", names)
 
-    def test_copy_plan_execute_and_conflict(self) -> None:
-        mgr = SkillManager(self.skills_dir)
-        src = self.root / "incoming"
-        src.mkdir()
-        (src / "new1.md").write_text("---\nname: n1\n---\nx\n", encoding="utf-8")
-        (src / "note.txt").write_text("skip me", encoding="utf-8")
-        plan = mgr.plan_copy(src)
-        self.assertEqual(plan["files"], ["new1.md"])
-        self.assertEqual(plan["conflicts"], [])
-        self.assertEqual(plan["skipped"], 1)
-        self.assertFalse((self.skills_dir / "new1.md").exists())
-        res = mgr.execute_copy(src)
-        self.assertEqual(res["copied"], 1)
-        self.assertTrue((self.skills_dir / "new1.md").exists())
-        (src / "new1.md").write_text("changed\n", encoding="utf-8")
-        self.assertTrue(mgr.plan_copy(src)["conflicts"])
-
 class SkillsToolTest(unittest.TestCase):
     """skills 工具。"""
 
@@ -276,29 +259,12 @@ class SkillsToolTest(unittest.TestCase):
         with self.assertRaises(skill_tools.SkillLookupError) as ctx:
             self.tool.execute({"action": "read", "name": "nope"})
         self.assertEqual(ctx.exception.data["available"], ["alpha"])
+        self.assertNotIn("copy", self.tool.description.lower())
+        self.assertNotIn("source", self.tool.parameters)
 
-    def test_copy_preview_and_executor(self) -> None:
-        src = self.root / "in2"
-        src.mkdir()
-        (src / "c1.md").write_text("z\n", encoding="utf-8")
-        pv = self.tool.execute({"action": "copy", "source": str(src)})
-        self.assertTrue(pv["preview"])
-        self.assertEqual(pv["would_copy"], 1)
-        self.assertFalse((self.skills_dir / "c1.md").exists())
-        executors = skill_tools.build_executors(self.library)
-        done = executors["skills"]({"action": "copy", "source": str(src)})
-        self.assertTrue(done["written"])
-        self.assertTrue((self.skills_dir / "c1.md").exists())
-        # 冲突预览标注（name 源已存在）
-        pv2 = self.tool.execute({"action": "copy", "name": "alpha"})
-        self.assertTrue(pv2["would_overwrite"])
-
-    def test_copy_missing_source(self) -> None:
-        with self.assertRaises(ValueError):
-            self.tool.execute({"action": "copy"})
 
 class SkillsSourceTest(unittest.TestCase):
-    """内置根与外置根：合并、覆盖、auto_load、复制目标。"""
+    """内置根与外置根：合并、覆盖、auto_load。"""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -341,26 +307,6 @@ class SkillsSourceTest(unittest.TestCase):
         self.assertIn("【用户 Skills 清单】", msg)
         self.assertIn("- only_builtin: 仅内置", msg)
         self.assertIn("- shared: 外置版", msg)
-
-    def test_copy_targets_external_and_keeps_builtin_read_only(self) -> None:
-        lib = SkillManager(self.external, builtin_dir=self.builtin)
-        src = self.root / "incoming"
-        src.mkdir()
-        (src / "new.md").write_text("---\nname: new\n---\nx\n", encoding="utf-8")
-        plan = lib.plan_copy(src)
-        self.assertEqual(Path(plan["target_dir"]), self.external)
-        lib.execute_copy(src)
-        self.assertTrue((self.external / "new.md").is_file())
-        self.assertFalse((self.builtin / "new.md").exists())
-
-    def test_missing_external_dir_is_actionable(self) -> None:
-        lib = SkillManager(None, builtin_dir=self.builtin)
-        tool = skill_tools.build(lib)
-        self.assertEqual(tool.name, "skills")
-        self.assertNotIn("外部 Skills 目录", tool.description)
-        with self.assertRaises(ValueError) as ctx:
-            tool.execute({"action": "copy", "source": str(self.builtin / "only_builtin.md")})
-        self.assertIn("配置 dir", str(ctx.exception))
 
     def test_tool_description_does_not_embed_external_dir(self) -> None:
         lib = SkillManager(self.external, builtin_dir=self.builtin)

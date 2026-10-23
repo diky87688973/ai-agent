@@ -187,8 +187,8 @@ python -m unittest tests.test_gate_negative
 ## 9. 当前验收结果
 
 ```text
-检查文件：333
-检查 except：559
+检查文件：334
+检查 except：557
 静默 pass/continue：0
 IDIOMS：已删除
 静默异常预算：已删除

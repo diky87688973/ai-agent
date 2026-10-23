@@ -60,7 +60,7 @@ max_file_size = 200000
 | 键 | 说明 |
 |---|---|
 | `plugin-meta.json` | 身份：`name`、`desc`、`icon`、`version` |
-| `dir` | **用户外置** Skills 目录。相对路径按工程根解析；未配置或不存在时内置来源仍可使用，但 `copy` 不可用 |
+| `dir` | **用户外置** Skills 目录。相对路径按工程根解析；未配置或不存在时内置来源仍可使用 |
 | `max_file_size` | 单个 Skills 文件的字节上限，超过则截断；留空取 200000 |
 
 内置来源固定为 `<项目根>/skills`，不受 `dir` 影响。配置在插件自己目录下，
@@ -107,7 +107,7 @@ Skills 插件向系统提示词注册 `## 资源目录` 章节；系统 Skills �
 
 ```text
 - 外置skills: 未配置
-  当前未配置外置skills目录，必要时提醒用户在skills插件中配置dir即可
+  外置skills目录为用户skills目录，当前未配置外置skills目录，必要时提醒用户在"Skills"插件中配置dir即可
 ```
 
 该章节是系统提示词的一部分，不占独立的上下文段。Rules 插件向同一章节
@@ -129,22 +129,16 @@ Skills 插件向系统提示词注册 `## 资源目录` 章节；系统 Skills �
 ```json
 {"action": "list"}
 {"action": "read", "name": "engineering/code-review"}
-{"action": "copy", "source": "/srv/inbox/review.md", "name": "review"}
 ```
 
 | action | 行为 |
 |---|---|
 | `list` | 列出可用 Skills（名字 + 描述） |
 | `read` | 读某个 Skills 的正文（超过上限时截断）；找不到时抛 `SkillLookupError` 并附可用清单 |
-| `copy` | **两段式**：先返回预览（`confirm_id`、`would_overwrite`），确认后才落盘；目标只能是外置 `dir` |
 
 用户 Skills 根写在系统提示词的 `## 资源目录` 章节里；`skills` 工具描述保持固定，不携带环境路径。
-未配置或目录不存在时，`资源目录` 会明确标出用户 Skills 未配置/不存在，`copy` 返回可执行错误，
-要求模型提示用户启用 Skills 插件、在设置中配置 `dir`。
-
-`copy` 的提交走内核的 `commit_write`：插件用 `ctx.add_executor("skills", fn)`
-登记执行器，提交那一刻按工具名取。落盘受写盘四步协议与门控约束，与内置写类工具
-走同一条路。内置目录只读，不接收复制目标。
+未配置或目录不存在时，`资源目录` 会明确标出用户 Skills 未配置/不存在，模型据此提醒用户配置 `dir`。
+`skills` 只做 list / read，不复制、不迁移、不落盘。
 
 ## 一起改的地方
 
