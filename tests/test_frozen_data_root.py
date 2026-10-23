@@ -29,6 +29,7 @@ class FrozenDataRootTest(unittest.TestCase):
                     mock.patch.dict(os.environ, {"AI_AGENT_DATA_ROOT": tmp}):
                 self.assertEqual(config.default_data_root(), Path(tmp))
 
+    @unittest.skipUnless(os.name == "nt", "需要 Windows 路径语义")
     def test_windows_user_data_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(config.os, "name", "nt"), \

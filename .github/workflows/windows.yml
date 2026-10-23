@@ -39,9 +39,9 @@ jobs:
         run: .\launcher\build.ps1
 
       - name: 校验产物
-        shell: powershell
+        shell: pwsh
         run: |
-          if (!(Test-Path .\agent-gui.exe)) { throw "agent-gui.exe 未生成" }
+          if (!(Test-Path .\agent-gui.exe)) { throw "agent-gui.exe was not generated" }
           Get-Item .\agent-gui.exe | Select-Object FullName, Length
 
       - uses: actions/upload-artifact@v4
