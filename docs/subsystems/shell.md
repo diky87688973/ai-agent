@@ -9,7 +9,8 @@
 | `web_static.py` | 静态资源、路径与协议常量 |
 | `web_classic.py` | 经典页面与经典 SSE |
 | `web_plugin.py` | 插件端点与插件资产转发 |
-| `web_api.py` | WebShell 业务动作与连接/运行态 |
+| `web_api.py` | WebShell 入口、SSE 连接/运行态 |
+| `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` | WebShell 的聊天、会话、文件、贡献、UI 状态动作 |
 | `sse.py` | SSE 传输层 |
 | `session/runner.py` | 回合调度、取消、队列抽干与生命周期 |
 | `session/queue.py` | 队列领取、释放、补投 |
@@ -19,7 +20,7 @@
 | `session/heartbeat.py` | 运行态心跳 |
 | `prompts.py` | 系统提示词 |
 | `ui_bundle.py` | 界面资源内联打包 |
-| `settings_panel.py` | 设置页：宿主配置与插件开关的读写 |
+| `settings_panel.py` / `settings_io.py` / `plugin_settings.py` | 设置页宿主配置、INI 原语、插件配置 |
 | `chat.py` | 交互式对话壳（命令行） |
 | `headless.py` | 无 UI 跑一轮并打印事件流 |
 | `fspaths.py` | 可见范围的来源、路径判界与展示形态 |
@@ -205,14 +206,16 @@ inline_ui_html()        # 拼成完整单页
 
 | 文件 | 方向 |
 |---|---|
-| `outbound.py` | 内核事件 → 界面事件 |
+| `outbound.py` / `outbound_tools.py` / `outbound_turns.py` | 内核事件 → 界面事件（门面与工具/回合分组） |
 | `inbound.py` | 界面请求 → 内核调用 → 界面期望的返回体 |
 | `history.py` | 历史折叠、附件、工具回显 |
 | `layout.py` | 上下文布局、覆盖、缩放 |
 | `state.py` | 经典会话级状态 |
 | `sessions.py` | 会话标题与日期分组 |
 | `contract.py` | 事件与字段常量，适配层的单一事实源 |
-| `adapter.py` | 门面 `ClassicAdapter`、SSE 通道 `ClassicSseChannel` |
+| `channel.py` | SSE 连接、广播、心跳与断线续传 |
+| `confirm.py` | 会话暂停态与用户确认回路 |
+| `adapter.py` | 门面 `ClassicAdapter`（会话翻译流、健康与环境快照） |
 
 适配层是**行为差异的落点**：界面与内核各自保持自己的形状，差异在中间抹平。
 

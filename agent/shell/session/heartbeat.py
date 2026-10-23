@@ -5,6 +5,8 @@ from __future__ import annotations
 import threading
 from typing import Any
 
+from agent.core.error_report import report_error
+
 
 def heartbeat_until(*, mesh: Any, cid: str, stop: threading.Event,
                     interval: float) -> None:
@@ -12,6 +14,6 @@ def heartbeat_until(*, mesh: Any, cid: str, stop: threading.Event,
     while not stop.wait(interval):
         try:
             mesh.touch_run(cid)
-        except Exception:
+        except Exception as exc:
             # 心跳失败不影响回合；登记表会按 TTL 退化，不阻断执行。
-            pass
+            report_error("agent.shell.session.heartbeat.heartbeat_until", exc)

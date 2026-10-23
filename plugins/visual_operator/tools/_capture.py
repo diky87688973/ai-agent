@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from agent.core.error_report import report_error
 from agent.core.session_scope import current_session_id
 
 from .. import canvas
@@ -156,7 +157,8 @@ def capture_payload(backend: Backend, config: DesktopConfig,
             try:
                 target = backend.windows.get(int(landed))
                 auto_target = True
-            except Exception:
+            except Exception as exc:
+                report_error("plugin.visual_operator.window", exc)
                 target = None
 
     if target is None:

@@ -122,7 +122,7 @@ python scripts/scan_js_events.py  # 本地 JS 事件绑定审计
 python scripts/dump_context.py --cid <会话ID> --format json --out context.json
 ```
 
-单元测试（1772 个用例）：
+单元测试（1784 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

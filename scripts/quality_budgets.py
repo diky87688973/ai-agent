@@ -8,10 +8,6 @@ from __future__ import annotations
 
 from typing import Dict
 
-# ── 静默异常（E2a）────────────────────────────────────────────────────────
-#: 惯用法（IDIOMS）允许命中的上限。只许降；调高必须在 PR 里逐条说明新增理由。
-SILENT_EXCEPT_IDIOM_BUDGET = 119
-
 #: 同层跨模块私有导入存量：只降不升；新增门禁先锁存量再分批清理。
 SAME_LAYER_PRIVATE_BUDGET = 0
 
@@ -41,26 +37,10 @@ MAX_FUNCTION_LINES = 80
 MAX_FILE_FUNCTIONS = 40
 
 #: 单文件函数数超阈值 → 保留理由。实际集合必须与这里双向一致。
-FILE_FUNCTION_COMPLEXITY: Dict[str, str] = {
-    "agent/capabilities/plugins.py": "插件装载、贡献记账与运行时同文件；待拆贡献注册表。承担者：能力维护",
-    "agent/shell/classic_adapter/adapter.py": "经典适配门面与事件通道同文件；待拆 SSE 通道。承担者：壳层维护",
-    "agent/shell/web_api.py": "连接/运行态、附件与设置读取同文件；待拆 sse 与 attachments。承担者：壳层维护",
-}
+FILE_FUNCTION_COMPLEXITY: Dict[str, str] = {}
 
 #: 超阈值文件 → 保留理由（拆分计划或承担者）。实际集合必须与这里双向一致。
-FILE_COMPLEXITY: Dict[str, str] = {
-    "agent/app.py": (
-        "进程装配与会话入口同文件；阈值解析跨模型目录与配置，拆分需先抽会话装配上下文。"
-        "承担者：架构维护"
-    ),
-    "agent/mechanisms/session_store.py": (
-        "事件日志读写、行索引与压缩同文件；待拆索引层。承担者：机制维护"
-    ),
-    "agent/shell/web_api.py": (
-        "SSE 连接表、会话运行表、附件与设置读取同文件；待拆 sse 与 attachments。"
-        "承担者：壳层维护"
-    ),
-}
+FILE_COMPLEXITY: Dict[str, str] = {}
 
 #: 超阈值函数 → 保留理由。键是 `相对路径::限定名`（含类名，避免同名方法覆盖）。
 FUNCTION_COMPLEXITY: Dict[str, str] = {
@@ -80,7 +60,6 @@ FUNCTION_COMPLEXITY: Dict[str, str] = {
     "agent/shell/web_routes.py::Handler.do_POST": "POST 分派与请求体校验线性展开；待拆路由表",
     "scripts/acceptance_batch_e.py::Acceptance.scenario_2": "验收脚本线性断言",
     "agent/mechanisms/quality/checks.py::check_write": "检查项顺序即语义，拆开会让判定顺序变得可改",
-    "scripts/check_silent_except.py::main": "扫描与汇总同流程；待拆报告器",
     "scripts/acceptance_batch_f.py::Acceptance.scenario_1": "验收脚本线性断言",
     "agent/mechanisms/compaction/compactor.py::ContextCompactor.ensure_before_append": "触发判定与执行同函数；待拆判定器",
     "agent/core/host.py::Host.run_iter": "单轮的四条终止路径集中，拆开会让终止语义分散",
@@ -91,4 +70,8 @@ FUNCTION_COMPLEXITY: Dict[str, str] = {
     "scripts/acceptance_batch_e.py::Acceptance.scenario_1": "验收脚本线性断言",
     "agent/core/tool_call.py::ToolPipeline.execute": "调用管道顺序即语义，拆开会让确认与执行脱节",
     "agent/capabilities/builtin/fs_tools.py::_plan_ops": "路径规划与冲突检测同函数",
+    "plugins/visual_operator/tools/_capture.py::capture_payload": (
+        "取图、窗口选择、渲染与回执共享同一组中间状态；拆分需引入截图事务上下文对象。"
+        "承担者：插件维护"
+    ),
 }

@@ -25,6 +25,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from agent.capabilities.plugins import plugin_config_fields
 from agent.config import PROJECT_ROOT, load_ini
+from agent.core.error_report import report_error
 
 __all__ = [
     "DEFAULT_MAX_FILE_SIZE",
@@ -261,9 +262,8 @@ class _KnowledgeFiles:
             return MISSING_OPENPYXL_HINT
         try:
             book = openpyxl.load_workbook(str(target), read_only=True, data_only=True)
-        except Exception:
-            # 旁路，刻意吞掉：一个坏掉的表格只该给出这一行的说明，
-            # 不该让整次注入失败（同批其它文件仍然要送出去）。
+        except Exception as exc:
+            report_error("plugin.knowledge.xlsx", exc)
             return "（无法解析该 Excel 文件）"
         lines: List[str] = []
         try:
@@ -278,9 +278,8 @@ class _KnowledgeFiles:
         finally:
             try:
                 book.close()
-            except Exception:
-                # 旁路，刻意吞掉：关不掉只影响句柄回收，内容已经读完了。
-                pass
+            except Exception as exc:
+                report_error("plugin.knowledge.close", exc)
         return "\n".join(lines)
 
     # ── 文件列表 ──
@@ -301,7 +300,8 @@ class _KnowledgeFiles:
                     continue
                 try:
                     rel = path.relative_to(self.root)
-                except ValueError:
+                except ValueError as exc:
+                    report_error("plugin.knowledge.list.relative", exc)
                     continue
                 if _has_hidden_segment(rel) or "__pycache__" in rel.parts:
                     continue
@@ -368,10 +368,8 @@ class KBRuntime(_KnowledgeFiles):
             state_file.parent.mkdir(parents=True, exist_ok=True)
             state_file.write_text(
                 json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-        except OSError:
-            # 旁路，刻意吞掉：状态文件写不进去只影响下次启动的记忆，
-            # 当前会话的勾选仍在内存里、注入照常生效。
-            pass
+        except OSError as exc:
+            report_error("plugin.knowledge.persist", exc)
 
     def get_checked(self, cid: str) -> Set[str]:
         with self._lock:
@@ -389,7 +387,8 @@ class KBRuntime(_KnowledgeFiles):
                 continue
             try:
                 accepted.add(target.relative_to(self.root).as_posix())
-            except ValueError:
+            except ValueError as exc:
+                report_error("plugin.knowledge.checked.relative", exc)
                 continue
         with self._lock:
             if accepted:
@@ -417,7 +416,8 @@ class KBRuntime(_KnowledgeFiles):
                 continue
             try:
                 text = self.read_text(target).strip()
-            except OSError:
+            except OSError as exc:
+                report_error("plugin.knowledge.read", exc)
                 continue
             if not text:
                 continue

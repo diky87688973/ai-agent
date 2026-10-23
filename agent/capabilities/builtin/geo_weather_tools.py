@@ -15,6 +15,7 @@ import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 
 IP_TIMEOUT_SEC = 12
 WEATHER_TIMEOUT_SEC = 15
@@ -238,6 +239,7 @@ class IpGeolocateTool(ToolPlugin):
         except urllib.error.URLError as e:
             raise GeoServiceError(str(e.reason), err_type="URLError", hint="检查网络或 DNS", retryable=True)
         except Exception as e:
+            report_error("agent.capabilities.builtin.geo_weather_tools.IpGeolocateTool.execute", e)
             raise GeoServiceError(str(e), err_type=type(e).__name__)
 
 
@@ -409,6 +411,7 @@ class OpenMeteoWeatherTool(ToolPlugin):
         except urllib.error.URLError as e:
             raise GeoServiceError(str(e.reason), err_type="URLError", hint="检查网络或 DNS", retryable=True)
         except Exception as e:
+            report_error("agent.capabilities.builtin.geo_weather_tools.OpenMeteoWeatherTool.execute", e)
             raise GeoServiceError(str(e), err_type=type(e).__name__)
 
 

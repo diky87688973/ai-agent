@@ -13,6 +13,8 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from agent.core.error_report import report_error
+
 CATALOG_HEAD = "【Skills 清单】"
 EXTERNAL_DIR_HELP = (
     "外部 Skills 目录未配置或不存在。"
@@ -112,7 +114,8 @@ class SkillManager:
                     continue
                 try:
                     out[str(md_file.resolve())] = md_file.stat().st_mtime
-                except OSError:
+                except OSError as exc:
+                    report_error("plugin.skills.stat", exc)
                     continue
         return out
 
@@ -430,6 +433,7 @@ class SkillManager:
                 shutil.copy2(str(source), str(target_dir / source.name))
                 copied = 1
             except Exception as exc:
+                report_error("plugin.skills.copy", exc)
                 errors.append(str(exc))
             dest_path = str(target_dir / source.name)
         else:
@@ -441,6 +445,7 @@ class SkillManager:
                     shutil.copy2(str(f), str(target_dir / f.name))
                     copied += 1
                 except Exception as exc:
+                    report_error("plugin.skills.copy", exc)
                     errors.append(f"{f.name}: {exc}")
             dest_path = str(target_dir)
         self._force_rescan()

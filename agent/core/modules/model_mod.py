@@ -20,15 +20,10 @@ from agent.core.event_name import (
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.model_call import PROVIDER_META_KEY
 from agent.core.module import ModuleBase
-from agent.core.modules.support import (
-    assemble_with,
-    prepare_dialogue,
-    resolve_runtime_note,
-    segment_snapshot,
-    serialize_call,
-    tail_expects_model,
-    with_mode_note,
-)
+from agent.core.modules.assemble import assemble_with, segment_snapshot
+from agent.core.modules.dialogue import prepare_dialogue
+from agent.core.modules.mode_note import resolve_runtime_note, with_mode_note
+from agent.core.modules.tool_facts import serialize_call, tail_expects_model
 from agent.core.outcome import Outcome
 from agent.core.ports import LogicalRequest, Ports
 from agent.core.tool_call import ToolCallRequest

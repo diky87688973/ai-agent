@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
+from agent.core.error_report import report_error
+
 AUTO_CONTINUE_PROMPT = (
     "（自主模式）请继续推进未完成的工作；若已全部完成或需要用户决策，"
     "请直接给出结论并停止，不要再调用工具。"
@@ -32,6 +34,6 @@ def note_round(app: Any, cid: str) -> None:
         return
     try:
         note(cid)
-    except Exception:
+    except Exception as exc:
         # 计数只用于展示，记不上不影响续跑。
-        pass
+        report_error("agent.shell.session.goal.note_round", exc)

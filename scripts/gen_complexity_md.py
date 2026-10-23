@@ -15,10 +15,10 @@ from pathlib import Path
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
+except Exception as exc:
     # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
     # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
-    pass
+    print(f"[scripts.gen_complexity_md.module] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -55,12 +55,18 @@ def build(root: Path = ROOT) -> str:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     text = build()
+    def _label(path: Path) -> str:
+        try:
+            return str(path.relative_to(ROOT))
+        except ValueError:
+            return str(path)
+
     if "--check" in args:
         current = DOCS.read_text(encoding="utf-8") if DOCS.is_file() else ""
         if current.replace("\r\n", "\n") == text:
-            print(f"✅ {DOCS.relative_to(ROOT)} 与代码一致")
+            print(f"✅ {_label(DOCS)} 与代码一致")
             return 0
-        print(f"[FAIL] {DOCS.relative_to(ROOT)} 已漂移，运行 python scripts/gen_complexity_md.py")
+        print(f"[FAIL] {_label(DOCS)} 已漂移，运行 python scripts/gen_complexity_md.py")
         return 1
     DOCS.write_text(text, encoding="utf-8", newline="\n")
     print(f"已生成 {DOCS.relative_to(ROOT)}")

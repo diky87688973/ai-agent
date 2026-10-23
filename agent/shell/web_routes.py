@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
+from agent.core.error_report import report_error
 from agent.shell.web_api import WebShell
 from agent.shell.web_classic import ClassicRoutes
 from agent.shell.web_plugin import PluginRoutes
@@ -137,7 +138,7 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
                 self.wfile.write(frame.encode("utf-8"))
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
-            pass  # 浏览器刷新 / 关标签：正常断开
+            return
         finally:
             self.shell.detach(channel)
 
@@ -293,7 +294,8 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
                                    else {"error": "?"})
             else:
                 self._json(404, {"error": "not found", "path": path})
-        except Exception as exc:  # 壳层兜底：单请求失败不影响服务
+        except Exception as exc:
+            report_error("agent.shell.web_routes.Handler.do_GET", exc)
             self._safe_error(exc)
 
     # ── POST / PUT ────────────────────────────────────────
@@ -399,6 +401,7 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
                         self._json(400, {"ok": False, "error": f"未知 action：{action}"})
                         return
                 except Exception as exc:
+                    report_error("agent.shell.web_routes.Handler.do_POST", exc)
                     self._json(400, {"ok": False, "error": str(exc)})
                     return
                 self._json(200, {"ok": True, "goal": goal})
@@ -436,6 +439,7 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
             else:
                 self._json(404, {"error": "not found", "path": path})
         except Exception as exc:
+            report_error("agent.shell.web_routes.Handler.do_POST", exc)
             self._safe_error(exc)
 
     def do_PUT(self) -> None:  # HTTP 动词命名（stdlib 约定）
@@ -469,6 +473,7 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
             else:
                 self._json(404, {"error": "not found", "path": path})
         except Exception as exc:
+            report_error("agent.shell.web_routes.Handler.do_PUT", exc)
             self._safe_error(exc)
 
     def do_DELETE(self) -> None:  # HTTP 动词命名（stdlib 约定）
@@ -497,6 +502,7 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
             else:
                 self._json(404, {"error": "not found", "path": path})
         except Exception as exc:
+            report_error("agent.shell.web_routes.Handler.do_DELETE", exc)
             self._safe_error(exc)
 
     def _safe_error(self, exc: Exception) -> None:

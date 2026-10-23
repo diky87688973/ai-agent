@@ -6,6 +6,7 @@ import sys
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 
+from agent.core.error_report import report_error
 from agent.mechanisms.context import ContextPipeline
 from agent.mechanisms.context.tokens import default_message_tokens
 from agent.shell.classic_adapter.contract import EV_CONTEXT_SEGMENTS
@@ -279,7 +280,8 @@ def _covered_end_of(events: List[Any]) -> int:
         data = getattr(event, "data", None) or {}
         try:
             covered = max(covered, int(data.get("covered_end") or 0))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            report_error("agent.shell.classic_adapter.layout._covered_end_of", exc)
             continue
     return covered
 

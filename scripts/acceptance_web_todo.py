@@ -2,6 +2,8 @@
 """Web 验收：Todo 清单 close 的浏览器 DOM 回归。"""
 from __future__ import annotations
 
+import sys
+
 
 def run(acc) -> None:
     """Todo 清单 close 必须隐藏当前清单，而不是只更新数据。"""
@@ -14,6 +16,7 @@ def run(acc) -> None:
         try:
             browser = pw.chromium.launch()
         except Exception as exc:
+            print(f"[scripts.acceptance_web_todo.run] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             print(f"  [SKIP] Todo 清单关闭（Chromium 不可用：{type(exc).__name__}）")
             return
         try:

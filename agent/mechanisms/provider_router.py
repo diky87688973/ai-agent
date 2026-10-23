@@ -18,6 +18,7 @@ import dataclasses
 import threading
 from typing import Callable, Iterator, Optional, Sequence, Tuple
 
+from agent.core.error_report import report_error
 from agent.core.model_call import StreamDelta
 from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
 
@@ -120,13 +121,14 @@ def _with_wire_model(request, provider: ModelProvider):
     if dataclasses.is_dataclass(request) and not isinstance(request, type):
         try:
             return dataclasses.replace(request, model=wire)
-        except TypeError:
+        except TypeError as exc:
             # 不可变/自定义请求对象不支持 replace：下面退回浅拷贝。
-            pass
+            report_error("agent.mechanisms.provider_router._with_wire_model", exc)
     try:
         clone = copy.copy(request)
         clone.model = wire
         return clone
-    except Exception:
+    except Exception as exc:
         # 请求对象不可复制：宁可让 provider 自己决定，也不要因为适配层限制打断请求。
+        report_error("agent.mechanisms.provider_router._with_wire_model", exc)
         return request

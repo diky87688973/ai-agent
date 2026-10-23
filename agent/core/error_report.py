@@ -5,9 +5,10 @@
 """
 from __future__ import annotations
 
-import sys
 import threading
 from typing import Any, Callable, Optional, Union
+
+from agent.core.stderr import write_stderr
 
 _ExcLike = Union[BaseException, str]
 ErrorSink = Callable[..., None]
@@ -47,25 +48,15 @@ def report_error(
             sink(tag, exc, conversation_id=conversation_id, **fields)
             return
         except Exception as sink_exc:
-            try:
-                print(
-                    f"[error_report] sink 失败：{type(sink_exc).__name__}: {sink_exc}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-            except Exception:
-                pass
+            write_stderr(f"[error_report] sink 失败：{type(sink_exc).__name__}: {sink_exc}")
     # 未装配或 sink 失败：stderr 兜底
-    try:
-        tag_s = str(tag or "unknown").strip() or "unknown"
-        cid = str(conversation_id or "").strip()
-        if isinstance(exc, BaseException):
-            body = f"{type(exc).__name__}: {exc}"
-        else:
-            body = str(exc or "")
-        prefix = f"[{tag_s}]"
-        if cid:
-            prefix += f" cid={cid}"
-        print(f"{prefix} {body}", file=sys.stderr, flush=True)
-    except Exception:
-        pass
+    tag_s = str(tag or "unknown").strip() or "unknown"
+    cid = str(conversation_id or "").strip()
+    if isinstance(exc, BaseException):
+        body = f"{type(exc).__name__}: {exc}"
+    else:
+        body = str(exc or "")
+    prefix = f"[{tag_s}]"
+    if cid:
+        prefix += f" cid={cid}"
+    write_stderr(f"{prefix} {body}")

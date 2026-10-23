@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional
 from uuid import uuid4
 
+from agent.core.error_report import report_error
 from agent.core.model_call import PROVIDER_META_KEY, StreamDelta
 from agent.core.tool_call import ToolCallRequest
 from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
@@ -327,8 +328,9 @@ def _append_request_log(line: str) -> None:
         stamp = datetime.now().strftime("%H:%M:%S")
         with open(_LLM_LOG_PATH, "a", encoding="utf-8") as fh:
             fh.write(f"{stamp} {line}\n")
-    except OSError:
-        pass
+    except OSError as exc:
+        # 请求日志属诊断面：写不进就丢这一行，绝不能让日志反过来影响对话。
+        report_error("agent.mechanisms.providers.openai._append_request_log", exc)
 def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
     """发送前把请求摘要成一行（`AI_AGENT_LOG_REQUESTS=1` 时打）。
 
@@ -366,8 +368,8 @@ def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
         parts.append("本轮请求不含任何图片")
     try:
         parts.append(f"body_bytes={len(json.dumps(payload, ensure_ascii=False))}")
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as exc:
+        report_error("agent.mechanisms.providers.openai.describe_request", exc)
     return " ".join(parts)
 
 

@@ -46,17 +46,17 @@ entry → shell → capabilities → mechanisms → core
 | `agent/mechanisms/context/pipeline.py` | 三拼接装、分段装配 | 摘要生成、HTTP、插件加载 |
 | `agent/mechanisms/compaction/compactor.py` | 压缩触发、覆盖前缀与摘要接入 | 管线内部函数、UI |
 | `agent/mechanisms/quality/` | 写盘门控、检查、待确认状态 | 工具实现、HTTP |
-| `agent/mechanisms/session_store.py` | 事实日志读写、索引、原子追加 | 会话展示、UI 字段 |
+| `agent/mechanisms/session_store.py` | 事实日志读写、seq、原子追加/回滚；行编解码、加密、锁分离在同包模块 | 会话展示、UI 字段 |
 | `agent/capabilities/registry.py` | 工具注册表与工具协议 | 具体工具、服务装配 |
 | `agent/capabilities/builtin/` | 内置工具，每个文件一个工具域 | 任务协议、插件加载 |
 | `agent/capabilities/tasks/` | 任务工具：run_type、todo、confirm、sleep、goal | 内核链、HTTP |
-| `agent/capabilities/plugins.py` | 插件装载、贡献记账、运行时 | 内核业务、具体插件名 |
+| `agent/capabilities/plugins.py` | 插件装载与 Host；PluginContext / 贡献账本分离在 `plugin_context.py` / `plugin_ledger.py` | 内核业务、具体插件名 |
 | `agent/shell/web.py` | HTTP 服务装配与启动 | 路由分派、静态资源、SSE 帧 |
 | `agent/shell/web_routes.py` | HTTP 动词与路径分派、请求体/错误出口 | 具体业务动作、经典页面实现 |
 | `agent/shell/web_static.py` | 壳层静态资源、路径与协议常量 | 插件私有资产 |
 | `agent/shell/web_classic.py` | 经典页面与经典 SSE | JSON API 业务 |
 | `agent/shell/web_plugin.py` | 插件端点与插件资产转发 | 插件内部业务 |
-| `agent/shell/web_api.py` | `WebShell` 业务动作与连接/运行态 | 路由分派 |
+| `agent/shell/web_api.py` | `WebShell` 入口与连接/运行态；业务动作按 mixin 分在 `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` | 路由分派 |
 | `agent/shell/session/runner.py` | 回合线程、取消、队列抽干、生命周期 | 队列/目标/提示/恢复实现 |
 | `agent/shell/session/queue.py` | 队列领取、释放、补投 | 回合循环 |
 | `agent/shell/session/goal.py` | 目标与自主续跑判定 | 运行线程 |
@@ -64,7 +64,7 @@ entry → shell → capabilities → mechanisms → core
 | `agent/shell/session/resume.py` | 外部工具结果恢复 | 回合循环 |
 | `agent/shell/session/heartbeat.py` | 运行态心跳 | 回合终态 |
 | `agent/shell/classic_adapter/inbound.py` | 入站门面与 API 形状 | 历史折叠、布局、状态 |
-| `agent/shell/classic_adapter/outbound.py` | 内核事件到经典事件的翻译门面 | 业务状态、HTTP 分发 |
+| `agent/shell/classic_adapter/outbound.py` | 内核事件到经典事件的翻译门面；工具/回合事件分在 `outbound_tools.py` / `outbound_turns.py` | 业务状态、HTTP 分发 |
 | `agent/shell/classic_adapter/history.py` | 历史折叠、附件、工具回显 | 布局、会话列表 |
 | `agent/shell/classic_adapter/layout.py` | 经典上下文布局、覆盖、缩放 | 历史存储 |
 | `agent/shell/classic_adapter/state.py` | 经典会话级状态 | 事实日志 |
@@ -86,7 +86,7 @@ MUST：
 6. SessionRunner 只编排；队列、目标、提示词、恢复、心跳分别由 `session/` 下的模块承担。
 7. classic `inbound.py` 只做入站门面；历史、布局、状态、会话列表分别落在 `history.py`、`layout.py`、`state.py`、`sessions.py`。
 8. 每个内置任务工具一个文件；共享异常与参数校验只放在 `tasks/common.py`。
-9. HTTP 路由只做分派；静态资源、经典页面、插件端点、JSON 业务分别归 `web_static.py`、`web_classic.py`、`web_plugin.py`、`web_api.py`。
+9. HTTP 路由只做分派；静态资源、经典页面、插件端点归 `web_static.py`、`web_classic.py`、`web_plugin.py`，JSON 业务归 `web_api.py` 及其动作 mixin。
 10. 单文件超过 800 行或单函数超过 80 行必须进入 `docs/complexity.md` 的登记与拆分计划；不得以注释豁免。
 
 禁止：
@@ -127,8 +127,8 @@ inbound 直接持有历史/布局/状态实现
 | 宿主配置键/默认值 | `agent/config.py`、`config.ini` | 装配根读取 | 新增键必须同步 `.example` 与配置文档 |
 | 模型目录 | `capabilities/model_catalog.py` + 多模型插件 | 插件运行时刷新 | 模型配置不由宿主页写凭据 |
 | 事件名与事件载荷 | `agent/core/event_name.py`、`agent/core/events.py` | 模块 `ports.emit` | 未知事件跳过；字段变更须声明兼容 |
-| 经典事件/字段投影 | `classic_adapter/contract.py` | `outbound.py` / `inbound.py` | 适配层只做形状翻译 |
-| HTTP 路由 | `shell/web_routes.py` | `web.py` 绑定 `_Handler` | 业务动作在 `web_api.py` |
+| 经典事件/字段投影 | `classic_adapter/contract.py` | `outbound*.py` / `inbound.py` | 适配层只做形状翻译 |
+| HTTP 路由 | `shell/web_routes.py` | `web.py` 绑定 `_Handler` | 业务动作在 `web_api.py` 及动作 mixin |
 | 经典页面/SSE | `shell/web_classic.py` | `_Handler` 混入 | 不复制 JSON API |
 | 插件 HTTP 端点 | `shell/web_plugin.py` | `PluginHost.add_route` | 精确匹配，不做通配 |
 | 壳层公共 UI/CSS/JS | `shell/web_assets/`、`shell/ui_bundle.py` | `ui_bundle` 内联清单 | 公共资产归壳层 |
@@ -166,7 +166,7 @@ inbound 直接持有历史/布局/状态实现
 | 内置工具 | `capabilities/builtin/<tool>.py` + 注册点；不改内核 |
 | 任务工具 | `capabilities/tasks/<tool>.py` + `build_plugins`；不改 shell |
 | 插件 | `plugins/<name>/` + `plugins.ini`；不改内核/壳层具体名字 |
-| 壳层页面/API | `web_routes.py` 分派 + `web_api.py` 动作；不把业务塞进路由 |
+| 壳层页面/API | `web_routes.py` 分派 + `web_api.py` 动作 mixin；不把业务塞进路由 |
 | UI 资产 | 壳层公共资产走 `ui_bundle`；插件私有资产走插件贡献 |
 
 ## 5. 门禁

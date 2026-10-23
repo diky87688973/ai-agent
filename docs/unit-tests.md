@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1772** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1784** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -17,7 +17,7 @@
 7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（21）
 8. [test_artifact_lock.py](#test_artifact_lockpy)（16）
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
-10. [test_batch_f_tools.py](#test_batch_f_toolspy)（31）
+10. [test_batch_f_tools.py](#test_batch_f_toolspy)（28）
 11. [test_catalog.py](#test_catalogpy)（8）
 12. [test_chat_shell.py](#test_chat_shellpy)（16）
 13. [test_classic_adapter.py](#test_classic_adapterpy)（103）
@@ -26,71 +26,73 @@
 16. [test_context_assembly.py](#test_context_assemblypy)（186）
 17. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
 18. [test_context_dump.py](#test_context_dumppy)（3）
-19. [test_context_pipeline.py](#test_context_pipelinepy)（18）
-20. [test_context_plumbing.py](#test_context_plumbingpy)（5）
-21. [test_context_splice.py](#test_context_splicepy)（9）
-22. [test_conversation_queue.py](#test_conversation_queuepy)（6）
-23. [test_core.py](#test_corepy)（57）
-24. [test_edited_files.py](#test_edited_filespy)（1）
-25. [test_entry_layer.py](#test_entry_layerpy)（13）
-26. [test_environment_info.py](#test_environment_infopy)（1）
-27. [test_error_log.py](#test_error_logpy)（8）
-28. [test_event_bus.py](#test_event_buspy)（9）
-29. [test_fact_compat.py](#test_fact_compatpy)（4）
-30. [test_file_safety.py](#test_file_safetypy)（24）
-31. [test_file_size_format.py](#test_file_size_formatpy)（4）
-32. [test_four_step_gate.py](#test_four_step_gatepy)（9）
-33. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-34. [test_gate_negative.py](#test_gate_negativepy)（62）
-35. [test_goal_runner.py](#test_goal_runnerpy)（6）
-36. [test_image_embed.py](#test_image_embedpy)（10）
-37. [test_image_tool.py](#test_image_toolpy)（23）
-38. [test_image_turns.py](#test_image_turnspy)（23）
-39. [test_import_graph.py](#test_import_graphpy)（5）
-40. [test_invest_tools.py](#test_invest_toolspy)（29）
-41. [test_kb_plugin.py](#test_kb_pluginpy)（49）
-42. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-43. [test_mode_note.py](#test_mode_notepy)（13）
-44. [test_model_catalog.py](#test_model_catalogpy)（23）
-45. [test_model_provider.py](#test_model_providerpy)（39）
-46. [test_model_window.py](#test_model_windowpy)（14）
-47. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
-48. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-49. [test_plugin_http.py](#test_plugin_httppy)（18）
-50. [test_plugins.py](#test_pluginspy)（28）
-51. [test_present_tool.py](#test_present_toolpy)（2）
-52. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-53. [test_prompt_tail.py](#test_prompt_tailpy)（4）
-54. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-55. [test_provider_meta.py](#test_provider_metapy)（8）
-56. [test_provider_router.py](#test_provider_routerpy)（14）
-57. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
-58. [test_queue_runner.py](#test_queue_runnerpy)（3）
-59. [test_queued_input.py](#test_queued_inputpy)（2）
-60. [test_readonly_tools.py](#test_readonly_toolspy)（32）
-61. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-62. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-63. [test_run_registry.py](#test_run_registrypy)（13）
-64. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-65. [test_session_context.py](#test_session_contextpy)（22）
-66. [test_session_seq.py](#test_session_seqpy)（23）
-67. [test_session_store.py](#test_session_storepy)（17）
-68. [test_session_tools.py](#test_session_toolspy)（17）
-69. [test_settings_panel.py](#test_settings_panelpy)（19）
-70. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-71. [test_task_tools.py](#test_task_toolspy)（29）
-72. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-73. [test_tool_registry.py](#test_tool_registrypy)（17）
-74. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-75. [test_usage_metrics.py](#test_usage_metricspy)（7）
-76. [test_version_stamp.py](#test_version_stamppy)（4）
-77. [test_visual_operator.py](#test_visual_operatorpy)（130）
-78. [test_web_frontend.py](#test_web_frontendpy)（5）
-79. [test_web_shell.py](#test_web_shellpy)（51）
-80. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-81. [test_write_gate.py](#test_write_gatepy)（16）
-82. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-83. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+19. [test_context_dump_skill.py](#test_context_dump_skillpy)（1）
+20. [test_context_pipeline.py](#test_context_pipelinepy)（18）
+21. [test_context_plumbing.py](#test_context_plumbingpy)（5）
+22. [test_context_splice.py](#test_context_splicepy)（9）
+23. [test_conversation_queue.py](#test_conversation_queuepy)（6）
+24. [test_core.py](#test_corepy)（57）
+25. [test_edited_files.py](#test_edited_filespy)（1）
+26. [test_entry_layer.py](#test_entry_layerpy)（13）
+27. [test_environment_info.py](#test_environment_infopy)（1）
+28. [test_error_log.py](#test_error_logpy)（8）
+29. [test_event_bus.py](#test_event_buspy)（9）
+30. [test_fact_compat.py](#test_fact_compatpy)（4）
+31. [test_file_safety.py](#test_file_safetypy)（24）
+32. [test_file_size_format.py](#test_file_size_formatpy)（4）
+33. [test_four_step_gate.py](#test_four_step_gatepy)（9）
+34. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+35. [test_gate_negative.py](#test_gate_negativepy)（66）
+36. [test_goal_runner.py](#test_goal_runnerpy)（6）
+37. [test_image_embed.py](#test_image_embedpy)（10）
+38. [test_image_tool.py](#test_image_toolpy)（23）
+39. [test_image_turns.py](#test_image_turnspy)（23）
+40. [test_import_graph.py](#test_import_graphpy)（5）
+41. [test_invest_tools.py](#test_invest_toolspy)（29）
+42. [test_kb_plugin.py](#test_kb_pluginpy)（49）
+43. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+44. [test_mode_note.py](#test_mode_notepy)（13）
+45. [test_model_catalog.py](#test_model_catalogpy)（23）
+46. [test_model_provider.py](#test_model_providerpy)（39）
+47. [test_model_window.py](#test_model_windowpy)（14）
+48. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
+49. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+50. [test_plugin_http.py](#test_plugin_httppy)（18）
+51. [test_plugins.py](#test_pluginspy)（28）
+52. [test_present_tool.py](#test_present_toolpy)（2）
+53. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+54. [test_prompt_tail.py](#test_prompt_tailpy)（4）
+55. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+56. [test_provider_meta.py](#test_provider_metapy)（8）
+57. [test_provider_router.py](#test_provider_routerpy)（14）
+58. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
+59. [test_queue_runner.py](#test_queue_runnerpy)（3）
+60. [test_queued_input.py](#test_queued_inputpy)（2）
+61. [test_readonly_tools.py](#test_readonly_toolspy)（32）
+62. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+63. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+64. [test_run_registry.py](#test_run_registrypy)（13）
+65. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+66. [test_session_context.py](#test_session_contextpy)（22）
+67. [test_session_seq.py](#test_session_seqpy)（23）
+68. [test_session_store.py](#test_session_storepy)（17）
+69. [test_session_tools.py](#test_session_toolspy)（17）
+70. [test_settings_panel.py](#test_settings_panelpy)（19）
+71. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+72. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+73. [test_task_tools.py](#test_task_toolspy)（29）
+74. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+75. [test_tool_registry.py](#test_tool_registrypy)（17）
+76. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+77. [test_usage_metrics.py](#test_usage_metricspy)（7）
+78. [test_version_stamp.py](#test_version_stamppy)（4）
+79. [test_visual_operator.py](#test_visual_operatorpy)（130）
+80. [test_web_frontend.py](#test_web_frontendpy)（5）
+81. [test_web_shell.py](#test_web_shellpy)（51）
+82. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+83. [test_write_gate.py](#test_write_gatepy)（16）
+84. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+85. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -327,41 +329,38 @@
 
 ## test_batch_f_tools.py
 
-共 31 个用例。
+共 28 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `GithubApiTest` | `test_create_pr_payload_and_url` | 覆盖「github_api」：create pr payload and url |
-| 2 | `GithubApiTest` | `test_login_required_and_param_validation` | 覆盖「github_api」：login required and param validation |
-| 3 | `GithubApiTest` | `test_update_pr_requires_a_field` | 覆盖「github_api」：update pr requires a field |
-| 4 | `IpGeolocateTest` | `test_private_ip_normalized_to_export_lookup` | 覆盖「ip 定位」：private ip normalized to export lookup |
-| 5 | `IpGeolocateTest` | `test_public_ip_path_with_loopback_variants` | 覆盖「ip 定位」：public ip path with loopback variants |
-| 6 | `IpGeolocateTest` | `test_success_false_structured_error` | 覆盖「ip 定位」：success false structured error |
-| 7 | `ReviewConclusionTest` | `test_call_is_submit_not_format_check` | 调用即提交：没有"仅格式校验"档；返回里不含 dry_run。 |
-| 8 | `ReviewConclusionTest` | `test_cancel_preview_and_invalid` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：cancel preview and invalid |
-| 9 | `ReviewConclusionTest` | `test_confirm_unlock_and_review_done` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：confirm unlock and review done |
-| 10 | `ReviewConclusionTest` | `test_short_conclusion_and_missing_file_name_rejected` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：short conclusion and missing file name rejected |
-| 11 | `SkillsLibraryTest` | `test_copy_plan_execute_and_conflict` | 覆盖「Skills 库」：copy plan execute and conflict |
-| 12 | `SkillsLibraryTest` | `test_scan_list_and_matching` | 覆盖「Skills 库」：scan list and matching |
-| 13 | `SkillsLibraryTest` | `test_truncation_and_incremental_rescan` | 覆盖「Skills 库」：truncation and incremental rescan |
-| 14 | `SkillsListNeverDoublesTest` | `test_auto_load_count_ignores_duplicate_entries` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：auto load count ignores duplicate entries |
-| 15 | `SkillsListNeverDoublesTest` | `test_concurrent_rescan_replaces_the_list` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：concurrent rescan replaces the list |
-| 16 | `SkillsListNeverDoublesTest` | `test_different_path_spelling_counts_once` | 同一文件的两种路径写法不能让 `len(list_skills())` 变成两倍。 |
-| 17 | `SkillsListNeverDoublesTest` | `test_duplicate_entries_do_not_double_the_catalog` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：duplicate entries do not double the catalog |
-| 18 | `SkillsListNeverDoublesTest` | `test_rescan_does_not_append_twice` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：rescan does not append twice |
-| 19 | `SkillsSourceTest` | `test_catalog_separates_builtin_and_external` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：catalog separates builtin and external |
-| 20 | `SkillsSourceTest` | `test_copy_targets_external_and_keeps_builtin_read_only` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：copy targets external and keeps builtin read only |
-| 21 | `SkillsSourceTest` | `test_external_overrides_builtin_and_both_auto_loads` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：external overrides builtin and both auto loads |
-| 22 | `SkillsSourceTest` | `test_missing_external_dir_is_actionable` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：missing external dir is actionable |
-| 23 | `SkillsSourceTest` | `test_resource_directory_section_has_both_sources` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：resource directory section has both sources |
-| 24 | `SkillsSourceTest` | `test_tool_description_does_not_embed_external_dir` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：tool description does not embed external dir |
-| 25 | `SkillsToolTest` | `test_copy_missing_source` | 覆盖「skills 工具」：copy missing source |
-| 26 | `SkillsToolTest` | `test_copy_preview_and_executor` | 覆盖「skills 工具」：copy preview and executor |
-| 27 | `SkillsToolTest` | `test_list_read_and_lookup_error` | 覆盖「skills 工具」：list read and lookup error |
-| 28 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
-| 29 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
-| 30 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
-| 31 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
+| 1 | `IpGeolocateTest` | `test_private_ip_normalized_to_export_lookup` | 覆盖「ip 定位」：private ip normalized to export lookup |
+| 2 | `IpGeolocateTest` | `test_public_ip_path_with_loopback_variants` | 覆盖「ip 定位」：public ip path with loopback variants |
+| 3 | `IpGeolocateTest` | `test_success_false_structured_error` | 覆盖「ip 定位」：success false structured error |
+| 4 | `ReviewConclusionTest` | `test_call_is_submit_not_format_check` | 调用即提交：没有"仅格式校验"档；返回里不含 dry_run。 |
+| 5 | `ReviewConclusionTest` | `test_cancel_preview_and_invalid` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：cancel preview and invalid |
+| 6 | `ReviewConclusionTest` | `test_confirm_unlock_and_review_done` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：confirm unlock and review done |
+| 7 | `ReviewConclusionTest` | `test_short_conclusion_and_missing_file_name_rejected` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：short conclusion and missing file name rejected |
+| 8 | `SkillsLibraryTest` | `test_copy_plan_execute_and_conflict` | 覆盖「Skills 库」：copy plan execute and conflict |
+| 9 | `SkillsLibraryTest` | `test_scan_list_and_matching` | 覆盖「Skills 库」：scan list and matching |
+| 10 | `SkillsLibraryTest` | `test_truncation_and_incremental_rescan` | 覆盖「Skills 库」：truncation and incremental rescan |
+| 11 | `SkillsListNeverDoublesTest` | `test_auto_load_count_ignores_duplicate_entries` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：auto load count ignores duplicate entries |
+| 12 | `SkillsListNeverDoublesTest` | `test_concurrent_rescan_replaces_the_list` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：concurrent rescan replaces the list |
+| 13 | `SkillsListNeverDoublesTest` | `test_different_path_spelling_counts_once` | 同一文件的两种路径写法不能让 `len(list_skills())` 变成两倍。 |
+| 14 | `SkillsListNeverDoublesTest` | `test_duplicate_entries_do_not_double_the_catalog` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：duplicate entries do not double the catalog |
+| 15 | `SkillsListNeverDoublesTest` | `test_rescan_does_not_append_twice` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：rescan does not append twice |
+| 16 | `SkillsSourceTest` | `test_catalog_separates_builtin_and_external` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：catalog separates builtin and external |
+| 17 | `SkillsSourceTest` | `test_copy_targets_external_and_keeps_builtin_read_only` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：copy targets external and keeps builtin read only |
+| 18 | `SkillsSourceTest` | `test_external_overrides_builtin_and_both_auto_loads` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：external overrides builtin and both auto loads |
+| 19 | `SkillsSourceTest` | `test_missing_external_dir_is_actionable` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：missing external dir is actionable |
+| 20 | `SkillsSourceTest` | `test_resource_directory_section_has_both_sources` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：resource directory section has both sources |
+| 21 | `SkillsSourceTest` | `test_tool_description_does_not_embed_external_dir` | 覆盖「内置根与外置根：合并、覆盖、auto_load、复制目标」：tool description does not embed external dir |
+| 22 | `SkillsToolTest` | `test_copy_missing_source` | 覆盖「skills 工具」：copy missing source |
+| 23 | `SkillsToolTest` | `test_copy_preview_and_executor` | 覆盖「skills 工具」：copy preview and executor |
+| 24 | `SkillsToolTest` | `test_list_read_and_lookup_error` | 覆盖「skills 工具」：list read and lookup error |
+| 25 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
+| 26 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
+| 27 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
+| 28 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
 
 ## test_catalog.py
 
@@ -779,6 +778,14 @@
 | 2 | `ContextDumpTest` | `test_snapshot_reports_todo_progress_when_list_exists` | 覆盖「A class whose instances are single test cases」：snapshot reports todo progress when list exists |
 | 3 | `ContextDumpTest` | `test_snapshot_uses_real_assembly_and_does_not_call_model` | 覆盖「A class whose instances are single test cases」：snapshot uses real assembly and does not call model |
 
+## test_context_dump_skill.py
+
+共 1 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ContextDumpSkillTest` | `test_skill_is_listed_and_readable` | 覆盖「A class whose instances are single test cases」：skill is listed and readable |
+
 ## test_context_pipeline.py
 
 共 18 个用例。
@@ -1060,7 +1067,7 @@
 
 ## test_gate_negative.py
 
-共 62 个用例。
+共 66 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1093,39 +1100,43 @@
 | 27 | `ConfigDriftGateTest` | `test_real_file_extra_key_reports_line_number` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：real file extra key reports line number |
 | 28 | `ConfigDriftGateTest` | `test_real_file_subset_passes` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：real file subset passes |
 | 29 | `ConfigDriftGateTest` | `test_unknown_section_fails` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：unknown section fails |
-| 30 | `ConfirmWordingGateTest` | `test_compliant_wording_passes` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：compliant wording passes |
-| 31 | `ConfirmWordingGateTest` | `test_explanatory_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：explanatory wording fails |
-| 32 | `ConfirmWordingGateTest` | `test_gate_without_next_step_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：gate without next step fails |
-| 33 | `ConfirmWordingGateTest` | `test_missing_unlock_tool_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：missing unlock tool fails |
-| 34 | `ConfirmWordingGateTest` | `test_vague_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：vague wording fails |
-| 35 | `CoverageGateTest` | `test_at_or_above_floor_passes` | 覆盖「覆盖率：低于下限、缺数据都要失败」：at or above floor passes |
-| 36 | `CoverageGateTest` | `test_below_floor_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：below floor fails |
-| 37 | `CoverageGateTest` | `test_missing_group_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：missing group fails |
-| 38 | `GeneratedArtifactDriftTest` | `test_ci_workflow_byte_drift_fails` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：ci workflow byte drift fails |
-| 39 | `GeneratedArtifactDriftTest` | `test_ci_workflow_current_is_clean` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：ci workflow current is clean |
-| 40 | `GeneratedArtifactDriftTest` | `test_render_contains_every_gate_and_acceptance` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：render contains every gate and acceptance |
-| 41 | `GeneratedArtifactDriftTest` | `test_unit_tests_md_drift_fails` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：unit tests md drift fails |
-| 42 | `ImportDirectionGateTest` | `test_composition_root_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：composition root import fails |
-| 43 | `ImportDirectionGateTest` | `test_downward_import_passes` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：downward import passes |
-| 44 | `ImportDirectionGateTest` | `test_type_checking_annotation_is_allowed` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：type checking annotation is allowed |
-| 45 | `ImportDirectionGateTest` | `test_upward_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：upward import fails |
-| 46 | `PythonFloorGateTest` | `test_ordinary_function_passes` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：ordinary function passes |
-| 47 | `PythonFloorGateTest` | `test_pep695_generic_fails` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：pep695 generic fails |
-| 48 | `ReadmeGateTest` | `test_acceptance_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：acceptance count drift fails |
-| 49 | `ReadmeGateTest` | `test_consistent_readme_passes` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：consistent readme passes |
-| 50 | `ReadmeGateTest` | `test_gate_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：gate count drift fails |
-| 51 | `ReadmeGateTest` | `test_missing_marker_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：missing marker fails |
-| 52 | `ReadmeGateTest` | `test_step_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：step count drift fails |
-| 53 | `ReadmeGateTest` | `test_test_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：test count drift fails |
-| 54 | `ReadmeGateTest` | `test_unknown_data_dir_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：unknown data dir fails |
-| 55 | `SilentExceptGateTest` | `test_bare_pass_is_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：bare pass is silent |
-| 56 | `SilentExceptGateTest` | `test_budget_at_limit_passes` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget at limit passes |
-| 57 | `SilentExceptGateTest` | `test_budget_overflow_fails` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：budget overflow fails |
-| 58 | `SilentExceptGateTest` | `test_explicit_logging_is_not_silent` | 覆盖「静默异常：预算判据与"静默/留痕"的语义判定」：explicit logging is not silent |
-| 59 | `UiJsGateTest` | `test_defined_helper_passes` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：defined helper passes |
-| 60 | `UiJsGateTest` | `test_model_id_literal_is_rejected` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：model id literal is rejected |
-| 61 | `UiJsGateTest` | `test_plain_words_are_not_model_ids` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：plain words are not model ids |
-| 62 | `UiJsGateTest` | `test_undefined_helper_call_fails` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：undefined helper call fails |
+| 30 | `ConfigModelExampleGateTest` | `test_compare_model_example_detects_changed_section` | 覆盖「A class whose instances are single test cases」：compare model example detects changed section |
+| 31 | `ConfigModelExampleGateTest` | `test_compare_model_example_detects_extra_key` | 覆盖「A class whose instances are single test cases」：compare model example detects extra key |
+| 32 | `ConfigModelExampleGateTest` | `test_compare_model_example_positive` | 覆盖「A class whose instances are single test cases」：compare model example positive |
+| 33 | `ConfigModelExampleGateTest` | `test_compare_model_example_requires_keys` | 覆盖「A class whose instances are single test cases」：compare model example requires keys |
+| 34 | `ConfirmWordingGateTest` | `test_compliant_wording_passes` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：compliant wording passes |
+| 35 | `ConfirmWordingGateTest` | `test_explanatory_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：explanatory wording fails |
+| 36 | `ConfirmWordingGateTest` | `test_gate_without_next_step_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：gate without next step fails |
+| 37 | `ConfirmWordingGateTest` | `test_missing_unlock_tool_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：missing unlock tool fails |
+| 38 | `ConfirmWordingGateTest` | `test_vague_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：vague wording fails |
+| 39 | `CoverageGateTest` | `test_at_or_above_floor_passes` | 覆盖「覆盖率：低于下限、缺数据都要失败」：at or above floor passes |
+| 40 | `CoverageGateTest` | `test_below_floor_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：below floor fails |
+| 41 | `CoverageGateTest` | `test_missing_group_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：missing group fails |
+| 42 | `GeneratedArtifactDriftTest` | `test_ci_workflow_byte_drift_fails` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：ci workflow byte drift fails |
+| 43 | `GeneratedArtifactDriftTest` | `test_ci_workflow_current_is_clean` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：ci workflow current is clean |
+| 44 | `GeneratedArtifactDriftTest` | `test_render_contains_every_gate_and_acceptance` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：render contains every gate and acceptance |
+| 45 | `GeneratedArtifactDriftTest` | `test_unit_tests_md_drift_fails` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：unit tests md drift fails |
+| 46 | `GeneratedComplexityDocGateTest` | `test_check_accepts_generated_text` | 覆盖「A class whose instances are single test cases」：check accepts generated text |
+| 47 | `GeneratedComplexityDocGateTest` | `test_check_detects_drift` | 覆盖「A class whose instances are single test cases」：check detects drift |
+| 48 | `GeneratedComplexityDocGateTest` | `test_check_detects_extra_content` | 覆盖「A class whose instances are single test cases」：check detects extra content |
+| 49 | `GeneratedComplexityDocGateTest` | `test_check_detects_missing_file` | 覆盖「A class whose instances are single test cases」：check detects missing file |
+| 50 | `ImportDirectionGateTest` | `test_composition_root_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：composition root import fails |
+| 51 | `ImportDirectionGateTest` | `test_downward_import_passes` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：downward import passes |
+| 52 | `ImportDirectionGateTest` | `test_type_checking_annotation_is_allowed` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：type checking annotation is allowed |
+| 53 | `ImportDirectionGateTest` | `test_upward_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：upward import fails |
+| 54 | `PythonFloorGateTest` | `test_ordinary_function_passes` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：ordinary function passes |
+| 55 | `PythonFloorGateTest` | `test_pep695_generic_fails` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：pep695 generic fails |
+| 56 | `ReadmeGateTest` | `test_acceptance_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：acceptance count drift fails |
+| 57 | `ReadmeGateTest` | `test_consistent_readme_passes` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：consistent readme passes |
+| 58 | `ReadmeGateTest` | `test_gate_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：gate count drift fails |
+| 59 | `ReadmeGateTest` | `test_missing_marker_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：missing marker fails |
+| 60 | `ReadmeGateTest` | `test_step_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：step count drift fails |
+| 61 | `ReadmeGateTest` | `test_test_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：test count drift fails |
+| 62 | `ReadmeGateTest` | `test_unknown_data_dir_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：unknown data dir fails |
+| 63 | `UiJsGateTest` | `test_defined_helper_passes` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：defined helper passes |
+| 64 | `UiJsGateTest` | `test_model_id_literal_is_rejected` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：model id literal is rejected |
+| 65 | `UiJsGateTest` | `test_plain_words_are_not_model_ids` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：plain words are not model ids |
+| 66 | `UiJsGateTest` | `test_undefined_helper_call_fails` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：undefined helper call fails |
 
 ## test_goal_runner.py
 
@@ -1994,6 +2005,23 @@
 | 17 | `StructuredPluginConfigTest` | `test_required_field_rejects_an_empty_value` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：required field rejects an empty value |
 | 18 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
 | 19 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
+
+## test_silent_except_gate.py
+
+共 10 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `SilentExceptGateRunTest` | `test_main_fails_on_broad_pass` | 覆盖「A class whose instances are single test cases」：main fails on broad pass |
+| 2 | `SilentExceptGateRunTest` | `test_main_passes_on_narrow_fallback` | 覆盖「A class whose instances are single test cases」：main passes on narrow fallback |
+| 3 | `SilentExceptStructureTest` | `test_arbitrary_call_is_not_a_transform` | 覆盖「A class whose instances are single test cases」：arbitrary call is not a transform |
+| 4 | `SilentExceptStructureTest` | `test_broad_pass_is_rejected` | 覆盖「A class whose instances are single test cases」：broad pass is rejected |
+| 5 | `SilentExceptStructureTest` | `test_explicit_result_is_recognized` | 覆盖「A class whose instances are single test cases」：explicit result is recognized |
+| 6 | `SilentExceptStructureTest` | `test_narrow_return_is_allowed` | 覆盖「A class whose instances are single test cases」：narrow return is allowed |
+| 7 | `SilentExceptStructureTest` | `test_pass_in_multi_statement_is_rejected` | 覆盖「A class whose instances are single test cases」：pass in multi statement is rejected |
+| 8 | `SilentExceptStructureTest` | `test_report_error_is_recognized` | 覆盖「A class whose instances are single test cases」：report error is recognized |
+| 9 | `SilentExceptStructureTest` | `test_report_error_needs_payload` | 覆盖「A class whose instances are single test cases」：report error needs payload |
+| 10 | `SilentExceptStructureTest` | `test_suppress_exception_is_rejected` | 覆盖「A class whose instances are single test cases」：suppress exception is rejected |
 
 ## test_source_snapshot.py
 

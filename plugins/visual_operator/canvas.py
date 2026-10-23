@@ -157,6 +157,56 @@ def _label_value(value: int, origin: int, extent: int, pixels: int,
     return str(value)
 
 
+def _draw_cursor(draw: Any, image_font: Any, *, rect: ScreenRect,
+                  width: int, height: int, cursor: ScreenPoint,
+              grid_unit: str, scale: float) -> None:
+    """在画布上画光标十字、圆环与坐标标签。"""
+    cursor_x = _offset(rect.x, cursor.x, rect.width, width)
+    cursor_y = _offset(rect.y, cursor.y, rect.height, height)
+    if 0 <= cursor_x < width and 0 <= cursor_y < height:
+        halo_width = max(3, min(5, round(width / 400)))
+        cursor_width = max(1, min(3, round(width / 700)))
+        white_width = cursor_width + 1
+        radius = max(4, min(12, round(width / 70), round(16 / scale)))
+        arm = max(8, min(36, round(min(width, height) / 12),
+                         round(50 / scale)))
+        gap = max(2, cursor_width + 1)
+        # 只画光标周围的短十字；中心留空，落点像素本身不被盖住。
+        for color, line_width in (
+            (_CURSOR_HALO, halo_width),
+            (_CURSOR_WHITE, white_width),
+            (_CURSOR_COLOR, cursor_width),
+        ):
+            draw.line([(cursor_x - arm, cursor_y), (cursor_x - gap, cursor_y)],
+                      fill=color, width=line_width)
+            draw.line([(cursor_x + gap, cursor_y), (cursor_x + arm, cursor_y)],
+                      fill=color, width=line_width)
+            draw.line([(cursor_x, cursor_y - arm), (cursor_x, cursor_y - gap)],
+                      fill=color, width=line_width)
+            draw.line([(cursor_x, cursor_y + gap), (cursor_x, cursor_y + arm)],
+                      fill=color, width=line_width)
+        for color, line_width in (
+            (_CURSOR_HALO, max(3, halo_width)),
+            (_CURSOR_WHITE, max(2, white_width)),
+            (_CURSOR_COLOR, max(1, cursor_width + 1)),
+        ):
+            draw.ellipse(
+                (cursor_x - radius, cursor_y - radius,
+                 cursor_x + radius, cursor_y + radius),
+                outline=color, width=line_width,
+            )
+        if cursor_label_visible(width, height):
+            coords = _label_value(cursor.x, rect.x, rect.width, width, grid_unit) + "," \
+                + _label_value(cursor.y, rect.y, rect.height, height, grid_unit)
+            cursor_font = _font(
+                image_font, cursor_font_size(width, height, scale))
+            title = "" if min(width, height) < COMPACT_SIDE else "CURSOR"
+            _draw_cursor_badge(
+                draw, cursor_x, cursor_y, radius, title, coords,
+                cursor_font, width, height,
+            )
+
+
 def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: Any, *,
                   rect: ScreenRect, step: int, grid: bool,
                   cursor: Optional[ScreenPoint], grid_unit: str = "screen",
@@ -221,50 +271,8 @@ def _draw_overlay(image: Any, image_module: Any, image_draw: Any, image_font: An
                                 label, font, text_height, width, height)
 
     if cursor is not None:
-        cursor_x = _offset(rect.x, cursor.x, rect.width, width)
-        cursor_y = _offset(rect.y, cursor.y, rect.height, height)
-        if 0 <= cursor_x < width and 0 <= cursor_y < height:
-            halo_width = max(3, min(5, round(width / 400)))
-            cursor_width = max(1, min(3, round(width / 700)))
-            white_width = cursor_width + 1
-            radius = max(4, min(12, round(width / 70), round(16 / scale)))
-            arm = max(8, min(36, round(min(width, height) / 12),
-                             round(50 / scale)))
-            gap = max(2, cursor_width + 1)
-            # 只画光标周围的短十字；中心留空，落点像素本身不被盖住。
-            for color, line_width in (
-                (_CURSOR_HALO, halo_width),
-                (_CURSOR_WHITE, white_width),
-                (_CURSOR_COLOR, cursor_width),
-            ):
-                draw.line([(cursor_x - arm, cursor_y), (cursor_x - gap, cursor_y)],
-                          fill=color, width=line_width)
-                draw.line([(cursor_x + gap, cursor_y), (cursor_x + arm, cursor_y)],
-                          fill=color, width=line_width)
-                draw.line([(cursor_x, cursor_y - arm), (cursor_x, cursor_y - gap)],
-                          fill=color, width=line_width)
-                draw.line([(cursor_x, cursor_y + gap), (cursor_x, cursor_y + arm)],
-                          fill=color, width=line_width)
-            for color, line_width in (
-                (_CURSOR_HALO, max(3, halo_width)),
-                (_CURSOR_WHITE, max(2, white_width)),
-                (_CURSOR_COLOR, max(1, cursor_width + 1)),
-            ):
-                draw.ellipse(
-                    (cursor_x - radius, cursor_y - radius,
-                     cursor_x + radius, cursor_y + radius),
-                    outline=color, width=line_width,
-                )
-            if cursor_label_visible(width, height):
-                coords = _label_value(cursor.x, rect.x, rect.width, width, grid_unit) + "," \
-                    + _label_value(cursor.y, rect.y, rect.height, height, grid_unit)
-                cursor_font = _font(
-                    image_font, cursor_font_size(width, height, scale))
-                title = "" if min(width, height) < COMPACT_SIDE else "CURSOR"
-                _draw_cursor_badge(
-                    draw, cursor_x, cursor_y, radius, title, coords,
-                    cursor_font, width, height,
-                )
+        _draw_cursor(draw, image_font, rect=rect, width=width, height=height,
+                     cursor=cursor, grid_unit=grid_unit, scale=scale)
 
     image.paste(image_module.alpha_composite(base, canvas).convert("RGB"))
 

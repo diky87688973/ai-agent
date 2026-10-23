@@ -7,6 +7,7 @@ import sys
 import threading
 from typing import Any, Dict, Iterable, Iterator
 
+from agent.core.error_report import report_error
 from agent.mechanisms.providers.base import ModelRequestError
 
 
@@ -27,7 +28,8 @@ def parse_sse_lines(lines: Iterable[str]) -> Iterator[Dict[str, Any]]:
             return
         try:
             obj = json.loads(data)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            report_error("agent.mechanisms.providers.sse.parse_sse_lines", exc)
             continue
         if isinstance(obj, dict):
             yield obj
@@ -51,6 +53,7 @@ def stream_with_timeout(
         try:
             resp.close()
         except Exception as exc:
+            report_error("agent.mechanisms.providers.sse.stream_with_timeout._expire", exc)
             _warn_close(exc)
 
     watchdog = threading.Timer(max(0.001, float(timeout)), _expire)
@@ -61,6 +64,7 @@ def stream_with_timeout(
             lines = (raw.decode("utf-8", errors="replace") for raw in resp)
             yield from parse_sse_lines(lines)
         except Exception as exc:
+            report_error("agent.mechanisms.providers.sse.stream_with_timeout", exc)
             if timed_out.is_set():
                 raise ModelRequestError(f"{label} 模型流超时（{timeout:g}s）") from exc
             raise
@@ -70,6 +74,6 @@ def stream_with_timeout(
         watchdog.cancel()
         try:
             resp.close()
-        except Exception:
+        except Exception as exc:
             # 已经拿到的流或即将抛出的错误更重要，关闭失败不覆盖它们。
-            pass
+            report_error("agent.mechanisms.providers.sse.stream_with_timeout", exc)

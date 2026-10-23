@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 
@@ -19,6 +20,7 @@ def run(acc: Any) -> None:
         try:
             browser = pw.chromium.launch()
         except Exception as exc:
+            print(f"[scripts.acceptance_web_player.run] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             print(f"  [SKIP] AI说话播放器（Chromium 不可用：{type(exc).__name__}）")
             return
         try:

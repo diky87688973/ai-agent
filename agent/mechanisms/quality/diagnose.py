@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from agent.core.error_report import report_error
 from agent.mechanisms.quality.path_keys import norm_path
 
 if TYPE_CHECKING:
@@ -64,6 +65,7 @@ def run_post_write_checks(gate: "QualityGate", path: str) -> List[Dict[str, Any]
                 py_compile.compile(str(fp), cfile=str(Path(tmp) / "out.pyc"), doraise=True)
             checks.append({"id": "py_compile", "status": "pass", "summary": "py_compile 通过"})
         except Exception as exc:
+            report_error("agent.mechanisms.quality.diagnose.run_post_write_checks", exc)
             checks.append({"id": "py_compile", "status": "fail", "summary": f"py_compile 失败：{exc}"})
             flag_diag_fail(gate, f"{path}: {exc}")
     elif suffix == ".json":
@@ -71,6 +73,7 @@ def run_post_write_checks(gate: "QualityGate", path: str) -> List[Dict[str, Any]
             json.loads(fp.read_text(encoding="utf-8", errors="replace"))
             checks.append({"id": "json_valid", "status": "pass", "summary": "JSON 解析通过"})
         except Exception as exc:
+            report_error("agent.mechanisms.quality.diagnose.run_post_write_checks", exc)
             checks.append({"id": "json_valid", "status": "fail", "summary": f"JSON 解析失败：{exc}"})
             flag_diag_fail(gate, f"{path}: {exc}")
     if checks and all(c.get("status") == "pass" for c in checks) and not gate.large_delete_flag:

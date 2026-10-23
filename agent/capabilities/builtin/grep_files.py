@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from agent.capabilities.builtin.scan_scope import skip_set
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 
 DEFAULT_LIMIT = 200
 _BINARY_SNIFF = "\x00"
@@ -33,7 +34,8 @@ def _iter_text_files(root: Path, skip_names: frozenset, skipped: Optional[Dict[s
             p = Path(dirpath) / name
             try:
                 text = p.read_text(encoding="utf-8", errors="replace")
-            except OSError:
+            except OSError as exc:
+                report_error("agent.capabilities.builtin.grep_files._iter_text_files", exc)
                 continue
             if _BINARY_SNIFF in text:
                 continue

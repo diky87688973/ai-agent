@@ -14,7 +14,7 @@ class InputModule(ModuleBase):
     """把本轮的新用户输入认领成事实。
 
     - 有输入：发 `input_claimed`，返回 `ok`（链上后面的模型模块自己会看到"末端是新输入"）；
-    - 无输入：什么都不发，返回 `ok`。
+    - 无输入：只发 `input_ended`（claimed=False），返回 `ok`。
 
     第二点是硬要求：接口确认触发的恢复轮没有用户发言，此时上下文末端
     就该是那次工具调用——凭空发一条空的 `input_claimed` 会让消息序列变成
@@ -71,8 +71,3 @@ class InputModule(ModuleBase):
         yield ports.emit(INPUT_ENDED, claimed=True,
                          elapsed_ms=int((perf_counter() - started) * 1000))
         return Outcome.ok()
-
-
-# ══════════════════════════════════════════════════════════════════════
-# 二、压缩模块
-# ══════════════════════════════════════════════════════════════════════

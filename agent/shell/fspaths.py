@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent.config import PROJECT_ROOT
+from agent.core.error_report import report_error
 
 
 def is_drive_root(path: Path) -> bool:
@@ -76,7 +77,8 @@ def normalize_roots(value: Any) -> List[Path]:
             continue
         try:
             roots.append(Path(item).resolve())
-        except (OSError, TypeError, ValueError):
+        except (OSError, TypeError, ValueError) as exc:
+            report_error("agent.shell.fspaths.normalize_roots", exc)
             continue
     return roots
 
@@ -92,11 +94,8 @@ def within_any_root(target: Path, roots: List[Path]) -> bool:
     except (OSError, ValueError):
         return False
     for root in roots or []:
-        try:
-            resolved.relative_to(Path(root).resolve())
+        if resolved.is_relative_to(Path(root).resolve()):
             return True
-        except (OSError, ValueError):
-            continue
     return False
 
 

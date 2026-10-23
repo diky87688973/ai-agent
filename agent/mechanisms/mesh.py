@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from agent.core.error_report import report_error
 from agent.mechanisms.conversation_queue import ConversationQueue
 from agent.mechanisms.run_registry import RunRegistry, build_run_registry
 
@@ -171,7 +173,8 @@ class MeshState:
                         "run_id": "", "queue_item": item}
             try:
                 rid = str(self._activator(key, dict(message)) or "")
-            except Exception:
+            except Exception as exc:
+                report_error("agent.mechanisms.mesh.MeshState.submit", exc)
                 item = self._enqueue_message(key, message)
                 return {"queued": True, "queued_count": self._queue.size(key),
                         "run_id": "", "queue_item": item}
@@ -195,8 +198,10 @@ class MeshState:
             data = {"agents": {key: dict(value) for key, value in self._agents.items()}}
             path.write_text(json.dumps(data, ensure_ascii=False, indent=2),
                             encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as exc:
+            # 状态写失败只影响下次启动重建，内存中的网格仍可用；保留 stderr 证据。
+            print(f"[mesh] agents 状态写入失败：{type(exc).__name__}: {exc}",
+                  file=sys.stderr, flush=True)
 
     def _load(self) -> None:
         try:
@@ -209,5 +214,5 @@ class MeshState:
                         str(key): dict(value)
                         for key, value in agents.items() if isinstance(value, dict)
                     })
-        except Exception:
-            pass
+        except Exception as exc:
+            report_error("agent.mechanisms.mesh.MeshState._load", exc)

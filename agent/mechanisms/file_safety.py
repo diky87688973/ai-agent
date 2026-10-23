@@ -33,6 +33,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+from agent.core.error_report import report_error
+
 _LOCK = threading.Lock()
 
 #: 版本目录名：`YYYYMMDD_HHMMSS_mmm_NNNN_随机短段`。日期必须在最前，供按年龄清理解析。
@@ -260,7 +262,8 @@ class FileBackups:
             # 读不到的组跳过：清理是尽力而为的维护动作，不该因一个坏组让启动失败
             try:
                 versions = list(group.iterdir())
-            except OSError:
+            except OSError as exc:
+                report_error("agent.mechanisms.file_safety.FileBackups.prune", exc)
                 continue
             for ver in versions:
                 if not ver.is_dir():
@@ -283,8 +286,8 @@ class FileBackups:
                 if not any(group.iterdir()):
                     group.rmdir()
             # 删不掉就算了：留个空目录无害，不值得让清理报错
-            except OSError:
-                pass
+            except OSError as exc:
+                report_error("agent.mechanisms.file_safety.FileBackups.prune", exc)
         return removed, kept
 
 

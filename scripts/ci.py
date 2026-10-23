@@ -33,9 +33,9 @@ PY = sys.executable
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
-    except Exception:
+    except Exception as exc:
         # 旧解释器 / 非 TTY：保持默认编码即可
-        pass
+        print(f"[scripts.ci.module] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from artifact_lock import ArtifactLock, LockBusy  # noqa: E402

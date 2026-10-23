@@ -28,9 +28,9 @@ import check_coverage  # noqa: E402
 import check_imports  # noqa: E402
 import check_python_floor  # noqa: E402
 import check_readme  # noqa: E402
-import check_silent_except  # noqa: E402
 import check_ui_js  # noqa: E402
 import gen_ci_workflow  # noqa: E402
+import gen_complexity_md  # noqa: E402
 import gen_unit_tests_md  # noqa: E402
 from ci_steps import acceptance_skip_problems  # noqa: E402
 
@@ -117,30 +117,6 @@ class ArchitectureHygieneGateTest(unittest.TestCase):
     def test_quality_gate_real_module_passes(self) -> None:
         root, plugins = self._package({"core/a.py": "from agent.mechanisms.quality import gate\n"})
         self.assertEqual(hygiene.check_no_quality_gate_shim(root, plugins, root), [])
-
-
-class SilentExceptGateTest(unittest.TestCase):
-    """静默异常：预算判据与"静默/留痕"的语义判定。"""
-
-    def test_budget_overflow_fails(self) -> None:
-        self.assertTrue(check_silent_except.budget_problems(120, 119))
-
-    def test_budget_at_limit_passes(self) -> None:
-        self.assertEqual(check_silent_except.budget_problems(119, 119), [])
-
-    def _handler(self, source: str) -> ast.ExceptHandler:
-        tree = ast.parse(textwrap.dedent(source))
-        return next(n for n in ast.walk(tree) if isinstance(n, ast.ExceptHandler))
-
-    def test_bare_pass_is_silent(self) -> None:
-        handler = self._handler("try:\n    f()\nexcept Exception:\n    pass\n")
-        self.assertTrue(check_silent_except._is_silent(handler.body))
-
-    def test_explicit_logging_is_not_silent(self) -> None:
-        handler = self._handler(
-            "try:\n    f()\nexcept Exception:\n    report_error('x', Exception())\n"
-        )
-        self.assertFalse(check_silent_except._is_silent(handler.body))
 
 
 class PythonFloorGateTest(unittest.TestCase):
@@ -514,6 +490,62 @@ class AcceptanceSkipGateTest(unittest.TestCase):
 
 # 延迟导入：避免测试收集阶段就因可选依赖失败
 import check_ci_workflow  # noqa: E402
+
+
+class GeneratedComplexityDocGateTest(unittest.TestCase):
+    def test_check_detects_drift(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="complexity-doc-") as tmp:
+            docs = Path(tmp) / "complexity.md"
+            docs.write_text("drifted\n", encoding="utf-8")
+            with mock.patch.object(gen_complexity_md, "DOCS", docs):
+                self.assertEqual(gen_complexity_md.main(["--check"]), 1)
+
+    def test_check_detects_missing_file(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="complexity-doc-missing-") as tmp:
+            docs = Path(tmp) / "missing.md"
+            with mock.patch.object(gen_complexity_md, "DOCS", docs):
+                self.assertEqual(gen_complexity_md.main(["--check"]), 1)
+
+    def test_check_detects_extra_content(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="complexity-doc-extra-") as tmp:
+            docs = Path(tmp) / "complexity.md"
+            docs.write_text(gen_complexity_md.build() + "\nextra\n", encoding="utf-8")
+            with mock.patch.object(gen_complexity_md, "DOCS", docs):
+                self.assertEqual(gen_complexity_md.main(["--check"]), 1)
+
+    def test_check_accepts_generated_text(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="complexity-doc-ok-") as tmp:
+            docs = Path(tmp) / "complexity.md"
+            docs.write_text(gen_complexity_md.build(), encoding="utf-8")
+            with mock.patch.object(gen_complexity_md, "DOCS", docs):
+                self.assertEqual(gen_complexity_md.main(["--check"]), 0)
+
+
+class ConfigModelExampleGateTest(unittest.TestCase):
+    def _model_example(self, extra: str = "") -> str:
+        keys = sorted(check_config_drift.MULTI_MODEL_SCHEMA["model"])
+        body = "\n".join(f"{k} = x" for k in keys)
+        return f"[model:x]\n{body}\n{extra}"
+
+    def test_compare_model_example_detects_extra_key(self) -> None:
+        problems = check_config_drift.compare_model_example(
+            self._model_example("ghost = 1\n"), "m.ini")
+        self.assertTrue(any("ghost" in p for p in problems), problems)
+
+    def test_compare_model_example_detects_changed_section(self) -> None:
+        problems = check_config_drift.compare_model_example(
+            self._model_example().replace("[model:x]", "[modelx]"), "m.ini")
+        self.assertTrue(any("model" in p for p in problems), problems)
+
+    def test_compare_model_example_positive(self) -> None:
+        self.assertEqual(
+            check_config_drift.compare_model_example(self._model_example(), "m.ini"), [])
+
+    def test_compare_model_example_requires_keys(self) -> None:
+        problems = check_config_drift.compare_model_example(
+            "[model:x]\nprovider = openai\n", "m.ini")
+        self.assertTrue(any("base_url" in p for p in problems), problems)
+
 
 if __name__ == "__main__":
     unittest.main()

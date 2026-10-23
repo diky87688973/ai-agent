@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
 
 from agent.capabilities.contributions import Disposer
+from agent.core.error_report import report_error
 from agent.mechanisms.provider_registry import build_provider, known_kinds
 from agent.mechanisms.providers.base import ModelProvider
 
@@ -185,6 +186,7 @@ class ModelCatalog:
             raw = entries() if callable(entries) else entries
             items = list(raw or ())
         except Exception as exc:
+            report_error("agent.capabilities.model_catalog.ModelCatalog._normalize", exc)
             _warn(f"{source}: 读取模型条目失败：{type(exc).__name__}: {exc}")
             return None
         seen: Dict[str, ModelEntry] = {}

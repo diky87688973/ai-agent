@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 
 
 class MissingDependency(RuntimeError):
@@ -83,6 +84,7 @@ class ImageOcrTool(ToolPlugin):
         try:
             data = pt.image_to_data(img, lang=lang, output_type=pt.Output.DICT)
         except Exception as e:
+            report_error("agent.capabilities.builtin.ocr_tool.ImageOcrTool._ocr_pytesseract", e)
             raise OcrError(f"Tesseract 识别失败: {e}")
 
         words_with_pos: List[Dict[str, Any]] = []
@@ -132,10 +134,12 @@ class ImageOcrTool(ToolPlugin):
         try:
             reader = _eo.Reader(lang_list, gpu=False)
         except Exception as e:
+            report_error("agent.capabilities.builtin.ocr_tool.ImageOcrTool._ocr_easyocr", e)
             raise OcrError(f"easyocr reader 初始化失败: {e}")
         try:
             results = reader.readtext(str(image_path))
         except Exception as e:
+            report_error("agent.capabilities.builtin.ocr_tool.ImageOcrTool._ocr_easyocr", e)
             raise OcrError(f"easyocr 识别失败: {e}")
 
         if region:

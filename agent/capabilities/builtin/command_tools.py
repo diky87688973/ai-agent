@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 from agent.core.session_scope import (
     current_context,
     current_progress_reporter,
@@ -108,8 +109,8 @@ def _close_streams(proc: "subprocess.Popen[bytes]") -> None:
             continue
         try:
             stream.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            report_error("agent.capabilities.builtin.command_tools._close_streams", exc)
 
 
 def _read_available(stream: Any, chunk: int = 4096) -> bytes:
@@ -134,9 +135,9 @@ def _read_available(stream: Any, chunk: int = 4096) -> bytes:
             pending = len(stream.peek(0))     # 不消费，只看缓冲区里有多少
             if pending:
                 rest = stream.read(min(pending, chunk - 1))
-        except OSError:
+        except OSError as exc:
             # peek/续读失败：只交还已读到的首字节
-            pass
+            report_error("agent.capabilities.builtin.command_tools._read_available", exc)
     return first + rest
 
 
@@ -189,8 +190,8 @@ def _pump(
                 payload["awaiting_input"] = hit
         try:
             reporter(payload)
-        except Exception:
-            pass
+        except Exception as exc:
+            report_error("agent.capabilities.builtin.command_tools._pump._report", exc)
 
     def _reader(stream: Any, chunks: List[bytes], name: str) -> None:
         if stream is None:
@@ -234,10 +235,10 @@ def _pump(
                 if not produced and getattr(proc, "stdin", None) is not None:
                     try:
                         proc.stdin.close()
-                    except OSError:
-                        pass
-                    except ValueError:
-                        pass
+                    except OSError as exc:
+                        report_error("agent.capabilities.builtin.command_tools._pump", exc)
+                    except ValueError as exc:
+                        report_error("agent.capabilities.builtin.command_tools._pump", exc)
             if isinstance(progress, dict):
                 if progress.get("_user_input") is not None:
                     raw_in = str(progress.pop("_user_input", "") or "").strip()
@@ -246,10 +247,10 @@ def _pump(
                         try:
                             proc.stdin.write((raw_in + "\n").encode("utf-8", errors="replace"))
                             proc.stdin.flush()
-                        except OSError:
+                        except OSError as exc:
                             # 判据：子进程可能已经退出（管道关闭），此时写入必然抛
                             # OSError；人的回答晚了一步，不是错误，吞掉继续收尾。
-                            pass
+                            report_error("agent.capabilities.builtin.command_tools._pump", exc)
                     awaiting_since = 0.0
                 elif progress.get("awaiting_input"):
                     if not awaiting_since:
@@ -437,7 +438,8 @@ class PythonInlineTool(ToolPlugin):
                     exec(compile(code, "<python_inline>", "exec"), {"__name__": "__main__"})
                 except SystemExit as exc:
                     exit_code = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
-                except Exception:
+                except Exception as exc:
+                    report_error("agent.capabilities.builtin.command_tools.PythonInlineTool.execute", exc)
                     traceback.print_exc()
                     exit_code = 1
         finally:

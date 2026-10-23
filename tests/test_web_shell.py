@@ -60,7 +60,8 @@ class ScriptedProvider:
                 continue
             try:
                 data = _json.loads(content)
-            except Exception:
+            except Exception as exc:
+                print(f"[tests.test_web_shell.ScriptedProvider._extract_confirm_id] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 continue
             if not isinstance(data, dict):
                 continue
@@ -154,12 +155,12 @@ class _ServerFixture(unittest.TestCase):
         try:
             self.server.shutdown()
             self.server.server_close()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[tests.test_web_shell._ServerFixture._teardown] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         try:
             self.app.dispose()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[tests.test_web_shell._ServerFixture._teardown] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
     def _read_sse(self) -> None:
         try:
@@ -181,10 +182,10 @@ class _ServerFixture(unittest.TestCase):
                         if line.startswith(b"data:"):
                             try:
                                 self.frames.append(json.loads(line[5:].decode("utf-8")))
-                            except Exception:
-                                pass
-        except Exception:
-            pass
+                            except Exception as exc:
+                                print(f"[tests.test_web_shell._ServerFixture._read_sse] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        except Exception as exc:
+            print(f"[tests.test_web_shell._ServerFixture._read_sse] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
     def _wait_channels(self, count: int, timeout: float = 5.0) -> None:
         deadline = time.time() + timeout
@@ -206,7 +207,8 @@ class _ServerFixture(unittest.TestCase):
         status, body = self.get(path)
         try:
             return status, json.loads(body.decode("utf-8"))
-        except Exception:
+        except Exception as exc:
+            print(f"[tests.test_web_shell._ServerFixture.get_json] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             return status, {}
 
     def put_json(self, path: str, payload: dict):
@@ -224,7 +226,8 @@ class _ServerFixture(unittest.TestCase):
             status, body = exc.code, exc.read()
         try:
             return status, json.loads(body.decode("utf-8"))
-        except Exception:
+        except Exception as exc:
+            print(f"[tests.test_web_shell._ServerFixture.put_json] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             return status, {}
 
     def post(self, path: str, payload: dict):
@@ -240,7 +243,8 @@ class _ServerFixture(unittest.TestCase):
             raw = exc.read()
             try:
                 return exc.code, json.loads(raw.decode("utf-8"))
-            except Exception:
+            except Exception as exc:
+                print(f"[tests.test_web_shell._ServerFixture.post] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 return exc.code, {}
 
     def wait_turn(self, cid: str, timeout: float = 25.0) -> None:
@@ -502,12 +506,12 @@ class MultiRootFileViewerTest(unittest.TestCase):
         try:
             self.server.shutdown()
             self.server.server_close()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[tests.test_web_shell.MultiRootFileViewerTest._teardown] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         try:
             self.app.dispose()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[tests.test_web_shell.MultiRootFileViewerTest._teardown] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
     def _get(self, path: str):
         try:

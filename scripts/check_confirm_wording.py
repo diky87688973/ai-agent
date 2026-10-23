@@ -36,10 +36,10 @@ from pathlib import Path
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
+except Exception as exc:
     # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
     # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
-    pass
+    print(f"[scripts.check_confirm_wording.module] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -70,8 +70,8 @@ VAGUE = (
 def _read(p: Path) -> str:
     try:
         return p.read_text(encoding="utf-8")
-    except OSError:
-        return ""
+    except OSError as exc:
+        raise RuntimeError(f"{p}: 读取失败：{exc}") from exc
 
 
 def check_texts(texts: dict[str, str]) -> list[str]:

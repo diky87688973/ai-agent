@@ -16,6 +16,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from agent.capabilities.builtin.scan_scope import relative_parts, skip_set
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 
 
 def _read_text(fp: Path, encoding: str) -> str:
@@ -25,7 +26,8 @@ def _read_text(fp: Path, encoding: str) -> str:
     for enc in ("utf-8", "gb18030", "gbk"):
         try:
             return fp.read_text(encoding=enc)
-        except UnicodeDecodeError:
+        except UnicodeDecodeError as exc:
+            report_error("agent.capabilities.builtin.locate_tools._read_text", exc)
             continue
     return fp.read_text(encoding="utf-8", errors="replace")
 
@@ -251,7 +253,8 @@ class RegexLocateTool(ToolPlugin):
                 break
             try:
                 text = _read_text(fp, encoding)
-            except OSError:
+            except OSError as exc:
+                report_error("agent.capabilities.builtin.locate_tools.RegexLocateTool.execute", exc)
                 continue
             for m in rx.finditer(text):
                 if len(items) >= limit:
@@ -339,8 +342,8 @@ class FileSearchTool(ToolPlugin):
                 regex += "$"
             try:
                 patterns.append(re.compile(regex, re.IGNORECASE))
-            except re.error:
-                pass
+            except re.error as exc:
+                report_error("agent.capabilities.builtin.locate_tools.FileSearchTool._load_gitignore", exc)
         return patterns
 
     @staticmethod
@@ -361,8 +364,8 @@ class FileSearchTool(ToolPlugin):
                 return "utf-16-be"
             raw.decode("utf-8")
             return "utf-8"
-        except (OSError, UnicodeDecodeError):
-            pass
+        except (OSError, UnicodeDecodeError) as exc:
+            report_error("agent.capabilities.builtin.locate_tools.FileSearchTool._detect_encoding", exc)
         return "gbk"
 
     def _search_file(self, path: Path, pattern: re.Pattern, context_lines: int, limit: Any) -> List[Dict[str, Any]]:
@@ -438,8 +441,8 @@ class FileSearchTool(ToolPlugin):
                     rel = entry.relative_to(target)
                     if self._is_ignored(str(rel), ignore_patterns):
                         continue
-                except ValueError:
-                    pass
+                except ValueError as exc:
+                    report_error("agent.capabilities.builtin.locate_tools.FileSearchTool._search_tree", exc)
             file_results = self._search_file(entry, compiled, context_lines, limit)
             scanned += 1
             if self.MAX_SCANNED and scanned >= self.MAX_SCANNED:

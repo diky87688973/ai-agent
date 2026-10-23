@@ -181,7 +181,8 @@ class CryptoTest(_StoreTest):
             try:
                 barrier.wait(timeout=5)
                 store.append(cid, [make_event("evt", cid=cid)])
-            except Exception as exc:  # 记录而非中断（测试用具）
+            except Exception as exc:
+                print(f"[tests.test_session_store.CryptoTest.test_concurrent_key_init.work] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 errors.append(repr(exc))
 
         threads = [

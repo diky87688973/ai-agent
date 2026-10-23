@@ -108,7 +108,8 @@ class Ws:
             self._buf = self._buf[off + n:]
             try:
                 msg = json.loads(raw.decode("utf-8", "replace"))
-            except ValueError:
+            except ValueError as exc:
+                print(f"[scripts.ui_shot.Ws._pump] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 continue
             for fn in list(self._handlers):
                 fn(msg)
@@ -132,8 +133,8 @@ class Ws:
     def close(self) -> None:
         try:
             self.sock.close()
-        except OSError:
-            pass
+        except OSError as exc:
+            print(f"[scripts.ui_shot.Ws.close] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -162,7 +163,8 @@ def main(argv: list[str] | None = None) -> int:
                 with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=2) as r:
                     ver = json.loads(r.read().decode())
                 break
-            except Exception:
+            except Exception as exc:
+                print(f"[scripts.ui_shot.main] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 time.sleep(0.3)
         if not ver:
             print("DevTools 未就绪", file=sys.stderr)

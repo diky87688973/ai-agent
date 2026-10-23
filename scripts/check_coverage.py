@@ -29,10 +29,10 @@ LOCK_WAIT_S = 5.0
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
+except Exception as exc:
     # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
     # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
-    pass
+    print(f"[scripts.check_coverage.module] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -149,6 +149,7 @@ def _check_locked(data_file: Path) -> int:
         print("[SKIP] 未安装 coverage（pip install coverage 后重试）")
         return 2
     except Exception as exc:
+        print(f"[scripts.check_coverage._check_locked] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         print(f"[SKIP] 读不到 .coverage：{type(exc).__name__}: {exc}")
         return 2
     if stamp(data_file) != before:

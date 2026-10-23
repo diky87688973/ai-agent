@@ -2,35 +2,56 @@
 """会话持久化：加密 append-only 事件日志。
 
 - 布局：每会话一条日志 `<data_root>/sessions/<cid>.raw`，每行一条事件 JSON；
-- 加密：行级独立 envelope，none / local 两模式（local 为纯标准库
-  encrypt-then-MAC；DPAPI 分支按需后补）；密钥文件 `<data_root>/cache/session_encryption.key`；
-- 读写：逐行 append + flush；读取容错——坏行跳过、缺文件返回空。
+- 加密：行级独立 envelope，none / local 两模式（实现与密钥在
+  `agent/mechanisms/session_crypto.py`）；密钥文件 `<data_root>/cache/session_encryption.key`；
+- 读写：逐行 append + flush；读取容错——坏行跳过、缺文件返回空；
+- 并发：同文件写入串行（进程内锁 + 跨进程锁，实现在
+  `agent/mechanisms/session_locking.py`）；行格式与坐标语义在
+  `agent/mechanisms/session_lines.py`。
 
 纪律：本模块只做"事实持久化"，不做事件语义加工；事件模型见 core/events.py。
 """
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
 import json
 import os
 import re
 import sys
 import threading
-import time
 import uuid
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Tuple
 
+from agent.core.error_report import report_error
 from agent.core.events import Event
+from agent.mechanisms.session_crypto import (
+    ALG_LOCAL,
+    APP_ENTROPY_SALT,
+    MAGIC,
+    SessionCipher,
+)
+from agent.mechanisms.session_lines import (
+    KEY_DATA,
+    KEY_TYPE,
+    event_from_obj,
+    event_seq,
+    event_to_json,
+    seq_from_obj,
+)
+from agent.mechanisms.session_locking import cross_process_lock
 
-MAGIC = "__fan_agent_session_encrypted__"
-ALG_LOCAL = "local-hmac-sha256-stream-v1"
-APP_ENTROPY_SALT = "|fan-agent-session-v1"
+__all__ = [
+    "ALG_LOCAL",
+    "APP_ENTROPY_SALT",
+    "KEY_DATA",
+    "KEY_TYPE",
+    "MAGIC",
+    "SessionStore",
+    "is_valid_conversation_id",
+    "new_conversation_id",
+]
+
 _CID_RE = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
-_KEY_LOCK = threading.Lock()  # 密钥文件读或建的互斥锁（模块级，跨实例共享）
 
 
 def new_conversation_id() -> str:
@@ -41,205 +62,6 @@ def new_conversation_id() -> str:
 def is_valid_conversation_id(conversation_id: str) -> bool:
     """校验会话 ID（白名单字符 + 长度 8~128，防路径穿越）。"""
     return bool(_CID_RE.match(str(conversation_id or "").strip()))
-
-
-def _xor_stream(data: bytes, key: bytes, nonce: bytes) -> bytes:
-    """HMAC-SHA256 密钥流 XOR；纯标准库实现。"""
-    out = bytearray()
-    counter = 0
-    while len(out) < len(data):
-        block = hmac.new(key, nonce + counter.to_bytes(8, "big"), hashlib.sha256).digest()
-        out.extend(block)
-        counter += 1
-    return bytes(a ^ b for a, b in zip(data, out[: len(data)]))
-
-
-#: 跨进程排它锁：同一会话的"记偏移 → 追加 → 回滚"是读改写，
-#: 进程内锁挡不住别的进程（4 进程并发写会丢 39/100 行，且不报错）。
-try:                                     # Windows
-    import msvcrt as _msvcrt
-except ImportError:                      # POSIX
-    _msvcrt = None
-try:
-    import fcntl as _fcntl
-except ImportError:
-    _fcntl = None
-
-
-@contextmanager
-def _cross_process_lock(path: Path):
-    """按文件加跨进程排它锁；争用超时就抛错（不降级无锁写）。
-
-    Windows 上 `LK_LOCK` 是「每秒重试、最多 10 次」，9 秒后抛 `Errno 36`；
-    若把它当成「锁不可用」而打印警告后继续写，就在最需要锁的时候回到了
-    会丢行的形态（16 行丢 1 行 + 1 坏行，且子进程退出码仍是 0）。
-
-    语义：
-      · 用 `LK_NBLCK`（非阻塞）自己轮询，不设那 10 次上限；
-      · 超时（默认 30s，`AI_AGENT_LOCK_TIMEOUT` 可调）→ 抛错，让数据走待重试队列，
-        「同一事实只写一次」的承诺才不会被「无锁写」破坏；
-      · 只有「本平台没有任何锁机制」才留痕降级（环境限制，不是争用）。
-
-    锁加在 `<文件>.lock` 上：这个文件故意不删 —— 删了会和别的进程的"已打开句柄"
-    形成"锁的是已删除文件"的经典竞态。它是零字节的，代价可以忽略。
-
-    ⚠️ 句柄必须每趟开关：句柄不关会让 Windows 下 `TemporaryDirectory.cleanup()`
-    报 `PermissionError [WinError 32]`（文件仍被占用），而本项目大量测试依赖临时目录。
-    每趟开关的开销约 +2.5ms/条、一个回合 ~+22ms —— 相对回合本身（秒级）可忽略。
-    """
-    lock_path = path.with_suffix(path.suffix + ".lock")
-    fh = None
-    locked = False
-    try:
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        fh = open(lock_path, "a+b")
-        if _msvcrt is not None:
-            deadline = time.monotonic() + _lock_timeout()
-            while True:
-                try:
-                    _msvcrt.locking(fh.fileno(), _msvcrt.LK_NBLCK, 1)
-                    locked = True
-                    break
-                except OSError:
-                    if time.monotonic() >= deadline:
-                        raise
-                    time.sleep(0.05)
-        elif _fcntl is not None:
-            _fcntl.flock(fh.fileno(), _fcntl.LOCK_EX)
-            locked = True
-        else:
-            # 两个机制都没有时必须显式判失败，走 except 的留痕路径：
-            # 两个分支都不进会让 `locked` 静默保持 False，
-            # "跨进程保护已经没了"没人知道。降级可以，静默不行。
-            raise RuntimeError(_NO_LOCK_MECHANISM)
-    except Exception as exc:
-        try:
-            if fh is not None:
-                fh.close()
-        except Exception:
-            # 旁路，刻意吞掉：关不掉也不该顶掉原始异常。
-            pass
-        fh = None
-        if _NO_LOCK_MECHANISM in str(exc):
-            # 环境限制（没有任何锁机制）→ 留痕降级。
-            print(f"[store] 跨进程锁不可用（降级为进程内锁）：{type(exc).__name__}: {exc}",
-                  file=sys.stderr, flush=True)
-            locked = False
-        else:
-            # 争用超时 → 不许写。抛出去让数据进待重试队列。
-            raise
-    try:
-        yield locked
-    finally:
-        if fh is not None:
-            try:
-                if locked and _msvcrt is not None:
-                    fh.seek(0)
-                    _msvcrt.locking(fh.fileno(), _msvcrt.LK_UNLCK, 1)
-                elif locked and _fcntl is not None:
-                    _fcntl.flock(fh.fileno(), _fcntl.LOCK_UN)
-            except Exception:
-                # 旁路，刻意吞掉：解锁失败由 close() 兜底（进程退出也会释放）。
-                pass
-            try:
-                fh.close()
-            except Exception:
-                # 旁路，刻意吞掉：关闭失败不影响已完成的写入。
-                pass
-
-
-#: 区分「环境限制」与「争用超时」的哨兵文本（见 `_cross_process_lock`）
-_NO_LOCK_MECHANISM = "无法加跨进程锁"
-
-
-def _lock_timeout() -> float:
-    """跨进程锁的争用等待上限（秒）。默认 30s；可用 `AI_AGENT_LOCK_TIMEOUT` 覆盖。"""
-    try:
-        return max(1.0, float(os.environ.get("AI_AGENT_LOCK_TIMEOUT", "30")))
-    except (TypeError, ValueError):
-        return 30.0
-
-
-#: 落盘行的键名。会话日志里绝大多数行是流式增量，payload 只有几个字，
-#: 键名按行数放大 —— 缩短键名是这一层最直接的省法。
-#:
-#: `s` 是全局存储坐标，不能省：SSE 的 `id:` 行用它，浏览器断线重连时经
-#: `Last-Event-ID` 带回来，服务端据此从该位置续传（见 `cursor_of` / `replay_after`）。
-#: 它跨会话共享、从不重置，所以与行号差一个常数；也不保证连续 ——
-#: 事件在产出瞬间就拿号（那时还不知道会不会落盘），跳过的号不再补。
-#: 游标只要求单调唯一，不要求连续。
-# 落盘行短键：壳层读标题/历史也要同一份，故公开（禁止跨层 import 私有名）。
-KEY_TYPE = "t"
-KEY_DATA = "d"
-_KEY_SEQ = "s"
-
-#: 落盘时不写的载荷字段：都能从别处还原，写了只增加每行体积。
-#:
-#: - `conversation_id`：文件名就是会话 ID。读盘的人（`load_with_seq` 的调用方、
-#:   `tail_across`）手上已经有 `path.stem`，每行再存 36 字节纯属重复。
-#:   内核事件在内存里仍带它（`emit` 注入，SSE 靠它分派到正确的会话页面），
-#:   只有落盘这一份省掉；读回时由 `_event_from_obj` 按会话补上。
-#: - `_seq`：全局存储坐标，落盘时写成顶层 `s`（每行只留一份）。
-_DERIVED_KEYS = ("conversation_id", "_seq")
-
-
-def _valid_seq(raw: Any) -> bool:
-    """`s` 是否是可用的非负整数（排除 bool——它是 int 的子类）。"""
-    return isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0
-
-
-def _seq_from_obj(obj: Any) -> Optional[int]:
-    """从落盘对象取存储坐标：顶层 `s`；缺失或不是非负整数则返回 None。"""
-    if not isinstance(obj, dict):
-        return None
-    raw = obj.get(_KEY_SEQ)
-    return raw if _valid_seq(raw) else None
-
-
-def _event_to_json(event: Event) -> str:
-    """事件 → 单行 JSON（data 以 default=str 兜底不可序列化值）。
-
-    存储坐标 `_seq` 已在事件产出的那一刻由 `emit` 标进载荷（见 `core/ports.py`
-    里的说明：事件一产出就被发布到总线，落盘在其后，所以坐标不能在落盘时才标）。
-    这里把它提到顶层 `s`，并从 data 里删掉 —— 每行只留一份。
-
-    `conversation_id` 同样从落盘内容里删掉：文件名已经是会话 ID（见 `_DERIVED_KEYS`）。
-    """
-    data = dict(event.data) if isinstance(event.data, dict) else {}
-    seq = data.get("_seq")
-    payload: dict[str, Any] = {KEY_TYPE: event.type, KEY_DATA: data}
-    if _valid_seq(seq):
-        payload[_KEY_SEQ] = seq
-    for key in _DERIVED_KEYS:
-        data.pop(key, None)
-    return json.dumps(
-        payload,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        default=str,
-    )
-
-
-def _event_from_obj(obj: Any, conversation_id: str = "") -> Optional[Event]:
-    """JSON 对象 → 事件；非对象或缺 `t` 返回 None。
-
-    落盘行用的是短键（`t` / `d` / `s`，见 `KEY_*`）。`conversation_id` 不在落盘
-    内容里（见 `_DERIVED_KEYS`），由调用方按文件名传进来补回 data ——
-    内核事件在内存里一律带它，续传翻译与 SSE 分派都依赖这一点。
-    """
-    if not isinstance(obj, dict):
-        return None
-    type_ = str(obj.get(KEY_TYPE) or "").strip()
-    if not type_:
-        return None
-    data = obj.get(KEY_DATA)
-    payload = dict(data) if isinstance(data, dict) else {}
-    seq = _seq_from_obj(obj)
-    if seq is not None:
-        payload["_seq"] = seq
-    if conversation_id:
-        payload.setdefault("conversation_id", conversation_id)
-    return Event(type=type_, data=payload)
 
 
 #: 待重试队列的批数上限（按会话）。不设上限的话，磁盘长时间不可写会无限吃内存；
@@ -261,7 +83,7 @@ class SessionStore:
         #: 先广播后落盘的，"最后几次没落盘但界面已渲染"这个窗口本来就存在，
         #: `fsync` 消不掉它。需要更强保证时传 `durable=True`。
         self.durable = bool(durable)
-        self._session_key_cache: Optional[bytes] = None
+        self._cipher = SessionCipher(self.data_root, self.encryption)
         # 全局存储坐标（跨会话单调递增）。见 `allocate_seq`。
         self._next_global_seq: Optional[int] = None
         self._max_observed: int = -1
@@ -352,10 +174,11 @@ class SessionStore:
                             continue
                         lines += 1
                         obj = self._parse_obj(line)
-                        seq = _seq_from_obj(obj)
+                        seq = seq_from_obj(obj)
                         if seq is not None and seq > highest:
                             highest = seq
-            except OSError:
+            except OSError as exc:
+                report_error("agent.mechanisms.session_store.SessionStore._scan_max_seq", exc)
                 continue
             # 没有 `seq` 的行按位置补号；行号范围 0..lines-1
             if lines - 1 > highest:
@@ -459,23 +282,17 @@ class SessionStore:
         没有 `_seq` 的事件（纯内存构造的测试事件）不做去重 —— 没有坐标就没有身份，
         硬去重反而会误删。
         """
-        def _seq_of(e: Any) -> Optional[int]:
-            d = getattr(e, "data", None)
-            if isinstance(d, dict) and _valid_seq(d.get("_seq")):
-                return int(d["_seq"])
-            return None
-
         known: set = set()
         with self._pending_guard:
             for b in self._pending.get(conversation_id) or []:
                 for e in b:
-                    s = _seq_of(e)
+                    s = event_seq(e)
                     if s is not None:
                         known.add(s)
         on_disk = self._disk_seqs(conversation_id)
         out: list = []
         for e in batch:
-            s = _seq_of(e)
+            s = event_seq(e)
             if s is None or (s not in known and s not in on_disk):
                 out.append(e)
         return out
@@ -565,7 +382,7 @@ class SessionStore:
                     if not line.strip():
                         continue
                     obj = self._parse_obj(line)
-                    seq = _seq_from_obj(obj) if obj is not None else None
+                    seq = seq_from_obj(obj) if obj is not None else None
                     if isinstance(seq, int):
                         out.add(seq)
         except Exception as exc:
@@ -629,17 +446,8 @@ class SessionStore:
         """
         if not rows_events:
             return 0
-        # 在 `try` 之前初始化 —— 外层 `except` 会引用它。
-        # 若它在 try 内、而失败发生在赋值之前（预渲染 / `_written_seqs` /
-        # `allocate_seq`），外层 except 自己抛 `UnboundLocalError`，
-        # 顶掉原始异常并且 `_put_pending` 根本没跑（第二道防线被击穿）。
-        added: list = []
         try:
-            missing = sum(
-                1 for e in rows_events
-                if not (isinstance(getattr(e, "data", None), dict)
-                        and _valid_seq(e.data.get("_seq")))
-            )
+            missing = sum(1 for e in rows_events if event_seq(e) is None)
             fallback = self.allocate_seq(missing) if missing else 0
             path = self.raw_path(conversation_id)
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -653,17 +461,16 @@ class SessionStore:
             # 批内重复由下面的 `on_disk.add(seq)` 自己挡住。
             on_disk = self._written_seqs(conversation_id)
             for event in rows_events:
-                if isinstance(getattr(event, "data", None), dict):
-                    if not _valid_seq(event.data.get("_seq")):
+                seq = event_seq(event)
+                if seq is None:
+                    if isinstance(getattr(event, "data", None), dict):
                         event.data["_seq"] = fallback
                         fallback += 1
-                    else:
-                        seq = int(event.data["_seq"])
-                        if seq in on_disk:
-                            continue     # 已写过（重复投递/重试）→ 跳过
-                        on_disk.add(seq)
-                        added.append(seq)
-                rows.append(self._encrypt_line(_event_to_json(event)))
+                elif seq in on_disk:
+                    continue     # 已写过（重复投递/重试）→ 跳过
+                else:
+                    on_disk.add(seq)
+                rows.append(self._encrypt_line(event_to_json(event)))
             if not rows:
                 return requested        # 全都写过了：不需要动文件
 
@@ -684,8 +491,8 @@ class SessionStore:
             # ⚠️ 按文件串行（`self._append_lock`）：偏移量 + 截断是读改写，
             # 两个写者并发会互相截断。不串行的代价：8 线程 × 25 批里
             # 195/200 次抛 `PermissionError [WinError 32]`、只写进 4 行。
-            # 进程内锁 + 跨进程锁，两层都要（见 _cross_process_lock 的说明）
-            with self._append_lock(path), _cross_process_lock(path):
+            # 进程内锁 + 跨进程锁，两层都要（见 `cross_process_lock` 的说明）
+            with self._append_lock(path), cross_process_lock(path):
                 offset = path.stat().st_size if path.is_file() else 0
                 try:
                     with path.open("a", encoding="utf-8", newline="\n") as fh:
@@ -723,17 +530,17 @@ class SessionStore:
                         if path.is_file() and path.stat().st_size > offset:
                             with path.open("r+b") as fh:
                                 fh.truncate(offset)
-                    except OSError:
+                    except OSError as exc:
                         # 旁路，刻意吞掉：回滚失败也不能顶掉原始异常
                         # （调用方必须知道"这趟没落盘"）。数据仍在待重试队列里。
-                        pass
+                        report_error("agent.mechanisms.session_store.SessionStore._write_rows", exc)
                     # 这里不做坐标撤回 —— 外层 `except` 会无条件整桶失效
                     # （`_written.pop`），那是更强的不变量：
                     #   · 回滚成功 → 那批不在盘上 → 整桶失效后重播种，不会误跳过；
                     #   · 回滚失败 → 那批可能已在盘上 → 撤单个坐标会让重试重复写
                     #     （例如 `seqs=[0,1,1]`）；整桶失效则重新读盘、不会重复。
                     raise
-        except Exception:
+        except Exception as exc:
             # 写不进去 → 进待重试队列（跨回合、跨引擎实例存活），再把异常照常抛出：
             # 调用方（引擎）仍要知道这一趟没落盘，但数据不会随对象被回收而消失。
             #
@@ -745,6 +552,7 @@ class SessionStore:
             # 所以"外部清空 / 截断了 `.raw`"之后，同坐标重投会被静默跳过（盘上 0 行）。
             # 统一成"任何失败都让该会话的桶失效"：下次 append 重新读盘，
             # 既不误跳过、也不会重复写。多读一次盘的代价远小于静默丢数据。
+            report_error("agent.mechanisms.session_store.SessionStore._write_rows", exc)
             with self._written_guard:
                 self._written.pop(conversation_id, None)
                 self._written_fp.pop(conversation_id, None)
@@ -795,9 +603,9 @@ class SessionStore:
                 if not line.strip():
                     continue
                 obj = self._parse_obj(line)
-                event = _event_from_obj(obj, conversation_id) if obj is not None else None
+                event = event_from_obj(obj, conversation_id) if obj is not None else None
                 if event is not None:
-                    stored = _seq_from_obj(obj)
+                    stored = seq_from_obj(obj)
                     seq = position if stored is None else stored
                     self._observe(seq)
                     out.append((seq, event))
@@ -835,57 +643,18 @@ class SessionStore:
         rows.sort(key=lambda row: row[0])
         return rows[: max(1, int(limit))] if limit else rows
 
-    # ── 加密──────────────────────────────────
+    # ── 加密入口──────────────────────────────────
 
     def _encrypt_line(self, plain: str) -> str:
-        """明文行 → 落盘行；none 模式原样返回。"""
-        if self.encryption == "none":
-            return plain
-        key = self._session_key()
-        nonce = os.urandom(16)
-        cipher = _xor_stream(plain.encode("utf-8"), key, nonce)
-        tag = hmac.new(key, nonce + cipher, hashlib.sha256).digest()
-        envelope = {
-            MAGIC: 1,
-            "alg": ALG_LOCAL,
-            "nonce": base64.b64encode(nonce).decode("ascii"),
-            "data": base64.b64encode(cipher).decode("ascii"),
-            "tag": base64.b64encode(tag).decode("ascii"),
-        }
-        return json.dumps(envelope, ensure_ascii=True, separators=(",", ":"))
+        """明文行 → 落盘行；none 模式原样返回。
+
+        子类会覆盖本方法模拟写入失败，所以加解密必须经由这一层进入。
+        """
+        return self._cipher.encrypt_line(plain)
 
     def _decrypt_line(self, line: str) -> Optional[str]:
         """落盘行 → 明文；明文行原样返回；空行返回 None；校验失败抛 ValueError。"""
-        text = line.strip()
-        if not text:
-            return None
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
-            return text
-        if not isinstance(parsed, dict) or parsed.get(MAGIC) != 1:
-            return text
-        if str(parsed.get("alg") or "") != ALG_LOCAL:
-            raise ValueError(f"不支持的会话加密算法：{parsed.get('alg')!r}")
-        key = self._session_key()
-        try:
-            nonce = base64.b64decode(str(parsed.get("nonce") or "").encode("ascii"))
-            cipher = base64.b64decode(str(parsed.get("data") or "").encode("ascii"))
-            tag = base64.b64decode(str(parsed.get("tag") or "").encode("ascii"))
-        except Exception as exc:
-            raise ValueError(f"会话密文 envelope 损坏：{exc}") from exc
-        expected = hmac.new(key, nonce + cipher, hashlib.sha256).digest()
-        if not hmac.compare_digest(tag, expected):
-            raise ValueError("会话加密 tag 校验失败（内容被篡改或密钥不符）")
-        try:
-            return _xor_stream(cipher, key, nonce).decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise ValueError(f"会话密文解码失败：{exc}") from exc
-
-    def _parse_line(self, line: str, conversation_id: str = "") -> Optional[Event]:
-        """一行 → 事件；解密 / 解析失败返回 None（跳过该行）。"""
-        obj = self._parse_obj(line)
-        return _event_from_obj(obj, conversation_id) if obj is not None else None
+        return self._cipher.decrypt_line(line)
 
     def _parse_obj(self, line: str) -> Optional[Any]:
         """一行 → 解析后的对象；解密 / 解析失败返回 None（跳过该行）。"""
@@ -900,37 +669,3 @@ class SessionStore:
             return json.loads(plain)
         except json.JSONDecodeError:
             return None
-
-    # ── 密钥────────────────────────────────────────
-
-    def _session_key(self) -> bytes:
-        """实际加密键：HMAC(app_entropy, 主密钥材料)；惰性加载并缓存。"""
-        if self._session_key_cache is None:
-            material = self._load_or_create_key_material()
-            self._session_key_cache = hmac.new(
-                self._app_entropy(), material, hashlib.sha256
-            ).digest()
-        return self._session_key_cache
-
-    def _load_or_create_key_material(self) -> bytes:
-        """32 字节主密钥：文件存在则复用，缺失则生成（0600）；锁防并发双建。"""
-        key_file = self.data_root / "cache" / "session_encryption.key"
-        with _KEY_LOCK:
-            if key_file.is_file():
-                return base64.urlsafe_b64decode(
-                    key_file.read_text(encoding="ascii").strip().encode("ascii")
-                )
-            key_file.parent.mkdir(parents=True, exist_ok=True)
-            key = os.urandom(32)
-            key_file.write_text(base64.urlsafe_b64encode(key).decode("ascii"), encoding="ascii")
-            try:
-                os.chmod(str(key_file), 0o600)
-            except OSError:
-                pass
-            return key
-
-    @staticmethod
-    def _app_entropy() -> bytes:
-        """应用熵：sha256(项目根路径 + 固定串)——密钥与安装位置绑定。"""
-        app_root = Path(__file__).resolve().parents[2]
-        return hashlib.sha256((str(app_root) + APP_ENTROPY_SALT).encode("utf-8")).digest()

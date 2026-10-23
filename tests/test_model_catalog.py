@@ -212,7 +212,7 @@ class PluginContextCatalogTest(unittest.TestCase):
     def test_second_plugin_source_is_reported_not_raised(self) -> None:
         self._ctx("first").add_model_catalog([_entry("a")])
         second = self._ctx("second")
-        with mock.patch("agent.capabilities.plugins.report_error") as report:
+        with mock.patch("agent.capabilities.plugin_context.report_error") as report:
             dispose = second.add_model_catalog([_entry("b")])
         self.assertTrue(report.called, msg="来源冲突必须留痕")
         self.assertEqual(self.catalog.ids(), ("a",), msg="先登记的来源保持不变")

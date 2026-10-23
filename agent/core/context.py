@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from agent.core.error_report import report_error
+
 Disposer = Callable[[], None]
 
 # 进程级服务登记名（装配点 register / 使用方 get 的唯一词汇表）。
@@ -156,8 +158,8 @@ class ToolTurnContext:
             return
         try:
             self.progress(payload)
-        except Exception:
+        except Exception as exc:
             # 旁路，刻意吞掉：进度上报是观察面，一个坏掉的观察者
             # （或已断开的 SSE 连接）不该让整个回合失败。
             # 判据：这里失败不影响回合结果，只影响"过程显示得全不全"。
-            pass
+            report_error("agent.core.context.ToolTurnContext.report", exc)

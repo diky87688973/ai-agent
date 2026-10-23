@@ -332,7 +332,8 @@ class ConversationQueue:
                         continue
                     try:
                         item = json.loads(meta.read_text(encoding="utf-8"))
-                    except (OSError, ValueError):
+                    except (OSError, ValueError) as exc:
+                        report_error("agent.mechanisms.conversation_queue.ConversationQueue._ensure_locked", exc)
                         continue
                     if not isinstance(item, dict) or item.get("cid") != cid:
                         continue

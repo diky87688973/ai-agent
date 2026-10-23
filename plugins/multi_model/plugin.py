@@ -95,17 +95,13 @@ def _positive_int(raw: str, path: Path, section: str, key: str,
     return value
 
 
-def _parse_entry(path: Path, section: str, parser: configparser.ConfigParser,
-                 lines: List[str]) -> Optional[ModelEntry]:
-    """解析单个 `[model:<id>]`；坏条目返回 None 并追加诊断。"""
-    model_id = _section_id(section)
-    if not model_id:
-        lines.append(_diag(path, section, "", "模型 id 为空"))
-        return None
-
-    def get(key: str) -> str:
-        return _clean(parser.get(section, key, fallback=""))
-
+def _entry_identity(
+    path: Path,
+    section: str,
+    get: Callable[[str], str],
+    lines: List[str],
+) -> Optional[Tuple[str, str, str]]:
+    """校验 provider / base_url / api_key，返回三者或 None。"""
     provider = (get("provider") or DEFAULT_PROVIDER).lower()
     if provider not in known_kinds():
         lines.append(_diag(
@@ -127,6 +123,24 @@ def _parse_entry(path: Path, section: str, parser: configparser.ConfigParser,
             f"还是模板占位符 {api_key!r}，请换成真实密钥",
         ))
         return None
+    return provider, base_url, api_key
+
+
+def _parse_entry(path: Path, section: str, parser: configparser.ConfigParser,
+                 lines: List[str]) -> Optional[ModelEntry]:
+    """解析单个 `[model:<id>]`；坏条目返回 None 并追加诊断。"""
+    model_id = _section_id(section)
+    if not model_id:
+        lines.append(_diag(path, section, "", "模型 id 为空"))
+        return None
+
+    def get(key: str) -> str:
+        return _clean(parser.get(section, key, fallback=""))
+
+    identity = _entry_identity(path, section, get, lines)
+    if identity is None:
+        return None
+    provider, base_url, api_key = identity
 
     options: Dict[str, Any] = {
         "base_url": base_url,

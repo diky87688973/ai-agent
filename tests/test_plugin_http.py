@@ -142,8 +142,8 @@ class PluginHttpTest(unittest.TestCase):
         try:
             cls.server.shutdown()
             cls.server.server_close()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[tests.test_plugin_http.PluginHttpTest.tearDownClass] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         cls._thread.join(timeout=5)
         cls._tmp.cleanup()
 

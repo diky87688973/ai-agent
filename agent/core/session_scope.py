@@ -20,6 +20,8 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from typing import Any, Callable, Optional
 
+from agent.core.error_report import report_error
+
 _CURRENT: ContextVar[str] = ContextVar("fan_agent_session_id", default="")
 _REPORTER: ContextVar[Optional[Callable[[dict], None]]] = ContextVar(
     "fan_agent_progress_reporter", default=None
@@ -102,7 +104,7 @@ def emit_progress(
     payload.update(extra)
     try:
         reporter(payload)
-    except Exception:
+    except Exception as exc:
         # 旁路，刻意吞掉：`reporter` 是会话级事件的观察者回调，
         # 与上面同一条判据——失败只丢"过程显示"，不丢回合结果。
-        pass
+        report_error("agent.core.session_scope.emit_progress", exc)

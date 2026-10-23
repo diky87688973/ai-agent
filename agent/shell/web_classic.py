@@ -86,7 +86,7 @@ class ClassicRoutes:
                 self.wfile.write(payload.encode("utf-8"))
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
-            pass  # 浏览器刷新 / 关标签：正常断开
+            return
         finally:
             channel.close()   # 摘掉本连接的广播队列，避免长跑进程里堆积
 

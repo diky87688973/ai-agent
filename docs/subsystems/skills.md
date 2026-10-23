@@ -30,6 +30,7 @@ Skills 正文**不全量塞进请求**，按三层给：
     python-coding.md
   engineering/
     code-review.md      子目录名进 Skills 名：`engineering/code-review`
+  context-dump.md       根目录下的 Skills：上下文导出指导
   writing.md            根目录下的 Skills
 ```
 

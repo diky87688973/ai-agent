@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from agent.core.error_report import report_error
 from agent.shell.ini_sections import (
     append_section,
     newline,
@@ -80,13 +81,13 @@ def _parse_fields(raw_fields: Any) -> List[Dict[str, Any]]:
         if item.get("min") is not None:
             try:
                 field["min"] = int(item["min"])
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as exc:
+                report_error("agent.shell.plugin_editor._parse_fields", exc)
         if item.get("max") is not None:
             try:
                 field["max"] = int(item["max"])
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as exc:
+                report_error("agent.shell.plugin_editor._parse_fields", exc)
         show_if = item.get("show_if")
         if isinstance(show_if, dict) and str(show_if.get("key") or "").strip():
             field["show_if"] = {

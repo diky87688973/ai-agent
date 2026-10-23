@@ -114,31 +114,8 @@ class DesktopMouseTool(ToolPlugin):
         self._live_state = live_state
         self._captures = captures
 
-    def execute(self, arguments: Dict[str, Any]) -> Any:
-        action = choice(arguments, "action", _ACTIONS)
-        allowed = set(_ACTIONS[action]) | {"action"} | set(WINDOW_FIELDS)
-        if action != "cursor":
-            allowed |= set(_SHOT_FIELDS) | set(_SPACE_FIELDS)
-        reject_unknown(arguments, allowed, action=action)
-        if action == "cursor":
-            return self._snapshot(action)
-
-        space = _coordinate_space(arguments)
-        capture = self._resolve_capture(arguments, space)
-        reject_in_plan(self._live_state, "桌面鼠标输入")
-        # 人点目标应用之前会先把它弄到前台；置前失败就不能落点，否则点到的是遮挡物。
-        focus = focus_target(self._backend, arguments)
-        require_active(focus, "鼠标动作")
-        point = _mapped_point(point_argument(arguments), capture)
-        if space == "image" and point is None:
-            raise ValueError("space=image 需要 x、y（截图内像素坐标）")
-        port = self._backend.mouse
-        measured = action in _MEASURED
-        anchor = point or port.cursor()
-        hit = self._probe(anchor) if measured else None
-        before = self._sample(anchor) if measured else None
-        windows_before = self._window_digest() if measured else None
-
+    def _perform(self, action: str, arguments: Dict[str, Any], point: Any,
+                 capture: Any, port: Any) -> None:
         if action == "move":
             target = _require_point(point, "move 需要 x、y")
             duration = require_range(as_int(arguments, "duration_ms", 0), "duration_ms", 0, 5000)
@@ -169,6 +146,34 @@ class DesktopMouseTool(ToolPlugin):
             self._ensure_inside(point)
             with input_guard():
                 port.scroll(point, amount, horizontal)
+
+
+    def execute(self, arguments: Dict[str, Any]) -> Any:
+        action = choice(arguments, "action", _ACTIONS)
+        allowed = set(_ACTIONS[action]) | {"action"} | set(WINDOW_FIELDS)
+        if action != "cursor":
+            allowed |= set(_SHOT_FIELDS) | set(_SPACE_FIELDS)
+        reject_unknown(arguments, allowed, action=action)
+        if action == "cursor":
+            return self._snapshot(action)
+
+        space = _coordinate_space(arguments)
+        capture = self._resolve_capture(arguments, space)
+        reject_in_plan(self._live_state, "桌面鼠标输入")
+        # 人点目标应用之前会先把它弄到前台；置前失败就不能落点，否则点到的是遮挡物。
+        focus = focus_target(self._backend, arguments)
+        require_active(focus, "鼠标动作")
+        point = _mapped_point(point_argument(arguments), capture)
+        if space == "image" and point is None:
+            raise ValueError("space=image 需要 x、y（截图内像素坐标）")
+        port = self._backend.mouse
+        measured = action in _MEASURED
+        anchor = point or port.cursor()
+        hit = self._probe(anchor) if measured else None
+        before = self._sample(anchor) if measured else None
+        windows_before = self._window_digest() if measured else None
+
+        self._perform(action, arguments, point, capture, port)
 
         self._settle()
         result = self._snapshot(action)

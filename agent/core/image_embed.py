@@ -23,6 +23,8 @@ import struct
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from agent.core.error_report import report_error
+
 #: 嵌图前本地缩放的最大边长（像素）。0 = 不缩放。
 EMBED_MAX_SIDE = 800
 #: 内联 base64 的总预算（字符）。0 = 不限。
@@ -97,15 +99,16 @@ def shrink_image(
             img = img.convert("RGB")
         img.save(buf, format=fmt)
         return buf.getvalue(), mime
-    except Exception:
+    except Exception as exc:
         # 缩放失败时原图照常发出。
+        report_error("agent.core.image_embed.shrink_image", exc)
         return data, mime
     finally:
         if img is not None:
             try:
                 img.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                report_error("agent.core.image_embed.shrink_image", exc)
 
 
 def build_embed_parts(
@@ -132,7 +135,8 @@ def build_embed_parts(
             continue
         try:
             raw = base64.b64decode(data, validate=False)
-        except Exception:
+        except Exception as exc:
+            report_error("agent.core.image_embed.build_embed_parts", exc)
             skipped.append(str(index))
             continue
         if not raw:
@@ -236,9 +240,9 @@ def _webp_size(data: bytes) -> Tuple[int, int]:
                 w = int.from_bytes(data[i + 3:i + 5], "little") & 0x3FFF
                 h = int.from_bytes(data[i + 5:i + 7], "little") & 0x3FFF
                 return w, h
-    except (IndexError, ValueError):
+    except (IndexError, ValueError) as exc:
         # 头部字段不足或越界：尺寸读不出，交由调用方按 0 处理。
-        pass
+        report_error("agent.core.image_embed._webp_size", exc)
     return 0, 0
 
 
@@ -264,7 +268,8 @@ def describe_image(data: bytes, declared_mime: str = "") -> Tuple[str, int, int]
             w, h = _webp_size(data)
         else:
             return mime, 0, 0
-    except Exception:
+    except Exception as exc:
+        report_error("agent.core.image_embed.describe_image", exc)
         return mime, 0, 0
     return mime, w, h
 

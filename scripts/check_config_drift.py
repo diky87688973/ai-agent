@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """配置漂移门禁：真实配置只允许使用 schema 已登记的节与键。
 
-配置样例文件已移除；内核配置与 Web UI 配置入库，多模型密钥配置被 `.gitignore` 忽略。
-门禁只检查现有真实文件，缺文件表示使用代码默认值，不报错。
+无凭据的默认配置入库；只有含凭据的 multi_model 配置用 `.example` 样例。
+门禁检查现有真实文件（容忍缺省），并校验含凭据配置的样例键集合。
 """
 from __future__ import annotations
 
@@ -16,10 +16,10 @@ from typing import Dict, List, Tuple
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
+except Exception as exc:
     # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
     # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
-    pass
+    print(f"[scripts.check_config_drift.module] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -29,6 +29,7 @@ from agent.config_schema import MULTI_MODEL_SCHEMA, SCHEMA, WEB_UI_SCHEMA  # noq
 CONFIG_REAL = ROOT / "config.ini"
 WEB_UI_REAL = ROOT / "web-ui-config.ini"
 MODEL_PLUGIN_REAL = ROOT / "plugins" / "multi_model" / "plugin-config.ini"
+MODEL_EXAMPLE = ROOT / "plugins" / "multi_model" / "plugin-config.ini.example"
 
 
 def parse_ini(text: str, name: str) -> configparser.ConfigParser:
@@ -66,6 +67,31 @@ def compare_subset(text: str, name: str, schema: Dict[str, Dict[str, str]]) -> L
                 f"{name}:{_line_of_key(text, section, key)}: "
                 f"[{section}] 未登记的键 `{key}`（拼写错误？）"
             )
+    return problems
+
+
+def compare_model_example(
+    text: str, name: str, schema: Dict[str, Dict[str, str]] = MULTI_MODEL_SCHEMA,
+) -> List[str]:
+    """多模型样例：动态 [model:*] 节的键必须与 schema 双向一致。"""
+    problems: List[str] = []
+    try:
+        parser = parse_ini(text, name)
+    except configparser.Error as exc:
+        return [f"{name}: 无法解析（{exc}）"]
+    allowed = set(schema.get("model", {}))
+    model_sections = [s for s in parser.sections() if s.startswith("model:")]
+    if not model_sections:
+        return [f"{name}: 缺少 [model:<id>] 样例节"]
+    for section in parser.sections():
+        if section not in model_sections:
+            problems.append(f"{name}: 多出未登记的节 [{section}]")
+            continue
+        actual = set(parser[section].keys())
+        for key in sorted(allowed - actual):
+            problems.append(f"{name}: [{section}] 缺少键 `{key}`")
+        for key in sorted(actual - allowed):
+            problems.append(f"{name}: [{section}] 多出未登记的键 `{key}`")
     return problems
 
 
@@ -116,6 +142,11 @@ def check_files(
             model_plugin_real.read_text(encoding="utf-8-sig"), model_plugin_real.name))
     else:
         skipped.append(f"{model_plugin_real.name} 不存在（插件未配置）")
+    if MODEL_EXAMPLE.is_file():
+        problems.extend(compare_model_example(
+            MODEL_EXAMPLE.read_text(encoding="utf-8-sig"), MODEL_EXAMPLE.name))
+    else:
+        problems.append(f"{MODEL_EXAMPLE.name} 不存在（样例必须入库）")
     return problems, skipped
 
 

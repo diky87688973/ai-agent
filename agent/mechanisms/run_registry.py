@@ -54,6 +54,8 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Protocol, runtime_checkable
 
+from agent.core.error_report import report_error
+
 #: 一个回合的存活期（秒）。超过这么久没有心跳 → 判定为过期（进程多半已死）。
 #: 取 15 分钟：远大于任何单次工具调用，又能在崩溃后自动恢复。
 DEFAULT_TTL_SECONDS = 900.0
@@ -285,8 +287,8 @@ class FileRunRegistry:
             # `missing_ok`：并发下别的请求可能已经清掉了这条残留，
             # 那不是错误（删一个不存在的东西 = 它已经不在跑了）。
             fp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        except OSError as exc:
+            report_error("agent.mechanisms.run_registry.FileRunRegistry._drop", exc)
 
     # ── 接口 ────────────────────────────────────────────
 

@@ -30,10 +30,10 @@ sys.path.insert(0, str(ROOT))
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
+except Exception as exc:
     # stdout 被重定向或包装时 reconfigure 会抛；失败时保持原编码输出。
     # 编码设置失败不阻断检视本身。
-    pass
+    print(f"[scripts.inspect_compact.module] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 from agent.config import default_data_root, get_context  # noqa: E402
 from agent.mechanisms.context.tokens import default_message_tokens  # noqa: E402
@@ -62,7 +62,8 @@ def _list_conversations(data_root: Path) -> List[Tuple[str, int, int]]:
         try:
             size = p.stat().st_size
             lines = sum(1 for _ in p.open("rb"))
-        except OSError:
+        except OSError as exc:
+            print(f"[scripts.inspect_compact._list_conversations] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             continue
         out.append((p.stem, lines, size))
     out.sort(key=lambda x: -x[2])
@@ -110,9 +111,10 @@ def _chunk_report(pipeline: Any) -> List[Tuple[str, int]]:
         for item in items:
             try:
                 _role, text, _flag = item
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
                 # 旁路，刻意跳过：块内容的结构由管线决定，这里只做统计展示。
                 # 形态对不上的条目直接不计入，不能让一次估算失败打断整个检视。
+                print(f"[scripts.inspect_compact._chunk_report] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 continue
             total += default_message_tokens({"role": "system", "content": str(text)})
         out.append((str(chunk), total))
@@ -240,6 +242,7 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
             ev = comp.ensure_before_append(pipeline, messages, pending,
                                            assembled=assembled)
         except Exception as exc:
+            print(f"[scripts.inspect_compact.inspect] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             ev = None
             print(f"  ensure_before_append 抛错：{type(exc).__name__}: {exc}")
         if ev:

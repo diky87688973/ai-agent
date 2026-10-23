@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
+from agent.core.error_report import report_error
 from agent.mechanisms.session_store import KEY_DATA, KEY_TYPE
 from agent.shell.timefmt import date_group
 
@@ -25,7 +26,8 @@ def scan_title(path: Path) -> str:
                     break
                 try:
                     payload = json.loads(line)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as exc:
+                    report_error("agent.shell.classic_adapter.sessions.scan_title", exc)
                     continue
                 if not isinstance(payload, dict):
                     continue
@@ -35,8 +37,8 @@ def scan_title(path: Path) -> str:
                 content = str(data.get("content") or "").strip()
                 if content:
                     return " ".join(content.split())[:40]
-    except OSError:
-        pass
+    except OSError as exc:
+        report_error("agent.shell.classic_adapter.sessions.scan_title", exc)
     return ""
 
 

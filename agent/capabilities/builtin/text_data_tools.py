@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 
 
 def _read_text_auto(fp: Path, encoding: str) -> str:
@@ -24,7 +25,8 @@ def _read_text_auto(fp: Path, encoding: str) -> str:
     for enc in ("utf-8", "gb18030", "gbk"):
         try:
             return fp.read_text(encoding=enc)
-        except UnicodeDecodeError:
+        except UnicodeDecodeError as exc:
+            report_error("agent.capabilities.builtin.text_data_tools._read_text_auto", exc)
             continue
     return fp.read_text(encoding="utf-8", errors="replace")
 
@@ -215,8 +217,8 @@ class DataTableTool(ToolPlugin):
             if v is not None and v != "":
                 try:
                     values.append(float(v))
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as exc:
+                    report_error("agent.capabilities.builtin.text_data_tools.DataTableTool._do_stats", exc)
         stats: Dict[str, Any] = {"column": col, "total_rows": len(rows), "non_empty": len(values)}
         if values:
             stats["min"] = min(values)

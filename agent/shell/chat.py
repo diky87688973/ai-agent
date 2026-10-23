@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from agent.core import event_name as ev
+from agent.core.error_report import report_error
 from agent.mechanisms.session_store import new_conversation_id
 
 _PREVIEW_TOOL_NAMES = (
@@ -123,6 +124,7 @@ def run_one(engine: Any, gate: Any, text: str) -> None:
     except KeyboardInterrupt:
         print("\n[已中断本次回合]")
     except Exception as exc:
+        report_error("agent.shell.chat.run_one", exc)
         print(f"\n[请求失败] {type(exc).__name__}: {exc}")
     print()
 

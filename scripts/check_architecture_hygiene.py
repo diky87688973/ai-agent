@@ -100,7 +100,8 @@ def check_same_layer_private_imports(package_root: Path = PACKAGE_ROOT) -> list[
             continue
         try:
             tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
-        except SyntaxError:
+        except SyntaxError as exc:
+            hits.append(f"{_rel_to_root(py)}: 无法解析（{exc}）")
             continue
         source_parts = py.relative_to(package_root).parts
         if len(source_parts) < 2:

@@ -21,6 +21,8 @@ import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
+from agent.core.error_report import report_error
+
 STREAM_OUTPUT_MAX_CHARS = 12000
 STREAM_OUTPUT_STDERR_MAX_CHARS = 4000
 
@@ -162,7 +164,8 @@ def check_script_content(command: str, cwd: Optional[Path] = None) -> Optional[s
             if not resolved.is_file():
                 continue
             content = resolved.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        except OSError as exc:
+            report_error("agent.mechanisms.command_safety.check_script_content", exc)
             continue
         hit = check_text_content(content)
         if hit:
@@ -208,16 +211,16 @@ def kill_shell_process_tree(pid: int) -> None:
                 timeout=15,
                 check=False,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            report_error("agent.mechanisms.command_safety.kill_shell_process_tree", exc)
         return
     try:
         os.killpg(os.getpgid(pid), signal.SIGKILL)
     except Exception:
         try:
             os.kill(pid, signal.SIGKILL)
-        except Exception:
-            pass
+        except Exception as exc:
+            report_error("agent.mechanisms.command_safety.kill_shell_process_tree", exc)
 
 
 def force_kill_active_shell_process(scope: str = "") -> int:
@@ -249,7 +252,8 @@ def decode_output(data: bytes) -> str:
     for enc in ("utf-8", "gb18030", "gbk", "cp936"):
         try:
             return payload.decode(enc)
-        except (UnicodeDecodeError, LookupError):
+        except (UnicodeDecodeError, LookupError) as exc:
+            report_error("agent.mechanisms.command_safety.decode_output", exc)
             continue
     return payload.decode("utf-8", errors="replace")
 

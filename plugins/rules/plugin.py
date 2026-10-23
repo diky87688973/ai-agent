@@ -95,7 +95,8 @@ class RulesRuntime:
                     continue
                 try:
                     rel = path.relative_to(self.root)
-                except ValueError:
+                except ValueError as exc:
+                    report_error("plugin.rules.relative", exc)
                     continue
                 if _hidden(rel) or "__pycache__" in rel.parts:
                     continue

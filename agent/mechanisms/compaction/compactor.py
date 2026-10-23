@@ -17,6 +17,7 @@ import json
 import sys
 from typing import Any, Callable, Dict, List, Optional
 
+from agent.core.error_report import report_error
 from agent.core.mode_marker import MODE_MARKER
 from agent.core.ports import LogicalRequest
 from agent.core.session_log import ensure_tool_pairs
@@ -122,8 +123,8 @@ def _material_messages(prefix: Optional[List[Dict[str, Any]]],
         if isinstance(calls, list) and calls:
             try:
                 body = f"{body}\n[工具调用] {json.dumps(calls, ensure_ascii=False)}"
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as exc:
+                report_error("agent.mechanisms.compaction.compactor._material_messages", exc)
         lines.append(f"### {role}\n{body}")
     text = "\n\n".join(lines)
     if not text:
@@ -229,7 +230,8 @@ class ContextCompactor:
             data = getattr(e, "data", None) or {}
             try:
                 c = int(data.get("covered_end") or 0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                report_error("agent.mechanisms.compaction.compactor.ContextCompactor.restore_from_events", exc)
                 continue
             if c < covered:
                 continue

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Iterator
 
+from agent.core.error_report import report_error
 from agent.core.event_name import INPUT_CLAIMED
 from agent.core.module import ModuleBase
 from agent.core.outcome import Outcome
@@ -45,7 +46,8 @@ class QueuedInputModule(ModuleBase):
                 if name:
                     payload["_sender_name"] = name
             yield ports.emit(INPUT_CLAIMED, **payload)
-        except Exception:
+        except Exception as exc:
+            report_error("agent.core.modules.queued_input_mod.QueuedInputModule.execute", exc)
             self._queue.release(cid, item_id)
             raise
         else:

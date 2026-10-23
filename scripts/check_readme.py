@@ -21,10 +21,10 @@ from ci_steps import catalog, gate_steps
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
+except Exception as exc:
     # 旁路，刻意吞掉：不是所有 stdout 都支持 reconfigure（被重定向/被包装时会抛）。
     # 这只是"让打印别因编码失败"的尽力而为 —— 失败就按原编码走，不该阻断检查本身。
-    pass
+    print(f"[scripts.check_readme.module] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
@@ -84,8 +84,8 @@ def _data_dirs() -> list[str]:
     for src in sorted((ROOT / "agent").rglob("*.py")):
         try:
             tree = ast.parse(src.read_text(encoding="utf-8"))
-        except (OSError, SyntaxError):
-            continue
+        except (OSError, SyntaxError) as exc:
+            raise RuntimeError(f"{src}: 读取或解析失败：{exc}") from exc
         for node in ast.walk(tree):
             if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
                 first = _path_segments(node)

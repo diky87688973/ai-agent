@@ -111,6 +111,46 @@ def _bool_value(raw: str, default: bool) -> Tuple[bool, Optional[str]]:
     return default, f"非布尔值 {raw!r}，使用默认值 {default}"
 
 
+def _parse_numeric(values: dict[str, str], warnings: list[str]) -> Tuple[int, int, bool, float]:
+    """解析数值项并收集回退警告。"""
+    max_segment_chars, warning = _int_value(
+        values.get("max_segment_chars", ""), DEFAULT_MAX_SEGMENT_CHARS
+    )
+    if warning:
+        warnings.append(f"max_segment_chars {warning}")
+    if max_segment_chars < 1:
+        warnings.append(
+            f"max_segment_chars={max_segment_chars} 小于 1，使用默认值 "
+            f"{DEFAULT_MAX_SEGMENT_CHARS}"
+        )
+        max_segment_chars = DEFAULT_MAX_SEGMENT_CHARS
+
+    play_interval_ms, warning = _int_value(
+        values.get("play_interval_ms", ""), DEFAULT_PLAY_INTERVAL_MS
+    )
+    if warning:
+        warnings.append(f"play_interval_ms {warning}")
+    if play_interval_ms < 0:
+        warnings.append(f"play_interval_ms={play_interval_ms} 小于 0，按 0 处理")
+        play_interval_ms = 0
+
+    sync_playback, warning = _bool_value(
+        values.get("sync_playback", ""), DEFAULT_SYNC_PLAYBACK
+    )
+    if warning:
+        warnings.append(f"sync_playback {warning}")
+
+    speed, warning = _float_value(values.get("speed", ""), DEFAULT_SPEED)
+    if warning:
+        warnings.append(f"speed {warning}")
+    if not MIN_SPEED <= speed <= MAX_SPEED:
+        warnings.append(
+            f"speed={speed} 超出 {MIN_SPEED:g}–{MAX_SPEED:g}，使用默认值 {DEFAULT_SPEED:g}"
+        )
+        speed = DEFAULT_SPEED
+    return max_segment_chars, play_interval_ms, sync_playback, speed
+
+
 def load_config(path: Optional[Path] = None) -> AISpeakConfig:
     """读取并校验 `[config]`。
 
@@ -151,44 +191,8 @@ def load_config(path: Optional[Path] = None) -> AISpeakConfig:
     if not tone:
         tone = DEFAULT_TONE
 
-    warnings = []
-    max_segment_chars, warning = _int_value(
-        values.get("max_segment_chars", ""), DEFAULT_MAX_SEGMENT_CHARS
-    )
-    if warning:
-        warnings.append(f"max_segment_chars {warning}")
-    if max_segment_chars < 1:
-        warnings.append(
-            f"max_segment_chars={max_segment_chars} 小于 1，使用默认值 "
-            f"{DEFAULT_MAX_SEGMENT_CHARS}"
-        )
-        max_segment_chars = DEFAULT_MAX_SEGMENT_CHARS
-
-    play_interval_ms, warning = _int_value(
-        values.get("play_interval_ms", ""), DEFAULT_PLAY_INTERVAL_MS
-    )
-    if warning:
-        warnings.append(f"play_interval_ms {warning}")
-    if play_interval_ms < 0:
-        warnings.append(
-            f"play_interval_ms={play_interval_ms} 小于 0，按 0 处理"
-        )
-        play_interval_ms = 0
-
-    sync_playback, warning = _bool_value(
-        values.get("sync_playback", ""), DEFAULT_SYNC_PLAYBACK
-    )
-    if warning:
-        warnings.append(f"sync_playback {warning}")
-
-    speed, warning = _float_value(values.get("speed", ""), DEFAULT_SPEED)
-    if warning:
-        warnings.append(f"speed {warning}")
-    if not MIN_SPEED <= speed <= MAX_SPEED:
-        warnings.append(
-            f"speed={speed} 超出 {MIN_SPEED:g}–{MAX_SPEED:g}，使用默认值 {DEFAULT_SPEED:g}"
-        )
-        speed = DEFAULT_SPEED
+    warnings: list[str] = []
+    max_segment_chars, play_interval_ms, sync_playback, speed = _parse_numeric(values, warnings)
 
     return AISpeakConfig(
         engine=engine,

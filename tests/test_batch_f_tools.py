@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""集成与外围测试：ip 定位 / 天气 / review 提交 / Skills 库与工具 / GitHub。
+"""集成与外围测试：ip 定位 / 天气 / review 提交 / Skills 库与工具。
 
 网络类以 unittest.mock 替换模块内 HTTP 层；storage 类（Skills 库）用临时目录。
 """
@@ -17,7 +17,6 @@ sys.path.insert(0, str(_ROOT))
 
 from agent.capabilities.builtin import (  # noqa: E402
     geo_weather_tools,
-    github_tools,
     review_conclusion,
 )
 from plugins.skills import tools as skill_tools  # noqa: E402
@@ -375,53 +374,6 @@ class SkillsSourceTest(unittest.TestCase):
         lines = _resource_directory_lines(lib)
         self.assertIn(f"- 内置skills: {self.builtin}", lines)
         self.assertIn(f"- 外置skills: {self.external}", lines)
-
-
-class GithubApiTest(unittest.TestCase):
-    """github_api。"""
-
-    def setUp(self) -> None:
-        self.tool = github_tools.build()
-
-    def test_login_required_and_param_validation(self) -> None:
-        with mock.patch.object(github_tools, "_find_token", return_value=""):
-            with self.assertRaises(github_tools.GitHubError) as ctx:
-                self.tool.execute({"action": "get_repo", "repo": "owner/repo"})
-        self.assertEqual(ctx.exception.data["type"], "LoginRequired")
-        self.assertEqual(ctx.exception.data["action"], "login_required")
-        with self.assertRaises(github_tools.GitHubError) as ctx2:
-            self.tool.execute({"action": "get_repo"})
-        self.assertEqual(ctx2.exception.data["type"], "ValueError")
-        with self.assertRaises(github_tools.GitHubError) as ctx3:
-            self.tool.execute({"action": "nope", "repo": "a/b"})
-        self.assertEqual(ctx3.exception.data["type"], "ValueError")
-
-    def test_create_pr_payload_and_url(self) -> None:
-        captured = {}
-
-        def fake_http(url: str, **kwargs: object) -> dict:
-            captured["url"] = url
-            captured.update(kwargs)
-            return {"number": 1}
-
-        with mock.patch.object(github_tools, "_find_token", return_value="tok"), mock.patch.object(
-            github_tools, "_http_json", side_effect=fake_http
-        ):
-            r = self.tool.execute(
-                {"action": "create_pr", "repo": "owner/repo", "title": "T", "head": "f:b", "base": "main"}
-            )
-        self.assertEqual(r, {"number": 1})
-        self.assertTrue(captured["url"].endswith("/repos/owner/repo/pulls"))
-        self.assertEqual(captured["json_body"], {"title": "T", "head": "f:b", "base": "main", "body": ""})
-        self.assertEqual(captured["method"], "POST")
-
-    def test_update_pr_requires_a_field(self) -> None:
-        with self.assertRaises(github_tools.GitHubError) as ctx:
-            self.tool.execute({"action": "update_pr", "repo": "a/b", "pr_number": 3})
-        self.assertIn("至少提供一个要更新的字段", str(ctx.exception))
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SkillsListNeverDoublesTest(unittest.TestCase):

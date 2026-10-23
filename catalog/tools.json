@@ -672,53 +672,6 @@
       }
     },
     {
-      "description": "GitHub 远程操作：login / get_repo / list_issues / create_issue / list_releases / set_topics / list_prs / get_pr / create_pr / close_pr / update_pr。",
-      "display": {
-        "icon": "🐙",
-        "label": "调用 GitHub 接口"
-      },
-      "name": "github_api",
-      "parallel_safe": false,
-      "parameters": {
-        "action": {
-          "description": "动作名（见描述；login 走设备流）",
-          "type": "string"
-        },
-        "base": {
-          "description": "目标分支（create_pr，如 main）",
-          "type": "string"
-        },
-        "body": {
-          "description": "正文（create_issue / create_pr / update_pr）",
-          "type": "string"
-        },
-        "head": {
-          "description": "源分支（create_pr，如 fork:branch）",
-          "type": "string"
-        },
-        "pr_number": {
-          "description": "PR 编号（get_pr / close_pr / update_pr）",
-          "type": "integer"
-        },
-        "repo": {
-          "description": "仓库 owner/repo（login 之外必填）",
-          "type": "string"
-        },
-        "state": {
-          "description": "状态筛选（list_issues / list_prs 默认 open；update_pr 可改）",
-          "type": "string"
-        },
-        "title": {
-          "description": "标题（create_issue / create_pr / update_pr）",
-          "type": "string"
-        },
-        "topics": {
-          "description": "话题列表，逗号分隔（set_topics）",
-          "type": "string"
-        }
-      }
-    },
-    {
       "description": "按 glob 模式列出路径；可选递归与 file/dir/all 过滤。",
       "display": {
         "icon": "📂",

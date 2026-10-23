@@ -8,11 +8,9 @@ from agent.core.error_report import report_error
 from agent.core.event_name import COMPRESS_ENDED, COMPRESS_STARTED, CONTEXT_COMPACTED
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.module import ModuleBase
-from agent.core.modules.support import (
-    assemble_with,
-    prepare_dialogue,
-    resolve_runtime_note,
-)
+from agent.core.modules.assemble import assemble_with
+from agent.core.modules.dialogue import prepare_dialogue
+from agent.core.modules.mode_note import resolve_runtime_note
 from agent.core.outcome import Outcome
 from agent.core.ports import Ports
 

@@ -245,6 +245,12 @@ def _scan_structure(text: str) -> List[int]:
         _fail(f"「{text[opener_index]}」没有对应的「{closer}」",
               opener_index + 1, "unmatched_open")
 
+    _validate_structure_edges(text, boundaries)
+    return boundaries
+
+
+def _validate_structure_edges(text: str, boundaries: List[int]) -> None:
+    """校验首尾边界与结束标点，必要时补最后一个边界。"""
     if not text:
         _fail("msg 不能为空", 0, "empty")
 

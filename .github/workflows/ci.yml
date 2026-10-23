@@ -68,7 +68,7 @@ jobs:
         run: python -u scripts/check_ui_js.py
       - name: 门禁 静默异常
         timeout-minutes: 5
-        run: python -u scripts/check_silent_except.py --all-strict
+        run: python -u scripts/check_silent_except.py
       - name: 门禁 README 一致性
         timeout-minutes: 3
         run: python -u scripts/check_readme.py

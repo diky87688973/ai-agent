@@ -37,7 +37,8 @@ def _run_threads(target, count: int = THREADS) -> None:
         try:
             barrier.wait()
             target()
-        except BaseException as exc:  # 线程里的异常必须带回主线程，否则测试假绿
+        except BaseException as exc:
+            print(f"[tests.test_concurrency._run_threads._wrap] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             errors.append(exc)
 
     threads = [threading.Thread(target=_wrap) for _ in range(count)]

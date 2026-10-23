@@ -55,5 +55,6 @@ def looks_binary(path: Path) -> bool:
         with path.open("rb") as handle:
             chunk = handle.read(_BINARY_SNIFF_BYTES)
     except OSError:
+        # 读不到内容时按文本处理，交给浏览器/文本路径继续；不是静默丢业务错误。
         return False
     return b"\x00" in chunk

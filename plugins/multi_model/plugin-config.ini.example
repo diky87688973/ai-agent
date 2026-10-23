@@ -1,0 +1,12 @@
+[model:example]
+provider = openai
+base_url = https://api.example.com/v1
+api_key = sk-replace-me
+model = example-model
+label = Example
+context_window = 128000
+compression_percent = 70
+default = 1
+max_tokens = 8192
+thinking = 1
+thinking_budget_tokens = 4096

@@ -1,9 +1,6 @@
 # 私有配置与凭据
-plugins/*/plugin-config.ini
-!plugins/ai_speak/plugin-config.ini
-!plugins/knowledge/plugin-config.ini
-!plugins/skills/plugin-config.ini
-!plugins/visual_operator/plugin-config.ini
+# 非机密默认配置入库；只有含凭据的 multi_model 与本地覆盖文件忽略
+plugins/multi_model/plugin-config.ini
 *.local.ini
 *.local.toml
 .env

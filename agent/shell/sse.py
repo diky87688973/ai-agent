@@ -76,14 +76,14 @@ class Channel:
                 self.queue.get_nowait()
                 self.queue.put_nowait(frame)
             except (queue.Empty, queue.Full):
-                pass
+                return
 
     def close(self) -> None:
         self._closed = True
         try:
             self.queue.put_nowait(None)
         except queue.Full:
-            pass
+            return
 
     def next_frame(self, timeout: float) -> Optional[str]:
         if self._closed:

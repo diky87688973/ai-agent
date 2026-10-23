@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 
 BUILTIN_TIMEOUT_SEC = 20
 BUILTIN_MAX_CHARS = 20000
@@ -81,11 +82,12 @@ def _ascii_safe_url(url: str) -> str:
     try:
         host.encode("ascii")
         return url
-    except UnicodeEncodeError:
-        pass
+    except UnicodeEncodeError as exc:
+        report_error("agent.capabilities.builtin.web_tools._ascii_safe_url", exc)
     try:
         host_ascii = host.encode("idna").decode("ascii")
-    except Exception:
+    except Exception as exc:
+        report_error("agent.capabilities.builtin.web_tools._ascii_safe_url", exc)
         return url
     userinfo = ""
     if parsed.username:
@@ -241,6 +243,7 @@ class WebFetchTool(ToolPlugin):
         except urllib.error.URLError as e:
             raise WebFetchError(f"网络错误: {e.reason}", code="E_NETWORK", hint="检查网络连接或代理设置", retryable=True)
         except Exception as e:
+            report_error("agent.capabilities.builtin.web_tools.WebFetchTool.execute", e)
             raise WebFetchError(str(e), code="E_INVALID_INPUT", hint="检查 URL/参数是否正确")
 
 
@@ -293,10 +296,10 @@ class WebFetchRenderTool(ToolPlugin):
                 meta_desc = ""
                 try:
                     meta_desc = page.get_attribute("meta[name=description]", "content") or ""
-                except Exception:
+                except Exception as exc:
                     # 旁路，刻意吞掉：meta 描述是抓取时的可选信息，
                     # 页面没有这个标签（或选择器不合法）就拿空串，不影响正文抓取。
-                    pass
+                    report_error("agent.capabilities.builtin.web_tools.WebFetchRenderTool.execute", exc)
                 browser.close()
             if len(body_text) > max_chars:
                 body_text = body_text[:max_chars] + "\n...(截断)"
@@ -308,6 +311,7 @@ class WebFetchRenderTool(ToolPlugin):
                 "meta_description": meta_desc,
             }
         except Exception as e:
+            report_error("agent.capabilities.builtin.web_tools.WebFetchRenderTool.execute", e)
             raise RuntimeError(f"渲染抓取失败: {e}")
 
 

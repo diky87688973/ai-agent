@@ -66,7 +66,8 @@ class WritePathKeysLifecycleTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             try:
                 _register(ctx)
-            except Exception:
+            except Exception as exc:
+                print(f"[tests.test_write_path_keys_lifecycle.WritePathKeysLifecycleTest.test_plugin_context_rollback_drops_tool_from_registry] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 for d in reversed(list(ctx._disposers)):
                     d()
                 raise

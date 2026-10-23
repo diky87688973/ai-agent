@@ -12,6 +12,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 from agent.core.session_scope import current_session_id
 from agent.mechanisms.mesh import MeshState
 from agent.mechanisms.session_store import new_conversation_id
@@ -256,6 +257,7 @@ class SessionMultisendTool(ToolPlugin):
                 )
                 sent.append({"target_id": tid, "queued": bool(data.get("queued"))})
             except Exception as exc:
+                report_error("agent.capabilities.builtin.session_tools.SessionMultisendTool.execute", exc)
                 skipped.append({"target_id": tid, "error": str(exc)})
         if not sent:
             failure = ValueError("all_targets_failed：所有目标发送均失败，请检查 target_ids 与网络状态。")
@@ -338,6 +340,7 @@ class SessionBroadcastTool(ToolPlugin):
                 )
                 sent.append(mid)
             except Exception as exc:
+                report_error("agent.capabilities.builtin.session_tools.SessionBroadcastTool.execute", exc)
                 skipped.append({"target_id": mid, "error": str(exc)})
         if not sent:
             failure = ValueError("all_targets_failed：广播未送达任何目标，请检查 tag/role 筛选条件。")

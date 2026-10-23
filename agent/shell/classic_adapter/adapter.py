@@ -9,46 +9,34 @@
 
 事件如何从内核流到这里：`web.py` 在会话事件入库时调用 `feed()`（它已经在写盘路径上），
 本类按会话翻译并推进各自的发送队列；SSE 连接从队列取帧、并用心跳保活。
+
+入站请求的处理方法由 `Inbound` 提供，SSE 通道由 `ChannelMixin` 提供，
+暂停态与确认回路由 `ConfirmMixin` 提供。
 """
 from __future__ import annotations
 
-import queue
-import threading
-import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import agent.shell.classic_adapter.contract as C
+from agent.core.error_report import report_error
 from agent.core.input_attachments import MAX_IMAGES
+from agent.shell.classic_adapter.channel import ChannelMixin, ClassicSseChannel
+from agent.shell.classic_adapter.confirm import ConfirmMixin
 from agent.shell.classic_adapter.inbound import ClassicState, Inbound
 from agent.shell.classic_adapter.outbound import ClassicStream
 
-#: 单会话待发队列上限：超出丢最旧的（UI 丢几帧旧事件好过整个服务被拖死）
-_QUEUE_MAX = 512
-
-#: 一次续传最多补多少条历史事件。游标很旧时宁可分几批补，
-#: 也不一次把上万条塞进一条连接的队列（队列是有界的，塞爆就是丢帧）。
-_REPLAY_LIMIT = 512
+__all__ = ["ClassicAdapter", "ClassicSseChannel"]
 
 
-class ClassicAdapter:
+class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
     """经典界面的适配门面。"""
 
     def __init__(self, app: Any) -> None:
-        self._app = app
-        self.state = ClassicState()
-        self.inbound = Inbound(app, self.state)
-        # `WebShell` 建好后会把自己挂到 `_shell`，让 inbound 能复用内核的标题派生
+        Inbound.__init__(self, app, ClassicState())
+        # 按会话一条翻译流。`_shell` 由 `adopt_shell` 注入，入站侧复用它派生标题
         # （保证与 `/api/chat/sessions` 同口径，不各写一套）。
-        self._shell: Any = None
-        self._unsubscribe: Optional[Any] = None
-        self._bus: Any = None
-        self._lock = threading.Lock()
         self._streams: Dict[str, ClassicStream] = {}
-        # 每条 SSE 连接各自一条队列（广播）。
-        # 共享队列会让多个消费者（两个标签页、或浏览器 + 探针）瓜分事件——
-        # 表现为"步骤卡不出现、用量不动"。
-        self._channels: List["queue.Queue[Dict[str, Any]]"] = []
-        self._last_beat = time.time()
+        self._init_channels()
         # 按会话记的暂停态（宿主状态，非内核阻塞态）。
         #
         # 待确认内容记在内核的
@@ -57,7 +45,12 @@ class ClassicAdapter:
         # 供 `/health` 与诊断用。
         self._paused: Dict[str, bool] = {}
 
-    # ── 会话与队列 ────────────────────────────────────────
+    @property
+    def inbound(self) -> "ClassicAdapter":
+        """入站接口视图：入站方法由本类实现，`classic.inbound.*` 的取用点保持有效。"""
+        return self
+
+    # ── 会话与翻译流 ──────────────────────────────────────
 
     def _stream(self, cid: str) -> ClassicStream:
         stream = self._streams.get(cid)
@@ -91,6 +84,7 @@ class ClassicAdapter:
         from agent.shell.classic_adapter.inbound import compute_context_layout
 
         return compute_context_layout(self._app, events, cid)
+
     def _mode_of(self, cid: str) -> str:
         live = getattr(self._app, "live_state", None)
         if live is None:
@@ -109,98 +103,27 @@ class ClassicAdapter:
                 want = str(resolver(cid) or "")
                 if want:
                     return want
-            except Exception:
+            except Exception as exc:
                 # 判据同下：取会话模型只是给前端展示名，失败退回 live_state/默认名；
                 # 这里抛出去会让整条 conversation 帧丢失。
-                pass
+                report_error("agent.shell.classic_adapter.adapter.ClassicAdapter._model", exc)
         live = getattr(self._app, "live_state", None)
         if live is not None:
             try:
                 want = live.get_model(cid)
                 if want:
                     return str(want)
-            except Exception:
+            except Exception as exc:
                 # 判据：读会话状态失败不该打断事件翻译（这里只是给前端一个展示名）。
                 # 取不到就落到下面的 provider 默认名 —— 退化结果仍然可用，
                 # 而抛出去会让整条 SSE 帧丢失，代价远大于"显示的是默认模型名"。
-                pass
+                report_error("agent.shell.classic_adapter.adapter.ClassicAdapter._model", exc)
         provider = getattr(self._app, "provider", None)
         return str(getattr(provider, "model", "") or "")
 
     def adopt_shell(self, shell: Any) -> None:
         """由 `WebShell` 调用：交出壳引用，让入站侧复用壳的标题派生等既有实现。"""
         self._shell = shell
-        self.inbound._shell = shell
-
-    def bind_bus(self, event_bus: Any) -> None:
-        """记下事件总线，先不订阅。
-
-        订阅是按需的：有 SSE 连接进来才订阅、最后一个连接断开就摘掉（实现在
-        `attach` / `detach`）。两个理由：
-          1. 没有客户端时翻译纯属白做功；
-          2. 常驻订阅会变成一条谁都回收不掉的泄漏——`plugin_host.unload_all()`
-             之后再数事件总线订阅，会多出这一条。
-        """
-        self._bus = event_bus
-
-    def _ensure_subscribed(self) -> None:
-        """第一条连接进来：开始订阅（已订阅则不动）。"""
-        if self._unsubscribe is not None or self._bus is None:
-            return
-        self._unsubscribe = self._bus.subscribe_all(
-            lambda event: self.feed(str(event.type), dict(event.data or {}))
-        )
-
-    def _drop_subscription(self) -> None:
-        """最后一条连接断开：摘掉订阅，不留常驻观察者。"""
-        dispose = self._unsubscribe
-        self._unsubscribe = None
-        if callable(dispose):
-            try:
-                dispose()
-            except Exception:
-                pass
-
-    def dispose(self) -> None:
-        """摘掉总线订阅、断开所有通道（幂等）。"""
-        self._drop_subscription()
-        with self._lock:
-            self._channels.clear()
-            self._streams.clear()
-
-    @property
-    def channel_count(self) -> int:
-        """当前 SSE 连接数（供 /health 与测试观察）。"""
-        with self._lock:
-            return len(self._channels)
-
-    @property
-    def subscribed(self) -> bool:
-        """当前是否订阅着事件总线（供测试证明"没人连时不占订阅"）。"""
-        return self._unsubscribe is not None
-
-    def attach(self) -> "queue.Queue[Dict[str, Any]]":
-        """一条新 SSE 连接：给它一条独立队列，并在首条连接时开始订阅总线。
-
-        顺序是先入列、后订阅：反过来的话，从入列到订阅之间的那几毫秒里
-        发布的事件会既没进队列也没被翻译——直接消失。
-        """
-        box: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=_QUEUE_MAX)
-        with self._lock:
-            self._channels.append(box)
-            first = len(self._channels) == 1
-        if first:
-            self._ensure_subscribed()
-        return box
-
-    def detach(self, box: "queue.Queue[Dict[str, Any]]") -> None:
-        """连接断开（刷新 / 关标签）：摘掉队列；最后一条断开时退订总线。"""
-        with self._lock:
-            if box in self._channels:
-                self._channels.remove(box)
-            last = not self._channels
-        if last:
-            self._drop_subscription()
 
     def drop_session(self, cid: str) -> None:
         """会话结束/关闭：清翻译流状态，并释放进程内会话运行态。"""
@@ -212,303 +135,18 @@ class ClassicAdapter:
         if contexts is not None:
             try:
                 contexts.release(key)
-            except Exception:
+            except Exception as exc:
                 # 释放是收尾副作用：失败不得阻断关闭路径。
-                pass
+                report_error("agent.shell.classic_adapter.adapter.ClassicAdapter.drop_session", exc)
 
-    # ── 入站（前端 → 服务端）：转发到 inbound ──────────────
+    def dispose(self) -> None:
+        """摘掉总线订阅、断开所有通道（幂等）。"""
+        self._drop_subscription()
+        with self._lock:
+            self._channels.clear()
+            self._streams.clear()
 
-    def sessions(self) -> Dict[str, Any]:
-        return self.inbound.sessions()
-
-    def history(self, cid: str) -> Dict[str, Any]:
-        return self.inbound.history(cid)
-
-    def ui_state_get(self) -> Dict[str, Any]:
-        return self.inbound.ui_state_get()
-
-    def ui_state_put(self, body: Dict[str, Any]) -> Dict[str, Any]:
-        return self.inbound.ui_state_put(body)
-
-    def title(self, cid: str) -> Dict[str, Any]:
-        return self.inbound.title(cid)
-
-    def usage_get(self, cid: str) -> Dict[str, Any]:
-        return self.inbound.usage_get(cid)
-
-    def usage_put(self, cid: str, body: Dict[str, Any]) -> Dict[str, Any]:
-        return self.inbound.usage_put(cid, body)
-
-    def command_input(self, cid: str, body: Dict[str, Any]) -> Dict[str, Any]:
-        return self.inbound.command_input(cid, body)
-
-    def attachment(self, cid: str, ident: str) -> Tuple[int, bytes, str]:
-        return self.inbound.attachment(cid, ident)
-
-    def is_paused(self, cid: str) -> bool:
-        """该会话是否停在"等用户作答"（宿主状态）。
-
-        内核不阻塞、不等待：暂停就是回合正常结束（资源已释放、服务可服务别的会话），
-        只是多了一帧 `paused_for_user_confirm` 信令，让宿主知道"这不是正常收尾"。
-        恢复由用户在界面上作答触发 `POST /api/chat/user-confirm` → 起新回合。
-        所以"是否暂停"是适配层按会话记的状态，不是内核里的阻塞态。
-        """
-        cid = C.normalize_cid(cid)
-        if not cid:
-            return False
-        return bool(self._paused.get(cid))
-
-    def _kernel_name(self) -> str:
-        """当前内核名（`/health` 的 `kernel` 字段，观察面契约要它不消失）。"""
-        return "core"
-
-    def pause_state(self) -> Dict[str, Any]:
-        """暂停态快照（供 /health 或诊断观察）。
-
-        `pending_confirm` 从内核的 `SessionContext` 现读（权威在那里），
-        本类不另存一份：两处各存一份迟早不一致。
-        """
-        return {
-            "paused": sorted(cid for cid, on in self._paused.items() if on),
-            "pending_confirm": self.pending_confirms(),
-        }
-
-    def pending_confirms(self) -> Dict[str, Any]:
-        """全量扫一遍会话状态，给出当前所有待确认（`cid → call_id`）。
-
-        `_paused` 不作复用来源：那是"上一次 `turn_ended` 说停着"的瞬时观测，
-        而权威状态是 `SessionContext.pending_confirm`。两者可能短暂不一致
-        （例如新回合还没收尾），所以可观测性接口一律以权威为准。
-        """
-        contexts = getattr(self._app, "session_contexts", None)
-        if contexts is None:
-            return {}
-        buckets = contexts.buckets()
-        out: Dict[str, Any] = {}
-        for cid, session in buckets.items():
-            pending = getattr(session, "pending_confirm", None)
-            if isinstance(pending, dict) and pending:
-                out[cid] = pending.get("call_id")
-        return out
-
-    # ── 用户确认回路（`user_confirm` 工具的第二段）──────────
-    #
-    # 经典界面的确认模态在用户点「确认」后 POST 的是
-    #   `{conversation_id, confirm: <用户选的文本>, mode, model}`
-    # `agent-ui.js` 的 `submitUserConfirm` 就是这条请求，并期待返回体带 `run_id`——
-    # 也就是说它期待服务端把选择送回模型，而不是只回一个"收到"。
-    #
-    # 工具声明也印证这点：次段调用要带 `confirm`（用户确认结果），模型才能完成回路。
-    # 所以适配层必须把 `confirm` 经 `mesh.submit` 投回该会话：
-    # 忙则入队（`queued: true`），闲则直接起新回合（拿到 `run_id`）。
-    def user_confirm(self, cid: str, body: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
-        """处理确认端点。两类请求在这里分流（经典界面两种情况共用一个端点）。"""
-        cid = C.normalize_cid(cid)
-        if not cid:
-            return 400, {"error": "missing conversation_id"}
-        approval = str(body.get("approval") or "").strip().lower()
-        if approval:
-            if approval not in ("agree", "reject"):
-                return 400, {"ok": False, "error": "approval 只能是 agree 或 reject"}
-            return 200, self.submit_approval(cid, approval == "agree")
-        confirm_id = str(body.get("confirm_id") or "").strip()
-        confirm_text = str(body.get("confirm") or "").strip()
-
-        # ① 写盘门控：带 `confirm_id` → 解锁预览快照（内核既有行为，不动）。
-        gate_result: Optional[Tuple[int, Dict[str, Any]]] = None
-        if confirm_id:
-            shell = self._shell
-            confirmer = getattr(shell, "confirm", None) if shell is not None else None
-            if callable(confirmer):
-                gate_result = confirmer(cid, confirm_id)
-
-        # ② 选择回填：带 `confirm` 文本 → 把用户选择送回模型（`user_confirm` 的第二段）。
-        if confirm_text:
-            submitted = self.submit_user_choice(cid, confirm_text)
-            if gate_result is not None and gate_result[0] != 200:
-                # 门控失败但选择已投出：两者都告诉前端，回填不算失败
-                return 200, {**gate_result[1], **submitted, "confirmed": False}
-            return 200, submitted
-
-        if gate_result is not None:
-            return gate_result
-
-        # 既没有 `confirm_id` 也没有 `confirm` 文本：模态的「取消」走这里。
-        #
-        # 必须交给 `submit_user_choice`，不能就地返回 200 了事：
-        #   ① 挂起会继续保持 —— 用户以为取消了，其实那次调用还在等作答；
-        #   ② 那次调用的 `tool_result` 永不出现 → 悬空的 `assistant(tool_calls)`
-        #      留在历史里 → 该会话之后每条消息都 400，不可自愈。
-        # 交给 `submit_user_choice` 后，"取消"被当成"拒绝作答"记成工具结果，
-        # 既闭合了配对，也让模型知道用户不想答（它可以改问法或换方案）。
-        return 200, self.submit_user_choice(cid, "")
-
-    def submit_user_choice(self, cid: str, text: str) -> Dict[str, Any]:
-        """用户作答 → 把选择写成那次调用的返回值，再起新回合（两段式第二段）。
-
-        选择不写成新用户发言：那样模型要重新理解一遍「左」是什么，还得自己判断
-        该不该再问一次，往往会重复提问。写成工具返回值，模型看到的是"工具终于返回了
-        答案"，接着往下做即可。
-
-        权威状态在内核的 `SessionContext.pending_confirm`：
-        首段返回信封时由管道记下，回合放行结束；这里读它拿到 `call_id`，写入那次调用
-        唯一的 `tool_result`。
-        """
-        cid = C.normalize_cid(cid)
-        if not cid:
-            return {"ok": False, "error": "invalid conversation_id", "confirmed": False}
-        mesh = getattr(self._app, "mesh", None)
-        if mesh is None:
-            return {"ok": False, "error": "mesh 不可用", "confirmed": False}
-
-        # 挂起状态记在会话上下文里（内核侧写的），适配层只读。
-        pending = self.pending_confirm(cid) if hasattr(self, "pending_confirm") else None
-        call_id = str((pending or {}).get("call_id") or "")
-        payload: Dict[str, Any] = {"content": "", "attachments": [], "mode": "", "model": ""}
-        # 空文本 = 用户在模态上点了「取消」。这不是"没作答"，而是"拒绝作答"：
-        # 拒绝也作为那次调用的结果交回去，否则
-        #   ① 那次调用的 `tool_result` 永不出现 → 悬空的 `assistant(tool_calls)`
-        #      留在历史里（该会话之后每条消息都 400，不可自愈）；
-        #   ② 若照"起一个没有输入的新回合"处理，内核那一轮不产出任何事实
-        #      → 永远不发 `done` → 前端「正在思考中」永久转圈、发送按钮消失
-        #      （用户只能点「停止」逃生）。
-        text = str(text or "")
-        declined = not text.strip()
-        if str((pending or {}).get("kind") or "") == "approval":
-            # 审批挂起不接受选项文本。空 confirm 在这里不记成取消。
-            return {
-                "ok": False,
-                "error": "当前挂起的是审批，confirm 文本不作为作答",
-                "confirmed": False,
-                "conversation_id": cid,
-                "queued": False,
-                "run_id": "",
-                "resumed_call": "",
-            }
-        if call_id:
-            # 经运行器提交结果：由它把结果拼成 `tool_result` 事实并起一轮。
-            # 事实由运行器写入：适配层直接写会成为第二个事实写点，
-            # 也会绕开"写前查重"。
-            # `resume` 走消息体，所以忙时入队也正确（结果随队列入队，不会丢）。
-            payload["resume"] = (
-                {"call_id": call_id, "ok": False,
-                 "error": "用户取消了这次确认（未作答）"}
-                if declined else
-                {"call_id": call_id, "ok": True, "data": {"confirm": text}}
-            )
-        elif declined:
-            # 没有挂起调用可拒绝：不起空回合——那正是"永久转圈"的来源。
-            return {"ok": True, "confirmed": False, "declined": True,
-                    "conversation_id": cid, "queued": False, "run_id": "",
-                    "resumed_call": "",
-                    "note": "没有待确认的调用，取消未触发新回合"}
-        self._clear_pending(cid) if call_id else None
-
-        try:
-            result = mesh.submit(cid, dict(payload))
-        except Exception as exc:
-            return {"ok": False, "error": str(exc), "confirmed": False}
-        return {
-            "ok": True,
-            "confirmed": not declined,
-            "declined": declined,
-            "conversation_id": cid,
-            "queued": bool(result.get("queued")),
-            "run_id": str(result.get("run_id") or ""),
-            # 是否真的把结果交回给了内核（没有挂起调用时为假——退化成纯新回合）
-            "resumed_call": call_id,
-        }
-
-    def submit_approval(self, cid: str, agreed: bool) -> Dict[str, Any]:
-        """审批作答。同意时签发 `approval_id` 并记下 `option_id`；驳回的结果是「不同意」。
-
-        结果写回挂起的那次 `approval_confirm`。
-        """
-        cid = C.normalize_cid(cid)
-        if not cid:
-            return {"ok": False, "error": "invalid conversation_id", "confirmed": False}
-        mesh = getattr(self._app, "mesh", None)
-        if mesh is None:
-            return {"ok": False, "error": "mesh 不可用", "confirmed": False}
-        pending = self.pending_confirm(cid) if hasattr(self, "pending_confirm") else None
-        kind = str((pending or {}).get("kind") or "")
-        call_id = str((pending or {}).get("call_id") or "")
-        if kind != "approval" or not call_id:
-            return {
-                "ok": False,
-                "error": "没有待审批的调用",
-                "confirmed": False,
-                "conversation_id": cid,
-                "queued": False,
-                "run_id": "",
-                "resumed_call": "",
-            }
-        approval_id = ""
-        if agreed:
-            option_id = str((pending or {}).get("option_id") or "").strip()
-            session = self._session(cid)
-            if not option_id or session is None:
-                return {
-                    "ok": False,
-                    "error": "待审批缺少 option_id",
-                    "confirmed": False,
-                    "conversation_id": cid,
-                    "queued": False,
-                    "run_id": "",
-                    "resumed_call": "",
-                }
-            approval_id = session.grant_approval(option_id)
-            data: Dict[str, Any] = {"decision": "同意", "approval_id": approval_id}
-        else:
-            data = {"decision": "不同意"}
-        payload: Dict[str, Any] = {
-            "content": "",
-            "attachments": [],
-            "mode": "",
-            "model": "",
-            "resume": {"call_id": call_id, "ok": True, "data": data},
-        }
-        self._clear_pending(cid)
-        try:
-            result = mesh.submit(cid, dict(payload))
-        except Exception as exc:
-            return {"ok": False, "error": str(exc), "confirmed": False}
-        return {
-            "ok": True,
-            "confirmed": agreed,
-            "decision": data["decision"],
-            "approval_id": approval_id,
-            "conversation_id": cid,
-            "queued": bool(result.get("queued")),
-            "run_id": str(result.get("run_id") or ""),
-            "resumed_call": call_id,
-        }
-
-    def _session(self, cid: str) -> Any:
-        """取该会话的 `SessionContext`（待确认状态记在这里）。"""
-        contexts = getattr(self._app, "session_contexts", None)
-        if contexts is None:
-            return None
-        return contexts.resolve_sync(cid)
-
-    def pending_confirm(self, cid: str) -> Optional[Dict[str, Any]]:
-        """该会话当前挂着的待确认（`SessionContext.pending_confirm`）。
-
-        它是跨回合的会话态：暂停发生在上一回合、作答在下一回合，
-        它是跨回合状态，放回合级上下文会随回合消亡；适配层只读。
-        """
-        cid = C.normalize_cid(cid)
-        if not cid:
-            return None
-        session = self._session(cid)
-        pending = getattr(session, "pending_confirm", None) if session is not None else None
-        return dict(pending) if isinstance(pending, dict) else None
-
-    def _clear_pending(self, cid: str) -> None:
-        """清掉该会话的待确认状态（作答已消费，留着会让下次作答回到旧调用上）。"""
-        session = self._session(cid)
-        if session is not None:
-            session.pending_confirm = None
+    # ── 内核事件入口 ──────────────────────────────────────
 
     def feed(self, ev_type: str, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """喂一个内核事件；翻译后广播给所有已连接的 SSE 通道。
@@ -537,151 +175,8 @@ class ClassicAdapter:
                 self._paused[cid] = bool((data or {}).get("paused"))
         if not frames:
             return []
-        for box in channels:
-            for frame in frames:
-                try:
-                    box.put_nowait(frame)
-                except queue.Full:
-                    try:
-                        box.get_nowait()          # 丢最旧，绝不阻塞事件流
-                        box.put_nowait(frame)
-                    except queue.Empty:
-                        pass
+        self._push_frames(channels, frames, drop_oldest=True)
         return frames
-
-    def next_frame(
-        self,
-        box: "queue.Queue[Dict[str, Any]]",
-        timeout: float = 1.0,
-    ) -> Optional[Dict[str, Any]]:
-        """从指定通道取一帧；超时返回 None（SSE 层据此发心跳）。"""
-        try:
-            return box.get(timeout=max(0.0, timeout))
-        except queue.Empty:
-            # 超时无帧：SSE 层据此发心跳，不是错误
-            return None
-
-    def heartbeat(self) -> Dict[str, Any]:
-        """心跳帧（豁免 `conversation_id` 校验）。"""
-        self._last_beat = time.time()
-        return {"type": C.EV_HEARTBEAT, "time": int(self._last_beat)}
-
-    def announce_plugins(self, loaded: List[str]) -> None:
-        """把已装载插件名推给每条 SSE 连接。
-
-        开关是进程级的，这帧不带会话号。页面据此改按钮、关面板、重画上下文条。
-        """
-        names = sorted({str(name) for name in loaded if str(name or "").strip()})
-        self._broadcast({"type": C.EV_PLUGINS_CHANGED, "loaded": names})
-
-    def announce_model(self, cid: str, model: str) -> None:
-        """把模型变化推给同会话的其它标签页（发起方已写过服务端）。
-
-        与 `announce_plugins` 同构：不是内核事件，不伪装成内核事件。
-        接收方只更新页头与本地 tab 字段，不再回写 `live_state`。
-        """
-        key = C.normalize_cid(cid)
-        if not key:
-            return
-        self._broadcast({
-            "type": C.EV_CONVERSATION,
-            "conversation_id": key,
-            "model": str(model or ""),
-        })
-
-    def announce_plugin_event(self, plugin: str, event: str,
-                              payload: Optional[Dict[str, Any]] = None) -> int:
-        """广播一条插件事件，返回实际送达的 SSE 连接数。"""
-        return self._broadcast(C.plugin_event_frame(plugin, event, payload))
-
-    def _broadcast(self, frame: Dict[str, Any]) -> int:
-        """把一帧推给所有已连接通道；通道满则丢最旧，绝不阻塞事件流。"""
-        with self._lock:
-            channels = list(self._channels)
-        for box in channels:
-            try:
-                box.put_nowait(frame)
-            except queue.Full:
-                try:
-                    box.get_nowait()
-                    box.put_nowait(frame)
-                except queue.Empty:
-                    pass
-        return len(channels)
-
-    # ── 续传（断线重连从游标继续）──────────────────────────
-
-    def replay_after(self, after_seq: int, only: Any = None, limit: int = _REPLAY_LIMIT) -> int:
-        """把 `seq > after_seq` 的历史事件翻成老事件、投进通道，返回投出的帧数。
-
-        跨会话：坐标是全局单调的，所以一个游标对所有会话都成立——
-        这正是 SSE `Last-Event-ID` 的语义（一条流一个光标）。
-        游标若按会话各自从 0 编号，一个值就无法表达"所有会话的位置"，
-        额外带上 `?conversation_id=`。
-
-        `only` 给定某条通道时只投给它（重连续传）；不给则广播给当前所有通道。
-        `limit` 兜住"游标很旧"：宁可分几批补，也不一次把上万条塞进队列。
-        """
-        store = getattr(self._app, "store", None)
-        if store is None or not hasattr(store, "tail_across"):
-            return 0
-        with self._lock:
-            frames: List[Dict[str, Any]] = []
-            rows = store.tail_across(int(after_seq), limit=limit)
-            # 按会话分组翻译：每个会话一条 `ClassicStream`（翻译是有状态的，
-            # 轮次号 / 待配对工具都按会话各自维护）。
-            # 装配/契约错误（如缺 registry）直接冒泡，禁止吞成空回放。
-            for seq, cid, event in rows:
-                stream = self._stream(cid)
-                payload = dict(event.data or {})
-                payload["_seq"] = seq
-                frames.extend(stream.translate(str(event.type), payload))
-            channels = [only] if only is not None else list(self._channels)
-        for box in channels:
-            for frame in frames:
-                try:
-                    box.put_nowait(frame)
-                except queue.Full:
-                    break       # 通道已满：宁可少补历史，也不阻塞
-        return len(frames)
-
-    def latest_seq(self) -> int:
-        """当前全局最大坐标；没有任何坐标时返回 -1。"""
-        store = getattr(self._app, "store", None)
-        if store is None or not hasattr(store, "_scan_max_seq"):
-            return -1
-        try:
-            return int(store._scan_max_seq())
-        except Exception:
-            return -1
-
-    def cursor_of(self, request_headers: Any, query: Dict[str, str]) -> int:
-        """取本次连接的续传游标。
-
-        优先 `Last-Event-ID` 请求头（浏览器 `EventSource` 自动带上的标准位置），
-        其次 `?last_event_id=`（非浏览器客户端显式指定）；都没有则 -1（从头开始）。
-        非整数一律当 -1：游标不可信时重放全量，比断在半路安全。
-        """
-        candidates: List[str] = []
-        if query:
-            candidates.append(str(query.get("last_event_id") or ""))
-        if request_headers is not None:
-            try:
-                candidates.append(str(request_headers.get("Last-Event-ID") or ""))
-            except Exception:
-                # 旁路，刻意吞掉：`Last-Event-ID` 是断线续传的可选请求头。
-                # 取不到（headers 实现异常）就少一个候选坐标，下面的循环会用
-                # URL 查询参数那一路兜底——续传能力降级，不影响本次订阅。
-                pass
-        for raw in candidates:
-            text = raw.strip()
-            if not text:
-                continue
-            try:
-                return int(text)
-            except ValueError:
-                return -1
-        return -1
 
     # ── 供壳层组装会话事件 ────────────────────────────────
 
@@ -751,48 +246,6 @@ class ClassicAdapter:
             "kernel": self._kernel_name(),
         }
 
-
-class ClassicSseChannel:
-    """一条 SSE 连接的取帧循环（由 web.py 的 handler 驱动）。"""
-
-    def __init__(self, adapter: ClassicAdapter, heartbeat: float = C.HEARTBEAT_SECONDS_DEFAULT) -> None:
-        self.adapter = adapter
-        self.heartbeat = float(heartbeat)
-        self._last_sent = time.time()
-        # 每条连接自己的队列：多标签页各自收到完整事件流（不能共享队列）
-        self._box = adapter.attach()
-
-    def close(self) -> None:
-        self.adapter.detach(self._box)
-
-    def resume(self, after_seq: int) -> int:
-        """重连续传：把全局坐标 `> after_seq` 的事件补进本连接的队列。
-
-        只补这一条连接（不广播）——别的连接没断，它们不需要补。
-        """
-        return self.adapter.replay_after(after_seq, only=self._box)
-
-    def next_payload(self) -> str:
-        """返回一帧的文本；空闲超时则发心跳。
-
-        带 `seq` 的帧发两行：`id: <seq>` + `data: <json>`。SSE 原生的
-        `id:` 行会让浏览器在断线重连时经 `Last-Event-ID` 把游标带回来，
-        适配层据此续传——不必重放全部，也不会丢掉中间那段。
-        """
-        import json
-
-        frame = self.adapter.next_frame(self._box, timeout=1.0)
-        if frame is None:
-            if time.time() - self._last_sent >= self.heartbeat:
-                frame = self.adapter.heartbeat()
-            else:
-                return ": keep-alive\n\n"      # 注释帧：经典界面忽略非 data: 行
-        self._last_sent = time.time()
-        try:
-            body = json.dumps(frame, ensure_ascii=False, default=str)
-        except (TypeError, ValueError):
-            body = json.dumps({"type": C.EV_ERROR, "message": "事件序列化失败"})
-        seq = frame.get("seq")
-        if isinstance(seq, int) and not isinstance(seq, bool) and seq >= 0:
-            return f"id: {seq}\ndata: {body}\n\n"
-        return f"data: {body}\n\n"
+    def _kernel_name(self) -> str:
+        """当前内核名（`/health` 的 `kernel` 字段，观察面契约要它不消失）。"""
+        return "core"

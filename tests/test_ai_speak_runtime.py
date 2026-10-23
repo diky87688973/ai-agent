@@ -337,7 +337,8 @@ class ToolTest(unittest.TestCase):
         def _run() -> None:
             try:
                 result["value"] = self._call(runtime, "主子，文件写好了。", publisher)
-            except BaseException as exc:  # 线程里的异常要带回主线程
+            except BaseException as exc:
+                print(f"[tests.test_ai_speak_runtime.ToolTest.test_sync_playback_waits_for_frontend_ack._run] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 result["error"] = exc
 
         thread = threading.Thread(target=_run, daemon=True)
@@ -364,6 +365,7 @@ class ToolTest(unittest.TestCase):
             try:
                 self._call(runtime, "主子，文件写好了。", publisher)
             except BaseException as exc:
+                print(f"[tests.test_ai_speak_runtime.ToolTest.test_sync_playback_times_out_without_ack._run] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 result["error"] = exc
 
         with mock.patch.object(_TOOL, "_playback_timeout_s", return_value=0.05):
@@ -399,6 +401,7 @@ class ToolTest(unittest.TestCase):
             try:
                 self._call(runtime, "主子，文件写好了。", publisher)
             except BaseException as exc:
+                print(f"[tests.test_ai_speak_runtime.ToolTest.test_sync_playback_releases_on_stop._run] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 result["error"] = exc
 
         thread = threading.Thread(target=_run, daemon=True)

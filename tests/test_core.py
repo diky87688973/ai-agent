@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -711,14 +712,14 @@ class DurableRetryTest(unittest.TestCase):
                 session = app.session(cid, system_prompt="你是助手")   # 新引擎
                 try:
                     list(session.start_turn(text))
-                except Exception:
-                    pass   # 落盘失败会向上冒，这是契约
+                except Exception as exc:
+                    print(f"[tests.test_core.DurableRetryTest._run_turns] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             rows = list(store.load(cid))
         finally:
             try:
                 app.dispose()
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[tests.test_core.DurableRetryTest._run_turns] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             tmp.cleanup()
         return rows, store
 
@@ -783,8 +784,8 @@ class PortConflictTest(unittest.TestCase):
                 first.server_close()
             try:
                 app.dispose()
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[tests.test_core.PortConflictTest.test_second_bind_on_same_port_raises] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 class DedupOnFailureTest(unittest.TestCase):
     """落盘失败后的重试不能把同一事实写两遍。
@@ -878,18 +879,18 @@ class DedupOnFailureTest(unittest.TestCase):
                         session = app.session(cid, system_prompt="助手")   # 每回合新引擎
                         try:
                             list(session.start_turn(text))
-                        except Exception:
+                        except Exception as exc:
                             # 旁路，刻意吞掉：本用例故意让落盘失败，
                             # 而契约就是"异常照常向上冒"——这里要的是
                             # 失败之后磁盘上留下了什么，不是回合是否成功。
-                            pass
+                            print(f"[tests.test_core.DedupOnFailureTest.test_failure_then_success_keeps_each_fact_once] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                     rows = list(store.load(cid))
                 finally:
                     try:
                         app.dispose()
-                    except Exception:
+                    except Exception as exc:
                         # 旁路，刻意吞掉：收尾释放失败不该掩盖断言结果。
-                        pass
+                        print(f"[tests.test_core.DedupOnFailureTest.test_failure_then_success_keeps_each_fact_once] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 types = [getattr(e, "type", "") for e in rows]
                 seqs = [(getattr(e, "data", None) or {}).get("_seq") for e in rows]
                 seqs = [s for s in seqs if isinstance(s, int)]
@@ -934,14 +935,14 @@ class WiringTest(unittest.TestCase):
         if callable(dispose_sub):
             try:
                 dispose_sub()
-            except Exception:
+            except Exception as exc:
                 # 旁路，刻意吞掉：测试收尾时释放订阅。释放失败不该让
                 # 测试报错（那会掩盖真正的断言结果），进程结束即回收。
-                pass
+                print(f"[tests.test_core.WiringTest.tearDown] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         try:
             self.app.dispose()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[tests.test_core.WiringTest.tearDown] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         self._tmp.cleanup()
 
     def test_live_events_carry_a_storage_coordinate_through_app_session(self) -> None:

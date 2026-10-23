@@ -11,6 +11,7 @@ import os
 import subprocess
 import tempfile
 import time
+from contextlib import suppress
 from typing import Optional, Sequence, Tuple
 
 from ..coords import ScreenGeometry, ScreenPoint, ScreenRect
@@ -223,10 +224,8 @@ class MacScreen:
         except (OSError, subprocess.SubprocessError) as exc:
             raise ScreenCaptureFailed(f"screencapture 调用失败：{exc}") from exc
         finally:
-            try:
+            with suppress(OSError):
                 os.unlink(path)
-            except OSError:
-                pass
         if not png:
             raise ScreenCaptureFailed("screencapture 没有产出图片")
         return Screenshot(png=png, rect=rect)

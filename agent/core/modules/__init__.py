@@ -13,23 +13,21 @@ from typing import Any, List, Optional
 
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.module import ModuleBase
+from agent.core.modules.assemble import assemble_with, segment_snapshot
 from agent.core.modules.compress_mod import CompressModule
+from agent.core.modules.dialogue import prepare_dialogue
 from agent.core.modules.input_mod import InputModule
+from agent.core.modules.mode_note import mode_tail, resolve_runtime_note, with_mode_note
 from agent.core.modules.model_mod import ModelModule
 from agent.core.modules.queued_input_mod import QueuedInputModule
-from agent.core.modules.support import (
+from agent.core.modules.tool_facts import (
     TOOL_RESULT_MAX_CHARS,
-    assemble_with,
     clip_tool_result,
-    mode_tail,
     pending_tool_calls,
-    prepare_dialogue,
     progress_emitter,
     safe_value,
-    segment_snapshot,
     serialize_call,
     tail_expects_model,
-    with_mode_note,
 )
 from agent.core.modules.tool_mod import ToolModule
 
@@ -44,6 +42,7 @@ __all__ = [
     "assemble_with",
     "clip_tool_result",
     "mode_tail",
+    "resolve_runtime_note",
     "pending_tool_calls",
     "prepare_dialogue",
     "progress_emitter",

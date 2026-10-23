@@ -7,10 +7,11 @@
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
 from typing import Dict, Iterable, Mapping, Tuple
 
-SCAN_DIRS = ("agent", "scripts")
+SCAN_DIRS = ("agent", "scripts", "plugins")
 SKIP_PARTS = ("__pycache__", "retired")
 
 #: 函数键的分隔符：`相对路径::函数名`
@@ -61,8 +62,9 @@ def collect(root: Path) -> Tuple[Dict[str, int], Dict[str, int], Dict[str, int]]
         files[rel] = len(text.splitlines())
         try:
             tree = ast.parse(text, filename=str(path))
-        except SyntaxError:
+        except SyntaxError as exc:
             # 语法坏文件由 ruff / 单测负责；复杂度采集跳过它，不影响其余文件
+            print(f"[scripts.complexity_scan.collect] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             continue
         found: list[tuple[str, int]] = []
         _walk_functions(tree, "", found)

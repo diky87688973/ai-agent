@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 
 BUILTIN_GLOB = "**/*.py"
 BUILTIN_LIMIT_FILES = 500
@@ -58,7 +59,8 @@ def _read_text_any(path: Path, encoding: str) -> str:
     for enc in ("utf-8", "gb18030", "gbk"):
         try:
             return path.read_text(encoding=enc)
-        except UnicodeDecodeError:
+        except UnicodeDecodeError as exc:
+            report_error("agent.capabilities.builtin.system_tools._read_text_any", exc)
             continue
     return path.read_text(encoding="utf-8", errors="replace")
 
@@ -133,7 +135,8 @@ class UnifiedDiagnoseTool(ToolPlugin):
             rp = p.resolve()
             try:
                 rp.relative_to(root)
-            except ValueError:
+            except ValueError as exc:
+                report_error("agent.capabilities.builtin.system_tools.UnifiedDiagnoseTool._collect_py_files", exc)
                 continue
             out.append(rp)
             if len(out) >= limit:
@@ -229,7 +232,8 @@ class UnifiedDiagnoseTool(ToolPlugin):
                 continue
             try:
                 Path(fn).resolve().relative_to(Path(root_s))
-            except ValueError:
+            except ValueError as exc:
+                report_error("agent.capabilities.builtin.system_tools.UnifiedDiagnoseTool._run_ruff_json", exc)
                 continue
             loc = item.get("location") or {}
             end_loc = item.get("end_location") or {}
@@ -567,6 +571,7 @@ class GitWorkspaceTool(ToolPlugin):
         except GitWorkspaceError:
             raise
         except Exception as e:
+            report_error("agent.capabilities.builtin.system_tools.GitWorkspaceTool.execute", e)
             raise GitWorkspaceError(str(e))
 
 

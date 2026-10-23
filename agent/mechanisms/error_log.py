@@ -7,12 +7,13 @@
 from __future__ import annotations
 
 import json
-import sys
 import threading
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Union
+
+from agent.core.stderr import write_stderr
 
 _MAX_MESSAGE = 4000
 _MAX_FILE_BYTES = 2 * 1024 * 1024
@@ -74,10 +75,7 @@ class ErrorLog:
             line_msg += f" {exc_type}: {_clip(message, 500)}"
         else:
             line_msg += f" {_clip(message, 500)}"
-        try:
-            print(line_msg, file=sys.stderr, flush=True)
-        except Exception:
-            pass
+        write_stderr(line_msg)
 
         record: dict[str, Any] = {
             "ts": _iso_now(),
@@ -106,14 +104,7 @@ class ErrorLog:
                 with self._path.open("a", encoding="utf-8") as fh:
                     fh.write(json.dumps(record, ensure_ascii=False) + "\n")
         except Exception as write_exc:
-            try:
-                print(
-                    f"[error_log] 写盘失败：{type(write_exc).__name__}: {write_exc}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-            except Exception:
-                pass
+            write_stderr(f"[error_log] 写盘失败：{type(write_exc).__name__}: {write_exc}")
 
     def _rotate_if_needed(self) -> None:
         """单文件超约 2MB 时 rename 为 errors.log.1（只保留一代）。"""
@@ -126,5 +117,5 @@ class ErrorLog:
             if bak.exists():
                 bak.unlink()
             self._path.rename(bak)
-        except Exception:
-            pass
+        except Exception as exc:
+            write_stderr(f"[error_log] 轮转失败：{type(exc).__name__}: {exc}")

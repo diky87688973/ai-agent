@@ -14,7 +14,7 @@ from agent.core.event_name import (
     TOOL_SUSPENDED,
 )
 from agent.core.module import ModuleBase
-from agent.core.modules.support import (
+from agent.core.modules.tool_facts import (
     clip_tool_result,
     pending_tool_calls,
     progress_emitter,

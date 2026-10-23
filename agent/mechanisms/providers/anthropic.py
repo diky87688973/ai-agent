@@ -27,6 +27,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 
+from agent.core.error_report import report_error
 from agent.core.model_call import StreamDelta
 from agent.core.tool_call import ToolCallRequest
 from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
@@ -523,6 +524,7 @@ class AnthropicProvider(ModelProvider):
             try:
                 body = exc.read().decode("utf-8", errors="replace")
             except Exception as read_exc:
+                report_error("agent.mechanisms.providers.anthropic.AnthropicProvider._post_stream", read_exc)
                 _warn(f"读 HTTP 错误体失败：{type(read_exc).__name__}: {read_exc}")
                 body = ""
             raise self._http_error(exc.code, body) from exc

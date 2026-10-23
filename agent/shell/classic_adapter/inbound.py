@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import agent.shell.classic_adapter.contract as C
+from agent.core.error_report import report_error
 from agent.shell.classic_adapter.history import (
     ATTACH_REGISTER_MAX_BYTES,
     ATTACH_REGISTER_MAX_COUNT,
@@ -59,11 +60,11 @@ class Inbound:
                 want = live.get_model(cid)
                 if want:
                     return str(want)
-            except Exception:
+            except Exception as exc:
                 # 读会话状态失败不打断事件翻译（这里只是给前端一个展示名）。
                 # 取不到就落到下面的 provider 默认名 —— 退化结果仍然可用，
                 # 而抛出去会让整条 SSE 帧丢失，代价远大于"显示的是默认模型名"。
-                pass
+                report_error("agent.shell.classic_adapter.inbound.Inbound._model", exc)
         provider = getattr(self._app, "provider", None)
         return str(getattr(provider, "model", "") or "")
 
@@ -88,7 +89,8 @@ class Inbound:
                         continue
                     try:
                         entries.append((path.stat().st_mtime, cid, path))
-                    except OSError:
+                    except OSError as exc:
+                        report_error("agent.shell.classic_adapter.inbound.Inbound.sessions", exc)
                         continue
                 entries.sort(reverse=True)
                 now = time.time()
@@ -123,11 +125,11 @@ class Inbound:
                 title = str(derive(cid) or "")
                 if title:
                     return title
-            except Exception:
+            except Exception as exc:
                 # 标题推导是可选的增强（读索引文件），失败即跳过。
                 # 推导器坏了 / 索引缺失就走下面的 `scan_title`（扫事实日志）兜底
                 # ——那才是权威来源。这里失败只影响"少一次快速命中"。
-                pass
+                report_error("agent.shell.classic_adapter.inbound.Inbound._derived_title", exc)
         return scan_title(path)
 
     # ── /api/chat/history ─────────────────────────────────
@@ -407,7 +409,8 @@ class Inbound:
         mime = str(item.get("mime") or "image/png")
         try:
             return 200, base64.b64decode(data), mime
-        except Exception:
+        except Exception as exc:
+            report_error("agent.shell.classic_adapter.inbound.Inbound.attachment", exc)
             return 500, b"bad attachment", "text/plain; charset=utf-8"
 
     def remember_attachments(self, cid: str, images: Any) -> List[Dict[str, Any]]:

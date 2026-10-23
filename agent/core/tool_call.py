@@ -153,7 +153,7 @@ class ToolPipeline:
                 try:
                     data = binding.execute(dict(call.arguments))
                     # 工具可回传结果信封（`ToolResult.attach(...)`）携带图片附件。
-                    # 必须拆信封：不拆则整个对象被当作普通返回值，下游 `_safe()`
+                    # 必须拆信封：不拆则整个对象被当作普通返回值，下游 `safe_value()`
                     # 会把它（含附件 base64）`str()` 进事件流，而模型那条路径
                     # 拿到的仍不是 `image_url` 块。
                     carried = getattr(data, "attachments", None)
@@ -167,7 +167,7 @@ class ToolPipeline:
                         result = ToolResult(call_id=call.call_id, ok=True, data=data)
                     if isinstance(carried, list) and carried:
                         result.attachments = list(carried)
-                except Exception as exc:  # 工具异常结构化回灌，不终止回合
+                except Exception as exc:
                     # 两段式首段（待用户确认）：这次调用还没返回，所以标 `deferred`
                     # ——回合循环据此不把它写进事实流。选择由宿主在用户作答后写进来。
                     #

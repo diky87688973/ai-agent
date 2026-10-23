@@ -7,7 +7,6 @@
 
 | 预算 | 常量 | 当前值 | 约束 | 备注 |
 |---|---|---|---|---|
-| 静默异常惯用法 | `SILENT_EXCEPT_IDIOM_BUDGET` | 119 | 只降不升 | 建表时按存量一次取齐；新增惯用法必须同时写明判据并调低别处 |
 | 验收脚本跳过数 | `ACCEPTANCE_SKIP_BUDGET` | 1 | 只降不升 | 与白名单**分开**设置，白名单扩容不会自动放宽上限 |
 | 覆盖率分包下限 | `COVERAGE_FLOORS` | 7 个包（60%–90%） | 只升不降 | `agent/core 85`、`agent/mechanisms 80`、`agent/capabilities 75`、`agent/shell 70`、`agent/entry 60`、`agent (top-level) 90`、`plugins 60` |
 | 超阈值文件 | `FILE_COMPLEXITY` | 5 | 双向一致 | 登记项必须有承担者或拆分计划 |
@@ -36,7 +35,7 @@
 | 静态检查 | `ruff check` | 未用导入、导入顺序、明显缺陷 |
 | Python 下限 | `check_python_floor.py` | 用了高于声明下限（3.10）的语法 |
 | UI JS 自检 | `check_ui_js.py` | JS 语法、共享作用域、被调用但未定义的辅助函数 |
-| 静默异常 | `check_silent_except.py --all-strict` | 未说明的静默 `except`；惯用法超预算 |
+| 静默异常 | `check_silent_except.py` | `pass`/`continue`、裸 `except`、宽捕获无上报、`suppress(Exception)`；判据见 [silent-exceptions.md](silent-exceptions.md) |
 | README 一致性 | `check_readme.py` | 用例数、验收脚本数、`data/` 子目录与事实不符 |
 | 确认文案无歧义 | `check_confirm_wording.py` | 写盘指引含糊、缺解锁工具、含解释性内容 |
 | 注释文案 | `check_comment_style.py` | 注释残句、过程叙述、全角标点混排、Markdown 排版标记 |

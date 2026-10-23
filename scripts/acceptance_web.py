@@ -85,7 +85,6 @@ SETTINGS_GROUPS = [
                 "max_tokens": "16000", "thinking": "1"}},
 ]
 
-
 class ScriptedProvider:
     """三步写盘的 provider 替身：
 
@@ -107,7 +106,8 @@ class ScriptedProvider:
                 continue
             try:
                 data = json.loads(message.get("content") or "{}")
-            except Exception:
+            except Exception as exc:
+                print(f"[scripts.acceptance_web.ScriptedProvider._confirm_from] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 continue
             if not isinstance(data, dict):
                 continue
@@ -174,11 +174,9 @@ class ScriptedProvider:
         )
         yield StreamDelta(kind="text", text="已提交。")
 
-
 class EchoProvider:
     def stream(self, request):
         yield StreamDelta(kind="text", text="收到。")
-
 
 class Acceptance:
     """headless 验收运行器：真实 HTTP 服务 + 真实 SSE 流，逐项打印 PASS/FAIL。"""
@@ -247,12 +245,12 @@ class Acceptance:
         try:
             self.server.shutdown()
             self.server.server_close()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[scripts.acceptance_web.Acceptance.close] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         try:
             self.app.dispose()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[scripts.acceptance_web.Acceptance.close] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
     def _read_sse(self) -> None:
         try:
@@ -274,10 +272,10 @@ class Acceptance:
                         if line.startswith(b"data:"):
                             try:
                                 self.frames.append(json.loads(line[5:].decode("utf-8")))
-                            except Exception:
-                                pass
-        except Exception:
-            pass
+                            except Exception as exc:
+                                print(f"[scripts.acceptance_web.Acceptance._read_sse] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        except Exception as exc:
+            print(f"[scripts.acceptance_web.Acceptance._read_sse] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
     def get(self, path: str, timeout: float = 10.0):
         try:
@@ -290,7 +288,8 @@ class Acceptance:
         status, body = self.get(path)
         try:
             return status, json.loads(body.decode("utf-8"))
-        except Exception:
+        except Exception as exc:
+            print(f"[scripts.acceptance_web.Acceptance.get_json] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             return status, {}
 
     def post(self, path: str, payload: dict):
@@ -314,7 +313,8 @@ class Acceptance:
             raw = exc.read()
             try:
                 return exc.code, json.loads(raw.decode("utf-8"))
-            except Exception:
+            except Exception as exc:
+                print(f"[scripts.acceptance_web.Acceptance._send] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 return exc.code, {}
 
     def wait_turn(self, cid: str) -> None:
@@ -561,7 +561,8 @@ class Acceptance:
         with sync_playwright() as pw:
             try:
                 browser = pw.chromium.launch()
-            except Exception as exc:                      # 浏览器二进制缺失
+            except Exception as exc:
+                print(f"[scripts.acceptance_web.Acceptance.scenario_5] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 print(f"  [SKIP] Markdown 注入防线（Chromium 不可用：{type(exc).__name__}）")
                 return
             try:
@@ -649,7 +650,8 @@ class Acceptance:
         try:
             page.wait_for_selector(selector, timeout=timeout)
             return True
-        except Exception:
+        except Exception as exc:
+            print(f"[scripts.acceptance_web.Acceptance._wait_visible] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             self.check(label, False, f"等待 {selector} 超时")
             return False
 
@@ -669,7 +671,8 @@ class Acceptance:
         with sync_playwright() as pw:
             try:
                 browser = pw.chromium.launch()
-            except Exception as exc:                      # 浏览器二进制缺失
+            except Exception as exc:
+                print(f"[scripts.acceptance_web.Acceptance.scenario_6] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
                 print(f"  [SKIP] 设置面板渲染（Chromium 不可用：{type(exc).__name__}）")
                 return
             try:
@@ -769,7 +772,6 @@ class Acceptance:
             from scripts.acceptance_web_player import run
         run(self)
 
-
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="accept-web-") as tmp:
         acc = Acceptance(Path(tmp))
@@ -794,7 +796,5 @@ def main() -> int:
             return 1
         print("Web 壳验收：全部检查项 PASS。")
         return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

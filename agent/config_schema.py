@@ -50,6 +50,7 @@ MULTI_MODEL_SCHEMA: Dict[str, Dict[str, str]] = {
         "model": "",
         "label": "",
         "context_window": "",
+        "compression_percent": "",
         "default": "",
         "max_tokens": "",
         "thinking": "",

@@ -145,7 +145,6 @@ Markdown 的本地绝对路径链接同样进入右栏；正文里的行内代�
 | `web_fetch_render` | Playwright 无头浏览器抓取 JS 渲染后的页面 |
 | `ip_geolocate` | IP 地理查询（免费 API，无 Key） |
 | `open_meteo_weather` | 天气预报（免费 API，无 Key），中文摘要输出 |
-| `github_api` | GitHub 远程操作 + 设备流登录 |
 
 ### 数据与媒体
 

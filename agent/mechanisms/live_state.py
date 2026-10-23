@@ -316,9 +316,9 @@ class LiveState:
         raw: Any = None
         try:
             raw = json.loads(fp.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
             # 判据见 docstring：坏文件按默认处理，不在这里伪装成成功读取。
-            pass
+            report_error("agent.mechanisms.live_state.LiveState._ensure_loaded", exc)
         if not isinstance(raw, dict):
             return
         todo = raw.get("todo")

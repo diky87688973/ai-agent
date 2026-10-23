@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""验收：集成与外围 5 件（ip_geolocate / open_meteo_weather / review_conclusion /
-skills / github_api）headless 演示。
+"""验收：集成与外围 4 件（ip_geolocate / open_meteo_weather / review_conclusion /
+skills）headless 演示。
 
 场景：① 门控闭环——skills copy 走完整 id 制四步；跨文件写后经 review_conclusion
 放行；cancel_preview 取消；短结论拒绝；
-② 工具族管道冒烟——5 件经 ToolPipeline 唯一入口；网络类以 mock 替换模块 HTTP 层；
-③ 注册与一致性——5 件工具注册（41 工具）、catalog 成员、门控预览名单含 skills、discard 在位。
+② 工具族管道冒烟——4 件经 ToolPipeline 唯一入口；网络类以 mock 替换模块 HTTP 层；
+③ 注册与一致性——4 件工具注册、catalog 成员、门控预览名单含 skills、discard 在位。
 运行：python scripts/acceptance_batch_f.py（全部通过退出码 0）
 """
 from __future__ import annotations
@@ -21,14 +21,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
-from agent.capabilities.builtin import geo_weather_tools, github_tools  # noqa: E402
+from agent.capabilities.builtin import geo_weather_tools  # noqa: E402
 from agent.core.tool_call import ToolResult  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
 
 CID_DRIVER = "accept-batch-f"
 
-BATCH_F_TOOLS = ["ip_geolocate", "open_meteo_weather", "review_conclusion", "skills", "github_api"]
+BATCH_F_TOOLS = ["ip_geolocate", "open_meteo_weather", "review_conclusion", "skills"]
 
 _LONG_CONCLUSION = "review结论：验收链路复核通过，落盘内容已 read 复核，ast 与 py_compile 检查通过。"
 
@@ -217,26 +217,12 @@ class Acceptance:
             str(r.data),
         )
 
-        with mock.patch.object(github_tools, "_find_token", return_value=""):
-            r = self.call("github_api", {"action": "get_repo", "repo": "owner/repo"})
-        self.check(
-            "github_api：无 token → LoginRequired",
-            (not r.ok) and (r.data or {}).get("type") == "LoginRequired",
-            str(r.data),
-        )
-        r = self.call("github_api", {"action": "nope", "repo": "owner/repo"})
-        self.check(
-            "github_api：非法 action 拒绝",
-            (not r.ok) and (r.data or {}).get("type") == "ValueError",
-            str(r.data),
-        )
-
     # ── 场景 ③ 注册与一致性 ────────────────────────────
 
     def scenario_3(self) -> None:
         print("\n场景③ 注册与一致性")
         missing = [n for n in BATCH_F_TOOLS if self.app.registry.get(n) is None]
-        self.check("5 件工具均已注册", not missing, str(missing))
+        self.check("4 件工具均已注册", not missing, str(missing))
 
         catalog = json.loads((ROOT / "catalog" / "tools.json").read_text(encoding="utf-8"))
         tool_names = [str(t.get("name")) for t in catalog.get("tools", [])]

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 
 
 def _detect_format(source: Path) -> str:
@@ -47,8 +48,8 @@ def _detect_format(source: Path) -> str:
             return "tar.xz"
         if magic[257:262] == b"ustar":
             return "tar"
-    except OSError:
-        pass
+    except OSError as exc:
+        report_error("agent.capabilities.builtin.archive_tool._detect_format", exc)
     return "unknown"
 
 

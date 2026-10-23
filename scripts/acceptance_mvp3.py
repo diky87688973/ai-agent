@@ -151,6 +151,7 @@ def main() -> int:
                     ended = True
                     print(f"  [turn] 结束（steps={d.get('steps')}）")
         except Exception as exc:
+            print(f"[scripts.acceptance_mvp3.main] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             errors.append(f"{type(exc).__name__}: {exc}")
             print(f"  [异常] {type(exc).__name__}: {exc}")
 

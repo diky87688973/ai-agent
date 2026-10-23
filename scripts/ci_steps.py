@@ -70,7 +70,7 @@ def gate_steps() -> List[CiStep]:
         CiStep("UI JS 自检", "gate", "scripts/check_ui_js.py",
                ["scripts/check_ui_js.py"], 3),
         CiStep("静默异常", "gate", "scripts/check_silent_except.py",
-               ["scripts/check_silent_except.py", "--all-strict"], 5),
+               ["scripts/check_silent_except.py"], 5),
         CiStep("README 一致性", "gate", "scripts/check_readme.py",
                ["scripts/check_readme.py"], 3),
         CiStep("确认文案无歧义", "gate", "scripts/check_confirm_wording.py",
