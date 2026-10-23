@@ -192,5 +192,3 @@ class ContextSources:
             if t:
                 out.append(t)
         return out
-
-

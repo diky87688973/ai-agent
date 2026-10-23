@@ -136,6 +136,10 @@ python scripts/inspect_compact.py <会话 id>        # 检视其中一个
 python scripts/inspect_compact.py <会话 id> --digest
 ```
 
+## 作者
+
+- 邮箱：diky87@qq.com
+
 ## 许可
 
 [Apache License 2.0](LICENSE)。第三方组件署名见 [NOTICE](NOTICE)。

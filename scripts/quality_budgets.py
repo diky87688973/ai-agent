@@ -60,7 +60,6 @@ FUNCTION_COMPLEXITY: Dict[str, str] = {
     "agent/shell/web_routes.py::Handler.do_POST": "POST 分派与请求体校验线性展开；待拆路由表",
     "scripts/acceptance_batch_e.py::Acceptance.scenario_2": "验收脚本线性断言",
     "agent/mechanisms/quality/checks.py::check_write": "检查项顺序即语义，拆开会让判定顺序变得可改",
-    "scripts/acceptance_batch_f.py::Acceptance.scenario_1": "验收脚本线性断言",
     "agent/mechanisms/compaction/compactor.py::ContextCompactor.ensure_before_append": "触发判定与执行同函数；待拆判定器",
     "agent/core/host.py::Host.run_iter": "单轮的四条终止路径集中，拆开会让终止语义分散",
     "agent/mechanisms/quality/pipeline_bridge.py::build_pipeline_gate": "门控对象图在一处，拆开需引入 builder 类型",

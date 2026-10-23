@@ -334,10 +334,3 @@ def adjust_excerpt_range_half_open(
                 end = min(j, n)
         i += 1
     return start, min(end, n)
-
-
-
-
-
-
-

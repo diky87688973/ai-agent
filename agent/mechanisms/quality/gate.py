@@ -158,4 +158,3 @@ class QualityGate:
             return
         if re.search(r"(已修复|已解决|修复完成|搞定了)", str(text or "")):
             self.claim_fixed_blocked = True
-

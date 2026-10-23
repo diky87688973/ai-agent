@@ -36,7 +36,6 @@
 | `agent/mechanisms/quality/checks.py::check_write` | 117 | 检查项顺序即语义，拆开会让判定顺序变得可改 |
 | `scripts/acceptance_batch_e.py::Acceptance.scenario_2` | 108 | 验收脚本线性断言 |
 | `agent/core/host.py::Host.run_iter` | 101 | 单轮的四条终止路径集中，拆开会让终止语义分散 |
-| `scripts/acceptance_batch_f.py::Acceptance.scenario_1` | 101 | 验收脚本线性断言 |
 | `agent/mechanisms/compaction/compactor.py::ContextCompactor.ensure_before_append` | 97 | 触发判定与执行同函数；待拆判定器 |
 | `agent/mechanisms/quality/pipeline_bridge.py::build_pipeline_gate` | 97 | 门控对象图在一处，拆开需引入 builder 类型 |
 | `scripts/acceptance_web.py::Acceptance.scenario_5` | 97 | 验收脚本线性断言 |
@@ -51,4 +50,4 @@
 
 - 目录：`agent/`、`scripts/`、`plugins/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 247 个、函数 2055 个；超阈值文件 0 个、函数 27 个、函数数超阈值文件 0 个。
+- 文件 247 个、函数 2054 个；超阈值文件 0 个、函数 26 个、函数数超阈值文件 0 个。

@@ -89,5 +89,3 @@ class ClassicRoutes:
             return
         finally:
             channel.close()   # 摘掉本连接的广播队列，避免长跑进程里堆积
-
-

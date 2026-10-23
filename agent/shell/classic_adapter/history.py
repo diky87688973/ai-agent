@@ -233,5 +233,3 @@ def last_payload(events: List[Any], kind: str) -> Optional[Dict[str, Any]]:
         if str(getattr(ev, "type", "")) == kind:
             found = dict(getattr(ev, "data", None) or {})
     return found
-
-

@@ -304,5 +304,3 @@ def current_todo(app: Any, cid: str) -> List[Dict[str, Any]]:
         return []
     items = todo.get("items")
     return [dict(it) for it in items] if isinstance(items, list) else []
-
-

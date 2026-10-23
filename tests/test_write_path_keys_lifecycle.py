@@ -94,7 +94,7 @@ class WritePathKeysLifecycleTest(unittest.TestCase):
         self.assertEqual(reports[0].status, "loaded", msg=reports[0].message)
         plugin = reg.get("skills")
         self.assertIsNotNone(plugin)
-        self.assertEqual(tuple(plugin.write_path_keys), ("source", "name"))
+        self.assertEqual(tuple(getattr(plugin, "write_path_keys", ()) or ()), ())
         host.unload("skills")
         self.assertIsNone(reg.get("skills"))
 

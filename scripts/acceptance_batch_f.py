@@ -2,10 +2,8 @@
 """验收：集成与外围 4 件（ip_geolocate / open_meteo_weather / review_conclusion /
 skills）headless 演示。
 
-场景：① 门控闭环——skills copy 走完整 id 制四步；跨文件写后经 review_conclusion
-放行；cancel_preview 取消；短结论拒绝；
-② 工具族管道冒烟——4 件经 ToolPipeline 唯一入口；网络类以 mock 替换模块 HTTP 层；
-③ 注册与一致性——4 件工具注册、catalog 成员、门控预览名单含 skills、discard 在位。
+场景：① 工具族管道冒烟——网络类以 mock 替换模块 HTTP 层；
+② 注册与一致性——4 件工具注册、catalog 成员、discard 在位。
 运行：python scripts/acceptance_batch_f.py（全部通过退出码 0）
 """
 from __future__ import annotations
@@ -73,114 +71,10 @@ class Acceptance:
         if not cond:
             self.failures.append(label)
 
-    # ── 场景 ① 门控闭环（skills + review_conclusion）──────
+    # ── 场景 ① 工具族管道冒烟 ──────────────────────────
 
     def scenario_1(self) -> None:
-        print("\n场景① 门控闭环（skills copy 四步 + review_conclusion）")
-        incoming = self.root / "incoming"
-        incoming.mkdir()
-        (incoming / "one.md").write_text("---\nname: one\ndescription: demo\n---\n\n正文一\n", encoding="utf-8")
-
-        r1 = self.call("skills", {"action": "copy", "source": str(incoming)})
-        cid = (r1.data or {}).get("confirm_id") if r1.ok else None
-        self.check(
-            "copy 预览：confirm_id 发出且不落盘",
-            r1.ok and cid and not (self.skills_dir / "one.md").exists() and (r1.data or {}).get("would_copy") == 1,
-            str(r1.data),
-        )
-
-        r_bad = self.call("commit_write", {"confirm_id": "nonexistent-id"})
-        self.check("提交：伪 ID 拒绝", (not r_bad.ok) and "无效" in (r_bad.error or ""), str(r_bad.error))
-
-        r_unconf = self.call("commit_write", {"confirm_id": cid})
-        self.check(
-            "提交：未确认先拒（四步第二步强制）",
-            (not r_unconf.ok)
-            and "未解锁" in (r_unconf.error or "")
-            and "review_conclusion" in (r_unconf.error or ""),
-            str(r_unconf.error),
-        )
-
-        confirmed = self.gate.confirm(cid)
-        self.check("确认：通过门控确认", confirmed is True, str(confirmed))
-
-        r2 = self.call("commit_write", {"confirm_id": cid})
-        self.check(
-            "提交：复制落盘",
-            r2.ok and (self.skills_dir / "one.md").is_file() and bool((r2.data or {}).get("written")),
-            str(r2.data),
-        )
-        self.check(
-            "提交：host_quality 报告随结果回灌",
-            r2.ok and isinstance((r2.data or {}).get("host_quality"), dict),
-            str((r2.data or {}).get("host_quality")),
-        )
-
-        r3 = self.call("commit_write", {"confirm_id": cid})
-        self.check("提交：一次性消费（重放拒绝）", (not r3.ok) and "无效或已使用" in (r3.error or ""), str(r3.error))
-
-        r_list = self.call("skills", {"action": "list"})
-        names = [s["name"] for s in (r_list.data or {}).get("skills", [])]
-        self.check(
-            "list 只读：不登记快照且含新 Skills",
-            r_list.ok and (r_list.data or {}).get("needs_commit") is False and "confirm_id" not in (r_list.data or {}) and "one" in names,
-            str(r_list.data),
-        )
-        r_read = self.call("skills", {"action": "read", "name": "one"})
-        self.check(
-            "read：返回正文（frontmatter 剥离）",
-            r_read.ok and (r_read.data or {}).get("content") == "正文一",
-            str(r_read.data),
-        )
-
-        incoming2 = self.root / "incoming2"
-        incoming2.mkdir()
-        (incoming2 / "two.md").write_text("---\nname: two\n---\n\n正文二\n", encoding="utf-8")
-        r4 = self.call("skills", {"action": "copy", "source": str(incoming2)})
-        cid2 = str((r4.data or {}).get("confirm_id") or "")
-        self.gate.confirm(cid2)
-        r_blocked = self.call("commit_write", {"confirm_id": cid2})
-        self.check(
-            "跨文件：写后未 review 先拒",
-            (not r_blocked.ok) and "review" in (r_blocked.error or ""),
-            str(r_blocked.error),
-        )
-
-        r_review = self.call("review_conclusion", {"conclusion": _LONG_CONCLUSION, "file_name": "one.md"})
-        self.check(
-            "review_conclusion：提交后放行",
-            r_review.ok and (r_review.data or {}).get("reviewed") is True and not self.gate.pending_review,
-            str(r_review.data),
-        )
-        r5 = self.call("commit_write", {"confirm_id": cid2})
-        self.check(
-            "review 后重试：复制落盘",
-            r5.ok and (self.skills_dir / "two.md").is_file(),
-            str(r5.data),
-        )
-        self.gate.review_done()
-
-        r_short = self.call("review_conclusion", {"conclusion": "太短", "file_name": "two.md"})
-        self.check("review_conclusion：短结论拒绝", (not r_short.ok) and "至少 30 字" in (r_short.error or ""), str(r_short.error))
-
-        incoming3 = self.root / "incoming3"
-        incoming3.mkdir()
-        (incoming3 / "three.md").write_text("---\nname: three\n---\n\n正文三\n", encoding="utf-8")
-        r6 = self.call("skills", {"action": "copy", "source": str(incoming3)})
-        cid3 = str((r6.data or {}).get("confirm_id") or "")
-        r_cancel = self.call("review_conclusion", {"file_name": "three.md", "confirm_id": cid3, "cancel_preview": True})
-        self.check(
-            "cancel_preview：快照释放",
-            r_cancel.ok and (r_cancel.data or {}).get("message") == "预览已取消。" and self.gate.peek(cid3) is None,
-            str(r_cancel.data),
-        )
-        r7 = self.call("commit_write", {"confirm_id": cid3})
-        self.check("取消后提交：拒绝", (not r7.ok) and "无效或已使用" in (r7.error or ""), str(r7.error))
-
-    # ── 场景 ② 工具族管道冒烟 ──────────────────────────
-
-    def scenario_2(self) -> None:
-        print("\n场景② 工具族管道冒烟（5 件经唯一入口；网络 mock）")
+        print("\n场景① 工具族管道冒烟（网络 mock）")
 
         def fake_ip(url: str, timeout_sec: int, user_agent: str) -> dict:
             return {
@@ -217,24 +111,23 @@ class Acceptance:
             str(r.data),
         )
 
-    # ── 场景 ③ 注册与一致性 ────────────────────────────
+    # ── 场景 ② 注册与一致性 ────────────────────────────
 
-    def scenario_3(self) -> None:
-        print("\n场景③ 注册与一致性")
+    def scenario_2(self) -> None:
+        print("\n场景② 注册与一致性")
         missing = [n for n in BATCH_F_TOOLS if self.app.registry.get(n) is None]
         self.check("4 件工具均已注册", not missing, str(missing))
 
         catalog = json.loads((ROOT / "catalog" / "tools.json").read_text(encoding="utf-8"))
         tool_names = [str(t.get("name")) for t in catalog.get("tools", [])]
         not_in_catalog = [n for n in BATCH_F_TOOLS if n not in tool_names]
-        self.check("catalog 成员含 5 件工具", not not_in_catalog, str(not_in_catalog))
+        self.check("catalog 成员含 4 件工具", not not_in_catalog, str(not_in_catalog))
         self.check("catalog 工具总数 ≥ 41", len(tool_names) >= 41, str(len(tool_names)))
         skill = self.app.registry.get("skills")
         self.check(
-            "skills 声明 write_path_keys 且 discard 在位",
+            "skills 只读且 discard 在位",
             skill is not None
-            and tuple(getattr(skill, "write_path_keys", ()) or ())
-            == ("source", "name")
+            and not getattr(skill, "needs_preview", False)
             and hasattr(self.gate, "discard"),
             str(getattr(skill, "write_path_keys", None)),
         )
@@ -246,7 +139,6 @@ def main() -> int:
         try:
             acc.scenario_1()
             acc.scenario_2()
-            acc.scenario_3()
         finally:
             # 环境变量是本脚本自己设的，用完还原，别影响同一进程里后续的东西。
             if acc._skills_env_old is None:

@@ -102,4 +102,3 @@ class PluginRoutes:
             self._json(500, {"error": f"{type(exc).__name__}"})
             return
         self._bytes(200, body, ctype)
-
