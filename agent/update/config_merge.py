@@ -71,6 +71,15 @@ def merge_plugin_configs(root: Path, target: Path) -> None:
             shutil.copy2(root_file, target_file)
 
 
+def copy_runtime_configs(root: Path, target: Path) -> None:
+    for target_name in CONFIG_MAP.values():
+        source = Path(root) / target_name
+        if source.is_file():
+            destination = Path(target) / target_name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+
+
 def merge_templates(root: Path, templates: Path) -> List[str]:
     root = Path(root)
     templates = Path(templates)

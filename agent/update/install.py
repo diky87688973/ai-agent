@@ -65,8 +65,13 @@ def apply_staged(root: Path, staging: Path, version: str) -> Path:
         shutil.rmtree(temporary)
     shutil.copytree(source, temporary)
     temporary.replace(target)
-    from agent.update.config_merge import merge_plugin_configs, merge_templates
+    from agent.update.config_merge import (
+        copy_runtime_configs,
+        merge_plugin_configs,
+        merge_templates,
+    )
     merge_templates(root, target / "templates")
+    copy_runtime_configs(root, target)
     merge_plugin_configs(root, target)
     write_pointer(root, version, previous)
     return target
