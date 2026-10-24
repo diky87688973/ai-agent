@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1831** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1833** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -88,16 +88,17 @@
 77. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
 78. [test_tool_registry.py](#test_tool_registrypy)（17）
 79. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-80. [test_update.py](#test_updatepy)（20）
-81. [test_usage_metrics.py](#test_usage_metricspy)（7）
-82. [test_version_stamp.py](#test_version_stamppy)（4）
-83. [test_visual_operator.py](#test_visual_operatorpy)（130）
-84. [test_web_frontend.py](#test_web_frontendpy)（5）
-85. [test_web_shell.py](#test_web_shellpy)（52）
-86. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-87. [test_write_gate.py](#test_write_gatepy)（16）
-88. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-89. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+80. [test_top_level_services.py](#test_top_level_servicespy)（2）
+81. [test_update.py](#test_updatepy)（20）
+82. [test_usage_metrics.py](#test_usage_metricspy)（7）
+83. [test_version_stamp.py](#test_version_stamppy)（4）
+84. [test_visual_operator.py](#test_visual_operatorpy)（130）
+85. [test_web_frontend.py](#test_web_frontendpy)（5）
+86. [test_web_shell.py](#test_web_shellpy)（52）
+87. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+88. [test_write_gate.py](#test_write_gatepy)（16）
+89. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+90. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -2187,6 +2188,15 @@
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `ToolSessionGateTest` | `test_execute_fills_session_gate` | 覆盖「经 ToolPort 执行时，工具所见 gate 与会话注册表一致」：execute fills session gate |
+
+## test_top_level_services.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `AppServicesTest` | `test_missing_service_reports_assembly_hint` | 覆盖「A class whose instances are single test cases」：missing service reports assembly hint |
+| 2 | `ConfigSchemaTest` | `test_unknown_section_is_empty` | 覆盖「A class whose instances are single test cases」：unknown section is empty |
 
 ## test_update.py
 
