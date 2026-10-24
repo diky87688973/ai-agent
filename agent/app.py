@@ -74,6 +74,7 @@ from agent.core.context import (
     SERVICE_SESSION_CONTEXTS,
     SERVICE_SESSION_FACTORY,
     SERVICE_STORE,
+    SERVICE_UPDATE,
     AppContext,
 )
 from agent.core.engine_factory import build_engine
@@ -106,6 +107,7 @@ from agent.shell.classic_adapter import ClassicAdapter
 from agent.shell.classic_adapter.plugin_events import PluginEventPublisher
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER
 from agent.shell.session.runner import SessionRunner
+from agent.update.controller import UpdateController
 
 
 class App(AppModelPolicy, AppServices):
@@ -383,6 +385,7 @@ def build_app(
 
     registry = ToolRegistry()
     background_tasks = BackgroundTaskManager([PROJECT_ROOT, data_root])
+    update_controller = UpdateController()
     registry.register(background_task.build(background_tasks, state))
     registry.register(echo.build())
     registry.register(read_file.build())
@@ -588,6 +591,7 @@ def build_app(
     if store is not None:
         mesh_state.set_session_exists(lambda cid: bool(store.load(cid)))
     context.register(SERVICE_BACKGROUND_TASKS, background_tasks)
+    context.register(SERVICE_UPDATE, update_controller)
     context.register(SERVICE_RUNNER, runner)
     def _background_notice_meta(text: str) -> Dict[str, Any]:
         batch = ""

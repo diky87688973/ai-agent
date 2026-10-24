@@ -5,6 +5,8 @@
 #include <wintrust.h>
 #include <softpub.h>
 
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -170,6 +172,38 @@ int Fail(const std::wstring& message) {
 
 }  // namespace
 
+std::wstring ReadUtf8File(const std::wstring& path) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) return L"";
+    std::string bytes((std::istreambuf_iterator<char>(input)),
+                      std::istreambuf_iterator<char>());
+    if (bytes.empty()) return L"";
+    const int size = MultiByteToWideChar(CP_UTF8, 0, bytes.data(),
+                                         static_cast<int>(bytes.size()), nullptr, 0);
+    if (size <= 0) return L"";
+    std::wstring text(size, L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, bytes.data(), static_cast<int>(bytes.size()),
+                        text.data(), size);
+    return text;
+}
+
+std::wstring PayloadRoot(const std::wstring& root) {
+    const std::wstring raw = ReadUtf8File(Join(root, L"launcher.json"));
+    const std::wstring key = L"\"current\"";
+    const size_t key_pos = raw.find(key);
+    if (key_pos == std::wstring::npos) return root;
+    const size_t colon = raw.find(L':', key_pos);
+    if (colon == std::wstring::npos) return root;
+    const size_t first = raw.find(L'"', colon);
+    if (first == std::wstring::npos) return root;
+    const size_t last = raw.find(L'"', first + 1);
+    if (last == std::wstring::npos) return root;
+    const std::wstring version = raw.substr(first + 1, last - first - 1);
+    if (version.empty()) return root;
+    const std::wstring candidate = Join(Join(root, L"versions"), version);
+    return Exists(Join(candidate, L"agent\\gui\\launcher.py")) ? candidate : root;
+}
+
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     const HANDLE mutex = CreateMutexW(nullptr, TRUE, L"Local\\AIAgent.Gui");
     if (mutex == nullptr) return Fail(L"无法创建单实例锁。");
@@ -189,38 +223,59 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         return Fail(L"缺少 WebView2 Runtime，自动安装失败。\n请手动安装 Microsoft Edge WebView2 Runtime。");
     }
 
-    DWORD code = 0;
     const std::wstring bootstrap =
         Quote(python.console) + L" -m agent.gui.bootstrap";
+    DWORD code = 0;
     if (!RunAndWait(bootstrap, root, code) || code != 0) {
         return Fail(L"pywebview 依赖准备失败。\n请检查网络或 Python 的 pip。");
     }
 
-    STARTUPINFOW startup{};
-    startup.cb = sizeof(startup);
-    PROCESS_INFORMATION process{};
-    const std::wstring command =
-        Quote(python.windowed) + L" -m agent.gui.launcher";
-    std::vector<wchar_t> mutableCommand(command.begin(), command.end());
-    mutableCommand.push_back(L'\0');
-    if (!CreateProcessW(nullptr, mutableCommand.data(), nullptr, nullptr, FALSE,
-                        CREATE_NO_WINDOW, nullptr, root.c_str(), &startup, &process)) {
-        return Fail(L"启动 Python 壳失败。");
+    for (;;) {
+        DWORD recover_code = 0;
+        const std::wstring recover =
+            Quote(python.console) + L" -m agent.update.recover";
+        RunAndWait(recover, root, recover_code);
+
+        const std::wstring payload = PayloadRoot(root);
+        if (!Exists(Join(payload, L"agent\\gui\\launcher.py"))) {
+            return Fail(L"更新后应用文件不完整，请检查 versions 目录。");
+        }
+
+        STARTUPINFOW startup{};
+        startup.cb = sizeof(startup);
+        PROCESS_INFORMATION process{};
+        const std::wstring command =
+            Quote(python.windowed) + L" -m agent.gui.launcher";
+        std::vector<wchar_t> mutableCommand(command.begin(), command.end());
+        mutableCommand.push_back(L'\0');
+        if (!CreateProcessW(nullptr, mutableCommand.data(), nullptr, nullptr, FALSE,
+                            CREATE_NO_WINDOW, nullptr, payload.c_str(), &startup, &process)) {
+            return Fail(L"启动 Python 壳失败。");
+        }
+
+        const HANDLE job = CreateJobObjectW(nullptr, nullptr);
+        if (job != nullptr) {
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            SetInformationJobObject(job, JobObjectExtendedLimitInformation,
+                                    &info, sizeof(info));
+            AssignProcessToJobObject(job, process.hProcess);
+        }
+
+        WaitForSingleObject(process.hProcess, INFINITE);
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        if (job != nullptr) CloseHandle(job);
+
+        if (!Exists(Join(root, L"updates\\apply.json"))) break;
+
+        DWORD update_code = 1;
+        const std::wstring updater =
+            Quote(python.console) + L" -m agent.update.apply";
+        RunAndWait(updater, root, update_code);
+        // 更新失败时 helper 已回滚指针；继续启动旧版本。
     }
 
-    const HANDLE job = CreateJobObjectW(nullptr, nullptr);
-    if (job != nullptr) {
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
-        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        SetInformationJobObject(job, JobObjectExtendedLimitInformation,
-                                &info, sizeof(info));
-        AssignProcessToJobObject(job, process.hProcess);
-    }
-
-    WaitForSingleObject(process.hProcess, INFINITE);
-    CloseHandle(process.hThread);
-    CloseHandle(process.hProcess);
-    if (job != nullptr) CloseHandle(job);
     CloseHandle(mutex);
     return 0;
 }

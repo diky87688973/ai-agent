@@ -63,6 +63,20 @@ class ConversationQueue:
             self._ensure_locked(key)
             return sum(1 for item in self._items.get(key, []) if self._visible(item))
 
+    def pending_total(self) -> int:
+        with self._lock:
+            cids = set(self._loaded)
+            if self._root is not None and self._root.is_dir():
+                for child in self._root.iterdir():
+                    if child.is_dir() and not child.name.startswith("."):
+                        cids.add(child.name)
+            for cid in cids:
+                self._ensure_locked(cid)
+            return sum(
+                1 for cid in cids for item in self._items.get(cid, [])
+                if item.get("state") in _ACTIVE
+            )
+
     def list(self, cid: str) -> Dict[str, Any]:
         with self._lock:
             key = self._key(cid)

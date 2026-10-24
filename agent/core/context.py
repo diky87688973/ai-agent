@@ -43,6 +43,7 @@ SERVICE_SESSION_FACTORY = "session_factory"      # 上下文管线工厂（cid �
 SERVICE_COMPACTOR_FACTORY = "compactor_factory"  # 压缩器工厂（cid → ContextCompactor）
 SERVICE_ERROR_LOG = "error_log"                  # 错误日志（mechanisms.ErrorLog）
 SERVICE_BACKGROUND_TASKS = "background_tasks"    # 后台任务管理器（按 cid 隔离）
+SERVICE_UPDATE = "update"                        # 软件更新控制器
 
 
 class AppContext:

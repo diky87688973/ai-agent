@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
-from agent.core.context import SERVICE_BACKGROUND_TASKS
+from agent.core.context import SERVICE_BACKGROUND_TASKS, SERVICE_CONVERSATION_QUEUE, SERVICE_UPDATE
 from agent.core.error_report import report_error
 from agent.shell.web.web_api import WebShell
 from agent.shell.web.web_classic import ClassicRoutes
@@ -156,10 +156,26 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
             return None
         return context.get(SERVICE_BACKGROUND_TASKS)
 
+    def _update_controller(self) -> Any:
+        app = getattr(self.shell, "app", None)
+        context = getattr(app, "context", None)
+        if context is None or not callable(getattr(context, "has", None)):
+            return None
+        if not context.has(SERVICE_UPDATE):
+            return None
+        return context.get(SERVICE_UPDATE)
+
     def do_GET(self) -> None:
         try:
             path = self._path()
             query = self._query()
+            if path == "/api/update/status":
+                controller = self._update_controller()
+                if controller is None:
+                    self._json(503, {"ok": False, "error": "update_unavailable"})
+                else:
+                    self._json(200, {"ok": True, **controller.status()})
+                return
             if path == "/api/background/tasks":
                 manager = self._background_tasks()
                 if manager is None:
@@ -360,6 +376,35 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
                             ],
                         }
                 self._json(status, payload)
+            elif path in ("/api/update/check", "/api/update/download", "/api/update/apply"):
+                controller = self._update_controller()
+                if controller is None:
+                    self._json(503, {"ok": False, "error": "update_unavailable"})
+                    return
+                try:
+                    if path.endswith("/apply"):
+                        context = getattr(getattr(self.shell, "app", None), "context", None)
+                        manager = context.get(SERVICE_BACKGROUND_TASKS) if context is not None and context.has(SERVICE_BACKGROUND_TASKS) else None
+                        if manager is not None and callable(getattr(manager, "active_total", None)):
+                            active = int(manager.active_total())
+                            if active > 0:
+                                raise ValueError(f"仍有 {active} 个后台任务，停止后再更新")
+                        queue = context.get(SERVICE_CONVERSATION_QUEUE) if context is not None and context.has(SERVICE_CONVERSATION_QUEUE) else None
+                        if queue is not None and callable(getattr(queue, "pending_total", None)):
+                            queued = int(queue.pending_total())
+                            if queued > 0:
+                                raise ValueError(f"仍有 {queued} 条待发送消息，处理后再更新")
+                    if path.endswith("/check"):
+                        result = controller.check()
+                    elif path.endswith("/download"):
+                        result = controller.download()
+                    else:
+                        result = controller.apply()
+                except (OSError, ValueError) as exc:
+                    self._json(400, {"ok": False, "error": str(exc)})
+                else:
+                    self._json(200, {"ok": True, **result})
+                return
             elif path == "/api/background/tasks/create":
                 manager = self._background_tasks()
                 if manager is None:

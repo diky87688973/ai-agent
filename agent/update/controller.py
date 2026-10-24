@@ -1,0 +1,78 @@
+# -*- coding: utf-8 -*-
+"""更新检查、下载暂存与重启请求。"""
+from __future__ import annotations
+
+import json
+import os
+import threading
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from agent.update.checker import check, manifest_url
+from agent.update.install import install_root
+from agent.update.stage import stage_package
+
+
+class UpdateController:
+    def __init__(self, root: Optional[Path] = None) -> None:
+        self.root = Path(root) if root is not None else install_root()
+        self.updates = self.root / "updates"
+        self._lock = threading.Lock()
+        self._manifest = None
+        self._status: Dict[str, Any] = {
+            "available": False,
+            "current": "",
+            "remote": "",
+            "channel": "",
+            "detail": "idle",
+            "staged": False,
+            "version": "",
+        }
+
+    def status(self) -> Dict[str, Any]:
+        with self._lock:
+            return dict(self._status)
+
+    def check(self) -> Dict[str, Any]:
+        with self._lock:
+            result = check(self.root, manifest_url())
+            self._manifest = result.manifest if result.available else None
+            staged = bool(result.manifest and (self.updates / "staging" / str(result.manifest.version) / ".ready").is_file())
+            self._status = {
+                "available": result.available,
+                "current": result.current,
+                "remote": result.remote,
+                "channel": result.channel,
+                "detail": result.detail,
+                "staged": staged,
+                "version": result.remote if result.available else "",
+            }
+            return dict(self._status)
+
+    def download(self) -> Dict[str, Any]:
+        with self._lock:
+            if self._manifest is None:
+                raise ValueError("没有可下载的更新")
+            path = stage_package(
+                self._manifest,
+                manifest_url=manifest_url(),
+                updates_dir=self.updates,
+            )
+            self._status.update({"staged": True, "detail": "staged", "staging": str(path)})
+            return dict(self._status)
+
+    def apply(self) -> Dict[str, Any]:
+        with self._lock:
+            if not self._status.get("staged") or self._manifest is None:
+                raise ValueError("更新尚未下载完成")
+            version = str(self._manifest.version)
+            staging = self.updates / "staging" / version
+            self.updates.mkdir(parents=True, exist_ok=True)
+            (self.updates / "apply.json").write_text(
+                json.dumps({"version": version, "staging": str(staging)},
+                           ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            self._status.update({"detail": "restarting"})
+        threading.Timer(0.6, lambda: os._exit(0)).start()
+        return {"ok": True, "version": version}

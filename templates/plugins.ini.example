@@ -1,0 +1,13 @@
+[plugin:skills]
+
+[plugin:rules]
+enabled = 1
+
+[plugin:knowledge]
+
+[plugin:multi_model]
+enabled = 1
+
+[plugin:visual_operator]
+
+[plugin:ai_speak]

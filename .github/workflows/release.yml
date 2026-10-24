@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . -c constraints.txt
+
+      - name: 构建启动器
+        shell: powershell
+        run: .\launcher\build.ps1
+
+      - name: 构建更新包
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          if ((Get-Content VERSION -Raw).Trim() -ne $version) { throw "VERSION 与 tag 不一致" }
+          python scripts/build_release.py --version $version --output dist
+          Get-Content dist\manifest.json
+
+      - name: 发布资产
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist\* --title "${{ github.ref_name }}" --generate-notes

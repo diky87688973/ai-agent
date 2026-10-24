@@ -194,6 +194,10 @@ class BackgroundTaskManager:
         )
         self._scheduler.start()
 
+    def active_total(self) -> int:
+        with self._lock:
+            return sum(self._active_locked(q) for q in self._queues.values())
+
     def set_notice(self, notice: Optional[Callable[[str, str], None]]) -> None:
         with self._lock:
             self._notice = notice

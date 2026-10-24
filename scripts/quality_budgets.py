@@ -26,6 +26,7 @@ COVERAGE_FLOORS: Dict[str, float] = {
     "agent/entry": 60,
     # 桌面壳依赖 Windows / WebView2，Linux CI 只能覆盖无平台分支。
     "agent/gui": 25,
+    "agent/update": 60,
     "agent (top-level)": 90,
     "plugins": 60,
 }

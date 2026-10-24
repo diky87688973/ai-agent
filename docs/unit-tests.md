@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1811** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1829** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -88,15 +88,16 @@
 77. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
 78. [test_tool_registry.py](#test_tool_registrypy)（17）
 79. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-80. [test_usage_metrics.py](#test_usage_metricspy)（7）
-81. [test_version_stamp.py](#test_version_stamppy)（4）
-82. [test_visual_operator.py](#test_visual_operatorpy)（130）
-83. [test_web_frontend.py](#test_web_frontendpy)（5）
-84. [test_web_shell.py](#test_web_shellpy)（52）
-85. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-86. [test_write_gate.py](#test_write_gatepy)（16）
-87. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-88. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+80. [test_update.py](#test_updatepy)（18）
+81. [test_usage_metrics.py](#test_usage_metricspy)（7）
+82. [test_version_stamp.py](#test_version_stamppy)（4）
+83. [test_visual_operator.py](#test_visual_operatorpy)（130）
+84. [test_web_frontend.py](#test_web_frontendpy)（5）
+85. [test_web_shell.py](#test_web_shellpy)（52）
+86. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+87. [test_write_gate.py](#test_write_gatepy)（16）
+88. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+89. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -2186,6 +2187,31 @@
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `ToolSessionGateTest` | `test_execute_fills_session_gate` | 覆盖「经 ToolPort 执行时，工具所见 gate 与会话注册表一致」：execute fills session gate |
+
+## test_update.py
+
+共 18 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ControllerTest` | `test_apply_without_state` | 覆盖「A class whose instances are single test cases」：apply without state |
+| 2 | `ControllerTest` | `test_controller_disabled_and_guards` | 覆盖「A class whose instances are single test cases」：controller disabled and guards |
+| 3 | `FileHashTest` | `test_sha256_file` | 覆盖「A class whose instances are single test cases」：sha256 file |
+| 4 | `InstallLayoutTest` | `test_apply_staged_and_config_merge` | 覆盖「A class whose instances are single test cases」：apply staged and config merge |
+| 5 | `InstallLayoutTest` | `test_merge_removes_deleted_key` | 覆盖「A class whose instances are single test cases」：merge removes deleted key |
+| 6 | `InstallLayoutTest` | `test_rollback_pointer` | 覆盖「A class whose instances are single test cases」：rollback pointer |
+| 7 | `ManifestTest` | `test_bad_schema` | 覆盖「A class whose instances are single test cases」：bad schema |
+| 8 | `ManifestTest` | `test_check_disabled_without_url` | 覆盖「A class whose instances are single test cases」：check disabled without url |
+| 9 | `ManifestTest` | `test_parse_and_digest` | 覆盖「A class whose instances are single test cases」：parse and digest |
+| 10 | `ManifestTest` | `test_stage_package_from_local_asset` | 覆盖「A class whose instances are single test cases」：stage package from local asset |
+| 11 | `ManifestTest` | `test_zip_paths` | 覆盖「A class whose instances are single test cases」：zip paths |
+| 12 | `PluginConfigTest` | `test_local_secret_filter` | 覆盖「A class whose instances are single test cases」：local secret filter |
+| 13 | `PluginConfigTest` | `test_plugin_config_merge_and_sensitive_copy` | 覆盖「A class whose instances are single test cases」：plugin config merge and sensitive copy |
+| 14 | `PluginConfigTest` | `test_recover_rolls_back_unhealthy_target` | 覆盖「A class whose instances are single test cases」：recover rolls back unhealthy target |
+| 15 | `PluginConfigTest` | `test_sensitive_config_is_not_default_distribution` | 覆盖「A class whose instances are single test cases」：sensitive config is not default distribution |
+| 16 | `PluginConfigTest` | `test_state_read_write` | 覆盖「A class whose instances are single test cases」：state read write |
+| 17 | `VersionTest` | `test_invalid_version` | 覆盖「A class whose instances are single test cases」：invalid version |
+| 18 | `VersionTest` | `test_semver_compare` | 覆盖「A class whose instances are single test cases」：semver compare |
 
 ## test_usage_metrics.py
 
