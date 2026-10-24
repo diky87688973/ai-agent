@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from agent.update.checker import check, manifest_url
-from agent.update.install import install_root
+from agent.update.install import install_root, payload_root
 from agent.update.stage import stage_package
+from agent.update.version import is_dev_checkout
 
 
 class UpdateController:
@@ -35,7 +36,11 @@ class UpdateController:
 
     def check(self) -> Dict[str, Any]:
         with self._lock:
-            result = check(self.root, manifest_url())
+            if is_dev_checkout(self.root):
+                self._manifest = None
+                self._status.update({"available": False, "detail": "dev_checkout"})
+                return dict(self._status)
+            result = check(payload_root(self.root), manifest_url())
             self._manifest = result.manifest if result.available else None
             staged = bool(result.manifest and (self.updates / "staging" / str(result.manifest.version) / ".ready").is_file())
             self._status = {

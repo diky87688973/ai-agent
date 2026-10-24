@@ -147,6 +147,29 @@ class ControllerTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 controller.apply()
 
+    def test_controller_uses_payload_version(self) -> None:
+        from agent.update.controller import UpdateController
+        from agent.update.install import write_pointer
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "VERSION").write_text("0.1.0", encoding="utf-8")
+            target = root / "versions" / "0.2.0"
+            (target / "agent").mkdir(parents=True)
+            (target / "VERSION").write_text("0.2.0", encoding="utf-8")
+            write_pointer(root, "0.2.0", "0.1.0")
+            with patch("agent.update.controller.manifest_url", return_value=""):
+                controller = UpdateController(root)
+                self.assertEqual(controller.check()["current"], "0.2.0")
+
+    def test_dev_checkout_disables_update(self) -> None:
+        from agent.update.controller import UpdateController
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            (root / "VERSION").write_text("0.1.0", encoding="utf-8")
+            controller = UpdateController(root)
+            self.assertEqual(controller.check()["detail"], "dev_checkout")
+
     def test_apply_without_state(self) -> None:
         from agent.update.apply import main
         with tempfile.TemporaryDirectory() as tmp, \

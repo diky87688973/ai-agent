@@ -52,6 +52,13 @@ def current_version(root: Optional[Path] = None) -> Version:
     return Version.parse(raw)
 
 
+def is_dev_checkout(root: Optional[Path] = None) -> bool:
+    if str(os.environ.get("AI_AGENT_DEV") or "").strip().lower() in ("1", "true", "yes", "on"):
+        return True
+    base = Path(root) if root is not None else Path(__file__).resolve().parents[2]
+    return (base / ".git").exists()
+
+
 def is_newer(remote: Version, local: Version) -> bool:
     """stable 语义：只接受更高版本；预发布不高于同版本正式版。"""
     if remote.major != local.major:

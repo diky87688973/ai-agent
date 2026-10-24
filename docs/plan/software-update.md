@@ -660,7 +660,135 @@ zip 成功后清理
 阶段 6：增量文件 manifest
 ```
 
-## 17. 已确认决策
+## 17. 升级演练
+
+演练使用独立安装目录与独立数据根，不读写当前工程的 data/。
+
+### 17.1 基线发布
+
+```text
+确认工作区干净
+确认 VERSION 与 pyproject.toml 都是 0.1.0
+提交到 main
+打 tag v0.1.0
+push main 与 tag
+```
+
+```bash
+git status
+git tag v0.1.0
+git push origin main
+git push origin v0.1.0
+```
+
+等待 Release 工作流完成，确认：
+
+```text
+releases/latest/download/manifest.json 可访问
+manifest.asset.sha256 与 zip 一致
+```
+
+### 17.2 建立演练安装
+
+```text
+复制当前工程到独立目录
+删除 .git
+删除 data/、tests/、docs/、.github/、dist/、updates/、versions/
+删除 launcher.json、.coverage、缓存目录
+保留 agent-gui.exe、agent/、plugins/、assets/、templates/、VERSION、配置文件
+```
+
+启动演练 GUI，使用独立数据根：
+
+```powershell
+$env:AI_AGENT_DATA_ROOT = "$env:TEMP\update-rehearsal-data"
+```
+
+冒烟检查：
+
+```text
+会话可创建
+模型可调用
+工具可执行
+队列可发送
+后台任务可创建
+无更新按钮
+```
+
+### 17.3 发布新版
+
+在当前工程修改页面顶部，增加红色文字：
+
+```text
+升级演练
+```
+
+同时修改版本：
+
+```text
+VERSION = 0.1.1
+pyproject.toml version = 0.1.1
+```
+
+提交并发布：
+
+```bash
+git add .
+git commit -m "feat: 增加升级演练标识"
+git push origin main
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+等待 Release 工作流完成。
+
+### 17.4 执行升级
+
+```text
+演练 GUI 刷新或重启
+顶部出现“更新 0.1.1”
+点击更新
+下载完成
+点击重启更新
+应用退出
+updater 切换 versions/0.1.1
+新版本启动
+```
+
+检查：
+
+```text
+顶部红色“升级演练”
+launcher.json 指向 0.1.1
+versions/0.1.0 与 versions/0.1.1 均存在
+config.ini 保留原值
+插件配置保留原值
+data/ 保留
+更新按钮消失
+```
+
+### 17.5 失败路径
+
+```text
+篡改 zip 或 manifest 哈希 → 拒绝下载
+删除新版本模块 → 健康检查失败 → 回滚
+更新时运行后台任务 → 拒绝
+更新时存在待发送队列 → 拒绝
+切换期间强杀进程 → 下次启动 recover 回滚
+```
+
+### 17.6 截图证据
+
+```text
+演练版本无更新按钮
+新版 Release 资产
+更新按钮出现
+下载完成
+重启后的红色“升级演练”
+launcher.json 与 versions 目录
+```
+
+## 18. 已确认决策
 
 1. 接受 `versions/<version>/` + 稳定启动器布局。
 2. 首版只做哈希校验；manifest 预留签名字段，后续支持 Ed25519。
@@ -670,7 +798,7 @@ zip 成功后清理
 6. 启动后自动检查并显示更新按钮；下载与安装都由用户点击确认。
 7. `defaults/` 改名为 `templates/`，只作为默认配置模板来源。
 
-## 18. 后续决策
+## 19. 后续决策
 
 ```text
 macOS 应用包形态与签名/公证流程
