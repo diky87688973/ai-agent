@@ -160,7 +160,7 @@ parameters = {
 | 最小化 | **恢复**（`SW_SHOWNOACTIVATE`）后取图，当前前台不变 | 恢复 + 置前，等价于点任务栏 |
 
 恢复是必须的：最小化窗口的 `GetWindowRect` 是 `(-32000,-32000,160,28)`，
-`PrintWindow` 只会得到空帧。实测 `SW_SHOWNOACTIVATE` 能触发 CEF/Electron 真实重绘
+`PrintWindow` 只会得到空帧。实测 `SW_SHOWNOACTIVATE` 能触发 Chromium/Chromium 真实重绘
 （5.78MB 非空帧，与 `SW_RESTORE` 一致），所以「不打扰用户」和「取到内容」可以同时成立。
 
 ### 4.2 `desktop_mouse`
@@ -402,15 +402,15 @@ return unavailable_backend()
 | DPI 感知 | `SetProcessDpiAwarenessContext(-4)` → `shcore.SetProcessDpiAwareness(2)` → `SetProcessDPIAware()`，一次性，记录生效档位 |
 | 虚拟屏 | `SM_XVIRTUALSCREEN` / `SM_YVIRTUALSCREEN` / `SM_CXVIRTUALSCREEN` / `SM_CYVIRTUALSCREEN` |
 | 截图 | `GetDC(NULL)` → 兼容 DC / 位图 → `BitBlt(SRCCOPY)` → `GetDIBits`（32 位、`BI_RGB`、`biHeight = -h` 取顶朝下）→ Pillow `frombuffer("BGRX")` |
-| 光标 | `GetCursorPos` |
-| 移动 | `SetCursorPos`；`duration_ms > 0` 时按线性插值分步投递，每步 10ms |
+| 光标 | `Get外部编辑器Pos` |
+| 移动 | `Set外部编辑器Pos`；`duration_ms > 0` 时按线性插值分步投递，每步 10ms |
 | 点击 | `SendInput` 按下 / 抬起，连击间隔 20ms；连击逐次重复 |
 | 拖拽 | 起点落位 → 按下 → 插值移动 → `finally` 抬起 |
 | 滚轮 | `MOUSEEVENTF_WHEEL` / `MOUSEEVENTF_HWHEEL`，纵向取反后乘 120 |
 | 键盘 | `SendInput` + `KEYEVENTF_UNICODE`；特殊键用虚拟键码；组合键顺序按下、逆序抬起 |
 
-坐标选择 `SetCursorPos` 而不用 `MOUSEEVENTF_ABSOLUTE`：后者不带 `VIRTUALDESK`
-时只覆盖主屏，归一化还会在混合 DPI 下引入误差。`SetCursorPos` 直接吃虚拟桌面像素坐标。
+坐标选择 `Set外部编辑器Pos` 而不用 `MOUSEEVENTF_ABSOLUTE`：后者不带 `VIRTUALDESK`
+时只覆盖主屏，归一化还会在混合 DPI 下引入误差。`Set外部编辑器Pos` 直接吃虚拟桌面像素坐标。
 
 已知边界（写进文档）：UIPI 提权窗口（以管理员运行的程序）会丢弃普通权限进程的
 `SendInput`，且不报错；锁屏与 UAC 安全桌面下 `BitBlt` 得到全黑图。

@@ -169,7 +169,7 @@ Windows 用 `ctypes` 的 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`：
 一个会话一份 JSON：`<data_root>/session_state/<cid>.json`。
 
 ```json
-{"model": "deepseek-flash", "mode": "plan", "effort": "max",
+{"model": "upstream-flash", "mode": "plan", "effort": "max",
  "todo": {"list_id": "l-1", "items": [{"id": "1", "text": "x", "done": false}], "collapsed": false}}
 ```
 

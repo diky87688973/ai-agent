@@ -24,7 +24,7 @@ entry  →  shell  →  capabilities  →  mechanisms  →  core
 
 | 包 | 职责 |
 |---|---|
-| `agent/mechanisms/providers/` | provider 协议、SSE、OpenAI/Anthropic/Echo/Missing 实现；装配只在 `provider_registry.py` |
+| `agent/mechanisms/providers/` | provider 协议、SSE、兼容协议/原生协议/Echo/Missing 实现；装配只在 `provider_registry.py` |
 | `agent/mechanisms/context/` | 轮次、token、布局、来源、压缩窄接口、三拼接装 |
 | `agent/mechanisms/compaction/` | 压缩触发、覆盖前缀与摘要接入 |
 | `agent/capabilities/tasks/` | 任务工具与确认协议，每个工具一个文件 |

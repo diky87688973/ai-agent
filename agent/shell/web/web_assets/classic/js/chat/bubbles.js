@@ -3,8 +3,97 @@
  * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
-function add(role,t){
+function _systemNoticeBatch(text){
+var m=String(text||"").match(/任务批次[:：]\s*([^\n]+?)\s*已完结/);
+return m?m[1].trim():"";
+}
+function _sysNoticeHost(){
+var pane=msgs&&msgs.closest?msgs.closest(".chat-conversation-pane"):null;
+if(!pane)return null;
+var host=pane.querySelector(":scope > .sys-notice-host");
+if(!host){host=document.createElement("div");host.className="sys-notice-host";pane.insertBefore(host,pane.firstChild);}
+return host;
+}
+function _hideSystemNotice(target){
+var card=target;
+if(!card||!card.parentNode)return;
+if(card._sysNoticeTimer){clearTimeout(card._sysNoticeTimer);card._sysNoticeTimer=null;}
+card.classList.add("is-leaving");
+setTimeout(function(){if(card.parentNode)card.parentNode.removeChild(card);},220);
+}
+function _clearSystemNoticeTimer(card){
+if(card&&card._sysNoticeTimer){clearTimeout(card._sysNoticeTimer);card._sysNoticeTimer=null;}
+}
+function _armSystemNoticeTimer(target,delay){
+var card=target;
+if(!card)return;
+_clearSystemNoticeTimer(card);
+card._sysNoticeTimer=setTimeout(function(){_hideSystemNotice(card);},delay);
+}
+function _replaceSystemNotices(host,next){
+if(!host)return;
+var old=host.querySelectorAll(".sys-notice");
+Array.prototype.forEach.call(old,function(card){
+_clearSystemNoticeTimer(card);
+card.classList.add("is-leaving");
+setTimeout(function(){if(card.parentNode)card.parentNode.removeChild(card);},180);
+});
+host.appendChild(next);
+}
+function addSystemNotice(t,meta){
 if(!msgs)return null;
+var text=String(t||"");
+var meta=meta&&typeof meta==="object"?meta:{};
+var batch=String(meta.batch||"").trim()||_systemNoticeBatch(text);
+var host=_sysNoticeHost();
+var e=document.createElement("div");
+e.className="sys-notice";
+var head=document.createElement("button");
+head.type="button";
+head.className="sys-notice-head";
+head.setAttribute("aria-expanded","false");
+var title=document.createElement("span");
+title.className="sys-notice-title";
+title.textContent="系统通知"+(batch?": 任务 "+batch+" 已完结":": 任务已完结");
+var chevron=document.createElement("span");
+chevron.className="sys-notice-chevron";
+chevron.setAttribute("aria-hidden","true");
+chevron.innerHTML='<svg viewBox="0 0 16 16" width="12" height="12"><path d="M3.5 6.5 8 11l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+head.appendChild(title);
+head.appendChild(chevron);
+var detail=document.createElement("div");
+detail.className="sys-notice-detail";
+detail.textContent=text.replace(/^<<系统通知>>\s*/,"").trim();
+e.appendChild(head);
+e.appendChild(detail);
+e.setAttribute("role","status");
+if(host)_replaceSystemNotices(host,e);else msgs.appendChild(e);
+_armSystemNoticeTimer(e,6000);
+return e;
+}
+function _toggleSystemNotice(head){
+var card=head&&head.closest?head.closest(".sys-notice"):null;
+if(!card)return;
+var detail=card.querySelector(".sys-notice-detail");
+var open=head.getAttribute("aria-expanded")==="true";
+head.setAttribute("aria-expanded",open?"false":"true");
+if(detail)detail.classList.toggle("is-open",!open);
+if(open){
+_armSystemNoticeTimer(card,4000);
+}else{
+_clearSystemNoticeTimer(card);
+}
+}
+if(!window._sysNoticeDelegated){
+window._sysNoticeDelegated=true;
+document.addEventListener("click",function(ev){
+var head=ev.target&&ev.target.closest?ev.target.closest(".sys-notice-head"):null;
+if(head)_toggleSystemNotice(head);
+});
+}
+function add(role,t,meta){
+if(!msgs)return null;
+if(role==='u'&&meta&&meta.kind==="system_notice"&&meta.source==="background_tasks")return addSystemNotice(t,meta);
 const e=document.createElement('div');
 e.className='b '+(role==='u'?'u':'a');
 if(role==='u'){/* 文字包一层 span —— 这样「文字」是独立子元素，附件条能用 CSS `order` 排到它前面（气泡是 flex 纵向布局，文字需要成为独立子元素才能用 `order` 调整顺序）。 */e.appendChild(Object.assign(document.createElement('span'),{className:'b-text',innerHTML:linkifyUserText(t)}));}else{e.innerHTML=renderMarkdown(t||'');}

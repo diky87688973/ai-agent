@@ -581,7 +581,7 @@ python scripts/ci.py                            # 全绿
 | 入口迁移导致用户启动失败 | P2 改 `start.bat/sh` | 同 PR 改 README、`docs/subsystems/shell.md`；发布说明置顶 |
 | 覆盖率下限把 CI 打红 | P3 第一次跑全量 | 下限由测得值向下取整生成，先提交基线再开 `--fail-under` |
 | 复杂度登记表变成"合法欠债清单" | P0 建表 | 每项必须写承担者或拆分计划；新文件一律不得入表 |
-| 生成式 yml 与 GitHub 语义不一致 | P3 | 先渲染与现 yml 等价内容，人工 diff 后再替换；保留 `workflow_dispatch` 手动跑一次 |
+| 生成式 yml 与 远端 CI 语义不一致 | P3 | 先渲染与现 yml 等价内容，人工 diff 后再替换；保留 `workflow_dispatch` 手动跑一次 |
 | `config_schema` 改动影响所有读取方 | P2/P3 | 先加 schema 与门禁（P0），再改 `get_*`；每步跑全量单测 |
 
 ## 10. 结论

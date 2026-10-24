@@ -1,0 +1,254 @@
+# 后台任务管理器
+
+状态：已实现。
+
+## 名称
+
+```text
+工具：background_task
+服务：BackgroundTaskManager
+记录：BackgroundTaskRecord
+状态：BackgroundTaskStatus
+执行器：BackgroundTaskExecutor
+输出：BackgroundTaskOutput
+业务身份：task_id
+```
+
+统一使用 `task`，不混用 `job`。
+
+## 工具接口
+
+```text
+background_task(action="create", argv, cwd?, timeout_sec, label, batch?)
+background_task(action="list", batch, task_id?, status?)
+background_task(action="cancel", task_id, reason?)
+background_task(action="output", task_id, wait?, timeout_ms?)
+```
+
+`create` 必须提供非空 `label`；它是工具壳展示的任务小标题，允许同名。
+`argv` 是非空字符串数组，直接交给 `Popen`，不经过 shell；参数中的分号、管道符等按普通字符处理。
+`create` 返回 `task_id` 和 `batch`。首次创建生成 `batch`；后续创建传回这个 `batch` 即归入同一批。
+排队中的任务 `pid=null`，不承诺立即有进程。`task_id` 是业务身份；`pid` 只用于内部诊断和展示。
+
+`list` 必须提供 `batch`；返回该批次的全部任务，不翻页。
+`list` 同时接受精确 `task_id` 过滤和可选 `status` 过滤。
+
+`timeout_sec` 必填，范围 1–86400，从 `create` 时刻开始计时，包含排队与执行。
+
+## 队列
+
+每个 cid 一份队列：
+
+```text
+pending   待执行
+running   执行中
+history   所有终态记录，只追加不删除
+```
+
+限制：
+
+```text
+MAX_RUNNING_PER_CID = 10
+MAX_PENDING_PER_CID = 10
+```
+
+`pending` 达到 10 时 `create` 返回 `task_queue_full`，任务不入队。
+`running` 达到 10 时不再启动新任务，任务留在 pending。
+
+同一 cid 严格 FIFO。不同 cid 独立调度，各自最多 10 个 running。
+
+## 状态
+
+```text
+queued
+running
+completed
+failed
+timed_out
+cancelled
+```
+
+内部字段 `cancel_requested` 表示已请求取消但进程尚未退出；对外状态仍为 `running` 直到真正终态。
+
+状态迁移：
+
+```text
+create -> queued
+queued -> running | timed_out | cancelled
+running -> completed | failed | timed_out | cancelled
+```
+
+终态定义：
+
+```text
+completed   exit_code == 0
+failed      启动失败或非零退出
+timed_out   排队超时或执行超时
+cancelled   用户或模型取消
+```
+
+`timed_out` 与 `failed` 分开，避免把超时误报为普通失败。
+
+## 超时
+
+`deadline_at = created_at + timeout_sec`。
+
+```text
+排队期间到期：不启动进程，标 timed_out，detail=queue_timeout
+执行期间到期：杀进程树，标 timed_out，detail=execution_timeout
+```
+
+超时后不重试。
+
+## 输出
+
+每个任务一份有界输出 ring：
+
+```text
+stdout / stderr 分开
+模型只读取未消费部分
+输出读取不移动其他观察者的游标
+终态输出可读取
+```
+
+`output` 返回：
+
+```json
+{
+  "task_id": "bt-...",
+  "status": "running",
+  "output": "...",
+  "stderr": "...",
+  "truncated": false,
+  "exit_code": null
+}
+```
+
+`wait=true` 等待任务终态或 `timeout_ms` 到期；等待超时返回 `running`，不杀任务。
+
+## 取消
+
+```text
+queued：立即标 cancelled，不产生 pid
+running：标记 cancel_requested，杀整棵进程树；进程退出后标 cancelled
+终态：返回当前状态，不报错
+```
+
+取消和超时共用同一套进程树清理逻辑。
+
+## 沙箱
+
+采用进程级隔离：
+
+```text
+cwd 必须位于允许根目录内
+路径 resolve 后比对，拒绝 .. 与符号链接逃逸
+子进程独立进程组
+Windows 使用 Job Object，Unix 使用 setsid
+清理继承环境，只保留运行所需白名单
+stdin 指向 DEVNULL
+不接受模型传入 env
+```
+
+明确边界：
+
+```text
+进程级隔离不是文件系统沙箱
+命令内部仍可能访问允许根之外的路径
+```
+
+不允许把“进程级”表述为“安全沙箱”。
+
+允许根来自项目配置的 fs roots；默认 cwd 为项目根。
+
+## 通知
+
+只在 active 数量从 `>0` 变为 `0` 时触发一次聚合通知。
+
+`active` 指 pending + running；history 不参与。
+
+消息内容：
+
+```text
+<<系统通知>>
+本消息为 任务管理器 触发的系统通知
+任务批次：<batch> 已完结，请查看结果。
+```
+
+通知消息的事实元数据：
+
+```text
+role=user
+kind=system_notice
+source=background_tasks
+notice_id=<唯一 id>
+batch=<批次号>
+content 仍以 <<系统通知>> 开头
+```
+
+契约只认 `kind` 与 `source`：`kind=system_notice` 且 `source=background_tasks` 时才渲染系统通知卡片；前缀只留给模型识别，不参与信任判断。普通用户消息即使以该前缀开头，也不会被渲染成系统通知。
+
+经典界面把符合条件的 user 消息渲染成对话区顶部的系统通知卡片，不复用普通用户气泡。
+卡片宽度为对话区的 50%，居中，贴合上边框，顶部左右无圆角。
+默认 6 秒后自动消失；用户展开详情后暂停自动消失，折叠后 4 秒再消失；新通知到达时先收起旧卡片，再展示新卡片。
+
+模型忙时通知进入 inbox，`origin=system`、`delivery=next_pass`，入队后立即置为 inserting；队列 UI 不显示系统通知。模型空闲时直接启动一轮。
+
+注入规则：
+
+```text
+role=user
+source=background_tasks
+internal=true
+```
+
+`internal=true` 防止被会话标题逻辑当作普通用户首条消息。
+
+会话忙时进入下一轮 inbox；会话空闲时触发一轮新 turn。
+会话关闭或应用退出时取消该 cid 的任务，不发通知。
+
+## 模块
+
+```text
+agent/mechanisms/background_tasks/
+  __init__.py
+  manager.py
+  record.py
+  executor.py
+  output.py
+
+agent/capabilities/builtin/background_task.py
+```
+
+装配：
+
+```text
+BackgroundTaskManager 注册到 AppContext
+background_task 工具通过当前会话 cid 访问 manager
+SessionRunner 提供内部通知注入入口
+应用退出 / 会话关闭时 shutdown
+```
+
+## 旧命令工具
+
+`run_command` 不在本功能中复用。
+
+新功能使用独立的 `BackgroundTaskExecutor`，拥有自己的参数、进程、超时、输出和取消语义。
+旧 `run_command` 在独立的清理项中下线，不作为 `background_task` 的兼容层。
+
+## 测试
+
+```text
+第 11 个 pending 返回 task_queue_full
+running 10 个后不再启动
+排队超时不产生进程
+执行超时杀进程树
+cancel queued / running
+output 游标只返回未读内容
+不同 cid 任务隔离
+cwd 越界拒绝
+环境变量不含父进程密钥
+应用退出无孤儿进程
+active >0 -> 0 只通知一次
+忙时进 inbox，空闲时唤醒
+```

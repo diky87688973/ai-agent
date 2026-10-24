@@ -203,7 +203,8 @@ class Engine:
             )
 
     def start_turn(self, user_text: str, attachments: Any = None,
-                   sender: Any = None, from_queue: bool = False) -> Iterator[Event]:
+                   sender: Any = None, from_queue: bool = False,
+                   meta: Any = None) -> Iterator[Event]:
         """跑一个回合，边跑边产出事实（保实时流语义）。
 
         顺序保证：事件由宿主/模块先入日志再出事件流，所以消费者看到的事实
@@ -213,7 +214,7 @@ class Engine:
         """
         atts = list(attachments) if isinstance(attachments, (list, tuple)) else []
         self._input.feed(str(user_text or ""), atts, sender=sender,
-                          from_queue=from_queue)
+                          from_queue=from_queue, meta=meta)
 
         # 开新回合：就地清空上一回合没来得及落盘的事实（`clear()`，不重绑字段）。
         self._turn_events.clear()

@@ -322,7 +322,7 @@ await api.del("tasks/t-1");                               // DELETE
 // select(id) → Promise<boolean>；onChange(fn) → 取消订阅函数。
 const models = window.aiAgentShell.models;
 const stop = models.onChange((id) => renderLabel(id));
-await models.select("claude");
+await models.select("target");
 stop();
 
 // 样式：relPath 是插件目录内相对路径；同一路径只注入一次。

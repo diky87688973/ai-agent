@@ -92,9 +92,10 @@ class SessionRunner:
         cancel_event = threading.Event()
         with self._lock:
             self._cancels[key] = cancel_event
+        meta = message.get("meta") if isinstance(message.get("meta"), dict) else {}
         thread = threading.Thread(
             target=self._run_loop,
-            args=(key, text, attachments, resume, sender),
+            args=(key, text, attachments, resume, sender, meta),
             name=f"fan-mesh-{key[:12]}",
             daemon=True,
         )
@@ -134,7 +135,8 @@ class SessionRunner:
         )
 
     def _run_loop(self, cid: str, text: str, attachments: Any = None,
-                  resume: Any = None, sender: Optional[Dict[str, Any]] = None) -> None:
+                  resume: Any = None, sender: Optional[Dict[str, Any]] = None,
+                  meta: Any = None) -> None:
         # 运行态心跳由旁路线程周期性续期：这一趟从占位到释放可能持续很久，
         # 而 `RunRegistry` 用"心跳 + 存活期"判定在跑 —— 一次长工具调用
         # （`run_command` 跑 `ping -n 120`）期间没有心跳就会被误判成"已结束"，
@@ -154,7 +156,7 @@ class SessionRunner:
                 paused = False
                 try:
                     paused = self._execute(cid, text, attachments, resume, sender,
-                                           from_queue=from_queue)
+                                           from_queue=from_queue, meta=meta)
                 except Exception as exc:  # 单回合失败不打断抽干链
                     report_error("shell.session_runner", exc, conversation_id=cid)
                 if current_queue_item is not None:
@@ -165,6 +167,7 @@ class SessionRunner:
                     break
                 resume = None
                 sender = None
+                meta = None
                 from_queue = False
                 queued = self._claim_queued(cid)
                 if queued is not None:
@@ -176,7 +179,7 @@ class SessionRunner:
                         self._release_queued(cid, queued)
                         self._mesh.end_run(cid)
                         break
-                    text, attachments, resume, sender = self._queued_input(queued)
+                    text, attachments, resume, sender, meta = self._queued_input(queued)
                     current_queue_item = queued
                     from_queue = True
                     continue
@@ -196,6 +199,7 @@ class SessionRunner:
                 attachments = None
                 resume = None
                 sender = None
+                meta = None
         except Exception as exc:  # 兜底：释放占位（不续跑）
             self._mesh.abort_run(cid)
             report_error("shell.session_runner", exc, conversation_id=cid, where="aborted")
@@ -301,7 +305,7 @@ class SessionRunner:
 
     def _execute(self, cid: str, text: str, attachments: Any = None,
                  resume: Any = None, sender: Optional[Dict[str, Any]] = None,
-                 from_queue: bool = False) -> bool:
+                 from_queue: bool = False, meta: Any = None) -> bool:
         """执行单个回合：迭代事件至尽（回合过）；注入停止检查。
 
         `resume` 非空时（外部结果回灌）：先把结果写成 `tool_result` 事实，
@@ -317,7 +321,8 @@ class SessionRunner:
         engine = self.build_engine(cid, cancel=self._cancel_check(cid))
         paused = False
         for event in engine.start_turn(text, attachments=attachments,
-                                       sender=sender, from_queue=from_queue):
+                                       sender=sender, from_queue=from_queue,
+                                       meta=meta):
             if str(getattr(event, "type", "")) == "turn_ended":
                 paused = bool((getattr(event, "data", None) or {}).get("paused"))
         return paused

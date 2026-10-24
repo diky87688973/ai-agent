@@ -102,7 +102,7 @@ python scripts/scan_js_events.py --only per-item    # 只看某一类
 python scripts/scan_js_events.py --path composer    # 只看某目录
 ```
 
-`scripts/ci.py` 在本地流水线末尾自动调用它。GitHub Actions 不执行这一项——
+`scripts/ci.py` 在本地流水线末尾自动调用它。远端 CI 不执行这一项——
 判断要读业务语义，CI 上没有模型；脚本自身也在 `GITHUB_ACTIONS=true` 时直接
 跳过，属有意为之，不是漏配。
 

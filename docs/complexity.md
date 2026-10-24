@@ -19,14 +19,14 @@
 
 | 文件::函数 | 行数 | 保留理由 |
 |---|---|---|
-| `agent/app.py::build_app` | 308 | 装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处 |
+| `agent/app.py::build_app` | 352 | 装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处 |
+| `agent/shell/web/web_routes.py::Handler.do_POST` | 193 | POST 分派与请求体校验线性展开；待拆路由表 |
 | `plugins/visual_operator/tools/_capture.py::capture_payload` | 185 | 取图、窗口选择、渲染与回执共享同一组中间状态；拆分需引入截图事务上下文对象。承担者：插件维护 |
-| `agent/shell/classic_adapter/history.py::history_items` | 164 | 历史投影边界条件集中一处；待拆事件类型 |
+| `agent/shell/web/web_routes.py::Handler.do_GET` | 172 | 路由分派按前缀线性展开；待拆路由表 + 处理器 |
+| `agent/shell/classic_adapter/history.py::history_items` | 167 | 历史投影边界条件集中一处；待拆事件类型 |
 | `scripts/check_ui_js.py::main` | 163 | 扫描与报告同流程；待拆扫描/报告两段 |
 | `agent/core/modules/model_mod.py::ModelModule.execute` | 161 | 模块执行四步同函数；待抽执行协议对象 |
 | `scripts/acceptance_mvp3.py::main` | 156 | 验收脚本按线性步骤写，拆函数会切断断言与步骤的对应 |
-| `agent/shell/web/web_routes.py::Handler.do_GET` | 151 | 路由分派按前缀线性展开；待拆路由表 + 处理器 |
-| `agent/shell/web/web_routes.py::Handler.do_POST` | 141 | POST 分派与请求体校验线性展开；待拆路由表 |
 | `agent/capabilities/builtin/geo_weather_tools.py::OpenMeteoWeatherTool._run_core` | 134 | 参数清洗、调用与错误映射同函数 |
 | `scripts/inspect_compact.py::inspect` | 131 | 诊断脚本一次产出多组统计，拆开收益低 |
 | `agent/mechanisms/session_store.py::SessionStore._write_rows` | 130 | 行写入与截断/刷新策略同函数；待拆写入器 |
@@ -50,4 +50,4 @@
 
 - 目录：`agent/`、`scripts/`、`plugins/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 252 个、函数 2109 个；超阈值文件 0 个、函数 26 个、函数数超阈值文件 0 个。
+- 文件 254 个、函数 2140 个；超阈值文件 0 个、函数 26 个、函数数超阈值文件 0 个。

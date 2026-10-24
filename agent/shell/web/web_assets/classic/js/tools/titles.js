@@ -139,6 +139,22 @@ const pf=baseNameOnly(String(argGet(args,"patch_file")||""));
 const pt=String(argGet(args,"patch_text")||"");
 const hint=pf|| (pt?"内联补丁":"补丁");
 return {main:dry?"预览修改":"提交修改",fname:root+" · "+hint};}
+if(s.indexOf("background_task")>=0){
+const act=String(argGet(args,"action")||"").toLowerCase();
+if(act==="create"){
+const label=String(argGet(args,"label")||"").trim();
+return {main:"后台任务",fname:label||"（未指定小标题）"};}
+if(act==="list"){
+const st=String(argGet(args,"status")||"").trim();
+const bt=String(argGet(args,"batch")||"").trim();
+return {main:"后台任务",fname:"列表"+(bt?" · "+bt:"")+(st?" · "+st:"")};}
+if(act==="cancel"){
+const tid=String(argGet(args,"task_id")||"").trim();
+return {main:"后台任务",fname:"取消 · "+(tid||"?")};}
+if(act==="output"){
+const tid=String(argGet(args,"task_id")||"").trim();
+return {main:"后台任务",fname:"结果 · "+(tid||"?")};}
+return {main:"后台任务",fname:act||"?"};}
 if(s.indexOf("run_command")>=0){
 const cwd=pathLeaf(String(argGet(args,"cwd")||""));
 const cmd=String(argGet(args,"command")||"").replace(/\s+/g," ").trim().slice(0,72);

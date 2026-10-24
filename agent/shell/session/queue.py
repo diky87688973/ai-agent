@@ -34,9 +34,11 @@ def input_of(item: Dict[str, Any]) -> Any:
     if isinstance(attachments, list):
         attachments = [row for row in attachments
                        if not isinstance(row, dict) or "data_base64" in row]
+    meta = {key: payload[key] for key in ("kind", "source", "notice_id", "batch")
+            if key in payload}
     return content, attachments, payload.get("resume"), (
         item.get("sender") if isinstance(item.get("sender"), dict) else None
-    )
+    ), meta
 
 
 def flush_pending(cid: str, app: Any) -> None:

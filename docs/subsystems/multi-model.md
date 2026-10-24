@@ -24,7 +24,7 @@ plugins/multi_model/
 
 ```ini
 [model:model-a]
-provider = openai
+provider = compatible
 base_url =
 api_key =
 model =
@@ -38,7 +38,7 @@ thinking = 0
 | 键 | 缺省 | 说明 |
 |---|---|---|
 | 节名 | 必填 | `[model:<id>]`；`id` 由表单顺序生成，不出现在界面 |
-| `provider` | `openai` | 协议与端点拼法；未知值只让该条目无效 |
+| `provider` | `compatible` | 协议与端点拼法；未知值只让该条目无效 |
 | `base_url` | 空 | 网关地址，必须持有这把密钥 |
 | `api_key` | 空 | 鉴权密钥；模板占位符（如 `sk-请替换`）不算已配置 |
 | `model` | 等于 `id` | 发给网关的线格式模型名 |
@@ -63,13 +63,13 @@ thinking = 0
 
 ```ini
 [model:chat]
-provider = openai
+provider = compatible
 base_url =
 api_key  =
 model    =
 
 [model:messages]
-provider = anthropic
+provider = native
 base_url =
 api_key  =
 model    =
@@ -101,7 +101,7 @@ INI 的节名必须唯一，因此两套协议不能共用一个 id。
 {
   "ok": true,
   "default": "model-a",
-  "models": [{"id": "1", "label": "Model A", "provider": "openai",
+  "models": [{"id": "1", "label": "Model A", "provider": "compatible",
               "context_window": 1000000, "default": true}],
   "invalid": []
 }
@@ -125,7 +125,7 @@ INI 的节名必须唯一，因此两套协议不能共用一个 id。
 样式经 `window.aiAgentShell.styles.load()` 按需注入。桥的契约见
 [plugins.md](plugins.md#壳层公共桥)。
 
-按钮与下拉都不设宽度上限：模型名是唯一的辨识依据，`model-a-openai` 与
+按钮与下拉都不设宽度上限：模型名是唯一的辨识依据，`model-a-compatible` 与
 `model-a-messages` 截断成同一个 `model-a-mess...` 后就分不出选的是
 哪个版本。菜单用 `width:max-content` 跟着条目走，只在视口边界（`100vw - 24px`）
 收口。

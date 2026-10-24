@@ -70,11 +70,25 @@ class TurnFrames:
                 sender=sender,
                 sender_name=str(d.get("_sender_name") or ""),
             )]
+        if str(d.get("kind") or "") == "system_notice" and str(d.get("source") or "") == "background_tasks":
+            return [self._ev(
+                C.EV_QUEUED_USER,
+                content=str(d.get("content") or ""),
+                attachments=list(d.get("attachments") or []),
+                kind="system_notice",
+                source="background_tasks",
+                notice_id=str(d.get("notice_id") or ""),
+                batch=str(d.get("batch") or ""),
+            )]
         if bool(d.get("_from_queue")):
             return [self._ev(
                 C.EV_QUEUED_USER,
                 content=str(d.get("content") or ""),
                 attachments=list(d.get("attachments") or []),
+                kind=str(d.get("kind") or ""),
+                source=str(d.get("source") or ""),
+                notice_id=str(d.get("notice_id") or ""),
+                batch=str(d.get("batch") or ""),
             )]
         return []
 

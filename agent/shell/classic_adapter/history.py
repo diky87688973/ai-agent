@@ -104,6 +104,9 @@ def history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[st
             if peer_sender:
                 item["_sender"] = peer_sender
                 item["_sender_name"] = str(data.get("_sender_name") or peer_sender)
+            for key in ("kind", "source", "notice_id", "batch"):
+                if data.get(key):
+                    item[key] = data[key]
             if attachments:
                 pub: List[Dict[str, Any]] = []
                 for index, att in enumerate(attachments):

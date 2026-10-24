@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
+from agent.core.context import SERVICE_BACKGROUND_TASKS
 from agent.core.error_report import report_error
 from agent.shell.web.web_api import WebShell
 from agent.shell.web.web_classic import ClassicRoutes
@@ -146,10 +147,40 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
 
     # 本项目未启用 N802（不追命名风格），无需抑制指令；
     # 无效的抑制指令本身会被 ruff 报警告（由 RUF100 守住）。
+    def _background_tasks(self) -> Any:
+        app = getattr(self.shell, "app", None)
+        context = getattr(app, "context", None)
+        if context is None or not callable(getattr(context, "has", None)):
+            return None
+        if not context.has(SERVICE_BACKGROUND_TASKS):
+            return None
+        return context.get(SERVICE_BACKGROUND_TASKS)
+
     def do_GET(self) -> None:
         try:
             path = self._path()
             query = self._query()
+            if path == "/api/background/tasks":
+                manager = self._background_tasks()
+                if manager is None:
+                    self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
+                    return
+                cid = str(query.get("conversation_id") or "").strip()
+                try:
+                    batch = str(query.get("batch") or "").strip()
+                    if batch:
+                        result = manager.list_tasks(
+                            cid,
+                            batch,
+                            task_id=str(query.get("task_id") or ""),
+                            status=str(query.get("status") or ""),
+                        )
+                    else:
+                        result = manager.snapshot(cid)
+                    self._json(200, result)
+                except ValueError as exc:
+                    self._json(400, {"ok": False, "error": str(exc)})
+                return
             if path == "/":
                 self._classic_page()
             elif path == "/favicon.ico":
@@ -329,6 +360,58 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
                             ],
                         }
                 self._json(status, payload)
+            elif path == "/api/background/tasks/create":
+                manager = self._background_tasks()
+                if manager is None:
+                    self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
+                    return
+                try:
+                    result = manager.create(
+                        str(body.get("conversation_id") or ""),
+                        body.get("argv"),
+                        str(body.get("cwd") or ""),
+                        int(body.get("timeout_sec") or 0),
+                        str(body.get("label") or ""),
+                        str(body.get("batch") or ""),
+                    )
+                except (TypeError, ValueError) as exc:
+                    self._json(400, {"ok": False, "error": str(exc)})
+                else:
+                    self._json(200 if result.get("ok") else 409, result)
+                return
+            elif path == "/api/background/tasks/cancel":
+                manager = self._background_tasks()
+                if manager is None:
+                    self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
+                    return
+                try:
+                    result = manager.cancel(
+                        str(body.get("conversation_id") or ""),
+                        str(body.get("task_id") or ""),
+                        str(body.get("reason") or ""),
+                    )
+                except ValueError as exc:
+                    self._json(400, {"ok": False, "error": str(exc)})
+                else:
+                    self._json(200 if result.get("ok") else 404, result)
+                return
+            elif path == "/api/background/tasks/output":
+                manager = self._background_tasks()
+                if manager is None:
+                    self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
+                    return
+                try:
+                    result = manager.output(
+                        str(body.get("conversation_id") or ""),
+                        str(body.get("task_id") or ""),
+                        bool(body.get("wait", False)),
+                        int(body.get("timeout_ms") or 30_000),
+                    )
+                except (TypeError, ValueError) as exc:
+                    self._json(400, {"ok": False, "error": str(exc)})
+                else:
+                    self._json(200 if result.get("ok") else 404, result)
+                return
             elif path == "/api/chat/user-confirm":
                 # 确认端点承载两类请求（经典界面两种情况共用一个端点）：
                 #   ① 写盘门控：带 `confirm_id` → 解锁预览快照（内核既有行为）；

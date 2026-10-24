@@ -150,7 +150,7 @@ class ConversationQueue:
         with self._lock:
             self._ensure_locked(key)
             item = self._find_locked(key, item_id)
-            if item is None or not self._visible(item):
+            if item is None or item.get("state") not in _ACTIVE:
                 raise QueueError("消息不在队列", "not_found")
             item["state"] = "inserting"
             item["delivery"] = "next_pass"
@@ -458,6 +458,10 @@ class ConversationQueue:
             "created_at": int(item.get("created_at") or 0),
             "updated_at": int(item.get("updated_at") or 0),
         }
+        payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+        for key in ("kind", "source", "notice_id", "batch"):
+            if payload.get(key):
+                out[key] = payload[key]
         if with_data:
             out["payload"] = dict(item.get("payload") or {})
             out["attachments"] = [

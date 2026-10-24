@@ -66,7 +66,7 @@ var it=items[i]||{};
 if(it.role==="user"){
 var bubble=null;
 if(it._sender&&it._sender!=="boss")addPeerMessage(String(it.content||""),String(it._sender_name||""),String(it._sender||""));
-else bubble=add("u",String(it.content||""));
+else bubble=add("u",String(it.content||""),it);
 var atts=Array.isArray(it.attachments)?it.attachments:[];
 if(atts.length&&window.AIA&&AIA.buildMsgAttachStrip&&bubble){
 bubble.appendChild(AIA.buildMsgAttachStrip(cid,atts,null));

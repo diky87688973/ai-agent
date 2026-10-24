@@ -39,6 +39,10 @@ class QueuedInputModule(ModuleBase):
             ]
             if attachments:
                 payload["attachments"] = attachments
+            meta = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+            for key in ("kind", "source", "notice_id", "batch"):
+                if meta.get(key):
+                    payload[key] = meta[key]
             sender = item.get("sender")
             if isinstance(sender, dict) and str(sender.get("cid") or "").strip():
                 payload["_sender"] = str(sender.get("cid") or "").strip()

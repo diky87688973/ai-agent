@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import sys
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, Optional
 
@@ -16,6 +17,7 @@ from agent.app_services import AppServices
 from agent.capabilities import tasks
 from agent.capabilities.builtin import (
     archive_tool,
+    background_task,
     command_tools,
     commit_write,
     echo,
@@ -42,6 +44,7 @@ from agent.capabilities.plugins import PluginHost
 from agent.capabilities.registry import ToolRegistry
 from agent.config import (
     DEFAULT_MAX_PASSES,
+    PROJECT_ROOT,
     default_data_root,
     default_plugins_root,
     get_backup_retention_days,
@@ -52,6 +55,7 @@ from agent.config import (
 )
 from agent.core import event_name as ev
 from agent.core.context import (
+    SERVICE_BACKGROUND_TASKS,
     SERVICE_COMPACTOR_FACTORY,
     SERVICE_CONTEXT_SOURCES,
     SERVICE_CONVERSATION_QUEUE,
@@ -80,6 +84,7 @@ from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.session_context import SessionContexts
 from agent.core.session_log import SessionLog
 from agent.core.tool_call import ToolPipeline
+from agent.mechanisms.background_tasks import BackgroundTaskManager
 from agent.mechanisms.compaction.compactor import ContextCompactor, make_provider_summarizer
 from agent.mechanisms.context import ContextPipeline, ContextSources
 from agent.mechanisms.conversation_queue import ConversationQueue
@@ -155,6 +160,11 @@ class App(AppModelPolicy, AppServices):
             except Exception as exc:
                 # 旁路，刻意吞掉：停机路径不能让补投失败阻断释放流程。
                 report_error("app.flush", exc)
+        if self.context.has(SERVICE_BACKGROUND_TASKS):
+            background_tasks = self.context.get(SERVICE_BACKGROUND_TASKS)
+            shutdown = getattr(background_tasks, "shutdown", None)
+            if callable(shutdown):
+                shutdown()
         session_contexts = self.session_contexts
         if session_contexts is not None:
             session_contexts.close_all()
@@ -372,6 +382,8 @@ def build_app(
         conversation_queue = mesh_state.queue
 
     registry = ToolRegistry()
+    background_tasks = BackgroundTaskManager([PROJECT_ROOT, data_root])
+    registry.register(background_task.build(background_tasks, state))
     registry.register(echo.build())
     registry.register(read_file.build())
     registry.register(grep_files.build())
@@ -575,7 +587,49 @@ def build_app(
     mesh_state.set_activator(runner.start)
     if store is not None:
         mesh_state.set_session_exists(lambda cid: bool(store.load(cid)))
+    context.register(SERVICE_BACKGROUND_TASKS, background_tasks)
     context.register(SERVICE_RUNNER, runner)
+    def _background_notice_meta(text: str) -> Dict[str, Any]:
+        batch = ""
+        for line in str(text or "").splitlines():
+            if line.startswith("任务批次："):
+                batch = line[len("任务批次："):].split(" 已完结", 1)[0].strip()
+                break
+        return {
+            "kind": "system_notice",
+            "source": "background_tasks",
+            "notice_id": uuid.uuid4().hex,
+            "batch": batch,
+        }
+
+    def _queue_background_notice(cid: str, text: str) -> None:
+        meta = _background_notice_meta(text)
+        item = conversation_queue.enqueue(
+            cid,
+            content=text,
+            origin="system",
+            delivery="next_pass",
+            payload={**meta, "rule": "user", "internal": True},
+        )
+        try:
+            conversation_queue.set_insert(cid, str(item.get("id") or ""))
+        except Exception as exc:
+            report_error("app.background_notice_insert", exc, conversation_id=cid)
+
+    def _background_task_notice(cid: str, text: str) -> None:
+        if mesh_state.is_running(cid):
+            _queue_background_notice(cid, text)
+            return
+        meta = _background_notice_meta(text)
+        started = runner.start(
+            cid,
+            {"content": text, "meta": meta},
+        )
+        if not started:
+            _queue_background_notice(cid, text)
+
+    background_tasks.set_notice(_background_task_notice)
+
     # 经典界面适配层：观察内核事件总线做出站翻译（内核零改动，只加观察者）。
     # 订阅是按需的（有 SSE 连接才订阅，最后一个断开就摘掉）——见 ClassicAdapter.bind_bus。
     classic = ClassicAdapter(app)

@@ -20,9 +20,9 @@
 
 | 编号 | 位置 | 问题 |
 |---|---|---|
-| P0-1 | `agent/mechanisms/model_provider.py` | 协议、假模型、OpenAI 实现、SSE、超时、消息转换、工具 schema、错误映射混在一个文件 |
-| P0-2 | `agent/mechanisms/anthropic_provider.py` | 具体 Anthropic 实现直接依赖 `model_provider.py` 中的 OpenAI 实现与私有辅助 |
-| P0-3 | `agent/mechanisms/provider_router.py` | 路由依赖具体 OpenAI 模块，而不是只依赖协议与错误类型 |
+| P0-1 | `agent/mechanisms/model_provider.py` | 协议、假模型、Compatible 实现、SSE、超时、消息转换、工具 schema、错误映射混在一个文件 |
+| P0-2 | `agent/mechanisms/native_provider.py` | 具体 Native 实现直接依赖 `model_provider.py` 中的 Compatible 实现与私有辅助 |
+| P0-3 | `agent/mechanisms/provider_router.py` | 路由依赖具体 Compatible 模块，而不是只依赖协议与错误类型 |
 | P1-1 | `agent/mechanisms/context_pipeline.py` | 数据模型、token 裁剪、轮次、布局、来源、装配、压缩区间集中在一个文件 |
 | P1-2 | `agent/mechanisms/context_compactor.py` | 压缩策略依赖上下文管线的具体内部函数 |
 | P1-3 | `agent/shell/session_runner.py` | 运行循环、队列、目标、取消、心跳、提示词、恢复拼接集中在一个类 |
@@ -40,8 +40,8 @@ agent/mechanisms/
   providers/
     base.py          Provider 协议、错误类型
     sse.py           SSE 行解析、流总超时
-    openai.py        OpenAI 兼容实现
-    anthropic.py     Anthropic Messages 实现
+    compatible.py        Compatible 兼容实现
+    native.py     Native Messages 实现
     echo.py          Echo 假模型
     missing.py       Missing 占位
   context/
@@ -96,8 +96,8 @@ entry → shell → capabilities → mechanisms → core
 ### mechanisms 内
 
 ```text
-providers/openai.py      → providers/base.py, providers/sse.py
-providers/anthropic.py   → providers/base.py, providers/sse.py
+providers/compatible.py      → providers/base.py, providers/sse.py
+providers/native.py   → providers/base.py, providers/sse.py
 providers/echo.py        → providers/base.py
 providers/missing.py     → providers/base.py
 
@@ -112,9 +112,9 @@ compaction/compactor.py  → context/contract.py
 禁止：
 
 ```text
-anthropic.py → openai.py
-anthropic.py → model_provider.py
-provider_router.py → openai.py
+native.py → compatible.py
+native.py → model_provider.py
+provider_router.py → compatible.py
 context_compactor.py → context_pipeline.py 的内部实现
 任何 provider 文件互相导入私有符号
 ```
@@ -134,9 +134,9 @@ web/server.py → web/static.py, web/classic.py, web/api.py
 
 | 编号 | 工作包 | 主要文件 | 验收 |
 |---|---|---|---|
-| SR-01 | Provider 基础层 | `providers/base.py`、`providers/sse.py` | 协议与错误不再放在 OpenAI 文件；SSE 与超时独立可测 |
-| SR-02 | OpenAI 实现独立 | `providers/openai.py` | 只保留 OpenAI 请求、响应、错误映射；不承载协议与其他 provider |
-| SR-03 | Anthropic 解耦 | `providers/anthropic.py` | 只依赖 `base.py`、`sse.py` 与 core 契约；不导入 OpenAI 模块 |
+| SR-01 | Provider 基础层 | `providers/base.py`、`providers/sse.py` | 协议与错误不再放在 Compatible 文件；SSE 与超时独立可测 |
+| SR-02 | Compatible 实现独立 | `providers/compatible.py` | 只保留 Compatible 请求、响应、错误映射；不承载协议与其他 provider |
+| SR-03 | Native 解耦 | `providers/native.py` | 只依赖 `base.py`、`sse.py` 与 core 契约；不导入 Compatible 模块 |
 | SR-04 | Router / Registry 收口 | `provider_router.py`、`provider_registry.py` | router 只依赖 base；registry 是唯一具体实现装配点 |
 | SR-05 | 上下文管线拆分 | `context/rounds.py`、`tokens.py`、`layout.py`、`sources.py`、`pipeline.py` | 每个文件只有一个变更轴；pipeline 只做装配 |
 | SR-06 | 压缩器接口化 | `context/contract.py`、`compaction/compactor.py` | compactor 不导入 pipeline 内部函数；通过窄接口取视图与区间 |
@@ -155,7 +155,7 @@ web/server.py → web/static.py, web/classic.py, web/api.py
 SR-01 → SR-02 → SR-03 → SR-04
 ```
 
-先建立 base 与 sse，再移动 OpenAI，最后改 Anthropic 与 router。
+先建立 base 与 sse，再移动 Compatible，最后改 Native 与 router。
 
 ### 第二阶段：上下文
 
@@ -206,7 +206,7 @@ SR-10 → SR-11 → SR-12
 ### Provider
 
 ```text
-OpenAI / Anthropic 各自的 SSE 解析
+Compatible / Native 各自的 SSE 解析
 工具调用分片归并
 thinking 块签名回传
 HTTP 错误映射
@@ -262,7 +262,7 @@ SSE 帧顺序
 
 ```text
 providers 下每个文件只包含一个 provider 或一个基础职责
-Anthropic 不导入 OpenAI
+Native 不导入 Compatible
 router 不导入具体 provider
 compactor 不导入 pipeline 内部实现
 session runner 只做编排

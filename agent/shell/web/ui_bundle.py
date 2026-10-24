@@ -53,6 +53,7 @@ UI_JS_MODULES = (
     "chat/send.js",
     "layout/splitters.js",
     "chat/queue.js",
+    "chat/background-tasks.js",
     "shell/window-chrome.js",
 )
 
@@ -78,8 +79,10 @@ UI_CSS_MODULES = (
     "reset.css",
     "layout.css",
     "chat-messages.css",
+    "system-notice.css",
     "composer.css",
     "chat-queue.css",
+    "background-tasks.css",
     "todo.css",
     "theme-light.css",
     "theme-tokens.css",

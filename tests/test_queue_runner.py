@@ -55,7 +55,7 @@ class PausedQueueTest(unittest.TestCase):
         rounds = {"n": 0}
 
         def execute(c, text, attachments=None, resume=None, sender=None,
-                    from_queue=False):
+                    from_queue=False, meta=None):
             rounds["n"] += 1
 
         runner._execute = execute  # type: ignore[method-assign]
@@ -76,7 +76,7 @@ class PausedQueueTest(unittest.TestCase):
         rounds = {"n": 0}
 
         def execute(c, text, attachments=None, resume=None, sender=None,
-                    from_queue=False):
+                    from_queue=False, meta=None):
             rounds["n"] += 1
             return True
 

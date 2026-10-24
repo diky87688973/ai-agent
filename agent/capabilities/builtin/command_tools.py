@@ -92,7 +92,7 @@ def _resolve_cwd(arguments: Dict[str, Any]) -> str:
     return str(target)
 
 
-def _reject_in_plan_mode(live_state: Any, action: str) -> None:
+def reject_in_plan_mode(live_state: Any, action: str) -> None:
     """Plan 模式首道拦截：无状态或无会话作用域时放行（默认 auto）。"""
     if live_state is None:
         return
@@ -284,7 +284,7 @@ class RunCommandTool(ToolPlugin):
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         # ① Plan 模式拒绝（首道）
-        _reject_in_plan_mode(self._live_state, "命令执行")
+        reject_in_plan_mode(self._live_state, "命令执行")
         command = str(arguments.get("command") or "").strip()
         if not command:
             raise ValueError("缺少 command")
@@ -414,7 +414,7 @@ class PythonInlineTool(ToolPlugin):
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         # ① Plan 模式拒绝（首道）
-        _reject_in_plan_mode(self._live_state, "代码执行")
+        reject_in_plan_mode(self._live_state, "代码执行")
         code = str(arguments.get("code") or "")
         if not code.strip():
             raise ValueError("缺少 code")

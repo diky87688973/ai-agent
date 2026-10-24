@@ -23,9 +23,23 @@
 <div id="chatConversationMount" class="chat-conversation-mount"></div>
 <div class="row">
 <div class="composer-above">
-<div id="aiSpeakSlot" class="ai-speak-slot"></div>
+<div id="composerLeft" class="composer-left-col">
 <div id="chatQueue" class="chat-queue hidden" aria-live="polite"></div>
 <div id="queueDraft" class="queue-draft hidden"></div>
+<div id="aiSpeakSlot" class="ai-speak-slot"></div>
+</div>
+<div id="bgTaskPanel" class="bg-task-panel hidden">
+<button type="button" id="bgTaskToggle" class="bg-task-head" aria-expanded="false" title="展开后台任务">
+<span class="bg-task-title">后台任务</span>
+<span class="bg-task-counts"><span class="bg-task-count" data-bg-status="completed">0 已完成</span><span class="bg-task-count" data-bg-status="running">0 进行中</span><span class="bg-task-count" data-bg-status="queued">0 待执行</span><span class="bg-task-count" data-bg-status="failed">0 失败</span><span class="bg-task-count" data-bg-status="cancelled">0 已取消</span></span>
+<span class="bg-task-arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M3.5 9.5 8 5l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+</button>
+<div id="bgTaskPop" class="bg-task-pop hidden" role="dialog" aria-label="后台任务清单">
+<div class="bg-task-pop-head"><span>任务清单</span><button type="button" id="bgTaskRefresh" class="bg-task-link">刷新</button></div>
+<div id="bgTaskList" class="bg-task-list"></div>
+<div id="bgTaskDetail" class="bg-task-detail hidden"></div>
+</div>
+</div>
 </div>
 <div class="composer">
 <div id="attachStrip" class="attach-strip hidden"></div>

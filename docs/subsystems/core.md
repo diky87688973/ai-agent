@@ -124,7 +124,7 @@ set_progress_reporter(fn) / emit_progress(payload)
 `image_embed.py` 处理"附件图片怎么进请求体"，属于"消息派生"的一段：把事实折叠成请求的那一方负责这件事。
 
 - `shrink_image()` / `shrink_path()`：本地按长边缩放，压 base64 预算（长边上限 `EMBED_MAX_SIDE = 800`）；
-- `build_embed_parts()`：拼成 OpenAI 的 `image_url` 内容块；
+- `build_embed_parts()`：拼成 Compatible 的 `image_url` 内容块；
 - `strip_old_images()`：只留最近几轮用户发言里的图，并在这些轮内设总量上限（`keep_turns` / `max_images`，默认 1 轮 / 8 张，来自 `[context]` 的 `image_turns` / `image_max`）。超量的从**最老的那一轮**开始砍，所以最近一轮优先保住；
 - `placeholder_text()`：图片被剥离后留下的占位文本。
 

@@ -11,7 +11,7 @@
 目标：
 
 1. 每条模型独立配置厂商、网关、凭据与模型 id，可跨网关、跨厂商。
-2. 增加 Anthropic 原生 Messages API 适配，支持文本、工具调用、extended thinking。
+2. 增加 原生协议 Messages API 适配，支持文本、工具调用、extended thinking。
 3. 模型配置由插件管理，结构对齐知识库插件：自己的配置文件、端点、界面资产。
 4. 界面提供模型下拉，切换后会话级持久化，并广播到同一会话的其它标签页与页头模型名。
 5. 插件停用或多模型条目为空时，模型清单为空，不回退到内核配置。
@@ -24,7 +24,7 @@
 3. 依赖方向不变：`shell → capabilities → mechanisms → core`。
    插件在包外，只能向下依赖；`mechanisms` 与 `core` 永不 import 插件，
    也**不得出现插件目录名**（`check_architecture_hygiene.py` 以词边界扫描，机检）。
-4. provider 适配器只产出 `StreamDelta`。内核不认识 Anthropic 的线格式、thinking 块或签名。
+4. provider 适配器只产出 `StreamDelta`。内核不认识 Native 的线格式、thinking 块或签名。
 5. 插件停用即贡献消失：下拉、路由、开屏脚本与样式一并注销，回退路径不报错。
 6. 未配置的模型 id 直接报错，不回退到默认模型。
 7. 配置错快速失败，依赖不可用才允许降级；任何降级必须在 `/health` 可见。
@@ -36,10 +36,10 @@
 |---|---|---|
 | core | `StreamDelta`、`LogicalRequest` | 流帧契约、请求契约、`PROVIDER_META_KEY` |
 | core | `session_log.derive_messages` | 把事实折成逻辑消息（含 `provider_meta` 透传） |
-| mechanisms | `AnthropicProvider` | Anthropic 线格式、SSE、消息与工具转换 |
+| mechanisms | `NativeProvider` | Native 线格式、SSE、消息与工具转换 |
 | mechanisms | `provider_registry` | 厂商名 → 构造器；唯一知道"怎么 new 一个 provider"的地方 |
 | mechanisms | `ProviderRouter` | 按 `request.model` 选 provider 实例 |
-| mechanisms | `OpenAICompatibleProvider` | OpenAI 兼容网关（现有实现，位置不变） |
+| mechanisms | `CompatibleProvider` | 兼容协议网关（现有实现，位置不变） |
 | capabilities | `ModelCatalog` | 模型描述注册表 + provider 缓存 + 权威判定 |
 | capabilities | `PluginContext.add_model_catalog` | 插件的注册口 |
 | 装配根 | `app.build_app` | 建目录与路由，装载插件，确定权威来源与降级态 |
@@ -57,7 +57,7 @@
 @dataclass(frozen=True)
 class ModelEntry:
     id: str
-    provider: str                 # provider_registry 的键："openai" | "anthropic"
+    provider: str                 # provider_registry 的键："compatible" | "native"
     options_json: str = "{}"      # 规范化 JSON；目录不解释内容
     label: str = ""
     is_default: bool = False
@@ -138,7 +138,7 @@ def build_provider(kind: str, options: Mapping[str, Any]) -> ModelProvider
 def known_kinds() -> tuple[str, ...]
 ```
 
-1. 内部是一张 `kind → 构造器` 的映射，`openai` 与 `anthropic` 两行。
+1. 内部是一张 `kind → 构造器` 的映射，`compatible` 与 `native` 两行。
 2. 新增一个厂商 = **新增一个适配器文件 + 映射里加一行**；不改路由、不改目录、
    不改插件。这是 `A4` 的判据：扩展成本不随厂商数增长。
 3. `kind` 未知时抛 `ValueError(kind)`，由调用方决定是"跳过该条目"还是"启动失败"。
@@ -174,15 +174,15 @@ class ProviderRouter(ModelProvider):
 7. `reload_default(provider)` 在锁内替换默认实例，供设置页保存后热更新
    （见 9.3）。它是唯一允许改 `default` 的入口。
 
-## 7. Anthropic 适配
+## 7. Native 适配
 
-新增 `agent/mechanisms/anthropic_provider.py`：
+新增 `agent/mechanisms/native_provider.py`：
 
 ```python
-class AnthropicProvider(ModelProvider):
+class NativeProvider(ModelProvider):
     def __init__(self, *, base_url, api_key, model,
                  max_tokens=16000, thinking=True, thinking_budget_tokens=4096,
-                 anthropic_version="2023-06-01", timeout=300.0,
+                 native_version="2023-06-01", timeout=300.0,
                  extra_headers=None): ...
     def stream(self, request) -> Iterator[StreamDelta]: ...
 ```
@@ -197,13 +197,13 @@ class AnthropicProvider(ModelProvider):
 | 以 `/v1` 结尾 | 补 `/messages` |
 | 其它 | 补 `/v1/messages` |
 
-请求头：`x-api-key`、`anthropic-version`、`content-type: application/json`。
+请求头：`x-api-key`、`protocol-version`、`content-type: application/json`。
 
 请求体：
 
 ```json
 {
-  "model": "claude-sonnet-4-5",
+  "model": "model-id",
   "max_tokens": 16000,
   "stream": true,
   "system": "系统提示与各系统段合并后的文本",
@@ -218,32 +218,32 @@ class AnthropicProvider(ModelProvider):
 
 约束：
 
-1. `thinking` 开启时不下发 `temperature`（Anthropic 要求 `temperature=1`，省略等价）。
-   思考模式下 DeepSeek 也忽略 `temperature`（官方文档：不报错但不生效）。
+1. `thinking` 开启时不下发 `temperature`（Native 要求 `temperature=1`，省略等价）。
+   思考模式下 Upstream 也忽略 `temperature`（官方文档：不报错但不生效）。
 2. `thinking` 的有效条件是 `budget_tokens >= 1024` **且** `max_tokens > budget_tokens`
-   （Anthropic 官方的硬约束）。任一不满足就关闭 thinking 并写一条 stderr 诊断，
+   （Native 官方的硬约束）。任一不满足就关闭 thinking 并写一条 stderr 诊断，
    请求照常发出——配置瑕疵不该让整轮对话失败。
-   **关闭必须显式下发 `{"type":"disabled"}`**：DeepSeek 兼容层的思考模式默认打开，
+   **关闭必须显式下发 `{"type":"disabled"}`**：Upstream 兼容层的思考模式默认打开，
    省略字段等于继续思考；而思考模式下带 `tool_use` 的消息必须回传 thinking 块，
    静默省略会让工具轮直接 400。
-3. DeepSeek 兼容层按官方文档**忽略** `budget_tokens`，深度走 `output_config.effort`
-   （`low/high/max`）。适配器不下发 `output_config`——Anthropic 官方会拒绝这个未知
+3. Upstream 兼容层按官方文档**忽略** `budget_tokens`，深度走 `output_config.effort`
+   （`low/high/max`）。适配器不下发 `output_config`——Native 官方会拒绝这个未知
    字段，而同一个适配器要服务两家。因此 `LogicalRequest.effort` 对本适配器不生效，
-   DeepSeek 侧取服务端默认（high）；要按档位调深度就用同一模型的 openai 协议条目。
+   Upstream 侧取服务端默认（high）；要按档位调深度就用同一模型的 compatible 协议条目。
 4. 思考模式 + 工具调用：两家都要求把**本轮**带 `tool_use` 的 assistant 消息里的
-   thinking 块原样回传（DeepSeek：`content[].thinking ... must be passed back`）。
+   thinking 块原样回传（Upstream：`content[].thinking ... must be passed back`）。
    跨轮不要求回传（去掉旧块仍可正常请求），所以 `strip_stale_thinking` 只留本轮。
    本轮块丢了（签名缺失被丢弃 / 历史来自另一协议条目）就补不回来，此时
    `_tool_turn_missing_thinking` 让本次请求关掉 thinking，避免会话永久打不开。
 5. `tools` 为空时不下发 `tools` 与 `tool_choice`。
 6. `max_tokens` 是该 API 的必填项，缺省取构造参数，插件可覆盖。
 7. `input_schema` 必须是**带 `type` 的 object schema**。`ToolRegistry.schemas()` 给的
-   `parameters` 是「参数名 → 片段」的属性映射，跟 OpenAI 侧共用
+   `parameters` 是「参数名 → 片段」的属性映射，跟 Compatible 侧共用
    `model_provider.tool_parameters()` 规范化后再下发；直接把它当 schema 会得到
-   `type: null`，Anthropic 一侧报 `Invalid schema for function ...`（400）。
-   OpenAI 兼容网关不校验这个字段，所以这个缺陷只在 Anthropic 协议上暴露。
+   `type: null`，Native 一侧报 `Invalid schema for function ...`（400）。
+   兼容协议网关不校验这个字段，所以这个缺陷只在 Native 协议上暴露。
 8. 图片支持 `source.type=base64`（`data:` URL）与 `source.type=url`（http(s)）。
-   只认 base64 会让图片链接在 anthropic 条目上静默消失，而同一张图在 openai 条目
+   只认 base64 会让图片链接在 native 条目上静默消失，而同一张图在 compatible 条目
    照常发送。
 
 ### 7.2 消息转换
@@ -253,7 +253,7 @@ class AnthropicProvider(ModelProvider):
 ```python
 def strip_stale_thinking(messages, turn_start): ...   # 只留本轮的 thinking 块
 def drop_dangling_tool_results(messages): ...          # 删掉没有对应 tool_use 的 tool_result
-def _to_anthropic_messages(messages, turn_start): ...  # 纯映射
+def _to_native_messages(messages, turn_start): ...  # 纯映射
 ```
 
 映射表：
@@ -265,7 +265,7 @@ def _to_anthropic_messages(messages, turn_start): ...  # 纯映射
 | `role=user` 且 `content` 为多模态数组 | `text` 原样；`image_url` 的 data URL 拆成 `{type:"image", source:{type:"base64", media_type, data}}` |
 | `role=assistant` | `content` 非空时产出 `text` 块；`tool_calls` 逐个产出 `tool_use` 块 |
 | `role=tool` | 转成 `role:"user"` 且 `content:[{type:"tool_result", tool_use_id, content}]` |
-| assistant 的 `provider_meta.anthropic.thinking_blocks` | 仅当该消息下标 `>= turn_start` 时，按原顺序插到 content 最前 |
+| assistant 的 `provider_meta.native.thinking_blocks` | 仅当该消息下标 `>= turn_start` 时，按原顺序插到 content 最前 |
 
 修补规则（都是纯函数，可单测）：
 
@@ -298,10 +298,10 @@ SSE 按行解析 `data:` 载荷。**事件类型取载荷里的 `data.type`**，
 
 1. 按块的 `index` 累积 `partial_json`；`content_block_stop` 时一次性解析。
 2. 解析失败时退化为空参 `{}`，调用仍发出，错误由工具侧暴露。
-3. `tool_use` 的 `id` 为空时用 `call_<随机>` 兜底，与 OpenAI 适配器同源。
+3. `tool_use` 的 `id` 为空时用 `call_<随机>` 兜底，与 Compatible 适配器同源。
 
 `stop_reason` 只进诊断日志，不扩展流帧契约：`StreamDelta` 没有也不新增
-`finish_reason`，与现有 OpenAI 适配器保持一致。
+`finish_reason`，与现有 Compatible 适配器保持一致。
 
 ### 7.4 流末顺序
 
@@ -309,7 +309,7 @@ SSE 按行解析 `data:` 载荷。**事件类型取载荷里的 `data.type`**，
 
 1. 文本与推理增量边到边出（流中实时产出，不攒列表）。
 2. `kind="meta"`：仅当本轮有 thinking 块**且**存在工具调用时产出，
-   载荷为 `{"anthropic": {"thinking_blocks": [...]}}`。没有工具调用时签名无处回传，
+   载荷为 `{"native": {"thinking_blocks": [...]}}`。没有工具调用时签名无处回传，
    不必落盘。
 3. `kind="tool_call"`：按块 `index` 升序逐个产出。
 4. `kind="usage"`：映射后的用量。
@@ -323,7 +323,7 @@ prompt_cache_hit_tokens  = cache_read_input_tokens
 prompt_cache_miss_tokens = input_tokens + cache_creation_input_tokens
 ```
 
-字段名与现有 OpenAI 适配器一致，界面与累计器无需分支。
+字段名与现有 Compatible 适配器一致，界面与累计器无需分支。
 
 ### 7.6 错误映射
 
@@ -339,11 +339,11 @@ prompt_cache_miss_tokens = input_tokens + cache_creation_input_tokens
 | 529 | 模型服务过载，请稍后再试。 |
 
 响应体里的 `error.message` 附在提示后，截断到 800 字符。
-Anthropic 的错误提示独立成表，不与 DeepSeek 的表混用。
+Native 的错误提示独立成表，不与 Upstream 的表混用。
 
 ## 8. thinking 签名回传
 
-Anthropic 的 extended thinking 在带工具的同轮循环里要求把 thinking 块
+Native 的 extended thinking 在带工具的同轮循环里要求把 thinking 块
 （含 `signature`）原样回传，否则同一轮的后续请求会被拒绝。事实里现有字段
 `reasoning_content` 只有文本，签名会丢。
 
@@ -356,7 +356,7 @@ Anthropic 的 extended thinking 在带工具的同轮循环里要求把 thinking
 3. `agent/core/session_log.py` `derive_messages()`：`model_message` 带该键时原样带进
    assistant 消息。读方与写方引用**同一个常量**，不各写一遍字符串。
 4. `agent/mechanisms/model_provider.py` 的 `_to_wire_messages` 必须
-   `msg.pop(PROVIDER_META_KEY, None)`，避免未知字段发给 OpenAI 兼容网关。
+   `msg.pop(PROVIDER_META_KEY, None)`，避免未知字段发给 兼容协议网关。
 5. 回放范围：只有消息下标 `>= request.turn_start` 时才带 thinking 块；
    跨用户轮直接丢弃，防止历史请求带上过期签名。
 
@@ -440,7 +440,7 @@ router 包装之后，`getattr(app, "provider")` 拿到的是 router，
 
 1. `app.reload_model_config()` 是唯一入口，内部按 9.1 的规则重算：
    - `catalog` 时跳过并留痕（"目录权威，忽略 config.ini 模型设置"）；
-   - 否则用 `build_provider("openai", cfg)` 重建实例，调 `router.reload_default(p)`，
+   - 否则用 `build_provider("compatible", cfg)` 重建实例，调 `router.reload_default(p)`，
      再更新 `_available_models` 与 `live_state.default_model`。
 2. `apply_host` 只调这一个方法，并把它返回的说明放进响应（`reload_error` 同款）。
 3. 单测锁住："保存后 router 的默认实例是新建的那个，且下一轮请求用它"。
@@ -472,20 +472,20 @@ plugins/multi_model/
 ### 10.2 配置格式
 
 ```ini
-[model:deepseek]
-provider = openai
-base_url = https://api.deepseek.com
+[model:upstream]
+provider = compatible
+base_url = https://api.upstream.com
 api_key = sk-…
-model = deepseek-flash
-label = DeepSeek Flash
+model = upstream-flash
+label = Upstream Flash
 default = 1
 
-[model:claude]
-provider = anthropic
-base_url = https://api.anthropic.com
+[model:target]
+provider = native
+base_url = https://api.native.com
 api_key = sk-ant-…
-model = claude-sonnet-4-5
-label = Claude Sonnet 4.5
+model = model-id
+label = Target Sonnet 4.5
 max_tokens = 16000
 thinking = 1
 thinking_budget_tokens = 4096
@@ -495,10 +495,10 @@ thinking_budget_tokens = 4096
 
 1. 节名 `[model:<id>]`，`id` 是请求与界面里的唯一标识。
 2. `model` 缺省等于 `id`。
-3. `provider` 缺省 `openai`；不在 `known_kinds()` 里的值使该条目无效并留痕。
+3. `provider` 缺省 `compatible`；不在 `known_kinds()` 里的值使该条目无效并留痕。
 4. `api_key` 或 `base_url` 缺失使该条目无效。
 5. `default = 1` 至多一个；没有时取第一个有效条目；多个时第一个生效并留痕。
-6. `thinking`、`max_tokens`、`thinking_budget_tokens` 只对 anthropic 条目生效。
+6. `thinking`、`max_tokens`、`thinking_budget_tokens` 只对 native 条目生效。
 7. 任一条目解析失败只影响该条目，不影响其它条目与插件装载。
 8. 配置用 `utf-8-sig` 读：Windows 记事本存 UTF-8 会带 BOM，
    用 `utf-8` 读会得到一个指不到根因的 `MissingSectionHeaderError`。
@@ -632,7 +632,7 @@ window.aiAgentShell.styles = {
 
 | 动作 | 文件 |
 |---|---|
-| 新增 | `agent/mechanisms/anthropic_provider.py` |
+| 新增 | `agent/mechanisms/native_provider.py` |
 | 新增 | `agent/mechanisms/provider_registry.py` |
 | 新增 | `agent/mechanisms/provider_router.py` |
 | 新增 | `agent/capabilities/model_catalog.py` |
@@ -657,7 +657,7 @@ window.aiAgentShell.styles = {
 | 新增 | `plugins/multi_model/ui/model-picker.css` |
 | 修改 | `plugins.ini` |
 | 修改 | `docs/subsystems/plugins.md`（两条桥与开屏样式的限制） |
-| 新增测试 | `tests/test_anthropic_provider.py` |
+| 新增测试 | `tests/test_native_provider.py` |
 | 新增测试 | `tests/test_provider_router.py` |
 | 新增测试 | `tests/test_model_catalog.py` |
 | 新增测试 | `tests/test_multi_model_plugin.py` |
@@ -668,7 +668,7 @@ window.aiAgentShell.styles = {
 
 ### 13.1 单元测试
 
-`tests/test_anthropic_provider.py`：
+`tests/test_native_provider.py`：
 
 1. SSE：文本增量、thinking 与 `signature`、`tool_use` 分片归并、`message_delta` 用量、
    `error`、`ping`、缺 cache 字段按 0。
@@ -692,7 +692,7 @@ window.aiAgentShell.styles = {
 `catalog` 响应不含凭据。
 
 `tests/test_model_provider.py` 增补：`_to_wire_messages` 不把 `provider_meta`
-发给 OpenAI 兼容网关（负向断言：构造带该键的历史，断言线格式里没有）。
+发给 兼容协议网关（负向断言：构造带该键的历史，断言线格式里没有）。
 
 `tests/test_settings_panel.py` 增补：权威时保存不动模型、非权威时保存后
 router 的默认实例被替换。
@@ -726,8 +726,8 @@ router 的默认实例被替换。
    但"全部无效"会让 `model_config_state` 变成 `none`，由 shell 快速失败。
 5. 移除内建模型下拉是行为变更。若其它客户端依赖 `#modelPickerBtn`，
    需要改用 `aiAgentShell.models` 桥。
-6. Anthropic 的 `max_tokens` 必填且必须大于 thinking 预算；不满足时关闭 thinking。
-7. `effort`（High / Max）对 Anthropic 不生效；该差异写进插件配置注释。
+6. Native 的 `max_tokens` 必填且必须大于 thinking 预算；不满足时关闭 thinking。
+7. `effort`（High / Max）对 Native 不生效；该差异写进插件配置注释。
 8. 设置页不提供内核模型节；模型只由多模型插件维护。
 9. 每次 `snapshot()` 都会重读插件配置。配置文件在 10k 会话规模下的读盘成本
    可忽略；条目数上千时再加 mtime 缓存，当前不提前优化。
@@ -797,7 +797,7 @@ router 的默认实例被替换。
 ### 15.2 `C4` / `A5` 前端不得有模型种子
 
 `agent/shell/web_assets/classic/js/agent-ui.js:618` 目前硬编码 6 个模型
-（`deepseek-v4-pro` 等），`/health` 失败时它就是**事实上的第二权威**，与
+（`upstream-v4-pro` 等），`/health` 失败时它就是**事实上的第二权威**，与
 "`ModelCatalog` 是唯一权威"冲突。
 
 1. 内建白名单整体删除（不是改成空数组留着）：`allowedModels` 及其
@@ -806,7 +806,7 @@ router 的默认实例被替换。
 2. `/health` 不可用时：桥的 `list()` 返回空数组，插件据此禁用下拉 + `title`
    写明原因，桥内 `console.warn` 留痕；不回退到任何硬编码列表（`E3`）。
 3. `check_ui_js.py` 增加规则：`agent/shell/web_assets/**/*.js` 不得出现厂商模型 id
-   字面量（`deepseek-` / `glm-` / `claude-`）；负向用例喂一段含 `deepseek-v4-pro`
+   字面量（`upstream-` / `vision-` / `target-`）；负向用例喂一段含 `upstream-v4-pro`
    的 JS，断言失败。
 
 ### 15.3 `R5` 内建下拉删除清单
@@ -837,7 +837,7 @@ router 的默认实例被替换。
 ### 15.5 `X2` 负向断言（4 条）
 
 1. 重复 `id` 的两个条目 → `set_source` 拒绝，保留原目录，stderr 含文件名与 id；
-2. Anthropic 适配器产出的线格式**不得**出现 `provider_meta`（OpenAI 专属键）；
+2. Native 适配器产出的线格式**不得**出现 `provider_meta`（Compatible 专属键）；
 3. 未知的 `provider_meta` 子键 → 忽略且不抛错（前滚契约，`B6`）；
 4. thinking 块缺 `signature` → 不重放该块、留一条可见降级日志，不整体失败。
 
@@ -856,7 +856,7 @@ router 的默认实例被替换。
 | `agent/capabilities/model_catalog.py` | ≤ 250 行 |
 | `agent/mechanisms/provider_router.py` | ≤ 200 行 |
 | `agent/mechanisms/provider_registry.py` | ≤ 150 行 |
-| `agent/mechanisms/anthropic_provider.py` | ≤ 450 行 |
+| `agent/mechanisms/native_provider.py` | ≤ 450 行 |
 | `plugins/multi_model/plugin.py` | ≤ 250 行 |
 | `plugins/multi_model/ui/model-picker.js` | ≤ 300 行 |
 

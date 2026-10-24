@@ -19,7 +19,7 @@
 取两头而不是只留尾部：推理的开头是"打算干什么"、结尾是"得出了什么"，
 中间的过程模型能按这两头补出来。
 
-**键不能丢**：DeepSeek 思考模式下，带 `tool_calls` 的 assistant 消息必须把
+**键不能丢**：Upstream 思考模式下，带 `tool_calls` 的 assistant 消息必须把
 `reasoning_content` 回传给 API（空串也接受），缺键直接 400
 `The reasoning_content in the thinking mode must be passed back to the API`。
 所以历史轮的工具消息只清空内容、保留键；老记录里本来没存思维链的工具消息补一个
@@ -44,12 +44,12 @@ class ModelProvider:
 |---|---|
 | `EchoProvider` | 不依赖网络；首次请求发起一次 `echo` 工具调用，拿到结果后给出文本应答 |
 | `MissingProvider` | 缺少可用模型时的占位实现，不访问网络 |
-| `OpenAICompatibleProvider` | OpenAI 兼容真实适配，流式解析 SSE |
-| `AnthropicProvider` | Anthropic Messages 真实适配，独立导入协议与 SSE 工具 |
+| `CompatibleCompatibleProvider` | Compatible 兼容真实适配，流式解析 SSE |
+| `NativeProvider` | Native Messages 真实适配，独立导入协议与 SSE 工具 |
 
 ## 请求体
 
-`OpenAICompatibleProvider.stream()` 构造的请求体：
+`CompatibleCompatibleProvider.stream()` 构造的请求体：
 
 ```json
 {
@@ -66,7 +66,7 @@ class ModelProvider:
 两处取值来源：
 
 - **`reasoning_effort` 取自请求**（`LogicalRequest.effort`，由会话级设置解析而来），不是写死的常量。官方取值 `none` / `low` / `high` / `max`，缺省回落 `high`，非空值如实下发。
-- **`temperature` 在思考模式下不生效**：DeepSeek 官方文档写明思考模式不支持该参数（**不报错，但也不会生效**），所以 `0.2` 只在非思考请求或其它兼容网关上起作用。
+- **`temperature` 在思考模式下不生效**：Upstream 官方文档写明思考模式不支持该参数（**不报错，但也不会生效**），所以 `0.2` 只在非思考请求或其它兼容网关上起作用。
 - **本地模型整键剥离** `thinking` / `reasoning_effort` / `temperature`。`_is_local_model()` 判定（模型名是 `local-model` 或以它开头），走浏览器页面的本地模型不支持这几个参数。
 
 ## 地址推导
@@ -109,11 +109,11 @@ class ModelProvider:
 
 `ModelRequestError` 携带面向用户的说明与 HTTP 状态码。
 
-`_http_error()` 对 DeepSeek 网关按状态码给出可读提示（400 / 401 / 402 / 422 / 429 / 500 / 503），并附上游返回的原始 message（截断到 8000 字符）。非 DeepSeek 网关直接用原始文本。
+`_http_error()` 对 Upstream 网关按状态码给出可读提示（400 / 401 / 402 / 422 / 429 / 500 / 503），并附上游返回的原始 message（截断到 8000 字符）。非 Upstream 网关直接用原始文本。
 
 这些提示**直接显示给用户**，所以措辞只描述"哪一端出了问题"。
 
-模型名或基址里含 `deepseek` 才算 DeepSeek 网关（`_is_deepseek()`）。
+模型名或基址里含 `upstream` 才算 Upstream 网关（`_is_upstream()`）。
 
 ## 请求留痕
 

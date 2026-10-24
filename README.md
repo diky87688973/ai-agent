@@ -97,7 +97,7 @@ python3 -m agent.gui.launcher
 | [内核](docs/subsystems/core.md) | 模块契约、链执行器、宿主循环 |
 | [上下文管理](docs/subsystems/context.md) | 三拼接装、分段统计、压缩与摘要 |
 | [模型调用](docs/subsystems/llm.md) | 请求体、流式解析、工具调用归并、错误映射 |
-| [工具](docs/subsystems/tools.md) | 注册、执行管道、写盘四步协议、42 个内置工具 |
+| [工具](docs/subsystems/tools.md) | 注册、执行管道、写盘四步协议、43 个内置工具 |
 | [插件](docs/subsystems/plugins.md) | 插件包形态、可贡献的能力、界面资产、生命周期与边界 |
 | [知识库](docs/subsystems/knowledge.md) | `knowledge` 的文件收录、勾选状态、注入与端点 |
 | [多模型](docs/subsystems/multi-model.md) | `multi_model` 的目录条目、设置页表单与模型下拉 |
@@ -117,6 +117,7 @@ python3 -m agent.gui.launcher
 
 | 文档 | 内容 |
 |---|---|
+| [后台任务](docs/plan/background-tasks.md) | per-cid 队列、并发上限、超时、取消、输出与聚合通知 |
 | [会话消息队列](docs/plan/conversation-queue.md) | 忙时入队、回合结束投递、安全插入与修改恢复 |
 | [标准对齐](docs/plan/standards-alignment.md) | 依赖环、门禁可信度、覆盖率口径与预算 |
 | [结构整改](docs/plan/structural-remediation.md) | Provider、上下文、壳层与门禁的职责拆分 |
@@ -157,7 +158,7 @@ python scripts/ci.py --list    # 列出检查项
 
 `docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（1798 个用例）：
+单元测试（1811 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

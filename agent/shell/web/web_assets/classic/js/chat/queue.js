@@ -70,7 +70,9 @@ function renderChatQueue(snapshot) {
     panel.innerHTML = "";
     return;
   }
-  chatQueueItems = Array.isArray(snapshot.items) ? snapshot.items : [];
+  chatQueueItems = (Array.isArray(snapshot.items) ? snapshot.items : []).filter(function (item) {
+    return !(item && item.kind === "system_notice" && item.source === "background_tasks");
+  });
   chatQueueRevision = Number(snapshot.revision || 0);
   panel.innerHTML = "";
   if (!chatQueueItems.length) {
@@ -82,7 +84,7 @@ function renderChatQueue(snapshot) {
   head.className = "chat-queue-head";
   var title = document.createElement("span");
   title.className = "chat-queue-title";
-  title.textContent = "待发送";
+  title.textContent = "消息队列";
   var count = document.createElement("span");
   count.className = "chat-queue-count";
   count.textContent = String(chatQueueItems.length);

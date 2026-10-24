@@ -8,6 +8,7 @@
   margin:0 0 8px 15%;
   margin:0 0 8px max(16px,calc(50% - var(--content-half,420px)));
 }
+.ai-speak-slot{width:100%;min-width:0}
 .ai-speak-slot:empty{display:none}
 .chat-queue{
   width:100%;

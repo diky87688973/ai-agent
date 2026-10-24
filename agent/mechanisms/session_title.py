@@ -57,6 +57,10 @@ def clean_title(raw: str, *, max_chars: int = MAX_TITLE_CHARS) -> str:
     return text.strip()
 
 
+def _is_system_notice(text: str) -> bool:
+    return str(text or "").lstrip().startswith("<<系统通知>>")
+
+
 def fallback_title(messages: List[Dict[str, Any]], *, max_chars: int = MAX_TITLE_CHARS) -> str:
     """从消息派生回落标题：取首条用户输入，无则空串。"""
     for message in messages:
@@ -64,7 +68,10 @@ def fallback_title(messages: List[Dict[str, Any]], *, max_chars: int = MAX_TITLE
             continue
         if str(message.get("role") or "") != "user":
             continue
-        text = " ".join(str(message.get("content") or "").split())
+        raw = str(message.get("content") or "")
+        if _is_system_notice(raw):
+            continue
+        text = " ".join(raw.split())
         if text:
             return text[:max_chars] + ("…" if len(text) > max_chars else "")
     return ""
@@ -113,6 +120,8 @@ def _material_from_messages(messages: List[Dict[str, Any]]) -> str:
         if not content:
             continue
         if role == "user" and not user_text:
+            if _is_system_notice(content):
+                continue
             user_text = content[:MAX_INPUT_CHARS]
         elif role == "assistant" and user_text and not assistant_text:
             assistant_text = content[:MAX_INPUT_CHARS]

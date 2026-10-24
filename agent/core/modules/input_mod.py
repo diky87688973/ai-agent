@@ -32,14 +32,17 @@ class InputModule(ModuleBase):
         self._attachments = list(attachments or [])
         self._sender: Optional[Dict[str, Any]] = None
         self._from_queue = False
+        self._meta: Dict[str, Any] = {}
 
     def feed(self, text: str, attachments: Optional[Sequence[Dict[str, Any]]] = None,
-             sender: Optional[Dict[str, Any]] = None, from_queue: bool = False) -> None:
+             sender: Optional[Dict[str, Any]] = None, from_queue: bool = False,
+             meta: Any = None) -> None:
         """投喂一轮新输入（壳层在每轮开始前调用）。"""
         self._text = str(text or "")
         self._attachments = list(attachments or [])
         self._sender = dict(sender) if isinstance(sender, dict) else None
         self._from_queue = bool(from_queue)
+        self._meta = dict(meta) if isinstance(meta, dict) else {}
 
     def execute(self, ports: Ports) -> Iterator[Any]:
         if not self._text and not self._attachments:
@@ -50,7 +53,8 @@ class InputModule(ModuleBase):
         text, attachments = self._text, self._attachments
         sender = self._sender
         from_queue = self._from_queue
-        self._text, self._attachments, self._sender, self._from_queue = "", [], None, False
+        meta = self._meta
+        self._text, self._attachments, self._sender, self._from_queue, self._meta = "", [], None, False, {}
         from time import perf_counter
         started = perf_counter()
         yield ports.emit(INPUT_STARTED, length=len(text),
@@ -67,6 +71,9 @@ class InputModule(ModuleBase):
                     payload["_sender_name"] = name
         if from_queue:
             payload["_from_queue"] = 1
+        for key in ("kind", "source", "notice_id", "batch"):
+            if meta.get(key):
+                payload[key] = meta[key]
         yield ports.emit(INPUT_CLAIMED, **payload)
         yield ports.emit(INPUT_ENDED, claimed=True,
                          elapsed_ms=int((perf_counter() - started) * 1000))

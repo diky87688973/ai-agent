@@ -30,8 +30,7 @@ entry → shell → capabilities → mechanisms → core
 | `agent/core/modules/` | 单步模块：输入、队列输入、压缩、模型、工具 | 服务装配、HTTP、插件加载 |
 | `agent/mechanisms/providers/base.py` | `ModelProvider` 协议与 `ModelRequestError` | 具体网关请求、UI |
 | `agent/mechanisms/providers/sse.py` | SSE 拆帧、流总超时、关闭诊断 | provider 请求体、业务消息 |
-| `agent/mechanisms/providers/openai.py` | OpenAI 兼容请求与流解析 | Anthropic、Echo、路由 |
-| `agent/mechanisms/providers/anthropic.py` | Anthropic Messages 请求与流解析 | OpenAI、路由、装配 |
+| `agent/mechanisms/providers/` | 兼容协议与原生协议的请求、流解析 | Echo、路由、装配 |
 | `agent/mechanisms/providers/echo.py` | 无网络假模型 | 真实网关、路由 |
 | `agent/mechanisms/providers/missing.py` | 缺少可用模型时的占位 | 真实网关、路由 |
 | `agent/mechanisms/providers/debug.py` | 共享调试开关 | 请求转换、流解析 |

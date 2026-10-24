@@ -70,6 +70,70 @@
       }
     },
     {
+      "description": "管理本会话的后台命令任务。action=create 创建并入队，list 查看队列，cancel 取消，output 读取未读输出。任务超时包含排队与执行。",
+      "display": {
+        "icon": "▣",
+        "label": "后台任务"
+      },
+      "name": "background_task",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "create / list / cancel / output",
+          "enum": [
+            "create",
+            "list",
+            "cancel",
+            "output"
+          ],
+          "type": "string"
+        },
+        "argv": {
+          "description": "命令参数数组（create 必填，不经 shell；例如 python -c print(1) 拆成三个参数）",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "batch": {
+          "description": "批次号；create 可选（传回执 batch 可加入同批），list 必填",
+          "type": "string"
+        },
+        "cwd": {
+          "description": "工作目录（可选）",
+          "type": "string"
+        },
+        "label": {
+          "description": "任务小标题（create 必填，用于工具壳展示；允许同名）",
+          "type": "string"
+        },
+        "reason": {
+          "description": "取消原因（cancel 可选）",
+          "type": "string"
+        },
+        "status": {
+          "description": "list 的状态过滤（可选）",
+          "type": "string"
+        },
+        "task_id": {
+          "description": "任务 ID（cancel / output 必填；list 可用于精确查询）",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "output 等待上限毫秒数（可选，默认 30000）",
+          "type": "integer"
+        },
+        "timeout_sec": {
+          "description": "从创建时刻开始的总超时秒数（create 必填，1..86400）",
+          "type": "integer"
+        },
+        "wait": {
+          "description": "output 是否等待终态（可选）",
+          "type": "boolean"
+        }
+      }
+    },
+    {
       "description": "凭 confirm_id 提交写预览并落盘。前置：必须先通过 review_conclusion 的 review。写参数由门控从预览快照恢复并分派执行。同一文件刚提交后又要改：若门控要求先 read_file，只是复核落盘后的内容与行号；已解锁的 confirm_id 仍有效，确认无误后用原 confirm_id 继续提交，不必重新预览。",
       "display": {
         "icon": "💾",

@@ -76,7 +76,7 @@ plugins/visual_operator/
 
 移动不是一次瞬移：先走完 `hover_path` 的中间点，再用 `hover_approach_ms`
 连续移到落点，最后在 1–2px 内来回几次。播放器与网页的自动隐藏控件靠连续的
-`WM_MOUSEMOVE` 判断「鼠标在动」；一次 `SetCursorPos` 后静止会被当成没动。
+`WM_MOUSEMOVE` 判断「鼠标在动」；一次 `Set外部编辑器Pos` 后静止会被当成没动。
 轨迹与微移动都是真实的光标移动，不是只改回执里的数字。微动结束后会读回真实
 光标并收回落点；如果目标窗口把光标抢偏且回不去，调用报 `DesktopError`，
 不会把偏移后的位置当成落点。
@@ -124,7 +124,7 @@ plugins/visual_operator/
 
 ### 同名窗口
 
-`window` 给的是标题片段，同名窗口可能同时存在（CEF/Electron 常见：主窗 +
+`window` 给的是标题片段，同名窗口可能同时存在（Chromium/Chromium 常见：主窗 +
 播放层 + 隐藏辅助窗）。候选排序是 **前台 → Z 序 → 面积**，不是单纯的面积：
 用户眼前那个窗口几乎总是他要操作的那个，面积最大的反而可能是盖在画面上的播放层。
 
@@ -296,8 +296,8 @@ ID 不存在、过期或不属于当前会话时直接报错，不退回屏幕�
    不会细到消失。刻度在最终尺寸下渲染，缩图不会把字糊掉；`grid_unit=image` 时
    刻度文字用图内像素，但线距仍按 `grid_step` 的屏幕坐标布点；
 5. `cursor_mark` 打开时只在光标附近画短十字：黑色衬边、白色分隔层、亮绿芯，
-   小圆环，以及 `CURSOR x,y` 标签；十字中心留空，不盖住落点像素，也不铺满全图。
-   短边小于 140 的区域只写坐标、省略 `CURSOR` 前缀，且只描字不铺黑底；
+   小圆环，以及 `POINTER x,y` 标签；十字中心留空，不盖住落点像素，也不铺满全图。
+   短边小于 140 的区域只写坐标、省略 `POINTER` 前缀，且只描字不铺黑底；
    短边小于 90 的区域不画标签，坐标只从回执 `cursor` 读取。
    字号按截图缩放反推，保证不同缩放下屏幕观感一致；标签单位跟随 `grid_unit`；
 6. 以 PNG 编码，交给 `desktop_eye` 放进附件。
@@ -348,11 +348,11 @@ wait_interval_ms = 200
   被别的窗口遮挡也能拿到内容。像素按 `BGRX` 直接编码 PNG，不额外翻转。
 - 落点探测：`WindowFromPoint` 拿坐标下的子窗口，`GetAncestor(GA_ROOT)` 拿所属顶层窗口，
   `GetClassNameW` 拿控件类名。拿不到就省略 `hit`，不猜。
-- 窗口清单：`EnumWindows` 枚举可见顶层窗口（跳过工具窗与 CEF 屏幕外辅助窗），
+- 窗口清单：`EnumWindows` 枚举可见顶层窗口（跳过工具窗与 Chromium 屏幕外辅助窗），
   只用于动作前后的 `window_changed` 对比；清单本身不进上下文。
 - DPI：装载时声明 per-monitor v2；宿主已经声明过则沿用宿主的选择。声明失败时
   依次退回 `SetProcessDpiAwareness` 与 `SetProcessDPIAware`。
-- 输入：定位用 `SetCursorPos`，按键用 `SendInput`；文本走 `KEYEVENTF_UNICODE`
+- 输入：定位用 `Set外部编辑器Pos`，按键用 `SendInput`；文本走 `KEYEVENTF_UNICODE`
   （代理对拆成两个 UTF-16 单元），功能键与组合键走虚拟键码。
 - 已知边界：锁屏与 UAC 安全桌面截不到内容；向更高完整性级别的窗口投递输入会被
   系统丢弃；混合缩放的多屏在系统层面仍可能有少量偏差。

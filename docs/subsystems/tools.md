@@ -131,7 +131,8 @@ Markdown 的本地绝对路径链接同样进入右栏；正文里的行内代�
 
 | 工具 | 做什么 |
 |---|---|
-| `run_command` | 执行单条 shell 命令，收集 stdout / stderr / exit_code |
+| `run_command` | 执行单条 shell 命令，收集 stdout / stderr / exit_code（待下线） |
+| `background_task` | 按 cid 管理后台任务：create / list / cancel / output；命令以 argv 数组传入，不经 shell |
 | `python_inline` | `exec` 执行 Python 源码（不经 shell） |
 | `env_probe` | 探测本机可用命令行环境并给出建议 |
 
