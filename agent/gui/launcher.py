@@ -98,6 +98,7 @@ def _spawn_server(host: str, port: int) -> Optional[subprocess.Popen]:
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
+        "env": {**os.environ, "AI_AGENT_GUI": "1"},
     }
     if os.name == "nt":
         options["creationflags"] = (

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from agent.core.error_report import report_error
 from agent.update.checker import check, manifest_url
 from agent.update.install import install_root, payload_root
 from agent.update.stage import stage_package
@@ -79,5 +81,15 @@ class UpdateController:
                 encoding="utf-8",
             )
             self._status.update({"detail": "restarting"})
-        threading.Timer(0.6, lambda: os._exit(0)).start()
+        def _finish() -> None:
+            if os.environ.get("AI_AGENT_GUI") == "1":
+                parent = os.getppid()
+                try:
+                    if parent > 0 and parent != os.getpid():
+                        os.kill(parent, signal.SIGTERM)
+                except OSError as exc:
+                    report_error("agent.update.controller.stop_gui", exc)
+            os._exit(0)
+
+        threading.Timer(0.6, _finish).start()
         return {"ok": True, "version": version}

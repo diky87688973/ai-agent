@@ -104,7 +104,17 @@ _HTML_FILE = CLASSIC_DIR / "agent-ui.html"
 _HLJS_DARK_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github-dark.min.css"
 _HLJS_LIGHT_CSS = CLASSIC_DIR / "css" / "vendor" / "hljs-github.min.css"
 
-APP_VERSION = "v0.1"
+def _app_version() -> str:
+    try:
+        from agent.update.version import current_version
+        return f"v{current_version()}"
+    except Exception as exc:
+        from agent.core.error_report import report_error
+        report_error("agent.shell.web.ui_bundle.version", exc)
+        return "v0.1"
+
+
+APP_VERSION = _app_version()
 
 
 def _read(path: Path) -> str:
