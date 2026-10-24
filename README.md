@@ -18,10 +18,10 @@
 
 ### Windows
 
-- `ai-agent-<version>-full-pack-windows.zip`  
+- `ai-agent-<version>-full-pack-windows.zip`
   首次使用，下载后解压，运行 `agent-gui.exe`。
 
-- `ai-agent-<version>-update-pack-windows.zip`  
+- `ai-agent-<version>-update-pack-windows.zip`
   仅用于已安装版本的自动更新，不能单独运行。
 
 ### macOS
