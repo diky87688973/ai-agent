@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-agent"
-version = "0.1.1"
+version = "0.1.2"
 description = "AI Agent：本地运行的通用智能助手，委托式模块链内核 + 单页 Web 界面"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]

@@ -15,7 +15,7 @@ MANIFEST_ENV = "AI_AGENT_UPDATE_MANIFEST_URL"
 DEFAULT_MANIFEST_URL = (
     "https://github.com/diky87688973/ai-agent/releases/latest/download/manifest.json"
 )
-DEFAULT_TIMEOUT_SEC = 8.0
+DEFAULT_TIMEOUT_SEC = 45.0
 
 
 @dataclass(frozen=True)

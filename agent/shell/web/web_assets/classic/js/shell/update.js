@@ -57,6 +57,8 @@
             return;
           }
           applyStatus(data);
+          btn.disabled = false;
+          busy = false;
         })
         .catch(function (error) {
           set("更新失败", String(error));
