@@ -84,10 +84,19 @@ VERSION
 每次发布至少包含：
 
 ```text
-app-<version>.zip
+ai-agent-<version>-update-pack-windows.zip
+ai-agent-<version>-full-pack-windows.zip
 manifest.json
-manifest.sig
 ```
+
+macOS 包名预留：
+
+```text
+ai-agent-<version>-update-pack-macos.zip
+ai-agent-<version>-full-pack-macos.zip
+```
+
+当前只构建 Windows 包。更新包按平台隔离，manifest 不声明支持平台。
 
 `manifest.json`：
 
@@ -100,7 +109,7 @@ manifest.sig
   "published_at": "2026-10-24T00:00:00Z",
   "min_launcher": "1.0.0",
   "asset": {
-    "name": "app-0.2.0.zip",
+    "name": "ai-agent-0.2.0-update-pack-windows.zip",
     "size": 12345678,
     "sha256": "...."
   },
@@ -128,7 +137,7 @@ manifest.sig = Ed25519(manifest.json 原始字节)
 
 哈希校验能发现下载损坏，但不能防止发布资产被替换；签名是后续的安全增强。
 
-发布资产由代码托管平台的 Release 承载；客户端只把 manifest 作为版本与校验来源。
+发布资产由代码托管平台的 Release 承载；客户端只把 manifest 作为版本与校验来源。平台由包名隔离，manifest 不含平台字段。
 
 ## 5. 安装布局
 
@@ -137,7 +146,7 @@ manifest.sig = Ed25519(manifest.json 原始字节)
 ```text
 install_root/
   agent-gui.exe              # 稳定启动器
-  agent-update.exe           # 稳定更新 helper
+  agent/update/apply.py      # 根目录更新 helper
   launcher.json              # 当前版本指针
   VERSION
   config.ini                 # 用户配置，不覆盖
@@ -529,13 +538,13 @@ AI_AGENT_DEV=1
 
 ## 11.1 平台范围
 
-首版优先级：
-
 ```text
-Windows：完整自动更新，主目标
-macOS：未实现；需要处理应用包、Gatekeeper 与签名/公证
-Linux：未实现；不阻塞首版
+Windows：完整自动更新，当前唯一构建平台
+macOS：未实现，未构建安装包
+Linux：未实现，未构建安装包
 ```
+
+平台之间不共享更新包，包名必须带平台后缀。
 
 macOS 如果没有签名与公证，更新包可能被系统拦截或标记隔离；这属于发布前置条件，不在更新器内部绕过。
 
@@ -582,8 +591,7 @@ agent/shell/web/web_update.py
   # POST /api/update/download
   # POST /api/update/apply
 
-launcher/updater.cpp   # 或独立 agent-update.exe
-launcher/launcher.cpp  # 读取 launcher.json
+launcher/launcher.cpp  # 读取 launcher.json，启动 app 与 updater
 ```
 
 ## 14. 发布与 CI
@@ -593,8 +601,8 @@ launcher/launcher.cpp  # 读取 launcher.json
 ```text
 打 tag
 → 构建 agent-gui.exe
-→ 组装 payload
-→ 打包 zip
+→ 构建 Windows 更新包
+→ 构建 Windows 完整包
 → 生成 manifest.json
 → 计算 zip 与 manifest 的 sha256
 → 上传 Release 资产

@@ -28,7 +28,7 @@ jobs:
         shell: powershell
         run: .\launcher\build.ps1
 
-      - name: 构建更新包与完整包
+      - name: 构建 Windows 更新包与完整包
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart("v")

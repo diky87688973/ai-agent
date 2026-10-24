@@ -12,6 +12,25 @@
   <img src="https://img.shields.io/badge/License-Apache%202.0-green" alt="License">
 </p>
 
+## 下载
+
+打开 [Releases](https://github.com/diky87688973/ai-agent/releases) 页面，选择版本，在 **Assets** 中下载。
+
+### Windows
+
+- `ai-agent-<version>-full-pack-windows.zip`  
+  首次使用，下载后解压，运行 `agent-gui.exe`。
+
+- `ai-agent-<version>-update-pack-windows.zip`  
+  仅用于已安装版本的自动更新，不能单独运行。
+
+### macOS
+
+- `ai-agent-<version>-full-pack-macos.zip`
+- `ai-agent-<version>-update-pack-macos.zip`
+
+macOS 安装包暂未构建，当前 Release 只提供 Windows 包。
+
 ## 特点
 
 - **本地运行** —— 会话、文件与工具在本机执行；模型端点与推理档自行配置。
