@@ -18,3 +18,4 @@
 .update-btn:hover{background:rgba(86,134,254,.16)}
 .update-btn:disabled{opacity:.6;cursor:default}
 .update-icon{font-size:13px;line-height:1}
+.rehearsal-banner{color:#ff4d4f;font-size:12px;font-weight:600;white-space:nowrap;margin-right:4px}
