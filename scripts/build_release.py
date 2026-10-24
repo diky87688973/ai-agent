@@ -45,7 +45,7 @@ def validate_plugins() -> None:
 def build(version: str, output: Path) -> tuple[Path, Path]:
     validate_plugins()
     output.mkdir(parents=True, exist_ok=True)
-    name = f"ai-agent-{version}.zip"
+    name = f"ai-agent-{version}-update-pack.zip"
     archive = output / name
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
         for part in PAYLOAD_PARTS:

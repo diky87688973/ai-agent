@@ -28,13 +28,15 @@ jobs:
         shell: powershell
         run: .\launcher\build.ps1
 
-      - name: 构建更新包
+      - name: 构建更新包与完整包
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart("v")
           if ((Get-Content VERSION -Raw).Trim() -ne $version) { throw "VERSION 与 tag 不一致" }
           python scripts/build_release.py --version $version --output dist
+          python scripts/build_full_pack.py --version $version --output dist
           Get-Content dist\manifest.json
+          Get-ChildItem dist | Select-Object Name, Length
 
       - name: 发布资产
         shell: pwsh
