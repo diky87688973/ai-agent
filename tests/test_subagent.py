@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent.app import build_app
 from agent.capabilities.registry import ToolPlugin, ToolRegistry, ToolRegistryView
@@ -135,6 +136,20 @@ class RegistryVisibilityTest(unittest.TestCase):
 
 
 class RepositoryBoundaryTest(unittest.TestCase):
+    def test_failed_seed_removes_new_empty_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            parent = SessionStore(root / "data")
+            repo = SubagentRepository(data_root=root / "data", parent_store=parent)
+            with mock.patch("agent.subagent.repository.seed_child",
+                            side_effect=RuntimeError("seed failed")):
+                with self.assertRaises(RuntimeError):
+                    repo.prepare(
+                        parent_cid="parent-0001", batch="",
+                        label="失败", context="fresh",
+                    )
+            self.assertEqual(repo.batches.list_for_parent("parent-0001"), [])
+
     def test_explicit_batch_history_and_invalid_boundaries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -330,6 +345,20 @@ class ManagerTest(_ManagerCase):
         provider.release.set()
         if not app.runner.wait_idle(result["child_id"], timeout=3):
             self.fail("子 Agent 回合未在时限内结束")
+
+    def test_system_prompt_uses_role_tool_view(self) -> None:
+        parent_prompt = self.app.runner.system_prompt("parent-0001")
+        self.assertNotIn("session_create", parent_prompt)
+        self.assertNotIn("session_send", parent_prompt)
+        result = self.manager.create(
+            "parent-0001", prompt="x", label="提示词", context="fresh",
+        )
+        self._wait(result["child_id"])
+        child_prompt = self.app.runner.system_prompt(result["child_id"])
+        self.assertNotIn("session_create", child_prompt)
+        self.assertNotIn("ai_speak", child_prompt)
+        self.assertNotIn("subagent_send", parent_prompt)
+        self.assertIn("subagent_send", child_prompt)
 
     def test_tool_schema_and_list(self) -> None:
         result = self.manager.create("parent-0001", prompt="x", label="工具", context="fresh")

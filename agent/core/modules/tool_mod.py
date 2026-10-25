@@ -2,6 +2,7 @@
 """工具模块（收尾）：执行未消费的工具调用。"""
 from __future__ import annotations
 
+from time import perf_counter
 from typing import Any, Iterator
 
 from agent.core.event_name import (
@@ -68,6 +69,34 @@ class ToolModule(ModuleBase):
     name = "tool"
     requires = ("tool_port",)
 
+    def _cancel_rest(self, ports: Ports, pending, start: int,
+                     reason: str) -> Iterator[Any]:
+        for rest in pending[start:]:
+            yield ports.emit(TOOL_CANCELED, call_id=rest.call_id,
+                             name=rest.name, reason=reason)
+            yield ports.emit(TOOL_ENDED, call_id=rest.call_id, name=rest.name,
+                             status="canceled", elapsed_ms=0)
+
+    def _result_events(self, ports: Ports, call, result, elapsed: int,
+                       ok: bool) -> Iterator[Any]:
+        if ok:
+            images = getattr(result, "attachments", None)
+            yield ports.emit(
+                TOOL_DONE, call_id=call.call_id, name=call.name,
+                data=clip_tool_result(safe_value(getattr(result, "data", None))),
+                attachments=(list(images)
+                             if isinstance(images, list) and images else None),
+                elapsed_ms=elapsed)
+        else:
+            raw = getattr(result, "data", None)
+            data = clip_tool_result(safe_value(raw)) if raw is not None else None
+            yield ports.emit(
+                TOOL_FAILED, call_id=call.call_id, name=call.name,
+                error=str(getattr(result, "error", "") or ""),
+                data=data, elapsed_ms=elapsed)
+        yield ports.emit(TOOL_ENDED, call_id=call.call_id, name=call.name,
+                         status=("done" if ok else "failed"), elapsed_ms=elapsed)
+
     def execute(self, ports: Ports) -> Iterator[Any]:
         pending = pending_tool_calls(ports.log)
         if not pending:
@@ -76,85 +105,30 @@ class ToolModule(ModuleBase):
         if tools is None:
             yield ports.emit(ERROR, where="tool", detail="未装配工具端口")
             return Outcome.halt("未装配工具端口")
-
         on_progress = progress_emitter(ports)
         for index, call in enumerate(pending):
             if index > 0 and ports.canceled():
-                # 取消检查点（"每个工具执行前"）：不再启动新调用，
-                # 但必须给剩余调用补终态——否则
-                #   ① 卡片永远停在「进行中」（用户看不到"它被取消了"）；
-                #   ② 模型历史里 `assistant(tool_calls)` 缺少对应的 tool 响应，
-                #      下一轮请求会被模型 API 拒绝
-                #      （模型 API 会因缺 tool 消息拒掉整个请求）。
-                for rest in pending[index:]:
-                    yield ports.emit(TOOL_CANCELED, call_id=rest.call_id,
-                                     name=rest.name, reason="user_stop")
-                    yield ports.emit(TOOL_ENDED, call_id=rest.call_id, name=rest.name,
-                                     status="canceled", elapsed_ms=0)
+                yield from self._cancel_rest(ports, pending, index, "user_stop")
                 return Outcome.stopped("用户请求停止")
-            from time import perf_counter
             started = perf_counter()
             yield ports.emit(TOOL_STARTED, call_id=call.call_id, name=call.name,
                              arguments=dict(call.arguments))
-            result = tools.execute(call, conversation_id=ports.conversation_id,
-                                   progress=on_progress, canceled=ports.canceled,
-                                   tool_call_id=str(call.call_id or ""))
+            result = tools.execute(
+                call, conversation_id=ports.conversation_id,
+                progress=on_progress, canceled=ports.canceled,
+                tool_call_id=str(call.call_id or ""))
             elapsed = int((perf_counter() - started) * 1000)
             deferred = (bool(getattr(result, "deferred", False))
                         or bool(getattr(result, "await_user", False)))
             if deferred:
-                # 需要外部输入：本次调用还没返回，所以没有 done/failed，
-                # 但生命周期到此为止（控制权交回）——仍补 `tool_ended`，
-                # 状态标 `suspended`，好与 `tool_started` 配对。
-                yield ports.emit(TOOL_SUSPENDED, call_id=call.call_id, name=call.name,
-                                 envelope=safe_value(getattr(result, "data", None)))
+                yield ports.emit(
+                    TOOL_SUSPENDED, call_id=call.call_id, name=call.name,
+                    envelope=safe_value(getattr(result, "data", None)))
                 yield ports.emit(TOOL_ENDED, call_id=call.call_id, name=call.name,
                                  status="suspended", elapsed_ms=elapsed)
-                # 本批剩下的调用必须补终态：模型一条消息要求
-                # [ask_user(c1), echo(c2)] 时，c1 挂起后 c2 既没执行、也没有任何事实。
-                #
-                # 两个后果都很严重：
-                #   ① 历史里 `assistant(tool_calls=[c1,c2])` 永远缺 c2 的响应 →
-                #      此后每个请求都非法（模型 API 400），会话彻底打不开；
-                #   ② 用户看不出 c2 被跳过了（卡片永远停在「进行中」或根本不出现）。
-                #
-                # 剩余调用标 `canceled`：：挂起是终态
-                # （`Outcome.suspend` 交出控制权，恢复是新回合）。新回合里
-                # 模型可能已经换了意图，替它执行一条旧指令更危险。
-                # 标 `canceled` 让模型看得见"这两个没做"，由它决定要不要重发
-                # ——这比静默丢弃安全，也比擅自补跑安全。
-                for rest in pending[index + 1:]:
-                    yield ports.emit(TOOL_CANCELED, call_id=rest.call_id,
-                                     name=rest.name, reason="suspended_batch")
-                    yield ports.emit(TOOL_ENDED, call_id=rest.call_id, name=rest.name,
-                                     status="canceled", elapsed_ms=0)
+                yield from self._cancel_rest(
+                    ports, pending, index + 1, "suspended_batch")
                 return Outcome.suspend(f"工具 {call.name} 需要外部输入")
             ok = bool(getattr(result, "ok", False))
-            if ok:
-                # 进上下文前统一裁一刀：工具自己的 `max_chars` 是默认值不是上限，
-                # 一次读 20 万字符的结果会永久留在上下文里，把每轮请求都撑大。
-                #
-                # 附件不过裁刀：`clip_tool_result` 按字符截断，图片是 base64，
-                # 截断即损坏；其体积由 `build_tool_parts` 的预算单独约束。
-                result_images = getattr(result, "attachments", None)
-                yield ports.emit(TOOL_DONE, call_id=call.call_id, name=call.name,
-                                 data=clip_tool_result(safe_value(getattr(result, "data", None))),
-                                 attachments=(list(result_images)
-                                              if isinstance(result_images, list) and result_images
-                                              else None),
-                                 elapsed_ms=elapsed)
-            else:
-                # 失败也要带 data：工具可在异常上挂结构化 status（如
-                # old_text_not_found），回灌模型信封为 {ok:false,error,data}。
-                fail_raw = getattr(result, "data", None)
-                fail_data = (
-                    clip_tool_result(safe_value(fail_raw))
-                    if fail_raw is not None else None
-                )
-                yield ports.emit(TOOL_FAILED, call_id=call.call_id, name=call.name,
-                                 error=str(getattr(result, "error", "") or ""),
-                                 data=fail_data,
-                                 elapsed_ms=elapsed)
-            yield ports.emit(TOOL_ENDED, call_id=call.call_id, name=call.name,
-                             status=("done" if ok else "failed"), elapsed_ms=elapsed)
-        return Outcome.next()            # 刚产生了工具结果 → 让模型看
+            yield from self._result_events(ports, call, result, elapsed, ok)
+        return Outcome.next()

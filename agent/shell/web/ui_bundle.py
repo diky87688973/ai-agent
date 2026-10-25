@@ -53,6 +53,7 @@ UI_JS_MODULES = (
     "chat/send.js",
     "layout/splitters.js",
     "chat/queue.js",
+    "chat/composer-layout.js",
     "chat/background-tasks.js",
     "chat/subagents.js",
     "shell/update.js",

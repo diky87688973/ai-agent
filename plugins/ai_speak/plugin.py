@@ -120,15 +120,13 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         disposers.append(ctx.subscribe(ev.TURN_ENDED, _turn_handler(runtime)))
         disposers.append(ctx.subscribe(ev.ERROR, _error_handler(runtime)))
         def _mode_tail(cid: str) -> str:
-            if ctx.is_subagent(cid):
-                return ""
             return _voice_directive(
                 runtime.config.user_salutation,
                 runtime.config.assistant_salutation,
                 runtime.config.tone,
             ) if runtime.provider_ready() else ""
 
-        disposers.append(ctx.add_mode_tail(_mode_tail))
+        disposers.append(ctx.add_mode_tail(_mode_tail, subagent_visible=False))
         ctx.set_runtime(runtime)
     except Exception:
         runtime.dispose()

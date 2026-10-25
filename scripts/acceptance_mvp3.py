@@ -16,7 +16,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -55,6 +55,108 @@ def _is_target(path: str) -> bool:
     return str(path).replace("\\", "/").rstrip("/").endswith("result.txt")
 
 
+def _record_started(data: dict, seq: list, previews: dict, session_gate: Any) -> None:
+    args = data.get("arguments") or {}
+    name = str(data.get("name") or "")
+    if name == "commit_write":
+        rec = session_gate.peek(str(args.get("confirm_id") or "")) or {}
+        path = str((rec.get("arguments") or {}).get("path") or "")
+    else:
+        path = str(args.get("path") or "")
+    dry = name == "write_file"
+    seq.append({"name": name, "path": path, "dry": dry,
+                "call_id": str(data.get("call_id") or "")})
+    if name == "write_file":
+        print(f"  [tool] write_file（{'预览' if dry else '提交'}）{path}")
+        if dry:
+            previews[str(data.get("call_id"))] = args
+    else:
+        print(f"  [tool] {name} {path}".rstrip())
+
+
+def _record_done(data: dict, results: dict, previews: dict,
+                 session_gate: Any, confirms: list, rejects: list) -> None:
+    call_id = str(data.get("call_id") or "")
+    results[call_id] = "error" not in data
+    payload = data.get("data") if isinstance(data.get("data"), dict) else {}
+    if results[call_id] and payload.get("confirm_id"):
+        args = previews.pop(call_id, None)
+        if args is not None:
+            path = str(args.get("path") or "")
+            confirmed = session_gate.confirm(str(payload.get("confirm_id")))
+            confirms.append((path, bool(confirmed)))
+            print(f"  [host] 已确认预览：{path}")
+    elif not results[call_id]:
+        error = str(data.get("error") or "")
+        rejects.append(error)
+        print(f"  [reject] {_short(error)}")
+
+
+def _run_events(engine: Any, session_gate: Any, text: str):
+    previews, confirms, seq = {}, [], []
+    results, rejects, errors = {}, [], []
+    ended = False
+    try:
+        for event in engine.start_turn(text):
+            kind, data = event.type, event.data
+            if kind == ev.TOOL_STARTED:
+                _record_started(data, seq, previews, session_gate)
+            elif kind == ev.TOOL_DONE:
+                _record_done(data, results, previews, session_gate, confirms, rejects)
+            elif kind == ev.TOOL_FAILED:
+                error = str(data.get("error") or "")
+                rejects.append(error)
+                results[str(data.get("call_id") or "")] = False
+                print(f"  [reject] {_short(error)}")
+            elif kind == ev.MODEL_MESSAGE:
+                content = str(data.get("content") or "").strip()
+                if content:
+                    print(f"  [assistant] {_short(content, 300)}")
+            elif kind == ev.ERROR:
+                errors.append(str(data))
+                print(f"  [error] {data}")
+            elif kind == ev.TURN_ENDED:
+                ended = True
+                print(f"  [turn] 结束（steps={data.get('steps')}）")
+    except Exception as exc:
+        print(f"[scripts.acceptance_mvp3.main] {type(exc).__name__}: {exc}",
+              file=sys.stderr, flush=True)
+        errors.append(f"{type(exc).__name__}: {exc}")
+        print(f"  [异常] {type(exc).__name__}: {exc}")
+    return seq, results, rejects, errors, confirms, ended
+
+
+def _check_results(target: Path, store: Any, cid: str, engine: Any,
+                   seq: list, results: dict, ended: bool, errors: list) -> bool:
+    print("\n检查项：")
+    content = target.read_text(encoding="utf-8") if target.is_file() else ""
+    checks = [("① 文件产出：result.txt 内容正确", "MVP-3 验收通过" in content)]
+    preview_ok = any(
+        c["name"] == "write_file" and c["dry"] and results.get(c["call_id"])
+        for c in seq)
+    reviewed = any(
+        c["name"] == "review_conclusion" and results.get(c["call_id"]) for c in seq)
+    checks.append(("② 三步·预览与 review 解锁：预览发生且 review_conclusion 生效",
+                   preview_ok and reviewed))
+    commit_idx = next((i for i, c in enumerate(seq)
+                       if c["name"] == "commit_write" and _is_target(c["path"])
+                       and results.get(c["call_id"])), None)
+    reread = commit_idx is not None and any(
+        c["name"] == "read_file" and _is_target(c["path"])
+        and results.get(c["call_id"]) for c in seq[commit_idx + 1:])
+    checks.append(("③ 三步·提交与重读：提交成功后完成重读",
+                   commit_idx is not None and reread))
+    checks.append(("④ 对话收束：turn_ended 且无 error 事件", ended and not errors))
+    loaded = store.load(cid)
+    checks.append(("⑤ 事实持久化：事件落盘且可重载",
+                   bool(loaded) and len(loaded) == len(engine.log.events)))
+    ok_all = True
+    for label, passed in checks:
+        print(f"  [{'PASS' if passed else 'FAIL'}] {label}")
+        ok_all = ok_all and passed
+    return ok_all
+
+
 def main() -> int:
     if os.environ.get("AI_AGENT_REAL_MODEL_ACCEPTANCE") != "1":
         print("跳过真实模型验收：设置 AI_AGENT_REAL_MODEL_ACCEPTANCE=1 后运行")
@@ -73,139 +175,16 @@ def main() -> int:
         print("=== MVP-3 验收：真实模型端到端（headless）===")
         print(f"模型：{model}")
         engine = app.session(cid, system_prompt=SYSTEM_PROMPT)
-        # 会话级门控：宿主确认须落在该会话自己的门控上
         session_gate = app.gate_for(cid)
         target = ws / "result.txt"
-
-        # ── 运行回合：事件流旁路处理（打印 + host 自动确认预览）──
-        previews: Dict[str, Dict[str, Any]] = {}
-        confirms: List[Tuple[str, bool]] = []
-        seq: List[Dict[str, Any]] = []  # 工具调用序列 {name, path, dry, call_id}
-        results: Dict[str, bool] = {}  # call_id → ok
-        rejects: List[str] = []
-        errors: List[str] = []
-        ended = False
         text = USER_TEXT_TMPL.format(ws=ws)
         print(f"\n[回合] {text}\n")
-        try:
-            for event in engine.start_turn(text):
-                t = event.type
-                d = event.data
-                if t == ev.TOOL_STARTED:
-                    args = d.get("arguments") or {}
-                    name = str(d.get("name") or "")
-                    if name == "commit_write":
-                        _rec = session_gate.peek(str(args.get("confirm_id") or "")) or {}
-                        path = str((_rec.get("arguments") or {}).get("path") or "")
-                    else:
-                        path = str(args.get("path") or "")
-                    dry = name == "write_file"
-                    seq.append(
-                        {
-                            "name": name,
-                            "path": path,
-                            "dry": dry,
-                            "call_id": str(d.get("call_id") or ""),
-                        }
-                    )
-                    if name == "write_file":
-                        print(f"  [tool] write_file（{'预览' if dry else '提交'}）{path}")
-                        if dry:
-                            previews[str(d.get("call_id"))] = args
-                    else:
-                        print(f"  [tool] {name} {path}".rstrip())
-                elif t == ev.TOOL_DONE:
-                    # 内核词汇：`tool_done` 本身就是成功帧（没有 `ok` 字段），
-                    # 失败走 `tool_failed`。读 `d.get("ok")` 会恒为 False，
-                    # 把所有工具都误判成"被拒"。
-                    call_id = str(d.get("call_id") or "")
-                    ok = "error" not in d
-                    results[call_id] = ok
-                    res = d.get("data") if isinstance(d.get("data"), dict) else {}
-                    if ok and res.get("confirm_id"):
-                        args = previews.pop(call_id, None)
-                        if args is not None:
-                            p = str(args.get("path") or "")
-                            okc = session_gate.confirm(
-                                str(res.get("confirm_id")),
-                            )
-                            confirms.append((p, bool(okc)))
-                            print(f"  [host] 已确认预览：{p}")
-                    elif not ok:
-                        err = str(d.get("error") or "")
-                        rejects.append(err)
-                        print(f"  [reject] {_short(err)}")
-                elif t == ev.TOOL_FAILED:
-                    err = str(d.get("error") or "")
-                    rejects.append(err)
-                    results[str(d.get("call_id") or "")] = False
-                    print(f"  [reject] {_short(err)}")
-                elif t == ev.MODEL_MESSAGE:
-                    content = str(d.get("content") or "").strip()
-                    if content:
-                        print(f"  [assistant] {_short(content, 300)}")
-                elif t == ev.ERROR:
-                    errors.append(str(d))
-                    print(f"  [error] {d}")
-                elif t == ev.TURN_ENDED:
-                    ended = True
-                    print(f"  [turn] 结束（steps={d.get('steps')}）")
-        except Exception as exc:
-            print(f"[scripts.acceptance_mvp3.main] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
-            errors.append(f"{type(exc).__name__}: {exc}")
-            print(f"  [异常] {type(exc).__name__}: {exc}")
-
-        # ── 检查项 ──
-        print("\n检查项：")
-        checks: List[Tuple[str, bool]] = []
-
-        content = target.read_text(encoding="utf-8") if target.is_file() else ""
-        checks.append(("① 文件产出：result.txt 内容正确", "MVP-3 验收通过" in content))
-
-        preview_ok = any(
-            c["name"] == "write_file" and c["dry"] and results.get(c["call_id"]) for c in seq
-        )
-        # 三步写盘必须由 review_conclusion 解锁：host 手动 confirm 不算完成本项检查，
-        # 所以这里看的是"预览成功 + review_conclusion 成功"，而不是"预览成功"。
-        reviewed = any(c["name"] == "review_conclusion" and results.get(c["call_id"]) for c in seq)
-        checks.append(
-            ("② 三步·预览与 review 解锁：预览发生且 review_conclusion 生效", preview_ok and reviewed)
-        )
-
-        commit_idx: Optional[int] = None
-        for i, c in enumerate(seq):
-            if (
-                c["name"] == "commit_write"
-                and _is_target(c["path"])
-                and results.get(c["call_id"])
-            ):
-                commit_idx = i
-                break
-        reread = False
-        if commit_idx is not None:
-            for c in seq[commit_idx + 1 :]:
-                if c["name"] == "read_file" and _is_target(c["path"]) and results.get(c["call_id"]):
-                    reread = True
-                    break
-        checks.append(("③ 三步·提交与重读：提交成功后完成重读", commit_idx is not None and reread))
-
-        checks.append(("④ 对话收束：turn_ended 且无 error 事件", ended and not errors))
-
-        loaded = store.load(cid)
-        checks.append(
-            ("⑤ 事实持久化：事件落盘且可重载", bool(loaded) and len(loaded) == len(engine.log.events))
-        )
-
-        ok_all = True
-        for label, passed in checks:
-            print(f"  [{'PASS' if passed else 'FAIL'}] {label}")
-            ok_all = ok_all and passed
-
-        print(
-            f"\n[统计] 工具调用={len(seq)} 被拒={len(rejects)} 确认={len(confirms)} "
-            f"事件={len(engine.log.events)}"
-        )
-        print()
+        seq, results, rejects, errors, confirms, ended = _run_events(
+            engine, session_gate, text)
+        ok_all = _check_results(
+            target, store, cid, engine, seq, results, ended, errors)
+        print(f"\n[统计] 工具调用={len(seq)} 被拒={len(rejects)} "
+              f"确认={len(confirms)} 事件={len(engine.log.events)}\n")
         if ok_all:
             print("验收通过：全部检查项 PASS。")
             return 0

@@ -177,7 +177,7 @@ inbound 直接持有历史/布局/状态实现
 | Provider 互导、router 具体依赖 | `scripts/check_architecture_hygiene.py` |
 | 压缩器直依赖 context 内部 | `scripts/check_architecture_hygiene.py` |
 | 静默吞错 | `scripts/check_silent_except.py` |
-| 复杂度登记/生成文档 | `scripts/check_complexity.py`、`gen_complexity_md.py` |
+| 复杂度阈值/生成文档 | `scripts/check_complexity.py`、`gen_complexity_md.py` |
 | 配置漂移 | `scripts/check_config_drift.py` |
 | 测试文档一致 | `scripts/gen_unit_tests_md.py --check` |
 | 资产/README 计数 | `scripts/check_readme.py` |

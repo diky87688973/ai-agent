@@ -122,6 +122,102 @@ def region_from_arguments(arguments: Dict[str, Any],
     return clamped
 
 
+def _select_target(backend: Backend, request: CaptureRequest,
+                   region: Any, initial_probe: Any):
+    selector = {"window": request.window} if request.window else {"hwnd": request.hwnd}
+    candidates, matched = window_candidates(backend, selector)
+    target = candidates[0] if candidates else None
+    auto_target = False
+    if target is None and region is None and request.hover is not None \
+            and backend.windows is not None:
+        landed = (initial_probe or {}).get("root") or (initial_probe or {}).get("hwnd")
+        if landed:
+            try:
+                target = backend.windows.get(int(landed))
+                auto_target = True
+            except Exception as exc:
+                report_error("plugin.visual_operator.window", exc)
+                target = None
+    return target, auto_target, candidates, matched
+
+
+def _capture(backend: Backend, request: CaptureRequest, target: Any,
+             region: Any, geometry: Any):
+    if target is None:
+        _hover(request, backend)
+        planned = region or geometry.rect
+        _check_area(planned.width * planned.height)
+        return backend.screen.capture(region), target
+    prepare = ((lambda: _hover(request, backend))
+               if request.hover is not None else None)
+    options = {"activate": request.activate}
+    if prepare is not None:
+        options["prepare"] = prepare
+    screenshot = backend.windows.capture(target.hwnd, region, **options)
+    if screenshot.restored:
+        target = backend.windows.get(target.hwnd)
+    return screenshot, target
+
+
+def _render(screenshot: Any, request: CaptureRequest, config: DesktopConfig,
+            cursor: Any, step: int):
+    annotated = request.annotate in ("annotated", "both")
+    rendered = canvas.render(
+        screenshot.png, rect=screenshot.rect,
+        grid=request.grid if annotated else False, step=step,
+        cursor=cursor if annotated else None,
+        cursor_mark=config.cursor_mark if annotated else False,
+        max_side=request.max_side, grid_unit=request.grid_unit)
+    raw = None
+    if request.annotate == "both":
+        raw = canvas.render(
+            screenshot.png, rect=screenshot.rect, grid=False, step=step,
+            cursor=None, cursor_mark=False, max_side=request.max_side,
+            grid_unit=request.grid_unit)
+    return rendered, raw
+
+
+def _image_info(item: canvas.Rendered) -> Dict[str, Any]:
+    return {"width": item.width, "height": item.height,
+            "sent_width": item.sent_width, "sent_height": item.sent_height,
+            "scale": item.scale, "bytes": len(item.png)}
+
+
+def _window_summary(summary: Dict[str, Any], request: CaptureRequest,
+                    target: Any, matched: int, candidates: Any,
+                    auto_target: bool, screenshot: Any) -> None:
+    if target is None:
+        return
+    summary["window"] = target.to_dict()
+    if auto_target:
+        summary["window"]["auto"] = "hover.hit"
+    if matched > 1:
+        summary["window"]["matched"] = matched
+        summary["window"]["alternatives"] = alternatives(candidates)
+    if screenshot.restored:
+        summary["restored"] = True
+    if request.activate:
+        summary["activated"] = screenshot.activation == "ok"
+
+
+def _hover_summary(summary: Dict[str, Any], request: CaptureRequest,
+                   backend: Backend) -> Optional[Dict[str, Any]]:
+    if request.hover is None:
+        return None
+    hit = backend.hit.probe(request.hover) if backend.hit is not None else None
+    data: Dict[str, Any] = {
+        "x": request.hover.x, "y": request.hover.y,
+        "settle_ms": request.hover_settle_ms,
+        "approach_ms": request.hover_approach_ms,
+        "wiggle": request.hover_wiggle}
+    if request.hover_path:
+        data["path"] = [point.to_dict() for point in request.hover_path]
+    if hit:
+        data["hit"] = hit
+    summary["hover"] = data
+    return hit
+
+
 def capture_payload(backend: Backend, config: DesktopConfig,
                     request: CaptureRequest, *,
                     captures: Optional[CaptureStore] = None,
@@ -131,108 +227,30 @@ def capture_payload(backend: Backend, config: DesktopConfig,
     geometry = backend.screen.geometry()
     if request.hover is not None and not geometry.rect.contains(request.hover):
         raise ValueError(
-            f"hover 坐标 {request.hover.to_dict()} 不在屏幕 {geometry.rect.to_dict()} 内"
-        )
-    selector = {"window": request.window} if request.window else {"hwnd": request.hwnd}
-    candidates, matched = window_candidates(backend, selector)
-    target: Optional[WindowInfo] = candidates[0] if candidates else None
+            f"hover 坐标 {request.hover.to_dict()} 不在屏幕 {geometry.rect.to_dict()} 内")
     region = request.region
-
-    # 光标下面那层是谁：先粗探一次，用来决定"没给窗口时该拍哪个窗口"。
-    # 回执里的 hover.hit 会在悬停与置前都完成后再探一次，避免把动作前的
-    # 遮挡关系当成结果。
-    initial_probe: Optional[Dict[str, Any]] = None
-    if request.hover is not None and backend.hit is not None:
-        initial_probe = backend.hit.probe(request.hover)
-
+    initial = (backend.hit.probe(request.hover)
+               if request.hover is not None and backend.hit is not None else None)
     if request.activate and not (request.window or request.hwnd):
         raise ValueError("activate 只对 window / hwnd 有意义；整屏取图不涉及窗口")
-
-    auto_target = False
-    if target is None and region is None and request.hover is not None \
-            and backend.windows is not None:
-        landed = (initial_probe or {}).get("root") or (initial_probe or {}).get("hwnd")
-        if landed:
-            # 只想看悬停控件时按光标那层取窗口内容：原尺寸、无遮挡、无整屏缩放。
-            try:
-                target = backend.windows.get(int(landed))
-                auto_target = True
-            except Exception as exc:
-                report_error("plugin.visual_operator.window", exc)
-                target = None
-
-    if target is None:
-        _hover(request, backend)
-        planned = region or geometry.rect
-        _check_area(planned.width * planned.height)
-        screenshot = backend.screen.capture(region)
-    else:
-        # 悬停要在窗口恢复/置前之后、取图之前发生：两个条件缺一个，
-        # 拍到的都是"还没展开"或"别的窗口上展开"的画面。
-        prepare = ((lambda: _hover(request, backend))
-                   if request.hover is not None else None)
-        capture_options = {"activate": request.activate}
-        if prepare is not None:
-            capture_options["prepare"] = prepare
-        screenshot = backend.windows.capture(target.hwnd, region, **capture_options)
-        if screenshot.restored:
-            # 恢复前的矩形是 (-32000,...)，拿它当回执会误导调用侧；重新读一次。
-            target = backend.windows.get(target.hwnd)
-
+    target, auto_target, candidates, matched = _select_target(
+        backend, request, region, initial)
+    screenshot, target = _capture(backend, request, target, region, geometry)
     _check_area(screenshot.rect.width * screenshot.rect.height)
     cursor = backend.mouse.cursor()
     step = request.grid_step or config.grid_step
-    annotated = request.annotate in ("annotated", "both")
-    rendered = canvas.render(
-        screenshot.png,
-        rect=screenshot.rect,
-        grid=request.grid if annotated else False,
-        step=step,
-        cursor=cursor if annotated else None,
-        cursor_mark=config.cursor_mark if annotated else False,
-        max_side=request.max_side,
-        grid_unit=request.grid_unit,
-    )
-    raw_rendered = None
-    if request.annotate == "both":
-        raw_rendered = canvas.render(
-            screenshot.png,
-            rect=screenshot.rect,
-            grid=False,
-            step=step,
-            cursor=None,
-            cursor_mark=False,
-            max_side=request.max_side,
-            grid_unit=request.grid_unit,
-        )
-
-    def image_info(item: canvas.Rendered) -> Dict[str, Any]:
-        return {
-            "width": item.width,
-            "height": item.height,
-            "sent_width": item.sent_width,
-            "sent_height": item.sent_height,
-            "scale": item.scale,
-            "bytes": len(item.png),
-        }
-
+    rendered, raw = _render(screenshot, request, config, cursor, step)
     summary: Dict[str, Any] = {
-        "platform": backend.platform,
-        "screen": geometry.rect.to_dict(),
-        "capture": screenshot.rect.to_dict(),
-        "source": screenshot.source,
-        "annotate": request.annotate,
-        "image": image_info(rendered),
+        "platform": backend.platform, "screen": geometry.rect.to_dict(),
+        "capture": screenshot.rect.to_dict(), "source": screenshot.source,
+        "annotate": request.annotate, "image": _image_info(rendered),
         "image_to_screen": {
             "scale_x": round(screenshot.rect.width / rendered.sent_width, 6),
             "scale_y": round(screenshot.rect.height / rendered.sent_height, 6),
-            "ox": screenshot.rect.x,
-            "oy": screenshot.rect.y,
-        },
-        "dpi": geometry.dpi or "unknown",
-    }
-    if raw_rendered is not None:
-        summary["raw_image"] = image_info(raw_rendered)
+            "ox": screenshot.rect.x, "oy": screenshot.rect.y},
+        "dpi": geometry.dpi or "unknown"}
+    if raw is not None:
+        summary["raw_image"] = _image_info(raw)
         summary["attachment_order"] = ["annotated", "raw"]
     elif request.annotate == "raw":
         summary["attachment_order"] = ["raw"]
@@ -241,73 +259,33 @@ def capture_payload(backend: Backend, config: DesktopConfig,
     if captures is not None:
         ref = captures.put(
             session_id if session_id is not None else current_session_id(),
-            screenshot.rect,
-            rendered.sent_width,
-            rendered.sent_height,
+            screenshot.rect, rendered.sent_width, rendered.sent_height,
             hwnd=target.hwnd if target is not None else None,
-            title=target.title if target is not None else "",
-        )
+            title=target.title if target is not None else "")
         summary["capture_id"] = ref.capture_id
-    if target is not None:
-        summary["window"] = target.to_dict()
-        if auto_target:
-            summary["window"]["auto"] = "hover.hit"
-        if matched > 1:
-            summary["window"]["matched"] = matched
-            summary["window"]["alternatives"] = alternatives(candidates)
-        if screenshot.restored:
-            summary["restored"] = True
-        if request.activate:
-            summary["activated"] = screenshot.activation == "ok"
+    _window_summary(summary, request, target, matched, candidates, auto_target, screenshot)
     if cursor is not None:
         summary["cursor"] = cursor.to_dict()
-    hover_hit: Optional[Dict[str, Any]] = None
-    if request.hover is not None:
-        # 悬停与置前都已完成：这里探到的是"拍这张图时"光标下的真实窗口。
-        # 它必须和"拍了哪个窗口"一起回执：两者常常不是同一个
-        # （播放器画面是独立顶层窗口，截图拍的却是它上面的详情页壳）。
-        hover_hit = backend.hit.probe(request.hover) if backend.hit is not None else None
-        hover_data: Dict[str, Any] = {
-            "x": request.hover.x,
-            "y": request.hover.y,
-            "settle_ms": request.hover_settle_ms,
-            "approach_ms": request.hover_approach_ms,
-            "wiggle": request.hover_wiggle,
-        }
-        if request.hover_path:
-            hover_data["path"] = [point.to_dict() for point in request.hover_path]
-        if hover_hit:
-            hover_data["hit"] = hover_hit
-        summary["hover"] = hover_data
-    if request.grid and annotated:
-        summary["grid"] = {
-            "step": step,
-            "unit": request.grid_unit,
-            "scale": rendered.scale,
-        }
+    hover_hit = _hover_summary(summary, request, backend)
+    if request.grid and request.annotate in ("annotated", "both"):
+        summary["grid"] = {"step": step, "unit": request.grid_unit,
+                           "scale": rendered.scale}
     note = build_note(
-        rendered, geometry.mixed_scale, step,
-        source=screenshot.source, windowed=target is not None,
-        restored=screenshot.restored, activation=screenshot.activation,
-        matched=matched, candidates=candidates, target=target,
-        hovered=request.hover is not None, foreground=screenshot.foreground,
-        hover_hit=hover_hit, auto_target=auto_target,
-    )
+        rendered, geometry.mixed_scale, step, source=screenshot.source,
+        windowed=target is not None, restored=screenshot.restored,
+        activation=screenshot.activation, matched=matched, candidates=candidates,
+        target=target, hovered=request.hover is not None,
+        foreground=screenshot.foreground, hover_hit=hover_hit,
+        auto_target=auto_target)
     if note:
         summary["note"] = note
     summary.update(request.extra)
-
-    attachments = [{
-        "mime": "image/png",
-        "data_base64": base64.b64encode(rendered.png).decode("ascii"),
-    }]
-    if raw_rendered is not None:
-        attachments.append({
-            "mime": "image/png",
-            "data_base64": base64.b64encode(raw_rendered.png).decode("ascii"),
-        })
+    attachments = [{"mime": "image/png",
+                    "data_base64": base64.b64encode(rendered.png).decode("ascii")}]
+    if raw is not None:
+        attachments.append({"mime": "image/png",
+                            "data_base64": base64.b64encode(raw.png).decode("ascii")})
     return summary, attachments
-
 
 def build_note(rendered: Any, mixed_scale: bool, step: int, *,
                source: str = "screen", windowed: bool = False,

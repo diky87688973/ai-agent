@@ -141,6 +141,68 @@ def _read_available(stream: Any, chunk: int = 4096) -> bytes:
     return first + rest
 
 
+def _pump_report(reporter: Any, progress: Any, tail: dict, lock: Any,
+                 name: str, chunk: bytes) -> None:
+    if reporter is None:
+        return
+    text = decode_output(chunk)
+    payload = {"stream": name, "text": text, "done": False}
+    if isinstance(progress, dict) and not progress.get("awaiting_input"):
+        with lock:
+            tail["text"] = (tail["text"] + text)[-3000:]
+            joined = tail["text"]
+        hit = _detect_awaiting_input(joined)
+        if hit:
+            progress["awaiting_input"] = hit
+            payload["awaiting_input"] = hit
+    try:
+        reporter(payload)
+    except Exception as exc:
+        report_error("agent.capabilities.builtin.command_tools._pump._report", exc)
+
+
+def _pump_reader(stream: Any, chunks: List[bytes], name: str, report: Any) -> None:
+    if stream is None:
+        return
+    while True:
+        chunk = _read_available(stream)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        report(name, chunk)
+
+
+def _pump_stdin(proc: Any, progress: Any, tail: dict, lock: Any,
+                start_ts: float, state: Dict[str, Any]) -> None:
+    if not state["stdin_eof"] and (time.time() - start_ts) > _STDIN_EOF_GRACE_SEC:
+        state["stdin_eof"] = True
+        with lock:
+            produced = bool(tail["text"].strip())
+        if not produced and getattr(proc, "stdin", None) is not None:
+            try:
+                proc.stdin.close()
+            except (OSError, ValueError) as exc:
+                report_error("agent.capabilities.builtin.command_tools._pump", exc)
+    if not isinstance(progress, dict):
+        return
+    if progress.get("_user_input") is not None:
+        raw_in = str(progress.pop("_user_input", "") or "").strip()
+        progress.pop("awaiting_input", None)
+        if raw_in and getattr(proc, "stdin", None) is not None:
+            try:
+                proc.stdin.write((raw_in + "\n").encode("utf-8", errors="replace"))
+                proc.stdin.flush()
+            except OSError as exc:
+                report_error("agent.capabilities.builtin.command_tools._pump", exc)
+        state["awaiting_since"] = 0.0
+    elif progress.get("awaiting_input"):
+        if not state["awaiting_since"]:
+            state["awaiting_since"] = time.time()
+        elif time.time() - state["awaiting_since"] > _INPUT_WAIT_SEC:
+            progress.pop("awaiting_input", None)
+            state["awaiting_since"] = 0.0
+
+
 def _pump(
     proc: "subprocess.Popen[bytes]",
     out_chunks: List[bytes],
@@ -148,72 +210,25 @@ def _pump(
     timeout: float,
     progress: Any = None,
 ) -> str:
-    """边读边上报 stdout/stderr；返回 "ok" / "timeout" / "canceled"。
-
-    两个流各用一条后台线程读，主线程只做截止轮询——这一步是必须的：
-    管道上的 `read()` 是阻塞的，若在主线程里读，一条长时间不输出的命令
-    （如 `sleep 30`）就永远回不到截止检查——截止检查不执行，timeout 设多少都拦不住。
-    Windows 上 `select` 不能用于管道，所以只能靠线程。
-    两个流都必须被读，否则其中一个缓冲区写满会把子进程卡死。
-
-    上报器显式传进线程：`contextvars` 不会自动跨线程，线程里直接调
-    `emit_progress` 会拿到默认的 None 而静默丢弃（正常结束只剩 done 帧）。
-
-    取消（"停止"）必须在这里生效：宿主收到停止请求后只会退出自己的循环，
-    子进程仍在跑 —— 不在这里杀，用户点了停止却看到命令继续跑（编译/安装尤其明显），
-    而界面早已显示"已停止"。取消状态经 `current_context().turn.canceled()` 读，
-    它就是内核给模块的停止检查（`Ports.canceled`）。
-    """
+    """边读边上报 stdout/stderr；返回 "ok" / "timeout" / "canceled"。"""
     import threading
-
     start_ts = time.time()
     deadline = start_ts + max(0.0, float(timeout))
-    readers: List[threading.Thread] = []
+    readers: List[Any] = []
     reporter = current_progress_reporter()
-    #: 最近的输出尾部：只拿来判定"命令是不是在问人"，不参与结果拼接。
     tail = {"text": ""}
     tail_lock = threading.Lock()
-
-    def _report(name: str, chunk: bytes) -> None:
-        if reporter is None:
-            return
-        text = decode_output(chunk)
-        payload = {"stream": name, "text": text, "done": False}
-        # 同时识别"命令在问人"：判定结果挂到进度上，UI 据此弹输入条。
-        if isinstance(progress, dict) and not progress.get("awaiting_input"):
-            with tail_lock:
-                tail["text"] = (tail["text"] + text)[-3000:]
-                joined = tail["text"]
-            hit = _detect_awaiting_input(joined)
-            if hit:
-                progress["awaiting_input"] = hit
-                payload["awaiting_input"] = hit
-        try:
-            reporter(payload)
-        except Exception as exc:
-            report_error("agent.capabilities.builtin.command_tools._pump._report", exc)
-
-    def _reader(stream: Any, chunks: List[bytes], name: str) -> None:
-        if stream is None:
-            return
-        while True:
-            chunk = _read_available(stream)
-            if not chunk:
-                break
-            chunks.append(chunk)
-            _report(name, chunk)
-
+    report = lambda name, chunk: _pump_report(
+        reporter, progress, tail, tail_lock, name, chunk)
     for stream, chunks, name in ((proc.stdout, out_chunks, "stdout"),
                                  (proc.stderr, err_chunks, "stderr")):
-        thread = threading.Thread(target=_reader, args=(stream, chunks, name),
-                                  name=f"fa-tool-{name}", daemon=True)
+        thread = threading.Thread(
+            target=_pump_reader, args=(stream, chunks, name, report),
+            name=f"fa-tool-{name}", daemon=True)
         thread.start()
         readers.append(thread)
-
     turn = getattr(current_context(), "turn", None)
-    awaiting_since: float = 0.0
-    #: 优雅期是否已过（过了就关 stdin，见 `_STDIN_EOF_GRACE_SEC`）。
-    stdin_eof_done = False
+    state = {"stdin_eof": False, "awaiting_since": 0.0}
     while True:
         try:
             proc.wait(timeout=0.05)
@@ -223,46 +238,10 @@ def _pump(
                 return "timeout"
             if turn is not None and turn.canceled():
                 return "canceled"
-            # ── 交互式命令的 stdin 通道──────────────
-            # 命令可能停下来问话（winget / npm init）。人回答了就把文本写进去；
-            # 没人回答则超过 `_INPUT_WAIT_SEC` 后不再提示，让命令自己走完。
-            # 优雅期内没有任何输出 ⇒ 这条命令不会问人 ⇒ 关掉 stdin 让它拿到 EOF。
-            # 一旦有了输出（说明可能正在等回答），就不再关，交给输入条。
-            if not stdin_eof_done and (time.time() - start_ts) > _STDIN_EOF_GRACE_SEC:
-                stdin_eof_done = True
-                with tail_lock:
-                    produced = bool(tail["text"].strip())
-                if not produced and getattr(proc, "stdin", None) is not None:
-                    try:
-                        proc.stdin.close()
-                    except OSError as exc:
-                        report_error("agent.capabilities.builtin.command_tools._pump", exc)
-                    except ValueError as exc:
-                        report_error("agent.capabilities.builtin.command_tools._pump", exc)
-            if isinstance(progress, dict):
-                if progress.get("_user_input") is not None:
-                    raw_in = str(progress.pop("_user_input", "") or "").strip()
-                    progress.pop("awaiting_input", None)
-                    if raw_in and getattr(proc, "stdin", None) is not None:
-                        try:
-                            proc.stdin.write((raw_in + "\n").encode("utf-8", errors="replace"))
-                            proc.stdin.flush()
-                        except OSError as exc:
-                            # 判据：子进程可能已经退出（管道关闭），此时写入必然抛
-                            # OSError；人的回答晚了一步，不是错误，吞掉继续收尾。
-                            report_error("agent.capabilities.builtin.command_tools._pump", exc)
-                    awaiting_since = 0.0
-                elif progress.get("awaiting_input"):
-                    if not awaiting_since:
-                        awaiting_since = time.time()
-                    elif time.time() - awaiting_since > _INPUT_WAIT_SEC:
-                        progress.pop("awaiting_input", None)
-                        awaiting_since = 0.0
-    # 正常结束：给读线程一点时间把缓冲里剩下的吐完（管道到 EOF 就会退）
+            _pump_stdin(proc, progress, tail, tail_lock, start_ts, state)
     for thread in readers:
         thread.join(timeout=1.0)
     return "ok"
-
 
 class RunCommandTool(ToolPlugin):
     """执行单条 shell 命令：安全防线 + 超时强杀 + 输出净化。"""

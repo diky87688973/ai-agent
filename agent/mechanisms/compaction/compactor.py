@@ -254,6 +254,33 @@ class ContextCompactor:
 
     # ── 拼入前检查────────────────────
 
+    def _excerpt_range(self, view: List[Dict[str, Any]], context: Any):
+        rng = self._policy.excerpt(view, token_fn=context.message_tokens)
+        if not rng:
+            return None
+        start, end = int(rng[0]), min(int(rng[1]), len(view))
+        if end <= 0:
+            return None
+        start = self._policy.floor(view, start)
+        if not self._policy.balanced(view, start, end):
+            return None
+        return start, end
+
+    def _summary_body(self, base: List[Dict[str, Any]],
+                      messages: List[Dict[str, Any]], start: int, end: int,
+                      context: Any, tools: Any) -> str:
+        system = ""
+        if hasattr(context, "system_text"):
+            system = str(context.system_text() or "")
+        text = ""
+        if self._summarize_fn is not None:
+            material = list(messages[start:end]) if messages else []
+            text = str(self._summarize_fn(
+                base, tools, system, material=material) or "").strip()
+        if _is_degenerate_summary_body(text):
+            return ""
+        return text + SUMMARY_BRIDGE_TAIL
+
     def ensure_before_append(
         self,
         context: Any,
@@ -263,93 +290,40 @@ class ContextCompactor:
         mode_note: str = "",
         assembled: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """拼入前预算检查：预估"拼入后"总 token；超阈值先压缩既有历史。
-
-        context：上下文管线（`set_summary_messages` / `set_dialogue` / `assembles`）；
-        messages：当前对话段（不含头部，也不含待拼入）；
-        pending：待拼入消息（只用于估算，绝不进压缩范围）；
-        tools：本次请求的工具定义；mode_note：尾部执行模式说明；
-        assembled：调用方已经装配好的"头部 + 对话 + 尾部"整份上下文。
-        压缩上下文直接用它剔除尾部得到 —— 与随后的模型请求是同一份装配结果，
-        不在这里另装配一次（另装配就会漂移，前缀缓存随之作废）。
-        返回压缩事件数据（covered_end / summary / compressed_count）
-        或 None（未触发 / 失败放行）。
-        """
+        """拼入前预算检查：超阈值先压缩既有历史；失败放行。"""
         try:
             if context is None:
                 return None
             view = self.view_messages(messages)
-            if not view:
-                return None
-            # 压缩所看的那份上下文：调用方装好的整份，剔除尾部（本轮新输入 + 执行模式）。
-            # `assembled` 是必给的：这里再装配一次就会与随后发出的请求漂移，
-            # 前缀缓存随之作废。拿不到就放弃本次压缩（放行），不自己拼一份。
-            if not assembled:
+            if not view or not assembled:
                 return None
             base = ContextCompactor._context_without_new_input(list(assembled))
             base = ContextCompactor._strip_mode_tail(base, mode_note)
             if not base:
                 return None
             pending_tokens = _approx_message_tokens(pending)
-            # 体积按未覆盖部分算，与即将发出去的那份逐条对应：
-            # `set_dialogue` 不改写任何消息，所以这里的估算就是真实请求体积。
             context.set_summary_messages(self.summary_messages())
             context.set_dialogue(view)
-            # 工具声明与模式说明也在请求体里，但不在 messages 里 —— 漏掉它们
-            # 会让预算永远差着五六千 token（固定开销，每请求都付）。
             overhead = _schemas_tokens(tools) + _mode_note_tokens(mode_note)
             estimate = context.total_token_estimate() + pending_tokens + overhead
             if estimate <= self.summary_token_threshold:
                 return None
-            # ── 压缩区域：遮盖末尾 N 轮，压它前面的那一段 ──
-            #
-            # 遮盖末尾 `full_user_rounds` 个用户轮。区域因此落在
-            # 「最后一个前置 system 之后 → 遮盖起点之前」，不含任何系统设定
-            # （系统提示 / Skills / 知识库 / 记忆摘要都是 system，排在对话之前）。
-            #
-            # 遮盖前面没有可压的轮时，`excerpt_by_target_tokens` 会连遮盖一起压
-            # （压不动就是请求超上限）；返回 None 表示对话一条都没有，放行。
-            rng = self._policy.excerpt(
-                view, token_fn=context.message_tokens)
-            if not rng:
+            rng = self._excerpt_range(view, context)
+            if rng is None:
                 return None
-            s, e = int(rng[0]), min(int(rng[1]), len(view))
-            if e <= 0:
+            start, end = rng
+            body = self._summary_body(base, messages, start, end, context, tools)
+            if not body:
                 return None
-            s = self._policy.floor(view, s)
-            if not self._policy.balanced(view, s, e):
-                return None
-            # 压缩上下文就用 base（上轮上下文），末尾由摘要器接指令。
-            # 要压掉的那一段本身就在 base 里，不另算素材：前缀逐字节等于上一次
-            # 请求，缓存才命中。
-            prefix = base
-            system = ""
-            if hasattr(context, "system_text"):
-                system = str(context.system_text() or "")
-            text = ""
-            if self._summarize_fn is not None:
-                # 第三个位置参数是"要压的那一段"（在补齐后的对话序列里，按轮边界对齐）：
-                # 复用前缀时用不上（素材就是前缀），不复用时它就是全部素材。
-                segment_material = list(messages[int(s):int(e)]) if messages else []
-                text = str(self._summarize_fn(prefix, tools, system,
-                                              material=segment_material) or "").strip()
-            if _is_degenerate_summary_body(text):
-                return None
-            body = text + SUMMARY_BRIDGE_TAIL
-            self.covered_end += e
-            # 每次压缩产出一条新摘要，各占一条 system 消息。
+            self.covered_end += end
             self.summaries.append(body)
             if hasattr(context, "set_summary_messages"):
-                # 让管线立刻装上这份新摘要：同一次请求里 `ModelModule` 随后就装配，
-                # 它读到的必须是新摘要（晚一步就会用旧上下文发请求）。
                 context.set_summary_messages(self.summary_messages())
-            return {
-                "covered_end": self.covered_end,
-                "summary": body,
-                "compressed_count": e,
-            }
+            return {"covered_end": self.covered_end, "summary": body,
+                    "compressed_count": end}
         except Exception as exc:
-            print(f"[compactor] 压缩检查失败（已放行）: {exc}", file=sys.stderr, flush=True)
+            print(f"[compactor] 压缩检查失败（已放行）: {exc}",
+                  file=sys.stderr, flush=True)
             return None
 
     @staticmethod

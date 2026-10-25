@@ -496,7 +496,7 @@ PR 里附三条"只改一侧"的变异演示（改完必红，再改回），作
 | `agent/shell/web_assets/classic/js/history-paging.js` | ≤ 300 行 | 状态机 + 前插 |
 | `agent/shell/classic_adapter/inbound.py` | 净减（1054 → ≤ 950） | 折叠规则外移后的行数写进 PR 说明 |
 
-新文件不进 `docs/complexity.md` 登记表：进表即表示超过 800 行的门限。
+新文件不得超过 800 行；没有复杂度登记表。
 
 ### 10.5 `D3` 生成文档
 

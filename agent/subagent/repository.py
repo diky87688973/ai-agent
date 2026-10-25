@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import RLock
 from typing import Any, Dict, List
 
 from agent.core.error_report import report_error
@@ -32,6 +33,7 @@ class SubagentRepository:
         if hasattr(parent_store, "add_scan_dir"):
             parent_store.add_scan_dir(self.child_sessions)
         self._children: Dict[str, SubagentRecord] = {}
+        self._children_lock = RLock()
         self._restore()
 
     def _restore(self) -> None:
@@ -40,13 +42,15 @@ class SubagentRepository:
                 self._children[child.child_id] = child
 
     def is_child(self, child_id: str) -> bool:
-        return str(child_id or "").strip() in self._children
+        with self._children_lock:
+            return str(child_id or "").strip() in self._children
 
     def store_for(self, cid: str) -> SessionStore:
         return self.child_store if self.is_child(cid) else self.parent_store
 
     def record(self, child_id: str) -> SubagentRecord:
-        child = self._children.get(str(child_id or "").strip())
+        with self._children_lock:
+            child = self._children.get(str(child_id or "").strip())
         if child is None:
             raise SubagentError("子 Agent 不存在", "child_not_found")
         return child
@@ -60,6 +64,7 @@ class SubagentRepository:
         context: str,
     ) -> SubagentRecord:
         """分配 child id、播种会话并写入批次记录。"""
+        created_batch = not str(batch or "").strip()
         record = self._batch_for(parent_cid, batch)
         if len(record.children) >= MAX_CHILDREN:
             raise SubagentError("批次已满（最多 10 个子 Agent）", "batch_full")
@@ -83,9 +88,16 @@ class SubagentRepository:
             )
         except Exception:
             self.discard(child_id)
+            if created_batch:
+                try:
+                    self.batches.remove_empty(parent_cid, record.batch)
+                except (OSError, ValueError) as exc:
+                    report_error("agent.subagent.repository.remove_empty_batch", exc,
+                                 batch=record.batch)
             raise
         child = next(item for item in record.children if item.child_id == child_id)
-        self._children[child_id] = child
+        with self._children_lock:
+            self._children[child_id] = child
         return child
 
     def _batch_for(self, parent: str, batch: str) -> BatchRecord:

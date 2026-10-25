@@ -81,7 +81,7 @@ def gate_steps() -> List[CiStep]:
                ["scripts/check_comment_style.py"], 5),
         CiStep("注册表一致性", "gate", "scripts/check_catalog.py",
                ["scripts/check_catalog.py"], 3),
-        CiStep("复杂度登记", "gate", "scripts/check_complexity.py",
+        CiStep("复杂度阈值", "gate", "scripts/check_complexity.py",
                ["scripts/check_complexity.py"], 5),
         CiStep("复杂度文档一致", "gate", "scripts/gen_complexity_md.py --check",
                ["scripts/gen_complexity_md.py", "--check"], 5),

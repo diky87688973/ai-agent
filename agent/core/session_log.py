@@ -140,6 +140,86 @@ class SessionLogView:
         return f"<SessionLogView {len(self._log.events)} events>"
 
 
+
+def _closed_tool_calls(events: Any) -> set[str]:
+    closed: set[str] = set()
+    for ev in events:
+        if ev.type != "tool_ended" or str(ev.data.get("status") or "") == "suspended":
+            continue
+        cid = str(ev.data.get("call_id") or "")
+        if cid:
+            closed.add(cid)
+    return closed
+
+
+def _input_message(ev: Event) -> dict[str, Any] | None:
+    content = str(ev.data.get("content", ""))
+    attachments = ev.data.get("attachments")
+    if not content and not attachments:
+        return None
+    return {"role": "user", "content": _user_content(content, attachments)}
+
+
+def _model_message(ev: Event) -> dict[str, Any]:
+    msg: dict[str, Any] = {
+        "role": "assistant", "content": str(ev.data.get("content", ""))}
+    reasoning = str(ev.data.get("reasoning_content") or "")
+    if reasoning:
+        msg["reasoning_content"] = reasoning
+    calls = ev.data.get("tool_calls") or []
+    if calls:
+        msg["tool_calls"] = calls
+    meta = ev.data.get(PROVIDER_META_KEY)
+    if meta:
+        msg[PROVIDER_META_KEY] = meta
+    return msg
+
+
+def _tool_ended_message(ev: Event, results: dict[str, dict[str, Any]],
+                        emitted: set[str]) -> dict[str, Any] | None:
+    if str(ev.data.get("status") or "") == "suspended":
+        return None
+    call_id = str(ev.data.get("call_id", ""))
+    if call_id in emitted:
+        return None
+    emitted.add(call_id)
+    return _render_tool_message(
+        call_id, results.get(call_id), str(ev.data.get("name") or ""))
+
+
+def _tool_result_message(ev: Event, closed: set[str],
+                         results: dict[str, dict[str, Any]],
+                         emitted: set[str]) -> dict[str, Any] | None:
+    call_id = str(ev.data.get("call_id", ""))
+    if not call_id:
+        return None
+    results[call_id] = {
+        "ok": ev.type == "tool_done", "data": ev.data.get("data"),
+        "error": ev.data.get("error"), "attachments": ev.data.get("attachments")}
+    if call_id in closed or call_id in emitted:
+        return None
+    emitted.add(call_id)
+    return _render_tool_message(call_id, results[call_id])
+
+
+def _tool_fact_message(ev: Event, results: dict[str, dict[str, Any]],
+                       emitted: set[str]) -> dict[str, Any] | None:
+    call_id = str(ev.data.get("call_id", ""))
+    if not call_id or call_id in results:
+        return None
+    if ev.data.get("await_user"):
+        results[call_id] = {"ok": True, "data": None, "error": ""}
+        return None
+    ok = bool(ev.data.get("ok"))
+    content = (_tool_envelope(ok=True, data=ev.data.get("data")) if ok
+               else _tool_envelope(ok=False, error=ev.data.get("error"),
+                                   data=ev.data.get("data")))
+    results[call_id] = {
+        "ok": ok, "data": ev.data.get("data"), "error": ev.data.get("error")}
+    emitted.add(call_id)
+    return {"role": "tool", "tool_call_id": call_id, "content": content}
+
+
 @dataclass
 class SessionLog:
     """append-only 事实序列。"""
@@ -168,129 +248,24 @@ class SessionLog:
     def derive_messages(self) -> list[dict[str, Any]]:
         """从事实投影出模型可见消息序列（供请求组装使用）。"""
         messages: list[dict[str, Any]] = []
-        # 工具结果事实（`tool_done` / `tool_failed`）按 `call_id` 攒起来：
-        # 终态事实 `tool_ended` 只标"结束了"，结果取自这一份（下方 tool_ended 分支回查 `_tool_results`）。
-        _tool_results: dict[str, dict[str, Any]] = {}
-        # 非挂起的 tool_ended 负责把结果收成消息。只有结果事实、没有这种终态时
-        # （取消确认只写下了 tool_failed），在结果事实处直接收成消息。
-        _closed: set[str] = set()
-        for ev in self.events:
-            if ev.type != "tool_ended" or str(ev.data.get("status") or "") == "suspended":
-                continue
-            cid = str(ev.data.get("call_id") or "")
-            if cid:
-                _closed.add(cid)
-        _emitted: set[str] = set()
+        results: dict[str, dict[str, Any]] = {}
+        emitted: set[str] = set()
+        closed = _closed_tool_calls(self.events)
         for ev in self.events:
             if ev.type == "input_claimed":
-                content = str(ev.data.get("content", ""))
-                attachments = ev.data.get("attachments")
-                # 无输入 = 无用户消息：接口确认触发的恢复轮没有用户发言，
-                # 上下文末端就该是那次工具调用——拼上结果后恰好是
-                # `…assistant(tool_calls) → tool`（天然对齐）。
-                # 若这里凭空造一条空的 user 消息，序列变成
-                # `…assistant(tool_calls) → user("") → tool`，模型 API 直接拒绝（400）：
-                #   `Messages with role 'tool' must be a response to a preceding message with 'tool_calls'`
-                # 回合层已经不发这种事实，这里是第二道——
-                # 已落盘的记录里可能还留着，重新加载时也必须能派生
-                # 出合法序列，否则那段历史会永远打不开。
-                if not content and not attachments:
-                    continue
-                messages.append({
-                    "role": "user",
-                    "content": _user_content(content, attachments),
-                })
+                msg = _input_message(ev)
             elif ev.type == "model_message":
-                msg: dict[str, Any] = {
-                    "role": "assistant",
-                    "content": str(ev.data.get("content", "")),
-                }
-                reasoning_content = str(ev.data.get("reasoning_content") or "")
-                if reasoning_content:
-                    msg["reasoning_content"] = reasoning_content
-                tool_calls = ev.data.get("tool_calls") or []
-                if tool_calls:
-                    msg["tool_calls"] = tool_calls
-                provider_meta = ev.data.get(PROVIDER_META_KEY)
-                if provider_meta:
-                    # 厂商私有元数据（例如 thinking 块与签名）原样透传：
-                    # 内核不解释内容，适配器在回放时自行决定要不要用（B6 可选新增键）。
-                    msg[PROVIDER_META_KEY] = provider_meta
-                messages.append(msg)
+                msg = _model_message(ev)
             elif ev.type == "tool_ended":
-                # 工具终态事实：`tool_ended{status, elapsed_ms}`。
-                #
-                # ⚠️ `tool_ended` 不带结果数据——它只标"这次调用结束了"。
-                # 结果在同一次调用先发的 `tool_done{data}` / `tool_failed{error}` 里，
-                # 所以这里必须回查那一份。
-                # 判据：直接读 `tool_ended.data` 会让每条 tool 消息都是 `null`，
-                # 模型看到的全是空，于是它如实报告"所有工具都返回 null"。
-                status = str(ev.data.get("status") or "")
-                if status == "suspended":
-                    # 等外部输入：这次调用还没返回，交给模型就等于说"答完了"——
-                    # 会产生两条 tool 消息，模型 API 直接拒绝（400）。
-                    continue
-                call_id = str(ev.data.get("call_id", ""))
-                if call_id in _emitted:
-                    continue
-                done = _tool_results.get(call_id)      # 结果事实（done / failed）
-                messages.append(_render_tool_message(
-                    call_id, done, str(ev.data.get("name") or "")))
-                _emitted.add(call_id)
+                msg = _tool_ended_message(ev, results, emitted)
             elif ev.type in ("tool_done", "tool_failed"):
-                # 结果事实先攒着。后面有非挂起的终态时，由那条终态收成 tool 消息。
-                # 没有这种终态时就在这里收成消息，否则取消只留在事实里，模型看不见。
-                call_id = str(ev.data.get("call_id", ""))
-                if call_id:
-                    _tool_results[call_id] = {
-                        "ok": ev.type == "tool_done",
-                        "data": ev.data.get("data"),
-                        "error": ev.data.get("error"),
-                        # 工具附带的图片：只在派生对话时取用，不写入事件流。
-                        "attachments": ev.data.get("attachments"),
-                    }
-                    if call_id not in _closed and call_id not in _emitted:
-                        messages.append(_render_tool_message(call_id, _tool_results[call_id]))
-                        _emitted.add(call_id)
+                msg = _tool_result_message(ev, closed, results, emitted)
             elif ev.type == "tool_result":
-                # 落盘记录里"用户作答"的结果事实名（另一种结果事实格式）。
-                #
-                # 必须认这一条：把"用户作答"写成 `tool_result`（而不是
-                # `tool_done` / `tool_failed`）是另一种结果事实格式，不认它则那次调用
-                # 没有结果 —— 请求层只能补一句"这次工具调用没有产生结果"的占位，
-                # 用户的选择（例如点了「确认写入」）在模型眼里就成了一句无结果的调用。
-                #
-                # 只在这里追加一条：`tool_ended` 对 `suspended` 状态不产出消息
-                # （那时确实还没答），所以不会重复；反过来若同一 `call_id` 已经有了
-                # 结果事实（`tool_done` / `tool_failed`），说明是新格式，
-                # 由 `tool_ended` 统一产出 —— 这里必须让位，否则同一调用出现两条
-                # `tool` 消息，模型 API 直接拒绝（400）。
-                call_id = str(ev.data.get("call_id", ""))
-                if not call_id or call_id in _tool_results:
-                    continue
-                # 「等用户作答」的中间结果：记下它（这样后到的真结果能替换掉），
-                # 但不产出消息 —— 它按定义是"还没返回"，交给模型就等于说
-                # "这次调用已经答完了"。
-                if ev.data.get("await_user"):
-                    _tool_results[call_id] = {"ok": True, "data": None, "error": ""}
-                    continue
-                if bool(ev.data.get("ok")):
-                    content = _tool_envelope(ok=True, data=ev.data.get("data"))
-                else:
-                    content = _tool_envelope(
-                        ok=False,
-                        error=ev.data.get("error"),
-                        data=ev.data.get("data"),
-                    )
-                _tool_results[call_id] = {
-                    "ok": bool(ev.data.get("ok")),
-                    "data": ev.data.get("data"),
-                    "error": ev.data.get("error"),
-                }
-                messages.append(
-                    {"role": "tool", "tool_call_id": call_id, "content": content}
-                )
-                _emitted.add(call_id)
+                msg = _tool_fact_message(ev, results, emitted)
+            else:
+                msg = None
+            if msg is not None:
+                messages.append(msg)
         return messages
 
     def derive_request_messages(self) -> list[dict[str, Any]]:

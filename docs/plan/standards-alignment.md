@@ -27,7 +27,7 @@
 | 5 | `X5`/`X6` | 覆盖率不在 `ci_steps`、无分包下限、口径漏 shell/plugins | MUST | P3 |
 | 6 | `X7` | 验收 skip 上限恒等于白名单长度，永远不可触发 | MUST | P3 |
 | 7 | `E2a` | 静默异常惯用法无数量、无预算、无递减约束 | MUST | P3 |
-| 8 | `R1` | 超阈值文件与函数无登记表 | MUST | P0 |
+| 8 | `R1` | 超阈值文件与函数无豁免 | MUST | P0 |
 | 9 | `T4` | 配置漂移且无校验；`web-ui-config.ini` 正本入库、无样例文件 | MUST | P0/P2 |
 | 10 | `D3` | `docs/unit-tests.md` 已漂 14 个用例，生成器无 `--check` | MUST | P3 |
 | 11 | `K4` | 无并发/争用检测作业 | MUST | P4 |
@@ -39,7 +39,7 @@
 ### 0.3 顺序
 
 ```
-P0 登记表与门禁骨架   → P1 小范围硬伤（assert/不可变/注释/quality 环）
+P0 复杂度门禁骨架   → P1 小范围硬伤（assert/不可变/注释/quality 环）
 → P2 拆 shell↔app 环（引入 entry 层）  ← 新需求在此之后可开工
 → P3 门禁增强（覆盖率/skip/预算/漂移/生成式 yml）
 → P4 负向用例 + 并发作业 → P5 收尾（B3/全量验收）
@@ -320,7 +320,7 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 
 **验收**：负向用例在临时树里放 120 处惯用法，断言失败；真实仓库保持 119 通过。
 
-### 2.8 `R1` 复杂度登记表
+### 2.8 `R1` 复杂度阈值
 
 **测量**（`agent/` + `scripts/`，排除 `scripts/retired/`）
 
@@ -331,16 +331,13 @@ MAX_ACCEPTANCE_SKIPS = len(ALLOWED_ACCEPTANCE_SKIPS)
 | `agent/mechanisms/session_store.py` | 936 |
 | `agent/shell/web_api.py` | 909 |
 
-超 80 行的函数：27 个（`check_complexity.py --list` 生成清单）。
+超 80 行的函数：0 个。
 
 **改法**
 
-1. `scripts/quality_budgets.py` 维护 `FILE_COMPLEXITY` / `FUNCTION_COMPLEXITY` 两张表，每项必须带 `reason` 与 `owner`（承担者）或 `split_plan`（拆分计划）。
-2. `docs/complexity.md` 由 `scripts/gen_complexity_md.py` 从表生成；`check_complexity.py` 同时做三件事：
-   - 实际超阈值但不在表里 → 失败（新增债务）；
-   - 在表里但实际已不超阈值 → 失败（登记过期，必须删）；
-   - 表里的登记行数与 `docs/complexity.md` 不一致 → 失败（`D3` 漂移）。
-3. 登记表里的每一项都必须有明确归属。新文件需 <800 行、函数 <80 行；超过阈值时进表并同时给出拆分计划，由 PR 审 + 门禁保证。
+1. `scripts/quality_budgets.py` 只保留阈值常量。
+2. `docs/complexity.md` 由 `scripts/gen_complexity_md.py` 生成；`check_complexity.py` 超过任一项即失败，没有豁免表。
+3. 新文件需 <800 行、函数 <80 行、单文件 <40 个函数；超阈值直接拆分。
 
 **验收**：`python scripts/gen_complexity_md.py --check` 零差异；临时把某文件加 1 行到 801，门禁失败。
 
@@ -467,9 +464,9 @@ plugins/          仅在包外向下依赖 agent
 
 允许边只有"向下"；`entry` 是最上层。`app.py` 不在 `LAYERS` 里，但由 SCC 检查单独约束：`app` 可以导入任何层，任何层不得导入 `agent.app` 或 `agent.entry`。
 
-### 4.2 预算与登记表单一事实源
+### 4.2 预算单一事实源
 
-`scripts/quality_budgets.py` 一处存放：覆盖率下限、静默异常预算、验收 skip 预算、复杂度登记。所有门禁与生成文档都从这里取数，禁止在各脚本里再写常量。
+`scripts/quality_budgets.py` 一处存放：覆盖率下限、静默异常预算、验收 skip 预算、复杂度阈值。所有门禁与生成文档都从这里取数，禁止在各脚本里再写常量。
 
 ### 4.3 门禁的"可测试形状"
 
@@ -480,12 +477,12 @@ plugins/          仅在包外向下依赖 agent
 > 下表保留最初的工作分解，便于核对每项落在哪个文件；**实际交付一次完成**，
 > 没有延后到后续阶段的遗留，最终验收见 §0.4。
 
-### P0 登记表与门禁骨架（0.5 人日）
+### P0 复杂度门禁骨架（0.5 人日）
 
 | 动作 | 文件 |
 |---|---|
 | 预算单一事实源 | `scripts/quality_budgets.py`（新增） |
-| 复杂度登记与生成 | `scripts/check_complexity.py`、`scripts/gen_complexity_md.py`、`docs/complexity.md` |
+| 复杂度阈值与生成 | `scripts/check_complexity.py`、`scripts/gen_complexity_md.py`、`docs/complexity.md` |
 | 适用性表 | `docs/applicability.md`、`scripts/standards_rules.py`、`scripts/check_applicability.py` |
 | 门禁清单文档 | `docs/quality-gates.md` |
 | 接入 CI | `ci_steps.py` + 生成式 `ci.yml`（逐字节校验） |
@@ -539,7 +536,7 @@ plugins/          仅在包外向下依赖 agent
 | `check_ci_workflow` | yml 多一步、少一步 | 打印 diff |
 | `check_config_drift` | 真实配置多键 | 报节、键 |
 | `check_applicability` | 缺列、未知 ID、原因过短、申报表缺失 | 各报一条 |
-| `check_complexity` | 801 行文件未登记 | 报出文件与行数 |
+| `check_complexity` | 801 行文件超阈值 | 报出文件与行数 |
 | `gen_*_md --check` | 文档少一行 | 打印首处差异 |
 | `check_silent_except` | 120 处惯用法 | 报超预算数与新增位置 |
 | `check_acceptance_skips` | 2 个 skip、预算 1 | 报数量与白名单 |
@@ -580,7 +577,7 @@ python scripts/ci.py                            # 全绿
 |---|---|---|
 | 入口迁移导致用户启动失败 | P2 改 `start.bat/sh` | 同 PR 改 README、`docs/subsystems/shell.md`；发布说明置顶 |
 | 覆盖率下限把 CI 打红 | P3 第一次跑全量 | 下限由测得值向下取整生成，先提交基线再开 `--fail-under` |
-| 复杂度登记表变成"合法欠债清单" | P0 建表 | 每项必须写承担者或拆分计划；新文件一律不得入表 |
+| 复杂度阈值被当成"合法欠债清单" | P0 无豁免 | 超过阈值直接拆分，不建表 |
 | 生成式 yml 与 远端 CI 语义不一致 | P3 | 先渲染与现 yml 等价内容，人工 diff 后再替换；保留 `workflow_dispatch` 手动跑一次 |
 | `config_schema` 改动影响所有读取方 | P2/P3 | 先加 schema 与门禁（P0），再改 `get_*`；每步跑全量单测 |
 

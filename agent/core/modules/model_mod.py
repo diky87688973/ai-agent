@@ -2,6 +2,7 @@
 """模型模块：流式调用模型并落 model_message。"""
 from __future__ import annotations
 
+from time import perf_counter
 from typing import Any, Dict, Iterator, List, Optional
 
 from agent.core.error_report import report_error
@@ -82,82 +83,56 @@ class ModelModule(ModuleBase):
         except (TypeError, ValueError):
             return 0
 
-    def execute(self, ports: Ports) -> Iterator[Any]:
-        if not tail_expects_model(ports.log):
-            return Outcome.ok()
-        model = ports.model_port
-        if model is None:
-            yield ports.emit(ERROR, where="model", detail="未装配模型端口")
-            return Outcome.halt("未装配模型端口")
+    def _build_request(self, ports: Ports):
         runtime_note = resolve_runtime_note(self._mode_note)
-
-        # 请求前补齐悬空的 tool_calls。挂起的终态不产生 tool 消息；
-        # 取消若没到达服务器，事实里就一直缺配对，此后每次请求都会被拒绝。
-        dialogue = prepare_dialogue(ports.log.derive_request_messages(),
-                                     self._image_turns, self._image_max)
-        # 本轮起点 = 对话里最后一条用户消息的下标（含）。它之前的思维链一律不回传
-        # （provider 侧按这个下标裁）：思维链是模型的中间产物，回传只是让每轮输入
-        # 凭空多几万 token，而那几万必然未命中缓存；不回传时**同一轮内每次请求的
-        # 前缀逐字节相同**，缓存能吃满。工具结果与模型自己的回答照旧带着。
-        # 没有用户消息（理论上到不了这里）就退回 0，等于不裁剪。
+        dialogue = prepare_dialogue(
+            ports.log.derive_request_messages(), self._image_turns, self._image_max)
         turn_start = 0
         for index in range(len(dialogue) - 1, -1, -1):
             if str(dialogue[index].get("role") or "") == "user":
                 turn_start = index
                 break
-
-        # ── 装配：头部 + 对话 + 尾部（唯一入口，不重建）──
-        #
-        # 头部 = 系统提示 / Skills / 知识库 / 摘要（管线持有）
-        # 对话 = 事实折叠出来的对话
-        # 尾部 = 执行模式（本轮新输入已在对话末尾，由事实带来）
         if self.context_pass is not None:
             assembled = assemble_with(self.context_pass, dialogue, runtime_note,
                                        self._covered_end())
             if assembled is None:
-                # 上下文缺装配能力 → 退回只有对话（不阻断回合），但必须留痕：
-                # 这种请求缺头部，模型看不到系统提示，属于异常状态。
                 report_error("core.model", "上下文缺装配能力（本轮请求可能缺系统前缀）")
                 messages = with_mode_note(dialogue, runtime_note)
             else:
                 messages = assembled
         else:
             messages = with_mode_note(dialogue, runtime_note)
-
         request = LogicalRequest(
             messages=messages,
             tools=(ports.tool_port.schemas() if ports.tool_port is not None else []),
-            effort=self._effort,
-            model=self._model,
-            # 头部条数（系统提示 / 插件段 / 摘要）+ 本轮起点 = 整份 messages 里的本轮起点。
+            effort=self._effort, model=self._model,
             turn_start=len(messages) - len(dialogue) + turn_start,
-            conversation_id=str(getattr(ports, "conversation_id", "") or ""),
-        )
-        # 装配完成 → 发一条分段快照（上下文示意图的数据源）。
-        # 分段统计走把装配结果拆开的方式：模式与工具结果的内部注入只在这份
-        # 装配里，落记录里没有，所以只能在这里算。
-        #
-        # 预算（= 压缩阈值）必须显式传：不传就只能拿"已用"当归一化基准，
-        # 剩余容量恒为 0，界面那条永远显示 0%。
+            conversation_id=str(getattr(ports, "conversation_id", "") or ""))
         budget = 0
         try:
             budget = int(getattr(self._compactor, "summary_token_threshold", 0) or 0)
         except (TypeError, ValueError):
             budget = 0
         segments = segment_snapshot(self.context_pass, messages, budget_tokens=budget)
-        if segments is not None:
-            yield ports.emit(CONTEXT_SEGMENTS, **segments)
-        # 模型模块自己的细粒度事件：调用边界。有了它，监控能算出调用 RT
-        # （以及首帧时延），而不必去猜"哪两个事件之间算一次调用"。
-        # 这是"各个模块内部管理自己的事件"的落点——宿主不掺和。
-        from time import perf_counter
+        return request, messages, segments
+
+    def _cancel_events(self, ports, model, request, started, reasoning_last_at, chunks):
+        yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
+                         error="CanceledByUser",
+                         elapsed_ms=int((perf_counter() - started) * 1000),
+                         reasoning_ms=_reasoning_ms(started, reasoning_last_at),
+                         chunks=chunks)
+        yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
+                         status="canceled",
+                         elapsed_ms=int((perf_counter() - started) * 1000),
+                         reasoning_ms=_reasoning_ms(started, reasoning_last_at),
+                         chunks=chunks)
+
+    def _stream(self, ports, model, request):
         started = perf_counter()
         first_chunk_ms = None
         reasoning_last_at = None
         chunks = 0
-        yield ports.emit(LLM_STARTED, model=model.name_for(request) or "",
-                         effort=self._effort, messages=len(messages),
-                         tools=len(request.tools or []))
         text_parts: List[str] = []
         reasoning_parts: List[str] = []
         tool_calls: List[ToolCallRequest] = []
@@ -167,26 +142,9 @@ class ModelModule(ModuleBase):
         try:
             for delta in model.stream(request):
                 if ports.canceled():
-                    # 取消检查点（流式消费中每帧）：长回答能被立刻打断，
-                    # 不必等它说完。已产出的增量保留（那是已发生的事实）。
-                    yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
-                                     error="CanceledByUser", elapsed_ms=int((perf_counter() - started) * 1000),
-                                     reasoning_ms=_reasoning_ms(started, reasoning_last_at),
-                                     chunks=chunks)
-                    yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
-                                     status="canceled", elapsed_ms=int((perf_counter() - started) * 1000),
-                                     reasoning_ms=_reasoning_ms(started, reasoning_last_at),
-                                     chunks=chunks)
-                    # 返回 `stopped`：同一次用户动作在工具路径
-                    # 已经被归一成 `stopped`（见下面的工具取消分支与 `host.py` 的
-                    # `_asked_to_stop`）。模型路径若返回 `halt`，宿主就报
-                    # `turn_ended{halted:true}` → 适配层只认 `paused`/`stopped`
-                    # → 发出 `done{ok:true}`、不发 `stopped` —— 于是
-                    # "用户停止"在最常见的打断路径（流式生成中）上到不了观察面：
-                    # 步骤卡被收成绿色 `Done`/"思考完毕"，别的标签页/API 客户端
-                    # 永远以为"正常完成"。同一个动作两种终态，也违反
-                    # `outcome.py` 自己写的"stopped ≠ halt，观察面要能分辨"。
-                    return Outcome.stopped("用户请求停止")
+                    yield from self._cancel_events(
+                        ports, model, request, started, reasoning_last_at, chunks)
+                    return {"stopped": True, "failure": ""}
                 chunks += 1
                 if first_chunk_ms is None:
                     first_chunk_ms = int((perf_counter() - started) * 1000)
@@ -201,45 +159,65 @@ class ModelModule(ModuleBase):
                 elif kind == "tool_call" and getattr(delta, "tool_call", None) is not None:
                     tool_calls.append(delta.tool_call)
                 elif kind == "meta" and getattr(delta, "meta", None):
-                    # 厂商私有元数据：内核不解释，只按键合并后落进事实。
-                    # 后到的同键覆盖先到的（适配器按轮次只发一次，合并只是兜底）。
                     provider_meta.update(delta.meta)
                 elif kind == "usage" and getattr(delta, "usage", None):
                     usage = dict(delta.usage)
         except Exception as exc:
-            # 模型调用失败：结构化上报（结果 + 终态都发），然后让回合停。
-            # 交给模型模块是因为只有它知道"这次调用失败了"；
-            # 重试是策略，属于钩子（尚未接线），不在这里偷偷重试。
             failure = f"{type(exc).__name__}: {exc}"
             report_error("core.model", exc)
         elapsed = int((perf_counter() - started) * 1000)
         reasoning_ms = _reasoning_ms(started, reasoning_last_at)
         if failure:
-            yield ports.emit(LLM_FAILED, model=model.name_for(request) or "", error=failure,
-                             elapsed_ms=elapsed, reasoning_ms=reasoning_ms, chunks=chunks)
-            yield ports.emit(LLM_ENDED, model=model.name_for(request) or "", status="failed",
-                             elapsed_ms=elapsed, reasoning_ms=reasoning_ms, chunks=chunks)
-            yield ports.emit(ERROR, where="model", detail=failure)
-            return Outcome.halt(f"模型调用失败：{failure}")
+            yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
+                             error=failure, elapsed_ms=elapsed,
+                             reasoning_ms=reasoning_ms, chunks=chunks)
+            yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
+                             status="failed", elapsed_ms=elapsed,
+                             reasoning_ms=reasoning_ms, chunks=chunks)
+            return {"stopped": False, "failure": failure}
         yield ports.emit(LLM_DONE, model=model.name_for(request) or "",
                          elapsed_ms=elapsed,
                          first_chunk_ms=(first_chunk_ms if first_chunk_ms is not None else -1),
-                         reasoning_ms=reasoning_ms,
-                         chunks=chunks, tool_calls=len(tool_calls))
-        yield ports.emit(LLM_ENDED, model=model.name_for(request) or "", status="done",
-                         elapsed_ms=elapsed, reasoning_ms=reasoning_ms, chunks=chunks,
+                         reasoning_ms=reasoning_ms, chunks=chunks,
                          tool_calls=len(tool_calls))
-
+        yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
+                         status="done", elapsed_ms=elapsed,
+                         reasoning_ms=reasoning_ms, chunks=chunks,
+                         tool_calls=len(tool_calls))
         if usage:
             yield ports.emit(USAGE, **usage)
+        return {"stopped": False, "failure": "", "text_parts": text_parts,
+                "reasoning_parts": reasoning_parts, "tool_calls": tool_calls,
+                "provider_meta": provider_meta}
+
+    def execute(self, ports: Ports) -> Iterator[Any]:
+        if not tail_expects_model(ports.log):
+            return Outcome.ok()
+        model = ports.model_port
+        if model is None:
+            yield ports.emit(ERROR, where="model", detail="未装配模型端口")
+            return Outcome.halt("未装配模型端口")
+        request, messages, segments = self._build_request(ports)
+        if segments is not None:
+            yield ports.emit(CONTEXT_SEGMENTS, **segments)
+        yield ports.emit(LLM_STARTED, model=model.name_for(request) or "",
+                         effort=self._effort, messages=len(messages),
+                         tools=len(request.tools or []))
+        state = yield from self._stream(ports, model, request)
+        if state.get("stopped"):
+            return Outcome.stopped("用户请求停止")
+        failure = str(state.get("failure") or "")
+        if failure:
+            yield ports.emit(ERROR, where="model", detail=failure)
+            return Outcome.halt(f"模型调用失败：{failure}")
         message_data: Dict[str, Any] = {
-            "content": "".join(text_parts),
-            "tool_calls": [serialize_call(c) for c in tool_calls],
+            "content": "".join(state["text_parts"]),
+            "tool_calls": [serialize_call(c) for c in state["tool_calls"]],
         }
-        reasoning = "".join(reasoning_parts)
+        reasoning = "".join(state["reasoning_parts"])
         if reasoning:
             message_data["reasoning_content"] = reasoning
-        if provider_meta:
-            message_data[PROVIDER_META_KEY] = provider_meta
+        if state["provider_meta"]:
+            message_data[PROVIDER_META_KEY] = state["provider_meta"]
         yield ports.emit(MODEL_MESSAGE, **message_data)
         return Outcome.ok()

@@ -9,8 +9,11 @@ from agent.shell.prompts import TODO_LIST_NOTE, resolve_mode_note, resolve_syste
 
 
 def system_prompt(*, app: Any, mesh: Any, cid: str,
-                  prompt_sections: Any = None) -> str:
-    """系统提示：mesh 显式设过就用它，否则基础提示词。"""
+                  prompt_sections: Any = None, registry: Any = None) -> str:
+    """系统提示：mesh 显式设过就用它，否则基础提示词。
+
+    registry 是当前会话的角色工具视图；缺省才回退到 app 的完整注册表。
+    """
     meta = mesh.get_agent(cid)
     explicit = str(meta.get("system") or "")
     state = getattr(app, "live_state", None)
@@ -21,7 +24,7 @@ def system_prompt(*, app: Any, mesh: Any, cid: str,
     extra.append(environment_section(cid))
     return resolve_system_prompt(
         mode=mode,
-        registry=getattr(app, "registry", None),
+        registry=registry if registry is not None else getattr(app, "registry", None),
         explicit=explicit or None,
         extra_sections=extra,
     )
@@ -35,7 +38,9 @@ def mode_note(*, app: Any, mesh: Any, cid: str) -> str:
     mode = state.get_mode(cid) if state is not None else "auto"
     note = resolve_mode_note(mode=mode, explicit=explicit or None)
     prompt_tail = getattr(app, "prompt_tail", None)
-    extra = prompt_tail.render(cid).strip() if prompt_tail is not None else ""
+    is_subagent = str((meta or {}).get("role") or "").strip() == "subagent"
+    extra = (prompt_tail.render(cid, is_subagent=is_subagent).strip()
+             if prompt_tail is not None else "")
     todo_note = ""
     todo = state.get_todo(cid) if state is not None and hasattr(state, "get_todo") else None
     items = todo.get("items") if isinstance(todo, dict) else None

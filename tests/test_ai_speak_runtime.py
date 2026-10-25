@@ -514,7 +514,7 @@ class _FakeCtx:
         self.subscriptions.append(event_type)
         return lambda: self.subscriptions.remove(event_type)
 
-    def add_mode_tail(self, fn: Any):
+    def add_mode_tail(self, fn: Any, **_kwargs: Any):
         self.mode_tails.append(fn)
         return lambda: self.mode_tails.remove(fn)
 

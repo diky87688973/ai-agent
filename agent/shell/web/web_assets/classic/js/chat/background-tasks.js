@@ -235,10 +235,14 @@
       lastTasks = Array.isArray(tasks) ? tasks : [];
       panel.setAttribute("data-conversation-id", String(cid || ""));
       panel.classList.toggle("hidden", !lastTasks.length);
-      syncComposerColumns();
+      refreshComposerLayout();
       if (!lastTasks.length && open) setOpen(false);
       setCounts(lastTasks, counts);
       if (open) renderList();
+    }
+
+    function refreshComposerLayout() {
+      if (typeof window.syncComposerColumns === "function") window.syncComposerColumns();
     }
 
     function refresh() {
@@ -282,34 +286,6 @@
         selected = "";
         detail.classList.add("hidden");
       }
-    }
-
-    function syncComposerColumns() {
-      var left = byId("composerLeft");
-      var parent = left ? left.closest(".composer-above") : null;
-      if (!left || !parent) return;
-      var queue = byId("chatQueue");
-      var draft = byId("queueDraft");
-      var speak = byId("aiSpeakSlot");
-      var leftVisible = !!(
-        (queue && !queue.classList.contains("hidden")) ||
-        (draft && !draft.classList.contains("hidden")) ||
-        (speak && speak.querySelector(".ai-speak-player:not([hidden])"))
-      );
-      var subagent = byId("subagentPanel");
-      var taskVisible = !panel.classList.contains("hidden") ||
-        !!(subagent && !subagent.classList.contains("hidden"));
-      left.classList.toggle("is-empty", !leftVisible);
-      parent.classList.toggle("has-empty-left", !leftVisible);
-      parent.classList.toggle("has-no-task", !taskVisible);
-    }
-
-    if (window.MutationObserver) {
-      var observer = new MutationObserver(syncComposerColumns);
-      [byId("chatQueue"), byId("queueDraft"), byId("aiSpeakSlot"), byId("subagentPanel"), panel].forEach(function (node) {
-        if (node) observer.observe(node, { attributes: true, childList: true, subtree: true, attributeFilter: ["class", "hidden", "style"] });
-      });
-      window.addEventListener("beforeunload", function () { observer.disconnect(); });
     }
 
     toggle.addEventListener("click", function (event) {
@@ -369,8 +345,6 @@
     });
 
     document.addEventListener("ai-agent:conversation-changed", onConversationChanged);
-    window.syncComposerColumns = syncComposerColumns;
-    syncComposerColumns();
     timer = window.setInterval(refresh, 1500);
     window.addEventListener("beforeunload", function () { window.clearInterval(timer); });
     refresh();

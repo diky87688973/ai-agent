@@ -765,7 +765,7 @@ router 的默认实例被替换。
 | `X2` 负向测试 | 重复 id、线格式不含 `provider_meta`、未知子键忽略、缺 signature 降级（15.5） | 单测 |
 | `X3` 失败路径有测试 | BOM、坏条目、预算不足、悬空 tool_result、未配置模型 | 单测 |
 | `X6` 覆盖率归属 | 插件代码在 `--source=agent,plugins` 口径内（standards-alignment P3） | `check_coverage.py` |
-| `R1` 复杂度 | 见 15.7 的单文件预算；新文件不进登记表 | `check_complexity.py` |
+| `R1` 复杂度 | 见 15.7 的单文件预算；超阈值直接失败 | `check_complexity.py` |
 | `D3` 文档与代码一致 | README 用例数同步；`unit-tests.md` 由 `--check` 接管；插件扩展点补文档 | 门禁 |
 
 **存量缺口**（覆盖率、并发作业、依赖环、生成文档漂移）由

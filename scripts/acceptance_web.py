@@ -546,101 +546,96 @@ class Acceptance:
 
     # ── 场景 ⑤：Markdown 注入防线（真实页面）─────────────────
 
-    def scenario_5(self) -> None:
-        """XSS 向量在真实页面的真实渲染器上必须被转义。
+    def _scenario5_page(self, pw: Any):
+        try:
+            browser = pw.chromium.launch()
+        except Exception as exc:
+            print(f"[scripts.acceptance_web.Acceptance.scenario_5] "
+                  f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            print(f"  [SKIP] Markdown 注入防线（Chromium 不可用：{type(exc).__name__}）")
+            return None, None
+        page = browser.new_page()
+        page.goto(self.base + "/", wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(1500)
+        has = page.evaluate("() => typeof renderMarkdown")
+        self.check("真实页面暴露 renderMarkdown", has == "function", f"typeof={has}")
+        return browser, page if has == "function" else None
 
-        经典 UI 的 `renderMarkdown` 依赖 `renderMarkdownBlocks` / `hljsCodeClass` /
-        代码高亮 / diff 卡片等一整套（同一个 168 KB 文件里），无法单独抽出，
-        所以向量经浏览器里的真实页面渲染判定。"""
+    def _scenario5_vectors(self, page: Any) -> None:
+        for label, payload in XSS_VECTORS:
+            probe = page.evaluate(
+                """(p) => {
+                  const html = renderMarkdown(p);
+                  const host = document.createElement('div');
+                  host.innerHTML = html;
+                  document.body.appendChild(host);
+                  const out = {
+                    html: html,
+                    elements: host.querySelectorAll('script,iframe,svg,object,embed').length,
+                    handlers: host.querySelectorAll('*').length
+                      ? [...host.querySelectorAll('*')]
+                          .reduce((n, el) => n + [...el.attributes]
+                            .filter(a => /^on/i.test(a.name)).length, 0)
+                      : 0,
+                    jsLinks: [...host.querySelectorAll('a,img,video,source')]
+                                .filter(el => /^\\s*(javascript|vbscript|data|file)\\s*:/i
+                                  .test(el.getAttribute('href') || el.getAttribute('src') || '')).length,
+                  };
+                  host.remove();
+                  return out;
+                }""", payload)
+            bad = []
+            if probe["elements"]:
+                bad.append(f"生成了 {probe['elements']} 个危险元素")
+            if probe["handlers"]:
+                bad.append(f"存在 {probe['handlers']} 个事件处理器属性")
+            if probe["jsLinks"]:
+                bad.append(f"存在 {probe['jsLinks']} 个 javascript: 链接")
+            self.check(f"XSS 防线：{label}", not bad,
+                       f"{bad}；渲染={probe['html'][:90]!r}")
+
+    def _scenario5_execution(self, page: Any) -> None:
+        executed = page.evaluate(
+            """() => {
+              window.__xssProbe = 0;
+              const host = document.createElement('div');
+              host.innerHTML = renderMarkdown(
+                '<img src=x onerror="window.__xssProbe=1">' +
+                '<script>window.__xssProbe=2<\\/script>');
+              document.body.appendChild(host);
+              const v = window.__xssProbe;
+              host.remove();
+              delete window.__xssProbe;
+              return v;
+            }"""
+        )
+        self.check("XSS 向量未真正执行（无脚本落地）", executed == 0,
+                   f"__xssProbe={executed}（非 0 = 有代码被执行）")
+
+    def _scenario5_normal(self, page: Any) -> None:
+        normal = str(page.evaluate(
+            "() => renderMarkdown('**加粗** 与 `代码`')"))
+        self.check("正常 Markdown 仍可渲染",
+                   "<strong>" in normal or "<b>" in normal,
+                   f"渲染结果={normal[:120]!r}")
+
+    def scenario_5(self) -> None:
+        """XSS 向量在真实页面的真实渲染器上必须被转义。"""
         try:
             from playwright.sync_api import sync_playwright
         except ImportError:
             print("  [SKIP] Markdown 注入防线（未安装 playwright：pip install -e \".[ui]\"）")
             return
-
         with sync_playwright() as pw:
-            try:
-                browser = pw.chromium.launch()
-            except Exception as exc:
-                print(f"[scripts.acceptance_web.Acceptance.scenario_5] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
-                print(f"  [SKIP] Markdown 注入防线（Chromium 不可用：{type(exc).__name__}）")
+            browser, page = self._scenario5_page(pw)
+            if browser is None:
                 return
             try:
-                page = browser.new_page()
-                page.goto(self.base + "/", wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(1500)
-                has = page.evaluate("() => typeof renderMarkdown")
-                self.check("真实页面暴露 renderMarkdown", has == "function", f"typeof={has}")
-                if has != "function":
+                if page is None:
                     return
-
-                for label, payload in XSS_VECTORS:
-                    # 判据必须看真实 DOM，不能看 HTML 字符串：
-                    # 转义后的 `&lt;img onerror=…&gt;` 里仍然包含 "onerror=" 这几个字符，
-                    # 字符串包含判断会把"正确转义"误判成"存在注入面"。
-                    # 正确做法：把渲染结果塞进真实 DOM，再问浏览器
-                    # "有没有生成元素 / 有没有真的执行"。
-                    probe = page.evaluate(
-                        """(p) => {
-                          const html = renderMarkdown(p);
-                          const host = document.createElement('div');
-                          host.innerHTML = html;
-                          document.body.appendChild(host);
-                          const out = {
-                            html: html,
-                            // 判据是可执行面，不是标签名：
-                            // `img` / `video` 是正文刻意支持的（`![alt](path)` 要能显示），
-                            // 标记它存在本身不构成注入；能执行的是脚本类元素。
-                            elements: host.querySelectorAll('script,iframe,svg,object,embed').length,
-                            handlers: host.querySelectorAll('*').length
-                              ? [...host.querySelectorAll('*')]
-                                  .reduce((n, el) => n + [...el.attributes]
-                                    .filter(a => /^on/i.test(a.name)).length, 0)
-                              : 0,
-                            jsLinks: [...host.querySelectorAll('a,img,video,source')]
-                                        .filter(el => /^\\s*(javascript|vbscript|data|file)\\s*:/i
-                                          .test(el.getAttribute('href') || el.getAttribute('src') || '')).length,
-                          };
-                          host.remove();
-                          return out;
-                        }""",
-                        payload,
-                    )
-                    bad = []
-                    if probe["elements"]:
-                        bad.append(f"生成了 {probe['elements']} 个危险元素")
-                    if probe["handlers"]:
-                        bad.append(f"存在 {probe['handlers']} 个事件处理器属性")
-                    if probe["jsLinks"]:
-                        bad.append(f"存在 {probe['jsLinks']} 个 javascript: 链接")
-                    self.check(f"XSS 防线：{label}", not bad,
-                               f"{bad}；渲染={probe['html'][:90]!r}")
-
-                # 而且脚本必须真的没执行：注入一个会置全局标志的向量
-                executed = page.evaluate(
-                    """() => {
-                      window.__xssProbe = 0;
-                      const host = document.createElement('div');
-                      host.innerHTML = renderMarkdown(
-                        '<img src=x onerror="window.__xssProbe=1">' +
-                        '<script>window.__xssProbe=2<\\/script>');
-                      document.body.appendChild(host);
-                      const v = window.__xssProbe;
-                      host.remove();
-                      delete window.__xssProbe;
-                      return v;
-                    }"""
-                )
-                self.check("XSS 向量未真正执行（无脚本落地）", executed == 0,
-                           f"__xssProbe={executed}（非 0 = 有代码被执行）")
-
-                # 正常语法仍要能渲染：防线只转义危险构造，
-                # 不能把 Markdown 整体当纯文本
-                normal = str(page.evaluate(
-                    "() => renderMarkdown('**加粗** 与 `代码`')"))
-                self.check("正常 Markdown 仍可渲染",
-                           "<strong>" in normal or "<b>" in normal,
-                           f"渲染结果={normal[:120]!r}")
+                self._scenario5_vectors(page)
+                self._scenario5_execution(page)
+                self._scenario5_normal(page)
             finally:
                 browser.close()
 

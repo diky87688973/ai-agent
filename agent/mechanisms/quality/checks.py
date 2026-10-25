@@ -181,120 +181,106 @@ def change_payload(old_text: str, new_text: str, path: str = "") -> Dict[str, An
     }
 
 
-def check_write(gate: "QualityGate", wc: WriteContext) -> GateDecision:
-    """写前组合门控（id 制）：ID 有效 → 已确认 → 路径 → 意图/证据 → 红灯限面 →
-    跨文件 review → apply_patch 通道 → 连改重读 → 大 diff。"""
-    rec = gate.peek(wc.confirm_id)
+def _unlock_decision(rec: Optional[dict]) -> GateDecision | None:
     if rec is None:
         return GateDecision(
             allow=False,
-            reason="confirm_id 无效或已使用：请先 write_file 预览拿到确认 ID",
-        )
+            reason="confirm_id 无效或已使用：请先 write_file 预览拿到确认 ID")
     if not rec.get("confirmed"):
-        # 这段 reason 给出下一步操作（review 本次改动 + 用哪个工具提交 + 带哪个 ID）：
-        # 含糊的文案会让模型误发起 `user_confirm`（白跑一轮），所以要点名工具；
-        # 但不能写成"带 confirm_id 调一下就能解锁" —— 那是在教模型走过场，
-        # review 基于本次改动的实际审阅并给出验证证据。
-        # 四步协议的状态转移由 `register_preview` / `confirm` / `take_record` 承载。
         return GateDecision(
             allow=False,
-            reason=(
-                "预览未解锁：请先 review 本次改动，"
-                "用 review_conclusion 提交结论与验证证据，"
-                "再用同一 confirm_id 调 commit_write 提交。"
-            ),
-        )
-    args = dict(rec.get("arguments") or {})
-    tool = str(rec.get("tool") or "")
-    path = str(rec.get("path") or "") or resolve_write_path(
-        args, gate.path_keys(tool)
-    )
-    if not path:
-        return GateDecision(
-            allow=False,
-            reason=(
-                "无法从预览快照解析目标路径：工具须声明 write_path_keys，"
-                "请重新预览"
-            ),
-        )
+            reason=("预览未解锁：请先 review 本次改动，"
+                    "用 review_conclusion 提交结论与验证证据，"
+                    "再用同一 confirm_id 调 commit_write 提交。"))
+    return None
+
+
+def _scope_decision(gate: "QualityGate", rec: dict, tool: str, args: dict,
+                    path: str) -> GateDecision | None:
     if gate.intent in ("debug", "troubleshoot") and not gate.evidence_ok:
         return GateDecision(
             allow=False,
-            reason="当前为排查/调试意图：请先用只读工具收集证据，再写盘",
-        )
+            reason="当前为排查/调试意图：请先用只读工具收集证据，再写盘")
     if gate.pending_diagnose_red:
         allowed = gate.fixable_paths or list(gate.pending_review)
         if not _in_paths(path, allowed):
             return GateDecision(
                 allow=False,
-                reason="写后诊断仍有问题未处理：先修复已改文件上的 fail 项，再改其他文件",
-            )
+                reason="写后诊断仍有问题未处理：先修复已改文件上的 fail 项，再改其他文件")
     if gate.pending_review and not gate.reviewed_ok:
         if (not _in_paths(path, gate.pending_review)
                 and not gate._unlocked_before_latest_write(rec)):
             return GateDecision(
                 allow=False,
-                reason="上一次真写的 review 尚未完成：请先提交 review 结论，再跨文件继续写",
-            )
+                reason="上一次真写的 review 尚未完成：请先提交 review 结论，再跨文件继续写")
     if (tool == "apply_patch" and gate.apply_patch_pending
             and not gate._unlocked_before_latest_write(rec)):
         return GateDecision(
             allow=False,
-            reason="apply_patch 上一次真写尚未 review：请先提交 review 结论",
-        )
+            reason="apply_patch 上一次真写尚未 review：请先提交 review 结论")
     if path in gate.needs_reread:
         return GateDecision(
             allow=False,
-            reason=(
-                "\n".join(
-                    [f"该路径写入后尚未复核：请先 read_file 核对这些锚点（{path}）。"]
-                    + reread_anchors(tool, args, path)
-                    + [
-                        "复核不使已解锁的 confirm_id 失效；确认无误后用原 confirm_id "
-                        "继续 commit_write，不必重新预览。"
-                    ]
-                )
-            ),
-        )
-    if tool == "replace_in_file":
-        new_text = str(args.get("new_text") or "")
-        new_lines = new_text.count("\n") + 1
-        # 批量替换（edits）同样要过行数上限：只合计各条 new_text 的行数，
-        # 否则把它当成 1 行就等于给大改留了一条旁路。
-        edits = args.get("edits")
-        if isinstance(edits, list) and edits and not new_text:
-            new_lines = sum(
-                str(item.get("new_text") or "").count("\n") + 1
-                for item in edits if isinstance(item, dict)
-            )
-        if new_lines > MAX_DIFF_LINES:
-            span: Optional[int] = None
-            line_start = args.get("line_start")
-            line_end = args.get("line_end")
-            if line_start is not None and line_end is not None:
-                try:
-                    span = int(line_end) - int(line_start) + 1
-                except (TypeError, ValueError):
-                    span = None
-            if span is None or span <= 0:
-                return GateDecision(
-                    allow=False,
-                    reason=(
-                        f"单次替换内容过大（>{MAX_DIFF_LINES} 行）："
-                        "请提供目标行区间（line_start/line_end）或拆成更小的局部替换"
-                    ),
-                )
-            if span > MAX_DIFF_LINES:
-                return GateDecision(
-                    allow=False,
-                    reason=(
-                        f"目标区间跨度过大（{span} 行 > {MAX_DIFF_LINES} 行）："
-                        "请拆成更小的局部替换"
-                    ),
-                )
-            if new_lines > max(40, span * 3):
-                return GateDecision(
-                    allow=False,
-                    reason="替换内容相对目标区间过大：请拆成更小的局部替换",
-                )
+            reason="\n".join(
+                [f"该路径写入后尚未复核：请先 read_file 核对这些锚点（{path}）。"]
+                + reread_anchors(tool, args, path)
+                + ["复核不使已解锁的 confirm_id 失效；确认无误后用原 confirm_id "
+                   "继续 commit_write，不必重新预览。"]))
+    return None
+
+
+def _size_decision(tool: str, args: dict) -> GateDecision | None:
+    if tool != "replace_in_file":
+        return None
+    new_text = str(args.get("new_text") or "")
+    new_lines = new_text.count("\n") + 1
+    edits = args.get("edits")
+    if isinstance(edits, list) and edits and not new_text:
+        new_lines = sum(
+            str(item.get("new_text") or "").count("\n") + 1
+            for item in edits if isinstance(item, dict))
+    if new_lines <= MAX_DIFF_LINES:
+        return None
+    span: Optional[int] = None
+    line_start, line_end = args.get("line_start"), args.get("line_end")
+    if line_start is not None and line_end is not None:
+        try:
+            span = int(line_end) - int(line_start) + 1
+        except (TypeError, ValueError):
+            span = None
+    if span is None or span <= 0:
+        return GateDecision(
+            allow=False,
+            reason=(f"单次替换内容过大（>{MAX_DIFF_LINES} 行）："
+                    "请提供目标行区间（line_start/line_end）或拆成更小的局部替换"))
+    if span > MAX_DIFF_LINES:
+        return GateDecision(
+            allow=False,
+            reason=(f"目标区间跨度过大（{span} 行 > {MAX_DIFF_LINES} 行）："
+                    "请拆成更小的局部替换"))
+    if new_lines > max(40, span * 3):
+        return GateDecision(
+            allow=False,
+            reason="替换内容相对目标区间过大：请拆成更小的局部替换")
+    return None
+
+
+def check_write(gate: "QualityGate", wc: WriteContext) -> GateDecision:
+    """写前组合门控：ID → 解锁 → 路径 → 范围 → 大小。"""
+    rec = gate.peek(wc.confirm_id)
+    decision = _unlock_decision(rec)
+    if decision is not None:
+        return decision
+    args = dict(rec.get("arguments") or {})
+    tool = str(rec.get("tool") or "")
+    path = str(rec.get("path") or "") or resolve_write_path(args, gate.path_keys(tool))
+    if not path:
+        return GateDecision(
+            allow=False,
+            reason=("无法从预览快照解析目标路径：工具须声明 write_path_keys，"
+                    "请重新预览"))
+    for decision in (_scope_decision(gate, rec, tool, args, path),
+                     _size_decision(tool, args)):
+        if decision is not None:
+            return decision
     return GateDecision(allow=True)

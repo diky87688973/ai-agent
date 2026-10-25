@@ -25,9 +25,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from complexity_scan import collect, render  # noqa: E402
 from quality_budgets import (  # noqa: E402
-    FILE_COMPLEXITY,
-    FILE_FUNCTION_COMPLEXITY,
-    FUNCTION_COMPLEXITY,
     MAX_FILE_FUNCTIONS,
     MAX_FILE_LINES,
     MAX_FUNCTION_LINES,
@@ -37,19 +34,9 @@ DOCS = ROOT / "docs" / "complexity.md"
 
 
 def build(root: Path = ROOT) -> str:
-    """按当前代码与登记表渲染全文。"""
     files, funcs, per_file = collect(root)
-    return render(
-        files,
-        funcs,
-        per_file,
-        FILE_COMPLEXITY,
-        FUNCTION_COMPLEXITY,
-        MAX_FILE_LINES,
-        MAX_FUNCTION_LINES,
-        FILE_FUNCTION_COMPLEXITY,
-        MAX_FILE_FUNCTIONS,
-    )
+    return render(files, funcs, per_file, MAX_FILE_LINES,
+                  MAX_FUNCTION_LINES, MAX_FILE_FUNCTIONS)
 
 
 def main(argv: list[str] | None = None) -> int:

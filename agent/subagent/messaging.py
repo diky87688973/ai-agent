@@ -47,7 +47,6 @@ class SubagentMessenger:
             parent_cid,
             msg,
             images,
-            insert_send=True,
             sender_name=self._parent_name(parent_cid),
             sender_role="parent",
         )
@@ -65,7 +64,6 @@ class SubagentMessenger:
             child.child_id,
             msg,
             images,
-            insert_send=True,
             sender_name=self._child_name(child),
             sender_role="subagent",
         )
@@ -77,7 +75,6 @@ class SubagentMessenger:
         msg: str,
         images: Any,
         *,
-        insert_send: bool,
         sender_name: Optional[str] = None,
         sender_role: str = "parent",
     ) -> Dict[str, Any]:
@@ -101,7 +98,7 @@ class SubagentMessenger:
             raise SubagentError(str(exc), "queue_failed") from exc
         item = result.get("queue_item") if isinstance(result, dict) else None
         inserted = False
-        if insert_send and isinstance(item, dict) and item.get("id"):
+        if isinstance(item, dict) and item.get("id"):
             try:
                 self.queue.set_insert(target_cid, str(item["id"]))
                 inserted = True

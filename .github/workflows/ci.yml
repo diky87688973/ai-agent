@@ -84,7 +84,7 @@ jobs:
       - name: 门禁 注册表一致性
         timeout-minutes: 3
         run: python -u scripts/check_catalog.py
-      - name: 门禁 复杂度登记
+      - name: 门禁 复杂度阈值
         timeout-minutes: 5
         run: python -u scripts/check_complexity.py
       - name: 门禁 复杂度文档一致

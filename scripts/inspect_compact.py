@@ -121,64 +121,60 @@ def _chunk_report(pipeline: Any) -> List[Tuple[str, int]]:
     return out
 
 
-def inspect(cid: str, data_root: Path, digest: bool) -> int:
+def _prepare(cid: str, data_root: Path):
     events, _store = _load_store(data_root, cid)
     if not events:
-        print(f"读不到会话事实：{cid}")
-        print(f"（数据根 {data_root}）")
-        return 2
-
+        return None
     cfg = get_context()
     threshold = int(cfg.get("summary_token_fallback") or 64000)
     full = int(cfg["full_user_rounds"])
-
     from agent.core.session_log import SessionLog
     from agent.mechanisms.context import (
         ContextPipeline,
         excerpt_by_target_tokens,
         flat_messages_to_user_rounds,
     )
-
     log = SessionLog(list(events))
     messages = log.derive_messages()
-
-    pipeline = ContextPipeline(
-        cid,
-        full_user_rounds=full,
-        summary_token_threshold=threshold,
-    )
-    # `rebuild_from_messages` 只填「近期记忆」块，不做取段 —— 压缩取段发生在
-    # `ensure_before_append`。所以这里的估算口径是"整段对话都按原文带上"，
-    # 而不是"压缩之后剩多少"。
+    pipeline = ContextPipeline(cid, full_user_rounds=full,
+                               summary_token_threshold=threshold)
     pipeline.rebuild_from_messages(messages)
     total = pipeline.total_token_estimate()
     full_tokens = sum(default_message_tokens(m) for m in messages)
-
     rounds = flat_messages_to_user_rounds(messages)
-    # 取段口径与压缩器一致：遮盖末尾 `full_user_rounds` 轮，压它前面那一段。
     excerpt = excerpt_by_target_tokens(messages, keep_turns=full,
                                        token_fn=pipeline.message_tokens)
     to_compress = (flat_messages_to_user_rounds(messages[excerpt[0]:excerpt[1]])
                    if excerpt else [])
-    keep_count = len(rounds) - len(to_compress)
+    return {"events": events, "threshold": threshold, "full": full,
+            "messages": messages, "pipeline": pipeline, "total": total,
+            "full_tokens": full_tokens, "rounds": rounds, "excerpt": excerpt,
+            "to_compress": to_compress, "keep_count": len(rounds) - len(to_compress)}
 
+
+def _print_overview(cid: str, data_root: Path, ctx: dict) -> None:
+    threshold = ctx["threshold"]
+    full_tokens = ctx["full_tokens"]
     print(SEP)
     print(f"会话 {cid}")
     print(f"数据根 {data_root}")
     print(SEP)
-
     print("\n【上下文】")
-    print(f"  事实条数        {len(events)}")
-    print(f"  派生消息条数    {len(messages)}")
-    print(f"  用户轮数        {len(rounds)}")
+    print(f"  事实条数        {len(ctx['events'])}")
+    print(f"  派生消息条数    {len(ctx['messages'])}")
+    print(f"  用户轮数        {len(ctx['rounds'])}")
     print(f"  全量估算 token  {_fmt_tokens(full_tokens)}   （全部消息都按原文带上）")
-    print(f"  管线估算 token  {_fmt_tokens(total)}   （钩子 + 已放入窗口的块）")
+    print(f"  管线估算 token  {_fmt_tokens(ctx['total'])}   （钩子 + 已放入窗口的块）")
     print(f"  阈值            {_fmt_tokens(threshold)}")
     over = full_tokens > threshold
     print(f"  判定            {'超过阈值 → 会触发压缩' if over else '未超阈值 → 不触发压缩'}")
     if threshold > 0:
         print(f"  占用            {full_tokens / threshold * 100:.1f}%")
 
+
+def _print_rounds(ctx: dict) -> None:
+    rounds, excerpt = ctx["rounds"], ctx["excerpt"]
+    to_compress, keep_count = ctx["to_compress"], ctx["keep_count"]
     print("\n【遮盖】")
     print("  遮盖的末尾用户轮（不压）        1")
     print(f"  遮盖之前可压的轮                {len(rounds) - 1 if rounds else 0}")
@@ -188,71 +184,80 @@ def inspect(cid: str, data_root: Path, digest: bool) -> int:
         print(f"  摘要取段（半开区间）            [{excerpt[0]}, {excerpt[1]})")
     else:
         print("  摘要取段                        无（轮数未超出窗口）")
-
     print("\n【轮次明细】")
     if rounds:
         for line in _round_labels(rounds):
             print(line)
     else:
         print("    （没有用户轮）")
-
     if to_compress:
         print("\n【将被压掉的轮】")
         for line in _round_labels(to_compress):
             print(line)
     if keep_count:
         print("\n【按原文保留的轮】")
-        kept = rounds[len(to_compress):]
-        for line in _round_labels(kept):
+        for line in _round_labels(rounds[len(to_compress):]):
             print(line)
 
-    chunks = _chunk_report(pipeline)
-    if chunks:
-        print("\n【分块 token 估算】")
-        width = max(len(n) for n, _ in chunks)
-        for name, n in chunks:
-            bar = "█" * min(40, int(n / max(1, total) * 40)) if total else ""
-            print(f"  {name.ljust(width)}  {_fmt_tokens(n):>10}  {bar}")
 
-    if digest:
-        print("\n【压缩器视角】")
-        from agent.mechanisms.compaction.compactor import ContextCompactor
+def _print_chunks(ctx: dict) -> None:
+    chunks = _chunk_report(ctx["pipeline"])
+    if not chunks:
+        return
+    print("\n【分块 token 估算】")
+    width = max(len(n) for n, _ in chunks)
+    total = ctx["total"]
+    for name, n in chunks:
+        bar = "█" * min(40, int(n / max(1, total) * 40)) if total else ""
+        print(f"  {name.ljust(width)}  {_fmt_tokens(n):>10}  {bar}")
 
-        def _no_summary(_material: str, **_: Any) -> str:
-            return ""
 
-        comp = ContextCompactor(_no_summary, summary_token_threshold=threshold)
-        comp.restore_from_events(events)
-        view = comp.view_messages(messages)
-        sm = comp.summary_messages()
-        print(f"  视图消息条数    {len(view)}")
-        print(f"  已落盘摘要条数  {len(sm)}")
-        for m in sm:
-            body = str(m.get("content") or "")
-            print(f"      {len(body)} 字符：{' '.join(body.split())[:70]}")
-        pending = {"messages": messages[-2:]} if len(messages) >= 2 else None
-        # 与 `ModelModule` 同序：先把这一轮真正要发的样子装进管线（摘要 + 未覆盖对话），
-        # 再让压缩器估体积。反过来（管线里还是占位对话）算出来的体积偏小，
-        # 会得出"不会压缩"的假结论。
-        pipeline.set_summary_messages(sm)
-        pipeline.set_dialogue(view, covered_end=comp.covered_end)
-        assembled = pipeline.assembles([])
-        print(f"  装配后估算      {_fmt_tokens(pipeline.total_token_estimate())}")
-        try:
-            ev = comp.ensure_before_append(pipeline, messages, pending,
-                                           assembled=assembled)
-        except Exception as exc:
-            print(f"[scripts.inspect_compact.inspect] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
-            ev = None
-            print(f"  ensure_before_append 抛错：{type(exc).__name__}: {exc}")
-        if ev:
-            print(f"  本次会产出的压缩事件：{ev}")
-        else:
-            print("  本次不产出压缩事件")
+def _print_digest(ctx: dict, digest: bool) -> None:
+    if not digest:
+        return
+    print("\n【压缩器视角】")
+    from agent.mechanisms.compaction.compactor import ContextCompactor
+    messages = ctx["messages"]
+    threshold = ctx["threshold"]
+    def _no_summary(_material: str, **_: Any) -> str:
+        return ""
+    comp = ContextCompactor(_no_summary, summary_token_threshold=threshold)
+    comp.restore_from_events(ctx["events"])
+    view = comp.view_messages(messages)
+    sm = comp.summary_messages()
+    print(f"  视图消息条数    {len(view)}")
+    print(f"  已落盘摘要条数  {len(sm)}")
+    for m in sm:
+        body = str(m.get("content") or "")
+        print(f"      {len(body)} 字符：{' '.join(body.split())[:70]}")
+    pending = {"messages": messages[-2:]} if len(messages) >= 2 else None
+    pipeline = ctx["pipeline"]
+    pipeline.set_summary_messages(sm)
+    pipeline.set_dialogue(view, covered_end=comp.covered_end)
+    assembled = pipeline.assembles([])
+    print(f"  装配后估算      {_fmt_tokens(pipeline.total_token_estimate())}")
+    try:
+        ev = comp.ensure_before_append(pipeline, messages, pending, assembled=assembled)
+    except Exception as exc:
+        print(f"[scripts.inspect_compact.inspect] {type(exc).__name__}: {exc}",
+              file=sys.stderr, flush=True)
+        print(f"  ensure_before_append 抛错：{type(exc).__name__}: {exc}")
+        return
+    print(f"  本次会产出的压缩事件：{ev}" if ev else "  本次不产出压缩事件")
 
+
+def inspect(cid: str, data_root: Path, digest: bool) -> int:
+    ctx = _prepare(cid, data_root)
+    if ctx is None:
+        print(f"读不到会话事实：{cid}")
+        print(f"（数据根 {data_root}）")
+        return 2
+    _print_overview(cid, data_root, ctx)
+    _print_rounds(ctx)
+    _print_chunks(ctx)
+    _print_digest(ctx, digest)
     print()
     return 0
-
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(

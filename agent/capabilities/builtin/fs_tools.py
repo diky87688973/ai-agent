@@ -164,6 +164,56 @@ def _ops_fail(
     raise exc
 
 
+def _plan_delete(action: str, source: Path, recursive: bool,
+                 on_exists: str) -> Dict[str, Any]:
+    if not source.exists():
+        return _terminal(
+            action=action, status="already_absent", source=source,
+            message="源路径已不存在，无需删除")
+    if source.is_dir() and not recursive:
+        raise ValueError("删除目录须传 recursive=true")
+    return {
+        "action": action, "source": source, "dest": None,
+        "recursive": recursive, "on_exists": on_exists, "overwrite": False,
+    }
+
+
+def _plan_destination(action: str, source: Path, dest: Path, recursive: bool,
+                      on_exists: str) -> Dict[str, Any]:
+    if not source.exists():
+        dest_exists = dest.exists()
+        verb = {"copy": "复制", "move": "移动", "rename": "重命名"}.get(action, action)
+        msg = f"源路径不存在：{source}"
+        msg += (f"；目标已存在：{dest}（本次未实际{verb}）" if dest_exists
+                else f"（本次未实际{verb}）")
+        _ops_fail(status="source_missing", action=action, source=source,
+                  dest=dest, dest_exists=dest_exists, on_exists=on_exists,
+                  message=msg)
+    if dest.resolve() == source.resolve():
+        raise ValueError("source 与 dest 不能相同")
+    overwrite = False
+    if dest.exists():
+        if action == "copy" and _files_same(source, dest):
+            return _terminal(
+                action=action, status="already_applied", source=source,
+                dest=dest, message="目标已存在且与源内容相同，无需复制",
+                on_exists=on_exists)
+        if on_exists == "skip":
+            return _terminal(
+                action=action, status="skipped", source=source, dest=dest,
+                message=f"目标已存在，已按 on_exists=skip 跳过：{dest}",
+                on_exists=on_exists)
+        if on_exists == "error":
+            _ops_fail(status="dest_exists_conflict", action=action,
+                      source=source, dest=dest, dest_exists=True,
+                      on_exists=on_exists, message=f"目标已存在，拒绝覆盖：{dest}")
+        overwrite = True
+    return {
+        "action": action, "source": source, "dest": dest,
+        "recursive": recursive, "on_exists": on_exists, "overwrite": overwrite,
+    }
+
+
 def _plan_ops(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """解析 file_ops：返回待提交 plan，或终态（含 needs_commit=False）。"""
     action = str(arguments.get("action") or "").strip().lower()
@@ -175,79 +225,12 @@ def _plan_ops(arguments: Dict[str, Any]) -> Dict[str, Any]:
     source = Path(source_raw)
     recursive = bool(arguments.get("recursive", False))
     on_exists = _parse_on_exists(arguments)
-
     if action == "delete":
-        if not source.exists():
-            return _terminal(
-                action=action, status="already_absent", source=source,
-                message="源路径已不存在，无需删除",
-            )
-        if source.is_dir() and not recursive:
-            raise ValueError("删除目录须传 recursive=true")
-        return {
-            "action": action, "source": source, "dest": None,
-            "recursive": recursive, "on_exists": on_exists, "overwrite": False,
-        }
-
+        return _plan_delete(action, source, recursive, on_exists)
     dest_raw = str(arguments.get("dest") or "").strip()
     if not dest_raw:
         raise ValueError(f"{action} 缺少 dest")
-    dest = Path(dest_raw)
-
-    if not source.exists():
-        # 锁死：源不在不得视为已 copy/move/rename（即使目标已在——那是猜历史）。
-        dest_exists = dest.exists()
-        verb = {"copy": "复制", "move": "移动", "rename": "重命名"}.get(action, action)
-        msg = f"源路径不存在：{source}"
-        if dest_exists:
-            msg += f"；目标已存在：{dest}（本次未实际{verb}）"
-        else:
-            msg += f"（本次未实际{verb}）"
-        _ops_fail(
-            status="source_missing",
-            action=action,
-            source=source,
-            dest=dest,
-            dest_exists=dest_exists,
-            on_exists=on_exists,
-            message=msg,
-        )
-
-    if dest.resolve() == source.resolve():
-        raise ValueError("source 与 dest 不能相同")
-
-    overwrite = False
-    if dest.exists():
-        # 内容已一致：copy 视为已完成；move/rename 仍可能要删源，继续走预览
-        if action == "copy" and _files_same(source, dest):
-            return _terminal(
-                action=action, status="already_applied", source=source, dest=dest,
-                message="目标已存在且与源内容相同，无需复制",
-                on_exists=on_exists,
-            )
-        if on_exists == "skip":
-            return _terminal(
-                action=action, status="skipped", source=source, dest=dest,
-                message=f"目标已存在，已按 on_exists=skip 跳过：{dest}",
-                on_exists=on_exists,
-            )
-        if on_exists == "error":
-            _ops_fail(
-                status="dest_exists_conflict",
-                action=action,
-                source=source,
-                dest=dest,
-                dest_exists=True,
-                on_exists=on_exists,
-                message=f"目标已存在，拒绝覆盖：{dest}",
-            )
-        overwrite = True
-
-    return {
-        "action": action, "source": source, "dest": dest,
-        "recursive": recursive, "on_exists": on_exists, "overwrite": overwrite,
-    }
-
+    return _plan_destination(action, source, Path(dest_raw), recursive, on_exists)
 
 class FileOpsTool(ToolPlugin):
     """预览：copy / move / rename / delete（不落盘）。"""

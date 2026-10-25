@@ -259,37 +259,22 @@ class OpenMeteoWeatherTool(ToolPlugin):
         "timeout_sec": {"type": "integer", "description": "HTTP 超时秒数（默认 15，下限 5）"},
     }
 
-    def _run_core(
-        self,
-        *,
-        location: str = "",
-        latitude: str = "",
-        longitude: str = "",
-        ip: str = "",
-        forecast_days: Any = None,
-        timeout_sec: Any = None,
-    ) -> Dict[str, Any]:
-        tsec = _resolve_timeout(timeout_sec, WEATHER_TIMEOUT_SEC)
-        loc_input = str(location or "").strip()
+    def _forecast_days(self, value: Any) -> int:
         try:
-            days = int(forecast_days) if forecast_days else WEATHER_FORECAST_DAYS
+            days = int(value) if value else WEATHER_FORECAST_DAYS
         except (TypeError, ValueError):
             raise GeoServiceError("forecast_days 须为整数", hint="检查参数类型")
-        days = max(1, min(7, days))
+        return max(1, min(7, days))
 
+    def _resolve_location(self, location: str, latitude: str, longitude: str,
+                          ip: str, tsec: int):
+        loc_input = str(location or "").strip()
         lat_s = str(latitude or "").strip()
         lon_s = str(longitude or "").strip()
         ip_for_lookup = _normalize_ip_for_lookup(ip)
-
-        name_used = loc_input or ""
-        admin1 = ""
-        country = ""
-        source = "location"
-        note = ""
-
+        name_used, admin1, country, source, note = loc_input, "", "", "location", ""
         if lat_s and lon_s:
-            lat = float(lat_s)
-            lon = float(lon_s)
+            lat, lon = float(lat_s), float(lon_s)
             name_used = f"经纬度 {lat:.4f}°,{lon:.4f}°"
             source = "coordinates"
         elif loc_input:
@@ -297,15 +282,15 @@ class OpenMeteoWeatherTool(ToolPlugin):
             if alias is not None:
                 lat, lon, name_used, admin1, country = alias
             else:
-                q = urllib.parse.urlencode({"name": loc_input, "count": "10", "language": "zh", "format": "json"})
+                q = urllib.parse.urlencode({
+                    "name": loc_input, "count": "10", "language": "zh",
+                    "format": "json"})
                 geo = _http_json(f"{GEO_URL}?{q}", tsec, "open-meteo-weather/1")
                 hit = _pick_geo_result(loc_input, geo)
                 if hit is None:
                     raise GeoServiceError(
-                        f"未找到地名：{loc_input}",
-                        err_type="NotFound",
-                        hint="可换 location 或改用 latitude/longitude",
-                    )
+                        f"未找到地名：{loc_input}", err_type="NotFound",
+                        hint="可换 location 或改用 latitude/longitude")
                 lat = float(hit.get("latitude"))
                 lon = float(hit.get("longitude"))
                 name_used = str(hit.get("name") or loc_input)
@@ -318,80 +303,78 @@ class OpenMeteoWeatherTool(ToolPlugin):
                     "无法获取地区：未提供 location/经纬度，且 IP 定位失败",
                     err_type="RegionUnavailable",
                     hint="请传 location 或 latitude/longitude；也可传 ip（客户端公网 IP）",
-                    retryable=True,
-                )
+                    retryable=True)
             lat = float(ip_geo.get("latitude"))
             lon = float(ip_geo.get("longitude"))
             city = str(ip_geo.get("city") or "")
             region = str(ip_geo.get("region") or "")
             ctry = str(ip_geo.get("country") or "")
             name_used = city or region or ctry or "IP定位结果"
-            admin1 = region
-            country = ctry
-            source = "ip_geolocate"
-            if ip_for_lookup:
-                note = f"说明：按指定 IP（{ip_for_lookup}）定位地区后查询天气。"
-            else:
-                note = "说明：未传 location，已按公网出口 IP 自动定位地区后查询天气。"
+            admin1, country, source = region, ctry, "ip_geolocate"
+            note = (f"说明：按指定 IP（{ip_for_lookup}）定位地区后查询天气。"
+                    if ip_for_lookup else
+                    "说明：未传 location，已按公网出口 IP 自动定位地区后查询天气。")
+        return lat, lon, name_used, admin1, country, source, note, loc_input
 
-        q2 = urllib.parse.urlencode(
-            {
-                "latitude": str(lat),
-                "longitude": str(lon),
-                "timezone": "Asia/Shanghai",
-                "forecast_days": str(days),
-                "current": "temperature_2m,relative_humidity_2m,precipitation,rain,showers,weather_code",
-                "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max",
-            }
-        )
-        fc = _http_json(f"{FC_URL}?{q2}", tsec, "open-meteo-weather/1")
-
-        cur = fc.get("current") or {}
-        daily = fc.get("daily") or {}
-        d_time = daily.get("time") or []
-        d_rain_p = daily.get("precipitation_probability_max") or []
-        d_prec = daily.get("precipitation_sum") or []
-        d_wx = daily.get("weather_code") or []
-
+    @staticmethod
+    def _summary(name_used: str, admin1: str, country: str, note: str,
+                 lat: float, lon: float, cur: dict, daily: dict,
+                 days: int) -> str:
         tail = ""
         if admin1 or country:
             tail = "（" + "，".join([x for x in (admin1, country) if x]) + "）"
-        display_plain = f"{name_used}{tail}"
-        display_region_zh = "【解析地区】" + display_plain
-
-        lines: List[str] = [display_region_zh]
+        lines = [f"【解析地区】{name_used}{tail}"]
         if note:
             lines.append(note)
         lines.append(f"坐标：{lat:.4f}, {lon:.4f}")
         cur_code = cur.get("weather_code")
         lines.append(
             f"当前：{_wmo_zh(int(cur_code)) if cur_code is not None else '未知'}，"
-            f"气温 {cur.get('temperature_2m')}℃，降水 {cur.get('precipitation')}mm，湿度 {cur.get('relative_humidity_2m')}%"
-        )
+            f"气温 {cur.get('temperature_2m')}℃，降水 {cur.get('precipitation')}mm，"
+            f"湿度 {cur.get('relative_humidity_2m')}%")
+        d_time = daily.get("time") or []
+        d_rain_p = daily.get("precipitation_probability_max") or []
+        d_prec = daily.get("precipitation_sum") or []
+        d_wx = daily.get("weather_code") or []
         if d_time and (d_rain_p or d_prec):
             lines.append("未来数日降水概况：")
-            for i, t in enumerate(d_time[:days]):
+            for i, day in enumerate(d_time[:days]):
                 prob = d_rain_p[i] if i < len(d_rain_p) else None
                 prec = d_prec[i] if i < len(d_prec) else None
                 wxc = int(d_wx[i]) if i < len(d_wx) and d_wx[i] is not None else None
                 prob_s = f"{prob}%" if prob is not None else "-"
                 prec_s = f"{prec}mm" if prec is not None else "-"
-                lines.append(f"  {t}：降水概率 {prob_s}，降水量 {prec_s}，{_wmo_zh(wxc)}")
+                lines.append(f"  {day}：降水概率 {prob_s}，降水量 {prec_s}，{_wmo_zh(wxc)}")
+        return "\n".join(lines)
 
-        summary = "\n".join(lines)
+    def _run_core(self, *, location: str = "", latitude: str = "",
+                  longitude: str = "", ip: str = "", forecast_days: Any = None,
+                  timeout_sec: Any = None) -> Dict[str, Any]:
+        tsec = _resolve_timeout(timeout_sec, WEATHER_TIMEOUT_SEC)
+        days = self._forecast_days(forecast_days)
+        lat, lon, name_used, admin1, country, source, note, loc_input = (
+            self._resolve_location(location, latitude, longitude, ip, tsec))
+        q2 = urllib.parse.urlencode({
+            "latitude": str(lat), "longitude": str(lon),
+            "timezone": "Asia/Shanghai", "forecast_days": str(days),
+            "current": "temperature_2m,relative_humidity_2m,precipitation,rain,showers,weather_code",
+            "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max",
+        })
+        fc = _http_json(f"{FC_URL}?{q2}", tsec, "open-meteo-weather/1")
+        cur = fc.get("current") or {}
+        daily = fc.get("daily") or {}
+        summary = self._summary(name_used, admin1, country, note, lat, lon,
+                                cur, daily, days)
+        tail = ("（" + "，".join([x for x in (admin1, country) if x]) + "）"
+                if admin1 or country else "")
+        display_plain = f"{name_used}{tail}"
         return {
-            "provider": "Open-Meteo",
-            "source": source,
-            "requested_location": loc_input,
-            "resolved_name": name_used,
+            "provider": "Open-Meteo", "source": source,
+            "requested_location": loc_input, "resolved_name": name_used,
             "display_plain": display_plain,
-            "display_region_zh": display_region_zh,
-            "latitude": lat,
-            "longitude": lon,
-            "timezone": fc.get("timezone"),
-            "current": cur,
-            "daily": daily,
-            "summary_zh": summary,
+            "display_region_zh": "【解析地区】" + display_plain,
+            "latitude": lat, "longitude": lon, "timezone": fc.get("timezone"),
+            "current": cur, "daily": daily, "summary_zh": summary,
         }
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:

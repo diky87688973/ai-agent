@@ -296,103 +296,84 @@ KEEP_IMAGE_TURNS = 1
 MAX_EMBED_IMAGES = 8
 
 
+def _image_positions(messages: List[Dict[str, Any]], role: str) -> List[int]:
+    return [i for i, m in enumerate(messages)
+            if isinstance(m, dict) and str(m.get("role") or "") == role
+            and _image_block_count(m) > 0]
+
+
+def _select_images(messages: List[Dict[str, Any]], positions: List[int],
+                   tool_positions: List[int], keep_turns: int,
+                   max_images: int) -> set:
+    keep_ids: set = set()
+    remaining = max_images
+    window = (positions if keep_turns < 0
+              else positions[-keep_turns:] if keep_turns else [])
+    newest_user = window[-1] if window else -1
+
+    def grant(index: int) -> None:
+        nonlocal remaining
+        if max_images >= 0 and remaining <= 0:
+            return
+        blocks = _image_block_indexes(messages[index])
+        take = len(blocks) if max_images < 0 else min(len(blocks), remaining)
+        keep_ids.update((index, k) for k in blocks[len(blocks) - take:])
+        if max_images >= 0:
+            remaining -= take
+
+    for i in reversed(window):
+        if i == newest_user:
+            grant(i)
+            break
+    for i in reversed(tool_positions):
+        if i > newest_user:
+            grant(i)
+    for i in reversed(window):
+        if i != newest_user:
+            grant(i)
+    for i in reversed(tool_positions):
+        if i <= newest_user:
+            grant(i)
+    return keep_ids
+
+
+def _strip_unselected(messages: List[Dict[str, Any]], keep_ids: set) -> tuple[list, int]:
+    out: List[Dict[str, Any]] = []
+    stripped = 0
+    for i, message in enumerate(messages):
+        if not isinstance(message, dict):
+            out.append(message)
+            continue
+        blocks = _image_block_indexes(message)
+        if not blocks:
+            out.append(message)
+            continue
+        drop = [k for k in blocks if (i, k) not in keep_ids]
+        if not drop:
+            out.append(message)
+            continue
+        stripped += len(drop)
+        out.append({**message, "content": _drop_selected_blocks(
+            message.get("content"), drop)})
+    return out, stripped
+
+
 def strip_old_images(
     messages: Any,
     *,
     keep_turns: int = KEEP_IMAGE_TURNS,
     max_images: int = MAX_EMBED_IMAGES,
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """只保留最近 `keep_turns` 轮用户发言里的图片块，更早的转文本占位。
-
-    两个上限都取负数时不产生任何改动；默认 `1` 轮 / `8` 张，截图密集的会话
-    只保留最近一轮最多 8 张，避免请求体超过上游大小限制。
-
-    返回 `(处理后的消息, 被剥离的图片块数)`。只改发给模型的这一份：事实流里的
-    base64 不变，历史回显与重新提问仍能取到原图。
-
-    保留优先级：最近一轮用户图 > 本轮工具图 > 更老的用户图 > 更老的工具图。
-    总量超过 `max_images` 时从优先级最低的开始砍；一轮之内仍不够时，
-    再砍该轮靠后的那几张（一张都不留时整轮转占位）。
-
-    按轮计数而不是按张：一轮里发三张图算一轮。
-
-    工具结果里的图片（`role=tool`）不按轮次窗口剥：它由工具在这一轮刚读出来，
-    不重复内联历史用户图，但受总量闸约束。
-    """
+    """只保留最近若干轮用户图片和工具图片；超出配额转文本占位。"""
     msgs = list(messages or [])
     if keep_turns < 0 and max_images < 0:
         return msgs, 0
-    # 带图的 user 消息 = 一轮（同一轮的后续消息不会有图），按时间升序
-    positions = [
-        i for i, m in enumerate(msgs)
-        if isinstance(m, dict)
-        and str(m.get("role") or "") == "user"
-        and _image_block_count(m) > 0
-    ]
-    # 带图的 tool 消息（工具返回的图），按时间升序
-    tool_positions = [
-        i for i, m in enumerate(msgs)
-        if isinstance(m, dict)
-        and str(m.get("role") or "") == "tool"
-        and _image_block_count(m) > 0
-    ]
+    positions = _image_positions(msgs, "user")
+    tool_positions = _image_positions(msgs, "tool")
     if not positions and not tool_positions:
         return msgs, 0
-
-    # ── 挑出要保留的图片块：按优先级分配配额 ──
-    # 分配次序即优先级：最近一轮用户图 > 当前这一轮的工具图 > 更老的用户图 >
-    # 更老的工具图。"当前这一轮"指最后一条 tool 图片消息之后的那些用户轮。
-    keep_ids: set = set()
-    remaining = max_images
-    window = positions if keep_turns < 0 else positions[-keep_turns:] if keep_turns else []
-    newest_user = window[-1] if window else -1
-
-    def grant(index: int) -> None:
-        """给某条消息分配配额，保留其中靠后的若干张。"""
-        nonlocal remaining
-        if max_images >= 0 and remaining <= 0:
-            return
-        blocks = _image_block_indexes(msgs[index])
-        take = len(blocks) if max_images < 0 else min(len(blocks), remaining)
-        keep_ids.update((index, k) for k in blocks[len(blocks) - take:])
-        if max_images >= 0:
-            remaining -= take
-
-    for i in reversed(window):                       # 最近一轮用户图先分
-        if i == newest_user:
-            grant(i)
-            break
-    for i in reversed(tool_positions):               # 本轮工具图紧随其后
-        if i > newest_user:
-            grant(i)
-    for i in reversed(window):                       # 其余用户轮
-        if i != newest_user:
-            grant(i)
-    for i in reversed(tool_positions):               # 更老的工具图
-        if i <= newest_user:
-            grant(i)
-
-    # ── 把没选中的块换成占位 ──
-    # 逐条按 `keep_ids` 判，而不是先看是否在轮次窗口内：工具消息不在窗口里，
-    # 按窗口提前放行会让它绕过配额。
-    out: List[Dict[str, Any]] = []
-    stripped = 0
-    for i, m in enumerate(msgs):
-        if not isinstance(m, dict):
-            out.append(m)
-            continue
-        blocks = _image_block_indexes(m)
-        if not blocks:
-            out.append(m)
-            continue
-        drop = [k for k in blocks if (i, k) not in keep_ids]
-        if not drop:
-            out.append(m)
-            continue
-        stripped += len(drop)
-        out.append({**m, "content": _drop_selected_blocks(m.get("content"), drop)})
-    return out, stripped
-
+    keep_ids = _select_images(msgs, positions, tool_positions, keep_turns, max_images)
+    return _strip_unselected(msgs, keep_ids)
 
 def _image_block_indexes(message: Any) -> List[int]:
     """该消息里图片块的下标（升序）。"""

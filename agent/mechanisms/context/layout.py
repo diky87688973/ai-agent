@@ -127,6 +127,81 @@ def merge_segment_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return merged
 
 
+def _partition_head(messages: List[Dict[str, Any]],
+                    head: Optional[List[Dict[str, Any]]],
+                    system_text: str):
+    if head is not None:
+        head_msgs = [m for m in head if isinstance(m, dict)]
+        body = messages
+    else:
+        cut = next((i for i, m in enumerate(messages)
+                    if str(m.get("role") or "") == "user"), len(messages))
+        head_msgs, body = messages[:cut], messages[cut:]
+    prompt = str(system_text or "").strip()
+    rest_head = list(head_msgs)
+    if prompt:
+        if rest_head and str(rest_head[0].get("content") or "").strip() == prompt:
+            rest_head = rest_head[1:]
+    elif rest_head:
+        rest_head = rest_head[1:]
+    return prompt, head_msgs, rest_head, body
+
+
+def _partition_plugins(rest_head: List[Dict[str, Any]],
+                       plan: List[Tuple[str, str, int]]):
+    plugin: List[List[Dict[str, Any]]] = []
+    msg_i = 0
+    for seg in plan:
+        seg_count = int(seg[2]) if len(seg) > 2 else 0
+        if seg_count > 0 and msg_i < len(rest_head):
+            plugin.append([rest_head[msg_i]])
+            msg_i += 1
+        else:
+            plugin.append([])
+    summary = [m for m in rest_head[msg_i:]]
+    return plugin, summary
+
+
+def _split_mode(body: List[Dict[str, Any]]):
+    mode: List[Dict[str, Any]] = []
+    for m in reversed(body):
+        if str(m.get("role") or "") == "system" \
+                and str(m.get("content") or "").startswith("## 当前模式"):
+            mode = [m]
+            break
+    return mode, [m for m in body if m not in mode]
+
+
+def _layout_rows(prompt: str, head_msgs: List[Dict[str, Any]],
+                 plan: List[Tuple[str, str, int]], plugin: List[List[Dict[str, Any]]],
+                 summary: List[Dict[str, Any]], dialogue: List[Dict[str, Any]],
+                 mode: List[Dict[str, Any]], counter: Any) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+
+    def add(key: str, items: List[Dict[str, Any]], tokens: Optional[int] = None,
+            count: Optional[int] = None, label: str = "") -> None:
+        rows.append({
+            "key": key, "label": label or SEGMENT_LABELS.get(key, key),
+            "tokens": int(tokens) if tokens is not None
+            else sum(int(counter(m)) for m in items),
+            "count": len(items) if count is None else int(count)})
+
+    if prompt:
+        add("system", [], int(counter({"role": "system", "content": prompt})), count=1)
+    elif head_msgs:
+        add("system", head_msgs[:1])
+    for i, seg in enumerate(plan):
+        seg_key, seg_label = str(seg[0]), str(seg[1])
+        seg_count = int(seg[2]) if len(seg) > 2 else len(plugin[i])
+        add(f"plugin:{seg_key}", plugin[i], count=seg_count, label=seg_label)
+    add("summary", summary)
+    add("full_recent", dialogue,
+        count=sum(1 for m in dialogue if str(m.get("role") or "") == "user"))
+    if mode:
+        add("mode", mode)
+    return rows
+
+
 def layout_from_messages(
     messages: List[Dict[str, Any]],
     *,
@@ -137,118 +212,30 @@ def layout_from_messages(
     model_max_context_tokens: int = 0,
     token_fn: Optional[Callable[[Dict[str, Any]], int]] = None,
 ) -> Dict[str, Any]:
-    """把请求的头部 + 对话切开分段并统计 token（观察面用）。
-
-    `head` 是装配出来的头部：第 1 条是系统提示词，其后依次是插件各段
-    （顺序与 `plugin_segments` 一致），再往后是记忆摘要。
-    `plugin_segments` 是 `[(段 key, 段名, 主体数量)]` —— 由插件给，宿主不猜。
-    `model_max_context_tokens` 是该模型的上下文窗口（占用率的分母）：
-    调用方知道当前用哪个模型就传，不知道时留 0，界面退回用预算当分母。
-
-    插件内容与 Skills 清单不在事实记录里（每回合装配时注入），所以不传 `head`
-    就只能退化：按位置猜，插件各段与摘要分不出来。
-
-    模式从对话段里按正文认（`## 当前模式` 开头），单列一段。
-    """
+    """把请求的头部 + 对话切开分段并统计 token（观察面用）。"""
     counter = token_fn or default_message_tokens
     msgs = [m for m in (messages or []) if isinstance(m, dict)]
     budget_in = max(int(budget_tokens or 0), 1)
     if not msgs and not head:
         return {"segments": [], "total_tokens": 0, "budget_tokens": budget_in,
                 "model_max_context_tokens": int(model_max_context_tokens or 0)}
-
-    if head is not None:
-        head_msgs = [m for m in head if isinstance(m, dict)]
-        body = msgs
-    else:
-        cut = next((i for i, m in enumerate(msgs)
-                    if str(m.get("role") or "") == "user"), len(msgs))
-        head_msgs, body = msgs[:cut], msgs[cut:]
-
-    prompt = str(system_text or "").strip()
-    rest_head = list(head_msgs)
-    if prompt:
-        # 给了系统提示词正文：头部第 1 条若与它同文，就不再重复计入。
-        if rest_head and str(rest_head[0].get("content") or "").strip() == prompt:
-            rest_head = rest_head[1:]
-    elif rest_head:
-        # 没给正文：头部第 1 条就是系统提示词，同样要从后面的分段里去掉 ——
-        # 否则它会被系统段与摘要段各算一次。
-        rest_head = rest_head[1:]
+    prompt, head_msgs, rest_head, body = _partition_head(msgs, head, system_text)
     plan = list(plugin_segments or [])
-    # 空占位段不占头部消息：按「有正文才消费一条」对齐，避免知识库未勾选时
-    # 把后面 Skills 的消息错贴到知识库段上。
-    plugin: List[List[Dict[str, Any]]] = []
-    msg_i = 0
-    for seg in plan:
-        seg_count = int(seg[2]) if len(seg) > 2 else 0
-        if seg_count > 0 and msg_i < len(rest_head):
-            plugin.append([rest_head[msg_i]])
-            msg_i += 1
-        elif seg_count > 0:
-            plugin.append([])
-        else:
-            plugin.append([])
-    # 插件各段之后剩下的都算记忆摘要（压缩产出的那份）。
-    summary = [m for m in rest_head[msg_i:]]
-
-    mode: List[Dict[str, Any]] = []
-    for m in reversed(body):
-        if str(m.get("role") or "") == "system" \
-                and str(m.get("content") or "").startswith("## 当前模式"):
-            mode = [m]
-            break
-    dialogue = [m for m in body if m not in mode]
-
-    rows: List[Dict[str, Any]] = []
-
-    def _row(key: str, items: List[Dict[str, Any]],
-             tokens: Optional[int] = None, count: Optional[int] = None,
-             label: str = "") -> None:
-        rows.append({
-            "key": key,
-            "label": label or SEGMENT_LABELS.get(key, key),
-            "tokens": int(tokens) if tokens is not None
-            else sum(int(counter(m)) for m in items),
-            "count": len(items) if count is None else int(count),
-        })
-
-    if prompt:
-        _row("system", [], int(counter({"role": "system", "content": prompt})), count=1)
-    elif head_msgs:
-        _row("system", head_msgs[:1])
-    # 头部内部顺序与装配一致：插件各段 → 记忆摘要；对话接在摘要之后。
-    for i, seg in enumerate(plan):
-        seg_key, seg_label = str(seg[0]), str(seg[1])
-        seg_count = int(seg[2]) if len(seg) > 2 else len(plugin[i])
-        _row(f"plugin:{seg_key}", plugin[i], count=seg_count, label=seg_label)
-    _row("summary", summary)
-    # 对话段计用户轮数（不是消息条数）：一轮里有问有答还有工具往返。
-    _row("full_recent", dialogue,
-         count=sum(1 for m in dialogue if str(m.get("role") or "") == "user"))
-    if mode:
-        _row("mode", mode)
-
+    plugin, summary = _partition_plugins(rest_head, plan)
+    mode, dialogue = _split_mode(body)
+    rows = _layout_rows(prompt, head_msgs, plan, plugin, summary, dialogue, mode, counter)
     total = sum(int(r["tokens"]) for r in rows)
     budget = max(int(budget_tokens or 0), total, 1)
-    segments: List[Dict[str, Any]] = []
-    for row in rows:
-        row = dict(row)
-        row["pct"] = round(100.0 * row["tokens"] / budget, 6)
-        segments.append(row)
+    segments = [{**row, "pct": round(100.0 * row["tokens"] / budget, 6)}
+                for row in rows]
     segments.append({
-        "key": "remaining",
-        "label": "剩余容量",
+        "key": "remaining", "label": "剩余容量",
         "tokens": max(0, budget - total),
-        "pct": round(100.0 * max(0, budget - total) / budget, 6),
-    })
+        "pct": round(100.0 * max(0, budget - total) / budget, 6)})
     return {
-        "segments": segments,
-        "total_tokens": total,
-        "budget_tokens": budget,
+        "segments": segments, "total_tokens": total, "budget_tokens": budget,
         "model_max_context_tokens": int(model_max_context_tokens or 0),
     }
-
 
 def excerpt_by_target_tokens(
     messages: List[Dict[str, Any]],

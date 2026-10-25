@@ -375,6 +375,10 @@ class SessionRunner:
     def _splice_resume(self, cid: str, resume_data: Dict[str, Any]) -> None:
         resume.splice_resume(app=self._app, cid=cid, resume=resume_data)
 
+    def registry_for(self, cid: str) -> Any:
+        """当前会话的角色工具视图。"""
+        return self._registry_for(cid)
+
     def system_prompt(self, cid: str) -> str:
         """当前会话的完整系统提示词（与 Web 回合使用同一份装配）。"""
         return self._system_prompt(cid)
@@ -387,6 +391,7 @@ class SessionRunner:
         return prompt.system_prompt(
             app=self._app, mesh=self._mesh, cid=cid,
             prompt_sections=self._prompt_sections,
+            registry=self._registry_for(cid),
         )
 
     def _mode_note(self, cid: str) -> str:

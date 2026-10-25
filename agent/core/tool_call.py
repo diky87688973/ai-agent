@@ -102,89 +102,68 @@ class ToolPipeline:
         self._post.append(observer)
         return lambda: self._post.remove(observer)
 
+    def _pre_result(self, call: ToolCallRequest, ctx: Any) -> ToolResult | None:
+        for gate in list(self._pre):
+            decision = gate(call, ctx)
+            if decision is not None and not decision.allow:
+                return ToolResult(
+                    call_id=call.call_id, ok=False,
+                    error=decision.reason or "被门控拒绝")
+        return None
+
+    def _binding_result(self, registry: Any, call: ToolCallRequest) -> ToolResult:
+        binding = registry.get(call.name)
+        if binding is None:
+            return ToolResult(
+                call_id=call.call_id, ok=False, error=f"未知工具：{call.name}")
+        try:
+            data = binding.execute(dict(call.arguments))
+            carried = getattr(data, "attachments", None)
+            if isinstance(data, ToolResult):
+                inner = data
+                result = ToolResult(
+                    call_id=call.call_id, ok=bool(inner.ok), data=inner.data,
+                    error=str(inner.error or ""))
+                carried = inner.attachments
+            else:
+                result = ToolResult(call_id=call.call_id, ok=True, data=data)
+            if isinstance(carried, list) and carried:
+                result.attachments = list(carried)
+            return result
+        except Exception as exc:
+            awaiting = bool(getattr(exc, "await_user", False))
+            result = ToolResult(
+                call_id=call.call_id, ok=False,
+                data=getattr(exc, "data", None),
+                error=f"{type(exc).__name__}: {exc}",
+                await_user=awaiting, deferred=awaiting)
+            return result
+
+    def _post_observe(self, call: ToolCallRequest, result: ToolResult, ctx: Any) -> None:
+        for observer in list(self._post):
+            observer(call, result, ctx)
+
     def execute(self, registry: Any, call: ToolCallRequest, ctx: Any) -> ToolResult:
-        """唯一执行入口。registry.get(name) 返回带 execute(arguments) 的绑定。
-
-        会话作用域：调用期把 ctx.conversation_id 注入 contextvar，
-        工具经 core.session_scope.current_session_id() 读取；调用结束还原。
-
-        进度通道：调用期装配进度上报器，工具经
-        `core.session_scope.emit_progress()` 报告输出；上报内容经 `ctx.progress_sink`
-        （若提供）转成事件。工具不能自己发事件——那会绕开事件流的唯一时序。
-        """
-        cid = ""
-        if ctx is not None:
-            cid = str(getattr(ctx, "conversation_id", "") or "")
+        """唯一执行入口；上下文、门控、执行、观察按顺序收口。"""
+        cid = str(getattr(ctx, "conversation_id", "") or "") if ctx is not None else ""
         token = set_session_scope(cid)
-        reporter = None
         sink = getattr(ctx, "progress_sink", None) if ctx is not None else None
+        reporter = None
         if callable(sink):
-            call_id = call.call_id
-            name = call.name
-
+            call_id, name = call.call_id, call.name
             def reporter(payload: dict) -> None:
                 sink(call_id, name, payload)
-
         progress_token = set_progress_reporter(reporter)
-        # 本工具轮次的上下文（三级 + 本次调用）：工具经
-        # `core.session_scope.current_context()` 取。三级引用直接从回合级原对象上取
-        # （`.app` / `.session`）——它们由装配层显式摆上去，不靠 contextvar 猜。
         turn_ctx = ToolTurnContext(
-            app=getattr(ctx, "app", None),
-            session=getattr(ctx, "session", None),
-            turn=ctx,
-            call=call,
-            progress=reporter,
-        )
+            app=getattr(ctx, "app", None), session=getattr(ctx, "session", None),
+            turn=ctx, call=call, progress=reporter)
         context_token = set_tool_turn_context(turn_ctx)
         try:
-            for gate in list(self._pre):
-                decision = gate(call, ctx)
-                if decision is not None and not decision.allow:
-                    return ToolResult(
-                        call_id=call.call_id,
-                        ok=False,
-                        error=decision.reason or "被门控拒绝",
-                    )
-            binding = registry.get(call.name)
-            if binding is None:
-                result = ToolResult(call_id=call.call_id, ok=False, error=f"未知工具：{call.name}")
-            else:
-                try:
-                    data = binding.execute(dict(call.arguments))
-                    # 工具可回传结果信封（`ToolResult.attach(...)`）携带图片附件。
-                    # 必须拆信封：不拆则整个对象被当作普通返回值，下游 `safe_value()`
-                    # 会把它（含附件 base64）`str()` 进事件流，而模型那条路径
-                    # 拿到的仍不是 `image_url` 块。
-                    carried = getattr(data, "attachments", None)
-                    if isinstance(data, ToolResult):
-                        inner = data
-                        data = inner.data
-                        result = ToolResult(call_id=call.call_id, ok=bool(inner.ok), data=data,
-                                            error=str(inner.error or ""))
-                        carried = inner.attachments
-                    else:
-                        result = ToolResult(call_id=call.call_id, ok=True, data=data)
-                    if isinstance(carried, list) and carried:
-                        result.attachments = list(carried)
-                except Exception as exc:
-                    # 两段式首段（待用户确认）：这次调用还没返回，所以标 `deferred`
-                    # ——回合循环据此不把它写进事实流。选择由宿主在用户作答后写进来。
-                    #
-                    # 这里不上报 error_log：异常已经收成 ToolResult(ok=False)
-                    # 回灌模型 / 落 tool_failed，属于业务结果，不是进程故障。
-                    # 再记 errors.log 会把 ValueError / 文件不存在 / 黑名单等刷成误报。
-                    awaiting = bool(getattr(exc, "await_user", False))
-                    result = ToolResult(
-                        call_id=call.call_id,
-                        ok=False,
-                        data=getattr(exc, "data", None),  # 可选结构化附带数据（如待确认信封）
-                        error=f"{type(exc).__name__}: {exc}",
-                        await_user=awaiting,
-                        deferred=awaiting,
-                    )
-            for observer in list(self._post):
-                observer(call, result, ctx)
+            blocked = self._pre_result(call, ctx)
+            if blocked is not None:
+                return blocked
+            result = self._binding_result(registry, call)
+            self._post_observe(call, result, ctx)
             return result
         finally:
             reset_tool_turn_context(context_token)

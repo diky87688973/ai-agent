@@ -195,7 +195,7 @@ class ApplicabilityGateTest(unittest.TestCase):
 
 
 class ComplexityGateTest(unittest.TestCase):
-    """复杂度：未登记的超阈值文件必须失败。"""
+    """复杂度：任何超阈值文件/函数都必须失败，没有豁免表。"""
 
     def _root(self) -> Path:
         tmp = tempfile.TemporaryDirectory()
@@ -204,27 +204,19 @@ class ComplexityGateTest(unittest.TestCase):
         _write(root / "agent" / "big.py", "x = 1\n" * 40)
         return root
 
-    def test_unregistered_big_file_fails(self) -> None:
-        root = self._root()
-        with tempfile.TemporaryDirectory() as docs_tmp:
-            docs = Path(docs_tmp) / "complexity.md"
-            docs.write_text("", encoding="utf-8")
-            problems = check_complexity.check(
-                root, docs, file_reasons={}, func_reasons={},
-                max_file_lines=10, max_function_lines=8,
-            )
-        self.assertTrue(any("未登记的超阈值文件" in p for p in problems))
+    def _check(self, root: Path) -> list[str]:
+        docs = Path(root) / "complexity.md"
+        docs.write_text("", encoding="utf-8")
+        return check_complexity.check(
+            root, docs, max_file_lines=10, max_function_lines=8)
 
-    def test_registered_big_file_only_reports_doc_drift(self) -> None:
-        root = self._root()
-        with tempfile.TemporaryDirectory() as docs_tmp:
-            docs = Path(docs_tmp) / "complexity.md"
-            docs.write_text("", encoding="utf-8")
-            problems = check_complexity.check(
-                root, docs, file_reasons={"agent/big.py": "历史文件，拆分排期中"},
-                func_reasons={}, max_file_lines=10, max_function_lines=8,
-            )
-        self.assertFalse(any("未登记的超阈值文件" in p for p in problems))
+    def test_big_file_fails_without_registry(self) -> None:
+        problems = self._check(self._root())
+        self.assertTrue(any("超阈值文件" in p for p in problems))
+
+    def test_generated_doc_drift_is_reported(self) -> None:
+        problems = self._check(self._root())
+        self.assertTrue(any("生成文档已漂移" in p for p in problems))
 
 
 class ConfigDriftGateTest(unittest.TestCase):

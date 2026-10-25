@@ -208,22 +208,8 @@ class App(AppModelPolicy, AppServices):
 
     # ── 会话入口（内核三面：开始回合 / 事件流 / 工具调用协议）──
 
-    def session(
-        self,
-        conversation_id: str,
-        *,
-        store: Any = None,
-        registry: Any = None,
-        system_prompt: str = "",
-        cancel: Optional[Callable[[], bool]] = None,
-        mode_note: Any = "",
-    ) -> Any:
-        """创建会话引擎：装载既有记录（store 可用时）、装配上下文与持久化旁路。
-
-        cancel：壳层传入的停止检查——内核只认"是否要求停止"。
-        """
-        session_store = self.store if store is None else store
-        session_registry = self.registry if registry is None else registry
+    def _prepare_session(self, conversation_id: str, session_store: Any,
+                         system_prompt: str) -> tuple[Any, Any, Any]:
         log = SessionLog()
         if session_store is not None and conversation_id:
             log = SessionLog(events=session_store.load(conversation_id))
@@ -237,8 +223,6 @@ class App(AppModelPolicy, AppServices):
             )
         if context is not None and system_prompt:
             context.append_system(system_prompt)
-        # 窗口随"这个会话当前用的模型"走：换模型后下一回合的分母就该换。
-        # 只写这个字段，不动上下文工厂的构造约定 —— 工厂可以是外部替换的。
         window = self.context_window_for(conversation_id)
         if window and context is not None and hasattr(context, "model_context_window"):
             context.model_context_window = int(window)
@@ -248,36 +232,44 @@ class App(AppModelPolicy, AppServices):
             compactor = compactor_factory(conversation_id)
             if compactor is not None:
                 compactor.restore_from_events(list(log.events))
-        # 压缩阈值按当前模型窗口 × 该模型百分比；窗口缺失时用配置回退值。
         threshold = self.compression_threshold_for(conversation_id)
         if context is not None and hasattr(context, "summary_token_threshold"):
             context.summary_token_threshold = threshold
         if compactor is not None and hasattr(compactor, "summary_token_threshold"):
             compactor.summary_token_threshold = threshold
+        return log, context, compactor
+
+    def _session_bindings(self, conversation_id: str, session_store: Any) -> tuple[Any, Any, Any, Any, Any]:
         fact_sink = None
+        seq_allocator = None
         if session_store is not None and conversation_id:
             cid = conversation_id
             fact_sink = lambda events, _cid=cid: session_store.append(_cid, events)
-
-        # 推理档位解析器：按会话从 live_state 取，缺省全局默认。
-        state = self.live_state
-        effort_resolver = (
-            (lambda cid: state.get_reasoning_effort(cid)) if state is not None else None
-        )
-        # 本回合事件的存储坐标按需分配（全局单调，跨会话唯一）。
-        # 坐标按需分配（回调）：工具进度事件的条数取决于工具输出长度
-        # （不可预知），预留多少都可能不够，不够就会与后续回合撞号。
-        # 坐标必须在 `emit` 产出瞬间就标好（事件一产出即发布到总线，落盘在其后），
-        # 但 core 不感知 store，所以这里把"分配一个号"的能力注入进去。
-        seq_allocator = None
-        if session_store is not None and conversation_id:
             seq_allocator = lambda: session_store.allocate_seq(1)
-        # 三级上下文的显式引用：上下文是数据结构，直接持有引用（不引入关系对象）。
-        # 会话级：待确认状态等跨回合态的归属地；进程级：全局服务注册表。
+        state = self.live_state
+        effort = str(state.get_reasoning_effort(conversation_id)) if state is not None else "high"
         session_ctx = None
         if conversation_id and self.session_contexts is not None:
             session_ctx = self.session_contexts.resolve_sync(conversation_id)
-        # 引擎只有一个：`Engine`，没有可选的第二条路径。
+        return fact_sink, effort, seq_allocator, session_ctx
+
+    def session(
+        self,
+        conversation_id: str,
+        *,
+        store: Any = None,
+        registry: Any = None,
+        system_prompt: str = "",
+        cancel: Optional[Callable[[], bool]] = None,
+        mode_note: Any = "",
+    ) -> Any:
+        """创建会话引擎：装载既有记录（store 可用时）、装配上下文与持久化旁路。"""
+        session_store = self.store if store is None else store
+        session_registry = self.registry if registry is None else registry
+        log, context, compactor = self._prepare_session(
+            conversation_id, session_store, system_prompt)
+        fact_sink, effort, seq_allocator, session_ctx = self._session_bindings(
+            conversation_id, session_store)
         return build_engine(
             conversation_id=conversation_id,
             log=log,
@@ -290,7 +282,7 @@ class App(AppModelPolicy, AppServices):
             fact_sink=fact_sink,
             system_prompt=system_prompt,
             cancel=cancel,
-            effort=str(effort_resolver(conversation_id)) if effort_resolver else "high",
+            effort=effort,
             model=self.model_for(conversation_id),
             image_turns=self.image_turns,
             image_max=self.image_max,
@@ -334,6 +326,307 @@ class App(AppModelPolicy, AppServices):
 
 
 
+class _AppAssembly:
+    """按阶段装配进程；每个阶段只持有自己的局部状态。"""
+
+    def __init__(self, *, provider: Any, store: Any, context_factory: Any,
+                 backup_root: Any, recycle_root: Any, live_state: Any,
+                 mesh: Any, backup_retention_days: Any, plugins_dir: Any,
+                 plugins_path: Any, compactor_factory: Any, config_ready: Any,
+                 data_root: Any) -> None:
+        self.provider = provider
+        self.store = store
+        self.context_factory = context_factory
+        self.backup_root = backup_root
+        self.recycle_root = recycle_root
+        self.live_state = live_state
+        self.mesh = mesh
+        self.backup_retention_days = backup_retention_days
+        self.plugins_dir = plugins_dir
+        self.plugins_path = plugins_path
+        self.compactor_factory = compactor_factory
+        self.config_ready = config_ready
+        self.data_root = Path(data_root) if data_root is not None else default_data_root()
+        self.available: list = []
+        self.default_model = ""
+
+    def build(self) -> App:
+        self._prepare_files()
+        self._prepare_runtime()
+        self._register_tools()
+        self._prepare_processing()
+        self._prepare_router()
+        self._assemble_app()
+        self._load_plugins()
+        return self.app
+
+    def _prepare_files(self) -> None:
+        backup_dir = self.data_root / "temp" / "file_backup"
+        recycle_dir = self.data_root / "recycle"
+        self.backups = FileBackups(
+            Path(self.backup_root) if self.backup_root is not None else backup_dir)
+        self.recycle = Recycle(
+            Path(self.recycle_root) if self.recycle_root is not None else recycle_dir)
+        days = (get_backup_retention_days() if self.backup_retention_days is None
+                else int(self.backup_retention_days))
+        if days <= 0:
+            return
+        try:
+            removed, kept = self.backups.prune(days)
+            if removed:
+                print(f"[core] 已清理 {removed} 份过期文件备份（保留 {kept} 份，"
+                      f"保留期 {days} 天）", file=sys.stderr, flush=True)
+        except Exception as exc:
+            report_error("core.backup_prune", exc)
+
+    def _prepare_runtime(self) -> None:
+        self.state = self.live_state if self.live_state is not None else LiveState(
+            storage_dir=self.data_root / "session_state",
+            default_effort=get_reasoning_effort(), default_model="",
+        )
+        if self.mesh is None:
+            self.queue = ConversationQueue(self.data_root / "queues")
+            self.mesh_state = MeshState(
+                storage_dir=self.data_root / "mesh", input_queue=self.queue)
+        else:
+            self.mesh_state = self.mesh
+            self.queue = self.mesh_state.queue
+        self.event_bus = EventBus()
+        self.registry = ToolRegistry()
+        self.background_tasks = BackgroundTaskManager([PROJECT_ROOT, self.data_root])
+        self.subagent_manager = None
+        if self.store is not None:
+            self.subagent_manager = SubagentManager(
+                data_root=self.data_root, parent_store=self.store,
+                mesh=self.mesh_state, queue=self.queue, event_bus=self.event_bus,
+            )
+        self.update_controller = UpdateController()
+
+    def _register_tools(self) -> None:
+        registry = self.registry
+        registry.register(background_task.build(self.background_tasks, self.state))
+        for builder in (echo.build, read_file.build, grep_files.build,
+                        glob_files.build, write_file.build):
+            registry.register(builder())
+        for plugin in edit_tools.build_plugins():
+            registry.register(plugin)
+        for plugin in fs_tools.build_plugins(self.backups, self.recycle):
+            registry.register(plugin)
+        for plugin in command_tools.build_plugins(self.state):
+            registry.register(plugin)
+        for plugin in tasks.build_plugins(self.state):
+            registry.register(plugin)
+        for plugin in session_tools.build_plugins(self.mesh_state):
+            registry.register(plugin)
+        if self.subagent_manager is not None:
+            for plugin in subagent_tools.build(self.subagent_manager):
+                registry.register(plugin)
+        for builder in (locate_tools.build_plugins, text_data_tools.build_plugins,
+                        system_tools.build_plugins, web_tools.build_plugins,
+                        ocr_tool.build_plugins, image_tool.build_plugins,
+                        archive_tool.build_plugins, geo_weather_tools.build_plugins):
+            for plugin in builder():
+                registry.register(plugin)
+        self.executors: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
+        self.executor_registry = ExecutorRegistry()
+        self.executors.update(write_file.build_executors(self.backups))
+        self.executors.update(edit_tools.build_executors(self.backups))
+        self.executors.update(fs_tools.build_executors(self.backups, self.recycle))
+        self.executors.update(archive_tool.build_executors())
+        registry.register(review_conclusion.build())
+        registry.register(present_tool.build())
+        registry.register(commit_write.build(self.executors, self.executor_registry))
+
+    @staticmethod
+    def _path_keys_for(registry: ToolRegistry, name: str):
+        plugin = registry.get(name)
+        return tuple(getattr(plugin, "write_path_keys", ()) or ()) if plugin else ()
+
+    def _prepare_processing(self) -> None:
+        self.contexts = SessionContexts(
+            lambda cid: QualityGate(
+                path_keys_for=lambda name: self._path_keys_for(self.registry, name)),
+            live=self.state,
+        )
+        self.pipeline = ToolPipeline()
+        pre, post = build_pipeline_gate(
+            registry=self.registry, sessions=self.contexts, live_state=self.state)
+        self.pipeline.add_pre(pre)
+        self.pipeline.add_post(post)
+        self.queue.set_change_listener(
+            lambda cid, snapshot: self.event_bus.publish(
+                Event(ev.QUEUE_UPDATED, {**dict(snapshot), "conversation_id": cid})))
+        self.context_sources = ContextSources()
+        self.prompt_tail = PromptTail()
+        self.prompt_sections = PromptSections()
+        self.contributions = ContributionRegistry()
+        self.model_catalog = ModelCatalog()
+        plugins_root = (Path(self.plugins_dir) if self.plugins_dir is not None
+                        else default_plugins_root())
+        self.plugin_host = PluginHost(
+            plugins_root, self.registry, event_bus=self.event_bus,
+            context_sources=self.context_sources, pipeline=self.pipeline,
+            contributions=self.contributions,
+            plugin_data_root=self.data_root / "plugin",
+            executors=self.executor_registry, model_catalog=self.model_catalog,
+            prompt_tail=self.prompt_tail, prompt_sections=self.prompt_sections,
+        )
+
+    def _prepare_router(self) -> None:
+        provider_inst = self.provider if self.provider is not None else EchoProvider()
+        self.router = ProviderRouter(
+            default=provider_inst, resolve=self.model_catalog.provider_for,
+            allowed_ids=self.available, default_id=self.default_model,
+            fallback_to_default=False,
+        )
+        ctx_cfg = get_context()
+        if self.context_factory is None:
+            def _default_context_factory(cid: str) -> ContextPipeline:
+                fresh = get_context()
+                return ContextPipeline(
+                    cid, full_user_rounds=int(fresh["full_user_rounds"]),
+                    summary_token_threshold=int(fresh["summary_token_fallback"]),
+                    reasoning_replay_tokens=int(fresh["reasoning_replay_tokens"]),
+                    model_context_window=0, sources=self.context_sources,
+                )
+            self.context_factory = _default_context_factory
+        if self.compactor_factory is None:
+            def _default_compactor_factory(cid: str) -> ContextCompactor:
+                fresh = get_context()
+                return ContextCompactor(
+                    make_provider_summarizer(
+                        self.router, max_chars=int(fresh["summary_output_max_chars"]),
+                        prefix_reuse=True),
+                    summary_token_threshold=int(fresh["summary_token_fallback"]),
+                    full_user_rounds=int(fresh["full_user_rounds"]),
+                )
+            self.compactor_factory = _default_compactor_factory
+        self.ctx_cfg = ctx_cfg
+
+    def _assemble_app(self) -> None:
+        self.context = AppContext()
+        self.error_log = ErrorLog(self.data_root)
+        self.context.register(SERVICE_ERROR_LOG, self.error_log)
+        self._unbind_error = bind_error_sink(self.error_log.report)
+        for name, service in (
+            (SERVICE_REGISTRY, self.registry), (SERVICE_PIPELINE, self.pipeline),
+            (SERVICE_PROVIDER, self.router), (SERVICE_MODEL_CATALOG, self.model_catalog),
+            (SERVICE_EVENT_BUS, self.event_bus), (SERVICE_PLUGIN_HOST, self.plugin_host),
+            (SERVICE_CONTEXT_SOURCES, self.context_sources),
+            (SERVICE_CONVERSATION_QUEUE, self.queue),
+            (SERVICE_PROMPT_TAIL, self.prompt_tail),
+            (SERVICE_PROMPT_SECTIONS, self.prompt_sections),
+            (SERVICE_LIVE_STATE, self.state), (SERVICE_MESH, self.mesh_state),
+            (SERVICE_SESSION_CONTEXTS, self.contexts),
+        ):
+            self.context.register(name, service)
+        if self.store is not None:
+            self.context.register(SERVICE_STORE, self.store)
+        if self.context_factory is not None:
+            self.context.register(SERVICE_SESSION_FACTORY, self.context_factory)
+        if self.compactor_factory is not None:
+            self.context.register(SERVICE_COMPACTOR_FACTORY, self.compactor_factory)
+        cfg = self.ctx_cfg
+        self.app = App(
+            self.context,
+            context_defaults={
+                "full_user_rounds": int(cfg["full_user_rounds"]),
+                "reasoning_replay_tokens": int(cfg["reasoning_replay_tokens"]),
+            },
+            image_turns=int(cfg["image_turns"]), image_max=int(cfg["image_max"]),
+            max_passes=get_max_passes(),
+        )
+        self.app._available_models = list(self.available)
+        self.app._error_unbind = self._unbind_error
+        if self.config_ready is None:
+            ready = bool(self.provider is not None) and not isinstance(
+                self.provider, MissingProvider)
+        else:
+            ready = bool(self.config_ready)
+        self.app.model_config_state = "config" if ready else "none"
+        self._build_runner()
+
+    def _build_runner(self) -> None:
+        hidden = {"session_send", "session_multisend", "session_broadcast",
+                  "session_create", "session_list"}
+        parent = ToolRegistryView(self.registry, excluded={"subagent_send"} | hidden)
+        child = ToolRegistryView(
+            self.registry, excluded={"subagent"} | hidden, honor_subagent_hidden=True)
+        self.runner = SessionRunner(
+            app=self.app, mesh=self.mesh_state,
+            registry_for=lambda cid: (
+                child if self.subagent_manager is not None
+                and self.subagent_manager.is_child(cid) else parent),
+            auto_continue=lambda cid: bool(self.state.get_autonomy(cid).get("enabled")),
+            goal_row=self.state.get_goal, prompt_sections=self.prompt_sections,
+        )
+        self.mesh_state.set_activator(self.runner.start)
+        if self.store is not None:
+            self.mesh_state.set_session_exists(lambda cid: bool(self.store.load(cid)))
+        if self.subagent_manager is not None:
+            self.runner.set_store_for(self.subagent_manager.store_for)
+            self.context.register(SERVICE_SUBAGENTS, self.subagent_manager)
+        self.context.register(SERVICE_BACKGROUND_TASKS, self.background_tasks)
+        self.context.register(SERVICE_UPDATE, self.update_controller)
+        self.context.register(SERVICE_RUNNER, self.runner)
+        self.background_tasks.set_notice(self._background_task_notice)
+        self.classic = ClassicAdapter(self.app)
+        self.classic.bind_bus(self.event_bus)
+        self.context.register(SERVICE_CLASSIC_ADAPTER, self.classic)
+        self.context.register(SERVICE_PLUGIN_EVENTS, PluginEventPublisher(self.classic))
+
+    def _background_notice_meta(self, text: str) -> Dict[str, Any]:
+        batch = ""
+        for line in str(text or "").splitlines():
+            if line.startswith("任务批次："):
+                batch = line[len("任务批次："):].split(" 已完结", 1)[0].strip()
+                break
+        return {"kind": "system_notice", "source": "background_tasks",
+                "notice_id": uuid.uuid4().hex, "batch": batch}
+
+    def _queue_background_notice(self, cid: str, text: str) -> None:
+        meta = self._background_notice_meta(text)
+        item = self.queue.enqueue(
+            cid, content=text, origin="system", delivery="next_pass",
+            payload={**meta, "rule": "user", "internal": True})
+        try:
+            self.queue.set_insert(cid, str(item.get("id") or ""))
+        except Exception as exc:
+            report_error("app.background_notice_insert", exc, conversation_id=cid)
+
+    def _background_task_notice(self, cid: str, text: str) -> None:
+        if self.mesh_state.is_running(cid):
+            self._queue_background_notice(cid, text)
+            return
+        meta = self._background_notice_meta(text)
+        started = self.runner.start(cid, {"content": text, "meta": meta})
+        if not started:
+            self._queue_background_notice(cid, text)
+
+    def _load_plugins(self) -> None:
+        self.plugin_host.app = self.app
+        self.plugin_host.load_manifest(get_plugins(self.plugins_path))
+        snapshot = self.model_catalog.snapshot()
+        if snapshot.authoritative:
+            self.app.model_config_state = "catalog"
+            self.app._available_models = [item.id for item in snapshot.entries]
+            self.state.default_model = snapshot.default_id
+            self.router.reload_policy(
+                allowed_ids=self.app._available_models,
+                default_id=snapshot.default_id, fallback_to_default=False)
+        elif self.app.model_config_state == "config":
+            self.app._available_models = list(self.available)
+            self.state.default_model = self.default_model
+            self.router.reload_policy(
+                allowed_ids=self.app._available_models,
+                default_id=self.default_model, fallback_to_default=False)
+        else:
+            self.app._available_models = []
+            self.state.default_model = ""
+            self.router.reload_policy(
+                allowed_ids=[], default_id="", fallback_to_default=False)
+
+
 def build_app(
     *,
     provider: Any = None,
@@ -350,372 +643,12 @@ def build_app(
     config_ready: Optional[bool] = None,
     data_root: Optional[Path] = None,
 ) -> App:
-    """组装底座：默认 Echo 假模型；可选真实 provider / 存储 / 上下文工厂。
-
-    backup_root / recycle_root：版本化备份与回收目录根（默认 PROJECT_ROOT/data 下；
-    写类工具覆盖前留备份供 file_undo 回滚，删除类操作移入回收目录可恢复）。
-    live_state：会话实时状态（模型 / 模式 / 档位 / todo 清单）；
-        默认落 PROJECT_ROOT/data/session_state（一个会话一份 JSON）。
-    mesh：会话协作网格（Agent 注册表 / 运行占位）；默认落 PROJECT_ROOT/data/mesh。
-    plugins_dir：插件根目录；默认 PROJECT_ROOT/plugins。装载哪些取工程根 plugins.ini 清单。
-    plugins_path：插件清单文件；默认工程根 plugins.ini。给一个不存在的路径即"不装插件"（验收脚本与测试用它排除环境里的开发配置）。
-    compactor_factory：上下文压缩器工厂；默认为对话提供 provider 摘要 + config [context] 阈值。
-    config_ready：是否有显式注入的可用 provider；None = 由 provider 参数判定。
-    data_root：队列 / 协作网格 / 插件数据 / 错误日志的落盘根。显式传入优先，
-        否则认 `AI_AGENT_DATA_ROOT`（进程级隔离口），再否则 `PROJECT_ROOT/data`。
-        测试必须传它：只靠环境变量的话，绕开 `scripts/ci.py` 直跑 unittest
-        会漏进工程 `data/`（队列项就是这么攒下来的）。"""
-    # 默认数据根：显式注入 > `AI_AGENT_DATA_ROOT` > `PROJECT_ROOT/data`——
-    # 见 `config.default_data_root` 的说明。
-    data_root = Path(data_root) if data_root is not None else default_data_root()
-    backup_dir = data_root / "temp" / "file_backup"
-    recycle_dir = data_root / "recycle"
-    backups = FileBackups(Path(backup_root) if backup_root is not None else backup_dir)
-    recycle = Recycle(Path(recycle_root) if recycle_root is not None else recycle_dir)
-    # 启动清账：删掉保留期之前的版本化备份。回滚能力的价值随时间衰减，
-    # 而备份只增不减 —— 不清的话它会一直涨。年龄取自 mod_id 里的日期段，
-    # 所以这一步不需要任何外部记账。失败只留痕，不阻断启动。
-    _retention_days = (get_backup_retention_days()
-                       if backup_retention_days is None else int(backup_retention_days))
-    if _retention_days > 0:
-        try:
-            _removed, _kept = backups.prune(_retention_days)
-            if _removed:
-                print(f"[core] 已清理 {_removed} 份过期文件备份（保留 {_kept} 份，"
-                      f"保留期 {_retention_days} 天）", file=sys.stderr, flush=True)
-        except Exception as exc:
-            report_error("core.backup_prune", exc)
-    _available: list = []
-    _default_model = ""
-    state = live_state if live_state is not None else LiveState(
-        storage_dir=data_root / "session_state",
-        default_effort=get_reasoning_effort(),
-        default_model="",
-    )
-    if mesh is None:
-        conversation_queue = ConversationQueue(data_root / "queues")
-        mesh_state = MeshState(storage_dir=data_root / "mesh",
-                               input_queue=conversation_queue)
-    else:
-        mesh_state = mesh
-        conversation_queue = mesh_state.queue
-
-    event_bus = EventBus()
-    registry = ToolRegistry()
-    background_tasks = BackgroundTaskManager([PROJECT_ROOT, data_root])
-    subagent_manager = None
-    if store is not None:
-        subagent_manager = SubagentManager(
-            data_root=data_root,
-            parent_store=store,
-            mesh=mesh_state,
-            queue=conversation_queue,
-            event_bus=event_bus,
-        )
-    update_controller = UpdateController()
-    registry.register(background_task.build(background_tasks, state))
-    registry.register(echo.build())
-    registry.register(read_file.build())
-    registry.register(grep_files.build())
-    registry.register(glob_files.build())
-    registry.register(write_file.build())
-    for plugin in edit_tools.build_plugins():
-        registry.register(plugin)
-    for plugin in fs_tools.build_plugins(backups, recycle):
-        registry.register(plugin)
-    for plugin in command_tools.build_plugins(state):
-        registry.register(plugin)
-    for plugin in tasks.build_plugins(state):
-        registry.register(plugin)
-    for plugin in session_tools.build_plugins(mesh_state):
-        registry.register(plugin)
-    if subagent_manager is not None:
-        for plugin in subagent_tools.build(subagent_manager):
-            registry.register(plugin)
-    for plugin in locate_tools.build_plugins():
-        registry.register(plugin)
-    for plugin in text_data_tools.build_plugins():
-        registry.register(plugin)
-    for plugin in system_tools.build_plugins():
-        registry.register(plugin)
-    for plugin in web_tools.build_plugins():
-        registry.register(plugin)
-    for plugin in ocr_tool.build_plugins():
-        registry.register(plugin)
-    for plugin in image_tool.build_plugins():
-        registry.register(plugin)
-    for plugin in archive_tool.build_plugins():
-        registry.register(plugin)
-    for plugin in geo_weather_tools.build_plugins():
-        registry.register(plugin)
-    def _path_keys_for(name: str):
-        plugin = registry.get(name)
-        if plugin is None:
-            return ()
-        return tuple(getattr(plugin, "write_path_keys", ()) or ())
-
-    contexts = SessionContexts(
-        lambda cid: QualityGate(path_keys_for=_path_keys_for),
-        live=state,
-    )
-    # 写盘工具经管道上下文取 session.gate；直调单测可另传门控实例。
-    registry.register(review_conclusion.build())
-    registry.register(present_tool.build())
-    executors: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
-    # 插件贡献的写类工具执行器登记在这里：提交那一刻才查，装配顺序无关。
-    executor_registry = ExecutorRegistry()
-    executors.update(write_file.build_executors(backups))
-    executors.update(edit_tools.build_executors(backups))
-    executors.update(fs_tools.build_executors(backups, recycle))
-    executors.update(archive_tool.build_executors())
-    registry.register(commit_write.build(executors, executor_registry))
-    pipeline = ToolPipeline()
-    # 管道钩子：会话门控经 sessions；预览只认工具 needs_preview。
-    pre, post = build_pipeline_gate(
-        registry=registry,
-        sessions=contexts,
-        live_state=state,
-    )
-    pipeline.add_pre(pre)
-    pipeline.add_post(post)
-    conversation_queue.set_change_listener(
-        lambda cid, snapshot: event_bus.publish(
-            Event(ev.QUEUE_UPDATED, {**dict(snapshot), "conversation_id": cid})
-        )
-    )
-    # 上下文注入源：插件按段注册（宿主不认具体插件，段名与数量由插件给）。
-    context_sources = ContextSources()
-    # 请求尾部片段：插件注入的临时文本，拼在执行模式之后，不进入系统提示词前缀。
-    prompt_tail = PromptTail()
-    prompt_sections = PromptSections()
-    # 插件贡献注册表：面板（界面）与插件命名空间端点（HTTP）都记在这里，
-    # 壳层只按数据枚举，不必为每个插件加分支。
-    contributions = ContributionRegistry()
-    # 模型目录：插件声明条目，装配末尾据"有效条目数"判定是否权威。
-    # 它与 provider 实例、内存缓存一样是进程级单例 —— 权威只能有一个。
-    model_catalog = ModelCatalog()
-    _plugins_root = Path(plugins_dir) if plugins_dir is not None else default_plugins_root()
-    plugin_host = PluginHost(
-        _plugins_root,
-        registry,
-        event_bus=event_bus,
-        context_sources=context_sources,
-        pipeline=pipeline,
-        # 插件贡献（右栏面板 / 输入区动作 / 插件命名空间端点）：壳层从这里枚举与转发
-        contributions=contributions,
-        # 插件专属存储根：各插件拿到 `<数据根>/plugin/<插件名>/`，互相隔离
-        plugin_data_root=data_root / "plugin",
-        executors=executor_registry,
-        model_catalog=model_catalog,
-        prompt_tail=prompt_tail,
-        prompt_sections=prompt_sections,
-    )
-    provider_inst = provider if provider is not None else EchoProvider()
-    # 路由从一开始就是 SERVICE_PROVIDER：内核只见一个 provider。
-    # 插件装载完成后按目录权威性刷新策略（见下方 `reload_policy`）。
-    # 没有目录条目时路由不允许回落到默认实例。
-    router = ProviderRouter(
-        default=provider_inst,
-        resolve=model_catalog.provider_for,
-        allowed_ids=_available,
-        default_id=_default_model,
-        fallback_to_default=False,
-    )
-    ctx_cfg = get_context()
-    if context_factory is None:
-        # 默认装配上下文管线：
-        # 没有它，回合里 `ctx.context` 恒为 None，请求只是"记录 derive 出来的扁平消息"，
-        # 上下文分段也无从谈起——只能退化成单段兜底。
-        def _default_context_factory(conversation_id: str) -> ContextPipeline:
-            # 这里逐项列出来（不是 `**context_defaults`）：漏一项就是"配置写了不生效"，
-            # 而且症状很隐蔽 —— 配置能读出来、界面也显示，只有行为不对。
-            # 每次建会话再读文件，设置页保存后下一回合用新阈值。
-            fresh = get_context()
-            return ContextPipeline(
-                conversation_id,
-                full_user_rounds=int(fresh["full_user_rounds"]),
-                summary_token_threshold=int(fresh["summary_token_fallback"]),
-                reasoning_replay_tokens=int(fresh["reasoning_replay_tokens"]),
-                # 上下文窗口属于"模型"而不是"上下文预算"：由会话按当前模型
-                # 在 `App.session` 里回填，工厂不猜。
-                model_context_window=0,
-                sources=context_sources,
-            )
-
-        context_factory = _default_context_factory
-    if compactor_factory is None:
-        def _default_compactor_factory(conversation_id: str) -> ContextCompactor:
-            # 每次建会话再读阈值和摘要长度，设置页保存后下一回合用新值。
-            fresh = get_context()
-            summarizer = make_provider_summarizer(
-                router,
-                max_chars=int(fresh["summary_output_max_chars"]),
-                # 摘要请求带上与平常请求相同的前缀，这次调用才能命中已有缓存。
-                prefix_reuse=True,
-            )
-            return ContextCompactor(
-                summarizer,
-                summary_token_threshold=int(fresh["summary_token_fallback"]),
-                full_user_rounds=int(fresh["full_user_rounds"]),
-            )
-
-        compactor_factory = _default_compactor_factory
-
-    # ── 进程级服务登记（AppContext 是唯一持有者）──
-    context = AppContext()
-    # 错误日志尽早登记并绑定：后续装配/插件装载失败也能落盘。
-    error_log = ErrorLog(data_root)
-    context.register(SERVICE_ERROR_LOG, error_log)
-    _unbind_error = bind_error_sink(error_log.report)
-    # 逆序即清理序（后注册先清理）：先会话注册表与运行器，再各机制，最后管道与注册表。
-    context.register(SERVICE_REGISTRY, registry)
-    context.register(SERVICE_PIPELINE, pipeline)
-    context.register(SERVICE_PROVIDER, router)
-    context.register(SERVICE_MODEL_CATALOG, model_catalog)
-    context.register(SERVICE_EVENT_BUS, event_bus)
-    context.register(SERVICE_PLUGIN_HOST, plugin_host)
-    context.register(SERVICE_CONTEXT_SOURCES, context_sources)
-    context.register(SERVICE_CONVERSATION_QUEUE, conversation_queue)
-    context.register(SERVICE_PROMPT_TAIL, prompt_tail)
-    context.register(SERVICE_PROMPT_SECTIONS, prompt_sections)
-    context.register(SERVICE_LIVE_STATE, state)
-    context.register(SERVICE_MESH, mesh_state)
-    context.register(SERVICE_SESSION_CONTEXTS, contexts)
-    if store is not None:
-        context.register(SERVICE_STORE, store)
-    if context_factory is not None:
-        context.register(SERVICE_SESSION_FACTORY, context_factory)
-    if compactor_factory is not None:
-        context.register(SERVICE_COMPACTOR_FACTORY, compactor_factory)
-
-    app = App(
-        context,
-        context_defaults={
-            "full_user_rounds": int(ctx_cfg["full_user_rounds"]),
-            "reasoning_replay_tokens": int(ctx_cfg["reasoning_replay_tokens"]),
-        },
-        image_turns=int(ctx_cfg["image_turns"]),
-        image_max=int(ctx_cfg["image_max"]),
-        max_passes=get_max_passes(),
-    )
-    app._available_models = list(_available)
-    app._error_unbind = _unbind_error
-    # 显式传入 provider 的装配（测试替身 / 自定义入口）本身就有模型可用；
-    # 只有显式注入且不是 MissingProvider 的装配才直接标记为可用。
-    if config_ready is None:
-        _config_ready = bool(provider is not None) and not isinstance(provider, MissingProvider)
-    else:
-        _config_ready = bool(config_ready)
-    app.model_config_state = "config" if _config_ready else "none"
-    hidden_session_tools = {
-        "session_send", "session_multisend", "session_broadcast",
-        "session_create", "session_list",
-    }
-    parent_registry = ToolRegistryView(
-        registry, excluded={"subagent_send"} | hidden_session_tools,
-    )
-    child_registry = ToolRegistryView(
-        registry,
-        excluded={"subagent"} | hidden_session_tools,
-        honor_subagent_hidden=True,
-    )
-    runner = SessionRunner(
-        app=app,
-        mesh=mesh_state,
-        registry_for=lambda cid: (
-            child_registry if subagent_manager is not None and subagent_manager.is_child(cid)
-            else parent_registry
-        ),
-        # 自主模式：回合结束后按会话决定是否再续一轮
-        auto_continue=lambda cid: bool(state.get_autonomy(cid).get("enabled")),
-        # 目标（Goal）：有目标时续跑与否由目标状态决定，发的是目标文案
-        goal_row=state.get_goal,
-        prompt_sections=prompt_sections,
-    )
-    mesh_state.set_activator(runner.start)
-    if store is not None:
-        mesh_state.set_session_exists(lambda cid: bool(store.load(cid)))
-    if subagent_manager is not None:
-        runner.set_store_for(subagent_manager.store_for)
-        context.register(SERVICE_SUBAGENTS, subagent_manager)
-    context.register(SERVICE_BACKGROUND_TASKS, background_tasks)
-    context.register(SERVICE_UPDATE, update_controller)
-    context.register(SERVICE_RUNNER, runner)
-    def _background_notice_meta(text: str) -> Dict[str, Any]:
-        batch = ""
-        for line in str(text or "").splitlines():
-            if line.startswith("任务批次："):
-                batch = line[len("任务批次："):].split(" 已完结", 1)[0].strip()
-                break
-        return {
-            "kind": "system_notice",
-            "source": "background_tasks",
-            "notice_id": uuid.uuid4().hex,
-            "batch": batch,
-        }
-
-    def _queue_background_notice(cid: str, text: str) -> None:
-        meta = _background_notice_meta(text)
-        item = conversation_queue.enqueue(
-            cid,
-            content=text,
-            origin="system",
-            delivery="next_pass",
-            payload={**meta, "rule": "user", "internal": True},
-        )
-        try:
-            conversation_queue.set_insert(cid, str(item.get("id") or ""))
-        except Exception as exc:
-            report_error("app.background_notice_insert", exc, conversation_id=cid)
-
-    def _background_task_notice(cid: str, text: str) -> None:
-        if mesh_state.is_running(cid):
-            _queue_background_notice(cid, text)
-            return
-        meta = _background_notice_meta(text)
-        started = runner.start(
-            cid,
-            {"content": text, "meta": meta},
-        )
-        if not started:
-            _queue_background_notice(cid, text)
-
-    background_tasks.set_notice(_background_task_notice)
-
-    # 经典界面适配层：观察内核事件总线做出站翻译（内核零改动，只加观察者）。
-    # 订阅是按需的（有 SSE 连接才订阅，最后一个断开就摘掉）——见 ClassicAdapter.bind_bus。
-    classic = ClassicAdapter(app)
-    classic.bind_bus(event_bus)
-    context.register(SERVICE_CLASSIC_ADAPTER, classic)
-    context.register(SERVICE_PLUGIN_EVENTS, PluginEventPublisher(classic))
-    # 插件加载放在装配末尾：插件的端点处理器要在调用时取内核服务
-    # （`ctx.app.registry` 之类），服务没注册完就加载会让它们全都取到 None。
-    # 注册贡献（面板 / 端点）本身是纯记账，放这里不影响工具与管道的装配顺序。
-    plugin_host.app = app
-    plugin_host.load_manifest(get_plugins(plugins_path))
-    # 插件装载完成后才算得出权威：目录"启用了"不等于"可用"，看有效条目数。
-    snapshot = model_catalog.snapshot()
-    if snapshot.authoritative:
-        app.model_config_state = "catalog"
-        app._available_models = [item.id for item in snapshot.entries]
-        state.default_model = snapshot.default_id
-        router.reload_policy(
-            allowed_ids=app._available_models,
-            default_id=snapshot.default_id,
-            fallback_to_default=False,
-        )
-    elif app.model_config_state == "config":
-        # 显式注入 provider 的测试/自定义装配：没有目录条目，保留默认 provider。
-        app._available_models = list(_available)
-        state.default_model = _default_model
-        router.reload_policy(
-            allowed_ids=app._available_models,
-            default_id=_default_model,
-            fallback_to_default=False,
-        )
-    else:
-        # 没有目录条目：清单为空，不能报出选不了的 id。
-        app._available_models = []
-        state.default_model = ""
-        router.reload_policy(allowed_ids=[], default_id="", fallback_to_default=False)
-    return app
+    """组装底座；具体阶段由 `_AppAssembly` 持有。"""
+    return _AppAssembly(
+        provider=provider, store=store, context_factory=context_factory,
+        backup_root=backup_root, recycle_root=recycle_root, live_state=live_state,
+        mesh=mesh, backup_retention_days=backup_retention_days,
+        plugins_dir=plugins_dir, plugins_path=plugins_path,
+        compactor_factory=compactor_factory, config_ready=config_ready,
+        data_root=data_root,
+    ).build()

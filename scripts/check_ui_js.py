@@ -201,128 +201,87 @@ def _js_path(rel: str) -> Path:
     return CLASSIC_DIR / rel
 
 
-def main() -> int:
-    missing = [
-        rel for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES
-        if not _js_path(rel).is_file()
-    ]
-    if missing:
-        print(f"[FAIL] 找不到 UI 脚本：{', '.join(missing)}")
-        return 1
-
-    lines, owner, extra_defined = _load_shared()
-    text = "\n".join(lines)
-    problems: list[str] = []
-    total = sum(len((CLASSIC_DIR / "js" / rel).read_text(encoding="utf-8").splitlines())
-                for rel in UI_JS_MODULES)
-
-    # ⑥ 被调用但从未定义的"辅助函数名"（`getAtUpBtn is not defined` 这类错
-    #    会让整个交互层挂掉，而 `node --check` 与其它检查项都查不出）
-    undef = _undefined_called(text, extra_defined)
-    if undef:
-        problems.append(
-            "被调用但从未定义的函数名（只有真跑页面才会炸）：" + "、".join(undef))
-
-    # ── ① 裸用未声明变量 ──
+def _watch_var_problems(lines: list[str], owner: list[str]) -> list[str]:
+    problems = []
     for name in WATCH_VARS:
         decl = re.compile(rf"\b(const|let|var|function)\s+{name}\b")
-        uses = []
         for i, ln in enumerate(lines, 1):
             s = ln.strip()
             if not re.match(rf"^{name}\s*(=|\.|\[)", s):
                 continue
-            # 往上看 200 行内是否有声明。UI 是长函数，窗口太窄会误报
-            # （40 行时 `card` 会被误判成未声明）；跨模块拼接后窗口依旧有效。
-            window = decl.search("\n".join(lines[max(0, i - 200):i]))
-            if not window:
-                uses.append((i, s[:110]))
-        for i, s in uses:
-            problems.append(f"{_where(owner, i)}  裸用 `{name}`（往前 200 行找不到声明）：{s}")
+            if decl.search("\n".join(lines[max(0, i - 200):i])):
+                continue
+            problems.append(
+                f"{_where(owner, i)}  裸用 `{name}`（往前 200 行找不到声明）：{s[:110]}")
+    return problems
 
-    # ── ② 骨架函数是否还在 ──
+
+def _required_problems(text: str) -> list[str]:
+    problems = []
     for fn in REQUIRED_FUNCTIONS:
-        # 三种合法定义都要认：`function f(){}`、`const f = ...=>`、`f = function`
-        # （只认第一种时，`submitUserConfirm`（箭头函数）会被误报成丢失）
-        patterns = (
-            rf"\bfunction\s+{fn}\b",
-            rf"\b(const|let|var)\s+{fn}\s*=",
-            rf"\b{fn}\s*=\s*(async\s*)?(function|\()",
-        )
+        patterns = (rf"\bfunction\s+{fn}\b", rf"\b(const|let|var)\s+{fn}\s*=",
+                    rf"\b{fn}\s*=\s*(async\s*)?(function|\()")
         if not any(re.search(p, text) for p in patterns):
             problems.append(f"骨架函数 `{fn}` 不见了（被误删会让功能静默失效）")
+    return problems
 
-    # ── ④ 内层函数被"外部"调用（作用域缺陷）──
-    #
-    # 缺陷形态：
-    #   function stopOpenToolTags(){ ... stopTextFor(o.chatRunStatus) ... }      // 调用方
-    #   function markOpenToolCardsStoped(){ ... var stopTextFor=function(){} }   // 声明在别人里面
-    # → `ReferenceError: stopTextFor is not defined`，被同行 `catch{}` 静默吞掉
-    #   （页面 `pageerror` 仍是 0），于是「本页点停运行中命令」的收尾不生效 ——
-    #   卡面一直停在「⏳ 等待执行结果中…」，只有量 DOM 才看得见。
-    #
-    # 判据刻意不用花括号计数：模板串与注释里的代码片段含大量不配对花括号，
-    # 逐行计数会把脚本作用域的声明算到深处（`stopTextFor` 会被算成深度 3）。
-    # 改用「找不到合法的调用来源」这个语义。
-    def _scrub(s: str) -> str:
-        s = re.sub(r'"(?:[^"\\]|\\.)*"', '""', s)
-        s = re.sub(r"'(?:[^'\\]|\\.)*'", "''", s)
-        return re.sub(r"//.*$", "", s)
 
-    def _func_spans() -> list:
-        """每个 `function name(` 的 (name, 起行, 止行)。
+def _scrub(s: str) -> str:
+    s = re.sub(r'"(?:[^"\\]|\\.)*"', '""', s)
+    s = re.sub(r"'(?:[^'\\]|\\.)*'", "''", s)
+    return re.sub(r"//.*$", "", s)
 
-        用净花括号深度定界（从函数头数到归零）——不能用"行首 function"，
-        模块里也有缩进的函数声明（跟在注释块后面），用行首判会漏掉它。
-        """
-        out = []
-        for i, ln in enumerate(lines):
-            m = re.search(r"(?:^|[\s;}])(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(", ln)
-            if not m:
-                continue
-            depth = _scrub(ln).count("{") - _scrub(ln).count("}")
-            if depth <= 0:
-                continue                      # 单行函数体，没有"内部"可言
-            j = i + 1
-            while j < len(lines) and depth > 0:
-                depth += _scrub(lines[j]).count("{") - _scrub(lines[j]).count("}")
-                j += 1
-            out.append((m.group(1), i + 1, j))
-        return out
 
-    spans = _func_spans()
+def _function_spans(lines: list[str]) -> list:
+    out = []
+    for i, ln in enumerate(lines):
+        m = re.search(r"(?:^|[\s;}])(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(", ln)
+        if not m:
+            continue
+        depth = _scrub(ln).count("{") - _scrub(ln).count("}")
+        if depth <= 0:
+            continue
+        j = i + 1
+        while j < len(lines) and depth > 0:
+            depth += _scrub(lines[j]).count("{") - _scrub(lines[j]).count("}")
+            j += 1
+        out.append((m.group(1), i + 1, j))
+    return out
+
+
+def _enclosing(spans: list, lineno: int) -> str | None:
+    best = None
+    for name, start, end in spans:
+        if start < lineno <= end and (best is None or start > best[1]):
+            best = (name, start)
+    return best[0] if best else None
+
+
+def _inner_function_problems(lines: list[str], owner: list[str]) -> list[str]:
+    spans = _function_spans(lines)
     script_names = {name for name, _s, _e in spans}
-
-    def _enclosing(lineno: int):
-        """lineno 落在哪个函数体里（取最内层）；没有则 None。"""
-        best = None
-        for name, s, e in spans:
-            if s < lineno <= e:
-                if best is None or s > best[1]:
-                    best = (name, s)
-        return best[0] if best else None
-
-    for name, decl_ln, _owner in [
-        (m.group(1), k + 1, None)
-        for k, ln in enumerate(lines)
-        for m in [re.match(
-            r"^[ \t]+(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\()",
-            ln)]
-        if m
-    ]:
+    problems = []
+    for decl_ln, ln in enumerate(lines, 1):
+        m = re.match(
+            r"^[ \t]+(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*"
+            r"(?:async\s*)?(?:function\b|\()", ln)
+        if not m:
+            continue
+        name = m.group(1)
         if name in script_names:
-            continue                      # 脚本作用域已有同名函数，谁都看得到
-        decl_in = _enclosing(decl_ln)
+            continue
+        decl_in = _enclosing(spans, decl_ln)
         if decl_in is None:
-            continue                      # 声明不在任何函数体里 = 脚本作用域，谁都看得到
+            continue
         callers = []
-        for k, ln in enumerate(lines, 1):
+        for k, line in enumerate(lines, 1):
             if k == decl_ln:
-                continue                  # 声明自身那行
-            if re.match(r"^[ \t]*(?:var|let|const)\s+" + re.escape(name) + r"\s*=", ln):
                 continue
-            if not re.search(rf"\b{re.escape(name)}\s*\(", ln):
+            if re.match(r"^[ \t]*(?:var|let|const)\s+" + re.escape(name) + r"\s*=", line):
                 continue
-            if _enclosing(k) != decl_in:  # 别的函数（或脚本作用域）在调用它
+            if not re.search(rf"\b{re.escape(name)}\s*\(", line):
+                continue
+            if _enclosing(spans, k) != decl_in:
                 callers.append(k)
         if callers:
             problems.append(
@@ -330,37 +289,59 @@ def main() -> int:
                 f"但 {_where(owner, callers[0])} 等处在别处调用了它 —— 会抛 "
                 f"`ReferenceError`；这类异常常被同行 `catch{{}}` 静默吞掉"
                 f"（`pageerror` 仍为 0），功能静默失效。请提升到脚本作用域。")
+    return problems
 
-    # ── ③ 界面脚本都必须存在且非空 ──
-    # 少注入一个脚本会让整块功能静默消失（页面不报错，功能没了），
-    # 所以这里逐个核对它们在磁盘上、且 `ui_bundle` 真的会把它们内联进去。
+
+def _asset_problems() -> list[str]:
+    problems = []
     for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES:
         path = _js_path(rel)
         if path.is_file() and not path.read_text(encoding="utf-8").strip():
             problems.append(f"界面脚本为空：{path.relative_to(CLASSIC_DIR)}")
+    return problems
 
-    # ── ⑤ 前端不得有厂商模型 id 种子 ──
-    # 种子会在 `/health` 失败或插件切换后变成第二权威：页面显示旧模型、
-    # 请求却按服务端清单拒绝，用户看到的是"保存了却没生效"。
+
+def _model_problems() -> list[str]:
+    problems = []
     for path in sorted(CLASSIC_DIR.rglob("*.js")):
         if "vendor" in path.parts:
             continue
         try:
             text = path.read_text(encoding="utf-8")
         except OSError as exc:
-            # 单个静态文件读不到就跳过；它不该让整个检查无法给出其余结论。
-            print(f"[scripts.check_ui_js.main] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            print(f"[scripts.check_ui_js.main] {type(exc).__name__}: {exc}",
+                  file=sys.stderr, flush=True)
             continue
         for lineno, line in model_id_literals(text):
             problems.append(
                 f"{path.relative_to(CLASSIC_DIR)}:{lineno} 出现厂商模型 id 字面量：{line[:90]}")
+    return problems
 
+
+def main() -> int:
+    missing = [rel for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES
+               if not _js_path(rel).is_file()]
+    if missing:
+        print(f"[FAIL] 找不到 UI 脚本：{', '.join(missing)}")
+        return 1
+    lines, owner, extra_defined = _load_shared()
+    text = "\n".join(lines)
+    total = sum(len((CLASSIC_DIR / "js" / rel).read_text(encoding="utf-8").splitlines())
+                for rel in UI_JS_MODULES)
+    problems: list[str] = []
+    undef = _undefined_called(text, extra_defined)
+    if undef:
+        problems.append("被调用但从未定义的函数名（只有真跑页面才会炸）：" + "、".join(undef))
+    problems += _watch_var_problems(lines, owner)
+    problems += _required_problems(text)
+    problems += _inner_function_problems(lines, owner)
+    problems += _asset_problems()
+    problems += _model_problems()
     print(f"UI JS 自检：{len(UI_JS_MODULES)} 个主脚本模块（{total} 行）")
-    for p in problems:
-        print(f"  [FAIL] {p}")
+    for problem in problems:
+        print(f"  [FAIL] {problem}")
     if problems:
-        print()
-        print("修法：补齐被误删的定义或脚本。")
+        print("\n修法：补齐被误删的定义或脚本。")
         return 1
     print("✅ 无裸用未声明变量、骨架函数齐全、脚本齐备")
     return 0

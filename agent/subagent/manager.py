@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import RLock
 from typing import Any, Dict
 
 from agent.core import event_name as ev
@@ -42,6 +43,7 @@ class SubagentManager:
         self.mesh = mesh
         self._event_bus = event_bus
         self._reported: Dict[str, str] = {}
+        self._reported_lock = RLock()
         self._unsubscribe = None
         self._unsubscribe_start = None
         if event_bus is not None:
@@ -52,7 +54,8 @@ class SubagentManager:
         data = getattr(event, "data", None) or {}
         child_id = str(data.get("conversation_id") or "").strip()
         if child_id and self.is_child(child_id):
-            self._reported[child_id] = ""
+            with self._reported_lock:
+                self._reported[child_id] = ""
 
     def _on_turn_ended(self, event: Any) -> None:
         data = getattr(event, "data", None) or {}
@@ -64,8 +67,9 @@ class SubagentManager:
         text = str(latest.get("result") or "").strip()
         if not text:
             text = "子智能体本轮没有输出。"
-        if self._reported.pop(child_id, "") == text:
-            return
+        with self._reported_lock:
+            if self._reported.pop(child_id, "") == text:
+                return
         try:
             self._messenger.send_to_parent(child_id, msg=text)
         except Exception as exc:
@@ -130,7 +134,8 @@ class SubagentManager:
     ) -> Dict[str, Any]:
         result = self._messenger.send_to_parent(child_id, msg=msg, images=images)
         if result.get("ok"):
-            self._reported[str(child_id)] = str(msg or "")
+            with self._reported_lock:
+                self._reported[str(child_id)] = str(msg or "")
         return result
 
     def history(self, parent_cid: str, child_id: str) -> Dict[str, Any]:

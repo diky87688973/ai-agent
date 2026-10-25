@@ -101,63 +101,39 @@ def render(
     files: Mapping[str, int],
     funcs: Mapping[str, int],
     per_file: Mapping[str, int],
-    file_reasons: Mapping[str, str],
-    func_reasons: Mapping[str, str],
     max_file_lines: int,
     max_function_lines: int,
-    function_count_reasons: Mapping[str, str] | None = None,
     max_file_functions: int = 40,
 ) -> str:
-    """渲染 `docs/complexity.md`（确定性输出）。"""
+    """渲染 `docs/complexity.md`（确定性输出；无豁免表）。"""
     bad_files, bad_funcs = over_threshold(
-        files, funcs, max_file_lines, max_function_lines
-    )
-    function_count_reasons = function_count_reasons or {}
+        files, funcs, max_file_lines, max_function_lines)
     bad_counts = over_file_functions(per_file, max_file_functions)
     lines = [
-        "# 复杂度登记",
+        "# 复杂度",
         "",
         f"> 阈值：单文件 > {max_file_lines} 行、单函数 > {max_function_lines} 行、"
         f"单文件 > {max_file_functions} 个函数。",
         "> 本文件由 `python scripts/gen_complexity_md.py` 生成；"
-        "`scripts/check_complexity.py` 比对实际集合与本表。",
+        "超过任一项即失败，没有豁免表。",
         "",
         "## 超阈值文件",
         "",
-        "| 文件 | 行数 | 函数数 | 保留理由 |",
-        "|---|---|---|---|",
     ]
-    for path, size in _sorted_rows(bad_files):
-        reason = file_reasons.get(path, "")
-        lines.append(f"| `{path}` | {size} | {per_file.get(path, 0)} | {reason} |")
     if not bad_files:
-        lines.append("| （无） | - | - | - |")
-
-    lines += [
-        "",
-        "## 函数数超阈值文件",
-        "",
-        "| 文件 | 函数数 | 保留理由 |",
-        "|---|---|---|",
-    ]
-    for path, count in _sorted_rows(bad_counts):
-        lines.append(f"| `{path}` | {count} | {function_count_reasons.get(path, '')} |")
-    if not bad_counts:
-        lines.append("| （无） | - | - |")
-
-    lines += [
-        "",
-        "## 超阈值函数",
-        "",
-        "| 文件::函数 | 行数 | 保留理由 |",
-        "|---|---|---|",
-    ]
-    for key, size in _sorted_rows(bad_funcs):
-        reason = func_reasons.get(key, "")
-        lines.append(f"| `{key}` | {size} | {reason} |")
+        lines.append("- 无")
+    for path, size in _sorted_rows(bad_files):
+        lines.append(f"- `{path}`：{size} 行，{per_file.get(path, 0)} 个函数")
+    lines += ["", "## 超阈值函数", ""]
     if not bad_funcs:
-        lines.append("| （无） | - | - |")
-
+        lines.append("- 无")
+    for key, size in _sorted_rows(bad_funcs):
+        lines.append(f"- `{key}`：{size} 行")
+    lines += ["", "## 函数数超阈值文件", ""]
+    if not bad_counts:
+        lines.append("- 无")
+    for path, count in _sorted_rows(bad_counts):
+        lines.append(f"- `{path}`：{count} 个函数")
     lines += [
         "",
         "## 采集范围",

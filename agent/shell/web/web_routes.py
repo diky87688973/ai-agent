@@ -165,170 +165,170 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
             return None
         return context.get(SERVICE_UPDATE)
 
-    def do_GET(self) -> None:
+    def _get_update(self, path: str, query: Any) -> bool:
+        if path == "/api/update/status":
+            controller = self._update_controller()
+            if controller is None:
+                self._json(503, {"ok": False, "error": "update_unavailable"})
+            else:
+                self._json(200, {"ok": True, **controller.status()})
+            return True
+        if path == "/api/update/logs":
+            controller = self._update_controller()
+            if controller is None:
+                self._json(503, {"ok": False, "error": "update_unavailable"})
+            else:
+                from agent.update.logs import tail
+                self._json(200, {"ok": True, "items": tail(controller.root)})
+            return True
+        return False
+
+    def _get_subagents(self, path: str, query: Any) -> bool:
+        if path == "/api/subagents":
+            status, payload = self.shell.subagents(
+                str(query.get("conversation_id") or "").strip(),
+                str(query.get("batch") or "").strip())
+            self._json(status, payload)
+            return True
+        if path == "/api/subagents/history":
+            status, payload = self.shell.subagent_history(
+                str(query.get("conversation_id") or "").strip(),
+                str(query.get("child_id") or "").strip())
+            self._json(status, payload)
+            return True
+        return False
+
+    def _get_background(self, path: str, query: Any) -> bool:
+        if path != "/api/background/tasks":
+            return False
+        manager = self._background_tasks()
+        if manager is None:
+            self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
+            return True
+        cid = str(query.get("conversation_id") or "").strip()
         try:
-            path = self._path()
-            query = self._query()
-            if path == "/api/update/status":
-                controller = self._update_controller()
-                if controller is None:
-                    self._json(503, {"ok": False, "error": "update_unavailable"})
-                else:
-                    self._json(200, {"ok": True, **controller.status()})
-                return
-            if path == "/api/update/logs":
-                controller = self._update_controller()
-                if controller is None:
-                    self._json(503, {"ok": False, "error": "update_unavailable"})
-                else:
-                    from agent.update.logs import tail
-                    self._json(200, {"ok": True, "items": tail(controller.root)})
-                return
-            if path == "/api/subagents":
-                parent = str(query.get("conversation_id") or "").strip()
-                batch = str(query.get("batch") or "").strip()
-                status, payload = self.shell.subagents(parent, batch)
-                self._json(status, payload)
-                return
-            if path == "/api/subagents/history":
-                parent = str(query.get("conversation_id") or "").strip()
-                child = str(query.get("child_id") or "").strip()
-                status, payload = self.shell.subagent_history(parent, child)
-                self._json(status, payload)
-                return
-            if path == "/api/background/tasks":
-                manager = self._background_tasks()
-                if manager is None:
-                    self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
-                    return
-                cid = str(query.get("conversation_id") or "").strip()
-                try:
-                    batch = str(query.get("batch") or "").strip()
-                    if batch:
-                        result = manager.list_tasks(
-                            cid,
-                            batch,
-                            task_id=str(query.get("task_id") or ""),
-                            status=str(query.get("status") or ""),
-                        )
-                    else:
-                        result = manager.snapshot(cid)
-                    self._json(200, result)
-                except ValueError as exc:
-                    self._json(400, {"ok": False, "error": str(exc)})
-                return
-            if path == "/":
-                self._classic_page()
-            elif path == "/favicon.ico":
-                self._asset("img/app_icon_128x128.png", "image/png")
+            batch = str(query.get("batch") or "").strip()
+            if batch:
+                result = manager.list_tasks(
+                    cid, batch, task_id=str(query.get("task_id") or ""),
+                    status=str(query.get("status") or ""))
+            else:
+                result = manager.snapshot(cid)
+            self._json(200, result)
+        except ValueError as exc:
+            self._json(400, {"ok": False, "error": str(exc)})
+        return True
 
-            elif path.startswith("/assets/"):
-                self._asset(path[len("/assets/") :])
-            elif path == "/health":
-                classic = self._classic()
-                if classic is not None:
-                    self._json(200, classic.health())
-                else:
-                    status, payload = self.shell.health()
-                    self._json(status, payload)
-            elif path == "/api/settings" or path.startswith("/api/settings/"):
-                from agent.shell.settings_panel import handle_get
+    def _get_page(self, path: str, query: Any) -> bool:
+        if path == "/":
+            self._classic_page()
+        elif path == "/favicon.ico":
+            self._asset("img/app_icon_128x128.png", "image/png")
+        elif path.startswith("/assets/"):
+            self._asset(path[len("/assets/"):])
+        elif path == "/health":
+            classic = self._classic()
+            if classic is not None:
+                self._json(200, classic.health())
+            else:
+                status, payload = self.shell.health()
+                self._json(status, payload)
+        elif path == "/api/settings" or path.startswith("/api/settings/"):
+            from agent.shell.settings_panel import handle_get
+            status, payload = handle_get(path, query, self.shell.app)
+            self._json(status, payload)
+        elif path == "/api/chat/queue":
+            status, payload = self.shell.queue(query.get("conversation_id", ""))
+            self._json(status, payload)
+        elif path == "/api/events/stream":
+            self._classic_sse(query)
+        elif path == "/api/usage-accumulator":
+            classic = self._classic()
+            self._json(200, classic.usage_get(query.get("conversation_id", ""))
+                       if classic else {"ok": False, "error": "适配层未装配"})
+        elif path == "/api/chat/attachment":
+            classic = self._classic()
+            if classic is None:
+                self._json(503, {"error": "适配层未装配"})
+            else:
+                status, body, ctype = classic.attachment(
+                    query.get("conversation_id", ""), query.get("id", ""))
+                self._bytes(status, body, ctype)
+        elif path == "/api/chat/history":
+            classic = self._classic()
+            if classic is not None:
+                self._json(200, classic.history(query.get("conversation_id", "")))
+            else:
+                status, payload = self.shell.history(query.get("conversation_id", ""))
+                self._json(status, payload)
+        elif path == "/api/chat/sessions":
+            classic = self._classic()
+            if classic is not None:
+                self._json(200, classic.sessions())
+            else:
+                status, payload = self.shell.sessions()
+                self._json(status, payload)
+        elif path == "/api/chat/ui-state":
+            classic = self._classic()
+            if classic is not None and not query.get("conversation_id"):
+                self._json(200, classic.ui_state_get())
+            else:
+                status, payload = self.shell.ui_state(query.get("conversation_id", ""))
+                self._json(status, payload)
+        else:
+            return False
+        return True
 
-                status, payload = handle_get(path, query, self.shell.app)
-                self._json(status, payload)
-            elif path == "/api/chat/queue":
-                status, payload = self.shell.queue(query.get("conversation_id", ""))
-                self._json(status, payload)
-            elif path == "/api/events/stream":
-                self._classic_sse(query)
-            elif path == "/api/usage-accumulator":
-                classic = self._classic()
-                self._json(200, classic.usage_get(query.get("conversation_id", ""))
-                           if classic else {"ok": False, "error": "适配层未装配"})
-            elif path == "/api/chat/attachment":
-                classic = self._classic()
-                if classic is None:
-                    self._json(503, {"error": "适配层未装配"})
-                else:
-                    status, body, ctype = classic.attachment(
-                        query.get("conversation_id", ""), query.get("id", ""))
-                    self._bytes(status, body, ctype)
-            elif path == "/api/chat/history":
-                # 经典界面要 `ok:true` + 老事件名；由适配层翻译（内核事件名与它不同）
-                classic = self._classic()
-                if classic is not None:
-                    self._json(200, classic.history(query.get("conversation_id", "")))
-                else:
-                    status, payload = self.shell.history(query.get("conversation_id", ""))
-                    self._json(status, payload)
-            elif path == "/api/chat/sessions":
-                # 经典界面读 `s.id`（不是 `conversation_id`）+ `date_group`
-                classic = self._classic()
-                if classic is not None:
-                    self._json(200, classic.sessions())
-                else:
-                    status, payload = self.shell.sessions()
-                    self._json(status, payload)
-            elif path == "/api/chat/ui-state":
-                # 语义不同：内核存「模式/todo/自主」，经典界面存「布局(tabs)」。
-                # 经典界面的 GET 不带 conversation_id（经典界面），
-                # 所以有适配层时一律走它，不落到内核那套上。
-                classic = self._classic()
-                if classic is not None and not query.get("conversation_id"):
-                    self._json(200, classic.ui_state_get())
-                else:
-                    status, payload = self.shell.ui_state(query.get("conversation_id", ""))
-                    self._json(status, payload)
-            elif path == "/api/fs/list":
-                status, payload = self.shell.fs_list(query.get("path", ""))
-                self._json(status, payload)
-            elif path == "/api/fs/read":
-                try:
-                    limit = int(query.get("max_chars") or 400000)
-                except (TypeError, ValueError):
-                    limit = 400000
-                status, payload = self.shell.fs_read(query.get("path", ""), limit)
-                self._json(status, payload)
-            elif path == "/api/panels":
-                # 插件贡献的右栏面板清单；界面按它动态建标签，不为每个插件加分支
-                self._json(200, {
-                    "ok": True,
-                    "panels": self.shell.panel_list(),
-                    "loaded": self.shell.loaded_plugin_names(),
-                })
-            elif path == "/api/actions":
-                # 插件贡献的输入区动作（输入框下面的按钮）；不声明就没有按钮
-                self._json(200, {"ok": True, "actions": self.shell.action_list()})
-            elif path == "/api/ctx-segment-styles":
-                # 插件贡献的上下文段外观；开屏注册，不必靠空面板脚本
-                self._json(200, {
-                    "ok": True,
-                    "styles": self.shell.ctx_segment_style_list(),
-                })
-            elif path == "/api/boot-scripts":
-                # 插件贡献的开屏脚本；面板脚本预载之后再注入
-                self._json(200, {
-                    "ok": True,
-                    "scripts": self.shell.boot_script_list(),
-                })
-            elif path == "/api/tool-labels":
-                # 工具展示清单（中文名 + 图标）：由工具自己声明，界面不维护工具名表
-                self._json(200, {"ok": True, "tools": self.shell.tool_list()})
-            elif path.startswith("/api/plugin/"):
-                # 插件自己的端点：命名空间内匹配声明过的路径形状（`:名字` 段可由请求填值）
-                self._plugin_route("GET")
-            elif path == "/api/dir-browse":
-                status, payload = self.shell.dir_browse(query.get("path", ""))
-                self._json(status, payload)
-            elif path == "/api/reasoning-effort":
-                status, payload = self.shell.reasoning_effort_get(
-                    query.get("conversation_id", "")
-                )
-                self._json(status, payload)
-            elif path == "/api/media":
-                # 传 None：按全部可见根校验。`media_root` 只覆盖第一个盘根，
-                # 生成物在别的盘上会被一律 403（`WebShell.media` 按全部可见根校验）。
-                status, payload, ctype = self.shell.media(query.get("path", ""), None)
+    def _get_misc(self, path: str, query: Any) -> None:
+        if path == "/api/fs/list":
+            status, payload = self.shell.fs_list(query.get("path", ""))
+            self._json(status, payload)
+        elif path == "/api/fs/read":
+            try:
+                limit = int(query.get("max_chars") or 400000)
+            except (TypeError, ValueError):
+                limit = 400000
+            status, payload = self.shell.fs_read(query.get("path", ""), limit)
+            self._json(status, payload)
+        elif path == "/api/panels":
+            self._json(200, {"ok": True, "panels": self.shell.panel_list(),
+                             "loaded": self.shell.loaded_plugin_names()})
+        elif path == "/api/actions":
+            self._json(200, {"ok": True, "actions": self.shell.action_list()})
+        elif path == "/api/ctx-segment-styles":
+            self._json(200, {"ok": True, "styles": self.shell.ctx_segment_style_list()})
+        elif path == "/api/boot-scripts":
+            self._json(200, {"ok": True, "scripts": self.shell.boot_script_list()})
+        elif path == "/api/tool-labels":
+            self._json(200, {"ok": True, "tools": self.shell.tool_list()})
+        elif path.startswith("/api/plugin/"):
+            self._plugin_route("GET")
+        elif path == "/api/dir-browse":
+            status, payload = self.shell.dir_browse(query.get("path", ""))
+            self._json(status, payload)
+        elif path == "/api/reasoning-effort":
+            status, payload = self.shell.reasoning_effort_get(
+                query.get("conversation_id", ""))
+            self._json(status, payload)
+        elif path == "/api/media":
+            status, payload, ctype = self.shell.media(query.get("path", ""), None)
+            if status == 200 and isinstance(payload, (bytes, bytearray)):
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(payload)))
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.wfile.write(payload)
+            else:
+                self._json(status, payload if isinstance(payload, dict) else {"error": "?"})
+        elif path.startswith("/workspace/"):
+            rel = unquote(path[len("/workspace/"):])
+            root = self.shell.workspace_root
+            if root is None:
+                self._json(404, {"error": "workspace 未配置"})
+            else:
+                status, payload, ctype = self.shell.media(
+                    str((root / rel).resolve()), root)
                 if status == 200 and isinstance(payload, (bytes, bytearray)):
                     self.send_response(200)
                     self.send_header("Content-Type", ctype)
@@ -337,266 +337,225 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(payload)
                 else:
-                    self._json(status, payload if isinstance(payload, dict) else {"error": "?"})
-            elif path.startswith("/workspace/"):
-                # 经典 UI 的 Markdown 渲染把工作区图片/视频重写成 `/workspace/<rel>`
-                # （用的是同类静态路由）。这里把它接上：根 = `workspace_root`，
-                # 复用 `media()` 的防越权校验（目标必须落在根内）。
-                rel = unquote(path[len("/workspace/"):])
-                root = self.shell.workspace_root
-                if root is None:
-                    self._json(404, {"error": "workspace 未配置"})
-                else:
-                    status, payload, ctype = self.shell.media(
-                        str((root / rel).resolve()), root)
-                    if status == 200 and isinstance(payload, (bytes, bytearray)):
-                        self.send_response(200)
-                        self.send_header("Content-Type", ctype)
-                        self.send_header("Content-Length", str(len(payload)))
-                        self.send_header("Cache-Control", "no-cache")
-                        self.end_headers()
-                        self.wfile.write(payload)
-                    else:
-                        self._json(status, payload if isinstance(payload, dict)
-                                   else {"error": "?"})
-            else:
-                self._json(404, {"error": "not found", "path": path})
+                    self._json(status, payload if isinstance(payload, dict)
+                               else {"error": "?"})
+        else:
+            self._json(404, {"error": "not found", "path": path})
+
+    def do_GET(self) -> None:
+        try:
+            path = self._path()
+            query = self._query()
+            if self._get_update(path, query):
+                return
+            if self._get_subagents(path, query):
+                return
+            if self._get_background(path, query):
+                return
+            if self._get_page(path, query):
+                return
+            self._get_misc(path, query)
         except Exception as exc:
             report_error("agent.shell.web.web_routes.Handler.do_GET", exc)
             self._safe_error(exc)
 
     # ── POST / PUT ────────────────────────────────────────
 
-    def do_POST(self) -> None:  # HTTP 动词命名（stdlib 约定）
+    def _post_chat_send(self, body: dict) -> None:
+        status, payload = self.shell.send(
+            str(body.get("conversation_id") or ""), str(body.get("message") or ""),
+            str(body.get("mode") or ""), body.get("images"),
+            str(body.get("model") or ""), str(body.get("draft_id") or ""))
+        classic = self._classic()
+        if classic is not None and status == 200:
+            cid = str(payload.get("conversation_id") or "")
+            items = classic.inbound.remember_attachments(cid, body.get("images"))
+            if items:
+                payload = {**payload, "attachments": [
+                    {"id": it["id"], "name": it["name"], "mime": it["mime"]}
+                    for it in items]}
+        self._json(status, payload)
+
+    def _post_update(self, path: str, body: dict) -> None:
+        controller = self._update_controller()
+        if controller is None:
+            self._json(503, {"ok": False, "error": "update_unavailable"})
+            return
+        try:
+            if path.endswith("/apply"):
+                context = getattr(getattr(self.shell, "app", None), "context", None)
+                manager = (context.get(SERVICE_BACKGROUND_TASKS)
+                           if context is not None and context.has(SERVICE_BACKGROUND_TASKS)
+                           else None)
+                if manager is not None and callable(getattr(manager, "active_total", None)):
+                    active = int(manager.active_total())
+                    if active > 0:
+                        raise ValueError(f"仍有 {active} 个后台任务，停止后再更新")
+                queue = (context.get(SERVICE_CONVERSATION_QUEUE)
+                         if context is not None
+                         and context.has(SERVICE_CONVERSATION_QUEUE) else None)
+                if queue is not None and callable(getattr(queue, "pending_total", None)):
+                    queued = int(queue.pending_total())
+                    if queued > 0:
+                        raise ValueError(f"仍有 {queued} 条待发送消息，处理后再更新")
+            if path.endswith("/check"):
+                result = controller.check()
+            elif path.endswith("/download"):
+                result = controller.download()
+            else:
+                result = controller.apply()
+        except (OSError, ValueError) as exc:
+            self._json(400, {"ok": False, "error": str(exc)})
+        else:
+            self._json(200, {"ok": True, **result})
+
+    def _post_background(self, path: str, body: dict) -> None:
+        manager = self._background_tasks()
+        if manager is None:
+            self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
+            return
+        if path == "/api/background/tasks/create":
+            try:
+                result = manager.create(
+                    str(body.get("conversation_id") or ""), body.get("argv"),
+                    str(body.get("cwd") or ""), int(body.get("timeout_sec") or 0),
+                    str(body.get("label") or ""), str(body.get("batch") or ""))
+            except (TypeError, ValueError) as exc:
+                self._json(400, {"ok": False, "error": str(exc)})
+            else:
+                self._json(200 if result.get("ok") else 409, result)
+        elif path == "/api/background/tasks/cancel":
+            try:
+                result = manager.cancel(
+                    str(body.get("conversation_id") or ""),
+                    str(body.get("task_id") or ""), str(body.get("reason") or ""))
+            except ValueError as exc:
+                self._json(400, {"ok": False, "error": str(exc)})
+            else:
+                self._json(200 if result.get("ok") else 404, result)
+        else:
+            try:
+                result = manager.output(
+                    str(body.get("conversation_id") or ""),
+                    str(body.get("task_id") or ""), bool(body.get("wait", False)),
+                    int(body.get("timeout_ms") or 30_000))
+            except (TypeError, ValueError) as exc:
+                self._json(400, {"ok": False, "error": str(exc)})
+            else:
+                self._json(200 if result.get("ok") else 404, result)
+
+    def _post_chat_misc(self, path: str, body: dict) -> bool:
+        if path == "/api/chat/user-confirm":
+            classic = self._classic()
+            if classic is not None:
+                status, payload = classic.user_confirm(
+                    str(body.get("conversation_id") or ""), body)
+            else:
+                status, payload = self.shell.confirm(
+                    str(body.get("conversation_id") or ""),
+                    str(body.get("confirm_id") or ""))
+            self._json(status, payload)
+        elif path == "/api/chat/title":
+            self._json(*self.shell.title(str(body.get("conversation_id") or "")))
+        elif path == "/api/chat/autonomous":
+            self._json(*self.shell.autonomous(
+                str(body.get("conversation_id") or ""), body.get("enabled")))
+        elif path == "/api/chat/stop":
+            self._json(*self.shell.stop(str(body.get("conversation_id") or "")))
+        elif path == "/api/chat/command-input":
+            classic = self._classic()
+            self._json(200, classic.command_input(
+                str(body.get("conversation_id") or ""), body)
+                if classic else {"ok": False, "error": "适配层未装配"})
+        else:
+            return False
+        return True
+
+    def _post_goal(self, body: dict) -> None:
+        state = getattr(getattr(self.shell, "app", None), "live_state", None)
+        cid = str(body.get("conversation_id") or "").strip()
+        action = str(body.get("action") or "get").strip().lower()
+        if state is None or not cid:
+            self._json(400, {"ok": False, "error": "conversation_id 与 live_state 均必需"})
+            return
+        try:
+            if action == "save":
+                text = str(body.get("text") or "")
+                goal = (state.set_goal(cid, text) if state.get_goal(cid) is None
+                        else state.update_goal(cid, text=text))
+            elif action == "get":
+                goal = state.get_goal(cid)
+            elif action == "resume":
+                text = str(body.get("text") or "").strip()
+                if text:
+                    goal = state.set_goal(cid, text)
+                elif state.get_goal(cid) is None:
+                    self._json(400, {"ok": False, "error": "目标不存在，且没有可恢复的文案"})
+                    return
+                else:
+                    goal = state.update_goal(cid, status="active")
+            elif action in ("pause", "done"):
+                goal = state.update_goal(
+                    cid, status={"pause": "paused", "done": "done"}[action])
+            elif action == "delete":
+                state.delete_goal(cid)
+                goal = None
+            else:
+                self._json(400, {"ok": False, "error": f"未知 action：{action}"})
+                return
+        except Exception as exc:
+            report_error("agent.shell.web.web_routes.Handler.do_POST", exc)
+            self._json(400, {"ok": False, "error": str(exc)})
+            return
+        self._json(200, {"ok": True, "goal": goal})
+
+    def _post_queue(self, path: str, body: dict) -> bool:
+        match = re.fullmatch(r"/api/chat/queue/([A-Za-z0-9_-]{8,64})/(insert|recall)", path)
+        if match is None:
+            return False
+        if match.group(2) == "insert":
+            self._json(*self.shell.queue_insert(
+                str(body.get("conversation_id") or ""), match.group(1)))
+        else:
+            self._json(*self.shell.queue_recall(
+                str(body.get("conversation_id") or ""), match.group(1)))
+        return True
+
+    def do_POST(self) -> None:
         try:
             path = self._path()
             body = self._read_body()
             if path == "/api/chat/send":
-                status, payload = self.shell.send(
+                self._post_chat_send(body)
+                return
+            if path in ("/api/update/check", "/api/update/download", "/api/update/apply"):
+                self._post_update(path, body)
+                return
+            if path == "/api/subagents/send":
+                self._json(*self.shell.subagent_send(
                     str(body.get("conversation_id") or ""),
-                    str(body.get("message") or ""),
-                    str(body.get("mode") or ""),
-                    body.get("images"),
-                    str(body.get("model") or ""),
-                    str(body.get("draft_id") or ""),
-                )
-                # 经典界面会读返回体里的 `attachments`（Array 且非空才重建附件条，
-                # il.js:168 用它拼 /api/chat/attachment 的 URL）。内核返回体不含该字段，
-                # 须由适配层补：登记本轮图片并给出可引用 id。
-                classic = self._classic()
-                if classic is not None and status == 200:
-                    cid = str(payload.get("conversation_id") or "")
-                    items = classic.inbound.remember_attachments(cid, body.get("images"))
-                    if items:
-                        payload = {
-                            **payload,
-                            "attachments": [
-                                {"id": it["id"], "name": it["name"], "mime": it["mime"]}
-                                for it in items
-                            ],
-                        }
-                self._json(status, payload)
-            elif path in ("/api/update/check", "/api/update/download", "/api/update/apply"):
-                controller = self._update_controller()
-                if controller is None:
-                    self._json(503, {"ok": False, "error": "update_unavailable"})
-                    return
-                try:
-                    if path.endswith("/apply"):
-                        context = getattr(getattr(self.shell, "app", None), "context", None)
-                        manager = context.get(SERVICE_BACKGROUND_TASKS) if context is not None and context.has(SERVICE_BACKGROUND_TASKS) else None
-                        if manager is not None and callable(getattr(manager, "active_total", None)):
-                            active = int(manager.active_total())
-                            if active > 0:
-                                raise ValueError(f"仍有 {active} 个后台任务，停止后再更新")
-                        queue = context.get(SERVICE_CONVERSATION_QUEUE) if context is not None and context.has(SERVICE_CONVERSATION_QUEUE) else None
-                        if queue is not None and callable(getattr(queue, "pending_total", None)):
-                            queued = int(queue.pending_total())
-                            if queued > 0:
-                                raise ValueError(f"仍有 {queued} 条待发送消息，处理后再更新")
-                    if path.endswith("/check"):
-                        result = controller.check()
-                    elif path.endswith("/download"):
-                        result = controller.download()
-                    else:
-                        result = controller.apply()
-                except (OSError, ValueError) as exc:
-                    self._json(400, {"ok": False, "error": str(exc)})
-                else:
-                    self._json(200, {"ok": True, **result})
+                    str(body.get("child_id") or ""), str(body.get("msg") or ""),
+                    images=body.get("images")))
                 return
-            elif path == "/api/subagents/send":
-                parent = str(body.get("conversation_id") or "").strip()
-                child = str(body.get("child_id") or "").strip()
-                status, payload = self.shell.subagent_send(
-                    parent,
-                    child,
-                    str(body.get("msg") or ""),
-                    images=body.get("images"),
-                )
-                self._json(status, payload)
+            if path.startswith("/api/background/tasks/"):
+                self._post_background(path, body)
                 return
-            elif path == "/api/background/tasks/create":
-                manager = self._background_tasks()
-                if manager is None:
-                    self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
-                    return
-                try:
-                    result = manager.create(
-                        str(body.get("conversation_id") or ""),
-                        body.get("argv"),
-                        str(body.get("cwd") or ""),
-                        int(body.get("timeout_sec") or 0),
-                        str(body.get("label") or ""),
-                        str(body.get("batch") or ""),
-                    )
-                except (TypeError, ValueError) as exc:
-                    self._json(400, {"ok": False, "error": str(exc)})
-                else:
-                    self._json(200 if result.get("ok") else 409, result)
+            if path == "/api/chat/goal":
+                self._post_goal(body)
                 return
-            elif path == "/api/background/tasks/cancel":
-                manager = self._background_tasks()
-                if manager is None:
-                    self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
-                    return
-                try:
-                    result = manager.cancel(
-                        str(body.get("conversation_id") or ""),
-                        str(body.get("task_id") or ""),
-                        str(body.get("reason") or ""),
-                    )
-                except ValueError as exc:
-                    self._json(400, {"ok": False, "error": str(exc)})
-                else:
-                    self._json(200 if result.get("ok") else 404, result)
+            if self._post_chat_misc(path, body):
                 return
-            elif path == "/api/background/tasks/output":
-                manager = self._background_tasks()
-                if manager is None:
-                    self._json(503, {"ok": False, "error": "background_tasks_unavailable"})
-                    return
-                try:
-                    result = manager.output(
-                        str(body.get("conversation_id") or ""),
-                        str(body.get("task_id") or ""),
-                        bool(body.get("wait", False)),
-                        int(body.get("timeout_ms") or 30_000),
-                    )
-                except (TypeError, ValueError) as exc:
-                    self._json(400, {"ok": False, "error": str(exc)})
-                else:
-                    self._json(200 if result.get("ok") else 404, result)
+            if path.startswith("/api/chat/queue/") and self._post_queue(path, body):
                 return
-            elif path == "/api/chat/user-confirm":
-                # 确认端点承载两类请求（经典界面两种情况共用一个端点）：
-                #   ① 写盘门控：带 `confirm_id` → 解锁预览快照（内核既有行为）；
-                #   ② 选择回填：带 `confirm` 文本 → 把用户选择送回模型
-                #      （`user_confirm` 工具的第二段；经典界面期待返回体带 `run_id`）。
-                # 适配层负责分流与回填，内核的 `shell.confirm` 原样复用。
-                classic = self._classic()
-                if classic is not None:
-                    status, payload = classic.user_confirm(
-                        str(body.get("conversation_id") or ""), body
-                    )
-                else:
-                    status, payload = self.shell.confirm(
-                        str(body.get("conversation_id") or ""),
-                        str(body.get("confirm_id") or ""),
-                    )
-                self._json(status, payload)
-            elif path == "/api/chat/title":
-                status, payload = self.shell.title(str(body.get("conversation_id") or ""))
-                self._json(status, payload)
-            elif path == "/api/chat/autonomous":
-                status, payload = self.shell.autonomous(
-                    str(body.get("conversation_id") or ""),
-                    body.get("enabled"),
-                )
-                self._json(status, payload)
-            elif path == "/api/chat/stop":
-                status, payload = self.shell.stop(str(body.get("conversation_id") or ""))
-                self._json(status, payload)
-            elif path == "/api/chat/goal":
-                # 前端「目标」按钮：save=建/改、pause、resume、done、delete、get
-                # `self.shell` 才是装配好的 App（`self.app` 属于 `WebShell`，不在处理器上）
-                state = getattr(getattr(self, "shell", None), "app", None)
-                state = getattr(state, "live_state", None)
-                cid = str(body.get("conversation_id") or "").strip()
-                action = str(body.get("action") or "get").strip().lower()
-                if state is None or not cid:
-                    self._json(400, {"ok": False, "error": "conversation_id 与 live_state 均必需"})
-                    return
-                try:
-                    if action == "save":
-                        # 「保存」只改文案：paused/done 保持原状态
-                        # （否则改成重开会让自动续跑被重新触发），备注也不清除。
-                        text = str(body.get("text") or "")
-                        existing = state.get_goal(cid)
-                        if existing is None:
-                            goal = state.set_goal(cid, text)
-                        else:
-                            goal = state.update_goal(cid, text=text)
-                    elif action == "get":
-                        goal = state.get_goal(cid)
-                    elif action == "resume":
-                        text = str(body.get("text") or "").strip()
-                        if text:
-                            # 页面文案就是恢复后的目标：同会话已有目标也整体替换。
-                            goal = state.set_goal(cid, text)
-                        elif state.get_goal(cid) is None:
-                            self._json(400, {"ok": False,
-                                             "error": "目标不存在，且没有可恢复的文案"})
-                            return
-                        else:
-                            goal = state.update_goal(cid, status="active")
-                    elif action in ("pause", "done"):
-                        goal = state.update_goal(
-                            cid, status={"pause": "paused", "done": "done"}[action])
-                    elif action == "delete":
-                        state.delete_goal(cid)
-                        goal = None
-                    else:
-                        self._json(400, {"ok": False, "error": f"未知 action：{action}"})
-                        return
-                except Exception as exc:
-                    report_error("agent.shell.web.web_routes.Handler.do_POST", exc)
-                    self._json(400, {"ok": False, "error": str(exc)})
-                    return
-                self._json(200, {"ok": True, "goal": goal})
-            elif path == "/api/chat/command-input":
-                # 预留通道：端点保持接通、可返回成功，内核暂不消费其内容
-                classic = self._classic()
-                self._json(200, classic.command_input(
-                    str(body.get("conversation_id") or ""), body)
-                    if classic else {"ok": False, "error": "适配层未装配"})
-            elif path.startswith("/api/chat/queue/"):
-                match = re.fullmatch(
-                    r"/api/chat/queue/([A-Za-z0-9_-]{8,64})/(insert|recall)", path
-                )
-                if match is None:
-                    self._json(404, {"error": "not found", "path": path})
-                elif match.group(2) == "insert":
-                    status, payload = self.shell.queue_insert(
-                        str(body.get("conversation_id") or ""), match.group(1)
-                    )
-                    self._json(status, payload)
-                else:
-                    status, payload = self.shell.queue_recall(
-                        str(body.get("conversation_id") or ""), match.group(1)
-                    )
-                    self._json(status, payload)
-            elif path.startswith("/api/plugin/"):
-                # 插件业务提交（生成任务、保存配置等）走这条
+            if path.startswith("/api/plugin/"):
                 self._plugin_route("POST", body)
-            elif path == "/api/settings" or path.startswith("/api/settings/"):
+                return
+            if path == "/api/settings" or path.startswith("/api/settings/"):
                 from agent.shell.settings_panel import handle_post
-
-                status, payload = handle_post(
-                    path, body, getattr(self.shell, "app", None))
-                self._json(status, payload)
-            else:
-                self._json(404, {"error": "not found", "path": path})
+                self._json(*handle_post(
+                    path, body, getattr(self.shell, "app", None)))
+                return
+            self._json(404, {"error": "not found", "path": path})
         except Exception as exc:
             report_error("agent.shell.web.web_routes.Handler.do_POST", exc)
             self._safe_error(exc)

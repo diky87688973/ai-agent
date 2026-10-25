@@ -461,135 +461,79 @@ class SessionStore:
                   f"丢弃最旧的 {dropped} 批（磁盘长期不可写）",
                   file=sys.stderr, flush=True)
 
+    def _render_rows(self, conversation_id: str, rows_events: list) -> list[str]:
+        missing = sum(1 for e in rows_events if event_seq(e) is None)
+        fallback = self.allocate_seq(missing) if missing else 0
+        rows: list[str] = []
+        on_disk = self._written_seqs(conversation_id)
+        for event in rows_events:
+            seq = event_seq(event)
+            if seq is None:
+                if isinstance(getattr(event, "data", None), dict):
+                    event.data["_seq"] = fallback
+                    fallback += 1
+            elif seq in on_disk:
+                continue
+            else:
+                on_disk.add(seq)
+            rows.append(self._encrypt_line(event_to_json(event)))
+        return rows
+
+    def _append_rows(self, path: Path, rows: list[str]) -> None:
+        with self._append_lock(path), cross_process_lock(path):
+            offset = path.stat().st_size if path.is_file() else 0
+            try:
+                with path.open("a", encoding="utf-8", newline="\n") as fh:
+                    good_end = self._last_good_end(path) if offset > 0 else 0
+                    if 0 <= good_end < offset:
+                        try:
+                            with path.open("r+b") as tf:
+                                tf.truncate(good_end)
+                                tf.flush()
+                        except OSError:
+                            fh.write("\n")
+                    for row in rows:
+                        fh.write(row)
+                        fh.write("\n")
+                    fh.flush()
+                    if self.durable:
+                        os.fsync(fh.fileno())
+            except Exception:
+                try:
+                    if path.is_file() and path.stat().st_size > offset:
+                        with path.open("r+b") as fh:
+                            fh.truncate(offset)
+                except OSError as exc:
+                    report_error(
+                        "agent.mechanisms.session_store.SessionStore._write_rows", exc)
+                raise
+
+    def _pending_write(self, conversation_id: str, rows_events: list,
+                       exc: Exception) -> None:
+        report_error("agent.mechanisms.session_store.SessionStore._write_rows", exc)
+        with self._written_guard:
+            self._written.pop(conversation_id, None)
+            self._written_fp.pop(conversation_id, None)
+        self._put_pending(conversation_id, rows_events)
+
     def _write_rows(self, conversation_id: str, rows_events: list,
                     requested: int) -> int:
-        """把事实渲染成行并原子写入；任何失败都进待重试队列后抛出。
-
-        `requested` 只用于返回值（"本次请求写入的行数"）—— 补投的旧批次
-        不该算进调用方的计数里（否则日志/测试很难读）。
-
-        ## 整段都在 try 里
-
-        行渲染若留在 try 之外，渲染阶段抛异常（编码失败、内存不足）就直接
-        逃出函数，队列根本没进（`_put_pending` 不被调用）。
-        所以整段包起来：无论在哪一步失败，数据都留在队列里等下次重试。
-        """
+        """渲染并原子写入；失败进入待重试队列后抛出。"""
         if not rows_events:
             return 0
         try:
-            missing = sum(1 for e in rows_events if event_seq(e) is None)
-            fallback = self.allocate_seq(missing) if missing else 0
             path = self.raw_path(conversation_id)
             path.parent.mkdir(parents=True, exist_ok=True)
-
-            # 先把本批渲染成行（同时补坐标）—— 任何编码/序列化错误都在动文件之前抛出。
-            rows: list[str] = []
-            # 第二道防线：写过的不再写。用进程内集合（每趟读盘要 238ms@11MB）；
-            # 它就是 `_written[cid]` 那个集合本身（引用），而 `_written` 由
-            # 「写成功并入 + 失败整桶失效 + 文件指纹不符就重播种」共同维护 ——
-            # 它已经等于"盘上坐标 ∪ 本批已并入坐标"，不需要额外的读盘并集核对。
-            # 批内重复由下面的 `on_disk.add(seq)` 自己挡住。
-            on_disk = self._written_seqs(conversation_id)
-            for event in rows_events:
-                seq = event_seq(event)
-                if seq is None:
-                    if isinstance(getattr(event, "data", None), dict):
-                        event.data["_seq"] = fallback
-                        fallback += 1
-                elif seq in on_disk:
-                    continue     # 已写过（重复投递/重试）→ 跳过
-                else:
-                    on_disk.add(seq)
-                rows.append(self._encrypt_line(event_to_json(event)))
+            rows = self._render_rows(conversation_id, rows_events)
             if not rows:
-                return requested        # 全都写过了：不需要动文件
-
-            # ## 回滚方式：偏移量 + 截断
-            #
-            # 整文件重写（临时文件 + `os.replace`）正确但有代价：2.33MB 会话上
-            # 一次 append 要 14.3 ms（对照 `open('a')` 追加的 0.133 ms），
-            # 11.28MB 时 26.2 ms，且随会话长度二次增长 —— 每趟（十几条事件）都要把
-            # 全文读一遍再写一遍。
-            #
-            # 硬要求只有一条：失败后重试同一批不能产生重复行。做到它不必重写全文：
-            #   ① 追加前记下文件偏移（`stat().st_size`）；
-            #   ② 以 `a` 模式追加本批；
-            #   ③ `flush`（可选 `fsync`，见 `durable`）；
-            #   ④ 任何一步失败 → `truncate(offset)` 回滚到追加前，再交给待重试队列。
-            # "要么整批可见、要么整批不可见"照样成立，而常见路径只写本批。
-            #
-            # ⚠️ 按文件串行（`self._append_lock`）：偏移量 + 截断是读改写，
-            # 两个写者并发会互相截断。不串行的代价：8 线程 × 25 批里
-            # 195/200 次抛 `PermissionError [WinError 32]`、只写进 4 行。
-            # 进程内锁 + 跨进程锁，两层都要（见 `cross_process_lock` 的说明）
-            with self._append_lock(path), cross_process_lock(path):
-                offset = path.stat().st_size if path.is_file() else 0
-                try:
-                    with path.open("a", encoding="utf-8", newline="\n") as fh:
-                        # 防御性隔离（边界情况）：
-                        # 若文件末尾没有换行（残行出自写到一半、或出自外部追加），
-                        # 直接追加会把本批粘到那条残行上，两条一起变成坏行 ——
-                        # `load` 会把它们一起跳过，于是本批事实静默丢失：
-                        #   '…}\n{"_seq":999,"type":"broken"'  +  本批
-                        #   = '…}\n{"_seq":999,"type":"broken"{"type":"input_claimed",…}\n'
-                        # 先补一个换行隔离：残行照样是坏的（本来就坏），但本批完好。
-                        # 回滚偏移仍取 `offset` —— 失败时本批连同补的换行一起撤掉。
-                        # 自愈（见 `_last_good_end` 的说明）：残行不是「隔开」而是「截掉」。
-                        # 截断在 `offset` 之前完成，所以 `offset` 仍是截断后的文件尾，
-                        # 回滚语义不变。截断失败就退回「补一个换行隔离」以保证本批不被粘坏。
-                        good_end = self._last_good_end(path) if offset > 0 else 0
-                        if 0 <= good_end < offset:
-                            try:
-                                with path.open("r+b") as tf:
-                                    tf.truncate(good_end)
-                                    tf.flush()
-                            except OSError:
-                                # 旁路，刻意吞掉：截不掉就退回隔离写法 ——
-                                # 宁可留一条残行，也不能让本批被粘坏（那会静默丢本批）。
-                                fh.write("\n")
-                        for row in rows:
-                            fh.write(row)
-                            fh.write("\n")
-                        fh.flush()
-                        if self.durable:
-                            # 可选：只防断电/蓝屏（见 __init__ 里 durable 的说明）
-                            os.fsync(fh.fileno())
-                except Exception:
-                    # 回滚到追加前 —— 这一步让"重试整批"不会产生重复行。
-                    try:
-                        if path.is_file() and path.stat().st_size > offset:
-                            with path.open("r+b") as fh:
-                                fh.truncate(offset)
-                    except OSError as exc:
-                        # 旁路，刻意吞掉：回滚失败也不能顶掉原始异常
-                        # （调用方必须知道"这趟没落盘"）。数据仍在待重试队列里。
-                        report_error("agent.mechanisms.session_store.SessionStore._write_rows", exc)
-                    # 这里不做坐标撤回 —— 外层 `except` 会无条件整桶失效
-                    # （`_written.pop`），那是更强的不变量：
-                    #   · 回滚成功 → 那批不在盘上 → 整桶失效后重播种，不会误跳过；
-                    #   · 回滚失败 → 那批可能已在盘上 → 撤单个坐标会让重试重复写
-                    #     （例如 `seqs=[0,1,1]`）；整桶失效则重新读盘、不会重复。
-                    raise
+                return requested
+            self._append_rows(path, rows)
         except Exception as exc:
-            # 写不进去 → 进待重试队列（跨回合、跨引擎实例存活），再把异常照常抛出：
-            # 调用方（引擎）仍要知道这一趟没落盘，但数据不会随对象被回收而消失。
-            #
-            # 撤掉刚并入的坐标：`on_disk` 就是 `_written[cid]` 那个集合本身（引用），
-            # 而渲染阶段就会往里 `add` —— 任何失败都要撤；否则重试时 `seq in on_disk`
-            # 会命中、事件被静默跳过（丢数据）。
-            #
-            # 这里本就该整桶失效 —— `_written_seqs` 只在首次读盘播种、此后不复核，
-            # 所以"外部清空 / 截断了 `.raw`"之后，同坐标重投会被静默跳过（盘上 0 行）。
-            # 统一成"任何失败都让该会话的桶失效"：下次 append 重新读盘，
-            # 既不误跳过、也不会重复写。多读一次盘的代价远小于静默丢数据。
-            report_error("agent.mechanisms.session_store.SessionStore._write_rows", exc)
-            with self._written_guard:
-                self._written.pop(conversation_id, None)
-                self._written_fp.pop(conversation_id, None)
-            self._put_pending(conversation_id, rows_events)
+            self._pending_write(conversation_id, rows_events, exc)
             raise
         with self._written_guard:
-            self._written_fp[conversation_id] = self._file_fp(self.raw_path(conversation_id))
+            self._written_fp[conversation_id] = self._file_fp(
+                self.raw_path(conversation_id))
         return requested if requested else len(rows_events)
 
     def line_count(self, conversation_id: str, *, path: Optional[Path] = None) -> int:

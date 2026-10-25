@@ -115,11 +115,12 @@ class PluginContext:
         self._disposers.append(disposer)
         return disposer
 
-    def add_mode_tail(self, fn: Callable[[str], Any]) -> Disposer:
-        """注册请求尾部片段（执行模式之后；不进系统提示词前缀）。"""
+    def add_mode_tail(self, fn: Callable[[str], Any], *,
+                      subagent_visible: bool = True) -> Disposer:
+        """注册请求尾部片段；可声明是否注入子 Agent 尾部。"""
         if self._prompt_tail is None:
             raise RuntimeError("插件未接入请求尾部（PluginHost 未传 prompt_tail）")
-        disposer = self._prompt_tail.add(fn)
+        disposer = self._prompt_tail.add(fn, subagent_visible=subagent_visible)
         self._disposers.append(disposer)
         return disposer
 

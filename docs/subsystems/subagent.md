@@ -77,7 +77,7 @@ data/subagent/sessions/<child_id>.raw.lock
 
 ```text
 创建批次失败：批次写入原子；失败批次不产生可见子 Agent
-首次启动失败：保留子 Agent 记录并返回可重试错误
+首次启动失败：保留子 Agent 记录并抛出可重试错误
 子会话存储失败：留痕，不伪造模型输出
 管理器关闭：先退订事件，再 flush 子会话
 ```

@@ -31,6 +31,13 @@ class PromptTailTest(unittest.TestCase):
         tail.add(lambda _cid: "ok")
         self.assertEqual(tail.render("cid"), "ok")
 
+    def test_subagent_hidden_source_is_not_rendered(self) -> None:
+        tail = PromptTail()
+        tail.add(lambda _cid: "parent only", subagent_visible=False)
+        tail.add(lambda _cid: "everyone")
+        self.assertEqual(tail.render("cid", is_subagent=True), "everyone")
+        self.assertEqual(tail.render("cid"), "parent only\n\neveryone")
+
     def test_empty_source_does_not_add_separator(self) -> None:
         tail = PromptTail()
         tail.add(lambda _cid: " ")

@@ -90,15 +90,9 @@ class SubagentLifecycle:
         except Exception as exc:
             report_error("agent.subagent.lifecycle.create_start", exc,
                          child_id=child.child_id)
-            return {
-                "ok": False,
-                "error": "start_failed",
-                "detail": str(exc),
-                "batch": child.batch,
-                "child_id": child.child_id,
-                "label": title,
-                "status": "idle",
-            }
+            raise SubagentError(
+                f"子 Agent 首回合启动失败：{exc}", "start_failed",
+            ) from exc
         return {
             "ok": True,
             "batch": child.batch,

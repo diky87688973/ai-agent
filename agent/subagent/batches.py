@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import Iterator, List
 
 from agent.core.error_report import report_error
 from agent.mechanisms.session_store import is_valid_conversation_id
@@ -77,25 +77,6 @@ class BatchStore:
         rows.sort(key=lambda item: item.created_at, reverse=True)
         return rows
 
-    def find_child(self, child_id: str) -> Optional[SubagentRecord]:
-        """扫描批次文件定位子 Agent；不维护全局索引。"""
-        cid = str(child_id or "").strip()
-        if not is_valid_conversation_id(cid):
-            return None
-        if not self.root.is_dir():
-            return None
-        for path in self.root.glob("*/*.json"):
-            try:
-                record = self._read(path)
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
-                report_error("agent.subagent.batches.BatchStore.find_child", exc,
-                             path=str(path))
-                continue
-            for child in record.children:
-                if child.child_id == cid:
-                    return child
-        return None
-
     def add_child(
         self,
         parent_cid: str,
@@ -120,6 +101,23 @@ class BatchStore:
             record.children.append(child)
             self._write(record)
             return record
+
+    def remove_empty(self, parent_cid: str, batch: str) -> bool:
+        """删除无子 Agent 的批次文件；有子 Agent 时保持不动。"""
+        path = self._path(parent_cid, batch)
+        with self._lock:
+            if not path.is_file():
+                return False
+            record = self._read(path)
+            if record.children:
+                return False
+            path.unlink()
+            try:
+                path.parent.rmdir()
+            except OSError as exc:
+                report_error("agent.subagent.batches.BatchStore.remove_empty", exc,
+                             path=str(path.parent))
+            return True
 
     def _read(self, path: Path) -> BatchRecord:
         raw = json.loads(path.read_text(encoding="utf-8"))

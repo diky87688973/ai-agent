@@ -228,6 +228,10 @@ def _fallback_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str
     from agent.shell.prompts import resolve_system_prompt
 
     registry = getattr(app, "registry", None)
+    from agent.shell.service_keys import SERVICE_RUNNER
+    context = getattr(app, "context", None)
+    if context is not None and context.has(SERVICE_RUNNER):
+        registry = context.get(SERVICE_RUNNER).registry_for(cid)
     if registry is None:
         raise RuntimeError("上下文布局需要 app.registry：未装配工具注册表，无法生成系统提示词")
     mesh = getattr(app, "mesh", None)
