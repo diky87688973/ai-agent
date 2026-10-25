@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""验收：任务与目标五工具（run_type / todo_list / user_confirm / task_sleep / goal）headless 演示。
+"""验收：任务与目标四工具（run_type / todo_list / user_confirm / goal）headless 演示。
 
 场景：① 模式与门控链路——查询切换 → Execute 缺清单提交被拒 → 建清单放行 →
       Plan 提交 / 命令 / 代码执行被拒 → 切回 auto 同一 ID 放行；
 ② todo 生命周期——全动作正向 + 越界拒绝 + 落盘；
-③ 确认与任务信封——两段式确认 / 休眠与自主边界与截断 / 无会话作用域拒绝。
+③ 确认与任务信封——两段式确认 / 目标边界 / 无会话作用域拒绝。
 运行：python scripts/acceptance_batch_c.py（全部通过退出码 0）
 """
 from __future__ import annotations
@@ -153,10 +153,6 @@ class Acceptance:
         )
         r = self.call("user_confirm", {"confirm": "继续"})
         self.check("confirm 回填", r.ok and r.data == {"confirm": "继续"}, str(r.data))
-        r = self.call("task_sleep", {"seconds": 30, "reminder": "r" * 600})
-        self.check("task_sleep：截断 500 + 状态记录", r.ok and len(r.data["reminder"]) == 500 and self.state.get_sleep(CID)["seconds"] == 30, str(r.data))
-        r = self.call("task_sleep", {"seconds": 0})
-        self.check("task_sleep：0 拒绝", (not r.ok) and ("1~86400" in str(r.error)), str(r.error))
         r = self.call("goal", {"action": "get"})
         self.check("goal：初始无目标", r.ok and r.data["goal"] is None, str(r.data))
         r = self.call("goal", {"action": "create", "text": "把 README 补全"})

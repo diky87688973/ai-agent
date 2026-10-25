@@ -20,7 +20,7 @@ import sys
 import threading
 import uuid
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, Tuple
+from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 from agent.core.error_report import report_error
 from agent.core.events import Event
@@ -72,9 +72,24 @@ _PENDING_MAX_BATCHES = 64
 class SessionStore:
     """append-only 事件日志（每会话一档）；可选行级加密。"""
 
-    def __init__(self, data_root: Path, *, encryption: str = "none",
-                 durable: bool = False) -> None:
+    def __init__(
+        self,
+        data_root: Path,
+        *,
+        encryption: str = "none",
+        durable: bool = False,
+        sessions_dir: Optional[Path] = None,
+        key_path: Optional[Path] = None,
+        sequence_source: Optional["SessionStore"] = None,
+        scan_dirs: Sequence[Path] = (),
+    ) -> None:
         self.data_root = Path(data_root)
+        self.sessions_dir = (
+            Path(sessions_dir) if sessions_dir is not None
+            else self.data_root / "sessions"
+        )
+        self._scan_dirs = [Path(item) for item in scan_dirs]
+        self._sequence_source = sequence_source
         self.encryption = encryption if encryption in ("none", "local") else "none"
         #: 每次 append 是否 `fsync`（默认关）。
         #:
@@ -83,7 +98,9 @@ class SessionStore:
         #: 先广播后落盘的，"最后几次没落盘但界面已渲染"这个窗口本来就存在，
         #: `fsync` 消不掉它。需要更强保证时传 `durable=True`。
         self.durable = bool(durable)
-        self._cipher = SessionCipher(self.data_root, self.encryption)
+        self._cipher = SessionCipher(
+            self.data_root, self.encryption, key_path=key_path,
+        )
         # 全局存储坐标（跨会话单调递增）。见 `allocate_seq`。
         self._next_global_seq: Optional[int] = None
         self._max_observed: int = -1
@@ -125,8 +142,20 @@ class SessionStore:
     # 分配在存储层：坐标必须与"已落盘事实"一一对应，而存储层是
     # 落盘的唯一入口；分配在这里，天然不会与磁盘状态漂移。
 
+    def add_scan_dir(self, path: Path) -> None:
+        """将子会话目录纳入跨会话扫描与续传。"""
+        target = Path(path)
+        if target in self._scan_dirs:
+            return
+        self._scan_dirs.append(target)
+        with self._seq_lock:
+            self._next_global_seq = None
+
     def allocate_seq(self, count: int) -> int:
         """预留 `count` 个连续坐标，返回第一个。
+
+        子会话 store 通过 `sequence_source` 复用主 store 的全局坐标，
+        避免两个日志目录各自从 0 发号。
 
         首次调用时扫一遍现有日志播种（见 `_scan_max_seq`）——否则重启后会从 0
         重新发号，与磁盘上已有的坐标撞号。
@@ -137,6 +166,8 @@ class SessionStore:
         不设这道护栏就会与磁盘漂移。
         """
         need = max(0, int(count))
+        if self._sequence_source is not None:
+            return self._sequence_source.allocate_seq(need)
         with self._seq_lock:
             if self._next_global_seq is None or self._next_global_seq <= self._max_observed:
                 self._next_global_seq = self._scan_max_seq() + 1
@@ -161,28 +192,27 @@ class SessionStore:
         没有 `seq` 的行之间本来就可能重号（每个文件都从 0 起），那不影响游标前进，
         真正要防的是新号落进那些补号的区间。
         """
-        directory = self.data_root / "sessions"
-        if not directory.is_dir():
-            return -1
         highest = -1
-        for path in directory.glob("*.raw"):
-            lines = 0
-            try:
-                with path.open("r", encoding="utf-8", errors="replace") as fh:
-                    for line in fh:
-                        if not line.strip():
-                            continue
-                        lines += 1
-                        obj = self._parse_obj(line)
-                        seq = seq_from_obj(obj)
-                        if seq is not None and seq > highest:
-                            highest = seq
-            except OSError as exc:
-                report_error("agent.mechanisms.session_store.SessionStore._scan_max_seq", exc)
+        for directory in [self.sessions_dir, *self._scan_dirs]:
+            if not directory.is_dir():
                 continue
-            # 没有 `seq` 的行按位置补号；行号范围 0..lines-1
-            if lines - 1 > highest:
-                highest = lines - 1
+            for path in directory.glob("*.raw"):
+                lines = 0
+                try:
+                    with path.open("r", encoding="utf-8", errors="replace") as fh:
+                        for line in fh:
+                            if not line.strip():
+                                continue
+                            lines += 1
+                            obj = self._parse_obj(line)
+                            seq = seq_from_obj(obj)
+                            if seq is not None and seq > highest:
+                                highest = seq
+                except OSError as exc:
+                    report_error("agent.mechanisms.session_store.SessionStore._scan_max_seq", exc)
+                    continue
+                if lines - 1 > highest:
+                    highest = lines - 1
         return highest
 
     # ── 路径────────────────────────────────
@@ -192,7 +222,7 @@ class SessionStore:
         cid = str(conversation_id or "").strip()
         if not is_valid_conversation_id(cid):
             raise ValueError(f"非法会话 ID：{conversation_id!r}")
-        return self.data_root / "sessions" / f"{cid}.raw"
+        return self.sessions_dir / f"{cid}.raw"
 
     # ── 写入────────────────────────────────────────
 
@@ -594,6 +624,10 @@ class SessionStore:
           所以续传游标不会与补号混淆。
         """
         path = self.raw_path(conversation_id)
+        return self._load_path(path, conversation_id)
+
+    def _load_path(self, path: Path, conversation_id: str) -> List[Tuple[int, Event]]:
+        """按路径读取；跨目录续传也走同一套解密与补号逻辑。"""
         if not path.is_file():
             return []
         out: List[Tuple[int, Event]] = []
@@ -630,16 +664,16 @@ class SessionStore:
         """
         threshold = int(after_seq)
         rows: List[Tuple[int, str, Event]] = []
-        directory = self.data_root / "sessions"
-        if not directory.is_dir():
-            return rows
-        for path in directory.glob("*.raw"):
-            cid = path.stem
-            if not is_valid_conversation_id(cid):
+        for directory in [self.sessions_dir, *self._scan_dirs]:
+            if not directory.is_dir():
                 continue
-            for seq, event in self.load_with_seq(cid):
-                if seq > threshold:
-                    rows.append((seq, cid, event))
+            for path in directory.glob("*.raw"):
+                cid = path.stem
+                if not is_valid_conversation_id(cid):
+                    continue
+                for seq, event in self._load_path(path, cid):
+                    if seq > threshold:
+                        rows.append((seq, cid, event))
         rows.sort(key=lambda row: row[0])
         return rows[: max(1, int(limit))] if limit else rows
 

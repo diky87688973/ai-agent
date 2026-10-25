@@ -19,9 +19,9 @@
 
 | 文件::函数 | 行数 | 保留理由 |
 |---|---|---|
-| `agent/app.py::build_app` | 354 | 装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处 |
-| `agent/shell/web/web_routes.py::Handler.do_POST` | 222 | POST 分派与请求体校验线性展开；待拆路由表 |
-| `agent/shell/web/web_routes.py::Handler.do_GET` | 187 | 路由分派按前缀线性展开；待拆路由表 + 处理器 |
+| `agent/app.py::build_app` | 385 | 装配顺序是依赖方向的唯一事实源，拆散会让同一条决定出现在多处 |
+| `agent/shell/web/web_routes.py::Handler.do_POST` | 233 | POST 分派与请求体校验线性展开；待拆路由表 |
+| `agent/shell/web/web_routes.py::Handler.do_GET` | 199 | 路由分派按前缀线性展开；待拆路由表 + 处理器 |
 | `plugins/visual_operator/tools/_capture.py::capture_payload` | 185 | 取图、窗口选择、渲染与回执共享同一组中间状态；拆分需引入截图事务上下文对象。承担者：插件维护 |
 | `agent/shell/classic_adapter/history.py::history_items` | 167 | 历史投影边界条件集中一处；待拆事件类型 |
 | `scripts/check_ui_js.py::main` | 163 | 扫描与报告同流程；待拆扫描/报告两段 |
@@ -40,7 +40,7 @@
 | `agent/mechanisms/quality/pipeline_bridge.py::build_pipeline_gate` | 97 | 门控对象图在一处，拆开需引入 builder 类型 |
 | `scripts/acceptance_web.py::Acceptance.scenario_5` | 97 | 验收脚本线性断言 |
 | `agent/core/image_embed.py::strip_old_images` | 96 | 剥离游标推进与保留策略同函数 |
-| `agent/app.py::App.session` | 91 | 会话生命周期与事件转发在同一生成器；待拆中间对象 |
+| `agent/app.py::App.session` | 94 | 会话生命周期与事件转发在同一生成器；待拆中间对象 |
 | `agent/core/modules/tool_mod.py::ToolModule.execute` | 90 | 工具执行四步同函数；待抽协议对象 |
 | `scripts/acceptance_batch_e.py::Acceptance.scenario_1` | 89 | 验收脚本线性断言 |
 | `agent/core/tool_call.py::ToolPipeline.execute` | 88 | 调用管道顺序即语义，拆开会让确认与执行脱节 |
@@ -50,4 +50,4 @@
 
 - 目录：`agent/`、`scripts/`、`plugins/`
 - 排除：`__pycache__/`、`retired/`
-- 文件 271 个、函数 2201 个；超阈值文件 0 个、函数 26 个、函数数超阈值文件 0 个。
+- 文件 281 个、函数 2288 个；超阈值文件 0 个、函数 26 个、函数数超阈值文件 0 个。

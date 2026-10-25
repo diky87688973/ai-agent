@@ -229,6 +229,42 @@ class ConversationQueue:
     def claim_insert(self, cid: str) -> Optional[Dict[str, Any]]:
         return self._claim(cid, "inserting")
 
+    def has_inserting(self, cid: str) -> bool:
+        try:
+            key = self._key(cid)
+        except QueueError:
+            return False
+        with self._lock:
+            self._ensure_locked(key)
+            return any(item.get("state") == "inserting"
+                       for item in self._ordered_locked(key))
+
+    def claim_insert_batch(self, cid: str) -> List[Dict[str, Any]]:
+        """认领全部积压的插入消息，供下一安全轮次一次性注入。"""
+        try:
+            key = self._key(cid)
+        except QueueError:
+            return []
+        with self._lock:
+            self._ensure_locked(key)
+            claimed: List[Dict[str, Any]] = []
+            for item in self._ordered_locked(key):
+                if item.get("state") not in _ACTIVE:
+                    continue
+                if item.get("state") != "inserting":
+                    continue
+                item["state"] = "claimed"
+                item["delivery"] = "next_pass"
+                item["updated_at"] = int(time.time())
+                self._write_item(item)
+                claimed.append(self._public(item, position=0, with_data=True))
+            if not claimed:
+                return []
+            self._bump_locked(key)
+            snapshot = self._snapshot_locked(key)
+        self._notify(key, snapshot)
+        return claimed
+
     def _claim(self, cid: str, state: Optional[str]) -> Optional[Dict[str, Any]]:
         try:
             key = self._key(cid)
@@ -241,6 +277,8 @@ class ConversationQueue:
                 if item.get("state") not in _ACTIVE:
                     continue
                 if state is not None and item.get("state") != state:
+                    continue
+                if state is None and item.get("state") == "inserting":
                     continue
                 item["state"] = "claimed"
                 item["updated_at"] = int(time.time())

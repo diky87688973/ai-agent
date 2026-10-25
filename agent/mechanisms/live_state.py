@@ -35,7 +35,7 @@ class GoalError(Exception):
 class LiveState:
     """会话级实时状态容器（装配时单例注入）。
 
-    内存态覆盖：模式 / 推理档位 / 模型选择 / 清单 / 自主 / 休眠 / 目标。
+    内存态覆盖：模式 / 推理档位 / 模型选择 / 清单 / 自主 / 目标。
     前四项随会话落盘，其余是回合内的临时事实。
     """
 
@@ -52,7 +52,6 @@ class LiveState:
         self._autonomy: Dict[str, Dict[str, Any]] = {}
         #: 目标表 `{cid: {text, status, note, created_at, updated_at, rounds}}`。
         self._goals: Dict[str, Dict[str, Any]] = {}
-        self._sleeps: Dict[str, Dict[str, Any]] = {}
         self._efforts: Dict[str, str] = {}
         self._models: Dict[str, str] = {}
         #: 全局默认模型（配置面）；会话级选择优先。空串 = 由 provider 决定。
@@ -134,20 +133,6 @@ class LiveState:
         with self._lock:
             val = self._autonomy.get(str(conversation_id or ""))
             return dict(val) if val else {"enabled": False, "summary": ""}
-
-    def set_sleep(self, conversation_id: str, seconds: int, reminder: str = "") -> None:
-        """记录休眠请求（秒数 + 唤醒提醒）。"""
-        with self._lock:
-            self._sleeps[str(conversation_id or "")] = {
-                "seconds": int(seconds),
-                "reminder": str(reminder or ""),
-            }
-
-    def get_sleep(self, conversation_id: str) -> Optional[Dict[str, Any]]:
-        """读取休眠请求；无则 None。"""
-        with self._lock:
-            val = self._sleeps.get(str(conversation_id or ""))
-            return dict(val) if val else None
 
     # ── 目标（Goal：可编辑的任务对象）──────────────────────
     #

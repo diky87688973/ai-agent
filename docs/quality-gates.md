@@ -8,7 +8,7 @@
 | 预算 | 常量 | 当前值 | 约束 | 备注 |
 |---|---|---|---|---|
 | 验收脚本跳过数 | `ACCEPTANCE_SKIP_BUDGET` | 1 | 只降不升 | 与白名单**分开**设置，白名单扩容不会自动放宽上限 |
-| 覆盖率分包下限 | `COVERAGE_FLOORS` | 9 个包（25%–90%） | 只升不降 | `agent/core 85`、`agent/mechanisms 80`、`agent/capabilities 75`、`agent/shell 70`、`agent/entry 60`、`agent/gui 25`、`agent/update 60`、`agent (top-level) 90`、`plugins 60` |
+| 覆盖率分包下限 | `COVERAGE_FLOORS` | 10 个包（25%–90%） | 只升不降 | `agent/core 85`、`agent/mechanisms 80`、`agent/capabilities 75`、`agent/shell 70`、`agent/entry 60`、`agent/gui 25`、`agent/update 60`、`agent/subagent 85`、`agent (top-level) 90`、`plugins 60` |
 | 超阈值文件 | `FILE_COMPLEXITY` | 5 | 双向一致 | 登记项必须有承担者或拆分计划 |
 | 超阈值函数 | `FUNCTION_COMPLEXITY` | 27 | 双向一致 | 键为 `相对路径::限定名`，类方法带类名，避免同名覆盖 |
 | 函数数超阈值文件 | `FILE_FUNCTION_COMPLEXITY` | 3 | 双向一致 | 与文件/函数行数同样登记理由 |
@@ -31,6 +31,7 @@
 | 架构约束 | `check_architecture_hygiene.py` | 跨层私有导入、内核插件名、单通路门控、`assert` 控制流 |
 | CI 工作流一致 | `check_ci_workflow.py` | `ci.yml` 与 `ci_steps.py` 渲染结果不逐字节一致 |
 | 配置一致性 | `check_config_drift.py` | 真实配置多键 / 未登记节 |
+| 密钥扫描 | `check_secrets.py` | 高置信度密钥、私钥、令牌模式 |
 | 单测文档一致 | `gen_unit_tests_md.py --check` | `docs/unit-tests.md` 与测试方法集合不一致 |
 
 `docs/unit-tests.md` 是生成的可读测试目录，不是事实源；事实源是 `tests/`。

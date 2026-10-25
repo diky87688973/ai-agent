@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1838** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1854** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -47,7 +47,7 @@
 36. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
 37. [test_gate_negative.py](#test_gate_negativepy)（66）
 38. [test_goal_runner.py](#test_goal_runnerpy)（6）
-39. [test_gui_launcher.py](#test_gui_launcherpy)（7）
+39. [test_gui_launcher.py](#test_gui_launcherpy)（8）
 40. [test_image_embed.py](#test_image_embedpy)（10）
 41. [test_image_tool.py](#test_image_toolpy)（23）
 42. [test_image_turns.py](#test_image_turnspy)（23）
@@ -71,7 +71,7 @@
 60. [test_provider_router.py](#test_provider_routerpy)（14）
 61. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
 62. [test_queue_runner.py](#test_queue_runnerpy)（3）
-63. [test_queued_input.py](#test_queued_inputpy)（2）
+63. [test_queued_input.py](#test_queued_inputpy)（4）
 64. [test_readonly_tools.py](#test_readonly_toolspy)（33）
 65. [test_resume_bridge.py](#test_resume_bridgepy)（6）
 66. [test_rules_plugin.py](#test_rules_pluginpy)（12）
@@ -84,21 +84,22 @@
 73. [test_settings_panel.py](#test_settings_panelpy)（19）
 74. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
 75. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-76. [test_task_tools.py](#test_task_toolspy)（29）
-77. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-78. [test_tool_registry.py](#test_tool_registrypy)（17）
-79. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-80. [test_top_level_services.py](#test_top_level_servicespy)（2）
-81. [test_update.py](#test_updatepy)（22）
-82. [test_usage_metrics.py](#test_usage_metricspy)（7）
-83. [test_version_stamp.py](#test_version_stamppy)（4）
-84. [test_visual_operator.py](#test_visual_operatorpy)（130）
-85. [test_web_frontend.py](#test_web_frontendpy)（5）
-86. [test_web_shell.py](#test_web_shellpy)（52）
-87. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-88. [test_write_gate.py](#test_write_gatepy)（16）
-89. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-90. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+76. [test_subagent.py](#test_subagentpy)（15）
+77. [test_task_tools.py](#test_task_toolspy)（27）
+78. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+79. [test_tool_registry.py](#test_tool_registrypy)（17）
+80. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+81. [test_top_level_services.py](#test_top_level_servicespy)（2）
+82. [test_update.py](#test_updatepy)（22）
+83. [test_usage_metrics.py](#test_usage_metricspy)（7）
+84. [test_version_stamp.py](#test_version_stamppy)（4）
+85. [test_visual_operator.py](#test_visual_operatorpy)（130）
+86. [test_web_frontend.py](#test_web_frontendpy)（5）
+87. [test_web_shell.py](#test_web_shellpy)（52）
+88. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+89. [test_write_gate.py](#test_write_gatepy)（16）
+90. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+91. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -1193,7 +1194,7 @@
 
 ## test_gui_launcher.py
 
-共 7 个用例。
+共 8 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1203,7 +1204,8 @@
 | 4 | `GuiLauncherTest` | `test_launch_owns_child_and_stops_it` | 覆盖「A class whose instances are single test cases」：launch owns child and stops it |
 | 5 | `GuiLauncherTest` | `test_missing_entry_returns_nonzero` | 覆盖「A class whose instances are single test cases」：missing entry returns nonzero |
 | 6 | `GuiLauncherTest` | `test_occupied_explicit_port_does_not_spawn` | 覆盖「A class whose instances are single test cases」：occupied explicit port does not spawn |
-| 7 | `GuiLauncherTest` | `test_pick_port_and_storage_path` | 覆盖「A class whose instances are single test cases」：pick port and storage path |
+| 7 | `GuiLauncherTest` | `test_open_window_enables_text_selection` | 覆盖「A class whose instances are single test cases」：open window enables text selection |
+| 8 | `GuiLauncherTest` | `test_pick_port_and_storage_path` | 覆盖「A class whose instances are single test cases」：pick port and storage path |
 
 ## test_image_embed.py
 
@@ -1769,12 +1771,14 @@
 
 ## test_queued_input.py
 
-共 2 个用例。
+共 4 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `QueuedInputModuleTest` | `test_claims_one_insert_item_and_emits_input_fact` | 覆盖「A class whose instances are single test cases」：claims one insert item and emits input fact |
-| 2 | `QueuedInputModuleTest` | `test_no_insert_item_is_noop` | 覆盖「A class whose instances are single test cases」：no insert item is noop |
+| 1 | `QueuedInputModuleTest` | `test_batch_contains_system_agent_and_user_inserts_only` | 覆盖「A class whose instances are single test cases」：batch contains system agent and user inserts only |
+| 2 | `QueuedInputModuleTest` | `test_batch_emits_each_input_as_a_separate_fact` | 覆盖「A class whose instances are single test cases」：batch emits each input as a separate fact |
+| 3 | `QueuedInputModuleTest` | `test_claims_one_insert_item_and_emits_input_fact` | 覆盖「A class whose instances are single test cases」：claims one insert item and emits input fact |
+| 4 | `QueuedInputModuleTest` | `test_no_insert_item_is_noop` | 覆盖「A class whose instances are single test cases」：no insert item is noop |
 
 ## test_readonly_tools.py
 
@@ -2096,9 +2100,31 @@
 | 9 | `SegmentsStayAlignedTest` | `test_alignment_after_repeated_assembly` | 覆盖「段表与数量表必须逐条对齐（错位会让浮层显示别人的数字）」：alignment after repeated assembly |
 | 10 | `SegmentsStayAlignedTest` | `test_repeated_assembly_does_not_grow_rows` | 覆盖「段表与数量表必须逐条对齐（错位会让浮层显示别人的数字）」：repeated assembly does not grow rows |
 
+## test_subagent.py
+
+共 15 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `BatchStoreTest` | `test_batch_file_is_capped_and_isolated_by_parent` | 覆盖「A class whose instances are single test cases」：batch file is capped and isolated by parent |
+| 2 | `ManagerTest` | `test_child_can_send_to_parent_with_source` | 覆盖「A class whose instances are single test cases」：child can send to parent with source |
+| 3 | `ManagerTest` | `test_child_turn_end_notifies_parent` | 覆盖「A class whose instances are single test cases」：child turn end notifies parent |
+| 4 | `ManagerTest` | `test_create_starts_turn_and_uses_child_store` | 覆盖「A class whose instances are single test cases」：create starts turn and uses child store |
+| 5 | `ManagerTest` | `test_insert_send_marks_queue_item` | 覆盖「A class whose instances are single test cases」：insert send marks queue item |
+| 6 | `ManagerTest` | `test_label_required_and_batch_scope` | 覆盖「A class whose instances are single test cases」：label required and batch scope |
+| 7 | `ManagerTest` | `test_parent_send_and_permissions` | 覆盖「A class whose instances are single test cases」：parent send and permissions |
+| 8 | `ManagerTest` | `test_restart_restores_idle_children` | 覆盖「A class whose instances are single test cases」：restart restores idle children |
+| 9 | `ManagerTest` | `test_tool_schema_and_list` | 覆盖「A class whose instances are single test cases」：tool schema and list |
+| 10 | `RegistryVisibilityTest` | `test_plugin_can_hide_tool_from_subagent` | 覆盖「A class whose instances are single test cases」：plugin can hide tool from subagent |
+| 11 | `RepositoryBoundaryTest` | `test_batch_files_reject_invalid_ids_and_corrupt_entries` | 覆盖「A class whose instances are single test cases」：batch files reject invalid ids and corrupt entries |
+| 12 | `RepositoryBoundaryTest` | `test_explicit_batch_history_and_invalid_boundaries` | 覆盖「A class whose instances are single test cases」：explicit batch history and invalid boundaries |
+| 13 | `SeedTest` | `test_fork_keeps_only_completed_turn` | 覆盖「A class whose instances are single test cases」：fork keeps only completed turn |
+| 14 | `SeedTest` | `test_fresh_seed_has_only_created_marker` | 覆盖「A class whose instances are single test cases」：fresh seed has only created marker |
+| 15 | `SessionStorePathTest` | `test_child_store_shares_sequence_and_separate_path` | 覆盖「A class whose instances are single test cases」：child store shares sequence and separate path |
+
 ## test_task_tools.py
 
-共 29 个用例。
+共 27 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2114,23 +2140,21 @@
 | 10 | `RunTypeTest` | `test_requires_session_scope` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：requires session scope |
 | 11 | `RunTypeTest` | `test_switch_and_query` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：switch and query |
 | 12 | `SessionScopeTest` | `test_scope_set_and_restored` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：scope set and restored |
-| 13 | `TaskSleepAutonomousTest` | `test_goal_shapes` | 目标工具：建 / 查 / 改 / 暂停 / 恢复 / 达成 / 删，以及触发文案的语义。 |
-| 14 | `TaskSleepAutonomousTest` | `test_resume_creates_missing_goal_from_text` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：resume creates missing goal from text |
-| 15 | `TaskSleepAutonomousTest` | `test_resume_replaces_existing_goal_text` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：resume replaces existing goal text |
-| 16 | `TaskSleepAutonomousTest` | `test_sleep_bounds` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：sleep bounds |
-| 17 | `TaskSleepAutonomousTest` | `test_sleep_ok_and_clamp` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：sleep ok and clamp |
-| 18 | `TodoListTest` | `test_add_remove_replace` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：add remove replace |
-| 19 | `TodoListTest` | `test_check_uncheck_and_bounds` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：check uncheck and bounds |
-| 20 | `TodoListTest` | `test_create_and_shape` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：create and shape |
-| 21 | `TodoListTest` | `test_create_replaces_and_validates` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：create replaces and validates |
-| 22 | `TodoListTest` | `test_no_list_unknown_and_query_close` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：no list unknown and query close |
-| 23 | `TodoListTest` | `test_persistence_reload` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：persistence reload |
-| 24 | `TodoListTest` | `test_persistence_tolerance_and_cid_defense` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：persistence tolerance and cid defense |
-| 25 | `UserConfirmTest` | `test_confirm_roundtrip` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：confirm roundtrip |
-| 26 | `UserConfirmTest` | `test_envelope_still_works_without_tty` | 无 TTY 时不给 interactive，必须照常返回待确认信封（宿主 UI 负责交互）。 |
-| 27 | `UserConfirmTest` | `test_interactive_flag_is_ignored_without_host_support` | 宿主未注入 TTY 能力时，旧 interactive 入参不能阻断两段式确认。 |
-| 28 | `UserConfirmTest` | `test_pending_envelope` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：pending envelope |
-| 29 | `UserConfirmTest` | `test_validations` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：validations |
+| 13 | `TaskGoalTest` | `test_goal_shapes` | 目标工具：建 / 查 / 改 / 暂停 / 恢复 / 达成 / 删，以及触发文案的语义。 |
+| 14 | `TaskGoalTest` | `test_resume_creates_missing_goal_from_text` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：resume creates missing goal from text |
+| 15 | `TaskGoalTest` | `test_resume_replaces_existing_goal_text` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：resume replaces existing goal text |
+| 16 | `TodoListTest` | `test_add_remove_replace` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：add remove replace |
+| 17 | `TodoListTest` | `test_check_uncheck_and_bounds` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：check uncheck and bounds |
+| 18 | `TodoListTest` | `test_create_and_shape` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：create and shape |
+| 19 | `TodoListTest` | `test_create_replaces_and_validates` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：create replaces and validates |
+| 20 | `TodoListTest` | `test_no_list_unknown_and_query_close` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：no list unknown and query close |
+| 21 | `TodoListTest` | `test_persistence_reload` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：persistence reload |
+| 22 | `TodoListTest` | `test_persistence_tolerance_and_cid_defense` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：persistence tolerance and cid defense |
+| 23 | `UserConfirmTest` | `test_confirm_roundtrip` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：confirm roundtrip |
+| 24 | `UserConfirmTest` | `test_envelope_still_works_without_tty` | 无 TTY 时不给 interactive，必须照常返回待确认信封（宿主 UI 负责交互）。 |
+| 25 | `UserConfirmTest` | `test_interactive_flag_is_ignored_without_host_support` | 宿主未注入 TTY 能力时，旧 interactive 入参不能阻断两段式确认。 |
+| 26 | `UserConfirmTest` | `test_pending_envelope` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：pending envelope |
+| 27 | `UserConfirmTest` | `test_validations` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：validations |
 
 ## test_todo_context_prompt.py
 

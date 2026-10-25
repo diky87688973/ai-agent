@@ -61,6 +61,8 @@ def gate_steps() -> List[CiStep]:
                ["scripts/check_ci_workflow.py"], 3),
         CiStep("配置一致性", "gate", "scripts/check_config_drift.py",
                ["scripts/check_config_drift.py"], 3),
+        CiStep("密钥扫描", "gate", "scripts/check_secrets.py",
+               ["scripts/check_secrets.py"], 3),
         CiStep("单测文档一致", "gate", "scripts/gen_unit_tests_md.py --check",
                ["scripts/gen_unit_tests_md.py", "--check"], 5),
         CiStep("静态检查", "gate", "ruff check",

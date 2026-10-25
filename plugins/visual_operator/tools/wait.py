@@ -37,7 +37,7 @@ class DesktopWaitTool(ToolPlugin):
         "until=change：等指定区域或指定窗口的画面变化超过 threshold；"
         "until=window_appears / window_disappears：等标题包含 window 的窗口出现或消失。"
         "超时不算错误：返回 satisfied=false，由你决定换动作还是延长等待。"
-        "典型用法：等预告播完、等加载完成、等弹窗消失，不要用 task_sleep 猜秒数。"
+        "典型用法：等预告播完、等加载完成、等弹窗消失，不要用固定秒数盲等。"
         "Plan 模式下可用（只读）。"
     )
     parameters = {

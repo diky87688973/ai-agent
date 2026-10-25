@@ -41,6 +41,12 @@ def input_of(item: Dict[str, Any]) -> Any:
     ), meta
 
 
+def has_inserting(app: Any, cid: str) -> bool:
+    q = queue_of(app)
+    check = getattr(q, "has_inserting", None) if q is not None else None
+    return bool(check(cid)) if callable(check) else False
+
+
 def flush_pending(cid: str, app: Any) -> None:
     store = getattr(app, "store", None)
     flusher = getattr(store, "flush_pending", None)

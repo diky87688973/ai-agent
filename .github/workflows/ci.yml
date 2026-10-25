@@ -54,6 +54,9 @@ jobs:
       - name: 门禁 配置一致性
         timeout-minutes: 3
         run: python -u scripts/check_config_drift.py
+      - name: 门禁 密钥扫描
+        timeout-minutes: 3
+        run: python -u scripts/check_secrets.py
       - name: 门禁 单测文档一致
         timeout-minutes: 5
         run: python -u scripts/gen_unit_tests_md.py --check

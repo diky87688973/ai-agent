@@ -26,13 +26,16 @@
   left: auto;
   width: 100%;
   max-width: none;
+  height: 29px;
+  min-height: 29px;
   box-sizing: border-box;
-  padding: 6px 8px;
+  padding: 0 10px;
   border-color: var(--c-line-2, #2a2d32);
   border-radius: 8px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .16);
 }
-#aiSpeakSlot .ai-speak-btn { width: 22px; height: 22px; padding: 0; }
+#aiSpeakSlot .ai-speak-btn { width: 21px; height: 21px; padding: 0; }
+#aiSpeakSlot .ai-speak-text { position: relative; top: 1px; }
 .ai-speak-audio { display: none; }
 .ai-speak-icon { flex: 0 0 auto; font-size: 15px; line-height: 1; }
 .ai-speak-main { flex: 1 1 auto; min-width: 0; }

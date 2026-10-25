@@ -125,6 +125,7 @@ python3 -m agent.gui.launcher
 | [Visual Operator](docs/subsystems/visual-operator.md) | `visual_operator` 的截屏、坐标网格与鼠标键盘工具 |
 | [AI说话](docs/subsystems/ai-speak.md) | `ai_speak` 的文本规范、语音合成、插件事件与播放器 |
 | [会话与协作](docs/subsystems/session.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
+| [子 Agent](docs/subsystems/subagent.md) | 父子会话、批次、工具可见性、消息与最终回复投递 |
 | [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
 
 ### 设计文档（内部）
@@ -162,9 +163,9 @@ pip install -e . -c constraints.txt
 
 ### CI
 
-`scripts/ci.py` 的流水线 29 步：17 项门禁 → 单测 → 10 个验收脚本 → 分包覆盖率。
+`scripts/ci.py` 的流水线 30 步：18 项门禁 → 单测 → 10 个验收脚本 → 分包覆盖率。
 
-17 项门禁覆盖依赖方向、架构约束、配置漂移、生成文档一致性、静态检查、UI/文案、复杂度、适用性与并发争用；完整清单用 `--list` 查看。
+18 项门禁覆盖依赖方向、架构约束、配置漂移、生成文档一致性、静态检查、UI/文案、复杂度、适用性与并发争用；完整清单用 `--list` 查看。
 
 门禁清单的唯一事实源是 `scripts/ci_steps.py`，由 `check_ci_workflow` 与 GitHub Actions 对齐。
 
@@ -178,7 +179,7 @@ python scripts/ci.py --list    # 列出检查项
 
 `docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（1838 个用例）：
+单元测试（1854 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

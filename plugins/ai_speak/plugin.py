@@ -111,6 +111,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     disposers: List[Callable[[], None]] = [runtime.dispose]
     try:
         disposers.append(ctx.register_tool(AISpeakTool(runtime)))
+        disposers.append(ctx.set_subagent_tools([]))
         disposers.append(ctx.add_boot_script("ui/player.js"))
         disposers.append(ctx.add_boot_script("ui/tool-view.js"))
         disposers.append(ctx.add_route("GET", "config", lambda _query: _config_payload(runtime)))
@@ -118,13 +119,16 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         disposers.append(ctx.add_route("POST", "played", _played_handler(runtime)))
         disposers.append(ctx.subscribe(ev.TURN_ENDED, _turn_handler(runtime)))
         disposers.append(ctx.subscribe(ev.ERROR, _error_handler(runtime)))
-        disposers.append(ctx.add_mode_tail(
-            lambda _cid: _voice_directive(
+        def _mode_tail(cid: str) -> str:
+            if ctx.is_subagent(cid):
+                return ""
+            return _voice_directive(
                 runtime.config.user_salutation,
                 runtime.config.assistant_salutation,
                 runtime.config.tone,
             ) if runtime.provider_ready() else ""
-        ))
+
+        disposers.append(ctx.add_mode_tail(_mode_tail))
         ctx.set_runtime(runtime)
     except Exception:
         runtime.dispose()

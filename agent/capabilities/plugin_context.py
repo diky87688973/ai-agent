@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from agent.capabilities.plugin_ledger import Disposer
 from agent.capabilities.registry import ToolPlugin, ToolRegistry
+from agent.core.context import SERVICE_SUBAGENTS
 from agent.core.error_report import report_error
 
 
@@ -81,8 +82,14 @@ class PluginContext:
         return disposer
 
     def register_tool(self, plugin: ToolPlugin) -> Disposer:
-        """向工具注册表注册插件；返回幂等 disposer。"""
-        disposer = self._registry.register(plugin)
+        """向工具注册表注册插件；子 Agent 可见性由 set_subagent_tools 声明。"""
+        disposer = self._registry.register(plugin, owner=self.name)
+        self._disposers.append(disposer)
+        return disposer
+
+    def set_subagent_tools(self, tools: Any) -> Disposer:
+        """声明本插件向子 Agent 暴露的工具清单；空清单表示全部不暴露。"""
+        disposer = self._registry.set_subagent_tools(self.name, tools)
         self._disposers.append(disposer)
         return disposer
 
@@ -190,6 +197,16 @@ class PluginContext:
         """
         if self._host is not None:
             self._host.register_runtime(self.name, runtime)
+
+    def is_subagent(self, conversation_id: str) -> bool:
+        """当前会话是否为子 Agent；插件用它决定是否注入子 Agent 专属内容。"""
+        app = self.app
+        context = getattr(app, "context", None)
+        if context is None or not context.has(SERVICE_SUBAGENTS):
+            return False
+        manager = context.get(SERVICE_SUBAGENTS)
+        check = getattr(manager, "is_child", None)
+        return bool(check(str(conversation_id or ""))) if callable(check) else False
 
     @property
     def app(self) -> Any:

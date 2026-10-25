@@ -45,6 +45,7 @@ _GROUPS: Tuple[Tuple[str, str], ...] = (
     ("agent/entry", "/agent/entry/"),
     ("agent/gui", "/agent/gui/"),
     ("agent/update", "/agent/update/"),
+    ("agent/subagent", "/agent/subagent/"),
     ("agent (top-level)", "/agent/"),
     ("plugins", "/plugins/"),
 )

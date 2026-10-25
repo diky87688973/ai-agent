@@ -46,15 +46,25 @@ class SessionRunner:
         auto_continue: Optional[Callable[[str], bool]] = None,
         goal_row: Optional[Callable[[str], Any]] = None,
         prompt_sections: Any = None,
+        store_for: Optional[Callable[[str], Any]] = None,
+        registry_for: Optional[Callable[[str], Any]] = None,
     ) -> None:
         self._app = app
         self._mesh = mesh
         self._auto_continue = auto_continue
         self._goal_row = goal_row
         self._prompt_sections = prompt_sections
+        self._store_for = store_for or (lambda _cid: None)
+        self._registry_for = registry_for or (lambda _cid: None)
         self._lock = threading.Lock()
         self._threads: Dict[str, threading.Thread] = {}
         self._cancels: Dict[str, threading.Event] = {}  # cid → 取消信号（协作式）
+
+    def set_store_for(self, store_for: Optional[Callable[[str], Any]]) -> None:
+        self._store_for = store_for or (lambda _cid: None)
+
+    def set_registry_for(self, registry_for: Optional[Callable[[str], Any]]) -> None:
+        self._registry_for = registry_for or (lambda _cid: None)
 
     # ── 激活入口（装配到 MeshState.set_activator）──────────
 
@@ -141,12 +151,7 @@ class SessionRunner:
         # 而 `RunRegistry` 用"心跳 + 存活期"判定在跑 —— 一次长工具调用
         # （`run_command` 跑 `ping -n 120`）期间没有心跳就会被误判成"已结束"，
         # 用户那边的停止键会消失。所以这里起一个轻量线程周期性续心跳。
-        stop_beat = threading.Event()
-        beater = threading.Thread(
-            target=self._heartbeat_until, args=(cid, stop_beat),
-            name=f"fan-mesh-beat-{cid[:12]}", daemon=True,
-        )
-        beater.start()
+        stop_beat = self._start_heartbeat(cid)
         # 因目标/自主而起的自动轮次计数，只用于兜底限流。
         _auto_rounds = 0
         current_queue_item = None
@@ -183,6 +188,17 @@ class SessionRunner:
                     current_queue_item = queued
                     from_queue = True
                     continue
+                insert_state = self._insert_turn_state(cid)
+                if insert_state == "stop":
+                    break
+                if insert_state == "ready":
+                    text = ""
+                    attachments = None
+                    resume = None
+                    sender = None
+                    meta = None
+                    from_queue = False
+                    continue
                 # 取消优先：用户点了停止就不能再续跑。
                 # 不判它会死循环 —— 取消位一经置位无人清除，而续跑判定只看目标状态，
                 # 于是"起新一轮 → 新一轮开头立刻被取消 → 又续跑"会无限转下去，
@@ -204,16 +220,39 @@ class SessionRunner:
             self._mesh.abort_run(cid)
             report_error("shell.session_runner", exc, conversation_id=cid, where="aborted")
         finally:
-            stop_beat.set()
-            # 会话终点必须补投一次：`SessionStore.flush_pending` 只在
-            # 下一次 `append` 时才顺带补投，收尾那一趟之后不会再有 `append`。
-            # 不补投的话，某一趟落盘失败的事实就永远留在积压里，
-            # 进程退出即彻底丢失。
-            self._flush_pending(cid)
-            with self._lock:
-                if self._threads.get(cid) is threading.current_thread():
-                    self._threads.pop(cid, None)
-                self._cancels.pop(cid, None)
+            self._finish_run_loop(cid, stop_beat)
+
+    def _finish_run_loop(self, cid: str, stop_beat: threading.Event) -> None:
+        stop_beat.set()
+        # 会话终点必须补投一次：`SessionStore.flush_pending` 只在
+        # 下一次 `append` 时才顺带补投，收尾那一趟之后不会再有 `append`。
+        # 不补投的话，某一趟落盘失败的事实就永远留在积压里，
+        # 进程退出即彻底丢失。
+        self._flush_pending(cid)
+        with self._lock:
+            if self._threads.get(cid) is threading.current_thread():
+                self._threads.pop(cid, None)
+            self._cancels.pop(cid, None)
+
+    def _start_heartbeat(self, cid: str) -> threading.Event:
+        stop_beat = threading.Event()
+        beater = threading.Thread(
+            target=self._heartbeat_until, args=(cid, stop_beat),
+            name=f"fan-mesh-beat-{cid[:12]}", daemon=True,
+        )
+        beater.start()
+        return stop_beat
+
+    def _insert_turn_state(self, cid: str) -> str:
+        if not queue.has_inserting(self._app, cid):
+            return "none"
+        if self._is_canceled(cid):
+            self._mesh.end_run(cid)
+            return "stop"
+        if not self._mesh.renew_run(cid):
+            self._mesh.end_run(cid)
+            return "stop"
+        return "ready"
 
     def _claim_goal_turn(self, cid: str, auto_rounds: int) -> Optional[str]:
         text = self._next_continuation_text(cid)
@@ -297,6 +336,8 @@ class SessionRunner:
             system_prompt += "\n\n[附加指令]\n" + extra
         return self._app.session(
             cid,
+            store=self._store_for(cid),
+            registry=self._registry_for(cid),
             system_prompt=system_prompt,
             # 每个 pass 重新求值：工具勾选后下一趟才能看到最新进度。
             mode_note=lambda: self.mode_note(cid),

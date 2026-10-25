@@ -42,7 +42,9 @@ try{
 var body={message:text,conversation_id:sendCid,mode:selectedMode,model:selectedModel};
 if(imgs.length)body.images=imgs.map(function(it){return{mime:it.mime,data_base64:it.data_base64};});
 if(draft)body.draft_id=draft.id;
-var r=await fetch("/api/chat/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+var _sendUrl="/api/chat/send";
+if(tab&&tab.subagent){body={conversation_id:String(tab.parentCid||""),child_id:sendCid,msg:text};if(imgs.length)body.images=imgs.map(function(it){return{mime:it.mime,data_base64:it.data_base64};});_sendUrl="/api/subagents/send";}
+var r=await fetch(_sendUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
 if(!r.ok){var _bt="";try{_bt=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/send 非 OK",{status:r.status,bodyHead:String(_bt||"").slice(0,500)});withConversationContext(sendCid,function(){hideChatLoading();add("a",formatHttpError(r.status,_bt,"发送"));});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
 var _sj=await r.json();if(tab&&_sj&&_sj.run_id)tab.activeRunId=String(_sj.run_id||"");
 if(defer){

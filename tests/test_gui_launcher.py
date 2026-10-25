@@ -68,6 +68,23 @@ class GuiLauncherTest(unittest.TestCase):
         with mock.patch.object(launcher, "_window_handle", return_value=0):
             launcher._activate_window(object())
 
+    def test_open_window_enables_text_selection(self) -> None:
+        class _Events:
+            shown = mock.MagicMock()
+            loaded = mock.MagicMock()
+
+        class _Window:
+            events = _Events()
+            native = None
+            expose = mock.MagicMock()
+
+        fake = mock.MagicMock()
+        fake.settings = {}
+        fake.create_window.return_value = _Window()
+        with mock.patch.dict(sys.modules, {"webview": fake}):
+            self.assertTrue(launcher._open_window("http://127.0.0.1:1/"))
+        self.assertTrue(fake.create_window.call_args.kwargs["text_select"])
+
     def test_pick_port_and_storage_path(self) -> None:
         port = launcher._pick_port("127.0.0.1")
         self.assertGreater(port, 0)

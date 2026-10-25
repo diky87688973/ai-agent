@@ -284,6 +284,7 @@
   }
 
   function playNext(st) {
+    if (st !== currentState()) return;
     if (destroyed || st.paused || st.blocked || st.current || !st.items.length) {
       if (st === currentState()) render();
       return;
@@ -430,7 +431,7 @@
     st.errorText = "";
     st.blocked = false;
     if (st === currentState()) render();
-    if (!st.current && !st.paused) playNext(st);
+    if (st === currentState() && !st.current && !st.paused) playNext(st);
   }
 
   function matches(st, frame) {
@@ -651,6 +652,27 @@
   }
 
   function onConversationChanged() {
+    var active = currentState();
+    for (var cid in states) {
+      if (!Object.prototype.hasOwnProperty.call(states, cid)) continue;
+      var st = states[cid];
+      if (st === active) continue;
+      if (st.current && !st.paused) {
+        st.autoPaused = true;
+        st.paused = true;
+        releasePlaybackLock(st);
+        clearTimer(st);
+        try { st.audio.pause(); } catch (e) {}
+      }
+    }
+    if (active && active.autoPaused) {
+      active.autoPaused = false;
+      active.paused = false;
+      if (active.current) playCurrent(active);
+      else if (active.items.length) playNext(active);
+    } else if (active && !active.current && !active.paused && !active.blocked && active.items.length) {
+      playNext(active);
+    }
     stopTextScroll();
     render();
   }

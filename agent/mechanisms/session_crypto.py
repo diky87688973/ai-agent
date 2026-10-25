@@ -43,8 +43,12 @@ def _xor_stream(data: bytes, key: bytes, nonce: bytes) -> bytes:
 class SessionCipher:
     """行加解密器：实际加密键惰性加载并按实例缓存。"""
 
-    def __init__(self, data_root: Path, mode: str = "none") -> None:
+    def __init__(self, data_root: Path, mode: str = "none",
+                 key_path: Optional[Path] = None) -> None:
         self.data_root = Path(data_root)
+        self.key_path = Path(key_path) if key_path is not None else (
+            self.data_root / "cache" / "session_encryption.key"
+        )
         self.mode = mode if mode in ("none", "local") else "none"
         self._key_cache: Optional[bytes] = None
 
@@ -105,7 +109,7 @@ class SessionCipher:
 
     def _load_or_create_key_material(self) -> bytes:
         """32 字节主密钥：文件存在则复用，缺失则生成（0600）；锁防并发双建。"""
-        key_file = self.data_root / "cache" / "session_encryption.key"
+        key_file = self.key_path
         with _KEY_LOCK:
             if key_file.is_file():
                 return base64.urlsafe_b64decode(

@@ -2,7 +2,7 @@
 """任务与自主工具测试。
 
 覆盖：run_type 查询 / 切换、todo_list 全动作与校验、user_confirm 两段式、
-task_sleep / goal 信封与钳制、模式门控（Plan / Execute）、会话作用域。
+goal 信封与钳制、模式门控（Plan / Execute）、会话作用域。
 """
 from __future__ import annotations
 
@@ -271,23 +271,7 @@ class ApprovalConfirmTest(_TaskToolsBase):
         self.assertIsNone(ctx.pending_confirm)
         self.assertEqual(ctx.approvals[aid], "video-1")
 
-class TaskSleepAutonomousTest(_TaskToolsBase):
-    def test_sleep_ok_and_clamp(self):
-
-        r = self._call("task_sleep", {"seconds": 60, "reminder": "r" * 600})
-        self.assertTrue(r.ok)
-        self.assertEqual(r.data["action"], "sleep")
-        self.assertEqual(r.data["seconds"], 60)
-        self.assertEqual(len(r.data["reminder"]), 500)
-        self.assertEqual(self.state.get_sleep(CID)["seconds"], 60)
-
-    def test_sleep_bounds(self):
-
-        for bad in (0, 86401, -3, "abc"):
-            self.assertFalse(self._call("task_sleep", {"seconds": bad}).ok, msg=str(bad))
-        for good in (1, 86400):
-            self.assertTrue(self._call("task_sleep", {"seconds": good}).ok, msg=str(good))
-
+class TaskGoalTest(_TaskToolsBase):
     def test_goal_shapes(self):
         """目标工具：建 / 查 / 改 / 暂停 / 恢复 / 达成 / 删，以及触发文案的语义。"""
 

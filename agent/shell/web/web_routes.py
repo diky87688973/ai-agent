@@ -184,6 +184,18 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
                     from agent.update.logs import tail
                     self._json(200, {"ok": True, "items": tail(controller.root)})
                 return
+            if path == "/api/subagents":
+                parent = str(query.get("conversation_id") or "").strip()
+                batch = str(query.get("batch") or "").strip()
+                status, payload = self.shell.subagents(parent, batch)
+                self._json(status, payload)
+                return
+            if path == "/api/subagents/history":
+                parent = str(query.get("conversation_id") or "").strip()
+                child = str(query.get("child_id") or "").strip()
+                status, payload = self.shell.subagent_history(parent, child)
+                self._json(status, payload)
+                return
             if path == "/api/background/tasks":
                 manager = self._background_tasks()
                 if manager is None:
@@ -412,6 +424,17 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
                     self._json(400, {"ok": False, "error": str(exc)})
                 else:
                     self._json(200, {"ok": True, **result})
+                return
+            elif path == "/api/subagents/send":
+                parent = str(body.get("conversation_id") or "").strip()
+                child = str(body.get("child_id") or "").strip()
+                status, payload = self.shell.subagent_send(
+                    parent,
+                    child,
+                    str(body.get("msg") or ""),
+                    images=body.get("images"),
+                )
+                self._json(status, payload)
                 return
             elif path == "/api/background/tasks/create":
                 manager = self._background_tasks()

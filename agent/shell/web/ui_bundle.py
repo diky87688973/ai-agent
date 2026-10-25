@@ -54,6 +54,7 @@ UI_JS_MODULES = (
     "layout/splitters.js",
     "chat/queue.js",
     "chat/background-tasks.js",
+    "chat/subagents.js",
     "shell/update.js",
     "shell/window-chrome.js",
 )
@@ -84,6 +85,7 @@ UI_CSS_MODULES = (
     "composer.css",
     "chat-queue.css",
     "background-tasks.css",
+    "subagents.css",
     "update.css",
     "todo.css",
     "theme-light.css",

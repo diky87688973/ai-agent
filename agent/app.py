@@ -33,6 +33,7 @@ from agent.capabilities.builtin import (
     read_file,
     review_conclusion,
     session_tools,
+    subagent_tools,
     system_tools,
     text_data_tools,
     web_tools,
@@ -41,7 +42,7 @@ from agent.capabilities.builtin import (
 from agent.capabilities.contributions import ContributionRegistry
 from agent.capabilities.model_catalog import ModelCatalog
 from agent.capabilities.plugins import PluginHost
-from agent.capabilities.registry import ToolRegistry
+from agent.capabilities.registry import ToolRegistry, ToolRegistryView
 from agent.config import (
     DEFAULT_MAX_PASSES,
     PROJECT_ROOT,
@@ -74,6 +75,7 @@ from agent.core.context import (
     SERVICE_SESSION_CONTEXTS,
     SERVICE_SESSION_FACTORY,
     SERVICE_STORE,
+    SERVICE_SUBAGENTS,
     SERVICE_UPDATE,
     AppContext,
 )
@@ -107,6 +109,7 @@ from agent.shell.classic_adapter import ClassicAdapter
 from agent.shell.classic_adapter.plugin_events import PluginEventPublisher
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER
 from agent.shell.session.runner import SessionRunner
+from agent.subagent.manager import SubagentManager
 from agent.update.controller import UpdateController
 
 
@@ -167,6 +170,11 @@ class App(AppModelPolicy, AppServices):
             shutdown = getattr(background_tasks, "shutdown", None)
             if callable(shutdown):
                 shutdown()
+        if self.context.has(SERVICE_SUBAGENTS):
+            subagents = self.context.get(SERVICE_SUBAGENTS)
+            shutdown = getattr(subagents, "shutdown", None)
+            if callable(shutdown):
+                shutdown()
         session_contexts = self.session_contexts
         if session_contexts is not None:
             session_contexts.close_all()
@@ -198,6 +206,8 @@ class App(AppModelPolicy, AppServices):
         self,
         conversation_id: str,
         *,
+        store: Any = None,
+        registry: Any = None,
         system_prompt: str = "",
         cancel: Optional[Callable[[], bool]] = None,
         mode_note: Any = "",
@@ -206,10 +216,11 @@ class App(AppModelPolicy, AppServices):
 
         cancel：壳层传入的停止检查——内核只认"是否要求停止"。
         """
-        store = self.store
+        session_store = self.store if store is None else store
+        session_registry = self.registry if registry is None else registry
         log = SessionLog()
-        if store is not None and conversation_id:
-            log = SessionLog(events=store.load(conversation_id))
+        if session_store is not None and conversation_id:
+            log = SessionLog(events=session_store.load(conversation_id))
         context = None
         context_factory = self.context_factory
         if context_factory is not None:
@@ -238,9 +249,9 @@ class App(AppModelPolicy, AppServices):
         if compactor is not None and hasattr(compactor, "summary_token_threshold"):
             compactor.summary_token_threshold = threshold
         fact_sink = None
-        if store is not None and conversation_id:
+        if session_store is not None and conversation_id:
             cid = conversation_id
-            fact_sink = lambda events, _cid=cid: store.append(_cid, events)
+            fact_sink = lambda events, _cid=cid: session_store.append(_cid, events)
 
         # 推理档位解析器：按会话从 live_state 取，缺省全局默认。
         state = self.live_state
@@ -253,8 +264,8 @@ class App(AppModelPolicy, AppServices):
         # 坐标必须在 `emit` 产出瞬间就标好（事件一产出即发布到总线，落盘在其后），
         # 但 core 不感知 store，所以这里把"分配一个号"的能力注入进去。
         seq_allocator = None
-        if store is not None and conversation_id:
-            seq_allocator = lambda: store.allocate_seq(1)
+        if session_store is not None and conversation_id:
+            seq_allocator = lambda: session_store.allocate_seq(1)
         # 三级上下文的显式引用：上下文是数据结构，直接持有引用（不引入关系对象）。
         # 会话级：待确认状态等跨回合态的归属地；进程级：全局服务注册表。
         session_ctx = None
@@ -265,7 +276,7 @@ class App(AppModelPolicy, AppServices):
             conversation_id=conversation_id,
             log=log,
             provider=self.provider,
-            registry=self.registry,
+            registry=session_registry,
             pipeline=self.pipeline,
             context=context,
             compactor=compactor,
@@ -383,8 +394,18 @@ def build_app(
         mesh_state = mesh
         conversation_queue = mesh_state.queue
 
+    event_bus = EventBus()
     registry = ToolRegistry()
     background_tasks = BackgroundTaskManager([PROJECT_ROOT, data_root])
+    subagent_manager = None
+    if store is not None:
+        subagent_manager = SubagentManager(
+            data_root=data_root,
+            parent_store=store,
+            mesh=mesh_state,
+            queue=conversation_queue,
+            event_bus=event_bus,
+        )
     update_controller = UpdateController()
     registry.register(background_task.build(background_tasks, state))
     registry.register(echo.build())
@@ -402,6 +423,9 @@ def build_app(
         registry.register(plugin)
     for plugin in session_tools.build_plugins(mesh_state):
         registry.register(plugin)
+    if subagent_manager is not None:
+        for plugin in subagent_tools.build(subagent_manager):
+            registry.register(plugin)
     for plugin in locate_tools.build_plugins():
         registry.register(plugin)
     for plugin in text_data_tools.build_plugins():
@@ -448,7 +472,6 @@ def build_app(
     )
     pipeline.add_pre(pre)
     pipeline.add_post(post)
-    event_bus = EventBus()
     conversation_queue.set_change_listener(
         lambda cid, snapshot: event_bus.publish(
             Event(ev.QUEUE_UPDATED, {**dict(snapshot), "conversation_id": cid})
@@ -578,9 +601,25 @@ def build_app(
     else:
         _config_ready = bool(config_ready)
     app.model_config_state = "config" if _config_ready else "none"
+    hidden_session_tools = {
+        "session_send", "session_multisend", "session_broadcast",
+        "session_create", "session_list",
+    }
+    parent_registry = ToolRegistryView(
+        registry, excluded={"subagent_send"} | hidden_session_tools,
+    )
+    child_registry = ToolRegistryView(
+        registry,
+        excluded={"subagent"} | hidden_session_tools,
+        honor_subagent_hidden=True,
+    )
     runner = SessionRunner(
         app=app,
         mesh=mesh_state,
+        registry_for=lambda cid: (
+            child_registry if subagent_manager is not None and subagent_manager.is_child(cid)
+            else parent_registry
+        ),
         # 自主模式：回合结束后按会话决定是否再续一轮
         auto_continue=lambda cid: bool(state.get_autonomy(cid).get("enabled")),
         # 目标（Goal）：有目标时续跑与否由目标状态决定，发的是目标文案
@@ -590,6 +629,9 @@ def build_app(
     mesh_state.set_activator(runner.start)
     if store is not None:
         mesh_state.set_session_exists(lambda cid: bool(store.load(cid)))
+    if subagent_manager is not None:
+        runner.set_store_for(subagent_manager.store_for)
+        context.register(SERVICE_SUBAGENTS, subagent_manager)
     context.register(SERVICE_BACKGROUND_TASKS, background_tasks)
     context.register(SERVICE_UPDATE, update_controller)
     context.register(SERVICE_RUNNER, runner)

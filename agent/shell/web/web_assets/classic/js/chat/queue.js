@@ -1,6 +1,8 @@
 /* chat/queue.js —— 输入框上方的待发送消息队列。 */
 var chatQueueItems = [];
 var chatQueueRevision = -1;
+var chatQueueCache = Object.create(null);
+var chatQueueLoadSeq = 0;
 var chatDraft = null;
 
 var QUEUE_ICONS = {
@@ -70,10 +72,19 @@ function renderChatQueue(snapshot) {
     panel.innerHTML = "";
     return;
   }
+  var cid = String(snapshot.conversation_id || "");
   chatQueueItems = (Array.isArray(snapshot.items) ? snapshot.items : []).filter(function (item) {
     return !(item && item.kind === "system_notice" && item.source === "background_tasks");
+  }).map(function (item) {
+    item._cid = cid;
+    return item;
   });
   chatQueueRevision = Number(snapshot.revision || 0);
+  chatQueueCache[cid] = {
+    conversation_id: cid,
+    revision: chatQueueRevision,
+    items: chatQueueItems.slice(),
+  };
   panel.innerHTML = "";
   if (!chatQueueItems.length) {
     panel.classList.add("hidden");
@@ -162,13 +173,32 @@ function chatQueueRow(item) {
 function loadChatQueue(cid) {
   var target = String(cid || chatQueueCid() || "");
   if (!target) return Promise.resolve();
+  var seq = ++chatQueueLoadSeq;
   return chatQueueApi("/api/chat/queue?conversation_id=" + encodeURIComponent(target))
-    .then(function (body) { renderChatQueue(body); })
+    .then(function (body) {
+      var data = body && typeof body === "object" ? body : {};
+      data.conversation_id = String(data.conversation_id || target);
+      chatQueueCache[target] = {
+        conversation_id: data.conversation_id,
+        revision: Number(data.revision || 0),
+        items: Array.isArray(data.items) ? data.items.slice() : [],
+      };
+      if (seq !== chatQueueLoadSeq || target !== chatQueueCid()) return;
+      renderChatQueue(data);
+    })
     .catch(function () {});
 }
 
+document.addEventListener("ai-agent:conversation-changed", function (event) {
+  var cid = String(event && event.detail && event.detail.conversation_id || chatQueueCid());
+  var cached = chatQueueCache[cid];
+  if (cached) renderChatQueue(cached);
+  else renderChatQueue(null);
+  void loadChatQueue(cid);
+});
+
 function queueInsert(item) {
-  var cid = chatQueueCid();
+  var cid = String(item && item._cid || chatQueueCid());
   if (!cid || !item || item.state === "inserting") return;
   item.state = "inserting";
   renderChatQueue({
@@ -190,7 +220,7 @@ function queueInsert(item) {
 }
 
 function queueCancel(item) {
-  var cid = chatQueueCid();
+  var cid = String(item && item._cid || chatQueueCid());
   if (!cid || !item) return;
   chatQueueApi(
     "/api/chat/queue/" + encodeURIComponent(item.id)
@@ -202,7 +232,7 @@ function queueCancel(item) {
 }
 
 function queueRecall(item) {
-  var cid = chatQueueCid();
+  var cid = String(item && item._cid || chatQueueCid());
   if (!cid || !item) return;
   chatQueueApi(
     "/api/chat/queue/" + encodeURIComponent(item.id) + "/recall",
@@ -212,6 +242,7 @@ function queueRecall(item) {
       body: JSON.stringify({conversation_id: cid}),
     }
   ).then(function (body) {
+    if (cid !== chatQueueCid()) return;
     var restored = body.item || {};
     if (typeof ta !== "undefined" && ta) {
       ta.value = String(restored.content || "");
@@ -269,12 +300,16 @@ function clearQueueDraft() {
 }
 
 function onQueueUpdated(event) {
-  if (!event || String(event.conversation_id || "") !== chatQueueCid()) return;
-  renderChatQueue({
-    conversation_id: event.conversation_id,
-    revision: event.revision,
-    items: event.items,
-  });
+  if (!event) return;
+  var cid = String(event.conversation_id || "");
+  if (!cid) return;
+  chatQueueCache[cid] = {
+    conversation_id: cid,
+    revision: Number(event.revision || 0),
+    items: Array.isArray(event.items) ? event.items.slice() : [],
+  };
+  if (cid !== chatQueueCid()) return;
+  renderChatQueue(chatQueueCache[cid]);
 }
 
 setTimeout(function () { void loadChatQueue(); }, 0);

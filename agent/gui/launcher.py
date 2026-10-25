@@ -495,6 +495,7 @@ def _open_window(url: str, supervisor: Optional[_ServerSupervisor] = None) -> bo
             frameless=True,
             easy_drag=False,
             draggable=True,
+            text_select=True,
             js_api=api,
         )
         api._window = window

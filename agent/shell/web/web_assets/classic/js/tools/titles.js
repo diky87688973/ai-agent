@@ -263,6 +263,16 @@ const label=ac==="list"?"检查可回滚清单":ac==="diff"?"版本比较":ac===
 // 否则会读成"回滚到某时刻"
 const showTs=(ac==="undo");
 return {main:label,fname:fp?fp+(showTs&&ts?" to "+ts:""):(showTs&&ts?"to "+ts:"")};}
+if(s.indexOf("subagent")>=0){
+const ac=String(argGet(args,"action")||"").trim().toLowerCase();
+const lab=String(argGet(args,"label")||"").trim();
+if(ac==="create")return {main:"创建子智能体",fname:lab||"（未命名任务）"};
+if(ac==="send")return {main:"发送给子智能体",fname:lab||String(argGet(args,"child_id")||"").slice(0,8)};
+if(ac==="status")return {main:"查询子智能体",fname:String(argGet(args,"child_id")||"").slice(0,8)};
+if(ac==="result")return {main:"查询子智能体结果",fname:String(argGet(args,"child_id")||"").slice(0,8)};
+if(ac==="list")return {main:"子智能体列表",fname:String(argGet(args,"batch")||"")};
+if(s.indexOf("subagent_send")>=0)return {main:"子智能体汇报",fname:""};
+}
 if(s.indexOf("session_send")>=0){
 const tid=String(argGet(args,"target_id")||"").trim().slice(0,12);
 return {main:"多Agent协作"+(tid?" · to "+tid:""),fname:""};}

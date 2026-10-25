@@ -54,7 +54,8 @@
     var open = false;
     var selected = "";
     var lastTasks = [];
-    var loading = false;
+    var taskCache = Object.create(null);
+    var loadSeq = 0;
     var timer = 0;
 
     function setCounts(tasks, summary) {
@@ -230,33 +231,45 @@
       });
     }
 
+    function applyTasks(tasks, counts, cid) {
+      lastTasks = Array.isArray(tasks) ? tasks : [];
+      panel.setAttribute("data-conversation-id", String(cid || ""));
+      panel.classList.toggle("hidden", !lastTasks.length);
+      syncComposerColumns();
+      if (!lastTasks.length && open) setOpen(false);
+      setCounts(lastTasks, counts);
+      if (open) renderList();
+    }
+
     function refresh() {
       var cid = currentCid();
-      if (!cid || loading) return Promise.resolve();
-      loading = true;
+      if (!cid) return Promise.resolve();
+      var seq = ++loadSeq;
       return request("GET", "/api/background/tasks?conversation_id=" + encodeURIComponent(cid))
         .then(function (data) {
-          lastTasks = Array.isArray(data.tasks) ? data.tasks : [];
-          panel.classList.toggle("hidden", !lastTasks.length);
-          syncComposerColumns();
-          if (!lastTasks.length && open) setOpen(false);
-          setCounts(lastTasks, data.counts);
-          if (open) renderList();
-          if (selected) {
-            var current = lastTasks.filter(function (task) { return String(task.task_id) === selected; })[0];
-            if (current && open) showDetail(selected);
-          }
+          var tasks = Array.isArray(data.tasks) ? data.tasks : [];
+          taskCache[cid] = {tasks: tasks, counts: data.counts};
+          if (seq !== loadSeq || cid !== currentCid()) return;
+          applyTasks(tasks, data.counts, cid);
         })
         .catch(function () {
-          if (open) {
-            list.innerHTML = "";
-            var error = document.createElement("div");
-            error.className = "bg-task-empty";
-            error.textContent = "后台任务暂不可用";
-            list.appendChild(error);
-          }
-        })
-        .finally(function () { loading = false; });
+          if (seq !== loadSeq || cid !== currentCid() || !open) return;
+          list.innerHTML = "";
+          var error = document.createElement("div");
+          error.className = "bg-task-empty";
+          error.textContent = "后台任务暂不可用";
+          list.appendChild(error);
+        });
+    }
+
+    function onConversationChanged() {
+      var cid = currentCid();
+      var cached = taskCache[cid];
+      selected = "";
+      detail.classList.add("hidden");
+      applyTasks(cached ? cached.tasks : [], cached ? cached.counts : null, cid);
+      if (open && !lastTasks.length) setOpen(false);
+      void refresh();
     }
 
     function setOpen(next) {
@@ -283,7 +296,9 @@
         (draft && !draft.classList.contains("hidden")) ||
         (speak && speak.querySelector(".ai-speak-player:not([hidden])"))
       );
-      var taskVisible = !panel.classList.contains("hidden");
+      var subagent = byId("subagentPanel");
+      var taskVisible = !panel.classList.contains("hidden") ||
+        !!(subagent && !subagent.classList.contains("hidden"));
       left.classList.toggle("is-empty", !leftVisible);
       parent.classList.toggle("has-empty-left", !leftVisible);
       parent.classList.toggle("has-no-task", !taskVisible);
@@ -291,7 +306,7 @@
 
     if (window.MutationObserver) {
       var observer = new MutationObserver(syncComposerColumns);
-      [byId("chatQueue"), byId("queueDraft"), byId("aiSpeakSlot"), panel].forEach(function (node) {
+      [byId("chatQueue"), byId("queueDraft"), byId("aiSpeakSlot"), byId("subagentPanel"), panel].forEach(function (node) {
         if (node) observer.observe(node, { attributes: true, childList: true, subtree: true, attributeFilter: ["class", "hidden", "style"] });
       });
       window.addEventListener("beforeunload", function () { observer.disconnect(); });
@@ -311,7 +326,7 @@
       if (cancel) {
         event.stopPropagation();
         var id = cancel.getAttribute("data-bg-cancel");
-        var cid = currentCid();
+        var cid = String(panel.getAttribute("data-conversation-id") || "");
         if (id && cid) {
           request("POST", "/api/background/tasks/cancel", {
             conversation_id: cid,
@@ -333,7 +348,7 @@
       }
       var cancel = event.target.closest("[data-bg-cancel]");
       if (!cancel) return;
-      var cid = currentCid();
+      var cid = String(panel.getAttribute("data-conversation-id") || "");
       if (!cid) return;
       request("POST", "/api/background/tasks/cancel", {
         conversation_id: cid,
@@ -353,6 +368,8 @@
       if (event.key === "Escape" && open) setOpen(false);
     });
 
+    document.addEventListener("ai-agent:conversation-changed", onConversationChanged);
+    window.syncComposerColumns = syncComposerColumns;
     syncComposerColumns();
     timer = window.setInterval(refresh, 1500);
     window.addEventListener("beforeunload", function () { window.clearInterval(timer); });

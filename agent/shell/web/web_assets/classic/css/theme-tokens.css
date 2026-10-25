@@ -8,7 +8,7 @@
    只有颜色分主题。切主题因此不会改变任何尺寸，滚动条也就不会跳。
    ────────────────────────────────────────────────────────────────────── */
 :root{
-  --fs-xs:11px;--fs-sm:12px;--fs-ui:12.5px;--fs-body:15px;--fs-code:13px;
+  --fs-xs:11px;--fs-sm:12px;--fs-ui:12.5px;--fs-body:13px;--fs-code:11px;
   --lh-tight:1.35;--lh-ui:1.5;--lh-body:1.7;--lh-answer:1.78;
   --sp-1:4px;--sp-2:6px;--sp-3:8px;--sp-4:10px;--sp-5:12px;--sp-6:14px;
   --r-sm:4px;--r-md:6px;--r-lg:8px;--r-xl:10px;--r-2xl:14px;
@@ -39,7 +39,7 @@ html[data-ui-theme="dark"]{
   --c-text-5:#81858c;
   --c-brand:#5686fe;
   --c-brand-strong:#7aaaff;
-  --c-code-bg:#1f2126;
+  --c-code-bg:#141519;
   --c-code-text:#cfd3d6;
   --c-code-inline:#e2c08d;
   --c-ok:#4ed17e;--c-ok-bg:rgba(34,197,94,.16);
@@ -120,7 +120,8 @@ html[data-ui-theme="dark"] textarea::placeholder{color:#70747c}
 .b.a a{color:var(--c-brand-strong)}
 .b.a hr{border:0;border-top:1px solid var(--c-line-1)}
 .b.a code{background:var(--c-code-bg);border:1px solid var(--c-line-1);border-radius:var(--r-sm);color:var(--c-code-inline);padding:1px 5px}
-.b.a pre{background:var(--c-code-bg);border:1px solid var(--c-line-1);border-radius:var(--r-lg);color:var(--c-code-text)}
+.b.a pre{background:var(--c-code-bg);border:0;border-radius:var(--r-lg);color:var(--c-code-text);max-height:600px}
+
 .b.a pre code{background:transparent;border:0;padding:0;color:inherit}
 .b.a th{background:var(--c-bg-layer);color:var(--c-text-1);font-weight:600}
 .b.a td,.b.a th{border-color:var(--c-line-2)}

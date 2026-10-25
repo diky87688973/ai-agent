@@ -1,0 +1,58 @@
+/* subagents.css —— 右侧子 Agent 面板，与后台任务上下堆叠。 */
+.composer-right-col{
+  flex:0 0 calc(50% - 4px);
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:6px;
+  align-self:flex-end;
+}
+.composer-above.has-empty-left .composer-right-col{margin-left:auto}
+.composer-above.has-no-task .composer-right-col{display:none}
+.composer-right-col .bg-task-panel{
+  flex:0 0 auto;
+  width:100%;
+  align-self:stretch;
+}
+.subagent-panel .bg-task-title{color:var(--c-text-2,#cfd3d6)}
+.subagent-panel .bg-task-counts{gap:6px}
+.subagent-panel .bg-task-count[data-sub-status="busy"]::before{background:var(--c-brand,#5686fe)}
+.subagent-panel .bg-task-count[data-sub-status="idle"]::before{background:var(--c-ok,#2ea043)}
+.subagent-row{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:5px 6px;
+  border:1px solid transparent;
+  border-radius:6px;
+  color:var(--c-text-3,#adb2b8);
+  font-size:11px;
+  cursor:pointer;
+}
+.subagent-row:hover{background:var(--c-bg-hover,rgba(255,255,255,.05));border-color:var(--c-line-2,#2a2d32)}
+.subagent-row .subagent-dot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:#777}
+.subagent-row .subagent-dot[data-sub-status="busy"]{background:var(--c-brand,#5686fe);animation:bg-task-pulse 1.2s ease-in-out infinite}
+.subagent-row .subagent-dot[data-sub-status="idle"]{background:var(--c-ok,#2ea043)}
+.subagent-batch{flex:0 0 auto;color:var(--c-text-4,#858b96);font-family:var(--f-code,Consolas,monospace);font-size:10px}
+.subagent-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.subagent-open{
+  flex:0 0 auto;
+  width:22px;
+  height:22px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:0;
+  border-radius:5px;
+  background:transparent;
+  color:var(--c-text-3,#adb2b8);
+  padding:0;
+  cursor:pointer;
+}
+.subagent-open svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.subagent-open:hover{background:var(--c-bg-hover,rgba(255,255,255,.05));color:var(--c-text-1,#f9fafb)}
+.subagent-empty{padding:18px 10px;text-align:center;color:var(--c-text-4,#858b96);font-size:11px}
+@media (max-width:760px){
+  .composer-right-col{flex:1 1 auto;align-self:stretch}
+}

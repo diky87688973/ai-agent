@@ -117,7 +117,7 @@ var content=t||"";
 var metaHtml="";
 if(content.indexOf("[from=")===0){var ci=content.indexOf("]");if(ci>0){var metaRaw=content.slice(1,ci);content=content.slice(ci+1).trim();metaHtml=_buildPeerMetaHtml(metaRaw);}}
 var e=document.createElement("div");
-e.className="peer-chat-row";
+e.className="peer-chat-row is-collapsed";
 var nameLine=escapeHtml(label);
 if(cid&&cid!==label)nameLine+=' <span class="peer-agent-cid">'+escapeHtml(String(cid).slice(0,8))+'</span>';
 e.innerHTML=
@@ -126,11 +126,25 @@ e.innerHTML=
 '<div class="peer-top-text">'+
 '<div class="peer-agent-name">'+nameLine+'</div>'+
 (metaHtml||'')+
+'<span class="peer-expand-hint">点击查看详情</span>'+
 '</div></div>'+
 '<div class="peer-bubble"><div class="peer-agent-body b a"></div></div>';
 var bodyEl=e.querySelector(".peer-agent-body");
 if(bodyEl){bodyEl.innerHTML=renderMarkdown(content||"");}
 msgs.appendChild(e);
+if(!window._peerToggleDelegated){
+window._peerToggleDelegated=true;
+function togglePeerRow(top){
+if(!top)return;
+var row=top.closest?top.closest(".peer-chat-row"):null;
+if(!row)return;
+row.classList.toggle("is-collapsed");
+}
+document.addEventListener("click",function(ev){
+var top=ev.target&&ev.target.closest?ev.target.closest(".peer-top"):null;
+if(top)togglePeerRow(top);
+});
+}
 scrollMsgsToBottom();
 }
 

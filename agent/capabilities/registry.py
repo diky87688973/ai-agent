@@ -48,14 +48,70 @@ class ToolPlugin:
         raise NotImplementedError(f"工具未实现 execute：{type(self).__name__}")
 
 
+class ToolRegistryView:
+    """工具注册表的只读角色视图；不复制、不接受注册。"""
+
+    def __init__(
+        self,
+        base: "ToolRegistry",
+        excluded: set[str] | frozenset[str] = frozenset(),
+        *,
+        honor_subagent_hidden: bool = False,
+    ) -> None:
+        self._base = base
+        self._excluded = frozenset(str(name) for name in excluded)
+        self._honor_subagent_hidden = bool(honor_subagent_hidden)
+
+    def _allowed(self, name: str) -> bool:
+        key = str(name or "").strip()
+        if key in self._excluded:
+            return False
+        return not (self._honor_subagent_hidden and key in self._base.subagent_hidden())
+
+    def get(self, name: str) -> Optional[ToolPlugin]:
+        return self._base.get(name) if self._allowed(name) else None
+
+    def names(self) -> List[str]:
+        return [name for name in self._base.names() if self._allowed(name)]
+
+    def schemas(self) -> List[Dict[str, Any]]:
+        return [item for item in self._base.schemas() if self._allowed(str(item.get("name") or ""))]
+
+
 class ToolRegistry:
     """工具注册表：name → 插件实例；注册返回幂等 disposer。"""
 
     def __init__(self) -> None:
         self._plugins: Dict[str, ToolPlugin] = {}
         self._disposers: List[Tuple[str, Disposer]] = []
+        self._owners: Dict[str, str] = {}
+        self._owner_subagent_tools: Dict[str, frozenset[str]] = {}
 
-    def register(self, plugin: ToolPlugin) -> Disposer:
+    def subagent_hidden(self) -> set[str]:
+        """按插件声明的子 Agent 工具清单计算不可见工具。"""
+        hidden = set()
+        for name, owner in self._owners.items():
+            allowed = self._owner_subagent_tools.get(owner)
+            if allowed is not None and name not in allowed:
+                hidden.add(name)
+        return hidden
+
+    def set_subagent_tools(self, owner: str, tools: Any) -> Disposer:
+        """声明某插件向子 Agent 暴露的工具清单；空清单表示全部不暴露。"""
+        key = str(owner or "").strip()
+        allowed = frozenset(str(item) for item in (tools or ()))
+        previous = self._owner_subagent_tools.get(key)
+
+        def _dispose() -> None:
+            if previous is None:
+                self._owner_subagent_tools.pop(key, None)
+            else:
+                self._owner_subagent_tools[key] = previous
+
+        self._owner_subagent_tools[key] = allowed
+        return _dispose
+
+    def register(self, plugin: ToolPlugin, *, owner: str = "") -> Disposer:
         """注册插件；名称为空/重复/不可执行/参数非法时抛 ValueError；返回幂等 disposer。"""
         name = str(getattr(plugin, "name", "") or "").strip()
         if not name:
@@ -67,11 +123,13 @@ class ToolRegistry:
         if not isinstance(getattr(plugin, "parameters", None), dict):
             raise ValueError(f"插件 parameters 必须是 dict（属性映射）：{name}")
         self._plugins[name] = plugin
+        self._owners[name] = str(owner or "")
 
         def _dispose() -> None:
             if name not in self._plugins:
                 return  # 幂等：已注销
             del self._plugins[name]
+            self._owners.pop(name, None)
             for i, (k, _d) in enumerate(self._disposers):
                 if k == name:
                     del self._disposers[i]

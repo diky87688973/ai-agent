@@ -23,6 +23,7 @@ from agent.shell.web.web_contributions import ContributionActions
 from agent.shell.web.web_files import FileViewerActions
 from agent.shell.web.web_sessions import SessionActions
 from agent.shell.web.web_state import UiStateActions
+from agent.shell.web.web_subagents import SubagentActions
 
 if TYPE_CHECKING:  # 只为注解：壳层不得在运行期依赖装配根（A2）
     from agent.app import App
@@ -31,6 +32,7 @@ if TYPE_CHECKING:  # 只为注解：壳层不得在运行期依赖装配根（A2
 class WebShell(
     ChatActions,
     SessionActions,
+    SubagentActions,
     FileViewerActions,
     ContributionActions,
     UiStateActions,

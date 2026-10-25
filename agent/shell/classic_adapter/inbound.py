@@ -133,7 +133,7 @@ class Inbound:
         return scan_title(path)
 
     # ── /api/chat/history ─────────────────────────────────
-    def history(self, cid: str) -> Dict[str, Any]:
+    def history(self, cid: str, store: Any = None) -> Dict[str, Any]:
         """会话历史。经典界面从这个返回体里读三样不同的东西：
 
         1. `j.items` —— `{role:"user"|"assistant"|"tool", content, attachments}`，
@@ -155,7 +155,7 @@ class Inbound:
         cid = C.normalize_cid(cid)
         if not cid:
             return {"ok": False, "error": "invalid conversation_id", "items": []}
-        events = self._load_events(cid)
+        events = self._load_events(cid, store)
         items, resolved = history_items(events)
         self._mark_stale_suspends(cid, items)
         # 把解出的字节登记进内存，供 `/api/chat/attachment?id=…` 取用。
@@ -193,11 +193,11 @@ class Inbound:
                 item["status"] = "canceled"
                 item["error"] = "用户取消了这次确认（未作答）"
 
-    def _load_events(self, cid: str) -> List[Any]:
-        store = getattr(self._app, "store", None)
-        if store is None:
+    def _load_events(self, cid: str, store: Any = None) -> List[Any]:
+        target = store if store is not None else getattr(self._app, "store", None)
+        if target is None:
             return []
-        return list(store.load(cid))
+        return list(target.load(cid))
 
     # ── /api/chat/ui-state ────────────────────────────────
     #

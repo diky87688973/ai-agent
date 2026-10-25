@@ -499,6 +499,9 @@ class _FakeCtx:
         self.tools.append(tool)
         return lambda: self.tools.remove(tool)
 
+    def set_subagent_tools(self, tools: Any):
+        return lambda: None
+
     def add_boot_script(self, path: str):
         self.boot_scripts.append(path)
         return lambda: self.boot_scripts.remove(path)
