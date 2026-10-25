@@ -389,16 +389,17 @@ class SessionRunner:
         return prompt.mode_note(app=self._app, mesh=self._mesh, cid=cid)
 
     def wait_idle(self, cid: str, timeout: float = 10.0) -> bool:
-        """等待 cid 无活跃运行（含队列抽干链）；超时返回 False。"""
+        """等待 cid 无活跃运行并完成线程收尾；超时返回 False。"""
         key = str(cid or "").strip()
         deadline = time.time() + max(0.0, float(timeout))
         while True:
-            if not self._mesh.is_running(key):
+            with self._lock:
+                thread = self._threads.get(key)
+            alive = bool(thread is not None and thread.is_alive())
+            if not self._mesh.is_running(key) and not alive:
                 return True
             if time.time() >= deadline:
                 return False
-            with self._lock:
-                thread = self._threads.get(key)
             if thread is not None:
                 thread.join(max(0.01, deadline - time.time()))
             else:

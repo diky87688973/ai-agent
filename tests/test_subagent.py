@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -62,12 +61,8 @@ class _ManagerCase(unittest.TestCase):
         self.manager = self.app.context.get(SERVICE_SUBAGENTS)
 
     def _wait(self, child_id: str) -> None:
-        deadline = time.time() + 3
-        while time.time() < deadline:
-            if not self.app.mesh.is_running(child_id):
-                return
-            time.sleep(0.01)
-        self.fail("子 Agent 回合未在时限内结束")
+        if not self.app.runner.wait_idle(child_id, timeout=3):
+            self.fail("子 Agent 回合未在时限内结束")
 
 
 class SessionStorePathTest(unittest.TestCase):
@@ -333,7 +328,8 @@ class ManagerTest(_ManagerCase):
         items = app.conversation_queue.list(result["child_id"])["items"]
         self.assertTrue(any(item.get("state") == "inserting" for item in items))
         provider.release.set()
-        self._wait(result["child_id"])
+        if not app.runner.wait_idle(result["child_id"], timeout=3):
+            self.fail("子 Agent 回合未在时限内结束")
 
     def test_tool_schema_and_list(self) -> None:
         result = self.manager.create("parent-0001", prompt="x", label="工具", context="fresh")
