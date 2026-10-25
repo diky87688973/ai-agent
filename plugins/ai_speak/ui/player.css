@@ -1,0 +1,91 @@
+/* AI说话播放条：插槽存在时排入输入框上方；否则悬浮在右下角。 */
+.ai-speak-player {
+  position: fixed;
+  right: 18px;
+  bottom: 92px;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(440px, 72vw);
+  padding: 8px 10px;
+  border: 1px solid var(--c-line-3, rgba(255, 255, 255, .12));
+  border-radius: var(--r-lg, 8px);
+  background: var(--c-bg-layer, #1e1f23);
+  color: var(--c-text-2, #cfd3d6);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+  font: inherit;
+}
+.ai-speak-player[hidden] { display: none; }
+#aiSpeakSlot .ai-speak-player {
+  position: relative;
+  inset: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-color: var(--c-line-2, #2a2d32);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .16);
+}
+#aiSpeakSlot .ai-speak-btn { width: 22px; height: 22px; padding: 0; }
+.ai-speak-audio { display: none; }
+.ai-speak-icon { flex: 0 0 auto; font-size: 15px; line-height: 1; }
+.ai-speak-main { flex: 1 1 auto; min-width: 0; }
+
+.ai-speak-text {
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--fs-sm, 12px);
+  color: var(--c-text-1, #f9fafb);
+}
+.ai-speak-text-inner {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+}
+.ai-speak-count {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs, 11px);
+  color: var(--c-text-4, #979da6);
+  white-space: nowrap;
+}
+.ai-speak-btn {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--c-line-3, rgba(255, 255, 255, .12));
+  border-radius: var(--r-md, 6px);
+  background: transparent;
+  color: var(--c-text-2, #cfd3d6);
+  font: inherit;
+  cursor: pointer;
+}
+.ai-speak-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.ai-speak-btn:hover { background: var(--c-bg-hover, rgba(255, 255, 255, .05)); }
+.ai-speak-btn:focus-visible { outline: 1px solid var(--c-brand, #5686fe); outline-offset: 1px; }
+html[data-ui-theme="light"] .ai-speak-player {
+  background: #fff;
+  color: #1a2233;
+  border-color: #d0d7e2;
+  box-shadow: 0 8px 24px rgba(20, 40, 80, .16);
+}
+html[data-ui-theme="light"] .ai-speak-text { color: #1a2233; }
+html[data-ui-theme="light"] .ai-speak-btn { color: #1a2233; border-color: #d0d7e2; }

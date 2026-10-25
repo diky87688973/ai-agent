@@ -1,0 +1,22 @@
+/* update.css —— 顶部更新按钮。 */
+.update-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  height:26px;
+  padding:0 9px;
+  border:1px solid var(--c-brand,#5686fe);
+  border-radius:999px;
+  background:rgba(86,134,254,.08);
+  color:var(--c-brand,#5686fe);
+  font-size:11px;
+  line-height:1;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.update-btn.hidden{display:none}
+.update-btn:hover{background:rgba(86,134,254,.16)}
+.update-btn:disabled{opacity:.6;cursor:default}
+.update-icon{display:block;flex:0 0 auto;width:14px;height:14px}
+
+.update-btn-error{border-color:#ff7875;color:#ff7875;background:rgba(255,120,117,.08)}

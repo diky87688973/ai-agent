@@ -1,0 +1,47 @@
+/* 文件类型角标。 */
+.file-type-ico{flex:0 0 16px;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;border-radius:3px;font-size:8px;font-weight:700;line-height:1;color:#1b1c1f;background:#6e7681;font-family:var(--f-code,ui-monospace,Consolas,monospace);overflow:hidden}
+.file-type-ico svg{width:12px;height:12px;display:block}
+.file-type-ico--json{background:#e2b340;color:#3a2e00;font-size:7px}
+.file-type-ico--py{background:#3776ab;color:#ffd343}
+.file-type-ico--md{background:#3d8bfd;color:#fff;font-size:10px}
+.file-type-ico--js{background:#f7df1e;color:#1e1e1e}
+.file-type-ico--ts{background:#3178c6;color:#fff}
+.file-type-ico--tsx,.file-type-ico--jsx{background:#61dafb;color:#20232a;font-size:6px}
+.file-type-ico--css{background:#42a5f5;color:#fff;font-size:11px}
+.file-type-ico--html{background:#e44d26;color:#fff;font-size:7px}
+.file-type-ico--vue{background:#42b883;color:#fff;font-size:6px}
+.file-type-ico--svelte{background:#ff3e00;color:#fff;font-size:5px}
+.file-type-ico--go{background:#00add8;color:#fff}
+.file-type-ico--rs{background:#dea584;color:#1b1c1f}
+.file-type-ico--java{background:#e76f00;color:#fff}
+.file-type-ico--kt{background:#7f52ff;color:#fff}
+.file-type-ico--cs{background:#178600;color:#fff;font-size:7px}
+.file-type-ico--cpp{background:#00599c;color:#fff;font-size:7px}
+.file-type-ico--c{background:#555;color:#fff}
+.file-type-ico--swift{background:#f05138;color:#fff}
+.file-type-ico--rb{background:#cc342d;color:#fff}
+.file-type-ico--php{background:#777bb4;color:#fff;font-size:7px}
+.file-type-ico--sh{background:#4eaa25;color:#fff}
+.file-type-ico--lua{background:#000080;color:#fff}
+.file-type-ico--r{background:#276dc3;color:#fff}
+.file-type-ico--dart{background:#0175c2;color:#fff}
+.file-type-ico--sql{background:#e38c00;color:#1b1c1f}
+.file-type-ico--gql{background:#e535ab;color:#fff;font-size:7px}
+.file-type-ico--proto{background:#66bb6a;color:#1b1c1f;font-size:6px}
+.file-type-ico--yaml{background:#cb171e;color:#fff;font-size:7px}
+.file-type-ico--toml{background:#9c4221;color:#fff;font-size:7px}
+.file-type-ico--ini,.file-type-ico--lock,.file-type-ico--txt,.file-type-ico--make{background:#6e7681;color:#fff;font-size:7px}
+.file-type-ico--xml{background:#ff6600;color:#fff;font-size:7px}
+.file-type-ico--csv{background:#207245;color:#fff;font-size:6px}
+.file-type-ico--docker{background:#2496ed;color:#fff;font-size:6px}
+.file-type-ico--gradle{background:#02303a;color:#fff;font-size:6px}
+.file-type-ico--npm{background:#cb3837;color:#fff;font-size:6px}
+.file-type-ico--pdf{background:#e5252a;color:#fff}
+.file-type-ico--word{background:#2b579a;color:#fff}
+.file-type-ico--excel{background:#217346;color:#fff}
+.file-type-ico--ppt{background:#d24726;color:#fff}
+.file-type-ico--image{background:#a371f7;color:#fff}
+.file-type-ico--audio{background:#db61a2;color:#fff}
+.file-type-ico--video{background:#f778ba;color:#fff}
+.file-type-ico--zip{background:#d29922;color:#1b1c1f}
+.file-type-ico--bin,.file-type-ico--file{background:#6e7681;color:#fff}

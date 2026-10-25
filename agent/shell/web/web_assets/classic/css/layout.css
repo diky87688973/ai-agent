@@ -1,0 +1,102 @@
+/* layout.css —— 壳层布局：滚动条、左右栏、最小宽度与开合状态。
+ *
+ * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，顺序即层叠顺序，
+ * 调整清单顺序会改变覆盖关系。
+ */
+
+body{margin:0;height:100vh;display:flex;flex-direction:column;background:#1e1e1e;color:#ccc;font-family:system-ui,Segoe UI,"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;font-size:13px}
+:root{--sb-thumb:rgba(120,120,130,.18)}
+html[data-ui-theme="dark"]{--sb-thumb:rgba(120,120,130,.18)}
+html[data-ui-theme="light"]{--sb-thumb:rgba(0,0,0,.22)}
+*{scrollbar-width:thin;scrollbar-color:transparent transparent}
+/* 只在指针进入该滚动区域时才上色，移出立即回到透明；纯 CSS，无 JS、无过渡。 */
+*:hover{scrollbar-color:var(--sb-thumb) transparent}
+*::-webkit-scrollbar{width:6px;height:6px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:transparent;border-radius:4px;border:1px solid transparent;background-clip:padding-box}
+*:hover::-webkit-scrollbar-thumb{background:var(--sb-thumb)}
+*::-webkit-scrollbar-corner{background:transparent}
+header{flex:0 0 40px;border-bottom:1px solid #333;display:flex;align-items:center;padding:0 12px;gap:12px}
+header .muted{color:#888;font-size:12px}
+header .hdr-actions{margin-left:auto;display:inline-flex;align-items:center;gap:8px}
+header .hdr-theme-btn{display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 11px;border-radius:999px;font-size:12px;font-weight:600;color:#aeb9c8;background:rgba(120,130,145,.12);border:1px solid #5a6a82;cursor:pointer;font:inherit;white-space:nowrap;box-sizing:border-box}
+header .hdr-theme-btn:hover{color:#e6edf5;border-color:#7a8aa3;background:rgba(120,130,145,.2)}
+main{flex:1;display:flex;min-height:0;align-items:stretch}
+/* 对话区最小宽度：输入区那一行控件（附件 / 模式 / 思考 / 模型 / 插件按钮 + 发送提示 +
+   目标 / 发送）在更窄时会顶出右边界。改这一行要连带改 `agent-ui.js` 里的同名常量。 */
+.chat{--content-max:840px;--content-half:420px;flex:1 1 0;min-height:0;display:flex;flex-direction:column;min-width:0}
+.classic-split-resizer{cursor:col-resize;align-self:stretch;flex:0 0 3px;box-sizing:border-box;background-color:#2a2a2a;border-left:1px solid #333;border-right:1px solid #333;flex-shrink:0}
+.classic-split-resizer:hover{background-color:#3a3f47;border-left-color:#4a4f57;border-right-color:#4a4f57}
+.side{flex:0 0 auto;width:min(600px,46vw);background:#252526;display:flex;flex-direction:column;min-width:300px}
+html[data-tool-steps="off"] #tabSteps,
+html[data-tool-steps="off"] #paneSteps{display:none}
+/* 没有可见标签时右栏宽度为 0。打开文件或插件面板后脚本去掉这个标记，宽度回到拖拽值。 */
+html[data-side-empty] #classicSidePane{flex:0 0 0;width:0;max-width:0;min-width:0;overflow:hidden;border-left-width:0}
+html[data-side-empty] #classicSplitResizer{flex:0 0 0;width:0;min-width:0;border:0;pointer-events:none;overflow:hidden}
+.chat-conversation-mount{flex:1 1 0;min-height:0;display:flex;flex-direction:column;min-width:0}
+.chat-conversation-pane{flex:1 1 0;min-height:0;display:flex;flex-direction:column;min-width:0}
+.p-title{font-size:11px;color:#888;padding:6px 10px;border-bottom:1px solid #333;text-transform:uppercase;letter-spacing:.04em}
+.chat-title-row{position:relative;display:flex;align-items:flex-start;gap:8px;min-width:0;flex:0 0 auto}
+/* 收起时先把左侧空位滑到按钮宽。空位为 0 时用负外边距抵消行间距，否则会留下一条缝。 */
+.chat-more-slot{flex:0 0 24px;width:24px;height:24px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.chat-title-row.is-rail-open .chat-more-slot,html[data-session-rail="open"] .chat-more-slot{flex-basis:0;width:0;margin-right:-8px}
+.chat-title-row.is-rail-sliding .chat-more-slot{transition:width .22s ease,flex-basis .22s ease,margin-right .22s ease}
+.chat-more-btn{flex:0 0 auto;width:24px;height:24px;padding:0;border:0;border-radius:4px;background:transparent;color:#8f98a5;line-height:0;display:inline-flex;align-items:center;justify-content:center}
+.chat-more-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.chat-more-btn .rail-ico-close{display:none}
+.chat-more-btn[aria-expanded="true"] .rail-ico-open{display:none}
+.chat-more-btn[aria-expanded="true"] .rail-ico-close{display:inline}
+.chat-more-btn:hover,.chat-more-btn[aria-expanded="true"]{background:rgba(120,130,145,.10);color:#d0d7de}
+.session-rail-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;box-sizing:border-box;min-height:37px;padding:6px 8px;border-bottom:1px solid #333}
+#sessionRailNew{flex:0 0 auto}
+/* 左栏是会话清单。收起时宽度为 0，展开后的具体宽度由脚本写到元素上，这里只卡住 500 上限。 */
+.session-rail{flex:0 0 auto;display:flex;flex-direction:column;min-width:0;min-height:0;max-width:500px;overflow:hidden;background:#24262a}
+.session-rail.is-collapsed{flex:0 0 0;width:0;max-width:0;border:0}
+/* 首屏脚本还没跑时，用上次记下的开合把栏撑开，避免刷新先闪成关闭。 */
+html[data-session-rail="open"] .session-rail.is-collapsed{flex:0 0 var(--session-rail-w,240px);width:var(--session-rail-w,240px);max-width:var(--session-rail-w,240px)}
+html[data-session-rail="open"] .session-rail-resizer.is-collapsed{flex:0 0 3px;width:3px;min-width:3px;border-left:1px solid #333;border-right:1px solid #333;pointer-events:auto;overflow:visible}
+html[data-ui-theme="light"][data-session-rail="open"] .session-rail-resizer.is-collapsed{background-color:#e4e4e4;border-left-color:#d2d2d2;border-right-color:#d2d2d2}
+.session-rail.is-animating,.session-rail-resizer.is-animating{transition:width .22s ease,flex-basis .22s ease,max-width .22s ease}
+.session-rail.is-dragging,.session-rail-resizer.is-dragging{transition:none}
+@media (prefers-reduced-motion:reduce){
+.session-rail.is-animating,.session-rail-resizer.is-animating,.chat-title-row.is-rail-sliding .chat-more-slot{transition:none}
+}
+.session-rail-resizer.is-collapsed{flex:0 0 0;width:0;min-width:0;border:0;pointer-events:none;overflow:hidden}
+.session-rail-list{flex:1 1 0;min-height:0;overflow-x:hidden;overflow-y:auto;padding:5px}
+.session-rail .usage-bottom{min-width:0}
+.chat-session-row{width:100%;display:flex;align-items:center;gap:8px;background:transparent;border:0;border-radius:7px;padding:7px 9px;color:#d0d7de;text-align:left;font-size:12px}
+.chat-session-row:hover{background:#252b34}
+.chat-session-group{display:flex;align-items:center;gap:9px;padding:10px 9px 4px;color:#979da6;font-size:10px;font-weight:700;letter-spacing:.04em}
+.chat-session-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-session-badge{flex:0 0 auto;color:#89d185;font-size:10px}
+.chat-session-empty{padding:10px;color:#8b949e;font-size:12px}
+.chat-tabs{
+  flex:1 1 0;
+  align-self:flex-start;
+  min-width:0;
+  width:0;
+  min-height:0;
+  height:auto;
+  display:flex;
+  flex-wrap:wrap;
+  align-content:flex-start;
+  align-items:flex-start;
+  gap:4px 6px;
+  row-gap:6px;
+  overflow-x:hidden;
+  overflow-y:visible;
+  padding:2px;
+  scrollbar-width:none;
+}
+
+.chat-tab{min-height:24px;height:auto;max-width:160px;display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;border:1px solid transparent;background:transparent;color:#8f98a5;font-size:12px;line-height:1.2;white-space:nowrap;flex:0 0 auto}
+.chat-tab:hover{background:rgba(120,130,145,.10)}
+.chat-tab.active{border-color:#4f5f76;color:#d0d7de;background:#202328}
+.chat-tab-todo-unread{box-shadow:inset 0 0 0 1px #a68b4a;color:#e8c98a}
+.chat-tab-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-tab-close{margin-left:0;padding:0;border:0;background:transparent;color:#7f8792;font-size:13px;line-height:1;border-radius:4px}
+.chat-tab-close:hover{color:#e1e6ed;background:rgba(120,130,145,.16)}
+.msgs{flex:1;min-height:0;width:100%;box-sizing:border-box;overflow:auto;padding:10px 15%;padding:10px max(16px,calc(50% - var(--content-half,420px)));display:flex;flex-direction:column;gap:8px}
+.b{padding:8px 10px;border-radius:6px;white-space:pre-wrap;word-break:break-word;line-height:1.45}
+.b.u{max-width:92%;align-self:flex-end;background:#171717;border:1px solid #2c2c30;color:#aeb6c0;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.b.a{align-self:stretch;max-width:100%;width:100%;box-sizing:border-box;background:transparent;border:0;padding:8px 0 8px 8px;white-space:normal}

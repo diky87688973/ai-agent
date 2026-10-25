@@ -1,0 +1,7 @@
+{
+  "name": "Rules",
+  "desc": "rules 目录下的每个 .md 作为系统规则注入当前会话",
+  "icon": "📜",
+  "version": "1.0",
+  "config": "false"
+}

@@ -1,0 +1,181 @@
+/* frame.css —— 极简窗框、分隔条与滚动条收尾样式。
+ *
+ * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，顺序即层叠顺序，
+ * 调整清单顺序会改变覆盖关系。
+ */
+/* ══ 极简壳层（借鉴 deepseek-harness 窗框气质，不改 HTML 布局）════════
+   body 铺壳色；左栏 / 右栏 / 顶栏标签融进壳色；对话区（mount+composer）单独铺
+   --c-bg-base，左上大圆角。
+   滚动条：纯 CSS :hover —— 指针进入面板才显示拇指，移出立刻消失，无 JS、
+   无过渡、无类切换。槽位固定 3px（scrollbar-gutter:stable），显隐只改拇指颜色，
+   宽度恒定，所以正文不会被挤动。非 auto 的 scrollbar-width/color 会丢弃 webkit
+   伪元素，所以 WebKit 只走伪元素，Firefox 走 @supports not selector。 */
+html[data-ui-theme] :is(.session-rail-list,.msgs,.steps,.pane-body,
+.chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+.chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+.b.a pre,.step pre.sub,.step pre,.todo-list-scroll){
+  scrollbar-width:auto;
+  scrollbar-color:auto;
+  /* 永久预留 3px：内容变长出现滚动条时不再挤动正文 */
+  scrollbar-gutter:stable;
+}
+html[data-ui-theme] :is(.session-rail-list,.msgs,.steps,.pane-body,
+.chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+.chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+.b.a pre,.step pre.sub,.step pre,.todo-list-scroll)::-webkit-scrollbar{width:3px;height:3px}
+html[data-ui-theme] :is(.session-rail-list,.msgs,.steps,.pane-body,
+.chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+.chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+.b.a pre,.step pre.sub,.step pre,.todo-list-scroll)::-webkit-scrollbar-track{background:transparent}
+/* 默认隐藏：拇指透明 */
+html[data-ui-theme] :is(.session-rail-list,.msgs,.steps,.pane-body,
+.chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+.chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+.b.a pre,.step pre.sub,.step pre,.todo-list-scroll)::-webkit-scrollbar-thumb{
+  background:transparent;
+  border-radius:3px;
+}
+/* 指针进入面板（含其内部子元素）时显示 */
+html[data-ui-theme="dark"] :is(.session-rail-list,.msgs,.steps,.pane-body,
+.chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+.chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+.b.a pre,.step pre.sub,.step pre,.todo-list-scroll):hover::-webkit-scrollbar-thumb{
+  background:rgba(140,144,154,.22);
+}
+html[data-ui-theme="light"] :is(.session-rail-list,.msgs,.steps,.pane-body,
+.chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+.chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+.b.a pre,.step pre.sub,.step pre,.todo-list-scroll):hover::-webkit-scrollbar-thumb{
+  background:rgba(90,98,112,.22);
+}
+html[data-ui-theme] :is(.session-rail-list,.msgs,.steps,.pane-body,
+.chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+.chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+.b.a pre,.step pre.sub,.step pre,.todo-list-scroll)::-webkit-scrollbar-corner{background:transparent}
+@supports not selector(::-webkit-scrollbar){
+  html[data-ui-theme] :is(.session-rail-list,.msgs,.steps,.pane-body,
+  .chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+  .chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+  .b.a pre,.step pre.sub,.step pre,.todo-list-scroll){
+    scrollbar-width:thin;
+    scrollbar-color:transparent transparent;
+  }
+  html[data-ui-theme="dark"] :is(.session-rail-list,.msgs,.steps,.pane-body,
+  .chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+  .chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+  .b.a pre,.step pre.sub,.step pre,.todo-list-scroll):hover{
+    scrollbar-color:rgba(140,144,154,.28) transparent;
+  }
+  html[data-ui-theme="light"] :is(.session-rail-list,.msgs,.steps,.pane-body,
+  .chat-tool-pane,.chat-tool-custom-view,.chat-tool-pane--diff .diff-unified,
+  .chat-tool-pane .chat-tool-md pre,.diff-bubble .diff-unified,
+  .b.a pre,.step pre.sub,.step pre,.todo-list-scroll):hover{
+    scrollbar-color:rgba(90,98,112,.28) transparent;
+  }
+}
+
+/* 输入框（composer）：内容超限时出现的滚动条，与面板共用同一套 3px 静默样式，
+   默认透明、指针进入输入框才显示；scrollbar-gutter:stable 让内容超限前后文字不横移。 */
+html[data-ui-theme] .composer textarea{
+  scrollbar-width:auto;
+  scrollbar-color:auto;
+  scrollbar-gutter:stable;
+}
+html[data-ui-theme] .composer textarea::-webkit-scrollbar{width:3px;height:3px}
+html[data-ui-theme] .composer textarea::-webkit-scrollbar-track{background:transparent}
+html[data-ui-theme] .composer textarea::-webkit-scrollbar-thumb{background:transparent;border-radius:3px}
+html[data-ui-theme="dark"] .composer textarea:hover::-webkit-scrollbar-thumb{background:rgba(140,144,154,.22)}
+html[data-ui-theme="light"] .composer textarea:hover::-webkit-scrollbar-thumb{background:rgba(0,0,0,.22)}
+html[data-ui-theme] .composer textarea::-webkit-scrollbar-corner{background:transparent}
+@supports not selector(::-webkit-scrollbar){
+  html[data-ui-theme] .composer textarea{scrollbar-width:thin;scrollbar-color:transparent transparent}
+  html[data-ui-theme="dark"] .composer textarea:hover{scrollbar-color:rgba(140,144,154,.28) transparent}
+  html[data-ui-theme="light"] .composer textarea:hover{scrollbar-color:rgba(0,0,0,.28) transparent}
+}
+
+/* 壳：左右上融为一体；对话面单独抬起 */
+html[data-ui-theme] body{background:var(--c-bg-raise);color:var(--c-text-2)}
+html[data-ui-theme] header,
+html[data-ui-theme] main,
+html[data-ui-theme] .session-rail,
+html[data-ui-theme] .session-rail-head,
+html[data-ui-theme] .usage-bottom,
+html[data-ui-theme] .side,
+html[data-ui-theme] .side-tabbar,
+html[data-ui-theme] .side-pane,
+html[data-ui-theme] .side-pane-wrap,
+html[data-ui-theme] .chat,
+html[data-ui-theme] .p-title,
+html[data-ui-theme] .chat-title-row,
+html[data-ui-theme] .msgs{
+  background:transparent!important;
+}
+html[data-ui-theme] .chat-conversation-mount{
+  background:var(--c-bg-base)!important;
+  border-radius:20px 0 0 0;
+  overflow:hidden;
+  min-width:0;
+}
+html[data-ui-theme] .chat > .row{
+  padding:var(--sp-5) 0;
+  background:var(--c-bg-base)!important;
+  border-top:0!important;
+}
+
+header,header.header{border-bottom:0!important}
+.row{border-top:0!important}
+.session-rail-head{border-bottom:0!important}
+.p-title{border-bottom:0!important}
+.side{border-left:0!important}
+.side-tabbar{border-bottom:0!important}
+.pane-meta{border-bottom:0!important}
+.usage-bottom{border-top:0!important}
+.session-rail{border:0}
+.chat-session-group::after{background:transparent}
+.u2{border-top:0!important;border-bottom:0!important;background:transparent}
+
+/* 分隔条：3px 拖拽热区，始终透明（悬停也不露分割线） */
+.classic-split-resizer,
+.classic-split-resizer:hover,
+.session-rail-resizer,
+.session-rail-resizer:hover,
+html[data-session-rail="open"] .session-rail-resizer.is-collapsed,
+html[data-session-rail="open"] .session-rail-resizer.is-collapsed:hover{
+  background-color:transparent!important;
+  background-image:none!important;
+  border:0!important;
+}
+
+.composer{
+  border:0!important;
+  background:var(--c-bg-layer);
+  border-radius:16px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
+  padding:12px 14px 10px!important;
+  gap:10px;
+  box-sizing:border-box;
+}
+html[data-ui-theme] .composer textarea{
+  padding:4px 2px!important;
+  min-height:56px;
+  box-sizing:border-box;
+}
+html[data-ui-theme="light"] .composer{box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+html[data-ui-theme="dark"] .composer{color:var(--c-text-2)}
+.b.u{border:0!important;background:var(--c-bg-layer)}
+.card,.step.card{border:0!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+html[data-ui-theme="light"] .card,
+html[data-ui-theme="light"] .step.card{box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.ch{border-bottom:0!important}
+.chat-tab{border-color:transparent!important}
+.chat-tab.active{
+  border-color:transparent!important;
+  background:var(--c-bg-layer-3)!important;
+  color:var(--c-text-1)!important;
+  box-shadow:none!important;
+}
+.mode-plus{border-color:rgba(255,255,255,.08)!important}
+html[data-ui-theme="light"] .mode-plus{border-color:rgba(0,0,0,.12)!important}
+.todo-list-area{border:0!important;background:var(--c-bg-layer)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+html[data-ui-theme="light"] .todo-list-area{box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.todo-list-header{border-bottom:0!important;background:transparent!important}

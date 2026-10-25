@@ -1,0 +1,82 @@
+# 私有配置与凭据
+# 非机密默认配置入库；只有含凭据的 multi_model 与本地覆盖文件忽略
+plugins/multi_model/plugin-config.ini
+*.local.ini
+*.local.toml
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# 运行时数据
+data/
+*.raw
+*.lock
+
+# 软件更新运行期
+updates/
+
+# 运行期产物
+*.log
+*.tmp
+*.bak
+*.orig
+*.rej
+*~
+logs/
+tmp/
+var/
+
+# Python 派生
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# 工具缓存与覆盖率
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+.locks/
+htmlcov/
+coverage_html/
+
+# 编辑器与系统
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 输入法等本机软件写在当前目录里的文件（与本工程无关）
+sgim_*
+*.sgim
+inputstat.dat
+user.config
+*.local.stat
+*local.stat
+%SystemDrive%/
+Backup/
+
+# 退役脚本
+scripts/retired/
+
+# 本地草稿（图标目录预览等，不入库）
+scripts/_icon_catalog.html
+
+# 本地私有规则（规则插件仍会注入，但不随仓库分发）
+rules/_PRIVATE_RULE.md
+launcher/*.res
+launcher/*.obj

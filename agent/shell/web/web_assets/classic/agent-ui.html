@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<script>try{var _t=localStorage.getItem("aiAgent.uiTheme");document.documentElement.setAttribute("data-ui-theme",_t==="light"?"light":"dark");}catch(e){document.documentElement.setAttribute("data-ui-theme","dark");}try{if(localStorage.getItem("aiAgent.sessionRailOpen")!=="0"){document.documentElement.setAttribute("data-session-rail","open");var _rw=Number(localStorage.getItem("aiAgent.sessionRailPx"));if(!(_rw>0))_rw=240;if(_rw>500)_rw=500;if(_rw<180)_rw=180;document.documentElement.style.setProperty("--session-rail-w",_rw+"px");}}catch(e){document.documentElement.setAttribute("data-session-rail","open");document.documentElement.style.setProperty("--session-rail-w","240px");}</script>
+<script>window.__webUi={{WEB_UI_JSON}};try{if(!window.__webUi.display_tool_steps){document.documentElement.setAttribute("data-tool-steps","off");document.documentElement.setAttribute("data-side-empty","1");}}catch(e){}</script>
+<title>AI Agent {{APP_VERSION}}</title><link rel="icon" type="image/png" href="/assets/img/app_icon_128_black.png"/>
+<style>
+{{CSS}}
+</style>
+</head>
+<body>
+<header><span class="app-brand"><img class="app-icon" src="/assets/img/app_icon_128_transparent2.png" alt=""/><b class="app-title">AI Agent</b><span class="app-badge">{{APP_VERSION}}</span></span><span class="muted" id="hdrModel">模型加载中…</span><span class="muted" id="cid"></span><span class="hdr-actions"><button type="button" id="updateBtn" class="update-btn hidden" title="检查更新"><svg class="update-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v11"/><path d="m7.5 9.5 4.5 4.5 4.5-4.5"/><path d="M5 20h14"/></svg><span id="updateLabel">更新</span></button><button type="button" id="hdrThemeBtn" class="hdr-theme-btn" title="切换为白天界面">白天模式</button><button type="button" id="hdrSettingsBtn" class="hdr-settings-btn" title="设置" aria-label="设置"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button></span></header>
+<main>
+<aside id="sessionRail" class="session-rail is-collapsed" aria-label="会话清单">
+<div id="sessionRailHead" class="session-rail-head"><button type="button" id="sessionRailNew" class="mode-plus">新会话 +</button></div>
+<div id="chatSessionMenu" class="session-rail-list"></div>
+<div id="usage-bottom" class="usage-bottom"></div>
+</aside>
+<div id="sessionRailResizer" class="classic-split-resizer session-rail-resizer is-collapsed" role="separator" aria-orientation="vertical" aria-label="调整会话清单宽度" aria-hidden="true" tabindex="-1"></div>
+<section class="chat">
+<div class="p-title chat-title-row"><span id="chatMoreSlot" class="chat-more-slot"><button type="button" id="chatMoreBtn" class="chat-more-btn" title="展开会话清单" aria-label="展开会话清单" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"></rect><path d="M8 4v16"></path><path class="rail-ico-open" d="M12 9.2 15.2 12 12 14.8"></path><path class="rail-ico-close" d="M15.2 9.2 12 12l3.2 2.8"></path></svg></button></span><div id="chatTabs" class="chat-tabs" role="tablist"></div></div>
+<div id="chatConversationMount" class="chat-conversation-mount"></div>
+<div class="row">
+<div class="composer-above">
+<div id="composerLeft" class="composer-left-col">
+<div id="chatQueue" class="chat-queue hidden" aria-live="polite"></div>
+<div id="queueDraft" class="queue-draft hidden"></div>
+<div id="aiSpeakSlot" class="ai-speak-slot"></div>
+</div>
+<div id="bgTaskPanel" class="bg-task-panel hidden">
+<button type="button" id="bgTaskToggle" class="bg-task-head" aria-expanded="false" title="展开后台任务">
+<span class="bg-task-title">后台任务</span>
+<span class="bg-task-counts"><span class="bg-task-count" data-bg-status="completed">0 已完成</span><span class="bg-task-count" data-bg-status="running">0 进行中</span><span class="bg-task-count" data-bg-status="queued">0 待执行</span><span class="bg-task-count" data-bg-status="failed">0 失败</span><span class="bg-task-count" data-bg-status="cancelled">0 已取消</span></span>
+<span class="bg-task-arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M3.5 9.5 8 5l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+</button>
+<div id="bgTaskPop" class="bg-task-pop hidden" role="dialog" aria-label="后台任务清单">
+<div class="bg-task-pop-head"><span>任务清单</span><button type="button" id="bgTaskRefresh" class="bg-task-link">刷新</button></div>
+<div id="bgTaskList" class="bg-task-list"></div>
+<div id="bgTaskDetail" class="bg-task-detail hidden"></div>
+</div>
+</div>
+</div>
+<div class="composer">
+<div id="attachStrip" class="attach-strip hidden"></div>
+<textarea id="t" placeholder="输入任务，&#10;/ 输入命令　·　@ 关联文件　·　Ctrl+V 贴图"></textarea>
+<input type="file" id="attachFile" accept="image/*" multiple hidden/>
+<div class="composer-foot">
+<div class="left-tools">
+<button type="button" id="attachBtn" class="mode-plus" title="添加图片" aria-label="添加图片"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="15" height="14" rx="2"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="m18 13-4.5-4L4 18"/><path d="M19 15v6M16 18h6"/></svg></button>
+<button id="modePlus" class="mode-plus" title="选择模式">Auto +</button>
+<button id="reasoningBtn" class="mode-plus reasoning-btn" title="推理强度">思考 · <span id="reasoningLabel">Max</span></button>
+<!-- 模型下拉由插件渲染（multi_model）；壳层只留挂载点，不内建任何模型 UI。 -->
+<div id="modelPickerSlot" class="model-picker-slot"></div>
+<div id="pluginActions" class="plugin-actions"></div>
+<div id="reasoningMenu" class="mode-menu reasoning-menu hidden">
+<button type="button" class="mode-item reasoning-choice reasoning-current" data-effort="max">Max — 深度推理</button>
+<button type="button" class="mode-item reasoning-choice" data-effort="high">High — 标准推理</button>
+</div>
+<div id="modeMenu" class="mode-menu hidden">
+<button class="mode-item" data-mode="auto">⚡ 默认模式 - Auto</button>
+<button class="mode-item" data-mode="plan">📋 方案设计 - Plan 模式</button>
+<button class="mode-item" data-mode="execute">▶️ 执行计划 - Execute 模式</button>
+
+</div>
+<span id="modeChip" class="mode-chip hidden"><span id="modeChipText">Plan</span><button id="modeChipClear" class="x" title="恢复默认">×</button></span>
+</div>
+<div class="right-actions">
+<span class="send-hint">Enter 发送 / Shift+Enter 换行</span>
+<button id="autoToggle" class="mode-plus" title="目标：设定后每轮结束自动用该文案发起新一轮（点击设置/查看）">目标</button>
+<button id="stopTask" class="mode-plus stop-task hidden" title="停止当前会话任务">停止</button>
+<button id="go" class="mode-plus" title="发送消息">发送</button>
+</div>
+</div>
+<div id="slashPop" class="slash-pop hidden" aria-hidden="true">
+<button type="button" class="slash-item" data-slash="auto"><span class="sl">/Auto</span><span class="sh"></span></button>
+<button type="button" class="slash-item" data-slash="plan"><span class="sl">/Plan</span><span class="sh"></span></button>
+<button type="button" class="slash-item" data-slash="execute"><span class="sl">/Execute</span><span class="sh"></span></button>
+</div>
+<div id="atPop" class="at-pop" style="visibility:hidden;top:-99999px" aria-hidden="true">
+<div class="at-pop-head">
+<button type="button" id="atUpBtn" class="at-up-btn" title="上级目录">← 向上</button>
+<span id="atCurPath" class="at-cur-path"></span>
+</div>
+<div id="atList" class="at-list"></div>
+</div>
+
+</div>
+</div>
+</section>
+<div id="classicSplitResizer" class="classic-split-resizer" role="separator" aria-orientation="vertical" aria-label="调整对话区与步骤区宽度" tabindex="0"></div>
+<aside class="side" id="classicSidePane">
+<div class="side-tabbar" id="sideTabbar">
+<button type="button" class="side-tab active pinned" data-pane="steps" id="tabSteps" title="不可关闭">步骤</button>
+</div>
+<div class="side-pane-wrap" id="sidePaneWrap">
+<div id="paneSteps" class="side-pane active" data-pane="steps">
+<div class="p-title">步骤 · 工具与执行明细（点击标题展开）</div>
+<div class="steps" id="steps"></div>
+</div>
+</div>
+</aside>
+</main>
+<script>
+{{agent-ui.js}}
+</script>
+</body></html>

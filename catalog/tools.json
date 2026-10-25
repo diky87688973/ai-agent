@@ -1,0 +1,1632 @@
+{
+  "tools": [
+    {
+      "description": "把你要对用户说的话直接说出来。用当前角色的第一人称、人类口语，像当面汇报，不使用播音腔、书面语，不解释自己在调用工具。每完成一步就调用一次，不等到全部做完。允许：中文、英文、数字、空格；中文标点 ，。？！；、：“”‘’（）；英文标点 . , ? ! ; : ' \" ( )；四则符号 + - * / × ÷（含全角 ＋－＊／）；百分号 % 或 ％。英文单词内可用 - 和 '。引号括号需成对（含「」与《》）。其他符号与 emoji 不必刻意删：合成前会自动移除不发音的符号。但禁止换行与制表符、Markdown、代码、链接。每个分句以边界标点结尾；后端按标点贪心拼装，单段上限取插件配置 max_segment_chars（默认 128 字），超过上限会失败并返回规范。一次最多 512 字。例如「进度 10%。」会读成「进度 百分之十。」；「5+3。」会读成「五加三。」。示例：主子，文件已经写好了，您要不要看一眼？",
+      "display": {
+        "icon": "🔊",
+        "label": "AI说话"
+      },
+      "name": "ai_speak",
+      "parallel_safe": false,
+      "parameters": {
+        "msg": {
+          "description": "要说的话；当前角色口吻、人类口语；单次最多 512 字。",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "预览补丁应用（不落盘）：把 unified diff（patch_text）应用到 path 根下已有文件（目标可带 a//b/ 前缀，须在根内）；返回各文件统计与 confirm_id，凭 commit_write 提交。",
+      "display": {
+        "icon": "🔧",
+        "label": "应用补丁"
+      },
+      "name": "apply_patch",
+      "parallel_safe": false,
+      "parameters": {
+        "patch_text": {
+          "description": "unified diff 文本（可含多个文件段）",
+          "type": "string"
+        },
+        "path": {
+          "description": "补丁应用根目录（目标文件须位于其下）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "压缩包 list / extract / create：list 只读；extract / create 先预览（不落盘，返回 confirm_id），凭 commit_write 提交执行。",
+      "display": {
+        "icon": "🗜️",
+        "label": "压缩包操作"
+      },
+      "name": "archive",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "list / extract / create",
+          "type": "string"
+        },
+        "dest": {
+          "description": "extract 解压目标目录 / create 输出包路径",
+          "type": "string"
+        },
+        "glob_pattern": {
+          "description": "成员/文件通配过滤",
+          "type": "string"
+        },
+        "output_format": {
+          "description": "create 输出格式（zip / tar.gz / tar.bz2 / tar.xz / tar；缺省按 dest 后缀）",
+          "type": "string"
+        },
+        "password": {
+          "description": "读加密包密码（zip/rar）",
+          "type": "string"
+        },
+        "source": {
+          "description": "包路径（list/extract）或待打包源路径（create）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "管理本会话的后台命令任务。action=create 创建并入队，list 查看队列，cancel 取消，output 读取未读输出。任务超时包含排队与执行。",
+      "display": {
+        "icon": "▣",
+        "label": "后台任务"
+      },
+      "name": "background_task",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "create / list / cancel / output",
+          "enum": [
+            "create",
+            "list",
+            "cancel",
+            "output"
+          ],
+          "type": "string"
+        },
+        "argv": {
+          "description": "命令参数数组（create 必填，不经 shell；例如 python -c print(1) 拆成三个参数）",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "batch": {
+          "description": "批次号；create 可选（传回执 batch 可加入同批），list 必填",
+          "type": "string"
+        },
+        "cwd": {
+          "description": "工作目录（可选）",
+          "type": "string"
+        },
+        "label": {
+          "description": "任务小标题（create 必填，用于工具壳展示；允许同名）",
+          "type": "string"
+        },
+        "reason": {
+          "description": "取消原因（cancel 可选）",
+          "type": "string"
+        },
+        "status": {
+          "description": "list 的状态过滤（可选）",
+          "type": "string"
+        },
+        "task_id": {
+          "description": "任务 ID（cancel / output 必填；list 可用于精确查询）",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "output 等待上限毫秒数（可选，默认 30000）",
+          "type": "integer"
+        },
+        "timeout_sec": {
+          "description": "从创建时刻开始的总超时秒数（create 必填，1..86400）",
+          "type": "integer"
+        },
+        "wait": {
+          "description": "output 是否等待终态（可选）",
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "description": "凭 confirm_id 提交写预览并落盘。前置：必须先通过 review_conclusion 的 review。写参数由门控从预览快照恢复并分派执行。同一文件刚提交后又要改：若门控要求先 read_file，只是复核落盘后的内容与行号；已解锁的 confirm_id 仍有效，确认无误后用原 confirm_id 继续提交，不必重新预览。",
+      "display": {
+        "icon": "💾",
+        "label": "提交写盘"
+      },
+      "name": "commit_write",
+      "parallel_safe": false,
+      "parameters": {
+        "confirm_id": {
+          "description": "预览快照 ID（提交唯一凭据）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "表格文件（csv/tsv/xlsx）预览、筛选、排序、统计与导出（json/csv/markdown）；xlsx 需可选依赖 openpyxl。",
+      "display": {
+        "icon": "📊",
+        "label": "处理表格"
+      },
+      "name": "data_table",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "preview / filter / sort / stats / to_json / to_csv / to_md / sheets",
+          "type": "string"
+        },
+        "col": {
+          "description": "stats 的列名",
+          "type": "string"
+        },
+        "filter_col": {
+          "description": "filter 的列名",
+          "type": "string"
+        },
+        "filter_val": {
+          "description": "filter 的匹配值",
+          "type": "string"
+        },
+        "limit": {
+          "description": "预览行数上限（默认 20）",
+          "type": "integer"
+        },
+        "path": {
+          "description": "表格文件路径（.csv / .tsv / .xlsx）",
+          "type": "string"
+        },
+        "regex": {
+          "description": "filter 时按正则匹配（默认等值忽略大小写）",
+          "type": "boolean"
+        },
+        "sheet": {
+          "description": "Excel 工作表名（xlsx 可选）",
+          "type": "string"
+        },
+        "sort_col": {
+          "description": "sort 的列名",
+          "type": "string"
+        },
+        "sort_desc": {
+          "description": "sort 降序",
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "description": "预览安全删除（不落盘）：文件将移入回收目录（可恢复）；路径已不存在时返回 status=already_absent（needs_commit=false），不必再 commit；目录请用 `file_ops(action=delete, recursive=true)`；否则返回 confirm_id，凭 commit_write 提交。",
+      "display": {
+        "icon": "🗑️",
+        "label": "删除文件"
+      },
+      "name": "delete_file",
+      "parallel_safe": false,
+      "parameters": {
+        "path": {
+          "description": "待删除文件路径",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "截取桌面并作为图片直接查看（不是 OCR）。支持整屏、区域与指定窗口。给 window（标题片段）或 hwnd 时取该窗口自身内容，目标被别的窗口盖住也能看到；窗口若已最小化会先恢复再取图，回执标 restored。activate=false（默认）只恢复不置前，不改变用户正在用的窗口；需要把窗口亮到前台时给 activate=true。要给悬停才出现的控件拍照（视频控制条、下拉菜单、提示气泡），用 hover=[x,y]：同一次调用内先移光标、等界面展开、再截图。默认会连续移动并在落点做几次 1–2px 微移动（hover_wiggle），因为播放器只认连续的 mousemove，瞬移后静止会被当成鼠标没动；要更接近真实轨迹可给 hover_path 中间点。回执的 hover.hit 会说明光标下是哪一层窗口；若它与这次取图的窗口不是同一个，note 会直接指出该改用哪个 hwnd——播放器画面常是独立顶层窗口，按标题取的却是它上面的详情页壳。不给 window / hwnd 而给了 hover 时，直接取光标那一层窗口的原尺寸内容，既不会被遮挡，也不会因为整屏缩放而看不清控件上的字。分开调用「先移鼠标、再截图」在多数播放器与网页上都会失败——控件的自动隐藏通常只有 2–3 秒，撑不过一次模型往返。不给窗口则取屏幕合成结果（会包含遮挡物）。默认每张图都带坐标辅助线：光标位置是黑色描边、白色分隔的亮绿短十字、小圆环和黑底或黑色描边的 CURSOR 标签；短十字只画在光标附近，不铺满全图，中心留空，落点像素本身不被盖住。小区域的标签只写坐标，省略 CURSOR 前缀；短边小于 90 的区域完全不画标签，坐标从回执 cursor 读取。网格主线是红色粗线，细线是蓝色，刻度数字在边缘。这些线不是截图里的界面元素，是读坐标的参照；先读 CURSOR 标签和绿十字，再用网格定位，回执的 cursor 给出同一坐标。图片压缩后辅助线和标签仍保留；仍看不清时缩小取图区域、把 grid_step 调到 20–40，或提高 max_side。要同时看标注图和干净原图时给 annotate=both：同一张图先回标注图、再回无辅助线原图；annotate=raw 只回原图，默认 annotated 只回标注图。回执带 capture_id；要按图内坐标点击时，先让这张图的网格用图内像素（grid_unit=image），再把 capture_id 与图内 x/y 交给 desktop_mouse（space=image）。默认网格仍是屏幕坐标；两种坐标不要混用。点小目标时把 grid_step 调到 20–40，网格刻度更细，坐标不用估；细节看不清时用 x/y/width/height 取局部，局部通常按原尺寸发送。",
+      "display": {
+        "icon": "👁",
+        "label": "看屏"
+      },
+      "name": "desktop_eye",
+      "parallel_safe": false,
+      "parameters": {
+        "activate": {
+          "description": "取图前是否把窗口带到前台（默认 false：只恢复不置前，不打断当前操作）",
+          "type": "boolean"
+        },
+        "annotate": {
+          "description": "annotated 只回标注图（默认）/ raw 只回原图 / both 先回标注图再回原图",
+          "enum": [
+            "annotated",
+            "raw",
+            "both"
+          ],
+          "type": "string"
+        },
+        "grid": {
+          "description": "叠加坐标网格与刻度（默认 true）",
+          "type": "boolean"
+        },
+        "grid_step": {
+          "description": "网格间距（屏幕坐标）20–500；缺省取插件配置。点小目标（如剧集卡片）时给 20–40，坐标读数更细",
+          "type": "integer"
+        },
+        "grid_unit": {
+          "description": "网格刻度单位：screen 屏幕坐标（默认）/ image 图内像素。图内像素配合 capture_id 交给 desktop_mouse",
+          "enum": [
+            "screen",
+            "image"
+          ],
+          "type": "string"
+        },
+        "height": {
+          "description": "区域高度（屏幕坐标）",
+          "type": "integer"
+        },
+        "hover": {
+          "description": "取图前把光标移到这里 [x, y]（屏幕坐标），用来展开悬停控件",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "hover_approach_ms": {
+          "description": "移动到落点用多少毫秒 0–2000（默认 120）；0 = 一次跳变。",
+          "type": "integer"
+        },
+        "hover_path": {
+          "description": "到 hover 之前先经过的中间点 [[x, y], ...]，最多 4 个；用它模拟真实移动轨迹，唤醒只认连续 mousemove 的播放器控件",
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "hover_settle_ms": {
+          "description": "移完光标等界面展开的毫秒数 0–5000；缺省取插件配置",
+          "type": "integer"
+        },
+        "hover_wiggle": {
+          "description": "到达后是否在落点附近做几次 1–2px 微移动（默认 true）；播放器控制条通常需要它才会出现。微动结束会回到落点",
+          "type": "boolean"
+        },
+        "hwnd": {
+          "description": "窗口句柄；与 window 二选一，hwnd 更精确",
+          "type": "integer"
+        },
+        "max_side": {
+          "description": "长边缩到不超过该像素；0 = 不缩放；缺省取插件配置",
+          "type": "integer"
+        },
+        "width": {
+          "description": "区域宽度（屏幕坐标）",
+          "type": "integer"
+        },
+        "window": {
+          "description": "窗口标题片段；取该窗口自身内容，遮挡不影响",
+          "type": "string"
+        },
+        "x": {
+          "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出",
+          "type": "integer"
+        },
+        "y": {
+          "description": "区域左上角 y（屏幕坐标）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "操作键盘。type 输入任意 Unicode 文本；key 按单个键（enter / tab / esc / 方向键 / f1–f20 / 字母 / 数字 / 符号）；hotkey 按组合键（如 ctrl+c、alt+tab、cmd+space）。给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再输入，回执带 focus；置前失败时不会盲打，直接报错，避免字落进别的窗口。要给输入后的界面同时拍一张，加 shot=true：同一调用内完成「打完就截」，省掉一次「再调 desktop_eye」的往返。Plan 模式下拒绝。",
+      "display": {
+        "icon": "⌨",
+        "label": "键盘"
+      },
+      "name": "desktop_keyboard",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "type 输入文本 / key 单键 / hotkey 组合键",
+          "enum": [
+            "type",
+            "key",
+            "hotkey"
+          ],
+          "type": "string"
+        },
+        "hwnd": {
+          "description": "目标窗口句柄；与 window 二选一，hwnd 更精确",
+          "type": "integer"
+        },
+        "key": {
+          "description": "单键规范名或常见别名（key 必填）",
+          "type": "string"
+        },
+        "keys": {
+          "description": "组合键，如 \"ctrl+c\" / \"alt+tab\" / \"cmd+space\"（hotkey 必填）",
+          "type": "string"
+        },
+        "repeat": {
+          "description": "重复次数 1–20（默认 1）",
+          "type": "integer"
+        },
+        "shot": {
+          "description": "动作完成后在本次调用内截图并作为图片附件返回（默认 false）",
+          "type": "boolean"
+        },
+        "shot_max_side": {
+          "description": "shot 的长边上限；缺省取插件配置",
+          "type": "integer"
+        },
+        "text": {
+          "description": "要输入的文本（type 必填）",
+          "type": "string"
+        },
+        "window": {
+          "description": "目标窗口标题片段；先置前再输入",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "操作鼠标。默认坐标是屏幕坐标；给 capture_id 时按 desktop_eye 截图里的图内像素坐标解释，由工具查截图登记并换算，模型不用乘缩放比例。图内坐标用 space=image 更明确；capture_id 不存在或过期会直接报错。click / scroll 省略 x、y 时作用在当前光标位置；图像坐标必须给点。给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再动作，回执带 focus；置前失败时不会盲点，直接报错，避免点到遮挡物。点击回执带三份证据：hit（落点所在窗口与控件类名）、changed（落点周围 200×200 的像素变化比例）与 window_changed（顶层窗口是否被替换、有没有新窗口出现）。changed=0 只说明落点原地没动，不代表没点中：window_changed.navigated=true 才是「点进了详情/播放页」的正解。要给动作后的界面同时拍一张，加 shot=true：同一调用内完成「点完就截」，省掉一次「再调 desktop_eye」的往返；回图默认拍落点实际所在的窗口（shot_of=hit），不是按标题重新解析的那个。shot 回图的辅助线与 desktop_eye 相同：短十字、小圆环、CURSOR 标签和网格。action=cursor 只读查询，Plan 模式可用；其余动作在 Plan 模式被拒绝。",
+      "display": {
+        "icon": "🖱",
+        "label": "鼠标"
+      },
+      "name": "desktop_mouse",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "move 移动 / click 点击 / drag 拖拽 / scroll 滚动 / cursor 查询光标",
+          "enum": [
+            "move",
+            "click",
+            "drag",
+            "scroll",
+            "cursor"
+          ],
+          "type": "string"
+        },
+        "amount": {
+          "description": "滚动量 -50 ~ 50，正数向下 / 向右（scroll 必填）",
+          "type": "integer"
+        },
+        "button": {
+          "description": "按键（默认 left）",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ],
+          "type": "string"
+        },
+        "capture_id": {
+          "description": "desktop_eye 回执里的 capture_id；给了它即按图内坐标解释",
+          "type": "string"
+        },
+        "count": {
+          "description": "点击次数 1–3（默认 1）",
+          "type": "integer"
+        },
+        "duration_ms": {
+          "description": "移动 / 拖拽时长 0–5000 毫秒（默认 0）",
+          "type": "integer"
+        },
+        "horizontal": {
+          "description": "横向滚动（默认 false）",
+          "type": "boolean"
+        },
+        "hwnd": {
+          "description": "目标窗口句柄；与 window 二选一，hwnd 更精确",
+          "type": "integer"
+        },
+        "shot": {
+          "description": "动作完成后在本次调用内截图并作为图片附件返回（默认 false）",
+          "type": "boolean"
+        },
+        "shot_max_side": {
+          "description": "shot 的长边上限；缺省取插件配置",
+          "type": "integer"
+        },
+        "shot_region": {
+          "description": "截图区域 [x, y, width, height]（屏幕坐标）；省略则取整屏或目标窗口",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "space": {
+          "description": "坐标空间：screen 屏幕（默认）/ image 图内像素（需 capture_id）",
+          "enum": [
+            "screen",
+            "image"
+          ],
+          "type": "string"
+        },
+        "to_x": {
+          "description": "拖拽终点 x；坐标空间同 x",
+          "type": "integer"
+        },
+        "to_y": {
+          "description": "拖拽终点 y；坐标空间同 y",
+          "type": "integer"
+        },
+        "window": {
+          "description": "目标窗口标题片段；先置前再动作",
+          "type": "string"
+        },
+        "x": {
+          "description": "x；默认屏幕坐标，space=image / 给 capture_id 时是图内像素",
+          "type": "integer"
+        },
+        "y": {
+          "description": "y；默认屏幕坐标，space=image / 给 capture_id 时是图内像素",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "等桌面出现可观测的变化，满足条件立即返回（不是盲睡）。until=change：等指定区域或指定窗口的画面变化超过 threshold；until=window_appears / window_disappears：等标题包含 window 的窗口出现或消失。超时不算错误：返回 satisfied=false，由你决定换动作还是延长等待。典型用法：等预告播完、等加载完成、等弹窗消失，不要用 task_sleep 猜秒数。Plan 模式下可用（只读）。",
+      "display": {
+        "icon": "⏳",
+        "label": "等待条件"
+      },
+      "name": "desktop_wait",
+      "parallel_safe": false,
+      "parameters": {
+        "height": {
+          "description": "区域高度（屏幕坐标）",
+          "type": "integer"
+        },
+        "hwnd": {
+          "description": "窗口句柄；与 window 二选一",
+          "type": "integer"
+        },
+        "interval_ms": {
+          "description": "轮询间隔 50–2000 毫秒；缺省取插件配置",
+          "type": "integer"
+        },
+        "threshold": {
+          "description": "change 的判定阈值 0–1（默认 0.02）；越小越敏感",
+          "type": "number"
+        },
+        "timeout_ms": {
+          "description": "最长等待毫秒数 50–60000（默认 10000）",
+          "type": "integer"
+        },
+        "until": {
+          "description": "change 画面变化 / window_appears 窗口出现 / window_disappears 窗口消失",
+          "enum": [
+            "change",
+            "window_appears",
+            "window_disappears"
+          ],
+          "type": "string"
+        },
+        "width": {
+          "description": "区域宽度（屏幕坐标）",
+          "type": "integer"
+        },
+        "window": {
+          "description": "窗口标题片段；change 时用来限定取图范围，window_* 时是必填",
+          "type": "string"
+        },
+        "x": {
+          "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出",
+          "type": "integer"
+        },
+        "y": {
+          "description": "区域左上角 y（屏幕坐标）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "回显输入文本。",
+      "display": {
+        "icon": "🔔",
+        "label": "回显"
+      },
+      "name": "echo",
+      "parallel_safe": false,
+      "parameters": {
+        "text": {
+          "description": "要回显的文本",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "探测本机可用命令行环境（cmd / powershell / pwsh / bash / python / py）并给出使用建议。",
+      "display": {
+        "icon": "🧪",
+        "label": "探测运行环境"
+      },
+      "name": "env_probe",
+      "parallel_safe": false,
+      "parameters": {}
+    },
+    {
+      "description": "预览文件操作（不落盘）：copy / move / rename / delete（delete 移入回收目录，可恢复；delete 目录须 `recursive=true`）。on_exists=error|overwrite|skip（默认 error）；copy/move/rename 源不存在 → ok=false / source_missing（可含 dest_exists）；目标已在且 on_exists=error → ok=false / dest_exists_conflict（结构化，非纯字符串）；同内容 copy → already_applied；on_exists=skip → skipped；delete 路径已不在 → already_absent；否则返回 confirm_id，凭 commit_write 提交。",
+      "display": {
+        "icon": "📋",
+        "label": "执行文件复制/移动/删除"
+      },
+      "name": "file_ops",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "copy / move / rename / delete",
+          "type": "string"
+        },
+        "dest": {
+          "description": "目标路径（delete 时勿传）",
+          "type": "string"
+        },
+        "on_exists": {
+          "description": "目标已存在时：error（默认拒绝）/ overwrite（覆盖）/ skip（跳过，needs_commit=false）",
+          "type": "string"
+        },
+        "recursive": {
+          "description": "删除目录须传 true",
+          "type": "boolean"
+        },
+        "source": {
+          "description": "源路径（必填）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "目录或单文件内容搜索（字面/正则）；支持 gitignore 过滤、编码嗅探与上下文行；适合大范围扫描。简单精确匹配用 grep_files。",
+      "display": {
+        "icon": "🔎",
+        "label": "搜索文件内容"
+      },
+      "name": "file_search",
+      "parallel_safe": false,
+      "parameters": {
+        "context_lines": {
+          "description": "命中前后附带的上下文行数",
+          "type": "integer"
+        },
+        "exclude": {
+          "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+          "type": "array"
+        },
+        "glob_pattern": {
+          "description": "文件名通配过滤（如 *.py）",
+          "type": "string"
+        },
+        "ignore_case": {
+          "description": "忽略大小写",
+          "type": "boolean"
+        },
+        "include_derived": {
+          "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
+          "type": "boolean"
+        },
+        "limit": {
+          "description": "命中上限（缺省不限）",
+          "type": "integer"
+        },
+        "no_gitignore": {
+          "description": "true 时不按 .gitignore 过滤",
+          "type": "boolean"
+        },
+        "path": {
+          "description": "目录或单文件路径",
+          "type": "string"
+        },
+        "pattern": {
+          "description": "查找模式（字面 | 为 OR，或正则）",
+          "type": "string"
+        },
+        "recursive": {
+          "description": "目录下递归（默认 true）",
+          "type": "boolean"
+        },
+        "regex": {
+          "description": "按正则解析（默认 false 字面）",
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "description": "版本回滚：`action=list` 列某文件历史备份（只读）；`action=diff` 比对备份与当前（只读）；`action=undo` + `mod_id` + `path` 预览回滚（不落盘，返回 confirm_id，凭 commit_write 提交；回滚前自动备份当前版本）。",
+      "display": {
+        "icon": "↩️",
+        "label": "撤销文件改动"
+      },
+      "name": "file_undo",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "list / diff / undo",
+          "type": "string"
+        },
+        "mod_id": {
+          "description": "备份版本 ID（diff / undo 必填，来自 list 或写盘结果）",
+          "type": "string"
+        },
+        "path": {
+          "description": "文件路径（list / undo 必填；diff 可选）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "在单个文件内定位字面（| 为 OR）或正则的第 N 处命中，返回 region 与行列（可直接传 replace_in_file）。",
+      "display": {
+        "icon": "🎯",
+        "label": "定位文件内文本"
+      },
+      "name": "find_in_file",
+      "parallel_safe": false,
+      "parameters": {
+        "encoding": {
+          "description": "文件编码（utf-8 / auto 等，默认 utf-8）",
+          "type": "string"
+        },
+        "ignore_case": {
+          "description": "忽略大小写",
+          "type": "boolean"
+        },
+        "occurrence": {
+          "description": "取第几处命中（0-based，默认 0）",
+          "type": "integer"
+        },
+        "path": {
+          "description": "目标文件路径",
+          "type": "string"
+        },
+        "pattern": {
+          "description": "查找模式（字面或正则）",
+          "type": "string"
+        },
+        "regex": {
+          "description": "按正则解析（默认 false 字面）",
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "description": "Git 工作区只读查询：worktree（状态+diff）/ log / blame / show；不执行写入型 git 命令。",
+      "display": {
+        "icon": "🌿",
+        "label": "查看 Git 工作区"
+      },
+      "name": "git_workspace",
+      "parallel_safe": false,
+      "parameters": {
+        "blame_path": {
+          "description": "blame 模式：相对仓库根的文件路径",
+          "type": "string"
+        },
+        "end_line": {
+          "description": "blame 结束行（闭区间）",
+          "type": "integer"
+        },
+        "log_max": {
+          "description": "log 模式提交条数（默认 20）",
+          "type": "integer"
+        },
+        "max_diff_chars": {
+          "description": "diff/补丁输出截断上限（默认 200000）",
+          "type": "integer"
+        },
+        "mode": {
+          "description": "worktree / log / blame / show（默认 worktree）",
+          "type": "string"
+        },
+        "path": {
+          "description": "Git 仓库根目录（含 .git）",
+          "type": "string"
+        },
+        "show_ref": {
+          "description": "show 模式：提交 hash / 分支等（默认 HEAD）",
+          "type": "string"
+        },
+        "start_line": {
+          "description": "blame 起始行（与 end_line 成对）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "按 glob 模式列出路径；可选递归与 file/dir/all 过滤。默认只剪掉 .git/ 与 __pycache__/ 两类通用产物目录，剪掉的目录数在回执 skipped_derived_dirs 中报出；要用 include_derived=true 连默认名单一起列出。",
+      "display": {
+        "icon": "📂",
+        "label": "列出路径"
+      },
+      "name": "glob_files",
+      "parallel_safe": false,
+      "parameters": {
+        "entry_type": {
+          "description": "file / dir / all，默认 file",
+          "type": "string"
+        },
+        "exclude": {
+          "description": "额外排除的目录名（按路径段全等匹配）",
+          "type": "array"
+        },
+        "glob_pattern": {
+          "description": "glob 模式，默认 **/*",
+          "type": "string"
+        },
+        "include_derived": {
+          "description": "连 .git/、__pycache__/ 默认名单一起列出，默认 false",
+          "type": "boolean"
+        },
+        "limit": {
+          "description": "条数上限，默认 200",
+          "type": "integer"
+        },
+        "path": {
+          "description": "目录根，默认 .",
+          "type": "string"
+        },
+        "recursive": {
+          "description": "是否递归，默认 true",
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "description": "管理本会话的目标文案。目标处于 active 时，每轮结束后系统会自动用该文案发起新一轮，直到你用 action=pause/done 停下。action: create=新建或整体改写；get=查询；update=局部改（文案/状态/备注）；pause=暂停触发；resume=恢复触发；done=标记达成；delete=删除。不要每轮都调 get 自查：自动触发的那一轮里，目标文案本身就是发来的消息，你不需要再查一次；只在用户问起目标状态、或你要动手改它之前查一次。",
+      "display": {
+        "icon": "🎯",
+        "label": "目标"
+      },
+      "name": "goal",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "create / get / update / pause / resume / done / delete",
+          "type": "string"
+        },
+        "note": {
+          "description": "备注（可选，给人看）",
+          "type": "string"
+        },
+        "status": {
+          "description": "update 时的状态：active / paused / done",
+          "type": "string"
+        },
+        "text": {
+          "description": "目标文案（create 必填；update 可改）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "按字面（| 为 OR 分隔）或正则搜索目录内文本文件内容。默认只剪掉 .git/ 与 __pycache__/ 这两类通用产物目录，剪掉了几个会在回执 skipped_derived_dirs 里如实报出；要排除别的目录（如本项目自己的临时目录）用 exclude 指定；连默认名单一起搜时传 include_derived=true。需要 gitignore 过滤 / 上下文行 / 编码嗅探时用 file_search。",
+      "display": {
+        "icon": "🔎",
+        "label": "搜索文件内容"
+      },
+      "name": "grep_files",
+      "parallel_safe": false,
+      "parameters": {
+        "exclude": {
+          "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+          "type": "array"
+        },
+        "ignore_case": {
+          "description": "忽略大小写，默认 false",
+          "type": "boolean"
+        },
+        "include_derived": {
+          "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
+          "type": "boolean"
+        },
+        "limit": {
+          "description": "结果上限，默认 200",
+          "type": "integer"
+        },
+        "path": {
+          "description": "搜索根目录，默认 .",
+          "type": "string"
+        },
+        "pattern": {
+          "description": "搜索模式（字面或正则）",
+          "type": "string"
+        },
+        "regex": {
+          "description": "true 时按 Python 正则解析，默认 false",
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "description": "对图片做 OCR（pytesseract / easyocr，可选依赖）；支持区域裁剪；缺依赖时给出安装提示。",
+      "display": {
+        "icon": "🖼",
+        "label": "识别图片文字"
+      },
+      "name": "image_ocr",
+      "parallel_safe": false,
+      "parameters": {
+        "engine": {
+          "description": "auto / pytesseract / easyocr（默认 auto）",
+          "type": "string"
+        },
+        "lang": {
+          "description": "语言包（默认 chi_sim+eng）",
+          "type": "string"
+        },
+        "path": {
+          "description": "图片文件路径",
+          "type": "string"
+        },
+        "region": {
+          "description": "裁剪区域 x,y,w,h 逗号分隔整数（可选）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "IP 地理查询（ipwho.is 免费 API，无 Key）：国家/城市/经纬度/时区；内网或未指定 IP 自动查出口。",
+      "display": {
+        "icon": "📍",
+        "label": "定位公网地区"
+      },
+      "name": "ip_geolocate",
+      "parallel_safe": false,
+      "parameters": {
+        "ip": {
+          "description": "待查询 IP（省略/内网/回环时查当前出口公网 IP）",
+          "type": "string"
+        },
+        "timeout_sec": {
+          "description": "HTTP 超时秒数（默认 12，下限 5）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "天气预报（Open-Meteo 免费 API，无 Key）：支持地名 / 经纬度 / IP 定位三来源；中文摘要输出。",
+      "display": {
+        "icon": "🌤️",
+        "label": "查询天气"
+      },
+      "name": "open_meteo_weather",
+      "parallel_safe": false,
+      "parameters": {
+        "forecast_days": {
+          "description": "预报天数 1-7（默认 2）",
+          "type": "integer"
+        },
+        "ip": {
+          "description": "客户端公网 IP（无 location/经纬度时用于定位）",
+          "type": "string"
+        },
+        "latitude": {
+          "description": "纬度（与 longitude 成对）",
+          "type": "string"
+        },
+        "location": {
+          "description": "城市或地区名（如 北京；先查内置别名表）",
+          "type": "string"
+        },
+        "longitude": {
+          "description": "经度（与 latitude 成对）",
+          "type": "string"
+        },
+        "timeout_sec": {
+          "description": "HTTP 超时秒数（默认 15，下限 5）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "在对话区展示一个或多个文件的卡片，用户可点击在右侧查看。只校验路径并返回文件元信息，不读取正文；适合展示刚生成或修改的文件。",
+      "display": {
+        "icon": "📎",
+        "label": "展示文件"
+      },
+      "name": "present",
+      "parallel_safe": false,
+      "parameters": {
+        "files": {
+          "description": "要展示的文件列表",
+          "items": {
+            "properties": {
+              "path": {
+                "description": "文件路径",
+                "type": "string"
+              },
+              "title": {
+                "description": "卡片标题；缺省用文件名",
+                "type": "string"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      }
+    },
+    {
+      "description": "exec 执行 Python 源码（不经 shell），stdout/stderr 捕获；名义 timeout（exec 无法硬中断）。复杂编排可用；勿代替 run_command 跑安装类命令。",
+      "display": {
+        "icon": "🐍",
+        "label": "执行内联 Python"
+      },
+      "name": "python_inline",
+      "parallel_safe": false,
+      "parameters": {
+        "code": {
+          "description": "完整 Python 源码",
+          "type": "string"
+        },
+        "cwd": {
+          "description": "执行前 chdir（可选；默认不变）",
+          "type": "string"
+        },
+        "timeout_sec": {
+          "description": "名义超时（exec 无法硬中断；仅登记）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "读取文本文件；可选行区间（line_start/line_end）与 max_chars 截断。写盘后门控要求复核时调用本工具：只是确认落盘后的内容与行号，不使已解锁的 confirm_id 失效，确认无误后可继续 commit_write。",
+      "display": {
+        "icon": "📖",
+        "label": "读取文件"
+      },
+      "name": "read_file",
+      "parallel_safe": false,
+      "parameters": {
+        "line_end": {
+          "description": "结束行（1-based，含）",
+          "type": "integer"
+        },
+        "line_start": {
+          "description": "起始行（1-based，含）",
+          "type": "integer"
+        },
+        "max_chars": {
+          "description": "最大返回字符数，默认 200000",
+          "type": "integer"
+        },
+        "path": {
+          "description": "文件路径",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "读取本地图片文件并把图片本身交给模型查看（不是 OCR，不需要任何引擎）。适用于：描述图片内容、判断界面/图表/截图里的情况、核对颜色与布局与坐标、读取图中文字。支持 PNG / JPEG / GIF / WebP。默认不缩放，返回值含原图尺寸、实发尺寸与 `scale`（原图宽 / 实发宽）。",
+      "display": {
+        "icon": "👁",
+        "label": "看图"
+      },
+      "name": "read_image",
+      "parallel_safe": false,
+      "parameters": {
+        "label": {
+          "description": "这张图的来源说明（可选，例如“用户桌面截图”）",
+          "type": "string"
+        },
+        "max_side": {
+          "description": "把长边缩到不超过该像素后再发送；0（默认）= 保留原始尺寸。",
+          "type": "integer"
+        },
+        "path": {
+          "description": "图片文件路径（绝对路径或相对工作目录）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "预览管道写（不落盘）：从 source_path 取片段（可选 line_start/line_end 行区间、max_chars 截断）写入 dest_path；返回 confirm_id，凭 commit_write 提交。",
+      "display": {
+        "icon": "🔀",
+        "label": "管道读写"
+      },
+      "name": "read_write",
+      "parallel_safe": false,
+      "parameters": {
+        "dest_path": {
+          "description": "目标文件路径",
+          "type": "string"
+        },
+        "line_end": {
+          "description": "结束行（1-based 含）",
+          "type": "integer"
+        },
+        "line_start": {
+          "description": "起始行（1-based 含）",
+          "type": "integer"
+        },
+        "max_chars": {
+          "description": "最大字符数截断（0=不截断，默认 0）",
+          "type": "integer"
+        },
+        "source_path": {
+          "description": "源文件路径",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "在单文件或目录下用正则检索，每条命中返回 region 与行列（与 find_in_file / replace_in_file 语义一致）。",
+      "display": {
+        "icon": "🔍",
+        "label": "正则检索与定位"
+      },
+      "name": "regex_locate",
+      "parallel_safe": false,
+      "parameters": {
+        "dotall": {
+          "description": ". 匹配换行（re.DOTALL）",
+          "type": "boolean"
+        },
+        "encoding": {
+          "description": "文件编码（默认 utf-8；auto 嗅探）",
+          "type": "string"
+        },
+        "glob_pattern": {
+          "description": "文件名通配过滤（如 *.py）",
+          "type": "string"
+        },
+        "ignore_case": {
+          "description": "忽略大小写（re.IGNORECASE）",
+          "type": "boolean"
+        },
+        "limit": {
+          "description": "命中上限（默认 200）",
+          "type": "integer"
+        },
+        "path": {
+          "description": "文件或目录路径",
+          "type": "string"
+        },
+        "pattern": {
+          "description": "Python 正则表达式",
+          "type": "string"
+        },
+        "recursive": {
+          "description": "目录下递归（默认 true）",
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "description": "预览文本替换（不落盘）：字面替换（old_text→new_text，默认全部替换，可 expected_replacements 校验）或行区间替换（line_start/line_end）；返回 confirm_id，凭 commit_write 提交。多处字面替换可改用 edits 数组一次提交（按顺序应用，任一条未命中则整批拒绝并指明第几条）。old_text 字面未命中时一律 ok=false 且 data.status=old_text_not_found（不因 new_text 已在文件中、也不做大小写折叠而改判 already_applied）。old 命中但替换后内容不变（如同值替换）时 status=already_applied（needs_commit=false）。",
+      "display": {
+        "icon": "✏️",
+        "label": "替换文件内容"
+      },
+      "name": "replace_in_file",
+      "parallel_safe": false,
+      "parameters": {
+        "edits": {
+          "description": "批量字面替换：每项 {old_text, new_text, replace_all?, expected_replacements?}，按顺序应用；不能与 old_text / line_start / line_end 同时使用",
+          "type": "array"
+        },
+        "expected_replacements": {
+          "description": "字面替换：可选，命中数不符则拒绝",
+          "type": "integer"
+        },
+        "line_end": {
+          "description": "行区间替换：结束行（1-based 含）",
+          "type": "integer"
+        },
+        "line_start": {
+          "description": "行区间替换：起始行（1-based 含）",
+          "type": "integer"
+        },
+        "new_text": {
+          "description": "替换为的文本（字面 / 行区间均用）",
+          "type": "string"
+        },
+        "old_text": {
+          "description": "字面替换：待替换文本",
+          "type": "string"
+        },
+        "path": {
+          "description": "目标文件路径",
+          "type": "string"
+        },
+        "replace_all": {
+          "description": "字面替换：是否替换全部命中，默认 true",
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "description": "写盘前必做：提交 review 结论并解锁预览。结论须基于本次改动的实际审阅、给出验证证据（≥30 字）；带 confirm_id 时解锁，之后用该 confirm_id 调 commit_write 落盘。cancel_preview 取消预览。",
+      "display": {
+        "icon": "🔍",
+        "label": "提交 review 结论"
+      },
+      "name": "review_conclusion",
+      "parallel_safe": false,
+      "parameters": {
+        "cancel_preview": {
+          "description": "true 时取消该 confirm_id 预览（释放锁）",
+          "type": "boolean"
+        },
+        "conclusion": {
+          "description": "review 结论文本（至少 30 字，须含验证证据；取消预览时可省略）",
+          "type": "string"
+        },
+        "confirm_id": {
+          "description": "要解锁的预览快照 ID（可选）",
+          "type": "string"
+        },
+        "file_name": {
+          "description": "本次 review 涉及的文件名，多个用逗号分隔（必填）",
+          "type": "string"
+        },
+        "review_type": {
+          "description": "review 类型（默认 file）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "执行单条 shell 命令并收集 stdout/stderr/exit_code；先过安全防线（黑名单 / 脚本内容 / safe_mode），超时强杀进程树。",
+      "display": {
+        "icon": "⚡",
+        "label": "执行命令"
+      },
+      "name": "run_command",
+      "parallel_safe": false,
+      "parameters": {
+        "command": {
+          "description": "单条命令（非多行脚本；多步请多次调用）",
+          "type": "string"
+        },
+        "cwd": {
+          "description": "工作目录（可选；默认继承进程当前目录）",
+          "type": "string"
+        },
+        "safe_mode": {
+          "description": "默认 true：禁止 [;&|`$><] 字符；确有必要时才置 false",
+          "type": "boolean"
+        },
+        "shell": {
+          "description": "auto / cmd / powershell（默认 auto）",
+          "type": "string"
+        },
+        "timeout_sec": {
+          "description": "超时秒数（默认 300；超时强杀进程树）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "查询或切换会话运行模式（auto / plan / execute）；不传 `run_type` 为查询当前模式。",
+      "display": {
+        "icon": "🎛️",
+        "label": "切换运行模式"
+      },
+      "name": "run_type",
+      "parallel_safe": false,
+      "parameters": {
+        "run_type": {
+          "description": "auto / plan / execute；缺省为查询",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "按 tag 向目标群组广播消息（tag 必填；可叠加 role 过滤与 exclude_self）。",
+      "display": {
+        "icon": "💬",
+        "label": "广播到多会话"
+      },
+      "name": "session_broadcast",
+      "parallel_safe": false,
+      "parameters": {
+        "exclude_self": {
+          "description": "是否排除发送者自己（默认 true）",
+          "type": "boolean"
+        },
+        "message": {
+          "description": "消息内容",
+          "type": "string"
+        },
+        "priority": {
+          "description": "优先级（默认 normal）",
+          "type": "string"
+        },
+        "requires_reply": {
+          "description": "是否要求回复（必填）",
+          "type": "boolean"
+        },
+        "role": {
+          "description": "按角色过滤（可选）",
+          "type": "string"
+        },
+        "tag": {
+          "description": "目标群组标签（必填）",
+          "type": "string"
+        },
+        "thread_id": {
+          "description": "协作线程 id（缺省自动生成）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "创建自由 Agent 会话（count 1-50 批量；role / persona / tags / skill；名称规则与别名映射）。",
+      "display": {
+        "icon": "💬",
+        "label": "新建会话"
+      },
+      "name": "session_create",
+      "parallel_safe": false,
+      "parameters": {
+        "count": {
+          "description": "创建数量（1-50，默认 1）",
+          "type": "integer"
+        },
+        "name": {
+          "description": "名称（单条创建时使用）",
+          "type": "string"
+        },
+        "name_prefix": {
+          "description": "名称前缀（批量创建时拼接序号）",
+          "type": "string"
+        },
+        "persona": {
+          "description": "人设文本（缺省含协作指引）",
+          "type": "string"
+        },
+        "role": {
+          "description": "角色（别名映射：worker / qa 等）",
+          "type": "string"
+        },
+        "skill": {
+          "description": "Skills 名（记录于 meta；Skills 库未接入）",
+          "type": "string"
+        },
+        "tags": {
+          "description": "标签（列表或逗号分隔字符串）",
+          "type": "array"
+        }
+      }
+    },
+    {
+      "description": "列出协作网络中的自由 Agent（状态派生：running / queued / meta.status；含 queueSize）。",
+      "display": {
+        "icon": "💬",
+        "label": "列出会话"
+      },
+      "name": "session_list",
+      "parallel_safe": false,
+      "parameters": {}
+    },
+    {
+      "description": "向多个目标 Agent 发送同一条消息（target_ids 列表或逗号分隔）；返回 sent / skipped / partial。",
+      "display": {
+        "icon": "💬",
+        "label": "多会话分发"
+      },
+      "name": "session_multisend",
+      "parallel_safe": false,
+      "parameters": {
+        "channel": {
+          "description": "通道名（默认 group）",
+          "type": "string"
+        },
+        "message": {
+          "description": "消息内容",
+          "type": "string"
+        },
+        "priority": {
+          "description": "优先级（默认 normal）",
+          "type": "string"
+        },
+        "requires_reply": {
+          "description": "是否要求回复（必填）",
+          "type": "boolean"
+        },
+        "target_ids": {
+          "description": "目标会话 id 列表（或逗号分隔字符串）",
+          "type": "array"
+        },
+        "thread_id": {
+          "description": "协作线程 id（缺省自动生成）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "向目标 Agent 发送消息并触发其执行；目标忙时进入待发送队列（requires_reply 必填）。",
+      "display": {
+        "icon": "💬",
+        "label": "发送到会话"
+      },
+      "name": "session_send",
+      "parallel_safe": false,
+      "parameters": {
+        "channel": {
+          "description": "通道名（默认 direct）",
+          "type": "string"
+        },
+        "message": {
+          "description": "消息内容",
+          "type": "string"
+        },
+        "priority": {
+          "description": "优先级（默认 normal）",
+          "type": "string"
+        },
+        "requires_reply": {
+          "description": "是否要求回复（必填）",
+          "type": "boolean"
+        },
+        "target_id": {
+          "description": "目标会话 id",
+          "type": "string"
+        },
+        "thread_id": {
+          "description": "协作线程 id（缺省自动生成）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "Skills：`action=list` 列出可用 Skills；`action=read` 读取 Skills 全文。不负责复制或迁移文件。",
+      "display": {
+        "icon": "🧩",
+        "label": "Skills 管理"
+      },
+      "name": "skills",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "list / read",
+          "enum": [
+            "list",
+            "read"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Skills 名称（read 必填）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "暂停自主执行：宿主停止自动激活，N 秒后携提醒重新激活（1~86400 秒）。",
+      "display": {
+        "icon": "⏱️",
+        "label": "等待"
+      },
+      "name": "task_sleep",
+      "parallel_safe": false,
+      "parameters": {
+        "reminder": {
+          "description": "唤醒提醒（≤500 字符，超出截断）",
+          "type": "string"
+        },
+        "seconds": {
+          "description": "休眠秒数（1~86400）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "对左右两侧文本生成 unified diff（只读不落盘）；左右各取「文件路径或内联文本」之一。",
+      "display": {
+        "icon": "📑",
+        "label": "对比文本"
+      },
+      "name": "text_diff",
+      "parallel_safe": false,
+      "parameters": {
+        "context": {
+          "description": "diff 上下文行数（默认 3，须 >= 0）",
+          "type": "integer"
+        },
+        "encoding": {
+          "description": "读文件编码（默认 utf-8；auto 尝试链）",
+          "type": "string"
+        },
+        "left_file": {
+          "description": "左侧文件路径（与 left_text 二选一）",
+          "type": "string"
+        },
+        "left_text": {
+          "description": "左侧内联文本（与 left_file 二选一）",
+          "type": "string"
+        },
+        "right_file": {
+          "description": "右侧文件路径（与 right_text 二选一）",
+          "type": "string"
+        },
+        "right_text": {
+          "description": "右侧内联文本（与 right_file 二选一）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "会话待办清单：`action=create / check / uncheck / add_item / remove_item / replace_item / collapse / close / query`。",
+      "display": {
+        "icon": "☑️",
+        "label": "待办清单"
+      },
+      "name": "todo_list",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "create / check / uncheck / add_item / remove_item / replace_item / collapse / close / query",
+          "type": "string"
+        },
+        "indices": {
+          "description": "check / uncheck：下标（int 或非空 int 数组）",
+          "type": "array"
+        },
+        "item_index": {
+          "description": "add_item / remove_item / replace_item 的下标",
+          "type": "integer"
+        },
+        "items": {
+          "description": "create：非空数组（字符串或 {text, done} 对象）",
+          "type": "array"
+        },
+        "text": {
+          "description": "add_item / replace_item 的文本",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "对目录下 Python 文件做 AST 语法诊断，并尽力调用 ruff（PATH 中存在时）；发现 error 级问题返回 ok=false。",
+      "display": {
+        "icon": "🛠️",
+        "label": "统一诊断"
+      },
+      "name": "unified_diagnose",
+      "parallel_safe": false,
+      "parameters": {
+        "encoding": {
+          "description": "读源文件编码（默认 utf-8；auto 尝试链）",
+          "type": "string"
+        },
+        "glob_pattern": {
+          "description": "待扫描 Python 文件 glob（默认 **/*.py）",
+          "type": "string"
+        },
+        "limit": {
+          "description": "最多扫描文件数（默认 500）",
+          "type": "integer"
+        },
+        "no_ruff": {
+          "description": "true 跳过 ruff，仅做 AST 语法检查",
+          "type": "boolean"
+        },
+        "path": {
+          "description": "项目根目录",
+          "type": "string"
+        },
+        "timeout_sec": {
+          "description": "ruff 子进程超时秒数（默认 120）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "向用户发起分岔确认。首段只用 title + confirms 挂起，等待宿主界面作答；宿主回填确认结果后才产生工具结果。模型不得在首段自行传 confirm。",
+      "display": {
+        "icon": "⚠️",
+        "label": "等待确认"
+      },
+      "name": "user_confirm",
+      "parallel_safe": false,
+      "parameters": {
+        "confirms": {
+          "description": "候选项（首段必填；非空字符串数组）",
+          "type": "array"
+        },
+        "custom_option_index": {
+          "description": "自由输入绑定的选项下标（可选）",
+          "type": "integer"
+        },
+        "multi": {
+          "description": "是否支持多选（透传给宿主）",
+          "type": "boolean"
+        },
+        "title": {
+          "description": "标题（首段必填）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "抓取网页（urllib 无第三方依赖）并提取纯文本；支持超时、长度限制、min_chars/require_keywords 验收与落盘。",
+      "display": {
+        "icon": "🌐",
+        "label": "抓取网页内容"
+      },
+      "name": "web_fetch",
+      "parallel_safe": false,
+      "parameters": {
+        "max_chars": {
+          "description": "正文最大字符数（默认 20000）",
+          "type": "integer"
+        },
+        "min_chars": {
+          "description": "正文长度下限，不足则失败",
+          "type": "integer"
+        },
+        "out_file": {
+          "description": "若指定，将正文写入该路径（仍返回元信息）",
+          "type": "string"
+        },
+        "require_keywords": {
+          "description": "逗号分隔关键词，正文须至少命中其一",
+          "type": "string"
+        },
+        "timeout_sec": {
+          "description": "连接+读响应总超时秒数（默认 20）",
+          "type": "integer"
+        },
+        "url": {
+          "description": "http/https 完整 URL",
+          "type": "string"
+        },
+        "user_agent": {
+          "description": "自定义 User-Agent（缺省内置浏览器串）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "用 Playwright 无头浏览器抓取 JS 渲染后的页面（可选依赖；缺失时给出安装提示）。",
+      "display": {
+        "icon": "🌐",
+        "label": "抓取网页内容"
+      },
+      "name": "web_fetch_render",
+      "parallel_safe": false,
+      "parameters": {
+        "max_chars": {
+          "description": "正文最大字符数（默认 100000）",
+          "type": "integer"
+        },
+        "url": {
+          "description": "目标网页 URL",
+          "type": "string"
+        },
+        "wait_sec": {
+          "description": "等待 JS 渲染的秒数（默认 3）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "预览写入文本文件（不落盘），返回 confirm_id。内容已与磁盘一致时返回 status=already_applied（needs_commit=false），不必再 commit。否则落盘前必须先 review：用 review_conclusion 提交结论与证据解锁，再用该 confirm_id 调 commit_write。",
+      "display": {
+        "icon": "📝",
+        "label": "写入文件"
+      },
+      "name": "write_file",
+      "parallel_safe": false,
+      "parameters": {
+        "content": {
+          "description": "写入内容（UTF-8；仅预览入口）",
+          "type": "string"
+        },
+        "path": {
+          "description": "目标文件路径",
+          "type": "string"
+        }
+      }
+    }
+  ]
+}

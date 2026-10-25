@@ -1,0 +1,103 @@
+/* system-notice.css —— 任务管理器注入的系统通知卡片。 */
+.chat-conversation-pane{position:relative}
+.sys-notice-host{
+  position:absolute;
+  top:0;
+  left:25%;
+  right:25%;
+  z-index:900;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  pointer-events:none;
+  overflow:hidden;
+}
+.sys-notice{
+  width:100%;
+  box-sizing:border-box;
+  margin:0;
+  border:1px solid var(--c-line-2,#2a2d32);
+  border-top:0;
+  border-radius:0 0 10px 10px;
+  background:var(--c-bg,#1e1e1e);
+  box-shadow:0 10px 24px rgba(0,0,0,.22);
+  pointer-events:auto;
+  overflow:hidden;
+  transform-origin:top center;
+  animation:sys-notice-in .22s ease-out both;
+}
+.sys-notice.is-leaving{
+  animation:sys-notice-out .18s ease-in both;
+  pointer-events:none;
+}
+@keyframes sys-notice-in{
+  from{transform:translateY(-100%)}
+  to{transform:translateY(0)}
+}
+@keyframes sys-notice-out{
+  from{transform:translateY(0)}
+  to{transform:translateY(-100%)}
+}
+.sys-notice-head{
+  width:100%;
+  min-height:34px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border:0;
+  background:transparent;
+  color:var(--c-text-3,#b6bcc5);
+  font-size:12px;
+  cursor:pointer;
+  text-align:left;
+}
+.sys-notice-head:hover{background:var(--c-bg-hover,rgba(255,255,255,.04))}
+.sys-notice-title{
+  flex:1;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.sys-notice-title::before,
+.sys-notice-title::after{
+  content:"";
+  flex:1;
+  min-width:12px;
+  border-top:1px solid var(--c-line-2,#3a404a);
+}
+.sys-notice-chevron{
+  flex:0 0 auto;
+  width:14px;
+  height:14px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--c-text-4,#858b96);
+  line-height:0;
+  transform-origin:center;
+  transition:transform .15s ease;
+}
+.sys-notice-chevron svg{display:block}
+.sys-notice-head[aria-expanded="true"] .sys-notice-chevron{transform:rotate(180deg)}
+.sys-notice-detail{
+  max-height:0;
+  overflow:hidden;
+  padding:0 12px;
+  border-top:0 solid var(--c-line-2,#2a2d32);
+  color:var(--c-text-3,#b6bcc5);
+  font-size:12px;
+  line-height:1.6;
+  white-space:pre-wrap;
+  word-break:break-word;
+  transition:max-height .22s ease,border-top-width .22s ease,padding .22s ease;
+}
+.sys-notice-detail.is-open{
+  max-height:40vh;
+  padding:0 12px 10px;
+  border-top:1px solid var(--c-line-2,#2a2d32);
+}

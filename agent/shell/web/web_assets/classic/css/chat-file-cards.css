@@ -1,0 +1,170 @@
+/* chat-file-cards.css —— present 工具生成的对话区文件卡片。 */
+.chat-tool-row.chat-file-card-row {
+  margin: 4px 0 8px;
+}
+
+.chat-file-card-row .chat-tool-head,
+.chat-file-card-row .chat-tool-packet,
+.chat-file-card-row .chat-tool-raw {
+  display: none !important;
+}
+
+html[data-ui-theme] .chat-file-card-row .chat-tool-body {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.chat-file-card-row .chat-tool-custom-view {
+  max-height: none;
+  overflow: visible;
+}
+
+.chat-file-card-row .chat-tool-custom,
+.chat-file-card-row .chat-tool-custom-view {
+  display: block;
+}
+
+.chat-file-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.chat-file-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-xl);
+  background: var(--c-bg-layer);
+  color: var(--c-text-2);
+  cursor: pointer;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+
+.chat-file-card:hover {
+  border-color: var(--c-brand);
+  background: var(--c-bg-layer-2);
+}
+
+.chat-file-card:focus-visible {
+  outline: 2px solid var(--c-brand);
+  outline-offset: 2px;
+}
+
+.chat-file-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--c-bg-raise);
+}
+
+.chat-file-card-icon img,
+.chat-file-card-icon video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.chat-file-card-icon .file-type-ico {
+  width: 22px;
+  height: 22px;
+}
+
+.chat-file-card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chat-file-card-name {
+  display: block;
+  overflow: hidden;
+  color: var(--c-text-1);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-file-card-meta {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--c-text-4);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-file-card-action {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid var(--c-line-2);
+  border-radius: var(--r-sm);
+  color: var(--c-text-3);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.chat-file-card:hover .chat-file-card-action {
+  border-color: var(--c-brand);
+  color: var(--c-text-1);
+}
+
+.chat-file-card-error-card {
+  align-items: flex-start;
+  width: fit-content;
+  min-width: 300px;
+  max-width: min(100%, 620px);
+  border-color: color-mix(in srgb, var(--c-bad, #e06c75) 48%, var(--c-line-2));
+  background: var(--c-bg-layer-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .16);
+  cursor: default;
+}
+
+.chat-file-card-error-card:hover {
+  border-color: color-mix(in srgb, var(--c-bad, #e06c75) 58%, var(--c-line-2));
+  background: var(--c-bg-layer-2);
+}
+
+.chat-file-card-error-icon {
+  color: var(--c-bad, #e06c75);
+  background: color-mix(in srgb, var(--c-bad, #e06c75) 12%, var(--c-bg-raise));
+}
+
+.chat-file-card-error-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.chat-file-card-error-name {
+  color: var(--c-text-1);
+}
+
+.chat-file-card-error-text {
+  display: block;
+  margin-top: 5px;
+  color: var(--c-text-3);
+  font-size: 11.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}

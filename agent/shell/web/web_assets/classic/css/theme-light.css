@@ -1,0 +1,674 @@
+/* theme-light.css —— 白天模式覆盖（`html[data-ui-theme="light"]`）。
+ *
+ * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，顺序即层叠顺序，
+ * 调整清单顺序会改变覆盖关系。
+ */
+/* ── 白天模式（html[data-ui-theme="light"]）── */
+html[data-ui-theme="light"]{
+--diff-surface-bg:#fcfcfc;--diff-surface-border:#e2e2e2;--diff-surface-text:#242424;
+--diff-eq-text:#666666;--diff-eq-gutter-bg:#f5f5f5;
+--diff-del-bg:#ffeef0;--diff-del-border:#cf222e;--diff-del-gutter-text:#9a1c1c;--diff-del-gutter-bg:#ffd7d5;
+--diff-add-bg:#e6ffed;--diff-add-border:#1a7f37;--diff-add-gutter-text:#116329;--diff-add-gutter-bg:#ccffd8;
+--diff-meta-bg:#f5f5f5;--diff-meta-text:#666666;--diff-meta-border:#d0d7de;
+--diff-stat-del:#d73a49;--diff-stat-add:#2ea043;
+--diff-card-bg:#fcfcfc;--diff-card-border:#d6d6d6;--diff-cap-bg:#f5f5f5;--diff-cap-border:#e8edf4;--diff-cap-text:#3a3a3a;
+--diff-run-cmd-bg:#f0f4fa;
+--diff-run-out-bg:#f7f7f7;
+--diff-run-sep:#c5ceda;
+}
+html[data-ui-theme="light"] body {
+  background: #f8f8f8;
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] header {
+  background: #f8f8f8;
+  border-bottom-color: #e4e8ef;
+}
+html[data-ui-theme="light"] header .muted {
+  color: #666666;
+}
+html[data-ui-theme="light"] header .hdr-theme-btn {
+  color: #3a4a5f;
+  border-color: #a0a0a0;
+  background: rgba(255, 255, 255, 0.75);
+}
+html[data-ui-theme="light"] header .hdr-theme-btn:hover {
+  color: #111111;
+  border-color: #8c8c8c;
+  background: #fcfcfc;
+}
+html[data-ui-theme="light"] .chat {
+  background: #f8f8f8;
+}
+html[data-ui-theme="dark"] .chat {
+  background: #151517;
+}
+html[data-ui-theme="dark"] .session-rail,
+html[data-ui-theme="dark"] .side,
+html[data-ui-theme="dark"] .side-tabbar,
+html[data-ui-theme="dark"] .usage-bottom {
+  background: #1b1b1c;
+}
+html[data-ui-theme="light"] .classic-split-resizer {
+  background-color: #e4e4e4;
+  border-left-color: #d2d2d2;
+  border-right-color: #d2d2d2;
+}
+html[data-ui-theme="light"] .classic-split-resizer:hover {
+  background-color: #d6d6d6;
+  border-left-color: #a0a0a0;
+  border-right-color: #a0a0a0;
+}
+html[data-ui-theme="light"] .side {
+  background: #f3f3f3;
+}
+html[data-ui-theme="light"] .p-title {
+  color: #666666;
+  border-bottom-color: #e2e2e2;
+  background: #f3f3f3;
+}
+html[data-ui-theme="light"] .msgs {
+  background: #f8f8f8;
+}
+html[data-ui-theme="light"] .b.u {
+  background: #ececec;
+  border-color: #d5dce8;
+  color: #1f1f1f;
+}
+/* 助手消息无气泡底与描边，与 .msgs 背板融合 */
+html[data-ui-theme="light"] .b.a {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 8px 0 8px 8px;
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] .b.a pre {
+  background: #f7f7f7;
+  border: none;
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] .b.a code {
+  background: rgba(9, 105, 218, 0.08);
+  color: #a15c00;
+}
+html[data-ui-theme="light"] .b.a pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+}
+html[data-ui-theme="light"] .b.a code[data-lang="json"],
+html[data-ui-theme="light"] .b.a pre code[data-lang="json"] {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+}
+html[data-ui-theme="light"] .b.a blockquote {
+  border-left-color: #c4c4c4;
+  color: #3a3a3a;
+}
+html[data-ui-theme="light"] .b.a hr {
+  border-top-color: #d6d6d6;
+}
+html[data-ui-theme="light"] .b.a th {
+  background: #e8e8e8;
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] .b.a th,
+html[data-ui-theme="light"] .b.a td {
+  border-color: #d6d6d6;
+}
+html[data-ui-theme="light"] .row {
+  border-top-color: #e4e8ef;
+  background: #f8f8f8;
+}
+html[data-ui-theme="light"] .composer {
+  background: transparent;
+  border-color: transparent;
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] .composer-foot {
+  background: transparent;
+}
+html[data-ui-theme="light"] textarea {
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] textarea::placeholder {
+  color: #9a9a9a;
+  opacity: 0.62;
+}
+html[data-ui-theme="light"] .mode-plus {
+  color: #666666;
+  border-color: #d2d2d2;
+}
+html[data-ui-theme="light"] .mode-plus:hover {
+  background: rgba(9, 105, 218, 0.06);
+}
+html[data-ui-theme="light"] .chat-tab {
+  color: #666666;
+}
+html[data-ui-theme="light"] .chat-tab.active {
+  background: #fcfcfc;
+  border-color: #c4c4c4;
+  color: #111111;
+}
+html[data-ui-theme="light"] .mode-menu,
+html[data-ui-theme="light"] .reasoning-menu,
+html[data-ui-theme="light"] .mode-submenu {
+  background: #fcfcfc;
+  border-color: #d2d2d2;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+}
+html[data-ui-theme="light"] .mode-menu .mode-item,
+html[data-ui-theme="light"] .reasoning-menu .reasoning-choice {
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] .mode-menu .mode-item:hover,
+html[data-ui-theme="light"] .reasoning-menu .reasoning-choice:hover {
+  background: #e8e8e8;
+  color: #111111;
+}
+html[data-ui-theme="light"] .side-tabbar {
+  background: #f8f8f8;
+  border-bottom-color: #e2e2e2;
+}
+html[data-ui-theme="light"] .side-tab {
+  background: #f7f7f7;
+  color: #666666;
+}
+html[data-ui-theme="light"] .side-tab.active {
+  background: #fcfcfc;
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] .usage-bottom {
+  background: #f3f3f3;
+  border-top-color: #e4e8ef;
+  color: #3a3a3a;
+}
+html[data-ui-theme="light"] .usage-ring{
+  background:conic-gradient(var(--ring-color) calc(var(--p) * 1%), #d5dce8 0);
+}
+html[data-ui-theme="light"] .usage-ring::after{background:#f3f3f3}
+html[data-ui-theme="light"] .usage-ring .usage-num{color:#1f1f1f}
+html[data-ui-theme="light"] .card,
+html[data-ui-theme="light"] .step.card {
+  background: #fcfcfc;
+  border-color: #d6d6d6;
+}
+html[data-ui-theme="light"] .ch {
+  border-bottom-color: #e2e2e2;
+}
+html[data-ui-theme="light"] .slash-pop {
+  background: #fcfcfc;
+  border-color: #d2d2d2;
+}
+html[data-ui-theme="light"] .at-pop-head {
+  border-bottom-color: #e2e2e2;
+}
+html[data-ui-theme="light"] .session-rail {
+  background: #f3f3f3;
+}
+html[data-ui-theme="light"] .session-rail-head {
+  border-bottom-color: #e2e2e2;
+}
+html[data-ui-theme="light"] .chat-session-group {
+  color: #666666;
+}
+html[data-ui-theme="light"] .chat-session-row {
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] .chat-session-row:hover {
+  background: #e8e8e8;
+}
+html[data-ui-theme="light"] .todo-list-area {
+  border-top-color: #e2e2e2;
+  border-bottom-color: #e2e2e2;
+  background: #f5f5f5;
+}
+html[data-ui-theme="light"] .todo-list-header {
+  border-bottom-color: #e2e2e2;
+  background: #ededed;
+}
+html[data-ui-theme="light"] .todo-list-title {
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] .todo-list-count {
+  color: #666666;
+}
+html[data-ui-theme="light"] .todo-collapse-icon {
+  color: #8f8f8f;
+}
+html[data-ui-theme="light"] .todo-item {
+  color: #3a3a3a;
+}
+html[data-ui-theme="light"] .todo-item:hover {
+  background: rgba(0,0,0,.03);
+}
+html[data-ui-theme="light"] .todo-text.done {
+  color: #9a9a9a;
+}
+html[data-ui-theme="light"] .chat-run-pre--cmd code,
+html[data-ui-theme="light"] .chat-run-pre--out code {
+  color: inherit;
+}
+
+/* ── 白天模式：Auto+ 菜单文字颜色 ── */
+html[data-ui-theme="light"] .mode-item[data-mode="auto"] { color: #2f5f8f; }
+html[data-ui-theme="light"] .mode-item[data-mode="plan"] { color: #8a6a20; }
+html[data-ui-theme="light"] .mode-item[data-mode="execute"] { color: #7a3eb0; }
+/* ── 白天模式：上下文视图悬浮弹窗 ── */
+html[data-ui-theme="light"] .ctx-layout-tooltip {
+  background: #fcfcfc;
+  border-color: #d2d2d2;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+  color: #1f1f1f;
+}
+html[data-ui-theme="light"] .ctx-layout-tooltip .ctx-tip-br {
+  color: #111111;
+}
+html[data-ui-theme="light"] .ctx-layout-tooltip .ctx-tip-rest {
+  color: #666666;
+}
+html[data-ui-theme="light"] .ctx-layout-tooltip .ctx-tip-track {
+  background: #e4e4e4;
+}
+
+/* 其他 Agent 气泡：头区紧凑；标签仅包字宽；气泡贴头像下，顶三角接驳 */
+.peer-chat-row{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:0;
+  width:100%;
+  max-width:none;
+  align-self:stretch;
+  margin:10px 0;
+  padding:0;
+  background:transparent;
+  border:0;
+  box-sizing:border-box;
+}
+.peer-top{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  margin:0;
+}
+.peer-avatar{
+  flex:0 0 40px;
+  width:40px;
+  height:40px;
+  position:relative;
+  border-radius:50%;
+  overflow:hidden;
+  background:linear-gradient(145deg,#6b5a3a,#4a4030);
+  color:#f5e6c8;
+  font-size:16px;
+  font-weight:700;
+  line-height:40px;
+  text-align:center;
+  user-select:none;
+  box-shadow:0 1px 3px rgba(0,0,0,.25);
+}
+/* 箭头只在气泡上，头像不画箭头 */
+.peer-avatar::before,
+.peer-avatar::after{
+  display:none !important;
+  content:none !important;
+  border:0 !important;
+  width:0 !important;
+  height:0 !important;
+}
+.peer-top-text{
+  flex:0 1 auto;
+  min-width:0;
+  max-width:calc(100% - 48px);
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:2px;
+  padding:0;
+}
+.peer-agent-name{
+  font-size:12px;
+  font-weight:600;
+  color:#e6edf3;
+  margin:0;
+  padding:0;
+  min-width:0;
+  line-height:1.25;
+}
+.peer-agent-cid{font-weight:500;color:#8b949e;font-size:10px}
+.peer-top-text>.peer-meta-tag{
+  display:inline-block;
+  width:max-content;
+  max-width:100%;
+  margin:0;
+  padding:0 6px;
+  border-radius:999px;
+  background:#313131;
+  font-size:10px;
+  font-family:ui-monospace,Consolas,monospace;
+  color:#dadada;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  box-sizing:border-box;
+  vertical-align:top;
+  zoom:0.9;
+  transform-origin:left center;
+}
+.peer-chat-row>.peer-bubble{
+  position:relative;
+  display:block;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
+  margin:8px 0 0 0;
+  padding:8px 12px;
+  border-radius:10px;
+  background:#171717;
+  border:1px solid #2c2c30;
+  color:#c9d1d9;
+  box-shadow:none;
+  overflow:visible;
+  isolation:isolate;
+}
+/* 顶三角：::after 描边层 + ::before 填充层（均置于气泡之上，避免 z-index:-1 在浅色背板下像缺口） */
+.peer-bubble::after{
+  content:"";
+  position:absolute;
+  left:12px;
+  top:-9px;
+  width:0;
+  height:0;
+  border-style:solid;
+  border-width:0 8px 9px 8px;
+  border-color:transparent transparent #2c2c30 transparent;
+  z-index:1;
+  pointer-events:none;
+}
+.peer-bubble::before{
+  content:"";
+  position:absolute;
+  left:13px;
+  top:-7px;
+  width:0;
+  height:0;
+  border-style:solid;
+  border-width:0 7px 8px 7px;
+  border-color:transparent transparent #171717 transparent;
+  z-index:2;
+  pointer-events:none;
+}
+.peer-agent-body{
+  margin:0;
+  font-size:13px;
+  font-weight:400;
+}
+.peer-bubble .peer-agent-body.b.a{
+  padding:0;
+  background:transparent;
+  border:0;
+  white-space:normal;
+  color:#c9d1d9;
+}
+html[data-ui-theme="light"] .peer-avatar{
+  background:linear-gradient(145deg,#d4b87a,#a88b4a);
+  color:#3d2f10;
+}
+html[data-ui-theme="light"] .peer-agent-name{color:#1f1f1f}
+html[data-ui-theme="light"] .peer-agent-cid{color:#666666}
+html[data-ui-theme="light"] .peer-bubble{
+  background:#f5f5f5;
+  border-color:#d2d2d2;
+  color:#1f1f1f;
+  box-shadow:0 1px 2px rgba(0,0,0,.06);
+}
+html[data-ui-theme="light"] .peer-bubble::before{
+  border-color:transparent transparent #f5f5f5 transparent;
+}
+html[data-ui-theme="light"] .peer-bubble::after{
+  border-color:transparent transparent #d2d2d2 transparent;
+}
+html[data-ui-theme="light"] .peer-meta-tag{
+  color: #525252;
+  border-color: #c4c4c4;
+  background: #ececec;
+}
+html[data-ui-theme="light"] .peer-bubble .peer-agent-body.b.a{color:#1f1f1f;font-weight:400}
+
+/* 恢复 markdown 语义样式（reset.css 把 margin / padding 全清零了）。
+   只补内联语义与用户气泡（`.u`，走 textContent，不产标签但保留以防万一）。
+   助手的块级排版（标题 / 列表 / 引用）统一由上面的 `.b.a` 负责 ——
+   `.b.a h1` 特异性 (0,2,1) 高于 `.b h1` (0,1,1)，在这里再写一套只会被盖掉，
+   留下两处声明会让"改哪一处生效"变成猜谜。 */
+.b strong,.a strong,.u strong{font-weight:700}
+.b em,.a em,.u em{font-style:italic}
+.b u,.a u,.u u{text-decoration:underline}
+.u h1,.u h2,.u h3,.u h4,.u h5,.u h6{font-weight:600;margin:.3em 0 .15em}
+.u ul,.u ol{padding-left:1.6em;margin:.3em 0}
+.u ul{list-style:disc}
+.u ol{list-style:decimal}
+.u li{margin:.1em 0}
+.b blockquote,.a blockquote,.u blockquote{border-left:3px solid #5a6a82;padding:4px 12px;margin:.4em 0;color:#b0b8c4}
+
+/* ══ 目标（Goal）：按钮三态 + 设置弹窗 ══════════════════════════════
+   三态与既有 `.mode-plus` 视觉语言一致（金色走 active、暗红走 paused）：
+     - 进行中 active → 暗金色（与 `.mode-plus.active` 同色系，稍暗以区分"模式"与"目标"）
+     - 已暂停 paused → 暗红色
+     - 已达成 done / 无目标 → 默认灰（`.mode-plus` 基色，自动回落，不用额外类）
+   用描边+文字色而不是实心底：这一排按钮（模式/推理/目标）都是"轻量开关"，
+   实心会与输入区其余部分形成明显的视觉权重差。 */
+.mode-plus.goal-active,
+.mode-plus.goal-active:hover{background:rgba(184,134,11,.10);border-color:#8a6508;color:#d9b25f}
+.mode-plus.goal-paused,
+.mode-plus.goal-paused:hover{background:rgba(160,60,60,.12);border-color:#8a3a3a;color:#d98a8a}
+
+/* 目标弹窗：沿用卡片底色与描边，避免"浮在上面的另一套皮" */
+.goal-mask{position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.45)}
+/* 位置：对齐那个「目标」按钮（`left`/`bottom` 由 JS 按按钮与输入区的实际
+   几何算出来），而不是贴屏幕右缘或浮在页面中部 ——
+   弹窗是因为点了那个按钮才出现的，就该长在它正上方。 */
+.goal-dialog{position:fixed;z-index:9999;left:50%;bottom:120px;
+  width:min(560px,calc(100vw - 48px));max-height:min(62vh,560px);overflow:auto;
+  background:var(--diff-surface-bg,#212121);
+  border:1px solid var(--diff-surface-border,#2a2f37);border-radius:10px;
+  padding:14px 16px;color:var(--diff-surface-text,#d4dae3);font-size:13px;
+  box-shadow:0 12px 40px rgba(0,0,0,.55)}
+.goal-dialog-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.goal-dialog-title{font-weight:600;font-size:14px}
+.goal-badge{font-size:11px;line-height:1;padding:3px 8px;border-radius:999px;
+  border:1px solid #4a525e;color:#aeb9c8;white-space:nowrap}
+.goal-badge.active{background:rgba(184,134,11,.10);border-color:#8a6508;color:#d9b25f}
+.goal-badge.paused{background:rgba(160,60,60,.12);border-color:#8a3a3a;color:#d98a8a}
+.goal-badge.done{border-color:#3d6b46;color:#7fc08d}
+.goal-dialog-sub{color:#8b949e;font-size:12px;margin:2px 0 10px}
+.goal-dialog textarea{width:100%;box-sizing:border-box;min-height:88px;resize:vertical;
+  background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:6px;
+  padding:9px 10px;font-size:13px;line-height:1.5;font-family:inherit}
+.goal-dialog textarea:focus{outline:none;border-color:#8a6508}
+.goal-dialog-hint{color:#8b949e;font-size:12px;margin:8px 0 12px}
+.goal-dialog-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.goal-btn{height:28px;padding:0 14px;border-radius:6px;cursor:pointer;
+  border:1px solid #30363d;background:#21262d;color:#c9d1d9;font-size:12px;font-weight:600}
+.goal-btn:hover{background:#2b3138}
+.goal-btn.primary{background:#8a6508;border-color:#8a6508;color:#fcfcfc}
+.goal-btn.primary:hover{background:#9c7409}
+.goal-btn.danger{border-color:#8a3a3a;color:#d98a8a}
+.goal-btn.danger:hover{background:rgba(160,60,60,.15)}
+.goal-btn[disabled]{opacity:.5;cursor:not-allowed}
+/* 浅色主题：描边与文字跟着提亮，否则暗金/暗红在浅底上读不出来 */
+html[data-ui-theme="light"] .goal-dialog{background:#fcfcfc;border-color:#d7dde5;color:#1f1f1f}
+html[data-ui-theme="light"] .goal-dialog textarea{background:#fcfcfc;color:#1f1f1f;border-color:#d7dde3}
+html[data-ui-theme="light"] .goal-dialog-sub,
+html[data-ui-theme="light"] .goal-dialog-hint{color:#5b6673}
+html[data-ui-theme="light"] .goal-btn{background:#f2f4f7;border-color:#d7dde5;color:#1f1f1f}
+html[data-ui-theme="light"] .mode-plus.goal-active,
+html[data-ui-theme="light"] .mode-plus.goal-active:hover{border-color:#a8791a;color:#8a6508}
+html[data-ui-theme="light"] .mode-plus.goal-paused,
+html[data-ui-theme="light"] .mode-plus.goal-paused:hover{border-color:#a8434a;color:#9c3b41}
+@media (max-width:720px){
+  .goal-dialog{left:12px !important;right:12px;width:auto;bottom:104px;max-height:56vh;
+    transform:none !important}
+}
+
+/* ── 推理档位：按钮与"当前项"的两套主题配色 ────────────────────────────
+   深色与白天两套都写全：只给深色一套时，`.reasoning-current` / `[data-effort="max"]`
+   在白天模式下没有覆盖，浅底上会压着 `#1a2530` 深块、近黑底配暗金文字。 */
+.reasoning-btn.effort-max{border-color:#8b6a2d;color:#e8c98a}
+.reasoning-btn.effort-high{border-color:#555}
+.reasoning-btn.effort-high:hover{border-color:#888}
+
+/* 白天模式：一律白底 + 深字，"当前项"用蓝色描边区分而不是深色块 */
+html[data-ui-theme="light"] .reasoning-menu .reasoning-choice{color:#1f1f1f}
+html[data-ui-theme="light"] .reasoning-menu .reasoning-choice.reasoning-current{
+  background:#e8e8e8;border:1px solid #a8a8a8;color:#2563eb;font-weight:600}
+html[data-ui-theme="light"] .reasoning-menu .reasoning-choice[data-effort="max"].reasoning-current{
+  background:#fdf6e6;border-color:#c9a24a;color:#7a5c15}
+html[data-ui-theme="light"] .reasoning-btn.effort-max{border-color:#c9a24a;color:#7a5c15}
+html[data-ui-theme="light"] .reasoning-btn.effort-high{border-color:#a0a0a0;color:#666666}
+/* 菜单里的说明文字（若日后加了副标题）也要跟着主题走 */
+html[data-ui-theme="light"] .reasoning-menu .reasoning-choice small{color:#666666}
+
+/* ── 交互式命令的输入条 ──────────────────────────────────────────────
+   色值写在 JS 的 `style.cssText` 里时只有深色一套，切到白天模式就变成
+   深底浅字压在白色卡片上。样式归 CSS，两套主题各一份。 */
+.cmd-input-bar{margin:8px 0;padding:8px;background:#1a1d24;border:1px solid #333;
+  border-radius:6px;font-size:12px}
+.cmd-input-cap{color:#ccc;margin-bottom:6px;white-space:pre-wrap;max-height:120px;overflow:auto}
+.cmd-input-hint{color:#888;margin-left:4px}
+.cmd-input-btn{padding:4px 12px;cursor:pointer;background:#21262d;color:#c9d1d9;
+  border:1px solid #444;border-radius:4px}
+.cmd-input-btn:hover{background:#2b3138}
+.cmd-input-field{flex:1;min-width:120px;padding:4px 8px;background:#0d1117;color:#eee;
+  border:1px solid #444;border-radius:4px}
+.chat-run-status.run-ok{color:#3fb950}
+.chat-run-status.run-bad{color:#f85149}
+
+html[data-ui-theme="light"] .cmd-input-bar{background:#f2f2f2;border-color:#d6d6d6}
+html[data-ui-theme="light"] .cmd-input-cap{color:#242424}
+html[data-ui-theme="light"] .cmd-input-hint{color:#666666}
+html[data-ui-theme="light"] .cmd-input-btn{background:#e8e8e8;color:#1f1f1f;border-color:#d2d2d2}
+html[data-ui-theme="light"] .cmd-input-btn:hover{background:#e2e2e2}
+html[data-ui-theme="light"] .cmd-input-field{background:#fcfcfc;color:#1f1f1f;border-color:#d2d2d2}
+html[data-ui-theme="light"] .chat-run-status.run-ok{color:#1a7f37}
+html[data-ui-theme="light"] .chat-run-status.run-bad{color:#c1272d}
+
+/* ══ 白天模式：补全"选择器浮层 / 步骤面板 / 状态标签" ══════════════════
+   这几块只有深色一套时，浅色主题下会露出深底浅字或浅底浅字：
+     - `@` 文件补全与 `/` 命令补全的选中/悬停：深蓝块压在浅底上；
+     - 右侧步骤面板内部的命令原文框与输出框：`#12151a` 近黑底；
+     - `.tag.ok/.bad/.stoped/.tag-run`：深色底 + 浅色字，在白色卡片里格格不入。
+   统一用"浅底 + 深字 + 描边区分状态"，与其余浅色规则同一套取色。 */
+html[data-ui-theme="light"] .at-pop{background:#fcfcfc;border-color:#d2d2d2}
+html[data-ui-theme="light"] .at-pop-head{border-bottom-color:#e2e2e2}
+html[data-ui-theme="light"] .at-item{color:#242424}
+html[data-ui-theme="light"] .at-item:hover,
+html[data-ui-theme="light"] .at-item.selected{background:#e8e8e8}
+html[data-ui-theme="light"] .at-item.selected{box-shadow:inset 0 0 0 1px #a8a8a8}
+html[data-ui-theme="light"] .at-item.dir .at-name{color:#2563eb}
+html[data-ui-theme="light"] .at-up-btn{background:#e8e8e8;color:#2563eb}
+html[data-ui-theme="light"] .at-up-btn:hover{background:#e2e2e2}
+
+html[data-ui-theme="light"] .slash-pop{background:#fcfcfc;border-color:#d2d2d2}
+html[data-ui-theme="light"] .slash-item{color:#242424}
+html[data-ui-theme="light"] .slash-item[data-slash="auto"]{color:#666666}
+html[data-ui-theme="light"] .slash-item[data-slash="plan"]{color:#7a5c15}
+html[data-ui-theme="light"] .slash-item[data-slash="execute"]{color:#6b3fa0}
+html[data-ui-theme="light"] .slash-item.selected{background:#e8e8e8;box-shadow:inset 0 0 0 1px #a8a8a8}
+html[data-ui-theme="light"] .slash-item .sh{color:#666666}
+
+html[data-ui-theme="light"] .step .ch-toggle .tit{color:#242424}
+html[data-ui-theme="light"] .step .lbl{color:#666666}
+html[data-ui-theme="light"] .step-current-file{color:#666666}
+html[data-ui-theme="light"] .step-dots{color:#666666}
+html[data-ui-theme="light"] .step-num{color:#8a6d1f}
+html[data-ui-theme="light"] .step-fname{color:#2563eb}
+html[data-ui-theme="light"] .step pre.sub{background:#f2f2f2;border-color:#d6d6d6;color:#242424}
+html[data-ui-theme="light"] .step pre.sub.reasoning-pre{
+  background:#f2f2f2;border-color:#d6d6d6;border-left-color:#a8a8a8;color:#242424}
+html[data-ui-theme="light"] .step .lbl.reasoning-section-lbl{color:#2563eb}
+
+html[data-ui-theme="light"] .tag.ok{background:#e6f4ea;color:#1a7f37}
+html[data-ui-theme="light"] .tag.bad{background:#fdecea;color:#c1272d}
+html[data-ui-theme="light"] .tag.stoped{background:#eeeaf6;color:#6b5b95}
+html[data-ui-theme="light"] .step .tag.tag-run{background:#fdf6e6;color:#7a5c15}
+html[data-ui-theme="light"] .todo-all-done{background:#e6f4ea}
+html[data-ui-theme="light"] .done-banner{background:#e6f4ea}
+html[data-ui-theme="light"] .dispatch-title{background:#f2f2f2}
+
+/* 确认卡（user_confirm）：卡片本体与表头在浅色主题下也有一套，
+   只给深色一套时会是一块近黑方框压在白色对话区上。
+   `.uc-radio/.uc-check` 的选中态（`.uc-on`）单独覆盖。 */
+html[data-ui-theme="light"] .user-confirm-card{border-color:#d6d6d6;background:#fcfcfc}
+html[data-ui-theme="light"] .user-confirm-cap.user-confirm-cap{background:#f2f2f2;border-bottom-color:#e2e2e2}
+html[data-ui-theme="light"] .user-confirm-cap-line>span.uc-title{color:#1f1f1f}
+html[data-ui-theme="light"] .user-confirm-body{background:#fcfcfc}
+html[data-ui-theme="light"] .approval-desc{color:#1f1f1f}
+html[data-ui-theme="light"] .user-confirm-actions .approval-agree{border-color:#b8924a;color:#6e5420}
+html[data-ui-theme="light"] .uc-radio.uc-on{border-color:#b8924a}
+html[data-ui-theme="light"] .uc-radio.uc-on::after{background:#8a6d1f}
+html[data-ui-theme="light"] .uc-check.uc-on{border-color:#b8924a;color:#7a6220}
+
+/* ── 对话区的 diff 预览卡（从工具结果事实恢复 / 实时渲染同一套）─────────
+   样式由 CSS 定，两套主题各一份，不在 JS 里拼内联样式。 */
+/* 这三条不是排版偏好，缺一就会裁掉整张卡：
+   `.msgs` 是 `display:flex;flex-direction:column` 的滚动容器，一张卡就是它的
+   flex item。flex item 的 `flex-shrink` 默认 1，内容总高远超容器高时会被压缩，
+   可压到的最小高度取决于内容 —— 而这里有 `overflow:hidden`，
+   压完就直接把整块裁掉，DOM 里查得到卡片、屏幕上一个像素都看不见。
+   `flex-shrink:0` 钉死高度不参与压缩；`align-self:stretch`+`width:100%`
+   与 `.b.a` 同一策略，保证横向也占满。 */
+/* 外层容器：负责"占满、不被压缩、圆角/描边"，圆角靠 `overflow:hidden` 裁出来。
+   外层需要裁剪：内层卡片只圆下两角（`0 0 6px 6px`），外层不裁时，
+   它的直角会顶穿外层圆角，四角看起来就是方的。 */
+.diff-bubble{flex:0 0 auto;flex-shrink:0;align-self:stretch;width:100%;
+  max-width:100%;box-sizing:border-box;
+  margin:8px 0;border:1px solid var(--diff-card-border);
+  border-radius:6px;background:var(--diff-card-bg);overflow:hidden}
+/* 标题条：上两角的圆角归它，下边不圆（与卡片直接拼接，拼接处不留缝）。 */
+.diff-bubble-cap{padding:6px 10px;font-size:12px;font-weight:600;
+  color:var(--diff-surface-text,#d4dae3);background:rgba(127,127,127,.10);
+  border-bottom:1px solid var(--diff-card-border);
+  border-radius:6px 6px 0 0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 卡中卡：margin 为 0，否则底边与外层描边之间会露出一道缝。
+   只圆下两角（上两角归标题条），与外层内缘对齐。 */
+.diff-bubble .chat-diff-card{margin:0;border:0;
+  border-radius:0 0 6px 6px;background:var(--diff-card-bg);
+  overflow:visible;max-width:100%}
+.diff-bubble .diff-unified{border:0;border-radius:0;max-height:420px;overflow:auto}
+html[data-ui-theme="light"] .diff-bubble{border-color:#d6d6d6;background:#fcfcfc}
+html[data-ui-theme="light"] .diff-bubble-cap{color:#1f1f1f;background:#f2f2f2;border-bottom-color:#e2e2e2}
+html[data-ui-theme="light"] .diff-bubble .chat-diff-card{background:#fcfcfc}
+
+
+/* 字体渲染：Windows 走系统次像素渲染（不开 -webkit-font-smoothing，
+   那会把 ClearType 关掉，中文发虚）；拉丁字优先用 Segoe UI Variable。 */
+html[data-ui-theme="dark"] body{
+  font-family:system-ui,"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",
+              "Noto Sans SC",sans-serif;
+  -webkit-font-smoothing:auto;
+  -moz-osx-font-smoothing:auto;
+  text-rendering:auto;
+  font-synthesis:none;
+}
+html[data-ui-theme="dark"] .b.a,
+html[data-ui-theme="dark"] .b.u,
+html[data-ui-theme="dark"] textarea,
+html[data-ui-theme="dark"] .step .ch-toggle .tit{
+  font-family:system-ui,"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",
+              "Noto Sans SC",sans-serif;
+  font-synthesis:none;
+}
+html[data-ui-theme="dark"] .b.a code,
+html[data-ui-theme="dark"] .b.a pre,
+html[data-ui-theme="dark"] .step pre.sub{
+  font-family:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+  font-synthesis:none;
+}

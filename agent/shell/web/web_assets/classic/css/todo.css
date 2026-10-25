@@ -1,0 +1,56 @@
+/* todo.css —— Todo 清单区域样式。
+ *
+ * 样式模块：由 `agent/shell/ui_bundle.py` 按清单顺序内联，顺序即层叠顺序，
+ * 调整清单顺序会改变覆盖关系。
+ */
+/* ===== Todo-List 区域 ===== */
+.todo-list-area{flex:0 0 auto;width:70%;width:min(calc(100% - 32px),var(--content-max,840px));margin:0 auto;border-top:1px solid #333;border-bottom:1px solid #333;background:#1b1d21;padding:0 5px 5px;max-height:160px;overflow:hidden;display:flex;flex-direction:column;transition:max-height .35s ease}
+.todo-list-area.hidden{display:none}
+.todo-list-header{display:flex;align-items:center;padding:3px 10px;border-bottom:1px solid #2a2d32;background:#202328;flex-shrink:0;cursor:pointer;user-select:none}
+.todo-list-title{font-size:11px;font-weight:600;color:#d6dde5}
+.todo-list-count{font-size:10px;color:#9aa0a6;padding:1px 6px;border-radius:3px;background:#2d3036;margin-left:auto}
+.todo-collapse-icon{font-size:8px;color:#9aa0a6;margin-left:6px;transition:transform .2s ease;flex-shrink:0;line-height:1}
+
+.todo-list-area.collapsed .todo-collapse-icon{transform:rotate(-90deg)}
+.todo-list-area.collapsed{max-height:27px}
+
+.todo-list-body{flex:1}
+.todo-list-scroll{height:auto;max-height:130px;overflow-y:auto}
+.todo-item{display:flex;align-items:center;gap:4px;padding:1px 6px;border-radius:3px;margin:0;font-size:11px;color:#c9d1d9;line-height:1.2;min-height:18px}
+.todo-item:hover{background:rgba(255,255,255,.03)}
+.todo-cb{flex:0 0 14px;width:14px;height:14px;border-radius:2px;border:1.5px solid #a68b4a;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;line-height:1;color:transparent;transition:all .12s}
+.todo-cb.done{border-color:#3daf3f;background:rgba(61,175,63,.2);color:#89d185}
+.todo-cb.done::after{content:"✓";font-size:11px;line-height:1}
+.todo-text{flex:1;min-width:0;word-break:break-word}
+.todo-text.done{color:#6e7681;text-decoration:line-through}
+.todo-all-done{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 12px;color:#89d185;font-size:12px;font-weight:500}
+.todo-all-done .todo-done-badge{padding:3px 10px;border-radius:4px;background:#1e3d2a;border:1px solid #2d5a3d;font-size:11px}
+
+/* Todo-List 关闭按钮 */
+.todo-close-btn{background:none;border:none;color:#9aa0a6;font-size:12px;cursor:pointer;padding:0 2px;margin-left:4px;line-height:1;opacity:.6;flex-shrink:0}
+.todo-close-btn:hover{opacity:1;color:#e06c75}
+
+/* ===== 固定面板通用样式 =====
+   可开面板的样式由各插件自带（随面板按需注入），这里只放壳层自己的部分。 */
+
+
+
+/* ── Loading spinner ── */
+.step-inline-spin {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.step-spinner {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid #888;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ai-agent-spin 0.7s linear infinite;
+}
+@keyframes ai-agent-spin {
+  to { transform: rotate(360deg); }
+}

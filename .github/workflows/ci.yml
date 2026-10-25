@@ -1,0 +1,254 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# 本文件由 scripts/gen_ci_workflow.py 从 scripts/ci_steps.py 生成；直接改动会被下一次生成覆盖。
+# `python scripts/gen_ci_workflow.py --check` 校验逐字节一致。
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # 只装两个运行时依赖。可选依赖（playwright / pytesseract / easyocr /
+      # rarfile / edge-tts）不装：不装时对应工具自行降级或明确报错；
+      # 装了会让"缺依赖"那几个用例走 skip 分支、失去覆盖。
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . -c constraints.txt
+          python -m pip install ruff coverage -c constraints.txt
+
+      - name: 门禁 依赖方向
+        timeout-minutes: 3
+        run: python -u scripts/check_imports.py
+      - name: 门禁 架构约束
+        timeout-minutes: 3
+        run: python -u scripts/check_architecture_hygiene.py
+      - name: 门禁 CI 工作流一致
+        timeout-minutes: 3
+        run: python -u scripts/check_ci_workflow.py
+      - name: 门禁 配置一致性
+        timeout-minutes: 3
+        run: python -u scripts/check_config_drift.py
+      - name: 门禁 单测文档一致
+        timeout-minutes: 5
+        run: python -u scripts/gen_unit_tests_md.py --check
+      - name: 门禁 静态检查
+        timeout-minutes: 5
+        run: python -u -m ruff check agent tests scripts
+      - name: 门禁 Python 下限
+        timeout-minutes: 3
+        run: python -u scripts/check_python_floor.py
+      - name: 门禁 UI JS 自检
+        timeout-minutes: 3
+        run: python -u scripts/check_ui_js.py
+      - name: 门禁 静默异常
+        timeout-minutes: 5
+        run: python -u scripts/check_silent_except.py
+      - name: 门禁 README 一致性
+        timeout-minutes: 3
+        run: python -u scripts/check_readme.py
+      - name: 门禁 确认文案无歧义
+        timeout-minutes: 3
+        run: python -u scripts/check_confirm_wording.py
+      - name: 门禁 注释文案
+        timeout-minutes: 5
+        run: python -u scripts/check_comment_style.py
+      - name: 门禁 注册表一致性
+        timeout-minutes: 3
+        run: python -u scripts/check_catalog.py
+      - name: 门禁 复杂度登记
+        timeout-minutes: 5
+        run: python -u scripts/check_complexity.py
+      - name: 门禁 复杂度文档一致
+        timeout-minutes: 5
+        run: python -u scripts/gen_complexity_md.py --check
+      - name: 门禁 适用性登记
+        timeout-minutes: 3
+        run: python -u scripts/check_applicability.py
+      - name: 门禁 并发争用
+        timeout-minutes: 3
+        run: python -u -X dev -m unittest tests.test_concurrency
+
+      - name: 单测（按文件，各限时 150 秒）
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          # `-e` 必须关掉：某个文件非零退出时，`-e` 会终止整个脚本，后面的文件再也
+          # 跑不到，失败清单就只剩第一个。这里自己记状态、统一在末尾退出。
+          set +e
+          # 逐文件跑，输出先落盘再打印：超时被杀（137）时已产出的日志也不会丢。
+          # 退出码 2 = 该文件在本平台按设计跳过，不算失败。
+          fail=0; skip=0
+          skip_names=()
+          for f in tests/test_*.py; do
+            mod=$(basename "$f" .py)
+            echo "::group::$mod"
+            timeout 150 python -u -m unittest "tests.$mod" > "/tmp/$mod.log" 2>&1
+            code=$?
+            cat "/tmp/$mod.log"
+            echo "::endgroup::"
+            if [ "$code" -eq 2 ]; then
+              echo "   $mod 跳过"
+              skip=$((skip+1))
+              skip_names+=("$mod")
+            elif [ "$code" -ne 0 ]; then
+              echo "::error::$mod 退出码 $code"
+              fail=$((fail+1))
+            fi
+          done
+          echo "失败 $fail 个文件，跳过 $skip 个"
+          if [ "$skip" -gt 0 ]; then
+            echo "单测跳过名单：${skip_names[*]}"
+          fi
+          [ "$fail" -eq 0 ]
+
+      # 验收经 run_acceptance_step：打印 SKIP/OK/FAIL；码 2 记入 ACC_SKIP_FILE。
+      - name: 准备验收 skip 文件
+        shell: bash
+        run: |
+          echo "ACC_SKIP_FILE=$RUNNER_TEMP/fan_acc_skips.txt" >> "$GITHUB_ENV"
+          : > "$RUNNER_TEMP/fan_acc_skips.txt"
+
+      - name: acceptance batch a
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_a
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_a" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+      - name: acceptance batch b
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_b
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_b" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+      - name: acceptance batch c
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_c
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_c" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+      - name: acceptance batch d
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_d
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_d" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+      - name: acceptance batch e
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_e
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_e" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+      - name: acceptance batch f
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_batch_f
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_batch_f" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+      - name: acceptance mvp2
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_mvp2
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_mvp2" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+      - name: acceptance mvp3
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_mvp3
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_mvp3" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+      - name: acceptance phase3
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_phase3
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_phase3" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+      - name: acceptance web
+        timeout-minutes: 6
+        shell: bash
+        run: |
+          set +e
+          python -u scripts/run_acceptance_step.py acceptance_web
+          code=$?
+          if [ "$code" -eq 2 ]; then echo "acceptance_web" >> "$ACC_SKIP_FILE"; exit 0; fi
+          exit "$code"
+
+      - name: 验收 skip 预算
+        timeout-minutes: 2
+        run: python -u scripts/check_acceptance_skips.py
+
+      # 覆盖率只在 3.12 矩阵跑一遍，避免双倍单测墙钟。
+      # 下限按顶层包分开登记在 scripts/quality_budgets.py，缺数据/低于下限都会失败。
+      # 数据由 scripts/run_coverage.py 先写独立文件、再原子发布，并行采集不会留下半份数据。
+      - name: 覆盖率（分包下限）
+        if: matrix.python-version == '3.12'
+        timeout-minutes: 20
+        run: |
+          python -u scripts/run_coverage.py
+          python -u scripts/check_coverage.py
+          python -m coverage html -d coverage_html
+      - name: 上传覆盖率报告
+        if: matrix.python-version == '3.12' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-${{ matrix.python-version }}
+          path: coverage_html
+          if-no-files-found: ignore
+
+      - name: 工程 data/ 检查
+        run: >
+          python -c "import subprocess,sys;
+          r=subprocess.run(['git','status','--porcelain','data'],capture_output=True,text=True);
+          sys.exit('CI 往工程 data/ 写了文件:\n'+r.stdout) if r.stdout.strip() else print('data/ 干净')"

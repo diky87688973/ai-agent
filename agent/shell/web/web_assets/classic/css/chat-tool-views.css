@@ -1,0 +1,123 @@
+/* 对话区工具条目：一行标题 + 摘要，点开后正文限高滚动。 */
+.chat-tool-row{--chat-tool-indent:28px;flex:0 0 auto;flex-shrink:0;align-self:stretch;width:100%;max-width:100%;min-width:0;box-sizing:border-box;margin:0}
+.msgs>.chat-tool-row+.chat-tool-row{margin-top:-4px}
+.chat-tool-head{width:100%;max-width:100%;min-width:0;display:flex;align-items:center;gap:8px;min-height:24px;padding:2px 8px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;overflow:hidden}
+.chat-tool-head:hover{background:rgba(255,255,255,.045)}
+.chat-tool-head:focus-visible{outline:1px solid #4f5f76;outline-offset:1px}
+.chat-tool-title{flex:0 0 auto;font-size:13px;font-weight:600;line-height:1.3;color:#d6dde6}
+.chat-tool-sum{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:1.3;color:#8b949e}
+.chat-tool-sum .chat-diff-neg,
+.chat-tool-sum .chat-diff-pos{font-weight:400}
+.chat-tool-sum:not(:empty)::before{content:"";display:inline-block;width:1px;height:11px;margin-right:8px;background:rgba(255,255,255,.18);vertical-align:-1px}
+.chat-tool-chev{flex:0 0 12px;width:12px;height:12px;display:inline-flex;align-items:center;justify-content:center;color:#8b949e}
+.chat-tool-chev::before{content:"";border-style:solid;border-width:4px 0 4px 5px;border-color:transparent transparent transparent currentColor;transition:transform .15s ease}
+/* 只转标题箭头；报文按钮自有 `.chat-tool-packet-btn.is-open`，不能跟行展开绑死。 */
+.chat-tool-row.is-open .chat-tool-head .chat-tool-chev::before{transform:rotate(90deg)}
+.chat-tool-row.is-open{margin-bottom:6px}
+.chat-tool-row.is-running .chat-tool-title{
+background-image:linear-gradient(90deg,#e39a3a 0%,#e39a3a 38%,#7a4a28 50%,#e39a3a 62%,#e39a3a 100%);
+background-size:220% 100%;
+-webkit-background-clip:text;
+background-clip:text;
+color:transparent;
+-webkit-text-fill-color:transparent;
+animation:chat-tool-marquee 1.8s linear infinite;
+}
+.chat-tool-row.is-bad .chat-tool-title{color:#e15d5d}
+.chat-tool-row.is-canceled .chat-tool-title{color:#b7c0c8}
+.chat-tool-fail{color:#e15d5d;font-size:12.5px;line-height:1.45}
+.chat-tool-pane code.chat-tool-fail,
+.chat-tool-custom-view .chat-tool-fail{color:#e15d5d}
+@keyframes chat-tool-marquee{from{background-position:100% 0}to{background-position:-100% 0}}
+@media (prefers-reduced-motion:reduce){
+.chat-tool-chev::before{transition:none}
+.chat-tool-row.is-running .chat-tool-title{animation:none;background-image:none;color:#e39a3a;-webkit-text-fill-color:#e39a3a}
+}
+/* 详情底：介于对话面(--c-bg-base)与壳/body(--c-bg-raise)之间，偏暗一侧 */
+.chat-tool-body{display:none;margin:2px 0 0 var(--chat-tool-indent);border:1px solid transparent;border-radius:10px;background:#151618;background:color-mix(in srgb,var(--c-bg-base) 62%,var(--c-bg-raise) 38%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.055);overflow:hidden}
+.chat-tool-row.is-open .chat-tool-body{display:block}
+.chat-tool-layer{border-top:1px solid transparent}
+.chat-tool-layer:first-child{border-top:0}
+.chat-tool-layer+.chat-tool-layer{box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.chat-tool-pane-cap{padding:7px 12px 4px;font-size:11px;font-weight:600;letter-spacing:.03em;color:#8b949e}
+.chat-tool-layer--cmd .chat-tool-pane-cap{background:rgba(255,255,255,.03)}
+/* 详情内可滚动面板统一 220px；思考面板单独放回 400px。 */
+.chat-tool-pane{max-height:220px;overflow:auto;padding:6px 12px 10px}
+/* 覆盖全局 pre{max-height:220px;overflow:auto}，滚动只发生在 .chat-tool-pane 上 */
+.chat-tool-pane pre,.chat-tool-pane code{margin:0;border:0;background:transparent;padding:0;max-height:none;overflow:visible;white-space:pre-wrap;word-break:break-word;font-family:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;font-size:12px;line-height:1.5;color:#d4dae3}
+.chat-tool-pane .chat-tool-md pre{margin:0 0 8px 0;padding:8px;background:#212121;border:1px solid #2a2a2a;border-radius:4px;max-height:280px;overflow:auto;white-space:pre;word-break:normal}
+.chat-tool-pane .chat-tool-md code{font-family:Consolas,ui-monospace,monospace;font-size:12px;background:rgba(255,255,255,.06);padding:1px 4px;border-radius:3px;white-space:pre-wrap}
+.chat-tool-pane .chat-tool-md pre code{background:none;padding:0;border-radius:0;white-space:pre}
+.chat-tool-pane--cmd{background:transparent}
+.chat-tool-pane--diff{max-height:none;overflow:visible;padding:0;background:transparent}
+.chat-tool-pane--diff .chat-diff-card{margin:0;border:0;border-radius:0;background:transparent}
+/* 工具行标题已有路径与 ±，详情里不再重复画 diff 标题栏。 */
+.chat-tool-pane--diff .chat-diff-cap{display:none}
+.chat-tool-pane--diff .diff-unified{max-height:220px;overflow:auto}
+.chat-tool-body .cmd-input-bar{margin:0;border:0;border-top:1px solid rgba(255,255,255,.06);border-radius:0}
+.chat-tool-custom-view{max-height:220px;overflow:auto}
+.chat-tool-custom:has(.chat-tool-pane--shot) .chat-tool-custom-view{max-height:400px}
+.chat-tool-custom-view .chat-tool-pane,
+.chat-tool-custom-view .chat-tool-pane--diff,
+.chat-tool-custom-view .chat-tool-pane--shot,
+.chat-tool-custom-view .diff-unified,
+.chat-tool-custom-view .chat-tool-pane--diff .diff-unified{max-height:none;overflow:visible}
+.chat-tool-packet{padding:6px 12px 8px}
+.chat-tool-packet-btn{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;padding:0;font:inherit;font-size:12.5px;line-height:1.4;color:#8b949e;cursor:pointer}
+.chat-tool-packet-btn:hover{color:#d6dde6}
+.chat-tool-packet-btn .chat-tool-chev{color:inherit}
+.chat-tool-packet-btn.is-open .chat-tool-chev::before{transform:rotate(90deg)}
+.chat-tool-packet-label{font:inherit;font-size:inherit;line-height:inherit;color:inherit}
+.chat-tool-raw{border-top:1px solid rgba(255,255,255,.06)}
+.chat-tool-raw .chat-tool-pane{max-height:220px;overflow:auto}
+html[data-ui-theme="light"] .chat-tool-head:hover{background:rgba(0,0,0,.05)}
+html[data-ui-theme="light"] .chat-tool-title{color:#1f1f1f}
+html[data-ui-theme="light"] .chat-tool-sum{color:#666666}
+html[data-ui-theme="light"] .chat-tool-sum:not(:empty)::before{background:#d6d6d6}
+html[data-ui-theme="light"] .chat-tool-chev{color:#8f8f8f}
+html[data-ui-theme="light"] .chat-tool-row.is-running .chat-tool-title{
+background-image:linear-gradient(90deg,#d4892a 0%,#d4892a 38%,#6e4324 50%,#d4892a 62%,#d4892a 100%);
+}
+html[data-ui-theme="light"] .chat-tool-row.is-bad .chat-tool-title{color:#c4453c}
+html[data-ui-theme="light"] .chat-tool-row.is-canceled .chat-tool-title{color:#8e98a6}
+html[data-ui-theme="light"] .chat-tool-fail,
+html[data-ui-theme="light"] .chat-tool-pane code.chat-tool-fail,
+html[data-ui-theme="light"] .chat-tool-custom-view .chat-tool-fail{color:#c4453c}
+@media (prefers-reduced-motion:reduce){
+html[data-ui-theme="light"] .chat-tool-row.is-running .chat-tool-title{color:#c47a22;-webkit-text-fill-color:#c47a22}
+}
+html[data-ui-theme="light"] .chat-tool-body{background:#f8f9fb;background:color-mix(in srgb,var(--c-bg-base) 62%,var(--c-bg-raise) 38%);border-color:transparent;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+html[data-ui-theme="light"] .chat-tool-layer{border-top-color:transparent}
+html[data-ui-theme="light"] .chat-tool-layer+.chat-tool-layer{box-shadow:inset 0 1px 0 rgba(0,0,0,.06)}
+html[data-ui-theme="light"] .chat-tool-pane-cap{color:#6a7688}
+html[data-ui-theme="light"] .chat-tool-layer--cmd .chat-tool-pane-cap{background:#f7f9fc}
+html[data-ui-theme="light"] .chat-tool-pane pre,
+html[data-ui-theme="light"] .chat-tool-pane code{color:#1f1f1f}
+html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md pre{background:#f7f7f7;border-color:#e6e6e6;color:#1f1f1f}
+html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md code{background:rgba(37,99,235,.08);color:#a15c00}
+html[data-ui-theme="light"] .chat-tool-pane .chat-tool-md pre code{background:transparent;color:inherit}
+html[data-ui-theme="light"] .chat-tool-pane--cmd{background:transparent}
+html[data-ui-theme="light"] .chat-tool-pane--diff{background:transparent}
+html[data-ui-theme="light"] .chat-tool-body .cmd-input-bar{border-top-color:#e6e6e6}
+html[data-ui-theme="light"] .chat-tool-packet-btn{color:#666666}
+html[data-ui-theme="light"] .chat-tool-packet-btn:hover{color:#1f1f1f}
+html[data-ui-theme="light"] .chat-tool-raw{border-top-color:#e6e6e6}
+.chat-tool-pane--shot{max-height:none;overflow:visible;padding:8px 12px 4px 8px}
+.chat-tool-shot{display:block;max-width:100%;max-height:400px;width:auto;height:auto;object-fit:contain}
+.chat-tool-shot-item+.chat-tool-shot-item{margin-top:8px}
+.chat-tool-shot-label{margin-bottom:2px;font-size:11px;line-height:1.4;color:#8b949e}
+.chat-tool-shot-meta{margin-top:8px}
+.chat-tool-shot-path{font-size:12px;line-height:1.45;color:#8b949e;word-break:break-all}
+.chat-tool-shot-meta .chat-tool-shot-path+.chat-tool-shot-path{margin-top:2px}
+.chat-tool-shot-miss{font-size:12px;line-height:1.45;color:#8b949e}
+html[data-ui-theme="light"] .chat-tool-shot-path,
+html[data-ui-theme="light"] .chat-tool-shot-label,
+html[data-ui-theme="light"] .chat-tool-shot-miss{color:#666666}
+/* 思考展开：正文左缘与标题「思考」重合。标题起点 = 行内边距 8 + 箭头 12 + 间距 8。 */
+.chat-tool-body:has(.chat-tool-pane--think){border:none;border-radius:0;background:transparent;box-shadow:none}
+.chat-tool-pane--think{max-height:400px;padding-left:0}
+.chat-tool-pane--think pre,
+.chat-tool-pane--think code{color:var(--c-text-3)}
+html[data-ui-theme="light"] .chat-tool-body:has(.chat-tool-pane--think){border:none;background:transparent;box-shadow:none}
+html[data-ui-theme="light"] .chat-tool-pane--think pre,
+html[data-ui-theme="light"] .chat-tool-pane--think code{color:#666666}

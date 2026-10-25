@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞
+    url: https://github.com/diky87688973/ai-agent/security
+    about: 通过 GitHub Security 私下报告漏洞，不进入公开 Issue
+  - name: 使用与配置文档
+    url: https://github.com/diky87688973/ai-agent/blob/main/docs/guide/config.md
+    about: 查看配置项、启动参数与环境变量
