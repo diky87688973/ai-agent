@@ -152,6 +152,12 @@ class App(AppModelPolicy, AppServices):
         顺序要点：先释放会话上下文（否则默认桶门控在容器清空后才被取出、
         永远漏掉释放）；再 `dispose_all()` 逆序清理各注册 disposer。
         """
+        # 先停生产者，避免停机 flush 之后仍有 runner 线程写入。
+        if self.context.has(SERVICE_RUNNER):
+            runner = self.context.get(SERVICE_RUNNER)
+            shutdown = getattr(runner, "shutdown", None)
+            if callable(shutdown):
+                shutdown()
         # 停机补投：待落盘事实只在内存里，停机后再也不会有人触发下一批写入 ——
         # 不补这一下，关页 / 关进程就会丢掉那批。
         store = self.store

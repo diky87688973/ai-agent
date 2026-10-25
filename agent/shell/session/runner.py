@@ -59,6 +59,7 @@ class SessionRunner:
         self._lock = threading.Lock()
         self._threads: Dict[str, threading.Thread] = {}
         self._cancels: Dict[str, threading.Event] = {}  # cid → 取消信号（协作式）
+        self._closed = False
 
     def set_store_for(self, store_for: Optional[Callable[[str], Any]]) -> None:
         self._store_for = store_for or (lambda _cid: None)
@@ -79,6 +80,9 @@ class SessionRunner:
           运行器先把结果写成 `tool_result` 事实，再跑回合让模型消费它。
         """
         key = str(cid or "").strip()
+        with self._lock:
+            if self._closed:
+                return ""
         rid = self._mesh.try_begin_run(key)
         if not rid:
             return ""
@@ -387,6 +391,30 @@ class SessionRunner:
 
     def _mode_note(self, cid: str) -> str:
         return prompt.mode_note(app=self._app, mesh=self._mesh, cid=cid)
+
+    def shutdown(self, timeout: float = 5.0) -> bool:
+        """停止接收新回合，取消并等待全部运行线程收尾。"""
+        with self._lock:
+            self._closed = True
+            events = list(self._cancels.values())
+            threads = list(self._threads.items())
+        for event in events:
+            event.set()
+        current = threading.current_thread()
+        deadline = time.time() + max(0.0, float(timeout))
+        for _cid, thread in threads:
+            if thread is current:
+                continue
+            thread.join(max(0.01, deadline - time.time()))
+        with self._lock:
+            alive = [cid for cid, thread in self._threads.items()
+                     if thread is not current and thread.is_alive()]
+        if alive:
+            report_error("shell.session_runner.shutdown_timeout",
+                         f"仍有 {len(alive)} 个回合线程未停止：{alive}",
+                         conversation_id=alive[0])
+            return False
+        return True
 
     def wait_idle(self, cid: str, timeout: float = 10.0) -> bool:
         """等待 cid 无活跃运行并完成线程收尾；超时返回 False。"""
