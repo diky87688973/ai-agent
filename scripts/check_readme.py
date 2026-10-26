@@ -101,6 +101,13 @@ def _data_dirs() -> list[str]:
                 segs = _path_segments(node.value) if node.value is not None else []
                 if segs:
                     names.add(segs[0])
+            elif (isinstance(node, ast.Call)
+                  and isinstance(node.func, ast.Name)
+                  and node.func.id == "_resolve_auth_dir"
+                  and len(node.args) >= 2
+                  and isinstance(node.args[1], ast.Constant)
+                  and isinstance(node.args[1].value, str)):
+                names.add(node.args[1].value)
     d = ROOT / "data"
     if d.is_dir():
         names.update(p.name for p in d.iterdir() if p.is_dir())

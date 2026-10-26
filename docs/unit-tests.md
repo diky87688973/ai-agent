@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1916** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1917** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -97,7 +97,7 @@
 86. [test_usage_metrics.py](#test_usage_metricspy)（7）
 87. [test_version_stamp.py](#test_version_stamppy)（4）
 88. [test_visual_operator.py](#test_visual_operatorpy)（130）
-89. [test_web_auth.py](#test_web_authpy)（25）
+89. [test_web_auth.py](#test_web_authpy)（26）
 90. [test_web_frontend.py](#test_web_frontendpy)（5）
 91. [test_web_shell.py](#test_web_shellpy)（52）
 92. [test_web_ui_config.py](#test_web_ui_configpy)（21）
@@ -2480,7 +2480,7 @@
 
 ## test_web_auth.py
 
-共 25 个用例。
+共 26 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2509,6 +2509,7 @@
 | 23 | `TokenTest` | `test_threaded_issue_keeps_all_tokens` | 覆盖「A class whose instances are single test cases」：threaded issue keeps all tokens |
 | 24 | `WebAuthHttpTest` | `test_guard_login_csrf_and_logout` | 覆盖「A class whose instances are single test cases」：guard login csrf and logout |
 | 25 | `WebAuthHttpTest` | `test_healthz_reports_fallback_target` | 覆盖「A class whose instances are single test cases」：healthz reports fallback target |
+| 26 | `WebAuthHttpTest` | `test_login_page_has_window_close` | 覆盖「A class whose instances are single test cases」：login page has window close |
 
 ## test_web_frontend.py
 

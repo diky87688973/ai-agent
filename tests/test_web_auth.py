@@ -414,6 +414,13 @@ class WebAuthHttpTest(unittest.TestCase):
         self.assertTrue(payload["auth_fallback"])
         self.assertEqual(payload["auth_fallback_to"], "auth2")
 
+    def test_login_page_has_window_close(self) -> None:
+        status, _, raw = self.request("GET", "/login")
+        self.assertEqual(status, 200)
+        body = raw.decode("utf-8")
+        self.assertIn('id="win-close"', body)
+        self.assertIn("pywebview.api.close", body)
+
     def test_guard_login_csrf_and_logout(self) -> None:
         status, headers, _ = self.request("GET", "/")
         self.assertEqual(status, 302)

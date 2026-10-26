@@ -31,10 +31,14 @@ input:focus{border-color:#5686fe}
 button{margin-top:18px;width:100%;padding:10px;border:0;border-radius:7px;
  background:#5686fe;color:#fff;font:inherit;cursor:pointer}
 button:disabled{opacity:.6;cursor:default}
+.win-close{position:fixed;top:12px;right:12px;width:32px;height:32px;margin:0;padding:0;
+ border-radius:6px;background:transparent;color:#b9c2cf;font-size:20px;line-height:1;cursor:pointer}
+.win-close:hover{background:#2a303a;color:#fff}
 .error{min-height:18px;margin-top:10px;color:#ff8a87;font-size:12px}
 </style>
 </head>
 <body>
+<button type="button" class="win-close" id="win-close" title="关闭" aria-label="关闭">×</button>
 <form class="card" id="f">
   <h1>AI Agent</h1>
   <p>请输入访问密码</p>
@@ -64,6 +68,16 @@ button:disabled{opacity:.6;cursor:default}
     }).catch(function(){e.textContent="登录请求失败";go.disabled=false;});
   });
 })();
+(function(){
+  var btn=document.getElementById("win-close");
+  if(!btn)return;
+  btn.addEventListener("click",function(){
+    if(window.pywebview&&window.pywebview.api&&window.pywebview.api.close){
+      window.pywebview.api.close();return;
+    }
+    try{window.close();}catch(e){}
+  });
+})();
 </script>
 </body>
 </html>"""
@@ -80,8 +94,12 @@ body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:c
  border-radius:12px;padding:26px;box-shadow:0 18px 60px #0008}
 h1{margin:0 0 8px;font-size:20px}p{margin:0;color:#9aa4b2;font-size:12px}
 .error{min-height:18px;margin-top:12px;color:#ff8a87;font-size:12px}
+.win-close{position:fixed;top:12px;right:12px;width:32px;height:32px;margin:0;padding:0;
+ border:0;border-radius:6px;background:transparent;color:#b9c2cf;font-size:20px;line-height:1;cursor:pointer}
+.win-close:hover{background:#2a303a;color:#fff}
 </style></head>
-<body><div class="card"><h1>AI Agent</h1><p>正在准备桌面会话…</p>
+<body><button type="button" class="win-close" id="win-close" title="关闭" aria-label="关闭">×</button>
+<div class="card"><h1>AI Agent</h1><p>正在准备桌面会话…</p>
 <div class="error" id="e"></div></div>
 <script>
 (function(){
@@ -95,6 +113,16 @@ h1{margin:0 0 8px;font-size:20px}p{margin:0;color:#9aa4b2;font-size:12px}
    document.getElementById("e").textContent="桌面会话创建失败，请重新启动桌面应用。";
  });})
  .catch(function(){document.getElementById("e").textContent="桌面会话创建失败，请重新启动桌面应用。";});
+})();
+(function(){
+  var btn=document.getElementById("win-close");
+  if(!btn)return;
+  btn.addEventListener("click",function(){
+    if(window.pywebview&&window.pywebview.api&&window.pywebview.api.close){
+      window.pywebview.api.close();return;
+    }
+    try{window.close();}catch(e){}
+  });
 })();
 </script></body></html>"""
 
