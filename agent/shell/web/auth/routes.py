@@ -31,7 +31,7 @@ input:focus{border-color:#5686fe}
 button{margin-top:18px;width:100%;padding:10px;border:0;border-radius:7px;
  background:#5686fe;color:#fff;font:inherit;cursor:pointer}
 button:disabled{opacity:.6;cursor:default}
-.win-close{position:fixed;top:12px;right:12px;width:32px;height:32px;margin:0;padding:0;
+.win-close{display:none;position:fixed;top:12px;right:12px;width:32px;height:32px;margin:0;padding:0;
  border-radius:6px;background:transparent;color:#b9c2cf;font-size:20px;line-height:1;cursor:pointer}
 .win-close:hover{background:#2a303a;color:#fff}
 .error{min-height:18px;margin-top:10px;color:#ff8a87;font-size:12px}
@@ -71,11 +71,15 @@ button:disabled{opacity:.6;cursor:default}
 (function(){
   var btn=document.getElementById("win-close");
   if(!btn)return;
-  btn.addEventListener("click",function(){
+  function enable(){
     if(window.pywebview&&window.pywebview.api&&window.pywebview.api.close){
-      window.pywebview.api.close();return;
+      btn.style.display="block";
     }
-    try{window.close();}catch(e){}
+  }
+  window.addEventListener("pywebviewready",enable);
+  enable();
+  btn.addEventListener("click",function(){
+    window.pywebview.api.close();
   });
 })();
 </script>
@@ -94,7 +98,7 @@ body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:c
  border-radius:12px;padding:26px;box-shadow:0 18px 60px #0008}
 h1{margin:0 0 8px;font-size:20px}p{margin:0;color:#9aa4b2;font-size:12px}
 .error{min-height:18px;margin-top:12px;color:#ff8a87;font-size:12px}
-.win-close{position:fixed;top:12px;right:12px;width:32px;height:32px;margin:0;padding:0;
+.win-close{display:none;position:fixed;top:12px;right:12px;width:32px;height:32px;margin:0;padding:0;
  border:0;border-radius:6px;background:transparent;color:#b9c2cf;font-size:20px;line-height:1;cursor:pointer}
 .win-close:hover{background:#2a303a;color:#fff}
 </style></head>
