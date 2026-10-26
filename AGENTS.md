@@ -109,6 +109,96 @@ entry → shell → capabilities → mechanisms → core
 - 更新包构建使用黑名单排除运行态、缓存、构建产物与敏感配置；不得改用允许清单。
 - `VERSION` 与 `pyproject.toml` 的版本必须一致。
 
+## 版本升级
+
+只在用户明确要求升级或发版时执行。当前版本必须同步到：
+
+```text
+VERSION
+pyproject.toml [project].version
+README.md 标题 <kbd>vX.Y.Z</kbd>
+README.md 徽章 version-vX.Y.Z-blue
+agent/shell/web/ui_bundle.py 版本兜底 vX.Y.Z
+docs/assets/desktop.png（截图包含版本号时必须同步）
+```
+
+步骤：
+
+1. 先读上述文件当前内容。
+2. 同步版本号；只改当前版本引用，不改 `docs/plan/` 里的历史版本示例。
+3. 按「README 截图」重新生成截图。
+4. 运行受影响检查：`check_readme.py`、`check_ui_js.py`、受影响单测。
+5. 核对 `VERSION`、`pyproject.toml`、README、UI 兜底版本完全一致，截图中的版本与当前版本一致。
+6. 提交、打 tag、创建 Release 必须等用户明确要求；不得升版本后自动发布。
+
+## README 截图
+
+截图使用隔离运行实例，禁止使用、改动或清理工程 `data/`。
+
+```powershell
+$root = Join-Path $env:TEMP ("ai-agent-readme-shot-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force -Path $root | Out-Null
+$env:AI_AGENT_DATA_ROOT=$root
+python -m agent.entry.web --host 127.0.0.1 --port 3176
+```
+
+截图规格：
+
+```text
+视口：1440 × 1000
+左侧：3 个正常会话
+当前会话：有正常对话内容
+消息队列：有 1 条待发送消息
+AI说话：播放控件可见
+子智能体：只显示折叠状态
+后台任务：只显示折叠状态
+知识库：不打开
+会话标签：只保留当前会话，不保留空的新会话标签
+版本：右上角或徽标显示当前版本
+```
+
+操作：
+
+1. 备份 `docs/assets/desktop.png`。
+2. 用真实 UI 创建 3 个正常会话，标题分别为「整理接口文档」「排查构建失败原因」「补充测试用例」。
+3. 在「补充测试用例」中发送正常任务：
+
+```text
+创建两个子智能体：资料整理、代码审查，然后汇报当前安排。
+```
+
+不要写「请用语音」「请调用 ai_speak」之类指令，AI说话应由插件提示自然触发。
+
+4. 为当前会话创建后台任务：
+
+```text
+POST /api/background/tasks/create
+
+{
+  "conversation_id": "<当前会话ID>",
+  "label": "构建检查",
+  "argv": ["python", "-c", "import time; time.sleep(120)"],
+  "timeout_sec": 180
+}
+```
+
+5. 等待播放条出现：
+
+```text
+.ai-speak-player:not([hidden])
+```
+
+6. 播放控件可见时，再发送一条普通补充消息，让消息队列出现：
+
+```text
+补充：先给出结论。
+```
+
+7. 关闭自动创建的空会话标签；不要打开知识库，不要展开子智能体或后台任务列表。
+8. 截图保存到 `docs/assets/desktop.png`。
+9. 停止临时服务，只删除自己创建的 `$root` 和临时截图；工程 `data/` 一律不动。
+10. 核对截图：3 个会话、播放控件、消息队列、两个折叠面板、无知识库、无空标签、版本正确。
+
 ## 测试与清理
 
 - 测试数据必须指向临时 `AI_AGENT_DATA_ROOT`，测试结束当场清理。

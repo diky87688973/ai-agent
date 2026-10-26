@@ -160,7 +160,7 @@
   }
 
   /* 插件开关会改变可用入口；重取目录与插件卡片后重绘导航。 */
-  function refreshHostSections() {
+  function refreshHostSections(reset) {
     return Promise.all([
       request("GET", "/api/settings"),
       request("GET", "/api/settings/plugins")
@@ -168,7 +168,7 @@
       var data = result[0] || {};
       var plugins = result[1] || {};
       if (!data.ok) return;
-      adoptSections(data.sections, false);
+      adoptSections(data.sections, !!reset);
       state.pluginCards = plugins.ok && Array.isArray(plugins.plugins)
         ? plugins.plugins : [];
       if (state.mode === "host" && !currentSection()) {
@@ -413,7 +413,9 @@
         setStatus(data.error || "保存失败", true);
         return;
       }
-      applyWebUi(data.web_ui);
+      try {
+        document.dispatchEvent(new CustomEvent("ai-agent:settings-changed"));
+      } catch (e) {}
       clearSavedSecrets();
       if (data.reload_error) {
         // 写盘成功但没生效：按失败处理，窗口保持打开并显示原因。
@@ -453,7 +455,24 @@
       if (typeof setClassicSideOpen === "function") setClassicSideOpen(true);
     } else {
       document.documentElement.setAttribute("data-tool-steps", "off");
+      if (typeof setClassicSideOpen === "function") setClassicSideOpen(false);
     }
+  }
+
+  function refreshWebUiFlags() {
+    return request("GET", "/api/settings").then(function (data) {
+      if (!data || !data.ok) return;
+      var section = (data.sections || []).filter(function (item) {
+        return item && item.id === "web-ui";
+      })[0];
+      if (!section) return;
+      var flags = {};
+      (section.fields || []).forEach(function (field) {
+        if (!field || !field.key) return;
+        flags[field.key] = String(field.value) === "1" || field.value === true;
+      });
+      applyWebUi(flags);
+    }).catch(function () {});
   }
 
   function renderPlugins() {
@@ -926,6 +945,13 @@
       setStatus("保存失败", true);
     });
   }
+
+  document.addEventListener("ai-agent:settings-changed", function () {
+    void refreshWebUiFlags();
+    if (document.getElementById("stMask") && state.mode === "host") {
+      void refreshHostSections(true);
+    }
+  });
 
   bootSettingsPanel();
 })();

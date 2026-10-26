@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from agent.capabilities.plugins import plugin_config_fields, resolve_plugin_root
 from agent.config import DEFAULT_PLUGINS_PATH, get_plugins
+from agent.core.error_report import report_error
 from agent.shell.ini_sections import section_span
 from agent.shell.plugin_editor import build_editor, merge_fields, merge_groups, merge_text
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
@@ -182,6 +183,24 @@ def sync_plugins(app: Any, *, plugins_path: Optional[Path] = None,
     return reports
 
 
+def _announce_plugin_config(app: Any, plugin: str) -> None:
+    """插件配置写盘成功后广播，让其它标签页刷新各自 UI。"""
+    context = getattr(app, "context", None)
+    has = getattr(context, "has", None)
+    get = getattr(context, "get", None)
+    if context is None or not callable(has) or not callable(get):
+        return
+    try:
+        if not has(SERVICE_CLASSIC_ADAPTER):
+            return
+        classic = get(SERVICE_CLASSIC_ADAPTER)
+        announce = getattr(classic, "announce_plugin_config", None)
+        if callable(announce):
+            announce(plugin)
+    except Exception as exc:
+        report_error("agent.shell.plugin_settings.announce_plugin_config", exc)
+
+
 def _announce_plugins(app: Any, loaded: List[str]) -> None:
     """把已装载插件名推进经典界面的事件流。没有适配层时不发。"""
     context = getattr(app, "context", None)
@@ -273,6 +292,8 @@ def write_plugin_config(name: str, text: Any = None, groups: Any = None,
         if host is not None and plugin in list(host.loaded_names()):
             host.unload(plugin)
             reports = sync_plugins(app)
+    if not any(str(item.get("status") or "") == "error" for item in reports):
+        _announce_plugin_config(app, plugin)
     return {"ok": True, "reports": reports}
 
 

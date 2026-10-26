@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1876** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1878** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -82,7 +82,7 @@
 71. [test_session_seq.py](#test_session_seqpy)（23）
 72. [test_session_store.py](#test_session_storepy)（17）
 73. [test_session_tools.py](#test_session_toolspy)（17）
-74. [test_settings_panel.py](#test_settings_panelpy)（19）
+74. [test_settings_panel.py](#test_settings_panelpy)（21）
 75. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
 76. [test_source_snapshot.py](#test_source_snapshotpy)（10）
 77. [test_subagent.py](#test_subagentpy)（17）
@@ -502,7 +502,7 @@
 | 92 | `UserConfirmRoundTripTest` | `test_reject_returns_disagree_and_stores_nothing` | 驳回：结果是「不同意」，不签发通行证。 |
 | 93 | `UserConfirmRoundTripTest` | `test_write_gate_confirm_id_still_works` | 带 `confirm_id` 的写盘确认走内核既有的门控解锁，不经 mesh。 |
 | 94 | `WireHygieneTest` | `test_channel_emits_heartbeat_when_idle` | 空闲时发心跳（经典界面靠它判连接存活）；非 `data:` 行经典界面会安全忽略。 |
-| 95 | `WireHygieneTest` | `test_cid_exempt_set_is_exactly_two` | 契约豁免的事件必须在前端先接住，否则会被静默丢掉。 |
+| 95 | `WireHygieneTest` | `test_cid_exempt_set_matches_contract` | 契约豁免的事件必须在前端先接住，否则会被静默丢掉。 |
 | 96 | `WireHygieneTest` | `test_detach_stops_delivery` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：detach stops delivery |
 | 97 | `WireHygieneTest` | `test_every_frame_carries_valid_conversation_id` | 没带合法 cid 的帧会被经典界面整包静默丢弃（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。 |
 | 98 | `WireHygieneTest` | `test_frame_without_cid_is_dropped_silently` | 入站事件没有 cid 时直接丢，不要造一个假 cid 塞给前端。 |
@@ -2068,7 +2068,7 @@
 
 ## test_settings_panel.py
 
-共 19 个用例。
+共 21 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2085,12 +2085,14 @@
 | 11 | `PluginSettingsTest` | `test_unknown_route` | 覆盖「A class whose instances are single test cases」：unknown route |
 | 12 | `SaveHostTest` | `test_invalid_number_does_not_write` | 覆盖「A class whose instances are single test cases」：invalid number does not write |
 | 13 | `SaveHostTest` | `test_save_rewrites_the_key_and_keeps_the_comment` | 覆盖「A class whose instances are single test cases」：save rewrites the key and keeps the comment |
-| 14 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
-| 15 | `StructuredPluginConfigTest` | `test_new_model_group_gets_a_generated_id` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：new model group gets a generated id |
-| 16 | `StructuredPluginConfigTest` | `test_read_masks_the_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：read masks the secret |
-| 17 | `StructuredPluginConfigTest` | `test_required_field_rejects_an_empty_value` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：required field rejects an empty value |
-| 18 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
-| 19 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
+| 14 | `SettingsBroadcastTest` | `test_invalid_save_does_not_broadcast` | 覆盖「A class whose instances are single test cases」：invalid save does not broadcast |
+| 15 | `SettingsBroadcastTest` | `test_success_broadcasts_applied_settings` | 覆盖「A class whose instances are single test cases」：success broadcasts applied settings |
+| 16 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
+| 17 | `StructuredPluginConfigTest` | `test_new_model_group_gets_a_generated_id` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：new model group gets a generated id |
+| 18 | `StructuredPluginConfigTest` | `test_read_masks_the_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：read masks the secret |
+| 19 | `StructuredPluginConfigTest` | `test_required_field_rejects_an_empty_value` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：required field rejects an empty value |
+| 20 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
+| 21 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
 
 ## test_silent_except_gate.py
 

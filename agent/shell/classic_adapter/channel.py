@@ -150,6 +150,17 @@ class ChannelMixin:
             "model": str(model or ""),
         })
 
+    def announce_settings(self) -> int:
+        """广播设置变更信号；值由各标签页自行拉取，不随广播下发。"""
+        return self._broadcast({"type": C.EV_SETTINGS_CHANGED})
+
+    def announce_plugin_config(self, plugin: str) -> int:
+        """广播已成功保存的插件配置；所有标签页自行刷新。"""
+        return self._broadcast({
+            "type": C.EV_PLUGIN_CONFIG_CHANGED,
+            "plugin": str(plugin or ""),
+        })
+
     def announce_plugin_event(self, plugin: str, event: str,
                               payload: Optional[Dict[str, Any]] = None) -> int:
         """广播一条插件事件，返回实际送达的 SSE 连接数。"""

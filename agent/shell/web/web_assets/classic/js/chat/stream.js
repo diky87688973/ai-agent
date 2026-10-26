@@ -74,6 +74,8 @@ _routeEventBySource(ev);
 function handleGlobalSseEvent(ev){
 if(!ev||ev.type==="heartbeat"||ev.type==="global_sse_ready")return;
 if(ev.type==="plugins_changed"){applyPluginsChanged(ev);return;}
+if(ev.type==="settings_changed"){try{document.dispatchEvent(new CustomEvent("ai-agent:settings-changed",{detail:ev.settings||{}}));}catch(_e){}return;}
+if(ev.type==="plugin_config_changed"){try{document.dispatchEvent(new CustomEvent("ai-agent:plugin-config-saved",{detail:{plugin:String(ev.plugin||"")}}));}catch(_e){}return;}
 if(ev.type==="plugin_event"){try{document.dispatchEvent(new CustomEvent("ai-agent:plugin-event",{detail:ev}));}catch(_e){}return;}
 const packetCid=normalizeConversationId(ev.conversation_id);if(!packetCid)return;
 withConversationContext(packetCid,function(_ctxTab){

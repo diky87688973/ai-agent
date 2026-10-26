@@ -25,6 +25,7 @@ from agent.shell.plugin_settings import (
     set_plugin_enabled,
     write_plugin_config,
 )
+from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.settings_io import (
     LOCK,
     append_ini_section,
@@ -206,6 +207,24 @@ def _check_value(field: Dict[str, Any], raw: str) -> str:
     return raw
 
 
+def _announce_settings(app: Any) -> None:
+    """只在保存成功后广播；没有经典适配层就跳过。"""
+    context = getattr(app, "context", None)
+    has = getattr(context, "has", None)
+    get = getattr(context, "get", None)
+    if context is None or not callable(has) or not callable(get):
+        return
+    try:
+        if not has(SERVICE_CLASSIC_ADAPTER):
+            return
+        classic = get(SERVICE_CLASSIC_ADAPTER)
+        announce = getattr(classic, "announce_settings", None)
+        if callable(announce):
+            announce()
+    except Exception as exc:
+        report_error("agent.shell.settings_panel.announce_settings", exc)
+
+
 def save_host(values: Any, app: Any = None, *,
               config_path: Optional[Path] = None,
               web_ui_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -258,6 +277,8 @@ def save_host(values: Any, app: Any = None, *,
         payload["reload_error"] = applied["error"]
     elif applied.get("note"):
         payload["reload_note"] = applied["note"]
+    if not payload.get("reload_error"):
+        _announce_settings(app)
     return payload
 
 

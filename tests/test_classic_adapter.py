@@ -1043,11 +1043,17 @@ class WireHygieneTest(unittest.TestCase):
         # 未知工具原样透传（经典界面有兜底），不抛错
         self.assertEqual(C.tool_script("brand_new_tool"), "brand_new_tool")
 
-    def test_cid_exempt_set_is_exactly_two(self) -> None:
+    def test_cid_exempt_set_matches_contract(self) -> None:
         """契约豁免的事件必须在前端先接住，否则会被静默丢掉。"""
         self.assertEqual(
             C.CID_EXEMPT_EVENTS,
-            {C.EV_HEARTBEAT, C.EV_GLOBAL_SSE_READY, C.EV_PLUGINS_CHANGED},
+            {
+                C.EV_HEARTBEAT,
+                C.EV_GLOBAL_SSE_READY,
+                C.EV_PLUGINS_CHANGED,
+                C.EV_SETTINGS_CHANGED,
+                C.EV_PLUGIN_CONFIG_CHANGED,
+            },
         )
 
 class ResumeContractTest(unittest.TestCase):

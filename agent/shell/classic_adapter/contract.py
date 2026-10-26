@@ -8,7 +8,7 @@
 经典界面的三条硬约束：
   1. 每帧必须带合法 `conversation_id`（`/^[A-Za-z0-9_-]{8,128}$/`），否则经典界面
      整包静默丢弃（agent-ui.js:100）；`heartbeat` / `global_sse_ready` /
-     `plugins_changed` 豁免。
+     `plugins_changed` / `settings_changed` / `plugin_config_changed` 豁免。
   2. `tool_call_id` 是 tool_start / tool_end 的唯一配对键，为空或对不上 → `tool_end`
      被整个忽略（agent-ui.js:2013），卡片永远停在"进行中"。
   3. `reasoning_delta` 前置 `llm_round`，且 `round` 相等，否则丢弃（agent-ui.js:1674）。
@@ -63,11 +63,15 @@ EV_HEARTBEAT: Final = "heartbeat"
 EV_GLOBAL_SSE_READY: Final = "global_sse_ready"
 EV_PLUGINS_CHANGED: Final = "plugins_changed"
 EV_PLUGIN_EVENT: Final = "plugin_event"
+EV_SETTINGS_CHANGED: Final = "settings_changed"
+EV_PLUGIN_CONFIG_CHANGED: Final = "plugin_config_changed"
 
 #: 经典界面豁免 `conversation_id` 校验的事件。
-#: `plugins_changed` 是进程级的：插件开关不属于某一个会话。
+#: `plugins_changed` / `settings_changed` / `plugin_config_changed` 是进程级的：
+#: 插件开关与设置保存不属于某一个会话。
 CID_EXEMPT_EVENTS: Final = frozenset({
     EV_HEARTBEAT, EV_GLOBAL_SSE_READY, EV_PLUGINS_CHANGED,
+    EV_SETTINGS_CHANGED, EV_PLUGIN_CONFIG_CHANGED,
 })
 
 #: 插件事件帧的保留键；`seq` 是 SSE 续传游标，插件载荷不能占用。

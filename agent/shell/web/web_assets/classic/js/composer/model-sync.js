@@ -46,9 +46,9 @@ updateAutoToggleUI();
    `reasoningEffort` 是空串、`selectedMode` 是默认 auto；不看服务端的话，切过去
    会显示上一个标签页的模型与档位。`settingsLoaded` 保证每个标签页只问一次；
    请求回来时若已切走，只写回 tab 字段、不碰界面（否则会把新标签页的设置盖掉）。 */
-async function syncConversationSettings(tab){
+async function syncConversationSettings(tab,force){
 try{
-var cidNow=normalizeConversationId(tab&&tab.id);if(!cidNow||tab.settingsLoaded)return;
+var cidNow=normalizeConversationId(tab&&tab.id);if(!cidNow||(tab.settingsLoaded&&!force))return;
 var r=await fetch("/api/chat/ui-state?conversation_id="+encodeURIComponent(cidNow));
 if(!r.ok)return;var j=await r.json();var st=(j&&j.state)||j||{};
 tab.settingsLoaded=true;
@@ -69,3 +69,19 @@ try{var r=await fetch("/health");if(!r.ok)return;var j=await r.json();if(Array.i
 if(j.model_labels)window.aiAgentShell.modelLabels=j.model_labels;var ht=getActiveTab();var hydrated=!!(ht&&ht.settingsLoaded);if(j.max_images)window.AI_AGENT_MAX_IMAGES=Number(j.max_images)||window.AI_AGENT_MAX_IMAGES;if(j.model&&!hydrated)applyModel(j.model);
 if(j.model&&hydrated&&typeof applyModel==="function")applyModel(getActiveTab()?getActiveTab().selectedModel:j.model,true);if(j.reasoning_effort&&!hydrated&&typeof applyReasoningEffort==="function")applyReasoningEffort(j.reasoning_effort,false);}catch(e){}
 }
+
+async function refreshGlobalSettingsLimits(){
+try{
+var r=await fetch("/health");if(!r.ok)return;var j=await r.json();
+if(j.max_images)window.AI_AGENT_MAX_IMAGES=Number(j.max_images)||window.AI_AGENT_MAX_IMAGES;
+}catch(e){}
+}
+function onSettingsChanged(){
+/* 广播只是失效通知：活动会话重新拉自己的 effective settings，
+   其它标签页标脏，切到激活时再拉，不拿全局值覆盖会话级设置。 */
+conversationTabs.forEach(function(tab){tab.settingsLoaded=false;});
+var active=getActiveTab();
+if(active)void syncConversationSettings(active,true);
+void refreshGlobalSettingsLimits();
+}
+document.addEventListener("ai-agent:settings-changed",onSettingsChanged);

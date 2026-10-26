@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.settings_panel import (
     append_ini_section,
     apply_host,
@@ -147,6 +148,66 @@ class SaveHostTest(unittest.TestCase):
             self.assertIn("; keep\n", text)
             self.assertIn("max_passes = 6\n", text)
             self.assertIn("display_tool_steps = 1\n", web.read_text(encoding="utf-8"))
+
+class SettingsBroadcastTest(unittest.TestCase):
+    def test_success_broadcasts_applied_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root / "config.ini"
+            web = root / "web-ui-config.ini"
+            config.write_text("[agent]\nreasoning_effort = high\nmax_passes = 4\n", encoding="utf-8")
+            web.write_text("[web-ui]\ndisplay_tool_steps = 0\n", encoding="utf-8")
+            class _Classic:
+                def __init__(self) -> None:
+                    self.items = []
+                def announce_settings(self):
+                    self.items.append(True)
+            classic = _Classic()
+            class _Context:
+                def has(self, key):
+                    return key == SERVICE_CLASSIC_ADAPTER
+                def get(self, key):
+                    return classic if key == SERVICE_CLASSIC_ADAPTER else None
+            app = _App()
+            app.context = _Context()
+            result = save_host(
+                {"agent": {"reasoning_effort": "max"}},
+                app,
+                config_path=config,
+                web_ui_path=web,
+            )
+            self.assertTrue(result["ok"])
+            self.assertEqual(len(classic.items), 1)
+            self.assertIn("reasoning_effort = max", config.read_text(encoding="utf-8"))
+
+    def test_invalid_save_does_not_broadcast(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root / "config.ini"
+            web = root / "web-ui-config.ini"
+            config.write_text("[agent]\nmax_passes = 4\n", encoding="utf-8")
+            web.write_text("[web-ui]\ndisplay_tool_steps = 0\n", encoding="utf-8")
+            class _Classic:
+                def __init__(self) -> None:
+                    self.items = []
+                def announce_settings(self):
+                    self.items.append(True)
+            classic = _Classic()
+            class _Context:
+                def has(self, key):
+                    return key == SERVICE_CLASSIC_ADAPTER
+                def get(self, key):
+                    return classic if key == SERVICE_CLASSIC_ADAPTER else None
+            app = _App()
+            app.context = _Context()
+            result = save_host(
+                {"agent": {"max_passes": "0"}},
+                app,
+                config_path=config,
+                web_ui_path=web,
+            )
+            self.assertFalse(result["ok"])
+            self.assertEqual(classic.items, [])
 
 class ApplyHostTest(unittest.TestCase):
     def test_apply_updates_limits(self) -> None:
