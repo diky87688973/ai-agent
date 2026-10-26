@@ -1,4 +1,4 @@
-# AI Agent <kbd>v0.1.3</kbd>
+# AI Agent <kbd>v0.1.4</kbd>
 
 <p align="center">
   <strong>可扩展、可组合的 AI Agent 底座</strong>
@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.3-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-v0.1.4-blue" alt="version">
   <img src="https://img.shields.io/badge/Python-3.10%2B-brightgreen" alt="Python">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
