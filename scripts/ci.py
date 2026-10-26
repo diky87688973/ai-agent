@@ -57,6 +57,15 @@ _RUNTIME_DATA_PREFIXES = (
     "data/session_state/",
     "data/recycle/",
     "data/cache/",
+    "data/auth/",
+    "data/auth2/",
+    "data/auth3/",
+    "data/auth4/",
+    "data/auth5/",
+    "data/auth6/",
+    "data/auth7/",
+    "data/auth8/",
+    "data/auth9/",
 )
 
 

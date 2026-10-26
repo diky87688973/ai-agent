@@ -29,6 +29,7 @@ sys.path.insert(0, str(_ROOT))
 from agent.app import build_app  # noqa: E402
 from agent.shell.web import server as web_mod  # noqa: E402
 from agent.shell.web.ui_bundle import read_ui_css, read_ui_js  # noqa: E402
+from tests.testkit import local_auth  # noqa: E402
 
 _FIXTURE_PLUGIN = '''# -*- coding: utf-8 -*-
 """测试夹具插件：把一个有状态的业务暴露成 web 接口。"""
@@ -133,7 +134,7 @@ class PluginHttpTest(unittest.TestCase):
         cls.app = build_app(plugins_dir=plugins)
         cls.port = _free_port()
         cls.server, cls.shell = web_mod.create_server(
-            cls.app, host="127.0.0.1", port=cls.port)
+            cls.app, host="127.0.0.1", port=cls.port, auth=local_auth(cls.app))
         cls._thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls._thread.start()
 

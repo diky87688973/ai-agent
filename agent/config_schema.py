@@ -13,6 +13,19 @@ from __future__ import annotations
 
 from typing import Dict
 
+#: 鉴权配置默认值：auth/config.py 与配置门禁共用的唯一来源。
+AUTH_DEFAULTS: Dict[str, str] = {
+    "mode": "auto",
+    "session_hours": "12",
+    "max_failures": "5",
+    "lock_seconds": "300",
+    "trusted_proxies": "",
+    "allowed_hosts": "127.0.0.1,localhost,::1",
+    "cookie_secure": "auto",
+    "provider_module": "",
+    "desktop_auto_login": "1",
+}
+
 #: `config.ini` 的节 → 键 → 默认值（值只用于文档对照与模板一致性，读取仍由 `config.py` 负责）。
 SCHEMA: Dict[str, Dict[str, str]] = {
     "agent": {
@@ -32,6 +45,8 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "image_max": "8",
         "reasoning_replay_tokens": "8000",
     },
+    "auth": dict(AUTH_DEFAULTS),
+
 }
 
 #: `web-ui-config.ini` 的节 → 键 → 默认值。

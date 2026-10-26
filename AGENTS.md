@@ -10,6 +10,17 @@
 - [`docs/quality-gates.md`](docs/quality-gates.md)：门禁、预算与跳过规则
 - [`docs/guide/config.md`](docs/guide/config.md)：配置键与运行态目录
 
+## 工程标准前置
+
+任何方案、代码修改、修复和复核，都从工程标准开始，不等待用户再次提醒：
+
+- 先读 `production-standards`、`skills/audit-procedure.md`、`docs/applicability.md` 和本文件。
+- 方案阶段同时给出：目标、边界、资产归属、失败路径、测试、门禁与未验证项。
+- 代码阶段同时落实：输入校验、错误留痕、权限边界、原子性、测试与生成物同步。
+- 复核阶段按 `audit-procedure` 的模板输出，不以“全量 CI 通过”替代工程复核。
+- 发现 `MUST` 违规、安全缺口或不可验证项时，明确标为阻塞或残余，不口头豁免。
+- 平台相关实现对每个目标平台写明已验证、未验证与失败行为。
+
 ## 仓库布局
 
 ```text
@@ -18,6 +29,7 @@ agent/
   mechanisms/     模型、上下文、压缩、质量门控、会话存储、协作网格
   capabilities/   工具注册表、内置工具、插件加载
   shell/          Web、SSE、经典界面、系统提示词、会话运行
+  shell/web/auth/ HTTP 鉴权：密码、会话、Token、CSRF、路由策略
   entry/          进程入口：读配置、建 App、启动壳
   app.py          唯一装配根
   subagent/       父子会话、批次、生命周期与消息投递
@@ -108,6 +120,75 @@ entry → shell → capabilities → mechanisms → core
 - 普通更新文件按包内路径覆盖；`*.ini` 按 key 合并，保留用户已有配置值。
 - 更新包构建使用黑名单排除运行态、缓存、构建产物与敏感配置；不得改用允许清单。
 - `VERSION` 与 `pyproject.toml` 的版本必须一致。
+
+## HTTP 鉴权与密码维护
+
+鉴权属于 `agent/shell/web/auth/`，不进 core，不登记进 `AppContext`。HTTP 请求在 Handler 入口经过 `Authenticator → RoutePolicy → Authorizer → CsrfGuard`；插件路由与内置路由走同一闸门。
+
+模式：
+
+```ini
+[auth]
+mode = required
+desktop_auto_login = 1
+allowed_hosts = 127.0.0.1,localhost,::1
+trusted_proxies =
+```
+
+```text
+auto      回环请求免登录；非回环请求必须登录
+local     只允许回环地址；非回环地址拒绝启动
+required  所有请求必须登录；浏览器访问回环地址也一样
+```
+
+反代与公网：
+
+- `required` 是反向代理和公网暴露的唯一推荐模式。
+- 非回环绑定必须有 TLS；无 TLS 只能显式 `--allow-insecure-public`。
+- 不得用“请求来自 127.0.0.1”作为免登录依据。
+- `/healthz` 公开且只返回服务存活信息；`/health` 必须认证。
+- `allowed_hosts` 是 Host 白名单；公网域名或反向代理域名必须显式加入。
+- 只有 `trusted_proxies` 内的来源可提供 `X-Forwarded-For` 与 `X-Forwarded-Proto`。
+- 鉴权失败、限流、桌面 bootstrap、CSRF 拒绝写入 `data/auth/auth.log`，不得记录密码、Cookie 或 Token。
+
+GUI：
+
+- GUI 启动器生成一次性 bootstrap token，通过环境变量传给 `agent-web`。
+- WebView 打开 `/desktop-login#<token>`，服务端只接受回环来源且只消费一次。
+- GUI 免登录；浏览器仍然需要登录。
+- `required` 下 GUI 使用 `/healthz` 做健康检查。
+- GUI 启动失败必须显示可见错误，不得静默退出。
+
+密码：
+
+```bash
+python -m agent.entry.web --set-password
+```
+
+- 密码只保存 scrypt 哈希，位置为 `data/auth/credentials.json`。
+- 不得把明文密码写入 `config.ini`、源码、日志、提交或 Release。
+- `required` 且没有凭据时，GUI 首次启动自动生成随机密码并写 `data/auth/initial-password.txt`；已有手动密码时不会生成该文件。
+- GUI 首次启动自动生成的密码以 `initial-password.txt` 为准；浏览器登录使用该密码。
+- 手动设置密码后，已有内存会话不会因写文件自动撤销；需要撤销会话时重启服务。
+- 丢失密码时停止服务后重新执行 `--set-password`；不要在运行中直接改写凭据文件。
+
+API Token：
+
+```bash
+python -m agent.entry.web --issue-token NAME --scope read,chat
+python -m agent.entry.web --revoke-token NAME
+```
+
+- Token 只存 SHA-256，位置为 `data/auth/tokens.json`。
+- `issue` / `revoke` 同时持有进程内线程锁和 `tokens.json.lock` 跨进程文件锁；同名 Token 拒绝重复签发，锁不可用时拒绝写入。
+- Token 只通过 `Authorization: Bearer` 传递，不放进 URL、Cookie、日志或截图。
+- Token scope 与 cookie 会话分开校验；高风险配置/更新路由要求 admin。
+- `data/auth/` 是运行态敏感目录：不删除、不移动、不提交、不打进发布包、不进入普通数据备份。
+- 鉴权文件默认写入 `data/auth/`；启动无法使用该目录时，自动回退到 `data/auth2`、`auth3` 等，仍留在 `data` 内。
+- 鉴权文件通过 `auth/security.py` 写入：Windows 使用 DACL，POSIX 使用 0700/0600，macOS 同时清理 ACL。
+- 目录和文件在创建时立即收紧，写入后复核；无法保证权限时拒绝启动。
+- ACL 被外部改宽时，启动清理会先 `icacls /reset` 再重新收紧；如果 deny ACE 让 `/reset` 也失败，启动自动切换到 `data/auth2` 等新目录。GUI 会生成新密码继续运行；非 GUI 的 `required` 模式仍需先 `agent-web --set-password`，否则拒绝启动。旧 `data/auth` 保留但不再读取，需人工清理。
+- 鉴权测试使用临时 `AI_AGENT_DATA_ROOT`，不得污染工程 `data/`。
 
 ## 版本升级
 

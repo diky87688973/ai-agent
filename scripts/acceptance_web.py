@@ -31,15 +31,16 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.app import build_app  # noqa: E402
+from agent.config import DEFAULT_CONFIG_PATH  # noqa: E402
 from agent.core.model_call import StreamDelta  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
+from agent.shell.web.auth import AuthRuntime  # noqa: E402
 from agent.shell.web.server import create_server  # noqa: E402
 
-#: XSS 向量 → (名称, 断言说明)
-#: 判据统一为：渲染结果里不得出现可执行的注入面。
+#: XSS 向量 → (名称, 断言说明)；判据：渲染结果里不得出现可执行的注入面。
 XSS_VECTORS = [
     ("script 标签", "<script>alert(1)</script>text"),
     ("带事件处理器的标签", '<img src=x onerror="alert(1)">'),
@@ -200,8 +201,12 @@ class Acceptance:
         )
         # 显式钉住媒体根与文件根：默认值跟随宿主机（多盘），
         # 只有自己掌控边界才能验证"根内可读 / 根外被拒"。
+        auth = AuthRuntime.load(root, config_path=DEFAULT_CONFIG_PATH, host="127.0.0.1")
+        auth.local_bypass = True
+        auth.authenticator.local_bypass = True
         self.server, self.shell = create_server(
-            self.app, host="127.0.0.1", port=0, media_root=root, fs_root=root
+            self.app, host="127.0.0.1", port=0, media_root=root, fs_root=root,
+            auth=auth,
         )
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.frames: list = []

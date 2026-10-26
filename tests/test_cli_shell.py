@@ -12,7 +12,7 @@ import io
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -202,6 +202,28 @@ class ChatExitReleaseTest(unittest.TestCase):
         self.assertEqual(fresh.intent, "")
         self.assertEqual(fresh.pending_review, [])
         self.assertTrue(fresh.reviewed_ok)
+
+class InvalidSessionCliTest(unittest.TestCase):
+    def test_invalid_session_returns_clean_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = build_app(data_root=Path(tmp))
+            out = io.StringIO()
+            err = io.StringIO()
+            try:
+                with mock.patch.object(
+                        chat, "build_session",
+                        side_effect=ValueError("非法会话 ID：'../../evil'")):
+                    with redirect_stdout(out), redirect_stderr(err):
+                        code = chat.main(
+                            ["--session", "../../evil", "x"],
+                            app_factory=lambda: app,
+                        )
+            finally:
+                app.dispose()
+        self.assertEqual(code, 2)
+        self.assertIn("非法会话 ID", err.getvalue())
+        self.assertNotIn("Traceback", err.getvalue())
+
 
 class ExplicitReleaseTest(unittest.TestCase):
     """会话上下文显式释放（不引入自动淘汰）。"""

@@ -107,14 +107,14 @@ const root=String(argGet(args,"path")||"").trim();
 const leaf=pathLeaf(root)||takeDots(root,36);
 const pat=take(argGet(args,"pattern"),40);
 const re=!!argGet(args,"regex");
-return {main:"搜索"+(re?"（正则）":"（字面）"),fname:leaf+(pat?" · /"+pat+"/":"")};}
+return {main:"目录快速搜索",fname:leaf+(pat?" · /"+pat+"/":"")};}
 if(s.indexOf("find_in_file")>=0){
 const path=String(argGet(args,"path")||"").trim();
 const leaf=pathLeaf(path)||"（未指定 path）";
 const occ=argGet(args,"occurrence");
 const re=!!argGet(args,"regex");
 const o=occ!=null&&occ!==0?" · 第"+(Number(occ)+1)+"处":"";
-return {main:"定位"+(re?"（正则）":"（字面）"),fname:leaf+o};}
+return {main:"单文件单点定位",fname:leaf+o};}
 if(s.indexOf("read_write")>=0){
 const src=pathLeaf(String(argGet(args,"source_path")||""));
 const dst=pathLeaf(String(argGet(args,"dest_path")||""));
@@ -198,7 +198,7 @@ if(s.indexOf("file_search")>=0){
 const pat=take(argGet(args,"pattern"),40);
 const root=String(argGet(args,"path")||"").trim();
 const leaf=pathLeaf(root)||takeDots(root,28);
-return {main:"全文搜索"+(argGet(args,"regex")?"（正则）":"（字面）"),fname:leaf+(pat?" · /"+pat+"/":"")};}
+return {main:"通用内容搜索",fname:leaf+(pat?" · /"+pat+"/":"")};}
 if(s.indexOf("ip_geolocate")>=0){
 const ip=String(argGet(args,"ip")||"").trim();
 return {main:"定位公网地区"+(ip?" · "+ip:""),fname:""};}
@@ -212,7 +212,7 @@ if(s.indexOf("regex_locate")>=0){
 const pat=take(argGet(args,"pattern"),48);
 const tgt=pathLeaf(String(argGet(args,"path")||""));
 const glob=String(argGet(args,"glob_pattern")||"");
-return {main:"正则检索",fname:(tgt||"?")+(pat?" · /"+pat+"/":"")+(glob&&glob!=="*"?" · "+glob:"")};}
+return {main:"正则定位",fname:(tgt||"?")+(pat?" · /"+pat+"/":"")+(glob&&glob!=="*"?" · "+glob:"")};}
 if(s.indexOf("file_ops")>=0){
 const act=String(argGet(args,"action")||"").toLowerCase();
 const src=String(argGet(args,"source")||"").trim();

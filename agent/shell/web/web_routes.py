@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from agent.core.context import SERVICE_BACKGROUND_TASKS, SERVICE_CONVERSATION_QUEUE, SERVICE_UPDATE
 from agent.core.error_report import report_error
 from agent.shell.web.web_api import WebShell
+from agent.shell.web.web_auth import AuthMiddleware
 from agent.shell.web.web_classic import ClassicRoutes
 from agent.shell.web.web_plugin import PluginRoutes
 from agent.shell.web.web_static import (
@@ -22,7 +23,7 @@ from agent.shell.web.web_static import (
 )
 
 
-class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
+class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
     """路由分发。"""
 
     server_version = "ai-agent-web/1.0"
@@ -31,6 +32,7 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
     # 由 serve() 注入
     shell: WebShell
     assets_dir: Path
+    auth_runtime: Any = None
 
     # ── 工具 ──────────────────────────────────────────────
 
@@ -54,11 +56,14 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:  # 静音逐请求日志
         pass
 
-    def _json(self, status: int, payload: Dict[str, Any]) -> None:
+    def _json(self, status: int, payload: Dict[str, Any],
+              headers: Optional[Dict[str, str]] = None) -> None:
         body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -121,7 +126,20 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
 
     # ── SSE───────────────────────────────────────
 
+    def _stream_session_valid(self, identity: Any) -> bool:
+        if identity is None:
+            return True
+        current = self._identity()
+        if current is None:
+            return False
+        if identity.session is not None:
+            return current.session is not None
+        if identity.api_token:
+            return current.api_token and current.principal == identity.principal
+        return True
+
     def _events_stream(self) -> None:
+        identity = getattr(self, "_auth_identity", None)
         channel = self.shell.attach()
         try:
             self.send_response(200)
@@ -133,6 +151,8 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
             self.wfile.write(b": connected\n\n")
             self.wfile.flush()
             while True:
+                if not self._stream_session_valid(identity):
+                    break
                 frame = channel.next_frame(SSE_HEARTBEAT_SEC)
                 if frame is None:
                     break
@@ -345,7 +365,19 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         try:
             path = self._path()
+            if not self._host_guard():
+                return
             query = self._query()
+            if self._auth_public_get(path):
+                return
+            if not self._auth_gate("GET", path):
+                return
+            if path == "/auth/csrf":
+                runtime = getattr(self, "auth_runtime", None)
+                status, payload, headers = runtime.routes.csrf(
+                    getattr(self, "_auth_identity", None))
+                self._json(status, payload, headers=headers)
+                return
             if self._get_update(path, query):
                 return
             if self._get_subagents(path, query):
@@ -524,6 +556,14 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         try:
             path = self._path()
+            if not self._host_guard():
+                return
+            if self._auth_post_login(path):
+                return
+            if not self._auth_gate("POST", path):
+                return
+            if self._auth_logout(path):
+                return
             body = self._read_body()
             if path == "/api/chat/send":
                 self._post_chat_send(body)
@@ -563,6 +603,10 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
     def do_PUT(self) -> None:  # HTTP 动词命名（stdlib 约定）
         try:
             path = self._path()
+            if not self._host_guard():
+                return
+            if not self._auth_gate("PUT", path):
+                return
             body = self._read_body()
             if path == "/api/chat/ui-state":
                 # 经典界面的 PUT 直接发布局对象（经典界面），不带 conversation_id；
@@ -598,6 +642,10 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
         """DELETE：会话关闭释放运行态；插件端点撤销任务 / 清缓存。"""
         try:
             path = self._path()
+            if not self._host_guard():
+                return
+            if not self._auth_gate("DELETE", path):
+                return
             query = self._query()
             if path == "/api/chat/sessions":
                 status, payload = self.shell.release_conversation(
@@ -622,6 +670,28 @@ class Handler(PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
         except Exception as exc:
             report_error("agent.shell.web.web_routes.Handler.do_DELETE", exc)
             self._safe_error(exc)
+
+    def do_HEAD(self) -> None:
+        path = self._path()
+        if not self._host_guard():
+            return
+        if not self._auth_gate("HEAD", path):
+            return
+        self.send_response(405)
+        self.send_header("Allow", "GET, POST, PUT, DELETE")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_OPTIONS(self) -> None:
+        path = self._path()
+        if not self._host_guard():
+            return
+        if not self._auth_gate("OPTIONS", path):
+            return
+        self.send_response(405)
+        self.send_header("Allow", "GET, POST, PUT, DELETE")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def _safe_error(self, exc: Exception) -> None:
         # 客户端提前断开（刷新 / 关标签 / SSE 关闭）不是服务故障：静默即可，不打日志

@@ -514,10 +514,18 @@ class BackgroundTaskManager:
 
     @staticmethod
     def _env() -> Dict[str, str]:
+        # 后台子进程只继承定位系统/用户目录所需的变量，不继承凭据。
+        # 这不是文件、网络或权限隔离，不能替代 OS 沙箱。
         allowed = {
             "PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR",
             "COMSPEC", "TEMP", "TMP", "HOME", "LANG", "LC_ALL", "TERM",
+            "LOCALAPPDATA", "APPDATA", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+            "PROGRAMDATA", "PROGRAMFILES", "PROGRAMFILES(X86)",
+            "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "OS",
+            "USERNAME", "USERDOMAIN", "TMPDIR",
+            "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME",
         }
-        env = {key: value for key, value in os.environ.items() if key.upper() in allowed}
+        env = {key: value for key, value in os.environ.items()
+               if key.upper() in allowed}
         env.setdefault("PATH", os.environ.get("PATH", ""))
         return env

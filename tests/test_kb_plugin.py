@@ -483,7 +483,7 @@ class PluginConfigIsolationTest(unittest.TestCase):
     """内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-config.ini。"""
 
     #: 内核配置允许出现的节（多一个就说明插件设置漏进了内核配置）
-    KERNEL_SECTIONS = {"model_reasoning", "agent", "context", "update"}
+    KERNEL_SECTIONS = {"model_reasoning", "agent", "context", "update", "auth"}
 
     def test_kernel_templates_have_no_plugin_section(self) -> None:
         from agent.config import PROJECT_ROOT, load_ini

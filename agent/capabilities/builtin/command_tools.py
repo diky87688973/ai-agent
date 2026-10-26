@@ -247,15 +247,18 @@ class RunCommandTool(ToolPlugin):
     """执行单条 shell 命令：安全防线 + 超时强杀 + 输出净化。"""
 
     name = "run_command"
-    label = "执行命令"
+    label = "前台同步执行命令"
     icon = "⚡"
-    description = "执行单条 shell 命令并收集 stdout/stderr/exit_code；先过安全防线（黑名单 / 脚本内容 / safe_mode），超时强杀进程树。"
+    description = (
+        "在前台同步执行一条 shell 命令，等待命令结束后返回 stdout、stderr 和 exit_code。"
+        "适合短命令、交互命令、安装与构建；长任务、服务、并行或需取消轮询用 background_task。"
+    )
     parameters = {
-        "command": {"type": "string", "description": "单条命令（非多行脚本；多步请多次调用）"},
-        "cwd": {"type": "string", "description": "工作目录（可选；默认继承进程当前目录）"},
-        "timeout_sec": {"type": "integer", "description": "超时秒数（默认 300；超时强杀进程树）"},
-        "shell": {"type": "string", "description": "auto / cmd / powershell（默认 auto）"},
-        "safe_mode": {"type": "boolean", "description": "默认 true：禁止 [;&|`$><] 字符；确有必要时才置 false"},
+        "command": {"type": "string", "description": "单条 shell 命令，不写多行脚本"},
+        "cwd": {"type": "string", "description": "工作目录；默认当前进程目录"},
+        "timeout_sec": {"type": "integer", "description": "超时秒数，默认 300；超时强杀进程树"},
+        "shell": {"type": "string", "description": "auto / cmd / powershell；默认 auto"},
+        "safe_mode": {"type": "boolean", "description": "默认 true：禁止 [;&|`$><]；确需管道或重定向时显式 false"},
     }
 
     def __init__(self, live_state: Any = None) -> None:
@@ -379,13 +382,16 @@ class PythonInlineTool(ToolPlugin):
     """exec 执行 Python 源码（不经 shell）：stdout/stderr 捕获 + 净化。"""
 
     name = "python_inline"
-    label = "执行内联 Python"
+    label = "前台同步执行 Python"
     icon = "🐍"
-    description = "exec 执行 Python 源码（不经 shell），stdout/stderr 捕获；名义 timeout（exec 无法硬中断）。复杂编排可用；勿代替 run_command 跑安装类命令。"
+    description = (
+        "在 Agent 进程内同步执行 Python 源码，不经过 shell、不创建子进程。"
+        "适合纯数据处理与编排；需要外部命令、安装或长任务时用 run_command 或 background_task。"
+        "执行无法硬中断。"
+    )
     parameters = {
         "code": {"type": "string", "description": "完整 Python 源码"},
-        "cwd": {"type": "string", "description": "执行前 chdir（可选；默认不变）"},
-        "timeout_sec": {"type": "integer", "description": "名义超时（exec 无法硬中断；仅登记）"},
+        "cwd": {"type": "string", "description": "执行前切换的工作目录"},
     }
 
     def __init__(self, live_state: Any = None) -> None:

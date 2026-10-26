@@ -26,6 +26,7 @@ CLASSIC_DIR = Path(__file__).resolve().parent / "web_assets" / "classic"
 
 #: 经典界面 JS 模块（相对 `classic/js/`，顺序即脚本执行顺序）。
 UI_JS_MODULES = (
+    "core/auth-client.js",
     "core/boot.js",
     "chat/todo.js",
     "chat/stream.js",

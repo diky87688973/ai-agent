@@ -55,6 +55,10 @@ def _objective(case: unittest.TestCase) -> str:
         topic = _one_line(cls_doc.split("\n\n")[0]).rstrip("。.;；")
         if len(topic) > 48:
             topic = topic[:48] + "…"
+        # 截断可能把行内代码切成半截：落单的反引号会让后面整段渲染成等宽文本。
+        if topic.count("`") % 2:
+            last = topic.rfind("`")
+            topic = topic[:last] + topic[last + 1:]
         return f"覆盖「{topic}」：{label}"
     return f"覆盖：{label}"
 

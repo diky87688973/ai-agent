@@ -127,6 +127,7 @@ inbound 直接持有历史/布局/状态实现
 | 模型目录 | `capabilities/model_catalog.py` + 多模型插件 | 插件运行时刷新 | 模型配置不由宿主页写凭据 |
 | 事件名与事件载荷 | `agent/core/event_name.py`、`agent/core/events.py` | 模块 `ports.emit` | 未知事件跳过；字段变更须声明兼容 |
 | 经典事件/字段投影 | `classic_adapter/contract.py` | `outbound*.py` / `inbound.py` | 适配层只做形状翻译 |
+| HTTP 鉴权 | `shell/web/auth/`、`shell/web/web_auth.py` | `server.create_server` 注入 `AuthRuntime` | 密码/会话/Token/CSRF/策略归壳层；不进 core |
 | HTTP 路由 | `shell/web/web_routes.py` | `web.py` 绑定 `_Handler` | 业务动作在 `web_api.py` 及动作 mixin |
 | 经典页面/SSE | `shell/web/web_classic.py` | `_Handler` 混入 | 不复制 JSON API |
 | 插件 HTTP 端点 | `shell/web/web_plugin.py` | `PluginHost.add_route` | 精确匹配，不做通配 |
@@ -134,11 +135,10 @@ inbound 直接持有历史/布局/状态实现
 | 插件 UI/主题/图标 | `plugins/<name>/ui/` | 插件 `add_panel`/`add_ctx_segment_style` | 用 `plugin_root`，不写死 `plugins/<name>` |
 | 界面配置 | `web-ui-config.ini` | 壳层读取 | 非插件私有配置 |
 | 会话事实 | `data/sessions/*.raw` | `mechanisms/session_store.py` | append-only；不得直接改写 |
-| 运行态数据 | `data/{queues,mesh,plugin,session_state,recycle,logs}` | 对应 mechanisms/shell 持有者 | 只经各自服务访问；不得复制权威状态 |
+| 运行态数据 | `data/{queues,mesh,plugin,session_state,recycle,logs,auth,auth2..auth9}` | 对应 mechanisms/shell 持有者 | 只经各自服务访问；不得复制权威状态 |
 | 规则资产 | `rules/*.md` | `rules` 插件，经 `ContextSources` 注入 | 用户/项目规则归插件，不进壳层 |
 | 技能资产 | `skills/**` | `skills` 插件，经 `ContextSources` 注入 | 技能正文归技能库，不进内核 |
 | 工具目录 | `catalog/tools.json` | `scripts/gen_catalog.py` 生成，`check_catalog.py` 校验 | 生成物；不得手改 |
-
 | 标题/工作区 | `data/titles/`、`data/workspace/` | 壳层/存储各归属 | 不进源码树；路径按 data root |
 | 运行态登记 | `mechanisms/live_state.py`、`mesh.py`、`run_registry.py` | 装配根 | 单一权威；不得双份缓存 |
 | 测试 | `tests/` | unittest 发现 | 不得写入 `data/`；用临时数据根 |

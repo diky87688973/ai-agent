@@ -57,28 +57,24 @@ class GrepFilesTool(ToolPlugin):
     """在目录内搜索文本内容。"""
 
     name = "grep_files"
-    label = "搜索文件内容"
+    label = "目录快速搜索"
     icon = "🔎"
     description = (
-        "按字面（| 为 OR 分隔）或正则搜索目录内文本文件内容。"
-        "默认只剪掉 .git/ 与 __pycache__/ 这两类通用产物目录，"
-        "剪掉了几个会在回执 skipped_derived_dirs 里如实报出；"
-        "要排除别的目录（如本项目自己的临时目录）用 exclude 指定；"
-        "连默认名单一起搜时传 include_derived=true。"
-        "需要 gitignore 过滤 / 上下文行 / 编码嗅探时用 file_search。"
+        "在目录中快速搜索文本，返回路径、行号和命中内容。"
+        "不支持上下文、gitignore 和编码嗅探；单文件用 find_in_file 或 regex_locate，需要上下文用 file_search。"
     )
     parameters = {
-        "pattern": {"type": "string", "description": "搜索模式（字面或正则）"},
-        "path": {"type": "string", "description": "搜索根目录，默认 ."},
-        "regex": {"type": "boolean", "description": "true 时按 Python 正则解析，默认 false"},
-        "ignore_case": {"type": "boolean", "description": "忽略大小写，默认 false"},
+        "path": {"type": "string", "description": "搜索根目录，必须是目录；默认 ."},
+        "pattern": {"type": "string", "description": "字面模式（| 为 OR）或正则"},
+        "regex": {"type": "boolean", "description": "true 按正则；默认 false 字面"},
+        "ignore_case": {"type": "boolean", "description": "忽略大小写"},
         "exclude": {
             "type": "array",
-            "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+            "description": "排除的目录名，按路径段全等",
         },
         "include_derived": {
             "type": "boolean",
-            "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
+            "description": "包含 .git/、__pycache__/；默认 false",
         },
         "limit": {"type": "integer", "description": "结果上限，默认 200"},
     }
@@ -95,8 +91,8 @@ class GrepFilesTool(ToolPlugin):
         if not root.is_dir():
             # 不回显绝对路径：模型刚传的 path 还在它自己的上下文里，再贴一遍只是重复。
             raise ValueError(
-                "path 是文件，本工具只搜目录。搜单个文件用 find_in_file；"
-                "要取正则的每一处命中用 regex_locate。"
+                "path 是文件，本工具只搜目录。"
+                "单文件请用 regex_locate 查全部命中，或用 find_in_file 定位第 N 处。"
             )
         matcher = _compile_pattern(
             pattern, bool(arguments.get("regex")), bool(arguments.get("ignore_case"))

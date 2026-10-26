@@ -70,16 +70,16 @@
       }
     },
     {
-      "description": "管理本会话的后台命令任务。action=create 创建并入队，list 查看队列，cancel 取消，output 读取未读输出。任务超时包含排队与执行。",
+      "description": "异步创建后台命令任务，立即返回 task_id，用 list / output / cancel 管理。适合长任务、服务、并行或需轮询取消的命令；短命令用 run_command。argv 不经过 shell。",
       "display": {
         "icon": "▣",
-        "label": "后台任务"
+        "label": "后台异步执行命令"
       },
       "name": "background_task",
       "parallel_safe": false,
       "parameters": {
         "action": {
-          "description": "create / list / cancel / output",
+          "description": "create 创建；list 查看；cancel 取消；output 读取输出",
           "enum": [
             "create",
             "list",
@@ -89,46 +89,46 @@
           "type": "string"
         },
         "argv": {
-          "description": "命令参数数组（create 必填，不经 shell；例如 python -c print(1) 拆成三个参数）",
+          "description": "命令参数数组；不经 shell，不支持管道和重定向；create 必填",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
         "batch": {
-          "description": "批次号；create 可选（传回执 batch 可加入同批），list 必填",
+          "description": "批次号；create 可选，list 必填",
           "type": "string"
         },
         "cwd": {
-          "description": "工作目录（可选）",
+          "description": "工作目录；可选",
           "type": "string"
         },
         "label": {
-          "description": "任务小标题（create 必填，用于工具壳展示；允许同名）",
+          "description": "任务短标题；create 必填",
           "type": "string"
         },
         "reason": {
-          "description": "取消原因（cancel 可选）",
+          "description": "取消原因；cancel 可选",
           "type": "string"
         },
         "status": {
-          "description": "list 的状态过滤（可选）",
+          "description": "list 状态过滤",
           "type": "string"
         },
         "task_id": {
-          "description": "任务 ID（cancel / output 必填；list 可用于精确查询）",
+          "description": "任务 ID；cancel/output 必填，list 可精确查询",
           "type": "string"
         },
         "timeout_ms": {
-          "description": "output 等待上限毫秒数（可选，默认 30000）",
+          "description": "output 等待上限毫秒，默认 30000",
           "type": "integer"
         },
         "timeout_sec": {
-          "description": "从创建时刻开始的总超时秒数（create 必填，1..86400）",
+          "description": "从创建时刻起的总超时秒数，1..86400；create 必填",
           "type": "integer"
         },
         "wait": {
-          "description": "output 是否等待终态（可选）",
+          "description": "output 是否等待终态；默认 false",
           "type": "boolean"
         }
       }
@@ -580,24 +580,24 @@
       }
     },
     {
-      "description": "目录或单文件内容搜索（字面/正则）；支持 gitignore 过滤、编码嗅探与上下文行；适合大范围扫描。简单精确匹配用 grep_files。",
+      "description": "在文件或目录中搜索文本，支持字面/正则、上下文行、gitignore 与编码嗅探。需要上下文或过滤时首选；目录快速行命中用 grep_files，单文件定位用 find_in_file 或 regex_locate。",
       "display": {
         "icon": "🔎",
-        "label": "搜索文件内容"
+        "label": "通用内容搜索"
       },
       "name": "file_search",
       "parallel_safe": false,
       "parameters": {
         "context_lines": {
-          "description": "命中前后附带的上下文行数",
+          "description": "命中前后上下文行数",
           "type": "integer"
         },
         "exclude": {
-          "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+          "description": "排除的目录名，按路径段全等",
           "type": "array"
         },
         "glob_pattern": {
-          "description": "文件名通配过滤（如 *.py）",
+          "description": "文件名通配过滤，如 *.py",
           "type": "string"
         },
         "ignore_case": {
@@ -605,11 +605,11 @@
           "type": "boolean"
         },
         "include_derived": {
-          "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
+          "description": "包含 .git/、__pycache__/；默认 false",
           "type": "boolean"
         },
         "limit": {
-          "description": "命中上限（缺省不限）",
+          "description": "命中上限",
           "type": "integer"
         },
         "no_gitignore": {
@@ -617,19 +617,19 @@
           "type": "boolean"
         },
         "path": {
-          "description": "目录或单文件路径",
+          "description": "文件或目录",
           "type": "string"
         },
         "pattern": {
-          "description": "查找模式（字面 | 为 OR，或正则）",
+          "description": "字面模式（| 为 OR）或正则",
           "type": "string"
         },
         "recursive": {
-          "description": "目录下递归（默认 true）",
+          "description": "目录递归；默认 true",
           "type": "boolean"
         },
         "regex": {
-          "description": "按正则解析（默认 false 字面）",
+          "description": "true 按正则；默认 false 字面",
           "type": "boolean"
         }
       }
@@ -658,16 +658,16 @@
       }
     },
     {
-      "description": "在单个文件内定位字面（| 为 OR）或正则的第 N 处命中，返回 region 与行列（可直接传 replace_in_file）。",
+      "description": "在单个文件中定位字面或正则的第 N 处命中，返回 region 与行列，供 replace_in_file 使用。需要全部命中用 regex_locate；目录搜索用 grep_files 或 file_search。",
       "display": {
         "icon": "🎯",
-        "label": "定位文件内文本"
+        "label": "单文件单点定位"
       },
       "name": "find_in_file",
       "parallel_safe": false,
       "parameters": {
         "encoding": {
-          "description": "文件编码（utf-8 / auto 等，默认 utf-8）",
+          "description": "文件编码，默认 utf-8；auto 嗅探",
           "type": "string"
         },
         "ignore_case": {
@@ -675,19 +675,19 @@
           "type": "boolean"
         },
         "occurrence": {
-          "description": "取第几处命中（0-based，默认 0）",
+          "description": "第几处命中，0-based，默认 0",
           "type": "integer"
         },
         "path": {
-          "description": "目标文件路径",
+          "description": "目标文件",
           "type": "string"
         },
         "pattern": {
-          "description": "查找模式（字面或正则）",
+          "description": "字面模式（| 为 OR）或正则",
           "type": "string"
         },
         "regex": {
-          "description": "按正则解析（默认 false 字面）",
+          "description": "true 按正则；默认 false 字面",
           "type": "boolean"
         }
       }
@@ -802,24 +802,24 @@
       }
     },
     {
-      "description": "按字面（| 为 OR 分隔）或正则搜索目录内文本文件内容。默认只剪掉 .git/ 与 __pycache__/ 这两类通用产物目录，剪掉了几个会在回执 skipped_derived_dirs 里如实报出；要排除别的目录（如本项目自己的临时目录）用 exclude 指定；连默认名单一起搜时传 include_derived=true。需要 gitignore 过滤 / 上下文行 / 编码嗅探时用 file_search。",
+      "description": "在目录中快速搜索文本，返回路径、行号和命中内容。不支持上下文、gitignore 和编码嗅探；单文件用 find_in_file 或 regex_locate，需要上下文用 file_search。",
       "display": {
         "icon": "🔎",
-        "label": "搜索文件内容"
+        "label": "目录快速搜索"
       },
       "name": "grep_files",
       "parallel_safe": false,
       "parameters": {
         "exclude": {
-          "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+          "description": "排除的目录名，按路径段全等",
           "type": "array"
         },
         "ignore_case": {
-          "description": "忽略大小写，默认 false",
+          "description": "忽略大小写",
           "type": "boolean"
         },
         "include_derived": {
-          "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
+          "description": "包含 .git/、__pycache__/；默认 false",
           "type": "boolean"
         },
         "limit": {
@@ -827,15 +827,15 @@
           "type": "integer"
         },
         "path": {
-          "description": "搜索根目录，默认 .",
+          "description": "搜索根目录，必须是目录；默认 .",
           "type": "string"
         },
         "pattern": {
-          "description": "搜索模式（字面或正则）",
+          "description": "字面模式（| 为 OR）或正则",
           "type": "string"
         },
         "regex": {
-          "description": "true 时按 Python 正则解析，默认 false",
+          "description": "true 按正则；默认 false 字面",
           "type": "boolean"
         }
       }
@@ -953,10 +953,10 @@
       }
     },
     {
-      "description": "exec 执行 Python 源码（不经 shell），stdout/stderr 捕获；名义 timeout（exec 无法硬中断）。复杂编排可用；勿代替 run_command 跑安装类命令。",
+      "description": "在 Agent 进程内同步执行 Python 源码，不经过 shell、不创建子进程。适合纯数据处理与编排；需要外部命令、安装或长任务时用 run_command 或 background_task。执行无法硬中断。",
       "display": {
         "icon": "🐍",
-        "label": "执行内联 Python"
+        "label": "前台同步执行 Python"
       },
       "name": "python_inline",
       "parallel_safe": false,
@@ -966,12 +966,8 @@
           "type": "string"
         },
         "cwd": {
-          "description": "执行前 chdir（可选；默认不变）",
+          "description": "执行前切换的工作目录",
           "type": "string"
-        },
-        "timeout_sec": {
-          "description": "名义超时（exec 无法硬中断；仅登记）",
-          "type": "integer"
         }
       }
     },
@@ -1061,44 +1057,44 @@
       }
     },
     {
-      "description": "在单文件或目录下用正则检索，每条命中返回 region 与行列（与 find_in_file / replace_in_file 语义一致）。",
+      "description": "在文件或目录中执行正则检索，返回全部命中的 region、行号和内容。修改前定位优先；第 N 处用 find_in_file，目录快速行检索用 grep_files。",
       "display": {
         "icon": "🔍",
-        "label": "正则检索与定位"
+        "label": "正则定位"
       },
       "name": "regex_locate",
       "parallel_safe": false,
       "parameters": {
         "dotall": {
-          "description": ". 匹配换行（re.DOTALL）",
+          "description": ". 匹配换行",
           "type": "boolean"
         },
         "encoding": {
-          "description": "文件编码（默认 utf-8；auto 嗅探）",
+          "description": "文件编码，默认 utf-8；auto 嗅探",
           "type": "string"
         },
         "glob_pattern": {
-          "description": "文件名通配过滤（如 *.py）",
+          "description": "目录下文件名过滤，如 *.py",
           "type": "string"
         },
         "ignore_case": {
-          "description": "忽略大小写（re.IGNORECASE）",
+          "description": "忽略大小写",
           "type": "boolean"
         },
         "limit": {
-          "description": "命中上限（默认 200）",
+          "description": "命中上限，默认 200",
           "type": "integer"
         },
         "path": {
-          "description": "文件或目录路径",
+          "description": "文件或目录",
           "type": "string"
         },
         "pattern": {
-          "description": "Python 正则表达式",
+          "description": "Python 正则",
           "type": "string"
         },
         "recursive": {
-          "description": "目录下递归（默认 true）",
+          "description": "目录递归；默认 true",
           "type": "boolean"
         }
       }
@@ -1178,32 +1174,32 @@
       }
     },
     {
-      "description": "执行单条 shell 命令并收集 stdout/stderr/exit_code；先过安全防线（黑名单 / 脚本内容 / safe_mode），超时强杀进程树。",
+      "description": "在前台同步执行一条 shell 命令，等待命令结束后返回 stdout、stderr 和 exit_code。适合短命令、交互命令、安装与构建；长任务、服务、并行或需取消轮询用 background_task。",
       "display": {
         "icon": "⚡",
-        "label": "执行命令"
+        "label": "前台同步执行命令"
       },
       "name": "run_command",
       "parallel_safe": false,
       "parameters": {
         "command": {
-          "description": "单条命令（非多行脚本；多步请多次调用）",
+          "description": "单条 shell 命令，不写多行脚本",
           "type": "string"
         },
         "cwd": {
-          "description": "工作目录（可选；默认继承进程当前目录）",
+          "description": "工作目录；默认当前进程目录",
           "type": "string"
         },
         "safe_mode": {
-          "description": "默认 true：禁止 [;&|`$><] 字符；确有必要时才置 false",
+          "description": "默认 true：禁止 [;&|`$><]；确需管道或重定向时显式 false",
           "type": "boolean"
         },
         "shell": {
-          "description": "auto / cmd / powershell（默认 auto）",
+          "description": "auto / cmd / powershell；默认 auto",
           "type": "string"
         },
         "timeout_sec": {
-          "description": "超时秒数（默认 300；超时强杀进程树）",
+          "description": "超时秒数，默认 300；超时强杀进程树",
           "type": "integer"
         }
       }

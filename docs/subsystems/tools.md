@@ -133,22 +133,26 @@ Markdown 的本地绝对路径链接同样进入右栏；正文里的行内代�
 | 工具 | 做什么 |
 |---|---|
 | `glob_files` | 按 glob 模式列出路径；默认剪 `.git/`、`__pycache__/`，回执报跳过数 |
-| `grep_files` | 目录内文本搜索（字面，`|` 为 OR；或正则） |
-| `file_search` | 大范围内容搜索，支持 gitignore 过滤、编码嗅探、上下文行 |
-| `find_in_file` | 单文件内定位第 N 处命中，返回 region 与行列 |
-| `regex_locate` | 单文件或目录下正则检索，返回 region 与行列 |
+| `grep_files` | 目录快速搜索：`path` 必须是目录，返回路径、行号和命中；不支持上下文/gitignore/编码嗅探 |
+| `file_search` | 通用内容搜索：文件或目录，支持字面/正则、上下文、gitignore 与编码嗅探 |
+| `find_in_file` | 单文件单点定位：取第 N 处命中，返回 region 与行列 |
+| `regex_locate` | 正则定位：文件或目录，返回全部命中的 region、行号和内容 |
 | `text_diff` | 对左右两侧文本生成 unified diff（只读） |
 
 ### 命令执行
 
 | 工具 | 做什么 |
 |---|---|
-| `run_command` | 执行单条 shell 命令，收集 stdout / stderr / exit_code（待下线） |
-| `background_task` | 按 cid 管理后台任务：create / list / cancel / output；命令以 argv 数组传入，不经 shell |
-| `python_inline` | `exec` 执行 Python 源码（不经 shell） |
+| `run_command` | 前台同步执行命令：等待结束并返回 stdout/stderr/exit_code；短命令、交互、安装构建使用 |
+| `background_task` | 后台异步执行命令：立即返回 task_id，用 create/list/output/cancel 管理；argv 不经 shell |
+| `python_inline` | 前台同步执行 Python：Agent 进程内执行，不经 shell，不创建子进程，不可硬中断 |
 | `env_probe` | 探测本机可用命令行环境并给出建议 |
 
-命令执行先过安全防线：黑名单、内容级拦截、`safe_mode`、进程生命周期管理、输出净化。实现在 `agent/mechanisms/command_safety.py`。
+后台任务的子进程只继承 PATH、系统目录、TEMP、HOME、Windows 用户路径（LOCALAPPDATA、APPDATA、USERPROFILE 等）和 locale；不继承 API Key、Token 等凭据。该白名单只降低环境泄漏与路径缺失，不提供文件系统、网络或权限隔离，不能当作安全沙箱。
+`python_inline` 已删除 `timeout_sec`；旧调用中的该键不再参与执行，超时需求改用 `background_task`。
+
+`run_command` 先过安全防线：黑名单、内容级拦截、`safe_mode`、进程生命周期管理、输出净化；它继承完整父进程环境。
+`background_task` 使用 argv 直接启动进程，不套用 `safe_mode`，但仍受允许 cwd、超时与进程终止管理；它只继承上述最小环境白名单，不继承 API Key、Token 等凭据。
 
 ### 网络
 

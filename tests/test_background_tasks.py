@@ -2,11 +2,13 @@
 """后台任务管理器：队列、执行、输出、取消与 cid 隔离。"""
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent.app import build_app
 from agent.capabilities.builtin.background_task import build as build_task_tool
@@ -37,6 +39,33 @@ class BackgroundTaskManagerTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.manager.shutdown()
         self._tmp.cleanup()
+
+    def test_env_allowlist_keeps_user_paths_excludes_secrets(self) -> None:
+        with mock.patch.dict(os.environ, {
+            "LOCALAPPDATA": r"C:\Users\probe\AppData\Local",
+            "USERPROFILE": r"C:\Users\probe",
+            "SECRET_TOKEN": "must-not-leak",
+        }, clear=False):
+            env = BackgroundTaskManager._env()
+        self.assertEqual(env["LOCALAPPDATA"], r"C:\Users\probe\AppData\Local")
+        self.assertEqual(env["USERPROFILE"], r"C:\Users\probe")
+        self.assertNotIn("SECRET_TOKEN", env)
+
+    @unittest.skipUnless(os.name == "nt", "Windows profile variables only")
+    def test_background_process_sees_user_paths(self) -> None:
+        code = "import os; print(os.environ.get('LOCALAPPDATA')); print(os.environ.get('USERPROFILE'))"
+        result = self.manager.create(
+            "cid-env", _py(code), str(self.root), 10, "env")
+        self.assertTrue(result["ok"])
+        output = self.manager.output(
+            "cid-env", result["task"]["task_id"], wait=True, timeout_ms=5000)
+        self.assertTrue(output["ok"])
+        local_appdata = os.environ.get("LOCALAPPDATA", "")
+        user_profile = os.environ.get("USERPROFILE", "")
+        self.assertTrue(local_appdata)
+        self.assertTrue(user_profile)
+        self.assertIn(local_appdata, output["output"])
+        self.assertIn(user_profile, output["output"])
 
     def test_completed_output_and_history(self) -> None:
         result = self.manager.create("cid-a", _py("print('hello')"), str(self.root), 10, "hello")

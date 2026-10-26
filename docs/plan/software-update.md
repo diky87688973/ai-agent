@@ -613,14 +613,13 @@ launcher/launcher.cpp  # 固定根目录启动 app 与 updater
 → 生成 manifest.json
 → 计算 zip 与 manifest 的 sha256
 → 上传 Release 资产
+```
 
 首版不执行签名；未来签名步骤：
 
 ```text
 → 用 CI secret 对 manifest 签名
 → 上传 manifest.sig
-```
-
 ```
 
 未来签名 key：

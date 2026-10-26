@@ -770,15 +770,16 @@ class PortConflictTest(unittest.TestCase):
     def test_second_bind_on_same_port_raises(self) -> None:
         from agent.app import build_app
         from agent.shell.web.server import create_server
+        from tests.testkit import local_auth
 
         app = build_app()
         first = None
         try:
-            first, _ = create_server(app, host="127.0.0.1", port=0)
+            first, _ = create_server(app, host="127.0.0.1", port=0, auth=local_auth(app))
             port = first.server_address[1]
             with self.assertRaises(OSError,
                                    msg="二次绑定没报错 → 会静默连到旧服务"):
-                create_server(app, host="127.0.0.1", port=port)
+                create_server(app, host="127.0.0.1", port=port, auth=local_auth(app))
         finally:
             if first is not None:
                 first.server_close()

@@ -4,8 +4,10 @@
 
 | 文件 | 职责 |
 |---|---|
-| `web/server.py` | HTTP + SSE 服务装配与启动 |
+| `web/server.py` | HTTP + SSE 服务装配与启动；鉴权运行时注入 |
 | `web/web_routes.py` | HTTP 动词与路径分派 |
+| `web/web_auth.py` | 鉴权中间层：会话/Token、CSRF、Host、SSE 复检 |
+| `web/auth/` | 密码、登录会话、API Token、CSRF、限流、审计与路由策略 |
 | `web/web_static.py` | 静态资源、路径与协议常量 |
 | `web/web_classic.py` | 经典页面与经典 SSE |
 | `web/web_plugin.py` | 插件端点与插件资产转发 |
@@ -26,6 +28,8 @@
 | `fspaths.py` | 可见范围的来源、路径判界与展示形态 |
 | `classic_adapter/` | 事件翻译、历史回读、用户作答 |
 | `web/web_assets/` | 壳层页面、样式与前端脚本 |
+
+API Token 的 issue/revoke 使用进程内线程锁与 `tokens.json.lock` 跨进程文件锁；同名签发被拒绝，锁不可用时命令返回可读错误而不是堆栈。
 
 ## 用量与命中率的口径
 
@@ -51,7 +55,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 `main()` 做的事：读配置 → 建 `App` → `serve()` → 打印地址 → `serve_forever()`。
 
-`create_server()` 返回 `(server, shell)`，不启动；测试可以直接拿到实例。`serve()` 接收已装配的 app，
+`create_server()` 返回 `(server, shell)`，不启动；必须显式传入 `AuthRuntime`，不再隐式读取工程配置。`serve()` 接收已装配的 app，
 负责可见根/媒体根/标题与工作目录的落点并阻塞运行。`build_shell_app()` 是入口层的装配函数
 （`agent/entry/web.py`）：按配置建真实 provider 与会话存储——壳层不导入装配根（A2）。
 
@@ -111,7 +115,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 写操作走 body、读操作走 query，全工程统一。
 
-设置页在界面右上角，读写的就是 `config.ini`、`web-ui-config.ini` 和各插件的 `plugin-config.ini`。密钥只允许覆盖：密码框留空则文件里的值不动；有内容才替换。`GET /api/settings` 不回明文，只说明是否已填写。已填写时密码框提示「已设置秘钥,可重新设置并替换」，未填写时提示「未配置秘钥」。
+设置页在界面右上角，读写的就是 `config.ini`、`web-ui-config.ini` 和各插件的 `plugin-config.ini`。密钥只允许覆盖：密码框留空则文件里的值不动；有内容才替换。`GET /api/settings` 不回明文，只说明是否已填写。已填写时密码框提示「已设置秘钥，可重新设置并替换」，未填写时提示「未配置秘钥」。
 
 「保存」是保存并关窗（只有失败才留在窗口里），「应用」是保存但不关窗。插件配置的
 身份与开关不在插件配置里；编辑区只覆盖插件自己的节 —— 有

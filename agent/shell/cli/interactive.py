@@ -183,7 +183,17 @@ def main(argv: Optional[list] = None, *, app_factory: Any) -> int:
     app = app_factory()
     if app is None:
         return 2
-    app, cid, engine, gate, single = build_session(None, app=app, parsed=parsed)
+    try:
+        app, cid, engine, gate, single = build_session(None, app=app, parsed=parsed)
+    except ValueError as exc:
+        print(f"[cli] {exc}", file=sys.stderr)
+        app.dispose()
+        return 2
+    except Exception as exc:
+        report_error("agent.shell.cli.interactive.build_session", exc)
+        print(f"[cli] 无法创建会话：{type(exc).__name__}: {exc}", file=sys.stderr)
+        app.dispose()
+        return 2
 
     models = app.available_models()
     model = app.model_for(cid) or (models[0] if models else "")

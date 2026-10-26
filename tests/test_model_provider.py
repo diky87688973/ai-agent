@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 from agent.core.ports import LogicalRequest  # noqa: E402
 from agent.mechanisms.providers.base import ModelRequestError  # noqa: E402
 from agent.mechanisms.providers.openai import OpenAICompatibleProvider  # noqa: E402
-from tests.testkit import no_plugins  # noqa: E402
+from tests.testkit import local_auth, no_plugins  # noqa: E402
 
 _PNG_B64 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
             "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
@@ -429,7 +429,7 @@ class AvailableModelsWireTest(unittest.TestCase):
         from agent.shell.web.server import create_server
 
         app = self._app()
-        _srv, shell = create_server(app, host="127.0.0.1", port=0)
+        _srv, shell = create_server(app, host="127.0.0.1", port=0, auth=local_auth(app))
         _status, body = shell.health()
         self.assertEqual(body.get("allowed_models"), ["m-one", "m-two", "m-three"])
 
@@ -441,7 +441,7 @@ class AvailableModelsWireTest(unittest.TestCase):
         app.model_config_state = "none"
         app._available_models = []
         app.live_state.default_model = ""
-        _srv, shell = create_server(app, host="127.0.0.1", port=0)
+        _srv, shell = create_server(app, host="127.0.0.1", port=0, auth=local_auth(app))
         _status, body = shell.health()
         self.assertEqual(body.get("allowed_models"), [])
         self.assertEqual(body.get("model"), "")

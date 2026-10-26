@@ -23,7 +23,10 @@ class GuiLauncherTest(unittest.TestCase):
                 mock.patch.object(launcher, "_stop_server") as stop:
             code = launcher.launch("127.0.0.1", 0)
         self.assertEqual(code, 0)
-        spawn.assert_called_once_with("127.0.0.1", 8899)
+        spawn.assert_called_once()
+        args = spawn.call_args.args
+        self.assertEqual(args[:2], ("127.0.0.1", 8899))
+        self.assertTrue(args[2])
         stop.assert_called_once_with(child)
 
     def test_failed_window_still_stops_child(self) -> None:

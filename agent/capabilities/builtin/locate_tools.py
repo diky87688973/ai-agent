@@ -125,16 +125,19 @@ class FindInFileTool(ToolPlugin):
     """单文件定位。"""
 
     name = "find_in_file"
-    label = "定位文件内文本"
+    label = "单文件单点定位"
     icon = "🎯"
-    description = "在单个文件内定位字面（| 为 OR）或正则的第 N 处命中，返回 region 与行列（可直接传 replace_in_file）。"
+    description = (
+        "在单个文件中定位字面或正则的第 N 处命中，返回 region 与行列，供 replace_in_file 使用。"
+        "需要全部命中用 regex_locate；目录搜索用 grep_files 或 file_search。"
+    )
     parameters = {
-        "path": {"type": "string", "description": "目标文件路径"},
-        "pattern": {"type": "string", "description": "查找模式（字面或正则）"},
-        "regex": {"type": "boolean", "description": "按正则解析（默认 false 字面）"},
+        "path": {"type": "string", "description": "目标文件"},
+        "pattern": {"type": "string", "description": "字面模式（| 为 OR）或正则"},
+        "regex": {"type": "boolean", "description": "true 按正则；默认 false 字面"},
         "ignore_case": {"type": "boolean", "description": "忽略大小写"},
-        "occurrence": {"type": "integer", "description": "取第几处命中（0-based，默认 0）"},
-        "encoding": {"type": "string", "description": "文件编码（utf-8 / auto 等，默认 utf-8）"},
+        "occurrence": {"type": "integer", "description": "第几处命中，0-based，默认 0"},
+        "encoding": {"type": "string", "description": "文件编码，默认 utf-8；auto 嗅探"},
     }
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -199,18 +202,21 @@ class RegexLocateTool(ToolPlugin):
     """单文件/目录正则定位。"""
 
     name = "regex_locate"
-    label = "正则检索与定位"
+    label = "正则定位"
     icon = "🔍"
-    description = "在单文件或目录下用正则检索，每条命中返回 region 与行列（与 find_in_file / replace_in_file 语义一致）。"
+    description = (
+        "在文件或目录中执行正则检索，返回全部命中的 region、行号和内容。"
+        "修改前定位优先；第 N 处用 find_in_file，目录快速行检索用 grep_files。"
+    )
     parameters = {
-        "path": {"type": "string", "description": "文件或目录路径"},
-        "pattern": {"type": "string", "description": "Python 正则表达式"},
-        "ignore_case": {"type": "boolean", "description": "忽略大小写（re.IGNORECASE）"},
-        "dotall": {"type": "boolean", "description": ". 匹配换行（re.DOTALL）"},
-        "recursive": {"type": "boolean", "description": "目录下递归（默认 true）"},
-        "glob_pattern": {"type": "string", "description": "文件名通配过滤（如 *.py）"},
-        "encoding": {"type": "string", "description": "文件编码（默认 utf-8；auto 嗅探）"},
-        "limit": {"type": "integer", "description": "命中上限（默认 200）"},
+        "path": {"type": "string", "description": "文件或目录"},
+        "pattern": {"type": "string", "description": "Python 正则"},
+        "ignore_case": {"type": "boolean", "description": "忽略大小写"},
+        "dotall": {"type": "boolean", "description": ". 匹配换行"},
+        "recursive": {"type": "boolean", "description": "目录递归；默认 true"},
+        "glob_pattern": {"type": "string", "description": "目录下文件名过滤，如 *.py"},
+        "encoding": {"type": "string", "description": "文件编码，默认 utf-8；auto 嗅探"},
+        "limit": {"type": "integer", "description": "命中上限，默认 200"},
     }
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -285,30 +291,30 @@ class FileSearchTool(ToolPlugin):
     """大目录内容搜索。"""
 
     name = "file_search"
-    label = "搜索文件内容"
+    label = "通用内容搜索"
     icon = "🔎"
     description = (
-        "目录或单文件内容搜索（字面/正则）；支持 gitignore 过滤、编码嗅探与上下文行；"
-        "适合大范围扫描。简单精确匹配用 grep_files。"
+        "在文件或目录中搜索文本，支持字面/正则、上下文行、gitignore 与编码嗅探。"
+        "需要上下文或过滤时首选；目录快速行命中用 grep_files，单文件定位用 find_in_file 或 regex_locate。"
     )
     parameters = {
-        "path": {"type": "string", "description": "目录或单文件路径"},
-        "pattern": {"type": "string", "description": "查找模式（字面 | 为 OR，或正则）"},
-        "regex": {"type": "boolean", "description": "按正则解析（默认 false 字面）"},
-        "glob_pattern": {"type": "string", "description": "文件名通配过滤（如 *.py）"},
-        "recursive": {"type": "boolean", "description": "目录下递归（默认 true）"},
-        "context_lines": {"type": "integer", "description": "命中前后附带的上下文行数"},
+        "path": {"type": "string", "description": "文件或目录"},
+        "pattern": {"type": "string", "description": "字面模式（| 为 OR）或正则"},
+        "regex": {"type": "boolean", "description": "true 按正则；默认 false 字面"},
+        "glob_pattern": {"type": "string", "description": "文件名通配过滤，如 *.py"},
+        "recursive": {"type": "boolean", "description": "目录递归；默认 true"},
+        "context_lines": {"type": "integer", "description": "命中前后上下文行数"},
         "ignore_case": {"type": "boolean", "description": "忽略大小写"},
         "no_gitignore": {"type": "boolean", "description": "true 时不按 .gitignore 过滤"},
         "exclude": {
             "type": "array",
-            "description": "要排除的目录名列表（按路径段全等匹配，如 [\"data\", \"build\"]）",
+            "description": "排除的目录名，按路径段全等",
         },
         "include_derived": {
             "type": "boolean",
-            "description": "连 .git/、__pycache__/ 默认名单一起搜，默认 false",
+            "description": "包含 .git/、__pycache__/；默认 false",
         },
-        "limit": {"type": "integer", "description": "命中上限（缺省不限）"},
+        "limit": {"type": "integer", "description": "命中上限"},
     }
 
     MAX_SCANNED = 10000

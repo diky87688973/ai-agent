@@ -30,8 +30,6 @@
 | 配置一致性 | `check_config_drift.py` | 真实配置多键 / 未登记节 |
 | 密钥扫描 | `check_secrets.py` | 高置信度密钥、私钥、令牌模式 |
 | 单测文档一致 | `gen_unit_tests_md.py --check` | `docs/unit-tests.md` 与测试方法集合不一致 |
-
-`docs/unit-tests.md` 是生成的可读测试目录，不是事实源；事实源是 `tests/`。
 | 静态检查 | `ruff check` | 未用导入、导入顺序、明显缺陷 |
 | Python 下限 | `check_python_floor.py` | 用了高于声明下限（3.10）的语法 |
 | UI JS 自检 | `check_ui_js.py` | JS 语法、共享作用域、被调用但未定义的辅助函数 |
@@ -44,6 +42,8 @@
 | 复杂度文档一致 | `gen_complexity_md.py --check` | `docs/complexity.md` 与扫描结果不一致 |
 | 适用性登记 | `check_applicability.py` | 申报结构错误；编号与 `scripts/standards_rules.py` 双向比对，并打印 N/A 占比 |
 | 并发争用 | `tests.test_concurrency`（`-X dev`） | 共享可变状态的线程争用（K4） |
+
+`docs/unit-tests.md` 是生成的可读测试目录，不是事实源；事实源是 `tests/`。
 
 ### 2.1 覆盖率（post）
 

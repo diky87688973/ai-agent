@@ -14,38 +14,38 @@ class BackgroundTaskTool(ToolPlugin):
     """创建、查询、取消后台任务并读取输出。"""
 
     name = "background_task"
-    label = "后台任务"
+    label = "后台异步执行命令"
     icon = "▣"
     description = (
-        "管理本会话的后台命令任务。action=create 创建并入队，list 查看队列，"
-        "cancel 取消，output 读取未读输出。任务超时包含排队与执行。"
+        "异步创建后台命令任务，立即返回 task_id，用 list / output / cancel 管理。"
+        "适合长任务、服务、并行或需轮询取消的命令；短命令用 run_command。argv 不经过 shell。"
     )
     parameters = {
         "action": {
             "type": "string",
             "enum": ["create", "list", "cancel", "output"],
-            "description": "create / list / cancel / output",
+            "description": "create 创建；list 查看；cancel 取消；output 读取输出",
         },
         "argv": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "命令参数数组（create 必填，不经 shell；例如 python -c print(1) 拆成三个参数）",
+            "description": "命令参数数组；不经 shell，不支持管道和重定向；create 必填",
         },
-        "cwd": {"type": "string", "description": "工作目录（可选）"},
+        "cwd": {"type": "string", "description": "工作目录；可选"},
         "timeout_sec": {
             "type": "integer",
-            "description": "从创建时刻开始的总超时秒数（create 必填，1..86400）",
+            "description": "从创建时刻起的总超时秒数，1..86400；create 必填",
         },
-        "label": {"type": "string", "description": "任务小标题（create 必填，用于工具壳展示；允许同名）"},
-        "batch": {"type": "string", "description": "批次号；create 可选（传回执 batch 可加入同批），list 必填"},
-        "task_id": {"type": "string", "description": "任务 ID（cancel / output 必填；list 可用于精确查询）"},
-        "reason": {"type": "string", "description": "取消原因（cancel 可选）"},
-        "status": {"type": "string", "description": "list 的状态过滤（可选）"},
+        "label": {"type": "string", "description": "任务短标题；create 必填"},
+        "batch": {"type": "string", "description": "批次号；create 可选，list 必填"},
+        "task_id": {"type": "string", "description": "任务 ID；cancel/output 必填，list 可精确查询"},
+        "reason": {"type": "string", "description": "取消原因；cancel 可选"},
+        "status": {"type": "string", "description": "list 状态过滤"},
 
-        "wait": {"type": "boolean", "description": "output 是否等待终态（可选）"},
+        "wait": {"type": "boolean", "description": "output 是否等待终态；默认 false"},
         "timeout_ms": {
             "type": "integer",
-            "description": "output 等待上限毫秒数（可选，默认 30000）",
+            "description": "output 等待上限毫秒，默认 30000",
         },
     }
 

@@ -12,6 +12,9 @@
 """
 from __future__ import annotations
 
+import os
+import secrets
+import ssl
 import sys
 import threading
 import webbrowser
@@ -23,6 +26,8 @@ if TYPE_CHECKING:  # 只为注解：运行期不导入装配根
     from agent.app import App
 
 
+from agent.config import DEFAULT_CONFIG_PATH
+from agent.core.error_report import report_error
 from agent.mechanisms.session_title import make_provider_title_generator
 from agent.shell.fspaths import (
     default_fs_roots,
@@ -30,6 +35,11 @@ from agent.shell.fspaths import (
     resolve_fs_roots,
     resolve_media_root,
 )
+from agent.shell.web.auth import AuthRuntime
+from agent.shell.web.auth.config import AuthConfigError
+from agent.shell.web.auth.runtime import is_loopback_address
+from agent.shell.web.auth.security import AuthSecurityError, atomic_write_text
+from agent.shell.web.auth.startup import can_start_public
 from agent.shell.web.web_api import WebShell
 from agent.shell.web.web_routes import Handler
 from agent.shell.web.web_static import ASSETS_DIR
@@ -45,11 +55,14 @@ def create_server(
     titles_dir: Optional[Path] = None,
     title_generator: Any = None,
     workspace_root: Optional[Path] = None,
+    auth: Optional[AuthRuntime] = None,
 ) -> Tuple[ThreadingHTTPServer, WebShell]:
     """构造（不启动）Web 服务；返回 (server, shell)。调 server.serve_forever() 启动。"""
     if title_generator is None and app.provider is not None:
         title_generator = make_provider_title_generator(app.provider)
     roots = normalize_roots(fs_root) or default_fs_roots()
+    if auth is None:
+        raise TypeError("create_server 需要显式 auth，不再隐式读取工程配置")
     shell = WebShell(
         app,
         media_root=media_root or (roots[0] if roots else Path.cwd()),
@@ -65,7 +78,8 @@ def create_server(
     handler = type(
         "_BoundHandler",
         (Handler,),
-        {"shell": shell, "assets_dir": Path(assets_dir) if assets_dir else ASSETS_DIR},
+        {"shell": shell, "assets_dir": Path(assets_dir) if assets_dir else ASSETS_DIR,
+         "auth_runtime": auth},
     )
 
     class _Server(ThreadingHTTPServer):
@@ -83,6 +97,54 @@ def create_server(
     return server, shell
 
 
+def _startup_auth(root: Path, host: str, tls_cert: Optional[str],
+                  tls_key: Optional[str], allow_insecure_public: bool) -> Optional[AuthRuntime]:
+    try:
+        auth = AuthRuntime.load(root, config_path=DEFAULT_CONFIG_PATH, host=host)
+    except (AuthConfigError, AuthSecurityError) as exc:
+        print(f"[auth] {exc}", file=sys.stderr, flush=True)
+        return None
+    if (auth.config.mode == "required" and auth.config.desktop_auto_login
+            and not auth.credentials.exists()
+            and os.environ.get("AI_AGENT_GUI") == "1"):
+        password = "FanAgent-" + secrets.token_urlsafe(18)
+        auth.set_password(password)
+        note = auth.auth_dir / "initial-password.txt"
+        try:
+            atomic_write_text(note, password + "\n")
+        except (OSError, AuthSecurityError) as exc:
+            report_error("agent.shell.web.auth.initial_password", exc)
+    requires_auth = not is_loopback_address(host) or auth.config.mode == "required"
+    if requires_auth and not can_start_public(auth):
+        print("[auth] 当前模式没有可用的认证凭据，拒绝启动。", file=sys.stderr, flush=True)
+        print("[auth] 执行：agent-web --set-password", file=sys.stderr, flush=True)
+        return None
+    if not is_loopback_address(host) and not (tls_cert and tls_key) and not allow_insecure_public:
+        print("[auth] 公网 HTTP 未启用 TLS，拒绝启动。", file=sys.stderr, flush=True)
+        print("[auth] 使用 --tls-cert/--tls-key，或显式 --allow-insecure-public。",
+              file=sys.stderr, flush=True)
+        return None
+    if (not is_loopback_address(host) and not auth.secure_cookie
+            and not (tls_cert and tls_key)):
+        print("[auth] 警告：公网 HTTP 未启用 TLS，密码和会话可能被窃听。",
+              file=sys.stderr, flush=True)
+    return auth
+
+
+def _apply_tls(server: ThreadingHTTPServer, tls_cert: Optional[str],
+               tls_key: Optional[str]) -> bool:
+    if not (tls_cert and tls_key):
+        return True
+    try:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(tls_cert, tls_key)
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+    except (OSError, ssl.SSLError) as exc:
+        print(f"[auth] TLS 配置失败：{exc}", file=sys.stderr, flush=True)
+        return False
+    return True
+
+
 def serve(
     app: App,
     *,
@@ -92,6 +154,9 @@ def serve(
     media_root: Any = None,
     fs_root: Any = None,
     open_url: Optional[str] = None,
+    tls_cert: Optional[str] = None,
+    tls_key: Optional[str] = None,
+    allow_insecure_public: bool = False,
 ) -> int:
     """在已装配的 app 上启动 Web 壳（阻塞）；Ctrl+C 退出。
 
@@ -100,6 +165,9 @@ def serve(
     """
     root = Path(data_root) if data_root else Path.cwd()
     roots = resolve_fs_roots(fs_root)
+    auth = _startup_auth(root, host, tls_cert, tls_key, allow_insecure_public)
+    if auth is None:
+        return 2
     server, _shell = create_server(
         app,
         host=host,
@@ -108,12 +176,19 @@ def serve(
         fs_root=roots,
         titles_dir=root / "titles",
         workspace_root=root / "workspace",
+        auth=auth,
     )
+    if not _apply_tls(server, tls_cert, tls_key):
+        server.server_close()
+        return 2
+    if tls_cert and tls_key:
+        auth.secure_cookie = True
+    scheme = "https" if tls_cert and tls_key else "http"
     print("=== AI Agent Web 壳 ===")
-    print(f"主界面   http://{host}:{port}/")
+    print(f"主界面   {scheme}://{host}:{port}/")
     if getattr(app, "model_config_state", "") == "none":
         print("模型尚未配置：可在页面右上角「设置 → 插件 → 多模型」里添加。")
-    print(f"事件流   http://{host}:{port}/api/events/stream")
+    print(f"事件流   {scheme}://{host}:{port}/api/events/stream")
     shown = "；".join(str(r) for r in roots) if roots else "（不限根）"
     print(f"文件根   {shown}")
     print("         （右栏文件查看器 / @ 补全的可见范围；--fs-root 可改，多个用 ; 分隔）")

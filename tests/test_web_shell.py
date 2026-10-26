@@ -31,7 +31,7 @@ from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402
 from agent.shell.web.server import create_server  # noqa: E402
-from tests.testkit import no_plugins  # noqa: E402
+from tests.testkit import local_auth, no_plugins  # noqa: E402
 
 
 class ScriptedProvider:
@@ -138,6 +138,7 @@ class _ServerFixture(unittest.TestCase):
             host="127.0.0.1",
             port=0,
             fs_root=self.fs_root_override or self.root,
+            auth=local_auth(self.app),
         )
         self.port = self.server.server_address[1]
         self.base = f"http://127.0.0.1:{self.port}"
@@ -513,7 +514,8 @@ class MultiRootFileViewerTest(unittest.TestCase):
             data_root=base,
         )
         self.server, self.shell = create_server(
-            self.app, host="127.0.0.1", port=0, fs_root=[self.root_a, self.root_b]
+            self.app, host="127.0.0.1", port=0, fs_root=[self.root_a, self.root_b],
+            auth=local_auth(self.app),
         )
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
         threading.Thread(target=self.server.serve_forever, daemon=True).start()

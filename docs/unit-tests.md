@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1881** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1916** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -18,90 +18,92 @@
 7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（21）
 8. [test_artifact_lock.py](#test_artifact_lockpy)（16）
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（21）
-10. [test_background_tasks.py](#test_background_taskspy)（13）
-11. [test_batch_f_tools.py](#test_batch_f_toolspy)（23）
-12. [test_catalog.py](#test_catalogpy)（8）
-13. [test_classic_adapter.py](#test_classic_adapterpy)（103）
-14. [test_cli_shell.py](#test_cli_shellpy)（19）
-15. [test_command_tools.py](#test_command_toolspy)（30）
-16. [test_concurrency.py](#test_concurrencypy)（11）
-17. [test_context_assembly.py](#test_context_assemblypy)（186）
-18. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
-19. [test_context_dump.py](#test_context_dumppy)（3）
-20. [test_context_dump_skill.py](#test_context_dump_skillpy)（1）
-21. [test_context_pipeline.py](#test_context_pipelinepy)（18）
-22. [test_context_plumbing.py](#test_context_plumbingpy)（5）
-23. [test_context_splice.py](#test_context_splicepy)（9）
-24. [test_conversation_queue.py](#test_conversation_queuepy)（6）
-25. [test_core.py](#test_corepy)（57）
-26. [test_coverage_gaps.py](#test_coverage_gapspy)（10）
-27. [test_edited_files.py](#test_edited_filespy)（1）
-28. [test_entry_layer.py](#test_entry_layerpy)（19）
-29. [test_environment_info.py](#test_environment_infopy)（1）
-30. [test_error_log.py](#test_error_logpy)（8）
-31. [test_event_bus.py](#test_event_buspy)（9）
-32. [test_fact_compat.py](#test_fact_compatpy)（4）
-33. [test_file_safety.py](#test_file_safetypy)（24）
-34. [test_file_size_format.py](#test_file_size_formatpy)（4）
-35. [test_four_step_gate.py](#test_four_step_gatepy)（9）
-36. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-37. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
-38. [test_gate_negative.py](#test_gate_negativepy)（66）
-39. [test_goal_runner.py](#test_goal_runnerpy)（6）
-40. [test_gui_launcher.py](#test_gui_launcherpy)（8）
-41. [test_image_embed.py](#test_image_embedpy)（10）
-42. [test_image_tool.py](#test_image_toolpy)（28）
-43. [test_image_turns.py](#test_image_turnspy)（23）
-44. [test_import_graph.py](#test_import_graphpy)（5）
-45. [test_invest_tools.py](#test_invest_toolspy)（29）
-46. [test_kb_plugin.py](#test_kb_pluginpy)（49）
-47. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-48. [test_mode_note.py](#test_mode_notepy)（13）
-49. [test_model_catalog.py](#test_model_catalogpy)（23）
-50. [test_model_provider.py](#test_model_providerpy)（39）
-51. [test_model_window.py](#test_model_windowpy)（14）
-52. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
-53. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-54. [test_plugin_http.py](#test_plugin_httppy)（18）
-55. [test_plugins.py](#test_pluginspy)（29）
-56. [test_present_tool.py](#test_present_toolpy)（2）
-57. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-58. [test_prompt_tail.py](#test_prompt_tailpy)（5）
-59. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-60. [test_provider_meta.py](#test_provider_metapy)（8）
-61. [test_provider_router.py](#test_provider_routerpy)（14）
-62. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
-63. [test_queue_runner.py](#test_queue_runnerpy)（3）
-64. [test_queued_input.py](#test_queued_inputpy)（4）
-65. [test_readonly_tools.py](#test_readonly_toolspy)（33）
-66. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-67. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-68. [test_run_registry.py](#test_run_registrypy)（13）
-69. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-70. [test_session_context.py](#test_session_contextpy)（22）
-71. [test_session_seq.py](#test_session_seqpy)（23）
-72. [test_session_store.py](#test_session_storepy)（17）
-73. [test_session_tools.py](#test_session_toolspy)（17）
-74. [test_settings_panel.py](#test_settings_panelpy)（21）
-75. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-76. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-77. [test_subagent.py](#test_subagentpy)（17）
-78. [test_task_tools.py](#test_task_toolspy)（27）
-79. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-80. [test_tool_registry.py](#test_tool_registrypy)（17）
-81. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-82. [test_top_level_services.py](#test_top_level_servicespy)（2）
-83. [test_update.py](#test_updatepy)（25）
-84. [test_update_processes.py](#test_update_processespy)（2）
-85. [test_usage_metrics.py](#test_usage_metricspy)（7）
-86. [test_version_stamp.py](#test_version_stamppy)（4）
-87. [test_visual_operator.py](#test_visual_operatorpy)（130）
-88. [test_web_frontend.py](#test_web_frontendpy)（5）
-89. [test_web_shell.py](#test_web_shellpy)（52）
-90. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-91. [test_write_gate.py](#test_write_gatepy)（16）
-92. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-93. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+10. [test_auth_security.py](#test_auth_securitypy)（7）
+11. [test_background_tasks.py](#test_background_taskspy)（15）
+12. [test_batch_f_tools.py](#test_batch_f_toolspy)（23）
+13. [test_catalog.py](#test_catalogpy)（8）
+14. [test_classic_adapter.py](#test_classic_adapterpy)（103）
+15. [test_cli_shell.py](#test_cli_shellpy)（20）
+16. [test_command_tools.py](#test_command_toolspy)（30）
+17. [test_concurrency.py](#test_concurrencypy)（11）
+18. [test_context_assembly.py](#test_context_assemblypy)（186）
+19. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
+20. [test_context_dump.py](#test_context_dumppy)（3）
+21. [test_context_dump_skill.py](#test_context_dump_skillpy)（1）
+22. [test_context_pipeline.py](#test_context_pipelinepy)（18）
+23. [test_context_plumbing.py](#test_context_plumbingpy)（5）
+24. [test_context_splice.py](#test_context_splicepy)（9）
+25. [test_conversation_queue.py](#test_conversation_queuepy)（6）
+26. [test_core.py](#test_corepy)（57）
+27. [test_coverage_gaps.py](#test_coverage_gapspy)（10）
+28. [test_edited_files.py](#test_edited_filespy)（1）
+29. [test_entry_layer.py](#test_entry_layerpy)（19）
+30. [test_environment_info.py](#test_environment_infopy)（1）
+31. [test_error_log.py](#test_error_logpy)（8）
+32. [test_event_bus.py](#test_event_buspy)（9）
+33. [test_fact_compat.py](#test_fact_compatpy)（4）
+34. [test_file_safety.py](#test_file_safetypy)（24）
+35. [test_file_size_format.py](#test_file_size_formatpy)（4）
+36. [test_four_step_gate.py](#test_four_step_gatepy)（9）
+37. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+38. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
+39. [test_gate_negative.py](#test_gate_negativepy)（66）
+40. [test_goal_runner.py](#test_goal_runnerpy)（6）
+41. [test_gui_launcher.py](#test_gui_launcherpy)（8）
+42. [test_image_embed.py](#test_image_embedpy)（10）
+43. [test_image_tool.py](#test_image_toolpy)（28）
+44. [test_image_turns.py](#test_image_turnspy)（23）
+45. [test_import_graph.py](#test_import_graphpy)（5）
+46. [test_invest_tools.py](#test_invest_toolspy)（29）
+47. [test_kb_plugin.py](#test_kb_pluginpy)（49）
+48. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+49. [test_mode_note.py](#test_mode_notepy)（13）
+50. [test_model_catalog.py](#test_model_catalogpy)（23）
+51. [test_model_provider.py](#test_model_providerpy)（39）
+52. [test_model_window.py](#test_model_windowpy)（14）
+53. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
+54. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+55. [test_plugin_http.py](#test_plugin_httppy)（18）
+56. [test_plugins.py](#test_pluginspy)（29）
+57. [test_present_tool.py](#test_present_toolpy)（2）
+58. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+59. [test_prompt_tail.py](#test_prompt_tailpy)（5）
+60. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+61. [test_provider_meta.py](#test_provider_metapy)（8）
+62. [test_provider_router.py](#test_provider_routerpy)（14）
+63. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
+64. [test_queue_runner.py](#test_queue_runnerpy)（3）
+65. [test_queued_input.py](#test_queued_inputpy)（4）
+66. [test_readonly_tools.py](#test_readonly_toolspy)（33）
+67. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+68. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+69. [test_run_registry.py](#test_run_registrypy)（13）
+70. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+71. [test_session_context.py](#test_session_contextpy)（22）
+72. [test_session_seq.py](#test_session_seqpy)（23）
+73. [test_session_store.py](#test_session_storepy)（17）
+74. [test_session_tools.py](#test_session_toolspy)（17）
+75. [test_settings_panel.py](#test_settings_panelpy)（21）
+76. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+77. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+78. [test_subagent.py](#test_subagentpy)（17）
+79. [test_task_tools.py](#test_task_toolspy)（27）
+80. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+81. [test_tool_registry.py](#test_tool_registrypy)（17）
+82. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+83. [test_top_level_services.py](#test_top_level_servicespy)（2）
+84. [test_update.py](#test_updatepy)（25）
+85. [test_update_processes.py](#test_update_processespy)（2）
+86. [test_usage_metrics.py](#test_usage_metricspy)（7）
+87. [test_version_stamp.py](#test_version_stamppy)（4）
+88. [test_visual_operator.py](#test_visual_operatorpy)（130）
+89. [test_web_auth.py](#test_web_authpy)（25）
+90. [test_web_frontend.py](#test_web_frontendpy)（5）
+91. [test_web_shell.py](#test_web_shellpy)（52）
+92. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+93. [test_write_gate.py](#test_write_gatepy)（16）
+94. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+95. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -338,25 +340,41 @@
 | 20 | `VisionDegradeTest` | `test_any_model_keeps_image_parts` | 图片一律原样下发 —— 不按模型名猜能力、不做降级剥图。 |
 | 21 | `VisionDegradeTest` | `test_image_only_message_is_not_empty` | 覆盖「图片一律原样下发：没有任何按模型名降级剥图的分支」：image only message is not empty |
 
+## test_auth_security.py
+
+共 7 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `AuthSecurityTest` | `test_atomic_failure_leaves_no_target` | 覆盖「A class whose instances are single test cases」：atomic failure leaves no target |
+| 2 | `AuthSecurityTest` | `test_audit_hot_path_does_not_spawn` | 覆盖「A class whose instances are single test cases」：audit hot path does not spawn |
+| 3 | `AuthSecurityTest` | `test_directory_and_atomic_secret` | 覆盖「A class whose instances are single test cases」：directory and atomic secret |
+| 4 | `AuthSecurityTest` | `test_missing_path_is_rejected` | 覆盖「A class whose instances are single test cases」：missing path is rejected |
+| 5 | `AuthSecurityTest` | `test_widened_acl_is_rejected_immediately` | 覆盖「A class whose instances are single test cases」：widened acl is rejected immediately |
+| 6 | `AuthSecurityTest` | `test_widened_directory_is_repaired` | 覆盖「A class whose instances are single test cases」：widened directory is repaired |
+| 7 | `AuthSecurityTest` | `test_windows_timeout_is_security_error` | 覆盖「A class whose instances are single test cases」：windows timeout is security error |
+
 ## test_background_tasks.py
 
-共 13 个用例。
+共 15 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `BackgroundTaskManagerTest` | `test_app_wires_manager_and_tool` | 覆盖「A class whose instances are single test cases」：app wires manager and tool |
 | 2 | `BackgroundTaskManagerTest` | `test_argv_is_not_shell_interpreted` | 覆盖「A class whose instances are single test cases」：argv is not shell interpreted |
-| 3 | `BackgroundTaskManagerTest` | `test_batch_groups_tasks_and_filters_exact_id` | 覆盖「A class whose instances are single test cases」：batch groups tasks and filters exact id |
-| 4 | `BackgroundTaskManagerTest` | `test_batch_returns_all_tasks_without_pagination` | 覆盖「A class whose instances are single test cases」：batch returns all tasks without pagination |
-| 5 | `BackgroundTaskManagerTest` | `test_cancel_queued_task` | 覆盖「A class whose instances are single test cases」：cancel queued task |
-| 6 | `BackgroundTaskManagerTest` | `test_completed_output_and_history` | 覆盖「A class whose instances are single test cases」：completed output and history |
-| 7 | `BackgroundTaskManagerTest` | `test_cwd_outside_root_rejected` | 覆盖「A class whose instances are single test cases」：cwd outside root rejected |
-| 8 | `BackgroundTaskManagerTest` | `test_execution_timeout_and_running_cancel` | 覆盖「A class whose instances are single test cases」：execution timeout and running cancel |
-| 9 | `BackgroundTaskManagerTest` | `test_label_required_but_not_unique` | 覆盖「A class whose instances are single test cases」：label required but not unique |
-| 10 | `BackgroundTaskManagerTest` | `test_plan_mode_rejects_create` | 覆盖「A class whose instances are single test cases」：plan mode rejects create |
-| 11 | `BackgroundTaskManagerTest` | `test_queue_capacity_and_cid_isolation` | 覆盖「A class whose instances are single test cases」：queue capacity and cid isolation |
-| 12 | `BackgroundTaskManagerTest` | `test_system_notice_metadata_survives_queue_and_history` | 覆盖「A class whose instances are single test cases」：system notice metadata survives queue and history |
-| 13 | `BackgroundTaskManagerTest` | `test_tool_dispatch_create_list_output_cancel` | 覆盖「A class whose instances are single test cases」：tool dispatch create list output cancel |
+| 3 | `BackgroundTaskManagerTest` | `test_background_process_sees_user_paths` | 覆盖「A class whose instances are single test cases」：background process sees user paths |
+| 4 | `BackgroundTaskManagerTest` | `test_batch_groups_tasks_and_filters_exact_id` | 覆盖「A class whose instances are single test cases」：batch groups tasks and filters exact id |
+| 5 | `BackgroundTaskManagerTest` | `test_batch_returns_all_tasks_without_pagination` | 覆盖「A class whose instances are single test cases」：batch returns all tasks without pagination |
+| 6 | `BackgroundTaskManagerTest` | `test_cancel_queued_task` | 覆盖「A class whose instances are single test cases」：cancel queued task |
+| 7 | `BackgroundTaskManagerTest` | `test_completed_output_and_history` | 覆盖「A class whose instances are single test cases」：completed output and history |
+| 8 | `BackgroundTaskManagerTest` | `test_cwd_outside_root_rejected` | 覆盖「A class whose instances are single test cases」：cwd outside root rejected |
+| 9 | `BackgroundTaskManagerTest` | `test_env_allowlist_keeps_user_paths_excludes_secrets` | 覆盖「A class whose instances are single test cases」：env allowlist keeps user paths excludes secrets |
+| 10 | `BackgroundTaskManagerTest` | `test_execution_timeout_and_running_cancel` | 覆盖「A class whose instances are single test cases」：execution timeout and running cancel |
+| 11 | `BackgroundTaskManagerTest` | `test_label_required_but_not_unique` | 覆盖「A class whose instances are single test cases」：label required but not unique |
+| 12 | `BackgroundTaskManagerTest` | `test_plan_mode_rejects_create` | 覆盖「A class whose instances are single test cases」：plan mode rejects create |
+| 13 | `BackgroundTaskManagerTest` | `test_queue_capacity_and_cid_isolation` | 覆盖「A class whose instances are single test cases」：queue capacity and cid isolation |
+| 14 | `BackgroundTaskManagerTest` | `test_system_notice_metadata_survives_queue_and_history` | 覆盖「A class whose instances are single test cases」：system notice metadata survives queue and history |
+| 15 | `BackgroundTaskManagerTest` | `test_tool_dispatch_create_list_output_cancel` | 覆盖「A class whose instances are single test cases」：tool dispatch create list output cancel |
 
 ## test_batch_f_tools.py
 
@@ -515,7 +533,7 @@
 
 ## test_cli_shell.py
 
-共 19 个用例。
+共 20 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -538,6 +556,7 @@
 | 17 | `ExplicitReleaseTest` | `test_release_drops_only_that_conversation` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release drops only that conversation |
 | 18 | `ExplicitReleaseTest` | `test_release_unknown_and_blank_are_safe` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release unknown and blank are safe |
 | 19 | `ExplicitReleaseTest` | `test_web_release_conversation_reduces_active_count` | 关闭会话 API 调用 release 后 active_count 下降。 |
+| 20 | `InvalidSessionCliTest` | `test_invalid_session_returns_clean_error` | 覆盖「A class whose instances are single test cases」：invalid session returns clean error |
 
 ## test_command_tools.py
 
@@ -751,21 +770,21 @@
 | 149 | `SourceOrderDeclaration` | `test_no_rank_sorts_last` | 没有位次的（应用级来源，不属于任何插件）排在插件段之后。 |
 | 150 | `SourceOrderDeclaration` | `test_rank_beats_registration` | 先注册知识库（位次 1）、后注册 Skills（位次 0），组装仍是 Skills 在前。 |
 | 151 | `SourceOrderDeclaration` | `test_same_rank_keeps_registration_order` | 覆盖「注入源的组装顺序：插件段按插件清单位次排，注册先后不影响结果」：same rank keeps registration order |
-| 152 | `StripRules` | `test_empty` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty |
-| 153 | `StripRules` | `test_empty_mode_note_and_no_marker` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：empty mode note and no marker |
-| 154 | `StripRules` | `test_kb_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：kb never stripped |
-| 155 | `StripRules` | `test_mode_in_the_middle_untouched` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode in the middle untouched |
-| 156 | `StripRules` | `test_mode_removed_by_exact_text` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by exact text |
-| 157 | `StripRules` | `test_mode_removed_by_marker_fallback` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：mode removed by marker fallback |
-| 158 | `StripRules` | `test_new_input_removed_before_mode` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed before mode |
-| 159 | `StripRules` | `test_new_input_removed_when_last` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：new input removed when last |
-| 160 | `StripRules` | `test_non_dict_entry` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：non dict entry |
-| 161 | `StripRules` | `test_only_last_user_removed` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：only last user removed |
-| 162 | `StripRules` | `test_previous_reply_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：previous reply is kept |
-| 163 | `StripRules` | `test_summary_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：summary never stripped |
-| 164 | `StripRules` | `test_system_prompt_never_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：system prompt never stripped |
-| 165 | `StripRules` | `test_tool_result_is_kept` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：tool result is kept |
-| 166 | `StripRules` | `test_two_trailing_systems_both_stripped` | 覆盖「`_context_without_new_input` / `_strip_mode_tail…」：two trailing systems both stripped |
+| 152 | `StripRules` | `test_empty` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：empty |
+| 153 | `StripRules` | `test_empty_mode_note_and_no_marker` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：empty mode note and no marker |
+| 154 | `StripRules` | `test_kb_never_stripped` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：kb never stripped |
+| 155 | `StripRules` | `test_mode_in_the_middle_untouched` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：mode in the middle untouched |
+| 156 | `StripRules` | `test_mode_removed_by_exact_text` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：mode removed by exact text |
+| 157 | `StripRules` | `test_mode_removed_by_marker_fallback` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：mode removed by marker fallback |
+| 158 | `StripRules` | `test_new_input_removed_before_mode` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：new input removed before mode |
+| 159 | `StripRules` | `test_new_input_removed_when_last` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：new input removed when last |
+| 160 | `StripRules` | `test_non_dict_entry` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：non dict entry |
+| 161 | `StripRules` | `test_only_last_user_removed` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：only last user removed |
+| 162 | `StripRules` | `test_previous_reply_is_kept` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：previous reply is kept |
+| 163 | `StripRules` | `test_summary_never_stripped` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：summary never stripped |
+| 164 | `StripRules` | `test_system_prompt_never_stripped` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：system prompt never stripped |
+| 165 | `StripRules` | `test_tool_result_is_kept` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：tool result is kept |
+| 166 | `StripRules` | `test_two_trailing_systems_both_stripped` | 覆盖「`_context_without_new_input` / _strip_mode_tail…」：two trailing systems both stripped |
 | 167 | `TailShape` | `test_mode_is_last` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is last |
 | 168 | `TailShape` | `test_mode_is_system_role` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode is system role |
 | 169 | `TailShape` | `test_mode_swap_changes_only_the_last_entry` | 覆盖「尾部 = 本轮新输入 + 执行模式（模式永远最后）」：mode swap changes only the last entry |
@@ -1052,17 +1071,17 @@
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `LayoutTest` | `test_broken_metadata_only_affects_its_own_version` | 覆盖「结构：`<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：broken metadata only affects its own version |
-| 2 | `LayoutTest` | `test_create_returns_none_for_missing_file` | 覆盖「结构：`<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：create returns none for missing file |
+| 1 | `LayoutTest` | `test_broken_metadata_only_affects_its_own_version` | 覆盖「结构：<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：broken metadata only affects its own version |
+| 2 | `LayoutTest` | `test_create_returns_none_for_missing_file` | 覆盖「结构：<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：create returns none for missing file |
 | 3 | `LayoutTest` | `test_directory_names_carry_no_filename` | 目录名一律是短码 + 时间戳 —— 不塞文件名，也就不出现一串 `_`。 |
 | 4 | `LayoutTest` | `test_files_are_grouped_by_path_hash` | 同一文件的所有版本在同一个哈希目录下。 |
-| 5 | `LayoutTest` | `test_list_for_is_newest_first` | 覆盖「结构：`<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：list for is newest first |
+| 5 | `LayoutTest` | `test_list_for_is_newest_first` | 覆盖「结构：<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：list for is newest first |
 | 6 | `LayoutTest` | `test_long_diff_is_clipped_and_marked` | 超长 diff 截断后要标明截断了 —— 静默截断会被读成"改动就这么点"。 |
-| 7 | `LayoutTest` | `test_read_returns_the_bytes_that_were_backed_up` | 覆盖「结构：`<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：read returns the bytes that were backed up |
+| 7 | `LayoutTest` | `test_read_returns_the_bytes_that_were_backed_up` | 覆盖「结构：<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：read returns the bytes that were backed up |
 | 8 | `LayoutTest` | `test_same_second_versions_keep_chronological_order` | 同一秒内的多次改动必须能排出先后 —— 时间戳要精确到毫秒。 |
 | 9 | `LayoutTest` | `test_two_different_files_never_share_a_group` | 中文名不同的两个文件必须各自一组（净化方案下会互相分不开）。 |
-| 10 | `LayoutTest` | `test_unknown_mod_id_is_none` | 覆盖「结构：`<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：unknown mod id is none |
-| 11 | `LayoutTest` | `test_versions_are_self_describing` | 覆盖「结构：`<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：versions are self describing |
+| 10 | `LayoutTest` | `test_unknown_mod_id_is_none` | 覆盖「结构：<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：unknown mod id is none |
+| 11 | `LayoutTest` | `test_versions_are_self_describing` | 覆盖「结构：<root>/<路径哈希>/<版本目录>/{original,metadata.json…」：versions are self describing |
 | 12 | `PathHashTest` | `test_different_paths_differ` | 覆盖「A class whose instances are single test cases」：different paths differ |
 | 13 | `PathHashTest` | `test_hash_is_short_hex` | 覆盖「A class whose instances are single test cases」：hash is short hex |
 | 14 | `PathHashTest` | `test_same_path_same_hash` | 覆盖「A class whose instances are single test cases」：same path same hash |
@@ -2458,6 +2477,38 @@
 | 128 | `WindowHoverTest` | `test_hover_runs_after_activation_and_before_capture` | 覆盖「窗口悬停：先恢复/置前，再移光标，最后取图」：hover runs after activation and before capture |
 | 129 | `WindowHoverTest` | `test_hover_without_window_captures_the_cursor_layer` | 没给窗口时按光标落点取那一层，避免整屏缩放后看不清控件文字。 |
 | 130 | `WindowHoverTest` | `test_plain_window_capture_does_not_pass_a_prepare_hook` | 覆盖「窗口悬停：先恢复/置前，再移光标，最后取图」：plain window capture does not pass a prepare hook |
+
+## test_web_auth.py
+
+共 25 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `CreateServerAuthTest` | `test_required_mode_has_no_embedded_bypass` | 覆盖「A class whose instances are single test cases」：required mode has no embedded bypass |
+| 2 | `CredentialTest` | `test_store_and_verify` | 覆盖「A class whose instances are single test cases」：store and verify |
+| 3 | `DesktopBootstrapTest` | `test_one_time_loopback_bootstrap_session` | 覆盖「A class whose instances are single test cases」：one time loopback bootstrap session |
+| 4 | `GuiAutoProvisionTest` | `test_gui_startup_creates_initial_password` | 覆盖「A class whose instances are single test cases」：gui startup creates initial password |
+| 5 | `PasswordTest` | `test_hash_roundtrip_and_wrong_password` | 覆盖「A class whose instances are single test cases」：hash roundtrip and wrong password |
+| 6 | `PolicyTest` | `test_public_and_scope` | 覆盖「A class whose instances are single test cases」：public and scope |
+| 7 | `ProviderExtensionTest` | `test_provider_module_can_supply_principal` | 覆盖「A class whose instances are single test cases」：provider module can supply principal |
+| 8 | `RequestBoundaryTest` | `test_trusted_proxy_and_host` | 覆盖「A class whose instances are single test cases」：trusted proxy and host |
+| 9 | `RuntimeTest` | `test_config_reads_auth_section` | 覆盖「A class whose instances are single test cases」：config reads auth section |
+| 10 | `RuntimeTest` | `test_login_issues_session_and_csrf` | 覆盖「A class whose instances are single test cases」：login issues session and csrf |
+| 11 | `RuntimeTest` | `test_public_without_password_is_blocked` | 覆盖「A class whose instances are single test cases」：public without password is blocked |
+| 12 | `RuntimeTest` | `test_unusable_auth_dir_falls_back` | 覆盖「A class whose instances are single test cases」：unusable auth dir falls back |
+| 13 | `SchemaDefaultTest` | `test_schema_uses_copy_not_alias` | 覆盖「A class whose instances are single test cases」：schema uses copy not alias |
+| 14 | `SessionTest` | `test_create_validate_and_revoke` | 覆盖「A class whose instances are single test cases」：create validate and revoke |
+| 15 | `SessionTest` | `test_expiry` | 覆盖「A class whose instances are single test cases」：expiry |
+| 16 | `StreamSessionTest` | `test_stream_drops_revoked_session` | 覆盖「A class whose instances are single test cases」：stream drops revoked session |
+| 17 | `TlsGuardTest` | `test_tls_wraps_socket_and_reports_failure` | 覆盖「A class whose instances are single test cases」：tls wraps socket and reports failure |
+| 18 | `TokenCliTest` | `test_lock_failure_is_reported_without_traceback` | 覆盖「A class whose instances are single test cases」：lock failure is reported without traceback |
+| 19 | `TokenTest` | `test_cross_process_issue_keeps_all_tokens` | 覆盖「A class whose instances are single test cases」：cross process issue keeps all tokens |
+| 20 | `TokenTest` | `test_duplicate_token_name_is_rejected` | 覆盖「A class whose instances are single test cases」：duplicate token name is rejected |
+| 21 | `TokenTest` | `test_issue_does_not_resurrect_revoked` | 覆盖「A class whose instances are single test cases」：issue does not resurrect revoked |
+| 22 | `TokenTest` | `test_issue_verify_and_revoke` | 覆盖「A class whose instances are single test cases」：issue verify and revoke |
+| 23 | `TokenTest` | `test_threaded_issue_keeps_all_tokens` | 覆盖「A class whose instances are single test cases」：threaded issue keeps all tokens |
+| 24 | `WebAuthHttpTest` | `test_guard_login_csrf_and_logout` | 覆盖「A class whose instances are single test cases」：guard login csrf and logout |
+| 25 | `WebAuthHttpTest` | `test_healthz_reports_fallback_target` | 覆盖「A class whose instances are single test cases」：healthz reports fallback target |
 
 ## test_web_frontend.py
 

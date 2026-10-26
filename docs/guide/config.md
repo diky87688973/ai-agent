@@ -111,6 +111,73 @@ enabled = 1
 **插件自己的配置跟着插件走。** AI说话 / 视觉操作 / 知识库 / Skills 的配置入库；`multi_model` 的密钥配置被 `.gitignore` 排除；**内核的 `config.ini` 里没有插件设置**。
 插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.md)。
 
+## HTTP 鉴权
+
+Web 服务默认只绑定 `127.0.0.1`，回环地址免登录。绑定非回环地址时必须先设置密码：
+
+```bash
+agent-web --set-password
+```
+
+`[auth]`：
+
+```ini
+[auth]
+; auto / required / local
+mode = required
+session_hours = 12
+max_failures = 5
+lock_seconds = 300
+trusted_proxies =
+allowed_hosts = 127.0.0.1,localhost,::1
+cookie_secure = auto
+provider_module =
+; GUI 一次性 bootstrap 自动登录；浏览器始终需要登录
+desktop_auto_login = 1
+```
+
+```text
+auto      回环免登录；非回环强制登录；允许公网绑定
+required  任何地址都必须登录
+local     回环免登录；非回环直接拒绝启动
+```
+
+`local` 与 `auto` 的回环行为相同；差别是 `local` 拒绝非回环绑定，`auto` 允许公网绑定但要求登录。
+
+非回环地址没有密码时拒绝启动。
+
+`required` 模式下浏览器始终需要登录。桌面 GUI 使用一次性 bootstrap token 自动建立会话；token 由启动器生成，只通过 WebView URL fragment 传递，浏览器无法获得。
+
+`allowed_hosts` 是 Host 白名单，默认只接受 `127.0.0.1`、`localhost`、`::1`；公网域名或反向代理域名必须显式加入。`trusted_proxies` 只对列表内的代理读取 `X-Forwarded-For` 与 `X-Forwarded-Proto`。
+
+从旧版本升级且原配置没有 `[auth]` 时，默认使用 `auto`；新建配置使用 `required`。已有部署把模式改为 `required` 后，浏览器首次访问需要登录；没有凭据时服务拒绝启动，需先执行 `agent-web --set-password`。
+
+鉴权文件写入 `data/auth/`：Windows 使用 DACL，Linux/macOS 使用 0700 目录与 0600 文件；无法收紧权限时拒绝启动。ACL 被外部改宽时启动会先重置并重新收紧；如果 deny ACE 让 `/reset` 也失败，启动自动切换到 `data/auth2`、`auth3` 等。GUI 会生成新密码继续运行；非 GUI 的 `required` 模式会拒绝启动，需先执行 `agent-web --set-password`。旧目录保留但不再读取，新目录不复制旧密码或 Token。
+
+GUI 首次启动且没有密码时，会自动生成随机密码并写入 `data/auth/initial-password.txt`，GUI 仍可直接打开；浏览器登录密码以该文件为准。
+公网绑定必须提供 TLS：
+
+```bash
+agent-web --host 0.0.0.0 --tls-cert cert.pem --tls-key key.pem
+```
+
+或显式允许无 TLS：
+
+```bash
+agent-web --host 0.0.0.0 --allow-insecure-public
+```
+
+反向代理必须使用 `mode = required`，不能依赖回环地址免登录。
+
+密码、会话和 API Token：
+
+```bash
+agent-web --set-password
+agent-web --issue-token ci --scope chat,read
+agent-web --revoke-token ci
+```
+
+凭证写入 `data/auth/`，不进入发布包，也不进入普通数据备份。
 
 ## 启动参数
 
@@ -121,6 +188,13 @@ enabled = 1
 | `--data-root` | `<工程根>/data` | 数据目录 |
 | `--fs-root` | 本机各盘根 | 文件可见范围。**可重复传** |
 | `--media-root` | 空；取第一个 `--fs-root` | `/api/media` 可读根 |
+| `--set-password` | 无 | 交互式设置访问密码后退出 |
+| `--issue-token NAME` | 无 | 创建 API Token 后退出；同名已存在时拒绝 |
+| `--revoke-token NAME` | 无 | 撤销 API Token 后退出 |
+| `--scope` | `read` | API Token scope，逗号分隔 |
+| `--tls-cert` | 空 | TLS 证书；公网绑定必须提供 |
+| `--tls-key` | 空 | TLS 私钥；公网绑定必须提供 |
+| `--allow-insecure-public` | 关闭 | 显式允许无 TLS 公网 HTTP |
 
 `--fs-root` 重复传参写作 `--fs-root D:\ --fs-root E:\`。
 
@@ -157,6 +231,7 @@ enabled = 1
 | `data/recycle/` | 删除操作的回收目录 |
 | `data/plugin/<插件名>/` | 插件专属存储（插件只看到自己那一层） |
 | `data/cache/` | 派生缓存，含会话加密密钥 |
+| `data/auth/` | 密码凭据、API Token、鉴权日志；不进入发布包 |
 | `data/logs/errors.log` | 进程错误日志（JSONL；内核/插件装配与宿主运行异常；工具业务失败收成 `ToolResult` 后不记此处；超约 2MB 轮转为 `errors.log.1`） |
 
 目录都是按需惰性创建的：全新克隆下只有 `data/` 本身，跑过一轮才会出现用到的那几个。

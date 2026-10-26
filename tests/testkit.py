@@ -9,6 +9,18 @@ from typing import Any
 from unittest import mock
 
 
+def local_auth(app: Any) -> Any:
+    """测试服务的显式本机免登录 auth；生产入口不提供该旁路。"""
+    from agent.config import DEFAULT_CONFIG_PATH
+    from agent.shell.web.auth import AuthRuntime
+
+    root = Path(getattr(app, "data_root", None) or Path.cwd())
+    auth = AuthRuntime.load(root, config_path=DEFAULT_CONFIG_PATH, host="127.0.0.1")
+    auth.local_bypass = True
+    auth.authenticator.local_bypass = True
+    return auth
+
+
 def no_plugins(case: Any) -> None:
     """让本测试用例装配的 App 不装载任何插件。
 

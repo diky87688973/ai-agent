@@ -10,6 +10,7 @@ import argparse
 import ctypes
 import json
 import os
+import secrets
 import shutil
 import socket
 import subprocess
@@ -28,8 +29,19 @@ DEFAULT_PORT = 3156
 DEFAULT_TIMEOUT = 30.0
 
 
+def _show_startup_error(message: str) -> None:
+    """pythonw/双击启动没有 stderr 时给出可见失败原因。"""
+    if sys.stderr is not None or os.name != "nt":
+        return
+    try:
+        ctypes.windll.user32.MessageBoxW(
+            0, str(message), "AI Agent 启动失败", 0x00000010)
+    except (AttributeError, OSError) as exc:
+        report_error("agent.gui.launcher.startup_dialog", exc)
+
+
 def _health_url(host: str, port: int) -> str:
-    return f"http://{host}:{int(port)}/health"
+    return f"http://{host}:{int(port)}/healthz"
 
 
 def _is_agent_health(host: str, port: int, timeout: float = 1.0) -> bool:
@@ -89,7 +101,7 @@ def _web_command() -> Optional[List[str]]:
     return None
 
 
-def _spawn_server(host: str, port: int) -> Optional[subprocess.Popen]:
+def _spawn_server(host: str, port: int, bootstrap: str = "") -> Optional[subprocess.Popen]:
     command = _web_command()
     if command is None:
         print("找不到 Web 服务入口。", file=sys.stderr)
@@ -99,7 +111,11 @@ def _spawn_server(host: str, port: int) -> Optional[subprocess.Popen]:
         "stdin": subprocess.DEVNULL,
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
-        "env": {**os.environ, "AI_AGENT_GUI": "1"},
+        "env": {
+            **os.environ,
+            "AI_AGENT_GUI": "1",
+            "AI_AGENT_GUI_BOOTSTRAP": str(bootstrap or ""),
+        },
     }
     if os.name == "nt":
         options["creationflags"] = (
@@ -309,6 +325,7 @@ class _ServerSupervisor:
         self.host = host
         self.port = port
         self.timeout = timeout
+        self.bootstrap = secrets.token_urlsafe(32)
         self._proc: Optional[subprocess.Popen] = None
         self._job = _WindowsJob()
 
@@ -317,7 +334,7 @@ class _ServerSupervisor:
         return self._proc is not None
 
     def _spawn(self) -> Optional[subprocess.Popen]:
-        proc = _spawn_server(self.host, self.port)
+        proc = _spawn_server(self.host, self.port, self.bootstrap)
         if proc is not None:
             self._proc = proc
             self._job.assign(proc)
@@ -528,17 +545,23 @@ def launch(host: str, port: int, *, open_window: bool = True,
     if port <= 0:
         port = _pick_port(host)
     elif _is_agent_health(host, port):
+        _show_startup_error("指定端口已被占用，无法启动。")
         print("指定端口已被占用。", file=sys.stderr)
         return 1
     supervisor = _ServerSupervisor(host, port, timeout)
     if not supervisor.start():
+        _show_startup_error("Web 服务入口启动失败，请查看 data/logs/web.err.log。")
         return 1
     try:
         ready = supervisor.wait_ready()
         if not ready:
+            _show_startup_error("Web 服务未能就绪，请检查认证配置或查看 data/logs/web.err.log。")
             print("Web 服务在超时前没有就绪。", file=sys.stderr)
             return 1
-        if open_window and not _open_window(f"http://{host}:{int(port)}/", supervisor):
+        if open_window and not _open_window(
+                f"http://{host}:{int(port)}/desktop-login#{supervisor.bootstrap}",
+                supervisor):
+            _show_startup_error("WebView 窗口创建失败，请检查 WebView2 Runtime。")
             return 1
         return 0
     finally:

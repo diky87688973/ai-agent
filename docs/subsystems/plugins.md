@@ -164,7 +164,6 @@ ctx.add_context_source(
 
 自报的 `count` 与返回的正文**逐条对齐**：一个来源返回多条正文时只有第一条带自报数，
 其余按条数算；内核按位置取值，不会拿别的段的数字补位。
-```
 
 - `label` 缺省用插件名；
 - `prefix` 由来源给，宿主在收集时统一拼上；
@@ -315,7 +314,7 @@ await api.del("tasks/t-1");                               // DELETE
 
 `res` 形状是 `{ status, ok, data }`。`api.url(path)` 只拼地址、不发请求。
 
-#### 脚本的加载时机
+### 脚本的加载时机
 
 **上下文段外观**经 `add_ctx_segment_style` 登记，壳层开屏拉 `/api/ctx-segment-styles`
 并调用 `ctxSegments.register` —— 不必为段色单独挂空面板脚本。
@@ -329,7 +328,7 @@ await api.del("tasks/t-1");                               // DELETE
 预载是**串行**的：脚本读全局 `window.aiAgentPluginCurrent` 判断自己属于哪个插件，
 并行加载会互相覆盖这个值。
 
-#### 壳层公共桥
+### 壳层公共桥
 
 插件在**面板之外**（输入区、页头）放置 UI 时，用壳层桥而不是自己拼 URL、
 不读壳层内部变量、不碰 `document.head`：
@@ -360,7 +359,7 @@ window.aiAgentShell.styles.load("ui/model-picker.css");
 「停用 → 再启用」不会重跑开屏脚本，输入区的下拉也不会自动恢复；
 插件变更后需刷新页面。
 
-#### 会话切换通知
+### 会话切换通知
 
 面板内容带会话级状态时（如勾选），会话一换就要重取。壳层广播一个通用事件，
 **谁需要谁订阅**：
@@ -412,8 +411,6 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 目录是模型路由的唯一来源；没有有效条目时模型清单为空。条目构造、去重与校验由插件负责，内核只消费快照。
 
 `multi_model` 是该扩展点的实现，配置与行为见 [multi-model.md](multi-model.md)。
-
-
 
 ## 内置插件示例
 

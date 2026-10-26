@@ -229,12 +229,12 @@ SessionRunner 提供内部通知注入入口
 应用退出 / 会话关闭时 shutdown
 ```
 
-## 旧命令工具
+## 与前台命令工具的分工
 
-`run_command` 不在本功能中复用。
+`run_command` 与 `background_task` 并列，不是兼容层，也不下线。
 
-新功能使用独立的 `BackgroundTaskExecutor`，拥有自己的参数、进程、超时、输出和取消语义。
-旧 `run_command` 在独立的清理项中下线，不作为 `background_task` 的兼容层。
+前台同步短命令、交互、安装构建使用 `run_command`；后台长任务、服务、并行、取消轮询使用 `background_task`。
+`background_task` 使用独立参数、进程、超时、输出和取消语义。
 
 ## 测试
 
