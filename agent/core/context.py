@@ -44,7 +44,7 @@ SERVICE_COMPACTOR_FACTORY = "compactor_factory"  # 压缩器工厂（cid → Con
 SERVICE_ERROR_LOG = "error_log"                  # 错误日志（mechanisms.ErrorLog）
 SERVICE_BACKGROUND_TASKS = "background_tasks"    # 后台任务管理器（按 cid 隔离）
 SERVICE_UPDATE = "update"                        # 软件更新控制器
-SERVICE_SUBAGENTS = "subagents"                  # 子 Agent 管理器
+SERVICE_SUBAGENTS = "subagents"                  # 子智能体管理器
 
 
 class AppContext:

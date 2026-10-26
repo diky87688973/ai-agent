@@ -50,6 +50,7 @@ class QueuedInputModuleTest(unittest.TestCase):
         self.assertEqual(events[0]["data"]["content"], "插入内容")
         self.assertEqual(events[0]["data"]["_sender"], "agent-0001")
         self.assertEqual(events[0]["data"]["_sender_name"], "Worker")
+        self.assertTrue(events[0]["data"]["attachments"][0]["attachment_id"].startswith("att-"))
         self.assertEqual(queue.done, ["q1"])
 
     def test_batch_contains_system_agent_and_user_inserts_only(self) -> None:

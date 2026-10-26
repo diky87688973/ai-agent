@@ -20,7 +20,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from agent.core.events import make_event  # noqa: E402
-from agent.core.input_attachments import MAX_IMAGES, normalize_images  # noqa: E402
+from agent.core.input_attachments import (  # noqa: E402
+    MAX_IMAGES,
+    attachment_id,
+    normalize_images,
+    with_attachment_ids,
+)
+from agent.core.modules.input_mod import InputModule  # noqa: E402
 from agent.core.ports import LogicalRequest  # noqa: E402
 from agent.core.session_log import SessionLog, _user_content  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
@@ -88,6 +94,13 @@ class UserContentTest(unittest.TestCase):
         self.assertEqual(parts[1]["type"], "image_url")
         self.assertTrue(parts[1]["image_url"]["url"].startswith("data:image/png;base64,"))
 
+    def test_user_content_keeps_attachment_reference(self) -> None:
+        data = with_attachment_ids([_img()])[0]
+        parts = _user_content("看图", [data])
+        image = [p for p in parts if p.get("type") == "image_url"][0]
+        self.assertEqual(image["attachment_id"], data["attachment_id"])
+        self.assertEqual(data["attachment_id"], attachment_id(PNG_B64, 0))
+
     def test_image_only_has_no_empty_text_part(self) -> None:
         """纯截图提问：不得插入空文本段。"""
 
@@ -97,6 +110,16 @@ class UserContentTest(unittest.TestCase):
     def test_invalid_attachment_ignored(self) -> None:
 
         self.assertEqual(_user_content("hi", [{"mime": "", "data_base64": "x"}]), "hi")
+
+    def test_input_module_emits_attachment_reference(self) -> None:
+        class _Ports:
+            conversation_id = "cid-12345678"
+            def emit(self, type_, **data):
+                return {"type": type_, "data": data}
+
+        events = list(InputModule("看图", [_img()]).execute(_Ports()))
+        claimed = [e for e in events if e["type"] == "input_claimed"][0]
+        self.assertTrue(claimed["data"]["attachments"][0]["attachment_id"].startswith("att-"))
 
     def test_derive_messages_builds_multimodal_user_message(self) -> None:
 

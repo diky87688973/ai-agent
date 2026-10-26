@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1867** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1876** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -17,7 +17,7 @@
 6. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
 7. [test_architecture_hygiene.py](#test_architecture_hygienepy)（21）
 8. [test_artifact_lock.py](#test_artifact_lockpy)（16）
-9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（19）
+9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（21）
 10. [test_background_tasks.py](#test_background_taskspy)（13）
 11. [test_batch_f_tools.py](#test_batch_f_toolspy)（23）
 12. [test_catalog.py](#test_catalogpy)（8）
@@ -50,7 +50,7 @@
 39. [test_goal_runner.py](#test_goal_runnerpy)（6）
 40. [test_gui_launcher.py](#test_gui_launcherpy)（8）
 41. [test_image_embed.py](#test_image_embedpy)（10）
-42. [test_image_tool.py](#test_image_toolpy)（23）
+42. [test_image_tool.py](#test_image_toolpy)（28）
 43. [test_image_turns.py](#test_image_turnspy)（23）
 44. [test_import_graph.py](#test_import_graphpy)（5）
 45. [test_invest_tools.py](#test_invest_toolspy)（29）
@@ -91,7 +91,7 @@
 80. [test_tool_registry.py](#test_tool_registrypy)（17）
 81. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
 82. [test_top_level_services.py](#test_top_level_servicespy)（2）
-83. [test_update.py](#test_updatepy)（22）
+83. [test_update.py](#test_updatepy)（24）
 84. [test_usage_metrics.py](#test_usage_metricspy)（7）
 85. [test_version_stamp.py](#test_version_stamppy)（4）
 86. [test_visual_operator.py](#test_visual_operatorpy)（130）
@@ -311,7 +311,7 @@
 
 ## test_attachments_autonomy.py
 
-共 19 个用例。
+共 21 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -329,11 +329,13 @@
 | 12 | `UserContentTest` | `test_derive_messages_builds_multimodal_user_message` | 覆盖「附件 → 多模态 content」：derive messages builds multimodal user message |
 | 13 | `UserContentTest` | `test_derive_messages_without_attachments_stays_string` | 覆盖「附件 → 多模态 content」：derive messages without attachments stays string |
 | 14 | `UserContentTest` | `test_image_only_has_no_empty_text_part` | 纯截图提问：不得插入空文本段。 |
-| 15 | `UserContentTest` | `test_invalid_attachment_ignored` | 覆盖「附件 → 多模态 content」：invalid attachment ignored |
-| 16 | `UserContentTest` | `test_no_attachments_is_plain_string` | 覆盖「附件 → 多模态 content」：no attachments is plain string |
-| 17 | `UserContentTest` | `test_text_and_image_parts` | 覆盖「附件 → 多模态 content」：text and image parts |
-| 18 | `VisionDegradeTest` | `test_any_model_keeps_image_parts` | 图片一律原样下发 —— 不按模型名猜能力、不做降级剥图。 |
-| 19 | `VisionDegradeTest` | `test_image_only_message_is_not_empty` | 覆盖「图片一律原样下发：没有任何按模型名降级剥图的分支」：image only message is not empty |
+| 15 | `UserContentTest` | `test_input_module_emits_attachment_reference` | 覆盖「附件 → 多模态 content」：input module emits attachment reference |
+| 16 | `UserContentTest` | `test_invalid_attachment_ignored` | 覆盖「附件 → 多模态 content」：invalid attachment ignored |
+| 17 | `UserContentTest` | `test_no_attachments_is_plain_string` | 覆盖「附件 → 多模态 content」：no attachments is plain string |
+| 18 | `UserContentTest` | `test_text_and_image_parts` | 覆盖「附件 → 多模态 content」：text and image parts |
+| 19 | `UserContentTest` | `test_user_content_keeps_attachment_reference` | 覆盖「附件 → 多模态 content」：user content keeps attachment reference |
+| 20 | `VisionDegradeTest` | `test_any_model_keeps_image_parts` | 图片一律原样下发 —— 不按模型名猜能力、不做降级剥图。 |
+| 21 | `VisionDegradeTest` | `test_image_only_message_is_not_empty` | 覆盖「图片一律原样下发：没有任何按模型名降级剥图的分支」：image only message is not empty |
 
 ## test_background_tasks.py
 
@@ -1244,33 +1246,38 @@
 
 ## test_image_tool.py
 
-共 23 个用例。
+共 28 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `BuildToolPartsTest` | `test_over_budget_reports_note` | 超预算不能静默丢 —— 工具得能告诉模型"有图但没带上"。 |
-| 2 | `BuildToolPartsTest` | `test_parts_and_no_note_within_budget` | 覆盖「工具附件 → 块 + 超限说明（工具侧的正文不该被占位文字污染）」：parts and no note within budget |
-| 3 | `DescribeImageTest` | `test_gif_size` | 覆盖「尺寸解析不依赖 Pillow —— 它是可选依赖，报尺寸是基本功能」：gif size |
-| 4 | `DescribeImageTest` | `test_png_size` | 覆盖「尺寸解析不依赖 Pillow —— 它是可选依赖，报尺寸是基本功能」：png size |
-| 5 | `DescribeImageTest` | `test_unknown_bytes_report_no_mime` | 非图片内容：报空 mime、尺寸 0，不抛。 |
-| 6 | `PipelineCarriesAttachmentsTest` | `test_attachments_survive_pipeline` | 覆盖「管道把返回值上的附件搬进结果信封，工具不必自己知道 call_id」：attachments survive pipeline |
-| 7 | `PipelineCarriesAttachmentsTest` | `test_plain_return_has_no_attachments` | 普通返回值（dict / 字符串）不该凭空多出附件字段。 |
-| 8 | `ReadImageToolTest` | `test_default_keeps_original_size` | 默认不缩放：按图定位坐标的场景不能悄悄改尺寸。 |
-| 9 | `ReadImageToolTest` | `test_empty_file_raises` | 覆盖「工具本体：成功给附件，失败给结构化错误」：empty file raises |
-| 10 | `ReadImageToolTest` | `test_empty_path_raises` | 覆盖「工具本体：成功给附件，失败给结构化错误」：empty path raises |
-| 11 | `ReadImageToolTest` | `test_explicit_max_side_reports_scale` | 显式缩放时必须回报换算比例 —— 否则模型按图上像素操作会全错。 |
-| 12 | `ReadImageToolTest` | `test_missing_file_raises` | 覆盖「工具本体：成功给附件，失败给结构化错误」：missing file raises |
-| 13 | `ReadImageToolTest` | `test_non_image_raises` | 按内容判定：改了扩展名的文本文件不该被当成图片发出去。 |
-| 14 | `ReadImageToolTest` | `test_projection_keeps_tool_chosen_size` | 进模型的那一份不再二次缩放：摘要里的实发尺寸就是模型看到的尺寸。 |
-| 15 | `ReadImageToolTest` | `test_reads_png_and_summarizes` | 覆盖「工具本体：成功给附件，失败给结构化错误」：reads png and summarizes |
-| 16 | `StripProtectsToolImagesTest` | `test_excess_tool_image_is_stripped` | 超出总量闸的老工具图要被剥掉：不限量会随会话线性膨胀。 |
-| 17 | `StripProtectsToolImagesTest` | `test_newest_user_image_wins_over_tool_image` | 配额只够一张时，留给用户刚发的那张 —— 工具图是模型自己请求的， 用户刚发的图才是它这轮要回答的对象。 |
-| 18 | `StripProtectsToolImagesTest` | `test_old_tool_image_survives_turn_window` | 轮次窗口不剥工具图：老工具图不是"重复内联的老用户图"， 它只由总量闸管。窗口只影响用户图。 |
-| 19 | `StripProtectsToolImagesTest` | `test_tool_image_counts_toward_max` | 工具图占总量配额：不限量会让请求体随会话线性膨胀。 |
-| 20 | `StripProtectsToolImagesTest` | `test_tool_image_with_no_user_images_survives` | 纯工具图（用户没发图）必须留着 —— 否则模型永远看不到工具读的图。 |
-| 21 | `ToolContentTest` | `test_empty_text_with_image_gets_placeholder` | 空正文 + 有图：补一句说明，而不是发一个只有图片的 content。 |
-| 22 | `ToolContentTest` | `test_no_attachments_keeps_string` | 没图时保持字符串：多模态数组会让请求体无谓变大，也改变既有形态。 |
-| 23 | `ToolContentTest` | `test_with_image_becomes_array` | 覆盖「工具消息 content 的三态：无图 / 有图 / 只有图」：with image becomes array |
+| 1 | `AttachmentReferenceTest` | `test_placeholder_has_attachment_reference_and_request_cleans_it` | 覆盖「A class whose instances are single test cases」：placeholder has attachment reference and request cleans it |
+| 2 | `AttachmentReferenceTest` | `test_read_image_accepts_attachment_id_from_current_store` | 覆盖「A class whose instances are single test cases」：read image accepts attachment id from current store |
+| 3 | `AttachmentReferenceTest` | `test_read_image_rejects_repeated_attachment_in_same_turn` | 覆盖「A class whose instances are single test cases」：read image rejects repeated attachment in same turn |
+| 4 | `BuildToolPartsTest` | `test_over_budget_reports_note` | 超预算不能静默丢 —— 工具得能告诉模型"有图但没带上"。 |
+| 5 | `BuildToolPartsTest` | `test_parts_and_no_note_within_budget` | 覆盖「工具附件 → 块 + 超限说明（工具侧的正文不该被占位文字污染）」：parts and no note within budget |
+| 6 | `DescribeImageTest` | `test_gif_size` | 覆盖「尺寸解析不依赖 Pillow —— 它是可选依赖，报尺寸是基本功能」：gif size |
+| 7 | `DescribeImageTest` | `test_png_size` | 覆盖「尺寸解析不依赖 Pillow —— 它是可选依赖，报尺寸是基本功能」：png size |
+| 8 | `DescribeImageTest` | `test_unknown_bytes_report_no_mime` | 非图片内容：报空 mime、尺寸 0，不抛。 |
+| 9 | `PipelineCarriesAttachmentsTest` | `test_attachments_survive_pipeline` | 覆盖「管道把返回值上的附件搬进结果信封，工具不必自己知道 call_id」：attachments survive pipeline |
+| 10 | `PipelineCarriesAttachmentsTest` | `test_plain_return_has_no_attachments` | 普通返回值（dict / 字符串）不该凭空多出附件字段。 |
+| 11 | `ReadImageToolTest` | `test_default_keeps_original_size` | 默认不缩放：按图定位坐标的场景不能悄悄改尺寸。 |
+| 12 | `ReadImageToolTest` | `test_empty_file_raises` | 覆盖「工具本体：成功给附件，失败给结构化错误」：empty file raises |
+| 13 | `ReadImageToolTest` | `test_empty_path_raises` | 覆盖「工具本体：成功给附件，失败给结构化错误」：empty path raises |
+| 14 | `ReadImageToolTest` | `test_explicit_max_side_reports_scale` | 显式缩放时必须回报换算比例 —— 否则模型按图上像素操作会全错。 |
+| 15 | `ReadImageToolTest` | `test_missing_file_raises` | 覆盖「工具本体：成功给附件，失败给结构化错误」：missing file raises |
+| 16 | `ReadImageToolTest` | `test_non_image_raises` | 按内容判定：改了扩展名的文本文件不该被当成图片发出去。 |
+| 17 | `ReadImageToolTest` | `test_projection_keeps_tool_chosen_size` | 进模型的那一份不再二次缩放：摘要里的实发尺寸就是模型看到的尺寸。 |
+| 18 | `ReadImageToolTest` | `test_reads_png_and_summarizes` | 覆盖「工具本体：成功给附件，失败给结构化错误」：reads png and summarizes |
+| 19 | `StripProtectsToolImagesTest` | `test_excess_tool_image_is_stripped` | 超出总量闸的老工具图要被剥掉：不限量会随会话线性膨胀。 |
+| 20 | `StripProtectsToolImagesTest` | `test_fifo_keeps_new_tool_image_and_drops_oldest_user_image` | 9 张用户图 + 刚读的工具图：最新的工具图保留，最老的用户图被剥。 |
+| 21 | `StripProtectsToolImagesTest` | `test_newest_tool_image_wins_over_older_user_image` | 较新的工具图同样按先进先出保留，不因是工具图就被压低优先级。 |
+| 22 | `StripProtectsToolImagesTest` | `test_newest_user_image_wins_over_older_tool_image` | 配额只够一张时按时间先进先出，较新的用户图保留。 |
+| 23 | `StripProtectsToolImagesTest` | `test_old_tool_image_survives_turn_window` | 轮次窗口不剥工具图：老工具图不是"重复内联的老用户图"， 它只由总量闸管。窗口只影响用户图。 |
+| 24 | `StripProtectsToolImagesTest` | `test_tool_image_counts_toward_max` | 工具图占总量配额：不限量会让请求体随会话线性膨胀。 |
+| 25 | `StripProtectsToolImagesTest` | `test_tool_image_with_no_user_images_survives` | 纯工具图（用户没发图）必须留着 —— 否则模型永远看不到工具读的图。 |
+| 26 | `ToolContentTest` | `test_empty_text_with_image_gets_placeholder` | 空正文 + 有图：补一句说明，而不是发一个只有图片的 content。 |
+| 27 | `ToolContentTest` | `test_no_attachments_keeps_string` | 没图时保持字符串：多模态数组会让请求体无谓变大，也改变既有形态。 |
+| 28 | `ToolContentTest` | `test_with_image_becomes_array` | 覆盖「工具消息 content 的三态：无图 / 有图 / 只有图」：with image becomes array |
 
 ## test_image_turns.py
 
@@ -1286,13 +1293,13 @@
 | 6 | `StripByTotalCapTest` | `test_cap_and_turns_apply_together` | 轮数先裁掉窗口外，窗口内再按总量裁。 |
 | 7 | `StripByTotalCapTest` | `test_cap_keeps_the_most_recent_turn_first` | 五张的额度：最近一轮三张全保，剩两张给倒数第二轮，最老的一轮全舍。 |
 | 8 | `StripByTotalCapTest` | `test_default_call_applies_bounded_defaults` | 默认保留最近 1 轮；20 张里只留最新一轮的 4 张。 |
-| 9 | `StripByTotalCapTest` | `test_default_cap_is_eight` | 覆盖「轮数之外的第二道闸：总数上限，最近一轮优先」：default cap is eight |
-| 10 | `StripByTotalCapTest` | `test_negative_cap_means_no_limit` | 覆盖「轮数之外的第二道闸：总数上限，最近一轮优先」：negative cap means no limit |
-| 11 | `StripByTotalCapTest` | `test_oldest_turn_is_dropped_whole_before_touching_newer` | 覆盖「轮数之外的第二道闸：总数上限，最近一轮优先」：oldest turn is dropped whole before touching newer |
+| 9 | `StripByTotalCapTest` | `test_default_cap_is_eight` | 覆盖「轮数之外的第二道闸：总数上限，按时间先进先出」：default cap is eight |
+| 10 | `StripByTotalCapTest` | `test_negative_cap_means_no_limit` | 覆盖「轮数之外的第二道闸：总数上限，按时间先进先出」：negative cap means no limit |
+| 11 | `StripByTotalCapTest` | `test_oldest_turn_is_dropped_whole_before_touching_newer` | 覆盖「轮数之外的第二道闸：总数上限，按时间先进先出」：oldest turn is dropped whole before touching newer |
 | 12 | `StripByTotalCapTest` | `test_one_turn_over_the_cap_keeps_the_tail_of_that_turn` | 一轮本身就超上限：留靠后的那几张（同一轮内后发的更可能是"这张图"）。 |
-| 13 | `StripByTotalCapTest` | `test_placeholder_counts_the_dropped_blocks` | 覆盖「轮数之外的第二道闸：总数上限，最近一轮优先」：placeholder counts the dropped blocks |
-| 14 | `StripByTotalCapTest` | `test_within_cap_touches_nothing` | 覆盖「轮数之外的第二道闸：总数上限，最近一轮优先」：within cap touches nothing |
-| 15 | `StripByTotalCapTest` | `test_zero_cap_drops_everything` | 覆盖「轮数之外的第二道闸：总数上限，最近一轮优先」：zero cap drops everything |
+| 13 | `StripByTotalCapTest` | `test_placeholder_counts_the_dropped_blocks` | 覆盖「轮数之外的第二道闸：总数上限，按时间先进先出」：placeholder counts the dropped blocks |
+| 14 | `StripByTotalCapTest` | `test_within_cap_touches_nothing` | 覆盖「轮数之外的第二道闸：总数上限，按时间先进先出」：within cap touches nothing |
+| 15 | `StripByTotalCapTest` | `test_zero_cap_drops_everything` | 覆盖「轮数之外的第二道闸：总数上限，按时间先进先出」：zero cap drops everything |
 | 16 | `StripByTurnTest` | `test_defaults_are_bounded` | 模块默认值有界：最近 1 轮、最多 8 张。 |
 | 17 | `StripByTurnTest` | `test_image_only_turn_keeps_a_placeholder` | 被剥的那轮如果只有图没有字，占位不能是空串（空 content 会被 API 拒）。 |
 | 18 | `StripByTurnTest` | `test_keeps_only_recent_turns` | 覆盖「按轮保留，不是按张」：keeps only recent turns |
@@ -2248,7 +2255,7 @@
 
 ## test_update.py
 
-共 22 个用例。
+共 24 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2261,19 +2268,21 @@
 | 7 | `FileHashTest` | `test_sha256_file` | 覆盖「A class whose instances are single test cases」：sha256 file |
 | 8 | `InstallLayoutTest` | `test_apply_staged_updates_root_and_keeps_backup` | 覆盖「A class whose instances are single test cases」：apply staged updates root and keeps backup |
 | 9 | `InstallLayoutTest` | `test_merge_removes_deleted_key` | 覆盖「A class whose instances are single test cases」：merge removes deleted key |
-| 10 | `InstallLayoutTest` | `test_restore_backup` | 覆盖「A class whose instances are single test cases」：restore backup |
-| 11 | `ManifestTest` | `test_bad_schema` | 覆盖「A class whose instances are single test cases」：bad schema |
-| 12 | `ManifestTest` | `test_check_disabled_without_url` | 覆盖「A class whose instances are single test cases」：check disabled without url |
-| 13 | `ManifestTest` | `test_parse_and_digest` | 覆盖「A class whose instances are single test cases」：parse and digest |
-| 14 | `ManifestTest` | `test_stage_package_from_local_asset` | 覆盖「A class whose instances are single test cases」：stage package from local asset |
-| 15 | `ManifestTest` | `test_zip_paths` | 覆盖「A class whose instances are single test cases」：zip paths |
-| 16 | `PluginConfigTest` | `test_local_secret_filter` | 覆盖「A class whose instances are single test cases」：local secret filter |
-| 17 | `PluginConfigTest` | `test_recover_rolls_back_unhealthy_target` | 覆盖「A class whose instances are single test cases」：recover rolls back unhealthy target |
-| 18 | `PluginConfigTest` | `test_sensitive_config_is_not_default_distribution` | 覆盖「A class whose instances are single test cases」：sensitive config is not default distribution |
-| 19 | `PluginConfigTest` | `test_state_read_write` | 覆盖「A class whose instances are single test cases」：state read write |
-| 20 | `PluginConfigTest` | `test_update_log_tail` | 覆盖「A class whose instances are single test cases」：update log tail |
-| 21 | `VersionTest` | `test_invalid_version` | 覆盖「A class whose instances are single test cases」：invalid version |
-| 22 | `VersionTest` | `test_semver_compare` | 覆盖「A class whose instances are single test cases」：semver compare |
+| 10 | `InstallLayoutTest` | `test_nested_runtime_named_dir_is_backed_up` | 覆盖「A class whose instances are single test cases」：nested runtime named dir is backed up |
+| 11 | `InstallLayoutTest` | `test_restore_backup` | 覆盖「A class whose instances are single test cases」：restore backup |
+| 12 | `ManifestTest` | `test_bad_schema` | 覆盖「A class whose instances are single test cases」：bad schema |
+| 13 | `ManifestTest` | `test_check_disabled_without_url` | 覆盖「A class whose instances are single test cases」：check disabled without url |
+| 14 | `ManifestTest` | `test_parse_and_digest` | 覆盖「A class whose instances are single test cases」：parse and digest |
+| 15 | `ManifestTest` | `test_stage_package_from_local_asset` | 覆盖「A class whose instances are single test cases」：stage package from local asset |
+| 16 | `ManifestTest` | `test_zip_paths` | 覆盖「A class whose instances are single test cases」：zip paths |
+| 17 | `PackagingBlacklistTest` | `test_blacklist_keeps_nested_plugin_data_but_drops_root_runtime` | 覆盖「A class whose instances are single test cases」：blacklist keeps nested plugin data but drops root runtime |
+| 18 | `PluginConfigTest` | `test_local_secret_filter` | 覆盖「A class whose instances are single test cases」：local secret filter |
+| 19 | `PluginConfigTest` | `test_recover_rolls_back_unhealthy_target` | 覆盖「A class whose instances are single test cases」：recover rolls back unhealthy target |
+| 20 | `PluginConfigTest` | `test_sensitive_config_is_not_default_distribution` | 覆盖「A class whose instances are single test cases」：sensitive config is not default distribution |
+| 21 | `PluginConfigTest` | `test_state_read_write` | 覆盖「A class whose instances are single test cases」：state read write |
+| 22 | `PluginConfigTest` | `test_update_log_tail` | 覆盖「A class whose instances are single test cases」：update log tail |
+| 23 | `VersionTest` | `test_invalid_version` | 覆盖「A class whose instances are single test cases」：invalid version |
+| 24 | `VersionTest` | `test_semver_compare` | 覆盖「A class whose instances are single test cases」：semver compare |
 
 ## test_usage_metrics.py
 

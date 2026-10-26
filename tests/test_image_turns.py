@@ -98,7 +98,7 @@ class StripByTurnTest(unittest.TestCase):
 
 
 class StripByTotalCapTest(unittest.TestCase):
-    """轮数之外的第二道闸：总数上限，最近一轮优先。"""
+    """轮数之外的第二道闸：总数上限，按时间先进先出。"""
 
     def test_cap_keeps_the_most_recent_turn_first(self) -> None:
         """五张的额度：最近一轮三张全保，剩两张给倒数第二轮，最老的一轮全舍。"""

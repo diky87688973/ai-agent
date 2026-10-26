@@ -24,11 +24,15 @@ sys.path.insert(0, str(ROOT))
 
 from agent.capabilities.builtin import image_tool  # noqa: E402
 from agent.capabilities.registry import ToolRegistry  # noqa: E402
+from agent.core.context import SERVICE_STORE  # noqa: E402
+from agent.core.events import Event  # noqa: E402
 from agent.core.image_embed import (  # noqa: E402
     build_tool_parts,
     describe_image,
+    strip_attachment_meta,
     strip_old_images,
 )
+from agent.core.input_attachments import attachment_id  # noqa: E402
 from agent.core.session_log import _tool_content  # noqa: E402
 from agent.core.tool_call import ToolCallRequest, ToolPipeline, ToolResult  # noqa: E402
 
@@ -271,14 +275,28 @@ class StripProtectsToolImagesTest(unittest.TestCase):
         total = sum(_img_blocks(m.get("content")) for m in out)
         self.assertEqual(total, 1)
 
-    def test_newest_user_image_wins_over_tool_image(self) -> None:
-        """配额只够一张时，留给用户刚发的那张 —— 工具图是模型自己请求的，
-        用户刚发的图才是它这轮要回答的对象。"""
+    def test_newest_user_image_wins_over_older_tool_image(self) -> None:
+        """配额只够一张时按时间先进先出，较新的用户图保留。"""
         msgs = [self._tool_msg(), self._user_msg("刚发的图")]
         out, _ = strip_old_images(msgs, keep_turns=3, max_images=1)
-        self.assertEqual(_img_blocks(out[0]["content"]), 0, msg="工具图该让位")
+        self.assertEqual(_img_blocks(out[0]["content"]), 0, msg="较老的工具图应先剥")
         self.assertEqual(_img_blocks(out[1]["content"]), 1)
 
+    def test_newest_tool_image_wins_over_older_user_image(self) -> None:
+        """较新的工具图同样按先进先出保留，不因是工具图就被压低优先级。"""
+        msgs = [self._user_msg("老图"), self._tool_msg()]
+        out, _ = strip_old_images(msgs, keep_turns=3, max_images=1)
+        self.assertEqual(_img_blocks(out[0]["content"]), 0, msg="较老的用户图应先剥")
+        self.assertEqual(_img_blocks(out[1]["content"]), 1, msg="较新的工具图应保留")
+
+    def test_fifo_keeps_new_tool_image_and_drops_oldest_user_image(self) -> None:
+        """9 张用户图 + 刚读的工具图：最新的工具图保留，最老的用户图被剥。"""
+        first, _ = strip_old_images([self._user_msg("九张", 9)], keep_turns=1, max_images=8)
+        out, stripped = strip_old_images(first + [self._tool_msg()],
+                                         keep_turns=1, max_images=8)
+        self.assertEqual(stripped, 1)
+        self.assertEqual(_img_blocks(out[0]["content"]), 7)
+        self.assertEqual(_img_blocks(out[1]["content"]), 1)
     def test_old_tool_image_survives_turn_window(self) -> None:
         """轮次窗口不剥工具图：老工具图不是"重复内联的老用户图"，
         它只由总量闸管。窗口只影响用户图。"""
@@ -295,6 +313,123 @@ class StripProtectsToolImagesTest(unittest.TestCase):
         self.assertEqual(_img_blocks(out[1]["content"]), 1)
         self.assertEqual(_img_blocks(out[2]["content"]), 1)
 
+
+
+class AttachmentReferenceTest(unittest.TestCase):
+    def test_placeholder_has_attachment_reference_and_request_cleans_it(self) -> None:
+        png = base64.b64encode(_png(2, 2)).decode()
+        ident = attachment_id(png, 0)
+        msgs = [
+            {"role": "user", "content": [
+                {"type": "text", "text": "旧图"},
+                {"type": "image_url", "attachment_id": ident,
+                 "image_url": {"url": f"data:image/png;base64,{png}"}}]},
+            {"role": "user", "content": [
+                {"type": "image_url",
+                 "image_url": {"url": f"data:image/png;base64,{png}"}}]},
+        ]
+        out, stripped = strip_old_images(msgs, keep_turns=1)
+        self.assertEqual(stripped, 1)
+        text = " ".join(str(p.get("text") or "") for p in out[0]["content"]
+                        if isinstance(p, dict) and p.get("type") == "text")
+        self.assertIn(ident, text)
+        self.assertIn("read_image", text)
+        cleaned = strip_attachment_meta(out)
+        for part in cleaned[0]["content"]:
+            if isinstance(part, dict):
+                self.assertNotIn("attachment_id", part)
+
+    def test_read_image_rejects_repeated_attachment_in_same_turn(self) -> None:
+        from agent.core.context import AppContext
+        from agent.core.tool_call import ToolPipeline
+
+        png = _png(3, 2)
+        data = base64.b64encode(png).decode()
+        ident = attachment_id(data, 0)
+        events = [
+            Event("turn_started", {}),
+            Event("input_claimed", {"attachments": [{
+                "attachment_id": ident, "mime": "image/png",
+                "data_base64": data,
+            }]}),
+            Event("tool_done", {"name": "read_image",
+                                "data": {"attachment_id": ident}}),
+        ]
+
+        class _Store:
+            def load(self, _cid):
+                return events
+
+        class _App:
+            def __init__(self):
+                self.app = AppContext()
+                self.app.register(SERVICE_STORE, _Store())
+
+            def has(self, name):
+                return name == SERVICE_STORE
+
+            def get(self, name):
+                return self.app.get(name)
+
+        class _Ctx:
+            conversation_id = "cid-12345678"
+            app = _App()
+            session = None
+
+        registry = ToolRegistry()
+        registry.register(image_tool.ImageReadTool())
+        result = ToolPipeline().execute(
+            registry,
+            ToolCallRequest(call_id="c2", name="read_image",
+                            arguments={"attachment_id": ident}),
+            _Ctx(),
+        )
+        self.assertFalse(result.ok)
+        self.assertIn("已读取", result.error)
+
+    def test_read_image_accepts_attachment_id_from_current_store(self) -> None:
+        from agent.core.context import AppContext
+        from agent.core.tool_call import ToolPipeline
+
+        png = _png(3, 2)
+        ident = attachment_id(base64.b64encode(png).decode(), 0)
+        event = Event("input_claimed", {"attachments": [{
+            "attachment_id": ident, "mime": "image/png",
+            "data_base64": base64.b64encode(png).decode(),
+        }]})
+
+        class _Store:
+            def load(self, _cid):
+                return [event]
+
+        class _App:
+            def __init__(self):
+                self.app = AppContext()
+                self.app.register(SERVICE_STORE, _Store())
+
+            def has(self, name):
+                return name == SERVICE_STORE
+
+            def get(self, name):
+                return self.app.get(name)
+
+        class _Ctx:
+            conversation_id = "cid-12345678"
+            app = _App()
+            session = None
+
+        pipeline = ToolPipeline()
+        registry = ToolRegistry()
+        registry.register(image_tool.ImageReadTool())
+        result = pipeline.execute(
+            registry,
+            ToolCallRequest(call_id="c1", name="read_image",
+                            arguments={"attachment_id": ident}),
+            _Ctx(),
+        )
+        self.assertTrue(result.ok)
+        self.assertEqual(result.data["attachment_id"], ident)
+        self.assertEqual(len(result.attachments), 1)
 
 if __name__ == "__main__":
     unittest.main()

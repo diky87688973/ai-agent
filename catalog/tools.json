@@ -1003,7 +1003,7 @@
       }
     },
     {
-      "description": "读取本地图片文件并把图片本身交给模型查看（不是 OCR，不需要任何引擎）。适用于：描述图片内容、判断界面/图表/截图里的情况、核对颜色与布局与坐标、读取图中文字。支持 PNG / JPEG / GIF / WebP。默认不缩放，返回值含原图尺寸、实发尺寸与 `scale`（原图宽 / 实发宽）。",
+      "description": "读取本地图片或历史 attachment_id 并把图片本身交给模型查看（不是 OCR，不需要任何引擎）。适用于：描述图片内容、判断界面/图表/截图里的情况、核对颜色与布局与坐标、读取图中文字。支持 PNG / JPEG / GIF / WebP。默认不缩放，返回值含原图尺寸、实发尺寸与 `scale`（原图宽 / 实发宽）。",
       "display": {
         "icon": "👁",
         "label": "看图"
@@ -1011,6 +1011,10 @@
       "name": "read_image",
       "parallel_safe": false,
       "parameters": {
+        "attachment_id": {
+          "description": "历史图片引用；从占位中的 attachment_id 取得",
+          "type": "string"
+        },
         "label": {
           "description": "这张图的来源说明（可选，例如“用户桌面截图”）",
           "type": "string"
@@ -1020,7 +1024,7 @@
           "type": "integer"
         },
         "path": {
-          "description": "图片文件路径（绝对路径或相对工作目录）",
+          "description": "图片文件路径；attachment_id 二选一",
           "type": "string"
         }
       }

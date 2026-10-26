@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterator, Optional, Sequence
 
 from agent.core.event_name import INPUT_CLAIMED, INPUT_ENDED, INPUT_STARTED
+from agent.core.input_attachments import with_attachment_ids
 from agent.core.module import ModuleBase
 from agent.core.outcome import Outcome
 from agent.core.ports import Ports
@@ -50,7 +51,8 @@ class InputModule(ModuleBase):
             # 监听者要能配对上"这次调用结束了"，而不是猜"它到底跑没跑"。
             yield ports.emit(INPUT_ENDED, claimed=False)
             return Outcome.ok()
-        text, attachments = self._text, self._attachments
+        text = self._text
+        attachments = with_attachment_ids(self._attachments)
         sender = self._sender
         from_queue = self._from_queue
         meta = self._meta

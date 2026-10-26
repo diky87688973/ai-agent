@@ -82,13 +82,13 @@ class PluginContext:
         return disposer
 
     def register_tool(self, plugin: ToolPlugin) -> Disposer:
-        """向工具注册表注册插件；子 Agent 可见性由 set_subagent_tools 声明。"""
+        """向工具注册表注册插件；子智能体可见性由 set_subagent_tools 声明。"""
         disposer = self._registry.register(plugin, owner=self.name)
         self._disposers.append(disposer)
         return disposer
 
     def set_subagent_tools(self, tools: Any) -> Disposer:
-        """声明本插件向子 Agent 暴露的工具清单；空清单表示全部不暴露。"""
+        """声明本插件向子智能体暴露的工具清单；空清单表示全部不暴露。"""
         disposer = self._registry.set_subagent_tools(self.name, tools)
         self._disposers.append(disposer)
         return disposer
@@ -117,7 +117,7 @@ class PluginContext:
 
     def add_mode_tail(self, fn: Callable[[str], Any], *,
                       subagent_visible: bool = True) -> Disposer:
-        """注册请求尾部片段；可声明是否注入子 Agent 尾部。"""
+        """注册请求尾部片段；可声明是否注入子智能体尾部。"""
         if self._prompt_tail is None:
             raise RuntimeError("插件未接入请求尾部（PluginHost 未传 prompt_tail）")
         disposer = self._prompt_tail.add(fn, subagent_visible=subagent_visible)
@@ -200,7 +200,7 @@ class PluginContext:
             self._host.register_runtime(self.name, runtime)
 
     def is_subagent(self, conversation_id: str) -> bool:
-        """当前会话是否为子 Agent；插件用它决定是否注入子 Agent 专属内容。"""
+        """当前会话是否为子智能体；插件用它决定是否注入子智能体专属内容。"""
         app = self.app
         context = getattr(app, "context", None)
         if context is None or not context.has(SERVICE_SUBAGENTS):

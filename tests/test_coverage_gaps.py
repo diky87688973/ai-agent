@@ -181,8 +181,8 @@ class ImageHelperTest(unittest.TestCase):
         keep = _select_images(messages, positions, tools, 1, 1)
         out, stripped = _strip_unselected(messages, keep)
         self.assertEqual(stripped, 2)
-        self.assertEqual(len(_image_positions([out[0]], "user")), 1)
-        self.assertEqual(_image_positions([out[2]], "tool"), [])
+        self.assertEqual(_image_positions([out[0]], "user"), [])
+        self.assertEqual(len(_image_positions([out[2]], "tool")), 1)
 
     def test_strip_old_images_negative_limits(self) -> None:
         messages = [{"role": "user", "content": [self._image()]}]

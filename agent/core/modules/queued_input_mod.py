@@ -6,6 +6,7 @@ from typing import Any, Iterator
 
 from agent.core.error_report import report_error
 from agent.core.event_name import INPUT_CLAIMED
+from agent.core.input_attachments import with_attachment_ids
 from agent.core.module import ModuleBase
 from agent.core.outcome import Outcome
 from agent.core.ports import Ports
@@ -39,10 +40,10 @@ class QueuedInputModule(ModuleBase):
             try:
                 payload: dict = {"content": str(item.get("content") or ""),
                                  "_from_queue": 1}
-                attachments = [
+                attachments = with_attachment_ids([
                     row for row in (item.get("attachments") or [])
                     if isinstance(row, dict) and row.get("data_base64")
-                ]
+                ])
                 if attachments:
                     payload["attachments"] = attachments
                 meta = item.get("payload") if isinstance(item.get("payload"), dict) else {}

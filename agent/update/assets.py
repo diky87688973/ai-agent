@@ -15,12 +15,13 @@ def normalized(path: Path) -> str:
 
 
 def is_sensitive_plugin_config(path: Path) -> bool:
-    text = Path(path).as_posix()
-    return any(text.endswith(item) for item in SENSITIVE_PLUGIN_CONFIGS)
+    text = Path(path).as_posix().casefold()
+    return any(text.endswith(str(item).casefold())
+               for item in SENSITIVE_PLUGIN_CONFIGS)
 
 
 def is_local_secret(path: Path) -> bool:
-    name = path.name
+    name = Path(path).name.casefold()
     return (
         name == ".env"
         or name.endswith(".local.ini")

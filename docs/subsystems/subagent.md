@@ -1,4 +1,4 @@
-# 子 Agent
+# 子智能体
 
 ## 边界
 
@@ -30,14 +30,14 @@ build_app(store=...)
   → App.dispose() 调用 shutdown
 ```
 
-没有持久化存储时不提供子 Agent 工具。
+没有持久化存储时不提供子智能体工具。
 `subagent` 只用于父会话；`subagent_send` 只用于子会话。父/子工具视图由 `ToolRegistryView` 过滤，工具实现仍保留在同一个注册表。
 
 ## 数据归属
 
 ```text
 data/batches/<parent_cid>/<batch>.json
-  批次元数据、子 Agent id、label、context
+  批次元数据、子智能体 id、label、context
 
 data/subagent/sessions/<child_id>.raw
   子会话事实
@@ -76,8 +76,8 @@ data/subagent/sessions/<child_id>.raw.lock
 ## 失败与关闭
 
 ```text
-创建批次失败：批次写入原子；失败批次不产生可见子 Agent
-首次启动失败：保留子 Agent 记录并抛出可重试错误
+创建批次失败：批次写入原子；失败批次不产生可见子智能体
+首次启动失败：保留子智能体记录并抛出可重试错误
 子会话存储失败：留痕，不伪造模型输出
 管理器关闭：先退订事件，再 flush 子会话
 ```
@@ -101,5 +101,5 @@ subagent
 subagent_send
 ```
 
-`create` 的 `label` 必填；批次最多 10 个子 Agent；`context` 为 `fork` 或 `fresh`。
+`create` 的 `label` 必填；批次最多 10 个子智能体；`context` 为 `fork` 或 `fresh`。
 `fork` 只复制父会话已结束的回合。`result` 返回子会话最近一次模型输出，不读取状态代替结果。

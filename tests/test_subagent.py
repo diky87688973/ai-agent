@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""子 Agent：批次、fork、生命周期、存储隔离与工具入口。"""
+"""子智能体：批次、fork、生命周期、存储隔离与工具入口。"""
 from __future__ import annotations
 
 import tempfile
@@ -63,7 +63,7 @@ class _ManagerCase(unittest.TestCase):
 
     def _wait(self, child_id: str) -> None:
         if not self.app.runner.wait_idle(child_id, timeout=3):
-            self.fail("子 Agent 回合未在时限内结束")
+            self.fail("子智能体回合未在时限内结束")
 
 
 class SessionStorePathTest(unittest.TestCase):
@@ -344,7 +344,7 @@ class ManagerTest(_ManagerCase):
         self.assertTrue(any(item.get("state") == "inserting" for item in items))
         provider.release.set()
         if not app.runner.wait_idle(result["child_id"], timeout=3):
-            self.fail("子 Agent 回合未在时限内结束")
+            self.fail("子智能体回合未在时限内结束")
 
     def test_system_prompt_uses_role_tool_view(self) -> None:
         parent_prompt = self.app.runner.system_prompt("parent-0001")

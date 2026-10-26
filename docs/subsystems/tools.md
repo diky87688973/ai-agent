@@ -98,7 +98,7 @@ registry.schemas()          # 导出模型可见的工具声明
 | 无证据的修复声明 | 声称修好但无证据时拒绝 |
 | 模式门控 | Plan 模式禁止写盘；Execute 模式须先有非空执行清单 |
 
-## 内置工具（42 个）
+## 内置工具
 
 工具清单的权威来源是 `catalog/tools.json`，它与装配集的一致性由 `scripts/check_catalog.py` 守着。
 
@@ -165,6 +165,7 @@ Markdown 的本地绝对路径链接同样进入右栏；正文里的行内代�
 |---|---|
 | `data_table` | 表格文件预览、筛选、排序、统计与导出 |
 | `archive` | 压缩包 list / extract / create |
+| `read_image` | 读取本地图片或历史 `attachment_id`，把图片交给模型；同一回合拒绝重复读取同一附件 |
 | `image_ocr` | 图片 OCR，支持区域裁剪 |
 | `git_workspace` | Git 工作区只读查询 |
 

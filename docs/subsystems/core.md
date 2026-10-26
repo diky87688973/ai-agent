@@ -125,8 +125,11 @@ set_progress_reporter(fn) / emit_progress(payload)
 
 - `shrink_image()` / `shrink_path()`：本地按长边缩放，压 base64 预算（长边上限 `EMBED_MAX_SIDE = 800`）；
 - `build_embed_parts()`：拼成 Compatible 的 `image_url` 内容块；
-- `strip_old_images()`：只留最近几轮用户发言里的图，并在这些轮内设总量上限（`keep_turns` / `max_images`，默认 1 轮 / 8 张，来自 `[context]` 的 `image_turns` / `image_max`）。超量的从**最老的那一轮**开始砍，所以最近一轮优先保住；
-- `placeholder_text()`：图片被剥离后留下的占位文本。
+- `strip_old_images()`：只留最近几轮用户发言里的图，并在这些轮内设总量上限（`keep_turns` / `max_images`，默认 1 轮 / 8 张，来自 `[context]` 的 `image_turns` / `image_max`）。超量时按消息时间从最老的图片开始剥，最新图片优先保留；同一条消息内先剥最早的图片；
+- `placeholder_text()`：图片因体积预算被跳过时的占位文本；
+- `_drop_selected_blocks()`：图片因轮次/总量配额被剥离时，占位文本携带原图的 `attachment_id`，模型可用 `read_image(attachment_id=...)` 重新读取；
+- `strip_attachment_meta()`：请求发出前移除仅供占位解析的 `attachment_id`，不把内部引用发给供应商；
+- `read_image` 对同一回合内重复读取同一附件返回结构化错误，阻断“读图 → 被剥 → 再读”的循环。
 
 被剥掉的图只从**发给模型的这一份**里消失：事实流里的 base64 一个字节都不动，历史回显与重新提问都还能拿到原图。
 

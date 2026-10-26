@@ -19,7 +19,7 @@ class PromptTail:
             subagent_visible: bool = True) -> Callable[[], None]:
         """注册一个尾部来源；返回幂等 disposer。
 
-        subagent_visible=False 的来源不会渲染到子 Agent 请求尾部。
+        subagent_visible=False 的来源不会渲染到子智能体请求尾部。
         """
         if not callable(fn):
             raise ValueError("尾部来源必须可调用")

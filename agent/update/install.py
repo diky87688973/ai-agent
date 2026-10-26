@@ -9,11 +9,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from agent.update.config_merge import merge_ini
 from agent.update.state import write_state
 
-PROGRAM_DIRS = ("agent", "assets")
-ROOT_FILES = ("VERSION",)
-CONFIG_FILES = ("config.ini", "plugins.ini", "web-ui-config.ini")
+RUNTIME_DIRS = ("data", "updates")
 BACKUP_DIR = "updates/backup"
 STAGING_DIR = "updates/staging"
 
@@ -30,6 +29,8 @@ def payload_root(root: Optional[Path] = None) -> Path:
 
 
 def _backup_root(root: Path, previous: str) -> Path:
+    """备份根目录全部现有文件；data/ 与 updates/ 属于运行态，不备份。"""
+    root = Path(root).resolve()
     base = Path(root) / BACKUP_DIR
     base.mkdir(parents=True, exist_ok=True)
     target = base / previous
@@ -37,14 +38,15 @@ def _backup_root(root: Path, previous: str) -> Path:
     if temporary.exists():
         shutil.rmtree(temporary)
     temporary.mkdir(parents=True)
-    for name in PROGRAM_DIRS:
-        source = Path(root) / name
-        if source.is_dir():
-            shutil.copytree(source, temporary / name)
-    for name in ROOT_FILES + CONFIG_FILES:
-        source = Path(root) / name
-        if source.is_file():
-            shutil.copy2(source, temporary / name)
+    for source in root.rglob("*"):
+        if not source.is_file():
+            continue
+        relative = source.relative_to(root)
+        if relative.parts and relative.parts[0] in RUNTIME_DIRS:
+            continue
+        destination = temporary / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
     for item in base.iterdir():
         if item != temporary:
             if item.is_dir():
@@ -56,47 +58,43 @@ def _backup_root(root: Path, previous: str) -> Path:
 
 
 def restore_backup(root: Path, previous: str) -> bool:
+    """恢复备份中的全部文件，并删除更新新增的文件。"""
+    root = Path(root).resolve()
     backup = Path(root) / BACKUP_DIR / previous
     if not backup.is_dir():
         return False
-    for name in PROGRAM_DIRS:
-        target = Path(root) / name
-        if target.is_dir():
-            shutil.rmtree(target)
-        source = backup / name
-        if source.is_dir():
-            shutil.copytree(source, target)
-    for name in ROOT_FILES + CONFIG_FILES:
-        source = backup / name
-        if source.is_file():
-            shutil.copy2(source, Path(root) / name)
+    for source in backup.rglob("*"):
+        if not source.is_file():
+            continue
+        relative = source.relative_to(backup)
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    for current in root.rglob("*"):
+        if not current.is_file():
+            continue
+        relative = current.relative_to(root)
+        if relative.parts and relative.parts[0] in RUNTIME_DIRS:
+            continue
+        if not (backup / relative).is_file():
+            current.unlink()
     return True
 
 
 def _copy_program(source: Path, root: Path) -> None:
-    for name in PROGRAM_DIRS:
-        target = Path(root) / name
-        incoming = source / name
-        if target.is_dir():
-            shutil.rmtree(target)
-        if incoming.is_dir():
-            shutil.copytree(incoming, target)
-    for name in ROOT_FILES:
-        incoming = source / name
-        if incoming.is_file():
-            shutil.copy2(incoming, Path(root) / name)
-    plugins_root = Path(root) / "plugins"
-    incoming_plugins = source / "plugins"
-    if incoming_plugins.is_dir():
-        plugins_root.mkdir(parents=True, exist_ok=True)
-        for incoming in incoming_plugins.rglob("*"):
-            if not incoming.is_file() or "__pycache__" in incoming.parts:
-                continue
-            relative = incoming.relative_to(incoming_plugins)
-            target = plugins_root / relative
-            if incoming.name == "plugin-config.ini" and target.exists():
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
+    """覆盖 payload 全部文件；*.ini 保留用户 key，其余原样覆盖；不删除。"""
+    root = Path(root).resolve()
+    for incoming in Path(source).rglob("*"):
+        if not incoming.is_file() or "__pycache__" in incoming.parts:
+            continue
+        relative = incoming.relative_to(source)
+        if relative.name == ".ready":
+            continue
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if relative.suffix.lower() == ".ini":
+            merge_ini(target, incoming)
+        else:
             shutil.copy2(incoming, target)
 
 
@@ -122,16 +120,6 @@ def apply_staged(root: Path, staging: Path, version: str) -> Path:
     write_state(root, "switching", previous, version)
     _backup_root(root, previous)
     _copy_program(source, root)
-    from agent.update.config_merge import merge_ini
-    for name in CONFIG_FILES:
-        incoming = source / name
-        if not incoming.is_file():
-            continue
-        current = root / name
-        if current.is_file():
-            merge_ini(current, incoming)
-        else:
-            shutil.copy2(incoming, current)
     (root / "VERSION").write_text(version + "\n", encoding="utf-8")
     return root
 

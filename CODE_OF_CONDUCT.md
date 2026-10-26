@@ -30,6 +30,13 @@
 
 维护者根据影响采取提醒、删除内容、锁定讨论、拒绝贡献或移出协作空间等措施，并尽可能向报告者说明处理结果。
 
-## 归属
+## 来源声明
 
-本准则参考 Contributor Covenant 2.1 的结构编写。
+本行为准则改编自 Contributor Covenant 2.1：
+
+<https://www.contributor-covenant.org/version/2/1/code_of_conduct.html>
+
+Contributor Covenant 采用 Creative Commons Attribution 4.0 International
+许可：
+
+<https://creativecommons.org/licenses/by/4.0/>

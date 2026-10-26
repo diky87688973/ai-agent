@@ -127,7 +127,7 @@ plugins/<插件名>/plugin-meta.json      ← 身份声明
 | 扩展点 | 注册什么 | 内核侧落到哪 |
 |---|---|---|
 | `register_tool(tool)` | 一个 `ToolPlugin` | 工具注册表（执行仍走同一条管道） |
-| `set_subagent_tools(tools)` | 本插件向子 Agent 暴露的工具名清单 | 子 Agent 模拟工具视图；空清单表示全部不暴露 |
+| `set_subagent_tools(tools)` | 本插件向子智能体暴露的工具名清单 | 子智能体模拟工具视图；空清单表示全部不暴露 |
 | `add_executor(name, fn)` | 写类工具的提交执行器 | `ExecutorRegistry`（`commit_write` 提交时按名取） |
 | `subscribe(event_type, handler)` | 事件处理 `handler(event)` | 事件总线 |
 | `add_context_source(fn, meta?)` | 上下文注入源 | `ContextSources`（见下节） |
@@ -275,21 +275,21 @@ ctx.add_action("notes", label="🗒 便签", title="便签")   # 输入框下面
 | 插件 | 面板的 HTML 片段、脚本、样式；内容怎么渲染 |
 | 壳层 | 标签容器、按数据枚举、把资产按路径送达、同源注入 |
 
-## 子 Agent 工具可见性
+## 子智能体工具可见性
 
 插件通过 `ctx.set_subagent_tools([...])` 声明自己的工具清单：
 
 ```text
-不调用：本插件工具对子 Agent 全部可见
-传空列表：本插件工具对子 Agent 全部不可见
-传工具名列表：只有列表中的工具对子 Agent 可见
+不调用：本插件工具对子智能体全部可见
+传空列表：本插件工具对子智能体全部不可见
+传工具名列表：只有列表中的工具对子智能体可见
 ```
 
-内核只按清单过滤子 Agent 的模型工具视图，不复制注册表，也不按插件名写分支。
+内核只按清单过滤子智能体的模型工具视图，不复制注册表，也不按插件名写分支。
 父会话视图不受影响。工具代码仍保留，可由后续插件重新声明。
 
 插件还可以用 `ctx.is_subagent(cid)` 判断当前会话角色，决定是否注入请求尾部文本。
-`ai_speak` 声明空清单，并在子 Agent 会话跳过语音提示尾部。
+`ai_speak` 声明空清单，并在子智能体会话跳过语音提示尾部。
 
 ## 请求尾部
 

@@ -29,7 +29,7 @@
 - Web API 鉴权、SSE 与文件预览越权
 - 依赖供应链问题
 
-`config.ini`、`plugins/*/plugin-config.ini`、`.env`、`data/` 属于本地运行数据，不应提交到仓库。
+仓库内 `config.ini` 与部分插件配置是默认值；包含真实密钥或本地覆盖的 `*.local.ini`、`plugins/multi_model/plugin-config.ini`、`.env`、密钥文件，以及 `data/`，不应提交到仓库。
 
 ## 披露
 

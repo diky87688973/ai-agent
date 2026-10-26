@@ -161,7 +161,7 @@ def _deliver(
     source = mesh.get_agent(src_cid)
     parent_cid = str(source.get("parent_cid") or "").strip()
     if source.get("role") == "subagent" and tid != parent_cid:
-        raise ValueError("subagent_sibling_forbidden：子 Agent 只能向直属父会话发送消息")
+        raise ValueError("subagent_sibling_forbidden：子智能体只能向直属父会话发送消息")
     if not mesh.session_exists(tid):
         raise ValueError(f"target_not_found：目标会话 {tid} 不存在")
     user_msg, sender = _build_peer_message(
@@ -406,7 +406,7 @@ class SessionCreateTool(ToolPlugin):
         skill = str(arguments.get("skill") or "").strip()
         created_by = current_session_id()
         if self._mesh.get_agent(created_by).get("role") == "subagent":
-            raise ValueError("subagent_create_forbidden：子 Agent 不能创建新会话")
+            raise ValueError("subagent_create_forbidden：子智能体不能创建新会话")
         agents: List[Dict[str, Any]] = []
         for i in range(n):
             sid = new_conversation_id()

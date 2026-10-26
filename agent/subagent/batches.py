@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""按父会话、批次分文件的子 Agent 元数据存储。"""
+"""按父会话、批次分文件的子智能体元数据存储。"""
 from __future__ import annotations
 
 import json
@@ -89,7 +89,7 @@ class BatchStore:
         with self._lock:
             record = self.get(parent_cid, batch)
             if len(record.children) >= MAX_CHILDREN:
-                raise BatchError("批次已满（最多 10 个子 Agent）", "batch_full")
+                raise BatchError("批次已满（最多 10 个子智能体）", "batch_full")
             child = SubagentRecord(
                 child_id=str(child_id),
                 parent_cid=str(parent_cid),
@@ -103,7 +103,7 @@ class BatchStore:
             return record
 
     def remove_empty(self, parent_cid: str, batch: str) -> bool:
-        """删除无子 Agent 的批次文件；有子 Agent 时保持不动。"""
+        """删除无子智能体的批次文件；有子智能体时保持不动。"""
         path = self._path(parent_cid, batch)
         with self._lock:
             if not path.is_file():

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""子 Agent 门面：组合持久化、生命周期与消息三个边界。"""
+"""子智能体门面：组合持久化、生命周期与消息三个边界。"""
 from __future__ import annotations
 
 from pathlib import Path

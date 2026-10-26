@@ -1,4 +1,4 @@
-/* subagents.js —— 右侧子 Agent 列表与子会话标签入口。 */
+/* subagents.js —— 右侧子智能体列表与子会话标签入口。 */
 (function () {
   "use strict";
 
@@ -39,10 +39,10 @@
       return;
     }
     if (typeof openSubagentConversation === "function") {
-      openSubagentConversation(child, label || ("子 Agent " + String(child).slice(0, 8)), parent, batch);
+      openSubagentConversation(child, label || ("子智能体 " + String(child).slice(0, 8)), parent, batch);
       return;
     }
-    openConversationFromMenu(child, label || ("子 Agent " + String(child).slice(0, 8)));
+    openConversationFromMenu(child, label || ("子智能体 " + String(child).slice(0, 8)));
   }
 
   function boot() {
@@ -68,8 +68,8 @@
     function setCounts(busy, idle) {
       Array.prototype.forEach.call(panel.querySelectorAll("[data-sub-status]"), function (node) {
         var key = node.getAttribute("data-sub-status");
-        if (key === "busy") node.textContent = busy + " 忙碌";
-        if (key === "idle") node.textContent = idle + " 空闲";
+        if (key === "busy") node.textContent = busy + " 进行中";
+        if (key === "idle") node.textContent = idle + " 已完成";
       });
     }
 
@@ -78,7 +78,7 @@
       if (!rows.length) {
         var empty = document.createElement("div");
         empty.className = "subagent-empty";
-        empty.textContent = "暂无子 Agent";
+        empty.textContent = "暂无子智能体";
         list.appendChild(empty);
         return;
       }
@@ -160,7 +160,7 @@
             list.innerHTML = "";
             var error = document.createElement("div");
             error.className = "subagent-empty";
-            error.textContent = "子 Agent 暂不可用";
+            error.textContent = "子智能体暂不可用";
             list.appendChild(error);
           }
         })

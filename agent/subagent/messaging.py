@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""子 Agent 父子消息投递；不持有会话或批次持久化职责。"""
+"""子智能体父子消息投递；不持有会话或批次持久化职责。"""
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
@@ -23,7 +23,7 @@ class SubagentMessenger:
     def _record_for_parent(self, parent_cid: str, child_id: str) -> SubagentRecord:
         child = self.repository.record(child_id)
         if child.parent_cid != str(parent_cid or "").strip():
-            raise SubagentError("不是该父会话的子 Agent", "parent_mismatch")
+            raise SubagentError("不是该父会话的子智能体", "parent_mismatch")
         return child
 
     def _parent_name(self, parent_cid: str) -> str:

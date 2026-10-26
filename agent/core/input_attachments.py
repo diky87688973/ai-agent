@@ -4,11 +4,32 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 from typing import Any, Dict, List
 
 MAX_IMAGES = 4
 IMAGE_MIMES = ("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif")
 
+
+
+def attachment_id(data_base64: Any, index: int = 0) -> str:
+    """附件的稳定引用：从图片内容派生，刷新前后一致。"""
+    digest = hashlib.sha1(str(data_base64 or "").encode("utf-8")).hexdigest()[:16]
+    return f"att-{digest}-{int(index)}"
+
+
+def with_attachment_ids(attachments: Any) -> List[Dict[str, Any]]:
+    """给输入附件补稳定 attachment_id；不丢未知字段。"""
+    out: List[Dict[str, str]] = []
+    for index, item in enumerate(attachments or []):
+        if not isinstance(item, dict):
+            continue
+        row = dict(item)
+        data = row.get("data_base64")
+        if isinstance(data, str) and data.strip():
+            row["attachment_id"] = str(row.get("attachment_id") or attachment_id(data, index))
+        out.append(row)
+    return out
 
 def normalize_images(raw: Any) -> List[Dict[str, str]]:
     """校验并归一化图片附件；非法项丢弃，数量上限为 `MAX_IMAGES`。"""

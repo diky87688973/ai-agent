@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""子 Agent Web 动作：列表、历史、发送。"""
+"""子智能体 Web 动作：列表、历史、发送。"""
 from __future__ import annotations
 
 from typing import Any, Dict, Tuple
@@ -9,7 +9,7 @@ from agent.subagent.models import SubagentError
 
 
 class SubagentActions:
-    """WebShell 的子 Agent 动作混入。"""
+    """WebShell 的子智能体动作混入。"""
 
     def _subagent_manager(self) -> Any:
         context = getattr(self.app, "context", None)

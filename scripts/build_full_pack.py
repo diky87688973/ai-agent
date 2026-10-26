@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts.pack_common import project_files  # noqa: E402
+from scripts.pack_common import blacklist_reason, project_files  # noqa: E402
 
 
 def build(version: str, output: Path) -> Path:
@@ -30,9 +30,12 @@ def build(version: str, output: Path) -> Path:
         for required in (f"{prefix}/agent-gui.exe", f"{prefix}/VERSION"):
             if required not in names:
                 raise RuntimeError(f"完整包缺少 {required}")
-        for forbidden in ("/.git/", "/data/", "/tests/", "/docs/", "/updates/", "/versions/"):
-            if any(forbidden in f"/{name}" for name in names):
-                raise RuntimeError(f"完整包包含非交付内容：{forbidden}")
+        for name in names:
+            relative = (name[len(prefix) + 1:]
+                        if name.startswith(prefix + "/") else name)
+            reason = blacklist_reason(Path(relative))
+            if reason:
+                raise RuntimeError(f"完整包包含黑名单内容：{name}（{reason}）")
     return archive
 
 

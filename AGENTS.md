@@ -1,32 +1,155 @@
-# 项目 Agent 约定
+# AGENTS.md
 
-## 入口
+本项目是本地运行的 AI Agent：入口读取配置，壳层负责 Web/桌面/CLI，能力层注册工具与插件，机制层提供模型、上下文、存储与门控，内核层执行模块链并产出事实。
 
-- 项目说明：`README.md`
-- 架构：`docs/architecture.md`
-- 模块边界：`docs/engineering-standards.md`
-- 门禁与预算：`docs/quality-gates.md`
-- 配置：`docs/guide/config.md`
-- 用户提交规则：`rules/USER_RULES.md`
-- 项目复核流程：`rules/PROJECT_CHECK.md`
+修改代码前先读：
 
-## 必须执行
+- [`README.md`](README.md)：项目入口与命令
+- [`docs/architecture.md`](docs/architecture.md)：五层结构、模块链、事件与装配
+- [`docs/engineering-standards.md`](docs/engineering-standards.md)：模块职责与资产归属
+- [`docs/quality-gates.md`](docs/quality-gates.md)：门禁、预算与跳过规则
+- [`docs/guide/config.md`](docs/guide/config.md)：配置键与运行态目录
 
-- 修改前读取文件当前内容，修改前备份到 `D:\FanFiles\deepseek-harness-bak\`。
-- 后端改动运行对应 `python -m unittest tests.<module>`。
-- 提交前按 `rules/USER_RULES.md` 完成复核；需要全量门禁时运行 `python scripts/ci.py`。
-- 测试使用临时 `AI_AGENT_DATA_ROOT`，测试数据当场清理。
+## 仓库布局
 
-## 项目边界
+```text
+agent/
+  core/           内核：模块链、宿主、端口、事件与数据契约
+  mechanisms/     模型、上下文、压缩、质量门控、会话存储、协作网格
+  capabilities/   工具注册表、内置工具、插件加载
+  shell/          Web、SSE、经典界面、系统提示词、会话运行
+  entry/          进程入口：读配置、建 App、启动壳
+  app.py          唯一装配根
+  subagent/       父子会话、批次、生命周期与消息投递
+plugins/<name>/   插件自有工具、配置、UI、主题与图标
+rules/            运行规则
+skills/           技能与审计/生产标准
+scripts/          门禁、生成器、验收、构建
+docs/             架构、子系统、指南与设计记录
+tests/            单元测试与验收夹具
+data/             会话与运行态数据，不是源码
+updates/          安装器暂存、备份与状态，不是源码
+```
 
-- `data/` 只读：不删除、不移动、不覆盖用户会话与运行态数据。
-- 未经明确要求不 commit、不 push、不重启进程、不改远端配置。
+## 常用命令
+
+```bash
+python -m pip install -e . -c constraints.txt
+
+# 单元测试
+python -m unittest discover -s tests -p "test_*.py" -t tests
+python -m unittest tests.<module>
+
+# 全量门禁
+python scripts/ci.py
+python scripts/ci.py --fast        # 跳过验收
+python scripts/ci.py --list        # 只列步骤
+
+# 覆盖率
+python scripts/run_coverage.py
+python scripts/check_coverage.py
+
+# 生成物
+python scripts/gen_catalog.py
+python scripts/gen_unit_tests_md.py
+python scripts/gen_complexity_md.py
+python scripts/gen_ci_workflow.py
+
+# 单项检查
+python scripts/check_ui_js.py
+python scripts/check_catalog.py
+python scripts/check_complexity.py
+python scripts/check_readme.py
+```
+
+全量 CI 只在用户明确要求、提交准入或 CI 诊断时运行；日常改动先跑受影响测试和静态检查。
+
+## 架构边界
+
+依赖方向固定为：
+
+```text
+entry → shell → capabilities → mechanisms → core
+```
+
+- `agent/app.py` 是唯一装配根，不属于五层；只有它可以同时引用五层。
+- 任何层不得运行期导入 `agent/app.py` 或 `agent/entry/`；`if TYPE_CHECKING:` 的纯注解除外。
+- `agent/core/` 不得出现具体插件名或具体 provider 实现名。
+- 模块之间通过既有端口、事件、注册表或窄接口通信；不得跨层导入私有名。
+- 控制流走返回值，业务数据走事件；不得把业务数据塞进控制结果。
+- 每份可变状态只有一个权威持有者：进程级在 `AppContext`，会话级在 `SessionContext`/`LiveState`，回合级在 `ToolTurnContext`。
+- 模型可见必须已记录：事实流是唯一真相，界面与模型请求都从事实投影。
+- 工具调用必须经 `ToolPipeline`；模型可见工具由角色视图过滤，提示词与工具 schema 必须使用同一视图。
+
+## 资产归属
+
+新增或移动资产前，先确认：
+
+- 它属于哪个模块，为什么不能由相邻模块拥有
+- 是否能由既有字段派生，因而不新增字段
+- 唯一注册点在哪里
+- 缺失、加载失败、卸载时影响谁
+- 是否有重复副本
+
+约束：
+
+- 插件私有 UI、配置、图标与主题归插件自身；公共壳层资产归 `agent/shell/web/`。
+- Provider 具体实现不互导；只有 `provider_registry.py` 装配具体 provider。
+- `ContextCompactor` 只依赖 `context/contract.py`，不导入上下文管线内部实现。
+- 生成物由脚本生成，不手工维护：
+  `catalog/tools.json`、`docs/unit-tests.md`、`docs/complexity.md`、`.github/workflows/ci.yml`。
+- README 中的用例数、步骤数、验收脚本数必须与代码一致。
+
+## 更新与数据
+
+- `data/` 是用户会话与运行态数据：不删除、不移动、不覆盖，不放入源码树。
+- `updates/` 是安装器状态与备份：不接受源码或测试写入。
+- 更新包默认只增加和覆盖文件，不删除本地文件；删除必须由后续版本显式列出。
+- 普通更新文件按包内路径覆盖；`*.ini` 按 key 合并，保留用户已有配置值。
+- 更新包构建使用黑名单排除运行态、缓存、构建产物与敏感配置；不得改用允许清单。
+- `VERSION` 与 `pyproject.toml` 的版本必须一致。
+
+## 测试与清理
+
+- 测试数据必须指向临时 `AI_AGENT_DATA_ROOT`，测试结束当场清理。
+- 不得为让测试通过修改工程 `data/`、真实配置或运行中的会话。
+- 失败路径、取消路径、边界条件与并发行为必须有测试；只测正常路径不算完成。
+- 新增或修改门禁必须同时提供负向用例，证明坏输入会失败。
+- 前端动态列表使用事件委托，不在每个动态节点上逐个绑监听器。
+
+## 变更纪律
+
+- 修改前读取文件当前内容；修改后复核落盘状态。
 - 不引入项目外 Skills、外部配置、模拟开关或临时旁路。
-- 不把密钥、真实配置、运行态数据、截图或临时文件放入源码树。
+- 不为当前用例在生产代码中留测试分支。
+- 不提交密钥、真实配置、运行态数据、截图、缓存或临时文件。
+- 未经明确要求不 commit、不 push、不重启进程、不改远端配置。
+- 生成物变更后运行对应生成器，并重新运行受影响门禁。
+
+## 注释与文档
+
+- 注释只解释代码为什么这样做、约束、边界与失败后果，不复述代码在做什么。
+- 不写过程叙述、轮次、历史原因、版本/阶段口吻、对读者叮嘱或设计辩护。
+- 文档写当前事实与契约；生成文档以脚本为准。
+- 用户可见文案与错误信息必须具体、可执行，不使用含糊措辞。
 
 ## 冲突处理
 
-1. `production-standards`
-2. `audit-procedure`
-3. 项目文档与 `rules/`
-4. 当前代码与门禁
+按以下顺序判断，不凭记忆或历史对话：
+
+1. `skills/production-standards.md`
+2. `skills/audit-procedure.md`
+3. `docs/architecture.md`、`docs/engineering-standards.md`、`docs/quality-gates.md`
+4. `rules/`
+5. 当前代码与可执行门禁
+
+标准与项目规则冲突时，先修正规则或文档，再改实现。
+
+## 维护本文件
+
+保持本文件是仓库操作手册，不是过程记录：
+
+- 规则必须能落到目录、命令、文档或门禁。
+- 路径使用相对路径，不写死本机目录。
+- 新增约束时同步更新对应门禁或负向测试。
+- 内容变长时先合并重复规则，再考虑增加章节。

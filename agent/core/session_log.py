@@ -34,7 +34,7 @@ def _user_content(text: str, attachments: Any) -> Any:
     if text:
         parts.insert(0, {"type": "text", "text": text})
     # 超预算的附件转占位文字，使模型知道有图未随请求发送。
-    note = placeholder_text(skipped)
+    note = placeholder_text(skipped, attachments)
     if note:
         parts.append({"type": "text", "text": note})
     return parts

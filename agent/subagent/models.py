@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""子 Agent 的持久化元数据形状。"""
+"""子智能体的持久化元数据形状。"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 
 class SubagentError(Exception):
-    """子 Agent 参数或权限错误。"""
+    """子智能体参数或权限错误。"""
 
     def __init__(self, message: str, code: str = "subagent_error") -> None:
         super().__init__(message)

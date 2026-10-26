@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""子 Agent 创建、状态与列表；不直接持久化文件，不拼装消息。"""
+"""子智能体创建、状态与列表；不直接持久化文件，不拼装消息。"""
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -40,7 +40,7 @@ class SubagentLifecycle:
         if not parent:
             raise SubagentError("缺少父会话 id", "missing_parent")
         if self.mesh.get_agent(parent).get("role") == "subagent":
-            raise SubagentError("子 Agent 不能再创建子 Agent", "depth_limit")
+            raise SubagentError("子智能体不能再创建子智能体", "depth_limit")
         text = str(prompt or "").strip()
         title = str(label or "").strip()
         if not text and not normalize_images(images):
@@ -91,7 +91,7 @@ class SubagentLifecycle:
             report_error("agent.subagent.lifecycle.create_start", exc,
                          child_id=child.child_id)
             raise SubagentError(
-                f"子 Agent 首回合启动失败：{exc}", "start_failed",
+                f"子智能体首回合启动失败：{exc}", "start_failed",
             ) from exc
         return {
             "ok": True,
@@ -129,7 +129,7 @@ class SubagentLifecycle:
     def status(self, parent_cid: str, child_id: str) -> Dict[str, Any]:
         child = self.repository.record(child_id)
         if child.parent_cid != str(parent_cid or "").strip():
-            raise SubagentError("不是该父会话的子 Agent", "parent_mismatch")
+            raise SubagentError("不是该父会话的子智能体", "parent_mismatch")
         busy = bool(self.mesh.is_running(child.child_id))
         return {
             "ok": True,

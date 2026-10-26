@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""子 Agent 持久化仓库：会话路径、批次记录、fork 初始化。"""
+"""子智能体持久化仓库：会话路径、批次记录、fork 初始化。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,7 +16,7 @@ MAX_LABEL = 120
 
 
 class SubagentRepository:
-    """只负责子 Agent 数据的持久化归属，不负责消息和运行态。"""
+    """只负责子智能体数据的持久化归属，不负责消息和运行态。"""
 
     def __init__(self, *, data_root: Path, parent_store: SessionStore) -> None:
         self.data_root = Path(data_root)
@@ -52,7 +52,7 @@ class SubagentRepository:
         with self._children_lock:
             child = self._children.get(str(child_id or "").strip())
         if child is None:
-            raise SubagentError("子 Agent 不存在", "child_not_found")
+            raise SubagentError("子智能体不存在", "child_not_found")
         return child
 
     def prepare(
@@ -67,7 +67,7 @@ class SubagentRepository:
         created_batch = not str(batch or "").strip()
         record = self._batch_for(parent_cid, batch)
         if len(record.children) >= MAX_CHILDREN:
-            raise SubagentError("批次已满（最多 10 个子 Agent）", "batch_full")
+            raise SubagentError("批次已满（最多 10 个子智能体）", "batch_full")
         child_id = new_conversation_id()
         try:
             seed_child(
@@ -128,7 +128,7 @@ class SubagentRepository:
     def latest_result(self, parent_cid: str, child_id: str) -> Dict[str, Any]:
         child = self.record(child_id)
         if child.parent_cid != str(parent_cid or "").strip():
-            raise SubagentError("不是该父会话的子 Agent", "parent_mismatch")
+            raise SubagentError("不是该父会话的子智能体", "parent_mismatch")
         result = ""
         for event in reversed(self.child_store.load(child.child_id)):
             if str(event.type) == "model_message":
@@ -145,7 +145,7 @@ class SubagentRepository:
     def history(self, parent_cid: str, child_id: str) -> Dict[str, Any]:
         child = self.record(child_id)
         if child.parent_cid != str(parent_cid or "").strip():
-            raise SubagentError("不是该父会话的子 Agent", "parent_mismatch")
+            raise SubagentError("不是该父会话的子智能体", "parent_mismatch")
         return {
             "conversation_id": child.child_id,
             "parent_cid": child.parent_cid,

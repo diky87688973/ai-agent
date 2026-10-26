@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""子 Agent 运行时与持久化。"""
+"""子智能体运行时与持久化。"""
 from __future__ import annotations
 
 from agent.subagent.batches import BatchError, BatchStore

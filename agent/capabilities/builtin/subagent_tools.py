@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""父子子 Agent 工具：创建、列表、状态、发送与子会话回父。"""
+"""父子智能体工具：创建、列表、状态、发送与子会话回父。"""
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -23,14 +23,14 @@ _IMAGE_PARAM = {
 
 
 class SubagentTool(ToolPlugin):
-    """父会话管理子 Agent。"""
+    """父会话管理子智能体。"""
 
     name = "subagent"
-    label = "子 Agent"
+    label = "子智能体"
     icon = "◈"
     description = (
-        "管理当前会话的子 Agent。create 创建并立即执行首条任务；"
-        "list 按批次查看；status 查询忙闲；result 读取最近一次输出；send 向子 Agent 发消息。"
+        "管理当前会话的子智能体。create 创建并立即执行首条任务；"
+        "list 按批次查看；status 查询忙闲；result 读取最近一次输出；send 向子智能体发消息。"
         "send 强制插入当前回合（打断式发送）。"
     )
     parameters = {
@@ -48,7 +48,7 @@ class SubagentTool(ToolPlugin):
             "description": "fork 复制父会话已完成回合；fresh 使用空上下文",
         },
         "images": _IMAGE_PARAM,
-        "child_id": {"type": "string", "description": "子 Agent id（status / send 必填）"},
+        "child_id": {"type": "string", "description": "子智能体 id（status / send 必填）"},
         "msg": {"type": "string", "description": "消息文本（send 必填）"},
     }
 
@@ -99,7 +99,7 @@ class SubagentSendTool(ToolPlugin):
     label = "发给父会话"
     icon = "↥"
     description = (
-        "向直属父会话发送消息；只能用于子 Agent 会话。"
+        "向直属父会话发送消息；只能用于子智能体会话。"
         "强制插入父会话当前回合（打断式发送）。"
     )
     parameters = {

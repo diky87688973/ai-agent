@@ -149,15 +149,34 @@ def build_embed_parts(
             skipped.append(str(index))
             continue
         used += len(b64)
-        parts.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}})
+        part = {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
+        ident = str(item.get("attachment_id") or "").strip()
+        if ident:
+            part["attachment_id"] = ident
+        parts.append(part)
     return parts, skipped
 
 
-def placeholder_text(indexes: List[str]) -> str:
-    """被跳过的附件 → 一句说明（模型据此知道"有图，但这轮没带上"）。"""
+def placeholder_text(indexes: List[str], attachments: Any = None) -> str:
+    """被跳过的附件 → 一句说明；有 id 时给出可重新读取的引用。"""
     if not indexes:
         return ""
-    return f"（另有 {len(indexes)} 张图片因体积超限未随本轮请求发送）"
+    rows = attachments if isinstance(attachments, list) else []
+    ids = []
+    for raw_index in indexes:
+        text = str(raw_index).strip()
+        if not text.isdigit():
+            continue
+        index = int(text)
+        if 0 <= index < len(rows) and isinstance(rows[index], dict):
+            ident = rows[index].get("attachment_id")
+            if ident:
+                ids.append(str(ident))
+    suffix = ""
+    if ids:
+        suffix = "；可用 read_image(attachment_id=...) 重新查看：" + "、".join(
+            f"`{item}`" for item in ids)
+    return f"（另有 {len(indexes)} 张图片因体积超限未随本轮请求发送{suffix}）"
 
 
 def build_tool_parts(
@@ -305,36 +324,22 @@ def _image_positions(messages: List[Dict[str, Any]], role: str) -> List[int]:
 def _select_images(messages: List[Dict[str, Any]], positions: List[int],
                    tool_positions: List[int], keep_turns: int,
                    max_images: int) -> set:
-    keep_ids: set = set()
-    remaining = max_images
-    window = (positions if keep_turns < 0
-              else positions[-keep_turns:] if keep_turns else [])
-    newest_user = window[-1] if window else -1
-
-    def grant(index: int) -> None:
-        nonlocal remaining
-        if max_images >= 0 and remaining <= 0:
-            return
-        blocks = _image_block_indexes(messages[index])
-        take = len(blocks) if max_images < 0 else min(len(blocks), remaining)
-        keep_ids.update((index, k) for k in blocks[len(blocks) - take:])
-        if max_images >= 0:
-            remaining -= take
-
-    for i in reversed(window):
-        if i == newest_user:
-            grant(i)
-            break
-    for i in reversed(tool_positions):
-        if i > newest_user:
-            grant(i)
-    for i in reversed(window):
-        if i != newest_user:
-            grant(i)
-    for i in reversed(tool_positions):
-        if i <= newest_user:
-            grant(i)
-    return keep_ids
+    """按消息时间先进先出：保留最新的图片，先剥最老的。"""
+    if keep_turns < 0:
+        user_allowed = set(positions)
+    else:
+        user_allowed = set(positions[-keep_turns:] if keep_turns else [])
+    refs: List[tuple[int, int]] = []
+    allowed = user_allowed | set(tool_positions)
+    for index, message in enumerate(messages):
+        if index not in allowed:
+            continue
+        refs.extend((index, block) for block in _image_block_indexes(message))
+    if max_images == 0:
+        return set()
+    if max_images > 0 and len(refs) > max_images:
+        refs = refs[-max_images:]
+    return set(refs)
 
 
 def _strip_unselected(messages: List[Dict[str, Any]], keep_ids: set) -> tuple[list, int]:
@@ -364,7 +369,7 @@ def strip_old_images(
     keep_turns: int = KEEP_IMAGE_TURNS,
     max_images: int = MAX_EMBED_IMAGES,
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """只保留最近若干轮用户图片和工具图片；超出配额转文本占位。"""
+    """按消息时间先进先出保留图片；超出配额先剥最老的。"""
     msgs = list(messages or [])
     if keep_turns < 0 and max_images < 0:
         return msgs, 0
@@ -389,11 +394,48 @@ def _image_block_count(message: Dict[str, Any]) -> int:
 
 
 def _drop_selected_blocks(content: Any, drop: List[int]) -> Any:
-    """摘掉指定下标的图片块；其余块（含没被选中的图片）按原顺序保留，末尾补占位。"""
+    """摘掉指定图片块，并把可重新读取的 attachment_id 写进占位。"""
     if not isinstance(content, list):
         return content
     drop_set = set(drop)
+    ids = [str(part.get("attachment_id") or "").strip()
+           for k, part in enumerate(content)
+           if k in drop_set and isinstance(part, dict)]
+    ids = [item for item in ids if item]
     kept = [part for k, part in enumerate(content) if k not in drop_set]
-    kept.append({"type": "text",
-                 "text": f"（此处原有 {len(drop)} 张图片，已不在本轮请求中；需要时重新发送）"})
+    hint = ""
+    if ids:
+        refs = "、".join(f'`{item}`' for item in ids)
+        hint = f"可用 read_image(attachment_id=...) 重新查看：{refs}"
+    text = (f"（此处原有 {len(drop)} 张图片，已不在本轮请求中；"
+            f"{hint}）" if hint else
+            f"（此处原有 {len(drop)} 张图片，已不在本轮请求中；需要时重新发送）")
+    kept.append({"type": "text", "text": text})
     return kept
+
+
+def strip_attachment_meta(messages: Any) -> List[Dict[str, Any]]:
+    """从请求消息中移除 attachment_id；它只服务占位，不进入供应商请求。"""
+    out: List[Dict[str, Any]] = []
+    changed = False
+    for message in messages or []:
+        if not isinstance(message, dict):
+            out.append(message)
+            continue
+        content = message.get("content")
+        if not isinstance(content, list):
+            out.append(message)
+            continue
+        parts = []
+        local_changed = False
+        for part in content:
+            if isinstance(part, dict) and "attachment_id" in part:
+                part = {k: v for k, v in part.items() if k != "attachment_id"}
+                local_changed = True
+            parts.append(part)
+        if local_changed:
+            out.append({**message, "content": parts})
+            changed = True
+        else:
+            out.append(message)
+    return out if changed else list(messages or [])

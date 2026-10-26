@@ -88,7 +88,7 @@ class ToolRegistry:
         self._owner_subagent_tools: Dict[str, frozenset[str]] = {}
 
     def subagent_hidden(self) -> set[str]:
-        """按插件声明的子 Agent 工具清单计算不可见工具。"""
+        """按插件声明的子智能体工具清单计算不可见工具。"""
         hidden = set()
         for name, owner in self._owners.items():
             allowed = self._owner_subagent_tools.get(owner)
@@ -97,7 +97,7 @@ class ToolRegistry:
         return hidden
 
     def set_subagent_tools(self, owner: str, tools: Any) -> Disposer:
-        """声明某插件向子 Agent 暴露的工具清单；空清单表示全部不暴露。"""
+        """声明某插件向子智能体暴露的工具清单；空清单表示全部不暴露。"""
         key = str(owner or "").strip()
         allowed = frozenset(str(item) for item in (tools or ()))
         previous = self._owner_subagent_tools.get(key)

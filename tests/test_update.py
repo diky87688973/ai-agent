@@ -17,7 +17,44 @@ from agent.update.manifest import manifest_digest, parse_manifest, sha256_file
 from agent.update.stage import UpdateArchiveError, _safe_name, stage_package
 from agent.update.state import read_state, write_state
 from agent.update.version import Version, is_newer
+from scripts.pack_common import project_files
 
+
+class PackagingBlacklistTest(unittest.TestCase):
+    def test_blacklist_keeps_nested_plugin_data_but_drops_root_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            files = {
+                "agent/keep.py": "keep",
+                "plugins/demo/data/asset.txt": "asset",
+                "data/root.txt": "data",
+                "Data/ROOT.txt": "data",
+                "updates/state.json": "state",
+                "tmp/probe.txt": "tmp",
+                "artifacts/shot.png": "shot",
+                "ai_agent.egg-info/PKG-INFO": "meta",
+                "docs/readme.md": "doc",
+                "tests/test_x.py": "test",
+                "plugins/demo/__pycache__/x.pyc": "cache",
+                "plugins/demo/plugin-config.ini": "[x]\na = b\n",
+                "plugins/multi_model/plugin-config.ini": "[model:x]\napi_key = secret\n",
+                ".env": "secret",
+                "debug.log": "log",
+            }
+            for name, body in files.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(body, encoding="utf-8")
+            found = {path.relative_to(root).as_posix() for path in project_files(root)}
+            self.assertIn("agent/keep.py", found)
+            self.assertIn("plugins/demo/data/asset.txt", found)
+            self.assertIn("plugins/demo/plugin-config.ini", found)
+            for name in ("data/root.txt", "Data/ROOT.txt", "updates/state.json",
+                         "tmp/probe.txt", "artifacts/shot.png",
+                         "ai_agent.egg-info/PKG-INFO", "docs/readme.md",
+                         "tests/test_x.py", "plugins/demo/__pycache__/x.pyc",
+                         "plugins/multi_model/plugin-config.ini", ".env", "debug.log"):
+                self.assertNotIn(name, found)
 
 class VersionTest(unittest.TestCase):
     def test_semver_compare(self) -> None:
@@ -96,19 +133,59 @@ class InstallLayoutTest(unittest.TestCase):
             (root / "config.ini").write_text("[agent]\nkeep = user\n", encoding="utf-8")
             (root / "agent").mkdir()
             (root / "agent" / "old.py").write_text("old", encoding="utf-8")
+            (root / "rules").mkdir()
+            (root / "rules" / "SYSTEM.md").write_text("old rule", encoding="utf-8")
             staging = root / "updates" / "staging" / "0.2.0"
             payload = staging / "payload"
             (payload / "agent").mkdir(parents=True)
             (payload / "agent" / "new.py").write_text("new", encoding="utf-8")
+            (payload / "rules").mkdir()
+            (payload / "rules" / "SYSTEM.md").write_text("new rule", encoding="utf-8")
+            (payload / "scripts").mkdir()
+            (payload / "scripts" / "tool.py").write_text("new tool", encoding="utf-8")
+            (payload / "config.ini").write_text(
+                "[agent]\nkeep = default\nnew = version\n", encoding="utf-8")
             (payload / "VERSION").write_text("0.2.0", encoding="utf-8")
             (staging / ".ready").write_text("0.2.0", encoding="utf-8")
             target = apply_staged(root, staging, "0.2.0")
             self.assertEqual(target, root)
             self.assertTrue((root / "agent" / "new.py").is_file())
-            self.assertFalse((root / "agent" / "old.py").exists())
+            self.assertTrue((root / "rules" / "SYSTEM.md").is_file())
+            self.assertEqual((root / "rules" / "SYSTEM.md").read_text(encoding="utf-8"), "new rule")
+            self.assertEqual((root / "scripts" / "tool.py").read_text(encoding="utf-8"), "new tool")
+            self.assertEqual((root / "config.ini").read_text(encoding="utf-8"),
+                             "[agent]\nkeep = user\nnew = version\n\n")
             self.assertEqual((root / "VERSION").read_text(encoding="utf-8").strip(), "0.2.0")
-            self.assertEqual((root / "config.ini").read_text(encoding="utf-8"), "[agent]\nkeep = user\n")
             self.assertTrue((root / "updates" / "backup" / "0.1.0" / "agent" / "old.py").is_file())
+
+    def test_nested_runtime_named_dir_is_backed_up(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "VERSION").write_text("0.1.0", encoding="utf-8")
+            (root / "plugins" / "demo" / "data").mkdir(parents=True)
+            (root / "plugins" / "demo" / "data" / "keep.txt").write_text(
+                "old", encoding="utf-8")
+            (root / "data").mkdir()
+            (root / "data" / "user.txt").write_text("user", encoding="utf-8")
+            staging = root / "updates" / "staging" / "0.2.0"
+            payload = staging / "payload"
+            (payload / "agent").mkdir(parents=True)
+            (payload / "agent" / "__init__.py").write_text("", encoding="utf-8")
+            (payload / "plugins" / "demo" / "data").mkdir(parents=True)
+            (payload / "plugins" / "demo" / "data" / "keep.txt").write_text(
+                "new", encoding="utf-8")
+            (payload / "VERSION").write_text("0.2.0", encoding="utf-8")
+            (staging / ".ready").write_text("0.2.0", encoding="utf-8")
+            apply_staged(root, staging, "0.2.0")
+            self.assertEqual(
+                (root / "plugins" / "demo" / "data" / "keep.txt").read_text(
+                    encoding="utf-8"), "new")
+            self.assertTrue(restore_backup(root, "0.1.0"))
+            self.assertEqual(
+                (root / "plugins" / "demo" / "data" / "keep.txt").read_text(
+                    encoding="utf-8"), "old")
+            self.assertEqual(
+                (root / "data" / "user.txt").read_text(encoding="utf-8"), "user")
 
     def test_merge_removes_deleted_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

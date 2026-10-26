@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from agent.core.image_embed import strip_old_images
+from agent.core.image_embed import strip_attachment_meta, strip_old_images
 
 
 def prepare_dialogue(dialogue: Any, image_turns: int,
@@ -19,4 +19,4 @@ def prepare_dialogue(dialogue: Any, image_turns: int,
     """
     prepared, _stripped = strip_old_images(dialogue, keep_turns=image_turns,
                                            max_images=image_max)
-    return prepared
+    return strip_attachment_meta(prepared)

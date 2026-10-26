@@ -15,7 +15,7 @@ python -m pip install ruff coverage
 
 - 分层顺序为 `entry → shell → capabilities → mechanisms → core`，依赖方向由 `scripts/check_imports.py` 校验。
 - `data/` 是运行时会话数据，测试与开发过程不得写入、移动或删除。
-- `config.ini`、`plugins/*/plugin-config.ini`、`.env` 与密钥文件不进入提交。
+- 仓库内 `config.ini` 与部分插件配置是默认模板；真实密钥、`*.local.ini`、`plugins/multi_model/plugin-config.ini`、`.env` 与密钥文件不进入提交。
 - 工具声明变更后同步生成注册表：`python scripts/gen_catalog.py`。
 - 测试变更后同步生成用例文档：`python scripts/gen_unit_tests_md.py`。
 - CI 工作流由生成器维护：`python scripts/gen_ci_workflow.py --check`。
