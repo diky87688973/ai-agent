@@ -17,6 +17,11 @@ from agent.update.install import (
     restore_backup,
 )
 from agent.update.logs import log_event
+from agent.update.processes import (
+    cleanup_launcher_archives,
+    launch_after_update,
+    stop_old_launcher,
+)
 from agent.update.state import read_state, write_state
 
 
@@ -74,6 +79,23 @@ def main() -> int:
             write_state(root, "rolled_back", previous, version, "health_check_failed")
             return 2
         cleanup_after_success(root, version)
+        try:
+            state_path.unlink()
+        except OSError as exc:
+            log_event(root, "apply_state_cleanup_failed", level="error", error=str(exc))
+            write_state(root, "healthy", previous, version)
+            return 0
+        killed = stop_old_launcher(root)
+        removed = cleanup_launcher_archives(root)
+        if removed:
+            log_event(root, "launcher_archives_cleaned", count=len(removed))
+        remaining = list((root / "updates" / "launcher").glob("agent-gui.exe.old-*"))
+        if remaining:
+            log_event(root, "launcher_archives_remaining", level="error", count=len(remaining))
+        if killed:
+            log_event(root, "old_launcher_stopped", pids=killed)
+            if not launch_after_update(root):
+                log_event(root, "relaunch_failed", level="error")
         write_state(root, "healthy", previous, version)
         log_event(root, "apply_success", version=version)
         return 0
@@ -84,16 +106,20 @@ def main() -> int:
         try:
             restore_backup(root, read_state(root).get("from_version", ""))
         except Exception as rollback:
+            log_event(root, "apply_rollback_failed", level="error", error=str(rollback))
+            report_error("agent.update.apply.rollback", rollback)
             print(f"[update] 回滚失败：{rollback}", file=sys.stderr)
         return 1
     finally:
         try:
             state_path.unlink()
         except OSError as exc:
+            log_event(root, "apply_state_cleanup_failed", level="error", error=str(exc))
             report_error("agent.update.apply.cleanup", exc)
         try:
             cleanup_after_success(root, str(state.get("version") or ""))
         except Exception as exc:
+            log_event(root, "apply_staging_cleanup_failed", level="error", error=str(exc))
             report_error("agent.update.apply.cleanup_staging", exc)
 
 

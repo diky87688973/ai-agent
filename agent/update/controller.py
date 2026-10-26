@@ -42,7 +42,12 @@ class UpdateController:
 
     def check(self) -> Dict[str, Any]:
         log_event(self.root, "check_start", current=self._status.get("current", ""))
-        interval = get_update(self.root / "config.ini").get("check_interval_minutes", 30)
+        try:
+            interval = get_update(self.root / "config.ini").get("check_interval_minutes", 30)
+        except Exception as exc:
+            log_event(self.root, "check_config_failed", level="error",
+                      error=f"{type(exc).__name__}: {exc}")
+            raise
         with self._lock:
             self._status["interval_minutes"] = interval
             if is_dev_checkout(self.root):
@@ -110,12 +115,22 @@ class UpdateController:
                 raise ValueError("更新尚未下载完成")
             version = str(self._manifest.version)
             staging = self.updates / "staging" / version
-            self.updates.mkdir(parents=True, exist_ok=True)
-            (self.updates / "apply.json").write_text(
-                json.dumps({"version": version, "staging": str(staging)},
-                           ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
+            try:
+                self.updates.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                log_event(self.root, "apply_request_failed", level="error",
+                          version=version, error=str(exc))
+                raise
+            try:
+                (self.updates / "apply.json").write_text(
+                    json.dumps({"version": version, "staging": str(staging)},
+                               ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            except OSError as exc:
+                log_event(self.root, "apply_request_failed", level="error",
+                          version=version, error=str(exc))
+                raise
             log_event(self.root, "apply_requested", version=version, staging=str(staging))
             self._status.update({"detail": "restarting"})
         def _finish() -> None:
@@ -125,6 +140,8 @@ class UpdateController:
                     if parent > 0 and parent != os.getpid():
                         os.kill(parent, signal.SIGTERM)
                 except OSError as exc:
+                    log_event(self.root, "gui_stop_failed", level="error",
+                              error=f"{type(exc).__name__}: {exc}")
                     report_error("agent.update.controller.stop_gui", exc)
             os._exit(0)
 

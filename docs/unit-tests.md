@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1878** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1881** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -91,16 +91,17 @@
 80. [test_tool_registry.py](#test_tool_registrypy)（17）
 81. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
 82. [test_top_level_services.py](#test_top_level_servicespy)（2）
-83. [test_update.py](#test_updatepy)（24）
-84. [test_usage_metrics.py](#test_usage_metricspy)（7）
-85. [test_version_stamp.py](#test_version_stamppy)（4）
-86. [test_visual_operator.py](#test_visual_operatorpy)（130）
-87. [test_web_frontend.py](#test_web_frontendpy)（5）
-88. [test_web_shell.py](#test_web_shellpy)（52）
-89. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-90. [test_write_gate.py](#test_write_gatepy)（16）
-91. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-92. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+83. [test_update.py](#test_updatepy)（25）
+84. [test_update_processes.py](#test_update_processespy)（2）
+85. [test_usage_metrics.py](#test_usage_metricspy)（7）
+86. [test_version_stamp.py](#test_version_stamppy)（4）
+87. [test_visual_operator.py](#test_visual_operatorpy)（130）
+88. [test_web_frontend.py](#test_web_frontendpy)（5）
+89. [test_web_shell.py](#test_web_shellpy)（52）
+90. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+91. [test_write_gate.py](#test_write_gatepy)（16）
+92. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+93. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -2257,7 +2258,7 @@
 
 ## test_update.py
 
-共 24 个用例。
+共 25 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2269,22 +2270,32 @@
 | 6 | `CoverageRootTest` | `test_install_helpers` | 覆盖「A class whose instances are single test cases」：install helpers |
 | 7 | `FileHashTest` | `test_sha256_file` | 覆盖「A class whose instances are single test cases」：sha256 file |
 | 8 | `InstallLayoutTest` | `test_apply_staged_updates_root_and_keeps_backup` | 覆盖「A class whose instances are single test cases」：apply staged updates root and keeps backup |
-| 9 | `InstallLayoutTest` | `test_merge_removes_deleted_key` | 覆盖「A class whose instances are single test cases」：merge removes deleted key |
-| 10 | `InstallLayoutTest` | `test_nested_runtime_named_dir_is_backed_up` | 覆盖「A class whose instances are single test cases」：nested runtime named dir is backed up |
-| 11 | `InstallLayoutTest` | `test_restore_backup` | 覆盖「A class whose instances are single test cases」：restore backup |
-| 12 | `ManifestTest` | `test_bad_schema` | 覆盖「A class whose instances are single test cases」：bad schema |
-| 13 | `ManifestTest` | `test_check_disabled_without_url` | 覆盖「A class whose instances are single test cases」：check disabled without url |
-| 14 | `ManifestTest` | `test_parse_and_digest` | 覆盖「A class whose instances are single test cases」：parse and digest |
-| 15 | `ManifestTest` | `test_stage_package_from_local_asset` | 覆盖「A class whose instances are single test cases」：stage package from local asset |
-| 16 | `ManifestTest` | `test_zip_paths` | 覆盖「A class whose instances are single test cases」：zip paths |
-| 17 | `PackagingBlacklistTest` | `test_blacklist_keeps_nested_plugin_data_but_drops_root_runtime` | 覆盖「A class whose instances are single test cases」：blacklist keeps nested plugin data but drops root runtime |
-| 18 | `PluginConfigTest` | `test_local_secret_filter` | 覆盖「A class whose instances are single test cases」：local secret filter |
-| 19 | `PluginConfigTest` | `test_recover_rolls_back_unhealthy_target` | 覆盖「A class whose instances are single test cases」：recover rolls back unhealthy target |
-| 20 | `PluginConfigTest` | `test_sensitive_config_is_not_default_distribution` | 覆盖「A class whose instances are single test cases」：sensitive config is not default distribution |
-| 21 | `PluginConfigTest` | `test_state_read_write` | 覆盖「A class whose instances are single test cases」：state read write |
-| 22 | `PluginConfigTest` | `test_update_log_tail` | 覆盖「A class whose instances are single test cases」：update log tail |
-| 23 | `VersionTest` | `test_invalid_version` | 覆盖「A class whose instances are single test cases」：invalid version |
-| 24 | `VersionTest` | `test_semver_compare` | 覆盖「A class whose instances are single test cases」：semver compare |
+| 9 | `InstallLayoutTest` | `test_locked_launcher_is_archived_then_replaced` | 覆盖「A class whose instances are single test cases」：locked launcher is archived then replaced |
+| 10 | `InstallLayoutTest` | `test_merge_removes_deleted_key` | 覆盖「A class whose instances are single test cases」：merge removes deleted key |
+| 11 | `InstallLayoutTest` | `test_nested_runtime_named_dir_is_backed_up` | 覆盖「A class whose instances are single test cases」：nested runtime named dir is backed up |
+| 12 | `InstallLayoutTest` | `test_restore_backup` | 覆盖「A class whose instances are single test cases」：restore backup |
+| 13 | `ManifestTest` | `test_bad_schema` | 覆盖「A class whose instances are single test cases」：bad schema |
+| 14 | `ManifestTest` | `test_check_disabled_without_url` | 覆盖「A class whose instances are single test cases」：check disabled without url |
+| 15 | `ManifestTest` | `test_parse_and_digest` | 覆盖「A class whose instances are single test cases」：parse and digest |
+| 16 | `ManifestTest` | `test_stage_package_from_local_asset` | 覆盖「A class whose instances are single test cases」：stage package from local asset |
+| 17 | `ManifestTest` | `test_zip_paths` | 覆盖「A class whose instances are single test cases」：zip paths |
+| 18 | `PackagingBlacklistTest` | `test_blacklist_keeps_nested_plugin_data_but_drops_root_runtime` | 覆盖「A class whose instances are single test cases」：blacklist keeps nested plugin data but drops root runtime |
+| 19 | `PluginConfigTest` | `test_local_secret_filter` | 覆盖「A class whose instances are single test cases」：local secret filter |
+| 20 | `PluginConfigTest` | `test_recover_rolls_back_unhealthy_target` | 覆盖「A class whose instances are single test cases」：recover rolls back unhealthy target |
+| 21 | `PluginConfigTest` | `test_sensitive_config_is_not_default_distribution` | 覆盖「A class whose instances are single test cases」：sensitive config is not default distribution |
+| 22 | `PluginConfigTest` | `test_state_read_write` | 覆盖「A class whose instances are single test cases」：state read write |
+| 23 | `PluginConfigTest` | `test_update_log_tail` | 覆盖「A class whose instances are single test cases」：update log tail |
+| 24 | `VersionTest` | `test_invalid_version` | 覆盖「A class whose instances are single test cases」：invalid version |
+| 25 | `VersionTest` | `test_semver_compare` | 覆盖「A class whose instances are single test cases」：semver compare |
+
+## test_update_processes.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ProcessStopTest` | `test_removes_old_launcher_archives` | 覆盖「A class whose instances are single test cases」：removes old launcher archives |
+| 2 | `ProcessStopTest` | `test_stops_matching_running_executable` | 覆盖「A class whose instances are single test cases」：stops matching running executable |
 
 ## test_usage_metrics.py
 

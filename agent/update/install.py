@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -81,6 +82,26 @@ def restore_backup(root: Path, previous: str) -> bool:
     return True
 
 
+def _replace_locked_file(incoming: Path, target: Path, root: Path) -> None:
+    """Windows 锁住正在运行的 exe 时，先改名归档，再写入新文件。
+
+    agent-gui.exe 由它自己启动更新时仍被映射在进程里；Windows 允许改名，
+    不允许直接覆盖。归档放在 updates/ 下，回滚不碰 runtime 目录。
+    """
+    archive_dir = Path(root) / "updates" / "launcher"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    archived = archive_dir / f"{target.name}.old-{time.time_ns()}"
+    target.rename(archived)
+    try:
+        shutil.copy2(incoming, target)
+    except Exception:
+        try:
+            archived.rename(target)
+        except OSError:
+            pass
+        raise
+
+
 def _copy_program(source: Path, root: Path) -> None:
     """覆盖 payload 全部文件；*.ini 保留用户 key，其余原样覆盖；不删除。"""
     root = Path(root).resolve()
@@ -95,7 +116,12 @@ def _copy_program(source: Path, root: Path) -> None:
         if relative.suffix.lower() == ".ini":
             merge_ini(target, incoming)
         else:
-            shutil.copy2(incoming, target)
+            try:
+                shutil.copy2(incoming, target)
+            except OSError as exc:
+                if getattr(exc, "winerror", None) not in (32, 33):
+                    raise
+                _replace_locked_file(incoming, target, root)
 
 
 def _cleanup_staging(root: Path, version: str) -> None:

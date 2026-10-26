@@ -130,6 +130,37 @@ docs/assets/desktop.png（截图包含版本号时必须同步）
 4. 运行受影响检查：`check_readme.py`、`check_ui_js.py`、受影响单测。
 5. 核对 `VERSION`、`pyproject.toml`、README、UI 兜底版本完全一致，截图中的版本与当前版本一致。
 6. 提交、打 tag、创建 Release 必须等用户明确要求；不得升版本后自动发布。
+7. Release 正文必须写明本版内容，不能空白，也不能只有 Full Changelog。
+
+## 发版说明
+
+Release 正文至少包含：
+
+```text
+本版版本号
+本版变更
+修复与兼容性影响
+升级注意事项
+实际执行的验证结果
+```
+
+发布命令必须使用明确的正文来源，例如：
+
+```bash
+gh release create vX.Y.Z <assets> \
+  --title vX.Y.Z \
+  --notes-file release-notes.md
+```
+
+禁止：
+
+```text
+--generate-notes 后正文只有 Full Changelog
+空正文
+只写“常规更新”
+```
+
+`.github/workflows/release.yml` 必须从本版提交说明生成本版正文；正文为空时让 Release 失败，不得创建空 Release。
 
 ## README 截图
 

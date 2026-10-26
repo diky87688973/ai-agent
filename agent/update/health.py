@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from agent.core.error_report import report_error
+from agent.update.logs import log_event
 from agent.update.version import Version
 
 
@@ -34,6 +35,8 @@ def main() -> int:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.bind(("127.0.0.1", 0))
     except Exception as exc:
+        log_event(root, "health_failed", level="error",
+                  error=f"{type(exc).__name__}: {exc}", payload=str(payload))
         report_error("agent.update.health", exc, payload=str(payload))
         print(f"health check failed: {exc}", file=sys.stderr)
         return 1

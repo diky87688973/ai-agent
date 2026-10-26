@@ -44,5 +44,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $date = git log -1 --format=%cd --date=format:%Y-%m-%d
-          gh release create $tag dist\* --title "$tag" --generate-notes
+          $notes = git log -1 --format=%B
+          $body = git log -1 --format=%b
+          if ([string]::IsNullOrWhiteSpace($notes)) { throw "Release notes 为空，拒绝创建 Release" }
+          if ([string]::IsNullOrWhiteSpace($body)) { throw "Release notes 只有标题，缺少正文，拒绝创建 Release" }
+          $notesPath = Join-Path $env:RUNNER_TEMP "release-notes.md"
+          [System.IO.File]::WriteAllText($notesPath, $notes, [System.Text.UTF8Encoding]::new($false))
+          gh release create $tag dist\* --title "$tag" --notes-file $notesPath

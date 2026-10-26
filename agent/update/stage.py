@@ -58,10 +58,10 @@ def stage_package(
     staging_dir = Path(updates_dir) / "staging" / version
     archive = download_dir / manifest.asset_name
     asset_url = urllib.parse.urljoin(manifest_url, manifest.asset_name)
-    if staging_dir.exists():
-        shutil.rmtree(staging_dir)
-    staging_dir.mkdir(parents=True, exist_ok=True)
     try:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+        staging_dir.mkdir(parents=True, exist_ok=True)
         _download(asset_url, archive, manifest.asset_size)
         verify_asset(archive, manifest)
         with zipfile.ZipFile(archive) as bundle:
@@ -91,5 +91,9 @@ def stage_package(
             shutil.rmtree(staging_dir, ignore_errors=True)
         raise
     finally:
-        if archive.exists():
-            archive.unlink()
+        try:
+            if archive.exists():
+                archive.unlink()
+        except OSError as exc:
+            log_event(root, "stage_cleanup_failed", level="error",
+                      version=version, error=str(exc))

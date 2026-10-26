@@ -504,6 +504,8 @@ payload/ 下 *.ini     → key 级合并，用户值优先
 
 删除只允许由后续版本显式列出的删除清单执行，不扫描目录推断，不做白名单/黑名单。
 
+运行中的 `agent-gui.exe` 会被 Windows 锁定：先把旧 exe 改名为 `updates/launcher/agent-gui.exe.old-<时间戳>`，再写入新 exe。健康检查通过后等待 3 秒，旧 GUI 仍存在则终止并启动新 GUI，随后清理归档。
+
 唯一不覆盖的运行态目录：
 
 ```text

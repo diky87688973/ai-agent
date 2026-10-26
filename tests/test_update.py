@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
+from agent.update import install as install_mod
 from agent.update.assets import is_local_secret, is_sensitive_plugin_config
 from agent.update.checker import check
 from agent.update.config_merge import merge_ini
@@ -186,6 +187,35 @@ class InstallLayoutTest(unittest.TestCase):
                     encoding="utf-8"), "old")
             self.assertEqual(
                 (root / "data" / "user.txt").read_text(encoding="utf-8"), "user")
+
+    def test_locked_launcher_is_archived_then_replaced(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "VERSION").write_text("0.1.0", encoding="utf-8")
+            target = root / "agent-gui.exe"
+            target.write_text("old", encoding="utf-8")
+            staging = root / "updates" / "staging" / "0.2.0"
+            payload = staging / "payload"
+            (payload / "agent").mkdir(parents=True)
+            (payload / "agent" / "__init__.py").write_text("", encoding="utf-8")
+            (payload / "agent-gui.exe").write_text("new", encoding="utf-8")
+            (payload / "VERSION").write_text("0.2.0", encoding="utf-8")
+            (staging / ".ready").write_text("0.2.0", encoding="utf-8")
+            original = install_mod.shutil.copy2
+            calls = []
+            def copy2(source, destination):
+                if Path(destination) == target and not calls:
+                    calls.append(1)
+                    error = PermissionError(32, "locked")
+                    error.winerror = 32
+                    raise error
+                return original(source, destination)
+            with patch("agent.update.install.shutil.copy2", side_effect=copy2):
+                apply_staged(root, staging, "0.2.0")
+            self.assertEqual(target.read_text(encoding="utf-8"), "new")
+            archives = list((root / "updates" / "launcher").glob("agent-gui.exe.old-*"))
+            self.assertEqual(len(archives), 1)
+            self.assertEqual(archives[0].read_text(encoding="utf-8"), "old")
 
     def test_merge_removes_deleted_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
