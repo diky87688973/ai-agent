@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from agent.core.error_report import report_error
 from agent.update.config_merge import merge_ini
 from agent.update.state import write_state
 
@@ -97,8 +98,8 @@ def _replace_locked_file(incoming: Path, target: Path, root: Path) -> None:
     except Exception:
         try:
             archived.rename(target)
-        except OSError:
-            pass
+        except OSError as restore_exc:
+            report_error("agent.update.install.restore_locked_target", restore_exc)
         raise
 
 
