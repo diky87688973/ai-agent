@@ -120,7 +120,7 @@ html[data-ui-theme="dark"] textarea::placeholder{color:#70747c}
 .b.a a{color:var(--c-brand-strong)}
 .b.a hr{border:0;border-top:1px solid var(--c-line-1)}
 .b.a code{background:var(--c-code-bg);border:1px solid var(--c-line-1);border-radius:var(--r-sm);color:var(--c-code-inline);padding:1px 5px}
-.b.a pre{background:var(--c-code-bg);border:0;border-radius:var(--r-lg);color:var(--c-code-text);max-height:600px}
+.b.a pre{background:rgba(34,34,34,.5);border:0;border-radius:var(--r-lg);color:var(--c-code-text);max-height:600px}
 
 .b.a pre code{background:transparent;border:0;padding:0;color:inherit}
 .b.a th{background:var(--c-bg-layer);color:var(--c-text-1);font-weight:600}

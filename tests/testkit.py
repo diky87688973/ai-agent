@@ -8,14 +8,21 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
+# 测试 auth 根：不让没有 store 的装配把目录落到 cwd 或工程 data/。
+_AUTH_TEST_ROOT = tempfile.TemporaryDirectory(prefix="ai_agent_auth_")
+
 
 def local_auth(app: Any) -> Any:
     """测试服务的显式本机免登录 auth；生产入口不提供该旁路。"""
     from agent.config import DEFAULT_CONFIG_PATH
     from agent.shell.web.auth import AuthRuntime
 
-    root = Path(getattr(app, "data_root", None) or Path.cwd())
-    auth = AuthRuntime.load(root, config_path=DEFAULT_CONFIG_PATH, host="127.0.0.1")
+    root = getattr(app, "data_root", None)
+    if not root:
+        root = getattr(getattr(app, "store", None), "data_root", None)
+    if not root:
+        root = _AUTH_TEST_ROOT.name
+    auth = AuthRuntime.load(Path(root), config_path=DEFAULT_CONFIG_PATH, host="127.0.0.1")
     auth.local_bypass = True
     auth.authenticator.local_bypass = True
     return auth

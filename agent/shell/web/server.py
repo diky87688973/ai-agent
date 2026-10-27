@@ -26,7 +26,7 @@ if TYPE_CHECKING:  # 只为注解：运行期不导入装配根
     from agent.app import App
 
 
-from agent.config import DEFAULT_CONFIG_PATH
+from agent.config import DEFAULT_CONFIG_PATH, default_data_root
 from agent.core.error_report import report_error
 from agent.mechanisms.session_title import make_provider_title_generator
 from agent.shell.fspaths import (
@@ -164,7 +164,8 @@ def serve(
     这里只做"壳怎么跑"：可见根、媒体根、标题与工作目录的落点都在壳内决定。
     app 从哪来由入口层负责（A2：shell 不导入装配根）。
     """
-    root = Path(data_root) if data_root else Path.cwd()
+    root = (Path(data_root) if data_root
+            else Path(getattr(app.store, "data_root", default_data_root())))
     roots = resolve_fs_roots(fs_root)
     auth = _startup_auth(root, host, tls_cert, tls_key, allow_insecure_public)
     if auth is None:
