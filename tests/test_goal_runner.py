@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""目标驱动的续跑：取消必须生效、轮数有上限、paused/done 不触发。
+"""目标驱动的续跑：取消必须生效、回合数有上限、paused/done 不触发。
 
 关键约束：续跑判定必须同时看目标状态和取消位——只看目标状态时，
-用户点「停止」后运行器仍会以约 90 轮/秒空转（起一轮 → 开头被取消 → 又续跑），
+用户点「停止」后运行器仍会以约 90 轮/秒空转（起一个回合 → 开头被取消 → 又续跑），
 CPU 打满且事实流被灌爆。用真实 `MeshState` + 假 app 构造，不依赖模型。
 """
 from __future__ import annotations
@@ -120,7 +120,7 @@ class CancelTest(_RunnerBase):
         self.assertLessEqual(rounds["n"], _MAX_AUTO_ROUNDS + 1)
 
     def test_goal_rounds_counter_advances(self) -> None:
-        """界面要显示"已自动推进 N 轮"，计数必须真的在涨。"""
+        """界面要显示"已自动推进 N 回合"，计数必须真的在涨。"""
         cid = "goal-count-0001"
         state, runner, rounds = self._make(cid)
         state.set_goal(cid, "持续推进")

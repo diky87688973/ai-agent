@@ -26,7 +26,7 @@ class TurnFrames:
         # 没有它，后续 `usage` / `context_layout` 的渲染守卫不过，底栏永远不更新。
         # 内核的 `turn_started` 不带 mode/model，所以用注入的解析器现场取。
         # 不带 `model`：模型不由服务端推送。
-        # 若每轮都推一次，前端会照单接收并覆盖 `selectedModel` ⇒
+        # 若每回合都推一次，前端会照单接收并覆盖 `selectedModel` ⇒
         # "发一条消息，模型下拉自己跳回默认"。
         # 规则：首次打开页面拉一次当前模型，此后一律以发送消息那一刻
         # 前端带来的 `model` 为准 —— 服务端不反向覆盖用户当场的选择。
@@ -112,7 +112,7 @@ class TurnFrames:
         （"趟"是宿主的实现细节）——只认"步开始"的话，步骤面板彻底空。
 
         这里让适配层吸收两种词汇：历史记录用"步开始"、当前用"模型调用开始"，
-        对经典界面是同一件事——新一轮要起卡了。
+        对经典界面是同一件事——新回合要起卡了。
 
         顺带把 `llm_request.params` 用真实携带的信息填满
         （`model` / `messages` / `tools` 取自当轮实况）。
@@ -144,7 +144,7 @@ class TurnFrames:
         内核没有该事件，这里按当轮实况组；拿不到的字段给 None——
         经典界面只是 `JSON.stringify`，显示 null 比显示假数字诚实。
 
-        `model` 不能为空：请求快照要写出这一轮用的模型名，空串就回落注入的模型名。
+        `model` 不能为空：请求快照要写出这一回合用的模型名，空串就回落注入的模型名。
         """
         return {
             "round": self.round,
@@ -191,10 +191,10 @@ class TurnFrames:
             ))
             out.append(self._ev(C.EV_LLM_DONE))
             self._step_had_llm = False
-            # 正在等用户作答时不发 `assistant`：暂停那一轮通常没有正文，
+            # 正在等用户作答时不发 `assistant`：暂停那一回合通常没有正文，
             # 而经典界面的 `assistant` 分支是 `if(!finalizeAssistantStream(c)){add("a", c||"");}`——
             # 没有流式气泡时它会 `add("a","")`，渲染出一个空气泡。
-            # 那一轮的可见产出是确认模态，不是对话区里的文字。
+            # 那一回合的可见产出是确认模态，不是对话区里的文字。
             if content and not self._awaiting_confirm:
                 out.append(self._ev(C.EV_ASSISTANT, content=content))
         # 上下文分段条：每步发一次。
@@ -239,7 +239,7 @@ class TurnFrames:
 
         暂停同样发 `done`：SSE 的生命周期要完整（客户端总能看到收尾），
         而"这不是正常收尾"由 `paused_for_user_confirm` 表达——
-        经典界面收到它就把本轮标记为"待用户确认"，随后 `done` 会短路收尾
+        经典界面收到它就把本回合标记为"待用户确认"，随后 `done` 会短路收尾
         （`if(endedAwaitingUserConfirm){hideChatLoading();return;}`：
         不提升思考、不刷新标题）。
         内核不阻塞、不等待；暂停 = 回合结束 + 信令；恢复由用户操作触发。

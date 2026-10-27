@@ -61,7 +61,7 @@ Five concrete modules live in the `agent/core/modules/` package:
 
 **`InputModule`**: with input it emits `input_claimed` and returns `ok`; **with no input it emits no `input_claimed`**, only the terminal `input_ended`. This is required because a resume turn triggered by an interface confirmation has no user utterance; emitting an empty `input_claimed` there would make the message sequence `…assistant(tool_calls) → user("") → tool`, which the model API rejects.
 
-**`QueuedInputModule`**: its position is fixed before compaction. Inserted messages become new user turns, and compaction must see them; otherwise compacting against the old budget immediately after an insertion would drop the new messages. It consumes all pending insertion requests in one execution.
+**`QueuedInputModule`**: its position is fixed before compaction. Inserted messages become new user rounds, and compaction must see them; otherwise compacting against the old budget immediately after an insertion would drop the new messages. It consumes all pending insertion requests in one execution.
 
 **`CompressModule`**: performs the context budget check before assembly and compacts above the threshold. It never requests another pass: compaction is preparation. A missing or failing compactor always passes through: compaction is an enhancement and never blocks a turn.
 

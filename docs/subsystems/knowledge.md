@@ -64,7 +64,7 @@ Selections are recorded **per conversation**: the key is the conversation id and
 - writes replace the whole set: an empty list clears that conversation's selection;
 - paths that fail validation are dropped; the return value contains the paths actually accepted.
 
-A selection change calls `bump_context_sources` on the host registry, making the assembly side discard cached collection results; when the hook is unavailable, the change takes effect on the next round.
+A selection change calls `bump_context_sources` on the host registry, making the assembly side discard cached collection results; when the hook is unavailable, the change takes effect on the next turn.
 
 ## Injection
 

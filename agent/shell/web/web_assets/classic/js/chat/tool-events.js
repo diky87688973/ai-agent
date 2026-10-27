@@ -1,4 +1,4 @@
-/* chat/tool-events.js —— 本轮结束收尾：重置步骤与运行态。
+/* chat/tool-events.js —— 本回合结束收尾：重置步骤与运行态。
  *
  * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
@@ -15,7 +15,7 @@ o.tag.textContent="进行中";
 o.tag.className="tag tag-run";
 /* 立即写终态标签。
    若把标签 push 进 `pendingToolTags`、等 `llm_done` 才 flush，
-   一轮里多个工具时，已结束的工具会一直显示「进行中」直到整轮结束。
+   一回合里多个工具时，已结束的工具会一直显示「进行中」直到整回合结束。
    `ok` 来自真实的工具结果（`tool_end.ok`），此刻就能定终态。 */
 o.tag.textContent=(!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"Done":"Fail";
 o.tag.className="tag "+((!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"ok":"bad");

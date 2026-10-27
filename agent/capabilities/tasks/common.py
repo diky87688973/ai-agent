@@ -12,7 +12,7 @@ INTERACTIVE_UI_ENABLED = False
 class UserConfirmRequired(Exception):
     """待确认信封：结构化 data（title / confirms 等）随 ToolResult.data 透传。
 
-    `await_user=True` 告诉回合循环："这一轮到此为止，等用户在宿主界面上作答"。
+    `await_user=True` 告诉回合循环："这一回合到此为止，等用户在宿主界面上作答"。
     没有这个标记，模型会把 `ok=False` 读成工具失败并反复重试，直到步数上限。
     """
 

@@ -52,7 +52,7 @@ class Inbound:
         """当前会话用哪个模型（`conversation` 帧据此同步前端下拉）。
 
         与 `adapter._model` 同一条纪律：按会话取，不能恒取全局默认 ——
-        否则每轮开场都把用户的模型选择覆盖回默认。
+        否则每回合开场都把用户的模型选择覆盖回默认。
         """
         live = getattr(self._app, "live_state", None)
         if live is not None:
@@ -341,7 +341,7 @@ class Inbound:
 
         ⚠️ 写入走 `set_usage`（覆盖语义），`add_usage`（累加语义）在此会重复计数：
         前端 PUT 的字段名是 `total_prompt_tokens` 等 —— 会话累计值，
-        不是"本轮的增量"。用累加语义等于每上报一次就翻一倍。
+        不是"本回合的增量"。用累加语义等于每上报一次就翻一倍。
 
         覆盖语义也是 `/api/usage-accumulator` 这一路自己的口径：上报的是当前总量。
 
@@ -421,7 +421,7 @@ class Inbound:
             return 500, b"bad attachment", "text/plain; charset=utf-8"
 
     def remember_attachments(self, cid: str, images: Any) -> List[Dict[str, Any]]:
-        """把本轮 `images` 存进来并编上 id，供 `send` 的返回体回给经典界面。
+        """把本回合 `images` 存进来并编上 id，供 `send` 的返回体回给经典界面。
 
         id 由图片字节派生（与 `history_items` 同一函数），所以这个 id 与
         刷新后历史里的 id 相同 —— 前端不必知道是刚发的还是从历史读的。

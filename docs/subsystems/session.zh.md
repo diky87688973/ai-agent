@@ -159,7 +159,7 @@ Windows 用 `ctypes` 的 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`：
 
 队列内容由 `ConversationQueue` 保存。回合结束后由运行器抽干队列；
 插入请求经 `QueuedInputModule` 在压缩前收进上下文。回合因工具挂起（用户确认、审批等）时，
-队列保持暂停，不自动起新轮次。忙闲状态来自运行态登记，所以网格与 `/api/chat/ui-state` 读取同一事实源。
+队列保持暂停，不自动起新回合。忙闲状态来自运行态登记，所以网格与 `/api/chat/ui-state` 读取同一事实源。
 
 ## 标题
 

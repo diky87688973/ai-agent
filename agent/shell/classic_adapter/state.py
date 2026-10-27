@@ -12,7 +12,7 @@ class ClassicState:
 
     - `usage`：用量累计（经典界面的 `/api/usage-accumulator`）
     - `command_input`：命令确认时的回灌通道（只存不注入，内核暂不消费）
-    - `attachments`：本轮附件（供 `/api/chat/attachment` 内联返回）
+    - `attachments`：本回合附件（供 `/api/chat/attachment` 内联返回）
 
     知识库勾选由 knowledge 插件的运行时持有（带落盘与注入），
     界面经插件自己的端点 `/api/plugin/knowledge/checked` 读写。
@@ -49,7 +49,7 @@ class ClassicState:
         """覆盖该会话的累计用量（`accumulator` 那套字段名）。
 
         与 `add_usage` 的区别就是这个方法的全部意义：`/api/usage-accumulator` 的
-        PUT 上报的是会话累计值，不是本轮增量 —— 用累加就等于每上报一次翻一倍。
+        PUT 上报的是会话累计值，不是本回合增量 —— 用累加就等于每上报一次翻一倍。
         """
         if not cid:
             return

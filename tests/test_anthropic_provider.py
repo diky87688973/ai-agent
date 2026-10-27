@@ -337,7 +337,7 @@ class MessageConversionTest(unittest.TestCase):
                 thinking_budget_tokens=4096,
             ).build_payload(LogicalRequest(messages=[], tools=[]))
         # 关闭必须是显式的：DeepSeek 兼容层不传 thinking 等于默认开启思考，
-        # 而思考模式下带 tool_use 的消息必须回传 thinking 块，静默省略会让工具轮 400。
+        # 而思考模式下带 tool_use 的消息必须回传 thinking 块，静默省略会让工具往返 400。
         self.assertEqual(too_small["thinking"], {"type": "disabled"})
         self.assertTrue(warn.called)
 
@@ -348,7 +348,7 @@ class MessageConversionTest(unittest.TestCase):
         self.assertEqual(payload["thinking"], {"type": "disabled"})
 
     def test_tool_turn_without_thinking_blocks_disables_thinking(self) -> None:
-        """历史工具轮丢了 thinking 块就补不回来，本轮只能关掉思考，否则必被拒。
+        """历史工具往返丢了 thinking 块就补不回来，本回合只能关掉思考，否则必被拒。
 
         DeepSeek：`content[].thinking in the thinking mode must be passed back`。
         """

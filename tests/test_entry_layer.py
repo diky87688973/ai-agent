@@ -168,7 +168,7 @@ class CliEntryTest(_TempDataRoot):
 
 
 class HeadlessEntryTest(unittest.TestCase):
-    """`agent.entry.headless`：装配在入口，壳只负责跑一轮并打印。"""
+    """`agent.entry.headless`：装配在入口，壳只负责跑一个回合并打印。"""
 
     def test_run_prints_one_line_per_event(self) -> None:
         class _App:

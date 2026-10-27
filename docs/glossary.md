@@ -4,6 +4,20 @@
 
 Some terms in the project are custom and have fixed meanings. This page is the **only place** where they are defined.
 
+## Terminology conventions
+
+| English | Chinese | Use |
+|---|---|---|
+| Round | 轮 | One user message plus the assistant and tool messages that follow it |
+| Turn | 回合 | All activity triggered by one input, from start to the host's terminal state |
+| Pass | 趟 | One complete run of the module chain |
+| Session | 会话 | The durable session identity and its fact stream |
+| Conversation | 对话 | The message content exchanged inside a session |
+| Fact / Event | 事实 / 事件 | A fact is the persisted form of an event |
+| Write gate / Quality gate | 写盘门控 / 质量门禁 | Runtime write interception / CI and review gates |
+| Web UI / Web entry | Web 界面 / Web 入口 | Browser interface / HTTP serving entry |
+| Tool round-trip | 工具往返 | One model call followed by its tool execution and result |
+
 ## Structure
 
 **Module chain**

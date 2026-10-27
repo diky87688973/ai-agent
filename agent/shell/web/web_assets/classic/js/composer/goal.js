@@ -16,9 +16,9 @@ autoToggleBtn.classList.toggle("goal-paused",st==="paused");
 autoToggleBtn.classList.toggle("active",st==="active"||(!g&&_autoEnabled));
 if(txt){
 var label=(st==="active"?"进行中":st==="paused"?"已暂停":st==="done"?"已达成":st);
-autoToggleBtn.title="目标（"+label+"）"+(g&&g.rounds?(" · 已自动推进 "+g.rounds+" 轮"):"")+"：\n"+txt.slice(0,200)+"\n\n点击修改、暂停或删除";
+autoToggleBtn.title="目标（"+label+"）"+(g&&g.rounds?(" · 已自动推进 "+g.rounds+" 回合"):"")+"：\n"+txt.slice(0,200)+"\n\n点击修改、暂停或删除";
 }else{
-autoToggleBtn.title="目标：设定后每轮结束自动用这段文案发起新一轮（点击设置）";
+autoToggleBtn.title="目标：设定后每回合结束自动用这段文案发起新回合（点击设置）";
 }}
 /* 目标状态是服务端权威：页面打开时取一次，之后由 `goal` 工具的调用结果刷新。
    不在前端持久化 —— 目标属于会话，不属于这个浏览器标签页。 */
@@ -34,13 +34,13 @@ var box=el("div","goal-dialog");
 var head=el("div","goal-dialog-head");
 head.appendChild(el("div","goal-dialog-title",g?"目标":"设定目标"));
 if(g){
-var badge=el("div","goal-badge "+st,label+(g.rounds?(" · 已推进 "+g.rounds+" 轮"):""));
+var badge=el("div","goal-badge "+st,label+(g.rounds?(" · 已推进 "+g.rounds+" 回合"):""));
 head.appendChild(badge);
 }
 box.appendChild(head);
 box.appendChild(el("div","goal-dialog-sub",
-g?"每轮结束时会自动用这段文案发起新一轮；暂停或标记达成后停止。"
- :"设定一句持续推进的目标，之后每轮结束都会自动接着做。"));
+g?"每回合结束时会自动用这段文案发起新回合；暂停或标记达成后停止。"
+ :"设定一句持续推进的目标，之后每回合结束都会自动接着做。"));
 var ta2=el("textarea");
 ta2.value=g?String(g.text||""):"";
 ta2.placeholder="例如：把登录页改成深色主题，并补一份改动说明";

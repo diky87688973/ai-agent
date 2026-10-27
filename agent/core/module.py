@@ -37,8 +37,8 @@ class ModuleBase:
 
     - 只经端口访问外界：不持有上下文对象，不 import 别的模块；
     - 数据 `yield`、控制 `return`：返回值里不带数据；控制信号也不被吞掉；
-    - 无跨轮状态：需要跨轮存活的信息一律落事实（`ports.log`）。
-      模块实例可能在多轮之间复用，靠实例字段记忆会让"重启后恢复"失效。
+    - 无跨回合状态：需要跨轮存活的信息一律落事实（`ports.log`）。
+      模块实例可能在多回合之间复用，靠实例字段记忆会让"重启后恢复"失效。
     """
 
     #: 诊断用名；不参与调度（链的顺序由装配方决定）
@@ -51,7 +51,7 @@ class ModuleBase:
         """执行一步：`yield` 事实，`return Outcome`。
 
         本方法不阻塞等待外部输入。需要外部输入就 `return Outcome.suspend(...)`
-        ——宿主会交出控制权，恢复时另起一轮。
+        ——宿主会交出控制权，恢复时另起一个回合。
         """
         raise NotImplementedError(f"{type(self).__name__} 必须实现 execute(ports)")
         yield  # pragma: no cover - 让子类实现天然成为生成器

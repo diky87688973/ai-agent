@@ -54,7 +54,7 @@ TOOL_PROGRESS = "tool_progress"
 QUEUE_UPDATED = "queue_updated"
 CONTEXT_COMPACTED = "context_compacted"
 #: 请求装配完成时的分段快照（上下文示意图用）：段名与各段估算 token。
-#: 模式说明与工具轮的内部 system 注入都不落记录，只有这条快照留着它们。
+#: 模式说明与工具调用的内部 system 注入都不落记录，只有这条快照留着它们。
 CONTEXT_SEGMENTS = "context_segments"
 
 # ── 模型模块的流式增量 ─────────────────────────────────────

@@ -20,8 +20,8 @@ from agent.shell.session import goal, heartbeat, prompt, queue, resume
 # 又不会有任何可观测开销（一次小文件写入）。
 _HEARTBEAT_INTERVAL_SECONDS = 60.0
 
-#: 目标/自主自动续跑的轮数上限：兜底防止"目标写歪 → 无限烧 token"。
-#: 用户重新发消息会重置这个链（新一轮 runner），所以正常使用不受影响。
+#: 目标/自主自动续跑的回合数上限：兜底防止"目标写歪 → 无限烧 token"。
+#: 用户重新发消息会重置这个链（新回合 runner），所以正常使用不受影响。
 _MAX_AUTO_ROUNDS = 50
 
 
@@ -29,7 +29,7 @@ _MAX_AUTO_ROUNDS = 50
 class SessionRunner:
     """后台回合运行器：以 mesh 活跃集为唯一忙闲事实源。
 
-    `auto_continue`：注入的判断函数（cid → bool）。回合结束后若为真，则自动再跑一轮
+    `auto_continue`：注入的判断函数（cid → bool）。回合结束后若为真，则自动再跑一个回合
     ——这是「自主模式」的落地（`_autoEnabled` + `/api/chat/autonomous`）。
 
     `goal_row`：注入的取目标函数（cid → dict | None）。目标存在时它说了算：
@@ -74,9 +74,9 @@ class SessionRunner:
 
         `message` 可带：
         - `content`：用户文本；
-        - `attachments`：随本轮注入模型请求的附件；
+        - `attachments`：随本回合注入模型请求的附件；
         - `resume`：外部结果回灌——形如
-          `{"call_id": ..., "ok": True, "data": ...}`。带它时这一轮没有用户发言，
+          `{"call_id": ..., "ok": True, "data": ...}`。带它时这一回合没有用户发言，
           运行器先把结果写成 `tool_result` 事实，再跑回合让模型消费它。
         """
         key = str(cid or "").strip()
@@ -156,7 +156,7 @@ class SessionRunner:
         # （`run_command` 跑 `ping -n 120`）期间没有心跳就会被误判成"已结束"，
         # 用户那边的停止键会消失。所以这里起一个轻量线程周期性续心跳。
         stop_beat = self._start_heartbeat(cid)
-        # 因目标/自主而起的自动轮次计数，只用于兜底限流。
+        # 因目标/自主而起的自动回合计数，只用于兜底限流。
         _auto_rounds = 0
         current_queue_item = None
         from_queue = False
@@ -205,7 +205,7 @@ class SessionRunner:
                     continue
                 # 取消优先：用户点了停止就不能再续跑。
                 # 不判它会死循环 —— 取消位一经置位无人清除，而续跑判定只看目标状态，
-                # 于是"起新一轮 → 新一轮开头立刻被取消 → 又续跑"会无限转下去，
+                # 于是"起新回合 → 新回合开头立刻被取消 → 又续跑"会无限转下去，
                 # CPU 打满、事实与 SSE 一起被灌爆，界面上"停止"等于没按。
                 if self._is_canceled(cid):
                     self._mesh.end_run(cid)
@@ -343,7 +343,7 @@ class SessionRunner:
             store=self._store_for(cid),
             registry=self._registry_for(cid),
             system_prompt=system_prompt,
-            # 每个 pass 重新求值：工具勾选后下一趟才能看到最新进度。
+            # 每趟重新求值：工具勾选后下一趟才能看到最新进度。
             mode_note=lambda: self.mode_note(cid),
             cancel=cancel,
         )

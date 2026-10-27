@@ -137,7 +137,7 @@ A session without a snapshot falls back to `layout_from_messages()`: it performs
 | `system` | system prompt | message count |
 | `plugin:<plugin name>` | one row per plugin-registered segment | plugin-reported; message count by default |
 | `summary` | compaction summaries | message count |
-| `full_recent` | recent dialogue | **user turns** (a turn contains the question, the answer, and tool round-trips) |
+| `full_recent` | recent dialogue | **user rounds** (a round contains the question, the answer, and tool round-trips) |
 | `mode` | **request tail**, not in the pipeline | computed separately through `layout_payload(tail_messages=…)` |
 
 `layout_payload()` adds `remaining` (remaining capacity) and `pct`; server-side `pct` uses `budget_tokens` as the denominator, and that value is the larger of the compaction threshold and the used total. The UI recomputes display percentages and remaining capacity from `model_max_context_tokens`, falling back to the budget when that is 0. The budget percentage is a display concern; compaction is triggered by the threshold.
@@ -169,18 +169,18 @@ Reported counts align with sources **by position**: the count list returned by `
 
 **Colors, icons, and layout belong to the UI**: the layout payload carries no color values. Plugins register appearance through `ctx.add_ctx_segment_style(label=..., color=...)`; at startup the shell fetches `/api/ctx-segment-styles` and calls `ctxSegments.register`. Registration happens before the first render, so the segment bar and the tooltip use the same source and the same color. When a plugin has not registered, the shell picks a stable color from its own palette by segment key. Panel scripts may preload at startup; panel styles are injected on demand.
 
-## User turns are atomic
+## User rounds are atomic
 
 One `user` message up to the next `user` message is **one user turn**. Compaction only processes whole turns:
 
-- When delimiting the range to compact, the boundary is **rounded down to a turn boundary** (`turn_boundary_floor`): rather than compacting part of a turn, that turn is left alone.
+- When delimiting the range to compact, the boundary is **rounded down to a round boundary** (`turn_boundary_floor`): rather than compacting part of a round, that round is left alone.
 - The cut is also bound by a hard constraint: it must not split a **dangling tool chain** (`tool_chain_balanced`). An `assistant.tool_calls` message and its `tool` results must be kept together, or the model API rejects the request with 400.
 
 ## Tool round-trips are not stripped
 
 **Normal requests only append tool round-trips**: tool round-trips already sent are kept byte-for-byte in later requests. Rewriting any middle message invalidates the provider's prefix cache from that message on — and the agent appends tool round-trips every turn, so rewriting middle content each turn would drive the cache hit rate to zero.
 
-Tool round-trips are therefore **not** subject to "keep the last N turns and strip earlier ones":
+Tool round-trips are therefore **not** subject to "keep the last N rounds and strip earlier ones":
 
 - Tool round-trips outside the compaction range are kept as-is; none are dropped.
 - Those inside the compaction range are part of the summary request prefix: the summarizer sees that segment **with the original tool results**, and the summary takes over for those results.
@@ -225,9 +225,9 @@ Exceeding the threshold **is not an error**: compact and keep going. It is the o
 3. estimate and compare      total_token_estimate(base) + pending + fixed overhead > threshold ?
                              no  → return None (pass through)
 4. choose the excerpt        excerpt_by_target_tokens(view, keep_turns=full_user_rounds)
-                             ├ mask the last full_user_rounds user turns (the near field stays)
+                             ├ mask the last full_user_rounds user rounds (the near field stays)
                              ├ take the range before the mask; if there is nothing there, compact the mask too
-                             └ cut back to a turn boundary (turn_boundary_floor) and a tool-chain boundary
+                             └ cut back to a round boundary (turn_boundary_floor) and a tool-chain boundary
                                (tool_chain_balanced); if it cannot, abandon this compaction
 5. call the summarizer      use base as the prefix and append the compaction instruction
                             (the prefix is byte-identical to a normal request)
@@ -239,10 +239,10 @@ Exceeding the threshold **is not an error**: compact and keep going. It is the o
 
 ### Masking
 
-The last `full_user_rounds` user turns are the **mask**: that is the model's near field, where the current work lives.
+The last `full_user_rounds` user rounds are the **mask**: that is the model's near field, where the current work lives.
 
 - Normal path: the mask stays, and the segment before it is compacted.
-- When there is no room before the mask (only one turn in total, or the mask covers everything), **the mask is compacted too** — in the extreme case the compacted context has **0 user turns**, the summary takes over all history, and only the head remains.
+- When there is no room before the mask (only one round in total, or the mask covers everything), **the mask is compacted too** — in the extreme case the compacted context has **0 user rounds**, the summary takes over all history, and only the head remains.
 - The mask is a **preference**, not a reason to refuse compaction: if nothing can be compacted, the request simply exceeds the limit and fails.
 
 The system prompt and plugin segments are all `system` messages placed before the dialogue, so the region "after the last leading `system`" **naturally covers only dialogue** and contains no system settings.
@@ -252,7 +252,7 @@ The system prompt and plugin segments are all `system` messages placed before th
 `excerpt_by_target_tokens(messages, keep_turns)` returns the range `[0, cut)` to compact:
 
 - `cut` is the **start of the mask**: the range does not include the masked turns.
-- When there is nothing before the mask, `cut` falls at the end — **0 user turns** is a valid result.
+- When there is nothing before the mask, `cut` falls at the end — **0 user rounds** is a valid result.
 - The cut has been validated against turn boundaries and tool-chain boundaries; if it cannot retreat, it returns `None` (nothing is compacted this time).
 
 ### Parameters
@@ -261,7 +261,7 @@ The system prompt and plugin segments are all `system` messages placed before th
 |---|---|---|
 | `threshold` | computed per model | soft cap on request size; compaction starts above it, and it is the base for layout percentages |
 | `summary_token_fallback` | 64000 | fallback threshold when the model declares no window; configuration file only |
-| `full_user_rounds` | 5 | number of trailing user turns masked (compacted along with the rest when no room remains) |
+| `full_user_rounds` | 5 | number of trailing user rounds masked (compacted along with the rest when no room remains) |
 | `summary_output_max_chars` | 5000 | summary length limit (characters) |
 | summary prefix | always reused | summary requests carry the same prefix as normal requests, so the call hits the existing cache |
 
@@ -349,7 +349,7 @@ Images are inlined into the request body, so their number must be managed explic
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `image_turns` | 1 | Embed images only from the **most recent N user turns**; older user images become text placeholders. Tool-result images are not limited by this setting. Negative = unlimited |
+| `image_turns` | 1 | Embed images only from the **most recent N user rounds**; older user images become text placeholders. Tool-result images are not limited by this setting. Negative = unlimited |
 | `image_max` | 8 | Total images in the request (user and tool images combined); **the newest images are preserved first**, and excess images are dropped starting from the oldest. Negative = unlimited |
 
 The turn limit counts turns, not images: three images in one turn count as one turn. "This image" refers to the turn just sent; older images carry little value but still occupy real space in the request.

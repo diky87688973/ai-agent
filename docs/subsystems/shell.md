@@ -152,7 +152,7 @@ The classic stream keeps its connection table in the adapter; the kernel passthr
 
 ## Turn scheduling
 
-`SessionRunner` in `session/runner.py` runs turns in the background: it takes the turn input, builds an engine and runs the module chain, and publishes events to the event bus that feeds SSE. After a turn it drains the pending queue, starts an insertion turn when a queued message was marked for insertion, and otherwise asks the goal/autonomy rule whether to continue; automatic continuations are capped at 50 rounds. External tool results are spliced back as `tool_done` / `tool_failed` plus `tool_ended` before the turn, deduplicated by `call_id`.
+`SessionRunner` in `session/runner.py` runs turns in the background: it takes the turn input, builds an engine and runs the module chain, and publishes events to the event bus that feeds SSE. After a turn it drains the pending queue, starts an insertion turn when a queued message was marked for insertion, and otherwise asks the goal/autonomy rule whether to continue; automatic continuations are capped at 50 turns. External tool results are spliced back as `tool_done` / `tool_failed` plus `tool_ended` before the turn, deduplicated by `call_id`.
 
 A side heartbeat thread renews the run registration every 60 seconds, so a long tool call is not treated as expired. The registration is released when the turn ends, is cancelled, or the process aborts. `/api/chat/stop` sets the cancel signal; the kernel stops at its checkpoints and the run thread releases the registration.
 

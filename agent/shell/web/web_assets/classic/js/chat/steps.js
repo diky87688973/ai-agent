@@ -33,7 +33,7 @@ if(seenDispatchTitle===t)return;
 seenDispatchTitle=t;
 if(!showToolSteps())return;
 const d=document.createElement("div");d.className="dispatch-title";
-d.textContent="本轮调度："+t;
+d.textContent="本回合调度："+t;
 appendStep(d);
 }
 function tokenPercent(){if(SESSION_TOKEN_LIMIT<=0)return 0;const p=Math.ceil(((sessionTokenUsed%SESSION_TOKEN_LIMIT)/SESSION_TOKEN_LIMIT)*100);if(!isFinite(p)||p<0)return 0;return p>100?100:p;}

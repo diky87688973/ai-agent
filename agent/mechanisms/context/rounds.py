@@ -100,7 +100,7 @@ def find_first_user_index(messages: List[Dict[str, Any]]) -> Optional[int]:
 def user_turn_starts(messages: List[Dict[str, Any]]) -> List[int]:
     """每个用户轮的起始下标（一条 user 起到下一条 user 前，为原子单位）。
 
-    轮的边界只认 `user`：一条 user 之后的所有 `assistant` / `tool` 都属于这一轮 ——
+    轮的边界只认 `user`：一条 user 之后的所有 `assistant` / `tool` 都属于这一回合 ——
     工具往返、悬空调用、多段回复都算轮内。压缩只允许整轮处理。
     """
     return [i for i, m in enumerate(messages or [])
@@ -110,7 +110,7 @@ def user_turn_starts(messages: List[Dict[str, Any]]) -> List[int]:
 def turn_boundary_floor(messages: List[Dict[str, Any]], index: int) -> int:
     """把下标向下取整到最近的用户轮起始位置。
 
-    不是轮边界时向前退到本轮的起点（宁可少压，也不从轮中间切开）::
+    不是轮边界时向前退到本回合的起点（宁可少压，也不从轮中间切开）::
 
         [user0][A][tool][A]  [user1][A]  [user2][A]
                         ↑ index=4（轮内）→ 取整到 3（user1 的位置）

@@ -25,7 +25,7 @@ def tail_expects_model(log: SessionLog) -> bool:
       - `tool_result`：工具结果回来了，模型得看。
     撞到 `model_message` 说明模型已经答过、且其后没有新东西 → 不用跑。
 
-    只看末端即可判定：一轮里模型与工具交替推进，每次推进都会把新事实追加到
+    只看末端即可判定：一回合里模型与工具交替推进，每次推进都会把新事实追加到
     末端，所以不需要额外的记账。
     """
     for event in reversed(list(getattr(log, "events", ()))):
@@ -86,7 +86,7 @@ def safe_value(value: Any) -> Any:
 
 #: 一条工具结果进上下文的字符上限。超过就只保留头部并标注截断 ——
 #: 结果本身仍然完整落事实（`data/sessions/*.raw`），模型要看全文可以再调工具读区间。
-#: 没有这道闸时，一次 `read_file`（默认 20 万字符）就能让这一轮的请求体翻倍，
+#: 没有这道闸时，一次 `read_file`（默认 20 万字符）就能让这一回合的请求体翻倍，
 #: 而且它此后永久留在上下文里（事实 append-only，只有压缩才动）。
 TOOL_RESULT_MAX_CHARS = 40000
 

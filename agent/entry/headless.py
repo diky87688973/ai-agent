@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""无 UI 单回合入口：装配 app，跑一轮并打印事件流。
+"""无 UI 单回合入口：装配 app，跑一个回合并打印事件流。
 
     python -m agent.entry.headless ["一句话问题"]
 """

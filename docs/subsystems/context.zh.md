@@ -16,7 +16,7 @@ messages = 头部 + 对话 + 尾部
 
 头部 = 系统提示词 + 插件各段 + 记忆摘要
 对话 = 从会话事实折叠出来的轮次
-尾部 = 本轮新输入 / 工具结果 + 执行模式
+尾部 = 本回合新输入 / 工具结果 + 执行模式
 ```
 
 **唯一装配入口是 `ContextPipeline.assembles(tail)`**。平常请求：
@@ -205,8 +205,8 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 ## 工具往返不剥离
 
 **普通请求对工具往返只做追加**：已经发出去过的工具往返，后续请求里逐字节不变。
-改中间任何一条，provider 的前缀缓存就从那一条起整段失效 —— 而 Agent 每轮都在
-追加工具往返，一旦每轮都改写中间的内容，缓存命中率归零。
+改中间任何一条，provider 的前缀缓存就从那一条起整段失效 —— 而 Agent 每回合都在
+追加工具往返，一旦每回合都改写中间的内容，缓存命中率归零。
 
 因此工具往返**不做"留最近 N 轮、剥更早的"**：
 
@@ -217,7 +217,7 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
   （`assistant.tool_calls` 与它的 `tool` 结果必须同进同出，否则模型 API 硬拒绝 400）。
 
 `set_dialogue` 丢掉已被摘要覆盖的前缀（`covered_end`），并按思维链回传预算裁剪推理；
-其余原样装载。每加一轮，上下文就是上一次的上下文**加上新消息**。
+其余原样装载。每加一回合，上下文就是上一次的上下文**加上新消息**。
 
 ## 压缩触发
 
@@ -255,7 +255,7 @@ threshold = floor(context_window × compression_percent / 100)
 
 ```
 1. 取未覆盖视图     view = messages[covered_end:]      ← 已压过的不再看
-2. 组装压缩上下文   base = 整份装配结果 - 尾部（本轮新输入 + 执行模式）
+2. 组装压缩上下文   base = 整份装配结果 - 尾部（本回合新输入 + 执行模式）
 3. 估算并比较      total_token_estimate(base) + 待并入 + 固定开销 > 阈值 ?
                     不超 → 返回 None（放行）
 4. 取压缩区间      excerpt_by_target_tokens(view, keep_turns=full_user_rounds)

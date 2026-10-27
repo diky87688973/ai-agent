@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""输入模块：认领本轮用户输入。"""
+"""输入模块：认领本回合用户输入。"""
 from __future__ import annotations
 
 from typing import Any, Dict, Iterator, Optional, Sequence
@@ -12,12 +12,12 @@ from agent.core.ports import Ports
 
 
 class InputModule(ModuleBase):
-    """把本轮的新用户输入认领成事实。
+    """把本回合的新用户输入认领成事实。
 
     - 有输入：发 `input_claimed`，返回 `ok`（链上后面的模型模块自己会看到"末端是新输入"）；
     - 无输入：只发 `input_ended`（claimed=False），返回 `ok`。
 
-    第二点是硬要求：接口确认触发的恢复轮没有用户发言，此时上下文末端
+    第二点是硬要求：接口确认触发的恢复回合没有用户发言，此时上下文末端
     就该是那次工具调用——凭空发一条空的 `input_claimed` 会让消息序列变成
     `…assistant(tool_calls) → user("") → tool`，模型 API 直接拒绝（400）。
 
@@ -38,7 +38,7 @@ class InputModule(ModuleBase):
     def feed(self, text: str, attachments: Optional[Sequence[Dict[str, Any]]] = None,
              sender: Optional[Dict[str, Any]] = None, from_queue: bool = False,
              meta: Any = None) -> None:
-        """投喂一轮新输入（壳层在每轮开始前调用）。"""
+        """投喂一个回合新输入（壳层在每回合开始前调用）。"""
         self._text = str(text or "")
         self._attachments = list(attachments or [])
         self._sender = dict(sender) if isinstance(sender, dict) else None

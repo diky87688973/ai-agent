@@ -28,7 +28,7 @@ class ClassicStream(ToolFrames, TurnFrames):
     """把一个会话的内核事件翻成经典界面事件序列。
 
     有状态但只读内核：状态全部是"经典界面需要而内核没提供"的派生量
-    （当前轮次号、待配对工具、本步 LLM 卡片信息）。
+    （当前回合号、待配对工具、本步 LLM 卡片信息）。
     """
 
     def __init__(
@@ -62,10 +62,10 @@ class ClassicStream(ToolFrames, TurnFrames):
         # 都会被盖上那个过期坐标 —— 客户端拿旧坐标重连又收到那批帧，
         # assistant 正文被重复渲染（对话区多一个气泡），且游标永久失效。
         self._frame_seq: Optional[int] = None
-        # 本轮是否停在"等用户作答"（由 `turn_ended.paused` 置位）。
+        # 本回合是否停在"等用户作答"（由 `turn_ended.paused` 置位）。
         # 它是宿主状态：恢复靠用户操作触发新回合，内核不等待、不阻塞。
         self.paused = False
-        # 本轮是否已发出待确认信封（决定要不要抑制收尾的空正文气泡）。
+        # 本回合是否已发出待确认信封（决定要不要抑制收尾的空正文气泡）。
         self._awaiting_confirm = False
 
     def _ev(self, type_: str, **data: Any) -> Dict[str, Any]:

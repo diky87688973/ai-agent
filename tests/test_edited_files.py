@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""本轮编辑清单：会话页内存拼装，不进内核，刷新不回放。"""
+"""本回合编辑清单：会话页内存拼装，不进内核，刷新不回放。"""
 from __future__ import annotations
 
 import sys

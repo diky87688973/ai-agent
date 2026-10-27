@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """恢复 = 往上下文末尾拼接工具结果。
 
-    接口确认没有用户输入 → 恢复轮的上下文末端就是那次工具调用
+    接口确认没有用户输入 → 恢复回合的上下文末端就是那次工具调用
     → 把结果拼接进去 → `…assistant(tool_calls) → tool` 天然对齐
     → 宿主重新调模型，闭环。
 
@@ -75,7 +75,7 @@ class ContextSpliceTest(unittest.TestCase):
         )
 
     def test_no_user_message_is_inserted_on_resume(self) -> None:
-        """恢复轮没有用户输入：绝不能凭空多一条 user 消息——那会让请求序列非法。"""
+        """恢复回合没有用户输入：绝不能凭空多一条 user 消息——那会让请求序列非法。"""
         rows = self._suspended_rows()
         rows.append({"type": "tool_done", "call_id": "call-1", "name": "ask_user", "data": "甲"})
         rows.append({"type": "tool_ended", "call_id": "call-1", "name": "ask_user", "status": "ok"})

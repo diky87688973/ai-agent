@@ -307,7 +307,7 @@ o.cmdInputBar=bar;
 }
 function onToolStart(ev){
 /* 目标工具的查询类调用不进步骤区。
-   模型为了判断"目标还在不在、要不要继续"会每轮问一次，
+   模型为了判断"目标还在不在、要不要继续"会每回合问一次，
    这类调用会刷出大量同名的「目标 Done」卡，把真正的执行步骤挤下去。
    这类调用是模型的自查，不是对外动作，用户不需要逐条看。
    判据只看 action：`get`（默认）是只读查询；create/update/pause/resume/done/delete

@@ -155,7 +155,7 @@ class PluginEventTest(unittest.TestCase):
 class UsageSemanticsTest(unittest.TestCase):
     """`/api/usage-accumulator` 的 PUT 必须是覆盖语义。
 
-    前端上报的是会话累计值（字段名 `total_prompt_tokens`），不是本轮增量。
+    前端上报的是会话累计值（字段名 `total_prompt_tokens`），不是本回合增量。
     按累加处理会让每次上报都翻一倍：`PUT 1000 → 1000；涨到 1500 再 PUT → 2500`，
     真实会话前端 37.6K 而服务端 159K（4.2×）。
     `_save_usage_accumulator(body)` 也是覆盖 —— 这里同样按覆盖处理。
@@ -475,7 +475,7 @@ class OutboundContractTest(unittest.TestCase):
     def test_cancel_without_pending_does_not_start_an_empty_turn(self) -> None:
         """没有挂起调用时的取消不得起新回合。
 
-        那正是永久转圈的来源：内核那一轮没有输入 → 不产出任何事实
+        那正是永久转圈的来源：内核那一回合没有输入 → 不产出任何事实
         → 永远不发 `done` → 前端的 loading 状态没人复位。
         """
         calls: list = []
@@ -1437,8 +1437,8 @@ class UiBundleTest(unittest.TestCase):
     def test_tool_tag_shows_final_state_immediately(self) -> None:
         """工具结束时立刻写标签终态。
 
-        若把标签挂到 `llm_done` 才刷新，一轮里多个工具会同时停在「进行中」
-        直到整轮结束；取消场景还会把已完成的工具刷成失败。
+        若把标签挂到 `llm_done` 才刷新，一回合里多个工具会同时停在「进行中」
+        直到整回合结束；取消场景还会把已完成的工具刷成失败。
         所以 `tool_end` 分支里必须当场定标签。
         """
         js = read_ui_js()
@@ -1466,7 +1466,7 @@ class UiBundleTest(unittest.TestCase):
         ② 思考已有正当归宿：`reasoning_delta` → `appendReasoningDelta()` → 右侧面板；
         ③ `done` 时 `streamAssistantText` 已被 `assistant` 分支
            （`finalizeAssistantStream()` 清空它）清掉，守卫必然放行 →
-           思考被追加成对话区的第二个回答气泡（一轮 3 个气泡）。
+           思考被追加成对话区的第二个回答气泡（一回合 3 个气泡）。
 
         断言：`done` 分支里不得出现这个调用。
         """
@@ -1507,7 +1507,7 @@ class UiBundleTest(unittest.TestCase):
                         msg="_step_had_llm 未置位会让推理增量被静默丢弃")
 
     def test_each_model_call_opens_its_own_card(self) -> None:
-        """多趟往返时每轮各起一卡（工具前后各一张）。"""
+        """多趟往返时每回合各起一卡（工具前后各一张）。"""
         stream = _stream()
         stream.translate("turn_started", {"conversation_id": CID})
         first = stream.translate("llm_call_start", {"model": "m", "messages": 3, "tools": 5})

@@ -256,8 +256,8 @@ class AnthropicProvider(ModelProvider):
    （`low` / `high` / `max`）。适配器不下发 `output_config`：Messages 端点会拒绝这个未知字段，
    而同一个适配器要服务两套协议。因此 `LogicalRequest.effort` 对本适配器不生效，
    网关侧取服务端默认（`high`）；要按档位调深度，就用同一模型的 Chat Completions 条目。
-4. 思考模式 + 工具调用：两套协议都要求把本轮带 `tool_use` 的 assistant 消息里的 thinking 块
-   原样回传。跨轮不要求回传，所以 `strip_stale_thinking` 只留本轮。本轮块丢了且补不回来
+4. 思考模式 + 工具调用：两套协议都要求把本回合带 `tool_use` 的 assistant 消息里的 thinking 块
+   原样回传。跨回合不要求回传，所以 `strip_stale_thinking` 只留本回合。本回合块丢了且补不回来
    （签名缺失被丢弃，或历史来自另一协议条目）时，`_tool_turn_missing_thinking` 让本次请求
    关掉 thinking，避免会话永久打不开。
 5. `tools` 为空时不下发 `tools` 与 `tool_choice`。
@@ -276,7 +276,7 @@ class AnthropicProvider(ModelProvider):
 拆成纯函数与最后的拼装两步，避免把「忠实折叠」和「下游硬约束修补」混在一处：
 
 ```python
-def strip_stale_thinking(messages, turn_start): ...   # 只留本轮的 thinking 块
+def strip_stale_thinking(messages, turn_start): ...   # 只留本回合的 thinking 块
 def drop_dangling_tool_results(messages): ...          # 删掉没有对应 tool_use 的 tool_result
 def _to_anthropic_messages(messages, turn_start, *, keep_thinking=True): ...
 ```
@@ -333,7 +333,7 @@ SSE 按行解析 `data:` 载荷。事件类型取载荷里的 `data.type`，不�
 固定顺序，便于模型模块按类型收集：
 
 1. 文本与推理增量边到边出（流中实时产出，不攒列表）。
-2. `kind="meta"`：仅当本轮有 thinking 块且存在工具调用时产出，
+2. `kind="meta"`：仅当本回合有 thinking 块且存在工具调用时产出，
    载荷为 `{"anthropic": {"thinking_blocks": [...]}}`。没有工具调用时签名无处回传，
    不必落盘。
 3. `kind="tool_call"`：按块 `index` 升序逐个产出。
@@ -369,7 +369,7 @@ prompt_cache_miss_tokens = input_tokens + cache_creation_input_tokens
 ## 8. thinking 签名回传
 
 Messages 的 extended thinking 在带工具的同轮循环里要求把 thinking 块（含 `signature`）
-原样回传，否则同一轮的后续请求会被拒绝。事实里现有字段 `reasoning_content` 只有文本，
+原样回传，否则同一回合的后续请求会被拒绝。事实里现有字段 `reasoning_content` 只有文本，
 签名会丢。
 
 方案：在 `model_message` 事实里增加一个内核不解释的 `provider_meta`。
@@ -453,7 +453,7 @@ Messages 的 extended thinking 在带工具的同轮循环里要求把 thinking 
 （嵌入方或测试）时建立；运行期卸载插件会调 `refresh_model_config()`，
 把应用置为 `"none"` 并装上 `MissingProvider`，不会回到注入的 provider。
 
-权威模式下 `default` 实例基本用不到——每轮请求都带目录 id，`resolve` 必然命中；
+权威模式下 `default` 实例基本用不到——每回合请求都带目录 id，`resolve` 必然命中；
 它只在允许列表为空或回退开关打开时兜底。因此权威模式下 `default` 没有凭据也不影响对话，
 `default` 可以是 `MissingProvider`。
 
@@ -737,7 +737,7 @@ window.aiAgentShell.styles = {
 2. 消息转换：system 合并到顶层、连续 `tool_result` 合并、图片 data URL 与 http(s) URL、
    assistant `tool_calls`、前导 assistant 被丢弃、悬空 `tool_result` 被丢弃、
    重复 `tool_use.id` 加后缀且配对同步改名。
-3. `provider_meta` 只在本轮回放，跨轮丢弃；thinking 关闭时不下发任何块；
+3. `provider_meta` 只在本回合回放，跨回合丢弃；thinking 关闭时不下发任何块；
    缺签名的 thinking 块被跳过并留警告。
 4. 地址构造、HTTP 错误映射、`thinking` 预算不足时降级为关闭。
 5. 事件类型只认 `data.type`：删掉 `event:` 行后仍能正确解析。

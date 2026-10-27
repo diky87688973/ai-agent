@@ -325,7 +325,7 @@ class BasicTurnTest(CoreHarness):
         self.assertEqual(usage[0].data["prompt_tokens"], 7)
 
     def test_no_input_means_no_user_message(self) -> None:
-        """无新输入时不发 `input_claimed`（恢复轮的前提）。"""
+        """无新输入时不发 `input_claimed`（恢复回合的前提）。"""
         self._run([{"text": "答"}], text="")
         self.assertNotIn("input_claimed", self._kinds())
 
@@ -377,7 +377,7 @@ class ToolLoopTest(CoreHarness):
 # ══════════════════════════════════════════════════════════════════
 
 class SuspendResumeTest(CoreHarness):
-    """工具需要外部输入 → 挂起（终态）；用户作答 → 拼接结果 → 新一轮。"""
+    """工具需要外部输入 → 挂起（终态）；用户作答 → 拼接结果 → 新回合。"""
 
     def _suspend(self):
         return self._run([
@@ -557,7 +557,7 @@ class InfrastructureTest(CoreHarness):
 
         事实攒到回合末尾才落盘，一旦中途抛异常，存储里就一个字都没有、
         `/api/chat/history` 为空、刷新即消失（连用户发言一起丢）；
-        已完成工具的事实丢失还会让下一轮重跑同一调用（重复副作用）。
+        已完成工具的事实丢失还会让下一回合重跑同一调用（重复副作用）。
         """
         from agent.core.engine import Engine
 
@@ -947,7 +947,7 @@ class WiringTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_live_events_carry_a_storage_coordinate_through_app_session(self) -> None:
-        """经 `App.session` 跑一轮，总线上的事件必须带 `_seq`。
+        """经 `App.session` 跑一个回合，总线上的事件必须带 `_seq`。
 
         漏接线的症状：帧 `id:` 行 0 条，
         浏览器 `Last-Event-ID` 恒空 → `web.py` 的 `if cursor >= 0` 跳过 replay
@@ -1001,7 +1001,7 @@ class CancelTest(CoreHarness):
     两条约束：
       - 工具循环每个工具执行前检查 `_turn_abort_requested`；
       - 中断时给"尾部未执行完的 tool_calls"补 `ok=false` 占位，
-        否则下一轮 API 会因缺 tool 消息拒请求。
+        否则下一回合 API 会因缺 tool 消息拒请求。
     本测试守住这两条成立。
     """
 
@@ -1063,7 +1063,7 @@ class CancelTest(CoreHarness):
         self.assertEqual(kinds.count("tool_ended"), 3, msg="三个调用都该有终态")
 
     def test_canceled_batch_keeps_the_model_history_valid(self) -> None:
-        """补占位的根本理由：`assistant(tool_calls)` 必须配齐 tool 响应，否则下一轮请求被 API 拒。"""
+        """补占位的根本理由：`assistant(tool_calls)` 必须配齐 tool 响应，否则下一回合请求被 API 拒。"""
         host, provider, _i = self._host(
             [{"calls": [ToolCallRequest("c1", "echo", {"text": "a"}),
                         ToolCallRequest("c2", "echo", {"text": "b"})]}],
@@ -1347,7 +1347,7 @@ if __name__ == "__main__":
 class ContextSegmentsEventTest(CoreHarness):
     """分段快照事件：每次装配完请求发一条，载荷与真实请求一致。
 
-    它是上下文示意图的唯一数据源 —— 模式说明与工具轮的内部 system 注入
+    它是上下文示意图的唯一数据源 —— 模式说明与工具往返的内部 system 注入
     都不落记录，只有这条快照里有它们。
     """
 
@@ -1402,7 +1402,7 @@ class ContextSegmentsEventTest(CoreHarness):
             self.assertIn("tokens", s)
 
     def test_tool_round_emits_a_fresh_snapshot(self) -> None:
-        """工具轮会再装配一次 → 再发一条快照（分段随之变化）。"""
+        """工具往返会再装配一次 → 再发一条快照（分段随之变化）。"""
         self._run_with_context(
             [{"calls": [ToolCallRequest("c1", "echo", {"text": "hi"})]},
              {"text": "好"}], text="看一眼")

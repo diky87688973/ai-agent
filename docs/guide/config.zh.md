@@ -248,7 +248,7 @@ agent-web --revoke-token ci
 | `data/auth/` | 密码凭据、API Token、鉴权日志；不进入发布包 |
 | `data/logs/errors.log` | 进程错误日志（JSONL；内核/插件装配与宿主运行异常；工具业务失败收成 `ToolResult` 后不记此处；超约 2MB 轮转为 `errors.log.1`） |
 
-目录都是按需惰性创建的：全新克隆没有 `data/`，跑过一轮才会出现用到的那几个。
+目录都是按需惰性创建的：全新克隆没有 `data/`，跑过一次才会出现用到的那几个。
 
 ## 延伸阅读
 

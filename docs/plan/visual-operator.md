@@ -435,7 +435,7 @@ The inverse mapping is reported as `image_to_screen.scale_x`, `scale_y`, `ox`, a
 ### 5.4 Size and history
 
 - A capture over 40 million pixels is rejected with a request for a smaller region. The check runs before rendering; a screen capture is rejected before its bitmap is allocated, while a window capture may already have been taken when the limit is checked.
-- Returned screenshots are image attachments in the tool result and can be replayed from conversation history. The `[context]` configuration limits that replay: `image_turns` controls how many recent image-bearing user turns are included, and `image_max` caps the total number of images in a request, including tool attachments. Both are independent of the capture size limit.
+- Returned screenshots are image attachments in the tool result and can be replayed from conversation history. The `[context]` configuration limits that replay: `image_turns` controls how many recent image-bearing user rounds are included, and `image_max` caps the total number of images in a request, including tool attachments. Both are independent of the capture size limit.
 - `max_side` changes only the sent image. It does not change the coordinate contract: grid labels remain screen coordinates unless `grid_unit=image` is requested. `image.scale` is the original width divided by the sent width; the receipt describes a resize with a one-step conversion example.
 
 ## 6. Platform backends

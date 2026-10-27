@@ -250,7 +250,7 @@ def _to_wire_messages(messages: List[Any],
 
     `keep_reasoning_from` 给了下标（含）就只保留该下标之后的 `reasoning_content`
     内容。思维链是模型的中间产物：整段回传就是让每次请求多背一大段必然未命中
-    缓存的内容，而且同一轮内每次请求的前缀都在变，缓存根本落不住；裁掉之后同一轮内
+    缓存的内容，而且同一回合内每次请求的前缀都在变，缓存根本落不住；裁掉之后同一回合内
     前缀逐字节相同，缓存能吃满。
 
     但键不能丢：DeepSeek 思考模式下，带 `tool_calls` 的 assistant 消息必须把
@@ -399,7 +399,7 @@ class OpenAICompatibleProvider(ModelProvider):
         self.api_key = str(api_key or "").strip()
         self.model = str(model or "").strip()
         self.timeout = float(timeout)
-        #: 历史轮次的思维链默认不回传内容（键仍保留，见 `_to_wire_messages`）。
+        #: 历史回合的思维链默认不回传内容（键仍保留，见 `_to_wire_messages`）。
         self.replay_history_reasoning = bool(replay_history_reasoning)
         self.extra_headers = {str(k): str(v) for k, v in dict(extra_headers or {}).items()}
 

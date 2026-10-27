@@ -45,10 +45,10 @@ class ModelModule(ModuleBase):
       - 末端是未消费的工具结果（`tool_result`）→ 该跑（模型得看结果）；
       - 末端已是模型自己的消息 → 不跑，返回 `ok`。
 
-    模型与工具轮替推进，每次推进都把新事实追加到末端，
+    模型与工具交替推进，每次推进都把新事实追加到末端，
     所以看末端是谁就能判断该不该跑，不需要额外的记账。
 
-    不要求续行：模型只负责"说话"；"还要不要再调一轮工具"是工具模块的语义
+    不要求续行：模型只负责"说话"；"还要不要再执行一次工具往返"是工具模块的语义
     （它是收尾模块）。
     """
 
@@ -96,7 +96,7 @@ class ModelModule(ModuleBase):
             assembled = assemble_with(self.context_pass, dialogue, runtime_note,
                                        self._covered_end())
             if assembled is None:
-                report_error("core.model", "上下文缺装配能力（本轮请求可能缺系统前缀）")
+                report_error("core.model", "上下文缺装配能力（本回合请求可能缺系统前缀）")
                 messages = with_mode_note(dialogue, runtime_note)
             else:
                 messages = assembled

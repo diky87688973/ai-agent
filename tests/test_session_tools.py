@@ -323,7 +323,7 @@ class RunnerE2ETest(unittest.TestCase):
         self.assertFalse(r1.data["queued"])
         self.assertTrue(r1.data["run_id"])
         self.assertTrue(self.mesh.is_running(target))
-        # 占位成功还没进模型：后到消息进入待发送队列，等当前回合结束再起下一轮。
+        # 占位成功还没进模型：后到消息进入待发送队列，等当前回合结束再起下一回合。
         deadline = time.monotonic() + 5
         while not self.provider.seen and time.monotonic() < deadline:
             time.sleep(0.01)

@@ -240,7 +240,7 @@ class ConversationQueue:
                        for item in self._ordered_locked(key))
 
     def claim_insert_batch(self, cid: str) -> List[Dict[str, Any]]:
-        """认领全部积压的插入消息，供下一安全轮次一次性注入。"""
+        """认领全部积压的插入消息，供下一安全趟一次性注入。"""
         try:
             key = self._key(cid)
         except QueueError:

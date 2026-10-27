@@ -1,4 +1,4 @@
-/* 本轮编辑只记在会话页上：预览留下 confirm_id 对应的 diff，提交成功留下确认 id。
+/* 本回合编辑只记在会话页上：预览留下 confirm_id 对应的 diff，提交成功留下确认 id。
    真正收尾时取两者交集。同一路径的多次修改按顺序都留下。等用户确认时的 done 不出清单。
    有效新消息（/api/chat/send）发出时清掉旧清单卡与页内映射；用户确认走单独接口，不清。 */
 function liveEditPieces(data, args, script){

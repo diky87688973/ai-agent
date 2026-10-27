@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""headless 壳：无 UI 运行一轮，使用与 Web 相同的提示词与上下文装配。
+"""headless 壳：无 UI 运行一个回合，使用与 Web 相同的提示词与上下文装配。
 
 壳层不装配 app：`run(app, text)` 接收现成底座，入口在 `agent.entry.headless`。
 """
@@ -32,7 +32,7 @@ def _format(event) -> str:
 
 def _prepare(app: Any, text: str, conversation_id: str,
              cancel: Any = None) -> tuple[str, Any]:
-    """返回 (cid, 本轮事件流)：真实 app 走完整提示词；测试替身保留 run_turn 入口。"""
+    """返回 (cid, 本回合事件流)：真实 app 走完整提示词；测试替身保留 run_turn 入口。"""
     runner = getattr(app, "runner", None)
     if runner is None:
         return str(conversation_id or "default"), app.run_turn(text)
@@ -45,7 +45,7 @@ def _prepare(app: Any, text: str, conversation_id: str,
 
 def run_session(app: Any, text: str, *, conversation_id: str = "",
                 timeout: float | None = None) -> tuple[str, int]:
-    """跑一轮并打印事件流；返回实际使用的 cid 与退出码。"""
+    """跑一个回合并打印事件流；返回实际使用的 cid 与退出码。"""
     cid = str(conversation_id or "").strip()
     cancel = threading.Event()
     deadline = time.monotonic() + timeout if timeout and timeout > 0 else None

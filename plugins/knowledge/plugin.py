@@ -397,7 +397,7 @@ class KBRuntime(_KnowledgeFiles):
                 self._checked.pop(key, None)
         self._persist()
         # 勾选是本插件的数据，装配侧缓存看不到它变了 —— 必须显式打个标记，
-        # 否则"改了勾选，这一段要等下一轮才生效"。
+        # 否则"改了勾选，这一段要等下一回合才生效"。
         bump = self._sources_bump
         if callable(bump):
             bump()
@@ -461,8 +461,8 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     runtime = KBRuntime(root, max_size, data_dir=getattr(ctx, "data_dir", None),
                         extra_suffixes=cfg.get("extra_suffixes") or ())
     runtime.load_checked()
-    # 勾选一变就让装配侧丢掉缓存的收集结果：否则"改了勾选要等下一轮才生效"。
-    # 出处是宿主的注册表（`ContextSources.bump`），拿不到就退化为"下一轮生效"。
+    # 勾选一变就让装配侧丢掉缓存的收集结果：否则"改了勾选要等下一回合才生效"。
+    # 出处是宿主的注册表（`ContextSources.bump`），拿不到就退化为"下一回合生效"。
     runtime._sources_bump = getattr(ctx, "bump_context_sources", None)
     ctx.set_runtime(runtime)
 

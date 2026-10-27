@@ -29,7 +29,7 @@ _ACTION_DISCIPLINE = """\
 #
 # 「确认」在提示词里有两个同名不同物的含义，歧义会让模型误发起一次 user_confirm ——
 # 一句含糊的"请先完成确认"会让模型误发起一次
-# `user_confirm`（去问用户），白跑一轮才改用 `review_conclusion`。
+# `user_confirm`（去问用户），白跑一个回合才改用 `review_conclusion`。
 # 同名不同物还有 `confirm_id`：门控的是预览快照 ID，`user_confirm` 的是宿主确认单 ID。
 # 术语写在提示词里：模型从工具描述里无法确定同名参数的区别。
 _TERMINOLOGY = """\
@@ -84,7 +84,7 @@ def tooling_discipline(registry: Any) -> str:
 4. 大文件局部读：先用 grep_files 定位行号，再 read_file 读局部，禁止整文件通读。
 5. 失败处理：工具返回 ok=false 时读返回里的说明（它写明缺什么、下一步做什么）；
    同一个错误不要盲重试；连续两次失败就停下来向用户说明原因。
-   达到工具轮次上限时，用文字总结并请用户「继续」。
+   达到工具往返上限时，用文字总结并请用户「继续」。
    Windows 上被终止的进程会以 exit code 1 收场且不带信号标记 ——
    那表示"被中断"，不是命令本身失败，别按失败去修。
 6. 执行先定前后台：

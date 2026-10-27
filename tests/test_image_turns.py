@@ -157,7 +157,7 @@ class StripByTotalCapTest(unittest.TestCase):
         self.assertEqual(MAX_EMBED_IMAGES, 8)
 
     def test_default_call_applies_bounded_defaults(self) -> None:
-        """默认保留最近 1 轮；20 张里只留最新一轮的 4 张。"""
+        """默认保留最近 1 轮；20 张里只留最新回合的 4 张。"""
         msgs = [_img_msg(f"第 {i} 轮", 4) for i in range(5)]
         out, stripped = strip_old_images(msgs)
         self.assertEqual(stripped, 16)

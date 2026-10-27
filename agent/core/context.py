@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""上下文数据结构：进程级 `AppContext` + 工具轮次 `ToolTurnContext`。
+"""上下文数据结构：进程级 `AppContext` + 工具往返 `ToolTurnContext`。
 
 装配点（app.py）在启动时注册各层服务，使用方经 get 解析；
 所有注册返回 disposer——插件热装卸的地基。
@@ -99,9 +99,9 @@ class AppContext:
 
 @dataclass(slots=True)
 class ToolTurnContext:
-    """工具轮次上下文：一次工具调用的窄视图（三级状态里的回合级）。
+    """工具调用上下文：一次工具调用的窄视图（三级状态里的回合级）。
 
-    它把该轮次需要的东西显式摆在一起，工具不必再靠 contextvar 猜、也不必在
+    它把该次工具调用需要的东西显式摆在一起，工具不必再靠 contextvar 猜、也不必在
     构造期注入"能摸到会话态的函数"：
 
     - `app`：进程级 `AppContext`（服务注册表）——需要全局能力时经 `app.get(NAME)` 解析，
@@ -109,7 +109,7 @@ class ToolTurnContext:
     - `session`：会话级 `SessionContext`——写盘门控 `session.gate`、实时状态
       `session.live`、待确认 `session.pending_confirm`；
     - `turn`：回合级原对象——只在确实要看回合内部状态时才用；
-    - `call`：本轮次的工具调用（`call_id` / 工具名 / 入参）；
+    - `call`：本回合的工具调用（`call_id` / 工具名 / 入参）；
     - `progress`：进度上报器（`report(payload)`；`None` 表示本场合不上报）。
 
     窄视图的取舍：

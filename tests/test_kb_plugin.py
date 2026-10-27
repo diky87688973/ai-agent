@@ -311,7 +311,7 @@ class ContextSourcesTest(unittest.TestCase):
         self.assertEqual([t for _, _, t in cs.collect_segments("c").items], ["留白"])
 
 class _RecordingProvider:
-    """记录请求的假模型（一轮文本应答结束回合）。"""
+    """记录请求的假模型（一回合文本应答结束回合）。"""
 
     def __init__(self):
         self.requests = []

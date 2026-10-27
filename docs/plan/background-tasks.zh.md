@@ -200,7 +200,7 @@ content 仍以 <<系统通知>> 开头
 卡片宽度为对话区的 50%，居中，贴合上边框，顶部左右无圆角。
 默认 6 秒后自动消失；用户展开详情后暂停自动消失，折叠后 4 秒再消失；新通知到达时用新卡片替换旧卡片。
 
-模型忙时通知进入 ConversationQueue，`origin=system`、`delivery=next_pass`，入队后立即置为 inserting；队列 UI 不显示系统通知。模型空闲时直接启动一轮；启动失败时回退到队列。
+模型忙时通知进入 ConversationQueue，`origin=system`、`delivery=next_pass`，入队后立即置为 inserting；队列 UI 不显示系统通知。模型空闲时直接启动一个回合；启动失败时回退到队列。
 
 注入字段：
 

@@ -24,7 +24,7 @@ def _user_content(text: str, attachments: Any) -> Any:
     if not isinstance(attachments, list) or not attachments:
         return text
     # 嵌图前做本地缩放与预算：内联 base64 计入请求体 48 MiB 上限，
-    # 超出时整轮请求被拒。
+    # 超出时整回合请求被拒。
     from agent.core.image_embed import build_embed_parts, placeholder_text
 
     parts, skipped = build_embed_parts(attachments)

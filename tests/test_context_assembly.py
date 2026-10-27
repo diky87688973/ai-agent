@@ -6,7 +6,7 @@
     messages = 头部 + 对话 + 尾部
     头部 = 系统提示 + skill-1..n + 知识库-1..n + 摘要-1..n      （系统类，永久携带）
     对话 = 事实折叠出来的对话（含工具调用与工具结果）
-    尾部 = 本轮新输入 / 工具结果（在对话末尾，由事实带来）+ 执行模式
+    尾部 = 本回合新输入 / 工具结果（在对话末尾，由事实带来）+ 执行模式
 
 压缩请求用同一份装配结果，末尾换成压缩指令::
 
@@ -293,7 +293,7 @@ class AssemblyShape(_Case):
 # ══════════════════════════════════════════════════════════════
 
 class TailShape(_Case):
-    """尾部 = 本轮新输入 + 执行模式（模式永远最后）。"""
+    """尾部 = 本回合新输入 + 执行模式（模式永远最后）。"""
 
     def _msgs(self, mode=True, new_input=True):
         p, _ = make_pipe(dialogue=dlg(1))
@@ -369,7 +369,7 @@ class TailShape(_Case):
 # ══════════════════════════════════════════════════════════════
 
 class CompactionContext(_Case):
-    """压缩上下文：剔除本轮新输入与执行模式，末尾接 system 指令。"""
+    """压缩上下文：剔除本回合新输入与执行模式，末尾接 system 指令。"""
 
     def _request(self, *, mode=MODE_AUTO, new_input=True, tool=False, summaries=()):
         """构造一次带压缩的请求；返回 (spy, 整份装配, 头部条数, 尾部条数)。
@@ -1138,7 +1138,7 @@ class MaskSurvivesOverflow(_Case):
         return out
 
     def test_masked_last_turn_stays_when_it_is_huge(self) -> None:
-        """核心：末尾那一轮自己就吃满预算，仍然不许压它。"""
+        """核心：末尾那一回合自己就吃满预算，仍然不许压它。"""
         msgs = self._msgs(big_last=True)
         p = ContextPipeline("cid-mask-0001", full_user_rounds=1)
         p.append_system(SYS)

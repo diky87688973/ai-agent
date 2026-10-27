@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""上下文贯通冒烟测试：工具轮次内工具拿得到三级上下文。
+"""上下文贯通冒烟测试：工具往返内工具拿得到三级上下文。
 
 上下文是模块间传输数据的约定（数据结构）：各模块直接引用 `current_context()`
 取到的 ToolTurnContext，不经过回调或解析器。本测试覆盖这条通路。
@@ -16,7 +16,7 @@ from agent.core.tool_call import ToolCallRequest, ToolPipeline
 
 
 class _ProbeTool:
-    """在工具轮次内把上下文抓出来，供断言检查。"""
+    """在工具往返内把上下文抓出来，供断言检查。"""
 
     name = "probe"
     description = "探针"
@@ -50,7 +50,7 @@ class _FakeTurn:
         self.progress_sink = None
 
 class ContextPlumbingTest(unittest.TestCase):
-    """三级上下文在工具轮次内可用。"""
+    """三级上下文在工具往返内可用。"""
 
     def setUp(self) -> None:
         from agent.mechanisms.quality import QualityGate
@@ -99,7 +99,7 @@ class ContextPlumbingTest(unittest.TestCase):
         self.assertEqual(ctx.conversation_id, "ctx-smoke-01")
 
     def test_context_does_not_leak_outside_the_call(self) -> None:
-        """调用结束即还原：工具轮次上下文不跨调用泄漏。"""
+        """调用结束即还原：工具往返上下文不跨调用泄漏。"""
         self.pipeline.execute(self.registry, self.call, _FakeTurn(self.app, self.session))
         self.assertIsNone(current_context())
 

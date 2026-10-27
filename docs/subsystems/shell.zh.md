@@ -28,7 +28,7 @@
 | `web/web_ui_config.py` | `web-ui-config.ini` 的界面展示开关 |
 | `settings_panel.py` / `settings_io.py` / `plugin_settings.py` / `plugin_editor.py` | 设置页宿主配置、INI 原语、插件配置与编辑视图 |
 | `cli/interactive.py` | 交互式对话壳（命令行） |
-| `cli/headless.py` | 无 UI 跑一轮并打印事件流 |
+| `cli/headless.py` | 无 UI 跑一个回合并打印事件流 |
 | `fspaths.py` | 可见范围的来源、路径判界与展示形态 |
 | `classic_adapter/` | 事件翻译、入站请求、历史回读、确认回路 |
 | `web/web_assets/` | 壳层页面、样式与前端脚本 |
@@ -107,8 +107,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 | 路径 | 作用 |
 |---|---|
-| `/api/chat/send` | 发起一轮对话；同会话在跑时进入待发送队列；可带 `draft_id` 重发已召回草稿 |
-| `/api/chat/queue/<id>/insert` | 把队列消息标记为下一个安全轮次插入；会话空闲时直接起一轮 |
+| `/api/chat/send` | 发起一个回合；同会话在跑时进入待发送队列；可带 `draft_id` 重发已召回草稿 |
+| `/api/chat/queue/<id>/insert` | 把队列消息标记为下一个安全模型趟插入；会话空闲时直接起一个回合 |
 | `/api/chat/queue/<id>/recall` | 撤回队列消息并返回文本、图片与来源 |
 | `/api/chat/stop` | 停止当前回合（协作式取消） |
 | `/api/chat/user-confirm` | 提交用户确认：写盘确认、`user_confirm` 作答与审批（agree/reject）共用此端点 |
@@ -191,8 +191,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 ## 回合调度
 
 `session/runner.py` 的 `SessionRunner` 在后台执行回合：用收到的输入构建引擎、跑模块链，
-把事件发到事件总线（再进 SSE）；回合结束后抽干待发送队列，有待插入消息时起一轮插入回合，
-否则按目标与自主开关决定是否续跑。自动续跑最多 50 轮。外部工具结果在回合前拼成
+把事件发到事件总线（再进 SSE）；回合结束后抽干待发送队列，有待插入消息时起一个插入回合，
+否则按目标与自主开关决定是否续跑。自动续跑最多 50 个回合。外部工具结果在回合前拼成
 `tool_done` / `tool_failed` 与 `tool_ended`，按 `call_id` 查重。
 
 心跳旁路线程每 60 秒续一次运行态登记，长工具调用期间不会被判为过期。任务结束、被取消或
@@ -222,7 +222,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 ```python
 build_inline_css()      # 清单顺序的 CSS + 代码高亮深色主题 + 作用域限定到浅色的代码高亮浅色主题
-build_inline_js()       # 前置脚本（主题 / Markdown 解析器 / 语法高亮库 / 代码高亮 / 图片灯箱）-> 主脚本模块 -> 后置脚本（工具视图 / 文件图标 / 本轮编辑清单 / 设置页）
+build_inline_js()       # 前置脚本（主题 / Markdown 解析器 / 语法高亮库 / 代码高亮 / 图片灯箱）-> 主脚本模块 -> 后置脚本（工具视图 / 文件图标 / 本回合编辑清单 / 设置页）
 scope_hljs_css()        # 给 .hljs 选择器加作用域前缀，如 html[data-ui-theme="light"]
 inline_ui_html()        # 拼成完整单页
 ```
@@ -238,7 +238,7 @@ inline_ui_html()        # 拼成完整单页
 `plugins/multi_model/ui/` 渲染，样式经 `window.aiAgentShell.styles.load()` 注入，
 壳层公共样式里没有它。两条公共桥与停用清理见 [plugins.md](plugins.md#壳层公共桥)。
 
-### 本轮编辑清单
+### 本回合编辑清单
 
 `edited-files.js` 只在页面内存拼装：预览留下 `confirm_id → diff`，`commit_write` 留下已确认 id，
 回合 `done` 或 `stopped` 时取交集渲染 `.edited-files`；因等待用户确认而暂停时，

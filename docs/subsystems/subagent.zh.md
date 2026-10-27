@@ -68,7 +68,7 @@ data/subagent/sessions/<child_id>.raw.lock
   → 读取子会话最近一条非空 model_message
   → 作为 Agent 消息直接投递父 inbox
   → 无模型输出时投递固定提示
-  → 本轮已主动发送相同文本时不重复投递
+  → 本回合已主动发送相同文本时不重复投递
 ```
 
 父子消息在目标忙碌时强制插入，发送路径不提供非插入模式。在 `QueuedInputModule` 中批量认领插入消息，每条保留独立 `input_claimed` 事实。

@@ -68,7 +68,7 @@ class ModuleBase:
 
 | 模块 | 作用 |
 |---|---|
-| `InputModule` | 把本轮的新用户输入认领成事实；**无输入时只发 `input_ended(claimed=False)`** |
+| `InputModule` | 把本回合的新用户输入认领成事实；**无输入时只发 `input_ended(claimed=False)`** |
 | `QueuedInputModule` | 把待发送队列中标记插入的消息收进上下文；排在压缩之前，让压缩看得见它们 |
 | `CompressModule` | 拼入前做预算检查，超阈值则压缩历史；压缩失败一律放行，不阻断回合 |
 | `ModelModule` | 按事实末端判定该不该跑；跑就发请求、消费流式增量，落成 `model_message` |
@@ -129,7 +129,7 @@ class Ports:
 |---|---|---|---|
 | 进程级 | `AppContext`（`core/context.py`） | 工具注册表、执行管道、模型 provider、会话存储、事件总线、插件宿主、协作网格、各类工厂 | 进程全程 |
 | 会话级 | `SessionContext` / `SessionContexts`（`core/session_context.py`） | 写盘门控、实时状态 | 按 `conversation_id` 懒创建 |
-| 回合级 | `ToolTurnContext`（`core/context.py`） | 单回合内的工具轮次状态 | 单回合 |
+| 回合级 | `ToolTurnContext`（`core/context.py`） | 单回合内的工具往返状态 | 单回合 |
 
 会话注册表 `SessionContexts` 是跨端访问的**唯一入口**：`sessions.resolve()`，或按 id 取 `sessions.get(cid)`。工具与管道钩子在执行期内经 `core/session_scope.py` 的 `current_session_id()` 取当前会话，不得把会话态塞进全局单例，也不得跨会话直读。
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""会话 / 轮次作用域 — 工具取上下文的唯一通路，以及进度上报通道。
+"""会话 / 工具调用作用域 — 工具取上下文的唯一通路，以及进度上报通道。
 
-`ToolPipeline.execute` 在调用期把该轮次的上下文摆进 contextvar：
+`ToolPipeline.execute` 在调用期把该工具调用的上下文摆进 contextvar：
 - `current_session_id()`：会话 id；
 - `current_context()`：完整的 `ToolTurnContext`——进程级 AppContext + 会话级
   SessionContext + 回合级上下文 + 本次调用。
@@ -45,17 +45,17 @@ def current_session_id() -> str:
 
 
 def set_tool_turn_context(ctx: Any) -> Token:
-    """装配本工具轮次的上下文（返回还原 token）；由 ToolPipeline.execute 调用。"""
+    """装配本次工具调用的上下文（返回还原 token）；由 ToolPipeline.execute 调用。"""
     return _CONTEXT.set(ctx)
 
 
 def reset_tool_turn_context(token: Token) -> None:
-    """退出工具轮次作用域。"""
+    """退出工具调用作用域。"""
     _CONTEXT.reset(token)
 
 
 def current_context() -> Any:
-    """当前工具轮次的 `ToolTurnContext`；不在工具轮次内时返回 None。
+    """当前工具调用的 `ToolTurnContext`；不在工具调用内时返回 None。
 
     工具用它拿会话态与全局服务，例如：::
 

@@ -196,7 +196,7 @@ class LiveState:
             return self._goals.pop(str(conversation_id or ""), None) is not None
 
     def note_goal_round(self, conversation_id: str) -> int:
-        """记一次"因目标而起的自动轮次"，返回累计轮数（供 UI 显示推进程度）。"""
+        """记一次"因目标而起的自动回合"，返回累计回合数（供 UI 显示推进程度）。"""
         with self._lock:
             row = self._goals.get(str(conversation_id or ""))
             if not isinstance(row, dict):
@@ -403,6 +403,6 @@ def submit_command_input(key: str, text: str) -> bool:
 
 # ── 目标状态语义（`status`）─────────────────────────────────
 #
-#   - `active`：回合结束后自动用 `text` 触发新一轮；
+#   - `active`：回合结束后自动用 `text` 触发新回合；
 #   - `paused`：保留目标、停止自动触发（可 resume）；
 #   - `done`：已达成，不再触发（终态，但保留记录以便查询）。

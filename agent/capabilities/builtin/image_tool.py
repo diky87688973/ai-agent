@@ -109,7 +109,7 @@ class ImageReadTool(ToolPlugin):
         if self._already_read(ident):
             raise ValueError(
                 "本回合已读取过该附件，不能重复读取；"
-                "若图片未随请求发送，请等下一轮或调整 image_max")
+                "若图片未随请求发送，请等下一回合或调整 image_max")
         for event in events:
             if str(getattr(event, "type", "")) != "input_claimed":
                 continue

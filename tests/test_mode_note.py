@@ -157,7 +157,7 @@ class ModeIsNotPersistedTest(unittest.TestCase):
         from agent.mechanisms.session_store import SessionStore
 
         # 不装插件：本用例断言的是"模式说明不进事实流"，与插件贡献无关。
-        # 不隔离的话，开发者本机的插件配置（目录权威 / 注入源）会改变这一轮的请求。
+        # 不隔离的话，开发者本机的插件配置（目录权威 / 注入源）会改变这一回合的请求。
         no_plugins(self)
         class _Spy:
             def __init__(self):

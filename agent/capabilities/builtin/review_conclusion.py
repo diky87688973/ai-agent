@@ -14,7 +14,7 @@ from agent.mechanisms.quality import QualityGate
 
 
 def _session_gate() -> QualityGate:
-    """取当前工具轮次的会话门控。"""
+    """取当前工具调用的会话门控。"""
     from agent.core.session_scope import current_context
 
     ctx = current_context()

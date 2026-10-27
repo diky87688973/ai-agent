@@ -70,7 +70,7 @@ UI_PRE_JS_MODULES = (
     "js/image-lightbox.js",
 )
 
-#: 主脚本之后加载的脚本：工具视图、文件图标、本轮编辑清单、设置页。
+#: 主脚本之后加载的脚本：工具视图、文件图标、本回合编辑清单、设置页。
 UI_POST_JS_MODULES = (
     "js/chat-tool-views.js",
     "js/file-icons.js",

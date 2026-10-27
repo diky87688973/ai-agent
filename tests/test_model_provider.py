@@ -545,7 +545,7 @@ class UserFacingTextTest(unittest.TestCase):
 
 
 class ReasonNotReplayedTest(unittest.TestCase):
-    """历史推理不回传内容：它必然未命中缓存，回传等于每轮多算几万 token。
+    """历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token。
 
     但键必须留着：DeepSeek 思考模式下带 `tool_calls` 的 assistant 消息要回传
     `reasoning_content`（空串可接受），缺键会 400。
@@ -627,7 +627,7 @@ class ReasonNotReplayedTest(unittest.TestCase):
 
 
 class TurnStartAssemblyTest(unittest.TestCase):
-    """装配时把"本轮起点"标出来，provider 才有裁的依据。"""
+    """装配时把"本回合起点"标出来，provider 才有裁的依据。"""
 
     def test_model_module_marks_turn_start(self) -> None:
         src = (ROOT / "agent/core/modules/model_mod.py").read_text(encoding="utf-8")

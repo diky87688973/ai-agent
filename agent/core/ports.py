@@ -49,7 +49,7 @@ class ProviderPort(Protocol):
 
 
 class RegistryPort(Protocol):
-    """工具注册表的结构契约：本轮可用的工具声明。"""
+    """工具注册表的结构契约：本回合可用的工具声明。"""
 
     def schemas(self) -> List[Dict[str, Any]]:
         ...
@@ -126,7 +126,7 @@ class ToolPort:
         return self._registry
 
     def schemas(self) -> List[Dict[str, Any]]:
-        """本轮可用的工具声明（交给模型）。"""
+        """本回合可用的工具声明（交给模型）。"""
         if self._registry is None:
             return []
         return list(self._registry.schemas())
@@ -304,7 +304,7 @@ class LogicalRequest:
     tools: list[dict[str, Any]]
     effort: str = "high"
     model: str = ""
-    #: 本轮在 `messages` 里的起始下标（含）：该下标之前的消息属于已结束的轮次，
+    #: 本回合在 `messages` 里的起始下标（含）：该下标之前的消息属于已结束的回合，
     #: provider 可以据此丢掉它们的 `reasoning_content`（见 providers/openai 的同名处理）。
     #: None = 不知道边界，按原样下发。
     turn_start: Optional[int] = None

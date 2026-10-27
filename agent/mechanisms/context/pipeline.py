@@ -181,7 +181,7 @@ class ContextPipeline:
         每段 `{key, label, tokens, pct, count}`，末尾补 `剩余容量`；
         `pct` 相对预算（取预算与已用中的较大者，保证各段之和不超过 100%）。
 
-        `tail_messages` 是请求尾部的临时后缀（本轮新输入 / 工具结果 / 执行模式），
+        `tail_messages` 是请求尾部的临时后缀（本回合新输入 / 工具结果 / 执行模式），
         不在管线里持有，由调用方传进来单独算 `mode` 段。
         """
         counter = token_fn or default_message_tokens
@@ -231,7 +231,7 @@ class ContextPipeline:
     #
     #   ① 头部（host）  系统提示 / Skills / 知识库 / 摘要 —— 本回合内逐字节稳定
     #   ② 对话（dialogue） 事实折叠出来的对话（含工具调用与工具结果）
-    #   ③ 尾部（tail）  本轮新输入 / 工具结果 + 执行模式 —— 请求时才拼
+    #   ③ 尾部（tail）  本回合新输入 / 工具结果 + 执行模式 —— 请求时才拼
     #
     #   messages = 头部 + 对话 + 尾部
     #

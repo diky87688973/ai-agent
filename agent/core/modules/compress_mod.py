@@ -48,7 +48,7 @@ class CompressModule(ModuleBase):
 
     def execute(self, ports: Ports) -> Iterator[Any]:
         if self.context_pass is None and self._compactor is None:
-            # 没装压缩能力：仍发终态（`skipped`），监听者据此知道"这轮没压"，
+            # 没装压缩能力：仍发终态（`skipped`），监听者据此知道"这回合没压"，
             # 而不是以为"事件丢了"。
             yield ports.emit(COMPRESS_ENDED, compacted=False, skipped=True)
             return Outcome.ok()

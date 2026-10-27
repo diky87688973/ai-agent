@@ -13,7 +13,7 @@ var busy=typeof isConversationBusy==="function"&&isConversationBusy();
 var draft=(window.chatDraft&&window.chatDraft.id)?window.chatDraft:null;
 var defer=!!(busy||draft);
 var sendCid=getActiveConversationId();
-/* 有效新消息才清本轮编辑清单；/api/chat/user-confirm 不走这里。 */
+/* 有效新消息才清本回合编辑清单；/api/chat/user-confirm 不走这里。 */
 if(typeof clearLiveEdits==="function")clearLiveEdits(findConversationTab(sendCid));
 /* 气泡只显示文字：图片由下方的附件条（缩略图）表达，不再追加 `[图片 ×N]` 后缀。
    只发图不打字时给个占位，否则气泡是空的。 */

@@ -56,7 +56,7 @@ def with_mode_note(messages: Any, mode_note: str) -> List[Dict[str, Any]]:
 def mode_tail(messages: Any) -> List[Dict[str, Any]]:
     """请求尾部的执行模式说明（正文以 `MODE_MARKER` 开头）。
 
-    位置不固定：用户输入轮末尾是 `[本轮新输入][执行模式]`，工具轮里是
+    位置不固定：用户输入轮末尾是 `[本回合新输入][执行模式]`，工具调用里是
     `[执行模式][工具结果]`。所以倒序按内容认，不按位置猜。
     """
     for m in reversed(list(messages or [])):

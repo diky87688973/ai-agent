@@ -5,7 +5,7 @@
 
 1. 消息形状：system 提到顶层；工具结果是 `role:"user"` 里的 `tool_result` 块；
    assistant 的工具调用是 `tool_use` 块（参数是对象，不是 JSON 文本）。
-2. extended thinking：推理增量是 `thinking_delta`，签名随块回传；同一轮里带工具的
+2. extended thinking：推理增量是 `thinking_delta`，签名随块回传；同一回合里带工具的
    后续请求必须把 thinking 块（含 `signature`）原样带回，否则会被 API 拒绝。
    签名由内核 `provider_meta` 透传（见 `docs/plan/multi-model.md` 第 8 节）。
 3. 必填参数：`max_tokens` 必填，且必须大于 thinking 预算。
@@ -129,7 +129,7 @@ def _meta_blocks(m: Mapping[str, Any]) -> List[Dict[str, str]]:
 
 
 def strip_stale_thinking(messages: List[Any], turn_start: Optional[int]) -> List[Any]:
-    """只保留本轮（下标 >= `turn_start`）的 thinking 块。
+    """只保留本回合（下标 >= `turn_start`）的 thinking 块。
 
     跨用户轮重放旧签名没有意义，还可能因为签名过期被拒。缺 `signature` 的块同样丢弃
     并留一条降级日志——留着它一定会被 API 拒绝，丢块最多损失一点推理上下文。
@@ -383,7 +383,7 @@ def _stop_reason_note(reason: str) -> str:
 
 
 def _tool_turn_missing_thinking(messages: List[Any], turn_start: Optional[int]) -> bool:
-    """本轮有带 `tool_calls` 的 assistant 消息但没有任何可回传的 thinking 块？
+    """本回合有带 `tool_calls` 的 assistant 消息但没有任何可回传的 thinking 块？
 
     DeepSeek 与 Anthropic 官方都要求：思考模式下，带 `tool_use` 的 assistant 消息
     必须把 thinking 块原样带回（DeepSeek 报 `content[].thinking ... must be passed
@@ -461,8 +461,8 @@ class AnthropicProvider(ModelProvider):
         turn_start = getattr(request, "turn_start", None)
         thinking_on = self._thinking_enabled()
         if thinking_on and _tool_turn_missing_thinking(raw_messages, turn_start):
-            # 历史工具轮丢了 thinking 块：补不回来，只能本轮关掉思考（否则必被拒）。
-            _warn("本轮带工具调用的 assistant 消息缺 thinking 块，已关闭 thinking")
+            # 历史工具往返丢了 thinking 块：补不回来，只能本回合关掉思考（否则必被拒）。
+            _warn("本回合带工具调用的 assistant 消息缺 thinking 块，已关闭 thinking")
             thinking_on = False
         payload: Dict[str, Any] = {
             "model": model,
@@ -486,7 +486,7 @@ class AnthropicProvider(ModelProvider):
         else:
             # 必须显式关闭：DeepSeek 兼容层默认开启思考模式，不传 `thinking`
             # 等于继续思考；而思考模式下带 `tool_use` 的 assistant 消息必须回传
-            # thinking 块，关掉思考就再也拿不到块 → 工具轮 400。Anthropic 官方同样
+            # thinking 块，关掉思考就再也拿不到块 → 工具往返 400。Anthropic 官方同样
             # 接受 `{"type":"disabled"}`。
             payload["thinking"] = {"type": "disabled"}
         return payload
@@ -673,7 +673,7 @@ def _assemble_deltas(chunks: Iterable[Dict[str, Any]]) -> Iterator[StreamDelta]:
     if stop_reason:
         print(_stop_reason_note(stop_reason), file=sys.stderr, flush=True)
     if thinking and calls:
-        # 只有"要带工具继续这一轮"时才需要回传签名；纯文本回答没有回传落点。
+        # 只有"要带工具继续这一回合"时才需要回传签名；纯文本回答没有回传落点。
         yield StreamDelta(kind="meta", meta={_META_VENDOR: {_META_BLOCKS: thinking}})
     for _index, call in sorted(calls, key=lambda item: item[0]):
         yield StreamDelta(kind="tool_call", tool_call=call)
@@ -711,7 +711,7 @@ def _int(value: Any) -> int:
     try:
         return max(0, int(value))
     except (TypeError, ValueError):
-        # 用量字段缺失或格式异常时按 0 计；统计问题不该打断已完成的一轮。
+        # 用量字段缺失或格式异常时按 0 计；统计问题不该打断已完成的一回合。
         return 0
 
 

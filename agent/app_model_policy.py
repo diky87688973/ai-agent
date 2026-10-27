@@ -43,7 +43,7 @@ class AppModelPolicy:
         try:
             return snapshot()
         except Exception as exc:
-            # 快照失败不能把整条请求链路带崩：按无模型处理，下一轮重读。
+            # 快照失败不能把整条请求链路带崩：按无模型处理，下一回合重读。
             report_error("app.model_catalog", exc)
             return None
 

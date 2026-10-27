@@ -7,7 +7,7 @@
 它是数据结构（"会话态长什么样"的约定），不是机制实现。上下文类是模块间传输数据
 的约定，所有用到的地方都该直接 import 它；`scripts/check_imports.py` 约束的是
 行为依赖方向（谁调用谁），不是"谁能使用同一份数据形状"。
-工具轮次经 `ToolPort` 把本会话桶填进管道上下文，工具读 `current_context().session.gate`。
+工具调用经 `ToolPort` 把本会话桶填进管道上下文，工具读 `current_context().session.gate`。
 
 本模块承担两件事：
 

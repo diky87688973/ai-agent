@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""挂起是终态、恢复是新一轮、衔接靠事实（含"重启后恢复"）。
+"""挂起是终态、恢复是新回合、衔接靠事实（含"重启后恢复"）。
 
 要证明的三件事：
-  ① 挂起后宿主循环已退出（无内存游标）；恢复是新一轮循环，不是回到旧循环。
-  ② 衔接靠事实：挂起与外部结果都落盘；工具模块在新一轮里从上下文看到
+  ① 挂起后宿主循环已退出（无内存游标）；恢复是新回合循环，不是回到旧循环。
+  ② 衔接靠事实：挂起与外部结果都落盘；工具模块在新回合里从上下文看到
      "已解决但未回灌"的调用，回灌成一次普通的 `tool_result` 并要求续行。
   ③ 重启后仍能恢复：丢掉宿主与全部模块对象，只从事实重建，恢复照样成立。
 """
@@ -87,7 +87,7 @@ class Host:
                 if outcome.status == "halt":
                     return "halted"
                 if outcome.status == "suspend":
-                    # 终态：直接退出。不留游标——恢复时另起一轮。
+                    # 终态：直接退出。不留游标——恢复时另起一个回合。
                     return "suspended"
                 if outcome.status == "next":
                     wants_another = True
@@ -120,7 +120,7 @@ class ModelModule(ModuleBase):
 class ToolModule(ModuleBase):
     """工具模块 = 收尾模块。两个职责：
 
-    ① 处理模型这轮请求的工具调用；
+    ① 处理模型这回合请求的工具调用；
     ② 回灌已解决但还没交回模型的外部结果（用户确认走这条）。
 
     它不认识"确认"——它只知道"某个挂起的调用现在有结果了"。
@@ -195,7 +195,7 @@ class ResumeBridgeTest(unittest.TestCase):
         return [InputModule(), ModelModule(replies), ToolModule(need_input_on_first_call=True)]
 
     def test_suspend_is_terminal_and_resume_is_a_new_run(self) -> None:
-        """① 挂起即终态；恢复是新一轮宿主循环，不是回到旧循环。"""
+        """① 挂起即终态；恢复是新回合宿主循环，不是回到旧循环。"""
         host = Host(self._modules(["我先问你"]), self.events.append)
         self.assertEqual(host.run(self.facts), "suspended")
         first_passes = host.passes

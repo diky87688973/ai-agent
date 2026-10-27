@@ -71,7 +71,7 @@ class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
         `history()` 与这里的实时帧共用它，避免两条路径算出不同结果。
 
         对话与模式来自内核发的 `context_segments`（`ModelModule` 每次装配完请求发
-        一条）：模式说明与工具轮的内部 system 注入不落记录，只有那份快照里有。
+        一条）：模式说明与工具调用的内部 system 注入不落记录，只有那份快照里有。
         插件段按当前注入源重算。适配层在这里换个名字转发给前端
         （前端认 `context_layout`）。
 

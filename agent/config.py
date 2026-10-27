@@ -120,7 +120,7 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         "image_max": _int("image_max", 8),
         # 思维链回传预算（token）：-1 = 全量回传，0 = 不回传，
         # 正数 = 超出就取两头、中间以省略标记代替（模型按前后文推断）。
-        # 思维链必然未命中缓存，全量回传等于每轮多背几万 token。
+        # 思维链必然未命中缓存，全量回传等于每回合多背几万 token。
         "reasoning_replay_tokens": _int("reasoning_replay_tokens", DEFAULT_REASONING_REPLAY_TOKENS),
     }
 
@@ -228,7 +228,7 @@ def get_backup_retention_days(path: Optional[Path] = None) -> int:
 #: 一个回合最多跑多少趟（模型往返）的默认值。
 #: 权威值在内核的 `MAX_PASSES_DEFAULT`，这里只做转出，避免同一个数写两遍。
 #: 一趟 = 模型说一次话（可带多个工具调用）+ 这些工具全部执行完。
-#: 超过说明有模块永远要求续行，或这轮任务确实很长（GUI 自动化常见）。
+#: 超过说明有模块永远要求续行，或这回合任务确实很长（GUI 自动化常见）。
 DEFAULT_MAX_PASSES = MAX_PASSES_DEFAULT
 
 

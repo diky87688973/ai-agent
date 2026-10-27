@@ -86,12 +86,12 @@ INI 的节名必须唯一，因此两套协议不能共用一个 id。
 - `thinking = 0` 是显式关闭：请求体下发 `{"type":"disabled"}`。省略该键时适配器开启思考，
   预算取 `thinking_budget_tokens`。
 - `thinking_budget_tokens` 必须 ≥ 1024 且小于 `max_tokens`。不满足时适配器写一条
-  stderr 诊断并关闭本轮思考，请求照常发出。
+  stderr 诊断并关闭本回合思考，请求照常发出。
 - 思考深度：Messages 协议按 `budget_tokens`，Chat Completions 协议按请求里的
   `reasoning_effort`（由会话档位决定）。适配器不下发 `output_config`。
 - 思考模式下部分网关忽略 `temperature`，Messages 适配器不下发该字段。
-- 带工具的同一轮里，thinking 块必须随 `tool_use` 原样回传；缺块时网关返回 400。
-  历史轮不要求回传。块缺失且无法补齐时，适配器关闭本轮思考并留诊断。
+- 带工具的同一回合里，thinking 块必须随 `tool_use` 原样回传；缺块时网关返回 400。
+  历史回合不要求回传。块缺失且无法补齐时，适配器关闭本回合思考并留诊断。
 - 思考模式下密钥必须与 `base_url` 指向的网关匹配，否则会被网关拒绝。
 
 ## 目录权威

@@ -219,7 +219,7 @@ class ChannelMixin:
             frames: List[Dict[str, Any]] = []
             rows = store.tail_across(int(after_seq), limit=limit)
             # 按会话分组翻译：每个会话一条 `ClassicStream`（翻译是有状态的，
-            # 轮次号 / 待配对工具都按会话各自维护）。
+            # 回合号 / 待配对工具都按会话各自维护）。
             # 装配/契约错误（如缺 registry）直接冒泡，禁止吞成空回放。
             for seq, cid, event in rows:
                 stream = self._stream(cid)

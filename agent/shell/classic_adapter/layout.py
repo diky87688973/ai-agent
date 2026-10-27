@@ -14,7 +14,7 @@ from agent.shell.classic_adapter.contract import EV_CONTEXT_SEGMENTS
 #: 上下文布局的小缓存：`{cid: ((事实条数, 注入源版本), 布局)}`。
 #
 # 本函数在每一步都会被调（实时帧一路），每次都做
-# 一次全量 `store.load` + 折叠，一轮几十步就是几百毫秒的纯浪费
+# 一次全量 `store.load` + 折叠，一回合几十步就是几百毫秒的纯浪费
 # （同一步内事实没变，算出来必然一样）。
 #
 # 缓存键是事实条数加上注入源版本。事实只追加、不修改。
@@ -28,7 +28,7 @@ def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Di
     """上下文分段快照（实时与刷新两条路径共用同一口径）。
 
     对话、系统提示词、模式用内核最后一条 `context_segments`
-    （模式说明与工具轮的内部 system 注入不落记录，只有那份快照里有）。
+    （模式说明与工具调用的内部 system 注入不落记录，只有那份快照里有）。
     插件段按当前注入源重算：勾选和插件开关发生在两次请求之间，
     快照里的插件段对不上此刻会注入的内容。
 
@@ -191,7 +191,7 @@ def _rescale(payload: Dict[str, Any], budget_tokens: int) -> Dict[str, Any]:
 def _mode_of(events: List[Any]) -> str:
     """末次请求里的执行模式（`## 当前模式：<mode>`）；取不到给 auto。
 
-    倒序扫描：模式在请求里位置不固定（工具轮里它后面还跟着工具结果）。
+    倒序扫描：模式在请求里位置不固定（工具调用里它后面还跟着工具结果）。
     """
     msgs: List[Any] = []
     if events:

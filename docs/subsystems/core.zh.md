@@ -49,7 +49,7 @@ class ModuleBase:
 
 | 模块 | 做什么 | 主要事件 |
 |---|---|---|
-| `InputModule` | 把本轮新用户输入认领成事实 | `input_started` / `input_claimed` / `input_ended` |
+| `InputModule` | 把本回合新用户输入认领成事实 | `input_started` / `input_claimed` / `input_ended` |
 | `QueuedInputModule` | 把待发送队列中标记插入的消息收进上下文 | `input_claimed` |
 | `CompressModule` | 拼入前预算检查，超阈值压缩 | `compress_started` / `context_compacted` / `compress_ended` |
 | `ModelModule` | 发请求、消费流、聚合工具调用 | `llm_started` / `assistant_delta` / `reasoning_delta` / `llm_done` / `llm_failed` / `llm_ended` / `model_message` / `usage` / `context_segments` |
@@ -144,7 +144,7 @@ set_progress_reporter(fn) / emit_progress(stream=..., text=..., done=...)
 | 类 | 作用 |
 |---|---|
 | `AppContext` | 进程级服务登记表：`register(name, svc)` / `get(name)` / 注销句柄。未注册的 name 由 `get` 抛 `KeyError`，存在性用 `has(name)` 问 |
-| `ToolTurnContext` | 单回合内工具轮次的最小状态 |
+| `ToolTurnContext` | 单回合内工具往返的最小状态 |
 
 服务名常量集中在 `core/context.py` 顶部，装配点与使用方引用同一常量。
 

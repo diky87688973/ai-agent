@@ -170,7 +170,7 @@ class Engine:
         攒到回合末尾一次写：门控在工具执行时抛异常的话，
         界面已渲染完整对话，而存储里一个字都没有、`/api/chat/history` 为空、
         刷新即消失（连用户发言一起丢）；已完成工具的事实丢失还会让
-        下一轮重跑同一调用（重复副作用）。
+        下一回合重跑同一调用（重复副作用）。
 
         `SessionStore.append` 是原子的（追加前记偏移，失败 `truncate` 回滚），
         这一点是前提：若它逐行写，半写后重试整批会产生重复行与重复坐标。
@@ -240,7 +240,7 @@ class Engine:
 
     @property
     def paused(self) -> bool:
-        """本轮是否停在"等外部输入"（挂起是终态，不是阻塞态）。"""
+        """本回合是否停在"等外部输入"（挂起是终态，不是阻塞态）。"""
         return bool(self.last_result is not None and self.last_result.paused)
 
     def describe(self) -> Dict[str, Any]:
