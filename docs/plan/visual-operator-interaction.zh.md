@@ -21,7 +21,7 @@
 | 层 | 内容 | 解决的问题 |
 |---|---|---|
 | L1 回执 | 改变桌面的动作在平台可观测时返回 `focus` / `hit` / `changed`；输入类动作可回图（`shot`） | 点错立刻可见，不用靠下一张截图反推 |
-| L2 语义动词 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` | 定位不再由模型估读 |
+| L2 语义动词 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` / `desktop_open` | 定位不再由模型估读 |
 | L3 批量管道 | `desktop_act`：多步一次调用，每步带 `expect`，失败即停 | 稳定任务的往返从 N 降到 1 |
 
 `docs/plan/visual-operator.md` 的决定不变：四个基线工具各自独立，不把 15 个动作塞进一个 `desktop_action`。L2 动词是 L0 调用的组合；L3 是独立的新工具，不是把参数矩阵摊平。基线参数语义不变，新增参数全部可选。
@@ -64,7 +64,7 @@
 |---|---|---|
 | L0 | `desktop_eye` / `desktop_mouse` / `desktop_keyboard` / `desktop_wait` | 基线 |
 | L1 | 可选参数 `shot`；回执 `focus` / `hit` / `changed` / `window_changed` | L0 扩展 |
-| L2 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` | 新增 |
+| L2 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` / `desktop_open` | 新增 |
 | L3 | `desktop_act` | 新增 |
 
 L2 动词是 L0 调用的组合，不引入新的系统调用面，与 L0 共用同一把输入锁与同一套 Plan 门控。
@@ -93,13 +93,17 @@ L2 动词是 L0 调用的组合，不引入新的系统调用面，与 L0 共用
 
 | 工具 | 参数 | 契约 |
 |---|---|---|
-| `desktop_window` | `action`：`list` / `activate` / `wait` / `rect`；`title` / `hwnd` / `class` / `timeout_ms` | `activate` 恢复并置前；成功判据是随后能取到内容，不是前台 API 返回了 `true`。`wait` 等到窗口出现且非最小化 |
+| `desktop_window` | `action`：`list` / `activate` / `wait` / `rect`；`window` / `hwnd` / `timeout_ms` / `interval_ms` / `limit` | `activate` 恢复并置前；成功判据是随后能取到内容，不是前台 API 返回了 `true`。`wait` 等到窗口出现且非最小化；`list` 返回候选窗口 |
 | `desktop_find` | `text`、`region`、`match`（`contains` / `exact` / `regex`）、`source`（`auto` / `uia` / `point`）、`limit` | 返回 `matches[]`，每项带 `rect` / `index` / `source` / `confidence` |
 | `desktop_click_text` | `text`、`index`、`region`、`button`、`count`、`shot`、`expect` | 内部：查找 → 命中校验（唯一 / 第 n 个）→ 点击 → 回执 |
-| `desktop_type_into` | `target`（文本或矩形）、`text`、`clear`、`submit`、`interval_ms`、`shot`、`expect` | 内部：定位 → 聚焦 → 清空 → 输入 → 可选回车 → 等变化 |
-| `desktop_app` | `name` / `path`、`args`、`timeout_ms`、`shot` | 启动 → 等主窗口 → 激活；返回 `pid` / `hwnd` / `rect` |
+| `desktop_type_into` | `target`（文本）或 `x/y/width/height`、`space` / `capture_id`、`text`、`clear`、`submit` | 内部：UIA 或矩形中心 → 聚焦 → 清空 → 输入 → 可选回车 → 像素 diff |
+| `desktop_click_region` | `x/y/width/height`、`space` / `capture_id`、`window` / `hwnd`、`button`、`count` | 用矩形中心点击；`space=image` 时工具把图内矩形换算成屏幕，回执带 `changed` / `title_changed` / `verified` |
+| `desktop_open` | `target`、`window`、`timeout_ms`、`activate` | 用系统默认处理器打开 URL/scheme/文件；优先绑定本次新窗口，返回 `fresh` / `reused` / `hwnd`，标题不完全匹配时也返回实际窗口 |
+| `desktop_app` | `path` / `name`、`args`、`window`、`timeout_ms`、`activate` | `name` 从开始菜单快捷方式解析；启动 → 等主窗口 → 激活；返回 `pid` / `path` / `hwnd` / `rect` |
 
-`desktop_app` 与 `desktop_open`（URL scheme 或默认浏览器）分开：前者要窗口，后者不要。
+`desktop_app` 与 `desktop_open`（URL scheme 或默认浏览器）分开：前者启动程序并等待主窗口，后者只打开目标；给 `window` 时才等待窗口。
+Windows 的 P2 定位适配使用系统 PowerShell 的 `UIAutomationClient`：查询参数以 base64 传入环境变量，脚本从标准输出返回 JSON；只做控件定位，不引入第三方库、不接 OCR，点击与输入仍走既有基础端口。
+
 
 ## 5. 两步组合
 
@@ -173,7 +177,9 @@ L2 动词是 L0 调用的组合，不引入新的系统调用面，与 L0 共用
 
 ### 7.3 边界
 
-批量不是把参数矩阵摊平。每个 step 仍是独立的 `{动词: 参数}` 对象，未知动词直接报错并列出可用动词。`desktop_act` 不接受 L0 原语之外的隐式状态：上一步的光标位置不会被后一步继承，要在那里点击必须显式写 `{"click": {"point": "$1.cursor"}}`。
+批量不是把参数矩阵摊平。
+
+`desktop_act` 接受两个参数简写：`{"window": "标题"}` 等价于激活该窗口；`{"wait": {"ms": 500}}` 的 `ms` 映射到 `timeout_ms`，未给 `until` 时默认为 `change`。每个 step 仍是独立的 `{动词: 参数}` 对象，未知动词直接报错并列出可用动词。`desktop_act` 不接受 L0 原语之外的隐式状态：上一步的光标位置不会被后一步继承，要在那里点击必须显式写 `{"click": {"point": "$1.cursor"}}`。
 
 ## 8. 定位管线
 
@@ -190,7 +196,7 @@ L2 动词是 L0 调用的组合，不引入新的系统调用面，与 L0 共用
 
 验收标准：
 
-- `desktop_find("Search")` 在暴露 UIA 树的客户端上必须返回输入框矩形，或明确返回 `source="point"` 与低置信度。不允许静默给一个看起来像的坐标。
+- `desktop_find("Search")` 在暴露 UIA 树的客户端上必须返回输入框矩形；没有 UIA 时明确返回 `DesktopUnavailable`，不以伪造的 `source="point"` 结果充当定位。
 - `desktop_type_into` 写入后必须以像素 diff 收尾；只读回 `ValuePattern.Value` 判定成功视为不通过。
 
 ## 9. 观测与上下文
@@ -233,15 +239,15 @@ L2 动词是 L0 调用的组合，不引入新的系统调用面，与 L0 共用
 | 阶段 | 改动 | 文件 | 验收 |
 |---|---|---|---|
 | P0 | 动作回执、`shot`、恢复但不置前、前台校验 | `tools/mouse.py`、`tools/keyboard.py`、`tools/_capture.py`、`tools/_windows.py`、`diff.py`、`ports.py`、`backends/win32.py` | 误点后第一次回执就能看到 `hit` 落在窗口控制按钮上，而不是内容区；目标被遮挡时截图仍是目标内容 |
-| P1 | `desktop_window`、`desktop_app` | 新增 `tools/window.py`、`tools/app.py` | 激活在一次往返内完成，失败不靠 API 返回值判断 |
-| P2 | `desktop_find`、`desktop_click_text`、`desktop_type_into` | 新增 `tools/find.py`、`tools/click_text.py`、`tools/type_into.py`、`locate.py` | 搜索框一次命中，或明确低置信度 |
+| P1 | `desktop_window`、`desktop_app`、`desktop_open` | 新增 `tools/window.py`、`tools/app.py`、`tools/open.py` | 激活在一次往返内完成，失败不靠 API 返回值判断 |
+| P2 | `desktop_find`、`desktop_click_text`、`desktop_type_into` | 新增 `tools/find.py`、`tools/click_text.py`、`tools/type_into.py`、`locate.py`、`backends/win32_uia.py` | 搜索框一次命中，或明确低置信度 |
 | P3 | `desktop_act` | 新增 `tools/act.py`、`pipeline.py` | 目标场景最多 3 次往返完成 |
 
 验收预算：P0 后最多 15 次往返，P1 后 8 次，P2 后 5 次，P3 后 3 次。
 
 ## 13. 不做什么
 
-1. 不引入三方桌面自动化或窗口库。Windows 后端保持纯 `ctypes`；UIA 通过 COM 访问（`ctypes` 直调或纯 Python 实现），不新增编译依赖。
+1. 不引入三方桌面自动化或窗口库。Windows 的 UIA 定位通过系统 PowerShell 的 `UIAutomationClient` 适配：查询参数 base64、环境变量传递、stdout JSON，只读定位，不引入第三方依赖；点击与输入仍走既有端口。
 2. 不做跨平台 UIA 抽象层。macOS 的 AX 接口不在范围内。
 3. 不做通用录制回放；它需要独立的交互设计。
 4. 不做"一个工具吃所有动作"的 `desktop_action`。
@@ -257,7 +263,7 @@ L2 动词是 L0 调用的组合，不引入新的系统调用面，与 L0 共用
 | 把"读不到字"误认为缺 OCR | 文档与回执先指向窗口身份与缩放；OCR 保持排除 |
 | 断言过严导致频繁误停 | `expect` 的 `timeout_ms` 独立配置；失败回执附最后一帧 |
 | 批量降低可观测性 | step log 进正文；失败帧必回 |
-| 窗口标题本地化或重名 | `desktop_window` 支持 `hwnd` / `class`；`list` 返回 `pid` 与 `rect` 供判别 |
+| 窗口标题本地化或重名 | `desktop_window` 支持 `hwnd`；`list` 返回 `rect` 与前台状态供判别 |
 
 ## 15. 回执
 

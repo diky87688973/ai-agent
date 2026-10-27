@@ -182,7 +182,7 @@ python scripts/ci.py --list    # list checks
 
 `docs/unit-tests.md` is a generated readable test catalog; the source of truth is `tests/`.
 
-Unit tests (1955 cases):
+Unit tests (1985 cases):
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

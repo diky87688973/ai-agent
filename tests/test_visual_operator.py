@@ -9,8 +9,11 @@ from __future__ import annotations
 import dataclasses
 import importlib.util
 import io
+import json
 import sys
 import tempfile
+import threading
+import time
 import types
 import unittest
 from pathlib import Path
@@ -46,8 +49,15 @@ def _load_plugin_module():
 
 _PLUGIN = _load_plugin_module()
 
-from fan_agent_plugins.visual_operator import canvas, diff, keys  # noqa: E402
+import fan_agent_plugins.visual_operator.tools.app as app_module  # noqa: E402
+from fan_agent_plugins.visual_operator import (  # noqa: E402
+    canvas,
+    diff,
+    keys,
+    pipeline,
+)
 from fan_agent_plugins.visual_operator.backends._unavailable import unavailable_backend  # noqa: E402
+from fan_agent_plugins.visual_operator.backends.win32_uia import WindowsUiaLocator  # noqa: E402
 from fan_agent_plugins.visual_operator.capture_store import CaptureStore  # noqa: E402
 from fan_agent_plugins.visual_operator.config import DesktopConfig, load_config  # noqa: E402
 from fan_agent_plugins.visual_operator.coords import (  # noqa: E402
@@ -62,17 +72,28 @@ from fan_agent_plugins.visual_operator.errors import (  # noqa: E402
     ScreenCaptureFailed,
 )
 from fan_agent_plugins.visual_operator.input_lock import input_guard  # noqa: E402
+from fan_agent_plugins.visual_operator.locate import LocatorMatch  # noqa: E402
 from fan_agent_plugins.visual_operator.ports import (  # noqa: E402
     Backend,
+    FocusInfo,
     Screenshot,
     WindowActivation,
     WindowInfo,
 )
+from fan_agent_plugins.visual_operator.titles import title_matches  # noqa: E402
 from fan_agent_plugins.visual_operator.tools import (  # noqa: E402
+    DesktopActTool,
+    DesktopAppTool,
+    DesktopClickRegionTool,
+    DesktopClickTextTool,
     DesktopEyeTool,
+    DesktopFindTool,
     DesktopKeyboardTool,
     DesktopMouseTool,
+    DesktopOpenTool,
+    DesktopTypeIntoTool,
     DesktopWaitTool,
+    DesktopWindowTool,
 )
 
 
@@ -401,7 +422,7 @@ class EyeToolTest(unittest.TestCase):
         self.assertEqual(result.data["cursor"], {"x": 7, "y": 8})
         self.assertEqual(result.data["annotate"], "annotated")
         self.assertEqual(result.data["attachment_order"], ["annotated"])
-        self.assertNotIn("note", result.data)
+        self.assertIn("精确点击小目标", result.data["note"])
         self.assertIn(("capture", None), screen.calls)
 
     def test_region_is_clipped_to_screen(self) -> None:
@@ -445,7 +466,7 @@ class EyeToolTest(unittest.TestCase):
         plain = DesktopEyeTool(backend, self.config).execute({"grid": False})
         self.assertNotIn("grid", plain.data)
         gridded = DesktopEyeTool(backend, self.config).execute({"grid": True})
-        self.assertEqual(gridded.data["grid"]["step"], 100)
+        self.assertEqual(gridded.data["grid"]["step"], 50)
         image_grid = DesktopEyeTool(backend, self.config).execute(
             {"grid": True, "grid_unit": "image"})
         self.assertEqual(image_grid.data["grid"]["unit"], "image")
@@ -1174,6 +1195,24 @@ class WaitToolTest(unittest.TestCase):
         self.assertTrue(result["satisfied"])
         self.assertGreater(result["changed"], 0.9)
 
+    def test_title_change_satisfies_change_without_pixel_motion(self) -> None:
+        seen = {"count": 0}
+        def get(_hwnd):
+            seen["count"] += 1
+            title = "A" if seen["count"] <= 2 else "B"
+            return WindowInfo(hwnd=7, title=title,
+                              rect=ScreenRect(0, 0, 40, 30),
+                              minimized=False, visible=True)
+        screen = self._screen([_png(40, 30, (0, 0, 0))])
+        windows = _Scripted(get=get)
+        backend = Backend("test", screen, Recorder(cursor=ScreenPoint(1, 1)),
+                          Recorder(), windows=windows)
+        result = DesktopWaitTool(backend, self.config).execute(
+            {"until": "change", "hwnd": 7, "timeout_ms": 1000, "interval_ms": 50})
+        self.assertTrue(result["satisfied"])
+        self.assertTrue(result["title_changed"])
+        self.assertEqual(result["title"], "B")
+
     def test_change_times_out_without_raising(self) -> None:
         screen = self._screen([_png(40, 30, (0, 0, 0))])
         backend = Backend("test", screen, Recorder(cursor=ScreenPoint(1, 1)), Recorder())
@@ -1324,17 +1363,32 @@ class ScaleHintTest(unittest.TestCase):
         backend, _screen, _mouse, _keyboard = _backend(rect=rect, png=_png(400, 300))
         result = DesktopEyeTool(backend, DesktopConfig(settle_ms=0)).execute(
             {"max_side": 100})
-        self.assertIn("× 4", result.data["note"])
-        self.assertIn("图上 100,100 对应屏幕 400,400", result.data["note"])
+        self.assertIn("space=image", result.data["note"])
+        self.assertNotIn("图上 100,100", result.data["note"])
         self.assertEqual(result.data["grid"]["scale"], 4.0)
 
 
+def _try_lock(result) -> None:
+    try:
+        with input_guard(timeout=0.01):
+            result.append("acquired")
+    except DesktopBusy:
+        result.append("busy")
+
+
 class IsolationTest(unittest.TestCase):
-    def test_input_lock_times_out(self) -> None:
+    def test_input_lock_times_out_for_another_thread(self) -> None:
+        result = []
         with input_guard():
-            with self.assertRaises(DesktopBusy):
-                with input_guard(timeout=0.01):
-                    self.fail("应当拿不到第二把锁")
+            thread = threading.Thread(target=lambda: _try_lock(result))
+            thread.start()
+            thread.join(timeout=1.0)
+        self.assertEqual(result, ["busy"])
+
+    def test_input_guard_is_reentrant_in_one_thread(self) -> None:
+        with input_guard():
+            with input_guard(timeout=0.01):
+                pass
 
     def test_unavailable_backend_reports(self) -> None:
         backend = unavailable_backend()
@@ -1346,16 +1400,339 @@ class IsolationTest(unittest.TestCase):
             backend.keyboard.press("enter", 1)
 
 
+class LocatorToolsTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.match = LocatorMatch(
+            name="搜索", control_type="ControlType.Edit",
+            rect=ScreenRect(10, 20, 100, 30),
+            clickable=ScreenPoint(60, 35))
+        locator = _Scripted(find=lambda hwnd, text, match, limit: [self.match])
+        self.backend = Backend(
+            "test",
+            Recorder(geometry=ScreenGeometry(rect=ScreenRect(0, 0, 400, 300)),
+                     capture=Screenshot(_png(400, 300), ScreenRect(0, 0, 400, 300))),
+            Recorder(cursor=ScreenPoint(0, 0)), Recorder(),
+            locator=locator)
+
+    def test_find_returns_uia_matches(self) -> None:
+        result = DesktopFindTool(self.backend).execute({"text": "搜索"})
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["matches"][0]["clickable"], {"x": 60, "y": 35})
+
+    def test_find_without_locator_reports_unavailable(self) -> None:
+        backend = Backend("test", self.backend.screen, self.backend.mouse,
+                          self.backend.keyboard)
+        with self.assertRaises(DesktopUnavailable):
+            DesktopFindTool(backend).execute({"text": "搜索"})
+
+    def test_find_empty_result_tells_model_not_to_repeat(self) -> None:
+        locator = _Scripted(find=lambda hwnd, text, match, limit: [])
+        backend = Backend("test", self.backend.screen, self.backend.mouse,
+                          self.backend.keyboard, locator=locator)
+        result = DesktopFindTool(backend).execute({"text": "斗破苍穹"})
+        self.assertEqual(result["count"], 0)
+        self.assertIn("不要重复 desktop_find", result["note"])
+
+    def test_click_text_uses_clickable_point(self) -> None:
+        result = DesktopClickTextTool(self.backend).execute({"text": "搜索"})
+        self.assertTrue(result["clicked"])
+        self.assertIn("changed", result)
+        self.assertIn("verified", result)
+        self.assertEqual(self.backend.mouse.calls[0],
+                         ("click", ScreenPoint(60, 35), "left", 1))
+
+    def test_type_into_clears_types_and_submits(self) -> None:
+        tool = DesktopTypeIntoTool(self.backend, DesktopConfig(type_interval_ms=0))
+        result = tool.execute({"target": "搜索", "text": "完美世界", "submit": True})
+        self.assertTrue(result["typed"])
+        self.assertTrue(result["submitted"])
+        self.assertIn("changed", result)
+        self.assertIn("verified", result)
+        self.assertEqual(self.backend.keyboard.calls[0], ("hotkey", ("ctrl", "a"), 1))
+        self.assertEqual(self.backend.keyboard.calls[1],
+                         ("type_text", "完美世界", 0))
+        self.assertEqual(self.backend.keyboard.calls[2], ("press", "enter", 1))
+
+    def test_click_region_maps_image_rect_to_screen(self) -> None:
+        store = CaptureStore()
+        ref = store.put("", ScreenRect(100, 200, 200, 100), 100, 50)
+        tool = DesktopClickRegionTool(self.backend, None, store)
+        result = tool.execute({"capture_id": ref.capture_id, "space": "image",
+                               "x": 10, "y": 10, "width": 20, "height": 20})
+        self.assertEqual(result["point"], {"x": 139, "y": 239})
+        self.assertEqual(self.backend.mouse.calls[0],
+                         ("click", ScreenPoint(139, 239), "left", 1))
+
+    def test_click_region_clicks_the_rectangle_center(self) -> None:
+        tool = DesktopClickRegionTool(self.backend)
+        result = tool.execute({"x": 10, "y": 20, "width": 100, "height": 30})
+        self.assertTrue(result["clicked"])
+        self.assertEqual(result["point"], {"x": 60, "y": 35})
+        self.assertEqual(self.backend.mouse.calls[0],
+                         ("click", ScreenPoint(60, 35), "left", 1))
+
+    def test_type_into_accepts_a_visual_rect_without_uia(self) -> None:
+        backend = Backend("test", self.backend.screen, self.backend.mouse,
+                          self.backend.keyboard)
+        tool = DesktopTypeIntoTool(backend, DesktopConfig(type_interval_ms=0))
+        result = tool.execute({"x": 10, "y": 20, "width": 100, "height": 30,
+                               "text": "P2_OK"})
+        self.assertTrue(result["typed"])
+        self.assertEqual(result["target"]["source"], "point")
+        self.assertEqual(self.backend.mouse.calls[0],
+                         ("click", ScreenPoint(60, 35), "left", 1))
+
+    def test_keyboard_type_reports_focused_control(self) -> None:
+        focused = FocusInfo(hwnd=7, title="搜索框", class_name="Edit",
+                            rect=ScreenRect(10, 20, 100, 30))
+        backend = Backend("test", self.backend.screen, self.backend.mouse,
+                          self.backend.keyboard,
+                          focus=_Scripted(focused=lambda: focused))
+        result = DesktopKeyboardTool(backend, DesktopConfig(type_interval_ms=0)).execute(
+            {"action": "type", "text": "P2"})
+        self.assertEqual(result["focus_element"]["class"], "Edit")
+        self.assertIn("changed", result)
+        self.assertIn("verified", result)
+
+    def test_uia_locator_parses_powershell_json(self) -> None:
+        payload = json.dumps([{
+            "name": "搜索", "control_type": "ControlType.Edit",
+            "rect": {"x": 10, "y": 20, "width": 100, "height": 30},
+            "clickable": {"x": 60, "y": 35},
+        }])
+        completed = SimpleNamespace(returncode=0, stdout=payload, stderr="")
+        with mock.patch("subprocess.run", return_value=completed) as run:
+            rows = WindowsUiaLocator().find(None, "搜索", "contains", 5)
+        self.assertEqual(rows[0].name, "搜索")
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], "powershell.exe")
+        self.assertIn("DSH_UIA_QUERY", run.call_args.kwargs["env"])
+        self.assertEqual(rows[0].rect.to_dict(),
+                         {"x": 10, "y": 20, "width": 100, "height": 30})
+
+
+class WindowAppOpenTest(unittest.TestCase):
+    def test_title_matching_ignores_invisible_format_chars(self) -> None:
+        self.assertTrue(title_matches("登录 · 用户配置 - Microsoft​ Edge", "Microsoft Edge"))
+        self.assertTrue(title_matches("  A  B  ", "a b"))
+
+    def setUp(self) -> None:
+        self.info = _window_info()
+        self.activation = WindowActivation(window=self.info, active=True)
+        self.backend = Backend(
+            "test",
+            Recorder(geometry=ScreenGeometry(rect=ScreenRect(0, 0, 40, 30))),
+            Recorder(cursor=ScreenPoint(1, 1)), Recorder(),
+            windows=_Scripted(
+                list_visible=lambda: [self.info],
+                find=lambda _title: (self.info,),
+                get=lambda _hwnd: self.info,
+                activate=lambda _hwnd: self.activation,
+            ))
+
+    def test_window_list_and_activate(self) -> None:
+        tool = DesktopWindowTool(self.backend)
+        listed = tool.execute({"action": "list"})
+        self.assertEqual(listed["windows"][0]["hwnd"], 4242)
+        activated = tool.execute({"action": "activate", "hwnd": 4242})
+        self.assertTrue(activated["focus"]["active"])
+
+    def test_window_waits_until_visible(self) -> None:
+        seen = {"count": 0}
+
+        def find(_title):
+            seen["count"] += 1
+            return () if seen["count"] == 1 else (self.info,)
+
+        backend = Backend("test", self.backend.screen, self.backend.mouse,
+                         self.backend.keyboard,
+                         windows=_Scripted(find=find))
+        result = DesktopWindowTool(backend).execute(
+            {"action": "wait", "window": "腾讯视频",
+             "timeout_ms": 1000, "interval_ms": 50})
+        self.assertTrue(result["satisfied"])
+        self.assertEqual(result["window"]["hwnd"], 4242)
+
+    def test_app_launches_and_returns_hwnd(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "app.exe"
+            path.write_bytes(b"fake")
+            with mock.patch("subprocess.Popen",
+                            return_value=SimpleNamespace(pid=123)) as popen:
+                result = DesktopAppTool(self.backend).execute(
+                    {"path": str(path), "window": "腾讯视频", "timeout_ms": 1000})
+        self.assertEqual(result["pid"], 123)
+        self.assertEqual(result["window"]["hwnd"], 4242)
+        self.assertEqual(popen.call_args.args[0], [str(path)])
+
+    def test_open_binds_a_new_window_instead_of_stale_title_match(self) -> None:
+        old = _window_info(hwnd=111, rect=ScreenRect(0, 0, 100, 100))
+        new = _window_info(hwnd=222, rect=ScreenRect(100, 0, 100, 100))
+        calls = []
+        def visible():
+            calls.append(1)
+            return [old] if len(calls) == 1 else [old, new]
+        windows = _Scripted(
+            list_visible=visible,
+            activate=lambda _hwnd: WindowActivation(window=new, active=True),
+        )
+        backend = Backend("test", self.backend.screen, self.backend.mouse,
+                          self.backend.keyboard, windows=windows)
+        with mock.patch.object(DesktopOpenTool, "_launch", return_value="fake"):
+            result = DesktopOpenTool(backend).execute(
+                {"target": "https://v.qq.com", "window": "Chrome"})
+        self.assertTrue(result["opened"])
+        self.assertEqual(result["window"]["hwnd"], 222)
+        self.assertFalse(result["reused"])
+        self.assertIn("不包含请求的", result["note"])
+
+    def test_app_name_resolves_start_menu_shortcut(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            shortcut = Path(raw) / "腾讯视频.lnk"
+            shortcut.write_bytes(b"shortcut")
+            with mock.patch.object(app_module, "_find_start_menu",
+                                   return_value=(shortcut, shortcut)), \
+                 mock.patch.object(app_module, "_start_shortcut", return_value=None):
+                result = DesktopAppTool(self.backend).execute(
+                    {"name": "腾讯视频", "window": "腾讯视频", "timeout_ms": 1000})
+        self.assertEqual(result["path"], str(shortcut))
+        self.assertIsNone(result["pid"])
+        self.assertEqual(result["window"]["hwnd"], 4242)
+
+    def test_open_url_uses_default_handler(self) -> None:
+        with mock.patch.object(DesktopOpenTool, "_launch",
+                               return_value="os.startfile") as launch:
+            result = DesktopOpenTool(self.backend).execute(
+                {"target": "https://v.qq.com", "timeout_ms": 100})
+        self.assertTrue(result["opened"])
+        launch.assert_called_once_with("https://v.qq.com")
+
+class PipelineTest(unittest.TestCase):
+    def test_scalar_app_and_step_limits(self) -> None:
+        steps = pipeline.normalize_steps([{"app": "C:/app.exe"}])
+        self.assertEqual(steps[0][1], {"path": "C:/app.exe"})
+        with self.assertRaises(ValueError):
+            pipeline.normalize_steps([{"find": {}}] * (pipeline.MAX_STEPS + 1))
+        with self.assertRaises(ValueError):
+            pipeline.normalize_steps([{"find": {}, "click_text": {}}])
+
+    def test_window_string_and_wait_ms_are_accepted(self) -> None:
+        steps = pipeline.normalize_steps([
+            {"window": "腾讯视频"},
+            {"wait": {"ms": 500, "window": "腾讯视频"}},
+        ])
+        self.assertEqual(steps[0][1], {"action": "activate", "window": "腾讯视频"})
+        self.assertEqual(steps[1][1], {"ms": 500, "window": "腾讯视频"})
+
+    def test_destructive_and_read_only_checks(self) -> None:
+        hit = pipeline.destructive_hit(
+            [("click_text", {"text": "关闭"}, {})])
+        self.assertEqual(hit, "关闭")
+        self.assertTrue(pipeline.is_read_only("find", {}))
+        self.assertFalse(pipeline.is_read_only("click_text", {"text": "搜索"}))
+
+    def test_run_stops_on_failure_and_logs_steps(self) -> None:
+        def execute(verb, _args):
+            if verb == "boom":
+                raise RuntimeError("nope")
+            return {"ok": verb}
+
+        result = pipeline.run(
+            [("find", {}, {}), ("boom", {}, {})],
+            execute, lambda _expect, _data: (True, {}))
+        self.assertFalse(result.ok)
+        self.assertEqual(result.failed_step, 2)
+        self.assertEqual([row["action"] for row in result.steps], ["find", "boom"])
+
+    def test_run_enforces_total_timeout_after_a_step(self) -> None:
+        def execute(_verb, _args):
+            time.sleep(0.12)
+            return {"ok": True}
+
+        result = pipeline.run(
+            [("find", {}, {})], execute,
+            lambda _expect, _data: (True, {}), timeout_ms=100)
+        self.assertFalse(result.ok)
+        self.assertIn("超时", result.error)
+
+    def test_run_honours_expect_failure(self) -> None:
+        result = pipeline.run(
+            [("find", {}, {"text": "x"})],
+            lambda _verb, _args: {"ok": True},
+            lambda _expect, _data: (False, {"error": "missing"}))
+        self.assertFalse(result.ok)
+        self.assertEqual(result.steps[0]["error"], "missing")
+
+
+class ActToolTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.match = LocatorMatch(
+            name="P2Input", control_type="ControlType.Pane",
+            rect=ScreenRect(10, 20, 100, 30),
+            clickable=ScreenPoint(60, 35))
+        locator = _Scripted(find=lambda hwnd, text, match, limit: [self.match])
+        self.backend = Backend(
+            "test",
+            Recorder(geometry=ScreenGeometry(rect=ScreenRect(0, 0, 400, 300)),
+                     capture=Screenshot(_png(400, 300), ScreenRect(0, 0, 400, 300))),
+            Recorder(cursor=ScreenPoint(0, 0)), Recorder(),
+            locator=locator)
+
+    def test_batch_find_and_click(self) -> None:
+        tool = DesktopActTool(self.backend, DesktopConfig(type_interval_ms=0))
+        result = tool.execute({"steps": [
+            {"find": {"text": "P2Input"}, "expect": {"text": "P2Input"}},
+            {"click_text": {"text": "P2Input"}, "expect": {"text": "P2Input"}},
+        ]})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["count"], 2)
+        self.assertTrue(self.backend.mouse.calls)
+
+    def test_batch_resolves_prior_step_fields(self) -> None:
+        tool = DesktopActTool(self.backend, DesktopConfig(type_interval_ms=0))
+        result = tool.execute({"steps": [
+            {"find": {"text": "P2Input"}},
+            {"click": {"x": "$1.matches.0.rect.x", "y": "$1.matches.0.rect.y"}},
+        ]})
+        self.assertTrue(result["ok"])
+        self.assertEqual(self.backend.mouse.calls[0],
+                         ("click", ScreenPoint(10, 20), "left", 1))
+
+    def test_changed_expectation_uses_action_evidence(self) -> None:
+        tool = DesktopActTool(self.backend, DesktopConfig(type_interval_ms=0))
+        passed, detail = tool._check_once({"changed": True}, {"changed": 0.25})
+        self.assertTrue(passed)
+        self.assertEqual(detail["changed"], 0.25)
+        failed, _ = tool._check_once({"changed": True}, {"changed": 0})
+        self.assertFalse(failed)
+
+    def test_batch_rejects_destructive_target(self) -> None:
+        tool = DesktopActTool(self.backend, DesktopConfig())
+        with self.assertRaises(ValueError):
+            tool.execute({"steps": [{"click_text": {"text": "删除"}}]})
+
+    def test_continue_requires_read_only_steps(self) -> None:
+        tool = DesktopActTool(self.backend, DesktopConfig())
+        with self.assertRaises(ValueError):
+            tool.execute({"on_error": "continue", "steps": [
+                {"click_text": {"text": "P2Input"}}]})
+
+
 class PluginTest(unittest.TestCase):
     def test_build_tools_honours_switches(self) -> None:
         backend, _screen, _mouse, _keyboard = _backend()
         only_keyboard = _PLUGIN.build_tools(
             DesktopConfig(eye=False, mouse=False, keyboard=True, wait=False), backend)
-        self.assertEqual([tool.name for tool in only_keyboard], ["desktop_keyboard"])
+        self.assertEqual([tool.name for tool in only_keyboard],
+                         ["desktop_keyboard", "desktop_window", "desktop_app",
+                          "desktop_open", "desktop_find", "desktop_click_text",
+                          "desktop_click_region", "desktop_type_into", "desktop_act"])
         all_tools = _PLUGIN.build_tools(DesktopConfig(), backend)
         self.assertEqual([tool.name for tool in all_tools],
                          ["desktop_eye", "desktop_mouse", "desktop_keyboard",
-                          "desktop_wait"])
+                          "desktop_wait", "desktop_window", "desktop_app",
+                          "desktop_open", "desktop_find", "desktop_click_text",
+                          "desktop_click_region", "desktop_type_into", "desktop_act"])
 
     def test_register_returns_disposers(self) -> None:
         class Context:
@@ -1377,9 +1754,11 @@ class PluginTest(unittest.TestCase):
             disposers = _PLUGIN.register(ctx)
         self.assertEqual([tool.name for tool in ctx.tools],
                          ["desktop_eye", "desktop_mouse", "desktop_keyboard",
-                          "desktop_wait"])
+                          "desktop_wait", "desktop_window", "desktop_app",
+                          "desktop_open", "desktop_find", "desktop_click_text",
+                          "desktop_click_region", "desktop_type_into", "desktop_act"])
         self.assertEqual(disposers, ctx.disposers)
-        self.assertEqual(len(disposers), 4)
+        self.assertEqual(len(disposers), 12)
 
 
 def _load_macos_module():

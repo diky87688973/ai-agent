@@ -2,16 +2,19 @@
 
 # Visual Operator（`visual_operator` 插件）
 
-Visual Operator 把看屏幕与操作鼠标键盘做成四个工具，交给模型在真实桌面上读图、定位、点击、输入与等待。截图作为图片附件交给模型；插件只保存坐标映射元数据，不保留截图文件。鼠标与键盘输入动作经输入锁串行投递。插件机制本身见 [plugins.md](plugins.md)。
+Visual Operator 把看屏幕与操作鼠标键盘做成交互工具，交给模型在真实桌面上读图、定位、点击、输入与等待；基线是四个坐标工具，另有窗口、应用启动、打开、UIA 文本定位与批量管线工具。截图作为图片附件交给模型；插件只保存坐标映射元数据，不保留截图文件。鼠标与键盘输入动作经输入锁串行投递。插件机制本身见 [plugins.md](plugins.md)。
 
 ## 包结构
 
 ```
 plugins/visual_operator/
-  plugin.py                  入口：读配置、选后端、注册四个工具
+  plugin.py                  入口：读配置、选后端、注册视觉操作工具
   plugin-config.ini          装载时读取的配置
   plugin-meta.json           身份元数据
   config.py                  [config] 读取、回退与夹取
+  titles.py                窗口标题归一化与匹配
+  locate.py                  控件定位端口与 LocatorMatch
+  pipeline.py                批量步骤校验、断言、超时与失败即停
   capture_store.py           截图映射登记（只存元数据，不存图片）
   keys.py                    键名规范、别名与组合键校验
   coords.py                  屏幕矩形 / 点 / 几何比例
@@ -24,14 +27,24 @@ plugins/visual_operator/
   tools/
     _params.py               参数读取与动作矩阵
     _windows.py              window / hwnd 解析、候选清单与前置激活
+    _evidence.py             动作前后落点区域像素证据
     _capture.py              取图、加工、回执与提示文案的唯一实现
     eye.py                   desktop_eye
     mouse.py                 desktop_mouse
     keyboard.py              desktop_keyboard
     wait.py                  desktop_wait
+    window.py                desktop_window
+    app.py                   desktop_app
+    open.py                  desktop_open
+    find.py                  desktop_find
+    click_region.py          desktop_click_region
+    click_text.py            desktop_click_text
+    type_into.py             desktop_type_into
+    act.py                   desktop_act
   backends/
     __init__.py              按平台选择后端
     win32.py                 Windows：GDI + SendInput + 落点探测
+    win32_uia.py             Windows：UIA 文本定位适配
     macos.py                 macOS：screencapture + CoreGraphics
     _unavailable.py          其它平台：调用时报明确原因
 ```
@@ -90,7 +103,7 @@ plugins/visual_operator/
   "capture_id": "a1b2c3d4e5f6",
   "dpi": "96 dpi",
   "cursor": {"x": 734, "y": 709},
-  "grid": {"step": 100, "unit": "screen", "scale": 1.3333},
+  "grid": {"step": 50, "unit": "screen", "scale": 1.3333},
   "note": "图片已从 2560x1440 缩到 1920x1080；…"
 }
 ```
@@ -122,7 +135,7 @@ screen_y = capture.y + image_y * capture.height / image.height
 
 `space=image` 显式声明图内坐标；只给 `capture_id` 时也按图内解释。`space=screen`（默认）仍接受屏幕坐标；两种空间不混用。ID 不存在、过期或不属于当前会话时直接报错，不退回屏幕坐标。
 
-细节看不清时用区域参数取局部：局部通常按原尺寸发送。点小目标时给 `grid_step=20–40`：网格更细，坐标可以直接读，不必在 100px 的格子里估。
+细节看不清时用区域参数取局部：局部通常按原尺寸发送。点小目标时给 `grid_step=20–40`：网格更细，坐标可以直接读，不必在 50px 的格子里估。
 
 ### `desktop_mouse`
 
@@ -181,7 +194,7 @@ screen_y = capture.y + image_y * capture.height / image.height
 | `until` | `change` 画面变化 / `window_appears` 窗口出现 / `window_disappears` 窗口消失 |
 | `window` / `hwnd` | `change` 时用来限定比较区域；`window_appears` / `window_disappears` 只接受 `window`（必填），`hwnd` 不适用 |
 | `x` / `y` / `width` / `height` | `change` 的比较区域；四个一起给，宽高为正。省略则用窗口矩形或整屏。显式区域优先于窗口矩形 |
-| `timeout_ms` | 最长等待，`50–60000`，默认 10000 |
+| `timeout_ms` | 最长等待，`50–60000`，默认 3000 |
 | `interval_ms` | 轮询间隔，`50–2000`；缺省取配置 |
 | `threshold` | `change` 的判定阈值 `0–1`，默认 `0.02` |
 
@@ -240,7 +253,7 @@ mouse = 1
 keyboard = 1
 wait = 1
 max_side = 1920
-grid_step = 100
+grid_step = 50
 cursor_mark = 1
 settle_ms = 60
 type_interval_ms = 12
@@ -254,7 +267,7 @@ wait_interval_ms = 200
 |---|---|---|
 | `eye` / `mouse` / `keyboard` / `wait` | `1` | 能力开关；关掉后对应工具不注册 |
 | `max_side` | `1920` | 发送前长边上限，`0` 不缩放；夹到 `0–8192` |
-| `grid_step` | `100` | 网格间距（屏幕坐标）；夹到 `20–500` |
+| `grid_step` | `50` | 网格间距（屏幕坐标）；夹到 `20–500` |
 | `cursor_mark` | `1` | 截图是否画光标十字 |
 | `settle_ms` | `60` | 输入动作后等待界面响应的毫秒数；夹到 `0–2000` |
 | `type_interval_ms` | `12` | `type` 每字符间隔；夹到 `0–200` |

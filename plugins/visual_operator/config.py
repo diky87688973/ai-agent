@@ -40,7 +40,7 @@ class DesktopConfig:
     keyboard: bool = True
     wait: bool = True
     max_side: int = 1920
-    grid_step: int = 100
+    grid_step: int = 50
     cursor_mark: bool = True
     settle_ms: int = 60
     type_interval_ms: int = 12

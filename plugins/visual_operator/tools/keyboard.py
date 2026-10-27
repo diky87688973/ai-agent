@@ -16,6 +16,7 @@ from ..keys import canonical as canonical_key
 from ..keys import normalize_hotkey
 from ..ports import Backend
 from ._capture import CaptureRequest, capture_payload
+from ._evidence import begin_rect, finish
 from ._params import as_bool, as_int, as_text, choice, reject_unknown, require_range
 from ._windows import WINDOW_FIELDS, focus_target, require_active
 
@@ -39,6 +40,10 @@ class DesktopKeyboardTool(ToolPlugin):
         "方向键 / f1–f20 / 字母 / 数字 / 符号）；hotkey 按组合键（如 ctrl+c、alt+tab、cmd+space）。"
         "给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再输入，回执带 focus；"
         "置前失败时不会盲打，直接报错，避免字落进别的窗口。"
+        "桌面操作四步：量外框 → 取中心 → 点击 → 核验；"
+        "自绘控件不得用 type 盲打，必须改用 desktop_type_into + 输入区矩形；"
+        "原生控件才用 type。type 回执带 focus_element / changed / verified，"
+        "输入前确认焦点，输入后用 verified 核验。"
         "要给输入后的界面同时拍一张，加 shot=true："
         "同一调用内完成「打完就截」，省掉一次「再调 desktop_eye」的往返。"
         "Plan 模式下拒绝。"
@@ -76,6 +81,9 @@ class DesktopKeyboardTool(ToolPlugin):
 
         focus = focus_target(self._backend, arguments)
         require_active(focus, "键盘输入")
+        focused = self._backend.focus.focused() if self._backend.focus is not None else None
+        evidence = begin_rect(self._backend, focused.rect) if (
+            action == "type" and focused is not None) else None
 
         port = self._backend.keyboard
         if action == "type":
@@ -83,6 +91,11 @@ class DesktopKeyboardTool(ToolPlugin):
             with input_guard():
                 port.type_text(text, self._config.type_interval_ms)
             result: Dict[str, Any] = {"action": action, "chars": len(text)}
+            if focused is not None:
+                result["focus_element"] = focused.to_dict()
+                result["changed"] = finish(self._backend, evidence)
+                result["verified"] = (result["changed"] is not None
+                                      and result["changed"] > 0)
         elif action == "key":
             key = canonical_key(as_text(arguments, "key"))
             repeat = require_range(as_int(arguments, "repeat", 1), "repeat", 1, 20)

@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1955** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1985** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -97,7 +97,7 @@
 86. [test_update_processes.py](#test_update_processespy)（2）
 87. [test_usage_metrics.py](#test_usage_metricspy)（7）
 88. [test_version_stamp.py](#test_version_stamppy)（4）
-89. [test_visual_operator.py](#test_visual_operatorpy)（130）
+89. [test_visual_operator.py](#test_visual_operatorpy)（160）
 90. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
 91. [test_web_auth.py](#test_web_authpy)（26）
 92. [test_web_frontend.py](#test_web_frontendpy)（5）
@@ -2374,140 +2374,170 @@
 
 ## test_visual_operator.py
 
-共 130 个用例。
+共 160 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `AmbiguityNoteTest` | `test_hover_on_a_background_window_asks_for_activation` | 覆盖「同名窗口：回执必须说清选了谁、还有谁」：hover on a background window asks for activation |
-| 2 | `AmbiguityNoteTest` | `test_matched_windows_are_spelled_out` | 覆盖「同名窗口：回执必须说清选了谁、还有谁」：matched windows are spelled out |
-| 3 | `AmbiguityNoteTest` | `test_single_window_has_no_ambiguity_note` | 覆盖「同名窗口：回执必须说清选了谁、还有谁」：single window has no ambiguity note |
-| 4 | `CanvasTest` | `test_bad_png_raises` | 覆盖「A class whose instances are single test cases」：bad png raises |
-| 5 | `CanvasTest` | `test_blank_and_tiny_images` | 覆盖「A class whose instances are single test cases」：blank and tiny images |
-| 6 | `CanvasTest` | `test_cursor_center_pixel_stays_visible` | 覆盖「A class whose instances are single test cases」：cursor center pixel stays visible |
-| 7 | `CanvasTest` | `test_cursor_crosshair_is_wide_and_labelled` | 覆盖「A class whose instances are single test cases」：cursor crosshair is wide and labelled |
-| 8 | `CanvasTest` | `test_cursor_font_screen_size_is_scale_consistent` | 覆盖「A class whose instances are single test cases」：cursor font screen size is scale consistent |
-| 9 | `CanvasTest` | `test_cursor_mark_follows_screen_extent` | 覆盖「A class whose instances are single test cases」：cursor mark follows screen extent |
-| 10 | `CanvasTest` | `test_grid_and_cursor_change_pixels` | 覆盖「A class whose instances are single test cases」：grid and cursor change pixels |
-| 11 | `CanvasTest` | `test_offset_maps_screen_units_to_sent_pixels` | 覆盖「A class whose instances are single test cases」：offset maps screen units to sent pixels |
-| 12 | `CanvasTest` | `test_scales_and_reports` | 覆盖「A class whose instances are single test cases」：scales and reports |
-| 13 | `CanvasTest` | `test_tiny_area_hides_cursor_label` | 覆盖「A class whose instances are single test cases」：tiny area hides cursor label |
-| 14 | `CaptureStoreTest` | `test_image_coordinates_map_with_origin_and_scale` | 覆盖「A class whose instances are single test cases」：image coordinates map with origin and scale |
-| 15 | `CaptureStoreTest` | `test_out_of_image_and_wrong_session_are_rejected` | 覆盖「A class whose instances are single test cases」：out of image and wrong session are rejected |
-| 16 | `CaptureStoreTest` | `test_ttl_and_capacity_evict_old_entries` | 覆盖「A class whose instances are single test cases」：ttl and capacity evict old entries |
-| 17 | `ClickEvidenceTest` | `test_changed_is_not_measured_for_move` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：changed is not measured for move |
-| 18 | `ClickEvidenceTest` | `test_changed_is_zero_when_nothing_moves` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：changed is zero when nothing moves |
-| 19 | `ClickEvidenceTest` | `test_hit_is_omitted_without_a_hit_port` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：hit is omitted without a hit port |
-| 20 | `ClickEvidenceTest` | `test_hit_report_is_included` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：hit report is included |
-| 21 | `ClickEvidenceTest` | `test_local_still_is_resampled_once` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：local still is resampled once |
-| 22 | `ClickEvidenceTest` | `test_navigation_is_reported_when_local_pixels_do_not_move` | 点卡片跳详情页：落点 200×200 没变，但顶层窗口换了，不能读成没点中。 |
-| 23 | `ClickEvidenceTest` | `test_shot_follows_the_landed_window_not_the_title` | 点击落在播放器窗口时，回图必须拍播放器，而不是标题命中的详情页。 |
-| 24 | `ConfigTest` | `test_bad_values_fall_back` | 覆盖「A class whose instances are single test cases」：bad values fall back |
-| 25 | `ConfigTest` | `test_missing_file_uses_defaults` | 覆盖「A class whose instances are single test cases」：missing file uses defaults |
-| 26 | `ConfigTest` | `test_values_are_read_and_clamped` | 覆盖「A class whose instances are single test cases」：values are read and clamped |
-| 27 | `CoordsTest` | `test_geometry_reports_ratio` | 覆盖「A class whose instances are single test cases」：geometry reports ratio |
-| 28 | `CoordsTest` | `test_rect_bounds_and_intersection` | 覆盖「A class whose instances are single test cases」：rect bounds and intersection |
-| 29 | `CoordsTest` | `test_rect_rejects_empty` | 覆盖「A class whose instances are single test cases」：rect rejects empty |
-| 30 | `DiffTest` | `test_different_image_changes` | 覆盖「A class whose instances are single test cases」：different image changes |
-| 31 | `DiffTest` | `test_probe_region_follows_the_point_and_clips` | 覆盖「A class whose instances are single test cases」：probe region follows the point and clips |
-| 32 | `DiffTest` | `test_same_image_has_no_change` | 覆盖「A class whose instances are single test cases」：same image has no change |
-| 33 | `EyeToolTest` | `test_annotate_both_returns_annotated_then_raw` | 覆盖「A class whose instances are single test cases」：annotate both returns annotated then raw |
-| 34 | `EyeToolTest` | `test_annotate_raw_skips_grid_and_overlay` | 覆盖「A class whose instances are single test cases」：annotate raw skips grid and overlay |
-| 35 | `EyeToolTest` | `test_annotate_unknown_value_is_rejected` | 覆盖「A class whose instances are single test cases」：annotate unknown value is rejected |
-| 36 | `EyeToolTest` | `test_capture_id_and_image_mapping_are_returned` | 覆盖「A class whose instances are single test cases」：capture id and image mapping are returned |
-| 37 | `EyeToolTest` | `test_description_names_the_guide_lines` | 覆盖「A class whose instances are single test cases」：description names the guide lines |
-| 38 | `EyeToolTest` | `test_grid_switch_is_reported` | 覆盖「A class whose instances are single test cases」：grid switch is reported |
-| 39 | `EyeToolTest` | `test_note_reports_mixed_scale` | 覆盖「A class whose instances are single test cases」：note reports mixed scale |
-| 40 | `EyeToolTest` | `test_notes_report_shrinking_and_blank` | 覆盖「A class whose instances are single test cases」：notes report shrinking and blank |
-| 41 | `EyeToolTest` | `test_oversized_region_rejected` | 覆盖「A class whose instances are single test cases」：oversized region rejected |
-| 42 | `EyeToolTest` | `test_region_is_clipped_to_screen` | 覆盖「A class whose instances are single test cases」：region is clipped to screen |
-| 43 | `EyeToolTest` | `test_region_needs_four_numbers` | 覆盖「A class whose instances are single test cases」：region needs four numbers |
-| 44 | `EyeToolTest` | `test_returns_image_attachment` | 覆盖「A class whose instances are single test cases」：returns image attachment |
-| 45 | `EyeToolTest` | `test_unknown_argument_rejected` | 覆盖「A class whose instances are single test cases」：unknown argument rejected |
-| 46 | `HoverCaptureTest` | `test_grid_step_can_be_tightened_for_small_targets` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：grid step can be tightened for small targets |
-| 47 | `HoverCaptureTest` | `test_hover_is_blocked_in_plan_mode` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover is blocked in plan mode |
-| 48 | `HoverCaptureTest` | `test_hover_moves_cursor_before_capture` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover moves cursor before capture |
-| 49 | `HoverCaptureTest` | `test_hover_outside_the_screen_is_rejected` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover outside the screen is rejected |
-| 50 | `HoverCaptureTest` | `test_hover_path_is_walked_before_the_endpoint` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover path is walked before the endpoint |
-| 51 | `HoverCaptureTest` | `test_hover_path_length_is_limited` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover path length is limited |
-| 52 | `HoverCaptureTest` | `test_hover_path_requires_hover` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover path requires hover |
-| 53 | `HoverCaptureTest` | `test_hover_requires_two_integers` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover requires two integers |
-| 54 | `HoverCaptureTest` | `test_hover_settle_is_reported_and_clamped` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover settle is reported and clamped |
-| 55 | `HoverCaptureTest` | `test_hover_wiggle_moves_around_and_returns` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover wiggle moves around and returns |
-| 56 | `HoverCaptureTest` | `test_hover_wiggle_recovers_if_target_warps_cursor` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover wiggle recovers if target warps cursor |
-| 57 | `IsolationTest` | `test_input_lock_times_out` | 覆盖「A class whose instances are single test cases」：input lock times out |
-| 58 | `IsolationTest` | `test_unavailable_backend_reports` | 覆盖「A class whose instances are single test cases」：unavailable backend reports |
-| 59 | `KeyboardToolTest` | `test_bad_parameters` | 覆盖「A class whose instances are single test cases」：bad parameters |
-| 60 | `KeyboardToolTest` | `test_plan_gate_blocks` | 覆盖「A class whose instances are single test cases」：plan gate blocks |
-| 61 | `KeyboardToolTest` | `test_type_key_and_hotkey` | 覆盖「A class whose instances are single test cases」：type key and hotkey |
-| 62 | `KeysTest` | `test_aliases_normalize` | 覆盖「A class whose instances are single test cases」：aliases normalize |
-| 63 | `KeysTest` | `test_canonical_set_is_coverable` | 覆盖「A class whose instances are single test cases」：canonical set is coverable |
-| 64 | `KeysTest` | `test_hotkey_forms` | 覆盖「A class whose instances are single test cases」：hotkey forms |
-| 65 | `KeysTest` | `test_hotkey_rejects_bad_shapes` | 覆盖「A class whose instances are single test cases」：hotkey rejects bad shapes |
-| 66 | `KeysTest` | `test_unknown_key_names_hint` | 覆盖「A class whose instances are single test cases」：unknown key names hint |
-| 67 | `MacOSTableTest` | `test_keycodes_cover_canonical_names` | 覆盖「不启动系统库，只校验键码表与结构体拼装」：keycodes cover canonical names |
-| 68 | `MacOSTableTest` | `test_point_and_unknown_key` | 覆盖「不启动系统库，只校验键码表与结构体拼装」：point and unknown key |
-| 69 | `MacOSTableTest` | `test_scroll_delta_matches_contract` | 覆盖「不启动系统库，只校验键码表与结构体拼装」：scroll delta matches contract |
-| 70 | `MouseToolTest` | `test_drag_scroll_and_cursor` | 覆盖「A class whose instances are single test cases」：drag scroll and cursor |
-| 71 | `MouseToolTest` | `test_image_coordinates_are_converted_by_the_tool` | 覆盖「A class whose instances are single test cases」：image coordinates are converted by the tool |
-| 72 | `MouseToolTest` | `test_image_coordinates_need_a_valid_capture` | 覆盖「A class whose instances are single test cases」：image coordinates need a valid capture |
-| 73 | `MouseToolTest` | `test_move_and_click` | 覆盖「A class whose instances are single test cases」：move and click |
-| 74 | `MouseToolTest` | `test_out_of_screen_point_rejected` | 覆盖「A class whose instances are single test cases」：out of screen point rejected |
-| 75 | `MouseToolTest` | `test_parameter_matrix` | 覆盖「A class whose instances are single test cases」：parameter matrix |
-| 76 | `MouseToolTest` | `test_plan_gate` | 覆盖「A class whose instances are single test cases」：plan gate |
-| 77 | `PluginTest` | `test_build_tools_honours_switches` | 覆盖「A class whose instances are single test cases」：build tools honours switches |
-| 78 | `PluginTest` | `test_register_returns_disposers` | 覆盖「A class whose instances are single test cases」：register returns disposers |
-| 79 | `ScaleHintTest` | `test_shrunk_image_reports_the_multiplier` | 覆盖「缩图必须给出换算示例，避免每次心算比例」：shrunk image reports the multiplier |
-| 80 | `ShotTest` | `test_keyboard_shot_returns_image` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：keyboard shot returns image |
-| 81 | `ShotTest` | `test_mouse_shot_returns_image_and_receipt` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：mouse shot returns image and receipt |
-| 82 | `ShotTest` | `test_mouse_without_shot_returns_plain_dict` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：mouse without shot returns plain dict |
-| 83 | `ShotTest` | `test_shot_region_is_clipped` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：shot region is clipped |
-| 84 | `ShotTest` | `test_shot_region_shape_is_validated` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：shot region shape is validated |
-| 85 | `ShotTest` | `test_shot_rejected_for_cursor_query` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：shot rejected for cursor query |
-| 86 | `WaitToolTest` | `test_bad_parameters` | 覆盖「A class whose instances are single test cases」：bad parameters |
-| 87 | `WaitToolTest` | `test_change_on_a_minimized_window_is_rejected` | 覆盖「A class whose instances are single test cases」：change on a minimized window is rejected |
-| 88 | `WaitToolTest` | `test_change_satisfies_immediately` | 覆盖「A class whose instances are single test cases」：change satisfies immediately |
-| 89 | `WaitToolTest` | `test_change_times_out_without_raising` | 覆盖「A class whose instances are single test cases」：change times out without raising |
-| 90 | `WaitToolTest` | `test_unknown_argument_rejected` | 覆盖「A class whose instances are single test cases」：unknown argument rejected |
-| 91 | `WaitToolTest` | `test_window_appears` | 覆盖「A class whose instances are single test cases」：window appears |
-| 92 | `WaitToolTest` | `test_window_condition_needs_a_title` | 覆盖「A class whose instances are single test cases」：window condition needs a title |
-| 93 | `WaitToolTest` | `test_window_disappeared_before_waiting_is_flagged_as_already` | 覆盖「A class whose instances are single test cases」：window disappeared before waiting is flagged as already |
-| 94 | `WaitToolTest` | `test_window_disappears_times_out` | 覆盖「A class whose instances are single test cases」：window disappears times out |
-| 95 | `WaitToolTest` | `test_window_that_already_exists_is_flagged_as_already` | 覆盖「A class whose instances are single test cases」：window that already exists is flagged as already |
-| 96 | `Win32TableTest` | `test_activate_uses_foreground_path` | 覆盖「A class whose instances are single test cases」：activate uses foreground path |
-| 97 | `Win32TableTest` | `test_crop_bgra_uses_top_down_rows` | 覆盖「A class whose instances are single test cases」：crop bgra uses top down rows |
-| 98 | `Win32TableTest` | `test_find_prefers_foreground_then_z_order` | 同名窗口：前台优先，其次 Z 序，最后才是面积。 |
-| 99 | `Win32TableTest` | `test_find_without_foreground_falls_back_to_z_order` | 覆盖「A class whose instances are single test cases」：find without foreground falls back to z order |
-| 100 | `Win32TableTest` | `test_hit_probe_reports_class_and_root_title` | 覆盖「A class whose instances are single test cases」：hit probe reports class and root title |
-| 101 | `Win32TableTest` | `test_hit_probe_returns_empty_when_nothing_is_there` | 覆盖「A class whose instances are single test cases」：hit probe returns empty when nothing is there |
-| 102 | `Win32TableTest` | `test_key_table_covers_canonical_names` | 覆盖「A class whose instances are single test cases」：key table covers canonical names |
-| 103 | `Win32TableTest` | `test_minimized_capture_restores_without_stealing_focus` | 覆盖「A class whose instances are single test cases」：minimized capture restores without stealing focus |
-| 104 | `Win32TableTest` | `test_scroll_delta_matches_contract` | 覆盖「A class whose instances are single test cases」：scroll delta matches contract |
-| 105 | `Win32TableTest` | `test_uniform_detection_catches_black_frames` | 覆盖「A class whose instances are single test cases」：uniform detection catches black frames |
-| 106 | `Win32TableTest` | `test_utf16_units_and_unknown_key` | 覆盖「A class whose instances are single test cases」：utf16 units and unknown key |
-| 107 | `Win32TableTest` | `test_visible_window_activates_only_when_asked` | 覆盖「A class whose instances are single test cases」：visible window activates only when asked |
-| 108 | `Win32TableTest` | `test_visible_window_is_left_alone` | 覆盖「A class whose instances are single test cases」：visible window is left alone |
-| 109 | `Win32TableTest` | `test_window_capture_does_not_touch_screen_grab` | 覆盖「A class whose instances are single test cases」：window capture does not touch screen grab |
-| 110 | `WindowActivationTest` | `test_activation_reports_matched_when_titles_collide` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：activation reports matched when titles collide |
-| 111 | `WindowActivationTest` | `test_cursor_query_does_not_activate` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：cursor query does not activate |
-| 112 | `WindowActivationTest` | `test_failed_activation_blocks_input` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：failed activation blocks input |
-| 113 | `WindowActivationTest` | `test_keyboard_activates_before_typing` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：keyboard activates before typing |
-| 114 | `WindowActivationTest` | `test_mouse_activates_before_click` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：mouse activates before click |
-| 115 | `WindowCaptureTest` | `test_activate_failure_is_reported` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：activate failure is reported |
-| 116 | `WindowCaptureTest` | `test_activate_rejected_for_plain_screen` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：activate rejected for plain screen |
-| 117 | `WindowCaptureTest` | `test_activate_requested_reports_success` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：activate requested reports success |
-| 118 | `WindowCaptureTest` | `test_hwnd_skips_title_lookup` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：hwnd skips title lookup |
-| 119 | `WindowCaptureTest` | `test_missing_window_port_reports_clearly` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：missing window port reports clearly |
-| 120 | `WindowCaptureTest` | `test_no_matching_window` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：no matching window |
-| 121 | `WindowCaptureTest` | `test_region_is_passed_through` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：region is passed through |
-| 122 | `WindowCaptureTest` | `test_restore_only_does_not_steal_foreground` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：restore only does not steal foreground |
-| 123 | `WindowCaptureTest` | `test_screen_fallback_is_reported` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：screen fallback is reported |
-| 124 | `WindowCaptureTest` | `test_window_and_hwnd_are_exclusive` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：window and hwnd are exclusive |
-| 125 | `WindowCaptureTest` | `test_window_content_has_no_fallback_note` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：window content has no fallback note |
-| 126 | `WindowCaptureTest` | `test_window_title_routes_to_window_port` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：window title routes to window port |
-| 127 | `WindowHoverTest` | `test_cursor_layer_different_from_capture_window_is_reported` | 播放器画面是独立顶层窗口：取图窗口与光标那层不同时必须点明。 |
-| 128 | `WindowHoverTest` | `test_hover_runs_after_activation_and_before_capture` | 覆盖「窗口悬停：先恢复/置前，再移光标，最后取图」：hover runs after activation and before capture |
-| 129 | `WindowHoverTest` | `test_hover_without_window_captures_the_cursor_layer` | 没给窗口时按光标落点取那一层，避免整屏缩放后看不清控件文字。 |
-| 130 | `WindowHoverTest` | `test_plain_window_capture_does_not_pass_a_prepare_hook` | 覆盖「窗口悬停：先恢复/置前，再移光标，最后取图」：plain window capture does not pass a prepare hook |
+| 1 | `ActToolTest` | `test_batch_find_and_click` | 覆盖「A class whose instances are single test cases」：batch find and click |
+| 2 | `ActToolTest` | `test_batch_rejects_destructive_target` | 覆盖「A class whose instances are single test cases」：batch rejects destructive target |
+| 3 | `ActToolTest` | `test_batch_resolves_prior_step_fields` | 覆盖「A class whose instances are single test cases」：batch resolves prior step fields |
+| 4 | `ActToolTest` | `test_changed_expectation_uses_action_evidence` | 覆盖「A class whose instances are single test cases」：changed expectation uses action evidence |
+| 5 | `ActToolTest` | `test_continue_requires_read_only_steps` | 覆盖「A class whose instances are single test cases」：continue requires read only steps |
+| 6 | `AmbiguityNoteTest` | `test_hover_on_a_background_window_asks_for_activation` | 覆盖「同名窗口：回执必须说清选了谁、还有谁」：hover on a background window asks for activation |
+| 7 | `AmbiguityNoteTest` | `test_matched_windows_are_spelled_out` | 覆盖「同名窗口：回执必须说清选了谁、还有谁」：matched windows are spelled out |
+| 8 | `AmbiguityNoteTest` | `test_single_window_has_no_ambiguity_note` | 覆盖「同名窗口：回执必须说清选了谁、还有谁」：single window has no ambiguity note |
+| 9 | `CanvasTest` | `test_bad_png_raises` | 覆盖「A class whose instances are single test cases」：bad png raises |
+| 10 | `CanvasTest` | `test_blank_and_tiny_images` | 覆盖「A class whose instances are single test cases」：blank and tiny images |
+| 11 | `CanvasTest` | `test_cursor_center_pixel_stays_visible` | 覆盖「A class whose instances are single test cases」：cursor center pixel stays visible |
+| 12 | `CanvasTest` | `test_cursor_crosshair_is_wide_and_labelled` | 覆盖「A class whose instances are single test cases」：cursor crosshair is wide and labelled |
+| 13 | `CanvasTest` | `test_cursor_font_screen_size_is_scale_consistent` | 覆盖「A class whose instances are single test cases」：cursor font screen size is scale consistent |
+| 14 | `CanvasTest` | `test_cursor_mark_follows_screen_extent` | 覆盖「A class whose instances are single test cases」：cursor mark follows screen extent |
+| 15 | `CanvasTest` | `test_grid_and_cursor_change_pixels` | 覆盖「A class whose instances are single test cases」：grid and cursor change pixels |
+| 16 | `CanvasTest` | `test_offset_maps_screen_units_to_sent_pixels` | 覆盖「A class whose instances are single test cases」：offset maps screen units to sent pixels |
+| 17 | `CanvasTest` | `test_scales_and_reports` | 覆盖「A class whose instances are single test cases」：scales and reports |
+| 18 | `CanvasTest` | `test_tiny_area_hides_cursor_label` | 覆盖「A class whose instances are single test cases」：tiny area hides cursor label |
+| 19 | `CaptureStoreTest` | `test_image_coordinates_map_with_origin_and_scale` | 覆盖「A class whose instances are single test cases」：image coordinates map with origin and scale |
+| 20 | `CaptureStoreTest` | `test_out_of_image_and_wrong_session_are_rejected` | 覆盖「A class whose instances are single test cases」：out of image and wrong session are rejected |
+| 21 | `CaptureStoreTest` | `test_ttl_and_capacity_evict_old_entries` | 覆盖「A class whose instances are single test cases」：ttl and capacity evict old entries |
+| 22 | `ClickEvidenceTest` | `test_changed_is_not_measured_for_move` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：changed is not measured for move |
+| 23 | `ClickEvidenceTest` | `test_changed_is_zero_when_nothing_moves` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：changed is zero when nothing moves |
+| 24 | `ClickEvidenceTest` | `test_hit_is_omitted_without_a_hit_port` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：hit is omitted without a hit port |
+| 25 | `ClickEvidenceTest` | `test_hit_report_is_included` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：hit report is included |
+| 26 | `ClickEvidenceTest` | `test_local_still_is_resampled_once` | 覆盖「点击回执要能自证：打中了什么、界面动没动」：local still is resampled once |
+| 27 | `ClickEvidenceTest` | `test_navigation_is_reported_when_local_pixels_do_not_move` | 点卡片跳详情页：落点 200×200 没变，但顶层窗口换了，不能读成没点中。 |
+| 28 | `ClickEvidenceTest` | `test_shot_follows_the_landed_window_not_the_title` | 点击落在播放器窗口时，回图必须拍播放器，而不是标题命中的详情页。 |
+| 29 | `ConfigTest` | `test_bad_values_fall_back` | 覆盖「A class whose instances are single test cases」：bad values fall back |
+| 30 | `ConfigTest` | `test_missing_file_uses_defaults` | 覆盖「A class whose instances are single test cases」：missing file uses defaults |
+| 31 | `ConfigTest` | `test_values_are_read_and_clamped` | 覆盖「A class whose instances are single test cases」：values are read and clamped |
+| 32 | `CoordsTest` | `test_geometry_reports_ratio` | 覆盖「A class whose instances are single test cases」：geometry reports ratio |
+| 33 | `CoordsTest` | `test_rect_bounds_and_intersection` | 覆盖「A class whose instances are single test cases」：rect bounds and intersection |
+| 34 | `CoordsTest` | `test_rect_rejects_empty` | 覆盖「A class whose instances are single test cases」：rect rejects empty |
+| 35 | `DiffTest` | `test_different_image_changes` | 覆盖「A class whose instances are single test cases」：different image changes |
+| 36 | `DiffTest` | `test_probe_region_follows_the_point_and_clips` | 覆盖「A class whose instances are single test cases」：probe region follows the point and clips |
+| 37 | `DiffTest` | `test_same_image_has_no_change` | 覆盖「A class whose instances are single test cases」：same image has no change |
+| 38 | `EyeToolTest` | `test_annotate_both_returns_annotated_then_raw` | 覆盖「A class whose instances are single test cases」：annotate both returns annotated then raw |
+| 39 | `EyeToolTest` | `test_annotate_raw_skips_grid_and_overlay` | 覆盖「A class whose instances are single test cases」：annotate raw skips grid and overlay |
+| 40 | `EyeToolTest` | `test_annotate_unknown_value_is_rejected` | 覆盖「A class whose instances are single test cases」：annotate unknown value is rejected |
+| 41 | `EyeToolTest` | `test_capture_id_and_image_mapping_are_returned` | 覆盖「A class whose instances are single test cases」：capture id and image mapping are returned |
+| 42 | `EyeToolTest` | `test_description_names_the_guide_lines` | 覆盖「A class whose instances are single test cases」：description names the guide lines |
+| 43 | `EyeToolTest` | `test_grid_switch_is_reported` | 覆盖「A class whose instances are single test cases」：grid switch is reported |
+| 44 | `EyeToolTest` | `test_note_reports_mixed_scale` | 覆盖「A class whose instances are single test cases」：note reports mixed scale |
+| 45 | `EyeToolTest` | `test_notes_report_shrinking_and_blank` | 覆盖「A class whose instances are single test cases」：notes report shrinking and blank |
+| 46 | `EyeToolTest` | `test_oversized_region_rejected` | 覆盖「A class whose instances are single test cases」：oversized region rejected |
+| 47 | `EyeToolTest` | `test_region_is_clipped_to_screen` | 覆盖「A class whose instances are single test cases」：region is clipped to screen |
+| 48 | `EyeToolTest` | `test_region_needs_four_numbers` | 覆盖「A class whose instances are single test cases」：region needs four numbers |
+| 49 | `EyeToolTest` | `test_returns_image_attachment` | 覆盖「A class whose instances are single test cases」：returns image attachment |
+| 50 | `EyeToolTest` | `test_unknown_argument_rejected` | 覆盖「A class whose instances are single test cases」：unknown argument rejected |
+| 51 | `HoverCaptureTest` | `test_grid_step_can_be_tightened_for_small_targets` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：grid step can be tightened for small targets |
+| 52 | `HoverCaptureTest` | `test_hover_is_blocked_in_plan_mode` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover is blocked in plan mode |
+| 53 | `HoverCaptureTest` | `test_hover_moves_cursor_before_capture` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover moves cursor before capture |
+| 54 | `HoverCaptureTest` | `test_hover_outside_the_screen_is_rejected` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover outside the screen is rejected |
+| 55 | `HoverCaptureTest` | `test_hover_path_is_walked_before_the_endpoint` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover path is walked before the endpoint |
+| 56 | `HoverCaptureTest` | `test_hover_path_length_is_limited` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover path length is limited |
+| 57 | `HoverCaptureTest` | `test_hover_path_requires_hover` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover path requires hover |
+| 58 | `HoverCaptureTest` | `test_hover_requires_two_integers` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover requires two integers |
+| 59 | `HoverCaptureTest` | `test_hover_settle_is_reported_and_clamped` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover settle is reported and clamped |
+| 60 | `HoverCaptureTest` | `test_hover_wiggle_moves_around_and_returns` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover wiggle moves around and returns |
+| 61 | `HoverCaptureTest` | `test_hover_wiggle_recovers_if_target_warps_cursor` | 覆盖「悬停取图：移光标与截图必须在同一次调用内完成」：hover wiggle recovers if target warps cursor |
+| 62 | `IsolationTest` | `test_input_guard_is_reentrant_in_one_thread` | 覆盖「A class whose instances are single test cases」：input guard is reentrant in one thread |
+| 63 | `IsolationTest` | `test_input_lock_times_out_for_another_thread` | 覆盖「A class whose instances are single test cases」：input lock times out for another thread |
+| 64 | `IsolationTest` | `test_unavailable_backend_reports` | 覆盖「A class whose instances are single test cases」：unavailable backend reports |
+| 65 | `KeyboardToolTest` | `test_bad_parameters` | 覆盖「A class whose instances are single test cases」：bad parameters |
+| 66 | `KeyboardToolTest` | `test_plan_gate_blocks` | 覆盖「A class whose instances are single test cases」：plan gate blocks |
+| 67 | `KeyboardToolTest` | `test_type_key_and_hotkey` | 覆盖「A class whose instances are single test cases」：type key and hotkey |
+| 68 | `KeysTest` | `test_aliases_normalize` | 覆盖「A class whose instances are single test cases」：aliases normalize |
+| 69 | `KeysTest` | `test_canonical_set_is_coverable` | 覆盖「A class whose instances are single test cases」：canonical set is coverable |
+| 70 | `KeysTest` | `test_hotkey_forms` | 覆盖「A class whose instances are single test cases」：hotkey forms |
+| 71 | `KeysTest` | `test_hotkey_rejects_bad_shapes` | 覆盖「A class whose instances are single test cases」：hotkey rejects bad shapes |
+| 72 | `KeysTest` | `test_unknown_key_names_hint` | 覆盖「A class whose instances are single test cases」：unknown key names hint |
+| 73 | `LocatorToolsTest` | `test_click_region_clicks_the_rectangle_center` | 覆盖「A class whose instances are single test cases」：click region clicks the rectangle center |
+| 74 | `LocatorToolsTest` | `test_click_region_maps_image_rect_to_screen` | 覆盖「A class whose instances are single test cases」：click region maps image rect to screen |
+| 75 | `LocatorToolsTest` | `test_click_text_uses_clickable_point` | 覆盖「A class whose instances are single test cases」：click text uses clickable point |
+| 76 | `LocatorToolsTest` | `test_find_empty_result_tells_model_not_to_repeat` | 覆盖「A class whose instances are single test cases」：find empty result tells model not to repeat |
+| 77 | `LocatorToolsTest` | `test_find_returns_uia_matches` | 覆盖「A class whose instances are single test cases」：find returns uia matches |
+| 78 | `LocatorToolsTest` | `test_find_without_locator_reports_unavailable` | 覆盖「A class whose instances are single test cases」：find without locator reports unavailable |
+| 79 | `LocatorToolsTest` | `test_keyboard_type_reports_focused_control` | 覆盖「A class whose instances are single test cases」：keyboard type reports focused control |
+| 80 | `LocatorToolsTest` | `test_type_into_accepts_a_visual_rect_without_uia` | 覆盖「A class whose instances are single test cases」：type into accepts a visual rect without uia |
+| 81 | `LocatorToolsTest` | `test_type_into_clears_types_and_submits` | 覆盖「A class whose instances are single test cases」：type into clears types and submits |
+| 82 | `LocatorToolsTest` | `test_uia_locator_parses_powershell_json` | 覆盖「A class whose instances are single test cases」：uia locator parses powershell json |
+| 83 | `MacOSTableTest` | `test_keycodes_cover_canonical_names` | 覆盖「不启动系统库，只校验键码表与结构体拼装」：keycodes cover canonical names |
+| 84 | `MacOSTableTest` | `test_point_and_unknown_key` | 覆盖「不启动系统库，只校验键码表与结构体拼装」：point and unknown key |
+| 85 | `MacOSTableTest` | `test_scroll_delta_matches_contract` | 覆盖「不启动系统库，只校验键码表与结构体拼装」：scroll delta matches contract |
+| 86 | `MouseToolTest` | `test_drag_scroll_and_cursor` | 覆盖「A class whose instances are single test cases」：drag scroll and cursor |
+| 87 | `MouseToolTest` | `test_image_coordinates_are_converted_by_the_tool` | 覆盖「A class whose instances are single test cases」：image coordinates are converted by the tool |
+| 88 | `MouseToolTest` | `test_image_coordinates_need_a_valid_capture` | 覆盖「A class whose instances are single test cases」：image coordinates need a valid capture |
+| 89 | `MouseToolTest` | `test_move_and_click` | 覆盖「A class whose instances are single test cases」：move and click |
+| 90 | `MouseToolTest` | `test_out_of_screen_point_rejected` | 覆盖「A class whose instances are single test cases」：out of screen point rejected |
+| 91 | `MouseToolTest` | `test_parameter_matrix` | 覆盖「A class whose instances are single test cases」：parameter matrix |
+| 92 | `MouseToolTest` | `test_plan_gate` | 覆盖「A class whose instances are single test cases」：plan gate |
+| 93 | `PipelineTest` | `test_destructive_and_read_only_checks` | 覆盖「A class whose instances are single test cases」：destructive and read only checks |
+| 94 | `PipelineTest` | `test_run_enforces_total_timeout_after_a_step` | 覆盖「A class whose instances are single test cases」：run enforces total timeout after a step |
+| 95 | `PipelineTest` | `test_run_honours_expect_failure` | 覆盖「A class whose instances are single test cases」：run honours expect failure |
+| 96 | `PipelineTest` | `test_run_stops_on_failure_and_logs_steps` | 覆盖「A class whose instances are single test cases」：run stops on failure and logs steps |
+| 97 | `PipelineTest` | `test_scalar_app_and_step_limits` | 覆盖「A class whose instances are single test cases」：scalar app and step limits |
+| 98 | `PipelineTest` | `test_window_string_and_wait_ms_are_accepted` | 覆盖「A class whose instances are single test cases」：window string and wait ms are accepted |
+| 99 | `PluginTest` | `test_build_tools_honours_switches` | 覆盖「A class whose instances are single test cases」：build tools honours switches |
+| 100 | `PluginTest` | `test_register_returns_disposers` | 覆盖「A class whose instances are single test cases」：register returns disposers |
+| 101 | `ScaleHintTest` | `test_shrunk_image_reports_the_multiplier` | 覆盖「缩图必须给出换算示例，避免每次心算比例」：shrunk image reports the multiplier |
+| 102 | `ShotTest` | `test_keyboard_shot_returns_image` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：keyboard shot returns image |
+| 103 | `ShotTest` | `test_mouse_shot_returns_image_and_receipt` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：mouse shot returns image and receipt |
+| 104 | `ShotTest` | `test_mouse_without_shot_returns_plain_dict` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：mouse without shot returns plain dict |
+| 105 | `ShotTest` | `test_shot_region_is_clipped` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：shot region is clipped |
+| 106 | `ShotTest` | `test_shot_region_shape_is_validated` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：shot region shape is validated |
+| 107 | `ShotTest` | `test_shot_rejected_for_cursor_query` | 覆盖「动作自带回图：点完/打完就在同一次调用里返回图片」：shot rejected for cursor query |
+| 108 | `WaitToolTest` | `test_bad_parameters` | 覆盖「A class whose instances are single test cases」：bad parameters |
+| 109 | `WaitToolTest` | `test_change_on_a_minimized_window_is_rejected` | 覆盖「A class whose instances are single test cases」：change on a minimized window is rejected |
+| 110 | `WaitToolTest` | `test_change_satisfies_immediately` | 覆盖「A class whose instances are single test cases」：change satisfies immediately |
+| 111 | `WaitToolTest` | `test_change_times_out_without_raising` | 覆盖「A class whose instances are single test cases」：change times out without raising |
+| 112 | `WaitToolTest` | `test_title_change_satisfies_change_without_pixel_motion` | 覆盖「A class whose instances are single test cases」：title change satisfies change without pixel motion |
+| 113 | `WaitToolTest` | `test_unknown_argument_rejected` | 覆盖「A class whose instances are single test cases」：unknown argument rejected |
+| 114 | `WaitToolTest` | `test_window_appears` | 覆盖「A class whose instances are single test cases」：window appears |
+| 115 | `WaitToolTest` | `test_window_condition_needs_a_title` | 覆盖「A class whose instances are single test cases」：window condition needs a title |
+| 116 | `WaitToolTest` | `test_window_disappeared_before_waiting_is_flagged_as_already` | 覆盖「A class whose instances are single test cases」：window disappeared before waiting is flagged as already |
+| 117 | `WaitToolTest` | `test_window_disappears_times_out` | 覆盖「A class whose instances are single test cases」：window disappears times out |
+| 118 | `WaitToolTest` | `test_window_that_already_exists_is_flagged_as_already` | 覆盖「A class whose instances are single test cases」：window that already exists is flagged as already |
+| 119 | `Win32TableTest` | `test_activate_uses_foreground_path` | 覆盖「A class whose instances are single test cases」：activate uses foreground path |
+| 120 | `Win32TableTest` | `test_crop_bgra_uses_top_down_rows` | 覆盖「A class whose instances are single test cases」：crop bgra uses top down rows |
+| 121 | `Win32TableTest` | `test_find_prefers_foreground_then_z_order` | 同名窗口：前台优先，其次 Z 序，最后才是面积。 |
+| 122 | `Win32TableTest` | `test_find_without_foreground_falls_back_to_z_order` | 覆盖「A class whose instances are single test cases」：find without foreground falls back to z order |
+| 123 | `Win32TableTest` | `test_hit_probe_reports_class_and_root_title` | 覆盖「A class whose instances are single test cases」：hit probe reports class and root title |
+| 124 | `Win32TableTest` | `test_hit_probe_returns_empty_when_nothing_is_there` | 覆盖「A class whose instances are single test cases」：hit probe returns empty when nothing is there |
+| 125 | `Win32TableTest` | `test_key_table_covers_canonical_names` | 覆盖「A class whose instances are single test cases」：key table covers canonical names |
+| 126 | `Win32TableTest` | `test_minimized_capture_restores_without_stealing_focus` | 覆盖「A class whose instances are single test cases」：minimized capture restores without stealing focus |
+| 127 | `Win32TableTest` | `test_scroll_delta_matches_contract` | 覆盖「A class whose instances are single test cases」：scroll delta matches contract |
+| 128 | `Win32TableTest` | `test_uniform_detection_catches_black_frames` | 覆盖「A class whose instances are single test cases」：uniform detection catches black frames |
+| 129 | `Win32TableTest` | `test_utf16_units_and_unknown_key` | 覆盖「A class whose instances are single test cases」：utf16 units and unknown key |
+| 130 | `Win32TableTest` | `test_visible_window_activates_only_when_asked` | 覆盖「A class whose instances are single test cases」：visible window activates only when asked |
+| 131 | `Win32TableTest` | `test_visible_window_is_left_alone` | 覆盖「A class whose instances are single test cases」：visible window is left alone |
+| 132 | `Win32TableTest` | `test_window_capture_does_not_touch_screen_grab` | 覆盖「A class whose instances are single test cases」：window capture does not touch screen grab |
+| 133 | `WindowActivationTest` | `test_activation_reports_matched_when_titles_collide` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：activation reports matched when titles collide |
+| 134 | `WindowActivationTest` | `test_cursor_query_does_not_activate` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：cursor query does not activate |
+| 135 | `WindowActivationTest` | `test_failed_activation_blocks_input` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：failed activation blocks input |
+| 136 | `WindowActivationTest` | `test_keyboard_activates_before_typing` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：keyboard activates before typing |
+| 137 | `WindowActivationTest` | `test_mouse_activates_before_click` | 覆盖「手部动作可以带 window / hwnd：先置前，再落点」：mouse activates before click |
+| 138 | `WindowAppOpenTest` | `test_app_launches_and_returns_hwnd` | 覆盖「A class whose instances are single test cases」：app launches and returns hwnd |
+| 139 | `WindowAppOpenTest` | `test_app_name_resolves_start_menu_shortcut` | 覆盖「A class whose instances are single test cases」：app name resolves start menu shortcut |
+| 140 | `WindowAppOpenTest` | `test_open_binds_a_new_window_instead_of_stale_title_match` | 覆盖「A class whose instances are single test cases」：open binds a new window instead of stale title match |
+| 141 | `WindowAppOpenTest` | `test_open_url_uses_default_handler` | 覆盖「A class whose instances are single test cases」：open url uses default handler |
+| 142 | `WindowAppOpenTest` | `test_title_matching_ignores_invisible_format_chars` | 覆盖「A class whose instances are single test cases」：title matching ignores invisible format chars |
+| 143 | `WindowAppOpenTest` | `test_window_list_and_activate` | 覆盖「A class whose instances are single test cases」：window list and activate |
+| 144 | `WindowAppOpenTest` | `test_window_waits_until_visible` | 覆盖「A class whose instances are single test cases」：window waits until visible |
+| 145 | `WindowCaptureTest` | `test_activate_failure_is_reported` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：activate failure is reported |
+| 146 | `WindowCaptureTest` | `test_activate_rejected_for_plain_screen` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：activate rejected for plain screen |
+| 147 | `WindowCaptureTest` | `test_activate_requested_reports_success` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：activate requested reports success |
+| 148 | `WindowCaptureTest` | `test_hwnd_skips_title_lookup` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：hwnd skips title lookup |
+| 149 | `WindowCaptureTest` | `test_missing_window_port_reports_clearly` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：missing window port reports clearly |
+| 150 | `WindowCaptureTest` | `test_no_matching_window` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：no matching window |
+| 151 | `WindowCaptureTest` | `test_region_is_passed_through` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：region is passed through |
+| 152 | `WindowCaptureTest` | `test_restore_only_does_not_steal_foreground` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：restore only does not steal foreground |
+| 153 | `WindowCaptureTest` | `test_screen_fallback_is_reported` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：screen fallback is reported |
+| 154 | `WindowCaptureTest` | `test_window_and_hwnd_are_exclusive` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：window and hwnd are exclusive |
+| 155 | `WindowCaptureTest` | `test_window_content_has_no_fallback_note` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：window content has no fallback note |
+| 156 | `WindowCaptureTest` | `test_window_title_routes_to_window_port` | 覆盖「按窗口取图：走 windows 端口，而不是屏幕端口」：window title routes to window port |
+| 157 | `WindowHoverTest` | `test_cursor_layer_different_from_capture_window_is_reported` | 播放器画面是独立顶层窗口：取图窗口与光标那层不同时必须点明。 |
+| 158 | `WindowHoverTest` | `test_hover_runs_after_activation_and_before_capture` | 覆盖「窗口悬停：先恢复/置前，再移光标，最后取图」：hover runs after activation and before capture |
+| 159 | `WindowHoverTest` | `test_hover_without_window_captures_the_cursor_layer` | 没给窗口时按光标落点取那一层，避免整屏缩放后看不清控件文字。 |
+| 160 | `WindowHoverTest` | `test_plain_window_capture_does_not_pass_a_prepare_hook` | 覆盖「窗口悬停：先恢复/置前，再移光标，最后取图」：plain window capture does not pass a prepare hook |
 
 ## test_wake_scheduler.py
 

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Protocol, Sequence
 
 from .coords import ScreenGeometry, ScreenPoint, ScreenRect
+from .locate import LocatorPort
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,27 @@ class WindowActivation:
         if self.foreground:
             data["foreground"] = self.foreground
         return data
+
+
+@dataclass(frozen=True)
+class FocusInfo:
+    """当前拥有键盘焦点的控件/窗口。"""
+
+    hwnd: int
+    title: str
+    class_name: str
+    rect: ScreenRect
+
+    def to_dict(self) -> dict:
+        return {"hwnd": self.hwnd, "title": self.title,
+                "class": self.class_name, "rect": self.rect.to_dict()}
+
+
+class FocusPort(Protocol):
+    """返回当前键盘焦点。没有该能力的平台不提供此端口。"""
+
+    def focused(self) -> FocusInfo:
+        ...
 
 
 class ScreenPort(Protocol):
@@ -199,3 +221,5 @@ class Backend:
     keyboard: KeyboardPort
     windows: Optional[WindowPort] = None
     hit: Optional[HitPort] = None
+    locator: Optional[LocatorPort] = None
+    focus: Optional[FocusPort] = None

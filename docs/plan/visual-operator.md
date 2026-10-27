@@ -2,7 +2,7 @@
 
 # Visual Operator plugin
 
-Visual Operator gives the agent observation and input on a desktop. It registers four tools:
+Visual Operator gives the agent observation and input on a desktop. Four coordinate tools form the baseline; window, app launch, and open tools are registered with the P1 interaction layer:
 
 | Tool | Role | Capability |
 |---|---|---|
@@ -10,12 +10,21 @@ Visual Operator gives the agent observation and input on a desktop. It registers
 | `desktop_mouse` | act | Move, click, drag, scroll, or query the cursor. A receipt can include `hit`, `changed`, and an optional `shot`. |
 | `desktop_keyboard` | act | Type text, press one key, or press a key combination. An optional `shot` returns the resulting screen. |
 | `desktop_wait` | wait | Wait for a screen region to change or for a window to appear or disappear, returning as soon as the condition holds. |
+| `desktop_window` | window | List, activate, wait for, and read top-level windows; returns a stable hwnd. |
+| `desktop_app` | launch | Launch a local program and wait for its main window; returns pid and hwnd. |
+| `desktop_open` | open | Open a URL, scheme, or file with the system handler. |
+| `desktop_find` | locate | Find controls by text through UIA; return rect and clickable point. |
+| `desktop_click_text` | act | Locate a text control and click it. |
+| `desktop_type_into` | act | Locate a text control, focus it, and type. |
+| `desktop_click_region` | act | Click the center of a visual rectangle instead of estimating a center. |
+| `desktop_type_into` | act | Locate a text control, focus it, and type. |
+| `desktop_act` | batch | Multi-step execution, assertions, stop-on-failure, final/failure frames. |
 
-`desktop_wait` is read-only and does not take the input lock. It shares the selected backend with the three input and capture tools. The parameter-level contract is maintained in [visual-operator.md](../subsystems/visual-operator.md).
+`desktop_wait` is read-only and does not take the input lock. The window and open tools share the selected backend. The parameter-level contract is maintained in [visual-operator.md](../subsystems/visual-operator.md).
 
 The plugin exposes tools instead of one multi-action tool. The mouse, keyboard, and eye capabilities have separate parameter surfaces: coordinates, key names, text, and capture options. A single action would have to describe when each parameter applies, which makes parameter mismatch more likely. A shared action matrix in `tools/_params.py` rejects parameters that belong to another action instead of silently ignoring them.
 
-The plugin has a `[plugin:visual_operator]` section in `plugins.ini` and is enabled by default. Setting `enabled = 0` preserves the section and unregisters the tools; enabling it again loads the plugin without restarting the process. Registration is platform-independent: all four tools are declared on every host, and platform capability is checked at execution. The generated `catalog/tools.json` includes all four tools.
+The plugin has a `[plugin:visual_operator]` section in `plugins.ini` and is enabled by default. Setting `enabled = 0` preserves the section and unregisters the tools; enabling it again loads the plugin without restarting the process. Registration is platform-independent: all tools are declared on every host, and platform capability is checked at execution. The generated `catalog/tools.json` includes all tools.
 
 The plugin contributes no panel, endpoint, context injection, or startup script. Its visible surface is the tool declarations and tool cards.
 
@@ -145,7 +154,7 @@ Returned fields:
   "capture_id": "a1b2c3d4e5f6",
   "dpi": "96 dpi",
   "cursor": {"x": 412, "y": 300},
-  "grid": {"step": 100, "unit": "screen", "scale": 2.0},
+  "grid": {"step": 50, "unit": "screen", "scale": 2.0},
   "window": {"hwnd": 123456, "title": "Example window",
              "rect": {"x": -1920, "y": 0, "width": 3840, "height": 1080},
              "minimized": false, "visible": true, "foreground": true},
@@ -353,7 +362,7 @@ mouse = 1
 keyboard = 1
 wait = 1
 max_side = 1920
-grid_step = 100
+grid_step = 50
 cursor_mark = 1
 settle_ms = 60
 type_interval_ms = 12
@@ -370,7 +379,7 @@ wait_interval_ms = 200
 | `keyboard` | 1 | 0/1 | Register `desktop_keyboard` |
 | `wait` | 1 | 0/1 | Register `desktop_wait` |
 | `max_side` | 1920 | 0–8192 | Longest side of a sent capture; 0 = no resize |
-| `grid_step` | 100 | 20–500 | Grid spacing in screen coordinates |
+| `grid_step` | 50 | 20–500 | Grid spacing in screen coordinates |
 | `cursor_mark` | 1 | 0/1 | Draw the cursor crosshair and coordinate label |
 | `settle_ms` | 60 | 0–2000 | Pause after a mouse or keyboard action |
 | `type_interval_ms` | 12 | 0–200 | Delay between typed characters |

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Visual Operator 插件：眼（截屏）、手（鼠标 / 键盘）与等待四类工具。
+"""Visual Operator 插件：眼（截屏）、手（鼠标 / 键盘）、等待与窗口/应用/打开工具。
 
 `register(ctx)` 读本插件目录的 `plugin-config.ini`，按平台装配后端并注册工具。
 `[config]` 里任一能力关闭时对应的工具不注册；后端不可用（无 Pillow、缺辅助功能
@@ -17,10 +17,18 @@ from .capture_store import CaptureStore
 from .config import DesktopConfig, load_config
 from .ports import Backend
 from .tools import (
+    DesktopActTool,
+    DesktopAppTool,
+    DesktopClickRegionTool,
+    DesktopClickTextTool,
     DesktopEyeTool,
+    DesktopFindTool,
     DesktopKeyboardTool,
     DesktopMouseTool,
+    DesktopOpenTool,
+    DesktopTypeIntoTool,
     DesktopWaitTool,
+    DesktopWindowTool,
 )
 
 PLUGIN_VERSION = "1.0"
@@ -40,11 +48,19 @@ def build_tools(config: DesktopConfig, backend: Backend,
         tools.append(DesktopKeyboardTool(backend, config, live_state, captures))
     if config.wait:
         tools.append(DesktopWaitTool(backend, config))
+    tools.append(DesktopWindowTool(backend, live_state))
+    tools.append(DesktopAppTool(backend, live_state))
+    tools.append(DesktopOpenTool(backend, live_state))
+    tools.append(DesktopFindTool(backend))
+    tools.append(DesktopClickTextTool(backend, live_state))
+    tools.append(DesktopClickRegionTool(backend, live_state, captures))
+    tools.append(DesktopTypeIntoTool(backend, config, live_state, captures))
+    tools.append(DesktopActTool(backend, config, live_state, captures))
     return tools
 
 
 def register(ctx: Any) -> List[Any]:
-    """插件入口：注册四个工具，返回它们的 disposer。"""
+    """插件入口：注册视觉操作工具，返回它们的 disposer。"""
     config = load_config()
     backend = load_backend()
     captures = CaptureStore()

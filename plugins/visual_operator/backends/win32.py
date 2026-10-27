@@ -9,7 +9,8 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from ..coords import ScreenGeometry, ScreenPoint, ScreenRect
 from ..errors import DesktopError, DesktopUnavailable, ScreenCaptureFailed
-from ..ports import Backend, Screenshot, WindowActivation, WindowInfo
+from ..ports import Backend, FocusInfo, Screenshot, WindowActivation, WindowInfo
+from ..titles import normalize_title
 from .win32_common import (
     _ACTIVATE_TIMEOUT_SECONDS,
     _BUTTONS,
@@ -55,6 +56,7 @@ from .win32_common import (
     gdi32,
     user32,
 )
+from .win32_uia import WindowsUiaLocator
 
 
 class Win32Screen:
@@ -269,6 +271,38 @@ def _print_window(hwnd: int, rect: ScreenRect) -> bytes:
         user32.ReleaseDC(hwnd, window_dc)
 
 
+class _GUITHREADINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD),
+        ("hwndActive", wintypes.HWND), ("hwndFocus", wintypes.HWND),
+        ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
+        ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND),
+        ("rcCaret", wintypes.RECT),
+    ]
+
+
+class Win32Focus:
+    """当前键盘焦点；用于证明输入落在哪个控件/窗口。"""
+
+    def focused(self) -> FocusInfo:
+        foreground = int(user32.GetForegroundWindow() or 0)
+        if not foreground:
+            raise DesktopUnavailable("当前没有前台窗口，无法确认键盘焦点")
+        thread_id = user32.GetWindowThreadProcessId(foreground, None)
+        info = _GUITHREADINFO()
+        info.cbSize = ctypes.sizeof(_GUITHREADINFO)
+        if not user32.GetGUIThreadInfo(thread_id, ctypes.byref(info)):
+            raise DesktopError(_last_error("GetGUIThreadInfo"))
+        hwnd = int(info.hwndFocus or foreground)
+        rect = _window_rect(hwnd) or _window_rect(foreground)
+        if rect is None:
+            raise DesktopError("无法读取焦点窗口矩形")
+        buffer = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(hwnd, buffer, 256)
+        return FocusInfo(hwnd=hwnd, title=_window_title(hwnd) or _window_title(foreground),
+                         class_name=buffer.value, rect=rect)
+
+
 class Win32Windows:
     """按窗口取图。
 
@@ -300,7 +334,7 @@ class Win32Windows:
         一个盖在画面上的播放层。`foreground` 一并写进结果，
         让调用侧能在回执里说清"选中的是不是前台那个"。
         """
-        needle = (title_contains or "").strip().lower()
+        needle = normalize_title(title_contains)
         if not needle:
             raise ValueError("window 需要非空的标题片段")
         foreground = int(user32.GetForegroundWindow() or 0)
@@ -315,7 +349,7 @@ class Win32Windows:
             if int(user32.GetWindowLongW(hwnd, GWL_EXSTYLE)) & WS_EX_TOOLWINDOW:
                 return True
             title = _window_title(hwnd)
-            if not title or needle not in title.lower():
+            if not title or needle not in normalize_title(title):
                 return True
             rect = _window_rect(hwnd)
             if rect is None or rect.width < 2 or rect.height < 2:
@@ -507,8 +541,13 @@ class Win32Mouse:
 
 
 def _set_cursor(point: ScreenPoint) -> None:
-    if not user32.SetCursorPos(int(point.x), int(point.y)):
-        raise DesktopError(_last_error("SetCursorPos"))
+    for attempt in range(2):
+        if user32.SetCursorPos(int(point.x), int(point.y)):
+            return
+        if attempt == 0:
+            # 输入锁竞争或切换前台时 SetCursorPos 会短暂失败，重试一次再报错。
+            time.sleep(0.03)
+    raise DesktopError(_last_error("SetCursorPos"))
 
 
 def _send_mouse(flags: int, data: int = 0) -> None:
@@ -606,4 +645,5 @@ class Win32Backend(Backend):
         _enable_dpi_awareness()
         super().__init__(platform="win32", screen=Win32Screen(),
                          mouse=Win32Mouse(), keyboard=Win32Keyboard(),
-                         windows=Win32Windows(), hit=Win32Hit())
+                         windows=Win32Windows(), hit=Win32Hit(),
+                         locator=WindowsUiaLocator(), focus=Win32Focus())

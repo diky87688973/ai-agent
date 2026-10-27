@@ -11,6 +11,7 @@ import time
 from typing import Any, Dict
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 
 from ..config import DesktopConfig
 from ..coords import ScreenRect
@@ -35,6 +36,7 @@ class DesktopWaitTool(ToolPlugin):
     description = (
         "等桌面出现可观测的变化，满足条件立即返回（不是盲睡）。"
         "until=change：等指定区域或指定窗口的画面变化超过 threshold；"
+        "带 window/hwnd 时，窗口标题变化也算满足（回执 title_changed=true）。"
         "until=window_appears / window_disappears：等标题包含 window 的窗口出现或消失。"
         "超时不算错误：返回 satisfied=false，由你决定换动作还是延长等待。"
         "典型用法：等预告播完、等加载完成、等弹窗消失，不要用固定秒数盲等。"
@@ -50,7 +52,7 @@ class DesktopWaitTool(ToolPlugin):
         "y": {"type": "integer", "description": "区域左上角 y（屏幕坐标）"},
         "width": {"type": "integer", "description": "区域宽度（屏幕坐标）"},
         "height": {"type": "integer", "description": "区域高度（屏幕坐标）"},
-        "timeout_ms": {"type": "integer", "description": "最长等待毫秒数 50–60000（默认 10000）"},
+        "timeout_ms": {"type": "integer", "description": "最长等待毫秒数 50–60000（默认 3000）"},
         "interval_ms": {"type": "integer", "description": "轮询间隔 50–2000 毫秒；缺省取插件配置"},
         "threshold": {"type": "number",
                       "description": "change 的判定阈值 0–1（默认 0.02）；越小越敏感"},
@@ -64,7 +66,7 @@ class DesktopWaitTool(ToolPlugin):
         reject_unknown(arguments, set(_FIELDS), action=self.name)
         until = choice(arguments, "until", _UNTIL)
         timeout_ms = require_range(
-            as_int(arguments, "timeout_ms", 10000), "timeout_ms", 50, 60000)
+            as_int(arguments, "timeout_ms", 3000), "timeout_ms", 50, 60000)
         interval_ms = require_range(
             as_int(arguments, "interval_ms", self._config.wait_interval_ms),
             "interval_ms", 50, 2000)
@@ -78,8 +80,10 @@ class DesktopWaitTool(ToolPlugin):
     def _wait_change(self, arguments: Dict[str, Any], timeout_ms: int,
                      interval_ms: int, threshold: float) -> Dict[str, Any]:
         region = region_from_arguments(arguments, self._backend.screen.geometry().rect)
+        target = self._target_window(arguments) if region is None else None
         if region is None:
             region = self._window_region(arguments)
+        initial_title = target.title if target is not None else ""
         baseline = self._backend.screen.capture(region).png
         started = time.monotonic()
         deadline = started + timeout_ms / 1000.0
@@ -89,6 +93,22 @@ class DesktopWaitTool(ToolPlugin):
             if remaining <= 0:
                 break
             time.sleep(min(interval_ms / 1000.0, remaining))
+            if target is not None:
+                try:
+                    current = self._backend.windows.get(target.hwnd)
+                except Exception as exc:
+                    report_error("plugin.visual_operator.wait.title", exc)
+                    current = None
+                if current is not None and current.title != initial_title:
+                    return {
+                        "until": "change",
+                        "satisfied": True,
+                        "waited_ms": _elapsed_ms(started),
+                        "changed": 0.0,
+                        "title_changed": True,
+                        "title": current.title,
+                        "capture": region.to_dict() if region else None,
+                    }
             latest = change_ratio(baseline, self._backend.screen.capture(region).png) or 0.0
             if latest >= threshold:
                 return {
@@ -158,6 +178,21 @@ class DesktopWaitTool(ToolPlugin):
                             f"仍然{'不存在' if want else '存在'}",
                 }
             time.sleep(min(interval_ms / 1000.0, remaining))
+
+    def _target_window(self, arguments: Dict[str, Any]):
+        if not (has(arguments, "window") or has(arguments, "hwnd")):
+            return None
+        port = self._backend.windows
+        if port is None:
+            return None
+        try:
+            if has(arguments, "hwnd"):
+                return port.get(as_int(arguments, "hwnd", 0))
+            found = tuple(port.find(_title(arguments)))
+            return found[0] if found else None
+        except Exception as exc:
+            report_error("plugin.visual_operator.wait.target", exc)
+            return None
 
     def _window_region(self, arguments: Dict[str, Any]):
         """把窗口矩形当成取图区域：只比这块画面，不受别的窗口干扰。"""

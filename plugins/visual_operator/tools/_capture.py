@@ -327,11 +327,17 @@ def build_note(rendered: Any, mixed_scale: bool, step: int, *,
             f"{rendered.sent_width}x{rendered.sent_height}；"
             f"网格刻度（每 {step} 屏幕坐标）仍是原坐标，可直接用于 desktop_mouse"
         )
-        parts.append(_scale_hint(rendered))
+        parts.append(
+            "点击请使用 capture_id + space=image；工具自动换算，不要手算屏幕坐标")
     if rendered.blank:
         parts.append("画面全黑：可能处于锁屏、UAC 安全桌面或受保护内容")
     if mixed_scale:
         parts.append("多屏缩放不一致，副屏坐标可能有偏差")
+    if step > 20 and (source == "screen" or rendered.shrunk):
+        parts.append(
+            "精确点击小目标：先取局部区域（x/y/width/height），max_side=0，"
+            "grid_step=20；再用 capture_id + space=image。"
+            "整屏/缩放图只用于定位大概位置")
     return "；".join(parts)
 
 
@@ -349,17 +355,6 @@ def _ambiguity_note(matched: int, candidates: Sequence[WindowInfo],
     )
     tail = f"；其余：{others}，要换目标就显式给 hwnd" if others else ""
     return f"标题包含同一片段的可见窗口有 {matched} 个，已选{picked} hwnd={target.hwnd}{tail}"
-
-
-def _scale_hint(rendered: Any) -> str:
-    """给一次换算示例：模型少做一次心算，就少一次点偏。"""
-    scale = rendered.scale
-    if scale <= 1.0:
-        return ""
-    sample_x, sample_y = 100, 100
-    return (f"换算：图上像素 × {scale:g} = 屏幕坐标，"
-            f"例如图上 {sample_x},{sample_y} 对应屏幕 "
-            f"{round(sample_x * scale)},{round(sample_y * scale)}")
 
 
 def _hover(request: CaptureRequest, backend: Backend) -> None:

@@ -84,6 +84,13 @@ def focus_target(backend: Backend, arguments: Dict[str, Any]) -> Optional[Dict[s
     if matched > 1:
         receipt["matched"] = matched
         receipt["alternatives"] = alternatives(candidates)
+    if not receipt.get("active"):
+        receipt["note"] = (
+            "窗口没有拿到前台，本次输入不会投递；"
+            "不要重复同一调用。先改用 desktop_open 打开目标 URL，"
+            "或点击一个已在前台的窗口后再操作。"
+        )
+        receipt["next"] = "desktop_open"
     return receipt
 
 

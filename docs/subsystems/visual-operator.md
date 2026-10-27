@@ -24,14 +24,24 @@ plugins/visual_operator/
   tools/
     _params.py               argument parsing and action matrix
     _windows.py              window / hwnd resolution, candidates, and foreground activation
+    _evidence.py             before/after landing-region evidence
     _capture.py              single implementation of capture, rendering, receipt, and notes
     eye.py                   desktop_eye
     mouse.py                 desktop_mouse
     keyboard.py              desktop_keyboard
     wait.py                  desktop_wait
+    window.py                desktop_window
+    app.py                   desktop_app
+    open.py                  desktop_open
+    find.py                  desktop_find
+    click_region.py          desktop_click_region
+    click_text.py            desktop_click_text
+    type_into.py             desktop_type_into
+    act.py                   desktop_act
   backends/
     __init__.py              backend selection by platform
     win32.py                 Windows: GDI + SendInput + hit probing
+    win32_uia.py             Windows: UIA text-location adapter
     macos.py                 macOS: screencapture + CoreGraphics
     _unavailable.py          other platforms: report a clear reason at call time
 ```
@@ -90,7 +100,7 @@ Return value (`data`):
   "capture_id": "a1b2c3d4e5f6",
   "dpi": "96 dpi",
   "cursor": {"x": 734, "y": 709},
-  "grid": {"step": 100, "unit": "screen", "scale": 1.3333},
+  "grid": {"step": 50, "unit": "screen", "scale": 1.3333},
   "note": "图片已从 2560x1440 缩到 1920x1080；…"
 }
 ```
@@ -122,7 +132,7 @@ screen_y = capture.y + image_y * capture.height / image.height
 
 `space=image` declares image coordinates explicitly; providing only a `capture_id` also implies image coordinates. `space=screen` (default) still accepts screen coordinates; the two spaces are not mixed. An ID that is unknown, expired, or belongs to another session is rejected, not retried as screen coordinates.
 
-For detail that is hard to read, capture a region: regions are usually sent at native size. For small targets, `grid_step=20–40` gives a finer grid so coordinates can be read directly instead of estimated within a 100 px cell.
+For detail that is hard to read, capture a region: regions are usually sent at native size. For small targets, `grid_step=20–40` gives a finer grid so coordinates can be read directly instead of estimated within a 50 px cell.
 
 ### `desktop_mouse`
 
@@ -181,7 +191,7 @@ Key names are normalized before dispatch: `return` → `enter`, `escape` → `es
 | `until` | `change` screen change / `window_appears` window appears / `window_disappears` window disappears |
 | `window` / `hwnd` | For `change`, limits the comparison region to the window rect. For `window_appears` / `window_disappears`, `window` is required and `hwnd` alone is rejected |
 | `x` / `y` / `width` / `height` | Comparison region for `change`; supply all four together, width and height positive. Defaults to the window rect or the full screen. An explicit region takes precedence over the window rect |
-| `timeout_ms` | Maximum wait, `50–60000`, default 10000 |
+| `timeout_ms` | Maximum wait, `50–60000`, default 3000 |
 | `interval_ms` | Poll interval, `50–2000`; defaults to the plugin configuration |
 | `threshold` | Change threshold for `change`, `0–1`, default `0.02` |
 
@@ -240,7 +250,7 @@ mouse = 1
 keyboard = 1
 wait = 1
 max_side = 1920
-grid_step = 100
+grid_step = 50
 cursor_mark = 1
 settle_ms = 60
 type_interval_ms = 12
@@ -254,7 +264,7 @@ wait_interval_ms = 200
 |---|---|---|
 | `eye` / `mouse` / `keyboard` / `wait` | `1` | Capability switches; a disabled capability is not registered |
 | `max_side` | `1920` | Long-side limit before sending, `0` disables scaling; clamped to `0–8192` |
-| `grid_step` | `100` | Grid spacing in screen coordinates; clamped to `20–500` |
+| `grid_step` | `50` | Grid spacing in screen coordinates; clamped to `20–500` |
 | `cursor_mark` | `1` | Whether the capture draws the cursor crosshair |
 | `settle_ms` | `60` | Milliseconds to wait for the interface after an input action; clamped to `0–2000` |
 | `type_interval_ms` | `12` | Interval between typed characters; clamped to `0–200` |

@@ -21,7 +21,7 @@ Three layers, built in order and not merged:
 | Layer | Content | Problem solved |
 |---|---|---|
 | L1 receipts | Changing actions return `focus` / `hit` / `changed` where the platform can observe them; input actions can return a screenshot (`shot`) | A mis-click is visible immediately instead of being inferred from the next screenshot |
-| L2 semantic verbs | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` | Locating is no longer estimated by the model |
+| L2 semantic verbs | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` / `desktop_open` | Locating is no longer estimated by the model |
 | L3 batch pipeline | `desktop_act`: several steps in one call, each with `expect`, stop on failure | Round trips for a stable task drop from N to 1 |
 
 The decision in `docs/plan/visual-operator.md` stands: the four baseline tools stay separate, and 15 actions are not folded into one `desktop_action`. L2 verbs compose L0 calls; L3 is a new independent tool, not a flattened parameter matrix. Baseline parameter semantics do not change, and new parameters are optional.
@@ -64,7 +64,7 @@ Screenshot scale varies: a full-screen capture is downscaled to `max_side`, whil
 |---|---|---|
 | L0 | `desktop_eye` / `desktop_mouse` / `desktop_keyboard` / `desktop_wait` | baseline |
 | L1 | optional `shot`; receipts `focus` / `hit` / `changed` / `window_changed` | extension of L0 |
-| L2 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` | new |
+| L2 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` / `desktop_open` | new |
 | L3 | `desktop_act` | new |
 
 The L2 verbs are compositions of L0 calls. They add no system-call surface and share the L0 input lock and Plan gating.
@@ -93,13 +93,17 @@ The pipeline passes handles, not copied numbers. Locating results and action rec
 
 | Tool | Parameters | Contract |
 |---|---|---|
-| `desktop_window` | `action`: `list` / `activate` / `wait` / `rect`; `title` / `hwnd` / `class` / `timeout_ms` | `activate` restores and brings the target forward; success means the content can be captured afterwards, not that the foreground API returned `true`. `wait` returns when the window exists and is not minimized |
+| `desktop_window` | `action`: `list` / `activate` / `wait` / `rect`; `window` / `hwnd` / `timeout_ms` / `interval_ms` / `limit` | `activate` restores and brings the target forward; success means the content can be captured afterwards, not that the foreground API returned `true`. `wait` returns when the window exists and is not minimized; `list` returns candidates |
 | `desktop_find` | `text`, `region`, `match` (`contains` / `exact` / `regex`), `source` (`auto` / `uia` / `point`), `limit` | Returns `matches[]`, each with `rect` / `index` / `source` / `confidence` |
 | `desktop_click_text` | `text`, `index`, `region`, `button`, `count`, `shot`, `expect` | Internally: find, validate the hit (unique or nth), click, receipt |
-| `desktop_type_into` | `target` (text or rect), `text`, `clear`, `submit`, `interval_ms`, `shot`, `expect` | Internally: locate, focus, clear, type, optional enter, wait for change |
-| `desktop_app` | `name` / `path`, `args`, `timeout_ms`, `shot` | Launch, wait for the main window, activate; returns `pid` / `hwnd` / `rect` |
+| `desktop_type_into` | `target` (text) or `x/y/width/height`, `space` / `capture_id`, `text`, `clear`, `submit` | Internally: UIA or rectangle center, focus, clear, type, optional enter, pixel diff |
+| `desktop_click_region` | `x/y/width/height`, `space` / `capture_id`, `window` / `hwnd`, `button`, `count` | Click the rectangle center; with `space=image` maps image coordinates to screen; returns `changed` / `title_changed` / `verified` |
+| `desktop_open` | `target`, `window`, `timeout_ms`, `activate` | Opens a URL/scheme/file with the system handler; prefers the newly opened window and returns `fresh` / `reused` / `hwnd`, even when the title only partially matches |
+| `desktop_app` | `path` / `name`, `args`, `window`, `timeout_ms`, `activate` | `name` resolves a Start Menu shortcut; launch, wait for the main window, activate; returns `pid` / `path` / `hwnd` / `rect` |
 
-`desktop_app` and `desktop_open` (URL scheme or default browser) remain separate: the former waits for a window, the latter does not.
+`desktop_app` and `desktop_open` (URL scheme or default browser) remain separate: the former launches a program and waits for its main window, the latter only opens the target; it waits only when `window` is given.
+The Windows P2 locator adapter uses the system PowerShell `UIAutomationClient`: the query is passed as base64 in an environment variable and the script returns JSON on stdout. It only locates controls; it does not add a third-party library, does not use OCR, and clicks/typing still go through the existing base ports.
+
 
 ## 5. Two-step compositions
 
@@ -173,7 +177,9 @@ Baseline counts round trips with the four L0 tools; pipelined counts them after 
 
 ### 7.3 Boundary
 
-A batch is not a flattened parameter matrix. Each step remains a separate `{verb: parameters}` object, and an unknown verb fails the call and lists the valid verbs. `desktop_act` carries no implicit state beyond L0 primitives: the previous step's cursor position is not inherited, and a click on it must be written as `{"click": {"point": "$1.cursor"}}`.
+A batch is not a flattened parameter matrix.
+
+`desktop_act` accepts two parameter shorthands: `{"window": "title"}` means activate that window; `{"wait": {"ms": 500}}` maps `ms` to `timeout_ms` and defaults `until` to `change`. Each step remains a separate `{verb: parameters}` object, and an unknown verb fails the call and lists the valid verbs. `desktop_act` carries no implicit state beyond L0 primitives: the previous step's cursor position is not inherited, and a click on it must be written as `{"click": {"point": "$1.cursor"}}`.
 
 ## 8. Locating pipeline
 
@@ -233,8 +239,8 @@ Continuing the ten invariants in `docs/plan/visual-operator.md`:
 | Phase | Change | Files | Acceptance |
 |---|---|---|---|
 | P0 | Action receipts, `shot`, restore without activation, foreground check | `tools/mouse.py`, `tools/keyboard.py`, `tools/_capture.py`, `tools/_windows.py`, `diff.py`, `ports.py`, `backends/win32.py` | A mis-click is visible in the first receipt: `hit` points at the window control button, not the content area. An occluded target still yields its own content |
-| P1 | `desktop_window`, `desktop_app` | new `tools/window.py`, `tools/app.py` | Activation takes one round trip, and failure is not read from an API return |
-| P2 | `desktop_find`, `desktop_click_text`, `desktop_type_into` | new `tools/find.py`, `tools/click_text.py`, `tools/type_into.py`, `locate.py` | The search box resolves in one call, or the result is explicitly low confidence |
+| P1 | `desktop_window`, `desktop_app`, `desktop_open` | new `tools/window.py`, `tools/app.py`, `tools/open.py` | Activation takes one round trip, and failure is not read from an API return |
+| P2 | `desktop_find`, `desktop_click_text`, `desktop_type_into` | new `tools/find.py`, `tools/click_text.py`, `tools/type_into.py`, `locate.py`, `backends/win32_uia.py` | The search box resolves in one call, or the result is explicitly low confidence |
 | P3 | `desktop_act` | new `tools/act.py`, `pipeline.py` | The target scenario completes in at most 3 round trips |
 
 Acceptance budget: at most 15 round trips after P0, 8 after P1, 5 after P2, and 3 after P3.
@@ -257,7 +263,7 @@ Acceptance budget: at most 15 round trips after P0, 8 after P1, 5 after P2, and 
 | Unreadable text is mistaken for a missing OCR layer | Documentation and receipts point at window identity and image scale first; OCR stays excluded |
 | Assertions are too strict and stop runs unnecessarily | `expect` has an independent `timeout_ms`; the failure receipt includes the last frame |
 | A batch reduces observability | The step log is part of the result; the failure frame is always returned |
-| Window titles are localized or duplicated | `desktop_window` accepts `hwnd` / `class`; `list` returns `pid` and `rect` for disambiguation |
+| Window titles are localized or duplicated | `desktop_window` accepts `hwnd`; `list` returns `rect` and foreground state for disambiguation |
 
 ## 15. Receipts
 

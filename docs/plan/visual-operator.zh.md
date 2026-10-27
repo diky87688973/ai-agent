@@ -2,7 +2,7 @@
 
 # Visual Operator 插件
 
-Visual Operator 在桌面上为 Agent 提供观察与输入能力，注册四个工具：
+Visual Operator 在桌面上为 Agent 提供观察与输入能力。基线是四个坐标工具；窗口、应用启动与打开工具作为 P1 交互层一并注册：
 
 | 工具 | 方向 | 能力 |
 |---|---|---|
@@ -10,12 +10,21 @@ Visual Operator 在桌面上为 Agent 提供观察与输入能力，注册四个
 | `desktop_mouse` | 输入 | 移动、点击、拖拽、滚动或查询光标；回执可带 `hit`、`changed` 与可选的 `shot`。 |
 | `desktop_keyboard` | 输入 | 输入文本、单键或组合键；可选 `shot` 返回动作后的画面。 |
 | `desktop_wait` | 等待 | 等画面区域变化，或窗口出现、消失；条件成立立即返回。 |
+| `desktop_window` | 窗口 | 列出、激活、等待、读取顶层窗口；返回稳定 hwnd。 |
+| `desktop_app` | 启动 | 启动本地程序并等待主窗口，返回 pid 与 hwnd。 |
+| `desktop_open` | 打开 | 用系统默认处理器打开 URL、scheme 或文件。 |
+| `desktop_find` | 定位 | 用 UIA 按文字查找控件，返回矩形与可点击点。 |
+| `desktop_click_text` | 输入 | 定位文字控件并点击。 |
+| `desktop_type_into` | 输入 | 定位文字控件、聚焦并输入。 |
+| `desktop_click_region` | 输入 | 用视觉矩形中心点击，减少模型估中心。 |
+| `desktop_type_into` | 输入 | 定位文字控件、聚焦并输入。 |
+| `desktop_act` | 批量 | 多步执行、断言、失败即停与末帧/失败帧。 |
 
-`desktop_wait` 只读，不占输入锁；它与三个输入、取图工具共用已选后端。参数级契约以 [visual-operator.md](../subsystems/visual-operator.md) 为准。
+`desktop_wait` 只读，不占输入锁；窗口与打开工具同样共用已选后端。参数级契约以 [visual-operator.md](../subsystems/visual-operator.md) 为准。
 
 插件提供多个工具，而不是一个多动作工具。鼠标、键盘与看屏各有独立的参数面：坐标、键名、文本与取图选项。合成一个工具就必须描述每个参数在哪个动作下生效，模型错配参数的概率更高。`tools/_params.py` 的动作矩阵直接拒绝属于别的动作的参数，不会静默忽略。
 
-插件在 `plugins.ini` 里有 `[plugin:visual_operator]` 节，默认启用。写入 `enabled = 0` 会保留节并注销四个工具；重新启用即热装载，不需要重启进程。注册面与平台无关：四个工具在每台主机上都声明，平台能力在执行期判定。生成的 `catalog/tools.json` 包含这四个工具。
+插件在 `plugins.ini` 里有 `[plugin:visual_operator]` 节，默认启用。写入 `enabled = 0` 会保留节并注销工具；重新启用即热装载，不需要重启进程。注册面与平台无关：工具在每台主机上都声明，平台能力在执行期判定。生成的 `catalog/tools.json` 包含全部工具。
 
 插件不贡献面板、端点、上下文注入与开屏脚本。对外可见面只有工具声明与工具卡。
 
@@ -144,7 +153,7 @@ parameters = {
   "capture_id": "a1b2c3d4e5f6",
   "dpi": "96 dpi",
   "cursor": {"x": 412, "y": 300},
-  "grid": {"step": 100, "unit": "screen", "scale": 2.0},
+  "grid": {"step": 50, "unit": "screen", "scale": 2.0},
   "window": {"hwnd": 123456, "title": "示例窗口",
              "rect": {"x": -1920, "y": 0, "width": 3840, "height": 1080},
              "minimized": false, "visible": true, "foreground": true},
@@ -349,7 +358,7 @@ mouse = 1
 keyboard = 1
 wait = 1
 max_side = 1920
-grid_step = 100
+grid_step = 50
 cursor_mark = 1
 settle_ms = 60
 type_interval_ms = 12
@@ -366,7 +375,7 @@ wait_interval_ms = 200
 | `keyboard` | 1 | 0/1 | 是否注册 `desktop_keyboard` |
 | `wait` | 1 | 0/1 | 是否注册 `desktop_wait` |
 | `max_side` | 1920 | 0–8192 | 发出图片的长边上限；0 = 不缩放 |
-| `grid_step` | 100 | 20–500 | 网格间距（屏幕坐标） |
+| `grid_step` | 50 | 20–500 | 网格间距（屏幕坐标） |
 | `cursor_mark` | 1 | 0/1 | 是否画光标十字与坐标标签 |
 | `settle_ms` | 60 | 0–2000 | 鼠标或键盘动作后的停顿 |
 | `type_interval_ms` | 12 | 0–200 | 逐字输入的字符间隔 |

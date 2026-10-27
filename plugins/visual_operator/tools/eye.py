@@ -28,6 +28,11 @@ class DesktopEyeTool(ToolPlugin):
     label = "看屏"
     icon = "👁"
     description = (
+        "已知多步流程优先用 desktop_act，减少 eye/mouse 往返；本工具只取当前需要的一帧。"
+        "看屏并附坐标网格。精确点击协议：先取局部区域（x/y/width/height），"
+        "max_side=0，grid_step=20，量外框必须用 annotated 标注图；"
+        "禁止用 raw 图量边框。再用 capture_id + space=image 把矩形交给 click_region。"
+        "整屏/缩放图只用于定位大概位置，不要直接用来点击小目标。"
         "截取桌面并作为图片直接查看（不是 OCR）。支持整屏、区域与指定窗口。"
         "给 window（标题片段）或 hwnd 时取该窗口自身内容，目标被别的窗口盖住也能看到；"
         "窗口若已最小化会先恢复再取图，回执标 restored。"
@@ -56,11 +61,12 @@ class DesktopEyeTool(ToolPlugin):
         "仍看不清时缩小取图区域、把 grid_step 调到 20–40，或提高 max_side。"
         "要同时看标注图和干净原图时给 annotate=both：同一张图先回标注图、再回"
         "无辅助线原图；annotate=raw 只回原图，默认 annotated 只回标注图。"
+        "量尺寸/坐标时用 annotated + grid_step=20 的图，不要用 raw；"
+        "raw 只用于确认内容，边框不能靠肉眼估。"
         "回执带 capture_id；要按图内坐标点击时，先让这张图的网格用图内像素"
         "（grid_unit=image），再把 capture_id 与图内 x/y 交给 desktop_mouse"
         "（space=image）。默认网格仍是屏幕坐标；两种坐标不要混用。"
-        "点小目标时把 grid_step 调到 20–40，网格刻度更细，坐标不用估；"
-        "细节看不清时用 x/y/width/height 取局部，局部通常按原尺寸发送。"
+        "整屏截图不要直接用来估 5px 级控件；局部取图、max_side=0、grid_step=20 才是精确点击路径。"
     )
     parameters = {
         "x": {"type": "integer", "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出"},
@@ -90,12 +96,13 @@ class DesktopEyeTool(ToolPlugin):
         "grid": {"type": "boolean", "description": "叠加坐标网格与刻度（默认 true）"},
         "grid_step": {"type": "integer",
                       "description": "网格间距（屏幕坐标）20–500；缺省取插件配置。"
-                                     "点小目标（如剧集卡片）时给 20–40，坐标读数更细"},
+                                     "整屏用于定位；精确点击局部时给 20"},
         "grid_unit": {"type": "string", "enum": ["screen", "image"],
                       "description": "网格刻度单位：screen 屏幕坐标（默认）/ image 图内像素。"
                                      "图内像素配合 capture_id 交给 desktop_mouse"},
         "max_side": {"type": "integer",
-                     "description": "长边缩到不超过该像素；0 = 不缩放；缺省取插件配置"},
+                     "description": "长边缩到不超过该像素；0 = 不缩放；"
+                                    "精确点击局部时用 0，避免缩放误差"},
         "annotate": {"type": "string", "enum": ["annotated", "raw", "both"],
                      "description": "annotated 只回标注图（默认）/ raw 只回原图 / "
                                     "both 先回标注图再回原图"},

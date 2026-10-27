@@ -14,12 +14,15 @@ from .errors import DesktopBusy
 
 DEFAULT_TIMEOUT = 10.0
 
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()
 
 
 @contextmanager
 def input_guard(timeout: float = DEFAULT_TIMEOUT) -> Iterator[None]:
-    """持有输入锁执行一段动作；超时抛 `DesktopBusy`。"""
+    """持有输入锁执行一段动作；超时抛 `DesktopBusy`。
+
+    使用可重入锁：批量管线先持锁，内部子工具在同一线程再次获取不会自锁。
+    """
     if not _LOCK.acquire(timeout=timeout):
         raise DesktopBusy(f"桌面输入被另一个动作占用超过 {timeout:g} 秒")
     try:
