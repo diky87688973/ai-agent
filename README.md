@@ -37,7 +37,7 @@ macOS packages are not built yet. Current releases provide Windows packages only
 ## Highlights
 
 - **Local-first, model-endpoint agnostic** — sessions, files, tools, and write gates run on the local machine. Configure model endpoints and reasoning levels as needed.
-- **Four entry points, one kernel** — desktop GUI, Web console, interactive terminal, and headless execution share sessions, tools, and gates. Switching entry points does not change behavior.
+- **Four entry points, one kernel** — desktop GUI, Web UI, interactive terminal, and headless execution share sessions, tools, and gates. Switching entry points does not change behavior.
 - **Service-ready** — the kernel is not tied to a UI. The Web entry provides local HTTP/SSE and health checks. The headless entry targets scripts, CI, tickets, and external systems. Plugins can add their own HTTP endpoints.
 - **Access control** — browser login, one-time GUI auto-login, scrypt passwords, HttpOnly sessions, CSRF, scoped tokens, login rate limiting, and TLS for public bindings.
 - **Plugin extensions** — tools, executors, context, prompts, gates, model catalogs, HTTP endpoints, and UI assets can be added without changing the kernel. Built-in plugins include Skills, Rules, Knowledge, Multi-model, Visual Operator, and AI Speak.
@@ -65,7 +65,7 @@ Install:
 python3 -m pip install -e ".[gui,tts]" -c constraints.txt
 ```
 
-#### Web console
+#### Web UI
 
 ```bash
 agent-web --host 127.0.0.1 --port 8765

@@ -75,5 +75,5 @@ MSVC Build Tools are required. The output is `agent-gui.exe` in the project root
 ```text
 agent-cli / agent-web / agent-headless  Official commands
 agent-gui.exe                           Native launcher + Python desktop shell
-start.bat / start.sh                    Source Web console startup
+start.bat / start.sh                    Source Web UI startup
 ```

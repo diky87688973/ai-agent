@@ -75,5 +75,5 @@ launcher\build.ps1
 ```text
 agent-cli / agent-web / agent-headless  正式命令
 agent-gui.exe                           原生启动器 + Python 桌面壳
-start.bat / start.sh                    源码 Web 控制台启动
+start.bat / start.sh                    源码 Web 界面启动
 ```
