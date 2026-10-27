@@ -2,16 +2,19 @@
 
 # Visual Operator (`visual_operator` plugin)
 
-Visual Operator turns screen viewing and mouse/keyboard operation into four tools, letting the model read the screen, locate targets, click, type, and wait on a real desktop. Screenshots are returned as image attachments; the plugin keeps only coordinate-mapping metadata and does not retain screenshot files. Mouse and keyboard input actions are serialized through an input lock. The plugin mechanism itself is described in [plugins.md](plugins.md).
+Visual Operator turns screen viewing and mouse/keyboard operation into desktop interaction tools, letting the model read the screen, locate targets, click, type, and wait on a real desktop; the baseline is four coordinate tools, with window, app, open, UIA, and batch tools layered on top. Screenshots are returned as image attachments; the plugin keeps only coordinate-mapping metadata and does not retain screenshot files. Mouse and keyboard input actions are serialized through an input lock. The plugin mechanism itself is described in [plugins.md](plugins.md).
 
 ## Package layout
 
 ```
 plugins/visual_operator/
-  plugin.py                  entry point: loads config, selects backend, registers four tools
+  plugin.py                  entry point: loads config, selects backend, registers visual tools
   plugin-config.ini          configuration read at load time
   plugin-meta.json           identity metadata
   config.py                  [config] reading, fallback, and clamping
+  titles.py                  window-title normalization and matching
+  locate.py                  locator port and LocatorMatch
+  pipeline.py                batch validation, assertions, timeout, and stop-on-failure
   capture_store.py           screenshot mapping registry (metadata only, no image bytes)
   keys.py                    key names, aliases, and hotkey validation
   coords.py                  screen rects / points / geometry
@@ -46,7 +49,7 @@ plugins/visual_operator/
     _unavailable.py          other platforms: report a clear reason at call time
 ```
 
-## Four tools
+## Tool surface
 
 | Tool | Direction | Capability |
 |---|---|---|
@@ -55,7 +58,7 @@ plugins/visual_operator/
 | `desktop_keyboard` | Desktop output | `type` arbitrary Unicode text / `key` a single key / `hotkey` a key combination |
 | `desktop_wait` | Condition wait | Waits for a screen change, a window to appear, or a window to disappear; returns as soon as the condition holds |
 
-Each tool declares its own complete JSON Schema instead of sharing one multi-action tool. The action matrix in `tools/_params.py` validates which arguments belong to each action: arguments for another action are rejected rather than silently ignored.
+The table above lists the four baseline tools only; window, app launch, open, UIA text location, rectangle click, and batch tools are layered on top and share the same registration point. Each tool declares its own complete JSON Schema instead of sharing one multi-action tool. The action matrix in `tools/_params.py` validates which arguments belong to each action: arguments for another action are rejected rather than silently ignored.
 
 ### `desktop_eye`
 
@@ -109,7 +112,7 @@ The image is returned by `ToolResult.attach` as an `image/png` attachment. Attac
 
 `capture_id` is a key into an in-memory map, not a file path: the registry stores only the `capture` rect, image dimensions, hwnd, and creation time, never the PNG. Entries expire after 300 seconds and each plugin instance keeps at most 64; after a restart or eviction an old ID is invalid and a new screenshot is required. `image_to_screen` is the readable form of the same mapping for diagnostics and UI; the server performs the conversion, so the model does not use it for multiplication.
 
-With `grid_unit=image`, grid labels and the cursor label are in image pixels; the default `screen` keeps screen coordinates, and `hover`, region arguments, and `desktop_wait` regions remain in screen coordinates. To click in image coordinates, capture with an image-unit grid and pass the `capture_id` plus image x/y to `desktop_mouse`.
+With `grid_unit=image`, grid labels and the cursor label are in image pixels; the default `screen` keeps screen coordinates, and `hover`, region arguments, and `desktop_wait` regions remain in screen coordinates. To click in image coordinates, capture with an image-unit grid and pass the `capture_id` plus image coordinates to `desktop_mouse`, `desktop_click_region`, or `desktop_type_into`.
 
 A single screenshot is limited to 40 million pixels; above that the call fails and asks for a region instead.
 
@@ -222,7 +225,7 @@ The countdown is computed entirely in the frontend from the arguments; the serve
 
 ## Coordinate contract
 
-- The default coordinate space is screen coordinates: physical pixels on Windows, global display points on macOS. With `grid_unit=image`, grid and cursor labels use image pixels; image coordinates reach `desktop_mouse` only through `capture_id` and are not used directly as screen coordinates.
+- The default coordinate space is screen coordinates: physical pixels on Windows, global display points on macOS. With `grid_unit=image`, grid and cursor labels use image pixels; image coordinates reach `desktop_mouse`, `desktop_click_region`, or `desktop_type_into` only through `capture_id` and are not used directly as screen coordinates.
 - On high-DPI macOS displays a screenshot has twice as many pixels as points: `pixel_ratio` records the ratio, and mouse coordinates are still delivered in points.
 - Grid lines are placed by the ratio from the screen rect to the sent image size; with `grid_unit=image`, label values are derived from the same ratio. High-DPI captures are not offset by half a screen.
 - `capture` is the screen rect of the screenshot; its origin is the top-left of the window or crop and may be negative. `image_to_screen` provides `scale_x` / `scale_y` / `ox` / `oy`; conversion is server-side.
@@ -317,7 +320,7 @@ Linux and unrecognized platforms use the unavailable backend: tools are still re
 
 ## Tests
 
-`tests/test_visual_operator.py` covers coordinates, key names, configuration, capture processing (scaling, grid, blank frames, bad data), the action matrices and return values of the four tools, `hover` / `hover_path` / `hover_wiggle` / `shot` / `hit` / `changed` / `window_changed` / `navigated`, condition waits, same-title window disambiguation, Plan gating, the input lock, and the platform tables plus backend availability. On Windows it additionally checks that the virtual-key table covers every canonical key name and that UTF-16 surrogate pairs are split. Backends in tests are recording doubles; the tests do not move the real cursor or inject real keys.
+`tests/test_visual_operator.py` covers coordinates, key names, configuration, capture processing (scaling, grid, blank frames, bad data), the action matrices and return values of all tools, `hover` / `hover_path` / `hover_wiggle` / `shot` / `hit` / `changed` / `window_changed` / `navigated`, condition waits, same-title window disambiguation, Plan gating, the input lock, and the platform tables plus backend availability. On Windows it additionally checks that the virtual-key table covers every canonical key name and that UTF-16 surrogate pairs are split. Backends in tests are recording doubles; the tests do not move the real cursor or inject real keys.
 
 ## Further reading
 

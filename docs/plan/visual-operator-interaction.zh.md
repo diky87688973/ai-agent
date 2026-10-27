@@ -21,7 +21,7 @@
 | 层 | 内容 | 解决的问题 |
 |---|---|---|
 | L1 回执 | 改变桌面的动作在平台可观测时返回 `focus` / `hit` / `changed`；输入类动作可回图（`shot`） | 点错立刻可见，不用靠下一张截图反推 |
-| L2 语义动词 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` / `desktop_open` | 定位不再由模型估读 |
+| L2 语义动词 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_click_region` / `desktop_type_into` / `desktop_app` / `desktop_open` | 定位不再由模型估读 |
 | L3 批量管道 | `desktop_act`：多步一次调用，每步带 `expect`，失败即停 | 稳定任务的往返从 N 降到 1 |
 
 `docs/plan/visual-operator.md` 的决定不变：四个基线工具各自独立，不把 15 个动作塞进一个 `desktop_action`。L2 动词是 L0 调用的组合；L3 是独立的新工具，不是把参数矩阵摊平。基线参数语义不变，新增参数全部可选。
@@ -64,7 +64,7 @@
 |---|---|---|
 | L0 | `desktop_eye` / `desktop_mouse` / `desktop_keyboard` / `desktop_wait` | 基线 |
 | L1 | 可选参数 `shot`；回执 `focus` / `hit` / `changed` / `window_changed` | L0 扩展 |
-| L2 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` / `desktop_open` | 新增 |
+| L2 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_click_region` / `desktop_type_into` / `desktop_app` / `desktop_open` | 新增 |
 | L3 | `desktop_act` | 新增 |
 
 L2 动词是 L0 调用的组合，不引入新的系统调用面，与 L0 共用同一把输入锁与同一套 Plan 门控。
@@ -240,7 +240,7 @@ Windows 的 P2 定位适配使用系统 PowerShell 的 `UIAutomationClient`：�
 |---|---|---|---|
 | P0 | 动作回执、`shot`、恢复但不置前、前台校验 | `tools/mouse.py`、`tools/keyboard.py`、`tools/_capture.py`、`tools/_windows.py`、`diff.py`、`ports.py`、`backends/win32.py` | 误点后第一次回执就能看到 `hit` 落在窗口控制按钮上，而不是内容区；目标被遮挡时截图仍是目标内容 |
 | P1 | `desktop_window`、`desktop_app`、`desktop_open` | 新增 `tools/window.py`、`tools/app.py`、`tools/open.py` | 激活在一次往返内完成，失败不靠 API 返回值判断 |
-| P2 | `desktop_find`、`desktop_click_text`、`desktop_type_into` | 新增 `tools/find.py`、`tools/click_text.py`、`tools/type_into.py`、`locate.py`、`backends/win32_uia.py` | 搜索框一次命中，或明确低置信度 |
+| P2 | `desktop_find`、`desktop_click_text`、`desktop_click_region`、`desktop_type_into` | 新增 `tools/find.py`、`tools/click_text.py`、`tools/click_region.py`、`tools/type_into.py`、`locate.py`、`titles.py`、`tools/_evidence.py`、`backends/win32_uia.py` | 搜索框一次命中，或明确低置信度；自绘控件用矩形中心 |
 | P3 | `desktop_act` | 新增 `tools/act.py`、`pipeline.py` | 目标场景最多 3 次往返完成 |
 
 验收预算：P0 后最多 15 次往返，P1 后 8 次，P2 后 5 次，P3 后 3 次。

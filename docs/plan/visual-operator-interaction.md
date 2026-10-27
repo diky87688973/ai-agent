@@ -21,7 +21,7 @@ Three layers, built in order and not merged:
 | Layer | Content | Problem solved |
 |---|---|---|
 | L1 receipts | Changing actions return `focus` / `hit` / `changed` where the platform can observe them; input actions can return a screenshot (`shot`) | A mis-click is visible immediately instead of being inferred from the next screenshot |
-| L2 semantic verbs | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` / `desktop_open` | Locating is no longer estimated by the model |
+| L2 semantic verbs | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_click_region` / `desktop_type_into` / `desktop_app` / `desktop_open` | Locating is no longer estimated by the model |
 | L3 batch pipeline | `desktop_act`: several steps in one call, each with `expect`, stop on failure | Round trips for a stable task drop from N to 1 |
 
 The decision in `docs/plan/visual-operator.md` stands: the four baseline tools stay separate, and 15 actions are not folded into one `desktop_action`. L2 verbs compose L0 calls; L3 is a new independent tool, not a flattened parameter matrix. Baseline parameter semantics do not change, and new parameters are optional.
@@ -64,7 +64,7 @@ Screenshot scale varies: a full-screen capture is downscaled to `max_side`, whil
 |---|---|---|
 | L0 | `desktop_eye` / `desktop_mouse` / `desktop_keyboard` / `desktop_wait` | baseline |
 | L1 | optional `shot`; receipts `focus` / `hit` / `changed` / `window_changed` | extension of L0 |
-| L2 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_type_into` / `desktop_app` / `desktop_open` | new |
+| L2 | `desktop_window` / `desktop_find` / `desktop_click_text` / `desktop_click_region` / `desktop_type_into` / `desktop_app` / `desktop_open` | new |
 | L3 | `desktop_act` | new |
 
 The L2 verbs are compositions of L0 calls. They add no system-call surface and share the L0 input lock and Plan gating.
@@ -240,7 +240,7 @@ Continuing the ten invariants in `docs/plan/visual-operator.md`:
 |---|---|---|---|
 | P0 | Action receipts, `shot`, restore without activation, foreground check | `tools/mouse.py`, `tools/keyboard.py`, `tools/_capture.py`, `tools/_windows.py`, `diff.py`, `ports.py`, `backends/win32.py` | A mis-click is visible in the first receipt: `hit` points at the window control button, not the content area. An occluded target still yields its own content |
 | P1 | `desktop_window`, `desktop_app`, `desktop_open` | new `tools/window.py`, `tools/app.py`, `tools/open.py` | Activation takes one round trip, and failure is not read from an API return |
-| P2 | `desktop_find`, `desktop_click_text`, `desktop_type_into` | new `tools/find.py`, `tools/click_text.py`, `tools/type_into.py`, `locate.py`, `backends/win32_uia.py` | The search box resolves in one call, or the result is explicitly low confidence |
+| P2 | `desktop_find`, `desktop_click_text`, `desktop_click_region`, `desktop_type_into` | new `tools/find.py`, `tools/click_text.py`, `tools/click_region.py`, `tools/type_into.py`, `locate.py`, `titles.py`, `tools/_evidence.py`, `backends/win32_uia.py` | The search box resolves in one call, or the result is explicitly low confidence; self-drawn controls use rectangle centers |
 | P3 | `desktop_act` | new `tools/act.py`, `pipeline.py` | The target scenario completes in at most 3 round trips |
 
 Acceptance budget: at most 15 round trips after P0, 8 after P1, 5 after P2, and 3 after P3.

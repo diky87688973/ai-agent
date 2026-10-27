@@ -30,7 +30,7 @@ The plugin contributes no panel, endpoint, context injection, or startup script.
 
 ## 1. Invariants
 
-1. Tool registration does not depend on the platform. All four tools are registered everywhere. A platform without a usable backend returns a structured error at execution, so the tool set is identical across hosts.
+1. Tool registration does not depend on the platform. The four baseline tools and the L2/L3 tools are registered everywhere. A platform without a usable backend returns a structured error at execution, so the tool set is identical across hosts.
 2. There is one coordinate space: screen coordinates, using physical pixels on Windows and display points on macOS. Capture rectangles, grid labels, mouse parameters, and cursor positions all use this space. Backend-specific scaling is confined to image processing and does not appear in the tool contract.
 3. Screenshots are returned as `ToolResult.attach` attachments and are not saved as files. The macOS backend writes a temporary file for `screencapture`, then deletes it in a `finally` block. There is no on-disk path that the model must read with an image tool.
 4. Image scaling does not change coordinate meaning. Grid labels use screen coordinates by default; the grid step is expressed in screen coordinates, not image pixels. `grid_unit=image` selects image pixels explicitly and requires `capture_id` for mouse input. The two spaces are never mixed silently.
@@ -328,7 +328,7 @@ Integer arguments accept numeric strings such as `"300"` but reject booleans and
 | `window` | Window title substring. For `change`, restricts the compared region. For `window_appears` and `window_disappears`, required. |
 | `hwnd` | Window handle. Valid for `change` as an alternative to `window`; the wait for a window appearance or disappearance is title-based. |
 | `x`, `y`, `width`, `height` | Region for `change`; supplied together or omitted together. Defaults to the window rectangle or the full screen. |
-| `timeout_ms` | Maximum wait, 50–60000; default 10000. |
+| `timeout_ms` | Maximum wait, 50–60000; default 3000. |
 | `interval_ms` | Poll interval, 50–2000; defaults to plugin configuration. |
 | `threshold` | Change threshold from 0 to 1 for `change`; default 0.02. Smaller values are more sensitive. |
 
@@ -347,7 +347,7 @@ Example receipts:
 ```
 
 ```json
-{"until": "window_appears", "satisfied": false, "waited_ms": 10000,
+{"until": "window_appears", "satisfied": false, "waited_ms": 3000,
  "note": "The window with the requested title did not appear before the timeout."}
 ```
 
@@ -439,7 +439,7 @@ The inverse mapping is reported as `image_to_screen.scale_x`, `scale_y`, `ox`, a
 - The cursor overlay is drawn only when `cursor_mark` is enabled and the cursor lies inside the captured rectangle. It is independent of `grid`.
 - The overlay consists of a short bright-green crosshair with a black halo and a white separator, a small ring, and a `CURSOR` badge containing the coordinates. The center of the crosshair is left open so the pixel under the cursor remains visible.
 - When the shorter side is below 90 pixels, no cursor label is drawn; the coordinates remain in the `cursor` receipt. When it is below 140 pixels, the compact label omits the `CURSOR` title and the dark background.
-- With `grid_unit=image`, both grid labels and the cursor label use image pixels. `desktop_mouse` then needs `capture_id` and `space=image`; screen and image coordinates must not be combined in one action.
+- With `grid_unit=image`, both grid labels and the cursor label use image pixels. `desktop_mouse`, `desktop_click_region`, or `desktop_type_into` then need `capture_id` and `space=image`; screen and image coordinates must not be combined in one action.
 
 ### 5.4 Size and history
 
@@ -576,7 +576,7 @@ The tool pipeline converts these exceptions into a structured `ok=false` result;
 
 | Area | Required behavior |
 |---|---|
-| Registration | All four tools register with all switches on; a single switch registers only its tool; all switches off register none; an unavailable backend still registers all four. |
+| Registration | All tools register with all switches on; a single switch registers only its tool; all switches off register none; an unavailable backend still registers all tools. |
 | Capture | Attachments contain the expected number of PNG files; region clipping, window selection, fallback, and oversized-region rejection are covered; `annotate` ordering is correct. |
 | Coordinates and grid | Image coordinates map with negative origins and scaling; grid and cursor pixels land on the expected positions; labels respect the size thresholds; blank detection works. |
 | Mouse and keyboard | The action matrix rejects foreign parameters; drag order is press → move → release; scroll amount and direction agree with the contract; key names, aliases, hotkey shape, and text encoding are covered. |

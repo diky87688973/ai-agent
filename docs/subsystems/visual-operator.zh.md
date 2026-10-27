@@ -49,7 +49,7 @@ plugins/visual_operator/
     _unavailable.py          其它平台：调用时报明确原因
 ```
 
-## 四个工具
+## 工具面
 
 | 工具 | 方向 | 能力 |
 |---|---|---|
@@ -58,7 +58,7 @@ plugins/visual_operator/
 | `desktop_keyboard` | 作用于桌面 | `type` 任意 Unicode 文本 / `key` 单键 / `hotkey` 组合键 |
 | `desktop_wait` | 等待条件 | 等画面变化、窗口出现或窗口消失，命中即返回 |
 
-四个工具各自声明完整的 JSON Schema，不共用一个多动作大工具。动作与参数的对应关系由 `tools/_params.py` 的动作矩阵校验：属于别的动作的参数直接报错，不会被静默忽略。
+上表只列基线四工具；窗口、应用启动、打开、UIA 文本定位、矩形点击与批量工具都在其上分层，并共用同一注册点。每个工具各自声明完整的 JSON Schema，不共用一个多动作大工具。动作与参数的对应关系由 `tools/_params.py` 的动作矩阵校验：属于别的动作的参数直接报错，不会被静默忽略。
 
 ### `desktop_eye`
 
@@ -112,7 +112,7 @@ plugins/visual_operator/
 
 `capture_id` 是**内存映射的键**，不是文件路径：登记表只保存 `capture` 矩形、图片宽高、hwnd 与创建时间，不保存 PNG。默认 TTL 300 秒、每个插件实例最多 64 条；服务重启或条目淘汰后旧 ID 失效，需要重新截图。`image_to_screen` 是同一份映射的可读形式，给排障和前端展示用；换算由服务端完成，模型不需要拿它做乘法。
 
-`grid_unit=image` 时刻度与光标标签是图内像素；默认 `screen` 保持屏幕坐标，`hover`、区域参数和 `desktop_wait` 的区域仍使用屏幕坐标。要用图内坐标点击，先用图内像素网格取图，再把 `capture_id` 与图内 x/y 交给 `desktop_mouse`。
+`grid_unit=image` 时刻度与光标标签是图内像素；默认 `screen` 保持屏幕坐标，`hover`、区域参数和 `desktop_wait` 的区域仍使用屏幕坐标。要用图内坐标点击，先用图内像素网格取图，再把 `capture_id` 与图内矩形交给 `desktop_mouse`、`desktop_click_region` 或 `desktop_type_into`；工具完成换算。
 
 单张截图上限定为 4000 万像素；超过时在调用侧报错，并提示改用区域参数。
 
@@ -225,7 +225,7 @@ screen_y = capture.y + image_y * capture.height / image.height
 
 ## 坐标契约
 
-- 默认坐标空间是屏幕坐标：Windows 为物理像素，macOS 为全局显示坐标（点）。`grid_unit=image` 时网格与光标标签是图内像素；图内坐标只通过 `capture_id` 交给 `desktop_mouse`，不直接当屏幕坐标使用。
+- 默认坐标空间是屏幕坐标：Windows 为物理像素，macOS 为全局显示坐标（点）。`grid_unit=image` 时网格与光标标签是图内像素；图内坐标只通过 `capture_id` 交给 `desktop_mouse`、`desktop_click_region` 或 `desktop_type_into`，不直接当屏幕坐标使用。
 - macOS 高 DPI 屏上截图是点的两倍像素：`pixel_ratio` 记录这个比例，鼠标坐标仍按点投递。
 - 网格线按「屏幕矩形 → 实发图片尺寸」的比例落位；`grid_unit=image` 时刻度数字由同一比例反推为图内像素。高 DPI 屏上不会偏移半屏。
 - `capture` 是截图的屏幕矩形，原点是窗口/裁剪区域左上角，可能为负；`image_to_screen` 给出 `scale_x/scale_y/ox/oy`，换算由服务端完成。
@@ -320,7 +320,7 @@ Linux 与未识别平台装配不可用后端：工具照常注册，调用截�
 
 ## 测试
 
-`tests/test_visual_operator.py` 覆盖坐标、键名、配置、截图加工（缩放 / 网格 / 空白 / 坏数据）、四个工具的参数矩阵与返回值、`hover` / `hover_path` / `hover_wiggle` / `shot` / `hit` / `changed` / `window_changed` / `navigated`、条件等待、同名窗口消歧、Plan 门控、输入锁、平台表与后端可用性；Windows 上额外校验虚拟键码表覆盖全部规范键名与 UTF-16 代理对拆分。后端用记录型替身，测试不移动真实光标、不注入真实按键。
+`tests/test_visual_operator.py` 覆盖坐标、键名、配置、截图加工（缩放 / 网格 / 空白 / 坏数据）、全部工具的参数矩阵与返回值、`hover` / `hover_path` / `hover_wiggle` / `shot` / `hit` / `changed` / `window_changed` / `navigated`、条件等待、同名窗口消歧、Plan 门控、输入锁、平台表与后端可用性；Windows 上额外校验虚拟键码表覆盖全部规范键名与 UTF-16 代理对拆分。后端用记录型替身，测试不移动真实光标、不注入真实按键。
 
 ## 延伸阅读
 
