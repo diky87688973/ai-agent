@@ -131,7 +131,7 @@ GET /api/chat/history?conversation_id=<cid>[&before=<seq>][&meta=1]
 
 - 不 import `store`、`http`、`adapter`，也不 import 任何 `agent.capabilities` 之上的层；
 - 输入是事件及其存储坐标，输出是轮次与页；
-- 事件到 item 的折叠规则只有一份实现，`classic_adapter/history.py` 的 `history_items` 改为对它的薄包装。
+- 事件到 item 的折叠规则仍由 `classic_adapter/history.py` 的 `history_items` 实现；`history_page.fold_rounds` 按轮次调用它，现有调用方不受影响。
 
 依赖方向保持 `shell → capabilities → mechanisms → core`。
 
@@ -171,12 +171,12 @@ class Page:
 | `user` | `content` 长度；附件按公开 `name` 长度 |
 | `think` | `content` 长度 |
 | `assistant` | `content` 长度 |
-| `tool` | `script` + 紧凑 JSON 化的 `args` + `preview` + `error`；图片只计公开元数据 |
+| `tool` | `script` + 紧凑 JSON 化的 `args` + `preview` + `error` + `output` + `images` 的完整 JSON（含 `data_base64`） |
 
 约定：
 
 1. JSON 用 `ensure_ascii=False` 与无空格分隔符。界面报文区会把 `preview` 再格式化成缩进 JSON，因此该口径是下界，不是逐字符相等。
-2. 用户附件不在 `items` 里带字节，字节由附件端点单独取，不计入字符成本；工具图片按图片渲染，只计 `mime` 等公开元数据，不计 `data_base64`。
+2. 用户附件不在 `items` 里带字节，字节由附件端点单独取，不计入字符成本；工具图片以内联 `images` 的完整 JSON 计入，`data_base64` 也计入。
 3. `None` 与缺失字段按 0 计。
 4. 阈值常量 `HISTORY_PAGE_CHARS = 10_000` 定义在该模块内，不读配置文件。
 
@@ -190,7 +190,7 @@ class Page:
 4. 首个 `input_claimed` 之前的事件收进一个 `anchor=None` 的残留轮，排在最前；
 5. 每轮累加 `chars`，保证 `chars == sum(item_cost(i) for i in items)`。
 
-`history_items(events)` 保留原签名，先对缺少 `_seq` 的事件按位置补号，再调用 `flatten(fold_rounds(events))`，返回 `(items, resolved_attachments)`，使现有调用方与既有用例的输出保持不变。
+`history_items(events)` 保留原签名，是事件到 item 折叠的唯一实现；它不调用 `fold_rounds`。`fold_rounds` 只负责按 `input_claimed` 切轮，并对每轮调用一次 `history_items`，因此既有调用方和用例的输出保持不变。
 
 ### 5.5 页选择
 
@@ -255,8 +255,8 @@ def select_page(rounds, *, before, budget=HISTORY_PAGE_CHARS):
 
 因此新增 `ClassicState.merge_attachments(cid, items)`：
 
-1. 按 `id` 合并；同一 `id` 以本次为准，其余保持原顺序追加在后。
-2. 单次登记的条数与单张字节上限沿用既有 `ATTACH_REGISTER_MAX_COUNT` / `ATTACH_REGISTER_MAX_BYTES`（定义在 `classic_adapter/history.py`）。它们的语义本来就是“每次 history 最多登记多少”，翻页后自然变成“每页最多登记多少”。
+1. 按 `id` 合并；重复 `id` 以本次内容为准，但位置保持首次出现处；新 `id` 追加在后。
+2. 单次条数与单张字节上限（`ATTACH_REGISTER_MAX_COUNT` / `ATTACH_REGISTER_MAX_BYTES`）由 `Inbound.history` 在调用 merge 之前应用；`merge_attachments` 只做缓存合并，不解读条数或字节策略。
 3. 不做全局裁剪：缓存总量上界 = 每页 24 张 × 已加载页数，且单张 ≤ 2 MB。出现内存压力时再加全局上限，并按“已离开视口的页”淘汰——那需要新增淘汰集合，属于另一项设计，不在本设计内。
 4. 唯一权威仍是 `ClassicState`：`inbound` 只提供本页增量，不自己再存一份。
 5. 会话切换与清空继续走 `clear_attachments`，语义不变。
@@ -269,7 +269,7 @@ def select_page(rounds, *, before, budget=HISTORY_PAGE_CHARS):
 
 当前 `makeConversationTab()` 只初始化对话 pane、消息/步骤宿主和实时状态，没有 `historyBefore` / `historyState`；`historyLoaded` 是运行时临时字段，而且 `loadConversationHistory()` 在请求前就置真。分页必须把这三个字段显式放进 tab：
 
-分页再增加两个字段，并在 `makeConversationTab` 里显式初始化：
+分页把这三个字段显式放进 `makeConversationTab`：
 
 ```js
 historyLoaded: false,     // 首屏是否已渲染
@@ -288,7 +288,7 @@ historyState: "idle"      // "idle" | "loading" | "exhausted" | "error"
 
 用 `historyHasMore` + `historyLoading` 两个布尔表达不出 `error`：失败后 `hasMore` 仍为真，滚到顶会无限重试，把一次网络失败变成死循环。
 
-四态随 `saveRuntimeStateToTab` / `loadRuntimeStateFromTab` 一起保存与恢复；恢复时 `loading` 一律降级为 `idle`（刷新前的那次请求已经不存在了）。
+四态只存在于当前 tab 的运行时内存，不写入 `saveRuntimeStateToTab` / `loadRuntimeStateFromTab`；刷新后由 `loadConversationHistory` 重新建立。
 
 ### 6.2 首屏
 
@@ -306,10 +306,10 @@ historyState: "idle"      // "idle" | "loading" | "exhausted" | "error"
 
 两个入口共用一个函数 `loadOlderHistory(t)`：
 
-1. 复用现有的 `document` 捕获阶段 `scroll` 代理，按容器找到所属 tab，不新增逐面板监听。
+1. 复用每个 tab 现有的 `trackMsgsBottom` 滚动监听；在回调中按容器找到所属 tab，不新增第二个滚动监听。
 2. 增加一个全局 `wheel` 捕获监听（`passive: true`）：已经在顶部继续向上滚时不产生 `scroll` 事件，需要 `deltaY < 0` 才能继续取页。
 3. 请求带 `before = t.historyBefore`；`historyBefore` 为 `null` 时不发请求。
-4. 请求期间置 `loading`，在消息区顶部显示一行轻量提示，完成后移除。
+4. 请求期间置 `loading`，在消息区顶部显示一行带主题变量的轻量提示（深色主题下使用暗色底和次要文字），完成后移除。
 5. 成功后前插并保持视口锚点：
 
 ```js
@@ -325,6 +325,8 @@ msgs.scrollTop = msgs.scrollHeight - anchor;
 1. `has_more` 为假；
 2. `next_before` 与本次 `before` 相同（防服务端边界不前进）；
 3. 返回空 `items`。
+
+快速回到底部按钮位于输入框外侧右上角，使用 `data-chat-jump-bottom` 委托点击。仅当当前 tab 的消息区可滚动且不在底部时显示；点击调用 `scrollToBottom`，触底后隐藏。按钮位置和深色样式分别来自 `chat-messages.css` 的主题变量。
 
 ### 6.4 渲染上下文切换
 
@@ -426,7 +428,7 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 3. 不新增 `round` 字段，轮次由前端与服务端都不额外记账。
 4. 不改内核事件接口，不改 SSE 断线重放。
 5. 分页只影响经典界面投影；其它客户端读内核原始事件接口，行为不变。
-6. 字符预算只约束文本。工具结果里的图片仍以内联 `data_base64` 随 `items` 返回，不计入预算；一页的图片字节量由轮数与单轮内容决定，不由字符阈值约束。
+6. 工具结果里的图片以内联 `data_base64` 随 `items` 返回，`item_cost` 也按完整 `images` JSON 计入字符预算；用户附件字节不计。一页的图片字节量由轮数与单轮内容决定，不由字符阈值约束。
 7. 进程重启后附件缓存为空，附件端点的兜底只重取最新一页；已加载旧页里的图片在这些页被重新取回前可能 404。
 8. 子会话历史路由（`/api/subagents/history`）不带 `before`，只返回最新一页；它的向上翻页不在本设计内。
 
@@ -436,8 +438,8 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 
 新增 `agent/shell/classic_adapter/history_page.py`，只放轮次折叠、字符成本、页选择：
 
-1. 从 `history_items` 抽出事件到 item 的折叠规则，保留 `history.py` 的 `history_items(events)` 兼容签名；先让旧测试全绿，再接分页。
-2. `fold_rounds()` 接受 `(seq, event)` 对或带 `_seq` 的事件副本；`input_claimed` 开轮，工具生命周期按 `call_id` 归并，`_seq` 缺失的旧行按行位置补号。
+1. 新增 `history_page` 的轮次与页选择；`history_items` 保留原实现和兼容签名，`fold_rounds` 按轮调用它，不抽走折叠规则。
+2. `fold_rounds()` 接受已带 `_seq` 的有序事件或事件副本；`input_claimed` 开轮，工具生命周期按 `call_id` 归并，`_seq` 缺失的旧行由 `_load_events` 按 `load_with_seq()` 行位置补号。
 3. `select_page()` 按 `before` 排他、从新到旧累计、整轮纳入、返回不可变 `Page`；单轮超预算、残留轮、空页都要有测试。
 4. 新增 `tests/test_history_page.py`，先不接 HTTP；用真实 `.raw` 片段和合成事件覆盖 8 类边界。
 
@@ -455,7 +457,7 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 
 ### 10.3 第三步：附件缓存合并
 
-1. `ClassicState` 新增 `merge_attachments(cid, items)`，按 id 合并，单次仍受 `ATTACH_REGISTER_MAX_COUNT/BYTES` 约束；同锁内完成合并与读取。
+1. `ClassicState` 新增 `merge_attachments(cid, items)`，按 id 合并，不解读条数/字节策略；`Inbound.history` 在调用前按 `ATTACH_REGISTER_MAX_COUNT/BYTES` 裁剪本页附件。合并与读取在同一把锁内完成。
 2. `Inbound.history()` 的本页附件登记改走 merge；`remember_attachments()` 同样改走 merge，禁止再调用 `put_attachments`。
 3. `get_attachment()` 保持唯一读取入口；`clear_attachments()` 仍负责会话切换清空。
 4. 测试：连续两页的旧 id 仍可读；同 id 覆盖；发送图片不淘汰已加载页；超单次上限只截断本次。
@@ -469,10 +471,11 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 3. 保留当前“消息区已有实时内容时不清空”的判据；首屏只渲染本页，仍滚到底部。
 4. 新增 `history-paging.js` 并加入 `UI_JS_MODULES`（放在 `chat/conversation.js` 之后、`chat/stream.js` 之前或之后均可，但不能早于其依赖的全局函数定义）。
 5. 测试：首屏请求无 `before`；`page` 缺失时退化为旧全量渲染；失败后可重试。
+6. 快速回到底部按钮在非触底时显示，点击回到底部后隐藏。
 
 ### 10.5 第五步：向上翻页与渲染隔离
 
-1. 复用 `render/diff.js` 的全局 `scroll` 代理；只在 `scrollTop<=4` 且 `historyState==="idle"` 时触发，已 `loading` 不重入。
+1. 复用每个 tab 的 `trackMsgsBottom` 滚动监听；只在 `scrollTop<=4` 且 `historyState==="idle"` 时触发，已 `loading` 不重入。
 2. 增加 `wheel` 捕获监听处理“已在顶部继续上滚”；请求带 `historyBefore`；`historyBefore===null` 不发请求。
 3. 用 `withRenderContext(msgsEl, stepsEl, fn)` 在游离容器渲染旧页，再按“先量 scrollHeight、后 prepend、再恢复 scrollTop”保持视口；不要直接改全局 `msgs`。
 4. 失败置 `error`，顶部提示可点击重试；`has_more=false`、`next_before===before`、空 `items` 三者任一命中即 `exhausted`。

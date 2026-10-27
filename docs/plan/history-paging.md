@@ -131,7 +131,7 @@ The implementation adds `agent/shell/classic_adapter/history_page.py`. The modul
 
 - it imports no `store`, HTTP, or adapter code, and no layer above `agent.capabilities`;
 - its input is events together with their storage coordinates; its output is rounds and pages;
-- the event-to-item folding rules have exactly one implementation, and `history_items` in `classic_adapter/history.py` becomes a thin wrapper around it.
+- the event-to-item folding rules still live in `history_items` in `classic_adapter/history.py`; `history_page.fold_rounds` calls it once per round and existing callers are unaffected.
 
 Dependency direction remains `shell → capabilities → mechanisms → core`.
 
@@ -171,12 +171,12 @@ The `dict` objects inside `items` and the `list` objects inside `attachments` / 
 | `user` | `content` length; attachments by their public `name` length |
 | `think` | `content` length |
 | `assistant` | `content` length |
-| `tool` | `script` + compact JSON of `args` + `preview` + `error`; images count only public metadata |
+| `tool` | `script` + compact JSON of `args` + `preview` + `error` + `output` + the full `images` JSON, including `data_base64` |
 
 Rules:
 
 1. JSON uses `ensure_ascii=False` and separators without spaces. The UI formats `preview` as indented JSON, so this measure is a lower bound, not an exact character match.
-2. User attachment bytes are not carried in `items`; the attachment endpoint serves them separately, and they do not count toward character cost. Tool images render as images: only public metadata such as `mime` is counted, not `data_base64`.
+2. User attachment bytes are not carried in `items`; the attachment endpoint serves them separately, and they do not count toward character cost. Tool images are counted through their inline `images` JSON, including `data_base64`.
 3. `None` and missing fields count as 0.
 4. The threshold constant `HISTORY_PAGE_CHARS = 10_000` is defined in this module; it is not read from configuration.
 
@@ -190,7 +190,7 @@ Rules:
 4. Events before the first `input_claimed` go into a residual round with `anchor=None`, placed first.
 5. Accumulate `chars` per round, keeping `chars == sum(item_cost(i) for i in items)`.
 
-`history_items(events)` keeps its signature: it first assigns a position-based `_seq` to any event that lacks one, then calls `flatten(fold_rounds(events))`, returning `(items, resolved_attachments)`, so existing callers and tests see the same output.
+`history_items(events)` keeps its signature and remains the single implementation of event-to-item folding; it does not call `fold_rounds`. `fold_rounds` only splits events at `input_claimed` boundaries and calls `history_items` once per round, so existing callers and tests see the same output.
 
 ### 5.5 Page selection
 
@@ -253,8 +253,8 @@ Boundaries:
 
 Therefore `ClassicState.merge_attachments(cid, items)` is added:
 
-1. Merge by `id`; for a duplicate `id` the new entry wins, and the rest keep their original order and are appended after.
-2. Keep the existing `ATTACH_REGISTER_MAX_COUNT` / `ATTACH_REGISTER_MAX_BYTES` (defined in `classic_adapter/history.py`) as the maximum number of attachments per registration and the per-image byte limit. Their meaning was already the maximum a single history call registers; after paging it naturally becomes the maximum a single page registers.
+1. Merge by `id`; a duplicate `id` takes the new content but keeps its first position; new ids are appended after.
+2. `Inbound.history` applies `ATTACH_REGISTER_MAX_COUNT` / `ATTACH_REGISTER_MAX_BYTES` before calling merge; `merge_attachments` only merges the cache and does not interpret count or byte policy.
 3. Do not trim globally: the cache bound is 24 images per page × loaded pages, with each image at most 2 MB. If memory pressure appears, add a global bound and evict pages that have left the viewport; that requires a new eviction set and is a separate design, not part of this one.
 4. `ClassicState` remains the single authority: `inbound` supplies only the current page's increment and keeps no second copy.
 5. Conversation switches and clears continue to use `clear_attachments`, unchanged.
@@ -284,7 +284,7 @@ historyState: "idle"      // "idle" | "loading" | "exhausted" | "error"
 
 Two booleans `historyHasMore` + `historyLoading` cannot express `error`: after a failure `hasMore` is still true, so scrolling to the top retries forever and turns one network failure into an infinite loop.
 
-The four states are saved and restored with `saveRuntimeStateToTab` / `loadRuntimeStateFromTab`; on restore, `loading` always degrades to `idle` (the request from before the refresh no longer exists).
+The four states live only in the current tab's runtime memory and are not written to `saveRuntimeStateToTab` / `loadRuntimeStateFromTab`; after a refresh, `loadConversationHistory` rebuilds them.
 
 ### 6.2 First screen
 
@@ -302,10 +302,10 @@ All of the following must hold:
 
 Both entry points share one function, `loadOlderHistory(t)`:
 
-1. Reuse the existing `document` capture-phase `scroll` proxy and find the owning tab by container; add no per-panel listener.
+1. Reuse each tab's existing `trackMsgsBottom` scroll listener; find the owning tab by container in its callback and add no second scroll listener.
 2. A global `wheel` capture listener (`passive: true`) handles the case where the container is already at the top and the user keeps scrolling up: no `scroll` event is produced, so `deltaY < 0` is required to keep fetching pages.
 3. Send `before = t.historyBefore`; when `historyBefore` is `null`, send no request.
-4. Set `loading` during the request, show a lightweight hint line at the top of the message area, and remove it when done.
+4. Set `loading` during the request, show a lightweight theme-aware hint at the top of the message area (dark background and secondary text in the dark theme), and remove it when done.
 5. On success, prepend and preserve the viewport anchor:
 
 ```js
@@ -321,6 +321,8 @@ Stop conditions (any one sets `exhausted`):
 1. `has_more` is false;
 2. `next_before` equals this request's `before` (guards against a server boundary that does not advance);
 3. empty `items` are returned.
+
+A quick-jump-to-bottom button sits outside the composer's upper-right corner and delegates clicks through `data-chat-jump-bottom`. It is visible only when the active tab's message area is scrollable and not at the bottom; clicking calls `scrollToBottom`, and reaching the bottom hides it. Its position and theme colors come from `chat-messages.css`.
 
 ### 6.4 Render context switching
 
@@ -422,7 +424,7 @@ Integration and manual acceptance:
 3. No `round` field is added; neither the frontend nor the server keeps extra round accounting.
 4. The kernel event interface and SSE reconnect replay are unchanged.
 5. Paging affects only the classic-UI projection; other clients read the kernel's raw event endpoint and behave as before.
-6. The character budget constrains text only. Images in tool results are still returned inline as `data_base64` with `items` and are not counted; the image bytes of a page are determined by the round count and their content, not by the character threshold.
+6. Images in tool results are returned inline as `data_base64` with `items`, and `item_cost` counts their full `images` JSON toward the character budget; user attachment bytes are not counted. The image bytes of a page are determined by the round count and their content, not by the character threshold.
 7. After a process restart the attachment cache is empty, and the attachment endpoint's fallback fetches only the newest page; images in already-loaded older pages may 404 until those pages are fetched again.
 8. The subagent history route (`/api/subagents/history`) sends no `before` and returns only the newest page; paging back for subagent conversations is outside this design.
 
@@ -432,8 +434,8 @@ Integration and manual acceptance:
 
 Add `agent/shell/classic_adapter/history_page.py` with only round folding, character cost, and page selection:
 
-1. Extract the event-to-item folding rules from `history_items`, keeping the compatible `history_items(events)` signature in `history.py`; make the existing tests pass before connecting paging.
-2. `fold_rounds()` accepts `(seq, event)` pairs or event copies carrying `_seq`; `input_claimed` opens a round, the tool lifecycle merges by `call_id`, and old rows missing `_seq` are numbered by line position.
+1. Add round and page selection to `history_page`; keep the original `history_items` implementation and compatible signature, and call it per round from `fold_rounds` without moving the folding rules.
+2. `fold_rounds()` accepts ordered events or event copies carrying `_seq`; `input_claimed` opens a round, the tool lifecycle merges by `call_id`, and `_load_events` numbers old rows missing `_seq` by their `load_with_seq()` line position.
 3. `select_page()` applies `before` as an exclusive boundary, accumulates from newest to oldest, includes whole rounds, and returns an immutable `Page`; single-round over-budget, residual-round, and empty-page cases all need tests.
 4. Add `tests/test_history_page.py`, with no HTTP yet; use real `.raw` fragments and synthetic events to cover the 8 boundary classes.
 
@@ -451,7 +453,7 @@ Completion criterion: the old full-history request still returns the complete hi
 
 ### 10.3 Step 3: attachment cache merge
 
-1. `ClassicState` gains `merge_attachments(cid, items)`, merging by id and keeping the per-call `ATTACH_REGISTER_MAX_COUNT/BYTES` limits; merge and read complete under the same lock.
+1. `ClassicState` gains `merge_attachments(cid, items)`, merging by id without interpreting count/byte policy; `Inbound.history` trims this page's attachments with `ATTACH_REGISTER_MAX_COUNT/BYTES` before the call. Merge and read complete under the same lock.
 2. `Inbound.history()` registers this page's attachments through merge; `remember_attachments()` also merges and must not call `put_attachments` again.
 3. `get_attachment()` remains the only read entry; `clear_attachments()` still clears on conversation switches.
 4. Tests: old ids from two consecutive pages remain readable; the same id is overridden; sending images does not evict loaded pages; exceeding the per-call cap truncates only the incoming batch.
@@ -465,10 +467,11 @@ Completion criterion: older pages' images no longer 404 after paging, and sendin
 3. Keep the current rule that live content in the message area is not cleared; the first screen renders only this page and still scrolls to the bottom.
 4. Add `history-paging.js` and register it in `UI_JS_MODULES` (after `chat/conversation.js`; before or after `chat/stream.js` is acceptable, but not before the global functions it depends on).
 5. Tests: the first-screen request has no `before`; a missing `page` degrades to the old full render; retry works after failure.
+6. The quick-jump button appears when not at the bottom and hides after clicking back to the bottom.
 
 ### 10.5 Step 5: paging upward and render isolation
 
-1. Reuse the global `scroll` proxy in `render/diff.js`; trigger only when `scrollTop<=4` and `historyState==="idle"`; do not re-enter while loading.
+1. Reuse each tab's `trackMsgsBottom` scroll listener; trigger only when `scrollTop<=4` and `historyState==="idle"`; do not re-enter while loading.
 2. Add a `wheel` capture listener for "already at the top and still scrolling up"; send `historyBefore`; do not request when `historyBefore===null`.
 3. Use `withRenderContext(msgsEl, stepsEl, fn)` to render the older page in detached containers, then preserve the viewport by measuring `scrollHeight`, prepending, and restoring `scrollTop`; do not write the global `msgs` directly.
 4. On failure set `error`; the top hint is clickable for retry; any of `has_more=false`, `next_before===before`, or empty `items` sets `exhausted`.
