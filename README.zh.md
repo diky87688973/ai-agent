@@ -179,7 +179,7 @@ python scripts/ci.py --list    # 列出检查项
 
 `docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（1919 个用例）：
+单元测试（1937 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

@@ -20,13 +20,17 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import agent.shell.classic_adapter.contract as C
 from agent.core.error_report import report_error
+from agent.core.events import Event
 from agent.shell.classic_adapter.history import (
     ATTACH_REGISTER_MAX_BYTES,
     ATTACH_REGISTER_MAX_COUNT,
     attachment_id,
-    history_items,
     last_payload,
 )
+from agent.shell.classic_adapter.history import (
+    history_items as history_items,
+)
+from agent.shell.classic_adapter.history_page import HISTORY_PAGE_CHARS, fold_rounds, select_page
 from agent.shell.classic_adapter.layout import compute_context_layout, current_todo
 from agent.shell.classic_adapter.sessions import scan_title, session_date_group
 from agent.shell.classic_adapter.state import ClassicState
@@ -133,7 +137,8 @@ class Inbound:
         return scan_title(path)
 
     # ── /api/chat/history ─────────────────────────────────
-    def history(self, cid: str, store: Any = None) -> Dict[str, Any]:
+    def history(self, cid: str, store: Any = None, *,
+                before: Optional[int] = None, meta: bool = False) -> Dict[str, Any]:
         """会话历史。经典界面从这个返回体里读三样不同的东西：
 
         1. `j.items` —— `{role:"user"|"assistant"|"tool", content, attachments}`，
@@ -156,29 +161,44 @@ class Inbound:
         if not cid:
             return {"ok": False, "error": "invalid conversation_id", "items": []}
         events = self._load_events(cid, store)
-        items, resolved = history_items(events)
+        context_layout = (last_payload(events, "context_layout")
+                          or compute_context_layout(self._app, events, cid))
+        todo_list = current_todo(self._app, cid)
+        if meta:
+            return {
+                "ok": True,
+                "conversation_id": cid,
+                "items": [],
+                "context_layout": context_layout,
+                "todo_list": todo_list,
+            }
+        rounds = fold_rounds(events)
+        page = select_page(rounds, before=before)
+        items = list(page.items)
         self._mark_stale_suspends(cid, items)
-        # 把解出的字节登记进内存，供 `/api/chat/attachment?id=…` 取用。
-        # 这个 dict 是从事实派生的缓存，内容一律来自 `.raw`，
-        # 因此刷新、重启、两个标签页看到的都一致（id 也是可重算的）。
-        if resolved:
+        # 把本页解出的字节合并进内存，供 `/api/chat/attachment?id=…` 取用。
+        # 不能整体替换：旧页已经渲染的附件仍可能被浏览器请求。
+        if page.attachments:
             register = []
-            for item in resolved[-ATTACH_REGISTER_MAX_COUNT:]:
+            for item in page.attachments[-ATTACH_REGISTER_MAX_COUNT:]:
                 raw = item.get("data_base64") if isinstance(item, dict) else None
                 size = len(raw or "") if isinstance(raw, str) else 0
                 if size and size <= ATTACH_REGISTER_MAX_BYTES:
                     register.append(item)
             if register:
-                self.state.put_attachments(cid, register)
+                self.state.merge_attachments(cid, register)
         return {
             "ok": True,
             "conversation_id": cid,
             "items": items,
-            # 事实里没有就按同一口径重算（`context_layout` 是派生数据、从不落盘，
-            # 不兜底的话刷新后右栏分段条会回落「—」）。
-            "context_layout": (last_payload(events, "context_layout")
-                               or compute_context_layout(self._app, events, cid)),
-            "todo_list": current_todo(self._app, cid),
+            "page": {
+                "budget_chars": HISTORY_PAGE_CHARS,
+                "chars": page.chars,
+                "has_more": page.has_more,
+                "next_before": page.next_before,
+            },
+            "context_layout": context_layout,
+            "todo_list": todo_list,
         }
 
     def _mark_stale_suspends(self, cid: str, items: List[Dict[str, Any]]) -> None:
@@ -197,7 +217,17 @@ class Inbound:
         target = store if store is not None else getattr(self._app, "store", None)
         if target is None:
             return []
-        return list(target.load(cid))
+        loader = getattr(target, "load_with_seq", None)
+        if loader is not None:
+            pairs = list(loader(cid))
+        else:
+            pairs = list(enumerate(target.load(cid), 1))
+        out: List[Any] = []
+        for seq, event in pairs:
+            data = dict(getattr(event, "data", None) or {})
+            data.setdefault("_seq", int(seq))
+            out.append(Event(str(getattr(event, "type", "")), data))
+        return out
 
     # ── /api/chat/ui-state ────────────────────────────────
     #
@@ -442,7 +472,7 @@ class Inbound:
                 "data_base64": data,
             })
         if items:
-            self.state.put_attachments(cid, items)
+            self.state.merge_attachments(cid, items)
         return items
 
     # ── /health 的 model 白名单自检 ────────────────────────

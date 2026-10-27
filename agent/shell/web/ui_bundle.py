@@ -32,6 +32,7 @@ UI_JS_MODULES = (
     "chat/stream.js",
     "chat/confirm.js",
     "chat/conversation.js",
+    "chat/history-paging.js",
     "composer/goal.js",
     "composer/state.js",
     "composer/pickers.js",

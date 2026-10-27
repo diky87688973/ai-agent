@@ -1,6 +1,27 @@
 [English](history-paging.md) | **中文**
 
-**状态：** 设计提案，当前代码尚未实现。
+**状态：** 已实现（中文方案）；英文版待同步。
+
+## 0. 实现前基线
+
+后端：
+
+- `Inbound.history(cid, store=None)` 目前一次读取全部事件，调用 `history_items(events)` 折叠，再整体登记附件、返回 `items` / `context_layout` / `todo_list`。
+- `Inbound._load_events()` 目前调用 `store.load(cid)`；`load()` 丢掉行位置补号，不能作为分页锚点来源。
+- `web_routes.py` 的 `/api/chat/history` 直接调用 `classic.history(conversation_id)`；没有 `before` / `meta` 解析。
+- `classic_adapter/history.py` 目前是单文件折叠实现，没有独立的轮次结构或页选择。
+- `ClassicState.put_attachments()` 是整体替换；`Inbound.remember_attachments()` 也调用它。
+- `SessionActions.history` 与子会话 `/api/subagents/history` 仍是全量/不带分页的接口。
+
+前端：
+
+- `makeConversationTab()` 没有 `historyBefore` / `historyState` 字段；`historyLoaded` 是运行时动态字段。
+- `loadConversationHistory()` 在请求前先把 `t.historyLoaded=true`，失败路径没有复位；没有 `before` 参数。
+- `loadConversationHistory()` 只在消息区为空或仅有一个节点时渲染历史，依赖全局 `msgs`。
+- `refreshConversationContextLayout()` 仍请求完整 `/api/chat/history`，没有使用汇总专用的 `meta` 形态。
+- `renderHistoryItems()` 直接写全局 `msgs`；尚无游离容器渲染或前插视口锚定。
+
+结论：分页的核心数据基础（事实日志、`_seq`、折叠规则、附件缓存、SSE）已经具备；缺口集中在轮次折叠、页选择、附件合并、前端状态和滚动前插。
 
 # 会话历史分页
 
@@ -214,13 +235,18 @@ def select_page(rounds, *, before, budget=HISTORY_PAGE_CHARS):
 
 ### 5.6 适配层与路由
 
+当前代码的 `Inbound.history(cid, store=None)` 没有 `before` / `meta`，`_load_events()` 走 `store.load(cid)`；`ClassicAdapter` 直接继承 `Inbound.history`，`web_routes.py` 直接调用它，`SessionActions.history` 与子会话历史保持原样。
+
+落地改动：
+
 1. `classic_adapter/inbound.py`
    - `history(cid, store=None, *, before=None, meta=False)`；`before` 已是校验过的 `int | None`，`store` 供子会话历史传入自己的存储。
-   - `meta=True`：只算 `context_layout` 与 `todo_list`，跳过折叠。
+   - `_load_events` 改为读取 `(seq, event)` 对：已有 `_seq` 的事件保留原值，旧行按 `load_with_seq()` 的行位置补号；折叠前把坐标写进事件副本，不能依赖 `store.load()`。
+   - `meta=True`：只算 `context_layout` 与 `todo_list`，跳过折叠，返回 `items:[]` 且不带 `page`。
    - 否则：`fold_rounds` → `select_page` → 用 `Page.items` 组织响应；附件按 5.7 合并登记。
-   - 响应体新增 `page`，其余字段与既有形状一致。
+   - 响应体新增可选 `page`，其余字段与既有形状一致。
 2. `classic_adapter/adapter.py`：`ClassicAdapter` 直接继承 `Inbound.history`，不另设转发层；`before` / `meta` 随方法签名生效。
-3. `web_routes.py`：解析 `before`，非法即早退为 `ok:false`；合法则透传。
+3. `web_routes.py`：唯一解析 `before` / `meta` 的地方；`before` 非法立即 `ok:false`，`meta` 只接受 `1` / `0`；合法值透传。
 4. `web_sessions.py` 的 `SessionActions.history`（内核原始事件接口）不变。
 
 ### 5.7 附件登记
@@ -241,7 +267,9 @@ def select_page(rounds, *, before, budget=HISTORY_PAGE_CHARS):
 
 ### 6.1 每会话状态
 
-`historyLoaded` 已在 `loadConversationHistory` 中用作首屏标记；分页再增加两个字段，并在 `makeConversationTab` 里显式初始化：
+当前 `makeConversationTab()` 只初始化对话 pane、消息/步骤宿主和实时状态，没有 `historyBefore` / `historyState`；`historyLoaded` 是运行时临时字段，而且 `loadConversationHistory()` 在请求前就置真。分页必须把这三个字段显式放进 tab：
+
+分页再增加两个字段，并在 `makeConversationTab` 里显式初始化：
 
 ```js
 historyLoaded: false,     // 首屏是否已渲染
@@ -265,7 +293,7 @@ historyState: "idle"      // "idle" | "loading" | "exhausted" | "error"
 ### 6.2 首屏
 
 1. `loadConversationHistory(t)` 请求不带 `before`。
-2. 成功后写入 `historyBefore = j.page.next_before`，并按 `has_more` 置 `exhausted` 或 `idle`；失败置 `error`、复位 `historyLoaded` 并显示一次可重试提示。
+2. 请求期间置 `loading`，**不要提前把 `historyLoaded` 置真**；成功后写入 `historyLoaded=true`、`historyBefore=j.page.next_before`，按 `has_more` 置 `exhausted` 或 `idle`；失败置 `error`、保持 `historyLoaded=false`，显示一次可重试提示。
 3. 沿用既有判据：消息区已有实时内容时不清空，只渲染本页。
 4. 首屏渲染完成后滚到底部。
 
@@ -325,7 +353,7 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 
 ### 6.5 超长工具报文的延迟渲染
 
-1. `chat-tool-views.js` 增加常量 `LAZY_TOOL_TEXT_CHARS = 20000`。
+1. `chat-tool-views.js` 增加常量 `LAZY_TOOL_TEXT_CHARS = 100000`。
 2. 所有写长文本的入口统一走 `setLazyText(el, text)`：
    - 未超阈值：直接写入；
    - 超出：只写入摘要行，原文挂在元素上，展开时再落 DOM。
@@ -335,7 +363,7 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 
 ### 6.6 汇总态刷新
 
-`refreshConversationContextLayout(t)` 改为请求 `?meta=1`，避免每次刷新汇总态都折一页 `items`。
+当前 `refreshConversationContextLayout(t)` 请求完整 `/api/chat/history`；改为 `?meta=1`，只取 `context_layout` 与 `todo_list`，避免每次刷新汇总态都折一页 `items`。`meta=1` 不返回 `items` / `page`，因此该函数不能复用首屏响应的渲染路径。
 
 ## 7. 文件清单
 
@@ -401,3 +429,74 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 6. 字符预算只约束文本。工具结果里的图片仍以内联 `data_base64` 随 `items` 返回，不计入预算；一页的图片字节量由轮数与单轮内容决定，不由字符阈值约束。
 7. 进程重启后附件缓存为空，附件端点的兜底只重取最新一页；已加载旧页里的图片在这些页被重新取回前可能 404。
 8. 子会话历史路由（`/api/subagents/history`）不带 `before`，只返回最新一页；它的向上翻页不在本设计内。
+
+## 10. 实施顺序与验收
+
+### 10.1 第一步：纯函数分页层
+
+新增 `agent/shell/classic_adapter/history_page.py`，只放轮次折叠、字符成本、页选择：
+
+1. 从 `history_items` 抽出事件到 item 的折叠规则，保留 `history.py` 的 `history_items(events)` 兼容签名；先让旧测试全绿，再接分页。
+2. `fold_rounds()` 接受 `(seq, event)` 对或带 `_seq` 的事件副本；`input_claimed` 开轮，工具生命周期按 `call_id` 归并，`_seq` 缺失的旧行按行位置补号。
+3. `select_page()` 按 `before` 排他、从新到旧累计、整轮纳入、返回不可变 `Page`；单轮超预算、残留轮、空页都要有测试。
+4. 新增 `tests/test_history_page.py`，先不接 HTTP；用真实 `.raw` 片段和合成事件覆盖 8 类边界。
+
+完成标准：`history_items` 的既有输出不变，`pytest` 新模块测试全绿。
+
+### 10.2 第二步：后端接口
+
+1. `Inbound._load_events()` 改走 `load_with_seq()`，保留 `store` 注入；无 `store` 时仍返回空而不是抛异常。
+2. `Inbound.history()` 增加 `before` / `meta`；`meta` 跳过折叠；普通路径走 `fold_rounds → select_page`。
+3. `web_routes.py` 解析参数：缺失为 `None`，非法 `before` / `meta` 早退为 `ok:false`；适配层只收已校验值。
+4. 响应只增加可选 `page`；`items`、`context_layout`、`todo_list`、`ok` 不变；`meta=1` 不返回 `page`。
+5. 测试：非法参数路由不被调用、`before` 排他、`has_more/next_before`、旧客户端忽略 `page`、`meta=1` 形状。
+
+完成标准：旧全量请求仍返回完整历史；新请求只返回一页；SSE / 内核事件接口无改动。
+
+### 10.3 第三步：附件缓存合并
+
+1. `ClassicState` 新增 `merge_attachments(cid, items)`，按 id 合并，单次仍受 `ATTACH_REGISTER_MAX_COUNT/BYTES` 约束；同锁内完成合并与读取。
+2. `Inbound.history()` 的本页附件登记改走 merge；`remember_attachments()` 同样改走 merge，禁止再调用 `put_attachments`。
+3. `get_attachment()` 保持唯一读取入口；`clear_attachments()` 仍负责会话切换清空。
+4. 测试：连续两页的旧 id 仍可读；同 id 覆盖；发送图片不淘汰已加载页；超单次上限只截断本次。
+
+完成标准：翻页后旧页图片不 404，发送图片不清空已加载附件。
+
+### 10.4 第四步：前端首屏与状态机
+
+1. `makeConversationTab()` 增加 `historyLoaded:false`、`historyBefore:null`、`historyState:"idle"`。
+2. `loadConversationHistory()` 不再提前置 `historyLoaded`；请求前 `loading`，成功后写页游标与状态，失败 `error` 且允许重试。
+3. 保留当前“消息区已有实时内容时不清空”的判据；首屏只渲染本页，仍滚到底部。
+4. 新增 `history-paging.js` 并加入 `UI_JS_MODULES`（放在 `chat/conversation.js` 之后、`chat/stream.js` 之前或之后均可，但不能早于其依赖的全局函数定义）。
+5. 测试：首屏请求无 `before`；`page` 缺失时退化为旧全量渲染；失败后可重试。
+
+### 10.5 第五步：向上翻页与渲染隔离
+
+1. 复用 `render/diff.js` 的全局 `scroll` 代理；只在 `scrollTop<=4` 且 `historyState==="idle"` 时触发，已 `loading` 不重入。
+2. 增加 `wheel` 捕获监听处理“已在顶部继续上滚”；请求带 `historyBefore`；`historyBefore===null` 不发请求。
+3. 用 `withRenderContext(msgsEl, stepsEl, fn)` 在游离容器渲染旧页，再按“先量 scrollHeight、后 prepend、再恢复 scrollTop”保持视口；不要直接改全局 `msgs`。
+4. 失败置 `error`，顶部提示可点击重试；`has_more=false`、`next_before===before`、空 `items` 三者任一命中即 `exhausted`。
+5. 测试：滚动到顶只发一次请求；前插不跳动；断网后不自动重试；翻页期间实时流式气泡仍留在底部。
+
+### 10.6 第六步：长报文与汇总态
+
+1. `chat-tool-views.js` 增加 `LAZY_TOOL_TEXT_CHARS`、`setLazyText()`、`materializeLazy()`；只延迟 DOM 写入，不改变分页字符预算。
+2. 所有长文本入口统一走 `setLazyText()`；展开委托调用 `materializeLazy()`。
+3. `refreshConversationContextLayout()` 改 `?meta=1`；`meta=1` 不触发 `renderHistoryItems` / 不改变 `historyState`。
+4. 测试：10 万字符工具结果首屏折叠、展开全文；`meta=1` 不增加 `items`。
+
+### 10.7 第七步：集成验收
+
+1. 约 5 万字符、10 轮会话：首屏一页，累计不低于 `10000`，最早轮完整。
+2. 连续翻到最早页：不重复、不丢轮、不再发请求。
+3. 单轮 5 万字符工具输出：整轮返回，默认折叠，展开全文。
+4. 10 MB 会话刷新：首屏响应和 DOM 均只含一页。
+5. 回合进行中翻旧页：实时气泡仍在底部，前插不中断。
+6. 附件、子会话、非法 `before`、断网重试各一条回归。
+
+### 10.8 交付边界
+
+1. 先落后端纯函数与接口，再落前端；每一步保持旧客户端可用。
+2. 不引入轮次索引；每次请求仍 O(n) 折全量，只有实测首屏延迟不可接受时才另立索引设计。
+3. 不做视口虚拟化、不卸载已加载旧页；这两项会扩大 DOM 生命周期与缓存淘汰面。
+4. 英文文档暂不更新；实现和中文方案稳定后，再同步翻译 `docs/plan/history-paging.md`。

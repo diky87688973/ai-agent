@@ -654,9 +654,18 @@ class SseContractTest(_ServerFixture):
         self.wait_turn(cid)
         status, payload = self.get_json(f"/api/chat/history?conversation_id={cid}")
         self.assertEqual(status, 200)
+        self.assertIn("page", payload)
         # 回显只给 items / context_layout / todo_list；逐条老事件归 SSE 流。
         self.assertGreater(len(payload.get("items", [])), 0)
         self.assertNotIn("events", payload)
+        status, meta = self.get_json(f"/api/chat/history?conversation_id={cid}&meta=1")
+        self.assertEqual(status, 200)
+        self.assertEqual(meta.get("items"), [])
+        self.assertNotIn("page", meta)
+        status, bad = self.get_json(f"/api/chat/history?conversation_id={cid}&before=bad")
+        self.assertEqual(status, 200)
+        self.assertFalse(bad.get("ok"))
+        self.assertNotIn("page", bad)
         status, payload = self.get_json("/api/chat/sessions")
         self.assertEqual(status, 200)
         # `sessions` 是字典列表（`id`/`title`/`date_group`）：经典 UI 读 `s.id`

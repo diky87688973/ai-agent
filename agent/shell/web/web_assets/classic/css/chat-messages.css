@@ -88,3 +88,12 @@ button.sec{background:#444;color:#ccc}
 .mode-plus.active,.mode-plus.active:hover{background:transparent;border-color:#b8860b;color:#e8c98a}
 .mode-menu{position:absolute;left:0;bottom:calc(100% + 6px);display:flex;flex-direction:column;width:max-content;min-width:0;padding:6px 8px;background:#1a1e24;border:1px solid #3a3f47;border-radius:10px;box-shadow:0 10px 24px rgba(0,0,0,.42);z-index:40}
 .reasoning-btn{border-color:#555!important}.reasoning-btn:hover{border-color:#888!important}
+
+/* 历史向上翻页的顶部状态行；单行轻提示，不参与消息卡片布局。 */
+.history-load-more{flex:0 0 auto;margin:8px auto 4px;padding:4px 10px;border:1px solid var(--c-line-2,#2a2d32);border-radius:999px;background:var(--c-bg-layer-2,#26272c);color:var(--c-text-3,#adb2b8);font-size:12px;line-height:18px;cursor:default;}
+.history-load-more[data-history-retry]{cursor:pointer;color:var(--c-warn,#d29922);background:color-mix(in srgb,var(--c-warn,#d29922) 14%,var(--c-bg-layer-2,#26272c));}
+.chat-jump-bottom{display:none;position:absolute;right:-44px;top:-16px;z-index:5;width:32px;height:32px;padding:0;border:1px solid var(--c-line-2,#2a2d32);border-radius:50%;background:color-mix(in srgb,var(--c-bg-layer-2,#26272c) 92%,transparent);color:var(--c-text-2,#cfd3d6);cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(8px);align-items:center;justify-content:center;transition:background .15s ease,color .15s ease,border-color .15s ease,transform .15s ease;}
+.chat-jump-bottom svg{display:block;width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+.chat-jump-bottom.is-visible{display:flex;}
+.chat-jump-bottom:hover{background:var(--c-bg-hover,rgba(255,255,255,.08));color:var(--c-text-1,#f9fafb);border-color:var(--c-line-1,#3c3c3c);transform:translateY(-1px);}
+.chat-jump-bottom:active{transform:translateY(0);}

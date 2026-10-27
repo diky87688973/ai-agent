@@ -767,6 +767,49 @@ class InboundContractTest(unittest.TestCase):
         self.assertIn(payload["model"], payload["allowed_models"])
         self.assertGreater(payload["tools"], 40)
 
+    def test_history_page_before_and_meta(self) -> None:
+        from agent.core.events import Event
+
+        pairs = [
+            (10, Event("input_claimed", {"content": "old" * 12000})),
+            (11, Event("model_message", {"content": "old answer"})),
+            (20, Event("input_claimed", {"content": "new" * 12000})),
+            (21, Event("model_message", {"content": "new answer"})),
+        ]
+        class _Store:
+            data_root = Path("D:/nonexistent-never-used")
+            def load_with_seq(self, cid):
+                return pairs
+
+        class _App(_FakeApp):
+            def __init__(self):
+                super().__init__(Path("D:/nonexistent-never-used"))
+                self.store = _Store()
+
+        adapter = ClassicAdapter(_App())
+        latest = adapter.history(CID)
+        self.assertIn("page", latest)
+        self.assertEqual(latest["page"]["has_more"], True)
+        self.assertEqual(latest["page"]["next_before"], 20)
+        older = adapter.history(CID, before=20)
+        self.assertEqual([i["role"] for i in older["items"]], ["user", "assistant"])
+        self.assertTrue(older["items"][0]["content"].startswith("old"))
+        meta = adapter.history(CID, meta=True)
+        self.assertEqual(meta["items"], [])
+        self.assertNotIn("page", meta)
+
+    def test_remember_attachments_merges_previous_pages(self) -> None:
+        adapter = ClassicAdapter(_FakeApp(Path("D:/nonexistent-never-used")))
+        adapter.inbound.state.put_attachments(CID, [{
+            "id": "old", "name": "old.png", "mime": "image/png",
+            "data_base64": "b2xk",
+        }])
+        adapter.inbound.remember_attachments(CID, [{
+            "mime": "image/png", "data_base64": "bmV3",
+        }])
+        self.assertIsNotNone(adapter.inbound.state.get_attachment(CID, "old"))
+        self.assertEqual(len(adapter.inbound.state.attachments.get(CID, [])), 2)
+
     def test_history_returns_ok_true(self) -> None:
         """回显必须带 `ok:true`，否则经典界面直接 return、整段历史不渲染。"""
         payload = self.adapter.history(CID)

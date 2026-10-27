@@ -109,6 +109,25 @@ class ClassicState:
         with self._lock:
             self.attachments[cid] = list(items or [])
 
+    def merge_attachments(self, cid: str, items: List[Dict[str, Any]]) -> None:
+        """按 id 合并本页附件；保留已加载页的附件，不整体替换。"""
+        with self._lock:
+            current = list(self.attachments.get(cid) or [])
+            by_id = {str(item.get("id")): item for item in current
+                     if isinstance(item, dict) and item.get("id")}
+            order = [str(item.get("id")) for item in current
+                     if isinstance(item, dict) and item.get("id")]
+            for item in items or []:
+                if not isinstance(item, dict):
+                    continue
+                ident = str(item.get("id") or "")
+                if not ident:
+                    continue
+                if ident not in by_id:
+                    order.append(ident)
+                by_id[ident] = item
+            self.attachments[cid] = [by_id[ident] for ident in order if ident in by_id]
+
     def get_attachment(self, cid: str, ident: str) -> Optional[Dict[str, Any]]:
         with self._lock:
             for item in self.attachments.get(cid) or []:

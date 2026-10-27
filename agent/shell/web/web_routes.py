@@ -277,7 +277,20 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
         elif path == "/api/chat/history":
             classic = self._classic()
             if classic is not None:
-                self._json(200, classic.history(query.get("conversation_id", "")))
+                raw_before = str(query.get("before", "") or "").strip()
+                before = None
+                if raw_before:
+                    try:
+                        before = int(raw_before)
+                    except (TypeError, ValueError):
+                        self._json(200, {"ok": False, "error": "invalid before", "items": []})
+                        return True
+                    if before < 0:
+                        self._json(200, {"ok": False, "error": "invalid before", "items": []})
+                        return True
+                meta = str(query.get("meta", "") or "").strip() == "1"
+                self._json(200, classic.history(
+                    query.get("conversation_id", ""), before=before, meta=meta))
             else:
                 status, payload = self.shell.history(query.get("conversation_id", ""))
                 self._json(status, payload)

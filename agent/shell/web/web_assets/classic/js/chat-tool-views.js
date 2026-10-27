@@ -307,6 +307,7 @@ var row=head.closest(".chat-tool-row");
 if(!row)return;
 var open=row.classList.toggle("is-open");
 head.setAttribute("aria-expanded",open?"true":"false");
+if(open)materializeLazyIn(row);
 });
 function addChatToolLayer(body, cap, kind){
 var layer=document.createElement("div");
@@ -321,9 +322,26 @@ layer.appendChild(pane);
 body.appendChild(layer);
 return pane;
 }
+var LAZY_TOOL_TEXT_CHARS=100000;
+function setLazyText(el,text){
+if(!el)return;
+var s=String(text||"");
+if(s.length<=LAZY_TOOL_TEXT_CHARS){el.textContent=s;el._lazyFull=null;return;}
+el._lazyFull=s;
+el.textContent=s.slice(0,LAZY_TOOL_TEXT_CHARS)+"\n…（展开后加载全文）";
+}
+function materializeLazy(el){
+if(!el||el._lazyFull==null)return;
+el.textContent=el._lazyFull;el._lazyFull=null;
+}
+function materializeLazyIn(root){
+if(!root)return;
+var nodes=root.querySelectorAll?root.querySelectorAll("code"):[];
+for(var i=0;i<nodes.length;i++)materializeLazy(nodes[i]);
+}
 function addChatToolText(pane, text){
 var pre=document.createElement("pre");pre.className="chat-run-pre";
-var code=document.createElement("code");code.textContent=text||"";
+var code=document.createElement("code");setLazyText(code,text);
 pre.appendChild(code);pane.appendChild(pre);
 return code;
 }
