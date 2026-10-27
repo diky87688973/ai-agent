@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1985** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1989** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -26,86 +26,87 @@
 15. [test_cli_shell.py](#test_cli_shellpy)（20）
 16. [test_command_tools.py](#test_command_toolspy)（30）
 17. [test_concurrency.py](#test_concurrencypy)（11）
-18. [test_context_assembly.py](#test_context_assemblypy)（186）
-19. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
-20. [test_context_dump.py](#test_context_dumppy)（3）
-21. [test_context_dump_skill.py](#test_context_dump_skillpy)（1）
-22. [test_context_pipeline.py](#test_context_pipelinepy)（18）
-23. [test_context_plumbing.py](#test_context_plumbingpy)（5）
-24. [test_context_splice.py](#test_context_splicepy)（9）
-25. [test_conversation_queue.py](#test_conversation_queuepy)（6）
-26. [test_core.py](#test_corepy)（57）
-27. [test_coverage_gaps.py](#test_coverage_gapspy)（10）
-28. [test_edited_files.py](#test_edited_filespy)（1）
-29. [test_entry_layer.py](#test_entry_layerpy)（19）
-30. [test_environment_info.py](#test_environment_infopy)（1）
-31. [test_error_log.py](#test_error_logpy)（8）
-32. [test_event_bus.py](#test_event_buspy)（9）
-33. [test_fact_compat.py](#test_fact_compatpy)（4）
-34. [test_file_safety.py](#test_file_safetypy)（24）
-35. [test_file_size_format.py](#test_file_size_formatpy)（4）
-36. [test_four_step_gate.py](#test_four_step_gatepy)（9）
-37. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-38. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
-39. [test_gate_negative.py](#test_gate_negativepy)（67）
-40. [test_goal_runner.py](#test_goal_runnerpy)（6）
-41. [test_gui_launcher.py](#test_gui_launcherpy)（8）
-42. [test_history_page.py](#test_history_pagepy)（16）
-43. [test_image_embed.py](#test_image_embedpy)（10）
-44. [test_image_tool.py](#test_image_toolpy)（28）
-45. [test_image_turns.py](#test_image_turnspy)（23）
-46. [test_import_graph.py](#test_import_graphpy)（5）
-47. [test_invest_tools.py](#test_invest_toolspy)（29）
-48. [test_kb_plugin.py](#test_kb_pluginpy)（51）
-49. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-50. [test_mode_note.py](#test_mode_notepy)（13）
-51. [test_model_catalog.py](#test_model_catalogpy)（23）
-52. [test_model_provider.py](#test_model_providerpy)（39）
-53. [test_model_window.py](#test_model_windowpy)（14）
-54. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
-55. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
-56. [test_plugin_http.py](#test_plugin_httppy)（18）
-57. [test_plugins.py](#test_pluginspy)（29）
-58. [test_present_tool.py](#test_present_toolpy)（2）
-59. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-60. [test_prompt_tail.py](#test_prompt_tailpy)（5）
-61. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-62. [test_provider_meta.py](#test_provider_metapy)（8）
-63. [test_provider_router.py](#test_provider_routerpy)（14）
-64. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
-65. [test_queue_runner.py](#test_queue_runnerpy)（3）
-66. [test_queued_input.py](#test_queued_inputpy)（4）
-67. [test_readonly_tools.py](#test_readonly_toolspy)（33）
-68. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-69. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-70. [test_run_registry.py](#test_run_registrypy)（13）
-71. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-72. [test_session_context.py](#test_session_contextpy)（22）
-73. [test_session_seq.py](#test_session_seqpy)（23）
-74. [test_session_store.py](#test_session_storepy)（17）
-75. [test_session_tools.py](#test_session_toolspy)（17）
-76. [test_settings_panel.py](#test_settings_panelpy)（21）
-77. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-78. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-79. [test_subagent.py](#test_subagentpy)（17）
-80. [test_task_tools.py](#test_task_toolspy)（27）
-81. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-82. [test_tool_registry.py](#test_tool_registrypy)（17）
-83. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-84. [test_top_level_services.py](#test_top_level_servicespy)（2）
-85. [test_update.py](#test_updatepy)（25）
-86. [test_update_processes.py](#test_update_processespy)（2）
-87. [test_usage_metrics.py](#test_usage_metricspy)（7）
-88. [test_version_stamp.py](#test_version_stamppy)（4）
-89. [test_visual_operator.py](#test_visual_operatorpy)（160）
-90. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-91. [test_web_auth.py](#test_web_authpy)（26）
-92. [test_web_frontend.py](#test_web_frontendpy)（5）
-93. [test_web_shell.py](#test_web_shellpy)（52）
-94. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-95. [test_write_gate.py](#test_write_gatepy)（16）
-96. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-97. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+18. [test_config_values.py](#test_config_valuespy)（2）
+19. [test_context_assembly.py](#test_context_assemblypy)（186）
+20. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
+21. [test_context_dump.py](#test_context_dumppy)（3）
+22. [test_context_dump_skill.py](#test_context_dump_skillpy)（1）
+23. [test_context_pipeline.py](#test_context_pipelinepy)（18）
+24. [test_context_plumbing.py](#test_context_plumbingpy)（5）
+25. [test_context_splice.py](#test_context_splicepy)（9）
+26. [test_conversation_queue.py](#test_conversation_queuepy)（6）
+27. [test_core.py](#test_corepy)（57）
+28. [test_coverage_gaps.py](#test_coverage_gapspy)（10）
+29. [test_edited_files.py](#test_edited_filespy)（1）
+30. [test_entry_layer.py](#test_entry_layerpy)（19）
+31. [test_environment_info.py](#test_environment_infopy)（1）
+32. [test_error_log.py](#test_error_logpy)（8）
+33. [test_event_bus.py](#test_event_buspy)（9）
+34. [test_fact_compat.py](#test_fact_compatpy)（4）
+35. [test_file_safety.py](#test_file_safetypy)（24）
+36. [test_file_size_format.py](#test_file_size_formatpy)（4）
+37. [test_four_step_gate.py](#test_four_step_gatepy)（9）
+38. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+39. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
+40. [test_gate_negative.py](#test_gate_negativepy)（67）
+41. [test_goal_runner.py](#test_goal_runnerpy)（6）
+42. [test_gui_launcher.py](#test_gui_launcherpy)（8）
+43. [test_history_page.py](#test_history_pagepy)（16）
+44. [test_image_embed.py](#test_image_embedpy)（10）
+45. [test_image_tool.py](#test_image_toolpy)（28）
+46. [test_image_turns.py](#test_image_turnspy)（23）
+47. [test_import_graph.py](#test_import_graphpy)（5）
+48. [test_invest_tools.py](#test_invest_toolspy)（29）
+49. [test_kb_plugin.py](#test_kb_pluginpy)（51）
+50. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+51. [test_mode_note.py](#test_mode_notepy)（13）
+52. [test_model_catalog.py](#test_model_catalogpy)（23）
+53. [test_model_provider.py](#test_model_providerpy)（41）
+54. [test_model_window.py](#test_model_windowpy)（14）
+55. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
+56. [test_plugin_contributions.py](#test_plugin_contributionspy)（30）
+57. [test_plugin_http.py](#test_plugin_httppy)（18）
+58. [test_plugins.py](#test_pluginspy)（29）
+59. [test_present_tool.py](#test_present_toolpy)（2）
+60. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+61. [test_prompt_tail.py](#test_prompt_tailpy)（5）
+62. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+63. [test_provider_meta.py](#test_provider_metapy)（8）
+64. [test_provider_router.py](#test_provider_routerpy)（14）
+65. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
+66. [test_queue_runner.py](#test_queue_runnerpy)（3）
+67. [test_queued_input.py](#test_queued_inputpy)（4）
+68. [test_readonly_tools.py](#test_readonly_toolspy)（33）
+69. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+70. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+71. [test_run_registry.py](#test_run_registrypy)（13）
+72. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+73. [test_session_context.py](#test_session_contextpy)（22）
+74. [test_session_seq.py](#test_session_seqpy)（23）
+75. [test_session_store.py](#test_session_storepy)（17）
+76. [test_session_tools.py](#test_session_toolspy)（17）
+77. [test_settings_panel.py](#test_settings_panelpy)（21）
+78. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+79. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+80. [test_subagent.py](#test_subagentpy)（17）
+81. [test_task_tools.py](#test_task_toolspy)（27）
+82. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+83. [test_tool_registry.py](#test_tool_registrypy)（17）
+84. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+85. [test_top_level_services.py](#test_top_level_servicespy)（2）
+86. [test_update.py](#test_updatepy)（25）
+87. [test_update_processes.py](#test_update_processespy)（2）
+88. [test_usage_metrics.py](#test_usage_metricspy)（7）
+89. [test_version_stamp.py](#test_version_stamppy)（4）
+90. [test_visual_operator.py](#test_visual_operatorpy)（160）
+91. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+92. [test_web_auth.py](#test_web_authpy)（26）
+93. [test_web_frontend.py](#test_web_frontendpy)（5）
+94. [test_web_shell.py](#test_web_shellpy)（52）
+95. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+96. [test_write_gate.py](#test_write_gatepy)（16）
+97. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+98. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -617,6 +618,15 @@
 | 9 | `PendingStoreContentionTest` | `test_confirm_is_visible_to_concurrent_peek` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：confirm is visible to concurrent peek |
 | 10 | `PendingStoreContentionTest` | `test_same_path_keeps_exactly_one_latest` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：same path keeps exactly one latest |
 | 11 | `PendingStoreContentionTest` | `test_take_is_exactly_once` | 覆盖「预览快照仓库：上限、同路径去重、一次性消费在并发下仍成立」：take is exactly once |
+
+## test_config_values.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ConfigValueFallbackTest` | `test_bad_numeric_values_fall_back_to_defaults` | 覆盖「A class whose instances are single test cases」：bad numeric values fall back to defaults |
+| 2 | `ConfigValueFallbackTest` | `test_compression_threshold_coerces_bool_and_strings` | 覆盖「A class whose instances are single test cases」：compression threshold coerces bool and strings |
 
 ## test_context_assembly.py
 
@@ -1525,49 +1535,51 @@
 
 ## test_model_provider.py
 
-共 39 个用例。
+共 41 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `AppModelConfigTest` | `test_known_session_model_is_kept` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：known session model is kept |
-| 2 | `AppModelConfigTest` | `test_model_catalog_is_optional` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：model catalog is optional |
-| 3 | `AppModelConfigTest` | `test_model_config_reports_source_and_degrade` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：model config reports source and degrade |
-| 4 | `AppModelConfigTest` | `test_refresh_switches_catalog_on_and_off` | 插件装卸必须重算权威：目录接管时刷新路由，注销后回退且清空清单。 |
-| 5 | `AppModelConfigTest` | `test_reload_is_ignored_when_catalog_is_authoritative` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：reload is ignored when catalog is authoritative |
-| 6 | `AppModelConfigTest` | `test_unknown_session_model_falls_back_to_default` | 旧标签页拿着已删除的模型 id 时，读取点收敛到默认值并写回。 |
-| 7 | `AvailableModelsWireTest` | `test_current_model_is_always_in_the_list` | `model` 必须在清单里，否则 UI 的白名单校验会丢弃它（顶栏永远"加载中"）。 |
-| 8 | `AvailableModelsWireTest` | `test_health_does_not_invent_a_model_in_degraded_state` | `none` 时不能拿 provider 的占位模型充数：那个 id 实际选不了。 |
-| 9 | `AvailableModelsWireTest` | `test_health_lists_all_configured_models` | 覆盖「`/health` 的 `allowed_models` 必须给出完整清单」：health lists all configured models |
-| 10 | `AvailableModelsWireTest` | `test_shell_health_also_lists_all_models` | 覆盖「`/health` 的 `allowed_models` 必须给出完整清单」：shell health also lists all models |
-| 11 | `CatalogAuthorityAtAssemblyTest` | `test_catalog_entries_become_the_model_list` | 覆盖「插件目录一旦权威，装配末尾就把模型清单与路由策略换成目录的」：catalog entries become the model list |
-| 12 | `ImagesAlwaysReachTheWireTest` | `test_image_block_survives_into_the_payload` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：image block survives into the payload |
-| 13 | `ImagesAlwaysReachTheWireTest` | `test_plain_text_message_is_untouched` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：plain text message is untouched |
-| 14 | `ProviderStreamTimeoutTest` | `test_openai_stream_timeout_is_bounded` | 覆盖「A class whose instances are single test cases」：openai stream timeout is bounded |
-| 15 | `ReasonNotReplayedTest` | `test_cut_clears_the_content_but_keeps_the_key_for_tool_messages` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：cut clears the content but keeps the key for tool messages |
-| 16 | `ReasonNotReplayedTest` | `test_cut_none_keeps_everything` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：cut none keeps everything |
-| 17 | `ReasonNotReplayedTest` | `test_original_messages_are_not_mutated` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：original messages are not mutated |
-| 18 | `ReasonNotReplayedTest` | `test_plain_assistant_before_the_cut_drops_the_key` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：plain assistant before the cut drops the key |
-| 19 | `ReasonNotReplayedTest` | `test_provider_passes_the_boundary_and_defaults_to_stripping` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：provider passes the boundary and defaults to stripping |
-| 20 | `ReasonNotReplayedTest` | `test_tool_calls_survive_the_cut` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：tool calls survive the cut |
-| 21 | `ReasonNotReplayedTest` | `test_tool_message_without_reasoning_gets_an_empty_key` | 没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。 |
-| 22 | `RequestLevelModelTest` | `test_effort_still_reaches_the_wire` | 推理档位照常透传到请求载荷。 |
-| 23 | `RequestLevelModelTest` | `test_empty_request_model_falls_back_to_instance_default` | 空串 = 不指定 ⇒ 用实例默认模型，既有调用方行为不变。 |
-| 24 | `RequestLevelModelTest` | `test_local_model_check_is_per_requested_model` | 本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。 |
-| 25 | `RequestLevelModelTest` | `test_request_model_wins_over_instance_default` | 覆盖「A class whose instances are single test cases」：request model wins over instance default |
-| 26 | `RequestLevelModelTest` | `test_whitespace_is_treated_as_unspecified` | 覆盖「A class whose instances are single test cases」：whitespace is treated as unspecified |
-| 27 | `SessionModelSelectionTest` | `test_choice_survives_a_new_process` | 换一个 LiveState 实例（= 换进程）后选择仍在 —— 靠落盘，不靠内存。 |
-| 28 | `SessionModelSelectionTest` | `test_empty_clears_the_choice` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：empty clears the choice |
-| 29 | `SessionModelSelectionTest` | `test_read_only_is_never_used` | 只读会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。 |
-| 30 | `SessionModelSelectionTest` | `test_select_then_read_back` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：select then read back |
-| 31 | `SessionStateFileTest` | `test_closing_todo_does_not_wipe_the_model` | `close` 只清清单：写盘前必须读回其余分量，否则会覆盖模型。 |
-| 32 | `SessionStateFileTest` | `test_every_component_survives_a_new_process` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：every component survives a new process |
-| 33 | `SessionStateFileTest` | `test_file_nests_todo_and_keeps_state_flat` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：file nests todo and keeps state flat |
-| 34 | `SessionStateFileTest` | `test_stale_flat_file_is_ignored` | 只认嵌套结构：平铺把清单字段写在顶层的文件不算会话状态。 |
-| 35 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本回合起点"标出来，provider 才有裁的依据」：model module marks turn start |
-| 36 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本回合起点"标出来，provider 才有裁的依据」：port default keeps everything |
-| 37 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
-| 38 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
-| 39 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
+| 1 | `AppModelConfigTest` | `test_catalog_snapshot_failure_is_non_authoritative` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：catalog snapshot failure is non authoritative |
+| 2 | `AppModelConfigTest` | `test_known_session_model_is_kept` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：known session model is kept |
+| 3 | `AppModelConfigTest` | `test_model_catalog_is_optional` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：model catalog is optional |
+| 4 | `AppModelConfigTest` | `test_model_config_reports_source_and_degrade` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：model config reports source and degrade |
+| 5 | `AppModelConfigTest` | `test_refresh_switches_catalog_on_and_off` | 插件装卸必须重算权威：目录接管时刷新路由，注销后回退且清空清单。 |
+| 6 | `AppModelConfigTest` | `test_reload_is_ignored_when_catalog_is_authoritative` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：reload is ignored when catalog is authoritative |
+| 7 | `AppModelConfigTest` | `test_reload_without_catalog_returns_plugin_managed_note` | 覆盖「装配层的模型来源状态：目录接管、回落与清空」：reload without catalog returns plugin managed note |
+| 8 | `AppModelConfigTest` | `test_unknown_session_model_falls_back_to_default` | 旧标签页拿着已删除的模型 id 时，读取点收敛到默认值并写回。 |
+| 9 | `AvailableModelsWireTest` | `test_current_model_is_always_in_the_list` | `model` 必须在清单里，否则 UI 的白名单校验会丢弃它（顶栏永远"加载中"）。 |
+| 10 | `AvailableModelsWireTest` | `test_health_does_not_invent_a_model_in_degraded_state` | `none` 时不能拿 provider 的占位模型充数：那个 id 实际选不了。 |
+| 11 | `AvailableModelsWireTest` | `test_health_lists_all_configured_models` | 覆盖「`/health` 的 `allowed_models` 必须给出完整清单」：health lists all configured models |
+| 12 | `AvailableModelsWireTest` | `test_shell_health_also_lists_all_models` | 覆盖「`/health` 的 `allowed_models` 必须给出完整清单」：shell health also lists all models |
+| 13 | `CatalogAuthorityAtAssemblyTest` | `test_catalog_entries_become_the_model_list` | 覆盖「插件目录一旦权威，装配末尾就把模型清单与路由策略换成目录的」：catalog entries become the model list |
+| 14 | `ImagesAlwaysReachTheWireTest` | `test_image_block_survives_into_the_payload` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：image block survives into the payload |
+| 15 | `ImagesAlwaysReachTheWireTest` | `test_plain_text_message_is_untouched` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：plain text message is untouched |
+| 16 | `ProviderStreamTimeoutTest` | `test_openai_stream_timeout_is_bounded` | 覆盖「A class whose instances are single test cases」：openai stream timeout is bounded |
+| 17 | `ReasonNotReplayedTest` | `test_cut_clears_the_content_but_keeps_the_key_for_tool_messages` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：cut clears the content but keeps the key for tool messages |
+| 18 | `ReasonNotReplayedTest` | `test_cut_none_keeps_everything` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：cut none keeps everything |
+| 19 | `ReasonNotReplayedTest` | `test_original_messages_are_not_mutated` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：original messages are not mutated |
+| 20 | `ReasonNotReplayedTest` | `test_plain_assistant_before_the_cut_drops_the_key` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：plain assistant before the cut drops the key |
+| 21 | `ReasonNotReplayedTest` | `test_provider_passes_the_boundary_and_defaults_to_stripping` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：provider passes the boundary and defaults to stripping |
+| 22 | `ReasonNotReplayedTest` | `test_tool_calls_survive_the_cut` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：tool calls survive the cut |
+| 23 | `ReasonNotReplayedTest` | `test_tool_message_without_reasoning_gets_an_empty_key` | 没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。 |
+| 24 | `RequestLevelModelTest` | `test_effort_still_reaches_the_wire` | 推理档位照常透传到请求载荷。 |
+| 25 | `RequestLevelModelTest` | `test_empty_request_model_falls_back_to_instance_default` | 空串 = 不指定 ⇒ 用实例默认模型，既有调用方行为不变。 |
+| 26 | `RequestLevelModelTest` | `test_local_model_check_is_per_requested_model` | 本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。 |
+| 27 | `RequestLevelModelTest` | `test_request_model_wins_over_instance_default` | 覆盖「A class whose instances are single test cases」：request model wins over instance default |
+| 28 | `RequestLevelModelTest` | `test_whitespace_is_treated_as_unspecified` | 覆盖「A class whose instances are single test cases」：whitespace is treated as unspecified |
+| 29 | `SessionModelSelectionTest` | `test_choice_survives_a_new_process` | 换一个 LiveState 实例（= 换进程）后选择仍在 —— 靠落盘，不靠内存。 |
+| 30 | `SessionModelSelectionTest` | `test_empty_clears_the_choice` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：empty clears the choice |
+| 31 | `SessionModelSelectionTest` | `test_read_only_is_never_used` | 只读会话（`is_read_only` 的 cid）不落盘 —— 同 todo 的白名单纪律。 |
+| 32 | `SessionModelSelectionTest` | `test_select_then_read_back` | 覆盖「会话级模型选择：选中即生效、可读回、跨进程仍在」：select then read back |
+| 33 | `SessionStateFileTest` | `test_closing_todo_does_not_wipe_the_model` | `close` 只清清单：写盘前必须读回其余分量，否则会覆盖模型。 |
+| 34 | `SessionStateFileTest` | `test_every_component_survives_a_new_process` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：every component survives a new process |
+| 35 | `SessionStateFileTest` | `test_file_nests_todo_and_keeps_state_flat` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：file nests todo and keeps state flat |
+| 36 | `SessionStateFileTest` | `test_stale_flat_file_is_ignored` | 只认嵌套结构：平铺把清单字段写在顶层的文件不算会话状态。 |
+| 37 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本回合起点"标出来，provider 才有裁的依据」：model module marks turn start |
+| 38 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本回合起点"标出来，provider 才有裁的依据」：port default keeps everything |
+| 39 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
+| 40 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
+| 41 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
 
 ## test_model_window.py
 

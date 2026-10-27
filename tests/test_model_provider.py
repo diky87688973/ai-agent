@@ -349,6 +349,26 @@ class AppModelConfigTest(unittest.TestCase):
         self.assertIn("目录权威", note)
         self.assertEqual(app.model_config_state, "catalog")
 
+    def test_catalog_snapshot_failure_is_non_authoritative(self) -> None:
+        from types import SimpleNamespace
+
+        from agent.core.context import SERVICE_MODEL_CATALOG
+
+        app, _state, _router = self._app()
+
+        def fail():
+            raise RuntimeError("catalog unavailable")
+
+        app.context.register(SERVICE_MODEL_CATALOG, SimpleNamespace(snapshot=fail))
+        self.assertIsNone(app._catalog_snapshot())
+        self.assertEqual(app.model_config(), {
+            "source": "none", "authoritative": False, "degraded": True})
+
+    def test_reload_without_catalog_returns_plugin_managed_note(self) -> None:
+        app, _state, _router = self._app()
+        app.model_config_state = "none"
+        self.assertIn("多模型插件维护", app.reload_model_config())
+
     def test_refresh_switches_catalog_on_and_off(self) -> None:
         """插件装卸必须重算权威：目录接管时刷新路由，注销后回退且清空清单。"""
         from agent.capabilities.model_catalog import ModelCatalog, ModelEntry
