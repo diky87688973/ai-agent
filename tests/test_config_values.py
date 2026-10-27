@@ -30,4 +30,3 @@ class ConfigValueFallbackTest(unittest.TestCase):
         self.assertEqual(get_update(path)["check_interval_minutes"], 30)
         self.assertEqual(get_backup_retention_days(path), 7)
         self.assertEqual(get_context(path)["full_user_rounds"], 5)
-
