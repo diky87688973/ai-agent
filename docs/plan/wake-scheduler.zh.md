@@ -2,7 +2,7 @@
 
 # 唤醒调度器概要
 
-状态：设计概要，未实现。
+状态：最小版本已实现；单进程、单线程、jobs.json 持久化，进程锁保证单调度器，投递复用 `MeshState.submit`。
 
 ## 目标
 
@@ -30,19 +30,20 @@
 ## 组件
 
 ```text
-Scheduler
+WakeScheduler
   单线程定时器
   最近到期任务
   取消与关闭
 
-JobStore
-  持久化任务
+WakeJobStore
+  jobs.json 持久化
   启动恢复
-  幂等状态
+  状态机
 
-WakeDispatcher
+投递
   到期任务转成唤醒消息
-  投递到目标会话队列
+  复用 MeshState.submit（闲启动 / 忙入队）
+  队列按 wake_job_id 去重
 ```
 
 ## 任务字段

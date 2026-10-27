@@ -240,6 +240,7 @@ Runtime data lives under `data/` and is not tracked by version control. Point it
 | `data/temp/` | Temporary artifacts (pre-write backups are described under File backups) |
 | `data/mesh/` | Cross-session collaboration (`agents.json` roster plus runtime state) |
 | `data/queues/` | Pending message queue per session (user and agent messages, attachments) |
+| `data/wake/` | Wake jobs and their delivery status |
 | `data/mesh/runs/` | Runtime registry (`<cid>.json`) |
 | `data/workspace/` | Root of the `/workspace/` static route |
 | `data/recycle/` | Recycle directory for delete operations |

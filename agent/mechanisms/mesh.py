@@ -132,12 +132,17 @@ class MeshState:
         with self._lock:
             self._runs.release(str(cid or "").strip())
 
-    def _enqueue_message(self, key: str, message: Dict[str, Any]) -> Dict[str, Any]:
+    def _enqueue_message(self, key: str, message: Dict[str, Any], *,
+                         origin: Optional[str] = None,
+                         dedupe_key: str = "") -> Dict[str, Any]:
         payload = dict(message)
-        origin = "user"
+        resolved_origin = str(origin or "").strip().lower()
         sender = None
-        if str(payload.get("_sender") or "").strip():
-            origin = "agent"
+        if resolved_origin not in ("user", "agent", "system"):
+            resolved_origin = "user"
+        if resolved_origin == "user" and str(payload.get("_sender") or "").strip():
+            resolved_origin = "agent"
+        if resolved_origin == "agent":
             sender = {
                 "cid": str(payload.get("_sender") or "").strip(),
                 "name": str(payload.get("_sender_name") or "").strip(),
@@ -147,40 +152,46 @@ class MeshState:
                                        if "_requires_reply" in payload
                                        else payload.get("requires_reply")),
             }
-        elif isinstance(payload.get("resume"), dict):
-            origin = "system"
+        elif resolved_origin == "user" and isinstance(payload.get("resume"), dict):
+            resolved_origin = "system"
         queue_payload = dict(payload)
         queue_payload.pop("attachments", None)
         return self._queue.enqueue(
             key,
             content=str(payload.get("content") or ""),
             attachments=payload.get("attachments"),
-            origin=origin,
+            origin=resolved_origin,
             sender=sender,
             delivery="after_turn",
             payload=queue_payload,
+            dedupe_key=dedupe_key,
         )
 
-    def submit(self, cid: str, message: Dict[str, Any]) -> Dict[str, Any]:
+    def submit(self, cid: str, message: Dict[str, Any], *,
+               origin: Optional[str] = None,
+               dedupe_key: str = "") -> Dict[str, Any]:
         """原子投递：忙 / 无激活器 → 入队；闲 → 激活启动。"""
         key = str(cid or "").strip()
         if not key:
             return {"queued": False, "queued_count": 0, "run_id": ""}
         with self._lock:
             if self._runs.running(key) or self._activator is None:
-                item = self._enqueue_message(key, message)
+                item = self._enqueue_message(
+                    key, message, origin=origin, dedupe_key=dedupe_key)
                 return {"queued": True, "queued_count": self._queue.size(key),
                         "run_id": "", "queue_item": item}
             try:
                 rid = str(self._activator(key, dict(message)) or "")
             except Exception as exc:
                 report_error("agent.mechanisms.mesh.MeshState.submit", exc)
-                item = self._enqueue_message(key, message)
+                item = self._enqueue_message(
+                    key, message, origin=origin, dedupe_key=dedupe_key)
                 return {"queued": True, "queued_count": self._queue.size(key),
                         "run_id": "", "queue_item": item}
             if rid:
                 return {"queued": False, "queued_count": 0, "run_id": rid}
-            item = self._enqueue_message(key, message)
+            item = self._enqueue_message(
+                key, message, origin=origin, dedupe_key=dedupe_key)
             return {"queued": True, "queued_count": self._queue.size(key),
                     "run_id": "", "queue_item": item}
 

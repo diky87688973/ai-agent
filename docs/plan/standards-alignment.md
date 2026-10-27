@@ -55,7 +55,7 @@ P0 complexity gate skeleton → P1 local defects (assert / immutability / commen
 | Dependency cycles | 0 groups | `python scripts/check_imports.py --scc` |
 | Silent exceptions | 0 violations (400 files, 698 handlers) | `python scripts/check_silent_except.py` |
 | Applicability declarations | 0 of 95 rules (N/A 0.0%) | `python scripts/check_applicability.py` |
-| Test cases | 1937 | `python scripts/check_readme.py` |
+| Test cases | 1955 | `python scripts/check_readme.py` |
 | Config drift | Real files are a subset of the schema | `python scripts/check_config_drift.py` |
 | Coverage floors | 10 packages | `scripts/quality_budgets.py` |
 | Generated workflow | Byte-identical to the rendered step list | `python scripts/check_ci_workflow.py` |
@@ -335,7 +335,7 @@ Exceeding any threshold means splitting the file or function, not registering it
 
 **Rule.** A generated document must match its source; a readable test index is not maintained by hand.
 
-**Design.** `scripts/gen_unit_tests_md.py` renders `docs/unit-tests.md` from the discovered `unittest` suite (`render()`), and `--check` compares the rendered text with the file, reports a mismatch, and exits 1. `docs/unit-tests.md` currently lists 1937 cases. `scripts/gen_complexity_md.py` provides `build()` and follows the same shape for `docs/complexity.md`. Both checks are gate steps, one per generated document. A change regenerates first, then runs the check.
+**Design.** `scripts/gen_unit_tests_md.py` renders `docs/unit-tests.md` from the discovered `unittest` suite (`render()`), and `--check` compares the rendered text with the file, reports a mismatch, and exits 1. `docs/unit-tests.md` currently lists 1955 cases. `scripts/gen_complexity_md.py` provides `build()` and follows the same shape for `docs/complexity.md`. Both checks are gate steps, one per generated document. A change regenerates first, then runs the check.
 
 **Verification.** Deleting any line from the document fails the check; regenerating passes. `tests/test_gate_negative.py` (`GeneratedArtifactDriftTest`, `GeneratedComplexityDocGateTest`) covers drift, a missing file, and extra content.
 

@@ -77,6 +77,7 @@ from agent.core.context import (
     SERVICE_STORE,
     SERVICE_SUBAGENTS,
     SERVICE_UPDATE,
+    SERVICE_WAKE_SCHEDULER,
     AppContext,
 )
 from agent.core.engine_factory import build_engine
@@ -105,6 +106,7 @@ from agent.mechanisms.provider_router import ProviderRouter
 from agent.mechanisms.providers.echo import EchoProvider
 from agent.mechanisms.providers.missing import MissingProvider
 from agent.mechanisms.quality import QualityGate, build_pipeline_gate
+from agent.mechanisms.wake_scheduler import WakeScheduler
 from agent.shell.classic_adapter import ClassicAdapter
 from agent.shell.classic_adapter.plugin_events import PluginEventPublisher
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER
@@ -153,6 +155,11 @@ class App(AppModelPolicy, AppServices):
         永远漏掉释放）；再 `dispose_all()` 逆序清理各注册 disposer。
         """
         # 先停生产者，避免停机 flush 之后仍有 runner 线程写入。
+        if self.context.has(SERVICE_WAKE_SCHEDULER):
+            scheduler = self.context.get(SERVICE_WAKE_SCHEDULER)
+            stop = getattr(scheduler, "stop", None)
+            if callable(stop):
+                stop()
         if self.context.has(SERVICE_RUNNER):
             runner = self.context.get(SERVICE_RUNNER)
             shutdown = getattr(runner, "shutdown", None)
@@ -546,6 +553,42 @@ class _AppAssembly:
         self.app.model_config_state = "config" if ready else "none"
         self._build_runner()
 
+    def _wake_store(self, cid: str) -> Any:
+        key = str(cid or "").strip()
+        manager = self.subagent_manager
+        if manager is not None and key and manager.is_child(key):
+            store_for = getattr(manager, "store_for", None)
+            if callable(store_for):
+                store = store_for(key)
+                if store is not None:
+                    return store
+        return self.store
+
+    def _wake_target_exists(self, cid: str) -> bool:
+        store = self._wake_store(cid)
+        if store is None:
+            return False
+        try:
+            return bool(store.load(str(cid or "").strip()))
+        except Exception as exc:
+            report_error("app.wake.target_exists", exc, conversation_id=cid)
+            return False
+
+    def _wake_delivered(self, cid: str, job_id: str) -> bool:
+        store = self._wake_store(cid)
+        if store is None:
+            return False
+        try:
+            for event in store.load(str(cid or "").strip()):
+                if str(getattr(event, "type", "")) != "input_claimed":
+                    continue
+                data = getattr(event, "data", None) or {}
+                if str(data.get("wake_job_id") or "") == str(job_id or ""):
+                    return True
+        except Exception as exc:
+            report_error("app.wake.delivered", exc, conversation_id=cid, job_id=job_id)
+        return False
+
     def _build_runner(self) -> None:
         hidden = {"session_send", "session_multisend", "session_broadcast",
                   "session_create", "session_list"}
@@ -563,6 +606,13 @@ class _AppAssembly:
         self.mesh_state.set_activator(self.runner.start)
         if self.store is not None:
             self.mesh_state.set_session_exists(lambda cid: bool(self.store.load(cid)))
+        self.wake_scheduler = WakeScheduler(
+            self.data_root / "wake",
+            submit=self.mesh_state.submit,
+            delivered=self._wake_delivered,
+            target_exists=self._wake_target_exists,
+        )
+        self.context.register(SERVICE_WAKE_SCHEDULER, self.wake_scheduler)
         if self.subagent_manager is not None:
             self.runner.set_store_for(self.subagent_manager.store_for)
             self.context.register(SERVICE_SUBAGENTS, self.subagent_manager)
@@ -574,6 +624,8 @@ class _AppAssembly:
         self.classic.bind_bus(self.event_bus)
         self.context.register(SERVICE_CLASSIC_ADAPTER, self.classic)
         self.context.register(SERVICE_PLUGIN_EVENTS, PluginEventPublisher(self.classic))
+        # 所有会话/壳层服务就绪后再开始投递，恢复任务不得在装配中途起回合。
+        self.wake_scheduler.start()
 
     def _background_notice_meta(self, text: str) -> Dict[str, Any]:
         batch = ""

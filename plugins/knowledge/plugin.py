@@ -44,6 +44,9 @@ CHECKED_STATE_FILENAME = "checked_state.json"
 #: 注入格式：每个勾选文件独占一条系统消息。模型靠这行标记认出"这是随附资料"。
 INJECT_PREFIX = "【知识库：{rel}】"
 
+#: 系统提示词资源目录章节标题（与 Skills / Rules 合并到同一章节）。
+RESOURCE_HEAD = "## 资源目录"
+
 #: 按表格解析的扩展名（需要 openpyxl）
 TABLE_SUFFIXES = (".xlsx", ".xls", ".xlsm")
 
@@ -434,6 +437,18 @@ class KBRuntime(_KnowledgeFiles):
         return n
 
 
+def resource_directory_lines(runtime: "KBRuntime") -> List[str]:
+    """`## 资源目录` 章节里本插件的正文。"""
+    root = getattr(runtime, "root", None)
+    if root is None:
+        return [
+            "- 知识库: 未配置",
+            '  当前未配置知识库目录，必要时提醒用户去"知识库"插件中配置dir',
+        ]
+    suffix = "" if root.is_dir() else "（不存在）"
+    return [f"- 知识库: {root}{suffix}"]
+
+
 def _read_kb_file_text(fpath: Any) -> str:
     """按本插件的规则读一个知识库文件的正文（供测试与外部引用）。"""
     return _KnowledgeFiles().read_text(fpath)
@@ -477,6 +492,9 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     disposers: List[Callable[[], None]] = [
         # 上下文注入：管线组装请求时把勾选文件的正文刷进本插件的段落
         ctx.add_context_source(runtime.build_system_messages, _meta()),
+        # 资源目录：与 Skills / Rules 合并到同一个系统提示词章节
+        ctx.add_prompt_section(
+            RESOURCE_HEAD, lambda _cid: resource_directory_lines(runtime)),
     ]
 
     def _files(query: Dict[str, Any]) -> Any:

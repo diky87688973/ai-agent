@@ -43,6 +43,7 @@ macOS packages are not built yet. Current releases provide Windows packages only
 - **Plugin extensions** — tools, executors, context, prompts, gates, model catalogs, HTTP endpoints, and UI assets can be added without changing the kernel. Built-in plugins include Skills, Rules, Knowledge, Multi-model, Visual Operator, and AI Speak.
 - **Multi-agent collaboration** — subagents are created in batches with independent sessions and role-specific tool views. Parent/child messaging, queues, and work reports are supported.
 - **Manageable long-running work** — background tasks are isolated per session with concurrency limits, timeouts, cancellation, and output retrieval. Goals, todos, and message queues support multi-turn progress.
+- **Scheduled wakeups** — register relative or absolute wake jobs; the host delivers them after the turn ends and the target is idle or queued.
 - **Reviewable writes** — preview → review → commit → re-read. Automatic backup before edits, backup and rollback, and recycle-directory deletion.
 - **Inspectable context, resumable sessions** — segment budgets, over-budget summaries, context usage, and request snapshots. Persisted fact streams and SSE resume by event coordinates.
 - **Safe updates** — update-pack hash checks, staging, health checks, and rollback on failure. Regular files are replaced; `*.ini` files merge user settings.
@@ -181,7 +182,7 @@ python scripts/ci.py --list    # list checks
 
 `docs/unit-tests.md` is a generated readable test catalog; the source of truth is `tests/`.
 
-Unit tests (1937 cases):
+Unit tests (1955 cases):
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

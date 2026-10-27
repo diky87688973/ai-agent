@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1937** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1955** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -56,7 +56,7 @@
 45. [test_image_turns.py](#test_image_turnspy)（23）
 46. [test_import_graph.py](#test_import_graphpy)（5）
 47. [test_invest_tools.py](#test_invest_toolspy)（29）
-48. [test_kb_plugin.py](#test_kb_pluginpy)（49）
+48. [test_kb_plugin.py](#test_kb_pluginpy)（51）
 49. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
 50. [test_mode_note.py](#test_mode_notepy)（13）
 51. [test_model_catalog.py](#test_model_catalogpy)（23）
@@ -98,13 +98,14 @@
 87. [test_usage_metrics.py](#test_usage_metricspy)（7）
 88. [test_version_stamp.py](#test_version_stamppy)（4）
 89. [test_visual_operator.py](#test_visual_operatorpy)（130）
-90. [test_web_auth.py](#test_web_authpy)（26）
-91. [test_web_frontend.py](#test_web_frontendpy)（5）
-92. [test_web_shell.py](#test_web_shellpy)（52）
-93. [test_web_ui_config.py](#test_web_ui_configpy)（21）
-94. [test_write_gate.py](#test_write_gatepy)（16）
-95. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-96. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+90. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+91. [test_web_auth.py](#test_web_authpy)（26）
+92. [test_web_frontend.py](#test_web_frontendpy)（5）
+93. [test_web_shell.py](#test_web_shellpy)（52）
+94. [test_web_ui_config.py](#test_web_ui_configpy)（21）
+95. [test_write_gate.py](#test_write_gatepy)（16）
+96. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+97. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -1407,7 +1408,7 @@
 
 ## test_kb_plugin.py
 
-共 49 个用例。
+共 51 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1433,33 +1434,35 @@
 | 20 | `KBRuntimeTest` | `test_read_text_plain_and_bad_bytes` | 覆盖「A class whose instances are single test cases」：read text plain and bad bytes |
 | 21 | `KBRuntimeTest` | `test_read_text_xlsx_fake_lib` | 覆盖「A class whose instances are single test cases」：read text xlsx fake lib |
 | 22 | `KBRuntimeTest` | `test_read_text_xlsx_missing_lib` | 覆盖「A class whose instances are single test cases」：read text xlsx missing lib |
-| 23 | `KBRuntimeTest` | `test_safe_resolve_boundaries` | 覆盖「A class whose instances are single test cases」：safe resolve boundaries |
-| 24 | `KBRuntimeTest` | `test_set_checked_replace_filter_clear` | 覆盖「A class whose instances are single test cases」：set checked replace filter clear |
-| 25 | `KnowledgeExtraSuffixesTest` | `test_config_key_is_read_and_used` | 覆盖「配置 `extra_suffixes`：英文逗号分隔，追加可收录的扩展名」：config key is read and used |
-| 26 | `KnowledgeExtraSuffixesTest` | `test_extra_extends_the_whitelist` | 覆盖「配置 `extra_suffixes`：英文逗号分隔，追加可收录的扩展名」：extra extends the whitelist |
-| 27 | `KnowledgeExtraSuffixesTest` | `test_missing_key_keeps_default_whitelist` | 覆盖「配置 `extra_suffixes`：英文逗号分隔，追加可收录的扩展名」：missing key keeps default whitelist |
-| 28 | `KnowledgeExtraSuffixesTest` | `test_parse_forms` | 覆盖「配置 `extra_suffixes`：英文逗号分隔，追加可收录的扩展名」：parse forms |
-| 29 | `KnowledgeTextOnlyTest` | `test_binary_is_neither_listed_nor_selectable` | 覆盖「知识库只收文本类文件：非文本不列、不可勾（读出来是替换字符与 NUL，只占预算）」：binary is neither listed nor selectable |
-| 30 | `KnowledgeTextOnlyTest` | `test_runtime_rejects_binary_check` | 覆盖「知识库只收文本类文件：非文本不列、不可勾（读出来是替换字符与 NUL，只占预算）」：runtime rejects binary check |
-| 31 | `KnowledgeTextOnlyTest` | `test_text_suffix_rules` | 覆盖「知识库只收文本类文件：非文本不列、不可勾（读出来是替换字符与 NUL，只占预算）」：text suffix rules |
-| 32 | `PluginConfigIsolationTest` | `test_each_plugin_reads_its_own_config_file` | 覆盖「内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-conf…」：each plugin reads its own config file |
-| 33 | `PluginConfigIsolationTest` | `test_kernel_templates_have_no_plugin_section` | 覆盖「内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-conf…」：kernel templates have no plugin section |
-| 34 | `PluginConfigIsolationTest` | `test_skills_dir_comes_from_its_own_config` | 覆盖「内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-conf…」：skills dir comes from its own config |
-| 35 | `PluginPanelRenderContractTest` | `test_knowledge_panel_matches_composite_dom_id` | 壳层广播的 panel 是 `knowledge__kb`，不能只认逻辑 id `kb`。 |
-| 36 | `PluginPanelRenderContractTest` | `test_open_pane_broadcasts_panel_opened` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：open pane broadcasts panel opened |
-| 37 | `PluginPanelRenderContractTest` | `test_open_plugin_panel_passes_its_plugin_name` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：open plugin panel passes its plugin name |
-| 38 | `PluginPanelRenderContractTest` | `test_panel_has_a_refresh_button_on_the_subtitle` | 小标题右侧一个刷新：知识库目录是外部目录，不重开面板也要能取到新文件。 |
-| 39 | `PluginPanelRenderContractTest` | `test_panels_render_on_the_event` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：panels render on the event |
-| 40 | `PluginPanelRenderContractTest` | `test_refresh_handler_re_renders` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：refresh handler re renders |
-| 41 | `PluginSourceContractTest` | `test_disposer_removes_the_source` | 覆盖「插件注入源的契约：注册进「知识库」段、每回合刷新、disposer 后消失」：disposer removes the source |
-| 42 | `PluginSourceContractTest` | `test_plugin_sources_do_not_touch_the_kernel` | 插件来源只经注册表进出；内核不持有插件对象。 |
-| 43 | `PluginSourceContractTest` | `test_segments_carry_their_own_name_and_prefix` | 段名与注入前缀由来源声明：内核不解释正文是什么。 |
-| 44 | `PluginSourceContractTest` | `test_source_is_refreshed_every_turn` | 注入源每回合都重读：第 2 回合改内容，请求里立刻反映。 |
-| 45 | `PluginSourceContractTest` | `test_source_text_lands_in_the_knowledge_block` | 覆盖「插件注入源的契约：注册进「知识库」段、每回合刷新、disposer 后消失」：source text lands in the knowledge block |
-| 46 | `PluginSourceContractTest` | `test_two_sources_of_one_plugin_stay_separate` | 同一插件可以贡献多段：数量按位置对，不互相覆盖。 |
-| 47 | `SkillsConfigSourceTest` | `test_plugin_dir_has_no_own_config` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：plugin dir has no own config |
-| 48 | `SkillsConfigSourceTest` | `test_reader_reads_the_project_config` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：reader reads the project config |
-| 49 | `SkillsConfigSourceTest` | `test_reader_takes_a_given_ini` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：reader takes a given ini |
+| 23 | `KBRuntimeTest` | `test_resource_directory_lines_configured` | 覆盖「A class whose instances are single test cases」：resource directory lines configured |
+| 24 | `KBRuntimeTest` | `test_resource_directory_lines_unconfigured` | 覆盖「A class whose instances are single test cases」：resource directory lines unconfigured |
+| 25 | `KBRuntimeTest` | `test_safe_resolve_boundaries` | 覆盖「A class whose instances are single test cases」：safe resolve boundaries |
+| 26 | `KBRuntimeTest` | `test_set_checked_replace_filter_clear` | 覆盖「A class whose instances are single test cases」：set checked replace filter clear |
+| 27 | `KnowledgeExtraSuffixesTest` | `test_config_key_is_read_and_used` | 覆盖「配置 `extra_suffixes`：英文逗号分隔，追加可收录的扩展名」：config key is read and used |
+| 28 | `KnowledgeExtraSuffixesTest` | `test_extra_extends_the_whitelist` | 覆盖「配置 `extra_suffixes`：英文逗号分隔，追加可收录的扩展名」：extra extends the whitelist |
+| 29 | `KnowledgeExtraSuffixesTest` | `test_missing_key_keeps_default_whitelist` | 覆盖「配置 `extra_suffixes`：英文逗号分隔，追加可收录的扩展名」：missing key keeps default whitelist |
+| 30 | `KnowledgeExtraSuffixesTest` | `test_parse_forms` | 覆盖「配置 `extra_suffixes`：英文逗号分隔，追加可收录的扩展名」：parse forms |
+| 31 | `KnowledgeTextOnlyTest` | `test_binary_is_neither_listed_nor_selectable` | 覆盖「知识库只收文本类文件：非文本不列、不可勾（读出来是替换字符与 NUL，只占预算）」：binary is neither listed nor selectable |
+| 32 | `KnowledgeTextOnlyTest` | `test_runtime_rejects_binary_check` | 覆盖「知识库只收文本类文件：非文本不列、不可勾（读出来是替换字符与 NUL，只占预算）」：runtime rejects binary check |
+| 33 | `KnowledgeTextOnlyTest` | `test_text_suffix_rules` | 覆盖「知识库只收文本类文件：非文本不列、不可勾（读出来是替换字符与 NUL，只占预算）」：text suffix rules |
+| 34 | `PluginConfigIsolationTest` | `test_each_plugin_reads_its_own_config_file` | 覆盖「内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-conf…」：each plugin reads its own config file |
+| 35 | `PluginConfigIsolationTest` | `test_kernel_templates_have_no_plugin_section` | 覆盖「内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-conf…」：kernel templates have no plugin section |
+| 36 | `PluginConfigIsolationTest` | `test_skills_dir_comes_from_its_own_config` | 覆盖「内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-conf…」：skills dir comes from its own config |
+| 37 | `PluginPanelRenderContractTest` | `test_knowledge_panel_matches_composite_dom_id` | 壳层广播的 panel 是 `knowledge__kb`，不能只认逻辑 id `kb`。 |
+| 38 | `PluginPanelRenderContractTest` | `test_open_pane_broadcasts_panel_opened` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：open pane broadcasts panel opened |
+| 39 | `PluginPanelRenderContractTest` | `test_open_plugin_panel_passes_its_plugin_name` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：open plugin panel passes its plugin name |
+| 40 | `PluginPanelRenderContractTest` | `test_panel_has_a_refresh_button_on_the_subtitle` | 小标题右侧一个刷新：知识库目录是外部目录，不重开面板也要能取到新文件。 |
+| 41 | `PluginPanelRenderContractTest` | `test_panels_render_on_the_event` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：panels render on the event |
+| 42 | `PluginPanelRenderContractTest` | `test_refresh_handler_re_renders` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：refresh handler re renders |
+| 43 | `PluginSourceContractTest` | `test_disposer_removes_the_source` | 覆盖「插件注入源的契约：注册进「知识库」段、每回合刷新、disposer 后消失」：disposer removes the source |
+| 44 | `PluginSourceContractTest` | `test_plugin_sources_do_not_touch_the_kernel` | 插件来源只经注册表进出；内核不持有插件对象。 |
+| 45 | `PluginSourceContractTest` | `test_segments_carry_their_own_name_and_prefix` | 段名与注入前缀由来源声明：内核不解释正文是什么。 |
+| 46 | `PluginSourceContractTest` | `test_source_is_refreshed_every_turn` | 注入源每回合都重读：第 2 回合改内容，请求里立刻反映。 |
+| 47 | `PluginSourceContractTest` | `test_source_text_lands_in_the_knowledge_block` | 覆盖「插件注入源的契约：注册进「知识库」段、每回合刷新、disposer 后消失」：source text lands in the knowledge block |
+| 48 | `PluginSourceContractTest` | `test_two_sources_of_one_plugin_stay_separate` | 同一插件可以贡献多段：数量按位置对，不互相覆盖。 |
+| 49 | `SkillsConfigSourceTest` | `test_plugin_dir_has_no_own_config` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：plugin dir has no own config |
+| 50 | `SkillsConfigSourceTest` | `test_reader_reads_the_project_config` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：reader reads the project config |
+| 51 | `SkillsConfigSourceTest` | `test_reader_takes_a_given_ini` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：reader takes a given ini |
 
 ## test_layout_min_width.py
 
@@ -2505,6 +2508,29 @@
 | 128 | `WindowHoverTest` | `test_hover_runs_after_activation_and_before_capture` | 覆盖「窗口悬停：先恢复/置前，再移光标，最后取图」：hover runs after activation and before capture |
 | 129 | `WindowHoverTest` | `test_hover_without_window_captures_the_cursor_layer` | 没给窗口时按光标落点取那一层，避免整屏缩放后看不清控件文字。 |
 | 130 | `WindowHoverTest` | `test_plain_window_capture_does_not_pass_a_prepare_hook` | 覆盖「窗口悬停：先恢复/置前，再移光标，最后取图」：plain window capture does not pass a prepare hook |
+
+## test_wake_scheduler.py
+
+共 16 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `QueueDedupeTest` | `test_dedupe_key_does_not_create_second_item` | 覆盖「A class whose instances are single test cases」：dedupe key does not create second item |
+| 2 | `RealMeshDispatcherTest` | `test_busy_target_is_queued_with_dedupe_key` | 覆盖「A class whose instances are single test cases」：busy target is queued with dedupe key |
+| 3 | `RealMeshDispatcherTest` | `test_idle_dispatch_goes_through_mesh_activator` | 覆盖「A class whose instances are single test cases」：idle dispatch goes through mesh activator |
+| 4 | `RealMeshDispatcherTest` | `test_process_lock_allows_one_scheduler` | 覆盖「A class whose instances are single test cases」：process lock allows one scheduler |
+| 5 | `RealMeshDispatcherTest` | `test_terminal_jobs_are_pruned` | 覆盖「A class whose instances are single test cases」：terminal jobs are pruned |
+| 6 | `WakeSchedulerTest` | `test_cancel_prevents_delivery` | 覆盖「A class whose instances are single test cases」：cancel prevents delivery |
+| 7 | `WakeSchedulerTest` | `test_invalid_schedules_are_rejected` | 覆盖「A class whose instances are single test cases」：invalid schedules are rejected |
+| 8 | `WakeSchedulerTest` | `test_list_filters_by_target_and_owner` | 覆盖「A class whose instances are single test cases」：list filters by target and owner |
+| 9 | `WakeSchedulerTest` | `test_parse_due_at_normalizes_z` | 覆盖「A class whose instances are single test cases」：parse due at normalizes z |
+| 10 | `WakeSchedulerTest` | `test_restart_does_not_repeat_delivered_job` | 覆盖「A class whose instances are single test cases」：restart does not repeat delivered job |
+| 11 | `WakeSchedulerTest` | `test_restart_recovers_pending_job` | 覆盖「A class whose instances are single test cases」：restart recovers pending job |
+| 12 | `WakeSchedulerTest` | `test_sleep_registers_and_delivers_once` | 覆盖「A class whose instances are single test cases」：sleep registers and delivers once |
+| 13 | `WakeSchedulerTest` | `test_target_must_exist_for_other_session` | 覆盖「A class whose instances are single test cases」：target must exist for other session |
+| 14 | `WakeToolTest` | `test_app_wake_state_helpers` | 覆盖「A class whose instances are single test cases」：app wake state helpers |
+| 15 | `WakeToolTest` | `test_schedule_rejects_past` | 覆盖「A class whose instances are single test cases」：schedule rejects past |
+| 16 | `WakeToolTest` | `test_sleep_list_cancel` | 覆盖「A class whose instances are single test cases」：sleep list cancel |
 
 ## test_web_auth.py
 

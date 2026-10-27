@@ -59,6 +59,17 @@ class KBRuntimeTest(unittest.TestCase):
         self.root = self.base / "kb"
         _make_tree(self.root)
 
+    def test_resource_directory_lines_unconfigured(self) -> None:
+        runtime = _PLUGIN.KBRuntime(None)
+        lines = _PLUGIN.resource_directory_lines(runtime)
+        self.assertEqual(lines[0], "- 知识库: 未配置")
+        self.assertIn('"知识库"插件中配置dir', lines[1])
+
+    def test_resource_directory_lines_configured(self) -> None:
+        runtime = _PLUGIN.KBRuntime(self.root)
+        lines = _PLUGIN.resource_directory_lines(runtime)
+        self.assertEqual(lines[0], f"- 知识库: {self.root.resolve()}")
+
     def test_disabled_when_root_missing(self) -> None:
 
         r = _PLUGIN.KBRuntime(None)

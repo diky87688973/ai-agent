@@ -137,7 +137,7 @@ inbound 直接持有历史/布局/状态实现
 | 插件 UI/主题/图标 | `plugins/<name>/ui/` | 插件 `add_panel`/`add_ctx_segment_style` | 用解析后的插件根，不写死 `plugins/<name>` |
 | 界面配置 | `web-ui-config.ini` | 壳层读取 | 非插件私有配置 |
 | 会话事实 | `data/sessions/*.raw` | `mechanisms/session_store.py` | append-only；不得直接改写 |
-| 运行态数据 | `data/{queues,mesh,plugin,session_state,recycle,logs,auth,auth2..auth9,subagent,batches,cache}` | 对应的 mechanisms、shell 与 subagent 服务 | 只经各自服务访问；不得复制权威状态 |
+| 运行态数据 | `data/{queues,mesh,wake,plugin,session_state,recycle,logs,auth,auth2..auth9,subagent,batches,cache}` | 对应的 mechanisms、shell 与 subagent 服务 | 只经各自服务访问；不得复制权威状态 |
 | 规则资产 | `rules/*.md` | `rules` 插件，经 `ContextSources` 注入 | 用户/项目规则归插件，不进壳层 |
 | 技能资产 | `skills/**` | `skills` 插件，经 `ContextSources` 注入 | 技能正文归技能库，不进内核 |
 | 工具目录 | `catalog/tools.json` | `scripts/gen_catalog.py` 生成，`check_catalog.py` 校验 | 生成物；不得手改 |

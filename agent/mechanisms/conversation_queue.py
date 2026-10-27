@@ -99,6 +99,7 @@ class ConversationQueue:
         sender: Optional[Dict[str, Any]] = None,
         delivery: str = "after_turn",
         payload: Optional[Dict[str, Any]] = None,
+        dedupe_key: str = "",
     ) -> Dict[str, Any]:
         key = self._key(cid)
         text = str(content or "").strip()
@@ -118,6 +119,14 @@ class ConversationQueue:
         now = int(time.time())
         with self._lock:
             self._ensure_locked(key)
+            if dedupe_key:
+                for existing in self._items.get(key, []):
+                    if (existing.get("dedupe_key") == dedupe_key
+                            and existing.get("state") not in ("delivered", "cancelled")):
+                        return self._public(
+                            existing,
+                            position=self._position_locked(key, str(existing.get("id") or "")),
+                        )
             seq = max((int(item.get("seq") or 0) for item in self._items.get(key, [])),
                       default=0) + 1
             attachments_meta: List[Dict[str, Any]] = []
@@ -151,6 +160,7 @@ class ConversationQueue:
                 "created_at": now,
                 "updated_at": now,
                 "payload": dict(payload or {}),
+                "dedupe_key": str(dedupe_key or ""),
             }
             self._write_item(item, blobs)
             self._items.setdefault(key, []).append(item)

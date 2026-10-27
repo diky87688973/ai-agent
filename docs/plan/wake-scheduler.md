@@ -2,7 +2,7 @@
 
 # Wake scheduler overview
 
-Status: design overview; not implemented.
+Status: minimal implementation; single-process process lock, single-thread scheduling, JSON persistence, delivery reuses `MeshState.submit`.
 
 ## Goals
 
@@ -30,19 +30,20 @@ the model holding a turn open to wait
 ## Components
 
 ```text
-Scheduler
+WakeScheduler
   single-threaded timer
   nearest due job
   cancellation and shutdown
 
-JobStore
-  persist jobs
-  restore on startup
-  idempotent state
+WakeJobStore
+  jobs.json persistence
+  startup recovery
+  state machine
 
-WakeDispatcher
+Delivery
   convert due jobs into wake messages
-  deliver to the target conversation queue
+  reuse MeshState.submit (idle start / busy queue)
+  queue dedupe by wake_job_id
 ```
 
 ## Job fields

@@ -240,6 +240,7 @@ agent-web --revoke-token ci
 | `data/temp/` | 临时产物（写盘前备份见上节「文件备份」） |
 | `data/mesh/` | 会话间协作（`agents.json` 注册表 + 运行态） |
 | `data/queues/` | 会话待发送消息队列（用户与 Agent 消息、附件） |
+| `data/wake/` | 唤醒任务及其投递状态 |
 | `data/mesh/runs/` | 运行态登记（`<cid>.json`） |
 | `data/workspace/` | `/workspace/` 静态路由根 |
 | `data/recycle/` | 删除操作的回收目录 |

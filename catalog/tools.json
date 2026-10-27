@@ -1401,6 +1401,82 @@
       }
     },
     {
+      "description": "注册一个绝对时间的唤醒任务，立即返回 job_id，不阻塞当前回合。at 使用带时区的 ISO 8601；无时区按宿主本地时区解释。已过期时间会被拒绝，不会静默改成立即执行。",
+      "display": {
+        "icon": "⏰",
+        "label": "定时唤醒"
+      },
+      "name": "task_schedule",
+      "parallel_safe": false,
+      "parameters": {
+        "at": {
+          "description": "ISO 8601 时间，例如 2026-10-28T09:00:00+08:00",
+          "type": "string"
+        },
+        "reminder": {
+          "description": "到期投递的提醒内容",
+          "type": "string"
+        },
+        "target_cid": {
+          "description": "目标会话 id；缺省为当前会话",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "注册一个相对时间的唤醒任务，立即返回 job_id，不阻塞当前回合。到期后宿主向目标会话投递 reminder，目标空闲则启动回合，忙碌则进入队列。不要用本工具等待结果，也不要在工具内 sleep。",
+      "display": {
+        "icon": "⏰",
+        "label": "定时唤醒"
+      },
+      "name": "task_sleep",
+      "parallel_safe": false,
+      "parameters": {
+        "reminder": {
+          "description": "到期投递的提醒内容",
+          "type": "string"
+        },
+        "seconds": {
+          "description": "延迟秒数，必须大于 0",
+          "type": "number"
+        },
+        "target_cid": {
+          "description": "目标会话 id；缺省为当前会话",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "取消一个尚未到期的唤醒任务；已终态的任务保持不变。",
+      "display": {
+        "icon": "⏰",
+        "label": "取消唤醒"
+      },
+      "name": "task_wake_cancel",
+      "parallel_safe": false,
+      "parameters": {
+        "job_id": {
+          "description": "task_sleep / task_schedule 返回的 job_id",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "列出当前会话或指定目标会话的唤醒任务，按到期时间排序。",
+      "display": {
+        "icon": "⏰",
+        "label": "唤醒任务"
+      },
+      "name": "task_wake_list",
+      "parallel_safe": false,
+      "parameters": {
+        "target_cid": {
+          "description": "目标会话 id；缺省为当前会话",
+          "type": "string"
+        }
+      }
+    },
+    {
       "description": "对左右两侧文本生成 unified diff（只读不落盘）；左右各取「文件路径或内联文本」之一。",
       "display": {
         "icon": "📑",

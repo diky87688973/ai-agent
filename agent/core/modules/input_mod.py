@@ -73,7 +73,7 @@ class InputModule(ModuleBase):
                     payload["_sender_name"] = name
         if from_queue:
             payload["_from_queue"] = 1
-        for key in ("kind", "source", "notice_id", "batch"):
+        for key in ("kind", "source", "notice_id", "batch", "wake_job_id"):
             if meta.get(key):
                 payload[key] = meta[key]
         yield ports.emit(INPUT_CLAIMED, **payload)

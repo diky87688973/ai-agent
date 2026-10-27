@@ -45,6 +45,7 @@ SERVICE_ERROR_LOG = "error_log"                  # 错误日志（mechanisms.Err
 SERVICE_BACKGROUND_TASKS = "background_tasks"    # 后台任务管理器（按 cid 隔离）
 SERVICE_UPDATE = "update"                        # 软件更新控制器
 SERVICE_SUBAGENTS = "subagents"                  # 子智能体管理器
+SERVICE_WAKE_SCHEDULER = "wake_scheduler"         # 会话唤醒调度器
 
 
 class AppContext:
