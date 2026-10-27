@@ -1,15 +1,16 @@
-# 标准适用性申报
+**English** | [中文](applicability.zh.md)
 
-本仓库当前**不申报任何不适用项**：`production-standards.md` 的条目全部按标准执行。
-豁免以下表行为准，未申报即适用；新增豁免需补齐原因与风险承担者。
+# Standard applicability declarations
 
-| 准则 | 申报 | 原因 | 风险由谁承担 |
+This repository currently declares **no non-applicable items**: every item in `production-standards.md` is applied as specified.
+Exemptions are governed by the table rows below; anything not declared is applicable. A new exemption must include a reason and a risk bearer.
+
+| Rule | Declaration | Reason | Risk bearer |
 |---|---|---|---|
 
-## 维护约定
+## Maintenance conventions
 
-1. 申报对象限 `MUST` / `SHOULD`；未申报的条目继续生效。
-2. 原因需是一句可独立成立的话，长度下限 20 字；只写"本项目不需要"不足以申报。
-3. 风险承担者为具体角色，或"无（不存在该风险）"；空值不被接受。
-4. 编号双向比对：本表出现 `scripts/standards_rules.py` 集合外的编号 = 过期申报；
-   集合内的编号未申报 = 继续适用。手册升版时同步该集合，diff 即编号增删。
+1. Only `MUST` / `SHOULD` items may be declared; items that are not declared remain in force.
+2. The reason must be a self-contained sentence of at least 20 characters; writing only "this project does not need it" is not sufficient for a declaration.
+3. The risk bearer is a specific role, or "none (the risk does not exist)"; an empty value is not accepted.
+4. IDs are compared in both directions: an ID in this table that is outside the set in `scripts/standards_rules.py` is a stale declaration; an ID in the set that is not declared remains applicable. When the handbook version changes, update that set; the diff consists of ID additions and removals.

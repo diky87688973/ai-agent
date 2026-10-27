@@ -1,104 +1,70 @@
-# 会话消息队列方案
+**English** | [中文](conversation-queue.zh.md)
 
-## 目标
+# Conversation message queue
 
-会话忙时，用户输入和 Agent 投递进入同一个待发送队列，不阻塞输入，不丢消息，不丢图片。
+## Goals
 
-队列提供：
+When a conversation is busy, user input and Agent deliveries enter the same pending queue. Input is not blocked, and no message or image is lost.
 
-- 回合结束自动投递
-- 下一个安全模型轮次插入
-- 修改并还原到输入栏
-- 取消
-- Agent 来源标记
+The queue provides:
 
-## 边界
+- automatic delivery at turn end
+- insertion at the next safe model pass
+- edit and restore to the input box
+- cancellation
+- Agent origin marking
 
-- 队列不属于会话事实，不写 `data/sessions/*.raw`
-- 队列项只有投递后才产生 `INPUT_CLAIMED` 事实
-- 队列不改变模型上下文装配顺序
-- 队列不保存已投递消息
-- 旧 inbox 不迁移、不读取、不兼容，直接移除
+## Boundaries
 
-## 现有 inbox 冲突
+- The queue is not part of conversation facts and does not write `data/sessions/*.raw`.
+- A queue item produces an `INPUT_CLAIMED` fact only after delivery.
+- The queue does not change the order in which the model context is assembled.
+- The queue does not retain delivered messages.
+- User input and Agent delivery share one queue with stable item IDs and one state machine; there is no separate pending-message path.
 
-现有 inbox 同时承担 Agent 间传输和回合续跑：
+## Asset ownership
 
-```text
-agent/mechanisms/mesh.py
-  data/mesh/inbox/<cid>.jsonl
-  无队列项 ID
-  无修改/取消状态
-
-agent/core/modules/inbox_mod.py
-  每个模型 pass 前自动抽干
-  直接注入当前回合
-
-agent/shell/session_runner.py
-  回合结束后从 mesh inbox 取队首
-
-agent/shell/web_api.py
-  忙时返回 409
-
-chat/send.js
-  忙时弹窗阻止发送
-```
-
-冲突：
-
-- 用户消息会被当作 Agent 消息在 pass 中途注入
-- Agent 消息可能在 UI 操作前被消费
-- 没有稳定 ID，无法精确修改/取消
-- 来源、排序、图片、状态无法统一
-- 旧 inbox 自动抽干与用户控制的队列语义互斥
-
-结论：删除旧 inbox 职责，新增统一 `ConversationQueue`。
-
-## 资产归属
-
-| 资产 | 归属 |
+| Asset | Owner |
 |---|---|
-| 队列存储、状态机、附件 | `agent/mechanisms/conversation_queue.py` |
-| 服务注册 | `agent/core/context.py` 的 `SERVICE_CONVERSATION_QUEUE` |
-| 回合结束调度 | `agent/shell/session_runner.py` |
-| 安全插入点注入 | `agent/core/modules/queued_input_mod.py` |
-| 输入事实 | `agent/core/modules/input_mod.py` |
-| HTTP 端点 | `agent/shell/web_api.py`、`agent/shell/web_routes.py` |
-| SSE 契约 | `agent/core/event_name.py`、classic adapter |
-| UI | `agent/shell/web_assets/classic/js/chat/queue.js`、CSS、`agent-ui.html` |
-| 队列数据 | `data/queues/<cid>/` |
+| Queue storage, state machine, attachments | `agent/mechanisms/conversation_queue.py` |
+| Service registration | `SERVICE_CONVERSATION_QUEUE` in `agent/core/context.py` |
+| Turn-end scheduling | `agent/shell/session/runner.py`, `agent/shell/session/queue.py` |
+| Safe insertion point injection | `agent/core/modules/queued_input_mod.py` |
+| Input facts | `agent/core/modules/input_mod.py` |
+| HTTP endpoints | `agent/shell/web/web_routes.py`, `agent/shell/web/web_chat.py`, `agent/shell/web/web_api.py` |
+| SSE contract | `agent/core/event_name.py`, `agent/shell/classic_adapter/` |
+| UI | `agent/shell/web/web_assets/classic/js/chat/queue.js`, `agent/shell/web/web_assets/classic/css/chat-queue.css`, `agent/shell/web/web_assets/classic/agent-ui.html` |
+| Queue data | `data/queues/<cid>/` |
 
-`MeshState` 只保留：
+`MeshState` retains:
 
-- Agent 注册表
-- 运行占位与活跃集
-- Agent 发现
+- Agent registry
+- run placeholder and active set
+- session existence checks
+- atomic delivery through `submit`
 
-`MeshState` 删除：
+Queue storage and queue state belong to `ConversationQueue`.
 
-- `_inboxes`
-- inbox 持久化
-- inbox 出队
-- `end_run` 的队列续占逻辑
-
-## 数据模型
+## Data model
 
 ```text
-id              队列项 ID
-cid             会话 ID
-origin          user | agent
-content         文本
-attachments     附件元数据
-sender          Agent 来源信息
+id              queue item ID
+cid             conversation ID
+origin          user | agent | system
+content         text
+attachments     attachment metadata
+sender          Agent origin metadata
 delivery        after_turn | next_pass
-state           queued | inserting | claimed | delivered | cancelled | draft
-seq             队列顺序
+state           queued | inserting | claimed | draft
+seq             queue order
 created_at
 updated_at
-revision        队列版本
+payload         internal metadata: resume result, notice kind, source, ID, batch
 ```
 
-`sender`：
+A queue item does not carry a revision. Each conversation has one queue revision, stored in `data/queues/<cid>/revision` and incremented on every queue change.
+
+`sender`:
 
 ```text
 cid
@@ -107,7 +73,7 @@ thread_id
 requires_reply
 ```
 
-`attachments`：
+`attachments`:
 
 ```text
 id
@@ -115,44 +81,50 @@ mime
 size
 width
 height
-blob            内部存储路径，不返回前端
 ```
 
-## 状态机
+The blob path is internal and is not returned to the frontend.
+
+Background-task notices and resume results are internal `system` items. They do not appear in the queue snapshot but keep their place in delivery order.
+
+## State machine
 
 ```text
 queued
-  ├─ 插入发送 → inserting
-  ├─ 修改 → draft
-  └─ 取消 → cancelled
+  ├─ insert send → inserting
+  ├─ edit → draft
+  └─ cancel → removed
 
 inserting
-  ├─ 安全插入点 → claimed → delivered
-  ├─ 回合提前结束 → queued
-  └─ 取消 → cancelled
-
-队列行进入 inserting 后显示「已插入」，修改、删除与再次插入均禁用。
+  ├─ safe insertion point → claimed
+  ├─ turn ends early → stays inserting
+  └─ cancel → removed
 
 draft
-  ├─ 重新提交 → queued / inserting
-  └─ 丢弃 → cancelled
+  ├─ resubmit → new queued item
+  └─ discard → removed
 
 claimed
-  禁止修改、禁止取消
+  ├─ input fact emitted (insert) → removed
+  ├─ turn completes (after_turn) → removed
+  └─ process restart → queued
 ```
 
-规则：
+A queue row in `inserting` is shown as Inserted; edit, cancel, and insert again are disabled.
 
-- `claimed` 后修改/取消返回 409
-- 取消立即从队列视图移除
-- 投递成功后从队列删除
-- 写盘失败返回错误，不清空输入栏
+Rules:
 
-## 图片规则
+- After `claimed`, edit and cancel return 409.
+- Cancel removes the item from the queue view immediately.
+- A delivered item is removed from the queue.
+- A persistence failure returns an error and leaves the input box unchanged.
+- On process restart, items persisted as `claimed` return to `queued`; `inserting` items stay `inserting` and are delivered at the next safe point.
 
-队列不设置独立图片上限。
+## Image rules
 
-输入框、`/api/chat/send`、队列使用同一套附件规则：
+The queue has no separate image cap.
+
+The input box, `/api/chat/send`, and the queue use one attachment rule:
 
 ```text
 agent/core/input_attachments.py
@@ -161,92 +133,98 @@ agent/core/input_attachments.py
   normalize_images()
 ```
 
-- 输入框接受多少张，队列就能存多少张
-- 图片数量限制只改这一处
-- 服务端请求体大小上限仍由 `MAX_BODY_BYTES` 控制
-- 队列只保存已通过输入校验的附件
-- 不截断、不再过滤、不静默丢图
-- UI 的最大图片数由 `/health` 下发，JS 不写死 `4`
+- The input box and the queue accept the same number of images.
+- The limit is defined by `MAX_IMAGES`; the UI reads it from `/health` as `max_images`.
+- The server request body limit is controlled by `MAX_BODY_BYTES`.
+- The queue stores only attachments that passed input validation.
+- The queue adds no cap or filter beyond the shared attachment rule.
+- Attachments that pass validation are stored in full and are not dropped silently.
 
-附件落盘：
+Attachment storage:
 
 ```text
-data/queues/<cid>/<item_id>/
-  meta.json
-  attachments/<attachment_id>
+data/queues/<cid>/
+  revision
+  <item_id>/
+    meta.json
+    <attachment_id>
 ```
 
-`meta.json` 只存附件元数据；原图独立存 blob。
+`meta.json` stores the item and its attachment metadata; each original image is stored as a separate blob named `a0`, `a1`, and so on.
 
-队列列表返回附件元数据，不返回整张 base64。修改时读取 blob，恢复为 `data_base64` 给输入栏。
+The queue list returns attachment metadata, not full base64 images. Recall reads the blobs and returns them as `data_base64` for the input box.
 
-## 投递策略
+## Delivery policy
 
-### 会话空闲
+### Idle conversation
 
-`POST /api/chat/send` 直接启动新回合，不入队。
+`POST /api/chat/send` starts a new turn directly. The message is not queued.
 
-### 会话忙
+### Busy conversation
 
 ```text
 POST /api/chat/send
-→ 入队，delivery=after_turn
-→ 返回 queue_item
-→ 输入栏清空
-→ 队列 UI 增加一行
+→ enqueue, delivery=after_turn
+→ return queue_item
+→ clear the input box
+→ add a queue row
 ```
 
-回合结束：
+At turn end:
 
 ```text
-当前回合结束
-→ SessionRunner 仍持有运行占位
-→ ConversationQueue 取 after_turn 队首
-→ 续占下一轮
-→ 启动新回合
-→ 队列项删除
+the current turn ends
+→ SessionRunner still holds the run placeholder
+→ ConversationQueue claims the first after_turn item
+→ renew the placeholder for the next turn
+→ start a new turn
+→ remove the item after that turn completes
 ```
 
-队列优先于目标和自主续跑。
+The queue takes priority over goal and autonomous continuation.
 
-一条消息一轮，不合并多条消息。
+`after_turn` delivery consumes one item per turn and does not merge messages.
 
-### 停止
+### Stop
 
-停止只结束当前回合：
+Stop ends only the current turn:
 
-- 不自动消费队列
-- 队列项保持原状态
-- 用户可以继续插入、修改、取消
-- 下一次显式发送或插入后才继续
+- it does not consume the queue automatically
+- queue items keep their current state
+- the user can still insert, edit, and cancel
+- only the next explicit send or insert continues
 
-## 插入发送
+## Insertion send
 
-插入点是下一个安全模型轮次：
+The insertion point is the next safe model pass:
 
 ```text
-当前模型流结束
-→ 当前批次工具全部结束
-→ 工具结果落盘
-→ 下一个 pass 开始
+the current model stream ends
+→ every tool in the current batch finishes
+→ tool results are persisted
+→ the next pass starts
 → QueuedInputModule
 → CompressModule
 → ModelModule
 ```
 
-不插入到：
+Insertion never happens:
 
-- 模型流式输出中
-- 工具执行中
-- tool_call 与 tool_result 之间
+- during model streaming
+- during tool execution
+- between a tool_call and its tool_result
 
-插入中的条目在回合提前结束时回到 `queued`，下一回合继续处理。
+When the conversation is idle, an insert starts a new turn immediately; the item is that turn's input.
 
-立即中断当前回合属于“停止 + 新回合”，不属于队列插入。
+At one safe point, all items in `inserting` are claimed in queue order and each emits its own `INPUT_CLAIMED` fact.
 
-## Agent 消息
+An item that is `inserting` when the turn ends early stays `inserting`; it is delivered at the next safe point.
 
-Agent 消息统一入队：
+Interrupting the current turn immediately is a stop followed by a new turn, not queue insertion.
+
+## Agent messages
+
+When the target conversation is busy, an Agent message enters the queue:
 
 ```text
 origin=agent
@@ -254,34 +232,38 @@ sender={cid,name,thread_id,requires_reply}
 delivery=after_turn
 ```
 
-展示：
+When the target is idle, the message starts a turn directly and is not queued.
+
+A queued subagent peer message is marked `inserting` (`delivery=next_pass`) and is delivered at the next safe point.
+
+Display:
 
 ```text
-[#1] [🤖 AgentName] [消息内容] [插入发送] [修改] [取消]
+[#1] [🤖 AgentName] [message] [Insert] [Edit] [Cancel]
 ```
 
-投递后按 Agent 消息渲染，不变成普通用户消息。
+After delivery it is rendered as an Agent message, not as an ordinary user message.
 
-Agent 消息默认不自动注入当前回合。
+Ordinary Agent messages are not injected into the current turn. Queued subagent peer messages use the next safe point.
 
-## 修改与来源保留
+## Edit and origin preservation
 
-修改用户消息：
+Editing a user message:
 
-1. recall 队列项
-2. 状态改为 `draft`，从队列视图移除
-3. 文本和图片还原到输入栏
-4. 重新提交时生成新队列项
+1. recall the queue item
+2. change its state to `draft` and remove it from the queue view
+3. restore text and images to the input box
+4. resubmit to create a new queue item
 
-修改 Agent 消息：
+Editing an Agent message:
 
-1. recall 返回 `origin=agent`、sender 元数据、`draft_queue_id`
-2. 输入栏显示来源标记
-3. 重新提交携带 `draft_queue_id`
-4. 服务端校验 draft 属于当前会话
-5. 新队列项保留 `origin=agent` 与 sender
+1. recall returns `origin=agent`, sender metadata, and `draft_queue_id`
+2. the input box shows the origin marker
+3. resubmit carries `draft_queue_id`
+4. the server verifies that the draft belongs to the conversation
+5. the new queue item keeps `origin=agent` and the sender
 
-浏览器不能自行声明 Agent 身份。
+The browser cannot declare Agent identity by itself.
 
 ## API
 
@@ -293,46 +275,49 @@ POST   /api/chat/queue/<item_id>/recall
 DELETE /api/chat/queue/<item_id>
 ```
 
-`POST /api/chat/send` 忙时响应：
+Queue operations carry `conversation_id`: query for GET and DELETE, body for POST.
+
+Busy `POST /api/chat/send` response:
 
 ```json
 {
   "ok": true,
-  "queued": true,
   "conversation_id": "cid",
-  "queue_item": {"id": "q_...", "position": 1},
+  "run_id": "",
+  "queued": true,
+  "queue_item": {"id": "<item_id>", "position": 1},
   "revision": 12
 }
 ```
 
-`recall` 响应：
+`recall` response:
 
 ```json
 {
   "ok": true,
-  "draft_queue_id": "q_...",
+  "draft_queue_id": "<item_id>",
   "item": {
-    "id": "q_...",
+    "id": "<item_id>",
     "origin": "user",
     "content": "text",
     "sender": null,
     "attachments": [
       {"mime": "image/png", "data_base64": "..."}
     ]
-  }
+  },
+  "revision": 12
 }
 ```
 
-队列快照：
+Queue snapshot:
 
 ```json
 {
-  "ok": true,
   "conversation_id": "cid",
   "revision": 12,
   "items": [
     {
-      "id": "q_...",
+      "id": "<item_id>",
       "position": 1,
       "origin": "user",
       "content": "text",
@@ -346,45 +331,45 @@ DELETE /api/chat/queue/<item_id>
 }
 ```
 
-SSE：
+SSE:
 
 ```text
 queue_updated
 ```
 
-携带会话快照与 revision。前端按 revision 覆盖，不做增量猜测。
+The event carries the conversation snapshot and revision. The frontend replaces its queue with that snapshot; it does not apply increments.
 
 ## UI
 
-位置：输入框上方左侧，宽度为输入框的一半；语音播放条在队列上方。
+Position: above the input box on the left, half the input width. The voice playback bar sits below the queue.
 
-用户消息：
-
-```text
-[#1] [帮我处理一下 xxxx] [插入发送] [修改] [取消]
-```
-
-Agent 消息：
+User message:
 
 ```text
-[#1] [🤖 AgentName] [协作消息...] [插入发送] [修改] [取消]
+[#1] [Handle xxxx for me] [Insert] [Edit] [Cancel]
 ```
 
-行为：
+Agent message:
 
-- 忙时不再拦截发送
-- 发送成功后才清空输入栏
-- 队列项按 `position` 展示
-- `插入中` 禁止重复点击
-- 修改后恢复文本、图片和来源标记
-- 取消立即移除
-- 队列为空自动隐藏
-- 按会话 tab 独立
-- 刷新后通过快照恢复
+```text
+[#1] [🤖 AgentName] [Coordination message...] [Insert] [Edit] [Cancel]
+```
 
-## 输入事实
+Behavior:
 
-用户消息和 Agent 消息走同一输入事实形状：
+- a busy conversation does not block sending
+- in the queued path, the input box is cleared only after a successful response
+- queue items are shown by `position`
+- an `inserting` row cannot be clicked again
+- edit restores text, images, and the origin marker
+- cancel removes the row immediately
+- an empty queue hides itself
+- each conversation tab has its own queue
+- a refresh restores the queue from the snapshot
+
+## Input facts
+
+User messages and Agent messages use the same input fact shape:
 
 ```json
 {
@@ -395,73 +380,49 @@ Agent 消息：
 }
 ```
 
-用户消息不带 `_sender`。
+A user message has no `_sender`.
 
-`InputModule` 和 `QueuedInputModule` 共用同一个 payload 构造函数，避免两条输入路径漂移。
+Both input paths emit this shape and pass attachments through `with_attachment_ids()`; any field added to one path is added to the other.
 
-## 删除范围
+## Tests
 
-直接删除，不保留兼容层：
+### Queue mechanism
 
-- `agent/core/modules/inbox_mod.py`
-- `MeshState` 的 inbox 字段与持久化
-- `MeshState.enqueue` / `pop` / `inbox_size`
-- `MeshState.end_run` 的队列出队
-- `INBOX_DEQUEUED` 旧事件
-- `inbox_queued` 旧 SSE 提示
-- 旧 inbox 测试
+- enqueue while busy; direct send while idle
+- persistence failure leaves the input intact
+- queue order and revision
+- image save and restore
+- no queue-specific image cap; same rule as the input box
+- edit and cancel state machine
+- claimed rejects edit and cancel
+- restart recovery: claimed returns to queued, inserting is preserved
+- stop does not deliver automatically
 
-旧 `data/mesh/inbox/*.jsonl` 不读取、不迁移、不删除。
+### Turn scheduling
 
-## 测试
+- one after_turn message per turn
+- goal and autonomous continuation do not preempt the queue
+- insertion runs after the tool batch and before the next model request
+- an inserting item stays inserting when the turn ends early
+- conversations are isolated from each other
+- Agent messages keep their origin on delivery
 
-### 队列机制
+### API and UI
 
-- 忙时入队、空闲直发
-- 写盘失败不清空输入
-- 队列顺序与 revision
-- 图片完整保存与恢复
-- 无队列图片数量上限，规则与输入框一致
-- 修改/取消状态机
-- claimed 拒绝修改/取消
-- 重启恢复
-- 停止后不自动投递
+- a busy send returns queued
+- queue snapshot and revision
+- recall returns text, images, and origin
+- insert takes effect
+- cancel takes effect
+- SSE replaces the snapshot
+- edit then send preserves Agent origin
+- image preview is restored
 
-### 回合调度
+### Regression
 
-- 回合结束一条一轮
-- 目标/自主续跑不抢占队列
-- 插入在工具批次后、下一次模型请求前
-- 插入中回合结束回队
-- 多会话隔离
-- Agent 消息按来源投递
-
-### API / UI
-
-- 忙时 send 返回 queued
-- queue 快照与 revision
-- recall 返回文本、图片、来源
-- insert 生效
-- cancel 生效
-- SSE 快照覆盖
-- 修改后发送保留 Agent 来源
-- 图片预览恢复
-
-### 回归
-
-- `session_send` / `session_multisend` / `session_broadcast`
+- `session_send`, `session_multisend`, `session_broadcast`
 - `requires_reply`
-- 确认与恢复轮
-- 停止
-- 目标与自主续跑
-- 现有会话历史
-
-## 实施顺序
-
-1. `agent/core/input_attachments.py` 统一附件规则
-2. `ConversationQueue` 与持久化
-3. 删除 MeshState inbox
-4. `QueuedInputModule` 与 `SessionRunner` 调度
-5. Web API / SSE
-6. 队列 UI 与图片还原
-7. 测试、文档、验收
+- confirmation and resume turns
+- stop
+- goal and autonomous continuation
+- conversation history

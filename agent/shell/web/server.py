@@ -30,6 +30,7 @@ from agent.config import DEFAULT_CONFIG_PATH
 from agent.core.error_report import report_error
 from agent.mechanisms.session_title import make_provider_title_generator
 from agent.shell.fspaths import (
+    MEDIA_ROOT_ENV,
     default_fs_roots,
     normalize_roots,
     resolve_fs_roots,
@@ -65,7 +66,7 @@ def create_server(
         raise TypeError("create_server 需要显式 auth，不再隐式读取工程配置")
     shell = WebShell(
         app,
-        media_root=media_root or (roots[0] if roots else Path.cwd()),
+        media_root=media_root,
         fs_roots=roots,
         titles_dir=titles_dir,
         title_generator=title_generator,
@@ -168,11 +169,12 @@ def serve(
     auth = _startup_auth(root, host, tls_cert, tls_key, allow_insecure_public)
     if auth is None:
         return 2
+    explicit_media = media_root or os.environ.get(MEDIA_ROOT_ENV)
     server, _shell = create_server(
         app,
         host=host,
         port=port,
-        media_root=resolve_media_root(roots, media_root),
+        media_root=resolve_media_root(roots, explicit_media) if explicit_media else None,
         fs_root=roots,
         titles_dir=root / "titles",
         workspace_root=root / "workspace",

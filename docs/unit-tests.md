@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **1917** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **1919** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -19,7 +19,7 @@
 8. [test_artifact_lock.py](#test_artifact_lockpy)（16）
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（21）
 10. [test_auth_security.py](#test_auth_securitypy)（7）
-11. [test_background_tasks.py](#test_background_taskspy)（15）
+11. [test_background_tasks.py](#test_background_taskspy)（16）
 12. [test_batch_f_tools.py](#test_batch_f_toolspy)（23）
 13. [test_catalog.py](#test_catalogpy)（8）
 14. [test_classic_adapter.py](#test_classic_adapterpy)（103）
@@ -47,7 +47,7 @@
 36. [test_four_step_gate.py](#test_four_step_gatepy)（9）
 37. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
 38. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
-39. [test_gate_negative.py](#test_gate_negativepy)（66）
+39. [test_gate_negative.py](#test_gate_negativepy)（67）
 40. [test_goal_runner.py](#test_goal_runnerpy)（6）
 41. [test_gui_launcher.py](#test_gui_launcherpy)（8）
 42. [test_image_embed.py](#test_image_embedpy)（10）
@@ -356,7 +356,7 @@
 
 ## test_background_tasks.py
 
-共 15 个用例。
+共 16 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -371,10 +371,11 @@
 | 9 | `BackgroundTaskManagerTest` | `test_env_allowlist_keeps_user_paths_excludes_secrets` | 覆盖「A class whose instances are single test cases」：env allowlist keeps user paths excludes secrets |
 | 10 | `BackgroundTaskManagerTest` | `test_execution_timeout_and_running_cancel` | 覆盖「A class whose instances are single test cases」：execution timeout and running cancel |
 | 11 | `BackgroundTaskManagerTest` | `test_label_required_but_not_unique` | 覆盖「A class whose instances are single test cases」：label required but not unique |
-| 12 | `BackgroundTaskManagerTest` | `test_plan_mode_rejects_create` | 覆盖「A class whose instances are single test cases」：plan mode rejects create |
-| 13 | `BackgroundTaskManagerTest` | `test_queue_capacity_and_cid_isolation` | 覆盖「A class whose instances are single test cases」：queue capacity and cid isolation |
-| 14 | `BackgroundTaskManagerTest` | `test_system_notice_metadata_survives_queue_and_history` | 覆盖「A class whose instances are single test cases」：system notice metadata survives queue and history |
-| 15 | `BackgroundTaskManagerTest` | `test_tool_dispatch_create_list_output_cancel` | 覆盖「A class whose instances are single test cases」：tool dispatch create list output cancel |
+| 12 | `BackgroundTaskManagerTest` | `test_output_cursor_rebases_after_buffer_trim` | 覆盖「A class whose instances are single test cases」：output cursor rebases after buffer trim |
+| 13 | `BackgroundTaskManagerTest` | `test_plan_mode_rejects_create` | 覆盖「A class whose instances are single test cases」：plan mode rejects create |
+| 14 | `BackgroundTaskManagerTest` | `test_queue_capacity_and_cid_isolation` | 覆盖「A class whose instances are single test cases」：queue capacity and cid isolation |
+| 15 | `BackgroundTaskManagerTest` | `test_system_notice_metadata_survives_queue_and_history` | 覆盖「A class whose instances are single test cases」：system notice metadata survives queue and history |
+| 16 | `BackgroundTaskManagerTest` | `test_tool_dispatch_create_list_output_cancel` | 覆盖「A class whose instances are single test cases」：tool dispatch create list output cancel |
 
 ## test_batch_f_tools.py
 
@@ -1148,7 +1149,7 @@
 
 ## test_gate_negative.py
 
-共 66 个用例。
+共 67 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1157,67 +1158,68 @@
 | 3 | `AcceptanceSkipGateTest` | `test_over_budget_fails` | 覆盖「验收 skip：预算上限与白名单都必须能触发」：over budget fails |
 | 4 | `AcceptanceSkipGateTest` | `test_whitelisted_within_budget_passes` | 覆盖「验收 skip：预算上限与白名单都必须能触发」：whitelisted within budget passes |
 | 5 | `ApplicabilityGateTest` | `test_counts_and_ratio_visible` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：counts and ratio visible |
-| 6 | `ApplicabilityGateTest` | `test_missing_table_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：missing table fails |
-| 7 | `ApplicabilityGateTest` | `test_rule_ids_are_wellformed` | 编号格式错会让整张表无法申报；分节标题混进来会稀释占比。 |
-| 8 | `ApplicabilityGateTest` | `test_short_reason_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：short reason fails |
-| 9 | `ApplicabilityGateTest` | `test_stale_id_fails_through_main` | 端到端：拿真实编号集合比对一条不存在的编号，门禁必须退出 1。 |
-| 10 | `ApplicabilityGateTest` | `test_unknown_rule_id_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：unknown rule id fails |
-| 11 | `ApplicabilityGateTest` | `test_well_formed_row_passes` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：well formed row passes |
-| 12 | `ArchitectureHygieneGateTest` | `test_cross_layer_private_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：cross layer private import fails |
-| 13 | `ArchitectureHygieneGateTest` | `test_plugin_name_in_core_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：plugin name in core fails |
-| 14 | `ArchitectureHygieneGateTest` | `test_quality_gate_real_module_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate real module passes |
-| 15 | `ArchitectureHygieneGateTest` | `test_quality_gate_shim_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate shim import fails |
-| 16 | `ArchitectureHygieneGateTest` | `test_same_layer_private_import_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：same layer private import passes |
-| 17 | `CommentStyleGateTest` | `test_clean_comment_passes` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：clean comment passes |
-| 18 | `CommentStyleGateTest` | `test_code_unpacking_is_not_emphasis` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：code unpacking is not emphasis |
-| 19 | `CommentStyleGateTest` | `test_command_to_reader_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：command to reader fails |
-| 20 | `CommentStyleGateTest` | `test_markdown_emphasis_across_lines_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：markdown emphasis across lines fails |
-| 21 | `CommentStyleGateTest` | `test_markdown_emphasis_comment_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：markdown emphasis comment fails |
-| 22 | `CommentStyleGateTest` | `test_string_literal_is_not_comment` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：string literal is not comment |
-| 23 | `CommentStyleGateTest` | `test_todo_comment_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：todo comment fails |
-| 24 | `ComplexityGateTest` | `test_big_file_fails_without_registry` | 覆盖「复杂度：任何超阈值文件/函数都必须失败，没有豁免表」：big file fails without registry |
-| 25 | `ComplexityGateTest` | `test_generated_doc_drift_is_reported` | 覆盖「复杂度：任何超阈值文件/函数都必须失败，没有豁免表」：generated doc drift is reported |
-| 26 | `ConfigDriftGateTest` | `test_model_plugin_rejects_unknown_key` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：model plugin rejects unknown key |
-| 27 | `ConfigDriftGateTest` | `test_real_file_extra_key_reports_line_number` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：real file extra key reports line number |
-| 28 | `ConfigDriftGateTest` | `test_real_file_subset_passes` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：real file subset passes |
-| 29 | `ConfigDriftGateTest` | `test_unknown_section_fails` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：unknown section fails |
-| 30 | `ConfigModelExampleGateTest` | `test_compare_model_example_detects_changed_section` | 覆盖「A class whose instances are single test cases」：compare model example detects changed section |
-| 31 | `ConfigModelExampleGateTest` | `test_compare_model_example_detects_extra_key` | 覆盖「A class whose instances are single test cases」：compare model example detects extra key |
-| 32 | `ConfigModelExampleGateTest` | `test_compare_model_example_positive` | 覆盖「A class whose instances are single test cases」：compare model example positive |
-| 33 | `ConfigModelExampleGateTest` | `test_compare_model_example_requires_keys` | 覆盖「A class whose instances are single test cases」：compare model example requires keys |
-| 34 | `ConfirmWordingGateTest` | `test_compliant_wording_passes` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：compliant wording passes |
-| 35 | `ConfirmWordingGateTest` | `test_explanatory_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：explanatory wording fails |
-| 36 | `ConfirmWordingGateTest` | `test_gate_without_next_step_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：gate without next step fails |
-| 37 | `ConfirmWordingGateTest` | `test_missing_unlock_tool_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：missing unlock tool fails |
-| 38 | `ConfirmWordingGateTest` | `test_vague_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：vague wording fails |
-| 39 | `CoverageGateTest` | `test_at_or_above_floor_passes` | 覆盖「覆盖率：低于下限、缺数据都要失败」：at or above floor passes |
-| 40 | `CoverageGateTest` | `test_below_floor_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：below floor fails |
-| 41 | `CoverageGateTest` | `test_missing_group_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：missing group fails |
-| 42 | `GeneratedArtifactDriftTest` | `test_ci_workflow_byte_drift_fails` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：ci workflow byte drift fails |
-| 43 | `GeneratedArtifactDriftTest` | `test_ci_workflow_current_is_clean` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：ci workflow current is clean |
-| 44 | `GeneratedArtifactDriftTest` | `test_render_contains_every_gate_and_acceptance` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：render contains every gate and acceptance |
-| 45 | `GeneratedArtifactDriftTest` | `test_unit_tests_md_drift_fails` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：unit tests md drift fails |
-| 46 | `GeneratedComplexityDocGateTest` | `test_check_accepts_generated_text` | 覆盖「A class whose instances are single test cases」：check accepts generated text |
-| 47 | `GeneratedComplexityDocGateTest` | `test_check_detects_drift` | 覆盖「A class whose instances are single test cases」：check detects drift |
-| 48 | `GeneratedComplexityDocGateTest` | `test_check_detects_extra_content` | 覆盖「A class whose instances are single test cases」：check detects extra content |
-| 49 | `GeneratedComplexityDocGateTest` | `test_check_detects_missing_file` | 覆盖「A class whose instances are single test cases」：check detects missing file |
-| 50 | `ImportDirectionGateTest` | `test_composition_root_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：composition root import fails |
-| 51 | `ImportDirectionGateTest` | `test_downward_import_passes` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：downward import passes |
-| 52 | `ImportDirectionGateTest` | `test_type_checking_annotation_is_allowed` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：type checking annotation is allowed |
-| 53 | `ImportDirectionGateTest` | `test_upward_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：upward import fails |
-| 54 | `PythonFloorGateTest` | `test_ordinary_function_passes` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：ordinary function passes |
-| 55 | `PythonFloorGateTest` | `test_pep695_generic_fails` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：pep695 generic fails |
-| 56 | `ReadmeGateTest` | `test_acceptance_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：acceptance count drift fails |
-| 57 | `ReadmeGateTest` | `test_consistent_readme_passes` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：consistent readme passes |
-| 58 | `ReadmeGateTest` | `test_gate_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：gate count drift fails |
-| 59 | `ReadmeGateTest` | `test_missing_marker_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：missing marker fails |
-| 60 | `ReadmeGateTest` | `test_step_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：step count drift fails |
-| 61 | `ReadmeGateTest` | `test_test_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：test count drift fails |
-| 62 | `ReadmeGateTest` | `test_unknown_data_dir_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：unknown data dir fails |
-| 63 | `UiJsGateTest` | `test_defined_helper_passes` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：defined helper passes |
-| 64 | `UiJsGateTest` | `test_model_id_literal_is_rejected` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：model id literal is rejected |
-| 65 | `UiJsGateTest` | `test_plain_words_are_not_model_ids` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：plain words are not model ids |
-| 66 | `UiJsGateTest` | `test_undefined_helper_call_fails` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：undefined helper call fails |
+| 6 | `ApplicabilityGateTest` | `test_english_header_and_value_pass` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：english header and value pass |
+| 7 | `ApplicabilityGateTest` | `test_missing_table_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：missing table fails |
+| 8 | `ApplicabilityGateTest` | `test_rule_ids_are_wellformed` | 编号格式错会让整张表无法申报；分节标题混进来会稀释占比。 |
+| 9 | `ApplicabilityGateTest` | `test_short_reason_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：short reason fails |
+| 10 | `ApplicabilityGateTest` | `test_stale_id_fails_through_main` | 端到端：拿真实编号集合比对一条不存在的编号，门禁必须退出 1。 |
+| 11 | `ApplicabilityGateTest` | `test_unknown_rule_id_fails` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：unknown rule id fails |
+| 12 | `ApplicabilityGateTest` | `test_well_formed_row_passes` | 覆盖「例外申报表：列数、准则编号、原因长度、未知准则、缺表」：well formed row passes |
+| 13 | `ArchitectureHygieneGateTest` | `test_cross_layer_private_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：cross layer private import fails |
+| 14 | `ArchitectureHygieneGateTest` | `test_plugin_name_in_core_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：plugin name in core fails |
+| 15 | `ArchitectureHygieneGateTest` | `test_quality_gate_real_module_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate real module passes |
+| 16 | `ArchitectureHygieneGateTest` | `test_quality_gate_shim_import_fails` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：quality gate shim import fails |
+| 17 | `ArchitectureHygieneGateTest` | `test_same_layer_private_import_passes` | 覆盖「跨层私有导入 / 内核插件名 / quality_gate 回流」：same layer private import passes |
+| 18 | `CommentStyleGateTest` | `test_clean_comment_passes` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：clean comment passes |
+| 19 | `CommentStyleGateTest` | `test_code_unpacking_is_not_emphasis` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：code unpacking is not emphasis |
+| 20 | `CommentStyleGateTest` | `test_command_to_reader_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：command to reader fails |
+| 21 | `CommentStyleGateTest` | `test_markdown_emphasis_across_lines_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：markdown emphasis across lines fails |
+| 22 | `CommentStyleGateTest` | `test_markdown_emphasis_comment_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：markdown emphasis comment fails |
+| 23 | `CommentStyleGateTest` | `test_string_literal_is_not_comment` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：string literal is not comment |
+| 24 | `CommentStyleGateTest` | `test_todo_comment_fails` | 覆盖「注释文案：只吃注释/文档串，代码里的同名词不误伤」：todo comment fails |
+| 25 | `ComplexityGateTest` | `test_big_file_fails_without_registry` | 覆盖「复杂度：任何超阈值文件/函数都必须失败，没有豁免表」：big file fails without registry |
+| 26 | `ComplexityGateTest` | `test_generated_doc_drift_is_reported` | 覆盖「复杂度：任何超阈值文件/函数都必须失败，没有豁免表」：generated doc drift is reported |
+| 27 | `ConfigDriftGateTest` | `test_model_plugin_rejects_unknown_key` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：model plugin rejects unknown key |
+| 28 | `ConfigDriftGateTest` | `test_real_file_extra_key_reports_line_number` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：real file extra key reports line number |
+| 29 | `ConfigDriftGateTest` | `test_real_file_subset_passes` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：real file subset passes |
+| 30 | `ConfigDriftGateTest` | `test_unknown_section_fails` | 覆盖「配置漂移：真实文件只允许使用 schema 登记的键」：unknown section fails |
+| 31 | `ConfigModelExampleGateTest` | `test_compare_model_example_detects_changed_section` | 覆盖「A class whose instances are single test cases」：compare model example detects changed section |
+| 32 | `ConfigModelExampleGateTest` | `test_compare_model_example_detects_extra_key` | 覆盖「A class whose instances are single test cases」：compare model example detects extra key |
+| 33 | `ConfigModelExampleGateTest` | `test_compare_model_example_positive` | 覆盖「A class whose instances are single test cases」：compare model example positive |
+| 34 | `ConfigModelExampleGateTest` | `test_compare_model_example_requires_keys` | 覆盖「A class whose instances are single test cases」：compare model example requires keys |
+| 35 | `ConfirmWordingGateTest` | `test_compliant_wording_passes` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：compliant wording passes |
+| 36 | `ConfirmWordingGateTest` | `test_explanatory_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：explanatory wording fails |
+| 37 | `ConfirmWordingGateTest` | `test_gate_without_next_step_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：gate without next step fails |
+| 38 | `ConfirmWordingGateTest` | `test_missing_unlock_tool_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：missing unlock tool fails |
+| 39 | `ConfirmWordingGateTest` | `test_vague_wording_fails` | 覆盖「写盘指引：缺解锁工具、含糊写法、解释性内容都必须失败」：vague wording fails |
+| 40 | `CoverageGateTest` | `test_at_or_above_floor_passes` | 覆盖「覆盖率：低于下限、缺数据都要失败」：at or above floor passes |
+| 41 | `CoverageGateTest` | `test_below_floor_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：below floor fails |
+| 42 | `CoverageGateTest` | `test_missing_group_fails` | 覆盖「覆盖率：低于下限、缺数据都要失败」：missing group fails |
+| 43 | `GeneratedArtifactDriftTest` | `test_ci_workflow_byte_drift_fails` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：ci workflow byte drift fails |
+| 44 | `GeneratedArtifactDriftTest` | `test_ci_workflow_current_is_clean` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：ci workflow current is clean |
+| 45 | `GeneratedArtifactDriftTest` | `test_render_contains_every_gate_and_acceptance` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：render contains every gate and acceptance |
+| 46 | `GeneratedArtifactDriftTest` | `test_unit_tests_md_drift_fails` | 覆盖「生成物门禁：直接改动 CI / 单测清单必须被 --check 抓到」：unit tests md drift fails |
+| 47 | `GeneratedComplexityDocGateTest` | `test_check_accepts_generated_text` | 覆盖「A class whose instances are single test cases」：check accepts generated text |
+| 48 | `GeneratedComplexityDocGateTest` | `test_check_detects_drift` | 覆盖「A class whose instances are single test cases」：check detects drift |
+| 49 | `GeneratedComplexityDocGateTest` | `test_check_detects_extra_content` | 覆盖「A class whose instances are single test cases」：check detects extra content |
+| 50 | `GeneratedComplexityDocGateTest` | `test_check_detects_missing_file` | 覆盖「A class whose instances are single test cases」：check detects missing file |
+| 51 | `ImportDirectionGateTest` | `test_composition_root_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：composition root import fails |
+| 52 | `ImportDirectionGateTest` | `test_downward_import_passes` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：downward import passes |
+| 53 | `ImportDirectionGateTest` | `test_type_checking_annotation_is_allowed` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：type checking annotation is allowed |
+| 54 | `ImportDirectionGateTest` | `test_upward_import_fails` | 覆盖「A2：向上导入与反向依赖装配根都必须被抓到」：upward import fails |
+| 55 | `PythonFloorGateTest` | `test_ordinary_function_passes` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：ordinary function passes |
+| 56 | `PythonFloorGateTest` | `test_pep695_generic_fails` | 覆盖「3.11 / 3.12 语法必须在 3.10 下限门禁里报出来」：pep695 generic fails |
+| 57 | `ReadmeGateTest` | `test_acceptance_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：acceptance count drift fails |
+| 58 | `ReadmeGateTest` | `test_consistent_readme_passes` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：consistent readme passes |
+| 59 | `ReadmeGateTest` | `test_gate_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：gate count drift fails |
+| 60 | `ReadmeGateTest` | `test_missing_marker_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：missing marker fails |
+| 61 | `ReadmeGateTest` | `test_step_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：step count drift fails |
+| 62 | `ReadmeGateTest` | `test_test_count_drift_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：test count drift fails |
+| 63 | `ReadmeGateTest` | `test_unknown_data_dir_fails` | 覆盖「README 事实：步数、门禁数、用例数写错或标记缺失都必须失败」：unknown data dir fails |
+| 64 | `UiJsGateTest` | `test_defined_helper_passes` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：defined helper passes |
+| 65 | `UiJsGateTest` | `test_model_id_literal_is_rejected` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：model id literal is rejected |
+| 66 | `UiJsGateTest` | `test_plain_words_are_not_model_ids` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：plain words are not model ids |
+| 67 | `UiJsGateTest` | `test_undefined_helper_call_fails` | 覆盖「UI JS：调用未定义的辅助函数必须被抓到」：undefined helper call fails |
 
 ## test_goal_runner.py
 

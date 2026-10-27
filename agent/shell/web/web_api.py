@@ -116,6 +116,18 @@ class WebShell(
         if callable(announce):
             announce(cid, model)
 
+    def _remember_run(self, cid: str, run_id: str) -> None:
+        """记录空闲直接启动的 run_id，供 stop 回执关联；已结束的回合不登记。"""
+        key = str(cid or "").strip()
+        rid = str(run_id or "").strip()
+        if not key or not rid:
+            return
+        mesh = getattr(self.app, "mesh", None)
+        if mesh is None or not mesh.is_running(key):
+            return
+        with self._lock:
+            self._runs[key] = rid
+
     def active_run(self, cid: str) -> str:
         with self._lock:
             return str(self._runs.get(str(cid or "").strip()) or "")

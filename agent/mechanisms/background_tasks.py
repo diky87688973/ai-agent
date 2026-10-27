@@ -404,11 +404,7 @@ class BackgroundTaskManager:
                 if not chunk:
                     break
                 with self._lock:
-                    target.extend(chunk)
-                    if len(target) > MAX_OUTPUT_BYTES:
-                        drop = len(target) - MAX_OUTPUT_BYTES
-                        del target[:drop]
-                        record.truncated = True
+                    self._append_output(record, target, channel, chunk)
                     self._changed.notify_all()
         except (OSError, ValueError) as exc:
             report_error("agent.mechanisms.background_tasks.read", exc, task_id=record.task_id)
@@ -417,6 +413,20 @@ class BackgroundTaskManager:
                 stream.close()
             except OSError as exc:
                 report_error("agent.mechanisms.background_tasks.close", exc, task_id=record.task_id)
+
+    @staticmethod
+    def _append_output(record: BackgroundTaskRecord, target: bytearray,
+                       channel: str, chunk: bytes) -> None:
+        """追加输出并按裁剪量回退游标，避免裁剪后读到空/错位内容。"""
+        target.extend(chunk)
+        if len(target) <= MAX_OUTPUT_BYTES:
+            return
+        drop = len(target) - MAX_OUTPUT_BYTES
+        del target[:drop]
+        cursor_name = "stdout_cursor" if channel == "stdout" else "stderr_cursor"
+        cursor = max(0, int(getattr(record, cursor_name)) - drop)
+        setattr(record, cursor_name, min(cursor, len(target)))
+        record.truncated = True
 
     def _watch(self, q: _CidQueue, record: BackgroundTaskRecord) -> None:
         proc = record.process

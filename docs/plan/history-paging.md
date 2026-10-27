@@ -1,62 +1,59 @@
-# 会话历史分页方案
+**English** | [中文](history-paging.zh.md)
 
-## 1. 背景与目标
+**Status:** design proposal; not implemented in the current codebase.
 
-刷新页面时，经典界面调用 `GET /api/chat/history` 一次取回整份会话历史。
-该端点把 `.raw` 事实日志整体折成 `items`（用户气泡、思考、助手正文、工具卡及其结果报文、附件），
-前端再把每个 item 建成 DOM 节点。会话越大，刷新越慢，DOM 越多，内存压力越大。
+# Session history paging
 
-目标：
+## 1. Background and goals
 
-1. 首屏只渲染最新一页，页面刷新与内存占用与会话总长度解耦。
-2. 向上滚动时按需取更早的页，取完为止。
-3. 不改变事实日志格式，不改变内核事件接口，不改变 SSE 重放语义。
-4. 页边界落在用户轮次上，任何一页都不出现"半个轮次"。
+On page refresh, the classic UI calls `GET /api/chat/history` and receives the whole conversation history in one response. The endpoint folds the entire `.raw` fact log into `items` (user bubbles, thinking, assistant text, tool cards with their result payloads, and attachments), and the frontend builds a DOM node for each item. The larger the conversation, the slower the refresh, the more DOM nodes, and the greater the memory pressure.
 
-## 2. 术语
+Goals:
 
-| 词 | 含义 |
+1. Render only the newest page on first paint; refresh time and memory use are decoupled from total conversation length.
+2. Fetch earlier pages on demand when scrolling up, until exhausted.
+3. Do not change the fact-log format, the kernel event interface, or SSE replay semantics.
+4. Place page boundaries on user rounds so that no page contains half a round.
+
+## 2. Terminology
+
+| Term | Meaning |
 |---|---|
-| 轮次（round） | 一条 `input_claimed` 事实开始，到下一个 `input_claimed` 之前为止的全部内容 |
-| 轮 ID | 该轮 `input_claimed` 事实的 `_seq`（全局存储坐标，单调唯一） |
-| `before` | 页的**排他**边界：只返回轮 ID 小于它的轮次 |
-| `next_before` | 本页最早一轮的轮 ID，即下一次请求的 `before`；`has_more=false` 时为 `null` |
-| 页 | 由若干个**连续完整轮次**组成的条目序列 |
-| 字符成本 | 一个 `item` 折算成文本后的字符数，口径见 5.3 |
+| Round | Everything from one `input_claimed` fact up to the next `input_claimed` |
+| Round ID | The `_seq` of that round's `input_claimed` fact: its global storage coordinate, monotonic and unique |
+| `before` | **Exclusive** page boundary: only rounds whose round ID is lower than it are returned |
+| `next_before` | Round ID of the earliest round in this page, which is the `before` of the next request; `null` when `has_more=false` |
+| Page | An item sequence made of several **consecutive complete rounds** |
+| Character cost | Number of characters in one `item` converted to text; see 5.3 |
 
-本方案**不使用 `cursor` 一词**：本工程的 `cursor` 专指 SSE 断线续传的全局存储坐标
-（`cursor_of` / `replay_after` / `Last-Event-ID`）。分页边界是轮 ID，二者不是同一种东西，
-同词会让人把"翻到更早"与"从断点重放"混为一谈。
+This design does not use the word `cursor`: in this project `cursor` refers specifically to the global storage coordinate used for SSE reconnect and replay (`cursor_of` / `replay_after` / `Last-Event-ID`). A page boundary is a round ID; the two are different, and mixing the words would conflate "going further back" with "replaying from a breakpoint".
 
-一条轮次可以包含：用户气泡与其附件、思考块、若干条助手正文、若干张工具卡
-（参数、结果 `preview`、diff、图片）。
+A round may contain: a user bubble and its attachments, thinking blocks, one or more assistant messages, and one or more tool cards (arguments, result `preview`, diff, images).
 
-## 3. 不变量
+## 3. Invariants
 
-1. 分页单位是轮次，不是消息条数，也不是事件条数。
-2. 一页从最新一轮向旧累加，累计字符成本**达到或超过** `10000` 时停止；
-   跨过阈值的这一轮**整轮纳入**。页的实际大小因此是
-   "`≥10000` 字符的最小整轮集合"。
-3. 轮 ID 取 `input_claimed._seq`。不新增 round 字段，不改落盘格式。
-4. 分页只发生在经典界面投影层。内核 `web_api.history` 的原始事件接口不参与分页。
-5. `context_layout` 与 `todo_list` 是整会话汇总态，任何一页都完整返回，不参与分页。
-6. `before` 是排他边界：轮 ID **小于**它的轮次才属于结果。
+1. The unit of paging is the round, not the message count or the event count.
+2. A page accumulates from the newest round toward older ones and stops when the cumulative character cost **reaches or exceeds** `10000`; the round that crosses the threshold is included **as a whole**. A page is therefore "the smallest set of whole rounds whose cumulative cost is at least `10000` characters".
+3. The round ID is `input_claimed._seq`. No round field is added and the on-disk format is unchanged.
+4. Paging happens only in the classic-UI projection layer. The kernel's raw event endpoint (`SessionActions.history`) does not take part in paging.
+5. `context_layout` and `todo_list` are whole-conversation summaries; they are returned in full on every page and do not take part in paging.
+6. `before` is exclusive: only rounds whose round ID is **lower than** it belong to the result.
 
-## 4. 接口契约
+## 4. Interface contract
 
-### 4.1 请求
+### 4.1 Request
 
-```
+```text
 GET /api/chat/history?conversation_id=<cid>[&before=<seq>][&meta=1]
 ```
 
-| 参数 | 必填 | 语义 |
+| Parameter | Required | Meaning |
 |---|---|---|
-| `conversation_id` | 是 | 会话 ID |
-| `before` | 否 | 排他边界（轮 ID）。缺省返回最新一页 |
-| `meta` | 否 | `1` 表示只要 `context_layout` 与 `todo_list`，不折 `items` |
+| `conversation_id` | Yes | Conversation ID |
+| `before` | No | Exclusive boundary (round ID). Defaults to the newest page |
+| `meta` | No | `1` requests only `context_layout` and `todo_list`; no `items` are folded and no `page` is returned |
 
-### 4.2 响应
+### 4.2 Response
 
 ```json
 {
@@ -77,46 +74,52 @@ GET /api/chat/history?conversation_id=<cid>[&before=<seq>][&meta=1]
 }
 ```
 
-字段约定：
+Field rules:
 
-1. `next_before` 是本页**最早一轮**的轮 ID，同时就是下一次请求的 `before`。
-2. `has_more` 为 `false` 时，`next_before` 必须是 `null`。
-3. `page.chars` 是本页各 item 字符成本之和，用于诊断，前端不读。
-4. `items` 的顺序与全量折叠时完全一致，前插不会改变相对顺序。
+1. `next_before` is the round ID of the **earliest round** in this page, and is exactly the `before` of the next request.
+2. When `has_more` is `false`, `next_before` must be `null`.
+3. `page.chars` is the sum of the character costs of the items in this page; it is diagnostic and is not read by the frontend.
+4. The `items` order is exactly the same as in a full fold; prepending does not change relative order.
+5. For a normal request the `page` key set is exactly `budget_chars` / `chars` / `has_more` / `next_before`.
 
-### 4.3 错误与降级
+`page` is a new optional key, forward-compatible only:
 
-| 情况 | 行为 |
+- `meta=1` returns neither `page` nor `items`;
+- the frontend checks that `j.page` exists before reading it; a client that ignores the key can still render this page's `items`, but cannot page further back;
+- the server does not fail when `before` is absent; the default is the newest page;
+- no `page_version` field is added: it has no consumer, and adding one would create a dead contract.
+
+### 4.3 Errors and degradation
+
+| Case | Behavior |
 |---|---|
-| `before` 不是非负整数 | `ok:false`、`error:"invalid before"`、`items:[]`、`has_more:false`、`next_before:null` |
-| `before` 比最早轮次还旧 | `items:[]`、`has_more:false`、`next_before:null` |
-| 会话不存在或没有事件 | `items:[]`、`has_more:false`，其余字段照常 |
-| `meta=1` | `items:[]`、`has_more:false`、`next_before:null` |
+| `before` is not a non-negative integer | `ok:false`, `error:"invalid before"`, `items:[]`, no `page` |
+| `before` is older than the earliest round | `items:[]`, `page.has_more:false`, `page.next_before:null` |
+| Conversation does not exist or has no events | `items:[]`, empty `page`, `context_layout` / `todo_list` returned as usual |
+| `meta=1` | `items:[]`, no `page`, summary fields returned as usual |
 
-该端点保持既有的 `ok` 语义：非 `true` 时前端一律不渲染、不继续翻页。
+The endpoint keeps the existing `ok` semantics: when it is not `true`, the frontend does not render and does not continue paging.
 
-`before` 的**解析与拒绝只发生在 `web_routes.py` 一处**：缺失 → `None`，非法 → 早退为
-`ok:false`。适配层收到的是已校验的 `int | None`，自身不再判形。校验点分裂会让
-"非法输入"在两条路径上给出两种结果（`S1`：校验只在信任边界做一次）。
+`before` is **parsed and rejected in exactly one place, `web_routes.py`**: absent → `None`, invalid → early return as `ok:false`. The adapter receives an already validated `int | None` and does not validate its shape again. Splitting the validation point would make invalid input produce two different results on two paths.
 
-## 5. 后端设计
+## 5. Backend design
 
-### 5.1 模块与依赖
+### 5.1 Modules and dependencies
 
-新增 `agent/shell/classic_adapter/history_page.py`。该模块是**纯函数模块**：
+Add `agent/shell/classic_adapter/history_page.py`. The module is a **pure function module**:
 
-- 不 import `store`、`http`、`adapter`，也不 import 任何 `agent.capabilities` 之上的层；
-- 输入是事件列表，输出是轮次与页；
-- 事件到 item 的折叠规则只有一份实现，`_history_items` 改为对它的薄包装。
+- it imports no `store`, HTTP, or adapter code, and no layer above `agent.capabilities`;
+- its input is events together with their storage coordinates; its output is rounds and pages;
+- the event-to-item folding rules have exactly one implementation, and `history_items` in `classic_adapter/history.py` becomes a thin wrapper around it.
 
-依赖方向保持 `shell → capabilities → mechanisms → core`。
+Dependency direction remains `shell → capabilities → mechanisms → core`.
 
-### 5.2 数据结构
+### 5.2 Data structures
 
 ```python
 @dataclass(frozen=True)
 class Round:
-    anchor: int | None                 # 轮 ID；None 表示首个 input_claimed 之前的残留事件
+    anchor: int | None                 # round ID; None = residual events before the first input_claimed
     items: tuple[dict, ...]
     attachments: tuple[dict, ...]
     chars: int
@@ -132,45 +135,43 @@ class Page:
     next_before: int | None
 ```
 
-`frozen=True` 只挡赋值，挡不住 `page.items.append(...)`——那样会造出"内部可见、
-观察面不可见"的隐藏状态。所有集合字段一律是 `tuple`，构造前用 `tuple(...)` 收敛。
-`Round` 与 `Page` 都是**纯值**：拿到它们的调用方无法改写分页结果。
+`frozen=True` only prevents attribute assignment; it does not prevent `page.items.append(...)`, which would create hidden state that is visible inside the object but not through its public surface. Every collection field is a `tuple`, normalized with `tuple(...)` before construction. `Round` and `Page` are **pure values**: callers that receive them cannot rewrite a paging result.
 
-`attachments` 只收集本页需要登记到附件缓存的字节，避免翻页时把整会话附件重新登记一遍。
+The `dict` objects inside `items` and the `list` objects inside `attachments` / `images` are still mutable, so the paging functions copy their output before returning: top-level `dict` and nested `list` objects are newly created, the attachment cache and the output share no mutable objects, and a caller modifying a returned value does not affect the next call. JSON needs `list`, so `MappingProxyType` cannot be used (`json.dumps` does not accept it).
 
-### 5.3 字符成本
+`attachments` collects only the bytes that this page needs to register in the attachment cache, so paging does not re-register the whole conversation's attachments. Images in tool results remain inline as `data_base64` in `items` and do not enter `attachments`.
 
-`item_cost(item)` 的口径与真实 DOM 的文本量对齐：
+### 5.3 Character cost
 
-| item | 计入 |
+`item_cost(item)` approximates the amount of text in the tool payload area:
+
+| item | Counted |
 |---|---|
-| `user` | `content` 长度；附件按公开 `name` 长度 |
-| `think` | `content` 长度 |
-| `assistant` | `content` 长度 |
-| `tool` | `script` + 紧凑 JSON 化的 `args` + `preview` + `error`；图片按公开 `name` 与 `id` |
+| `user` | `content` length; attachments by their public `name` length |
+| `think` | `content` length |
+| `assistant` | `content` length |
+| `tool` | `script` + compact JSON of `args` + `preview` + `error`; images count only public metadata |
 
-约定：
+Rules:
 
-1. JSON 用 `ensure_ascii=False` 与无空格分隔符，与界面报文区的文本量接近。
-2. 图片不计 base64，只计公开元数据；base64 在附件端点单独取。
-3. `None` 与缺失字段按 0 计。
-4. 阈值常量 `HISTORY_PAGE_CHARS = 10_000` 定义在该模块内，不读配置文件。
+1. JSON uses `ensure_ascii=False` and separators without spaces. The payload area reformats `preview` as indented JSON, so this measure is a lower bound, not an exact character match.
+2. User attachment bytes are not carried in `items`; the attachment endpoint serves them separately, and they do not count toward character cost. Tool images render as images: only public metadata such as `mime` is counted, not `data_base64`.
+3. `None` and missing fields count as 0.
+4. The threshold constant `HISTORY_PAGE_CHARS = 10_000` is defined in this module; it is not read from configuration.
 
-### 5.4 轮次折叠
+### 5.4 Round folding
 
-`fold_rounds(events)`：
+`fold_rounds(events)`:
 
-1. 顺序扫描事件，沿用现有 `_history_items` 的规则产出 item；
-2. 遇到 `input_claimed` 就开新一轮，`anchor = event.data["_seq"]`；
-3. 工具生命周期事件（`tool_started` / `tool_done` / `tool_failed` / `tool_canceled` /
-   `tool_suspended` / `tool_ended`）按 `call_id` 归并到已有工具 item，仍留在当前轮；
-4. 首个 `input_claimed` 之前的事件收进一个 `anchor=None` 的残留轮，排在最前；
-5. 每轮累加 `chars`，保证 `chars == sum(item_cost(i) for i in items)`。
+1. Scan events in order and produce items with the existing folding rules (the former `history_items` implementation).
+2. Start a new round at each `input_claimed`, with `anchor = event.data["_seq"]`.
+3. `tool_started` creates the tool item; later `tool_done` / `tool_failed` / `tool_canceled` / `tool_suspended` / `tool_ended` and `tool_progress` events merge into the existing tool item by `call_id` and stay in the current round.
+4. Events before the first `input_claimed` go into a residual round with `anchor=None`, placed first.
+5. Accumulate `chars` per round, keeping `chars == sum(item_cost(i) for i in items)`.
 
-`_history_items(events)` 保留原签名，实现改为 `flatten(fold_rounds(events))`，
-返回 `(items, resolved_attachments)`，使现有调用方与既有用例的输出保持不变。
+`history_items(events)` keeps its signature: it first assigns a position-based `_seq` to any event that lacks one, then calls `flatten(fold_rounds(events))`, returning `(items, resolved_attachments)`, so existing callers and tests see the same output.
 
-### 5.5 页选择
+### 5.5 Page selection
 
 ```python
 def select_page(rounds, *, before, budget=HISTORY_PAGE_CHARS):
@@ -203,117 +204,103 @@ def select_page(rounds, *, before, budget=HISTORY_PAGE_CHARS):
     )
 ```
 
-边界：
+Boundaries:
 
-1. 单轮成本超过 `budget` 时该轮整轮返回，`chars` 如实大于预算。
-2. 残留轮（`anchor=None`）只能作为最后一页被包含；一旦包含它，`has_more` 为假。
-3. `before` 恰好等于某轮 ID 时，该轮不返回。
-4. `end == 0` 返回空页，`start == end == 0`，`has_more` 为假。
-5. 轮 ID 取 `event.data["_seq"]`；`store.load()` 已把坐标写回事件载荷，
-   缺 `seq` 的旧行按行位置补号。
+1. When a single round costs more than `budget`, that round is returned whole and `chars` is honestly larger than the budget.
+2. A residual round (`anchor=None`) can only be included as the last page; once it is included, `has_more` is false.
+3. When `before` equals a round's ID exactly, that round is not returned.
+4. `end == 0` returns an empty page with `start == end == 0` and `has_more` false.
+5. The round ID is `event.data["_seq"]`. History loading uses `store.load_with_seq()`, which returns `(seq, event)`: a persisted row with `s` uses it, and an old row without `s` uses its line position, written back to `_seq` before folding. `store.load()` discards the line-position fallback, so old rows without `s` come back without `_seq`.
 
-### 5.6 适配层与路由
+### 5.6 Adapter and routing
 
 1. `classic_adapter/inbound.py`
-   - `history(cid, before=None, meta=False)`；`before` 已是校验过的 `int | None`。
-   - `meta=True`：只算 `context_layout` 与 `todo_list`，跳过折叠。
-   - 否则：`fold_rounds` → `select_page` → 用 `Page.items` 组织响应；
-     附件按 5.7 合并登记。
-   - 响应体新增 `page`，其余字段与既有形状一致。
-2. `classic_adapter/adapter.py`：`history()` 透传 `before` 与 `meta`。
-3. `web_routes.py`：解析 `before`，非法即早退为 `ok:false`；合法则透传。
-4. `web_api.py` 的 `history` 不变。
+   - `history(cid, store=None, *, before=None, meta=False)`; `before` is already the validated `int | None`, and `store` lets subagent history supply its own store.
+   - `meta=True`: compute only `context_layout` and `todo_list`; skip folding.
+   - Otherwise: `fold_rounds` → `select_page` → build the response from `Page.items`; attachments are registered with the merge rule in 5.7.
+   - The response adds `page`; all other fields keep their existing shape.
+2. `classic_adapter/adapter.py`: `ClassicAdapter` inherits `Inbound.history` directly; no separate forwarding layer is added, and `before` / `meta` take effect through the method signature.
+3. `web_routes.py`: parse `before`; invalid values return `ok:false` early; valid values pass through.
+4. `SessionActions.history` in `web_sessions.py` (the kernel raw event endpoint) is unchanged.
 
-### 5.7 附件登记
+### 5.7 Attachment registration
 
-`ClassicState.put_attachments` 是**整体替换**（`attachments[cid] = list(items)`），
-不是追加。分页后若每页只带本页字节直接调用它，第 2 页会把第 1 页已渲染气泡的
-附件从缓存里清掉——那些 `<img>` 随即 404，而界面不会报错。
+`ClassicState.put_attachments` is a **whole replacement** (`attachments[cid] = list(items)`), not an append. If each page called it with only its own bytes after paging, page 2 would remove page 1's already-rendered bubble attachments from the cache. The attachment endpoint re-runs `history(cid)` as a fallback when an id is missing, but after paging that call fetches only the newest page, so older pages' attachments are never registered again; those `<img>` requests would 404 without any UI error.
 
-因此新增 `ClassicState.merge_attachments(cid, items)`：
+Therefore add `ClassicState.merge_attachments(cid, items)`:
 
-1. 按 `id` 合并；同一 `id` 以本次为准，其余保持原顺序追加在后。
-2. 单次登记的条数与单张字节上限沿用既有 `_ATTACH_REGISTER_MAX_COUNT` /
-   `_ATTACH_REGISTER_MAX_BYTES`（它们的语义本来就是"每次 history 最多登记多少"，
-   翻页后自然变成"每页最多登记多少"）。
-3. 不做全局裁剪：缓存总量上界 = 每页 24 张 × 已加载页数，且单张 ≤ 2 MB。
-   出现内存压力时再加全局上限，并按"已离开视口的页"淘汰——那需要新增
-   淘汰集合，属于另一项设计，不在本方案里顺带做。
-4. 唯一权威仍是 `ClassicState`：`inbound` 只提供本页增量，不自己再存一份。
-5. 会话切换与清空继续走 `clear_attachments`，语义不变。
+1. Merge by `id`; for a duplicate `id` the new entry wins, and the rest keep their original order and are appended after.
+2. Keep the existing `ATTACH_REGISTER_MAX_COUNT` / `ATTACH_REGISTER_MAX_BYTES` (defined in `classic_adapter/history.py`) as the maximum number of attachments per registration and the per-image byte limit. Their meaning was already the maximum a single history call registers; after paging it naturally becomes the maximum a single page registers.
+3. Do not trim globally: the cache bound is 24 images per page × loaded pages, with each image at most 2 MB. If memory pressure appears, add a global bound and evict pages that have left the viewport; that requires a new eviction set and is a separate design, not part of this one.
+4. `ClassicState` remains the single authority: `inbound` supplies only the current page's increment and keeps no second copy.
+5. Conversation switches and clears continue to use `clear_attachments`, unchanged.
+6. `remember_attachments` (registration when sending images) also merges; calling `put_attachments` there would clear loaded pages' attachments after paging.
+7. `merge_attachments` and `get_attachment` complete under the same lock; paging and sending images concurrently cannot wipe registered attachments through a whole replacement.
 
-## 6. 前端设计
+## 6. Frontend design
 
-### 6.1 每会话状态
+### 6.1 Per-conversation state
 
-`makeConversationTab` 增加：
+`historyLoaded` already marks the first screen in `loadConversationHistory`; paging adds two fields and initializes all three explicitly in `makeConversationTab`:
 
 ```js
-historyLoaded: false,     // 首屏是否已渲染
-historyBefore: null,      // 下一次翻页的 before；null 表示还没取到
+historyLoaded: false,     // whether the first screen has rendered
+historyBefore: null,      // the before for the next page; null = not fetched yet
 historyState: "idle"      // "idle" | "loading" | "exhausted" | "error"
 ```
 
-`historyState` 是**穷尽的四态**，不拆成两个布尔：
+`historyState` is an **exhaustive four-state** value, not two booleans:
 
-| 状态 | 含义 | 滚到顶时的行为 |
+| State | Meaning | Behavior when scrolling to the top |
 |---|---|---|
-| `idle` | 还可以取更早的页 | 发请求 |
-| `loading` | 正在取 | 不发第二个请求 |
-| `exhausted` | 没有更早的轮次 | 不发请求 |
-| `error` | 上一次失败，未恢复 | **不发请求**，等用户点重试 |
+| `idle` | Earlier pages are still available | Send a request |
+| `loading` | A request is in flight | Send no second request |
+| `exhausted` | No earlier rounds remain | Send no request |
+| `error` | The last attempt failed and has not recovered | **Send no request**; wait for the user to click retry |
 
-用 `historyHasMore` + `historyLoading` 两个布尔表达不出 `error`：失败后 `hasMore`
-仍为真，滚到顶会无限重试，把一次网络失败变成死循环（`C2`：终态必须彼此独立）。
-四态随 `saveRuntimeStateToTab` / `loadRuntimeStateFromTab` 一起保存与恢复；
-恢复时 `loading` 一律降级为 `idle`（刷新前的那次请求已经不存在了）。
+Two booleans `historyHasMore` + `historyLoading` cannot express `error`: after a failure `hasMore` is still true, so scrolling to the top retries forever and turns one network failure into an infinite loop.
 
-### 6.2 首屏
+The four states are saved and restored with `saveRuntimeStateToTab` / `loadRuntimeStateFromTab`; on restore, `loading` always degrades to `idle` (the request from before the refresh no longer exists).
 
-1. `loadConversationHistory(t)` 请求不带 `before`。
-2. 成功后写入 `historyBefore = j.page.next_before`，并按 `has_more` 置
-   `exhausted` 或 `idle`；失败置 `error` 并显示一次可重试提示。
-3. 沿用既有判据：消息区已有实时内容时不清空，只渲染本页。
-4. 首屏渲染完成后滚到底部。
+### 6.2 First screen
 
-### 6.3 向上翻页
+1. `loadConversationHistory(t)` sends no `before`.
+2. On success, set `historyBefore = j.page.next_before` and set `exhausted` or `idle` from `has_more`; on failure set `error`, reset `historyLoaded`, and show a retry hint once.
+3. Keep the existing rule: do not clear the message area when it already has live content; render only this page.
+4. Scroll to the bottom after the first screen renders.
 
-触发条件同时满足：
+### 6.3 Paging upward
 
-- 滚动容器的 `scrollTop <= 4`；
-- `t.historyState === "idle"`。
+All of the following must hold:
 
-两个入口共用一个函数 `loadOlderHistory(t)`：
+- the scroll container's `scrollTop <= 4`;
+- `t.historyState === "idle"`.
 
-1. 复用现有的 `document` 捕获阶段 `scroll` 代理，按容器找到所属 tab，
-   不新增逐面板监听。
-2. 增加一个全局 `wheel` 捕获监听（`passive: true`）：已经在顶部继续向上滚时
-   不产生 `scroll` 事件，需要 `deltaY < 0` 才能继续取页。
-3. 请求带 `before = t.historyBefore`；`historyBefore` 为 `null` 时不发请求。
-4. 请求期间置 `loading`，在消息区顶部显示一行轻量提示，完成后移除。
-5. 成功后前插并保持视口锚点：
+Both entry points share one function, `loadOlderHistory(t)`:
+
+1. Reuse the existing `document` capture-phase `scroll` proxy and find the owning tab by container; add no per-panel listener.
+2. Add a global `wheel` capture listener (`passive: true`): when already at the top and still scrolling up, no `scroll` event is produced, so `deltaY < 0` is required to keep fetching pages.
+3. Send `before = t.historyBefore`; when `historyBefore` is `null`, send no request.
+4. Set `loading` during the request, show a lightweight hint line at the top of the message area, and remove it when done.
+5. On success, prepend and preserve the viewport anchor:
 
 ```js
-var anchor = realMsgs.scrollHeight - realMsgs.scrollTop;
-realMsgs.prepend(fragment);
-realMsgs.scrollTop = realMsgs.scrollHeight - anchor;
+var anchor = msgs.scrollHeight - msgs.scrollTop;
+msgs.prepend(fragment);
+msgs.scrollTop = msgs.scrollHeight - anchor;
 ```
 
-6. 失败时置 `error`，顶部提示行变成「加载更早的对话失败 · 点击重试」并留在原处；
-   点击重试才回到 `idle` 并重新请求。失败必须留痕：`console.error` 带上
-   `cid`、`before`、HTTP 状态——不允许 `catch(e){}` 静默返回（`E3`）。
-   失败**不自动重试**：自动重试会让"网络断了"表现为"滚不动且 CPU 在转"。
+6. On failure set `error`; the top hint becomes "加载更早的对话失败 · 点击重试" and stays in place. Only clicking retry returns to `idle` and requests again. Failures must leave a trace: `console.error` with `cid`, `before`, and the HTTP status; a silent `catch(e){}` is not allowed. Failures are **not retried automatically**: automatic retry would make "the network is down" look like "scrolling is stuck and the CPU is spinning".
 
-停止条件（任一命中即置 `exhausted`）：
+Stop conditions (any one sets `exhausted`):
 
-1. `has_more` 为假；
-2. `next_before` 与本次 `before` 相同（防服务端边界不前进）；
-3. 返回空 `items`。
+1. `has_more` is false;
+2. `next_before` equals this request's `before` (guards against a server boundary that does not advance);
+3. empty `items` are returned.
 
-### 6.4 渲染上下文切换
+### 6.4 Render context switching
 
-`add()`、`onToolStart()`、`onToolEnd()`、`appendChatToolRow()`、`appendStep()`
-都读写全局 `msgs` / `steps` / `streamAssistantEl`。翻页时用一个守卫函数临时切换：
+`add()`, `onToolStart()`, `onToolEnd()`, `appendChatToolRow()`, and `appendStep()` all read and write the globals `msgs` / `steps` / `streamAssistantEl`. Paging temporarily switches them with a guard function:
 
 ```js
 function withRenderContext(msgsEl, stepsEl, fn) {
@@ -334,185 +321,83 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 }
 ```
 
-渲染目标是两个游离容器，渲染完成后把子节点分别前插到真实消息区与步骤区。
-工具卡、思考块、附件条因此与实时路径共用同一套渲染函数，不出现两套实现。
+The render targets are two detached containers; after rendering, their child nodes are prepended to the real message area and steps area respectively. Tool cards, thinking blocks, and attachment strips therefore share the same render functions as the live path, with no second implementation. The guard saves and restores values the same way `withConversationContext` does, but points the targets at detached containers.
 
-### 6.5 超长工具报文的延迟渲染
+### 6.5 Delayed rendering of oversized tool payloads
 
-1. `chat-tool-views.js` 增加常量 `LAZY_TOOL_TEXT_CHARS = 20000`。
-2. 所有写长文本的入口统一走 `setLazyText(el, text)`：
-   - 未超阈值：直接写入；
-   - 超出：只写入摘要行，原文挂在元素上，展开时再落 DOM。
-3. 现有委托的展开点击（`.chat-tool-head`）在展开时调用 `materializeLazy(el)`。
-4. 该机制按文本长度判定，不按工具名分支，实时路径与历史路径共用。
-5. 折叠只影响 DOM 写入时机，不改变字符预算与分页结果。
+1. Add the constant `LAZY_TOOL_TEXT_CHARS = 20000` to `chat-tool-views.js`.
+2. Route every long-text write through `setLazyText(el, text)`:
+   - below the threshold: write directly;
+   - above: write only the summary line; keep the full text on the element and insert it into the DOM on expansion.
+3. The existing delegated expand click (`.chat-tool-head`) calls `materializeLazy(el)` when expanding.
+4. The mechanism keys on text length, not tool name, and is shared by the live and history paths.
+5. Collapsing changes only when text is written to the DOM; it does not change the character budget or paging results.
 
-### 6.6 汇总态刷新
+### 6.6 Summary-state refresh
 
-`refreshConversationContextLayout(t)` 改为请求 `?meta=1`，避免每次刷新汇总态都折一页 `items`。
+`refreshConversationContextLayout(t)` requests `?meta=1` instead, so refreshing the summary does not fold a page of `items` every time.
 
-## 7. 文件清单
+## 7. File inventory
 
-| 动作 | 文件 |
+| Action | File |
 |---|---|
-| 新增 | `agent/shell/classic_adapter/history_page.py` |
-| 修改 | `agent/shell/classic_adapter/inbound.py` |
-| 修改 | `agent/shell/classic_adapter/adapter.py` |
-| 修改 | `agent/shell/web_routes.py` |
-| 新增 | `agent/shell/web_assets/classic/js/history-paging.js` |
-| 修改 | `agent/shell/web_assets/classic/js/chat/conversation.js`（分页入口） |
-| 修改 | `agent/shell/web_assets/classic/js/chat/stream.js`（分页帧处理） |
-| 修改 | `agent/shell/web_assets/classic/js/chat-tool-views.js` |
-| 修改 | `agent/shell/web_assets/classic/css/chat-messages.css`（仅分页提示行） |
-| 修改 | `agent/shell/ui_bundle.py`（把新 JS 加进模块清单） |
-| 修改 | `scripts/check_ui_js.py`（模块清单变化后自动覆盖） |
-| 新增测试 | `tests/test_history_page.py` |
-| 修改测试 | `tests/test_web_shell.py` 与经典适配层现有用例 |
-| 同步 | `README.md` 的用例数（`scripts/check_readme.py` 核对） |
+| Add | `agent/shell/classic_adapter/history_page.py` |
+| Modify | `agent/shell/classic_adapter/history.py` |
+| Modify | `agent/shell/classic_adapter/inbound.py` |
+| Modify | `agent/shell/classic_adapter/state.py` |
+| Modify | `agent/shell/web/web_routes.py` |
+| Add | `agent/shell/web/web_assets/classic/js/history-paging.js` |
+| Modify | `agent/shell/web/web_assets/classic/js/chat/conversation.js` |
+| Modify | `agent/shell/web/web_assets/classic/js/chat-tool-views.js` |
+| Modify | `agent/shell/web/web_assets/classic/css/chat-messages.css` |
+| Modify | `agent/shell/web/ui_bundle.py` |
 
-分页逻辑放进新文件 `history-paging.js`，不继续往会话模块里堆：经典界面的主脚本
-已按职责拆成多个模块（见 `ui_bundle.UI_JS_MODULES`），单文件普遍在数百行内。
-新文件必须同时满足三条登记，否则它就是一个"不被门禁看见"的模块：
+Paging logic goes into the new file `history-paging.js` rather than accumulating in the conversation module: the classic UI's main script is already split into modules by responsibility (see `ui_bundle.UI_JS_MODULES`), and individual files generally stay within a few hundred lines.
 
-1. `ui_bundle` 的模块清单里加一项：启动代码在 `core/boot.js` 与
-   `layout/splitters.js`，新文件若依赖同作用域全局，位置要排在这些模块之后。
-2. `scripts/check_ui_js.py` 从同一份清单取文件（过 `node --check` 与裸用未定义标识符检查），
-   不需要单独登记。
-3. 同作用域即可直接调用主脚本函数 —— 拼进同一个 `<script>`，不需要额外声明。
+The new file must be registered in `UI_JS_MODULES`: `scripts/check_ui_js.py` takes its file list from the same list, so no separate registration is needed; modules share one `<script>` scope and can call main-script functions directly. Startup code lives in `core/boot.js` and `layout/splitters.js`; if the new file depends on globals in that scope, place it after those modules.
 
-`setLazyText` / `materializeLazy` 属于工具视图，落在 `chat-tool-views.js`，
-不放进分页文件：它们服务的是"任何长文本"，与"历史翻页"无关。
+`setLazyText` / `materializeLazy` belong to tool views and live in `chat-tool-views.js`, not in the paging file: they serve "any long text", not "history paging".
 
-## 8. 测试与验收
+## 8. Tests and acceptance
 
-单元测试：
+Unit tests (`tests/test_history_page.py`):
 
-1. 字符成本：各类 item 与附件、空字段、超长 `preview`。
-2. 轮次折叠：单轮、多轮、工具跨事件归并、首个 `input_claimed` 之前的残留事件。
-3. 页选择：
-   - 阈值恰好落在轮边界；
-   - 阈值落在轮中间时整轮纳入；
-   - 单轮超预算；
-   - `before` 排他；
-   - `before` 超出范围；
-   - 最后一页 `has_more` 与 `next_before`。
-4. `items` 顺序与全量折叠一致。
-5. 返回值不可变：`page.items` / `round.items` 是 `tuple`，`append` 应抛 `AttributeError`。
-6. 附件合并：连续两次 `merge_attachments` 后，第一次的 `id` 仍可 `get_attachment` 到；
-   同一 `id` 第二次覆盖；超过单次上限时只截断本次。
-7. `before` 非法值在路由层被拒，适配层不会被调用（用打桩断言调用次数为 0）。
+1. Character cost: each item kind and attachments, empty fields, an oversized `preview`.
+2. Round folding: a single round, multiple rounds, tool events merged across events, residual events before the first `input_claimed`, and line-position backfill for old rows without `_seq`.
+3. Page selection:
+   - the threshold falls exactly on a round boundary;
+   - the threshold falls inside a round, which is then included whole;
+   - one round exceeds the budget;
+   - `before` is exclusive;
+   - `before` is out of range;
+   - `has_more` and `next_before` on the last page.
+4. `items` order matches a full fold.
+5. Returned values are immutable: `page.items` / `round.items` are `tuple`, so `append` raises `AttributeError`; modifying `page.items[0]["content"]` and requesting again yields the baseline result; modifying the elements of `page.items[0]["attachments"]` leaves the object returned by `get_attachment` unchanged.
+6. Attachment merge: after two `merge_attachments` calls, the first call's `id` is still available through `get_attachment`; a second registration of the same `id` overrides it; exceeding the per-call cap truncates only the incoming batch.
+7. An invalid `before` is rejected at the routing layer and the adapter is not called (a stub asserts zero calls).
+8. Concurrent page requests and `merge_attachments`: each page's `items` are self-consistent, attachment ids are not lost, and no page references an attachment that has been cleared.
 
-前端用例（`node --check` + 现有静态检查之外，手工验收）：
+Frontend behavior:
 
-1. 断网状态下滚到顶：出现「加载更早的对话失败 · 点击重试」，不再发请求；
-   恢复网络后点重试才继续翻页。
-2. `next_before` 与本次 `before` 相同时立即 `exhausted`，不发第二个请求。
+1. Offline, scrolling to the top: the hint "加载更早的对话失败 · 点击重试" appears and no further requests are sent; after the network recovers, clicking retry resumes paging.
+2. When `next_before` equals this request's `before`, the state becomes `exhausted` immediately and no second request is sent.
 
-集成与手工验收：
+Integration and manual acceptance:
 
-1. 约 5 万字符、10 轮的会话：首屏只含最新若干整轮，累计不低 `10000`，最早一轮完整。
-2. 滚到顶自动前插，视口内容不跳动；连续翻到最早一页后不再发请求。
-3. 单轮 5 万字符的工具输出：整轮返回，报文默认折叠，展开后出现全文。
-4. 刷新 10MB 会话：首屏 DOM 只含一页条目，`history` 响应不含全量 `items`。
-5. `meta=1` 只返回 `context_layout` 与 `todo_list`。
-6. 回合进行中翻旧页：流式气泡仍在底部，前插不打断。
-7. `python scripts/ci.py` 全绿，依赖方向检查通过。
+1. A conversation of about 50,000 characters over 10 rounds: the first screen contains only the newest whole rounds, their cumulative cost is at least `10000`, and the earliest round is complete.
+2. Scrolling to the top prepends automatically without moving the viewport content; after reaching the earliest page, no more requests are sent.
+3. A single round with 50,000 characters of tool output: the whole round is returned, the payload is collapsed by default, and expansion shows the full text.
+4. Refreshing a 10 MB conversation: the first-screen DOM contains only one page of items, and the `history` response does not contain all `items`.
+5. `meta=1` returns only `context_layout` and `todo_list`.
+6. Paging back while a turn is running: the streaming bubble stays at the bottom and prepending does not interrupt it.
 
-## 9. 边界与代价
+## 9. Boundaries and costs
 
-1. 每次翻页服务端仍 `load()` 全量事件并折一遍，复杂度 O(n)。
-   本方案不引入轮次索引；只有出现明显延迟时才值得为它单独设计索引结构。
-2. 不实现视口虚拟化，已加载的旧页不卸载。旧页只在用户主动翻页后出现。
-3. 不新增 `round` 字段，轮次由前端与服务端都不额外记账。
-4. 不改内核事件接口，不改 SSE 断线重放。
-5. 分页只影响经典界面投影；其它客户端读内核原始事件接口，行为不变。
-
-## 10. 工程标准对齐
-
-| 准则 | 本方案的落点 | 验证方式 |
-|---|---|---|
-| `A2` / `A7` 依赖方向可机器证明 | `history_page.py` 只吃 core 的事件形状，不 import `store` / `adapter` / 上层 | `scripts/check_imports.py`（既有门禁） |
-| `A4` 扩展只加文件 | 新增一个模块；`inbound.py` 改为薄包装，不复制折叠规则 | 人工审 + 折叠用例只测一份实现 |
-| `B1` 只读视图真不可变 | `Round` / `Page` 集合字段一律 `tuple`；出参逐项深拷贝，不与缓存共享 dict/list | 单测断言 `append` 抛 `AttributeError`；改返回值后重取结果不变（见 10.1） |
-| `C2` 终态穷尽 | 前端四态 `idle` / `loading` / `exhausted` / `error`，`error` 不自动重试 | 断网验收用例 |
-| `C4` 状态归属单一 | 附件缓存的唯一权威是 `ClassicState`；前端只存"下一次边界"，不存页内容 | `merge_attachments` 单测 |
-| `E1` / `E3` 不丢错误、要留痕 | 翻页失败置 `error` + 可见重试 + `console.error(cid, before, status)` | 手工验收（断网） |
-| `S1` 校验在信任边界 | `before` 只在 `web_routes.py` 解析与拒绝 | 单测断言适配层调用次数为 0 |
-| `X3` 失败路径有测试 | 非法 `before`、附件重叠、边界不前进（`next_before == before`） | `tests/test_history_page.py` |
-| `X5` 新模块在门禁口径内 | 新 JS 同时进 `ui_bundle` / `UI_SCRIPTS` / `SHARED_SCOPE_JS` | `python scripts/ci.py` |
-| `X6` 覆盖率归属 | `history_page.py` 落 `agent/shell` 分包下限；JS 由 `check_ui_js.py` 兜底 | `check_coverage.py`（standards-alignment P3） |
-| `K4` 并发争用 | 翻页与 `merge_attachments` 并发用例（见 10.6） | `-X dev` 并发作业 |
-| `R1` 复杂度 | 分页逻辑另起文件；`inbound.py` 因折叠外移而变短 | 行数对照 10.4 的预算 |
-| `D3` 文档与代码一致 | README 用例数随新增用例同步；`unit-tests.md` 重生成后由 `--check` 接管 | `check_readme.py` + `gen_unit_tests_md.py --check` |
-
-跨语言字段名（`page` 下的键）不做常量共享，改由 `tests/test_web_shell.py`
-锁定键集合：任何一侧改名、另一侧没跟上，用例即红。这比"两边各写一份字符串"可靠。
-
-**存量缺口**（覆盖率、并发作业、依赖环、生成文档漂移）由
-[standards-alignment.md](standards-alignment.md) 统一整改，本方案不重复描述。
-下面只列**本方案自身必须补齐**的 7 项，避免把"等前置修完"当成不做的理由。
-
-### 10.1 `B1` 深不可变：出参与缓存不共享可变对象
-
-`Round` / `Page` 用 `frozen=True` + `tuple` 只解决字段绑定与容器类型；`items` 里是
-`dict`，`attachments` / `images` 里是 `list`，仍是可变对象。本方案的规则是**隔离**：
-
-1. 分页函数返回前复制出参：顶层 `dict` 与嵌套 `attachments` / `images` 的 `list`
-   都新建（JSON 需要 list，不能用 `MappingProxyType`，`json.dumps` 不认）。
-2. 缓存（`ClassicState`）与出参**不共享**任何可变对象；调用方改返回值不影响下一次调用。
-3. 单测：
-   - `page.items.append(...)` 抛 `AttributeError`；
-   - 改 `page.items[0]["content"]` 后再次请求，结果与基线一致；
-   - 改 `page.items[0]["attachments"]` 的元素后，`get_attachment` 仍返回原对象。
-
-### 10.2 `X2` 键契约三轴
-
-跨语言字段名不做常量共享，改用三组断言把"改名"变成红灯：
-
-| 轴 | 断言 | 失败含义 |
-|---|---|---|
-| 服务端出参 | `set(page) == {"budget_chars","chars","has_more","next_before"}`，顶层键集合同时锁定 | 服务端偷偷加/删键 |
-| 前端读取 | JS 静态扫描出的 `page.*` 键集合 == 冻结集合 | 前端读了不存在的键 |
-| 交界 | 两侧共同键的语义表（`before` 进、`next_before` 出）一致 | 一侧改名另一侧没跟 |
-
-`tests/test_history_page.py` 锁 `Page` 字段，`tests/test_web_shell.py` 锁顶层键集合；
-PR 里附三条"只改一侧"的变异演示（改完必红，再改回），作为负向证明记录。
-
-### 10.3 `B6` 契约版本
-
-`page` 是**新增可选键**，只前滚：
-
-- `meta=1` 不返回 `page`（只给 `context_layout` / `todo_list`）；普通请求返回；
-- 前端必须先判 `j.page` 存在再读，旧前端忽略该键仍按全量 `items` 渲染；
-- 服务端不因请求缺 `before` 而失败，缺省即最新页；
-- `before` / `next_before` 的"排他"语义写进 `docs/subsystems/web.md`，不新增
-  `page_version` 字段（当前无消费方，加了就是死契约）。
-
-### 10.4 `R1` 行数预算
-
-| 文件 | 预算 | 说明 |
-|---|---|---|
-| `agent/shell/classic_adapter/history_page.py` | ≤ 350 行 | 纯分页/折叠，不含 HTTP |
-| `agent/shell/web_assets/classic/js/history-paging.js` | ≤ 300 行 | 状态机 + 前插 |
-| `agent/shell/classic_adapter/inbound.py` | 净减（1054 → ≤ 950） | 折叠规则外移后的行数写进 PR 说明 |
-
-新文件不得超过 800 行；没有复杂度登记表。
-
-### 10.5 `D3` 生成文档
-
-新增 3 个测试文件后重跑 `python scripts/gen_unit_tests_md.py`；
-`standards-alignment` P3 落地后由 `--check` 门禁接管，本方案由该门禁覆盖。
-README 里"单元测试（N 个用例）"随用例数同步（`check_readme.py` 会拦）。
-
-### 10.6 `K4` 并发：翻页与附件写入
-
-`tests/test_concurrency.py` 增加一条：1 个线程连续 `merge_attachments`，2 个线程
-同时请求不同 `before` 的页；断言每页的 `items` 自洽、附件 id 不丢、不出现
-"页里引用了已被裁掉的附件"。用例带确定循环次数，不靠 sleep 制造时序；
-CI 用 `PYTHONDEVMODE=1 python -X dev` 跑（由 `standards-alignment` P4 接入）。
-
-### 10.7 覆盖率归属
-
-`history_page.py` 落入 `agent/shell` 分包下限；`history-paging.js` 不进 Python
-覆盖率，由 `check_ui_js.py` 的语法与共享作用域检查兜底。分包下限本身由
-`standards-alignment` P3 建立，本方案只保证新文件在口径内。
+1. Each page request still reads the full event log and folds it, O(n). This design adds no round index; designing an index structure separately is worthwhile only if latency becomes visible.
+2. No viewport virtualization; loaded old pages are not unloaded. Old pages appear only after the user pages back.
+3. No `round` field is added; neither the frontend nor the server keeps extra round accounting.
+4. The kernel event interface and SSE reconnect replay are unchanged.
+5. Paging affects only the classic-UI projection; other clients read the kernel's raw event endpoint and behave as before.
+6. The character budget constrains text only. Images in tool results are still returned inline as `data_base64` with `items` and are not counted; the image bytes of a page are determined by the round count and their content, not by the character threshold.
+7. After a process restart the attachment cache is empty, and the attachment endpoint's fallback fetches only the newest page; images in already-loaded older pages may 404 until those pages are fetched again.
+8. The subagent history route (`/api/subagents/history`) sends no `before` and returns only the newest page; paging back for subagent conversations is outside this design.

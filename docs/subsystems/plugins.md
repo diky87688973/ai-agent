@@ -1,44 +1,40 @@
-# 插件
+**English** | [中文](plugins.zh.md)
 
-插件是内核之外的能力扩展点：工具、事件订阅、上下文注入、工具管道门控、写类工具的
-执行器、HTTP 端点与界面，都由插件声明。**内核不认任何具体插件** —— 它只提供贡献
-注册表与 HTTP 转发。
+# Plugins
 
-内置能力也走这条路：知识库与 Skills 都是插件，对应插件节移除后，它们的注入源、
-工具、面板、按钮与端点一并撤销，内核不受影响。
+Plugins are the capability extension points outside the kernel: tools, event subscriptions, context injection, tool-pipeline gating, executors for write tools, HTTP endpoints, and UI are all declared by plugins. **The kernel knows no specific plugin**; it only provides contribution registries and HTTP forwarding.
 
-## 包
+Built-in capabilities follow the same path: the knowledge base and Skills are plugins. When a plugin's manifest section is removed, its injection sources, tools, panels, buttons, and endpoints are revoked together, with no effect on the kernel.
 
-插件是 `plugins/` 下的一个目录，目录名即插件名，也是清单里写的名字：
+## Package layout
+
+A plugin is a directory under `plugins/`; the directory name is the plugin name and the name used in the manifest:
 
 ```
-plugins/<插件名>/
-  plugin.py        必须。唯一入口，暴露 register(ctx)
-  plugin-meta.json  必须。插件身份：name / desc / icon / version / settings_tab
-  plugin-config.ini  可选。插件自己的真实配置；无敏感信息的插件入库，多模型等含密钥的插件被忽略
-  ui/              可选。面板的样式与脚本
-  <其它文件>        可选。插件自己的数据文件、库、模板
+plugins/<plugin-name>/
+  plugin.py             required. Sole entry point; exposes register(ctx)
+  plugin-meta.json      identity metadata: name / desc / icon / version / settings_tab (read by the settings page)
+  plugin-config.ini     optional. The plugin's own configuration; committed when it has no sensitive data, kept out of version control when it carries credentials (as for multi_model)
+  settings-schema.json  optional. Structured form declaration for the settings page
+  ui/                   optional. Panel styles and scripts
+  <other files>         optional. The plugin's own data files, libraries, templates
 ```
 
-最小形态是只有一个 `plugin.py` 的目录：只订阅事件，不注册工具，也不贡献界面。
+The minimal form is a directory containing only `plugin.py`: it subscribes to events and registers no tools or UI.
 
-`register(ctx)` 返回 disposer 或 disposer 列表。**每个 `ctx.add_*` 都会返回 disposer**，
-且宿主在调用时已自动 `append` 进本插件清单（含 `add_panel` / `add_route` / `add_action` /
-`add_boot_script` / `add_ctx_segment_style` 等）——返回值只为幂等记账；卸载时逆序调用。
-`register` 抛错时经 `ctx` 完成的注册全部回滚，插件不会留半截状态。
+`register(ctx)` returns a disposer, a list of disposers, or nothing. **Every `ctx.add_*` returns a disposer**, and the host records it in the plugin's ledger as it is called (including `add_panel` / `add_route` / `add_action` / `add_boot_script` / `add_ctx_segment_style`). Returned disposers are merged with that ledger and deduplicated by identity; on unload they run in reverse order. If `register` raises, every registration made through `ctx` is rolled back, so the plugin leaves no partial state.
 
-插件可以把实现拆成同目录的多个模块，用相对导入引用自己那部分：
+A plugin may split its implementation into modules in the same directory and reference them with relative imports:
 
 ```python
 from .library import Thing
 ```
 
-子包同样适用（`from .tools.eye import DesktopEyeTool`）：加载器会补上
-`fan_agent_plugins` 父包，插件目录内的相对导入按包内解析。
+Subpackages work the same way (`from .tools.eye import DesktopEyeTool`): the loader supplies the `fan_agent_plugins` parent package, and relative imports inside the plugin directory resolve within the package.
 
-## 清单：`plugins.ini`
+## Manifest: `plugins.ini`
 
-工程根的 `plugins.ini` 列出插件。节在就进入装载候选；开关写在该节的 `enabled`。
+The project-root `plugins.ini` lists plugins. A section makes the plugin a load candidate; its `enabled` key is the switch.
 
 ```ini
 [plugin:skills]
@@ -50,21 +46,19 @@ path = /opt/local/my-plugin
 enabled = 1
 ```
 
-| 字段 | 必填 | 说明 |
+| Field | Required | Description |
 |---|---|---|
-| 节名 | 是 | 固定 `[plugin:<名字>]`。名字即模块名后缀与默认目录名 |
-| `path` | 否 | 插件目录（可在 `plugins/` 外）。相对路径按插件根解析；空则 `plugins/<名字>`。装载后资产与配置一律经宿主的 `plugin_root(名字)`，不写死 `plugins/<名字>` |
-| `enabled` | 否 | `0` 不装载；缺省按 `1`。设置页开关写这一项 |
+| Section name | yes | Fixed form `[plugin:<name>]`. The name is the module-name suffix and the default directory name, and must match `[A-Za-z0-9][A-Za-z0-9_-]*` |
+| `path` | no | Plugin directory (may be outside `plugins/`). Relative paths resolve against the plugin root; when empty, `plugins/<name>`. After loading, the host resolves assets and the settings editor through `plugin_root(name)`, not a hard-coded `plugins/<name>` |
+| `enabled` | no | `0` does not load; absent means `1`. The settings-page switch writes this key |
 
-**节的先后有意义**：它就是插件的装载位次，也是**上下文里插件段的组装顺序**
-（见 [context.md](context.md#组装顺序)）。越不容易变动的插件排在越前面。
+**Section order matters**: it is the plugin's load position and the **assembly order of plugin segments in context** (see [context.md](context.md#assembly-order)). Plugins less likely to change are placed earlier.
 
-配置错了要看得见：名字非法、目录不存在、缺 `plugin.py` 都会记一条 `error` 报告，
-不阻断启动，也不会静默当没写。
+Manifest errors are visible: an invalid name, a missing directory, or a missing `plugin.py` records an `error` report. Startup is not blocked, and the entry is not silently ignored.
 
-### 模式覆盖层
+### Mode overlays
 
-运行模式只覆盖差异，不复制完整清单：
+A run mode overrides only the differences; it does not copy the full manifest:
 
 ```ini
 # plugins.headless.ini
@@ -75,124 +69,104 @@ base = plugins.ini
 enabled = 0
 ```
 
-`[profile] base` 先读基底清单，再按插件名覆盖显式字段；未出现的插件继承基底，
-新增插件追加在末尾。`agent.entry.headless` 默认加载 `plugins.headless.ini`，
-`agent.entry.cli` 默认加载 `plugins.cli.ini`，Web 入口继续使用 `plugins.ini`。
-覆盖层只写 `path` / `enabled` 差异。
+`[profile] base` reads the base manifest first, then overrides explicit fields by plugin name; plugins not mentioned inherit the base, and new plugins are appended at the end. `agent.entry.headless` loads `plugins.headless.ini` by default, `agent.entry.cli` loads `plugins.cli.ini`, and the Web entry continues to use `plugins.ini`. An overlay writes only `path` / `enabled` differences.
 
-## 插件自己的配置
+<a id="插件自己的配置" name="插件自己的配置"></a>
 
-插件自己的配置放**插件自己目录下的 `plugin-config.ini`**，只含插件自己的键。
-插件用 `agent.config.load_ini()` 读取：
+## Plugin configuration
+
+A plugin's own configuration lives in **`plugin-config.ini` in the plugin directory** and contains only the plugin's own keys. The plugin reads it with `agent.config.load_ini()`:
 
 ```
-plugins/<插件名>/plugin-config.ini     ← 只放插件自己的设置
-plugins/<插件名>/plugin-meta.json      ← 身份声明
+plugins/<plugin-name>/plugin-config.ini     ← plugin settings only
+plugins/<plugin-name>/plugin-meta.json      ← identity declaration
 ```
 
-**内核的 `config.ini` 只含内核设置，不放任何插件设置。** 插件的设置在插件自己
-目录下，随插件一起装卸、一起删除。
-`plugin-config.ini` 是唯一真实配置，不提供样例文件；文件不存在时插件使用代码默认值。AI说话 / 视觉操作 / 知识库 / Skills 的配置入库，`multi_model` 的配置被忽略。
+**The kernel's `config.ini` contains kernel settings only; no plugin settings belong there.** Plugin settings live in the plugin directory and are installed, removed, and deleted with the plugin. `plugin-config.ini` is the only configuration file the plugin reads; when it does not exist, the plugin uses code defaults. A format example such as `plugin-config.ini.example` is never read at runtime. Configuration for AI Speak, Visual Operator, the knowledge base, and Skills is committed; `multi_model` configuration is excluded by `.gitignore`.
 
-文件名固定是 `plugin-config.ini`（不是 `config.ini`）——`config.ini` 这个名字专指
-内核配置，同名两份文件会产生歧义。
+The file name is fixed as `plugin-config.ini` (not `config.ini`): `config.ini` refers to kernel configuration, and two files with the same name would be ambiguous.
 
-**设置页只能改插件自己的节。** 身份与开关不在这份文件里：`name` / `desc` / `icon` /
-`version` / `settings_tab` 由 `plugin-meta.json` 声明，`enabled` 由 `plugins.ini` 控制。
-`settings_tab` 非空时，设置页在左侧增加同名入口，点击直接打开该插件的配置编辑器。
-编辑视图分三种：
+**The settings page can edit only the plugin's own sections.** Identity and the switch are not in this file: `name` / `desc` / `icon` / `version` / `settings_tab` come from `plugin-meta.json`, and `enabled` from `plugins.ini`. When `settings_tab` is non-empty and the plugin is enabled and configurable, the settings page adds a sidebar entry with that name; clicking it opens the plugin's configuration editor directly. The editor has three kinds:
 
-- 声明了 `kind: sections` 的插件：按 schema 渲染可增删条目；
-- 声明了 `kind: fields` 的插件：按 schema 渲染字段表单，保存只更新声明字段；
-- 其余插件：正文就是插件自己的键，保存时替换对应节。
+- `kind: sections`: renders schema-driven entries that can be added and removed;
+- `kind: fields`: renders a schema-driven field form; saving updates only the declared fields;
+- anything else: a text editor for the plugin's own keys; saving replaces the corresponding sections.
 
-**没有可编辑设置的插件由它自己声明**：`plugin-meta.json` 里写 `"config": "false"`，
-设置页就不再给它「设置」按钮（判据是插件声明，不是内核去猜有没有配置文件）。
-`plugins/rules` 就是这样：只有开关，没有配置。
+**A plugin with no editable settings declares it**: with `"config": "false"` in `plugin-meta.json`, the settings page does not render a Settings button (the criterion is the plugin's declaration, not the kernel guessing whether a configuration file exists). `plugins/rules` is one such plugin: it has a switch but no configuration.
 
-密钥字段只回显"是否已配置"，留空表示沿用原值。
+In schema-driven forms, secret fields report only whether a value is configured; leaving the field empty keeps the stored value.
 
-插件自己的键由插件自己读、自己解释：内核不解析插件配置，`agent/config.py` 里
-没有任何插件节的读取口。`dir` 一类的相对路径按**工程根**解析（不是按插件目录），
-与内核配置保持同一口径。
-插件的定位不依赖内核 API：`Path(__file__).resolve().parent` 就是插件目录。
+The plugin reads and interprets its own keys: the kernel does not parse plugin configuration, and `agent/config.py` has no reader for plugin sections. Relative paths such as `dir` resolve against the **project root** (not the plugin directory), matching kernel configuration. A plugin does not need a kernel API to locate itself: `Path(__file__).resolve().parent` is its directory.
 
-权限边界要说清：含密钥的插件配置不入库；同机进程读得到它就能读插件配置。
-这与「插件与本机代码同等信任」是同一条边界（见下文）。
+Permission boundary: plugin configuration that contains secrets is not committed; a process on the same machine that can read the plugin directory can read its configuration. This is the same boundary as "a plugin is as trusted as local code" (see below).
 
-## 扩展点全表
+## Extension points
 
-`PluginContext` 上所有 `add_*` 都返回幂等 disposer。
+Every `add_*` on `PluginContext` returns a disposer.
 
-| 扩展点 | 注册什么 | 内核侧落到哪 |
+| Extension point | What is registered | Where it lands in the kernel |
 |---|---|---|
-| `register_tool(tool)` | 一个 `ToolPlugin` | 工具注册表（执行仍走同一条管道） |
-| `set_subagent_tools(tools)` | 本插件向子智能体暴露的工具名清单 | 子智能体模拟工具视图；空清单表示全部不暴露 |
-| `add_executor(name, fn)` | 写类工具的提交执行器 | `ExecutorRegistry`（`commit_write` 提交时按名取） |
-| `subscribe(event_type, handler)` | 事件处理 `handler(event)` | 事件总线 |
-| `add_context_source(fn, meta?)` | 上下文注入源 | `ContextSources`（见下节） |
-| `add_mode_tail(fn)` | 执行模式后的请求尾部文本 | `PromptTail`（见「请求尾部」） |
-| `add_prompt_section(section, fn)` | 系统提示词章节正文 | `PromptSections`（同章节合并） |
-| `add_pre_gate(gate)` | 工具执行前门控 | 工具管道 |
-| `add_post_observer(obs)` | 工具执行后观察 | 工具管道 |
-| `add_route(method, path, handler)` | HTTP 端点 | `/api/plugin/<插件名>/…` |
-| `add_panel(id, ...)` / `add_action(id, ...)` | 面板 / 输入区按钮 | 贡献注册表（壳层按数据枚举） |
-| `add_ctx_segment_style(label=..., color=...)` | 上下文段外观 | 贡献注册表 → `/api/ctx-segment-styles` |
-| `add_boot_script(rel_path)` | 开屏预载脚本（无面板也可） | 贡献注册表 → `/api/boot-scripts` |
-| `add_model_catalog(entries)` | 模型清单（静态序列或热读回调） | `ModelCatalog`（唯一权威来源） |
-| `set_runtime(obj)` | 自己的运行时实例 | `plugin_host.runtime(名字)` 取同一份 |
+| `register_tool(tool)` | One `ToolPlugin` | Tool registry (execution still goes through the same pipeline) |
+| `set_subagent_tools(tools)` | Tool names this plugin exposes to subagents | Subagent model tool view; an empty list hides all |
+| `add_executor(name, fn)` | Commit executor for a write tool | `ExecutorRegistry` (looked up by name when `commit_write` commits) |
+| `subscribe(event_type, handler)` | Event handler `handler(event)` | Event bus |
+| `add_context_source(fn, meta?)` | Context injection source | `ContextSources` (next section) |
+| `add_mode_tail(fn)` | Request-tail text appended after the mode and Todo block | `PromptTail` (see "Request tail") |
+| `add_prompt_section(section, fn)` | System-prompt section body | `PromptSections` (same heading merges) |
+| `add_pre_gate(gate)` | Pre-execution tool gate | Tool pipeline |
+| `add_post_observer(obs)` | Post-execution observer | Tool pipeline |
+| `add_route(method, path, handler)` | HTTP endpoint | `/api/plugin/<plugin-name>/…` |
+| `add_panel(id, ...)` / `add_action(id, ...)` | Panel / composer button | Contribution registry (the shell enumerates data) |
+| `add_ctx_segment_style(label=..., color=...)` | Context-segment appearance | Contribution registry → `/api/ctx-segment-styles` |
+| `add_boot_script(rel_path)` | Startup preload script (works without a panel) | Contribution registry → `/api/boot-scripts` |
+| `add_model_catalog(entries)` | Model entries (static sequence or hot-read callable) | `ModelCatalog` (single authoritative source) |
+| `set_runtime(obj)` | The plugin's runtime instance | `plugin_host.runtime(name)` returns the same object |
 
-### 上下文注入
+### Context injection
 
 ```python
 ctx.add_context_source(fn)   # fn(conversation_id: str) -> list[str]
 ```
 
-管线每一步组装请求时调用，产出的文本刷进上下文的插件段。**按会话**给内容 ——
-同一个插件对不同会话可以注入不同东西。
+The pipeline calls it whenever it assembles a request, and the produced text is flushed into the plugin segment of the context. Content is **per conversation**: one plugin can inject different material for different sessions.
 
-带描述时同时声明这一段在界面与顺序上的身份：
+With metadata, the source also declares the segment's identity in the UI and its subject count:
 
 ```python
 ctx.add_context_source(
     runtime.build_system_messages,
-    {"label": "示例来源",                   # 段名，界面显示
-     "prefix": "【示例：a.md】\n",           # 注入前缀，标明这段是什么
-     "count": runtime.attached_count},     # fn(cid) -> int，主体数量
+    {"label": "示例来源",                   # segment name, shown in the UI
+     "prefix": "【示例：a.md】\n",           # injection prefix identifying the content
+     "count": runtime.attached_count},     # fn(cid) -> int, subject count
 )
 ```
 
-自报的 `count` 与返回的正文**逐条对齐**：一个来源返回多条正文时只有第一条带自报数，
-其余按条数算；内核按位置取值，不会拿别的段的数字补位。
+The self-reported `count` aligns **entry by entry** with the returned bodies: when one source returns several bodies, only the first carries the reported count and the rest count as one each. The kernel reads counts by position and never substitutes another segment's number.
 
-- `label` 缺省用插件名；
-- `prefix` 由来源给，宿主在收集时统一拼上；
-- `count` 是界面显示"几个主体"用的取数口；不给就按消息条数算；
-- 段 key 一律是**插件名**（`plugin:<插件名>`），一个插件可以注册多个来源，
-  它们共用这个 key、各占一行；
-- 组装位次由宿主按清单位次写入，插件不需要声明。
+- `label` defaults to the plugin name;
+- `prefix` is supplied by the source and applied by the host during collection;
+- `count` is the callable that supplies the UI's "N items"; without it, a non-empty segment counts as 1 and an empty one as 0;
+- the segment key is always the **plugin name** (`plugin:<plugin-name>`); one plugin may register several sources, which share this key and are laid out as separate rows (rows with the same key and label are merged);
+- the host writes the assembly position from the manifest; plugins do not declare it.
 
-一个插件注册多条注入源的例子见 `plugins/skills`：清单一条、常驻正文一条；
-资源目录走系统提示词章节，不占独立上下文段。
+`plugins/skills` registers several sources: one for the catalog and one for resident bodies; the resource directory goes through a system-prompt section and does not occupy a separate context segment.
 
-### 系统提示词章节
+### System prompt sections
 
 ```python
 ctx.add_prompt_section("## 资源目录", fn)
 ```
 
-`fn(conversation_id) -> str | list[str]` 返回章节正文；`section` 是完整标题（含 `## `）。
-同一标题可由多个插件注册，正文按插件清单位次合并，标题只出现一次。章节进入系统提示词，
-不产生 `CHUNK_PLUGIN` 段；来源异常或空正文跳过。
+`fn(conversation_id) -> str | list[str]` returns the section body; `section` is the full heading (including `## `). Several plugins may register the same heading; bodies merge in plugin-manifest order, and the heading appears once. Sections enter the system prompt and do not create a `CHUNK_PLUGIN` segment; a failing source or an empty body is skipped.
 
-### 工具
+### Tools
 
 ```python
 class MyTool(ToolPlugin):
     name = "my_tool"
     description = "……"
-    label = "示例工具"      # 界面上的中文短名
-    icon = "🧰"            # 界面图标（一个字符）
+    label = "示例工具"      # short name shown in the UI
+    icon = "🧰"            # UI icon (one character)
     parameters = {...}
     def execute(self, arguments): ...
 
@@ -200,169 +174,142 @@ def register(ctx):
     return [ctx.register_tool(MyTool())]
 ```
 
-`label` / `icon` 是**界面展示信息，由工具自己声明**：页面经 `/api/tool-labels`
-认识所有工具（含插件工具），不必在前端维护一张工具名表 ——
-否则每加一个插件工具都得去改界面。
+`label` and `icon` are **UI display information declared by the tool itself**: the page learns about all tools, including plugin tools, from `/api/tool-labels`, so the frontend does not maintain a table of tool names — otherwise every new plugin tool would require a UI change.
 
-工具进内核注册表，与内置工具走**同一条执行管道**：门控、确认流程、写盘四步协议
-都照旧。插件不能绕过管道。
+A tool enters the kernel registry and goes through **the same execution pipeline** as built-in tools: gating, confirmation, and the four-step disk-write protocol still apply. A plugin cannot bypass the pipeline.
 
-**工具只在插件装载时存在**：插件注册的工具随 `[plugin:<名字>]` 节移除而消失。
+**A tool exists only while its plugin is loaded**: tools registered by a plugin disappear when its `[plugin:<name>]` section is removed.
 
-### 写类工具的提交执行器
+### Commit executors for write tools
 
-走 `confirm_id` 制预览的写类工具，提交那一刻由 `commit_write` 按工具名取执行器：
+A write tool that previews through `confirm_id` obtains its executor by tool name from `commit_write` at commit time:
 
 ```python
 ctx.add_executor("my_tool", my_executor)   # my_executor(arguments) -> dict
 ```
 
-用注册表而不是装配期传入的静态表：**登记发生在插件装载时，取用发生在工具调用时**，
-两者顺序无关；插件多装一个，不需要改内核装配代码。
+Using a registry rather than a static table passed at assembly time decouples the two moments: registration happens at plugin load and lookup at tool call, so their order does not matter; adding another plugin does not require changes to kernel assembly code.
 
-### 事件订阅
+### Event subscriptions
 
 ```python
 ctx.subscribe(ev.TURN_ENDED, handler)   # handler(event) -> None
 ```
 
-事件名见 `agent/core/event_name.py`（`ev.*`）与 [architecture.md](../architecture.md)
-的事件协议。订阅是观察，不改控制流。
+Event names are defined in `agent/core/event_name.py` (`ev.*`); the event protocol is described in [architecture.md](../architecture.md). Subscriptions observe; they do not change control flow.
 
-### 工具管道门控与观察
+### Tool-pipeline gates and observers
 
 ```python
 ctx.add_pre_gate(gate)       # gate(call, ctx) -> GateDecision | None
 ctx.add_post_observer(obs)   # obs(call, result, ctx) -> None
 ```
 
-`pre` 在工具执行前跑，返回 `GateDecision(allow=False, reason=...)` 即拒绝；
-`post` 在执行后跑。**门控只可加检查，不可减保证** —— 插件能拦下更多，
-不能把内核原有的检查放过去。
+`pre` gates run before execution; returning `GateDecision(allow=False, reason=...)` rejects the call. `post` observers run after execution. **Gates can add checks, not remove guarantees**: a plugin can block more calls, but it cannot let a call pass that the kernel's own checks would reject.
 
-### HTTP 端点
+### HTTP endpoints
 
 ```python
-ctx.add_route("GET", "tasks", list_tasks)          # -> /api/plugin/<插件名>/tasks
-ctx.add_route("GET", "tasks/:sid", get_task)       # 路径参数按位置取值
+ctx.add_route("GET", "tasks", list_tasks)          # -> /api/plugin/<plugin-name>/tasks
+ctx.add_route("GET", "tasks/:sid", get_task)       # path parameters matched by position
 ctx.add_route("PUT", "checked", put_checked)
 ctx.add_route("DELETE", "tasks/:sid", drop_task)
 ```
 
-`handler(args)` 返回 `(status, payload)`；`payload` 是 dict / list 时按 JSON 返回。
-`args` 是**查询串 + 路径参数 + 请求体**（有体时在 `body` 键下）。
+`handler(args)` returns `(status, payload)`; a dict or list payload is returned as JSON (a list is wrapped as `{"ok": true, "items": [...]}`). `args` contains the **query string, path parameters, and request body** (under the `body` key when a body is present).
 
-支持 `GET` / `POST` / `PUT` / `DELETE`。路径挂在 `/api/plugin/<插件名>/` 命名空间下，
-除 `:名字` 参数段外**不做通配**：路径必须与声明的形状逐段相等，段数也要相等 ——
-「某插件挂了哪些端点」因此永远可枚举、可审计。
+Supported methods are `GET` / `POST` / `PUT` / `DELETE`. Paths live under `/api/plugin/<plugin-name>/` and **do not support wildcards** apart from `:name` parameter segments: the path must match the declared shape segment by segment, with the same number of segments. "Which endpoints a plugin exposes" is therefore always enumerable and auditable.
 
-### 界面
+### UI
 
 ```python
 ctx.add_panel("notes", title="便签", html="<div id='notes'></div>",
               script_file="ui/panel.js", css_file="ui/panel.css", pinned=False)
-ctx.add_action("notes", label="🗒 便签", title="便签")   # 输入框下面一个按钮，点了开同名面板
+ctx.add_action("notes", label="🗒 便签", title="便签")   # a button below the composer; opens the same-named panel
 ```
 
-面板进右栏的标签容器，与「步骤」栏并列。标题就是标签上的字，面板里不再有标题行。
-`pinned=True` 的面板不显示关闭按钮。
+A panel joins the tab container in the right column, next to the Steps pane. Its title is the tab label, and the panel body has no heading row of its own. A panel with `pinned=True` shows no close button.
 
-角色分工：
+Division of responsibility:
 
-| 谁 | 负责 |
+| Who | Responsibility |
 |---|---|
-| 插件 | 面板的 HTML 片段、脚本、样式；内容怎么渲染 |
-| 壳层 | 标签容器、按数据枚举、把资产按路径送达、同源注入 |
+| Plugin | Panel HTML fragment, script, and styles; how content is rendered |
+| Shell | Tab container, enumeration from data, delivering assets by path, same-origin injection |
 
-## 子智能体工具可见性
+## Subagent tool visibility
 
-插件通过 `ctx.set_subagent_tools([...])` 声明自己的工具清单：
+A plugin declares its tool list with `ctx.set_subagent_tools([...])`:
 
 ```text
-不调用：本插件工具对子智能体全部可见
-传空列表：本插件工具对子智能体全部不可见
-传工具名列表：只有列表中的工具对子智能体可见
+not called: all tools from this plugin are visible to subagents
+empty list: no tool from this plugin is visible to subagents
+tool-name list: only the listed tools are visible to subagents
 ```
 
-内核只按清单过滤子智能体的模型工具视图，不复制注册表，也不按插件名写分支。
-父会话视图不受影响。工具代码仍保留，可由后续插件重新声明。
+The kernel filters only the subagent model tool view by this list; it does not copy the registry and does not branch on plugin names. The parent conversation view is unaffected. The tool remains registered; declaring a new list changes visibility again.
 
-插件还可以用 `ctx.is_subagent(cid)` 判断当前会话角色，决定是否注入请求尾部文本。
-`ai_speak` 声明空清单，并在子智能体会话跳过语音提示尾部。
+A plugin can also use `ctx.is_subagent(cid)` to learn the current conversation role and decide whether to inject request-tail text. `ai_speak` declares an empty tool list and registers its voice prompt tail with `subagent_visible=False`, so the tail is not rendered into subagent requests.
 
-## 请求尾部
+## Request tail
 
-`ctx.add_mode_tail(fn)` 注册 `fn(conversation_id) -> str`。文本拼在执行模式之后，只进入当前请求尾部，不进入系统提示词前缀；插件装卸只改变尾部，不使前面的 KV 缓存失效。空串不占位，异常来源被隔离。
+`ctx.add_mode_tail(fn, *, subagent_visible=True)` registers `fn(conversation_id) -> str`. The text is appended after the execution mode and Todo progress; it enters only the current request tail, not the system-prompt prefix. Loading or unloading a plugin changes only the tail and leaves the system-prompt prefix unchanged. An empty string takes no space, and a failing source is isolated.
 
-## 界面资产
+## UI assets
 
-面板可以带自己的样式与脚本，声明的是**插件目录内的相对路径**；
-壳层按 `/api/plugin/<插件名>/_asset/<相对路径>` 送达，**目录根取自**
-`plugin_host.plugin_root(插件名)`（清单 `path=` 指向的外部目录同样适用）。
-路径不许绝对、不许含 `..`；只有文本类扩展名（`.js` `.mjs` `.css` `.html` `.json` `.svg`）
-会送出去。类名要加自己的前缀 —— 样式是同源注入的，没有沙箱隔离。
+A panel may ship its own styles and scripts, declared as **paths relative to the plugin directory**. The shell serves them at `/api/plugin/<plugin-name>/_asset/<relative-path>`; the **directory root comes from** `plugin_host.plugin_root(plugin-name)` (an external directory declared with `path=` works the same way). Paths are relative and contain no `..`; only text extensions (`.js` `.mjs` `.css` `.html` `.json` `.svg`) are served. CSS class names carry the plugin's own prefix; styles are injected same-origin, with no sandbox.
 
-面板脚本加载后，用壳层给的客户端调**自己的**端点，不必知道 URL 前缀：
+After a panel script loads, it calls **its own** endpoints through the client provided by the shell, without knowing the URL prefix:
 
 ```js
 const api = window.aiAgentPlugins.for(window.aiAgentPluginCurrent);
-const res = await api.get("files");                       // GET  /api/plugin/<插件名>/files
-await api.post("generate", { prompt: "..." });            // POST 同上
+const res = await api.get("files");                       // GET  /api/plugin/<plugin-name>/files
+await api.post("generate", { prompt: "..." });            // POST, same prefix
 await api.put("checked", { conversation_id, checked });
 await api.del("tasks/t-1");                               // DELETE
 ```
 
-`res` 形状是 `{ status, ok, data }`。`api.url(path)` 只拼地址、不发请求。
+`res` has the shape `{ status, ok, data }`. `api.url(path)` only builds a URL; it sends no request.
 
-### 脚本的加载时机
+### Script loading
 
-**上下文段外观**经 `add_ctx_segment_style` 登记，壳层开屏拉 `/api/ctx-segment-styles`
-并调用 `ctxSegments.register` —— 不必为段色单独挂空面板脚本。
+**Context-segment appearance** is registered with `add_ctx_segment_style`; at startup the shell fetches `/api/ctx-segment-styles` and calls `ctxSegments.register`, so a segment color does not need an empty panel script.
 
-**面板脚本**在开屏时依次预载（`preloadPluginScripts()`），**样式在面板首次打开时注入**。
-样式只在面板打开时才需要，提前注入等于给每个页面加载用不到的字节。
+**Panel scripts** are preloaded in sequence at startup (`preloadPluginScripts()`), while **styles are injected when the panel first opens**. Styles are needed only while the panel is open; injecting them earlier would load bytes that most pages never use.
 
-**开屏脚本**经 `add_boot_script(rel_path)` 登记（如工具卡视图），壳层开屏拉
-`/api/boot-scripts`，在面板脚本之后预载 —— 无面板也能注入 JS。
+**Boot scripts** are registered with `add_boot_script(rel_path)` (a tool-card view, for example); at startup the shell fetches `/api/boot-scripts` and preloads them after the panel scripts, so JS can be injected without a panel.
 
-预载是**串行**的：脚本读全局 `window.aiAgentPluginCurrent` 判断自己属于哪个插件，
-并行加载会互相覆盖这个值。
+Preloading is **serial**: a script reads the global `window.aiAgentPluginCurrent` to know which plugin it belongs to, and parallel loading would overwrite that value.
 
-### 壳层公共桥
+Because panel scripts are preloaded before the panel DOM exists, the shell dispatches `ai-agent:panel-opened` each time a panel opens; a panel script renders on that event.
 
-插件在**面板之外**（输入区、页头）放置 UI 时，用壳层桥而不是自己拼 URL、
-不读壳层内部变量、不碰 `document.head`：
+<a id="壳层公共桥" name="壳层公共桥"></a>
+
+### Shell bridge
+
+When a plugin places UI **outside a panel** (composer, page header), it uses the shell bridge instead of building URLs, reading shell internals, or touching `document.head`:
 
 ```js
-// 模型：list() → Promise<[{id,label,provider}]>；current() → string；
-// select(id) → Promise<boolean>；onChange(fn) → 取消订阅函数。
+// Models: list() → Promise<[{id,label,provider}]>; current() → string;
+// select(id) → Promise<boolean>; onChange(fn) → unsubscribe function.
 const models = window.aiAgentShell.models;
 const stop = models.onChange((id) => renderLabel(id));
 await models.select("target");
 stop();
 
-// 样式：relPath 是插件目录内相对路径；同一路径只注入一次。
+// Styles: relPath is relative to the plugin directory; each path is injected once.
 window.aiAgentShell.styles.load("ui/model-picker.css");
 ```
 
-`aiAgentShell` 与 `aiAgentPlugins` 平级：前者是壳层能力，后者是插件自己的端点。
-桥本身**不持有当前模型** —— `current()` 每次读活动标签页，多份状态必然分叉。
-`select()` 先乐观更新界面，再写 `/api/chat/ui-state` 并广播；写失败会回滚并返回
-`false`。服务端下发的值（会话恢复 / SSE）不受本地清单限制。
+`aiAgentShell` is a peer of `aiAgentPlugins`: the former provides shell capabilities, the latter the plugin's own endpoints. The bridge **does not hold the current model**; `current()` reads the active tab on every call, because multiple copies of that state would diverge. `select()` updates the UI optimistically, then writes `/api/chat/ui-state` and broadcasts; if the write fails it rolls back and returns `false`. Values delivered by the server (session restore / SSE) are not restricted by the local list.
 
-`styles.load()` 复用面板样式的去重表与 `/api/plugin/<插件>/_asset/` 路由：
-绝对路径、盘符、协议与 `..` 一律返回 `false` 并 `console.error`；插件停用后，
-`applyPluginsChanged` 会摘掉带 `data-plugin-style` 的 `<link>`，并清掉
-`#modelPickerSlot` 里 `data-plugin` 已不在装载名单的子元素。
+`styles.load()` reuses the panel-style deduplication table and the `/api/plugin/<plugin>/_asset/` route; absolute paths, drive letters, protocols, and `..` return `false`. After a plugin is disabled, `applyPluginsChanged` removes `<link>` elements carrying `data-plugin-style` and clears children of `#modelPickerSlot` whose `data-plugin` is no longer in the loaded set.
 
-**已知限制**：`loadPluginScript` 按 URL 去重，所以在不刷新页面的前提下，
-「停用 → 再启用」不会重跑开屏脚本，输入区的下拉也不会自动恢复；
-插件变更后需刷新页面。
+Plugin changes are applied without a page refresh: the shell reloads panels, actions, segment styles, and boot scripts, closes panels of unloaded plugins, and clears the script and style caches so that re-enabling a plugin runs its scripts again.
 
-### 会话切换通知
+### Conversation switch notification
 
-面板内容带会话级状态时（如勾选），会话一换就要重取。壳层广播一个通用事件，
-**谁需要谁订阅**：
+When panel content carries per-conversation state (selections, for example), it must refetch on every conversation switch. The shell broadcasts a generic event and **whoever needs it subscribes**:
 
 ```js
 document.addEventListener("ai-agent:conversation-changed", function () {
@@ -370,96 +317,91 @@ document.addEventListener("ai-agent:conversation-changed", function () {
 });
 ```
 
-壳层不点名任何插件，也不要求插件认识壳层。
+The shell names no plugin and does not require plugins to know about the shell.
 
-## 插件拥有的资源
+## Resources owned by a plugin
 
-| 资源 | 怎么拿 | 说明 |
+| Resource | How to obtain it | Notes |
 |---|---|---|
-| 专属数据目录 | `ctx.data_dir` | `<数据根>/plugin/<插件名>/`，首次访问自动创建 |
-| 内核 App | `ctx.app` | 取内核已注册的服务，如 `ctx.app.registry` / `ctx.app.mesh`；装配完成前为 `None` |
-| 自己的运行时 | `ctx.set_runtime(obj)` | 登记出来供壳层按名字取同一份实例 |
-| 清单位次 | 宿主自动写入 | 组装顺序用，插件看不到也不必管 |
+| Dedicated data directory | `ctx.data_dir` | `<data-root>/plugin/<plugin-name>/`; created on first access |
+| Kernel App | `ctx.app` | Kernel services already registered, e.g. `ctx.app.registry` / `ctx.app.mesh`; `None` before assembly completes |
+| Own runtime | `ctx.set_runtime(obj)` | Registered so the shell can retrieve the same instance by name |
+| Manifest rank | Written by the host | Used for assembly order; the plugin neither sees nor manages it |
 
-`ctx.data_dir` 让插件**只看到自己那一层**，不必知道外层目录在哪。各插件的目录互相
-隔离，同名文件不会撞。状态放这里而不是放插件目录里：插件目录是代码，数据根是数据。
+`ctx.data_dir` means a plugin **sees only its own layer** and does not need to know where the outer directory is. Plugin directories are isolated from each other, so identically named files cannot collide. State belongs here rather than in the plugin directory: the plugin directory is code, the data root is data.
 
-`ctx.app` 与 `set_runtime` 都在**处理器内部**用，不在 `register` 里用：
-插件在装配末尾加载，那时 App 还没交到宿主手上；而处理器是请求来了才被调用。
+`ctx.app` is for **handler code**, not `register`: plugins load at the end of assembly, when the App has not yet been handed to the host, and handlers run only when a request arrives. `ctx.set_runtime` is called during `register`.
 
-## 生命周期
+## Lifecycle
 
 ```
-discover     扫插件根目录，找 <名字>/plugin.py    —— 枚举磁盘上有哪些插件
-load         按 plugins.ini 逐项装载：importlib 以动态模块名加载 → register(ctx)
-             装配末尾调用 —— 那时内核服务都已注册，处理器才能取到 ctx.app
-unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行时、删模块缓存
+discover     scan the plugin root for <name>/plugin.py — enumerate plugins on disk
+load         load each manifest entry: importlib with a dynamic module name → register(ctx)
+             called at the end of assembly, when kernel services are registered and handlers can obtain ctx.app
+unload       call disposers in reverse; then clear contributions by plugin name, drop the runtime, and remove module cache entries
 ```
 
-`importlib` 的动态模块名意味着壳层 `import` 不到同一个模块对象。插件要把
-自己持有的运行时交给壳层操作，必须 `ctx.set_runtime(obj)`，壳层用
-`plugin_host.runtime("<插件名>")` 取**同一个实例**；不登记就会出现两边各持一份状态。
+Discovery skips directories whose names start with `_` or `.`.
 
-卸载兜底会按插件名把面板、动作、端点、订阅全部撤掉。
+`importlib` loads each plugin under a dynamic module name, so the shell cannot import the same module object. A plugin that wants the shell to operate on its runtime must register it with `ctx.set_runtime(obj)`; `plugin_host.runtime("<plugin-name>")` returns that same instance. Without registration, the two sides hold separate copies of the state.
 
-## 模型目录来源
+The unload fallback removes panels, actions, routes, segment styles, and boot scripts by plugin name. Event subscriptions are removed by the disposers registered through `ctx.subscribe`.
 
-`add_model_catalog(entries)` 把一组模型条目交给内核的 `ModelCatalog`。条目是
-`ModelEntry`（id / label / provider / base_url / api_key / model / options / default），
-内核按请求里的 id 取对应实例，未命中时回落到目录默认条目。
+## Model catalog source
 
-目录是模型路由的唯一来源；没有有效条目时模型清单为空。条目构造、去重与校验由插件负责，内核只消费快照。
+`add_model_catalog(entries)` gives a set of model entries to the kernel's `ModelCatalog`. Entries are `ModelEntry` objects with `id` / `provider` / `label` / `options` / `is_default`; provider-specific keys such as `base_url`, `api_key`, and `model` live in `options`. The kernel resolves the request's id to the matching provider instance; an unknown id is an error and is not silently routed to another model.
 
-`multi_model` 是该扩展点的实现，配置与行为见 [multi-model.md](multi-model.md)。
+The catalog is the single authoritative source for model routing while its plugin is loaded; with no valid entries the model list is empty. Entry construction is the plugin's responsibility; the kernel normalizes, validates, and consumes snapshots. Only one source may be registered: a second source is refused and logged, and the plugin still loads.
 
-## 内置插件示例
+`multi_model` implements this extension point; its configuration and behavior are documented in [multi-model.md](multi-model.md).
 
-| 插件 | 注册了什么 | 形态 |
+## Built-in plugins
+
+| Plugin | Registers | Form |
 |---|---|---|
-| `plugins/skills` | `skills` 工具 + 提交执行器 + 两条注入 + 系统提示词章节 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
-| `plugins/rules` | 一条注入（`.md` 一文件一条）+ 系统提示词章节 + 段色 | 无面板、无配置、无端点；见 [rules.md](rules.md) |
-| `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 三个端点 | 四件套齐全，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.md) |
-| `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.md) |
-| `plugins/visual_operator` | 四个工具（截屏 / 鼠标 / 键盘 / 等待）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时只报错不消失；见 [visual-operator.md](visual-operator.md) |
-| `plugins/ai_speak` | `ai_speak` 工具 + 两个只读端点 + 两个开屏脚本 + 两个事件订阅 | 后端合成、前端播放条；见 [ai-speak.md](ai-speak.md) |
+| `plugins/skills` | `skills` tool + two context sources + system-prompt section + segment style + boot tool-card script | no panel; context segments + boot script; see [skills.md](skills.md) |
+| `plugins/rules` | one context source (one message per `.md` file) + system-prompt section + segment style | no panel, no configuration, no endpoints; see [rules.md](rules.md) |
+| `plugins/knowledge` | context source + panel + composer action + segment style + three endpoints | injection, panel, action, and endpoints all present; state in `ctx.data_dir`; see [knowledge.md](knowledge.md) |
+| `plugins/multi_model` | model catalog + read-only `/catalog` + boot dropdown script | each entry carries its gateway and provider; see [multi-model.md](multi-model.md) |
+| `plugins/visual_operator` | four tools (screenshot / mouse / keyboard / wait) + platform backends + input lock | backend assembled by platform; when unavailable it reports at execution rather than disappearing; see [visual-operator.md](visual-operator.md) |
+| `plugins/ai_speak` | `ai_speak` tool + two read-only endpoints + playback-ack endpoint + two boot scripts + two event subscriptions + voice tail | backend synthesis, frontend player bar; see [ai-speak.md](ai-speak.md) |
 
-各插件的配置与行为写在各自的子系统文档里，这里只描述它们用到的扩展点。
+Each plugin's configuration and behavior are documented in its own subsystem page; this table only lists the extension points it uses.
 
-## 边界
+## Boundaries
 
-### 插件信任模型
+<a id="插件信任模型" name="插件信任模型"></a>
 
-**插件与本机代码同等信任。** 装载后的 `plugin.py` 跑在同一进程、同一解释器里：
-能读整个磁盘、能发网络请求、能注册工具与 HTTP 端点；
-面板的 HTML 片段与脚本注入到页面同源上下文里。**没有沙箱。**
+### Plugin trust model
 
-因此：
+**A plugin is as trusted as local code.** Once loaded, `plugin.py` runs in the same process and interpreter: it can read the whole disk, make network requests, and register tools and HTTP endpoints; panel HTML fragments and scripts are injected into the page's same-origin context. **There is no sandbox.**
 
-| 能指望 | 不能指望 |
+Therefore:
+
+| Can expect | Cannot expect |
 |---|---|
-| 约定与命名空间约束（端点前缀、资产路径校验） | 恶意/被篡改插件被运行时拦住 |
-| 装载期记录来源路径与入口文件摘要（sha256 / mtime） | 子进程隔离或权限降级（见 [评估笔记](../adr/plugin-subprocess-isolation.md)） |
-| 开关打开时拒绝对 `plugins/` 树外的路径装载 | 对「受信目录里的坏代码」自动免疫 |
+| Conventions and namespace constraints (endpoint prefix, asset path validation) | A malicious or tampered plugin stopped by the runtime |
+| Load-time source path and entry-file summary recorded in the log (sha256 prefix / mtime / bytes) | Subprocess isolation or privilege reduction (see the [evaluation note](../adr/plugin-subprocess-isolation.md)) |
+| With the switch enabled, loading refused for paths outside the `plugins/` tree | Automatic immunity to "bad code in a trusted directory" |
 
-信任边界由三项约束维持：
+The trust boundary rests on three constraints:
 
-- `plugins.ini` 与各插件目录一并纳入版本控制或部署清单；
-- `[agent] plugin_tree_only = 1`（或环境变量 `AI_AGENT_PLUGIN_TREE_ONLY=1`）把装载范围
-  限制在 `plugins/` 树内；
-- 装载日志形如 `[plugin.load] <名> source=… sha256=… mtime=… bytes=…`，可与部署哈希对照。
+- `plugins.ini` and the plugin directories are part of version control or the deployment manifest;
+- `[agent] plugin_tree_only = 1` (or the environment variable `AI_AGENT_PLUGIN_TREE_ONLY=1`) restricts loading to the `plugins/` tree;
+- the load log has the form `[plugin.load] <name> source=… sha256=… mtime=… bytes=…` and can be compared with deployment hashes.
 
-界面与端点侧的约定：
+UI and endpoint conventions:
 
-- 界面资产的类名带自己的前缀，样式同源注入
-- 端点注册限于 `/api/plugin/<插件名>/` 命名空间，内核路由不开放注册
-- 面板的数据由插件自己的端点提供
-- 渲染相关的信息（颜色、图标、布局）由插件的界面脚本自己注册，
-  不经过服务端 —— 服务端只给数据（段 key / 段名 / 计数）
+- CSS class names carry the plugin's own prefix, and styles are injected same-origin;
+- endpoint registration is limited to the `/api/plugin/<plugin-name>/` namespace; kernel routes are not open for registration;
+- panel data comes from the plugin's own endpoints;
+- render-related data (segment name and color, tool label and icon) is declared by plugins and served by the shell; layout belongs to the shell. The server provides data (segment key / name / count); plugin UI scripts render their own panels and injected content.
 
-## 接入新插件
+## Adding a plugin
 
-1. **建目录**：`plugins/<名字>/`，目录名即插件名，也是 `plugins.ini` 里的节名后缀。
-2. **写入口**：`plugin.py` 暴露 `register(ctx)`。最小实现只注册一项能力：
+1. **Create the directory**: `plugins/<name>/`. The directory name is the plugin name and the section-name suffix in `plugins.ini`. Names must match `[A-Za-z0-9][A-Za-z0-9_-]*`.
+
+2. **Write the entry point**: `plugin.py` exposes `register(ctx)`. A minimal implementation registers one capability:
 
    ```python
    def ping(args):
@@ -469,28 +411,23 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
        ctx.add_route("GET", "ping", ping)
    ```
 
-   需要拆文件时用同目录模块，以绝对包名导入（`from .library import Thing`）。
-3. **建元数据与表单**：`plugin-meta.json` 声明 `name` / `desc` / `icon` / `version`；
-   需要结构化表单时加 `settings-schema.json`，声明 `kind` /
-   `fields`（或 `section_prefix` / `identity` / `fields`）。无敏感信息的 `plugin-config.ini`
-   入库；含密钥的插件配置由 `.gitignore` 排除。
-4. **登记界面**（可选）：面板、输入区动作、开屏脚本、段色分别用
-   `add_panel` / `add_action` / `add_boot_script` / `add_ctx_segment_style` 注册；
-   资产放插件目录内，经 `/api/plugin/<名字>/_asset/<相对路径>` 送达。
-5. **加清单**：在 `plugins.ini` 写一节 `[plugin:<名字>]`，可带 `path` / `enabled`。
-   节在即进入装载候选，实际是否装载看 `enabled`。
-6. **校验**：`python scripts/ci.py` 覆盖依赖方向、注释文案、目录结构与单测；
-   插件的端点与界面由 `scripts/acceptance_web.py` 一类的验收脚本覆盖。
+   To split files, use modules in the same directory with relative imports (`from .library import Thing`).
 
-`register` 抛错时宿主回滚该插件已完成的注册，不会留下半截状态。
+3. **Add metadata and form**: `plugin-meta.json` declares `name` / `desc` / `icon` / `version`. For a structured form, add `settings-schema.json` declaring `kind` and `fields` (for `sections`, also `section_prefix` and `identity`). Commit `plugin-config.ini` when it holds no secrets; secret-bearing plugin configuration is excluded by `.gitignore`.
 
-## 延伸阅读
+4. **Register UI** (optional): panels, composer actions, boot scripts, and segment colors via `add_panel` / `add_action` / `add_boot_script` / `add_ctx_segment_style`. Assets live in the plugin directory and are served at `/api/plugin/<name>/_asset/<relative-path>`.
 
-- [上下文管理](context.md)：注入源怎么进上下文、组装顺序怎么定
-- [知识库](knowledge.md)：`knowledge` 的文件收录、勾选与注入
-- [多模型](multi-model.md)：`multi_model` 的目录条目与设置页表单
-- [Skills](skills.md)：`skills` 插件的三层披露与 `skills` 工具
-- [Visual Operator](visual-operator.md)：`visual_operator` 的截屏、坐标契约与平台后端
-- [工具](tools.md)：工具的注册、执行管道与写盘协议
-- [壳层](shell.md)：HTTP 路由与界面打包
-- [配置](../guide/config.md)：配置项全表
+5. **Add it to the manifest**: write a `[plugin:<name>]` section in `plugins.ini`, optionally with `path` / `enabled`. A section makes it a candidate; `enabled` decides whether it loads.
+
+6. **Validate**: `python scripts/ci.py` runs dependency-direction, architecture, comment-style, and unit-test gates; plugin endpoints and UI are covered by acceptance scripts such as `scripts/acceptance_web.py`.
+
+## Further reading
+
+- [Context management](context.md): how injection sources enter context and how assembly order is determined
+- [Knowledge base](knowledge.md): file collection, selection, and injection in `knowledge`
+- [Multi-model](multi-model.md): catalog entries and the settings form in `multi_model`
+- [Skills](skills.md): three-layer disclosure and the `skills` tool
+- [Visual Operator](visual-operator.md): screenshots, coordinate contract, and platform backends
+- [Tools](tools.md): tool registration, execution pipeline, and disk-write protocol
+- [Shell](shell.md): HTTP routing and UI bundling
+- [Configuration](../guide/config.md): full configuration reference

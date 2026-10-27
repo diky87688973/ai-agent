@@ -1,22 +1,21 @@
-# 评估：插件子进程隔离（未实现）
+**English** | [中文](plugin-subprocess-isolation.zh.md)
 
-状态：未实现（评估备忘）
-相关：[插件信任模型](../subsystems/plugins.md#插件信任模型)
+# Evaluation: plugin subprocess isolation (not implemented)
 
-## 动机
+Status: not implemented (evaluation memo)
+Related: [Plugin trust model](../subsystems/plugins.md#插件信任模型)
 
-同进程装载使插件与本机代码同等信任。若要把「不可信插件」也纳入产品形态，
-需要进程边界：崩溃隔离、权限收窄、资源配额。
+## Motivation
 
-## 代价（当前架构下）
+In-process loading places plugins at the same trust level as local code. If untrusted plugins are to be part of the product, a process boundary is required: crash isolation, narrower permissions, and resource quotas.
 
-- **工具 API**：`PluginContext` 直接挂 `ToolRegistry` / 管道 / 事件总线；跨进程需 RPC 与序列化契约。
-- **性能**：每工具调用多一次进程往返；Windows 上冷启动与句柄继承成本更高。
-- **Windows**：与 Linux 的进程/用户隔离原语不一致，测试矩阵翻倍。
-- **UI 资产**：面板脚本仍须进浏览器同源上下文，进程隔离管不住前端面。
+## Cost (under the current architecture)
 
-## 结论
+- **Tool API**: `PluginContext` directly references the `ToolRegistry`, the tool pipeline, and the event bus; crossing a process boundary requires RPC and serialization contracts.
+- **Performance**: each tool call incurs one extra process round trip; cold start and handle inheritance cost more on Windows.
+- **Windows**: process and user isolation primitives differ from Linux, doubling the test matrix.
+- **UI assets**: panel scripts still load into the browser's same-origin context; process isolation does not cover the frontend.
 
-当前不实现子进程沙箱。优先级在信任模型文档、装载期来源/完整性留痕、
-以及可选的「仅 `plugins/` 树内路径」开关。子进程隔离需另立 RFC，
-明确工具调用协议与 Windows 支持范围。
+## Conclusion
+
+A subprocess sandbox is not implemented. Priority goes to the trust-model documentation, load-time source and integrity logging, and an optional switch that restricts loading to paths inside the `plugins/` tree. Subprocess isolation requires a separate RFC defining the tool-call protocol and the Windows support scope.

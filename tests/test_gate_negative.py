@@ -160,6 +160,14 @@ class ApplicabilityGateTest(unittest.TestCase):
         problems = check_applicability.check(text, known_ids={"A1"})
         self.assertTrue(any("原因少于" in p for p in problems))
 
+    def test_english_header_and_value_pass(self) -> None:
+        text = (
+            "| Rule | Declaration | Reason | Risk bearer |\n"
+            "|---|---|---|---|\n"
+            "| A1 | Not applicable | This repository has no runtime dependency for it | Maintainer |\n"
+        )
+        self.assertEqual(check_applicability.check(text, known_ids={"A1"}), [])
+
     def test_well_formed_row_passes(self) -> None:
         text = self._HEADER + self._OK_ROW
         self.assertEqual(check_applicability.check(text, known_ids={"A1"}), [])

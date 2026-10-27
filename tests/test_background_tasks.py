@@ -16,6 +16,7 @@ from agent.core.events import Event
 from agent.mechanisms.background_tasks import (
     CANCELLED,
     COMPLETED,
+    MAX_OUTPUT_BYTES,
     MAX_PENDING_PER_CID,
     MAX_RUNNING_PER_CID,
     QUEUED,
@@ -66,6 +67,24 @@ class BackgroundTaskManagerTest(unittest.TestCase):
         self.assertTrue(user_profile)
         self.assertIn(local_appdata, output["output"])
         self.assertIn(user_profile, output["output"])
+
+    def test_output_cursor_rebases_after_buffer_trim(self) -> None:
+        from types import SimpleNamespace
+
+        record = SimpleNamespace(
+            stdout=bytearray(), stderr=bytearray(),
+            stdout_cursor=0, stderr_cursor=0, truncated=False,
+        )
+        self.manager._append_output(
+            record, record.stdout, "stdout", b"a" * MAX_OUTPUT_BYTES)
+        self.assertEqual(len(record.stdout), MAX_OUTPUT_BYTES)
+        self.assertFalse(record.truncated)
+        record.stdout_cursor = len(record.stdout)
+        self.manager._append_output(record, record.stdout, "stdout", b"b" * 10)
+        self.assertEqual(len(record.stdout), MAX_OUTPUT_BYTES)
+        self.assertTrue(record.truncated)
+        self.assertEqual(record.stdout_cursor, MAX_OUTPUT_BYTES - 10)
+        self.assertEqual(bytes(record.stdout[record.stdout_cursor:]), b"b" * 10)
 
     def test_completed_output_and_history(self) -> None:
         result = self.manager.create("cid-a", _py("print('hello')"), str(self.root), 10, "hello")

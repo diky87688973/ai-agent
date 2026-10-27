@@ -137,11 +137,15 @@ def check(readme: str, acceptance: int, tests: int,
     # ① 流水线步数与门禁数
     m = re.search(r"流水线 (\d+) 步", readme)
     if m is None:
+        m = re.search(r"runs (\d+) steps", readme)
+    if m is None:
         problems.append("README 与 docs 里都找不到「流水线 N 步」，检查器无法核对")
     elif int(m.group(1)) != steps:
         problems.append(f"文档说流水线 {m.group(1)} 步，ci.py 实际跑 {steps} 步")
 
     m = re.search(r"(\d+) 项门禁", readme)
+    if m is None:
+        m = re.search(r"\b(\d+) gates\b", readme)
     if m is None:
         problems.append("README 与 docs 里都找不到「N 项门禁」，检查器无法核对")
     elif int(m.group(1)) != gates:
@@ -149,6 +153,8 @@ def check(readme: str, acceptance: int, tests: int,
 
     # ② 验收脚本数
     m = re.search(r"→ 单测 → (\d+) 个验收脚本", readme)
+    if m is None:
+        m = re.search(r"→\s*unit tests\s*→\s*(\d+)\s+acceptance scripts", readme)
     if m is None:
         problems.append("README 与 docs 里都找不到「→ 单测 → N 个验收脚本」，检查器无法核对")
     elif int(m.group(1)) != acceptance:
@@ -158,6 +164,8 @@ def check(readme: str, acceptance: int, tests: int,
     # 匹配不到必须报错：只写 `if m and …` 的话，README 一旦改措辞
     # （例如把"个用例"写成"个"），这里就静默放行 —— 检查器自己失效却报"一致"。
     m = re.search(r"单元测试（(\d+) 个用例）", readme)
+    if m is None:
+        m = re.search(r"Unit tests \((\d+) cases\)", readme)
     if m is None:
         problems.append("README 与 docs 里都找不到「单元测试（N 个用例）」，检查器无法核对")
     elif int(m.group(1)) != tests:

@@ -112,7 +112,7 @@ def main(argv: Optional[list] = None) -> int:
     parser.add_argument(
         "--media-root",
         default="",
-        help="/api/media 可读根（默认与第一个 --fs-root 相同）",
+        help="/api/media 可读根（不设时用全部 --fs-root）",
     )
     parser.add_argument("--set-password", action="store_true",
                         help="交互式设置 Web 访问密码后退出")

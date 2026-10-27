@@ -4,11 +4,11 @@
 
 修改代码前先读：
 
-- [`README.md`](README.md)：项目入口与命令
-- [`docs/architecture.md`](docs/architecture.md)：五层结构、模块链、事件与装配
-- [`docs/engineering-standards.md`](docs/engineering-standards.md)：模块职责与资产归属
-- [`docs/quality-gates.md`](docs/quality-gates.md)：门禁、预算与跳过规则
-- [`docs/guide/config.md`](docs/guide/config.md)：配置键与运行态目录
+- [`README.zh.md`](README.zh.md)：项目入口与命令
+- [`docs/architecture.md`](docs/architecture.zh.md)：五层结构、模块链、事件与装配
+- [`docs/engineering-standards.md`](docs/engineering-standards.zh.md)：模块职责与资产归属
+- [`docs/quality-gates.md`](docs/quality-gates.zh.md)：门禁、预算与跳过规则
+- [`docs/guide/config.md`](docs/guide/config.zh.md)：配置键与运行态目录
 
 ## 工程标准前置
 
@@ -85,7 +85,7 @@ entry → shell → capabilities → mechanisms → core
 ```
 
 - `agent/app.py` 是唯一装配根，不属于五层；只有它可以同时引用五层。
-- 任何层不得运行期导入 `agent/app.py` 或 `agent/entry/`；`if TYPE_CHECKING:` 的纯注解除外。
+- 下层四层不得运行期导入 `agent/app.py` 或 `agent/entry/`；`if TYPE_CHECKING:` 的纯注解除外。入口层可以导入 `agent/app.py`。
 - `agent/core/` 不得出现具体插件名或具体 provider 实现名。
 - 模块之间通过既有端口、事件、注册表或窄接口通信；不得跨层导入私有名。
 - 控制流走返回值，业务数据走事件；不得把业务数据塞进控制结果。

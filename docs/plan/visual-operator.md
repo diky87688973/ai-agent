@@ -1,271 +1,350 @@
-# Visual Operator 插件方案
+**English** | [中文](visual-operator.zh.md)
 
-## 1. 结论
+# Visual Operator plugin
 
-把 Windows / macOS 的桌面看与动做成一个内置插件 `plugins/visual_operator`，由它注册四个工具：
+Visual Operator gives the agent observation and input on a desktop. It registers four tools:
 
-| 工具 | 心智 | 能力 |
+| Tool | Role | Capability |
 |---|---|---|
-| `desktop_eye` | 看 | 截屏（整屏、区域或窗口），叠坐标网格，图片直接交给模型；`hover` 可拍悬停后才出现的控件 |
-| `desktop_mouse` | 手 | 移动 / 点击 / 拖拽 / 滚轮 / 只读查询光标；回执带 `hit` / `changed`，可带 `shot` |
-| `desktop_keyboard` | 手 | 输入文本 / 单键 / 组合键；可带 `shot` |
-| `desktop_wait` | 等 | 等画面变化、窗口出现或窗口消失，命中即返回 |
+| `desktop_eye` | observe | Capture the full screen, a region, or a window; overlay a coordinate grid; return the image to the model. `hover` can reveal hover-only controls before capture. |
+| `desktop_mouse` | act | Move, click, drag, scroll, or query the cursor. A receipt can include `hit`, `changed`, and an optional `shot`. |
+| `desktop_keyboard` | act | Type text, press one key, or press a key combination. An optional `shot` returns the resulting screen. |
+| `desktop_wait` | wait | Wait for a screen region to change or for a window to appear or disappear, returning as soon as the condition holds. |
 
-`desktop_wait` 与三个 L0 工具共用后端与输入锁（它本身只读）。参数级契约以
-[visual-operator.md](../subsystems/visual-operator.md) 为准，设计取舍见下。
+`desktop_wait` is read-only and does not take the input lock. It shares the selected backend with the three input and capture tools. The parameter-level contract is maintained in [visual-operator.md](../subsystems/visual-operator.md).
 
-形态选择：插件贡献工具，而不是把 15 个动作塞进一个 `desktop_action`。
-三类能力各自有独立的参数面（坐标、按键、文本），合成一个工具后参数描述必须写成
-「当 action=click 时看 x/y，当 action=type 时看 text」，模型错配参数的概率显著上升。
+The plugin exposes tools instead of one multi-action tool. The mouse, keyboard, and eye capabilities have separate parameter surfaces: coordinates, key names, text, and capture options. A single action would have to describe when each parameter applies, which makes parameter mismatch more likely. A shared action matrix in `tools/_params.py` rejects parameters that belong to another action instead of silently ignoring them.
 
-插件写进工程根的 `plugins.ini`，默认启用：新克隆的仓库起来就有这四个工具。
-关掉开关时 `set_plugin_enabled` 保留清单节、把 `enabled` 写成 0，
-对应工具随之注销并从列表消失；再打开即热装载，不需要重启。
+The plugin has a `[plugin:visual_operator]` section in `plugins.ini` and is enabled by default. Setting `enabled = 0` preserves the section and unregisters the tools; enabling it again loads the plugin without restarting the process. Registration is platform-independent: all four tools are declared on every host, and platform capability is checked at execution. The generated `catalog/tools.json` includes all four tools.
 
-默认开启带来两条硬约束：`catalog/tools.json` 必须把四个工具登记进去；
-插件在 Linux 上必须能正常 import 与注册（平台能力在执行期判定，见不变量 1）。
-CI 跑在 Ubuntu 上，装配集与 Windows 本机必须是同一份。
+The plugin contributes no panel, endpoint, context injection, or startup script. Its visible surface is the tool declarations and tool cards.
 
-插件不贡献面板、端点、上下文注入与开屏脚本。对外可见面只有工具声明与工具卡。
+## 1. Invariants
 
-## 2. 不变量
+1. Tool registration does not depend on the platform. All four tools are registered everywhere. A platform without a usable backend returns a structured error at execution, so the tool set is identical across hosts.
+2. There is one coordinate space: screen coordinates, using physical pixels on Windows and display points on macOS. Capture rectangles, grid labels, mouse parameters, and cursor positions all use this space. Backend-specific scaling is confined to image processing and does not appear in the tool contract.
+3. Screenshots are returned as `ToolResult.attach` attachments and are not saved as files. The macOS backend writes a temporary file for `screencapture`, then deletes it in a `finally` block. There is no on-disk path that the model must read with an image tool.
+4. Image scaling does not change coordinate meaning. Grid labels use screen coordinates by default; the grid step is expressed in screen coordinates, not image pixels. `grid_unit=image` selects image pixels explicitly and requires `capture_id` for mouse input. The two spaces are never mixed silently.
+5. Each capability has an independent switch. When `eye`, `mouse`, `keyboard`, or `wait` is `0`, that tool is not registered; it is not registered and then made to reject calls.
+6. Plan mode blocks mouse and keyboard input and any cursor movement. Screenshot capture without `hover` remains available, although restoring a minimized target or requesting `activate=true` can still change window state. Cursor-only mouse queries and condition waits also remain available.
+7. Mouse and keyboard actions are serialized by one process-wide lock, so actions from different sessions cannot interleave. A drag cannot be split by a click from another session. The lock timeout is 10 seconds, after which the call fails with `DesktopBusy`.
+8. Input to a named target requires that target to be active. When `window` or `hwnd` is supplied to a mouse or keyboard action, the tool brings that window to the front and verifies that it actually reached the foreground. If activation fails, no input is delivered.
+9. Failures state an executable next step: which permission to grant, which platforms are supported, or which action accepts the supplied parameters.
+10. The plugin does not import `agent.app` or `agent.entry`. It depends only on `agent.capabilities`, `agent.mechanisms`, and `agent.core`.
+11. Platform modules are imported only on their own platform. `backends/__init__.py` imports them lazily from `load_backend()` after checking `sys.platform`; a non-Windows host never executes `WinDLL`, and a non-macOS host never loads CoreGraphics.
 
-1. 工具注册与平台无关：四个工具在任何平台都注册。平台能力在执行期判定，
-   不支持时回结构化错误。装配集在 Windows 与 Linux 上必须是同一份。
-2. 坐标只有一个空间：屏幕坐标（Windows 物理像素，macOS 显示点）。截图返回的尺寸、网格刻度、
-   鼠标参数、返回值里的光标位置全在这个空间里。平台内部的倍率换算只发生在截图加工，
-   不出现在工具契约里。
-3. 截图不作为文件产物保存：以 `ToolResult.attach` 回带，读完即用。
-   macOS 的 `screencapture` 只写临时文件，后端在 `finally` 里删除；
-   不存在需要模型再 `read_image` 的落盘路径，也没有清理动作。
-4. 图片缩放不改变坐标语义：网格刻度写的是屏幕坐标，缩放只改变图片尺寸，
-   模型按刻度读数，不需要做换算。
-5. 四类能力各自可关：`eye` / `mouse` / `keyboard` / `wait` 为 0 时该工具不注册，
-   而不是注册后拒绝调用。
-6. Plan 模式禁止桌面输入与移光标，允许截屏与条件等待。读取桌面不改变任何状态。
-7. 输入动作串行：同一进程内鼠标与键盘动作共用一把锁，跨会话也不会交错。
-   拖拽中途被另一会话的点击插入会留下按下的键。
-8. 失败必须带可执行动作：缺权限说清去哪一栏勾选，平台不支持说清支持哪两个平台，
-   参数不对说清该用哪个 action。
-9. 插件不 import `agent.app` / `agent.entry`，只依赖 `capabilities`、`mechanisms`、`core`。
-10. 平台模块只在对应平台导入：`backends/__init__.py` 在 `load_backend()` 里按
-    `sys.platform` 惰性导入，非本平台不会执行 `WinDLL` / `CDLL`。
+## 2. Package layout
 
-## 3. 包结构
-
-```
+```text
 plugins/visual_operator/
-  plugin.py                    入口：读配置 → 取后端 → 按开关注册四个工具
-  config.py                    DesktopConfig + load_config()（纯函数，含夹取规则）
-  coords.py                    ScreenRect / ScreenPoint / 裁剪与交集（纯函数）
-  keys.py                      规范键名、别名归一、组合键校验（纯函数）
-  errors.py                    四类异常
-  canvas.py                    网格 / 光标 / 缩放 / PNG 编码（Pillow）
-  ports.py                     端口协议 + Screenshot / WindowInfo / Backend 数据结构
-  guard.py                     Plan 模式拒绝
-  input_lock.py                输入动作串行锁
-  backends/__init__.py         load_backend()：按平台惰性导入；不可用后端
-  backends/win32.py            GDI 截图、DPI、虚拟屏、SendInput 鼠标键盘
-  backends/macos.py            screencapture、CGEvent、TCC 权限、Retina 倍率
-  tools/__init__.py            四个工具类的统一出口
-  tools/_params.py             参数取值与动作矩阵校验（四个工具共用）
+  plugin.py                    entry point: read config, select backend, register tools by switch
+  plugin-config.ini            plugin configuration
+  plugin-meta.json             plugin identity metadata
+  config.py                    [config] parsing, defaults, and clamping
+  capture_store.py             short-lived capture metadata registry
+  coords.py                    screen points, rectangles, intersection, and geometry ratios
+  keys.py                      canonical key names, aliases, and hotkey validation
+  errors.py                    desktop error hierarchy
+  canvas.py                    resize, coordinate grid, cursor overlay, PNG encoding
+  diff.py                      region comparison between two captures
+  ports.py                     backend protocols and data structures
+  guard.py                     Plan-mode rejection
+  input_lock.py                process-wide input lock
+  backends/__init__.py         lazy platform selection and unavailable fallback
+  backends/win32.py            Windows capture, activation, input, and hit probing
+  backends/win32_common.py     Win32 types, constants, DPI, and display metrics
+  backends/macos.py            macOS capture, permissions, and CoreGraphics input
+  backends/_unavailable.py     explicit unsupported-platform backend
+  tools/__init__.py            tool exports
+  tools/_params.py             argument parsing and action-matrix validation
+  tools/_windows.py            window lookup, candidate ordering, and activation
+  tools/_capture.py            capture, rendering, receipts, and notes
   tools/eye.py                 DesktopEyeTool
   tools/mouse.py               DesktopMouseTool
   tools/keyboard.py            DesktopKeyboardTool
   tools/wait.py                DesktopWaitTool
-  plugin-config.ini    [config]
 ```
 
-估算：平台后端各 350–450 行，其余文件 60–180 行，合计约 1500 行（不含测试）。
+Responsibilities:
 
-职责边界：
-
-| 文件 | 只做 | 不做 |
+| File | Does | Does not |
 |---|---|---|
-| `plugin.py` | 读配置、取后端、装配工具 | 平台分支、参数校验 |
-| `backends/*` | 调系统 API、点与像素换算、权限探测 | 图片加工、文案组织 |
-| `canvas.py` | 图片加工与编码 | 系统调用、坐标换算语义 |
-| `tools/*` | 参数校验、调端口、组返回值 | 系统 API、图片编码 |
-| `ports.py` | 协议与数据类 | 任何实现 |
+| `plugin.py` | Read configuration, select one backend, assemble tools | Branch on platform, validate arguments |
+| `backends/*` | Call system APIs, convert points and pixels, probe permissions | Process images, assemble user-facing notes |
+| `canvas.py` | Resize, draw the grid and cursor overlay, encode PNG | Call system APIs, define coordinate semantics |
+| `tools/*` | Validate arguments, call ports, assemble receipts | Call system APIs, encode images |
+| `capture_store.py` | Map `capture_id` to a rectangle and image dimensions | Store PNG bytes or session history |
+| `ports.py` | Define protocols and data classes | Provide an implementation |
 
-## 4. 工具契约
+## 3. Tool contracts
 
-### 4.1 `desktop_eye`
+### 3.1 `desktop_eye`
 
 ```python
 name = "desktop_eye"
-label = "看屏"
+label = "View screen"
 icon = "👁"
 parallel_safe = False
 description = (
-    "截取桌面并作为图片直接查看（不是 OCR）。支持整屏、区域与指定窗口。"
-    "给 window / hwnd 时取该窗口自身内容：被遮挡也能看到；若已最小化，"
-    "先恢复再取图（默认不置前，不动当前前台窗口），回执带 restored。"
-    "要把它亮到前台时给 activate=true。"
-    "图上叠坐标网格，刻度数字与 desktop_mouse 使用同一套屏幕坐标。"
-    "返回屏幕矩形、光标位置与实发尺寸。"
+    "Capture the desktop as an image for direct viewing; this is not OCR. "
+    "Supports the full screen, a region, and a named window, with a coordinate grid "
+    "whose labels use the same screen coordinates as desktop_mouse. "
+    "hover moves the cursor before capture to reveal hover-only controls; "
+    "annotate selects annotated, raw, or both images."
 )
 parameters = {
-    "x": {"type": "integer", "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出"},
-    "y": {"type": "integer", "description": "区域左上角 y"},
-    "width": {"type": "integer", "description": "区域宽度（屏幕坐标）"},
-    "height": {"type": "integer", "description": "区域高度（屏幕坐标）"},
-    "window": {"type": "string", "description": "窗口标题片段；取该窗口自身内容，遮挡不影响"},
-    "hwnd": {"type": "integer", "description": "窗口句柄；与 window 二选一，hwnd 更精确"},
-    "activate": {"type": "boolean", "description": "取图前是否置前（默认 false：只恢复，不改变当前前台）"},
-    "grid": {"type": "boolean", "description": "叠加坐标网格与刻度（默认 true）"},
-    "max_side": {"type": "integer", "description": "长边缩到不超过该像素；0 = 不缩放；缺省取插件配置"},
+    "x": {"type": "integer", "description": "region left x (screen coordinates); give with y/width/height"},
+    "y": {"type": "integer", "description": "region top y (screen coordinates)"},
+    "width": {"type": "integer", "description": "region width (screen coordinates)"},
+    "height": {"type": "integer", "description": "region height (screen coordinates)"},
+    "window": {"type": "string", "description": "window title substring; capture the window's own content, unaffected by occlusion"},
+    "hwnd": {"type": "integer", "description": "window handle; use instead of window; more precise"},
+    "activate": {"type": "boolean", "description": "bring the window to the front before capture (default false: restore only)"},
+    "hover": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2,
+              "description": "move the cursor here [x, y] before capture to reveal hover-only controls"},
+    "hover_path": {"type": "array", "items": {"type": "array", "items": {"type": "integer"},
+                                              "minItems": 2, "maxItems": 2},
+                   "description": "up to four intermediate points walked before hover"},
+    "hover_settle_ms": {"type": "integer", "description": "wait after moving before capture, 0–5000; defaults to plugin config"},
+    "hover_approach_ms": {"type": "integer", "description": "time to move to the target, 0–2000 (default 120); 0 = jump"},
+    "hover_wiggle": {"type": "boolean", "description": "make a few 1–2 px moves near the target (default true)"},
+    "grid": {"type": "boolean", "description": "overlay the coordinate grid and labels (default true)"},
+    "grid_step": {"type": "integer", "description": "grid spacing in screen coordinates, 20–500; defaults to plugin config"},
+    "grid_unit": {"type": "string", "enum": ["screen", "image"],
+                  "description": "grid label unit: screen coordinates (default) or image pixels"},
+    "max_side": {"type": "integer", "description": "longest image side, 0–8192; 0 = no resize; defaults to plugin config"},
+    "annotate": {"type": "string", "enum": ["annotated", "raw", "both"],
+                 "description": "annotated only (default) / raw only / annotated then raw"},
 }
 ```
 
-返回数据（图片另走附件）：
+`desktop_eye` returns PNG attachments plus a JSON receipt. Without `window` or `hwnd`, it captures the screen composite, which can include occluding windows. With either parameter, it targets the window's own content, so occlusion does not normally affect the result; if the window does not paint, the call can fall back to a screen capture. `window` matches a title substring; `hwnd` selects an exact window. The two parameters are mutually exclusive.
+
+A minimized window is restored before capture. With the default `activate=false` it is restored without changing the foreground window; with `activate=true` it is restored and brought to the front. `restored` records that restoration happened. `activated` appears only when `activate=true` and records whether the window actually reached the foreground. A failed activation is reported but does not discard a window capture that succeeded.
+
+If the window's own content remains uniform after the repaint wait, the backend falls back to a screen capture, sets `source` to `screen`, and adds a note that occluding content may appear. The receipt never presents a screen fallback as window content.
+
+`hover` moves the real cursor, waits for the interface to settle, and then captures, all within one call. Splitting the move and the capture into separate tool calls usually fails: hover-only controls often collapse within two to three seconds, which is shorter than a model round trip. When `window` or `hwnd` is supplied, the cursor move happens after the window is restored or activated and before the capture, so the revealed control belongs to the target window. When neither is supplied and the backend has window and hit ports, the auto target is the top-level window under the cursor; a window capture avoids screen occlusion, though `max_side` still applies. Without a window port, the call remains a screen capture. The receipt marks an auto target with `window.auto = "hover.hit"`.
+
+The cursor path is not a single jump. Intermediate `hover_path` points are visited first, then the cursor moves to `hover` over `hover_approach_ms`, and finally makes a few 1–2 px moves when `hover_wiggle` is enabled. These are real cursor movements because auto-hiding controls react to consecutive mouse-move events; a single jump followed by no movement is ignored by many interfaces. After the wiggle, the cursor is read back and returned to the target. If the target window moves the cursor and it cannot be returned, the call fails rather than treating the displaced position as the target.
+
+The grid is drawn after resizing, so labels are rendered at their final size. Grid labels use screen coordinates by default, even when the image was scaled or the capture has a negative origin. `grid_unit=image` switches labels to image pixels and is intended to be paired with `capture_id`. The cursor overlay is controlled by `cursor_mark` in the plugin configuration; it is independent of the `grid` switch.
+
+Returned fields:
 
 ```json
 {
   "platform": "win32",
   "screen": {"x": -1920, "y": 0, "width": 3840, "height": 1080},
   "capture": {"x": -1920, "y": 0, "width": 3840, "height": 1080},
+  "source": "window",
+  "annotate": "annotated",
   "image": {"width": 3840, "height": 1080, "sent_width": 1920, "sent_height": 540,
-            "scale": 2.4, "bytes": 812345},
+            "scale": 2.0, "bytes": 548735},
+  "image_to_screen": {"scale_x": 2.0, "scale_y": 2.0, "ox": -1920, "oy": 0},
+  "capture_id": "a1b2c3d4e5f6",
+  "dpi": "96 dpi",
   "cursor": {"x": 412, "y": 300},
-  "grid": {"step": 100, "unit": "屏幕坐标"},
-  "dpi": "per-monitor-v2",
-  "window": {"hwnd": 2363600, "title": "腾讯视频", "rect": {"...": "..."},
-             "minimized": false, "visible": true},
-  "restored": true
+  "grid": {"step": 100, "unit": "screen", "scale": 2.0},
+  "window": {"hwnd": 123456, "title": "Example window",
+             "rect": {"x": -1920, "y": 0, "width": 3840, "height": 1080},
+             "minimized": false, "visible": true, "foreground": true},
+  "restored": true,
+  "note": "The window was minimized; it was restored without activation before capture."
 }
 ```
 
-`window` / `restored` / `activated` 只在给了 `window` 或 `hwnd` 时出现：
-`restored` 表示取图前窗口最小化、已恢复；`activated` 只在显式给了 `activate`
-时出现，写置前是否成功。
+`window`, `restored`, and `activated` appear only when a window is targeted. `window.matched` and `window.alternatives` appear when a title matches more than one visible window. `hover.hit` identifies the window under the hover point. `capture_id` is an in-memory reference, not a file path; it expires after 300 seconds or when the per-plugin cache reaches 64 entries, and it is scoped to the current session. `note` is emitted only for actionable conditions: resizing, restoration or activation, screen fallback, a blank image, inconsistent multi-monitor scaling, duplicate title matches, a hover layer that differs from the captured window, or an automatically selected hover target.
 
-`note` 只在这些情况下出现：缩放过（给出换算关系）、恢复过窗口（说明有没有置前）、
-窗口内容取不到而回退屏幕（可能含遮挡物）、画面全黑（锁屏 / 安全桌面 / 受保护内容）、
-多屏缩放不一致（坐标可能偏移）。常态不写提示语，省请求体积。
+Validation:
 
-校验：
+- `x`, `y`, `width`, and `height` are supplied together or omitted together. Width and height must be positive. A region outside the screen is clipped; a region with no intersection fails with the screen rectangle.
+- `window` and `hwnd` are mutually exclusive. `hwnd` must be a positive integer. `window` must be a non-empty substring.
+- `activate` is valid only with `window` or `hwnd`. Supplying it for a full-screen capture fails.
+- A capture over 40 million pixels fails with a request for a smaller region. The check stops the call before rendering.
+- `hover_path` requires `hover`, may contain one to four points, and every point must be inside the virtual screen. `hover` must also be inside the screen.
+- `grid_step` is 20–500. `max_side` is 0–8192. `hover_settle_ms` is 0–5000. `hover_approach_ms` is 0–2000. Unknown arguments are rejected.
 
-- `x/y/width/height` 必须成组出现；只给一部分 → `ValueError` 指出缺哪个。
-- `width`、`height` 必须为正；区域与屏幕无交集 → `ValueError` 附屏幕矩形。
-- 区域超出屏幕按屏幕裁剪，裁剪后的矩形放在 `capture` 里。
-- 像素数超过 `MAX_CAPTURE_PIXELS`（40M）→ `ValueError`，请模型给更小的区域。
-- `activate` 只对 `window` / `hwnd` 有意义；整屏取图给了它就 → `ValueError`。
+#### Window capture and activation
 
-#### 取图与置前的关系
-
-| 窗口状态 | `activate` 缺省（false） | `activate=true` |
+| Window state | `activate=false` (default) | `activate=true` |
 |---|---|---|
-| 正常显示、被遮挡 | 不碰窗口状态，直接取窗口自身重绘 | 先置前，再取图 |
-| 最小化 | **恢复**（`SW_SHOWNOACTIVATE`）后取图，当前前台不变 | 恢复 + 置前，等价于点任务栏 |
+| Visible, including occluded | No window-state change; capture the window's own content | Bring to front, then capture |
+| Minimized | Restore with `SW_SHOWNOACTIVATE`, then capture; the foreground window is unchanged | Restore and bring to front; equivalent to clicking the taskbar |
 
-恢复是必须的：最小化窗口的 `GetWindowRect` 是 `(-32000,-32000,160,28)`，
-`PrintWindow` 只会得到空帧。实测 `SW_SHOWNOACTIVATE` 能触发 Chromium/Chromium 真实重绘
-（5.78MB 非空帧，与 `SW_RESTORE` 一致），所以「不打扰用户」和「取到内容」可以同时成立。
+Restoration is mandatory: a minimized window has an off-screen rectangle and produces no useful window content. The backend restores it, waits for a real repaint, and retries the capture for up to 1.2 seconds. If the frame is still uniform, it falls back to a screen capture. An explicit activation that fails is reported with `activated=false`; the capture is still returned if the window content is available, and a note tells the caller that the window is not in the foreground.
 
-### 4.2 `desktop_mouse`
+### 3.2 `desktop_mouse`
 
 ```python
 name = "desktop_mouse"
-label = "鼠标"
+label = "Mouse"
 icon = "🖱"
 description = (
-    "操作鼠标：move 移动 / click 点击 / drag 拖拽 / scroll 滚轮 / cursor 只读查询位置。"
-    "坐标是屏幕坐标，与 desktop_eye 的网格刻度一致；click 不给 x/y 时在原地点击。"
-    "给 window / hwnd 时先把该窗口恢复并置前再动作，回执带 focus；"
-    "置前失败则拒绝落点，避免点到遮挡物。"
-    "返回动作后的光标位置。"
+    "Operate the mouse: move, click, drag, scroll, or query the cursor. "
+    "Coordinates are screen coordinates by default; a capture_id switches to image "
+    "pixel coordinates and the tool performs the conversion. "
+    "With window or hwnd, restore and activate the target before acting; "
+    "if activation fails, no input is delivered."
 )
 parameters = {
-    "action": {"type": "string", "description": "move / click / drag / scroll / cursor",
-               "enum": ["move", "click", "drag", "scroll", "cursor"]},
-    "x": {"type": "integer", "description": "目标 x（move / click）或起点 x（drag）或滚动锚点 x（scroll）"},
-    "y": {"type": "integer", "description": "同上，y"},
-    "to_x": {"type": "integer", "description": "drag 终点 x"},
-    "to_y": {"type": "integer", "description": "drag 终点 y"},
-    "button": {"type": "string", "description": "left / right / middle（默认 left）",
-               "enum": ["left", "right", "middle"]},
-    "count": {"type": "integer", "description": "连击次数 1–3（默认 1）"},
-    "amount": {"type": "integer", "description": "滚轮格数，正数向下或向右；绝对值 ≤ 50"},
-    "horizontal": {"type": "boolean", "description": "横向滚动（默认 false）"},
-    "duration_ms": {"type": "integer", "description": "移动或拖拽的过渡时长 0–5000（默认 0 = 直接落点）"},
-    "window": {"type": "string", "description": "目标窗口标题片段；先置前再动作"},
-    "hwnd": {"type": "integer", "description": "目标窗口句柄；与 window 二选一，hwnd 更精确"},
+    "action": {"type": "string", "enum": ["move", "click", "drag", "scroll", "cursor"]},
+    "x": {"type": "integer", "description": "x; screen coordinates by default, image pixels with capture_id"},
+    "y": {"type": "integer", "description": "y; screen coordinates by default, image pixels with capture_id"},
+    "to_x": {"type": "integer", "description": "drag end x; same coordinate space as x"},
+    "to_y": {"type": "integer", "description": "drag end y; same coordinate space as y"},
+    "space": {"type": "string", "enum": ["screen", "image"],
+              "description": "coordinate space: screen (default) or image; image requires capture_id"},
+    "capture_id": {"type": "string", "description": "capture_id from a desktop_eye receipt"},
+    "button": {"type": "string", "enum": ["left", "right", "middle"], "description": "button (default left)"},
+    "count": {"type": "integer", "description": "click count 1–3 (default 1)"},
+    "amount": {"type": "integer", "description": "scroll amount -50 to 50; positive is down or right"},
+    "horizontal": {"type": "boolean", "description": "horizontal scroll (default false)"},
+    "duration_ms": {"type": "integer", "description": "move or drag duration 0–5000; 0 = jump"},
+    "window": {"type": "string", "description": "target window title substring; activate before acting"},
+    "hwnd": {"type": "integer", "description": "target window handle; use instead of window"},
+    "shot": {"type": "boolean", "description": "capture the result in the same call (default false)"},
+    "shot_region": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4,
+                    "description": "capture region [x, y, width, height] in screen coordinates"},
+    "shot_max_side": {"type": "integer", "description": "longest side of the shot; defaults to plugin config"},
 }
 ```
 
-动作矩阵（`tools/_params.py` 唯一实现，逐条校验）：
+Action matrix:
 
-| action | 必填 | 允许 | 拒绝 |
+| `action` | Required | Action-specific optional | Rejected |
 |---|---|---|---|
-| `move` | `x,y` | `duration_ms` | `to_*` / `amount` / `button` / `count` / `horizontal` |
-| `click` | 无 | `x,y,button,count` | `to_*` / `amount` / `horizontal` / `duration_ms` |
-| `drag` | `x,y,to_x,to_y` | `button,duration_ms` | `amount` / `count` / `horizontal` |
-| `scroll` | `amount` | `x,y,horizontal` | `to_*` / `button` / `count` / `duration_ms` |
-| `cursor` | 无 | 无 | 其余全部 |
+| `move` | `x`, `y` | `duration_ms` | `to_x`, `to_y`, `amount`, `button`, `count`, `horizontal` |
+| `click` | none; omitted `x`, `y` use the current cursor | `x`, `y`, `button`, `count` | `to_x`, `to_y`, `amount`, `horizontal`, `duration_ms` |
+| `drag` | `x`, `y`, `to_x`, `to_y` | `button`, `duration_ms` | `amount`, `count`, `horizontal` |
+| `scroll` | `amount` | `x`, `y`, `horizontal` | `to_x`, `to_y`, `button`, `count`, `duration_ms` |
+| `cursor` | none | none | all other action parameters, plus `space`, `capture_id`, and the `shot` group |
 
-拒绝时回 `ValueError`，文案点名该用哪个 action，例如
-`action=click 不接受 to_x；拖拽改用 action=drag`。
+`window` and `hwnd` are accepted by every action; `cursor` does not activate because it performs no input. Non-cursor actions also accept `space`, `capture_id`, `shot`, `shot_region`, and `shot_max_side`. A rejected parameter raises `ValueError`, names the parameter, and names the action that accepts it.
 
-返回：
+Coordinates:
+
+- Screen coordinates are the default. Supplying `capture_id` switches to the image coordinates of that capture; `space=image` states the same explicitly. Supplying `capture_id` with `space=screen` is an error. An unknown, expired, or cross-session `capture_id` fails instead of falling back to screen coordinates.
+- Image coordinates must be given as a point and must lie inside the image. The tool converts them with `screen_x = capture.x + image_x * capture.width / image.width` and the corresponding y formula.
+- `click` and `scroll` may omit `x` and `y`; they then act at the current cursor position. `move` and `drag` require their points. Image coordinates are never inferred from the current cursor.
+- `amount` is nonzero and lies in -50 to 50. Positive values scroll down or right; `horizontal` selects the horizontal axis.
+- `duration_ms` is 0–5000. Its default is 0 for `move` (a jump) and 300 for `drag`.
+
+Returns:
 
 ```json
-{"action": "click", "button": "left", "count": 1, "cursor": {"x": 300, "y": 400}}
-{"action": "drag", "from": {"x": 10, "y": 20}, "to": {"x": 300, "y": 400}, "cursor": {"x": 300, "y": 400}}
-{"action": "scroll", "amount": -3, "horizontal": false, "cursor": {"x": 800, "y": 500}}
-{"action": "cursor", "cursor": {"x": 412, "y": 300}, "screen": {"x": 0, "y": 0, "width": 2560, "height": 1440}}
+{"action": "click", "space": "screen", "cursor": {"x": 300, "y": 400},
+ "screen": {"x": 0, "y": 0, "width": 2560, "height": 1440},
+ "hit": {"hwnd": 123456, "class": "ExampleClass", "title": "Example window"},
+ "changed": 0.34, "changed_scope": "point_200",
+ "window_changed": {"changed": true, "navigated": true}}
 ```
 
-`drag` 的按下与松开必须成对：后端用 `try/finally` 保证异常路径也发出松开事件。
+```json
+{"action": "drag", "space": "screen", "cursor": {"x": 300, "y": 400},
+ "screen": {"x": 0, "y": 0, "width": 2560, "height": 1440}}
+```
 
-### 4.3 `desktop_keyboard`
+```json
+{"action": "scroll", "space": "screen", "cursor": {"x": 800, "y": 500},
+ "screen": {"x": 0, "y": 0, "width": 2560, "height": 1440}}
+```
+
+```json
+{"action": "cursor", "cursor": {"x": 412, "y": 300},
+ "screen": {"x": 0, "y": 0, "width": 2560, "height": 1440}}
+```
+
+`click`, `drag`, and `scroll` additionally report evidence when the backend supports it:
+
+- `hit` gives the window handle and class under the landing point, plus the title of the top-level window. It is omitted when hit probing is unavailable.
+- `changed` is the fraction of changed pixels in a 200×200 region around the point, from 0 to 1. `changed_scope` is `point_200`. A value of 0 means only that the local region did not change; it does not prove the click missed. If the first sample is below 0.005, the tool waits 250 ms and samples once more; `changed` becomes the larger value and `changed_late` and `changed_note` describe the second sample.
+- `window_changed` compares the top-level window before and after the action. `opened` and `closed` list up to three windows, with counts in `opened_more` and `closed_more`. `changed` is true when a window was opened or closed, or when the hit window changed. `navigated` is true when the local region did not change but the window layer did, which is the expected receipt for a click that opens a detail page or a new window.
+
+`shot=true` captures the screen in the same call. The default shot target is the top-level window under the landing point (`shot_of: "hit"`), not a window resolved again from the title. An explicit `window` or `hwnd` overrides this (`shot_of: "window"` or `"hwnd"`); if neither a hit nor a focus target exists, the shot is the full screen. The shot receipt uses the same overlay as `desktop_eye`, and the action receipt is nested under `performed`. When the default shot follows the landing window and that window differs from the activated window, `note` names both handles. `shot` is available for `move`, `click`, `drag`, and `scroll`; `cursor` is read-only and rejects it.
+
+A drag always sends the button release in a `finally` block. If movement raises, the release still runs, so a failed drag does not leave the button down.
+
+### 3.3 `desktop_keyboard`
 
 ```python
 name = "desktop_keyboard"
-label = "键盘"
+label = "Keyboard"
 icon = "⌨"
 description = (
-    "操作键盘：type 输入文本 / key 按一次键 / hotkey 按组合键。"
-    "文本按 Unicode 逐字投递，不受当前键盘布局影响；\\n 走回车，\\t 走制表。"
-    "键名小写，组合键如 [\"ctrl\", \"c\"]、[\"cmd\", \"space\"]。"
-    "给 window / hwnd 时先恢复并置前再输入，回执带 focus；置前失败则拒绝投递。"
+    "Operate the keyboard: type Unicode text, press one key, or press a key combination. "
+    "With window or hwnd, restore and activate the target before typing; "
+    "if activation fails, no input is delivered."
 )
 parameters = {
-    "action": {"type": "string", "description": "type / key / hotkey",
-               "enum": ["type", "key", "hotkey"]},
-    "text": {"type": "string", "description": "action=type 时要输入的文本"},
-    "key": {"type": "string", "description": "action=key 时的键名，如 enter / esc / f5 / a"},
-    "keys": {"type": "array", "description": "action=hotkey 时的键名数组，2–4 个"},
-    "repeat": {"type": "integer", "description": "key / hotkey 重复次数 1–20（默认 1）"},
-    "window": {"type": "string", "description": "目标窗口标题片段；先置前再输入"},
-    "hwnd": {"type": "integer", "description": "目标窗口句柄；与 window 二选一，hwnd 更精确"},
+    "action": {"type": "string", "enum": ["type", "key", "hotkey"]},
+    "text": {"type": "string", "description": "text for action=type"},
+    "key": {"type": "string", "description": "key name for action=key, such as enter / esc / f5 / a"},
+    "keys": {"type": "string", "description": "key combination for action=hotkey, such as \"ctrl+c\" or \"alt+tab\""},
+    "repeat": {"type": "integer", "description": "repeat count for key or hotkey, 1–20 (default 1)"},
+    "window": {"type": "string", "description": "target window title substring; activate before typing"},
+    "hwnd": {"type": "integer", "description": "target window handle; use instead of window"},
+    "shot": {"type": "boolean", "description": "capture the result in the same call (default false)"},
+    "shot_max_side": {"type": "integer", "description": "longest side of the shot; defaults to plugin config"},
 }
 ```
 
-返回：
+`type` sends text as Unicode units and does not depend on the active keyboard layout. A line feed or carriage return is sent as Enter; a tab is sent as Tab. `key` presses one canonical key. `hotkey` presses two to four keys, with modifiers in the order given and released in reverse order.
+
+Returns:
 
 ```json
 {"action": "type", "chars": 12}
 {"action": "key", "key": "enter", "repeat": 1}
-{"action": "hotkey", "keys": "ctrl+c", "repeat": 1}
+{"action": "hotkey", "keys": ["ctrl", "c"], "repeat": 1}
 ```
 
-键名规范（`keys.py`）：
+`window` and `hwnd` add a `focus` receipt. A failed activation aborts the call before any key is sent. With `shot=true`, the receipt is a capture payload and the keyboard result is nested under `performed`; the capture target follows explicit `window`/`hwnd` and otherwise uses the full screen.
 
-- 规范名：`enter tab esc space backspace delete insert home end pageup pagedown
-  left up right down capslock f1…f20 ctrl shift alt win cmd`，以及单个可见字符。
-- 别名归一：`return→enter`、`escape→esc`、`control→ctrl`、`option|alt→alt`、
-  `command|meta|super→cmd`（Windows 侧映射到 Win 键）、`page_up|pgup→pageup`。
-- 未知键名 → `ValueError` 附规范名清单的短摘要，不回退成「按第一个字符」。
-- `keys` 按字符串给（schema 只声明字符串），按 `+` 或 `,` 拆开；数组形式在解析层也容忍。
-- `hotkey` 只接受 2–4 个键，且至少一个非修饰键；全是修饰键 → `ValueError`。
+Key names:
 
-整数参数接受数字字符串（`"300"`），拒绝布尔与浮点；小数按 `ValueError`，
-不静默取整。
+- Canonical names: `enter`, `tab`, `esc`, `space`, `backspace`, `delete`, `insert`, `home`, `end`, `pageup`, `pagedown`, `left`, `up`, `right`, `down`, `capslock`, `f1` through `f20`, `ctrl`, `shift`, `alt`, `win`, `cmd`, and single ASCII letters, digits, and the punctuation keys `-`, `=`, `[`, `]`, `;`, `'`, `,`, `.`, `/`, `\`, and `` ` ``.
+- Aliases: `return` → `enter`, `escape` → `esc`, `control` → `ctrl`, `option` → `alt`, `command` / `meta` / `super` → `cmd`, `windows` → `win`, `page_up` / `pgup` → `pageup`, `page_down` / `pgdn` → `pagedown`, plus the common named punctuation aliases.
+- An unknown key fails with `ValueError` and a short list of accepted names. It never falls back to pressing the first character.
+- `keys` is declared as a string. It is split on `+` or `,`, so `"ctrl+c"` and `"ctrl,c"` are equivalent. An array is also accepted by the parser, but the schema presents the string form.
+- A combination must contain 2–4 keys and at least one non-modifier. An all-modifier combination fails.
 
-## 5. 配置
+Integer arguments accept numeric strings such as `"300"` but reject booleans and floating-point values. A fractional value fails with `ValueError`; it is never silently truncated.
 
-`plugins/visual_operator/plugin-config.ini`：
+### 3.4 `desktop_wait`
+
+| Parameter | Meaning |
+|---|---|
+| `until` | `change`: wait for a region to change. `window_appears`: wait for a window to appear. `window_disappears`: wait for a window to disappear. |
+| `window` | Window title substring. For `change`, restricts the compared region. For `window_appears` and `window_disappears`, required. |
+| `hwnd` | Window handle. Valid for `change` as an alternative to `window`; the wait for a window appearance or disappearance is title-based. |
+| `x`, `y`, `width`, `height` | Region for `change`; supplied together or omitted together. Defaults to the window rectangle or the full screen. |
+| `timeout_ms` | Maximum wait, 50–60000; default 10000. |
+| `interval_ms` | Poll interval, 50–2000; defaults to plugin configuration. |
+| `threshold` | Change threshold from 0 to 1 for `change`; default 0.02. Smaller values are more sensitive. |
+
+`until=change` captures a baseline and compares later captures of the same region. It uses the screen composite and does not activate a window. A minimized window cannot be compared and fails immediately instead of waiting on an off-screen rectangle. `until=window_appears` and `window_disappears` search visible top-level windows by title. A platform without a window port fails with `DesktopUnavailable`.
+
+A timeout is not an error. The tool returns `satisfied: false` with the last measured value; the caller decides whether to change the action or wait longer. If the condition is already true on the first probe, `already` is set and the note explains that no waiting occurred.
+
+`desktop_wait` is read-only. It does not take the input lock, does not move the cursor, and remains available in Plan mode.
+
+Example receipts:
+
+```json
+{"until": "change", "satisfied": true, "waited_ms": 420,
+ "changed": 0.18, "threshold": 0.02,
+ "capture": {"x": 100, "y": 100, "width": 800, "height": 600}}
+```
+
+```json
+{"until": "window_appears", "satisfied": false, "waited_ms": 10000,
+ "note": "The window with the requested title did not appear before the timeout."}
+```
+
+## 4. Configuration
+
+`plugins/visual_operator/plugin-config.ini`:
 
 ```ini
 [config]
@@ -284,84 +363,84 @@ hover_wiggle = 1
 wait_interval_ms = 200
 ```
 
-| 键 | 默认 | 范围 | 作用 |
+| Key | Default | Range | Effect |
 |---|---|---|---|
-| `eye` | 1 | 0/1 | 是否注册 `desktop_eye` |
-| `mouse` | 1 | 0/1 | 是否注册 `desktop_mouse` |
-| `keyboard` | 1 | 0/1 | 是否注册 `desktop_keyboard` |
-| `wait` | 1 | 0/1 | 是否注册 `desktop_wait` |
-| `max_side` | 1920 | 0–8192 | 截图长边上限，0 = 不缩放 |
-| `grid_step` | 100 | 20–500 | 网格间距（屏幕坐标） |
-| `cursor_mark` | 1 | 0/1 | 网格图上画光标十字并标坐标 |
-| `settle_ms` | 60 | 0–2000 | 鼠标键盘动作后的停顿，给界面刷新留时间 |
-| `type_interval_ms` | 12 | 0–200 | 逐字输入的字符间隔 |
-| `hover_settle_ms` | 250 | 0–2000 | `hover` 移完光标后等界面展开 |
-| `hover_approach_ms` | 120 | 0–2000 | `hover` 移到落点用多少毫秒，0 = 一次跳变 |
-| `hover_wiggle` | 1 | 0/1 | 到达后是否做 1–2px 微移动，唤醒只认连续 mousemove 的控件 |
-| `wait_interval_ms` | 200 | 50–2000 | `desktop_wait` 的默认轮询间隔 |
+| `eye` | 1 | 0/1 | Register `desktop_eye` |
+| `mouse` | 1 | 0/1 | Register `desktop_mouse` |
+| `keyboard` | 1 | 0/1 | Register `desktop_keyboard` |
+| `wait` | 1 | 0/1 | Register `desktop_wait` |
+| `max_side` | 1920 | 0–8192 | Longest side of a sent capture; 0 = no resize |
+| `grid_step` | 100 | 20–500 | Grid spacing in screen coordinates |
+| `cursor_mark` | 1 | 0/1 | Draw the cursor crosshair and coordinate label |
+| `settle_ms` | 60 | 0–2000 | Pause after a mouse or keyboard action |
+| `type_interval_ms` | 12 | 0–200 | Delay between typed characters |
+| `hover_settle_ms` | 250 | 0–2000 | Wait after a hover move for the interface to settle |
+| `hover_approach_ms` | 120 | 0–2000 | Duration of the hover move; 0 = one jump |
+| `hover_wiggle` | 1 | 0/1 | Perform 1–2 px moves near the hover target |
+| `wait_interval_ms` | 200 | 50–2000 | Default poll interval for `desktop_wait` |
 
-解析规则（`config.py`，纯函数，无 IO 副作用）：
+Per-call arguments override the corresponding configuration. `grid_step`, `max_side`, `hover_settle_ms`, `hover_approach_ms`, and `hover_wiggle` are the main capture overrides; the input tools use their configured timing values, and `desktop_wait` uses its `interval_ms` argument, defaulting to the configured value.
 
-- 真实配置缺失 → 全部取默认值。
-- 整数键：非数字取默认；越界夹到边界（`grid_step=1000 → 500`）。
-- 开关键：接受 `1/0`、`true/false`、`yes/no`、`on/off`（大小写不敏感），其余取默认。
-- 未知键忽略：真实配置允许带注释与其它节，不因多一个键装载失败。
-- 夹取与回退不写日志：配置错误在装载期不阻断，也不该刷错误日志；
-  生效值可由 `desktop_eye` 的 `grid.step` 与 `image` 字段反查。
+Parsing rules in `config.py`:
 
-插件装载失败（`plugin.py` 抛错）仍由宿主记录并回滚，配置解析不在失败面内。
+- A missing file or a missing `[config]` section yields defaults.
+- An integer key with a non-integer value falls back to its default. An out-of-range value is clamped to the nearest boundary.
+- A switch accepts `1` / `0`, `true` / `false`, `yes` / `no`, and `on` / `off`, case-insensitively. Any other value falls back to the default.
+- Unknown keys are ignored. Comments and other sections in the file do not prevent loading.
+- Parsing and fallback do not write logs, and a configuration error does not prevent the plugin from loading. Effective values can be read back from the `grid` and `image` fields of a `desktop_eye` receipt.
 
-## 6. 坐标、图像与缩放
+## 5. Coordinates, images, and scaling
 
-### 6.1 空间定义
+### 5.1 Coordinate space
 
-- 屏幕坐标空间的原点是虚拟桌面左上角；多屏时 `x` 或 `y` 可以为负。
-  Windows 用物理像素，macOS 用全局显示点。
-- `screen` 返回虚拟桌面矩形；`capture` 返回本次实际截取的矩形。
-- 网格刻度写屏幕坐标值（`screen.x + 偏移`），不是图片像素。
-- 鼠标参数按同一空间解释，后端直接按该坐标系投递。
+- The origin of screen coordinates is the top-left corner of the virtual desktop. With multiple monitors, either coordinate may be negative. Windows uses physical pixels; macOS uses global display points.
+- `screen` is the virtual-desktop rectangle. `capture` is the rectangle actually captured. A screen region is clipped to the virtual desktop before capture, and a window region is clipped again to the window.
+- Grid labels use screen coordinates by default and are computed as `screen.x + offset`, not as image pixels.
+- Mouse parameters use the same screen space, and each backend delivers them in that space. When image coordinates are selected, `capture_id` provides the mapping to screen coordinates.
 
-### 6.2 加工顺序
+### 5.2 Processing order
 
+```text
+screen or window capture
+  -> window restore/activation, then optional hover move
+  -> crop to the requested region
+  -> blank-frame detection
+  -> resize so the longest side is at most max_side (LANCZOS)
+  -> grid and cursor overlay on the final canvas
+  -> PNG encoding
+  -> ToolResult.attach
 ```
-系统截取（原始截图）
-  → 按区域裁剪（后端完成）
-  → 全黑检测（仅记录 note）
-  → 缩放到 max_side（LANCZOS）
-  → 叠网格与光标（在缩放后的画布上画，标签按屏幕坐标换算）
-  → PNG 编码 → ToolResult.attach
+
+Blank detection adds a note instead of rejecting the capture; the receipt has no separate blank field. A window capture can fall back to the screen before processing, in which case `source` reflects the fallback.
+
+The overlay is applied after resizing. Labels are therefore rendered at their final size and do not become blurred through a second scaling pass. The mapping from screen coordinates to overlay pixels is:
+
+```text
+image_x = (screen_x - capture.x) * sent_width / capture.width
+image_y = (screen_y - capture.y) * sent_height / capture.height
 ```
 
-网格画在缩放后的画布上：标签在最终尺寸下渲染才不会被缩成模糊小字。
-落点由 `图内偏移 = (屏幕坐标 - rect 原点) × 实发尺寸 / rect 尺寸` 计算，
-所以缩放与 Retina 倍率都不影响读数。
+The inverse mapping is reported as `image_to_screen.scale_x`, `scale_y`, `ox`, and `oy`. It is available for diagnostics and for interface display; a caller using screen coordinates or grid labels does not need to apply it.
 
-网格细节：
+### 5.3 Grid and cursor overlay
 
-- 每 `grid_step` 个屏幕坐标一条细线，每 5 条一条粗线并标注数值（上下边缘各标一次）。
-- 刻度文字用 Pillow 内嵌字体（`ImageFont.load_default(size=…)`，随 Pillow 一起分发，
-  不依赖系统字体）；该参数自 Pillow 10.1 起可用，取字体时对 `TypeError` 回退到
-  `load_default()`，不因依赖小版本差异让截图整条失败。
-- 文字加深色描边，保证在浅色与深色背景上都可读。
-- 光标十字与坐标标签只在 `cursor_mark=1` 且光标落在本次截图区域内时绘制，
-  与 `grid` 开关无关。
-- 线宽与字号随最终图宽自适应：宽图细线 1px、字号 11–16px；标签不与边缘重叠。
+- Minor grid lines are drawn every `grid_step` screen units. Every fifth line is major and carries a label. Vertical lines are labeled at the top and bottom edges; horizontal lines are labeled at the left and right edges. Labels are clamped inside the image.
+- When the gap between minor lines is less than 8 image pixels, minor lines are omitted and only major lines remain. This avoids turning a dense grid into a solid tint.
+- Minor lines are blue and 1–2 pixels wide; major lines are red and 2–3 pixels wide. Grid labels use an embedded font with a dark stroke, at 8–18 pixels depending on image width.
+- The cursor overlay is drawn only when `cursor_mark` is enabled and the cursor lies inside the captured rectangle. It is independent of `grid`.
+- The overlay consists of a short bright-green crosshair with a black halo and a white separator, a small ring, and a `CURSOR` badge containing the coordinates. The center of the crosshair is left open so the pixel under the cursor remains visible.
+- When the shorter side is below 90 pixels, no cursor label is drawn; the coordinates remain in the `cursor` receipt. When it is below 140 pixels, the compact label omits the `CURSOR` title and the dark background.
+- With `grid_unit=image`, both grid labels and the cursor label use image pixels. `desktop_mouse` then needs `capture_id` and `space=image`; screen and image coordinates must not be combined in one action.
 
-### 6.3 缩放与坐标
+### 5.4 Size and history
 
-`image.scale = 原图宽 / 实发宽`。模型不需要用它换算（网格刻度已是屏幕坐标），
-它只用于核对与排障。缩放发生时 `note` 给出这一句，避免模型按图片像素直接点击。
+- A capture over 40 million pixels is rejected with a request for a smaller region. The check runs before rendering; a screen capture is rejected before its bitmap is allocated, while a window capture may already have been taken when the limit is checked.
+- Returned screenshots are image attachments in the tool result and can be replayed from conversation history. The `[context]` configuration limits that replay: `image_turns` controls how many recent image-bearing user turns are included, and `image_max` caps the total number of images in a request, including tool attachments. Both are independent of the capture size limit.
+- `max_side` changes only the sent image. It does not change the coordinate contract: grid labels remain screen coordinates unless `grid_unit=image` is requested. `image.scale` is the original width divided by the sent width; the receipt describes a resize with a one-step conversion example.
 
-### 6.4 体积
+## 6. Platform backends
 
-- 单张截图（整屏或区域）超过 40M 像素时在调用侧报错，提示改用区域参数；
-  错误停在参数检查，不先分配几百 MB 位图再失败。
-- 截图会进入会话历史。插件文档写明：常开时把 `config.ini` 的
-  `[image] image_max` 调到 40 以内，避免每轮请求都带十几张全屏图。
-
-## 7. 平台后端
-
-### 7.1 公共契约（`ports.py`）
+### 6.1 Common contract
 
 ```python
 class ScreenPort(Protocol):
@@ -381,215 +460,144 @@ class KeyboardPort(Protocol):
     def hotkey(self, keys: Sequence[str], repeat: int) -> None: ...
 ```
 
-`Screenshot` 带 `png: bytes`、`rect: ScreenRect`。
-`Backend` 是 `platform / screen / mouse / keyboard` 四个字段的冻结数据类。
+`Screenshot` carries `png`, `rect`, `source`, `restored`, `foreground`, and `activation`. `Backend` is a frozen data class with `platform`, `screen`, `mouse`, and `keyboard`, plus optional `windows` and `hit` ports. `windows` supplies window lookup, activation, and window capture. `hit` supplies landing-point probing. When either is absent, the corresponding receipt fields are omitted or the operation fails with `DesktopUnavailable`.
 
-`backends/__init__.py` 的 `load_backend()`：
+`load_backend()` selects a platform module lazily:
 
 ```python
-if sys.platform == "win32":   return Win32Backend()
-if sys.platform == "darwin":  return MacOSBackend()
+if sys.platform == "win32":
+    from .win32 import Win32Backend
+    return Win32Backend()
+if sys.platform == "darwin":
+    from .macos import MacOSBackend
+    return MacOSBackend()
 return unavailable_backend()
 ```
 
-装配抛错时打印一行诊断并退到不可用后端。不可用后端的三个端口在每个方法上抛
-`DesktopUnavailable`，枚举原因不变，保证工具仍然注册、错误可解释。
+Backend assembly failure is caught, reported once to stderr, and replaced by the unavailable backend. Its ports raise `DesktopUnavailable` on every method with the current platform and the supported platforms in the message. The tools remain registered, so a missing system library changes the execution result, not the tool list.
 
-### 7.2 Windows
+### 6.2 Windows
 
-| 能力 | 实现 |
+| Capability | Implementation |
 |---|---|
-| DPI 感知 | `SetProcessDpiAwarenessContext(-4)` → `shcore.SetProcessDpiAwareness(2)` → `SetProcessDPIAware()`，一次性，记录生效档位 |
-| 虚拟屏 | `SM_XVIRTUALSCREEN` / `SM_YVIRTUALSCREEN` / `SM_CXVIRTUALSCREEN` / `SM_CYVIRTUALSCREEN` |
-| 截图 | `GetDC(NULL)` → 兼容 DC / 位图 → `BitBlt(SRCCOPY)` → `GetDIBits`（32 位、`BI_RGB`、`biHeight = -h` 取顶朝下）→ Pillow `frombuffer("BGRX")` |
-| 光标 | `Get外部编辑器Pos` |
-| 移动 | `Set外部编辑器Pos`；`duration_ms > 0` 时按线性插值分步投递，每步 10ms |
-| 点击 | `SendInput` 按下 / 抬起，连击间隔 20ms；连击逐次重复 |
-| 拖拽 | 起点落位 → 按下 → 插值移动 → `finally` 抬起 |
-| 滚轮 | `MOUSEEVENTF_WHEEL` / `MOUSEEVENTF_HWHEEL`，纵向取反后乘 120 |
-| 键盘 | `SendInput` + `KEYEVENTF_UNICODE`；特殊键用虚拟键码；组合键顺序按下、逆序抬起 |
+| DPI awareness | `SetProcessDpiAwarenessContext(-4)`, then `shcore.SetProcessDpiAwareness(2)`, then `SetProcessDPIAware()`; if the host already declared awareness, its choice is kept |
+| Virtual screen | `SM_XVIRTUALSCREEN`, `SM_YVIRTUALSCREEN`, `SM_CXVIRTUALSCREEN`, `SM_CYVIRTUALSCREEN` |
+| Screen capture | `GetDC(NULL)` → compatible DC and bitmap → `BitBlt` with `SRCCOPY` and `CAPTUREBLT` → `GetDIBits` with 32-bit `BI_RGB` and negative height for top-down rows → Pillow `BGRX` |
+| Window capture | `GetWindowDC` → `PrintWindow(PW_RENDERFULLCONTENT)` → `GetDIBits`; wait up to 1.2 s for a non-uniform frame; fall back to a screen capture when the window frame remains uniform |
+| Restore | `ShowWindow(SW_SHOWNOACTIVATE)` for capture; `SW_RESTORE` when the window must also be activated |
+| Activation | `SwitchToThisWindow` first, `SetForegroundWindow` as fallback; success is decided by `GetForegroundWindow` plus `IsIconic`, not by the API return value |
+| Cursor | `GetCursorPos` |
+| Move | `SetCursorPos`; with `duration_ms > 0`, interpolate over at most 120 steps across `duration_ms` |
+| Click | `SendInput` down and up; 20 ms between repeated clicks |
+| Drag | Set the start point, press, interpolate to the end point, release in `finally` |
+| Scroll | `MOUSEEVENTF_WHEEL` or `MOUSEEVENTF_HWHEEL`; vertical values are negated before multiplying by 120 |
+| Keyboard | `SendInput` with `KEYEVENTF_UNICODE`; function and named keys use virtual-key codes; hotkeys press in order and release in reverse |
+| Hit probing | `WindowFromPoint`, `GetAncestor(GA_ROOT)`, and `GetClassNameW`; absent results omit `hit` instead of inventing an answer |
+| Window list | `EnumWindows` over visible top-level windows; order is foreground → Z order → area, excluding tool windows and off-screen helper windows |
 
-坐标选择 `Set外部编辑器Pos` 而不用 `MOUSEEVENTF_ABSOLUTE`：后者不带 `VIRTUALDESK`
-时只覆盖主屏，归一化还会在混合 DPI 下引入误差。`Set外部编辑器Pos` 直接吃虚拟桌面像素坐标。
+`SetCursorPos` is used instead of normalized `MOUSEEVENTF_ABSOLUTE` input because the latter covers only the primary monitor without `VIRTUALDESK`, and its normalization can introduce error under mixed DPI. `SetCursorPos` accepts virtual-desktop pixel coordinates directly.
 
-已知边界（写进文档）：UIPI 提权窗口（以管理员运行的程序）会丢弃普通权限进程的
-`SendInput`，且不报错；锁屏与 UAC 安全桌面下 `BitBlt` 得到全黑图。
+Known boundaries: a higher-integrity window (for example, an elevated process) silently discards `SendInput` from a normal-integrity process. The lock screen and the secure desktop produce black captures. Mixed-DPI monitor layouts can still show small coordinate offsets.
 
-### 7.3 macOS
+### 6.3 macOS
 
-| 能力 | 实现 |
+| Capability | Implementation |
 |---|---|
-| 屏幕录制权限 | `CGPreflightScreenCaptureAccess()`（10.15+；符号缺失视为不适用） |
-| 辅助功能权限 | `AXIsProcessTrusted()` |
-| 截图 | `/usr/sbin/screencapture -x [-R x,y,w,h] <临时文件>` → Pillow 读入 → 删临时文件 |
-| 几何 | `CGGetActiveDisplayList` + `CGDisplayBounds`（点）+ `CGDisplayPixelsWide/High`（像素） |
-| 光标 | `CGEventCreate(nil)` + `CGEventGetLocation` + `CFRelease` |
-| 移动 / 点击 / 拖拽 | `CGEventCreateMouseEvent` + `CGEventPost(kCGHIDEventTap)`；双击用 `kCGMouseEventClickState` 逐次递增 |
-| 滚轮 | `CGEventCreateScrollWheelEvent`（单位：行） |
-| 键盘 | `CGEventCreateKeyboardEvent`；文本用 `CGEventKeyboardSetUnicodeString`；组合键用 `CGEventSetFlags`（cmd/shift/alt/ctrl 掩码） |
+| Screen-recording permission | `CGPreflightScreenCaptureAccess()`; a missing symbol is treated as not applicable |
+| Accessibility permission | `AXIsProcessTrusted()` |
+| Capture | `/usr/sbin/screencapture -x -t png -R x,y,w,h <temporary file>`; read the file, then delete it in `finally` |
+| Geometry | `CGGetActiveDisplayList` + `CGDisplayBounds` (points) + `CGDisplayPixelsWide` / `CGDisplayPixelsHigh` (pixels) |
+| Cursor | `CGEventCreate(nil)` + `CGEventGetLocation` + `CFRelease` |
+| Move, click, drag | `CGEventCreateMouseEvent` + `CGEventPost(kCGHIDEventTap)`; repeated clicks increment `kCGMouseEventClickState` |
+| Scroll | `CGEventCreateScrollWheelEvent` in line units; positive scrolls down or right |
+| Keyboard | `CGEventCreateKeyboardEvent`; text uses `CGEventKeyboardSetUnicodeString`; hotkeys use `CGEventSetFlags` for the command, shift, option, and control masks |
 
-Retina：`screencapture` 出的是物理像素，事件坐标是点。工具坐标直接用全局显示点，
-不做额外换算；`pixel_ratio = 像素宽 / 点宽` 由 `geometry()` 报出，供模型理解图片倍率。
-多屏比例不一致时置 `mixed_scale=True`，返回值里给 `note`。
+The screenshot contains physical pixels while event coordinates are display points. The tool contract stays in points. `geometry()` reports `pixel_ratio = pixel width / point width`; multiple monitors with different ratios set `mixed_scale=true` and add a note. `screencapture -R` accepts points, and the output size is points multiplied by the display ratio. The overlay maps from the capture rectangle to the sent image size, so its labels and cursor position do not depend on the display ratio.
 
-`screencapture -R` 的区域单位是点，输出像素 = 点 × 比例。网格与光标按
-「截图区域 → 实发图片尺寸」的比例落位，与显示器倍率无关。
+The macOS backend provides screen capture, mouse, and keyboard ports only. It has no window port and no hit port. `window`, `hwnd`, window-scoped `desktop_wait` conditions, and window activation therefore fail with `DesktopUnavailable`. Input goes to the current foreground application; the caller must bring the target application forward by other means.
 
-## 8. 安全与门控
+The screen-recording and accessibility checks return `DesktopPermissionDenied` with the relevant System Settings pane. A missing screen-recording grant blocks capture; a missing accessibility grant blocks input events.
 
-| 机制 | 位置 | 行为 |
+## 7. Safety and gating
+
+| Mechanism | Location | Behavior |
 |---|---|---|
-| Plan 模式 | `guard.py`，`desktop_mouse` / `desktop_keyboard` 的 `execute` 首行 | 抛 `ModeConflict("Plan 模式下禁止桌面输入（可先 run_type 切回 auto / execute）")`；`desktop_mouse action=cursor` 只读，放行 |
-| 能力开关 | `plugin.py` | 四个工具各自按配置注册；关闭即不出现 |
-| 输入串行 | `input_lock.py` | 鼠标与键盘动作共用 `threading.Lock`，10 秒拿不到抛 `DesktopBusy` |
-| 默认启用 | `plugins.ini` 有节 | 开箱即用；关掉开关即注销工具，清单节保留 |
-| 截屏 | 无额外门控 | 只读，Plan 模式同样可用 |
+| Plan mode | `guard.py`, called from each tool's execution path | Reject input and cursor-moving actions with `ModeConflict`. `desktop_mouse action=cursor` returns before the check because it is read-only; `desktop_eye activate=true` is not intercepted by this gate. |
+| Capability switches | `plugin.py` | Each tool is registered only when its `[config]` switch is on; turning it off unregisters the tool. |
+| Input serialization | `input_lock.py` | Mouse and keyboard actions share one `threading.Lock`. A 10-second timeout raises `DesktopBusy`. |
+| Target assertion | `tools/_windows.py` | A window-targeted mouse or keyboard action activates the window and verifies the foreground before sending input. Failure aborts the action with no input delivered. |
+| Default enable | `plugins.ini` | The plugin has a manifest section. Setting `enabled=0` preserves the section and removes the tools. |
+| Capture | no additional gate | Capture without `hover` is allowed in Plan mode. A minimized target is restored, and `activate=true` can still bring a window forward. |
 
-不做快捷键黑名单。键盘本身就能敲出任意命令（先按 Win 再输入），
-黑名单挡不住，只会给出一层看起来安全的假象。真正的边界是「插件是否启用」、
-「是否在 Plan 模式」与「用户是否在场」。
+Plan mode by operation:
 
-风险声明写进插件文档：启用后，任何能影响模型输入的内容（网页、文件、工具结果）
-都可能变成真实的点击与键入。插件与 `run_command` 同一风险量级，只是入口不同。
+| Operation | Plan mode |
+|---|---|
+| `desktop_eye` without `hover` and without `activate=true` | Allowed; a minimized target may still be restored |
+| `desktop_eye` with `activate=true` and without `hover` | Allowed, but target activation is not gated |
+| `desktop_eye` with `hover` | Rejected: the call moves the real cursor |
+| `desktop_mouse action=cursor` | Allowed |
+| Other `desktop_mouse` actions | Rejected |
+| All `desktop_keyboard` actions | Rejected |
+| `desktop_wait` | Allowed: read-only, no cursor movement, no input |
 
-## 9. 错误与文案
+The Plan check happens before any input event. For mouse actions, it also happens before window activation; a target window is not brought forward merely to discover that the input is forbidden. Without `window` or `hwnd`, mouse and keyboard input goes to the current foreground and no target assertion is possible. When the host cannot provide session live state, the plugin has no mode to consult and does not block; normal assembly supplies the state at execution time.
 
-| 异常 | 触发 | 文案要点 |
+No shortcut blacklist is applied. The keyboard can already synthesize arbitrary commands, including opening a system surface and then typing into it. A blacklist would not stop that path and would create a false sense of safety. The real boundaries are whether the plugin is enabled, whether the session is in Plan mode, and whether an operator is present.
+
+After enablement, any content that can influence model input — a web page, a file, a tool result — can become a real click or keystroke. This is the same risk class as command execution; the entry point differs. Enabling the plugin is a grant of desktop control, not a content-level trust decision.
+
+Screenshots may contain credentials, personal data, or other sensitive material and are sent to the model as attachments. The plugin does not redact them. The controls are the per-capability switches, the `[context]` image replay limits, and the Plan-mode restriction on cursor movement; Plan mode does not block capture itself.
+
+## 8. Errors
+
+| Exception | Trigger | Message requirement |
 |---|---|---|
-| `DesktopUnavailable` | 平台不支持、无图形会话、缺 Pillow | 说明支持的两个平台与当前平台 |
-| `DesktopPermissionDenied` | macOS 屏幕录制 / 辅助功能未授权 | 点明系统设置里的具体栏目与目标程序 |
-| `ScreenCaptureFailed` | `BitBlt` / `screencapture` 失败 | 带系统错误码或进程退出码，不回退成空图 |
-| `DesktopBusy` | 输入锁超时 | 说明另一个输入动作未结束 |
-| `ModeConflict` | Plan 模式下的鼠标键盘 | 与内置命令工具同一句式 |
-| `ValueError` | 参数缺失 / 越界 / 动作矩阵不符 | 点名参数与可用 action |
+| `DesktopUnavailable` | Unsupported platform, missing image dependency, or backend assembly failure | State the missing dependency, the current platform, or the supported platforms, as applicable |
+| `DesktopPermissionDenied` | macOS screen-recording or accessibility permission is missing | Name the exact System Settings pane and the program that needs the grant |
+| `ScreenCaptureFailed` | `BitBlt`, `PrintWindow`, `screencapture`, or image decoding fails | Include the system error or process exit status; never substitute an empty image |
+| `DesktopBusy` | The input lock is held for 10 seconds | State that another desktop input action has not finished |
+| `ModeConflict` | Mouse or keyboard input in Plan mode | Use the same wording as the built-in command gate |
+| `ValueError` | Missing, out-of-range, or mismatched parameters; coordinates outside the screen or image; invalid or expired `capture_id` | Name the parameter and the valid values or action |
+| `DesktopError` | Another system call fails, no active display is available, or a required window cannot be activated | Include the failing operation and enough context to retry or change approach |
 
-异常由管道捕获成 `ok=false` 结构化回灌，单步失败不终止回合。
-错误信息里不出现堆栈与内部路径。
+The tool pipeline converts these exceptions into a structured `ok=false` result; one failed step does not terminate the turn. Error text never includes a Python traceback or an internal repository path.
 
-## 10. 测试
+## 9. Verification
 
-新增两个测试文件，全部在 Linux CI 上可跑（不触碰真实桌面）：
-
-`tests/test_visual_operator.py`
-
-| 类 | 覆盖 |
+| Area | Required behavior |
 |---|---|
-| `ConfigTest` | 缺文件取默认、越界夹取、开关解析、未知键忽略 |
-| `KeysTest` | 别名归一、未知键报错、组合键数量与修饰键校验、两张平台键码表覆盖全部规范名 |
-| `CoordsTest` | 区域成组校验、越界裁剪、无交集报错、负原点、Retina 比例换算 |
-| `CanvasTest` | 缩放后尺寸与 `scale`、网格像素落点、标签存在（像素差断言）、光标在区域外不画、全黑检测 |
-| `EyeToolTest` | 附件恰好一张 PNG、返回字段、`max_side=0` 不缩放、区域参数错误 |
-| `MouseToolTest` | 五个动作的矩阵校验、拒绝越权参数、拖拽顺序（按下→移动→抬起）、滚动先移动 |
-| `KeyboardTest` | 文本必填、`\n`/`\t` 走特殊键、repeat 范围、hotkey 传参、间隔取配置 |
+| Registration | All four tools register with all switches on; a single switch registers only its tool; all switches off register none; an unavailable backend still registers all four. |
+| Capture | Attachments contain the expected number of PNG files; region clipping, window selection, fallback, and oversized-region rejection are covered; `annotate` ordering is correct. |
+| Coordinates and grid | Image coordinates map with negative origins and scaling; grid and cursor pixels land on the expected positions; labels respect the size thresholds; blank detection works. |
+| Mouse and keyboard | The action matrix rejects foreign parameters; drag order is press → move → release; scroll amount and direction agree with the contract; key names, aliases, hotkey shape, and text encoding are covered. |
+| Wait and safety | Change and window conditions return on satisfaction; timeouts return `satisfied=false`; Plan mode blocks input and hover, while cursor queries, capture, and wait remain available and capture activation is not gated; the input lock serializes concurrent actions and times out. |
+| Backends | Platform call sequences and permission failures are exercised through a fake FFI layer on non-native hosts; real desktop behavior must be exercised on each supported platform. |
 
-`tests/test_visual_operator.py`（注册与契约测试同文件）
+The test surface must not move the real cursor or inject real keys on a non-desktop host. Backends are substituted through the ports, and the tests operate on synthetic images and fake window records.
 
-| 类 | 覆盖 |
-|---|---|
-| `RegistrationTest` | 全开注册四个工具；单开只注册一个；全关注册零个；后端不可用仍注册 |
-| `SchemaTest` | 四个工具的 `name/label/icon/parameters` 与 `catalog` 风格一致（无 `required` 键，参数是属性映射） |
-| `PlanGuardTest` | 假 `live_state` 返回 plan：鼠标键盘抛 `ModeConflict`，截图放行 |
-| `LockTest` | 两个线程同时点击时串行；持锁超时抛 `DesktopBusy` |
-| `UnavailableTest` | 假平台下四个工具都抛 `DesktopUnavailable`，文案含当前平台 |
-| `ManifestTest` | 临时清单 + `PluginHost.load_enabled` 后四个工具在注册表里；卸下后消失 |
+## 10. Known limitations
 
-测试加载方式：`spec_from_file_location(名称, plugin.py, submodule_search_locations=[插件目录])`，
-与 `PluginHost._load_one` 同形，使插件内部的相对导入可用。该加载器放
-`tests/testkit.py`，两个测试文件共用。
-
-覆盖率：纯逻辑文件（`config` / `coords` / `keys` / `canvas` / `diff` / 四个工具 / `guard`）
-目标 85% 以上；平台后端在 Linux 不被 import，不计入 CI 覆盖率。
-本机提交前跑一次 `python scripts/run_coverage.py --print` 核对
-`plugins` 组不低于 60%。
-
-平台后端的验证分两层：
-
-- 逻辑层：假 FFI 层（monkeypatch `_api()` 返回假函数表）验证调用序列与参数，
-  包括 Retina 换算、双击 clickState、组合键 flags、权限拒绝路径。
-- 真机层：Windows 本机按 §12 的手动步骤跑一遍；macOS 需要真机，
-  清单见 §12，本轮在 Windows 上无法代跑。
-
-## 11. 门禁与文档
-
-代码：
-
-- `plugins/visual_operator/` 全部文件、两个测试文件、`tests/testkit.py` 的加载器。
-- 需要改 `catalog/tools.json`：插件进了 `plugins.ini`，装配集包含这四个工具，
-  提交前运行 `python scripts/gen_catalog.py` 重新生成，再跑 `python scripts/check_catalog.py`。
-
-文档：
-
-| 文件 | 改动 |
-|---|---|
-| `docs/subsystems/visual-operator.md` | 新增：四个工具、坐标约定、配置全表、权限、已知限制 |
-| `docs/subsystems/plugins.md` | 内置插件表加一行；启用方式一句话 |
-| `docs/subsystems/tools.md` | 插件工具小节补一句这四个工具的存在 |
-| `README.md` | 子系统表加链接；用例数按实际同步 |
-| `docs/plan/visual-operator.md` | 本方案 |
-
-命令（提交前逐条跑过）：
-
-```
-python -m ruff check plugins/visual_operator tests/test_visual_operator.py
-python scripts/check_comment_style.py
-python scripts/check_architecture_hygiene.py
-python scripts/check_catalog.py
-python scripts/gen_unit_tests_md.py
-python scripts/gen_complexity_md.py
-python scripts/ci.py
-```
-
-`ci.py` 会重算 README 的用例数，对不上就把数字改成 `check_readme.py` 报的实际值。
-`acceptance_web.py` 的插件清单是脚本自建的临时清单，新增的插件目录只会多出一张
-未启用的卡片，不影响既有断言。
-
-## 12. 实施顺序
-
-| 步 | 内容 | 完成判据 |
+| Limitation | Impact | Handling |
 |---|---|---|
-| 1 | `config` / `coords` / `keys` / `errors` + 单测 | 三个文件的用例全绿，键码表覆盖校验通过 |
-| 2 | `canvas` + 单测 | 缩放、网格、标签、全黑检测的像素级断言通过 |
-| 3 | `ports` / `guard` / `input_lock` / 四个工具 + 单测 | 动作矩阵与返回值稳定，不 import 任何平台 API |
-| 4 | `backends/win32.py` + 假 FFI 单测 | Linux 上单测全绿；本机手动截图与点击可用 |
-| 5 | `plugin.py` + `plugin-config.ini` + 注册/Plan/并发单测 + `plugins.ini` 节 + catalog 重生成 | 临时清单与工程清单都注册出四个工具，`check_catalog` 零漂移 |
-| 6 | `backends/macos.py` + 假 FFI 单测 | 换算、双击、flags、权限路径有断言 |
-| 7 | 文档、README 数字、全量门禁、本机手动回归 | `ci.py` 全绿，Windows 闭环通过 |
+| macOS has no window or hit port | Window capture, window-scoped waits, and window activation are unavailable; input goes to the current foreground application | Report `DesktopUnavailable`; use full-screen or region capture and switch applications by other means |
+| Mixed-DPI layouts | A secondary monitor with a different scale can show a small coordinate offset | Return `dpi` and `mixed_scale`; add a note |
+| Higher-integrity windows | Input is discarded silently by the system | Documented boundary; an elevated service may be required |
+| Secure desktop or lock screen | Captures are black | Blank detection adds a note; the frame is still returned |
+| Keyboard layout and scan codes | Unicode injection is ineffective in some games and custom-drawn controls that read scan codes | Documented boundary; the affected application needs another input path |
+| Screenshot accumulation | Replaying full-screen images inflates requests | `[context]` `image_turns` and `image_max` cap the replay |
+| Plan-mode window activation | `desktop_eye` with `activate=true` can bring a window forward in Plan mode because the gate covers cursor movement and input, not capture activation | Avoid this combination when the foreground must not change; use capture without activation, or leave Plan mode for deliberate activation |
+| Prompt injection | Observed content can induce clicks and keystrokes | Plan mode, per-capability switches, plugin disablement, and operator review |
+| Process-local input lock | It does not coordinate with other processes or a human using the same keyboard and mouse | Treat desktop control as exclusive while a session is acting |
+| Hover outside the input lock | `desktop_eye hover` moves the cursor without taking the input lock, so it can interleave with another session's drag or mouse action | Do not mix hover capture with concurrent input; serialize at the session level |
+| Window content fallback | A screen capture can include occluding windows when the target does not repaint | `source=screen` and the note distinguish it from window content |
 
-手动回归（Windows，本机）：
+## 11. Out of scope
 
-1. 启动服务，设置页打开「桌面操作」开关，确认工具列表出现四个工具。
-2. `desktop_eye` 整屏截图，核对网格刻度与光标十字位置。
-3. `desktop_mouse` 用网格坐标点击记事本窗口标题栏。
-4. `desktop_keyboard` 输入中英混排文本，`desktop_eye` 复核屏幕内容。
-5. 拖拽一次窗口边缘，滚轮滚动一次，确认无残留按下状态。
-6. 切到 Plan 模式，确认鼠标键盘被拒、截图仍可用。
-
-手动回归（macOS，需真机）：
-
-1. 首次截图触发屏幕录制授权，拒绝时错误文案指向正确栏目。
-2. 授权后重试截图；Retina 屏上按网格坐标点击，落点与刻度一致。
-3. 辅助功能未授权时鼠标键盘报错；授权后双击、拖拽、组合键生效。
-4. 副屏（不同缩放）上重复第 2 步，记录偏差并在文档标注。
-
-## 13. 已知限制
-
-| 限制 | 影响 | 处置 |
-|---|---|---|
-| macOS 无真机验证 | 坐标与权限路径只经假 FFI 验证 | 交付说明标注；真机清单交给用户或在 Mac 上补 |
-| 混合 DPI 多屏 | Windows 副屏不同缩放时可能偏移数像素 | 返回值给 `dpi` 与 `note`；文档标注 |
-| UIPI 提权窗口 | 管理员程序丢弃输入且不报错 | 文档标注；必要时提示以管理员启动服务 |
-| 安全桌面 / 锁屏 | 截图全黑 | 全黑检测给出 `note` |
-| 键盘布局 | Unicode 投递对少数游戏 / 自绘控件无效 | 文档标注；这类程序需要真实扫描码 |
-| 截图累积 | 会话请求体膨胀 | 文档建议 `image_max` 收紧 |
-| 提示词注入 | 模型可能被诱导点击与键入 | Plan 模式拦截、文档风险声明、关掉开关即整体失效 |
-
-## 14. 未纳入
-
-| 能力 | 原因 |
+| Capability | Reason |
 |---|---|
-| 窗口枚举 / 按标题聚焦 | Windows 便宜，macOS 需要遍历 `CGWindowListCopyWindowInfo` 的 CF 字典，成本高收益低；模型可以先截图再点一下 |
-| 剪贴板读写 | 读剪贴板会把用户无意复制的凭据带进上下文 |
-| 指针加速开关 | 改的是注册表里的用户设置，属于系统配置而非一次动作 |
-| 画圆轨迹 | 调试与演示用途，模型不需要 |
-| 截图在界面里回显 | 工具附件不进事件流；`read_image` 目前也是「模型看得到、界面看不到」，保持一致 |
-| 端口级限流 | 会话回合本身有界；先靠 Plan 模式与默认关闭控风险 |
+| OCR or text recognition | The model can read the screenshot directly. OCR adds latency and can hide framing or scaling defects behind a recognition error. |
+| Clipboard read or write | Reading the clipboard can place credentials the user copied for another purpose into the model context. |
+| Pointer acceleration settings | This changes a user preference in the operating system, not a single desktop action. |
+| Circular pointer gestures | Useful for demonstrations, not for model-driven tasks. |
+| Port-level rate limiting | A conversation turn is already bounded. Plan mode and the capability switches provide the primary control. |

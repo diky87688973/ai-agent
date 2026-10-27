@@ -1,199 +1,196 @@
-# 会话存储与协作
+**English** | [中文](session.zh.md)
 
-本页覆盖会话事实的落盘（`mechanisms/session_store.py`）、运行态登记（`run_registry.py`）、跨会话协作（`mesh.py`）、标题生成（`session_title.py`）、会话状态（`live_state.py`）与文件安全设施（`file_safety.py`）。
+# Session storage and collaboration
 
-## 事实日志
+`agent/mechanisms/session_store.py` persists session facts. `agent/mechanisms/run_registry.py` tracks running turns, `agent/mechanisms/mesh.py` handles cross-session delivery, `agent/mechanisms/session_title.py` generates titles, `agent/mechanisms/live_state.py` holds per-session state, and `agent/mechanisms/file_safety.py` provides versioned backups and a recycle area.
 
-### 布局
+## Fact log
+
+### Layout
 
 ```
-<data_root>/sessions/<cid>.raw     每会话一条日志，JSONL，每行一条事件
-<data_root>/cache/session_encryption.key   加密密钥
+<data_root>/sessions/<cid>.raw      one log per session; JSONL, one event per line
+<data_root>/cache/session_encryption.key   encryption key (created in local mode)
 ```
 
-会话 id 必须匹配 `^[A-Za-z0-9_-]{8,128}$`，不合法一律拒绝。这道校验也是防路径穿越的第一道边界。
+A session id must match `^[A-Za-z0-9_-]{8,128}$`; anything else is rejected. This check is the first boundary against path traversal.
 
-### 只追加
+### Append-only
 
-日志是 **append-only 的事实流**：每发生一件事追加一行，不改写已有行。
+The log is an **append-only fact stream**: every event appends one line, and existing lines are not rewritten.
 
-「模型可见 ⟺ 已记录」这条结构保证就落在这里：任何过滤、清理、格式化必须发生在落盘**之前**，落盘后不可改写。
+The structural guarantee "model-visible ⟺ recorded" is enforced here: all filtering, cleanup, and formatting must happen **before** the write; a persisted row is never rewritten.
 
-### 行格式
+### Row format
 
 ```json
 {"t":"assistant_delta","d":{"text":"好"},"s":226310}
 ```
 
-**只写磁盘需要的东西**，能从别处还原的一律不写 —— 会话日志里绝大多数行是流式增量，
-每行 payload 只有几个字，键名与冗余字段都会按行数放大：
+Only what the disk needs is written; anything recoverable elsewhere is omitted. Most rows in a session log are streaming deltas with only a few characters of payload, so key names and redundant fields are multiplied by the number of rows:
 
-| 键 | 说明 |
+| Key | Meaning |
 |---|---|
-| `t` | 事件类型 |
-| `d` | 事件载荷 |
-| `s` | 全局存储坐标。事件产出瞬间由 `emit` 标进载荷 `_seq`，落盘时**提到顶层 `s` 并从 `d` 删掉**，每行只留一份 |
-| （无） | `conversation_id` **不落盘**：文件名就是会话 ID（`<cid>.raw`），读盘的人手上已经有它 |
+| `t` | event type |
+| `d` | event payload |
+| `s` | global storage coordinate. `emit` stamps `_seq` into the payload when the event is produced; at write time it is lifted to top-level `s` and removed from `d`, so each row carries one copy |
+| (none) | `conversation_id` is not persisted: the file name is the session id (`<cid>.raw`), and the reader already has it |
 
-`s` 不能省：SSE 的 `id:` 行用它，浏览器断线重连时经 `Last-Event-ID` 带回，
-服务端据此从该位置续传（见 `cursor_of` / `replay_after`）。
+`s` cannot be omitted: SSE `id:` lines use it. On reconnect the browser sends it back through `Last-Event-ID`, and the server resumes from that position (see `cursor_of` / `replay_after`).
 
-它**跨会话共享、从不重置**，所以与行号差一个常数（会话第一次分配坐标时全局计数器到哪）。
-它也**不保证连续**：事件在产出瞬间就拿号，而没落盘的那些号会被跳过。
-游标只要求单调唯一，不要求连续，所以跳号无害。
+`s` is drawn from a counter that is shared across sessions and never reset, so a session's first coordinate is the value the global counter had reached. Coordinates are not guaranteed contiguous: events take a number when they are produced, and numbers for events that never reach disk are skipped. A cursor requires monotonic uniqueness, not continuity.
 
-读回时两样都补回来（`_event_from_obj`）：坐标从 `s` 取，`conversation_id` 按会话填 ——
-**内存里的事件一律带 `conversation_id`**，SSE 靠它把帧分派到正确的会话页面。
+On read, both are restored (`event_from_obj`): the coordinate comes from `s`, and `conversation_id` is filled in from the session file name. Events in memory always carry `conversation_id`; SSE uses it to route frames to the correct session page.
 
-### 序号
+### Sequence numbers
 
-`allocate_seq(count)` 分配连续序号，`_observe(seq)` 记录已见的最大序号。序号让消费方能判断"从哪里继续"，SSE 断线重连靠它。
+`allocate_seq(count)` reserves a contiguous block of coordinates; `_observe(seq)` records the highest coordinate seen. Consumers use the coordinate to decide where to continue; SSE reconnects rely on it. The allocator seeds from the largest coordinate already on disk before its first allocation.
 
-### 加密
+### Encryption
 
-两种模式：
+Two modes:
 
-| 模式 | 说明 |
+| Mode | Behavior |
 |---|---|
-| `none` | 明文行 |
-| `local` | 每行独立加密成 JSON envelope，纯标准库 encrypt-then-MAC（HMAC-SHA256） |
+| `none` | plaintext rows |
+| `local` | each row is encrypted into its own JSON envelope; standard-library encrypt-then-MAC with HMAC-SHA256 |
 
-行级独立加密的好处：追加时不必读全文件；单行损坏不会毁掉整档。
+Per-row encryption means an append does not rewrite or re-encrypt the whole log, and a damaged row does not destroy the rest.
 
-解析兼容明文与密文混存；损坏行返回 `None`，调用方跳过。
+Plaintext and encrypted rows can coexist; a row that cannot be decrypted or parsed is skipped.
 
-`MAGIC = "__fan_agent_session_encrypted__"` 是 envelope 的标识，**同时是既有加密会话的落盘格式标记** —— 改动它会导致旧会话读不出来。
+`MAGIC = "__fan_agent_session_encrypted__"` identifies the envelope and is the on-disk format marker for encrypted logs; changing it makes those logs unreadable.
 
-### 读取容错
+### Read tolerance
 
-坏行跳过、缺文件返回空、未知事件类型跳过。这三点合起来保证旧格式会话在新代码下照常可读。
+Malformed rows are skipped, a missing file returns an empty list, and rows that do not yield an event type are ignored. Because plaintext and encrypted rows are detected per row, a log stays readable regardless of which mode wrote each row.
 
-## 跨进程锁
+## Cross-process lock
 
-### 跨进程
+### Cross-process
 
-同会话的"记偏移 → 追加 → 回滚"是**读改写**。进程内锁挡不住别的进程：并发写同一个 `.raw` 会**静默丢行**，退出码仍为 0。
+The same-session "record offset → append → roll back" sequence is a read-modify-write. An in-process lock cannot exclude another process: concurrent writes to the same `.raw` lose rows silently, and the exit code is still 0.
 
-所以按文件加一层**跨进程**排它锁：Windows 用 `msvcrt.locking`，POSIX 用 `fcntl.flock`，非阻塞轮询。
+Writes therefore take a per-file **cross-process** exclusive lock: `msvcrt.locking` on Windows and `fcntl.flock` on POSIX. Windows retries non-blocking attempts in a loop; POSIX takes a blocking `flock`.
 
-### 语义
+### Semantics
 
-| 情况 | 行为 |
+| Case | Behavior |
 |---|---|
-| 拿到锁 | 正常写入 |
-| 争用超时（默认 30 秒，`AI_AGENT_LOCK_TIMEOUT` 可调） | **抛错**，数据进待重试队列。不降级为无锁写 |
-| 本平台没有任何锁机制 | 留痕降级（打印警告），环境限制而非争用 |
+| Lock acquired | write normally |
+| Contention timeout (Windows polling path; default 30 s, adjustable with `AI_AGENT_LOCK_TIMEOUT`) | raises; the batch enters the retry queue; no fallback to an unlocked write |
+| No lock mechanism on the platform | logs a warning and degrades to the in-process lock only; an environment limit, not contention |
 
-### 锁文件
+On POSIX, `flock` blocks until the lock is available.
 
-锁加在 `<日志>.lock` 上，文件为零字节、常驻不删：删除会与别的进程已打开的句柄形成"锁的是已删除文件"的竞态。
+### Lock file
 
-每趟开关开销约 +2.5ms/条，相对回合本身（秒级）可忽略。
+The lock is taken on the log path plus `.lock` (`<cid>.raw.lock`). The file is zero bytes and is never deleted: deleting it would race with another process that already has it open, producing a lock on a deleted file.
 
-## 待重试队列
+## Retry queue
 
-写入失败（锁超时、磁盘错误）的批次进待重试队列，`flush_pending()` / `flush_all()` 稍后重投。
+Batches that fail to write (lock timeout, disk error) enter a retry queue; `flush_pending()` and `flush_all()` resubmit them later.
 
-`_pending_only_new()` 在重投时按磁盘已有的序号过滤，**同一条事实只写一次**。
+When a failed batch is queued again, `_pending_only_new()` filters by sequence against facts already queued or already on disk, so each fact is written once.
 
-队列上限 `_PENDING_MAX_BATCHES = 64` 批。
+The queue is capped at `_PENDING_MAX_BATCHES = 64` batches per session; when it overflows, the oldest batch is dropped with a stderr warning.
 
-## 运行态登记
+## Run registry
 
-`run_registry.py` 回答一个问题：**某个会话的回合是不是正在跑**。
+`run_registry.py` answers one question: **whether a turn is running for this session**.
 
-会话是否在跑必须能从服务端问出来：只放在进程内存里的判定在另一个进程或另一个实例里看不见，中途打开的页面既不知道消息已入队，也停不掉任务。
+The answer must be queryable from the server so a page opened mid-turn can show the running state and the stop control.
 
-| 实现 | 用途 |
+| Implementation | Use |
 |---|---|
-| `InMemoryRunRegistry` | 纯内存，单实例 / 测试；不给目录时选它 |
-| `FileRunRegistry` | 落盘（`<data_root>/mesh/runs/<cid>.json`），跨实例可见 |
+| `InMemoryRunRegistry` | memory-only; single instance and tests; selected when no directory is supplied |
+| `FileRunRegistry` | on disk (`<data_root>/mesh/runs/<cid>.json` in the default assembly); visible across instances |
 
-`build_run_registry(dir)` 按目录是否为 `None` 选实现。
+`build_run_registry(directory)` selects the implementation: `None` gives the in-memory version.
 
-判定"在跑"需要两个条件同时成立：
+Two conditions must both hold for "running":
 
-1. 心跳未过期（TTL 默认 900 秒）；
-2. 记录里那个进程**还活着**。
+1. the heartbeat is within its TTL (default 900 s);
+2. the process recorded in the entry is still alive.
 
-占位期间**读取也会续心跳**（`running()` 读取时刷新），所以长任务执行中途不会被误判成"已结束"。
+Reads during a run also renew the heartbeat (`running()` calls `touch`), subject to a minimum interval, so a long tool call is not mistaken for a finished turn.
 
-第二条件解决的是 TTL 窗口内的误判：进程被强杀后心跳冻结在死前那一刻，而 TTL 还有十几分钟，这期间文件看起来完全"新鲜"。判一下 pid 就能立刻识破。
+The pid check closes the TTL window: after a process is killed, its heartbeat freezes at the last write and the file still looks fresh until the TTL expires (15 minutes by default); checking the pid detects it immediately.
 
-### 进程探活
+### Process probe
 
-Windows 用 `ctypes` 的 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`：
+Windows uses `ctypes` `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`:
 
-| 结果 | 判定 |
+| Result | Verdict |
 |---|---|
-| 拿到有效 handle | 进程存在 → 活着 |
-| `last_error == 87`（`ERROR_INVALID_PARAMETER`） | 确知该 pid 不存在 → 已死 |
-| 其它错误 | 说不准 → 按活着处理 |
+| Valid handle | process exists → alive |
+| `last_error == 87` (`ERROR_INVALID_PARAMETER`) | the pid is known not to exist → dead |
+| Any other error | unknown → treated as alive |
 
-**不能**用 `os.kill(pid, 0)`：在没有控制台的进程里（Windows 服务、计划任务、`pythonw`、分离启动），它对**活着的**进程也抛 `OSError [WinError 87]`。把它当成"已死"会让并发保护与停止键同时失效。
+`os.kill(pid, 0)` cannot be used: in a process without a console (Windows service, scheduled task, `pythonw`, detached start) it raises `OSError [WinError 87]` even for a live process. Treating that as dead disables both the concurrent-run guard and the stop control.
 
-非 Windows 回落 `os.kill`，只认 `ProcessLookupError` 为"确知已死"。
+On non-Windows platforms the probe falls back to `os.kill`; only `ProcessLookupError` means definitely dead.
 
-"说不准就当活着"由 TTL 兜底回收：误判"死了"会让正在跑的任务失去保护，误判"活着"最多让过期记录多留一会儿。
+Unknown results are treated as alive and left to TTL expiry.
 
-## 协作网格
+## Collaboration mesh
 
-`mesh.py` 的 `MeshState` 让多个会话互相投递消息。
+`MeshState` in `mesh.py` delivers messages between sessions.
 
-| 能力 | 说明 |
+| Capability | Behavior |
 |---|---|
-| 会话名册 | 记录有哪些会话、各自状态（落 `agents.json`） |
-| 待发送队列 | 目标忙时用户与 Agent 消息排队，不丢（落 `data/queues/<cid>/`） |
-| 忙闲原子投递 | 投递与状态判定在一个原子步内完成 |
+| Agent roster | registered agents and their metadata, persisted to `agents.json` in the mesh directory |
+| Pending queue | user and agent messages wait while the target is busy or cannot be activated; persisted under `data/queues/<cid>/` |
+| Atomic delivery | the busy check and the delivery decision happen under one lock |
 
-队列内容由 `ConversationQueue` 保存；回合结束后由运行器消费，插入请求经 `QueuedInputModule` 在压缩前收进上下文。回合因工具挂起（用户确认、审批等）时，队列保持暂停，不自动起新轮次。忙闲状态来自运行态登记，所以"目标忙不忙"的判定与 `/api/chat/ui-state` 用的是同一个事实源。
+Queue contents are held by `ConversationQueue`. After a turn the runner drains the queue; insertion requests enter context through `QueuedInputModule` before compaction. While a turn is paused on a tool (user confirmation, approval), the queue stays paused and no new turn starts. Busy state comes from the run registry, so the mesh and `/api/chat/ui-state` read the same source.
 
-## 标题
+## Titles
 
-`session_title.py`：一次无工具的模型调用，输入是会话首条用户输入加首条模型回复（截断），输出清洗成不超过 18 字的标题，落盘 `<data_root>/titles/<cid>.title`。
+`session_title.py` makes one model call with no tools. The input is the first user input plus the first model reply, each truncated; the output is cleaned to at most 18 characters and written to `<data_root>/titles/<cid>.title`.
 
-失败（无 provider / 异常 / 空文本 / 退化占位）回落到**首条用户输入的前缀**，不阻断任何流程。标题是**派生缓存**：可以重新生成，因此不与用户意图共用文件。
+On failure (no provider, exception, empty text, placeholder result) the title falls back to a prefix of the first user input (empty when there is none) and does not block any flow. Titles are a derived cache and can be regenerated, so they are stored separately from session facts.
 
-## 会话状态
+## Live state
 
-`live_state.py` 的 `LiveState` 持有按会话分键的可变状态。落盘与内存分开看：
+`LiveState` in `live_state.py` holds mutable state keyed by session. Persisted and in-memory fields:
 
-| 字段 | 落盘 | 说明 |
+| Field | Persisted | Notes |
 |---|---|---|
-| `model` | 是 | 会话级模型选择；空串回落 `default_model` |
-| `mode` | 是 | `plan` / `execute` 才算覆盖，`auto` 不写文件 |
-| `effort` | 是 | `high` / `max`；空回落全局 `default_effort` |
-| `todo` | 是 | 嵌套在 `todo` 键下，字段为 `list_id` / `items` / `collapsed` |
-| 自主 / 休眠 / 目标 | 否 | 回合内临时事实，进程重启即失效 |
+| `model` | yes | per-session model choice; an empty string falls back to `default_model` |
+| `mode` | yes | only `plan` / `execute` are stored; `auto` removes the key |
+| `effort` | yes | `high` / `max`; empty falls back to the global `default_effort` |
+| `todo` | yes | nested under `todo`, with `list_id` / `items` / `collapsed` |
+| autonomy / goal | no | process-local; lost on restart |
 
-一个会话一份 JSON：`<data_root>/session_state/<cid>.json`。
+One JSON file per session: `<data_root>/session_state/<cid>.json`.
 
 ```json
 {"model": "upstream-flash", "mode": "plan", "effort": "max",
  "todo": {"list_id": "l-1", "items": [{"id": "1", "text": "x", "done": false}], "collapsed": false}}
 ```
 
-三条纪律：
+Three rules:
 
-1. **缺键即默认**。任一分量为空就不写这个键，不存空值与"未选择"占位；四项全空则删文件。
-2. **写前先读**。四个分量同住一份文件，任一路径写入前都要 `_ensure_loaded`，否则会覆盖其它分量（关闭清单时连带清掉模型即属此类）。
-3. **只认这一种形状**。读路径不做结构兼容：兼容分支会让两套结构长期并存，每次改动都要同时证明两套都对。
+1. **Absent key means default.** A component with an empty value is not written; no empty value or "unselected" placeholder is stored. When all four components are empty, the file is deleted.
+2. **Read before write.** The four components share one file; every write path calls `_ensure_loaded` first, otherwise it would overwrite the other components.
+3. **One shape only.** The read path accepts only this shape; there is no compatibility branch for a second layout.
 
-cid 必须匹配 `[A-Za-z0-9_-]{8,128}` 才拼路径，非法 cid 直接不落盘（防穿越）。
+A cid must match `[A-Za-z0-9_-]{8,128}` before a path is built; an invalid cid is not persisted.
 
-## 文件安全设施
+## File safety
 
-`file_safety.py` 两个类：
+`file_safety.py` contains two classes:
 
-| 类 | 作用 |
+| Class | Role |
 |---|---|
-| `FileBackups` | 写盘前的版本化备份，供 `file_undo` 比对与回滚 |
-| `Recycle` | 删除操作的回收目录，使删除可恢复 |
+| `FileBackups` | versioned backup of a file's original content before a write, for `file_undo` comparison and rollback |
+| `Recycle` | recycle directory for delete operations, making deletion recoverable |
 
-两者都落在数据根下（`data/temp/file_backup/`、`data/recycle/`），随数据根一起迁移。
+Both sit under the data root by default (`data/temp/file_backup/` and `data/recycle/`), so they move with the data root.
 
-## 延伸阅读
+## Further reading
 
-- [architecture.md](../architecture.md)：事实与投影的关系
-- [tools.md](tools.md)：写盘四步协议
-- [shell.md](shell.md)：SSE 断线重连与序号
+- [architecture.md](../architecture.md): facts and projections
+- [tools.md](tools.md): four-step write protocol
+- [shell.md](shell.md): SSE reconnection and sequence numbers

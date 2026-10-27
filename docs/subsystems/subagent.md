@@ -1,90 +1,91 @@
-# 子智能体
+**English** | [中文](subagent.zh.md)
 
-## 边界
+# Subagent
+
+## Boundaries
 
 ```text
 agent/subagent/
-  models.py       数据对象与错误
-  batches.py      批次元数据
-  repository.py   子会话、批次、fork 播种
-  lifecycle.py    创建、启动、状态、列表、结果
-  messaging.py    父子消息投递
-  manager.py      对外门面与完成事件
+  models.py       data objects and errors
+  batches.py      batch metadata
+  repository.py   child sessions, batches, fork seeding
+  lifecycle.py    create, start, status, list, result
+  messaging.py    parent-child message delivery
+  manager.py      public facade and completion notices
 ```
 
-`agent/subagent` 只依赖 `agent/core` 与 `agent/mechanisms`。
-`agent/app.py` 负责装配；`agent/shell/web` 只经 `SERVICE_SUBAGENTS` 调用，不直接持有仓库或批次文件。
+`agent/subagent` depends only on `agent/core` and `agent/mechanisms`.
+`agent/app.py` assembles it; `agent/shell/web` calls it only through `SERVICE_SUBAGENTS` and does not hold the repository or batch files directly.
 
-## 注册与生命周期
+## Registration and lifecycle
 
 ```text
 build_app(store=None)
-  → 不创建 SubagentManager
-  → 不注册 subagent / subagent_send
+  → SubagentManager is not created
+  → subagent / subagent_send are not registered
 
 build_app(store=...)
-  → 创建 SubagentManager
-  → 注册父视图 subagent
-  → 子视图 subagent_send
-  → 注册 SERVICE_SUBAGENTS
-  → App.dispose() 调用 shutdown
+  → SubagentManager is created
+  → parent view: subagent
+  → child view: subagent_send
+  → SERVICE_SUBAGENTS is registered
+  → App.dispose() calls shutdown
 ```
 
-没有持久化存储时不提供子智能体工具。
-`subagent` 只用于父会话；`subagent_send` 只用于子会话。父/子工具视图由 `ToolRegistryView` 过滤，工具实现仍保留在同一个注册表。
+Without a persistent store, the subagent tools are not provided.
+`subagent` is only for parent sessions, and `subagent_send` is only for child sessions. `ToolRegistryView` filters the parent and child tool views; the tool implementations stay in the same registry.
 
-## 数据归属
+## Data ownership
 
 ```text
 data/batches/<parent_cid>/<batch>.json
-  批次元数据、子智能体 id、label、context
+  batch metadata, subagent ids, labels, context
 
 data/subagent/sessions/<child_id>.raw
-  子会话事实
+  child session facts
 
 data/subagent/sessions/<child_id>.raw.lock
-  子会话锁
+  child session lock
 ```
 
-`data/batches` 是批次元数据唯一入口。旧路径 `data/subagent/batches` 不再读取，也不再写入。
-子会话共享父存储的全局序号源；子会话不出现在主会话列表。
+`data/batches` is the only entry point for batch metadata.
+Child sessions share the parent store's global sequence source; they do not appear in the main session list.
 
-## 消息与完成
+## Messages and completion
 
 ```text
-父 → 子
+Parent → child
   subagent.send
-  → 强制插入
-  → 子忙：进入队列，下个安全 pass 批量注入
-  → 子闲：启动回合
+  → child busy: enqueue, mark inserting, then inject the backlog at the next safe insertion point
+  → child idle: start a turn
 
-子 → 父
+Child → parent
   subagent_send
-  → 强制插入
-  → 父忙：进入队列，下个安全 pass 批量注入
-  → 父闲：启动回合
+  → parent busy: enqueue, mark inserting, then inject the backlog at the next safe insertion point
+  → parent idle: start a turn
 
-子回合结束
-  → 读取本轮最终 model_message
-  → 作为 Agent 消息直接投递父 inbox
-  → 已主动发送相同文本时不重复投递
+Child turn ends
+  → read the child session's latest non-empty model_message
+  → deliver it to the parent inbox as an Agent message
+  → deliver a fixed notice when there is no model output
+  → skip when the child already sent the same text during that turn
 ```
 
-插入消息在 `QueuedInputModule` 中批量认领，每条保留独立 `input_claimed` 事实。
-普通排队消息仍按回合结束投递。
+Both directions use forced insertion when the target is busy; the send path has no non-inserting mode. `QueuedInputModule` claims inserting messages in bulk, and each keeps its own `input_claimed` fact.
+Ordinary queued messages are still delivered at turn end.
 
-## 失败与关闭
+## Failures and shutdown
 
 ```text
-创建批次失败：批次写入原子；失败批次不产生可见子智能体
-首次启动失败：保留子智能体记录并抛出可重试错误
-子会话存储失败：留痕，不伪造模型输出
-管理器关闭：先退订事件，再 flush 子会话
+Batch creation failure: batch writes are atomic; a failed batch leaves no visible subagent
+First-turn start failure: keep the subagent record and raise a retryable error
+Child-session storage failure: record the failure; do not fabricate model output
+Manager shutdown: unsubscribe events first, then flush child sessions
 ```
 
-## 工具
+## Tools
 
-父工具：
+Parent tool:
 
 ```text
 subagent
@@ -95,11 +96,11 @@ subagent
   send
 ```
 
-子工具：
+Child tool:
 
 ```text
 subagent_send
 ```
 
-`create` 的 `label` 必填；批次最多 10 个子智能体；`context` 为 `fork` 或 `fresh`。
-`fork` 只复制父会话已结束的回合。`result` 返回子会话最近一次模型输出，不读取状态代替结果。
+`create` requires `label`; a batch holds at most 10 subagents; `context` is `fork` or `fresh`.
+`fork` copies only the parent's completed turns. `result` returns the child session's most recent non-empty model output and does not use status in place of the result.

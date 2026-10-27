@@ -39,7 +39,7 @@ SCHEMA: Dict[str, Dict[str, str]] = {
     },
     "context": {
         "summary_token_fallback": "64000",
-        "full_user_rounds": "1",
+        "full_user_rounds": "5",
         "summary_output_max_chars": "5000",
         "image_turns": "1",
         "image_max": "8",

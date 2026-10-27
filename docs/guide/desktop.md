@@ -1,77 +1,79 @@
-# 桌面入口
+**English** | [中文](desktop.zh.md)
 
-根目录的 `agent-gui.exe` 是 Windows 原生启动器，负责找到本机 Python、准备 pywebview、启动 Python 壳；窗口本身由 Python 侧的 pywebview 创建，不包含后端。
+# Desktop entry
+
+`agent-gui.exe` in the project root is the native Windows launcher. It locates the local Python installation, ensures the WebView2 Runtime, prepares pywebview, and starts the Python shell. The window itself is created by pywebview on the Python side and contains no backend.
 
 ```text
 agent-gui.exe
-  → 查找 python.exe / pythonw.exe
+  → locate python.exe / pythonw.exe
+  → ensure the WebView2 Runtime
   → python -m agent.gui.bootstrap
-  → 确保 WebView2 Runtime
   → pythonw -m agent.gui.launcher
-  → 启动 agent-web 子进程，打开无边框窗口
+  → start the agent-web subprocess and open a frameless window
 ```
 
-## 运行
+## Running
 
-Windows 直接双击：
+On Windows, double-click:
 
 ```text
 agent-gui.exe
 ```
 
-源码方式：
+From source:
 
 ```bash
 python -m agent.gui.launcher
 ```
 
-默认监听 `127.0.0.1:3156`。固定端口用于保持页面 origin 稳定，`localStorage` 才会跨启动保留；端口被占用时启动失败，不会静默换端口。
+The default listener is `127.0.0.1:3156`. The fixed port keeps the page origin stable so that `localStorage` persists across launches. If the port is in use, startup fails; the launcher does not silently switch to another port.
 
-`python -m agent.gui.launcher --no-window` 只准备并验证服务，不打开窗口；根目录 `agent-gui.exe` 不解析命令行参数。
+`python -m agent.gui.launcher --no-window` starts and validates the service, then stops it without opening a window. The root `agent-gui.exe` does not parse command-line arguments.
 
-## 运行前提
+## Prerequisites
 
 ```text
 Python 3.10+
-系统 WebView2 Runtime
-首次运行可联网，用于把 pywebview 安装到用户缓存
+System WebView2 Runtime
+Network access may be required on first run to install pywebview into the user cache
 ```
 
-pywebview 不写入项目目录，位置为：
+pywebview is not written to the project directory; on Windows it is installed at:
 
 ```text
 %LOCALAPPDATA%\ai-agent\pydeps
 ```
 
-WebView2 缺失时启动器尝试自动安装。macOS / Linux 直接运行 Python 命令，使用对应平台的 WebView。
+If WebView2 is missing, the launcher attempts an automatic installation. On macOS and Linux, install pywebview first, then run the Python command directly; the platform WebView is used.
 
-## 窗口行为
+## Window behavior
 
 ```text
-无边框
-自绘标题栏
-拖动、双击最大化/还原、最大化拖动还原
-最小化 / 最大化 / 关闭
-四边与四角鼠标缩放
-关闭窗口终止 agent-web 子进程
+Frameless
+Custom-drawn title bar
+Drag to move; double-click to maximize/restore; dragging a maximized window restores it
+Minimize / maximize / close
+Resize with the mouse from any edge or corner
+Closing the window terminates the agent-web subprocess
 ```
 
-自绘标题栏不提供 Windows 边缘分屏；系统边缘分屏只属于原生标题栏。
+The custom-drawn title bar does not provide Windows edge snapping; system edge snapping belongs to the native title bar.
 
-## 构建启动器
+## Building the launcher
 
-只有修改 `launcher/launcher.cpp` 或图标后才需要重新构建：
+Rebuild only after changing `launcher/launcher.cpp` or the icon:
 
 ```powershell
 launcher\build.ps1
 ```
 
-需要 MSVC Build Tools；产物为根目录 `agent-gui.exe`。不使用 PyInstaller。
+MSVC Build Tools are required. The output is `agent-gui.exe` in the project root. PyInstaller is not used.
 
-## 与源码启动的关系
+## Relationship to source startup
 
 ```text
-agent-cli / agent-web / agent-headless  正式命令
-agent-gui                               原生启动器 + Python 桌面壳
-start.bat / start.sh                    源码 Web 控制台启动
+agent-cli / agent-web / agent-headless  Official commands
+agent-gui.exe                           Native launcher + Python desktop shell
+start.bat / start.sh                    Source Web console startup
 ```

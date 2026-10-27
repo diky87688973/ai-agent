@@ -1,150 +1,124 @@
-# AI说话插件方案
+**English** | [中文](ai-speak.zh.md)
 
-## 结论
+# AI Speak plugin design
 
-用插件 `plugins/ai_speak` 替换 `plugins/tts`。插件只提供一个工具 `ai_speak`，
-模型在任务过程中把当前这一步要说的话交给它；后端完成校验、切段与语音合成，
-通过 SSE 把音频逐段送到前端，前端播放器按顺序排队播放。
+## Design summary
 
-旧 `tts` 插件、前端遗留的 `audio` 事件分支与相关测试一并删除，不做兼容。
+The `plugins/ai_speak` plugin provides AI Speak: it exposes a single tool, `ai_speak`, and the model hands it what it wants to say at the current step. The backend validates the text, segments it, and synthesizes speech, then sends the audio segment by segment over SSE; the browser player queues the segments and plays them in order.
 
-## 目标
+## Goals
 
-1. 模型在每一步主动调用 `ai_speak`，用当前角色的第一人称、人类口语汇报进度。
-2. 工具只暴露 `msg` 一个参数，校验不通过时返回失败并给出可执行的规范。
-3. 语音在后端合成，不落盘；合成一段就推送一段，前端边收边播。
-4. 工具调用进入现有工具事实流；对话区工具壳显示「AI说话 | 消息」，
-   展开详情沿用默认的请求/响应报文。
-5. 设置页开关控制插件装载与卸载；关闭时停止播放并清空队列。
-6. 配置沿用 `engine` / `voice` / `max_segment_chars`，增加串行播放间隔与同步播放开关。
-7. 旧 `tts` 的所有代码、测试与文档引用清理干净。
+1. The model calls `ai_speak` at every step and reports progress in the current role's first person, in human spoken language.
+2. The tool exposes only `msg`; when validation fails it returns a failure with an actionable rule.
+3. Speech is synthesized on the backend and never written to disk; each segment is pushed as soon as it is ready, and the browser plays while receiving.
+4. Tool calls join the existing tool fact stream; the chat tool card shows "AI说话 | message", and the expanded detail keeps the default request/response payloads.
+5. The settings toggle loads and unloads the plugin; disabling it stops playback and clears the queues.
+6. Configuration uses `engine` / `voice` / `max_segment_chars` and adds a serial playback gap, a synchronous playback switch, and a rate multiplier.
 
-## 范围外
+## Out of scope
 
-- 情绪、语气、角色声线等参数；工具契约只有 `msg`。
-- 浏览器端语音合成。
-- 音频文件落盘、历史回放与断线续播。
-- 多音色、多角色同时说话、字幕、语音识别。
-- 旧 `tts` 插件及其前端的兼容层。
+- Per-step emotion, tone, and character voice parameters; the tool contract is only `msg`.
+- Browser-side speech synthesis.
+- Audio files on disk, history replay, and resume after a disconnect.
+- Multiple voices, several characters speaking at once, subtitles, speech recognition.
 
-## 术语
+## Terminology
 
-| 词 | 含义 |
+| Term | Meaning |
 |---|---|
-| `msg` | 工具的唯一入参，模型要说的一段话 |
-| 分句 | 两个边界标点之间的一段文本，边界标点见「切分算法」 |
-| 段 | 一次合成、一次 SSE 推送、一个播放队列项；一段由若干分句贪心拼装而成，长度受 `max_segment_chars` 限制 |
-| 段序 | 一段在本次工具调用内的序号，从 0 开始，用于队列排序与丢帧检测 |
-| 工具事实 | `tool_started` / `tool_done` / `tool_failed` / `tool_ended`，由内核落盘 |
-| 插件事件 | 类型为 `plugin_event` 的 SSE 帧，不落盘、不参与断线续传 |
-| 播放页 | 每个浏览器标签页各自持有一个播放器与队列，互不同步 |
+| `msg` | The tool's only parameter: one passage the model wants to say |
+| Clause | Text between two boundary punctuation marks; boundaries are listed under "Segmentation" |
+| Segment | One synthesis, one SSE push, one player queue item; a segment packs several clauses greedily up to `max_segment_chars` |
+| Segment index | Position of a segment within one tool call, starting at 0; used for queue deduplication and playback progress |
+| Tool fact | `tool_started` / `tool_done` / `tool_failed` / `tool_ended`, recorded by the kernel |
+| Plugin event | An SSE frame of type `plugin_event`; not persisted and not replayed after a reconnect |
+| Player page | Each browser tab has its own player; playback state is kept per conversation, and only the active conversation is audible in a tab |
 
-「一句」在口语里指一段可朗读的话；实现与文档统一用「段」表示合成单位，
-避免与「分句」混淆。
+## Invariants
 
-## 不变量
+1. The kernel and mechanism layers contain no `ai_speak`; the plugin depends only on public kernel interfaces (`core`, `capabilities`, and the shared `agent.config` loader) and the `SERVICE_PLUGIN_EVENTS` service, and does not import `agent.app` / `agent.entry` / `agent.shell`.
+2. Speech is synthesized only on the backend. The frontend does not call browser TTS and stores no audio files.
+3. The kernel produces tool facts; audio frames are a realtime side channel, are not written to the fact log, and do not participate in SSE replay.
+4. Validation completes once at the tool entry. A validation failure fails the whole call and produces no partial enqueue.
+5. The segment limit is `max_segment_chars` (default 128; 300, 1000, and other positive integers are allowed); one `msg` holds at most 512 characters.
+6. Synthesis is serial within a conversation: a later segment's synthesis and push never overtake an earlier one.
+7. Each browser tab creates its own player; one conversation is audible in only one tab at a time (where the browser provides Web Locks).
+8. Disabling the plugin clears the page's queues and stops the current audio; when the user stops a turn or presses stop, the conversation's queue is cleared and the current audio stops.
+9. Plugin event frames have no top-level `seq`. `seq` is the storage coordinate for SSE replay; audio segment order is expressed with `index` / `total`.
+10. The configuration template and the parser use the same key set; the parser's set is `CONFIG_KEYS`.
 
-1. 内核与机制层不出现 `ai_speak`；插件只依赖 `core` / `mechanisms` / `capabilities`
-   的公开接口与 `SERVICE_PLUGIN_EVENTS` 服务，不 import `agent.app` / `agent.entry` /
-   `agent.shell`。
-2. 语音只在后端合成。前端不调用浏览器 TTS，不保存音频文件。
-3. 工具事实由内核产生；音频帧是实时旁路，不写事实日志，不参与 SSE 续传。
-4. 校验在工具入口一次完成。校验失败时整次调用失败，不产生部分入队。
-5. 单段上限取 `max_segment_chars`（默认 128，可配置为 300、1000 等正整数）；
-   单次 `msg` 最多 512 字。
-6. 同一会话的合成串行：后一段的合成与推送不越过前一段。
-7. 每个浏览器标签页各有一个播放队列，队列项按到达顺序播放；不同标签页互不同步。
-8. 插件关闭、回合被用户停止、播放器停止按钮三者都清空本页队列并停止当前音频。
-9. 插件事件帧不带顶层 `seq`。`seq` 是 SSE 断线续传的存储坐标，音频段序号用
-   `index` / `total` 表达。
-10. 配置模板与解析器读取的键集合双向一致，由测试锁定。
-11. 旧 `tts` 与前端 `audio` 分支不保留转发层、别名或空壳。
+## Overall structure
 
-## 现状
-
-| 项 | 事实 |
-|---|---|
-| 合成位置 | `plugins/tts/plugin.py` 用 `edge_tts` 在后端合成，`_emit_audio` 只写 stderr |
-| 前端播放 | `stream.js` 有 `audio` 分支调用 `playAudio`，但素材里没有 `playAudio` 定义 |
-| 契约 | `EV_AUDIO` 被放进 `NEVER_EMIT`，`test_audio_never_emitted` 锁定「不发它」 |
-| 插件事件 | 没有通用出口；`ClassicAdapter` 只有 `announce_plugins` / `announce_model` |
-| 插件端点 | `/api/plugin/<名>/...` 只返回 JSON 或文本，不能直接送二进制音频 |
-| 设置广播 | `plugins_changed` 只被壳层 `applyPluginsChanged` 消费，插件脚本没有公开钩子 |
-| 工具入参 | 工具执行时 `msg` 已是完整字符串，不存在字符级增量 |
-
-由此得到两条设计约束：
-
-- 「连续文字拼句」由后端完成。后端切段后逐段合成、逐段推送，前端只排队播放。
-- 音频不能走插件 HTTP 端点，改用 SSE 下发 base64，前端生成 Blob URL 播放。
-
-## 总体结构
+`msg` is already a complete string when the tool runs, so there is no character-level stream; the backend assembles continuous text into clauses. After segmentation it synthesizes and pushes one segment at a time, and the frontend only queues and plays. Plugin HTTP routes return JSON or text and cannot carry binary audio; audio travels as base64 over SSE and is played from a Blob URL.
 
 ```
-模型
+model
   └─ ai_speak(msg)
-       ├─ text.validate()        字符、配对、长度、结尾
-       ├─ text.split()           分句 → 按 max_segment_chars 贪心装段
-       ├─ runtime.enqueue()      按会话串行排队
-       │    └─ worker            edge-tts 合成 → base64
+       ├─ text.split_message()   character rules, pairing, length, ending
+       ├─ runtime.enqueue()      per-conversation serial queue
+       │    └─ worker            edge-tts synthesis → base64
        │         └─ ClassicAdapter.announce_plugin_event()
        │              └─ SSE plugin_event
-       │                   └─ 前端播放器队列 → <audio> 顺序播放
-       ├─ tool_started / tool_done / tool_ended（内核事实）
-       └─ 对话区工具壳（插件 tool-view）
+       │                   └─ player queue → <audio> in order
+       ├─ tool_started / tool_done / tool_ended (kernel facts)
+       └─ chat tool card (plugin tool view)
 
-设置页开关
+settings toggle
   └─ sync_plugins → plugin_host.load / unload
-       ├─ 装载：注册工具、启动脚本、只读端点
-       └─ 卸载：撤工具/端点/启动脚本、停止合成、广播 stop
-            └─ SSE plugins_changed / 播放器停播
+       ├─ load: register tool, boot scripts, read-only routes
+       └─ unload: withdraw tool/routes/boot scripts, stop synthesis, broadcast stop
+            └─ SSE plugins_changed / player stops
 ```
 
-| 组件 | 位置 | 职责 |
+| Component | Location | Responsibility |
 |---|---|---|
-| 工具 | `plugins/ai_speak/tool.py` | 校验 `msg`、取会话与插件事件发布器、调用运行时入队 |
-| 文本 | `plugins/ai_speak/text.py` | 字符白名单、配对校验、切分与装段（纯函数） |
-| 配置 | `plugins/ai_speak/config.py` | 读 `[config]`、取默认值、校验范围（无副作用） |
-| 合成 | `plugins/ai_speak/provider.py` | edge-tts 适配、超时、异常归类 |
-| 运行时 | `plugins/ai_speak/runtime.py` | 每会话串行队列、worker、停止、计数 |
-| 入口 | `plugins/ai_speak/plugin.py` | 装配、注册工具/端点/启动脚本/事件订阅 |
-| 播放器 | `plugins/ai_speak/ui/player.js` | 本页队列、音频元素、间隔、暂停/停止 |
-| 样式 | `plugins/ai_speak/ui/player.css` | 悬浮播放条，类名前缀 `ai-speak-` |
-| 工具卡 | `plugins/ai_speak/ui/tool-view.js` | 对话区标题与摘要，挂默认请求/响应面板 |
-| 通用事件出口 | `agent/core/context.py`、`agent/app.py`、`agent/shell/classic_adapter/` | `SERVICE_PLUGIN_EVENTS` + `PluginEventPublisher` + `plugin_event_frame` + `announce_plugin_event` |
-| 播放器开关通知 | `agent/shell/web_assets/classic/js/plugins/host.js` | 把 `plugins_changed` 转成 DOM 事件 |
+| Tool | `plugins/ai_speak/tool.py` | Validate `msg`, resolve the conversation and event publisher, enqueue, wait in synchronous mode |
+| Text | `plugins/ai_speak/text.py` | Character and pairing validation, segmentation and packing, pre-synthesis cleanup (pure functions) |
+| Configuration | `plugins/ai_speak/config.py` | Read `[config]`, apply defaults, validate ranges (no side effects) |
+| Synthesis | `plugins/ai_speak/provider.py` | edge-tts port and adapter, availability probe, timeout, error classification |
+| Runtime | `plugins/ai_speak/runtime.py` | Per-conversation worker management, playback waiters, stop, counters and status |
+| Worker | `plugins/ai_speak/runtime_worker.py` | Per-conversation serial synthesis, base64 encoding, event publishing, playback waiting |
+| Entry point | `plugins/ai_speak/plugin.py` | Assembly, registration of tool/routes/boot scripts/event subscriptions/prompt tail |
+| Player | `plugins/ai_speak/ui/player.js` | Per-conversation queue, audio elements, cross-tab lock, pause/stop |
+| Styles | `plugins/ai_speak/ui/player.css` | Player bar styles, class prefix `ai-speak-` |
+| Tool card | `plugins/ai_speak/ui/tool-view.js` | Chat title and summary, default request/response panels |
+| Common event outlet | `agent/core/context.py`, `agent/app.py`, `agent/shell/classic_adapter/` | `SERVICE_PLUGIN_EVENTS` + `PluginEventPublisher` + `plugin_event_frame` + `announce_plugin_event` |
+| Player toggle notice | `agent/shell/web/web_assets/classic/js/plugins/host.js` | Turn `plugins_changed` into a DOM event |
 
-## 包结构
+## Package layout
 
 ```
 plugins/ai_speak/
-  plugin.py                 入口：读配置 → 建运行时 → 注册工具/端点/启动脚本/订阅
-                            `_config_path()` 委托 `config.config_path()`，供配置归属测试
-  config.py                 AISpeakConfig + load_config()（纯函数）
-  text.py                   validate / split / to_speech_text（纯函数）
+  plugin.py                 entry: read config → build runtime → register tool/routes/boot scripts/subscriptions
+                            `_config_path()` delegates to `config.config_path()`
+  config.py                 AISpeakConfig + load_config() (pure)
+  text.py                   split_message / to_speech_text (pure)
   provider.py               SpeechAudio / TTSProvider / EdgeTTSProvider
-  runtime.py                AISpeakRuntime + 每会话 worker
+  runtime.py                AISpeakRuntime + playback waiters
+  runtime_worker.py         _SessionWorker + serial synthesis + SSE publishing
   tool.py                   AISpeakTool
-  plugin-config.ini [config]
-  ui/player.js              输入框上方的播放条与队列
-  ui/player.css             播放条样式
-  ui/tool-view.js           对话区工具卡视图
+  plugin-config.ini         [config]
+  plugin-meta.json          identity metadata
+  ui/player.js              player bar above the composer and its queues
+  ui/player.css             player bar styles
+  ui/tool-view.js           chat tool card
 ```
 
-职责边界：
+Responsibility boundaries:
 
-| 文件 | 只做 | 不做 |
+| File | Does only | Does not |
 |---|---|---|
-| `plugin.py` | 装配与注册、事件订阅、端点处理器 | 字符校验、合成调用 |
-| `config.py` | 读取与校验配置、导出常量 | 创建线程、访问网络 |
-| `text.py` | 校验、切分、TTS 文本净化 | 读写配置、合成 |
-| `provider.py` | 调 edge-tts、超时、错误归类 | 队列、SSE、会话状态 |
-| `runtime.py` | 队列、worker、停止、计数、发布事件 | 解析配置、校验文本 |
-| `tool.py` | 取会话/发布器、调用运行时、返回结果 | 直接合成、直接广播 |
+| `plugin.py` | Assembly and registration, event subscriptions, route handlers, prompt tail | Character validation, synthesis calls |
+| `config.py` | Read and validate configuration, export defaults and key set | Create threads, access the network |
+| `text.py` | Validation, segmentation, pre-synthesis cleanup | Read or write configuration, synthesize |
+| `provider.py` | Call edge-tts, availability probe, timeout, error classification | Queues, SSE, conversation state |
+| `runtime.py` | Worker management, playback waiters, stop, counters, status | Parse configuration, validate text |
+| `runtime_worker.py` | Consume the queue, call synthesis, base64, publish events | Parse configuration, validate text |
+| `tool.py` | Resolve conversation/publisher, call the runtime, wait, return results | Synthesize directly, broadcast directly |
 
-单文件目标行数均在 800 行以下，单函数在 80 行以下。预计 Python 约 850 行，
-前端约 500 行，测试约 900 行。
+Every Python module and frontend script stays under 800 lines, and every function under 80 lines.
 
-## 工具契约
+## Tool contract
 
 ```python
 class AISpeakTool(ToolPlugin):
@@ -163,26 +137,30 @@ class AISpeakTool(ToolPlugin):
     }
 ```
 
-工具描述（模型可见）：
+Model-visible description:
 
 ```
-把你要对用户说的话直接说出来。用当前角色的第一人称、人类口语，像当面汇报，
-不使用播音腔、书面语，不解释自己在调用工具。每完成一步就调用一次，不等到全部做完。
+Say directly what you want to tell the user. Use the current role's first person and human
+spoken language, as if reporting in person; avoid an announcer tone and written style, and do
+not explain that you are calling a tool. Call it once after each completed step; do not wait
+until everything is done.
 
-允许：中文、英文、数字、空格；中文标点 ，。？！；、：“”‘’（）；
-英文标点 . , ? ! ; : ' " ( )；四则符号 + - * / × ÷（含全角 ＋－＊／）；
-百分号 % 或 ％。英文单词内可用 - 和 '。
-禁止其他符号、emoji、换行、Markdown、代码、链接。
+Allowed: Chinese, English, digits, and spaces; Chinese punctuation ，。？！；、：“”‘’（）;
+English punctuation . , ? ! ; : ' " ( ); arithmetic symbols + - * / × ÷ (including full-width
+＋－＊／); percent sign % or ％. English words may contain - and '. Quotes and brackets must be
+paired (including 「」 and 《》). Other symbols and emoji need not be deleted deliberately:
+symbols that cannot be pronounced are removed before synthesis. Line breaks, tabs, Markdown,
+code, and links are forbidden.
 
-每个分句以边界标点结尾；后端按标点贪心拼装，单段上限取插件配置
-max_segment_chars（默认 128 字），超过上限会失败并返回规范。
-一次最多 512 字。例如「进度 10%。」会读成「进度 百分之十。」；
-「5+3。」会读成「五加三。」。
+Each clause ends with boundary punctuation; the backend packs clauses greedily, and the segment
+limit is the plugin's max_segment_chars (default 128 characters). Exceeding it fails and returns
+the rule. One call holds at most 512 characters. For example, 「进度 10%。」 is read as
+「进度 百分之十。」; 「5+3。」 is read as 「五加三。」.
 
-示例：主子，文件已经写好了，您要不要看一眼？
+Example: 主子，文件已经写好了，您要不要看一眼？
 ```
 
-成功返回：
+Success response:
 
 ```json
 {
@@ -192,63 +170,52 @@ max_segment_chars（默认 128 字），超过上限会失败并返回规范。
 }
 ```
 
-同步模式在播放完成后额外返回 `"played": true` 与 `"waited_ms": N`。
-内核把它包成 `{"ok": true, "data": {...}}` 回灌模型；工具卡响应面板显示同一信封。
+Synchronous mode adds `"played": true` and `"waited_ms": N` after playback finishes. The kernel wraps either result in `{"ok": true, "data": {...}}` for the model; the tool card's response panel shows the same envelope.
 
-失败返回：
+Failure responses:
 
-| 异常 | 触发 | 顶层结果 |
+| Exception | Trigger | Top-level result |
 |---|---|---|
-| `MessageValidationError` | 空、超过 512 字、非法字符、配对错误、结尾错误、分句超限 | `{"ok": false, "error": "..."}` |
-| `SpeechEngineUnavailable` | `edge-tts` 未安装、无 Web 壳连接 | 同上，错误文案给可执行动作 |
-| `SpeechBusy` | 该会话待合成段达到上限 | 同上，附当前队列长度 |
+| `MessageValidationError` | Empty text, more than 512 characters, control characters, pairing errors, wrong leading or trailing position, percent/arithmetic context errors, a clause over the limit | `{"ok": false, "error": "..."}` |
+| `SpeechEngineUnavailable` | `edge-tts` not installed, missing conversation or tool-call context, no plugin event outlet, no connected Web UI, plugin unloaded | Same, with an actionable message |
+| `SpeechBusy` | The conversation reached its pending-segment limit | Same, with the current queue length and limit |
+| `SpeechSynthesisFailed` | A segment failed to synthesize in synchronous mode | Same, with the reason from the engine |
+| `SpeechPlaybackFailed` | Playback timed out, was stopped, errored, or the audio never arrived in synchronous mode | Same, with the playback status and elapsed wait |
 
-工具成功只表示「已接受并入队」，不表示音频已经合成或播放。逐段合成失败通过
-`error` 插件事件送到播放器，并在 `/status` 计数；不改变已经返回的工具结果。
+Tool success only means "accepted and queued"; in asynchronous mode it does not mean the audio has been synthesized or played. A per-segment synthesis failure is delivered to the player as an `error` plugin event and counted in `/status`; the asynchronous result is unaffected. In synchronous mode a synthesis failure or unfinished playback fails the tool, which the kernel turns into `ok=false`.
 
-## 文本规范
+## Text rules
 
-### 允许字符
+### Validation
 
-| 类别 | 允许 |
+Character validation rejects only control characters that break structure (Unicode category `C`: newline, tab, carriage return, and so on); both half-width and full-width spaces are allowed. Everything else passes: symbols that cannot be pronounced are not rejected here and are removed by "Speech text" before synthesis.
+
+| Category | Rule |
 |---|---|
-| 中文 | `U+3400–U+4DBF`、`U+4E00–U+9FFF` |
-| 英文 | `A–Z`、`a–z` |
-| 数字 | `0–9` |
-| 空格 | 半角空格 `U+0020`、全角空格 `U+3000` |
-| 中文标点 | `，` `。` `？` `！` `；` `、` `：` `“` `”` `‘` `’` `（` `）` |
-| 英文标点 | `.` `,` `?` `!` `;` `:` `'` `"` `(` `)` |
-| 四则符号 | `+` `-` `*` `/` `×` `÷` `＋` `－` `＊` `／` |
-| 百分号 | `%`、`％`，只在数字之后，见「百分号」 |
+| Chinese, English, digits | Allowed |
+| Spaces | Half-width `U+0020`, full-width `U+3000` |
+| Chinese and English punctuation | Allowed; quotes and brackets must be paired, see "Pairing and structure" |
+| Arithmetic symbols | `+` `-` `*` `/` `×` `÷` `＋` `－` `＊` `／`; position rules under "Arithmetic symbols" |
+| Percent sign | `%`, `％`, only after a number, see "Percent sign" |
+| Other symbols, emoji | Pass validation; symbols that cannot be pronounced are removed before synthesis |
+| Control characters | Rejected: newline, tab, carriage return, and so on |
 
-其余字符一律拒绝，包括但不限于：
+`-` has three legal positions: between two ASCII letters or digits (`well-known`, `GPT-4`, `2026-10-19`); as a binary minus (`5-3`, `5 - 3`); and as a negative prefix (`-5`). `-abc`, `abc-`, and `a--b` are invalid. A `'` between two ASCII letters is an English apostrophe and does not participate in quote pairing; elsewhere `'` is an English single quote and must be paired.
 
-- ASCII 的 `[ ] { } \ | < > = # @ & _ ~ ^ $` 与反引号
-- 全角字母数字、不间断空格、制表符、换行、控制字符、零宽字符
-- `《》` `【】` `…` `—` `·` `～` `￥`
-- emoji
+### Pairing and structure
 
-`-` 有三种合法位置：夹在两个 ASCII 字母或数字之间（`well-known`、`GPT-4`、
-`2026-10-19`）；作为二元减号（`5-3`、`5 - 3`）；作为负数前缀（`-5`）。
-`-abc`、`abc-`、`a--b` 不合法。`'` 夹在两个 ASCII 字母之间时是英文撇号，
-不参与引号配对；其余位置的 `'` 是英文单引号，必须成对。
+1. Quotes and brackets must be paired: `“”`, `‘’`, `（）`, `《》`, `「」`, `""`, `''`, `()`; nesting is allowed, crossing is not; a Chinese opener can only be closed by the matching Chinese closer, and the same holds for English.
+2. Empty pairs `“”`, `‘’`, `（）`, `《》`, `「」`, `""`, `''`, `()` are rejected.
+3. The text cannot start with boundary punctuation or a closing quote/bracket.
+4. The text cannot end with an opening quote/bracket.
+5. Consecutive boundary punctuation forms one boundary unit, so English forms such as `...` and `?!` are allowed.
+6. The text must end with boundary punctuation, or with a closing quote/bracket that immediately follows it.
 
-### 配对与结构
+### Percent sign
 
-1. 引号与括号必须成对：`“”`、`‘’`、`（）`、`""`、`''`、`()`；允许嵌套，
-   禁止交叉；中文开符号只能由对应中文闭符号收尾，英文同理。
-2. 空对 `“”`、`‘’`、`（）`、`""`、`''`、`()` 拒绝。
-3. 文本不能以边界标点或闭引号/闭括号开头。
-4. 文本不能以开引号/开括号结尾。
-5. 连续边界标点作为一个边界整体，允许 `...`、`?!` 这类英文写法。
-6. 文本必须以边界标点结尾，或以其后紧跟闭引号/闭括号结尾。
+`%` / `％` must be preceded by an ASCII digit, optionally with spaces in between; the number may contain a decimal point and thousands separators. Before synthesis, "number + percent sign" is converted as a whole to the Chinese "百分之" plus the number:
 
-### 百分号
-
-`%` / `％` 前面必须是一个 ASCII 数字，中间允许空格；数字可带小数点和千分位
-逗号。合成前把「数字 + 百分号」整体转成中文「百分之 + 数字」：
-
-| 原文 | 合成文本 |
+| Source | Speech text |
 |---|---|
 | `10%` | `百分之十` |
 | `3.5%` | `百分之三点五` |
@@ -256,122 +223,112 @@ max_segment_chars（默认 128 字），超过上限会失败并返回规范。
 | `1,000%` | `百分之一千` |
 | `0%` | `百分之零` |
 
-整数按中文数位转写：`10` 读十，`11` 读十一，`20` 读二十，`101` 读一百零一，
-`100` 读百，`1000` 读一千。小数逐位读，小数点读「点」。数字中的千分位逗号
-在合成文本中删除；小数点保留。`%` 前面不是 ASCII 数字时校验失败，并指出位置。
-上表是合成文本片段；完整 `msg` 仍须以边界标点结尾，例如 `进度 10%。`。
+Integers are written with Chinese numeric units: `10` is 十, `11` is 十一, `20` is 二十, `101` is 一百零一, `100` is 一百, and `1000` is 一千; in `100%` the integer part is read 百, not 一百. Decimals are read digit by digit, and the decimal point is read 点. Thousands separators inside a number are removed from the speech text; the decimal point is kept. A `%` not preceded by an ASCII digit fails validation with the position reported. The table above shows speech-text fragments; a complete `msg` must still end with boundary punctuation, for example `进度 10%。`.
 
-### 四则符号
+### Arithmetic symbols
 
-`+` `-` `*` `/` `×` `÷` 及全角 `＋` `－` `＊` `／` 都允许。位置规则：
+`+` `-` `*` `/` `×` `÷` and the full-width `＋` `－` `＊` `／` are all allowed. Position rules:
 
-- `+`/`＋`、`*`/`＊`、`/`/`／`、`×`、`÷` 必须是二元符号，左右各有一个
-  非空白操作数；文本开头、结尾或左右为空时拒绝；
-- 操作数指字母、数字、闭括号或闭引号；边界标点不算操作数；
-- `-`/`－` 可以是二元减号、负数前缀，或英文连接符；
-- 四则符号不能连续出现（`5--3`、`3**4` 拒绝）。
+- `+`/`＋`, `*`/`＊`, `/`/`／`, `×`, and `÷` must be binary: each side needs a non-space operand; a missing side at the start, at the end, or next to a space is rejected;
+- operands are letters (including Chinese), digits, closing brackets, closing quotes, or a percent sign; boundary punctuation is not an operand;
+- `-`/`－` may be a binary minus, a negative prefix, or an English hyphen;
+- arithmetic symbols cannot be consecutive (`5--3` and `3**4` are rejected).
 
-合成前把数字之间的简单四则运算转成中文读法：
+Before synthesis, simple arithmetic between numbers is converted to Chinese reading:
 
-| 原文 | 合成文本 |
+| Source | Speech text |
 |---|---|
 | `5+3` | `五加三` |
 | `10-2` | `十减二` |
-| `3*4`、`3×4` | `三乘四` |
-| `10/2`、`10÷2` | `十除以二` |
+| `3*4`, `3×4` | `三乘四` |
+| `10/2`, `10÷2` | `十除以二` |
 | `-5` | `负五` |
 | `well-known` | `well-known` |
 | `2026-10-19` | `2026-10-19` |
 
-只转换「数字 + 符号 + 数字」或「负数前缀」这两种形态；全角符号按同一规则
-转换。英文连接符与日期里的 `-` 原样保留。字母之间的 `/`、`+` 等不转换，
-交给 edge-tts 按原文处理。
+Only "number + symbol + number" and "negative prefix" are converted; full-width symbols follow the same rules. English hyphens and the `-` in dates are kept verbatim. Symbols between letters are not converted: `/` and `-` are kept, while `+`, `*`, and the like are removed by cleanup; the resulting text goes to edge-tts.
 
-### 长度
+### Length
 
-| 项 | 上限 | 含义 |
+| Item | Limit | Meaning |
 |---|---|---|
-| 单段 | `max_segment_chars`（默认 128，正整数，无配置上限） | 一次合成、一次 SSE、一个队列项的文本长度 |
-| 单分句 | `max_segment_chars`（同上） | 两个边界标点之间的文本；超过即失败 |
-| 单次 `msg` | 512 字 | 一次工具调用的原始文本长度；超过拒绝 |
+| Segment | `max_segment_chars` (default 128, a positive integer, no configured upper bound) | Text length of one synthesis, one SSE frame, one queue item |
+| Clause | `max_segment_chars` (same) | Text between two boundary punctuation marks; exceeding the limit fails |
+| One `msg` | 512 characters | Raw text length of one tool call; larger input is rejected |
 
-`max_segment_chars = 300` 时按 300 字贪心装段；`max_segment_chars = 1000`
-时按 1000 字贪心装段。该值没有 128 的硬上限，128 只是默认值。单个分句超过
-配置值时工具失败并指出分句序号、长度与配置上限，不在词中间硬切。
+With `max_segment_chars = 300`, packing is greedy up to 300 characters; with `max_segment_chars = 1000`, up to 1000 characters. There is no hard 128 cap; 128 is only the default. A clause longer than the configured value fails the tool with the clause number, its length, and the configured limit, and is never cut mid-word.
 
-## 切分算法
+## Segmentation
 
-### 边界
+### Boundaries
 
-边界标点：
+Boundary punctuation:
 
-- 中文：`，` `。` `？` `！` `；` `、` `：`
-- 英文：`.` `,` `?` `!` `;` `:`
+- Chinese: `，` `。` `？` `！` `；` `、` `：`
+- English: `.` `,` `?` `!` `;` `:`
 
-四则符号与百分号不是边界标点，`5+3`、`10%` 不会在符号处切分。扫描时维护一个
-期望闭符号栈：
+Arithmetic symbols and the percent sign are not boundaries, so `5+3` and `10%` are never split at the symbol. The scan maintains a stack of expected closing symbols:
 
-- `“` 压入 `”`，`‘` 压入 `’`，`（` 压入 `）`；
-- `"` 压入 `"`，`(` 压入 `)`；
-- `'` 夹在两个 ASCII 字母之间时是撇号，不入栈；其余位置压入 `'`；
-- 遇到闭符号时与栈顶比较，不匹配即失败；
-- 栈为空时遇到的边界标点是一个分句边界；
-- 连续边界标点（`...`、`?!`）合并为一个边界整体；
-- 文本末尾若由闭符号收尾，且最后一个非闭符号是边界标点，该末尾也是一个边界。
+- `“` pushes `”`, `‘` pushes `’`, `（` pushes `）`, `《` pushes `》`, `「` pushes `」`;
+- `"` pushes `"`, and `(` pushes `)`;
+- `'` between two ASCII letters is an apostrophe and is not pushed; elsewhere it pushes `'`;
+- a closing symbol must match the top of the stack, otherwise validation fails;
+- a boundary mark encountered while the stack is empty ends a clause;
+- consecutive boundary marks (`...`, `?!`) merge into one boundary unit;
+- if the text ends with closing symbols and the last non-closing character is boundary punctuation, the end is also a boundary.
 
-三个英文标点在数字之间有特殊含义，不参与切分：
+Three English punctuation marks have special meaning inside numbers and do not split:
 
-| 形态 | 处理 |
+| Form | Handling |
 |---|---|
-| `3.14` | `.` 是小数点，保留在数字里 |
-| `1,000` | `,` 是千分位，保留在数字里；合成文本中删除 |
-| `10:30` | `:` 是时间分隔，保留在数字里 |
+| `3.14` | `.` is the decimal point and stays inside the number |
+| `1,000` | `,` is a thousands separator and stays inside the number; it is removed from the speech text |
+| `10:30` | `:` is the time separator and stays inside the number |
 
-引号或括号内部的标点不切分，避免把一段引语切成两段。跨引号的分句在一次扫描中
-作为一个整体处理。
+A dot in a file name does not split either: when `.` follows a file-name character (letter, digit, `_`, `-`) and is followed by 1–5 ASCII letters with no further file-name character, the whole name is kept together, as in `USER_RULES.md` and `a/b.py`.
 
-### 装段
+Punctuation inside quotes or brackets does not split, so a quotation is not cut in two. A clause spanning quotes is handled as one unit in a single scan.
 
-1. 按边界切出分句，每个分句必须非空。
-2. 每个分句长度不得超过 `max_segment_chars`；超过即返回失败，指出分句序号、
-   长度与配置上限。
-3. 按顺序贪心装段：当前段加入下一个分句后不超过配置值就加入，否则先结束当前段。
-4. 每个段都以边界标点结尾；闭引号/闭括号可以跟在后面。
-5. 段数不另设上限；它受 512 字的 `msg` 上限约束。
+### Packing
 
-示例（`max_segment_chars = 128`）：
+1. Split clauses at boundaries; every clause must be non-empty.
+2. A clause may not exceed `max_segment_chars`; otherwise return a failure that names the clause number, its length, and the configured limit.
+3. Pack greedily in order: add the next clause to the current segment while the configured limit is not exceeded, otherwise close the current segment first.
+4. Every segment ends with boundary punctuation; closing quotes or brackets may follow.
+5. The number of segments has no separate cap; it is bounded by the 512-character `msg` limit.
 
-| 输入 | 结果 |
+Examples (`max_segment_chars = 128`):
+
+| Input | Result |
 |---|---|
-| `主子，文件写好了，您看一眼？` | 1 段：`主子，文件写好了，您看一眼？` |
-| `第一句。第二句！` | 1 段（总长不超过 128，多个分句合并） |
-| 70 字分句 + 70 字分句 | 2 段 |
-| `他说“好。”` | 1 段；末尾由闭引号收尾，最后一个非闭符号是 `。` |
-| `Wait... what?` | 1 段；`...` 与 `?` 是边界整体 |
-| `进度 10%。` | 1 段；合成文本为 `进度 百分之十。` |
-| `a` × 129 且无标点 | 失败：缺少边界，单分句超过 128 |
-| `hello-world don't` | 字符合法；没有边界，失败：必须以边界标点结尾 |
+| `主子，文件写好了，您看一眼？` | 1 segment: `主子，文件写好了，您看一眼？` |
+| `第一句。第二句！` | 1 segment (total length within 128, several clauses merged) |
+| A 70-character clause + a 70-character clause | 2 segments |
+| `他说“好。”` | 1 segment; it ends with a closing quote, and the last non-closing character is `。` |
+| `Wait... what?` | 1 segment; `...` and `?` form boundary units |
+| `进度 10%。` | 1 segment; the speech text is `进度 百分之十。` |
+| `a` × 129 with no punctuation | Failure: no boundary, and the single clause exceeds 128 |
+| `hello-world don't` | Characters are valid; there is no boundary, so it fails: the text must end with boundary punctuation |
 
-`max_segment_chars = 300` 时同样的输入按 300 字装段；`max_segment_chars = 1000`
-时按 1000 字装段。
+With `max_segment_chars = 300` the same input packs at 300 characters; with `max_segment_chars = 1000` it packs at 1000 characters.
 
-### TTS 文本
+### Speech text
 
-送合成前执行：
+Before synthesis:
 
-1. 移除中文/英文引号与括号符号本身，保留其中文本；
-2. 把「数字 + `%` / `％`」转成「百分之 + 中文数字」，见「百分号」；
-3. 把数字之间的简单四则运算与负数前缀转成中文读法，见「四则符号」；
-4. 删除数字里的千分位逗号，保留小数点；
-5. 保留 `，。？！；、：`、英文 `. , ? ! ; :`、英文 `-`、撇号 `'`，
-   以及没有被第 3 步转换的四则符号；
-6. 连续空格压成一个，首尾去空白。
+1. Remove the quote and bracket symbols `“”‘’（）"()` themselves while keeping their contents; keep apostrophes inside words and remove apostrophes elsewhere;
+2. Protect date forms (`2026-10-19`) so they are not read as subtraction;
+3. Convert "number + `%` / `％`" to "百分之 + Chinese number", see "Percent sign";
+4. Convert simple arithmetic between numbers and negative prefixes to Chinese reading, see "Arithmetic symbols";
+5. Remove thousands separators from numbers and keep the decimal point;
+6. Collapse runs of spaces to one and trim the ends;
+7. Keep only speakable characters: letters and digits (including full-width forms), spaces, boundary punctuation, `_ . \ / -`, and apostrophes; remove all other symbols (`@`, `#`, `&`, `《》`, `「」`, arrows, emoji, and so on).
 
-SSE 下发的 `text` 是原始段文本，播放器显示原始文本；合成使用净化后的文本。
+The `text` sent over SSE is the original segment text, and the player displays the original; synthesis uses the cleaned text.
 
-## 后端合成
+## Backend synthesis
 
-### 端口
+### Port
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -384,37 +341,37 @@ class SpeechAudio:
 class TTSProvider(Protocol):
     name: str
 
-    def synthesize(self, text: str, *, voice: str, timeout_s: float) -> SpeechAudio: ...
+    def available(self) -> bool: ...
+
+    def synthesize(self, text: str, *, voice: str, timeout_s: float,
+                   speed: float = 1.0) -> SpeechAudio: ...
 ```
 
-### edge-tts 适配
+### edge-tts adapter
 
-- 延迟导入 `edge_tts`；插件装载不因缺库失败。
-- 合成使用异步流：`asyncio.run` 内用 `asyncio.wait_for` 包住 `Communicate.stream()`，
-  收集 `type == "audio"` 的字节块。
-- 超时、无音频、网络异常、音色不存在都转成 `SpeechSynthesisError`，附音色名与
-  文本前 20 字；不把底层堆栈交给模型。
-- 单段音频超过 4 MB 视为异常，丢弃该段并发布错误；512 字的段通常远低于该值。
-- 合成结果只留在内存，不写磁盘。
+- Import `edge_tts` lazily; `available()` decides whether the tool is usable, and the plugin still loads without the library.
+- Synthesis uses the asynchronous stream: inside `asyncio.run`, `asyncio.wait_for` wraps `Communicate.stream()` and collects chunks whose `type == "audio"`; `speed` becomes a `rate` percentage.
+- Timeout, no audio, network errors, and an unknown voice all become `SpeechSynthesisError`, with the voice name and the reason; the underlying stack is never handed to the model.
+- A segment over 4 MB is treated as a failure and that segment fails; a 512-character segment is usually far below that size.
+- The synthesized audio stays in memory and is never written to disk.
 
-`engine` 只接受 `edge`；其它值在装载期报错，插件卡片显示失败原因。
+`engine` accepts only `edge`; any other value fails at load time and the plugin card shows the reason.
 
-### 超时
+### Timeout
 
-单段合成超时 15 秒。超时后该段失败、发布 `error` 事件、继续处理下一段；
-不重试同一段，避免把队列拖死。
+A single segment times out after 15 seconds. On timeout that segment fails, an `error` event is published, and the next segment is processed; the same segment is not retried, so the queue cannot stall.
 
-## SSE 契约
+## SSE contract
 
-### 通用出口
+### Common outlet
 
-在 `agent/core/context.py` 增加服务名：
+Add a service name in `agent/core/context.py`:
 
 ```python
 SERVICE_PLUGIN_EVENTS = "plugin_events"
 ```
 
-在 `agent/shell/classic_adapter/contract.py` 增加：
+Add to `agent/shell/classic_adapter/contract.py`:
 
 ```python
 EV_PLUGIN_EVENT = "plugin_event"
@@ -426,15 +383,14 @@ def plugin_event_frame(
 ) -> dict: ...
 ```
 
-规则：
+Rules:
 
-1. `plugin` / `event` 非空，去掉首尾空白；`plugin` 只允许 `[A-Za-z0-9_-]`。
-2. `payload` 必须是 dict 或 None；返回新 dict，不修改调用方对象。
-3. 保留键 `type`、`plugin`、`event`、`seq` 不允许出现在 payload；
-   出现即 `ValueError`。`seq` 被 SSE 传输层当作断线续传游标，插件事件不能占用。
-4. 帧形状固定为 `{"type": "plugin_event", "plugin": ..., "event": ...}` 加 payload。
+1. After trimming, `plugin` / `event` must be 1–64-character identifiers: the first character is a letter or digit, the rest are letters, digits, `_`, or `-`.
+2. `payload` must be a dict or None; the function returns a new dict and does not modify the caller's object.
+3. The reserved keys `type`, `plugin`, `event`, and `seq` may not appear in the payload; their presence raises `ValueError`. The SSE transport uses `seq` as the replay cursor, so plugin events cannot occupy it.
+4. The frame shape is always `{"type": "plugin_event", "plugin": ..., "event": ...}` plus the payload.
 
-`ClassicAdapter` 增加公开方法：
+`ClassicAdapter` (`ChannelMixin` in `agent/shell/classic_adapter/channel.py`) gains a public method:
 
 ```python
 def announce_plugin_event(self, plugin: str, event: str,
@@ -442,27 +398,19 @@ def announce_plugin_event(self, plugin: str, event: str,
     return self._broadcast(C.plugin_event_frame(plugin, event, payload))
 ```
 
-该方法不经过 `translate()`，不落盘，不参与 `replay_after()`；返回值是本帧实际
-广播到的 SSE 连接数。`_broadcast` 同步改为返回投递数，现有调用方忽略返回值。
-`agent/shell/classic_adapter/plugin_events.py` 的 `PluginEventPublisher` 包住这个方法，
-暴露 `__call__` 与 `connected()`；`build_app()` 把它登记为
-`SERVICE_PLUGIN_EVENTS`。插件经 `current_context().app.get(SERVICE_PLUGIN_EVENTS)`
-取用，不 import `agent.shell`。连接数为 0 时工具返回「没有已连接的 Web 界面」，
-不入队、不合成。
+The method bypasses `translate()`, writes nothing to disk, and does not participate in `replay_after()`; it returns the number of SSE connections the frame was broadcast to. `_broadcast` also returns the connection count and drops the oldest frame when a channel queue is full, never blocking the event stream. `PluginEventPublisher` in `agent/shell/classic_adapter/plugin_events.py` wraps the method and exposes `__call__` and `connected()`; `build_app()` registers it as `SERVICE_PLUGIN_EVENTS` before plugins load. Plugins obtain it through `current_context().app.get(SERVICE_PLUGIN_EVENTS)` and never import `agent.shell`. With zero connections the tool returns "no connected Web UI" and neither queues nor synthesizes.
 
-### 帧类型
+### Frame types
 
-| 事件 | 字段 | 语义 |
+| Event | Fields | Meaning |
 |---|---|---|
-| `segment` | `conversation_id`、`call_id`、`index`、`total`、`text`、`voice`、`mime`、`audio`、`bytes`、`gap_ms` | 一段音频就绪 |
-| `error` | `conversation_id`、`call_id`、`index`、`code`、`message` | 某段合成失败；播放器提示后继续 |
-| `stop` | `conversation_id`、`reason` | 停止该会话的播放；无 `conversation_id` 时停全部 |
+| `segment` | `conversation_id`, `call_id`, `index`, `total`, `text`, `voice`, `mime`, `audio`, `bytes`, `gap_ms`, `speed` | One segment's audio is ready |
+| `error` | `conversation_id`, `call_id`, `index`, `code`, `message` | One segment failed to synthesize; the player reports it and continues |
+| `stop` | `conversation_id`, `reason` | Stop playback for that conversation; without `conversation_id` it applies to the active conversation of the current tab |
 
-`segment.audio` 是标准 base64，不带 `data:` 前缀；`mime` 目前固定
-`audio/mpeg`。`gap_ms` 是服务端配置的串行播放间隔，播放器以最近一帧为准，
-配置保存后不需要重新加载启动脚本。
+`segment.audio` is standard base64 without a `data:` prefix; `mime` is always `audio/mpeg`. `gap_ms` is the server-configured serial playback gap; the player uses the most recent frame, so a saved configuration takes effect without reloading the boot script. `speed` is the synthesis rate multiplier and is diagnostic only; the player does not read it.
 
-示例：
+Example:
 
 ```json
 {
@@ -478,42 +426,43 @@ def announce_plugin_event(self, plugin: str, event: str,
   "mime": "audio/mpeg",
   "audio": "SUQz...",
   "bytes": 18234,
-  "gap_ms": 0
+  "gap_ms": 0,
+  "speed": 1.0
 }
 ```
 
-### 顺序与丢失
+### Order and loss
 
-- 同一会话的 worker 串行合成、串行发布；`index` 严格递增。
-- 不同会话的段在全局通道按到达顺序交错；播放器按到达顺序播放。
-- SSE 连接慢时 `_Channel` 会丢最旧帧；音频帧不重放。播放器按
-  `(call_id, index)` 检测缺口，缺口只提示一次，不尝试补发。
-- 断线重连只恢复工具事实与界面状态；已经错过的音频不补。
+- A conversation's worker synthesizes and publishes serially; `index` increases strictly.
+- Segments from different conversations interleave on the global channel in arrival order; the player plays in arrival order.
+- A slow SSE connection drops its oldest frame; audio frames are not replayed. The player does not detect gaps and does not request retransmission; in synchronous mode a missing segment means no acknowledgement, and the wait times out and fails the tool.
+- A reconnect restores tool facts and UI state only; audio already missed is not replayed.
 
-### 帧体积
+### Frame size
 
-单段音频上限 4 MB，base64 约 5.3 MB；SSE 帧仍在单连接队列可承受范围内。
-播放器对单帧做大小检查，超过上限直接丢弃并提示。
+A single segment is capped at 4 MB, about 5.3 MB as base64. One connection queue holds at most 512 frames and drops the oldest when full. The cap is enforced at synthesis; the player does no additional size check on a frame.
 
-## 前端播放器
+## Frontend player
 
-### 形态
+### Form
 
-输入框上方左侧的迷你条，与待发送队列同宽：
+The slot `#aiSpeakSlot` sits above the composer on the left, the same width as the pending queue; when the slot is absent the bar floats at the bottom right:
 
 ```
 ┌──────────────────────────────────────┐
-│ 🔊 AI说话  当前句…        队列 3  ⏸  ■ │
+│ 🔊 AI说话  current…        queue 3  ⏸  ■ │
 └──────────────────────────────────────┘
 ```
 
-- 当前句最多显示 60 字，超出省略；完整文本放在 `title`。
-- 队列数显示待播项数量；0 时隐藏队列数字。
-- 暂停/继续按钮；停止按钮清空队列并隐藏播放条。
-- 自动播放被浏览器拦截时，显示「点击播放」按钮，队列保留。
-- 播放条不抢焦点；按钮带 `aria-label` 与 `title`。
+- The current segment is shown in full; when it is wider than the bar it scrolls horizontally in step with the audio, and the full text is in `title`.
+- The count shows the number of pending items and is hidden at 0.
+- Pause/resume button; the stop button clears the queue and hides the bar.
+- When the browser blocks autoplay, the bar shows "点击播放" and keeps the queue.
+- The bar does not steal focus; buttons carry `aria-label` and `title`.
 
-### 队列
+### Queue
+
+Playback state is per conversation; each conversation owns one `<audio>` and one queue:
 
 ```js
 items = [
@@ -521,123 +470,112 @@ items = [
 ]
 ```
 
-- `enqueue(frame)`：去重 `(callId, index)`；入队；超过 512 项时丢弃最旧的待播项
-  并计数；空闲时启动 `playNext()`。
-- `playNext()`：取出队首，生成 Blob URL，设置 `<audio>`，调用 `play()`。
-- `ended`：释放 URL，等待 `gap_ms`，播下一项。
-- `error`：释放 URL，显示错误 3 秒，播下一项。
-- `stop(cid?, callId?)`：暂停并释放当前；按范围过滤队列；范围为空时清空。
-- `pause()` / `resume()`：暂停/继续当前音频；等待间隔期间暂停则清掉定时器。
+- `enqueue(frame)`: decode base64 into a Blob URL; deduplicate by `(callId, index)`; push; when the queue exceeds 512 items, drop the oldest pending item, count it, mark that call `incomplete`, and stop the call's remaining segments; start `playNext()` when idle.
+- `playNext()`: take the head, set `<audio>`, and call `play()` inside the Web Lock.
+- `ended`: revoke the URL, record the segment; after the whole call finishes, acknowledge `played`, wait `gap_ms`, and play the next item.
+- `error` event: show the error text and acknowledge `error`; an audio-element error likewise acknowledges `error` and moves on.
+- `stop(cid?, callId?)`: pause and release the current item; filter the queue by scope; an empty scope clears the conversation.
+- `pause()` / `resume()`: pause or resume the current audio; pausing during a gap clears the timer.
+- A non-active conversation pauses when the user switches away and resumes when it becomes active again.
 
-### 自动播放
+### Autoplay
 
-`audio.play()` 返回的 Promise 被 `NotAllowedError` 拒绝时：
+When the Promise returned by `audio.play()` rejects with `NotAllowedError`:
 
-1. 保留当前项与队列；
-2. 设置 `blocked = true`，显示「点击播放」；
-3. 用户点击后再次 `play()`，成功后清掉 `blocked`；
-4. 其他错误按播放失败处理，提示并继续下一项。
+1. keep the current item and the queue;
+2. set `blocked = true` and show "点击播放";
+3. on the user's click clear `blocked` and call `play()` again; a new rejection sets it back;
+4. treat other errors as playback failures, acknowledge the failure, and continue with the next item.
 
-### 多标签页
+### Multiple tabs
 
-每个浏览器标签页各自创建播放器、`<audio>` 与队列。SSE 广播到每一页，各页独立
-播放；一个页面暂停或停止不影响其它页面，也不做跨标签页的同步。
-同步播放按首个 ack 放行，默认假设只有一个活动播放页。
+Each browser tab creates its own player, `<audio>` elements, and queues. Playback of one conversation is serialized with `navigator.locks` under `ai-speak-playback:<conversation_id>`: the tab that holds the lock plays and the others stay paused until the user resumes them. `pause` and `stop` propagate to other tabs of the same conversation through the `BroadcastChannel` `ai-speak-player:<conversation_id>`. Different conversations can play in different tabs at the same time; there is no segment-level synchronization across tabs. Without Web Locks the tabs play independently.
 
-### 同步播放
+### Synchronous playback
 
-`sync_playback = 1` 时，工具在入队前登记 `(conversation_id, call_id)`，等前端把
-最后一段播完后返回。播放器按 `call_id` 统计段数，最后一段 `ended` 后调用
-`POST /api/plugin/ai_speak/played`；`status` 为 `played` / `stopped` /
-`error` / `incomplete`。
+With `sync_playback = 1` the tool registers `(conversation_id, call_id)` before queueing and returns only after the frontend has played the last segment. The player counts segments by `call_id`, and after the last `ended` calls `POST /api/plugin/ai_speak/played`; `status` is `played`, `stopped`, `error`, or `incomplete`.
 
-- `incomplete` 按 `dropped` 处理；队列丢弃、无 SSE、合成失败都不能报已播完。
-- 用户停止时播放器同时请求 `/api/chat/stop`；工具等待期间检查回合取消标记。
-- 等待超时按文本长度计算，`max(30s, min(600s, 15s + 字符数 × 0.35))`。
-- 自动播放被拦截时播放器不 ack；用户点击播放并播完后才 ack。
-- 等待者只存 `(conversation_id, call_id)` 与状态，不改变音频帧契约。
+- `incomplete` is handled as `dropped`; a queue drop, a missing SSE connection, or a synthesis failure can never be reported as played.
+- When the user stops, the player also requests `/api/chat/stop`; while waiting, the tool checks the turn's cancellation flag.
+- The wait timeout is computed from text length: `max(30s, min(600s, 15s + characters × 0.35))`.
+- When autoplay is blocked the player does not acknowledge; it acknowledges only after the user clicks play and playback finishes.
+- At most 64 waiters are kept; beyond that the oldest is resolved as `dropped`.
+- A waiter is keyed by `(conversation_id, call_id)` and holds the status and detail; the audio frame contract is unchanged.
 
-### 配置
+### Configuration
 
-启动脚本调用 `GET /api/plugin/ai_speak/config`：
+The boot script calls `GET /api/plugin/ai_speak/config`:
 
 ```json
-{"ok": true, "play_interval_ms": 0, "max_segment_chars": 128,
- "voice": "zh-CN-XiaoxiaoNeural", "engine": "edge",
- "sync_playback": false}
+{"ok": true, "engine": "edge", "voice": "zh-CN-XiaoxiaoNeural",
+ "user_salutation": "陛下", "assistant_salutation": "臣妾", "tone": "温婉",
+ "max_segment_chars": 128, "play_interval_ms": 0,
+ "sync_playback": false, "speed": 1.0}
 ```
 
-`segment` 帧的 `gap_ms` 覆盖本地值。配置读取失败时 `gap_ms` 取 0，
-播放条仍可工作。
+`gap_ms` on a `segment` frame overrides the local value. If the configuration cannot be read, `gap_ms` is 0 and the player bar still works.
 
-### 设置开关
+### Settings toggle
 
-- 播放器监听 `ai-agent:plugins-changed`；`loaded` 不含 `ai_speak` 时立即
-  `stop()`、移除播放条。
-- 插件后端在卸载时发布 `stop`（尽力而为）；两个通道任一到达都能停播。
+- The player listens for `ai-agent:plugins-changed`; when `loaded` does not contain `ai_speak` it calls `destroy()` and removes the bar and audio elements.
+- On unload the plugin backend publishes `stop` (best effort); either path stops playback.
 
-### 资源释放
+### Resource release
 
-- 每个 Blob URL 在 `ended` / `error` / `stop` 时 `URL.revokeObjectURL`。
-- 定时器在停止、暂停、页面卸载时清理。
-- 播放条移除时解绑所有监听器；重复初始化先调用上一次的 `destroy()`。
+- Every Blob URL is revoked with `URL.revokeObjectURL` on `ended`, `error`, `stop`, and queue drop.
+- Timers are cleared on stop, pause, and plugin disable; page teardown releases the remaining memory.
+- Removing the bar unbinds all listeners; re-initialization calls the previous instance's `destroy()` first.
 
-## 工具卡
+## Tool card
 
-插件通过开屏脚本注册 `window.aiAgentChatTools.register`：
+The plugin registers through the boot script with `window.aiAgentChatTools.register`:
 
-| 属性 | 值 |
+| Attribute | Value |
 |---|---|
 | `match` | `chatToolName(script) === "ai_speak"` |
 | `title` | `AI说话` |
-| `summary` | `args.msg` 原文 |
-| `mount` | 建「请求」与「响应」两个默认面板 |
-| `fill` | 用 `chatToolResponseText` 填响应面板 |
+| `summary` | `args.msg`, trimmed |
+| `mount` | Build the default `请求` and `响应` panels |
+| `fill` | Fill the response panel with `chatToolResponseText` |
 
-壳层在标题与摘要之间画一条竖分隔线，视觉为「AI说话 │ 消息」；摘要文本完整值放在
-`title` 属性，长消息由 CSS 省略。展开详情仍是默认的请求/响应报文，不注册自定义
-详情视图。
+The shell draws a vertical divider between title and summary, visually "AI说话 │ message"; the full summary text is in the `title` attribute and long messages are ellipsized by CSS. Expanded detail remains the default request/response payloads; no custom detail view is registered.
 
-左侧步骤卡只显示工具名「AI说话」；对话区工具壳显示消息摘要。两者共用同一次
-工具调用的 `tool_call_id`。
+The left step card shows only the tool name "AI说话"; the chat tool card shows the message summary. Both share the `tool_call_id` of the same tool call.
 
-## 生命周期与开关
+## Lifecycle and toggle
 
-### 装载
+### Load
 
-1. 读 `plugin-config.ini` 的 `[config]`，校验 `engine`、解析数值。
-2. 建 `AISpeakRuntime`，此时不创建线程。
-3. 注册 `AISpeakTool`。
-4. 注册两个开屏脚本：`ui/player.js`、`ui/tool-view.js`。
-5. 注册只读端点 `GET config`、`GET status`，以及播放完成的 `POST played`。
-6. 订阅 `turn_ended` 与 `error`：回合被停止/中断时停该会话的队列。
-7. `ctx.set_runtime(runtime)`，供壳层与测试按名字取同一实例。
-8. 工具执行时从 `current_context().app` 取 `SERVICE_PLUGIN_EVENTS`；
-   取不到或返回 0 个连接时返回不可用错误。
-9. 返回 disposer 列表；任一注册失败时先 `runtime.dispose()` 再抛出。
+1. Read `[config]` from `plugin-config.ini`, validate `engine`, and parse numbers; fallback warnings are recorded through `report_error`.
+2. Build `AISpeakRuntime`; no thread is created at this point.
+3. Register `AISpeakTool`.
+4. Declare an empty subagent tool list so the tool is not exposed to subagents.
+5. Register two boot scripts: `ui/player.js` and `ui/tool-view.js`.
+6. Register the read-only routes `GET config` and `GET status`, plus `POST played` for playback completion.
+7. Subscribe to `turn_ended` and `error` to stop the conversation's queue when the turn is stopped or interrupted.
+8. Append the voice instruction with `add_mode_tail`; it is not rendered into subagent requests and is empty when the engine is unavailable.
+9. Call `ctx.set_runtime(runtime)` so the shell and tests can resolve the same instance by name.
+10. At execution time the tool resolves `SERVICE_PLUGIN_EVENTS` from `current_context().app`; if it is missing or reports zero connections, the tool returns an unavailable error.
+11. Return the disposer list; if any registration fails, call `runtime.dispose()` and re-raise.
 
-### 卸载
+### Unload
 
-1. 宿主逆序执行 disposer。
-2. `runtime.dispose()`：停止接受新段、唤醒 worker、清空队列、发布 `stop`。
-3. 工具、端点、开屏脚本由宿主撤销。
-4. 设置页广播 `plugins_changed`；前端 `applyPluginsChanged` 派发
-   `ai-agent:plugins-changed`，播放器停播并移除播放条。
+1. The host runs the disposers in reverse order.
+2. `runtime.dispose()`: stop accepting new segments, wake workers, clear queues, publish `stop`, and resolve waiters.
+3. The host withdraws the tool, routes, and boot scripts.
+4. The settings page broadcasts `plugins_changed`; the frontend's `applyPluginsChanged` dispatches `ai-agent:plugins-changed`, and the player stops and removes the bar.
 
-### 重新启用
+### Re-enable
 
-开屏脚本按 URL 去重，卸载时壳层的 `prunePluginScripts` 会删除脚本标签并清掉
-加载表；再次启用时脚本重新执行。播放器初始化前先销毁旧实例，避免双份 `<audio>`
-与双份监听器。
+Boot scripts are deduplicated by URL; on unload the shell's `prunePluginScripts` removes the script tags and clears the load table, so a re-enable executes them again. The player destroys the previous instance before initializing, avoiding duplicate `<audio>` elements and listeners.
 
-### 回合停止
+### Turn stop
 
-`turn_ended` 的 `stopped` 或 `halted` 为真时，停该会话的队列；正常 `done` 不打断
-已经排队的音频，让最后几句播完。`error` 事件同样停该会话队列。
+When `turn_ended` arrives with `stopped` or `halted` set, the conversation's queue stops; a normal `done` does not interrupt queued audio, letting the last few sentences finish. An `error` event also stops that conversation's queue.
 
-## 配置
+## Configuration
 
-`plugins/ai_speak/plugin-config.ini`：
+`plugins/ai_speak/plugin-config.ini` holds these keys; the defaults are shown below:
 
 ```ini
 [config]
@@ -649,99 +587,97 @@ tone = 温婉
 max_segment_chars = 128
 play_interval_ms = 0
 sync_playback = 0
+speed = 1.0
 ```
 
-| 键 | 默认 | 范围 | 说明 |
+| Key | Default | Range | Notes |
 |---|---|---|---|
-| `engine` | `edge` | 仅 `edge` | 合成引擎；其它值在装载期报错 |
-| `voice` | `zh-CN-XiaoxiaoNeural` | 非空 | edge-tts 音色名；未知音色在合成期报错 |
-| `user_salutation` | `陛下` | 非空 | 模型对用户的称呼 |
-| `assistant_salutation` | `臣妾` | 非空 | 模型对自己的称呼 |
-| `tone` | `温婉` | 非空 | 模型说话的语气约束 |
-| `max_segment_chars` | 128 | ≥ 1 的整数，无上限 | 单段字符上限；300 按 300 贪心，1000 按 1000 贪心 |
-| `play_interval_ms` | 0 | ≥ 0 | 段间播放间隔（毫秒） |
-| `sync_playback` | 0 | `0` / `1` | 1 = 工具等前端播完再返回 |
+| `engine` | `edge` | `edge` only | Synthesis engine; any other value fails at load time |
+| `voice` | `zh-CN-XiaoxiaoNeural` | non-empty | edge-tts voice name; an unknown voice fails during synthesis |
+| `user_salutation` | `陛下` | non-empty | How the model addresses the user |
+| `assistant_salutation` | `臣妾` | non-empty | How the model refers to itself |
+| `tone` | `温婉` | non-empty | Tone constraint on the model's speech |
+| `max_segment_chars` | 128 | integer ≥ 1, no upper limit | Segment character limit; 300 packs at 300, 1000 packs at 1000 |
+| `play_interval_ms` | 0 | ≥ 0 | Playback gap between segments (ms) |
+| `sync_playback` | 0 | `0` / `1`, also accepts `true` / `false` and similar | 1 = the tool waits for playback to finish |
+| `speed` | 1.0 | 0.5–2.0 | Rate multiplier; 1.0 is normal speed |
 
-解析规则：
+Parsing rules:
 
-- 文件缺失 → 全部取默认值；真实配置由设置页生成。
-- 整数键：非数字取默认；`max_segment_chars` 小于 1 取默认 128；
-  `play_interval_ms` 小于 0 取 0。两者回退时记一条 `report_error`。
-  `max_segment_chars` 不设上限。
-- 开关在 `plugins.ini` 的 `enabled`，`0` 不装载。
-- 未知 `[config]` 键忽略，不阻断装载。
-- `engine` 非 `edge`、`voice` 为空、配置解析抛错：记 `report_error` 并让插件
-  装载失败，错误出现在插件列表与 stderr。
+- Missing file → all defaults; the real configuration is produced by the settings page.
+- Integer keys: a non-number falls back to the default; `max_segment_chars` below 1 falls back to 128; `play_interval_ms` below 0 becomes 0. `max_segment_chars` has no upper limit. Each fallback adds a warning, which the plugin records through `report_error`.
+- `speed` that is not a number or outside 0.5–2.0 falls back to 1.0.
+- The enable flag lives in `plugins.ini`; `0` means not loaded.
+- Unknown `[config]` keys are ignored and do not block loading.
+- A non-`edge` engine, an empty `voice`, or a parse error records `report_error` and makes the plugin fail to load; the error appears in the plugin list and on stderr.
 
-配置模板与解析器键集合由 `tests` 双向比对：模板缺键、模板多键、解析器读了
-模板没有的键，三种情况都失败。
+The parser's key set is declared by `CONFIG_KEYS`, and the configuration template must match it.
 
-## 并发与资源
+## Concurrency and resources
 
-### 运行时结构
+### Runtime structures
 
 ```python
 class AISpeakRuntime:
     _workers: dict[str, _SessionWorker]
     _lock: threading.Lock
+    _playback: dict[tuple[str, str], PlaybackWaiter]
     _disposed: bool
-    _totals: Counter
+    _totals: dict[str, int]
 ```
 
-`_SessionWorker`：
+`_SessionWorker`:
 
 ```python
 class _SessionWorker:
-    _queue: queue.Queue[_SegmentJob | None]
+    _queue: queue.Queue[tuple[_SegmentJob, Publisher] | None]
     _thread: threading.Thread
     _stop: threading.Event
     _generation: int
 ```
 
-### 串行保证
+### Serial guarantee
 
-- 每个会话一个 worker；`enqueue` 在运行时锁内检查队列容量并一次放入全部段，
-  避免部分入队。
-- worker 逐段取、逐段合成、逐段发布；同一会话的 `index` 严格递增。
-- 不同会话的 worker 并行；每个浏览器标签页只有一个队列，按到达顺序播放。
+- One worker per conversation; `enqueue` checks queue capacity under the runtime lock and inserts the whole batch at once, avoiding a partial enqueue.
+- The worker takes, synthesizes, and publishes one segment at a time; `index` increases strictly within a conversation.
+- Workers for different conversations run in parallel; each conversation in each browser tab has its own queue and plays in arrival order.
 
-### 停止与取消
+### Stop and cancellation
 
-- `stop_cid(cid, reason)`：提升该会话的 generation、清空待播段、发布 `stop`；
-  worker 在每次合成前与发布前检查 generation 与 `_stop`。
-- `dispose()`：置 `_disposed`，对所有 worker 置 `_stop`、投 `None`、等待最多 3 秒；
-  仍未退出则记一条 `report_error` 并放弃等待（daemon 线程）。
-- 停止顺序：停止接受新段 → 停 worker → 清队列 → 发布 stop → 清计数。
+- `stop_cid(cid, reason)`: resolve that conversation's playback waiters, remove its worker, drain pending segments, publish `stop`, and wait at most 0.2 seconds; the worker checks `_stop` before each synthesis and each publish.
+- `dispose()`: set `_disposed`, resolve all waiters, set `_stop` for every worker, push `None`, and wait up to 3 seconds; a worker still alive records one `report_error` and is abandoned (daemon thread).
+- Stop order: stop accepting new segments → stop workers → clear queues → publish stop. Counters are kept for `/status`.
 
-### 队列上限
+### Queue limits
 
-| 队列 | 上限 | 超限行为 |
+| Queue | Limit | Behavior at the limit |
 |---|---|---|
-| 每会话待合成段 | 1024 | 工具返回 `SpeechBusy`，不入队 |
-| 前端待播项 | 512 | 丢最旧待播项，计数并在播放条提示 |
-| 单帧音频 | 4 MB | 该段失败，发布 `error` |
+| Pending segments per conversation | 1024 | The tool returns `SpeechBusy` and the whole batch is rejected |
+| Playback waiters | 64 | The oldest is resolved as `dropped` |
+| Pending items in the frontend | 512 | Drop the oldest pending item, count it, and mark the call `incomplete` |
+| One audio frame | 4 MB | That segment fails and an `error` is published |
 
-### 并发检测
+### Concurrency tests
 
-`tests/test_concurrency.py` 增加一组用例：多线程向同一会话入队、停止与入队并发、
-两个会话并行、队列满时拒绝。CI 已用 `-X dev` 跑该文件。
+`tests/test_concurrency.py` covers concurrent enqueue into the same conversation without losing segments; stop, full queue, and concurrent enqueue are covered by `RuntimeTest` in `tests/test_ai_speak_runtime.py`.
 
-## 错误与可观测性
+## Errors and observability
 
-### 错误类别
+### Error classes
 
-| 类别 | 产生方 | 处理 |
+| Class | Producer | Handling |
 |---|---|---|
-| 校验失败 | `text.validate` | 工具抛 `MessageValidationError`；顶层 `ok=false`；不落音频 |
-| 依赖不可用 | `EdgeTTSProvider` / 无 SSE 连接 | 工具抛 `SpeechEngineUnavailable`；文案给安装或启用路径 |
-| 队列忙 | `runtime.enqueue` | 工具抛 `SpeechBusy`；文案给队列长度与重试建议 |
-| 合成失败 | worker | 发布 `error` 事件；`report_error` 留痕；继续下一段 |
-| 播放失败 | 前端 | 播放条提示；跳过当前项；控制台留错误 |
-| 事件非法 | `plugin_event_frame` | 抛 `ValueError`；插件侧记录；不广播 |
+| Validation failure | `text.split_message` | The tool raises `MessageValidationError`; top-level `ok=false`; no audio produced |
+| Dependency unavailable | `provider` / context / publisher | The tool raises `SpeechEngineUnavailable`; the message points to installation or enablement |
+| Queue busy | `runtime.enqueue` | The tool raises `SpeechBusy`; the message gives the queue length and limit |
+| Synthesis failure | worker | Publish an `error` event; record `report_error`; continue with the next segment |
+| Playback unfinished | synchronous waiter | The tool raises `SpeechPlaybackFailed` with the status and elapsed wait |
+| Playback failure | frontend | Show it in the bar; skip the current item; acknowledge the failure status |
+| Invalid event | `plugin_event_frame` | Raise `ValueError`; the plugin records it; nothing is broadcast |
 
-### 状态端点
+### Status endpoint
 
-`GET /api/plugin/ai_speak/status`：
+`GET /api/plugin/ai_speak/status`:
 
 ```json
 {
@@ -751,6 +687,9 @@ class _SessionWorker:
   "voice": "zh-CN-XiaoxiaoNeural",
   "max_segment_chars": 128,
   "play_interval_ms": 0,
+  "sync_playback": false,
+  "speed": 1.0,
+  "playback_waiting": 0,
   "sessions": [
     {"conversation_id": "0f3c...", "queued": 2, "spoken": 5, "failed": 0, "dropped": 0}
   ],
@@ -759,215 +698,108 @@ class _SessionWorker:
 }
 ```
 
-不返回密钥（插件没有密钥）；`last_error` 只保留最近一条，避免状态无界增长。
+No secrets are returned (the plugin has none); `last_error` keeps only the most recent entry so the status cannot grow without bound.
 
-### 日志
+### Logging
 
-- 配置错误、合成错误、停止超时走 `report_error("plugin.ai_speak", ...)`。
-- 逐段成功不写 stderr，避免每句刷屏；计数由 `/status` 提供。
-- 播放器错误写 `console.error`，不把服务器文本当 HTML 插入。
+- Configuration errors, synthesis errors, and stop timeouts go through `report_error` under the `plugin.ai_speak.*` scope.
+- Per-segment success writes nothing to stderr, avoiding one line per sentence; counters are exposed by `/status`.
+- Player errors are shown in the bar and acknowledged to the backend; the player does not write console errors, and server text is never inserted as HTML.
 
-## 安全与信任
+## Security and trust
 
-| 项 | 约束 |
+| Item | Constraint |
 |---|---|
-| 信任边界 | 插件与本机代码同等信任；装载后同进程运行，没有沙箱 |
-| 输入校验 | 在工具入口一次完成；下游不再猜字符是否合法 |
-| DOM 注入 | 播放器与工具卡只用 `textContent`；不把服务器文本放进 `innerHTML` |
-| 样式隔离 | 类名前缀 `ai-speak-`；样式文件由插件资产路由送达 |
-| 音频体积 | 单段 4 MB 上限；base64 只在内存中生成 Blob |
-| 文件 | 不写磁盘、不读用户文件、不拼路径 |
-| 网络 | 只由 edge-tts 访问其服务；插件不另发请求 |
-| 秘密 | 插件没有密钥；配置模板不含凭据 |
-| 事件出口 | `plugin_event_frame` 校验插件名/事件名/保留键；不接受任意路由 |
+| Trust boundary | The plugin is trusted like local code; it runs in the same process after loading, with no sandbox |
+| Input validation | Completed once at the tool entry; downstream code does not guess whether a character is legal |
+| DOM injection | Server text is assigned through `textContent` only; it never enters `innerHTML` |
+| Style isolation | Class prefix `ai-speak-`; styles are served by the plugin asset route |
+| Audio size | 4 MB per segment at synthesis; base64 only produces an in-memory Blob |
+| Files | No disk writes, no user files read, no path construction |
+| Network | Only edge-tts contacts its service; the plugin makes no other requests |
+| Secrets | The plugin has no credentials; the configuration template contains none |
+| Event outlet | `plugin_event_frame` validates plugin name, event name, and reserved keys; no arbitrary routing |
 
-每个浏览器标签页各自创建播放器与队列，SSE 广播到每一页；多标签页可以同时播放，
-互不暂停、停止或同步。播放器只保留本页内存状态。
+Each browser tab creates its own player and queues, and SSE broadcasts to every page. Playback of one conversation is serialized by the browser lock, and `BroadcastChannel` propagates pause and stop; different conversations do not affect each other. The player keeps only in-page memory state.
 
-## 旧 tts 清理
+## Tests
 
-| 文件 | 动作 |
-|---|---|
-| `plugins/tts/` | 整目录删除（含真实 `plugin-config.ini`，删除前备份） |
-| `plugins.ini` | 去掉 tts 注释节，加入 `[plugin:ai_speak]` |
-| `plugins.ini` | 注释示例改为 `ai_speak` |
-| `agent/core/context.py` | 增加 `SERVICE_PLUGIN_EVENTS` 服务名 |
-| `agent/app.py` | 把 `PluginEventPublisher(classic)` 登记为 `SERVICE_PLUGIN_EVENTS`（装配末尾、插件装载之前） |
-| `agent/shell/classic_adapter/plugin_events.py` | 新增窄发布器：`__call__` 返回送达连接数，`connected()` 查询是否有连接 |
-| `agent/shell/classic_adapter/contract.py` | 删除 `EV_AUDIO` / `NEVER_EMIT`；增加 `EV_PLUGIN_EVENT` 与 `plugin_event_frame` |
-| `agent/shell/classic_adapter/adapter.py` | 增加 `announce_plugin_event`，返回连接数；保持文件不超过 800 行 |
-| `agent/shell/web_assets/classic/js/chat/stream.js` | 删除两处 `audio` 分支；增加 `plugin_event` 转发到 DOM |
-| `agent/shell/web_assets/classic/js/plugins/host.js` | `applyPluginsChanged` 派发 `ai-agent:plugins-changed` |
-| `agent/shell/web_assets/classic/css/theme-light.css` | 删除未使用的 `.tts-toggle-btn` |
-| `agent/shell/web_assets/classic/agent-ui.html` | 删除顶部 TTS 入口注释 |
-| `tests/test_classic_adapter.py` | 删除 `test_audio_never_emitted`；更新订阅数注释；补 `plugin_event_frame` 用例 |
-| `tests/test_kb_plugin.py` | 插件目录清单用 `ai_speak` 替换 `tts` |
-| `tests/test_settings_panel.py` | 夹具中的 `plugin:tts` 文本改为 `plugin:ai_speak` |
-| `tests/test_plugin_http.py` | 注释里的 `tts` 改为 `ai_speak` |
-| `scripts/acceptance_phase3.py` | 用 `ai_speak` 替换 `tts`；断言工具/端点/启动脚本/卸载 |
-| `docs/subsystems/plugins.md` | 内置插件表与最小形态示例更新 |
-| `docs/subsystems/tools.md` | 插件工具清单加入 `ai_speak` |
-| `docs/architecture.md` | 删除 TTS 专属表述，改为通用插件边界 |
-| `catalog/tools.json` | 重新生成，包含 `ai_speak` |
-| `docs/unit-tests.md` | 重新生成 |
-| `README.md` | 更新用例数与文档索引 |
-
-旧 `tts` 不保留别名、转发模块或兼容导入。旧会话事实里没有音频，删除不改变历史可读性。
-
-## 测试计划
-
-### 单元测试
+### Unit tests
 
 `tests/test_ai_speak_text.py`
 
-| 类 | 覆盖 |
+| Class | Coverage |
 |---|---|
-| `CharacterTest` | 中英文允许字符；四则符号；每一类拒绝字符；emoji、换行、全角字母数字 |
-| `PairTest` | 中文/英文引号与括号配对、嵌套、交叉、空对、撇号与单引号区分 |
-| `ConnectorTest` | `-` 的连接符、二元减号、负数前缀、连续与首尾位置 |
-| `BoundaryTest` | 中英文分句边界、引号内标点、闭符号收尾、缺失结尾、`...`/`?!` |
-| `NumberTest` | `3.14` 小数点、`1,000` 千分位、`10:30` 时间不作为边界 |
-| `PercentTest` | `10%`、`3.5%`、`100%`、`1,000%`、`0%` 的中文读法；非数字后的 `%` 拒绝 |
-| `MathTest` | `5+3`、`10-2`、`3*4`、`10/2`、`×`、`÷`、全角符号、`-5`、日期与英文连接符 |
-| `SplitTest` | 单段、多分句合并、`max_segment_chars` 128/300/1000、分句超限、512 字上限 |
-| `SpeechTextTest` | 引号/括号移除、百分号转换、四则转中文、千分位删除、空格压缩 |
-| `ConfigTest` | 缺文件、非法整数、非正数取默认、300/1000 生效、未知引擎、模板键双向一致 |
+| `SplitTest` | Chinese and English clauses, packing to the limit, 300/1000 limits, 512-character limit, a clause over the limit, quoted ending, numeric separators |
+| `ValidationTest` | Empty text and missing ending, control characters, non-speakable symbols accepted, rule text in errors, invisible characters named, file names and book-title marks, unmatched and empty pairs, bracket quotes, arithmetic context, percent without a number, leading boundary |
+| `SpeechTextTest` | Quotes and apostrophes, removal of book-title marks and brackets, removal of non-speakable symbols, percent, arithmetic to Chinese, dates and identifiers, thousands separators |
+| `ConfigTest` | Missing file defaults, values and ranges, invalid engine and empty voice |
 
 `tests/test_ai_speak_runtime.py`
 
-| 类 | 覆盖 |
+| Class | Coverage |
 |---|---|
-| `ProviderTest` | 假 edge-tts 流、空音频、异常、超时、缺库 |
-| `RuntimeTest` | 入队顺序、发布顺序、base64、失败继续、停止、dispose、队列满、512 字 |
-| `ToolTest` | 入参只有 `msg`、成功返回、校验失败、引擎缺失、无 Web 壳、队列忙 |
-| `RegistrationTest` | 工具/端点/启动脚本/订阅/运行时注册；卸载后全部回收 |
-| `ContractTest` | `plugin_event_frame` 保留键、空名、payload 拷贝、无 `seq` |
+| `ProviderTest` | Fake edge-tts stream, missing library, empty audio, timeout |
+| `RuntimeTest` | Publish order and base64, wait timeout and cancellation, isolated synthesis failure, no SSE stops the worker, stop clears the queue and publishes stop, full queue rejects the batch, enqueue rejected after dispose |
+| `ToolTest` | Successful enqueue, synchronous ack wait, synchronous timeout, synchronous synthesis failure, release on stop, validation failure, missing publisher, no connection, missing engine, tool contract, envelope |
+| `RegistrationTest` | Tool/routes/boot scripts/subscriptions/runtime registration; everything reclaimed on unload; config and status routes |
 
 `tests/test_ai_speak_plugin.py`
 
-| 类 | 覆盖 |
+| Class | Coverage |
 |---|---|
-| `AISpeakAppTest` | `build_app` 装载工具/端点/启动脚本/运行时；事件发布器连接计数；卸载后全部回收 |
+| `AISpeakAppTest` | `build_app` loads tool/routes/boot scripts/runtime; the voice instruction enters the request tail; publisher connection counting; everything reclaimed on unload |
 
 `tests/test_classic_adapter.py`
 
-| 用例 | 覆盖 |
+| Class | Coverage |
 |---|---|
-| `announce_plugin_event` | 广播到所有通道、返回连接数、无 `seq`、帧形状 |
-| `plugin_event_frame` | 保留键拒绝、非法插件名/事件名、payload 不共享 |
-| 删除 `test_audio_never_emitted` | 旧 `audio` 分支已移除 |
+| `PluginEventTest` | `plugin_event_frame` shape, reserved keys, invalid plugin/event names, payload copy; `announce_plugin_event` reaches every channel and returns the connection count |
 
 `tests/test_concurrency.py`
 
-| 用例 | 覆盖 |
+| Class | Coverage |
 |---|---|
-| 同会话多线程入队 | 不丢段、顺序稳定、无重复 |
-| 入队与停止并发 | 停止后不再发布；已入队段被清空 |
-| 两会话并行 | 各自串行，互不阻塞 |
-| 队列满 | 拒绝整批，不出现部分入队 |
+| `AISpeakRuntimeContentionTest` | Many threads enqueue into the same conversation without losing segments, with stable order and no duplicates |
 
-### 验收
+### Acceptance
 
-- `scripts/acceptance_phase3.py`：临时清单装载 `ai_speak` + 知识库；
-  断言工具存在、两个启动脚本、两个只读端点加 `POST played`、两个事件订阅、运行时已登记；
-  卸载后全部消失、worker 停止、无残留线程。
-- `scripts/acceptance_web.py`（播放器场景在 `acceptance_web_player.py`）：
-  打开页面、确认播放条注入、派发 `plugin_event` 与 `plugins-changed`，断言无未捕获
-  异常且关闭插件后播放条撤销。真实声音不在自动化里验证，用手动回归。
-- 手动回归：
-  1. 启动服务，设置页启用 AI说话，确认插件卡片与工具清单。
-  2. 让模型执行一个多步任务，确认每一步调用工具、播放条逐段播放、句间间隔生效；
-     把 `max_segment_chars` 设为 300 与 1000 各跑一次，确认装段长度随配置变化。
-  3. 暂停/继续/停止；停止后当前音频立即停。
-  4. 设置页关闭插件，确认播放停止、队列清空、工具消失；再启用后工具恢复。
-  5. 打开两个标签页，确认两页各自播放；一页暂停/停止不影响另一页。
-  6. 浏览器自动播放被拦截时，确认「点击播放」按钮可用。
-  7. 卸载 `edge-tts`，确认工具返回可执行的安装提示。
-  8. 输入带 `@`、emoji、换行、超过 512 字、单分句超过配置上限的消息，确认
-     失败文案指出位置与规范；输入 `进度 10%。` 确认读成「进度 百分之十。」；
-     输入 `5+3。`、`10-2。`、`3*4。`、`10/2。`、`-5。` 确认读成对应中文。
-  9. 检查 `data/` 下没有新增音频文件。
+- `scripts/acceptance_phase3.py`: load `ai_speak` plus the knowledge plugin from a temporary manifest; assert the tool exists, two boot scripts are contributed, endpoint contributions are in place, two event subscriptions exist, and the runtime is registered; after unload everything is gone.
+- `scripts/acceptance_web_player.py` (invoked by `acceptance_web.py`): open the page, confirm the player bar is injected, dispatch `plugin_event` and `plugins-changed`, and assert there are no uncaught exceptions and that disabling the plugin removes the bar. Real audio is not verified by automation; it is covered by manual regression.
+- Manual regression:
+  1. Start the service, enable AI Speak in the settings page, and confirm the plugin card and tool list.
+  2. Let the model run a multi-step task; confirm it calls the tool at each step, the bar plays segment by segment, and the gap takes effect. Run once with `max_segment_chars` set to 300 and once to 1000, and confirm that packing follows the configuration.
+  3. Pause, resume, and stop; the current audio stops immediately on stop.
+  4. Disable the plugin in the settings page; confirm playback stops, the queue is cleared, and the tool disappears. Re-enable it and confirm the tool returns.
+  5. Open two tabs on the same conversation and confirm only one tab is audible while the others stay paused; different conversations can play independently.
+  6. When browser autoplay is blocked, confirm the "点击播放" button works.
+  7. Remove `edge-tts` and confirm the tool returns an actionable installation hint.
+  8. Enter a message containing emoji and confirm it is accepted and the emoji is not spoken; enter a newline, more than 512 characters, or a clause over the configured limit, and confirm the failure message names the position and the rule. Enter `进度 10%。` and confirm it is read as `进度 百分之十。`; enter `5+3。`, `10-2。`, `3*4。`, `10/2。`, and `-5。` and confirm the corresponding Chinese reading.
+  9. Confirm no new audio files appear under `data/`.
 
-### 覆盖率
+### Coverage
 
-`run_coverage.py` 口径已含 `plugins`，下限 60%。纯逻辑文件目标 85% 以上；
-`provider` 的 edge-tts 适配通过假模块覆盖成功、异常、超时三条路径。
+`run_coverage.py` already includes `plugins`, with a 60% floor. Pure logic modules target 85% or more; the edge-tts adapter covers success, exception, and timeout paths through a fake module.
 
-## 门禁与文档
+## Risks and limitations
 
-实现后需要跑的目标检查：
-
-```
-python -m unittest tests.test_ai_speak_text tests.test_ai_speak_runtime \
-    tests.test_ai_speak_plugin tests.test_classic_adapter tests.test_concurrency
-python -m ruff check plugins/ai_speak tests/test_ai_speak_*.py \
-    agent/shell/classic_adapter/contract.py agent/shell/classic_adapter/adapter.py
-python scripts/check_comment_style.py
-python scripts/check_architecture_hygiene.py
-python scripts/check_ui_js.py
-python scripts/gen_catalog.py
-python scripts/check_catalog.py
-python scripts/gen_unit_tests_md.py
-python scripts/check_readme.py
-python scripts/check_complexity.py
-```
-
-`catalog/tools.json` 与 `docs/unit-tests.md` 是生成物，先重新生成再比对。
-`acceptance_phase3.py` 更新后纳入验收。
-
-文档落点：
-
-| 文件 | 内容 |
-|---|---|
-| `docs/plan/ai-speak.md` | 本方案 |
-| `docs/subsystems/ai-speak.md` | 实现后的工具、文本规范、配置、SSE、播放器与限制 |
-| `docs/subsystems/plugins.md` | 内置插件表与启动脚本/端点示例更新 |
-| `docs/subsystems/tools.md` | 插件工具清单加入 `ai_speak` |
-| `docs/architecture.md` | 删除旧 TTS 专属表述 |
-| `README.md` | 文档索引与用例数 |
-| `docs/unit-tests.md` | 生成物 |
-
-## 交付顺序
-
-| 顺序 | 内容 | 完成判据 |
+| Item | Impact | Handling |
 |---|---|---|
-| 1 | `text.py` + `config.py` + 单测 | 字符、配对、切分、配置用例全绿 |
-| 2 | `provider.py` + 假 edge-tts 单测 | 成功、异常、超时、缺库路径全绿 |
-| 3 | `runtime.py` + `tool.py` + 单测 | 串行、停止、队列满、计数稳定 |
-| 4 | `plugin.py` + 配置模板 + 注册测试 | 临时清单可装载，卸载零残留 |
-| 5 | 壳层 `plugin_event` 出口 + `stream.js` / `host.js` + 单测 | 帧可送达浏览器，保留键被拒 |
-| 6 | `ui/player.js` / `ui/player.css` / `ui/tool-view.js` | 播放、暂停、停止、多标签页独立、工具卡可用 |
-| 7 | 删除旧 tts、更新清单/catalog/测试/文档 | `check_catalog` 零漂移，旧引用清零 |
-| 8 | 本机手动回归 + 目标门禁 | 播放、开关、错误路径、双标签页各自播放均通过 |
+| Browser autoplay policy | The first play may be rejected | The "点击播放" button keeps the queue |
+| edge-tts needs the network | No audio when offline or the service is unavailable | Tool failure gives an install/network hint; `/status` records the last error |
+| base64 size | Large segments use memory and bandwidth | Configured segment limit, 4 MB synthesis cap, queue limits |
+| SSE frame loss | A slow consumer drops the oldest frame | No retransmission; a synchronous wait times out and fails |
+| Multiple tabs | The same segment reaches several pages | Where Web Locks are available, one tab per conversation plays; pause/stop broadcast to the same conversation |
+| Multiple conversations | Queues in one page interleave | Play in arrival order; each item carries its conversation id and can be stopped by scope |
+| Small configured value | A clause may exceed the configured limit | Validation fails and names the effective limit; no hard word cut |
+| Symbol set | Code, URLs, formulas, and `@`/`#`/`&` cannot be pronounced | The model uses words instead; unspeakable symbols are removed before synthesis; `%` becomes a Chinese percentage |
+| Wrong voice name | edge-tts synthesis fails | Per-segment error event; `/status` records it |
+| No audio on disk | No replay after a refresh or reconnect | Tool facts remain; audio is a realtime side channel |
 
-## 风险与限制
+## Implementation rules
 
-| 项 | 影响 | 处置 |
-|---|---|---|
-| 浏览器自动播放策略 | 首次播放可能被拒 | 「点击播放」按钮保留队列 |
-| edge-tts 依赖网络 | 离线或服务不可用时无音频 | 工具失败给安装/网络提示；`/status` 记最后错误 |
-| base64 体积 | 大段音频占用内存与带宽 | 配置的单段上限、4 MB 音频上限、队列上限 |
-| SSE 帧丢失 | 慢消费者丢最旧帧 | 播放器按 `(call_id,index)` 检测缺口并提示；不补发 |
-| 多标签页 | 同一段会被多个页面收到并各自播放 | 这是允许行为；各页独立控制，不跨页同步 |
-| 多会话 | 单页队列会交错 | 按到达顺序播放；每项带会话 id，可按范围停止 |
-| 配置值较小 | 分句可能超过配置上限 | 校验失败并指出有效上限；不硬切词 |
-| 符号白名单 | 代码、URL、公式、`@`/`#`/`&` 等符号不能直接说 | 模型改用文字表达；`%` 由插件转成中文百分比 |
-| 音色名错误 | edge-tts 合成失败 | 单段错误事件；`/status` 记录 |
-| 音频不落盘 | 刷新或重连后不能回放 | 工具事实仍在；音频属于实时旁路 |
-
-## 实现口径
-
-1. `max_segment_chars` 默认 128，取值是 ≥1 的整数，没有上限；设为 300 就按
-   300 字贪心装段，设为 1000 就按 1000 字贪心装段。单个分句超过该值时失败，
-   不在词中间硬切。
-2. 中文标点：`，` `。` `？` `！` `；` `、` `：` `“` `”` `‘` `’` `（` `）`。
-   英文标点：`.` `,` `?` `!` `;` `:` `'` `"` `(` `)`。四则符号：
-   `+` `-` `*` `/` `×` `÷`（含全角 `＋` `－` `＊` `／`）。空格支持半角与全角。
-   `-` 可作英文连接符、二元减号或负数前缀；`+` `*` `/` `×` `÷` 必须是二元
-   符号。`%`/`％` 只在数字后并转成中文百分比。其它符号、emoji、换行、
-   Markdown 一律拒绝。
-3. 中英文边界标点都是分句边界；数字内部的 `.`、`,`、`:` 分别是小数点、
-   千分位与时间分隔，四则符号与百分号也不是边界。段内可含多个分句，
-   段末一定是边界标点。
-4. 单次 `msg` 上限 512 字，超出拒绝；段数不另设上限。
-5. 每个浏览器标签页独立播放；多标签页可以同时播放，不做跨页同步。
+1. `max_segment_chars` defaults to 128 and accepts any integer ≥ 1 with no upper limit; 300 packs greedily at 300 characters and 1000 at 1000 characters. A clause over the value fails instead of being cut mid-word.
+2. Character validation rejects only control characters (newline, tab, carriage return, and so on); everything else passes. Quotes and brackets must be paired, including `《》` and `「」`. Arithmetic symbols `+` `-` `*` `/` `×` `÷` (including full-width forms) are checked by position; `%`/`％` are allowed only after a number and are converted to a Chinese percentage. Unspeakable symbols and emoji are removed before synthesis.
+3. Chinese and English boundary punctuation both end clauses; inside numbers, `.`, `,`, and `:` are the decimal point, thousands separator, and time separator, and a dot in a file-name extension does not split either; arithmetic symbols and the percent sign are not boundaries. A segment may contain several clauses, and it always ends with boundary punctuation.
+4. One `msg` holds at most 512 characters; larger input is rejected. The number of segments has no separate cap.
+5. Each browser tab creates its own player; where Web Locks are available, one conversation is audible in only one tab at a time, and different conversations are not synchronized.

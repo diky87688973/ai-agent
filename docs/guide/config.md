@@ -1,8 +1,10 @@
-# 配置
+**English** | [中文](config.zh.md)
 
-配置文件是仓库根目录的 `config.ini`，随仓库入库，只保留非敏感的宿主配置；文件不存在时使用代码默认值。模型不在此文件配置，由 `plugins/multi_model/plugin-config.ini` 和多模型设置页维护。缺省值与全部键见下。
+# Configuration
 
-插件清单是另一份文件 `plugins.ini`（工程根），它**入库**——里面没有密钥，列的是装载哪些插件。见 [插件](../subsystems/plugins.md)。
+The configuration file is `config.ini` in the repository root. It is checked in and holds only non-sensitive host configuration; when the file is absent, code defaults apply. Models are not configured here; they are maintained in `plugins/multi_model/plugin-config.ini` and on the multi-model settings page. All keys and defaults are listed below.
+
+The plugin manifest is a separate file, `plugins.ini` in the project root. It is checked in, contains no secrets, and lists which plugins to load. See [Plugins](../subsystems/plugins.md).
 
 ## `[agent]`
 
@@ -10,55 +12,56 @@
 [agent]
 reasoning_effort = max
 backup_retention_days = 7
-max_passes = 512
+max_passes = 64
 plugin_tree_only = 0
 ```
 
-| 键 | 默认 | 含义 |
+| Key | Default | Meaning |
 |---|---|---|
-| `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可切换，**会话级选择优先**，且按会话落盘（`data/session_state/`） |
-| `backup_retention_days` | `7` | 版本化备份保留天数。启动时清理更早的；`0` = 永久保留 |
-| `max_passes` | `512` | 每回合模型往返上限；小于 1 按 1 处理。每次往返可调用 0 个或多个工具，不是工具调用次数上限 |
-| `plugin_tree_only` | `0` | `1` 时只允许装载落在 `plugins/` 树内的插件目录；清单里的绝对/外置 `path` 会被拒。环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先 |
+| `reasoning_effort` | `max` | Global reasoning level. `max` = deep reasoning, `high` = standard reasoning. It can be changed per session; the session-level choice takes precedence and is persisted per session under `data/session_state/`. |
+| `backup_retention_days` | `7` | Retention period for versioned backups, in days. Versions older than this are pruned at startup; `0` = keep forever. |
+| `max_passes` | `64` | Model round-trip limit per turn; values below 1 are treated as 1. Each round trip may call zero or more tools; this is not a tool-call limit. |
+| `plugin_tree_only` | `0` | When `1`, only plugin directories inside the `plugins/` tree may be loaded; absolute or external `path` entries in the manifest are rejected. The `AI_AGENT_PLUGIN_TREE_ONLY` environment variable takes precedence. |
 
-`reasoning_effort` 的取值直接进请求体的 `reasoning_effort` 字段。值非法时回落 `max`。
+The repository's `config.ini` uses `high` for `reasoning_effort` and `512` for `max_passes`; the defaults in the table come from the code.
 
-Rules 不在这里配：规则文件放在工程根的 `rules/` 目录，由 `plugins/rules`
-插件全量注入，见 [Rules](../subsystems/rules.md)。
+`reasoning_effort` is sent as the request body's `reasoning_effort` field by providers that support it; providers that do not support the field ignore it. Invalid values fall back to `max`.
 
-两项都在**进程启动时读一次**，改配置后需重启服务。
+Rules are not configured here. Rule files live in `rules/` at the project root and are injected in full by the `plugins/rules` plugin; see [Rules](../subsystems/rules.md).
 
-## 文件备份
+`backup_retention_days` is read once at process start; a change takes effect after restarting the service.
 
-写类工具覆盖文件前会留一份原内容，供 `file_undo` 回滚。**按被改文件的路径分组**，每个版本是一个自描述目录：
+## File backups
 
-```
-<工程根>/data/temp/file_backup/
-├── 40523ae2c2b5f07f/                    ← 绝对路径的 MD5 前 16 位
-│   ├── 20261012_193315_269_0000_c00c/   ← 版本目录：YYYYMMDD_HHMMSS_mmm_序号_随机
-│   │   ├── original                     原文件字节
-│   │   └── metadata.json                mod_id / path / time / bytes / sha256 / mode / diff
+Before a write tool overwrites a file, it preserves the original content for `file_undo` rollback. Versions are grouped by the path of the file that was changed; each version is a self-describing directory:
+
+```text
+<data-root>/temp/file_backup/
+├── 40523ae2c2b5f07f/                    ← first 16 hex digits of the MD5 of the absolute path
+│   ├── 20261012_193315_269_0000_c00c/   ← version directory: YYYYMMDD_HHMMSS_mmm_sequence_random
+│   │   ├── original                     original file bytes
+│   │   └── metadata.json                mod_id / path / time / bytes / encoding / original_sha256 / mode / diff_text
 │   └── 20261012_195719_270_033b/
 └── c9e965b3ee74285f/
 ```
 
-`mod_id` 形如 `<路径哈希>:<版本目录名>`，`file_undo` 的 `diff` / `undo` 都用它定位。
+`mod_id` has the form `<path hash>:<version directory name>`; `file_undo` uses it to locate versions for both `diff` and `undo`.
 
-版本目录名**精确到毫秒**：同一秒内的多次改动也要能排出先后 —— 只到秒时只能靠随机段排序，而随机段与先后无关，`file_undo list` 的顺序会错乱。
+Version directory names carry a millisecond timestamp, a zero-padded sequence, and a random suffix, so name order matches creation order.
 
-`metadata.json` 里的 `mode` 与 `diff_text` 记录**这一版是被什么改动产生的**：`mode` 取工具名或替换模式（`write` / `literal` / `lines` / `patch` / `read_write` / `undo`），`diff_text` 是旧→新的 unified diff（上限 2000 字符，超出时末尾标 `…（已截断）`）。目标文件原本不存在（没有旧内容可算）时 `diff_text` 为空。
+`metadata.json` records how the version was produced: `mode` is the change type (`write` / `literal` / `edits` / `lines` / `patch` / `read_write` / `undo`), and `diff_text` is the unified diff from old to new (truncated at 2000 characters, with a truncation marker appended). If the target file does not exist, no version is recorded because there is no original content to preserve.
 
-- **版本按被改文件的路径哈希分组**：文件名可能含中文、空格、超长，净化后会互相分不开，也读不出是什么；路径哈希互不冲突，同一文件的所有版本聚在一个目录下，查历史就是读一个目录。
-- **版本目录名最前面是日期**，按年龄清理只需解析它；归属、时间、校验和记在各版本自带的 `metadata.json` 里。
-- 某个文件的版本全部过期后，它的哈希目录一并移除。
+- **Versions are grouped by a hash of the target file's absolute path.** File names may contain Chinese characters, spaces, or be very long; sanitized names collide, while path hashes keep every version of one file in a single directory.
+- **The version directory name starts with the date**, so pruning can parse the name alone; the file path, time, and checksum are stored in each version's `metadata.json`.
+- When every version of a file has expired, its hash directory is removed.
 
-删除类操作（`delete_file` / `file_ops`）不真删，移入 `<工程根>/data/recycle/<YYYYMMDD>/`，可人工取回。
+Delete operations (`delete_file` / `file_ops`) do not erase files; they move them to `<data-root>/recycle/<YYYYMMDD>/`, where they can be recovered manually.
 
-启动时按 `[agent] backup_retention_days` 清理过期版本。清理失败只留痕，不阻断启动。
+At startup, expired versions are pruned according to `[agent] backup_retention_days`. A pruning failure is reported and does not block startup.
 
 ## `[context]`
 
-上下文压缩。会话在内存中分两段：近期记忆与摘要。末尾 `full_user_rounds` 个用户轮被遮盖、按原文保留，它们前面的轮次压缩成摘要。
+Context compaction. A session keeps recent memory verbatim and compacts earlier rounds into a summary: the last `full_user_rounds` user rounds are not compacted; only the rounds before them are. When no earlier rounds can be compacted, those trailing rounds are compacted as well.
 
 ```ini
 [context]
@@ -67,30 +70,40 @@ full_user_rounds         = 5
 summary_output_max_chars = 5000
 image_turns              = 1
 image_max                = 8
-reasoning_replay_tokens = 8000
+reasoning_replay_tokens  = 8000
 ```
 
-| 键 | 缺省或留空时 | 含义 | 建议范围 |
+| Key | Default when absent or blank | Meaning | Recommended range |
 |---|---|---|---|
-| `summary_token_fallback` | `64000` | 仅在当前模型没有声明 `context_window` 时使用的回退压缩阈值；不提供设置页入口 | 正整数 |
-| `full_user_rounds` | `5` | 压缩时保留最近对话轮数：末尾这么多用户轮不压，只压它们前面的 | `1`–`10` |
-| `summary_output_max_chars` | `5000` | 摘要的篇幅上限，单位为字。它作为约束写进摘要提示词，实际长度由模型遵守程度决定 | `2000`–`8000` |
-| `image_turns` | `1` | 只把**最近这么多轮用户发言**里的图片带进模型请求，更早的转文本占位。`0` = 一张都不带，负数 = 不限 | 正整数 / 负数 |
-| `image_max` | `8` | 这几轮里最多带几张图；**最近一轮优先保**，超量的从最老的那一轮开始砍。`0` = 一张都不带，负数 = 不限 | 正整数 / 负数 |
-| `reasoning_replay_tokens` | `8000` | 思维链回传预算（token）。`-1` = 全量回传；`0` = 不回传；正数 = 超出就**取两头、中间以 `<此处省略 N token 的推理>` 代替**（模型可据前后文推断中间）。思维链是模型产生的中间稿，必然未命中缓存，全量回传等于每轮多背几万 token | `-1` / `0` / 正数 |
+| `summary_token_fallback` | `64000` | Fallback compaction threshold used only when the current model does not declare a `context_window`; not exposed on the settings page | Positive integer |
+| `full_user_rounds` | `5` | Number of trailing user rounds retained during compaction; earlier rounds are compacted. When no earlier rounds can be compacted, these rounds are compacted too. | `1`–`10` |
+| `summary_output_max_chars` | `5000` | Maximum summary length in characters. It is written into the summary prompt as a constraint; the actual length depends on how closely the model follows it. | `2000`–`8000` |
+| `image_turns` | `1` | Only images from the most recent N user turns are kept in the model request; images from earlier user turns become text placeholders. `0` = no images from user turns; negative = unlimited. Images returned by tools are not limited by this key. | `0` / positive / negative |
+| `image_max` | `8` | Maximum total number of images in the model request. The most recent images are kept first; excess images are dropped oldest first. `0` = no images; negative = unlimited. | `0` / positive / negative |
+| `reasoning_replay_tokens` | `8000` | Reasoning replay budget in tokens. `-1` = replay all; `0` = replay none; a positive value keeps the beginning and end and replaces the middle with an omission marker that states the approximate number of omitted tokens (the model can infer the middle from context). Reasoning is intermediate output that never hits the cache, so replaying it in full adds those tokens to every request. | `-1` / `0` / positive |
 
-有模型窗口时，实际压缩阈值 = `context_window × compression_percent / 100`；
-`compression_percent` 是模型条目字段，默认 70，范围 10–90。
+With a model window, the effective compaction threshold is `floor(context_window × compression_percent / 100)`. `compression_percent` is a model-entry field with default `70` and range `10`–`90`; values outside that range fall back to `70`. Without a model window, `summary_token_fallback` is used.
 
-图片只从**发给模型的请求**里被裁掉，事实流里的字节不动 —— 历史回显与重新提问都还能拿到原图。
+Images are removed only from the request sent to the model; the bytes in the fact stream are unchanged, so history replay and re-asking still have access to the originals.
 
-「缺省或留空时」是 `config.ini` 缺该节或缺该键时生效的值。
+"Default when absent or blank" is the value used when `config.ini` lacks the section or key.
 
-机制细节见 [context.md](../subsystems/context.md)。
+For mechanism details, see [context.md](../subsystems/context.md).
 
-## 插件
+## `[update]`
 
-插件的装载在**另一份文件** `plugins.ini`（工程根）。节在就进入装载候选；开关写在该节的 `enabled`。名字、描述、图标、版本由 `plugin-meta.json` 声明。插件自己的键在 `[config]`。
+```ini
+[update]
+check_interval_minutes = 30
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `check_interval_minutes` | `30` | Interval between update checks, in minutes. Values are clamped to `1`–`1440`. |
+
+## Plugins
+
+Plugins are loaded from a separate file, `plugins.ini` in the project root. A section makes the plugin a load candidate; the switch is `enabled` in that section (default `1`). Name, description, icon, and version are declared in `plugin-meta.json`. Plugin-specific keys live in the plugin's own `plugin-config.ini`; most plugins use `[config]`, while `multi_model` uses `[model:<id>]` sections.
 
 ```ini
 [plugin:skills]
@@ -99,27 +112,26 @@ reasoning_replay_tokens = 8000
 enabled = 1
 ```
 
-| 名称 | 能力 | 自己的配置文件 |
+| Name | Capability | Own configuration file |
 |---|---|---|
-| `skills` | Skills 库（内置 + 外置）与 `skills` 工具 | `plugins/skills/plugin-config.ini` |
-| `rules` | `rules/` 下的 `.md` 全量注入上下文 | 无配置（只有开关）；见 [Rules](../subsystems/rules.md) |
-| `knowledge` | 本地知识库检索 | `plugins/knowledge/plugin-config.ini` |
-| `ai_speak` | 人类口语播报与语音播放 | `plugins/ai_speak/plugin-config.ini` |
+| `skills` | Skills library (built-in and external) and the `skills` tool | `plugins/skills/plugin-config.ini` |
+| `rules` | Injects every `.md` under `rules/` into the context | No configuration (switch only); see [Rules](../subsystems/rules.md) |
+| `knowledge` | Local knowledge-base retrieval | `plugins/knowledge/plugin-config.ini` |
+| `ai_speak` | Spoken narration and audio playback | `plugins/ai_speak/plugin-config.ini` |
 
-**节的先后即上下文组装顺序**：越不容易变动的插件排在越前面。
+**Section order is context assembly order**: plugins that change less often come first.
 
-**插件自己的配置跟着插件走。** AI说话 / 视觉操作 / 知识库 / Skills 的配置入库；`multi_model` 的密钥配置被 `.gitignore` 排除；**内核的 `config.ini` 里没有插件设置**。
-插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.md)。
+**Each plugin's configuration lives with the plugin.** The configurations of `ai_speak`, `visual_operator`, `knowledge`, and `skills` are checked in; `multi_model`'s secret configuration is excluded by `.gitignore`; the kernel's `config.ini` contains no plugin settings. For plugin directory layout, contributed capabilities, and development, see [Plugins](../subsystems/plugins.md).
 
-## HTTP 鉴权
+## HTTP authentication
 
-Web 服务默认只绑定 `127.0.0.1`，回环地址免登录。绑定非回环地址时必须先设置密码：
+The web service binds to `127.0.0.1` by default. When bound to a loopback address, `auto` and `local` modes bypass login. In `auto` and `required` modes, binding to a non-loopback address requires credentials; `local` refuses it. Set the password with:
 
 ```bash
 agent-web --set-password
 ```
 
-`[auth]`：
+`[auth]`:
 
 ```ini
 [auth]
@@ -132,44 +144,45 @@ trusted_proxies =
 allowed_hosts = 127.0.0.1,localhost,::1
 cookie_secure = auto
 provider_module =
-; GUI 一次性 bootstrap 自动登录；浏览器始终需要登录
+; GUI one-time bootstrap auto-login; browsers always require login
 desktop_auto_login = 1
 ```
 
 ```text
-auto      回环免登录；非回环强制登录；允许公网绑定
-required  任何地址都必须登录
-local     回环免登录；非回环直接拒绝启动
+auto      loopback binding bypasses login; non-loopback requires login; public binding allowed
+required  every address requires login
+local     loopback binding bypasses login; non-loopback binding is refused at startup
 ```
 
-`local` 与 `auto` 的回环行为相同；差别是 `local` 拒绝非回环绑定，`auto` 允许公网绑定但要求登录。
+`local` and `auto` behave the same on loopback. The difference is that `local` refuses non-loopback binding, while `auto` allows public binding but requires login.
 
-非回环地址没有密码时拒绝启动。
+A non-loopback address without credentials refuses to start.
 
-`required` 模式下浏览器始终需要登录。桌面 GUI 使用一次性 bootstrap token 自动建立会话；token 由启动器生成，只通过 WebView URL fragment 传递，浏览器无法获得。
+In `required` mode, browsers always require login. The desktop GUI establishes a session with a one-time bootstrap token generated by the launcher and passed only in the WebView URL fragment; browsers cannot obtain it.
 
-`allowed_hosts` 是 Host 白名单，默认只接受 `127.0.0.1`、`localhost`、`::1`；公网域名或反向代理域名必须显式加入。`trusted_proxies` 只对列表内的代理读取 `X-Forwarded-For` 与 `X-Forwarded-Proto`。
+`allowed_hosts` is the Host allowlist and defaults to `127.0.0.1`, `localhost`, and `::1`. Public or reverse-proxy domain names must be added explicitly. `trusted_proxies` accepts IP addresses or CIDR ranges; `X-Forwarded-For` and `X-Forwarded-Proto` are read only when the request comes from a listed proxy.
 
-从旧版本升级且原配置没有 `[auth]` 时，默认使用 `auto`；新建配置使用 `required`。已有部署把模式改为 `required` 后，浏览器首次访问需要登录；没有凭据时服务拒绝启动，需先执行 `agent-web --set-password`。
+If the `[auth]` section is absent, `mode` falls back to `auto`; the repository's `config.ini` uses `required`. In `required` mode, a non-GUI service without credentials refuses to start; run `agent-web --set-password` first.
 
-鉴权文件写入 `data/auth/`：Windows 使用 DACL，Linux/macOS 使用 0700 目录与 0600 文件；无法收紧权限时拒绝启动。ACL 被外部改宽时启动会先重置并重新收紧；如果 deny ACE 让 `/reset` 也失败，启动自动切换到 `data/auth2`、`auth3` 等。GUI 会生成新密码继续运行；非 GUI 的 `required` 模式会拒绝启动，需先执行 `agent-web --set-password`。旧目录保留但不再读取，新目录不复制旧密码或 Token。
+Authentication files are written under `data/auth/`. Windows uses a DACL; Linux and macOS use a `0700` directory and `0600` files. If no authentication directory can be tightened, startup is refused. When permissions have been widened externally, startup resets and tightens them; if tightening still fails (for example, a Windows deny ACE prevents `icacls /reset`), startup falls back to `data/auth2` through `data/auth9`. The old directory is left in place but is no longer read; the new directory does not copy the old password or tokens. In `required` mode with `desktop_auto_login` enabled, a GUI start without credentials generates a new password and continues; a non-GUI start without credentials refuses and requires `agent-web --set-password`.
 
-GUI 首次启动且没有密码时，会自动生成随机密码并写入 `data/auth/initial-password.txt`，GUI 仍可直接打开；浏览器登录密码以该文件为准。
-公网绑定必须提供 TLS：
+When a GUI starts in that situation, the generated password is written to `initial-password.txt` in the active authentication directory (`data/auth/` by default). The GUI still opens directly through the bootstrap token; browser logins use the password from that file.
+
+Public binding requires TLS:
 
 ```bash
 agent-web --host 0.0.0.0 --tls-cert cert.pem --tls-key key.pem
 ```
 
-或显式允许无 TLS：
+Or explicitly allow HTTP without TLS:
 
 ```bash
 agent-web --host 0.0.0.0 --allow-insecure-public
 ```
 
-反向代理必须使用 `mode = required`，不能依赖回环地址免登录。
+A reverse proxy must use `mode = required`; it cannot rely on the loopback login bypass.
 
-密码、会话和 API Token：
+Passwords, sessions, and API tokens:
 
 ```bash
 agent-web --set-password
@@ -177,67 +190,68 @@ agent-web --issue-token ci --scope chat,read
 agent-web --revoke-token ci
 ```
 
-凭证写入 `data/auth/`，不进入发布包，也不进入普通数据备份。
+Credentials are written to `data/auth/` and are not included in the release package.
 
-## 启动参数
+## Launch arguments
 
-| 参数 | 默认 | 说明 |
+| Argument | Default | Description |
 |---|---|---|
-| `--host` | `127.0.0.1` | 绑定地址 |
-| `--port` | `8765` | 端口 |
-| `--data-root` | `<工程根>/data` | 数据目录 |
-| `--fs-root` | 本机各盘根 | 文件可见范围。**可重复传** |
-| `--media-root` | 空；取第一个 `--fs-root` | `/api/media` 可读根 |
-| `--set-password` | 无 | 交互式设置访问密码后退出 |
-| `--issue-token NAME` | 无 | 创建 API Token 后退出；同名已存在时拒绝 |
-| `--revoke-token NAME` | 无 | 撤销 API Token 后退出 |
-| `--scope` | `read` | API Token scope，逗号分隔 |
-| `--tls-cert` | 空 | TLS 证书；公网绑定必须提供 |
-| `--tls-key` | 空 | TLS 私钥；公网绑定必须提供 |
-| `--allow-insecure-public` | 关闭 | 显式允许无 TLS 公网 HTTP |
+| `--host` | `127.0.0.1` | Bind address |
+| `--port` | `8765` | Port |
+| `--data-root` | `<project root>/data` | Data directory |
+| `--fs-root` | Drive roots on this machine; project root on other platforms | Visible file scope. **Repeatable** |
+| `--media-root` | Empty; all `--fs-root` | Explicit root readable by `/api/media`; empty uses every visible root |
+| `--open` | Off | Open the browser after startup |
+| `--set-password` | None | Interactively set the access password, then exit (at least 12 characters) |
+| `--issue-token NAME` | None | Create an API token, then exit; refuses an existing name |
+| `--revoke-token NAME` | None | Revoke an API token, then exit |
+| `--scope` | `read` | API token scopes, comma-separated; accepts `read`, `chat`, `write`, and `admin` |
+| `--tls-cert` | Empty | TLS certificate; required for public binding unless `--allow-insecure-public` is set |
+| `--tls-key` | Empty | TLS private key; required for public binding unless `--allow-insecure-public` is set |
+| `--allow-insecure-public` | Off | Explicitly allow public HTTP without TLS |
 
-`--fs-root` 重复传参写作 `--fs-root D:\ --fs-root E:\`。
+`--fs-root` can be repeated: `--fs-root D:\ --fs-root E:\`.
 
-`/workspace/*` 的根固定为 `<data-root>/workspace`，不受 `--media-root` 影响。
+The root of `/workspace/*` is fixed at `<data-root>/workspace` and is not affected by `--media-root`.
 
-## 环境变量
+## Environment variables
 
-全部可选。
+All are optional.
 
-| 变量 | 说明 |
+| Variable | Description |
 |---|---|
-| `AI_AGENT_DATA_ROOT` | 数据根目录 |
-| `AI_AGENT_FS_ROOT` | 文件可见根，多个用系统路径分隔符连接（Windows 为 `;`） |
-| `AI_AGENT_MEDIA_ROOT` | `/api/media` 可读根 |
-| `AI_AGENT_PLUGIN_TREE_ONLY` | `1` 只允许从 `plugins/` 树内装载；覆盖 `[agent] plugin_tree_only` |
-| `AI_AGENT_LOCK_TIMEOUT` | 跨进程锁等待秒数，默认 30 |
-| `AI_AGENT_LOG_REQUESTS` | 设为 `0` 关闭发送前的请求摘要，默认开启 |
-| `AI_AGENT_LLM_LOG` | 模型收发日志落盘路径，缺省为 `%TEMP%\fan_agent_llm_requests.log` |
+| `AI_AGENT_DATA_ROOT` | Data root directory |
+| `AI_AGENT_FS_ROOT` | Visible file roots, separated by the platform path separator (`;` on Windows) |
+| `AI_AGENT_MEDIA_ROOT` | Root readable by `/api/media` |
+| `AI_AGENT_PLUGIN_TREE_ONLY` | `1` loads only from the `plugins/` tree; overrides `[agent] plugin_tree_only` |
+| `AI_AGENT_LOCK_TIMEOUT` | Cross-process lock wait in seconds; default `30` |
+| `AI_AGENT_LOG_REQUESTS` | Set to `0` to disable the request summary printed before sending; enabled by default |
+| `AI_AGENT_LLM_LOG` | Path for the outgoing model-request log; defaults to `%TEMP%\fan_agent_llm_requests.log` |
 
-## 数据目录
+## Data directories
 
-运行时数据在 `data/` 下，不入版本库。用 `--data-root` 或 `AI_AGENT_DATA_ROOT` 指到别处。
+Runtime data lives under `data/` and is not tracked by version control. Point it elsewhere with `--data-root` or `AI_AGENT_DATA_ROOT`.
 
-| 目录 | 内容 |
+| Directory | Contents |
 |---|---|
-| `data/sessions/` | 会话事实日志 |
-| `data/titles/` | 会话标题（纯文本派生缓存） |
-| `data/session_state/` | 会话状态（模型 / 模式 / 推理档位 / 清单，一个会话一份 JSON） |
-| `data/temp/` | 临时产物（写盘前备份见上节「文件备份」） |
-| `data/mesh/` | 会话间协作（`agents.json` 注册表 + 运行态） |
-| `data/queues/` | 会话待发送消息队列（用户与 Agent 消息、附件） |
-| `data/mesh/runs/` | 运行态登记（`<cid>.json`） |
-| `data/workspace/` | `/workspace/` 静态路由根 |
-| `data/recycle/` | 删除操作的回收目录 |
-| `data/plugin/<插件名>/` | 插件专属存储（插件只看到自己那一层） |
-| `data/cache/` | 派生缓存，含会话加密密钥 |
-| `data/auth/` | 密码凭据、API Token、鉴权日志；不进入发布包 |
-| `data/logs/errors.log` | 进程错误日志（JSONL；内核/插件装配与宿主运行异常；工具业务失败收成 `ToolResult` 后不记此处；超约 2MB 轮转为 `errors.log.1`） |
+| `data/sessions/` | Session fact log |
+| `data/titles/` | Session titles (plain-text derived cache) |
+| `data/session_state/` | Session state (model / mode / reasoning level / checklist; one JSON file per session) |
+| `data/temp/` | Temporary artifacts (pre-write backups are described under File backups) |
+| `data/mesh/` | Cross-session collaboration (`agents.json` roster plus runtime state) |
+| `data/queues/` | Pending message queue per session (user and agent messages, attachments) |
+| `data/mesh/runs/` | Runtime registry (`<cid>.json`) |
+| `data/workspace/` | Root of the `/workspace/` static route |
+| `data/recycle/` | Recycle directory for delete operations |
+| `data/plugin/<plugin name>/` | Plugin-owned storage (a plugin sees only its own directory) |
+| `data/cache/` | Derived cache, including the session encryption key |
+| `data/auth/` | Password credentials, API tokens, and the authentication log; excluded from release packages |
+| `data/logs/errors.log` | Process error log (JSONL; kernel/plugin assembly and host runtime failures; tool business failures are returned as `ToolResult` and are not recorded here; rotates to `errors.log.1` at about 2 MB) |
 
-目录都是按需惰性创建的：全新克隆下只有 `data/` 本身，跑过一轮才会出现用到的那几个。
+Directories are created lazily: a fresh checkout has no `data/`, and only the directories used by a run appear.
 
-## 延伸阅读
+## Further reading
 
-- [架构](../architecture.md)
-- [术语](../glossary.md)
-- [上下文管理](../subsystems/context.md)
+- [Architecture](../architecture.md)
+- [Glossary](../glossary.md)
+- [Context management](../subsystems/context.md)

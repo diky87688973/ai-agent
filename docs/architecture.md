@@ -1,195 +1,195 @@
-# 架构
+**English** | [中文](architecture.zh.md)
 
-代码按五层组织，一次请求依次流经入口、壳层、能力、机制与内核。
+# Architecture
 
-模块结构、单一职责与资产归属的强制规则见 [工程标准](engineering-standards.md)。
+The code is organized into five layers. Each request flows through entry, shell, capabilities, mechanisms, and core.
 
-## 五层结构
+For module structure, single responsibility, and asset ownership rules, see [Engineering standards](engineering-standards.md).
 
-依赖只允许由内向外单向：反向引用与循环依赖由 `scripts/check_imports.py` 扫描 AST 强制，违规即失败。
+## Five-layer structure
+
+Dependencies may only point from outer to inner layers. Reverse imports and cycles are checked from the AST by `scripts/check_imports.py`; any violation fails.
 
 ```
 entry  →  shell  →  capabilities  →  mechanisms  →  core
 ```
 
-| 层 | 目录 | 职责 | 依赖 |
+| Layer | Directory | Responsibility | Depends on |
 |---|---|---|---|
-| L0 内核 | `agent/core/` | 模块链、宿主循环、事件与数据契约、端口 | 无 |
-| L1 机制 | `agent/mechanisms/` | 模型调用、上下文管线与压缩、写盘门控、会话存储、协作网格 | core |
-| L2 能力 | `agent/capabilities/` | 工具注册表、内置工具、插件加载 | core, mechanisms |
-| L3 壳层 | `agent/shell/` | HTTP + SSE 服务、界面打包、系统提示词、经典界面适配 | 全部下层 |
-| L4 入口 | `agent/entry/` | 进程入口：读配置 → 建 `App` → 交给壳跑 | 全部下层 |
+| L0 Core | `agent/core/` | Module chain, host loop, event and data contracts, ports | None |
+| L1 Mechanisms | `agent/mechanisms/` | Model calls, context pipeline and compaction, write gates, session storage, collaboration mesh | core |
+| L2 Capabilities | `agent/capabilities/` | Tool registry, built-in tools, plugin loading | core, mechanisms |
+| L3 Shell | `agent/shell/` | HTTP + SSE service, UI bundling, system prompts, classic UI adapter | All lower layers |
+| L4 Entry | `agent/entry/` | Process entry: read config → build `App` → hand to shell | All lower layers |
 
-### 层内包
+### Packages within layers
 
-| 包 | 职责 |
+| Package | Responsibility |
 |---|---|
-| `agent/mechanisms/providers/` | provider 协议、SSE、兼容协议/原生协议/Echo/Missing 实现；装配只在 `provider_registry.py` |
-| `agent/mechanisms/context/` | 轮次、token、布局、来源、压缩窄接口、三拼接装 |
-| `agent/mechanisms/compaction/` | 压缩触发、覆盖前缀与摘要接入 |
-| `agent/capabilities/tasks/` | 任务工具与确认协议，每个工具一个文件 |
-| `agent/shell/session/` | 回合运行、队列、目标、提示词、恢复、心跳 |
-| `agent/shell/classic_adapter/` | 入站/出站门面、历史、布局、状态、会话、经典契约 |
-| `agent/shell/web/` | 路由、静态资源、经典页面/SSE、插件端点、WebShell 业务 |
-| `agent/subagent/` | 父子会话仓库、批次、生命周期、消息投递；由装配根注入，壳层不直接实现 |
-| `plugins/<name>/` | 插件自有工具、配置、UI、主题与图标 |
+| `agent/mechanisms/providers/` | Provider protocol, SSE, compatible/native/Echo/Missing implementations; wiring only in `provider_registry.py` |
+| `agent/mechanisms/context/` | Turns, tokens, layout, sources, narrow compaction interfaces, three-part assembly |
+| `agent/mechanisms/compaction/` | Compaction triggers, covered prefixes, summary integration |
+| `agent/capabilities/tasks/` | Task tools and confirmation protocol; one file per tool |
+| `agent/shell/session/` | Turn execution, queues, goals, prompts, recovery, heartbeat |
+| `agent/shell/classic_adapter/` | Inbound/outbound facade, history, layout, state, sessions, classic contracts |
+| `agent/shell/web/` | Routes, static assets, classic page/SSE, plugin endpoints, WebShell actions |
+| `agent/subagent/` | Parent/child session repository, batches, lifecycle, message delivery; injected by the composition root, not implemented by shell |
+| `plugins/<name>/` | Plugin-owned tools, configuration, UI, themes, and icons |
 
-`agent/app.py` 是**装配根**，不属于任何一层。它是唯一同时引用五层的文件，负责构建 `AppContext` 并登记服务。
-装配根与入口层都不允许被任何层运行期导入（`if TYPE_CHECKING:` 的纯注解除外）；
-这条规则和"层间单向"由同一道门禁检查，`--scc` 可打印全包强连通分量用于审计。
+`agent/app.py` is the **composition root** and belongs to no layer. It is the only file that references all five layers; it builds `AppContext` and registers services.
+The lower four layers must not import the composition root or entry at runtime (pure type-checking imports under `if TYPE_CHECKING:` are exempt); entry may import the composition root.
+The same gate enforces this rule and layer direction. `--scc` prints package-level strongly connected components for auditing.
 
-## 双轨：决策链与事件总线
+## Two tracks: decision chain and event bus
 
-系统同时跑两条互不干扰的轨道。
+The system runs two independent tracks.
 
-| 轨道 | 机制 | 职责 | 参与控制流 |
+| Track | Mechanism | Responsibility | Participates in control flow |
 |---|---|---|---|
-| 决策链 | 模块链 + 有序拦截器，带返回值 | 数据搬运、门控、拦截、改写 | 是 |
-| 事件总线 | 广播订阅 | 界面推送、日志、统计、进度 | 否，纯通知 |
+| Decision chain | Module chain + ordered interceptors with return values | Data movement, gating, interception, rewriting | Yes |
+| Event bus | Broadcast subscriptions | UI updates, logs, metrics, progress | No; notifications only |
 
-`EventBus` 在 `core/event_bus.py`。门控住在决策链上：订阅者无法阻止主流程，执行顺序也不确定。
+`EventBus` lives in `core/event_bus.py`. Gates live on the decision chain: subscribers cannot block the main flow, and execution order is not guaranteed.
 
-## 模块链
+## Module chain
 
-内核的行为面就是一个方法：
+The kernel's behavioral surface is one method:
 
 ```python
 class ModuleBase:
     def execute(self, ports: Ports) -> Outcome: ...
 ```
 
-宿主反复跑整条链，直到没有任何模块要求续行。链上五个模块按固定顺序执行：
+The host runs the whole chain repeatedly until no module requests continuation. Five modules run in a fixed order:
 
 ```
-输入 → 待发送队列插入 → 压缩 → 模型 → 工具
+input → queued input insertion → compaction → model → tools
 ```
 
-| 模块 | 作用 |
+| Module | Role |
 |---|---|
-| `InputModule` | 把本轮的新用户输入认领成事实；**无输入时不发任何事件** |
-| `QueuedInputModule` | 把待发送队列中标记插入的消息收进上下文；排在压缩之前，让压缩看得见它们 |
-| `CompressModule` | 拼入前做预算检查，超阈值则压缩历史；压缩失败一律放行，不阻断回合 |
-| `ModelModule` | 按事实末端判定该不该跑；跑就发请求、消费流式增量，落成 `model_message` |
-| `ToolModule` | 执行模型要求但尚无结果的工具调用；执行过就要求续行 |
+| `InputModule` | Claims new user input for this turn as facts; **emits only `input_ended(claimed=False)` when there is no input** |
+| `QueuedInputModule` | Adds messages marked for insertion from the pending queue to context; runs before compaction so compaction sees them |
+| `CompressModule` | Checks the budget before assembly and compacts history above threshold; compaction failure always passes through and never blocks the turn |
+| `ModelModule` | Decides from the fact tail whether to run; sends requests, consumes stream deltas, and records `model_message` |
+| `ToolModule` | Executes tool calls requested by the model that still have no result; requests continuation after execution |
 
-全部实现在 `agent/core/modules/` 包，由 `build_default_chain()` 组装：
-`input_mod.py`、`queued_input_mod.py`、`compress_mod.py`、`model_mod.py`、`tool_mod.py`、`assemble.py`、`dialogue.py`、`mode_note.py`、`tool_facts.py`、`stderr.py`。
+All implementations live in `agent/core/modules/` and are assembled by `build_default_chain()`:
+`input_mod.py`, `queued_input_mod.py`, `compress_mod.py`, `model_mod.py`, `tool_mod.py`, `assemble.py`, `dialogue.py`, `mode_note.py`, `tool_facts.py`, `stderr.py`.
 
-`chain.py` 负责"一趟怎么跑"（`run_chain_iter` / `run_chain`），`host.py` 负责"跑到什么时候停"和回合边界。
+`chain.py` defines how one pass runs (`run_chain_iter` / `run_chain`); `host.py` defines when to stop and the turn boundary.
 
-### 控制流与数据流分离
+### Control flow and data flow are separate
 
-- **控制流走返回值**：`Outcome` 只带控制信号（`ok` / `next` / `halt` / `suspend` / `stopped`），不带数据。
-- **数据流走事件**：正文、用量、进度经 `ports.emit(...)` 发出。
+- **Control flow uses return values**: `Outcome` carries only control signals (`ok` / `next` / `halt` / `suspend` / `stopped`), never data.
+- **Data flow uses events**: text, usage, and progress are emitted through `ports.emit(...)`.
 
-这个分离让模块之间没有共享可变状态：模块决定"接下来干什么"，数据由事件通道流出去。
+This separation means modules share no mutable state: a module decides what happens next, while data leaves through the event channel.
 
-## 端口
+## Ports
 
-模块不能直接碰文件、网络、会话存储或工具实现，只能调 `Ports` 上声明过的接口。
+Modules cannot touch files, networks, session storage, or tool implementations directly. They may only call interfaces declared on `Ports`.
 
 ```python
 class Ports:
-    model_port: ModelPort   # 发起模型请求
-    tool_port: ToolPort     # 执行工具
-    log: SessionLog         # 事实日志的只读视图
-    def emit(type_, **data) # 产出一件事实：先入日志，再出事件
-    def canceled()          # 宿主是否已请求停止
-    def extras(key, default=None)
+    model_port: ModelPort   # start a model request
+    tool_port: ToolPort     # execute a tool
+    log: SessionLog         # read-only view of the fact log
+    def emit(type_, **data) # produce a fact: append to log, then emit event
+    def canceled()          # whether the host requested a stop
 ```
 
-请求契约是 `LogicalRequest`：与具体模型无关的 `messages` / `tools` / `system` / `effort` / `model` / `conversation_id`。provider 负责把它翻译成某个网关的 wire 格式。
+The request contract is `LogicalRequest`: model-independent `messages` / `tools` / `system` / `effort` / `model` / `conversation_id`. A provider translates it into a gateway's wire format.
 
-`Ports` 上可用的入口：`model_port`、`tool_port`、`log`（事实只读视图）、`conversation_id`、`emit`、`canceled`、`extras`。模块需要的一切外部能力都从这几个口走。
+Available entries on `Ports`: `model_port`, `tool_port`, `log` (read-only fact view), `conversation_id`, `emit`, and `canceled`. Every external capability a module needs goes through these entries.
 
-## 事件协议
+## Event protocol
 
-模块的生命周期事件形状统一为 `<域>_started` → 结果 → `<域>_ended`。
+Module lifecycle events share the shape `<domain>_started` → result → `<domain>_ended`.
 
-| 模块 | 开始 | 结果 | 结束 |
+| Module | Start | Result | End |
 |---|---|---|---|
-| 输入 | `input_started` | `input_claimed` | `input_ended` |
-| 压缩 | `compress_started` | `context_compacted` | `compress_ended` |
-| 模型 | `llm_started` | `llm_done` / `llm_failed` | `llm_ended` |
-| 工具 | `tool_started` | `tool_done` / `tool_failed` / `tool_canceled` / `tool_suspended` | `tool_ended` |
+| Input | `input_started` | `input_claimed` | `input_ended` |
+| Compaction | `compress_started` | `context_compacted` | `compress_ended` |
+| Model | `llm_started` | `llm_done` / `llm_failed` | `llm_ended` |
+| Tools | `tool_started` | `tool_done` / `tool_failed` / `tool_canceled` / `tool_suspended` | `tool_ended` |
 
-两条纪律：
+Two rules:
 
-- **`tool_ended` 不带结果**。结果在先发的 `tool_done` 里，消费方要按 `call_id` 回查。
-- **`_ended` 是判定边界**。判断"这次调用结束没有"统一看它。
+- **`tool_ended` carries no result**. The result is in the earlier `tool_done`; consumers look it up by `call_id`.
+- **`_ended` is the completion boundary**. Whether a call has finished is always determined by it.
 
-事件名常量集中在 `core/event_name.py`（25 个），事件信封在 `core/events.py`。
+Event-name constants live in `core/event_name.py` (26 constants); event envelopes live in `core/events.py`.
 
-## 状态的三级生命周期
+## Three-level state lifecycle
 
-可变状态按生命周期分三级存放。混放会导致跨会话串状态这类难查的缺陷。
+Mutable state is stored at three levels by lifetime. Mixing them causes hard-to-diagnose bugs such as state leaking across sessions.
 
-| 级别 | 容器 | 内容 | 生命周期 |
+| Level | Container | Contents | Lifetime |
 |---|---|---|---|
-| 进程级 | `AppContext`（`core/context.py`） | 工具注册表、执行管道、模型 provider、会话存储、事件总线、插件宿主、协作网格、各类工厂 | 进程全程 |
-| 会话级 | `SessionContext` / `SessionContexts`（`core/session_context.py`） | 写盘门控、实时状态 | 按 `conversation_id` 懒创建 |
-| 回合级 | `ToolTurnContext`（`core/context.py`） | 单回合内的工具轮次状态 | 单回合 |
+| Process | `AppContext` (`core/context.py`) | Tool registry, execution pipeline, model providers, session store, event bus, plugin host, collaboration mesh, factories | Whole process |
+| Session | `SessionContext` / `SessionContexts` (`core/session_context.py`) | Write gates, live state | Lazily created per `conversation_id` |
+| Turn | `ToolTurnContext` (`core/context.py`) | Tool-turn state within one turn | One turn |
 
-会话注册表 `SessionContexts` 是跨端访问的**唯一入口**：`sessions.resolve()`，或按 id 取 `sessions.get(cid)`。工具与管道钩子在执行期内经 `core/session_scope.py` 的 `current_session_id()` 取当前会话，不得把会话态塞进全局单例，也不得跨会话直读。
+The session registry `SessionContexts` is the **only entry point** for cross-boundary access: `sessions.resolve()` or `sessions.get(cid)`. Tools and pipeline hooks obtain the current session during execution through `current_session_id()` in `core/session_scope.py`. Session state must not be stored in global singletons or read across sessions.
 
-## 事实与投影
+## Facts and projections
 
-会话记录是 **append-only 的事实流**：每发生一件事就追加一条，不改写已有行。
+A conversation record is an **append-only fact stream**: every event appends a row, and existing rows are never rewritten.
 
-- 落盘实现在 `mechanisms/session_store.py`（每会话一个 `.raw`，JSONL）。
-- 界面看到的 SSE 流是这份事实的**实时投影**，不是另一份真相。
-- 上下文管线要"历史"时，从事实流 **derive**，而不是另存一份。
+- Persistence is implemented in `mechanisms/session_store.py` (one JSONL `.raw` per session).
+- The SSE stream shown in the UI is a **live projection** of those facts, not another source of truth.
+- When the context pipeline needs history, it **derives** it from the fact stream instead of storing another copy.
 
-由此得到一条结构性保证：**模型可见 ⟺ 已记录**。过滤、清理、格式化必须发生在落盘之前，落盘后的事实不可改写。
+This yields a structural guarantee: **model-visible ⟺ recorded**. Filtering, cleanup, and formatting must happen before persistence; persisted facts are immutable.
 
-事件格式向前兼容：读取时**未知事件类型一律跳过**，所以旧会话在新代码下照常可读。
+Event format is forward-compatible: **unknown event types are skipped on read**, so old sessions remain readable under new code.
 
-## 装配
+## Composition
 
-`app.py` 的 `build_app()` 按顺序做四件事：
+`build_app()` in `app.py` performs four steps in order:
 
-1. 读配置（`agent/config.py`），决定 provider、数据根、Skills 库与插件清单。
-2. 建工具注册表与门控，装配工具管道、事件总线、插件宿主；清单里的插件在此加载。
-3. 装配上下文管线工厂与压缩器工厂。
-4. 构建 `AppContext`，按逆序即清理序登记全部进程级服务；返回 `App`，其属性是 `context.get(name)` 的快捷方式。
+1. Read configuration (`agent/config.py`) to decide provider, data root, Skills source, and plugin manifest.
+2. Build the tool registry and gates, assemble the tool pipeline, event bus, and plugin host; plugins in the manifest load here.
+3. Assemble context-pipeline and compressor factories.
+4. Build `AppContext`, register every process-level service in reverse order (which is the cleanup order), and return `App`, whose attributes are shortcuts to `context.get(name)`.
 
-`build_shell_app()` 在 `agent/entry/web.py` 里包一层：按配置建真实 provider 与会话存储，再交给 `build_app()`。
-装配根（`app.py`）与入口层（`entry/`）是最上面两层：任何层都不得运行期导入它们，
-`entry/` 也不得被任何层导入。`python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` 是三个进程入口。
+`build_shell_app()` in `agent/entry/web.py` wraps this: it builds the real provider and session store from configuration, then passes them to `build_app()`.
+The composition root (`app.py`) and entry layer (`entry/`) are the top two layers: the lower four layers must not import them at runtime, and no layer may import `entry/`. Entry imports the composition root. `python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` are the three process entries.
 
-## 架构硬约束
+## Architecture hard constraints
 
-下列约束由 `scripts/check_architecture_hygiene.py` 与单测按零例外核对：
+The following constraints are checked with zero exceptions by `scripts/check_architecture_hygiene.py` and unit tests:
 
-- `ToolCallScope` 在执行期填入 `app` 与 `session`；工具读 `current_context().session.gate`，不另开全局门控旁路（无 `gate=` / `_fallback_gate` / `gate_resolver`）。
-- 无 `session_contexts` 时 `gate_for` 报错；`build_pipeline_gate` 必填 `registry` 与 `sessions`，预览只认工具 `needs_preview`（无 `preview_tools=`）。
-- 系统提示词写类名单由 `preview_write_tools_line(registry)` 从 `needs_preview` 动态生成，不手写内置枚举长串；生成失败必须报错，禁止静默空串。
-- 写路径键只认工具声明的 `write_path_keys`（经注册表查找），无进程全局键表、无默认猜 `path`；落盘后是否强制重读认 `needs_reread`。
-- 写盘门控只认 `agent.mechanisms.quality`；禁止 `quality_gate` 兼容模块或 `mechanisms.quality_gate` 回流。
-- `agent/core` 与 `agent/mechanisms` 不出现具体插件名（含 `skill_manage` 与 `plugins/` 目录名）。
-- 插件 `add_panel` / `add_route` / `add_action` 等贡献一律经 disposer 记账，卸载逆序清理。
-- 外部 `path=` 插件的资产根走 `plugin_root`，不写死 `plugins/<名>`。
-- 仅为段色登记时用 `add_ctx_segment_style`，不挂空面板。
-- 壳层经典 JS 与 `prompts.py` 不含 `skill_manage`（工具名只在插件侧）。
-- 插件自有界面与实时事件由插件声明；内核只提供通用贡献点与事件出口。
-- 禁止跨层私有导入（`from agent.X import _priv`）；同层私有导入允许。
-- `SERVICE_CLASSIC_ADAPTER` 只住在壳层键表，不进 `core`。
-- 不保留失效的 `changeset_mod_ids` 引用。
-- 会话关闭时释放对应 `SessionContext` 桶。
+- `ToolCallScope` fills `app` and `session` during execution; tools read `current_context().session.gate` and do not open a global gate bypass (no `gate=` / `_fallback_gate` / `gate_resolver`).
+- `gate_for` raises without `session_contexts`; `build_pipeline_gate` requires `registry` and `sessions`; previewing only honors a tool's `needs_preview` (no `preview_tools=`).
+- The system prompt's write-tool list is generated dynamically by `preview_write_tools_line(registry)` from `needs_preview`, not a handwritten enumeration. Generation failure must raise; silent empty strings are forbidden.
+- Write-path keys only come from a tool's declared `write_path_keys` (looked up through the registry). There is no process-global key table and no default guessing of `path`; whether a post-write re-read is required comes from `needs_reread`.
+- Write gates only use `agent.mechanisms.quality`; the compatibility module `quality_gate` and `mechanisms.quality_gate` re-entry are forbidden.
+- `agent/core` and `agent/mechanisms` contain no concrete plugin names (including `skill_manage` and `plugins/` directory names).
+- Plugin contributions such as `add_panel` / `add_route` / `add_action` are tracked by disposers and cleaned up in reverse order on unload.
+- External `path=` plugins resolve their asset root through `plugin_root`; `plugins/<name>` is not hardcoded.
+- Segment-color-only registrations use `add_ctx_segment_style` and do not attach an empty panel.
+- Classic shell JS and `prompts.py` contain no `skill_manage` (the tool name exists only on the plugin side).
+- Plugins declare their own UI and live events; the kernel only provides generic contribution points and event outlets.
+- Private cross-layer imports (`from agent.X import _priv`) are forbidden; same-layer private imports are allowed.
+- `SERVICE_CLASSIC_ADAPTER` lives only in the shell key table and never enters `core`.
+- No stale `changeset_mod_ids` references remain.
+- Closing a session releases the corresponding `SessionContext` bucket.
 
-## 延伸阅读
+## Further reading
 
-| 主题 | 文档 |
+| Topic | Document |
 |---|---|
-| 术语 | [glossary.md](glossary.md) |
-| 内核模块链与事件 | [subsystems/core.md](subsystems/core.md) |
-| 上下文管理 | [subsystems/context.md](subsystems/context.md) |
-| 模型调用 | [subsystems/llm.md](subsystems/llm.md) |
-| 工具与插件 | [subsystems/tools.md](subsystems/tools.md)、[subsystems/plugins.md](subsystems/plugins.md) |
-| 知识库 | [subsystems/knowledge.md](subsystems/knowledge.md) |
+| Glossary | [glossary.md](glossary.md) |
+| Kernel modules and events | [subsystems/core.md](subsystems/core.md) |
+| Context management | [subsystems/context.md](subsystems/context.md) |
+| Model calls | [subsystems/llm.md](subsystems/llm.md) |
+| Tools and plugins | [subsystems/tools.md](subsystems/tools.md), [subsystems/plugins.md](subsystems/plugins.md) |
+| Knowledge | [subsystems/knowledge.md](subsystems/knowledge.md) |
 | Skills | [subsystems/skills.md](subsystems/skills.md) |
-| 多模型 | [subsystems/multi-model.md](subsystems/multi-model.md) |
-| 会话存储与协作 | [subsystems/session.md](subsystems/session.md) |
-| HTTP 服务与界面 | [subsystems/shell.md](subsystems/shell.md) |
-| 配置项 | [guide/config.md](guide/config.md) |
-| 写盘门控现状与优化 | [write-gate.md](write-gate.md) |
+| Multi-model | [subsystems/multi-model.md](subsystems/multi-model.md) |
+| Session storage and collaboration | [subsystems/session.md](subsystems/session.md) |
+| HTTP service and UI | [subsystems/shell.md](subsystems/shell.md) |
+| Configuration | [guide/config.md](guide/config.md) |
+| Write-gate status and optimization | [write-gate.md](write-gate.md) |

@@ -1,117 +1,105 @@
-# 知识库（`knowledge` 插件）
+**English** | [中文](knowledge.zh.md)
 
-知识库把本地目录里被勾选的文本与表格作为会话的随附资料注入上下文。
-配置判定、路径安全、文件读取、勾选状态、注入与界面全部由本插件提供；
-内核只提供通用扩展点。插件机制本身见 [plugins.md](plugins.md)。
+# Knowledge base (`knowledge` plugin)
 
-## 包结构
+The knowledge base injects selected text and spreadsheet files from a local directory into the conversation context as attached material. Configuration checks, path safety, file reading, selection state, injection, and the UI are all provided by this plugin; the kernel only provides generic extension points. For the plugin mechanism itself, see [plugins.md](plugins.md).
+
+## Package layout
 
 ```
 plugins/knowledge/
-  plugin.py                  入口：配置读取、文件层、勾选状态、注入与端点
-  plugin-config.ini          真实配置（入库）
-  plugin-meta.json           身份元数据
-  ui/panel.js                右栏面板脚本
-  ui/panel.css               面板样式
+  plugin.py            entry: config checks, file layer, selection state, injection, endpoints
+  plugin-config.ini    actual configuration (committed)
+  plugin-meta.json     identity metadata
+  ui/panel.js          right-panel script
+  ui/panel.css         panel styles
 ```
 
-## 配置
+## Configuration
 
 ```ini
 ; plugins/knowledge/plugin-config.ini
 [config]
-dir =
 max_file_size = 200000
 extra_suffixes =
 ```
 
-身份在 `plugin-meta.json`，开关在 `plugins.ini`。
+Identity is in `plugin-meta.json`; the switch is in `plugins.ini`.
 
-| 键 | 缺省 | 说明 |
+| Key | Default | Description |
 |---|---|---|
-| `dir` | 空 | 知识库根目录。相对路径按**工程根**解析；留空、不存在或不是目录时插件不提供任何文件，所有操作返回空 |
-| `max_file_size` | `200000` | 单文件字节上限，超过则不读取；`0` 表示不限 |
-| `extra_suffixes` | 空 | 追加收录的扩展名，英文逗号分隔，`txt` 与 `.txt` 等价；写错只忽略该项 |
+| `dir` | empty | Knowledge-base root. Relative paths resolve against the **project root**; when empty, missing, or not a directory, the plugin provides no files, and the file list and injection output are empty |
+| `max_file_size` | `200000` | Per-file byte limit; files above it are not read. `0` means unlimited |
+| `extra_suffixes` | empty | Additional accepted extensions, comma-separated; `txt` and `.txt` are equivalent; a malformed entry is ignored |
 
-`plugins.ini` 的 `enabled` 为 `0` 时插件留在清单里但不装载。`name` / `icon` 来自 `plugin-meta.json`，
-面板标题与输入区按钮文案。
+When `enabled` is `0` in `plugins.ini`, the plugin stays in the manifest but is not loaded. `name` / `icon` come from `plugin-meta.json` and supply the panel title and the input-area button label.
 
-## 可收录的文件
+## Accepted files
 
-- 文本类扩展名见 `TEXT_SUFFIXES`（`.md` `.txt` `.csv` `.json` `.yaml` `.ini`
-  `.py` `.js` `.html` `.css` 等），以及配置追加的 `extra_suffixes`；
-- `.xlsx` / `.xls` / `.xlsm` 按表格解析，需要 `openpyxl`；缺库时该文件不可勾选，
-  并在校验结果里给出安装提示；
-- 无扩展名的文件按文本对待（`Dockerfile` / `Makefile` / `README` 等）；
-- 隐藏路径（任一段以 `.` 开头）、`__pycache__` 与非文本文件不列出，也不可勾选。
+- Text extensions are listed in `TEXT_SUFFIXES` (`.md` `.txt` `.csv` `.json` `.yaml` `.ini` `.py` `.js` `.html` `.css`, and others), plus `extra_suffixes` from configuration;
+- `.xlsx` / `.xls` / `.xlsm` are parsed as spreadsheets and require `openpyxl`; without the library such a file cannot be selected, and validation returns an installation hint;
+- Files without an extension are treated as text (`Dockerfile` / `Makefile` / `README`, and others);
+- Hidden paths (any segment starting with `.`), `__pycache__`, and non-text files are not listed; hidden paths and non-text files are also rejected during selection validation.
 
-`list_files()` 只列通过同一套校验的文件，界面因此不会出现「能看见但勾不了」的条目。
+`list_files()` filters only by hidden path, `__pycache__`, and text type; the byte limit and table dependency are checked again when a selection is written, so an oversized file or a spreadsheet without `openpyxl` can appear in the list but cannot be selected.
 
-## 路径安全
+## Path safety
 
-`safe_resolve(rel)` 把相对路径解析到根目录下的真实文件，任一条件不满足即返回 `None`：
+`safe_resolve(rel)` resolves a relative path to a real file under the root; it returns `None` if any condition fails:
 
-- 空值、绝对路径、含 `..` 的路径；
-- 任一段以 `.` 开头的隐藏路径；
-- 解析后的真实路径不在根目录内；
-- 目标不是文件或不存在。
+- an empty value, an absolute path, or a path that escapes the root through `..`;
+- a hidden path where any segment starts with `.`;
+- the resolved real path is outside the root;
+- the target is not a file or does not exist.
 
-文件的字节上限、可收录类型与表格依赖在 `file_allowed()` 里二次校验；勾选写入前、
-每次注入前都会重新走一遍，磁盘上的文件被替换后不会绕过规则。
+The per-file byte limit, accepted types, and table dependency are re-checked in `file_allowed()`; validation runs again before a selection is written and before every injection, so replacing a file on disk cannot bypass the rules.
 
-## 勾选状态
+## Selection state
 
-勾选**按会话**记录，键是会话 id，值是相对路径集合：
+Selections are recorded **per conversation**: the key is the conversation id and the value is a set of relative paths.
 
-- 状态落在 `<数据根>/plugin/knowledge/checked_state.json`，启动时全量读入；
-- 文件缺失或损坏时保持空集，不报错；
-- 写盘失败静默：勾选是界面偏好，不阻断当前会话的注入；
-- 写入采用全量替换：列表为空时清除该会话的勾选；
-- 不通过校验的路径直接丢弃，返回值是实际接受的路径。
+- State is stored at `<data-root>/plugin/knowledge/checked_state.json` and loaded in full at startup;
+- if the file is missing or corrupt, the set stays empty with no error;
+- disk-write failures are silent: selection is a UI preference and does not block injection for the current conversation;
+- writes replace the whole set: an empty list clears that conversation's selection;
+- paths that fail validation are dropped; the return value contains the paths actually accepted.
 
-勾选变化会调用宿主注册表的 `bump_context_sources`，使装配侧丢掉缓存的收集结果；
-取不到该钩子时退化为下一轮生效。
+A selection change calls `bump_context_sources` on the host registry, making the assembly side discard cached collection results; when the hook is unavailable, the change takes effect on the next round.
 
-## 注入
+## Injection
 
-`build_system_messages(cid)` 为每个勾选文件产出一条系统消息：
+`build_system_messages(cid)` produces one system message per selected file:
 
 ```
 【知识库：docs/guide.md】
-<文件正文>
+<file body>
 ```
 
-正文读取按 `(路径, mtime, 大小)` 缓存，同一趟装配多次收集只读一次磁盘，文件改动后
-缓存自动失效。表格转成「`[Sheet: 名称]` + 制表符分隔的行」，单表解析失败只产出
-一行说明，不影响同批其它文件。空文件不注入。
+Body reads are cached by `(path, mtime_ns, size)`; multiple collections in one assembly pass read the disk only once, and the cache invalidates automatically after the file changes. Spreadsheets are rendered as a `[Sheet: name]` line per sheet, followed by tab-separated rows; a failed spreadsheet parse produces only a one-line note and does not affect other files in the same batch. Empty files are not injected.
 
-注入源声明 `label` 与 `count`：段名用于界面与分层，`count` 是实际可注入的文件数。
-组装位次由 `plugins.ini` 里的插件顺序决定，见 [context.md](context.md#组装顺序)。
+The injection source declares `label` and `count`: the segment name is used by the UI and the context breakdown, and `count` is the number of files that are actually injectable. Assembly position is determined by plugin order in `plugins.ini`; see [context.md](context.md#assembly-order).
 
-## 端点
+## Endpoints
 
-前缀 `/api/plugin/knowledge/`：
+The prefix is `/api/plugin/knowledge/`:
 
-| 方法与路径 | 请求 | 响应 |
+| Method and path | Request | Response |
 |---|---|---|
-| `GET files` | — | `{ok, enabled, files: [{path, name, mtime}]}`；未启用时 `files` 为空 |
-| `GET checked` | 查询串 `conversation_id` | `{ok, checked: [相对路径]}` |
-| `PUT checked` | 体 `{conversation_id, checked: [...]}` | `{ok, checked: [实际接受的路径]}`；缺会话 id 返回 400 |
+| `GET files` | — | `{ok, enabled, files: [{path, name, mtime}]}`; `files` is empty when the plugin is disabled |
+| `GET checked` | query string `conversation_id` | `{ok, checked: [relative paths]}` |
+| `PUT checked` | body `{conversation_id, checked: [...]}` | `{ok, checked: [accepted paths]}`; a missing conversation id returns 400 |
 
-`path` 一律是相对根的 POSIX 风格路径，界面回传同一形状。
+`path` is always a POSIX-style path relative to the root; the UI sends back the same shape.
 
-## 面板
+## Panel
 
-右栏面板加载 `ui/panel.js` 与 `ui/panel.css`，脚本经 `window.aiAgentPlugins`
-调本插件端点。面板按会话取勾选，会话切换时重新取数；小标题右侧的刷新按钮重新读取
-知识库目录。目录未配置、为空或加载失败时，面板分别显示对应状态，不隐藏面板本身。
+The right panel loads `ui/panel.js` and `ui/panel.css`; the script calls this plugin's endpoints through `window.aiAgentPlugins`. The panel fetches selections by conversation and refetches when the conversation changes; the refresh button on the right of the hint bar rereads the knowledge-base directory. When the directory is unconfigured, empty, or fails to load, the panel shows the corresponding state without hiding the panel itself.
 
-插件登记了上下文段外观（`add_ctx_segment_style`，颜色 `blue`）与输入区动作按钮，
-点击按钮打开同名面板。
+The plugin registers a context-segment appearance (`add_ctx_segment_style`, color `blue`) and an input-area action button; clicking the button opens the panel with the same id.
 
-## 延伸阅读
+## Further reading
 
-- [plugins.md](plugins.md)：插件包形态、扩展点与生命周期
-- [context.md](context.md)：注入源如何进入装配与分段统计
-- [tools.md](tools.md)：写盘协议（知识库本身只读）
-- [../guide/config.md](../guide/config.md)：配置项总表
+- [plugins.md](plugins.md): plugin packages, extension points, lifecycle
+- [context.md](context.md): how injection sources enter assembly and segment accounting
+- [tools.md](tools.md): disk-write protocol (the knowledge base itself is read-only)
+- [../guide/config.md](../guide/config.md): configuration reference

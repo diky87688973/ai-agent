@@ -1,22 +1,24 @@
-# 后台任务管理器
+**English** | [中文](background-tasks.zh.md)
 
-状态：已实现。
+# Background task manager
 
-## 名称
+Status: implemented.
+
+## Naming
 
 ```text
-工具：background_task
-服务：BackgroundTaskManager
-记录：BackgroundTaskRecord
-状态：BackgroundTaskStatus
-执行器：BackgroundTaskExecutor
-输出：BackgroundTaskOutput
-业务身份：task_id
+tool: background_task
+service: BackgroundTaskManager
+record: BackgroundTaskRecord
+executor: BackgroundTaskExecutor
+status: string constants (queued / running / completed / failed / timed_out / cancelled)
+output: dict returned by the output action
+business identity: task_id
 ```
 
-统一使用 `task`，不混用 `job`。
+`task` is used uniformly; `job` is not mixed in.
 
-## 工具接口
+## Tool interface
 
 ```text
 background_task(action="create", argv, cwd?, timeout_sec, label, batch?)
@@ -25,39 +27,39 @@ background_task(action="cancel", task_id, reason?)
 background_task(action="output", task_id, wait?, timeout_ms?)
 ```
 
-`create` 必须提供非空 `label`；它是工具壳展示的任务小标题，允许同名。
-`argv` 是非空字符串数组，直接交给 `Popen`，不经过 shell；参数中的分号、管道符等按普通字符处理。
-`create` 返回 `task_id` 和 `batch`。首次创建生成 `batch`；后续创建传回这个 `batch` 即归入同一批。
-排队中的任务 `pid=null`，不承诺立即有进程。`task_id` 是业务身份；`pid` 只用于内部诊断和展示。
+`create` must provide a non-empty `label` of at most 120 characters; it is the short task title shown in the tool card, and labels may repeat.
+`argv` is a non-empty string array passed directly to `Popen`, not through a shell; semicolons, pipe characters, and other shell metacharacters in arguments are treated as ordinary characters.
+`create` returns `task_id` and `batch`. The first create generates `batch`; passing that `batch` to later creates puts those tasks in the same batch. A batch that does not exist in the cid is rejected with `batch_not_found`.
+A queued task has `pid=null`; no process is guaranteed to exist immediately. `task_id` is the business identity; `pid` is only for internal diagnostics and display.
 
-`list` 必须提供 `batch`；返回该批次的全部任务，不翻页。
-`list` 同时接受精确 `task_id` 过滤和可选 `status` 过滤。
+`list` must provide `batch`; it returns every task in that batch without pagination.
+`list` also accepts an exact `task_id` filter and an optional `status` filter.
 
-`timeout_sec` 必填，范围 1–86400，从 `create` 时刻开始计时，包含排队与执行。
+`timeout_sec` is required and ranges from 1 to 86400. It starts at `create` and covers both queueing and execution.
 
-## 队列
+## Queue
 
-每个 cid 一份队列：
+Each cid has one queue:
 
 ```text
-pending   待执行
-running   执行中
-history   所有终态记录，只追加不删除
+pending   waiting to run
+running   executing
+history   all terminal records; append-only
 ```
 
-限制：
+Limits:
 
 ```text
 MAX_RUNNING_PER_CID = 10
 MAX_PENDING_PER_CID = 10
 ```
 
-`pending` 达到 10 时 `create` 返回 `task_queue_full`，任务不入队。
-`running` 达到 10 时不再启动新任务，任务留在 pending。
+When `pending` reaches 10, `create` returns `task_queue_full` and the task is not queued.
+When `running` reaches 10, no new task starts and tasks stay in pending.
 
-同一 cid 严格 FIFO。不同 cid 独立调度，各自最多 10 个 running。
+Tasks within a cid are strictly FIFO. Different cids are scheduled independently, each with at most 10 running tasks.
 
-## 状态
+## States
 
 ```text
 queued
@@ -68,9 +70,10 @@ timed_out
 cancelled
 ```
 
-内部字段 `cancel_requested` 表示已请求取消但进程尚未退出；对外状态仍为 `running` 直到真正终态。
+The values are module-level strings; `TERMINAL` is the set of the four terminal values.
+The internal field `cancel_requested` means cancellation has been requested but the process has not exited; the public status remains `running` until a terminal state is reached.
 
-状态迁移：
+Transitions:
 
 ```text
 create -> queued
@@ -78,40 +81,42 @@ queued -> running | timed_out | cancelled
 running -> completed | failed | timed_out | cancelled
 ```
 
-终态定义：
+Terminal states:
 
 ```text
 completed   exit_code == 0
-failed      启动失败或非零退出
-timed_out   排队超时或执行超时
-cancelled   用户或模型取消
+failed      spawn failure or non-zero exit
+timed_out   queue timeout or execution timeout
+cancelled   cancelled by the user or the model
 ```
 
-`timed_out` 与 `failed` 分开，避免把超时误报为普通失败。
+`timed_out` is separate from `failed` so that a timeout is not misreported as an ordinary failure.
 
-## 超时
+## Timeouts
 
-`deadline_at = created_at + timeout_sec`。
+`deadline_at = created_at + timeout_sec`.
 
 ```text
-排队期间到期：不启动进程，标 timed_out，detail=queue_timeout
-执行期间到期：杀进程树，标 timed_out，detail=execution_timeout
+expires while queued: no process is started; status timed_out, detail=queue_timeout
+expires while running: the process tree is killed; status timed_out, detail=execution_timeout
 ```
 
-超时后不重试。
+A pending task past its deadline is settled when the scheduler next has a free running slot to consider it; while all 10 running slots are occupied, its status can remain `queued` past the deadline.
+No retry after a timeout.
 
-## 输出
+## Output
 
-每个任务一份有界输出 ring：
+Each task has one bounded buffer per stream (256 KiB):
 
 ```text
-stdout / stderr 分开
-模型只读取未消费部分
-输出读取不移动其他观察者的游标
-终态输出可读取
+stdout / stderr kept separate
+one stdout_cursor and one stderr_cursor per task
+every output call consumes both streams and advances both cursors
+the model tool and the classic UI's task detail view read through the same output action, so they share consumption
+a later call returns only bytes that no earlier call consumed
 ```
 
-`output` 返回：
+`output` returns:
 
 ```json
 {
@@ -124,50 +129,53 @@ stdout / stderr 分开
 }
 ```
 
-`wait=true` 等待任务终态或 `timeout_ms` 到期；等待超时返回 `running`，不杀任务。
+`output` resolves only running or terminal tasks; a task still in pending returns `task_not_found`.
+`truncated` is one flag per task and becomes true when either stream drops bytes at the cap.
 
-## 取消
+`wait=true` waits for a terminal state or until `timeout_ms` expires; if the wait expires, it returns `running` and does not kill the task. `timeout_ms` defaults to 30000 and is capped at 600000.
 
-```text
-queued：立即标 cancelled，不产生 pid
-running：标记 cancel_requested，杀整棵进程树；进程退出后标 cancelled
-终态：返回当前状态，不报错
-```
+A trim subtracts the dropped byte count from the stream cursor (clamped to the new length). Later reads therefore start at the same unconsumed byte instead of an old offset or an empty tail. Bytes dropped by the cap are not recoverable.
 
-取消和超时共用同一套进程树清理逻辑。
-
-## 沙箱
-
-采用进程级隔离：
+## Cancellation
 
 ```text
-cwd 必须位于允许根目录内
-路径 resolve 后比对，拒绝 .. 与符号链接逃逸
-子进程独立进程组
-Windows 使用 Job Object，Unix 使用 setsid
-清理继承环境，只保留运行所需白名单
-stdin 指向 DEVNULL
-不接受模型传入 env
+queued: mark cancelled immediately; no pid is created
+running: set cancel_requested and kill the whole process tree; mark cancelled after the process exits
+terminal: return the current status without an error
 ```
 
-明确边界：
+Cancellation and timeouts share the same process-tree cleanup logic.
+
+## Sandbox
+
+Process-level isolation:
 
 ```text
-进程级隔离不是文件系统沙箱
-命令内部仍可能访问允许根之外的路径
+cwd must be inside an allowed root
+paths are resolved before comparison; .. and symlink escapes are rejected
+the inherited environment is filtered to an execution whitelist; unknown variables and credentials are not passed
+stdin points to DEVNULL
+env passed by the model is not accepted
+Windows: spawn with CREATE_NO_WINDOW; cancellation and timeout use taskkill /F /T
+Unix: spawn with start_new_session (setsid); cancellation and timeout signal the process group, SIGTERM then SIGKILL
 ```
 
-不允许把“进程级”表述为“安全沙箱”。
+Explicit boundary:
 
-允许根来自项目配置的 fs roots；默认 cwd 为项目根。
+```text
+process-level isolation is not a filesystem sandbox
+the command itself can still reach paths outside the allowed roots
+```
 
-## 通知
+Process-level isolation is not a security sandbox.
 
-只在 active 数量从 `>0` 变为 `0` 时触发一次聚合通知。
+Allowed roots are the project root and the data root; the default cwd is the project root.
 
-`active` 指 pending + running；history 不参与。
+## Notifications
 
-消息内容：
+A single notification fires per cid when its active count (pending + running) drops to 0; history does not participate. All batches settled since the previous notification are listed in one message, joined with `、`.
+
+Message content:
 
 ```text
 <<系统通知>>
@@ -175,80 +183,74 @@ stdin 指向 DEVNULL
 任务批次：<batch> 已完结，请查看结果。
 ```
 
-通知消息的事实元数据：
+Metadata of a notification message:
 
 ```text
 role=user
 kind=system_notice
 source=background_tasks
-notice_id=<唯一 id>
-batch=<批次号>
-content 仍以 <<系统通知>> 开头
+notice_id=<unique id>
+batch=<batch ids; multiple joined with 、>
+content still starts with <<系统通知>>
 ```
 
-契约只认 `kind` 与 `source`：`kind=system_notice` 且 `source=background_tasks` 时才渲染系统通知卡片；前缀只留给模型识别，不参与信任判断。普通用户消息即使以该前缀开头，也不会被渲染成系统通知。
+The contract relies only on `kind` and `source`: a system-notice card is rendered only when `kind=system_notice` and `source=background_tasks`; the prefix is left for the model to recognize and does not participate in trust decisions. An ordinary user message that starts with that prefix is not rendered as a system notice.
 
-经典界面把符合条件的 user 消息渲染成对话区顶部的系统通知卡片，不复用普通用户气泡。
-卡片宽度为对话区的 50%，居中，贴合上边框，顶部左右无圆角。
-默认 6 秒后自动消失；用户展开详情后暂停自动消失，折叠后 4 秒再消失；新通知到达时先收起旧卡片，再展示新卡片。
+The classic UI renders a matching user message as a system-notice card at the top of the conversation pane, without reusing the ordinary user bubble.
+The card is half the width of the conversation pane, centered, flush with the top edge, with square top corners.
+It disappears automatically after 6 seconds by default; expanding the details pauses automatic dismissal, and collapsing them dismisses it after 4 more seconds; when a new notice arrives, the old card is replaced by the new one.
 
-模型忙时通知进入 inbox，`origin=system`、`delivery=next_pass`，入队后立即置为 inserting；队列 UI 不显示系统通知。模型空闲时直接启动一轮。
+When the cid is busy, the notice enters ConversationQueue with `origin=system` and `delivery=next_pass`, and is set to `inserting` immediately after enqueueing; the queue UI filters out system notices. When the cid is idle, it starts a turn directly; if that start fails, it falls back to the queue.
 
-注入规则：
+Injection fields:
 
 ```text
-role=user
-source=background_tasks
-internal=true
+direct turn meta: kind=system_notice, source=background_tasks, notice_id, batch
+queued payload: those fields plus rule=user and internal=true
 ```
 
-`internal=true` 防止被会话标题逻辑当作普通用户首条消息。
+Only `kind`, `source`, `notice_id`, and `batch` are read back from the payload; `rule` and `internal` are written but not read. Session-title generation skips a user message whose content starts with `<<系统通知>>` (leading whitespace allowed).
 
-会话忙时进入下一轮 inbox；会话空闲时触发一轮新 turn。
-会话关闭或应用退出时取消该 cid 的任务，不发通知。
+Only application shutdown calls `BackgroundTaskManager.shutdown`, which kills the running task processes and waits up to 3 seconds for each to settle; pending tasks are left queued. Releasing or closing a session (`release_conversation` / `drop_session`) does not cancel background tasks.
 
-## 模块
+## Modules
 
 ```text
-agent/mechanisms/background_tasks/
-  __init__.py
-  manager.py
-  record.py
-  executor.py
-  output.py
-
+agent/mechanisms/background_tasks.py
 agent/capabilities/builtin/background_task.py
 ```
 
-装配：
+Assembly:
 
 ```text
-BackgroundTaskManager 注册到 AppContext
-background_task 工具通过当前会话 cid 访问 manager
-SessionRunner 提供内部通知注入入口
-应用退出 / 会话关闭时 shutdown
+BackgroundTaskManager is created in the app and registered in AppContext as background_tasks
+the background_task tool resolves the current session cid and calls the manager
+the app wires the manager's notice callback: busy cid -> ConversationQueue, idle cid -> SessionRunner.start
+App.dispose calls shutdown; session release does not touch tasks
 ```
 
-## 与前台命令工具的分工
+## Relation to the foreground command tool
 
-`run_command` 与 `background_task` 并列，不是兼容层，也不下线。
+`run_command` and `background_task` are peers, not a compatibility layer; both remain available.
 
-前台同步短命令、交互、安装构建使用 `run_command`；后台长任务、服务、并行、取消轮询使用 `background_task`。
-`background_task` 使用独立参数、进程、超时、输出和取消语义。
+Use `run_command` for short synchronous foreground commands, interactive sessions, and installs or builds; use `background_task` for long-running background work, services, parallelism, and cancellation or polling.
+`background_task` has its own argument, process, timeout, output, and cancellation semantics.
 
-## 测试
+## Tests
 
 ```text
-第 11 个 pending 返回 task_queue_full
-running 10 个后不再启动
-排队超时不产生进程
-执行超时杀进程树
-cancel queued / running
-output 游标只返回未读内容
-不同 cid 任务隔离
-cwd 越界拒绝
-环境变量不含父进程密钥
-应用退出无孤儿进程
-active >0 -> 0 只通知一次
-忙时进 inbox，空闲时唤醒
+10 running + 10 pending per cid; the 11th pending returns task_queue_full
+another cid sees no tasks
+cancel queued (no pid) and running (settles cancelled)
+execution timeout settles timed_out
+cwd outside the allowed roots is rejected
+the inherited environment keeps user paths and drops an unknown secret
+label is required and may repeat; batch groups tasks and filters an exact task_id
+list returns every task in the batch without pagination
+argv is not shell-interpreted
+plan mode rejects create
+the tool dispatches create / list / output / cancel
+system-notice metadata survives the queue and history folding
+a completed task exposes output and history; one notice carries the <<系统通知>> prefix and batch
+the app registers the manager and the tool
 ```

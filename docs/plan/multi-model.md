@@ -1,64 +1,66 @@
-# 多模型配置方案
+**English** | [中文](multi-model.zh.md)
 
-## 1. 背景与目标
+# Multi-model configuration design
 
-核心模型链路：
+## 1. Background and goals
 
-- `mechanisms/model_provider.py` 提供各协议适配器；
-- 模型配置只由 `plugins/multi_model/plugin-config.ini` 提供；
-- 会话级模型选择落在 `live_state`，请求经 `LogicalRequest.model` 传给 provider。
+The model path has three parts:
 
-目标：
+- `agent/mechanisms/providers/` holds one adapter per protocol; every adapter implements `ModelProvider.stream()`.
+- Model configuration is supplied only by `plugins/multi_model/plugin-config.ini`.
+- The session model selection is stored in `live_state` and reaches the provider as `LogicalRequest.model`.
 
-1. 每条模型独立配置厂商、网关、凭据与模型 id，可跨网关、跨厂商。
-2. 增加 原生协议 Messages API 适配，支持文本、工具调用、extended thinking。
-3. 模型配置由插件管理，结构对齐知识库插件：自己的配置文件、端点、界面资产。
-4. 界面提供模型下拉，切换后会话级持久化，并广播到同一会话的其它标签页与页头模型名。
-5. 插件停用或多模型条目为空时，模型清单为空，不回退到内核配置。
+Goals:
 
-## 2. 不变量
+1. Each model independently declares its provider, gateway, credential, and wire model id; models may span gateways and protocols.
+2. A Messages protocol adapter supports text, tool calls, and extended thinking.
+3. Model configuration is plugin-owned, with the same shape as the knowledge plugin: its own configuration file, endpoint, and UI assets.
+4. The UI exposes a model dropdown; a selection is persisted per conversation and broadcast to other tabs of the same conversation and to the header.
+5. When the plugin is disabled or has no valid entry, the model list is empty; there is no fallback to kernel configuration.
 
-1. 模型配置的唯一权威是 `plugins/multi_model/plugin-config.ini`。
-   该插件启用且至少一条有效条目时提供模型；没有有效条目时清单为空。
-2. 凭据只留在服务端。任何 HTTP 响应都不下发 `api_key` 与 `base_url`。
-3. 依赖方向不变：`shell → capabilities → mechanisms → core`。
-   插件在包外，只能向下依赖；`mechanisms` 与 `core` 永不 import 插件，
-   也**不得出现插件目录名**（`check_architecture_hygiene.py` 以词边界扫描，机检）。
-4. provider 适配器只产出 `StreamDelta`。内核不认识 Native 的线格式、thinking 块或签名。
-5. 插件停用即贡献消失：下拉、路由、开屏脚本与样式一并注销，回退路径不报错。
-6. 未配置的模型 id 直接报错，不回退到默认模型。
-7. 配置错快速失败，依赖不可用才允许降级；任何降级必须在 `/health` 可见。
-8. `provider_meta` 由内核**原样透传、不解释**，只在 `model_message` 与 assistant 消息之间往返。
+## 2. Invariants
 
-## 3. 分层与组件
+1. The sole authority for model configuration is `plugins/multi_model/plugin-config.ini`.
+   The plugin provides models while it is enabled and has at least one valid entry; with no valid entry the catalog is empty.
+2. Credentials stay on the server. No HTTP response contains `api_key` or `base_url`.
+3. Dependency direction is fixed: `shell → capabilities → mechanisms → core`.
+   Plugins sit outside the package and may only depend downward; `mechanisms` and `core` never import a plugin and never contain a plugin directory name (`check_architecture_hygiene.py` scans at word boundaries).
+4. Provider adapters emit only `StreamDelta`. The kernel does not understand a wire format, a thinking block, or a signature.
+5. Disabling a plugin removes its contributions: dropdown, routes, boot script, and styles are unregistered together. The fallback path must not raise.
+6. An unconfigured model id fails the request; there is no fallback to the default model.
+7. A configuration error invalidates the affected entry and is reported. A state with no usable model is a degraded state, visible in `/health`; it is never silently replaced by a hidden default.
+8. `provider_meta` is passed through opaquely. It only travels between `model_message` and assistant messages.
 
-| 层 | 组件 | 职责 |
+## 3. Layers and components
+
+| Layer | Component | Responsibility |
 |---|---|---|
-| core | `StreamDelta`、`LogicalRequest` | 流帧契约、请求契约、`PROVIDER_META_KEY` |
-| core | `session_log.derive_messages` | 把事实折成逻辑消息（含 `provider_meta` 透传） |
-| mechanisms | `NativeProvider` | Native 线格式、SSE、消息与工具转换 |
-| mechanisms | `provider_registry` | 厂商名 → 构造器；唯一知道"怎么 new 一个 provider"的地方 |
-| mechanisms | `ProviderRouter` | 按 `request.model` 选 provider 实例 |
-| mechanisms | `CompatibleProvider` | 兼容协议网关（现有实现，位置不变） |
-| capabilities | `ModelCatalog` | 模型描述注册表 + provider 缓存 + 权威判定 |
-| capabilities | `PluginContext.add_model_catalog` | 插件的注册口 |
-| 装配根 | `app.build_app` | 建目录与路由，装载插件，确定权威来源与降级态 |
-| shell | `web_api` / `classic_adapter` | 下发模型清单、持久化选择、广播变化 |
-| plugins | `plugins/multi_model` | 配置解析、下拉界面 |
+| core | `StreamDelta`, `LogicalRequest` | stream frame contract, request contract, `PROVIDER_META_KEY` |
+| core | `session_log.derive_messages` | folds facts into logical messages, carrying `provider_meta` |
+| mechanisms | `AnthropicProvider` | Messages wire format, SSE, message and tool conversion |
+| mechanisms | `OpenAICompatibleProvider` | Chat Completions wire format and SSE |
+| mechanisms | `provider_registry` | kind → builder; the only place that constructs a provider |
+| mechanisms | `ProviderRouter` | selects a provider instance for `request.model` |
+| capabilities | `ModelCatalog` | model descriptor registry, provider cache, authority decision |
+| capabilities | `PluginContext.add_model_catalog` | plugin registration point |
+| assembly | `app.build_app` | creates the catalog and router, loads plugins, decides authority and degraded state |
+| shell | `web_api`, `web_state` | serve the model list, persist the selection, broadcast changes |
+| shell | `classic_adapter` | announces conversation model changes |
+| shell | web assets, plugin host | model bridge and style bridge |
+| plugins | `plugins/multi_model` | configuration parsing, catalog source, dropdown UI |
 
-## 4. 模型目录
+## 4. Model catalog
 
-### 4.1 数据结构
+### 4.1 Data structures
 
-新增 `agent/capabilities/model_catalog.py`。它只有**一个权威来源**，语义是"替换"，
-不是"合并"：
+The catalog is `agent/capabilities/model_catalog.py`. It has exactly one authoritative source, and its semantics are replacement, not merge:
 
 ```python
 @dataclass(frozen=True)
 class ModelEntry:
     id: str
-    provider: str                 # provider_registry 的键："compatible" | "native"
-    options_json: str = "{}"      # 规范化 JSON；目录不解释内容
+    provider: str                 # provider_registry key: "openai" | "anthropic"
+    options_json: str = "{}"      # canonical JSON; the catalog does not interpret it
     label: str = ""
     is_default: bool = False
 
@@ -67,146 +69,146 @@ class ModelEntry:
         ...
 
     @property
-    def options(self) -> dict:    # 每次返回新副本，调用方改不到目录里的那份
-        return json.loads(self.options_json)
+    def options(self) -> dict:    # a fresh copy on every read
+        ...
+
+    @property
+    def context_window(self) -> int:        # 0 when not declared
+        ...
+
+    @property
+    def compression_percent(self) -> int:   # 70 when missing or malformed
+        ...
 
 @dataclass(frozen=True)
 class CatalogSnapshot:
     entries: tuple[ModelEntry, ...]
     default_id: str
     authoritative: bool
-    source: str                   # "" 表示没有来源
+    source: str                   # "" means no source
+
+    def entry(self, model_id: str) -> ModelEntry | None:
+        ...
 
 class ModelCatalog:
-    def set_source(self, source: str,
-                   entries: Sequence[ModelEntry] | Callable[[], Sequence[ModelEntry]]) -> Disposer
-    def snapshot(self) -> CatalogSnapshot
-    def ids(self) -> tuple[str, ...]
-    def default_id(self) -> str
-    def provider_for(self, model_id: str) -> ModelProvider | None
+    def set_source(self, source, entries) -> Disposer: ...
+    def snapshot(self) -> CatalogSnapshot: ...
+    def ids(self) -> tuple[str, ...]: ...
+    def default_id(self) -> str: ...
+    def provider_for(self, model_id: str) -> ModelProvider | None: ...
 ```
 
-`options` 用规范化 JSON 存，不存共享字典：描述对象是 `frozen` 的，但字段里塞一个
-可变 dict 仍然能被调用方改写，那就等于"只读视图"是假的。存 JSON、属性返回副本，
-也免掉了一个可变的缓存键。
+`options` is stored as canonical JSON rather than a shared dictionary. A `frozen` dataclass protects field assignment, but a mutable dictionary inside a field can still be rewritten by a caller; a read-only view built that way is not read-only. Storing JSON and returning a copy on each access also removes a mutable cache key.
 
-`provider_for` 的返回类型是 `ModelProvider | None`，不是 `Any`：目录与 provider
-之间的契约只有 `stream()`，用基类表达就够，不需要在端口上开任意扩展点。
+`context_window` and `compression_percent` are model metadata derived from `options`. The context window is the denominator for the compaction threshold and for the UI occupancy display; the compression percentage is the trigger ratio. A missing window is reported as `0`, and a missing or out-of-range percentage falls back to `70`.
 
-### 4.2 行为
+`provider_for` returns `ModelProvider | None`, not `Any`. The only contract between the catalog and a provider is `stream()`, so the base class is sufficient; the port does not need to expose an arbitrary extension point.
 
-1. `set_source` 是**替换**：同一 `source` 再调一次就是"配置变了"，整批覆盖，
-   不是追加。这与不变量 1「唯一权威」一致——合并式注册表一旦真出现第二个来源，
-   `default_id` 该听谁的就没法回答了，那是设计缺陷，不是功能。
-2. `entries` 可以是回调。每次 `snapshot()` 调用它，插件自行决定是否重读配置文件，
-   配置改动不需要重启进程。
-3. **第二个来源被拒绝**：`set_source` 遇到已存在的不同 `source` 时抛 `RuntimeError`。
-   `PluginContext.add_model_catalog` 捕获它，写一条带两个 `source` 名的 stderr 诊断，
-   返回一个空的 disposer——插件装载不因此失败，首个来源保持不变。
-   行为必须是确定的：不能"谁先装载谁生效"而不留痕，装载顺序不是契约。
-4. **权威是算出来的，不是存下来的**：`authoritative = len(valid_entries) > 0`。
-   不能把 `authoritative=True` 固化在设置那一刻——配置文件从 3 条改成 0 条时，
-   布尔值不会跟着变，权威就会指着一个空目录。
-5. `entries` 回调抛异常时按空表处理，并写一条带 `source` 与异常文本的 stderr 诊断。
-   一个插件的配置解析错误不能让整条模型链路不可用；但"吞掉"必须留痕。
-6. **provider 缓存按整批重建**：`entries` 序列（顺序、id、`options_json`、`provider`）
-   任一变化，就丢光全部缓存实例并重建需要的那一个。条目数是十几个，重建成本可忽略，
-   换来的是没有"指纹算错导致拿了旧实例"这类难以复现的问题。
-7. `Disposer` 触发时清空该来源的条目与全部 provider 实例。
-8. 未知 `provider` 的条目在快照期被跳过并留痕（`provider_registry` 抛 `ValueError`）。
-9. `default_id` 取第一条 `is_default`，没有则取第一条；`entries` 为空时为 `""`。
+### 4.2 Behavior
 
-### 4.3 插件扩展点
+1. `set_source` replaces. Calling it again with the same `source` means the configuration changed; the whole batch is replaced, not appended. This matches the single-authority rule: a merge registry would make `default_id` ambiguous as soon as a second source exists.
+2. `entries` may be a callback. It is evaluated on every `snapshot()`, so a plugin can decide whether to re-read its configuration file; configuration changes do not require a process restart.
+3. A second source is rejected. `set_source` raises `RuntimeError` when a different source is already registered. `PluginContext.add_model_catalog` catches it, reports a diagnostic naming both sources, and returns an empty disposer. Plugin loading continues and the first source is unchanged. The behavior must be deterministic: load order is not a contract, but the result must be auditable.
+4. Authority is computed, not stored: `authoritative = len(valid_entries) > 0`. A boolean fixed at registration time would keep pointing at an empty catalog after the configuration changes from three entries to zero.
+5. An `entries` callback failure means "this read failed". The snapshot retains the last good entry set; if there is none, the result is empty. A diagnostic naming the source and the exception is recorded. A duplicate id is a configuration error, not a transient read failure: `set_source` rejects the batch with `ValueError`, and `snapshot()` keeps the last good batch.
+6. The provider cache is rebuilt by batch. The fingerprint is the ordered tuple of `(id, provider, options_json)`; when it changes, all cached instances are dropped and the next lookup builds the one it needs. With a dozen entries the rebuild cost is negligible, and it avoids "a wrong fingerprint returned a stale instance" failures.
+7. When the `Disposer` fires, it clears the source's entries and every cached provider instance. A generation counter ensures an old disposer cannot clear a newer registration.
+8. Entries with an unknown `provider` are skipped during normalization with a diagnostic (`provider_registry` raises `ValueError` for an unknown kind).
+9. Entries with an empty id, or values that are not `ModelEntry` instances, are skipped with a diagnostic. A malformed `options_json` yields an empty options dictionary for that entry only.
+10. `default_id` is the first entry marked `is_default`, otherwise the first entry; it is `""` when the catalog is empty.
 
-`PluginContext` 新增（与 `add_panel` / `add_context_source` 同位阶）：
+### 4.3 Plugin extension point
+
+`PluginContext` gains a method at the same level as `add_panel` and `add_context_source`:
 
 ```python
 def add_model_catalog(self, entries) -> Disposer
 ```
 
-`PluginContext` 用插件名作为 `source` 调 `catalog.set_source(self.name, entries)`，
-并把返回的 disposer 收进自己的回收表。入参只有条目或取条目的回调，
-插件不必 import 任何内核实现，也不构造 provider。
-`PluginHost` 构造参数增加 `model_catalog`，由装配根创建并注入。
+`PluginContext` calls `catalog.set_source(self.name, entries)` with the plugin name as the source and records the returned disposer in its own reclamation list. The argument is either an entry sequence or a callback that returns one; a plugin does not import kernel code and does not construct providers.
 
-## 5. Provider 注册表
+`PluginHost` gains a `model_catalog` constructor parameter, created and injected by the assembly root.
 
-新增 `agent/mechanisms/provider_registry.py`：
+## 5. Provider registry
+
+The registry is `agent/mechanisms/provider_registry.py`:
 
 ```python
 def build_provider(kind: str, options: Mapping[str, Any]) -> ModelProvider
 def known_kinds() -> tuple[str, ...]
 ```
 
-1. 内部是一张 `kind → 构造器` 的映射，`compatible` 与 `native` 两行。
-2. 新增一个厂商 = **新增一个适配器文件 + 映射里加一行**；不改路由、不改目录、
-   不改插件。这是 `A4` 的判据：扩展成本不随厂商数增长。
-3. `kind` 未知时抛 `ValueError(kind)`，由调用方决定是"跳过该条目"还是"启动失败"。
-4. 选项键（`base_url` / `api_key` / `model` / `max_tokens` / `thinking` …）由各构造器
-   自己解释；注册表只做分发。
+1. The implementation is a `kind → builder` mapping with two rows: `openai` and `anthropic`.
+2. Adding a provider means adding one adapter file and one mapping row. The router, the catalog, and the plugin are unchanged.
+3. An unknown `kind` raises `ValueError(kind)`. The caller decides whether that means "skip this entry" or "fail startup".
+4. Option keys are interpreted by each constructor; the registry only dispatches and filters. Each kind has a whitelist so a stray configuration key cannot turn a typo into a `TypeError`:
+   - `openai`: `base_url`, `api_key`, `model`, `timeout`, `replay_history_reasoning`, `extra_headers`;
+   - `anthropic`: `base_url`, `api_key`, `model`, `max_tokens`, `thinking`, `thinking_budget_tokens`, `anthropic_version`, `timeout`, `extra_headers`.
+   Values that are `None` are dropped, so the constructor keeps its own default.
 
-## 6. Provider 路由
+## 6. Provider routing
 
-新增 `agent/mechanisms/provider_router.py`：
+The router is `agent/mechanisms/provider_router.py`:
 
 ```python
 class ProviderRouter(ModelProvider):
-    def __init__(self, *, default, resolve, allowed_ids, default_id,
+    def __init__(self, *, default, resolve, allowed_ids=(), default_id="",
                  fallback_to_default=False): ...
+    def reload_policy(self, *, allowed_ids, default_id, fallback_to_default): ...
     def reload_default(self, provider): ...
     @property
     def model(self) -> str: ...
     @property
     def allowed_models(self) -> tuple[str, ...]: ...
+    @property
+    def default_provider(self) -> ModelProvider: ...
     def stream(self, request): ...
 ```
 
-规则：
+Rules:
 
-1. `mid = request.model or default_id`；`mid` 为空时直接用 `default`。
-2. `provider = resolve(mid)`；命中则 `provider.stream(request)`。
-3. 未命中且 `fallback_to_default` 为真且 `mid in allowed_ids` 时用 `default`
-   （对应"非权威"模式：`config.ini` 的 `models` 都由同一个网关服务）。
-4. 其余情况抛 `ModelRequestError("未配置的模型：<id>")`，不静默回退。
-5. `resolve` 是注入的回调，由装配根接到 `ModelCatalog.provider_for`。
-   router 不读 ini、不 import 插件、不认识任何厂商名。
-6. `model` 返回 `default_id`，供 `ModelPort.name()` 与日志使用。
-7. `reload_default(provider)` 在锁内替换默认实例，供设置页保存后热更新
-   （见 9.3）。它是唯一允许改 `default` 的入口。
+1. `mid = request.model or default_id`; when `mid` is empty the default provider is used directly.
+2. `provider = resolve(mid)`; on a hit, the request is dispatched to `provider.stream()`. The catalog id is the routing key, while the wire model name belongs to the provider (`options.model`). The router replaces `request.model` with the provider's wire model name before calling `stream()`; the two values may differ.
+3. If there is no hit, `fallback_to_default` is true, and `mid` is in `allowed_ids`, the default provider handles the request. This flag is a policy knob for embedders that run without an authoritative catalog; the standard assembly passes `false`.
+4. Otherwise the router raises `ModelRequestError("未配置的模型：<id>")`. It never silently substitutes a model.
+5. `resolve` is an injected callback. The assembly root connects it to `ModelCatalog.provider_for`. The router does not read INI files, does not import plugins, and does not know provider names.
+6. `model` returns `default_id`, or the default provider's model name when no default id is set; it is used by `ModelPort.name()` and logging.
+7. `reload_default(provider)` replaces the default instance under the lock. It is the only entry point that may change the default.
+8. `reload_policy(...)` refreshes the allowed list, default id, and fallback flag after plugins are loaded, when the authoritative list is known. `default_provider` exposes the current default instance without allowing mutation.
 
-## 7. Native 适配
+## 7. Messages adapter
 
-新增 `agent/mechanisms/native_provider.py`：
+The Messages adapter is `agent/mechanisms/providers/anthropic.py`:
 
 ```python
-class NativeProvider(ModelProvider):
+class AnthropicProvider(ModelProvider):
     def __init__(self, *, base_url, api_key, model,
                  max_tokens=16000, thinking=True, thinking_budget_tokens=4096,
-                 native_version="2023-06-01", timeout=300.0,
+                 anthropic_version="2023-06-01", timeout=300.0,
                  extra_headers=None): ...
     def stream(self, request) -> Iterator[StreamDelta]: ...
 ```
 
-### 7.1 请求
+### 7.1 Request
 
-地址构造：
+Address construction:
 
-| 基址形态 | 结果 |
+| Base URL form | Result |
 |---|---|
-| 以 `/messages` 结尾 | 原样 |
-| 以 `/v1` 结尾 | 补 `/messages` |
-| 其它 | 补 `/v1/messages` |
+| ends with `/messages` | used as is |
+| ends with `/v1` | append `/messages` |
+| anything else | append `/v1/messages` |
 
-请求头：`x-api-key`、`protocol-version`、`content-type: application/json`。
+Request headers: `x-api-key`, `anthropic-version`, and `content-type: application/json; charset=utf-8`. Additional headers from the configuration are merged last.
 
-请求体：
+Request body:
 
 ```json
 {
   "model": "model-id",
   "max_tokens": 16000,
   "stream": true,
-  "system": "系统提示与各系统段合并后的文本",
+  "system": "merged text of the system prompt and all system segments",
   "messages": [],
   "tools": [
     { "name": "read_file", "description": "…", "input_schema": { "type": "object", "properties": {} } }
@@ -216,323 +218,278 @@ class NativeProvider(ModelProvider):
 }
 ```
 
-约束：
+Constraints:
 
-1. `thinking` 开启时不下发 `temperature`（Native 要求 `temperature=1`，省略等价）。
-   思考模式下 Upstream 也忽略 `temperature`（官方文档：不报错但不生效）。
-2. `thinking` 的有效条件是 `budget_tokens >= 1024` **且** `max_tokens > budget_tokens`
-   （Native 官方的硬约束）。任一不满足就关闭 thinking 并写一条 stderr 诊断，
-   请求照常发出——配置瑕疵不该让整轮对话失败。
-   **关闭必须显式下发 `{"type":"disabled"}`**：Upstream 兼容层的思考模式默认打开，
-   省略字段等于继续思考；而思考模式下带 `tool_use` 的消息必须回传 thinking 块，
-   静默省略会让工具轮直接 400。
-3. Upstream 兼容层按官方文档**忽略** `budget_tokens`，深度走 `output_config.effort`
-   （`low/high/max`）。适配器不下发 `output_config`——Native 官方会拒绝这个未知
-   字段，而同一个适配器要服务两家。因此 `LogicalRequest.effort` 对本适配器不生效，
-   Upstream 侧取服务端默认（high）；要按档位调深度就用同一模型的 compatible 协议条目。
-4. 思考模式 + 工具调用：两家都要求把**本轮**带 `tool_use` 的 assistant 消息里的
-   thinking 块原样回传（Upstream：`content[].thinking ... must be passed back`）。
-   跨轮不要求回传（去掉旧块仍可正常请求），所以 `strip_stale_thinking` 只留本轮。
-   本轮块丢了（签名缺失被丢弃 / 历史来自另一协议条目）就补不回来，此时
-   `_tool_turn_missing_thinking` 让本次请求关掉 thinking，避免会话永久打不开。
-5. `tools` 为空时不下发 `tools` 与 `tool_choice`。
-6. `max_tokens` 是该 API 的必填项，缺省取构造参数，插件可覆盖。
-7. `input_schema` 必须是**带 `type` 的 object schema**。`ToolRegistry.schemas()` 给的
-   `parameters` 是「参数名 → 片段」的属性映射，跟 Compatible 侧共用
-   `model_provider.tool_parameters()` 规范化后再下发；直接把它当 schema 会得到
-   `type: null`，Native 一侧报 `Invalid schema for function ...`（400）。
-   兼容协议网关不校验这个字段，所以这个缺陷只在 Native 协议上暴露。
-8. 图片支持 `source.type=base64`（`data:` URL）与 `source.type=url`（http(s)）。
-   只认 base64 会让图片链接在 native 条目上静默消失，而同一张图在 compatible 条目
-   照常发送。
+1. The adapter does not send `temperature` at all. In thinking mode the parameter has no effect, so sending it would only add a field whose meaning differs between gateways.
+2. Thinking is effective only when `budget_tokens >= 1024` and `max_tokens > budget_tokens`. If either condition fails, thinking is disabled and a diagnostic is written to stderr, but the request is still sent; a configuration blemish must not fail the turn.
+   Disabling must be explicit: send `{"type": "disabled"}`. Omitting the field leaves the gateway's default behavior in place, which may keep thinking on; in thinking mode an assistant message with `tool_use` must return its thinking blocks, so a silent omission makes the next tool turn fail with 400.
+3. On the Chat Completions gateway, `budget_tokens` is ignored and thinking depth follows `output_config.effort` (`low`, `high`, `max`). The adapter does not send `output_config`, because the Messages endpoint rejects that unknown field and one adapter serves both protocols. `LogicalRequest.effort` therefore has no effect on this adapter; the gateway uses its server-side default (`high`). To control depth by level, use a Chat Completions entry for the same model.
+4. Thinking plus tool calls: both protocols require the thinking blocks of the current turn's assistant messages with `tool_use` to be returned unchanged. Cross-turn replay is not required, so `strip_stale_thinking` keeps only the current turn. If a block is missing and cannot be recovered (the signature was dropped, or the history came from another protocol entry), `_tool_turn_missing_thinking` disables thinking for the request so the conversation does not become permanently unusable.
+5. When `tools` is empty, neither `tools` nor `tool_choice` is sent.
+6. `max_tokens` is required by this API. The constructor default is used when the entry does not override it.
+7. `input_schema` must be an object schema with a `type`. `ToolRegistry.schemas()` returns `parameters` as a property map, which is normalized by the shared `tool_parameters()` in `agent/mechanisms/providers/tool_schema.py` before it is sent. Passing the map directly produces `type: null`, and the Messages endpoint rejects it with `Invalid schema for function ...` (400). The Chat Completions gateway does not validate this field, so the defect only appears on the Messages protocol.
+8. Images support `source.type=base64` for `data:` URLs and `source.type=url` for `http(s)` URLs. Accepting only base64 would silently drop image links on a Messages entry while the same image is sent normally on a Chat Completions entry.
 
-### 7.2 消息转换
+### 7.2 Message conversion
 
-拆成两个纯函数再拼装，避免把"忠实折叠"和"下游硬约束修补"混在一处：
+Conversion is split into pure functions and a final assembly step, so "faithful folding" and "repair for downstream constraints" stay separate:
 
 ```python
-def strip_stale_thinking(messages, turn_start): ...   # 只留本轮的 thinking 块
-def drop_dangling_tool_results(messages): ...          # 删掉没有对应 tool_use 的 tool_result
-def _to_native_messages(messages, turn_start): ...  # 纯映射
+def strip_stale_thinking(messages, turn_start): ...   # keep only this turn's thinking blocks
+def drop_dangling_tool_results(messages): ...          # drop tool results without a tool_use
+def _to_anthropic_messages(messages, turn_start, *, keep_thinking=True): ...
 ```
 
-映射表：
+Mapping:
 
-| 逻辑消息 | 线格式 |
+| Logical message | Wire format |
 |---|---|
-| `role=system` | 抽出正文，按出现顺序拼进顶层 `system`，用空行分隔 |
-| `role=user` 且 `content` 为字符串 | `{role:"user", content:[{type:"text", text}]}` |
-| `role=user` 且 `content` 为多模态数组 | `text` 原样；`image_url` 的 data URL 拆成 `{type:"image", source:{type:"base64", media_type, data}}` |
-| `role=assistant` | `content` 非空时产出 `text` 块；`tool_calls` 逐个产出 `tool_use` 块 |
-| `role=tool` | 转成 `role:"user"` 且 `content:[{type:"tool_result", tool_use_id, content}]` |
-| assistant 的 `provider_meta.native.thinking_blocks` | 仅当该消息下标 `>= turn_start` 时，按原顺序插到 content 最前 |
+| `role=system` | extract the text and append it to the top-level `system` field in order, separated by blank lines |
+| `role=user` with string `content` | `{role:"user", content:[{type:"text", text}]}` |
+| `role=user` with a multimodal array | `text` is passed through; a `data:` URL in `image_url` becomes `{type:"image", source:{type:"base64", media_type, data}}`; an `http(s)` URL becomes a `url` source |
+| `role=assistant` | non-empty `content` becomes a `text` block; each `tool_calls` item becomes a `tool_use` block |
+| `role=tool` | becomes `role:"user"` with `content:[{type:"tool_result", tool_use_id, content}]` |
+| assistant `provider_meta.anthropic.thinking_blocks` | inserted at the front of the content in original order, only when the message index is `>= turn_start` and thinking is enabled for this request |
 
-修补规则（都是纯函数，可单测）：
+Repair rules, all pure functions and unit-testable:
 
-1. 连续多条 `role=tool` 的消息合并进同一条 `role:"user"` 的 content 数组，保持顺序。
-2. 相邻且角色相同的 user 消息同样合并，避免连续同角色被拒。
-3. 工具结果为空时补一个占位文本，保证 `content` 非空。
-4. 第一条必须是 `user`：前导的 assistant 消息直接丢弃（它们没有待回答的 `tool_result`）。
-5. 没有对应 `tool_use` 的 `tool_result` 丢弃：留着会被 API 拒绝，整段会话打不开。
-6. 同一请求内 `tool_use.id` 重复时，从第二次起追加 `_2`、`_3` 后缀；
-   assistant 的 `tool_use` 与对应的 `tool_result` 必须同时改名，否则配对断裂。
-7. `turn_start` 之前的 assistant 消息不带 thinking 块。
+1. Consecutive `role=tool` messages are merged into one `role:"user"` content array, preserving order.
+2. Adjacent user messages are merged as well, because two consecutive messages with the same role are rejected.
+3. An empty tool result gets a placeholder text so the `content` array is never empty.
+4. The first message must be `user`; leading assistant messages are dropped because they have no `tool_result` waiting for an answer.
+5. A `tool_result` without a matching `tool_use` is dropped. Keeping it causes the API to reject the whole conversation.
+6. If `tool_use.id` repeats within one request, the second and later occurrences get `_2`, `_3` suffixes. The assistant `tool_use` and its `tool_result` must be renamed together, or the pairing breaks.
+7. Assistant messages before `turn_start` carry no thinking blocks. When thinking is disabled, no message carries them.
 
-### 7.3 流事件映射
+### 7.3 Stream event mapping
 
-SSE 按行解析 `data:` 载荷。**事件类型取载荷里的 `data.type`**，不读 `event:` 行：
-两处各存一份"这是什么事件"，迟早会漂移。`event:` 行只用于跳过，不作判据。
+SSE is parsed line by line from `data:` payloads. The event type comes from `data.type` in the payload, never from the `event:` line: two copies of "what event is this" eventually diverge. The `event:` line is skipped, not used as a decision input.
 
-| `data.type` | 处理 |
+| `data.type` | Handling |
 |---|---|
-| `message_start` | 记 `usage.input_tokens` / `cache_read_input_tokens` / `cache_creation_input_tokens`；缺失按 0 |
-| `content_block_start` | 按 `index` 建块：`text` / `thinking` / `tool_use`（记 `id` 与 `name`；`input` 非空则作为初值） |
-| `content_block_delta` | `text_delta` → `kind="text"`；`thinking_delta` → `kind="reasoning"`；`delta.signature` 累积；`input_json_delta` 累积 `partial_json` |
-| `content_block_stop` | `tool_use` 块解析 JSON 转 `ToolCallRequest`；`thinking` 块记录 `{thinking, signature}` |
-| `message_delta` | 记 `stop_reason` 与 `usage.output_tokens` |
-| `message_stop` | 结束本流 |
-| `error` | 抛 `ModelRequestError(error.message)` |
-| `ping` | 忽略 |
+| `message_start` | record `usage.input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`; missing values count as 0 |
+| `content_block_start` | create a block by `index`: `text`, `thinking`, or `tool_use` (record `id` and `name`; non-empty `input` becomes the initial value). Initial text and thinking are emitted immediately |
+| `content_block_delta` | `text_delta` → `kind="text"`; `thinking_delta` → `kind="reasoning"`; `signature_delta` accumulates `delta.signature`; `input_json_delta` accumulates `partial_json` |
+| `content_block_stop` | a `tool_use` block parses its JSON into a `ToolCallRequest`; a `thinking` block records `{thinking, signature}`. A block without a signature is dropped, and a warning is written when it had text |
+| `message_delta` | record `stop_reason` and `usage.output_tokens` |
+| `message_stop` | end the stream |
+| `error` | raise `ModelRequestError(error.message)`, with the message truncated to 800 characters |
+| `ping` | ignored |
 
-`input_json_delta` 归并规则：
+`input_json_delta` merging:
 
-1. 按块的 `index` 累积 `partial_json`；`content_block_stop` 时一次性解析。
-2. 解析失败时退化为空参 `{}`，调用仍发出，错误由工具侧暴露。
-3. `tool_use` 的 `id` 为空时用 `call_<随机>` 兜底，与 Compatible 适配器同源。
+1. Accumulate `partial_json` by block `index`; parse once at `content_block_stop`.
+2. A parse failure degrades to empty arguments `{}`; the call is still emitted and the tool side reports the error.
+3. An empty `tool_use` id falls back to `call_<random>`, matching the Chat Completions adapter.
 
-`stop_reason` 只进诊断日志，不扩展流帧契约：`StreamDelta` 没有也不新增
-`finish_reason`，与现有 Compatible 适配器保持一致。
+`stop_reason` is written to the diagnostic log only. It does not extend the stream frame contract: `StreamDelta` has no `finish_reason` and does not gain one, matching the Chat Completions adapter.
 
-### 7.4 流末顺序
+### 7.4 Stream-end order
 
-固定顺序，便于模型模块按类型收集：
+The order is fixed so the model module can collect by type:
 
-1. 文本与推理增量边到边出（流中实时产出，不攒列表）。
-2. `kind="meta"`：仅当本轮有 thinking 块**且**存在工具调用时产出，
-   载荷为 `{"native": {"thinking_blocks": [...]}}`。没有工具调用时签名无处回传，
-   不必落盘。
-3. `kind="tool_call"`：按块 `index` 升序逐个产出。
-4. `kind="usage"`：映射后的用量。
+1. Text and reasoning deltas stream as they arrive; they are not accumulated into a list.
+2. `kind="meta"` is emitted only when this turn has thinking blocks and at least one tool call. The payload is `{"anthropic": {"thinking_blocks": [...]}}`. Without a tool call the signature has nowhere to be returned, so there is no reason to persist it.
+3. `kind="tool_call"` is emitted in ascending block `index`.
+4. `kind="usage"` carries the mapped usage; it is omitted when every field is zero.
 
-### 7.5 usage 映射
+### 7.5 Usage mapping
 
-```
+```text
 prompt_tokens            = input_tokens + cache_read_input_tokens + cache_creation_input_tokens
 completion_tokens        = output_tokens
 prompt_cache_hit_tokens  = cache_read_input_tokens
 prompt_cache_miss_tokens = input_tokens + cache_creation_input_tokens
 ```
 
-字段名与现有 Compatible 适配器一致，界面与累计器无需分支。
+The field names match the Chat Completions adapter, so the UI and the accumulator need no branch.
 
-### 7.6 错误映射
+### 7.6 Error mapping
 
-| 状态码 | 提示 |
+| Status | User-facing meaning |
 |---|---|
-| 400 | 请求参数无效，请检查模型与参数配置。 |
-| 401 | 认证失败，请检查 API Key。 |
-| 403 | 无访问权限，请检查 Key 的权限范围。 |
-| 404 | 模型或接口不存在，请检查 base_url 与模型 id。 |
-| 413 | 请求体过大，请减少历史图片或上下文。 |
-| 429 | 请求过于频繁，请稍后再试。 |
-| 500 | 模型服务端错误，请稍后再试。 |
-| 529 | 模型服务过载，请稍后再试。 |
+| 400 | Invalid request parameters; check the model and parameter configuration. |
+| 401 | Authentication failed; check the API key. |
+| 403 | Access denied; check the key's permission scope. |
+| 404 | Model or endpoint not found; check `base_url` and the model id. |
+| 413 | Request body too large; reduce historical images or context. |
+| 429 | Too many requests; retry later. |
+| 500 | Model server error; retry later. |
+| 529 | Model service overloaded; retry later. |
 
-响应体里的 `error.message` 附在提示后，截断到 800 字符。
-Native 的错误提示独立成表，不与 Upstream 的表混用。
+The `error.message` from the response body is appended to the hint and truncated to 800 characters. The Messages error table is separate from the Chat Completions table; unknown statuses return the raw HTTP body, truncated to 8000 characters.
 
-## 8. thinking 签名回传
+## 8. Thinking signature return
 
-Native 的 extended thinking 在带工具的同轮循环里要求把 thinking 块
-（含 `signature`）原样回传，否则同一轮的后续请求会被拒绝。事实里现有字段
-`reasoning_content` 只有文本，签名会丢。
+Extended thinking on the Messages protocol requires thinking blocks, including their `signature`, to be returned unchanged within the same tool loop; otherwise later requests in that turn are rejected. The existing fact field `reasoning_content` holds only text, so the signature would be lost.
 
-方案：在 `model_message` 事实里增加一个内核不解释的 `provider_meta`。
+The design adds a `provider_meta` field to the `model_message` fact that the kernel does not interpret.
 
-1. `agent/core/model_call.py`：导出 `PROVIDER_META_KEY = "provider_meta"`；
-   `StreamDelta` 增加 `meta: Optional[Dict[str, Any]] = None`，`kind` 增加取值 `"meta"`。
-2. `agent/core/modules/model_mod.py`：收集 `kind=="meta"` 的载荷，合并后写入
-   `model_message[PROVIDER_META_KEY]`；为空时不写该字段。
-3. `agent/core/session_log.py` `derive_messages()`：`model_message` 带该键时原样带进
-   assistant 消息。读方与写方引用**同一个常量**，不各写一遍字符串。
-4. `agent/mechanisms/model_provider.py` 的 `_to_wire_messages` 必须
-   `msg.pop(PROVIDER_META_KEY, None)`，避免未知字段发给 兼容协议网关。
-5. 回放范围：只有消息下标 `>= request.turn_start` 时才带 thinking 块；
-   跨用户轮直接丢弃，防止历史请求带上过期签名。
+1. `agent/core/model_call.py` exports `PROVIDER_META_KEY = "provider_meta"`. `StreamDelta` gains `meta: Optional[Dict[str, Any]] = None`, and `kind` gains the value `"meta"`.
+2. `agent/core/modules/model_mod.py` collects `kind=="meta"` payloads, merges them, and writes the result to `model_message[PROVIDER_META_KEY]`; the field is omitted when empty.
+3. `agent/core/session_log.py` `derive_messages()` copies the key unchanged into the assistant message. Reader and writer use the same constant instead of repeating the string.
+4. `agent/mechanisms/providers/openai.py` `_to_wire_messages` pops `PROVIDER_META_KEY` so an unknown field is never sent to a Chat Completions gateway.
+5. Replay scope: thinking blocks are included only for message indexes `>= request.turn_start`. Cross-turn blocks are dropped so an expired signature is never replayed.
 
-`provider_meta` 的约束：
+`provider_meta` constraints:
 
-1. 必须可 JSON 序列化，落盘与读取两侧都经过既有 `default=str` 兜底。
-2. 内核不读取其内部结构，不参与分段统计、token 估算与压缩判定。
-3. 压缩器丢弃被压缩区间的消息时，其 `provider_meta` 一并丢弃。
-4. 只存 thinking 块的 `{thinking, signature}`，不存整段响应；不做截断——
-   截断会让签名失效，回传反而报错。
-5. **兼容窗口**：这是落盘格式的**可选**新增键，只前滚。
-   旧日志没有该键按"无 thinking 块"处理；读取方忽略未知的 provider 子键；
-   不提供回滚脚本，也不迁移历史文件。任何读方不得要求该键存在。
+1. It must be JSON-serializable; both persistence and loading use the existing `default=str` fallback.
+2. The kernel does not read its internal structure and does not use it for segment accounting, token estimation, or compaction decisions.
+3. When the compactor drops messages in a compacted range, their `provider_meta` is dropped with them.
+4. It stores only `{thinking, signature}` blocks, not a whole response. The text is not truncated: truncation invalidates the signature, and the replayed block is then rejected.
+5. It is an optional, forward-only key in the persisted format. Old logs without the key are read as having no thinking blocks; readers ignore unknown vendor subkeys; no migration or rollback is required. No reader may require the key.
 
-## 9. 装配根接线
+## 9. Assembly
 
-### 9.1 接线
+### 9.1 Wiring
 
-`agent/app.py` 的 `build_app()`：
+`agent/app.py` `build_app()`:
 
-1. 创建 `ModelCatalog`，把服务名 `SERVICE_MODEL_CATALOG` 加进
-   `agent/core/context.py` 的进程级服务词汇表，并注入 `PluginHost`。
-2. 从一开始就把 `ProviderRouter` 注册为 `SERVICE_PROVIDER`，不再直接暴露裸 provider：
-   - `default`：`config.ini` 构造的 provider；
-   - `resolve`：`catalog.provider_for`；
-   - `allowed_ids` 与 `default_id`：装配后按权威来源确定；
-   - `fallback_to_default`：非权威时为真。
-3. `plugin_host.load_manifest(...)` 之后计算一次 `app.model_config_state`：
+1. Create `ModelCatalog`, add the service name `SERVICE_MODEL_CATALOG` to the process-level service vocabulary in `agent/core/context.py`, and inject it into `PluginHost`.
+2. Register `ProviderRouter` as `SERVICE_PROVIDER` from the start; a bare provider is never exposed:
+   - `default`: the provider supplied by the entry point, or an echo provider in a bare assembly;
+   - `resolve`: `catalog.provider_for`;
+   - `allowed_ids` and `default_id`: initial values, recomputed after plugin loading through `reload_policy`;
+   - `fallback_to_default`: `false` in the standard assembly.
+3. After `plugin_host.load_manifest(...)`, compute `app.model_config_state` once:
 
-   | 取值 | 判据 |
+   | Value | Condition |
    |---|---|
-   | `"catalog"` | 目录权威且 `entries` 非空 |
-   | `"config"` | 非权威，但 `config.ini` 有 `api_key` + `base_url` |
-   | `"none"` | 两者都没有可用模型 |
+   | `"catalog"` | the catalog is authoritative and its entries are non-empty |
+   | `"config"` | the catalog is not authoritative, but a provider was injected explicitly at assembly |
+   | `"none"` | neither of the above |
 
-4. `"catalog"` 时用目录的 `ids()` 与 `default_id()` 覆盖 `app._available_models`
-   与 `live_state.default_model`；其余情况保留 `config.ini` 的值。
-5. 收敛陈旧值：`live_state.get_model(cid)` 不在 `available_models()` 里时，
-   回落到 `default_id` 并写回、同时写一条诊断。插件改配置后，旧标签页不会
-   一直拿着一个已被删掉的 id 撞错误。
-6. `MissingProvider` 的 `stream()` 只抛 `ModelRequestError("未配置任何模型")`。
-   **报错文案不含插件目录名**：`mechanisms` 里出现插件名会直接命中原有的
-   内核架构约束门禁，而且是把"去哪配"这种运维信息焊进了内核。
-7. `shell/web.py` 与 `shell/chat.py` 删除各自的凭据预检与 provider 直接构造，
-   统一走 `build_app`；但保留**启动期判定**：
-   `model_config_state == "none"` 时快速失败，提示里给出两处配置路径
-   （这句文案在 shell 层，属运维面，不进 core/mechanisms）。
-   `V5`：配置错要立刻失败；只有"依赖不可用"才允许降级。
-8. `/health` 增加：
+4. In the `"catalog"` state, use the catalog's `ids()` and `default_id()` to override `app._available_models` and `live_state.default_model`; otherwise keep the values established at assembly.
+5. Converge stale values: when `live_state.get_model(cid)` is not in `available_models()`, fall back to the default id, write it back, and record a diagnostic. After a plugin configuration change, an old tab does not keep a deleted id and fail the next request.
+6. `MissingProvider.stream()` raises `ModelRequestError("未配置任何模型")`. The message contains no plugin directory name: a plugin name inside `mechanisms` would violate the kernel architecture gate and would embed operational guidance in the kernel.
+7. The web entry and the shell perform no credential prechecks and construct no providers of their own; both go through `build_app`.
+   When no model is configured, the web shell still starts, prints a warning that points at the settings path, and reports `"none"` in `/health`. An unexpected assembly exception still exits non-zero. A missing model set is a visible degraded state; the process never substitutes a hidden default.
+8. `/health` gains:
 
    ```json
    "model_config": { "source": "catalog|config|none", "authoritative": true, "degraded": false }
    ```
 
-   任何"启动了但模型不可用"的状态必须在健康检查里体现（`V6`），不能只留一行日志。
+   Any "started but no model is available" state must appear in the health check, not only in a log line.
 
-### 9.2 回退矩阵
+### 9.2 Fallback matrix
 
-| 插件状态 | `config.ini` 凭据 | 默认模型 / `default` 实例 | `model_config_state` | `/health.allowed_models` | 设置页模型节 |
-|---|---|---|---|---|---|
-| 启用且有有效条目 | 有或无 | 目录 `default_id`；`default` 实例不参与路由 | `catalog` | 目录 ids | 隐藏 |
-| 启用但 0 条有效条目 | 有 | `config.ini` 的 `model` | `config` | `config.ini` 的 `models` | 显示 |
-| 停用或缺失 | 有 | `config.ini` 的 `model` | `config` | `config.ini` 的 `models` | 显示 |
-| 停用或缺失 | 无 | 无（`MissingProvider`） | `none` | `[]` | 显示 |
-| 启用且有条目，但条目全部无效 | 无 | 无（`MissingProvider`） | `none` | `[]` | 显示 |
+| Plugin state | Explicit provider injected | Default model / `default` instance | `model_config_state` | `/health.allowed_models` |
+|---|---|---|---|---|
+| enabled with valid entries | either | catalog `default_id`; the `default` instance does not take part in routing | `catalog` | catalog ids |
+| enabled with zero valid entries | no | none (`MissingProvider`) | `none` | `[]` |
+| enabled with zero valid entries | yes | injected provider | `config` | provider model list |
+| disabled or missing | no | none (`MissingProvider`) | `none` | `[]` |
+| disabled or missing | yes | injected provider | `config` | provider model list |
+| enabled with entries, all invalid | no | none (`MissingProvider`) | `none` | `[]` |
 
-最后一行是重点：插件"启用了"不等于"可用"。权威判定看的是有效条目数，不是启用开关。
+The last row is the important one: "enabled" does not mean "usable". Authority counts valid entries, not the enable flag.
 
-权威模式下 `default` 实例基本用不到——每轮请求都带目录 id，`resolve` 必然命中；
-它只在 `allowed_ids` 为空或 `fallback_to_default` 为真时兜底。因此权威模式下
-`config.ini` 没有凭据也不影响对话，`default` 可以是 `MissingProvider`。
+`config.ini` does not carry model credentials or a model list. The `"config"` state is established when the app is assembled with an explicitly injected provider, as an embedder or a test does. A runtime plugin unload calls `refresh_model_config()`, which moves the app to `"none"` and installs `MissingProvider`; it does not return to an injected provider.
 
-### 9.3 设置页保存
+In the authoritative state the `default` instance is barely used. Every request carries a catalog id and `resolve` hits; the default only guards the case where the allowed list is empty or the fallback flag is enabled. An absent default credential therefore does not affect conversation, and the default may be `MissingProvider`.
 
-`settings_panel.apply_host()` 不再直接改 provider 属性。原因很实际：
-router 包装之后，`getattr(app, "provider")` 拿到的是 router，
-`hasattr(provider, "base_url")` 为假，原来的分支会**静默跳过**——
-设置页显示"已保存"，进程里还是旧模型。
+### 9.3 Settings save
 
-改为：
+`settings_panel.apply_host()` does not mutate provider attributes. After the router wraps the provider, `getattr(app, "provider")` returns the router, `hasattr(provider, "base_url")` is false, and a direct write would be silently skipped while the page reports "saved" — the process would still use the old model.
 
-1. `app.reload_model_config()` 是唯一入口，内部按 9.1 的规则重算：
-   - `catalog` 时跳过并留痕（"目录权威，忽略 config.ini 模型设置"）；
-   - 否则用 `build_provider("compatible", cfg)` 重建实例，调 `router.reload_default(p)`，
-     再更新 `_available_models` 与 `live_state.default_model`。
-2. `apply_host` 只调这一个方法，并把它返回的说明放进响应（`reload_error` 同款）。
-3. 单测锁住："保存后 router 的默认实例是新建的那个，且下一轮请求用它"。
+The model configuration path is:
 
-## 10. 插件
+1. The plugin declares `settings-schema.json`; the settings page renders one card per `[model:<id>]` entry, with add, delete, and per-field editing.
+2. Saving rewrites only the `[model:*]` sections and preserves every other section byte for byte. A blank secret field keeps the existing key.
+3. After the write, plugin synchronization calls `app.refresh_model_config()`:
+   - catalog authoritative: refresh `_available_models`, `live_state.default_model`, and `router.reload_policy`;
+   - not authoritative: set `model_config_state = "none"`, clear the list and default id, and install `MissingProvider` through `reload_default`.
+4. `app.reload_model_config()` reports the current model source; it does not rebuild a provider from `config.ini` and is not a provider factory.
+5. The settings page provides no kernel model section; the only model editor is the plugin form. Unit tests lock the plugin save path and the authority refresh separately.
 
-### 10.1 目录
+## 10. Plugin
 
-```
+### 10.1 Directory
+
+```text
 plugins/multi_model/
   plugin.py
   plugin-config.ini
+  plugin-config.ini.example
+  plugin-meta.json
+  settings-schema.json
   ui/model-picker.js
   ui/model-picker.css
 ```
 
-`plugins.ini` 增加 `[plugin:multi_model]` 节。
-`plugin-config.ini` 已被 `.gitignore` 的 `plugins/*/plugin-config.ini` 覆盖，
-真实配置只留在工作区，提交前用 `git ls-files` 确认历史与索引里都没有真实配置。
+`plugins.ini` gains a `[plugin:multi_model]` section.
+`plugin-config.ini` is listed in `.gitignore` (`plugins/multi_model/plugin-config.ini`); the real configuration stays in the workspace. `git ls-files` verifies that the history and the index contain no real configuration.
 
-目录名不叫 `models` / `model` / `llm`：这几个词会被
-`check_kernel_plugin_names` 当成 `core` / `mechanisms` 的禁用词。
-`model` 在该范围命中 59 处（`agent/core/engine.py:47` 等），
-`llm` 命中 1 处；`models` 为 0 命中，但它是通用复数名词，
-后续容易被内核当作变量名。`multi_model` 与 `model_config` 都是 0 命中，
-取前者：插件名会出现在 URL、上下文段键、日志前缀里，说"能力"比说"实现"更容易被读懂。
+The directory name is the plugin identity: it appears in URLs, context segment keys, and log prefixes. `multi_model` names the capability rather than a single implementation. The kernel must not contain the name; the architecture gate scans for every plugin directory name at word boundaries.
 
-### 10.2 配置格式
+### 10.2 Configuration format
 
 ```ini
-[model:upstream]
-provider = compatible
-base_url = https://api.upstream.com
+[model:chat]
+provider = openai
+base_url = https://api.example.com
 api_key = sk-…
-model = upstream-flash
-label = Upstream Flash
+model = chat-model
+label = Chat
+context_window = 128000
+compression_percent = 70
 default = 1
 
-[model:target]
-provider = native
-base_url = https://api.native.com
-api_key = sk-ant-…
-model = model-id
-label = Target Sonnet 4.5
+[model:messages]
+provider = anthropic
+base_url = https://api.example.com/messages
+api_key = sk-…
+model = messages-model
+label = Messages
+context_window = 200000
+compression_percent = 70
 max_tokens = 16000
 thinking = 1
 thinking_budget_tokens = 4096
 ```
 
-### 10.3 解析规则
+### 10.3 Parsing rules
 
-1. 节名 `[model:<id>]`，`id` 是请求与界面里的唯一标识。
-2. `model` 缺省等于 `id`。
-3. `provider` 缺省 `compatible`；不在 `known_kinds()` 里的值使该条目无效并留痕。
-4. `api_key` 或 `base_url` 缺失使该条目无效。
-5. `default = 1` 至多一个；没有时取第一个有效条目；多个时第一个生效并留痕。
-6. `thinking`、`max_tokens`、`thinking_budget_tokens` 只对 native 条目生效。
-7. 任一条目解析失败只影响该条目，不影响其它条目与插件装载。
-8. 配置用 `utf-8-sig` 读：Windows 记事本存 UTF-8 会带 BOM，
-   用 `utf-8` 读会得到一个指不到根因的 `MissingSectionHeaderError`。
-9. 每条诊断都必须能定位：`[plugin:multi_model] <文件路径> [model:<id>] <键> 无效：<原因>`。
-   只写"配置有误"无法定位到文件、条目与键。
+1. The section name is `[model:<id>]`; `id` is the unique key used by requests and the UI.
+2. `model` defaults to `id`.
+3. `provider` defaults to `openai`. A value not in `known_kinds()` invalidates the entry and records a diagnostic listing the accepted values.
+4. A missing `api_key` or `base_url` invalidates the entry. An obvious template placeholder does not count as configured, so a model cannot take over routing while still carrying a stub key.
+5. `context_window` is required and must be a positive integer; it is the denominator for compaction and occupancy.
+6. `compression_percent` defaults to `70` and must be an integer in 10–90.
+7. At most one `default = 1` is honored. When none is marked, the first valid entry becomes the default. When several are marked, the first wins and the rest are recorded as non-default.
+8. `max_tokens`, `thinking`, and `thinking_budget_tokens` apply only to `anthropic` entries. A malformed value invalidates the entry; the same keys on an `openai` entry are ignored.
+9. A bad entry affects only itself. A duplicate section or a malformed file is a file-level error: the whole file yields no entries and one invalid record with an empty id.
+10. The file is read with `utf-8-sig`. A UTF-8 file saved by a Windows editor may carry a BOM; reading it as plain `utf-8` produces a `MissingSectionHeaderError` that does not point at the real cause.
+11. Every diagnostic locates the problem: `[plugin:multi_model] <file path> [model:<id>] <key> invalid: <reason>`. "The configuration is invalid" without a file, entry, and key is not enough to act on.
 
 ### 10.4 register
 
-`register(ctx)` 做三件事：
+`register(ctx)` does three things:
 
 1. `ctx.add_model_catalog(entries)`
-   - `entries` 是回调，每次重读 `plugin-config.ini`，返回 `ModelEntry` 列表；
-   - 不传工厂、不构造 provider——厂商分发在 `provider_registry` 里。
-2. `ctx.add_route("GET", "catalog", handler)`：
-   返回 `{"ok":true,"models":[{"id","label","provider","default"}],"default":id,"invalid":[{id,reason}]}`。
-   不返回 `api_key` 与 `base_url`。`invalid` 是运维面：坏条目不能只活在日志里。
-3. `ctx.add_boot_script("ui/model-picker.js")`。
-4. 返回 disposer 列表，由插件宿主统一回收。
+   - `entries` is a callback that re-reads `plugin-config.ini` and returns the `ModelEntry` list;
+   - no factory or provider instance is passed; vendor dispatch lives in `provider_registry`.
+2. `ctx.add_route("GET", "catalog", handler)`:
+   returns `{"ok":true,"models":[{"id","label","provider","context_window","default"}],"default":id,"invalid":[{id,reason}]}`.
+   It never returns `api_key` or `base_url`. `invalid` is operational surface: a bad entry must not live only in a log.
+3. `ctx.add_boot_script("ui/model-picker.js")`.
 
-样式不走后端：`model-picker.js` 第一行调
-`window.aiAgentShell.styles.load("ui/model-picker.css")`。理由见 11.2。
+`register` returns the disposer list, and the plugin host reclaims it. The plugin also parses the configuration once at startup so a broken file leaves a trace before the user opens the dropdown.
 
-## 11. 壳层与界面
+Styles do not go through the backend: the first line of `model-picker.js` calls `window.aiAgentShell.styles.load("ui/model-picker.css")`. The reason is in 11.2.2.
 
-### 11.1 清单来源
+## 11. Shell and UI
 
-`WebApi.available_models()` 在 `model_config_state == "catalog"` 时返回目录 `ids()`，
-否则返回 `app._available_models`。`/health` 与 `ui-state` 都从这里取，
-凭据字段永不出现在响应里。
+### 11.1 Model list source
 
-### 11.2 界面桥
+`WebApi.available_models()` returns `app.available_models()`. That method returns the catalog `ids()` while the snapshot is authoritative, and the assembly-time list otherwise. `/health` and `ui-state` read the same source. Credential fields never appear in a response. `/health` also returns `model_labels`, a map from id to display label, because the shell must render labels without knowing the plugin.
 
-#### 11.2.1 模型桥
+### 11.2 UI bridge
 
-壳层在 `agent-ui.js` 里、与 `window.aiAgentPlugins` 相邻处定义：
+#### 11.2.1 Model bridge
+
+The shell defines the bridge in `agent/shell/web/web_assets/classic/js/plugins/host.js`, next to `window.aiAgentPlugins`:
 
 ```js
 window.aiAgentShell = window.aiAgentShell || {};
@@ -540,325 +497,257 @@ window.aiAgentShell.models = {
   list:     function () { /* → Promise<[{id,label,provider}]> */ },
   current:  function () { /* → string */ },
   select:   function (id) { /* → Promise<boolean> */ },
-  onChange: function (fn) { /* → 取消订阅函数 */ }
+  onChange: function (fn) { /* → unsubscribe function */ }
 };
 ```
 
-不挂在 `window.AIA` 上：`AIA` 是 `image-lightbox.js` 的附件/灯箱命名空间
-（`AIA.buildMsgAttachStrip` 等），把模型塞进去就是"同名不同物"。
-`aiAgentShell` 是壳层公共契约，与 `aiAgentPlugins` 平级、职责互补。
+It is not attached to `window.AIA`: `AIA` is the attachment and lightbox namespace of `image-lightbox.js` (`AIA.buildMsgAttachStrip` and similar). Putting models there would create two different things under one name. `aiAgentShell` is a public shell contract, peer to `aiAgentPlugins` and complementary in responsibility.
 
-约束：
+`list()` reads `/health`: `allowed_models` supplies the ids and `model_labels` supplies the labels. Each item is `{id, label, provider}`, and `provider` is empty because the shell does not know plugin catalogs; the plugin's own `/catalog` endpoint supplies protocol and provider details.
 
-1. 插件脚本在 `#modelPickerSlot` 内创建按钮与菜单，样式来自它自己的 CSS。
-2. 插件不读壳层内部变量，不拼 `/api/chat/send`，不改页头元素。
-3. `select` 由壳层写 `live_state` 并发起广播；插件只更新自己的按钮文字。
-4. 桥是壳层的公共契约，插件停用后桥仍在，只是没有订阅者与下拉。
-5. 桥本身**不持有状态**：`current()` 读的是当前 tab 的模型字段，
-   `onChange` 只是转发。多份"当前模型"必然分叉。
+Constraints:
 
-#### 11.2.2 样式桥
+1. The plugin creates its button and menu inside `#modelPickerSlot`; styles come from its own CSS.
+2. The plugin does not read shell internals, does not build `/api/chat/send`, and does not modify header elements.
+3. `select` is shell-owned: it updates the UI optimistically, writes `/api/chat/ui-state`, and rolls back on failure. The plugin only updates its button text.
+4. The bridge remains after the plugin is disabled; there are simply no subscribers and no dropdown.
+5. The bridge holds no state. `current()` reads the active tab's model field and `onChange` only forwards. Multiple copies of "the current model" would inevitably diverge.
 
-插件资产目前有两条送达路径，模型下拉两条都用不上：
+#### 11.2.2 Style bridge
 
-| 路径 | 端点 | 注入时机 |
+Plugin assets have two delivery paths, and the model dropdown can use neither directly:
+
+| Path | Endpoint | Injection time |
 |---|---|---|
-| 面板脚本 / 面板样式 | `/api/plugin/<插件>/_asset/<相对路径>` | **面板打开时**（`loadPluginStyle`） |
-| 开屏脚本 | `/api/boot-scripts` | 页面加载 |
-| 开屏样式 | 无 | — |
+| panel script / panel style | `/api/plugin/<plugin>/_asset/<relative path>` | when the panel opens (`loadPluginStyle`) |
+| boot script | `/api/boot-scripts` | page load |
+| boot style | none | — |
 
-下拉按钮在输入区、不属于任何面板，所以它需要在开屏阶段就生效的样式。
-不新增后端扩展点（`add_boot_style` + `/api/boot-styles` 要动 `PluginContext`、
-`contributions`、`web_api`、`web_routes` 四处，只为送一个 `<link>`），
-改为把壳层**已有**的 `loadPluginStyle` 暴露到桥上：
+The dropdown button lives in the composer and belongs to no panel, so it needs a style that takes effect at boot. Instead of adding a backend extension point (`add_boot_style` plus `/api/boot-styles` would touch `PluginContext`, `contributions`, `web_api`, and `web_routes` just to deliver one `<link>`), the shell exposes its existing `loadPluginStyle` on the bridge:
 
 ```js
 window.aiAgentShell.styles = {
-  load: function (relPath) { /* → Promise<boolean>；relPath 是插件目录内相对路径 */ }
+  load: function (relPath) { /* → Promise<boolean>; relPath is relative to the plugin directory */ }
 };
 ```
 
-1. 壳层用 `window.aiAgentPluginCurrent` 拼
-   `/api/plugin/<插件>/_asset/<relPath>`，插件不自己拼 URL、不碰 `document.head`。
-2. 复用既有去重表 `_pluginStylesLoaded`，同一路径只注入一次。
-3. 注入的 `<link>` 带 `data-plugin-style="<插件名>"`（该标记现已存在，只是没人读）。
-4. `applyPluginsChanged` 新增一步：摘掉 `data-plugin-style` 不在 `loaded` 名单里的
-   `<link>`。这顺带修掉一个既有缺陷——插件停用后样式不会残留。
-5. 只接受插件目录内的相对路径，与 `add_panel(css_file=…)` 同一套校验，
-   不接受绝对路径或越出插件目录的 `..`（`S2`：解析后比对，不做字符串前缀判断）。
+1. The shell builds `/api/plugin/<plugin>/_asset/<relPath>` using `window.aiAgentPluginCurrent`; the plugin does not build the URL and does not touch `document.head`.
+2. It reuses the existing `_pluginStylesLoaded` deduplication table, so the same path is injected once.
+3. The injected `<link>` carries `data-plugin-style="<plugin>"`.
+4. `applyPluginsChanged` prunes every `<link data-plugin-style>` whose plugin is not in the loaded list, so a disabled plugin does not leave its stylesheet behind.
+5. Only paths relative to the plugin directory are accepted. A leading slash is stripped, a URI scheme and any `..` or `.` segment are rejected, and the server resolves the final path and checks it stays inside the plugin directory. String-prefix comparison is not used.
+6. When the path is rejected or loading fails, `load` resolves to `false` and injects nothing.
 
-### 11.3 下拉与广播
+### 11.3 Dropdown and broadcast
 
-1. `agent-ui.html` 提供 `#modelPickerSlot` 挂载点，**删除**内建的
-   `#modelPicker` / `#modelPickerBtn` / `#modelPickerMenu` 及其 JS 与 CSS。
-   不是保留再隐藏：留下的死代码会被下一个人当成活路径（`R5`）。
-   要删的函数：`renderModelChoices`、`openModelPicker`、`closeModelPicker`，
-   以及它们绑定的 `click` / 文档级关闭监听。
-2. 页头 `#hdrModel` 保留，由 `applyModel` 写「模型: xxx」。
-3. `applyModel(id)` 的职责：
-   - 写当前 tab 的 `selectedModel`；
-   - 写页头；
-   - 通知 `aiAgentShell.models.onChange` 的订阅者；
-   - 服务端下发的值不受本地白名单限制，只有本地点击时校验。
-4. 会话级持久化：`POST /api/chat/send` 与 `PUT /api/chat/ui-state` 的 `model` 字段
-   继续写 `live_state`，值必须在清单内。
-5. 广播：`ClassicAdapter.announce_model(cid, model)` 向全部 SSE 通道推
-   `{"type":"conversation","conversation_id":cid,"model":model}`，
-   与 `announce_plugins` 同构，不伪装成内核事件。
-6. 触发点：`send` 与 `ui_state_put` 里模型值发生变化时。
-7. 前端 SSE 的 `conversation` 分支处理 `ev.model`：
-   **只有发起方写服务端**，其它标签页只更新页头与本地 tab 字段。
-   接收方再写一次 `live_state` 会产生重复写与竞态；显示同步与状态写入必须分开。
-8. 时序：开屏脚本在会话恢复之前加载（`agent-ui.js` 底部的启动链是
-   面板 → 开屏 → 恢复会话），所以插件初始化时主动 `current()` 取一次，
-   不能只等 `onChange`。
-9. 插件停用时，`applyPluginsChanged` 清空 `#modelPickerSlot` 的内容，
-   并摘掉它的样式表（11.2.2 第 4 条）。不清空的话，按钮会留在页面上，
-   点了调的是一个已经不存在的端点。
-10. **已知限制**：`loadPluginScript` 按 URL 去重（`agent-ui.js:901`），
-   所以"停用 → 再启用"在不刷新页面的前提下，开屏脚本不会重跑，下拉不会回来。
-   这是所有开屏脚本的既有行为，本方案不额外伪造一套"重新执行脚本"的机制。
-   文档与设置页的插件开关旁写明"插件变更后建议刷新页面"。
+1. `agent-ui.html` provides the `#modelPickerSlot` mount point. The built-in `#modelPicker`, `#modelPickerBtn`, and `#modelPickerMenu` controls and their JavaScript and CSS are absent; the slot is the only model mount point.
+2. The header keeps `#hdrModel`; `applyModel` writes `模型: <label>` into it.
+3. `applyModel(id)` has three responsibilities:
+   - write the active tab's `selectedModel`;
+   - write the header;
+   - notify `aiAgentShell.models.onChange` subscribers.
+   A server-provided value is applied even when it is missing from the local cache; the server validates the value when `send` or `ui_state_put` writes it.
+4. Conversation-level persistence: the `model` field of `POST /api/chat/send` and `PUT /api/chat/ui-state` is written to `live_state`; the value must be in the model list.
+5. Broadcast: `ClassicAdapter.announce_model(cid, model)` pushes `{"type":"conversation","conversation_id":cid,"model":model}` to every SSE channel, structured like `announce_plugins` and not disguised as a kernel event.
+6. Trigger points: `send` and `ui_state_put`, when the model value changes.
+7. The frontend `conversation` branch handles `ev.model`: only the initiator writes to the server; other tabs update only the header and their local tab field. A receiver writing `live_state` again would cause duplicate writes and races. Display synchronization and state writing are separate concerns.
+8. Timing: boot scripts may load before the conversation is restored, so the plugin reads `current()` once at initialization and also subscribes to `onChange`; it cannot rely on the event alone.
+9. When the plugin is disabled, `applyPluginsChanged` clears the contents of `#modelPickerSlot` and removes its stylesheet. Without that, the button would remain on the page and call an endpoint that does not exist.
+10. Re-enabling works without a page refresh: `applyPluginsChanged` removes the plugin's script node and clears its deduplication entry, `prunePluginMounts` removes its DOM, and the picker's own teardown removes listeners before rebuilding. If this pruning path fails, a refresh is the fallback.
 
-### 11.4 设置页
+### 11.4 Settings page
 
-1. 设置页不提供内核「模型」节；模型条目只由多模型插件表单维护。
-2. 模型条目由插件的 `settings-schema.json` 驱动结构化编辑（新增/删除/逐条改），
-   保存时只替换 `[model:*]` 节，其它节逐字节保留。
-3. 保存接口只写插件自己的节，不写内核配置。
+1. The settings page has no kernel model section; model entries are maintained only by the multi-model plugin form.
+2. The plugin's `settings-schema.json` drives structured editing (add, delete, edit per entry). Saving replaces only the `[model:*]` sections and preserves every other section byte for byte.
+3. The save endpoint writes only the plugin's own sections, never kernel configuration.
+4. The schema declares the protocol enum, the numeric fields, and the conditional visibility of `max_tokens`, `thinking`, and `thinking_budget_tokens` for `anthropic` entries. Secret fields display only whether a key is configured; an empty value keeps the existing key.
 
-## 12. 文件清单
+## 12. File list
 
-| 动作 | 文件 |
+| File | Role |
 |---|---|
-| 新增 | `agent/mechanisms/native_provider.py` |
-| 新增 | `agent/mechanisms/provider_registry.py` |
-| 新增 | `agent/mechanisms/provider_router.py` |
-| 新增 | `agent/capabilities/model_catalog.py` |
-| 修改 | `agent/core/model_call.py`（`StreamDelta.meta`、`PROVIDER_META_KEY`） |
-| 修改 | `agent/core/modules/model_mod.py` |
-| 修改 | `agent/core/session_log.py` |
-| 修改 | `agent/core/context.py`（`SERVICE_MODEL_CATALOG`） |
-| 修改 | `agent/mechanisms/model_provider.py`（剥离 `provider_meta`） |
-| 修改 | `agent/capabilities/plugins.py`（`add_model_catalog`） |
-| 修改 | `agent/app.py` |
-| 修改 | `agent/shell/web.py` |
-| 修改 | `agent/shell/chat.py` |
-| 修改 | `agent/shell/web_api.py` |
-| 修改 | `agent/shell/settings_panel.py` |
-| 修改 | `agent/shell/classic_adapter/adapter.py` |
-| 修改 | `agent/shell/classic_adapter/contract.py` |
-| 修改 | `agent/shell/web_assets/classic/agent-ui.html` |
-| 修改 | `agent/shell/web_assets/classic/js/agent-ui.js`（`aiAgentShell` 两条桥、样式摘除） |
-| 新增 | `plugins/multi_model/plugin.py` |
-| 新增 | `plugins/multi_model/plugin-config.ini` |
-| 新增 | `plugins/multi_model/ui/model-picker.js` |
-| 新增 | `plugins/multi_model/ui/model-picker.css` |
-| 修改 | `plugins.ini` |
-| 修改 | `docs/subsystems/plugins.md`（两条桥与开屏样式的限制） |
-| 新增测试 | `tests/test_native_provider.py` |
-| 新增测试 | `tests/test_provider_router.py` |
-| 新增测试 | `tests/test_model_catalog.py` |
-| 新增测试 | `tests/test_multi_model_plugin.py` |
-| 修改测试 | `tests/test_model_provider.py`、`tests/test_settings_panel.py` |
-| 同步 | `README.md` 的用例数（`scripts/check_readme.py` 核对） |
+| `agent/mechanisms/providers/anthropic.py` | Messages adapter |
+| `agent/mechanisms/providers/openai.py` | Chat Completions adapter; strips `provider_meta` from wire messages |
+| `agent/mechanisms/providers/tool_schema.py` | shared tool schema normalization |
+| `agent/mechanisms/providers/sse.py` | SSE line parsing and stream timeout |
+| `agent/mechanisms/provider_registry.py` | kind → builder mapping |
+| `agent/mechanisms/provider_router.py` | model id routing and default hot swap |
+| `agent/capabilities/model_catalog.py` | catalog, provider cache, authority |
+| `agent/capabilities/plugin_context.py` | `add_model_catalog` |
+| `agent/capabilities/plugins.py` | `PluginHost(model_catalog=...)` |
+| `agent/app.py` | assembly: catalog, router, authority state |
+| `agent/app_model_policy.py` | available models, stale model convergence, context window and compaction threshold |
+| `agent/core/model_call.py` | `StreamDelta.meta`, `PROVIDER_META_KEY` |
+| `agent/core/modules/model_mod.py` | collects `meta` deltas into `model_message` |
+| `agent/core/session_log.py` | carries `provider_meta` into assistant messages |
+| `agent/core/context.py` | `SERVICE_MODEL_CATALOG` |
+| `agent/shell/web/web_api.py` | model list, labels, `/health` model config |
+| `agent/shell/web/web_state.py` | `ui-state` model read/write and broadcast |
+| `agent/shell/web/web_chat.py` | send-time model validation |
+| `agent/shell/web/web_routes.py` | route dispatch for the model endpoints |
+| `agent/shell/web/server.py` | startup warning when no model is configured |
+| `agent/shell/settings_panel.py` | host settings apply; no model section |
+| `agent/shell/plugin_settings.py` | plugin sync and catalog refresh |
+| `agent/shell/classic_adapter/channel.py` | `announce_model` |
+| `agent/shell/classic_adapter/contract.py` | conversation event contract |
+| `agent/shell/web/web_assets/classic/agent-ui.html` | `#modelPickerSlot`, `#hdrModel` |
+| `agent/shell/web/web_assets/classic/js/plugins/host.js` | `aiAgentShell.models` and `aiAgentShell.styles` |
+| `agent/shell/web/web_assets/classic/js/composer/pickers.js` | `applyModel` |
+| `agent/shell/web/web_assets/classic/js/composer/model-sync.js` | conversation model hydration, allowed-list cache |
+| `agent/shell/web/web_assets/classic/js/chat/stream.js` | SSE `conversation` branch |
+| `plugins/multi_model/plugin.py` | config parsing, catalog source, `/catalog`, boot script |
+| `plugins/multi_model/plugin-config.ini` | real configuration, not committed |
+| `plugins/multi_model/plugin-config.ini.example` | configuration template with no credentials |
+| `plugins/multi_model/plugin-meta.json` | plugin identity and settings tab |
+| `plugins/multi_model/settings-schema.json` | structured settings form |
+| `plugins/multi_model/ui/model-picker.js` | composer model dropdown |
+| `plugins/multi_model/ui/model-picker.css` | dropdown styles |
+| `plugins.ini` | `[plugin:multi_model]` |
+| `docs/subsystems/plugins.md` | plugin extension points and shell bridges |
+| `docs/subsystems/multi-model.md` | plugin configuration and catalog behavior |
+| `tests/test_anthropic_provider.py` | Messages adapter tests |
+| `tests/test_provider_router.py` | router tests |
+| `tests/test_model_catalog.py` | catalog tests |
+| `tests/test_multi_model_plugin.py` | plugin tests |
+| `tests/test_provider_meta.py` | signature pass-through tests |
+| `tests/test_model_provider.py` | wire message tests |
+| `tests/test_settings_panel.py` | settings and plugin form tests |
+| `README.md` | unit test count |
+| `docs/unit-tests.md` | generated test index |
 
-## 13. 测试与验收
+## 13. Tests and acceptance
 
-### 13.1 单元测试
+### 13.1 Unit tests
 
-`tests/test_native_provider.py`：
+`tests/test_anthropic_provider.py`:
 
-1. SSE：文本增量、thinking 与 `signature`、`tool_use` 分片归并、`message_delta` 用量、
-   `error`、`ping`、缺 cache 字段按 0。
-2. 消息转换：system 合并到顶层、连续 `tool_result` 合并、图片 data URL、
-   assistant `tool_calls`、前导 assistant 被丢弃、悬空 `tool_result` 被丢弃、
-   重复 `tool_use.id` 加后缀且配对同步改名。
-3. `provider_meta` 只在本轮回放，跨轮丢弃。
-4. 地址构造、HTTP 错误映射、`thinking` 预算不足时降级为关闭。
-5. 事件类型只认 `data.type`：删掉 `event:` 行后仍能正确解析。
+1. SSE: text deltas, thinking and `signature`, `tool_use` fragment merging, `message_delta` usage, `error`, `ping`, and missing cache fields counted as 0.
+2. Message conversion: system merged to the top level, consecutive `tool_result` merged, image `data:` URL and `http(s)` URL, assistant `tool_calls`, leading assistant dropped, dangling `tool_result` dropped, duplicate `tool_use.id` suffixed with its pair renamed.
+3. `provider_meta` is replayed only within the current turn and dropped across turns; when thinking is disabled no block is sent; a thinking block without a signature is skipped with a warning.
+4. Address construction, HTTP error mapping, and thinking disabled when the budget is insufficient.
+5. Event type comes only from `data.type`: deleting the `event:` lines does not change parsing.
 
-`tests/test_provider_router.py`：按 `request.model` 选实例、默认回落、
-非权威模式的 `fallback_to_default`、未知模型报错、`reload_default` 后下一请求生效、
-`allowed_models` 与 `model` 属性。
+`tests/test_provider_router.py`: select an instance by `request.model`, default when the model is empty, `fallback_to_default` behavior for an allowed id, error for an unknown model, `reload_default` effective on the next request, `reload_policy` updates, and substitution of the wire model name.
 
-`tests/test_model_catalog.py`：`set_source` 替换语义、第二个来源抛 `RuntimeError`、
-`authoritative` 随条目数变化（3 条 → 0 条后失效）、`entries` 抛异常按空表并留痕、
-条目变化后整批重建 provider、disposer 注销并清缓存、`options` 返回副本。
+`tests/test_model_catalog.py`: replace semantics, second source raises `RuntimeError`, `authoritative` follows the current entry count and flips when the catalog becomes empty, callback failure retains the last good set, duplicate id rejected without clobbering the old catalog, provider cache rebuilt after an entry change, disposer unregisters and clears the cache, `options` returns a copy.
 
-`tests/test_multi_model_plugin.py`：解析器读取真实配置的键集合
-（防配置漂移）、BOM 文件可读、坏条目只影响自身、`default` 多于一个时的取舍、
-`catalog` 响应不含凭据。
+`tests/test_multi_model_plugin.py`: a missing file yields an empty catalog without diagnostics; defaults and first-entry default; a BOM file is readable; `context_window` is required and `compression_percent` is range-checked; `anthropic` options are typed and ignored on an `openai` entry; a bad entry affects only itself; placeholder keys are rejected; duplicate sections invalidate the file; the `default` selection rules; the `catalog` response carries no credentials; `register` contributes three disposers and hot-reads the file.
 
-`tests/test_model_provider.py` 增补：`_to_wire_messages` 不把 `provider_meta`
-发给 兼容协议网关（负向断言：构造带该键的历史，断言线格式里没有）。
+`tests/test_provider_meta.py`: the kernel passes `provider_meta` through unchanged; an unknown subkey is carried rather than validated; an old log without the key still derives its messages; `_to_wire_messages` strips the key from wire messages.
 
-`tests/test_settings_panel.py` 增补：权威时保存不动模型、非权威时保存后
-router 的默认实例被替换。
+`tests/test_model_provider.py`: wire message construction, tool declaration wrapping, and the reasoning replay rules (a tool message in history keeps its key with empty content; a plain assistant message drops the key).
 
-### 13.2 集成与验收
+`tests/test_settings_panel.py`: the kernel model section is absent; the plugin schema renderer masks secrets, rejects an empty required field, and preserves other sections on save; a host settings save does not touch the model catalog.
 
-1. `/health` 与 `ui-state` 返回目录 ids，响应体不含 `api_key` 与 `base_url`。
-2. 插件停用后模型清单为空，`/health.model_config.source` 变为 `none`。
-3. 没有有效模型时，`chat.py` 启动失败并提示配置 multi_model；
-   `build_app` 本身仍可构造（测试与无模型场景）。
-4. 切换模型后页头模型名更新，同会话第二个标签页同步更新，且服务端只被写一次。
-5. 未配置的模型 id 在 `send` 与 `ui_state_put` 都被拒绝。
-6. `plugins/multi_model` 坏条目不影响其它条目与服务启动，`catalog` 端点的
-   `invalid` 里能看到它。
-7. 插件删掉当前模型后，旧标签页的下一次发送回落到默认条目而不是报错。
-8. 插件停用后，`#modelPickerSlot` 被清空、`data-plugin-style` 的 `<link>` 被摘除；
-   再启用需要刷新页面（既有行为，见 11.3 第 10 条）。
-9. `aiAgentShell.styles.load("../x.css")` 与绝对路径都被拒绝，不留痕地不注入
-   不算通过——必须返回 `false` 并写 `console.error`。
-10. `python scripts/ci.py` 全绿；`check_imports.py` 与
-    `check_architecture_hygiene.py` 通过（内核里不出现 `multi_model` 这个词）。
+### 13.2 Integration and acceptance
 
-## 14. 边界与风险
+1. `/health` and `ui-state` return catalog ids; the response body contains no `api_key` or `base_url`.
+2. Disabling the plugin empties the model list and sets `/health.model_config.source` to `none`.
+3. With no valid model, the web shell starts with a warning, `build_app` still constructs, and a send fails with a clear "no model configured" error.
+4. Switching the model updates the header, updates a second tab of the same conversation, and writes the server state exactly once.
+5. An unconfigured model id is rejected by both `send` and `ui_state_put`.
+6. A bad entry in `plugins/multi_model` does not affect other entries or startup, and appears in `invalid` on the `catalog` endpoint.
+7. After the plugin deletes the current model, the next read or send from an old tab converges to the default entry instead of failing.
+8. Disabling the plugin clears `#modelPickerSlot` and removes the `<link data-plugin-style>`; re-enabling rebuilds the dropdown without a page refresh.
+9. `aiAgentShell.styles.load("../x.css")`, a URI scheme, and an empty path resolve to `false` and inject nothing; the server-side asset route independently rejects paths that escape the plugin directory.
+10. `python scripts/ci.py` passes; `check_imports.py` and `check_architecture_hygiene.py` pass, and the kernel contains no `multi_model` occurrence.
 
-1. `provider_meta` 里的 thinking 文本与 `reasoning_content` 存在重复存储。
-   这是换取原生 thinking 回传能力的代价；压缩与分段统计不读它。
-2. 该键是落盘格式的新增可选键，只前滚；旧日志读不到它时按无 thinking 处理。
-3. 模型 id 冲突会把请求路由到错误网关，因此重复 id 必须拒绝并留痕。
-   `id` 是跨配置文件、界面、请求共用的唯一标识，不做别名。
-4. 插件配置解析失败一律降级为「该条目无效」，不让服务起不来；
-   但"全部无效"会让 `model_config_state` 变成 `none`，由 shell 快速失败。
-5. 移除内建模型下拉是行为变更。若其它客户端依赖 `#modelPickerBtn`，
-   需要改用 `aiAgentShell.models` 桥。
-6. Native 的 `max_tokens` 必填且必须大于 thinking 预算；不满足时关闭 thinking。
-7. `effort`（High / Max）对 Native 不生效；该差异写进插件配置注释。
-8. 设置页不提供内核模型节；模型只由多模型插件维护。
-9. 每次 `snapshot()` 都会重读插件配置。配置文件在 10k 会话规模下的读盘成本
-   可忽略；条目数上千时再加 mtime 缓存，当前不提前优化。
-10. 插件开关后开屏脚本不重跑（`loadPluginScript` 按 URL 去重），
-    "停用 → 再启用"必须刷新页面才能恢复下拉。这是既有行为，方案选择如实记录
-    而不是加一套"可重执行脚本"的机制——那会引入脚本重复执行、重复绑定事件
-    这类更难排查的问题。
+## 14. Boundaries and risks
 
-## 15. 工程标准对齐
+1. `provider_meta` stores thinking text that duplicates `reasoning_content`. That duplication is the price of replaying thinking blocks; compaction and segment accounting do not read it.
+2. The key is an optional addition to the persisted format and only moves forward. Old logs without it are read as having no thinking blocks.
+3. A model id conflict routes to the wrong gateway, so duplicate ids must be rejected and reported. The id is the shared identity across the configuration file, the UI, and requests; aliases are not supported.
+4. A single entry that fails to parse becomes "that entry is invalid" and never prevents the service from starting. A file-level error, such as a duplicate section, invalidates the whole file. If no entry remains valid, `model_config_state` becomes `none` and the shell reports it.
+5. The shell has no built-in model picker. Any other client must use `aiAgentShell.models`; it cannot rely on `#modelPickerBtn`.
+6. `max_tokens` is required by the Messages protocol and must be greater than the thinking budget; otherwise thinking is disabled for that request.
+7. `effort` has no effect on a Messages entry. Depth control by level requires a Chat Completions entry for the same model.
+8. The settings page has no kernel model section; models are maintained only by the multi-model plugin.
+9. Every `snapshot()` re-reads the plugin configuration. At the current scale the file read is negligible; caching by mtime would add invalidation complexity that is not justified now.
+10. Re-enabling a plugin relies on script and mount pruning. If that path regresses, the dropdown does not return until the page is refreshed.
 
-| 准则 | 本方案的落点 | 验证方式 |
+## 15. Engineering constraints
+
+Related standards: [standards-alignment.md](standards-alignment.md).
+
+| Constraint | How the design satisfies it | Verification |
 |---|---|---|
-| `A2` / `A7` 依赖方向 | 新增文件全部落在既有层内；插件只在包外向下依赖 | `check_imports.py`（机） |
-| `A4` 扩展只加文件 | 新厂商 = 适配器文件 + `provider_registry` 一行；插件不构造实例 | 审 + 用例 |
-| `A6` 内核不知道插件名 | 目录改名 `multi_model`（内核零命中）；`MissingProvider` 文案不含插件路径 | `check_architecture_hygiene.py`（机） |
-| `A5` 装配点集中 | `build_app` 是唯一决定权威来源与降级态的地方 | 审 |
-| `A4` / `G3` 最小扩展 | 开屏样式复用既有 `loadPluginStyle`，不新增 HTTP 端点与贡献类型 | 文件清单差异 |
-| `B1` 只读视图真不可变 | 条目存规范化 JSON，`options`/`snapshot` 返回深拷贝；快照用 `tuple` | 改返回值后重读不变（15.4） |
-| `B3` 少用 `Any` | `provider_for → ModelProvider \| None`；`options` 只有 `dict` 一处 | 审 |
-| `B4` 一物一名 | 不用 `cursor`；`multi_model` 与 `model` 分指插件与模型；桥挂 `aiAgentShell` | 审 |
-| `B5` 折叠与修补分离 | `strip_stale_thinking` / `drop_dangling_tool_results` 都是纯函数 | 单测 |
-| `B6` 契约版本化 | `provider_meta` 为可选新增键，只前滚、旧日志免迁移 | 文档 + 单测 |
-| `C2` 终态穷尽 | `model_config_state` 三态；`/health` 显式暴露 | 验收 |
-| `C3` 真流式 | 文本/推理增量边到边出，不攒列表 | 审 |
-| `C4` 状态归属单一 | 权威只有 `ModelCatalog`；前端种子清空（15.2）；`live_state` 陈旧值在读取点收敛 | 单测 + `check_ui_js` |
-| `K1` / `K4` 并发 | `set_source` 原子替换、`snapshot` 快照一致性；4 写 8 读争用用例 | `-X dev` 并发作业（15.1） |
-| `E1` / `E3` 不丢错误、要留痕 | 坏条目、描述回调异常、越权保存都带定位信息写 stderr | 单测 |
-| `E2` / `Y7` 无全局豁免 | 不新增任何门禁豁免 | 审 |
-| `P6` 键名不硬编码 | `PROVIDER_META_KEY` 由 core 导出，读写两侧共用 | 审 |
-| `R5` 无遗留兼容层 | 内建下拉的 HTML/JS/CSS 按 15.3 清单同 PR 删净，不留别名与空守卫 | 审 + 文件清单 |
-| `S6` 秘密不进版本库 | 真实配置被 `.gitignore` 覆盖，不提交配置 | `git ls-files` |
-| `T1` 配置错误可定位 | `utf-8-sig`；诊断含文件、节、键、原因 | 单测（BOM 文件） |
-| `T4` 配置漂移检查 | 插件真实配置的键与 `config_schema` 比对 | `check_config_drift.py` |
-| `V5` / `V6` 快速失败 + 降级可见 | `none` 时启动失败；`/health.model_config` 显式降级位 | 验收 |
-| `X2` 负向测试 | 重复 id、线格式不含 `provider_meta`、未知子键忽略、缺 signature 降级（15.5） | 单测 |
-| `X3` 失败路径有测试 | BOM、坏条目、预算不足、悬空 tool_result、未配置模型 | 单测 |
-| `X6` 覆盖率归属 | 插件代码在 `--source=agent,plugins` 口径内（standards-alignment P3） | `check_coverage.py` |
-| `R1` 复杂度 | 见 15.7 的单文件预算；超阈值直接失败 | `check_complexity.py` |
-| `D3` 文档与代码一致 | README 用例数同步；`unit-tests.md` 由 `--check` 接管；插件扩展点补文档 | 门禁 |
+| Dependency direction | new files stay inside existing layers; the plugin depends downward only | `check_imports.py` |
+| Extension by addition | a new provider is one adapter file plus one registry row; the plugin constructs no instances | review and unit tests |
+| The kernel does not know plugin names | the plugin name appears only in the plugin; `MissingProvider` text names no path | `check_architecture_hygiene.py` |
+| A single assembly point | `build_app` is the only place that decides authority and degraded state | review |
+| Minimal extension | the boot style reuses the existing `loadPluginStyle`; no new HTTP endpoint or contribution type | file list |
+| Genuinely immutable read views | entries store canonical JSON; `options` and `snapshot` return copies and tuples | unit test: mutate a returned value and read again |
+| Few `Any` | `provider_for` returns `ModelProvider` or `None`; options are the only dictionary | review |
+| One name per concept | functions are named for their role; no abbreviation with two meanings | review |
+| Folding and repair are separate | `strip_stale_thinking` and `drop_dangling_tool_results` are pure functions | unit tests |
+| Contract versioning | `provider_meta` is an optional new key; old logs need no migration | documentation and unit tests |
+| Exhaustive end states | `model_config_state` has three values and `/health` exposes all of them | acceptance |
+| True streaming | text and reasoning deltas are emitted as they arrive, not accumulated into a list | review |
+| One owner per state | the catalog is the only authority; the frontend has no model seed; stale `live_state` values converge at read | unit tests and `check_ui_js.py` |
+| Concurrency | `set_source` replaces a reference atomically; `snapshot` is consistent | concurrency test |
+| Errors are not lost | bad entries, callback failures, and rejected saves carry location information | unit tests |
+| No global exemption | no gate is bypassed for this design | review |
+| Key names are not hard-coded | `PROVIDER_META_KEY` is exported by core and shared by reader and writer | review |
+| No legacy compatibility layer | no built-in picker, aliases, or empty guards remain | review and file list |
+| Secrets do not enter the repository | the real configuration is ignored by Git | `git ls-files` |
+| Configuration errors are locatable | `utf-8-sig`; diagnostics include file, section, key, and reason | unit test with a BOM file |
+| Configuration drift is checked | the plugin's key set is compared with `settings-schema.json` | `check_config_drift.py` |
+| Visible degradation | `none` is reported at startup and in `/health`; no hidden fallback | acceptance |
+| Negative tests | duplicate ids, no `provider_meta` on the wire, unknown subkeys ignored, missing signature degraded | unit tests |
+| Failure paths are tested | BOM, bad entry, insufficient budget, dangling `tool_result`, unconfigured model | unit tests |
+| Coverage ownership | the plugin and the new modules fall inside the `agent` and `plugins` coverage scope | `check_coverage.py` |
+| Complexity budgets | per-file limits are enforced by `check_complexity.py`; no new file is added to the allowlist | `check_complexity.py` |
+| Documentation matches code | README test count, generated test index, plugin extension points | gates |
 
-**存量缺口**（覆盖率、并发作业、依赖环、生成文档漂移）由
-[standards-alignment.md](standards-alignment.md) 统一整改。插件代码与
-`agent.shell` 一样受分层约束；本方案新增文件全部落在 `plugins/multi_model/`
-与 `agent/shell/web_assets/**`，不新增层。
+### 15.1 Catalog concurrency
 
-路径口径按 **alignment P2 完成之后**的结构写：`build_shell_app` / `serve` 已在
-`agent/entry/web.py`，`agent/shell/web.py` 只剩 `create_server`；第 12 节里凡是对
-"构造 app / 启动参数"的改动，实际落在 `entry/web.py`，不再落 `shell/web.py`。
+`ModelCatalog` is accessed by HTTP request threads and by configuration reloads at the same time. "Replace the catalog" must be atomic:
 
-下面补本方案自身必须闭合的 7 项。
+1. Use `threading.Lock`, not `RLock`. While the lock is held, only a reference swap or a reference read happens; no public method is called. An `RLock` would hide a re-entrancy mistake.
+2. `set_source(entries)`: parse, validate, deduplicate, and check id conflicts outside the lock, then build a complete new tuple. Enter the lock only to swap one reference, then leave.
+3. `snapshot()`: take the current tuple reference under the lock, leave the lock, and return a `tuple`, never an internal object.
+4. Invariant: any snapshot sees either the entire old entry set or the entire new one; a mixture is impossible. No I/O, provider call, or `live_state` write happens while the lock is held.
+5. Concurrency test (`tests/test_concurrency.py`): writers alternate two complete batches `a` and `b` while readers take snapshots; every snapshot must come from one batch, `authoritative` must match the entry count, and `default_id` must belong to the snapshot. A second test rotates entry options while readers request providers, and asserts the cache never returns an instance built from the other batch's options.
 
-### 15.1 `K1` / `K4` `ModelCatalog` 并发
+### 15.2 No model seed in the frontend
 
-`ModelCatalog` 被 HTTP 请求线程与配置重载同时访问，"替换目录"必须是**原子**的：
+The shell must not ship a hardcoded model list. `allowedModels` is only a runtime cache populated from `/health` and `ui-state`; it is not the authority and it is never seeded with model names. When `/health` is unavailable the list may be empty, and the plugin disables the dropdown with a reason in its title. No hardcoded list is used as a fallback.
 
-1. 用 `threading.Lock`（不用 `RLock`：持锁期间只调 `_snapshot_locked()` /
-   `_replace_locked()` 这类私有函数，禁止调公开方法；用 `RLock` 会把重入错误藏起来）。
-2. `set_source(entries)`：锁外完成解析、校验、去重与 id 冲突检查，构造一个**完整的新
-   元组**；进锁后只做一次引用替换；出锁。
-3. `snapshot()`：进锁取当前元组引用，出锁；返回 `tuple`，不返回内部对象。
-4. 不变量：任意一次 `snapshot()` 看到的条目集合要么全旧、要么全新，**不存在混合**；
-   持锁期间不做 I/O、不调用 provider、不写 `live_state`。
-5. 并发用例（`tests/test_concurrency.py`）：4 个写者 × 100 次交替 A/B 源（每条带
-   `source_id`），8 个读者 × 200 次取快照；断言每次快照里的 `source_id` 只有一个值。
-   去掉锁后该用例必须失败——这是锁的负向证明，PR 里记录演示。
+`check_ui_js.py` rejects vendor model id literals in `agent/shell/web/web_assets/**/*.js`; a negative test feeds a script containing such a literal and asserts failure.
 
-### 15.2 `C4` / `A5` 前端不得有模型种子
+### 15.3 Model display ownership
 
-`agent/shell/web_assets/classic/js/agent-ui.js:618` 目前硬编码 6 个模型
-（`upstream-v4-pro` 等），`/health` 失败时它就是**事实上的第二权威**，与
-"`ModelCatalog` 是唯一权威"冲突。
-
-1. 内建白名单整体删除（不是改成空数组留着）：`allowedModels` 及其
-   `splice/push` 补水（`:1180-1181`、`:1193`）全部移除；点击校验移入
-   `aiAgentShell.models.select()`，对照 `list()` 的结果判断。
-2. `/health` 不可用时：桥的 `list()` 返回空数组，插件据此禁用下拉 + `title`
-   写明原因，桥内 `console.warn` 留痕；不回退到任何硬编码列表（`E3`）。
-3. `check_ui_js.py` 增加规则：`agent/shell/web_assets/**/*.js` 不得出现厂商模型 id
-   字面量（`upstream-` / `vision-` / `target-`）；负向用例喂一段含 `upstream-v4-pro`
-   的 JS，断言失败。
-
-### 15.3 `R5` 内建下拉删除清单
-
-与 11.3 是同一件事，这里给完整清单。删除内建下拉的 HTML/CSS 后，以下符号必须
-在同一个 PR 删净（不许留"空对象守卫"续命）：
-
-| 符号 | 现状 | 处置 |
+| Symbol | Owner | Behavior |
 |---|---|---|
-| `allowedModels` | `agent-ui.js:618` 种子、`:730` 校验、`:1180-1193` 补水 | 删，校验进 `models.select()` |
-| `modelPickerBtn.onclick` | `:680` | 删 |
-| `#modelPickerMenu` 委派处理器 | `:695-713` | 删 |
-| `openModelPicker` / `closeModelPicker` / `toggleModelPicker` | `:715-727` | 删 |
-| `renderModelChoices` | 菜单项渲染 | 删 |
-| `applyModel` | `:728-737` | **保留**，收窄为 11.3 的三件事（写 tab、写页头、通知订阅者）；删掉其中的白名单校验 |
-| `.model-choice` 相关 CSS | 样式表内 | 删 |
+| `#modelPickerSlot` | shell | mount point only; the plugin renders the button and menu |
+| `#hdrModel` | shell | read-only display of `模型: <label>` |
+| `applyModel` | shell | writes the active tab's `selectedModel`, the header, and notifies subscribers |
+| model list and click validation | plugin and server | the plugin sends the clicked id; the server rejects an id outside the list in `send` and `ui_state_put` |
+| `#modelPicker` and its menu | removed | no built-in picker, no dead guard |
 
-`#hdrModel` 保留：它是壳层的只读展示位，由收窄后的 `applyModel` 写入；
-模型**选择**归插件，模型**展示**归壳层，这是两个渲染点，不冲突。
+Model selection belongs to the plugin; model display belongs to the shell. They are two rendering points, not competing owners.
 
-### 15.4 `B1` 深不可变
+### 15.4 Deep immutability
 
-- `ModelEntry` 为 `frozen=True`，`options` 存规范化后的 `dict`；
-- `options()` 每次返回 `dict(entry.options)`，嵌套 list 也复制；
-- `snapshot()` 返回 `tuple[ModelEntry, ...]`，调用方改不动内部；
-- 单测：改 `options()` 返回值 / `snapshot()[0]` 后再次读取，结果不变。
+- `ModelEntry` is `frozen=True`, and `options` stores canonical JSON.
+- `options` returns `dict(entry.options)` on every call; options are flat configuration values, and changing the returned dictionary cannot change the catalog.
+- `snapshot()` returns `tuple[ModelEntry, ...]`; a caller cannot mutate the catalog.
+- Unit test: mutate the value returned by `options()` or an element of `snapshot()`, read again, and assert the catalog is unchanged.
 
-### 15.5 `X2` 负向断言（4 条）
+### 15.5 Negative assertions
 
-1. 重复 `id` 的两个条目 → `set_source` 拒绝，保留原目录，stderr 含文件名与 id；
-2. Native 适配器产出的线格式**不得**出现 `provider_meta`（Compatible 专属键）；
-3. 未知的 `provider_meta` 子键 → 忽略且不抛错（前滚契约，`B6`）；
-4. thinking 块缺 `signature` → 不重放该块、留一条可见降级日志，不整体失败。
+1. Two entries with the same `id`: `set_source` rejects the batch, the previous catalog stays, and the error names the source and the id.
+2. The wire format produced by either adapter never contains `provider_meta`; it is a kernel-side key only.
+3. An unknown `provider_meta` subkey is ignored without raising; the contract is forward-only.
+4. A thinking block without a `signature` is not replayed, a visible degradation log is written, and the request is not failed outright.
 
-### 15.6 `D3` / `T4` 文档与配置
+### 15.6 Documentation and configuration
 
-- `docs/unit-tests.md` 重生成并由 `gen_unit_tests_md.py --check` 接管；
-- `docs/subsystems/plugins.md` 补 `multi_model` 的扩展点（目录权威、`aiAgentShell.models`、样式桥）；
-- README 用例数同步；
-- `plugins/multi_model/plugin-config.ini` 的键集合必须与 schema 双向一致，
-  接入 `standards-alignment` P3 的 `check_config_drift.py`（插件配置也纳入口径）。
+- `docs/unit-tests.md` is regenerated and checked by `gen_unit_tests_md.py --check`.
+- `docs/subsystems/plugins.md` documents the multi-model extension points: catalog authority, `aiAgentShell.models`, and the style bridge.
+- `README.md` keeps the unit test count in sync.
+- The key set of `plugins/multi_model/plugin-config.ini` matches `settings-schema.json` in both directions and is checked by `check_config_drift.py`.
 
-### 15.7 `R1` / 覆盖率归属
+### 15.7 Complexity and coverage
 
-| 文件 | 预算 |
-|---|---|
-| `agent/capabilities/model_catalog.py` | ≤ 250 行 |
-| `agent/mechanisms/provider_router.py` | ≤ 200 行 |
-| `agent/mechanisms/provider_registry.py` | ≤ 150 行 |
-| `agent/mechanisms/native_provider.py` | ≤ 450 行 |
-| `plugins/multi_model/plugin.py` | ≤ 250 行 |
-| `plugins/multi_model/ui/model-picker.js` | ≤ 300 行 |
-
-新文件不得进 `docs/complexity.md`。`standards-alignment` P3 把覆盖率口径改为
-`--source=agent,plugins` 后，本插件与上述 `agent/*` 新模块才真正进入下限；
-在那之前不宣称"已覆盖"。
+Coverage is measured over `agent` and `plugins`; the new modules and the plugin fall inside that scope. Per-file complexity limits are enforced by `check_complexity.py`, and no new file is added to the complexity allowlist. A module is not claimed as covered until it is inside the measured scope.

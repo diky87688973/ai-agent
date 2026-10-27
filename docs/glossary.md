@@ -1,111 +1,113 @@
-# 术语
+**English** | [中文](glossary.zh.md)
 
-项目里有些词是自定义的，含义固定。本页是它们的**唯一定义处**。
+# Glossary
 
-## 结构
+Some terms in the project are custom and have fixed meanings. This page is the **only place** where they are defined.
 
-**模块链**
-内核的行为结构。宿主反复按固定顺序跑一串模块，每个模块只实现 `execute(ports) -> Outcome`。顺序为 `输入 → 待发送队列插入 → 压缩 → 模型 → 工具`。见 [architecture.md](architecture.md)。
+## Structure
 
-**装配根**
-`agent/app.py`。唯一同时引用五层的文件，负责构建 `AppContext` 并登记服务。它不属于任何一层。
+**Module chain**
+The kernel's behavioral structure. The host repeatedly runs a fixed sequence of modules, each implementing only `execute(ports) -> Outcome`. The order is `input → queued input insertion → compaction → model → tools`. See [Architecture](architecture.md).
 
-**双轨**
-决策链与事件总线两条互不干扰的轨道。决策链参与控制流，事件总线只做通知。见 [architecture.md](architecture.md)。
+**Composition root**
+`agent/app.py`. The only file that references all five layers at once; it builds `AppContext` and registers services. It belongs to no layer.
 
-**端口**
-`Ports`。模块操作外界的**唯一**通路。模块拿不到上下文对象，也不能直接碰文件、网络或工具实现。
+**Dual track**
+Two independent tracks: the decision chain and the event bus. The decision chain participates in control flow; the event bus only delivers notifications. See [Architecture](architecture.md).
 
-## 数据
+**Ports**
+`Ports`. The **only** path through which modules act on the outside world. Modules cannot obtain the context object, nor can they touch files, the network, or tool implementations directly.
 
-**事实**
-已经发生、落盘后不可改写的一件事。单位是事件（`Event`），形状是"类型 + 载荷"。
+## Data
 
-**事实流**
-某会话全部事实按发生顺序组成的 append-only 日志，一行一条，落在 `<data_root>/sessions/<cid>.raw`。
+**Fact**
+Something that has happened and cannot be rewritten once persisted. Each fact is an event (`Event`), shaped as "type + payload".
 
-**投影**
-事实的实时视图。界面看到的 SSE 流就是投影，不是另一份真相。
+**Fact stream**
+The append-only log of all facts in a session, in occurrence order, one event per line, stored at `<data_root>/sessions/<cid>.raw`.
 
-**契约**
-跨层传递的数据对象，冻结在 `core/` 内。跨层只传契约对象，不传裸 dict。
+**Projection**
+A live view of facts. The SSE stream shown in the UI is a projection, not a second source of truth.
 
-**轮（Round）**
-以一条 `user` 消息起轮，含其后的 assistant 与 tool 消息。上下文按轮为单位保留、压缩、定位。
+**Contract**
+A data object passed across layers, fixed in `core/`. Layers exchange only contract objects, never bare dicts.
 
-**块（Chunk）**
-上下文里带名字的一段，内含若干轮。共五块，顺序固定。见 [subsystems/context.md](subsystems/context.md)。
+**Round**
+A round begins with a `user` message and includes the assistant and tool messages that follow it. Context retention, compaction, and boundaries operate on whole rounds.
 
-**回合（Turn）**
-一条输入引发的全部活动，直到没有任何模块要求续行。
+**Chunk**
+A named section of the context; the recent-memory chunk holds the conversation rounds. There are five chunks in a fixed order. See [Context management](subsystems/context.md).
 
-**趟（Pass）**
-模块链从头到尾跑一遍。一个回合通常包含多趟。
+**Turn**
+All activity triggered by one input, until no module requests another pass or the module chain terminates.
 
-## 控制
+**Pass**
+One complete run of the module chain from start to finish. A turn usually contains several passes.
+
+## Control
 
 **Outcome**
-模块执行结果的唯一形状，**只带控制信号**：`ok` / `next` / `halt` / `suspend` / `stopped`。数据不走它。
+The only shape of a module's execution result, carrying **control signals only**: `ok` / `next` / `halt` / `suspend` / `stopped`. Data does not travel through it.
 
-**续行**
-`Outcome.next` 表达"本趟做完了，但还需要再跑一趟"。宿主的退出条件之一就是"没有任何模块要求续行"。
+**Continuation**
+`Outcome.next` means "this pass is done, but another pass is needed". One of the host's exit conditions is that no module requests continuation.
 
-**挂起**
-`Outcome.suspend` 表达"需要外部输入，交回控制权"。不阻塞线程。
+**Suspend**
+`Outcome.suspend` means "external input is required; control returns to the caller". It does not block the thread.
 
-**门控**
-住在决策链上的拦截规则，能阻止主流程。订阅者无法阻止主流程、执行顺序也不确定，所以它不走事件总线。
+**Gate**
+An interception rule on the decision chain that can block the main flow. Event-bus subscribers cannot block the main flow and have no defined execution order, so gates do not use the event bus.
 
-**写盘四步协议**
-写类工具的最强规则：预览 → 确认 → 凭 `confirm_id` 提交 → 重读。见 [subsystems/tools.md](subsystems/tools.md)。
+**Write four-step protocol**
+The strictest rule for write tools: preview → confirm → commit with a `confirm_id` → re-read. See [Tools](subsystems/tools.md).
 
 **confirm_id**
-一次写预览的标识。提交时只凭它，写参数由门控从快照恢复，模型不重传。同一路径再次预览或未提交快照达到上限时，旧 id 会被挤掉而失效。
+The identifier for one write preview. A commit uses only this id; the gate restores the write arguments from the snapshot, and the model does not resend them. The id is evicted and becomes invalid when the same path is previewed again or the number of uncommitted snapshots reaches its limit.
 
 **review**
-写盘的前置动作。模型要给出基于实际审阅的结论与验证证据，才能解锁预览。
+A prerequisite for writing. The model must provide a conclusion grounded in an actual review and supporting verification evidence before a preview is unlocked.
 
-## 上下文
+## Context
 
-**保留窗口**
-末尾若干用户轮保持原文、不参与压缩的范围，由 `full_user_rounds` 决定。
+**Retention window**
+The preferred range of trailing user rounds kept verbatim. Its width is set by `full_user_rounds`; compaction may still consume these rounds when no earlier history can be reduced.
 
-**摘要**
-已被压缩的历史轮次概括而成的文本，落在"记忆文件"块。
+**Summary**
+Text distilled from history rounds that have already been compacted, stored in the "memory file" chunk.
 
-**压缩**
-把越界轮次压成摘要的动作。触发条件是估算 token 超过阈值。
+**Compaction**
+The act of condensing over-limit rounds into a summary. It is triggered when the estimated token count exceeds the threshold.
 
-**估算 token**
-不是精确计数，是按字符类型与消息结构推算的值。图片按固定值计。
+**Estimated tokens**
+An estimate rather than an exact count, derived from character types and message structure. Images use a fixed value.
 
-## 会话
+## Sessions
 
-**会话 id（cid）**
-会话标识。必须匹配 `^[A-Za-z0-9_-]{8,128}$`，新会话用 UUID4。它同时用作落盘文件名，所以这道校验也是防路径穿越的边界。
+**Session id (cid)**
+The session identifier. It must match `^[A-Za-z0-9_-]{8,128}$`; new sessions use UUID4. It also serves as the on-disk file name, so this validation is a path-traversal boundary.
 
-**待发送队列（conversation queue）**
-会话级的消息暂存区。用户与 Agent 消息在会话忙时先排队，回合结束后按一条一轮投递；标记插入的消息在下一个安全模型轮次进入上下文。
+**Conversation queue**
+A session-level staging area for messages. When a session is busy, user and agent messages are queued; after the turn ends they are delivered one per turn. Messages marked for insertion enter the context at the next safe model pass.
 
-**协作网格（mesh）**
-让多个会话互相投递消息的机制：名册、运行占位与忙闲原子投递。
+**Mesh**
+A mechanism that lets multiple sessions deliver messages to one another: a roster, run claims, and atomic delivery based on busy/idle state.
 
-**运行态登记**
-回答"某会话的回合是不是正在跑"的落盘记录。判定需要心跳未过期**且**记录里的进程还活着。
+**Runtime registry**
+An on-disk record that answers whether a session's turn is running. A run counts as active only when the heartbeat has not expired **and** the recorded process is still alive.
 
-**跨进程锁**
-按日志文件加的排它锁。同会话的"记偏移 → 追加 → 回滚"是读改写，进程内锁挡不住别的进程，会静默丢行。
+**Cross-process lock**
+An exclusive lock per log file. For a session, "note the offset → append → roll back" is a read-modify-write sequence; an in-process lock cannot stop another process, and concurrent writes silently lose lines.
 
-## 壳层
+## Shell
 
-**适配层**
-`agent/shell/classic_adapter/`。在经典界面与内核之间做双向翻译，行为差异的首选落点。
+**Adapter layer**
+`agent/shell/classic_adapter/`. Performs bidirectional translation between the classic UI and the kernel; the preferred place to handle behavioral differences.
 
-**内联打包**
-把界面资源全部内联进一个 HTML，运行时零额外请求。
+**Inline bundling**
+Inlines all UI assets into a single HTML file, so the running page makes no additional requests.
 
 **SSE**
-界面与服务的单向事件通道。每帧带会话 id 与序号，断线重连靠序号续传。
+The one-way event channel between the UI and the server. Each frame carries a session id and sequence number; reconnection resumes from the sequence.
 
-**可见根**
-文件查看器与补全能看到的目录范围，由 `--fs-root` 指定。
+**Visible root**
+The directory scope visible to the file viewer and path completion, specified by `--fs-root`.

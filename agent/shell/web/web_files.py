@@ -289,16 +289,17 @@ class FileViewerActions:
 
         返回 (status, body_bytes | error_payload, content_type)。
 
-        `root` 为 None 时改用全部可见根：经典界面的 Markdown 会把正文里
-        绝对路径指向的本地文件交给 `/api/media`，而它可能不在第一个根所在的盘上
-        —— 只认单根会让别的盘一律 403。
+        `root` 为 None 时优先用显式媒体根 `media_root`，未配置时用全部可见根：
+        经典界面的 Markdown 会把正文里绝对路径指向的本地文件交给 `/api/media`，
+        它可能不在第一个根所在的盘上——只认单根会让别的盘一律 403。
         """
         raw = str(path or "").strip()
         if not raw:
             return 400, {"error": "missing path"}, "application/json"
         target = Path(raw)
         if root is None:
-            if not within_any_root(target, self.fs_roots or default_fs_roots()):
+            roots = [self.media_root] if self.media_root else (self.fs_roots or default_fs_roots())
+            if not within_any_root(target, roots):
                 return 403, {"error": "path outside media root"}, "application/json"
         else:
             try:

@@ -1,195 +1,197 @@
-# 工程标准
+**English** | [中文](engineering-standards.zh.md)
 
-本文件是模块结构、单一职责与资产归属的强制规范。实现与本文件冲突时，以本文件为判断依据；调整结构前先更新本文件与门禁。
+# Engineering standards
 
-## 1. 强制等级
+These rules are mandatory for module structure, single responsibility, and asset ownership. Where the implementation conflicts with them, the rules take precedence; update the rules and the gates before changing structure.
 
-| 等级 | 含义 |
+## 1. Requirement levels
+
+| Level | Meaning |
 |---|---|
-| MUST | 不变量；违反即阻塞合并 |
-| SHOULD | 默认做法；偏离需在评审中给出可验证理由 |
-| MAY | 可选；同一模块内保持一致 |
+| MUST | Invariant; a violation blocks merge |
+| SHOULD | Default practice; a deviation requires a verifiable reason in review |
+| MAY | Optional; stay consistent within a module |
 
-## 2. 模块结构
+## 2. Module structure
 
-### 2.1 分层
+### 2.1 Layering
 
-依赖方向固定为：
+The dependency direction is fixed:
 
 ```text
 entry → shell → capabilities → mechanisms → core
 ```
 
-`agent/app.py` 是装配根，不属于五层；只有它可以同时引用五层并登记进程级服务。任何层不得运行期导入 `app.py` 或 `entry/`。
+`agent/app.py` is the composition root and belongs to none of the five layers; it is the only file that may reference all five layers and register process-level services. The lower layers — core, mechanisms, capabilities, and shell — must not import `agent/app.py` or `agent/entry/` at runtime; the entry layer imports the composition root. Pure type-checking imports under `if TYPE_CHECKING:` are exempt.
 
-### 2.2 模块归属
+### 2.2 Module ownership
 
-| 路径 | 职责 | 不承担 |
+| Path | Responsibility | Does not own |
 |---|---|---|
-| `agent/core/` | 模块链、宿主循环、端口、事件契约、会话事实契约 | provider、插件、UI、具体工具 |
-| `agent/core/modules/` | 单步模块：输入、队列输入、压缩、模型、工具 | 服务装配、HTTP、插件加载 |
-| `agent/mechanisms/providers/base.py` | `ModelProvider` 协议与 `ModelRequestError` | 具体网关请求、UI |
-| `agent/mechanisms/providers/sse.py` | SSE 拆帧、流总超时、关闭诊断 | provider 请求体、业务消息 |
-| `agent/mechanisms/providers/` | 兼容协议与原生协议的请求、流解析 | Echo、路由、装配 |
-| `agent/mechanisms/providers/echo.py` | 无网络假模型 | 真实网关、路由 |
-| `agent/mechanisms/providers/missing.py` | 缺少可用模型时的占位 | 真实网关、路由 |
-| `agent/mechanisms/providers/debug.py` | 共享调试开关 | 请求转换、流解析 |
-| `agent/mechanisms/providers/tool_schema.py` | 工具 schema 转换 | provider 装配、路由 |
-| `agent/mechanisms/provider_registry.py` | 唯一具体 provider 装配点 | 路由规则、请求转换 |
-| `agent/mechanisms/provider_router.py` | 按模型条目选择 provider | 具体 provider 实现 |
-| `agent/mechanisms/context/rounds.py` | `Round`、`ContextChunk`、轮与工具链边界 | 布局、摘要、存储 |
-| `agent/mechanisms/context/tokens.py` | token 估算与推理裁剪 | 装配、来源、策略 |
-| `agent/mechanisms/context/layout.py` | 分段布局、压缩区间、渲染统计 | 来源注册、压缩器状态 |
-| `agent/mechanisms/context/sources.py` | `ContextSources`、插件段与来源元数据 | 管线装配、provider |
-| `agent/mechanisms/context/contract.py` | 压缩器依赖的窄接口 | 管线内部状态 |
-| `agent/mechanisms/context/pipeline.py` | 三拼接装、分段装配 | 摘要生成、HTTP、插件加载 |
-| `agent/mechanisms/compaction/compactor.py` | 压缩触发、覆盖前缀与摘要接入 | 管线内部函数、UI |
-| `agent/mechanisms/quality/` | 写盘门控、检查、待确认状态 | 工具实现、HTTP |
-| `agent/mechanisms/session_store.py` | 事实日志读写、seq、原子追加/回滚；行编解码、加密、锁分离在同包模块 | 会话展示、UI 字段 |
-| `agent/capabilities/registry.py` | 工具注册表与工具协议 | 具体工具、服务装配 |
-| `agent/capabilities/builtin/` | 内置工具，每个文件一个工具域 | 任务协议、插件加载 |
-| `agent/capabilities/tasks/` | 任务工具：run_type、todo、confirm、sleep、goal | 内核链、HTTP |
-| `agent/capabilities/plugins.py` | 插件装载与 Host；PluginContext / 贡献账本分离在 `plugin_context.py` / `plugin_ledger.py` | 内核业务、具体插件名 |
-| `agent/shell/web/server.py` | HTTP 服务装配与启动 | 路由分派、静态资源、SSE 帧 |
-| `agent/shell/web/web_routes.py` | HTTP 动词与路径分派、请求体/错误出口 | 具体业务动作、经典页面实现 |
-| `agent/shell/web/web_static.py` | 壳层静态资源、路径与协议常量 | 插件私有资产 |
-| `agent/shell/web/web_classic.py` | 经典页面与经典 SSE | JSON API 业务 |
-| `agent/shell/web/web_plugin.py` | 插件端点与插件资产转发 | 插件内部业务 |
-| `agent/shell/web/web_api.py` | `WebShell` 入口与连接/运行态；业务动作按 mixin 分在 `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` | 路由分派 |
-| `agent/shell/session/runner.py` | 回合线程、取消、队列抽干、生命周期 | 队列/目标/提示/恢复实现 |
-| `agent/shell/session/queue.py` | 队列领取、释放、补投 | 回合循环 |
-| `agent/shell/session/goal.py` | 目标与自主续跑判定 | 运行线程 |
-| `agent/shell/session/prompt.py` | 系统提示与运行态尾部 | 模型调用 |
-| `agent/shell/session/resume.py` | 外部工具结果恢复 | 回合循环 |
-| `agent/shell/session/heartbeat.py` | 运行态心跳 | 回合终态 |
-| `agent/shell/classic_adapter/inbound.py` | 入站门面与 API 形状 | 历史折叠、布局、状态 |
-| `agent/shell/classic_adapter/outbound.py` | 内核事件到经典事件的翻译门面；工具/回合事件分在 `outbound_tools.py` / `outbound_turns.py` | 业务状态、HTTP 分发 |
-| `agent/shell/classic_adapter/history.py` | 历史折叠、附件、工具回显 | 布局、会话列表 |
-| `agent/shell/classic_adapter/layout.py` | 经典上下文布局、覆盖、缩放 | 历史存储 |
-| `agent/shell/classic_adapter/state.py` | 经典会话级状态 | 事实日志 |
-| `agent/shell/classic_adapter/sessions.py` | 会话标题、日期分组 | 会话运行 |
-| `agent/shell/classic_adapter/contract.py` | 经典事件与字段常量 | 业务实现 |
-| `agent/shell/context_dump.py` | 只读上下文快照 | 模型请求 |
-| `agent/entry/` | 进程入口：读配置、建 App、启动壳 | 业务实现 |
-| `plugins/<name>/` | 插件自有工具、配置、UI、主题资产 | 内核层、壳层公共资产 |
+| `agent/core/` | Module chain, host loop, ports, event contracts, session fact contracts | Providers, plugins, UI, concrete tools |
+| `agent/core/modules/` | Single-step modules: input, queued input, compaction, model, tools | Service assembly, HTTP, plugin loading |
+| `agent/mechanisms/providers/base.py` | `ModelProvider` protocol and `ModelRequestError` | Concrete gateway requests, UI |
+| `agent/mechanisms/providers/sse.py` | SSE frame splitting, stream total timeout, close diagnostics | Provider request bodies, business messages |
+| `agent/mechanisms/providers/` | Requests and stream parsing for compatible and native protocols | Echo, routing, assembly |
+| `agent/mechanisms/providers/echo.py` | Network-free fake model | Real gateways, routing |
+| `agent/mechanisms/providers/missing.py` | Placeholder used when no model is available | Real gateways, routing |
+| `agent/mechanisms/providers/debug.py` | Shared debug switches | Request conversion, stream parsing |
+| `agent/mechanisms/providers/tool_schema.py` | Tool schema conversion | Provider assembly, routing |
+| `agent/mechanisms/provider_registry.py` | The only assembly point for gateway providers | Routing rules, request conversion |
+| `agent/mechanisms/provider_router.py` | Selects a provider per model entry | Concrete provider implementations |
+| `agent/mechanisms/context/rounds.py` | `Round`, `ContextChunk`, turn and tool-chain boundaries | Layout, summaries, storage |
+| `agent/mechanisms/context/tokens.py` | Token estimation and reasoning trimming | Assembly, sources, policy |
+| `agent/mechanisms/context/layout.py` | Segment layout, compaction ranges, render statistics | Source registration, compactor state |
+| `agent/mechanisms/context/sources.py` | `ContextSources`, plugin segments, source metadata | Pipeline assembly, providers |
+| `agent/mechanisms/context/contract.py` | Narrow interface the compactor depends on | Pipeline internal state |
+| `agent/mechanisms/context/pipeline.py` | Three-part assembly, segment assembly | Summary generation, HTTP, plugin loading |
+| `agent/mechanisms/compaction/compactor.py` | Compaction triggers, covered prefixes, summary integration | Pipeline internals, UI |
+| `agent/mechanisms/quality/` | Write gates, checks, pending-confirmation state | Tool implementations, HTTP |
+| `agent/mechanisms/session_store.py` | Fact log reads and writes, seq, atomic append/rollback; line codec, encryption, and locking live in sibling modules of the same package | Session display, UI fields |
+| `agent/capabilities/registry.py` | Tool registry and tool protocol | Concrete tools, service assembly |
+| `agent/capabilities/builtin/` | Built-in tools, one tool domain per file | Task protocol, plugin loading |
+| `agent/capabilities/tasks/` | Task tools: run_type, todo_list, user_confirm, goal | Kernel chain, HTTP |
+| `agent/capabilities/plugins.py` | Plugin loading and Host; `PluginContext` / contribution ledger live in `plugin_context.py` / `plugin_ledger.py` | Kernel business, concrete plugin names |
+| `agent/shell/web/server.py` | HTTP service assembly and startup | Route dispatch, static assets, SSE frames |
+| `agent/shell/web/web_routes.py` | HTTP verb and path dispatch, request body and error exits | Concrete business actions, classic page implementation |
+| `agent/shell/web/web_static.py` | Shell static assets, paths, protocol constants | Plugin-private assets |
+| `agent/shell/web/web_classic.py` | Classic pages and classic SSE | JSON API business |
+| `agent/shell/web/web_plugin.py` | Plugin endpoints and plugin asset forwarding | Plugin-internal business |
+| `agent/shell/web/web_api.py` | `WebShell` entry and connection/runtime state; business actions split by mixin into `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` / `web_subagents.py` | Route dispatch |
+| `agent/shell/session/runner.py` | Turn thread, cancellation, queue draining, lifecycle | Queue, goal, prompt, and recovery implementations |
+| `agent/shell/session/queue.py` | Queue claim, release, re-delivery | Turn loop |
+| `agent/shell/session/goal.py` | Goal and autonomous-continuation decision | Run thread |
+| `agent/shell/session/prompt.py` | System prompt and runtime tail | Model calls |
+| `agent/shell/session/resume.py` | External tool result recovery | Turn loop |
+| `agent/shell/session/heartbeat.py` | Runtime heartbeat | Turn terminal state |
+| `agent/shell/classic_adapter/inbound.py` | Inbound facade and API shape | History folding, layout, state |
+| `agent/shell/classic_adapter/outbound.py` | Facade translating kernel events into classic events; tool and turn events split into `outbound_tools.py` / `outbound_turns.py` | Business state, HTTP dispatch |
+| `agent/shell/classic_adapter/history.py` | History folding, attachments, tool echo | Layout, session list |
+| `agent/shell/classic_adapter/layout.py` | Classic context layout, coverage, scaling | History storage |
+| `agent/shell/classic_adapter/state.py` | Classic session-level state | Fact log |
+| `agent/shell/classic_adapter/sessions.py` | Session titles, date grouping | Session runs |
+| `agent/shell/classic_adapter/contract.py` | Classic event and field constants | Business implementation |
+| `agent/shell/context_dump.py` | Read-only context snapshot | Model requests |
+| `agent/entry/` | Process entry: read config, build App, start shell | Business implementation |
+| `plugins/<name>/` | Plugin-owned tools, configuration, UI, theme assets | Kernel layer, shell public assets |
 
-### 2.3 单一职责
+### 2.3 Single responsibility
 
-MUST：
+MUST:
 
-1. 一个模块只有一个主要变更轴；模块名必须能说明它为什么存在。
-2. 门面只做组合与形状转换；业务规则、状态机、压缩策略不得藏在门面里。
-3. provider 具体实现之间不得互导；只有 `provider_registry.py` 可以导入具体实现。
-4. `provider_router.py` 只能依赖 `providers/base.py`。
-5. `ContextCompactor` 只能通过 `context/contract.py` 使用上下文能力，不得导入 `pipeline.py`、`layout.py`、`rounds.py`、`sources.py`、`tokens.py` 的内部实现。
-6. SessionRunner 只编排；队列、目标、提示词、恢复、心跳分别由 `session/` 下的模块承担。
-7. classic `inbound.py` 只做入站门面；历史、布局、状态、会话列表分别落在 `history.py`、`layout.py`、`state.py`、`sessions.py`。
-8. 每个内置任务工具一个文件；共享异常与参数校验只放在 `tasks/common.py`。
-9. HTTP 路由只做分派；静态资源、经典页面、插件端点归 `web_static.py`、`web_classic.py`、`web_plugin.py`，JSON 业务归 `web_api.py` 及其动作 mixin。
-10. 单文件超过 800 行或单函数超过 80 行必须进入 `docs/complexity.md` 的登记与拆分计划；不得以注释豁免。
+1. A module has exactly one primary axis of change; its name must explain why it exists.
+2. A facade only composes and reshapes; business rules, state machines, and compaction policy must not hide inside a facade.
+3. Provider implementations must not import one another. Gateway providers are assembled only by `provider_registry.py`; the fake and placeholder providers are referenced directly by the assembly root and entry.
+4. `provider_router.py` may depend, within the provider package, only on `providers/base.py`.
+5. `ContextCompactor` may use context capabilities only through `context/contract.py`; it must not import the internals of `pipeline.py`, `layout.py`, `rounds.py`, `sources.py`, or `tokens.py`.
+6. `SessionRunner` only orchestrates; queues, goals, prompts, recovery, and heartbeat belong to the modules under `session/`.
+7. Classic `inbound.py` is an inbound facade only; history, layout, state, and session lists live in `history.py`, `layout.py`, `state.py`, and `sessions.py`.
+8. Each built-in task tool has its own file; shared exceptions and argument validation live only in `tasks/common.py`.
+9. HTTP routes only dispatch; static assets, classic pages, and plugin endpoints belong to `web_static.py`, `web_classic.py`, and `web_plugin.py`; JSON business actions belong to `web_api.py` and its action mixins.
+10. A file over 800 lines, a function over 80 lines, or a file with more than 40 functions fails `scripts/check_complexity.py`; there is no exemption table. `docs/complexity.md` is a generated report and must be regenerated after any change that moves or resizes code.
 
-禁止：
+Prohibited:
 
 ```text
-provider 具体实现互导
-router 导入具体 provider
-compactor 导入 context 内部实现
-web_routes 执行业务逻辑
-inbound 直接持有历史/布局/状态实现
-同一职责在门面与子模块各实现一份
-为旧导入路径保留再导出
+provider implementations importing one another
+router importing a concrete provider
+compactor importing context internals
+web_routes executing business logic
+inbound directly owning history/layout/state implementations
+the same responsibility implemented in both a facade and a submodule
+re-exports kept for old import paths
 ```
 
-### 2.4 契约与状态
+### 2.4 Contracts and state
 
-- 控制流走返回值，业务数据走事件；模块不得共享可变业务状态。
-- 每份可变状态只有一个权威持有者：进程级在 `AppContext`，会话级在 `LiveState`/`SessionContext`，回合计在 `ToolTurnContext`。
-- 跨模块只通过既有端口、事件、注册表或窄接口访问；不得跨层导入私有名。
-- 追加写必须整批原子；失败由同一重试队列负责，上层不得重复补偿。
+- Control flow uses return values; business data uses events. Modules must not share mutable business state.
+- Every piece of mutable state has exactly one authoritative holder: process level in `AppContext`, session level in `LiveState` / `SessionContext`, turn level in `ToolTurnContext`.
+- Cross-module access goes only through existing ports, events, registries, or narrow interfaces; private names must not cross layers.
+- Appends must be atomic per batch; failures are handled by the same retry queue, and upper layers must not compensate twice.
 
-## 3. 资产归属
+## 3. Asset ownership
 
-资产必须归到能对其生命周期、失败行为与契约负责的模块。新增或移动资产前必须回答：为什么属于这里、其他模块为什么不能拥有、能否由既有字段派生、唯一注册点、是否有重复副本、缺失/卸载影响谁。
+An asset must belong to the module accountable for its lifecycle, failure behavior, and contract. Before adding or moving an asset, answer: why it belongs here, why no other module can own it, whether it can be derived from existing fields, where the single registration point is, whether a duplicate copy exists, and who is affected when it is missing or unloaded.
 
-| 资产 | 权威归属 | 注册/加载点 | 约束 |
+| Asset | Authoritative owner | Registration/load point | Constraint |
 |---|---|---|---|
-| 内核模块与端口 | `agent/core/` | `core/modules/__init__.py`、`core/engine_factory.py` | 不出现具体插件名、具体 provider |
-| Provider 协议与实现 | `agent/mechanisms/providers/` | `provider_registry.py` | 具体实现不互导；router 只认 base |
-| 模型选择规则 | `provider_router.py` | `app.py` 装配 | 不持有具体网关逻辑 |
-| 上下文模型、布局、来源 | `agent/mechanisms/context/` | `app.py` 构建 `ContextPipeline` | 每模块单一变更轴 |
-| 压缩策略与摘要接入 | `agent/mechanisms/compaction/` | `app.py` 构建压缩器工厂 | 只通过 `context/contract.py` |
-| 工具协议与注册表 | `agent/capabilities/registry.py` | `app.py` 构建 `ToolRegistry` | 工具只能注册一次 |
-| 内置工具 | `agent/capabilities/builtin/` | `app.py` 的 `build_plugins` 调用 | 工具参数/schema 归工具自身 |
-| 任务工具与确认协议 | `agent/capabilities/tasks/` | `tasks.build_plugins` → `app.py` | 共享异常只放 `common.py` |
-| 插件工具/端点/面板 | `plugins/<name>/` | `PluginHost` + `ContributionRegistry` | 插件私有资产不进壳层 |
-| 插件开关与配置 | `plugins.ini`、插件 `plugin-config.ini` | `PluginHost`、设置页 API | 插件键归插件；宿主键归 `config.ini` |
-| 宿主配置键/默认值 | `agent/config.py`、`config.ini` | 装配根读取 | 新增键必须同步 `.example` 与配置文档 |
-| 模型目录 | `capabilities/model_catalog.py` + 多模型插件 | 插件运行时刷新 | 模型配置不由宿主页写凭据 |
-| 事件名与事件载荷 | `agent/core/event_name.py`、`agent/core/events.py` | 模块 `ports.emit` | 未知事件跳过；字段变更须声明兼容 |
-| 经典事件/字段投影 | `classic_adapter/contract.py` | `outbound*.py` / `inbound.py` | 适配层只做形状翻译 |
-| HTTP 鉴权 | `shell/web/auth/`、`shell/web/web_auth.py` | `server.create_server` 注入 `AuthRuntime` | 密码/会话/Token/CSRF/策略归壳层；不进 core |
-| HTTP 路由 | `shell/web/web_routes.py` | `web.py` 绑定 `_Handler` | 业务动作在 `web_api.py` 及动作 mixin |
-| 经典页面/SSE | `shell/web/web_classic.py` | `_Handler` 混入 | 不复制 JSON API |
-| 插件 HTTP 端点 | `shell/web/web_plugin.py` | `PluginHost.add_route` | 精确匹配，不做通配 |
-| 壳层公共 UI/CSS/JS | `shell/web/web_assets/`、`shell/web/ui_bundle.py` | `ui_bundle` 内联清单 | 公共资产归壳层 |
-| 插件 UI/主题/图标 | `plugins/<name>/ui/` | 插件 `add_panel`/`add_ctx_segment_style` | 用 `plugin_root`，不写死 `plugins/<name>` |
-| 界面配置 | `web-ui-config.ini` | 壳层读取 | 非插件私有配置 |
-| 会话事实 | `data/sessions/*.raw` | `mechanisms/session_store.py` | append-only；不得直接改写 |
-| 运行态数据 | `data/{queues,mesh,plugin,session_state,recycle,logs,auth,auth2..auth9}` | 对应 mechanisms/shell 持有者 | 只经各自服务访问；不得复制权威状态 |
-| 规则资产 | `rules/*.md` | `rules` 插件，经 `ContextSources` 注入 | 用户/项目规则归插件，不进壳层 |
-| 技能资产 | `skills/**` | `skills` 插件，经 `ContextSources` 注入 | 技能正文归技能库，不进内核 |
-| 工具目录 | `catalog/tools.json` | `scripts/gen_catalog.py` 生成，`check_catalog.py` 校验 | 生成物；不得手改 |
-| 标题/工作区 | `data/titles/`、`data/workspace/` | 壳层/存储各归属 | 不进源码树；路径按 data root |
-| 运行态登记 | `mechanisms/live_state.py`、`mesh.py`、`run_registry.py` | 装配根 | 单一权威；不得双份缓存 |
-| 测试 | `tests/` | unittest 发现 | 不得写入 `data/`；用临时数据根 |
-| 生成文档 | `docs/complexity.md`、`docs/unit-tests.md` | 生成器 + `--check` | 必须由门禁重生成比对 |
-| 临时证据 | `data/temp/` | 人工/验收 | 不进入源码或发布包 |
+| Kernel modules and ports | `agent/core/` | `core/modules/__init__.py`, `core/engine_factory.py` | No concrete plugin names or concrete providers |
+| Provider protocol and implementations | `agent/mechanisms/providers/` | `provider_registry.py` for gateway providers; the fake and placeholder providers are referenced by the assembly root and entry | Implementations do not import one another; the router depends only on `base` |
+| Model selection rules | `provider_router.py` | Assembled in `app.py` | Holds no concrete gateway logic |
+| Context model, layout, sources | `agent/mechanisms/context/` | `app.py` builds `ContextPipeline` | One axis of change per module |
+| Compaction policy and summary integration | `agent/mechanisms/compaction/` | `app.py` builds the compactor factory | Only through `context/contract.py` |
+| Tool protocol and registry | `agent/capabilities/registry.py` | `app.py` builds `ToolRegistry` | A tool registers exactly once |
+| Built-in tools | `agent/capabilities/builtin/` | `build_plugins` calls in `app.py` | Tool arguments and schema belong to the tool |
+| Task tools and confirmation protocol | `agent/capabilities/tasks/` | `tasks.build_plugins` → `app.py` | Shared exceptions live only in `common.py` |
+| Plugin tools/endpoints/panels | `plugins/<name>/` | `PluginHost` + `ContributionRegistry` | Plugin-private assets never enter the shell |
+| Plugin switches and configuration | `plugins.ini`, plugin `plugin-config.ini` | `PluginHost`, settings API | Plugin keys belong to the plugin; host keys belong to `config.ini` |
+| Host config keys/defaults | `agent/config.py`, `config.ini` | Read by the assembly root | New keys must be registered in `agent/config_schema.py` and documented in the configuration docs |
+| Model catalog | `capabilities/model_catalog.py` + multi-model plugin | Refreshed by the plugin at runtime | Model configuration and credentials stay with the plugin |
+| Event names and payloads | `agent/core/event_name.py`, `agent/core/events.py` | Module `ports.emit` | Unknown events are skipped; field changes must declare compatibility |
+| Classic event/field projection | `classic_adapter/contract.py` | `outbound*.py` / `inbound.py` | The adapter layer only translates shape |
+| HTTP authentication | `shell/web/auth/`, `shell/web/web_auth.py` | `server.create_server` injects `AuthRuntime` | Passwords, sessions, tokens, CSRF, and policy belong to the shell; never to core |
+| HTTP routes | `shell/web/web_routes.py` | `server.create_server` binds `Handler` | Business actions live in `web_api.py` and its action mixins |
+| Classic page/SSE | `shell/web/web_classic.py` | Mixed into `Handler` | Does not copy the JSON API |
+| Plugin HTTP endpoints | `shell/web/web_plugin.py` | `PluginContext.add_route` | Exact match; no wildcards |
+| Shell public UI/CSS/JS | `shell/web/web_assets/`, `shell/web/ui_bundle.py` | Inline manifest in `ui_bundle` | Public assets belong to the shell |
+| Plugin UI/themes/icons | `plugins/<name>/ui/` | Plugin `add_panel` / `add_ctx_segment_style` | Use the resolved plugin root; never hardcode `plugins/<name>` |
+| UI configuration | `web-ui-config.ini` | Read by the shell | Not plugin-private configuration |
+| Session facts | `data/sessions/*.raw` | `mechanisms/session_store.py` | Append-only; never rewrite in place |
+| Runtime data | `data/{queues,mesh,plugin,session_state,recycle,logs,auth,auth2..auth9,subagent,batches,cache}` | The owning mechanisms, shell, and subagent services | Access only through the owning service; never duplicate authoritative state |
+| Rule assets | `rules/*.md` | `rules` plugin, injected through `ContextSources` | User and project rules belong to the plugin, not the shell |
+| Skill assets | `skills/**` | `skills` plugin, injected through `ContextSources` | Skill bodies belong to the skill library, not the kernel |
+| Tool catalog | `catalog/tools.json` | Generated by `scripts/gen_catalog.py`, validated by `check_catalog.py` | Generated; never edit by hand |
+| Titles/workspace | `data/titles/`, `data/workspace/` | Owned by the shell and storage respectively | Not in the source tree; paths follow the data root |
+| Runtime registration | `mechanisms/live_state.py`, `mesh.py`, `run_registry.py` | Assembly root | Single authority; never cache a second copy |
+| Tests | `tests/` | unittest discovery | Never write `data/`; use a temporary data root |
+| Generated docs | `docs/complexity.md`, `docs/unit-tests.md` | Generators + `--check` | Gates must regenerate and compare |
+| Temporary artifacts | `data/temp/` | The assembly root creates `file_backup`; manual and acceptance artifacts | Not in source or release packages |
 
-### 3.1 资产所有权规则
+### 3.1 Asset ownership rules
 
-- 同一资产只能有一个权威副本；缓存只能由权威源派生并可失效。
-- 配置键、事件字段、工具参数、API 字段必须由归属模块定义；调用方不得自行拼字符串。
-- 新增模型工具必须同时提供参数 schema、注册点、失败测试；不得只加 handler。
-- 新增前端资产必须在 `ui_bundle` 清单或插件贡献中登记；孤儿文件不得留在仓库。
-- 新增静态资源必须说明加载路径、缓存策略、缺失时行为。
-- 插件资产不得放进 `agent/shell/web/web_assets/`；壳层公共资产不得放进插件目录。
-- 测试夹具、截图、上下文导出、缓存和备份不得进入源码树或发布包。
+- One asset has exactly one authoritative copy; a cache derives from the authoritative source and can be invalidated.
+- Configuration keys, event fields, tool arguments, and API fields are defined by the owning module; callers must not assemble them as raw strings.
+- A new model tool must ship its argument schema, registration point, and failure tests; adding a handler alone is not enough.
+- A new front-end asset must be registered in the `ui_bundle` manifest or a plugin contribution; no orphan file may remain in the repository.
+- A new static asset must state its load path, cache policy, and behavior when missing.
+- Plugin assets must not be placed in `agent/shell/web/web_assets/`; shell public assets must not be placed in plugin directories.
+- Test fixtures, screenshots, context exports, caches, and backups must not enter the source tree or release packages.
 
-## 4. 扩展路径
+## 4. Extension paths
 
-| 新增能力 | 只应新增/修改 |
+| New capability | Only add/modify |
 |---|---|
-| Provider | `providers/<name>.py` + `provider_registry.py` 装配；router 不改 |
-| 上下文来源 | `context/sources.py` 的公开注册点 + 插件贡献；不改 pipeline 分支 |
-| 压缩策略 | `context/contract.py` + `compaction/`；不改 model/tool |
-| 内置工具 | `capabilities/builtin/<tool>.py` + 注册点；不改内核 |
-| 任务工具 | `capabilities/tasks/<tool>.py` + `build_plugins`；不改 shell |
-| 插件 | `plugins/<name>/` + `plugins.ini`；不改内核/壳层具体名字 |
-| 壳层页面/API | `web_routes.py` 分派 + `web_api.py` 动作 mixin；不把业务塞进路由 |
-| UI 资产 | 壳层公共资产走 `ui_bundle`；插件私有资产走插件贡献 |
+| Provider | `providers/<name>.py` + assembly in `provider_registry.py`; the router is unchanged |
+| Context source | Public registration point in `context/sources.py` + plugin contribution; pipeline branches unchanged |
+| Compaction policy | `context/contract.py` + `compaction/`; model and tools unchanged |
+| Built-in tool | `capabilities/builtin/<tool>.py` + registration point; kernel unchanged |
+| Task tool | `capabilities/tasks/<tool>.py` + `build_plugins`; shell unchanged |
+| Plugin | `plugins/<name>/` + `plugins.ini`; no concrete names in the kernel or shell |
+| Shell page/API | `web_routes.py` dispatch + `web_api.py` action mixin; no business logic in routes |
+| UI assets | Shell public assets through `ui_bundle`; plugin-private assets through plugin contributions |
 
-## 5. 门禁
+## 5. Gates
 
-| 约束 | 门禁 |
+| Constraint | Gate |
 |---|---|
-| 层间方向、同层环 | `scripts/check_imports.py` |
-| 跨层私有名、内核插件名、门控旁路 | `scripts/check_architecture_hygiene.py` |
-| Provider 互导、router 具体依赖 | `scripts/check_architecture_hygiene.py` |
-| 压缩器直依赖 context 内部 | `scripts/check_architecture_hygiene.py` |
-| 静默吞错 | `scripts/check_silent_except.py` |
-| 复杂度阈值/生成文档 | `scripts/check_complexity.py`、`gen_complexity_md.py` |
-| 配置漂移 | `scripts/check_config_drift.py` |
-| 测试文档一致 | `scripts/gen_unit_tests_md.py --check` |
-| 资产/README 计数 | `scripts/check_readme.py` |
-| 全量验收 | `python scripts/ci.py` |
+| Layer direction; runtime dependency on the composition root | `scripts/check_imports.py` |
+| Cross-layer private names, kernel plugin names, gate bypasses | `scripts/check_architecture_hygiene.py` |
+| Provider mutual imports | `scripts/check_architecture_hygiene.py` |
+| Compactor directly depending on context internals | `scripts/check_architecture_hygiene.py` |
+| Silent exception swallowing | `scripts/check_silent_except.py` |
+| Complexity thresholds and generated docs | `scripts/check_complexity.py`, `scripts/gen_complexity_md.py --check` |
+| Configuration drift | `scripts/check_config_drift.py` |
+| Test documentation consistency | `scripts/gen_unit_tests_md.py --check` |
+| README facts and `data/` subdirectories | `scripts/check_readme.py` |
+| Full acceptance | `python scripts/ci.py` |
 
-新增约束必须同时补门禁与负向测试；无法机器判定的规则进入评审清单。
+New constraints require both a gate and a negative test; rules that cannot be machine-checked go on the review checklist.
 
-## 6. 变更规则
+## 6. Change rules
 
-1. 先确定资产归属，再改代码。
-2. 结构移动只改归属与导入，不夹带行为变化。
-3. 改契约字段前先查生产者、消费者、持久化读取方与文档。
-4. 删除旧入口时删除再导出、别名与兼容转发；不保留双份实现。
-5. 新增模块必须补职责说明、测试与必要的复杂度/资产文档。
-6. 修改后运行受影响测试、静态检查、架构与复杂度门禁；用户要求时运行全量 CI。
+1. Establish asset ownership before changing code.
+2. A structural move changes ownership and imports only; do not carry behavior changes with it.
+3. Before changing a contract field, check producers, consumers, persistence readers, and documentation.
+4. When removing an old entry point, remove re-exports, aliases, and compatibility forwarding; do not keep two implementations.
+5. A new module requires a responsibility statement, tests, and the necessary complexity and asset documentation.
+6. After a change, run the affected tests, static checks, and architecture and complexity gates; run full CI only when explicitly requested.

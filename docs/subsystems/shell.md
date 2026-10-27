@@ -1,273 +1,274 @@
-# 壳层
+**English** | [中文](shell.zh.md)
 
-`agent/shell/` 是 L3 层，把内核包成可运行的服务与界面。
+# Shell
 
-| 文件 | 职责 |
+`agent/shell/` is the L3 layer; it wraps the kernel as a runnable service and UI.
+
+| File | Responsibility |
 |---|---|
-| `web/server.py` | HTTP + SSE 服务装配与启动；鉴权运行时注入 |
-| `web/web_routes.py` | HTTP 动词与路径分派 |
-| `web/web_auth.py` | 鉴权中间层：会话/Token、CSRF、Host、SSE 复检 |
-| `web/auth/` | 密码、登录会话、API Token、CSRF、限流、审计与路由策略 |
-| `web/web_static.py` | 静态资源、路径与协议常量 |
-| `web/web_classic.py` | 经典页面与经典 SSE |
-| `web/web_plugin.py` | 插件端点与插件资产转发 |
-| `web/web_api.py` | WebShell 入口、SSE 连接/运行态 |
-| `web/web_chat.py` / `web/web_sessions.py` / `web/web_files.py` / `web/web_contributions.py` / `web/web_state.py` | WebShell 的聊天、会话、文件、贡献、UI 状态动作 |
-| `sse.py` | SSE 传输层 |
-| `session/runner.py` | 回合调度、取消、队列抽干与生命周期 |
-| `session/queue.py` | 队列领取、释放、补投 |
-| `session/goal.py` | 目标与自主续跑判定 |
-| `session/prompt.py` | 系统提示与运行态尾部 |
-| `session/resume.py` | 外部工具结果恢复 |
-| `session/heartbeat.py` | 运行态心跳 |
-| `prompts.py` | 系统提示词 |
-| `web/ui_bundle.py` | 界面资源内联打包 |
-| `settings_panel.py` / `settings_io.py` / `plugin_settings.py` | 设置页宿主配置、INI 原语、插件配置 |
-| `cli/interactive.py` | 交互式对话壳（命令行） |
-| `cli/headless.py` | 无 UI 跑一轮并打印事件流 |
-| `fspaths.py` | 可见范围的来源、路径判界与展示形态 |
-| `classic_adapter/` | 事件翻译、历史回读、用户作答 |
-| `web/web_assets/` | 壳层页面、样式与前端脚本 |
+| `web/server.py` | HTTP + SSE service assembly and startup; auth runtime injection |
+| `web/web_routes.py` | HTTP verb and path dispatch |
+| `web/web_auth.py` | Auth middleware: host, identity and CSRF checks |
+| `web/auth/` | Password, login sessions, API tokens, CSRF, rate limiting, audit and route policy |
+| `web/web_static.py` | Static assets, path and protocol constants |
+| `web/web_classic.py` | Classic page and classic SSE |
+| `web/web_plugin.py` | Plugin endpoints and plugin asset forwarding |
+| `web/web_api.py` | WebShell entry, SSE connections and run state |
+| `web/web_chat.py` / `web/web_sessions.py` / `web/web_files.py` / `web/web_contributions.py` / `web/web_subagents.py` / `web/web_state.py` | WebShell actions for chat, sessions, files, contributions, subagents and UI state |
+| `sse.py` | SSE transport |
+| `session/runner.py` | Turn scheduling, cancellation, queue draining and lifecycle |
+| `session/queue.py` | Queue claim, release and pending-fact flush |
+| `session/goal.py` | Goal and autonomous-continuation decisions |
+| `session/prompt.py` | System prompt and runtime tail |
+| `session/resume.py` | External tool-result recovery |
+| `session/heartbeat.py` | Run-state heartbeat |
+| `prompts.py` | System prompt |
+| `environment_info.py` | `## 环境信息` section of the system prompt |
+| `web/ui_bundle.py` | Inline UI asset bundling |
+| `web/web_ui_config.py` | UI display switches from `web-ui-config.ini` |
+| `settings_panel.py` / `settings_io.py` / `plugin_settings.py` / `plugin_editor.py` | Settings host configuration, INI primitives, plugin configuration and editor views |
+| `cli/interactive.py` | Interactive dialogue shell (command line) |
+| `cli/headless.py` | Run one turn without a UI and print the event stream |
+| `fspaths.py` | Visible-root sources, path boundary checks and display forms |
+| `classic_adapter/` | Event translation, inbound requests, history replay, confirmation loop |
+| `web/web_assets/` | Shell page, styles and front-end scripts |
 
-API Token 的 issue/revoke 使用进程内线程锁与 `tokens.json.lock` 跨进程文件锁；同名签发被拒绝，锁不可用时命令返回可读错误而不是堆栈。
+Token issue and revoke take an in-process thread lock plus a cross-process `tokens.json.lock` file lock. A duplicate name is rejected, and an unavailable lock produces a readable error instead of a stack trace.
 
-## 用量与命中率的口径
+## Usage and hit-rate conventions
 
-**命中率只用官方返回值算**：每次模型调用后 API 在 `usage` 里给
-`prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`，内核原样落成 `usage` 事实、
-适配层原样转发（字段名见 `classic_adapter/contract.py` 的 `SSE_USAGE_FIELDS`），
-界面显示的命中率就是"命中 / (命中 + 未命中)"这两个官方值之比 —— 不掺任何估算。
+**The hit rate is computed only from provider-returned values.** After each model call the API reports `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` in `usage`. The kernel records them verbatim as a `usage` fact, and the adapter forwards them unchanged (field names: `SSE_USAGE_FIELDS` in `classic_adapter/contract.py`). The UI shows hit / (hit + miss) from those two official values; no estimate is mixed in.
 
-**上下文占用率的分母是模型窗口**（读模型条目的 `context_window`；内核随 `context_layout` 一起下发
-`model_max_context_tokens`），不是压缩阈值：阈值是"留多少余量触发压缩"的预算，
-窗口是物理上限，两者混用会让人以为"还剩 75%"。窗口跟着**会话当前模型**走，
-换模型后下一回合的分母就换。
+**The context-occupancy denominator is the model window**, read from the model entry's `context_window`; the adapter adds `model_max_context_tokens` to the `context_layout` payload it emits. It is not the compaction threshold: the threshold is the budget at which compaction is triggered, while the window is the physical limit. The window follows the session's current model; after a model switch, the next turn uses the new denominator. When the catalog has no window for the model, the UI falls back to the budget.
 
-**分段浮层里的 token 是估算**（对装配后的消息求和，中文按每字 1 token），
-与用量条里的官方 `prompt_tokens` 不是同一个数：前者是"这段大概多少"，
-后者是"这次实际花了多少"。
+**Tokens in the segment overlay are estimates**: they sum the assembled messages, with CJK at one token per character, other text at four characters per token, and images at a fixed per-image allowance. They differ from the official `prompt_tokens` in the usage bar: one approximates a segment, the other is what the call actually consumed.
 
-## 启动
+## Startup
 
 ```bash
 python -m agent.entry.web --host 127.0.0.1 --port 8765
 ```
 
-`main()` 做的事：读配置 → 建 `App` → `serve()` → 打印地址 → `serve_forever()`。
+`main()` in `agent/entry/web.py` parses arguments, handles the auth command-line paths, builds the app and calls `serve()`. `serve()` starts auth, applies TLS, prints the addresses and blocks in `serve_forever()`.
 
-`create_server()` 返回 `(server, shell)`，不启动；必须显式传入 `AuthRuntime`，不再隐式读取工程配置。`serve()` 接收已装配的 app，
-负责可见根/媒体根/标题与工作目录的落点并阻塞运行。`build_shell_app()` 是入口层的装配函数
-（`agent/entry/web.py`）：按配置建真实 provider 与会话存储——壳层不导入装配根（A2）。
+`create_server()` returns `(server, shell)` without starting it. `auth` must be passed explicitly; a missing `AuthRuntime` raises `TypeError`.
 
-缺少模型配置不阻断启动：服务以 `MissingProvider` 起来，浏览器打开主页面，模型下拉为空；
-设置页保存后调用 `app.reload_model_config()` 立即生效。已有插件模型时目录权威接管。
+`serve()` receives an assembled app and decides where the visible roots, title directory and workspace directory live, then blocks. `build_shell_app()` is the entry-layer assembly function: it creates a `MissingProvider` unless a provider is injected, plus a session store. The shell never imports the assembly root.
 
-## HTTP 路由
+Missing model configuration does not block startup: the service starts with `MissingProvider`, the page opens, and the model picker is empty. Saving plugin configuration reloads the plugin and calls `app.refresh_model_config()`, which recomputes the model route and list from the catalog; once the multi-model catalog provides models, it becomes the authoritative source.
+
+## HTTP routes
 
 ### GET
 
-| 路径 | 作用 |
+| Path | Purpose |
 |---|---|
-| `/` | 单页界面 |
-| `/health` | 健康检查：工具数、模型、全局默认推理档位、内核、允许的模型列表 |
-| `/favicon.ico` | 站点图标 |
-| `/assets/*` | 静态资源 |
-| `/workspace/*` | 工作区文件（界面里图片视频的重写目标） |
-| `/api/events/stream` | **SSE 事件流** |
-| `/api/chat/history` | 会话历史 |
-| `/api/chat/sessions` | 会话列表（带日期分组） |
-| `/api/chat/ui-state` | 会话状态：模式 / 模型 / 推理档位 / 清单 / 目标（带 `conversation_id`）；不带 id 时只回**哪些会话在跑**（**不存客户端布局**） |
-| `/api/chat/attachment` | 附件读取 |
-| `/api/fs/list` `/api/fs/read` | 右栏文件查看器 |
-| `/api/dir-browse` | 目录浏览（补全用） |
-| `/api/panels` `/api/actions` | 插件贡献的右栏面板与输入区动作清单 |
-| `/api/plugin/<插件>/<路径>` | 插件自己的端点命名空间（精确匹配，无通配） |
-| `/api/settings` | 设置页目录。密钥字段 `value` 恒为空，另给 `configured`（是否已填写）和 `placeholder` |
-| `/api/settings/plugins` | 插件卡片：名字、描述、图标、是否装载 |
-| `/api/settings/plugin-file` | 某个插件的 `plugin-config.ini` 编辑视图（密钥已掩码） |
-| `/api/reasoning-effort` | 推理档位 |
-| `/api/chat/queue` | 当前会话的待发送队列快照 |
-| `/api/usage-accumulator` | 用量累计 |
-| `/api/media` | 媒体代理，根由 `--media-root` 指定 |
+| `/` | Single-page UI |
+| `/health` | Health check: tool count, model and allowed list, global default reasoning effort, SSE channel count, paused and pending-confirmation sessions, kernel name |
+| `/favicon.ico` | Site icon |
+| `/assets/*` | Static assets |
+| `/workspace/*` | Workspace files (rewrite target for images and video in the UI) |
+| `/api/events/stream` | **SSE event stream** (classic format by default; `format=kernel` passes kernel events through) |
+| `/api/chat/history` | Session history |
+| `/api/chat/sessions` | Session list (with date groups) |
+| `/api/chat/ui-state` | Session state: mode, model and available models, reasoning effort, todo, goal, autonomy, running (with `conversation_id`); without an id, only which sessions are running (does not store client layout) |
+| `/api/chat/attachment` | Inline attachment read |
+| `/api/fs/list` `/api/fs/read` | Right-pane file viewer |
+| `/api/dir-browse` | Directory browsing for `@` completion |
+| `/api/panels` `/api/actions` | Plugin-contributed right-pane panels and composer action list |
+| `/api/ctx-segment-styles` `/api/boot-scripts` `/api/tool-labels` | Plugin-contributed context-segment styles, boot scripts, and tool display names and icons |
+| `/api/plugin/<plugin>/<path>` | Plugin endpoint namespace (matches registered shapes; `:name` segments take positional parameters; `_asset/<relative path>` forwards plugin files) |
+| `/api/settings` | Settings-page catalog. A secret field's `value` is always empty; `configured` and `placeholder` are supplied instead |
+| `/api/settings/plugins` | Plugin cards: name, description, icon, version, enabled, configurable |
+| `/api/settings/plugin-file` | Editor view of a plugin's `plugin-config.ini`; secret fields in structured forms report only whether they are configured |
+| `/api/reasoning-effort` | Session reasoning effort and the global default |
+| `/api/chat/queue` | Pending-send queue snapshot for the current session |
+| `/api/usage-accumulator` | Accumulated usage |
+| `/api/media` | Media proxy; the path must fall within the configured media root, or all visible roots when none is configured |
+| `/api/subagents` `/api/subagents/history` | Subagent list and child-session history |
+| `/api/background/tasks` | Background-task snapshot or filtered list |
+| `/api/update/status` `/api/update/logs` | Update state and log tail |
 
 ### POST
 
-| 路径 | 作用 |
+| Path | Purpose |
 |---|---|
-| `/api/chat/send` | 发起一轮对话。同会话已在跑时进入待发送队列 |
-| `/api/chat/queue/<id>/insert` | 把队列消息标记为下一个安全轮次插入 |
-| `/api/chat/queue/<id>/recall` | 撤回队列消息并返回文本、图片与来源 |
-| `/api/chat/stop` | 停止当前回合 |
-| `/api/chat/user-confirm` | 提交用户确认（写盘确认与 `user_confirm` 作答共用此端点） |
-| `/api/chat/title` | 生成或读取会话标题 |
-| `/api/chat/autonomous` | 自主模式开关 |
-| `/api/chat/goal` | 目标文案读写 |
-| `/api/chat/command-input` | 交互式命令的 stdin 输入 |
-| `/api/chat/queue/<id>` | 取消一条未发送队列消息（DELETE） |
-| `/api/settings` | 写回宿主配置。密钥字段为空不写，有内容才覆盖文件里的原值 |
-| `/api/settings/plugins` | 插件开关，写 `plugins.ini` 的 `enabled` |
-| `/api/settings/plugin-file` | 写回某个插件的**可编辑节**，其它节逐字节保留 |
-| `/api/settings/pick-dir` | 弹出系统目录选择窗口 |
+| `/api/chat/send` | Start a dialogue turn; if the session is already running, the message enters the pending queue; `draft_id` re-sends a recalled draft |
+| `/api/chat/queue/<id>/insert` | Mark a queued message for insertion at the next safe turn; if the session is idle, start a turn immediately |
+| `/api/chat/queue/<id>/recall` | Recall a queued message and return its text, images and source |
+| `/api/chat/stop` | Stop the current turn (cooperative cancellation) |
+| `/api/chat/user-confirm` | Submit a user confirmation: write-plan confirmation, `user_confirm` answer, and approval (agree/reject) share this endpoint |
+| `/api/chat/title` | Generate or read the cached session title |
+| `/api/chat/autonomous` | Toggle session autonomy |
+| `/api/chat/goal` | Read and write the goal; also pause/resume/done/delete transitions |
+| `/api/chat/command-input` | stdin input for an interactive command |
+| `/api/subagents/send` | Send input to a UI child session |
+| `/api/background/tasks/create` `/cancel` `/output` | Create, cancel and read output from background tasks |
+| `/api/update/check` `/download` `/apply` | Check, download and apply an update (apply is refused while background tasks or queued messages exist) |
+| `/api/settings` | Write host configuration. An empty secret field is not written; content replaces the value in the file |
+| `/api/settings/plugins` | Plugin switch: writes `enabled` in `plugins.ini` and loads or unloads immediately |
+| `/api/settings/plugin-file` | Write a plugin's editable sections; the rest of the file is preserved |
+| `/api/settings/pick-dir` | Open the system directory picker (Windows) |
+
+### DELETE
+
+| Path | Purpose |
+|---|---|
+| `/api/chat/sessions` | Close a session and release its in-process runtime (the session log is untouched) |
+| `/api/chat/queue/<id>` | Cancel an unsent queued message |
+| `/api/plugin/<plugin>/…` | Plugin endpoints |
 
 ### PUT
 
-`/api/chat/ui-state`、`/api/reasoning-effort`、`/api/usage-accumulator`，以及插件端点（`/api/plugin/<插件>/…`）。
+`/api/chat/ui-state`, `/api/reasoning-effort`, `/api/usage-accumulator`, and plugin endpoints (`/api/plugin/<plugin>/…`).
 
-写操作走 body、读操作走 query，全工程统一。
+Writes travel in the request body; reads in the query string. Authentication endpoints (`/login`, `/desktop-login`, `/healthz`, `/auth/*`) are handled by the auth layer before these routes.
 
-设置页在界面右上角，读写的就是 `config.ini`、`web-ui-config.ini` 和各插件的 `plugin-config.ini`。密钥只允许覆盖：密码框留空则文件里的值不动；有内容才替换。`GET /api/settings` 不回明文，只说明是否已填写。已填写时密码框提示「已设置秘钥，可重新设置并替换」，未填写时提示「未配置秘钥」。
+The settings button sits in the header, at the right. The page reads and writes `config.ini`, `web-ui-config.ini`, and each plugin's `plugin-config.ini`. Secret fields in the host form and in structured plugin forms are overwrite-only: leaving the field empty keeps the file's value; content replaces it. `GET /api/settings` never returns the secret; it reports whether one is configured. A configured secret shows the placeholder `已设置秘钥,可重新设置并替换`; an unconfigured one shows `未配置秘钥`. A plugin edited as raw text shows the section as stored, secret values included.
 
-「保存」是保存并关窗（只有失败才留在窗口里），「应用」是保存但不关窗。插件配置的
-身份与开关不在插件配置里；编辑区只覆盖插件自己的节 —— 有
-`settings-schema.json` 的插件（多模型）按结构化表单逐条编辑，其余插件只显示
-`[config]` 的正文，节头不露出。密钥字段在结构化表单里同样只回显"是否已配置"，
-留空表示沿用原值。
+Save stores and closes the window (it stays open on failure); Apply stores without closing. Plugin identity and the enable switch are not part of the plugin configuration; the editor covers only the plugin's own sections. Plugins with `settings-schema.json` render a structured form (`sections`: editable entries such as the multi-model entries; `fields`: a form for the declared fields); a plugin without a schema shows the `[config]` body without the header; when no `[config]` exists, all sections are editable, with headers shown when there is more than one. Secret fields in structured forms report only whether they are configured; an empty value keeps the stored one.
 
-模型配置只由多模型插件维护；宿主设置页不提供内核模型节，也不写模型凭据。
-插件目录变化时由插件宿主刷新模型路由与清单。
+Model configuration is maintained only by the multi-model plugin; the host settings page has no kernel model section and does not write model credentials. Loading or unloading plugins makes the plugin host refresh the model route and list.
 
-## SSE 事件流
+## SSE event stream
 
-`/api/events/stream` 是界面看到的事实投影。每一帧带 `conversation_id`，界面按会话分派。
+`/api/events/stream` is the projection the UI sees. It has two formats: with no `format` or `format=classic`, it serves frames translated by the classic adapter; `format=kernel` passes kernel events through unchanged for probes and other interaction layers. The page uses the classic format.
 
-帧里带**序号**，断线重连时用它续传：客户端带上最后收到的序号，服务端只补发其后的帧。这解决的是"没有游标就不回放"的问题 —— 否则新开的页面收不到 `run_started`，既显示不出停止键也判不出忙。
+Classic frames carry `conversation_id`, and the page dispatches by session. Heartbeat and process-wide announcement frames (`heartbeat`, `global_sse_ready`, `plugins_changed`, `settings_changed`, `plugin_config_changed`) are not conversation-scoped; `plugin_event` frames carry the fields supplied by the plugin.
 
-SSE 连接表由 `WebShell` 持有，断开时从表里移除。
+Frames translated from a fact carry its storage coordinate and are sent as `id: <seq>` plus `data: <json>`. On reconnect the browser returns the last coordinate in `Last-Event-ID` (a non-browser client can pass `?last_event_id=`), and the server replays the facts after that coordinate, at most 512 facts per resume. Without a cursor there is no replay: the page renders existing content from `/api/chat/history`, and a page opened mid-turn obtains the authoritative running state from `/api/chat/ui-state`.
 
-## 运行态与并发保护
+Each connection has its own bounded queue; a slow consumer loses the oldest frame instead of blocking the broadcast. The classic adapter subscribes to the event bus only while at least one connection exists, and unsubscribes when the last one closes.
 
-`WebShell` 持两张表：SSE 连接表与活跃回合表。
+The classic stream keeps its connection table in the adapter; the kernel passthrough keeps it in `WebShell`. A disconnect removes the channel from the corresponding table. The kernel passthrough sends only new events, performs no reconnect replay, and revalidates the connection's identity on each loop; a revoked login session or token ends it.
 
-`/api/chat/ui-state` 的"在跑"来自运行态登记（见 [session.md](session.md)），与 `session_send` 判定目标忙闲用的是同一事实源。这样中途打开的页面能问出"这条会话在不在跑"，进而正确显示停止键。
+## Runtime state and concurrency protection
 
-**客户端布局（打开过哪些标签、激活哪一个）存在浏览器 `localStorage`**：布局属于某一个浏览器，服务端不提供也不接收。多个客户端各自激活不同会话时，服务端的一个全局字段会被后写者覆盖，先写的刷新后被带到别人的会话。
+`WebShell` holds an SSE connection table and a per-session active-run map (`conversation_id → run_id`). The authoritative busy state comes from the run registry (see [session.md](session.md#run-registry)), the same source the `session_send` tool uses to decide whether the target is busy. A page opened mid-turn can therefore learn that the session is running and show the stop control. On the classic stream, `GET /api/chat/ui-state` without `conversation_id` returns `state.running`.
 
-`/api/chat/send` 对同会话并发进入待发送队列，依据同一个登记。
+**Client layout (which tabs are open, which one is active) lives in the browser's `localStorage`**: layout belongs to one browser, and the server neither provides nor accepts it. With several clients activating different sessions, a single server-side field would be overwritten by the last writer, and an earlier client would be taken to another session after a refresh. The classic `PUT /api/chat/ui-state` accepts the request body and stores nothing.
 
-## 回合调度
+`/api/chat/send` queues concurrent submissions for the same session under the same registration.
 
-`session/runner.py` 的 `SessionRunner` 在后台执行回合：从待发送队列取输入、通过 `Engine` 跑模块链、把事件推给 SSE、续心跳。
+## Turn scheduling
 
-心跳让运行态登记在长任务期间不被判为过期。任务结束或取消时释放登记。
+`SessionRunner` in `session/runner.py` runs turns in the background: it takes the turn input, builds an engine and runs the module chain, and publishes events to the event bus that feeds SSE. After a turn it drains the pending queue, starts an insertion turn when a queued message was marked for insertion, and otherwise asks the goal/autonomy rule whether to continue; automatic continuations are capped at 50 rounds. External tool results are spliced back as `tool_done` / `tool_failed` plus `tool_ended` before the turn, deduplicated by `call_id`.
 
-## 系统提示词
+A side heartbeat thread renews the run registration every 60 seconds, so a long tool call is not treated as expired. The registration is released when the turn ends, is cancelled, or the process aborts. `/api/chat/stop` sets the cancel signal; the kernel stops at its checkpoints and the run thread releases the registration.
 
-`prompts.py` 的 `build_system_prompt(registry=…)` 组装基础提示词：身份、回复语言、动手指令、术语表、工具纪律、编码准则、模式段。纪律第 2 条的预览写类名单由 `preview_write_tools_line(registry)` 按 `needs_preview` 动态生成。`resolve_system_prompt()` 切掉模式段后，插件通过 `PromptSections` 追加章节（如 `## 资源目录`），会话运行器再追加 `## 环境信息`（操作系统与本会话 ID），最后接工具速查；工具速查只摘"名字 — 一句话"，完整 schema 走请求的 `tools` 字段。
+## System prompt
 
-`resolve_system_prompt()` 处理会话级覆盖，并**把模式段切掉**（`split_mode_section()`）：无 `explicit` 时必须传 `registry`。模式改由 `resolve_mode_note()` 产出，作为请求尾部的临时后缀附加，只加在发给模型的那一份上。理由见 [context.md](context.md) 的「执行模式是请求尾部的临时后缀」。
+`build_system_prompt(registry=…)` in `prompts.py` assembles the base prompt in this order: identity, reply language, `## 动手指令`, extra sections (plugin sections and `## 环境信息`), `## 编码准则`, terminology, `## 工具使用纪律`, the mode section, and the tool summary. The preview-write tool list in discipline item 2 is generated by `preview_write_tools_line(registry)` from tools whose `needs_preview` is set.
 
-## 界面打包
+`resolve_system_prompt()` handles the session-level override and otherwise requires `registry`. It removes the mode section with `split_mode_section()`, which deletes only that section and keeps the plugin sections and tool summary after it.
 
-`web/ui_bundle.py` 把界面资源内联成单页 HTML，运行时页面零额外请求。
+Plugin sections arrive through `PromptSections` (`## 资源目录` is one); the session runner appends `## 环境信息` with the operating system and this session's ID. The tool summary keeps one line per tool — name and the first line of its description, at most 40 tools — and the full schemas travel in the request's `tools` field.
+
+Execution mode is produced by `resolve_mode_note()` and appended as a transient suffix on the request tail, only in the copy sent to the model. The runner's tail also carries the Todo-List progress line and the plugin request tail; with an explicit system prompt, the mode note and the Todo-List line are omitted. See [context.md](context.md#execution-mode-is-a-transient-suffix-on-the-request-tail).
+
+## UI bundling
+
+`web/ui_bundle.py` inlines UI assets into a single HTML page, so the page needs no separate CSS or JS requests at runtime.
 
 ```python
-build_inline_css()      # reset + 主样式 + 工具视图 + 本轮编辑清单 + 两份代码高亮主题
-build_inline_js()       # 主题 / markdown 解析器 / 高亮 / 图片灯箱 / 主脚本 / 工具视图 / 本轮编辑清单 / 设置页
-scope_hljs_css()        # 把 .hljs 选择器限定到浅色主题下
-inline_ui_html()        # 拼成完整单页
+build_inline_css()      # CSS modules in manifest order + dark code-highlight theme + light code-highlight theme scoped to light
+build_inline_js()       # pre-scripts (theme / Markdown parser / syntax highlighter / code highlighting / image lightbox) -> main modules -> post scripts (tool views / file icons / edited files / settings)
+scope_hljs_css()        # prefixes .hljs selectors with a scope such as html[data-ui-theme="light"]
+inline_ui_html()        # assembles the complete page
 ```
 
-浅色代码高亮主题的作用域隔离在**运行时**做：`scope_hljs_css()` 给 `.hljs` 选择器加 `html[data-ui-theme="light"]` 前缀，两套配色同页共存而不互相覆盖。不另存一份改过的 CSS。
+Light-theme code highlighting is isolated at runtime: `scope_hljs_css()` prefixes `.hljs` selectors with `html[data-ui-theme="light"]`, so the two themes coexist on one page without overriding each other. No modified copy of the CSS is stored.
 
-### 本轮编辑清单
+The module lists are the single source of order: JS files share one `<script>` scope, and CSS files cascade in list order. Assets are split by function into multiple `classic/js/**` and `classic/css/**` modules; the manifests inline them in order. `inline_ui_html()` is cached with `@lru_cache`, so changes to UI assets take effect after a service restart.
 
-`edited-files.js` 只在页面内存拼装：预览留下 `confirm_id → diff`，`commit_write` 留下已确认 id，回合 `done` 时取交集渲染 `.edited-files`。清单不进内核、刷新不回放。`POST /api/chat/send` 发出有效新消息时 `clearLiveEdits` 清掉当前会话的旧清单卡与页内映射；`POST /api/chat/user-confirm` 不清。
+The model picker is not built-in shell UI: the shell provides only the `#modelPickerSlot` mount point, and the button and menu are rendered by `plugins/multi_model/ui/`. Their styles are injected through `window.aiAgentShell.styles.load()`, and the shell's shared styles do not include them. The two public bridges and unload cleanup are covered in [plugins.md](plugins.md#壳层公共桥).
 
-## 对话区最小宽度
+### Edited files in this turn
 
-对话区与右栏之间是可拖拽的分割条（`initClassicMainSplit`，宽度记在 `localStorage`）。
-对话区有**硬下界 `670px`**（样式表 `.chat{min-width}` 与脚本里的 `MIN_CHAT_PX` 同值）：
+`edited-files.js` assembles the list in page memory only: a preview leaves a `confirm_id → diff` entry, `commit_write` leaves a confirmed id, and on turn `done` or `stopped` the intersection is rendered as `.edited-files`; a `done` while paused for user confirmation does not render the list. Nothing enters the kernel, and a refresh does not replay it. A valid new message sent through `POST /api/chat/send` calls `clearLiveEdits` for that session; `POST /api/chat/user-confirm` does not clear it.
 
-- 分割条拖到极限、或窗口缩到很窄时，右栏先被压到自己的下界 `300px`，对话区不再被压；
-- 到这个数是因为输入区那一行控件（附件 / 模式 / 思考 / 模型 / 插件按钮 + 发送提示 +
-  目标 / 发送）在更窄时会顶出面板右边界：669px 时「发送」越界 1px，670px 起不越界。
+## Chat-area minimum width
 
-插件按钮会让这一行变长：加了一个按钮之后要重量一次，把样式表与脚本里两个数字一起往上调。
+The chat area and the right pane are separated by a draggable splitter (`classic/js/layout/splitters.js`; the width is stored in `localStorage` under `aiAgent.classicMainSplit`). The drag has a target lower bound of `670px` for the chat area (`MIN_CHAT_PX`) and `300px` for the right pane (`MIN_STEPS_PX`; the stylesheet sets `.side{min-width:300px}`). When the splitter is dragged to its limit, the right pane stops at `300px` and the chat area is not squeezed further.
 
-## 对话区 Markdown
+The bound is the width at which the current composer row still fits: below it, the row (attach / mode / reasoning / model picker / plugin buttons / send hint / goal / send) crosses the pane's right edge. Plugin action buttons widen that row, so `MIN_CHAT_PX` is tied to the current row.
 
-散文块由 `marked`（`web/web_assets/classic/js/vendor/marked.min.js`）渲染 —— markdown 的块级规则细节多（松散列表的段距、表格、任务清单、嵌套列表），自研实现容易在边角处丢样式。
+Window narrowing is not constrained by this pair: `.chat` has `min-width:0`, so the chat area can shrink below `670px` and the composer buttons wrap.
 
-`classic/js/render/markdown.js` 的 `renderMarkdown()` 先按代码围栏切段，围栏交既有逻辑（`diff` / `patch` 走 diff 卡片，其余走 hljs 高亮），只把散文块交给 `renderMarkdownBlocks()`。
+## Chat-area Markdown
 
-两项配置是必须的：
+Prose blocks are rendered by the bundled Markdown parser (`web/web_assets/classic/js/vendor/marked.min.js`): block-level markdown rules such as loose-list spacing, tables, task lists and nested lists are handled there.
 
-- `breaks: true` —— 服务端按段落推送，CommonMark 会把正文里的单个换行折成空格，边收边看就会文字粘成一行；
-- 图片 / 媒体链接的 `src` 重写（`markedImageHref()`）—— 落在工作区里的走 `/workspace/<rel>` 静态路由，其余本地绝对路径走 `/api/media?path=`。裸本地路径不能当 `src`，浏览器不认。
+`renderMarkdown()` in `classic/js/render/markdown.js` splits the text by code fences first. Fenced blocks go to the existing logic (`diff` / `patch` become diff cards; others get syntax highlighting); only prose blocks go to `renderMarkdownBlocks()`.
 
-流式渲染每个动画帧最多渲染一次（`scheduleStreamRender()`）：`marked` 每次都是全量重解析，delta 密集时逐条渲染会把同一段文本反复解析几十遍。
+`renderMarkdownBlocks()` parses with `gfm:true`, `breaks:false`, `html:false`, then runs the result through `sanitizeRenderedHtml()`. GFM enables tables and task lists; `breaks:false` keeps CommonMark newline behavior; raw HTML stays out of the output.
 
-结果被 `@lru_cache` 缓存，所以改界面资源后需要重启服务。
+Image and media links rewrite `src` through `markedImageHref()`: workspace files go to `/workspace/<rel>`, and other local absolute paths go to `/api/media?path=`. A bare local path cannot be used as `src`; the browser does not resolve it.
 
-资源按功能拆成 `classic/js/**`、`classic/css/**` 的多个模块，由 `web/ui_bundle.py` 的
-清单按顺序内联；**没有**动辄几千行的 `agent-ui.js` / `agent-ui.css`。模型下拉不是
-壳层内建 UI：壳层只留 `#modelPickerSlot`，按钮与菜单由 `plugins/multi_model/ui/`
-渲染，样式经 `window.aiAgentShell.styles.load()` 注入，壳层公共样式里没有它。
-两条公共桥与停用清理见 [plugins.md](plugins.md#壳层公共桥)。
+Streaming rendering is merged to at most one render per animation frame (`scheduleStreamRender()`): the parser re-parses the whole text each time, so rendering every delta would parse the same text dozens of times.
 
-## 适配层
+## Adapter layer
 
-`classic_adapter/` 把内核事件翻译成经典界面认得的形状，以及把界面的请求翻译成内核调用。
+`classic_adapter/` translates kernel events into the shapes the classic UI understands, and translates UI requests into kernel calls.
 
-| 文件 | 方向 |
+| File | Direction |
 |---|---|
-| `outbound.py` / `outbound_tools.py` / `outbound_turns.py` | 内核事件 → 界面事件（门面与工具/回合分组） |
-| `inbound.py` | 界面请求 → 内核调用 → 界面期望的返回体 |
-| `history.py` | 历史折叠、附件、工具回显 |
-| `layout.py` | 上下文布局、覆盖、缩放 |
-| `state.py` | 经典会话级状态 |
-| `sessions.py` | 会话标题与日期分组 |
-| `contract.py` | 事件与字段常量，适配层的单一事实源 |
-| `channel.py` | SSE 连接、广播、心跳与断线续传 |
-| `confirm.py` | 会话暂停态与用户确认回路 |
-| `adapter.py` | 门面 `ClassicAdapter`（会话翻译流、健康与环境快照） |
+| `outbound.py` / `outbound_tools.py` / `outbound_turns.py` | Kernel events → UI events (stream facade; tool and turn frame families) |
+| `inbound.py` | UI request → kernel call → response body the UI expects |
+| `history.py` | History folding, attachments, tool echo |
+| `layout.py` | Context segment layout, plugin-segment overlay, budget scaling |
+| `state.py` | Classic session-scoped state (usage, command input, attachments) |
+| `sessions.py` | Session title and date grouping |
+| `contract.py` | Event and field constants; the adapter's single source of truth |
+| `channel.py` | SSE connections, broadcast, heartbeat and reconnect replay |
+| `confirm.py` | Pause state and the user-confirmation loop |
+| `plugin_events.py` | Plugin event frames |
+| `adapter.py` | `ClassicAdapter` facade: per-session translation streams, health snapshot, session teardown |
 
-适配层是**行为差异的落点**：界面与内核各自保持自己的形状，差异在中间抹平。
+The adapter is where behavioral differences are settled: the UI and the kernel keep their own shapes, and the adapter flattens the difference in between.
 
-## 命令行壳
+## Command-line shells
 
 ```bash
-agent-cli --session <cid>                      # 交互式，真实模型 + 工具 + 写盘门控
-agent-headless "问题"                          # 单轮，打印事件流与会话 ID
-agent-headless --session <cid> --timeout 300 "问题"
-agent-web                                     # Web 服务
-agent-gui                                     # 原生启动器 + Python 桌面壳
+agent-cli --session <cid>                      # interactive, real model + tools + write gate
+agent-headless "question"                      # single turn, prints the event stream and session id
+agent-headless --session <cid> --timeout 300 "question"
+agent-web                                      # web service
+agent-gui                                      # native launcher + Python desktop shell
 ```
 
-`headless` 使用与 Web 相同的完整系统提示词、插件提示词段、压缩与会话存储，
-默认加载 `plugins.headless.ini` 覆盖层（当前关闭 `ai_speak`）。单轮结束会打印：
+`headless` uses the same full system prompt, plugin prompt sections, compaction and session store as the web shell. It loads the `plugins.headless.ini` profile, which disables `ai_speak`. At the end of the run it prints:
 
 ```text
 [session] <cid>
 ```
 
-退出码：`0` 正常，`1` 失败/停止/取消，`2` 等待用户确认，`3` 超时。
+Exit codes: `0` normal, `1` failure/stop/cancel, `2` waiting for user confirmation, `3` timeout.
 
-`cli/interactive.py` 的 `build_session()` 使用 `SessionRunner.build_engine()`，与 Web、headless 共用完整系统提示词、插件章节与动态尾部；`run_one()` 只负责终端 I/O 与写盘确认。CLI 默认加载 `plugins.cli.ini`，关闭依赖浏览器播放的 `ai_speak`。
+`build_session()` in `cli/interactive.py` uses `SessionRunner.build_engine()` when a runner is present, sharing the full system prompt, plugin sections and dynamic tail with web and headless; `run_one()` only handles terminal I/O and write confirmation. The CLI loads `plugins.cli.ini`, which disables `ai_speak`.
 
-## 路径可见范围
+## Path visibility
 
-`fspaths.py` 管"哪些路径能被看见和读写"：`--fs-root` 指定可见根（可重复），`/api/fs/*` 与 `@` 补全都在这个范围内；缺省取本机各盘根，也可用 `AI_AGENT_FS_ROOT` 指定。
+`fspaths.py` owns which paths are visible and readable: `--fs-root` sets a visible root (repeatable), and `/api/fs/list` / `/api/fs/read` stay inside those roots. On Windows the default is every existing drive root; on other platforms it is the project root; `AI_AGENT_FS_ROOT` can set it too (separator `os.pathsep`). Paths are resolved before the boundary check, and containment is decided by `relative_to`, not string prefixes. `/api/dir-browse`, which feeds `@` completion, starts from a base directory but can navigate elsewhere; the file-viewer endpoints are bounded, the completion browser is not.
 
-`/api/media` 与 `/workspace/*` 各有独立的根，见 [guide/config.md](../guide/config.md)。
+`/workspace/*` is rooted at `<data_root>/workspace`. `/api/media` serves only paths inside the configured media root (all visible roots when unset), not the workspace root. See [guide/config.md](../guide/config.md).
 
-## 诊断脚本
+## Diagnostic script
 
-`scripts/inspect_compact.py` 对某个会话打印上下文分段与压缩判定，**只读不写**：
+`scripts/inspect_compact.py` prints the context segments and compaction decision for one session. It is read-only:
 
 ```bash
-python scripts/inspect_compact.py                 # 列出有日志的会话
-python scripts/inspect_compact.py <会话 id>        # 检视其中一个
-python scripts/inspect_compact.py <会话 id> --digest
+python scripts/inspect_compact.py                 # list sessions with logs
+python scripts/inspect_compact.py <session id>    # inspect one of them
+python scripts/inspect_compact.py <session id> --digest
 ```
 
-输出包含：事实条数、派生消息条数、用户轮数、全量估算 token 与阈值的关系、保留窗口宽度、
-哪几轮会被压成摘要（半开区间）、已落盘的摘要、分块 token 估算。
+The output includes the fact count, derived message count, user-round count, full estimated tokens against the threshold and the resulting verdict, the rounds kept verbatim, the rounds that will be summarized, the half-open range of that excerpt, and per-chunk token estimates.
 
-`--digest` 追加压缩器视角：视图消息条数、已落盘摘要条数、本次是否会产出压缩事件。
+`--digest` adds the compactor view: view message count, stored summary count and their text, the assembled estimate, and whether this run would produce a compaction event.
 
-## 延伸阅读
+## Further reading
 
-- [architecture.md](../architecture.md)：五层结构与装配
-- [tools.md](tools.md)：写盘门控
-- [guide/config.md](../guide/config.md)：参数与环境变量
+- [architecture.md](../architecture.md): five-layer structure and assembly
+- [tools.md](tools.md): write gate
+- [guide/config.md](../guide/config.md): parameters and environment variables

@@ -1,49 +1,51 @@
-# 唤醒调度器概要
+**English** | [中文](wake-scheduler.zh.md)
 
-状态：概要，当前不实现。
+# Wake scheduler overview
 
-## 目标
+Status: design overview; not implemented.
 
-模型注册唤醒任务后立即结束当前回合，由宿主调度器在到期时把唤醒消息投递到目标会话。
-唤醒不占用模型线程、命令线程或会话线程，不阻塞消息队列。
+## Goals
 
-## 边界
+After the model registers a wake job, it ends the current turn immediately. When the job is due, the host scheduler delivers the wake message to the target conversation.
+A wake occupies no model, command, or conversation thread, and it does not block the message queue.
 
-```text
-模型工具：只注册、取消、查询
-宿主调度器：计时、持久化、到期投递
-会话队列：接收唤醒消息并决定启动或排队
-命令工具：不承担等待
-```
-
-禁止：
+## Boundaries
 
 ```text
-工具内 time.sleep
-每条任务一个线程 sleep
-用 run_command 执行 sleep 代替叫醒
-模型为了等待而持续占用回合
+model tool: register, cancel, and query only
+host scheduler: timing, persistence, and due delivery
+conversation queue: receive wake messages and decide whether to start a turn or queue
+command tools: do not wait
 ```
 
-## 组件
+Prohibited:
+
+```text
+time.sleep inside a tool
+one sleeping thread per job
+using run_command to execute sleep instead of waking
+the model holding a turn open to wait
+```
+
+## Components
 
 ```text
 Scheduler
-  单线程定时器
-  最近到期任务
-  取消与关闭
+  single-threaded timer
+  nearest due job
+  cancellation and shutdown
 
 JobStore
-  持久化任务
-  启动恢复
-  幂等状态
+  persist jobs
+  restore on startup
+  idempotent state
 
 WakeDispatcher
-  到期任务转成唤醒消息
-  投递到目标会话队列
+  convert due jobs into wake messages
+  deliver to the target conversation queue
 ```
 
-## 任务字段
+## Job fields
 
 ```text
 job_id
@@ -66,18 +68,18 @@ status:
   failed
 ```
 
-## 工具契约
+## Tool contract
 
 ```text
 task_sleep
   seconds
   reminder
-  → 返回 job_id，不阻塞
+  → returns job_id without blocking
 
 task_schedule
   at
   reminder
-  → 返回 job_id，不阻塞
+  → returns job_id without blocking
 
 task_wake_cancel
   job_id
@@ -86,103 +88,103 @@ task_wake_list
   target_cid
 ```
 
-时间参数必须显式校验：
+Time parameters must be validated explicitly:
 
 ```text
-延迟必须大于 0
-绝对时间必须带时区或按宿主本地时区解释
-过期时间不允许静默改成立即执行
+delay must be greater than 0
+an absolute time must include a time zone or be interpreted in the host's local time zone
+a time in the past must not be silently changed to immediate execution
 ```
 
-## 到期投递
+## Due delivery
 
 ```text
-Scheduler 到期
+scheduler reaches a due time
   ↓
-原子标记 claimed
+atomically mark as claimed
   ↓
-组装唤醒消息
+assemble wake message
   ↓
-目标空闲：启动新回合
-目标忙碌：进入目标队列
+target idle: start a new turn
+target busy: enter the target queue
   ↓
-标记 delivered
+mark as delivered
 ```
 
-唤醒消息保持独立条目，不合并成一条。
-目标忙碌时，多条唤醒在下一个安全轮次分别投递。
+Each wake message remains a separate item and is never merged into another.
+When the target is busy, multiple wakes are delivered separately at the next safe model pass.
 
-## 持久化
+## Persistence
 
 ```text
-任务落盘
-原子写
-启动加载
-过期任务只补投一次
-job_id 幂等
-损坏任务留诊断，不阻塞其余任务
+persist jobs to disk
+atomic writes
+load at startup
+an overdue job is delivered only once on recovery
+job_id is idempotent
+corrupt jobs are retained for diagnostics and do not block other jobs
 ```
 
-目标会话不存在、已删除或所属父会话失效时，任务标记 failed，不无限重试。
+If the target conversation does not exist, has been deleted, or its owning parent conversation is no longer valid, the job is marked failed and is not retried indefinitely.
 
-## 并发
+## Concurrency
 
 ```text
-一次只有一个调度线程
-不按任务创建线程
-定时器只等待最近到期时间
-投递不持有会话锁
-取消与到期竞争由状态机裁决
+exactly one scheduler thread
+no thread created per job
+the timer waits only for the nearest due time
+delivery does not hold the conversation lock
+races between cancellation and expiry are resolved by the state machine
 ```
 
-## 重启
+## Restart
 
 ```text
-加载未完成任务
-已过期且未投递：补投一次
-已投递：不重复
-已取消：不复活
+load unfinished jobs
+overdue and undelivered: deliver once on recovery
+already delivered: do not deliver again
+canceled: do not revive
 ```
 
-## 与现有队列的关系
+## Relationship to the existing queue
 
 ```text
-唤醒是系统来源的独立消息
-普通消息仍按回合结束投递
-插入消息仍按安全轮次批量注入
-唤醒不改变插入消息的独立条目语义
+wakes are independent messages with a system origin
+regular messages are still delivered at turn end
+inserted messages are still injected as a batch at the next safe model pass
+wakes do not change the independent-item semantics of inserted messages
 ```
 
-## 失败与诊断
+## Failures and diagnostics
 
 ```text
-任务时间非法
-目标会话不存在
-目标队列拒绝
-任务文件损坏
-调度器关闭时有未完成任务
+invalid job time
+target conversation does not exist
+target queue rejects the message
+job file is corrupt
+unfinished jobs remain when the scheduler shuts down
 ```
 
-以上失败必须留下任务 id、目标 cid 和错误原因，不静默丢弃。
+Each failure above must record the job ID, target cid, and error reason; none may be dropped silently.
 
-## 验收
+## Acceptance
 
 ```text
-注册后工具立即返回
-到期前模型回合已结束
-到期后目标会话被叫醒
-忙碌目标不阻塞其他消息
-多条唤醒分别成为独立消息
-重启后未到期任务继续生效
-重启后已投递任务不重复
-取消后不再投递
+the tool returns immediately after registration
+the model turn has ended before the job is due
+the target conversation is woken when the job is due
+a busy target does not block other messages
+multiple wakes become separate messages
+a job that is not yet due remains active after restart
+a delivered job is not delivered again after restart
+a canceled job is not delivered
 ```
 
-## 非目标
+## Non-goals
 
 ```text
-不实现 cron 周期任务
-不实现跨进程调度
-不实现模型主动阻塞等待
-不替代普通会话队列
+no cron-style recurring jobs
+no cross-process scheduling
+no model-initiated blocking wait
+not a replacement for the regular conversation queue
 ```

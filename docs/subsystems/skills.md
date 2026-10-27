@@ -1,52 +1,49 @@
-# Skills（`skills` 插件）
+**English** | [中文](skills.zh.md)
 
-Skills 是**给模型按需读取的说明文档**：若干 `.md`，每条带名字与描述。
-Skills 库、`skills` 工具、以及它在上下文里的两段注入，全部由 `plugins/skills`
-这个插件提供 —— 移除 `[plugin:skills]` 节后，这些能力一起消失，
-内核不受影响。Skills 有两个来源：随仓库发布的内置目录与用户配置的外部目录。
+# Skills (`skills` plugin)
 
-插件怎么组织、扩展点怎么用见 [plugins.md](plugins.md)；这里只讲这个插件本身。
+Skills are **instruction documents the model can read on demand**: a set of `.md` files, each with a name and a description. The `plugins/skills` plugin provides the skill library, the `skills` tool, two context-injection sources, and the `## 资源目录` system-prompt section. Removing the `[plugin:skills]` section removes all of these capabilities together; the kernel is unaffected. Skills have two sources: a built-in directory shipped with the repository and an external directory configured by the user.
 
-## 渐进式披露
+For how plugins are organized and how extension points work, see [plugins.md](plugins.md).
 
-Skills 正文**不全量塞进请求**，按三层给：
+## Progressive disclosure
 
-| 层 | 内容 | 什么时候进上下文 |
+Skill bodies are **not placed into the request in full**. They are supplied in three layers:
+
+| Layer | Content | When it enters context |
 |---|---|---|
-| 第一层 | 可用 Skills 清单（名字 + 描述） | 每次请求常驻 |
-| 第二层 | `auto_load/` 目录下 Skills 的正文 | 每次请求常驻 |
-| 第三层 | 其余 Skills 的正文 | **不进上下文**，模型用 `skills action=read` 按需读取 |
+| First layer | Catalog of ordinary skills (name + description) | Present on every request |
+| Second layer | Bodies of skills under `auto_load/` | Present on every request |
+| Third layer | Bodies of all other skills | **Not in context**; the model reads them on demand with `skills action=read` |
 
-仅凭清单即可判断该用哪个 Skills，判断之后才去读正文。
-清单是目录，正文才是内容 —— 两者分开，是这套披露的全部意思。
+An empty catalog or an empty resident body is not injected. The catalog alone is enough to decide which skill to use; the body is read after that decision. The catalog is the index, the body is the content: keeping the two separate is the point of this disclosure scheme.
 
-## 目录形态
+## Directory layout
 
-内置来源固定为：
+The built-in source is fixed at `<project-root>/skills`. A sample layout:
 
-```
-<项目根>/skills/
-  auto_load/            这个子目录下的 Skills 正文**始终随上下文携带**
+```text
+<project-root>/skills/
+  auto_load/            skills in this subdirectory always travel with the context
     python-coding.md
   engineering/
-    code-review.md      子目录名进 Skills 名：`engineering/code-review`
-  context-dump.md       根目录下的 Skills：上下文导出指导
-  writing.md            根目录下的 Skills
+    code-review.md      the subdirectory name becomes part of the skill name: `engineering/code-review`
+  context-dump.md       context-export guidance at the root
+  writing.md            a skill at the root
 ```
 
-外置来源由 `dir` 指定，目录形态与内置来源完全一致：
+The external source is set by `dir` and has the same layout:
 
-```
-<用户 dir>/
+```text
+<user dir>/
   auto_load/
   engineering/
   writing.md
 ```
 
-两个来源都扫描；同名名称由外置覆盖内置。Skills 名取各自根下的相对路径去掉
-`.md`；`auto_load/` 里的 Skills 名仍带这个前缀（`auto_load/python-coding`）。
+Both sources are scanned. When both produce the same skill name, the external one overrides the built-in one. A skill name is its path relative to its own root with `.md` removed; skills under `auto_load/` keep that prefix (`auto_load/python-coding`).
 
-## 配置
+## Configuration
 
 ```ini
 ; plugins/skills/plugin-config.ini
@@ -55,98 +52,91 @@ dir =
 max_file_size = 200000
 ```
 
-身份在 `plugin-meta.json`，开关在 `plugins.ini`。
+Identity is in `plugin-meta.json`; the switch is in `plugins.ini`.
 
-| 键 | 说明 |
+| Key | Description |
 |---|---|
-| `plugin-meta.json` | 身份：`name`、`desc`、`icon`、`version` |
-| `dir` | **用户外置** Skills 目录。相对路径按工程根解析；未配置或不存在时内置来源仍可使用 |
-| `max_file_size` | 单个 Skills 文件的字节上限，超过则截断；留空取 200000 |
+| `plugin-meta.json` | Identity: `name`, `desc`, `icon`, `version` |
+| `dir` | **User external** skills directory. Relative paths resolve against the project root; the built-in source remains available when this is unset or missing |
+| `max_file_size` | Per-skill byte limit; files above it are truncated. Empty defaults to 200000 |
 
-内置来源固定为 `<项目根>/skills`，不受 `dir` 影响。配置在插件自己目录下，
-随插件一起装卸、一起删除；内核的 `config.ini` 里没有这一节。
-`AI_AGENT_SKILLS_DIR` 环境变量能覆盖 `dir`，为测试与 CI 提供独立的外部目录入口。
+The built-in source is fixed at `<project-root>/skills` and is not affected by `dir`. The configuration file is inside the plugin's own directory, so it is deployed and removed with the plugin; the kernel's `config.ini` has no such section. The `AI_AGENT_SKILLS_DIR` environment variable overrides `dir`, giving tests and CI an independent external-directory entry point.
 
-## 元数据
+## Metadata
 
-`library.SkillManager` 扫描两个来源，从 frontmatter 取 `name` 与 `description`：
+`library.SkillManager` scans both sources. A skill's name is its path relative to the source root with `.md` removed; `description` comes from frontmatter. A `name` field in frontmatter does not override the path-derived name.
 
 ```markdown
 ---
 name: python-coding
-description: 写 .py 前后要遵守的工程约定
+description: Engineering conventions to follow before and after writing .py files
 ---
 
-正文……
+Body text...
 ```
 
-缺 frontmatter 时用文件名当名字、描述留空（清单里显示"（无描述）"）。
-扫描结果带修改时间缓存，目录一变自动重扫。
+Without frontmatter, the description stays empty (shown as `（无描述）` in the catalog); the name still comes from the path. Scan results are cached against file modification times; a change triggers a rescan.
 
-## 注入的两段与抬头
+## Two injections and their headings
 
-插件注册**两条上下文注入源**，都挂它自己那一段（段 key 是插件名 `skills`）：
+The plugin registers **two context injection sources**, both under its own segment key (the plugin name, `skills`):
 
-| 段名 | 内容 | 抬头 |
+| Segment | Content | Heading |
 |---|---|---|
-| `Skills 清单` | 名字 + 描述的行列表 | `【Skills 清单】`，下分 `【内置 Skills】` / `【用户 Skills】` |
-| `Skills 常驻` | 两边 `auto_load/` Skills 的正文，一条一段 | `【内置 Skills <名字>】` / `【用户 Skills <名字>】` |
+| `Skills 清单` | One instruction line, then one row per listed skill with name and description | `【Skills 清单】`, with `【内置 Skills 清单】` / `【用户 Skills 清单】` groups (each present when non-empty) |
+| `Skills 常驻` | Bodies of `auto_load/` skills from both sources, one message per skill | `【内置 Skills <name>】` / `【用户 Skills <name>】` |
 
-## 系统提示词：资源目录
+Both injections occupy their own row in the context breakdown.
 
-Skills 插件向系统提示词注册 `## 资源目录` 章节；系统 Skills 根与用户 Skills 根
-由插件运行时读取并拼接，不写死绝对路径。
+## System prompt: resource directory
+
+The plugin registers the `## 资源目录` section with the system prompt. The built-in and user skill roots are computed by the plugin at runtime; no absolute path is hard-coded.
 
 ```text
 ## 资源目录
-- 内置skills: <项目根>/skills
-- 外置skills: <用户 dir>
+- 内置skills: <project-root>/skills
+- 外置skills: <user dir>
 ```
 
-未配置外置目录时：
+When no external directory is configured, the section reads:
 
 ```text
+## 资源目录
+- 内置skills: <project-root>/skills
 - 外置skills: 未配置
   外置skills目录为用户skills目录，当前未配置外置skills目录，必要时提醒用户在"Skills"插件中配置dir即可
 ```
 
-该章节是系统提示词的一部分，不占独立的上下文段。Rules 插件向同一章节
-追加 `- 规则rules:` 行与编辑提示（该字面是模型侧的识别标记，保留不变）。
+When `dir` is set but the directory does not exist, the line becomes `- 外置skills: <path>（不存在）`.
 
-来源抬头只给模型看，UI 层不显示来源，上下文段名与数量口径保持不变。
-抬头让模型一眼分清这是 Skills 说明，不是用户对话、也不是知识库素材。
-两条上下文注入都固定在"系统提示词之后、知识库之前"；`## 资源目录` 属于系统提示词本身。
-它们只会因为改文件或配置而变（见 [context.md](context.md)）。
+This section is part of the system prompt and does not occupy a context segment of its own. The Rules plugin appends its own `- 规则rules:` line and editing hint to the same section; that literal is a model-facing marker.
 
-## 可用 Skills 数
+Source headings are model-facing only; the UI does not show source attribution, and the two context segments keep their labels and counts. The headings let the model distinguish skill instructions from user dialogue and knowledge-base material. Both context injections sit after the system prompt and before the knowledge base, following the plugin order in `plugins.ini`; `## 资源目录` belongs to the system prompt itself. They change only when files or configuration change (see [context.md](context.md)).
 
-分层视图里 `Skills 清单` 段显示"31 个"，这个数由 Skills 库给出
-（`SkillManager.list_skills()` 的长度），**不从清单正文数行数** ——
-描述里带换行会把行数算错。
+## Available skill count
 
-## `skills` 工具
+In the context breakdown, the `Skills 清单` row shows a count in the form `N个`. The number is the length of `SkillManager.list_skills()`, so it counts ordinary skills only; resident `auto_load/` skills are excluded. It is not computed by counting lines in the catalog body.
+
+## The `skills` tool
 
 ```json
 {"action": "list"}
 {"action": "read", "name": "engineering/code-review"}
 ```
 
-| action | 行为 |
+| action | Behavior |
 |---|---|
-| `list` | 列出可用 Skills（名字 + 描述） |
-| `read` | 读某个 Skills 的正文（超过上限时截断）；找不到时抛 `SkillLookupError` 并附可用清单 |
+| `list` | List ordinary skills (name + description) |
+| `read` | Read one skill body (truncated above the limit); when the name is not found, raises `SkillLookupError` with the available names |
 
-用户 Skills 根写在系统提示词的 `## 资源目录` 章节里；`skills` 工具描述保持固定，不携带环境路径。
-未配置或目录不存在时，`资源目录` 会明确标出用户 Skills 未配置/不存在，模型据此提醒用户配置 `dir`。
-`skills` 只做 list / read，不复制、不迁移、不落盘。
+The user skills root is written into the `## 资源目录` section of the system prompt; the `skills` tool description is fixed and carries no environment paths. When no external directory is configured, the resource-directory section says so explicitly and tells the model to remind the user, when necessary, to set `dir` in the Skills plugin. When a configured directory does not exist, the line is marked `（不存在）`. `skills` only lists and reads; it does not copy, move, or write files.
 
-## 一起改的地方
+## Loading and configuration
 
-- `plugins.ini` 里的 `[plugin:skills]` 节 —— 没有它插件不装载；
-- `plugins/skills/plugin-config.ini` —— 插件自己的设置，只有这一处。
+Loading is controlled by the `[plugin:skills]` section in `plugins.ini`: without that section the plugin is not loaded, and `enabled = 0` keeps it in the manifest but skips loading. The plugin's settings file is `plugins/skills/plugin-config.ini`.
 
-## 延伸阅读
+## Further reading
 
-- [plugins.md](plugins.md)：插件系统契约、扩展点、界面资产
-- [context.md](context.md)：组装顺序与内核-插件协同
-- [guide/config.md](../guide/config.md)：内核配置项
+- [plugins.md](plugins.md): plugin system contract, extension points, UI assets
+- [context.md](context.md): assembly order and kernel-plugin collaboration
+- [guide/config.md](../guide/config.md): kernel configuration items

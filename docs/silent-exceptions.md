@@ -1,26 +1,28 @@
-# 静默异常治理
+**English** | [中文](silent-exceptions.zh.md)
 
-## 1. 目标
+# Silent exception governance
 
-异常处理的目标不是“让门禁变绿”，而是让每一处失败都有明确归属：
+## 1. Goals
 
-- 调用方知道失败后拿到什么状态；
-- 运行面能看到失败；
-- 恢复范围被限制在局部；
-- 测试能覆盖失败路径。
+Exception handling gives every failure a definite owner instead of turning the gate green:
 
-最终状态：
+- the caller knows which state a failure produces;
+- the runtime surface can see the failure;
+- recovery is limited to the local scope;
+- tests cover the failure path.
+
+Target state:
 
 ```text
-except Exception / BaseException + pass/continue   0 处
-无说明的静默 except                              0 处
-IDIOMS 正则豁免表                               0 张
-静默异常预算                                    0
+except Exception / BaseException + pass/continue: 0
+silent except without a report: 0
+IDIOMS regex exemption table: 0
+silent-exception budget: 0
 ```
 
-## 2. 允许的异常处理
+## 2. Permitted exception handling
 
-### 2.1 窄捕获 + 明确恢复
+### 2.1 Narrow catch and explicit recovery
 
 ```python
 try:
@@ -30,13 +32,13 @@ except (OSError, UnicodeDecodeError) as exc:
     return None
 ```
 
-要求：
+Requirements:
 
-- 捕获类型尽量窄；
-- 返回值必须是调用方能理解的明确状态；
-- 不把失败伪装成“空数据”而不留痕。
+- catch the narrowest type that covers the failure;
+- the return value is a definite state the caller understands;
+- a failure is never disguised as empty data without a trace.
 
-### 2.2 批量逐项处理
+### 2.2 Batch item-by-item handling
 
 ```python
 except (OSError, ValueError) as exc:
@@ -44,18 +46,18 @@ except (OSError, ValueError) as exc:
     continue
 ```
 
-允许 `continue`，但必须先上报；单独一个 `continue` 不允许。
+`continue` is allowed only after a report; a bare `continue` is not.
 
-### 2.3 清理与关闭
+### 2.3 Cleanup and close
 
 ```python
 with contextlib.suppress(OSError):
     handle.close()
 ```
 
-只允许具体异常类型；`suppress(Exception)` 禁止。
+Only a specific exception type is allowed; `suppress(Exception)` is forbidden.
 
-### 2.4 插件/请求边界隔离
+### 2.4 Plugin and request boundary isolation
 
 ```python
 except Exception as exc:
@@ -63,15 +65,15 @@ except Exception as exc:
     return PluginUnavailable(name)
 ```
 
-宽捕获只允许出现在隔离边界，并且必须满足其一：
+A wide catch is allowed only at an isolation boundary, and must do one of the following:
 
-- 上报后返回明确状态；
-- 转换成明确结果对象（如 `ToolResult(ok=False, error=...)`）；
-- 包装后重新抛出。
+- report the failure, then return a definite state;
+- convert it into a definite result object, such as an assignment of `ToolResult(ok=False, error=...)`;
+- wrap it and re-raise.
 
-### 2.5 最后兜底
+### 2.5 Last-resort fallback
 
-日志系统自身失败时，允许一个集中、窄范围的兜底函数：
+When the logging system itself fails, one centralized, narrow fallback function is allowed:
 
 ```python
 def write_stderr(message: str) -> None:
@@ -81,9 +83,9 @@ def write_stderr(message: str) -> None:
         return
 ```
 
-业务代码不得复制这个兜底。
+Business code does not copy this fallback.
 
-## 3. 禁止的写法
+## 3. Forbidden forms
 
 ```python
 except Exception:
@@ -99,66 +101,54 @@ except Exception:
     return None
 ```
 
-最后一种只在“宽捕获 + 无上报”时禁止；窄捕获的明确缺省返回是允许的。
+The last form is forbidden only for a wide catch without a report; a narrow catch may return an explicit default.
 
-注释不能作为豁免。
-标签、正则、预算不能作为豁免。
+Comments are not an exemption. Labels, regexes, and budgets are not exemptions.
 
-## 4. 分层策略
+## 4. Policy per layer
 
-| 层 | 策略 |
+| Layer | Policy |
 |---|---|
-| `agent/core` | 不变量破坏快速失败；可选能力用窄捕获 + 明确状态 |
-| `agent/mechanisms` | 权威状态写入不得静默；日志、指标等旁路可降级但必须上报 |
-| `agent/capabilities` | 工具失败转成明确工具错误；批量处理逐项上报 |
-| `agent/shell` | 请求边界转成用户可见错误；断连、队列空按控制流显式处理 |
-| `plugins` | 插件失败隔离，上报后禁用或跳过，不污染主流程 |
-| `scripts` / `tests` | 只允许窄捕获 + stderr 留痕或 `suppress(SpecificError)` |
+| `agent/core` | Fail fast when an invariant breaks; optional capabilities use a narrow catch with an explicit state |
+| `agent/mechanisms` | Authoritative state writes are never silent; logging, metrics, and other side channels may degrade but must report |
+| `agent/capabilities` | Tool failures become definite tool errors; batch processing reports each item |
+| `agent/shell` | Request boundaries become user-visible errors; disconnects and empty queues are explicit control flow |
+| `plugins` | Plugin failures are isolated, then reported, disabled, or skipped; the main flow is unaffected |
+| `scripts` / `tests` | Only a narrow catch with a trace on stderr, or `suppress(SpecificError)` |
 
-## 5. 门禁
+## 5. Gate
 
-`scripts/check_silent_except.py` 只做 AST 结构检查，不再读取正则表或预算：
+`scripts/check_silent_except.py` performs AST structure checks only: it reads no regex table and no budget. It scans `.py` files under `agent/`, `tests/`, `scripts/`, and `plugins/`, skipping paths that contain `__pycache__` or `retired`.
 
-1. `except` 体只有 `pass`/`continue`：失败。
-2. 裸 `except`：失败。
-3. `except Exception`/`BaseException` + 无上报：失败。
-4. 宽捕获 + `return`/赋值常量且无上报：失败。
-5. 窄捕获 + 明确返回：允许。
-6. `contextlib.suppress(SpecificError)`：允许。
-7. `write_stderr` 兜底：允许。
+1. An `except` body that contains `pass`, or whose only statement is `continue`: fail.
+2. A bare `except`: fail.
+3. A wide catch — `Exception`, `BaseException`, or a tuple containing either — with no report and no conversion: fail. This includes a handler whose only statement returns or assigns a constant default such as `None` or an empty container.
+4. A narrow catch with an explicit return: allowed.
+5. `contextlib.suppress(SpecificError)`: allowed; `suppress(Exception)` and `suppress(BaseException)`: fail.
+6. The `write_stderr` fallback: allowed.
 
-门禁失败信息必须给出文件、行号、外层函数和违规原因。
+A report is `report_error(...)` with at least two positional arguments, `write_stderr(...)` with at least one positional argument, or `print(..., file=sys.stderr)`. A conversion is a `raise` or an assignment of a `ToolResult(...)` call; a bare `return ToolResult(...)` is not recognized as one.
 
-门禁自身必须有合成代码测试：
+The script prints the scanned file count and the checked handler count, then a success marker, and exits 0. Each problem is printed as `[FAIL] path:line reason` and the script exits 1; a file that does not parse is reported as a syntax error at its line. Every failure line names the file, the line number, and the violation reason.
 
-```text
-except Exception: pass                 → 失败
-except OSError: pass                   → 失败
-except Exception: report_error(...)    → 允许
-except OSError: return None            → 允许
-suppress(Exception)                    → 失败
-suppress(OSError)                      → 允许
-```
+## 6. Remediation order
 
-## 6. 迁移顺序
+Order remediation by failure impact, not by file name:
 
-按失败影响排序，不按文件字母序：
+1. Core data and state: `session_store`, `run_registry`, `file_safety`, `fspaths`, `session_title`.
+2. Persistence and queues: model registry, metadata, log rotation, session queue.
+3. External input parsing: JSON, config, encoding, paths.
+4. Side channels: progress, metrics, optional capabilities, cleanup.
+5. Tests and acceptance scripts.
 
-1. 核心数据与状态：`session_store`、`run_registry`、`file_safety`、`fspaths`、`session_title`。
-2. 持久化与队列：模型注册表、metadata、日志轮转、会话队列。
-3. 外部输入解析：JSON、配置、编码、路径。
-4. 旁路：进度、指标、可选能力、清理。
-5. 测试与验收脚本。
-6. `IDIOMS` 与 `SILENT_EXCEPT_IDIOM_BUDGET` 已删除。
+After each batch:
 
-每一批完成后：
+- run the affected module's unit tests;
+- run `check_silent_except.py`;
+- check that the failure paths have tests;
+- update this document or the quality gate docs.
 
-- 跑受影响模块的单测；
-- 跑 `check_silent_except.py`；
-- 检查失败路径是否有测试；
-- 更新本文件或质量门禁文档。
-
-## 7. 验收
+## 7. Acceptance
 
 ```text
 python scripts/check_silent_except.py
@@ -166,49 +156,42 @@ python -m unittest tests.test_silent_except_gate
 python -m unittest tests.test_gate_negative
 ```
 
-必须满足：
+Required:
 
-- 静默 `pass/continue` 为 0；
-- `IDIOMS` 不存在；
-- 预算常量不存在；
-- 门禁负例全部按预期失败；
-- 关键持久化路径有故障注入测试；
-- 全量 CI 通过（用户要求时执行）。
+- zero silent `pass`/`continue`;
+- no `IDIOMS` table;
+- no budget constant;
+- every gate negative case fails as expected;
+- critical persistence paths have fault-injection tests;
+- full CI passes (run only on request).
 
-## 8. 回滚
+## 8. Rollback
 
-按文件批次回滚，不整体回退：
+Roll back per file batch, not as a whole-tree revert:
 
-- 每批改动前备份原文件；
-- 每批只改异常处理和对应测试；
-- 若出现行为回归，先恢复该批原文件，再缩小改动范围；
-- 不回退已通过的其他批次。
+- back up the original file before each batch;
+- each batch changes only exception handling and the matching tests;
+- on a behavior regression, restore that batch's original files, then narrow the change;
+- do not revert other batches that already passed.
 
-## 9. 当前验收结果
+## 9. Acceptance results
 
 ```text
-检查文件：334
-检查 except：557
-静默 pass/continue：0
-IDIOMS：已删除
-静默异常预算：已删除
-单元测试：1786 通过，2 跳过
-ruff：通过
-架构约束：通过
-复杂度：通过
-配置一致性：通过
-注释文案：通过
-README / 单测文档：通过
+files scanned: 400
+except handlers checked: 698
+silent pass/continue: 0
+IDIOMS table: absent
+silent-exception budget: absent
 ```
 
-宽捕获的两种允许出口：
+`tests.test_silent_except_gate` and `tests.test_gate_negative` pass; the silent-exception negative cases fail the gate as designed.
+
+A wide catch has two permitted exits:
 
 ```text
 report_error(...) / write_stderr(...)
-→ 有上报
+→ reported
 
-显式构造错误结果 / 重新抛出
-→ 有明确状态
+re-raise, or an assignment of an explicit result object
+→ definite state
 ```
-
-不再允许注释、正则标签、预算余量作为豁免。

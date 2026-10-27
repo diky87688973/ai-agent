@@ -1,10 +1,12 @@
+**English** | [中文](README.zh.md)
+
 # AI Agent <kbd>v0.1.4</kbd>
 
 <p align="center">
-  <strong>可扩展、可组合的 AI Agent 底座</strong>
+  <strong>An extensible, composable AI Agent foundation</strong>
   <br>
-  支持本地运行与服务化接入，过程可查，写盘可控。<br>
-  从模型、工具、插件到业务接入，按需扩展与组合。
+  Runs locally or as a service. Inspectable execution, controlled writes.<br>
+  Extend and compose models, tools, plugins, and business integrations.
 </p>
 
 <p align="center">
@@ -13,147 +15,149 @@
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
 
-## 下载
+## Download
 
-打开 [Releases](https://github.com/diky87688973/ai-agent/releases) 页面，选择版本，在 **Assets** 中下载。
+Open [Releases](https://github.com/diky87688973/ai-agent/releases), choose a version, and download from **Assets**.
 
 ### Windows
 
 - `ai-agent-<version>-full-pack-windows.zip`
-  首次使用，下载后解压，运行 `agent-gui.exe`。
+  For first-time use. Unzip and run `agent-gui.exe`.
 
 - `ai-agent-<version>-update-pack-windows.zip`
-  仅用于已安装版本的自动更新，不能单独运行。
+  Only for automatic updates of an installed copy. It cannot run standalone.
 
 ### macOS
 
 - `ai-agent-<version>-full-pack-macos.zip`
 - `ai-agent-<version>-update-pack-macos.zip`
 
-macOS 安装包暂未构建，当前 Release 只提供 Windows 包。
+macOS packages are not built yet. Current releases provide Windows packages only.
 
-## 特点
+## Highlights
 
-- **本地优先，模型端点自选** —— 会话、文件、工具与写盘门控在本机执行；模型端点和推理档位按需配置。
-- **四种入口，一套内核** —— 桌面 GUI、Web 控制台、交互终端与无头执行共用会话、工具和门控规则，切换入口不改变行为。
-- **可服务化接入** —— 内核不绑定 UI，Web 入口提供本地 HTTP/SSE 与健康检查，无头入口面向脚本、CI、工单和外部系统调用，插件可追加自己的 HTTP 端点。
-- **访问鉴权** —— 浏览器登录，GUI 一次性免登录；scrypt 密码、HttpOnly 会话、CSRF、scope Token、登录限流、公网 TLS。
-- **插件化扩展** —— 工具、执行器、上下文、提示词、门控、模型目录、HTTP 端点与界面资产均可由插件加入，不修改内核；内置 Skills、Rules、知识库、多模型、视觉操作与AI说话。
-- **多智能体协作** —— 子智能体按批次创建，拥有独立会话与角色工具视图；支持父子双向通信、消息队列、工作汇报。
-- **长任务可管理** —— 后台任务按会话隔离，支持并发上限、超时、取消与输出读取；目标、Todo 和消息队列支持多轮推进。
-- **写盘可审查** —— 预览 → 审查 → 提交 → 重读；改前自动备份，可按版本回滚；删除进入回收目录。
-- **上下文可查、会话可恢复** —— 分段预算、超预算摘要、上下文用量与请求快照；事实流落盘，SSE 断线可按事件坐标续传。
-- **安全更新** —— 更新包哈希校验、暂存、健康检查与失败回滚；普通文件覆盖，`*.ini` 合并用户配置。
+- **Local-first, model-endpoint agnostic** — sessions, files, tools, and write gates run on the local machine. Configure model endpoints and reasoning levels as needed.
+- **Four entry points, one kernel** — desktop GUI, Web console, interactive terminal, and headless execution share sessions, tools, and gates. Switching entry points does not change behavior.
+- **Service-ready** — the kernel is not tied to a UI. The Web entry provides local HTTP/SSE and health checks. The headless entry targets scripts, CI, tickets, and external systems. Plugins can add their own HTTP endpoints.
+- **Access control** — browser login, one-time GUI auto-login, scrypt passwords, HttpOnly sessions, CSRF, scoped tokens, login rate limiting, and TLS for public bindings.
+- **Plugin extensions** — tools, executors, context, prompts, gates, model catalogs, HTTP endpoints, and UI assets can be added without changing the kernel. Built-in plugins include Skills, Rules, Knowledge, Multi-model, Visual Operator, and AI Speak.
+- **Multi-agent collaboration** — subagents are created in batches with independent sessions and role-specific tool views. Parent/child messaging, queues, and work reports are supported.
+- **Manageable long-running work** — background tasks are isolated per session with concurrency limits, timeouts, cancellation, and output retrieval. Goals, todos, and message queues support multi-round progress.
+- **Reviewable writes** — preview → review → commit → re-read. Automatic backup before edits, backup and rollback, and recycle-directory deletion.
+- **Inspectable context, resumable sessions** — segment budgets, over-budget summaries, context usage, and request snapshots. Persisted fact streams and SSE resume by event coordinates.
+- **Safe updates** — update-pack hash checks, staging, health checks, and rollback on failure. Regular files are replaced; `*.ini` files merge user settings.
 
-## 快速开始
+## Quick start
 
-### 桌面方式
+### Desktop
 
-保持项目目录完整，双击根目录 `agent-gui.exe`。
+Keep the project directory intact and double-click `agent-gui.exe` in the root.
 
-需要本机 Python 3.10+ 和系统 WebView2；首次运行会联网准备 pywebview。桌面壳使用固定端口 `3156`。
+Requires Python 3.10+ and WebView2. The first run prepares `pywebview` online. The desktop shell uses fixed port `3156`.
 
-<img src="docs/assets/desktop.png" alt="桌面窗口" width="960">
+<img src="docs/assets/desktop.png" alt="Desktop window" width="960">
 
-### 命令行方式
+### Command line
 
-安装：
+Install:
 
 ```bash
 python3 -m pip install -e ".[gui,tts]" -c constraints.txt
 ```
 
-#### Web 控制台
+#### Web console
 
 ```bash
 agent-web --host 127.0.0.1 --port 8765
 ```
 
-打开 <http://127.0.0.1:8765/>。Windows 也可双击 `start.bat`，Linux/macOS 可运行 `./start.sh`。
+Open <http://127.0.0.1:8765/>. On Windows, double-click `start.bat`; on Linux/macOS, run `./start.sh`.
 
-#### 交互终端
+#### Interactive terminal
 
 ```bash
 agent-cli
-agent-cli --session <会话ID>
+agent-cli --session <session-id>
 ```
 
-#### 无头执行
+#### Headless execution
 
 ```bash
-agent-headless "问题"
-agent-headless --session <会话ID> "问题"
+agent-headless "question"
+agent-headless --session <session-id> "question"
 ```
 
-输出事件流与会话 ID；适合工单、排障、CI 和脚本集成。
+Prints the event stream and session ID. Suitable for tickets, troubleshooting, CI, and scripts.
 
-#### 桌面窗口
+#### Desktop window
 
 ```bash
 python3 -m agent.gui.launcher
 ```
 
-端口 `3156`；与 `agent-web` 的 `8765` 相互独立。
+Uses port `3156`; independent of `agent-web` on `8765`.
 
-## 文档
+## Documentation
 
-### 用户文档
+Documentation is available in English and Chinese; English pages are canonical.
 
-| 文档 | 内容 |
+### User guides
+
+| Document | Contents |
 |---|---|
-| [配置](docs/guide/config.md) | 配置项、启动参数与环境变量 |
-| [桌面入口](docs/guide/desktop.md) | `agent-gui.exe`、Python 桌面壳与运行前提 |
+| [Configuration](docs/guide/config.md) | Configuration keys, launch arguments, environment variables |
+| [Desktop entry](docs/guide/desktop.md) | `agent-gui.exe`, Python desktop shell, prerequisites |
 
-### 开发者文档
+### Developer documentation
 
-| 文档 | 内容 |
+| Document | Contents |
 |---|---|
-| [架构](docs/architecture.md) | 五层结构、模块链、端口、事件协议、状态生命周期 |
-| [工程标准](docs/engineering-standards.md) | 模块结构、单一职责、资产归属、扩展路径与门禁 |
-| [术语](docs/glossary.md) | 项目自定义词的定义 |
-| [内核](docs/subsystems/core.md) | 模块契约、链执行器、宿主循环 |
-| [上下文管理](docs/subsystems/context.md) | 三拼接装、分段统计、压缩与摘要 |
-| [模型调用](docs/subsystems/llm.md) | 请求体、流式解析、工具调用归并、错误映射 |
-| [工具](docs/subsystems/tools.md) | 注册、执行管道、写盘四步协议、内置工具 |
-| [插件](docs/subsystems/plugins.md) | 插件包形态、可贡献的能力、界面资产、生命周期与边界 |
-| [知识库](docs/subsystems/knowledge.md) | `knowledge` 的文件收录、勾选状态、注入与端点 |
-| [多模型](docs/subsystems/multi-model.md) | `multi_model` 的目录条目、设置页表单与模型下拉 |
-| [Skills](docs/subsystems/skills.md) | `skills` 插件的三层披露、内置/外置来源与 `skills` 工具 |
-| [Rules](docs/subsystems/rules.md) | `rules` 插件：`rules/` 下的 `.md` 全量注入与热开关 |
-| [视觉操作](docs/subsystems/visual-operator.md) | 截屏、坐标网格与鼠标键盘工具 |
-| [AI说话](docs/subsystems/ai-speak.md) | `ai_speak` 的文本规范、语音合成、插件事件与播放器 |
-| [会话与协作](docs/subsystems/session.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
-| [子智能体](docs/subsystems/subagent.md) | 父子会话、批次、工具可见性、消息与最终回复投递 |
-| [壳层](docs/subsystems/shell.md) | HTTP 路由、SSE、界面打包、适配层 |
+| [Architecture](docs/architecture.md) | Five layers, module chain, ports, event protocol, state lifecycle |
+| [Engineering standards](docs/engineering-standards.md) | Module structure, single responsibility, asset ownership, extension paths, gates |
+| [Glossary](docs/glossary.md) | Project-specific terms |
+| [Kernel](docs/subsystems/core.md) | Module contracts, chain executor, host loop |
+| [Context](docs/subsystems/context.md) | Three-part assembly, segment accounting, compaction and summaries |
+| [Model calls](docs/subsystems/llm.md) | Request bodies, streaming, tool-call merging, error mapping |
+| [Tools](docs/subsystems/tools.md) | Registration, execution pipeline, four-step write protocol, built-in tools |
+| [Plugins](docs/subsystems/plugins.md) | Plugin packages, contributions, UI assets, lifecycle, boundaries |
+| [Knowledge](docs/subsystems/knowledge.md) | File ingestion, selection state, injection, endpoints |
+| [Multi-model](docs/subsystems/multi-model.md) | Catalog entries, settings forms, model pickers |
+| [Skills](docs/subsystems/skills.md) | Three-layer disclosure, built-in/external sources, `skills` tool |
+| [Rules](docs/subsystems/rules.md) | `rules/` markdown injection and hot toggle |
+| [Visual Operator](docs/subsystems/visual-operator.md) | Screenshots, coordinate grid, mouse/keyboard tools |
+| [AI Speak](docs/subsystems/ai-speak.md) | Text normalization, speech synthesis, plugin events, player |
+| [Sessions and collaboration](docs/subsystems/session.md) | Fact logs, cross-process locks, runtime registry, collaboration mesh |
+| [Subagents](docs/subsystems/subagent.md) | Parent/child sessions, batches, tool visibility, messaging |
+| [Shell](docs/subsystems/shell.md) | HTTP routes, SSE, UI bundling, adapter layer |
 
-### 设计文档（内部）
+### Internal design notes
 
-以下为设计记录与取舍，不是用户手册。
+Design records and trade-offs, not user manuals.
 
 <details>
-<summary>展开设计文档</summary>
+<summary>Expand design notes</summary>
 
-| 文档 | 内容 |
+| Document | Contents |
 |---|---|
-| [后台任务](docs/plan/background-tasks.md) | per-cid 队列、并发上限、超时、取消、输出与聚合通知 |
-| [软件更新](docs/plan/software-update.md) | 版本检查、哈希校验、版本化目录、原子切换与回滚 |
-| [会话消息队列](docs/plan/conversation-queue.md) | 忙时入队、回合结束投递、安全插入与修改恢复 |
-| [标准对齐](docs/plan/standards-alignment.md) | 依赖环、门禁可信度、覆盖率口径与预算 |
-| [结构整改](docs/plan/structural-remediation.md) | Provider、上下文、壳层与门禁的职责拆分 |
-| [历史分页](docs/plan/history-paging.md) | 轮次分页、游标、前插与超长报文延迟渲染 |
-| [多模型](docs/plan/multi-model.md) | 模型目录、Provider 路由与协议适配 |
-| [AI说话](docs/plan/ai-speak.md) | 文本切片、SSE 与播放器设计 |
-| [视觉操作交互](docs/plan/visual-operator-interaction.md) | 截屏、UIA 与坐标控制的设计判断 |
-| [视觉操作](docs/plan/visual-operator.md) | 视觉操作子系统的设计记录 |
-| [ADR：插件子进程隔离](docs/adr/plugin-subprocess-isolation.md) | 隔离方案的决策记录 |
+| [Background tasks](docs/plan/background-tasks.md) | Per-cid queues, concurrency limits, timeouts, cancellation, output, aggregate notices |
+| [Software updates](docs/plan/software-update.md) | Version checks, hash validation, per-file switch, backup, rollback |
+| [Conversation queue](docs/plan/conversation-queue.md) | Busy-time enqueue, turn-end delivery, safe insertion, edit recovery |
+| [Standards alignment](docs/plan/standards-alignment.md) | Dependency cycles, gate trust, coverage accounting, budgets |
+| [Structural remediation](docs/plan/structural-remediation.md) | Provider, context, shell, and gate responsibility split |
+| [History paging](docs/plan/history-paging.md) | Turn paging, cursors, prepend, delayed rendering of oversized payloads |
+| [Multi-model](docs/plan/multi-model.md) | Model catalogs, provider routing, protocol adapters |
+| [AI Speak](docs/plan/ai-speak.md) | Text slicing, SSE, player design |
+| [Visual Operator interaction](docs/plan/visual-operator-interaction.md) | Screenshots, UIA, coordinate-control decisions |
+| [Visual Operator](docs/plan/visual-operator.md) | Visual Operator design record |
+| [ADR: plugin subprocess isolation](docs/adr/plugin-subprocess-isolation.md) | Isolation decision record |
 
 </details>
 
-## 开发帮助
+## Development
 
-### 环境
+### Environment
 
-依赖安装带锁文件，与 CI 同源：
+Dependencies use a lock file shared with CI:
 
 ```bash
 pip install -e . -c constraints.txt
@@ -161,55 +165,55 @@ pip install -e . -c constraints.txt
 
 ### CI
 
-`scripts/ci.py` 的流水线 30 步：18 项门禁 → 单测 → 10 个验收脚本 → 分包覆盖率。
+`scripts/ci.py` runs 30 steps: 18 gates → unit tests → 10 acceptance scripts → package coverage.
 
-18 项门禁覆盖依赖方向、架构约束、配置漂移、生成文档一致性、静态检查、UI/文案、复杂度、适用性与并发争用；完整清单用 `--list` 查看。
+The 18 gates cover dependency direction, architecture constraints, config drift, generated-doc consistency, static checks, UI/copy, complexity, applicability, and concurrency. Run `--list` for the full list.
 
-门禁清单的唯一事实源是 `scripts/ci_steps.py`，由 `check_ci_workflow` 与 GitHub Actions 对齐。
+The single source of truth for gates is `scripts/ci_steps.py`, kept aligned with GitHub Actions by `check_ci_workflow`.
 
 ```bash
-python scripts/ci.py           # 全部检查
-python scripts/ci.py --fast    # 跳过验收
-python scripts/ci.py --list    # 列出检查项
+python scripts/ci.py           # all checks
+python scripts/ci.py --fast    # skip acceptance
+python scripts/ci.py --list    # list checks
 ```
 
-### 测试
+### Tests
 
-`docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
+`docs/unit-tests.md` is a generated readable test catalog; the source of truth is `tests/`.
 
-单元测试（1917 个用例）：
+Unit tests (1919 cases):
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests
 ```
 
-### 调试工具
+### Debugging tools
 
-导出某个会话的真实请求上下文：
-
-```bash
-python scripts/dump_context.py --cid <会话ID> --format json --out context.json
-```
-
-检视会话的上下文分段与压缩判定：
+Dump the real request context of a session:
 
 ```bash
-python scripts/inspect_compact.py                 # 列出有日志的会话
-python scripts/inspect_compact.py <会话 id>        # 检视其中一个
-python scripts/inspect_compact.py <会话 id> --digest
+python scripts/dump_context.py --cid <session-id> --format json --out context.json
 ```
 
-审计本地 JS 事件绑定：
+Inspect context segments and compaction decisions:
+
+```bash
+python scripts/inspect_compact.py                 # list sessions with logs
+python scripts/inspect_compact.py <session-id>    # inspect one
+python scripts/inspect_compact.py <session-id> --digest
+```
+
+Audit local JS event bindings:
 
 ```bash
 python scripts/scan_js_events.py
 ```
 
-## 作者
+## Author
 
-- 作者：Fan
-- 邮箱：diky87@qq.com
+- Author: Fan
+- Email: diky87@qq.com
 
-## 许可
+## License
 
-[MIT License](LICENSE)。第三方组件署名见 [NOTICE](NOTICE)。
+[MIT License](LICENSE). Third-party notices are in [NOTICE](NOTICE).

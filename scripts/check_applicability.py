@@ -33,7 +33,7 @@ DOCS = ROOT / "docs" / "applicability.md"
 _ID_RE = re.compile(r"^(?:[A-Z][0-9]*[a-z]?|[0-9]+\.[0-9]+)$")
 
 #: 申报列只接受这一个值；"适用"不需要申报（缺省即适用）
-NA = "不适用"
+NA_VALUES = {"不适用", "Not applicable"}
 #: 原因的最小长度：一句话，不能只写"不需要"
 MIN_REASON = 20
 
@@ -51,7 +51,7 @@ def _rows(text: str) -> Iterable[tuple[int, list[str]]]:
             continue
         cells = _cells(stripped)
         if not header_seen:
-            header_seen = "准则" in cells
+            header_seen = bool(cells and cells[0] in ("准则", "Rule"))
             continue
         if all(set(c) <= set("-: ") for c in cells):
             continue
@@ -75,16 +75,20 @@ def check(text: str, known_ids: Set[str]) -> list[str]:
         if rule in seen:
             out.append(f"第 {lineno} 行：重复申报「{rule}」")
         seen.add(rule)
-        if verdict != NA:
-            out.append(f"第 {lineno} 行：申报只能是「{NA}」，实际「{verdict}」")
+        if verdict not in NA_VALUES:
+            out.append(f"第 {lineno} 行：申报只能是「不适用」或「Not applicable」，实际「{verdict}」")
         if len(reason) < MIN_REASON:
             out.append(f"第 {lineno} 行：原因少于 {MIN_REASON} 字，无法审计")
         if not risk:
             out.append(f"第 {lineno} 行：缺少「风险由谁承担」")
         if rule not in known_ids:
             out.append(f"第 {lineno} 行：标准手册里没有「{rule}」（过期申报？）")
-    if "| 准则 | 申报 | 原因 | 风险由谁承担 |" not in text:
-        out.append("缺少申报表头：`| 准则 | 申报 | 原因 | 风险由谁承担 |`")
+    headers = (
+        "| 准则 | 申报 | 原因 | 风险由谁承担 |",
+        "| Rule | Declaration | Reason | Risk bearer |",
+    )
+    if not any(header in text for header in headers):
+        out.append("缺少申报表头（中文或英文）")
     return out
 
 

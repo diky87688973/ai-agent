@@ -42,6 +42,7 @@ class ChatActions:
         if not started:
             self.app.conversation_queue.release(cid, item["id"])
             return 503, {"ok": False, "error": "会话启动失败"}
+        self._remember_run(cid, started)
         self.app.conversation_queue.complete(cid, item["id"])
         return 200, {"ok": True, "conversation_id": cid,
                      "run_id": started, "queued": False}
@@ -110,6 +111,7 @@ class ChatActions:
         started = str(result.get("run_id") or "")
         if not started:
             return 503, {"error": "会话启动失败"}
+        self._remember_run(cid, started)
         return 200, {
             "ok": True,
             "conversation_id": cid,
@@ -144,6 +146,7 @@ class ChatActions:
                     if not started:
                         self.app.conversation_queue.release(cid, item_id)
                         return 503, {"ok": False, "error": "会话启动失败"}
+                    self._remember_run(cid, started)
                     self.app.conversation_queue.complete(cid, item_id)
                     return 200, {"ok": True, "run_id": started,
                                  "revision": self.app.conversation_queue.revision(cid)}
