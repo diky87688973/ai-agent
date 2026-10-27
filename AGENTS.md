@@ -197,7 +197,6 @@ python -m agent.entry.web --revoke-token NAME
 ```text
 VERSION
 pyproject.toml [project].version
-README.md 标题 <kbd>vX.Y.Z</kbd>
 README.md 徽章 version-vX.Y.Z-blue
 agent/shell/web/ui_bundle.py 版本兜底 vX.Y.Z
 docs/assets/desktop.png（截图包含版本号时必须同步）
@@ -209,7 +208,7 @@ docs/assets/desktop.png（截图包含版本号时必须同步）
 2. 同步版本号；只改当前版本引用，不改 `docs/plan/` 里的历史版本示例。
 3. 按「README 截图」重新生成截图。
 4. 运行受影响检查：`check_readme.py`、`check_ui_js.py`、受影响单测。
-5. 核对 `VERSION`、`pyproject.toml`、README、UI 兜底版本完全一致，截图中的版本与当前版本一致。
+5. 核对 `VERSION`、`pyproject.toml`、README 徽章、UI 兜底版本完全一致，截图中的版本与当前版本一致。
 6. 提交、打 tag、创建 Release 必须等用户明确要求；不得升版本后自动发布。
 7. Release 正文必须写明本版内容，不能空白，也不能只有 Full Changelog。
 

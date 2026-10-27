@@ -1,6 +1,6 @@
 [English](README.md) | **中文**
 
-# AI Agent <kbd>v0.1.4</kbd>
+# AI Agent
 
 <p align="center">
   <strong>可扩展、可组合的 AI Agent 底座</strong>

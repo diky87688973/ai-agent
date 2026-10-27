@@ -1,6 +1,6 @@
 **English** | [中文](README.zh.md)
 
-# AI Agent <kbd>v0.1.4</kbd>
+# AI Agent
 
 <p align="center">
   <strong>An extensible, composable AI Agent foundation</strong>
