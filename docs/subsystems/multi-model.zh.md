@@ -6,7 +6,7 @@
 内核按请求里的模型 id 路由到对应 provider 实例。插件同时提供输入区的模型下拉，
 并声明设置页的「模型」入口。
 
-插件机制本身见 [plugins.md](plugins.md)；各协议的请求体与流式解析见 [llm.md](llm.md)。
+插件机制本身见 [plugins.md](plugins.zh.md)；各协议的请求体与流式解析见 [llm.md](llm.zh.md)。
 
 ## 包结构
 
@@ -128,7 +128,7 @@ INI 的节名必须唯一，因此两套协议不能共用一个 id。
 `#modelPickerSlot` 容器。脚本经 `window.aiAgentPlugins.for()` 读 `/catalog` 取条目，
 用 `window.aiAgentShell.models` 读取当前选择并写回；目录端点不可用时回落到
 `shell.models.list()`。样式经 `window.aiAgentShell.styles.load()` 注入。
-桥的契约见 [plugins.md](plugins.md#壳层公共桥)。
+桥的契约见 [plugins.md](plugins.zh.md#壳层公共桥)。
 
 按钮与下拉都不设宽度上限：模型名是唯一的辨识依据，同一网关的两个条目
 （`model-a-openai` 与 `model-a-anthropic`）截成同一段前缀后就分不出选的是哪个。
@@ -136,6 +136,6 @@ INI 的节名必须唯一，因此两套协议不能共用一个 id。
 
 ## 延伸阅读
 
-- [plugins.md](plugins.md)：插件包形态、扩展点、界面资产与生命周期
-- [llm.md](llm.md)：请求体、地址推导、流式解析与错误映射
-- [../guide/config.md](../guide/config.md)：宿主配置项
+- [plugins.md](plugins.zh.md)：插件包形态、扩展点、界面资产与生命周期
+- [llm.md](llm.zh.md)：请求体、地址推导、流式解析与错误映射
+- [../guide/config.md](../guide/config.zh.md)：宿主配置项

@@ -7,7 +7,7 @@ Skills 是**供模型按需读取的说明文档**：若干 `.md`，每条带名
 系统提示词章节；移除 `[plugin:skills]` 节后，这些能力一起消失，内核不受影响。
 Skills 有两个来源：随仓库发布的内置目录，以及用户配置的外置目录。
 
-插件怎么组织、扩展点怎么用见 [plugins.md](plugins.md)。
+插件怎么组织、扩展点怎么用见 [plugins.md](plugins.zh.md)。
 
 ## 渐进式披露
 
@@ -125,7 +125,7 @@ description: 写 .py 前后要遵守的工程约定
 来源抬头只给模型看，UI 层不显示来源，两个上下文段保持各自的段名与数量。抬头让模型
 分清这是 Skills 说明，不是用户对话，也不是知识库素材。两条上下文注入都位于系统提示词
 之后、知识库之前，顺序按 `plugins.ini` 里的插件位次；`## 资源目录` 属于系统提示词本身。
-它们只会因为文件或配置改变而变化（见 [context.md](context.md)）。
+它们只会因为文件或配置改变而变化（见 [context.md](context.zh.md)）。
 
 ## 可用 Skills 数
 
@@ -157,6 +157,6 @@ description: 写 .py 前后要遵守的工程约定
 
 ## 延伸阅读
 
-- [plugins.md](plugins.md)：插件系统契约、扩展点、界面资产
-- [context.md](context.md)：组装顺序与内核-插件协同
-- [guide/config.md](../guide/config.md)：内核配置项
+- [plugins.md](plugins.zh.md)：插件系统契约、扩展点、界面资产
+- [context.md](context.zh.md)：组装顺序与内核-插件协同
+- [guide/config.md](../guide/config.zh.md)：内核配置项

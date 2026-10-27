@@ -4,7 +4,7 @@
 
 配置文件是仓库根目录的 `config.ini`，随仓库入库，只保留非敏感的宿主配置；文件不存在时使用代码默认值。模型不在此文件配置，由 `plugins/multi_model/plugin-config.ini` 和多模型设置页维护。缺省值与全部键见下。
 
-插件清单是另一份文件 `plugins.ini`（工程根），它**入库**——里面没有密钥，列的是装载哪些插件。见 [插件](../subsystems/plugins.md)。
+插件清单是另一份文件 `plugins.ini`（工程根），它**入库**——里面没有密钥，列的是装载哪些插件。见 [插件](../subsystems/plugins.zh.md)。
 
 ## `[agent]`
 
@@ -88,7 +88,7 @@ reasoning_replay_tokens  = 8000
 
 「缺省或留空时」是 `config.ini` 缺该节或缺该键时生效的值。
 
-机制细节见 [context.md](../subsystems/context.md)。
+机制细节见 [context.md](../subsystems/context.zh.md)。
 
 ## `[update]`
 
@@ -121,7 +121,7 @@ enabled = 1
 
 **节的先后即上下文组装顺序**：越不容易变动的插件排在越前面。
 
-**插件自己的配置跟着插件走。** `ai_speak` / `visual_operator` / `knowledge` / `skills` 的配置入库；`multi_model` 的密钥配置被 `.gitignore` 排除；**内核的 `config.ini` 里没有插件设置**。插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.md)。
+**插件自己的配置跟着插件走。** `ai_speak` / `visual_operator` / `knowledge` / `skills` 的配置入库；`multi_model` 的密钥配置被 `.gitignore` 排除；**内核的 `config.ini` 里没有插件设置**。插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.zh.md)。
 
 ## HTTP 鉴权
 
@@ -255,4 +255,4 @@ agent-web --revoke-token ci
 
 - [架构](../architecture.zh.md)
 - [术语](../glossary.zh.md)
-- [上下文管理](../subsystems/context.md)
+- [上下文管理](../subsystems/context.zh.md)

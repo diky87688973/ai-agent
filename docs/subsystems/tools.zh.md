@@ -205,18 +205,18 @@ Markdown 的本地文本文件路径链接同样进入右栏；本地媒体路�
 工具声明 `needs_preview=True` 时同样受写盘四步协议约束。
 
 `plugins/visual_operator` 贡献 `desktop_eye` / `desktop_mouse` / `desktop_keyboard` / `desktop_wait`：
-截屏结果作为图片附件回灌模型，鼠标与键盘动作按会话做 Plan 门控；坐标契约与平台后端见 [visual-operator.md](visual-operator.md)。
+截屏结果作为图片附件回灌模型，鼠标与键盘动作按会话做 Plan 门控；坐标契约与平台后端见 [visual-operator.md](visual-operator.zh.md)。
 
-`plugins/ai_speak` 贡献 `ai_speak`：模型把当前步骤用人类口语说出来，后端合成语音经插件事件送到前端播放条；文本规范与配置见 [ai-speak.md](ai-speak.md)。
+`plugins/ai_speak` 贡献 `ai_speak`：模型把当前步骤用人类口语说出来，后端合成语音经插件事件送到前端播放条；文本规范与配置见 [ai-speak.md](ai-speak.zh.md)。
 
-`plugins/skills` 贡献 `skills`（list / read）；见 [skills.md](skills.md)。
+`plugins/skills` 贡献 `skills`（list / read）；见 [skills.md](skills.zh.md)。
 
-插件包形态、清单、扩展点与生命周期见 [plugins.md](plugins.md)；运行时实例的登记（`ctx.set_runtime` / `plugin_host.runtime`）也在那里说明。
+插件包形态、清单、扩展点与生命周期见 [plugins.md](plugins.zh.md)；运行时实例的登记（`ctx.set_runtime` / `plugin_host.runtime`）也在那里说明。
 
 ## 延伸阅读
 
 - [architecture.zh.md](../architecture.zh.md)：`ToolPort` 与模块链
-- [plugins.md](plugins.md)：插件系统与工具扩展点
-- [visual-operator.md](visual-operator.md)：插件工具的图片附件与输入门控示例
-- [guide/config.md](../guide/config.md)：配置项
-- [session.md](session.md)：跨会话协作工具背后的网格
+- [plugins.md](plugins.zh.md)：插件系统与工具扩展点
+- [visual-operator.md](visual-operator.zh.md)：插件工具的图片附件与输入门控示例
+- [guide/config.md](../guide/config.zh.md)：配置项
+- [session.md](session.zh.md)：跨会话协作工具背后的网格

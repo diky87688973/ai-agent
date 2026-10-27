@@ -3,7 +3,7 @@
 # 标准对齐
 
 > 适用标准：`production-standards.md`（MUST / SHOULD）。
-> 范围：只处理存量工程债；两个新需求见 [history-paging.md](history-paging.md)、[multi-model.md](multi-model.md)。
+> 范围：只处理存量工程债；两个新需求见 [history-paging.md](history-paging.zh.md)、[multi-model.md](multi-model.zh.md)。
 > 审计发现的 **13 项 MUST、2 项 SHOULD** 全部由下述设计处理；门禁与预算的当前值见 §0.4。
 
 ## 0. 结论先行
@@ -294,7 +294,7 @@ class PluginSegments:
 | `suppress(具体异常)` | 允许 |
 | 隔离边界上的宽捕获：上报并返回确定状态、转成 `ToolResult(...)`，或原样重抛 | 允许 |
 
-**设计**：`scripts/check_silent_except.py` 对 `agent/`、`tests/`、`scripts/`、`plugins/` 下的 `.py` 做 AST 结构检查，跳过 `__pycache__` 与 `retired`。它不读正则表、不读预算，注释不构成豁免。上报指 `report_error(...)`（至少两个位置参数）、`write_stderr(...)` 或 `print(..., file=sys.stderr)`；转换指 `raise`，或赋值右值是 `ToolResult(...)` 调用。完整判据见 [silent-exceptions.md](../silent-exceptions.md)。
+**设计**：`scripts/check_silent_except.py` 对 `agent/`、`tests/`、`scripts/`、`plugins/` 下的 `.py` 做 AST 结构检查，跳过 `__pycache__` 与 `retired`。它不读正则表、不读预算，注释不构成豁免。上报指 `report_error(...)`（至少两个位置参数）、`write_stderr(...)` 或 `print(..., file=sys.stderr)`；转换指 `raise`，或赋值右值是 `ToolResult(...)` 调用。完整判据见 [silent-exceptions.md](../silent-exceptions.zh.md)。
 
 **验证**：`python scripts/check_silent_except.py` 扫描 400 个文件、698 个 except，0 违规；`tests/test_silent_except_gate.py` 覆盖 `pass`、多语句中的 `pass`、窄捕获返回、`suppress(Exception)`、缺少载荷的上报，以及替换扫描根目录后的 `main()`。
 

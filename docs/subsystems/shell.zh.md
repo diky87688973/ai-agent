@@ -179,7 +179,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 ## 运行态与并发保护
 
 `WebShell` 持一张 SSE 连接表与一张按会话的活跃回合表（`conversation_id → run_id`）。权威忙闲
-来自运行态登记（见 [session.md](session.md)）；`session_send` 工具判定目标忙闲也用这一事实源。
+来自运行态登记（见 [session.md](session.zh.md)）；`session_send` 工具判定目标忙闲也用这一事实源。
 中途打开的页面据此显示停止键。经典流下，不带 `conversation_id` 的 GET 只回 `state.running`。
 
 **客户端布局（打开过哪些标签、激活哪一个）存在浏览器 `localStorage`**：布局属于某一个浏览器，
@@ -214,7 +214,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 模式说明由 `resolve_mode_note()` 产出，作为请求尾部的临时后缀，只加在发给模型的那一份上。
 运行器的尾部还带 Todo 进度与插件尾部；有显式系统提示时，模式说明与 Todo 行都不加。
-见 [context.md](context.md) 的「执行模式是请求尾部的临时后缀」。
+见 [context.md](context.zh.md) 的「执行模式是请求尾部的临时后缀」。
 
 ## 界面打包
 
@@ -236,7 +236,7 @@ inline_ui_html()        # 拼成完整单页
 
 模型下拉不是壳层内建 UI：壳层只留 `#modelPickerSlot` 挂载点，按钮与菜单由
 `plugins/multi_model/ui/` 渲染，样式经 `window.aiAgentShell.styles.load()` 注入，
-壳层公共样式里没有它。两条公共桥与停用清理见 [plugins.md](plugins.md#壳层公共桥)。
+壳层公共样式里没有它。两条公共桥与停用清理见 [plugins.md](plugins.zh.md#壳层公共桥)。
 
 ### 本回合编辑清单
 
@@ -327,7 +327,7 @@ CLI 加载 `plugins.cli.ini`，停用 `ai_speak`。
 目录；查看器端点受可见根限制，补全浏览器不受。
 
 `/workspace/*` 的根是 `<data_root>/workspace`。`/api/media` 只提供显式媒体根内的路径（未配置时用全部可见根），
-不按工作区根判界。见 [guide/config.md](../guide/config.md)。
+不按工作区根判界。见 [guide/config.md](../guide/config.zh.md)。
 
 ## 诊断脚本
 
@@ -348,5 +348,5 @@ python scripts/inspect_compact.py <会话 id> --digest
 ## 延伸阅读
 
 - [architecture.zh.md](../architecture.zh.md)：五层结构与装配
-- [tools.md](tools.md)：写盘门控
-- [guide/config.md](../guide/config.md)：参数与环境变量
+- [tools.md](tools.zh.md)：写盘门控
+- [guide/config.md](../guide/config.zh.md)：参数与环境变量

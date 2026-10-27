@@ -804,7 +804,7 @@ BOM 文件可读、`context_window` 必填且 `compression_percent` 校验范围
 
 ## 15. 工程约束
 
-相关标准：[standards-alignment.md](standards-alignment.md)。
+相关标准：[standards-alignment.md](standards-alignment.zh.md)。
 
 | 约束 | 落点 | 验证方式 |
 |---|---|---|

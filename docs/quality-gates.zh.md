@@ -33,7 +33,7 @@
 | 静态检查 | `ruff check` | 未用导入、导入顺序、明显缺陷 |
 | Python 下限 | `check_python_floor.py` | 用了高于声明下限（3.10）的语法 |
 | UI JS 自检 | `check_ui_js.py` | JS 语法、共享作用域、被调用但未定义的辅助函数 |
-| 静默异常 | `check_silent_except.py` | `pass`/`continue`、裸 `except`、宽捕获无上报、`suppress(Exception)`；判据见 [silent-exceptions.md](silent-exceptions.md) |
+| 静默异常 | `check_silent_except.py` | `pass`/`continue`、裸 `except`、宽捕获无上报、`suppress(Exception)`；判据见 [silent-exceptions.md](silent-exceptions.zh.md) |
 | README 一致性 | `check_readme.py` | 用例数、验收脚本数、`data/` 子目录与代码不符 |
 | 确认文案无歧义 | `check_confirm_wording.py` | 写盘指引含糊、缺解锁工具、含解释性内容 |
 | 注释文案 | `check_comment_style.py` | 注释残句、过程叙述、Markdown 排版标记 |

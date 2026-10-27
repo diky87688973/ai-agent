@@ -210,5 +210,5 @@ cid 必须匹配 `[A-Za-z0-9_-]{8,128}` 才拼路径，非法 cid 直接不落�
 ## 延伸阅读
 
 - [architecture.zh.md](../architecture.zh.md)：事实与投影
-- [tools.md](tools.md)：写盘四步协议
-- [shell.md](shell.md)：SSE 断线重连与序号
+- [tools.md](tools.zh.md)：写盘四步协议
+- [shell.md](shell.zh.md)：SSE 断线重连与序号

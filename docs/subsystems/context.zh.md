@@ -390,7 +390,7 @@ threshold = floor(context_window × compression_percent / 100)
 多条注入属于**同一个来源组**：组装位次由插件在清单里的位置决定，组内按注册顺序。
 分段统计也按同一顺序逐段上报。
 
-Skills 本身的分层做法见 [skills.md](skills.md)。
+Skills 本身的分层做法见 [skills.md](skills.zh.md)。
 
 ## 图片进请求的限制
 
@@ -444,7 +444,7 @@ token 数是**估算**而非精确计数：
 ## 延伸阅读
 
 - [architecture.zh.md](../architecture.zh.md)：模块链与端口
-- [plugins.md](plugins.md)：插件怎么注册注入源
-- [skills.md](skills.md)：Skills 插件的三层披露
-- [core.md](core.md)：`CompressModule` 在链上的位置
-- [guide/config.md](../guide/config.md)：完整配置项
+- [plugins.md](plugins.zh.md)：插件怎么注册注入源
+- [skills.md](skills.zh.md)：Skills 插件的三层披露
+- [core.md](core.zh.md)：`CompressModule` 在链上的位置
+- [guide/config.md](../guide/config.zh.md)：完整配置项

@@ -4,7 +4,7 @@
 
 代码按五层组织，一次请求依次流经入口、壳层、能力、机制与内核。
 
-模块结构、单一职责与资产归属的强制规则见 [工程标准](engineering-standards.md)。
+模块结构、单一职责与资产归属的强制规则见 [工程标准](engineering-standards.zh.md)。
 
 ## 五层结构
 
@@ -182,15 +182,15 @@ class Ports:
 
 | 主题 | 文档 |
 |---|---|
-| 术语 | [glossary.md](glossary.md) |
-| 内核模块链与事件 | [subsystems/core.md](subsystems/core.md) |
-| 上下文管理 | [subsystems/context.md](subsystems/context.md) |
-| 模型调用 | [subsystems/llm.md](subsystems/llm.md) |
-| 工具与插件 | [subsystems/tools.md](subsystems/tools.md)、[subsystems/plugins.md](subsystems/plugins.md) |
-| 知识库 | [subsystems/knowledge.md](subsystems/knowledge.md) |
-| Skills | [subsystems/skills.md](subsystems/skills.md) |
-| 多模型 | [subsystems/multi-model.md](subsystems/multi-model.md) |
-| 会话存储与协作 | [subsystems/session.md](subsystems/session.md) |
-| HTTP 服务与界面 | [subsystems/shell.md](subsystems/shell.md) |
-| 配置项 | [guide/config.md](guide/config.md) |
-| 写盘门控现状与优化 | [write-gate.md](write-gate.md) |
+| 术语 | [glossary.md](glossary.zh.md) |
+| 内核模块链与事件 | [subsystems/core.md](subsystems/core.zh.md) |
+| 上下文管理 | [subsystems/context.md](subsystems/context.zh.md) |
+| 模型调用 | [subsystems/llm.md](subsystems/llm.zh.md) |
+| 工具与插件 | [subsystems/tools.md](subsystems/tools.zh.md)、[subsystems/plugins.md](subsystems/plugins.zh.md) |
+| 知识库 | [subsystems/knowledge.md](subsystems/knowledge.zh.md) |
+| Skills | [subsystems/skills.md](subsystems/skills.zh.md) |
+| 多模型 | [subsystems/multi-model.md](subsystems/multi-model.zh.md) |
+| 会话存储与协作 | [subsystems/session.md](subsystems/session.zh.md) |
+| HTTP 服务与界面 | [subsystems/shell.md](subsystems/shell.zh.md) |
+| 配置项 | [guide/config.md](guide/config.zh.md) |
+| 写盘门控现状与优化 | [write-gate.md](write-gate.zh.md) |

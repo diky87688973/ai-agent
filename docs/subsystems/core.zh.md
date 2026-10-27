@@ -151,5 +151,5 @@ set_progress_reporter(fn) / emit_progress(stream=..., text=..., done=...)
 ## 延伸阅读
 
 - [architecture.zh.md](../architecture.zh.md)：五层结构与装配
-- [context.md](context.md)：上下文管理
-- [tools.md](tools.md)：工具执行管道
+- [context.md](context.zh.md)：上下文管理
+- [tools.md](tools.zh.md)：工具执行管道

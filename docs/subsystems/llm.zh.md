@@ -103,7 +103,7 @@ class ModelProvider:
 
 ## 图片
 
-图片**原样下发**，不按模型名猜能力、不做降级剥图 —— 剥图是有损的，猜错一次就是“用户发了图而模型只看到一句占位”。带不带图、带几张由 `[context]` 的 `image_turns` / `image_max` 决定（见 [context.md](context.md)）。
+图片**原样下发**，不按模型名猜能力、不做降级剥图 —— 剥图是有损的，猜错一次就是“用户发了图而模型只看到一句占位”。带不带图、带几张由 `[context]` 的 `image_turns` / `image_max` 决定（见 [context.md](context.zh.md)）。
 
 ## 错误映射
 
@@ -127,5 +127,5 @@ class ModelProvider:
 ## 延伸阅读
 
 - [architecture.zh.md](../architecture.zh.md)：端口与请求契约
-- [context.md](context.md)：messages 的组装
-- [guide/config.md](../guide/config.md)：宿主配置
+- [context.md](context.zh.md)：messages 的组装
+- [guide/config.md](../guide/config.zh.md)：宿主配置

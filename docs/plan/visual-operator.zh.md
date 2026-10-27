@@ -20,7 +20,7 @@ Visual Operator 在桌面上为 Agent 提供观察与输入能力。基线是四
 | `desktop_type_into` | 输入 | 定位文字控件、聚焦并输入。 |
 | `desktop_act` | 批量 | 多步执行、断言、失败即停与末帧/失败帧。 |
 
-`desktop_wait` 只读，不占输入锁；窗口与打开工具同样共用已选后端。参数级契约以 [visual-operator.md](../subsystems/visual-operator.md) 为准。
+`desktop_wait` 只读，不占输入锁；窗口与打开工具同样共用已选后端。参数级契约以 [visual-operator.md](../subsystems/visual-operator.zh.md) 为准。
 
 插件提供多个工具，而不是一个多动作工具。鼠标、键盘与看屏各有独立的参数面：坐标、键名、文本与取图选项。合成一个工具就必须描述每个参数在哪个动作下生效，模型错配参数的概率更高。`tools/_params.py` 的动作矩阵直接拒绝属于别的动作的参数，不会静默忽略。
 

@@ -4,7 +4,7 @@
 
 知识库把本地目录里被勾选的文本与表格作为会话的随附资料注入上下文。
 配置判定、路径安全、文件读取、勾选状态、注入与界面全部由本插件提供；
-内核只提供通用扩展点。插件机制本身见 [plugins.md](plugins.md)。
+内核只提供通用扩展点。插件机制本身见 [plugins.md](plugins.zh.md)。
 
 ## 包结构
 
@@ -115,7 +115,7 @@ extra_suffixes =
 
 ## 延伸阅读
 
-- [plugins.md](plugins.md)：插件包形态、扩展点与生命周期
-- [context.md](context.md)：注入源如何进入装配与分段统计
-- [tools.md](tools.md)：写盘协议（知识库本身只读）
-- [../guide/config.md](../guide/config.md)：配置项总表
+- [plugins.md](plugins.zh.md)：插件包形态、扩展点与生命周期
+- [context.md](context.zh.md)：注入源如何进入装配与分段统计
+- [tools.md](tools.zh.md)：写盘协议（知识库本身只读）
+- [../guide/config.md](../guide/config.zh.md)：配置项总表

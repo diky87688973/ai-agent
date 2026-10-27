@@ -4,7 +4,7 @@
 
 Rules 是**规则目录**：`<项目根>/rules/` 下的每个 `.md` 文件，一行一条地
 以 `system` 身份进上下文，一个文件对应一条消息。插件机制本身见
-[plugins.md](plugins.md)。
+[plugins.md](plugins.zh.md)。
 
 **名称约定**：Rules 是「规则」这一整体，用户规则只是其中一种（同样可以有系统规则），
 因此插件、文档与界面统一叫 **Rules**，不称它「用户规则」。提示词里给模型看的
@@ -20,7 +20,7 @@ Rules 是**规则目录**：`<项目根>/rules/` 下的每个 `.md` 文件，一
 插件目录里没有 `plugin-config.ini`、没有 `settings-schema.json`、没有 `ui/` ——
 本插件没有任何可编辑的设置，设置页因此不给它「设置」按钮（由
 `plugin-meta.json` 的 `config: "false"` 声明，见
-[plugins.md](plugins.md#插件自己的配置)）。
+[plugins.md](plugins.zh.md#插件自己的配置)）。
 
 ## 包结构
 
@@ -95,6 +95,6 @@ rules/                 规则文件目录（与 skills/ 平级）
 
 ## 延伸阅读
 
-- [plugins.md](plugins.md)：插件包形态、扩展点与生命周期
-- [context.md](context.md)：注入源如何进入装配、分段统计与组装顺序
-- [skills.md](skills.md)：同为 `## 资源目录` 的贡献者
+- [plugins.md](plugins.zh.md)：插件包形态、扩展点与生命周期
+- [context.md](context.zh.md)：注入源如何进入装配、分段统计与组装顺序
+- [skills.md](skills.zh.md)：同为 `## 资源目录` 的贡献者

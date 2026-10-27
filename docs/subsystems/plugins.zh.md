@@ -61,7 +61,7 @@ enabled = 1
 | `enabled` | 否 | `0` 不装载；缺省按 `1`。设置页开关写这一项 |
 
 **节的先后有意义**：它就是插件的装载位次，也是**上下文里插件段的组装顺序**
-（见 [context.md](context.md#assembly-order)）。越不容易变动的插件排在越前面。
+（见 [context.md](context.zh.md#assembly-order)）。越不容易变动的插件排在越前面。
 
 清单错误可见：名字非法、目录不存在、缺 `plugin.py` 都会记一条 `error` 报告，
 不阻断启动，也不会静默当没写。
@@ -427,18 +427,18 @@ id 取对应实例；未命中的 id 直接报错，不会静默路由到别的�
 条目构造由插件负责，内核负责规范化、校验与消费快照。只允许一个来源：第二个来源
 被拒绝并留痕，插件仍可装载。
 
-`multi_model` 是该扩展点的实现，配置与行为见 [multi-model.md](multi-model.md)。
+`multi_model` 是该扩展点的实现，配置与行为见 [multi-model.md](multi-model.zh.md)。
 
 ## 内置插件示例
 
 | 插件 | 注册了什么 | 形态 |
 |---|---|---|
-| `plugins/skills` | `skills` 工具 + 两条注入 + 系统提示词章节 + 段色 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.md) |
+| `plugins/skills` | `skills` 工具 + 两条注入 + 系统提示词章节 + 段色 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.zh.md) |
 | `plugins/rules` | 一条注入（`.md` 一文件一条）+ 系统提示词章节 + 段色 | 无面板、无配置、无端点；见 [rules.zh.md](rules.zh.md) |
-| `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 段色 + 三个端点 | 注入、面板、动作、端点四类都有，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.md) |
-| `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.md) |
-| `plugins/visual_operator` | 四个工具（截屏 / 鼠标 / 键盘 / 等待）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时在执行时报错而不是消失；见 [visual-operator.md](visual-operator.md) |
-| `plugins/ai_speak` | `ai_speak` 工具 + 两个只读端点 + 播放确认端点 + 两个开屏脚本 + 两个事件订阅 + 语音尾部 | 后端合成、前端播放条；见 [ai-speak.md](ai-speak.md) |
+| `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 段色 + 三个端点 | 注入、面板、动作、端点四类都有，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.zh.md) |
+| `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.zh.md) |
+| `plugins/visual_operator` | 四个工具（截屏 / 鼠标 / 键盘 / 等待）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时在执行时报错而不是消失；见 [visual-operator.md](visual-operator.zh.md) |
+| `plugins/ai_speak` | `ai_speak` 工具 + 两个只读端点 + 播放确认端点 + 两个开屏脚本 + 两个事件订阅 + 语音尾部 | 后端合成、前端播放条；见 [ai-speak.md](ai-speak.zh.md) |
 
 各插件的配置与行为写在各自的子系统文档里，这里只描述它们用到的扩展点。
 
@@ -455,7 +455,7 @@ id 取对应实例；未命中的 id 直接报错，不会静默路由到别的�
 | 能指望 | 不能指望 |
 |---|---|
 | 约定与命名空间约束（端点前缀、资产路径校验） | 恶意/被篡改插件被运行时拦住 |
-| 装载期在日志里记录来源路径与入口文件摘要（sha256 前缀 / mtime / bytes） | 子进程隔离或权限降级（见 [评估笔记](../adr/plugin-subprocess-isolation.md)） |
+| 装载期在日志里记录来源路径与入口文件摘要（sha256 前缀 / mtime / bytes） | 子进程隔离或权限降级（见 [评估笔记](../adr/plugin-subprocess-isolation.zh.md)） |
 | 开关打开时拒绝对 `plugins/` 树外的路径装载 | 对「受信目录里的坏代码」自动免疫 |
 
 信任边界由三项约束维持：
@@ -503,11 +503,11 @@ id 取对应实例；未命中的 id 直接报错，不会静默路由到别的�
 
 ## 延伸阅读
 
-- [上下文管理](context.md)：注入源如何进入装配、组装顺序怎么定
-- [知识库](knowledge.md)：`knowledge` 的文件收录、勾选与注入
-- [多模型](multi-model.md)：`multi_model` 的目录条目与设置页表单
-- [Skills](skills.md)：`skills` 插件的三层披露与 `skills` 工具
-- [Visual Operator](visual-operator.md)：`visual_operator` 的截屏、坐标契约与平台后端
-- [工具](tools.md)：工具的注册、执行管道与写盘协议
-- [壳层](shell.md)：HTTP 路由与界面打包
-- [配置](../guide/config.md)：配置项全表
+- [上下文管理](context.zh.md)：注入源如何进入装配、组装顺序怎么定
+- [知识库](knowledge.zh.md)：`knowledge` 的文件收录、勾选与注入
+- [多模型](multi-model.zh.md)：`multi_model` 的目录条目与设置页表单
+- [Skills](skills.zh.md)：`skills` 插件的三层披露与 `skills` 工具
+- [Visual Operator](visual-operator.zh.md)：`visual_operator` 的截屏、坐标契约与平台后端
+- [工具](tools.zh.md)：工具的注册、执行管道与写盘协议
+- [壳层](shell.zh.md)：HTTP 路由与界面打包
+- [配置](../guide/config.zh.md)：配置项全表
