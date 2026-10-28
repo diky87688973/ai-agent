@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2001** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2002** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -104,7 +104,7 @@
 93. [test_web_auth.py](#test_web_authpy)（26）
 94. [test_web_frontend.py](#test_web_frontendpy)（5）
 95. [test_web_shell.py](#test_web_shellpy)（52）
-96. [test_web_ui_config.py](#test_web_ui_configpy)（23）
+96. [test_web_ui_config.py](#test_web_ui_configpy)（24）
 97. [test_write_gate.py](#test_write_gatepy)（16）
 98. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
 99. [test_write_path_tools.py](#test_write_path_toolspy)（36）
@@ -2698,33 +2698,34 @@
 
 ## test_web_ui_config.py
 
-共 23 个用例。
+共 24 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `CompactionUiContractTest` | `test_card_contract_has_count_tokens_and_clean_summary` | 覆盖「压缩卡片必须走现成工具壳，并在实时、历史和来源会话三条路可见」：card contract has count tokens and clean summary |
-| 2 | `CompactionUiContractTest` | `test_module_is_bundled_and_uses_tool_shell` | 覆盖「压缩卡片必须走现成工具壳，并在实时、历史和来源会话三条路可见」：module is bundled and uses tool shell |
-| 3 | `ImageLightboxDefaultModeTest` | `test_css_does_not_pin_pixel_mode_to_a_corner` | 覆盖「预览默认以 1:1 打开并双向居中」：css does not pin pixel mode to a corner |
-| 4 | `ImageLightboxDefaultModeTest` | `test_default_mode_is_pixel_not_fit` | 覆盖「预览默认以 1:1 打开并双向居中」：default mode is pixel not fit |
-| 5 | `ImageLightboxDefaultModeTest` | `test_pixel_mode_centers_both_axes` | 覆盖「预览默认以 1:1 打开并双向居中」：pixel mode centers both axes |
-| 6 | `ImageLightboxDefaultModeTest` | `test_pixel_padding_is_small_enough_to_still_center` | 1:1 的内边距不能大：图+内边距超过视口时，margin:auto 失效、图贴顶。 |
-| 7 | `ImageLightboxDefaultModeTest` | `test_stage_scroll_is_centered_not_left_top` | 覆盖「预览默认以 1:1 打开并双向居中」：stage scroll is centered not left top |
-| 8 | `ToolDetailLayoutTest` | `test_desktop_shot_reuses_the_read_image_meta_block` | 覆盖「工具详情只有两种形态，不能混着来」：desktop shot reuses the read image meta block |
-| 9 | `ToolDetailLayoutTest` | `test_desktop_views_do_not_mount_raw_panels` | 覆盖「工具详情只有两种形态，不能混着来」：desktop views do not mount raw panels |
-| 10 | `ToolShotPreviewClickTest` | `test_both_image_views_are_clickable` | 覆盖「工具壳详情里的图片点开同一个预览」：both image views are clickable |
-| 11 | `ToolShotPreviewClickTest` | `test_click_delegates_to_the_shared_lightbox` | 覆盖「工具壳详情里的图片点开同一个预览」：click delegates to the shared lightbox |
-| 12 | `ToolShotPreviewClickTest` | `test_missing_aia_degrades_without_breaking_the_card` | 预览是附加能力：拿不到 `AIA` 就不该把工具卡弄坏。 |
-| 13 | `WaitTitleFormatTest` | `test_countdown_says_timeout_once_the_deadline_passes` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：countdown says timeout once the deadline passes |
-| 14 | `WaitTitleFormatTest` | `test_countdown_uses_the_timeout_as_its_duration` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：countdown uses the timeout as its duration |
-| 15 | `WaitTitleFormatTest` | `test_long_durations_are_written_in_units` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：long durations are written in units |
-| 16 | `WaitTitleFormatTest` | `test_nothing_is_reported_from_the_server_while_waiting` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：nothing is reported from the server while waiting |
-| 17 | `WaitTitleFormatTest` | `test_short_durations_keep_one_decimal_of_seconds` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：short durations keep one decimal of seconds |
-| 18 | `WaitTitleFormatTest` | `test_ticker_keeps_counting_overtime_until_the_result_arrives` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：ticker keeps counting overtime until the result arrives |
-| 19 | `WaitTitleFormatTest` | `test_wait_title_prints_the_waited_time` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：wait title prints the waited time |
-| 20 | `WebUiConfigTest` | `test_blank_value_keeps_the_default` | 覆盖「A class whose instances are single test cases」：blank value keeps the default |
-| 21 | `WebUiConfigTest` | `test_classic_page_wires_the_placeholder` | 配置注入与工具卡拆分：占位符、开关属性、工具视图脚本进包。 |
-| 22 | `WebUiConfigTest` | `test_missing_file_defaults_items_on_steps_off` | 覆盖「A class whose instances are single test cases」：missing file defaults items on steps off |
-| 23 | `WebUiConfigTest` | `test_only_digit_one_turns_a_flag_on` | 覆盖「A class whose instances are single test cases」：only digit one turns a flag on |
+| 2 | `CompactionUiContractTest` | `test_compaction_pane_can_show_the_full_summary` | 覆盖「压缩卡片必须走现成工具壳，并在实时、历史和来源会话三条路可见」：compaction pane can show the full summary |
+| 3 | `CompactionUiContractTest` | `test_module_is_bundled_and_uses_tool_shell` | 覆盖「压缩卡片必须走现成工具壳，并在实时、历史和来源会话三条路可见」：module is bundled and uses tool shell |
+| 4 | `ImageLightboxDefaultModeTest` | `test_css_does_not_pin_pixel_mode_to_a_corner` | 覆盖「预览默认以 1:1 打开并双向居中」：css does not pin pixel mode to a corner |
+| 5 | `ImageLightboxDefaultModeTest` | `test_default_mode_is_pixel_not_fit` | 覆盖「预览默认以 1:1 打开并双向居中」：default mode is pixel not fit |
+| 6 | `ImageLightboxDefaultModeTest` | `test_pixel_mode_centers_both_axes` | 覆盖「预览默认以 1:1 打开并双向居中」：pixel mode centers both axes |
+| 7 | `ImageLightboxDefaultModeTest` | `test_pixel_padding_is_small_enough_to_still_center` | 1:1 的内边距不能大：图+内边距超过视口时，margin:auto 失效、图贴顶。 |
+| 8 | `ImageLightboxDefaultModeTest` | `test_stage_scroll_is_centered_not_left_top` | 覆盖「预览默认以 1:1 打开并双向居中」：stage scroll is centered not left top |
+| 9 | `ToolDetailLayoutTest` | `test_desktop_shot_reuses_the_read_image_meta_block` | 覆盖「工具详情只有两种形态，不能混着来」：desktop shot reuses the read image meta block |
+| 10 | `ToolDetailLayoutTest` | `test_desktop_views_do_not_mount_raw_panels` | 覆盖「工具详情只有两种形态，不能混着来」：desktop views do not mount raw panels |
+| 11 | `ToolShotPreviewClickTest` | `test_both_image_views_are_clickable` | 覆盖「工具壳详情里的图片点开同一个预览」：both image views are clickable |
+| 12 | `ToolShotPreviewClickTest` | `test_click_delegates_to_the_shared_lightbox` | 覆盖「工具壳详情里的图片点开同一个预览」：click delegates to the shared lightbox |
+| 13 | `ToolShotPreviewClickTest` | `test_missing_aia_degrades_without_breaking_the_card` | 预览是附加能力：拿不到 `AIA` 就不该把工具卡弄坏。 |
+| 14 | `WaitTitleFormatTest` | `test_countdown_says_timeout_once_the_deadline_passes` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：countdown says timeout once the deadline passes |
+| 15 | `WaitTitleFormatTest` | `test_countdown_uses_the_timeout_as_its_duration` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：countdown uses the timeout as its duration |
+| 16 | `WaitTitleFormatTest` | `test_long_durations_are_written_in_units` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：long durations are written in units |
+| 17 | `WaitTitleFormatTest` | `test_nothing_is_reported_from_the_server_while_waiting` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：nothing is reported from the server while waiting |
+| 18 | `WaitTitleFormatTest` | `test_short_durations_keep_one_decimal_of_seconds` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：short durations keep one decimal of seconds |
+| 19 | `WaitTitleFormatTest` | `test_ticker_keeps_counting_overtime_until_the_result_arrives` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：ticker keeps counting overtime until the result arrives |
+| 20 | `WaitTitleFormatTest` | `test_wait_title_prints_the_waited_time` | 覆盖「`desktop_wait` 等待中倒计时，结束后在标题末尾带上实际等待时长」：wait title prints the waited time |
+| 21 | `WebUiConfigTest` | `test_blank_value_keeps_the_default` | 覆盖「A class whose instances are single test cases」：blank value keeps the default |
+| 22 | `WebUiConfigTest` | `test_classic_page_wires_the_placeholder` | 配置注入与工具卡拆分：占位符、开关属性、工具视图脚本进包。 |
+| 23 | `WebUiConfigTest` | `test_missing_file_defaults_items_on_steps_off` | 覆盖「A class whose instances are single test cases」：missing file defaults items on steps off |
+| 24 | `WebUiConfigTest` | `test_only_digit_one_turns_a_flag_on` | 覆盖「A class whose instances are single test cases」：only digit one turns a flag on |
 
 ## test_write_gate.py
 

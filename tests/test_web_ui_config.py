@@ -255,11 +255,17 @@ class CompactionUiContractTest(unittest.TestCase):
         bundle = (ROOT / "agent/shell/web/ui_bundle.py").read_text(encoding="utf-8")
         self.assertIn("chat/compaction.js", bundle)
         self.assertIn("makeChatToolRow", self.card)
+        self.assertIn("chat-tool-pane--compaction", self.card)
         self.assertIn("appendChatToolRow", self.card)
         self.assertIn("renderMarkdown", self.card)
         self.assertIn("renderCompactionEvent(ev,_ctxTab)", self.stream)
         self.assertIn("renderHistoryCompactionItem", self.conversation)
         self.assertIn('role==="compaction"', self.conversation)
+
+    def test_compaction_pane_can_show_the_full_summary(self) -> None:
+        css = (ROOT / "agent/shell/web/web_assets/classic/css/chat-tool-views.css").read_text(
+            encoding="utf-8")
+        self.assertIn(".chat-tool-pane--compaction{max-height:none;overflow:visible}", css)
 
     def test_card_contract_has_count_tokens_and_clean_summary(self) -> None:
         for field in ("compressed_count", "compressed_tokens", "summary_text"):
