@@ -174,13 +174,13 @@ class UserConfirmTest(_TaskToolsBase):
         self.assertEqual(r.data["confirms"], ["A", "B"])
         self.assertTrue(r.data["multi"])
 
-    def test_confirm_roundtrip(self):
+    def test_confirm_backfill_is_not_a_tool_parameter(self):
 
-        r = self._call("user_confirm", {"confirm": "A"})
-        self.assertTrue(r.ok)
-        self.assertEqual(r.data, {"confirm": "A"})
-        r2 = self._call("user_confirm", {"confirm": "B", "confirm_id": "cid-1"})
-        self.assertEqual(r2.data, {"confirm": "B", "confirm_id": "cid-1"})
+        for args in ({"confirm": "A"}, {"confirm": "B", "confirm_id": "cid-1"}):
+            r = self._call("user_confirm", args)
+            self.assertFalse(r.ok, msg=str(args))
+            self.assertIn("非法参数", r.error)
+            self.assertIn("confirm", r.error)
 
     def test_validations(self):
 
@@ -194,16 +194,15 @@ class UserConfirmTest(_TaskToolsBase):
         for args in cases:
             self.assertFalse(self._call("user_confirm", args).ok, msg=str(args))
 
-    def test_interactive_flag_is_ignored_without_host_support(self):
-        """宿主未注入 TTY 能力时，旧 interactive 入参不能阻断两段式确认。"""
+    def test_interactive_flag_is_rejected(self):
+        """interactive 不是公开工具参数，不得静默穿透到工具实现。"""
 
         params = self.app.registry.get("user_confirm").parameters
         for hidden in ("interactive", "confirm", "confirm_id"):
             self.assertNotIn(hidden, params)
         r = self._call("user_confirm", {"title": "t", "confirms": ["A", "B"], "interactive": True})
         self.assertFalse(r.ok)
-        self.assertIn("UserConfirmRequired", r.error)
-        self.assertEqual(r.data["confirms"], ["A", "B"])
+        self.assertIn("非法参数：interactive", r.error)
 
     def test_envelope_still_works_without_tty(self):
         """无 TTY 时不给 interactive，必须照常返回待确认信封（宿主 UI 负责交互）。"""
@@ -244,7 +243,7 @@ class ApprovalConfirmTest(_TaskToolsBase):
             "approval_id": "apv_forged",
         })
         self.assertFalse(forged.ok)
-        self.assertIn("不接收 approval_id", forged.error)
+        self.assertIn("非法参数：approval_id", forged.error)
 
     def test_suspend_is_remembered_on_the_session(self):
         """挂起信封进会话上下文，回合结束只清待审批，不清已签发的通行证。"""

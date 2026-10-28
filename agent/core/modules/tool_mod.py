@@ -50,6 +50,11 @@ from agent.core.ports import Ports
 #: "唯一出处"随之失效。
 
 
+def _elapsed_s(elapsed_ms: int) -> float:
+    """毫秒耗时转秒，供工具回执直接展示。"""
+    return round(max(0, int(elapsed_ms)) / 1000.0, 3)
+
+
 class ToolModule(ModuleBase):
     """执行模型要求、但尚未执行的工具调用；它是本链的收尾模块。
 
@@ -73,12 +78,13 @@ class ToolModule(ModuleBase):
                      reason: str) -> Iterator[Any]:
         for rest in pending[start:]:
             yield ports.emit(TOOL_CANCELED, call_id=rest.call_id,
-                             name=rest.name, reason=reason)
+                             name=rest.name, reason=reason, elapsed_s=0.0)
             yield ports.emit(TOOL_ENDED, call_id=rest.call_id, name=rest.name,
-                             status="canceled", elapsed_ms=0)
+                             status="canceled", elapsed_ms=0, elapsed_s=0.0)
 
     def _result_events(self, ports: Ports, call, result, elapsed: int,
                        ok: bool) -> Iterator[Any]:
+        seconds = _elapsed_s(elapsed)
         if ok:
             images = getattr(result, "attachments", None)
             yield ports.emit(
@@ -86,16 +92,17 @@ class ToolModule(ModuleBase):
                 data=clip_tool_result(safe_value(getattr(result, "data", None))),
                 attachments=(list(images)
                              if isinstance(images, list) and images else None),
-                elapsed_ms=elapsed)
+                elapsed_ms=elapsed, elapsed_s=seconds)
         else:
             raw = getattr(result, "data", None)
             data = clip_tool_result(safe_value(raw)) if raw is not None else None
             yield ports.emit(
                 TOOL_FAILED, call_id=call.call_id, name=call.name,
                 error=str(getattr(result, "error", "") or ""),
-                data=data, elapsed_ms=elapsed)
+                data=data, elapsed_ms=elapsed, elapsed_s=seconds)
         yield ports.emit(TOOL_ENDED, call_id=call.call_id, name=call.name,
-                         status=("done" if ok else "failed"), elapsed_ms=elapsed)
+                         status=("done" if ok else "failed"),
+                         elapsed_ms=elapsed, elapsed_s=seconds)
 
     def execute(self, ports: Ports) -> Iterator[Any]:
         pending = pending_tool_calls(ports.log)
@@ -123,9 +130,11 @@ class ToolModule(ModuleBase):
             if deferred:
                 yield ports.emit(
                     TOOL_SUSPENDED, call_id=call.call_id, name=call.name,
-                    envelope=safe_value(getattr(result, "data", None)))
+                    envelope=safe_value(getattr(result, "data", None)),
+                    elapsed_s=_elapsed_s(elapsed))
                 yield ports.emit(TOOL_ENDED, call_id=call.call_id, name=call.name,
-                                 status="suspended", elapsed_ms=elapsed)
+                                 status="suspended", elapsed_ms=elapsed,
+                                 elapsed_s=_elapsed_s(elapsed))
                 yield from self._cancel_rest(
                     ports, pending, index + 1, "suspended_batch")
                 return Outcome.suspend(f"工具 {call.name} 需要外部输入")

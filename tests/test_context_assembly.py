@@ -618,7 +618,9 @@ class CompactionLoop(_Case):
 
     def test_report_keys(self) -> None:
         _p, _s, _c, report = self._run()
-        self.check("返回体键", ["compressed_count", "covered_end", "summary"],
+        self.check("返回体键",
+                   ["compressed_count", "compressed_tokens", "covered_end",
+                    "summary", "summary_text"],
                    sorted(report.keys()))
 
     def test_covered_end_advances(self) -> None:
@@ -628,7 +630,14 @@ class CompactionLoop(_Case):
 
     def test_compressed_count_matches_step(self) -> None:
         _p, _s, comp, report = self._run()
-        self.check("压缩条数 = 覆盖点增量", report["covered_end"], report["compressed_count"])
+        self.assertGreater(report["compressed_count"], 0)
+        self.assertEqual(report["compressed_count"], report["covered_end"])
+        self.assertGreater(report["compressed_tokens"], 0)
+
+    def test_summary_text_excludes_bridge(self) -> None:
+        _p, _s, _c, report = self._run(text="模型给的摘要")
+        self.assertEqual(report["summary_text"], "模型给的摘要")
+        self.assertNotIn(SUMMARY_BRIDGE_TAIL, report["summary_text"])
 
     def test_summary_appended_with_bridge(self) -> None:
         _p, _s, comp, _r = self._run()

@@ -150,6 +150,7 @@ Design records and trade-offs, not user manuals.
 | [AI Speak](docs/plan/ai-speak.md) | Text slicing, SSE, player design |
 | [Visual Operator interaction](docs/plan/visual-operator-interaction.md) | Screenshots, UIA, coordinate-control decisions |
 | [Visual Operator](docs/plan/visual-operator.md) | Visual Operator design record |
+| [CLI confirmation backlog](docs/plan/cli-confirm-backlog.md) | Two-stage confirmation gap in the CLI |
 | [ADR: plugin subprocess isolation](docs/adr/plugin-subprocess-isolation.md) | Isolation decision record |
 
 </details>
@@ -182,7 +183,7 @@ python scripts/ci.py --list    # list checks
 
 `docs/unit-tests.md` is a generated readable test catalog; the source of truth is `tests/`.
 
-Unit tests (1989 cases):
+Unit tests (2001 cases):
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

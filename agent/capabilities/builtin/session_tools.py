@@ -359,11 +359,10 @@ class SessionCreateTool(ToolPlugin):
     name = "session_create"
     label = "新建会话"
     icon = "💬"
-    description = "创建自由 Agent 会话（count 1-50 批量；role / persona / tags / skill；名称规则与别名映射）。"
+    description = "创建自由 Agent 会话（count 1-50 批量；role / persona / tags / skill；名称规则）。"
     parameters = {
         "role": {"type": "string", "description": "角色（别名映射：worker / qa 等）"},
-        "name": {"type": "string", "description": "名称（单条创建时使用）"},
-        "name_prefix": {"type": "string", "description": "名称前缀（批量创建时拼接序号）"},
+        "name": {"type": "string", "description": "名称；count>1 时作为批量名称前缀"},
         "persona": {"type": "string", "description": "人设文本（缺省含协作指引）"},
         "count": {"type": "integer", "description": "创建数量（1-50，默认 1）"},
         "tags": {"type": "array", "description": "标签（列表或逗号分隔字符串）"},
@@ -404,6 +403,7 @@ class SessionCreateTool(ToolPlugin):
         base_persona = str(arguments.get("persona") or "").strip()
         tags = _normalize_tags(arguments.get("tags"))
         skill = str(arguments.get("skill") or "").strip()
+        base_name = str(arguments.get("name") or "").strip()
         created_by = current_session_id()
         if self._mesh.get_agent(created_by).get("role") == "subagent":
             raise ValueError("subagent_create_forbidden：子智能体不能创建新会话")
@@ -411,11 +411,9 @@ class SessionCreateTool(ToolPlugin):
         for i in range(n):
             sid = new_conversation_id()
             if n == 1:
-                requested = str(arguments.get("name") or arguments.get("name_prefix") or "").strip()
-                agent_name = requested or self._pick_name(tags)
+                agent_name = base_name or self._pick_name(tags)
             else:
-                prefix = str(arguments.get("name_prefix") or arguments.get("name") or "").strip()
-                agent_name = f"{prefix}{i + 1}" if prefix else self._pick_name(tags)
+                agent_name = f"{base_name}{i + 1}" if base_name else self._pick_name(tags)
             persona_text = base_persona or (
                 f"你是多 Agent 协作网络中的 {agent_name}，角色是 {base_role}。"
                 "收到其他 Agent 的消息时，应通过 session_send 回复对方；"

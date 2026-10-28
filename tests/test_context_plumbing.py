@@ -20,6 +20,7 @@ class _ProbeTool:
 
     name = "probe"
     description = "探针"
+    parameters = {"a": {"type": "integer", "description": "探针参数"}}
 
     def __init__(self) -> None:
         self.seen: List[Any] = []

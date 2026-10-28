@@ -62,6 +62,7 @@ FRONTEND_CONSUMED = (
     "assistant_delta",
     "assistant_markdown",
     "conversation",
+    "context_compacted",
     "context_layout",
     "dispatch_title",
     "done",
@@ -95,6 +96,7 @@ SOURCE_TO_NEW = {
     "usage": ev.USAGE,
     "error": ev.ERROR,
     "done": ev.TURN_ENDED,
+    "context_compacted": ev.CONTEXT_COMPACTED,
     "context_layout": ev.CONTEXT_COMPACTED,
     # 步骤卡 / LLM 卡片：前端显式忽略，不实现
     "llm_round": None,

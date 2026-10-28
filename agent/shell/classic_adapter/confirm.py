@@ -67,9 +67,9 @@ class ConfirmMixin:
     # `agent-ui.js` 的 `submitUserConfirm` 就是这条请求，并期待返回体带 `run_id`——
     # 也就是说它期待服务端把选择送回模型，而不是只回一个"收到"。
     #
-    # 工具声明也印证这点：次段调用要带 `confirm`（用户确认结果），模型才能完成回路。
-    # 所以适配层必须把 `confirm` 经 `mesh.submit` 投回该会话：
-    # 忙则入队（`queued: true`），闲则直接起新回合（拿到 `run_id`）。
+    # 工具声明不暴露 `confirm`：用户确认结果由宿主写成那次调用的工具结果。
+    # 适配层据此把结果投回该会话：忙则入队（`queued: true`），
+    # 闲则直接起新回合（拿到 `run_id`）。
     def user_confirm(self, cid: str, body: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
         """处理确认端点。两类请求在这里分流（经典界面两种情况共用一个端点）。"""
         cid = C.normalize_cid(cid)

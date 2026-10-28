@@ -286,19 +286,30 @@ class TurnFrames:
         return out
 
     def _on_context_compacted(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """压缩事实 → 补一帧 `context_layout`（经典界面靠它画底部分段条）。
+        """压缩事实 → 压缩卡片帧，并补一帧 `context_layout`。
 
-        经典界面没有"压缩"这个事件，但压缩后上下文变了，分段条必须跟着变。
-
-        内核不产出 `context_layout` 事实，且压缩器的
-        report 里没有 `layout` 键，所以这条分支永不命中 ——
-        右栏上下文条恒为「—」。因此 `context_layout` 由事件的消费方计算
-        （这里），内核不必为此新增事实。算不出来就不发。
+        卡片只报本次压缩的消息条数和估算 token；摘要正文单独给出，
+        避免前端解析内部桥接后缀。上下文条继续按既有路径更新。
         """
+        count = C.safe_count(d.get("compressed_count"))
+        tokens = C.safe_count(d.get("compressed_tokens"))
+        covered_end = C.safe_count(d.get("covered_end"))
+        summary = str(d.get("summary_text") or d.get("summary") or "")
+        out: List[Dict[str, Any]] = []
+        if count or summary:
+            out.append(self._ev(
+                C.EV_CONTEXT_COMPACTED,
+                compressed_count=count,
+                compressed_tokens=tokens,
+                covered_end=covered_end,
+                summary_text=summary,
+            ))
         layout = d.get("layout")
         if isinstance(layout, dict):
-            return self._on_context_layout(layout)
-        return self._emit_layout()
+            out += self._on_context_layout(layout)
+        else:
+            out += self._emit_layout()
+        return out
 
     def _emit_layout(self) -> List[Dict[str, Any]]:
         """算并发出 `context_layout`；算不出来返回空列表。

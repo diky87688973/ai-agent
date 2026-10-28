@@ -45,6 +45,7 @@ UI_JS_MODULES = (
     "render/markdown.js",
     "chat/bubbles.js",
     "chat/steps.js",
+    "chat/compaction.js",
     "chat/context-usage.js",
     "tools/titles.js",
     "render/diff.js",

@@ -152,7 +152,7 @@ class Acceptance:
             f"{r.error} | {r.data}",
         )
         r = self.call("user_confirm", {"confirm": "继续"})
-        self.check("confirm 回填", r.ok and r.data == {"confirm": "继续"}, str(r.data))
+        self.check("confirm 不得作为工具入参", (not r.ok) and ("非法参数" in str(r.error)), str(r.error))
         r = self.call("goal", {"action": "get"})
         self.check("goal：初始无目标", r.ok and r.data["goal"] is None, str(r.data))
         r = self.call("goal", {"action": "create", "text": "把 README 补全"})

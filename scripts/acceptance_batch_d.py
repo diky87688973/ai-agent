@@ -93,7 +93,7 @@ class Acceptance:
 
     def scenario_1(self):
         print("\n场景① 建网与列表")
-        r = self.call("session_create", {"count": 2, "name_prefix": "队员", "role": "worker", "tags": "grp"})
+        r = self.call("session_create", {"count": 2, "name": "队员", "role": "worker", "tags": "grp"})
         self.check(
             "批量创建：prefix+序号 / 别名映射",
             r.ok and [a["name"] for a in r.data["agents"]] == ["队员1", "队员2"] and r.data["agents"][0]["role"] == "全栈开发",

@@ -263,6 +263,10 @@ class BasicTurnTest(CoreHarness):
         self.assertIn("data", payload)
         self.assertIn("ping", json.dumps(payload.get("data"), ensure_ascii=False),
                       msg="模型的 tool 消息里必须带工具真实返回")
+        self.assertIsInstance(payload.get("elapsed_s"), float)
+        self.assertGreaterEqual(payload["elapsed_s"], 0.0)
+        done = [e for e in self.log.events if e.type == "tool_done"][-1]
+        self.assertGreaterEqual(done.data["elapsed_s"], 0.0)
 
     def test_failed_tool_result_reaches_the_model_as_error(self) -> None:
         """工具失败与成功同形：`{"ok":false,"error":…}`（来自结果事实）。"""
@@ -384,6 +388,31 @@ class SuspendResumeTest(CoreHarness):
             {"calls": [ToolCallRequest("c1", "ask_user",
                                        {"title": "选一个", "confirms": ["甲", "乙"]})]},
         ], text="问我一个问题")
+
+    def test_real_user_confirm_records_pending_confirm(self) -> None:
+        from agent.capabilities.registry import ToolRegistry
+        from agent.capabilities.tasks.confirm import UserConfirmTool
+        from agent.core.engine import Engine
+        from agent.core.session_context import SessionContext
+
+        registry = ToolRegistry()
+        registry.register(UserConfirmTool())
+        provider = ScriptedProvider([
+            {"calls": [ToolCallRequest(
+                "c-confirm", "user_confirm",
+                {"title": "继续吗？", "confirms": ["继续", "停止"]})]},
+        ])
+        ctx = SessionContext(conversation_id="confirm-0001")
+        engine = Engine(
+            conversation_id="confirm-0001", provider=provider,
+            registry=registry, pipeline=ToolPipeline(), session_context=ctx,
+        )
+        events = list(engine.start_turn("需要确认"))
+        self.assertTrue(engine.paused)
+        self.assertTrue(any(e.type == "tool_suspended" for e in events))
+        self.assertEqual(ctx.pending_confirm["call_id"], "c-confirm")
+        self.assertEqual(ctx.pending_confirm["title"], "继续吗？")
+        self.assertEqual(ctx.pending_confirm["options"], ["继续", "停止"])
 
     def test_suspend_is_terminal_and_writes_no_tool_result(self) -> None:
         result, _p, _i, host = self._suspend()

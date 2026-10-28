@@ -81,6 +81,8 @@ renderHistoryThink(it);
 }else if(it.role==="assistant"){
 var ac=String(it.content||"").trim();
 if(ac)add("a",ac);
+}else if(it.role==="compaction"){
+renderHistoryCompactionItem(it);
 }else if(it.role==="tool"){
 /* 工具卡片回显：历史接口只返回 user/assistant 两种气泡，
    工具卡（尤其长跑的命令卡）不会随之重建。这里按同一份事实重建卡片，
@@ -108,34 +110,34 @@ appendChatToolRow(row);
 function renderHistoryToolItem(it){
 /* `_replay`：这条来自历史回放，不是正在发生。等待类工具据此不启动倒计时 ——
    否则刷新页面会把早已结束的等待重新数一遍。 */
-var ev={tool_call_id:String(it.tool_call_id||""),script:String(it.script||""),args:it.args||{},_replay:true};
+var ev={tool_call_id:String(it.tool_call_id||""),script:String(it.script||""),args:it.args||{},_replay:true,elapsed_s:it.elapsed_s};
 if(!ev.tool_call_id)return;
 onToolStart(ev);
 var o=toolOpen.get(ev.tool_call_id);
 if(!o)return;
 if(it.status==="canceled"){
-onToolEnd({tool_call_id:ev.tool_call_id,ok:false,canceled:true,error:String(it.error||"已停止")});
+onToolEnd({tool_call_id:ev.tool_call_id,ok:false,canceled:true,error:String(it.error||"已停止"),elapsed_s:it.elapsed_s});
 }else if(it.status==="failed"){
-onToolEnd({tool_call_id:ev.tool_call_id,ok:false,error:String(it.error||"执行失败"),preview:String(it.preview||"")});
+onToolEnd({tool_call_id:ev.tool_call_id,ok:false,error:String(it.error||"执行失败"),preview:String(it.preview||""),elapsed_s:it.elapsed_s});
 }else if(it.status==="suspended"){
 /* 挂起（等用户在界面作答）：不标失败，保持"待确认"语义 */
 var env=it.envelope||{};
 if(env.kind==="approval"){
 onToolEnd({tool_call_id:ev.tool_call_id,ok:true,approval_required:true,
 approval_title:"审批",approval_desc:String(env.option_desc||""),
-preview:it.envelope?JSON.stringify({data:it.envelope}):""});
+preview:it.envelope?JSON.stringify({data:it.envelope}):"",elapsed_s:it.elapsed_s});
 }else{
 var confirms=Array.isArray(env.confirms)?env.confirms.map(String):[];
 onToolEnd({tool_call_id:ev.tool_call_id,ok:false,user_confirm_required:true,
 user_confirm_title:String(env.title||""),
 user_confirm_options:confirms,
 user_confirm_multi:!!env.multi,
-preview:it.envelope?JSON.stringify({data:it.envelope}):""});
+preview:it.envelope?JSON.stringify({data:it.envelope}):"",elapsed_s:it.elapsed_s});
 }
 }else if(it.status==="done"){
 /* `preview` 走实时帧同一条渲染路径（onToolEnd 内部就认它）：
    编辑类工具的 diff 卡片靠这一项重画 —— 不传它，刷新后 diff 整片消失。 */
-onToolEnd({tool_call_id:ev.tool_call_id,ok:true,preview:String(it.preview||""),images:it.images||[]});
+onToolEnd({tool_call_id:ev.tool_call_id,ok:true,preview:String(it.preview||""),images:it.images||[],elapsed_s:it.elapsed_s});
 }
 /* 输出放在状态之后：这样命令卡已经是"完成"态，输出仍然可见。 */
 var out=String(it.output||"");
@@ -207,7 +209,7 @@ try{composerResizeObserver.observe(el);}catch(e){}
 }
 function scrollToBottomAfterLayout(el,force){if(!el)return;requestAnimationFrame(function(){requestAnimationFrame(function(){scrollToBottom(el,force);});});}
 async function loadConversationHistory(t){if(!t)return;if(t.historyLoaded){void refreshConversationContextLayout(t);return;}if(t.historyState==="loading")return;t.historyState="loading";try{var _hp=t.subagent?"/api/subagents/history?":"/api/chat/history?";var _hq=t.subagent?new URLSearchParams({conversation_id:String(t.parentCid||""),child_id:t.id}):new URLSearchParams({conversation_id:t.id});var r=await fetch(_hp+_hq);if(!r.ok)throw new Error("history HTTP "+r.status);var j=await r.json();if(!j||j.ok!==true)throw new Error("history not ok");var items=j.items||[];applyContextLayoutFromHistory(t,j);withConversationContext(t.id,function(){var isActive=normalizeConversationId(t.id)===normalizeConversationId(activeConversationId);if(j.todo_list&&j.todo_list.length){renderTodoListFromEvent({items:j.todo_list,all_done:j.todo_list.every(function(it){return !!it.done;}),collapsed:false},t.id);}else{hideTodoList();}if(items.length&&msgs.childNodes.length<=1){while(msgs.firstChild)msgs.removeChild(msgs.firstChild);renderHistoryItems(items,t.id);}else if(msgs.childNodes.length===0){renderHistoryItems(items,t.id);}if(isActive){scrollToBottomAfterLayout(msgs,true);}});t.historyLoaded=true;if(j.page&&typeof j.page.has_more==="boolean"){t.historyBefore=j.page.has_more?j.page.next_before:null;t.historyState=j.page.has_more?"idle":"exhausted";}else{t.historyBefore=null;t.historyState="exhausted";}}catch(e){console.error("[history] load failed",t.id,e);t.historyLoaded=false;t.historyBefore=null;t.historyState="error";}}
-function _routeEventBySource(ev){var scid=ev&&ev._source_session;if(!scid)return;var cid=normalizeConversationId(scid);if(!cid)return;var tab=findConversationTab(cid);if(!tab)return;var t=ev.type;if(t==="assistant"){withConversationContext(cid,function(){var ac=String(ev.content||"").trim();if(ac){add("a",ac);scrollToBottomAfterLayout(msgs,true);}});}else if(t==="tool_start"){withConversationContext(cid,function(){onToolStart(ev);});}else if(t==="tool_end"){withConversationContext(cid,function(){onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},cid);scrollToBottomAfterLayout(msgs,true);}});}else if(t==="todo_list"){if(ev.close){syncTodoUnreadBadgeForConversation(cid);}else if(ev.items){renderTodoListFromEvent({items:ev.items,all_done:Array.isArray(ev.items)&&ev.items.every(function(it){return !!it.done;}),collapsed:!!ev.collapsed,close:!!ev.close},cid);syncTodoUnreadBadgeForConversation(cid);}}else if(t==="context_layout"){var _t4=findConversationTab(cid);if(_t4)applyContextLayoutFromHistory(_t4,{context_layout:ev});}}
+function _routeEventBySource(ev){var scid=ev&&ev._source_session;if(!scid)return;var cid=normalizeConversationId(scid);if(!cid)return;var tab=findConversationTab(cid);if(!tab)return;var t=ev.type;if(t==="assistant"){withConversationContext(cid,function(){var ac=String(ev.content||"").trim();if(ac){add("a",ac);scrollToBottomAfterLayout(msgs,true);}});}else if(t==="tool_start"){withConversationContext(cid,function(){onToolStart(ev);});}else if(t==="tool_end"){withConversationContext(cid,function(){onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},cid);scrollToBottomAfterLayout(msgs,true);}});}else if(t==="todo_list"){if(ev.close){syncTodoUnreadBadgeForConversation(cid);}else if(ev.items){renderTodoListFromEvent({items:ev.items,all_done:Array.isArray(ev.items)&&ev.items.every(function(it){return !!it.done;}),collapsed:!!ev.collapsed,close:!!ev.close},cid);syncTodoUnreadBadgeForConversation(cid);}}else if(t==="context_compacted"){withConversationContext(cid,function(){renderCompactionEvent(ev,findConversationTab(cid));});}else if(t==="context_layout"){var _t4=findConversationTab(cid);if(_t4)applyContextLayoutFromHistory(_t4,{context_layout:ev});}}
 /* 开局只向服务端问一件事：哪些会话在跑（服务端权威，用于回填停止键）。
    标签列表与激活会话都来自本地 —— 本地没有就是新会话，不去服务端拉一个来激活。 */
 async function restoreConversationLayoutFromServer(){

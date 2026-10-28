@@ -2,11 +2,7 @@
 """任务工具共享异常与参数校验。"""
 from __future__ import annotations
 
-import re
-import sys
 from typing import Any, Dict, List, Optional
-
-INTERACTIVE_UI_ENABLED = False
 
 
 class UserConfirmRequired(Exception):
@@ -25,7 +21,7 @@ class UserConfirmRequired(Exception):
         multi: bool = False,
         custom_option_index: Optional[int] = None,
     ) -> None:
-        super().__init__("需由宿主展示选项并由用户确认；确认后携带 confirm 再次调用")
+        super().__init__("需由宿主展示选项并由用户确认；确认结果由宿主写成工具结果")
         self.data: Dict[str, Any] = {"title": title, "confirms": list(confirms)}
         if multi:
             self.data["multi"] = True
@@ -73,22 +69,3 @@ def normalize_confirms(raw: Any) -> List[str]:
             raise ValueError(f"confirms[{i}] 须为非空字符串")
         out.append(x)
     return out
-
-
-def interactive_resolve(title: str, confirms: List[str]) -> str:
-    """TTY 交互解析：编号取对应项，否则自由输入原样返回。"""
-    print(title, file=sys.stderr)
-    for i, c in enumerate(confirms, start=1):
-        print(f"  [{i}] {c}", file=sys.stderr)
-    print("输入编号或自由输入：", file=sys.stderr)
-    line = sys.stdin.readline()
-    if not line:
-        raise ValueError("未读取到用户输入")
-    s = line.strip()
-    if not s:
-        raise ValueError("输入为空")
-    if re.fullmatch(r"\d+", s):
-        idx = int(s)
-        if 1 <= idx <= len(confirms):
-            return confirms[idx - 1]
-    return s

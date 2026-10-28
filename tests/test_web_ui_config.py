@@ -241,5 +241,34 @@ class WaitTitleFormatTest(unittest.TestCase):
         self.assertIn("rest/86400", block)
 
 
+class CompactionUiContractTest(unittest.TestCase):
+    """压缩卡片必须走现成工具壳，并在实时、历史和来源会话三条路可见。"""
+
+    def setUp(self) -> None:
+        self.root = ROOT / "agent/shell/web/web_assets/classic/js"
+        self.card = (self.root / "chat/compaction.js").read_text(encoding="utf-8")
+        self.stream = (self.root / "chat/stream.js").read_text(encoding="utf-8")
+        self.conversation = (self.root / "chat/conversation.js").read_text(
+            encoding="utf-8")
+
+    def test_module_is_bundled_and_uses_tool_shell(self) -> None:
+        bundle = (ROOT / "agent/shell/web/ui_bundle.py").read_text(encoding="utf-8")
+        self.assertIn("chat/compaction.js", bundle)
+        self.assertIn("makeChatToolRow", self.card)
+        self.assertIn("appendChatToolRow", self.card)
+        self.assertIn("renderMarkdown", self.card)
+        self.assertIn("renderCompactionEvent(ev,_ctxTab)", self.stream)
+        self.assertIn("renderHistoryCompactionItem", self.conversation)
+        self.assertIn('role==="compaction"', self.conversation)
+
+    def test_card_contract_has_count_tokens_and_clean_summary(self) -> None:
+        for field in ("compressed_count", "compressed_tokens", "summary_text"):
+            self.assertIn(field, self.card)
+        self.assertIn("已压缩消息", self.card)
+        self.assertIn("上下文压缩", self.card)
+        self.assertIn("compactionSeqs", self.card)
+        self.assertIn("context_compacted", self.stream)
+
+
 if __name__ == "__main__":
     unittest.main()

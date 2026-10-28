@@ -52,6 +52,14 @@ _SUMMARY_INSTRUCTION = (
 )
 
 
+def _summary_display_text(body: str) -> str:
+    """去掉注入用的桥接后缀，只保留摘要正文。"""
+    text = str(body or "").strip()
+    if text.endswith(SUMMARY_BRIDGE_TAIL):
+        return text[:-len(SUMMARY_BRIDGE_TAIL)].rstrip()
+    return text
+
+
 def _is_degenerate_summary_body(body: str) -> bool:
     """退化摘要：空串，或极短且仅含「摘要为空」占位。"""
     b = str(body or "").strip()
@@ -267,16 +275,15 @@ class ContextCompactor:
         return start, end
 
     def _summary_body(self, base: List[Dict[str, Any]],
-                      messages: List[Dict[str, Any]], start: int, end: int,
+                      material: List[Dict[str, Any]],
                       context: Any, tools: Any) -> str:
         system = ""
         if hasattr(context, "system_text"):
             system = str(context.system_text() or "")
         text = ""
         if self._summarize_fn is not None:
-            material = list(messages[start:end]) if messages else []
             text = str(self._summarize_fn(
-                base, tools, system, material=material) or "").strip()
+                base, tools, system, material=list(material)) or "").strip()
         if _is_degenerate_summary_body(text):
             return ""
         return text + SUMMARY_BRIDGE_TAIL
@@ -312,15 +319,23 @@ class ContextCompactor:
             if rng is None:
                 return None
             start, end = rng
-            body = self._summary_body(base, messages, start, end, context, tools)
+            material = list(view[start:end])
+            body = self._summary_body(base, material, context, tools)
             if not body:
                 return None
             self.covered_end += end
             self.summaries.append(body)
             if hasattr(context, "set_summary_messages"):
                 context.set_summary_messages(self.summary_messages())
-            return {"covered_end": self.covered_end, "summary": body,
-                    "compressed_count": end}
+            return {
+                "covered_end": self.covered_end,
+                "summary": body,
+                "summary_text": _summary_display_text(body),
+                "compressed_count": len(material),
+                "compressed_tokens": sum(
+                    _approx_message_tokens(message) for message in material
+                ),
+            }
         except Exception as exc:
             print(f"[compactor] 压缩检查失败（已放行）: {exc}",
                   file=sys.stderr, flush=True)

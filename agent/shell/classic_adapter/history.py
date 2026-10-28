@@ -109,6 +109,21 @@ def _model_items(data: Dict[str, Any], elapsed: Optional[int],
     return out
 
 
+def _compaction_item(data: Dict[str, Any]) -> Dict[str, Any] | None:
+    """压缩事实 → 历史回放用的压缩条目。"""
+    count = C.safe_count(data.get("compressed_count"))
+    summary = str(data.get("summary_text") or data.get("summary") or "").strip()
+    if not count and not summary:
+        return None
+    return {
+        "role": "compaction",
+        "compressed_count": count,
+        "compressed_tokens": C.safe_count(data.get("compressed_tokens")),
+        "covered_end": C.safe_count(data.get("covered_end")),
+        "summary_text": summary,
+    }
+
+
 def _tool_started_item(data: Dict[str, Any]) -> Dict[str, Any] | None:
     call_id = str(data.get("call_id") or "")
     if not call_id:
@@ -131,14 +146,17 @@ def _tool_preview(item: Dict[str, Any], kind: str, data: Dict[str, Any]) -> None
             payload = (result if isinstance(result, dict) and "ok" in result
                        and ("data" in result or "error" in result)
                        else {"ok": True, "data": result})
+            if data.get("elapsed_s") is not None:
+                payload["elapsed_s"] = data.get("elapsed_s")
             item["preview"] = json.dumps(payload, ensure_ascii=False, default=str)
         except (TypeError, ValueError) as exc:
             report_error("agent.shell.classic_adapter.history.history_items", exc)
     elif kind == "tool_failed" and item.get("error"):
         try:
-            item["preview"] = json.dumps(
-                {"ok": False, "error": str(item.get("error") or "")},
-                ensure_ascii=False)
+            payload = {"ok": False, "error": str(item.get("error") or "")}
+            if data.get("elapsed_s") is not None:
+                payload["elapsed_s"] = data.get("elapsed_s")
+            item["preview"] = json.dumps(payload, ensure_ascii=False)
         except (TypeError, ValueError) as exc:
             report_error("agent.shell.classic_adapter.history.history_items", exc)
     images = C.public_tool_images(data.get("attachments"))
@@ -154,6 +172,8 @@ def _apply_tool_event(items: List[Dict[str, Any]], kind: str,
     for item in reversed(items):
         if item.get("role") != "tool" or item.get("tool_call_id") != call_id:
             continue
+        if data.get("elapsed_s") is not None:
+            item["elapsed_s"] = data.get("elapsed_s")
         if kind == "tool_done":
             item["status"] = "done"
         elif kind == "tool_failed":
@@ -207,6 +227,10 @@ def history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[st
         elif kind == "model_message":
             items.extend(_model_items(data, think_ms, think_reasoning_ms))
             think_ms = think_reasoning_ms = None
+        elif kind == "context_compacted":
+            item = _compaction_item(data)
+            if item is not None:
+                items.append(item)
         elif kind == "tool_started":
             item = _tool_started_item(data)
             if item is not None:

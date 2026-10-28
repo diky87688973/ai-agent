@@ -175,7 +175,8 @@ class ToolFrames:
         if pend is None:
             return []
         return [self._ev(C.EV_TOOL_END, tool_call_id=call_id,
-                         ok=False, canceled=True, preview="")]
+                         ok=False, canceled=True, preview="",
+                         elapsed_s=d.get("elapsed_s"))]
 
     def _on_tool_result(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         """历史结果事实（`tool_result{ok, data, error}`）→ 收卡。
@@ -212,8 +213,11 @@ class ToolFrames:
         frame: Dict[str, Any] = {
             "tool_call_id": call_id,
             "ok": ok,
-            "preview": _preview_json(pend.script, data, error, ok),
+            "preview": _preview_json(pend.script, data, error, ok,
+                                     elapsed_s=d.get("elapsed_s")),
         }
+        if d.get("elapsed_s") is not None:
+            frame["elapsed_s"] = d.get("elapsed_s")
         images = C.public_tool_images(d.get("attachments"))
         if images:
             frame["images"] = images
@@ -274,7 +278,8 @@ class ToolFrames:
         return out
 
 
-def _preview_json(script: str, data: Any, error: str, ok: bool) -> str:
+def _preview_json(script: str, data: Any, error: str, ok: bool,
+                  elapsed_s: Any = None) -> str:
     """`tool_end.preview` 是 JSON 字符串（经典界面会 `JSON.parse`，失败回落原文）。
 
     与回灌模型的信封同形（见 `session_log._tool_envelope`）：
@@ -294,6 +299,8 @@ def _preview_json(script: str, data: Any, error: str, ok: bool) -> str:
         payload = {"ok": True, "data": data}
     else:
         payload = {"ok": True, "data": {"value": data}}
+    if elapsed_s is not None:
+        payload["elapsed_s"] = elapsed_s
     try:
         return json.dumps(payload, ensure_ascii=False, default=str)
     except (TypeError, ValueError):

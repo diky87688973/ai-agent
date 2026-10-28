@@ -111,6 +111,24 @@ class ToolPipeline:
                     error=decision.reason or "被门控拒绝")
         return None
 
+    def _invalid_arguments(self, registry: Any, call: ToolCallRequest) -> ToolResult | None:
+        binding = registry.get(call.name)
+        if binding is None:
+            return None
+        parameters = getattr(binding, "parameters", None)
+        if not isinstance(parameters, dict):
+            return None
+        allowed = {str(key) for key in parameters}
+        provided = [str(key) for key in (call.arguments or {})]
+        unknown = sorted({key for key in provided if key not in allowed})
+        if not unknown:
+            return None
+        allowed_text = "、".join(sorted(allowed)) or "无"
+        return ToolResult(
+            call_id=call.call_id, ok=False,
+            error=f"非法参数：{'、'.join(unknown)}；{call.name} 只接受：{allowed_text}",
+        )
+
     def _binding_result(self, registry: Any, call: ToolCallRequest) -> ToolResult:
         binding = registry.get(call.name)
         if binding is None:
@@ -159,6 +177,9 @@ class ToolPipeline:
             turn=ctx, call=call, progress=reporter)
         context_token = set_tool_turn_context(turn_ctx)
         try:
+            invalid = self._invalid_arguments(registry, call)
+            if invalid is not None:
+                return invalid
             blocked = self._pre_result(call, ctx)
             if blocked is not None:
                 return blocked

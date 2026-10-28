@@ -28,6 +28,14 @@ def normalize_cid(value: object) -> str:
     return text if CID_PATTERN.match(text) else ""
 
 
+def safe_count(value: object) -> int:
+    """事件计数转非负整数；缺失或坏值按 0。"""
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 # ── 事件名（服务端 → 前端）──────────────────────────────────
 # 经典界面读的事件名；`plugin_event` 由 `stream.js` 转发给插件。
 EV_CONVERSATION: Final = "conversation"
@@ -47,6 +55,7 @@ EV_TOOL_PROGRESS: Final = "tool_progress"
 EV_TOOL_PREVIEW_UPDATE: Final = "tool_preview_update"
 EV_TODO_LIST: Final = "todo_list"
 EV_USAGE: Final = "usage"
+EV_CONTEXT_COMPACTED: Final = "context_compacted"
 EV_CONTEXT_LAYOUT: Final = "context_layout"
 EV_CONTEXT_SEGMENTS: Final = "context_segments"
 EV_MODE_CHANGED: Final = "mode_changed"

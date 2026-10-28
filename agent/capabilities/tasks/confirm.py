@@ -6,11 +6,9 @@ from typing import Any, Dict
 
 from agent.capabilities.registry import ToolPlugin
 from agent.capabilities.tasks.common import (
-    INTERACTIVE_UI_ENABLED,
     ApprovalRequired,
     UserConfirmRequired,
     approval_text,
-    interactive_resolve,
     normalize_confirms,
 )
 
@@ -23,24 +21,16 @@ class UserConfirmTool(ToolPlugin):
     icon = "⚠️"
     description = (
         "向用户发起分岔确认。首段只用 title + confirms 挂起，等待宿主界面作答；"
-        "宿主回填确认结果后才产生工具结果。模型不得在首段自行传 confirm。"
+        "宿主把确认结果写成工具结果，不作为工具入参。"
     )
     parameters = {
         "title": {"type": "string", "description": "标题（首段必填）"},
         "confirms": {"type": "array", "description": "候选项（首段必填；非空字符串数组）"},
         "multi": {"type": "boolean", "description": "是否支持多选（透传给宿主）"},
         "custom_option_index": {"type": "integer", "description": "自由输入绑定的选项下标（可选）"},
-        # confirm / confirm_id 是宿主回填字段，不在模型可见 schema 中。
     }
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        confirm = arguments.get("confirm")
-        if confirm is not None:
-            confirm_id = str(arguments.get("confirm_id") or "")
-            result: Dict[str, Any] = {"confirm": str(confirm)}
-            if confirm_id:
-                result["confirm_id"] = confirm_id
-            return result
         if arguments.get("confirms") is None:
             raise ValueError("须提供 confirms（非空字符串数组）")
         confirms = normalize_confirms(arguments.get("confirms"))
@@ -52,10 +42,6 @@ class UserConfirmTool(ToolPlugin):
         title = str(arguments.get("title") or "").strip()
         if not title:
             raise ValueError("首次发起须提供 title")
-        # 当前壳层没有接入 TTY 交互，固定走两段式。未来由宿主打开该能力，
-        # 不在工具内用 isatty() 猜运行环境。
-        if INTERACTIVE_UI_ENABLED and bool(arguments.get("interactive", False)):
-            return {"confirm": interactive_resolve(title, confirms)}
         raise UserConfirmRequired(
             title,
             confirms,
@@ -86,11 +72,6 @@ class ApprovalConfirmTool(ToolPlugin):
     }
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        if str(arguments.get("approval_id") or "").strip():
-            raise ValueError(
-                "approval_id 由宿主在用户同意后写入这次调用的结果。"
-                "本工具不接收 approval_id。"
-            )
         option_id = approval_text(arguments.get("option_id"), "option_id", 200)
         option_desc = approval_text(arguments.get("option_desc"), "option_desc", 500)
         raise ApprovalRequired(option_id, option_desc)

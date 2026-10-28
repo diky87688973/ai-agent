@@ -1641,7 +1641,7 @@
       }
     },
     {
-      "description": "创建自由 Agent 会话（count 1-50 批量；role / persona / tags / skill；名称规则与别名映射）。",
+      "description": "创建自由 Agent 会话（count 1-50 批量；role / persona / tags / skill；名称规则）。",
       "display": {
         "icon": "💬",
         "label": "新建会话"
@@ -1654,11 +1654,7 @@
           "type": "integer"
         },
         "name": {
-          "description": "名称（单条创建时使用）",
-          "type": "string"
-        },
-        "name_prefix": {
-          "description": "名称前缀（批量创建时拼接序号）",
+          "description": "名称；count>1 时作为批量名称前缀",
           "type": "string"
         },
         "persona": {
@@ -1960,7 +1956,7 @@
       }
     },
     {
-      "description": "向用户发起分岔确认。首段只用 title + confirms 挂起，等待宿主界面作答；宿主回填确认结果后才产生工具结果。模型不得在首段自行传 confirm。",
+      "description": "向用户发起分岔确认。首段只用 title + confirms 挂起，等待宿主界面作答；宿主把确认结果写成工具结果，不作为工具入参。",
       "display": {
         "icon": "⚠️",
         "label": "等待确认"

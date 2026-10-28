@@ -11,6 +11,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from agent.core.error_report import report_error
 from agent.core.events import Event
 from agent.core.model_call import PROVIDER_META_KEY
 
@@ -61,11 +62,13 @@ def _tool_content(text: Any, attachments: Any) -> Any:
     return [{"type": "text", "text": body}, *parts]
 
 
-def _tool_envelope(*, ok: bool, data: Any = None, error: Any = None) -> str:
+def _tool_envelope(*, ok: bool, data: Any = None, error: Any = None,
+                   elapsed_s: Any = None) -> str:
     """回灌模型的工具结果信封（成功/失败同形）。
 
     - 成功：`{"ok": true, "data": …}`
     - 失败：`{"ok": false, "error": "…"}`，可选附带 `data`
+    - 有计时时附带 `elapsed_s`（秒）
     """
     if ok:
         payload: dict[str, Any] = {"ok": True, "data": data}
@@ -73,6 +76,11 @@ def _tool_envelope(*, ok: bool, data: Any = None, error: Any = None) -> str:
         payload = {"ok": False, "error": str(error if error is not None else "")}
         if data is not None:
             payload["data"] = data
+    if elapsed_s is not None:
+        try:
+            payload["elapsed_s"] = round(max(0.0, float(elapsed_s)), 3)
+        except (TypeError, ValueError) as exc:
+            report_error("agent.core.session_log.elapsed_s", exc)
     try:
         return json.dumps(payload, ensure_ascii=False, default=str)
     except (TypeError, ValueError):
@@ -87,14 +95,17 @@ def _tool_envelope(*, ok: bool, data: Any = None, error: Any = None) -> str:
 def _render_tool_message(call_id: str, done: dict[str, Any] | None, name: str = "") -> dict[str, Any]:
     """把一次调用的结果收成一条 tool 消息。没有结果事实时说明「未记录」，不写 null。"""
     images = done.get("attachments") if isinstance(done, dict) else None
+    elapsed_s = done.get("elapsed_s") if isinstance(done, dict) else None
     if done is None:
         content = _tool_envelope(
             ok=False, error=f"工具 {name} 已结束，但未记录结果")
     elif bool(done.get("ok")):
-        content = _tool_envelope(ok=True, data=done.get("data"))
+        content = _tool_envelope(
+            ok=True, data=done.get("data"), elapsed_s=elapsed_s)
     else:
         content = _tool_envelope(
-            ok=False, error=done.get("error"), data=done.get("data"))
+            ok=False, error=done.get("error"), data=done.get("data"),
+            elapsed_s=elapsed_s)
     return {"role": "tool", "tool_call_id": call_id,
             "content": _tool_content(content, images)}
 
@@ -195,7 +206,8 @@ def _tool_result_message(ev: Event, closed: set[str],
         return None
     results[call_id] = {
         "ok": ev.type == "tool_done", "data": ev.data.get("data"),
-        "error": ev.data.get("error"), "attachments": ev.data.get("attachments")}
+        "error": ev.data.get("error"), "attachments": ev.data.get("attachments"),
+        "elapsed_s": ev.data.get("elapsed_s")}
     if call_id in closed or call_id in emitted:
         return None
     emitted.add(call_id)
@@ -211,11 +223,15 @@ def _tool_fact_message(ev: Event, results: dict[str, dict[str, Any]],
         results[call_id] = {"ok": True, "data": None, "error": ""}
         return None
     ok = bool(ev.data.get("ok"))
-    content = (_tool_envelope(ok=True, data=ev.data.get("data")) if ok
+    elapsed_s = ev.data.get("elapsed_s")
+    content = (_tool_envelope(ok=True, data=ev.data.get("data"),
+                              elapsed_s=elapsed_s) if ok
                else _tool_envelope(ok=False, error=ev.data.get("error"),
-                                   data=ev.data.get("data")))
+                                   data=ev.data.get("data"),
+                                   elapsed_s=elapsed_s))
     results[call_id] = {
-        "ok": ok, "data": ev.data.get("data"), "error": ev.data.get("error")}
+        "ok": ok, "data": ev.data.get("data"), "error": ev.data.get("error"),
+        "elapsed_s": elapsed_s}
     emitted.add(call_id)
     return {"role": "tool", "tool_call_id": call_id, "content": content}
 

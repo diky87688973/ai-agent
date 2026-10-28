@@ -164,7 +164,7 @@ class CreateListTest(_MeshBase):
 
     def test_create_batch_count_and_prefix(self):
 
-        r = self._call("session_create", {"count": 3, "name_prefix": "工"})
+        r = self._call("session_create", {"count": 3, "name": "工"})
         self.assertEqual([a["name"] for a in r.data["agents"]], ["工1", "工2", "工3"])
         self.assertEqual(len({a["cid"] for a in r.data["agents"]}), 3)
         r2 = self._call("session_create", {"count": 2})

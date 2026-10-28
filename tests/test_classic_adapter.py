@@ -614,6 +614,29 @@ class OutboundContractTest(unittest.TestCase):
         })
         self.assertEqual(frames[0]["segments"][0]["key"], "system")
 
+    def test_context_compacted_emits_card_payload(self) -> None:
+        frames = _stream().translate("context_compacted", {
+            "compressed_count": 7,
+            "compressed_tokens": 1234,
+            "covered_end": 9,
+            "summary_text": "压缩摘要",
+        })
+        self.assertEqual(_types(frames), [C.EV_CONTEXT_COMPACTED])
+        frame = frames[0]
+        self.assertEqual(frame["compressed_count"], 7)
+        self.assertEqual(frame["compressed_tokens"], 1234)
+        self.assertEqual(frame["covered_end"], 9)
+        self.assertEqual(frame["summary_text"], "压缩摘要")
+
+    def test_tool_end_carries_elapsed_seconds(self) -> None:
+        stream = _stream()
+        stream.translate("tool_call", {"call_id": "c1", "name": "echo", "arguments": {"text": "x"}})
+        frames = stream.translate("tool_done", {
+            "call_id": "c1", "data": {"text": "x"}, "elapsed_s": 1.234,
+        })
+        self.assertEqual(frames[0]["elapsed_s"], 1.234)
+        self.assertEqual(json.loads(frames[0]["preview"])["elapsed_s"], 1.234)
+
     def test_assistant_only_on_final_message_with_content(self) -> None:
         """工具调用轮没有正文，发空 `assistant` 会让经典界面渲染一个空气泡。
 
@@ -1489,9 +1512,10 @@ class UiBundleTest(unittest.TestCase):
         self.assertNotEqual(start, -1, msg="onToolEnd 不见了")
         body = js[start:start + 1100]
         self.assertIn(
-            'o.tag.textContent=(!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"Done":"Fail"',
+            'o.tag.textContent=((!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"Done":"Fail")+_esfx',
             body,
             msg="工具结束没有立刻写终态标签")
+        self.assertIn("elapsed_s", body, msg="工具卡必须展示耗时")
         self.assertIn(
             'o.tag.className="tag "+((!!ok||!!ev.user_confirm_required||!!ev.approval_required)?"ok":"bad")',
             body,
@@ -1647,6 +1671,35 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
                  "image_url": {"url": f"data:image/png;base64,{self.PNG_B64}"}},
             ]}),
         ]
+
+    def test_history_items_carry_compaction_record(self) -> None:
+        from agent.core.events import Event
+        from agent.shell.classic_adapter.inbound import history_items
+
+        items, _resolved = history_items([
+            Event("context_compacted", {
+                "compressed_count": 4,
+                "compressed_tokens": 900,
+                "covered_end": 4,
+                "summary_text": "历史摘要",
+            }),
+        ])
+        self.assertEqual(items[0]["role"], "compaction")
+        self.assertEqual(items[0]["compressed_count"], 4)
+        self.assertEqual(items[0]["compressed_tokens"], 900)
+        self.assertEqual(items[0]["summary_text"], "历史摘要")
+
+    def test_history_tool_item_carries_elapsed_seconds(self) -> None:
+        from agent.core.events import Event
+        from agent.shell.classic_adapter.inbound import history_items
+
+        items, _resolved = history_items([
+            Event("tool_started", {"call_id": "c1", "name": "echo", "arguments": {}}),
+            Event("tool_done", {"call_id": "c1", "data": {"text": "x"}, "elapsed_s": 2.5}),
+        ])
+        tool = [item for item in items if item.get("role") == "tool"][0]
+        self.assertEqual(tool["elapsed_s"], 2.5)
+        self.assertEqual(json.loads(tool["preview"])["elapsed_s"], 2.5)
 
     def test_history_items_carry_attachments_and_had_images(self) -> None:
         from agent.shell.classic_adapter.inbound import history_items
