@@ -282,6 +282,8 @@ class VisionRuntime:
             full, full_content = render.pad_to_square(
                 frame.image, self.config.square_size)
             local = render.fit(render.zoom(local, self.config.focus_zoom), self.config.focus_max_side)
+            render.draw_observation_axes(
+                full, local, full_content, focus, frame.image.size)
             render.draw_marker(full, (
                 full_content["x"] + round(
                     frame.cursor[0] * full_content["width"] / frame.image.width),
@@ -309,6 +311,7 @@ class VisionRuntime:
                 f"compressed_image_size=({full.width},{full.height});"
                 f"coordinate_space=model_image;"
                 f"focus_size=({local.width},{local.height});"
+                f"axis=screen_absolute;"
                 f"owner={self._owner}"
                 "</vision_observation>"
             )
