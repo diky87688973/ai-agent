@@ -109,18 +109,18 @@ def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:
     x, y = int(point[0]), int(point[1])
     draw = ImageDraw.Draw(image)
     color = (255, 230, 0)
-    gap = 4
-    arm = 16
-    radius = 18
+    gap = 3
+    arm = 8
+    radius = 9
     draw.ellipse((x - radius, y - radius, x + radius, y + radius),
-                 outline=(0, 0, 0), width=5)
+                 outline=(0, 0, 0), width=3)
     draw.ellipse((x - radius, y - radius, x + radius, y + radius),
-                 outline=color, width=3)
+                 outline=color, width=2)
     for line in (
-        ((x - arm, y, x - gap, y), 4, (0, 0, 0)),
-        ((x + gap, y, x + arm, y), 4, (0, 0, 0)),
-        ((x, y - arm, x, y - gap), 4, (0, 0, 0)),
-        ((x, y + gap, x, y + arm), 4, (0, 0, 0)),
+        ((x - arm, y, x - gap, y), 3, (0, 0, 0)),
+        ((x + gap, y, x + arm, y), 3, (0, 0, 0)),
+        ((x, y - arm, x, y - gap), 3, (0, 0, 0)),
+        ((x, y + gap, x, y + arm), 3, (0, 0, 0)),
         ((x - arm, y, x - gap, y), 2, color),
         ((x + gap, y, x + arm, y), 2, color),
         ((x, y - arm, x, y - gap), 2, color),
