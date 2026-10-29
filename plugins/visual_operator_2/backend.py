@@ -510,9 +510,21 @@ def move_by(dx: int, dy: int) -> Tuple[int, int]:
     return x, y
 
 
+_left_down = False
+
+
+def release_left() -> None:
+    """释放由本模块注入的左键，防止轨迹移动变成拖拽。"""
+    global _left_down
+    if _left_down:
+        _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
+        _left_down = False
+
+
 def move_cursor(x: int, y: int, duration_ms: int = 200,
                 should_stop: Optional[Callable[[], bool]] = None) -> bool:
-    """按住时长插值移动鼠标；被用户接管时返回 False。"""
+    """按时长插值移动鼠标；被用户接管时返回 False。"""
+    release_left()
     target_x, target_y = int(x), int(y)
     duration = max(0, min(2000, int(duration_ms)))
     if duration <= 0:
@@ -538,9 +550,14 @@ def click(button: str = "left", count: int = 1) -> None:
         raise RuntimeError("视觉操作 2.0 当前只支持 Windows")
     if button != "left":
         raise ValueError("目前只支持左键")
+    global _left_down
     for _ in range(max(1, min(3, int(count)))):
         _mouse(_MOUSE_LEFT, 0, 0, 0, 0)
-        _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
+        _left_down = True
+        try:
+            _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
+        finally:
+            _left_down = False
 
 
 def _key_code(name: str) -> int:
