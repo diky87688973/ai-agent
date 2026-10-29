@@ -17,10 +17,9 @@ from PIL import Image, ImageChops, ImageStat
 
 from agent.core.error_report import report_error
 
-from . import backend
+from . import backend, render
 from .config import VisionConfig
 from .consent import CONSENT_OPTIONS, CONSENT_TITLE
-from .render import clip_focus, data_url, draw_marker, fit, zoom
 
 CaptureFn = Callable[[], Image.Image]
 CursorFn = Callable[[], Tuple[int, int]]
@@ -43,7 +42,6 @@ class PendingConsent:
 
 class VisionRuntime:
     """全局视觉资源与会话 owner。"""
-
     def __init__(
         self,
         config: VisionConfig,
@@ -79,7 +77,6 @@ class VisionRuntime:
         self._closed = False
 
     # ── 授权 ──────────────────────────────────────────────
-
     def request_open(self, conversation_id: str, call_id: str) -> Dict[str, Any]:
         cid = str(conversation_id or "").strip()
         if not cid:
@@ -112,7 +109,6 @@ class VisionRuntime:
                 "options": list(CONSENT_OPTIONS),
                 "reused": False,
             }
-
     def pending(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:
             req = self._pending
@@ -125,7 +121,6 @@ class VisionRuntime:
                 "options": list(CONSENT_OPTIONS),
                 "call_id": req.call_id,
             }
-
     def confirm(self, conversation_id: str, request_id: str, choice: str) -> Dict[str, Any]:
         cid = str(conversation_id or "").strip()
         rid = str(request_id or "").strip()
@@ -156,7 +151,6 @@ class VisionRuntime:
                 "consent_id": consent_id,
                 "call_id": req.call_id,
             }
-
     def start(self, conversation_id: str, consent_id: str) -> Dict[str, Any]:
         cid = str(conversation_id or "").strip()
         ident = str(consent_id or "").strip()
@@ -206,7 +200,6 @@ class VisionRuntime:
             "owner_conversation_id": cid,
             "observation_note": "下一轮上下文尾部会注入完整图和聚焦图",
         }
-
     def _stop_monitor(self) -> None:
         monitor = self._input_monitor
         if monitor is None:
@@ -215,7 +208,6 @@ class VisionRuntime:
             monitor.stop()
         except Exception as exc:
             report_error("plugins.visual_operator_2.input_monitor.stop", exc)
-
     def user_takeover(self) -> None:
         with self._lock:
             if not self._eyes_open:
@@ -238,7 +230,6 @@ class VisionRuntime:
         self._emit("control_returned", {
             "conversation_id": cid,
         })
-
     def stop(self, conversation_id: str) -> Dict[str, Any]:
         cid = str(conversation_id or "").strip()
         with self._lock:
@@ -261,10 +252,8 @@ class VisionRuntime:
             self._control_badge.hide()
         self._emit("eye_closed", {"conversation_id": cid})
         return {"ok": True, "eyes_open": False}
-
     def revoke(self, conversation_id: str) -> Dict[str, Any]:
         return self.stop(conversation_id)
-
     def status(self, conversation_id: str) -> Dict[str, Any]:
         with self._lock:
             owner = self._owner
@@ -278,7 +267,6 @@ class VisionRuntime:
             }
 
     # ── 观察与动作 ────────────────────────────────────────
-
     def observe(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:
             if not self._eyes_open or self._owner != str(conversation_id or ""):
@@ -286,26 +274,28 @@ class VisionRuntime:
             if not self._frames:
                 return None
             frame = self._frames[-1]
-            focus = self._focus_rect(frame)
+            focus = render.resolve_focus(frame, self._focus,
+                                     self.config.focus_width,
+                                     self.config.focus_height)
             full = frame.image.copy()
-            local = self._crop(frame.image, focus)
+            local = render.crop_padded(frame.image, focus)
             cursor_in_focus = _contains(focus, frame.cursor)
             full = frame.image.resize(
                 (self.config.square_size, self.config.square_size),
                 Image.Resampling.LANCZOS)
-            local = fit(zoom(local, self.config.focus_zoom), self.config.focus_max_side)
-            draw_marker(full, (
+            local = render.fit(render.zoom(local, self.config.focus_zoom), self.config.focus_max_side)
+            render.draw_marker(full, (
                 round(frame.cursor[0] * full.width / frame.image.width),
                 round(frame.cursor[1] * full.height / frame.image.height),
             ))
             if cursor_in_focus:
-                draw_marker(local, (
+                render.draw_marker(local, (
                     round((frame.cursor[0] - focus["x"]) * local.width / focus["width"]),
                     round((frame.cursor[1] - focus["y"]) * local.height / focus["height"]),
                 ))
             age_ms = int((time.monotonic() - frame.captured_at) * 1000)
-            full_image = data_url(full, self.config)
-            focus_image = data_url(local, self.config)
+            full_image = render.data_url(full, self.config)
+            focus_image = render.data_url(local, self.config)
             full_scale = float(frame.image.width) / float(full.width)
             focus_scale = float(local.width) / float(focus["width"])
             text = (
@@ -394,7 +384,7 @@ class VisionRuntime:
                     return {"ok": False, "error": "region 必须是 x/y/width/height"}
                 if not self._frames:
                     return {"ok": False, "error": "当前没有观察帧"}
-                clipped = clip_focus(rect, self._frames[-1].image.size)
+                clipped = render.clip_focus(rect, self._frames[-1].image.size)
                 if clipped is None:
                     return {"ok": False, "error": "聚焦区域超出屏幕或小于 64×64"}
                 self._focus = clipped
@@ -445,24 +435,6 @@ class VisionRuntime:
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
         return result
 
-    @staticmethod
-    def _model_point_screen(frame: Frame, x: int, y: int, width: int,
-                            height: int, image_width: int,
-                            image_height: int) -> Dict[str, Any]:
-        screen_w, screen_h = frame.image.width, frame.image.height
-        scale_x = (image_width / float(width)) * (screen_w / float(image_width))
-        scale_y = (image_height / float(height)) * (screen_h / float(image_height))
-        screen_x = round(int(x) * scale_x)
-        screen_y = round(int(y) * scale_y)
-        return {
-            "screen": {
-                "x": max(0, min(screen_w - 1, screen_x)),
-                "y": max(0, min(screen_h - 1, screen_y)),
-            },
-            "screen_size": [screen_w, screen_h],
-            "scale": {"x": scale_x, "y": scale_y},
-        }
-
     def move_point(self, conversation_id: str, x: int, y: int,
                    width: int, height: int, image_width: int,
                    image_height: int) -> Dict[str, Any]:
@@ -478,8 +450,9 @@ class VisionRuntime:
             if image_width <= 0 or image_height <= 0:
                 return {"ok": False, "error": "image_width/image_height 必须大于 0"}
             frame = self._frames[-1]
-            mapped = self._model_point_screen(
-                frame, x, y, width, height, image_width, image_height)
+            mapped = render.model_point_screen(
+                frame.image.width, frame.image.height,
+                x, y, width, height, image_width, image_height)
             before = self._cursor()
             moved = backend.move_cursor(
                 mapped["screen"]["x"], mapped["screen"]["y"],
@@ -498,6 +471,52 @@ class VisionRuntime:
                 "screen_size": mapped["screen_size"],
                 "scale": mapped["scale"],
                 "target_screen": mapped["screen"],
+                "cursor_before": {"x": before[0], "y": before[1]},
+                "cursor_after": {"x": after[0], "y": after[1]},
+            }
+        result["observation_frame_id"] = self._capture_after_action(
+            conversation_id, self.config.move_settle_ms) or ""
+        result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
+        return result
+
+    def move_focus(self, conversation_id: str, x: int, y: int,
+                   width: int, height: int, image_width: int,
+                   image_height: int) -> Dict[str, Any]:
+        with self._lock:
+            if self._takeover:
+                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
+            if not self._eyes_open or self._owner != str(conversation_id or ""):
+                return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
+            if not self._frames:
+                return {"ok": False, "error": "当前没有观察帧"}
+            if width <= 0 or height <= 0:
+                return {"ok": False, "error": "width/height 必须大于 0"}
+            if image_width <= 0 or image_height <= 0:
+                return {"ok": False, "error": "image_width/image_height 必须大于 0"}
+            frame = self._frames[-1]
+            focus = render.resolve_focus(frame, self._focus,
+                                     self.config.focus_width,
+                                     self.config.focus_height)
+            screen_x = round(focus["x"] + int(x) * focus["width"] / float(width))
+            screen_y = round(focus["y"] + int(y) * focus["height"] / float(height))
+            if not (0 <= screen_x < frame.image.width and 0 <= screen_y < frame.image.height):
+                return {"ok": False, "error": "聚焦图目标落在屏幕外"}
+            before = self._cursor()
+            moved = backend.move_cursor(
+                screen_x, screen_y, self.config.move_duration_ms,
+                should_stop=lambda: self._takeover or not self._eyes_open)
+            if not moved:
+                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
+            after = self._cursor()
+            self._wake.set()
+            result = {
+                "ok": True,
+                "coordinate_space": "focus_image",
+                "model_point": {"x": int(x), "y": int(y)},
+                "model_image_size": [int(width), int(height)],
+                "original_image_size": [int(image_width), int(image_height)],
+                "focus": focus,
+                "target_screen": {"x": screen_x, "y": screen_y},
                 "cursor_before": {"x": before[0], "y": before[1]},
                 "cursor_after": {"x": after[0], "y": after[1]},
             }
@@ -566,8 +585,9 @@ class VisionRuntime:
             frame = self._frames[-1]
             targets = []
             for point in points:
-                mapped = self._model_point_screen(
-                    frame, int(point["x"]), int(point["y"]),
+                mapped = render.model_point_screen(
+                    frame.image.width, frame.image.height,
+                    int(point["x"]), int(point["y"]),
                     width, height, image_width, image_height)
                 targets.append({
                     "model_point": {"x": int(point["x"]), "y": int(point["y"])},
@@ -739,23 +759,6 @@ class VisionRuntime:
             callback(str(conversation_id or ""))
         except Exception as exc:
             report_error("plugins.visual_operator_2.wake", exc)
-    def _focus_rect(self, frame: Frame) -> Dict[str, int]:
-        if self._focus is not None:
-            return {**self._focus}
-        cx, cy = frame.cursor
-        width = min(self.config.focus_width, frame.image.width)
-        height = min(self.config.focus_height, frame.image.height)
-        x = max(0, min(frame.image.width - width, cx - width // 2))
-        y = max(0, min(frame.image.height - height, cy - height // 2))
-        return {"x": x, "y": y, "width": width, "height": height}
-
-    @staticmethod
-    def _crop(image: Image.Image, rect: Dict[str, int]) -> Image.Image:
-        x = max(0, min(image.width - 1, int(rect["x"])))
-        y = max(0, min(image.height - 1, int(rect["y"])))
-        right = max(x + 1, min(image.width, x + int(rect["width"])))
-        bottom = max(y + 1, min(image.height, y + int(rect["height"])))
-        return image.crop((x, y, right, bottom))
     def _emit(self, event: str, payload: Dict[str, Any]) -> None:
         if self._publish is None:
             return

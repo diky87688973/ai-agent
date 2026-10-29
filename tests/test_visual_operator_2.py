@@ -356,6 +356,29 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_move_focus_uses_focus_origin(self) -> None:
+        runtime = VisionRuntime(
+            VisionConfig(fps=30, focus_width=200, focus_height=200,
+                         settle_ms=0, move_settle_ms=0),
+            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
+            cursor=lambda: (160, 120),
+        )
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            with patch("plugins.visual_operator_2.state.backend.move_cursor",
+                       return_value=True) as move:
+                result = runtime.move_focus(
+                    "cid-a", 100, 100, 200, 200, 200, 200)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["coordinate_space"], "focus_image")
+            self.assertEqual(result["target_screen"], {"x": 160, "y": 120})
+            self.assertEqual(result["focus"], {"x": 60, "y": 20, "width": 200, "height": 200})
+            self.assertEqual(move.call_count, 1)
+        finally:
+            runtime.close()
+
     def test_trajectory_duration_and_same_point_skip(self) -> None:
         runtime = VisionRuntime(
             VisionConfig(fps=30, focus_width=80, focus_height=60,
@@ -391,6 +414,7 @@ class VisionRuntimeTest(unittest.TestCase):
         self.assertIn("vision_click", names)
         self.assertIn("vision_click_sequence", names)
         self.assertIn("vision_move_point", names)
+        self.assertIn("vision_move_focus", names)
         self.assertNotIn("vision_move_to", names)
         self.assertNotIn("vision_move_box", names)
         self.assertNotIn("vision_click_at", names)
@@ -407,6 +431,7 @@ class VisionRuntimeTest(unittest.TestCase):
         text = skills.get_skill("visual-operator-2") or ""
         self.assertIn("vision_click", text)
         self.assertIn("vision_move_point", text)
+        self.assertIn("vision_move_focus", text)
         self.assertIn("coordinate_space=model_image", text)
         self.assertIn("用户接管", text)
 

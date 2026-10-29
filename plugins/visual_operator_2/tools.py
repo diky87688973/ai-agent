@@ -149,6 +149,37 @@ class VisionMovePointTool(ToolPlugin):
         )
 
 
+class VisionMoveFocusTool(ToolPlugin):
+    name = "vision_move_focus"
+    label = "移动到局部点"
+    icon = "🎯"
+    parallel_safe = False
+    description = (
+        "按聚焦小图上的点移动鼠标。x/y 是目标点在聚焦小图上的像素；"
+        "width/height 是模型看到的聚焦小图宽高；image_width/image_height 是原始聚焦小图宽高。"
+        "工具按当前 cursor 居中的聚焦区域换算屏幕落点。"
+    )
+    parameters = {
+        "x": {"type": "integer", "description": "目标点在聚焦小图上的 x"},
+        "y": {"type": "integer", "description": "目标点在聚焦小图上的 y"},
+        "width": {"type": "integer", "description": "模型看到的聚焦小图宽度"},
+        "height": {"type": "integer", "description": "模型看到的聚焦小图高度"},
+        "image_width": {"type": "integer", "description": "原始聚焦小图宽度"},
+        "image_height": {"type": "integer", "description": "原始聚焦小图高度"},
+    }
+
+    def __init__(self, runtime: VisionRuntime) -> None:
+        self._runtime = runtime
+
+    def execute(self, arguments: Dict[str, Any]) -> Any:
+        return self._runtime.move_focus(
+            _cid(),
+            int(arguments["x"]), int(arguments["y"]),
+            int(arguments["width"]), int(arguments["height"]),
+            int(arguments["image_width"]), int(arguments["image_height"]),
+        )
+
+
 class VisionClickTool(ToolPlugin):
     name = "vision_click"
     label = "点击"
@@ -274,6 +305,7 @@ def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
         VisionFocusTool(runtime),
         VisionMoveTool(runtime),
         VisionMovePointTool(runtime),
+        VisionMoveFocusTool(runtime),
         VisionClickTool(runtime),
         VisionClickSequenceTool(runtime),
         VisionKeyTool(runtime),

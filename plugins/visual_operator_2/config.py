@@ -11,16 +11,16 @@ from pathlib import Path
 class VisionConfig:
     fps: float = 5.0
     queue_size: int = 2
-    focus_width: int = 480
-    focus_height: int = 320
-    focus_zoom: float = 2.0
+    focus_width: int = 200
+    focus_height: int = 200
+    focus_zoom: float = 1.0
     settle_ms: int = 100
     move_settle_ms: int = 50
     move_duration_ms: int = 0
     image_format: str = "WEBP"
     image_quality: int = 80
     square_size: int = 1024
-    focus_max_side: int = 1280
+    focus_max_side: int = 200
 
 
 def _int(section: configparser.SectionProxy, key: str, default: int,
@@ -62,16 +62,16 @@ def load_config(path: Path | None = None) -> VisionConfig:
     return VisionConfig(
         fps=_float(vision, "fps", 5.0, 0.2, 30.0),
         queue_size=2,
-        focus_width=_int(vision, "focus_width", 480, 64, 4096),
-        focus_height=_int(vision, "focus_height", 320, 64, 4096),
-        focus_zoom=_float(vision, "focus_zoom", 2.0, 1.0, 4.0),
+        focus_width=_int(vision, "focus_width", 200, 64, 4096),
+        focus_height=_int(vision, "focus_height", 200, 64, 4096),
+        focus_zoom=_float(vision, "focus_zoom", 1.0, 1.0, 4.0),
         settle_ms=_int(vision, "settle_ms", 100, 0, 5000),
         move_settle_ms=_int(vision, "move_settle_ms", 50, 0, 500),
         move_duration_ms=_int(vision, "move_duration_ms", 200, 0, 1000),
         image_format=fmt,
         image_quality=_int(image, "quality", 80, 1, 100),
         square_size=_int(image, "square_size", 1024, 256, 2048),
-        focus_max_side=_int(image, "focus_max_side", 1280, 320, 4096),
+        focus_max_side=_int(image, "focus_max_side", 200, 64, 4096),
     )
 
 __all__ = ["VisionConfig", "load_config"]
