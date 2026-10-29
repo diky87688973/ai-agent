@@ -39,27 +39,8 @@ def _observation_hook(runtime: VisionRuntime):
 
 def _vision_prompt(_cid: str) -> str:
     return (
-        "此消息为系统消息，请勿将此消息视为用户输入, 不要对本消息做任何回复\n\n"
-        "视觉操作：本消息为视觉帧消息，视觉帧只包含完整图。"
-        "需要视觉时先调用 vision_request_open，等待用户确认后再调用 "
-        "vision_start(consent_id)。拿到 vision_request_open 返回的 consent_id 后必须立即调用 vision_start，"
-        "不得再让用户确认，不得先说话或重新申请。不要调用看屏工具。"
-        "完整图使用原始截图，不填充黑区。图上坐标轴标签是屏幕绝对坐标。"
-        "移动使用模型看到的图上的点：x、y 是目标点，width、height 是模型看到的整张图宽高，"
-        "image_width、image_height 是原始截图宽高。"
-        "vision_move_point 接收完整图上的点，工具按图宽高和原始尺寸分别换算屏幕坐标。"
-        ""
-        "移动用 200ms 轨迹滑过去，不瞬移。"
-        "移动结果返回 moved=false/no_op=true 表示指针没有移动，不能声称移动了。"
-        "连续点击每个新点也先滑 200ms，点完停 72ms 再下一个；下一个点相同则不再移动，原地点击。"
-        "不要按页面布局或窗口位置推算。"
-        "先把鼠标移到目标中心，再调用 vision_click 点击当前位置。"
-        "vision_click 不接受坐标，支持 count 和 interval_ms，interval_ms 缺省 72、最小 72。"
-        "多个已确认点用 vision_click_sequence，坐标换算与 vision_move_point 相同，"
-        "同样要传 width/height/image_width/image_height；interval_ms 缺省 72、最小 72。"
-        "工具返回值不含图片，视觉帧在下一轮上下文尾部注入。"
-        "用户手动移动鼠标累计超过 100px、点击或按键会闭眼并收回控制权；之后必须重新申请授权。"
-        "vision_stop 只关闭视觉，不需要确认。"
+        "<<视觉>>\n"
+        "该消息为视觉注入, 所有视觉操作必须先查看清楚当前视觉注入内容后再操作, 点击时看清楚鼠标位置和按钮关系!!!"
     )
 
 

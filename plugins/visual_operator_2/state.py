@@ -274,12 +274,6 @@ class VisionRuntime:
                 return None
             frame = self._frames[-1]
             full = frame.image.copy()
-            full_content = {
-                "x": 0, "y": 0,
-                "width": full.width, "height": full.height,
-            }
-            render.draw_observation_axes(
-                full, None, full_content, {}, frame.image.size)
             render.draw_marker(full, frame.cursor)
             age_ms = int((time.monotonic() - frame.captured_at) * 1000)
             full_image = render.data_url(full, self.config)
@@ -292,7 +286,6 @@ class VisionRuntime:
                 f"original_image_size=({frame.image.width},{frame.image.height});"
                 f"compressed_image_size=({full.width},{full.height});"
                 f"coordinate_space=model_image;"
-                f"axis=screen_absolute;"
                 f"owner={self._owner}"
                 "</vision_observation>"
             )

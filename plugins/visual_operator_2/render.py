@@ -102,38 +102,6 @@ def full_point_screen(screen_width: int, screen_height: int, x: int, y: int,
     }
 
 
-def draw_screen_axis(image: Image.Image, image_rect: dict, screen_rect: dict,
-                     step: int) -> None:
-    draw = ImageDraw.Draw(image)
-    ix, iy = int(image_rect["x"]), int(image_rect["y"])
-    iw, ih = int(image_rect["width"]), int(image_rect["height"])
-    sx, sy = int(screen_rect["x"]), int(screen_rect["y"])
-    sw, sh = max(1, int(screen_rect["width"])), max(1, int(screen_rect["height"]))
-    step = max(1, int(step))
-    for gx in range((sx + step - 1) // step * step, sx + sw + 1, step):
-        px = ix + round((gx - sx) * iw / sw)
-        draw.line((px, iy, px, iy + ih), fill=(255, 60, 60), width=1)
-        draw.text((px + 2, max(0, iy - 15)), f"x{gx}", fill=(255, 60, 60))
-    for gy in range((sy + step - 1) // step * step, sy + sh + 1, step):
-        py = iy + round((gy - sy) * ih / sh)
-        draw.line((ix, py, ix + iw, py), fill=(255, 60, 60), width=1)
-        draw.text((ix + 2, max(0, py + 1)), f"y{gy}", fill=(255, 60, 60))
-
-
-def draw_observation_axes(full: Image.Image, local: Image.Image,
-                          full_content: dict, focus: dict,
-                          screen_size: tuple) -> None:
-    draw_screen_axis(full, full_content, {
-        "x": 0, "y": 0,
-        "width": screen_size[0], "height": screen_size[1],
-    }, 200)
-    if local is not None:
-        draw_screen_axis(local, {
-            "x": 0, "y": 0,
-            "width": local.width, "height": local.height,
-        }, focus, 64)
-
-
 def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:
     x, y = int(point[0]), int(point[1])
     draw = ImageDraw.Draw(image)
@@ -157,6 +125,5 @@ def data_url(image: Image.Image, config: VisionConfig) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
-__all__ = ["clip_focus", "crop_padded", "data_url", "draw_marker", "draw_observation_axes",
-           "draw_screen_axis", "fit", "full_point_screen", "model_point_screen",
-           "resolve_focus", "zoom"]
+__all__ = ["clip_focus", "crop_padded", "data_url", "draw_marker", "fit",
+           "full_point_screen", "model_point_screen", "resolve_focus", "zoom"]
