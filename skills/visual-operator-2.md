@@ -48,7 +48,7 @@ focus_size
 
 ## 3. 坐标
 
-完整图在服务端非等比拉伸成正方形，不填黑边。
+完整图在服务端等比缩放后填充黑区成正方形。
 
 模型只上报三组数：
 
@@ -58,11 +58,13 @@ width、height：模型看到的整张图宽高
 image_width、image_height：原始截图宽高，取 original_image_size
 ```
 
-工具换算：
+完整图有黑区。工具先按完整正方形图尺寸定位内容区，再换算屏幕坐标；模型只给正方形图上的 x/y。
 
 ```text
-screen_x = screen_width / width * x
-screen_y = screen_height / height * y
+u = (x - content_x) / content_width
+v = (y - content_y) / content_height
+screen_x = u * screen_width
+screen_y = v * screen_height
 ```
 
 两个方向独立，不假设等比。

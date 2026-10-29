@@ -280,13 +280,14 @@ class VisionRuntime:
             full = frame.image.copy()
             local = render.crop_padded(frame.image, focus)
             cursor_in_focus = _contains(focus, frame.cursor)
-            full = frame.image.resize(
-                (self.config.square_size, self.config.square_size),
-                Image.Resampling.LANCZOS)
+            full, full_content = render.pad_to_square(
+                frame.image, self.config.square_size)
             local = render.fit(render.zoom(local, self.config.focus_zoom), self.config.focus_max_side)
             render.draw_marker(full, (
-                round(frame.cursor[0] * full.width / frame.image.width),
-                round(frame.cursor[1] * full.height / frame.image.height),
+                full_content["x"] + round(
+                    frame.cursor[0] * full_content["width"] / frame.image.width),
+                full_content["y"] + round(
+                    frame.cursor[1] * full_content["height"] / frame.image.height),
             ))
             if cursor_in_focus:
                 render.draw_marker(local, (
@@ -450,9 +451,9 @@ class VisionRuntime:
             if image_width <= 0 or image_height <= 0:
                 return {"ok": False, "error": "image_width/image_height 必须大于 0"}
             frame = self._frames[-1]
-            mapped = render.model_point_screen(
+            mapped = render.full_point_screen(
                 frame.image.width, frame.image.height,
-                x, y, width, height, image_width, image_height)
+                x, y, width, height, self.config.square_size)
             before = self._cursor()
             moved = backend.move_cursor(
                 mapped["screen"]["x"], mapped["screen"]["y"],
@@ -585,10 +586,12 @@ class VisionRuntime:
             frame = self._frames[-1]
             targets = []
             for point in points:
-                mapped = render.model_point_screen(
+                mapped = render.full_point_screen(
                     frame.image.width, frame.image.height,
                     int(point["x"]), int(point["y"]),
-                    width, height, image_width, image_height)
+                    width, height, self.config.square_size)
+                if mapped.get("outside"):
+                    return {"ok": False, "error": "目标落在完整图黑区", "clicks": []}
                 targets.append({
                     "model_point": {"x": int(point["x"]), "y": int(point["y"])},
                     "target_screen": mapped["screen"],
