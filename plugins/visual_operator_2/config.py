@@ -16,6 +16,7 @@ class VisionConfig:
     focus_zoom: float = 2.0
     settle_ms: int = 100
     move_settle_ms: int = 50
+    move_duration_ms: int = 0
     image_format: str = "WEBP"
     image_quality: int = 80
     square_size: int = 1024
@@ -66,6 +67,7 @@ def load_config(path: Path | None = None) -> VisionConfig:
         focus_zoom=_float(vision, "focus_zoom", 2.0, 1.0, 4.0),
         settle_ms=_int(vision, "settle_ms", 100, 0, 5000),
         move_settle_ms=_int(vision, "move_settle_ms", 50, 0, 500),
+        move_duration_ms=_int(vision, "move_duration_ms", 200, 0, 1000),
         image_format=fmt,
         image_quality=_int(image, "quality", 80, 1, 100),
         square_size=_int(image, "square_size", 1024, 256, 2048),

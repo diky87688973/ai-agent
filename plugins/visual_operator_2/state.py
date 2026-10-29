@@ -426,13 +426,14 @@ class VisionRuntime:
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
             origin = self._frames[-1].cursor
-            try:
-                backend.set_cursor(origin[0], origin[1])
-                before = self._cursor()
-                backend.move_by(int(dx), int(dy))
-                after = self._cursor()
-            except (OSError, ValueError, RuntimeError) as exc:
-                return {"ok": False, "error": str(exc)}
+            before = self._cursor()
+            moved = backend.move_cursor(
+                origin[0] + int(dx), origin[1] + int(dy),
+                self.config.move_duration_ms,
+                should_stop=lambda: self._takeover or not self._eyes_open)
+            if not moved:
+                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
+            after = self._cursor()
             self._wake.set()
             result = {
                 "ok": True,
@@ -480,10 +481,12 @@ class VisionRuntime:
             mapped = self._model_point_screen(
                 frame, x, y, width, height, image_width, image_height)
             before = self._cursor()
-            try:
-                backend.set_cursor(mapped["screen"]["x"], mapped["screen"]["y"])
-            except (OSError, ValueError, RuntimeError) as exc:
-                return {"ok": False, "error": str(exc)}
+            moved = backend.move_cursor(
+                mapped["screen"]["x"], mapped["screen"]["y"],
+                self.config.move_duration_ms,
+                should_stop=lambda: self._takeover or not self._eyes_open)
+            if not moved:
+                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
             after = self._cursor()
             self._wake.set()
             result = {
@@ -576,20 +579,35 @@ class VisionRuntime:
         interval = min(1000, interval)
         per_point = max(1, min(3, int(count)))
         clicks: List[Dict[str, Any]] = []
+        previous_screen = None
         try:
             for index, target in enumerate(targets):
-                with self._lock:
-                    if self._takeover:
+                screen = target["target_screen"]
+                if screen != previous_screen:
+                    with self._lock:
+                        if self._takeover:
+                            return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权",
+                                    "clicks": clicks}
+                    moved = backend.move_cursor(
+                        screen["x"], screen["y"], self.config.move_duration_ms,
+                        should_stop=lambda: self._takeover or not self._eyes_open)
+                    if not moved:
                         return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权",
                                 "clicks": clicks}
-                    if not self._eyes_open or self._owner != str(conversation_id or ""):
-                        return {"ok": False, "error": "眼睛未打开或不属于当前会话",
-                                "clicks": clicks}
-                backend.set_cursor(target["target_screen"]["x"],
-                                   target["target_screen"]["y"])
-                backend.click("left", per_point)
-                clicks.append(target)
-                if index < len(targets) - 1 and interval > 0:
+                for click_index in range(per_point):
+                    with self._lock:
+                        if self._takeover:
+                            return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权",
+                                    "clicks": clicks}
+                        if not self._eyes_open or self._owner != str(conversation_id or ""):
+                            return {"ok": False, "error": "眼睛未打开或不属于当前会话",
+                                    "clicks": clicks}
+                    backend.click("left", 1)
+                    if click_index + 1 < per_point:
+                        time.sleep(interval / 1000.0)
+                clicks.append({**target, "moved": screen != previous_screen})
+                previous_screen = screen
+                if index < len(targets) - 1:
                     time.sleep(interval / 1000.0)
         except (KeyError, TypeError, ValueError, OSError, RuntimeError) as exc:
             return {"ok": False, "error": str(exc), "clicks": clicks}

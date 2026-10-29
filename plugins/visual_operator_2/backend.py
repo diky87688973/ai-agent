@@ -9,6 +9,7 @@ import ctypes
 import ctypes.wintypes as wintypes
 import sys
 import threading
+import time
 from contextlib import suppress
 from typing import Callable, Iterable, Optional, Tuple
 
@@ -507,6 +508,29 @@ def move_by(dx: int, dy: int) -> Tuple[int, int]:
     x, y = cursor_position()
     set_cursor(x + int(dx), y + int(dy))
     return x, y
+
+
+def move_cursor(x: int, y: int, duration_ms: int = 200,
+                should_stop: Optional[Callable[[], bool]] = None) -> bool:
+    """按住时长插值移动鼠标；被用户接管时返回 False。"""
+    target_x, target_y = int(x), int(y)
+    duration = max(0, min(2000, int(duration_ms)))
+    if duration <= 0:
+        set_cursor(target_x, target_y)
+        return not (should_stop and should_stop())
+    start_x, start_y = cursor_position()
+    steps = max(1, min(60, duration // 10))
+    for index in range(1, steps + 1):
+        if should_stop is not None and should_stop():
+            return False
+        ratio = index / float(steps)
+        set_cursor(round(start_x + (target_x - start_x) * ratio),
+                   round(start_y + (target_y - start_y) * ratio))
+        time.sleep(duration / 1000.0 / steps)
+    if should_stop is not None and should_stop():
+        return False
+    set_cursor(target_x, target_y)
+    return True
 
 
 def click(button: str = "left", count: int = 1) -> None:

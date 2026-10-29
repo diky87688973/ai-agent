@@ -46,6 +46,8 @@ def _vision_prompt(_cid: str) -> str:
         "移动使用模型看到的图上的点：x、y 是目标点，width、height 是模型看到的整张图宽高，"
         "image_width、image_height 是原始截图宽高。"
         "vision_move_point 按屏幕宽 / 模型图宽 * x、屏幕高 / 模型图高 * y 换算；两个方向独立。"
+        "移动用 200ms 轨迹滑过去，不瞬移。"
+        "连续点击每个新点也先滑 200ms，点完停 72ms 再下一个；下一个点相同则不再移动，原地点击。"
         "不要按页面布局或窗口位置推算。"
         "先把鼠标移到目标中心，再调用 vision_click 点击当前位置。"
         "vision_click 不接受坐标，支持 count 和 interval_ms，interval_ms 缺省 72、最小 72。"

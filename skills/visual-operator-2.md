@@ -153,7 +153,7 @@ vision_click_sequence(
 
 `interval_ms` 缺省 72，最小 72。
 
-每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。
+每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。每个新点用 200ms 轨迹滑过去，点完停 72ms；下一个点相同时不再移动，原地点击。
 
 `width/height` 是模型看到的整张图尺寸；`image_width/image_height` 是原始截图尺寸。
 

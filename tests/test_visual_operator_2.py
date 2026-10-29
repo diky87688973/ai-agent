@@ -356,6 +356,32 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_trajectory_duration_and_same_point_skip(self) -> None:
+        runtime = VisionRuntime(
+            VisionConfig(fps=30, focus_width=80, focus_height=60,
+                         move_duration_ms=200, settle_ms=0, move_settle_ms=0),
+            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
+            cursor=lambda: (160, 120),
+        )
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            with patch("plugins.visual_operator_2.state.backend.move_cursor",
+                       return_value=True) as move, \
+                 patch("plugins.visual_operator_2.state.backend.click"):
+                self.assertTrue(runtime.move_point(
+                    "cid-a", 80, 80, 160, 160, 320, 240)["ok"])
+                self.assertEqual(move.call_args[0][2], 200)
+                result = runtime.click_sequence(
+                    "cid-a", [{"x": 40, "y": 40}, {"x": 40, "y": 40}],
+                    160, 160, 320, 240, interval_ms=72, count=1)
+            self.assertTrue(result["ok"])
+            self.assertEqual(move.call_count, 2)
+            self.assertFalse(result["clicks"][1]["moved"])
+        finally:
+            runtime.close()
+
     def test_click_tools_and_sequence_contract(self) -> None:
         from plugins.visual_operator_2.tools import VisionClickTool, build_tools
 
@@ -422,7 +448,7 @@ class VisionRuntimeTest(unittest.TestCase):
             time.sleep(0.15)
             with patch.object(runtime, "_cursor", return_value=(160, 120)), \
                  patch("plugins.visual_operator_2.state.backend.set_cursor") as setcur, \
-                 patch("plugins.visual_operator_2.state.backend.move_by") as move, \
+                 patch("plugins.visual_operator_2.state.backend.move_cursor", return_value=True) as move, \
                  patch("plugins.visual_operator_2.state.backend.click") as click, \
                  patch("plugins.visual_operator_2.state.backend.press_keys") as keys:
                 self.assertTrue(runtime.focus("cid-a", {
