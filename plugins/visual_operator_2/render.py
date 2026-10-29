@@ -109,13 +109,20 @@ def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:
     x, y = int(point[0]), int(point[1])
     draw = ImageDraw.Draw(image)
     color = (255, 230, 0)
-    draw.ellipse((x - 22, y - 22, x + 22, y + 22), outline=(0, 0, 0), width=6)
-    draw.ellipse((x - 22, y - 22, x + 22, y + 22), outline=color, width=3)
-    draw.line((x - 42, y, x + 42, y), fill=(0, 0, 0), width=6)
-    draw.line((x, y - 42, x, y + 42), fill=(0, 0, 0), width=6)
-    draw.line((x - 42, y, x + 42, y), fill=color, width=3)
-    draw.line((x, y - 42, x, y + 42), fill=color, width=3)
-    draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=color)
+    gap = 4
+    arm = 12
+    for line in (
+        ((x - arm, y, x - gap, y), 4, (0, 0, 0)),
+        ((x + gap, y, x + arm, y), 4, (0, 0, 0)),
+        ((x, y - arm, x, y - gap), 4, (0, 0, 0)),
+        ((x, y + gap, x, y + arm), 4, (0, 0, 0)),
+        ((x - arm, y, x - gap, y), 2, color),
+        ((x + gap, y, x + arm, y), 2, color),
+        ((x, y - arm, x, y - gap), 2, color),
+        ((x, y + gap, x, y + arm), 2, color),
+    ):
+        coords, width, fill = line
+        draw.line(coords, fill=fill, width=width)
 
 
 def data_url(image: Image.Image, config: VisionConfig) -> str:
