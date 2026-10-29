@@ -191,7 +191,8 @@ class VisionClickSequenceTool(ToolPlugin):
         "height": {"type": "integer", "description": "模型看到的整张图高度"},
         "image_width": {"type": "integer", "description": "原始截图宽度"},
         "image_height": {"type": "integer", "description": "原始截图高度"},
-        "interval_ms": {"type": "integer", "description": "点与点之间的间隔，0~1000"},
+        "interval_ms": {"type": "integer", "minimum": 60, "maximum": 1000,
+                        "default": 60, "description": "点与点之间的间隔，最小 60，缺省 60"},
         "count": {"type": "integer", "description": "每个点点击次数，1~3"},
     }
 
@@ -205,11 +206,14 @@ class VisionClickSequenceTool(ToolPlugin):
         for point in points:
             if not isinstance(point, dict) or "x" not in point or "y" not in point:
                 raise ValueError("每个 point 必须是 {x, y}")
+        interval = int(arguments.get("interval_ms") or 60)
+        if interval < 60:
+            raise ValueError("interval_ms 不能小于 60")
         return self._runtime.click_sequence(
             _cid(), points,
             int(arguments["width"]), int(arguments["height"]),
             int(arguments["image_width"]), int(arguments["image_height"]),
-            int(arguments.get("interval_ms") or 0),
+            interval,
             int(arguments.get("count") or 1),
         )
 

@@ -323,12 +323,17 @@ class VisionRuntimeTest(unittest.TestCase):
                 result = runtime.click_sequence(
                     "cid-a",
                     [{"x": 40, "y": 40}, {"x": 120, "y": 120}],
-                    160, 160, 320, 240, interval_ms=0, count=1)
+                    160, 160, 320, 240, interval_ms=60, count=1)
             self.assertTrue(result["ok"])
             self.assertEqual(result["clicks"][0]["target_screen"], {"x": 80, "y": 60})
             self.assertEqual(result["clicks"][1]["target_screen"], {"x": 240, "y": 180})
             self.assertEqual(calls, [(80, 60), (240, 180)])
             self.assertTrue(result["observation_frame_id"])
+            bad = runtime.click_sequence(
+                "cid-a", [{"x": 40, "y": 40}], 160, 160, 320, 240,
+                interval_ms=59, count=1)
+            self.assertFalse(bad["ok"])
+            self.assertIn("60", bad["error"])
         finally:
             runtime.close()
 

@@ -434,11 +434,15 @@ class VisionRuntime:
             except (OSError, ValueError, RuntimeError) as exc:
                 return {"ok": False, "error": str(exc)}
             self._wake.set()
-            return {
+            result = {
                 "ok": True,
                 "cursor_before": {"x": before[0], "y": before[1]},
                 "cursor_after": {"x": after[0], "y": after[1]},
             }
+        result["observation_frame_id"] = self._capture_after_action(
+            conversation_id, self.config.move_settle_ms) or ""
+        result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
+        return result
 
     @staticmethod
     def _model_point_screen(frame: Frame, x: int, y: int, width: int,
@@ -475,16 +479,14 @@ class VisionRuntime:
             frame = self._frames[-1]
             mapped = self._model_point_screen(
                 frame, x, y, width, height, image_width, image_height)
-            screen_x = mapped["screen"]["x"]
-            screen_y = mapped["screen"]["y"]
             before = self._cursor()
             try:
-                backend.set_cursor(screen_x, screen_y)
+                backend.set_cursor(mapped["screen"]["x"], mapped["screen"]["y"])
             except (OSError, ValueError, RuntimeError) as exc:
                 return {"ok": False, "error": str(exc)}
             after = self._cursor()
             self._wake.set()
-            return {
+            result = {
                 "ok": True,
                 "coordinate_space": "model_image",
                 "model_point": {"x": int(x), "y": int(y)},
@@ -496,6 +498,10 @@ class VisionRuntime:
                 "cursor_before": {"x": before[0], "y": before[1]},
                 "cursor_after": {"x": after[0], "y": after[1]},
             }
+        result["observation_frame_id"] = self._capture_after_action(
+            conversation_id, self.config.move_settle_ms) or ""
+        result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
+        return result
 
     def click(self, conversation_id: str, button: str = "left") -> Dict[str, Any]:
         with self._lock:
@@ -545,7 +551,10 @@ class VisionRuntime:
                     "model_point": {"x": int(point["x"]), "y": int(point["y"])},
                     "target_screen": mapped["screen"],
                 })
-        interval = max(0, min(1000, int(interval_ms)))
+        interval = int(interval_ms)
+        if interval < 60:
+            return {"ok": False, "error": "interval_ms 不能小于 60", "clicks": []}
+        interval = min(1000, interval)
         per_point = max(1, min(3, int(count)))
         clicks: List[Dict[str, Any]] = []
         try:
@@ -626,8 +635,10 @@ class VisionRuntime:
                 report_error("plugins.visual_operator_2.capture", exc)
                 continue
 
-    def _capture_after_action(self, conversation_id: str) -> Optional[str]:
-        settle = max(0, int(self.config.settle_ms)) / 1000.0
+    def _capture_after_action(self, conversation_id: str,
+                              delay_ms: Optional[int] = None) -> Optional[str]:
+        delay = self.config.settle_ms if delay_ms is None else delay_ms
+        settle = max(0, int(delay)) / 1000.0
         if settle > 0:
             time.sleep(settle)
         with self._lock:

@@ -1327,7 +1327,10 @@
           "type": "integer"
         },
         "interval_ms": {
-          "description": "点与点之间的间隔，0~1000",
+          "default": 60,
+          "description": "点与点之间的间隔，最小 60，缺省 60",
+          "maximum": 1000,
+          "minimum": 60,
           "type": "integer"
         },
         "points": {

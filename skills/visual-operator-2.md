@@ -145,9 +145,13 @@ vision_click_sequence(
 )
 ```
 
+`interval_ms` 缺省 60，最小 60。
+
 每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。
 
 `width/height` 是模型看到的整张图尺寸；`image_width/image_height` 是原始截图尺寸。
+
+连续点击结束后等待 `settle_ms=100` 再抓帧。移动鼠标后等待 `move_settle_ms=50` 立即抓帧。
 
 目标布局会在点击后变化时，不拿旧帧的多个点继续点。
 
