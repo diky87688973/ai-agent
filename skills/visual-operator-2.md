@@ -103,7 +103,13 @@ vision_move(dx=..., dy=...)
 vision_click
 ```
 
-`vision_click` 不接收坐标，一次只点一下，不连续点击。
+`vision_click` 不接收坐标，支持点击次数和间隔：
+
+```text
+vision_click(count=2, interval_ms=72)
+```
+
+`interval_ms` 缺省 72，最小 72。
 
 流程：
 
@@ -145,7 +151,7 @@ vision_click_sequence(
 )
 ```
 
-`interval_ms` 缺省 60，最小 60。
+`interval_ms` 缺省 72，最小 72。
 
 每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。
 

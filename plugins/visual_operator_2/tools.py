@@ -154,14 +154,23 @@ class VisionClickTool(ToolPlugin):
     label = "点击"
     icon = "🖱️"
     parallel_safe = False
-    description = "在当前鼠标位置点击一次；不接收坐标，不连续点击。"
-    parameters: Dict[str, Any] = {}
+    description = "在当前鼠标位置点击；不接收坐标。支持点击次数和间隔，间隔最小 72ms。"
+    parameters = {
+        "count": {"type": "integer", "minimum": 1, "maximum": 10,
+                  "description": "点击次数，1~10"},
+        "interval_ms": {"type": "integer", "minimum": 72, "maximum": 1000,
+                        "default": 72, "description": "点击间隔，最小 72ms，缺省 72"},
+    }
 
     def __init__(self, runtime: VisionRuntime) -> None:
         self._runtime = runtime
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
-        return self._runtime.click(_cid())
+        interval = int(arguments.get("interval_ms") or 72)
+        if interval < 72:
+            raise ValueError("interval_ms 不能小于 72")
+        return self._runtime.click(
+            _cid(), "left", int(arguments.get("count") or 1), interval)
 
 
 class VisionClickSequenceTool(ToolPlugin):
@@ -191,8 +200,8 @@ class VisionClickSequenceTool(ToolPlugin):
         "height": {"type": "integer", "description": "模型看到的整张图高度"},
         "image_width": {"type": "integer", "description": "原始截图宽度"},
         "image_height": {"type": "integer", "description": "原始截图高度"},
-        "interval_ms": {"type": "integer", "minimum": 60, "maximum": 1000,
-                        "default": 60, "description": "点与点之间的间隔，最小 60，缺省 60"},
+        "interval_ms": {"type": "integer", "minimum": 72, "maximum": 1000,
+                        "default": 72, "description": "点与点之间的间隔，最小 72，缺省 72"},
         "count": {"type": "integer", "description": "每个点点击次数，1~3"},
     }
 
@@ -206,9 +215,9 @@ class VisionClickSequenceTool(ToolPlugin):
         for point in points:
             if not isinstance(point, dict) or "x" not in point or "y" not in point:
                 raise ValueError("每个 point 必须是 {x, y}")
-        interval = int(arguments.get("interval_ms") or 60)
-        if interval < 60:
-            raise ValueError("interval_ms 不能小于 60")
+        interval = int(arguments.get("interval_ms") or 72)
+        if interval < 72:
+            raise ValueError("interval_ms 不能小于 72")
         return self._runtime.click_sequence(
             _cid(), points,
             int(arguments["width"]), int(arguments["height"]),

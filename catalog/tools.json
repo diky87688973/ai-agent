@@ -1292,14 +1292,28 @@
       }
     },
     {
-      "description": "在当前鼠标位置点击一次；不接收坐标，不连续点击。",
+      "description": "在当前鼠标位置点击；不接收坐标。支持点击次数和间隔，间隔最小 72ms。",
       "display": {
         "icon": "🖱️",
         "label": "点击"
       },
       "name": "vision_click",
       "parallel_safe": false,
-      "parameters": {}
+      "parameters": {
+        "count": {
+          "description": "点击次数，1~10",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "interval_ms": {
+          "default": 72,
+          "description": "点击间隔，最小 72ms，缺省 72",
+          "maximum": 1000,
+          "minimum": 72,
+          "type": "integer"
+        }
+      }
     },
     {
       "description": "按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 width/height 模型图尺寸和 image_width/image_height 原始尺寸做双轴换算；width/height 是整张模型可见图，不是目标框。",
@@ -1327,10 +1341,10 @@
           "type": "integer"
         },
         "interval_ms": {
-          "default": 60,
-          "description": "点与点之间的间隔，最小 60，缺省 60",
+          "default": 72,
+          "description": "点与点之间的间隔，最小 72，缺省 72",
           "maximum": 1000,
-          "minimum": 60,
+          "minimum": 72,
           "type": "integer"
         },
         "points": {

@@ -310,6 +310,25 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_single_click_count_and_interval(self) -> None:
+        clicks = []
+        runtime = self._runtime()
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            with patch("plugins.visual_operator_2.state.backend.click",
+                       side_effect=lambda button, count: clicks.append((button, count))):
+                result = runtime.click("cid-a", count=2, interval_ms=72)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["clicks"], 2)
+            self.assertEqual(result["interval_ms"], 72)
+            self.assertEqual(clicks, [("left", 1), ("left", 1)])
+            bad = runtime.click("cid-a", count=1, interval_ms=71)
+            self.assertFalse(bad["ok"])
+        finally:
+            runtime.close()
+
     def test_click_sequence_uses_same_point_conversion(self) -> None:
         calls = []
         runtime = self._runtime()
@@ -323,7 +342,7 @@ class VisionRuntimeTest(unittest.TestCase):
                 result = runtime.click_sequence(
                     "cid-a",
                     [{"x": 40, "y": 40}, {"x": 120, "y": 120}],
-                    160, 160, 320, 240, interval_ms=60, count=1)
+                    160, 160, 320, 240, interval_ms=72, count=1)
             self.assertTrue(result["ok"])
             self.assertEqual(result["clicks"][0]["target_screen"], {"x": 80, "y": 60})
             self.assertEqual(result["clicks"][1]["target_screen"], {"x": 240, "y": 180})
@@ -331,16 +350,17 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertTrue(result["observation_frame_id"])
             bad = runtime.click_sequence(
                 "cid-a", [{"x": 40, "y": 40}], 160, 160, 320, 240,
-                interval_ms=59, count=1)
+                interval_ms=71, count=1)
             self.assertFalse(bad["ok"])
-            self.assertIn("60", bad["error"])
+            self.assertIn("72", bad["error"])
         finally:
             runtime.close()
 
     def test_click_tools_and_sequence_contract(self) -> None:
         from plugins.visual_operator_2.tools import VisionClickTool, build_tools
 
-        self.assertEqual(VisionClickTool.parameters, {})
+        self.assertEqual(VisionClickTool.parameters["interval_ms"]["default"], 72)
+        self.assertEqual(VisionClickTool.parameters["interval_ms"]["minimum"], 72)
         names = [tool.name for tool in build_tools(self._runtime())]
         self.assertIn("vision_click", names)
         self.assertIn("vision_click_sequence", names)

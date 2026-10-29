@@ -503,24 +503,43 @@ class VisionRuntime:
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
         return result
 
-    def click(self, conversation_id: str, button: str = "left") -> Dict[str, Any]:
+    def click(self, conversation_id: str, button: str = "left",
+              count: int = 1, interval_ms: int = 72) -> Dict[str, Any]:
+        interval = int(interval_ms)
+        if interval < 72:
+            return {"ok": False, "error": "interval_ms 不能小于 72"}
+        clicks_count = max(1, min(10, int(count)))
+        clicks: List[Dict[str, Any]] = []
         with self._lock:
             if self._takeover:
                 return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
             if not self._eyes_open or self._owner != str(conversation_id or ""):
                 return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
             before = self._cursor()
-            try:
+        try:
+            for index in range(clicks_count):
+                with self._lock:
+                    if self._takeover:
+                        return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权",
+                                "clicks": clicks}
+                    if not self._eyes_open or self._owner != str(conversation_id or ""):
+                        return {"ok": False, "error": "眼睛未打开或不属于当前会话",
+                                "clicks": clicks}
                 backend.click(button, 1)
-            except (OSError, ValueError, RuntimeError) as exc:
-                return {"ok": False, "error": str(exc)}
-            after = self._cursor()
+                clicks.append({"index": index + 1})
+                if index + 1 < clicks_count:
+                    time.sleep(interval / 1000.0)
+        except (OSError, ValueError, RuntimeError) as exc:
+            return {"ok": False, "error": str(exc), "clicks": clicks}
+        after = self._cursor()
         post_frame = self._capture_after_action(conversation_id)
         self._wake.set()
         return {
             "ok": True,
             "cursor_before": {"x": before[0], "y": before[1]},
             "cursor_after": {"x": after[0], "y": after[1]},
+            "clicks": len(clicks),
+            "interval_ms": interval,
             "observation_frame_id": post_frame or "",
             "observation_note": "下一次模型请求尾部带动作后的完整图和聚焦图",
             "settle_ms": self.config.settle_ms,
@@ -528,7 +547,7 @@ class VisionRuntime:
 
     def click_sequence(self, conversation_id: str, points: List[Dict[str, int]],
                        width: int, height: int, image_width: int,
-                       image_height: int, interval_ms: int = 60,
+                       image_height: int, interval_ms: int = 72,
                        count: int = 1) -> Dict[str, Any]:
         with self._lock:
             if self._takeover:
@@ -552,8 +571,8 @@ class VisionRuntime:
                     "target_screen": mapped["screen"],
                 })
         interval = int(interval_ms)
-        if interval < 60:
-            return {"ok": False, "error": "interval_ms 不能小于 60", "clicks": []}
+        if interval < 72:
+            return {"ok": False, "error": "interval_ms 不能小于 72", "clicks": []}
         interval = min(1000, interval)
         per_point = max(1, min(3, int(count)))
         clicks: List[Dict[str, Any]] = []
