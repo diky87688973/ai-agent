@@ -410,7 +410,6 @@ class ControlBadge:
             if self._thread is not None and self._thread.is_alive():
                 return
             self._failed = False
-            self._reset_mouse()
             self._ready.clear()
             self._thread = threading.Thread(
                 target=self._run, name="visual-control-badge", daemon=True)
