@@ -43,8 +43,10 @@ class VisionRuntimeTest(unittest.TestCase):
             assert observation is not None
             self.assertEqual(observation["images"][0], "FULL FRAME")
             self.assertEqual(observation["images"][1].split(",")[0], "data:image/webp;base64")
-            self.assertEqual(len(observation["images"]), 2)
-            self.assertEqual(observation["focus_image"], "")
+            self.assertEqual(len(observation["images"]), 4)
+            self.assertTrue(observation["focus_image"].startswith("data:image/"))
+            self.assertEqual(observation["focus"]["width"], 320)
+            self.assertEqual(observation["focus"]["height"], 240)
             self.assertIsNone(runtime.observe("cid-b"))
             self.assertFalse(runtime.start("cid-a", grant["consent_id"])["ok"])
             self.assertTrue(runtime.stop("cid-a")["ok"])
@@ -77,7 +79,7 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
-    def test_context_hook_appends_full_image_only(self) -> None:
+    def test_context_hook_appends_full_and_default_focus(self) -> None:
         runtime = self._runtime()
         try:
             request = runtime.request_open("cid-a", "call-a")
@@ -88,11 +90,13 @@ class VisionRuntimeTest(unittest.TestCase):
                 [{"role": "user", "content": "hi"}], "cid-a")
             self.assertEqual(messages[-1]["role"], "user")
             parts = messages[-1]["content"]
-            self.assertEqual(sum(1 for p in parts if p["type"] == "image_url"), 1)
+            self.assertEqual(sum(1 for p in parts if p["type"] == "image_url"), 2)
             self.assertEqual(parts[0]["type"], "text")
             self.assertEqual(parts[1]["type"], "text")
             self.assertEqual(parts[2]["type"], "image_url")
-            self.assertEqual(len(parts), 3)
+            self.assertEqual(parts[3]["type"], "text")
+            self.assertEqual(parts[4]["type"], "image_url")
+            self.assertEqual(len(parts), 5)
         finally:
             runtime.close()
 
@@ -121,7 +125,7 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertEqual(payload["coordinate_space"], "model_image")
             self.assertGreater(payload["full_scale"], 0)
             self.assertTrue(payload["full_image"].startswith("data:image/"))
-            self.assertEqual(payload["focus_image"], "")
+            self.assertTrue(payload["focus_image"].startswith("data:image/"))
         finally:
             runtime.close()
 

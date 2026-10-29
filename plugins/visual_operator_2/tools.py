@@ -55,7 +55,10 @@ class VisionStartTool(ToolPlugin):
     label = "睁眼"
     icon = "👁️"
     parallel_safe = False
-    description = "用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。"
+    description = (
+        "用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。"
+        "启动后默认注入完整图和屏幕中心的 400×400 聚焦图；可用 vision_focus 改聚焦区域。"
+    )
     parameters = {
         "consent_id": {"type": "string", "description": "眼睛工具签发的授权凭证"},
     }
@@ -74,6 +77,7 @@ class VisionFocusTool(ToolPlugin):
     parallel_safe = False
     description = (
         "设置一个固定观察区域；下一帧注入完整图和该区域 1:1 聚焦图。"
+        "未设置时默认聚焦屏幕中心 400×400。"
         "x/y/width/height 是区域在模型图上的像素；center_x/center_y 是模型图中心；"
         "image_width/image_height 是原始屏幕尺寸。区域超出屏幕会裁剪，不补黑。"
     )
@@ -298,6 +302,7 @@ class VisionStopTool(ToolPlugin):
 SKILL_REQUIRED = (
     "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 "
     "windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。"
+    "每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。"
 )
 
 

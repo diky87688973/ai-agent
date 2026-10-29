@@ -42,6 +42,7 @@ def _vision_prompt(_cid: str) -> str:
         "<<视觉>>\n"
         "该消息为视觉注入, 所有视觉操作必须先查看清楚当前视觉注入内容后再操作, 点击时看清楚鼠标位置和按钮关系!!!\n"
         "视觉操作前必须加载 skills：visual-operator-2 和 windows-desktop-operations。\n"
+        "默认聚焦屏幕中心 400×400；每次移动或点击后必须看下一轮实时注入的视觉帧，用黄色光标标记确认目标，不能凭工具回执认定成功.\n"
         "完整图是全屏画面按比例缩放后的图, 无黑区无填充.\n"
         "设置聚焦后用 vision_focus 指定固定区域; 聚焦图 1:1 不跟随光标, 聚焦图内移动用 vision_move_focus.\n"
         "x、y 就是目标在这张图上量的像素位置, image_width、image_height 取 original_image_size.\n"

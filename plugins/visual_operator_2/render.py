@@ -165,6 +165,29 @@ def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:
         draw.line(coords, fill=fill, width=width)
 
 
+def focus_view(image: Image.Image, focus: dict, cursor: Tuple[int, int],
+               config: VisionConfig) -> dict:
+    local = image.crop((
+        focus["x"], focus["y"],
+        focus["x"] + focus["width"], focus["y"] + focus["height"],
+    ))
+    cursor_in_focus = (
+        focus["x"] <= cursor[0] < focus["x"] + focus["width"]
+        and focus["y"] <= cursor[1] < focus["y"] + focus["height"]
+    )
+    if cursor_in_focus:
+        draw_marker(local, (cursor[0] - focus["x"], cursor[1] - focus["y"]))
+    data = {**focus, "image_size": [local.width, local.height]}
+    label = "FOCUS FRAME\nfocus=(" + f"{focus['x']},{focus['y']},{focus['width']},{focus['height']})"
+    return {
+        "image": local,
+        "url": data_url(local, config),
+        "cursor_in_focus": cursor_in_focus,
+        "focus": data,
+        "label": label,
+    }
+
+
 def data_url(image: Image.Image, config: VisionConfig) -> str:
     buf = io.BytesIO()
     image.save(buf, format=config.image_format,
@@ -176,5 +199,5 @@ def data_url(image: Image.Image, config: VisionConfig) -> str:
 
 
 __all__ = ["clip_focus", "crop_padded", "data_url", "draw_marker", "fit",
-           "focus_point_screen", "focus_screen_from_model", "full_point_screen",
-           "model_point_screen", "resolve_focus", "zoom"]
+           "focus_point_screen", "focus_screen_from_model", "focus_view",
+           "full_point_screen", "model_point_screen", "resolve_focus", "zoom"]

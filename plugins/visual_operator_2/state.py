@@ -275,6 +275,15 @@ class VisionRuntime:
             if not self._frames:
                 return None
             frame = self._frames[-1]
+            if self._focus is None:
+                width = min(400, frame.image.width)
+                height = min(400, frame.image.height)
+                self._focus = {
+                    "x": (frame.image.width - width) // 2,
+                    "y": (frame.image.height - height) // 2,
+                    "width": width,
+                    "height": height,
+                }
             full = render.fit(frame.image, self.config.image_max_side)
             render.draw_marker(full, (
                 round(frame.cursor[0] * full.width / frame.image.width),
@@ -298,34 +307,17 @@ class VisionRuntime:
                 f"owner={self._owner}"
             )
             if self._focus is not None:
-                focus = {**self._focus}
-                local = frame.image.crop((
-                    focus["x"], focus["y"],
-                    focus["x"] + focus["width"], focus["y"] + focus["height"],
-                ))
-                cursor_in_focus = (
-                    focus["x"] <= frame.cursor[0] < focus["x"] + focus["width"]
-                    and focus["y"] <= frame.cursor[1] < focus["y"] + focus["height"]
-                )
-                if cursor_in_focus:
-                    render.draw_marker(local, (
-                        frame.cursor[0] - focus["x"],
-                        frame.cursor[1] - focus["y"],
-                    ))
-                focus_image = render.data_url(local, self.config)
-                focus_data = {
-                    **focus,
-                    "image_size": [local.width, local.height],
-                }
-                images.extend([
-                    "FOCUS FRAME\nfocus=("
-                    + f"{focus['x']},{focus['y']},{focus['width']},{focus['height']})",
-                    focus_image,
-                ])
+                view = render.focus_view(
+                    frame.image, self._focus, frame.cursor, self.config)
+                focus_image = view["url"]
+                focus_data = view["focus"]
+                cursor_in_focus = view["cursor_in_focus"]
+                images.extend([view["label"], focus_image])
                 text += (
-                    f";focus=({focus['x']},{focus['y']},"
-                    f"{focus['width']},{focus['height']});"
-                    f"focus_size=({local.width},{local.height})"
+                    f";focus=({focus_data['x']},{focus_data['y']},"
+                    f"{focus_data['width']},{focus_data['height']});"
+                    f"focus_size=({focus_data['image_size'][0]},"
+                    f"{focus_data['image_size'][1]})"
                 )
             text += "</vision_observation>"
             return {
