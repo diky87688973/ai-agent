@@ -491,11 +491,10 @@ body {
     resetGame();
   });
 
-  [minClicksEl, maxClicksEl].forEach(function (input) {
-    input.addEventListener("change", function () {
-      saveClickSettings();
-      setFeedback("随机点击 " + minClicks + "~" + maxClicks + " 次");
-    });
+  document.querySelector(".settings").addEventListener("change", function (event) {
+    if (!event.target || !event.target.closest("input")) return;
+    saveClickSettings();
+    setFeedback("随机点击 " + minClicks + "~" + maxClicks + " 次");
   });
 
   fullscreen.addEventListener("click", function () {

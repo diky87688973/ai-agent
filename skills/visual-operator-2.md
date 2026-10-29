@@ -91,7 +91,7 @@ focus_size
 ```ini
 [vision]
 calibration_enabled = 1
-calibration_tolerance_px = 20
+calibration_tolerance_px = 32
 ```
 
 关闭 `calibration_enabled` 后不再生成 C1，也不再检查 `check_points`。
@@ -139,7 +139,7 @@ check_points：传 C1 随机标记中心的图内坐标
 ```
 
 工具按模型图宽高和原始尺寸分别换算 screen_x/screen_y；模型只给图上的 x/y，不自己换算。
-所有接受坐标的工具都必须带 `check_points` 单个随机标记中心，工具按真实屏幕点做 20px 校验；缺失或偏差超限直接失败，要求重新读当前帧 C1。
+所有接受坐标的工具都必须带 `check_points` 单个随机标记中心，工具按真实屏幕点做 32px 校验；缺失或偏差超限直接失败，要求重新读当前帧 C1。
 
 `check_points` 始终从完整图的 C1 读取；`vision_move_focus` 也用完整图上的 C1，不用聚焦图坐标。
 

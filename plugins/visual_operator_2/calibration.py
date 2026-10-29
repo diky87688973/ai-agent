@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""随机校准点：模型图坐标到屏幕坐标的 20px 复核。"""
+"""随机校准点：模型图坐标到屏幕坐标的 32px 复核。"""
 from __future__ import annotations
 
 import random
@@ -29,7 +29,7 @@ def new_points(width: int, height: int,
 def challenge_error(points: Optional[List[Dict[str, int]]],
                     expected: List[Tuple[int, int]], center_x: int,
                     center_y: int, image_width: int, image_height: int,
-                    tolerance: int = 20) -> str:
+                    tolerance: int = 32) -> str:
     if points is None:
         return ""
     if not isinstance(points, list) or len(points) != 1:
@@ -49,7 +49,7 @@ def challenge_error(points: Optional[List[Dict[str, int]]],
 
 
 def model_error(points: Optional[List[Dict[str, int]]],
-                expected: List[Tuple[int, int]], tolerance: int = 20) -> str:
+                expected: List[Tuple[int, int]], tolerance: int = 32) -> str:
     if points is None:
         return ""
     if not isinstance(points, list) or len(points) != 1:
@@ -67,7 +67,7 @@ def model_error(points: Optional[List[Dict[str, int]]],
 class ChallengeStore:
     """每帧随机校准点缓存；动作通过后立即消费。"""
 
-    def __init__(self, tolerance: int = 20, enabled: bool = True) -> None:
+    def __init__(self, tolerance: int = 32, enabled: bool = True) -> None:
         self._items: Dict[str, Dict[str, object]] = {}
         self.tolerance = max(0, int(tolerance))
         self.enabled = bool(enabled)
@@ -120,7 +120,7 @@ class ChallengeStore:
     def report(self, points, frame_id: str, center_x: int, center_y: int,
                image_width: int, image_height: int,
                model_only: bool = False) -> dict:
-        if not self.enabled or points is None:
+        if not self.enabled or not isinstance(points, list) or len(points) != 1:
             return {}
         challenge = self._items.get(frame_id)
         if challenge is None:

@@ -1,6 +1,7 @@
 # 私有配置与凭据
 # 非机密默认配置入库；只有含凭据的 multi_model 与本地覆盖文件忽略
 plugins/multi_model/plugin-config.ini
+_PRIVATE_RULE.md
 *.local.ini
 *.local.toml
 .env

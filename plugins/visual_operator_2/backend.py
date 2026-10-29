@@ -49,7 +49,9 @@ _MOUSE_LEFT_UP = 0x0004
 _MOUSE_MOVE = 0x0001
 _MOUSE_ABSOLUTE = 0x8000
 _KEY_UP = 0x0002
+_KEY_EXTENDED = 0x0001
 _INPUT_MOUSE = 0
+_INPUT_KEYBOARD = 1
 
 
 class _MOUSEINPUT(ctypes.Structure):
@@ -63,8 +65,18 @@ class _MOUSEINPUT(ctypes.Structure):
     ]
 
 
+class _KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", wintypes.WORD),
+        ("wScan", wintypes.WORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.c_size_t),
+    ]
+
+
 class _INPUTUNION(ctypes.Union):
-    _fields_ = [("mi", _MOUSEINPUT)]
+    _fields_ = [("mi", _MOUSEINPUT), ("ki", _KEYBDINPUT)]
 
 
 class _INPUT(ctypes.Structure):
@@ -577,11 +589,6 @@ def move_by(dx: int, dy: int) -> Tuple[int, int]:
 _input_lock = threading.RLock()
 
 
-def release_left() -> None:
-    """兼容旧调用；SendInput 一次提交完整点击序列，不存在待释放状态。"""
-    return
-
-
 def move_cursor(x: int, y: int, duration_ms: int = 200,
                 should_stop: Optional[Callable[[], bool]] = None) -> bool:
     """按时长插值移动鼠标；被用户接管时返回 False。"""
@@ -652,10 +659,27 @@ def press_keys(keys: Iterable[str]) -> None:
     codes = [_key_code(key) for key in keys]
     if not codes:
         raise ValueError("keys 不能为空")
-    for code in codes:
-        _key(code, 0, 0, 0)
-    for code in reversed(codes):
-        _key(code, 0, _KEY_UP, 0)
+    events = (_INPUT * (len(codes) * 2))()
+    for index, code in enumerate(codes):
+        flags = _KEY_EXTENDED if code in (0x5B, 0x5C) else 0
+        events[index].type = _INPUT_KEYBOARD
+        events[index].union.ki.wVk = code
+        events[index].union.ki.dwFlags = flags
+    for index, code in enumerate(reversed(codes), len(codes)):
+        flags = _KEY_UP | (_KEY_EXTENDED if code in (0x5B, 0x5C) else 0)
+        events[index].type = _INPUT_KEYBOARD
+        events[index].union.ki.wVk = code
+        events[index].union.ki.dwFlags = flags
+    inserted = _u.SendInput(len(events), events, ctypes.sizeof(_INPUT))
+    log_step("key_inject", method="sendinput", inserted=inserted,
+             expected=len(events), keys=list(keys))
+    if inserted != len(events):
+        for code in codes:
+            _key(code, 0, 0, 0)
+        for code in reversed(codes):
+            _key(code, 0, _KEY_UP, 0)
+        log_step("key_inject", method="keybd_event", inserted=inserted,
+                 expected=len(events), keys=list(keys))
 
 
 __all__ = [

@@ -208,7 +208,6 @@ class VisionRuntime:
         except Exception as exc:
             report_error("plugins.visual_operator_2.input_monitor.stop", exc)
     def user_takeover(self) -> None:
-        backend.release_left()
         with self._lock:
             if not self._eyes_open:
                 return
@@ -767,7 +766,6 @@ class VisionRuntime:
             report_error("plugins.visual_operator_2.publish", exc)
             return
     def close(self) -> None:
-        backend.release_left()
         self._closed = True
         self._stop.set()
         self._wake.set()

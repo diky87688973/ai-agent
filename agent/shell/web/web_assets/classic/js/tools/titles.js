@@ -282,6 +282,37 @@ const tids=argGet(args,"target_ids");
 let grp=ch||"";
 if(!grp&&Array.isArray(tids)&&tids.length)grp="组"+(tids.length>1?tids.length+"个":"1个");
 return {main:"多Agent协作"+(grp?" · to "+grp:""),fname:""};}
+if(s.indexOf("vision_key")>=0){
+const keys=argGet(args,"keys");
+const seq=Array.isArray(keys)?keys.join("+"):String(keys||"");
+return {main:"按键",fname:seq||"（空）"};}
+if(s.indexOf("vision_move_point")>=0){
+const x=argGet(args,"x"),y=argGet(args,"y");
+const cx=argGet(args,"center_x"),cy=argGet(args,"center_y");
+const iw=argGet(args,"image_width"),ih=argGet(args,"image_height");
+let where="";
+if(x!=null&&y!=null)where="目标 ("+x+", "+y+")";
+if(cx!=null&&cy!=null)where+=(where?" · ":"")+"中心 ("+cx+", "+cy+")";
+if(iw!=null&&ih!=null)where+=(where?" · ":"")+"图 "+iw+"×"+ih;
+return {main:"移动到点",fname:where||"（无坐标）"};}
+if(s.indexOf("vision_move_focus")>=0){
+const x=argGet(args,"x"),y=argGet(args,"y");
+const w=argGet(args,"width"),h=argGet(args,"height");
+return {main:"移动到聚焦点",fname:(x!=null&&y!=null?"("+x+", "+y+")":"（无坐标）")+(w!=null&&h!=null?" · 聚焦图 "+w+"×"+h:"")};}
+if(s.indexOf("vision_click_sequence")>=0){
+const pts=argGet(args,"points");
+const n=Array.isArray(pts)?pts.length:0;
+const shown=n?(" → "+pts.slice(0,3).map(function(p){return "("+p.x+", "+p.y+")";}).join(" → ")+(n>3?" …":"")):"";
+return {main:"连续点击",fname:String(n)+" 点"+shown};}
+if(s.indexOf("vision_click")>=0){
+const count=argGet(args,"count");
+return {main:"点击",fname:(count!=null?count:"1")+" 次 · 当前光标"};}
+if(s.indexOf("vision_focus")>=0){
+const x=argGet(args,"x"),y=argGet(args,"y"),w=argGet(args,"width"),h=argGet(args,"height");
+return {main:"聚焦区域",fname:(x!=null&&y!=null?"("+x+", "+y+")":"（无坐标）")+(w!=null&&h!=null?" · "+w+"×"+h:"")};}
+if(s.indexOf("vision_move")>=0){
+const dx=argGet(args,"dx"),dy=argGet(args,"dy");
+return {main:"相对移动",fname:(dx!=null&&dy!=null?"("+dx+", "+dy+")":"（无位移）")};}
 const dt=desktopToolTitle(script,args,full,null);
 if(dt)return dt;
 const unk='(unknown)';

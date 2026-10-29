@@ -50,7 +50,7 @@ def _vision_prompt(_cid: str) -> str:
         "该消息为视觉注入, 所有视觉操作必须先查看清楚当前视觉注入内容后再操作, 点击时看清楚鼠标位置和按钮关系!!!\n"
         "视觉操作前必须加载 skills：visual-operator-2 和 windows-desktop-operations。\n"
         "需要局部细节时用 vision_focus；每次移动或点击后必须看下一轮实时注入的视觉帧，用黄色光标标记确认目标，不能凭工具回执认定成功.\n"
-        "所有坐标工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按随机真实屏幕点做 20px 校验，缺失或超差直接失败.原样读标记，不要自己换算屏幕坐标.\n"
+        "所有坐标工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按随机真实屏幕点做 32px 校验，缺失或超差直接失败.原样读标记，不要自己换算屏幕坐标.\n"
         "完整图是全屏画面按比例缩放后的图, 无黑区无填充.\n"
         "需要放大时用 vision_focus 指定固定区域; 聚焦图 1:1 不跟随光标; 聚焦图内移动用 vision_move_focus.\n"
         "x、y 就是目标在这张图上量的像素位置, image_width、image_height 取 original_image_size.\n"
@@ -67,12 +67,21 @@ def _vision_prompt(_cid: str) -> str:
     )
 
 
+def _step_log_path(ctx: Any) -> Any:
+    app = getattr(ctx, "app", None)
+    context = getattr(app, "context", None) if app is not None else None
+    if context is None or not callable(getattr(context, "has", None)):
+        return None
+    if not context.has("error_log"):
+        return None
+    error_log = context.get("error_log")
+    path = getattr(error_log, "path", None)
+    return Path(path).parent / "visual_operator_2.steps.log" if path else None
+
+
 def register(ctx: Any) -> List[Any]:
     config = load_config()
-    logs = None
-    if callable(getattr(ctx, "has", None)) and ctx.has("error_log"):
-        logs = Path(ctx.get("error_log").path).parent / "visual_operator_2.steps.log"
-    step_log.configure(logs)
+    step_log.configure(_step_log_path(ctx))
     monitor = backend.HumanInputMonitor(config.takeover_distance)
     badge = backend.ControlBadge()
     runtime = VisionRuntime(

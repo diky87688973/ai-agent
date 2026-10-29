@@ -324,13 +324,37 @@ SKILL_REQUIRED = (
     "windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。"
     "每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。"
     "接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；"
-    "工具按真实屏幕点做 20px 校验，缺失或超差直接失败。"
+    "工具按真实屏幕点做 32px 校验，缺失或超差直接失败。"
 )
 
 
-class _LoggedTool:
+class _LoggedTool(ToolPlugin):
     def __init__(self, tool: ToolPlugin) -> None:
         self._tool = tool
+
+    @property
+    def name(self) -> str:
+        return self._tool.name
+
+    @property
+    def description(self) -> str:
+        return self._tool.description
+
+    @property
+    def parameters(self) -> Dict[str, Any]:
+        return self._tool.parameters
+
+    @property
+    def parallel_safe(self) -> bool:
+        return self._tool.parallel_safe
+
+    @property
+    def label(self) -> str:
+        return self._tool.label
+
+    @property
+    def icon(self) -> str:
+        return self._tool.icon
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._tool, name)

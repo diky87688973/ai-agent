@@ -8,8 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from agent.core.error_report import report_error
+
 _lock = threading.Lock()
 _path: Path | None = None
+_MAX_FILE_BYTES = 2 * 1024 * 1024
 
 
 def configure(path: Path | None) -> None:
@@ -33,7 +36,14 @@ def write(event: str, **fields: Any) -> None:
     try:
         with _lock:
             path.parent.mkdir(parents=True, exist_ok=True)
+            if path.is_file() and path.stat().st_size >= _MAX_FILE_BYTES:
+                backup = path.with_name(path.name + ".1")
+                if backup.exists():
+                    backup.unlink()
+                path.rename(backup)
             with path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except Exception:
-        return
+    except Exception as exc:
+        report_error(
+            "plugins.visual_operator_2.step_log", exc,
+            path=str(path), event=str(event or ""))

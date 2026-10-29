@@ -2,9 +2,12 @@
 """视觉操作 2.0 全局授权与上下文钩子。"""
 from __future__ import annotations
 
+import json
+import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -13,7 +16,7 @@ from PIL import Image
 from agent.core.context import ToolTurnContext
 from agent.core.session_scope import reset_tool_turn_context, set_tool_turn_context
 from plugins.visual_operator_2.config import VisionConfig
-from plugins.visual_operator_2.plugin import _observation_hook
+from plugins.visual_operator_2.plugin import _observation_hook, _step_log_path
 from plugins.visual_operator_2.routes import build_routes
 from plugins.visual_operator_2.state import VisionRuntime
 from plugins.visual_operator_2.tools import VisionRequestOpenTool, VisionStartTool, VisionStopTool
@@ -559,6 +562,64 @@ class VisionRuntimeTest(unittest.TestCase):
                      VisionMoveFocusTool, VisionClickSequenceTool):
             self.assertEqual(tool.parameters["check_points"]["minItems"], 1)
             self.assertEqual(tool.parameters["check_points"]["maxItems"], 1)
+
+    def test_step_log_writes_jsonl_and_reports_failure(self) -> None:
+        from plugins.visual_operator_2 import step_log
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "steps.log"
+            try:
+                step_log.configure(path)
+                step_log.write("probe", value=1)
+                records = [json.loads(line) for line in path.read_text(
+                    encoding="utf-8").splitlines()]
+                self.assertEqual(records[0]["event"], "probe")
+                self.assertEqual(records[0]["value"], "1")
+                step_log.configure(Path(tmp))
+                with patch("plugins.visual_operator_2.step_log.report_error") as report:
+                    step_log.write("probe", value=2)
+                report.assert_called_once()
+            finally:
+                step_log.configure(None)
+
+    def test_calibration_report_rejects_wrong_point_count(self) -> None:
+        from plugins.visual_operator_2.calibration import ChallengeStore
+
+        store = ChallengeStore()
+        store._items["f"] = {"screen": [(10, 10)], "model": [(10, 10)]}
+        self.assertEqual(store.report(
+            [{"x": 1, "y": 2}, {"x": 3, "y": 4}], "f", 800, 450, 1600, 900), {})
+        self.assertEqual(store.report(
+            [{"x": 1, "y": 2}], "f", 800, 450, 1600, 900)["points"][0]["real"],
+            {"x": 10, "y": 10})
+
+    def test_built_tools_keep_tool_plugin_type(self) -> None:
+        from agent.capabilities.registry import ToolPlugin
+        from plugins.visual_operator_2.tools import build_tools
+
+        tools = build_tools(self._runtime())
+        self.assertTrue(all(isinstance(tool, ToolPlugin) for tool in tools))
+
+    def test_step_log_path_uses_error_log_root(self) -> None:
+        context = SimpleNamespace(
+            has=lambda name: name == "error_log",
+            get=lambda name: SimpleNamespace(path=Path("D:/data/logs/errors.log")))
+        ctx = SimpleNamespace(app=SimpleNamespace(context=context))
+        self.assertEqual(_step_log_path(ctx),
+                         Path("D:/data/logs/visual_operator_2.steps.log"))
+        self.assertIsNone(_step_log_path(SimpleNamespace(app=None)))
+
+    def test_key_shortcut_uses_sendinput_batch(self) -> None:
+        from plugins.visual_operator_2 import backend
+
+        with patch.object(backend._u, "SendInput", return_value=4) as send:
+            backend.press_keys(["win", "s"])
+        events = send.call_args.args[1]
+        self.assertEqual(send.call_count, 1)
+        self.assertEqual([(events[i].type, events[i].union.ki.wVk,
+                           events[i].union.ki.dwFlags) for i in range(4)],
+                         [(1, 0x5B, 1), (1, 0x53, 0),
+                          (1, 0x53, 2), (1, 0x5B, 3)])
 
     def test_visual_skill_is_registered(self) -> None:
         from pathlib import Path
