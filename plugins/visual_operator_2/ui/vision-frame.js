@@ -30,7 +30,7 @@
       ".chat-tool-row--status{border:1px solid rgba(127,127,127,.28);border-radius:8px;background:rgba(127,127,127,.06);margin:8px 0;}",
       ".chat-tool-row--status .chat-tool-head{display:flex;align-items:center;padding:9px 12px;cursor:default;}",
       ".vision-frame-thumb{display:block;width:100%;padding:0;border:1px solid rgba(127,127,127,.35);border-radius:8px;background:#111;overflow:hidden;cursor:zoom-in;text-align:left;color:inherit;}",
-      ".vision-frame-thumb img{display:block;width:100%;height:auto;max-height:260px;object-fit:contain;background:#0b0b0b;}",
+      ".vision-frame-thumb img{display:block;width:auto;max-width:100%;height:auto;max-height:260px;object-fit:contain;background:#0b0b0b;}",
       ".vision-frame-thumb span{display:block;padding:6px 8px;font-size:11px;color:#9aa4b2;}",
       ".vision-frame-meta{padding:0 0 10px;font-size:11px;line-height:1.7;color:#9aa4b2;word-break:break-all;}",
       ".vision-frame-modal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:24px;}",
@@ -39,13 +39,19 @@
       ".vision-frame-dialog-head b{font-size:14px;}",
       ".vision-frame-dialog-head span{font-size:11px;color:#9aa4b2;flex:1;}",
       ".vision-frame-dialog-head button{border:1px solid rgba(127,127,127,.4);background:transparent;color:inherit;border-radius:6px;padding:4px 10px;cursor:pointer;}",
-      ".vision-frame-dialog-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}",
+      ".vision-frame-dialog-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;overflow:auto;}",
       ".vision-frame-dialog figure{margin:0;min-width:0;}",
       ".vision-frame-dialog figcaption{font-size:12px;color:#9aa4b2;margin-bottom:6px;}",
-      ".vision-frame-dialog img{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;background:#0b0b0b;border-radius:8px;}",
+      ".vision-frame-dialog img{display:block;width:auto;height:auto;max-width:none;max-height:none;object-fit:contain;background:#0b0b0b;border-radius:8px;}",
       "@media(max-width:900px){.vision-frame-grid,.vision-frame-dialog-grid{grid-template-columns:1fr;}}"
     ].join("\n");
     (document.head || document.documentElement).appendChild(style);
+  }
+
+  function modelSize(size) {
+    var pair = Array.isArray(size) ? size : [];
+    if (pair.length < 2) return "模型输入尺寸未知";
+    return "模型输入 " + String(pair[0]) + "×" + String(pair[1]);
   }
 
   function makeThumb(src, label, data) {
@@ -57,7 +63,8 @@
     image.alt = label;
     image.src = String(src || "");
     var caption = document.createElement("span");
-    caption.textContent = label;
+    caption.textContent = label + " · " + modelSize(label === "完整图"
+      ? data.full_size : (data.focus && data.focus.image_size));
     button.appendChild(image);
     button.appendChild(caption);
     button._visionFrameData = data;
@@ -149,7 +156,7 @@
     grid.className = "vision-frame-dialog-grid";
     var full = document.createElement("figure");
     var fullCaption = document.createElement("figcaption");
-    fullCaption.textContent = "完整图";
+    fullCaption.textContent = "完整图 · " + modelSize(data.full_size);
     var fullImage = document.createElement("img");
     fullImage.alt = "完整图";
     fullImage.src = String(data.full_image || "");
@@ -157,7 +164,7 @@
     full.appendChild(fullImage);
     var focus = document.createElement("figure");
     var focusCaption = document.createElement("figcaption");
-    focusCaption.textContent = "聚焦局部图";
+    focusCaption.textContent = "聚焦局部图 · " + modelSize(data.focus && data.focus.image_size);
     var focusImage = document.createElement("img");
     focusImage.alt = "聚焦局部图";
     focusImage.src = String(data.focus_image || "");
