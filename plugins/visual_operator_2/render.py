@@ -92,8 +92,7 @@ def square_content(screen_width: int, screen_height: int, size: int) -> dict:
                 size / float(max(1, screen_height)))
     width = max(1, round(screen_width * scale))
     height = max(1, round(screen_height * scale))
-    return {"x": (size - width) // 2, "y": (size - height) // 2,
-            "width": width, "height": height}
+    return {"x": 0, "y": 0, "width": width, "height": height}
 
 
 def pad_to_square(image: Image.Image, size: int) -> tuple:
