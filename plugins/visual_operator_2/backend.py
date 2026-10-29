@@ -547,38 +547,41 @@ def move_by(dx: int, dy: int) -> Tuple[int, int]:
 
 
 _left_down = False
+_input_lock = threading.RLock()
 
 
 def release_left() -> None:
     """释放由本模块注入的左键，防止轨迹移动变成拖拽。"""
     global _left_down
-    if _left_down:
-        _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
-        _left_down = False
+    with _input_lock:
+        if _left_down:
+            _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
+            _left_down = False
 
 
 def move_cursor(x: int, y: int, duration_ms: int = 200,
                 should_stop: Optional[Callable[[], bool]] = None) -> bool:
     """按时长插值移动鼠标；被用户接管时返回 False。"""
-    release_left()
-    target_x, target_y = int(x), int(y)
-    duration = max(0, min(2000, int(duration_ms)))
-    if duration <= 0:
-        set_cursor(target_x, target_y)
-        return not (should_stop and should_stop())
-    start_x, start_y = cursor_position()
-    steps = max(1, min(60, duration // 10))
-    for index in range(1, steps + 1):
+    with _input_lock:
+        release_left()
+        target_x, target_y = int(x), int(y)
+        duration = max(0, min(2000, int(duration_ms)))
+        if duration <= 0:
+            set_cursor(target_x, target_y)
+            return not (should_stop and should_stop())
+        start_x, start_y = cursor_position()
+        steps = max(1, min(60, duration // 10))
+        for index in range(1, steps + 1):
+            if should_stop is not None and should_stop():
+                return False
+            ratio = index / float(steps)
+            set_cursor(round(start_x + (target_x - start_x) * ratio),
+                       round(start_y + (target_y - start_y) * ratio))
+            time.sleep(duration / 1000.0 / steps)
         if should_stop is not None and should_stop():
             return False
-        ratio = index / float(steps)
-        set_cursor(round(start_x + (target_x - start_x) * ratio),
-                   round(start_y + (target_y - start_y) * ratio))
-        time.sleep(duration / 1000.0 / steps)
-    if should_stop is not None and should_stop():
-        return False
-    set_cursor(target_x, target_y)
-    return True
+        set_cursor(target_x, target_y)
+        return True
 
 
 def click(button: str = "left", count: int = 1) -> None:
@@ -587,14 +590,18 @@ def click(button: str = "left", count: int = 1) -> None:
     if button != "left":
         raise ValueError("目前只支持左键")
     global _left_down
-    for _ in range(max(1, min(3, int(count)))):
-        _mouse(_MOUSE_LEFT, 0, 0, 0, 0)
-        _left_down = True
-        try:
-            time.sleep(0.010)
-            _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
-        finally:
-            _left_down = False
+    with _input_lock:
+        for _ in range(max(1, min(3, int(count)))):
+            _mouse(_MOUSE_LEFT, 0, 0, 0, 0)
+            _left_down = True
+            try:
+                time.sleep(0.010)
+                _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
+            finally:
+                if _left_down:
+                    _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
+                _left_down = False
+                time.sleep(0.010)
 
 
 def _key_code(name: str) -> int:

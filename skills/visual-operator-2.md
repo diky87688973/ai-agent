@@ -21,11 +21,17 @@ description: 需要看屏幕、按模型可见图上的点移动鼠标、点击�
 
 ## 2. 视觉帧
 
-视觉启动后，每个模型请求的尾部自动带一张完整图。
+视觉启动后，每个模型请求的尾部自动带图。
 
 ```text
-完整图：全屏画面，最长边超过 1600 时等比压缩到 1600，无黑区、无辅助线
+注入内容：只有一张完整图，没有局部放大图
+完整图：全屏画面，最长边超过 1600 时按同一比例缩到最长边 1600，短边等比缩小，不填充黑区
+光标标记：画面上唯一一处黄色圆圈套十字，圆心即当前鼠标位置，不属于页面元素
 ```
+
+黄色圆圈套十字是画面里唯一的光标标记，与 `cursor` 字段指向同一点。看到它就当鼠标位置读，不要当成待点击的目标。
+
+取点时先把光标位置与目标分开：方块、按钮一律按自身边界取中点，不参照光标位置。
 
 工具返回值不含图片。看到的是下一轮请求尾部的完整图，不是移动或点击工具的返回内容。
 
@@ -36,12 +42,15 @@ frame_id
 age_ms
 cursor
 screen_size
-full_size
+original_image_size
+compressed_image_size
 coordinate_space=model_image
-image_size
-scale_x
-scale_y
+owner
 ```
+
+`original_image_size` 是屏幕尺寸，也是各点击工具 `image_width/image_height` 该取的值；`compressed_image_size` 是压缩后完整图的尺寸，也就是模型看到的那张图的真实宽高。两者不一致时，图上的 x/y 按模型看到的图读。
+
+工具返回的 `scale` 是屏幕坐标与原图尺寸的比值对象，不是模型图的缩放系数；模型图宽高只看 `compressed_image_size`。
 
 ## 3. 坐标
 
@@ -67,6 +76,8 @@ screen_y = image_height / 2 + (y - center_y) * scale_y
 
 两个方向独立，不假设等比。模型端把图片拉伸成任意尺寸也不影响落点。
 
+换算只认你给的四个数字：`image_width/image_height` 与 `center_x/center_y`。`image_width/image_height` 给错，落点就按错的比例偏，它必须等于当前帧的 `original_image_size`。
+
 示例：
 
 ```text
@@ -80,16 +91,42 @@ screen_y = 100 / 2 + (50 - 50) * 100 / (2 * 50) = 50
 
 所以 `center_x`、`center_y` 是模型看到的图像中心，不是目标点。
 
+### 3.1 取点
+
+公式只负责换算，不负责找点。x、y 靠目测当前帧取，取偏了公式再对也点不中。
+
+```text
+以当前帧为准：center_x/center_y 与 x、y 取自同一帧
+原图尺寸不变：image_width/image_height 取 original_image_size，不随帧改
+落在几何中心：矩形取两对边中点连线的交点，圆取圆心
+先定边再取中：读出目标的左、右、上、下边像素位，取其平均，不凭感觉瞄
+小目标放大看：没有局部图可用，只能靠当前帧自身读边，读不准就不点
+不用旧帧的数：画面刷新、滚动、布局变化后，旧坐标全部作废
+取完自检：x 落在左右边之间且接近中点，y 落在上下边之间且接近中点
+```
+
+取点误差与目标尺寸的关系：
+
+```text
+目标边长 100px，偏 10px → 仍在目标内
+目标边长 30px，偏 10px → 落到目标外，算误点
+```
+
+连续点击前逐个点按上述自检过一遍再提交；任一不确定，先单点该目标确认，再继续其余点。
+
 ## 4. 移动与点击
 
 移动：
 
 ```text
 vision_move_point(
-  x=..., y=..., width=..., height=...,
+  x=..., y=...,
+  center_x=..., center_y=...,
   image_width=..., image_height=...
 )
 ```
+
+`center_x/center_y` 必填，缺任一个工具直接报错；没有 `width/height` 入参。
 
 相对移动：
 
@@ -109,16 +146,18 @@ vision_click
 vision_click(count=2, interval_ms=72)
 ```
 
-`interval_ms` 缺省 72，最小 72。
+`interval_ms` 缺省 72，最小 72。它没有坐标入参，因此不传 center_x/center_y。
 
 流程：
 
 ```text
-看完整图 → 读目标点 x/y 和两张图的宽高 → vision_move_point
+看完整图 → 读目标点 x/y 和原图宽高 → vision_move_point
 → 看新帧确认光标在目标上 → vision_click
 ```
 
 移动后不立即盲点；确认新帧里的光标位置。
+
+移动类工具返回的 `observation_note` 写的是“完整图和聚焦图”，但实际注入的只有完整图，不要等局部图。
 
 ## 5. 多次点击
 
@@ -127,26 +166,28 @@ vision_click(count=2, interval_ms=72)
 ```text
 vision_click_sequence(
   points=[{"x":...,"y":...}, {"x":...,"y":...}],
-  width=..., height=...,
+  center_x=..., center_y=...,
   image_width=..., image_height=...,
-  interval_ms=60,
+  interval_ms=72,
   count=1
 )
 ```
 
-`interval_ms` 缺省 72，最小 72。
+`interval_ms` 缺省 72，最小 72。`center_x/center_y` 必填，缺任一个工具报 KeyError。
 
-每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。每个新点用 200ms 轨迹滑过去，点完停 72ms；下一个点相同时不再移动，原地点点击。
+`count` 是每个点的点击次数，取值 1~3；`vision_click` 的 `count` 是 1~10，两者不通用。
+
+每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。光标移动耗时由 `move_duration_ms` 决定（配置值 200ms）；点完停 `interval_ms`；下一个点与上一个相同时不再移动，原地点点击。
 
 `center_x/center_y` 是模型看到的图像中心；`image_width/image_height` 是原始截图尺寸。
 
-连续点击结束后等待 `settle_ms=100` 再抓帧。移动鼠标后等待 `move_settle_ms=50` 立即抓帧。
+移动类动作结束后等 `move_settle_ms`（配置值 50ms）再抓帧；点击类动作结束后等 `settle_ms`（配置值 100ms）再抓帧。两者都以配置为准。
 
 目标布局会在点击后变化时，不拿旧帧的多个点继续点。
 
 ## 6. 点击后的观察
 
-`vision_click` 会在 `settle_ms` 后抓一帧，并返回：
+`vision_click` 与 `vision_click_sequence` 都会在动作后抓一帧，并返回：
 
 ```text
 observation_frame_id
@@ -155,9 +196,19 @@ observation_note
 
 下一次请求尾部会出现点击后的完整图。点击后先看新帧，再决定下一次移动。
 
+本插件只注册 `vision_request_open`、`vision_start`、`vision_move`、`vision_move_point`、`vision_click`、`vision_click_sequence`、`vision_key`、`vision_stop`。
+
 ## 7. 用户接管
 
-用户手动移动鼠标累计超过 100px、点击或按键后，控制权归还用户：
+以下任一种人类输入都会让控制权归还用户：
+
+```text
+鼠标累计移动达到 100px（阈值取配置 takeover_distance）
+按下鼠标（非注入事件）
+按下任意按键（非注入事件）
+```
+
+本进程注入的鼠标键盘事件会被识别并排除，不算人类输入。接管后：
 
 ```text
 视觉关闭
@@ -204,6 +255,8 @@ vision_stop
 不伪造、复用或跨会话使用 consent_id
 不在眼睛关闭或用户接管后操作
 不按页面布局猜坐标
+不凭印象报点：未在当前帧读出目标边界就报 x、y
+不把上一帧的坐标用到刷新后的画面
 不调用连续点击工具做未确认的目标
 不在没有当前视觉帧时移动或点击
 ```
