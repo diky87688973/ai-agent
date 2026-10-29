@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-CONSENT_TITLE = "申请视觉操作授权,视觉操作过程中会持续录屏"
+CONSENT_TITLE = "申请视觉操作授权，视觉操作过程中会持续录屏"
 CONSENT_OPTIONS = ["同意", "拒绝"]
 
 
