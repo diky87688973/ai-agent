@@ -555,6 +555,7 @@ def click(button: str = "left", count: int = 1) -> None:
         _mouse(_MOUSE_LEFT, 0, 0, 0, 0)
         _left_down = True
         try:
+            time.sleep(0.010)
             _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
         finally:
             _left_down = False
