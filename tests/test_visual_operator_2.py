@@ -248,15 +248,15 @@ class VisionRuntimeTest(unittest.TestCase):
             runtime.start("cid-a", grant["consent_id"])
             observation = runtime.observe("cid-a")
             assert observation is not None
-            self.assertEqual(observation["full_size"], [1920, 1080])
+            self.assertEqual(observation["full_size"], [800, 450])
             self.assertGreater(observation["full_scale"], 0)
             with patch("plugins.visual_operator_2.state.backend.set_cursor",
                        side_effect=lambda x, y: calls.append((x, y))):
-                result = runtime.move_point("cid-a", 512, 512, 960, 540, 1920, 1080)
+                result = runtime.move_point("cid-a", 400, 225, 400, 225, 1920, 1080)
             self.assertTrue(result["ok"])
-            self.assertEqual(result["model_point"], {"x": 512, "y": 512})
-            self.assertEqual(result["target_screen"], {"x": 512, "y": 512})
-            self.assertEqual(calls, [(512, 512)])
+            self.assertEqual(result["model_point"], {"x": 400, "y": 225})
+            self.assertEqual(result["target_screen"], {"x": 960, "y": 540})
+            self.assertEqual(calls, [(960, 540)])
         finally:
             runtime.close()
 
@@ -273,11 +273,11 @@ class VisionRuntimeTest(unittest.TestCase):
             with patch("plugins.visual_operator_2.state.backend.move_cursor",
                        return_value=True):
                 result = runtime.move_point(
-                    "cid-a", 44, 366, 669, 540, 1920, 1080)
+                    "cid-a", 200, 100, 400, 225, 1920, 1080)
             self.assertTrue(result["ok"])
-            self.assertEqual(result["target_screen"], {"x": 63, "y": 366})
-            self.assertAlmostEqual(result["scale"]["x"], 1.435, places=3)
-            self.assertAlmostEqual(result["scale"]["y"], 1.0, places=3)
+            self.assertEqual(result["target_screen"], {"x": 480, "y": 240})
+            self.assertAlmostEqual(result["scale"]["x"], 2.4, places=3)
+            self.assertAlmostEqual(result["scale"]["y"], 2.4, places=3)
         finally:
             runtime.close()
 

@@ -273,8 +273,11 @@ class VisionRuntime:
             if not self._frames:
                 return None
             frame = self._frames[-1]
-            full = frame.image.copy()
-            render.draw_marker(full, frame.cursor)
+            full = render.fit(frame.image, self.config.image_max_side)
+            render.draw_marker(full, (
+                round(frame.cursor[0] * full.width / frame.image.width),
+                round(frame.cursor[1] * full.height / frame.image.height),
+            ))
             age_ms = int((time.monotonic() - frame.captured_at) * 1000)
             full_image = render.data_url(full, self.config)
             full_scale = float(frame.image.width) / float(full.width)
