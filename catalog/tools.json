@@ -215,697 +215,6 @@
       }
     },
     {
-      "description": "按顺序执行多步桌面操作，每步可带 expect 断言；失败即停并返回步日志。步骤是 `{动词: 参数, expect: {...}}`，一次最多 12 步、60 秒。自绘控件优先 click_region / type_into；click / type 只用于已验证的坐标/输入控件。量外框必须用 eye annotated + grid_step=20，矩形带 capture_id + space=image。可用动词：window / app / open / find / click_text / click_region / type_into / eye / wait / click / type / key / hotkey / scroll。expect 支持 window / text / rect_contains / changed；命中关闭、删除、支付、购买、退订等目标文字时整体拒绝，要求逐条执行。Plan 模式只允许只读步骤。",
-      "display": {
-        "icon": "🧩",
-        "label": "批量操作"
-      },
-      "name": "desktop_act",
-      "parallel_safe": false,
-      "parameters": {
-        "capture": {
-          "description": "回图策略：不回 / 失败帧 / 末帧",
-          "enum": [
-            "none",
-            "failure",
-            "final"
-          ],
-          "type": "string"
-        },
-        "on_error": {
-          "description": "失败策略；continue 只允许只读步骤",
-          "enum": [
-            "stop",
-            "continue"
-          ],
-          "type": "string"
-        },
-        "steps": {
-          "description": "步骤数组，每步一个动作加可选 expect",
-          "items": {
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "timeout_ms": {
-          "description": "总超时 100–60000 毫秒（默认 30000）",
-          "type": "integer"
-        }
-      }
-    },
-    {
-      "description": "启动已安装的本地程序并等待窗口。path 必须是可执行文件/快捷方式的绝对路径；也可以用 name 从开始菜单快捷方式中查找，避免先 glob_files。args 以数组传递，不经 shell。启动后返回 pid（快捷方式可能为 null）；给 window 标题时等待并返回 hwnd、rect 与 active；不给 window 且给了 name 时用 name 等窗口。后续操作优先复用返回的 hwnd，不要按标题重新猜。打开 URL 用 desktop_open，不要用本工具。",
-      "display": {
-        "icon": "🚀",
-        "label": "启动应用"
-      },
-      "name": "desktop_app",
-      "parallel_safe": false,
-      "parameters": {
-        "activate": {
-          "description": "找到窗口后是否置前（默认 true）",
-          "type": "boolean"
-        },
-        "args": {
-          "description": "传给程序的参数数组；不经 shell",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "name": {
-          "description": "应用名，从开始菜单快捷方式中查找；与 path 二选一",
-          "type": "string"
-        },
-        "path": {
-          "description": "可执行文件/快捷方式的绝对路径；与 name 二选一",
-          "type": "string"
-        },
-        "timeout_ms": {
-          "description": "等待窗口的毫秒数 100–60000（默认 10000）",
-          "type": "integer"
-        },
-        "window": {
-          "description": "启动后等待的窗口标题片段；不给则只返回 pid",
-          "type": "string"
-        }
-      }
-    },
-    {
-      "description": "点击一个视觉矩形的中心。没有 UIA 时，精确点击必须按此协议：① 用 desktop_eye annotated + grid_step=20 量外框，绝对不要用 raw 量；② 矩形来自截图时必须带 capture_id + space=image，禁止把图内坐标当屏幕坐标；③ 本工具计算中心并点击；④ 用 changed / title_changed / verified 核验。模型只提供矩形，不直接提供中心点。changed=0 不能单独判失败。Plan 模式下拒绝。",
-      "display": {
-        "icon": "▭",
-        "label": "按区域点击"
-      },
-      "name": "desktop_click_region",
-      "parallel_safe": false,
-      "parameters": {
-        "button": {
-          "description": "鼠标键（默认 left）",
-          "enum": [
-            "left",
-            "right",
-            "middle"
-          ],
-          "type": "string"
-        },
-        "capture_id": {
-          "description": "desktop_eye 返回的 capture_id",
-          "type": "string"
-        },
-        "count": {
-          "description": "点击次数 1–3（默认 1）",
-          "type": "integer"
-        },
-        "height": {
-          "description": "矩形高度",
-          "type": "integer"
-        },
-        "hwnd": {
-          "description": "目标窗口句柄",
-          "type": "integer"
-        },
-        "space": {
-          "description": "screen 屏幕坐标（默认）/ image 图内坐标（需 capture_id）",
-          "enum": [
-            "screen",
-            "image"
-          ],
-          "type": "string"
-        },
-        "width": {
-          "description": "矩形宽度",
-          "type": "integer"
-        },
-        "window": {
-          "description": "目标窗口标题片段",
-          "type": "string"
-        },
-        "x": {
-          "description": "矩形左上角 x",
-          "type": "integer"
-        },
-        "y": {
-          "description": "矩形左上角 y",
-          "type": "integer"
-        }
-      }
-    },
-    {
-      "description": "用 UIA 找到文字控件并点击它的可点击点或矩形中心；不做 OCR。多个命中时用 index 指定，找不到直接报错，不回退盲点。先定位再点击，一次往返完成；点击后回执 match、point、focus、hit。Plan 模式下拒绝。",
-      "display": {
-        "icon": "🖱",
-        "label": "按文字点击"
-      },
-      "name": "desktop_click_text",
-      "parallel_safe": false,
-      "parameters": {
-        "button": {
-          "description": "鼠标键（默认 left）",
-          "enum": [
-            "left",
-            "right",
-            "middle"
-          ],
-          "type": "string"
-        },
-        "count": {
-          "description": "点击次数 1–3（默认 1）",
-          "type": "integer"
-        },
-        "hwnd": {
-          "description": "限定窗口句柄；优先使用稳定 hwnd",
-          "type": "integer"
-        },
-        "index": {
-          "description": "第几个命中 0–49（默认 0）",
-          "type": "integer"
-        },
-        "match": {
-          "description": "匹配方式（默认 contains）",
-          "enum": [
-            "contains",
-            "exact",
-            "regex"
-          ],
-          "type": "string"
-        },
-        "text": {
-          "description": "要点击的控件文字",
-          "type": "string"
-        },
-        "window": {
-          "description": "限定窗口标题片段；与 hwnd 二选一",
-          "type": "string"
-        }
-      }
-    },
-    {
-      "description": "已知多步流程优先用 desktop_act，减少 eye/mouse 往返；本工具只取当前需要的一帧。看屏并附坐标网格。精确点击协议：先取局部区域（x/y/width/height），max_side=0，grid_step=20，量外框必须用 annotated 标注图；禁止用 raw 图量边框。再用 capture_id + space=image 把矩形交给 click_region。整屏/缩放图只用于定位大概位置，不要直接用来点击小目标。截取桌面并作为图片直接查看（不是 OCR）。支持整屏、区域与指定窗口。给 window（标题片段）或 hwnd 时取该窗口自身内容，目标被别的窗口盖住也能看到；窗口若已最小化会先恢复再取图，回执标 restored。activate=false（默认）只恢复不置前，不改变用户正在用的窗口；需要把窗口亮到前台时给 activate=true。要给悬停才出现的控件拍照（视频控制条、下拉菜单、提示气泡），用 hover=[x,y]：同一次调用内先移光标、等界面展开、再截图。默认会连续移动并在落点做几次 1–2px 微移动（hover_wiggle），因为播放器只认连续的 mousemove，瞬移后静止会被当成鼠标没动；要更接近真实轨迹可给 hover_path 中间点。回执的 hover.hit 会说明光标下是哪一层窗口；若它与这次取图的窗口不是同一个，note 会直接指出该改用哪个 hwnd——播放器画面常是独立顶层窗口，按标题取的却是它上面的详情页壳。不给 window / hwnd 而给了 hover 时，直接取光标那一层窗口的原尺寸内容，既不会被遮挡，也不会因为整屏缩放而看不清控件上的字。分开调用「先移鼠标、再截图」在多数播放器与网页上都会失败——控件的自动隐藏通常只有 2–3 秒，撑不过一次模型往返。不给窗口则取屏幕合成结果（会包含遮挡物）。默认每张图都带坐标辅助线：光标位置是黑色描边、白色分隔的亮绿短十字、小圆环和黑底或黑色描边的 CURSOR 标签；短十字只画在光标附近，不铺满全图，中心留空，落点像素本身不被盖住。小区域的标签只写坐标，省略 CURSOR 前缀；短边小于 90 的区域完全不画标签，坐标从回执 cursor 读取。网格主线是红色粗线，细线是蓝色，刻度数字在边缘。这些线不是截图里的界面元素，是读坐标的参照；先读 CURSOR 标签和绿十字，再用网格定位，回执的 cursor 给出同一坐标。图片压缩后辅助线和标签仍保留；仍看不清时缩小取图区域、把 grid_step 调到 20–40，或提高 max_side。要同时看标注图和干净原图时给 annotate=both：同一张图先回标注图、再回无辅助线原图；annotate=raw 只回原图，默认 annotated 只回标注图。量尺寸/坐标时用 annotated + grid_step=20 的图，不要用 raw；raw 只用于确认内容，边框不能靠肉眼估。回执带 capture_id；要按图内坐标点击时，先让这张图的网格用图内像素（grid_unit=image），再把 capture_id 与图内 x/y 交给 desktop_mouse（space=image）。默认网格仍是屏幕坐标；两种坐标不要混用。整屏截图不要直接用来估 5px 级控件；局部取图、max_side=0、grid_step=20 才是精确点击路径。",
-      "display": {
-        "icon": "👁",
-        "label": "看屏"
-      },
-      "name": "desktop_eye",
-      "parallel_safe": false,
-      "parameters": {
-        "activate": {
-          "description": "取图前是否把窗口带到前台（默认 false：只恢复不置前，不打断当前操作）",
-          "type": "boolean"
-        },
-        "annotate": {
-          "description": "annotated 只回标注图（默认）/ raw 只回原图 / both 先回标注图再回原图",
-          "enum": [
-            "annotated",
-            "raw",
-            "both"
-          ],
-          "type": "string"
-        },
-        "grid": {
-          "description": "叠加坐标网格与刻度（默认 true）",
-          "type": "boolean"
-        },
-        "grid_step": {
-          "description": "网格间距（屏幕坐标）20–500；缺省取插件配置。整屏用于定位；精确点击局部时给 20",
-          "type": "integer"
-        },
-        "grid_unit": {
-          "description": "网格刻度单位：screen 屏幕坐标（默认）/ image 图内像素。图内像素配合 capture_id 交给 desktop_mouse",
-          "enum": [
-            "screen",
-            "image"
-          ],
-          "type": "string"
-        },
-        "height": {
-          "description": "区域高度（屏幕坐标）",
-          "type": "integer"
-        },
-        "hover": {
-          "description": "取图前把光标移到这里 [x, y]（屏幕坐标），用来展开悬停控件",
-          "items": {
-            "type": "integer"
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
-        },
-        "hover_approach_ms": {
-          "description": "移动到落点用多少毫秒 0–2000（默认 120）；0 = 一次跳变。",
-          "type": "integer"
-        },
-        "hover_path": {
-          "description": "到 hover 之前先经过的中间点 [[x, y], ...]，最多 4 个；用它模拟真实移动轨迹，唤醒只认连续 mousemove 的播放器控件",
-          "items": {
-            "items": {
-              "type": "integer"
-            },
-            "maxItems": 2,
-            "minItems": 2,
-            "type": "array"
-          },
-          "type": "array"
-        },
-        "hover_settle_ms": {
-          "description": "移完光标等界面展开的毫秒数 0–5000；缺省取插件配置",
-          "type": "integer"
-        },
-        "hover_wiggle": {
-          "description": "到达后是否在落点附近做几次 1–2px 微移动（默认 true）；播放器控制条通常需要它才会出现。微动结束会回到落点",
-          "type": "boolean"
-        },
-        "hwnd": {
-          "description": "窗口句柄；与 window 二选一，hwnd 更精确",
-          "type": "integer"
-        },
-        "max_side": {
-          "description": "长边缩到不超过该像素；0 = 不缩放；精确点击局部时用 0，避免缩放误差",
-          "type": "integer"
-        },
-        "width": {
-          "description": "区域宽度（屏幕坐标）",
-          "type": "integer"
-        },
-        "window": {
-          "description": "窗口标题片段；取该窗口自身内容，遮挡不影响",
-          "type": "string"
-        },
-        "x": {
-          "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出",
-          "type": "integer"
-        },
-        "y": {
-          "description": "区域左上角 y（屏幕坐标）",
-          "type": "integer"
-        }
-      }
-    },
-    {
-      "description": "按文字查找窗口内的控件，走 UIA，不做 OCR。返回 name、control_type、rect、clickable、source 与 confidence。找不到时返回空 matches，不要用坐标猜一个替代结果。点击用 desktop_click_text，输入用 desktop_type_into。给 window / hwnd 限定窗口；不限定则从桌面根节点找。",
-      "display": {
-        "icon": "🔎",
-        "label": "查找控件"
-      },
-      "name": "desktop_find",
-      "parallel_safe": false,
-      "parameters": {
-        "height": {
-          "description": "可选：区域高度",
-          "type": "integer"
-        },
-        "hwnd": {
-          "description": "限定窗口句柄；导航后优先用 hwnd",
-          "type": "integer"
-        },
-        "limit": {
-          "description": "最多返回几条 1–50（默认 10）",
-          "type": "integer"
-        },
-        "match": {
-          "description": "匹配方式（默认 contains）",
-          "enum": [
-            "contains",
-            "exact",
-            "regex"
-          ],
-          "type": "string"
-        },
-        "text": {
-          "description": "要查找的控件文字",
-          "type": "string"
-        },
-        "width": {
-          "description": "可选：区域宽度",
-          "type": "integer"
-        },
-        "window": {
-          "description": "限定窗口标题片段；与 hwnd 二选一",
-          "type": "string"
-        },
-        "x": {
-          "description": "可选：只在矩形区域内查找，左上角 x",
-          "type": "integer"
-        },
-        "y": {
-          "description": "可选：只在矩形区域内查找，左上角 y",
-          "type": "integer"
-        }
-      }
-    },
-    {
-      "description": "操作键盘。type 输入任意 Unicode 文本；key 按单个键（enter / tab / esc / 方向键 / f1–f20 / 字母 / 数字 / 符号）；hotkey 按组合键（如 ctrl+c、alt+tab、cmd+space）。给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再输入，回执带 focus；置前失败时不会盲打，直接报错，避免字落进别的窗口。桌面操作四步：量外框 → 取中心 → 点击 → 核验；自绘控件不得用 type 盲打，必须改用 desktop_type_into + 输入区矩形；原生控件才用 type。type 回执带 focus_element / changed / verified，输入前确认焦点，输入后用 verified 核验。要给输入后的界面同时拍一张，加 shot=true：同一调用内完成「打完就截」，省掉一次「再调 desktop_eye」的往返。Plan 模式下拒绝。",
-      "display": {
-        "icon": "⌨",
-        "label": "键盘"
-      },
-      "name": "desktop_keyboard",
-      "parallel_safe": false,
-      "parameters": {
-        "action": {
-          "description": "type 输入文本 / key 单键 / hotkey 组合键",
-          "enum": [
-            "type",
-            "key",
-            "hotkey"
-          ],
-          "type": "string"
-        },
-        "hwnd": {
-          "description": "目标窗口句柄；与 window 二选一，hwnd 更精确",
-          "type": "integer"
-        },
-        "key": {
-          "description": "单键规范名或常见别名（key 必填）",
-          "type": "string"
-        },
-        "keys": {
-          "description": "组合键，如 \"ctrl+c\" / \"alt+tab\" / \"cmd+space\"（hotkey 必填）",
-          "type": "string"
-        },
-        "repeat": {
-          "description": "重复次数 1–20（默认 1）",
-          "type": "integer"
-        },
-        "shot": {
-          "description": "动作完成后在本次调用内截图并作为图片附件返回（默认 false）",
-          "type": "boolean"
-        },
-        "shot_max_side": {
-          "description": "shot 的长边上限；缺省取插件配置",
-          "type": "integer"
-        },
-        "text": {
-          "description": "要输入的文本（type 必填）",
-          "type": "string"
-        },
-        "window": {
-          "description": "目标窗口标题片段；先置前再输入",
-          "type": "string"
-        }
-      }
-    },
-    {
-      "description": "桌面操作四步：量外框 → 取中心 → 点击 → 核验。量外框用 desktop_eye 标注图 + grid_step=20；取中心用 desktop_click_region；点击用本工具；核验用 shot / shot_region / changed。已知多步流程优先用 desktop_act；不要在整屏截图和鼠标估算之间反复试。点击小目标（5px 级间隙）前：先用 desktop_eye 取局部区域，max_side=0，grid_step=20，再用 capture_id + space=image；不要直接按整屏网格估坐标。操作鼠标。默认坐标是屏幕坐标；给 capture_id 时按 desktop_eye 截图里的图内像素坐标解释，由工具查截图登记并换算，模型不用乘缩放比例。图内坐标用 space=image 更明确；capture_id 不存在或过期会直接报错。click / scroll 省略 x、y 时作用在当前光标位置；图像坐标必须给点。给 window（标题片段）或 hwnd 时先把该窗口恢复并置前，再动作，回执带 focus；置前失败时不会盲点，直接报错，避免点到遮挡物。点击回执带三份证据：hit（落点所在窗口与控件类名）、changed（落点周围 200×200 的像素变化比例）与 window_changed（顶层窗口是否被替换、有没有新窗口出现）。changed=0 只说明落点原地没动，不代表没点中：window_changed.navigated=true 才是「点进了详情/播放页」的正解。要给动作后的界面同时拍一张，加 shot=true：只想看落点周围时给 shot_region，不要整窗截图；同一调用内完成「点完就截」，省掉一次「再调 desktop_eye」的往返；回图默认拍落点实际所在的窗口（shot_of=hit），不是按标题重新解析的那个。shot 回图的辅助线与 desktop_eye 相同：短十字、小圆环、CURSOR 标签和网格。action=cursor 只读查询，Plan 模式可用；其余动作在 Plan 模式被拒绝。",
-      "display": {
-        "icon": "🖱",
-        "label": "鼠标"
-      },
-      "name": "desktop_mouse",
-      "parallel_safe": false,
-      "parameters": {
-        "action": {
-          "description": "move 移动 / click 点击 / drag 拖拽 / scroll 滚动 / cursor 查询光标",
-          "enum": [
-            "move",
-            "click",
-            "drag",
-            "scroll",
-            "cursor"
-          ],
-          "type": "string"
-        },
-        "amount": {
-          "description": "滚动量 -50 ~ 50，正数向下 / 向右（scroll 必填）",
-          "type": "integer"
-        },
-        "button": {
-          "description": "按键（默认 left）",
-          "enum": [
-            "left",
-            "right",
-            "middle"
-          ],
-          "type": "string"
-        },
-        "capture_id": {
-          "description": "desktop_eye 回执里的 capture_id；给了它即按图内坐标解释",
-          "type": "string"
-        },
-        "count": {
-          "description": "点击次数 1–3（默认 1）",
-          "type": "integer"
-        },
-        "duration_ms": {
-          "description": "移动 / 拖拽时长 0–5000 毫秒（默认 0）",
-          "type": "integer"
-        },
-        "horizontal": {
-          "description": "横向滚动（默认 false）",
-          "type": "boolean"
-        },
-        "hwnd": {
-          "description": "目标窗口句柄；与 window 二选一，hwnd 更精确",
-          "type": "integer"
-        },
-        "shot": {
-          "description": "动作完成后在本次调用内截图并作为图片附件返回（默认 false）",
-          "type": "boolean"
-        },
-        "shot_max_side": {
-          "description": "shot 的长边上限；缺省取插件配置",
-          "type": "integer"
-        },
-        "shot_region": {
-          "description": "截图区域 [x, y, width, height]（屏幕坐标）；省略则取整屏或目标窗口",
-          "items": {
-            "type": "integer"
-          },
-          "maxItems": 4,
-          "minItems": 4,
-          "type": "array"
-        },
-        "space": {
-          "description": "坐标空间：screen 屏幕（默认）/ image 图内像素（需 capture_id）",
-          "enum": [
-            "screen",
-            "image"
-          ],
-          "type": "string"
-        },
-        "to_x": {
-          "description": "拖拽终点 x；坐标空间同 x",
-          "type": "integer"
-        },
-        "to_y": {
-          "description": "拖拽终点 y；坐标空间同 y",
-          "type": "integer"
-        },
-        "window": {
-          "description": "目标窗口标题片段；先置前再动作",
-          "type": "string"
-        },
-        "x": {
-          "description": "x；默认屏幕坐标，space=image / 给 capture_id 时是图内像素",
-          "type": "integer"
-        },
-        "y": {
-          "description": "y；默认屏幕坐标，space=image / 给 capture_id 时是图内像素",
-          "type": "integer"
-        }
-      }
-    },
-    {
-      "description": "用系统默认浏览器/程序打开 URL、URL scheme 或已有文件；不经 shell。打开已知网站时优先用本工具，不要先扫文件系统或猜浏览器窗口。优先返回本次新出现的窗口，fresh=false 时返回实际复用窗口；给 window 时即使标题不完全匹配，也返回新窗口并说明实际标题。后续操作复用返回的 hwnd。打开本地程序用 desktop_app。",
-      "display": {
-        "icon": "🌐",
-        "label": "打开"
-      },
-      "name": "desktop_open",
-      "parallel_safe": false,
-      "parameters": {
-        "activate": {
-          "description": "找到窗口后是否置前（默认 true）",
-          "type": "boolean"
-        },
-        "target": {
-          "description": "URL（http/https）、scheme（mailto: 等）或已有文件路径",
-          "type": "string"
-        },
-        "timeout_ms": {
-          "description": "等待窗口的毫秒数 100–60000（默认 10000）",
-          "type": "integer"
-        },
-        "window": {
-          "description": "打开后等待的窗口标题片段；不给则只返回已发起",
-          "type": "string"
-        }
-      }
-    },
-    {
-      "description": "输入文本：target 用 UIA 找控件，或 x/y/width/height 给视觉定位的矩形（取中心）。自绘控件（例如 EVO_WidgetWin_0）不得用 desktop_keyboard type 盲打；必须先用 desktop_eye annotated + grid_step=20 量输入区外框，矩形来自截图时带 capture_id + space=image。clear=true 先 ctrl+a，submit=true 最后回车。矩形模式仍做像素 diff，输入后必须看 verified；不盲打。Plan 模式下拒绝。",
-      "display": {
-        "icon": "⌨",
-        "label": "按文字输入"
-      },
-      "name": "desktop_type_into",
-      "parallel_safe": false,
-      "parameters": {
-        "capture_id": {
-          "description": "desktop_eye 返回的 capture_id",
-          "type": "string"
-        },
-        "clear": {
-          "description": "输入前 ctrl+a 清空（默认 true）",
-          "type": "boolean"
-        },
-        "height": {
-          "description": "矩形模式：目标输入区高度",
-          "type": "integer"
-        },
-        "hwnd": {
-          "description": "限定窗口句柄",
-          "type": "integer"
-        },
-        "index": {
-          "description": "第几个目标命中 0–49（默认 0）",
-          "type": "integer"
-        },
-        "match": {
-          "description": "目标文字匹配方式（默认 contains）",
-          "enum": [
-            "contains",
-            "exact",
-            "regex"
-          ],
-          "type": "string"
-        },
-        "space": {
-          "description": "矩形坐标空间：screen（默认）/ image（需 capture_id）",
-          "enum": [
-            "screen",
-            "image"
-          ],
-          "type": "string"
-        },
-        "submit": {
-          "description": "输入后按回车（默认 false）",
-          "type": "boolean"
-        },
-        "target": {
-          "description": "目标控件的文字；与矩形二选一",
-          "type": "string"
-        },
-        "text": {
-          "description": "要输入的文本",
-          "type": "string"
-        },
-        "width": {
-          "description": "矩形模式：目标输入区宽度",
-          "type": "integer"
-        },
-        "window": {
-          "description": "限定窗口标题片段；与 hwnd 二选一",
-          "type": "string"
-        },
-        "x": {
-          "description": "矩形模式：目标输入区左上角 x",
-          "type": "integer"
-        },
-        "y": {
-          "description": "矩形模式：目标输入区左上角 y",
-          "type": "integer"
-        }
-      }
-    },
-    {
-      "description": "等桌面出现可观测的变化，满足条件立即返回（不是盲睡）。until=change：等指定区域或指定窗口的画面变化超过 threshold；带 window/hwnd 时，窗口标题变化也算满足（回执 title_changed=true）。until=window_appears / window_disappears：等标题包含 window 的窗口出现或消失。超时不算错误：返回 satisfied=false，由你决定换动作还是延长等待。典型用法：等预告播完、等加载完成、等弹窗消失，不要用固定秒数盲等。Plan 模式下可用（只读）。",
-      "display": {
-        "icon": "⏳",
-        "label": "等待条件"
-      },
-      "name": "desktop_wait",
-      "parallel_safe": false,
-      "parameters": {
-        "height": {
-          "description": "区域高度（屏幕坐标）",
-          "type": "integer"
-        },
-        "hwnd": {
-          "description": "窗口句柄；与 window 二选一",
-          "type": "integer"
-        },
-        "interval_ms": {
-          "description": "轮询间隔 50–2000 毫秒；缺省取插件配置",
-          "type": "integer"
-        },
-        "threshold": {
-          "description": "change 的判定阈值 0–1（默认 0.02）；越小越敏感",
-          "type": "number"
-        },
-        "timeout_ms": {
-          "description": "最长等待毫秒数 50–60000（默认 3000）",
-          "type": "integer"
-        },
-        "until": {
-          "description": "change 画面变化 / window_appears 窗口出现 / window_disappears 窗口消失",
-          "enum": [
-            "change",
-            "window_appears",
-            "window_disappears"
-          ],
-          "type": "string"
-        },
-        "width": {
-          "description": "区域宽度（屏幕坐标）",
-          "type": "integer"
-        },
-        "window": {
-          "description": "窗口标题片段；change 时用来限定取图范围，window_* 时是必填",
-          "type": "string"
-        },
-        "x": {
-          "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出",
-          "type": "integer"
-        },
-        "y": {
-          "description": "区域左上角 y（屏幕坐标）",
-          "type": "integer"
-        }
-      }
-    },
-    {
-      "description": "列出/激活/等待/读取顶层窗口。已知目标时优先用 hwnd，导航或新开窗口后用 list 或 desktop_app 返回的 hwnd 绑定目标，不要反复按标题猜窗口。activate 只做激活，不投递输入；wait 只在目标尚未出现或尚未就绪时使用，窗口已存在时立即返回。",
-      "display": {
-        "icon": "🪟",
-        "label": "窗口"
-      },
-      "name": "desktop_window",
-      "parallel_safe": false,
-      "parameters": {
-        "action": {
-          "description": "list 列表 / activate 激活 / wait 等窗口 / rect 读取矩形",
-          "enum": [
-            "list",
-            "activate",
-            "wait",
-            "rect"
-          ],
-          "type": "string"
-        },
-        "hwnd": {
-          "description": "窗口句柄；导航后应复用 desktop_app / desktop_open 返回的 hwnd",
-          "type": "integer"
-        },
-        "interval_ms": {
-          "description": "wait 的轮询间隔 50–2000 毫秒（默认 150）",
-          "type": "integer"
-        },
-        "limit": {
-          "description": "list 最多返回多少个窗口 1–50（默认 20）",
-          "type": "integer"
-        },
-        "timeout_ms": {
-          "description": "wait 的最长等待毫秒数 100–60000（默认 10000）",
-          "type": "integer"
-        },
-        "window": {
-          "description": "窗口标题片段；与 hwnd 二选一",
-          "type": "string"
-        }
-      }
-    },
-    {
       "description": "回显输入文本。",
       "display": {
         "icon": "🔔",
@@ -1981,6 +1290,163 @@
           "type": "string"
         }
       }
+    },
+    {
+      "description": "在当前鼠标位置点击一次；不接收坐标，不连续点击。",
+      "display": {
+        "icon": "🖱️",
+        "label": "点击"
+      },
+      "name": "vision_click",
+      "parallel_safe": false,
+      "parameters": {}
+    },
+    {
+      "description": "设置视觉局部放大区域，并把光标放到区域中心。中心光标点击流程必须先调用本工具，center_cursor=true；region 的 x/y/width/height 是屏幕坐标区域，超出屏幕的部分会先裁剪。",
+      "display": {
+        "icon": "🎯",
+        "label": "聚焦"
+      },
+      "name": "vision_focus",
+      "parallel_safe": false,
+      "parameters": {
+        "center_cursor": {
+          "description": "是否把鼠标移到区域中心",
+          "type": "boolean"
+        },
+        "region": {
+          "description": "屏幕坐标区域 {x,y,width,height}；为空表示恢复默认",
+          "properties": {
+            "height": {
+              "type": "integer"
+            },
+            "width": {
+              "type": "integer"
+            },
+            "x": {
+              "type": "integer"
+            },
+            "y": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "type": "object"
+        }
+      }
+    },
+    {
+      "description": "按下键盘组合键，例如 [\"ctrl\", \"c\"]。",
+      "display": {
+        "icon": "⌨️",
+        "label": "按键"
+      },
+      "name": "vision_key",
+      "parallel_safe": false,
+      "parameters": {
+        "keys": {
+          "description": "按键序列",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      }
+    },
+    {
+      "description": "以当前观察的鼠标位置为起点，执行相对移动；精确点击优先使用 vision_move_to。",
+      "display": {
+        "icon": "🖱️",
+        "label": "移动鼠标"
+      },
+      "name": "vision_move",
+      "parallel_safe": false,
+      "parameters": {
+        "dx": {
+          "description": "水平相对位移",
+          "type": "integer"
+        },
+        "dy": {
+          "description": "垂直相对位移",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；width/height 是模型看到的整张图宽高；image_width/image_height 是原始截图宽高，不是压缩后的图。工具按屏幕宽高与模型图宽高分别换算：screen_x = screen_width / width * x。",
+      "display": {
+        "icon": "🖱️",
+        "label": "移动到点"
+      },
+      "name": "vision_move_point",
+      "parallel_safe": false,
+      "parameters": {
+        "height": {
+          "description": "模型看到的整张图高度",
+          "type": "integer"
+        },
+        "image_height": {
+          "description": "原始截图高度",
+          "type": "integer"
+        },
+        "image_width": {
+          "description": "原始截图宽度",
+          "type": "integer"
+        },
+        "width": {
+          "description": "模型看到的整张图宽度",
+          "type": "integer"
+        },
+        "x": {
+          "description": "目标点在模型看到的图上的 x",
+          "type": "integer"
+        },
+        "y": {
+          "description": "目标点在模型看到的图上的 y",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "申请打开视觉。固定授权文案由眼睛工具提供，用户确认后返回一次性 consent_id；在确认前不会截屏。",
+      "display": {
+        "icon": "👁️",
+        "label": "申请视觉授权"
+      },
+      "name": "vision_request_open",
+      "parallel_safe": false,
+      "parameters": {}
+    },
+    {
+      "description": "用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。",
+      "display": {
+        "icon": "👁️",
+        "label": "睁眼"
+      },
+      "name": "vision_start",
+      "parallel_safe": false,
+      "parameters": {
+        "consent_id": {
+          "description": "眼睛工具签发的授权凭证",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "关闭视觉，停止采集并清空队列；不需要用户确认。",
+      "display": {
+        "icon": "🙈",
+        "label": "闭眼"
+      },
+      "name": "vision_stop",
+      "parallel_safe": false,
+      "parameters": {}
     },
     {
       "description": "抓取网页（urllib 无第三方依赖）并提取纯文本；支持超时、长度限制、min_chars/require_keywords 验收与落盘。",

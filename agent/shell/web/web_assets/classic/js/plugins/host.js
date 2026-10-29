@@ -245,6 +245,31 @@ return pluginPanels;
 }
 /* 按插件声明的动作清单渲染输入区按钮：没有声明就没有按钮，
    插件入口由声明决定，页面里没有写死的入口。 */
+function _pluginActionCid(){
+ var tab=typeof getActiveTab==="function"?getActiveTab():null;
+ return String((tab&&tab.id)||(typeof getActiveConversationId==="function"?getActiveConversationId():"")||"");
+}
+function _pluginActionClick(btn){
+ var url=String(btn.getAttribute("data-click-url")||"");
+ if(!url)return false;
+ var method=String(btn.getAttribute("data-click-method")||"POST").toUpperCase();
+ var cid=_pluginActionCid();
+ var opts={method:method,headers:{"Content-Type":"application/json"}};
+ if(method!=="GET")opts.body=JSON.stringify({conversation_id:cid});
+ fetch(url,opts).catch(function(){});
+ return true;
+}
+function _applyPluginActionPlacement(host){
+ var nodes=host.querySelectorAll("[data-placement]");
+ for(var i=0;i<nodes.length;i++){
+  var spec=String(nodes[i].getAttribute("data-placement")||"");
+  if(spec.indexOf("after:")!==0)continue;
+  var parts=spec.slice(6).split(":");
+  if(parts.length<2)continue;
+  var anchor=host.querySelector('[data-plugin="'+CSS.escape(parts[0])+'"][data-plugin-action="'+CSS.escape(parts[1])+'"]');
+  if(anchor&&anchor!==nodes[i])anchor.insertAdjacentElement("afterend",nodes[i]);
+ }
+}
 function renderPluginActions(){
 var host=document.getElementById("pluginActions");
 if(!host)return;
@@ -253,6 +278,7 @@ host._pluginActionDelegated=true;
 host.addEventListener("click",function(ev){
 var btn=ev.target&&ev.target.closest?ev.target.closest("[data-plugin-action]"):null;
 if(!btn||!host.contains(btn))return;
+if(_pluginActionClick(btn)){ev.preventDefault();return;}
 var plugin=String(btn.getAttribute("data-plugin")||"");
 var action=String(btn.getAttribute("data-plugin-action")||"");
 var panel=String(btn.getAttribute("data-panel")||"")||action;
@@ -269,10 +295,13 @@ b.setAttribute("data-plugin",String(act.plugin||""));
 b.setAttribute("data-plugin-action",String(act.id||""));
 b.setAttribute("data-panel",String(act.panel||act.id||""));
 if(act.title)b.title=String(act.title);
+if(act.placement)b.setAttribute("data-placement",String(act.placement));
+if(act.click_url){b.setAttribute("data-click-url",String(act.click_url));b.setAttribute("data-click-method",String(act.click_method||"POST"));}
 b.textContent=String(act.label||act.id||"");
 host.appendChild(b);
 })(pluginActions[i]);
 }
+_applyPluginActionPlacement(host);
 }
 function panePluginName(id){
 var pane=document.getElementById("pane-"+id);

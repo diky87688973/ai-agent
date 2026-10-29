@@ -72,6 +72,33 @@ class ToolFrames:
         if not call_id:
             return []
         envelope = d.get("envelope") if isinstance(d.get("envelope"), dict) else {}
+        if str(envelope.get("kind") or "") == "vision_consent":
+            title = str(envelope.get("title") or "").strip()
+            confirms = envelope.get("confirms")
+            endpoint = str(envelope.get("confirm_path") or "").strip()
+            request_id = str(envelope.get("request_id") or "").strip()
+            if not title or not isinstance(confirms, list) or not confirms or not endpoint or not request_id:
+                self._awaiting_confirm = True
+                self.pending.pop(call_id, None)
+                return [self._ev(
+                    C.EV_TOOL_END, tool_call_id=call_id, ok=False, preview="",
+                    user_confirm_required=False,
+                )]
+            self._awaiting_confirm = True
+            self.pending.pop(call_id, None)
+            return [self._ev(
+                C.EV_TOOL_END,
+                tool_call_id=call_id,
+                ok=True,
+                preview="",
+                user_confirm_required=True,
+                user_confirm_title=title,
+                user_confirm_options=[str(x) for x in confirms],
+                user_confirm_multi=False,
+                user_confirm_endpoint=endpoint,
+                user_confirm_endpoint_method=str(envelope.get("confirm_method") or "POST"),
+                user_confirm_request_id=request_id,
+            )]
         if str(envelope.get("kind") or "") == "approval":
             # 审批帧带描述，按钮是同意和驳回，不带选项列表。
             desc = str(envelope.get("option_desc") or "").strip()

@@ -86,9 +86,9 @@ class Panel:
 class Action:
     """输入区动作声明：输入框下面的一个按钮。
 
-    点它做什么由前端定（默认打开本插件同 id 的面板）—— 插件只声明"有这个动作"，
-    不注入脚本。要在点击时执行逻辑，插件应端点化（`/api/plugin/<插件>/…`）并由
-    前端按 `panel` 打开的面板去调。
+    默认点击打开本插件同 id 的面板；`click_url` 存在时前端调用该端点，
+    不打开面板。`placement` 支持 `after:<plugin>:<action>`，由前端按
+    稳定动作标识重排，插件不依赖列表顺序。
     """
 
     plugin: str
@@ -96,6 +96,9 @@ class Action:
     label: str
     title: str = ""
     panel: str = ""
+    placement: str = ""
+    click_url: str = ""
+    click_method: str = "POST"
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -104,6 +107,9 @@ class Action:
             "label": self.label,
             "title": self.title,
             "panel": self.panel or self.action_id,
+            "placement": self.placement,
+            "click_url": self.click_url,
+            "click_method": self.click_method,
         }
 
 
@@ -319,15 +325,31 @@ class ContributionRegistry:
         label: str,
         title: str = "",
         panel: str = "",
+        placement: str = "",
+        click_url: str = "",
+        click_method: str = "POST",
     ) -> Disposer:
         key = f"{_clean_segment(plugin, '插件名')}:{_clean_segment(action_id, '动作 id')}"
         if key in self.actions:
             raise ContributionError(f"动作已注册：{key}")
+        method = str(click_method or "POST").strip().upper()
+        if click_url:
+            if method not in ("GET", "POST"):
+                raise ContributionError(f"动作 click_method 不支持：{click_method!r}")
+            prefix = f"{PLUGIN_ROUTE_PREFIX}{plugin}/"
+            if not str(click_url).startswith(prefix):
+                raise ContributionError(
+                    f"动作 click_url 必须在本插件命名空间：{prefix}")
+        else:
+            method = ""
         self.actions[key] = Action(
             plugin=plugin, action_id=action_id, label=str(label or action_id),
             title=str(title or label or ""),
             # 未指定面板即"开同名面板"：在这里落定，而不是留给消费方各自补默认
             panel=str(panel or action_id),
+            placement=str(placement or ""),
+            click_url=str(click_url or ""),
+            click_method=method,
         )
         return lambda: self.actions.pop(key, None)
 

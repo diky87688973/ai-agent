@@ -412,6 +412,26 @@ class OutboundContractTest(unittest.TestCase):
         self.assertEqual(end["user_confirm_options"], ["甲", "乙"])
         self.assertEqual(end["user_confirm_title"], "选一个")
 
+    def test_vision_consent_keeps_plugin_confirmation_endpoint(self) -> None:
+        """视觉授权卡必须让前端 POST 到插件端点，而不是宿主 user-confirm。"""
+        stream = _stream()
+        frames = stream.translate("tool_suspended", {
+            "call_id": "c9", "name": "vision_request_open",
+            "envelope": {
+                "kind": "vision_consent",
+                "title": "申请视觉操作授权,视觉操作过程中会持续录屏",
+                "confirms": ["同意", "拒绝"],
+                "request_id": "req-1",
+                "confirm_path": "/api/plugin/visual_operator_2/eye-consent/confirm",
+            },
+        })
+        end = [f for f in frames if f["type"] == C.EV_TOOL_END][0]
+        self.assertTrue(end["user_confirm_required"])
+        self.assertEqual(end["user_confirm_endpoint"],
+                         "/api/plugin/visual_operator_2/eye-consent/confirm")
+        self.assertEqual(end["user_confirm_request_id"], "req-1")
+        self.assertEqual(end["user_confirm_options"], ["同意", "拒绝"])
+
     def test_approval_suspension_is_not_a_choice_card(self) -> None:
         """审批挂起发 `approval_required`，不发选项卡。"""
 

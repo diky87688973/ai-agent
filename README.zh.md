@@ -148,6 +148,8 @@ python3 -m agent.gui.launcher
 | [AI说话](docs/plan/ai-speak.zh.md) | 文本切片、SSE 与播放器设计 |
 | [视觉操作交互](docs/plan/visual-operator-interaction.zh.md) | 截屏、UIA 与坐标控制的设计判断 |
 | [视觉操作](docs/plan/visual-operator.zh.md) | 视觉操作子系统的设计记录 |
+| [视觉操作 2.0](docs/plan/visual-operator-2.0.zh.md) | 持续视觉、完整图与聚焦局部图、请求时图片注入与键鼠动作设计 |
+| [视觉操作 2.0 Skills](docs/plan/visual-operator-2.0-skills.zh.md) | 睁眼授权、双图观察、聚焦、键鼠与闭眼操作指引 |
 | [CLI 两阶段确认](docs/plan/cli-confirm-backlog.zh.md) | CLI 两阶段确认缺口 |
 | [ADR：插件子进程隔离](docs/adr/plugin-subprocess-isolation.zh.md) | 隔离方案的决策记录 |
 
@@ -181,7 +183,7 @@ python scripts/ci.py --list    # 列出检查项
 
 `docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（2002 个用例）：
+单元测试（2030 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

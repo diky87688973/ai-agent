@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>点击精度测试</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #10141b;
+  --panel: #171d27;
+  --line: #2b3442;
+  --text: #e9eef7;
+  --muted: #8e9aab;
+  --target: #38f2c8;
+  --target-edge: #0b8f78;
+  --bad: #ff5d6c;
+  --good: #57e08a;
+}
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; }
+body {
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 20%, #1b2533 0, var(--bg) 60%);
+  color: var(--text);
+  font: 14px/1.4 "Segoe UI", "Microsoft YaHei", sans-serif;
+  user-select: none;
+}
+#app { display: flex; flex-direction: column; height: 100%; }
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 88px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(16, 20, 27, .9);
+  z-index: 3;
+}
+.brand { min-width: 190px; }
+.brand b { display: block; font-size: 20px; letter-spacing: .5px; }
+.brand span { color: var(--muted); font-size: 12px; }
+.score-box { display: flex; align-items: baseline; gap: 8px; min-width: 120px; }
+.score-box span { color: var(--muted); font-size: 13px; }
+#score { font-size: 38px; font-weight: 800; line-height: 1; color: var(--good); font-variant-numeric: tabular-nums; }
+#score.negative { color: var(--bad); }
+#timer { color: var(--text); }
+#timer.low { color: var(--bad); }
+.metrics { display: flex; gap: 22px; margin-left: 10px; }
+.metric { display: flex; flex-direction: column; gap: 2px; }
+.metric span { color: var(--muted); font-size: 11px; }
+.metric b { font-size: 18px; font-variant-numeric: tabular-nums; }
+#reset {
+  margin-left: auto;
+  border: 1px solid #3b4a5f;
+  background: #202938;
+  color: var(--text);
+  border-radius: 9px;
+  padding: 11px 22px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#reset:hover { background: #2a3547; border-color: #5b708c; }
+#reset:active { transform: translateY(1px); }
+#fullscreen {
+  border: 1px solid #3b4a5f;
+  background: #202938;
+  color: var(--text);
+  border-radius: 9px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#fullscreen:hover { background: #2a3547; border-color: #5b708c; }
+#feedback {
+  min-width: 95px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+#feedback.hit { color: var(--good); }
+#feedback.miss { color: var(--bad); }
+#field {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  cursor: crosshair;
+}
+#targetLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.target {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid var(--target-edge);
+  border-radius: 10px;
+  background: var(--target);
+  box-shadow: 0 0 0 2px rgba(56,242,200,.18), 0 0 24px rgba(56,242,200,.22);
+  color: #073a31;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0;
+  pointer-events: auto;
+  transition: transform .06s ease-out, opacity .1s ease-out;
+}
+.target:active { transform: scale(.94); }
+.target::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px dashed rgba(7,58,49,.5);
+  border-radius: 6px;
+  pointer-events: none;
+}
+#field.hit-flash { animation: hit-flash .18s ease-out; }
+@keyframes hit-flash { from { background-color: rgba(87,224,138,.16); } to { background-color: transparent; } }
+#field.miss-flash { animation: miss-flash .18s ease-out; }
+@keyframes miss-flash { from { background-color: rgba(255,93,108,.14); } to { background-color: transparent; } }
+.note {
+  position: absolute;
+  left: 24px;
+  bottom: 16px;
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+.result {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 8, 13, .82);
+}
+.result.hidden { display: none; }
+.result-card {
+  width: min(92vw, 520px);
+  padding: 34px 38px;
+  border: 1px solid #3b4a5f;
+  border-radius: 16px;
+  background: #171d27;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, .55);
+  text-align: center;
+}
+.result-card h2 { margin: 0 0 6px; font-size: 30px; }
+.result-card p { margin: 0 0 24px; color: var(--muted); }
+.result-score { font-size: 76px; font-weight: 900; line-height: 1; color: var(--good); font-variant-numeric: tabular-nums; }
+.result-score.negative { color: var(--bad); }
+.result-stats { display: flex; justify-content: center; gap: 36px; margin: 24px 0 30px; color: var(--muted); }
+.result-stats b { display: block; margin-top: 4px; color: var(--text); font-size: 22px; }
+#replay {
+  width: 100%;
+  padding: 13px 20px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--target);
+  color: #073a31;
+  font-size: 17px;
+  font-weight: 900;
+  cursor: pointer;
+}
+#replay:hover { filter: brightness(1.08); }
+#replay:active { transform: translateY(1px); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="hud">
+    <div class="brand">
+      <b>点击精度测试</b>
+      <span>每批 1~4 个方块，全部点完刷新</span>
+    </div>
+    <div class="score-box">
+      <span>得分</span>
+      <strong id="score">0</strong>
+    </div>
+    <div class="metrics">
+      <div class="metric"><span>剩余时间</span><b id="timer">01:00</b></div>
+      <div class="metric"><span>命中</span><b id="hits">0</b></div>
+      <div class="metric"><span>误点</span><b id="misses">0</b></div>
+      <div class="metric"><span>剩余方块</span><b id="targetsLeft">0</b></div>
+    </div>
+    <div id="feedback">等待点击</div>
+    <button type="button" id="fullscreen">全屏</button>
+    <button type="button" id="reset">重置</button>
+  </header>
+  <main id="field" aria-label="点击测试区域">
+    <div id="targetLayer"></div>
+    <div class="note">目标外点击 -1；点击方块 +1；每个方块数字是剩余点击次数，点完消失</div>
+  </main>
+</div>
+<div id="result" class="result hidden" role="dialog" aria-modal="true" aria-label="游戏结算">
+  <div class="result-card">
+    <h2>时间到</h2>
+    <p>本轮点击测试结束</p>
+    <div id="resultScore" class="result-score">0</div>
+    <div class="result-stats">
+      <div>命中<b id="resultHits">0</b></div>
+      <div>误点<b id="resultMisses">0</b></div>
+    </div>
+    <button type="button" id="replay">重新开始玩</button>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  var field = document.getElementById("field");
+  var targetLayer = document.getElementById("targetLayer");
+  var scoreEl = document.getElementById("score");
+  var hitsEl = document.getElementById("hits");
+  var missesEl = document.getElementById("misses");
+  var targetsLeftEl = document.getElementById("targetsLeft");
+  var feedback = document.getElementById("feedback");
+  var reset = document.getElementById("reset");
+  var fullscreen = document.getElementById("fullscreen");
+  var timerEl = document.getElementById("timer");
+  var resultEl = document.getElementById("result");
+  var resultScoreEl = document.getElementById("resultScore");
+  var resultHitsEl = document.getElementById("resultHits");
+  var resultMissesEl = document.getElementById("resultMisses");
+  var replay = document.getElementById("replay");
+
+  var ROUND_MS = 60000;
+  var score = 0;
+  var hits = 0;
+  var misses = 0;
+  var targets = [];
+  var nextId = 1;
+  var running = false;
+  var timerId = null;
+  var endAt = 0;
+
+  function randomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function setFeedback(text, kind) {
+    feedback.textContent = text;
+    feedback.className = kind || "";
+  }
+
+  function formatTime(remaining) {
+    var total = Math.max(0, Math.ceil(remaining / 1000));
+    var minutes = Math.floor(total / 60);
+    var seconds = total % 60;
+    return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+  }
+
+  function updateTimer() {
+    var remaining = Math.max(0, endAt - Date.now());
+    timerEl.textContent = formatTime(remaining);
+    timerEl.classList.toggle("low", remaining <= 10000);
+    if (remaining <= 0) endGame();
+  }
+
+  function startTimer() {
+    if (timerId !== null) clearInterval(timerId);
+    endAt = Date.now() + ROUND_MS;
+    updateTimer();
+    timerId = setInterval(updateTimer, 100);
+  }
+
+  function stopTimer() {
+    if (timerId !== null) clearInterval(timerId);
+    timerId = null;
+  }
+
+  function endGame() {
+    if (!running) return;
+    running = false;
+    stopTimer();
+    timerEl.textContent = "00:00";
+    timerEl.classList.add("low");
+    resultScoreEl.textContent = String(score);
+    resultScoreEl.classList.toggle("negative", score < 0);
+    resultHitsEl.textContent = String(hits);
+    resultMissesEl.textContent = String(misses);
+    resultEl.classList.remove("hidden");
+    setFeedback("时间到");
+    updateHud();
+  }
+
+  function updateHud() {
+    scoreEl.textContent = String(score);
+    scoreEl.classList.toggle("negative", score < 0);
+    hitsEl.textContent = String(hits);
+    missesEl.textContent = String(misses);
+    targetsLeftEl.textContent = String(targets.length);
+  }
+
+  function makeTarget(size, remaining, region) {
+    var rect = field.getBoundingClientRect();
+    var margin = 20;
+    var maxLeft = Math.max(region.left + margin, region.right - size - margin);
+    var maxTop = Math.max(region.top + margin, region.bottom - size - margin);
+    var left = randomInt(region.left + margin, maxLeft);
+    var top = randomInt(region.top + margin, maxTop);
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "target";
+    button.setAttribute("data-target-id", String(nextId));
+    button.setAttribute("aria-label", "目标，剩余点击 " + remaining + " 次");
+    button.textContent = String(remaining);
+    button.style.width = size + "px";
+    button.style.height = size + "px";
+    button.style.fontSize = Math.max(13, Math.round(size * 0.38)) + "px";
+    button.style.left = left + "px";
+    button.style.top = top + "px";
+    var target = {
+      id: nextId,
+      size: size,
+      remaining: remaining,
+      element: button
+    };
+    nextId += 1;
+    targets.push(target);
+    targetLayer.appendChild(button);
+    return target;
+  }
+
+  function spawnBatch() {
+    if (!running) return;
+    targetLayer.textContent = "";
+    targets = [];
+    var rect = field.getBoundingClientRect();
+    var count = randomInt(1, 4);
+    var halfW = Math.floor(rect.width / 2);
+    var halfH = Math.floor(rect.height / 2);
+    var regions = [
+      { left: 0, top: 0, right: halfW, bottom: halfH },
+      { left: halfW, top: 0, right: rect.width, bottom: halfH },
+      { left: 0, top: halfH, right: halfW, bottom: rect.height },
+      { left: halfW, top: halfH, right: rect.width, bottom: rect.height }
+    ];
+    for (var i = regions.length - 1; i > 0; i--) {
+      var j = randomInt(0, i);
+      var tmp = regions[i];
+      regions[i] = regions[j];
+      regions[j] = tmp;
+    }
+    for (var k = 0; k < count; k++) {
+      var maxSize = Math.max(16, Math.min(48, Math.floor(Math.min(rect.width, rect.height) * 0.1)));
+      var size = randomInt(16, maxSize);
+      var remaining = randomInt(1, 3);
+      makeTarget(size, remaining, regions[k]);
+    }
+    updateHud();
+  }
+
+  function resetGame() {
+    score = 0;
+    hits = 0;
+    misses = 0;
+    running = true;
+    resultEl.classList.add("hidden");
+    setFeedback("等待点击");
+    startTimer();
+    spawnBatch();
+    updateHud();
+  }
+
+  field.addEventListener("click", function (event) {
+    if (!running) return;
+    var hit = event.target && event.target.closest && event.target.closest(".target");
+    if (hit) {
+      var id = Number(hit.getAttribute("data-target-id"));
+      var target = null;
+      for (var i = 0; i < targets.length; i++) {
+        if (targets[i].id === id) {
+          target = targets[i];
+          break;
+        }
+      }
+      if (!target) return;
+      score += 1;
+      hits += 1;
+      target.remaining -= 1;
+      if (target.remaining <= 0) {
+        hit.remove();
+        targets.splice(targets.indexOf(target), 1);
+      } else {
+        hit.textContent = String(target.remaining);
+        hit.setAttribute("aria-label", "目标，剩余点击 " + target.remaining + " 次");
+      }
+      setFeedback("+1 命中", "hit");
+      field.classList.remove("hit-flash");
+      void field.offsetWidth;
+      field.classList.add("hit-flash");
+      updateHud();
+      if (targets.length === 0) {
+        setFeedback("批次完成", "hit");
+        spawnBatch();
+      }
+      return;
+    }
+    score -= 1;
+    misses += 1;
+    setFeedback("-1 误点", "miss");
+    field.classList.remove("miss-flash");
+    void field.offsetWidth;
+    field.classList.add("miss-flash");
+    updateHud();
+  });
+
+  reset.addEventListener("click", function () {
+    resetGame();
+  });
+
+  fullscreen.addEventListener("click", function () {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function () {});
+      return;
+    }
+    document.documentElement.requestFullscreen().catch(function () {});
+  });
+
+  replay.addEventListener("click", function () {
+    resetGame();
+  });
+
+  window.addEventListener("resize", function () {
+    if (running && targets.length) spawnBatch();
+  });
+
+  resetGame();
+  updateHud();
+})();
+</script>
+</body>
+</html>

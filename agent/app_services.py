@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional
 from agent.capabilities.registry import ToolRegistry
 from agent.core.context import (
     SERVICE_COMPACTOR_FACTORY,
+    SERVICE_CONTEXT_HOOKS,
     SERVICE_CONTEXT_SOURCES,
     SERVICE_CONVERSATION_QUEUE,
     SERVICE_EVENT_BUS,
@@ -86,6 +87,14 @@ class AppServices:
         return (
             self.context.get(SERVICE_CONTEXT_SOURCES)
             if self.context.has(SERVICE_CONTEXT_SOURCES)
+            else None
+        )
+
+    @property
+    def context_hooks(self) -> Any:
+        return (
+            self.context.get(SERVICE_CONTEXT_HOOKS)
+            if self.context.has(SERVICE_CONTEXT_HOOKS)
             else None
         )
 

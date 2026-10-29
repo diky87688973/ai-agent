@@ -42,6 +42,7 @@ class Engine:
         pipeline: Any = None,
         context: Any = None,
         compactor: Any = None,
+        context_hooks: Any = None,
         queued_input: Any = None,
         effort: str = "high",
         model: str = "",
@@ -94,7 +95,9 @@ class Engine:
         self._host = Host(
             modules if modules is not None
             else build_default_chain(input_module=self._input, context=context,
-                                     compactor=compactor, queued_input=queued_input,
+                                     compactor=compactor,
+                                     context_hooks=context_hooks,
+                                     queued_input=queued_input,
                                      effort=effort, model=model,
                                      image_turns=image_turns, image_max=image_max,
                                      mode_note=mode_note),
@@ -150,6 +153,9 @@ class Engine:
                 if kind == "approval":
                     pending["option_id"] = str(envelope.get("option_id") or "")
                     pending["option_desc"] = str(envelope.get("option_desc") or "")
+                for key in ("request_id", "conversation_id"):
+                    if envelope.get(key):
+                        pending[key] = str(envelope.get(key))
                 self.session_context.pending_confirm = pending
             elif event.type == "turn_ended" and not bool((event.data or {}).get("paused")):
                 self.session_context.pending_confirm = None   # 已消费，清掉

@@ -27,6 +27,8 @@ hideChatLoading();
 var opts=Array.isArray(ev.user_confirm_options)?ev.user_confirm_options:[];
 var title=String(ev.user_confirm_title||"请确认");
 var multi=!!ev.user_confirm_multi;
+var confirmEndpoint=String(ev.user_confirm_endpoint||"");
+var confirmRequestId=String(ev.user_confirm_request_id||"");
 var tailIdx=opts.length;
 var wrap=document.createElement("div");wrap.className="b a user-confirm-card-outer";
 var card=document.createElement("div");card.className="chat-diff-card user-confirm-card";
@@ -54,6 +56,10 @@ if(multi){if(pickMulti[idx]){delete pickMulti[idx];}else{pickMulti[idx]=1;}syncR
 else{pickSingle=(pickSingle===idx)?-1:idx;syncRows();}}
 function buildFinal(){
 var pref="自定义说明：";
+if(confirmEndpoint){
+ if(pickSingle<0||pickSingle>=opts.length)return "";
+ return String(opts[pickSingle]||"");
+}
 if(multi){
 var keys=Object.keys(pickMulti).map(function(x){return parseInt(x,10);}).filter(function(x){return !isNaN(x)&&x>=0&&x<=tailIdx;});
 keys.sort(function(a,b){return a-b;});
@@ -87,7 +93,7 @@ row.dataset.ucIdx=String(idx);
 btns.appendChild(row);rows.push({row:row,icon:icon,idx:idx});
 }
 for(var oi=0;oi<opts.length;oi++){addRow(oi,String(opts[oi]),false);}
-addRow(tailIdx,"",true);
+if(!confirmEndpoint)addRow(tailIdx,"",true);
 syncRows();
 body.appendChild(btns);
 var act=document.createElement("div");act.className="user-confirm-actions";
@@ -97,7 +103,21 @@ act.appendChild(cancel);act.appendChild(ok);body.appendChild(act);
 card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;scrollMsgsToBottom();
 function cleanup(){pendingConfirmToolRow=null;closeUserConfirmCardHost();updateTaskControls();}
 var submitUserConfirm=async function(finalTxt){
-var confirmCid=getActiveConversationId();cleanup();showChatLoading();var gb=goBtn;if(gb)gb.disabled=true;var tab=findConversationTab(confirmCid);if(tab){tab.abortController={global:true};tab.stopRequested=false;}updateTaskControls();
+var confirmCid=getActiveConversationId();
+if(confirmEndpoint){
+ var choice=String(finalTxt||"")==="同意"?"agree":"reject";
+ cleanup();showChatLoading();var gb0=goBtn;if(gb0)gb0.disabled=true;updateTaskControls();
+ try{
+  var r0=await fetch(confirmEndpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:confirmCid,request_id:confirmRequestId,choice:choice})});
+  if(!r0.ok){var b0="";try{b0=await r0.text();}catch(e0){}withConversationContext(confirmCid,function(){hideChatLoading();add("a",formatHttpError(r0.status,b0,"视觉授权"));});return;}
+  var j0=await r0.json();
+  if(j0&&j0.ok!==false&&toolRow){var label=choice==="agree"?"同意":"拒绝";if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(toolRow,"done");if(typeof chatToolSetResultText==="function")chatToolSetResultText(toolRow,label);}
+ }catch(err0){
+  withConversationContext(confirmCid,function(){hideChatLoading();add("a","视觉授权失败: "+(err0&&err0.message?err0.message:String(err0)));});
+ }finally{updateTaskControls();}
+ return;
+}
+cleanup();showChatLoading();var gb=goBtn;if(gb)gb.disabled=true;var tab=findConversationTab(confirmCid);if(tab){tab.abortController={global:true};tab.stopRequested=false;}updateTaskControls();
 try{
 var r=await fetch("/api/chat/user-confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:confirmCid,confirm:finalTxt,mode:selectedMode,model:selectedModel})});
 if(!r.ok){var _bc="";try{_bc=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/user-confirm 非 OK",{status:r.status,bodyHead:String(_bc||"").slice(0,500)});withConversationContext(confirmCid,function(){hideChatLoading();add("a",formatHttpError(r.status,_bc,"确认请求"));});if(tab){tab.abortController=null;tab.activeRunId="";}return;}

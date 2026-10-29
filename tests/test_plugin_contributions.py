@@ -96,6 +96,27 @@ class ContributionRegistryTest(unittest.TestCase):
         self.reg.add_action("a", "go", label="去", panel="board")
         self.assertEqual(self.reg.actions_of("a")[0].panel, "board")
 
+    def test_action_click_contract_and_placement(self) -> None:
+        self.reg.add_action(
+            "a", "eye", label="眼睛", title="模型已睁眼",
+            placement="after:knowledge:kb",
+            click_url="/api/plugin/a/eye/close",
+        )
+        act = self.reg.actions_of("a")[0]
+        self.assertEqual(act.placement, "after:knowledge:kb")
+        self.assertEqual(act.click_url, "/api/plugin/a/eye/close")
+        self.assertEqual(act.click_method, "POST")
+        self.assertEqual(
+            act.as_dict()["click_url"], "/api/plugin/a/eye/close")
+
+    def test_action_click_url_must_stay_in_plugin_namespace(self) -> None:
+        with self.assertRaises(ContributionError):
+            self.reg.add_action("a", "bad", label="x",
+                                click_url="/api/settings")
+        with self.assertRaises(ContributionError):
+            self.reg.add_action("a", "bad", label="x",
+                                click_url="/api/plugin/b/x")
+
     # ── 端点 ──
 
     def test_route_exact_match(self) -> None:

@@ -58,6 +58,7 @@ from agent.core import event_name as ev
 from agent.core.context import (
     SERVICE_BACKGROUND_TASKS,
     SERVICE_COMPACTOR_FACTORY,
+    SERVICE_CONTEXT_HOOKS,
     SERVICE_CONTEXT_SOURCES,
     SERVICE_CONVERSATION_QUEUE,
     SERVICE_ERROR_LOG,
@@ -91,6 +92,7 @@ from agent.core.tool_call import ToolPipeline
 from agent.mechanisms.background_tasks import BackgroundTaskManager
 from agent.mechanisms.compaction.compactor import ContextCompactor, make_provider_summarizer
 from agent.mechanisms.context import ContextPipeline, ContextSources
+from agent.mechanisms.context.hooks import ContextAssemblyHooks
 from agent.mechanisms.conversation_queue import ConversationQueue
 from agent.mechanisms.error_log import ErrorLog
 from agent.mechanisms.executors import ExecutorRegistry
@@ -285,6 +287,7 @@ class App(AppModelPolicy, AppServices):
             pipeline=self.pipeline,
             context=context,
             compactor=compactor,
+            context_hooks=self.context_hooks,
             queued_input=self.conversation_queue,
             fact_sink=fact_sink,
             system_prompt=system_prompt,
@@ -330,6 +333,63 @@ class App(AppModelPolicy, AppServices):
             arguments=dict(arguments or {}),
         )
         return port.execute(call, conversation_id=str(conversation_id or ""))
+
+    def resume_suspended(
+        self,
+        conversation_id: str,
+        call_id: str,
+        data: Any,
+        *,
+        ok: bool = True,
+        name: str = "",
+        error: str = "",
+    ) -> Dict[str, Any]:
+        """把外部确认结果写回挂起调用并恢复回合。
+
+        只接受当前会话 ``pending_confirm`` 里登记的 ``call_id``；插件确认端点
+        不直接写会话事实，由运行器在恢复回合时拼成唯一一条 tool_result。
+        """
+        cid = str(conversation_id or "").strip()
+        ident = str(call_id or "").strip()
+        if not cid:
+            return {"ok": False, "error": "缺少 conversation_id"}
+        if not ident:
+            return {"ok": False, "error": "缺少 call_id"}
+        contexts = self.session_contexts
+        if contexts is None:
+            return {"ok": False, "error": "会话注册表不可用"}
+        session = contexts.resolve_sync(cid)
+        pending = getattr(session, "pending_confirm", None)
+        if not isinstance(pending, dict) or str(pending.get("call_id") or "") != ident:
+            return {"ok": False, "error": "没有匹配的挂起调用"}
+        pending_snapshot = dict(pending)
+        session.pending_confirm = None
+        payload: Dict[str, Any] = {
+            "content": "",
+            "attachments": [],
+            "mode": "",
+            "model": "",
+            "resume": {
+                "call_id": ident,
+                "ok": bool(ok),
+                "name": str(name or ""),
+                "data": data,
+                "error": str(error or ""),
+            },
+        }
+        try:
+            result = self.mesh.submit(cid, payload)
+        except Exception as exc:
+            session.pending_confirm = pending_snapshot
+            report_error("agent.app.resume_suspended", exc)
+            return {"ok": False, "error": str(exc)}
+        return {
+            "ok": True,
+            "conversation_id": cid,
+            "call_id": ident,
+            "queued": bool(result.get("queued")),
+            "run_id": str(result.get("run_id") or ""),
+        }
 
 
 
@@ -464,6 +524,7 @@ class _AppAssembly:
             lambda cid, snapshot: self.event_bus.publish(
                 Event(ev.QUEUE_UPDATED, {**dict(snapshot), "conversation_id": cid})))
         self.context_sources = ContextSources()
+        self.context_hooks = ContextAssemblyHooks()
         self.prompt_tail = PromptTail()
         self.prompt_sections = PromptSections()
         self.contributions = ContributionRegistry()
@@ -474,6 +535,7 @@ class _AppAssembly:
             plugins_root, self.registry, event_bus=self.event_bus,
             context_sources=self.context_sources, pipeline=self.pipeline,
             contributions=self.contributions,
+            context_hooks=self.context_hooks,
             plugin_data_root=self.data_root / "plugin",
             executors=self.executor_registry, model_catalog=self.model_catalog,
             prompt_tail=self.prompt_tail, prompt_sections=self.prompt_sections,
@@ -520,6 +582,7 @@ class _AppAssembly:
             (SERVICE_PROVIDER, self.router), (SERVICE_MODEL_CATALOG, self.model_catalog),
             (SERVICE_EVENT_BUS, self.event_bus), (SERVICE_PLUGIN_HOST, self.plugin_host),
             (SERVICE_CONTEXT_SOURCES, self.context_sources),
+            (SERVICE_CONTEXT_HOOKS, self.context_hooks),
             (SERVICE_CONVERSATION_QUEUE, self.queue),
             (SERVICE_PROMPT_TAIL, self.prompt_tail),
             (SERVICE_PROMPT_SECTIONS, self.prompt_sections),

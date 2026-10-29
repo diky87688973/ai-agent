@@ -59,7 +59,7 @@ class ModelModule(ModuleBase):
                  effort: str = "high", model: str = "",
                  image_turns: int = KEEP_IMAGE_TURNS,
                  image_max: int = MAX_EMBED_IMAGES,
-                 mode_note: Any = "") -> None:
+                 mode_note: Any = "", context_hooks: Any = None) -> None:
         self.context_pass = context
         self._compactor = compactor
         self._effort = str(effort or "high")
@@ -74,6 +74,8 @@ class ModelModule(ModuleBase):
         #: 执行模式说明：只加在发给模型的这一份请求尾部，不落记录、不发事件。
         #: 放在最后一项是为了让切模式只影响尾部这一条，前面的前缀缓存照旧命中。
         self._mode_note = mode_note
+        #: 完整上下文拼装钩子；内核在请求发出前按序调用，插件只返回新消息列表。
+        self._context_hooks = context_hooks
 
     def _covered_end(self) -> int:
         """已覆盖前缀长度（压缩器维护）；没有压缩器就是 0。"""
@@ -102,6 +104,9 @@ class ModelModule(ModuleBase):
                 messages = assembled
         else:
             messages = with_mode_note(dialogue, runtime_note)
+        if self._context_hooks is not None:
+            messages = self._context_hooks.apply(
+                messages, str(getattr(ports, "conversation_id", "") or ""))
         request = LogicalRequest(
             messages=messages,
             tools=(ports.tool_port.schemas() if ports.tool_port is not None else []),

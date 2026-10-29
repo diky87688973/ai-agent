@@ -59,6 +59,7 @@ def build_default_chain(
     input_module: Optional[ModuleBase] = None,
     context: Any = None,
     compactor: Any = None,
+    context_hooks: Any = None,
     queued_input: Any = None,
     effort: str = "high",
     model: str = "",
@@ -80,7 +81,7 @@ def build_default_chain(
                        image_turns=image_turns, image_max=image_max),
         ModelModule(context=context, compactor=compactor, effort=effort, model=model,
                     image_turns=image_turns, image_max=image_max,
-                    mode_note=mode_note),
+                    mode_note=mode_note, context_hooks=context_hooks),
         ToolModule(),
     ]
 

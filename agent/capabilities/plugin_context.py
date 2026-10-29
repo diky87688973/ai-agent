@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from agent.capabilities.plugin_ledger import Disposer
 from agent.capabilities.registry import ToolPlugin, ToolRegistry
-from agent.core.context import SERVICE_SUBAGENTS
+from agent.core.context import SERVICE_PLUGIN_EVENTS, SERVICE_SUBAGENTS
 from agent.core.error_report import report_error
 
 
@@ -46,6 +46,7 @@ class PluginContext:
         model_catalog: Any = None,
         prompt_tail: Any = None,
         prompt_sections: Any = None,
+        context_hooks: Any = None,
     ) -> None:
         self.name = name
         self._registry = registry
@@ -58,6 +59,7 @@ class PluginContext:
         self._model_catalog = model_catalog
         self._prompt_tail = prompt_tail
         self._prompt_sections = prompt_sections
+        self._context_hooks = context_hooks
         #: 本插件在清单里的位次（宿主装载时写入；测试直构时为 None）
         self._rank: Optional[int] = None
         self._disposers: List[Disposer] = []
@@ -287,6 +289,48 @@ class PluginContext:
         self._disposers.append(disposer)
         return disposer
 
+    def add_context_assembly_hook(
+        self,
+        fn: Callable[[List[Dict[str, Any]], str], Any],
+    ) -> Disposer:
+        """注册完整上下文拼装钩子；输入消息列表，返回新的消息列表。"""
+        if self._context_hooks is None:
+            raise RuntimeError("插件未接入上下文拼装钩子（PluginHost 未传 context_hooks）")
+        disposer = self._context_hooks.add(fn)
+        self._disposers.append(disposer)
+        return disposer
+
+    def publish_event(self, event: str, payload: Any = None) -> int:
+        """推送插件 SSE 事件（非事实帧）；未接入 SSE 时返回 0。"""
+        app = self.app
+        context = getattr(app, "context", None) if app is not None else None
+        if context is None or not context.has(SERVICE_PLUGIN_EVENTS):
+            return 0
+        publisher = context.get(SERVICE_PLUGIN_EVENTS)
+        try:
+            return int(publisher(self.name, str(event or ""), payload or {}))
+        except Exception as exc:
+            report_error("agent.capabilities.plugin_context.publish_event", exc)
+            return 0
+
+    def resume_suspended(
+        self,
+        conversation_id: str,
+        call_id: str,
+        data: Any,
+        *,
+        ok: bool = True,
+        name: str = "",
+        error: str = "",
+    ) -> Dict[str, Any]:
+        """把确认结果交回内核；由内核写回挂起调用并恢复回合。"""
+        app = self.app
+        resume = getattr(app, "resume_suspended", None) if app is not None else None
+        if not callable(resume):
+            return {"ok": False, "error": "内核未接入挂起调用恢复入口"}
+        return resume(
+            conversation_id, call_id, data, ok=ok, name=name, error=error)
+
     def add_action(
         self,
         action_id: str,
@@ -294,14 +338,19 @@ class PluginContext:
         label: str,
         title: str = "",
         panel: str = "",
+        placement: str = "",
+        click_url: str = "",
+        click_method: str = "POST",
     ) -> Disposer:
-        """声明输入区的一个动作按钮（输入框下面）。
+        """声明输入区一个动作按钮。
 
-        默认点击打开本插件同 id 的面板；`panel` 可指向另一个面板。
-        插件不声明就没有这个按钮 —— 界面里不该有内核写死的插件入口。
+        `click_url` 存在时点击调用插件自己的端点；否则按 `panel` 打开面板。
+        `placement="after:<plugin>:<action>"` 指定相对位置。
         """
         disposer = self._contrib().add_action(
-            self.name, action_id, label=label, title=title, panel=panel)
+            self.name, action_id, label=label, title=title, panel=panel,
+            placement=placement, click_url=click_url, click_method=click_method,
+        )
         self._disposers.append(disposer)
         return disposer
 

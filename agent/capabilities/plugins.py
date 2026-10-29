@@ -174,7 +174,7 @@ class LoadReport:
 class PluginHost:
     """插件宿主：发现 / 按清单装载 / 卸载 / 报告。"""
 
-    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None, prompt_sections: Any = None) -> None:
+    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None, prompt_sections: Any = None, context_hooks: Any = None) -> None:
         self._dir = Path(plugins_dir)
         self._registry = registry
         self._event_bus = event_bus
@@ -185,6 +185,7 @@ class PluginHost:
         self._model_catalog = model_catalog
         self._prompt_tail = prompt_tail
         self._prompt_sections = prompt_sections if prompt_sections is not None else PromptSections()
+        self._context_hooks = context_hooks
         #: 插件专属存储的根（`<数据根>/plugin/`）。插件只拿到自己的子目录，见 `PluginContext.data_dir`。
         self.plugin_data_root: Optional[Path] = (
             Path(plugin_data_root) if plugin_data_root is not None else None
@@ -332,7 +333,8 @@ class PluginHost:
                             self._context_sources, self._pipeline, self,
                             self._contributions, self._executors,
                             self._model_catalog, prompt_tail=self._prompt_tail,
-            prompt_sections=self._prompt_sections)
+            prompt_sections=self._prompt_sections,
+            context_hooks=self._context_hooks)
         ctx.set_rank(rank)
         mod_name = f"{_MODULE_PREFIX}.{info.name}"
         plugin_root = Path(root).resolve() if root is not None else info.path.parent.resolve()
