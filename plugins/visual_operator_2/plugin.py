@@ -39,9 +39,11 @@ def _observation_hook(runtime: VisionRuntime):
 
 def _vision_prompt(_cid: str) -> str:
     return (
-        "视觉操作：当前画面由内核自动注入，包含完整图和鼠标局部图。"
+        "此消息为系统消息，请勿将此消息视为用户输入, 不要对本消息做任何回复\n\n"
+        "视觉操作：本消息为视觉帧消息，视觉帧包含完整图和鼠标为中心的局部图。"
         "需要视觉时先调用 vision_request_open，等待用户确认后再调用 "
-        "vision_start(consent_id)。不要调用看屏工具。"
+        "vision_start(consent_id)。拿到 vision_request_open 返回的 consent_id 后必须立即调用 vision_start，"
+        "不得再让用户确认，不得先说话或重新申请。不要调用看屏工具。"
         "完整图在服务端等比缩放后填充黑区成正方形。"
         "移动使用模型看到的图上的点：x、y 是目标点，width、height 是模型看到的整张图宽高，"
         "image_width、image_height 是原始截图宽高。"

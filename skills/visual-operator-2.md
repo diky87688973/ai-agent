@@ -12,7 +12,8 @@ description: 需要看屏幕、按模型可见图上的点移动鼠标、点击�
 1. 调用 `vision_request_open`。
 2. 等用户在确认卡选择。
 3. 用户同意后，用返回的 `consent_id` 调用 `vision_start`。
-4. 没有 `consent_id` 不得调用 `vision_start`。
+4. 拿到 `consent_id` 的当前回合必须立即调用 `vision_start`，不得再次让用户确认，不得先说话或重新申请。
+5. 没有 `consent_id` 不得调用 `vision_start`。
 
 用户拒绝后不重复申请同一个请求。
 

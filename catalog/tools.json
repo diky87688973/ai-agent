@@ -1520,7 +1520,7 @@
       }
     },
     {
-      "description": "申请打开视觉。固定授权文案由眼睛工具提供，用户确认后返回一次性 consent_id；在确认前不会截屏。",
+      "description": "申请打开视觉。固定授权文案由眼睛工具提供，用户确认后工具恢复并返回一次性 consent_id。拿到 consent_id 后，必须在当前回合立即调用 vision_start(consent_id=...)，不得再让用户确认，不得先调用 ai_speak、解释或重新申请。在确认前不会截屏。",
       "display": {
         "icon": "👁️",
         "label": "申请视觉授权"
