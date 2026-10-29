@@ -20,7 +20,7 @@ class VisionConfig:
     move_duration_ms: int = 0
     image_format: str = "WEBP"
     image_quality: int = 80
-    square_size: int = 1024
+    square_size: int = 0
     focus_max_side: int = 512
 
 
@@ -72,7 +72,7 @@ def load_config(path: Path | None = None) -> VisionConfig:
         move_duration_ms=_int(vision, "move_duration_ms", 200, 0, 1000),
         image_format=fmt,
         image_quality=_int(image, "quality", 80, 1, 100),
-        square_size=_int(image, "square_size", 1024, 256, 2048),
+        square_size=_int(image, "square_size", 0, 0, 4096),
         focus_max_side=_int(image, "focus_max_side", 512, 64, 4096),
     )
 

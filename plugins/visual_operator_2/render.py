@@ -86,6 +86,8 @@ def resolve_focus(frame, _explicit, width: int, height: int) -> dict:
 
 
 def square_content(screen_width: int, screen_height: int, size: int) -> dict:
+    if int(size) <= 0:
+        size = max(1, int(screen_width), int(screen_height))
     scale = min(size / float(max(1, screen_width)),
                 size / float(max(1, screen_height)))
     width = max(1, round(screen_width * scale))
@@ -95,6 +97,8 @@ def square_content(screen_width: int, screen_height: int, size: int) -> dict:
 
 
 def pad_to_square(image: Image.Image, size: int) -> tuple:
+    if int(size) <= 0:
+        size = max(1, image.width, image.height)
     content = square_content(image.width, image.height, size)
     canvas = Image.new("RGB", (size, size), (0, 0, 0))
     resized = image.resize((content["width"], content["height"]),
@@ -105,6 +109,8 @@ def pad_to_square(image: Image.Image, size: int) -> tuple:
 
 def full_point_screen(screen_width: int, screen_height: int, x: int, y: int,
                       width: int, height: int, size: int) -> dict:
+    if int(size) <= 0:
+        size = max(1, int(screen_width), int(screen_height))
     content = square_content(screen_width, screen_height, size)
     full_x = int(x) * size / float(width)
     full_y = int(y) * size / float(height)

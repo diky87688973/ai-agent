@@ -103,7 +103,7 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertEqual(payload["conversation_id"], "cid-a")
             self.assertEqual(payload["source"], "model_input")
             self.assertEqual(payload["screen_size"], [320, 240])
-            self.assertEqual(payload["full_size"], [1024, 1024])
+            self.assertEqual(payload["full_size"], [320, 320])
             self.assertEqual(payload["coordinate_space"], "model_image")
             self.assertGreater(payload["full_scale"], 0)
             self.assertTrue(payload["full_image"].startswith("data:image/"))

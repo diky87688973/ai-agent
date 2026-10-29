@@ -44,7 +44,7 @@ def _vision_prompt(_cid: str) -> str:
         "需要视觉时先调用 vision_request_open，等待用户确认后再调用 "
         "vision_start(consent_id)。拿到 vision_request_open 返回的 consent_id 后必须立即调用 vision_start，"
         "不得再让用户确认，不得先说话或重新申请。不要调用看屏工具。"
-        "完整图在服务端等比缩放后填充黑区成正方形。图上坐标轴标签是屏幕绝对坐标。"
+        "完整图使用原始截图尺寸，填充黑区成正方形。图上坐标轴标签是屏幕绝对坐标。"
         "移动使用模型看到的图上的点：x、y 是目标点，width、height 是模型看到的整张图宽高，"
         "image_width、image_height 是原始截图宽高。"
         "vision_move_point 接收完整正方形图上的点，工具自动扣掉黑区后换算屏幕坐标。"
