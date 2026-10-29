@@ -1,6 +1,6 @@
 ---
 name: visual-operator-2
-description: 需要看屏幕、按模型可见图上的点移动鼠标、点击当前位置、聚焦观察或处理用户接管时使用。
+description: 需要看屏幕、按模型可见图上的点移动鼠标、点击当前位置或处理用户接管时使用。
 ---
 
 # 视觉操作
@@ -21,14 +21,13 @@ description: 需要看屏幕、按模型可见图上的点移动鼠标、点击�
 
 ## 2. 视觉帧
 
-视觉启动后，每个模型请求的尾部自动带两张图；坐标轴标签是屏幕绝对坐标。
+视觉启动后，每个模型请求的尾部自动带一张完整图；坐标轴标签是屏幕绝对坐标。
 
 ```text
 完整图：全屏画面，坐标基准
-聚焦图：以光标为中心的 512×512 方形观察，靠近边缘自动内移
 ```
 
-工具返回值不含图片。看到的是下一轮请求尾部的完整图和聚焦图，不是移动或点击工具的返回内容。
+工具返回值不含图片。看到的是下一轮请求尾部的完整图，不是移动或点击工具的返回内容。
 
 观察文字提供：
 
@@ -36,15 +35,12 @@ description: 需要看屏幕、按模型可见图上的点移动鼠标、点击�
 frame_id
 age_ms
 cursor
-cursor_in_focus
-focus
 screen_size
 full_size
 coordinate_space=model_image
 image_size
 scale_x
 scale_y
-focus_size
 ```
 
 ## 3. 坐标
@@ -83,26 +79,6 @@ screen_y = 100 / 100 * 50 = 50
 
 所以 `width`、`height` 永远是整张模型可见图，不是目标框的宽高。
 
-## 4. 聚焦小图坐标
-
-聚焦小图是以光标为中心的 512×512 方形；靠近屏幕边缘时自动内移，避免黑区占满小图。
-
-目标在聚焦小图里时：
-
-```text
-vision_move_focus(
-  x=..., y=...,
-  width=..., height=...,
-  image_width=..., image_height=...
-)
-```
-
-`x/y` 是聚焦小图中的点，`width/height` 是模型看到的聚焦小图宽高，`image_width/image_height` 是原始聚焦小图宽高。
-
-工具使用当前 `focus` 原点和小图尺寸换算屏幕坐标，模型不反推大图坐标。
-
-任务栏图标在完整图里很小，必须先用聚焦小图确认图标位置，再移动和点击；不得按完整图猜任务栏坐标。
-
 ## 4. 移动与点击
 
 移动：
@@ -126,7 +102,7 @@ vision_move(dx=..., dy=...)
 vision_click
 ```
 
-`vision_click` 不接收坐标，支持点击次数和间隔：
+`vision_click` 不接受坐标，支持点击次数和间隔：
 
 ```text
 vision_click(count=2, interval_ms=72)
@@ -137,30 +113,13 @@ vision_click(count=2, interval_ms=72)
 流程：
 
 ```text
-看完整图 → 读目标点 x/y 和两张图的宽高
-→ vision_move_point
+看完整图 → 读目标点 x/y 和两张图的宽高 → vision_move_point
 → 看新帧确认光标在目标上 → vision_click
 ```
 
 移动后不立即盲点；确认新帧里的光标位置。
 
-## 5. 聚焦
-
-放大目标附近：
-
-```text
-vision_focus(region={"x":...,"y":...,"width":...,"height":...})
-```
-
-把光标放到聚焦区域中心：
-
-```text
-vision_focus(region={...}, center_cursor=true)
-```
-
-`region` 只用于把光标移到区域中心；视觉局部图始终以光标为中心，不保存固定聚焦区域。
-
-## 6. 连续点击
+## 5. 多次点击
 
 多个已确认点一次完成：
 
@@ -176,7 +135,7 @@ vision_click_sequence(
 
 `interval_ms` 缺省 72，最小 72。
 
-每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。每个新点用 200ms 轨迹滑过去，点完停 72ms；下一个点相同时不再移动，原地点击。
+每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。每个新点用 200ms 轨迹滑过去，点完停 72ms；下一个点相同时不再移动，原地点点击。
 
 `width/height` 是模型看到的整张图尺寸；`image_width/image_height` 是原始截图尺寸。
 
@@ -193,7 +152,7 @@ observation_frame_id
 observation_note
 ```
 
-下一步请求尾部会出现点击后的完整图和聚焦图。点击后先看新帧，再决定下一次移动。
+下一次请求尾部会出现点击后的完整图。点击后先看新帧，再决定下一次移动。
 
 ## 7. 用户接管
 
@@ -244,7 +203,6 @@ vision_stop
 不伪造、复用或跨会话使用 consent_id
 不在眼睛关闭或用户接管后操作
 不按页面布局猜坐标
-不从聚焦图直接读完整图坐标；聚焦图坐标用 vision_move_focus
-不调用连续点击工具
+不调用连续点击工具做未确认的目标
 不在没有当前视觉帧时移动或点击
 ```

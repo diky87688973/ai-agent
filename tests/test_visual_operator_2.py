@@ -42,9 +42,9 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertIsNotNone(observation)
             assert observation is not None
             self.assertEqual(observation["images"][0], "FULL FRAME")
-            self.assertEqual(observation["images"][2].splitlines()[0], "FOCUS FRAME")
-            self.assertEqual(sum(1 for x in observation["images"]
-                                 if x.startswith("data:")), 2)
+            self.assertEqual(observation["images"][1].split(",")[0], "data:image/webp;base64")
+            self.assertEqual(len(observation["images"]), 2)
+            self.assertEqual(observation["focus_image"], "")
             self.assertIsNone(runtime.observe("cid-b"))
             self.assertFalse(runtime.start("cid-a", grant["consent_id"])["ok"])
             self.assertTrue(runtime.stop("cid-a")["ok"])
@@ -63,7 +63,7 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
-    def test_context_hook_appends_two_images(self) -> None:
+    def test_context_hook_appends_full_image_only(self) -> None:
         runtime = self._runtime()
         try:
             request = runtime.request_open("cid-a", "call-a")
@@ -74,12 +74,11 @@ class VisionRuntimeTest(unittest.TestCase):
                 [{"role": "user", "content": "hi"}], "cid-a")
             self.assertEqual(messages[-1]["role"], "user")
             parts = messages[-1]["content"]
-            self.assertEqual(sum(1 for p in parts if p["type"] == "image_url"), 2)
+            self.assertEqual(sum(1 for p in parts if p["type"] == "image_url"), 1)
             self.assertEqual(parts[0]["type"], "text")
             self.assertEqual(parts[1]["type"], "text")
             self.assertEqual(parts[2]["type"], "image_url")
-            self.assertEqual(parts[3]["type"], "text")
-            self.assertEqual(parts[4]["type"], "image_url")
+            self.assertEqual(len(parts), 3)
         finally:
             runtime.close()
 
@@ -108,8 +107,7 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertEqual(payload["coordinate_space"], "model_image")
             self.assertGreater(payload["full_scale"], 0)
             self.assertTrue(payload["full_image"].startswith("data:image/"))
-            self.assertTrue(payload["focus_image"].startswith("data:image/"))
-            self.assertIn("x", payload["focus"])
+            self.assertEqual(payload["focus_image"], "")
         finally:
             runtime.close()
 
@@ -262,74 +260,6 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
-    def test_focus_forces_fresh_center_frame(self) -> None:
-        cursor = [160, 120]
-        runtime = VisionRuntime(
-            VisionConfig(fps=30, focus_width=80, focus_height=60),
-            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
-            cursor=lambda: (cursor[0], cursor[1]),
-        )
-        try:
-            request = runtime.request_open("cid-a", "call-a")
-            grant = runtime.confirm("cid-a", request["request_id"], "agree")
-            runtime.start("cid-a", grant["consent_id"])
-            with patch("plugins.visual_operator_2.state.backend.set_cursor",
-                       side_effect=lambda x, y: cursor.__setitem__(slice(None), [x, y])):
-                result = runtime.focus(
-                    "cid-a", {"x": 100, "y": 80, "width": 80, "height": 80}, True)
-            self.assertTrue(result["ok"])
-            self.assertTrue(result["observation_frame_id"])
-            observation = runtime.observe("cid-a")
-            assert observation is not None
-            self.assertEqual(observation["cursor"], {"x": 140, "y": 120})
-            self.assertEqual(observation["focus"]["x"], 100)
-            self.assertEqual(observation["focus"]["y"], 90)
-            self.assertTrue(observation["cursor_in_focus"])
-        finally:
-            runtime.close()
-
-    def test_default_focus_clamps_inside_screen_at_bottom(self) -> None:
-        runtime = VisionRuntime(
-            VisionConfig(fps=30, focus_width=200, focus_height=200, settle_ms=0),
-            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
-            cursor=lambda: (10, 230),
-        )
-        try:
-            request = runtime.request_open("cid-a", "call-a")
-            grant = runtime.confirm("cid-a", request["request_id"], "agree")
-            runtime.start("cid-a", grant["consent_id"])
-            observation = runtime.observe("cid-a")
-            self.assertIsNotNone(observation)
-            self.assertEqual(observation["focus"]["y"], 40)
-            self.assertEqual(observation["focus"]["height"], 200)
-            self.assertTrue(observation["cursor_in_focus"])
-        finally:
-            runtime.close()
-
-    def test_focus_clips_at_screen_edge(self) -> None:
-        cursor = [160, 120]
-        runtime = VisionRuntime(
-            VisionConfig(fps=30, focus_width=480, focus_height=320),
-            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
-            cursor=lambda: (cursor[0], cursor[1]),
-        )
-        try:
-            request = runtime.request_open("cid-a", "call-a")
-            grant = runtime.confirm("cid-a", request["request_id"], "agree")
-            runtime.start("cid-a", grant["consent_id"])
-            with patch("plugins.visual_operator_2.state.backend.set_cursor",
-                       side_effect=lambda x, y: cursor.__setitem__(slice(None), [x, y])):
-                result = runtime.focus(
-                    "cid-a", {"x": 200, "y": 160, "width": 200, "height": 120}, True)
-            self.assertTrue(result["ok"])
-            self.assertEqual(result["focus"],
-                             {"x": 200, "y": 160, "width": 120, "height": 80})
-            observation = runtime.observe("cid-a")
-            assert observation is not None
-            self.assertEqual(observation["cursor"], {"x": 260, "y": 200})
-        finally:
-            runtime.close()
-
     def test_single_click_count_and_interval(self) -> None:
         clicks = []
         runtime = self._runtime()
@@ -373,29 +303,6 @@ class VisionRuntimeTest(unittest.TestCase):
                 interval_ms=71, count=1)
             self.assertFalse(bad["ok"])
             self.assertIn("72", bad["error"])
-        finally:
-            runtime.close()
-
-    def test_move_focus_uses_focus_origin(self) -> None:
-        runtime = VisionRuntime(
-            VisionConfig(fps=30, focus_width=200, focus_height=200,
-                         settle_ms=0, move_settle_ms=0),
-            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
-            cursor=lambda: (160, 120),
-        )
-        try:
-            request = runtime.request_open("cid-a", "call-a")
-            grant = runtime.confirm("cid-a", request["request_id"], "agree")
-            runtime.start("cid-a", grant["consent_id"])
-            with patch("plugins.visual_operator_2.state.backend.move_cursor",
-                       return_value=True) as move:
-                result = runtime.move_focus(
-                    "cid-a", 100, 80, 200, 200, 200, 200)
-            self.assertTrue(result["ok"])
-            self.assertEqual(result["coordinate_space"], "focus_image")
-            self.assertEqual(result["target_screen"], {"x": 160, "y": 100})
-            self.assertEqual(result["focus"], {"x": 60, "y": 20, "width": 200, "height": 200})
-            self.assertEqual(move.call_count, 1)
         finally:
             runtime.close()
 
@@ -453,7 +360,7 @@ class VisionRuntimeTest(unittest.TestCase):
         self.assertIn("vision_click", names)
         self.assertIn("vision_click_sequence", names)
         self.assertIn("vision_move_point", names)
-        self.assertIn("vision_move_focus", names)
+        self.assertNotIn("vision_move_focus", names)
         self.assertNotIn("vision_move_to", names)
         self.assertNotIn("vision_move_box", names)
         self.assertNotIn("vision_click_at", names)
@@ -470,7 +377,7 @@ class VisionRuntimeTest(unittest.TestCase):
         text = skills.get_skill("visual-operator-2") or ""
         self.assertIn("vision_click", text)
         self.assertIn("vision_move_point", text)
-        self.assertIn("vision_move_focus", text)
+        self.assertNotIn("vision_move_focus", text)
         self.assertIn("coordinate_space=model_image", text)
         self.assertIn("用户接管", text)
 

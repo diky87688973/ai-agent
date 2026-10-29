@@ -115,7 +115,7 @@
     var grid = document.createElement("div");
     grid.className = "vision-frame-grid";
     grid.appendChild(makeThumb(data.full_image, "完整图", data));
-    grid.appendChild(makeThumb(data.focus_image, "聚焦局部图", data));
+    if (data.focus_image) grid.appendChild(makeThumb(data.focus_image, "聚焦局部图", data));
     row._body.appendChild(grid);
     appendChatToolRow(row);
   }
@@ -162,16 +162,18 @@
     fullImage.src = String(data.full_image || "");
     full.appendChild(fullCaption);
     full.appendChild(fullImage);
-    var focus = document.createElement("figure");
-    var focusCaption = document.createElement("figcaption");
-    focusCaption.textContent = "聚焦局部图 · " + modelSize(data.focus && data.focus.image_size);
-    var focusImage = document.createElement("img");
-    focusImage.alt = "聚焦局部图";
-    focusImage.src = String(data.focus_image || "");
-    focus.appendChild(focusCaption);
-    focus.appendChild(focusImage);
     grid.appendChild(full);
-    grid.appendChild(focus);
+    if (data.focus_image) {
+      var focus = document.createElement("figure");
+      var focusCaption = document.createElement("figcaption");
+      focusCaption.textContent = "聚焦局部图 · " + modelSize(data.focus && data.focus.image_size);
+      var focusImage = document.createElement("img");
+      focusImage.alt = "聚焦局部图";
+      focusImage.src = String(data.focus_image || "");
+      focus.appendChild(focusCaption);
+      focus.appendChild(focusImage);
+      grid.appendChild(focus);
+    }
     dialog.appendChild(grid);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);

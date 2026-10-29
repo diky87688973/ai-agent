@@ -273,74 +273,48 @@ class VisionRuntime:
             if not self._frames:
                 return None
             frame = self._frames[-1]
-            focus = render.resolve_focus(frame, self._focus,
-                                     self.config.focus_width,
-                                     self.config.focus_height)
-            full = frame.image.copy()
-            local = render.crop_padded(frame.image, focus)
-            cursor_in_focus = _contains(focus, frame.cursor)
             full, full_content = render.pad_to_square(
                 frame.image, self.config.square_size)
-            local = render.fit(render.zoom(local, self.config.focus_zoom), self.config.focus_max_side)
             render.draw_observation_axes(
-                full, local, full_content, focus, frame.image.size)
+                full, None, full_content, {}, frame.image.size)
             render.draw_marker(full, (
                 full_content["x"] + round(
                     frame.cursor[0] * full_content["width"] / frame.image.width),
                 full_content["y"] + round(
                     frame.cursor[1] * full_content["height"] / frame.image.height),
             ))
-            if cursor_in_focus:
-                render.draw_marker(local, (
-                    round((frame.cursor[0] - focus["x"]) * local.width / focus["width"]),
-                    round((frame.cursor[1] - focus["y"]) * local.height / focus["height"]),
-                ))
             age_ms = int((time.monotonic() - frame.captured_at) * 1000)
             full_image = render.data_url(full, self.config)
-            focus_image = render.data_url(local, self.config)
             full_scale = float(frame.image.width) / float(full.width)
-            focus_scale = float(local.width) / float(focus["width"])
             text = (
                 "<vision_observation>"
                 f"frame_id={frame.frame_id};age_ms={age_ms};"
                 f"cursor=({frame.cursor[0]},{frame.cursor[1]});"
-                f"cursor_in_focus={str(cursor_in_focus).lower()};"
-                f"focus=({focus['x']},{focus['y']},{focus['width']},{focus['height']});"
                 f"screen_size=({frame.image.width},{frame.image.height});"
                 f"original_image_size=({frame.image.width},{frame.image.height});"
                 f"compressed_image_size=({full.width},{full.height});"
                 f"coordinate_space=model_image;"
-                f"focus_size=({local.width},{local.height});"
                 f"axis=screen_absolute;"
                 f"owner={self._owner}"
                 "</vision_observation>"
             )
             return {
                 "text": text,
-                "images": [
-                    "FULL FRAME",
-                    full_image,
-                    "FOCUS FRAME\ncursor_in_focus=" + str(cursor_in_focus).lower(),
-                    focus_image,
-                ],
+                "images": ["FULL FRAME", full_image],
                 "full_image": full_image,
-                "focus_image": focus_image,
+                "focus_image": "",
                 "frame": frame,
                 "frame_id": frame.frame_id,
                 "age_ms": age_ms,
                 "cursor": {"x": frame.cursor[0], "y": frame.cursor[1]},
-                "cursor_in_focus": cursor_in_focus,
+                "cursor_in_focus": False,
                 "screen_size": [frame.image.width, frame.image.height],
                 "full_size": [full.width, full.height],
                 "full_scale": full_scale,
                 "coordinate_space": "model_image",
                 "compressed_image_size": [full.width, full.height],
                 "original_image_size": [frame.image.width, frame.image.height],
-                "focus": {
-                    **focus,
-                    "zoom": focus_scale,
-                    "image_size": [local.width, local.height],
-                },
+                "focus": {},
             }
     def publish_observation(self, observation: Dict[str, Any]) -> None:
         """把即将交给模型的那一帧同步推给前端；不写入会话历史。"""

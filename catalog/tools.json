@@ -1373,45 +1373,6 @@
       }
     },
     {
-      "description": "把光标移到指定区域中心；视觉局部图始终跟随光标。区域只用于移动光标，不保存固定聚焦范围；center_cursor=true 时把光标放到区域中心。region 的 x/y/width/height 是屏幕坐标区域，超出屏幕的部分会先裁剪。",
-      "display": {
-        "icon": "🎯",
-        "label": "聚焦"
-      },
-      "name": "vision_focus",
-      "parallel_safe": false,
-      "parameters": {
-        "center_cursor": {
-          "description": "是否把鼠标移到区域中心",
-          "type": "boolean"
-        },
-        "region": {
-          "description": "屏幕坐标区域 {x,y,width,height}；为空表示恢复默认",
-          "properties": {
-            "height": {
-              "type": "integer"
-            },
-            "width": {
-              "type": "integer"
-            },
-            "x": {
-              "type": "integer"
-            },
-            "y": {
-              "type": "integer"
-            }
-          },
-          "required": [
-            "x",
-            "y",
-            "width",
-            "height"
-          ],
-          "type": "object"
-        }
-      }
-    },
-    {
       "description": "按下键盘组合键，例如 [\"ctrl\", \"c\"]。",
       "display": {
         "icon": "⌨️",
@@ -1445,41 +1406,6 @@
         },
         "dy": {
           "description": "垂直相对位移",
-          "type": "integer"
-        }
-      }
-    },
-    {
-      "description": "按聚焦小图上的点移动鼠标。x/y 是目标点在聚焦小图上的像素；width/height 是模型看到的聚焦小图宽高；image_width/image_height 是原始聚焦小图宽高。工具按当前 cursor 居中的聚焦区域换算屏幕落点。",
-      "display": {
-        "icon": "🎯",
-        "label": "移动到局部点"
-      },
-      "name": "vision_move_focus",
-      "parallel_safe": false,
-      "parameters": {
-        "height": {
-          "description": "模型看到的聚焦小图高度",
-          "type": "integer"
-        },
-        "image_height": {
-          "description": "原始聚焦小图高度",
-          "type": "integer"
-        },
-        "image_width": {
-          "description": "原始聚焦小图宽度",
-          "type": "integer"
-        },
-        "width": {
-          "description": "模型看到的聚焦小图宽度",
-          "type": "integer"
-        },
-        "x": {
-          "description": "目标点在聚焦小图上的 x",
-          "type": "integer"
-        },
-        "y": {
-          "description": "目标点在聚焦小图上的 y",
           "type": "integer"
         }
       }

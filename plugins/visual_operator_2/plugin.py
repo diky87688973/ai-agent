@@ -40,7 +40,7 @@ def _observation_hook(runtime: VisionRuntime):
 def _vision_prompt(_cid: str) -> str:
     return (
         "此消息为系统消息，请勿将此消息视为用户输入, 不要对本消息做任何回复\n\n"
-        "视觉操作：本消息为视觉帧消息，视觉帧包含完整图和鼠标为中心的局部图。"
+        "视觉操作：本消息为视觉帧消息，视觉帧只包含完整图。"
         "需要视觉时先调用 vision_request_open，等待用户确认后再调用 "
         "vision_start(consent_id)。拿到 vision_request_open 返回的 consent_id 后必须立即调用 vision_start，"
         "不得再让用户确认，不得先说话或重新申请。不要调用看屏工具。"
@@ -48,9 +48,7 @@ def _vision_prompt(_cid: str) -> str:
         "移动使用模型看到的图上的点：x、y 是目标点，width、height 是模型看到的整张图宽高，"
         "image_width、image_height 是原始截图宽高。"
         "vision_move_point 接收完整正方形图上的点，工具自动扣掉黑区后换算屏幕坐标。"
-        "聚焦小图是以光标为中心的 512×512 方形，靠近屏幕边缘时自动内移，避免大面积黑区；"
-        "目标在小图里时用 vision_move_focus，传小图 x/y 和小图宽高，工具用当前 focus 原点换算；小图坐标轴标签也是屏幕绝对坐标。"
-        "任务栏图标在完整图里很小，必须先用聚焦小图确认图标位置，再移动和点击；不得按完整图猜任务栏坐标。"
+        ""
         "移动用 200ms 轨迹滑过去，不瞬移。"
         "移动结果返回 moved=false/no_op=true 表示指针没有移动，不能声称移动了。"
         "连续点击每个新点也先滑 200ms，点完停 72ms 再下一个；下一个点相同则不再移动，原地点击。"

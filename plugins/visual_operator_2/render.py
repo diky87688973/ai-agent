@@ -151,10 +151,11 @@ def draw_observation_axes(full: Image.Image, local: Image.Image,
         "x": 0, "y": 0,
         "width": screen_size[0], "height": screen_size[1],
     }, 200)
-    draw_screen_axis(local, {
-        "x": 0, "y": 0,
-        "width": local.width, "height": local.height,
-    }, focus, 64)
+    if local is not None:
+        draw_screen_axis(local, {
+            "x": 0, "y": 0,
+            "width": local.width, "height": local.height,
+        }, focus, 64)
 
 
 def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:

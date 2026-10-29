@@ -304,10 +304,8 @@ def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
     return [
         VisionRequestOpenTool(runtime),
         VisionStartTool(runtime),
-        VisionFocusTool(runtime),
         VisionMoveTool(runtime),
         VisionMovePointTool(runtime),
-        VisionMoveFocusTool(runtime),
         VisionClickTool(runtime),
         VisionClickSequenceTool(runtime),
         VisionKeyTool(runtime),
