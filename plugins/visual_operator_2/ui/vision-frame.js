@@ -21,6 +21,32 @@
       (isFinite(scale) ? " · scale=" + scale.toFixed(2) : "");
   }
 
+  function calibrationText(data) {
+    var points = data && Array.isArray(data.calibration) ? data.calibration : [];
+    return points.map(function (point) {
+      return String(point.label || "") + "=(" + Number(point.x || 0) + "," +
+        Number(point.y || 0) + ")";
+    }).join("  ");
+  }
+
+  function lastCalibrationText(data) {
+    var report = data && data.last_calibration || {};
+    var points = Array.isArray(report.points) ? report.points : [];
+    if (!points.length) return "";
+    return "上次校准（" + (report.accepted ? "通过" : "失败") + "，最大偏差 " +
+      String(report.worst || 0) + "px）：" + points.map(function (point) {
+        var real = point.real || {};
+        var model = point.model || {};
+        var screen = point.screen || {};
+        var delta = point.delta || {};
+        return String(point.label || "") + " 真=(" + Number(real.x || 0) + "," +
+          Number(real.y || 0) + ") 模型=(" + Number(model.x || 0) + "," +
+          Number(model.y || 0) + ") 换算=(" + Number(screen.x || 0) + "," +
+          Number(screen.y || 0) + ") Δ=(" + Number(delta.x || 0) + "," +
+          Number(delta.y || 0) + ")";
+      }).join("  ");
+  }
+
   function ensureStyle() {
     if (document.getElementById(STYLE_ID)) return;
     var style = document.createElement("style");
@@ -33,6 +59,7 @@
       ".vision-frame-thumb img{display:block;width:auto;max-width:100%;height:auto;max-height:260px;object-fit:contain;background:#0b0b0b;}",
       ".vision-frame-thumb span{display:block;padding:6px 8px;font-size:11px;color:#9aa4b2;}",
       ".vision-frame-meta{padding:0 0 10px;font-size:11px;line-height:1.7;color:#9aa4b2;word-break:break-all;}",
+      ".vision-frame-calibration{margin:0 0 10px;padding:8px 10px;border:1px solid rgba(0,220,255,.28);border-radius:8px;background:rgba(0,220,255,.06);font-size:11px;line-height:1.8;color:#b9f4ff;word-break:break-all;}",
       ".vision-frame-modal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:24px;}",
       ".vision-frame-dialog{width:min(96vw,1500px);max-height:94vh;overflow:auto;background:#151820;border:1px solid rgba(127,127,127,.4);border-radius:12px;padding:14px;color:#e7edf6;}",
       ".vision-frame-dialog-head{display:flex;align-items:center;gap:12px;margin-bottom:10px;}",
@@ -111,6 +138,20 @@
       "cursor_in_focus=" + String(!!data.cursor_in_focus)
     ].join(" · ");
     row._body.appendChild(meta);
+    var calibration = calibrationText(data);
+    if (calibration) {
+      var calibrationRow = document.createElement("div");
+      calibrationRow.className = "vision-frame-calibration";
+      calibrationRow.textContent = "当前帧真实校准点（屏幕）：" + calibration;
+      row._body.appendChild(calibrationRow);
+    }
+    var lastCalibration = lastCalibrationText(data);
+    if (lastCalibration) {
+      var lastRow = document.createElement("div");
+      lastRow.className = "vision-frame-calibration";
+      lastRow.textContent = lastCalibration;
+      row._body.appendChild(lastRow);
+    }
 
     var grid = document.createElement("div");
     grid.className = "vision-frame-grid";
@@ -151,6 +192,20 @@
     head.appendChild(summary);
     head.appendChild(close);
     dialog.appendChild(head);
+    var calibration = calibrationText(data);
+    if (calibration) {
+      var calibrationRow = document.createElement("div");
+      calibrationRow.className = "vision-frame-calibration";
+      calibrationRow.textContent = "当前帧真实校准点（屏幕）：" + calibration;
+      dialog.appendChild(calibrationRow);
+    }
+    var lastCalibration = lastCalibrationText(data);
+    if (lastCalibration) {
+      var lastRow = document.createElement("div");
+      lastRow.className = "vision-frame-calibration";
+      lastRow.textContent = lastCalibration;
+      dialog.appendChild(lastRow);
+    }
 
     var grid = document.createElement("div");
     grid.className = "vision-frame-dialog-grid";

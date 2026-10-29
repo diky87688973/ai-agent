@@ -45,10 +45,9 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertNotIn("screen_size", observation["text"])
             self.assertEqual(observation["images"][0], "FULL FRAME")
             self.assertEqual(observation["images"][1].split(",")[0], "data:image/webp;base64")
-            self.assertEqual(len(observation["images"]), 4)
-            self.assertTrue(observation["focus_image"].startswith("data:image/"))
-            self.assertEqual(observation["focus"]["width"], 320)
-            self.assertEqual(observation["focus"]["height"], 240)
+            self.assertEqual(len(observation["images"]), 2)
+            self.assertEqual(observation["focus_image"], "")
+            self.assertEqual(observation["focus"], {})
             self.assertIsNone(runtime.observe("cid-b"))
             self.assertFalse(runtime.start("cid-a", grant["consent_id"])["ok"])
             self.assertTrue(runtime.stop("cid-a")["ok"])
@@ -81,7 +80,7 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
-    def test_context_hook_appends_full_and_default_focus(self) -> None:
+    def test_context_hook_appends_full_frame(self) -> None:
         runtime = self._runtime()
         try:
             request = runtime.request_open("cid-a", "call-a")
@@ -92,13 +91,11 @@ class VisionRuntimeTest(unittest.TestCase):
                 [{"role": "user", "content": "hi"}], "cid-a")
             self.assertEqual(messages[-1]["role"], "user")
             parts = messages[-1]["content"]
-            self.assertEqual(sum(1 for p in parts if p["type"] == "image_url"), 2)
+            self.assertEqual(sum(1 for p in parts if p["type"] == "image_url"), 1)
             self.assertEqual(parts[0]["type"], "text")
             self.assertEqual(parts[1]["type"], "text")
             self.assertEqual(parts[2]["type"], "image_url")
-            self.assertEqual(parts[3]["type"], "text")
-            self.assertEqual(parts[4]["type"], "image_url")
-            self.assertEqual(len(parts), 5)
+            self.assertEqual(len(parts), 3)
         finally:
             runtime.close()
 
@@ -127,7 +124,7 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertEqual(payload["coordinate_space"], "model_image")
             self.assertGreater(payload["full_scale"], 0)
             self.assertTrue(payload["full_image"].startswith("data:image/"))
-            self.assertTrue(payload["focus_image"].startswith("data:image/"))
+            self.assertEqual(payload["focus_image"], "")
         finally:
             runtime.close()
 
@@ -455,6 +452,113 @@ class VisionRuntimeTest(unittest.TestCase):
         self.assertNotIn("vision_move_box", names)
         self.assertNotIn("vision_click_at", names)
         self.assertNotIn("vision_click_offset", names)
+
+    def test_calibration_can_be_disabled(self) -> None:
+        runtime = VisionRuntime(
+            VisionConfig(fps=30, settle_ms=0, calibration_enabled=False),
+            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
+            cursor=lambda: (160, 120),
+        )
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            observation = runtime.observe("cid-a")
+            assert observation is not None
+            self.assertEqual(observation["calibration"], [])
+            self.assertNotIn("calibration=", observation["text"])
+            with patch("plugins.visual_operator_2.state.backend.move_cursor",
+                       return_value=True):
+                result = runtime.move_point(
+                    "cid-a", 10, 10, 160, 120, 320, 240)
+            self.assertTrue(result["ok"])
+        finally:
+            runtime.close()
+
+    def test_random_calibration_points(self) -> None:
+        runtime = self._runtime()
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            observation = runtime.observe("cid-a")
+            assert observation is not None
+            challenge = runtime._challenges[observation["frame_id"]]
+            self.assertEqual(len(observation["calibration"]), 1)
+            self.assertEqual(
+                [(item["x"], item["y"]) for item in observation["calibration"]],
+                challenge["screen"])
+            points = [{"x": x, "y": y} for x, y in challenge["model"]]
+            with patch("plugins.visual_operator_2.state.backend.move_cursor",
+                       return_value=True):
+                good = runtime.move_point(
+                    "cid-a", 10, 10, 160, 120, 320, 240, points)
+            self.assertTrue(good["ok"])
+            self.assertNotIn(observation["frame_id"], runtime._challenges)
+            observation = runtime.observe("cid-a")
+            assert observation is not None
+            challenge = runtime._challenges[observation["frame_id"]]
+            bad = runtime.move_point(
+                "cid-a", 10, 10, 160, 120, 320, 240,
+                [{"x": 20, "y": 20}])
+            self.assertFalse(bad["ok"])
+            self.assertIn("校准", bad["error"])
+            self.assertIn("读图", bad["error"])
+            report = runtime._last_calibration
+            self.assertFalse(report["accepted"])
+            self.assertEqual(report["points"][0]["real"],
+                             {"x": challenge["screen"][0][0],
+                              "y": challenge["screen"][0][1]})
+            self.assertIn("screen", report["points"][0])
+            self.assertIn("delta", report["points"][0])
+        finally:
+            runtime.close()
+
+    def test_check_error_comes_after_eye_state(self) -> None:
+        runtime = self._runtime()
+        try:
+            closed = runtime.move_point(
+                "cid-a", 10, 10, 100, 100, 200, 100, [])
+            self.assertIn("眼睛", closed["error"])
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            missing = runtime.move_point(
+                "cid-a", 10, 10, 100, 100, 200, 100, [])
+            self.assertIn("校准", missing["error"])
+        finally:
+            runtime.close()
+
+    def test_five_calibration_failures_close_eyes(self) -> None:
+        runtime = self._runtime()
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            runtime.observe("cid-a")
+            bad = [{"x": 1, "y": 1}]
+            for _ in range(5):
+                result = runtime.move_point(
+                    "cid-a", 10, 10, 160, 120, 320, 240, bad)
+                self.assertFalse(result["ok"])
+            self.assertFalse(runtime.status("cid-a")["eyes_open"])
+            self.assertIn("视觉已关闭", result["error"])
+            self.assertIn("读图", result["error"])
+        finally:
+            runtime.close()
+
+    def test_coordinate_tools_require_check_points(self) -> None:
+        from plugins.visual_operator_2.tools import (
+            VisionClickSequenceTool,
+            VisionFocusTool,
+            VisionMoveFocusTool,
+            VisionMovePointTool,
+        )
+
+        for tool in (VisionFocusTool, VisionMovePointTool,
+                     VisionMoveFocusTool, VisionClickSequenceTool):
+            self.assertEqual(tool.parameters["check_points"]["minItems"], 1)
+            self.assertEqual(tool.parameters["check_points"]["maxItems"], 1)
 
     def test_visual_skill_is_registered(self) -> None:
         from pathlib import Path

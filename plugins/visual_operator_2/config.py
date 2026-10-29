@@ -23,6 +23,8 @@ class VisionConfig:
     square_size: int = 0
     image_max_side: int = 1600
     focus_max_side: int = 512
+    calibration_enabled: bool = True
+    calibration_tolerance_px: int = 20
 
 
 def _int(section: configparser.SectionProxy, key: str, default: int,
@@ -76,6 +78,9 @@ def load_config(path: Path | None = None) -> VisionConfig:
         square_size=_int(image, "square_size", 0, 0, 4096),
         image_max_side=_int(image, "image_max_side", 1600, 64, 4096),
         focus_max_side=_int(image, "focus_max_side", 512, 64, 4096),
+        calibration_enabled=_bool(vision, "calibration_enabled", True),
+        calibration_tolerance_px=_int(
+            vision, "calibration_tolerance_px", 20, 0, 200),
     )
 
 __all__ = ["VisionConfig", "load_config"]

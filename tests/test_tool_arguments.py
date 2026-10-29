@@ -62,6 +62,28 @@ class ToolArgumentContractTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("path", result.error)
 
+    def test_business_failure_does_not_double_wrap_ok(self) -> None:
+        class _Failing:
+            name = "failing"
+            description = "失败工具"
+            parameters = {
+                "value": {"type": "integer"},
+            }
+
+            def execute(self, arguments):
+                return {"ok": False, "error": "业务失败"}
+
+        registry = ToolRegistry()
+        registry.register(_Failing())
+        result = self.pipeline.execute(
+            registry,
+            ToolCallRequest(call_id="c4", name="failing", arguments={"value": 1}),
+            None,
+        )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error, "业务失败")
+        self.assertIsNone(result.data)
+
     def test_declared_arguments_still_work(self) -> None:
         result = self.pipeline.execute(
             self.registry,

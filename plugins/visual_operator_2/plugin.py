@@ -2,9 +2,10 @@
 """视觉操作 2.0：持续视觉、全局独占、用户授权与键鼠动作。"""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, List
 
-from . import backend
+from . import backend, step_log
 from .config import load_config
 from .routes import build_routes
 from .state import VisionRuntime
@@ -20,6 +21,12 @@ def _observation_hook(runtime: VisionRuntime):
         if observation is None:
             return messages
         runtime.publish_observation(observation)
+        step_log.write(
+            "observation", conversation_id=conversation_id,
+            frame_id=observation.get("frame_id"),
+            cursor=observation.get("cursor"),
+            focus=observation.get("focus"),
+            calibration=observation.get("calibration"))
         content: List[dict] = [{"type": "text", "text": observation["text"]}]
         image_index = 0
         for item in observation["images"]:
@@ -42,9 +49,10 @@ def _vision_prompt(_cid: str) -> str:
         "<<视觉>>\n"
         "该消息为视觉注入, 所有视觉操作必须先查看清楚当前视觉注入内容后再操作, 点击时看清楚鼠标位置和按钮关系!!!\n"
         "视觉操作前必须加载 skills：visual-operator-2 和 windows-desktop-operations。\n"
-        "默认聚焦屏幕中心 400×400；每次移动或点击后必须看下一轮实时注入的视觉帧，用黄色光标标记确认目标，不能凭工具回执认定成功.\n"
+        "需要局部细节时用 vision_focus；每次移动或点击后必须看下一轮实时注入的视觉帧，用黄色光标标记确认目标，不能凭工具回执认定成功.\n"
+        "所有坐标工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按随机真实屏幕点做 20px 校验，缺失或超差直接失败.原样读标记，不要自己换算屏幕坐标.\n"
         "完整图是全屏画面按比例缩放后的图, 无黑区无填充.\n"
-        "设置聚焦后用 vision_focus 指定固定区域; 聚焦图 1:1 不跟随光标, 聚焦图内移动用 vision_move_focus.\n"
+        "需要放大时用 vision_focus 指定固定区域; 聚焦图 1:1 不跟随光标; 聚焦图内移动用 vision_move_focus.\n"
         "x、y 就是目标在这张图上量的像素位置, image_width、image_height 取 original_image_size.\n"
         "center_x、center_y 由你给出, 是你看到的这张图的中心像素, 用于与真实屏幕做双边中心对齐: "
         "x 方向用图宽与 center_x 对齐到屏幕宽, y 方向用图高与 center_y 对齐到屏幕高, 两边独立换算.\n"
@@ -61,6 +69,10 @@ def _vision_prompt(_cid: str) -> str:
 
 def register(ctx: Any) -> List[Any]:
     config = load_config()
+    logs = None
+    if callable(getattr(ctx, "has", None)) and ctx.has("error_log"):
+        logs = Path(ctx.get("error_log").path).parent / "visual_operator_2.steps.log"
+    step_log.configure(logs)
     monitor = backend.HumanInputMonitor(config.takeover_distance)
     badge = backend.ControlBadge()
     runtime = VisionRuntime(

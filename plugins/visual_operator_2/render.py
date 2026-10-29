@@ -140,6 +140,20 @@ def full_point_screen(screen_width: int, screen_height: int, x: int, y: int,
     }
 
 
+def targets_for_points(frame, points, center_x: int, center_y: int,
+                       image_width: int, image_height: int) -> list:
+    targets = []
+    for point in points:
+        mapped = full_point_screen(
+            frame.image.width, frame.image.height,
+            int(point["x"]), int(point["y"]),
+            center_x, center_y, image_width, image_height)
+        targets.append({"model_point": {
+            "x": int(point["x"]), "y": int(point["y"])},
+            "screen": mapped["screen"]})
+    return targets
+
+
 def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:
     x, y = int(point[0]), int(point[1])
     draw = ImageDraw.Draw(image)
@@ -163,6 +177,33 @@ def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:
     ):
         coords, width, fill = line
         draw.line(coords, fill=fill, width=width)
+
+
+def draw_challenge(image: Image.Image, challenge, screen_width: int,
+                   screen_height: int) -> None:
+    if challenge is not None:
+        draw_calibration(image, challenge["screen"], screen_width, screen_height)
+
+
+def draw_calibration(image: Image.Image, points, screen_width: int,
+                     screen_height: int) -> None:
+    draw = ImageDraw.Draw(image)
+    scale_x = image.width / float(max(1, screen_width))
+    scale_y = image.height / float(max(1, screen_height))
+    for index, (sx, sy) in enumerate(points, 1):
+        x, y = round(sx * scale_x), round(sy * scale_y)
+        radius = 10
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius),
+                     outline=(0, 0, 0), width=3)
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius),
+                     outline=(0, 220, 255), width=2)
+        draw.line((x - 14, y, x - 4, y), fill=(0, 0, 0), width=3)
+        draw.line((x + 4, y, x + 14, y), fill=(0, 0, 0), width=3)
+        draw.line((x, y - 14, x, y - 4), fill=(0, 0, 0), width=3)
+        draw.line((x, y + 4, x, y + 14), fill=(0, 0, 0), width=3)
+        draw.text((x + 14, y - 24), f"C{index}", fill=(0, 0, 0),
+                  stroke_width=3, stroke_fill=(0, 0, 0))
+        draw.text((x + 14, y - 24), f"C{index}", fill=(0, 220, 255))
 
 
 def focus_view(image: Image.Image, focus: dict, cursor: Tuple[int, int],
@@ -198,6 +239,9 @@ def data_url(image: Image.Image, config: VisionConfig) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
-__all__ = ["clip_focus", "crop_padded", "data_url", "draw_marker", "fit",
+__all__ = ["clip_focus", "crop_padded", "data_url", "draw_calibration",
+           "draw_challenge",
+           "draw_marker", "fit",
            "focus_point_screen", "focus_screen_from_model", "focus_view",
-           "full_point_screen", "model_point_screen", "resolve_focus", "zoom"]
+           "full_point_screen", "model_point_screen", "resolve_focus",
+           "targets_for_points", "zoom"]

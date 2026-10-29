@@ -12,6 +12,7 @@ from agent.core.session_scope import current_context
 
 from .consent import VisionConsentRequired
 from .state import VisionRuntime
+from .step_log import write as log_step
 
 
 def _cid() -> str:
@@ -23,6 +24,18 @@ def _call_id() -> str:
     ctx = current_context()
     return str(getattr(ctx, "call_id", "") or "") if ctx is not None else ""
 
+
+CHECK_POINTS_PARAM = {
+    "type": "array",
+    "minItems": 1,
+    "maxItems": 1,
+    "items": {
+        "type": "object",
+        "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}},
+        "required": ["x", "y"],
+    },
+    "description": "传校准帧 C1 随机标记中心的图内 xy",
+}
 
 class VisionRequestOpenTool(ToolPlugin):
     name = "vision_request_open"
@@ -57,7 +70,7 @@ class VisionStartTool(ToolPlugin):
     parallel_safe = False
     description = (
         "用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。"
-        "启动后默认注入完整图和屏幕中心的 400×400 聚焦图；可用 vision_focus 改聚焦区域。"
+        "启动后注入完整图；需要局部细节时用 vision_focus 设置聚焦区域。"
     )
     parameters = {
         "consent_id": {"type": "string", "description": "眼睛工具签发的授权凭证"},
@@ -77,7 +90,6 @@ class VisionFocusTool(ToolPlugin):
     parallel_safe = False
     description = (
         "设置一个固定观察区域；下一帧注入完整图和该区域 1:1 聚焦图。"
-        "未设置时默认聚焦屏幕中心 400×400。"
         "x/y/width/height 是区域在模型图上的像素；center_x/center_y 是模型图中心；"
         "image_width/image_height 是原始屏幕尺寸。区域超出屏幕会裁剪，不补黑。"
     )
@@ -90,6 +102,7 @@ class VisionFocusTool(ToolPlugin):
         "center_y": {"type": "integer", "description": "模型图中心 y"},
         "image_width": {"type": "integer", "description": "原始屏幕宽度"},
         "image_height": {"type": "integer", "description": "原始屏幕高度"},
+        "check_points": CHECK_POINTS_PARAM,
     }
 
     def __init__(self, runtime: VisionRuntime) -> None:
@@ -102,6 +115,7 @@ class VisionFocusTool(ToolPlugin):
             int(arguments["width"]), int(arguments["height"]),
             int(arguments["center_x"]), int(arguments["center_y"]),
             int(arguments["image_width"]), int(arguments["image_height"]),
+            arguments.get("check_points") or [],
         )
 
 
@@ -140,6 +154,7 @@ class VisionMovePointTool(ToolPlugin):
         "center_y": {"type": "integer", "description": "模型看到的图像中心 y"},
         "image_width": {"type": "integer", "description": "原始截图宽度"},
         "image_height": {"type": "integer", "description": "原始截图高度"},
+        "check_points": CHECK_POINTS_PARAM,
     }
 
     def __init__(self, runtime: VisionRuntime) -> None:
@@ -151,6 +166,7 @@ class VisionMovePointTool(ToolPlugin):
             int(arguments["x"]), int(arguments["y"]),
             int(arguments["center_x"]), int(arguments["center_y"]),
             int(arguments["image_width"]), int(arguments["image_height"]),
+            arguments.get("check_points") or [],
         )
 
 
@@ -168,6 +184,7 @@ class VisionMoveFocusTool(ToolPlugin):
         "y": {"type": "integer", "description": "目标点在聚焦图上的 y"},
         "width": {"type": "integer", "description": "模型看到的聚焦图宽度"},
         "height": {"type": "integer", "description": "模型看到的聚焦图高度"},
+        "check_points": CHECK_POINTS_PARAM,
     }
 
     def __init__(self, runtime: VisionRuntime) -> None:
@@ -178,6 +195,7 @@ class VisionMoveFocusTool(ToolPlugin):
             _cid(),
             int(arguments["x"]), int(arguments["y"]),
             int(arguments["width"]), int(arguments["height"]),
+            arguments.get("check_points") or [],
         )
 
 
@@ -232,6 +250,7 @@ class VisionClickSequenceTool(ToolPlugin):
         "center_y": {"type": "integer", "description": "模型看到的图像中心 y"},
         "image_width": {"type": "integer", "description": "原始截图宽度"},
         "image_height": {"type": "integer", "description": "原始截图高度"},
+        "check_points": CHECK_POINTS_PARAM,
         "interval_ms": {"type": "integer", "minimum": 72, "maximum": 1000,
                         "default": 72, "description": "点与点之间的间隔，最小 72，缺省 72"},
         "count": {"type": "integer", "description": "每个点点击次数，1~3"},
@@ -256,6 +275,7 @@ class VisionClickSequenceTool(ToolPlugin):
             int(arguments["image_width"]), int(arguments["image_height"]),
             interval,
             int(arguments.get("count") or 1),
+            arguments.get("check_points") or [],
         )
 
 
@@ -303,7 +323,31 @@ SKILL_REQUIRED = (
     "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 "
     "windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。"
     "每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。"
+    "接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；"
+    "工具按真实屏幕点做 20px 校验，缺失或超差直接失败。"
 )
+
+
+class _LoggedTool:
+    def __init__(self, tool: ToolPlugin) -> None:
+        self._tool = tool
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._tool, name)
+
+    def execute(self, arguments: Dict[str, Any]) -> Any:
+        cid = _cid()
+        log_step("tool_start", tool=self._tool.name, conversation_id=cid,
+                 arguments=arguments)
+        try:
+            result = self._tool.execute(arguments)
+        except Exception as exc:
+            log_step("tool_failed", tool=self._tool.name,
+                     conversation_id=cid, error=f"{type(exc).__name__}: {exc}")
+            raise
+        log_step("tool_done", tool=self._tool.name,
+                 conversation_id=cid, result=result)
+        return result
 
 
 def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
@@ -321,6 +365,6 @@ def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
     ]
     for tool in tools:
         tool.description = SKILL_REQUIRED + str(tool.description)
-    return tools
+    return [_LoggedTool(tool) for tool in tools]
 
 __all__ = ["build_tools"]

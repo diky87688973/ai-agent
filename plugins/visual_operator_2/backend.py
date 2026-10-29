@@ -17,6 +17,8 @@ from PIL import Image, ImageGrab
 
 from agent.core.error_report import report_error
 
+from .step_log import write as log_step
+
 _WINDOWS = sys.platform == "win32"
 _u = ctypes.windll.user32 if _WINDOWS else None
 _k = ctypes.windll.kernel32 if _WINDOWS else None
@@ -47,6 +49,32 @@ _MOUSE_LEFT_UP = 0x0004
 _MOUSE_MOVE = 0x0001
 _MOUSE_ABSOLUTE = 0x8000
 _KEY_UP = 0x0002
+_INPUT_MOUSE = 0
+
+
+class _MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.c_size_t),
+    ]
+
+
+class _INPUTUNION(ctypes.Union):
+    _fields_ = [("mi", _MOUSEINPUT)]
+
+
+class _INPUT(ctypes.Structure):
+    _fields_ = [("type", wintypes.DWORD), ("union", _INPUTUNION)]
+
+
+if _WINDOWS:
+    _u.SendInput.argtypes = [
+        wintypes.UINT, ctypes.POINTER(_INPUT), ctypes.c_int]
+    _u.SendInput.restype = wintypes.UINT
 
 _WM_QUIT = 0x0012
 _WM_MOUSEMOVE = 0x0200
@@ -546,24 +574,18 @@ def move_by(dx: int, dy: int) -> Tuple[int, int]:
     return x, y
 
 
-_left_down = False
 _input_lock = threading.RLock()
 
 
 def release_left() -> None:
-    """释放由本模块注入的左键，防止轨迹移动变成拖拽。"""
-    global _left_down
-    with _input_lock:
-        if _left_down:
-            _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
-            _left_down = False
+    """兼容旧调用；SendInput 一次提交完整点击序列，不存在待释放状态。"""
+    return
 
 
 def move_cursor(x: int, y: int, duration_ms: int = 200,
                 should_stop: Optional[Callable[[], bool]] = None) -> bool:
     """按时长插值移动鼠标；被用户接管时返回 False。"""
     with _input_lock:
-        release_left()
         target_x, target_y = int(x), int(y)
         duration = max(0, min(2000, int(duration_ms)))
         if duration <= 0:
@@ -589,19 +611,30 @@ def click(button: str = "left", count: int = 1) -> None:
         raise RuntimeError("视觉操作 2.0 当前只支持 Windows")
     if button != "left":
         raise ValueError("目前只支持左键")
-    global _left_down
+    clicks = max(1, min(3, int(count)))
+    events = (_INPUT * (clicks * 2))()
+    for index in range(clicks):
+        events[index * 2].type = _INPUT_MOUSE
+        events[index * 2].union.mi.dwFlags = _MOUSE_LEFT
+        events[index * 2 + 1].type = _INPUT_MOUSE
+        events[index * 2 + 1].union.mi.dwFlags = _MOUSE_LEFT_UP
     with _input_lock:
-        for _ in range(max(1, min(3, int(count)))):
-            _mouse(_MOUSE_LEFT, 0, 0, 0, 0)
-            _left_down = True
-            try:
+        inserted = _u.SendInput(
+            len(events), events, ctypes.sizeof(_INPUT))
+        if inserted != len(events):
+            if inserted > 0:
+                _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
+            for _ in range(clicks):
+                _mouse(_MOUSE_LEFT, 0, 0, 0, 0)
                 time.sleep(0.010)
                 _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
-            finally:
-                if _left_down:
-                    _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
-                _left_down = False
                 time.sleep(0.010)
+            log_step("click_inject", method="mouse_event",
+                     inserted=inserted, expected=len(events))
+            return {"method": "mouse_event", "inserted": inserted}
+    log_step("click_inject", method="sendinput", inserted=inserted,
+             expected=len(events))
+    return {"method": "sendinput", "inserted": inserted}
 
 
 def _key_code(name: str) -> int:

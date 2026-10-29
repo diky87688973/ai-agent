@@ -143,6 +143,10 @@ class ToolPipeline:
                     call_id=call.call_id, ok=bool(inner.ok), data=inner.data,
                     error=str(inner.error or ""))
                 carried = inner.attachments
+            elif isinstance(data, dict) and data.get("ok") is False:
+                result = ToolResult(
+                    call_id=call.call_id, ok=False,
+                    error=str(data.get("error") or "工具执行失败"))
             else:
                 result = ToolResult(call_id=call.call_id, ok=True, data=data)
             if isinstance(carried, list) and carried:

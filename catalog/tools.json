@@ -1292,7 +1292,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。在当前鼠标位置点击；不接收坐标。支持点击次数和间隔，间隔最小 72ms。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。在当前鼠标位置点击；不接收坐标。支持点击次数和间隔，间隔最小 72ms。",
       "display": {
         "icon": "🖱️",
         "label": "点击"
@@ -1316,7 +1316,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 center_x/center_y 图像中心和 image_width/image_height 原始尺寸做双轴换算；center_x/center_y 是模型可见图的中心点。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 center_x/center_y 图像中心和 image_width/image_height 原始尺寸做双轴换算；center_x/center_y 是模型可见图的中心点。",
       "display": {
         "icon": "🖱️",
         "label": "连续点击"
@@ -1331,6 +1331,27 @@
         "center_y": {
           "description": "模型看到的图像中心 y",
           "type": "integer"
+        },
+        "check_points": {
+          "description": "传校准帧 C1 随机标记中心的图内 xy",
+          "items": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array"
         },
         "count": {
           "description": "每个点点击次数，1~3",
@@ -1373,7 +1394,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。设置一个固定观察区域；下一帧注入完整图和该区域 1:1 聚焦图。未设置时默认聚焦屏幕中心 400×400。x/y/width/height 是区域在模型图上的像素；center_x/center_y 是模型图中心；image_width/image_height 是原始屏幕尺寸。区域超出屏幕会裁剪，不补黑。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。设置一个固定观察区域；下一帧注入完整图和该区域 1:1 聚焦图。x/y/width/height 是区域在模型图上的像素；center_x/center_y 是模型图中心；image_width/image_height 是原始屏幕尺寸。区域超出屏幕会裁剪，不补黑。",
       "display": {
         "icon": "🔎",
         "label": "聚焦区域"
@@ -1388,6 +1409,27 @@
         "center_y": {
           "description": "模型图中心 y",
           "type": "integer"
+        },
+        "check_points": {
+          "description": "传校准帧 C1 随机标记中心的图内 xy",
+          "items": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array"
         },
         "height": {
           "description": "区域在模型图上的高度",
@@ -1416,7 +1458,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。按下键盘组合键，例如 [\"ctrl\", \"c\"]。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。按下键盘组合键，例如 [\"ctrl\", \"c\"]。",
       "display": {
         "icon": "⌨️",
         "label": "按键"
@@ -1435,7 +1477,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。以当前观察的鼠标位置为起点，执行相对移动；精确点击优先使用 vision_move_to。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。以当前观察的鼠标位置为起点，执行相对移动；精确点击优先使用 vision_move_to。",
       "display": {
         "icon": "🖱️",
         "label": "移动鼠标"
@@ -1454,7 +1496,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。按聚焦图上的点移动鼠标。x/y 是目标点在聚焦图上的像素；width/height 是模型看到的聚焦图宽高。工具按当前固定聚焦区域换算屏幕落点。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。按聚焦图上的点移动鼠标。x/y 是目标点在聚焦图上的像素；width/height 是模型看到的聚焦图宽高。工具按当前固定聚焦区域换算屏幕落点。",
       "display": {
         "icon": "🎯",
         "label": "移动到聚焦点"
@@ -1462,6 +1504,27 @@
       "name": "vision_move_focus",
       "parallel_safe": false,
       "parameters": {
+        "check_points": {
+          "description": "传校准帧 C1 随机标记中心的图内 xy",
+          "items": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array"
+        },
         "height": {
           "description": "模型看到的聚焦图高度",
           "type": "integer"
@@ -1481,7 +1544,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；center_x/center_y 是模型看到的图像中心坐标；image_width/image_height 是原始截图宽高。模型直接读图上的 x/y；用 center_x/center_y 对准屏幕中心后，双轴独立换算，模型不要自己换算。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；center_x/center_y 是模型看到的图像中心坐标；image_width/image_height 是原始截图宽高。模型直接读图上的 x/y；用 center_x/center_y 对准屏幕中心后，双轴独立换算，模型不要自己换算。",
       "display": {
         "icon": "🖱️",
         "label": "移动到点"
@@ -1496,6 +1559,27 @@
         "center_y": {
           "description": "模型看到的图像中心 y",
           "type": "integer"
+        },
+        "check_points": {
+          "description": "传校准帧 C1 随机标记中心的图内 xy",
+          "items": {
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "type": "object"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array"
         },
         "image_height": {
           "description": "原始截图高度",
@@ -1516,7 +1600,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。申请打开视觉。固定授权文案由眼睛工具提供，用户确认后工具恢复并返回一次性 consent_id。拿到 consent_id 后，必须在当前回合立即调用 vision_start(consent_id=...)，不得再让用户确认，不得先调用 ai_speak、解释或重新申请。在确认前不会截屏。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。申请打开视觉。固定授权文案由眼睛工具提供，用户确认后工具恢复并返回一次性 consent_id。拿到 consent_id 后，必须在当前回合立即调用 vision_start(consent_id=...)，不得再让用户确认，不得先调用 ai_speak、解释或重新申请。在确认前不会截屏。",
       "display": {
         "icon": "👁️",
         "label": "申请视觉授权"
@@ -1526,7 +1610,7 @@
       "parameters": {}
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。启动后默认注入完整图和屏幕中心的 400×400 聚焦图；可用 vision_focus 改聚焦区域。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。启动后注入完整图；需要局部细节时用 vision_focus 设置聚焦区域。",
       "display": {
         "icon": "👁️",
         "label": "睁眼"
@@ -1541,7 +1625,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。关闭视觉，停止采集并清空队列；不需要用户确认。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 20px 校验，缺失或超差直接失败。关闭视觉，停止采集并清空队列；不需要用户确认。",
       "display": {
         "icon": "🙈",
         "label": "闭眼"

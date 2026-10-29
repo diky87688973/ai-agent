@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2037** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2043** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -92,7 +92,7 @@
 81. [test_subagent.py](#test_subagentpy)（17）
 82. [test_task_tools.py](#test_task_toolspy)（27）
 83. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-84. [test_tool_arguments.py](#test_tool_argumentspy)（4）
+84. [test_tool_arguments.py](#test_tool_argumentspy)（5）
 85. [test_tool_registry.py](#test_tool_registrypy)（17）
 86. [test_tool_resume.py](#test_tool_resumepy)（3）
 87. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
@@ -104,7 +104,7 @@
 93. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
 94. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
 95. [test_visual_operator.py](#test_visual_operatorpy)（160）
-96. [test_visual_operator_2.py](#test_visual_operator_2py)（23）
+96. [test_visual_operator_2.py](#test_visual_operator_2py)（28）
 97. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
 98. [test_web_auth.py](#test_web_authpy)（26）
 99. [test_web_frontend.py](#test_web_frontendpy)（5）
@@ -2304,14 +2304,15 @@
 
 ## test_tool_arguments.py
 
-共 4 个用例。
+共 5 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ToolArgumentContractTest` | `test_declared_arguments_still_work` | 覆盖「A class whose instances are single test cases」：declared arguments still work |
-| 2 | `ToolArgumentContractTest` | `test_empty_schema_rejects_every_argument` | 覆盖「A class whose instances are single test cases」：empty schema rejects every argument |
-| 3 | `ToolArgumentContractTest` | `test_session_create_has_one_name_parameter` | 覆盖「A class whose instances are single test cases」：session create has one name parameter |
-| 4 | `ToolArgumentContractTest` | `test_unknown_aliases_are_rejected_before_execution` | 覆盖「A class whose instances are single test cases」：unknown aliases are rejected before execution |
+| 1 | `ToolArgumentContractTest` | `test_business_failure_does_not_double_wrap_ok` | 覆盖「A class whose instances are single test cases」：business failure does not double wrap ok |
+| 2 | `ToolArgumentContractTest` | `test_declared_arguments_still_work` | 覆盖「A class whose instances are single test cases」：declared arguments still work |
+| 3 | `ToolArgumentContractTest` | `test_empty_schema_rejects_every_argument` | 覆盖「A class whose instances are single test cases」：empty schema rejects every argument |
+| 4 | `ToolArgumentContractTest` | `test_session_create_has_one_name_parameter` | 覆盖「A class whose instances are single test cases」：session create has one name parameter |
+| 5 | `ToolArgumentContractTest` | `test_unknown_aliases_are_rejected_before_execution` | 覆盖「A class whose instances are single test cases」：unknown aliases are rejected before execution |
 
 ## test_tool_registry.py
 
@@ -2616,33 +2617,38 @@
 
 ## test_visual_operator_2.py
 
-共 23 个用例。
+共 28 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `VisionRuntimeTest` | `test_actions_use_fake_backend_and_wake_on_change` | 覆盖「A class whose instances are single test cases」：actions use fake backend and wake on change |
-| 2 | `VisionRuntimeTest` | `test_click_sequence_uses_same_point_conversion` | 覆盖「A class whose instances are single test cases」：click sequence uses same point conversion |
-| 3 | `VisionRuntimeTest` | `test_click_tools_and_sequence_contract` | 覆盖「A class whose instances are single test cases」：click tools and sequence contract |
-| 4 | `VisionRuntimeTest` | `test_confirm_route_resumes_pending_call` | 覆盖「A class whose instances are single test cases」：confirm route resumes pending call |
-| 5 | `VisionRuntimeTest` | `test_consent_owner_and_observation` | 覆盖「A class whose instances are single test cases」：consent owner and observation |
-| 6 | `VisionRuntimeTest` | `test_context_hook_appends_full_image_only` | 覆盖「A class whose instances are single test cases」：context hook appends full image only |
-| 7 | `VisionRuntimeTest` | `test_context_hook_publishes_exact_model_frame` | 覆盖「A class whose instances are single test cases」：context hook publishes exact model frame |
-| 8 | `VisionRuntimeTest` | `test_focus_region_and_move_focus` | 覆盖「A class whose instances are single test cases」：focus region and move focus |
-| 9 | `VisionRuntimeTest` | `test_focus_region_maps_compressed_image_center` | 覆盖「A class whose instances are single test cases」：focus region maps compressed image center |
-| 10 | `VisionRuntimeTest` | `test_human_mouse_takeover_after_100px` | 覆盖「A class whose instances are single test cases」：human mouse takeover after 100px |
-| 11 | `VisionRuntimeTest` | `test_input_monitor_fires_once_in_worker` | 覆盖「A class whose instances are single test cases」：input monitor fires once in worker |
-| 12 | `VisionRuntimeTest` | `test_model_point_matches_user_example` | 覆盖「A class whose instances are single test cases」：model point matches user example |
-| 13 | `VisionRuntimeTest` | `test_model_point_uses_both_image_sizes` | 覆盖「A class whose instances are single test cases」：model point uses both image sizes |
-| 14 | `VisionRuntimeTest` | `test_model_stretched_image_uses_independent_axes` | 覆盖「A class whose instances are single test cases」：model stretched image uses independent axes |
-| 15 | `VisionRuntimeTest` | `test_native_full_image_is_screen_identity` | 覆盖「A class whose instances are single test cases」：native full image is screen identity |
-| 16 | `VisionRuntimeTest` | `test_new_consent_call_supersedes_pending_request` | 覆盖「A class whose instances are single test cases」：new consent call supersedes pending request |
-| 17 | `VisionRuntimeTest` | `test_reject_does_not_open` | 覆盖「A class whose instances are single test cases」：reject does not open |
-| 18 | `VisionRuntimeTest` | `test_single_click_count_and_interval` | 覆盖「A class whose instances are single test cases」：single click count and interval |
-| 19 | `VisionRuntimeTest` | `test_tools_require_consent_and_close_cleanly` | 覆盖「A class whose instances are single test cases」：tools require consent and close cleanly |
-| 20 | `VisionRuntimeTest` | `test_trajectory_duration_and_same_point_skip` | 覆盖「A class whose instances are single test cases」：trajectory duration and same point skip |
-| 21 | `VisionRuntimeTest` | `test_user_takeover_closes_eyes_and_blocks_actions` | 覆盖「A class whose instances are single test cases」：user takeover closes eyes and blocks actions |
-| 22 | `VisionRuntimeTest` | `test_visual_skill_is_registered` | 覆盖「A class whose instances are single test cases」：visual skill is registered |
-| 23 | `VisionRuntimeTest` | `test_zero_move_is_not_reported_as_moved` | 覆盖「A class whose instances are single test cases」：zero move is not reported as moved |
+| 2 | `VisionRuntimeTest` | `test_calibration_can_be_disabled` | 覆盖「A class whose instances are single test cases」：calibration can be disabled |
+| 3 | `VisionRuntimeTest` | `test_check_error_comes_after_eye_state` | 覆盖「A class whose instances are single test cases」：check error comes after eye state |
+| 4 | `VisionRuntimeTest` | `test_click_sequence_uses_same_point_conversion` | 覆盖「A class whose instances are single test cases」：click sequence uses same point conversion |
+| 5 | `VisionRuntimeTest` | `test_click_tools_and_sequence_contract` | 覆盖「A class whose instances are single test cases」：click tools and sequence contract |
+| 6 | `VisionRuntimeTest` | `test_confirm_route_resumes_pending_call` | 覆盖「A class whose instances are single test cases」：confirm route resumes pending call |
+| 7 | `VisionRuntimeTest` | `test_consent_owner_and_observation` | 覆盖「A class whose instances are single test cases」：consent owner and observation |
+| 8 | `VisionRuntimeTest` | `test_context_hook_appends_full_and_default_focus` | 覆盖「A class whose instances are single test cases」：context hook appends full and default focus |
+| 9 | `VisionRuntimeTest` | `test_context_hook_publishes_exact_model_frame` | 覆盖「A class whose instances are single test cases」：context hook publishes exact model frame |
+| 10 | `VisionRuntimeTest` | `test_coordinate_tools_require_check_points` | 覆盖「A class whose instances are single test cases」：coordinate tools require check points |
+| 11 | `VisionRuntimeTest` | `test_five_calibration_failures_close_eyes` | 覆盖「A class whose instances are single test cases」：five calibration failures close eyes |
+| 12 | `VisionRuntimeTest` | `test_focus_region_and_move_focus` | 覆盖「A class whose instances are single test cases」：focus region and move focus |
+| 13 | `VisionRuntimeTest` | `test_focus_region_maps_compressed_image_center` | 覆盖「A class whose instances are single test cases」：focus region maps compressed image center |
+| 14 | `VisionRuntimeTest` | `test_human_mouse_takeover_after_100px` | 覆盖「A class whose instances are single test cases」：human mouse takeover after 100px |
+| 15 | `VisionRuntimeTest` | `test_input_monitor_fires_once_in_worker` | 覆盖「A class whose instances are single test cases」：input monitor fires once in worker |
+| 16 | `VisionRuntimeTest` | `test_model_point_matches_user_example` | 覆盖「A class whose instances are single test cases」：model point matches user example |
+| 17 | `VisionRuntimeTest` | `test_model_point_uses_both_image_sizes` | 覆盖「A class whose instances are single test cases」：model point uses both image sizes |
+| 18 | `VisionRuntimeTest` | `test_model_stretched_image_uses_independent_axes` | 覆盖「A class whose instances are single test cases」：model stretched image uses independent axes |
+| 19 | `VisionRuntimeTest` | `test_native_full_image_is_screen_identity` | 覆盖「A class whose instances are single test cases」：native full image is screen identity |
+| 20 | `VisionRuntimeTest` | `test_new_consent_call_supersedes_pending_request` | 覆盖「A class whose instances are single test cases」：new consent call supersedes pending request |
+| 21 | `VisionRuntimeTest` | `test_random_calibration_points` | 覆盖「A class whose instances are single test cases」：random calibration points |
+| 22 | `VisionRuntimeTest` | `test_reject_does_not_open` | 覆盖「A class whose instances are single test cases」：reject does not open |
+| 23 | `VisionRuntimeTest` | `test_single_click_count_and_interval` | 覆盖「A class whose instances are single test cases」：single click count and interval |
+| 24 | `VisionRuntimeTest` | `test_tools_require_consent_and_close_cleanly` | 覆盖「A class whose instances are single test cases」：tools require consent and close cleanly |
+| 25 | `VisionRuntimeTest` | `test_trajectory_duration_and_same_point_skip` | 覆盖「A class whose instances are single test cases」：trajectory duration and same point skip |
+| 26 | `VisionRuntimeTest` | `test_user_takeover_closes_eyes_and_blocks_actions` | 覆盖「A class whose instances are single test cases」：user takeover closes eyes and blocks actions |
+| 27 | `VisionRuntimeTest` | `test_visual_skill_is_registered` | 覆盖「A class whose instances are single test cases」：visual skill is registered |
+| 28 | `VisionRuntimeTest` | `test_zero_move_is_not_reported_as_moved` | 覆盖「A class whose instances are single test cases」：zero move is not reported as moved |
 
 ## test_wake_scheduler.py
 
