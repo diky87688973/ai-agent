@@ -85,51 +85,20 @@ def resolve_focus(frame, _explicit, width: int, height: int) -> dict:
     return {"x": x, "y": y, "width": width, "height": height}
 
 
-def square_content(screen_width: int, screen_height: int, size: int) -> dict:
-    if int(size) <= 0:
-        size = max(1, int(screen_width), int(screen_height))
-    scale = min(size / float(max(1, screen_width)),
-                size / float(max(1, screen_height)))
-    width = max(1, round(screen_width * scale))
-    height = max(1, round(screen_height * scale))
-    return {"x": 0, "y": 0, "width": width, "height": height}
-
-
-def pad_to_square(image: Image.Image, size: int) -> tuple:
-    if int(size) <= 0:
-        size = max(1, image.width, image.height)
-    content = square_content(image.width, image.height, size)
-    canvas = Image.new("RGB", (size, size), (0, 0, 0))
-    resized = image.resize((content["width"], content["height"]),
-                           Image.Resampling.LANCZOS)
-    canvas.paste(resized, (content["x"], content["y"]))
-    return canvas, content
-
-
 def full_point_screen(screen_width: int, screen_height: int, x: int, y: int,
-                      width: int, height: int, size: int) -> dict:
-    if int(size) <= 0:
-        size = max(1, int(screen_width), int(screen_height))
-    content = square_content(screen_width, screen_height, size)
-    full_x = int(x) * size / float(width)
-    full_y = int(y) * size / float(height)
-    if (full_x < content["x"] or full_y < content["y"]
-            or full_x > content["x"] + content["width"]
-            or full_y > content["y"] + content["height"]):
-        return {"outside": True, "content": content}
-    screen_x = (full_x - content["x"]) / float(content["width"]) * screen_width
-    screen_y = (full_y - content["y"]) / float(content["height"]) * screen_height
+                      width: int, height: int, image_width: int,
+                      image_height: int) -> dict:
+    scale_x = float(image_width) / float(width)
+    scale_y = float(image_height) / float(height)
+    screen_x = int(x) * scale_x
+    screen_y = int(y) * scale_y
     return {
         "screen": {
-            "x": max(0, min(screen_width - 1, round(screen_x))),
-            "y": max(0, min(screen_height - 1, round(screen_y))),
+            "x": max(0, min(int(image_width) - 1, round(screen_x))),
+            "y": max(0, min(int(image_height) - 1, round(screen_y))),
         },
-        "content": content,
-        "screen_size": [screen_width, screen_height],
-        "scale": {
-            "x": (size / float(width)) * (screen_width / float(content["width"])),
-            "y": (size / float(height)) * (screen_height / float(content["height"])),
-        },
+        "screen_size": [int(image_width), int(image_height)],
+        "scale": {"x": scale_x, "y": scale_y},
     }
 
 
@@ -186,5 +155,4 @@ def data_url(image: Image.Image, config: VisionConfig) -> str:
 
 __all__ = ["clip_focus", "crop_padded", "data_url", "draw_marker", "draw_observation_axes",
            "draw_screen_axis", "fit", "full_point_screen", "model_point_screen",
-           "pad_to_square",
-           "resolve_focus", "square_content", "zoom"]
+           "resolve_focus", "zoom"]

@@ -273,16 +273,14 @@ class VisionRuntime:
             if not self._frames:
                 return None
             frame = self._frames[-1]
-            full, full_content = render.pad_to_square(
-                frame.image, self.config.square_size)
+            full = frame.image.copy()
+            full_content = {
+                "x": 0, "y": 0,
+                "width": full.width, "height": full.height,
+            }
             render.draw_observation_axes(
                 full, None, full_content, {}, frame.image.size)
-            render.draw_marker(full, (
-                full_content["x"] + round(
-                    frame.cursor[0] * full_content["width"] / frame.image.width),
-                full_content["y"] + round(
-                    frame.cursor[1] * full_content["height"] / frame.image.height),
-            ))
+            render.draw_marker(full, frame.cursor)
             age_ms = int((time.monotonic() - frame.captured_at) * 1000)
             full_image = render.data_url(full, self.config)
             full_scale = float(frame.image.width) / float(full.width)
@@ -429,9 +427,7 @@ class VisionRuntime:
             frame = self._frames[-1]
             mapped = render.full_point_screen(
                 frame.image.width, frame.image.height,
-                x, y, width, height, self.config.square_size)
-            if mapped.get("outside"):
-                return {"ok": False, "error": "目标落在完整图黑区"}
+                x, y, width, height, image_width, image_height)
             screen_x = mapped["screen"]["x"]
             screen_y = mapped["screen"]["y"]
             before = self._cursor()
@@ -570,9 +566,7 @@ class VisionRuntime:
                 mapped = render.full_point_screen(
                     frame.image.width, frame.image.height,
                     int(point["x"]), int(point["y"]),
-                    width, height, self.config.square_size)
-                if mapped.get("outside"):
-                    return {"ok": False, "error": "目标落在完整图黑区", "clicks": []}
+                    width, height, image_width, image_height)
                 targets.append({
                     "model_point": {"x": int(point["x"]), "y": int(point["y"])},
                     "target_screen": mapped["screen"],
