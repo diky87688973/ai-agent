@@ -260,6 +260,27 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_model_stretched_image_uses_independent_axes(self) -> None:
+        runtime = VisionRuntime(
+            VisionConfig(fps=30, square_size=0, settle_ms=0),
+            capture=lambda: Image.new("RGB", (1920, 1080), (40, 80, 120)),
+            cursor=lambda: (10, 10),
+        )
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            with patch("plugins.visual_operator_2.state.backend.move_cursor",
+                       return_value=True):
+                result = runtime.move_point(
+                    "cid-a", 44, 366, 1339, 1080, 1920, 1080)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["target_screen"], {"x": 63, "y": 651})
+            self.assertAlmostEqual(result["scale"]["x"], 1.434, places=3)
+            self.assertAlmostEqual(result["scale"]["y"], 1.778, places=3)
+        finally:
+            runtime.close()
+
     def test_single_click_count_and_interval(self) -> None:
         clicks = []
         runtime = self._runtime()

@@ -126,8 +126,10 @@ def full_point_screen(screen_width: int, screen_height: int, x: int, y: int,
         },
         "content": content,
         "screen_size": [screen_width, screen_height],
-        "scale": {"x": screen_width / float(content["width"]),
-                  "y": screen_height / float(content["height"])},
+        "scale": {
+            "x": (size / float(width)) * (screen_width / float(content["width"])),
+            "y": (size / float(height)) * (screen_height / float(content["height"])),
+        },
     }
 
 

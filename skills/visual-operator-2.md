@@ -65,7 +65,7 @@ screen_x = u * screen_width
 screen_y = v * screen_height
 ```
 
-两个方向独立，不假设等比。
+两个方向独立，不假设等比。模型端把图片拉伸成任意 width/height 也不影响落点。
 
 示例：
 

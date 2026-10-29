@@ -128,7 +128,7 @@ class VisionMovePointTool(ToolPlugin):
     description = (
         "按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；"
         "width/height 是模型看到的整张图宽高；image_width/image_height 是原始截图宽高，不是压缩后的图。"
-        "模型直接读图上的 x/y；工具按图宽高和原始尺寸换算 screen_x/screen_y，模型不要自己换算。"
+        "模型直接读图上的 x/y；x、y 两个方向分别按 width/height 独立换算，模型端拉伸不改变落点，模型不要自己换算。"
     )
     parameters = {
         "x": {"type": "integer", "description": "目标点在模型看到的图上的 x"},
