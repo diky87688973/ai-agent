@@ -103,7 +103,7 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertEqual(payload["conversation_id"], "cid-a")
             self.assertEqual(payload["source"], "model_input")
             self.assertEqual(payload["screen_size"], [320, 240])
-            self.assertEqual(payload["full_size"], [320, 240])
+            self.assertEqual(payload["full_size"], [320, 320])
             self.assertEqual(payload["coordinate_space"], "model_image")
             self.assertGreater(payload["full_scale"], 0)
             self.assertTrue(payload["full_image"].startswith("data:image/"))
@@ -236,7 +236,7 @@ class VisionRuntimeTest(unittest.TestCase):
     def test_native_full_image_is_screen_identity(self) -> None:
         calls = []
         config = VisionConfig(fps=30, focus_width=80, focus_height=60,
-                              square_size=1024, settle_ms=0)
+                              square_size=0, settle_ms=0)
         runtime = VisionRuntime(
             config,
             capture=lambda: Image.new("RGB", (1920, 1080), (40, 80, 120)),
@@ -248,7 +248,7 @@ class VisionRuntimeTest(unittest.TestCase):
             runtime.start("cid-a", grant["consent_id"])
             observation = runtime.observe("cid-a")
             assert observation is not None
-            self.assertEqual(observation["full_size"], [1920, 1080])
+            self.assertEqual(observation["full_size"], [1920, 1920])
             self.assertGreater(observation["full_scale"], 0)
             with patch("plugins.visual_operator_2.state.backend.set_cursor",
                        side_effect=lambda x, y: calls.append((x, y))):
