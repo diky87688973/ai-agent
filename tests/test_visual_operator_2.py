@@ -41,6 +41,8 @@ class VisionRuntimeTest(unittest.TestCase):
             observation = runtime.observe("cid-a")
             self.assertIsNotNone(observation)
             assert observation is not None
+            self.assertIn("cursor_model", observation["text"])
+            self.assertNotIn("screen_size", observation["text"])
             self.assertEqual(observation["images"][0], "FULL FRAME")
             self.assertEqual(observation["images"][1].split(",")[0], "data:image/webp;base64")
             self.assertEqual(len(observation["images"]), 4)
@@ -204,8 +206,8 @@ class VisionRuntimeTest(unittest.TestCase):
                 self.assertTrue(move["ok"])
                 self.assertEqual(move["coordinate_space"], "model_image")
                 self.assertEqual(move["model_point"], {"x": 80, "y": 80})
-                self.assertEqual(move["target_screen"], {"x": 80, "y": 80})
-                self.assertEqual(move["target_screen"], {"x": 80, "y": 80})
+                self.assertNotIn("target_screen", move)
+                self.assertNotIn("cursor_after", move)
                 click = runtime.click("cid-a")
                 self.assertTrue(click["ok"])
                 self.assertTrue(click["observation_frame_id"])
@@ -246,7 +248,7 @@ class VisionRuntimeTest(unittest.TestCase):
                 result = runtime.move_point(
                     "cid-a", 50, 25, 100, 50, 200, 100)
             self.assertTrue(result["ok"])
-            self.assertEqual(result["target_screen"], {"x": 50, "y": 25})
+            self.assertNotIn("target_screen", result)
             self.assertEqual(calls, [(50, 25)])
         finally:
             runtime.close()
@@ -273,7 +275,7 @@ class VisionRuntimeTest(unittest.TestCase):
                 result = runtime.move_point("cid-a", 800, 450, 800, 450, 1920, 1080)
             self.assertTrue(result["ok"])
             self.assertEqual(result["model_point"], {"x": 800, "y": 450})
-            self.assertEqual(result["target_screen"], {"x": 960, "y": 540})
+            self.assertNotIn("target_screen", result)
             self.assertEqual(calls, [(960, 540)])
         finally:
             runtime.close()
@@ -293,9 +295,8 @@ class VisionRuntimeTest(unittest.TestCase):
                 result = runtime.move_point(
                     "cid-a", 200, 100, 800, 450, 1920, 1080)
             self.assertTrue(result["ok"])
-            self.assertEqual(result["target_screen"], {"x": 240, "y": 120})
-            self.assertAlmostEqual(result["scale"]["x"], 1.2, places=3)
-            self.assertAlmostEqual(result["scale"]["y"], 1.2, places=3)
+            self.assertNotIn("target_screen", result)
+            self.assertNotIn("scale", result)
         finally:
             runtime.close()
 
@@ -333,8 +334,8 @@ class VisionRuntimeTest(unittest.TestCase):
                     [{"x": 40, "y": 40}, {"x": 120, "y": 100}],
                     160, 120, 320, 240, interval_ms=72, count=1)
             self.assertTrue(result["ok"])
-            self.assertEqual(result["clicks"][0]["target_screen"], {"x": 40, "y": 40})
-            self.assertEqual(result["clicks"][1]["target_screen"], {"x": 120, "y": 100})
+            self.assertNotIn("target_screen", result["clicks"][0])
+            self.assertNotIn("target_screen", result["clicks"][1])
             self.assertEqual(calls, [(40, 40), (120, 100)])
             self.assertTrue(result["observation_frame_id"])
             bad = runtime.click_sequence(
@@ -403,8 +404,7 @@ class VisionRuntimeTest(unittest.TestCase):
             result = runtime.focus(
                 "cid-a", 400, 300, 400, 300, 800, 450, 1920, 1080)
             self.assertTrue(result["ok"])
-            self.assertEqual(result["focus"],
-                             {"x": 480, "y": 360, "width": 480, "height": 360})
+            self.assertEqual(result["focus_size"], [480, 360])
         finally:
             runtime.close()
 
@@ -421,8 +421,7 @@ class VisionRuntimeTest(unittest.TestCase):
             result = runtime.focus(
                 "cid-a", 100, 80, 100, 80, 160, 120, 320, 240)
             self.assertTrue(result["ok"])
-            self.assertEqual(result["focus"],
-                             {"x": 100, "y": 80, "width": 100, "height": 80})
+            self.assertEqual(result["focus_size"], [100, 80])
             observation = runtime.observe("cid-a")
             assert observation is not None
             self.assertTrue(observation["cursor_in_focus"])
@@ -432,7 +431,7 @@ class VisionRuntimeTest(unittest.TestCase):
                        return_value=True) as move:
                 moved = runtime.move_focus("cid-a", 50, 40, 100, 80)
             self.assertTrue(moved["ok"])
-            self.assertEqual(moved["target_screen"], {"x": 150, "y": 120})
+            self.assertNotIn("target_screen", moved)
             move.assert_called_once()
         finally:
             runtime.close()

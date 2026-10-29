@@ -75,13 +75,12 @@ description: 需要看屏幕、按模型可见图上的点移动鼠标、点击�
 ```text
 frame_id
 age_ms
-cursor
-screen_size
+cursor_model
+image_center
 original_image_size
 compressed_image_size
 coordinate_space=model_image
 owner
-focus
 focus_size
 ```
 

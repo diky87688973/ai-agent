@@ -178,7 +178,7 @@ def focus_view(image: Image.Image, focus: dict, cursor: Tuple[int, int],
     if cursor_in_focus:
         draw_marker(local, (cursor[0] - focus["x"], cursor[1] - focus["y"]))
     data = {**focus, "image_size": [local.width, local.height]}
-    label = "FOCUS FRAME\nfocus=(" + f"{focus['x']},{focus['y']},{focus['width']},{focus['height']})"
+    label = "FOCUS FRAME"
     return {
         "image": local,
         "url": data_url(local, config),

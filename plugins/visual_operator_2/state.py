@@ -296,11 +296,13 @@ class VisionRuntime:
             focus_image = ""
             cursor_in_focus = False
             images = ["FULL FRAME", full_image]
+            cursor_model_x = round(frame.cursor[0] * full.width / frame.image.width)
+            cursor_model_y = round(frame.cursor[1] * full.height / frame.image.height)
             text = (
                 "<vision_observation>"
                 f"frame_id={frame.frame_id};age_ms={age_ms};"
-                f"cursor=({frame.cursor[0]},{frame.cursor[1]});"
-                f"screen_size=({frame.image.width},{frame.image.height});"
+                f"cursor_model=({cursor_model_x},{cursor_model_y});"
+                f"image_center=({full.width // 2},{full.height // 2});"
                 f"original_image_size=({frame.image.width},{frame.image.height});"
                 f"compressed_image_size=({full.width},{full.height});"
                 f"coordinate_space=model_image;"
@@ -314,9 +316,7 @@ class VisionRuntime:
                 cursor_in_focus = view["cursor_in_focus"]
                 images.extend([view["label"], focus_image])
                 text += (
-                    f";focus=({focus_data['x']},{focus_data['y']},"
-                    f"{focus_data['width']},{focus_data['height']});"
-                    f"focus_size=({focus_data['image_size'][0]},"
+                    f";focus_size=({focus_data['image_size'][0]},"
                     f"{focus_data['image_size'][1]})"
                 )
             text += "</vision_observation>"
@@ -383,9 +383,7 @@ class VisionRuntime:
             self._wake.set()
             result = {
                 "ok": True,
-                "focus": focus,
                 "focus_size": [focus["width"], focus["height"]],
-                "screen_size": [frame.image.width, frame.image.height],
             }
         result["observation_frame_id"] = self._capture_after_action(conversation_id) or ""
         return result
@@ -412,11 +410,7 @@ class VisionRuntime:
                 return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
             after = self._cursor()
             self._wake.set()
-            result = {
-                "ok": True,
-                "cursor_before": {"x": before[0], "y": before[1]},
-                "cursor_after": {"x": after[0], "y": after[1]},
-            }
+            result = {"ok": True, "moved": True}
         result["observation_frame_id"] = self._capture_after_action(
             conversation_id, self.config.move_settle_ms) or ""
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
@@ -458,11 +452,6 @@ class VisionRuntime:
                 "model_point": {"x": int(x), "y": int(y)},
                 "model_center": {"x": int(center_x), "y": int(center_y)},
                 "original_image_size": [int(image_width), int(image_height)],
-                "screen_size": mapped["screen_size"],
-                "scale": mapped["scale"],
-                "target_screen": mapped["screen"],
-                "cursor_before": {"x": before[0], "y": before[1]},
-                "cursor_after": {"x": after[0], "y": after[1]},
             }
         result["observation_frame_id"] = self._capture_after_action(
             conversation_id, self.config.move_settle_ms) or ""
@@ -501,11 +490,6 @@ class VisionRuntime:
                 "coordinate_space": "focus_image",
                 "model_point": {"x": int(x), "y": int(y)},
                 "model_image_size": [int(width), int(height)],
-                "focus": focus,
-                "scale": mapped["scale"],
-                "target_screen": {"x": screen_x, "y": screen_y},
-                "cursor_before": {"x": before[0], "y": before[1]},
-                "cursor_after": {"x": after[0], "y": after[1]},
             }
         result["observation_frame_id"] = self._capture_after_action(
             conversation_id, self.config.move_settle_ms) or ""
@@ -545,8 +529,6 @@ class VisionRuntime:
         self._wake.set()
         return {
             "ok": True,
-            "cursor_before": {"x": before[0], "y": before[1]},
-            "cursor_after": {"x": after[0], "y": after[1]},
             "clicks": len(clicks),
             "interval_ms": interval,
             "observation_frame_id": post_frame or "",
@@ -577,7 +559,7 @@ class VisionRuntime:
                     center_x, center_y, image_width, image_height)
                 targets.append({
                     "model_point": {"x": int(point["x"]), "y": int(point["y"])},
-                    "target_screen": mapped["screen"],
+                    "screen": mapped["screen"],
                 })
         interval = int(interval_ms)
         if interval < 72:
@@ -588,7 +570,7 @@ class VisionRuntime:
         previous_screen = None
         try:
             for index, target in enumerate(targets):
-                screen = target["target_screen"]
+                screen = target["screen"]
                 if screen != previous_screen:
                     with self._lock:
                         if self._takeover:
@@ -611,7 +593,10 @@ class VisionRuntime:
                     backend.click("left", 1)
                     if click_index + 1 < per_point:
                         time.sleep(interval / 1000.0)
-                clicks.append({**target, "moved": screen != previous_screen})
+                clicks.append({
+                    "model_point": target["model_point"],
+                    "moved": screen != previous_screen,
+                })
                 previous_screen = screen
                 if index < len(targets) - 1:
                     time.sleep(interval / 1000.0)
