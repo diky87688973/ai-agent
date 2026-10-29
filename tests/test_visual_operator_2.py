@@ -391,7 +391,11 @@ class VisionRuntimeTest(unittest.TestCase):
 
         self.assertEqual(VisionClickTool.parameters["interval_ms"]["default"], 72)
         self.assertEqual(VisionClickTool.parameters["interval_ms"]["minimum"], 72)
-        names = [tool.name for tool in build_tools(self._runtime())]
+        tools = build_tools(self._runtime())
+        names = [tool.name for tool in tools]
+        for tool in tools:
+            self.assertIn("visual-operator-2", tool.description)
+            self.assertIn("windows-desktop-operations", tool.description)
         self.assertIn("vision_click", names)
         self.assertIn("vision_click_sequence", names)
         self.assertIn("vision_move_point", names)
@@ -409,6 +413,7 @@ class VisionRuntimeTest(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         skills = SkillManager(None, builtin_dir=root / "skills")
         self.assertIn("visual-operator-2", skills.list_skill_names())
+        self.assertIn("windows-desktop-operations", skills.list_skill_names())
         text = skills.get_skill("visual-operator-2") or ""
         self.assertIn("vision_click", text)
         self.assertIn("vision_move_point", text)

@@ -1292,7 +1292,7 @@
       }
     },
     {
-      "description": "在当前鼠标位置点击；不接收坐标。支持点击次数和间隔，间隔最小 72ms。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。在当前鼠标位置点击；不接收坐标。支持点击次数和间隔，间隔最小 72ms。",
       "display": {
         "icon": "🖱️",
         "label": "点击"
@@ -1316,7 +1316,7 @@
       }
     },
     {
-      "description": "按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 center_x/center_y 图像中心和 image_width/image_height 原始尺寸做双轴换算；center_x/center_y 是模型可见图的中心点。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 center_x/center_y 图像中心和 image_width/image_height 原始尺寸做双轴换算；center_x/center_y 是模型可见图的中心点。",
       "display": {
         "icon": "🖱️",
         "label": "连续点击"
@@ -1373,7 +1373,7 @@
       }
     },
     {
-      "description": "按下键盘组合键，例如 [\"ctrl\", \"c\"]。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。按下键盘组合键，例如 [\"ctrl\", \"c\"]。",
       "display": {
         "icon": "⌨️",
         "label": "按键"
@@ -1392,7 +1392,7 @@
       }
     },
     {
-      "description": "以当前观察的鼠标位置为起点，执行相对移动；精确点击优先使用 vision_move_to。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。以当前观察的鼠标位置为起点，执行相对移动；精确点击优先使用 vision_move_to。",
       "display": {
         "icon": "🖱️",
         "label": "移动鼠标"
@@ -1411,7 +1411,7 @@
       }
     },
     {
-      "description": "按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；center_x/center_y 是模型看到的图像中心坐标；image_width/image_height 是原始截图宽高。模型直接读图上的 x/y；用 center_x/center_y 对准屏幕中心后，双轴独立换算，模型不要自己换算。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；center_x/center_y 是模型看到的图像中心坐标；image_width/image_height 是原始截图宽高。模型直接读图上的 x/y；用 center_x/center_y 对准屏幕中心后，双轴独立换算，模型不要自己换算。",
       "display": {
         "icon": "🖱️",
         "label": "移动到点"
@@ -1446,7 +1446,7 @@
       }
     },
     {
-      "description": "申请打开视觉。固定授权文案由眼睛工具提供，用户确认后工具恢复并返回一次性 consent_id。拿到 consent_id 后，必须在当前回合立即调用 vision_start(consent_id=...)，不得再让用户确认，不得先调用 ai_speak、解释或重新申请。在确认前不会截屏。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。申请打开视觉。固定授权文案由眼睛工具提供，用户确认后工具恢复并返回一次性 consent_id。拿到 consent_id 后，必须在当前回合立即调用 vision_start(consent_id=...)，不得再让用户确认，不得先调用 ai_speak、解释或重新申请。在确认前不会截屏。",
       "display": {
         "icon": "👁️",
         "label": "申请视觉授权"
@@ -1456,7 +1456,7 @@
       "parameters": {}
     },
     {
-      "description": "用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。",
       "display": {
         "icon": "👁️",
         "label": "睁眼"
@@ -1471,7 +1471,7 @@
       }
     },
     {
-      "description": "关闭视觉，停止采集并清空队列；不需要用户确认。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。关闭视觉，停止采集并清空队列；不需要用户确认。",
       "display": {
         "icon": "🙈",
         "label": "闭眼"

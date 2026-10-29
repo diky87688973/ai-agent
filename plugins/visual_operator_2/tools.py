@@ -300,8 +300,14 @@ class VisionStopTool(ToolPlugin):
         return self._runtime.stop(_cid())
 
 
+SKILL_REQUIRED = (
+    "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 "
+    "windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。"
+)
+
+
 def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
-    return [
+    tools = [
         VisionRequestOpenTool(runtime),
         VisionStartTool(runtime),
         VisionMoveTool(runtime),
@@ -311,5 +317,8 @@ def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
         VisionKeyTool(runtime),
         VisionStopTool(runtime),
     ]
+    for tool in tools:
+        tool.description = SKILL_REQUIRED + str(tool.description)
+    return tools
 
 __all__ = ["build_tools"]
