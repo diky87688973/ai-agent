@@ -11,8 +11,8 @@ from pathlib import Path
 class VisionConfig:
     fps: float = 5.0
     queue_size: int = 2
-    focus_width: int = 200
-    focus_height: int = 200
+    focus_width: int = 512
+    focus_height: int = 512
     focus_zoom: float = 1.0
     settle_ms: int = 100
     takeover_distance: int = 100
@@ -21,7 +21,7 @@ class VisionConfig:
     image_format: str = "WEBP"
     image_quality: int = 80
     square_size: int = 1024
-    focus_max_side: int = 200
+    focus_max_side: int = 512
 
 
 def _int(section: configparser.SectionProxy, key: str, default: int,
@@ -63,8 +63,8 @@ def load_config(path: Path | None = None) -> VisionConfig:
     return VisionConfig(
         fps=_float(vision, "fps", 5.0, 0.2, 30.0),
         queue_size=2,
-        focus_width=_int(vision, "focus_width", 200, 64, 4096),
-        focus_height=_int(vision, "focus_height", 200, 64, 4096),
+        focus_width=_int(vision, "focus_width", 512, 64, 4096),
+        focus_height=_int(vision, "focus_height", 512, 64, 4096),
         focus_zoom=_float(vision, "focus_zoom", 1.0, 1.0, 4.0),
         settle_ms=_int(vision, "settle_ms", 100, 0, 5000),
         takeover_distance=_int(vision, "takeover_distance", 100, 1, 2000),
@@ -73,7 +73,7 @@ def load_config(path: Path | None = None) -> VisionConfig:
         image_format=fmt,
         image_quality=_int(image, "quality", 80, 1, 100),
         square_size=_int(image, "square_size", 1024, 256, 2048),
-        focus_max_side=_int(image, "focus_max_side", 200, 64, 4096),
+        focus_max_side=_int(image, "focus_max_side", 512, 64, 4096),
     )
 
 __all__ = ["VisionConfig", "load_config"]
