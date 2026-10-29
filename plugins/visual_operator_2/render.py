@@ -137,10 +137,25 @@ def draw_observation_axes(full: Image.Image, local: Image.Image,
 def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:
     x, y = int(point[0]), int(point[1])
     draw = ImageDraw.Draw(image)
-    draw.ellipse((x - 9, y - 9, x + 9, y + 9), outline=(255, 60, 60), width=2)
-    draw.line((x - 14, y, x + 14, y), fill=(255, 60, 60), width=1)
-    draw.line((x, y - 14, x, y + 14), fill=(255, 60, 60), width=1)
-    draw.ellipse((x - 2, y - 2, x + 2, y + 2), fill=(255, 220, 60))
+    color = (0, 255, 255)
+    draw.ellipse((x - 22, y - 22, x + 22, y + 22), outline=(0, 0, 0), width=6)
+    draw.ellipse((x - 22, y - 22, x + 22, y + 22), outline=color, width=3)
+    draw.line((x - 42, y, x + 42, y), fill=(0, 0, 0), width=6)
+    draw.line((x, y - 42, x, y + 42), fill=(0, 0, 0), width=6)
+    draw.line((x - 42, y, x + 42, y), fill=color, width=3)
+    draw.line((x, y - 42, x, y + 42), fill=color, width=3)
+    draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=(255, 255, 255))
+    try:
+        from PIL import ImageFont
+        font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 24)
+    except Exception:
+        font = None
+    label = f"cursor {x},{y}"
+    if font is not None:
+        left = min(image.width - 220, max(4, x + 28))
+        top = min(image.height - 34, max(4, y - 32))
+        draw.rectangle((left, top, left + 212, top + 30), fill=(0, 0, 0))
+        draw.text((left + 6, top + 3), label, fill=color, font=font)
 
 
 def data_url(image: Image.Image, config: VisionConfig) -> str:
