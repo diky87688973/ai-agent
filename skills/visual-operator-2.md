@@ -131,6 +131,26 @@ vision_focus(region={...}, center_cursor=true)
 
 `region` 使用屏幕坐标区域，超出屏幕的部分会先裁剪。聚焦只影响第二张观察图，不改变完整图坐标。
 
+## 6. 连续点击
+
+多个已确认点一次完成：
+
+```text
+vision_click_sequence(
+  points=[{"x":...,"y":...}, {"x":...,"y":...}],
+  width=..., height=...,
+  image_width=..., image_height=...,
+  interval_ms=60,
+  count=1
+)
+```
+
+每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。
+
+`width/height` 是模型看到的整张图尺寸；`image_width/image_height` 是原始截图尺寸。
+
+目标布局会在点击后变化时，不拿旧帧的多个点继续点。
+
 ## 6. 点击后的观察
 
 `vision_click` 会在 `settle_ms` 后抓一帧，并返回：

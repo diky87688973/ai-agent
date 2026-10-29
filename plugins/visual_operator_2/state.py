@@ -440,6 +440,24 @@ class VisionRuntime:
                 "cursor_after": {"x": after[0], "y": after[1]},
             }
 
+    @staticmethod
+    def _model_point_screen(frame: Frame, x: int, y: int, width: int,
+                            height: int, image_width: int,
+                            image_height: int) -> Dict[str, Any]:
+        screen_w, screen_h = frame.image.width, frame.image.height
+        scale_x = (image_width / float(width)) * (screen_w / float(image_width))
+        scale_y = (image_height / float(height)) * (screen_h / float(image_height))
+        screen_x = round(int(x) * scale_x)
+        screen_y = round(int(y) * scale_y)
+        return {
+            "screen": {
+                "x": max(0, min(screen_w - 1, screen_x)),
+                "y": max(0, min(screen_h - 1, screen_y)),
+            },
+            "screen_size": [screen_w, screen_h],
+            "scale": {"x": scale_x, "y": scale_y},
+        }
+
     def move_point(self, conversation_id: str, x: int, y: int,
                    width: int, height: int, image_width: int,
                    image_height: int) -> Dict[str, Any]:
@@ -455,13 +473,10 @@ class VisionRuntime:
             if image_width <= 0 or image_height <= 0:
                 return {"ok": False, "error": "image_width/image_height 必须大于 0"}
             frame = self._frames[-1]
-            screen_w, screen_h = frame.image.width, frame.image.height
-            scale_x = (image_width / float(width)) * (screen_w / float(image_width))
-            scale_y = (image_height / float(height)) * (screen_h / float(image_height))
-            screen_x = round(int(x) * scale_x)
-            screen_y = round(int(y) * scale_y)
-            screen_x = max(0, min(screen_w - 1, screen_x))
-            screen_y = max(0, min(screen_h - 1, screen_y))
+            mapped = self._model_point_screen(
+                frame, x, y, width, height, image_width, image_height)
+            screen_x = mapped["screen"]["x"]
+            screen_y = mapped["screen"]["y"]
             before = self._cursor()
             try:
                 backend.set_cursor(screen_x, screen_y)
@@ -475,9 +490,9 @@ class VisionRuntime:
                 "model_point": {"x": int(x), "y": int(y)},
                 "model_image_size": [int(width), int(height)],
                 "original_image_size": [int(image_width), int(image_height)],
-                "screen_size": [screen_w, screen_h],
-                "scale": {"x": scale_x, "y": scale_y},
-                "target_screen": {"x": screen_x, "y": screen_y},
+                "screen_size": mapped["screen_size"],
+                "scale": mapped["scale"],
+                "target_screen": mapped["screen"],
                 "cursor_before": {"x": before[0], "y": before[1]},
                 "cursor_after": {"x": after[0], "y": after[1]},
             }
@@ -503,6 +518,65 @@ class VisionRuntime:
             "observation_frame_id": post_frame or "",
             "observation_note": "下一次模型请求尾部带动作后的完整图和聚焦图",
             "settle_ms": self.config.settle_ms,
+        }
+
+    def click_sequence(self, conversation_id: str, points: List[Dict[str, int]],
+                       width: int, height: int, image_width: int,
+                       image_height: int, interval_ms: int = 60,
+                       count: int = 1) -> Dict[str, Any]:
+        with self._lock:
+            if self._takeover:
+                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
+            if not self._eyes_open or self._owner != str(conversation_id or ""):
+                return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
+            if not self._frames:
+                return {"ok": False, "error": "当前没有观察帧"}
+            if not points:
+                return {"ok": False, "error": "points 不能为空"}
+            if width <= 0 or height <= 0 or image_width <= 0 or image_height <= 0:
+                return {"ok": False, "error": "width/height/image_width/image_height 必须大于 0"}
+            frame = self._frames[-1]
+            targets = []
+            for point in points:
+                mapped = self._model_point_screen(
+                    frame, int(point["x"]), int(point["y"]),
+                    width, height, image_width, image_height)
+                targets.append({
+                    "model_point": {"x": int(point["x"]), "y": int(point["y"])},
+                    "target_screen": mapped["screen"],
+                })
+        interval = max(0, min(1000, int(interval_ms)))
+        per_point = max(1, min(3, int(count)))
+        clicks: List[Dict[str, Any]] = []
+        try:
+            for index, target in enumerate(targets):
+                with self._lock:
+                    if self._takeover:
+                        return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权",
+                                "clicks": clicks}
+                    if not self._eyes_open or self._owner != str(conversation_id or ""):
+                        return {"ok": False, "error": "眼睛未打开或不属于当前会话",
+                                "clicks": clicks}
+                backend.set_cursor(target["target_screen"]["x"],
+                                   target["target_screen"]["y"])
+                backend.click("left", per_point)
+                clicks.append(target)
+                if index < len(targets) - 1 and interval > 0:
+                    time.sleep(interval / 1000.0)
+        except (KeyError, TypeError, ValueError, OSError, RuntimeError) as exc:
+            return {"ok": False, "error": str(exc), "clicks": clicks}
+        post_frame = self._capture_after_action(conversation_id)
+        self._wake.set()
+        return {
+            "ok": True,
+            "coordinate_space": "model_image",
+            "model_image_size": [int(width), int(height)],
+            "original_image_size": [int(image_width), int(image_height)],
+            "clicks": clicks,
+            "interval_ms": interval,
+            "count": per_point,
+            "observation_frame_id": post_frame or "",
+            "observation_note": "下一次模型请求尾部带动作后的完整图和聚焦图",
         }
 
     def key(self, conversation_id: str, keys: List[str]) -> Dict[str, Any]:

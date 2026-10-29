@@ -310,18 +310,40 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
-    def test_click_tool_has_no_coordinates_or_sequence(self) -> None:
+    def test_click_sequence_uses_same_point_conversion(self) -> None:
+        calls = []
+        runtime = self._runtime()
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            with patch("plugins.visual_operator_2.state.backend.set_cursor",
+                       side_effect=lambda x, y: calls.append((x, y))), \
+                 patch("plugins.visual_operator_2.state.backend.click"):
+                result = runtime.click_sequence(
+                    "cid-a",
+                    [{"x": 40, "y": 40}, {"x": 120, "y": 120}],
+                    160, 160, 320, 240, interval_ms=0, count=1)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["clicks"][0]["target_screen"], {"x": 80, "y": 60})
+            self.assertEqual(result["clicks"][1]["target_screen"], {"x": 240, "y": 180})
+            self.assertEqual(calls, [(80, 60), (240, 180)])
+            self.assertTrue(result["observation_frame_id"])
+        finally:
+            runtime.close()
+
+    def test_click_tools_and_sequence_contract(self) -> None:
         from plugins.visual_operator_2.tools import VisionClickTool, build_tools
 
         self.assertEqual(VisionClickTool.parameters, {})
         names = [tool.name for tool in build_tools(self._runtime())]
         self.assertIn("vision_click", names)
+        self.assertIn("vision_click_sequence", names)
         self.assertIn("vision_move_point", names)
         self.assertNotIn("vision_move_to", names)
         self.assertNotIn("vision_move_box", names)
         self.assertNotIn("vision_click_at", names)
         self.assertNotIn("vision_click_offset", names)
-        self.assertNotIn("vision_click_sequence", names)
 
     def test_visual_skill_is_registered(self) -> None:
         from pathlib import Path

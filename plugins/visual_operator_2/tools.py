@@ -164,6 +164,56 @@ class VisionClickTool(ToolPlugin):
         return self._runtime.click(_cid())
 
 
+class VisionClickSequenceTool(ToolPlugin):
+    name = "vision_click_sequence"
+    label = "连续点击"
+    icon = "🖱️"
+    parallel_safe = False
+    description = (
+        "按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 width/height "
+        "模型图尺寸和 image_width/image_height 原始尺寸做双轴换算；"
+        "width/height 是整张模型可见图，不是目标框。"
+    )
+    parameters = {
+        "points": {
+            "type": "array",
+            "description": "模型看到的图上的点序列",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer"},
+                    "y": {"type": "integer"},
+                },
+                "required": ["x", "y"],
+            },
+        },
+        "width": {"type": "integer", "description": "模型看到的整张图宽度"},
+        "height": {"type": "integer", "description": "模型看到的整张图高度"},
+        "image_width": {"type": "integer", "description": "原始截图宽度"},
+        "image_height": {"type": "integer", "description": "原始截图高度"},
+        "interval_ms": {"type": "integer", "description": "点与点之间的间隔，0~1000"},
+        "count": {"type": "integer", "description": "每个点点击次数，1~3"},
+    }
+
+    def __init__(self, runtime: VisionRuntime) -> None:
+        self._runtime = runtime
+
+    def execute(self, arguments: Dict[str, Any]) -> Any:
+        points = arguments.get("points")
+        if not isinstance(points, list) or not points:
+            raise ValueError("points 不能为空")
+        for point in points:
+            if not isinstance(point, dict) or "x" not in point or "y" not in point:
+                raise ValueError("每个 point 必须是 {x, y}")
+        return self._runtime.click_sequence(
+            _cid(), points,
+            int(arguments["width"]), int(arguments["height"]),
+            int(arguments["image_width"]), int(arguments["image_height"]),
+            int(arguments.get("interval_ms") or 0),
+            int(arguments.get("count") or 1),
+        )
+
+
 class VisionKeyTool(ToolPlugin):
     name = "vision_key"
     label = "按键"
@@ -212,6 +262,7 @@ def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
         VisionMoveTool(runtime),
         VisionMovePointTool(runtime),
         VisionClickTool(runtime),
+        VisionClickSequenceTool(runtime),
         VisionKeyTool(runtime),
         VisionStopTool(runtime),
     ]
