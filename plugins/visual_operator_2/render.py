@@ -112,12 +112,12 @@ def draw_screen_axis(image: Image.Image, image_rect: dict, screen_rect: dict,
     step = max(1, int(step))
     for gx in range((sx + step - 1) // step * step, sx + sw + 1, step):
         px = ix + round((gx - sx) * iw / sw)
-        draw.line((px, iy, px, iy + ih), fill=(70, 82, 96), width=1)
-        draw.text((px + 2, max(0, iy - 15)), f"x{gx}", fill=(255, 214, 80))
+        draw.line((px, iy, px, iy + ih), fill=(255, 60, 60), width=1)
+        draw.text((px + 2, max(0, iy - 15)), f"x{gx}", fill=(255, 60, 60))
     for gy in range((sy + step - 1) // step * step, sy + sh + 1, step):
         py = iy + round((gy - sy) * ih / sh)
-        draw.line((ix, py, ix + iw, py), fill=(70, 82, 96), width=1)
-        draw.text((ix + 2, max(0, py + 1)), f"y{gy}", fill=(255, 214, 80))
+        draw.line((ix, py, ix + iw, py), fill=(255, 60, 60), width=1)
+        draw.text((ix + 2, max(0, py + 1)), f"y{gy}", fill=(255, 60, 60))
 
 
 def draw_observation_axes(full: Image.Image, local: Image.Image,
@@ -137,25 +137,14 @@ def draw_observation_axes(full: Image.Image, local: Image.Image,
 def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:
     x, y = int(point[0]), int(point[1])
     draw = ImageDraw.Draw(image)
-    color = (0, 255, 255)
+    color = (255, 230, 0)
     draw.ellipse((x - 22, y - 22, x + 22, y + 22), outline=(0, 0, 0), width=6)
     draw.ellipse((x - 22, y - 22, x + 22, y + 22), outline=color, width=3)
     draw.line((x - 42, y, x + 42, y), fill=(0, 0, 0), width=6)
     draw.line((x, y - 42, x, y + 42), fill=(0, 0, 0), width=6)
     draw.line((x - 42, y, x + 42, y), fill=color, width=3)
     draw.line((x, y - 42, x, y + 42), fill=color, width=3)
-    draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=(255, 255, 255))
-    try:
-        from PIL import ImageFont
-        font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 24)
-    except Exception:
-        font = None
-    label = f"cursor {x},{y}"
-    if font is not None:
-        left = min(image.width - 220, max(4, x + 28))
-        top = min(image.height - 34, max(4, y - 32))
-        draw.rectangle((left, top, left + 212, top + 30), fill=(0, 0, 0))
-        draw.text((left + 6, top + 3), label, fill=color, font=font)
+    draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=color)
 
 
 def data_url(image: Image.Image, config: VisionConfig) -> str:
