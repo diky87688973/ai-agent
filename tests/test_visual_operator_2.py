@@ -52,6 +52,20 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_new_consent_call_supersedes_pending_request(self) -> None:
+        runtime = self._runtime()
+        try:
+            first = runtime.request_open("cid-a", "call-a")
+            second = runtime.request_open("cid-a", "call-b")
+            self.assertNotEqual(first["request_id"], second["request_id"])
+            self.assertFalse(second["reused"])
+            self.assertFalse(runtime.confirm(
+                "cid-a", first["request_id"], "agree")["ok"])
+            self.assertTrue(runtime.confirm(
+                "cid-a", second["request_id"], "agree")["ok"])
+        finally:
+            runtime.close()
+
     def test_reject_does_not_open(self) -> None:
         runtime = self._runtime()
         try:

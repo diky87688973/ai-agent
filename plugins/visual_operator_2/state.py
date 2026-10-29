@@ -88,13 +88,15 @@ class VisionRuntime:
             if self._pending is not None:
                 if self._pending.conversation_id != cid:
                     return {"ok": False, "error": "其他会话有未完成的授权请求"}
-                return {
-                    "ok": True,
-                    "request_id": self._pending.request_id,
-                    "title": CONSENT_TITLE,
-                    "options": list(CONSENT_OPTIONS),
-                    "reused": True,
-                }
+                if self._pending.call_id == str(call_id or ""):
+                    return {
+                        "ok": True,
+                        "request_id": self._pending.request_id,
+                        "title": CONSENT_TITLE,
+                        "options": list(CONSENT_OPTIONS),
+                        "reused": True,
+                    }
+                self._pending = None
             request = PendingConsent(
                 request_id="consent_req_" + uuid.uuid4().hex,
                 conversation_id=cid,

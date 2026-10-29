@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2034** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2035** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -104,7 +104,7 @@
 93. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
 94. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
 95. [test_visual_operator.py](#test_visual_operatorpy)（160）
-96. [test_visual_operator_2.py](#test_visual_operator_2py)（20）
+96. [test_visual_operator_2.py](#test_visual_operator_2py)（21）
 97. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
 98. [test_web_auth.py](#test_web_authpy)（26）
 99. [test_web_frontend.py](#test_web_frontendpy)（5）
@@ -2616,7 +2616,7 @@
 
 ## test_visual_operator_2.py
 
-共 20 个用例。
+共 21 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2633,13 +2633,14 @@
 | 11 | `VisionRuntimeTest` | `test_model_point_uses_both_image_sizes` | 覆盖「A class whose instances are single test cases」：model point uses both image sizes |
 | 12 | `VisionRuntimeTest` | `test_model_stretched_image_uses_independent_axes` | 覆盖「A class whose instances are single test cases」：model stretched image uses independent axes |
 | 13 | `VisionRuntimeTest` | `test_native_full_image_is_screen_identity` | 覆盖「A class whose instances are single test cases」：native full image is screen identity |
-| 14 | `VisionRuntimeTest` | `test_reject_does_not_open` | 覆盖「A class whose instances are single test cases」：reject does not open |
-| 15 | `VisionRuntimeTest` | `test_single_click_count_and_interval` | 覆盖「A class whose instances are single test cases」：single click count and interval |
-| 16 | `VisionRuntimeTest` | `test_tools_require_consent_and_close_cleanly` | 覆盖「A class whose instances are single test cases」：tools require consent and close cleanly |
-| 17 | `VisionRuntimeTest` | `test_trajectory_duration_and_same_point_skip` | 覆盖「A class whose instances are single test cases」：trajectory duration and same point skip |
-| 18 | `VisionRuntimeTest` | `test_user_takeover_closes_eyes_and_blocks_actions` | 覆盖「A class whose instances are single test cases」：user takeover closes eyes and blocks actions |
-| 19 | `VisionRuntimeTest` | `test_visual_skill_is_registered` | 覆盖「A class whose instances are single test cases」：visual skill is registered |
-| 20 | `VisionRuntimeTest` | `test_zero_move_is_not_reported_as_moved` | 覆盖「A class whose instances are single test cases」：zero move is not reported as moved |
+| 14 | `VisionRuntimeTest` | `test_new_consent_call_supersedes_pending_request` | 覆盖「A class whose instances are single test cases」：new consent call supersedes pending request |
+| 15 | `VisionRuntimeTest` | `test_reject_does_not_open` | 覆盖「A class whose instances are single test cases」：reject does not open |
+| 16 | `VisionRuntimeTest` | `test_single_click_count_and_interval` | 覆盖「A class whose instances are single test cases」：single click count and interval |
+| 17 | `VisionRuntimeTest` | `test_tools_require_consent_and_close_cleanly` | 覆盖「A class whose instances are single test cases」：tools require consent and close cleanly |
+| 18 | `VisionRuntimeTest` | `test_trajectory_duration_and_same_point_skip` | 覆盖「A class whose instances are single test cases」：trajectory duration and same point skip |
+| 19 | `VisionRuntimeTest` | `test_user_takeover_closes_eyes_and_blocks_actions` | 覆盖「A class whose instances are single test cases」：user takeover closes eyes and blocks actions |
+| 20 | `VisionRuntimeTest` | `test_visual_skill_is_registered` | 覆盖「A class whose instances are single test cases」：visual skill is registered |
+| 21 | `VisionRuntimeTest` | `test_zero_move_is_not_reported_as_moved` | 覆盖「A class whose instances are single test cases」：zero move is not reported as moved |
 
 ## test_wake_scheduler.py
 
