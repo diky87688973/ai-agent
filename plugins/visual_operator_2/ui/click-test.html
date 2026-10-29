@@ -63,6 +63,25 @@ body {
 }
 #reset:hover { background: #2a3547; border-color: #5b708c; }
 #reset:active { transform: translateY(1px); }
+.settings {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.settings input {
+  width: 48px;
+  border: 1px solid #3b4a5f;
+  background: #202938;
+  color: var(--text);
+  border-radius: 7px;
+  padding: 7px 6px;
+  font-size: 13px;
+  text-align: center;
+}
+.settings input:focus { outline: 1px solid #57e08a; border-color: #57e08a; }
 #fullscreen {
   border: 1px solid #3b4a5f;
   background: #202938;
@@ -187,6 +206,13 @@ body {
       <div class="metric"><span>误点</span><b id="misses">0</b></div>
       <div class="metric"><span>剩余方块</span><b id="targetsLeft">0</b></div>
     </div>
+    <div class="settings" title="每个方块随机剩余点击次数">
+      <span>随机点击</span>
+      <input id="minClicks" type="number" min="1" max="10" step="1" value="1" aria-label="最少点击次数"/>
+      <span>~</span>
+      <input id="maxClicks" type="number" min="1" max="10" step="1" value="3" aria-label="最多点击次数"/>
+      <span>次</span>
+    </div>
     <div id="feedback">等待点击</div>
     <button type="button" id="fullscreen">全屏</button>
     <button type="button" id="reset">重置</button>
@@ -227,7 +253,12 @@ body {
   var resultHitsEl = document.getElementById("resultHits");
   var resultMissesEl = document.getElementById("resultMisses");
   var replay = document.getElementById("replay");
+  var minClicksEl = document.getElementById("minClicks");
+  var maxClicksEl = document.getElementById("maxClicks");
 
+  var CLICK_SETTINGS_KEY = "visual-operator-2.click-test.random-clicks";
+  var minClicks = 1;
+  var maxClicks = 3;
   var ROUND_MS = 60000;
   var score = 0;
   var hits = 0;
@@ -240,6 +271,52 @@ body {
 
   function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function clampClicks(value, fallback) {
+    var number = parseInt(value, 10);
+    if (!isFinite(number)) return fallback;
+    return Math.max(1, Math.min(10, number));
+  }
+
+  function normalizeClickSettings() {
+    minClicks = clampClicks(minClicksEl.value, 1);
+    maxClicks = clampClicks(maxClicksEl.value, 3);
+    if (maxClicks < minClicks) maxClicks = minClicks;
+    minClicksEl.value = String(minClicks);
+    maxClicksEl.value = String(maxClicks);
+  }
+
+  function loadClickSettings() {
+    var saved = null;
+    try {
+      saved = window.localStorage.getItem(CLICK_SETTINGS_KEY);
+    } catch (err) {
+      saved = null;
+    }
+    if (saved) {
+      try {
+        var parsed = JSON.parse(saved);
+        minClicksEl.value = String(clampClicks(parsed.min, 1));
+        maxClicksEl.value = String(clampClicks(parsed.max, 3));
+      } catch (err) {
+        minClicksEl.value = "1";
+        maxClicksEl.value = "3";
+      }
+    }
+    normalizeClickSettings();
+  }
+
+  function saveClickSettings() {
+    normalizeClickSettings();
+    try {
+      window.localStorage.setItem(CLICK_SETTINGS_KEY, JSON.stringify({
+        min: minClicks,
+        max: maxClicks
+      }));
+    } catch (err) {
+      return;
+    }
   }
 
   function setFeedback(text, kind) {
@@ -349,7 +426,7 @@ body {
     for (var k = 0; k < count; k++) {
       var maxSize = Math.max(16, Math.min(48, Math.floor(Math.min(rect.width, rect.height) * 0.1)));
       var size = randomInt(16, maxSize);
-      var remaining = randomInt(1, 3);
+      var remaining = randomInt(minClicks, maxClicks);
       makeTarget(size, remaining, regions[k]);
     }
     updateHud();
@@ -414,6 +491,13 @@ body {
     resetGame();
   });
 
+  [minClicksEl, maxClicksEl].forEach(function (input) {
+    input.addEventListener("change", function () {
+      saveClickSettings();
+      setFeedback("随机点击 " + minClicks + "~" + maxClicks + " 次");
+    });
+  });
+
   fullscreen.addEventListener("click", function () {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(function () {});
@@ -430,6 +514,7 @@ body {
     if (running && targets.length) spawnBatch();
   });
 
+  loadClickSettings();
   resetGame();
   updateHud();
 })();
