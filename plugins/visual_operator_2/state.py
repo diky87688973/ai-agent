@@ -273,11 +273,8 @@ class VisionRuntime:
             if not self._frames:
                 return None
             frame = self._frames[-1]
-            full = render.stretch_to_square(frame.image, self.config.square_size)
-            render.draw_marker(full, (
-                round(frame.cursor[0] * full.width / frame.image.width),
-                round(frame.cursor[1] * full.height / frame.image.height),
-            ))
+            full = frame.image.copy()
+            render.draw_marker(full, frame.cursor)
             age_ms = int((time.monotonic() - frame.captured_at) * 1000)
             full_image = render.data_url(full, self.config)
             full_scale = float(frame.image.width) / float(full.width)
@@ -407,7 +404,7 @@ class VisionRuntime:
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
         return result
     def move_point(self, conversation_id: str, x: int, y: int,
-                   width: int, height: int, image_width: int,
+                   center_x: int, center_y: int, image_width: int,
                    image_height: int) -> Dict[str, Any]:
         with self._lock:
             if self._takeover:
@@ -416,14 +413,14 @@ class VisionRuntime:
                 return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
-            if width <= 0 or height <= 0:
-                return {"ok": False, "error": "width/height 必须大于 0"}
+            if center_x <= 0 or center_y <= 0:
+                return {"ok": False, "error": "center_x/center_y 必须大于 0"}
             if image_width <= 0 or image_height <= 0:
                 return {"ok": False, "error": "image_width/image_height 必须大于 0"}
             frame = self._frames[-1]
             mapped = render.full_point_screen(
                 frame.image.width, frame.image.height,
-                x, y, width, height, image_width, image_height)
+                x, y, center_x, center_y, image_width, image_height)
             screen_x = mapped["screen"]["x"]
             screen_y = mapped["screen"]["y"]
             before = self._cursor()
@@ -441,7 +438,7 @@ class VisionRuntime:
                 "ok": True,
                 "coordinate_space": "model_image",
                 "model_point": {"x": int(x), "y": int(y)},
-                "model_image_size": [int(width), int(height)],
+                "model_center": {"x": int(center_x), "y": int(center_y)},
                 "original_image_size": [int(image_width), int(image_height)],
                 "screen_size": mapped["screen_size"],
                 "scale": mapped["scale"],
@@ -542,7 +539,7 @@ class VisionRuntime:
             "settle_ms": self.config.settle_ms,
         }
     def click_sequence(self, conversation_id: str, points: List[Dict[str, int]],
-                       width: int, height: int, image_width: int,
+                       center_x: int, center_y: int, image_width: int,
                        image_height: int, interval_ms: int = 72,
                        count: int = 1) -> Dict[str, Any]:
         with self._lock:
@@ -554,15 +551,15 @@ class VisionRuntime:
                 return {"ok": False, "error": "当前没有观察帧"}
             if not points:
                 return {"ok": False, "error": "points 不能为空"}
-            if width <= 0 or height <= 0 or image_width <= 0 or image_height <= 0:
-                return {"ok": False, "error": "width/height/image_width/image_height 必须大于 0"}
+            if center_x <= 0 or center_y <= 0 or image_width <= 0 or image_height <= 0:
+                return {"ok": False, "error": "center_x/center_y/image_width/image_height 必须大于 0"}
             frame = self._frames[-1]
             targets = []
             for point in points:
                 mapped = render.full_point_screen(
                     frame.image.width, frame.image.height,
                     int(point["x"]), int(point["y"]),
-                    width, height, image_width, image_height)
+                    center_x, center_y, image_width, image_height)
                 targets.append({
                     "model_point": {"x": int(point["x"]), "y": int(point["y"])},
                     "target_screen": mapped["screen"],
@@ -610,7 +607,7 @@ class VisionRuntime:
         return {
             "ok": True,
             "coordinate_space": "model_image",
-            "model_image_size": [int(width), int(height)],
+            "model_center": {"x": int(center_x), "y": int(center_y)},
             "original_image_size": [int(image_width), int(image_height)],
             "clicks": clicks,
             "interval_ms": interval,

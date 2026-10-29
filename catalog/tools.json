@@ -1316,7 +1316,7 @@
       }
     },
     {
-      "description": "按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 width/height 模型图尺寸和 image_width/image_height 原始尺寸做双轴换算；width/height 是整张模型可见图，不是目标框。",
+      "description": "按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 center_x/center_y 图像中心和 image_width/image_height 原始尺寸做双轴换算；center_x/center_y 是模型可见图的中心点。",
       "display": {
         "icon": "🖱️",
         "label": "连续点击"
@@ -1324,12 +1324,16 @@
       "name": "vision_click_sequence",
       "parallel_safe": false,
       "parameters": {
-        "count": {
-          "description": "每个点点击次数，1~3",
+        "center_x": {
+          "description": "模型看到的图像中心 x",
           "type": "integer"
         },
-        "height": {
-          "description": "模型看到的整张图高度",
+        "center_y": {
+          "description": "模型看到的图像中心 y",
+          "type": "integer"
+        },
+        "count": {
+          "description": "每个点点击次数，1~3",
           "type": "integer"
         },
         "image_height": {
@@ -1365,10 +1369,6 @@
             "type": "object"
           },
           "type": "array"
-        },
-        "width": {
-          "description": "模型看到的整张图宽度",
-          "type": "integer"
         }
       }
     },
@@ -1411,7 +1411,7 @@
       }
     },
     {
-      "description": "按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；width/height 是模型看到的整张图宽高；image_width/image_height 是原始截图宽高，不是压缩后的图。模型直接读图上的 x/y；x、y 两个方向分别按 width/height 独立换算，模型端拉伸不改变落点，模型不要自己换算。",
+      "description": "按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；center_x/center_y 是模型看到的图像中心坐标；image_width/image_height 是原始截图宽高。模型直接读图上的 x/y；用 center_x/center_y 对准屏幕中心后，双轴独立换算，模型不要自己换算。",
       "display": {
         "icon": "🖱️",
         "label": "移动到点"
@@ -1419,8 +1419,12 @@
       "name": "vision_move_point",
       "parallel_safe": false,
       "parameters": {
-        "height": {
-          "description": "模型看到的整张图高度",
+        "center_x": {
+          "description": "模型看到的图像中心 x",
+          "type": "integer"
+        },
+        "center_y": {
+          "description": "模型看到的图像中心 y",
           "type": "integer"
         },
         "image_height": {
@@ -1429,10 +1433,6 @@
         },
         "image_width": {
           "description": "原始截图宽度",
-          "type": "integer"
-        },
-        "width": {
-          "description": "模型看到的整张图宽度",
           "type": "integer"
         },
         "x": {

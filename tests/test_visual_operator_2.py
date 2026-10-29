@@ -103,7 +103,7 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertEqual(payload["conversation_id"], "cid-a")
             self.assertEqual(payload["source"], "model_input")
             self.assertEqual(payload["screen_size"], [320, 240])
-            self.assertEqual(payload["full_size"], [320, 320])
+            self.assertEqual(payload["full_size"], [320, 240])
             self.assertEqual(payload["coordinate_space"], "model_image")
             self.assertGreater(payload["full_scale"], 0)
             self.assertTrue(payload["full_image"].startswith("data:image/"))
@@ -182,16 +182,16 @@ class VisionRuntimeTest(unittest.TestCase):
             with patch("plugins.visual_operator_2.state.backend.set_cursor",
                        side_effect=lambda x, y: calls.append((x, y))), \
                  patch("plugins.visual_operator_2.state.backend.click"):
-                move = runtime.move_point("cid-a", 80, 80, 160, 160, 320, 240)
+                move = runtime.move_point("cid-a", 80, 80, 160, 120, 320, 240)
                 self.assertTrue(move["ok"])
                 self.assertEqual(move["coordinate_space"], "model_image")
                 self.assertEqual(move["model_point"], {"x": 80, "y": 80})
-                self.assertEqual(move["target_screen"], {"x": 160, "y": 120})
-                self.assertEqual(move["target_screen"], {"x": 160, "y": 120})
+                self.assertEqual(move["target_screen"], {"x": 80, "y": 80})
+                self.assertEqual(move["target_screen"], {"x": 80, "y": 80})
                 click = runtime.click("cid-a")
                 self.assertTrue(click["ok"])
                 self.assertTrue(click["observation_frame_id"])
-            self.assertEqual(calls, [(160, 120)])
+            self.assertEqual(calls, [(80, 80)])
         finally:
             runtime.close()
 
@@ -226,10 +226,10 @@ class VisionRuntimeTest(unittest.TestCase):
             with patch("plugins.visual_operator_2.state.backend.set_cursor",
                        side_effect=lambda x, y: calls.append((x, y))):
                 result = runtime.move_point(
-                    "cid-a", 50, 25, 100, 100, 200, 100)
+                    "cid-a", 50, 25, 100, 50, 200, 100)
             self.assertTrue(result["ok"])
-            self.assertEqual(result["target_screen"], {"x": 100, "y": 25})
-            self.assertEqual(calls, [(100, 25)])
+            self.assertEqual(result["target_screen"], {"x": 50, "y": 25})
+            self.assertEqual(calls, [(50, 25)])
         finally:
             runtime.close()
 
@@ -248,15 +248,15 @@ class VisionRuntimeTest(unittest.TestCase):
             runtime.start("cid-a", grant["consent_id"])
             observation = runtime.observe("cid-a")
             assert observation is not None
-            self.assertEqual(observation["full_size"], [1920, 1920])
+            self.assertEqual(observation["full_size"], [1920, 1080])
             self.assertGreater(observation["full_scale"], 0)
             with patch("plugins.visual_operator_2.state.backend.set_cursor",
                        side_effect=lambda x, y: calls.append((x, y))):
-                result = runtime.move_point("cid-a", 512, 512, 1024, 1024, 1920, 1080)
+                result = runtime.move_point("cid-a", 512, 512, 960, 540, 1920, 1080)
             self.assertTrue(result["ok"])
             self.assertEqual(result["model_point"], {"x": 512, "y": 512})
-            self.assertEqual(result["target_screen"], {"x": 960, "y": 540})
-            self.assertEqual(calls, [(960, 540)])
+            self.assertEqual(result["target_screen"], {"x": 512, "y": 512})
+            self.assertEqual(calls, [(512, 512)])
         finally:
             runtime.close()
 
@@ -273,10 +273,10 @@ class VisionRuntimeTest(unittest.TestCase):
             with patch("plugins.visual_operator_2.state.backend.move_cursor",
                        return_value=True):
                 result = runtime.move_point(
-                    "cid-a", 44, 366, 1339, 1080, 1920, 1080)
+                    "cid-a", 44, 366, 669, 540, 1920, 1080)
             self.assertTrue(result["ok"])
             self.assertEqual(result["target_screen"], {"x": 63, "y": 366})
-            self.assertAlmostEqual(result["scale"]["x"], 1.434, places=3)
+            self.assertAlmostEqual(result["scale"]["x"], 1.435, places=3)
             self.assertAlmostEqual(result["scale"]["y"], 1.0, places=3)
         finally:
             runtime.close()
@@ -313,14 +313,14 @@ class VisionRuntimeTest(unittest.TestCase):
                 result = runtime.click_sequence(
                     "cid-a",
                     [{"x": 40, "y": 40}, {"x": 120, "y": 100}],
-                    160, 160, 320, 240, interval_ms=72, count=1)
+                    160, 120, 320, 240, interval_ms=72, count=1)
             self.assertTrue(result["ok"])
-            self.assertEqual(result["clicks"][0]["target_screen"], {"x": 80, "y": 60})
-            self.assertEqual(result["clicks"][1]["target_screen"], {"x": 240, "y": 150})
-            self.assertEqual(calls, [(80, 60), (240, 150)])
+            self.assertEqual(result["clicks"][0]["target_screen"], {"x": 40, "y": 40})
+            self.assertEqual(result["clicks"][1]["target_screen"], {"x": 120, "y": 100})
+            self.assertEqual(calls, [(40, 40), (120, 100)])
             self.assertTrue(result["observation_frame_id"])
             bad = runtime.click_sequence(
-                "cid-a", [{"x": 40, "y": 40}], 160, 160, 320, 240,
+                "cid-a", [{"x": 40, "y": 40}], 160, 120, 320, 240,
                 interval_ms=71, count=1)
             self.assertFalse(bad["ok"])
             self.assertIn("72", bad["error"])
@@ -336,7 +336,7 @@ class VisionRuntimeTest(unittest.TestCase):
             with patch("plugins.visual_operator_2.state.backend.move_cursor") as move:
                 relative = runtime.move("cid-a", 0, 0)
                 point = runtime.move_point(
-                    "cid-a", 160, 160, 320, 320, 320, 240)
+                    "cid-a", 160, 120, 160, 120, 320, 240)
             self.assertTrue(relative["ok"])
             self.assertFalse(relative["moved"])
             self.assertTrue(relative["no_op"])
@@ -361,11 +361,11 @@ class VisionRuntimeTest(unittest.TestCase):
                        return_value=True) as move, \
                  patch("plugins.visual_operator_2.state.backend.click"):
                 self.assertTrue(runtime.move_point(
-                    "cid-a", 512, 640, 1024, 1024, 320, 240)["ok"])
+                    "cid-a", 512, 640, 160, 120, 320, 240)["ok"])
                 self.assertEqual(move.call_args[0][2], 200)
                 result = runtime.click_sequence(
                     "cid-a", [{"x": 40, "y": 40}, {"x": 40, "y": 40}],
-                    160, 160, 320, 240, interval_ms=72, count=1)
+                    160, 120, 320, 240, interval_ms=72, count=1)
             self.assertTrue(result["ok"])
             self.assertEqual(move.call_count, 2)
             self.assertFalse(result["clicks"][1]["moved"])

@@ -127,14 +127,14 @@ class VisionMovePointTool(ToolPlugin):
     parallel_safe = False
     description = (
         "按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；"
-        "width/height 是模型看到的整张图宽高；image_width/image_height 是原始截图宽高，不是压缩后的图。"
-        "模型直接读图上的 x/y；x、y 两个方向分别按 width/height 独立换算，模型端拉伸不改变落点，模型不要自己换算。"
+        "center_x/center_y 是模型看到的图像中心坐标；image_width/image_height 是原始截图宽高。"
+        "模型直接读图上的 x/y；用 center_x/center_y 对准屏幕中心后，双轴独立换算，模型不要自己换算。"
     )
     parameters = {
         "x": {"type": "integer", "description": "目标点在模型看到的图上的 x"},
         "y": {"type": "integer", "description": "目标点在模型看到的图上的 y"},
-        "width": {"type": "integer", "description": "模型看到的整张图宽度"},
-        "height": {"type": "integer", "description": "模型看到的整张图高度"},
+        "center_x": {"type": "integer", "description": "模型看到的图像中心 x"},
+        "center_y": {"type": "integer", "description": "模型看到的图像中心 y"},
         "image_width": {"type": "integer", "description": "原始截图宽度"},
         "image_height": {"type": "integer", "description": "原始截图高度"},
     }
@@ -146,7 +146,7 @@ class VisionMovePointTool(ToolPlugin):
         return self._runtime.move_point(
             _cid(),
             int(arguments["x"]), int(arguments["y"]),
-            int(arguments["width"]), int(arguments["height"]),
+            int(arguments["center_x"]), int(arguments["center_y"]),
             int(arguments["image_width"]), int(arguments["image_height"]),
         )
 
@@ -212,9 +212,9 @@ class VisionClickSequenceTool(ToolPlugin):
     icon = "🖱️"
     parallel_safe = False
     description = (
-        "按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 width/height "
-        "模型图尺寸和 image_width/image_height 原始尺寸做双轴换算；"
-        "width/height 是整张模型可见图，不是目标框。"
+        "按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 center_x/center_y "
+        "图像中心和 image_width/image_height 原始尺寸做双轴换算；"
+        "center_x/center_y 是模型可见图的中心点。"
     )
     parameters = {
         "points": {
@@ -229,8 +229,8 @@ class VisionClickSequenceTool(ToolPlugin):
                 "required": ["x", "y"],
             },
         },
-        "width": {"type": "integer", "description": "模型看到的整张图宽度"},
-        "height": {"type": "integer", "description": "模型看到的整张图高度"},
+        "center_x": {"type": "integer", "description": "模型看到的图像中心 x"},
+        "center_y": {"type": "integer", "description": "模型看到的图像中心 y"},
         "image_width": {"type": "integer", "description": "原始截图宽度"},
         "image_height": {"type": "integer", "description": "原始截图高度"},
         "interval_ms": {"type": "integer", "minimum": 72, "maximum": 1000,
@@ -253,7 +253,7 @@ class VisionClickSequenceTool(ToolPlugin):
             raise ValueError("interval_ms 不能小于 72")
         return self._runtime.click_sequence(
             _cid(), points,
-            int(arguments["width"]), int(arguments["height"]),
+            int(arguments["center_x"]), int(arguments["center_y"]),
             int(arguments["image_width"]), int(arguments["image_height"]),
             interval,
             int(arguments.get("count") or 1),

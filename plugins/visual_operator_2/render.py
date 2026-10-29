@@ -85,25 +85,22 @@ def resolve_focus(frame, _explicit, width: int, height: int) -> dict:
     return {"x": x, "y": y, "width": width, "height": height}
 
 
-def stretch_to_square(image: Image.Image, size: int) -> Image.Image:
-    if int(size) <= 0:
-        size = max(1, image.width, image.height)
-    return image.resize((int(size), int(size)), Image.Resampling.LANCZOS)
-
-
 def full_point_screen(screen_width: int, screen_height: int, x: int, y: int,
-                      width: int, height: int, image_width: int,
+                      center_x: int, center_y: int, image_width: int,
                       image_height: int) -> dict:
-    scale_x = float(image_width) / float(width)
-    scale_y = float(image_height) / float(height)
-    screen_x = int(x) * scale_x
-    screen_y = int(y) * scale_y
+    center_x = max(1, int(center_x))
+    center_y = max(1, int(center_y))
+    scale_x = float(image_width) / (2.0 * center_x)
+    scale_y = float(image_height) / (2.0 * center_y)
+    screen_x = image_width / 2.0 + (int(x) - center_x) * scale_x
+    screen_y = image_height / 2.0 + (int(y) - center_y) * scale_y
     return {
         "screen": {
             "x": max(0, min(int(image_width) - 1, round(screen_x))),
             "y": max(0, min(int(image_height) - 1, round(screen_y))),
         },
         "screen_size": [int(image_width), int(image_height)],
+        "image_center": [center_x, center_y],
         "scale": {"x": scale_x, "y": scale_y},
     }
 
@@ -132,5 +129,4 @@ def data_url(image: Image.Image, config: VisionConfig) -> str:
 
 
 __all__ = ["clip_focus", "crop_padded", "data_url", "draw_marker", "fit",
-           "full_point_screen", "model_point_screen", "resolve_focus",
-           "stretch_to_square", "zoom"]
+           "full_point_screen", "model_point_screen", "resolve_focus", "zoom"]

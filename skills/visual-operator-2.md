@@ -24,7 +24,7 @@ description: 需要看屏幕、按模型可见图上的点移动鼠标、点击�
 视觉启动后，每个模型请求的尾部自动带一张完整图。
 
 ```text
-完整图：全屏画面拉伸成正方形，无黑区、无辅助线
+完整图：原始尺寸全屏画面，无黑区、无辅助线
 ```
 
 工具返回值不含图片。看到的是下一轮请求尾部的完整图，不是移动或点击工具的返回内容。
@@ -45,40 +45,40 @@ scale_y
 
 ## 3. 坐标
 
-完整图拉伸成正方形，不填充黑区。
+完整图使用原始截图，不填充黑区。
 
 模型只上报图上的读数，不自己换算屏幕坐标：
 
 
 ```text
 x、y：目标点在模型看到的图上的像素
-width、height：模型看到的整张图宽高
+center_x、center_y：模型看到的图像中心坐标
 image_width、image_height：原始截图宽高，取 original_image_size
 ```
 
 工具按模型图宽高和原始尺寸分别换算 screen_x/screen_y；模型只给图上的 x/y，不自己换算。
 
 ```text
-u = (x - content_x) / content_width
-v = (y - content_y) / content_height
-screen_x = u * screen_width
-screen_y = v * screen_height
+scale_x = image_width / (2 * center_x)
+scale_y = image_height / (2 * center_y)
+screen_x = image_width / 2 + (x - center_x) * scale_x
+screen_y = image_height / 2 + (y - center_y) * scale_y
 ```
 
-两个方向独立，不假设等比。模型端把图片拉伸成任意 width/height 也不影响落点。
+两个方向独立，不假设等比。模型端把图片拉伸成任意尺寸也不影响落点。
 
 示例：
 
 ```text
 屏幕：200×100
-模型看到正方形：100×100
+模型看到的图中心：center_x=50, center_y=50
 目标点：x=50, y=50
 
-screen_x = 200 / 100 * 50 = 100
-screen_y = 100 / 100 * 50 = 50
+screen_x = 200 / 2 + (50 - 50) * 200 / (2 * 50) = 100
+screen_y = 100 / 2 + (50 - 50) * 100 / (2 * 50) = 50
 ```
 
-所以 `width`、`height` 永远是整张模型可见图，不是目标框的宽高。
+所以 `center_x`、`center_y` 是模型看到的图像中心，不是目标点。
 
 ## 4. 移动与点击
 
@@ -138,7 +138,7 @@ vision_click_sequence(
 
 每个点的 x/y 都按与 `vision_move_point` 完全相同的双轴比例换算。每个新点用 200ms 轨迹滑过去，点完停 72ms；下一个点相同时不再移动，原地点点击。
 
-`width/height` 是模型看到的整张图尺寸；`image_width/image_height` 是原始截图尺寸。
+`center_x/center_y` 是模型看到的图像中心；`image_width/image_height` 是原始截图尺寸。
 
 连续点击结束后等待 `settle_ms=100` 再抓帧。移动鼠标后等待 `move_settle_ms=50` 立即抓帧。
 
