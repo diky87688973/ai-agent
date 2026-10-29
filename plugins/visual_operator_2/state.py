@@ -275,12 +275,18 @@ class VisionRuntime:
             if not self._frames:
                 return None
             frame = self._frames[-1]
-            full = frame.image.copy()
-            render.draw_marker(full, frame.cursor)
-            full = render.fit(full, self.config.image_max_side)
+            full = render.fit(frame.image, self.config.image_max_side)
+            render.draw_marker(full, (
+                round(frame.cursor[0] * full.width / frame.image.width),
+                round(frame.cursor[1] * full.height / frame.image.height),
+            ))
             age_ms = int((time.monotonic() - frame.captured_at) * 1000)
             full_image = render.data_url(full, self.config)
             full_scale = float(frame.image.width) / float(full.width)
+            focus_data: Dict[str, Any] = {}
+            focus_image = ""
+            cursor_in_focus = False
+            images = ["FULL FRAME", full_image]
             text = (
                 "<vision_observation>"
                 f"frame_id={frame.frame_id};age_ms={age_ms};"
@@ -290,26 +296,57 @@ class VisionRuntime:
                 f"compressed_image_size=({full.width},{full.height});"
                 f"coordinate_space=model_image;"
                 f"owner={self._owner}"
-                "</vision_observation>"
             )
+            if self._focus is not None:
+                focus = {**self._focus}
+                local = frame.image.crop((
+                    focus["x"], focus["y"],
+                    focus["x"] + focus["width"], focus["y"] + focus["height"],
+                ))
+                cursor_in_focus = (
+                    focus["x"] <= frame.cursor[0] < focus["x"] + focus["width"]
+                    and focus["y"] <= frame.cursor[1] < focus["y"] + focus["height"]
+                )
+                if cursor_in_focus:
+                    render.draw_marker(local, (
+                        frame.cursor[0] - focus["x"],
+                        frame.cursor[1] - focus["y"],
+                    ))
+                focus_image = render.data_url(local, self.config)
+                focus_data = {
+                    **focus,
+                    "image_size": [local.width, local.height],
+                }
+                images.extend([
+                    "FOCUS FRAME\nfocus=("
+                    + f"{focus['x']},{focus['y']},{focus['width']},{focus['height']})",
+                    focus_image,
+                ])
+                text += (
+                    f";focus=({focus['x']},{focus['y']},"
+                    f"{focus['width']},{focus['height']});"
+                    f"focus_size=({local.width},{local.height})"
+                )
+            text += "</vision_observation>"
             return {
                 "text": text,
-                "images": ["FULL FRAME", full_image],
+                "images": images,
                 "full_image": full_image,
-                "focus_image": "",
+                "focus_image": focus_image,
                 "frame": frame,
                 "frame_id": frame.frame_id,
                 "age_ms": age_ms,
                 "cursor": {"x": frame.cursor[0], "y": frame.cursor[1]},
-                "cursor_in_focus": False,
+                "cursor_in_focus": cursor_in_focus,
                 "screen_size": [frame.image.width, frame.image.height],
                 "full_size": [full.width, full.height],
                 "full_scale": full_scale,
                 "coordinate_space": "model_image",
                 "compressed_image_size": [full.width, full.height],
                 "original_image_size": [frame.image.width, frame.image.height],
-                "focus": {},
+                "focus": focus_data,
             }
+
     def publish_observation(self, observation: Dict[str, Any]) -> None:
         """把即将交给模型的那一帧同步推给前端；不写入会话历史。"""
         if self._publish is None:
@@ -332,49 +369,35 @@ class VisionRuntime:
             "full_image": observation["full_image"],
             "focus_image": observation["focus_image"],
         })
-    def focus(self, conversation_id: str,
-              region: Optional[Dict[str, Any]], center_cursor: bool) -> Dict[str, Any]:
+    def focus(self, conversation_id: str, x: int, y: int,
+              width: int, height: int, center_x: int, center_y: int,
+              image_width: int, image_height: int) -> Dict[str, Any]:
         with self._lock:
             if self._takeover:
                 return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
             if not self._eyes_open or self._owner != str(conversation_id or ""):
                 return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
-            if region is None:
-                self._focus = None
-            else:
-                try:
-                    rect = {
-                        "x": int(region["x"]),
-                        "y": int(region["y"]),
-                        "width": int(region["width"]),
-                        "height": int(region["height"]),
-                    }
-                except (KeyError, TypeError, ValueError):
-                    return {"ok": False, "error": "region 必须是 x/y/width/height"}
-                if not self._frames:
-                    return {"ok": False, "error": "当前没有观察帧"}
-                clipped = render.clip_focus(rect, self._frames[-1].image.size)
-                if clipped is None:
-                    return {"ok": False, "error": "聚焦区域超出屏幕或小于 64×64"}
-                self._focus = clipped
-            before = self._cursor()
-            centered = False
-            if center_cursor and self._focus is not None:
-                rect = self._focus
-                backend.set_cursor(rect["x"] + rect["width"] // 2,
-                                   rect["y"] + rect["height"] // 2)
-                centered = True
-            after = self._cursor()
+            if not self._frames:
+                return {"ok": False, "error": "当前没有观察帧"}
+            frame = self._frames[-1]
+            focus = render.focus_screen_from_model(
+                frame.image.width, frame.image.height,
+                x, y, width, height, center_x, center_y,
+                image_width, image_height,
+            )
+            if focus is None:
+                return {"ok": False, "error": "聚焦区域超出屏幕或小于 64×64"}
+            self._focus = focus
             self._wake.set()
             result = {
                 "ok": True,
-                "focus": self._focus,
-                "cursor_before": {"x": before[0], "y": before[1]},
-                "cursor_after": {"x": after[0], "y": after[1]},
-                "centered": centered,
+                "focus": focus,
+                "focus_size": [focus["width"], focus["height"]],
+                "screen_size": [frame.image.width, frame.image.height],
             }
         result["observation_frame_id"] = self._capture_after_action(conversation_id) or ""
         return result
+
     def move(self, conversation_id: str, dx: int, dy: int) -> Dict[str, Any]:
         with self._lock:
             if self._takeover:
@@ -454,8 +477,7 @@ class VisionRuntime:
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
         return result
     def move_focus(self, conversation_id: str, x: int, y: int,
-                   width: int, height: int, image_width: int,
-                   image_height: int) -> Dict[str, Any]:
+                   width: int, height: int) -> Dict[str, Any]:
         with self._lock:
             if self._takeover:
                 return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
@@ -463,18 +485,15 @@ class VisionRuntime:
                 return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
+            if self._focus is None:
+                return {"ok": False, "error": "当前没有聚焦区域"}
             if width <= 0 or height <= 0:
                 return {"ok": False, "error": "width/height 必须大于 0"}
-            if image_width <= 0 or image_height <= 0:
-                return {"ok": False, "error": "image_width/image_height 必须大于 0"}
-            frame = self._frames[-1]
-            focus = render.resolve_focus(frame, self._focus,
-                                     self.config.focus_width,
-                                     self.config.focus_height)
-            screen_x = round(focus["x"] + int(x) * focus["width"] / float(width))
-            screen_y = round(focus["y"] + int(y) * focus["height"] / float(height))
-            if not (0 <= screen_x < frame.image.width and 0 <= screen_y < frame.image.height):
-                return {"ok": False, "error": "聚焦图目标落在屏幕外"}
+            if not (0 <= int(x) < int(width) and 0 <= int(y) < int(height)):
+                return {"ok": False, "error": "目标点不在聚焦图内"}
+            focus = self._focus
+            mapped = render.focus_point_screen(focus, x, y, width, height)
+            screen_x, screen_y = mapped["x"], mapped["y"]
             before = self._cursor()
             if (screen_x, screen_y) == before:
                 return {"ok": True, "moved": False, "no_op": True}
@@ -490,8 +509,8 @@ class VisionRuntime:
                 "coordinate_space": "focus_image",
                 "model_point": {"x": int(x), "y": int(y)},
                 "model_image_size": [int(width), int(height)],
-                "original_image_size": [int(image_width), int(image_height)],
                 "focus": focus,
+                "scale": mapped["scale"],
                 "target_screen": {"x": screen_x, "y": screen_y},
                 "cursor_before": {"x": before[0], "y": before[1]},
                 "cursor_after": {"x": after[0], "y": after[1]},
@@ -500,6 +519,7 @@ class VisionRuntime:
             conversation_id, self.config.move_settle_ms) or ""
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
         return result
+
     def click(self, conversation_id: str, button: str = "left",
               count: int = 1, interval_ms: int = 72) -> Dict[str, Any]:
         interval = int(interval_ms)

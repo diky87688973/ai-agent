@@ -85,6 +85,41 @@ def resolve_focus(frame, _explicit, width: int, height: int) -> dict:
     return {"x": x, "y": y, "width": width, "height": height}
 
 
+def focus_screen_from_model(screen_width: int, screen_height: int,
+                            x: int, y: int, width: int, height: int,
+                            center_x: int, center_y: int,
+                            image_width: int, image_height: int) -> Optional[dict]:
+    center_x = max(1, int(center_x))
+    center_y = max(1, int(center_y))
+    width = int(width)
+    height = int(height)
+    if width <= 0 or height <= 0:
+        return None
+    scale_x = float(image_width) / (2.0 * center_x)
+    scale_y = float(image_height) / (2.0 * center_y)
+    left = image_width / 2.0 + (int(x) - center_x) * scale_x
+    top = image_height / 2.0 + (int(y) - center_y) * scale_y
+    return clip_focus({
+        "x": round(left), "y": round(top),
+        "width": max(1, round(width * scale_x)),
+        "height": max(1, round(height * scale_y)),
+    }, (screen_width, screen_height))
+
+
+def focus_point_screen(focus: dict, x: int, y: int,
+                       width: int, height: int) -> dict:
+    width = max(1, int(width))
+    height = max(1, int(height))
+    return {
+        "x": round(int(focus["x"]) + int(x) * int(focus["width"]) / float(width)),
+        "y": round(int(focus["y"]) + int(y) * int(focus["height"]) / float(height)),
+        "scale": {
+            "x": float(focus["width"]) / float(width),
+            "y": float(focus["height"]) / float(height),
+        },
+    }
+
+
 def full_point_screen(screen_width: int, screen_height: int, x: int, y: int,
                       center_x: int, center_y: int, image_width: int,
                       image_height: int) -> dict:
@@ -141,4 +176,5 @@ def data_url(image: Image.Image, config: VisionConfig) -> str:
 
 
 __all__ = ["clip_focus", "crop_padded", "data_url", "draw_marker", "fit",
-           "full_point_screen", "model_point_screen", "resolve_focus", "zoom"]
+           "focus_point_screen", "focus_screen_from_model", "full_point_screen",
+           "model_point_screen", "resolve_focus", "zoom"]

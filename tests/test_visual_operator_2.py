@@ -386,6 +386,53 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_focus_region_maps_compressed_image_center(self) -> None:
+        runtime = VisionRuntime(
+            VisionConfig(fps=30, settle_ms=0, image_max_side=1600),
+            capture=lambda: Image.new("RGB", (1920, 1080), (40, 80, 120)),
+            cursor=lambda: (960, 540),
+        )
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            result = runtime.focus(
+                "cid-a", 400, 300, 400, 300, 800, 450, 1920, 1080)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["focus"],
+                             {"x": 480, "y": 360, "width": 480, "height": 360})
+        finally:
+            runtime.close()
+
+    def test_focus_region_and_move_focus(self) -> None:
+        runtime = VisionRuntime(
+            VisionConfig(fps=30, settle_ms=0, square_size=0),
+            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
+            cursor=lambda: (160, 120),
+        )
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            result = runtime.focus(
+                "cid-a", 100, 80, 100, 80, 160, 120, 320, 240)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["focus"],
+                             {"x": 100, "y": 80, "width": 100, "height": 80})
+            observation = runtime.observe("cid-a")
+            assert observation is not None
+            self.assertTrue(observation["cursor_in_focus"])
+            self.assertEqual(observation["focus"]["image_size"], [100, 80])
+            self.assertEqual(len(observation["images"]), 4)
+            with patch("plugins.visual_operator_2.state.backend.move_cursor",
+                       return_value=True) as move:
+                moved = runtime.move_focus("cid-a", 50, 40, 100, 80)
+            self.assertTrue(moved["ok"])
+            self.assertEqual(moved["target_screen"], {"x": 150, "y": 120})
+            move.assert_called_once()
+        finally:
+            runtime.close()
+
     def test_click_tools_and_sequence_contract(self) -> None:
         from plugins.visual_operator_2.tools import VisionClickTool, build_tools
 
@@ -399,7 +446,8 @@ class VisionRuntimeTest(unittest.TestCase):
         self.assertIn("vision_click", names)
         self.assertIn("vision_click_sequence", names)
         self.assertIn("vision_move_point", names)
-        self.assertNotIn("vision_move_focus", names)
+        self.assertIn("vision_focus", names)
+        self.assertIn("vision_move_focus", names)
         self.assertNotIn("vision_move_to", names)
         self.assertNotIn("vision_move_box", names)
         self.assertNotIn("vision_click_at", names)
@@ -417,7 +465,8 @@ class VisionRuntimeTest(unittest.TestCase):
         text = skills.get_skill("visual-operator-2") or ""
         self.assertIn("vision_click", text)
         self.assertIn("vision_move_point", text)
-        self.assertNotIn("vision_move_focus", text)
+        self.assertIn("vision_focus", text)
+        self.assertIn("vision_move_focus", text)
         self.assertIn("coordinate_space=model_image", text)
         self.assertIn("用户接管", text)
 
@@ -474,10 +523,8 @@ class VisionRuntimeTest(unittest.TestCase):
                  patch("plugins.visual_operator_2.state.backend.move_cursor", return_value=True) as move, \
                  patch("plugins.visual_operator_2.state.backend.click") as click, \
                  patch("plugins.visual_operator_2.state.backend.press_keys") as keys:
-                self.assertTrue(runtime.focus("cid-a", {
-                    "x": 20, "y": 20, "width": 100, "height": 80,
-                }, True)["ok"])
-                setcur.assert_called()
+                self.assertTrue(runtime.focus(
+                    "cid-a", 20, 20, 100, 80, 160, 120, 320, 240)["ok"])
                 self.assertTrue(runtime.move("cid-a", 10, 5)["ok"])
                 move.assert_called_once()
                 self.assertTrue(runtime.click("cid-a")["ok"])

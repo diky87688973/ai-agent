@@ -55,12 +55,15 @@ description: 需要看屏幕、按模型可见图上的点移动鼠标、点击�
 视觉启动后，每个模型请求的尾部自动带图。
 
 ```text
-注入内容：只有一张完整图，没有局部放大图
+注入内容：完整图；可选固定聚焦图
 完整图：全屏画面，最长边超过 1600 时按同一比例缩到最长边 1600，短边等比缩小，不填充黑区
+聚焦图：模型指定的固定屏幕区域，1:1 原生像素，不跟随光标，不填充黑区
 光标标记：画面上唯一一处黄色圆圈套十字，圆心即当前鼠标位置，不属于页面元素
 ```
 
 黄色圆圈套十字是画面里唯一的光标标记，与 `cursor` 字段指向同一点。看到它就当鼠标位置读，不要当成待点击的目标。
+
+聚焦图不是光标局部图，不会被鼠标移动改变；聚焦区域由模型用 `vision_focus` 指定，固定到再次修改或闭眼。
 
 取点时先把光标位置与目标分开：方块、按钮一律按自身边界取中点，不参照光标位置。
 
@@ -77,9 +80,37 @@ original_image_size
 compressed_image_size
 coordinate_space=model_image
 owner
+focus
+focus_size
 ```
 
 `original_image_size` 是屏幕尺寸，也是各点击工具 `image_width/image_height` 该取的值；`compressed_image_size` 是压缩后完整图的尺寸，也就是模型看到的那张图的真实宽高。两者不一致时，图上的 x/y 按模型看到的图读。
+
+## 2.1 聚焦区域
+
+模型指定一个固定屏幕区域放大查看：
+
+```text
+vision_focus(
+  x=..., y=...,
+  width=..., height=...,
+  center_x=..., center_y=...,
+  image_width=..., image_height=...
+)
+```
+
+区域坐标取模型图上的像素，工具用 `center_x/center_y` 对准屏幕中心后换算成屏幕区域。区域超出屏幕会裁剪，最小 64×64，不补黑区。
+
+设置后：
+
+```text
+下一帧带完整图 + 聚焦图
+聚焦图保持同一屏幕区域
+不跟随光标移动
+再次 vision_focus 才更换
+```
+
+聚焦图是屏幕 1:1 截图，模型只读聚焦图上的 x/y，不自己换算屏幕坐标。
 
 工具返回的 `scale` 是屏幕坐标与原图尺寸的比值对象，不是模型图的缩放系数；模型图宽高只看 `compressed_image_size`。
 
@@ -131,7 +162,7 @@ screen_y = 100 / 2 + (50 - 50) * 100 / (2 * 50) = 50
 原图尺寸不变：image_width/image_height 取 original_image_size，不随帧改
 落在几何中心：矩形取两对边中点连线的交点，圆取圆心
 先定边再取中：读出目标的左、右、上、下边像素位，取其平均，不凭感觉瞄
-小目标放大看：没有局部图可用，只能靠当前帧自身读边，读不准就不点
+小目标放大看：用 vision_focus 设固定区域，再在聚焦图里读边；读不准就不点
 不用旧帧的数：画面刷新、滚动、布局变化后，旧坐标全部作废
 取完自检：x 落在左右边之间且接近中点，y 落在上下边之间且接近中点
 ```
@@ -158,6 +189,17 @@ vision_move_point(
 ```
 
 `center_x/center_y` 必填，缺任一个工具直接报错；没有 `width/height` 入参。
+
+按聚焦图移动：
+
+```text
+vision_move_focus(
+  x=..., y=...,
+  width=..., height=...
+)
+```
+
+`x/y` 是聚焦图上的像素，`width/height` 是模型看到的聚焦图宽高。工具按当前固定聚焦区域换算屏幕坐标，不需要 center_x/center_y。
 
 相对移动：
 
@@ -188,7 +230,7 @@ vision_click(count=2, interval_ms=72)
 
 移动后不立即盲点；确认新帧里的光标位置。
 
-移动类工具返回的 `observation_note` 写的是“完整图和聚焦图”，但实际注入的只有完整图，不要等局部图。
+移动类工具返回的 `observation_note` 写的是“完整图和聚焦图”；设置聚焦区域后，下一帧确实会带这两张图。
 
 ## 5. 多次点击
 
@@ -227,7 +269,7 @@ observation_note
 
 下一次请求尾部会出现点击后的完整图。点击后先看新帧，再决定下一次移动。
 
-本插件只注册 `vision_request_open`、`vision_start`、`vision_move`、`vision_move_point`、`vision_click`、`vision_click_sequence`、`vision_key`、`vision_stop`。
+本插件注册 `vision_request_open`、`vision_start`、`vision_focus`、`vision_move`、`vision_move_point`、`vision_move_focus`、`vision_click`、`vision_click_sequence`、`vision_key`、`vision_stop`。
 
 ## 7. 用户接管
 

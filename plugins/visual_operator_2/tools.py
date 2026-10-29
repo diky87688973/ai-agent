@@ -69,37 +69,36 @@ class VisionStartTool(ToolPlugin):
 
 class VisionFocusTool(ToolPlugin):
     name = "vision_focus"
-    label = "聚焦"
-    icon = "🎯"
+    label = "聚焦区域"
+    icon = "🔎"
     parallel_safe = False
     description = (
-        "把光标移到指定区域中心；视觉局部图始终跟随光标。"
-        "区域只用于移动光标，不保存固定聚焦范围；center_cursor=true 时把光标放到区域中心。"
-        "region 的 x/y/width/height 是屏幕坐标区域，超出屏幕的部分会先裁剪。"
+        "设置一个固定观察区域；下一帧注入完整图和该区域 1:1 聚焦图。"
+        "x/y/width/height 是区域在模型图上的像素；center_x/center_y 是模型图中心；"
+        "image_width/image_height 是原始屏幕尺寸。区域超出屏幕会裁剪，不补黑。"
     )
     parameters = {
-        "region": {
-            "type": "object",
-            "description": "屏幕坐标区域 {x,y,width,height}；为空表示恢复默认",
-            "properties": {
-                "x": {"type": "integer"},
-                "y": {"type": "integer"},
-                "width": {"type": "integer"},
-                "height": {"type": "integer"},
-            },
-            "required": ["x", "y", "width", "height"],
-        },
-        "center_cursor": {"type": "boolean", "description": "是否把鼠标移到区域中心"},
+        "x": {"type": "integer", "description": "区域左上角在模型图上的 x"},
+        "y": {"type": "integer", "description": "区域左上角在模型图上的 y"},
+        "width": {"type": "integer", "description": "区域在模型图上的宽度"},
+        "height": {"type": "integer", "description": "区域在模型图上的高度"},
+        "center_x": {"type": "integer", "description": "模型图中心 x"},
+        "center_y": {"type": "integer", "description": "模型图中心 y"},
+        "image_width": {"type": "integer", "description": "原始屏幕宽度"},
+        "image_height": {"type": "integer", "description": "原始屏幕高度"},
     }
 
     def __init__(self, runtime: VisionRuntime) -> None:
         self._runtime = runtime
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
-        region = arguments.get("region")
-        if region is not None and not isinstance(region, dict):
-            raise ValueError("region 必须是对象")
-        return self._runtime.focus(_cid(), region, bool(arguments.get("center_cursor")))
+        return self._runtime.focus(
+            _cid(),
+            int(arguments["x"]), int(arguments["y"]),
+            int(arguments["width"]), int(arguments["height"]),
+            int(arguments["center_x"]), int(arguments["center_y"]),
+            int(arguments["image_width"]), int(arguments["image_height"]),
+        )
 
 
 class VisionMoveTool(ToolPlugin):
@@ -153,21 +152,18 @@ class VisionMovePointTool(ToolPlugin):
 
 class VisionMoveFocusTool(ToolPlugin):
     name = "vision_move_focus"
-    label = "移动到局部点"
+    label = "移动到聚焦点"
     icon = "🎯"
     parallel_safe = False
     description = (
-        "按聚焦小图上的点移动鼠标。x/y 是目标点在聚焦小图上的像素；"
-        "width/height 是模型看到的聚焦小图宽高；image_width/image_height 是原始聚焦小图宽高。"
-        "工具按当前 cursor 居中的聚焦区域换算屏幕落点。"
+        "按聚焦图上的点移动鼠标。x/y 是目标点在聚焦图上的像素；"
+        "width/height 是模型看到的聚焦图宽高。工具按当前固定聚焦区域换算屏幕落点。"
     )
     parameters = {
-        "x": {"type": "integer", "description": "目标点在聚焦小图上的 x"},
-        "y": {"type": "integer", "description": "目标点在聚焦小图上的 y"},
-        "width": {"type": "integer", "description": "模型看到的聚焦小图宽度"},
-        "height": {"type": "integer", "description": "模型看到的聚焦小图高度"},
-        "image_width": {"type": "integer", "description": "原始聚焦小图宽度"},
-        "image_height": {"type": "integer", "description": "原始聚焦小图高度"},
+        "x": {"type": "integer", "description": "目标点在聚焦图上的 x"},
+        "y": {"type": "integer", "description": "目标点在聚焦图上的 y"},
+        "width": {"type": "integer", "description": "模型看到的聚焦图宽度"},
+        "height": {"type": "integer", "description": "模型看到的聚焦图高度"},
     }
 
     def __init__(self, runtime: VisionRuntime) -> None:
@@ -178,7 +174,6 @@ class VisionMoveFocusTool(ToolPlugin):
             _cid(),
             int(arguments["x"]), int(arguments["y"]),
             int(arguments["width"]), int(arguments["height"]),
-            int(arguments["image_width"]), int(arguments["image_height"]),
         )
 
 
@@ -310,8 +305,10 @@ def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
     tools = [
         VisionRequestOpenTool(runtime),
         VisionStartTool(runtime),
+        VisionFocusTool(runtime),
         VisionMoveTool(runtime),
         VisionMovePointTool(runtime),
+        VisionMoveFocusTool(runtime),
         VisionClickTool(runtime),
         VisionClickSequenceTool(runtime),
         VisionKeyTool(runtime),

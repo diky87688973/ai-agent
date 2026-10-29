@@ -43,6 +43,7 @@ def _vision_prompt(_cid: str) -> str:
         "该消息为视觉注入, 所有视觉操作必须先查看清楚当前视觉注入内容后再操作, 点击时看清楚鼠标位置和按钮关系!!!\n"
         "视觉操作前必须加载 skills：visual-operator-2 和 windows-desktop-operations。\n"
         "完整图是全屏画面按比例缩放后的图, 无黑区无填充.\n"
+        "设置聚焦后用 vision_focus 指定固定区域; 聚焦图 1:1 不跟随光标, 聚焦图内移动用 vision_move_focus.\n"
         "x、y 就是目标在这张图上量的像素位置, image_width、image_height 取 original_image_size.\n"
         "center_x、center_y 由你给出, 是你看到的这张图的中心像素, 用于与真实屏幕做双边中心对齐: "
         "x 方向用图宽与 center_x 对齐到屏幕宽, y 方向用图高与 center_y 对齐到屏幕高, 两边独立换算.\n"
