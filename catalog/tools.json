@@ -1373,7 +1373,7 @@
       }
     },
     {
-      "description": "设置视觉局部放大区域，并把光标放到区域中心。中心光标点击流程必须先调用本工具，center_cursor=true；region 的 x/y/width/height 是屏幕坐标区域，超出屏幕的部分会先裁剪。",
+      "description": "把光标移到指定区域中心；视觉局部图始终跟随光标。区域只用于移动光标，不保存固定聚焦范围；center_cursor=true 时把光标放到区域中心。region 的 x/y/width/height 是屏幕坐标区域，超出屏幕的部分会先裁剪。",
       "display": {
         "icon": "🎯",
         "label": "聚焦"

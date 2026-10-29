@@ -72,9 +72,7 @@ def model_point_screen(screen_width: int, screen_height: int, x: int, y: int,
     }
 
 
-def resolve_focus(frame, explicit, width: int, height: int) -> dict:
-    if explicit is not None:
-        return {**explicit}
+def resolve_focus(frame, _explicit, width: int, height: int) -> dict:
     cx, cy = frame.cursor
     width = max(1, int(width))
     height = max(1, int(height))

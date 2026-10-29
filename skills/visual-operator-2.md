@@ -158,7 +158,7 @@ vision_focus(region={"x":...,"y":...,"width":...,"height":...})
 vision_focus(region={...}, center_cursor=true)
 ```
 
-`region` 使用屏幕坐标区域。默认聚焦图固定以光标为中心，超出屏幕的部分补黑区；聚焦只影响第二张观察图，不改变完整图坐标。
+`region` 只用于把光标移到区域中心；视觉局部图始终以光标为中心，不保存固定聚焦区域。
 
 ## 6. 连续点击
 

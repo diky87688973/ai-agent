@@ -282,6 +282,8 @@ class VisionRuntimeTest(unittest.TestCase):
             observation = runtime.observe("cid-a")
             assert observation is not None
             self.assertEqual(observation["cursor"], {"x": 140, "y": 120})
+            self.assertEqual(observation["focus"]["x"], 100)
+            self.assertEqual(observation["focus"]["y"], 90)
             self.assertTrue(observation["cursor_in_focus"])
         finally:
             runtime.close()
