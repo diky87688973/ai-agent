@@ -370,12 +370,31 @@ class VisionRuntimeTest(unittest.TestCase):
             with patch("plugins.visual_operator_2.state.backend.move_cursor",
                        return_value=True) as move:
                 result = runtime.move_focus(
-                    "cid-a", 100, 100, 200, 200, 200, 200)
+                    "cid-a", 100, 80, 200, 200, 200, 200)
             self.assertTrue(result["ok"])
             self.assertEqual(result["coordinate_space"], "focus_image")
-            self.assertEqual(result["target_screen"], {"x": 160, "y": 120})
+            self.assertEqual(result["target_screen"], {"x": 160, "y": 100})
             self.assertEqual(result["focus"], {"x": 60, "y": 20, "width": 200, "height": 200})
             self.assertEqual(move.call_count, 1)
+        finally:
+            runtime.close()
+
+    def test_zero_move_is_not_reported_as_moved(self) -> None:
+        runtime = self._runtime()
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            with patch("plugins.visual_operator_2.state.backend.move_cursor") as move:
+                relative = runtime.move("cid-a", 0, 0)
+                point = runtime.move_point(
+                    "cid-a", 512, 512, 1024, 1024, 320, 240)
+            self.assertTrue(relative["ok"])
+            self.assertFalse(relative["moved"])
+            self.assertTrue(relative["no_op"])
+            self.assertFalse(point["moved"])
+            self.assertTrue(point["no_op"])
+            move.assert_not_called()
         finally:
             runtime.close()
 
@@ -394,7 +413,7 @@ class VisionRuntimeTest(unittest.TestCase):
                        return_value=True) as move, \
                  patch("plugins.visual_operator_2.state.backend.click"):
                 self.assertTrue(runtime.move_point(
-                    "cid-a", 80, 80, 160, 160, 320, 240)["ok"])
+                    "cid-a", 512, 640, 1024, 1024, 320, 240)["ok"])
                 self.assertEqual(move.call_args[0][2], 200)
                 result = runtime.click_sequence(
                     "cid-a", [{"x": 40, "y": 40}, {"x": 40, "y": 40}],

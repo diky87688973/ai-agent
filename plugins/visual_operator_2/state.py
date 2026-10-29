@@ -75,7 +75,6 @@ class VisionRuntime:
         self._last_diff = 0.0
         self._last_wake = 0.0
         self._closed = False
-
     # ── 授权 ──────────────────────────────────────────────
     def request_open(self, conversation_id: str, call_id: str) -> Dict[str, Any]:
         cid = str(conversation_id or "").strip()
@@ -266,7 +265,6 @@ class VisionRuntime:
                 "consent_valid": bool(self._grants),
                 "user_takeover": bool(self._takeover),
             }
-
     # ── 观察与动作 ────────────────────────────────────────
     def observe(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:
@@ -341,7 +339,6 @@ class VisionRuntime:
                     "image_size": [local.width, local.height],
                 },
             }
-
     def publish_observation(self, observation: Dict[str, Any]) -> None:
         """把即将交给模型的那一帧同步推给前端；不写入会话历史。"""
         if self._publish is None:
@@ -364,7 +361,6 @@ class VisionRuntime:
             "full_image": observation["full_image"],
             "focus_image": observation["focus_image"],
         })
-
     def focus(self, conversation_id: str,
               region: Optional[Dict[str, Any]], center_cursor: bool) -> Dict[str, Any]:
         with self._lock:
@@ -408,7 +404,6 @@ class VisionRuntime:
             }
         result["observation_frame_id"] = self._capture_after_action(conversation_id) or ""
         return result
-
     def move(self, conversation_id: str, dx: int, dy: int) -> Dict[str, Any]:
         with self._lock:
             if self._takeover:
@@ -418,9 +413,13 @@ class VisionRuntime:
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
             origin = self._frames[-1].cursor
+            target_x = origin[0] + int(dx)
+            target_y = origin[1] + int(dy)
             before = self._cursor()
+            if (target_x, target_y) == before:
+                return {"ok": True, "moved": False, "no_op": True}
             moved = backend.move_cursor(
-                origin[0] + int(dx), origin[1] + int(dy),
+                target_x, target_y,
                 self.config.move_duration_ms,
                 should_stop=lambda: self._takeover or not self._eyes_open)
             if not moved:
@@ -436,7 +435,6 @@ class VisionRuntime:
             conversation_id, self.config.move_settle_ms) or ""
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
         return result
-
     def move_point(self, conversation_id: str, x: int, y: int,
                    width: int, height: int, image_width: int,
                    image_height: int) -> Dict[str, Any]:
@@ -455,9 +453,15 @@ class VisionRuntime:
             mapped = render.full_point_screen(
                 frame.image.width, frame.image.height,
                 x, y, width, height, self.config.square_size)
+            if mapped.get("outside"):
+                return {"ok": False, "error": "目标落在完整图黑区"}
+            screen_x = mapped["screen"]["x"]
+            screen_y = mapped["screen"]["y"]
             before = self._cursor()
+            if (screen_x, screen_y) == before:
+                return {"ok": True, "moved": False, "no_op": True}
             moved = backend.move_cursor(
-                mapped["screen"]["x"], mapped["screen"]["y"],
+                screen_x, screen_y,
                 self.config.move_duration_ms,
                 should_stop=lambda: self._takeover or not self._eyes_open)
             if not moved:
@@ -480,7 +484,6 @@ class VisionRuntime:
             conversation_id, self.config.move_settle_ms) or ""
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
         return result
-
     def move_focus(self, conversation_id: str, x: int, y: int,
                    width: int, height: int, image_width: int,
                    image_height: int) -> Dict[str, Any]:
@@ -504,6 +507,8 @@ class VisionRuntime:
             if not (0 <= screen_x < frame.image.width and 0 <= screen_y < frame.image.height):
                 return {"ok": False, "error": "聚焦图目标落在屏幕外"}
             before = self._cursor()
+            if (screen_x, screen_y) == before:
+                return {"ok": True, "moved": False, "no_op": True}
             moved = backend.move_cursor(
                 screen_x, screen_y, self.config.move_duration_ms,
                 should_stop=lambda: self._takeover or not self._eyes_open)
@@ -526,7 +531,6 @@ class VisionRuntime:
             conversation_id, self.config.move_settle_ms) or ""
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
         return result
-
     def click(self, conversation_id: str, button: str = "left",
               count: int = 1, interval_ms: int = 72) -> Dict[str, Any]:
         interval = int(interval_ms)
@@ -568,7 +572,6 @@ class VisionRuntime:
             "observation_note": "下一次模型请求尾部带动作后的完整图和聚焦图",
             "settle_ms": self.config.settle_ms,
         }
-
     def click_sequence(self, conversation_id: str, points: List[Dict[str, int]],
                        width: int, height: int, image_width: int,
                        image_height: int, interval_ms: int = 72,
@@ -648,7 +651,6 @@ class VisionRuntime:
             "observation_frame_id": post_frame or "",
             "observation_note": "下一次模型请求尾部带动作后的完整图和聚焦图",
         }
-
     def key(self, conversation_id: str, keys: List[str]) -> Dict[str, Any]:
         with self._lock:
             if self._takeover:
@@ -661,9 +663,7 @@ class VisionRuntime:
                 return {"ok": False, "error": str(exc)}
         self._wake.set()
         return {"ok": True, "keys": list(keys)}
-
     # ── 采集 ──────────────────────────────────────────────
-
     def _start_capture_locked(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
@@ -671,7 +671,6 @@ class VisionRuntime:
         self._thread = threading.Thread(
             target=self._capture_loop, name="visual-operator-2-capture", daemon=True)
         self._thread.start()
-
     def _capture_loop(self) -> None:
         interval = 1.0 / max(0.2, float(self.config.fps))
         while not self._stop.is_set():
@@ -695,7 +694,6 @@ class VisionRuntime:
             except Exception as exc:
                 report_error("plugins.visual_operator_2.capture", exc)
                 continue
-
     def _capture_after_action(self, conversation_id: str,
                               delay_ms: Optional[int] = None) -> Optional[str]:
         delay = self.config.settle_ms if delay_ms is None else delay_ms
@@ -722,7 +720,6 @@ class VisionRuntime:
             self._remember_frame(image, before if before == after else after,
                                  generation)
             return self._frames[-1].frame_id if self._frames else None
-
     def _remember_frame(self, image: Image.Image, cursor: Tuple[int, int],
                         generation: int) -> None:
         frame = Frame(
@@ -754,7 +751,6 @@ class VisionRuntime:
                         args=(self._owner,),
                         daemon=True,
                     ).start()
-
     def _wake_owner(self, conversation_id: str) -> None:
         callback = self._wake_model
         if callback is None:
@@ -771,7 +767,6 @@ class VisionRuntime:
         except Exception as exc:
             report_error("plugins.visual_operator_2.publish", exc)
             return
-
     def close(self) -> None:
         backend.release_left()
         self._closed = True
