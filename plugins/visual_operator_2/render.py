@@ -78,8 +78,13 @@ def resolve_focus(frame, explicit, width: int, height: int) -> dict:
     cx, cy = frame.cursor
     width = max(1, int(width))
     height = max(1, int(height))
-    return {"x": cx - width // 2, "y": cy - height // 2,
-            "width": width, "height": height}
+    x = cx - width // 2
+    y = cy - height // 2
+    if frame.image.width >= width:
+        x = max(0, min(frame.image.width - width, x))
+    if frame.image.height >= height:
+        y = max(0, min(frame.image.height - height, y))
+    return {"x": x, "y": y, "width": width, "height": height}
 
 
 def square_content(screen_width: int, screen_height: int, size: int) -> dict:

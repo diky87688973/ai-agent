@@ -286,6 +286,24 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_default_focus_clamps_inside_screen_at_bottom(self) -> None:
+        runtime = VisionRuntime(
+            VisionConfig(fps=30, focus_width=200, focus_height=200, settle_ms=0),
+            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
+            cursor=lambda: (10, 230),
+        )
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            observation = runtime.observe("cid-a")
+            self.assertIsNotNone(observation)
+            self.assertEqual(observation["focus"]["y"], 40)
+            self.assertEqual(observation["focus"]["height"], 200)
+            self.assertTrue(observation["cursor_in_focus"])
+        finally:
+            runtime.close()
+
     def test_focus_clips_at_screen_edge(self) -> None:
         cursor = [160, 120]
         runtime = VisionRuntime(
