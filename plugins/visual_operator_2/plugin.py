@@ -59,14 +59,14 @@ def _vision_prompt(_cid: str) -> str:
         "多个已确认点用 vision_click_sequence，坐标换算与 vision_move_point 相同，"
         "同样要传 width/height/image_width/image_height；interval_ms 缺省 72、最小 72。"
         "工具返回值不含图片，视觉帧在下一轮上下文尾部注入。"
-        "用户手动操作鼠标或键盘会立即闭眼并收回控制权，之后必须重新申请授权。"
+        "用户手动移动鼠标累计超过 100px、点击或按键会闭眼并收回控制权；之后必须重新申请授权。"
         "vision_stop 只关闭视觉，不需要确认。"
     )
 
 
 def register(ctx: Any) -> List[Any]:
     config = load_config()
-    monitor = backend.HumanInputMonitor()
+    monitor = backend.HumanInputMonitor(config.takeover_distance)
     badge = backend.ControlBadge()
     runtime = VisionRuntime(
         config,

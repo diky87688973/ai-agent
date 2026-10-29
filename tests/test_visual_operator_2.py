@@ -454,6 +454,18 @@ class VisionRuntimeTest(unittest.TestCase):
         self.assertIn("coordinate_space=model_image", text)
         self.assertIn("用户接管", text)
 
+    def test_human_mouse_takeover_after_100px(self) -> None:
+        from plugins.visual_operator_2 import backend
+
+        monitor = backend.HumanInputMonitor(100)
+        done = threading.Event()
+        monitor.bind(done.set)
+        monitor.record_human_move(0, 0)
+        monitor.record_human_move(60, 0)
+        self.assertFalse(done.is_set())
+        monitor.record_human_move(120, 0)
+        self.assertTrue(done.wait(1.0))
+
     def test_input_monitor_fires_once_in_worker(self) -> None:
         from plugins.visual_operator_2 import backend
 

@@ -15,6 +15,7 @@ class VisionConfig:
     focus_height: int = 200
     focus_zoom: float = 1.0
     settle_ms: int = 100
+    takeover_distance: int = 100
     move_settle_ms: int = 50
     move_duration_ms: int = 0
     image_format: str = "WEBP"
@@ -66,6 +67,7 @@ def load_config(path: Path | None = None) -> VisionConfig:
         focus_height=_int(vision, "focus_height", 200, 64, 4096),
         focus_zoom=_float(vision, "focus_zoom", 1.0, 1.0, 4.0),
         settle_ms=_int(vision, "settle_ms", 100, 0, 5000),
+        takeover_distance=_int(vision, "takeover_distance", 100, 1, 2000),
         move_settle_ms=_int(vision, "move_settle_ms", 50, 0, 500),
         move_duration_ms=_int(vision, "move_duration_ms", 200, 0, 1000),
         image_format=fmt,

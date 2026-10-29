@@ -49,6 +49,7 @@ _MOUSE_ABSOLUTE = 0x8000
 _KEY_UP = 0x0002
 
 _WM_QUIT = 0x0012
+_WM_MOUSEMOVE = 0x0200
 _WH_MOUSE_LL = 14
 _WH_KEYBOARD_LL = 13
 _LLMHF_INJECTED = 0x00000001
@@ -225,8 +226,12 @@ _KEYS = {
 class HumanInputMonitor:
     """低层钩子：只报告人类鼠标/键盘，忽略本进程注入的事件。"""
 
-    def __init__(self) -> None:
+    def __init__(self, takeover_distance: int = 100) -> None:
         self._callback: Optional[Callable[[], None]] = None
+        self._takeover_distance = max(1, int(takeover_distance))
+        self._mouse_lock = threading.Lock()
+        self._mouse_point: Optional[Tuple[int, int]] = None
+        self._mouse_distance = 0.0
         self._thread: Optional[threading.Thread] = None
         self._thread_id = 0
         self._ready = threading.Event()
@@ -249,6 +254,7 @@ class HumanInputMonitor:
             if self._thread is not None and self._thread.is_alive():
                 return True
             self._failed = False
+            self._reset_mouse()
             self._ready.clear()
             self._thread = threading.Thread(
                 target=self._run, name="visual-input-monitor", daemon=True)
@@ -257,6 +263,7 @@ class HumanInputMonitor:
         return not self._failed
 
     def stop(self) -> None:
+        self._reset_mouse()
         with self._lock:
             thread = self._thread
             thread_id = self._thread_id
@@ -306,11 +313,40 @@ class HumanInputMonitor:
             self._mouse_hook = None
             self._keyboard_hook = None
 
+    def _reset_mouse(self) -> None:
+        with self._mouse_lock:
+            self._mouse_point = None
+            self._mouse_distance = 0.0
+
+    def record_human_move(self, x: int, y: int) -> None:
+        with self._mouse_lock:
+            point = (int(x), int(y))
+            if self._mouse_point is None:
+                self._mouse_point = point
+                return
+            last_x, last_y = self._mouse_point
+            distance = ((point[0] - last_x) ** 2
+                        + (point[1] - last_y) ** 2) ** 0.5
+            self._mouse_point = point
+            self._mouse_distance += distance
+            if self._mouse_distance < self._takeover_distance:
+                return
+            self._mouse_distance = 0.0
+        self._fire()
+
     def _on_mouse(self, code: int, wparam: int, lparam: int) -> int:
         if code >= 0:
             info = ctypes.cast(
                 lparam, ctypes.POINTER(_MouseHookStruct)).contents
-            if not (int(info.flags) & _LLMHF_INJECTED):
+            point = (int(info.pt.x), int(info.pt.y))
+            if int(info.flags) & _LLMHF_INJECTED:
+                with self._mouse_lock:
+                    self._mouse_point = point
+                    self._mouse_distance = 0.0
+            elif wparam == _WM_MOUSEMOVE:
+                self.record_human_move(point[0], point[1])
+            else:
+                self._reset_mouse()
                 self._fire()
         return _u.CallNextHookEx(self._mouse_hook, code, wparam, lparam)
 
@@ -374,6 +410,7 @@ class ControlBadge:
             if self._thread is not None and self._thread.is_alive():
                 return
             self._failed = False
+            self._reset_mouse()
             self._ready.clear()
             self._thread = threading.Thread(
                 target=self._run, name="visual-control-badge", daemon=True)
