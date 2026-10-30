@@ -109,7 +109,7 @@ vision_focus(
 )
 ```
 
-区域坐标取模型图上的像素，工具用 `center_x/center_y` 对准屏幕中心后换算成屏幕区域。区域超出屏幕会裁剪，最小 64×64，不补黑区。
+区域坐标取模型图上的像素，工具用 `center_x/center_y` 对准屏幕中心后换算成屏幕区域。区域超出屏幕会裁剪，最小 10×10，不补黑区。以及聚焦不需要 check_points。
 
 默认不注入聚焦图；调用 `vision_focus` 才设置区域。
 
@@ -139,9 +139,9 @@ check_points：传 C1 随机标记中心的图内坐标
 ```
 
 工具按模型图宽高和原始尺寸分别换算 screen_x/screen_y；模型只给图上的 x/y，不自己换算。
-所有接受坐标的工具都必须带 `check_points` 单个随机标记中心，工具按真实屏幕点做 32px 校验；缺失或偏差超限直接失败，要求重新读当前帧 C1。
+绝对定位移动和点击工具必须带 `check_points` 单个随机标记中心，工具按真实屏幕点做 32px 校验；缺失或偏差超限直接失败，要求重新读当前帧 C1。
 
-`check_points` 始终从完整图的 C1 读取；`vision_move_focus` 也用完整图上的 C1，不用聚焦图坐标。
+`check_points` 始终从完整图的 C1 读取；聚焦内的移动不需要 check_points。
 
 ```text
 scale_x = image_width / (2 * center_x)

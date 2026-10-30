@@ -28,14 +28,14 @@ def zoom(image: Image.Image, factor: float) -> Image.Image:
 
 
 def clip_focus(region: dict, screen_size: Tuple[int, int]) -> Optional[dict]:
-    """把聚焦区域裁到屏幕内；裁剪后小于 64×64 返回 None。"""
+    """把聚焦区域裁到屏幕内；裁剪后小于 10×10 返回 None。"""
     screen_w, screen_h = max(1, int(screen_size[0])), max(1, int(screen_size[1]))
     x = max(0, min(screen_w - 1, int(region["x"])))
     y = max(0, min(screen_h - 1, int(region["y"])))
     right = max(x, min(screen_w, int(region["x"]) + int(region["width"])))
     bottom = max(y, min(screen_h, int(region["y"]) + int(region["height"])))
     width, height = right - x, bottom - y
-    if width < 64 or height < 64:
+    if width < 10 or height < 10:
         return None
     return {"x": x, "y": y, "width": width, "height": height}
 

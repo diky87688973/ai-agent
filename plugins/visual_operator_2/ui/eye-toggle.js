@@ -4,6 +4,12 @@
 "use strict";
 var PLUGIN="visual_operator_2";
 var SELECTOR='[data-plugin="'+PLUGIN+'"][data-plugin-action="eye_toggle"]';
+function paint(b,open){
+ b.classList.add("vision-eye-btn");
+ b.setAttribute("data-eye-closed",open?"0":"1");
+ b.setAttribute("aria-label",open?"视觉已开启，点击闭眼":"视觉已关闭");
+ b.title=open?"视觉已开启，点击闭眼":"视觉已关闭";
+}
 function cid(){
  var tab=(typeof getActiveTab==="function")?getActiveTab():null;
  return String((tab&&tab.id)||(typeof getActiveConversationId==="function"?getActiveConversationId():"")||"");
@@ -12,6 +18,7 @@ function button(){return document.querySelector(SELECTOR);}
 function setState(open){
  var b=button();
  if(!b)return;
+ paint(b,open);
  b.hidden=!open;
  b.setAttribute("aria-hidden",open?"false":"true");
 }

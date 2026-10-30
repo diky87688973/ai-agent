@@ -1292,7 +1292,45 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。在当前鼠标位置点击；不接收坐标。支持点击次数和间隔，间隔最小 72ms。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。启动本地应用并等待窗口；不经过视觉搜索。",
+      "display": {
+        "icon": "🚀",
+        "label": "启动应用"
+      },
+      "name": "vision_app",
+      "parallel_safe": false,
+      "parameters": {
+        "activate": {
+          "description": "找到窗口后是否置前（默认 true）",
+          "type": "boolean"
+        },
+        "args": {
+          "description": "传给程序的参数数组；不经 shell",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "description": "应用名，从开始菜单快捷方式中查找；与 path 二选一",
+          "type": "string"
+        },
+        "path": {
+          "description": "可执行文件/快捷方式的绝对路径；与 name 二选一",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "等待窗口的毫秒数 100–60000（默认 10000）",
+          "type": "integer"
+        },
+        "window": {
+          "description": "启动后等待的窗口标题片段；不给则只返回 pid",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。在当前鼠标位置点击；不接收坐标。支持点击次数和间隔，间隔最小 72ms。",
       "display": {
         "icon": "🖱️",
         "label": "点击"
@@ -1316,7 +1354,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 center_x/center_y 图像中心和 image_width/image_height 原始尺寸做双轴换算；center_x/center_y 是模型可见图的中心点。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。按模型看到的图上的多个点连续移动并点击。每个点的 x/y 都按 center_x/center_y 图像中心和 image_width/image_height 原始尺寸做双轴换算；center_x/center_y 是模型可见图的中心点。",
       "display": {
         "icon": "🖱️",
         "label": "连续点击"
@@ -1394,7 +1432,209 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。设置一个固定观察区域；下一帧注入完整图和该区域 1:1 聚焦图。x/y/width/height 是区域在模型图上的像素；center_x/center_y 是模型图中心；image_width/image_height 是原始屏幕尺寸。区域超出屏幕会裁剪，不补黑。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。点击 UIA 文字控件；只用于标准控件，自绘界面用视觉链。",
+      "display": {
+        "icon": "🖱",
+        "label": "点击文字控件"
+      },
+      "name": "vision_click_text",
+      "parallel_safe": false,
+      "parameters": {
+        "button": {
+          "description": "鼠标键（默认 left）",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ],
+          "type": "string"
+        },
+        "count": {
+          "description": "点击次数 1–3（默认 1）",
+          "type": "integer"
+        },
+        "hwnd": {
+          "description": "限定窗口句柄；优先使用稳定 hwnd",
+          "type": "integer"
+        },
+        "index": {
+          "description": "第几个命中 0–49（默认 0）",
+          "type": "integer"
+        },
+        "match": {
+          "description": "匹配方式（默认 contains）",
+          "enum": [
+            "contains",
+            "exact",
+            "regex"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "description": "要点击的控件文字",
+          "type": "string"
+        },
+        "window": {
+          "description": "限定窗口标题片段；与 hwnd 二选一",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。【单独看屏，不替代持续视觉帧】此工具只截取一张图供本次查看；下一轮仍以持续视觉帧为准，不要把它当成持续视觉。支持窗口/区域截图，返回 capture_id。",
+      "display": {
+        "icon": "👁",
+        "label": "单独看屏"
+      },
+      "name": "vision_eye",
+      "parallel_safe": false,
+      "parameters": {
+        "activate": {
+          "description": "取图前是否把窗口带到前台（默认 false：只恢复不置前，不打断当前操作）",
+          "type": "boolean"
+        },
+        "annotate": {
+          "description": "annotated 只回标注图（默认）/ raw 只回原图 / both 先回标注图再回原图",
+          "enum": [
+            "annotated",
+            "raw",
+            "both"
+          ],
+          "type": "string"
+        },
+        "grid": {
+          "description": "叠加坐标网格与刻度（默认 true）",
+          "type": "boolean"
+        },
+        "grid_step": {
+          "description": "网格间距（屏幕坐标）20–500；缺省取插件配置。整屏用于定位；精确点击局部时给 20",
+          "type": "integer"
+        },
+        "grid_unit": {
+          "description": "网格刻度单位：screen 屏幕坐标（默认）/ image 图内像素。图内像素配合 capture_id 交给 desktop_mouse",
+          "enum": [
+            "screen",
+            "image"
+          ],
+          "type": "string"
+        },
+        "height": {
+          "description": "区域高度（屏幕坐标）",
+          "type": "integer"
+        },
+        "hover": {
+          "description": "取图前把光标移到这里 [x, y]（屏幕坐标），用来展开悬停控件",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "hover_approach_ms": {
+          "description": "移动到落点用多少毫秒 0–2000（默认 120）；0 = 一次跳变。",
+          "type": "integer"
+        },
+        "hover_path": {
+          "description": "到 hover 之前先经过的中间点 [[x, y], ...]，最多 4 个；用它模拟真实移动轨迹，唤醒只认连续 mousemove 的播放器控件",
+          "items": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "hover_settle_ms": {
+          "description": "移完光标等界面展开的毫秒数 0–5000；缺省取插件配置",
+          "type": "integer"
+        },
+        "hover_wiggle": {
+          "description": "到达后是否在落点附近做几次 1–2px 微移动（默认 true）；播放器控制条通常需要它才会出现。微动结束会回到落点",
+          "type": "boolean"
+        },
+        "hwnd": {
+          "description": "窗口句柄；与 window 二选一，hwnd 更精确",
+          "type": "integer"
+        },
+        "max_side": {
+          "description": "长边缩到不超过该像素；0 = 不缩放；精确点击局部时用 0，避免缩放误差",
+          "type": "integer"
+        },
+        "width": {
+          "description": "区域宽度（屏幕坐标）",
+          "type": "integer"
+        },
+        "window": {
+          "description": "窗口标题片段；取该窗口自身内容，遮挡不影响",
+          "type": "string"
+        },
+        "x": {
+          "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出",
+          "type": "integer"
+        },
+        "y": {
+          "description": "区域左上角 y（屏幕坐标）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。按文字查找 UIA 控件，返回矩形；不点击。",
+      "display": {
+        "icon": "🔎",
+        "label": "查找控件"
+      },
+      "name": "vision_find",
+      "parallel_safe": false,
+      "parameters": {
+        "height": {
+          "description": "可选：区域高度",
+          "type": "integer"
+        },
+        "hwnd": {
+          "description": "限定窗口句柄；导航后优先用 hwnd",
+          "type": "integer"
+        },
+        "limit": {
+          "description": "最多返回几条 1–50（默认 10）",
+          "type": "integer"
+        },
+        "match": {
+          "description": "匹配方式（默认 contains）",
+          "enum": [
+            "contains",
+            "exact",
+            "regex"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "description": "要查找的控件文字",
+          "type": "string"
+        },
+        "width": {
+          "description": "可选：区域宽度",
+          "type": "integer"
+        },
+        "window": {
+          "description": "限定窗口标题片段；与 hwnd 二选一",
+          "type": "string"
+        },
+        "x": {
+          "description": "可选：只在矩形区域内查找，左上角 x",
+          "type": "integer"
+        },
+        "y": {
+          "description": "可选：只在矩形区域内查找，左上角 y",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。设置一个固定观察区域；下一帧注入完整图和该区域 1:1 聚焦图。x/y/width/height 是区域在模型图上的像素；center_x/center_y 是模型图中心；image_width/image_height 是原始屏幕尺寸。区域超出屏幕会裁剪，不补黑。最小 10×10；聚焦是恢复手段，不需要 check_points。",
       "display": {
         "icon": "🔎",
         "label": "聚焦区域"
@@ -1409,27 +1649,6 @@
         "center_y": {
           "description": "模型图中心 y",
           "type": "integer"
-        },
-        "check_points": {
-          "description": "传校准帧 C1 随机标记中心的图内 xy",
-          "items": {
-            "properties": {
-              "x": {
-                "type": "integer"
-              },
-              "y": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "x",
-              "y"
-            ],
-            "type": "object"
-          },
-          "maxItems": 1,
-          "minItems": 1,
-          "type": "array"
         },
         "height": {
           "description": "区域在模型图上的高度",
@@ -1458,7 +1677,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。按下键盘组合键，例如 [\"ctrl\", \"c\"]。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。按下键盘组合键，例如 [\"ctrl\", \"c\"]。",
       "display": {
         "icon": "⌨️",
         "label": "按键"
@@ -1477,7 +1696,147 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。以当前观察的鼠标位置为起点，执行相对移动；精确点击优先使用 vision_move_to。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。输入 Unicode 文本或单键；组合键请用 vision_key。",
+      "display": {
+        "icon": "⌨",
+        "label": "键盘输入"
+      },
+      "name": "vision_keyboard",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "type 文本 / key 单键；组合键用 vision_key",
+          "enum": [
+            "type",
+            "key"
+          ],
+          "type": "string"
+        },
+        "hwnd": {
+          "description": "目标窗口句柄；与 window 二选一，hwnd 更精确",
+          "type": "integer"
+        },
+        "key": {
+          "description": "单键规范名或常见别名（key 必填）",
+          "type": "string"
+        },
+        "repeat": {
+          "description": "重复次数 1–20（默认 1）",
+          "type": "integer"
+        },
+        "shot": {
+          "description": "动作完成后在本次调用内截图并作为图片附件返回（默认 false）",
+          "type": "boolean"
+        },
+        "shot_max_side": {
+          "description": "shot 的长边上限；缺省取插件配置",
+          "type": "integer"
+        },
+        "text": {
+          "description": "要输入的文本（type 必填）",
+          "type": "string"
+        },
+        "window": {
+          "description": "目标窗口标题片段；先置前再输入",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。只提供滚动和拖拽；移动与点击走 vision_move_point / vision_click。 滚动/拖拽之外不要用它移动或点击。",
+      "display": {
+        "icon": "🖱",
+        "label": "滚动拖拽"
+      },
+      "name": "vision_mouse",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "只支持 drag / scroll；移动和点击用 2.0 视觉链",
+          "enum": [
+            "drag",
+            "scroll"
+          ],
+          "type": "string"
+        },
+        "amount": {
+          "description": "滚动量 -50 ~ 50，正数向下 / 向右（scroll 必填）",
+          "type": "integer"
+        },
+        "button": {
+          "description": "按键（默认 left）",
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ],
+          "type": "string"
+        },
+        "capture_id": {
+          "description": "desktop_eye 回执里的 capture_id；给了它即按图内坐标解释",
+          "type": "string"
+        },
+        "duration_ms": {
+          "description": "移动 / 拖拽时长 0–5000 毫秒（默认 0）",
+          "type": "integer"
+        },
+        "horizontal": {
+          "description": "横向滚动（默认 false）",
+          "type": "boolean"
+        },
+        "hwnd": {
+          "description": "目标窗口句柄；与 window 二选一，hwnd 更精确",
+          "type": "integer"
+        },
+        "shot": {
+          "description": "动作完成后在本次调用内截图并作为图片附件返回（默认 false）",
+          "type": "boolean"
+        },
+        "shot_max_side": {
+          "description": "shot 的长边上限；缺省取插件配置",
+          "type": "integer"
+        },
+        "shot_region": {
+          "description": "截图区域 [x, y, width, height]（屏幕坐标）；省略则取整屏或目标窗口",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "space": {
+          "description": "坐标空间：screen 屏幕（默认）/ image 图内像素（需 capture_id）",
+          "enum": [
+            "screen",
+            "image"
+          ],
+          "type": "string"
+        },
+        "to_x": {
+          "description": "拖拽终点 x；坐标空间同 x",
+          "type": "integer"
+        },
+        "to_y": {
+          "description": "拖拽终点 y；坐标空间同 y",
+          "type": "integer"
+        },
+        "window": {
+          "description": "目标窗口标题片段；先置前再动作",
+          "type": "string"
+        },
+        "x": {
+          "description": "x；默认屏幕坐标，space=image / 给 capture_id 时是图内像素",
+          "type": "integer"
+        },
+        "y": {
+          "description": "y；默认屏幕坐标，space=image / 给 capture_id 时是图内像素",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。以当前观察的鼠标位置为起点，执行相对移动；精确点击优先使用 vision_move_to。",
       "display": {
         "icon": "🖱️",
         "label": "移动鼠标"
@@ -1496,7 +1855,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。按聚焦图上的点移动鼠标。x/y 是目标点在聚焦图上的像素；width/height 是模型看到的聚焦图宽高。工具按当前固定聚焦区域换算屏幕落点。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。按聚焦图上的点移动鼠标。x/y 是目标点在聚焦图上的像素；width/height 是模型看到的聚焦图宽高。工具按当前固定聚焦区域换算屏幕落点。不需要 check_points。",
       "display": {
         "icon": "🎯",
         "label": "移动到聚焦点"
@@ -1504,27 +1863,6 @@
       "name": "vision_move_focus",
       "parallel_safe": false,
       "parameters": {
-        "check_points": {
-          "description": "传校准帧 C1 随机标记中心的图内 xy",
-          "items": {
-            "properties": {
-              "x": {
-                "type": "integer"
-              },
-              "y": {
-                "type": "integer"
-              }
-            },
-            "required": [
-              "x",
-              "y"
-            ],
-            "type": "object"
-          },
-          "maxItems": 1,
-          "minItems": 1,
-          "type": "array"
-        },
         "height": {
           "description": "模型看到的聚焦图高度",
           "type": "integer"
@@ -1544,7 +1882,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；center_x/center_y 是模型看到的图像中心坐标；image_width/image_height 是原始截图宽高。模型直接读图上的 x/y；用 center_x/center_y 对准屏幕中心后，双轴独立换算，模型不要自己换算。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。按模型看到的图上的点移动鼠标。x/y 是目标点在模型看到的图上的像素；center_x/center_y 是模型看到的图像中心坐标；image_width/image_height 是原始截图宽高。模型直接读图上的 x/y；用 center_x/center_y 对准屏幕中心后，双轴独立换算，模型不要自己换算。",
       "display": {
         "icon": "🖱️",
         "label": "移动到点"
@@ -1600,7 +1938,34 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。申请打开视觉。固定授权文案由眼睛工具提供，用户确认后工具恢复并返回一次性 consent_id。拿到 consent_id 后，必须在当前回合立即调用 vision_start(consent_id=...)，不得再让用户确认，不得先调用 ai_speak、解释或重新申请。在确认前不会截屏。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。打开 URL、文件或协议；不截图、不点击。",
+      "display": {
+        "icon": "🌐",
+        "label": "打开资源"
+      },
+      "name": "vision_open",
+      "parallel_safe": false,
+      "parameters": {
+        "activate": {
+          "description": "找到窗口后是否置前（默认 true）",
+          "type": "boolean"
+        },
+        "target": {
+          "description": "URL（http/https）、scheme（mailto: 等）或已有文件路径",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "description": "等待窗口的毫秒数 100–60000（默认 10000）",
+          "type": "integer"
+        },
+        "window": {
+          "description": "打开后等待的窗口标题片段；不给则只返回已发起",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。申请打开视觉。固定授权文案由眼睛工具提供，用户确认后工具恢复并返回一次性 consent_id。拿到 consent_id 后，必须在当前回合立即调用 vision_start(consent_id=...)，不得再让用户确认，不得先调用 ai_speak、解释或重新申请。在确认前不会截屏。",
       "display": {
         "icon": "👁️",
         "label": "申请视觉授权"
@@ -1610,7 +1975,7 @@
       "parameters": {}
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。启动后注入完整图；需要局部细节时用 vision_focus 设置聚焦区域。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。用用户确认后签发的 consent_id 打开视觉。没有凭证时拒绝。启动后注入完整图；需要局部细节时用 vision_focus 设置聚焦区域。",
       "display": {
         "icon": "👁️",
         "label": "睁眼"
@@ -1625,7 +1990,7 @@
       }
     },
     {
-      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。关闭视觉，停止采集并清空队列；不需要用户确认。",
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。关闭视觉，停止采集并清空队列；不需要用户确认。空闲或无需视觉注入时主动闭眼。",
       "display": {
         "icon": "🙈",
         "label": "闭眼"
@@ -1633,6 +1998,179 @@
       "name": "vision_stop",
       "parallel_safe": false,
       "parameters": {}
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。向 UIA 控件或截图矩形输入文本；用于标准输入框。",
+      "display": {
+        "icon": "⌨",
+        "label": "定位输入"
+      },
+      "name": "vision_type_into",
+      "parallel_safe": false,
+      "parameters": {
+        "capture_id": {
+          "description": "desktop_eye 返回的 capture_id",
+          "type": "string"
+        },
+        "clear": {
+          "description": "输入前 ctrl+a 清空（默认 true）",
+          "type": "boolean"
+        },
+        "height": {
+          "description": "矩形模式：目标输入区高度",
+          "type": "integer"
+        },
+        "hwnd": {
+          "description": "限定窗口句柄",
+          "type": "integer"
+        },
+        "index": {
+          "description": "第几个目标命中 0–49（默认 0）",
+          "type": "integer"
+        },
+        "match": {
+          "description": "目标文字匹配方式（默认 contains）",
+          "enum": [
+            "contains",
+            "exact",
+            "regex"
+          ],
+          "type": "string"
+        },
+        "space": {
+          "description": "矩形坐标空间：screen（默认）/ image（需 capture_id）",
+          "enum": [
+            "screen",
+            "image"
+          ],
+          "type": "string"
+        },
+        "submit": {
+          "description": "输入后按回车（默认 false）",
+          "type": "boolean"
+        },
+        "target": {
+          "description": "目标控件的文字；与矩形二选一",
+          "type": "string"
+        },
+        "text": {
+          "description": "要输入的文本",
+          "type": "string"
+        },
+        "width": {
+          "description": "矩形模式：目标输入区宽度",
+          "type": "integer"
+        },
+        "window": {
+          "description": "限定窗口标题片段；与 hwnd 二选一",
+          "type": "string"
+        },
+        "x": {
+          "description": "矩形模式：目标输入区左上角 x",
+          "type": "integer"
+        },
+        "y": {
+          "description": "矩形模式：目标输入区左上角 y",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。等待画面变化、窗口出现/消失；不移动鼠标。",
+      "display": {
+        "icon": "⏳",
+        "label": "等待条件"
+      },
+      "name": "vision_wait",
+      "parallel_safe": false,
+      "parameters": {
+        "height": {
+          "description": "区域高度（屏幕坐标）",
+          "type": "integer"
+        },
+        "hwnd": {
+          "description": "窗口句柄；与 window 二选一",
+          "type": "integer"
+        },
+        "interval_ms": {
+          "description": "轮询间隔 50–2000 毫秒；缺省取插件配置",
+          "type": "integer"
+        },
+        "threshold": {
+          "description": "change 的判定阈值 0–1（默认 0.02）；越小越敏感",
+          "type": "number"
+        },
+        "timeout_ms": {
+          "description": "最长等待毫秒数 50–60000（默认 3000）",
+          "type": "integer"
+        },
+        "until": {
+          "description": "change 画面变化 / window_appears 窗口出现 / window_disappears 窗口消失",
+          "enum": [
+            "change",
+            "window_appears",
+            "window_disappears"
+          ],
+          "type": "string"
+        },
+        "width": {
+          "description": "区域宽度（屏幕坐标）",
+          "type": "integer"
+        },
+        "window": {
+          "description": "窗口标题片段；change 时用来限定取图范围，window_* 时是必填",
+          "type": "string"
+        },
+        "x": {
+          "description": "区域左上角 x（屏幕坐标）；与 y/width/height 同时给出",
+          "type": "integer"
+        },
+        "y": {
+          "description": "区域左上角 y（屏幕坐标）",
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "description": "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按真实屏幕点做 32px 校验，缺失或超差直接失败。【2.0 辅助桌面工具】先通过 vision_request_open + vision_start 获得持续视觉授权。列窗口、激活、等待、读取矩形；不点击窗口内容。",
+      "display": {
+        "icon": "🪟",
+        "label": "窗口"
+      },
+      "name": "vision_window",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "list 列表 / activate 激活 / wait 等窗口 / rect 读取矩形",
+          "enum": [
+            "list",
+            "activate",
+            "wait",
+            "rect"
+          ],
+          "type": "string"
+        },
+        "hwnd": {
+          "description": "窗口句柄；导航后应复用 desktop_app / desktop_open 返回的 hwnd",
+          "type": "integer"
+        },
+        "interval_ms": {
+          "description": "wait 的轮询间隔 50–2000 毫秒（默认 150）",
+          "type": "integer"
+        },
+        "limit": {
+          "description": "list 最多返回多少个窗口 1–50（默认 20）",
+          "type": "integer"
+        },
+        "timeout_ms": {
+          "description": "wait 的最长等待毫秒数 100–60000（默认 10000）",
+          "type": "integer"
+        },
+        "window": {
+          "description": "窗口标题片段；与 hwnd 二选一",
+          "type": "string"
+        }
+      }
     },
     {
       "description": "抓取网页（urllib 无第三方依赖）并提取纯文本；支持超时、长度限制、min_chars/require_keywords 验收与落盘。",

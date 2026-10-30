@@ -11,6 +11,7 @@ from agent.capabilities.registry import ToolPlugin
 from agent.core.session_scope import current_context
 
 from .consent import VisionConsentRequired
+from .desktop import build_tools as build_desktop_tools
 from .state import VisionRuntime
 from .step_log import write as log_step
 
@@ -92,6 +93,7 @@ class VisionFocusTool(ToolPlugin):
         "设置一个固定观察区域；下一帧注入完整图和该区域 1:1 聚焦图。"
         "x/y/width/height 是区域在模型图上的像素；center_x/center_y 是模型图中心；"
         "image_width/image_height 是原始屏幕尺寸。区域超出屏幕会裁剪，不补黑。"
+        "最小 10×10；聚焦是恢复手段，不需要 check_points。"
     )
     parameters = {
         "x": {"type": "integer", "description": "区域左上角在模型图上的 x"},
@@ -102,7 +104,6 @@ class VisionFocusTool(ToolPlugin):
         "center_y": {"type": "integer", "description": "模型图中心 y"},
         "image_width": {"type": "integer", "description": "原始屏幕宽度"},
         "image_height": {"type": "integer", "description": "原始屏幕高度"},
-        "check_points": CHECK_POINTS_PARAM,
     }
 
     def __init__(self, runtime: VisionRuntime) -> None:
@@ -115,7 +116,6 @@ class VisionFocusTool(ToolPlugin):
             int(arguments["width"]), int(arguments["height"]),
             int(arguments["center_x"]), int(arguments["center_y"]),
             int(arguments["image_width"]), int(arguments["image_height"]),
-            arguments.get("check_points") or [],
         )
 
 
@@ -178,13 +178,13 @@ class VisionMoveFocusTool(ToolPlugin):
     description = (
         "按聚焦图上的点移动鼠标。x/y 是目标点在聚焦图上的像素；"
         "width/height 是模型看到的聚焦图宽高。工具按当前固定聚焦区域换算屏幕落点。"
+        "不需要 check_points。"
     )
     parameters = {
         "x": {"type": "integer", "description": "目标点在聚焦图上的 x"},
         "y": {"type": "integer", "description": "目标点在聚焦图上的 y"},
         "width": {"type": "integer", "description": "模型看到的聚焦图宽度"},
         "height": {"type": "integer", "description": "模型看到的聚焦图高度"},
-        "check_points": CHECK_POINTS_PARAM,
     }
 
     def __init__(self, runtime: VisionRuntime) -> None:
@@ -195,7 +195,6 @@ class VisionMoveFocusTool(ToolPlugin):
             _cid(),
             int(arguments["x"]), int(arguments["y"]),
             int(arguments["width"]), int(arguments["height"]),
-            arguments.get("check_points") or [],
         )
 
 
@@ -309,7 +308,7 @@ class VisionStopTool(ToolPlugin):
     label = "闭眼"
     icon = "🙈"
     parallel_safe = False
-    description = "关闭视觉，停止采集并清空队列；不需要用户确认。"
+    description = "关闭视觉，停止采集并清空队列；不需要用户确认。空闲或无需视觉注入时主动闭眼。"
     parameters: Dict[str, Any] = {}
 
     def __init__(self, runtime: VisionRuntime) -> None:
@@ -323,7 +322,7 @@ SKILL_REQUIRED = (
     "视觉操作依赖 skills：visual-operator-2（视觉坐标/点击流程）和 "
     "windows-desktop-operations（窗口激活/打开应用）。调用任何视觉工具前先加载这两个 skills。"
     "每次移动或点击后必须看下一轮注入的视觉帧，用黄色光标标记确认是否覆盖目标；工具回执不代表业务成功。"
-    "接受坐标的工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；"
+    "接受坐标的视觉工具（vision_move_point / vision_click_sequence）必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；"
     "工具按真实屏幕点做 32px 校验，缺失或超差直接失败。"
 )
 
@@ -387,6 +386,7 @@ def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
         VisionKeyTool(runtime),
         VisionStopTool(runtime),
     ]
+    tools.extend(build_desktop_tools(runtime))
     for tool in tools:
         tool.description = SKILL_REQUIRED + str(tool.description)
     return [_LoggedTool(tool) for tool in tools]

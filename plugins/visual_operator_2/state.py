@@ -384,8 +384,7 @@ class VisionRuntime:
         })
     def focus(self, conversation_id: str, x: int, y: int,
               width: int, height: int, center_x: int, center_y: int,
-              image_width: int, image_height: int,
-              check_points: Optional[List[Dict[str, int]]] = None) -> Dict[str, Any]:
+              image_width: int, image_height: int) -> Dict[str, Any]:
         with self._lock:
             if self._takeover:
                 return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
@@ -394,20 +393,13 @@ class VisionRuntime:
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
             frame = self._frames[-1]
-            error = self._calibration_error(
-                check_points, self._observed_frame_id or frame.frame_id,
-                conversation_id, center_x, center_y,
-                image_width, image_height)
-            if error:
-                return {"ok": False, "error": error}
-            self._challenges.consume(self._observed_frame_id or frame.frame_id)
             focus = render.focus_screen_from_model(
                 frame.image.width, frame.image.height,
                 x, y, width, height, center_x, center_y,
                 image_width, image_height,
             )
             if focus is None:
-                return {"ok": False, "error": "聚焦区域超出屏幕或小于 64×64"}
+                return {"ok": False, "error": "聚焦区域超出屏幕或小于 10×10"}
             self._focus = focus
             self._wake.set()
             result = {
@@ -492,8 +484,7 @@ class VisionRuntime:
         result["observation_note"] = "移动后立即抓取的完整图和聚焦图"
         return result
     def move_focus(self, conversation_id: str, x: int, y: int,
-                   width: int, height: int,
-                   check_points: Optional[List[Dict[str, int]]] = None) -> Dict[str, Any]:
+                   width: int, height: int) -> Dict[str, Any]:
         with self._lock:
             if self._takeover:
                 return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
@@ -503,13 +494,6 @@ class VisionRuntime:
                 return {"ok": False, "error": "当前没有观察帧"}
             if self._focus is None:
                 return {"ok": False, "error": "当前没有聚焦区域"}
-            frame = self._frames[-1]
-            error = self._calibration_error(
-                check_points, self._observed_frame_id or frame.frame_id,
-                conversation_id, 0, 0, 0, 0, model_only=True)
-            if error:
-                return {"ok": False, "error": error}
-            self._challenges.consume(self._observed_frame_id or frame.frame_id)
             if width <= 0 or height <= 0:
                 return {"ok": False, "error": "width/height 必须大于 0"}
             if not (0 <= int(x) < int(width) and 0 <= int(y) < int(height)):
@@ -657,11 +641,14 @@ class VisionRuntime:
             if not self._eyes_open or self._owner != str(conversation_id or ""):
                 return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
             try:
-                backend.press_keys(keys)
+                receipt = backend.press_keys(keys)
             except (OSError, ValueError, RuntimeError) as exc:
                 return {"ok": False, "error": str(exc)}
         self._wake.set()
-        return {"ok": True, "keys": list(keys)}
+        if not receipt.get("ok", True):
+            return {"ok": False, "error": receipt.get("error", "按键注入失败"),
+                    "keys": list(keys)}
+        return {"ok": True, "keys": list(keys), "method": receipt.get("method", "")}
     def _start_capture_locked(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return

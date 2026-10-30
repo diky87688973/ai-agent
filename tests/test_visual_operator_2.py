@@ -436,6 +436,44 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             runtime.close()
 
+    def test_focus_accepts_10px_region(self) -> None:
+        runtime = self._runtime()
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            result = runtime.focus(
+                "cid-a", 100, 80, 10, 10, 160, 120, 320, 240)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["focus_size"], [10, 10])
+        finally:
+            runtime.close()
+
+    def test_move_focus_tool_executes_without_check_points(self) -> None:
+        from plugins.visual_operator_2.tools import VisionMoveFocusTool
+
+        runtime = self._runtime()
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            self.assertTrue(runtime.focus(
+                "cid-a", 100, 80, 100, 80, 160, 120, 320, 240)["ok"])
+            token = set_tool_turn_context(ToolTurnContext(
+                session=SimpleNamespace(conversation_id="cid-a"),
+                call=SimpleNamespace(call_id="call-a"),
+            ))
+            try:
+                with patch("plugins.visual_operator_2.state.backend.move_cursor",
+                           return_value=True):
+                    result = VisionMoveFocusTool(runtime).execute(
+                        {"x": 50, "y": 40, "width": 100, "height": 80})
+            finally:
+                reset_tool_turn_context(token)
+            self.assertTrue(result["ok"])
+        finally:
+            runtime.close()
+
     def test_click_tools_and_sequence_contract(self) -> None:
         from plugins.visual_operator_2.tools import VisionClickTool, build_tools
 
@@ -553,13 +591,10 @@ class VisionRuntimeTest(unittest.TestCase):
     def test_coordinate_tools_require_check_points(self) -> None:
         from plugins.visual_operator_2.tools import (
             VisionClickSequenceTool,
-            VisionFocusTool,
-            VisionMoveFocusTool,
             VisionMovePointTool,
         )
 
-        for tool in (VisionFocusTool, VisionMovePointTool,
-                     VisionMoveFocusTool, VisionClickSequenceTool):
+        for tool in (VisionMovePointTool, VisionClickSequenceTool):
             self.assertEqual(tool.parameters["check_points"]["minItems"], 1)
             self.assertEqual(tool.parameters["check_points"]["maxItems"], 1)
 
@@ -620,6 +655,62 @@ class VisionRuntimeTest(unittest.TestCase):
                            events[i].union.ki.dwFlags) for i in range(4)],
                          [(1, 0x5B, 1), (1, 0x53, 0),
                           (1, 0x53, 2), (1, 0x5B, 3)])
+
+    def test_migrated_desktop_tools_are_registered_and_authorized(self) -> None:
+        from agent.capabilities.registry import ToolPlugin
+        from plugins.visual_operator_2.tools import build_tools
+
+        runtime = self._runtime()
+        try:
+            tools = build_tools(runtime)
+            names = {tool.name for tool in tools}
+            for name in ("vision_app", "vision_window", "vision_eye",
+                         "vision_type_into", "vision_keyboard", "vision_wait",
+                         "vision_find", "vision_click_text", "vision_mouse",
+                         "vision_open"):
+                self.assertIn(name, names)
+            self.assertTrue(all(isinstance(tool, ToolPlugin) for tool in tools))
+            eye = next(tool for tool in tools if tool.name == "vision_eye")
+            self.assertIn("不替代持续视觉帧", eye.description)
+        finally:
+            runtime.close()
+
+    def test_desktop_tool_requires_authorization_and_blocks_core_overlap(self) -> None:
+        from agent.capabilities.registry import ToolPlugin
+        from plugins.visual_operator_2.desktop import _AuthorizedDesktopTool
+
+        class _Inner(ToolPlugin):
+            name = "inner"
+            description = "inner"
+            parameters = {"action": {"type": "string"}}
+            parallel_safe = False
+
+            def execute(self, arguments):
+                return {"ok": True, "arguments": arguments}
+
+        status = {"eyes_open": False}
+        runtime = SimpleNamespace(status=lambda cid: status)
+        tool = _AuthorizedDesktopTool(
+            _Inner(), runtime, "vision_mouse", "滚动拖拽", "test")
+        token = set_tool_turn_context(ToolTurnContext(
+            session=SimpleNamespace(conversation_id="cid-a"),
+            call=SimpleNamespace(call_id="call-a"),
+        ))
+        try:
+            self.assertFalse(tool.execute({"action": "scroll"})["ok"])
+            status["eyes_open"] = True
+            self.assertFalse(tool.execute({"action": "click"})["ok"])
+            self.assertTrue(tool.execute({"action": "scroll"})["ok"])
+        finally:
+            reset_tool_turn_context(token)
+
+    def test_key_fallback_reports_alt_tab_success_and_win_failure(self) -> None:
+        from plugins.visual_operator_2 import backend
+
+        with patch.object(backend._u, "SendInput", return_value=0), \
+                patch.object(backend, "_key"):
+            self.assertTrue(backend.press_keys(["alt", "tab"])["ok"])
+            self.assertFalse(backend.press_keys(["win", "s"])["ok"])
 
     def test_visual_skill_is_registered(self) -> None:
         from pathlib import Path

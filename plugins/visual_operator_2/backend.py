@@ -653,7 +653,7 @@ def _key_code(name: str) -> int:
     raise ValueError(f"未知按键：{name}")
 
 
-def press_keys(keys: Iterable[str]) -> None:
+def press_keys(keys: Iterable[str]) -> dict:
     if not _WINDOWS:
         raise RuntimeError("视觉操作 2.0 当前只支持 Windows")
     codes = [_key_code(key) for key in keys]
@@ -673,13 +673,19 @@ def press_keys(keys: Iterable[str]) -> None:
     inserted = _u.SendInput(len(events), events, ctypes.sizeof(_INPUT))
     log_step("key_inject", method="sendinput", inserted=inserted,
              expected=len(events), keys=list(keys))
-    if inserted != len(events):
-        for code in codes:
-            _key(code, 0, 0, 0)
-        for code in reversed(codes):
-            _key(code, 0, _KEY_UP, 0)
-        log_step("key_inject", method="keybd_event", inserted=inserted,
-                 expected=len(events), keys=list(keys))
+    if inserted == len(events):
+        return {"ok": True, "method": "sendinput"}
+    for code in codes:
+        _key(code, 0, 0, 0)
+    for code in reversed(codes):
+        _key(code, 0, _KEY_UP, 0)
+    log_step("key_inject", method="keybd_event", inserted=inserted,
+             expected=len(events), keys=list(keys))
+    if any(code in (0x5B, 0x5C) for code in codes) or codes == [0x11, 0x1B]:
+        return {"ok": False, "method": "keybd_event",
+                "error": f"按键注入未送达：SendInput {inserted}/{len(events)}，键盘回退未生效"}
+    return {"ok": True, "method": "keybd_event",
+            "warning": "SendInput 未插入，已使用 keybd_event 回退，未做系统级验证"}
 
 
 __all__ = [
