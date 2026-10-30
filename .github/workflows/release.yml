@@ -45,7 +45,7 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $notes = (git for-each-ref "refs/tags/$tag" --format="%(contents)" | Out-String).Trim()
-          $body = (git for-each-ref "refs/tags/$tag" --format="%(body)" | Out-String).Trim()
+          $body = (git for-each-ref "refs/tags/$tag" --format="%(contents:body)" | Out-String).Trim()
           if ([string]::IsNullOrWhiteSpace($notes)) { throw "Release notes 为空，拒绝创建 Release" }
           if ([string]::IsNullOrWhiteSpace($body)) { throw "Release notes 只有标题，缺少正文，拒绝创建 Release" }
           $notesPath = Join-Path $env:RUNNER_TEMP "release-notes.md"
