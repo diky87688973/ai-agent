@@ -1,4 +1,4 @@
-[**English**](visual-operator-2.0.md) | [中文](visual-operator-2.0.zh.md)
+**English** | [中文](visual-operator-2.0.zh.md)
 
 # Visual Operator 2.0 (`visual_operator_2` plugin)
 
