@@ -44,11 +44,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $notes = (git for-each-ref "refs/tags/$tag" --format="%(contents)" | Out-String).Trim()
-          $body = ($notes -split "`r?`n" | Select-Object -Skip 1) -join "`n"
-          $body = $body.Trim()
+          $sourceNotes = "docs/releases/$tag.md"
+          if (-not (Test-Path $sourceNotes)) { throw "Release notes 文件不存在：$sourceNotes" }
+          $notes = (Get-Content $sourceNotes -Raw).Trim()
           if ([string]::IsNullOrWhiteSpace($notes)) { throw "Release notes 为空，拒绝创建 Release" }
-          if ([string]::IsNullOrWhiteSpace($body)) { throw "Release notes 只有标题，缺少正文，拒绝创建 Release" }
           $notesPath = Join-Path $env:RUNNER_TEMP "release-notes.md"
           [System.IO.File]::WriteAllText($notesPath, $notes, [System.Text.UTF8Encoding]::new($false))
           $assets = @(Get-ChildItem dist -File | ForEach-Object { $_.FullName })
