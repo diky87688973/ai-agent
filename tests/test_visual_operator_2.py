@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import threading
 import time
@@ -704,6 +705,7 @@ class VisionRuntimeTest(unittest.TestCase):
         finally:
             reset_tool_turn_context(token)
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows input backend")
     def test_key_fallback_reports_alt_tab_success_and_win_failure(self) -> None:
         from plugins.visual_operator_2 import backend
 

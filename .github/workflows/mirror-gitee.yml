@@ -27,5 +27,5 @@ jobs:
       - name: Push mirror
         run: |
           git remote add gitee git@gitee.com:diky87688973/ai-agent.git
-          git push --force gitee main
+          git push --force gitee HEAD:main
           git push --force gitee --tags
