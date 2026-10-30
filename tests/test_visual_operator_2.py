@@ -645,6 +645,7 @@ class VisionRuntimeTest(unittest.TestCase):
                          Path("D:/data/logs/visual_operator_2.steps.log"))
         self.assertIsNone(_step_log_path(SimpleNamespace(app=None)))
 
+    @unittest.skipUnless(sys.platform == "win32", "Windows input backend")
     def test_key_shortcut_uses_sendinput_batch(self) -> None:
         from plugins.visual_operator_2 import backend
 

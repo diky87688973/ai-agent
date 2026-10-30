@@ -50,4 +50,11 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($body)) { throw "Release notes 只有标题，缺少正文，拒绝创建 Release" }
           $notesPath = Join-Path $env:RUNNER_TEMP "release-notes.md"
           [System.IO.File]::WriteAllText($notesPath, $notes, [System.Text.UTF8Encoding]::new($false))
-          gh release create $tag dist\* --title "$tag" --notes-file $notesPath
+          $assets = @(Get-ChildItem dist -File | ForEach-Object { $_.FullName })
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --title "$tag" --notes-file $notesPath
+            gh release upload $tag $assets --clobber
+          } else {
+            gh release create $tag $assets --title "$tag" --notes-file $notesPath
+          }
