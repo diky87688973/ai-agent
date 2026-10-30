@@ -119,7 +119,7 @@ class ModelCatalog:
 
 ### 4.3 Plugin extension point
 
-`PluginContext` gains a method at the same level as `add_panel` and `add_context_source`:
+`PluginContext` gains a method at the same level as `add_ui_item` and `add_context_source`:
 
 ```python
 def add_model_catalog(self, entries) -> Disposer
@@ -473,7 +473,7 @@ thinking_budget_tokens = 4096
 2. `ctx.add_route("GET", "catalog", handler)`:
    returns `{"ok":true,"models":[{"id","label","provider","context_window","default"}],"default":id,"invalid":[{id,reason}]}`.
    It never returns `api_key` or `base_url`. `invalid` is operational surface: a bad entry must not live only in a log.
-3. `ctx.add_boot_script("ui/model-picker.js")`.
+3. `ctx.add_ui_item("ui/model-picker.js")`.
 
 `register` returns the disposer list, and the plugin host reclaims it. The plugin also parses the configuration once at startup so a broken file leaves a trace before the user opens the dropdown.
 
@@ -489,7 +489,7 @@ Styles do not go through the backend: the first line of `model-picker.js` calls 
 
 #### 11.2.1 Model bridge
 
-The shell defines the bridge in `agent/shell/web/web_assets/classic/js/plugins/host.js`, next to `window.aiAgentPlugins`:
+The shell defines the bridge in `plugins/web_ui/ui/classic/js/plugins/host.js`, next to `window.aiAgentPlugins`:
 
 ```js
 window.aiAgentShell = window.aiAgentShell || {};
@@ -520,7 +520,7 @@ Plugin assets have two delivery paths, and the model dropdown can use neither di
 | Path | Endpoint | Injection time |
 |---|---|---|
 | panel script / panel style | `/api/plugin/<plugin>/_asset/<relative path>` | when the panel opens (`loadPluginStyle`) |
-| boot script | `/api/boot-scripts` | page load |
+| boot script | `/api/ui/catalog` | page load |
 | boot style | none | — |
 
 The dropdown button lives in the composer and belongs to no panel, so it needs a style that takes effect at boot. Instead of adding a backend extension point (`add_boot_style` plus `/api/boot-styles` would touch `PluginContext`, `contributions`, `web_api`, and `web_routes` just to deliver one `<link>`), the shell exposes its existing `loadPluginStyle` on the bridge:
@@ -590,11 +590,11 @@ window.aiAgentShell.styles = {
 | `agent/shell/plugin_settings.py` | plugin sync and catalog refresh |
 | `agent/shell/classic_adapter/channel.py` | `announce_model` |
 | `agent/shell/classic_adapter/contract.py` | conversation event contract |
-| `agent/shell/web/web_assets/classic/agent-ui.html` | `#modelPickerSlot`, `#hdrModel` |
-| `agent/shell/web/web_assets/classic/js/plugins/host.js` | `aiAgentShell.models` and `aiAgentShell.styles` |
-| `agent/shell/web/web_assets/classic/js/composer/pickers.js` | `applyModel` |
-| `agent/shell/web/web_assets/classic/js/composer/model-sync.js` | conversation model hydration, allowed-list cache |
-| `agent/shell/web/web_assets/classic/js/chat/stream.js` | SSE `conversation` branch |
+| `plugins/web_ui/ui/classic/agent-ui.html` | `#modelPickerSlot`, `#hdrModel` |
+| `plugins/web_ui/ui/classic/js/plugins/host.js` | `aiAgentShell.models` and `aiAgentShell.styles` |
+| `plugins/web_ui/ui/classic/js/composer/pickers.js` | `applyModel` |
+| `plugins/web_ui/ui/classic/js/composer/model-sync.js` | conversation model hydration, allowed-list cache |
+| `plugins/web_ui/ui/classic/js/chat/stream.js` | SSE `conversation` branch |
 | `plugins/multi_model/plugin.py` | config parsing, catalog source, `/catalog`, boot script |
 | `plugins/multi_model/plugin-config.ini` | real configuration, not committed |
 | `plugins/multi_model/plugin-config.ini.example` | configuration template with no credentials |
@@ -713,7 +713,7 @@ Related standards: [standards-alignment.md](standards-alignment.md).
 
 The shell must not ship a hardcoded model list. `allowedModels` is only a runtime cache populated from `/health` and `ui-state`; it is not the authority and it is never seeded with model names. When `/health` is unavailable the list may be empty, and the plugin disables the dropdown with a reason in its title. No hardcoded list is used as a fallback.
 
-`check_ui_js.py` rejects vendor model id literals in `agent/shell/web/web_assets/**/*.js`; a negative test feeds a script containing such a literal and asserts failure.
+`check_ui_js.py` rejects vendor model id literals in `plugins/web_ui/ui/classic/**/*.js`; a negative test feeds a script containing such a literal and asserts failure.
 
 ### 15.3 Model display ownership
 

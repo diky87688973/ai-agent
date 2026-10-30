@@ -31,7 +31,7 @@
 | `cli/headless.py` | Run one turn without a UI and print the event stream |
 | `fspaths.py` | Visible-root sources, path boundary checks and display forms |
 | `classic_adapter/` | Event translation, inbound requests, history replay, confirmation loop |
-| `web/web_assets/` | Shell page, styles and front-end scripts |
+| `plugins/web_ui/ui/classic/` | Base WEB-UI page, styles and front-end scripts; `ui_bundle` reads this plugin manifest |
 
 Token issue and revoke take an in-process thread lock plus a cross-process `tokens.json.lock` file lock. A duplicate name is rejected, and an unavailable lock produces a readable error instead of a stack trace.
 
@@ -75,8 +75,8 @@ Missing model configuration does not block startup: the service starts with `Mis
 | `/api/chat/attachment` | Inline attachment read |
 | `/api/fs/list` `/api/fs/read` | Right-pane file viewer |
 | `/api/dir-browse` | Directory browsing for `@` completion |
-| `/api/panels` `/api/actions` | Plugin-contributed right-pane panels and composer action list |
-| `/api/ctx-segment-styles` `/api/boot-scripts` `/api/tool-labels` | Plugin-contributed context-segment styles, boot scripts, and tool display names and icons |
+| `/api/plugins/loaded` | Loaded plugin names for catalog refresh and UI cleanup |
+| `/api/tool-labels` | Tool display names and icons |
 | `/api/plugin/<plugin>/<path>` | Plugin endpoint namespace (matches registered shapes; `:name` segments take positional parameters; `_asset/<relative path>` forwards plugin files) |
 | `/api/settings` | Settings-page catalog. A secret field's `value` is always empty; `configured` and `placeholder` are supplied instead |
 | `/api/settings/plugins` | Plugin cards: name, description, icon, version, enabled, configurable |
@@ -197,7 +197,7 @@ Window narrowing is not constrained by this pair: `.chat` has `min-width:0`, so 
 
 ## Chat-area Markdown
 
-Prose blocks are rendered by the bundled Markdown parser (`web/web_assets/classic/js/vendor/marked.min.js`): block-level markdown rules such as loose-list spacing, tables, task lists and nested lists are handled there.
+Prose blocks are rendered by the bundled Markdown parser (`plugins/web_ui/ui/classic/js/vendor/marked.min.js`): block-level markdown rules such as loose-list spacing, tables, task lists and nested lists are handled there.
 
 `renderMarkdown()` in `classic/js/render/markdown.js` splits the text by code fences first. Fenced blocks go to the existing logic (`diff` / `patch` become diff cards; others get syntax highlighting); only prose blocks go to `renderMarkdownBlocks()`.
 

@@ -290,7 +290,10 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         print(f"[plugin:multi_model] {path.parent} plugin-meta.json 缺少 name", file=sys.stderr)
 
     return [
+        ctx.add_settings_panel("settings/model", "模型设置"),
+        ctx.add_ui_item("web-ui/input/buttons/model_switch_btn", kind="button",
+                        props={"label": "模型选择", "action": "model.open",
+                               "scripts": ["ui/model-picker.js"]}, order=40),
         ctx.add_model_catalog(lambda: parse_config(path)[0]),
         ctx.add_route("GET", "catalog", _catalog),
-        ctx.add_boot_script("ui/model-picker.js"),
     ]

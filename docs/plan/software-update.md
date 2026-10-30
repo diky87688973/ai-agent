@@ -493,7 +493,7 @@ agent/shell/web/web_routes.py
   POST /api/update/download
   POST /api/update/apply
 
-agent/shell/web/web_assets/classic/js/shell/update.js
+plugins/web_ui/ui/classic/js/shell/update.js
 launcher/launcher.cpp
 scripts/pack_common.py
 scripts/build_release.py

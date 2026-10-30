@@ -133,8 +133,8 @@ inbound 直接持有历史/布局/状态实现
 | HTTP 路由 | `shell/web/web_routes.py` | `server.create_server` 绑定 `Handler` | 业务动作在 `web_api.py` 及动作 mixin |
 | 经典页面/SSE | `shell/web/web_classic.py` | 混入 `Handler` | 不复制 JSON API |
 | 插件 HTTP 端点 | `shell/web/web_plugin.py` | `PluginContext.add_route` | 精确匹配，不做通配 |
-| 壳层公共 UI/CSS/JS | `shell/web/web_assets/`、`shell/web/ui_bundle.py` | `ui_bundle` 内联清单 | 公共资产归壳层 |
-| 插件 UI/主题/图标 | `plugins/<name>/ui/` | 插件 `add_panel`/`add_ctx_segment_style` | 用解析后的插件根，不写死 `plugins/<name>` |
+| 基础 WEB-UI 资产 | `plugins/web_ui/ui/classic/`、`shell/web/ui_bundle.py` | `ui_bundle` 内联清单 | 页面 HTML/CSS/JS 归基础 WEB-UI 插件；壳层只负责送达 |
+| 插件 UI/主题/图标 | `plugins/<name>/ui/` | 插件 `add_ui_item` | 用解析后的插件根，不写死 `plugins/<name>` |
 | 界面配置 | `web-ui-config.ini` | 壳层读取 | 非插件私有配置 |
 | 会话事实 | `data/sessions/*.raw` | `mechanisms/session_store.py` | append-only；不得直接改写 |
 | 运行态数据 | `data/{queues,mesh,wake,plugin,session_state,recycle,logs,auth,auth2..auth9,subagent,batches,cache}` | 对应的 mechanisms、shell 与 subagent 服务 | 只经各自服务访问；不得复制权威状态 |
@@ -154,7 +154,7 @@ inbound 直接持有历史/布局/状态实现
 - 新增模型工具必须同时提供参数 schema、注册点、失败测试；不得只加 handler。
 - 新增前端资产必须在 `ui_bundle` 清单或插件贡献中登记；孤儿文件不得留在仓库。
 - 新增静态资源必须说明加载路径、缓存策略、缺失时行为。
-- 插件资产不得放进 `agent/shell/web/web_assets/`；壳层公共资产不得放进插件目录。
+- 基础页面资产归 `plugins/web_ui/ui/classic/`，壳层不得保留第二份；插件私有 UI 留在插件根内。
 - 测试夹具、截图、上下文导出、缓存和备份不得进入源码树或发布包。
 
 ## 4. 扩展路径

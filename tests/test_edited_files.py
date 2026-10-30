@@ -15,7 +15,7 @@ from agent.shell.web.ui_bundle import read_ui_js  # noqa: E402
 
 class EditedFilesPageTest(unittest.TestCase):
     def test_list_is_assembled_on_the_live_stream_only(self) -> None:
-        feat = (_ROOT / "agent/shell/web/web_assets/classic/js/edited-files.js").read_text(
+        feat = (_ROOT / "plugins/web_ui/ui/classic/js/edited-files.js").read_text(
             encoding="utf-8"
         )
         ui = read_ui_js()

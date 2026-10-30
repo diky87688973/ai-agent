@@ -186,13 +186,7 @@ PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数�
 
 `segments` 末尾固定追加 `{"key": "remaining", "label": "剩余容量", "tokens": ..., "pct": ...}`，这一项没有 `count`。
 
-**颜色、图标、布局由界面决定**：布局载荷里不含色号。插件经
-`ctx.add_ctx_segment_style(label=..., color=...)` 登记外观，壳层开屏拉
-`/api/ctx-segment-styles` 并调用 `ctxSegments.register`；注册早于第一次渲染，
-所以**分段条与浮层两处同源同色**。
-插件没注册时，壳层按段 key 从自己的色名表取一个稳定颜色。
-面板脚本可以开屏预载；面板样式按需注入。
-
+**颜色、图标、布局由界面决定**：布局载荷里不含色号。插件经 `web-ui/left-panel/context_usage/<key>` UI 条目登记 `label` / `color`；UI catalog 通过 `ai-agent:context-segments` 发布同一份映射，分段条与浮层直接消费。插件没注册时，壳层按段 key 从自己的色名表取稳定颜色。
 ## 用户轮是原子单位
 
 一条 `user` 起到下一条 `user` 前是**一个用户轮**。压缩只允许整轮处理：

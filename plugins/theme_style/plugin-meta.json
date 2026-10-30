@@ -1,0 +1,7 @@
+{
+  "name": "主题风格",
+  "icon": "🎨",
+  "desc": "选择 DSH 或极简界面风格",
+  "version": "1.0",
+  "config": "false"
+}

@@ -372,10 +372,10 @@ The render targets are two detached containers; after rendering, their child nod
 | Modify | `agent/shell/classic_adapter/inbound.py` |
 | Modify | `agent/shell/classic_adapter/state.py` |
 | Modify | `agent/shell/web/web_routes.py` |
-| Add | `agent/shell/web/web_assets/classic/js/history-paging.js` |
-| Modify | `agent/shell/web/web_assets/classic/js/chat/conversation.js` |
-| Modify | `agent/shell/web/web_assets/classic/js/chat-tool-views.js` |
-| Modify | `agent/shell/web/web_assets/classic/css/chat-messages.css` |
+| Add | `plugins/web_ui/ui/classic/js/history-paging.js` |
+| Modify | `plugins/web_ui/ui/classic/js/chat/conversation.js` |
+| Modify | `plugins/web_ui/ui/classic/js/chat-tool-views.js` |
+| Modify | `plugins/web_ui/ui/classic/css/chat-messages.css` |
 | Modify | `agent/shell/web/ui_bundle.py` |
 
 Paging logic goes into the new file `history-paging.js` rather than accumulating in the conversation module: the classic UI's main script is already split into modules by responsibility (see `ui_bundle.UI_JS_MODULES`), and individual files generally stay within a few hundred lines.

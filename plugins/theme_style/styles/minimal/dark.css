@@ -1,0 +1,7 @@
+/* 极简风格：对话区与左右栏取消独立底色，使用全局底色。 */
+html[data-ui-theme="dark"] .session-rail,
+html[data-ui-theme="dark"] .side,
+html[data-ui-theme="dark"] .chat,
+html[data-ui-theme="dark"] .msgs {
+  background: transparent;
+}

@@ -110,7 +110,7 @@ extra_suffixes =
 调本插件端点。面板按会话取勾选，会话切换时重新取数；提示栏右侧的刷新按钮重新读取
 知识库目录。目录未配置、为空或加载失败时，面板分别显示对应状态，不隐藏面板本身。
 
-插件登记了上下文段外观（`add_ctx_segment_style`，颜色 `blue`）与输入区动作按钮，
+插件通过 `web-ui/left-panel/context_usage/kb` UI 条目登记上下文段外观（颜色 `blue`），通过 `web-ui/input/buttons/kb_btn` 登记输入区按钮；点击按钮打开 catalog 面板。
 点击按钮打开同名面板。
 
 ## 延伸阅读

@@ -124,7 +124,7 @@ INI 的节名必须唯一，因此两套协议不能共用一个 id。
 
 ## 模型下拉
 
-插件用 `ctx.add_boot_script("ui/model-picker.js")` 登记开屏脚本，壳层只保留
+插件注册 `web-ui/input/buttons/model_switch_btn` 并声明 `scripts=["ui/model-picker.js"]`；catalog 加载脚本，壳层只提供 `#modelPickerSlot` 容器。
 `#modelPickerSlot` 容器。脚本经 `window.aiAgentPlugins.for()` 读 `/catalog` 取条目，
 用 `window.aiAgentShell.models` 读取当前选择并写回；目录端点不可用时回落到
 `shell.models.list()`。样式经 `window.aiAgentShell.styles.load()` 注入。

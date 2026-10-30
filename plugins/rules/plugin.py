@@ -202,5 +202,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         ctx.add_prompt_section(
             RESOURCE_HEAD, lambda _cid: resource_directory_lines(runtime)),
         # 上下文分层里的段外观（界面那一行的颜色）
-        ctx.add_ctx_segment_style(label=SEGMENT_LABEL, color=SEGMENT_COLOR),
+        ctx.add_ui_item(
+            "web-ui/left-panel/context_usage/rules", kind="segment",
+            props={"label": SEGMENT_LABEL, "color": SEGMENT_COLOR}),
     ]

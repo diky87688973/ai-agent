@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Web 壳验收：端到端（真实 HTTP 服务 + 真实 SSE 流）。
-
 场景：
   ① 服务与静态资源：页面 / 样式 / 脚本 / vendor 素材全部可达，健康检查正常；
   ② 协议闭环：send → 后台回合 → SSE 单流多路复用（每帧带 cid）→ history / sessions / ui-state；
@@ -88,7 +87,6 @@ SETTINGS_GROUPS = [
 
 class ScriptedProvider:
     """三步写盘的 provider 替身：
-
     ① write_file 预览（不落盘）→ ② review_conclusion 审阅并解锁 → ③ commit_write 落盘。
     每步在各自的回合里发一个工具调用（脚本按序驱动多个回合）。
     """
@@ -221,7 +219,9 @@ class Acceptance:
         """
         path = root / "plugins.ini"
         path.write_text(
-            "[plugin:knowledge]\nversion = 1.0\n\n"
+            "[plugin:base_settings]\nversion = 1.0\n\n"
+            "[plugin:web_ui]\nversion = 1.0\n\n"
+            "[plugin:knowledge]\nversion = 1.0\n"
             "[plugin:ai_speak]\nversion = 1.0\n",
             encoding="utf-8",
         )
@@ -347,16 +347,16 @@ class Acceptance:
     def scenario_1(self) -> None:
         print("\n场景① 服务与静态资源")
         # 首页是经典界面（素材，内联成单页）。素材按原名躺在
-        # `web_assets/classic/` 下，可经 `/assets/classic/...` 直接取到。
+        # `web_assets/classic/` 下，可经 `/api/plugin/web_ui/_asset/ui/classic/...` 直接取到。
         for path, needle, label in (
             ("/", "AI Agent", "主界面（经典 UI）"),
             ("/", 'id="chatTabs"', "顶部会话标签栏"),
             ("/", 'id="usage-bottom"', "用量底栏"),
             ("/", "global.AIA", "附件链路（image-lightbox 已内联）"),
-            ("/assets/classic/agent-ui.html", "{{CSS}}", "经典 UI 模板（原名）"),
-            ("/assets/classic/css/theme-light.css", 'html[data-ui-theme="light"]', "经典 UI 主题样式"),
-            ("/assets/classic/js/core/boot.js", "normalizeConversationId", "经典 UI 启动脚本"),
-            ("/assets/classic/js/vendor/highlight.min.js", "hljs", "vendor 高亮（直取）"),
+            ("/api/plugin/web_ui/_asset/ui/classic/agent-ui.html", "{{CSS}}", "经典 UI 模板（原名）"),
+            ("/api/plugin/web_ui/_asset/ui/classic/css/theme-light.css", 'html[data-ui-theme="light"]', "经典 UI 主题样式"),
+            ("/api/plugin/web_ui/_asset/ui/classic/js/core/boot.js", "normalizeConversationId", "经典 UI 启动脚本"),
+            ("/api/plugin/web_ui/_asset/ui/classic/js/vendor/highlight.min.js", "hljs", "vendor 高亮（直取）"),
         ):
             status, body = self.get(path)
             self.check(
@@ -688,7 +688,7 @@ class Acceptance:
         page.on("pageerror", lambda exc: errors.append(str(exc)))
         page.goto(self.base + "/", wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(1500)
-        page.click("#hdrSettingsBtn")
+        page.click("[data-ui-action=\"settings.open\"]")
         if not self._wait_visible(page, "#stNav button", "设置面板打开", 10000):
             return
         for tab in ("Agent", "上下文", "界面"):
@@ -731,7 +731,7 @@ class Acceptance:
             status=200, content_type="application/json", body=payload))
         page.goto(self.base + "/", wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(1500)
-        page.click("#hdrSettingsBtn")
+        page.click("[data-ui-action=\"settings.open\"]")
         if not self._wait_visible(page, "#stNav button", "设置面板打开（结构化）", 10000):
             return
         page.click("#stNav button:text-is('插件')")

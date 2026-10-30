@@ -2,7 +2,7 @@
 """经典界面内联打包。
 
 把 CSS 与 JS 全部内联进一个 HTML，运行时页面零额外请求：
-素材位于 `agent/shell/web_assets/classic/`，按下面的模块清单顺序拼成完整页面。
+素材位于 `plugins/web_ui/ui/classic/`，按下面的模块清单顺序拼成完整页面。
 
 模块清单是唯一事实来源：`scripts/check_ui_js.py`、测试与验收脚本都从这里取，
 新增/删除模块只改这一处。
@@ -22,12 +22,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-CLASSIC_DIR = Path(__file__).resolve().parent / "web_assets" / "classic"
+CLASSIC_DIR = (Path(__file__).resolve().parents[3] / "plugins" / "web_ui" / "ui" / "classic")
 
 #: 经典界面 JS 模块（相对 `classic/js/`，顺序即脚本执行顺序）。
 UI_JS_MODULES = (
     "core/auth-client.js",
     "core/boot.js",
+    "core/ui-catalog.js",
     "chat/todo.js",
     "chat/stream.js",
     "chat/confirm.js",
@@ -59,7 +60,6 @@ UI_JS_MODULES = (
     "chat/composer-layout.js",
     "chat/background-tasks.js",
     "chat/subagents.js",
-    "shell/update.js",
     "shell/window-chrome.js",
 )
 
@@ -104,6 +104,7 @@ UI_CSS_MODULES = (
     "side-tabs.css",
     "todo-card.css",
     "window-chrome.css",
+    "markdown.css",
 )
 
 _HTML_FILE = CLASSIC_DIR / "agent-ui.html"

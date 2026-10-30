@@ -112,8 +112,11 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     try:
         disposers.append(ctx.register_tool(AISpeakTool(runtime)))
         disposers.append(ctx.set_subagent_tools([]))
-        disposers.append(ctx.add_boot_script("ui/player.js"))
-        disposers.append(ctx.add_boot_script("ui/tool-view.js"))
+        disposers.append(ctx.add_ui_item(
+            "web-ui/runtime/left-panel/ai_speak", kind="panel",
+            props={"label": "AI 说话", "action": "ai_speak.toggle",
+                   "scripts": ["ui/player.js", "ui/tool-view.js"],
+                   "styles": ["ui/player.css"]}, order=10))
         disposers.append(ctx.add_route("GET", "config", lambda _query: _config_payload(runtime)))
         disposers.append(ctx.add_route("GET", "status", lambda _query: _status_payload(runtime)))
         disposers.append(ctx.add_route("POST", "played", _played_handler(runtime)))

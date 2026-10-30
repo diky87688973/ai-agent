@@ -376,10 +376,10 @@ function withRenderContext(msgsEl, stepsEl, fn) {
 | 修改 | `agent/shell/classic_adapter/inbound.py` |
 | 修改 | `agent/shell/classic_adapter/state.py` |
 | 修改 | `agent/shell/web/web_routes.py` |
-| 新增 | `agent/shell/web/web_assets/classic/js/history-paging.js` |
-| 修改 | `agent/shell/web/web_assets/classic/js/chat/conversation.js` |
-| 修改 | `agent/shell/web/web_assets/classic/js/chat-tool-views.js` |
-| 修改 | `agent/shell/web/web_assets/classic/css/chat-messages.css` |
+| 新增 | `plugins/web_ui/ui/classic/js/history-paging.js` |
+| 修改 | `plugins/web_ui/ui/classic/js/chat/conversation.js` |
+| 修改 | `plugins/web_ui/ui/classic/js/chat-tool-views.js` |
+| 修改 | `plugins/web_ui/ui/classic/css/chat-messages.css` |
 | 修改 | `agent/shell/web/ui_bundle.py` |
 
 分页逻辑放进新文件 `history-paging.js`，不继续往会话模块里堆：经典界面的主脚本已按职责拆成多个模块（见 `ui_bundle.UI_JS_MODULES`），单文件普遍在数百行内。

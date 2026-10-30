@@ -1155,7 +1155,7 @@ eye_denied
 插件按钮声明依赖内核输入区动作契约扩展：
 
 ```text
-ctx.add_action(
+ctx.add_ui_item(
   "eye_toggle",
   label="眼睛",
   title="模型已睁眼",

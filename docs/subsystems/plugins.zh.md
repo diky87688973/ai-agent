@@ -1,4 +1,4 @@
-[English](plugins.md) | **中文**
+﻿[English](plugins.md) | **中文**
 
 # 插件
 
@@ -26,8 +26,9 @@ plugins/<插件名>/
 最小形态是只有一个 `plugin.py` 的目录：只订阅事件，不注册工具，也不贡献界面。
 
 `register(ctx)` 返回 disposer、disposer 列表或不返回（`None`）。**每个 `ctx.add_*`
-都返回 disposer**，宿主在调用时把它记入本插件的贡献账本（含 `add_panel` / `add_route` /
-`add_action` / `add_boot_script` / `add_ctx_segment_style` 等）。`register` 返回的
+都返回 disposer**，宿主在调用时把它记入本插件的贡献账本（含 `add_route` / `add_ui_item` / 设置项等）。`register` 返回的
+disposer 与账本合并、按对象身份去重；卸载时逆序调用。`register` 抛错时，经 `ctx`
+完成的注册全部回滚，插件不会留下半截状态。
 disposer 与账本合并、按对象身份去重；卸载时逆序调用。`register` 抛错时，经 `ctx`
 完成的注册全部回滚，插件不会留下半截状态。
 
@@ -141,9 +142,9 @@ AI说话 / 视觉操作 / 知识库 / Skills 的配置入库，`multi_model` 的
 | `add_pre_gate(gate)` | 工具执行前门控 | 工具管道 |
 | `add_post_observer(obs)` | 工具执行后观察 | 工具管道 |
 | `add_route(method, path, handler)` | HTTP 端点 | `/api/plugin/<插件名>/…` |
-| `add_panel(id, ...)` / `add_action(id, ...)` | 面板 / 输入区按钮 | 贡献注册表（壳层按数据枚举） |
-| `add_ctx_segment_style(label=..., color=...)` | 上下文段外观 | 贡献注册表 → `/api/ctx-segment-styles` |
-| `add_boot_script(rel_path)` | 开屏预载脚本（无面板也可） | 贡献注册表 → `/api/boot-scripts` |
+| `add_ui_item(path, kind=..., props=..., order=...)` | UI catalog 条目：导航/输入/右栏/运行时/上下文段 | UI 路径注册表；`order` 可省略，省略即排在有序区之后 |
+| `add_settings_panel(panel_id, title=...)` | 设置面板 | 插件设置注册表 → 通用设置目录 |
+| `add_settings_item(parent, id, kind=..., save=..., load=...)` | 设置面板内的条目 | 插件设置注册表；保存回调归注册插件 |
 | `add_model_catalog(entries)` | 模型清单（静态序列或热读回调） | `ModelCatalog`（唯一权威来源） |
 | `set_runtime(obj)` | 自己的运行时实例 | `plugin_host.runtime(名字)` 取同一份 |
 
@@ -265,9 +266,13 @@ ctx.add_route("DELETE", "tasks/:sid", drop_task)
 ### 界面
 
 ```python
-ctx.add_panel("notes", title="便签", html="<div id='notes'></div>",
-              script_file="ui/panel.js", css_file="ui/panel.css", pinned=False)
-ctx.add_action("notes", label="🗒 便签", title="便签")   # 输入框下面一个按钮，点了开同名面板
+ctx.add_ui_item(
+    "web-ui/right-panel/notes", kind="panel",
+    props={"label": "便签", "action": "notes.open",
+           "html": "<div id='notes'></div>",
+           "scripts": ["ui/panel.js"], "styles": ["ui/panel.css"]},
+    order=10,
+)
 ```
 
 面板进右栏的标签容器，与「步骤」栏并列。标题就是标签上的字，面板里不再有标题行。
@@ -325,20 +330,11 @@ await api.del("tasks/t-1");                               // DELETE
 
 ### 脚本的加载时机
 
-**上下文段外观**经 `add_ctx_segment_style` 登记，壳层开屏拉
-`/api/ctx-segment-styles` 并调用 `ctxSegments.register` —— 不必为段色单独挂空面板脚本。
+**上下文段外观**统一注册为 `web-ui/left-panel/context_usage/<key>` UI 条目，props 带 `label` / `color`；UI catalog 发布 `ai-agent:context-segments`，上下文条直接消费，不再维护第二份颜色表。
 
-**面板脚本**在开屏时依次预载（`preloadPluginScripts()`），**样式在面板首次打开时注入**。
-样式只在面板打开时才需要，提前注入等于给每个页面加载用不到的字节。
+**插件 UI 脚本与样式**来自 catalog 条目的 `props.scripts` / `props.styles`；样式先注入，脚本按插件串行执行，并设置 `window.aiAgentPluginCurrent`。面板由插件脚本按 catalog 条目打开时渲染。
 
-**开屏脚本**经 `add_boot_script(rel_path)` 登记（如工具卡视图），壳层开屏拉
-`/api/boot-scripts`，在面板脚本之后预载 —— 无面板也能注入 JS。
-
-预载是**串行**的：脚本读全局 `window.aiAgentPluginCurrent` 判断自己属于哪个插件，
-并行加载会互相覆盖这个值。
-
-面板脚本在面板 DOM 存在之前就已预载，因此壳层每次打开面板都会派发
-`ai-agent:panel-opened`；面板脚本在该事件里渲染。
+不存在独立的 boot script API、面板清单端点或动作清单端点；UI 扩展只存在于已声明的 UI 路径下，由 `GET /api/ui/catalog` 发现。
 
 ### 壳层公共桥
 
@@ -367,7 +363,7 @@ window.aiAgentShell.styles.load("ui/model-picker.css");
 会摘掉带 `data-plugin-style` 的 `<link>`，并清掉 `#modelPickerSlot` 里
 `data-plugin` 已不在装载名单的子元素。
 
-插件变更不需要刷新页面：壳层重新加载面板、动作、段色与开屏脚本，关闭已卸载插件的
+插件变更不需要刷新页面：壳层刷新 UI catalog 与已装载插件集合，关闭已卸载插件的面板，并清空脚本与样式缓存，使重新启用后脚本能重新执行。
 面板，并清掉脚本与样式缓存，使重新启用的插件再次执行脚本。
 
 ### 会话切换通知
@@ -413,7 +409,7 @@ unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行�
 运行时交给壳层操作，必须 `ctx.set_runtime(obj)`，壳层用 `plugin_host.runtime("<插件名>")`
 取**同一个实例**；不登记就会出现两边各持一份状态。
 
-卸载兜底会按插件名把面板、动作、端点、段色与开屏脚本全部撤掉。事件订阅由
+卸载兜底会按插件名撤掉端点与 UI catalog 条目。事件订阅由 `ctx.subscribe` 注册的 disposer 撤掉。
 `ctx.subscribe` 登记的 disposer 撤销。
 
 ## 模型目录来源
@@ -433,12 +429,12 @@ id 取对应实例；未命中的 id 直接报错，不会静默路由到别的�
 
 | 插件 | 注册了什么 | 形态 |
 |---|---|---|
-| `plugins/skills` | `skills` 工具 + 两条注入 + 系统提示词章节 + 段色 + 开屏工具卡脚本 | 无面板；上下文段 + boot script；见 [skills.md](skills.zh.md) |
-| `plugins/rules` | 一条注入（`.md` 一文件一条）+ 系统提示词章节 + 段色 | 无面板、无配置、无端点；见 [rules.zh.md](rules.zh.md) |
-| `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 段色 + 三个端点 | 注入、面板、动作、端点四类都有，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.zh.md) |
-| `plugins/multi_model` | 模型目录 + 只读 `/catalog` + 开屏下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.zh.md) |
+| `plugins/skills` | `skills` 工具 + 两条注入 + 系统提示词章节 + 上下文段 + UI 脚本 | 上下文段与 UI 脚本走 UI catalog；见 [skills.md](skills.zh.md) |
+| `plugins/rules` | 一条注入（`.md` 一文件一条）+ 系统提示词章节 + 上下文段 | 无面板、无配置、无端点；见 [rules.zh.md](rules.zh.md) |
+| `plugins/knowledge` | 注入 + 面板 + 输入区按钮 + 上下文段 + 三个端点 | 注入、面板、按钮、端点四类都有，状态落 `ctx.data_dir`；见 [knowledge.md](knowledge.zh.md) |
+| `plugins/multi_model` | 模型目录 + 只读 `/catalog` + UI 下拉脚本 | 每条模型自带网关与厂商；见 [multi-model.md](multi-model.zh.md) |
 | `plugins/visual_operator` | 四个工具（截屏 / 鼠标 / 键盘 / 等待）+ 平台后端 + 输入锁 | 按平台装配后端，不可用时在执行时报错而不是消失；见 [visual-operator.md](visual-operator.zh.md) |
-| `plugins/ai_speak` | `ai_speak` 工具 + 两个只读端点 + 播放确认端点 + 两个开屏脚本 + 两个事件订阅 + 语音尾部 | 后端合成、前端播放条；见 [ai-speak.md](ai-speak.zh.md) |
+| `plugins/ai_speak` | `ai_speak` 工具 + 两个只读端点 + 播放确认端点 + UI 脚本 + 两个事件订阅 + 语音尾部 | 后端合成、前端播放条；见 [ai-speak.md](ai-speak.zh.md) |
 
 各插件的配置与行为写在各自的子系统文档里，这里只描述它们用到的扩展点。
 
@@ -447,7 +443,7 @@ id 取对应实例；未命中的 id 直接报错，不会静默路由到别的�
 ### 插件信任模型
 
 **插件与本机代码同等信任。** 装载后的 `plugin.py` 跑在同一进程、同一解释器里：
-能读整个磁盘、能发网络请求、能注册工具与 HTTP 端点；面板的 HTML 片段与脚本注入到
+能读整个磁盘、能发网络请求、能注册工具与 HTTP 端点；UI catalog 条目的 HTML/脚本注入到
 页面同源上下文里。**没有沙箱。**
 
 因此：
@@ -469,10 +465,9 @@ id 取对应实例；未命中的 id 直接报错，不会静默路由到别的�
 
 - 界面资产的类名带自己的前缀，样式同源注入；
 - 端点注册限于 `/api/plugin/<插件名>/` 命名空间，内核路由不开放注册；
-- 面板的数据由插件自己的端点提供；
-- 渲染相关信息（段名与段色、工具名与图标）由插件声明并由壳层下发，
-  布局归壳层。服务端只给数据（段 key / 段名 / 计数）；插件界面脚本负责自己的
-  面板与注入内容的渲染。
+- 面板数据由插件自己的端点提供；
+- 段名与段色、工具名与图标由插件经 UI catalog 声明，壳层按路径消费；
+  服务端只给数据（段 key / 段名 / 计数），插件界面脚本负责自己的面板渲染。
 
 ## 接入新插件
 
@@ -493,9 +488,7 @@ id 取对应实例；未命中的 id 直接报错，不会静默路由到别的�
    需要结构化表单时加 `settings-schema.json`，声明 `kind` 与 `fields`（`sections`
    还要 `section_prefix` / `identity`）。无敏感信息的 `plugin-config.ini` 入库；
    含密钥的插件配置由 `.gitignore` 排除。
-4. **登记界面**（可选）：面板、输入区动作、开屏脚本、段色分别用
-   `add_panel` / `add_action` / `add_boot_script` / `add_ctx_segment_style` 注册；
-   资产放插件目录内，经 `/api/plugin/<名字>/_asset/<相对路径>` 送达。
+4. **注册界面**（可选）：用 `ctx.add_ui_item(path, kind=..., props=..., order=...)` 在已声明 UI 路径下注册。资产放插件目录内，经 `/api/plugin/<名字>/_asset/<相对路径>` 送达。`order` 可选；正数优先，未设置排在正数后，负数排在最后（`-1` 最后，`-2` 倒数第二）。
 5. **加清单**：在 `plugins.ini` 写一节 `[plugin:<名字>]`，可带 `path` / `enabled`。
    节在即进入装载候选，实际是否装载看 `enabled`。
 6. **校验**：`python scripts/ci.py` 覆盖依赖方向、架构约束、注释文案与单测；

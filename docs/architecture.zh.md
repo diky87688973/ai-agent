@@ -168,9 +168,9 @@ class Ports:
 - 写路径键只认工具声明的 `write_path_keys`（经注册表查找），无进程全局键表、无默认猜 `path`；落盘后是否强制重读认 `needs_reread`。
 - 写盘门控只认 `agent.mechanisms.quality`；禁止 `quality_gate` 兼容模块或 `mechanisms.quality_gate` 回流。
 - `agent/core` 与 `agent/mechanisms` 不出现具体插件名（含 `skill_manage` 与 `plugins/` 目录名）。
-- 插件 `add_panel` / `add_route` / `add_action` 等贡献一律经 disposer 记账，卸载逆序清理。
+- 插件 `add_route` / `add_ui_item` 等贡献一律经 disposer 记账，卸载逆序清理。
 - 外部 `path=` 插件的资产根走 `plugin_root`，不写死 `plugins/<名>`。
-- 仅为段色登记时用 `add_ctx_segment_style`，不挂空面板。
+- 上下文段外观统一注册为 `web-ui/left-panel/context_usage/<key>` UI 路径，由上下文条消费。
 - 壳层经典 JS 与 `prompts.py` 不含 `skill_manage`（工具名只在插件侧）。
 - 插件自有界面与实时事件由插件声明；内核只提供通用贡献点与事件出口。
 - 禁止跨层私有导入（`from agent.X import _priv`）；同层私有导入允许。

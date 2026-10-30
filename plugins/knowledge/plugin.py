@@ -3,7 +3,7 @@
 
 知识库的一切都在这里：配置判定、路径安全、文件读取、表格解析、勾选状态、
 上下文注入与界面。内核不知道"知识库"是什么 —— 它只提供通用的扩展点
-（`ctx.add_context_source` / `add_panel` / `add_action` / `add_route` / `data_dir`）
+（`ctx.add_context_source` / `add_ui_item` / `add_route` / `data_dir`）
 与通用的 INI 读取（`agent.config.load_ini`）。
 
 配置在插件自己目录下的 `plugin-config.ini`：`[config]` 是 `dir` / `max_file_size`；身份在 `plugin-meta.json`，开关在 `plugins.ini`。
@@ -518,12 +518,17 @@ def register(ctx: Any) -> List[Callable[[], None]]:
 
     base = plugin_config_fields(Path(__file__).resolve().parent)
     title = base["name"] or "知识库"
-    label = f"{base['icon']} {title}".strip() if base["icon"] else title
-    disposers.append(ctx.add_panel(
-        "kb", title=title, html=_PANEL_HTML,
-        script_file="ui/panel.js", css_file="ui/panel.css"))
-    disposers.append(ctx.add_action("kb", label=label, title=title))
-    disposers.append(ctx.add_ctx_segment_style(label=title, color="blue"))
+    disposers.append(ctx.add_ui_item(
+        "web-ui/input/buttons/kb_btn", kind="button",
+        props={"label": title, "action": "knowledge.open"}, order=50))
+    disposers.append(ctx.add_ui_item(
+        "web-ui/right-panel/kb", kind="panel",
+        props={"label": title, "action": "knowledge.open",
+               "html": _PANEL_HTML, "scripts": ["ui/panel.js"],
+               "styles": ["ui/panel.css"]}))
+    disposers.append(ctx.add_ui_item(
+        "web-ui/left-panel/context_usage/kb", kind="segment",
+        props={"label": title, "color": "blue"}))
     disposers.append(ctx.add_route("GET", "files", _files))
     disposers.append(ctx.add_route("GET", "checked", _checked_get))
     disposers.append(ctx.add_route("PUT", "checked", _checked_put))

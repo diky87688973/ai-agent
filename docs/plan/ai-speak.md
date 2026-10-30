@@ -83,7 +83,7 @@ settings toggle
 | Styles | `plugins/ai_speak/ui/player.css` | Player bar styles, class prefix `ai-speak-` |
 | Tool card | `plugins/ai_speak/ui/tool-view.js` | Chat title and summary, default request/response panels |
 | Common event outlet | `agent/core/context.py`, `agent/app.py`, `agent/shell/classic_adapter/` | `SERVICE_PLUGIN_EVENTS` + `PluginEventPublisher` + `plugin_event_frame` + `announce_plugin_event` |
-| Player toggle notice | `agent/shell/web/web_assets/classic/js/plugins/host.js` | Turn `plugins_changed` into a DOM event |
+| Player toggle notice | `plugins/web_ui/ui/classic/js/plugins/host.js` | Turn `plugins_changed` into a DOM event |
 
 ## Package layout
 

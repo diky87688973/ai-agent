@@ -92,22 +92,39 @@ class Acceptance:
         self.check("AI说话工具已注册", app.registry.get("ai_speak") is not None)
         self.check("AI说话运行时已登记",
                    app.plugin_host.runtime("ai_speak") is not None)
-        boots = [item for item in app.plugin_host.contributions.all_boot_scripts()
-                 if item.plugin == "ai_speak"]
-        self.check("AI说话开屏脚本已贡献（=2）", len(boots) == 2,
-                   str([item.rel_path for item in boots]))
+        ui = app.plugin_host.ui
+        entry = ui.paths.entries.get("web-ui/runtime/left-panel/ai_speak")
+        if entry is None:
+            entry = next((row for row in ui.pending
+                          if row.get("path") == "web-ui/runtime/left-panel/ai_speak"), None)
+        if entry is None:
+            scripts = []
+        elif isinstance(entry, dict):
+            scripts = entry.get("metadata", {}).get("props", {}).get("scripts", [])
+        else:
+            scripts = entry.metadata.get("props", {}).get("scripts", [])
+        self.check("AI说话 catalog 脚本已注册（=2）", len(scripts) == 2,
+                   str(scripts))
         sources = self.sources_total(app)
         self.check("KB 注入源已挂（=1）", sources == 1, f"sources={sources}")
         contribs = app.plugin_host.contributions
-        self.check("KB 面板已贡献（=1）", len(contribs.all_panels()) == 1,
-                   str([p.as_dict()["id"] for p in contribs.all_panels()]))
-        self.check("KB 动作已贡献（=1）", len(contribs.all_actions()) == 1,
-                   str([a.as_dict()["id"] for a in contribs.all_actions()]))
+        kb_panel = ui.paths.entries.get("web-ui/right-panel/kb")
+        if kb_panel is None:
+            kb_panel = next((row for row in ui.pending
+                             if row.get("path") == "web-ui/right-panel/kb"), None)
+        kb_button = ui.paths.entries.get("web-ui/input/buttons/kb_btn")
+        if kb_button is None:
+            kb_button = next((row for row in ui.pending
+                              if row.get("path") == "web-ui/input/buttons/kb_btn"), None)
+        self.check("KB 面板已注册 UI 路径", kb_panel is not None)
+        self.check("KB 按钮已注册 UI 路径", kb_button is not None)
         self.check("插件端点已贡献（=6）", len(contribs.all_routes()) == 6,
                    str([r.full_path for r in contribs.all_routes()]))
+        props = (kb_panel.get("metadata", {}).get("props", {})
+                 if isinstance(kb_panel, dict)
+                 else getattr(kb_panel, "metadata", {}).get("props", {}))
         self.check("KB 面板资产已声明（样式 + 脚本）",
-                   all((p.as_dict()["style"] and p.as_dict()["script"])
-                       for p in contribs.all_panels()))
+                   bool(props.get("styles")) and bool(props.get("scripts")))
         types = self.smoke(app, "accept-phase3-a")
         self.check("冒烟回合跑通（turn_ended）", "turn_ended" in types, str(types[-3:]))
 
@@ -118,7 +135,8 @@ class Acceptance:
         app = self.build([])
         self.check("零加载", app.plugin_host.loaded_names() == [], str(app.plugin_host.loaded_names()))
         self.check("无注入源", self.sources_total(app) == 0, f"sources={self.sources_total(app)}")
-        self.check("无面板贡献", len(app.plugin_host.contributions.all_panels()) == 0)
+        self.check("无面板贡献", len(app.plugin_host.ui.paths.entries) == 0
+                   and len(app.plugin_host.ui.pending) == 0)
         types = self.smoke(app, "accept-phase3-b")
         self.check("冒烟回合跑通（turn_ended）", "turn_ended" in types, str(types[-3:]))
 
@@ -127,7 +145,10 @@ class Acceptance:
     def scenario_c(self) -> None:
         print("\n场景 C 热卸态（全开 → unload_all）")
         app = self.build(ALL_PLUGINS)
-        self.check("卸前：KB 面板在", len(app.plugin_host.contributions.all_panels()) == 1)
+        self.check("卸前：KB 面板在",
+                   "web-ui/right-panel/kb" in app.plugin_host.ui.paths.entries
+                   or any(row.get("path") == "web-ui/right-panel/kb"
+                          for row in app.plugin_host.ui.pending))
         app.plugin_host.unload_all()
         self.check("卸后：名单清空", app.plugin_host.loaded_names() == [])
         self.check("卸后：AI说话工具回收", app.registry.get("ai_speak") is None)
@@ -138,13 +159,11 @@ class Acceptance:
         sources = self.sources_total(app)
         self.check("卸后：KB 注入源回收（=0）", sources == 0, f"sources={sources}")
         contribs = app.plugin_host.contributions
-        self.check("卸后：面板回收（=0）", len(contribs.all_panels()) == 0,
-                   str([p.panel_id for p in contribs.all_panels()]))
-        self.check("卸后：动作回收（=0）", len(contribs.all_actions()) == 0,
-                   str([a.action_id for a in contribs.all_actions()]))
+
         self.check("卸后：端点回收（=0）", len(contribs.all_routes()) == 0,
                    str([r.path for r in contribs.all_routes()]))
-        self.check("卸后：开屏脚本回收（=0）", len(contribs.all_boot_scripts()) == 0)
+        self.check("卸后：UI 路径回收（=0）",
+                   not any(item.owner == "ai_speak" for item in app.plugin_host.ui.paths.entries.values()))
         types = self.smoke(app, "accept-phase3-c")
         self.check("卸后冒烟仍跑通（turn_ended）", "turn_ended" in types, str(types[-3:]))
 

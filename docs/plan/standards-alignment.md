@@ -36,7 +36,7 @@
 | 12 | `0.5` | No `docs/applicability.md` | MUST | `docs/applicability.md`; `scripts/check_applicability.py` |
 | 13 | `Y1` | `ci.yml` and `ci_steps.py` were not from one source; the validator allowed the extra coverage step | MUST | `scripts/gen_ci_workflow.py`; `scripts/check_ci_workflow.py` |
 | 14 | `B3` | `Any`-typed interfaces in `agent/core/ports.py` | SHOULD | `Protocol` ports; remaining `Any` uses are JSON payloads or opaque handles |
-| 15 | `R2` | A duplicated comment fragment in the pane container | SHOULD | Two-sentence comment in `agent/shell/web/web_assets/classic/js/panels/panes.js`; `check_comment_style.py` |
+| 15 | `R2` | A duplicated comment fragment in the pane container | SHOULD | Two-sentence comment in `plugins/web_ui/ui/classic/js/panels/panes.js`; `check_comment_style.py` |
 
 ### 0.3 Order of work
 
@@ -502,7 +502,7 @@ python scripts/ci.py                           # every step
 
 | Feature work | Prerequisite | Provided by |
 |---|---|---|
-| Add `agent/shell/classic_adapter/history_page.py` and `agent/shell/web/web_assets/classic/js/history-paging.js` | P2: layers and the entry point are fixed | `agent/entry/`; 0 dependency cycles |
+| Add `agent/shell/classic_adapter/history_page.py` and `plugins/web_ui/ui/classic/js/history-paging.js` | P2: layers and the entry point are fixed | `agent/entry/`; 0 dependency cycles |
 | Add `plugins/multi_model/*` | P2; plugin directories stay outside `LAYERS` | The layer list; the downward plugin convention |
 | Add test files | P3: the coverage scope includes the new files | `COVERAGE_FLOORS` and the `agent,plugins` source scope |
 | Ship the feature | P4: negative cases and the concurrency job are in place | `tests/test_gate_negative.py`, `tests/test_concurrency.py` |

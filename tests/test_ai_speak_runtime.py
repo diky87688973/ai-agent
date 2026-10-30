@@ -488,7 +488,7 @@ class ToolTest(unittest.TestCase):
 class _FakeCtx:
     def __init__(self) -> None:
         self.tools: List[Any] = []
-        self.boot_scripts: List[str] = []
+        self.ui_items: List[tuple] = []
         self.routes: List[tuple] = []
         self.subscriptions: List[str] = []
         self.mode_tails: List[Any] = []
@@ -502,9 +502,9 @@ class _FakeCtx:
     def set_subagent_tools(self, tools: Any):
         return lambda: None
 
-    def add_boot_script(self, path: str):
-        self.boot_scripts.append(path)
-        return lambda: self.boot_scripts.remove(path)
+    def add_ui_item(self, path: str, kind: str, props: Any = None, order: Any = None):
+        self.ui_items.append((path, kind, props))
+        return lambda: self.ui_items.remove((path, kind, props))
 
     def add_route(self, method: str, path: str, handler: Any):
         self.routes.append((method, path, handler))
@@ -527,7 +527,8 @@ class RegistrationTest(unittest.TestCase):
         ctx = _FakeCtx()
         disposers = _PLUGIN.register(ctx)
         self.assertEqual([tool.name for tool in ctx.tools], ["ai_speak"])
-        self.assertEqual(ctx.boot_scripts, ["ui/player.js", "ui/tool-view.js"])
+        self.assertEqual(ctx.ui_items[0][2]["scripts"],
+                         ["ui/player.js", "ui/tool-view.js"])
         self.assertEqual([(m, p) for m, p, _h in ctx.routes],
                          [("GET", "config"), ("GET", "status"), ("POST", "played")])
         self.assertEqual(sorted(ctx.subscriptions), ["error", "turn_ended"])

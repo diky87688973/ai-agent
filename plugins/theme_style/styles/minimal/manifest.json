@@ -1,0 +1,17 @@
+{
+  "id": "minimal",
+  "themes": {
+    "dark": {
+      "css": [
+        "styles/minimal/dark.css"
+      ],
+      "js": []
+    },
+    "light": {
+      "css": [
+        "styles/minimal/light.css"
+      ],
+      "js": []
+    }
+  }
+}

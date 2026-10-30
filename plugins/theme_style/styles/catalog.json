@@ -1,0 +1,14 @@
+{
+  "styles": [
+    {
+      "id": "dsh",
+      "name": "DSH 风格",
+      "manifest": "styles/dsh/manifest.json"
+    },
+    {
+      "id": "minimal",
+      "name": "极简风格",
+      "manifest": "styles/minimal/manifest.json"
+    }
+  ]
+}

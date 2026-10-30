@@ -135,7 +135,7 @@ class ModelCatalog:
 
 ### 4.3 插件扩展点
 
-`PluginContext` 新增（与 `add_panel` / `add_context_source` 同位阶）：
+`PluginContext` 新增（与 `add_ui_item` / `add_context_source` 同位阶）：
 
 ```python
 def add_model_catalog(self, entries) -> Disposer
@@ -553,7 +553,7 @@ thinking_budget_tokens = 4096
 2. `ctx.add_route("GET", "catalog", handler)`：
    返回 `{"ok":true,"models":[{"id","label","provider","context_window","default"}],"default":id,"invalid":[{id,reason}]}`。
    不返回 `api_key` 与 `base_url`。`invalid` 是运维面：坏条目不能只活在日志里。
-3. `ctx.add_boot_script("ui/model-picker.js")`。
+3. `ctx.add_ui_item("ui/model-picker.js")`。
 
 `register` 返回 disposer 列表，由插件宿主统一回收。插件启动时解析一次配置，
 坏文件在用户打开下拉之前就留痕。
@@ -574,7 +574,7 @@ thinking_budget_tokens = 4096
 
 #### 11.2.1 模型桥
 
-壳层在 `agent/shell/web/web_assets/classic/js/plugins/host.js` 里、与
+壳层在 `plugins/web_ui/ui/classic/js/plugins/host.js` 里、与
 `window.aiAgentPlugins` 相邻处定义：
 
 ```js
@@ -612,7 +612,7 @@ window.aiAgentShell.models = {
 | 路径 | 端点 | 注入时机 |
 |---|---|---|
 | 面板脚本 / 面板样式 | `/api/plugin/<插件>/_asset/<相对路径>` | 面板打开时（`loadPluginStyle`） |
-| 开屏脚本 | `/api/boot-scripts` | 页面加载 |
+| 开屏脚本 | `/api/ui/catalog` | 页面加载 |
 | 开屏样式 | 无 | — |
 
 下拉按钮在输入区、不属于任何面板，所以它需要在开屏阶段就生效的样式。
@@ -701,11 +701,11 @@ window.aiAgentShell.styles = {
 | `agent/shell/plugin_settings.py` | 插件同步与目录重算 |
 | `agent/shell/classic_adapter/channel.py` | `announce_model` |
 | `agent/shell/classic_adapter/contract.py` | 会话事件契约 |
-| `agent/shell/web/web_assets/classic/agent-ui.html` | `#modelPickerSlot`、`#hdrModel` |
-| `agent/shell/web/web_assets/classic/js/plugins/host.js` | `aiAgentShell.models` 与 `aiAgentShell.styles` |
-| `agent/shell/web/web_assets/classic/js/composer/pickers.js` | `applyModel` |
-| `agent/shell/web/web_assets/classic/js/composer/model-sync.js` | 会话模型回填、允许列表缓存 |
-| `agent/shell/web/web_assets/classic/js/chat/stream.js` | SSE `conversation` 分支 |
+| `plugins/web_ui/ui/classic/agent-ui.html` | `#modelPickerSlot`、`#hdrModel` |
+| `plugins/web_ui/ui/classic/js/plugins/host.js` | `aiAgentShell.models` 与 `aiAgentShell.styles` |
+| `plugins/web_ui/ui/classic/js/composer/pickers.js` | `applyModel` |
+| `plugins/web_ui/ui/classic/js/composer/model-sync.js` | 会话模型回填、允许列表缓存 |
+| `plugins/web_ui/ui/classic/js/chat/stream.js` | SSE `conversation` 分支 |
 | `plugins/multi_model/plugin.py` | 配置解析、目录来源、`/catalog`、开屏脚本 |
 | `plugins/multi_model/plugin-config.ini` | 真实配置，不入库 |
 | `plugins/multi_model/plugin-config.ini.example` | 不含凭据的配置模板 |
@@ -858,7 +858,7 @@ BOM 文件可读、`context_window` 必填且 `compression_percent` 校验范围
 不是权威，也不预置任何模型名。`/health` 不可用时清单可以为空，
 插件据此禁用下拉并在 `title` 里写明原因，不回退到任何硬编码列表。
 
-`check_ui_js.py` 拒绝 `agent/shell/web/web_assets/**/*.js` 里的厂商模型 id 字面量；
+`check_ui_js.py` 拒绝 `plugins/web_ui/ui/classic/**/*.js` 里的厂商模型 id 字面量；
 负向用例喂一段含该字面量的脚本，断言失败。
 
 ### 15.3 模型展示归属

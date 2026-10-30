@@ -10,11 +10,17 @@
 (function () {
   "use strict";
 
-  var PLUGIN = String(window.aiAgentPluginCurrent || "").trim();
+  var PLUGIN = "multi_model";
   var shell = window.aiAgentShell;
   if (!PLUGIN || !shell || !shell.models || !shell.styles) return;
 
   shell.styles.load("ui/model-picker.css");
+
+  function pluginApi() {
+    return window.aiAgentPlugins && window.aiAgentPlugins.for
+      ? window.aiAgentPlugins.for(PLUGIN)
+      : null;
+  }
 
   function boot() {
     var slot = document.getElementById("modelPickerSlot");
@@ -191,11 +197,14 @@
     }
 
     function loadCatalog() {
+      var api = pluginApi();
       var request = api
         ? api.get("catalog").then(function (res) {
             return res && res.ok ? res.data : null;
           })
-        : Promise.resolve(null);
+        : fetch("/api/plugin/" + PLUGIN + "/catalog").then(function (res) {
+            return res.ok ? res.json() : null;
+          });
       return request.catch(function () { return null; }).then(function (data) {
         if (applyCatalog(data)) {
           state.loading = false;
@@ -275,8 +284,10 @@
 
     render();
     loadCatalog();
+    setTimeout(function () { if (pluginApi()) loadCatalog(); }, 300);
   }
 
+  window.__multiModelPickerBoot = boot;
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
   } else {

@@ -42,6 +42,7 @@ class _FakeCtx:
         self.runtime = None
         self.sources = ContextSources()
         self.sections = []
+        self.ui_items = []
         self.styles = []
         self._disposers = []
 
@@ -66,8 +67,8 @@ class _FakeCtx:
 
         return _drop
 
-    def add_ctx_segment_style(self, *, label="", color=""):
-        self.styles.append({"label": label, "color": color})
+    def add_ui_item(self, path, kind, props=None, order=None):
+        self.ui_items.append((path, kind, props, order))
         return lambda: None
 
 
@@ -183,8 +184,10 @@ class RulesRegisterTest(unittest.TestCase):
 
     def test_segment_style_registered(self) -> None:
         ctx, _ = self._register(self.root)
-        self.assertEqual(ctx.styles[0]["label"], "Rules")
-        self.assertTrue(ctx.styles[0]["color"])
+        item = next(row for row in ctx.ui_items
+                    if row[0] == "web-ui/left-panel/context_usage/rules")
+        self.assertEqual(item[2]["label"], "Rules")
+        self.assertTrue(item[2]["color"])
 
     def test_dispose_removes_injection(self) -> None:
         ctx = _FakeCtx()

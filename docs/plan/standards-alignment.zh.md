@@ -36,7 +36,7 @@
 | 12 | `0.5` | 没有 `docs/applicability.md` | MUST | `docs/applicability.md`；`scripts/check_applicability.py` |
 | 13 | `Y1` | `ci.yml` 与 `ci_steps.py` 不同源；校验器放行多出的覆盖率步骤 | MUST | `scripts/gen_ci_workflow.py`；`scripts/check_ci_workflow.py` |
 | 14 | `B3` | `agent/core/ports.py` 的接口用 `Any` 标注 | SHOULD | `Protocol` 端口；剩余 `Any` 只用于 JSON 载荷与不透明句柄 |
-| 15 | `R2` | 面板容器注释残句且重复 | SHOULD | `agent/shell/web/web_assets/classic/js/panels/panes.js` 的两句话注释；`check_comment_style.py` |
+| 15 | `R2` | 面板容器注释残句且重复 | SHOULD | `plugins/web_ui/ui/classic/js/panels/panes.js` 的两句话注释；`check_comment_style.py` |
 
 ### 0.3 顺序
 
@@ -502,7 +502,7 @@ python scripts/ci.py                           # 全部步骤
 
 | 新需求动作 | 前置条件 | 由什么提供 |
 |---|---|---|
-| 新建 `agent/shell/classic_adapter/history_page.py` 与 `agent/shell/web/web_assets/classic/js/history-paging.js` | P2：层与入口已定 | `agent/entry/`；依赖环 0 组 |
+| 新建 `agent/shell/classic_adapter/history_page.py` 与 `plugins/web_ui/ui/classic/js/history-paging.js` | P2：层与入口已定 | `agent/entry/`；依赖环 0 组 |
 | 新建 `plugins/multi_model/*` | P2；插件目录不进 `LAYERS` | 层清单；插件的向下依赖约定 |
 | 新增测试文件 | P3：覆盖率口径包含新文件 | `COVERAGE_FLOORS` 与 `agent,plugins` 统计口径 |
 | 交付新需求 | P4：负向用例与并发作业已就位 | `tests/test_gate_negative.py`、`tests/test_concurrency.py` |

@@ -31,7 +31,7 @@
 | `cli/headless.py` | 无 UI 跑一个回合并打印事件流 |
 | `fspaths.py` | 可见范围的来源、路径判界与展示形态 |
 | `classic_adapter/` | 事件翻译、入站请求、历史回读、确认回路 |
-| `web/web_assets/` | 壳层页面、样式与前端脚本 |
+| `plugins/web_ui/ui/classic/` | 基础 WEB-UI 页面、样式与前端脚本；`ui_bundle` 读该插件清单 |
 
 API Token 的 issue/revoke 使用进程内线程锁与 `tokens.json.lock` 跨进程文件锁；同名签发被拒绝，锁不可用时命令返回可读错误而不是堆栈。
 
@@ -89,8 +89,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/chat/attachment` | 附件内联读取 |
 | `/api/fs/list` `/api/fs/read` | 右栏文件查看器 |
 | `/api/dir-browse` | 目录浏览（`@` 补全用） |
-| `/api/panels` `/api/actions` | 插件贡献的右栏面板与输入区动作清单 |
-| `/api/ctx-segment-styles` `/api/boot-scripts` `/api/tool-labels` | 插件贡献的上下文段外观、开屏脚本、工具展示名与图标 |
+| `/api/plugins/loaded` | 已装载插件名单，用于 catalog 刷新与 UI 清理 |
+| `/api/tool-labels` | 工具显示名与图标 |
 | `/api/plugin/<插件>/<路径>` | 插件端点命名空间（按注册形状匹配，`:名字` 段按位置取参；`_asset/<相对路径>` 转发插件文件） |
 | `/api/settings` | 设置页目录。密钥字段 `value` 恒为空，另给 `configured` 与 `placeholder` |
 | `/api/settings/plugins` | 插件卡片：名字、描述、图标、版本、是否装载、是否可配置 |
@@ -259,7 +259,7 @@ inline_ui_html()        # 拼成完整单页
 
 ## 对话区 Markdown
 
-散文块由内置 Markdown 解析器（`web/web_assets/classic/js/vendor/marked.min.js`）渲染：
+散文块由内置 Markdown 解析器（`plugins/web_ui/ui/classic/js/vendor/marked.min.js`）渲染：
 松散列表的段距、表格、任务清单、嵌套列表等块级规则由它处理。
 
 `classic/js/render/markdown.js` 的 `renderMarkdown()` 先按代码围栏切段：围栏交既有逻辑

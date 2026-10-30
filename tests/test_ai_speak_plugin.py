@@ -44,8 +44,15 @@ class AISpeakAppTest(unittest.TestCase):
             [(route.method, route.path) for route in contribs.routes_of("ai_speak")],
             [("GET", "config"), ("GET", "status"), ("POST", "played")],
         )
-        scripts = [row["rel_path"] for row in
-                   (item.as_dict() for item in contribs.all_boot_scripts())]
+        ui = self.app.plugin_host.ui
+        item = ui.paths.entries.get("web-ui/runtime/left-panel/ai_speak")
+        if item is None:
+            pending = [row for row in ui.pending
+                       if row.get("path") == "web-ui/runtime/left-panel/ai_speak"]
+            self.assertTrue(pending)
+            scripts = pending[0]["metadata"]["props"]["scripts"]
+        else:
+            scripts = item.metadata["props"]["scripts"]
         self.assertEqual(scripts, ["ui/player.js", "ui/tool-view.js"])
         self.assertIsNotNone(self.app.plugin_host.runtime("ai_speak"))
         self.assertIsInstance(
@@ -89,7 +96,6 @@ class AISpeakAppTest(unittest.TestCase):
         self.assertIsNone(self.app.registry.get("ai_speak"))
         contribs = self.app.plugin_host.contributions
         self.assertEqual(contribs.routes_of("ai_speak"), [])
-        self.assertEqual(contribs.all_boot_scripts(), [])
         self.assertIsNone(self.app.plugin_host.runtime("ai_speak"))
 
 

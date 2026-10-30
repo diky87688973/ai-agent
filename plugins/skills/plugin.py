@@ -108,9 +108,13 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         ),
     ]
     # 上下文分层外观：无面板，经贡献表交给壳层开屏注册。
-    disposers.append(ctx.add_ctx_segment_style(label=style_label, color="plum"))
+    disposers.append(ctx.add_ui_item(
+        "web-ui/left-panel/context_usage/skills", kind="segment",
+        props={"label": style_label, "color": "plum"}))
     # 工具卡视图：开屏脚本，不必挂空面板。
-    disposers.append(ctx.add_boot_script("ui/tool-view.js"))
+    disposers.append(ctx.add_ui_item(
+        "web-ui/chat/messages/tools/skill", kind="tool-shell",
+        props={"label": "Skills", "scripts": ["ui/tool-view.js"]}))
     return disposers
 
 

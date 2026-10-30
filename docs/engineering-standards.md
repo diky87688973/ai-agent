@@ -111,7 +111,17 @@ re-exports kept for old import paths
 
 ## 3. Asset ownership
 
-An asset must belong to the module accountable for its lifecycle, failure behavior, and contract. Before adding or moving an asset, answer: why it belongs here, why no other module can own it, whether it can be derived from existing fields, where the single registration point is, whether a duplicate copy exists, and who is affected when it is missing or unloaded.
+An asset must belong to the module accountable for its lifecycle, failure behavior, and contract. Asset ownership covers behavior, not only files:
+
+- module responsibility and boundary;
+- public and private capabilities;
+- control flow, decision rules, defaults, and fallbacks;
+- state authority, lifecycle, unload, and cleanup behavior;
+- events, registration points, and extension points;
+- failure handling and observability;
+- tests and documentation that define the behavior.
+
+A capability whose owner cannot be named is not added. A capability that cannot be derived from the module's responsibility is not provided. Before adding or moving an asset, answer: why it belongs here, why no other module can own it, whether it can be derived from existing fields, where the single registration point is, whether a duplicate copy exists, and who is affected when it is missing or unloaded.
 
 | Asset | Authoritative owner | Registration/load point | Constraint |
 |---|---|---|---|
@@ -133,8 +143,8 @@ An asset must belong to the module accountable for its lifecycle, failure behavi
 | HTTP routes | `shell/web/web_routes.py` | `server.create_server` binds `Handler` | Business actions live in `web_api.py` and its action mixins |
 | Classic page/SSE | `shell/web/web_classic.py` | Mixed into `Handler` | Does not copy the JSON API |
 | Plugin HTTP endpoints | `shell/web/web_plugin.py` | `PluginContext.add_route` | Exact match; no wildcards |
-| Shell public UI/CSS/JS | `shell/web/web_assets/`, `shell/web/ui_bundle.py` | Inline manifest in `ui_bundle` | Public assets belong to the shell |
-| Plugin UI/themes/icons | `plugins/<name>/ui/` | Plugin `add_panel` / `add_ctx_segment_style` | Use the resolved plugin root; never hardcode `plugins/<name>` |
+| Base WEB-UI assets | `plugins/web_ui/ui/classic/`, `shell/web/ui_bundle.py` | Inline manifest in `ui_bundle` | Page HTML/CSS/JS belong to the base WEB-UI plugin; the shell only serves them |
+| Plugin UI/themes/icons | `plugins/<name>/ui/` | Plugin `add_ui_item` | Use the resolved plugin root; never hardcode `plugins/<name>` |
 | UI configuration | `web-ui-config.ini` | Read by the shell | Not plugin-private configuration |
 | Session facts | `data/sessions/*.raw` | `mechanisms/session_store.py` | Append-only; never rewrite in place |
 | Runtime data | `data/{queues,mesh,wake,plugin,session_state,recycle,logs,auth,auth2..auth9,subagent,batches,cache}` | The owning mechanisms, shell, and subagent services | Access only through the owning service; never duplicate authoritative state |
@@ -154,7 +164,7 @@ An asset must belong to the module accountable for its lifecycle, failure behavi
 - A new model tool must ship its argument schema, registration point, and failure tests; adding a handler alone is not enough.
 - A new front-end asset must be registered in the `ui_bundle` manifest or a plugin contribution; no orphan file may remain in the repository.
 - A new static asset must state its load path, cache policy, and behavior when missing.
-- Plugin assets must not be placed in `agent/shell/web/web_assets/`; shell public assets must not be placed in plugin directories.
+- Base page assets belong to `plugins/web_ui/ui/classic/`; the shell must not keep a second copy. Plugin-private UI stays under its plugin root.
 - Test fixtures, screenshots, context exports, caches, and backups must not enter the source tree or release packages.
 
 ## 4. Extension paths

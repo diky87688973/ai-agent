@@ -96,15 +96,9 @@ def register(ctx: Any) -> List[Any]:
     disposers.append(ctx.add_context_assembly_hook(_observation_hook(runtime)))
     disposers.append(ctx.add_prompt_section("visual_operator_2", _vision_prompt))
     disposers.extend(build_routes(ctx, runtime))
-    disposers.append(ctx.add_action(
-        "eye_toggle",
-        label="眼睛",
-        title="模型已睁眼",
-        placement="after:knowledge:kb",
-        click_url=f"/api/plugin/{PLUGIN_NAME}/eye-consent/revoke",
-        click_method="POST",
-    ))
-    disposers.append(ctx.add_boot_script("ui/eye-toggle.js"))
-    disposers.append(ctx.add_boot_script("ui/vision-frame.js"))
+    disposers.append(ctx.add_ui_item(
+        "web-ui/input/buttons/visual_btn", kind="button",
+        props={"label": "眼睛", "action": "visual.toggle",
+               "scripts": ["ui/eye-toggle.js", "ui/vision-frame.js"]}, order=60))
     ctx.set_runtime(runtime)
     return disposers

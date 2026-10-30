@@ -95,7 +95,7 @@ The prefix is `/api/plugin/knowledge/`:
 
 The right panel loads `ui/panel.js` and `ui/panel.css`; the script calls this plugin's endpoints through `window.aiAgentPlugins`. The panel fetches selections by conversation and refetches when the conversation changes; the refresh button on the right of the hint bar rereads the knowledge-base directory. When the directory is unconfigured, empty, or fails to load, the panel shows the corresponding state without hiding the panel itself.
 
-The plugin registers a context-segment appearance (`add_ctx_segment_style`, color `blue`) and an input-area action button; clicking the button opens the panel with the same id.
+The plugin registers a context-segment appearance as the `web-ui/left-panel/context_usage/kb` UI item (color `blue`) and a `web-ui/input/buttons/kb_btn` item; clicking the button opens the catalog panel.
 
 ## Further reading
 

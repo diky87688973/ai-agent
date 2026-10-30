@@ -95,7 +95,7 @@
 | 样式 | `plugins/ai_speak/ui/player.css` | 播放条样式，类名前缀 `ai-speak-` |
 | 工具卡 | `plugins/ai_speak/ui/tool-view.js` | 对话区标题与摘要，挂默认请求/响应面板 |
 | 通用事件出口 | `agent/core/context.py`、`agent/app.py`、`agent/shell/classic_adapter/` | `SERVICE_PLUGIN_EVENTS` + `PluginEventPublisher` + `plugin_event_frame` + `announce_plugin_event` |
-| 播放器开关通知 | `agent/shell/web/web_assets/classic/js/plugins/host.js` | 把 `plugins_changed` 转成 DOM 事件 |
+| 播放器开关通知 | `plugins/web_ui/ui/classic/js/plugins/host.js` | 把 `plugins_changed` 转成 DOM 事件 |
 
 ## 包结构
 

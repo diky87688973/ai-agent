@@ -58,8 +58,10 @@ class _Ctx:
         self.routes[(method, path)] = handler
         return self._disposer()
 
-    def add_boot_script(self, rel_path):
-        self.boot.append(rel_path)
+    def add_settings_panel(self, panel_id, title):
+        return self._disposer()
+
+    def add_ui_item(self, path, kind, props=None, order=None):
         return self._disposer()
 
 
@@ -365,16 +367,16 @@ class RegisterTest(_ConfigCase):
         ctx = _Ctx()
         with contextlib.redirect_stderr(io.StringIO()):
             disposers = _PLUGIN.register(ctx)
-        self.assertEqual(len(disposers), 3)
+        self.assertEqual(len(disposers), 4)
         self.assertTrue(callable(ctx.catalog))
         self.assertIn(("GET", "catalog"), ctx.routes)
-        self.assertEqual(ctx.boot, ["ui/model-picker.js"])
+        self.assertEqual(ctx.boot, [])
         status, payload = ctx.routes[("GET", "catalog")]({})
         self.assertEqual(status, 200)
         self.assertEqual(payload["default"], "a")
         for disposer in disposers:
             disposer()
-        self.assertEqual(ctx.disposed, 3)
+        self.assertEqual(ctx.disposed, 4)
 
     def test_catalog_callback_hot_reads_the_file(self) -> None:
         self.write("[model:a]\nbase_url = http://x\napi_key = k\n")

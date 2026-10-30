@@ -3,7 +3,7 @@
 (function(){
 "use strict";
 var PLUGIN="visual_operator_2";
-var SELECTOR='[data-plugin="'+PLUGIN+'"][data-plugin-action="eye_toggle"]';
+var SELECTOR='[data-ui-action="visual.toggle"]';
 function paint(b,open){
  b.classList.add("vision-eye-btn");
  b.setAttribute("data-eye-closed",open?"0":"1");
@@ -39,20 +39,10 @@ function bind(){
   if(d.event==="eye_opened"){setState(String(d.conversation_id||"")===cid());}
   else if(d.event==="eye_closed"){setState(false);}
  });
- var host=document.getElementById("pluginActions");
- if(host&&!host._visionEyeObserver){
-  host._visionEyeObserver=new MutationObserver(function(){
-   var b=button();
-   if(b&&!b.hasAttribute("data-vision-eye-ready")){
-    b.setAttribute("data-vision-eye-ready","1");
-    b.hidden=true;
-    refresh();
-   }
-  });
-  host._visionEyeObserver.observe(host,{childList:true});
- }
+
 }
 function init(){bind();var b=button();if(b){b.hidden=true;refresh();}}
+document.addEventListener("ai-agent:ui-rendered",function(){init();});
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);
 else init();
 })();

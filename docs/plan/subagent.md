@@ -141,10 +141,10 @@ agent/capabilities/builtin/subagent_tools.py
 agent/shell/web/web_subagents.py
   list, history, send actions
 
-agent/shell/web/web_assets/classic/js/chat/subagents.js
+plugins/web_ui/ui/classic/js/chat/subagents.js
   subagent list and tab opening
 
-agent/shell/web/web_assets/classic/css/subagents.css
+plugins/web_ui/ui/classic/css/subagents.css
   right-side stacked panel styles
 ```
 

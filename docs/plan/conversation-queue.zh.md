@@ -33,7 +33,7 @@
 | 输入事实 | `agent/core/modules/input_mod.py` |
 | HTTP 端点 | `agent/shell/web/web_routes.py`、`agent/shell/web/web_chat.py`、`agent/shell/web/web_api.py` |
 | SSE 契约 | `agent/core/event_name.py`、`agent/shell/classic_adapter/` |
-| UI | `agent/shell/web/web_assets/classic/js/chat/queue.js`、`agent/shell/web/web_assets/classic/css/chat-queue.css`、`agent/shell/web/web_assets/classic/agent-ui.html` |
+| UI | `plugins/web_ui/ui/classic/js/chat/queue.js`、`plugins/web_ui/ui/classic/css/chat-queue.css`、`plugins/web_ui/ui/classic/agent-ui.html` |
 | 队列数据 | `data/queues/<cid>/` |
 
 `MeshState` 保留：

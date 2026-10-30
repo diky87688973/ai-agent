@@ -214,7 +214,7 @@ class AssetReusePolicyTest(unittest.TestCase):
         self.assertIn("function mdParser(", ui, "散文块应由 markdown 解析器实例渲染")
         self.assertIn(".use({renderer:", ui, "渲染定制应经 marked.use 安装")
         self.assertNotIn("base64,", ui, "渲染链路不得内联 base64")
-        vendor = (_ROOT / "agent/shell/web/web_assets/classic/js/vendor/marked.min.js")
+        vendor = (_ROOT / "plugins/web_ui/ui/classic/js/vendor/marked.min.js")
         self.assertTrue(vendor.is_file(), "markdown 解析器应随素材分发")
 
 class UiStateContractTest(unittest.TestCase):

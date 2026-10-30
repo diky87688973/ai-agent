@@ -46,79 +46,6 @@ class ContributionRegistryTest(unittest.TestCase):
 
     # ── 面板 ──
 
-    def test_panel_register_and_dispose(self) -> None:
-        d = self.reg.add_panel("a", "p1", title="面板一", html="<b>hi</b>")
-        panel = self.reg.panel("a", "p1")
-        self.assertIsNotNone(panel)
-        self.assertEqual(panel.title, "面板一")
-        self.assertEqual([p.panel_id for p in self.reg.panels_of("a")], ["p1"])
-        d()
-        self.assertIsNone(self.reg.panel("a", "p1"))
-
-    def test_panel_duplicate_rejected(self) -> None:
-        self.reg.add_panel("a", "p1", title="x")
-        with self.assertRaises(ContributionError):
-            self.reg.add_panel("a", "p1", title="y")
-
-    def test_panel_script_file_builds_asset_url(self) -> None:
-        self.reg.add_panel("a", "p1", title="x", script_file="ui/panel.js")
-        d = self.reg.panel("a", "p1").as_dict()
-        self.assertEqual(
-            d["script"], f"/api/plugin/a/{ASSET_SEGMENT}/ui/panel.js")
-
-    def test_panel_explicit_script_wins(self) -> None:
-        self.reg.add_panel("a", "p1", title="x", script="/custom/x.js",
-                           script_file="ui/panel.js")
-        self.assertEqual(self.reg.panel("a", "p1").as_dict()["script"], "/custom/x.js")
-
-    def test_panel_script_file_rejects_escape(self) -> None:
-        for bad in ("../x.js", "ui/../../x.js", "/abs/x.js", r"C:\x.js", ""):
-            with self.subTest(bad=bad):
-                if not bad:
-                    # 空值表示"没有脚本"，合法
-                    self.reg.add_panel("a", "ok", title="x", script_file="")
-                    continue
-                with self.assertRaises(ContributionError):
-                    self.reg.add_panel("a", f"p-{abs(hash(bad))}", title="x",
-                                       script_file=bad)
-
-    # ── 动作 ──
-
-    def test_action_register_and_dispose(self) -> None:
-        d = self.reg.add_action("a", "go", label="去", title="提示")
-        act = self.reg.actions_of("a")[0]
-        self.assertEqual(act.action_id, "go")
-        self.assertEqual(act.panel, "go", "未指定 panel 时默认同名面板")
-        d()
-        self.assertEqual(self.reg.actions_of("a"), [])
-
-    def test_action_explicit_panel(self) -> None:
-        self.reg.add_action("a", "go", label="去", panel="board")
-        self.assertEqual(self.reg.actions_of("a")[0].panel, "board")
-
-    def test_action_click_contract_and_placement(self) -> None:
-        self.reg.add_action(
-            "a", "eye", label="眼睛", title="模型已睁眼",
-            placement="after:knowledge:kb",
-            click_url="/api/plugin/a/eye/close",
-        )
-        act = self.reg.actions_of("a")[0]
-        self.assertEqual(act.placement, "after:knowledge:kb")
-        self.assertEqual(act.click_url, "/api/plugin/a/eye/close")
-        self.assertEqual(act.click_method, "POST")
-        self.assertEqual(
-            act.as_dict()["click_url"], "/api/plugin/a/eye/close")
-
-    def test_action_click_url_must_stay_in_plugin_namespace(self) -> None:
-        with self.assertRaises(ContributionError):
-            self.reg.add_action("a", "bad", label="x",
-                                click_url="/api/settings")
-        with self.assertRaises(ContributionError):
-            self.reg.add_action("a", "bad", label="x",
-                                click_url="/api/plugin/b/x")
-
-    # ── 端点 ──
-
     def test_route_exact_match(self) -> None:
         self.reg.add_route("a", "GET", "tasks", lambda q: (200, {}))
         hit = self.reg.match("GET", "/api/plugin/a/tasks")
@@ -188,48 +115,11 @@ class ContributionRegistryTest(unittest.TestCase):
 
     # ── 卸载兜底 ──
 
-    def test_drop_plugin_removes_every_kind(self) -> None:
-        self.reg.add_panel("a", "p", title="x")
-        self.reg.add_action("a", "go", label="去")
+    def test_drop_plugin_removes_routes(self) -> None:
         self.reg.add_route("a", "GET", "x", lambda q: (200, {}))
-        self.reg.add_ctx_segment_style("a", label="A", color="blue")
-        self.reg.add_boot_script("a", "ui/tool-view.js")
-        self.reg.add_panel("b", "p", title="x")
-        self.assertEqual(self.reg.drop_plugin("a"), 5)
-        # b 的贡献不该被牵连
-        self.assertEqual([p.plugin for p in self.reg.all_panels()], ["b"])
-        self.assertEqual(self.reg.all_actions(), [])
-        self.assertEqual(self.reg.all_routes(), [])
-        self.assertEqual(self.reg.all_ctx_segment_styles(), [])
-        self.assertEqual(self.reg.all_boot_scripts(), [])
-
-    def test_ctx_segment_style_register_and_dispose(self) -> None:
-        d = self.reg.add_ctx_segment_style("a", label="Skills", color="plum")
-        styles = self.reg.all_ctx_segment_styles()
-        self.assertEqual(len(styles), 1)
-        self.assertEqual(styles[0].as_dict(), {
-            "plugin": "a", "label": "Skills", "color": "plum"})
-        d()
-        self.assertEqual(self.reg.all_ctx_segment_styles(), [])
-
-    def test_boot_script_register_and_dispose(self) -> None:
-        d = self.reg.add_boot_script("a", "ui/tool-view.js")
-        scripts = self.reg.all_boot_scripts()
-        self.assertEqual(len(scripts), 1)
-        self.assertEqual(scripts[0].as_dict(), {
-            "plugin": "a",
-            "rel_path": "ui/tool-view.js",
-            "script": f"/api/plugin/a/{ASSET_SEGMENT}/ui/tool-view.js",
-        })
-        d()
-        self.assertEqual(self.reg.all_boot_scripts(), [])
-
-    def test_boot_script_rejects_escape(self) -> None:
-        for bad in ("../x.js", "ui/../../x.js", "/abs/x.js", r"C:\x.js", ""):
-            with self.subTest(bad=bad):
-                with self.assertRaises(ContributionError):
-                    self.reg.add_boot_script("a", bad)
-
+        self.reg.add_route("b", "GET", "x", lambda q: (200, {}))
+        self.assertEqual(self.reg.drop_plugin("a"), 1)
+        self.assertEqual([r.plugin for r in self.reg.all_routes()], ["b"])
 
 class PluginContextContributionTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -243,37 +133,26 @@ class PluginContextContributionTest(unittest.TestCase):
         return PluginContext(name, self.host._registry, None,
                              self.host._context_sources, None, self.host, self.reg)
 
-    def test_ctx_namespaces_contributions_by_plugin(self) -> None:
+    def test_ctx_namespaces_routes_by_plugin(self) -> None:
         ctx = self._ctx("a")
-        ctx.add_panel("p", title="面板")
-        ctx.add_action("go", label="去")
         ctx.add_route("GET", "x", lambda q: (200, {}))
-        ctx.add_ctx_segment_style(label="A", color="blue")
-        ctx.add_boot_script("ui/tool-view.js")
-        self.assertEqual([p.plugin for p in self.reg.all_panels()], ["a"])
-        self.assertEqual([a.plugin for a in self.reg.all_actions()], ["a"])
         self.assertEqual([r.plugin for r in self.reg.all_routes()], ["a"])
-        self.assertEqual([s.plugin for s in self.reg.all_ctx_segment_styles()], ["a"])
-        self.assertEqual([s.plugin for s in self.reg.all_boot_scripts()], ["a"])
         self.assertTrue(self.reg.all_routes()[0].full_path.startswith("/api/plugin/a/"))
-        # 贡献 disposer 记入 ctx，register 失败时可回滚
-        self.assertEqual(len(ctx._disposers), 5)
+        self.assertEqual(len(ctx._disposers), 1)
 
-    def test_register_fail_after_add_panel_rolls_back(self) -> None:
-        """register 在 add_panel 之后抛错 → 面板不得留在贡献表。"""
+    def test_register_fail_after_add_route_rolls_back(self) -> None:
         plugins = self.base / "plugins"
         plugins.mkdir(parents=True)
         (plugins / "boom").mkdir()
         (plugins / "boom" / "plugin.py").write_text(
             "def register(ctx):\n"
-            "    ctx.add_panel('p', title='会回滚')\n"
+            "    ctx.add_route('GET', 'x', lambda q: (200, {}))\n"
             "    raise RuntimeError('boom')\n",
             encoding="utf-8",
         )
         reports = self.host.load_enabled(["boom"])
         self.assertEqual(reports[0].status, "error")
-        self.assertIsNone(self.reg.panel("boom", "p"))
-        self.assertEqual(self.reg.all_panels(), [])
+        self.assertEqual(self.reg.all_routes(), [])
 
     def test_ctx_add_context_source_returns_disposer(self) -> None:
         ctx = self._ctx("a")
@@ -343,7 +222,7 @@ class ExternalPluginRootAssetTest(unittest.TestCase):
         (external / "ui").mkdir(parents=True)
         (external / "plugin.py").write_text(
             "def register(ctx):\n"
-            "    ctx.add_panel('p', title='外', script_file='ui/panel.js')\n",
+            "    ctx.add_route('GET', 'x', lambda q: (200, {}))\n",
             encoding="utf-8",
         )
         marker = "/* external-asset-ok */\n"

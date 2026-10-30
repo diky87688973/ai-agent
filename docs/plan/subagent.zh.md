@@ -141,10 +141,10 @@ agent/capabilities/builtin/subagent_tools.py
 agent/shell/web/web_subagents.py
   列表、历史、发送动作
 
-agent/shell/web/web_assets/classic/js/chat/subagents.js
+plugins/web_ui/ui/classic/js/chat/subagents.js
   子智能体列表与标签打开
 
-agent/shell/web/web_assets/classic/css/subagents.css
+plugins/web_ui/ui/classic/css/subagents.css
   右侧堆叠面板样式
 ```
 

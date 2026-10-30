@@ -672,15 +672,6 @@ class PluginPanelRenderContractTest(unittest.TestCase):
         self.assertIn("ai-agent:panel-opened", js[idx:idx + 4000],
                       msg="广播要在 openPane 里（每个面板打开都发）")
 
-    def test_open_plugin_panel_passes_its_plugin_name(self) -> None:
-        js = self._shell_js()
-        idx = js.index("function openPluginPanel(")
-        chunk = js[idx:idx + 800]
-        self.assertIn("plugin:pluginKey", chunk,
-                      msg="不带插件名，脚本认不出这是不是自己的面板")
-        self.assertIn('pluginKey+"__"+panelKey', chunk,
-                      msg="面板 DOM id 须带插件名前缀，避免跨插件撞名")
-
     def test_panel_has_a_refresh_button_on_the_subtitle(self) -> None:
         """小标题右侧一个刷新：知识库目录是外部目录，不重开面板也要能取到新文件。"""
         from pathlib import Path as _P

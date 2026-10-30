@@ -110,7 +110,7 @@ The plugin declares `settings_tab` as 「模型」 in `plugin-meta.json`, so onc
 
 ## Model dropdown
 
-The plugin registers a boot script with `ctx.add_boot_script("ui/model-picker.js")`; the shell provides only the `#modelPickerSlot` container. The script reads entries from `/catalog` through `window.aiAgentPlugins.for()`, uses `window.aiAgentShell.models` to read the current selection and write changes back, and falls back to `shell.models.list()` when the catalog endpoint is unavailable. Styles are injected through `window.aiAgentShell.styles.load()`. The bridge contract is in [plugins.md](plugins.md#壳层公共桥).
+The plugin registers `web-ui/input/buttons/model_switch_btn` with `scripts=["ui/model-picker.js"]`; the catalog loader injects the script and the shell provides only the `#modelPickerSlot` container. The script reads entries from `/catalog` through `window.aiAgentPlugins.for()`, uses `window.aiAgentShell.models` to read the current selection and write changes back, and falls back to `shell.models.list()` when the catalog endpoint is unavailable. Styles are injected through `window.aiAgentShell.styles.load()`. The bridge contract is in [plugins.md](plugins.md#壳层公共桥).
 
 Neither the button nor the menu caps its width: the model name is the only way to tell entries apart, and cutting the two entries for one gateway (`model-a-openai`, `model-a-anthropic`) to a shared prefix would hide which one is selected. The menu follows its items with `width:max-content` and is clamped only at the viewport edge (`100vw - 24px`).
 

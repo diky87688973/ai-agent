@@ -167,7 +167,7 @@ Reported counts align with sources **by position**: the count list returned by `
 
 `segments` always ends with `{"key": "remaining", "label": "剩余容量", "tokens": ..., "pct": ...}`; this entry has no `count`.
 
-**Colors, icons, and layout belong to the UI**: the layout payload carries no color values. Plugins register appearance through `ctx.add_ctx_segment_style(label=..., color=...)`; at startup the shell fetches `/api/ctx-segment-styles` and calls `ctxSegments.register`. Registration happens before the first render, so the segment bar and the tooltip use the same source and the same color. When a plugin has not registered, the shell picks a stable color from its own palette by segment key. Panel scripts may preload at startup; panel styles are injected on demand.
+**Colors, icons, and layout belong to the UI**: the layout payload carries no color values. Plugins register context-segment appearance as `web-ui/left-panel/context_usage/<key>` UI items with `label` and `color` props. The UI catalog publishes the resulting map through `ai-agent:context-segments`; the segment bar and tooltip read the same map. When a plugin has no registration, the shell picks a stable color from its own palette by segment key.
 
 ## User rounds are atomic
 

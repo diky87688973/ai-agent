@@ -44,6 +44,9 @@ class PluginContext:
         contributions: Any = None,
         executors: Any = None,
         model_catalog: Any = None,
+        settings: Any = None,
+        ui: Any = None,
+        backend: Any = None,
         prompt_tail: Any = None,
         prompt_sections: Any = None,
         context_hooks: Any = None,
@@ -57,6 +60,10 @@ class PluginContext:
         self._contributions = contributions
         self._executors = executors
         self._model_catalog = model_catalog
+        self._settings = settings
+        self._ui = ui
+        self._backend = backend
+        self._backend_seq = 0
         self._prompt_tail = prompt_tail
         self._prompt_sections = prompt_sections
         self._context_hooks = context_hooks
@@ -72,6 +79,24 @@ class PluginContext:
         """本插件经 ctx 登记的贡献 disposer（登记顺序；撤销时逆序）。"""
         return list(self._disposers)
 
+    def _backend_path(self, path: str, kind: str, handler: Any = None,
+                      metadata: Any = None) -> Disposer:
+        if self._backend is None:
+            return lambda: None
+        disposer = self._backend.register(
+            path, kind=kind, owner=self.name, handler=handler,
+            metadata=dict(metadata or {}))
+        self._disposers.append(disposer)
+        return disposer
+
+    def _backend_seq_id(self, prefix: str) -> str:
+        self._backend_seq += 1
+        return f"{prefix}-{self._backend_seq}"
+
+    @staticmethod
+    def _backend_slug(value: str) -> str:
+        return re.sub(r"[^a-z0-9_.-]+", "-", str(value or "").strip().lower()).strip("-") or "item"
+
     def add_executor(self, name: str, fn: Callable[[Dict[str, Any]], Dict[str, Any]]) -> Disposer:
         """登记写类工具的执行器（提交路径扩展点；需接入 ExecutorRegistry）。
 
@@ -81,18 +106,23 @@ class PluginContext:
             raise RuntimeError("插件未接入执行器注册表（PluginHost 未传 executors）")
         disposer = self._executors.add(name, fn, owner=self.name)
         self._disposers.append(disposer)
+        self._backend_path(f"backend/tools/{name}/executor", "executor", fn)
         return disposer
 
     def register_tool(self, plugin: ToolPlugin) -> Disposer:
         """向工具注册表注册插件；子智能体可见性由 set_subagent_tools 声明。"""
         disposer = self._registry.register(plugin, owner=self.name)
         self._disposers.append(disposer)
+        self._backend_path(f"backend/tools/{plugin.name}", "tool", plugin,
+                           {"schema": getattr(plugin, "parameters", {})})
         return disposer
 
     def set_subagent_tools(self, tools: Any) -> Disposer:
         """声明本插件向子智能体暴露的工具清单；空清单表示全部不暴露。"""
         disposer = self._registry.set_subagent_tools(self.name, tools)
         self._disposers.append(disposer)
+        self._backend_path(f"backend/tools/subagents/visibility/{self.name}",
+                           "visibility", None, {"tools": tools})
         return disposer
 
     def subscribe(self, event_type: str, handler: Callable[[Any], None]) -> Disposer:
@@ -101,6 +131,10 @@ class PluginContext:
             raise RuntimeError("插件未接入事件总线（PluginHost 未传 event_bus）")
         disposer = self._event_bus.subscribe(event_type, handler)
         self._disposers.append(disposer)
+        event_id = self._backend_seq_id("event")
+        self._backend_path(
+            f"backend/events/subscriptions/{self._backend_slug(event_type)}/{self.name}-{event_id}",
+            "event-subscription", handler)
         return disposer
 
     def add_context_source(self, fn: Callable[[str], List[str]],
@@ -115,6 +149,10 @@ class PluginContext:
             raise RuntimeError("插件未接入上下文注入源（PluginHost 未传 context_sources）")
         disposer = self._context_sources.add(fn, self._source_meta(meta))
         self._disposers.append(disposer)
+        source_id = self._backend_seq_id("source")
+        self._backend_path(
+            f"backend/context/sources/{self.name}/{source_id}",
+            "context-source", fn, {"meta": meta})
         return disposer
 
     def add_mode_tail(self, fn: Callable[[str], Any], *,
@@ -124,6 +162,10 @@ class PluginContext:
             raise RuntimeError("插件未接入请求尾部（PluginHost 未传 prompt_tail）")
         disposer = self._prompt_tail.add(fn, subagent_visible=subagent_visible)
         self._disposers.append(disposer)
+        tail_id = self._backend_seq_id("mode-tail")
+        self._backend_path(
+            f"backend/prompt/mode-tails/{self.name}-{tail_id}",
+            "mode-tail", fn)
         return disposer
 
     def add_prompt_section(self, section: str, fn: Callable[[str], Any]) -> Disposer:
@@ -132,6 +174,10 @@ class PluginContext:
             raise RuntimeError("插件未接入系统提示词章节（PluginHost 未传 prompt_sections）")
         disposer = self._prompt_sections.add(section, fn, rank=self._rank)
         self._disposers.append(disposer)
+        section_id = self._backend_seq_id("section")
+        self._backend_path(
+            f"backend/prompt/sections/{self._backend_slug(section)}/{self.name}-{section_id}",
+            "prompt-section", fn, {"section": section})
         return disposer
 
     def bump_context_sources(self) -> None:
@@ -181,6 +227,10 @@ class PluginContext:
             raise RuntimeError("插件未接入工具管道（PluginHost 未传 pipeline）")
         disposer = self._pipeline.add_pre(fn)
         self._disposers.append(disposer)
+        gate_id = self._backend_seq_id("gate")
+        self._backend_path(
+            f"backend/tools/pipeline/pre-gates/{self.name}/{gate_id}",
+            "gate", fn)
         return disposer
 
     def add_post_observer(self, fn: Callable[[Any, Any, Any], None]) -> Disposer:
@@ -189,6 +239,10 @@ class PluginContext:
             raise RuntimeError("插件未接入工具管道（PluginHost 未传 pipeline）")
         disposer = self._pipeline.add_post(fn)
         self._disposers.append(disposer)
+        observer_id = self._backend_seq_id("observer")
+        self._backend_path(
+            f"backend/tools/pipeline/post-observers/{self.name}/{observer_id}",
+            "observer", fn)
         return disposer
 
     def set_runtime(self, runtime: Any) -> None:
@@ -200,6 +254,7 @@ class PluginContext:
         """
         if self._host is not None:
             self._host.register_runtime(self.name, runtime)
+        self._backend_path(f"backend/runtime/{self.name}", "runtime", runtime)
 
     def is_subagent(self, conversation_id: str) -> bool:
         """当前会话是否为子智能体；插件用它决定是否注入子智能体专属内容。"""
@@ -247,33 +302,6 @@ class PluginContext:
             raise RuntimeError("插件未接入贡献注册表（PluginHost 未传 contributions）")
         return self._contributions
 
-    def add_panel(
-        self,
-        panel_id: str,
-        *,
-        title: str,
-        html: str = "",
-        url: str = "",
-        script: str = "",
-        script_file: str = "",
-        css_file: str = "",
-        pinned: bool = False,
-    ) -> Disposer:
-        """声明右栏一个可开面板；壳层把它塞进面板容器，不解释内容。
-
-        `html` 与 `url` 二选一：`html` 是同源 HTML 片段（按可信代码对待），
-        `url` 交给壳层按需加载。
-        `script_file` / `css_file` 是插件目录内的相对路径（如 `ui/panel.js`、
-        `ui/panel.css`）：声明它们，壳层就按 `_asset` 路由送出，面板首次打开时注入。
-        面板的脚本与样式都属于插件，不必自己挂路由、也不要写进壳层的公共资源。
-        """
-        disposer = self._contrib().add_panel(
-            self.name, panel_id, title=title, html=html, url=url,
-            script=script, script_file=script_file, css_file=css_file, pinned=pinned,
-        )
-        self._disposers.append(disposer)
-        return disposer
-
     def add_route(
         self,
         method: str,
@@ -287,6 +315,10 @@ class PluginContext:
         """
         disposer = self._contrib().add_route(self.name, method, path, handler)
         self._disposers.append(disposer)
+        route_id = self._backend_seq_id("route")
+        self._backend_path(
+            f"backend/http/routes/{self._backend_slug(str(method) + '-' + str(path))}-{route_id}",
+            "http-route", handler, {"method": method, "path": path})
         return disposer
 
     def add_context_assembly_hook(
@@ -298,6 +330,10 @@ class PluginContext:
             raise RuntimeError("插件未接入上下文拼装钩子（PluginHost 未传 context_hooks）")
         disposer = self._context_hooks.add(fn)
         self._disposers.append(disposer)
+        hook_id = self._backend_seq_id("assembly")
+        self._backend_path(
+            f"backend/context/assembly-hooks/{self.name}/{hook_id}",
+            "assembly-hook", fn)
         return disposer
 
     def publish_event(self, event: str, payload: Any = None) -> int:
@@ -331,47 +367,55 @@ class PluginContext:
         return resume(
             conversation_id, call_id, data, ok=ok, name=name, error=error)
 
-    def add_action(
-        self,
-        action_id: str,
-        *,
-        label: str,
-        title: str = "",
-        panel: str = "",
-        placement: str = "",
-        click_url: str = "",
-        click_method: str = "POST",
+    def add_settings_panel(
+        self, panel_id: str, title: str, *, order: int = 0,
     ) -> Disposer:
-        """声明输入区一个动作按钮。
+        """注册新的设置面板；渲染、保存和生命周期由宿主负责。"""
+        if self._settings is None:
+            raise RuntimeError("插件未接入设置注册表")
+        disposer = self._settings.add_panel(
+            self.name, panel_id, title, order=order)
+        self._disposers.append(disposer)
+        return disposer
 
-        `click_url` 存在时点击调用插件自己的端点；否则按 `panel` 打开面板。
-        `placement="after:<plugin>:<action>"` 指定相对位置。
-        """
-        disposer = self._contrib().add_action(
-            self.name, action_id, label=label, title=title, panel=panel,
-            placement=placement, click_url=click_url, click_method=click_method,
+    def add_settings_item(
+        self, parent: str, item_id: str, *,
+        kind: str, label: str, default: Any = "",
+        options: Any = (), hint: str = "", order: int = 0,
+        save: Any = None, load: Any = None,
+    ) -> Disposer:
+        """注册设置条目；保存回调由插件实现并返回成功/失败。"""
+        if self._settings is None:
+            raise RuntimeError("插件未接入设置注册表")
+        disposer = self._settings.add_item(
+            self.name, parent, item_id, kind=kind, label=label,
+            default=default, options=options, hint=hint, order=order,
+            save=save, load=load,
         )
         self._disposers.append(disposer)
         return disposer
 
-    def add_ctx_segment_style(
-        self,
-        *,
-        label: str = "",
-        color: str = "",
-    ) -> Disposer:
-        """声明上下文分层里本插件段的外观（段名 / 色名）；壳层开屏按贡献表注册。"""
-        disposer = self._contrib().add_ctx_segment_style(
-            self.name, label=label, color=color)
+    def add_ui_slot(self, path: str, *, kind: str, children: str,
+                    allowed_kinds: Any = (), fixed_children: Any = (),
+                    owner: str = "*") -> Disposer:
+        """注册 UI 插口；基础 UI 插件使用。"""
+        if self._ui is None:
+            raise RuntimeError("插件未接入 UI 注册表")
+        disposer = self._ui.add_slot(
+            path, kind=kind, children=children,
+            allowed_kinds=allowed_kinds, fixed_children=fixed_children, owner=owner)
         self._disposers.append(disposer)
         return disposer
 
-    def add_boot_script(self, rel_path: str) -> Disposer:
-        """声明开屏预载脚本（插件目录内相对路径）；无面板也能在经典 UI 启动时注入。
-
-        壳层按 `/api/plugin/<插件>/_asset/<路径>` 送达，排在面板脚本预载之后。
-        """
-        disposer = self._contrib().add_boot_script(self.name, rel_path)
+    def add_ui_item(self, path: str, *, kind: str,
+                    handler: Any = None, props: Any = None,
+                    order: Any = None) -> Disposer:
+        """注册 UI 控件；路径必须落在已声明插口内。"""
+        if self._ui is None:
+            raise RuntimeError("插件未接入 UI 注册表")
+        disposer = self._ui.add_item(
+            path, kind=kind, owner=self.name, handler=handler,
+            props=props, order=order)
         self._disposers.append(disposer)
         return disposer
 

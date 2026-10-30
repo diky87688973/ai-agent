@@ -25,6 +25,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Dict, List, Optional
 
+from agent.capabilities.backend_paths import seed_backend_slots
+from agent.capabilities.path_registry import PathRegistry
 from agent.capabilities.plugin_context import PluginContext
 from agent.capabilities.plugin_ledger import (
     Disposer,
@@ -32,6 +34,8 @@ from agent.capabilities.plugin_ledger import (
     merge_disposers,
 )
 from agent.capabilities.registry import ToolRegistry
+from agent.capabilities.settings_registry import SettingsRegistry
+from agent.capabilities.ui_registry import UiRegistry
 from agent.config import get_plugin_tree_only
 from agent.core.error_report import report_error
 from agent.mechanisms.prompt_sections import PromptSections
@@ -190,6 +194,10 @@ class PluginHost:
         self.plugin_data_root: Optional[Path] = (
             Path(plugin_data_root) if plugin_data_root is not None else None
         )
+        self.settings = SettingsRegistry()
+        self.ui = UiRegistry()
+        self.backend = PathRegistry()
+        seed_backend_slots(self.backend)
         self._loaded: Dict[str, List[Disposer]] = {}
         self._modules: Dict[str, str] = {}
         self._runtimes: Dict[str, Any] = {}
@@ -332,7 +340,9 @@ class PluginHost:
         ctx = PluginContext(info.name, self._registry, self._event_bus,
                             self._context_sources, self._pipeline, self,
                             self._contributions, self._executors,
-                            self._model_catalog, prompt_tail=self._prompt_tail,
+                            self._model_catalog, settings=self.settings,
+                            ui=self.ui, backend=self.backend,
+                            prompt_tail=self._prompt_tail,
             prompt_sections=self._prompt_sections,
             context_hooks=self._context_hooks)
         ctx.set_rank(rank)
@@ -402,6 +412,9 @@ class PluginHost:
         # 残留的面板会变成打不开的死标签，残留的端点会指向已卸载的插件。
         if self._contributions is not None:
             self._contributions.drop_plugin(key)
+        self.settings.drop_plugin(key)
+        self.ui.drop_owner(key)
+        self.backend.drop_owner(key)
 
     def unload_all(self) -> None:
         """卸载全部已加载插件。"""

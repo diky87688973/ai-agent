@@ -22,7 +22,7 @@ plugins/<plugin-name>/
 
 The minimal form is a directory containing only `plugin.py`: it subscribes to events and registers no tools or UI.
 
-`register(ctx)` returns a disposer, a list of disposers, or nothing. **Every `ctx.add_*` returns a disposer**, and the host records it in the plugin's ledger as it is called (including `add_panel` / `add_route` / `add_action` / `add_boot_script` / `add_ctx_segment_style`). Returned disposers are merged with that ledger and deduplicated by identity; on unload they run in reverse order. If `register` raises, every registration made through `ctx` is rolled back, so the plugin leaves no partial state.
+`register(ctx)` returns a disposer, a list of disposers, or nothing. **Every `ctx.add_*` returns a disposer**, and the host records it in the plugin's ledger as it is called (including `add_route` / `add_ui_item` / settings items / context hooks). Returned disposers are merged with that ledger and deduplicated by identity; on unload they run in reverse order. If `register` raises, every registration made through `ctx` is rolled back, so the plugin leaves no partial state.
 
 A plugin may split its implementation into modules in the same directory and reference them with relative imports:
 
@@ -116,9 +116,9 @@ Every `add_*` on `PluginContext` returns a disposer.
 | `add_pre_gate(gate)` | Pre-execution tool gate | Tool pipeline |
 | `add_post_observer(obs)` | Post-execution observer | Tool pipeline |
 | `add_route(method, path, handler)` | HTTP endpoint | `/api/plugin/<plugin-name>/…` |
-| `add_panel(id, ...)` / `add_action(id, ...)` | Panel / composer button | Contribution registry (the shell enumerates data) |
-| `add_ctx_segment_style(label=..., color=...)` | Context-segment appearance | Contribution registry → `/api/ctx-segment-styles` |
-| `add_boot_script(rel_path)` | Startup preload script (works without a panel) | Contribution registry → `/api/boot-scripts` |
+| `add_ui_item(path, kind=..., props=..., order=...)` | UI catalog item: navigation, input, right-panel, runtime, or context segment | UI path registry; `order` is optional, omitted means after the ordered region |
+| `add_settings_panel(panel_id, title=...)` | Settings panel | Plugin settings registry → generic settings catalog |
+| `add_settings_item(parent, id, kind=..., save=..., load=...)` | Settings item in a panel | Plugin settings registry; save callback is owned by the registering plugin |
 | `add_model_catalog(entries)` | Model entries (static sequence or hot-read callable) | `ModelCatalog` (single authoritative source) |
 | `set_runtime(obj)` | The plugin's runtime instance | `plugin_host.runtime(name)` returns the same object |
 
@@ -223,12 +223,16 @@ Supported methods are `GET` / `POST` / `PUT` / `DELETE`. Paths live under `/api/
 ### UI
 
 ```python
-ctx.add_panel("notes", title="便签", html="<div id='notes'></div>",
-              script_file="ui/panel.js", css_file="ui/panel.css", pinned=False)
-ctx.add_action("notes", label="🗒 便签", title="便签")   # a button below the composer; opens the same-named panel
+ctx.add_ui_item(
+    "web-ui/right-panel/notes", kind="panel",
+    props={"label": "Notes", "action": "notes.open",
+           "html": "<div id='notes'></div>",
+           "scripts": ["ui/panel.js"], "styles": ["ui/panel.css"]},
+    order=10,
+)
 ```
 
-A panel joins the tab container in the right column, next to the Steps pane. Its title is the tab label, and the panel body has no heading row of its own. A panel with `pinned=True` shows no close button.
+A catalog panel joins the right-column tab container. Its title is the tab label, and the panel body has no heading row of its own. Panel HTML, scripts, and styles are declared by the owning plugin.
 
 Division of responsibility:
 
@@ -273,15 +277,11 @@ await api.del("tasks/t-1");                               // DELETE
 
 ### Script loading
 
-**Context-segment appearance** is registered with `add_ctx_segment_style`; at startup the shell fetches `/api/ctx-segment-styles` and calls `ctxSegments.register`, so a segment color does not need an empty panel script.
+**Context-segment appearance** is registered as a `web-ui/left-panel/context_usage/<key>` UI item with `label` and `color` props. The UI catalog publishes the resulting map through `ai-agent:context-segments`; the context bar does not keep a second color registry.
 
-**Panel scripts** are preloaded in sequence at startup (`preloadPluginScripts()`), while **styles are injected when the panel first opens**. Styles are needed only while the panel is open; injecting them earlier would load bytes that most pages never use.
+**Plugin UI scripts and styles** come from the UI catalog item's `props.scripts` / `props.styles`. The catalog loader injects styles first and then executes scripts serially, setting `window.aiAgentPluginCurrent` for each plugin. A panel script renders when its catalog entry is opened.
 
-**Boot scripts** are registered with `add_boot_script(rel_path)` (a tool-card view, for example); at startup the shell fetches `/api/boot-scripts` and preloads them after the panel scripts, so JS can be injected without a panel.
-
-Preloading is **serial**: a script reads the global `window.aiAgentPluginCurrent` to know which plugin it belongs to, and parallel loading would overwrite that value.
-
-Because panel scripts are preloaded before the panel DOM exists, the shell dispatches `ai-agent:panel-opened` each time a panel opens; a panel script renders on that event.
+There is no separate boot-script API, panel list endpoint, or action list endpoint. UI extensions exist only under a declared UI path and are discovered from `GET /api/ui/catalog`.
 
 <a id="壳层公共桥" name="壳层公共桥"></a>
 
@@ -305,7 +305,17 @@ window.aiAgentShell.styles.load("ui/model-picker.css");
 
 `styles.load()` reuses the panel-style deduplication table and the `/api/plugin/<plugin>/_asset/` route; absolute paths, drive letters, protocols, and `..` return `false`. After a plugin is disabled, `applyPluginsChanged` removes `<link>` elements carrying `data-plugin-style` and clears children of `#modelPickerSlot` whose `data-plugin` is no longer in the loaded set.
 
-Plugin changes are applied without a page refresh: the shell reloads panels, actions, segment styles, and boot scripts, closes panels of unloaded plugins, and clears the script and style caches so that re-enabling a plugin runs its scripts again.
+Plugin changes are applied without a page refresh: the shell refreshes the UI catalog and loaded-plugin set, closes panels of unloaded plugins, and clears the script and style caches so that re-enabling a plugin runs its scripts again.
+
+### Host settings panels and items
+
+Settings are registered through the plugin settings registry, not through host DOM. A plugin may add a panel with `add_settings_panel(panel_id, title=...)` and an item with `add_settings_item(parent, item_id, kind=..., save=..., load=...)`.
+
+Supported item kinds are `text`, `search`, `number`, `select`, `checkbox`, `textarea`, and `password`; `select` requires an explicit option list. Item IDs are namespaced as `settings/<panel>/<item>`.
+
+The plugin that owns an item provides its `save` callback. The host only renders the typed control and submits all changed plugin values to the generic settings entry. The plugin system dispatches each item to its owner's callback; the callback persists and applies its own value, then returns success or failure. A plugin must not create, patch, or query settings DOM.
+
+When a plugin is unloaded, its panels and items disappear immediately; the plugin's own persisted value is retained for the next enable.
 
 ### Conversation switch notification
 
@@ -345,7 +355,7 @@ Discovery skips directories whose names start with `_` or `.`.
 
 `importlib` loads each plugin under a dynamic module name, so the shell cannot import the same module object. A plugin that wants the shell to operate on its runtime must register it with `ctx.set_runtime(obj)`; `plugin_host.runtime("<plugin-name>")` returns that same instance. Without registration, the two sides hold separate copies of the state.
 
-The unload fallback removes panels, actions, routes, segment styles, and boot scripts by plugin name. Event subscriptions are removed by the disposers registered through `ctx.subscribe`.
+The unload fallback removes routes and UI catalog entries by plugin name. Event subscriptions are removed by the disposers registered through `ctx.subscribe`.
 
 ## Model catalog source
 
@@ -359,12 +369,12 @@ The catalog is the single authoritative source for model routing while its plugi
 
 | Plugin | Registers | Form |
 |---|---|---|
-| `plugins/skills` | `skills` tool + two context sources + system-prompt section + segment style + boot tool-card script | no panel; context segments + boot script; see [skills.md](skills.md) |
-| `plugins/rules` | one context source (one message per `.md` file) + system-prompt section + segment style | no panel, no configuration, no endpoints; see [rules.md](rules.md) |
-| `plugins/knowledge` | context source + panel + composer action + segment style + three endpoints | injection, panel, action, and endpoints all present; state in `ctx.data_dir`; see [knowledge.md](knowledge.md) |
-| `plugins/multi_model` | model catalog + read-only `/catalog` + boot dropdown script | each entry carries its gateway and provider; see [multi-model.md](multi-model.md) |
+| `plugins/skills` | `skills` tool + two context sources + system-prompt section + context segment + UI script | context segment and UI script via the UI catalog; see [skills.md](skills.md) |
+| `plugins/rules` | one context source (one message per `.md` file) + system-prompt section + context segment | no panel, no configuration, no endpoints; see [rules.md](rules.md) |
+| `plugins/knowledge` | context source + panel + composer button + context segment + three endpoints | injection, panel, button, and endpoints all present; state in `ctx.data_dir`; see [knowledge.md](knowledge.md) |
+| `plugins/multi_model` | model catalog + read-only `/catalog` + UI dropdown script | each entry carries its gateway and provider; see [multi-model.md](multi-model.md) |
 | `plugins/visual_operator` | four tools (screenshot / mouse / keyboard / wait) + platform backends + input lock | backend assembled by platform; when unavailable it reports at execution rather than disappearing; see [visual-operator.md](visual-operator.md) |
-| `plugins/ai_speak` | `ai_speak` tool + two read-only endpoints + playback-ack endpoint + two boot scripts + two event subscriptions + voice tail | backend synthesis, frontend player bar; see [ai-speak.md](ai-speak.md) |
+| `plugins/ai_speak` | `ai_speak` tool + two read-only endpoints + playback-ack endpoint + UI scripts + two event subscriptions + voice tail | backend synthesis, frontend player bar; see [ai-speak.md](ai-speak.md) |
 
 Each plugin's configuration and behavior are documented in its own subsystem page; this table only lists the extension points it uses.
 
@@ -374,7 +384,7 @@ Each plugin's configuration and behavior are documented in its own subsystem pag
 
 ### Plugin trust model
 
-**A plugin is as trusted as local code.** Once loaded, `plugin.py` runs in the same process and interpreter: it can read the whole disk, make network requests, and register tools and HTTP endpoints; panel HTML fragments and scripts are injected into the page's same-origin context. **There is no sandbox.**
+**A plugin is as trusted as local code.** Once loaded, `plugin.py` runs in the same process and interpreter: it can read the whole disk, make network requests, and register tools and HTTP endpoints; UI catalog HTML fragments and scripts are injected into the page's same-origin context. **There is no sandbox.**
 
 Therefore:
 
@@ -395,7 +405,7 @@ UI and endpoint conventions:
 - CSS class names carry the plugin's own prefix, and styles are injected same-origin;
 - endpoint registration is limited to the `/api/plugin/<plugin-name>/` namespace; kernel routes are not open for registration;
 - panel data comes from the plugin's own endpoints;
-- render-related data (segment name and color, tool label and icon) is declared by plugins and served by the shell; layout belongs to the shell. The server provides data (segment key / name / count); plugin UI scripts render their own panels and injected content.
+- segment name and color, tool label and icon are declared through the UI catalog and consumed by the shell. The server provides data (segment key / name / count); plugin UI scripts render their own panels.
 
 ## Adding a plugin
 
@@ -415,7 +425,7 @@ UI and endpoint conventions:
 
 3. **Add metadata and form**: `plugin-meta.json` declares `name` / `desc` / `icon` / `version`. For a structured form, add `settings-schema.json` declaring `kind` and `fields` (for `sections`, also `section_prefix` and `identity`). Commit `plugin-config.ini` when it holds no secrets; secret-bearing plugin configuration is excluded by `.gitignore`.
 
-4. **Register UI** (optional): panels, composer actions, boot scripts, and segment colors via `add_panel` / `add_action` / `add_boot_script` / `add_ctx_segment_style`. Assets live in the plugin directory and are served at `/api/plugin/<name>/_asset/<relative-path>`.
+4. **Register UI** (optional): `ctx.add_ui_item(path, kind=..., props=..., order=...)` under a declared UI path. Assets live in the plugin directory and are served at `/api/plugin/<name>/_asset/<relative-path>`. `order` is optional; positive values run first, omitted values run after positives, and negative values run last (`-1` is last, `-2` second last).
 
 5. **Add it to the manifest**: write a `[plugin:<name>]` section in `plugins.ini`, optionally with `path` / `enabled`. A section makes it a candidate; `enabled` decides whether it loads.
 

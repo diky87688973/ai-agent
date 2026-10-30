@@ -265,17 +265,17 @@ class EndpointTest(_ServerFixture):
     def test_pages_and_assets_served(self) -> None:
 
         # 首页是经典界面单页：素材内联，原件仍按原名躺在 `web_assets/classic/` 下，
-        # 可用 `/assets/classic/...` 直接取到。
+        # 可用 `/api/plugin/web_ui/_asset/ui/classic/...` 直接取到。
         for path, needle in (
             ("/", "AI Agent"),                     # 经典 UI 标题
             ("/", "id=\"chatTabs\""),              # 顶部会话标签栏
             ("/", "id=\"usage-bottom\""),          # 用量底栏
             ("/", "global.AIA"),                   # 附件链路（image-lightbox）内联在单页里
-            ("/assets/classic/agent-ui.html", "{{CSS}}"),
-            ("/assets/classic/css/theme-light.css", 'html[data-ui-theme="light"]'),
-            ("/assets/classic/js/core/boot.js", "normalizeConversationId"),
-            ("/assets/classic/js/image-lightbox.js", "AIA"),
-            ("/assets/classic/js/vendor/highlight.min.js", "hljs"),
+            ("/api/plugin/web_ui/_asset/ui/classic/agent-ui.html", "{{CSS}}"),
+            ("/api/plugin/web_ui/_asset/ui/classic/css/theme-light.css", 'html[data-ui-theme="light"]'),
+            ("/api/plugin/web_ui/_asset/ui/classic/js/core/boot.js", "normalizeConversationId"),
+            ("/api/plugin/web_ui/_asset/ui/classic/js/image-lightbox.js", "AIA"),
+            ("/api/plugin/web_ui/_asset/ui/classic/js/vendor/highlight.min.js", "hljs"),
             ("/favicon.ico", ""),
         ):
             with self.subTest(path=path):

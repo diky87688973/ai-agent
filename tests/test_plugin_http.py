@@ -73,11 +73,6 @@ def register(ctx: Any) -> List[Any]:
             return 404, {"ok": False, "error": "no such task"}
         return 200, {"ok": True, "removed": tid}
 
-    disposers.append(ctx.add_panel("board", title="夹具面板",
-                                   html="<div id='probeBody'></div>",
-                                   script_file="ui/panel.js",
-                                   css_file="ui/panel.css"))
-    disposers.append(ctx.add_action("board", label="夹具按钮"))
     disposers.append(ctx.add_route("POST", "tasks", create))
     disposers.append(ctx.add_route("GET", "tasks", listing))
     disposers.append(ctx.add_route("GET", "tasks/:sid", one))
@@ -172,19 +167,6 @@ class PluginHttpTest(unittest.TestCase):
         return status, parsed, ctype, raw
 
     # ── 清单 ──
-
-    def test_panels_and_actions_expose_script_url(self) -> None:
-        status, data, _, _ = self.req("GET", "/api/panels")
-        self.assertEqual(status, 200)
-        board = next(p for p in data["panels"] if p["id"] == "board")
-        self.assertEqual(board["plugin"], "probe")
-        self.assertEqual(board["script"], "/api/plugin/probe/_asset/ui/panel.js")
-        self.assertEqual(board["style"], "/api/plugin/probe/_asset/ui/panel.css")
-
-        status, data, _, _ = self.req("GET", "/api/actions")
-        self.assertEqual(status, 200)
-        act = next(a for a in data["actions"] if a["id"] == "board")
-        self.assertEqual(act["panel"], "board", "未指定面板的动作默认开同名面板")
 
     def test_panel_style_served_as_css(self) -> None:
         """插件的样式表由插件自己提供、按面板声明送达。"""

@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2053** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2047** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -20,99 +20,103 @@
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（21）
 10. [test_auth_security.py](#test_auth_securitypy)（7）
 11. [test_background_tasks.py](#test_background_taskspy)（16）
-12. [test_batch_f_tools.py](#test_batch_f_toolspy)（23）
-13. [test_catalog.py](#test_catalogpy)（8）
-14. [test_classic_adapter.py](#test_classic_adapterpy)（110）
-15. [test_cli_shell.py](#test_cli_shellpy)（20）
-16. [test_command_tools.py](#test_command_toolspy)（30）
-17. [test_concurrency.py](#test_concurrencypy)（11）
-18. [test_config_values.py](#test_config_valuespy)（2）
-19. [test_context_assembly.py](#test_context_assemblypy)（187）
-20. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
-21. [test_context_dump.py](#test_context_dumppy)（3）
-22. [test_context_dump_skill.py](#test_context_dump_skillpy)（1）
-23. [test_context_hooks.py](#test_context_hookspy)（3）
-24. [test_context_pipeline.py](#test_context_pipelinepy)（18）
-25. [test_context_plumbing.py](#test_context_plumbingpy)（5）
-26. [test_context_splice.py](#test_context_splicepy)（9）
-27. [test_conversation_queue.py](#test_conversation_queuepy)（6）
-28. [test_core.py](#test_corepy)（58）
-29. [test_coverage_gaps.py](#test_coverage_gapspy)（10）
-30. [test_edited_files.py](#test_edited_filespy)（1）
-31. [test_entry_layer.py](#test_entry_layerpy)（19）
-32. [test_environment_info.py](#test_environment_infopy)（1）
-33. [test_error_log.py](#test_error_logpy)（8）
-34. [test_event_bus.py](#test_event_buspy)（9）
-35. [test_fact_compat.py](#test_fact_compatpy)（4）
-36. [test_file_safety.py](#test_file_safetypy)（24）
-37. [test_file_size_format.py](#test_file_size_formatpy)（4）
-38. [test_four_step_gate.py](#test_four_step_gatepy)（9）
-39. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-40. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
-41. [test_gate_negative.py](#test_gate_negativepy)（67）
-42. [test_goal_runner.py](#test_goal_runnerpy)（6）
-43. [test_gui_launcher.py](#test_gui_launcherpy)（8）
-44. [test_history_page.py](#test_history_pagepy)（16）
-45. [test_image_embed.py](#test_image_embedpy)（10）
-46. [test_image_tool.py](#test_image_toolpy)（28）
-47. [test_image_turns.py](#test_image_turnspy)（23）
-48. [test_import_graph.py](#test_import_graphpy)（5）
-49. [test_invest_tools.py](#test_invest_toolspy)（29）
-50. [test_kb_plugin.py](#test_kb_pluginpy)（51）
-51. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-52. [test_mode_note.py](#test_mode_notepy)（13）
-53. [test_model_catalog.py](#test_model_catalogpy)（23）
-54. [test_model_provider.py](#test_model_providerpy)（41）
-55. [test_model_window.py](#test_model_windowpy)（14）
-56. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
-57. [test_plugin_contributions.py](#test_plugin_contributionspy)（32）
-58. [test_plugin_http.py](#test_plugin_httppy)（18）
-59. [test_plugins.py](#test_pluginspy)（29）
-60. [test_present_tool.py](#test_present_toolpy)（2）
-61. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-62. [test_prompt_tail.py](#test_prompt_tailpy)（5）
-63. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-64. [test_provider_meta.py](#test_provider_metapy)（8）
-65. [test_provider_router.py](#test_provider_routerpy)（14）
-66. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
-67. [test_queue_runner.py](#test_queue_runnerpy)（3）
-68. [test_queued_input.py](#test_queued_inputpy)（4）
-69. [test_readonly_tools.py](#test_readonly_toolspy)（33）
-70. [test_resume_bridge.py](#test_resume_bridgepy)（6）
-71. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-72. [test_run_registry.py](#test_run_registrypy)（13）
-73. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-74. [test_session_context.py](#test_session_contextpy)（22）
-75. [test_session_seq.py](#test_session_seqpy)（23）
-76. [test_session_store.py](#test_session_storepy)（17）
-77. [test_session_tools.py](#test_session_toolspy)（17）
-78. [test_settings_panel.py](#test_settings_panelpy)（21）
-79. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-80. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-81. [test_subagent.py](#test_subagentpy)（17）
-82. [test_task_tools.py](#test_task_toolspy)（27）
-83. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-84. [test_tool_arguments.py](#test_tool_argumentspy)（5）
-85. [test_tool_registry.py](#test_tool_registrypy)（17）
-86. [test_tool_resume.py](#test_tool_resumepy)（3）
-87. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-88. [test_top_level_services.py](#test_top_level_servicespy)（2）
-89. [test_update.py](#test_updatepy)（25）
-90. [test_update_processes.py](#test_update_processespy)（2）
-91. [test_usage_metrics.py](#test_usage_metricspy)（7）
-92. [test_version_stamp.py](#test_version_stamppy)（4）
-93. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-94. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-95. [test_visual_operator.py](#test_visual_operatorpy)（160）
-96. [test_visual_operator_2.py](#test_visual_operator_2py)（38）
-97. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-98. [test_web_auth.py](#test_web_authpy)（26）
-99. [test_web_frontend.py](#test_web_frontendpy)（5）
-100. [test_web_shell.py](#test_web_shellpy)（52）
-101. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-102. [test_write_gate.py](#test_write_gatepy)（16）
-103. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-104. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+12. [test_base_settings_plugin.py](#test_base_settings_pluginpy)（2）
+13. [test_batch_f_tools.py](#test_batch_f_toolspy)（23）
+14. [test_catalog.py](#test_catalogpy)（8）
+15. [test_classic_adapter.py](#test_classic_adapterpy)（110）
+16. [test_cli_shell.py](#test_cli_shellpy)（20）
+17. [test_command_tools.py](#test_command_toolspy)（30）
+18. [test_concurrency.py](#test_concurrencypy)（11）
+19. [test_config_values.py](#test_config_valuespy)（2）
+20. [test_context_assembly.py](#test_context_assemblypy)（187）
+21. [test_context_config_wiring.py](#test_context_config_wiringpy)（3）
+22. [test_context_dump.py](#test_context_dumppy)（3）
+23. [test_context_dump_skill.py](#test_context_dump_skillpy)（1）
+24. [test_context_hooks.py](#test_context_hookspy)（3）
+25. [test_context_pipeline.py](#test_context_pipelinepy)（18）
+26. [test_context_plumbing.py](#test_context_plumbingpy)（5）
+27. [test_context_splice.py](#test_context_splicepy)（9）
+28. [test_conversation_queue.py](#test_conversation_queuepy)（6）
+29. [test_core.py](#test_corepy)（58）
+30. [test_coverage_gaps.py](#test_coverage_gapspy)（10）
+31. [test_edited_files.py](#test_edited_filespy)（1）
+32. [test_entry_layer.py](#test_entry_layerpy)（19）
+33. [test_environment_info.py](#test_environment_infopy)（1）
+34. [test_error_log.py](#test_error_logpy)（8）
+35. [test_event_bus.py](#test_event_buspy)（9）
+36. [test_fact_compat.py](#test_fact_compatpy)（4）
+37. [test_file_safety.py](#test_file_safetypy)（24）
+38. [test_file_size_format.py](#test_file_size_formatpy)（4）
+39. [test_four_step_gate.py](#test_four_step_gatepy)（9）
+40. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+41. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
+42. [test_gate_negative.py](#test_gate_negativepy)（67）
+43. [test_goal_runner.py](#test_goal_runnerpy)（6）
+44. [test_gui_launcher.py](#test_gui_launcherpy)（8）
+45. [test_history_page.py](#test_history_pagepy)（16）
+46. [test_image_embed.py](#test_image_embedpy)（10）
+47. [test_image_tool.py](#test_image_toolpy)（28）
+48. [test_image_turns.py](#test_image_turnspy)（23）
+49. [test_import_graph.py](#test_import_graphpy)（5）
+50. [test_invest_tools.py](#test_invest_toolspy)（29）
+51. [test_kb_plugin.py](#test_kb_pluginpy)（50）
+52. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+53. [test_mode_note.py](#test_mode_notepy)（13）
+54. [test_model_catalog.py](#test_model_catalogpy)（23）
+55. [test_model_provider.py](#test_model_providerpy)（41）
+56. [test_model_window.py](#test_model_windowpy)（14）
+57. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（30）
+58. [test_path_registry.py](#test_path_registrypy)（2）
+59. [test_plugin_contributions.py](#test_plugin_contributionspy)（20）
+60. [test_plugin_http.py](#test_plugin_httppy)（17）
+61. [test_plugins.py](#test_pluginspy)（29）
+62. [test_present_tool.py](#test_present_toolpy)（2）
+63. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+64. [test_prompt_tail.py](#test_prompt_tailpy)（5）
+65. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+66. [test_provider_meta.py](#test_provider_metapy)（8）
+67. [test_provider_router.py](#test_provider_routerpy)（14）
+68. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
+69. [test_queue_runner.py](#test_queue_runnerpy)（3）
+70. [test_queued_input.py](#test_queued_inputpy)（4）
+71. [test_readonly_tools.py](#test_readonly_toolspy)（33）
+72. [test_resume_bridge.py](#test_resume_bridgepy)（6）
+73. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+74. [test_run_registry.py](#test_run_registrypy)（13）
+75. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+76. [test_session_context.py](#test_session_contextpy)（22）
+77. [test_session_seq.py](#test_session_seqpy)（23）
+78. [test_session_store.py](#test_session_storepy)（17）
+79. [test_session_tools.py](#test_session_toolspy)（17）
+80. [test_settings_panel.py](#test_settings_panelpy)（17）
+81. [test_settings_registry.py](#test_settings_registrypy)（4）
+82. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+83. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+84. [test_subagent.py](#test_subagentpy)（17）
+85. [test_task_tools.py](#test_task_toolspy)（27）
+86. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
+87. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+88. [test_tool_arguments.py](#test_tool_argumentspy)（5）
+89. [test_tool_registry.py](#test_tool_registrypy)（17）
+90. [test_tool_resume.py](#test_tool_resumepy)（3）
+91. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+92. [test_top_level_services.py](#test_top_level_servicespy)（2）
+93. [test_update.py](#test_updatepy)（25）
+94. [test_update_processes.py](#test_update_processespy)（2）
+95. [test_usage_metrics.py](#test_usage_metricspy)（7）
+96. [test_version_stamp.py](#test_version_stamppy)（4）
+97. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+98. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+99. [test_visual_operator.py](#test_visual_operatorpy)（160）
+100. [test_visual_operator_2.py](#test_visual_operator_2py)（38）
+101. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+102. [test_web_auth.py](#test_web_authpy)（26）
+103. [test_web_frontend.py](#test_web_frontendpy)（5）
+104. [test_web_shell.py](#test_web_shellpy)（52）
+105. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+106. [test_write_gate.py](#test_write_gatepy)（16）
+107. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+108. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_speak_plugin.py
 
@@ -385,6 +389,15 @@
 | 14 | `BackgroundTaskManagerTest` | `test_queue_capacity_and_cid_isolation` | 覆盖「A class whose instances are single test cases」：queue capacity and cid isolation |
 | 15 | `BackgroundTaskManagerTest` | `test_system_notice_metadata_survives_queue_and_history` | 覆盖「A class whose instances are single test cases」：system notice metadata survives queue and history |
 | 16 | `BackgroundTaskManagerTest` | `test_tool_dispatch_create_list_output_cancel` | 覆盖「A class whose instances are single test cases」：tool dispatch create list output cancel |
+
+## test_base_settings_plugin.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `BaseSettingsPluginTest` | `test_does_not_register_model_panel` | 覆盖「A class whose instances are single test cases」：does not register model panel |
+| 2 | `BaseSettingsPluginTest` | `test_registers_host_panels_and_items` | 覆盖「A class whose instances are single test cases」：registers host panels and items |
 
 ## test_batch_f_tools.py
 
@@ -1441,7 +1454,7 @@
 
 ## test_kb_plugin.py
 
-共 51 个用例。
+共 50 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1483,19 +1496,18 @@
 | 36 | `PluginConfigIsolationTest` | `test_skills_dir_comes_from_its_own_config` | 覆盖「内核 `config.ini` 只含内核设置；插件设置在插件自己目录下的 plugin-conf…」：skills dir comes from its own config |
 | 37 | `PluginPanelRenderContractTest` | `test_knowledge_panel_matches_composite_dom_id` | 壳层广播的 panel 是 `knowledge__kb`，不能只认逻辑 id `kb`。 |
 | 38 | `PluginPanelRenderContractTest` | `test_open_pane_broadcasts_panel_opened` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：open pane broadcasts panel opened |
-| 39 | `PluginPanelRenderContractTest` | `test_open_plugin_panel_passes_its_plugin_name` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：open plugin panel passes its plugin name |
-| 40 | `PluginPanelRenderContractTest` | `test_panel_has_a_refresh_button_on_the_subtitle` | 小标题右侧一个刷新：知识库目录是外部目录，不重开面板也要能取到新文件。 |
-| 41 | `PluginPanelRenderContractTest` | `test_panels_render_on_the_event` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：panels render on the event |
-| 42 | `PluginPanelRenderContractTest` | `test_refresh_handler_re_renders` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：refresh handler re renders |
-| 43 | `PluginSourceContractTest` | `test_disposer_removes_the_source` | 覆盖「插件注入源的契约：注册进「知识库」段、每回合刷新、disposer 后消失」：disposer removes the source |
-| 44 | `PluginSourceContractTest` | `test_plugin_sources_do_not_touch_the_kernel` | 插件来源只经注册表进出；内核不持有插件对象。 |
-| 45 | `PluginSourceContractTest` | `test_segments_carry_their_own_name_and_prefix` | 段名与注入前缀由来源声明：内核不解释正文是什么。 |
-| 46 | `PluginSourceContractTest` | `test_source_is_refreshed_every_turn` | 注入源每回合都重读：第 2 回合改内容，请求里立刻反映。 |
-| 47 | `PluginSourceContractTest` | `test_source_text_lands_in_the_knowledge_block` | 覆盖「插件注入源的契约：注册进「知识库」段、每回合刷新、disposer 后消失」：source text lands in the knowledge block |
-| 48 | `PluginSourceContractTest` | `test_two_sources_of_one_plugin_stay_separate` | 同一插件可以贡献多段：数量按位置对，不互相覆盖。 |
-| 49 | `SkillsConfigSourceTest` | `test_plugin_dir_has_no_own_config` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：plugin dir has no own config |
-| 50 | `SkillsConfigSourceTest` | `test_reader_reads_the_project_config` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：reader reads the project config |
-| 51 | `SkillsConfigSourceTest` | `test_reader_takes_a_given_ini` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：reader takes a given ini |
+| 39 | `PluginPanelRenderContractTest` | `test_panel_has_a_refresh_button_on_the_subtitle` | 小标题右侧一个刷新：知识库目录是外部目录，不重开面板也要能取到新文件。 |
+| 40 | `PluginPanelRenderContractTest` | `test_panels_render_on_the_event` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：panels render on the event |
+| 41 | `PluginPanelRenderContractTest` | `test_refresh_handler_re_renders` | 覆盖「插件脚本只载一次，所以面板渲染必须由 `ai-agent:panel-opened` 驱动」：refresh handler re renders |
+| 42 | `PluginSourceContractTest` | `test_disposer_removes_the_source` | 覆盖「插件注入源的契约：注册进「知识库」段、每回合刷新、disposer 后消失」：disposer removes the source |
+| 43 | `PluginSourceContractTest` | `test_plugin_sources_do_not_touch_the_kernel` | 插件来源只经注册表进出；内核不持有插件对象。 |
+| 44 | `PluginSourceContractTest` | `test_segments_carry_their_own_name_and_prefix` | 段名与注入前缀由来源声明：内核不解释正文是什么。 |
+| 45 | `PluginSourceContractTest` | `test_source_is_refreshed_every_turn` | 注入源每回合都重读：第 2 回合改内容，请求里立刻反映。 |
+| 46 | `PluginSourceContractTest` | `test_source_text_lands_in_the_knowledge_block` | 覆盖「插件注入源的契约：注册进「知识库」段、每回合刷新、disposer 后消失」：source text lands in the knowledge block |
+| 47 | `PluginSourceContractTest` | `test_two_sources_of_one_plugin_stay_separate` | 同一插件可以贡献多段：数量按位置对，不互相覆盖。 |
+| 48 | `SkillsConfigSourceTest` | `test_plugin_dir_has_no_own_config` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：plugin dir has no own config |
+| 49 | `SkillsConfigSourceTest` | `test_reader_reads_the_project_config` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：reader reads the project config |
+| 50 | `SkillsConfigSourceTest` | `test_reader_takes_a_given_ini` | 覆盖「Skills 设置只有工程 config.ini 一处来源（插件目录下没有同名配置）」：reader takes a given ini |
 
 ## test_layout_min_width.py
 
@@ -1662,48 +1674,45 @@
 | 29 | `RegisterTest` | `test_register_contributes_catalog_route_and_boot_script` | 覆盖「A class whose instances are single test cases」：register contributes catalog route and boot script |
 | 30 | `RegisterTest` | `test_reregister_does_not_duplicate_defaults` | 覆盖「A class whose instances are single test cases」：reregister does not duplicate defaults |
 
-## test_plugin_contributions.py
+## test_path_registry.py
 
-共 32 个用例。
+共 2 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ContributionRegistryTest` | `test_action_click_contract_and_placement` | 覆盖「A class whose instances are single test cases」：action click contract and placement |
-| 2 | `ContributionRegistryTest` | `test_action_click_url_must_stay_in_plugin_namespace` | 覆盖「A class whose instances are single test cases」：action click url must stay in plugin namespace |
-| 3 | `ContributionRegistryTest` | `test_action_explicit_panel` | 覆盖「A class whose instances are single test cases」：action explicit panel |
-| 4 | `ContributionRegistryTest` | `test_action_register_and_dispose` | 覆盖「A class whose instances are single test cases」：action register and dispose |
-| 5 | `ContributionRegistryTest` | `test_boot_script_register_and_dispose` | 覆盖「A class whose instances are single test cases」：boot script register and dispose |
-| 6 | `ContributionRegistryTest` | `test_boot_script_rejects_escape` | 覆盖「A class whose instances are single test cases」：boot script rejects escape |
-| 7 | `ContributionRegistryTest` | `test_ctx_segment_style_register_and_dispose` | 覆盖「A class whose instances are single test cases」：ctx segment style register and dispose |
-| 8 | `ContributionRegistryTest` | `test_drop_plugin_removes_every_kind` | 覆盖「A class whose instances are single test cases」：drop plugin removes every kind |
-| 9 | `ContributionRegistryTest` | `test_panel_duplicate_rejected` | 覆盖「A class whose instances are single test cases」：panel duplicate rejected |
-| 10 | `ContributionRegistryTest` | `test_panel_explicit_script_wins` | 覆盖「A class whose instances are single test cases」：panel explicit script wins |
-| 11 | `ContributionRegistryTest` | `test_panel_register_and_dispose` | 覆盖「A class whose instances are single test cases」：panel register and dispose |
-| 12 | `ContributionRegistryTest` | `test_panel_script_file_builds_asset_url` | 覆盖「A class whose instances are single test cases」：panel script file builds asset url |
-| 13 | `ContributionRegistryTest` | `test_panel_script_file_rejects_escape` | 覆盖「A class whose instances are single test cases」：panel script file rejects escape |
-| 14 | `ContributionRegistryTest` | `test_route_duplicate_rejected` | 覆盖「A class whose instances are single test cases」：route duplicate rejected |
-| 15 | `ContributionRegistryTest` | `test_route_exact_match` | 覆盖「A class whose instances are single test cases」：route exact match |
-| 16 | `ContributionRegistryTest` | `test_route_exact_wins_over_parameter` | 同时声明 `tasks` 与 `tasks/:sid` 时，`tasks` 不能被参数路由抢走。 |
-| 17 | `ContributionRegistryTest` | `test_route_methods_supported` | 覆盖「A class whose instances are single test cases」：route methods supported |
-| 18 | `ContributionRegistryTest` | `test_route_multi_segment_parameter` | 覆盖「A class whose instances are single test cases」：route multi segment parameter |
-| 19 | `ContributionRegistryTest` | `test_route_path_parameter` | 覆盖「A class whose instances are single test cases」：route path parameter |
-| 20 | `ContributionRegistryTest` | `test_route_rejects_bad_parameter_name` | 覆盖「A class whose instances are single test cases」：route rejects bad parameter name |
-| 21 | `ContributionRegistryTest` | `test_route_rejects_bad_paths` | 覆盖「A class whose instances are single test cases」：route rejects bad paths |
-| 22 | `ContributionRegistryTest` | `test_route_rejects_bad_plugin_and_method` | 覆盖「A class whose instances are single test cases」：route rejects bad plugin and method |
-| 23 | `ContributionRegistryTest` | `test_route_segment_count_must_match` | 覆盖「A class whose instances are single test cases」：route segment count must match |
-| 24 | `ExternalPluginRootAssetTest` | `test_plugin_asset_uses_tracked_root` | 覆盖「外部 path= 插件：资产根走 plugin_root，而不是 plugins_dir/<na…」：plugin asset uses tracked root |
-| 25 | `PluginAssetUrlTest` | `test_asset_rel_parsing` | 覆盖「面板脚本资产路径的解析（壳层按它取文件）」：asset rel parsing |
-| 26 | `PluginContextContributionTest` | `test_ctx_add_context_source_returns_disposer` | 覆盖「A class whose instances are single test cases」：ctx add context source returns disposer |
-| 27 | `PluginContextContributionTest` | `test_ctx_namespaces_contributions_by_plugin` | 覆盖「A class whose instances are single test cases」：ctx namespaces contributions by plugin |
-| 28 | `PluginContextContributionTest` | `test_data_dir_is_per_plugin_and_created` | 覆盖「A class whose instances are single test cases」：data dir is per plugin and created |
-| 29 | `PluginContextContributionTest` | `test_data_dir_none_without_host_root` | 覆盖「A class whose instances are single test cases」：data dir none without host root |
-| 30 | `PluginContextContributionTest` | `test_data_dir_path_is_absolute` | 覆盖「A class whose instances are single test cases」：data dir path is absolute |
-| 31 | `PluginContextContributionTest` | `test_data_dir_sanitizes_plugin_name` | 覆盖「A class whose instances are single test cases」：data dir sanitizes plugin name |
-| 32 | `PluginContextContributionTest` | `test_register_fail_after_add_panel_rolls_back` | register 在 add_panel 之后抛错 → 面板不得留在贡献表。 |
+| 1 | `PathRegistryTest` | `test_registers_path_and_cleans_owner` | 覆盖「A class whose instances are single test cases」：registers path and cleans owner |
+| 2 | `PathRegistryTest` | `test_rejects_arbitrary_child_and_kind` | 覆盖「A class whose instances are single test cases」：rejects arbitrary child and kind |
+
+## test_plugin_contributions.py
+
+共 20 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ContributionRegistryTest` | `test_drop_plugin_removes_routes` | 覆盖「A class whose instances are single test cases」：drop plugin removes routes |
+| 2 | `ContributionRegistryTest` | `test_route_duplicate_rejected` | 覆盖「A class whose instances are single test cases」：route duplicate rejected |
+| 3 | `ContributionRegistryTest` | `test_route_exact_match` | 覆盖「A class whose instances are single test cases」：route exact match |
+| 4 | `ContributionRegistryTest` | `test_route_exact_wins_over_parameter` | 同时声明 `tasks` 与 `tasks/:sid` 时，`tasks` 不能被参数路由抢走。 |
+| 5 | `ContributionRegistryTest` | `test_route_methods_supported` | 覆盖「A class whose instances are single test cases」：route methods supported |
+| 6 | `ContributionRegistryTest` | `test_route_multi_segment_parameter` | 覆盖「A class whose instances are single test cases」：route multi segment parameter |
+| 7 | `ContributionRegistryTest` | `test_route_path_parameter` | 覆盖「A class whose instances are single test cases」：route path parameter |
+| 8 | `ContributionRegistryTest` | `test_route_rejects_bad_parameter_name` | 覆盖「A class whose instances are single test cases」：route rejects bad parameter name |
+| 9 | `ContributionRegistryTest` | `test_route_rejects_bad_paths` | 覆盖「A class whose instances are single test cases」：route rejects bad paths |
+| 10 | `ContributionRegistryTest` | `test_route_rejects_bad_plugin_and_method` | 覆盖「A class whose instances are single test cases」：route rejects bad plugin and method |
+| 11 | `ContributionRegistryTest` | `test_route_segment_count_must_match` | 覆盖「A class whose instances are single test cases」：route segment count must match |
+| 12 | `ExternalPluginRootAssetTest` | `test_plugin_asset_uses_tracked_root` | 覆盖「外部 path= 插件：资产根走 plugin_root，而不是 plugins_dir/<na…」：plugin asset uses tracked root |
+| 13 | `PluginAssetUrlTest` | `test_asset_rel_parsing` | 覆盖「面板脚本资产路径的解析（壳层按它取文件）」：asset rel parsing |
+| 14 | `PluginContextContributionTest` | `test_ctx_add_context_source_returns_disposer` | 覆盖「A class whose instances are single test cases」：ctx add context source returns disposer |
+| 15 | `PluginContextContributionTest` | `test_ctx_namespaces_routes_by_plugin` | 覆盖「A class whose instances are single test cases」：ctx namespaces routes by plugin |
+| 16 | `PluginContextContributionTest` | `test_data_dir_is_per_plugin_and_created` | 覆盖「A class whose instances are single test cases」：data dir is per plugin and created |
+| 17 | `PluginContextContributionTest` | `test_data_dir_none_without_host_root` | 覆盖「A class whose instances are single test cases」：data dir none without host root |
+| 18 | `PluginContextContributionTest` | `test_data_dir_path_is_absolute` | 覆盖「A class whose instances are single test cases」：data dir path is absolute |
+| 19 | `PluginContextContributionTest` | `test_data_dir_sanitizes_plugin_name` | 覆盖「A class whose instances are single test cases」：data dir sanitizes plugin name |
+| 20 | `PluginContextContributionTest` | `test_register_fail_after_add_route_rolls_back` | 覆盖「A class whose instances are single test cases」：register fail after add route rolls back |
 
 ## test_plugin_http.py
 
-共 18 个用例。
+共 17 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1717,14 +1726,13 @@
 | 8 | `PluginHttpTest` | `test_handler_exception_does_not_kill_shell` | 插件端点抛错应变成 500，而不是打挂服务。 |
 | 9 | `PluginHttpTest` | `test_panel_script_served_as_javascript` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：panel script served as javascript |
 | 10 | `PluginHttpTest` | `test_panel_style_served_as_css` | 插件的样式表由插件自己提供、按面板声明送达。 |
-| 11 | `PluginHttpTest` | `test_panels_and_actions_expose_script_url` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：panels and actions expose script url |
-| 12 | `PluginHttpTest` | `test_parameter_route_does_not_capture_wrong_method` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：parameter route does not capture wrong method |
-| 13 | `PluginHttpTest` | `test_plugin_panel_logic_lives_in_the_plugin` | 面板的脚本与样式都在插件目录里，壳层不掺和插件面板的渲染。 |
-| 14 | `PluginHttpTest` | `test_plugin_style_source_declares_its_own_classes` | 样式确实在插件里：插件目录下有自己的样式表。 |
-| 15 | `PluginHttpTest` | `test_post_creates_and_receives_body_and_query` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：post creates and receives body and query |
-| 16 | `PluginHttpTest` | `test_put_updates_via_path_parameter` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：put updates via path parameter |
-| 17 | `PluginHttpTest` | `test_shell_public_stylesheet_does_not_carry_plugin_styles` | 壳层的公共样式表里不该出现插件专属的样式规则。 |
-| 18 | `PluginHttpTest` | `test_unknown_path_and_plugin_are_404` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：unknown path and plugin are 404 |
+| 11 | `PluginHttpTest` | `test_parameter_route_does_not_capture_wrong_method` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：parameter route does not capture wrong method |
+| 12 | `PluginHttpTest` | `test_plugin_panel_logic_lives_in_the_plugin` | 面板的脚本与样式都在插件目录里，壳层不掺和插件面板的渲染。 |
+| 13 | `PluginHttpTest` | `test_plugin_style_source_declares_its_own_classes` | 样式确实在插件里：插件目录下有自己的样式表。 |
+| 14 | `PluginHttpTest` | `test_post_creates_and_receives_body_and_query` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：post creates and receives body and query |
+| 15 | `PluginHttpTest` | `test_put_updates_via_path_parameter` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：put updates via path parameter |
+| 16 | `PluginHttpTest` | `test_shell_public_stylesheet_does_not_carry_plugin_styles` | 壳层的公共样式表里不该出现插件专属的样式规则。 |
+| 17 | `PluginHttpTest` | `test_unknown_path_and_plugin_are_404` | 覆盖「真服务 + 夹具插件；整类共用一个实例」：unknown path and plugin are 404 |
 
 ## test_plugins.py
 
@@ -2156,7 +2164,7 @@
 
 ## test_settings_panel.py
 
-共 21 个用例。
+共 17 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2171,16 +2179,23 @@
 | 9 | `PluginSettingsTest` | `test_missing_plugin_is_not_enabled` | 覆盖「A class whose instances are single test cases」：missing plugin is not enabled |
 | 10 | `PluginSettingsTest` | `test_plugin_config_roundtrip_rejects_a_bad_name` | 覆盖「A class whose instances are single test cases」：plugin config roundtrip rejects a bad name |
 | 11 | `PluginSettingsTest` | `test_unknown_route` | 覆盖「A class whose instances are single test cases」：unknown route |
-| 12 | `SaveHostTest` | `test_invalid_number_does_not_write` | 覆盖「A class whose instances are single test cases」：invalid number does not write |
-| 13 | `SaveHostTest` | `test_save_rewrites_the_key_and_keeps_the_comment` | 覆盖「A class whose instances are single test cases」：save rewrites the key and keeps the comment |
-| 14 | `SettingsBroadcastTest` | `test_invalid_save_does_not_broadcast` | 覆盖「A class whose instances are single test cases」：invalid save does not broadcast |
-| 15 | `SettingsBroadcastTest` | `test_success_broadcasts_applied_settings` | 覆盖「A class whose instances are single test cases」：success broadcasts applied settings |
-| 16 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
-| 17 | `StructuredPluginConfigTest` | `test_new_model_group_gets_a_generated_id` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：new model group gets a generated id |
-| 18 | `StructuredPluginConfigTest` | `test_read_masks_the_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：read masks the secret |
-| 19 | `StructuredPluginConfigTest` | `test_required_field_rejects_an_empty_value` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：required field rejects an empty value |
-| 20 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
-| 21 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
+| 12 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
+| 13 | `StructuredPluginConfigTest` | `test_new_model_group_gets_a_generated_id` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：new model group gets a generated id |
+| 14 | `StructuredPluginConfigTest` | `test_read_masks_the_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：read masks the secret |
+| 15 | `StructuredPluginConfigTest` | `test_required_field_rejects_an_empty_value` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：required field rejects an empty value |
+| 16 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
+| 17 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
+
+## test_settings_registry.py
+
+共 4 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `SettingsRegistryTest` | `test_drop_plugin_removes_items_and_panels` | 覆盖「A class whose instances are single test cases」：drop plugin removes items and panels |
+| 2 | `SettingsRegistryTest` | `test_failed_save_rolls_back_committed_items` | 覆盖「A class whose instances are single test cases」：failed save rolls back committed items |
+| 3 | `SettingsRegistryTest` | `test_invalid_select_and_missing_parent` | 覆盖「A class whose instances are single test cases」：invalid select and missing parent |
+| 4 | `SettingsRegistryTest` | `test_panel_item_and_save_callback` | 覆盖「A class whose instances are single test cases」：panel item and save callback |
 
 ## test_silent_except_gate.py
 
@@ -2273,6 +2288,17 @@
 | 25 | `UserConfirmTest` | `test_interactive_flag_is_rejected` | interactive 不是公开工具参数，不得静默穿透到工具实现。 |
 | 26 | `UserConfirmTest` | `test_pending_envelope` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：pending envelope |
 | 27 | `UserConfirmTest` | `test_validations` | 覆盖「公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用」：validations |
+
+## test_theme_style_plugin.py
+
+共 4 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ThemeStylePluginTest` | `test_boot_script_separate_from_core` | 覆盖「A class whose instances are single test cases」：boot script separate from core |
+| 2 | `ThemeStylePluginTest` | `test_host_catalog_includes_plugin_item` | 覆盖「A class whose instances are single test cases」：host catalog includes plugin item |
+| 3 | `ThemeStylePluginTest` | `test_register_adds_settings_item_route_and_boot_script` | 覆盖「A class whose instances are single test cases」：register adds settings item route and boot script |
+| 4 | `ThemeStylePluginTest` | `test_style_assets_and_theme_lists` | 覆盖「A class whose instances are single test cases」：style assets and theme lists |
 
 ## test_todo_context_prompt.py
 

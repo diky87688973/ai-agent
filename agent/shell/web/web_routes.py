@@ -239,6 +239,13 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             self._json(400, {"ok": False, "error": str(exc)})
         return True
 
+    def _catalog(self, attr: str) -> None:
+        app = getattr(self.shell, "app", None)
+        host = getattr(app, "plugin_host", None) if app is not None else None
+        registry = getattr(host, attr, None) if host is not None else None
+        catalog = registry.catalog() if registry is not None else {"slots": [], "entries": []}
+        self._json(200, {"ok": True, **catalog})
+
     def _get_page(self, path: str, query: Any) -> bool:
         if path == "/":
             self._classic_page()
@@ -253,6 +260,10 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             else:
                 status, payload = self.shell.health()
                 self._json(status, payload)
+        elif path == "/api/backend/catalog":
+            self._catalog("backend")
+        elif path == "/api/ui/catalog":
+            self._catalog("ui")
         elif path == "/api/settings" or path.startswith("/api/settings/"):
             from agent.shell.settings_panel import handle_get
             status, payload = handle_get(path, query, self.shell.app)
@@ -323,15 +334,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
                 limit = 400000
             status, payload = self.shell.fs_read(query.get("path", ""), limit)
             self._json(status, payload)
-        elif path == "/api/panels":
-            self._json(200, {"ok": True, "panels": self.shell.panel_list(),
-                             "loaded": self.shell.loaded_plugin_names()})
-        elif path == "/api/actions":
-            self._json(200, {"ok": True, "actions": self.shell.action_list()})
-        elif path == "/api/ctx-segment-styles":
-            self._json(200, {"ok": True, "styles": self.shell.ctx_segment_style_list()})
-        elif path == "/api/boot-scripts":
-            self._json(200, {"ok": True, "scripts": self.shell.boot_script_list()})
+        elif path == "/api/plugins/loaded":
+            self._json(200, {"ok": True, "loaded": self.shell.loaded_plugin_names()})
         elif path == "/api/tool-labels":
             self._json(200, {"ok": True, "tools": self.shell.tool_list()})
         elif path.startswith("/api/plugin/"):

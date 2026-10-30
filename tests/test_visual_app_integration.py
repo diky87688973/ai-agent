@@ -23,15 +23,17 @@ class VisualAppAssemblyTest(unittest.TestCase):
                 self.assertIsNotNone(app.context_hooks)
                 self.assertIsNotNone(app.context_sources)
                 self.assertIn("vision_request_open", app.registry.names())
-                actions = [
-                    a.as_dict() for a in app.plugin_host.contributions.all_actions()
-                    if a.plugin == "visual_operator_2"
-                ]
-                self.assertEqual(actions[0]["placement"], "after:knowledge:kb")
-                self.assertEqual(
-                    actions[0]["click_url"],
-                    "/api/plugin/visual_operator_2/eye-consent/revoke",
-                )
+                entry = app.plugin_host.ui.paths.entries.get(
+                    "web-ui/input/buttons/visual_btn")
+                if entry is None:
+                    entry = next((row for row in app.plugin_host.ui.pending
+                                  if row.get("path") == "web-ui/input/buttons/visual_btn"), None)
+                self.assertIsNotNone(entry)
+                props = (entry.get("metadata", {}).get("props", {})
+                         if isinstance(entry, dict)
+                         else entry.metadata.get("props", {}))
+                self.assertEqual(props["action"], "visual.toggle")
+                self.assertIn("ui/eye-toggle.js", props["scripts"])
                 self.assertTrue(app.context.has("context_hooks"))
             finally:
                 app.dispose()

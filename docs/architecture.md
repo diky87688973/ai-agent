@@ -157,6 +157,19 @@ Event format is forward-compatible: **unknown event types are skipped on read**,
 `build_shell_app()` in `agent/entry/web.py` wraps this: it builds the real provider and session store from configuration, then passes them to `build_app()`.
 The composition root (`app.py`) and entry layer (`entry/`) are the top two layers: the lower four layers must not import them at runtime, and no layer may import `entry/`. Entry imports the composition root. `python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` are the three process entries.
 
+## Plugin settings contract
+
+Plugins declare settings panels and items; they do not render host settings DOM.
+
+```text
+plugin: add_settings_panel(panel_id, title)
+plugin: add_settings_item(parent, item_id, kind, label, options, save, load)
+host:   renders typed controls and submits plugin values through the generic settings entry
+plugin: save callback persists and applies its own value, then returns success/failure
+```
+
+Settings IDs are `settings`, `settings/<panel>`, and `settings/<panel>/<item>`. The registered `kind` determines the control: `text`, `search`, `number`, `select`, `checkbox`, `textarea`, `password`. Save callbacks belong to the registering plugin; the plugin system only routes, aggregates, and broadcasts. Unloading a plugin removes its panels and items immediately; the plugin retains its own persisted values for the next enable.
+
 ## Architecture hard constraints
 
 The following constraints are checked with zero exceptions by `scripts/check_architecture_hygiene.py` and unit tests:
@@ -167,9 +180,9 @@ The following constraints are checked with zero exceptions by `scripts/check_arc
 - Write-path keys only come from a tool's declared `write_path_keys` (looked up through the registry). There is no process-global key table and no default guessing of `path`; whether a post-write re-read is required comes from `needs_reread`.
 - Write gates only use `agent.mechanisms.quality`; the compatibility module `quality_gate` and `mechanisms.quality_gate` re-entry are forbidden.
 - `agent/core` and `agent/mechanisms` contain no concrete plugin names (including `skill_manage` and `plugins/` directory names).
-- Plugin contributions such as `add_panel` / `add_route` / `add_action` are tracked by disposers and cleaned up in reverse order on unload.
+- Plugin contributions such as `add_route` and `add_ui_item` are tracked by disposers and cleaned up in reverse order on unload.
 - External `path=` plugins resolve their asset root through `plugin_root`; `plugins/<name>` is not hardcoded.
-- Segment-color-only registrations use `add_ctx_segment_style` and do not attach an empty panel.
+- Context-segment appearance is registered as a `web-ui/left-panel/context_usage/<key>` UI item and consumed by the context bar.
 - Classic shell JS and `prompts.py` contain no `skill_manage` (the tool name exists only on the plugin side).
 - Plugins declare their own UI and live events; the kernel only provides generic contribution points and event outlets.
 - Private cross-layer imports (`from agent.X import _priv`) are forbidden; same-layer private imports are allowed.
