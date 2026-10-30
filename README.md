@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.5-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-v0.1.6-blue" alt="version">
   <img src="https://img.shields.io/badge/Python-3.10%2B-brightgreen" alt="Python">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
@@ -41,11 +41,12 @@ macOS packages are not built yet. Current releases provide Windows packages only
 - **Service-ready** — the kernel is not tied to a UI. The Web entry provides local HTTP/SSE and health checks. The headless entry targets scripts, CI, tickets, and external systems. Plugins can add their own HTTP endpoints.
 - **Access control** — browser login, one-time GUI auto-login, scrypt passwords, HttpOnly sessions, CSRF, scoped tokens, login rate limiting, and TLS for public bindings.
 - **Plugin extensions** — tools, executors, context, prompts, gates, model catalogs, HTTP endpoints, and UI assets can be added without changing the kernel. Built-in plugins include Skills, Rules, Knowledge, Multi-model, Visual Operator, and AI Speak.
+- **Visual operation** — continuous visual capability; after authorization, operate the system smoothly, with takeover available at any time and a traceable process. (Windows only for now.)
 - **Multi-agent collaboration** — subagents are created in batches with independent sessions and role-specific tool views. Parent/child messaging, queues, and work reports are supported.
 - **Manageable long-running work** — background tasks are isolated per session with concurrency limits, timeouts, cancellation, and output retrieval. Goals, todos, and message queues support multi-turn progress.
 - **Scheduled wakeups** — register relative or absolute wake jobs; the host delivers them after the turn ends and the target is idle or queued.
-- **Reviewable writes** — preview → review → commit → re-read. Automatic backup before edits, backup and rollback, and recycle-directory deletion.
-- **Inspectable context, resumable sessions** — segment budgets, over-budget summaries, context usage, and request snapshots. Persisted fact streams and SSE resume by event coordinates.
+- **Four-step writes** — preview → review → commit → re-read, so changes are confirmed before they land; automatic backup before edits makes failures and wrong results rollback-safe, and deletions go to the recycle directory.
+- **Context management** — segment budgets, over-budget summaries, context usage, and request snapshots. Persisted fact streams and SSE resume by event coordinates.
 - **Safe updates** — update-pack hash checks, staging, health checks, and rollback on failure. Regular files are replaced; `*.ini` files merge user settings.
 
 ## Quick start
@@ -125,7 +126,7 @@ Documentation is available in English and Chinese; English pages are canonical.
 | [Multi-model](docs/subsystems/multi-model.md) | Catalog entries, settings forms, model pickers |
 | [Skills](docs/subsystems/skills.md) | Three-layer disclosure, built-in/external sources, `skills` tool |
 | [Rules](docs/subsystems/rules.md) | `rules/` markdown injection and hot toggle |
-| [Visual Operator](docs/subsystems/visual-operator.md) | Screenshots, coordinate grid, mouse/keyboard tools |
+| [Visual Operator 2.0](docs/subsystems/visual-operator-2.0.md) | Continuous frames, focus, authorization, mouse/keyboard tools |
 | [AI Speak](docs/subsystems/ai-speak.md) | Text normalization, speech synthesis, plugin events, player |
 | [Sessions and collaboration](docs/subsystems/session.md) | Fact logs, cross-process locks, runtime registry, collaboration mesh |
 | [Subagents](docs/subsystems/subagent.md) | Parent/child sessions, batches, tool visibility, messaging |

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.5-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-v0.1.6-blue" alt="version">
   <img src="https://img.shields.io/badge/Python-3.10%2B-brightgreen" alt="Python">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
@@ -41,11 +41,12 @@ macOS 安装包暂未构建，当前 Release 只提供 Windows 包。
 - **可服务化接入** —— 内核不绑定 UI，Web 入口提供本地 HTTP/SSE 与健康检查，无头入口面向脚本、CI、工单和外部系统调用，插件可追加自己的 HTTP 端点。
 - **访问鉴权** —— 浏览器登录，GUI 一次性免登录；scrypt 密码、HttpOnly 会话、CSRF、scope Token、登录限流、公网 TLS。
 - **插件化扩展** —— 工具、执行器、上下文、提示词、门控、模型目录、HTTP 端点与界面资产均可由插件加入，不修改内核；内置 Skills、Rules、知识库、多模型、视觉操作与 AI 说话。
+- **视觉操作** —— 持续视觉能力，授权后流畅操作系统，用户随时接管，过程可追溯。(目前仅支持 Windows)
 - **多智能体协作** —— 子智能体按批次创建，拥有独立会话与角色工具视图；支持父子双向通信、消息队列、工作汇报。
 - **长任务可管理** —— 后台任务按会话隔离，支持并发上限、超时、取消与输出读取；目标、Todo 和消息队列支持多回合推进。
 - **定时唤醒** —— 可注册相对或绝对时间的唤醒任务；宿主在回合结束后投递，目标空闲即启动，忙碌则排队。
-- **写盘可审查** —— 预览 → 审查 → 提交 → 重读；改前自动备份，可按版本回滚；删除进入回收目录。
-- **上下文可查、会话可恢复** —— 分段预算、超预算摘要、上下文用量与请求快照；事实流落盘，SSE 断线可按事件坐标续传。
+- **四步写盘** —— 预览 → 审查 → 提交 → 重读，先确认再落盘；改前自动备份，写入失败或结果不对可回滚，删除进入回收目录。
+- **上下文管理** —— 分段预算、超预算摘要、上下文用量与请求快照；事实流落盘，SSE 断线可按事件坐标续传。
 - **安全更新** —— 更新包哈希校验、暂存、健康检查与失败回滚；普通文件覆盖，`*.ini` 合并用户配置。
 
 ## 快速开始
@@ -123,7 +124,7 @@ python3 -m agent.gui.launcher
 | [多模型](docs/subsystems/multi-model.zh.md) | `multi_model` 的目录条目、设置页表单与模型下拉 |
 | [Skills](docs/subsystems/skills.zh.md) | `skills` 插件的三层披露、内置/外置来源与 `skills` 工具 |
 | [Rules](docs/subsystems/rules.zh.md) | `rules` 插件：`rules/` 下的 `.md` 全量注入与热开关 |
-| [视觉操作](docs/subsystems/visual-operator.zh.md) | 截屏、坐标网格与鼠标键盘工具 |
+| [视觉操作 2.0](docs/subsystems/visual-operator-2.0.zh.md) | 持续视觉帧、视野聚焦、授权与鼠标键盘工具 |
 | [AI说话](docs/subsystems/ai-speak.zh.md) | `ai_speak` 的文本规范、语音合成、插件事件与播放器 |
 | [会话与协作](docs/subsystems/session.zh.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
 | [子智能体](docs/subsystems/subagent.zh.md) | 父子会话、批次、工具可见性、消息与最终回复投递 |
