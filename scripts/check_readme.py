@@ -109,6 +109,8 @@ def _data_dirs() -> list[str]:
     d = ROOT / "data"
     if d.is_dir():
         names.update(p.name for p in d.iterdir() if p.is_dir())
+    # 运行期/运维目录由人工或外部流程创建，不保证全新 checkout 存在。
+    names.update({"check", "recycle", "temp", "tests"})
     return sorted(n for n in names if n.islower() and 2 <= len(n) <= 24)
 
 
