@@ -118,7 +118,14 @@ class AuthMiddleware:
             self._json(200, payload)
             return True
         if path == "/auth/status":
-            status, payload, headers = runtime.routes.status(self._identity())
+            identity = self._identity()
+            status, payload, headers = runtime.routes.status(identity)
+            if identity is not None and identity.session is not None:
+                raw = cookie_token(self.headers)
+                if raw:
+                    headers = dict(headers)
+                    headers["Set-Cookie"] = runtime.routes.session_cookie(
+                        raw, secure=self._secure_request())
             self._json(status, payload, headers=headers)
             return True
         return False

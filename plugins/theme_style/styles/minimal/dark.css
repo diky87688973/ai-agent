@@ -146,6 +146,16 @@ html[data-ui-style="minimal"] .st-form textarea:focus {
   box-shadow: none !important;
 }
 
+html[data-ui-style="minimal"] .bg-task-pop {
+  background: var(--c-bg-layer, #1e1f23) !important;
+  border-color: var(--c-line-2, #2a2d32) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .45) !important;
+}
+html[data-ui-style="minimal"] .bg-task-pop-head,
+html[data-ui-style="minimal"] .bg-task-detail {
+  background: var(--c-bg-layer, #1e1f23) !important;
+}
+
 html[data-ui-style="minimal"] .chat-tab.active {
   background: var(--c-bg-active) !important;
   border-color: transparent !important;

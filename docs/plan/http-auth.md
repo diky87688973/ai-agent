@@ -210,7 +210,7 @@ logout revokes the session immediately
 expired sessions are pruned on access and on create
 ```
 
-The cookie's `Max-Age` is fixed at login; the server-side expiry is refreshed by each authenticated request.
+An authenticated browser calls `GET /auth/status` once per hour. That response reissues the session cookie with a fresh `Max-Age`; the server-side expiry is also refreshed by each authenticated request.
 
 ### Cookie
 
@@ -218,7 +218,7 @@ The cookie's `Max-Age` is fixed at login; the server-side expiry is refreshed by
 HttpOnly
 SameSite=Strict
 Path=/
-Max-Age = session_hours × 3600
+Max-Age = session_hours × 3600, renewed by hourly `/auth/status`
 Secure on HTTPS requests, and always when cookie_secure = true
 ```
 

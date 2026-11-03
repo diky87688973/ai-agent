@@ -204,7 +204,7 @@ class LiveStateContentionTest(unittest.TestCase):
 
         _run_threads(worker)
         self.assertIn(state.get_mode(cid), allowed)
-        self.assertIn(state.get_reasoning_effort(cid), ("high", "max"))
+        self.assertIn(state.get_reasoning_effort(cid), ("low", "high", "max"))
 
 
 class ModelCatalogContentionTest(unittest.TestCase):

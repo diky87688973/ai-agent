@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""验收：调查与工具 12 件（find_in_file / regex_locate / file_search / text_diff /
-data_table / env_probe / unified_diagnose / git_workspace / web_fetch / web_fetch_render /
+"""验收：调查与工具 11 件（find_in_file / regex_locate / file_search / text_diff /
+data_table / unified_diagnose / git_workspace / web_fetch / web_fetch_render /
 image_ocr / archive）headless 演示。
 
 场景：① 门控闭环——archive 走完整 id 制四步（预览 → 确认 → 凭 confirm_id 提交 → 落盘复核），
@@ -38,7 +38,6 @@ BATCH_E_TOOLS = [
     "file_search",
     "text_diff",
     "data_table",
-    "env_probe",
     "unified_diagnose",
     "git_workspace",
     "web_fetch",
@@ -207,11 +206,6 @@ class Acceptance:
         self.check("data_table：预览列与行数",
                    r.ok and (r.data or {}).get("total_rows") == 2
                    and (r.data or {}).get("columns") == ["name", "score"], str(r.data))
-        r = self.call("env_probe", {})
-        self.check("env_probe：可用环境列表非空",
-                   r.ok and bool((r.data or {}).get("available"))
-                   and isinstance((r.data or {}).get("available"), list), str(r.data))
-
     def _scenario2_diagnose(self) -> None:
         good = self.root / "good"
         good.mkdir(exist_ok=True)

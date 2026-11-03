@@ -10,7 +10,7 @@
 
 ```ini
 [agent]
-reasoning_effort = max
+reasoning_effort = high
 backup_retention_days = 7
 max_passes = 64
 plugin_tree_only = 0
@@ -18,14 +18,14 @@ plugin_tree_only = 0
 
 | 键 | 默认 | 含义 |
 |---|---|---|
-| `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可切换，**会话级选择优先**，且按会话落盘（`data/session/state/`） |
+| `reasoning_effort` | `high` | 全局推理档位。`low` = 轻量推理，`high` = 标准推理，`max` = 深度推理。会话内可切换，**会话级选择优先**，且按会话落盘（`data/session/state/`） |
 | `backup_retention_days` | `7` | 版本化备份保留天数。启动时清理更早的；`0` = 永久保留 |
 | `max_passes` | `64` | 每回合模型往返上限；小于 1 按 1 处理。每次往返可调用 0 个或多个工具，不是工具调用次数上限 |
 | `plugin_tree_only` | `0` | `1` 时只允许装载落在 `plugins/` 树内的插件目录；清单里的绝对/外置 `path` 会被拒。环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先 |
 
 仓库的 `config.ini` 使用 `high`（`reasoning_effort`）与 `512`（`max_passes`）；上表默认值取自代码。
 
-`reasoning_effort` 由支持该字段的 provider 写入请求体的 `reasoning_effort` 字段；不支持该字段的 provider 会忽略它。值非法时回落 `max`。
+`reasoning_effort` 由支持该字段的 provider 写入请求体的 `reasoning_effort` 字段；不支持该字段的 provider 会忽略它。值非法时回落 `high`。
 
 Rules 不在这里配：规则文件放在工程根的 `rules/` 目录，由 `plugins/rules` 插件全量注入，见 [Rules](../subsystems/rules.zh.md)。
 

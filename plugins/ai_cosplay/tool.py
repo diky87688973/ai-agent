@@ -6,11 +6,18 @@ from typing import Any, Dict
 
 from agent.capabilities.registry import ToolPlugin
 from agent.core.context import SERVICE_PLUGIN_EVENTS
+from agent.core.error_report import report_error
 from agent.core.session_scope import current_context
 
 from .provider import SpeechEngineUnavailable
 from .runtime import AICosplayRuntime
-from .runtime_worker import PLUGIN_NAME, PLAYED, SYNTHESIS_FAILED, SpeechPlaybackFailed, SpeechSynthesisFailed
+from .runtime_worker import (
+    PLAYED,
+    PLUGIN_NAME,
+    SYNTHESIS_FAILED,
+    SpeechPlaybackFailed,
+    SpeechSynthesisFailed,
+)
 from .text import MessageValidationError, split_message, split_speech_text
 
 _DESCRIPTION = "把你要对用户说的话直接说出来。用当前角色的第一人称、人类口语，像当面汇报，不使用播音腔、书面语，不解释自己在调用工具。每完成一步就调用一次，不等到全部做完。允许：中文、英文、数字、空格；中文标点 ，。？！；、：“”‘’（）。英文标点 . , ? ! ; : ' \" ( )；四则符号 + - * / × ÷（含全角 ＋－＊／）；百分号 % 或 ％。英文单词内可用 - 和 '。引号括号需成对（含「」与《》）。其他符号与 emoji 不必刻意删：合成前会自动移除不发音的符号。但禁止换行与制表符、Markdown、代码、链接。每个分句以边界标点结尾；后端按标点贪心拼装，单段上限取插件配置 max_segment_chars（默认 128 字），超过上限会失败并返回规范。一次最多 512 字。例如「进度 10%。」会读成「进度 百分之十。」；「5+3。」会读成「五加三。」。示例：主子，文件已经写好了，您要不要看一眼？"
@@ -20,6 +27,24 @@ def _tool_description(persona: str) -> str:
     """把配置中的人物身份拼到工具说明末尾。"""
     identity = str(persona or "").strip()
     return _DESCRIPTION + ("\n\n" + identity if identity else "")
+
+
+def _publish_pending(publisher: Any, conversation_id: str, call_id: str, raw: str, queued: int) -> None:
+    """发布播放条 pending 事件；失败只留痕，不影响工具入队结果。"""
+    try:
+        publisher(PLUGIN_NAME, "pending", {
+            "conversation_id": conversation_id,
+            "call_id": call_id,
+            "text": raw[:512],
+            "total": queued,
+        })
+    except Exception as exc:
+        report_error(
+            "plugins.ai_cosplay.tool.pending",
+            exc,
+            conversation_id=conversation_id,
+            call_id=call_id,
+        )
 
 
 class AICosplayTool(ToolPlugin):
@@ -88,15 +113,7 @@ class AICosplayTool(ToolPlugin):
             if waiter is not None:
                 self._runtime.forget_playback(conversation_id, call_id)
             raise
-        try:
-            publisher(PLUGIN_NAME, "pending", {
-                "conversation_id": conversation_id,
-                "call_id": call_id,
-                "text": raw[:512],
-                "total": queued,
-            })
-        except Exception:
-            pass
+        _publish_pending(publisher, conversation_id, call_id, raw, queued)
         if waiter is None:
             return {
                 "accepted": True,

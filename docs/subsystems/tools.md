@@ -165,7 +165,6 @@ Markdown links to local text-file paths also open in the right pane; local media
 | `run_command` | Run a command synchronously in the foreground; waits for exit and returns stdout/stderr/exit_code. For short, interactive, install, and build commands |
 | `background_task` | Run a command asynchronously in the background; returns `task_id` immediately and manages create / list / output / cancel; argv does not go through a shell |
 | `python_inline` | Run Python synchronously in the foreground inside the Agent process; no shell, no child process, cannot be hard-interrupted. There is no timeout parameter; use `background_task` for a timeout |
-| `env_probe` | Probe the local command-line environments (cmd / powershell / pwsh / bash / python / py) and return usage advice |
 
 Background children inherit only PATH, system directories, TEMP, HOME, Windows user paths (LOCALAPPDATA, APPDATA, USERPROFILE, and so on), and locale; they do not inherit API keys, tokens, or other credentials. This allowlist only reduces environment leakage and missing paths; it provides no filesystem, network, or privilege isolation and is not a security sandbox.
 

@@ -10,7 +10,7 @@ The plugin manifest is a separate file, `plugins.ini` in the project root. It is
 
 ```ini
 [agent]
-reasoning_effort = max
+reasoning_effort = high
 backup_retention_days = 7
 max_passes = 64
 plugin_tree_only = 0
@@ -18,14 +18,14 @@ plugin_tree_only = 0
 
 | Key | Default | Meaning |
 |---|---|---|
-| `reasoning_effort` | `max` | Global reasoning level. `max` = deep reasoning, `high` = standard reasoning. It can be changed per session; the session-level choice takes precedence and is persisted per session under `data/session/state/`. |
+| `reasoning_effort` | `high` | Global reasoning level. `low` = light reasoning, `high` = standard reasoning, `max` = deep reasoning. It can be changed per session; the session-level choice takes precedence and is persisted per session under `data/session/state/`. |
 | `backup_retention_days` | `7` | Retention period for versioned backups, in days. Versions older than this are pruned at startup; `0` = keep forever. |
 | `max_passes` | `64` | Model round-trip limit per turn; values below 1 are treated as 1. Each round trip may call zero or more tools; this is not a tool-call limit. |
 | `plugin_tree_only` | `0` | When `1`, only plugin directories inside the `plugins/` tree may be loaded; absolute or external `path` entries in the manifest are rejected. The `AI_AGENT_PLUGIN_TREE_ONLY` environment variable takes precedence. |
 
 The repository's `config.ini` uses `high` for `reasoning_effort` and `512` for `max_passes`; the defaults in the table come from the code.
 
-`reasoning_effort` is sent as the request body's `reasoning_effort` field by providers that support it; providers that do not support the field ignore it. Invalid values fall back to `max`.
+`reasoning_effort` is sent as the request body's `reasoning_effort` field by providers that support it; providers that do not support the field ignore it. Invalid values fall back to `high`.
 
 Rules are not configured here. Rule files live in `rules/` at the project root and are injected in full by the `plugins/rules` plugin; see [Rules](../subsystems/rules.md).
 

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 from agent.core.error_report import report_error
+from agent.gui.port_cleanup import force_stop_agent_port as _force_stop_agent_port
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 3156
@@ -189,6 +190,8 @@ class _WindowApi:
         return True
 
     def close(self) -> bool:
+        if self._supervisor is not None:
+            self._supervisor.stop()
         if self._window is not None:
             self._window.destroy()
         return True
@@ -545,9 +548,10 @@ def launch(host: str, port: int, *, open_window: bool = True,
     if port <= 0:
         port = _pick_port(host)
     elif _is_agent_health(host, port):
-        _show_startup_error("指定端口已被占用，无法启动。")
-        print("指定端口已被占用。", file=sys.stderr)
-        return 1
+        if not _force_stop_agent_port(host, port, _is_agent_health):
+            _show_startup_error("端口被旧 AI Agent 进程占用，强制结束失败。")
+            print("端口被旧 AI Agent 进程占用，强制结束失败。", file=sys.stderr)
+            return 1
     supervisor = _ServerSupervisor(host, port, timeout)
     if not supervisor.start():
         _show_startup_error("Web 服务入口启动失败，请查看 data/logs/web.err.log。")

@@ -50,16 +50,24 @@ function applyMode(v,persist){hideSlashPop();selectedMode=normalizeMode(v);const
    否则开屏时 applyMode("auto") 会先把服务端刚恢复的 plan 覆盖掉。 */
 if(persist!==false){var cid=activeConversationId;if(cid){fetch("/api/chat/ui-state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,mode:selectedMode})}).catch(function(){});}}}
 function closeModeMenu(){modeMenu.classList.add("hidden");}
-let reasoningEffort="max";let reasoningMenu=document.getElementById("reasoningMenu");let reasoningLabel=document.getElementById("reasoningLabel");
-function applyReasoningEffort(effort,persist){if(effort!=="high"&&effort!=="max")return;reasoningEffort=effort;if(reasoningLabel){reasoningLabel.textContent=effort==="high"?"High":"Max";/* 颜色走类名，不写死值：写死的是深色主题的那一套，切到白天模式
-   就会变成"暗金文字压在浅底上"（对比度极差）。
-   `effort-max` 只是给 CSS 一个钩子，两套主题各自决定怎么画。 */
-reasoningLabel.style.color="";}
+let reasoningEffort="high";let reasoningMenu=document.getElementById("reasoningMenu");
+function reasoningButtonLabel(effort){return "思考深度·"+(effort==="low"?"Low":effort==="high"?"High":"Max");}
+function applyReasoningEffort(effort,persist){
+if(effort!=="low"&&effort!=="high"&&effort!=="max")return;
+reasoningEffort=effort;
 var thinkBtn=document.querySelector('[data-ui-action="input.thinking"]');
-if(thinkBtn){thinkBtn.classList.toggle("effort-max",effort==="max");thinkBtn.classList.toggle("effort-high",effort!=="max");}if(reasoningMenu){var cs=reasoningMenu.querySelectorAll(".reasoning-choice");cs.forEach(function(c){c.classList.remove("reasoning-current");if(c.dataset.effort===effort)c.classList.add("reasoning-current");});}
+if(thinkBtn){
+thinkBtn.textContent=reasoningButtonLabel(effort);
+thinkBtn.title="思考深度："+(effort==="low"?"Low":effort==="high"?"High":"Max");
+thinkBtn.classList.toggle("effort-max",effort==="max");
+thinkBtn.classList.toggle("effort-high",effort==="high");
+thinkBtn.classList.toggle("effort-low",effort==="low");
+}
+if(reasoningMenu){var cs=reasoningMenu.querySelectorAll(".reasoning-choice");cs.forEach(function(c){c.classList.remove("reasoning-current");if(c.dataset.effort===effort)c.classList.add("reasoning-current");});}
 /* 只有用户点击才回写；服务端回填（同一次回填里已经在显示它）再写一次
    只是多余的 PUT，还会在会话切换的竞态里把旧值盖回去。 */
-if(persist!==false){var cid=activeConversationId;if(cid){fetch("/api/reasoning-effort",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,effort:effort})}).catch(function(){});}}}
+if(persist!==false){var cid=activeConversationId;if(cid){fetch("/api/reasoning-effort",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,effort:effort})}).catch(function(){});}}
+}
 function closeReasoningMenu(){if(reasoningMenu)reasoningMenu.classList.add("hidden");}
 function toggleReasoningMenu(){if(!reasoningMenu)return;if(!reasoningMenu.classList.contains("hidden")){closeReasoningMenu();return;}notifyComposerPopup("reasoning");reasoningMenu.classList.remove("hidden");}
 function initReasoningPicker(){if(!reasoningMenu)return;

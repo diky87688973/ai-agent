@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, Iterator, Optional
 from agent.app_model_policy import AppModelPolicy
 from agent.app_services import AppServices
 from agent.boot.bootstrap import boot_app
-from agent.common.status import MODEL_CONFIG_NONE
+from agent.common.status import DEFAULT_REASONING_EFFORT, MODEL_CONFIG_NONE
 from agent.core.context import (
     SERVICE_BACKGROUND_TASKS,
     SERVICE_SUBAGENTS,
@@ -174,7 +174,7 @@ class App(AppModelPolicy, AppServices):
             fact_sink = lambda events, _cid=cid: session_store.append(_cid, events)
             seq_allocator = lambda: session_store.allocate_seq(1)
         state = self.live_state
-        effort = str(state.get_reasoning_effort(conversation_id)) if state is not None else "high"
+        effort = str(state.get_reasoning_effort(conversation_id)) if state is not None else DEFAULT_REASONING_EFFORT
         session_ctx = None
         if conversation_id and self.session_contexts is not None:
             session_ctx = self.session_contexts.resolve_sync(conversation_id)

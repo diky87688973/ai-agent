@@ -90,6 +90,9 @@ class CompactionPrefixTest(unittest.TestCase):
         self.assertEqual(req.messages[:-1], prefix)
         self.assertEqual(req.messages[-1]["role"], "user")
         self.assertIn("压缩引擎", req.messages[-1]["content"])
+        self.assertIn("Markdown", req.messages[-1]["content"])
+        self.assertIn("## ", req.messages[-1]["content"])
+        self.assertIn("- ", req.messages[-1]["content"])
         self.assertEqual(req.tools, tools)
 
     def test_no_snapshot_falls_back_without_claiming_hit(self) -> None:

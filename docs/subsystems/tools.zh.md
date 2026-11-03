@@ -168,7 +168,6 @@ Markdown 的本地文本文件路径链接同样进入右栏；本地媒体路�
 | `run_command` | 前台同步执行命令：等待结束并返回 stdout/stderr/exit_code；短命令、交互、安装构建使用 |
 | `background_task` | 后台异步执行命令：立即返回 task_id，用 create/list/output/cancel 管理；argv 不经 shell |
 | `python_inline` | 前台同步执行 Python：Agent 进程内执行，不经 shell，不创建子进程，不可硬中断；无 timeout 参数，超时需求改用 `background_task` |
-| `env_probe` | 探测本机可用命令行环境并给出建议 |
 
 后台任务的子进程只继承 PATH、系统目录、TEMP、HOME、Windows 用户路径（LOCALAPPDATA、APPDATA、USERPROFILE 等）和 locale；不继承 API Key、Token 等凭据。该白名单只降低环境泄漏与路径缺失，不提供文件系统、网络或权限隔离，不能当作安全沙箱。
 

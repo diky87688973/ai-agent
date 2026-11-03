@@ -18,8 +18,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from agent.common.status import (
+    DEFAULT_REASONING_EFFORT,
     GOAL_ACTIVE,
     GOAL_STATUSES,
+    REASONING_EFFORTS,
     RUN_MODE_AUTO,
     RUN_MODES,
 )
@@ -67,7 +69,7 @@ class LiveState:
     def __init__(
         self,
         storage_dir: Optional[Path] = None,
-        default_effort: str = "high",
+        default_effort: str = DEFAULT_REASONING_EFFORT,
         default_model: str = "",
     ) -> None:
         self._lock = threading.Lock()
@@ -82,7 +84,7 @@ class LiveState:
         #: 全局默认模型（配置面）；会话级选择优先。空串 = 由 provider 决定。
         self.default_model = str(default_model or "")
         # 全局默认档位（配置面）；会话级覆盖优先
-        self.default_effort = default_effort if default_effort in ("high", "max") else "high"
+        self.default_effort = default_effort if default_effort in REASONING_EFFORTS else DEFAULT_REASONING_EFFORT
         self._storage_dir = Path(storage_dir) if storage_dir else None
 
     # ── 模式──────────────────────────────────────
@@ -271,7 +273,7 @@ class LiveState:
         with self._lock:
             self._ensure_loaded(cid)
             val = self._efforts.get(cid)
-        if val in ("high", "max"):
+        if val in REASONING_EFFORTS:
             return val
         return self.default_effort
 
@@ -279,7 +281,7 @@ class LiveState:
         """设置会话级推理档位；非法值拒绝（返回 False），合法值生效并落盘（True）。"""
         cid = str(conversation_id or "").strip()
         value = str(effort or "").strip().lower()
-        if not cid or value not in ("high", "max"):
+        if not cid or value not in REASONING_EFFORTS:
             return False
         with self._lock:
             self._ensure_loaded(cid)
@@ -364,7 +366,7 @@ class LiveState:
         if mode in RUN_MODES and mode != RUN_MODE_AUTO:
             self._modes[cid] = mode
         effort = str(raw.get("effort") or "").strip()
-        if effort in ("high", "max"):
+        if effort in REASONING_EFFORTS:
             self._efforts[cid] = effort
         goal = raw.get("goal")
         if isinstance(goal, dict):

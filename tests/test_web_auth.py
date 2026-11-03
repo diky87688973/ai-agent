@@ -419,6 +419,8 @@ class WebAuthHttpTest(unittest.TestCase):
         self.assertEqual(status, 200)
         body = raw.decode("utf-8")
         self.assertIn('id="win-close"', body)
+        self.assertIn("novalidate", body)
+        self.assertIn("请输入密码", body)
         self.assertIn("pywebview.api.close", body)
 
     def test_guard_login_csrf_and_logout(self) -> None:
@@ -450,6 +452,10 @@ class WebAuthHttpTest(unittest.TestCase):
         body = json.loads(raw.decode("utf-8"))
         cookie = headers["Set-Cookie"].split(";", 1)[0]
         self.assertTrue(cookie)
+        status, status_headers, _ = self.request(
+            "GET", "/auth/status", headers={"Cookie": cookie})
+        self.assertEqual(status, 200)
+        self.assertIn("Set-Cookie", status_headers)
         status, _, _ = self.request(
             "GET", "/auth/csrf", headers={"Cookie": cookie})
         self.assertEqual(status, 200)

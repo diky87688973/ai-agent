@@ -214,7 +214,6 @@ const reg=String(argGet(args,"region")||"").trim();
 const extra=(eng&&eng!=="auto")?" · "+eng:"";
 const rg=reg?" · 区域 "+reg:"";
 return {main:"识别图片文字",fname:src+extra+rg};}
-if(s.indexOf("env_probe")>=0)return {main:"探测运行环境",fname:""};
 if(s.indexOf("diagnos")>=0){
 const root=pathLeaf(String(argGet(args,"path")||""))||".";
 return {main:"统一诊断",fname:root};}

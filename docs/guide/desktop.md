@@ -27,7 +27,7 @@ From source:
 python -m agent.gui.launcher
 ```
 
-The default listener is `127.0.0.1:3156`. The fixed port keeps the page origin stable so that `localStorage` persists across launches. If the port is in use, startup fails; the launcher does not silently switch to another port.
+The default listener is `127.0.0.1:3156`. The fixed port keeps the page origin stable so that `localStorage` persists across launches. If an old AI Agent process is listening, the launcher force-terminates it and starts a new server; other processes on the port still cause startup to fail. The launcher does not silently switch to another port.
 
 `python -m agent.gui.launcher --no-window` starts and validates the service, then stops it without opening a window. The root `agent-gui.exe` does not parse command-line arguments.
 

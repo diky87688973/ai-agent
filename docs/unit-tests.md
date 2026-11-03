@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2178** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2182** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -57,7 +57,7 @@
 46. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
 47. [test_gate_negative.py](#test_gate_negativepy)（74）
 48. [test_goal_runner.py](#test_goal_runnerpy)（8）
-49. [test_gui_launcher.py](#test_gui_launcherpy)（8）
+49. [test_gui_launcher.py](#test_gui_launcherpy)（9）
 50. [test_history_page.py](#test_history_pagepy)（16）
 51. [test_host_service_slots.py](#test_host_service_slotspy)（2）
 52. [test_http_route_slots.py](#test_http_route_slotspy)（5）
@@ -65,7 +65,7 @@
 54. [test_image_tool.py](#test_image_toolpy)（28）
 55. [test_image_turns.py](#test_image_turnspy)（23）
 56. [test_import_graph.py](#test_import_graphpy)（5）
-57. [test_invest_tools.py](#test_invest_toolspy)（29）
+57. [test_invest_tools.py](#test_invest_toolspy)（28）
 58. [test_kb_plugin.py](#test_kb_pluginpy)（50）
 59. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
 60. [test_mode_note.py](#test_mode_notepy)（13）
@@ -81,61 +81,62 @@
 70. [test_plugin_http.py](#test_plugin_httppy)（17）
 71. [test_plugin_ui_files.py](#test_plugin_ui_filespy)（2）
 72. [test_plugins.py](#test_pluginspy)（29）
-73. [test_present_tool.py](#test_present_toolpy)（2）
-74. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-75. [test_prompt_slot.py](#test_prompt_slotpy)（1）
-76. [test_prompt_tail.py](#test_prompt_tailpy)（5）
-77. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-78. [test_provider_meta.py](#test_provider_metapy)（8）
-79. [test_provider_router.py](#test_provider_routerpy)（14）
-80. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
-81. [test_queue_runner.py](#test_queue_runnerpy)（3）
-82. [test_queued_input.py](#test_queued_inputpy)（4）
-83. [test_readonly_tools.py](#test_readonly_toolspy)（33）
-84. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
-85. [test_router_slot.py](#test_router_slotpy)（1）
-86. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-87. [test_run_registry.py](#test_run_registrypy)（14）
-88. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-89. [test_session_context.py](#test_session_contextpy)（22）
-90. [test_session_seq.py](#test_session_seqpy)（23）
-91. [test_session_store.py](#test_session_storepy)（17）
-92. [test_session_tools.py](#test_session_toolspy)（17）
-93. [test_settings_panel.py](#test_settings_panelpy)（18）
-94. [test_settings_registry.py](#test_settings_registrypy)（5）
-95. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-96. [test_slot_registry.py](#test_slot_registrypy)（12）
-97. [test_slot_tree.py](#test_slot_treepy)（7）
-98. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-99. [test_standards_manifest.py](#test_standards_manifestpy)（3）
-100. [test_subagent.py](#test_subagentpy)（17）
-101. [test_task_tools.py](#test_task_toolspy)（28）
-102. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
-103. [test_thread_context.py](#test_thread_contextpy)（1）
-104. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-105. [test_tool_arguments.py](#test_tool_argumentspy)（5）
-106. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
-107. [test_tool_registry.py](#test_tool_registrypy)（17）
-108. [test_tool_resume.py](#test_tool_resumepy)（3）
-109. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-110. [test_top_level_services.py](#test_top_level_servicespy)（2）
-111. [test_ui_registry.py](#test_ui_registrypy)（4）
-112. [test_update.py](#test_updatepy)（26）
-113. [test_update_processes.py](#test_update_processespy)（2）
-114. [test_usage_metrics.py](#test_usage_metricspy)（7）
-115. [test_version_stamp.py](#test_version_stamppy)（4）
-116. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-117. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-118. [test_visual_operator.py](#test_visual_operatorpy)（160）
-119. [test_visual_operator_2.py](#test_visual_operator_2py)（42）
-120. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-121. [test_web_auth.py](#test_web_authpy)（26）
-122. [test_web_frontend.py](#test_web_frontendpy)（5）
-123. [test_web_shell.py](#test_web_shellpy)（53）
-124. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-125. [test_write_gate.py](#test_write_gatepy)（17）
-126. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-127. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+73. [test_port_cleanup.py](#test_port_cleanuppy)（4）
+74. [test_present_tool.py](#test_present_toolpy)（2）
+75. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+76. [test_prompt_slot.py](#test_prompt_slotpy)（1）
+77. [test_prompt_tail.py](#test_prompt_tailpy)（5）
+78. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+79. [test_provider_meta.py](#test_provider_metapy)（8）
+80. [test_provider_router.py](#test_provider_routerpy)（14）
+81. [test_quality_pipeline.py](#test_quality_pipelinepy)（18）
+82. [test_queue_runner.py](#test_queue_runnerpy)（3）
+83. [test_queued_input.py](#test_queued_inputpy)（4）
+84. [test_readonly_tools.py](#test_readonly_toolspy)（33）
+85. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
+86. [test_router_slot.py](#test_router_slotpy)（1）
+87. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+88. [test_run_registry.py](#test_run_registrypy)（14）
+89. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+90. [test_session_context.py](#test_session_contextpy)（22）
+91. [test_session_seq.py](#test_session_seqpy)（23）
+92. [test_session_store.py](#test_session_storepy)（17）
+93. [test_session_tools.py](#test_session_toolspy)（17）
+94. [test_settings_panel.py](#test_settings_panelpy)（18）
+95. [test_settings_registry.py](#test_settings_registrypy)（5）
+96. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+97. [test_slot_registry.py](#test_slot_registrypy)（12）
+98. [test_slot_tree.py](#test_slot_treepy)（7）
+99. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+100. [test_standards_manifest.py](#test_standards_manifestpy)（3）
+101. [test_subagent.py](#test_subagentpy)（17）
+102. [test_task_tools.py](#test_task_toolspy)（28）
+103. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
+104. [test_thread_context.py](#test_thread_contextpy)（1）
+105. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+106. [test_tool_arguments.py](#test_tool_argumentspy)（5）
+107. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
+108. [test_tool_registry.py](#test_tool_registrypy)（17）
+109. [test_tool_resume.py](#test_tool_resumepy)（3）
+110. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+111. [test_top_level_services.py](#test_top_level_servicespy)（2）
+112. [test_ui_registry.py](#test_ui_registrypy)（4）
+113. [test_update.py](#test_updatepy)（26）
+114. [test_update_processes.py](#test_update_processespy)（2）
+115. [test_usage_metrics.py](#test_usage_metricspy)（7）
+116. [test_version_stamp.py](#test_version_stamppy)（4）
+117. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+118. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+119. [test_visual_operator.py](#test_visual_operatorpy)（160）
+120. [test_visual_operator_2.py](#test_visual_operator_2py)（42）
+121. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+122. [test_web_auth.py](#test_web_authpy)（26）
+123. [test_web_frontend.py](#test_web_frontendpy)（5）
+124. [test_web_shell.py](#test_web_shellpy)（53）
+125. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+126. [test_write_gate.py](#test_write_gatepy)（17）
+127. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+128. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -1401,7 +1402,7 @@
 
 ## test_gui_launcher.py
 
-共 8 个用例。
+共 9 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1410,9 +1411,10 @@
 | 3 | `GuiLauncherTest` | `test_failed_window_still_stops_child` | 覆盖「A class whose instances are single test cases」：failed window still stops child |
 | 4 | `GuiLauncherTest` | `test_launch_owns_child_and_stops_it` | 覆盖「A class whose instances are single test cases」：launch owns child and stops it |
 | 5 | `GuiLauncherTest` | `test_missing_entry_returns_nonzero` | 覆盖「A class whose instances are single test cases」：missing entry returns nonzero |
-| 6 | `GuiLauncherTest` | `test_occupied_explicit_port_does_not_spawn` | 覆盖「A class whose instances are single test cases」：occupied explicit port does not spawn |
+| 6 | `GuiLauncherTest` | `test_occupied_explicit_port_restarts_old_agent` | 覆盖「A class whose instances are single test cases」：occupied explicit port restarts old agent |
 | 7 | `GuiLauncherTest` | `test_open_window_enables_text_selection` | 覆盖「A class whose instances are single test cases」：open window enables text selection |
 | 8 | `GuiLauncherTest` | `test_pick_port_and_storage_path` | 覆盖「A class whose instances are single test cases」：pick port and storage path |
+| 9 | `GuiLauncherTest` | `test_window_close_stops_supervisor_and_destroys_window` | 覆盖「A class whose instances are single test cases」：window close stops supervisor and destroys window |
 
 ## test_history_page.py
 
@@ -1554,7 +1556,7 @@
 
 ## test_invest_tools.py
 
-共 29 个用例。
+共 28 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -1577,16 +1579,15 @@
 | 17 | `RegexLocateTest` | `test_directory_recursive_and_glob` | 覆盖「单文件/目录正则定位」：directory recursive and glob |
 | 18 | `RegexLocateTest` | `test_invalid_regex_and_limit` | 覆盖「单文件/目录正则定位」：invalid regex and limit |
 | 19 | `RegexLocateTest` | `test_limit_truncation` | 覆盖「单文件/目录正则定位」：limit truncation |
-| 20 | `SystemToolsTest` | `test_env_probe_shape` | 覆盖「env_probe / unified_diagnose / git_workspace」：env probe shape |
-| 21 | `SystemToolsTest` | `test_git_workspace_modes` | 覆盖「env_probe / unified_diagnose / git_workspace」：git workspace modes |
-| 22 | `SystemToolsTest` | `test_unified_diagnose_red_green` | 覆盖「env_probe / unified_diagnose / git_workspace」：unified diagnose red green |
-| 23 | `TextDataToolsTest` | `test_data_table_csv_actions` | 覆盖「text_diff / data_table」：data table csv actions |
-| 24 | `TextDataToolsTest` | `test_data_table_xlsx_dependency_path` | 覆盖「text_diff / data_table」：data table xlsx dependency path |
-| 25 | `TextDataToolsTest` | `test_text_diff_file_vs_text` | 覆盖「text_diff / data_table」：text diff file vs text |
-| 26 | `WebToolsTest` | `test_fetch_acceptance_failure_keeps_data` | 覆盖「web_fetch / web_fetch_render」：fetch acceptance failure keeps data |
-| 27 | `WebToolsTest` | `test_fetch_invalid_scheme` | 覆盖「web_fetch / web_fetch_render」：fetch invalid scheme |
-| 28 | `WebToolsTest` | `test_fetch_ok_and_checks` | 覆盖「web_fetch / web_fetch_render」：fetch ok and checks |
-| 29 | `WebToolsTest` | `test_render_dependency_path` | 覆盖「web_fetch / web_fetch_render」：render dependency path |
+| 20 | `SystemToolsTest` | `test_git_workspace_modes` | 覆盖「unified_diagnose / git_workspace」：git workspace modes |
+| 21 | `SystemToolsTest` | `test_unified_diagnose_red_green` | 覆盖「unified_diagnose / git_workspace」：unified diagnose red green |
+| 22 | `TextDataToolsTest` | `test_data_table_csv_actions` | 覆盖「text_diff / data_table」：data table csv actions |
+| 23 | `TextDataToolsTest` | `test_data_table_xlsx_dependency_path` | 覆盖「text_diff / data_table」：data table xlsx dependency path |
+| 24 | `TextDataToolsTest` | `test_text_diff_file_vs_text` | 覆盖「text_diff / data_table」：text diff file vs text |
+| 25 | `WebToolsTest` | `test_fetch_acceptance_failure_keeps_data` | 覆盖「web_fetch / web_fetch_render」：fetch acceptance failure keeps data |
+| 26 | `WebToolsTest` | `test_fetch_invalid_scheme` | 覆盖「web_fetch / web_fetch_render」：fetch invalid scheme |
+| 27 | `WebToolsTest` | `test_fetch_ok_and_checks` | 覆盖「web_fetch / web_fetch_render」：fetch ok and checks |
+| 28 | `WebToolsTest` | `test_render_dependency_path` | 覆盖「web_fetch / web_fetch_render」：render dependency path |
 
 ## test_kb_plugin.py
 
@@ -1955,6 +1956,17 @@
 | 27 | `PluginIdentityFallbackTest` | `test_list_plugins_shows_declared_name_without_a_config` | 卡片标题取 `name` 而不是目录名 —— 不能只有配过的插件才显示中文名。 |
 | 28 | `PluginIdentityFallbackTest` | `test_meta_supplies_identity_when_config_is_absent` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：meta supplies identity when config is absent |
 | 29 | `PluginIdentityFallbackTest` | `test_no_files_falls_back_to_folder_name` | 覆盖「插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则」：no files falls back to folder name |
+
+## test_port_cleanup.py
+
+共 4 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `PortCleanupTest` | `test_force_stop_stops_when_kill_fails` | 覆盖「A class whose instances are single test cases」：force stop stops when kill fails |
+| 2 | `PortCleanupTest` | `test_force_stop_waits_for_release` | 覆盖「A class whose instances are single test cases」：force stop waits for release |
+| 3 | `PortCleanupTest` | `test_kill_pid_uses_windows_tree_kill` | 覆盖「A class whose instances are single test cases」：kill pid uses windows tree kill |
+| 4 | `PortCleanupTest` | `test_windows_listener_filter_uses_local_host` | 覆盖「A class whose instances are single test cases」：windows listener filter uses local host |
 
 ## test_present_tool.py
 

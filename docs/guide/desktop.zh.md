@@ -27,7 +27,7 @@ agent-gui.exe
 python -m agent.gui.launcher
 ```
 
-默认监听 `127.0.0.1:3156`。固定端口用于保持页面 origin 稳定，`localStorage` 才能跨启动保留；端口被占用时启动失败，不会静默改用其他端口。
+默认监听 `127.0.0.1:3156`。固定端口用于保持页面 origin 稳定，`localStorage` 才能跨启动保留；若端口被旧 AI Agent 进程占用，启动器会强制结束旧进程并重启服务；其他程序占用端口时仍启动失败，不会静默改用其他端口。
 
 `python -m agent.gui.launcher --no-window` 启动并验证服务后立即停止，不打开窗口；根目录 `agent-gui.exe` 不解析命令行参数。
 

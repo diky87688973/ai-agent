@@ -745,7 +745,7 @@ class SseContractTest(_ServerFixture):
         self.assertIn("allowed_models", payload)
         self.assertIsInstance(payload["allowed_models"], list)
         # 全局默认档位：会话状态回来之前，顶栏的「思考 · X」先按它显示。
-        self.assertIn(payload["reasoning_effort"], ("high", "max"))
+        self.assertIn(payload["reasoning_effort"], ("low", "high", "max"))
 
     def test_reasoning_effort_roundtrip(self) -> None:
         """推理档位 GET/PUT 往返。"""
@@ -757,7 +757,12 @@ class SseContractTest(_ServerFixture):
         # 全局默认由配置决定（`[agent] reasoning_effort`），所以这里断言"两者一致"
         # 而不是写死某个档位 —— 写死会在改默认值时变成假失败。
         self.assertEqual(payload["reasoning_effort"], payload["global_default"])
-        self.assertIn(payload["reasoning_effort"], ("high", "max"))
+        self.assertIn(payload["reasoning_effort"], ("low", "high", "max"))
+
+        status, payload = self.put_json("/api/reasoning-effort", {"conversation_id": cid, "effort": "low"})
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["reasoning_effort"], "low")
 
         status, payload = self.put_json("/api/reasoning-effort", {"conversation_id": cid, "effort": "max"})
         self.assertEqual(status, 200)
@@ -795,7 +800,7 @@ class SseContractTest(_ServerFixture):
         self.assertEqual(
             payload["reasoning_effort"], payload["global_default"],
             msg="不得串到别的会话")
-        self.assertIn(payload["reasoning_effort"], ("high", "max"))
+        self.assertIn(payload["reasoning_effort"], ("low", "high", "max"))
 
     def test_dir_browse_drives_layer(self) -> None:
         """`path=_drives_` 返回「计算机」层。"""

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """调查与工具测试：定位族 / 文本数据 / 系统 / OCR / 网络 / 打包。
 
-覆盖：find_in_file / regex_locate / file_search / text_diff / env_probe /
+覆盖：find_in_file / regex_locate / file_search / text_diff /
 unified_diagnose / git_workspace / data_table / image_ocr / web_fetch /
 web_fetch_render / archive；可选依赖缺失路径随环境自动跳过实跑分支。
 """
@@ -220,19 +220,12 @@ class TextDataToolsTest(unittest.TestCase):
         self.assertIn("openpyxl", str(ctx.exception))
 
 class SystemToolsTest(unittest.TestCase):
-    """env_probe / unified_diagnose / git_workspace。"""
+    """unified_diagnose / git_workspace。"""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
-
-    def test_env_probe_shape(self) -> None:
-        r = system_tools.EnvProbeTool().execute({})
-        self.assertIn("platform", r)
-        self.assertIn("python", r)
-        self.assertIsInstance(r["available"], list)
-        self.assertTrue(r["recommendations"])
 
     def test_unified_diagnose_red_green(self) -> None:
         good = self.root / "good"
@@ -430,7 +423,7 @@ class BatchERegistrationTest(unittest.TestCase):
         for plugin in archive_tool.build_plugins():
             registry.register(plugin)
             expected.append(plugin.name)
-        self.assertEqual(len(expected), 12)
+        self.assertEqual(len(expected), 11)
         for name in expected:
             self.assertIsNotNone(registry.get(name), f"未注册：{name}")
 

@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from agent.common.status import DEFAULT_REASONING_EFFORT, REASONING_EFFORTS
 from agent.core.host import MAX_PASSES_DEFAULT
 
 PROJECT_ROOT = (
@@ -188,13 +189,8 @@ def get_plugins(path: Optional[Path] = None) -> List[Dict[str, str]]:
     ]
 
 
-#: 推理档位的合法取值与默认值。
-REASONING_EFFORTS = ("high", "max")
-DEFAULT_REASONING_EFFORT = "max"
-
-
 def get_reasoning_effort(path: Optional[Path] = None) -> str:
-    """读取全局推理档位（`[agent] reasoning_effort`）：`high` 或 `max`。
+    """读取全局推理档位（`[agent] reasoning_effort`）：`low`、`high` 或 `max`。
 
     取不到或值非法时回落 `DEFAULT_REASONING_EFFORT`。会话级选择会覆盖它。
     """

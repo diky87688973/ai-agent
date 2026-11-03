@@ -30,6 +30,10 @@
         "default": "high",
         "options": [
           {
+            "value": "low",
+            "label": "low"
+          },
+          {
             "value": "high",
             "label": "high"
           },

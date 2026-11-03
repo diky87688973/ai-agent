@@ -49,3 +49,21 @@ var todoListArea=null,todoListBody=null,todoListCount=null;
 function showChatLoading(){if(chatLoadingEl||!msgs)return;chatLoadingEl=document.createElement("div");chatLoadingEl.className="b a";chatLoadingEl.style.textAlign="center";chatLoadingEl.style.padding="16px 0";chatLoadingEl.innerHTML="<span class=\"chat-spinner\"></span> <span style=\"color:#888;font-size:12px\">正在思考中…</span>";msgs.appendChild(chatLoadingEl);scrollMsgsToBottom();}
 function hideChatLoading(){if(chatLoadingEl){try{chatLoadingEl.remove();}catch(e){}chatLoadingEl=null;}}
 function closeUserConfirmCardHost(){if(userConfirmCardHost){try{userConfirmCardHost.remove();}catch(e){}userConfirmCardHost=null;}userConfirmBlocking=false;}
+
+/* 已登录页面每小时续期一次会话 Cookie；页面重新可见时若超过一小时也补一次。 */
+(function(){
+  if(window.__authSessionRenewer) return;
+  window.__authSessionRenewer=true;
+  var interval=3600000,last=Date.now();
+  function renew(){
+    if(document.visibilityState==="hidden")return;
+    last=Date.now();
+    fetch("/auth/status",{credentials:"same-origin",cache:"no-store",
+      headers:{"Accept":"application/json"}}).catch(function(){});
+  }
+  window.setTimeout(renew,30000);
+  window.setInterval(renew,interval);
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible"&&Date.now()-last>=interval)renew();
+  });
+})();

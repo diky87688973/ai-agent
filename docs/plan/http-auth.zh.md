@@ -210,7 +210,7 @@ logout 立即撤销会话
 过期会话在访问与创建时清理
 ```
 
-Cookie 的 `Max-Age` 在登录时固定；服务端过期时间由每次已认证请求刷新。
+浏览器登录后每小时调用一次 `GET /auth/status`，该响应重新下发完整 `Max-Age` 的会话 Cookie；服务端过期时间也由每次已认证请求刷新。
 
 ### Cookie
 
@@ -218,7 +218,7 @@ Cookie 的 `Max-Age` 在登录时固定；服务端过期时间由每次已认�
 HttpOnly
 SameSite=Strict
 Path=/
-Max-Age = session_hours × 3600
+Max-Age = session_hours × 3600，由每小时的 `/auth/status` 续期
 HTTPS 请求带 Secure；cookie_secure = true 时始终带 Secure
 ```
 

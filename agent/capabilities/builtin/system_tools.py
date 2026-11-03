@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-"""系统与环境工具：env_probe / unified_diagnose / git_workspace。
+"""系统与环境工具：unified_diagnose / git_workspace。
 
-- env_probe：探测 shell/python 可执行文件并给出使用建议；
 - unified_diagnose：AST 语法检查 + 可选 ruff（PATH 中存在时）；发现 error 级问题时 ok=false 且 data 带全量诊断；
 - git_workspace：只读四模式（worktree / log / blame / show）；结构化错误随 data 透传。
 """
@@ -12,7 +11,6 @@ import json
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -63,51 +61,6 @@ def _read_text_any(path: Path, encoding: str) -> str:
             report_error("agent.capabilities.builtin.system_tools._read_text_any", exc)
             continue
     return path.read_text(encoding="utf-8", errors="replace")
-
-
-class EnvProbeTool(ToolPlugin):
-    """命令行环境探测。"""
-
-    name = "env_probe"
-    label = "探测运行环境"
-    icon = "🧪"
-    description = "探测本机可用命令行环境（cmd / powershell / pwsh / bash / python / py）并给出使用建议。"
-    parameters: Dict[str, Dict[str, Any]] = {}
-
-    def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        # 只给命令名，不给 `.exe` 后缀：Windows 上 `shutil.which` 会按 PATHEXT 自行补全，
-        # 写死 `.exe` 会让 POSIX 上一个也找不到（`bash.exe` 不存在）。
-        candidates = [
-            ("cmd", "cmd"),
-            ("powershell", "powershell"),
-            ("pwsh", "pwsh"),
-            ("bash", "bash"),
-            ("python", "python"),
-            ("py", "py"),
-        ]
-        available: List[Dict[str, str]] = []
-        for key, exe in candidates:
-            path = shutil.which(exe) or ""
-            if path:
-                available.append({"mode": key, "executable": exe, "path": path})
-        recommendations = [
-            "文件读写优先使用工作区内工具：read_file、write_file、grep_files 等（进程内调用）。",
-            "复杂引号/多行内容优先 write_file 落盘或使用 run_command（低优先级，注意安全策略）。",
-        ]
-        if any(x["mode"] == "cmd" for x in available):
-            recommendations.append("Windows 下简单命令拼接可优先 cmd。")
-        if any(x["mode"] == "powershell" for x in available):
-            recommendations.append("PowerShell 可用；深层嵌套转义成本较高，复杂场景优先专用工具。")
-        if any(x["mode"] == "bash" for x in available):
-            recommendations.append("bash 可用；复杂引号场景用它比 cmd 少一层转义。")
-        return {
-            "platform": sys.platform,
-            "python": sys.version.split()[0],
-            "cwd": str(Path.cwd()),
-            "available": available,
-            "pycharm_terminal_note": "IDE 终端调用系统 shell，常规命令均可使用。",
-            "recommendations": recommendations,
-        }
 
 
 class UnifiedDiagnoseTool(ToolPlugin):
@@ -576,5 +529,5 @@ class GitWorkspaceTool(ToolPlugin):
 
 
 def build_plugins() -> List[ToolPlugin]:
-    """构造本组工具（env_probe / unified_diagnose / git_workspace）。"""
-    return [EnvProbeTool(), UnifiedDiagnoseTool(), GitWorkspaceTool()]
+    """构造本组工具（unified_diagnose / git_workspace）。"""
+    return [UnifiedDiagnoseTool(), GitWorkspaceTool()]

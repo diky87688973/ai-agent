@@ -39,8 +39,22 @@ class GuiLauncherTest(unittest.TestCase):
         self.assertEqual(code, 1)
         stop.assert_called_once_with(child)
 
-    def test_occupied_explicit_port_does_not_spawn(self) -> None:
+    def test_occupied_explicit_port_restarts_old_agent(self) -> None:
+        child = object()
         with mock.patch.object(launcher, "_is_agent_health", return_value=True), \
+                mock.patch.object(launcher, "_force_stop_agent_port", return_value=True) as force, \
+                mock.patch.object(launcher, "_spawn_server", return_value=child) as spawn, \
+                mock.patch.object(launcher, "_wait_health", return_value=True), \
+                mock.patch.object(launcher, "_open_window", return_value=True), \
+                mock.patch.object(launcher, "_stop_server"):
+            code = launcher.launch("127.0.0.1", 8899)
+        self.assertEqual(code, 0)
+        force.assert_called_once()
+        self.assertEqual(force.call_args.args[:2], ("127.0.0.1", 8899))
+        spawn.assert_called_once()
+
+        with mock.patch.object(launcher, "_is_agent_health", return_value=True), \
+                mock.patch.object(launcher, "_force_stop_agent_port", return_value=False), \
                 mock.patch.object(launcher, "_spawn_server") as spawn:
             code = launcher.launch("127.0.0.1", 8899)
         self.assertEqual(code, 1)
@@ -87,6 +101,15 @@ class GuiLauncherTest(unittest.TestCase):
         with mock.patch.dict(sys.modules, {"webview": fake}):
             self.assertTrue(launcher._open_window("http://127.0.0.1:1/"))
         self.assertTrue(fake.create_window.call_args.kwargs["text_select"])
+
+    def test_window_close_stops_supervisor_and_destroys_window(self) -> None:
+        supervisor = mock.MagicMock()
+        window = mock.MagicMock()
+        api = launcher._WindowApi(supervisor)
+        api._window = window
+        self.assertTrue(api.close())
+        supervisor.stop.assert_called_once()
+        window.destroy.assert_called_once()
 
     def test_pick_port_and_storage_path(self) -> None:
         port = launcher._pick_port("127.0.0.1")

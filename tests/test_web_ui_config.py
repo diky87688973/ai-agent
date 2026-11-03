@@ -266,6 +266,8 @@ class CompactionUiContractTest(unittest.TestCase):
         css = (ROOT / "plugins/web_ui/ui/classic/css/chat-tool-views.css").read_text(
             encoding="utf-8")
         self.assertIn(".chat-tool-pane--compaction{max-height:none;overflow:visible}", css)
+        self.assertIn(".chat-tool-md h2", css)
+        self.assertIn(".chat-tool-md ul", css)
 
     def test_card_contract_has_count_tokens_and_clean_summary(self) -> None:
         for field in ("compressed_count", "compressed_tokens", "summary_text"):

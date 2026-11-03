@@ -28,31 +28,43 @@ label{display:block;margin:12px 0 6px;color:#b9c2cf;font-size:12px}
 input{width:100%;padding:10px 11px;border:1px solid #3b4452;border-radius:7px;
  background:#15181e;color:#e8ecf1;font:inherit;outline:none}
 input:focus{border-color:#5686fe}
+input.is-invalid{border-color:#ff6b6b}
 button{margin-top:18px;width:100%;padding:10px;border:0;border-radius:7px;
  background:#5686fe;color:#fff;font:inherit;cursor:pointer}
 button:disabled{opacity:.6;cursor:default}
 .win-close{display:none;position:fixed;top:12px;right:12px;width:32px;height:32px;margin:0;padding:0;
  border-radius:6px;background:transparent;color:#b9c2cf;font-size:20px;line-height:1;cursor:pointer}
 .win-close:hover{background:#2a303a;color:#fff}
-.error{min-height:18px;margin-top:10px;color:#ff8a87;font-size:12px}
+.error{min-height:0;margin-top:0;color:#ff8a87;font-size:12px}
+.error:not(:empty){min-height:18px;margin-top:6px}
 </style>
 </head>
 <body>
 <button type="button" class="win-close" id="win-close" title="关闭" aria-label="关闭">×</button>
-<form class="card" id="f">
+<form class="card" id="f" novalidate>
   <h1>AI Agent</h1>
   <p>请输入访问密码</p>
   <label for="p">密码</label>
-  <input id="p" type="password" autocomplete="current-password" required autofocus>
-  <button id="go" type="submit">登录</button>
+  <input id="p" type="password" autocomplete="current-password" aria-required="true" autofocus>
   <div class="error" id="e"></div>
+  <button id="go" type="submit">登录</button>
 </form>
 <script>
 (function(){
   var f=document.getElementById("f"),p=document.getElementById("p"),
       e=document.getElementById("e"),go=document.getElementById("go");
+  function clearInvalid(){
+    e.textContent="";p.classList.remove("is-invalid");p.removeAttribute("aria-invalid");
+  }
+  p.addEventListener("input",clearInvalid);
   f.addEventListener("submit",function(event){
-    event.preventDefault();e.textContent="";go.disabled=true;
+    event.preventDefault();
+    if(!p.value.trim()){
+      e.textContent="请输入密码";
+      p.classList.add("is-invalid");p.setAttribute("aria-invalid","true");
+      p.focus();return;
+    }
+    clearInvalid();go.disabled=true;
     fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({password:p.value})}).then(function(r){
       return r.json().catch(function(){return {};}).then(function(j){
@@ -187,6 +199,13 @@ class AuthRoutes:
 
     def page(self) -> str:
         return LOGIN_PAGE
+
+    def session_cookie(self, token: str, secure: Optional[bool] = None) -> str:
+        """重新下发当前会话 Cookie，用于滑动续期。"""
+        return _cookie(
+            str(token or ""), self.runtime.config.session_seconds,
+            self.runtime.secure_cookie if secure is None else secure,
+        )
 
     def desktop_page(self) -> str:
         return DESKTOP_LOGIN_PAGE

@@ -244,7 +244,7 @@
               "target": "reasoningBtn",
               "className": "mode-plus",
               "action": "input.thinking",
-              "text": "思考 · High",
+              "text": "思考深度·High",
               "host": ".left-tools"
             }
           }

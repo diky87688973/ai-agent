@@ -189,7 +189,7 @@
       if (standalone) {
         button.className = String(input.className || "mode-plus") + " ui-input-generated";
         if (input.html) button.innerHTML = String(input.html);
-        else button.textContent = String(props.label || input.text || "");
+        else button.textContent = String(input.text || props.label || "");
         button.title = String(props.title || props.label || input.text || "");
         button.setAttribute("data-ui-input-generated", "1");
         if (targetId && target) button.setAttribute("data-ui-target", targetId);

@@ -29,7 +29,7 @@ AUTH_DEFAULTS: Dict[str, str] = {
 #: `config.ini` 的节 → 键 → 默认值（值只用于文档对照与模板一致性，读取仍由 `config.py` 负责）。
 SCHEMA: Dict[str, Dict[str, str]] = {
     "agent": {
-        "reasoning_effort": "max",
+        "reasoning_effort": "high",
         "backup_retention_days": "7",
         "max_passes": "64",
         "plugin_tree_only": "0",

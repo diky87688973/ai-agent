@@ -2,6 +2,7 @@
 """环境章节：资源目录之后、编码准则之前，带本会话 ID。"""
 from __future__ import annotations
 
+import shutil
 import sys
 import unittest
 from pathlib import Path
@@ -24,6 +25,9 @@ class EnvironmentSectionTest(unittest.TestCase):
         )
         self.assertIn("## 环境信息", prompt)
         self.assertIn(f"本会话ID: {cid}", prompt)
+        self.assertIn("Python:", prompt)
+        if shutil.which("node"):
+            self.assertIn("Node:", prompt)
         self.assertLess(prompt.index("## 资源目录"), prompt.index("## 环境信息"))
         self.assertLess(prompt.index("## 环境信息"), prompt.index("## 编码准则"))
 

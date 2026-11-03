@@ -4,6 +4,11 @@
     pluginCards: [], plugin: null, editor: null, direct: false, saving: false
   };
 
+  function viewKey() {
+    return [state.mode, state.tab, state.direct ? "1" : "0",
+      state.plugin ? state.plugin.name : ""].join("|");
+  }
+
   function bootSettingsPanel() {
     if (document._settingsPanelBound) return;
     document._settingsPanelBound = true;
@@ -654,7 +659,9 @@
     if (save) save.hidden = true;
     showApply(false);
     syncFoot();
+    var requested = viewKey();
     request("GET", "/api/settings/plugins").then(function (data) {
+      if (viewKey() !== requested) return;
       form.textContent = "";
       if (!data.ok) {
         setStatus(data.error || "读取插件失败", true);
@@ -671,6 +678,7 @@
       }
       cards.forEach(function (card) { form.appendChild(pluginCard(card)); });
     }).catch(function () {
+      if (viewKey() !== requested) return;
       form.textContent = "";
       setStatus("读取插件失败", true);
     });
@@ -769,7 +777,9 @@
     if (save) save.hidden = false;
     showApply(true);
     syncFoot();
+    var requested = viewKey();
     request("GET", "/api/settings/plugin-file?name=" + encodeURIComponent(card.name)).then(function (data) {
+      if (viewKey() !== requested) return;
       if (!data.ok) {
         setStatus(data.error || "读取插件配置失败", true);
         return;
@@ -784,6 +794,7 @@
       }
       setStatus("");
     }).catch(function (err) {
+      if (viewKey() !== requested) return;
       setStatus("读取插件配置失败" + (err && err.message ? "：" + err.message : ""), true);
     });
   }

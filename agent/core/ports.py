@@ -291,7 +291,7 @@ class LogicalRequest:
     它是"内核 → provider"的端口契约：消费者只有 `agent/core/modules/`（构造）与 provider（消费），
     不属于任何一段回合循环。
 
-    `effort`：推理档位（"high" | "max"），由会话级设置解析而来。
+    `effort`：推理档位（"low" | "high" | "max"），由会话级设置解析而来。
     provider 侧把它放进请求体的 `reasoning_effort`；不支持该参数的 provider 自行剥离。
 
     `model`：本次请求要用哪个模型，由会话级设置解析而来。空串表示"用 provider
