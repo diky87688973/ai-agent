@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import tempfile
 import unittest
 import unittest.mock
@@ -285,8 +286,12 @@ class CommandSafetyEdgeTest(unittest.TestCase):
 
     def test_shell_and_output(self) -> None:
         shell, args = resolve_shell("cmd", "echo ok")
-        self.assertTrue(shell.lower().endswith("cmd.exe") or "cmd" in shell.lower())
-        self.assertEqual(args, ["cmd", "/c"])
+        if os.name == "nt":
+            self.assertTrue(shell.lower().endswith("cmd.exe") or "cmd" in shell.lower())
+            self.assertEqual(args, ["cmd", "/c"])
+        else:
+            self.assertEqual(shell, "cmd")
+            self.assertEqual(args, ["sh", "-c"])
         self.assertIn("ok", decode_output(b"ok").lower())
         self.assertIn("输出已截断", sanitize_output_for_display("a\n" * 10, max_chars=5))
 
