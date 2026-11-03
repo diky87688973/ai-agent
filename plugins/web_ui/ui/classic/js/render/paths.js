@@ -146,10 +146,14 @@ var _UNSAFE_HREF=/^\s*(?:javascript|vbscript|data|file)\s*:/i;
 /*: 属性名以 `on` 开头即事件处理器 */
 var _EVENT_ATTR=/^on/i;
 
-function _safeUrlValue(raw){
+function _safeUrlValue(raw, allowDataImage){
 var v=String(raw==null?"":raw);
 /* 实体写法绕行（`java&#115;cript:`）：去掉实体与控制字符后再判 */
 var plain=v.replace(/&#x?[0-9a-f]+;?/gi,"").replace(/[\s\u0000-\u0020]/g,"");
+if(allowDataImage&&plain.indexOf("data:image/")===0){
+var comma=plain.indexOf(",");
+if(comma>0&&/^data:image\/(?:png|jpeg|gif|webp);base64$/i.test(plain.slice(0,comma))&&/^[a-z0-9+/=]+$/i.test(plain.slice(comma+1)))return true;
+}
 return !_UNSAFE_HREF.test(plain);
 }
 function _cleanTagAttrs(attrs){
@@ -171,7 +175,7 @@ if(!allowed)return "";
 if(_EVENT_ATTR.test(lower))return "";
 var value=dq!=null?dq:(sq!=null?sq:(bare!=null?bare:""));
 if(lower==="href"||lower==="src"){
-if(!_safeUrlValue(value))return "";
+if(!_safeUrlValue(value, lower==="src"))return "";
 }
 if(value===""){out.push(lower);return "";}
 out.push(lower+'="'+escapeHtml(value)+'"');

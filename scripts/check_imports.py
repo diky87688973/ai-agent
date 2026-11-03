@@ -12,13 +12,33 @@ import ast
 import sys
 from pathlib import Path
 
-LAYERS = ("core", "mechanisms", "capabilities", "shell", "entry")
-RANK = {name: i for i, name in enumerate(LAYERS)}
+LAYERS = (
+    "common", "core", "mechanisms", "subagent", "capabilities",
+    "update", "shell", "gui", "entry",
+)
+#: capabilities 与 update 同层；gui 与 entry 同层。
+RANK = {
+    "common": 0,
+    "core": 1,
+    "mechanisms": 2,
+    "subagent": 3,
+    "capabilities": 4,
+    "update": 4,
+    "shell": 5,
+    "gui": 6,
+    "entry": 6,
+}
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent / "agent"
 
 #: 装配根与入口：任何层都不得在运行期导入（`if TYPE_CHECKING:` 内的注解除外）。
 #: `agent.app` 自己可以导入各层；`agent.entry.*` 在最上层，可以导入两者。
-COMPOSITION_ROOTS = frozenset({"app", "entry"})
+COMPOSITION_ROOTS = frozenset({"app", "boot", "entry"})
+
+#: 极端窄例外：update/health.py 以子进程入口加载整个应用做安装后自检。
+IMPORT_EXCEPTIONS = frozenset({
+    ("agent/update/health.py", "agent.app"),
+    ("agent/update/health.py", "agent.entry.web"),
+})
 
 
 def _layer_of(path: Path, root: Path) -> str | None:
@@ -47,10 +67,19 @@ def check(package_root: Path = PACKAGE_ROOT) -> list[str]:
     2. `app` / `entry` 之外的文件不得运行期导入装配根（A2 反向依赖）。
     """
     violations: list[str] = []
+    known = set(RANK) | set(COMPOSITION_ROOTS)
+    for child in sorted(package_root.iterdir()):
+        if (child.is_dir() and not child.name.startswith("__")
+                and child.name not in known):
+            violations.append(
+                f"{child.relative_to(package_root.parent)}: "
+                f"未归类的顶层包 [{child.name}]"
+            )
     for py in sorted(package_root.rglob("*.py")):
         own = _layer_of(py, package_root)
         if own is None:
             continue
+        rel_path = py.relative_to(package_root.parent).as_posix()
         tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
         for node in _iter_imports_without_typing_guard(tree):
             for mod in _imported_modules(node, py, package_root):
@@ -60,38 +89,54 @@ def check(package_root: Path = PACKAGE_ROOT) -> list[str]:
                 target = parts[1]
                 if own not in RANK:
                     continue
+                if (rel_path, mod) in IMPORT_EXCEPTIONS:
+                    continue
                 if target in RANK and RANK[target] > RANK[own]:
                     violations.append(
-                        f"{py.relative_to(package_root.parent)}: "
+                        f"{rel_path}: "
                         f"[{own}] 不允许 import [{target}]（{mod}）"
                     )
                 elif target in COMPOSITION_ROOTS and own not in COMPOSITION_ROOTS:
                     violations.append(
-                        f"{py.relative_to(package_root.parent)}: "
+                        f"{rel_path}: "
                         f"[{own}] 不得运行期依赖装配根 [{target}]（{mod}）"
                     )
     return violations
 
 
-def _imported_modules(node: ast.AST, path: Path, package_root: Path) -> list[str]:
-    """把一条 import 语句展开成完整的模块名（供方向检查逐条比对）。"""
-    if isinstance(node, ast.Import):
-        return [alias.name for alias in node.names]
+def _from_base(node: ast.AST, module: str, is_pkg: bool) -> str:
+    """Resolve an ImportFrom node's absolute module base."""
     if not isinstance(node, ast.ImportFrom):
-        return []
-    mod = node.module or ""
-    if not node.level:
-        return [mod] if mod else []
+        return ""
+    if node.level:
+        base = module if is_pkg else module.rsplit(".", 1)[0]
+        for _ in range(node.level - 1):
+            base = base.rsplit(".", 1)[0] if "." in base else ""
+        if node.module:
+            base = f"{base}.{node.module}" if base else node.module
+    else:
+        base = node.module or ""
+    return base
+
+
+def _module_of(path: Path, package_root: Path) -> tuple[str, bool]:
     rel = path.relative_to(package_root)
     parts = list(rel.parts)
-    if parts[-1] == "__init__.py":
-        base_parts = parts[:-1]
+    is_pkg = parts[-1] == "__init__.py"
+    if is_pkg:
+        parts = parts[:-1]
     else:
-        base_parts = parts[:-1]
-    if node.level > 1:
-        base_parts = base_parts[: len(base_parts) - (node.level - 1)]
-    base = ".".join(["agent", *base_parts])
-    return [f"{base}.{mod}" if mod else base]
+        parts[-1] = parts[-1][:-3]
+    return ".".join(["agent", *parts]) if parts else "agent", is_pkg
+
+
+def _imported_modules(node: ast.AST, path: Path, package_root: Path) -> list[str]:
+    """Expand an import statement to absolute module names."""
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names]
+    module, is_pkg = _module_of(path, package_root)
+    base = _from_base(node, module, is_pkg)
+    return [base] if base else []
 
 
 def _is_type_checking(test: ast.expr) -> bool:
@@ -144,15 +189,7 @@ def _import_targets(node: ast.AST, module: str, is_pkg: bool,
     if not isinstance(node, ast.ImportFrom):
         return targets
 
-    if node.level:
-        # 相对导入：从当前模块所在包往上退 level - 1 层
-        base = module if is_pkg else module.rsplit(".", 1)[0]
-        for _ in range(node.level - 1):
-            base = base.rsplit(".", 1)[0] if "." in base else ""
-        if node.module:
-            base = f"{base}.{node.module}" if base else node.module
-    else:
-        base = node.module or ""
+    base = _from_base(node, module, is_pkg)
     if not base:
         return targets
     if base in known:
@@ -239,7 +276,7 @@ def main() -> int:
         for v in violations:
             print(" - " + v)
         return 1
-    print("依赖方向检查通过（shell → capabilities → mechanisms → core）")
+    print("依赖方向检查通过（common → core → mechanisms → subagent → capabilities/update → shell → gui/entry）")
     return 0
 
 

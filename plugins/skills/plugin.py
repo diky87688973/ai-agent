@@ -17,11 +17,14 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from agent.capabilities.plugin_paths import load_plugin_paths
 from agent.capabilities.plugins import plugin_config_fields
 from agent.config import PROJECT_ROOT, load_ini
 
 from .library import SkillManager
 from .tools import build as build_tool
+
+PATHS = load_plugin_paths(__file__)
 
 CONFIG_SECTION = "config"
 DEFAULT_MAX_FILE_SIZE = 200000
@@ -91,6 +94,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         ctx.add_prompt_section(
             RESOURCE_HEAD,
             lambda cid, _lib=library: _resource_directory_lines(_lib),
+            path="app/backend/prompt/sections/resources/skills",
         ),
         # 清单：只有名字与描述（渐进式披露第一层）。
         ctx.add_context_source(
@@ -98,6 +102,7 @@ def register(ctx: Any) -> List[Callable[[], None]]:
             {"label": "Skills 清单", "prefix": CATALOG_PREFIX,
              # 取数口按 `fn(conversation_id)` 调用；Skills 清单与会话无关，用闭包吞掉这个参数。
              "count": lambda _cid, _lib=library: len(_lib.list_skills())},
+            path="app/backend/context/sources/skills/catalog",
         ),
         # 常驻正文：`auto_load/` 目录下的 Skills（第二层，始终携带）。
         ctx.add_context_source(
@@ -105,15 +110,17 @@ def register(ctx: Any) -> List[Callable[[], None]]:
             {"label": "Skills 常驻", "prefix": RESIDENT_PREFIX,
              # 只数条数：为取长度去把常驻正文全拼一遍是重复开销（每次收集都跑）。
              "count": lambda _cid, _lib=library: _lib.auto_load_count()},
+            path="app/backend/context/sources/skills/resident",
         ),
     ]
     # 上下文分层外观：无面板，经贡献表交给壳层开屏注册。
     disposers.append(ctx.add_ui_item(
-        "web-ui/left-panel/context_usage/skills", kind="segment",
-        props={"label": style_label, "color": "plum"}))
+        PATHS["segment"], kind="segment",
+        props={"label": style_label, "color": "plum",
+                           "binding": {"context": True}}))
     # 工具卡视图：开屏脚本，不必挂空面板。
     disposers.append(ctx.add_ui_item(
-        "web-ui/chat/messages/tools/skill", kind="tool-shell",
+        PATHS["tool"], kind="tool-shell",
         props={"label": "Skills", "scripts": ["ui/tool-view.js"]}))
     return disposers
 

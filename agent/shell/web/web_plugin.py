@@ -99,6 +99,8 @@ class PluginRoutes:
         try:
             body = target.read_bytes()
         except OSError as exc:
-            self._json(500, {"error": f"{type(exc).__name__}"})
+            report_error("agent.shell.web.web_plugin._plugin_asset", exc,
+                         path=str(target))
+            self._json(500, {"error": f"{type(exc).__name__}: {exc}"})
             return
         self._bytes(200, body, ctype)

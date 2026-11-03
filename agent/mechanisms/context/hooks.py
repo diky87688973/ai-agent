@@ -27,11 +27,15 @@ class ContextAssemblyHooks:
     def add(self, hook: ContextHook) -> Callable[[], None]:
         if not callable(hook):
             raise ValueError("上下文钩子必须可调用")
-        self._hooks.append(hook)
+
+        def entry(messages: List[Dict[str, Any]], conversation_id: str) -> Any:
+            return hook(messages, conversation_id)
+
+        self._hooks.append(entry)
 
         def _dispose() -> None:
             try:
-                self._hooks.remove(hook)
+                self._hooks.remove(entry)
             except ValueError:
                 return
 

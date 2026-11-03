@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "kind": "settings",
+  "settings": {
+    "panels": [
+      {
+        "id": "app/settings/agent",
+        "title": "Agent"
+      },
+      {
+        "id": "app/settings/context",
+        "title": "上下文"
+      },
+      {
+        "id": "app/settings/interface",
+        "title": "界面"
+      },
+      {
+        "id": "app/settings/plugin",
+        "title": "插件设置"
+      }
+    ],
+    "fields": [
+      {
+        "panel": "app/settings/agent",
+        "key": "reasoning_effort",
+        "section": "agent",
+        "kind": "select",
+        "label": "推理档位",
+        "default": "high",
+        "options": [
+          {
+            "value": "high",
+            "label": "high"
+          },
+          {
+            "value": "max",
+            "label": "max"
+          }
+        ]
+      },
+      {
+        "panel": "app/settings/agent",
+        "key": "max_passes",
+        "section": "agent",
+        "kind": "number",
+        "label": "每回合往返上限",
+        "default": "512",
+        "hint": "每回合往返上限≠每回合工具调用次数上限，每次往返可调用 0 个或多个工具",
+        "min": 1
+      },
+      {
+        "panel": "app/settings/agent",
+        "key": "backup_retention_days",
+        "section": "agent",
+        "kind": "number",
+        "label": "AI 修改文件时的备份保存天数",
+        "default": "7",
+        "min": 0
+      },
+      {
+        "panel": "app/settings/context",
+        "key": "full_user_rounds",
+        "section": "context",
+        "kind": "number",
+        "label": "压缩时保留最近对话轮数",
+        "default": "5",
+        "min": 0
+      },
+      {
+        "panel": "app/settings/context",
+        "key": "summary_output_max_chars",
+        "section": "context",
+        "kind": "number",
+        "label": "摘要字数上限",
+        "default": "5000",
+        "min": 1
+      },
+      {
+        "panel": "app/settings/context",
+        "key": "reasoning_replay_tokens",
+        "section": "context",
+        "kind": "number",
+        "label": "思维链回传预算",
+        "default": "8000",
+        "min": -1
+      },
+      {
+        "panel": "app/settings/context",
+        "key": "image_turns",
+        "section": "context",
+        "kind": "number",
+        "label": "带图用户轮数",
+        "default": "1",
+        "min": 0
+      },
+      {
+        "panel": "app/settings/context",
+        "key": "image_max",
+        "section": "context",
+        "kind": "number",
+        "label": "带图张数上限",
+        "default": "8",
+        "min": 0
+      },
+      {
+        "panel": "app/settings/interface",
+        "key": "display_tool_items",
+        "kind": "checkbox",
+        "label": "工作区展示工具步骤",
+        "default": "1",
+        "section": "web-ui"
+      },
+      {
+        "panel": "app/settings/interface",
+        "key": "display_tool_steps",
+        "kind": "checkbox",
+        "label": "侧边栏展示工具步骤",
+        "default": "0",
+        "section": "web-ui"
+      }
+    ],
+    "ui_items": [
+      {
+        "path": "app/shell/web-ui/nav/buttons/settings",
+        "kind": "button",
+        "props": {
+          "label": "设置",
+          "action": "settings.open",
+          "binding": {
+            "nav": "settings",
+            "icon": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"3\"></circle><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z\"></path></svg>",
+            "className": "hdr-settings-btn ui-nav-btn"
+          }
+        },
+        "order": -1
+      }
+    ]
+  }
+}

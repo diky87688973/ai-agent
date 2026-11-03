@@ -3,7 +3,7 @@
 
 范围：不做 LLM 元数据生成、不做缺 frontmatter 自动写回、
 不携带 side_usage / notifications（无旁支模型；静默写文件违反写盘纪律）。
-复制采用「计划（预览）→ 执行（提交）」两段式，配合 id 制门控。
+
 """
 from __future__ import annotations
 
@@ -122,12 +122,6 @@ class SkillManager:
             self.skills = self._collect_skills()
             self._content_cache.clear()
 
-    def _force_rescan(self) -> None:
-        """清空缓存全量重扫（复制落盘后调用）。"""
-        with self._lock:
-            self.skills = self._collect_skills()
-            self._content_cache.clear()
-            self._last_mtimes = self._current_mtimes()
 
     def _scan(self) -> None:
         """整表换上当前来源里的 Skills（赋值，不追加）。"""

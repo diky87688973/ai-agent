@@ -29,6 +29,7 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
         from agent.mechanisms.context import ContextPipeline
 
         app = build_app(provider=None)
+        self.addCleanup(app.dispose)
         factory = app.context_factory
         self.assertIsNotNone(factory)
         src = inspect.getsource(factory)
@@ -50,6 +51,7 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
         from agent.config import get_context
 
         app = build_app(provider=None)
+        self.addCleanup(app.dispose)
         pipe = app.context_factory("probe-cid")
         cfg = get_context()
         self.assertEqual(pipe.summary_token_threshold, cfg["summary_token_fallback"])
@@ -82,6 +84,7 @@ class SegmentEventCarriesTheWindowTest(unittest.TestCase):
                 yield StreamDelta(kind="text", text="ok")
 
         app = build_app(provider=_Fake())
+        self.addCleanup(app.dispose)
         events = list(app.session("win-cid", system_prompt="你是助手。").start_turn("你好"))
         segs = [e for e in events if str(getattr(e, "type", "")) == "context_segments"]
         self.assertTrue(segs, msg="没有分段快照事件")

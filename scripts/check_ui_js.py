@@ -38,6 +38,8 @@
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -301,6 +303,37 @@ def _asset_problems() -> list[str]:
     return problems
 
 
+def _syntax_problems() -> list[str]:
+    """本机装了 node 才跑 `node --check`；没装就明确跳过。"""
+    node = shutil.which("node")
+    if not node:
+        print("[SKIP] 未找到 node，跳过 JS 语法检查（只跑静态规则）")
+        return []
+    problems: list[str] = []
+    seen: set[Path] = set()
+    for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES:
+        if "/vendor/" in rel:
+            continue
+        path = _js_path(rel)
+        if not path.is_file() or path in seen:
+            continue
+        seen.add(path)
+        try:
+            result = subprocess.run(
+                [node, "--check", str(path)],
+                capture_output=True, text=True, timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            problems.append(f"{path.relative_to(CLASSIC_DIR)} 无法执行 node --check：{exc}")
+            continue
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip().splitlines()
+            first = detail[0] if detail else "语法检查失败"
+            problems.append(
+                f"{path.relative_to(CLASSIC_DIR)} node --check 失败：{first}")
+    return problems
+
+
 def _model_problems() -> list[str]:
     problems = []
     for path in sorted(CLASSIC_DIR.rglob("*.js")):
@@ -336,6 +369,7 @@ def main() -> int:
     problems += _required_problems(text)
     problems += _inner_function_problems(lines, owner)
     problems += _asset_problems()
+    problems += _syntax_problems()
     problems += _model_problems()
     print(f"UI JS 自检：{len(UI_JS_MODULES)} 个主脚本模块（{total} 行）")
     for problem in problems:

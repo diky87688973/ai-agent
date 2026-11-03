@@ -2,11 +2,11 @@
 """`desktop_mouse`：移动、点击、拖拽、滚动与光标查询。"""
 from __future__ import annotations
 
-import sys
 import time
 from typing import Any, Dict, Optional
 
 from agent.capabilities.registry import ToolPlugin
+from agent.core.error_report import report_error
 from agent.core.session_scope import current_session_id
 from agent.core.tool_call import ToolResult
 
@@ -292,7 +292,7 @@ class DesktopMouseTool(ToolPlugin):
                 return None
             return {info.hwnd: info.title for info in listed}
         except Exception as exc:
-            print(f"[visual_operator] 窗口清单读取跳过：{exc}", file=sys.stderr, flush=True)
+            report_error("plugins.visual_operator.tools.mouse._window_digest", exc)
             return None
 
     def _window_delta(self, before_hit: Optional[Dict[str, Any]],

@@ -168,11 +168,14 @@ class ModeIsNotPersistedTest(unittest.TestCase):
                 yield StreamDelta(kind="text", text="好")
                 yield StreamDelta(kind="done")
 
-        tmp = Path(tempfile.mkdtemp(prefix="modenot_"))
+        tmpdir = tempfile.TemporaryDirectory(prefix="modenot_")
+        self.addCleanup(tmpdir.cleanup)
+        tmp = Path(tmpdir.name)
         spy = _Spy()
         store = SessionStore(tmp / "data")
         app = build_app(provider=spy, store=store,
                         backup_root=tmp / "bk", recycle_root=tmp / "rc")
+        self.addCleanup(app.dispose)
         cid = "mode-not-persisted"
         engine = app.session(
             cid,

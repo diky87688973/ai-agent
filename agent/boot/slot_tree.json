@@ -1,0 +1,733 @@
+{
+  "root": "app",
+  "version": 1,
+  "nodes": [
+    {
+      "path": "app/kernel",
+      "factory": "agent.boot.components:container",
+      "master": true
+    },
+    {
+      "path": "app/kernel/modules",
+      "factory": "agent.boot.components:kernel_group",
+      "master": true
+    },
+    {
+      "path": "app/host",
+      "factory": "agent.boot.components:container",
+      "master": true
+    },
+    {
+      "path": "app/host/services",
+      "factory": "agent.boot.components:container",
+      "master": true
+    },
+    {
+      "path": "app/host/services/event_bus",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_event_bus"
+      }
+    },
+    {
+      "path": "app/host/services/error_log",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "event_bus": "app/host/services/event_bus"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_error_log"
+      }
+    },
+    {
+      "path": "app/host/services/live_state",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_live_state"
+      }
+    },
+    {
+      "path": "app/host/services/queue",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "event_bus": "app/host/services/event_bus"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_queue"
+      }
+    },
+    {
+      "path": "app/host/services/mesh",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "queue": "app/host/services/queue"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_mesh"
+      }
+    },
+    {
+      "path": "app/host/services/registry",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_registry"
+      }
+    },
+    {
+      "path": "app/host/services/background_tasks",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_background_tasks"
+      }
+    },
+    {
+      "path": "app/host/services/context_sources",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_context_sources"
+      }
+    },
+    {
+      "path": "app/host/services/context_hooks",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_context_hooks"
+      }
+    },
+    {
+      "path": "app/host/services/prompt_tail",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_prompt_tail"
+      }
+    },
+    {
+      "path": "app/host/services/prompt_sections",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_prompt_sections"
+      }
+    },
+    {
+      "path": "app/host/services/contributions",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_contributions"
+      }
+    },
+    {
+      "path": "app/host/services/model_catalog",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_model_catalog"
+      }
+    },
+    {
+      "path": "app/host/services/update",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_update"
+      }
+    },
+    {
+      "path": "app/host/services/session_factory",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "context_sources": "app/host/services/context_sources"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_session_factory"
+      }
+    },
+    {
+      "path": "app/host/services/compactor_factory",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "provider": "app/host/services/provider"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_compactor_factory"
+      }
+    },
+    {
+      "path": "app/host/services/provider",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "model_catalog": "app/host/services/model_catalog"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_provider"
+      }
+    },
+    {
+      "path": "app/host/services/contexts",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "registry": "app/host/services/registry",
+        "live_state": "app/host/services/live_state"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_contexts"
+      }
+    },
+    {
+      "path": "app/host/services/pipeline",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "registry": "app/host/services/registry",
+        "contexts": "app/host/services/contexts",
+        "live_state": "app/host/services/live_state"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_pipeline"
+      }
+    },
+    {
+      "path": "app/host/services/plugin_host",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "registry": "app/host/services/registry",
+        "event_bus": "app/host/services/event_bus",
+        "context_sources": "app/host/services/context_sources",
+        "pipeline": "app/host/services/pipeline",
+        "contributions": "app/host/services/contributions",
+        "context_hooks": "app/host/services/context_hooks",
+        "model_catalog": "app/host/services/model_catalog",
+        "prompt_tail": "app/host/services/prompt_tail",
+        "prompt_sections": "app/host/services/prompt_sections"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_plugin_host"
+      }
+    },
+    {
+      "path": "app/host/services/store",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {},
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_store"
+      }
+    },
+    {
+      "path": "app/host/services/subagents",
+      "factory": "agent.boot.components:service_component",
+      "master": true,
+      "requires": {
+        "store": "app/host/services/store",
+        "mesh": "app/host/services/mesh",
+        "queue": "app/host/services/queue",
+        "event_bus": "app/host/services/event_bus"
+      },
+      "metadata": {
+        "builder": "agent.boot.host_factories:make_subagents"
+      }
+    },
+    {
+      "path": "app/boot",
+      "factory": "agent.boot.components:container",
+      "master": true
+    },
+    {
+      "path": "app/boot/files",
+      "factory": "agent.boot.components:files",
+      "master": true
+    },
+    {
+      "path": "app/boot/facade",
+      "factory": "agent.boot.components:facade",
+      "master": true,
+      "requires": {
+        "event_bus": "app/host/services/event_bus",
+        "error_log": "app/host/services/error_log",
+        "live_state": "app/host/services/live_state",
+        "conversation_queue": "app/host/services/queue",
+        "mesh": "app/host/services/mesh",
+        "registry": "app/host/services/registry",
+        "background_tasks": "app/host/services/background_tasks",
+        "context_sources": "app/host/services/context_sources",
+        "context_hooks": "app/host/services/context_hooks",
+        "prompt_tail": "app/host/services/prompt_tail",
+        "prompt_sections": "app/host/services/prompt_sections",
+        "contributions": "app/host/services/contributions",
+        "model_catalog": "app/host/services/model_catalog",
+        "update": "app/host/services/update",
+        "session_factory": "app/host/services/session_factory",
+        "compactor_factory": "app/host/services/compactor_factory",
+        "provider": "app/host/services/provider",
+        "session_contexts": "app/host/services/contexts",
+        "pipeline": "app/host/services/pipeline",
+        "plugin_host": "app/host/services/plugin_host",
+        "store": "app/host/services/store",
+        "subagents": "app/host/services/subagents"
+      }
+    },
+    {
+      "path": "app/boot/plugins",
+      "factory": "agent.boot.components:plugins",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/kernel/modules/input",
+      "factory": "agent.boot.components:kernel_module",
+      "master": true,
+      "metadata": {
+        "scope": "session",
+        "order": 0,
+        "builder": "agent.core.modules.slot_chain:input_module"
+      }
+    },
+    {
+      "path": "app/kernel/modules/queued_input",
+      "factory": "agent.boot.components:kernel_module",
+      "master": true,
+      "metadata": {
+        "scope": "session",
+        "order": 1,
+        "builder": "agent.core.modules.slot_chain:queued_input_module"
+      }
+    },
+    {
+      "path": "app/kernel/modules/compress",
+      "factory": "agent.boot.components:kernel_module",
+      "master": true,
+      "metadata": {
+        "scope": "session",
+        "order": 2,
+        "builder": "agent.core.modules.slot_chain:compress_module"
+      }
+    },
+    {
+      "path": "app/kernel/modules/model",
+      "factory": "agent.boot.components:kernel_module",
+      "master": true,
+      "metadata": {
+        "scope": "session",
+        "order": 3,
+        "builder": "agent.core.modules.slot_chain:model_module"
+      }
+    },
+    {
+      "path": "app/kernel/modules/tool",
+      "factory": "agent.boot.components:kernel_module",
+      "master": true,
+      "metadata": {
+        "scope": "session",
+        "order": 4,
+        "builder": "agent.core.modules.slot_chain:tool_module"
+      }
+    },
+    {
+      "path": "app/boot/tools",
+      "factory": "agent.boot.components:container",
+      "master": true
+    },
+    {
+      "path": "app/boot/tools/background_task",
+      "factory": "agent.boot.tool_components:make_background_task",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/echo",
+      "factory": "agent.boot.tool_components:make_echo",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/read_file",
+      "factory": "agent.boot.tool_components:make_read_file",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/grep_files",
+      "factory": "agent.boot.tool_components:make_grep_files",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/glob_files",
+      "factory": "agent.boot.tool_components:make_glob_files",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/write_file",
+      "factory": "agent.boot.tool_components:make_write_file",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/edit",
+      "factory": "agent.boot.tool_components:make_edit_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/fs",
+      "factory": "agent.boot.tool_components:make_fs_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade",
+        "files": "app/boot/files"
+      }
+    },
+    {
+      "path": "app/boot/tools/command",
+      "factory": "agent.boot.tool_components:make_command_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/tasks",
+      "factory": "agent.boot.tool_components:make_tasks",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/session",
+      "factory": "agent.boot.tool_components:make_session_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/subagent",
+      "factory": "agent.boot.tool_components:make_subagent_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/locate",
+      "factory": "agent.boot.tool_components:make_locate_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/text_data",
+      "factory": "agent.boot.tool_components:make_text_data_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/system",
+      "factory": "agent.boot.tool_components:make_system_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/web",
+      "factory": "agent.boot.tool_components:make_web_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/ocr",
+      "factory": "agent.boot.tool_components:make_ocr_tool",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/image",
+      "factory": "agent.boot.tool_components:make_image_tool",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/archive",
+      "factory": "agent.boot.tool_components:make_archive_tool",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/geo",
+      "factory": "agent.boot.tool_components:make_geo_weather_tools",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/review_conclusion",
+      "factory": "agent.boot.tool_components:make_review_conclusion",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/present",
+      "factory": "agent.boot.tool_components:make_present_tool",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/tools/executors",
+      "factory": "agent.boot.tool_components:make_executors",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade",
+        "files": "app/boot/files"
+      }
+    },
+    {
+      "path": "app/boot/tools/commit_write",
+      "factory": "agent.boot.tool_components:make_commit_write",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade",
+        "executors": "app/boot/tools/executors"
+      }
+    },
+    {
+      "path": "app/boot/shell",
+      "factory": "agent.boot.components:container",
+      "master": true
+    },
+    {
+      "path": "app/boot/shell/classic_adapter",
+      "factory": "agent.boot.shell_components:classic_adapter",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/shell/plugin_events",
+      "factory": "agent.boot.shell_components:plugin_events",
+      "master": true,
+      "requires": {
+        "classic_adapter": "app/boot/shell/classic_adapter"
+      }
+    },
+    {
+      "path": "app/boot/shell/runner",
+      "factory": "agent.boot.shell_components:runner",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/shell/wake_scheduler",
+      "factory": "agent.boot.shell_components:wake_scheduler",
+      "master": true,
+      "requires": {
+        "facade": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/boot/shell/finalizer",
+      "factory": "agent.boot.shell_components:finalizer",
+      "master": true,
+      "requires": {
+        "classic_adapter": "app/boot/shell/classic_adapter",
+        "plugin_events": "app/boot/shell/plugin_events",
+        "runner": "app/boot/shell/runner",
+        "wake_scheduler": "app/boot/shell/wake_scheduler"
+      }
+    },
+    {
+      "path": "app/auth",
+      "factory": "agent.boot.components:container",
+      "master": false,
+      "frozen": true,
+      "metadata": {
+        "owner": "auth",
+        "purpose": "鉴权边界；插件不得替换"
+      }
+    }
+  ],
+  "backend_slots": [
+    {
+      "path": "backend/tools",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/tools/<tool>",
+      "children": "fixed",
+      "fixed": [
+        "executor",
+        "post-write"
+      ]
+    },
+    {
+      "path": "backend/tools/subagents/visibility",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/tools/pipeline/pre-gates",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/tools/pipeline/pre-gates/<plugin>",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/tools/pipeline/post-observers",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/tools/pipeline/post-observers/<plugin>",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/context/sources",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/context/sources/<plugin>",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/context/assembly-hooks",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/context/assembly-hooks/<plugin>",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/context/usage-segments",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/context/usage-segments/<plugin>",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/prompt/sections",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/prompt/sections/<section>",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/prompt/mode-tails",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/events/subscriptions",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/events/subscriptions/<event>",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/http/routes",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/models/catalog",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/models/providers",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/models/routing",
+      "children": "keyed",
+      "fixed": []
+    },
+    {
+      "path": "backend/runtime",
+      "children": "keyed",
+      "fixed": []
+    }
+  ]
+}

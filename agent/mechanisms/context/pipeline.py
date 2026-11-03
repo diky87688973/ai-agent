@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from agent.config import DEFAULT_REASONING_REPLAY_TOKENS, DEFAULT_SUMMARY_TOKEN_FALLBACK
 from agent.mechanisms.context.constants import SEGMENT_LABELS as SEGMENT_LABELS_DEFAULT
 from agent.mechanisms.context.contract import DEFAULT_FULL_USER_ROUNDS
 from agent.mechanisms.context.layout import (
@@ -31,10 +32,7 @@ CHUNK_FULL = "近期记忆"
 CHUNK_MODE = "模式"
 CHUNK_ORDER = (CHUNK_SYSTEM, CHUNK_PLUGIN, CHUNK_MEM, CHUNK_FULL, CHUNK_MODE)
 
-#: 思维链回传预算默认值（token）：超出取两头、中间以省略标记代替。
-DEFAULT_REASONING_REPLAY_TOKENS = 8000
-
-DEFAULT_SUMMARY_TOKEN_THRESHOLD = 64000
+DEFAULT_SUMMARY_TOKEN_THRESHOLD = DEFAULT_SUMMARY_TOKEN_FALLBACK
 #: 最近这么多用户轮保留完整工具往返；更早的轮剥掉轮内工具往返。
 #: 压缩时保留的最近用户轮数（0 = 允许压到 0 个用户轮）。
 #: 剥掉工具往返的轮补的标注：不补的话模型会以为这些轮没调用过工具。
@@ -54,6 +52,7 @@ class ContextPipeline:
         sources: Optional["ContextSources"] = None,
     ) -> None:
         self.conversation_id = str(conversation_id or "")
+        # 完整用户轮至少保留 1 轮；压缩不能把当前轮裁掉。
         self.full_user_rounds = max(1, int(full_user_rounds))
         self.summary_token_threshold = max(1, int(summary_token_threshold))
         #: 思维链回传预算（token）：-1 全量、0 不回传、正数取两头中间省略。
@@ -393,23 +392,6 @@ class ContextPipeline:
                 self._plugin_sources.append((key, label))
                 self._plugin_has_body.append(True)
 
-    def set_summaries(self, summaries: List[Dict[str, Any]]) -> None:
-        """设置摘要（记忆块；逐条独立成轮，深拷贝）。"""
-        chunk = self.name_map[CHUNK_MEM]
-        chunk.rounds = []
-        for sm in summaries:
-            r = Round()
-            r.append_message_dict(copy.deepcopy(dict(sm)))
-            chunk.rounds.append(r)
-
-    def set_mode_tail(self, message: Optional[Dict[str, Any]]) -> None:
-        """设置「模式」尾块（单条；None 清空）。"""
-        chunk = self.name_map[CHUNK_MODE]
-        chunk.rounds = []
-        if message:
-            r = Round()
-            r.append_message_dict(copy.deepcopy(dict(message)))
-            chunk.rounds.append(r)
 
     def append_new_msg(self, role: str, content: str, **extra: Any) -> None:
         """新开一轮（首条建议 role=user）。"""

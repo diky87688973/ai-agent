@@ -24,7 +24,7 @@ Constraints in `check_complexity.py`:
 
 | Step | Script | Blocks |
 |---|---|---|
-| Import direction | `check_imports.py` | A lower layer importing a higher layer, or any layer importing the composition root at runtime; `--scc` prints intra-package strongly connected components (currently 0 groups) |
+| Import direction | `check_imports.py` | A lower layer importing a higher layer, an uncategorized top-level package, or any layer importing the composition root at runtime; `agent/update/health.py` has a narrow startup-self-check exception |
 | Architecture constraints | `check_architecture_hygiene.py` | Cross-layer and same-layer private imports, kernel plugin names, gate bypasses, shell `skill_manage` hardcoding, prompt registry, silent system-prompt fallback, `quality_gate` shim, provider and compactor boundaries, test method naming |
 | CI workflow consistency | `check_ci_workflow.py` | `ci.yml` not byte-identical to the rendered `ci_steps.py` result |
 | Config consistency | `check_config_drift.py` | Real config with extra keys / unregistered sections |
@@ -41,6 +41,7 @@ Constraints in `check_complexity.py`:
 | Complexity thresholds | `check_complexity.py` | Any file or function over its threshold |
 | Complexity doc consistency | `gen_complexity_md.py --check` | `docs/complexity.md` differing from the scan result |
 | Applicability declarations | `check_applicability.py` | Malformed declarations; IDs cross-checked both ways against `scripts/standards_rules.py`; prints the N/A share |
+| Standards manifest consistency | `check_standards_manifest.py` | Manual IDs, version, and updated date must match `standards_rules.py`; skipped when skills is disabled or the manual is absent |
 | Concurrency contention | `tests.test_concurrency` (`-X dev`) | Thread contention over shared mutable state |
 
 `docs/unit-tests.md` is a generated readable test index, not a source of truth; the source of truth is `tests/`.

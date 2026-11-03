@@ -2,6 +2,8 @@
 
 # Visual Operator 插件
 
+**Status:** 已实现。
+
 Visual Operator 在桌面上为 Agent 提供观察与输入能力。基线是四个坐标工具；窗口、应用启动与打开工具作为 P1 交互层一并注册：
 
 | 工具 | 方向 | 能力 |

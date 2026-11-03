@@ -1,7 +1,222 @@
-/* 极简风格：对话区与左右栏取消独立底色，使用全局底色。 */
-html[data-ui-theme="dark"] .session-rail,
-html[data-ui-theme="dark"] .side,
-html[data-ui-theme="dark"] .chat,
-html[data-ui-theme="dark"] .msgs {
-  background: transparent;
+:root{--minimal-hover:rgba(255,255,255,.055)}
+
+/* 极简：主体透明、无边框；仅交互面在悬浮时给背景高亮。 */
+html[data-ui-style="minimal"] main,
+html[data-ui-style="minimal"] header,
+html[data-ui-style="minimal"] .chat,
+html[data-ui-style="minimal"] .msgs,
+html[data-ui-style="minimal"] .session-rail,
+html[data-ui-style="minimal"] .side,
+html[data-ui-style="minimal"] #classicSidePane,
+html[data-ui-style="minimal"] .chat-conversation-mount,
+html[data-ui-style="minimal"] .chat-conversation-pane,
+html[data-ui-style="minimal"] .row,
+html[data-ui-style="minimal"] .chat > .row,
+html[data-ui-style="minimal"] .composer,
+html[data-ui-style="minimal"] .composer-above,
+html[data-ui-style="minimal"] .composer-left-col,
+html[data-ui-style="minimal"] .composer-right-col,
+html[data-ui-style="minimal"] .session-rail-head,
+html[data-ui-style="minimal"] .p-title {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-ui-style="minimal"] header,
+html[data-ui-style="minimal"] .session-rail-head,
+html[data-ui-style="minimal"] .p-title,
+html[data-ui-style="minimal"] .row,
+html[data-ui-style="minimal"] .classic-split-resizer,
+html[data-ui-style="minimal"] .composer,
+html[data-ui-style="minimal"] .b.u,
+html[data-ui-style="minimal"] .b.a,
+html[data-ui-style="minimal"] .b.a h2,
+html[data-ui-style="minimal"] .step,
+html[data-ui-style="minimal"] .card,
+html[data-ui-style="minimal"] .chat-tool-row,
+html[data-ui-style="minimal"] .chat-tab,
+html[data-ui-style="minimal"] .chat-tab.active,
+html[data-ui-style="minimal"] .chat-queue,
+html[data-ui-style="minimal"] .chat-queue-row,
+html[data-ui-style="minimal"] .queue-draft,
+html[data-ui-style="minimal"] .ai-cosplay-player,
+html[data-ui-style="minimal"] .bg-task-panel,
+html[data-ui-style="minimal"] .bg-task-head,
+html[data-ui-style="minimal"] .bg-task-pop,
+html[data-ui-style="minimal"] .bg-task-row,
+html[data-ui-style="minimal"] .subagent-panel,
+html[data-ui-style="minimal"] .subagent-row,
+html[data-ui-style="minimal"] .todo-list-area,
+html[data-ui-style="minimal"] .todo-list-header,
+html[data-ui-style="minimal"] .todo-item,
+html[data-ui-style="minimal"] .inbox-panel,
+html[data-ui-style="minimal"] .inbox-list,
+html[data-ui-style="minimal"] .inbox-row,
+html[data-ui-style="minimal"] .inbox-item {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-ui-style="minimal"] .chat-queue,
+html[data-ui-style="minimal"] .chat-queue-row,
+html[data-ui-style="minimal"] .queue-draft,
+html[data-ui-style="minimal"] .ai-cosplay-player,
+html[data-ui-style="minimal"] .bg-task-panel,
+html[data-ui-style="minimal"] .bg-task-head,
+html[data-ui-style="minimal"] .bg-task-pop,
+html[data-ui-style="minimal"] .subagent-panel,
+html[data-ui-style="minimal"] .todo-list-area,
+html[data-ui-style="minimal"] .todo-list-header,
+html[data-ui-style="minimal"] .chat-tab,
+html[data-ui-style="minimal"] .chat-tab.active {
+  background: transparent !important;
+}
+
+html[data-ui-style="minimal"] header .hdr-theme-btn,
+html[data-ui-style="minimal"] header .hdr-settings-btn {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-ui-style="minimal"] header .hdr-theme-btn:hover,
+html[data-ui-style="minimal"] header .hdr-settings-btn:hover,
+html[data-ui-style="minimal"] .chat-tab:hover,
+html[data-ui-style="minimal"] .chat-tab.active:hover,
+html[data-ui-style="minimal"] .chat-queue-row:hover,
+html[data-ui-style="minimal"] .bg-task-head:hover,
+html[data-ui-style="minimal"] .bg-task-row:hover,
+html[data-ui-style="minimal"] .bg-task-link:hover,
+html[data-ui-style="minimal"] .subagent-row:hover,
+html[data-ui-style="minimal"] .todo-list-header:hover,
+html[data-ui-style="minimal"] .todo-item:hover,
+html[data-ui-style="minimal"] .chat-session-row:hover,
+html[data-ui-style="minimal"] .inbox-row:hover,
+html[data-ui-style="minimal"] .inbox-item:hover,
+html[data-ui-style="minimal"] .composer:hover,
+html[data-ui-style="minimal"] .composer:focus-within {
+  background: var(--minimal-hover) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-ui-style="minimal"] button:not(.is-on),
+html[data-ui-style="minimal"] select,
+html[data-ui-style="minimal"] textarea,
+html[data-ui-style="minimal"] input,
+html[data-ui-style="minimal"] .mode-plus,
+html[data-ui-style="minimal"] .composer .chip {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-ui-style="minimal"] button:not(.is-on):hover,
+html[data-ui-style="minimal"] .mode-plus:hover,
+html[data-ui-style="minimal"] .composer .chip:hover {
+  background: var(--minimal-hover) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* 设置页字段必须看起来可编辑：深/浅色底，无边框；悬浮/聚焦只加背景。 */
+html[data-ui-style="minimal"] .st-form input[type="text"],
+html[data-ui-style="minimal"] .st-form input[type="password"],
+html[data-ui-style="minimal"] .st-form input[type="number"],
+html[data-ui-style="minimal"] .st-form input[type="url"],
+html[data-ui-style="minimal"] .st-form select,
+html[data-ui-style="minimal"] .st-form textarea {
+  background: var(--c-bg-layer) !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--c-line-2) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html[data-ui-style="minimal"] .st-form input:hover,
+html[data-ui-style="minimal"] .st-form select:hover,
+html[data-ui-style="minimal"] .st-form textarea:hover,
+html[data-ui-style="minimal"] .st-form input:focus,
+html[data-ui-style="minimal"] .st-form select:focus,
+html[data-ui-style="minimal"] .st-form textarea:focus {
+  background: var(--c-bg-active) !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--c-line-3) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-ui-style="minimal"] .chat-tab.active {
+  background: var(--c-bg-active) !important;
+  border-color: transparent !important;
+  color: var(--c-text-1) !important;
+}
+html[data-ui-style="minimal"] .chat-tab.active:hover {
+  background: var(--c-bg-active) !important;
+  border-color: transparent !important;
+  color: var(--c-text-1) !important;
+}
+
+/* 设置页下拉：统一 picker；选中只留勾选，悬浮才高亮。 */
+html[data-ui-style="minimal"] .st-form select {
+  color-scheme:dark;
+  appearance:base-select;
+  -webkit-appearance:base-select;
+  background:var(--c-bg-layer);
+  border:0;
+  border-bottom:1px solid var(--c-line-2);
+  border-radius:0;
+  color:var(--c-text-1);
+  padding:6px 26px 6px 8px;
+}
+html[data-ui-style="minimal"] .st-form select::picker(select) {
+  appearance:base-select;
+  background:var(--c-bg-layer);
+  border:0;
+  border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  padding:4px;
+  color:var(--c-text-1);
+}
+html[data-ui-style="minimal"] .st-form select option {
+  background:var(--c-bg-layer);
+  color:var(--c-text-1);
+  padding:8px 10px;
+  border-radius:6px;
+}
+html[data-ui-style="minimal"] .st-form select option:checked {
+  background:transparent;
+  color:var(--c-text-1);
+}
+html[data-ui-style="minimal"] .st-form select option:hover {
+  background:var(--c-bg-active);
+  color:var(--c-text-1);
+}
+html[data-ui-style="minimal"] .st-form select::picker-icon { color:var(--c-text-3); }
+
+/* 主操作按钮不能被极简按钮重置吃掉背景色。 */
+html[data-ui-style="minimal"] .st-save,
+html[data-ui-style="minimal"] .st-apply.is-primary {
+  background: var(--c-brand) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+html[data-ui-style="minimal"] .st-save:hover,
+html[data-ui-style="minimal"] .st-apply.is-primary:hover {
+  background: var(--c-brand) !important;
+  color: #fff !important;
+  filter: brightness(1.06);
+}
+
+/* 目标输入框保留可编辑边界（极简全局按钮/输入重置会吃掉它）。 */
+html[data-ui-style="minimal"] .goal-dialog textarea {
+  background: var(--c-bg-layer) !important;
+  border: 1px solid var(--c-line-2) !important;
+  border-radius: 8px !important;
+  color: var(--c-text-1) !important;
+}
+html[data-ui-style="minimal"] .goal-dialog textarea:focus {
+  border-color: var(--c-brand) !important;
+  outline: none !important;
 }

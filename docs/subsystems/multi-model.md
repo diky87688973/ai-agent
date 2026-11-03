@@ -1,13 +1,32 @@
-**English** | [中文](multi-model.zh.md)
+﻿# Multi-model (`multi_model` plugin)
 
-# Multi-model (`multi_model` plugin)
+## 1. Overview
 
 `multi_model` registers its model entries as the kernel's model-catalog source: each entry carries its gateway, protocol, and credentials, and the kernel routes a request by its model id to the matching provider instance. The plugin also renders the model dropdown in the composer and declares the 「模型」 entry on the settings page.
 
 For the plugin mechanism itself, see [plugins.md](plugins.md); for protocol request bodies and stream parsing, see [llm.md](llm.md).
 
-## Package layout
+## 2. Slots
 
+### Exposed
+
+| Slot path | Capability | Key attributes | Replacement / override |
+|---|---|---|---|
+| `app/shell/web-ui/input/buttons/model_switch_btn` | UI slot | owner=plugin; declared path; removed on unload | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `app/settings/model` | module contribution | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `backend/models/catalog/*` | model catalog / routing | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+| `backend/models/providers/*` | model catalog / routing | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+| `backend/models/routing/*` | model catalog / routing | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+### Required
+
+| Dependency path | Capability | Provider | Why |
+|---|---|---|---|
+| `app/host/services/model_catalog` | host service | host | must be ready before assembly; unavailable propagates as startup/request failure |
+| `app/host/services/provider` | host service | host | must be ready before assembly; unavailable propagates as startup/request failure |
+
+## 3. Slot capabilities
+
+### Package layout
 ```
 plugins/multi_model/
   plugin.py                  entry: configuration parsing, catalog source and endpoint, boot script
@@ -19,8 +38,35 @@ plugins/multi_model/
   ui/model-picker.css        dropdown styles
 ```
 
-## Configuration
+### Catalog authority
+Once the plugin is loaded, the model catalog is the only source; when no entry is valid the service still starts and the model dropdown on the main page is empty. Saving the plugin configuration takes effect without a restart.
 
+`GET /api/plugin/multi_model/catalog` returns a catalog snapshot without `api_key` or `base_url`:
+
+```json
+{
+  "ok": true,
+  "models": [{"id": "1", "label": "Model A", "provider": "openai",
+              "context_window": 1000000, "default": true}],
+  "default": "1",
+  "invalid": []
+}
+```
+
+### Settings page
+The plugin declares `settings-schema.json`, and the settings page renders it as a structured form: one card per entry, with add, delete, and per-field editing; fields such as `max_tokens` and `thinking` are shown or hidden in place when `provider` changes. Saving rewrites only the `[model:*]` sections and keeps every other section byte for byte; a secret field reports only whether it is configured, and an empty value keeps the stored one.
+
+The settings page has no kernel model section; model configuration is edited only through this plugin's structured form.
+The plugin declares `settings_tab` as 「模型」 in `plugin-meta.json`, so once it is enabled the settings sidebar shows the 「模型」 entry directly; it opens the same multi-model form without a back button.
+
+### Model dropdown
+The plugin registers `web-ui/input/buttons/model_switch_btn` with `scripts=["ui/model-picker.js"]`; the catalog loader injects the script and the shell provides only the `#modelPickerSlot` container. The script reads entries from `/catalog` through `window.aiAgentPlugins.for()`, uses `window.aiAgentShell.models` to read the current selection and write changes back, and falls back to `shell.models.list()` when the catalog endpoint is unavailable. Styles are injected through `window.aiAgentShell.styles.load()`. The bridge contract is in [plugins.md](plugins.md#壳层公共桥).
+
+Neither the button nor the menu caps its width: the model name is the only way to tell entries apart, and cutting the two entries for one gateway (`model-a-openai`, `model-a-anthropic`) to a shared prefix would hide which one is selected. The menu follows its items with `width:max-content` and is clamped only at the viewport edge (`100vw - 24px`).
+
+## 4. Details
+
+### Configuration
 One section per model, `[model:<id>]`:
 
 ```ini
@@ -55,7 +101,7 @@ An invalid entry affects only itself: a missing `api_key` or `base_url`, an unkn
 
 The file is read with `utf-8-sig`, so a BOM is accepted.
 
-### One gateway, two protocols
+#### One gateway, two protocols
 
 `provider` determines the protocol and endpoint form; `model` only sets the model name sent to the gateway. When one gateway serves both protocols, write one section per protocol under different ids:
 
@@ -76,7 +122,7 @@ max_tokens =
 
 INI section names must be unique, so the two protocols cannot share one id.
 
-### Thinking mode
+#### Thinking mode
 
 - `thinking = 0` disables thinking explicitly: the request body carries `{"type":"disabled"}`. When the key is omitted, the adapter enables thinking with `thinking_budget_tokens`.
 - `thinking_budget_tokens` must be ≥ 1024 and smaller than `max_tokens`. Otherwise the adapter writes a stderr diagnostic and turns thinking off for the turn; the request is still sent.
@@ -85,37 +131,10 @@ INI section names must be unique, so the two protocols cannot share one id.
 - In a turn with tools, thinking blocks must be replayed verbatim with `tool_use`; without them the gateway returns 400. Historical turns do not replay them. When a block is missing and cannot be restored, the adapter turns thinking off for the turn and leaves a diagnostic.
 - In thinking mode the key must match the gateway that `base_url` points at; otherwise the gateway rejects it.
 
-## Catalog authority
+## 5. Further reading
 
-Once the plugin is loaded, the model catalog is the only source; when no entry is valid the service still starts and the model dropdown on the main page is empty. Saving the plugin configuration takes effect without a restart.
-
-`GET /api/plugin/multi_model/catalog` returns a catalog snapshot without `api_key` or `base_url`:
-
-```json
-{
-  "ok": true,
-  "models": [{"id": "1", "label": "Model A", "provider": "openai",
-              "context_window": 1000000, "default": true}],
-  "default": "1",
-  "invalid": []
-}
-```
-
-## Settings page
-
-The plugin declares `settings-schema.json`, and the settings page renders it as a structured form: one card per entry, with add, delete, and per-field editing; fields such as `max_tokens` and `thinking` are shown or hidden in place when `provider` changes. Saving rewrites only the `[model:*]` sections and keeps every other section byte for byte; a secret field reports only whether it is configured, and an empty value keeps the stored one.
-
-The settings page has no kernel model section; model configuration is edited only through this plugin's structured form.
-The plugin declares `settings_tab` as 「模型」 in `plugin-meta.json`, so once it is enabled the settings sidebar shows the 「模型」 entry directly; it opens the same multi-model form without a back button.
-
-## Model dropdown
-
-The plugin registers `web-ui/input/buttons/model_switch_btn` with `scripts=["ui/model-picker.js"]`; the catalog loader injects the script and the shell provides only the `#modelPickerSlot` container. The script reads entries from `/catalog` through `window.aiAgentPlugins.for()`, uses `window.aiAgentShell.models` to read the current selection and write changes back, and falls back to `shell.models.list()` when the catalog endpoint is unavailable. Styles are injected through `window.aiAgentShell.styles.load()`. The bridge contract is in [plugins.md](plugins.md#壳层公共桥).
-
-Neither the button nor the menu caps its width: the model name is the only way to tell entries apart, and cutting the two entries for one gateway (`model-a-openai`, `model-a-anthropic`) to a shared prefix would hide which one is selected. The menu follows its items with `width:max-content` and is clamped only at the viewport edge (`100vw - 24px`).
-
-## Further reading
-
-- [plugins.md](plugins.md): plugin package shape, extension points, UI assets, lifecycle
-- [llm.md](llm.md): request bodies, address derivation, stream parsing, error mapping
-- [../guide/config.md](../guide/config.md): host configuration keys
+| Topic | Document |
+|---|---|
+| plugin package shape, extension points, UI assets, lifecycle | [plugins.md](plugins.md) |
+| request bodies, address derivation, stream parsing, error mapping | [llm.md](llm.md) |
+| host configuration keys | [config.md](../guide/config.md) |

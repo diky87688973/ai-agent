@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from agent.app import build_app
+from agent.common.status import MODEL_CONFIG_NONE
 from agent.config import APP_HOME, default_data_root
 from agent.mechanisms.session_store import SessionStore
 from agent.shell.cli import interactive as chat
@@ -31,7 +32,7 @@ def build_app_from_config() -> Optional[Any]:
         data_root=data_root,
         plugins_path=CLI_PLUGINS_PATH,
     )
-    if app.model_config_state == "none":
+    if app.model_config_state == MODEL_CONFIG_NONE:
         print("未配置任何可用模型。请在 plugins/multi_model/plugin-config.ini 中配置至少一个 [model:<id>] 节。")
         app.dispose()
         return None

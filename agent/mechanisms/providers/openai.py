@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -376,7 +375,7 @@ def describe_request(model: str, url: str, payload: Dict[str, Any]) -> str:
 class OpenAICompatibleProvider(ModelProvider):
     """OpenAI 兼容真实适配（SSE 流式；stdlib urllib）。
 
-      时剥离并重试一次（部分网关不支持该字段）；
+    - 本地模型：剥离 thinking / reasoning_effort；
     - HTTP 错误：DeepSeek 基址 / 模型名命中时映射中文提示，否则原样返回；
     - 超时：默认 300s；
     - 逻辑→线格式：tools（属性映射）与 messages 内 tool_calls（扁平结构）发送前
@@ -467,7 +466,6 @@ class OpenAICompatibleProvider(ModelProvider):
             # 同时写 stderr 与文件：控制台可能被重定向/管道吞掉，
             # 而"图片有没有发出去"这种证据不能只寄望于终端能看到。
             line = f"[llm→] url={url} {describe_request(model, url, payload)}"
-            print(line, file=sys.stderr, flush=True)
             _append_request_log(line)
 
         yield from _assemble_stream_deltas(self._post_stream(url, payload))
@@ -504,11 +502,7 @@ class OpenAICompatibleProvider(ModelProvider):
             try:
                 detail_body = exc.read().decode("utf-8", errors="replace")
             except Exception as read_exc:
-                print(
-                    f"[model_provider] 读 HTTP 错误体失败: "
-                    f"{type(read_exc).__name__}: {read_exc}",
-                    file=sys.stderr, flush=True,
-                )
+                report_error("agent.mechanisms.providers.openai._post_stream", read_exc)
                 detail_body = ""
             raise self._http_error(exc.code, detail_body) from exc
         except urllib.error.URLError as exc:

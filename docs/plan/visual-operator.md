@@ -2,6 +2,8 @@
 
 # Visual Operator plugin
 
+Status: implemented.
+
 Visual Operator gives the agent observation and input on a desktop. Four coordinate tools form the baseline; window, app launch, and open tools are registered with the P1 interaction layer:
 
 | Tool | Role | Capability |

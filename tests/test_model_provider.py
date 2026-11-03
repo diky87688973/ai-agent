@@ -195,7 +195,7 @@ class SessionStateFileTest(unittest.TestCase):
         import tempfile
 
         self._tmp = tempfile.TemporaryDirectory()
-        self.state_dir = Path(self._tmp.name) / "session_state"
+        self.state_dir = Path(self._tmp.name) / "live_state"
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -480,7 +480,7 @@ class CatalogAuthorityAtAssemblyTest(unittest.TestCase):
 
     这条分支只在真的装了带目录来源的插件时走到。别的用例都用 `no_plugins`
     把开发机上的插件隔离掉了（否则结果取决于本机私有配置），所以这里自己造一个
-    最小插件树来钉住这段装配逻辑。
+    最小插件装配来钉住这段装配逻辑。
     """
 
     _PLUGIN = '''\

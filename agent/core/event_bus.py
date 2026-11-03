@@ -33,15 +33,20 @@ class EventBus:
             raise ValueError("事件类型不能为空")
         if not callable(handler):
             raise ValueError("handler 必须可调用")
+        # 每次订阅都包一个独立入口：同一 handler 重订阅后，旧 disposer 只能撤
+        # 自己那一条，不能按函数对象 remove 掉新订阅。
+        def entry(event: Event) -> None:
+            handler(event)
+
         with self._lock:
-            self._subs.setdefault(key, []).append(handler)
+            self._subs.setdefault(key, []).append(entry)
 
         def _dispose() -> None:
             with self._lock:
                 handlers = self._subs.get(key)
-                if not handlers or handler not in handlers:
+                if not handlers or entry not in handlers:
                     return
-                handlers.remove(handler)
+                handlers.remove(entry)
                 if not handlers:
                     self._subs.pop(key, None)
 

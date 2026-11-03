@@ -2,8 +2,8 @@
 """会话标题生成。
 
 - 一次模型调用（无工具），输入 = 会话首条用户输入 + 首条模型回复（截断）；
-- 输出清洗：去引号 / 去换行 / 去"标题："前缀；上限 18 字；
-- 失败（无 provider / 异常 / 空文本 / 退化占位）→ 回落 首条用户输入前缀，仍无 → 空串（调用方按短 id 展示）；
+- 输出清洗：去引号 / 去换行 / 去"标题："前缀；上限 32 字；
+- 失败（无 provider / 异常 / 空文本 / 退化占位）→ 由调用方用首条用户消息兜底；
 - 结果落盘 `<titles_dir>/<cid>.title`，
   重启后仍可读——标题是派生缓存，不是事实源的一部分。
 
@@ -12,14 +12,15 @@
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from agent.core.error_report import report_error
 from agent.core.ports import LogicalRequest
 
-MAX_TITLE_CHARS = 18
+MAX_TITLE_CHARS = 32
 MAX_INPUT_CHARS = 600  # 送模型的素材上限（省 token）
+UNKNOWN_TITLE = "未知标题"
 
 _TITLE_PROMPT = """你是会话标题生成器。根据下面这段对话开头，生成一个简短中文标题。
 
@@ -62,18 +63,15 @@ def _is_system_notice(text: str) -> bool:
 
 
 def fallback_title(messages: List[Dict[str, Any]], *, max_chars: int = MAX_TITLE_CHARS) -> str:
-    """从消息派生回落标题：取首条用户输入，无则空串。"""
+    """标题模型失败时，用首条用户消息的首行截断作为标题。"""
     for message in messages:
         if not isinstance(message, dict):
             continue
         if str(message.get("role") or "") != "user":
             continue
-        raw = str(message.get("content") or "")
-        if _is_system_notice(raw):
-            continue
-        text = " ".join(raw.split())
-        if text:
-            return text[:max_chars] + ("…" if len(text) > max_chars else "")
+        content = str(message.get("content") or "").strip()
+        if content and not _is_system_notice(content):
+            return clean_title(content, max_chars=max_chars)
     return ""
 
 
@@ -101,7 +99,7 @@ def make_provider_title_generator(
                 if getattr(delta, "kind", "") == "text":
                     parts.append(str(getattr(delta, "text", "") or ""))
         except Exception as exc:  # 旁路增强：失败不抛出
-            print(f"[title] 生成失败（已回退）: {exc}", file=sys.stderr, flush=True)
+            report_error("agent.mechanisms.session_title.generate", exc)
             return ""
         return clean_title("".join(parts), max_chars=max_chars)
 
@@ -151,7 +149,8 @@ class TitleStore:
             return ""
         try:
             return path.read_text(encoding="utf-8").strip()
-        except OSError:
+        except OSError as exc:
+            report_error("agent.mechanisms.session_title.TitleStore.load", exc)
             return ""
 
     def save(self, cid: str, title: str) -> bool:
@@ -163,5 +162,6 @@ class TitleStore:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
             return True
-        except OSError:
+        except OSError as exc:
+            report_error("agent.mechanisms.session_title.TitleStore.save", exc)
             return False

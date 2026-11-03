@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import copy
 import threading
 from typing import Any, Dict, Iterable, Optional, Tuple
 from uuid import uuid4
@@ -28,9 +29,13 @@ class PendingStore:
 
     @property
     def records(self) -> Dict[str, Dict[str, Any]]:
-        """底层字典的快照（测试与兼容层读长度 / 键，不能借此改动真表）。"""
+        """底层字典的快照（测试与兼容层读长度 / 键，不能借此改动真表）。
+
+        必须深拷贝：浅拷贝只换外层字典，调用方仍能拿到内层记录并改
+        `confirmed`，等于绕过 review 解锁。
+        """
         with self._lock:
-            return dict(self._pending)
+            return copy.deepcopy(self._pending)
 
     def register_preview(
         self,
@@ -71,9 +76,13 @@ class PendingStore:
         return cid
 
     def peek(self, confirm_id: str) -> Optional[Dict[str, Any]]:
-        """查看确认 ID 关联的预览快照（不消费）；无效返回 None。"""
+        """查看确认 ID 关联的预览快照（不消费）；无效返回 None。
+
+        返回深拷贝：读方不能通过改返回值伪造 `confirmed` 或改写下一次提交的参数。
+        """
         with self._lock:
-            return self._pending.get(str(confirm_id or "").strip())
+            rec = self._pending.get(str(confirm_id or "").strip())
+            return copy.deepcopy(rec) if rec is not None else None
 
     def take_record(self, confirm_id: str) -> Optional[Dict[str, Any]]:
         """取出并消费预览快照（完整记录）；无效/已使用返回 None。"""
@@ -99,8 +108,10 @@ class PendingStore:
 
     def confirm(self, confirm_id: str, *, write_generation: int = 0) -> bool:
         """确认（review 通过）某次预览可提交；返回是否找到该快照。"""
+        key = str(confirm_id or "").strip()
         with self._lock:
-            rec = self.peek(confirm_id)
+            # 必须从真表取记录再改；peek 返回副本，改副本不会写回。
+            rec = self._pending.get(key)
             if rec is None:
                 return False
             rec["confirmed"] = True

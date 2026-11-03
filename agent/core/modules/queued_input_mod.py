@@ -35,7 +35,7 @@ class QueuedInputModule(ModuleBase):
             items = [item] if isinstance(item, dict) else []
         if not items:
             return Outcome.ok()
-        for item in items:
+        for index, item in enumerate(items):
             item_id = str(item.get("id") or "")
             try:
                 payload: dict = {"content": str(item.get("content") or ""),
@@ -59,8 +59,21 @@ class QueuedInputModule(ModuleBase):
                 yield ports.emit(INPUT_CLAIMED, **payload)
             except Exception as exc:
                 report_error("agent.core.modules.queued_input_mod.QueuedInputModule.execute", exc)
+                # claim_insert_batch 已把整批移出队列；当前条与尚未处理的都要还回去，
+                # 否则它们永远停在 claimed 状态，后续回合再也收不到。
                 self._queue.release(cid, item_id)
+                for rest in items[index + 1:]:
+                    self._queue.release(cid, str(rest.get("id") or ""))
                 raise
             else:
-                self._queue.complete(cid, item_id)
+                try:
+                    self._queue.complete(cid, item_id)
+                except Exception as exc:
+                    report_error(
+                        "agent.core.modules.queued_input_mod.QueuedInputModule.complete",
+                        exc)
+                    self._queue.release(cid, item_id)
+                    for rest in items[index + 1:]:
+                        self._queue.release(cid, str(rest.get("id") or ""))
+                    raise
         return Outcome.ok()

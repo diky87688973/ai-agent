@@ -7,33 +7,23 @@ function fillToolPreview(o,ev){
 const sc=(ev.script||"").toLowerCase();
 if(!o.previewSlot)return;
 if(sc.indexOf("run_command")>=0){
-if(window.DEBUG)console.log("fillToolPreview: run_command entered, o=",o," ev.preview=",ev.preview);
 o.previewSlot.innerHTML="";
 o.previewSlot.style.display="none";
 try{
 var _raw=ev.preview||"{}";
-if(window.DEBUG)console.log("fillToolPreview: _raw=",_raw);
 const j=JSON.parse(_raw);
-if(window.DEBUG)console.log("fillToolPreview: parsed=",j);
 const out=(j&&j.data&&typeof j.data.stdout==="string")?j.data.stdout:"";
-if(window.DEBUG)console.log("fillToolPreview: out=",out);
 if(out){
 o.previewSlot.style.display="block";
 const cap=document.createElement("p");cap.textContent="stdout 预览";
 const pr=document.createElement("pre");pr.className="sub";pr.innerHTML=out.length>12000?highlightCode(out.slice(0,12000),'bash')+"\n…":highlightCode(out,'bash');
 o.previewSlot.appendChild(cap);o.previewSlot.appendChild(pr);
 }
-// 强制在对话区添加卡片
-var testContent=out||"(空输出, raw="+_raw.slice(0,200)+")";
-var cmdName=(o.args||{}).command||"命令行";
-if(typeof cmdName==="string"&&cmdName.trim())cmdName=cmdName.trim().slice(0,60);
-var cardHtml='<div class="chat-diff-card"><div class="chat-diff-cap">'+escapeHtml(cmdName)+'</div><div class="diff-unified diff-surface-adaptive"><pre style="margin:0;padding:4px 8px;font-size:11px">'+escapeHtml(testContent)+'</pre></div></div>';
-var chatDiv=document.createElement("div");chatDiv.className="b a";chatDiv.innerHTML=cardHtml;
 //
 }catch(e){
-if(window.DEBUG)console.error("fillToolPreview: error",e);
 var errCard='<div class="chat-diff-card"><div class="chat-diff-cap">❌ 渲染异常</div><div class="diff-unified diff-surface-adaptive"><pre style="margin:0;padding:4px 8px;font-size:11px">'+escapeHtml(e.message)+'</pre></div></div>';
 var errDiv=document.createElement("div");errDiv.className="b a";errDiv.innerHTML=errCard;
+if(typeof msgs!=="undefined"&&msgs){msgs.appendChild(errDiv);if(typeof scrollMsgsToBottom==="function")scrollMsgsToBottom();}
 }
 return;}
 if(sc.indexOf("regex_locate")>=0){
@@ -42,11 +32,12 @@ o.previewSlot.style.display="none";
 try{
 var _rl=JSON.parse(ev.preview||"{}");
 var _rlData=_rl&&_rl.data;
-if(_rlData&&_rlData.type==="regex_locate"&&Array.isArray(_rlData.snippets)&&_rlData.snippets.length){
+var _rlItems=(_rlData&&Array.isArray(_rlData.items))?_rlData.items:[];
+if(_rlItems.length){
 o.previewSlot.style.display="block";
-var _rlCap=document.createElement("p");_rlCap.textContent="匹配结果 "+_rlData.count+" 处（预览 "+_rlData.snippets.length+" 条）";
+var _rlCap=document.createElement("p");_rlCap.textContent="匹配结果 "+_rlData.count+" 处（预览 "+_rlItems.length+" 条）";
 var _rlPre=document.createElement("pre");_rlPre.className="sub";
-_rlPre.innerHTML=_rlData.snippets.map(function(s){return escapeHtml(s);}).join("\n");
+_rlPre.textContent=_rlItems.map(function(it){return String(it.file||"")+":"+String(it.line||"")+":"+String(it.column||"")+"  "+String(it.match||"");}).join("\n");
 o.previewSlot.appendChild(_rlCap);o.previewSlot.appendChild(_rlPre);
 }
 }catch(e){if(window.DEBUG)console.error("regex_locate preview error",e);}

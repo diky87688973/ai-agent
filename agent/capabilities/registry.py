@@ -38,6 +38,8 @@ class ToolPlugin:
     parallel_safe: bool = False  # 默认串行
     #: 为真时管道 post 登记预览快照并注入 confirm_id（写类预览入口）
     needs_preview: bool = False
+    #: 为真时列入系统提示词的“预览写类工具”名单；工具只在部分参数下写盘时可关掉
+    prompt_preview: bool = True
     #: 写目标路径参数键序（供门控解析写路径）；空则无法解析路径（不默认猜 path）
     write_path_keys: Tuple[str, ...] = ()
     #: 为真时落盘后要求先 read_file 再改同一路径（内容写类）；结构性操作保持 False
@@ -103,6 +105,8 @@ class ToolRegistry:
         previous = self._owner_subagent_tools.get(key)
 
         def _dispose() -> None:
+            if self._owner_subagent_tools.get(key) is not allowed:
+                return
             if previous is None:
                 self._owner_subagent_tools.pop(key, None)
             else:
@@ -126,8 +130,9 @@ class ToolRegistry:
         self._owners[name] = str(owner or "")
 
         def _dispose() -> None:
-            if name not in self._plugins:
-                return  # 幂等：已注销
+            # 只撤自己这一份：同名旧 disposer 在重新注册后不能删掉新插件。
+            if self._plugins.get(name) is not plugin:
+                return
             del self._plugins[name]
             self._owners.pop(name, None)
             for i, (k, _d) in enumerate(self._disposers):
@@ -137,6 +142,24 @@ class ToolRegistry:
 
         self._disposers.append((name, _dispose))
         return _dispose
+
+    def drop_owner(self, owner: str) -> int:
+        """按 owner 兜底删除工具（disposer 失败或漏挂时用）。"""
+        name = str(owner or "")
+        removed = 0
+        for tool_name, tool_owner in list(self._owners.items()):
+            if tool_owner != name:
+                continue
+            if self._plugins.pop(tool_name, None) is not None:
+                removed += 1
+            self._owners.pop(tool_name, None)
+        if removed:
+            self._disposers = [
+                (key, dispose) for key, dispose in self._disposers
+                if self._plugins.get(key) is not None
+            ]
+        self._owner_subagent_tools.pop(name, None)
+        return removed
 
     def get(self, name: str) -> Optional[ToolPlugin]:
         """按名解析插件；未注册返回 None（管道将其转为"未知工具"回灌）。"""

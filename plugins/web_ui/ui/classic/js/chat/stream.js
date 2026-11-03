@@ -4,6 +4,48 @@
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function escapeHtml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function _finishSseStopped(_ctxTab, cid, message){
+finishLiveEdits(_ctxTab);markCurrentTurnStoped();resetTurnState();hideChatLoading();if(message)add("a",message);_ctxTab.abortController=null;_ctxTab.activeRunId="";_clearServerRunning(cid);updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();
+}
+function _finishSseError(_ctxTab, cid, detail){
+hideChatLoading();abortPendingToolTags();if(lastLlm){finishLlmTitle(false);lastLlm.tag.className="tag bad";lastLlm.tag.textContent="Fail";lastLlm=null;}if(!anyToolThisTurn){discardPendingSteps();}else{pendingStepEls=[];}add("a","错误: "+JSON.stringify(detail||{}));_ctxTab.abortController=null;_ctxTab.activeRunId="";_clearServerRunning(cid);updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();
+}
+function _finishSseDone(_ctxTab, cid){
+finalizeAssistantStream("");finishLiveEdits(_ctxTab);_ctxTab.abortController=null;_ctxTab.activeRunId="";_clearServerRunning(cid);hideChatLoading();updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();void refreshConversationTitle(cid);
+}
+function applySseEvent(ev,_ctxTab,packetCid,onConfirmPause){
+
+if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible&&ev.mode)applyMode(ev.mode,false);}
+else if(ev.type==="run_started"){_ctxTab.activeRunId=String(ev.run_id||"");_ctxTab.abortController=_ctxTab.abortController||{global:true};showChatLoading();updateTaskControls();}
+else if(ev.type==="mode_changed"&&ev.mode){_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible)applyMode(normalizeMode(ev.mode),false);}
+else if(ev.type==="dispatch_title")addDispatchTitle(ev.title||"");
+else if(ev.type==="llm_round")addLlmRound(ev.round);
+else if(ev.type==="llm_request")onLlmRequest(ev);
+else if(ev.type==="llm_response")onLlmResponse(ev);
+else if(ev.type==="llm_done"){flushPendingToolTags();if(lastLlm){finishLlmTitle(true);lastLlm.tag.className="tag ok";lastLlm.tag.textContent="Done";}}
+else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_tokens??0)||0;const outTok=Number(u.completion_tokens??0)||0;const hitTok=Number(u.prompt_cache_hit_tokens??0)||0;const missTok=Number(u.prompt_cache_miss_tokens??0)||0;sessionTokenUsed+=Math.max(0,inTok+outTok);totalPromptTokens+=inTok;totalCompletionTokens+=outTok;totalCacheHitTokens+=hitTok;totalCacheMissTokens+=missTok;if(packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();void persistUsageAccumulator(packetCid);}
+else if(ev.type==="context_compacted"){renderCompactionEvent(ev,_ctxTab);}
+else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;setModelContextWindow(ev.model_max_context_tokens);if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
+else if(ev.type==="tool_start")onToolStart(ev);
+else if(ev.type==="tool_progress")onToolProgress(ev);
+else if(ev.type==="tool_end"){noteLiveEdit(ev,_ctxTab);onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}
+else if(ev.type==="open_session"){var sid=normalizeConversationId(ev.session_id);if(sid){ensureConversationTab(sid);var _ot=findConversationTab(sid);if(_ot)_ot.title=ev.name||("会话 "+sid.slice(0,8));}}
+else if(ev.type==="tool_preview_update"){var tid2=String(ev.tool_call_id||"").trim();if(tid2){var card=findStepCardForToolCall(tid2);if(card){var pb2=card.querySelector("pre.tool-res");if(pb2){try{var _pj2=JSON.parse(ev.preview||"{}");pb2.textContent=JSON.stringify(_pj2,null,2);}catch(e2){pb2.textContent=String(ev.preview||"");}var lb2=pb2.previousElementSibling;if(lb2&&lb2.classList&&lb2.classList.contains("lbl"))lb2.style.display="block";pb2.style.display="block";}}}}
+else if(ev.type==="assistant_delta"){if(anyToolThisTurn){flushPendingSteps();}appendAssistantDelta(ev.delta||"");}
+else if(ev.type==="reasoning_delta")appendReasoningDelta(ev);
+else if(ev.type==="reasoning_sync")applyReasoningSync(ev);
+else if(ev.type==="assistant_markdown"){if(anyToolThisTurn){flushPendingSteps();}var md=ev.markdown;if(typeof md==="string"&&md.trim()){var e=ensureAssistantStreamBubble();if(e){if(streamAssistantText&&!streamAssistantText.endsWith("\n"))streamAssistantText+="\n";streamAssistantText+=md.trim()+"\n";e.innerHTML=renderMarkdown(streamAssistantText);scrollMsgsToBottom();}}}
+else if(ev.type==="assistant"){if(anyToolThisTurn){flushPendingSteps();}if(!finalizeAssistantStream(ev.content||"")){add("a",ev.content||"");}}
+else if(ev.type==="peer_message"){addPeerMessage(ev.content||"",ev.sender_name||"",ev.sender||"");}
+else if(ev.type==="queued_user"){var _qb=add("u",ev.content||"（截图）",ev);var _qa=Array.isArray(ev.attachments)?ev.attachments:[];if(_qa.length&&_qb&&window.AIA&&AIA.buildMsgAttachStrip){try{_qb.appendChild(AIA.buildMsgAttachStrip(packetCid,null,_qa));}catch(_qe){}}}
+else if(ev.type==="queue_updated"){if(typeof onQueueUpdated==="function")onQueueUpdated(ev);}
+else if(ev.type==="done"){_finishSseDone(_ctxTab,packetCid);}
+else if(ev.type==="stopped"){_finishSseStopped(_ctxTab,packetCid,ev.message);}
+else if(ev.type==="paused_for_user_confirm"){_ctxTab.editedHold=true;hideChatLoading();if(typeof onConfirmPause==="function")onConfirmPause();}
+else if(ev.type==="todo_list"){renderTodoListFromEvent(ev,packetCid);scrollToBottomAfterLayout(msgs,true);}
+else if(ev.type==="error"){_finishSseError(_ctxTab,packetCid,ev.detail||ev);}
+}
+
 async function drainChatSseFromResponse(r,streamCid){
 if(window.DEBUG){try{console.log("[SSE] 开始读流",{streamCid:String(streamCid||""),ok:r.ok,status:r.status,hasBody:!!(r&&r.body)});}catch(e){}}
 if(!r||!r.body){if(window.DEBUG)console.error("[SSE] 响应无 body，无法读取流",{ok:r&&r.ok,status:r&&r.status});return;}
@@ -27,46 +69,7 @@ for(const line of blk.split("\n")){
 if(line.indexOf("data:")!==0)continue;
 const raw=line.slice(5).trim();let ev;try{ev=JSON.parse(raw);}catch(_jsonErr){if(window.DEBUG){console.warn("[SSE recv] JSON 解析失败",{error:String(_jsonErr&&_jsonErr.message||_jsonErr),sample:String(raw||"").slice(0,400)});console.error("[SSE] JSON 解析失败，已跳过本行（不渲染）",{error:String(_jsonErr&&_jsonErr.message||_jsonErr),sample:String(raw||"").slice(0,240)});}continue;}
 if(window.DEBUG){try{console.log("[SSE recv]",{streamCid:String(streamCid||""),type:ev&&ev.type,conversation_id:ev&&ev.conversation_id,ev:ev});}catch(e){}}
-const packetCid=normalizeConversationId(ev.conversation_id);if(!packetCid){if(window.DEBUG){console.warn("[SSE recv] 已丢弃（conversation_id 缺失或非法）",{streamCid:String(streamCid||""),type:ev&&ev.type,conversation_id:ev&&ev.conversation_id,ev:ev});console.error("[SSE] 数据包缺少或非法 conversation_id，已跳过渲染（不写入任何会话）",{type:ev&&ev.type,conversation_id:ev&&ev.conversation_id});}continue;}withConversationContext(packetCid,function(_ctxTab){if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);/* 服务端不推送 model（outbound 的 conversation 帧不含该字段）；
-       此处不覆盖用户当场的选择。*/if(renderingContextVisible){if(ev.mode)applyMode(ev.mode,false);}}
-else if(ev.type==="run_started"){_ctxTab.activeRunId=String(ev.run_id||"");}
-else if(ev.type==="mode_changed"&&ev.mode){_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible)applyMode(normalizeMode(ev.mode),false);}
-else if(ev.type==="dispatch_title")addDispatchTitle(ev.title||"");
-else if(ev.type==="llm_round")addLlmRound(ev.round);
-else if(ev.type==="llm_request")onLlmRequest(ev);
-else if(ev.type==="llm_response")onLlmResponse(ev);
-else if(ev.type==="llm_done"){flushPendingToolTags();if(lastLlm){finishLlmTitle(true);lastLlm.tag.className="tag ok";lastLlm.tag.textContent="Done";}}
-else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_tokens??0)||0;const outTok=Number(u.completion_tokens??0)||0;const hitTok=Number(u.prompt_cache_hit_tokens??0)||0;const missTok=Number(u.prompt_cache_miss_tokens??0)||0;sessionTokenUsed+=Math.max(0,inTok+outTok);totalPromptTokens+=inTok;totalCompletionTokens+=outTok;totalCacheHitTokens+=hitTok;totalCacheMissTokens+=missTok;_updateUsageBottom();void persistUsageAccumulator();}
-else if(ev.type==="context_compacted"){renderCompactionEvent(ev,_ctxTab);}
-else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;setModelContextWindow(ev.model_max_context_tokens);if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
-else if(ev.type==="tool_start")onToolStart(ev);
-else if(ev.type==="tool_progress")onToolProgress(ev);
-else if(ev.type==="tool_end"){noteLiveEdit(ev,_ctxTab);onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}
-else if(ev.type==="open_session"){var sid=normalizeConversationId(ev.session_id);if(sid){ensureConversationTab(sid);var _ot=findConversationTab(sid);if(_ot)_ot.title=ev.name||("会话 "+sid.slice(0,8));}}
-else if(ev.type==="tool_preview_update"){var tid2=String(ev.tool_call_id||"").trim();if(tid2){var card=findStepCardForToolCall(tid2);if(card){var pb2=card.querySelector("pre.tool-res");if(pb2){try{var _pj2=JSON.parse(ev.preview||"{}");pb2.textContent=JSON.stringify(_pj2,null,2);}catch(e2){pb2.textContent=String(ev.preview||"");}var lb2=pb2.previousElementSibling;if(lb2&&lb2.classList&&lb2.classList.contains("lbl"))lb2.style.display="block";pb2.style.display="block";}var tag2=card.querySelector(".ch .tag");if(tag2){try{var _pj3=JSON.parse(ev.preview||"{}");if(_pj3&&_pj3.ok){tag2.textContent="Done";tag2.className="tag ok";}else{tag2.textContent="Fail";tag2.className="tag bad";}}catch(e3){}}}}}
-else if(ev.type==="assistant_delta"){if(anyToolThisTurn){flushPendingSteps();}appendAssistantDelta(ev.delta||"");}
-else if(ev.type==="reasoning_delta")appendReasoningDelta(ev);
-else if(ev.type==="reasoning_sync")applyReasoningSync(ev);
-else if(ev.type==="assistant_markdown"){
-if(anyToolThisTurn){flushPendingSteps();}
-(function(){
-var md=ev.markdown;if(typeof md!=="string"||!md.trim())return;
-var e=ensureAssistantStreamBubble();if(!e)return;
-if(streamAssistantText&&!streamAssistantText.endsWith("\n"))streamAssistantText+="\n";
-streamAssistantText+=md.trim()+"\n";
-e.innerHTML=renderMarkdown(streamAssistantText);
-scrollMsgsToBottom();
-})();
-}
-else if(ev.type==="assistant"){if(anyToolThisTurn){flushPendingSteps();}if(!finalizeAssistantStream(ev.content||"")){add("a",ev.content||"");}}
-else if(ev.type==="done"){finalizeAssistantStream("");finishLiveEdits(_ctxTab);_clearServerRunning(packetCid);void refreshConversationTitle(packetCid);}
-else if(ev.type==="stopped"){finishLiveEdits(_ctxTab);markCurrentTurnStoped();resetTurnState();hideChatLoading();if(ev.message)add("a",ev.message);_clearServerRunning(packetCid);}
-else if(ev.type==="paused_for_user_confirm"){_ctxTab.editedHold=true;hideChatLoading();endedAwaitingUserConfirm=true;}
-else if(ev.type==="todo_list"){renderTodoListFromEvent(ev,packetCid);scrollToBottomAfterLayout(msgs,true);}
-else if(ev.type==="error"){hideChatLoading();abortPendingToolTags();if(lastLlm){finishLlmTitle(false);lastLlm.tag.className="tag bad";lastLlm.tag.textContent="Fail";lastLlm=null;}
-if(!anyToolThisTurn){discardPendingSteps();}else{pendingStepEls=[];}
-add("a","错误: "+JSON.stringify(ev.detail||ev));_clearServerRunning(packetCid);}
-});
+const packetCid=normalizeConversationId(ev.conversation_id);if(!packetCid){if(window.DEBUG){console.warn("[SSE recv] 已丢弃（conversation_id 缺失或非法）",{streamCid:String(streamCid||""),type:ev&&ev.type,conversation_id:ev&&ev.conversation_id,ev:ev});console.error("[SSE] 数据包缺少或非法 conversation_id，已跳过渲染（不写入任何会话）",{type:ev&&ev.type,conversation_id:ev&&ev.conversation_id});}continue;}withConversationContext(packetCid,function(_ctxTab){applySseEvent(ev,_ctxTab,packetCid,function(){endedAwaitingUserConfirm=true;});});
 _routeEventBySource(ev);
 }
 }
@@ -79,37 +82,7 @@ if(ev.type==="settings_changed"){try{document.dispatchEvent(new CustomEvent("ai-
 if(ev.type==="plugin_config_changed"){try{document.dispatchEvent(new CustomEvent("ai-agent:plugin-config-saved",{detail:{plugin:String(ev.plugin||"")}}));}catch(_e){}return;}
 if(ev.type==="plugin_event"){try{document.dispatchEvent(new CustomEvent("ai-agent:plugin-event",{detail:ev}));}catch(_e){}return;}
 const packetCid=normalizeConversationId(ev.conversation_id);if(!packetCid)return;
-withConversationContext(packetCid,function(_ctxTab){
-if(ev.type==="conversation"){ensureConversationTab(packetCid);if(ev.mode)_ctxTab.selectedMode=normalizeMode(ev.mode);if(ev.model)_ctxTab.selectedModel=String(ev.model||"");if(renderingContextVisible){if(ev.mode)applyMode(ev.mode,false);if(ev.model)applyModel(ev.model);}}
-else if(ev.type==="run_started"){_ctxTab.activeRunId=String(ev.run_id||"");_ctxTab.abortController=_ctxTab.abortController||{global:true};showChatLoading();}
-else if(ev.type==="mode_changed"&&ev.mode){_ctxTab.selectedMode=normalizeMode(ev.mode);if(renderingContextVisible)applyMode(normalizeMode(ev.mode),false);}
-else if(ev.type==="dispatch_title")addDispatchTitle(ev.title||"");
-else if(ev.type==="llm_round")addLlmRound(ev.round);
-else if(ev.type==="llm_request")onLlmRequest(ev);
-else if(ev.type==="llm_response")onLlmResponse(ev);
-else if(ev.type==="llm_done"){flushPendingToolTags();if(lastLlm){finishLlmTitle(true);lastLlm.tag.className="tag ok";lastLlm.tag.textContent="Done";}}
-else if(ev.type==="usage"){const u=ev.usage||{};const inTok=Number(u.prompt_tokens??0)||0;const outTok=Number(u.completion_tokens??0)||0;const hitTok=Number(u.prompt_cache_hit_tokens??0)||0;const missTok=Number(u.prompt_cache_miss_tokens??0)||0;sessionTokenUsed+=Math.max(0,inTok+outTok);totalPromptTokens+=inTok;totalCompletionTokens+=outTok;totalCacheHitTokens+=hitTok;totalCacheMissTokens+=missTok;_updateUsageBottom();void persistUsageAccumulator();}
-else if(ev.type==="context_compacted"){renderCompactionEvent(ev,_ctxTab);}
-else if(ev.type==="context_layout"){_ctxTab.lastContextLayout=ev;setModelContextWindow(ev.model_max_context_tokens);if(renderingContextVisible&&packetCid===normalizeConversationId(activeConversationId))_updateUsageBottom();}
-else if(ev.type==="tool_start")onToolStart(ev);
-else if(ev.type==="tool_progress")onToolProgress(ev);
-else if(ev.type==="tool_end"){noteLiveEdit(ev,_ctxTab);onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},packetCid);scrollToBottomAfterLayout(msgs,true);}}
-else if(ev.type==="open_session"){var sid=normalizeConversationId(ev.session_id);if(sid){ensureConversationTab(sid);var _ot=findConversationTab(sid);if(_ot)_ot.title=ev.name||("会话 "+sid.slice(0,8));}}
-else if(ev.type==="tool_preview_update"){var tid2=String(ev.tool_call_id||"").trim();if(tid2){var card=findStepCardForToolCall(tid2);if(card){var pb2=card.querySelector("pre.tool-res");if(pb2){try{var _pj2=JSON.parse(ev.preview||"{}");pb2.textContent=JSON.stringify(_pj2,null,2);}catch(e2){pb2.textContent=String(ev.preview||"");}var lb2=pb2.previousElementSibling;if(lb2&&lb2.classList&&lb2.classList.contains("lbl"))lb2.style.display="block";pb2.style.display="block";}}}}
-else if(ev.type==="assistant_delta"){if(anyToolThisTurn){flushPendingSteps();}appendAssistantDelta(ev.delta||"");}
-else if(ev.type==="reasoning_delta")appendReasoningDelta(ev);
-else if(ev.type==="reasoning_sync")applyReasoningSync(ev);
-else if(ev.type==="assistant_markdown"){if(anyToolThisTurn){flushPendingSteps();}var md=ev.markdown;if(typeof md==="string"&&md.trim()){var e=ensureAssistantStreamBubble();if(e){if(streamAssistantText&&!streamAssistantText.endsWith("\n"))streamAssistantText+="\n";streamAssistantText+=md.trim()+"\n";e.innerHTML=renderMarkdown(streamAssistantText);scrollMsgsToBottom();}}}
-else if(ev.type==="assistant"){if(anyToolThisTurn){flushPendingSteps();}if(!finalizeAssistantStream(ev.content||"")){add("a",ev.content||"");}}
-else if(ev.type==="peer_message"){addPeerMessage(ev.content||"",ev.sender_name||"",ev.sender||"");}
-else if(ev.type==="queued_user"){var _qb=add("u",ev.content||"（截图）",ev);var _qa=Array.isArray(ev.attachments)?ev.attachments:[];if(_qa.length&&_qb&&window.AIA&&AIA.buildMsgAttachStrip){try{_qb.appendChild(AIA.buildMsgAttachStrip(packetCid,null,_qa));}catch(_qe){}}}
-else if(ev.type==="queue_updated"){if(typeof onQueueUpdated==="function")onQueueUpdated(ev);}
-else if(ev.type==="done"){finalizeAssistantStream("");finishLiveEdits(_ctxTab);_ctxTab.abortController=null;_ctxTab.activeRunId="";hideChatLoading();updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();void refreshConversationTitle(packetCid);}
-else if(ev.type==="stopped"){finishLiveEdits(_ctxTab);markCurrentTurnStoped();resetTurnState();hideChatLoading();if(ev.message)add("a",ev.message);_ctxTab.abortController=null;_ctxTab.activeRunId="";updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();}
-else if(ev.type==="paused_for_user_confirm"){_ctxTab.editedHold=true;hideChatLoading();}
-else if(ev.type==="todo_list"){renderTodoListFromEvent(ev,packetCid);scrollToBottomAfterLayout(msgs,true);}
-else if(ev.type==="error"){hideChatLoading();abortPendingToolTags();if(lastLlm){finishLlmTitle(false);lastLlm.tag.className="tag bad";lastLlm.tag.textContent="Fail";lastLlm=null;}if(!anyToolThisTurn){discardPendingSteps();}else{pendingStepEls=[];}add("a","错误: "+JSON.stringify(ev.detail||ev));_ctxTab.abortController=null;_ctxTab.activeRunId="";updateTaskControls();if(typeof renderChatTabs==="function")renderChatTabs();}
-});
+withConversationContext(packetCid,function(_ctxTab){applySseEvent(ev,_ctxTab,packetCid,null);});
 _routeEventBySource(ev);
 }
 function startGlobalSse(){

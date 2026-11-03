@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict
 
 from agent.capabilities.registry import ToolPlugin
+from agent.common.status import PREVIEW_ALREADY_APPLIED, PREVIEW_PENDING
 from agent.mechanisms.file_safety import FileBackups
 from agent.mechanisms.quality import change_payload, diff_text
 
@@ -55,7 +56,7 @@ class WriteFileTool(ToolPlugin):
         if target.is_file() and old_text == content:
             return {
                 "path": str(target),
-                "status": "already_applied",
+                "status": PREVIEW_ALREADY_APPLIED,
                 "applied": False,
                 "needs_commit": False,
                 "exists": True,
@@ -67,7 +68,7 @@ class WriteFileTool(ToolPlugin):
         out: Dict[str, Any] = {
             "path": str(target),
             "preview": True,
-            "status": "pending",
+            "status": PREVIEW_PENDING,
             "bytes": len(payload),
             "exists": target.is_file(),
             # 变更预览（Web 壳文件编辑 / diff 卡片用；不落盘，仅供展示）

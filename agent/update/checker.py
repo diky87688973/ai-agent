@@ -7,6 +7,13 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Optional
 
+from agent.common.status import (
+    UPDATE_AVAILABLE,
+    UPDATE_CHANNEL_MISMATCH,
+    UPDATE_CHECK_FAILED,
+    UPDATE_DISABLED,
+    UPDATE_UP_TO_DATE,
+)
 from agent.core.error_report import report_error
 from agent.update.manifest import MAX_MANIFEST_BYTES, UpdateManifest, parse_manifest
 from agent.update.version import current_version, is_newer
@@ -45,15 +52,16 @@ def check(root=None, url: Optional[str] = None) -> UpdateStatus:
     local = current_version(root)
     target = str(url if url is not None else manifest_url()).strip()
     if not target:
-        return UpdateStatus(False, str(local), "", "", None, "disabled")
+        return UpdateStatus(False, str(local), "", "", None, UPDATE_DISABLED)
     try:
         manifest = fetch_manifest(target)
     except Exception as exc:
         report_error("agent.update.checker.check", exc)
-        return UpdateStatus(False, str(local), "", "", None, f"check_failed: {type(exc).__name__}")
+        return UpdateStatus(False, str(local), "", "", None,
+                            f"{UPDATE_CHECK_FAILED}: {type(exc).__name__}")
     if manifest.channel != "stable":
         return UpdateStatus(False, str(local), str(manifest.version), manifest.channel,
-                            None, "channel_mismatch")
+                            None, UPDATE_CHANNEL_MISMATCH)
     available = is_newer(manifest.version, local)
     return UpdateStatus(
         available,
@@ -61,5 +69,5 @@ def check(root=None, url: Optional[str] = None) -> UpdateStatus:
         str(manifest.version),
         manifest.channel,
         manifest,
-        "available" if available else "up_to_date",
+        UPDATE_AVAILABLE if available else UPDATE_UP_TO_DATE,
     )

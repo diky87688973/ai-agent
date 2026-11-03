@@ -1,11 +1,28 @@
-**English** | [中文](visual-operator.zh.md)
+﻿# Visual Operator (`visual_operator` plugin)
 
-# Visual Operator (`visual_operator` plugin)
+## 1. Overview
 
 Visual Operator turns screen viewing and mouse/keyboard operation into desktop interaction tools, letting the model read the screen, locate targets, click, type, and wait on a real desktop; the baseline is four coordinate tools, with window, app, open, UIA, and batch tools layered on top. Screenshots are returned as image attachments; the plugin keeps only coordinate-mapping metadata and does not retain screenshot files. Mouse and keyboard input actions are serialized through an input lock. The plugin mechanism itself is described in [plugins.md](plugins.md).
 
-## Package layout
+## 2. Slots
 
+### Exposed
+
+| Slot path | Capability | Key attributes | Replacement / override |
+|---|---|---|---|
+| `app/shell/web-ui/input/buttons/visual_btn` | UI slot | owner=plugin; declared path; removed on unload | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `backend/tools/vision_*` | tool or executor | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+| `backend/http/routes/visual-*` | HTTP endpoint | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+### Required
+
+| Dependency path | Capability | Provider | Why |
+|---|---|---|---|
+| `app/boot/facade` | boot node | host | must be ready before assembly; unavailable propagates as startup/request failure |
+| `app/host/services/contributions` | host service | host | must be ready before assembly; unavailable propagates as startup/request failure |
+
+## 3. Slot capabilities
+
+### Package layout
 ```
 plugins/visual_operator/
   plugin.py                  entry point: loads config, selects backend, registers visual tools
@@ -49,8 +66,7 @@ plugins/visual_operator/
     _unavailable.py          other platforms: report a clear reason at call time
 ```
 
-## Tool surface
-
+### Tool surface
 | Tool | Direction | Capability |
 |---|---|---|
 | `desktop_eye` | Model input | Captures the full screen, a region, or a window, overlays a coordinate grid, and returns the result as an image attachment; `hover` can expand hover-only controls before capture |
@@ -60,7 +76,7 @@ plugins/visual_operator/
 
 The table above lists the four baseline tools only; window, app launch, open, UIA text location, rectangle click, and batch tools are layered on top and share the same registration point. Each tool declares its own complete JSON Schema instead of sharing one multi-action tool. The action matrix in `tools/_params.py` validates which arguments belong to each action: arguments for another action are rejected rather than silently ignored.
 
-### `desktop_eye`
+#### `desktop_eye`
 
 | Parameter | Description |
 |---|---|
@@ -116,13 +132,13 @@ With `grid_unit=image`, grid labels and the cursor label are in image pixels; th
 
 A single screenshot is limited to 40 million pixels; above that the call fails and asks for a region instead.
 
-### Windows with the same title
+#### Windows with the same title
 
 On Windows, `window` is a case-insensitive title fragment, and several windows may match at once (self-drawn applications commonly have a main window, a player layer, and a hidden helper window). Candidates are ordered by foreground → Z-order → area (largest first), not by area alone: the window in front of the user is almost always the intended target, while the largest window may be a player layer covering the content.
 
 When more than one window matches, the receipt's `window` includes `matched` and `alternatives` (up to four), and `note` states how many matched, which one was selected, and the other hwnds. A bare match count does not identify the remaining windows, so the receipt names them.
 
-### Scaling and conversion
+#### Scaling and conversion
 
 Full-screen images are usually shrunk to `max_side`; window images often stay below the limit and are sent at native size. Image coordinates may be scaled, and the origin may be negative for window shadows.
 
@@ -137,7 +153,7 @@ screen_y = capture.y + image_y * capture.height / image.height
 
 For detail that is hard to read, capture a region: regions are usually sent at native size. For small targets, `grid_step=20–40` gives a finer grid so coordinates can be read directly instead of estimated within a 50 px cell.
 
-### `desktop_mouse`
+#### `desktop_mouse`
 
 | `action` | Required | Optional |
 |---|---|---|
@@ -175,7 +191,7 @@ Actions that change the interface (`click` / `drag` / `scroll`) also return thre
 
 With `shot`, the returned body is the capture receipt and the action result is in `performed`. The image follows the window where the action actually landed (`shot_of: "hit"`), not a re-resolution by `window` title: a click may land on a separate top-level player window while the title selects another window hosting the detail page. An explicit `window` / `hwnd` takes precedence (`shot_of: "window"` / `"hwnd"`); when neither is present and no landed window is available, the capture falls back to the screen (optionally `shot_region`). If the landed window differs from the activated window, `note` states both hwnds. `shot` is available for `move` / `click` / `drag` / `scroll`; `cursor` is a read-only query and rejects it. `move` returns an image only and does not compute `hit` / `changed`: movement does not change the interface, but hovering may expand controls, so the image remains useful.
 
-### `desktop_keyboard`
+#### `desktop_keyboard`
 
 | `action` | Parameters |
 |---|---|
@@ -187,7 +203,7 @@ All actions also accept `window` / `hwnd`: the target is restored and brought to
 
 Key names are normalized before dispatch: `return` → `enter`, `escape` → `esc`, `control` → `ctrl`, `option` → `alt`, `command` / `meta` / `super` → `cmd`, `windows` → `win`, `pgup` / `page_up` → `pageup`, `pgdn` / `page_down` → `pagedown`; direction keys, `f1`–`f20`, letters, digits, and the single-character keys `-`, `=`, `[`, `]`, `;`, `'`, `,`, `.`, `/`, `\`, and the backtick. Hotkeys contain 2–4 keys, at least one of which is not a modifier, separated by `+` or `,`.
 
-### `desktop_wait`
+#### `desktop_wait`
 
 | Parameter | Description |
 |---|---|
@@ -206,8 +222,7 @@ For `window_appears` / `window_disappears`, when the condition is already true a
 
 `desktop_wait` is read-only and available in Plan mode. It does not take the input lock.
 
-## Interface display
-
+### Interface display
 Each tool title is followed by a one-line execution summary. The summary uses the target from the arguments when present and is completed from the receipt after execution:
 
 | Tool | Summary | Examples |
@@ -223,16 +238,14 @@ The detail view matches `read_image`: the custom view contains the image and met
 
 The countdown is computed entirely in the frontend from the arguments; the server does not push timer frames. The `desktop_wait` timeout is only an upper bound: if the count reaches zero before the tool result arrives, the summary changes to `已超时 3 秒` and keeps counting until `tool_end`. On completion the timer stops and the title appends the actual wait from the receipt (`窗口出现 -> 编辑器 · 0 秒`); no “satisfied” or “not satisfied” text is added, since completion is expressed by `done` and the title color. Duration text is rendered in seconds, minutes, hours, and days, so `86400 秒` becomes `1 天` and multi-day waits need no conversion. A history replay (page refresh, switching back to a session) does not restart the countdown: that wait has already finished, and counting down from the total again would read as still waiting.
 
-## Coordinate contract
-
+### Coordinate contract
 - The default coordinate space is screen coordinates: physical pixels on Windows, global display points on macOS. With `grid_unit=image`, grid and cursor labels use image pixels; image coordinates reach `desktop_mouse`, `desktop_click_region`, or `desktop_type_into` only through `capture_id` and are not used directly as screen coordinates.
 - On high-DPI macOS displays a screenshot has twice as many pixels as points: `pixel_ratio` records the ratio, and mouse coordinates are still delivered in points.
 - Grid lines are placed by the ratio from the screen rect to the sent image size; with `grid_unit=image`, label values are derived from the same ratio. High-DPI captures are not offset by half a screen.
 - `capture` is the screen rect of the screenshot; its origin is the top-left of the window or crop and may be negative. `image_to_screen` provides `scale_x` / `scale_y` / `ox` / `oy`; conversion is server-side.
 - With multiple monitors, the screen rect is the union of the virtual desktop; the top-left may be negative (a secondary display left of the main display). When scaling differs, a `note` reports that cross-screen coordinates may be slightly off.
 
-## Capture processing
-
+### Capture processing
 `canvas.render()` is the shared post-processing path for every platform:
 
 1. Decode the PNG; a decode failure raises `ScreenCaptureFailed`.
@@ -242,8 +255,35 @@ The countdown is computed entirely in the frontend from the arguments; the serve
 5. With `cursor_mark` enabled, draw a short crosshair near the cursor only: black halo, white separator, bright green core, a small ring, and a `CURSOR` label with the coordinates. The crosshair center is left empty so the target pixel remains visible, and it does not cover the whole image. For a short side below 140, only the coordinates are drawn, without the `CURSOR` prefix and without a black background; below 90, no label is drawn and the coordinates come only from the receipt's `cursor` field. Font size is derived from the image scale and short side so the on-screen appearance is consistent across scales; label units follow `grid_unit`.
 6. Encode as PNG for `desktop_eye` to attach.
 
-## Configuration
+### Platform backends
+#### Windows
 
+- Capture: full-screen capture uses `GetDC(NULL)` + `BitBlt(SRCCOPY | CAPTUREBLT)` + `GetDIBits` over virtual-desktop coordinates, including secondary displays at negative coordinates. Window capture uses `PrintWindow(PW_RENDERFULLCONTENT)` to obtain the window's own redraw, so occluded content is available. Pixels are encoded directly from `BGRX` as PNG with no extra flip.
+- Fallback: when `PrintWindow` returns a uniform frame (including all black), the backend retries until the repaint deadline. If content is still unavailable and the window is visible, it falls back to a screen grab and sets `source` to `screen`; an invisible window that yields no content raises `ScreenCaptureFailed`.
+- Hit probing: `WindowFromPoint` gets the child window at the coordinate, `GetAncestor(GA_ROOT)` gets its top-level window, and `GetClassNameW` gets the control class. When probing fails, `hit` is omitted rather than guessed.
+- Window list: `EnumWindows` enumerates visible top-level windows, skipping tool windows and off-screen helper windows. It is used only for `window_changed` comparisons and never enters the context.
+- DPI: awareness is declared at load time as per-monitor v2; if the host has already declared awareness, the host's choice remains in effect. On failure the backend falls back to `SetProcessDpiAwareness` and then `SetProcessDPIAware`.
+- Input: positioning uses `SetCursorPos`; buttons and keys use `SendInput`. Text uses `KEYEVENTF_UNICODE` (surrogate pairs are split into two UTF-16 units); function keys and hotkeys use virtual-key codes.
+- Known boundaries: lock screens and the UAC secure desktop cannot be captured; input sent to a window at a higher integrity level is dropped by the system; mixed-scale multi-monitor layouts may still have small offsets at the system level.
+- Window capture, hit probing, and the window list are implemented only in the Windows backend.
+
+#### macOS
+
+- Capture: `/usr/sbin/screencapture -x -t png -R x,y,w,h <tempfile>`, with the region in global display coordinates (points). Image pixels are scaled by the display ratio; `geometry` reports `pixel_ratio` using `CGDisplayPixelsWide`. The temporary file is removed after reading.
+- Input: CoreGraphics `CGEventCreateMouseEvent` / `CGEventCreateKeyboardEvent`; text is injected with `CGEventKeyboardSetUnicodeString`, and hotkeys set modifier flags on the events.
+- Permissions: screen recording is required for capture and accessibility for input. A missing permission raises `DesktopPermissionDenied`, and the message points to the corresponding switch under System Settings → Privacy & Security.
+- Capability boundary: the macOS backend has no window port or hit port. `window` / `hwnd` on `desktop_eye`, on `desktop_mouse` actions other than `cursor`, on `desktop_keyboard`, and in window-based `desktop_wait` conditions or window-region comparisons raises `DesktopUnavailable`. `desktop_eye(hover=...)` moves the cursor and captures the screen composite but does not auto-select the window under the cursor. `hit` is absent, and `window_changed` reports only `changed: false`. Input goes to the current foreground application; the caller brings the target forward by other means.
+
+#### Other platforms
+
+Linux and unrecognized platforms use the unavailable backend: tools are still registered, and screen capture or input raises `DesktopUnavailable`. This keeps the tool table stable across machines and CI, so the model sees a clear reason instead of tools that disappear. A backend assembly failure writes one diagnostic to stderr and falls back to the same unavailable backend.
+
+### Tests
+`tests/test_visual_operator.py` covers coordinates, key names, configuration, capture processing (scaling, grid, blank frames, bad data), the action matrices and return values of all tools, `hover` / `hover_path` / `hover_wiggle` / `shot` / `hit` / `changed` / `window_changed` / `navigated`, condition waits, same-title window disambiguation, Plan gating, the input lock, and the platform tables plus backend availability. On Windows it additionally checks that the virtual-key table covers every canonical key name and that UTF-16 surrogate pairs are split. Backends in tests are recording doubles; the tests do not move the real cursor or inject real keys.
+
+## 4. Details
+
+### Configuration
 Identity is in `plugin-meta.json`. The plugin is enabled in `plugins.ini`; capability switches and timing values are in `plugin-config.ini`.
 
 ```ini
@@ -278,38 +318,12 @@ wait_interval_ms = 200
 
 A missing file, a missing section, or an unparsable value falls back to the default; out-of-range integers are clamped to the boundary. Configuration errors do not block tool registration. When the grid is enabled, the effective `grid_step` appears in the receipt; the scaling produced by `max_side` appears in `image` and `note`. Other keys are not echoed.
 
-## Platform backends
-
-### Windows
-
-- Capture: full-screen capture uses `GetDC(NULL)` + `BitBlt(SRCCOPY | CAPTUREBLT)` + `GetDIBits` over virtual-desktop coordinates, including secondary displays at negative coordinates. Window capture uses `PrintWindow(PW_RENDERFULLCONTENT)` to obtain the window's own redraw, so occluded content is available. Pixels are encoded directly from `BGRX` as PNG with no extra flip.
-- Fallback: when `PrintWindow` returns a uniform frame (including all black), the backend retries until the repaint deadline. If content is still unavailable and the window is visible, it falls back to a screen grab and sets `source` to `screen`; an invisible window that yields no content raises `ScreenCaptureFailed`.
-- Hit probing: `WindowFromPoint` gets the child window at the coordinate, `GetAncestor(GA_ROOT)` gets its top-level window, and `GetClassNameW` gets the control class. When probing fails, `hit` is omitted rather than guessed.
-- Window list: `EnumWindows` enumerates visible top-level windows, skipping tool windows and off-screen helper windows. It is used only for `window_changed` comparisons and never enters the context.
-- DPI: awareness is declared at load time as per-monitor v2; if the host has already declared awareness, the host's choice remains in effect. On failure the backend falls back to `SetProcessDpiAwareness` and then `SetProcessDPIAware`.
-- Input: positioning uses `SetCursorPos`; buttons and keys use `SendInput`. Text uses `KEYEVENTF_UNICODE` (surrogate pairs are split into two UTF-16 units); function keys and hotkeys use virtual-key codes.
-- Known boundaries: lock screens and the UAC secure desktop cannot be captured; input sent to a window at a higher integrity level is dropped by the system; mixed-scale multi-monitor layouts may still have small offsets at the system level.
-- Window capture, hit probing, and the window list are implemented only in the Windows backend.
-
-### macOS
-
-- Capture: `/usr/sbin/screencapture -x -t png -R x,y,w,h <tempfile>`, with the region in global display coordinates (points). Image pixels are scaled by the display ratio; `geometry` reports `pixel_ratio` using `CGDisplayPixelsWide`. The temporary file is removed after reading.
-- Input: CoreGraphics `CGEventCreateMouseEvent` / `CGEventCreateKeyboardEvent`; text is injected with `CGEventKeyboardSetUnicodeString`, and hotkeys set modifier flags on the events.
-- Permissions: screen recording is required for capture and accessibility for input. A missing permission raises `DesktopPermissionDenied`, and the message points to the corresponding switch under System Settings → Privacy & Security.
-- Capability boundary: the macOS backend has no window port or hit port. `window` / `hwnd` on `desktop_eye`, on `desktop_mouse` actions other than `cursor`, on `desktop_keyboard`, and in window-based `desktop_wait` conditions or window-region comparisons raises `DesktopUnavailable`. `desktop_eye(hover=...)` moves the cursor and captures the screen composite but does not auto-select the window under the cursor. `hit` is absent, and `window_changed` reports only `changed: false`. Input goes to the current foreground application; the caller brings the target forward by other means.
-
-### Other platforms
-
-Linux and unrecognized platforms use the unavailable backend: tools are still registered, and screen capture or input raises `DesktopUnavailable`. This keeps the tool table stable across machines and CI, so the model sees a clear reason instead of tools that disappear. A backend assembly failure writes one diagnostic to stderr and falls back to the same unavailable backend.
-
-## Gating and concurrency
-
+### Gating and concurrency
 - Plan mode: `desktop_eye` without `hover` is allowed; with `hover` it is rejected because it moves the real cursor. The gate does not inspect `activate`, so `activate=true` can still bring a window to the foreground in Plan mode. `desktop_mouse` allows only `cursor`; every other action, and every `desktop_keyboard` action, raises `ModeConflict`. `desktop_wait` is read-only and allowed. The gate reads `live_state` per session; when it is unavailable at load time it is read at execution time, and if no state is available no gate is applied.
 - Input lock: `desktop_mouse` and `desktop_keyboard` share one process-wide lock, so only one of their actions delivers input at a time; waiting more than 10 seconds raises `DesktopBusy`. Drag down and up are always paired. Cursor movement for `desktop_eye` hover does not take this lock.
 - Coordinate validation: before an action, target points are checked against the screen rect; off-screen coordinates raise. Actions without coordinates use the current cursor position and have no point to validate.
 
-## Failure messages
-
+### Failure messages
 | Exception | Meaning |
 |---|---|
 | `DesktopUnavailable` | Platform unsupported, Pillow missing, or backend assembly failed |
@@ -318,12 +332,10 @@ Linux and unrecognized platforms use the unavailable backend: tools are still re
 | `DesktopBusy` | Another desktop action holds the input lock |
 | `DesktopError` | Other system-call failure, with a WinError or the call name |
 
-## Tests
+## 5. Further reading
 
-`tests/test_visual_operator.py` covers coordinates, key names, configuration, capture processing (scaling, grid, blank frames, bad data), the action matrices and return values of all tools, `hover` / `hover_path` / `hover_wiggle` / `shot` / `hit` / `changed` / `window_changed` / `navigated`, condition waits, same-title window disambiguation, Plan gating, the input lock, and the platform tables plus backend availability. On Windows it additionally checks that the virtual-key table covers every canonical key name and that UTF-16 surrogate pairs are split. Backends in tests are recording doubles; the tests do not move the real cursor or inject real keys.
-
-## Further reading
-
-- [plugins.md](plugins.md): plugin package form, extension points, and lifecycle
-- [tools.md](tools.md): tool registration, execution pipeline, and image attachments
-- [llm.md](llm.md): image blocks in multimodal requests
+| Topic | Document |
+|---|---|
+| plugin package form, extension points, and lifecycle | [plugins.md](plugins.md) |
+| tool registration, execution pipeline, and image attachments | [tools.md](tools.md) |
+| image blocks in multimodal requests | [llm.md](llm.md) |

@@ -167,6 +167,10 @@ class WebFetchTool(ToolPlugin):
     label = "抓取网页内容"
     icon = "🌐"
     description = "抓取网页（urllib 无第三方依赖）并提取纯文本；支持超时、长度限制、min_chars/require_keywords 验收与落盘。"
+    # `out_file` 是写路径：必须走四步预览，不能在这里直接 write_text。
+    needs_preview = True
+    prompt_preview = False
+    write_path_keys = ("out_file",)
     parameters = {
         "url": {"type": "string", "description": "http/https 完整 URL"},
         "timeout_sec": {"type": "integer", "description": "连接+读响应总超时秒数（默认 20）"},
@@ -215,12 +219,19 @@ class WebFetchTool(ToolPlugin):
             out_f = str(arguments.get("out_file") or "").strip()
             if out_f:
                 fp = Path(out_f)
-                fp.parent.mkdir(parents=True, exist_ok=True)
-                fp.write_text(str(data.get("text", "")), encoding="utf-8")
                 data["out_file"] = str(fp)
-                data["written"] = True
+                data["written"] = False
+                data["needs_commit"] = True
+                # 快照必须带上这次抓到的正文：提交时只凭 confirm_id 分派，
+                # 不能再抓一遍（内容会变，review 的就不是同一份文本了）。
+                data["_preview_arguments"] = {
+                    **dict(arguments or {}),
+                    "out_file": str(fp),
+                    "text": str(data.get("text", "")),
+                }
             else:
                 data["written"] = False
+                data["needs_commit"] = False
 
             if not passed:
                 raise WebFetchError(
@@ -318,3 +329,23 @@ class WebFetchRenderTool(ToolPlugin):
 def build_plugins() -> List[ToolPlugin]:
     """构造本组工具（web_fetch / web_fetch_render）。"""
     return [WebFetchTool(), WebFetchRenderTool()]
+
+
+def build_executors() -> Dict[str, Any]:
+    """web_fetch 的提交执行器：从预览快照取正文并写 out_file。"""
+
+    def execute(arguments: Dict[str, Any]) -> Dict[str, Any]:
+        out_f = str(arguments.get("out_file") or "").strip()
+        if not out_f:
+            raise ValueError("预览快照不完整：请重新用 web_fetch 预览")
+        text = str(arguments.get("text") or "")
+        target = Path(out_f)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        return {
+            "path": str(target),
+            "written": True,
+            "bytes": len(text.encode("utf-8")),
+        }
+
+    return {"web_fetch": execute}

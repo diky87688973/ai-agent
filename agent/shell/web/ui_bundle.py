@@ -22,6 +22,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
+from agent.core.error_report import report_error
+
 CLASSIC_DIR = (Path(__file__).resolve().parents[3] / "plugins" / "web_ui" / "ui" / "classic")
 
 #: 经典界面 JS 模块（相对 `classic/js/`，顺序即脚本执行顺序）。
@@ -61,6 +63,7 @@ UI_JS_MODULES = (
     "chat/background-tasks.js",
     "chat/subagents.js",
     "shell/window-chrome.js",
+    "layout/init.js",
 )
 
 #: 主脚本之前加载的脚本（vendor 与独立工具）。顺序同样有意义。
@@ -128,7 +131,8 @@ def _read(path: Path) -> str:
     """读素材；缺文件时给空串——缺一个高亮库不该让整个页面 500。"""
     try:
         return path.read_text(encoding="utf-8")
-    except OSError:
+    except OSError as exc:
+        report_error("agent.shell.web.ui_bundle._read", exc, path=str(path))
         return ""
 
 
@@ -190,14 +194,3 @@ def inline_ui_html(version: Optional[str] = None) -> str:
         .replace("{{agent-ui.js}}", build_inline_js())
         .replace("{{APP_VERSION}}", str(version or APP_VERSION))
     )
-
-
-def classic_assets_present() -> bool:
-    """素材是否齐全（供 /health 自检）。"""
-    js_sources = {
-        CLASSIC_DIR / rel for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES
-    }
-    css_sources = {CLASSIC_DIR / "css" / rel for rel in UI_CSS_MODULES}
-    return all(p.is_file() for p in (
-        _HTML_FILE, _HLJS_DARK_CSS, _HLJS_LIGHT_CSS, *js_sources, *css_sources,
-    ))

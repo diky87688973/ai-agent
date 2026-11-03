@@ -2,9 +2,135 @@
 
 # Architecture
 
-The code is organized into five layers. Each request flows through entry, shell, capabilities, mechanisms, and core.
+The application is assembled from a plugin tree. Tools, models, UI, settings, and business integrations register as plugin contributions, and can be replaced, enabled, or composed per node without changing the kernel or shell.
 
 For module structure, single responsibility, and asset ownership rules, see [Engineering standards](engineering-standards.md).
+
+## Plugins and composition
+
+### Startup assembly
+
+The app starts its own base assembly tree first, then scans extra plugins; plugin assembly declarations are merged before recursive assembly.
+
+```text
+Startup flow (whole app)
+App starts
+  |
+  |-- read agent/boot/slot_tree.json
+  |     `-- base tree: kernel / host / tools / shell / facade
+  |
+  |-- scan plugins/ (plugin tree: enabled plugins + declarations)
+  |     |-- plugins.ini           enable + order
+  |     `-- plugin-assembly.json  extra plugin assembly declarations
+  |
+  |-- merge
+  |     |-- replace / add app/... subtree
+  |     `-- auth subtree: frozen
+  |
+  `-- SlotTree recursive assembly
+        |
+        v
+     App facade ready (no component list)
+
+App runtime
+  plugin.py -- register(ctx) --> backend slots / UI slots / settings / routes
+                                `-- dynamic nodes attach to the same SlotTree
+```
+
+### Slot-tree boot model
+
+The **slot tree itself is the boot assembly graph**. `app.py` is an application facade, not the assembler.
+
+```text
+app
+→ host
+   → services
+      → background_tasks
+      → <new service id>
+→ kernel
+   → modules
+      → context
+      → <new module id>
+→ backend
+   → tools / context / prompt / models / runtime / ...
+→ settings
+→ shell
+```
+
+Rules:
+
+1. `app` is the only root. Every node path must fall under `app/*`; `backend/*` must also become `app/backend/*`.
+2. Container nodes assemble children only; leaf nodes provide a factory or instance.
+3. A node contract contains at least:
+
+   ```text
+   path
+   kind
+   factory / provider
+   dependencies
+   lifecycle
+   enabled
+   scope
+   children policy
+   ```
+
+4. The bootstrapper validates the dependency graph first, then assembles in topological order. Missing dependencies, cycles, duplicate nodes, and factory failures fail explicitly.
+5. `app` depends only on the slot tree, node contracts, and the generic assembler. It does not import concrete modules or branch on module ids.
+6. A new module is a new node plus a factory; `app` main flow does not change.
+7. Disable, replace, and unload are handled by node bindings and lifecycle. Failed boot rolls back without half-assembled instances.
+8. Modules depend only on public contracts. Containers and `app` do not know module internals. Each module remains independently testable.
+
+Acceptance:
+
+```text
+app.py contains no concrete module imports
+adding app/host/services/<id> does not change app.py
+adding app/kernel/modules/<id> does not change app.py
+removing a node fails explicitly when dependencies are missing
+all paths have a single app root
+failed boot rolls back atomically
+each module can be tested alone
+```
+
+Current status:
+
+- `SlotTree` / `SlotRuntime` / `SlotComponent` / `SlotContainer` live in `agent/core/`.
+- The boot manifest is [slot_tree.json](../agent/boot/slot_tree.json); it currently contains 67 nodes under `app/boot`, `app/host`, `app/kernel`, and the frozen `app/auth` boundary, plus 23 backend slot declarations.
+- `App` is no longer the composition root; [bootstrap.py](../agent/boot/bootstrap.py) loads the manifest, creates roots, and assembles recursively.
+- Node contracts include `path`, `factory`, `requires`, `master`, `enabled`, and `metadata`; containers assemble direct children only.
+- Host services, built-in tools, shell components, and kernel module descriptors are assembled from boot nodes.
+- UI, settings, route, and backend contribution paths are data in `plugins/<name>/plugin-ui.json`; backend containers are declared in `backend_slots` in `agent/boot/slot_tree.json`; `PluginContext` registers them as dynamic nodes of the same `SlotTree`.
+- `SlotRegistry` remains the runtime binding and snapshot mechanism for plugin extension points; boot components and plugin contributions are both held by `SlotTree`.
+- `app.py` is an application facade for session, binding, and command entry.
+
+The boot path is now tree-driven. Plugin-owned contributions remain runtime extension points.
+
+### Plugin settings contract
+
+Plugins declare settings panels and items; they do not render host settings DOM.
+
+```text
+plugin: add_settings_panel(panel_id, title)
+plugin: add_settings_item(parent, item_id, kind, label, options, save, load)
+host:   renders typed controls and submits plugin values through the generic settings entry
+plugin: save callback persists and applies its own value, then returns success/failure
+```
+
+Settings IDs are `settings`, `settings/<panel>`, and `settings/<panel>/<item>`. The registered `kind` determines the control: `text`, `search`, `number`, `select`, `checkbox`, `textarea`, `password`. Save callbacks belong to the registering plugin; the plugin system only routes, aggregates, and broadcasts. Unloading a plugin removes its panels and items immediately; the plugin retains its own persisted values for the next enable.
+
+### Composition
+
+`boot_app()` performs startup in order:
+
+1. Read configuration (`agent/config.py`) to decide provider, data root, Skills source, and plugin manifest.
+2. Load `agent/boot/slot_tree.json`; `SlotTree` materializes roots and assembles recursively.
+3. The `facade` node builds `AppContext` and `App`; the `plugins` node loads plugins and attaches contributions as dynamic nodes of the same tree.
+4. Return `App`, whose attributes are shortcuts to `context.get(name)`.
+
+`build_shell_app()` in `agent/entry/web.py` wraps this: it builds the real provider and session store from configuration, then passes them to `build_app()`.
+The composition root (`boot/`) and entry layer (`entry/`) are the top two layers: the lower four layers must not import them at runtime, and no layer may import `entry/`. Entry imports the composition root. `python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` are the three process entries.
+
+The five layers below are the base the plugin tree runs on; they are not the plugin list.
 
 ## Five-layer structure
 
@@ -16,11 +142,13 @@ entry  →  shell  →  capabilities  →  mechanisms  →  core
 
 | Layer | Directory | Responsibility | Depends on |
 |---|---|---|---|
-| L0 Core | `agent/core/` | Module chain, host loop, event and data contracts, ports | None |
-| L1 Mechanisms | `agent/mechanisms/` | Model calls, context pipeline and compaction, write gates, session storage, collaboration mesh | core |
-| L2 Capabilities | `agent/capabilities/` | Tool registry, built-in tools, plugin loading | core, mechanisms |
-| L3 Shell | `agent/shell/` | HTTP + SSE service, UI bundling, system prompts, classic UI adapter | All lower layers |
-| L4 Entry | `agent/entry/` | Process entry: read config → build `App` → hand to shell | All lower layers |
+| L0 Core | `agent/core/` | Module chain, host loop, event and data contracts, ports | common |
+| L1 Mechanisms | `agent/mechanisms/` | Model calls, context pipeline and compaction, write gates, session storage, collaboration mesh | core, common |
+| L2 Capabilities | `agent/capabilities/` | Tool registry, built-in tools, plugin loading | core, mechanisms, common |
+| L3 Shell | `agent/shell/` | HTTP + SSE service, UI bundling, system prompts, classic UI adapter | All lower layers, common |
+| L4 Entry | `agent/entry/` | Process entry: read config → build `App` → hand to shell | All lower layers, common |
+
+`agent/common/` is shared status vocabulary imported by all layers. It has no dependencies and is not a layer.
 
 ### Packages within layers
 
@@ -34,10 +162,11 @@ entry  →  shell  →  capabilities  →  mechanisms  →  core
 | `agent/shell/classic_adapter/` | Inbound/outbound facade, history, layout, state, sessions, classic contracts |
 | `agent/shell/web/` | Routes, static assets, classic page/SSE, plugin endpoints, WebShell actions |
 | `agent/subagent/` | Parent/child session repository, batches, lifecycle, message delivery; injected by the composition root, not implemented by shell |
+| `agent/common/` | Shared status vocabulary for subsystems; no behavior and no imports from layers |
 | `plugins/<name>/` | Plugin-owned tools, configuration, UI, themes, and icons |
 
-`agent/app.py` is the **composition root** and belongs to no layer. It is the only file that references all five layers; it builds `AppContext` and registers services.
-The lower four layers must not import the composition root or entry at runtime (pure type-checking imports under `if TYPE_CHECKING:` are exempt); entry may import the composition root.
+`agent/boot/` is the **composition root** and belongs to no layer. `boot_app` reads `slot_tree.json`, assembles recursively, and produces the application facade.
+The lower four layers must not import the composition root, the application facade, or entry at runtime (pure type-checking imports under `if TYPE_CHECKING:` are exempt); entry may import the composition root.
 The same gate enforces this rule and layer direction. `--scc` prints package-level strongly connected components for auditing.
 
 ## Two tracks: decision chain and event bus
@@ -99,7 +228,7 @@ class Ports:
     def canceled()          # whether the host requested a stop
 ```
 
-The request contract is `LogicalRequest`: model-independent `messages` / `tools` / `system` / `effort` / `model` / `conversation_id`. A provider translates it into a gateway's wire format.
+The request contract is `LogicalRequest`: model-independent `messages` / `tools` / `effort` / `model` / `turn_start` / `conversation_id`. A provider translates it into a gateway's wire format.
 
 Available entries on `Ports`: `model_port`, `tool_port`, `log` (read-only fact view), `conversation_id`, `emit`, and `canceled`. Every external capability a module needs goes through these entries.
 
@@ -144,31 +273,6 @@ A conversation record is an **append-only fact stream**: every event appends a r
 This yields a structural guarantee: **model-visible ⟺ recorded**. Filtering, cleanup, and formatting must happen before persistence; persisted facts are immutable.
 
 Event format is forward-compatible: **unknown event types are skipped on read**, so old sessions remain readable under new code.
-
-## Composition
-
-`build_app()` in `app.py` performs four steps in order:
-
-1. Read configuration (`agent/config.py`) to decide provider, data root, Skills source, and plugin manifest.
-2. Build the tool registry and gates, assemble the tool pipeline, event bus, and plugin host; plugins in the manifest load here.
-3. Assemble context-pipeline and compressor factories.
-4. Build `AppContext`, register every process-level service in reverse order (which is the cleanup order), and return `App`, whose attributes are shortcuts to `context.get(name)`.
-
-`build_shell_app()` in `agent/entry/web.py` wraps this: it builds the real provider and session store from configuration, then passes them to `build_app()`.
-The composition root (`app.py`) and entry layer (`entry/`) are the top two layers: the lower four layers must not import them at runtime, and no layer may import `entry/`. Entry imports the composition root. `python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` are the three process entries.
-
-## Plugin settings contract
-
-Plugins declare settings panels and items; they do not render host settings DOM.
-
-```text
-plugin: add_settings_panel(panel_id, title)
-plugin: add_settings_item(parent, item_id, kind, label, options, save, load)
-host:   renders typed controls and submits plugin values through the generic settings entry
-plugin: save callback persists and applies its own value, then returns success/failure
-```
-
-Settings IDs are `settings`, `settings/<panel>`, and `settings/<panel>/<item>`. The registered `kind` determines the control: `text`, `search`, `number`, `select`, `checkbox`, `textarea`, `password`. Save callbacks belong to the registering plugin; the plugin system only routes, aggregates, and broadcasts. Unloading a plugin removes its panels and items immediately; the plugin retains its own persisted values for the next enable.
 
 ## Architecture hard constraints
 

@@ -10,21 +10,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from agent.capabilities.registry import ToolPlugin
-from agent.mechanisms.quality import QualityGate
-
-
-def _session_gate() -> QualityGate:
-    """取当前工具调用的会话门控。"""
-    from agent.core.session_scope import current_context
-
-    ctx = current_context()
-    session = getattr(ctx, "session", None) if ctx is not None else None
-    resolved = getattr(session, "gate", None)
-    if resolved is None:
-        raise ValueError(
-            "取不到会话门控：须经 ToolPort.execute（管道上下文填入 session）调用"
-        )
-    return resolved
+from agent.capabilities.session_gate import session_gate
 
 
 class ReviewConclusionTool(ToolPlugin):
@@ -63,7 +49,7 @@ class ReviewConclusionTool(ToolPlugin):
             )
         review_type = str(arguments.get("review_type") or "file")
         cid = str(arguments.get("confirm_id") or "").strip()
-        gate = _session_gate()
+        gate = session_gate()
 
         # cancel 分支在 confirm 之前：取消不能变成解锁。
 

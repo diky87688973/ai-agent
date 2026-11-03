@@ -12,6 +12,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from agent.capabilities.registry import ToolPlugin
+from agent.common.status import AGENT_IDLE, AGENT_QUEUED, AGENT_RUNNING
 from agent.core.error_report import report_error
 from agent.core.session_scope import current_session_id
 from agent.mechanisms.mesh import MeshState
@@ -430,7 +431,7 @@ class SessionCreateTool(ToolPlugin):
                 persona=persona_text,
                 system=system_text,
                 tags=tags,
-                status="idle",
+                status=AGENT_IDLE,
                 skill=skill or None,
                 created_by=created_by or None,
             )
@@ -469,11 +470,11 @@ class SessionListTool(ToolPlugin):
         for cid, meta in items:
             qn = self._mesh.queue_size(cid)
             if self._mesh.is_running(cid):
-                status = "running"
+                status = AGENT_RUNNING
             elif qn:
-                status = "queued"
+                status = AGENT_QUEUED
             else:
-                status = str(meta.get("status") or "idle")
+                status = str(meta.get("status") or AGENT_IDLE)
             row = dict(meta)
             row.update({"cid": cid, "session_id": cid, "status": status, "queueSize": qn})
             agents.append(row)

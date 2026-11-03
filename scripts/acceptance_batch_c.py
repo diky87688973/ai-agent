@@ -44,7 +44,7 @@ class Acceptance:
 
     # ── 基础操作 ────────────────────────────────────────────
 
-    def call(self, name: str, arguments: dict = None, cid: str = CID) -> ToolResult:
+    def call(self, name: str, arguments: dict | None = None, cid: str = CID) -> ToolResult:
         self.seq += 1
         return self.app.execute_tool(
             name, arguments or {}, conversation_id=cid, call_id=f"c{self.seq}"
@@ -170,7 +170,7 @@ class Acceptance:
     # ── 运行 ───────────────────────────────────────────────
 
     def run(self) -> int:
-        print("=== 验收：任务与自主五工具（headless）===")
+        print("=== 验收：任务与自主四工具（headless）===")
         self.scenario_1()
         self.scenario_2()
         self.scenario_3()

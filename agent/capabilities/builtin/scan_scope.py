@@ -19,8 +19,8 @@ DERIVED_DIR_NAMES = frozenset({".git", "__pycache__"})
 
 
 def exclude_names(extra: Iterable[str] | None = None) -> frozenset[str]:
-    """默认名单 + 调用方补充的目录名（按路径段全等匹配，不是字符串前缀）。"""
-    names = set(DERIVED_DIR_NAMES)
+    """调用方补充的目录名（按路径段全等匹配，不是字符串前缀）。"""
+    names = set()
     for item in extra or ():
         text = str(item or "").strip().strip("/\\")
         if text:
@@ -34,9 +34,10 @@ def skip_set(include_derived: bool, exclude: Iterable[str] | None = None) -> fro
     `include_derived=true` 只放开默认名单，`exclude` 里点名的仍然排除 ——
     显式要排除的东西不该被一个「全都搜」的开关顺手带回来。
     """
+    extra = exclude_names(exclude)
     if include_derived:
-        return exclude_names(exclude) - DERIVED_DIR_NAMES
-    return exclude_names(exclude)
+        return extra
+    return DERIVED_DIR_NAMES | extra
 
 
 def relative_parts(path: Path, root: Path) -> Sequence[str]:

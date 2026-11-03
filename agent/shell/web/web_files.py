@@ -53,7 +53,9 @@ class FileViewerActions:
                     }
                 )
         except OSError as exc:
-            return 500, {"error": f"{type(exc).__name__}"}
+            report_error("agent.shell.web.web_files.FileViewerActions.fs_list", exc,
+                         path=str(target))
+            return 500, {"error": f"{type(exc).__name__}: {exc}"}
         return 200, {"path": str(target), "entries": entries}
 
     def fs_read(self, path: str, max_chars: int = 400000) -> Tuple[int, Dict[str, Any]]:
@@ -76,7 +78,9 @@ class FileViewerActions:
         try:
             text = target.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            return 500, {"error": f"{type(exc).__name__}"}
+            report_error("agent.shell.web.web_files.FileViewerActions.fs_read", exc,
+                         path=str(target))
+            return 500, {"error": f"{type(exc).__name__}: {exc}"}
         full = max_chars <= 0
         truncated = not full and len(text) > max_chars
         if truncated:
@@ -312,4 +316,5 @@ class FileViewerActions:
         try:
             return 200, target.read_bytes(), ctype
         except OSError as exc:
-            return 500, {"error": f"{type(exc).__name__}"}, "application/json"
+            report_error("agent.shell.web.web_files.media", exc, path=str(target))
+            return 500, {"error": f"{type(exc).__name__}: {exc}"}, "application/json"

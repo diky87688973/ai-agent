@@ -86,7 +86,7 @@ JSON 可解析
 conversation_id 与目标一致
 event_count > 0
 messages 非空
-tools_count 与当前工具数一致（当前 47）
+tools_count 与当前工具数一致
 system_prompt 非空
 mode_note 符合当前模式
 输出文件非空

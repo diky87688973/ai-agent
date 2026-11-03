@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Dict
 
+from agent.common.status import UPDATE_PHASES, require
+
 STATE_NAME = "updates/state.json"
 
 
@@ -26,7 +28,7 @@ def write_state(root: Path, phase: str, from_version: str = "",
     path = state_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "phase": phase,
+        "phase": require(phase, UPDATE_PHASES, "更新阶段"),
         "from_version": from_version,
         "to_version": to_version,
         "detail": detail,

@@ -5,13 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, List
 
+from agent.capabilities.plugin_paths import load_plugin_paths
+from agent.core.error_report import report_error
+
 from . import backend, step_log
 from .config import load_config
 from .routes import build_routes
 from .state import VisionRuntime
 from .tools import build_tools
 
-PLUGIN_VERSION = "2.0"
+PATHS = load_plugin_paths(__file__)
+
 PLUGIN_NAME = "visual_operator_2"
 
 
@@ -28,17 +32,20 @@ def _observation_hook(runtime: VisionRuntime):
             focus=observation.get("focus"),
             calibration=observation.get("calibration"))
         content: List[dict] = [{"type": "text", "text": observation["text"]}]
-        image_index = 0
         for item in observation["images"]:
-            if item.startswith("data:"):
-                detail = "low" if image_index == 0 else "original"
-                image_index += 1
-                content.append({
-                    "type": "image_url",
-                    "image_url": {"url": item, "detail": detail},
-                })
-            else:
-                content.append({"type": "text", "text": item})
+            label = str(item.get("label") or "")
+            url = str(item.get("url") or "")
+            if label:
+                content.append({"type": "text", "text": label})
+            if not url:
+                continue
+            content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": url,
+                    "detail": str(item.get("detail") or "low"),
+                },
+            })
         return [*messages, {"role": "user", "content": content}]
 
     return hook
@@ -46,8 +53,8 @@ def _observation_hook(runtime: VisionRuntime):
 
 def _vision_prompt(_cid: str) -> str:
     return (
-        "<<视觉>>\n"
-        "该消息为视觉注入, 所有视觉操作必须先查看清楚当前视觉注入内容后再操作, 点击时看清楚鼠标位置和按钮关系!!!\n"
+        "## 视觉帧\n"
+        "该段落为视觉操作插件注入，所有视觉操作必须先查看清楚当前视觉注入内容后再操作，点击时看清楚鼠标位置和按钮关系!!!\n"
         "视觉操作前必须加载 skills：visual-operator-2 和 windows-desktop-operations。\n"
         "需要局部细节时用 vision_focus；每次移动或点击后必须看下一轮实时注入的视觉帧，用黄色光标标记确认目标，不能凭工具回执认定成功.\n"
         "绝对定位移动和点击工具必须传 check_points：当前校准帧 C1 随机标记中心的图内 xy；工具按随机真实屏幕点做 32px 校验，缺失或超差直接失败.原样读标记，不要自己换算屏幕坐标.\n"
@@ -83,6 +90,7 @@ def register(ctx: Any) -> List[Any]:
     config = load_config()
     step_log.configure(_step_log_path(ctx))
     monitor = backend.HumanInputMonitor(config.takeover_distance)
+    monitor.register_inject_tag(backend.FOREIGN_INJECT_TAG)
     badge = backend.ControlBadge()
     runtime = VisionRuntime(
         config,
@@ -92,13 +100,33 @@ def register(ctx: Any) -> List[Any]:
     )
     monitor.bind(runtime.user_takeover)
     disposers: List[Any] = [runtime.close]
-    disposers.extend(ctx.register_tool(tool) for tool in build_tools(runtime))
-    disposers.append(ctx.add_context_assembly_hook(_observation_hook(runtime)))
-    disposers.append(ctx.add_prompt_section("visual_operator_2", _vision_prompt))
-    disposers.extend(build_routes(ctx, runtime))
-    disposers.append(ctx.add_ui_item(
-        "web-ui/input/buttons/visual_btn", kind="button",
-        props={"label": "眼睛", "action": "visual.toggle",
-               "scripts": ["ui/eye-toggle.js", "ui/vision-frame.js"]}, order=60))
-    ctx.set_runtime(runtime)
+    try:
+        disposers.extend(ctx.register_tool(tool) for tool in build_tools(runtime))
+        disposers.append(ctx.add_context_assembly_hook(
+            _observation_hook(runtime),
+            path="app/backend/context/assembly-hooks/visual_operator_2/observations"))
+        disposers.append(ctx.add_prompt_section(
+            "visual_operator_2", _vision_prompt,
+            path="app/backend/prompt/sections/visual_operator_2/discipline",
+            after_tools=True))
+        disposers.extend(build_routes(ctx, runtime))
+        disposers.append(ctx.add_ui_item(
+            PATHS["button"], kind="button",
+            props={"label": "眼睛", "action": "visual.toggle",
+                   "binding": {"input": {"standalone": True,
+                                          "className": "mode-plus vision-eye-btn",
+                                          "action": "visual.toggle",
+                                          "text": "眼睛",
+                                          "hidden": True,
+                                          "host": ".left-tools"}},
+                   "scripts": ["ui/eye-toggle.js", "ui/vision-frame.js"],
+                   "styles": ["ui/vision-frame.css"]}, order=60))
+        ctx.set_runtime(runtime)
+    except Exception:
+        for dispose in reversed(disposers):
+            try:
+                dispose()
+            except Exception as exc:
+                report_error("plugins.visual_operator_2.register_rollback", exc)
+        raise
     return disposers

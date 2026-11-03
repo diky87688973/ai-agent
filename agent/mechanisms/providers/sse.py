@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 import threading
 from typing import Any, Dict, Iterable, Iterator
 
@@ -44,17 +43,12 @@ def stream_with_timeout(
     """SSE 流总超时：到期关闭响应，避免上游心跳把读取永久拖住。"""
     timed_out = threading.Event()
 
-    def _warn_close(exc: Exception) -> None:
-        message = f"{label} 超时关闭响应流失败：{type(exc).__name__}: {exc}"
-        print(f"[providers.sse] {message}", file=sys.stderr, flush=True)
-
     def _expire() -> None:
         timed_out.set()
         try:
             resp.close()
         except Exception as exc:
-            report_error("agent.mechanisms.providers.sse.stream_with_timeout._expire", exc)
-            _warn_close(exc)
+            report_error("agent.mechanisms.providers.sse.stream_with_timeout.close", exc)
 
     watchdog = threading.Timer(max(0.001, float(timeout)), _expire)
     watchdog.daemon = True

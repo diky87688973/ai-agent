@@ -298,8 +298,6 @@ def get_plugin_tree_only(path: Optional[Path] = None) -> bool:
     环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先：`1`/`true`/`on` 开，`0`/`false`/`off` 关。
     未设环境变量时读配置；缺省关闭（兼容清单里的绝对/外置 path）。
     """
-    import os
-
     env = os.environ.get("AI_AGENT_PLUGIN_TREE_ONLY", "").strip().lower()
     if env in ("1", "true", "yes", "on"):
         return True

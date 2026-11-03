@@ -20,7 +20,7 @@ SKIPPED = 2
 ALLOWED_ACCEPTANCE_SKIPS = frozenset({"acceptance_mvp3"})
 
 #: 白名单长度上限（防名单膨胀时静默放宽）。与白名单分开设置：
-#: 写成 `len(白名单)` 会让上限永远不可触发（X7）。
+#: 上限必须可触发：写成 `len(白名单)` 会让它永远不可触发。
 MAX_ACCEPTANCE_SKIPS = ACCEPTANCE_SKIP_BUDGET
 
 ACCEPTANCE = [
@@ -87,7 +87,9 @@ def gate_steps() -> List[CiStep]:
                ["scripts/gen_complexity_md.py", "--check"], 5),
         CiStep("适用性登记", "gate", "scripts/check_applicability.py",
                ["scripts/check_applicability.py"], 3),
-        # K4：并发争用单独一步，开 `-X dev`（等价 PYTHONDEVMODE=1）让
+        CiStep("准则清单一致", "gate", "scripts/check_standards_manifest.py",
+               ["scripts/check_standards_manifest.py"], 3),
+        # 并发争用单独一步，开 `-X dev`（等价 PYTHONDEVMODE=1）让
         # ResourceWarning / 线程未回收等问题暴露出来，而不是被普通单测吞掉。
         CiStep("并发争用", "gate", "tests.test_concurrency",
                ["-X", "dev", "-m", "unittest", "tests.test_concurrency"], 3),
@@ -126,6 +128,16 @@ def catalog(fast: bool = False) -> List[CiStep]:
     )
     if not fast:
         steps.extend(acceptance_steps())
+        # 覆盖率数据必须由本次 CI 生成；只读旧 `.coverage` 会把上一次结果当成当前结论。
+        steps.append(
+            CiStep(
+                "覆盖率采集",
+                "post",
+                "scripts/run_coverage.py",
+                ["scripts/run_coverage.py"],
+                15,
+            )
+        )
         steps.append(
             CiStep(
                 "分包覆盖率",

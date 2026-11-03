@@ -126,7 +126,7 @@ class _ServerFixture(unittest.TestCase):
         self.app = build_app(
             provider=self.provider,
             store=SessionStore(self.root / "data"),
-            live_state=LiveState(storage_dir=self.root / "session_state"),
+            live_state=LiveState(storage_dir=self.root / "live_state"),
             backup_root=self.root / "bk",
             recycle_root=self.root / "rc",
             data_root=self.root,
@@ -508,7 +508,7 @@ class MultiRootFileViewerTest(unittest.TestCase):
         self.app = build_app(
             provider=EchoProvider(),
             store=SessionStore(base / "data"),
-            live_state=LiveState(storage_dir=base / "session_state"),
+            live_state=LiveState(storage_dir=base / "live_state"),
             backup_root=base / "bk",
             recycle_root=base / "rc",
             data_root=base,
@@ -674,8 +674,8 @@ class SseContractTest(_ServerFixture):
         self.assertIn(cid, ids)
         self.assertIn(cid, payload.get("conversation_ids", []))
 
-    def test_sessions_carry_derived_title_not_raw_id(self) -> None:
-        """会话名录须带派生标题（首条用户输入），否则侧栏只能显示裸 UUID。"""
+    def test_sessions_without_title_file_return_unknown(self) -> None:
+        """没有已生成标题时返回明确的未知标题，不回读会话日志兜底。"""
 
         cid = "sse-title-0001"
         text = "帮我检查一下当前目录并输出路径"
@@ -686,21 +686,35 @@ class SseContractTest(_ServerFixture):
         items = {i["conversation_id"]: i for i in payload.get("items", [])}
         self.assertIn(cid, items, msg=str(payload.get("items")))
         item = items[cid]
-        self.assertEqual(item["title"], text)
+        self.assertEqual(item["title"], "未知标题")
         self.assertEqual(item["short_id"], cid[:8])
         self.assertGreater(item["mtime"], 0)
 
-    def test_derived_title_truncates_and_flattens(self) -> None:
+    def test_title_falls_back_to_user_message_when_generation_fails(self) -> None:
+        cid = "sse-title-fallback"
+        text = "这是一个用于测试标题回退的较长用户消息内容"
+        self.post("/api/chat/send", {"message": text, "conversation_id": cid})
+        self.wait_turn(cid)
+        from agent.mechanisms.session_title import TitleStore
+        self.shell.titles = TitleStore(self.root / "titles")
+        self.shell.title_generator = lambda _messages: ""
+        status, payload = self.post("/api/chat/title", {"conversation_id": cid})
+        self.assertEqual(status, 200)
+        expected = text[:32]
+        self.assertEqual(payload.get("title"), expected)
+        self.assertEqual(self.shell.titles.load(cid), expected)
+
+    def test_sessions_prefer_the_persisted_title(self) -> None:
+        from agent.mechanisms.session_title import TitleStore
 
         cid = "sse-title-0002"
-        long_text = "第一行\n第二行 " + "很长" * 40
-        self.post("/api/chat/send", {"message": long_text, "conversation_id": cid})
+        self.post("/api/chat/send", {"message": "很长" * 40, "conversation_id": cid})
         self.wait_turn(cid)
+        self.shell.titles = TitleStore(self.root / "titles")
+        self.assertTrue(self.shell.titles.save(cid, "已生成标题"))
         status, payload = self.get_json("/api/chat/sessions")
         item = {i["conversation_id"]: i for i in payload["items"]}[cid]
-        self.assertLessEqual(len(item["title"]), 41, msg=item["title"])
-        self.assertNotIn("\n", item["title"])
-        self.assertTrue(item["title"].endswith("…"))
+        self.assertEqual(item["title"], "已生成标题")
 
     def test_sessions_sorted_by_recent_activity(self) -> None:
 

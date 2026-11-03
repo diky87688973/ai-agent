@@ -23,9 +23,14 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
+from agent.capabilities.plugin_paths import load_plugin_paths
 from agent.capabilities.plugins import plugin_config_fields
 from agent.config import PROJECT_ROOT, load_ini
 from agent.core.error_report import report_error
+
+_CACHE_MAX = 64
+
+PATHS = load_plugin_paths(__file__)
 
 __all__ = [
     "DEFAULT_MAX_FILE_SIZE",
@@ -255,7 +260,11 @@ class _KnowledgeFiles:
             except OSError:
                 text = ""
         if key is not None:
+            for old in [item for item in self._read_cache if item[0] == key[0]]:
+                del self._read_cache[old]
             self._read_cache[key] = text
+            while len(self._read_cache) > _CACHE_MAX:
+                self._read_cache.pop(next(iter(self._read_cache)))
         return text
 
     def _read_table(self, target: Path) -> str:
@@ -463,6 +472,36 @@ _PANEL_HTML = (
 )
 
 
+def _register_routes(ctx: Any, runtime: KBRuntime) -> List[Callable[[], None]]:
+    def _files(query: Dict[str, Any]) -> Any:
+        if not runtime.enabled:
+            return 200, {"ok": True, "enabled": False, "files": []}
+        return 200, {"ok": True, "enabled": True, "files": runtime.list_files()}
+
+    def _checked_get(query: Dict[str, Any]) -> Any:
+        cid = str((query or {}).get("conversation_id") or "")
+        return 200, {"ok": True, "checked": sorted(runtime.get_checked(cid))}
+
+    def _checked_put(query: Dict[str, Any]) -> Any:
+        body = (query or {}).get("body") or {}
+        cid = str(body.get("conversation_id") or (query or {}).get("conversation_id") or "")
+        if not cid:
+            return 400, {"ok": False, "error": "conversation_id required"}
+        raw = body.get("checked")
+        if not isinstance(raw, list):
+            raw = body.get("paths") if isinstance(body.get("paths"), list) else []
+        return 200, {"ok": True, "checked": runtime.set_checked(cid, raw)}
+
+    return [
+        ctx.add_route("GET", "files", _files,
+                      slot_path="app/backend/http/routes/knowledge-files"),
+        ctx.add_route("GET", "checked", _checked_get,
+                      slot_path="app/backend/http/routes/knowledge-checked"),
+        ctx.add_route("PUT", "checked", _checked_put,
+                      slot_path="app/backend/http/routes/knowledge-checked-update"),
+    ]
+
+
 def register(ctx: Any) -> List[Callable[[], None]]:
     """插件入口：装配运行时，注册注入源、界面贡献与端点。
 
@@ -490,46 +529,35 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         }
 
     disposers: List[Callable[[], None]] = [
-        # 上下文注入：管线组装请求时把勾选文件的正文刷进本插件的段落
-        ctx.add_context_source(runtime.build_system_messages, _meta()),
+        # 上下文注入：路径是插件声明的稳定插口
+        ctx.add_context_source(
+            runtime.build_system_messages, _meta(),
+            path="app/backend/context/sources/knowledge/files"),
         # 资源目录：与 Skills / Rules 合并到同一个系统提示词章节
         ctx.add_prompt_section(
-            RESOURCE_HEAD, lambda _cid: resource_directory_lines(runtime)),
+            RESOURCE_HEAD, lambda _cid: resource_directory_lines(runtime),
+            path="app/backend/prompt/sections/resources/knowledge"),
     ]
-
-    def _files(query: Dict[str, Any]) -> Any:
-        if not runtime.enabled:
-            return 200, {"ok": True, "enabled": False, "files": []}
-        return 200, {"ok": True, "enabled": True, "files": runtime.list_files()}
-
-    def _checked_get(query: Dict[str, Any]) -> Any:
-        cid = str((query or {}).get("conversation_id") or "")
-        return 200, {"ok": True, "checked": sorted(runtime.get_checked(cid))}
-
-    def _checked_put(query: Dict[str, Any]) -> Any:
-        body = (query or {}).get("body") or {}
-        cid = str(body.get("conversation_id") or (query or {}).get("conversation_id") or "")
-        if not cid:
-            return 400, {"ok": False, "error": "conversation_id required"}
-        raw = body.get("checked")
-        if not isinstance(raw, list):
-            raw = body.get("paths") if isinstance(body.get("paths"), list) else []
-        return 200, {"ok": True, "checked": runtime.set_checked(cid, raw)}
 
     base = plugin_config_fields(Path(__file__).resolve().parent)
     title = base["name"] or "知识库"
     disposers.append(ctx.add_ui_item(
-        "web-ui/input/buttons/kb_btn", kind="button",
-        props={"label": title, "action": "knowledge.open"}, order=50))
+        PATHS["button"], kind="button",
+        props={"label": title, "action": "panel.open",
+               "binding": {"input": {"standalone": True,
+                                     "className": "mode-plus",
+                                     "action": "panel.open",
+                                     "panel": PATHS["panel"],
+                                     "text": title,
+                                     "host": ".left-tools"}}}, order=50))
     disposers.append(ctx.add_ui_item(
-        "web-ui/right-panel/kb", kind="panel",
-        props={"label": title, "action": "knowledge.open",
+        PATHS["panel"], kind="panel",
+        props={"label": title, "action": "panel.open",
                "html": _PANEL_HTML, "scripts": ["ui/panel.js"],
                "styles": ["ui/panel.css"]}))
     disposers.append(ctx.add_ui_item(
-        "web-ui/left-panel/context_usage/kb", kind="segment",
-        props={"label": title, "color": "blue"}))
-    disposers.append(ctx.add_route("GET", "files", _files))
-    disposers.append(ctx.add_route("GET", "checked", _checked_get))
-    disposers.append(ctx.add_route("PUT", "checked", _checked_put))
+        PATHS["segment"], kind="segment",
+        props={"label": title, "color": "blue",
+               "binding": {"context": True}}))
+    disposers.extend(_register_routes(ctx, runtime))
     return disposers

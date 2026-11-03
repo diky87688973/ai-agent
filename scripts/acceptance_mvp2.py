@@ -25,7 +25,8 @@ class Acceptance:
 
     def __init__(self, root: Path) -> None:
         self.root = root
-        self.app = build_app()
+        self.app = build_app(
+            backup_root=root / "file_backup", recycle_root=root / "recycle")
         self.seq = 0
         self.failures: list = []
 

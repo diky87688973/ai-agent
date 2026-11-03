@@ -14,7 +14,7 @@ def _read(path: Path) -> configparser.ConfigParser:
     return parser
 
 
-def merge_ini(existing: Path, template: Path) -> None:
+def merge_ini(existing: Path, template: Path, *, preserve_user_keys: bool = False) -> None:
     defaults = _read(template)
     if not existing.exists():
         shutil.copyfile(template, existing)
@@ -26,6 +26,19 @@ def merge_ini(existing: Path, template: Path) -> None:
         merged.add_section(section)
         for key, value in defaults.items(section):
             merged.set(section, key, user.get(section, key, fallback=value))
+        if preserve_user_keys:
+            # 原地升级不能因为模板没有这个键就删用户配置；新版本新增的键仍会补上。
+            for key, value in user.items(section):
+                if not merged.has_option(section, key):
+                    merged.set(section, key, value)
+    # 模板只提供默认键；用户新增的“整节”必须保留。模板节内的未知键仍按模板淘汰，
+    # 这样升级才能清掉已废弃的配置项。
+    for section in user.sections():
+        if merged.has_section(section):
+            continue
+        merged.add_section(section)
+        for key, value in user.items(section):
+            merged.set(section, key, value)
     temporary = existing.with_name(existing.name + ".merge.tmp")
     with temporary.open("w", encoding="utf-8", newline="\n") as handle:
         merged.write(handle)

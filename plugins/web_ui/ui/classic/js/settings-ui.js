@@ -258,7 +258,10 @@
     var btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = label;
-    if (on) btn.className = "is-on";
+    if (on) {
+      btn.className = "is-on";
+      btn.setAttribute("aria-current", "page");
+    }
     btn._settingsClick = click;
     return btn;
   }
@@ -322,6 +325,17 @@
     if (field.kind === "dir") return dirControl(value, function (next) {
       state.values[sectionId][field.key] = next;
     });
+    if (field.kind === "textarea") {
+      var area = document.createElement("textarea");
+      area.rows = 8;
+      area.value = value == null ? "" : String(value);
+      if (field.placeholder) area.placeholder = field.placeholder;
+      area.addEventListener("input", function () {
+        group.values[key] = area.value;
+        setStatus("");
+      });
+      return area;
+    }
     var input = document.createElement("input");
     input.type = field.kind === "secret" ? "password" : (field.kind === "number" ? "number" : "text");
     if (field.kind === "number") input.step = "1";
@@ -388,9 +402,10 @@
 
   function pluginControl(field) {
     var key = String(field.key || "");
-    var value = state.pluginValues[key] == null
+    var stored = state.pluginValues[key];
+    var value = (stored == null || stored === "")
       ? String(field.default == null ? "" : field.default)
-      : String(state.pluginValues[key]);
+      : String(stored);
     function remember(next) {
       state.pluginValues[key] = String(next);
     }
@@ -409,7 +424,9 @@
       return select;
     }
     if (field.kind === "checkbox") {
-      return boolControl(value, function (next) { remember(next); });
+      var on = value === "1" || value === true || value === 1 || value === "true";
+      state.pluginValues[key] = on;
+      return boolControl(on, function (next) { state.pluginValues[key] = next; });
     }
     if (field.kind === "textarea") {
       var area = document.createElement("textarea");
@@ -460,9 +477,9 @@
     wrap.className = "st-switch";
     var input = document.createElement("input");
     input.type = "checkbox";
-    input.checked = value === "1";
+    input.checked = value === "1" || value === true || value === 1;
     input.addEventListener("change", function () {
-      onChange(input.checked ? "1" : "0");
+      onChange(input.checked);
     });
     var knob = document.createElement("i");
     wrap.appendChild(input);
@@ -552,6 +569,20 @@
       try {
         document.dispatchEvent(new CustomEvent("ai-agent:settings-changed"));
       } catch (e) {}
+      /* web-ui 的两个开关不在 apply_host 路径里，保存成功后直接按表单值
+         更新一次页面状态；否则必须刷新页面才看到步骤页签变化。 */
+      var webFlags = {};
+      var itemKey = "app/settings/interface/display_tool_items";
+      var stepKey = "app/settings/interface/display_tool_steps";
+      if (Object.prototype.hasOwnProperty.call(state.pluginValues, itemKey)) {
+        webFlags.display_tool_items = state.pluginValues[itemKey] === true ||
+          state.pluginValues[itemKey] === "1";
+      }
+      if (Object.prototype.hasOwnProperty.call(state.pluginValues, stepKey)) {
+        webFlags.display_tool_steps = state.pluginValues[stepKey] === true ||
+          state.pluginValues[stepKey] === "1";
+      }
+      if (Object.keys(webFlags).length) applyWebUi(webFlags);
       persistClientValues();
       clearSavedSecrets();
       if (data.reload_error) {
@@ -589,25 +620,27 @@
     window.__webUi = flags;
     if (flags.display_tool_steps) {
       document.documentElement.removeAttribute("data-tool-steps");
-      if (typeof setClassicSideOpen === "function") setClassicSideOpen(true);
     } else {
       document.documentElement.setAttribute("data-tool-steps", "off");
-      if (typeof setClassicSideOpen === "function") setClassicSideOpen(false);
     }
+    /* 右栏是否收合由“还有没有可见标签”决定：
+       步骤关掉但知识库/文件标签仍在时保持展开；一个标签都不剩才收起。 */
+    if (typeof syncClassicSide === "function") syncClassicSide();
+    else if (typeof setClassicSideOpen === "function") setClassicSideOpen(!!flags.display_tool_steps);
   }
 
   function refreshWebUiFlags() {
     return request("GET", "/api/settings").then(function (data) {
       if (!data || !data.ok) return;
-      var section = (data.sections || []).filter(function (item) {
-        return item && item.id === "web-ui";
-      })[0];
-      if (!section) return;
       var flags = {};
-      (section.fields || []).forEach(function (field) {
-        if (!field || !field.key) return;
-        flags[field.key] = String(field.value) === "1" || field.value === true;
+      (data.sections || []).forEach(function (section) {
+        (section && section.fields || []).forEach(function (field) {
+          if (!field || !field.key) return;
+          if (field.key !== "display_tool_items" && field.key !== "display_tool_steps") return;
+          flags[field.key] = String(field.value) === "1" || field.value === true;
+        });
       });
+      if (!Object.keys(flags).length) return;
       applyWebUi(flags);
     }).catch(function () {});
   }
@@ -942,6 +975,17 @@
         var card = row.parentNode && row.parentNode.parentNode;
         syncCardVisibility(schema, group, card);
       });
+    }
+    if (field.kind === "textarea") {
+      var area = document.createElement("textarea");
+      area.rows = 8;
+      area.value = value == null ? "" : String(value);
+      if (field.placeholder) area.placeholder = field.placeholder;
+      area.addEventListener("input", function () {
+        group.values[key] = area.value;
+        setStatus("");
+      });
+      return area;
     }
     var input = document.createElement("input");
     input.type = field.kind === "secret" ? "password" : (field.kind === "number" ? "number" : "text");

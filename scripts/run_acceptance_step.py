@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -28,8 +29,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {name}（脚本不存在：{script.relative_to(ROOT)}）")
         return 1
 
-    env = {**dict(**{k: v for k, v in __import__("os").environ.items()}),
-           "PYTHONIOENCODING": "utf-8"}
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     proc = subprocess.run(
         [sys.executable, "-u", str(script)],
         cwd=str(ROOT),

@@ -1,6 +1,6 @@
-**English** | [中文](shell.zh.md)
+﻿# Shell
 
-# Shell
+## 1. Overview
 
 `agent/shell/` is the L3 layer; it wraps the kernel as a runnable service and UI.
 
@@ -35,16 +35,34 @@
 
 Token issue and revoke take an in-process thread lock plus a cross-process `tokens.json.lock` file lock. A duplicate name is rejected, and an unavailable lock produces a readable error instead of a stack trace.
 
-## Usage and hit-rate conventions
+## 2. Slots
 
+### Exposed
+
+| Slot path | Capability | Key attributes | Replacement / override |
+|---|---|---|---|
+| `app/boot/shell/*` | boot node | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `app/auth` | module contribution | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `app/shell/web-ui/*` | UI slot | owner=plugin; declared path; removed on unload | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `backend/http/routes/*` | HTTP endpoint | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+### Required
+
+| Dependency path | Capability | Provider | Why |
+|---|---|---|---|
+| `app/boot/facade` | boot node | host | must be ready before assembly; unavailable propagates as startup/request failure |
+| `app/boot/shell/classic_adapter` | boot node | host | must be ready before assembly; unavailable propagates as startup/request failure |
+| `app/boot/shell/plugin_events` | boot node | host | must be ready before assembly; unavailable propagates as startup/request failure |
+
+## 3. Slot capabilities
+
+### Usage and hit-rate conventions
 **The hit rate is computed only from provider-returned values.** After each model call the API reports `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens` in `usage`. The kernel records them verbatim as a `usage` fact, and the adapter forwards them unchanged (field names: `SSE_USAGE_FIELDS` in `classic_adapter/contract.py`). The UI shows hit / (hit + miss) from those two official values; no estimate is mixed in.
 
 **The context-occupancy denominator is the model window**, read from the model entry's `context_window`; the adapter adds `model_max_context_tokens` to the `context_layout` payload it emits. It is not the compaction threshold: the threshold is the budget at which compaction is triggered, while the window is the physical limit. The window follows the session's current model; after a model switch, the next turn uses the new denominator. When the catalog has no window for the model, the UI falls back to the budget.
 
 **Tokens in the segment overlay are estimates**: they sum the assembled messages, with CJK at one token per character, other text at four characters per token, and images at a fixed per-image allowance. They differ from the official `prompt_tokens` in the usage bar: one approximates a segment, the other is what the call actually consumed.
 
-## Startup
-
+### Startup
 ```bash
 python -m agent.entry.web --host 127.0.0.1 --port 8765
 ```
@@ -57,9 +75,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 Missing model configuration does not block startup: the service starts with `MissingProvider`, the page opens, and the model picker is empty. Saving plugin configuration reloads the plugin and calls `app.refresh_model_config()`, which recomputes the model route and list from the catalog; once the multi-model catalog provides models, it becomes the authoritative source.
 
-## HTTP routes
-
-### GET
+### HTTP routes
+#### GET
 
 | Path | Purpose |
 |---|---|
@@ -89,7 +106,7 @@ Missing model configuration does not block startup: the service starts with `Mis
 | `/api/background/tasks` | Background-task snapshot or filtered list |
 | `/api/update/status` `/api/update/logs` | Update state and log tail |
 
-### POST
+#### POST
 
 | Path | Purpose |
 |---|---|
@@ -110,7 +127,7 @@ Missing model configuration does not block startup: the service starts with `Mis
 | `/api/settings/plugin-file` | Write a plugin's editable sections; the rest of the file is preserved |
 | `/api/settings/pick-dir` | Open the system directory picker (Windows) |
 
-### DELETE
+#### DELETE
 
 | Path | Purpose |
 |---|---|
@@ -118,7 +135,7 @@ Missing model configuration does not block startup: the service starts with `Mis
 | `/api/chat/queue/<id>` | Cancel an unsent queued message |
 | `/api/plugin/<plugin>/…` | Plugin endpoints |
 
-### PUT
+#### PUT
 
 `/api/chat/ui-state`, `/api/reasoning-effort`, `/api/usage-accumulator`, and plugin endpoints (`/api/plugin/<plugin>/…`).
 
@@ -130,8 +147,7 @@ Save stores and closes the window (it stays open on failure); Apply stores witho
 
 Model configuration is maintained only by the multi-model plugin; the host settings page has no kernel model section and does not write model credentials. Loading or unloading plugins makes the plugin host refresh the model route and list.
 
-## SSE event stream
-
+### SSE event stream
 `/api/events/stream` is the projection the UI sees. It has two formats: with no `format` or `format=classic`, it serves frames translated by the classic adapter; `format=kernel` passes kernel events through unchanged for probes and other interaction layers. The page uses the classic format.
 
 Classic frames carry `conversation_id`, and the page dispatches by session. Heartbeat and process-wide announcement frames (`heartbeat`, `global_sse_ready`, `plugins_changed`, `settings_changed`, `plugin_config_changed`) are not conversation-scoped; `plugin_event` frames carry the fields supplied by the plugin.
@@ -142,22 +158,12 @@ Each connection has its own bounded queue; a slow consumer loses the oldest fram
 
 The classic stream keeps its connection table in the adapter; the kernel passthrough keeps it in `WebShell`. A disconnect removes the channel from the corresponding table. The kernel passthrough sends only new events, performs no reconnect replay, and revalidates the connection's identity on each loop; a revoked login session or token ends it.
 
-## Runtime state and concurrency protection
-
-`WebShell` holds an SSE connection table and a per-session active-run map (`conversation_id → run_id`). The authoritative busy state comes from the run registry (see [session.md](session.md#run-registry)), the same source the `session_send` tool uses to decide whether the target is busy. A page opened mid-turn can therefore learn that the session is running and show the stop control. On the classic stream, `GET /api/chat/ui-state` without `conversation_id` returns `state.running`.
-
-**Client layout (which tabs are open, which one is active) lives in the browser's `localStorage`**: layout belongs to one browser, and the server neither provides nor accepts it. With several clients activating different sessions, a single server-side field would be overwritten by the last writer, and an earlier client would be taken to another session after a refresh. The classic `PUT /api/chat/ui-state` accepts the request body and stores nothing.
-
-`/api/chat/send` queues concurrent submissions for the same session under the same registration.
-
-## Turn scheduling
-
+### Turn scheduling
 `SessionRunner` in `session/runner.py` runs turns in the background: it takes the turn input, builds an engine and runs the module chain, and publishes events to the event bus that feeds SSE. After a turn it drains the pending queue, starts an insertion turn when a queued message was marked for insertion, and otherwise asks the goal/autonomy rule whether to continue; automatic continuations are capped at 50 turns. External tool results are spliced back as `tool_done` / `tool_failed` plus `tool_ended` before the turn, deduplicated by `call_id`.
 
 A side heartbeat thread renews the run registration every 60 seconds, so a long tool call is not treated as expired. The registration is released when the turn ends, is cancelled, or the process aborts. `/api/chat/stop` sets the cancel signal; the kernel stops at its checkpoints and the run thread releases the registration.
 
-## System prompt
-
+### System prompt
 `build_system_prompt(registry=…)` in `prompts.py` assembles the base prompt in this order: identity, reply language, `## 动手指令`, extra sections (plugin sections and `## 环境信息`), `## 编码准则`, terminology, `## 工具使用纪律`, the mode section, and the tool summary. The preview-write tool list in discipline item 2 is generated by `preview_write_tools_line(registry)` from tools whose `needs_preview` is set.
 
 `resolve_system_prompt()` handles the session-level override and otherwise requires `registry`. It removes the mode section with `split_mode_section()`, which deletes only that section and keeps the plugin sections and tool summary after it.
@@ -166,8 +172,7 @@ Plugin sections arrive through `PromptSections` (`## 资源目录` is one); the 
 
 Execution mode is produced by `resolve_mode_note()` and appended as a transient suffix on the request tail, only in the copy sent to the model. The runner's tail also carries the Todo-List progress line and the plugin request tail; with an explicit system prompt, the mode note and the Todo-List line are omitted. See [context.md](context.md#execution-mode-is-a-transient-suffix-on-the-request-tail).
 
-## UI bundling
-
+### UI bundling
 `web/ui_bundle.py` inlines UI assets into a single HTML page, so the page needs no separate CSS or JS requests at runtime.
 
 ```python
@@ -183,20 +188,18 @@ The module lists are the single source of order: JS files share one `<script>` s
 
 The model picker is not built-in shell UI: the shell provides only the `#modelPickerSlot` mount point, and the button and menu are rendered by `plugins/multi_model/ui/`. Their styles are injected through `window.aiAgentShell.styles.load()`, and the shell's shared styles do not include them. The two public bridges and unload cleanup are covered in [plugins.md](plugins.md#壳层公共桥).
 
-### Edited files in this turn
+#### Edited files in this turn
 
 `edited-files.js` assembles the list in page memory only: a preview leaves a `confirm_id → diff` entry, `commit_write` leaves a confirmed id, and on turn `done` or `stopped` the intersection is rendered as `.edited-files`; a `done` while paused for user confirmation does not render the list. Nothing enters the kernel, and a refresh does not replay it. A valid new message sent through `POST /api/chat/send` calls `clearLiveEdits` for that session; `POST /api/chat/user-confirm` does not clear it.
 
-## Chat-area minimum width
-
+### Chat-area minimum width
 The chat area and the right pane are separated by a draggable splitter (`classic/js/layout/splitters.js`; the width is stored in `localStorage` under `aiAgent.classicMainSplit`). The drag has a target lower bound of `670px` for the chat area (`MIN_CHAT_PX`) and `300px` for the right pane (`MIN_STEPS_PX`; the stylesheet sets `.side{min-width:300px}`). When the splitter is dragged to its limit, the right pane stops at `300px` and the chat area is not squeezed further.
 
 The bound is the width at which the current composer row still fits: below it, the row (attach / mode / reasoning / model picker / plugin buttons / send hint / goal / send) crosses the pane's right edge. Plugin action buttons widen that row, so `MIN_CHAT_PX` is tied to the current row.
 
 Window narrowing is not constrained by this pair: `.chat` has `min-width:0`, so the chat area can shrink below `670px` and the composer buttons wrap.
 
-## Chat-area Markdown
-
+### Chat-area Markdown
 Prose blocks are rendered by the bundled Markdown parser (`plugins/web_ui/ui/classic/js/vendor/marked.min.js`): block-level markdown rules such as loose-list spacing, tables, task lists and nested lists are handled there.
 
 `renderMarkdown()` in `classic/js/render/markdown.js` splits the text by code fences first. Fenced blocks go to the existing logic (`diff` / `patch` become diff cards; others get syntax highlighting); only prose blocks go to `renderMarkdownBlocks()`.
@@ -207,8 +210,7 @@ Image and media links rewrite `src` through `markedImageHref()`: workspace files
 
 Streaming rendering is merged to at most one render per animation frame (`scheduleStreamRender()`): the parser re-parses the whole text each time, so rendering every delta would parse the same text dozens of times.
 
-## Adapter layer
-
+### Adapter layer
 `classic_adapter/` translates kernel events into the shapes the classic UI understands, and translates UI requests into kernel calls.
 
 | File | Direction |
@@ -227,8 +229,7 @@ Streaming rendering is merged to at most one render per animation frame (`schedu
 
 The adapter is where behavioral differences are settled: the UI and the kernel keep their own shapes, and the adapter flattens the difference in between.
 
-## Command-line shells
-
+### Command-line shells
 ```bash
 agent-cli --session <cid>                      # interactive, real model + tools + write gate
 agent-headless "question"                      # single turn, prints the event stream and session id
@@ -237,7 +238,7 @@ agent-web                                      # web service
 agent-gui                                      # native launcher + Python desktop shell
 ```
 
-`headless` uses the same full system prompt, plugin prompt sections, compaction and session store as the web shell. It loads the `plugins.headless.ini` profile, which disables `ai_speak`. At the end of the run it prints:
+`headless` uses the same full system prompt, plugin prompt sections, compaction and session store as the web shell. It loads the `plugins.headless.ini` profile, which disables `ai_cosplay`. At the end of the run it prints:
 
 ```text
 [session] <cid>
@@ -245,16 +246,23 @@ agent-gui                                      # native launcher + Python deskto
 
 Exit codes: `0` normal, `1` failure/stop/cancel, `2` waiting for user confirmation, `3` timeout.
 
-`build_session()` in `cli/interactive.py` uses `SessionRunner.build_engine()` when a runner is present, sharing the full system prompt, plugin sections and dynamic tail with web and headless; `run_one()` only handles terminal I/O and write confirmation. The CLI loads `plugins.cli.ini`, which disables `ai_speak`.
+`build_session()` in `cli/interactive.py` uses `SessionRunner.build_engine()` when a runner is present, sharing the full system prompt, plugin sections and dynamic tail with web and headless; `run_one()` only handles terminal I/O and write confirmation. The CLI loads `plugins.cli.ini`, which disables `ai_cosplay`.
 
-## Path visibility
-
+### Path visibility
 `fspaths.py` owns which paths are visible and readable: `--fs-root` sets a visible root (repeatable), and `/api/fs/list` / `/api/fs/read` stay inside those roots. On Windows the default is every existing drive root; on other platforms it is the project root; `AI_AGENT_FS_ROOT` can set it too (separator `os.pathsep`). Paths are resolved before the boundary check, and containment is decided by `relative_to`, not string prefixes. `/api/dir-browse`, which feeds `@` completion, starts from a base directory but can navigate elsewhere; the file-viewer endpoints are bounded, the completion browser is not.
 
 `/workspace/*` is rooted at `<data_root>/workspace`. `/api/media` serves only paths inside the configured media root (all visible roots when unset), not the workspace root. See [guide/config.md](../guide/config.md).
 
-## Diagnostic script
+## 4. Details
 
+### Runtime state and concurrency protection
+`WebShell` holds an SSE connection table and a per-session active-run map (`conversation_id → run_id`). The authoritative busy state comes from the run registry (see [session.md](session.md#run-registry)), the same source the `session_send` tool uses to decide whether the target is busy. A page opened mid-turn can therefore learn that the session is running and show the stop control. On the classic stream, `GET /api/chat/ui-state` without `conversation_id` returns `state.running`.
+
+**Client layout (which tabs are open, which one is active) lives in the browser's `localStorage`**: layout belongs to one browser, and the server neither provides nor accepts it. With several clients activating different sessions, a single server-side field would be overwritten by the last writer, and an earlier client would be taken to another session after a refresh. The classic `PUT /api/chat/ui-state` accepts the request body and stores nothing.
+
+`/api/chat/send` queues concurrent submissions for the same session under the same registration.
+
+### Diagnostic script
 `scripts/inspect_compact.py` prints the context segments and compaction decision for one session. It is read-only:
 
 ```bash
@@ -267,8 +275,10 @@ The output includes the fact count, derived message count, user-round count, ful
 
 `--digest` adds the compactor view: view message count, stored summary count and their text, the assembled estimate, and whether this run would produce a compaction event.
 
-## Further reading
+## 5. Further reading
 
-- [architecture.md](../architecture.md): five-layer structure and assembly
-- [tools.md](tools.md): write gate
-- [guide/config.md](../guide/config.md): parameters and environment variables
+| Topic | Document |
+|---|---|
+| five-layer structure and assembly | [architecture.md](../architecture.md) |
+| write gate | [tools.md](tools.md) |
+| parameters and environment variables | [config.md](../guide/config.md) |

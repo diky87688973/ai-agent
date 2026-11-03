@@ -2,6 +2,8 @@
 
 # HTTP authentication
 
+Status: implemented.
+
 The web shell authenticates every handled HTTP request at the Handler entry, before route dispatch. Built-in routes and plugin routes pass the same guard; a plugin cannot opt out.
 
 ## 1. Scope

@@ -49,6 +49,49 @@ macOS 安装包暂未构建，当前 Release 只提供 Windows 包。
 - **上下文管理** —— 分段预算、超预算摘要、上下文用量与请求快照；事实流落盘，SSE 断线可按事件坐标续传。
 - **安全更新** —— 更新包哈希校验、暂存、健康检查与失败回滚；普通文件覆盖，`*.ini` 合并用户配置。
 
+## 插件骨架
+
+插件是安装与启停单元；插件树是贡献视图，插口树（SlotTree）是装配结果。整个 `app` 由启动装配树递归装配，不是在固定 `app` 上留扩展口。内核、宿主、工具、壳层都是启动插口；插件在装配前覆盖或新增节点。`App` 只是门面，`boot_app()` 读树、合并覆盖、递归装配。
+
+```text
+启动流程（全 App）
+App 启动
+  │
+  ├─ 读取 agent/boot/slot_tree.json
+  │     └─ 基础装配树：kernel / host / tools / shell / facade
+  │
+  ├─ 扫描 plugins/
+  │     ├─ plugins.ini           启停 + 顺序
+  │     └─ plugin-assembly.json  额外插件的装配声明
+  │
+  ├─ 合并
+  │     ├─ replace / 新增 app/... 子树
+  │     └─ 鉴权：宿主持有，不是 SlotTree 可替换子树
+  │
+  └─ SlotTree 递归装配
+        │
+        ▼
+     App 门面完成（不含组件清单）
+
+App 运行期
+  plugin.py ── register(ctx) ──▶ 后端插口 / UI 插口 / 设置 / 路由
+                                └─ 动态节点挂回同一棵 SlotTree
+```
+
+插件目录：
+
+```text
+plugins/<插件名>/
+  plugin.py             register(ctx)
+  plugin-ui.json        UI 插口
+  plugin-assembly.json  启动插口覆盖；存在即自动装载
+  plugin-meta.json      身份 / auto_load
+  plugin-config.ini     插件配置
+  ui/                   面板资产
+```
+
+启动插口可替换，也可新增 `app/...` 子树；鉴权由宿主持有，不是可替换的 SlotTree 子树。无需改 `slot_tree.json` 或 `plugins.ini`；`enabled = 0` 仍可禁用。
+
 ## 快速开始
 
 ### 桌面方式
@@ -112,7 +155,7 @@ python3 -m agent.gui.launcher
 
 | 文档 | 内容 |
 |---|---|
-| [架构](docs/architecture.zh.md) | 五层结构、模块链、端口、事件协议、状态生命周期 |
+| [架构](docs/architecture.zh.md) | 插件树、五层底座、模块链、端口、事件协议、状态生命周期 |
 | [工程标准](docs/engineering-standards.zh.md) | 模块结构、单一职责、资产归属、扩展路径与门禁 |
 | [术语](docs/glossary.zh.md) | 项目自定义词的定义 |
 | [内核](docs/subsystems/core.zh.md) | 模块契约、链执行器、宿主循环 |
@@ -124,8 +167,7 @@ python3 -m agent.gui.launcher
 | [多模型](docs/subsystems/multi-model.zh.md) | `multi_model` 的目录条目、设置页表单与模型下拉 |
 | [Skills](docs/subsystems/skills.zh.md) | `skills` 插件的三层披露、内置/外置来源与 `skills` 工具 |
 | [Rules](docs/subsystems/rules.zh.md) | `rules` 插件：`rules/` 下的 `.md` 全量注入与热开关 |
-| [视觉操作 2.0](docs/subsystems/visual-operator-2.0.zh.md) | 持续视觉帧、视野聚焦、授权与鼠标键盘工具 |
-| [AI说话](docs/subsystems/ai-speak.zh.md) | `ai_speak` 的文本规范、语音合成、插件事件与播放器 |
+| [AI角色扮演](docs/subsystems/ai-cosplay.zh.md) | `ai_cosplay` 的文本规范、语音合成、插件事件与播放器 |
 | [会话与协作](docs/subsystems/session.zh.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
 | [子智能体](docs/subsystems/subagent.zh.md) | 父子会话、批次、工具可见性、消息与最终回复投递 |
 | [壳层](docs/subsystems/shell.zh.md) | HTTP 路由、SSE、界面打包、适配层 |
@@ -142,20 +184,37 @@ python3 -m agent.gui.launcher
 | [后台任务](docs/plan/background-tasks.zh.md) | per-cid 队列、并发上限、超时、取消、输出与聚合通知 |
 | [软件更新](docs/plan/software-update.zh.md) | 版本检查、哈希校验、逐文件切换、备份与回滚 |
 | [会话消息队列](docs/plan/conversation-queue.zh.md) | 忙时入队、回合结束投递、安全插入与修改恢复 |
-| [标准对齐](docs/plan/standards-alignment.zh.md) | 依赖环、门禁可信度、覆盖率口径与预算 |
-| [结构整改](docs/plan/structural-remediation.zh.md) | Provider、上下文、壳层与门禁的职责拆分 |
 | [历史分页](docs/plan/history-paging.zh.md) | 轮次分页、游标、前插与超长报文延迟渲染 |
+| [会话存储重构](docs/plan/session-storage-refactor.zh.md) | 增量追加、10K 字符窗口、轮区间、禁止全量读取、并发边界 |
 | [多模型](docs/plan/multi-model.zh.md) | 模型目录、Provider 路由与协议适配 |
-| [AI说话](docs/plan/ai-speak.zh.md) | 文本切片、SSE 与播放器设计 |
+| [AI角色扮演](docs/plan/ai-cosplay.zh.md) | 文本切片、SSE 与播放器设计 |
 | [视觉操作交互](docs/plan/visual-operator-interaction.zh.md) | 截屏、UIA 与坐标控制的设计判断 |
 | [视觉操作](docs/plan/visual-operator.zh.md) | 视觉操作子系统的设计记录 |
-| [视觉操作 2.0](docs/plan/visual-operator-2.0.zh.md) | 持续视觉、完整图与聚焦局部图、请求时图片注入与键鼠动作设计 |
-| [视觉操作 2.0 Skills](docs/plan/visual-operator-2.0-skills.zh.md) | 睁眼授权、双图观察、聚焦、键鼠与闭眼操作指引 |
 | [CLI 两阶段确认](docs/plan/cli-confirm-backlog.zh.md) | CLI 两阶段确认缺口 |
 | [ADR：插件子进程隔离](docs/adr/plugin-subprocess-isolation.zh.md) | 隔离方案的决策记录 |
 
+| [视觉操作 2.0 子系统](docs/subsystems/visual-operator-2.0.zh.md) | 持续视觉帧、聚焦、授权与键鼠工具 |
 </details>
 
+<details>
+<summary>补充文档</summary>
+
+| 文档 | 内容 |
+|---|---|
+| [标准适用性申报](docs/applicability.zh.md) | N/A 申报与风险承担者 |
+| [上下文导出](docs/guide/context-dump.zh.md) | 上下文请求视图与导出 |
+| [上下文压缩工具](docs/plan/context-compression-tool.zh.md) | 压缩上下文工具 |
+| [HTTP 鉴权](docs/plan/http-auth.zh.md) | 登录、Token、Cookie、CSRF 与路由策略 |
+| [子智能体](docs/plan/subagent.zh.md) | 父子会话、批次与消息投递 |
+| [唤醒调度](docs/plan/wake-scheduler.zh.md) | 定时唤醒与重试 |
+| [质量门禁](docs/quality-gates.zh.md) | 门禁、预算与跳过规则 |
+| [静默异常](docs/silent-exceptions.zh.md) | 静默异常判据与留痕 |
+| [写入门禁](docs/write-gate.zh.md) | 写类工具的四步门禁 |
+| [视觉操作子系统](docs/subsystems/visual-operator.zh.md) | 截屏、坐标契约与平台后端 |
+| [复杂度清单](docs/complexity.md) | 超阈值文件与拆分理由 |
+| [单元测试目录](docs/unit-tests.md) | 测试名称、数量与分层 |
+
+</details>
 ## 开发帮助
 
 ### 环境
@@ -168,9 +227,9 @@ pip install -e . -c constraints.txt
 
 ### CI
 
-`scripts/ci.py` 的流水线 30 步：18 项门禁 → 单测 → 10 个验收脚本 → 分包覆盖率。
+`scripts/ci.py` 的流水线 32 步：19 项门禁 → 单测 → 10 个验收脚本 → 覆盖率采集 → 分包覆盖率。
 
-18 项门禁覆盖依赖方向、架构约束、配置漂移、生成文档一致性、静态检查、UI/文案、复杂度、适用性与并发争用；完整清单用 `--list` 查看。
+19 项门禁覆盖依赖方向、架构约束、配置漂移、生成文档一致性、静态检查、UI/文案、复杂度、适用性与并发争用；完整清单用 `--list` 查看。
 
 门禁清单的唯一事实源是 `scripts/ci_steps.py`，由 `check_ci_workflow` 与 GitHub Actions 对齐。
 
@@ -184,7 +243,7 @@ python scripts/ci.py --list    # 列出检查项
 
 `docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（2047 个用例）：
+单元测试（2178 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

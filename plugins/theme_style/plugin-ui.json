@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "kind": "ui-paths",
+  "paths": {
+    "panel": "app/settings/interface",
+    "button": "app/shell/web-ui/nav/buttons/style"
+  }
+}

@@ -15,7 +15,6 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.app import build_app  # noqa: E402
-from agent.capabilities.tasks.confirm import ApprovalConfirmTool  # noqa: E402
 from agent.core import session_scope  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
@@ -31,6 +30,7 @@ class _TaskToolsBase(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.state = LiveState(storage_dir=self.root / "todo")
         self.app = build_app(live_state=self.state)
+        self.addCleanup(self.app.dispose)
         self._seq = 0
 
     def _call(self, name, arguments=None, cid=CID):
@@ -70,11 +70,11 @@ class RunTypeTest(_TaskToolsBase):
         self.assertEqual(self.state.get_mode(CID), "auto")
         self.assertEqual(self._call("run_type", {}).data["run_type"], "auto")
 
-    def test_invalid_value_falls_back_to_query(self):
-
+    def test_invalid_value_is_rejected(self):
+        """非法 run_type 不能被当成查询；否则模型会误以为切换成功。"""
         r = self._call("run_type", {"run_type": "weird"})
-        self.assertTrue(r.ok)
-        self.assertEqual(r.data["action"], "query")
+        self.assertFalse(r.ok)
+        self.assertIn("auto / plan / execute", r.error)
 
     def test_requires_session_scope(self):
 
@@ -215,8 +215,7 @@ class UserConfirmTest(_TaskToolsBase):
 class ApprovalConfirmTest(_TaskToolsBase):
     def setUp(self) -> None:
         super().setUp()
-        self.assertIsNone(self.app.registry.get("approval_confirm"))
-        self.app.registry.register(ApprovalConfirmTool())
+        self.assertIsNotNone(self.app.registry.get("approval_confirm"))
 
     def test_suspends_with_approval_envelope(self):
 
@@ -300,6 +299,14 @@ class TaskGoalTest(_TaskToolsBase):
         # 参数错误经管线翻成 ok=False（工具内 raise，不终止回合）
         self.assertFalse(self._call("goal", {"action": "create"}).ok)
         self.assertFalse(self._call("goal", {"action": "bogus"}).ok)
+
+    def test_goal_round_limit_default_and_cap(self):
+        r = self._call("goal", {"action": "create", "text": "默认轮数"})
+        self.assertEqual(r.data["goal"]["max_rounds"], 256)
+        r = self._call("goal", {"action": "update", "max_rounds": 1024})
+        self.assertEqual(r.data["goal"]["max_rounds"], 1024)
+        self.assertFalse(self._call("goal", {"action": "update", "max_rounds": 1025}).ok)
+        self.assertFalse(self._call("goal", {"action": "update", "max_rounds": 0}).ok)
 
     def test_resume_creates_missing_goal_from_text(self):
         r = self._call("goal", {"action": "resume", "text": "继续往下讲"})

@@ -49,7 +49,9 @@ class _FakeCtx:
     def set_runtime(self, runtime) -> None:
         self.runtime = runtime
 
-    def add_context_source(self, fn, meta=None):
+    def add_context_source(self, fn, meta=None, *, path="", replace=False):
+        if not path:
+            raise ValueError("缺少 path")
         return self.sources.add(fn, self._meta(meta))
 
     def _meta(self, meta):
@@ -59,7 +61,9 @@ class _FakeCtx:
         return SourceMeta(key="rules", label=str(payload.get("label") or ""),
                           plugin="rules", count=payload.get("count"))
 
-    def add_prompt_section(self, section, fn):
+    def add_prompt_section(self, section, fn, *, path=""):
+        if not path:
+            raise ValueError("缺少 path")
         self.sections.append((section, fn))
 
         def _drop() -> None:
@@ -156,7 +160,8 @@ class RulesRegisterTest(unittest.TestCase):
         ctx.sources = ContextSources()
         ctx.add_context_source(runtime.build_system_messages,
                                {"label": _PLUGIN.SEGMENT_LABEL,
-                                "count": runtime.attached_count})
+                                "count": runtime.attached_count},
+                               path="app/backend/context/sources/rules/files")
         segments = ctx.sources.collect_segments("c1")
         keys = {item[0] for item in segments.items}
         self.assertEqual(keys, {"rules"})
@@ -185,7 +190,7 @@ class RulesRegisterTest(unittest.TestCase):
     def test_segment_style_registered(self) -> None:
         ctx, _ = self._register(self.root)
         item = next(row for row in ctx.ui_items
-                    if row[0] == "web-ui/left-panel/context_usage/rules")
+                    if row[0] == "app/shell/web-ui/left-panel/context_usage/rules")
         self.assertEqual(item[2]["label"], "Rules")
         self.assertTrue(item[2]["color"])
 

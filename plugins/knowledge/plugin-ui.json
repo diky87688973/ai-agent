@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "kind": "ui-paths",
+  "paths": {
+    "button": "app/shell/web-ui/input/buttons/kb_btn",
+    "panel": "app/shell/web-ui/right-panel/kb",
+    "segment": "app/shell/web-ui/left-panel/context_usage/kb"
+  }
+}

@@ -73,11 +73,11 @@ def register(ctx: Any) -> List[Any]:
             return 404, {"ok": False, "error": "no such task"}
         return 200, {"ok": True, "removed": tid}
 
-    disposers.append(ctx.add_route("POST", "tasks", create))
-    disposers.append(ctx.add_route("GET", "tasks", listing))
-    disposers.append(ctx.add_route("GET", "tasks/:sid", one))
-    disposers.append(ctx.add_route("PUT", "tasks/:sid", bump))
-    disposers.append(ctx.add_route("DELETE", "tasks/:sid", drop))
+    disposers.append(ctx.add_route("POST", "tasks", create, slot_path="app/backend/http/routes/probe-tasks-create"))
+    disposers.append(ctx.add_route("GET", "tasks", listing, slot_path="app/backend/http/routes/probe-tasks-list"))
+    disposers.append(ctx.add_route("GET", "tasks/:sid", one, slot_path="app/backend/http/routes/probe-tasks-one"))
+    disposers.append(ctx.add_route("PUT", "tasks/:sid", bump, slot_path="app/backend/http/routes/probe-tasks-bump"))
+    disposers.append(ctx.add_route("DELETE", "tasks/:sid", drop, slot_path="app/backend/http/routes/probe-tasks-drop"))
     return disposers
 '''
 
@@ -114,7 +114,7 @@ class PluginHttpTest(unittest.TestCase):
         (plugins / "probe" / "ui" / "panel.css").write_text(_PANEL_CSS, encoding="utf-8")
 
         # 数据根走环境变量（`build_app` 不接受该参数）；装载清单走临时 `plugins.ini`
-        # —— 真实工程那份列的是 knowledge / ai_speak，测试不该依赖它，也不该打补丁绕过。
+        # —— 真实工程那份列的是 knowledge / ai_cosplay，测试不该依赖它，也不该打补丁绕过。
         cls._env = mock.patch.dict(
             os.environ, {"AI_AGENT_DATA_ROOT": str(base / "data")})
         cls._env.start()

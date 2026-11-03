@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
+from agent.common.status import GOAL_ACTIVE
 from agent.core.error_report import report_error
 
 AUTO_CONTINUE_PROMPT = (
@@ -19,7 +20,7 @@ def next_continuation_text(*, cid: str,
     if goal_row is not None:
         row = goal_row(cid)
         if isinstance(row, dict):
-            if str(row.get("status") or "") != "active":
+            if str(row.get("status") or "") != GOAL_ACTIVE:
                 return ""
             return str(row.get("text") or "").strip()
     if auto_continue is not None and bool(auto_continue(cid)):

@@ -8,12 +8,18 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import agent.mechanisms.quality.checks as _checks
 import agent.mechanisms.quality.diagnose as _diagnose
+from agent.common.status import require
 from agent.core.tool_call import GateDecision
 from agent.mechanisms.quality.checks import WriteContext
 from agent.mechanisms.quality.path_keys import norm_path
 from agent.mechanisms.quality.pending import PendingStore
 
 PathKeysFor = Callable[[str], Sequence[str]]
+
+INTENT_NONE = ""
+INTENT_DEBUG = "debug"
+INTENT_TROUBLESHOOT = "troubleshoot"
+INTENTS = (INTENT_NONE, INTENT_DEBUG, INTENT_TROUBLESHOOT)
 
 
 @dataclass
@@ -31,7 +37,7 @@ class QualityGate:
     _write_generation: int = 0
 
     # ── 检查状态──
-    intent: str = ""  # "" | "debug" | "troubleshoot"
+    intent: str = INTENT_NONE
     evidence_ok: bool = False
     fixable_paths: List[str] = field(default_factory=list)
     apply_patch_pending: bool = False
@@ -143,8 +149,8 @@ class QualityGate:
 
     # ── 意图 / 证据 ──────────────────────
     def set_intent(self, intent: str) -> None:
-        """设置会话意图（"" | "debug" | "troubleshoot"）；切换时重置证据状态。"""
-        self.intent = intent if intent in ("debug", "troubleshoot") else ""
+        """设置会话意图（INTENTS 之一）；切换时重置证据状态。"""
+        self.intent = require(intent, INTENTS, "会话意图")
         self.evidence_ok = False
 
     def note_evidence(self) -> None:

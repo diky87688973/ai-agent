@@ -32,9 +32,9 @@ class BackgroundTaskManagerTest(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        self.notices: list[tuple[str, str]] = []
+        self.notices: list[tuple[str, str, dict]] = []
         self.manager = BackgroundTaskManager(
-            [self.root], notice=lambda cid, text: self.notices.append((cid, text))
+            [self.root], notice=lambda cid, text, meta=None: self.notices.append((cid, text, meta))
         )
 
     def tearDown(self) -> None:

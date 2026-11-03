@@ -6,6 +6,13 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from agent.capabilities.plugin_paths import load_plugin_paths
+from agent.core.error_report import report_error
+
+PATHS = load_plugin_paths(__file__)
+
+
+
 STYLE_ID = "theme_style"
 DEFAULT_STYLE = "dsh"
 STYLES = {"dsh", "minimal"}
@@ -24,7 +31,8 @@ def _load_style(ctx: Any) -> str:
         payload = json.loads(path.read_text(encoding="utf-8"))
         value = str(payload.get("style") or DEFAULT_STYLE)
         return value if value in STYLES else DEFAULT_STYLE
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError) as exc:
+        report_error("plugins.theme_style._load_style", exc)
         return DEFAULT_STYLE
 
 
@@ -53,7 +61,7 @@ def register(ctx: Any) -> List[Any]:
 
     return [
         ctx.add_settings_item(
-            "settings/interface", "theme_style",
+            PATHS["panel"], "theme_style",
             kind="select", label="界面风格", default=DEFAULT_STYLE,
             options=(
                 {"value": "dsh", "label": "DSH 风格"},
@@ -63,8 +71,11 @@ def register(ctx: Any) -> List[Any]:
             save=save_style,
             load=lambda: _load_style(ctx),
         ),
-        ctx.add_route("GET", "style", get_style),
-        ctx.add_ui_item("web-ui/nav/buttons/style", kind="button",
+        ctx.add_route(
+            "GET", "style", get_style,
+            slot_path="app/backend/http/routes/theme_style-style"),
+        ctx.add_ui_item(PATHS["button"], kind="button",
                         props={"label": "黑白切换", "action": "theme.toggle",
+                               "binding": {"nav": "theme"},
                                "scripts": ["ui/theme-style.js"]}, order=1),
     ]

@@ -2,10 +2,13 @@
 """外部工具结果回灌。"""
 from __future__ import annotations
 
-import sys
 from typing import Any, Dict
 
+from agent.core.error_report import report_error
+from agent.core.event_name import TOOL_DONE, TOOL_ENDED, TOOL_FAILED
 from agent.core.events import Event
+from agent.core.state_values import TOOL_DONE as TOOL_STATUS_DONE
+from agent.core.state_values import TOOL_FAILED as TOOL_STATUS_FAILED
 
 
 def splice_resume(*, app: Any, cid: str, resume: Dict[str, Any]) -> None:
@@ -16,26 +19,47 @@ def splice_resume(*, app: Any, cid: str, resume: Dict[str, Any]) -> None:
         return
     try:
         ok = bool(resume.get("ok", True))
-        existing = {str((e.data or {}).get("call_id") or "")
-                    for e in store.load(cid)
-                    if e.type in ("tool_done", "tool_failed")}
-        if call_id in existing:
-            return
         name = str(resume.get("name") or "")
+
+        def _already_there(events) -> bool:
+            return any(
+                str((e.data or {}).get("call_id") or "") == call_id
+                and e.type in (TOOL_DONE, TOOL_FAILED)
+                for e in events
+            )
+
+        append_once = getattr(store, "append_if_absent", None)
+        if callable(append_once):
+            append_once(cid, _already_there, [
+                Event(TOOL_DONE if ok else TOOL_FAILED, {
+                    "call_id": call_id,
+                    "name": name,
+                    "data": resume.get("data"),
+                    "error": str(resume.get("error") or ""),
+                }),
+                Event(TOOL_ENDED, {
+                    "call_id": call_id,
+                    "name": name,
+                    "status": TOOL_STATUS_DONE if ok else TOOL_STATUS_FAILED,
+                    "elapsed_ms": 0,
+                }),
+            ])
+            return
+        if _already_there(store.load(cid)):
+            return
         store.append(cid, [
-            Event("tool_done" if ok else "tool_failed", {
+            Event(TOOL_DONE if ok else TOOL_FAILED, {
                 "call_id": call_id,
                 "name": name,
                 "data": resume.get("data"),
                 "error": str(resume.get("error") or ""),
             }),
-            Event("tool_ended", {
+            Event(TOOL_ENDED, {
                 "call_id": call_id,
                 "name": name,
-                "status": "done" if ok else "failed",
+                "status": TOOL_STATUS_DONE if ok else TOOL_STATUS_FAILED,
                 "elapsed_ms": 0,
             }),
         ])
     except Exception as exc:
-        print(f"[session_runner] resume 拼接失败 cid={cid}: {exc}",
-              file=sys.stderr, flush=True)
+        report_error("agent.shell.session.resume.splice_resume", exc)

@@ -1,6 +1,6 @@
 {
   "name": "Rules",
-  "desc": "rules 目录下的每个 .md 作为系统规则注入当前会话",
+  "desc": "为 Agent 赋予 系统规则 与 用户规则 管理的能力",
   "icon": "📜",
   "version": "1.0",
   "config": "false"

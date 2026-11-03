@@ -11,21 +11,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict
 
 from agent.capabilities.registry import ToolPlugin
-from agent.mechanisms.quality import QualityGate
-
-
-def _session_gate() -> QualityGate:
-    """取当前工具调用的会话门控。"""
-    from agent.core.session_scope import current_context
-
-    ctx = current_context()
-    session = getattr(ctx, "session", None) if ctx is not None else None
-    resolved = getattr(session, "gate", None)
-    if resolved is None:
-        raise ValueError(
-            "取不到会话门控：须经 ToolPort.execute（管道上下文填入 session）调用"
-        )
-    return resolved
+from agent.capabilities.session_gate import session_gate
 
 
 class CommitWriteTool(ToolPlugin):
@@ -60,15 +46,22 @@ class CommitWriteTool(ToolPlugin):
         cid = str(arguments.get("confirm_id") or "").strip()
         if not cid:
             raise ValueError("缺少 confirm_id")
-        record = _session_gate().take_record(cid)
+        gate = session_gate()
+        record = gate.peek(cid)
         if record is None:
             raise ValueError("confirm_id 无效或已使用：请重新预览")
         tool = str(record.get("tool") or "")
-        executor = self._executors.get(tool)
-        if executor is None and self._dynamic is not None:
+        executor = None
+        if self._dynamic is not None:
             executor = self._dynamic.get(tool)
         if executor is None:
+            executor = self._executors.get(tool)
+        if executor is None:
+            # 未知类型不能先消费快照，否则调用方拿到的 confirm_id 会直接失效。
             raise ValueError(f"该预览类型不支持提交：{tool or '（空）'}")
+        record = gate.take_record(cid)
+        if record is None:
+            raise ValueError("confirm_id 无效或已使用：请重新预览")
         return executor(dict(record.get("arguments") or {}))
 
 

@@ -64,15 +64,15 @@ def load_config(path: Path | None = None) -> VisionConfig:
     if fmt not in ("WEBP", "JPEG", "PNG"):
         fmt = "WEBP"
     return VisionConfig(
-        fps=_float(vision, "fps", 5.0, 0.2, 30.0),
-        queue_size=2,
+        fps=_float(vision, "fps", 0.0, 0.0, 30.0),
+        queue_size=_int(vision, "queue_size", 3, 1, 16),
         focus_width=_int(vision, "focus_width", 512, 64, 4096),
         focus_height=_int(vision, "focus_height", 512, 64, 4096),
         focus_zoom=_float(vision, "focus_zoom", 1.0, 1.0, 4.0),
         settle_ms=_int(vision, "settle_ms", 100, 0, 5000),
         takeover_distance=_int(vision, "takeover_distance", 100, 1, 2000),
         move_settle_ms=_int(vision, "move_settle_ms", 50, 0, 500),
-        move_duration_ms=_int(vision, "move_duration_ms", 200, 0, 1000),
+        move_duration_ms=_int(vision, "move_duration_ms", 0, 0, 1000),
         image_format=fmt,
         image_quality=_int(image, "quality", 80, 1, 100),
         square_size=_int(image, "square_size", 0, 0, 4096),

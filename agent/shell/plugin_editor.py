@@ -34,7 +34,7 @@ SCHEMA_FILE = "settings-schema.json"
 KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_-]+)(\s*=\s*)(.*)$")
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 SECTION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_:-]*")
-_FIELD_KINDS = ("text", "secret", "number", "bool", "enum")
+_FIELD_KINDS = ("text", "secret", "number", "bool", "enum", "textarea")
 _PLACEHOLDER_API_KEYS = (
     "请替换", "your-api-key", "your_api_key", "sk-xxx", "changeme", "placeholder",
 )
@@ -193,10 +193,18 @@ def build_editor(text: str, folder: Path) -> Dict[str, Any]:
 def _section_values(text: str, section: str) -> Dict[str, str]:
     body = section_body(text.splitlines(keepends=True), section) or []
     values: Dict[str, str] = {}
+    current = ""
     for raw in body:
-        matched = KEY_RE.match(raw.rstrip("\r\n"))
+        line = raw.rstrip("\r\n")
+        matched = KEY_RE.match(line)
         if matched is not None:
-            values[matched.group(2)] = matched.group(4).strip()
+            current = matched.group(2)
+            values[current] = matched.group(4).strip()
+            continue
+        if current and line[:1].isspace():
+            values[current] += "\n" + line.strip()
+    for key in values:
+        values[key] = values[key].strip()
     return values
 
 

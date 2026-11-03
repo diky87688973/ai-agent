@@ -139,5 +139,12 @@ class ClassicState:
         with self._lock:
             self.attachments.pop(cid, None)
 
+    def drop_session(self, cid: str) -> None:
+        """关闭标签：清该会话的全部内存态（用量 / 命令回灌 / 附件）。"""
+        with self._lock:
+            self.usage.pop(cid, None)
+            self.command_input.pop(cid, None)
+            self.attachments.pop(cid, None)
+
 
 # ── 端点实现 ────────────────────────────────────────────────

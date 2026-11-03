@@ -82,7 +82,6 @@ def find_pids(executable: Path) -> List[int]:
     target = Path(executable)
     if os.name != "nt" or not target.is_file():
         return []
-    kernel32 = ctypes.windll.kernel32
     kernel32 = _kernel32()
     snapshot = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
     if snapshot in (0, ctypes.c_void_p(-1).value):

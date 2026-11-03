@@ -356,7 +356,7 @@ class ManagerTest(_ManagerCase):
         self._wait(result["child_id"])
         child_prompt = self.app.runner.system_prompt(result["child_id"])
         self.assertNotIn("session_create", child_prompt)
-        self.assertNotIn("ai_speak", child_prompt)
+        self.assertNotIn("ai_speek", child_prompt)
         self.assertNotIn("subagent_send", parent_prompt)
         self.assertIn("subagent_send", child_prompt)
 

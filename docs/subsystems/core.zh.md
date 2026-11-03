@@ -1,11 +1,33 @@
-[English](core.md) | **中文**
+﻿# 内核
 
-# 内核
+## 1. 概览
 
 `agent/core/` 是 L0 层，不依赖任何其它层。它提供四样东西：数据契约、模块抽象、链执行器、宿主循环。
 
-## 数据契约
+## 2. 插口协议
 
+### 暴露
+
+| 插口路径 | 能力 | 关键属性 | 可替换/覆盖方式 |
+|---|---|---|---|
+| `app/kernel` | 模块贡献 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `app/kernel/modules/input` | 内核模块 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `app/kernel/modules/queued_input` | 内核模块 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `app/kernel/modules/compress` | 内核模块 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `app/kernel/modules/model` | 内核模块 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `app/kernel/modules/tool` | 内核模块 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+### 依赖
+
+| 依赖路径 | 能力 | 提供者 | 为什么依赖 |
+|---|---|---|---|
+| `app/host/services/event_bus` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/host/services/registry` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/host/services/contexts` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/host/services/pipeline` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+
+## 3. 插口能力
+
+### 数据契约
 | 文件 | 内容 |
 |---|---|
 | `event_name.py` | 26 个事件名常量。纯字符串，零依赖 |
@@ -17,8 +39,7 @@
 
 跨层只传这些对象，不传裸 dict。
 
-## 控制信号
-
+### 控制信号
 ```python
 class Outcome:
     status: str    # ok / next / halt / suspend / stopped
@@ -35,8 +56,7 @@ class Outcome:
 
 `Outcome` **只带控制信号，不带数据**（`reason` 是终态说明，不是载荷）。正文、用量、进度全部经 `ports.emit()` 发出。这个约束让模块之间没有共享可变状态。
 
-## 模块抽象
-
+### 模块抽象
 ```python
 class ModuleBase:
     # 生成器契约：yield 事实，return 控制信号
@@ -57,7 +77,7 @@ class ModuleBase:
 
 `build_default_chain()` 按 `输入 → 待发送队列插入 → 压缩 → 模型 → 工具` 的顺序组装。
 
-### 各模块的判定依据
+#### 各模块的判定依据
 
 **`InputModule`**：有输入就发 `input_claimed` 并返回 `ok`；**无输入时不发 `input_claimed`**，只发终态 `input_ended`。原因是：接口确认触发的恢复轮没有用户发言，此时凭空发一条空的 `input_claimed` 会让消息序列变成 `…assistant(tool_calls) → user("") → tool`，模型接口直接拒绝。
 
@@ -69,7 +89,7 @@ class ModuleBase:
 
 **`ToolModule`**：本链的收尾模块。找到最新模型消息里要求了但尚无结果的调用并执行；已被挂起的调用不重复执行。需要外部输入时发 `tool_suspended` 与 `tool_ended`，取消同批剩余调用，并返回 `Outcome.suspend(...)`（交回控制权，不阻塞）；否则，执行过调用就返回 `next`。
 
-## 链执行器
+### 模块链
 
 `chain.py` 回答"一趟怎么跑"：
 
@@ -81,8 +101,7 @@ step(module, ports)            -> (list[Event], Outcome)
 
 `run_chain_iter` 返回可迭代的 `_Pass`：迭代时逐个产出事件，迭代结束后读 `.result`。`PassResult` 记录这一趟的终态（若有）与是否有模块要求续行。`run_chain` 遇到任一终态（`halt` / `suspend` / `stopped`）立即中断，不再跑后续模块。`step` 是单模块的窄入口（测试、装配校验用）。
 
-## 宿主循环
-
+### 宿主循环
 `host.py` 回答"跑到什么时候停"，并划定回合边界。
 
 ```python
@@ -102,8 +121,7 @@ class Host:
 
 `TurnResult` 汇总一个回合的结果：结束原因（`done` / `halted` / `suspended` / `stopped` / `max_passes` / `abandoned`）、跑过的趟数与终态说明。事实本身在 `SessionLog` 里，不在它身上。
 
-## 引擎外观
-
+### 引擎外观
 `engine.py` 的 `Engine` 把模块链包成壳层要的两面：
 
 - **开始回合**：投递输入、启动宿主循环；
@@ -111,8 +129,7 @@ class Host:
 
 `App.session(conversation_id, *, system_prompt, cancel, ...)` 每次构建一个新的 `Engine`，会话之间不共享回合状态。
 
-## 会话作用域
-
+### 会话作用域
 `session_scope.py` 解决"工具在深层调用里怎么知道自己在哪个会话"。
 
 ```python
@@ -123,8 +140,7 @@ set_progress_reporter(fn) / emit_progress(stream=..., text=..., done=...)
 
 用 contextvar 实现。工具与管道钩子经 `current_session_id()` 取会话 id，再向 `SessionContexts` 解析会话上下文。这是会话隔离的执行手段。
 
-## 视觉嵌图
-
+### 视觉嵌图
 `image_embed.py` 处理"附件图片怎么进请求体"，属于"消息派生"的一段：把事实折叠成请求的那一方负责这件事。
 
 - `shrink_image()` / `shrink_path()`：本地按长边缩放，减小 base64 体积（长边上限 `EMBED_MAX_SIDE = 800`）；
@@ -137,8 +153,7 @@ set_progress_reporter(fn) / emit_progress(stream=..., text=..., done=...)
 
 被剥掉的图只从**发给模型的这一份**里消失：事实流里的 base64 一个字节都不动，历史回显与重新提问都还能拿到原图。
 
-## 上下文容器
-
+### 上下文容器
 `context.py` 有两个类：
 
 | 类 | 作用 |
@@ -148,8 +163,14 @@ set_progress_reporter(fn) / emit_progress(stream=..., text=..., done=...)
 
 服务名常量集中在 `core/context.py` 顶部，装配点与使用方引用同一常量。
 
-## 延伸阅读
+## 4. 其他细节
 
-- [architecture.zh.md](../architecture.zh.md)：五层结构与装配
-- [context.md](context.zh.md)：上下文管理
-- [tools.md](tools.zh.md)：工具执行管道
+无额外细节。
+
+## 5. 延伸阅读
+
+| 主题 | 文档 |
+|---|---|
+| 五层结构与装配 | [architecture.zh.md](../architecture.zh.md) |
+| 上下文管理 | [context.zh.md](context.zh.md) |
+| 工具执行管道 | [tools.zh.md](tools.zh.md) |

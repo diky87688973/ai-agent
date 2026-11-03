@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  var api = window.aiAgentPlugins.for(window.aiAgentPluginCurrent || "knowledge");
+  var api = window.aiAgentPlugins.for("knowledge");
 
   function esc(s) {
     return String(s == null ? "" : s)

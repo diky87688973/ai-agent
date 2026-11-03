@@ -203,11 +203,16 @@ class DataTableTool(ToolPlugin):
 
     @staticmethod
     def _do_sort(rows: List[Dict[str, Any]], col: str, desc: bool) -> List[Dict[str, Any]]:
-        return sorted(
-            rows,
-            key=lambda r: str(r.get(col, "")) if r.get(col) is not None else "",
-            reverse=desc,
-        )
+        def _key(row: Dict[str, Any]):
+            value = row.get(col)
+            if value is None or value == "":
+                return (1, 0.0, "")
+            try:
+                return (0, float(value), "")
+            except (TypeError, ValueError):
+                return (1, 0.0, str(value))
+
+        return sorted(rows, key=_key, reverse=desc)
 
     @staticmethod
     def _do_stats(rows: List[Dict[str, Any]], col: str) -> Dict[str, Any]:

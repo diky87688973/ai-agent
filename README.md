@@ -49,6 +49,49 @@ macOS packages are not built yet. Current releases provide Windows packages only
 - **Context management** — segment budgets, over-budget summaries, context usage, and request snapshots. Persisted fact streams and SSE resume by event coordinates.
 - **Safe updates** — update-pack hash checks, staging, health checks, and rollback on failure. Regular files are replaced; `*.ini` files merge user settings.
 
+## Plugin architecture
+
+A plugin is the install/enable unit; the plugin tree is the contribution view, and the slot tree (`SlotTree`) is the assembled result. The whole `app` is recursively assembled from the startup tree; it is not a fixed app with an extension point. Kernel, host, tools, and shell are startup slots; plugins replace or add nodes before assembly. `App` is only the facade; `boot_app()` reads the tree, merges overrides, and assembles recursively.
+
+```text
+Startup flow (whole app)
+App starts
+  |
+  |-- read agent/boot/slot_tree.json
+  |     `-- base tree: kernel / host / tools / shell / facade
+  |
+  |-- scan plugins/
+  |     |-- plugins.ini           enable + order
+  |     `-- plugin-assembly.json  extra plugin assembly declarations
+  |
+  |-- merge
+  |     |-- replace / add app/... subtree
+  |     `-- auth: host-owned, not a SlotTree replaceable subtree
+  |
+  `-- SlotTree recursive assembly
+        |
+        v
+     App facade ready (no component list)
+
+App runtime
+  plugin.py -- register(ctx) --> backend slots / UI slots / settings / routes
+                                `-- dynamic nodes attach to the same SlotTree
+```
+
+Plugin directory:
+
+```text
+plugins/<name>/
+  plugin.py             register(ctx)
+  plugin-ui.json        UI slots
+  plugin-assembly.json  startup slot overrides; presence auto-loads
+  plugin-meta.json      identity / auto_load
+  plugin-config.ini     plugin configuration
+  ui/                   panel assets
+```
+
+Startup slots can be replaced and an `app/...` subtree can be added; auth is host-owned and not a replaceable SlotTree subtree. No edit to `slot_tree.json` or `plugins.ini` is needed; `enabled = 0` still disables.
+
 ## Quick start
 
 ### Desktop
@@ -114,7 +157,7 @@ Documentation is available in English and Chinese; English pages are canonical.
 
 | Document | Contents |
 |---|---|
-| [Architecture](docs/architecture.md) | Five layers, module chain, ports, event protocol, state lifecycle |
+| [Architecture](docs/architecture.md) | Plugin tree, five-layer base, module chain, ports, event protocol, state lifecycle |
 | [Engineering standards](docs/engineering-standards.md) | Module structure, single responsibility, asset ownership, extension paths, gates |
 | [Glossary](docs/glossary.md) | Project-specific terms |
 | [Kernel](docs/subsystems/core.md) | Module contracts, chain executor, host loop |
@@ -127,7 +170,7 @@ Documentation is available in English and Chinese; English pages are canonical.
 | [Skills](docs/subsystems/skills.md) | Three-layer disclosure, built-in/external sources, `skills` tool |
 | [Rules](docs/subsystems/rules.md) | `rules/` markdown injection and hot toggle |
 | [Visual Operator 2.0](docs/subsystems/visual-operator-2.0.md) | Continuous frames, focus, authorization, mouse/keyboard tools |
-| [AI Speak](docs/subsystems/ai-speak.md) | Text normalization, speech synthesis, plugin events, player |
+| [AI Speak](docs/subsystems/ai-cosplay.md) | Text normalization, speech synthesis, plugin events, player |
 | [Sessions and collaboration](docs/subsystems/session.md) | Fact logs, cross-process locks, runtime registry, collaboration mesh |
 | [Subagents](docs/subsystems/subagent.md) | Parent/child sessions, batches, tool visibility, messaging |
 | [Shell](docs/subsystems/shell.md) | HTTP routes, SSE, UI bundling, adapter layer |
@@ -144,11 +187,10 @@ Design records and trade-offs, not user manuals.
 | [Background tasks](docs/plan/background-tasks.md) | Per-cid queues, concurrency limits, timeouts, cancellation, output, aggregate notices |
 | [Software updates](docs/plan/software-update.md) | Version checks, hash validation, per-file switch, backup, rollback |
 | [Conversation queue](docs/plan/conversation-queue.md) | Busy-time enqueue, turn-end delivery, safe insertion, edit recovery |
-| [Standards alignment](docs/plan/standards-alignment.md) | Dependency cycles, gate trust, coverage accounting, budgets |
-| [Structural remediation](docs/plan/structural-remediation.md) | Provider, context, shell, and gate responsibility split |
 | [History paging](docs/plan/history-paging.md) | Turn paging, cursors, prepend, delayed rendering of oversized payloads |
+| [Session storage refactor](docs/plan/session-storage-refactor.md) | Incremental append, 10K character windows, round ranges, no full reads, bounded concurrency |
 | [Multi-model](docs/plan/multi-model.md) | Model catalogs, provider routing, protocol adapters |
-| [AI Speak](docs/plan/ai-speak.md) | Text slicing, SSE, player design |
+| [AI Speak](docs/plan/ai-cosplay.md) | Text slicing, SSE, player design |
 | [Visual Operator interaction](docs/plan/visual-operator-interaction.md) | Screenshots, UIA, coordinate-control decisions |
 | [Visual Operator](docs/plan/visual-operator.md) | Visual Operator design record |
 | [CLI confirmation backlog](docs/plan/cli-confirm-backlog.md) | Two-stage confirmation gap in the CLI |
@@ -156,6 +198,25 @@ Design records and trade-offs, not user manuals.
 
 </details>
 
+<details>
+<summary>Reference documents</summary>
+
+| Document | Contents |
+|---|---|
+| [Standard applicability](docs/applicability.md) | N/A 申报与风险承担者 |
+| [Context dump](docs/guide/context-dump.md) | 上下文请求视图与导出 |
+| [Context compression tool](docs/plan/context-compression-tool.md) | 压缩上下文工具 |
+| [HTTP authentication](docs/plan/http-auth.md) | 登录、Token、Cookie、CSRF 与路由策略 |
+| [Subagents](docs/plan/subagent.md) | 父子会话、批次与消息投递 |
+| [Wake scheduler](docs/plan/wake-scheduler.md) | 定时唤醒与重试 |
+| [Quality gates](docs/quality-gates.md) | 门禁、预算与跳过规则 |
+| [Silent exceptions](docs/silent-exceptions.md) | 静默异常判据与留痕 |
+| [Write gate](docs/write-gate.md) | 写类工具的四步门禁 |
+| [Visual Operator subsystem](docs/subsystems/visual-operator.md) | Screenshots, coordinate contract, platform backends |
+| [Complexity inventory](docs/complexity.md) | 超阈值文件与拆分理由 |
+| [Unit-test catalog](docs/unit-tests.md) | 测试名称、数量与分层 |
+
+</details>
 ## Development
 
 ### Environment
@@ -168,9 +229,9 @@ pip install -e . -c constraints.txt
 
 ### CI
 
-`scripts/ci.py` runs 30 steps: 18 gates → unit tests → 10 acceptance scripts → package coverage.
+`scripts/ci.py` runs 32 steps: 19 gates → unit tests → 10 acceptance scripts → coverage collection → package coverage.
 
-The 18 gates cover dependency direction, architecture constraints, config drift, generated-doc consistency, static checks, UI/copy, complexity, applicability, and concurrency. Run `--list` for the full list.
+The 19 gates cover dependency direction, architecture constraints, config drift, generated-doc consistency, static checks, UI/copy, complexity, applicability, and concurrency. Run `--list` for the full list.
 
 The single source of truth for gates is `scripts/ci_steps.py`, kept aligned with GitHub Actions by `check_ci_workflow`.
 
@@ -184,7 +245,7 @@ python scripts/ci.py --list    # list checks
 
 `docs/unit-tests.md` is a generated readable test catalog; the source of truth is `tests/`.
 
-Unit tests (2047 cases):
+Unit tests (2178 cases):
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

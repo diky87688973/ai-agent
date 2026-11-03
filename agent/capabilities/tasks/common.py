@@ -67,5 +67,5 @@ def normalize_confirms(raw: Any) -> List[str]:
     for i, x in enumerate(raw):
         if not isinstance(x, str) or not x.strip():
             raise ValueError(f"confirms[{i}] 须为非空字符串")
-        out.append(x)
+        out.append(x.strip())
     return out

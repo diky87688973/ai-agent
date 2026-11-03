@@ -60,6 +60,27 @@ class FileRunRegistryTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.dir = Path(self._tmp.name) / "runs"
 
+    def test_two_instances_cannot_both_claim(self) -> None:
+        """跨实例并发占位只允许一个成功；只靠实例内锁会双成功。"""
+        first = FileRunRegistry(self.dir)
+        second = FileRunRegistry(self.dir)
+        barrier = threading.Barrier(2)
+        results: list[bool] = []
+
+        def _claim(reg: FileRunRegistry) -> None:
+            barrier.wait()
+            results.append(reg.claim(CID, "race"))
+
+        threads = [threading.Thread(target=_claim, args=(reg,))
+                   for reg in (first, second)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5)
+        self.assertEqual(sorted(results), [False, True])
+        self.assertTrue(first.running(CID))
+        self.assertTrue(second.running(CID))
+
     def test_state_is_visible_across_instances(self) -> None:
         """核心诉求：另一个实例（另一个 registry 对象）能看到"在跑"。"""
         a = FileRunRegistry(self.dir)
@@ -139,8 +160,6 @@ class DrainWindowTest(unittest.TestCase):
         self.assertFalse(self.mesh.is_running(CID))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class PidAliveTest(unittest.TestCase):
@@ -178,3 +197,7 @@ class PidAliveTest(unittest.TestCase):
             self.assertTrue(reg.running(CID),
                             "占位后立刻判为不在跑 —— 并发保护失效（见类 docstring）")
             self.assertIn(CID, reg.running_cids())
+
+
+if __name__ == "__main__":
+    unittest.main()

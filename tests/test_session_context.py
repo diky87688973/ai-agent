@@ -208,6 +208,7 @@ class AppWiringTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
         self.app = build_app()
+        self.addCleanup(self.app.dispose)
 
     def _call(self, name: str, arguments: dict, cid: str = ""):
         from agent.core.ports import ToolPort

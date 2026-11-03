@@ -1,18 +1,66 @@
-**English** | [中文](plugins.zh.md)
+﻿# Plugins
 
-# Plugins
+## 1. Overview
 
 Plugins are the capability extension points outside the kernel: tools, event subscriptions, context injection, tool-pipeline gating, executors for write tools, HTTP endpoints, and UI are all declared by plugins. **The kernel knows no specific plugin**; it only provides contribution registries and HTTP forwarding.
 
 Built-in capabilities follow the same path: the knowledge base and Skills are plugins. When a plugin's manifest section is removed, its injection sources, tools, panels, buttons, and endpoints are revoked together, with no effect on the kernel.
 
-## Package layout
+A plugin is the install/enable unit; it derives slots; the plugin tree describes contributions, and the slot tree is the assembled result. The plugin protocol covers the package, entry, ledger, and lifecycle; the slot protocol covers paths, parent/child structure, replacement, and frozen subtrees.
 
+## 2. Flowchart
+
+```text
+plugin root
+  │ discover
+  ▼
+<name>/plugin.py exists? ──no──> skip
+  │yes
+  ▼
+plugins.ini enabled? ──no──> skip
+  │yes
+  ▼
+importlib loads plugin.py
+  │
+  ▼
+register(ctx) -> tools/context/UI/routes
+  │
+  ▼
+ready
+  │ unload
+  ▼
+disposers reverse -> clear contributions -> drop module cache
+```
+
+## 3. Slots
+
+Which paths a particular plugin contributes is documented in that plugin's
+subsystem guide; the host guide does not enumerate them.
+
+### Exposed
+
+| Slot path | Capability | Key attributes | Replacement / override |
+|---|---|---|---|
+| `app/boot/plugins` | boot node | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `backend/runtime/*` | module contribution | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+| `app/shell/web-ui/*` | UI slot | owner=plugin; declared path; removed on unload | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `backend/http/routes/*` | HTTP endpoint | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+### Required
+
+| Dependency path | Capability | Provider | Why |
+|---|---|---|---|
+| `app/boot/facade` | boot node | host | must be ready before assembly; unavailable propagates as startup/request failure |
+
+## 4. Slot capabilities
+
+### Package layout
 A plugin is a directory under `plugins/`; the directory name is the plugin name and the name used in the manifest:
 
 ```
 plugins/<plugin-name>/
   plugin.py             required. Sole entry point; exposes register(ctx)
+  plugin-ui.json      optional. UI path declarations for navigation, input, panes, actions, and settings
+  plugin-assembly.json  optional. Startup assembly overlay replacing kernel, host, tool, or shell nodes under app/...
   plugin-meta.json      identity metadata: name / desc / icon / version / settings_tab (read by the settings page)
   plugin-config.ini     optional. The plugin's own configuration; committed when it has no sensitive data, kept out of version control when it carries credentials (as for multi_model)
   settings-schema.json  optional. Structured form declaration for the settings page
@@ -21,6 +69,37 @@ plugins/<plugin-name>/
 ```
 
 The minimal form is a directory containing only `plugin.py`: it subscribes to events and registers no tools or UI.
+
+`plugin-ui.json` declares UI paths only; backend contributions still come from `add_*` calls in `register(ctx)`. Plugin code must not assemble `app/` paths itself; the tree data is authoritative.
+
+`plugin-assembly.json` is merged into the assembly tree at startup. Any non-frozen node can be replaced, and an `app/...` subtree can be added. Its presence auto-loads the plugin; `"auto_load": true` in `plugin-meta.json` also auto-loads. `enabled = 0` in `plugins.ini` wins over auto-load. Startup nodes take effect after a restart.
+
+Authentication assembly is a frozen subtree: a node with `"frozen": true` cannot be replaced, deleted, or modified by plugins, including its descendants. The auth module remains plugin-shaped, but only the host assembles it.
+
+Kernel, host, tool, and shell startup nodes live in `agent/boot/slot_tree.json`, not in a plugin's `plugin-ui.json`. Replacing a factory there replaces that module; runtime replacement is limited to `scope=session` nodes.
+
+#### Startup assembly overlay
+
+`plugin-assembly.json` nodes are merged after `slot_tree.json` and before assembly:
+
+```json
+{
+  "version": 1,
+  "kind": "assembly",
+  "nodes": [
+    {
+      "path": "app/kernel/modules/model",
+      "factory": "assembly:make_model"
+    }
+  ]
+}
+```
+
+`factory` is a `module:attribute` inside the plugin directory; the module may use relative imports for sibling files. The factory receives `BuildContext` and returns a `SlotComponent` whose path matches the node. A kernel module can return `KernelModulePlugin` directly. A node with only `metadata` / `requires` keeps the base factory, which replaces a builder or dependency. `replace` defaults to `true`; an explicit `false` rejects an existing path and fails startup. A new node can use any `app/...` path; when its parent does not exist, add the parent in the same declaration.
+
+`frozen: true` marks a host-reserved subtree; overriding the node or any descendant fails startup.
+
+The file's presence auto-adds the plugin to the load manifest; `enabled = 0` in `plugins.ini` disables it. Startup nodes take effect after a restart.
 
 `register(ctx)` returns a disposer, a list of disposers, or nothing. **Every `ctx.add_*` returns a disposer**, and the host records it in the plugin's ledger as it is called (including `add_route` / `add_ui_item` / settings items / context hooks). Returned disposers are merged with that ledger and deduplicated by identity; on unload they run in reverse order. If `register` raises, every registration made through `ctx` is rolled back, so the plugin leaves no partial state.
 
@@ -32,8 +111,7 @@ from .library import Thing
 
 Subpackages work the same way (`from .tools.eye import DesktopEyeTool`): the loader supplies the `fan_agent_plugins` parent package, and relative imports inside the plugin directory resolve within the package.
 
-## Manifest: `plugins.ini`
-
+### Manifest: `plugins.ini`
 The project-root `plugins.ini` lists plugins. A section makes the plugin a load candidate; its `enabled` key is the switch.
 
 ```ini
@@ -56,7 +134,7 @@ enabled = 1
 
 Manifest errors are visible: an invalid name, a missing directory, or a missing `plugin.py` records an `error` report. Startup is not blocked, and the entry is not silently ignored.
 
-### Mode overlays
+#### Mode overlays
 
 A run mode overrides only the differences; it does not copy the full manifest:
 
@@ -65,7 +143,7 @@ A run mode overrides only the differences; it does not copy the full manifest:
 [profile]
 base = plugins.ini
 
-[plugin:ai_speak]
+[plugin:ai_cosplay]
 enabled = 0
 ```
 
@@ -73,35 +151,7 @@ enabled = 0
 
 <a id="插件自己的配置" name="插件自己的配置"></a>
 
-## Plugin configuration
-
-A plugin's own configuration lives in **`plugin-config.ini` in the plugin directory** and contains only the plugin's own keys. The plugin reads it with `agent.config.load_ini()`:
-
-```
-plugins/<plugin-name>/plugin-config.ini     ← plugin settings only
-plugins/<plugin-name>/plugin-meta.json      ← identity declaration
-```
-
-**The kernel's `config.ini` contains kernel settings only; no plugin settings belong there.** Plugin settings live in the plugin directory and are installed, removed, and deleted with the plugin. `plugin-config.ini` is the only configuration file the plugin reads; when it does not exist, the plugin uses code defaults. A format example such as `plugin-config.ini.example` is never read at runtime. Configuration for AI Speak, Visual Operator, the knowledge base, and Skills is committed; `multi_model` configuration is excluded by `.gitignore`.
-
-The file name is fixed as `plugin-config.ini` (not `config.ini`): `config.ini` refers to kernel configuration, and two files with the same name would be ambiguous.
-
-**The settings page can edit only the plugin's own sections.** Identity and the switch are not in this file: `name` / `desc` / `icon` / `version` / `settings_tab` come from `plugin-meta.json`, and `enabled` from `plugins.ini`. When `settings_tab` is non-empty and the plugin is enabled and configurable, the settings page adds a sidebar entry with that name; clicking it opens the plugin's configuration editor directly. The editor has three kinds:
-
-- `kind: sections`: renders schema-driven entries that can be added and removed;
-- `kind: fields`: renders a schema-driven field form; saving updates only the declared fields;
-- anything else: a text editor for the plugin's own keys; saving replaces the corresponding sections.
-
-**A plugin with no editable settings declares it**: with `"config": "false"` in `plugin-meta.json`, the settings page does not render a Settings button (the criterion is the plugin's declaration, not the kernel guessing whether a configuration file exists). `plugins/rules` is one such plugin: it has a switch but no configuration.
-
-In schema-driven forms, secret fields report only whether a value is configured; leaving the field empty keeps the stored value.
-
-The plugin reads and interprets its own keys: the kernel does not parse plugin configuration, and `agent/config.py` has no reader for plugin sections. Relative paths such as `dir` resolve against the **project root** (not the plugin directory), matching kernel configuration. A plugin does not need a kernel API to locate itself: `Path(__file__).resolve().parent` is its directory.
-
-Permission boundary: plugin configuration that contains secrets is not committed; a process on the same machine that can read the plugin directory can read its configuration. This is the same boundary as "a plugin is as trusted as local code" (see below).
-
-## Extension points
-
+### Extension points
 Every `add_*` on `PluginContext` returns a disposer.
 
 | Extension point | What is registered | Where it lands in the kernel |
@@ -122,7 +172,7 @@ Every `add_*` on `PluginContext` returns a disposer.
 | `add_model_catalog(entries)` | Model entries (static sequence or hot-read callable) | `ModelCatalog` (single authoritative source) |
 | `set_runtime(obj)` | The plugin's runtime instance | `plugin_host.runtime(name)` returns the same object |
 
-### Context injection
+#### Context injection
 
 ```python
 ctx.add_context_source(fn)   # fn(conversation_id: str) -> list[str]
@@ -151,7 +201,7 @@ The self-reported `count` aligns **entry by entry** with the returned bodies: wh
 
 `plugins/skills` registers several sources: one for the catalog and one for resident bodies; the resource directory goes through a system-prompt section and does not occupy a separate context segment.
 
-### System prompt sections
+#### System prompt sections
 
 ```python
 ctx.add_prompt_section("## 资源目录", fn)
@@ -159,7 +209,7 @@ ctx.add_prompt_section("## 资源目录", fn)
 
 `fn(conversation_id) -> str | list[str]` returns the section body; `section` is the full heading (including `## `). Several plugins may register the same heading; bodies merge in plugin-manifest order, and the heading appears once. Sections enter the system prompt and do not create a `CHUNK_PLUGIN` segment; a failing source or an empty body is skipped.
 
-### Tools
+#### Tools
 
 ```python
 class MyTool(ToolPlugin):
@@ -180,7 +230,7 @@ A tool enters the kernel registry and goes through **the same execution pipeline
 
 **A tool exists only while its plugin is loaded**: tools registered by a plugin disappear when its `[plugin:<name>]` section is removed.
 
-### Commit executors for write tools
+#### Commit executors for write tools
 
 A write tool that previews through `confirm_id` obtains its executor by tool name from `commit_write` at commit time:
 
@@ -190,7 +240,7 @@ ctx.add_executor("my_tool", my_executor)   # my_executor(arguments) -> dict
 
 Using a registry rather than a static table passed at assembly time decouples the two moments: registration happens at plugin load and lookup at tool call, so their order does not matter; adding another plugin does not require changes to kernel assembly code.
 
-### Event subscriptions
+#### Event subscriptions
 
 ```python
 ctx.subscribe(ev.TURN_ENDED, handler)   # handler(event) -> None
@@ -198,7 +248,7 @@ ctx.subscribe(ev.TURN_ENDED, handler)   # handler(event) -> None
 
 Event names are defined in `agent/core/event_name.py` (`ev.*`); the event protocol is described in [architecture.md](../architecture.md). Subscriptions observe; they do not change control flow.
 
-### Tool-pipeline gates and observers
+#### Tool-pipeline gates and observers
 
 ```python
 ctx.add_pre_gate(gate)       # gate(call, ctx) -> GateDecision | None
@@ -207,7 +257,7 @@ ctx.add_post_observer(obs)   # obs(call, result, ctx) -> None
 
 `pre` gates run before execution; returning `GateDecision(allow=False, reason=...)` rejects the call. `post` observers run after execution. **Gates can add checks, not remove guarantees**: a plugin can block more calls, but it cannot let a call pass that the kernel's own checks would reject.
 
-### HTTP endpoints
+#### HTTP endpoints
 
 ```python
 ctx.add_route("GET", "tasks", list_tasks)          # -> /api/plugin/<plugin-name>/tasks
@@ -220,7 +270,7 @@ ctx.add_route("DELETE", "tasks/:sid", drop_task)
 
 Supported methods are `GET` / `POST` / `PUT` / `DELETE`. Paths live under `/api/plugin/<plugin-name>/` and **do not support wildcards** apart from `:name` parameter segments: the path must match the declared shape segment by segment, with the same number of segments. "Which endpoints a plugin exposes" is therefore always enumerable and auditable.
 
-### UI
+#### UI
 
 ```python
 ctx.add_ui_item(
@@ -241,8 +291,7 @@ Division of responsibility:
 | Plugin | Panel HTML fragment, script, and styles; how content is rendered |
 | Shell | Tab container, enumeration from data, delivering assets by path, same-origin injection |
 
-## Subagent tool visibility
-
+### Subagent tool visibility
 A plugin declares its tool list with `ctx.set_subagent_tools([...])`:
 
 ```text
@@ -253,14 +302,12 @@ tool-name list: only the listed tools are visible to subagents
 
 The kernel filters only the subagent model tool view by this list; it does not copy the registry and does not branch on plugin names. The parent conversation view is unaffected. The tool remains registered; declaring a new list changes visibility again.
 
-A plugin can also use `ctx.is_subagent(cid)` to learn the current conversation role and decide whether to inject request-tail text. `ai_speak` declares an empty tool list and registers its voice prompt tail with `subagent_visible=False`, so the tail is not rendered into subagent requests.
+A plugin can also use `ctx.is_subagent(cid)` to learn the current conversation role and decide whether to inject request-tail text. `ai_cosplay` declares an empty tool list and registers its voice prompt tail with `subagent_visible=False`, so the tail is not rendered into subagent requests.
 
-## Request tail
-
+### Request tail
 `ctx.add_mode_tail(fn, *, subagent_visible=True)` registers `fn(conversation_id) -> str`. The text is appended after the execution mode and Todo progress; it enters only the current request tail, not the system-prompt prefix. Loading or unloading a plugin changes only the tail and leaves the system-prompt prefix unchanged. An empty string takes no space, and a failing source is isolated.
 
-## UI assets
-
+### UI assets
 A panel may ship its own styles and scripts, declared as **paths relative to the plugin directory**. The shell serves them at `/api/plugin/<plugin-name>/_asset/<relative-path>`; the **directory root comes from** `plugin_host.plugin_root(plugin-name)` (an external directory declared with `path=` works the same way). Paths are relative and contain no `..`; only text extensions (`.js` `.mjs` `.css` `.html` `.json` `.svg`) are served. CSS class names carry the plugin's own prefix; styles are injected same-origin, with no sandbox.
 
 After a panel script loads, it calls **its own** endpoints through the client provided by the shell, without knowing the URL prefix:
@@ -275,7 +322,7 @@ await api.del("tasks/t-1");                               // DELETE
 
 `res` has the shape `{ status, ok, data }`. `api.url(path)` only builds a URL; it sends no request.
 
-### Script loading
+#### Script loading
 
 **Context-segment appearance** is registered as a `web-ui/left-panel/context_usage/<key>` UI item with `label` and `color` props. The UI catalog publishes the resulting map through `ai-agent:context-segments`; the context bar does not keep a second color registry.
 
@@ -285,7 +332,7 @@ There is no separate boot-script API, panel list endpoint, or action list endpoi
 
 <a id="壳层公共桥" name="壳层公共桥"></a>
 
-### Shell bridge
+#### Shell bridge
 
 When a plugin places UI **outside a panel** (composer, page header), it uses the shell bridge instead of building URLs, reading shell internals, or touching `document.head`:
 
@@ -307,7 +354,7 @@ window.aiAgentShell.styles.load("ui/model-picker.css");
 
 Plugin changes are applied without a page refresh: the shell refreshes the UI catalog and loaded-plugin set, closes panels of unloaded plugins, and clears the script and style caches so that re-enabling a plugin runs its scripts again.
 
-### Host settings panels and items
+#### Host settings panels and items
 
 Settings are registered through the plugin settings registry, not through host DOM. A plugin may add a panel with `add_settings_panel(panel_id, title=...)` and an item with `add_settings_item(parent, item_id, kind=..., save=..., load=...)`.
 
@@ -317,7 +364,7 @@ The plugin that owns an item provides its `save` callback. The host only renders
 
 When a plugin is unloaded, its panels and items disappear immediately; the plugin's own persisted value is retained for the next enable.
 
-### Conversation switch notification
+#### Conversation switch notification
 
 When panel content carries per-conversation state (selections, for example), it must refetch on every conversation switch. The shell broadcasts a generic event and **whoever needs it subscribes**:
 
@@ -329,8 +376,7 @@ document.addEventListener("ai-agent:conversation-changed", function () {
 
 The shell names no plugin and does not require plugins to know about the shell.
 
-## Resources owned by a plugin
-
+### Resources owned by a plugin
 | Resource | How to obtain it | Notes |
 |---|---|---|
 | Dedicated data directory | `ctx.data_dir` | `<data-root>/plugin/<plugin-name>/`; created on first access |
@@ -342,47 +388,17 @@ The shell names no plugin and does not require plugins to know about the shell.
 
 `ctx.app` is for **handler code**, not `register`: plugins load at the end of assembly, when the App has not yet been handed to the host, and handlers run only when a request arrives. `ctx.set_runtime` is called during `register`.
 
-## Lifecycle
-
-```
-discover     scan the plugin root for <name>/plugin.py — enumerate plugins on disk
-load         load each manifest entry: importlib with a dynamic module name → register(ctx)
-             called at the end of assembly, when kernel services are registered and handlers can obtain ctx.app
-unload       call disposers in reverse; then clear contributions by plugin name, drop the runtime, and remove module cache entries
-```
-
-Discovery skips directories whose names start with `_` or `.`.
-
-`importlib` loads each plugin under a dynamic module name, so the shell cannot import the same module object. A plugin that wants the shell to operate on its runtime must register it with `ctx.set_runtime(obj)`; `plugin_host.runtime("<plugin-name>")` returns that same instance. Without registration, the two sides hold separate copies of the state.
-
-The unload fallback removes routes and UI catalog entries by plugin name. Event subscriptions are removed by the disposers registered through `ctx.subscribe`.
-
-## Model catalog source
-
+### Model catalog source
 `add_model_catalog(entries)` gives a set of model entries to the kernel's `ModelCatalog`. Entries are `ModelEntry` objects with `id` / `provider` / `label` / `options` / `is_default`; provider-specific keys such as `base_url`, `api_key`, and `model` live in `options`. The kernel resolves the request's id to the matching provider instance; an unknown id is an error and is not silently routed to another model.
 
 The catalog is the single authoritative source for model routing while its plugin is loaded; with no valid entries the model list is empty. Entry construction is the plugin's responsibility; the kernel normalizes, validates, and consumes snapshots. Only one source may be registered: a second source is refused and logged, and the plugin still loads.
 
 `multi_model` implements this extension point; its configuration and behavior are documented in [multi-model.md](multi-model.md).
 
-## Built-in plugins
-
-| Plugin | Registers | Form |
-|---|---|---|
-| `plugins/skills` | `skills` tool + two context sources + system-prompt section + context segment + UI script | context segment and UI script via the UI catalog; see [skills.md](skills.md) |
-| `plugins/rules` | one context source (one message per `.md` file) + system-prompt section + context segment | no panel, no configuration, no endpoints; see [rules.md](rules.md) |
-| `plugins/knowledge` | context source + panel + composer button + context segment + three endpoints | injection, panel, button, and endpoints all present; state in `ctx.data_dir`; see [knowledge.md](knowledge.md) |
-| `plugins/multi_model` | model catalog + read-only `/catalog` + UI dropdown script | each entry carries its gateway and provider; see [multi-model.md](multi-model.md) |
-| `plugins/visual_operator` | four tools (screenshot / mouse / keyboard / wait) + platform backends + input lock | backend assembled by platform; when unavailable it reports at execution rather than disappearing; see [visual-operator.md](visual-operator.md) |
-| `plugins/ai_speak` | `ai_speak` tool + two read-only endpoints + playback-ack endpoint + UI scripts + two event subscriptions + voice tail | backend synthesis, frontend player bar; see [ai-speak.md](ai-speak.md) |
-
-Each plugin's configuration and behavior are documented in its own subsystem page; this table only lists the extension points it uses.
-
-## Boundaries
-
+### Boundaries
 <a id="插件信任模型" name="插件信任模型"></a>
 
-### Plugin trust model
+#### Plugin trust model
 
 **A plugin is as trusted as local code.** Once loaded, `plugin.py` runs in the same process and interpreter: it can read the whole disk, make network requests, and register tools and HTTP endpoints; UI catalog HTML fragments and scripts are injected into the page's same-origin context. **There is no sandbox.**
 
@@ -407,8 +423,7 @@ UI and endpoint conventions:
 - panel data comes from the plugin's own endpoints;
 - segment name and color, tool label and icon are declared through the UI catalog and consumed by the shell. The server provides data (segment key / name / count); plugin UI scripts render their own panels.
 
-## Adding a plugin
-
+### Adding a plugin
 1. **Create the directory**: `plugins/<name>/`. The directory name is the plugin name and the section-name suffix in `plugins.ini`. Names must match `[A-Za-z0-9][A-Za-z0-9_-]*`.
 
 2. **Write the entry point**: `plugin.py` exposes `register(ctx)`. A minimal implementation registers one capability:
@@ -431,13 +446,60 @@ UI and endpoint conventions:
 
 6. **Validate**: `python scripts/ci.py` runs dependency-direction, architecture, comment-style, and unit-test gates; plugin endpoints and UI are covered by acceptance scripts such as `scripts/acceptance_web.py`.
 
-## Further reading
+## 5. Details
 
-- [Context management](context.md): how injection sources enter context and how assembly order is determined
-- [Knowledge base](knowledge.md): file collection, selection, and injection in `knowledge`
-- [Multi-model](multi-model.md): catalog entries and the settings form in `multi_model`
-- [Skills](skills.md): three-layer disclosure and the `skills` tool
-- [Visual Operator](visual-operator.md): screenshots, coordinate contract, and platform backends
-- [Tools](tools.md): tool registration, execution pipeline, and disk-write protocol
-- [Shell](shell.md): HTTP routing and UI bundling
-- [Configuration](../guide/config.md): full configuration reference
+### 补充
+
+```
+discover     scan the plugin root for <name>/plugin.py — enumerate plugins on disk
+load         load each manifest entry: importlib with a dynamic module name → register(ctx)
+             called at the end of assembly, when kernel services are registered and handlers can obtain ctx.app
+unload       call disposers in reverse; then clear contributions by plugin name, drop the runtime, and remove module cache entries
+```
+
+Discovery skips directories whose names start with `_` or `.`.
+
+`importlib` loads each plugin under a dynamic module name, so the shell cannot import the same module object. A plugin that wants the shell to operate on its runtime must register it with `ctx.set_runtime(obj)`; `plugin_host.runtime("<plugin-name>")` returns that same instance. Without registration, the two sides hold separate copies of the state.
+
+The unload fallback removes routes and UI catalog entries by plugin name. Event subscriptions are removed by the disposers registered through `ctx.subscribe`.
+
+
+
+### Plugin configuration
+A plugin's own configuration lives in **`plugin-config.ini` in the plugin directory** and contains only the plugin's own keys. The plugin reads it with `agent.config.load_ini()`:
+
+```
+plugins/<plugin-name>/plugin-config.ini     ← plugin settings only
+plugins/<plugin-name>/plugin-meta.json      ← identity declaration
+```
+
+**The kernel's `config.ini` contains kernel settings only; no plugin settings belong there.** Plugin settings live in the plugin directory and are installed, removed, and deleted with the plugin. `plugin-config.ini` is the only configuration file the plugin reads; when it does not exist, the plugin uses code defaults. A format example such as `plugin-config.ini.example` is never read at runtime. Configuration for AI Speak, Visual Operator, the knowledge base, and Skills is committed; `multi_model` configuration is excluded by `.gitignore`.
+
+The file name is fixed as `plugin-config.ini` (not `config.ini`): `config.ini` refers to kernel configuration, and two files with the same name would be ambiguous.
+
+**The settings page can edit only the plugin's own sections.** Identity and the switch are not in this file: `name` / `desc` / `icon` / `version` / `settings_tab` come from `plugin-meta.json`, and `enabled` from `plugins.ini`. When `settings_tab` is non-empty and the plugin is enabled and configurable, the settings page adds a sidebar entry with that name; clicking it opens the plugin's configuration editor directly. The editor has three kinds:
+
+- `kind: sections`: renders schema-driven entries that can be added and removed;
+- `kind: fields`: renders a schema-driven field form; saving updates only the declared fields;
+- anything else: a text editor for the plugin's own keys; saving replaces the corresponding sections.
+
+**A plugin with no editable settings declares it**: with `"config": "false"` in `plugin-meta.json`, the settings page does not render a Settings button (the criterion is the plugin's declaration, not the kernel guessing whether a configuration file exists). `plugins/rules` is one such plugin: it has a switch but no configuration.
+
+In schema-driven forms, secret fields report only whether a value is configured; leaving the field empty keeps the stored value.
+
+The plugin reads and interprets its own keys: the kernel does not parse plugin configuration, and `agent/config.py` has no reader for plugin sections. Relative paths such as `dir` resolve against the **project root** (not the plugin directory), matching kernel configuration. A plugin does not need a kernel API to locate itself: `Path(__file__).resolve().parent` is its directory.
+
+Permission boundary: plugin configuration that contains secrets is not committed; a process on the same machine that can read the plugin directory can read its configuration. This is the same boundary as "a plugin is as trusted as local code" (see "Plugin trust model").
+
+## 6. Further reading
+
+| Topic | Document |
+|---|---|
+| how injection sources enter context and how assembly order is determined | [context.md](context.md) |
+| file collection, selection, and injection in `knowledge` | [knowledge.md](knowledge.md) |
+| catalog entries and the settings form in `multi_model` | [multi-model.md](multi-model.md) |
+| three-layer disclosure and the `skills` tool | [skills.md](skills.md) |
+| screenshots, coordinate contract, and platform backends | [visual-operator.md](visual-operator.md) |
+| tool registration, execution pipeline, and disk-write protocol | [tools.md](tools.md) |
+| HTTP routing and UI bundling | [shell.md](shell.md) |
+| full configuration reference | [config.md](../guide/config.md) |

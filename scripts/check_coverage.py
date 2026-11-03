@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""分包覆盖率下限校验（X5 / X6）。
+"""分包覆盖率下限校验。
 
 读 `.coverage`（`run_coverage.py` 发布的产物），按顶层包分别算语句覆盖率，
 与 `scripts/quality_budgets.py` 的 `COVERAGE_FLOORS` 比对。

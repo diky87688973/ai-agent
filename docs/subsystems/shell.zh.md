@@ -1,6 +1,6 @@
-[English](shell.md) | **中文**
+﻿# 壳层
 
-# 壳层
+## 1. 概览
 
 `agent/shell/` 是 L3 层，把内核包成可运行的服务与界面。
 
@@ -35,8 +35,27 @@
 
 API Token 的 issue/revoke 使用进程内线程锁与 `tokens.json.lock` 跨进程文件锁；同名签发被拒绝，锁不可用时命令返回可读错误而不是堆栈。
 
-## 用量与命中率的口径
+## 2. 插口协议
 
+### 暴露
+
+| 插口路径 | 能力 | 关键属性 | 可替换/覆盖方式 |
+|---|---|---|---|
+| `app/boot/shell/*` | 启动节点 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `app/auth` | 模块贡献 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `app/shell/web-ui/*` | 界面插口 | owner=插件；路径由声明给出；卸载时撤销 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `backend/http/routes/*` | HTTP 端点 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+### 依赖
+
+| 依赖路径 | 能力 | 提供者 | 为什么依赖 |
+|---|---|---|---|
+| `app/boot/facade` | 启动节点 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/boot/shell/classic_adapter` | 启动节点 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/boot/shell/plugin_events` | 启动节点 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+
+## 3. 插口能力
+
+### 用量与命中率的口径
 **命中率只用官方返回值算**：每次模型调用后 API 在 `usage` 里给出
 `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`，内核原样落成 `usage` 事实、
 适配层原样转发（字段名见 `classic_adapter/contract.py` 的 `SSE_USAGE_FIELDS`），
@@ -52,8 +71,7 @@ API Token 的 issue/revoke 使用进程内线程锁与 `tokens.json.lock` 跨进
 图片按每图固定额度计。它与用量条里的官方 `prompt_tokens` 不是同一个数：
 前者是「这一段大概多少」，后者是「这次实际花了多少」。
 
-## 启动
-
+### 启动
 ```bash
 python -m agent.entry.web --host 127.0.0.1 --port 8765
 ```
@@ -71,9 +89,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 保存插件配置会重载插件并调用 `app.refresh_model_config()`，按目录重算模型路由与清单；
 多模型目录给出模型后即成为权威来源。
 
-## HTTP 路由
-
-### GET
+### HTTP 路由
+#### GET
 
 | 路径 | 作用 |
 |---|---|
@@ -103,7 +120,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/background/tasks` | 后台任务快照或筛选清单 |
 | `/api/update/status` `/api/update/logs` | 更新状态与日志尾部 |
 
-### POST
+#### POST
 
 | 路径 | 作用 |
 |---|---|
@@ -124,7 +141,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/settings/plugin-file` | 写回某个插件的可编辑节，其余内容保留 |
 | `/api/settings/pick-dir` | 弹出系统目录选择窗口（Windows） |
 
-### DELETE
+#### DELETE
 
 | 路径 | 作用 |
 |---|---|
@@ -132,7 +149,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/chat/queue/<id>` | 取消一条未发送队列消息 |
 | `/api/plugin/<插件>/…` | 插件端点 |
 
-### PUT
+#### PUT
 
 `/api/chat/ui-state`、`/api/reasoning-effort`、`/api/usage-accumulator`，以及插件端点（`/api/plugin/<插件>/…`）。
 
@@ -154,8 +171,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 模型配置只由多模型插件维护；宿主设置页不提供内核模型节，也不写模型凭据。
 插件装卸时由插件宿主刷新模型路由与清单。
 
-## SSE 事件流
-
+### SSE 事件流
 `/api/events/stream` 是界面看到的事实投影。它有两种格式：不带 `format` 或 `format=classic` 时
 送适配层翻译后的经典帧，`format=kernel` 原样透传内核事件，供探针与其它交互层使用；
 页面使用经典格式。
@@ -176,20 +192,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 内核透传流只送新事件，不做重连续传，并在每次取帧前复核连接身份；登录会话或 Token
 被撤销时关闭该流。
 
-## 运行态与并发保护
-
-`WebShell` 持一张 SSE 连接表与一张按会话的活跃回合表（`conversation_id → run_id`）。权威忙闲
-来自运行态登记（见 [session.md](session.zh.md)）；`session_send` 工具判定目标忙闲也用这一事实源。
-中途打开的页面据此显示停止键。经典流下，不带 `conversation_id` 的 GET 只回 `state.running`。
-
-**客户端布局（打开过哪些标签、激活哪一个）存在浏览器 `localStorage`**：布局属于某一个浏览器，
-服务端不提供也不接收。多个客户端各自激活不同会话时，服务端的一个全局字段会被后写者覆盖，
-先写的刷新后被带到别人的会话。经典流的 `PUT /api/chat/ui-state` 接收请求但不存任何东西。
-
-`/api/chat/send` 对同会话并发依据同一个登记进入待发送队列。
-
-## 回合调度
-
+### 回合调度
 `session/runner.py` 的 `SessionRunner` 在后台执行回合：用收到的输入构建引擎、跑模块链，
 把事件发到事件总线（再进 SSE）；回合结束后抽干待发送队列，有待插入消息时起一个插入回合，
 否则按目标与自主开关决定是否续跑。自动续跑最多 50 个回合。外部工具结果在回合前拼成
@@ -198,8 +201,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 心跳旁路线程每 60 秒续一次运行态登记，长工具调用期间不会被判为过期。任务结束、被取消或
 异常中止时释放登记。`/api/chat/stop` 置位取消信号，内核在检查点停止，运行线程自己释放登记。
 
-## 系统提示词
-
+### 系统提示词
 `prompts.py` 的 `build_system_prompt(registry=…)` 按以下顺序组装基础提示词：身份、回复语言、
 `## 动手指令`、附加章节（插件章节与 `## 环境信息`）、`## 编码准则`、术语、`## 工具使用纪律`、
 模式段、工具速查。纪律第 2 条的预览写类名单由 `preview_write_tools_line(registry)`
@@ -216,8 +218,7 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 运行器的尾部还带 Todo 进度与插件尾部；有显式系统提示时，模式说明与 Todo 行都不加。
 见 [context.md](context.zh.md) 的「执行模式是请求尾部的临时后缀」。
 
-## 界面打包
-
+### 界面打包
 `web/ui_bundle.py` 把界面资源内联成单页 HTML，运行时页面不再单独请求 CSS 与 JS。
 
 ```python
@@ -238,15 +239,14 @@ inline_ui_html()        # 拼成完整单页
 `plugins/multi_model/ui/` 渲染，样式经 `window.aiAgentShell.styles.load()` 注入，
 壳层公共样式里没有它。两条公共桥与停用清理见 [plugins.md](plugins.zh.md#壳层公共桥)。
 
-### 本回合编辑清单
+#### 本回合编辑清单
 
 `edited-files.js` 只在页面内存拼装：预览留下 `confirm_id → diff`，`commit_write` 留下已确认 id，
 回合 `done` 或 `stopped` 时取交集渲染 `.edited-files`；因等待用户确认而暂停时，
 那一次 `done` 不出清单。清单不进内核，刷新不回放。`POST /api/chat/send` 发出有效新消息时 `clearLiveEdits`
 清掉当前会话的旧清单卡与页内映射；`POST /api/chat/user-confirm` 不清。
 
-## 对话区最小宽度
-
+### 对话区最小宽度
 对话区与右栏之间是可拖拽的分割条（`classic/js/layout/splitters.js`，宽度记在 `localStorage`
 的 `aiAgent.classicMainSplit`）。拖动时对话区的目标下界是 `670px`（`MIN_CHAT_PX`），
 右栏下界是 `300px`（`MIN_STEPS_PX`，样式表 `.side{min-width:300px}`）。拖到极限时
@@ -257,8 +257,7 @@ inline_ui_html()        # 拼成完整单页
 
 窗口本身缩窄不受这组下界约束：`.chat` 是 `min-width:0`，对话区可以继续缩窄，输入区按钮组换行。
 
-## 对话区 Markdown
-
+### 对话区 Markdown
 散文块由内置 Markdown 解析器（`plugins/web_ui/ui/classic/js/vendor/marked.min.js`）渲染：
 松散列表的段距、表格、任务清单、嵌套列表等块级规则由它处理。
 
@@ -275,8 +274,7 @@ inline_ui_html()        # 拼成完整单页
 流式渲染合并到每个动画帧最多一次（`scheduleStreamRender()`）：解析器每次全量重解析，
 逐条 delta 渲染会把同一段文本反复解析几十遍。
 
-## 适配层
-
+### 适配层
 `classic_adapter/` 把内核事件翻译成经典界面认得的形状，以及把界面的请求翻译成内核调用。
 
 | 文件 | 方向 |
@@ -295,8 +293,7 @@ inline_ui_html()        # 拼成完整单页
 
 适配层是**行为差异的落点**：界面与内核各自保持自己的形状，差异在中间抹平。
 
-## 命令行壳
-
+### 命令行壳
 ```bash
 agent-cli --session <cid>                      # 交互式，真实模型 + 工具 + 写盘门控
 agent-headless "问题"                          # 单轮，打印事件流与会话 ID
@@ -306,7 +303,7 @@ agent-gui                                     # 原生启动器 + Python 桌面�
 ```
 
 `headless` 使用与 Web 相同的完整系统提示词、插件提示词章节、压缩与会话存储，加载
-`plugins.headless.ini` 覆盖层，停用 `ai_speak`。单轮结束会打印：
+`plugins.headless.ini` 覆盖层，停用 `ai_cosplay`。单轮结束会打印：
 
 ```text
 [session] <cid>
@@ -316,10 +313,9 @@ agent-gui                                     # 原生启动器 + Python 桌面�
 
 `cli/interactive.py` 的 `build_session()` 在有 runner 时使用 `SessionRunner.build_engine()`，
 与 Web、headless 共用完整系统提示词、插件章节与动态尾部；`run_one()` 只负责终端 I/O 与写盘确认。
-CLI 加载 `plugins.cli.ini`，停用 `ai_speak`。
+CLI 加载 `plugins.cli.ini`，停用 `ai_cosplay`。
 
-## 路径可见范围
-
+### 路径可见范围
 `fspaths.py` 管哪些路径可见可读写：`--fs-root` 指定可见根（可重复），`/api/fs/list` 与
 `/api/fs/read` 都在这个范围内；Windows 上缺省取本机各盘根，其它平台取项目根，也可用
 `AI_AGENT_FS_ROOT` 指定（分隔符为 `os.pathsep`）。路径先解析再判界，判界用 `relative_to`，
@@ -329,8 +325,20 @@ CLI 加载 `plugins.cli.ini`，停用 `ai_speak`。
 `/workspace/*` 的根是 `<data_root>/workspace`。`/api/media` 只提供显式媒体根内的路径（未配置时用全部可见根），
 不按工作区根判界。见 [guide/config.md](../guide/config.zh.md)。
 
-## 诊断脚本
+## 4. 其他细节
 
+### 运行态与并发保护
+`WebShell` 持一张 SSE 连接表与一张按会话的活跃回合表（`conversation_id → run_id`）。权威忙闲
+来自运行态登记（见 [session.md](session.zh.md)）；`session_send` 工具判定目标忙闲也用这一事实源。
+中途打开的页面据此显示停止键。经典流下，不带 `conversation_id` 的 GET 只回 `state.running`。
+
+**客户端布局（打开过哪些标签、激活哪一个）存在浏览器 `localStorage`**：布局属于某一个浏览器，
+服务端不提供也不接收。多个客户端各自激活不同会话时，服务端的一个全局字段会被后写者覆盖，
+先写的刷新后被带到别人的会话。经典流的 `PUT /api/chat/ui-state` 接收请求但不存任何东西。
+
+`/api/chat/send` 对同会话并发依据同一个登记进入待发送队列。
+
+### 诊断脚本
 `scripts/inspect_compact.py` 对某个会话打印上下文分段与压缩判定，只读不写：
 
 ```bash
@@ -345,8 +353,10 @@ python scripts/inspect_compact.py <会话 id> --digest
 `--digest` 追加压缩器视角：视图消息条数、已落盘摘要条数与正文、装配后估算、
 本次是否会产出压缩事件。
 
-## 延伸阅读
+## 5. 延伸阅读
 
-- [architecture.zh.md](../architecture.zh.md)：五层结构与装配
-- [tools.md](tools.zh.md)：写盘门控
-- [guide/config.md](../guide/config.zh.md)：参数与环境变量
+| 主题 | 文档 |
+|---|---|
+| 五层结构与装配 | [architecture.zh.md](../architecture.zh.md) |
+| 写盘门控 | [tools.zh.md](tools.zh.md) |
+| 参数与环境变量 | [config.zh.md](../guide/config.zh.md) |

@@ -16,11 +16,10 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 import threading
 import uuid
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
 
 from agent.core.error_report import report_error
 from agent.core.events import Event
@@ -86,7 +85,7 @@ class SessionStore:
         self.data_root = Path(data_root)
         self.sessions_dir = (
             Path(sessions_dir) if sessions_dir is not None
-            else self.data_root / "sessions"
+            else self.data_root / "session" / "raw"
         )
         self._scan_dirs = [Path(item) for item in scan_dirs]
         self._sequence_source = sequence_source
@@ -268,6 +267,40 @@ class SessionStore:
         queued = self._take_pending(conversation_id)
         return self._write_rows(conversation_id, queued + batch, len(batch))
 
+    def append_if_absent(
+        self,
+        conversation_id: str,
+        should_skip: Callable[[List[Event]], bool],
+        events: Iterable[Event],
+    ) -> int:
+        """在同一把跨进程锁内完成「查重 + 追加」；已存在返回 0。
+
+        `should_skip` 看到的是锁内的完整事件列表。调用方不能用
+        `load()` 之后再 `append()`：两步之间另一个进程已写入，就会重复落事实。
+        """
+        batch = list(events)
+        if not batch:
+            return 0
+        path = self.raw_path(conversation_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with self._append_lock(path), cross_process_lock(path):
+            # 查重谓词不是写操作：它抛错时不能把事件塞进待重试队列，
+            # 否则下一次 append 会把从未尝试写入的事实写出去。
+            skip = should_skip(self.load(conversation_id))
+            if skip:
+                return 0
+            try:
+                rows = self._render_rows(conversation_id, batch)
+                if not rows:
+                    return 0
+                self._append_rows_locked(path, rows)
+            except Exception as exc:
+                self._pending_write(conversation_id, batch, exc)
+                raise
+        with self._written_guard:
+            self._written_fp[conversation_id] = self._file_fp(path)
+        return len(rows)
+
     # ── 待重试队列（跨回合存活）──────────────────────────
     #
     # 队列是内存的：进程重启后磁盘不可写这段时间的事实本来也无处可存
@@ -302,8 +335,7 @@ class SessionStore:
             try:
                 written += self.flush_pending(cid)
             except Exception as exc:
-                print(f"[store] 停机补投失败 cid={cid}: {type(exc).__name__}: {exc}",
-                      file=sys.stderr, flush=True)
+                report_error("agent.mechanisms.session_store.SessionStore.flush_all", exc)
         return written
 
     def _pending_only_new(self, conversation_id: str, batch: list) -> list:
@@ -418,11 +450,7 @@ class SessionStore:
         except Exception as exc:
             # 补偿路径：若让异常逃出去会顶掉原始异常、且队列为空 —— 第二道防线被击穿。
             # 读不出来就当"盘上没有已知坐标"（宁可重试也不丢），但必须留痕。
-            print(
-                f"[store] 读已落盘坐标失败 path={path}: "
-                f"{type(exc).__name__}: {exc}",
-                file=sys.stderr, flush=True,
-            )
+            report_error("agent.mechanisms.session_store.SessionStore._disk_seqs", exc)
             return set()
         return out
 
@@ -457,9 +485,9 @@ class SessionStore:
                 queue.pop(0)
                 dropped += 1
         if dropped:
-            print(f"[store] 待重试队列超过 {_PENDING_MAX_BATCHES} 批，"
-                  f"丢弃最旧的 {dropped} 批（磁盘长期不可写）",
-                  file=sys.stderr, flush=True)
+            report_error(
+                "agent.mechanisms.session_store.SessionStore._put_pending",
+                RuntimeError(f"待重试队列超过 {_PENDING_MAX_BATCHES} 批，丢弃最旧 {dropped} 批"))
 
     def _render_rows(self, conversation_id: str, rows_events: list) -> list[str]:
         missing = sum(1 for e in rows_events if event_seq(e) is None)
@@ -481,32 +509,35 @@ class SessionStore:
 
     def _append_rows(self, path: Path, rows: list[str]) -> None:
         with self._append_lock(path), cross_process_lock(path):
-            offset = path.stat().st_size if path.is_file() else 0
-            try:
-                with path.open("a", encoding="utf-8", newline="\n") as fh:
-                    good_end = self._last_good_end(path) if offset > 0 else 0
-                    if 0 <= good_end < offset:
-                        try:
-                            with path.open("r+b") as tf:
-                                tf.truncate(good_end)
-                                tf.flush()
-                        except OSError:
-                            fh.write("\n")
-                    for row in rows:
-                        fh.write(row)
+            self._append_rows_locked(path, rows)
+
+    def _append_rows_locked(self, path: Path, rows: list[str]) -> None:
+        offset = path.stat().st_size if path.is_file() else 0
+        try:
+            with path.open("a", encoding="utf-8", newline="\n") as fh:
+                good_end = self._last_good_end(path) if offset > 0 else 0
+                if 0 <= good_end < offset:
+                    try:
+                        with path.open("r+b") as tf:
+                            tf.truncate(good_end)
+                            tf.flush()
+                    except OSError:
                         fh.write("\n")
-                    fh.flush()
-                    if self.durable:
-                        os.fsync(fh.fileno())
-            except Exception:
-                try:
-                    if path.is_file() and path.stat().st_size > offset:
-                        with path.open("r+b") as fh:
-                            fh.truncate(offset)
-                except OSError as exc:
-                    report_error(
-                        "agent.mechanisms.session_store.SessionStore._write_rows", exc)
-                raise
+                for row in rows:
+                    fh.write(row)
+                    fh.write("\n")
+                fh.flush()
+                if self.durable:
+                    os.fsync(fh.fileno())
+        except Exception:
+            try:
+                if path.is_file() and path.stat().st_size > offset:
+                    with path.open("r+b") as fh:
+                        fh.truncate(offset)
+            except OSError as exc:
+                report_error(
+                    "agent.mechanisms.session_store.SessionStore._write_rows", exc)
+            raise
 
     def _pending_write(self, conversation_id: str, rows_events: list,
                        exc: Exception) -> None:

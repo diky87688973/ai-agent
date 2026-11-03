@@ -23,10 +23,23 @@ from agent.core.model_call import PROVIDER_META_KEY
 from agent.core.module import ModuleBase
 from agent.core.modules.assemble import assemble_with, segment_snapshot
 from agent.core.modules.dialogue import prepare_dialogue
-from agent.core.modules.mode_note import resolve_runtime_note, with_mode_note
+from agent.core.modules.mode_note import (
+    resolve_runtime_note,
+    strip_mode_tail,
+    with_mode_note,
+)
 from agent.core.modules.tool_facts import serialize_call, tail_expects_model
 from agent.core.outcome import Outcome
 from agent.core.ports import LogicalRequest, Ports
+from agent.core.state_values import (
+    LLM_CANCELED as LLM_STATUS_CANCELED,
+)
+from agent.core.state_values import (
+    LLM_DONE as LLM_STATUS_DONE,
+)
+from agent.core.state_values import (
+    LLM_FAILED as LLM_STATUS_FAILED,
+)
 from agent.core.tool_call import ToolCallRequest
 
 
@@ -104,6 +117,7 @@ class ModelModule(ModuleBase):
                 messages = assembled
         else:
             messages = with_mode_note(dialogue, runtime_note)
+        pre_hook = list(messages)
         if self._context_hooks is not None:
             messages = self._context_hooks.apply(
                 messages, str(getattr(ports, "conversation_id", "") or ""))
@@ -119,6 +133,10 @@ class ModelModule(ModuleBase):
         except (TypeError, ValueError):
             budget = 0
         segments = segment_snapshot(self.context_pass, messages, budget_tokens=budget)
+        remember = getattr(self._compactor, "remember_sent_request", None)
+        if callable(remember):
+            prefix = strip_mode_tail(messages[:len(pre_hook)], runtime_note)
+            remember(messages, prefix, request.tools)
         return request, messages, segments
 
     def _cancel_events(self, ports, model, request, started, reasoning_last_at, chunks):
@@ -128,7 +146,7 @@ class ModelModule(ModuleBase):
                          reasoning_ms=_reasoning_ms(started, reasoning_last_at),
                          chunks=chunks)
         yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
-                         status="canceled",
+                         status=LLM_STATUS_CANCELED,
                          elapsed_ms=int((perf_counter() - started) * 1000),
                          reasoning_ms=_reasoning_ms(started, reasoning_last_at),
                          chunks=chunks)
@@ -177,7 +195,7 @@ class ModelModule(ModuleBase):
                              error=failure, elapsed_ms=elapsed,
                              reasoning_ms=reasoning_ms, chunks=chunks)
             yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
-                             status="failed", elapsed_ms=elapsed,
+                             status=LLM_STATUS_FAILED, elapsed_ms=elapsed,
                              reasoning_ms=reasoning_ms, chunks=chunks)
             return {"stopped": False, "failure": failure}
         yield ports.emit(LLM_DONE, model=model.name_for(request) or "",
@@ -186,7 +204,7 @@ class ModelModule(ModuleBase):
                          reasoning_ms=reasoning_ms, chunks=chunks,
                          tool_calls=len(tool_calls))
         yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
-                         status="done", elapsed_ms=elapsed,
+                         status=LLM_STATUS_DONE, elapsed_ms=elapsed,
                          reasoning_ms=reasoning_ms, chunks=chunks,
                          tool_calls=len(tool_calls))
         if usage:

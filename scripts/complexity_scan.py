@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """复杂度采集与渲染（`check_complexity` 与 `gen_complexity_md` 共用）。
 
-采集范围：`agent/` 与 `scripts/` 下的手写 Python，排除 `retired/` 与缓存目录。
+采集范围：`agent/`、`scripts/` 与 `plugins/` 下的手写 Python，排除 `retired/` 与缓存目录。
 行数按物理行算，函数行数按 `end_lineno - lineno + 1` 算。
 """
 from __future__ import annotations

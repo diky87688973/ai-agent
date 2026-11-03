@@ -68,6 +68,18 @@ class VersionTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             Version.parse("v0.1")
 
+    def test_prerelease_uses_semver_precedence(self) -> None:
+        self.assertTrue(is_newer(Version.parse("0.1.0-alpha.10"),
+                                 Version.parse("0.1.0-alpha.2")))
+        self.assertFalse(is_newer(Version.parse("0.1.0-alpha.2"),
+                                  Version.parse("0.1.0-alpha.10")))
+        self.assertFalse(is_newer(Version.parse("0.1.0-alpha"),
+                                  Version.parse("0.1.0-alpha.1")))
+        self.assertTrue(is_newer(Version.parse("0.1.0-alpha.1"),
+                                 Version.parse("0.1.0-alpha")))
+        self.assertFalse(is_newer(Version.parse("0.1.0-1"),
+                                  Version.parse("0.1.0-alpha")))
+
 
 class ManifestTest(unittest.TestCase):
     def _raw(self) -> bytes:
@@ -131,7 +143,8 @@ class InstallLayoutTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "VERSION").write_text("0.1.0", encoding="utf-8")
-            (root / "config.ini").write_text("[agent]\nkeep = user\n", encoding="utf-8")
+            (root / "config.ini").write_text(
+                "[agent]\nkeep = user\ncustom = user\n", encoding="utf-8")
             (root / "agent").mkdir()
             (root / "agent" / "old.py").write_text("old", encoding="utf-8")
             (root / "rules").mkdir()
@@ -155,7 +168,7 @@ class InstallLayoutTest(unittest.TestCase):
             self.assertEqual((root / "rules" / "SYSTEM.md").read_text(encoding="utf-8"), "new rule")
             self.assertEqual((root / "scripts" / "tool.py").read_text(encoding="utf-8"), "new tool")
             self.assertEqual((root / "config.ini").read_text(encoding="utf-8"),
-                             "[agent]\nkeep = user\nnew = version\n\n")
+                             "[agent]\nkeep = user\nnew = version\ncustom = user\n\n")
             self.assertEqual((root / "VERSION").read_text(encoding="utf-8").strip(), "0.2.0")
             self.assertTrue((root / "updates" / "backup" / "0.1.0" / "agent" / "old.py").is_file())
 

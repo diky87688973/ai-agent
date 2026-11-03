@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from agent.core.error_report import report_error
+from agent.core.thread_context import thread_with_context
 
 #: 任务状态。claimed 只表示正在投递，不是终态。
 STATUS_SCHEDULED = "scheduled"
@@ -259,7 +260,7 @@ class WakeScheduler:
                 return False
             self._owner = True
             self._stop.clear()
-            self._thread = threading.Thread(
+            self._thread = thread_with_context(
                 target=self._loop, name="wake-scheduler", daemon=True)
             self._thread.start()
         self.run_due()

@@ -27,7 +27,8 @@ class CompressModule(ModuleBase):
 
     def __init__(self, *, context: Any = None, compactor: Any = None,
                  mode_note: Any = "", image_turns: int = KEEP_IMAGE_TURNS,
-                 image_max: int = MAX_EMBED_IMAGES) -> None:
+                 image_max: int = MAX_EMBED_IMAGES,
+                 appenders: Any = ()) -> None:
         self.context_pass = context
         self._compactor = compactor
         #: 执行模式说明 —— 摘要复用前缀时要照平常请求补在末尾。
@@ -37,6 +38,8 @@ class CompressModule(ModuleBase):
         #: 只有在两边用同一套剥图参数时才成立。
         self._image_turns = int(image_turns)
         self._image_max = int(image_max)
+        self._appenders = tuple(appenders or ())
+        self._appenders_applied = False
 
     def _covered_end(self) -> int:
         """已覆盖前缀长度（压缩器维护）；没有压缩器就是 0。"""
@@ -58,6 +61,13 @@ class CompressModule(ModuleBase):
         # 发给模型的请求序列：必须成对（`derive_request_messages`
         # 会为悬空的 tool_calls 补说明性占位，否则模型 API 硬拒绝 400）。
         # 请求序列取自 derive_request_messages()；derive_messages() 保留悬空——那是日志的忠实折叠，会保留悬空。
+        if not self._appenders_applied:
+            self._appenders_applied = True
+            for append in self._appenders:
+                try:
+                    append(self.context_pass, ports)
+                except Exception as exc:
+                    report_error("core.compress.append_context", exc)
         dialogue = prepare_dialogue(ports.log.derive_request_messages(),
                                      self._image_turns, self._image_max)
         # 工具定义照平常请求取同一份：摘要复用前缀时它是前缀的一部分，

@@ -163,6 +163,7 @@ def _print_overview(cid: str, data_root: Path, ctx: dict) -> None:
     print(f"  事实条数        {len(ctx['events'])}")
     print(f"  派生消息条数    {len(ctx['messages'])}")
     print(f"  用户轮数        {len(ctx['rounds'])}")
+    print(f"  保留窗口        {ctx['full']} 轮")
     print(f"  全量估算 token  {_fmt_tokens(full_tokens)}   （全部消息都按原文带上）")
     print(f"  管线估算 token  {_fmt_tokens(ctx['total'])}   （钩子 + 已放入窗口的块）")
     print(f"  阈值            {_fmt_tokens(threshold)}")
@@ -176,7 +177,7 @@ def _print_rounds(ctx: dict) -> None:
     rounds, excerpt = ctx["rounds"], ctx["excerpt"]
     to_compress, keep_count = ctx["to_compress"], ctx["keep_count"]
     print("\n【遮盖】")
-    print("  遮盖的末尾用户轮（不压）        1")
+    print(f"  遮盖的末尾用户轮（不压）        {ctx['full']}")
     print(f"  遮盖之前可压的轮                {len(rounds) - 1 if rounds else 0}")
     print(f"  实际按原文保留                  {keep_count} 轮")
     print(f"  会被压成摘要                    {len(to_compress)} 轮")

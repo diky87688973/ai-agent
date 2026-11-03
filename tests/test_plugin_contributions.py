@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import inspect
 import sys
 import tempfile
 import unittest
@@ -18,7 +19,6 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.capabilities.contributions import (  # noqa: E402
-    ASSET_SEGMENT,
     ContributionError,
     ContributionRegistry,
 )
@@ -135,7 +135,8 @@ class PluginContextContributionTest(unittest.TestCase):
 
     def test_ctx_namespaces_routes_by_plugin(self) -> None:
         ctx = self._ctx("a")
-        ctx.add_route("GET", "x", lambda q: (200, {}))
+        ctx.add_route("GET", "x", lambda q: (200, {}),
+                      slot_path="app/backend/http/routes/a-x")
         self.assertEqual([r.plugin for r in self.reg.all_routes()], ["a"])
         self.assertTrue(self.reg.all_routes()[0].full_path.startswith("/api/plugin/a/"))
         self.assertEqual(len(ctx._disposers), 1)
@@ -146,7 +147,8 @@ class PluginContextContributionTest(unittest.TestCase):
         (plugins / "boom").mkdir()
         (plugins / "boom" / "plugin.py").write_text(
             "def register(ctx):\n"
-            "    ctx.add_route('GET', 'x', lambda q: (200, {}))\n"
+            "    ctx.add_route('GET', 'x', lambda q: (200, {}),"
+            " slot_path='app/backend/http/routes/boom-x')\n"
             "    raise RuntimeError('boom')\n",
             encoding="utf-8",
         )
@@ -156,9 +158,74 @@ class PluginContextContributionTest(unittest.TestCase):
 
     def test_ctx_add_context_source_returns_disposer(self) -> None:
         ctx = self._ctx("a")
-        d = ctx.add_context_source(lambda cid: ["注入"])
+        d = ctx.add_context_source(
+            lambda cid: ["注入"],
+            path="app/backend/context/sources/a/demo")
         self.assertEqual(len(self.host._context_sources._sources), 1)
         d()
+        self.assertEqual(len(self.host._context_sources._sources), 0)
+
+    def test_context_path_parameters_are_required(self) -> None:
+        for name in ("add_context_source", "add_prompt_section",
+                     "add_mode_tail", "add_context_assembly_hook"):
+            parameter = inspect.signature(
+                getattr(PluginContext, name)).parameters["path"]
+            self.assertIs(parameter.default, inspect.Parameter.empty, name)
+
+    def test_runtime_contributions_default_non_master(self) -> None:
+        names = (
+            "subscribe", "add_context_source", "add_mode_tail",
+            "add_prompt_section", "add_pre_gate", "add_post_observer",
+            "add_route", "add_context_assembly_hook",
+        )
+        for name in names:
+            parameter = inspect.signature(
+                getattr(PluginContext, name)).parameters["master"]
+            self.assertIs(parameter.default, False, name)
+        parameter = inspect.signature(
+            PluginContext._contribute).parameters["master"]
+        self.assertIs(parameter.default, False)
+
+    def test_invalid_runtime_contribution_does_not_kill_plugin(self) -> None:
+        folder = self.base / "plugins" / "bad"
+        folder.mkdir(parents=True)
+        (folder / "plugin.py").write_text(
+            "def register(ctx):\n"
+            "    ctx.add_route('GET', '../evil', lambda q: (200, {}),"
+            " slot_path='app/backend/http/routes/bad')\n",
+            encoding="utf-8",
+        )
+        reports = self.host.load_enabled(["bad"])
+        self.assertEqual([report.status for report in reports], ["loaded"])
+
+    def test_direct_contribution_honors_master(self) -> None:
+        ctx = PluginContext("probe", ToolRegistry())
+
+        def boom():
+            raise RuntimeError("boom")
+
+        noop = ctx._contribute("app/backend/probe/direct", boom)
+        self.assertTrue(callable(noop))
+        noop()
+        with self.assertRaises(ValueError):
+            ctx._contribute("app/backend/probe/direct", boom, master=True)
+
+    def test_ctx_add_context_source_requires_path(self) -> None:
+        ctx = self._ctx("a")
+        with self.assertRaises(TypeError):
+            ctx.add_context_source(lambda cid: ["注入"])
+
+    def test_plugin_missing_path_rejects_load(self) -> None:
+        plugins = self.base / "plugins"
+        plugins.mkdir(parents=True)
+        (plugins / "bad").mkdir()
+        (plugins / "bad" / "plugin.py").write_text(
+            "def register(ctx):\n"
+            "    ctx.add_context_source(lambda cid: ['x'])\n",
+            encoding="utf-8",
+        )
+        reports = self.host.load_enabled(["bad"])
+        self.assertEqual(reports[0].status, "error")
         self.assertEqual(len(self.host._context_sources._sources), 0)
 
     # ── 插件专属数据目录 ──
@@ -222,7 +289,8 @@ class ExternalPluginRootAssetTest(unittest.TestCase):
         (external / "ui").mkdir(parents=True)
         (external / "plugin.py").write_text(
             "def register(ctx):\n"
-            "    ctx.add_route('GET', 'x', lambda q: (200, {}))\n",
+            "    ctx.add_route('GET', 'x', lambda q: (200, {}),"
+            " slot_path='app/backend/http/routes/extplug-x')\n",
             encoding="utf-8",
         )
         marker = "/* external-asset-ok */\n"

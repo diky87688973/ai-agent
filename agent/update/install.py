@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from agent.common.status import UPDATE_SWITCHING
 from agent.core.error_report import report_error
 from agent.update.config_merge import merge_ini
 from agent.update.state import write_state
@@ -115,7 +116,7 @@ def _copy_program(source: Path, root: Path) -> None:
         target = root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         if relative.suffix.lower() == ".ini":
-            merge_ini(target, incoming)
+            merge_ini(target, incoming, preserve_user_keys=True)
         else:
             try:
                 shutil.copy2(incoming, target)
@@ -144,7 +145,7 @@ def apply_staged(root: Path, staging: Path, version: str) -> Path:
     if not (source / "agent").is_dir():
         raise ValueError("staging 缺少 agent 目录")
     previous = (root / "VERSION").read_text(encoding="utf-8").strip()
-    write_state(root, "switching", previous, version)
+    write_state(root, UPDATE_SWITCHING, previous, version)
     _backup_root(root, previous)
     _copy_program(source, root)
     (root / "VERSION").write_text(version + "\n", encoding="utf-8")

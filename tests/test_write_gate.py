@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -23,6 +24,7 @@ class WriteGateTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
         self.app = build_app()
+        self.addCleanup(self.app.dispose)
         self.port = ToolPort(
             registry=self.app.registry,
             pipeline=self.app.pipeline,
@@ -58,6 +60,32 @@ class WriteGateTest(unittest.TestCase):
         return str(path).replace("\\", "/")
 
     # ── 正向四步 ─────────────────────────────────────────
+
+    def test_web_fetch_out_file_goes_through_preview(self) -> None:
+        """web_fetch 的 out_file 属于写路径：预览阶段不得落盘，commit 才写。"""
+        target = self.root / "fetched.txt"
+        payload = {
+            "url": "https://example.invalid/",
+            "request_url": "https://example.invalid/",
+            "final_url": "https://example.invalid/",
+            "status": 200,
+            "content_type": "text/plain",
+            "title": "probe",
+            "text": "hello",
+            "text_len": 5,
+            "truncated": False,
+        }
+        with mock.patch("agent.capabilities.builtin.web_tools._fetch_url",
+                        return_value=payload):
+            r = self._call("web_fetch", {
+                "url": "https://example.invalid/", "out_file": str(target)})
+            self.assertTrue(r.ok, msg=str(r.error))
+            self.assertFalse(target.exists(), msg="预览阶段不得直写 out_file")
+            cid = str(r.data.get("confirm_id") or "")
+            self.assertTrue(cid)
+            self.app.gate.confirm(cid)
+            self.assertTrue(self._commit(cid).ok)
+        self.assertEqual(target.read_text(encoding="utf-8"), "hello")
 
     def test_preview_does_not_write(self) -> None:
         """预览：不落盘，返回字节数、存在标记与 confirm_id。"""

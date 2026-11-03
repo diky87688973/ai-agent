@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
+from agent.core.app_path import app_path
 from agent.core.context import ToolTurnContext
 from agent.core.session_scope import (
     reset_progress_reporter,
@@ -85,22 +86,44 @@ PreGate = Callable[[ToolCallRequest, Any], Optional[GateDecision]]
 PostObserver = Callable[[ToolCallRequest, ToolResult, Any], None]
 
 
+PIPELINE_PATH = app_path("kernel", "modules", "tool", "pipeline")
+
+
 class ToolPipeline:
     """工具执行唯一入口：pre 门控（有序）→ 执行 → post 观察（有序）。"""
 
-    def __init__(self) -> None:
+    def __init__(self, slots: Any = None) -> None:
         self._pre: list[PreGate] = []
         self._post: list[PostObserver] = []
+        self._slots = slots
+        if self._slots is not None and PIPELINE_PATH not in self._slots.nodes:
+            self._slots.register_slot(
+                PIPELINE_PATH, kind="kernel-stage", default=self._execute,
+                default_owner="__host__")
 
     def add_pre(self, gate: PreGate) -> Callable[[], None]:
         """注册前置门控；返回注销句柄。"""
         self._pre.append(gate)
-        return lambda: self._pre.remove(gate)
+
+        def _dispose() -> None:
+            try:
+                self._pre.remove(gate)
+            except ValueError:
+                return
+
+        return _dispose
 
     def add_post(self, observer: PostObserver) -> Callable[[], None]:
         """注册后置观察者；返回注销句柄。"""
         self._post.append(observer)
-        return lambda: self._post.remove(observer)
+
+        def _dispose() -> None:
+            try:
+                self._post.remove(observer)
+            except ValueError:
+                return
+
+        return _dispose
 
     def _pre_result(self, call: ToolCallRequest, ctx: Any) -> ToolResult | None:
         for gate in list(self._pre):
@@ -142,23 +165,27 @@ class ToolPipeline:
                 result = ToolResult(
                     call_id=call.call_id, ok=bool(inner.ok), data=inner.data,
                     error=str(inner.error or ""))
+                result.await_user = bool(inner.await_user)
+                result.deferred = bool(inner.deferred)
                 carried = inner.attachments
             elif isinstance(data, dict) and data.get("ok") is False:
                 result = ToolResult(
                     call_id=call.call_id, ok=False,
                     error=str(data.get("error") or "工具执行失败"))
+                result.await_user = bool(data.get("await_user"))
+                result.deferred = bool(data.get("deferred"))
             else:
                 result = ToolResult(call_id=call.call_id, ok=True, data=data)
             if isinstance(carried, list) and carried:
                 result.attachments = list(carried)
             return result
         except Exception as exc:
-            awaiting = bool(getattr(exc, "await_user", False))
             result = ToolResult(
                 call_id=call.call_id, ok=False,
                 data=getattr(exc, "data", None),
                 error=f"{type(exc).__name__}: {exc}",
-                await_user=awaiting, deferred=awaiting)
+                await_user=bool(getattr(exc, "await_user", False)),
+                deferred=bool(getattr(exc, "deferred", False)))
             return result
 
     def _post_observe(self, call: ToolCallRequest, result: ToolResult, ctx: Any) -> None:
@@ -166,7 +193,15 @@ class ToolPipeline:
             observer(call, result, ctx)
 
     def execute(self, registry: Any, call: ToolCallRequest, ctx: Any) -> ToolResult:
-        """唯一执行入口；上下文、门控、执行、观察按顺序收口。"""
+        """唯一执行入口；实现可从 tools/pipeline 插口解析。"""
+        if self._slots is not None and PIPELINE_PATH in self._slots.nodes:
+            impl = self._slots.resolve(PIPELINE_PATH)
+            if impl is not self._execute:
+                return impl(registry, call, ctx)
+        return self._execute(registry, call, ctx)
+
+    def _execute(self, registry: Any, call: ToolCallRequest, ctx: Any) -> ToolResult:
+        """默认执行流程：上下文、门控、执行、观察按顺序收口。"""
         cid = str(getattr(ctx, "conversation_id", "") or "") if ctx is not None else ""
         token = set_session_scope(cid)
         sink = getattr(ctx, "progress_sink", None) if ctx is not None else None

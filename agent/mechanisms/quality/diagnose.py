@@ -9,11 +9,16 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from agent.common.status import require
 from agent.core.error_report import report_error
 from agent.mechanisms.quality.path_keys import norm_path
 
 if TYPE_CHECKING:
     from agent.mechanisms.quality.gate import QualityGate
+
+CHECK_PASS = "pass"
+CHECK_FAIL = "fail"
+CHECK_STATUSES = (CHECK_PASS, CHECK_FAIL)
 
 LARGE_DELETE_MIN_LINES = 30
 LARGE_DELETE_ADD_RATIO = 0.35
@@ -55,28 +60,28 @@ def run_post_write_checks(gate: "QualityGate", path: str) -> List[Dict[str, Any]
     if suffix == ".py":
         try:
             ast.parse(fp.read_text(encoding="utf-8", errors="replace"), filename=str(fp))
-            checks.append({"id": "py_syntax", "status": "pass", "summary": "Python 语法通过"})
+            checks.append({"id": "py_syntax", "status": CHECK_PASS, "summary": "Python 语法通过"})
         except SyntaxError as exc:
-            checks.append({"id": "py_syntax", "status": "fail", "summary": f"Python 语法错误：{exc}"})
+            checks.append({"id": "py_syntax", "status": CHECK_FAIL, "summary": f"Python 语法错误：{exc}"})
             flag_diag_fail(gate, f"{path}: {exc}")
             return checks
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 py_compile.compile(str(fp), cfile=str(Path(tmp) / "out.pyc"), doraise=True)
-            checks.append({"id": "py_compile", "status": "pass", "summary": "py_compile 通过"})
+            checks.append({"id": "py_compile", "status": CHECK_PASS, "summary": "py_compile 通过"})
         except Exception as exc:
             report_error("agent.mechanisms.quality.diagnose.run_post_write_checks", exc)
-            checks.append({"id": "py_compile", "status": "fail", "summary": f"py_compile 失败：{exc}"})
+            checks.append({"id": "py_compile", "status": CHECK_FAIL, "summary": f"py_compile 失败：{exc}"})
             flag_diag_fail(gate, f"{path}: {exc}")
     elif suffix == ".json":
         try:
             json.loads(fp.read_text(encoding="utf-8", errors="replace"))
-            checks.append({"id": "json_valid", "status": "pass", "summary": "JSON 解析通过"})
+            checks.append({"id": "json_valid", "status": CHECK_PASS, "summary": "JSON 解析通过"})
         except Exception as exc:
             report_error("agent.mechanisms.quality.diagnose.run_post_write_checks", exc)
-            checks.append({"id": "json_valid", "status": "fail", "summary": f"JSON 解析失败：{exc}"})
+            checks.append({"id": "json_valid", "status": CHECK_FAIL, "summary": f"JSON 解析失败：{exc}"})
             flag_diag_fail(gate, f"{path}: {exc}")
-    if checks and all(c.get("status") == "pass" for c in checks) and not gate.large_delete_flag:
+    if checks and all(require(c.get("status"), CHECK_STATUSES) == CHECK_PASS for c in checks) and not gate.large_delete_flag:
         gate.diag_fail_flag = False
         gate.pending_diagnose_red = False
     return checks
@@ -90,7 +95,7 @@ def build_quality_report(gate: "QualityGate", path: str) -> Dict[str, Any]:
     if gate.large_delete_flag:
         checks.append({
             "id": "large_delete",
-            "status": "fail",
+            "status": CHECK_FAIL,
             "summary": gate.last_diagnose_summary or "检测到异常大删除，请确认并非误删",
         })
         actions.append("确认大删除是否为有意改动（review 提交后解除）")

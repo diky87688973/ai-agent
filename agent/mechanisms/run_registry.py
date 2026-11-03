@@ -292,6 +292,27 @@ class FileRunRegistry:
 
     # ── 接口 ────────────────────────────────────────────
 
+    def _create(self, fp: Path, rec: Dict[str, object]) -> bool:
+        """原子创建占位文件；已存在则失败（跨实例/跨进程也只有一个能成功）。"""
+        try:
+            fp.parent.mkdir(parents=True, exist_ok=True)
+            # O_EXCL：把「检查不存在」和「创建」合成一个原子操作。
+            # 只靠实例内锁时，两个 FileRunRegistry 会同时读到"没有占位"并各写一份。
+            fd = os.open(fp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            return False
+        except OSError as exc:
+            report_error("agent.mechanisms.run_registry.FileRunRegistry._create", exc)
+            return False
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(json.dumps(rec, ensure_ascii=False))
+            return True
+        except OSError as exc:
+            report_error("agent.mechanisms.run_registry.FileRunRegistry._create", exc)
+            self._drop(fp)
+            return False
+
     def claim(self, cid: str, run_id: str) -> bool:
         key = str(cid or "").strip()
         fp = self._file(key)
@@ -305,15 +326,22 @@ class FileRunRegistry:
             "heartbeat": now,
         }
         with self._lock:
-            old = self._read(fp) if fp.is_file() else None
-            if old is not None and self._fresh(old):
-                return False          # 有人在跑（心跳未过期）
-            if old is not None:
-                self._drop(fp)        # 过期残留：清掉再占
-            if not self._write(fp, rec):
-                return False
-            self._last_touch[key] = now
-            return True
+            # 先清过期残留；创建失败说明另一个实例抢先占了，再读一次判活。
+            for _ in range(2):
+                old = self._read(fp) if fp.is_file() else None
+                if old is not None and self._fresh(old):
+                    return False          # 有人在跑（心跳未过期）
+                if old is not None:
+                    self._drop(fp)        # 过期残留：清掉再占
+                if self._create(fp, rec):
+                    self._last_touch[key] = now
+                    return True
+                latest = self._read(fp) if fp.is_file() else None
+                if latest is not None and self._fresh(latest):
+                    return False
+                if latest is not None:
+                    self._drop(fp)
+            return False
 
     def release(self, cid: str) -> None:
         key = str(cid or "").strip()

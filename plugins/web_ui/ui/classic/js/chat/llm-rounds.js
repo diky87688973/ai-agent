@@ -34,11 +34,7 @@ if(lastLlm&&lastLlm.dotsTimer){clearInterval(lastLlm.dotsTimer);lastLlm.dotsTime
    （`finalizeAssistantStream()` 会清空它）清掉，守卫会放行，
    思考于是成为对话区里的又一个回答气泡。
    函数体保留：`lastLlm.reasoningText` 仍被工具卡合并思考面板（`onToolStart`）读取。 */
-function promoteReasoningToChatIfNeeded(){
-var rt=(lastLlm&&lastLlm.reasoningText||"").trim();
-if(!rt)return;
-if((streamAssistantText||"").trim())return;
-appendAssistantDelta(rt);}
+/* Dead: remove only when tool cards no longer consume lastLlm.reasoningText and assistant rendering keeps reasoning separate. */
 function appendReasoningDelta(ev){
 var d=String(ev.delta||"");if(!d)return;if(!lastLlm)return;if(ev.round!=null&&lastLlm.round!=null&&ev.round!==lastLlm.round)return;
 lastLlm.reasoningText=(lastLlm.reasoningText||"")+d;lastLlm.chatThinkLastAt=Date.now();if(lastLlm.thLb&&lastLlm.thPb){lastLlm.thLb.style.display="block";lastLlm.thPb.style.display="block";lastLlm.thPb.textContent=lastLlm.reasoningText;scrollToBottom(lastLlm.thPb);}paintChatThink();}
@@ -198,11 +194,8 @@ if(!o)return null;
 if(o.chatToolRow)return o.chatToolRow;
 if(o.chatRunCard&&o.chatRunCard.parentNode)return o.chatRunCard;
 var _cardDiv=document.createElement("div");_cardDiv.className="b a";
-var _cardTitle=(o.stepTitle&&o.stepTitle.trim())?escapeHtml(o.stepTitle.trim()):"执行命令脚本";
-var _cmdRaw=(o.args&&(o.args.command||o.args.code))||"";
-var _cmdLang=detectScriptLang(_cmdRaw,(o.args&&(o.args.language||o.args.lang))||"");
-var _cmdCls=hljsCodeClass(_cmdLang);
-_cardDiv.innerHTML='<div class="chat-diff-card"><div class="chat-diff-cap">'+_cardTitle+'<span class="chat-run-status" style="margin-left:8px;font-size:12px;font-weight:normal;color:#e0a300"></span></div><div class="diff-unified chat-run-wrap chat-run-cmd-block"><pre class="chat-run-pre chat-run-pre--cmd"><code'+(_cmdCls?' class="'+_cmdCls+'"':'')+'>'+highlightCode(_cmdRaw,_cmdLang)+'</code></pre></div><div class="chat-diff-cap chat-diff-cap--sect">执行结果</div><pre class="chat-run-pre chat-run-pre--out"><code></code></pre></div>';
+var _cardTitle=(o.stepTitle&&o.stepTitle.trim())?escapeHtml(o.stepTitle.trim()):"命令输出";
+_cardDiv.innerHTML='<div class="chat-diff-card"><div class="chat-diff-cap">'+_cardTitle+'<span class="chat-run-status" style="margin-left:8px;font-size:12px;font-weight:normal;color:#e0a300"></span></div><pre class="chat-run-pre chat-run-pre--out"><code></code></pre></div>';
 if(streamAssistantEl){streamAssistantEl.after(_cardDiv);streamAssistantEl=null;streamAssistantText="";}else{msgs.appendChild(_cardDiv);}
 o.chatRunCard=_cardDiv;
 o.chatRunOutPre=_cardDiv.querySelector(".chat-run-pre--out code");
@@ -325,7 +318,8 @@ var dispStep;
 if(merged){dispStep=lastLlm.stepNum!=null?lastLlm.stepNum:stepSeq;}
 else{stepSeq++;dispStep=stepSeq;}
 if(!merged){flushPendingSteps();}
-const tid=ev.tool_call_id!=null&&String(ev.tool_call_id).trim()!==""?String(ev.tool_call_id).trim():String(Math.random());
+const tid=ev.tool_call_id!=null&&String(ev.tool_call_id).trim()!==""?String(ev.tool_call_id).trim():"";
+if(!tid)return;
 const tp=buildToolTitleParts(ev.script,ev.args||{});
 const _stt=String(ev.step_title||"").trim();
 if(_stt){

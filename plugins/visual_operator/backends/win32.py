@@ -9,7 +9,16 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from ..coords import ScreenGeometry, ScreenPoint, ScreenRect
 from ..errors import DesktopError, DesktopUnavailable, ScreenCaptureFailed
-from ..ports import Backend, FocusInfo, Screenshot, WindowActivation, WindowInfo
+from ..ports import (
+    ACTIVATION_FAILED,
+    ACTIVATION_NONE,
+    ACTIVATION_OK,
+    Backend,
+    FocusInfo,
+    Screenshot,
+    WindowActivation,
+    WindowInfo,
+)
 from ..titles import normalize_title
 from .win32_common import (
     _ACTIVATE_TIMEOUT_SECONDS,
@@ -426,14 +435,14 @@ class Win32Windows:
         # 但"恢复"不等于"抢前台"：默认只恢复（SW_SHOWNOACTIVATE），
         # 用户正在用的窗口与键盘焦点都不动。需要亮出来时由调用侧显式要 activate。
         restored = bool(user32.IsIconic(hwnd))
-        activation = "none"
+        activation = ACTIVATION_NONE
         if activate:
             was_restored, ok = _bring_to_front(hwnd)
             restored = restored or was_restored
-            activation = "ok" if ok else "failed"
+            activation = ACTIVATION_OK if ok else ACTIVATION_FAILED
         elif restored:
             _restore_without_activation(hwnd)
-            activation = "none"
+            activation = ACTIVATION_NONE
         if restored:
             rect = _window_rect(hwnd) or rect
         if prepare is not None:

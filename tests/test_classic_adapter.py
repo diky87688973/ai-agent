@@ -38,13 +38,6 @@ except ImportError:                     # pragma: no cover - 常量缺失时用�
 
 CID = "4a4edf45-4fcb-43d7-aa48-05451a89ed5f"
 
-#: 素材改动登记册（与代码耦合：`check_ui_js.py` 也核对它）。
-#: 正常情况下它随仓库公开（见 `.gitignore` 的 B3 节显式取反）；
-#: 万一不在本地（例如只拷了部分文件），相关用例跳过而不是失败 ——
-#: 否则"克隆不全"会被误报成"代码坏了"。
-_UI_CHANGES_MD = (Path(__file__).resolve().parent.parent
-                / "agent" / "shell" / "web_assets" / "classic" / "UI-CHANGES.md")
-
 class _FakeApp:
     """只为装配用的壳：适配层的入站侧大多走"拿不到就回落"的路径。
 
@@ -118,9 +111,9 @@ class PluginEventTest(unittest.TestCase):
 
     def test_frame_shape_and_copy(self) -> None:
         payload = {"conversation_id": CID, "index": 0}
-        frame = C.plugin_event_frame("ai_speak", "segment", payload)
+        frame = C.plugin_event_frame("ai_cosplay", "segment", payload)
         self.assertEqual(frame["type"], C.EV_PLUGIN_EVENT)
-        self.assertEqual(frame["plugin"], "ai_speak")
+        self.assertEqual(frame["plugin"], "ai_cosplay")
         self.assertEqual(frame["event"], "segment")
         self.assertEqual(frame["conversation_id"], CID)
         payload["index"] = 9
@@ -131,13 +124,13 @@ class PluginEventTest(unittest.TestCase):
         for payload in ({"type": "x"}, {"plugin": "x"}, {"event": "x"}, {"seq": 1}):
             with self.subTest(payload=payload):
                 with self.assertRaises(ValueError):
-                    C.plugin_event_frame("ai_speak", "segment", payload)
+                    C.plugin_event_frame("ai_cosplay", "segment", payload)
         with self.assertRaises(ValueError):
             C.plugin_event_frame("../bad", "segment", {})
         with self.assertRaises(ValueError):
-            C.plugin_event_frame("ai_speak", "", {})
+            C.plugin_event_frame("ai_cosplay", "", {})
         with self.assertRaises(ValueError):
-            C.plugin_event_frame("ai_speak", "segment", [])
+            C.plugin_event_frame("ai_cosplay", "segment", [])
 
     def test_announce_broadcasts_to_channels(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -145,11 +138,11 @@ class PluginEventTest(unittest.TestCase):
             self.addCleanup(adapter.dispose)
             first = adapter.attach()
             second = adapter.attach()
-            self.assertEqual(adapter.announce_plugin_event("ai_speak", "stop", {}), 2)
+            self.assertEqual(adapter.announce_plugin_event("ai_cosplay", "stop", {}), 2)
             self.assertEqual(first.get_nowait()["type"], C.EV_PLUGIN_EVENT)
             self.assertEqual(second.get_nowait()["event"], "stop")
             adapter.detach(first)
-            self.assertEqual(adapter.announce_plugin_event("ai_speak", "stop", {}), 1)
+            self.assertEqual(adapter.announce_plugin_event("ai_cosplay", "stop", {}), 1)
             second.get_nowait()
 
 class UsageSemanticsTest(unittest.TestCase):
@@ -539,15 +532,8 @@ class OutboundContractTest(unittest.TestCase):
         一旦调用，思考会混进对话正文。
         """
         js = read_ui_js()
-        self.assertIn("function promoteReasoningToChatIfNeeded", js,
-                      msg="函数被删了；本项只约束它不被调用")
-        # 定义之后的正文里不得出现调用（注释里的提及不算）
-        body = js.split("function promoteReasoningToChatIfNeeded", 1)[1]
-        callers = [ln for ln in body.splitlines()
-                   if "promoteReasoningToChatIfNeeded(" in ln
-                   and not ln.lstrip().startswith(("//", "/*", "*"))]
-        self.assertEqual(callers, [],
-                         msg=f"思考内容又被填进对话区了：{callers[:2]}")
+        self.assertNotIn("function promoteReasoningToChatIfNeeded", js,
+                         msg="思考提升函数已被删除；重新引入会再次把思考填进对话区")
 
     def test_run_type_switch_emits_mode_changed(self) -> None:
         """`run_type` 切模式后必须补 `mode_changed`，否则经典界面的模式按钮停在旧值。
@@ -730,7 +716,7 @@ class InboundContractTest(unittest.TestCase):
         self.assertNotIn("active_conversation_id", payload["state"])
 
     def test_ui_state_put_stores_nothing(self) -> None:
-        """PUT 收到布局也不落盘；旧前端不会因此报错。"""
+        """PUT 收到布局也不落盘；客户端不会因此报错。"""
         result = self.adapter.ui_state_put({
             "tabs": [{"id": CID, "title": "甲"}], "active_conversation_id": CID,
         })
@@ -1560,10 +1546,6 @@ class UiBundleTest(unittest.TestCase):
         from agent.shell.web.ui_bundle import inline_ui_html
 
         html = inline_ui_html()
-        self.assertIn("function promoteReasoningToChatIfNeeded(){", html,
-                      msg="函数名变了：需重新确认思考提升的处理位置")
-        self.assertNotIn("promoteReasoningToChatIfNeeded();", html,
-                         msg="仍有地方在调用思考提升，思考会被填进对话区")
         self.assertIn("finalizeAssistantSt", html, msg="助手消息终态填充丢失")
 
     def test_llm_call_start_opens_a_step_card(self) -> None:
@@ -1647,8 +1629,6 @@ class UiBundleTest(unittest.TestCase):
         # 不能误伤 `xxx.hljs` 这类复合选择器
         self.assertEqual(scope_hljs_css("a.hljs{color:red}", "P"), "a.hljs{color:red}")
 
-if __name__ == "__main__":
-    unittest.main()
 
 class HistoryAttachmentReplayTest(unittest.TestCase):
     """带附件的会话刷新后必须能再看图。
@@ -1835,3 +1815,6 @@ class HistoryAttachmentReplayTest(unittest.TestCase):
         items, resolved = history_items([Event("input_claimed", {"content": "只有文字"})])
         self.assertEqual(items, [{"role": "user", "content": "只有文字"}])
         self.assertEqual(resolved, [])
+
+if __name__ == "__main__":
+    unittest.main()

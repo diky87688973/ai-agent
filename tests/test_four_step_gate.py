@@ -58,6 +58,15 @@ class FourStepGateTest(unittest.TestCase):
         self.assertFalse(decision.allow)
         self.assertFalse(target.exists())
 
+    def test_relative_suffix_does_not_bypass_pending_review(self) -> None:
+        """相对路径的同名后缀不是同一文件；不能借此绕过写后 review。"""
+        self.gate.note_committed("a/x.txt")
+        target = self.root / "b" / "a" / "x.txt"
+        cid = self._ready(target, "v")
+        decision = self.gate.check_write(WriteContext(confirm_id=cid))
+        self.assertFalse(decision.allow)
+        self.assertIn("review", decision.reason)
+
     def test_unconfirmed_preview_denied(self) -> None:
         """协议顺序：预览后未确认即提交，被拒。"""
         target = self.root / "b.txt"

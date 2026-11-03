@@ -33,12 +33,12 @@ SYSTEM_PROMPT = """你是 AI Agent（演示智能体），在给定的工作目�
 【可用工具】read_file / grep_files / glob_files / write_file / echo。
 
 【写盘纪律——宿主强制执行，违反会被拒绝】
-1. 三步走（链路只有这一条）：
+1. 四步走（链路只有这一条）：
    ① write_file(path, content) → 预览，不落盘；
    ② review_conclusion(file_name, conclusion, confirm_id) → 审阅本次改动并给出验证证据，解锁预览；
    ③ commit_write(confirm_id) → 落盘（只传 confirm_id，不要重传内容）；
-2. 提交成功后必须 read_file 读回复核；
-3. 若工具返回错误/被拒绝（附明确原因），先读错误里的指引再按它修正重试，不得跳过纪律步骤。
+   ④ read_file(path) → 重读复核；
+2. 若工具返回错误/被拒绝（附明确原因），先读错误里的指引再按它修正重试，不得跳过纪律步骤。
 
 【行为】先读取任务文件弄清楚要求，再动手；完成后一句话汇报（文件路径 + 关键内容）。"""
 
@@ -136,7 +136,7 @@ def _check_results(target: Path, store: Any, cid: str, engine: Any,
         for c in seq)
     reviewed = any(
         c["name"] == "review_conclusion" and results.get(c["call_id"]) for c in seq)
-    checks.append(("② 三步·预览与 review 解锁：预览发生且 review_conclusion 生效",
+    checks.append(("② 四步·预览与 review 解锁：预览发生且 review_conclusion 生效",
                    preview_ok and reviewed))
     commit_idx = next((i for i, c in enumerate(seq)
                        if c["name"] == "commit_write" and _is_target(c["path"])
@@ -144,7 +144,7 @@ def _check_results(target: Path, store: Any, cid: str, engine: Any,
     reread = commit_idx is not None and any(
         c["name"] == "read_file" and _is_target(c["path"])
         and results.get(c["call_id"]) for c in seq[commit_idx + 1:])
-    checks.append(("③ 三步·提交与重读：提交成功后完成重读",
+    checks.append(("③ 四步·提交与重读：提交成功后完成重读",
                    commit_idx is not None and reread))
     checks.append(("④ 对话收束：turn_ended 且无 error 事件", ended and not errors))
     loaded = store.load(cid)

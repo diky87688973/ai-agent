@@ -18,6 +18,11 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 import agent.shell.classic_adapter.contract as C
+from agent.common.status import (
+    MODEL_CONFIG_NONE,
+    REASONING_EFFORT_HIGH,
+    RUN_MODE_AUTO,
+)
 from agent.core.error_report import report_error
 from agent.core.input_attachments import MAX_IMAGES
 from agent.shell.classic_adapter.channel import ChannelMixin, ClassicSseChannel
@@ -88,7 +93,7 @@ class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
     def _mode_of(self, cid: str) -> str:
         live = getattr(self._app, "live_state", None)
         if live is None:
-            return "auto"
+            return RUN_MODE_AUTO
         return str(live.get_mode(cid))
 
     def _model(self, cid: str = "") -> str:
@@ -130,7 +135,8 @@ class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
         key = str(cid or "").strip()
         with self._lock:
             self._streams.pop(key, None)
-        self.state.clear_attachments(key)
+            self._paused.pop(key, None)
+        self.state.drop_session(key)
         contexts = getattr(self._app, "session_contexts", None)
         if contexts is not None:
             try:
@@ -187,7 +193,7 @@ class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
         """
         cid = C.normalize_cid(cid)
         live = getattr(self._app, "live_state", None)
-        mode = live.get_mode(cid) if live is not None else "auto"
+        mode = live.get_mode(cid) if live is not None else RUN_MODE_AUTO
         # 模型取会话级选择（没选过才回落 provider 默认）。
         # 不能恒取 `provider.model`：那样每来一帧就把用户的模型选择覆盖回默认
         # （表现为"发一条消息，模型下拉自己就跳回默认"），
@@ -215,9 +221,9 @@ class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
         resolver = getattr(self._app, "available_models", None)
         allowed = [str(m) for m in (resolver() if callable(resolver) else []) or []]
         source = str(getattr(self._app, "model_config_state", "") or "")
-        if not allowed and source != "none":
+        if not allowed and source != MODEL_CONFIG_NONE:
             allowed = [str(m) for m in (getattr(provider, "allowed_models", None) or [])]
-        if not allowed and source == "none":
+        if not allowed and source == MODEL_CONFIG_NONE:
             model = ""
         if model and model not in allowed:
             allowed = [model, *allowed]
@@ -240,7 +246,7 @@ class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
             },
             # 全局默认档位：会话回填前顶栏先按它显示（会话值见 `/api/chat/ui-state`）。
             "reasoning_effort": (self._app.live_state.default_effort
-                                 if self._app.live_state is not None else "high"),
+                                 if self._app.live_state is not None else REASONING_EFFORT_HIGH),
             "max_images": MAX_IMAGES,
             "model_config": settings() if callable(settings) else {},
             # 停在"等用户作答"的会话（宿主状态，非内核阻塞态）。

@@ -16,11 +16,14 @@ from __future__ import annotations
 import copy
 import dataclasses
 import threading
-from typing import Callable, Iterator, Optional, Sequence, Tuple
+from typing import Any, Callable, Iterator, Optional, Sequence, Tuple
 
+from agent.core.app_path import app_path
 from agent.core.error_report import report_error
 from agent.core.model_call import StreamDelta
 from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
+
+ROUTER_PATH = app_path("kernel", "modules", "model", "router")
 
 
 class ProviderRouter(ModelProvider):
@@ -34,6 +37,7 @@ class ProviderRouter(ModelProvider):
         allowed_ids: Sequence[str] = (),
         default_id: str = "",
         fallback_to_default: bool = False,
+        slots: Any = None,
     ) -> None:
         self._lock = threading.Lock()
         self._default = default
@@ -41,6 +45,11 @@ class ProviderRouter(ModelProvider):
         self._allowed = tuple(str(item) for item in allowed_ids if str(item))
         self._default_id = str(default_id or "")
         self._fallback = bool(fallback_to_default)
+        self._slots = slots
+        if self._slots is not None and ROUTER_PATH not in self._slots.nodes:
+            self._slots.register_slot(
+                ROUTER_PATH, kind="kernel-stage",
+                default=self._select_provider, default_owner="__host__")
 
     # ── 只读视图 ──
 
@@ -91,21 +100,33 @@ class ProviderRouter(ModelProvider):
             allowed = self._allowed
             fallback = self._fallback
         mid = str(getattr(request, "model", "") or "").strip() or default_id
+        provider = self._select_for_request(
+            request, mid, allowed, fallback)
+        if provider is None:
+            raise ModelRequestError(f"未配置的模型：{mid}")
+        # 目录条目的 id 是路由键，线格式模型名归 provider 自己（`options.model`）。
+        # 两者可能不同（`[model:claude]` + `model = claude-sonnet-4-5`），
+        # 因此命中目录时必须把请求里的 id 换成实例的模型名。
+        yield from provider.stream(_with_wire_model(request, provider))
+
+    def _select_for_request(self, request, mid: str, allowed: Any,
+                            fallback: bool) -> Optional[ModelProvider]:
+        if self._slots is not None and ROUTER_PATH in self._slots.nodes:
+            impl = self._slots.resolve(ROUTER_PATH)
+            if impl is not self._select_provider:
+                return impl(request, mid, allowed, fallback, self._resolve)
+        return self._select_provider(request, mid, allowed, fallback, self._resolve)
+
+    def _select_provider(self, request, mid: str, allowed: Any, fallback: bool,
+                         resolve: Callable[[str], Optional[ModelProvider]]) -> Optional[ModelProvider]:
         if not mid:
-            yield from self._default_snapshot().stream(request)
-            return
-        provider = self._resolve(mid)
+            return self._default_snapshot()
+        provider = resolve(mid)
         if provider is not None:
-            # 目录条目的 id 是路由键，线格式模型名归 provider 自己（`options.model`）。
-            # 两者可能不同（`[model:claude]` + `model = claude-sonnet-4-5`），
-            # 因此命中目录时必须把请求里的 id 换成实例的模型名。
-            yield from provider.stream(_with_wire_model(request, provider))
-            return
+            return provider
         if fallback and mid in allowed:
-            # 非权威模式：config.ini 里的 models 都由同一个网关服务。
-            yield from self._default_snapshot().stream(request)
-            return
-        raise ModelRequestError(f"未配置的模型：{mid}")
+            return self._default_snapshot()
+        return None
 
     def _default_snapshot(self) -> ModelProvider:
         with self._lock:

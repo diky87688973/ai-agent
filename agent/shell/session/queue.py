@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from typing import Any, Dict
 
+from agent.core.error_report import report_error
+
 
 def queue_of(app: Any) -> Any:
     return getattr(app, "conversation_queue", None)
@@ -34,7 +36,7 @@ def input_of(item: Dict[str, Any]) -> Any:
     if isinstance(attachments, list):
         attachments = [row for row in attachments
                        if not isinstance(row, dict) or "data_base64" in row]
-    meta = {key: payload[key] for key in ("kind", "source", "notice_id", "batch", "wake_job_id")
+    meta = {key: payload[key] for key in ("kind", "source", "notice_id", "batch", "wake_job_id", "goal_round", "goal_limit")
             if key in payload}
     return content, attachments, payload.get("resume"), (
         item.get("sender") if isinstance(item.get("sender"), dict) else None
@@ -55,8 +57,7 @@ def flush_pending(cid: str, app: Any) -> None:
     try:
         written = flusher(cid)
     except Exception as exc:
-        print(f"[session_runner] 待重试事实补投失败 cid={cid}: "
-              f"{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        report_error("agent.shell.session.queue.flush_pending", exc)
         return
     if written:
         print(f"[session_runner] 补投了 {written} 条先前落盘失败的事实 "

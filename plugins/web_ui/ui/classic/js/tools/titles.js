@@ -3,19 +3,6 @@
  * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
-function pickFileHint(args){if(!args||typeof args!=="object")return "";
-const keys=["file","request_file","payload_file","path","old_path","new_path","source_path","dest_path","source","patch_file"];
-for(let k of keys){let v=args[k];if(v===undefined&&args["--"+k]!==undefined)v=args["--"+k];
-if(typeof v==="string"&&v){const parts=v.replace(/\\/g,"/").split("/");return parts[parts.length-1]||v;}}
-return "";}
-function parseToolPayload(args){
-if(!args||typeof args!=="object")return null;
-let p=args.payload;
-if(typeof p==="string"){try{return JSON.parse(p);}catch(e){return null;}}
-if(p&&typeof p==="object")return p;
-let pj=args["--payload"];
-if(typeof pj==="string"){try{return JSON.parse(pj);}catch(e){return null;}}
-return null;}
 function argGet(args,name){
 if(!args||typeof args!=="object")return undefined;
 const k=name.indexOf("--")===0?name:"--"+name;
@@ -36,18 +23,6 @@ if(!s)return "";
 const parts=s.split("/").filter(Boolean);
 if(parts.length<=2)return (parts.join("/")||s).replace(/\//g,"\\");
 return parts.slice(-2).join("/").replace(/\//g,"\\");}
-function inferLangFromPath(path){
-const n=baseNameOnly(String(path||"")).toLowerCase();
-const m=n.match(/\.([a-z0-9_+-]+)$/i);
-if(!m)return "";
-const ext=m[1];
-const mp={py:'python',js:'javascript',ts:'typescript',tsx:'typescript',jsx:'javascript',json:'json',yml:'yaml',yaml:'yaml',xml:'xml',html:'html',css:'css',md:'markdown',java:'java',go:'go',rs:'rust',sql:'sql',sh:'bash',bat:'batch',ps1:'powershell',txt:''};
-return mp[ext]!==undefined?mp[ext]:"";}
-function renderPreviewText(text,lang){
-const t=String(text||"");
-if(lang)return highlightCode(t,lang);
-return escapeHtml(t);
-}
 function buildToolTitleParts(script,args,full){
 function take(text,n){
 var s=String(text==null?"":text);
@@ -172,7 +147,7 @@ const am=act==="list"?"列出压缩包":act==="extract"?"预览解压":act==="cr
 return {main:am,fname:src+(dst?" · → "+dst:"")};}
 if(s.indexOf("data_table")>=0){
 const act=String(argGet(args,"action")||"");
-const src=pathLeaf(String(argGet(args,"source")||""))||"表格";
+const src=pathLeaf(String(argGet(args,"path")||argGet(args,"source")||""))||"表格";
 const sh=take(argGet(args,"sheet"),16);
 return {main:"处理表格 · "+(act||"?"),fname:src+(sh?" · "+sh:"")};}
 if(s.indexOf("todo_list")>=0){
@@ -233,7 +208,7 @@ const root=pathLeaf(String(argGet(args,"path")||""))||".";
 const mode=String(argGet(args,"mode")||"worktree");
 return {main:"查看 Git",fname:root+" · "+mode};}
 if(s.indexOf("image_ocr")>=0){
-const src=pathLeaf(String(argGet(args,"source")||""))||"（未指定 source）";
+const src=pathLeaf(String(argGet(args,"path")||argGet(args,"source")||""))||"（未指定 path）";
 const eng=String(argGet(args,"engine")||"auto").toLowerCase();
 const reg=String(argGet(args,"region")||"").trim();
 const extra=(eng&&eng!=="auto")?" · "+eng:"";

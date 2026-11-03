@@ -101,6 +101,8 @@ class SessionContexts:
         self._live = live
         self._buckets: Dict[str, SessionContext] = {}
         self._lock = threading.Lock()
+        self._cond = threading.Condition(self._lock)
+        self._creating: Dict[str, int] = {}
 
     # ── 元信息 ──────────────────────────────────────────────
 
@@ -114,24 +116,42 @@ class SessionContexts:
     def resolve_sync(self, conversation_id: str) -> SessionContext:
         """按 cid 取会话上下文；无则创建（同 cid 复用，线程安全）。
 
-        `gate_factory` 在持锁期间之外调用——避免工厂重入注册表导致死锁。
+        `gate_factory` 在全局锁外调用，但同一 cid 只允许一个创建者：否则
+        并发首用会各造一个 gate，未入表的那份被丢弃且其预览快照再无人能提交。
+        其它线程在条件变量上等创建完成；工厂抛错时唤醒它们重试或抛错。
         """
         bucket = _bucket(conversation_id)
-        with self._lock:
+        with self._cond:
             ctx = self._buckets.get(bucket)
             if ctx is not None:
                 return ctx
-        gate = self._gate_factory(bucket)
-        with self._lock:
-            existing = self._buckets.get(bucket)
-            if existing is not None:
-                return existing  # 竞态：他线程已建，复用先到者
+            if bucket in self._creating:
+                if self._creating[bucket] == threading.get_ident():
+                    # 工厂重入同一 cid 会等自己；显式失败，不能挂死。
+                    raise RuntimeError(
+                        f"gate_factory 重入同一会话：{bucket}")
+                while bucket in self._creating:
+                    self._cond.wait()
+                    ctx = self._buckets.get(bucket)
+                    if ctx is not None:
+                        return ctx
+            self._creating[bucket] = threading.get_ident()
+        try:
+            gate = self._gate_factory(bucket)
+        except Exception:
+            with self._cond:
+                self._creating.pop(bucket, None)
+                self._cond.notify_all()
+            raise
+        with self._cond:
             ctx = SessionContext(
                 conversation_id=bucket,
                 gate=gate,
                 live=self._live,
-                )
+            )
             self._buckets[bucket] = ctx
+            self._creating.pop(bucket, None)
+            self._cond.notify_all()
             return ctx
 
     def resolve(self) -> SessionContext:

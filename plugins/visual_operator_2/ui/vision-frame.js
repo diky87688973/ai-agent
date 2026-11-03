@@ -3,7 +3,6 @@
   "use strict";
 
   var PLUGIN = "visual_operator_2";
-  var STYLE_ID = "visionFrameStyle";
   var activeModal = null;
 
   function currentConversationID() {
@@ -47,33 +46,6 @@
       }).join("  ");
   }
 
-  function ensureStyle() {
-    if (document.getElementById(STYLE_ID)) return;
-    var style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = [
-      ".vision-frame-card .vision-frame-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 0;}",
-      ".chat-tool-row--status{border:1px solid rgba(127,127,127,.28);border-radius:8px;background:rgba(127,127,127,.06);margin:8px 0;}",
-      ".chat-tool-row--status .chat-tool-head{display:flex;align-items:center;padding:9px 12px;cursor:default;}",
-      ".vision-frame-thumb{display:block;width:100%;padding:0;border:1px solid rgba(127,127,127,.35);border-radius:8px;background:#111;overflow:hidden;cursor:zoom-in;text-align:left;color:inherit;}",
-      ".vision-frame-thumb img{display:block;width:auto;max-width:100%;height:auto;max-height:260px;object-fit:contain;background:#0b0b0b;}",
-      ".vision-frame-thumb span{display:block;padding:6px 8px;font-size:11px;color:#9aa4b2;}",
-      ".vision-frame-meta{padding:0 0 10px;font-size:11px;line-height:1.7;color:#9aa4b2;word-break:break-all;}",
-      ".vision-frame-calibration{margin:0 0 10px;padding:8px 10px;border:1px solid rgba(0,220,255,.28);border-radius:8px;background:rgba(0,220,255,.06);font-size:11px;line-height:1.8;color:#b9f4ff;word-break:break-all;}",
-      ".vision-frame-modal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:24px;}",
-      ".vision-frame-dialog{width:min(96vw,1500px);max-height:94vh;overflow:auto;background:#151820;border:1px solid rgba(127,127,127,.4);border-radius:12px;padding:14px;color:#e7edf6;}",
-      ".vision-frame-dialog-head{display:flex;align-items:center;gap:12px;margin-bottom:10px;}",
-      ".vision-frame-dialog-head b{font-size:14px;}",
-      ".vision-frame-dialog-head span{font-size:11px;color:#9aa4b2;flex:1;}",
-      ".vision-frame-dialog-head button{border:1px solid rgba(127,127,127,.4);background:transparent;color:inherit;border-radius:6px;padding:4px 10px;cursor:pointer;}",
-      ".vision-frame-dialog-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;overflow:auto;}",
-      ".vision-frame-dialog figure{margin:0;min-width:0;}",
-      ".vision-frame-dialog figcaption{font-size:12px;color:#9aa4b2;margin-bottom:6px;}",
-      ".vision-frame-dialog img{display:block;width:auto;height:auto;max-width:none;max-height:none;object-fit:contain;background:#0b0b0b;border-radius:8px;}",
-      "@media(max-width:900px){.vision-frame-grid,.vision-frame-dialog-grid{grid-template-columns:1fr;}}"
-    ].join("\n");
-    (document.head || document.documentElement).appendChild(style);
-  }
 
   function modelSize(size) {
     var pair = Array.isArray(size) ? size : [];
@@ -102,9 +74,8 @@
     if (!data || !data.conversation_id) return;
     if (String(data.conversation_id) !== currentConversationID()) return;
     if (typeof makeChatToolRow !== "function" || typeof appendChatToolRow !== "function") return;
-    ensureStyle();
     var row = document.createElement("div");
-    row.className = "chat-tool-row chat-tool-row--status";
+    row.className = "chat-tool-row vision-frame-status-row";
     var head = document.createElement("div");
     head.className = "chat-tool-head";
     var title = document.createElement("span");
@@ -120,7 +91,6 @@
     if (String(data.conversation_id) !== currentConversationID()) return;
     if (typeof makeChatToolRow !== "function" || typeof appendChatToolRow !== "function") return;
 
-    ensureStyle();
     var row = makeChatToolRow("视觉帧", frameSummary(data));
     row.classList.add("vision-frame-card");
     row._visionFrameData = data;
@@ -169,7 +139,6 @@
   function openModal(data) {
     if (!data) return;
     closeModal();
-    ensureStyle();
     var overlay = document.createElement("div");
     overlay.className = "vision-frame-modal";
     overlay.setAttribute("role", "dialog");

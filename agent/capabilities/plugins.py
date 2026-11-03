@@ -25,7 +25,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Dict, List, Optional
 
-from agent.capabilities.backend_paths import seed_backend_slots
+from agent.capabilities.backend_paths import BASE_BACKEND_SLOTS, seed_backend_slots
 from agent.capabilities.path_registry import PathRegistry
 from agent.capabilities.plugin_context import PluginContext
 from agent.capabilities.plugin_ledger import (
@@ -36,6 +36,12 @@ from agent.capabilities.plugin_ledger import (
 from agent.capabilities.registry import ToolRegistry
 from agent.capabilities.settings_registry import SettingsRegistry
 from agent.capabilities.ui_registry import UiRegistry
+from agent.common.status import (
+    PLUGIN_ERROR,
+    PLUGIN_LOADED,
+    PLUGIN_STATUSES,
+    require,
+)
 from agent.config import get_plugin_tree_only
 from agent.core.error_report import report_error
 from agent.mechanisms.prompt_sections import PromptSections
@@ -174,11 +180,14 @@ class LoadReport:
     status: str
     message: str = ""
 
+    def __post_init__(self) -> None:
+        self.status = require(self.status, PLUGIN_STATUSES, "插件装载状态")
+
 
 class PluginHost:
     """插件宿主：发现 / 按清单装载 / 卸载 / 报告。"""
 
-    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None, prompt_sections: Any = None, context_hooks: Any = None) -> None:
+    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None, prompt_sections: Any = None, context_hooks: Any = None, slots: Any = None, tree: Any = None, backend_slots: Any = None) -> None:
         self._dir = Path(plugins_dir)
         self._registry = registry
         self._event_bus = event_bus
@@ -190,14 +199,21 @@ class PluginHost:
         self._prompt_tail = prompt_tail
         self._prompt_sections = prompt_sections if prompt_sections is not None else PromptSections()
         self._context_hooks = context_hooks
+        self.tree = tree
         #: 插件专属存储的根（`<数据根>/plugin/`）。插件只拿到自己的子目录，见 `PluginContext.data_dir`。
         self.plugin_data_root: Optional[Path] = (
             Path(plugin_data_root) if plugin_data_root is not None else None
         )
+        self.slots = slots
         self.settings = SettingsRegistry()
         self.ui = UiRegistry()
+        if slots is not None:
+            self.settings.bindings = slots
+            self.ui.bindings = slots
         self.backend = PathRegistry()
-        seed_backend_slots(self.backend)
+        seed_backend_slots(
+            self.backend,
+            BASE_BACKEND_SLOTS if backend_slots is None else backend_slots)
         self._loaded: Dict[str, List[Disposer]] = {}
         self._modules: Dict[str, str] = {}
         self._runtimes: Dict[str, Any] = {}
@@ -286,7 +302,7 @@ class PluginHost:
                 msg = "插件名非法：只许字母、数字、下划线与短横，且不以 . 或 _ 开头"
                 report_error("plugin.load", msg, plugin=name or "(未命名)")
                 fresh.append(LoadReport(
-                    name=name or "(未命名)", status="error", message=msg))
+                    name=name or "(未命名)", status=PLUGIN_ERROR, message=msg))
                 continue
             root = resolve_plugin_root(self._dir, name, path_raw)
             base = plugin_config_fields(root)
@@ -297,7 +313,7 @@ class PluginHost:
             if not entry_file.is_file():
                 msg = f"插件目录不存在或缺少 plugin.py：{entry_file}"
                 report_error("plugin.load", msg, plugin=name)
-                fresh.append(LoadReport(name=name, status="error", message=msg))
+                fresh.append(LoadReport(name=name, status=PLUGIN_ERROR, message=msg))
                 continue
 
             report = self._load_one(
@@ -323,7 +339,7 @@ class PluginHost:
             if info is None:
                 msg = "插件目录不存在或缺少 plugin.py"
                 report_error("plugin.load", msg, plugin=name)
-                fresh.append(LoadReport(name=name, status="error", message=msg))
+                fresh.append(LoadReport(name=name, status=PLUGIN_ERROR, message=msg))
                 continue
             report = self._load_one(
                 info, rank=rank, root=info.path.parent.resolve())
@@ -344,7 +360,7 @@ class PluginHost:
                             ui=self.ui, backend=self.backend,
                             prompt_tail=self._prompt_tail,
             prompt_sections=self._prompt_sections,
-            context_hooks=self._context_hooks)
+            context_hooks=self._context_hooks, tree=self.tree)
         ctx.set_rank(rank)
         mod_name = f"{_MODULE_PREFIX}.{info.name}"
         plugin_root = Path(root).resolve() if root is not None else info.path.parent.resolve()
@@ -358,7 +374,7 @@ class PluginHost:
             integrity = _entry_integrity(info.path)
             print(
                 f"[plugin.load] {info.name} source={integrity['path']} "
-                f"sha256={integrity['sha256'] or '?'} "
+                f"sha256={integrity['sha256'] or '?'} verified=no "
                 f"mtime={integrity['mtime']} bytes={integrity['bytes']}",
                 file=sys.stderr,
                 flush=True,
@@ -384,14 +400,14 @@ class PluginHost:
             self._plugin_roots[info.name] = plugin_root
             # 模块级 PLUGIN_VERSION。元数据 version 有值时调用方改用那一份，再与清单核对。
             self._versions[info.name] = str(getattr(module, "PLUGIN_VERSION", "") or "")
-            return LoadReport(name=info.name, status="loaded")
+            return LoadReport(name=info.name, status=PLUGIN_LOADED)
         except Exception as exc:
             dispose_in_reverse(
                 ctx.owned_disposers(), "agent.capabilities.plugins.PluginHost._load_one")
             _drop_plugin_modules(mod_name)
             self._plugin_roots.pop(info.name, None)
             report_error("plugin.load", exc, plugin=info.name)
-            return LoadReport(name=info.name, status="error", message=f"{type(exc).__name__}: {exc}")
+            return LoadReport(name=info.name, status=PLUGIN_ERROR, message=f"{type(exc).__name__}: {exc}")
 
     # ── 卸载 ──
 
@@ -408,6 +424,7 @@ class PluginHost:
             _drop_plugin_modules(mod_name)
         self._runtimes.pop(key, None)
         self._plugin_roots.pop(key, None)
+        self._reports = [report for report in self._reports if report.name != key]
         # 贡献兜底：disposer 正常时已撤过，这里防的是 disposer 漏挂或执行失败 ——
         # 残留的面板会变成打不开的死标签，残留的端点会指向已卸载的插件。
         if self._contributions is not None:
@@ -415,6 +432,8 @@ class PluginHost:
         self.settings.drop_plugin(key)
         self.ui.drop_owner(key)
         self.backend.drop_owner(key)
+        # 工具兜底：disposer 失败时仍按 owner 摘掉，避免同名工具残留到下次装载。
+        self._registry.drop_owner(key)
 
     def unload_all(self) -> None:
         """卸载全部已加载插件。"""

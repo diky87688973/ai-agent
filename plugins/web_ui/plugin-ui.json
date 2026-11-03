@@ -1,0 +1,359 @@
+{
+  "version": 1,
+  "kind": "ui",
+  "ui": {
+    "slots": [
+      {
+        "path": "app/shell/web-ui",
+        "children": "fixed",
+        "fixed": [
+          "nav",
+          "chat",
+          "input",
+          "left-panel",
+          "right-panel",
+          "runtime",
+          "settings"
+        ]
+      },
+      {
+        "path": "app/shell/web-ui/nav",
+        "children": "fixed",
+        "fixed": [
+          "buttons"
+        ]
+      },
+      {
+        "path": "app/shell/web-ui/nav/buttons",
+        "children": "keyed",
+        "fixed": []
+      },
+      {
+        "path": "app/shell/web-ui/chat",
+        "children": "fixed",
+        "fixed": [
+          "messages"
+        ]
+      },
+      {
+        "path": "app/shell/web-ui/chat/messages",
+        "children": "fixed",
+        "fixed": [
+          "user_msg",
+          "ai_msg",
+          "tools"
+        ]
+      },
+      {
+        "path": "app/shell/web-ui/chat/messages/tools",
+        "children": "keyed",
+        "fixed": []
+      },
+      {
+        "path": "app/shell/web-ui/actions",
+        "children": "keyed",
+        "fixed": []
+      },
+      {
+        "path": "app/shell/web-ui/input",
+        "children": "fixed",
+        "fixed": [
+          "textarea",
+          "buttons",
+          "right-buttons"
+        ]
+      },
+      {
+        "path": "app/shell/web-ui/input/buttons",
+        "children": "keyed",
+        "fixed": []
+      },
+      {
+        "path": "app/shell/web-ui/input/right-buttons",
+        "children": "keyed",
+        "fixed": []
+      },
+      {
+        "path": "app/shell/web-ui/left-panel",
+        "children": "fixed",
+        "fixed": [
+          "sessions",
+          "context_usage"
+        ]
+      },
+      {
+        "path": "app/shell/web-ui/left-panel/sessions",
+        "children": "fixed",
+        "fixed": [
+          "new",
+          "list"
+        ]
+      },
+      {
+        "path": "app/shell/web-ui/left-panel/context_usage",
+        "children": "keyed",
+        "fixed": []
+      },
+      {
+        "path": "app/shell/web-ui/right-panel",
+        "children": "keyed",
+        "fixed": []
+      },
+      {
+        "path": "app/shell/web-ui/runtime",
+        "children": "fixed",
+        "fixed": [
+          "left-panel",
+          "right-panel"
+        ]
+      },
+      {
+        "path": "app/shell/web-ui/runtime/left-panel",
+        "children": "keyed",
+        "fixed": []
+      },
+      {
+        "path": "app/shell/web-ui/runtime/right-panel",
+        "children": "keyed",
+        "fixed": []
+      },
+      {
+        "path": "app/shell/web-ui/settings",
+        "children": "none",
+        "fixed": []
+      }
+    ],
+    "actions": [
+      {
+        "id": "settings.open",
+        "label": "设置"
+      },
+      {
+        "id": "theme.toggle",
+        "label": "主题切换"
+      },
+      {
+        "id": "auto_update.check",
+        "label": "版本更新"
+      },
+      {
+        "id": "panel.open_file",
+        "label": "打开文件"
+      },
+      {
+        "id": "panel.open",
+        "label": "知识库"
+      },
+      {
+        "id": "visual.toggle",
+        "label": "视觉切换"
+      },
+      {
+        "id": "input.mode",
+        "label": "模式"
+      },
+      {
+        "id": "input.thinking",
+        "label": "思考"
+      },
+      {
+        "id": "input.goal",
+        "label": "目标"
+      },
+      {
+        "id": "input.send",
+        "label": "发送"
+      },
+      {
+        "id": "input.stop",
+        "label": "停止"
+      }
+    ],
+    "items": [
+      {
+        "path": "app/shell/web-ui/right-panel/steps",
+        "props": {
+          "label": "步骤",
+          "action": "panel.steps",
+          "binding": {
+            "tab": true,
+            "skip_tab": true,
+            "existing": [
+              "#tabSteps",
+              "#paneSteps"
+            ]
+          }
+        },
+        "order": 0
+      },
+      {
+        "path": "app/shell/web-ui/right-panel/open_file",
+        "props": {
+          "label": "打开文件",
+          "title": "打开文件",
+          "action": "panel.open_file",
+          "binding": {
+            "skip_tab": true
+          }
+        },
+        "order": null
+      },
+      {
+        "path": "app/shell/web-ui/input/buttons/image_btn",
+        "props": {
+          "label": "图片",
+          "action": "input.image",
+          "binding": {
+            "input": {
+              "standalone": true,
+              "target": "attachFile",
+              "className": "mode-plus",
+              "host": ".left-tools",
+              "html": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"15\" height=\"14\" rx=\"2\"/><circle cx=\"7.5\" cy=\"8.5\" r=\"1.4\"/><path d=\"m18 13-4.5-4L4 18\"/><path d=\"M19 15v6M16 18h6\"/></svg>"
+            }
+          }
+        },
+        "order": 10
+      },
+      {
+        "path": "app/shell/web-ui/input/buttons/mode_btn",
+        "props": {
+          "label": "Auto+",
+          "action": "input.mode",
+          "binding": {
+            "input": {
+              "standalone": true,
+              "target": "modePlus",
+              "className": "mode-plus",
+              "action": "input.mode",
+              "text": "Auto +",
+              "host": ".left-tools"
+            }
+          }
+        },
+        "order": 20
+      },
+      {
+        "path": "app/shell/web-ui/input/buttons/thinking_btn",
+        "props": {
+          "label": "思考深度",
+          "action": "input.thinking",
+          "binding": {
+            "input": {
+              "standalone": true,
+              "target": "reasoningBtn",
+              "className": "mode-plus",
+              "action": "input.thinking",
+              "text": "思考 · High",
+              "host": ".left-tools"
+            }
+          }
+        },
+        "order": 30
+      },
+      {
+        "path": "app/shell/web-ui/input/right-buttons/goal_btn",
+        "props": {
+          "label": "目标",
+          "action": "input.goal",
+          "binding": {
+            "input": {
+              "standalone": true,
+              "target": "autoToggle",
+              "className": "mode-plus",
+              "action": "input.goal",
+              "text": "目标",
+              "host": ".right-actions"
+            }
+          }
+        },
+        "order": 10
+      },
+      {
+        "path": "app/shell/web-ui/input/right-buttons/send_btn",
+        "props": {
+          "label": "发送",
+          "action": "input.send",
+          "binding": {
+            "input": {
+              "standalone": true,
+              "target": "go",
+              "className": "mode-plus",
+              "action": "input.send",
+              "text": "发送",
+              "host": ".right-actions"
+            }
+          }
+        },
+        "order": 20
+      },
+      {
+        "path": "app/shell/web-ui/input/right-buttons/stop_btn",
+        "props": {
+          "label": "停止",
+          "action": "input.stop",
+          "binding": {
+            "input": {
+              "standalone": true,
+              "target": "stopTask",
+              "className": "mode-plus stop-task",
+              "action": "input.stop",
+              "text": "停止",
+              "hidden": true,
+              "host": ".right-actions"
+            }
+          }
+        },
+        "order": 30
+      },
+      {
+        "path": "app/shell/web-ui/runtime/left-panel/inbox",
+        "props": {
+          "label": "消息队列",
+          "action": "runtime.inbox",
+          "binding": {
+            "existing": [
+              "#chatQueue"
+            ]
+          }
+        },
+        "order": 0
+      },
+      {
+        "path": "app/shell/web-ui/runtime/right-panel/background_task",
+        "props": {
+          "label": "后台任务",
+          "action": "runtime.background",
+          "binding": {
+            "existing": [
+              "#bgTaskPanel"
+            ]
+          }
+        },
+        "order": 0
+      },
+      {
+        "path": "app/shell/web-ui/runtime/right-panel/subagent",
+        "props": {
+          "label": "子智能体",
+          "action": "runtime.subagent",
+          "binding": {
+            "existing": [
+              "#subagentPanel"
+            ]
+          }
+        },
+        "order": null
+      }
+    ],
+    "tool_shells": [
+      {
+        "path": "app/shell/web-ui/chat/messages/tools/diff",
+        "props": {
+          "label": "Diff",
+          "renderer": "diff"
+        }
+      }
+    ]
+  }
+}

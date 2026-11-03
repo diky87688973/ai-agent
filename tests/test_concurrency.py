@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""并发 / 争用测试（K4）。
+"""并发 / 争用测试。
 
 这些对象都被多个会话线程共享：Web 壳每个会话一个线程，工具执行又可能开线程。
 单线程用例测不出"上限被击穿""同一个 confirm_id 被消费两次""注册表丢条目"，
@@ -95,6 +95,18 @@ class PendingStoreContentionTest(unittest.TestCase):
         _run_threads(worker)
         self.assertEqual(sum(1 for item in results if item is not None), 1)
         self.assertLessEqual(len(store.records), 1)
+
+    def test_records_snapshot_cannot_mutate_confirmed(self) -> None:
+        """records 必须是深拷贝：浅拷贝会让调用方直接改掉真表的 confirmed。"""
+        store = PendingStore()
+        confirm_id = store.register_preview("write_file", {"path": "guard.txt"},
+                                            path_keys=("path",))
+        snapshot = store.records
+        snapshot[confirm_id]["confirmed"] = True
+        self.assertFalse(store.peek(confirm_id)["confirmed"])
+        peeked = store.peek(confirm_id)
+        peeked["confirmed"] = True
+        self.assertFalse(store.peek(confirm_id)["confirmed"])
 
     def test_confirm_is_visible_to_concurrent_peek(self) -> None:
         store = PendingStore()
@@ -274,9 +286,9 @@ class ModelCatalogContentionTest(unittest.TestCase):
             thread.join()
 
 
-def _load_ai_speak_modules():
-    plugin_dir = _ROOT / "plugins" / "ai_speak"
-    package = "fan_agent_plugins.ai_speak_concurrency"
+def _load_ai_cosplay_modules():
+    plugin_dir = _ROOT / "plugins" / "ai_cosplay"
+    package = "fan_agent_plugins.ai_cosplay_concurrency"
     parent = sys.modules.get("fan_agent_plugins")
     if parent is None:
         parent = types.ModuleType("fan_agent_plugins")
@@ -298,11 +310,11 @@ def _load_ai_speak_modules():
     )
 
 
-class AISpeakRuntimeContentionTest(unittest.TestCase):
-    """AI说话运行时：多线程向同一会话入队不丢段、不重复、顺序可核。"""
+class AICosplayRuntimeContentionTest(unittest.TestCase):
+    """AI角色扮演运行时：多线程向同一会话入队不丢段、不重复、顺序可核。"""
 
     def test_many_threads_keep_every_segment(self) -> None:
-        config_mod, provider_mod, runtime_mod = _load_ai_speak_modules()
+        config_mod, provider_mod, runtime_mod = _load_ai_cosplay_modules()
 
         class _Provider:
             name = "concurrency"
@@ -328,8 +340,8 @@ class AISpeakRuntimeContentionTest(unittest.TestCase):
             def connected(self) -> bool:
                 return True
 
-        runtime = runtime_mod.AISpeakRuntime(
-            config_mod.AISpeakConfig(voice="v", max_segment_chars=128), _Provider()
+        runtime = runtime_mod.AICosplayRuntime(
+            config_mod.AICosplayConfig(voice="v", max_segment_chars=128), _Provider()
         )
         self.addCleanup(runtime.dispose)
         publisher = _Publisher()

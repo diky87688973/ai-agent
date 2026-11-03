@@ -119,8 +119,8 @@ if(_modelSubscribers[i]===fn)_modelSubscribers.splice(i,1);
 window.aiAgentShell.styles={
 /* 插件开屏样式：`relPath` 是插件目录内相对路径（如 `ui/model-picker.css`）。
    插件不自己拼 URL、不碰 `document.head`；去重表与面板样式共用。 */
-load:function(relPath){
-var plugin=String(window.aiAgentPluginCurrent||"").trim();
+load:function(relPath, owner){
+var plugin=String(owner||window.aiAgentPluginCurrent||"").trim();
 var url=pluginAssetUrl(plugin,relPath);
 if(!url)return Promise.resolve(false);
 return loadPluginStyle(url,plugin);
@@ -141,7 +141,7 @@ s.setAttribute("data-plugin-script",String(plugin||""));
    卸载插件时按 `src` 删不到缓存表里的键，脚本就再也不会重新执行。 */
 s.setAttribute("data-plugin-src",u);
 s.onload=function(){resolve(true);};
-s.onerror=function(){resolve(false);};
+s.onerror=function(){delete _pluginScriptsLoaded[u];resolve(false);};
 document.head.appendChild(s);
 });
 }
@@ -159,7 +159,7 @@ l.href=u;
 l.setAttribute("data-plugin-style",String(plugin||""));
 l.setAttribute("data-plugin-src",u);
 l.onload=function(){resolve(true);};
-l.onerror=function(){resolve(false);};
+l.onerror=function(){delete _pluginStylesLoaded[u];resolve(false);};
 document.head.appendChild(l);
 });
 }
@@ -251,7 +251,4 @@ prunePluginMounts();
 closeUnloadedPluginPanes();
 void loadLoadedPlugins();
 if(typeof _updateUsageBottom==="function")_updateUsageBottom();
-if((ev&&Array.isArray(ev.loaded)?ev.loaded:[]).indexOf("multi_model")>=0){
-setTimeout(function(){if(document.querySelector("#modelPickerSlot .mm-picker-btn"))return;if(typeof window.__multiModelPickerBoot==="function"){try{window.__multiModelPickerBoot();}catch(_e){}}},100);
-}
 }

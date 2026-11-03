@@ -55,6 +55,7 @@ class _MeshBase(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.mesh = MeshState(storage_dir=self.root / "mesh")
         self.app = build_app(mesh=self.mesh)
+        self.addCleanup(self.app.dispose)
         self.mesh.set_activator(None)
         self._seq = 0
 
@@ -306,6 +307,7 @@ class RunnerE2ETest(unittest.TestCase):
         # 不装插件：本类验的是运行器与 mesh，插件目录会把注入源与模型路由换掉。
         no_plugins(self)
         self.app = build_app(provider=self.provider, mesh=self.mesh)
+        self.addCleanup(self.app.dispose)
         self._seq = 0
 
     def _call(self, name, arguments=None, cid=CID_A):

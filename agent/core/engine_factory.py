@@ -38,6 +38,7 @@ def build_engine(
     seq_allocator: Any = None,
     app_context: Any = None,
     session_contexts: Any = None,
+    modules: Any = None,
 ) -> Any:
     """组装引擎；`system_prompt` 已由调用方决定，这里不再二次注入。
 
@@ -73,4 +74,5 @@ def build_engine(
         seq_allocator=seq_allocator,
         app_context=app_context,
         session_contexts=session_contexts,
+        modules=modules,
     )

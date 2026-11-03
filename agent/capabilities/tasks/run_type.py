@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from agent.capabilities.registry import ToolPlugin
+from agent.common.status import RUN_MODES
 from agent.core.session_scope import current_session_id
 from agent.mechanisms.live_state import LiveState
 
@@ -28,6 +29,8 @@ class RunTypeTool(ToolPlugin):
         if not cid:
             raise ValueError("run_type 须由宿主注入 conversation_id 后执行；禁止无会话上下文直调")
         rt = str(arguments.get("run_type") or "").strip().lower()
-        if not rt or rt not in ("auto", "plan", "execute"):
+        if not rt:
             return {"run_type": self._state.get_mode(cid), "action": "query"}
+        if rt not in RUN_MODES:
+            raise ValueError(f"run_type 必须是 auto / plan / execute 之一，收到 {rt}")
         return {"run_type": self._state.set_mode(cid, rt), "action": "switch"}

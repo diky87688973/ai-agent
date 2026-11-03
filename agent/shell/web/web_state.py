@@ -79,15 +79,18 @@ class UiStateActions:
     def ui_state_put(self, cid: str, payload: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
         cid = str(cid or "").strip()
         mode = str(payload.get("mode") or "").strip().lower()
-        if mode:
-            if mode not in MODE_VALUES:
-                return 400, {"error": "invalid mode"}
-            self.app.live_state.set_mode(cid, mode)
+        want = ""
         if "model" in payload:
             want = str(payload.get("model") or "").strip()
             allowed = self.available_models()
             if want and allowed and want not in allowed:
                 return 400, {"error": f"unknown model: {want}"}
+        if mode and mode not in MODE_VALUES:
+            return 400, {"error": "invalid mode"}
+        # 两个字段都校验完再落盘；不能先写 mode 再因 model 非法返回 400。
+        if mode:
+            self.app.live_state.set_mode(cid, mode)
+        if "model" in payload:
             before = str(self.app.live_state.get_model(cid) or "")
             self.app.live_state.set_model(cid, want)
             if want and before != want:

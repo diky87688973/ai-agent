@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "kind": "ui-paths",
+  "paths": {
+    "segment": "app/shell/web-ui/left-panel/context_usage/skills",
+    "tool": "app/shell/web-ui/chat/messages/tools/skill"
+  }
+}

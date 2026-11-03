@@ -16,7 +16,7 @@ def operating_system() -> str:
 
 
 def environment_lines(conversation_id: str) -> List[str]:
-    """环境章节正文；后续新增环境项只扩展这里。"""
+    """环境章节正文；所有环境项都在这里拼接。"""
     cid = str(conversation_id or "").strip() or "未指定"
     return [
         f"操作系统: {operating_system()}",

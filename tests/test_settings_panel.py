@@ -7,16 +7,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent.shell.settings_io import append_ini_section, remove_ini_section, update_ini_keys
 from agent.shell.settings_panel import (
-    append_ini_section,
     apply_host,
     handle_get,
     handle_post,
     list_plugins,
     read_plugin_config,
-    remove_ini_section,
     set_plugin_enabled,
-    update_ini_keys,
     write_plugin_config,
 )
 
@@ -93,13 +91,13 @@ class IniEditTest(unittest.TestCase):
     def test_remove_section_leaves_commented_header(self) -> None:
         text = (
             "; 插件清单\n"
-            "; [plugin:ai_speak]\n"
+            "; [plugin:ai_cosplay]\n"
             "\n"
             "[plugin:knowledge]\n"
             "path = D:/plugins/knowledge\n"
         )
         updated = remove_ini_section(text, "plugin:knowledge")
-        self.assertIn("; [plugin:ai_speak]\n", updated)
+        self.assertIn("; [plugin:ai_cosplay]\n", updated)
         self.assertNotIn("[plugin:knowledge]", updated)
         self.assertNotIn("path = D:/plugins/knowledge", updated)
 
@@ -151,7 +149,7 @@ class PluginSettingsTest(unittest.TestCase):
                 encoding="utf-8",
             )
             plugins.write_text(
-                "; 插件清单\n; [plugin:ai_speak]\n\n"
+                "; 插件清单\n; [plugin:ai_cosplay]\n\n"
                 "[plugin:oldplug]\n",
                 encoding="utf-8",
             )
@@ -167,7 +165,7 @@ class PluginSettingsTest(unittest.TestCase):
             self.assertIn("enabled = 1\n", text)
             cfg = folder / "plugin-config.ini"
             self.assertFalse(cfg.exists())
-            self.assertIn("; [plugin:ai_speak]\n", text)
+            self.assertIn("; [plugin:ai_cosplay]\n", text)
             self.assertEqual(host.loaded, ["oldplug", "skills"])
             self.assertEqual([item["name"] for item in host.seen], ["oldplug", "skills"])
             cards = list_plugins(plugins_path=plugins, plugins_dir=root / "plugins")["plugins"]
@@ -184,7 +182,7 @@ class PluginSettingsTest(unittest.TestCase):
             self.assertIn("[plugin:skills]", text)
             self.assertIn("enabled = 0\n", text)
             self.assertFalse((folder / "plugin-config.ini").exists())
-            self.assertIn("; [plugin:ai_speak]\n", text)
+            self.assertIn("; [plugin:ai_cosplay]\n", text)
             self.assertEqual(host.loaded, ["oldplug"])
             skill = next(
                 item for item in list_plugins(
@@ -308,6 +306,35 @@ class StructuredPluginConfigTest(unittest.TestCase):
             json.dumps(self.SCHEMA, ensure_ascii=False), encoding="utf-8")
         (folder / "plugin-config.ini").write_text(config_text, encoding="utf-8")
         return root, folder
+
+    def test_textarea_field_roundtrips_multiline(self) -> None:
+        schema = {
+            "kind": "fields",
+            "title": "AI角色扮演配置",
+            "section": "config",
+            "fields": [
+                {"key": "persona", "kind": "textarea", "label": "人物身份刻画"},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "plugins"
+            folder = root / "demo"
+            folder.mkdir(parents=True)
+            (folder / "plugin.py").write_text("PLUGIN_VERSION = '1.0'\n", encoding="utf-8")
+            (folder / "settings-schema.json").write_text(
+                json.dumps(schema, ensure_ascii=False), encoding="utf-8")
+            (folder / "plugin-config.ini").write_text(
+                "[config]\npersona =\n    第一行\n    第二行\n", encoding="utf-8")
+            payload = read_plugin_config("demo", plugins_dir=root)
+            self.assertTrue(payload["ok"])
+            editor = payload["editor"]
+            self.assertEqual(editor["kind"], "fields")
+            self.assertEqual(editor["values"]["persona"], "第一行\n第二行")
+            written = write_plugin_config(
+                "demo", fields={"persona": "新身份\n第二行"}, plugins_dir=root)
+            self.assertTrue(written["ok"], written.get("error"))
+            text = (folder / "plugin-config.ini").read_text(encoding="utf-8")
+            self.assertIn("persona = 新身份\n    第二行", text)
 
     def test_read_masks_the_secret(self) -> None:
         config = (

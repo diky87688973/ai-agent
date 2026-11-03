@@ -233,7 +233,9 @@ def register(ctx):
     def deny_all(call, _ctx):
         return GateDecision(allow=False, reason="plugin gate")
 
-    return ctx.add_pre_gate(deny_all)
+    return ctx.add_pre_gate(
+        deny_all,
+        path="app/backend/tools/pipeline/pre-gates/gate-deny")
 '''
 
 _GATE_BOOM_PLUGIN = '''
@@ -243,7 +245,9 @@ def register(ctx):
     def deny_all(call, _ctx):
         return GateDecision(allow=False, reason="plugin gate")
 
-    ctx.add_pre_gate(deny_all)
+    ctx.add_pre_gate(
+        deny_all,
+        path="app/backend/tools/pipeline/pre-gates/gate-deny")
     raise RuntimeError("boom")
 '''
 
@@ -281,12 +285,18 @@ class PluginGateTest(unittest.TestCase):
 
         bare = PluginContext("x", self.registry)
         with self.assertRaises(RuntimeError):
-            bare.add_pre_gate(lambda call, _c: None)
+            bare.add_pre_gate(
+            lambda call, _c: None,
+            path="app/backend/tools/pipeline/pre-gates/bare")
         with self.assertRaises(RuntimeError):
-            bare.add_post_observer(lambda call, result, _c: None)
+            bare.add_post_observer(
+            lambda call, result, _c: None,
+            path="app/backend/tools/pipeline/post-observers/bare")
         seen = []
         hooked = PluginContext("y", self.registry, pipeline=self.pipeline)
-        hooked.add_post_observer(lambda call, result, _c: seen.append((call.name, result.ok)))
+        hooked.add_post_observer(
+            lambda call, result, _c: seen.append((call.name, result.ok)),
+            path="app/backend/tools/pipeline/post-observers/seen")
         self._write_plugin("tool", _GOOD_PLUGIN.replace("plugin_demo", "obs_target"))
         host = PluginHost(self.dir, self.registry)
         host.load_enabled(["tool"])

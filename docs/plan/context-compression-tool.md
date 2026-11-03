@@ -76,7 +76,7 @@ Arguments:
 The tool description must state:
 
 - Listed rounds are removed from subsequent model context.
-- `summary` is inserted as a system summary message in the front section of the context.
+- `summary` is inserted as a user checkpoint message in the front section of the context.
 - Only rounds that still exist and are not the last round may be selected.
 - Argument IDs must come from current user-message prefixes.
 
@@ -105,7 +105,7 @@ The tool request takes effect before the next model request; an already-issued r
 ## 7. View and persistence
 
 - `removed_rounds`: a monotonically growing set union of removed round IDs.
-- `summaries`: tool summaries and threshold summaries each become system summary messages.
+- `summary`: tool summaries and threshold summaries merge into one user checkpoint message.
 - `context_compacted` persists `removed_rounds` and the summaries; restoring them rebuilds the view.
 - A removed round cannot be selected again.
 - A repeated request for the same round is treated as already removed and does not append another summary.
@@ -119,7 +119,7 @@ Tool calls / tool results in the current round are not separate rounds
 Unknown round_id → reject the whole request
 Empty summary → reject
 Summary over the length limit → reject
-The summary is written into the system area; it does not replace system prompt, skills, or knowledge
+The summary is written into the user checkpoint area; it does not replace system prompt, skills, or knowledge
 ```
 
 A validation failure changes no `removed_rounds`, writes no summary, and does not trigger threshold compaction.

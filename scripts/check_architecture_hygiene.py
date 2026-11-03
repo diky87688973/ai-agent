@@ -15,7 +15,7 @@ LAYERS = ("core", "mechanisms", "capabilities", "shell", "entry")
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_ROOT = ROOT / "agent"
 PLUGINS_DIR = ROOT / "plugins"
-CLASSIC_JS = PACKAGE_ROOT / "shell" / "web_assets" / "classic" / "js"
+CLASSIC_JS = ROOT / "plugins" / "web_ui" / "ui" / "classic" / "js"
 PROMPTS_PY = PACKAGE_ROOT / "shell" / "prompts.py"
 
 # 标识符边界：避免 `atts` 误伤三字母短名。
@@ -452,11 +452,12 @@ def check(
     plugins_dir: Path = PLUGINS_DIR,
     js_root: Path = CLASSIC_JS,
     prompts: Path = PROMPTS_PY,
+    tests_dir: Path | None = None,
 ) -> list[str]:
     """跑全部约束规则，返回违规列表（空 = 通过）。"""
     out: list[str] = []
     out.extend(check_cross_layer_private_imports(package_root))
-    out.extend(check_test_method_names())
+    out.extend(check_test_method_names(tests_dir))
     same_layer = check_same_layer_private_imports(package_root)
     if len(same_layer) > SAME_LAYER_PRIVATE_BUDGET:
         out.extend(

@@ -3,10 +3,6 @@
   if (window.__dshUiCatalogBound) return;
   window.__dshUiCatalogBound = true;
 
-  var NAV_ICONS = {
-    "web-ui/nav/buttons/settings": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>'
-  };
-
   function entryOrder(item) {
     var meta = item && item.metadata ? item.metadata : {};
     if (typeof meta.order === "number") return meta.order;
@@ -34,14 +30,34 @@
     });
   }
 
-  function actionFor(path) {
-    if (path === "web-ui/nav/buttons/settings") return "settings.open";
-    if (path === "web-ui/nav/buttons/style") return "theme.toggle";
-    if (path === "web-ui/nav/buttons/update") return "auto_update.check";
-    return "";
+  function propsOf(item) {
+    var meta = item && item.metadata ? item.metadata : {};
+    return meta.props || {};
   }
 
-  function handle(action) {
+  function bindingOf(item) {
+    var binding = propsOf(item).binding;
+    return binding && typeof binding === "object" ? binding : {};
+  }
+
+  var customActions = Object.create(null);
+  window.aiAgentUiActions = {
+    register: function (action, handler) {
+      var key = String(action || "").trim();
+      if (!key || typeof handler !== "function") return function () {};
+      customActions[key] = handler;
+      return function () { if (customActions[key] === handler) delete customActions[key]; };
+    },
+    unregister: function (action) {
+      delete customActions[String(action || "").trim()];
+    }
+  };
+
+  function handle(action, node) {
+    if (customActions[action]) {
+      customActions[action](action);
+      return;
+    }
     if (action === "settings.open") {
       document.dispatchEvent(new CustomEvent("ai-agent:open-settings"));
       return;
@@ -50,27 +66,19 @@
       window.themeUi.toggle();
       return;
     }
-    if (action === "auto_update.check" && window.autoUpdateUi) {
-      window.autoUpdateUi.check();
-      return;
-    }
     if (action === "panel.open_file") {
       if (typeof window.openFilePicker === "function") window.openFilePicker();
       return;
     }
-    if (action === "knowledge.open") {
-      openCatalogPanel("web-ui/right-panel/kb");
-      return;
-    }
-    if (action === "visual.toggle") {
-      fetch("/api/plugin/visual_operator_2/eye-consent/revoke", {
-        method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"
-      }).catch(function () {});
+    if (action === "panel.open") {
+      var target = node ? node.getAttribute("data-ui-panel") : "";
+      if (target) openCatalogPanel(target);
       return;
     }
     if (action === "input.mode" && window.composerActions) window.composerActions.toggleMode();
     if (action === "input.thinking" && window.composerActions) window.composerActions.toggleThinking();
     if (action === "input.goal" && window.composerActions) window.composerActions.openGoal();
+    if (action === "input.image" && window.composerActions) window.composerActions.openImage();
     if (action === "input.send" && window.composerActions) window.composerActions.send();
     if (action === "input.stop" && window.composerActions) window.composerActions.stop();
   }
@@ -78,151 +86,91 @@
   function render(items) {
     var host = document.querySelector(".hdr-actions");
     if (!host || !Array.isArray(items)) return;
-    var nav = items.filter(function (item) {
-      return String(item.path || "").indexOf("web-ui/nav/buttons/") === 0;
-    });
+    var nav = items.filter(function (item) { return !!bindingOf(item).nav; });
     nav = sortByOrder(nav);
     var old = {};
-    var keepUpdate = null;
-    var updateVisible = nav.some(function (item) {
-      return item.path === "web-ui/nav/buttons/update";
+    var persistent = {};
+    nav.forEach(function (item) {
+      var bind = bindingOf(item);
+      var role = String(bind.nav || "");
+      if (!bind.persistent || !role) return;
+      var existing = host.querySelector('[data-ui-generated][data-ui-role="' + role + '"]');
+      if (existing) persistent[role] = existing;
     });
-    if (updateVisible) {
-      keepUpdate = host.querySelector('[data-ui-action="auto_update.check"]');
-    }
-    var staleUpdate = host.querySelector('[data-ui-action="auto_update.check"]');
-    if (!updateVisible && staleUpdate) staleUpdate.remove();
     host.querySelectorAll("[data-ui-generated]").forEach(function (node) {
-      if (node !== keepUpdate) node.remove();
+      var role = String(node.getAttribute("data-ui-role") || "");
+      if (!persistent[role]) node.remove();
     });
     if (!nav.length) return;
     nav.forEach(function (item) {
       var path = String(item.path || "");
-      var props = (item.metadata && item.metadata.props) || {};
-      var reusedUpdate = path === "web-ui/nav/buttons/update" && keepUpdate;
-      var button = reusedUpdate ? keepUpdate : document.createElement("button");
-      if (!reusedUpdate) {
-        if (NAV_ICONS[path]) {
-          button.innerHTML = NAV_ICONS[path];
+      var props = propsOf(item);
+      var bind = bindingOf(item);
+      var role = String(bind.nav || "");
+      var button = persistent[role] || document.createElement("button");
+      if (!persistent[role]) {
+        if (bind.icon) {
+          button.innerHTML = String(bind.icon);
           button.classList.add("ui-nav-icon");
-          button.setAttribute("aria-label", String(props.label || "设置"));
+          button.setAttribute("aria-label", String(props.label || role));
         } else {
-          button.textContent = String(props.label || path.split("/").pop());
+          button.textContent = String(props.label || role);
         }
         button.type = "button";
         button.title = String(props.title || props.label || "");
         button.setAttribute("data-ui-generated", "1");
-        button.setAttribute("data-ui-action", actionFor(path) || String(props.action || ""));
-        button.className = (path === "web-ui/nav/buttons/settings"
+        button.setAttribute("data-ui-role", role);
+        if (bind.persistent) button.setAttribute("data-ui-persistent", "1");
+        button.setAttribute("data-ui-action", String(props.action || ""));
+        button.setAttribute("data-ui-panel", String(bind.panel || ""));
+        button.className = String(bind.className || (role === "settings"
           ? "hdr-settings-btn ui-nav-btn"
-          : "hdr-theme-btn ui-nav-btn") + (NAV_ICONS[path] ? " ui-nav-icon" : "");
-        if (path === "web-ui/nav/buttons/update") button.classList.add("hidden");
+          : "hdr-theme-btn ui-nav-btn")) + (bind.icon ? " ui-nav-icon" : "");
+        if (bind.hidden) button.classList.add("hidden");
       }
       var controls = host.querySelector(".window-controls");
       if (controls) host.insertBefore(button, controls);
       else host.appendChild(button);
-      if (path === "web-ui/nav/buttons/settings") old.settings = true;
-      if (path === "web-ui/nav/buttons/style") old.theme = true;
-      if (path === "web-ui/nav/buttons/update") old.update = true;
+      old[role] = true;
     });
   }
 
-  var INPUT_TARGETS = {
-    "web-ui/input/buttons/mode_btn": "modePlus",
-    "web-ui/input/buttons/thinking_btn": "reasoningBtn",
-    "web-ui/input/right-buttons/goal_btn": "autoToggle",
-    "web-ui/input/right-buttons/send_btn": "go",
-    "web-ui/input/right-buttons/stop_btn": "stopTask"
-  };
-
-  var STANDALONE_INPUTS = {
-    "web-ui/input/buttons/image_btn": {
-      target: "attachFile", className: "mode-plus",
-      html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="15" height="14" rx="2"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="m18 13-4.5-4L4 18"/><path d="M19 15v6M16 18h6"/></svg>'
-    },
-    "web-ui/input/buttons/kb_btn": {action: "knowledge.open", className: "mode-plus", text: "知识库"},
-    "web-ui/input/buttons/visual_btn": {action: "visual.toggle", className: "mode-plus vision-eye-btn", text: "眼睛", hidden: true},
-    "web-ui/input/buttons/mode_btn": {action: "input.mode", className: "mode-plus", text: "Auto +"},
-    "web-ui/input/buttons/thinking_btn": {action: "input.thinking", className: "mode-plus", text: "思考 · High"},
-    "web-ui/input/right-buttons/goal_btn": {action: "input.goal", className: "mode-plus", text: "目标"},
-    "web-ui/input/right-buttons/send_btn": {action: "input.send", className: "mode-plus", text: "发送"},
-    "web-ui/input/right-buttons/stop_btn": {action: "input.stop", className: "mode-plus stop-task", text: "停止", hidden: true}
-  };
-
-  var INPUT_SELECTORS = {};
-  var NATIVE_INPUTS = {
-    "web-ui/input/buttons/model_switch_btn": "#modelPickerSlot .mm-picker-btn",
-  };
-
-  var EXISTING_TARGETS = {
-    "web-ui/right-panel/steps": ["#tabSteps", "#paneSteps"],
-    "web-ui/runtime/left-panel/ai_speak": ["#aiSpeakSlot"],
-    "web-ui/runtime/left-panel/inbox": ["#chatQueue"],
-    "web-ui/runtime/right-panel/background_task": ["#bgTaskPanel"],
-    "web-ui/runtime/right-panel/subagent": ["#subagentPanel"]
-  };
-
   function renderExisting(items) {
     if (!Array.isArray(items)) return;
-    Object.keys(EXISTING_TARGETS).forEach(function (path) {
-      var entry = items.filter(function (item) { return item.path === path; })[0];
-      EXISTING_TARGETS[path].forEach(function (selector) {
-        var node = document.querySelector(selector);
+    items.forEach(function (item) {
+      var bind = bindingOf(item);
+      var selectors = Array.isArray(bind.existing) ? bind.existing : [];
+      selectors.forEach(function (selector) {
+        var node = document.querySelector(String(selector || ""));
         if (!node) return;
-        if (entry) {
-          node.setAttribute("data-ui-path", path);
-          var props = (entry.metadata && entry.metadata.props) || {};
-          if (props.label && !node.textContent.trim()) node.textContent = String(props.label);
-          if (props.title) node.title = String(props.title);
-        } else {
-          node.removeAttribute("data-ui-path");
-          node.style.display = "none";
-        }
+        node.setAttribute("data-ui-path", String(item.path || ""));
+        var props = propsOf(item);
+        if (props.label && !node.textContent.trim()) node.textContent = String(props.label);
+        if (props.title) node.title = String(props.title);
       });
     });
-    var kbTab = document.getElementById("tab-knowledge__kb");
-    if (kbTab) kbTab.setAttribute("data-ui-path", "web-ui/right-panel/kb");
   }
 
   var inputEntries = [];
   var catalogEntries = [];
   var catalogLoadedPlugins = null;
 
-  function renderRightTabs(items) {
-    var bar = document.getElementById("sideTabbar");
-    if (!bar) return;
-    bar.querySelectorAll("[data-ui-generated-tab]").forEach(function (node) { node.remove(); });
-    var entries = (items || []).filter(function (item) {
-      return String(item.path || "").indexOf("web-ui/right-panel/") === 0 &&
-        item.kind === "button";
-    });
-    entries.forEach(function (item) {
-      var path = String(item.path || "");
-      if (path === "web-ui/right-panel/steps") return;
-      var props = (item.metadata && item.metadata.props) || {};
-      var button = document.createElement("button");
-      button.type = "button";
-      button.className = "side-tab";
-      button.setAttribute("data-ui-generated-tab", "1");
-      button.setAttribute("data-ui-path", path);
-      button.setAttribute("data-ui-action", String(props.action || ""));
-      button.textContent = String(props.label || path.split("/").pop());
-      bar.appendChild(button);
-    });
-    if (typeof syncClassicSide === "function") syncClassicSide();
-  }
-
   function renderInput(items) {
     if (!Array.isArray(items)) return;
     items = sortByOrder(items);
     var modelOrder = 1e9;
     items.forEach(function (item) {
-      if (item.path === "web-ui/input/buttons/model_switch_btn") modelOrder = entryOrder(item);
+      var bind = bindingOf(item);
+      if (bind.model_slot) modelOrder = entryOrder(item);
     });
     document.querySelectorAll("[data-ui-input-generated]").forEach(function (node) { node.remove(); });
     items.forEach(function (item) {
       var path = String(item.path || "");
-      var nativeSelector = NATIVE_INPUTS[path];
+      var bind = bindingOf(item);
+      var input = bind.input;
+      if (!input || typeof input !== "object") return;
+      var props = propsOf(item);
+      var nativeSelector = String(input.native || "");
       if (nativeSelector) {
         var native = document.querySelector(nativeSelector);
         if (native) {
@@ -231,27 +179,24 @@
         }
         return;
       }
-      var targetId = INPUT_TARGETS[path];
-      var selector = INPUT_SELECTORS[path];
-      var standalone = STANDALONE_INPUTS[path];
+      var targetId = String(input.target || "");
+      var selector = String(input.selector || "");
+      var standalone = input.standalone === true;
       var target = targetId ? document.getElementById(targetId)
-        : (selector ? document.querySelector(selector) : (standalone && standalone.target ? document.getElementById(standalone.target) : null));
+        : (selector ? document.querySelector(selector) : null);
       if (!target && !standalone) return;
-      var props = (item.metadata && item.metadata.props) || {};
       var button = document.createElement("button");
       if (standalone) {
-        button.className = standalone.className + " ui-input-generated";
-        if (standalone.html) button.innerHTML = standalone.html;
-        else button.textContent = String(props.label || standalone.text || "");
-        button.title = String(props.title || props.label || standalone.text || "");
+        button.className = String(input.className || "mode-plus") + " ui-input-generated";
+        if (input.html) button.innerHTML = String(input.html);
+        else button.textContent = String(props.label || input.text || "");
+        button.title = String(props.title || props.label || input.text || "");
         button.setAttribute("data-ui-input-generated", "1");
-        if (standalone.target) button.setAttribute("data-ui-target", standalone.target);
-        if (standalone.action) button.setAttribute("data-ui-action", standalone.action);
-        if (standalone.hidden) button.hidden = true;
-        var host = document.querySelector(".left-tools");
-        if (standalone.action === "input.goal" || standalone.action === "input.send" || standalone.action === "input.stop") {
-          host = document.querySelector(".right-actions");
-        }
+        if (targetId && target) button.setAttribute("data-ui-target", targetId);
+        if (input.action) button.setAttribute("data-ui-action", input.action);
+        if (input.panel) button.setAttribute("data-ui-panel", input.panel);
+        if (input.hidden) button.hidden = true;
+        var host = document.querySelector(input.host || ".left-tools");
         if (host) {
           var order = entryOrder(item);
           var left = host.classList && host.classList.contains("left-tools");
@@ -259,19 +204,19 @@
           var anchor = left ? (document.getElementById("pluginActions") ||
             document.getElementById("reasoningMenu") || null) : null;
           if (left && modelSlot && order < modelOrder) host.insertBefore(button, modelSlot);
-          else if (left && anchor) host.insertBefore(button, anchor);
+          else if (left && anchor && input.anchor !== "model") host.insertBefore(button, anchor);
           else host.appendChild(button);
         }
         return;
       }
       button.type = "button";
-      button.className = String(target.className || "") + " ui-input-generated";
-      button.innerHTML = target.innerHTML;
+      button.className = String(input.className || target.className || "") + " ui-input-generated";
+      button.innerHTML = input.html || target.innerHTML;
       button.title = String(props.title || props.label || target.title || "");
       button.setAttribute("data-ui-input-generated", "1");
       if (targetId) button.setAttribute("data-ui-target", targetId);
       if (selector) button.setAttribute("data-ui-target-selector", selector);
-      button.hidden = !!target.hidden;
+      button.hidden = !!input.hidden;
       target.style.display = "none";
       target.parentNode.insertBefore(button, target);
     });
@@ -288,11 +233,12 @@
     (styles || []).forEach(function (rel) {
       var url = "/api/plugin/" + encodeURIComponent(owner) + "/_asset/" +
         String(rel || "").split("/").map(encodeURIComponent).join("/");
-      if (document.querySelector('link[data-plugin-style="' + url + '"]')) return;
+      if (document.querySelector('link[data-plugin-src="' + url + '"]')) return;
       var link = document.createElement("link");
       link.rel = "stylesheet";
       link.href = url;
-      link.setAttribute("data-plugin-style", url);
+      link.setAttribute("data-plugin-style", String(owner || ""));
+      link.setAttribute("data-plugin-src", url);
       document.head.appendChild(link);
     });
   }
@@ -399,34 +345,32 @@
         inputEntries.forEach(function (item) {
           var p = (item.metadata && item.metadata.props) || {};
           loadPluginStyles(String(item.owner || ""), p.styles);
-          if (String(item.path || "").indexOf("web-ui/left-panel/context_usage/") === 0) {
-            var key = String(item.path).split("/").pop();
+          var bind = p.binding && typeof p.binding === "object" ? p.binding : {};
+          if (bind.context) {
+            var key = String(bind.context_key || String(item.path || "").split("/").pop());
             segments[key] = {label: String(p.label || key), color: String(p.color || "")};
           }
         });
         window.__dshContextSegments = segments;
         document.dispatchEvent(new CustomEvent("ai-agent:context-segments", {detail: segments}));
         pruneCatalogScripts(inputEntries);
+        render(data && data.entries);
+        renderExisting(inputEntries);
+        renderInput(inputEntries);
         return loadScripts(inputEntries).then(function () {
           render(data && data.entries);
           renderExisting(inputEntries);
-          renderRightTabs(inputEntries);
-          renderInput(inputEntries);
-          function ensureModelPicker() {
-            if (document.querySelector('#modelPickerSlot .mm-picker-btn')) return;
-            var loaded = window.__dshLoadedPlugins || [];
-            var hasModel = loaded.indexOf("multi_model") >= 0;
-            if (hasModel && typeof window.__multiModelPickerBoot === "function") {
-              try { window.__multiModelPickerBoot(); } catch (e) {}
-            }
-          }
-          setTimeout(ensureModelPicker, 50);
-          setTimeout(ensureModelPicker, 500);
+            renderInput(inputEntries);
+          try {
+            document.dispatchEvent(new CustomEvent("ai-agent:ui-rendered"));
+          } catch (e) {}
           setTimeout(refreshInputs, 800);
           setTimeout(refreshInputs, 1800);
         });
       })
-      .catch(function () {});
+      .catch(function (err) {
+        if (window.console && console.error) console.error("ui-catalog", err && (err.stack || err));
+      });
   }
 
   document.addEventListener("click", function (event) {
@@ -448,7 +392,7 @@
     var action = node.getAttribute("data-ui-action");
     if (!action) return;
     event.preventDefault();
-    handle(action);
+    handle(action, node);
   });
 
   document.addEventListener("ai-agent:plugin-event", function () {

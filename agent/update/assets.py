@@ -10,8 +10,7 @@ SENSITIVE_PLUGIN_CONFIGS = {
 }
 
 
-def normalized(path: Path) -> str:
-    return Path(path).as_posix().lstrip("./")
+
 
 
 def is_sensitive_plugin_config(path: Path) -> bool:

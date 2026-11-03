@@ -1,14 +1,31 @@
-[English](session.md) | **中文**
+﻿# 会话存储与协作
 
-# 会话存储与协作
+## 1. 概览
 
 `agent/mechanisms/session_store.py` 负责会话事实落盘；`agent/mechanisms/run_registry.py` 跟踪正在跑的回合，
 `agent/mechanisms/mesh.py` 负责跨会话投递，`agent/mechanisms/session_title.py` 生成标题，
 `agent/mechanisms/live_state.py` 持有会话状态，`agent/mechanisms/file_safety.py` 提供版本化备份与回收目录。
 
-## 事实日志
+## 2. 插口协议
 
-### 布局
+### 暴露
+
+| 插口路径 | 能力 | 关键属性 | 可替换/覆盖方式 |
+|---|---|---|---|
+| `app/host/services/store` | 宿主服务 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `app/host/services/queue` | 宿主服务 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `app/host/services/mesh` | 宿主服务 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `app/host/services/subagents` | 宿主服务 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+### 依赖
+
+| 依赖路径 | 能力 | 提供者 | 为什么依赖 |
+|---|---|---|---|
+| `app/host/services/event_bus` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+
+## 3. 插口能力
+
+### 事实日志
+#### 布局
 
 ```
 <data_root>/sessions/<cid>.raw      每会话一条日志，JSONL，每行一条事件
@@ -17,13 +34,13 @@
 
 会话 id 必须匹配 `^[A-Za-z0-9_-]{8,128}$`，不合法一律拒绝。这道校验也是防路径穿越的第一道边界。
 
-### 只追加
+#### 只追加
 
 日志是 **append-only 的事实流**：每发生一件事追加一行，不改写已有行。
 
 「模型可见 ⟺ 已记录」这条结构保证就落在这里：任何过滤、清理、格式化必须发生在落盘**之前**，落盘后不可改写。
 
-### 行格式
+#### 行格式
 
 ```json
 {"t":"assistant_delta","d":{"text":"好"},"s":226310}
@@ -48,12 +65,12 @@
 读回时两样都补回来（`event_from_obj`）：坐标从 `s` 取，`conversation_id` 按会话文件名填。
 内存里的事件一律带 `conversation_id`，SSE 靠它把帧分派到正确的会话页面。
 
-### 序号
+#### 序号
 
 `allocate_seq(count)` 预留一段连续坐标，`_observe(seq)` 记录已见的最大坐标。
 消费方用坐标判断从哪里继续，SSE 断线重连靠它。分配器首次分配前会用磁盘上的最大坐标初始化。
 
-### 加密
+#### 加密
 
 两种模式：
 
@@ -69,14 +86,13 @@
 `MAGIC = "__fan_agent_session_encrypted__"` 是 envelope 的标识，也是加密日志的落盘格式标记；
 改动它会使这些日志无法读回。
 
-### 读取容错
+#### 读取容错
 
 坏行跳过，缺文件返回空列表，不能产出事件类型的行忽略。
 明文与密文按行识别，所以无论每行由哪种模式写入，日志都保持可读。
 
-## 跨进程锁
-
-### 跨进程
+### 跨进程锁
+#### 跨进程
 
 同会话的「记偏移 → 追加 → 回滚」是读改写。进程内锁挡不住别的进程：
 并发写同一个 `.raw` 会静默丢行，退出码仍为 0。
@@ -84,7 +100,7 @@
 因此写入按文件加一层 **跨进程** 排它锁：Windows 用 `msvcrt.locking`，POSIX 用 `fcntl.flock`。
 Windows 在循环中重试非阻塞加锁；POSIX 阻塞在 `flock` 上。
 
-### 语义
+#### 语义
 
 | 情况 | 行为 |
 |---|---|
@@ -94,21 +110,19 @@ Windows 在循环中重试非阻塞加锁；POSIX 阻塞在 `flock` 上。
 
 POSIX 上 `flock` 会一直阻塞到锁可用。
 
-### 锁文件
+#### 锁文件
 
 锁文件是日志路径加上 `.lock`（`<cid>.raw.lock`）。文件为零字节、常驻不删：
 删除会与别的进程已打开的句柄形成「锁的是已删除文件」的竞态。
 
-## 待重试队列
-
+### 待重试队列
 写入失败（锁超时、磁盘错误）的批次进入待重试队列，`flush_pending()` / `flush_all()` 稍后重投。
 
 失败批次重新入队时，`_pending_only_new()` 按序号比对已排队或已落盘的事实，同一条事实只写一次。
 
 每个会话的队列上限为 `_PENDING_MAX_BATCHES = 64` 批；溢出时丢弃最旧的批并写 stderr 警告。
 
-## 运行态登记
-
+### 运行态登记
 `run_registry.py` 回答一个问题：**某个会话的回合是否正在运行**。
 
 这个答案必须能从服务端查询，中途打开的页面才能显示运行状态与停止控件。
@@ -130,7 +144,7 @@ POSIX 上 `flock` 会一直阻塞到锁可用。
 pid 检查覆盖 TTL 窗口：进程被强杀后心跳冻结在最后一次写入，文件在最长 15 分钟内仍显得新鲜；
 比对 pid 可以立即识别。
 
-### 进程探活
+#### 进程探活
 
 Windows 用 `ctypes` 的 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`：
 
@@ -147,8 +161,7 @@ Windows 用 `ctypes` 的 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`：
 
 说不准的结果按活着处理，交给 TTL 过期回收。
 
-## 协作网格
-
+### 协作网格
 `mesh.py` 的 `MeshState` 在会话之间投递消息。
 
 | 能力 | 说明 |
@@ -161,16 +174,14 @@ Windows 用 `ctypes` 的 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`：
 插入请求经 `QueuedInputModule` 在压缩前收进上下文。回合因工具挂起（用户确认、审批等）时，
 队列保持暂停，不自动起新回合。忙闲状态来自运行态登记，所以网格与 `/api/chat/ui-state` 读取同一事实源。
 
-## 标题
-
+### 标题
 `session_title.py` 发起一次无工具的模型调用。输入是会话首条用户输入加首条模型回复（各自截断），
 输出清洗成不超过 18 字的标题，落盘 `<data_root>/titles/<cid>.title`。
 
 失败（无 provider、异常、空文本、退化占位）时回落到首条用户输入的前缀（没有用户输入则为空），不阻断任何流程。
 标题是派生缓存，可以重新生成，所以与事实日志分开存放。
 
-## 会话状态
-
+### 会话状态
 `LiveState` 在 `live_state.py` 中持有按会话分键的可变状态。落盘与内存字段分开看：
 
 | 字段 | 落盘 | 说明 |
@@ -196,8 +207,9 @@ Windows 用 `ctypes` 的 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`：
 
 cid 必须匹配 `[A-Za-z0-9_-]{8,128}` 才拼路径，非法 cid 直接不落盘。
 
-## 文件安全设施
+## 4. 其他细节
 
+### 文件安全设施
 `file_safety.py` 包含两个类：
 
 | 类 | 作用 |
@@ -207,8 +219,10 @@ cid 必须匹配 `[A-Za-z0-9_-]{8,128}` 才拼路径，非法 cid 直接不落�
 
 两者默认落在数据根下（`data/temp/file_backup/`、`data/recycle/`），随数据根迁移。
 
-## 延伸阅读
+## 5. 延伸阅读
 
-- [architecture.zh.md](../architecture.zh.md)：事实与投影
-- [tools.md](tools.zh.md)：写盘四步协议
-- [shell.md](shell.zh.md)：SSE 断线重连与序号
+| 主题 | 文档 |
+|---|---|
+| 事实与投影 | [architecture.zh.md](../architecture.zh.md) |
+| 写盘四步协议 | [tools.zh.md](tools.zh.md) |
+| SSE 断线重连与序号 | [shell.zh.md](shell.zh.md) |

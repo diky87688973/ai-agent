@@ -2,6 +2,8 @@
 
 # Conversation message queue
 
+Status: implemented.
+
 ## Goals
 
 When a conversation is busy, user input and Agent deliveries enter the same pending queue. Input is not blocked, and no message or image is lost.
@@ -16,7 +18,7 @@ The queue provides:
 
 ## Boundaries
 
-- The queue is not part of conversation facts and does not write `data/sessions/*.raw`.
+- The queue is not part of conversation facts and does not write `data/session/raw/*.raw`.
 - A queue item produces an `INPUT_CLAIMED` fact only after delivery.
 - The queue does not change the order in which the model context is assembled.
 - The queue does not retain delivered messages.

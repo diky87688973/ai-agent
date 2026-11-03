@@ -105,6 +105,51 @@ def _extract_base_command(command: str) -> str:
     return name.lower()
 
 
+#: 命令分隔符：同一行里串联的每一段都要单独判，不能只看整条命令的第一个词。
+_SEGMENT_SPLIT_RE = re.compile(r"[;&|\r\n]+")
+#: 壳前缀：`cmd /c`、`powershell -Command`、`bash -c` 后面的才是真正要执行的命令。
+_SHELL_WRAPPER_RE = re.compile(
+    r"(?is)^\s*(?:"
+    r"cmd(?:\.exe)?\s+/[ck]"
+    r"|(?:powershell|pwsh)(?:\.exe)?(?:\s+-[a-z]+)*\s+(?:-command|-c)"
+    r"|(?:bash|sh|zsh)\s+-c"
+    r")\s+(?P<rest>.*)$"
+)
+
+
+def _strip_shell_wrapper(segment: str) -> str:
+    """剥掉一层或多层壳前缀（`cmd /c powershell -Command ...`）。"""
+    text = str(segment or "").strip()
+    while True:
+        match = _SHELL_WRAPPER_RE.match(text)
+        if not match:
+            return text
+        text = match.group("rest").strip()
+
+
+def _check_segment(segment: str) -> Optional[str]:
+    """判一段命令：壳前缀剥掉后，多词前缀与基准命令名都查。"""
+    body = _strip_shell_wrapper(segment)
+    lowered = body.lower()
+    for entry, advice in _MULTI_WORD_BLACKLIST:
+        if lowered.startswith(entry):
+            return _advice_message(entry, advice)
+    base = _extract_base_command(body)
+    if base in _CMD_BLACKLIST:
+        return _advice_message(base, _CMD_BLACKLIST[base])
+    return None
+
+
+def check_command_blacklist(command: str) -> Optional[str]:
+    """黑名单 + 内容级检查；命中返回拦截消息，未命中返回 None。"""
+    text = str(command or "")
+    for segment in _SEGMENT_SPLIT_RE.split(text):
+        hit = _check_segment(segment)
+        if hit:
+            return hit
+    return check_text_content(text)
+
+
 def _advice_message(entry: str, advice: str) -> str:
     """拦截消息：含命中条目与替代建议。"""
     return f"命令被安全黑名单拦截（{entry}）：真删除 / 毁灭性操作一律禁止——{advice}"
@@ -126,19 +171,6 @@ def check_text_content(text: str) -> Optional[str]:
     if _SED_INPLACE_RE.search(str(text or "")) and _SOURCE_EXT_RE.search(str(text or "")):
         return "sed -i 就地修改源码文件被拦截：请使用 replace_in_file"
     return None
-
-
-def check_command_blacklist(command: str) -> Optional[str]:
-    """黑名单 + 内容级检查；命中返回拦截消息，未命中返回 None。"""
-    text = str(command or "")
-    lowered = text.strip().lower()
-    for entry, advice in _MULTI_WORD_BLACKLIST:
-        if lowered.startswith(entry):
-            return _advice_message(entry, advice)
-    base = _extract_base_command(text)
-    if base in _CMD_BLACKLIST:
-        return _advice_message(base, _CMD_BLACKLIST[base])
-    return check_text_content(text)
 
 
 def _extract_py_candidates(command: str) -> List[str]:

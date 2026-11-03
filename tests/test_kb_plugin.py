@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import sys
 import tempfile
 import types
@@ -507,7 +508,7 @@ class PluginConfigIsolationTest(unittest.TestCase):
         import importlib.util
         from pathlib import Path as _P
         root = _P(__file__).resolve().parent.parent
-        for name in ("knowledge", "skills", "ai_speak"):
+        for name in ("knowledge", "skills", "ai_cosplay"):
             entry = root / "plugins" / name / "plugin.py"
             plugin_root = entry.parent
             mod_name = f"fan_agent_plugins.cfgprobe_{name}"
@@ -539,6 +540,7 @@ class PluginConfigIsolationTest(unittest.TestCase):
         sys.modules[mod_name] = mod
         spec.loader.exec_module(mod)
         tmp = _P(tempfile.mkdtemp(prefix="skcfg_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         target = tmp / "skills"
         target.mkdir()
         ini = tmp / "plugin-config.ini"
@@ -568,6 +570,7 @@ class KnowledgeTextOnlyTest(unittest.TestCase):
         import tempfile
         from pathlib import Path as _P
         tmp = _P(tempfile.mkdtemp(prefix="kbtext_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         mod, _files = self._files(tmp)
         for name in ("a.md", "b.txt", "c.csv", "d.json", "e.yaml", "f.py", "noext", "g.xlsx"):
             self.assertTrue(mod.is_text_like(name), msg=f"{name} 应算文本")
@@ -578,6 +581,7 @@ class KnowledgeTextOnlyTest(unittest.TestCase):
         import tempfile
         from pathlib import Path as _P
         tmp = _P(tempfile.mkdtemp(prefix="kbtext2_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         (tmp / "doc.md").write_text("正文", encoding="utf-8")
         (tmp / "img.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 20)
         (tmp / "blob.bin").write_bytes(b"\x00\xff" * 20)
@@ -594,10 +598,13 @@ class KnowledgeTextOnlyTest(unittest.TestCase):
         import tempfile
         from pathlib import Path as _P
         tmp = _P(tempfile.mkdtemp(prefix="kbtext3_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         (tmp / "doc.md").write_text("正文", encoding="utf-8")
         (tmp / "img.png").write_bytes(b"\x89PNG" + b"\x00" * 20)
         mod, _files = self._files(tmp)
-        rt = mod.KBRuntime(tmp, 200000, data_dir=_P(tempfile.mkdtemp(prefix="kbstate_")))
+        state_tmp = _P(tempfile.mkdtemp(prefix="kbstate_"))
+        self.addCleanup(shutil.rmtree, state_tmp, ignore_errors=True)
+        rt = mod.KBRuntime(tmp, 200000, data_dir=state_tmp)
         rt.set_checked("c1", ["doc.md", "img.png"])
         self.assertEqual(sorted(rt.get_checked("c1")), ["doc.md"])
 
@@ -634,6 +641,7 @@ class KnowledgeExtraSuffixesTest(unittest.TestCase):
         from pathlib import Path as _P
         mod = self._mod()
         tmp = _P(tempfile.mkdtemp(prefix="kbextra_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         (tmp / "x.dat").write_text("自定义类型", encoding="utf-8")
         (tmp / "y.png").write_bytes(b"\x89PNG\x00")
         ini = tmp / "plugin-config.ini"
@@ -716,8 +724,6 @@ class PluginPanelRenderContractTest(unittest.TestCase):
         chunk = shell[idx:idx + 280]
         self.assertIn("panelId", chunk, msg="打开事件须带逻辑 panelId")
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class SkillsConfigSourceTest(unittest.TestCase):
@@ -764,6 +770,7 @@ class SkillsConfigSourceTest(unittest.TestCase):
         sys.modules[mod_name] = mod
         spec.loader.exec_module(mod)
         tmp = _P(tempfile.mkdtemp(prefix="skcfg_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         target = tmp / "skills"
         target.mkdir()
         ini = tmp / "config.ini"
@@ -772,3 +779,6 @@ class SkillsConfigSourceTest(unittest.TestCase):
         cfg = mod._load_config(ini)
         self.assertEqual(cfg["dir"], target)
         self.assertEqual(cfg["max_file_size"], 321)
+
+if __name__ == "__main__":
+    unittest.main()

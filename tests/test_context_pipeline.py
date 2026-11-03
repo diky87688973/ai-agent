@@ -265,9 +265,8 @@ class MaxPassesConfigTest(unittest.TestCase):
         import inspect
 
         from agent.app import App
-        from agent.core.host import MAX_PASSES_DEFAULT
-        sig = inspect.signature(App.__init__)
-        self.assertEqual(sig.parameters["max_passes"].default, MAX_PASSES_DEFAULT)
+        sig = inspect.signature(App.apply_agent_loop)
+        self.assertIn("max_passes", sig.parameters)
 
     def test_engine_carries_the_value(self) -> None:
         import inspect

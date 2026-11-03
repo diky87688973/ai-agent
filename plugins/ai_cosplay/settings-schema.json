@@ -1,0 +1,70 @@
+{
+  "kind": "fields",
+  "title": "AI角色扮演配置",
+  "section": "config",
+  "fields": [
+    {
+      "key": "persona",
+      "kind": "textarea",
+      "label": "人物身份刻画",
+      "hint": "定义 AI 的身份、性格、背景、关系与行为边界；保存后下一轮生效。"
+    },
+    {
+      "key": "tone",
+      "kind": "text",
+      "label": "语气",
+      "default": "温婉",
+      "hint": "说话语气，例如：温婉、冷静、俏皮。"
+    },
+    {
+      "key": "user_salutation",
+      "kind": "text",
+      "label": "对用户的称呼",
+      "default": "陛下"
+    },
+    {
+      "key": "assistant_salutation",
+      "kind": "text",
+      "label": "AI 对自己的称呼",
+      "default": "臣妾"
+    },
+    {
+      "key": "engine",
+      "kind": "text",
+      "label": "合成引擎",
+      "default": "edge"
+    },
+    {
+      "key": "voice",
+      "kind": "text",
+      "label": "音色",
+      "default": "zh-CN-XiaoxiaoNeural"
+    },
+    {
+      "key": "max_segment_chars",
+      "kind": "number",
+      "label": "单段字符上限",
+      "default": "128",
+      "min": 1
+    },
+    {
+      "key": "play_interval_ms",
+      "kind": "number",
+      "label": "段间播放间隔（毫秒）",
+      "default": "0",
+      "min": 0
+    },
+    {
+      "key": "sync_playback",
+      "kind": "bool",
+      "label": "等待播放完成"
+    },
+    {
+      "key": "speed",
+      "kind": "text",
+      "label": "语速倍率",
+      "default": "1.0",
+      "hint": "0.5–2.0"
+    }
+  ]
+}

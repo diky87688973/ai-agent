@@ -56,7 +56,8 @@ class LayoutTest(_StoreTest):
         path = store.raw_path(self.cid)
         self.assertTrue(path.is_file())
         self.assertEqual(path.name, f"{self.cid}.raw")
-        self.assertEqual(path.parent.name, "sessions")
+        self.assertEqual(path.parent.name, "raw")
+        self.assertEqual(path.parent.parent.name, "session")
 
 class WriteReadTest(_StoreTest):
     """ / ：写入与读取语义。"""

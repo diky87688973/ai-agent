@@ -27,16 +27,13 @@ from agent.shell.plugin_settings import (
 )
 from agent.shell.settings_io import (
     LOCK,
-    append_ini_section,
     read_text,
-    remove_ini_section,
     update_ini_keys,
     write_text,
 )
 from agent.shell.web.web_ui_config import WEB_UI_CONFIG_PATH, get_web_ui
 
 __all__ = [
-    "append_ini_section",
     "apply_host",
     "handle_get",
     "handle_post",
@@ -44,13 +41,11 @@ __all__ = [
     "list_plugins",
     "pick_directory",
     "read_plugin_config",
-    "remove_ini_section",
     "set_plugin_enabled",
     "update_ini_keys",
     "write_plugin_config",
 ]
 
-#: 数字字段的下界。缺下界表示任意整数。
 def read_host_value(section: str, key: str) -> str:
     """读取宿主配置的单个值，供内置设置插件回填。"""
     if section == "web-ui":
@@ -141,11 +136,14 @@ def apply_host(app: Any, *, config_path: Optional[Path] = None) -> Dict[str, str
                 "full_user_rounds": int(ctx["full_user_rounds"]),
                 "reasoning_replay_tokens": int(ctx["reasoning_replay_tokens"]),
             })
-        if hasattr(app, "image_turns"):
+        if hasattr(app, "apply_agent_loop"):
+            app.apply_agent_loop(
+                image_turns=int(ctx["image_turns"]),
+                image_max=int(ctx["image_max"]),
+                max_passes=get_max_passes(target))
+        elif hasattr(app, "image_turns"):
             app.image_turns = int(ctx["image_turns"])
-        if hasattr(app, "image_max"):
             app.image_max = int(ctx["image_max"])
-        if hasattr(app, "max_passes"):
             app.max_passes = get_max_passes(target)
     except Exception as exc:
         report_error("agent.shell.settings_panel.apply_host", exc)

@@ -16,6 +16,7 @@ from typing import Callable, Iterable, Optional, Tuple
 from PIL import Image, ImageGrab
 
 from agent.core.error_report import report_error
+from agent.core.thread_context import thread_with_context
 
 from .step_log import write as log_step
 
@@ -94,6 +95,9 @@ _WH_MOUSE_LL = 14
 _WH_KEYBOARD_LL = 13
 _LLMHF_INJECTED = 0x00000001
 _LLKHF_INJECTED = 0x00000010
+
+#: dwExtraInfo fingerprint carried by every input this plugin injects.
+FOREIGN_INJECT_TAG = 0x4D454348
 
 
 if _WINDOWS:
@@ -283,6 +287,19 @@ class HumanInputMonitor:
         self._keyboard_proc: Optional[Callable[..., int]] = None
         self._fire_lock = threading.Lock()
         self._firing = False
+        self._inject_tags: set = set()
+        self._tags_lock = threading.Lock()
+
+    def register_inject_tag(self, tag: int) -> None:
+        """登记外部注入器的 dwExtraInfo 指纹；带该指纹的按键不算人类输入。"""
+        try:
+            self._inject_tags.add(int(tag))
+        except (TypeError, ValueError):
+            return
+
+    def _is_injected_tag(self, extra: int) -> bool:
+        with self._tags_lock:
+            return bool(self._inject_tags) and int(extra) in self._inject_tags
 
     def bind(self, callback: Callable[[], None]) -> None:
         self._callback = callback
@@ -296,7 +313,7 @@ class HumanInputMonitor:
             self._failed = False
             self._reset_mouse()
             self._ready.clear()
-            self._thread = threading.Thread(
+            self._thread = thread_with_context(
                 target=self._run, name="visual-input-monitor", daemon=True)
             self._thread.start()
         self._ready.wait(1.0)
@@ -394,8 +411,11 @@ class HumanInputMonitor:
         if code >= 0:
             info = ctypes.cast(
                 lparam, ctypes.POINTER(_KeyboardHookStruct)).contents
-            if not (int(info.flags) & _LLKHF_INJECTED):
-                self._fire()
+            if (int(info.flags) & _LLKHF_INJECTED
+                    or self._is_injected_tag(int(info.dwExtraInfo))):
+                return _u.CallNextHookEx(
+                    self._keyboard_hook, code, wparam, lparam)
+            self._fire()
         return _u.CallNextHookEx(self._keyboard_hook, code, wparam, lparam)
 
     def _fire(self) -> None:
@@ -403,7 +423,7 @@ class HumanInputMonitor:
             if self._firing:
                 return
             self._firing = True
-        threading.Thread(
+        thread_with_context(
             target=self._fire_worker, name="visual-input-takeover",
             daemon=True).start()
 
@@ -451,7 +471,7 @@ class ControlBadge:
                 return
             self._failed = False
             self._ready.clear()
-            self._thread = threading.Thread(
+            self._thread = thread_with_context(
                 target=self._run, name="visual-control-badge", daemon=True)
             self._thread.start()
         self._ready.wait(1.0)
@@ -577,7 +597,7 @@ def set_cursor(x: int, y: int) -> None:
     safe_y = max(0, min(height - 1, int(y)))
     norm_x = round(safe_x * 65535 / max(1, width - 1))
     norm_y = round(safe_y * 65535 / max(1, height - 1))
-    _mouse(_MOUSE_MOVE | _MOUSE_ABSOLUTE, norm_x, norm_y, 0, 0)
+    _mouse(_MOUSE_MOVE | _MOUSE_ABSOLUTE, norm_x, norm_y, 0, FOREIGN_INJECT_TAG)
 
 
 def move_by(dx: int, dy: int) -> Tuple[int, int]:
@@ -613,7 +633,7 @@ def move_cursor(x: int, y: int, duration_ms: int = 200,
         return True
 
 
-def click(button: str = "left", count: int = 1) -> None:
+def click(button: str = "left", count: int = 1) -> dict:
     if not _WINDOWS:
         raise RuntimeError("视觉操作 2.0 当前只支持 Windows")
     if button != "left":
@@ -623,18 +643,20 @@ def click(button: str = "left", count: int = 1) -> None:
     for index in range(clicks):
         events[index * 2].type = _INPUT_MOUSE
         events[index * 2].union.mi.dwFlags = _MOUSE_LEFT
+        events[index * 2].union.mi.dwExtraInfo = FOREIGN_INJECT_TAG
         events[index * 2 + 1].type = _INPUT_MOUSE
         events[index * 2 + 1].union.mi.dwFlags = _MOUSE_LEFT_UP
+        events[index * 2 + 1].union.mi.dwExtraInfo = FOREIGN_INJECT_TAG
     with _input_lock:
         inserted = _u.SendInput(
             len(events), events, ctypes.sizeof(_INPUT))
         if inserted != len(events):
             if inserted > 0:
-                _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
+                _mouse(_MOUSE_LEFT_UP, 0, 0, 0, FOREIGN_INJECT_TAG)
             for _ in range(clicks):
-                _mouse(_MOUSE_LEFT, 0, 0, 0, 0)
+                _mouse(_MOUSE_LEFT, 0, 0, 0, FOREIGN_INJECT_TAG)
                 time.sleep(0.010)
-                _mouse(_MOUSE_LEFT_UP, 0, 0, 0, 0)
+                _mouse(_MOUSE_LEFT_UP, 0, 0, 0, FOREIGN_INJECT_TAG)
                 time.sleep(0.010)
             log_step("click_inject", method="mouse_event",
                      inserted=inserted, expected=len(events))
@@ -665,20 +687,22 @@ def press_keys(keys: Iterable[str]) -> dict:
         events[index].type = _INPUT_KEYBOARD
         events[index].union.ki.wVk = code
         events[index].union.ki.dwFlags = flags
+        events[index].union.ki.dwExtraInfo = FOREIGN_INJECT_TAG
     for index, code in enumerate(reversed(codes), len(codes)):
         flags = _KEY_UP | (_KEY_EXTENDED if code in (0x5B, 0x5C) else 0)
         events[index].type = _INPUT_KEYBOARD
         events[index].union.ki.wVk = code
         events[index].union.ki.dwFlags = flags
+        events[index].union.ki.dwExtraInfo = FOREIGN_INJECT_TAG
     inserted = _u.SendInput(len(events), events, ctypes.sizeof(_INPUT))
     log_step("key_inject", method="sendinput", inserted=inserted,
              expected=len(events), keys=list(keys))
     if inserted == len(events):
         return {"ok": True, "method": "sendinput"}
     for code in codes:
-        _key(code, 0, 0, 0)
+        _key(code, 0, 0, FOREIGN_INJECT_TAG)
     for code in reversed(codes):
-        _key(code, 0, _KEY_UP, 0)
+        _key(code, 0, _KEY_UP, FOREIGN_INJECT_TAG)
     log_step("key_inject", method="keybd_event", inserted=inserted,
              expected=len(events), keys=list(keys))
     if any(code in (0x5B, 0x5C) for code in codes) or codes == [0x11, 0x1B]:
@@ -689,6 +713,7 @@ def press_keys(keys: Iterable[str]) -> dict:
 
 
 __all__ = [
-    "HumanInputMonitor", "capture_screen", "click", "cursor_position",
+    "FOREIGN_INJECT_TAG", "HumanInputMonitor", "capture_screen", "click",
+    "cursor_position",
     "move_by", "press_keys", "set_cursor",
 ]

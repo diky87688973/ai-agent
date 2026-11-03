@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent.common.status import RUN_MODE_PLAN
 from agent.core.session_scope import current_session_id
 from agent.mechanisms.live_state import ModeConflict
 
@@ -20,7 +21,7 @@ def reject_in_plan(live_state: Any, action: str) -> None:
     if state is None:
         return
     conversation_id = current_session_id()
-    if conversation_id and state.get_mode(conversation_id) == "plan":
+    if conversation_id and state.get_mode(conversation_id) == RUN_MODE_PLAN:
         raise ModeConflict(
             f"Plan 模式下禁止{action}（可先 run_type 切回 auto / execute）"
         )

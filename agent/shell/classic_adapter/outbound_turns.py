@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 import agent.shell.classic_adapter.contract as C
+from agent.core.error_report import report_error
 
 
 class TurnFrames:
@@ -69,6 +70,16 @@ class TurnFrames:
                 content=str(d.get("content") or ""),
                 sender=sender,
                 sender_name=str(d.get("_sender_name") or ""),
+            )]
+        if str(d.get("kind") or "") == "goal_followup" and str(d.get("source") or "") == "goal":
+            return [self._ev(
+                C.EV_QUEUED_USER,
+                content=str(d.get("content") or ""),
+                attachments=list(d.get("attachments") or []),
+                kind="goal_followup",
+                source="goal",
+                goal_round=int(d.get("goal_round") or 0),
+                goal_limit=int(d.get("goal_limit") or 0),
             )]
         if str(d.get("kind") or "") == "system_notice" and str(d.get("source") or "") == "background_tasks":
             return [self._ev(
@@ -320,7 +331,12 @@ class TurnFrames:
         本趟事实还没落盘，于是那一趟的上下文条一直是「—」，
         直到刷新（走 `history()`）或下一趟才出现。收尾时事实已经写下，这时补一帧就补齐了。
         """
-        computed = self.layout_resolver() if self.layout_resolver is not None else None
+        try:
+            computed = self.layout_resolver() if self.layout_resolver is not None else None
+        except Exception as exc:
+            # 布局是附加帧；算不出来只丢这一帧，不能让整段 turn_ended 一起失败。
+            report_error("agent.shell.classic_adapter.outbound_turns._emit_layout", exc)
+            return []
         if isinstance(computed, dict):
             return self._on_context_layout(computed)
         return []

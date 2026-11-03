@@ -206,10 +206,12 @@ class ConfigWiringTest(unittest.TestCase):
         from agent.app import build_app
 
         app = build_app()
-        self.assertEqual(app.image_turns, KEEP_IMAGE_TURNS)
-        self.assertEqual(app.image_max, MAX_EMBED_IMAGES)
-        self.assertIsInstance(app.image_turns, int)
-        self.assertIsInstance(app.image_max, int)
+        self.addCleanup(app.dispose)
+        loop = app._kernel_group.loop_config
+        self.assertEqual(loop.image_turns, KEEP_IMAGE_TURNS)
+        self.assertEqual(loop.image_max, MAX_EMBED_IMAGES)
+        self.assertIsInstance(loop.image_turns, int)
+        self.assertIsInstance(loop.image_max, int)
 
 
 if __name__ == "__main__":

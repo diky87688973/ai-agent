@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from agent.core.error_report import report_error
+from agent.core.event_name import TOOL_SUSPENDED, TURN_ENDED
 from agent.core.events import Event
 from agent.core.host import MAX_PASSES_DEFAULT, Host, TurnResult
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
@@ -80,27 +81,26 @@ class Engine:
         #: → 断线续传整条路径静默失效（帧带坐标 0/10）。
         self.seq_allocator = seq_allocator
         self.model_port = ModelPort(provider) if provider is not None else None
-        self.tool_port = (
-            ToolPort(
-                registry=registry,
-                pipeline=pipeline,
-                app=app_context,
-                sessions=session_contexts,
-            )
-            if registry is not None and pipeline is not None
-            else None
-        )
-        self._input = input_module if input_module is not None else InputModule()
+        self.tool_port = self._build_tool_port(
+            registry, pipeline, app_context, session_contexts)
+        self._input = self._select_input(input_module, modules)
+        if modules is None:
+            chain = build_default_chain(input_module=self._input, context=context,
+                                        compactor=compactor,
+                                        context_hooks=context_hooks,
+                                        queued_input=queued_input,
+                                        effort=effort, model=model,
+                                        image_turns=image_turns, image_max=image_max,
+                                        mode_note=mode_note)
+        else:
+            chain = list(modules)
+            if not any(isinstance(module, InputModule) for module in chain):
+                # 自定义链没带输入模块时，start_turn 喂给的是 _input；
+                # 不插入链中，用户发言会被静默丢弃。
+                chain.insert(0, self._input)
         # 宿主的出口就是引擎的旁路：唯一出口，模块事件与宿主事件都从这里出去。
         self._host = Host(
-            modules if modules is not None
-            else build_default_chain(input_module=self._input, context=context,
-                                     compactor=compactor,
-                                     context_hooks=context_hooks,
-                                     queued_input=queued_input,
-                                     effort=effort, model=model,
-                                     image_turns=image_turns, image_max=image_max,
-                                     mode_note=mode_note),
+            chain,
             sink=self._on_event,
             max_passes=max_passes,
             on_pass_end=self._flush_facts,
@@ -113,6 +113,25 @@ class Engine:
         self.last_result: Optional[TurnResult] = None
 
     # ── 事件流 ─────────────────────────────────────────────
+
+    @staticmethod
+    def _build_tool_port(registry: Any, pipeline: Any, app_context: Any,
+                         session_contexts: Any) -> Any:
+        if registry is None or pipeline is None:
+            return None
+        return ToolPort(registry=registry, pipeline=pipeline,
+                        app=app_context, sessions=session_contexts)
+
+    @staticmethod
+    def _select_input(input_module: Optional[InputModule],
+                      modules: Optional[List[ModuleBase]]) -> InputModule:
+        if input_module is not None:
+            return input_module
+        if modules is not None:
+            for module in modules:
+                if isinstance(module, InputModule):
+                    return module
+        return InputModule()
 
     def _on_event(self, event: Event) -> None:
         """宿主/模块的唯一出口：记下本回合事实，并旁路给观察面。"""
@@ -139,7 +158,7 @@ class Engine:
         if self.session_context is None:
             return
         try:
-            if event.type == "tool_suspended":
+            if event.type == TOOL_SUSPENDED:
                 envelope = (event.data or {}).get("envelope")
                 envelope = envelope if isinstance(envelope, dict) else {}
                 kind = str(envelope.get("kind") or "confirm")
@@ -157,7 +176,7 @@ class Engine:
                     if envelope.get(key):
                         pending[key] = str(envelope.get(key))
                 self.session_context.pending_confirm = pending
-            elif event.type == "turn_ended" and not bool((event.data or {}).get("paused")):
+            elif event.type == TURN_ENDED and not bool((event.data or {}).get("paused")):
                 self.session_context.pending_confirm = None   # 已消费，清掉
         except Exception as exc:
             # 不能静默：这里失败的症状是"UI 不弹确认"，从现象完全看不出是

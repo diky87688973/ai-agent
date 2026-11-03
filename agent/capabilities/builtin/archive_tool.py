@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import fnmatch
 import io
+import re
 import tarfile
 import zipfile
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from agent.capabilities.registry import ToolPlugin
@@ -255,6 +256,30 @@ class ArchiveTool(ToolPlugin):
         raise ValueError(f"未知 action: {act}（须为 list / extract / create）")
 
 
+def _safe_extract_name(name: str, dst: Path) -> None:
+    """拒绝绝对路径、盘符、`..` 与解压目录外成员（tar/zip 共用）。"""
+    text = str(name or "").replace("\\", "/")
+    if not text or text.startswith("/") or re.match(r"^[A-Za-z]:", text):
+        raise ValueError(f"压缩包成员路径非法：{name!r}")
+    parts = PurePosixPath(text).parts
+    if ".." in parts:
+        raise ValueError(f"压缩包成员越出解压目录：{name!r}")
+    root = dst.resolve()
+    target = (root / text).resolve()
+    if target != root and root not in target.parents:
+        raise ValueError(f"压缩包成员越出解压目录：{name!r}")
+
+
+def _validate_members(members: List[Any], fmt: str, dst: Path) -> None:
+    """先验成员再落盘；tar 的符号/硬链接一律拒绝（链接可指向目录外）。"""
+    for member in members:
+        name = _member_name(member, fmt)
+        _safe_extract_name(name, dst)
+        if fmt != "zip":
+            if member.issym() or member.islnk():
+                raise ValueError(f"压缩包含符号/硬链接，拒绝解压：{name!r}")
+
+
 # ── 提交执行器（由 commit_write 统一分派）──────────────
 
 
@@ -277,11 +302,16 @@ def _execute_archive(arguments: Dict[str, Any]) -> Dict[str, Any]:
         try:
             members = _iter_members(arc, fmt, glob_pattern)
             dst.mkdir(parents=True, exist_ok=True)
+            _validate_members(members, fmt, dst)
             if fmt == "zip":
                 for m in members:
                     arc.extract(m, path=dst)
             else:
-                arc.extractall(dst, members=members)
+                try:
+                    # Python 3.12+：filter 再做一次链接/权限/路径校验。
+                    arc.extractall(dst, members=members, filter="data")
+                except TypeError:
+                    arc.extractall(dst, members=members)
             count = len(members)
         finally:
             close_fn()

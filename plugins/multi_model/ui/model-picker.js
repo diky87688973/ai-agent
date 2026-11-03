@@ -14,7 +14,7 @@
   var shell = window.aiAgentShell;
   if (!PLUGIN || !shell || !shell.models || !shell.styles) return;
 
-  shell.styles.load("ui/model-picker.css");
+  shell.styles.load("ui/model-picker.css", PLUGIN);
 
   function pluginApi() {
     return window.aiAgentPlugins && window.aiAgentPlugins.for
@@ -33,9 +33,6 @@
       window.__multiModelPickerTeardown = null;
     }
 
-    var api = window.aiAgentPlugins && window.aiAgentPlugins.for
-      ? window.aiAgentPlugins.for(PLUGIN)
-      : null;
 
     var root = document.createElement("div");
     root.className = "mm-picker";
@@ -92,6 +89,9 @@
     }
 
     function open() {
+      document.dispatchEvent(new CustomEvent("ai-agent:composer-popup-open", {
+        detail: { id: "model" }
+      }));
       state.open = true;
       menu.classList.remove("hidden");
       button.setAttribute("aria-expanded", "true");
@@ -159,7 +159,6 @@
       var shown = state.current || state.defaultId
         || (state.models.length ? state.models[0].id : "");
       caption.textContent = labelFor(shown) || (state.loading ? "模型加载中…" : "未配置模型");
-      button.disabled = false;
       button.title = state.models.length ? "选择模型" : "未配置模型，打开设置 → 插件 → 多模型";
     }
 
@@ -245,8 +244,7 @@
       }
       if (target && target.closest && target.closest("[data-mm-settings]")) {
         close();
-        var settings = document.getElementById("hdrSettingsBtn");
-        if (settings) settings.click();
+        document.dispatchEvent(new CustomEvent("ai-agent:open-settings"));
       }
     }
     function onDocClick(event) {
@@ -259,25 +257,46 @@
       state.current = String(id || "");
       render();
     });
-    menu.addEventListener("click", onMenuClick);
-    document.addEventListener("click", onDocClick);
-    document.addEventListener("ai-agent:plugins-changed", function () {
+    function onPluginsChanged(event) {
+      var loaded = event && event.detail && Array.isArray(event.detail.loaded)
+        ? event.detail.loaded : null;
+      if (loaded && loaded.indexOf(PLUGIN) < 0) {
+        if (typeof window.__multiModelPickerTeardown === "function") {
+          window.__multiModelPickerTeardown();
+          window.__multiModelPickerTeardown = null;
+        }
+        return;
+      }
       state.loading = true;
       loadCatalog();
-    });
-    document.addEventListener("ai-agent:plugin-config-saved", function (event) {
+    }
+    function onConfigSaved(event) {
       var detail = event && event.detail ? event.detail : {};
       if (String(detail.plugin || "") !== PLUGIN) return;
       state.loading = true;
       loadCatalog();
-    });
+    }
+    function onComposerPopupOpen(event) {
+      var id = event && event.detail ? String(event.detail.id || "") : "";
+      if (state.open && id && id !== "model") close();
+    }
+    menu.addEventListener("click", onMenuClick);
+    document.addEventListener("click", onDocClick);
+    document.addEventListener("ai-agent:composer-popup-open", onComposerPopupOpen);
+    document.addEventListener("ai-agent:plugins-changed", onPluginsChanged);
+    document.addEventListener("ai-agent:plugin-config-saved", onConfigSaved);
     document.addEventListener("keydown", onDocKeydown);
     /* 重新启用时旧实例必须把这三样一起还回去：DOM、文档级监听、模型订阅。
        漏一样就会在新实例之外留一份仍会响应事件的幽灵下拉。 */
     window.__multiModelPickerTeardown = function () {
       menu.removeEventListener("click", onMenuClick);
       document.removeEventListener("click", onDocClick);
+      document.removeEventListener("ai-agent:composer-popup-open", onComposerPopupOpen);
+      document.removeEventListener("ai-agent:plugins-changed", onPluginsChanged);
+      document.removeEventListener("ai-agent:plugin-config-saved", onConfigSaved);
       document.removeEventListener("keydown", onDocKeydown);
+      document.removeEventListener("ai-agent:ui-rendered", boot);
+      document.removeEventListener("DOMContentLoaded", boot);
       if (typeof offModelChange === "function") offModelChange();
       if (root.parentNode) root.parentNode.removeChild(root);
     };
@@ -288,6 +307,7 @@
   }
 
   window.__multiModelPickerBoot = boot;
+  document.addEventListener("ai-agent:ui-rendered", boot);
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
   } else {

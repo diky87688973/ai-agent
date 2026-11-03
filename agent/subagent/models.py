@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
+from agent.common.status import AGENT_IDLE
+
 
 class SubagentError(Exception):
     """子智能体参数或权限错误。"""
@@ -23,7 +25,7 @@ class SubagentRecord:
     context: str
     created_at: int
 
-    def public(self, *, status: str = "idle", pending: int = 0) -> Dict[str, Any]:
+    def public(self, *, status: str = AGENT_IDLE, pending: int = 0) -> Dict[str, Any]:
         return {
             "child_id": self.child_id,
             "label": self.label,
@@ -47,7 +49,7 @@ class BatchRecord:
         for child in self.children:
             info = table.get(child.child_id, {})
             rows.append(child.public(
-                status=str(info.get("status") or "idle"),
+                status=str(info.get("status") or AGENT_IDLE),
                 pending=int(info.get("pending") or 0),
             ))
         return {

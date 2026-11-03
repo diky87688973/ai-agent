@@ -2,6 +2,8 @@
 
 # Multi-model configuration design
 
+Status: implemented.
+
 ## 1. Background and goals
 
 The model path has three parts:
@@ -667,7 +669,6 @@ window.aiAgentShell.styles = {
 
 ## 15. Engineering constraints
 
-Related standards: [standards-alignment.md](standards-alignment.md).
 
 | Constraint | How the design satisfies it | Verification |
 |---|---|---|

@@ -95,7 +95,9 @@ class SubagentRepository:
                     report_error("agent.subagent.repository.remove_empty_batch", exc,
                                  batch=record.batch)
             raise
-        child = next(item for item in record.children if item.child_id == child_id)
+        child = next((item for item in record.children if item.child_id == child_id), None)
+        if child is None:
+            raise SubagentError(f"子记录未写入：{child_id}", "child_not_found")
         with self._children_lock:
             self._children[child_id] = child
         return child
@@ -116,6 +118,19 @@ class SubagentRepository:
                 path.unlink()
         except (OSError, ValueError) as exc:
             report_error("agent.subagent.repository.discard", exc, child_id=child_id)
+
+    def abort(self, child_id: str) -> None:
+        """创建失败回滚：删子会话文件、批次记录与内存索引。"""
+        key = str(child_id or "").strip()
+        with self._children_lock:
+            child = self._children.pop(key, None)
+        self.discard(key)
+        if child is None:
+            return
+        try:
+            self.batches.remove_child(child.parent_cid, child.batch, key)
+        except (OSError, ValueError) as exc:
+            report_error("agent.subagent.repository.abort", exc, child_id=key)
 
     def list_batches(self, parent_cid: str, batch: str = "") -> List[BatchRecord]:
         rows = self.batches.list_for_parent(parent_cid)

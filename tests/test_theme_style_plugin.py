@@ -20,12 +20,12 @@ class ThemeStylePluginTest(unittest.TestCase):
         routes = []
         ctx = SimpleNamespace(
             data_dir=ROOT,
-            add_route=lambda method, path, handler: routes.append((method, path)) or (lambda: None),
+            add_route=lambda method, path, handler, **_kwargs: routes.append((method, path)) or (lambda: None),
             add_settings_item=lambda *args, **kwargs: fields.append((args, kwargs)) or (lambda: None),
             add_ui_item=lambda *args, **kwargs: (lambda: None),
         )
         self.assertEqual(len(register(ctx)), 3)
-        self.assertEqual(fields[0][0], ("settings/interface", "theme_style"))
+        self.assertEqual(fields[0][0], ("app/settings/interface", "theme_style"))
         self.assertEqual(fields[0][1]["kind"], "select")
         self.assertEqual(routes, [("GET", "style")])
 
@@ -45,15 +45,15 @@ class ThemeStylePluginTest(unittest.TestCase):
         registry = SettingsRegistry()
         seed_default_panels(registry)
         registry.add_item(
-            "theme_style", "settings/interface", "theme_style",
+            "theme_style", "app/settings/interface", "theme_style",
             kind="select", label="界面风格", default="dsh",
             options=({"value": "dsh", "label": "DSH"}, {"value": "minimal", "label": "极简"}),
             save=lambda value: {"ok": True},
         )
         app = SimpleNamespace(plugin_host=SimpleNamespace(settings=registry))
         catalog = host_catalog(app=app)
-        section = next(item for item in catalog["sections"] if item["id"] == "settings/interface")
-        field = next(item for item in section["fields"] if item.get("id") == "settings/interface/theme_style")
+        section = next(item for item in catalog["sections"] if item["id"] == "app/settings/interface")
+        field = next(item for item in section["fields"] if item.get("id") == "app/settings/interface/theme_style")
         self.assertTrue(field["plugin"])
         self.assertEqual(field["kind"], "select")
 

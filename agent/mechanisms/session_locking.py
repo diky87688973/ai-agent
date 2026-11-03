@@ -7,10 +7,10 @@
 from __future__ import annotations
 
 import os
-import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 from agent.core.error_report import report_error
 
@@ -53,26 +53,16 @@ def cross_process_lock(path: Path):
     locked = False
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        fh = open(lock_path, "a+b")
-        if _msvcrt is not None:
-            deadline = time.monotonic() + _lock_timeout()
-            while True:
-                try:
-                    _msvcrt.locking(fh.fileno(), _msvcrt.LK_NBLCK, 1)
-                    locked = True
-                    break
-                except OSError:
-                    if time.monotonic() >= deadline:
-                        raise
-                    time.sleep(0.05)
-        elif _fcntl is not None:
-            _fcntl.flock(fh.fileno(), _fcntl.LOCK_EX)
-            locked = True
-        else:
-            # 两个机制都没有时必须显式判失败，走 except 的留痕路径：
-            # 两个分支都不进会让 `locked` 静默保持 False，
-            # "跨进程保护已经没了"没人知道。降级可以，静默不行。
-            raise RuntimeError(_NO_LOCK_MECHANISM)
+        deadline = time.monotonic() + 1.0
+        while True:
+            try:
+                fh = open(lock_path, "a+b")
+                break
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.05)
+        locked = _acquire_lock(fh)
     except Exception as exc:
         try:
             if fh is not None:
@@ -83,8 +73,7 @@ def cross_process_lock(path: Path):
         fh = None
         if _NO_LOCK_MECHANISM in str(exc):
             # 环境限制（没有任何锁机制）→ 留痕降级。
-            print(f"[store] 跨进程锁不可用（降级为进程内锁）：{type(exc).__name__}: {exc}",
-                  file=sys.stderr, flush=True)
+            report_error("agent.mechanisms.session_locking.cross_process_lock", exc)
             locked = False
         else:
             # 争用超时 → 不许写。抛出去让数据进待重试队列。
@@ -107,6 +96,31 @@ def cross_process_lock(path: Path):
             except Exception as exc:
                 # 旁路，刻意吞掉：关闭失败不影响已完成的写入。
                 report_error("agent.mechanisms.session_locking.cross_process_lock", exc)
+
+
+def _acquire_lock(fh: Any) -> bool:
+    """按平台取排他锁；争用超时/无锁机制都显式抛出。"""
+    if _msvcrt is not None:
+        deadline = time.monotonic() + _lock_timeout()
+        while True:
+            try:
+                _msvcrt.locking(fh.fileno(), _msvcrt.LK_NBLCK, 1)
+                return True
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.05)
+    if _fcntl is not None:
+        deadline = time.monotonic() + _lock_timeout()
+        while True:
+            try:
+                _fcntl.flock(fh.fileno(), _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+                return True
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("跨进程锁等待超时") from None
+                time.sleep(0.05)
+    raise RuntimeError(_NO_LOCK_MECHANISM)
 
 
 def _lock_timeout() -> float:

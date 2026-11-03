@@ -42,6 +42,7 @@ def seed_child(
     """写入子会话的 created 元数据与可选父会话前缀，返回写入事件数。"""
     if context not in ("fork", "fresh"):
         raise ValueError("context 必须是 fork 或 fresh")
+    prefix = completed_turn_prefix(parent_store.load(parent_cid)) if context == "fork" else []
     marker = make_event(
         "subagent/created",
         parent_cid=str(parent_cid),
@@ -50,9 +51,8 @@ def seed_child(
         context=str(context),
     )
     child_store.append(child_id, [marker])
-    if context == "fresh":
+    if not prefix:
         return 1
-    prefix = completed_turn_prefix(parent_store.load(parent_cid))
     copied = [_copy_event(event) for event in prefix]
     copied = [event for event in copied if event.type != "subagent/skipped"]
     if copied:

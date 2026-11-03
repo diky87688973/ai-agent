@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "kind": "ui-paths",
+  "paths": {
+    "button": "app/shell/web-ui/input/buttons/visual_btn"
+  }
+}

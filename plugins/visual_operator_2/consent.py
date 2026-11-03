@@ -6,6 +6,9 @@ from typing import Any, Dict, List
 
 CONSENT_TITLE = "申请视觉操作授权，视觉操作过程中会持续录屏"
 CONSENT_OPTIONS = ["同意", "拒绝"]
+DECISION_AGREE = "agree"
+DECISION_REJECT = "reject"
+DECISIONS = (DECISION_AGREE, DECISION_REJECT)
 
 
 class VisionConsentRequired(Exception):
@@ -29,4 +32,7 @@ class VisionConsentRequired(Exception):
 def options() -> List[str]:
     return list(CONSENT_OPTIONS)
 
-__all__ = ["CONSENT_OPTIONS", "CONSENT_TITLE", "VisionConsentRequired", "options"]
+__all__ = [
+    "CONSENT_OPTIONS", "CONSENT_TITLE", "DECISION_AGREE", "DECISION_REJECT",
+    "DECISIONS", "VisionConsentRequired", "options",
+]

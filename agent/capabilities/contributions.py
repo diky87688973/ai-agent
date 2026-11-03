@@ -128,15 +128,6 @@ class ContributionRegistry:
 
     routes: Dict[str, Route] = field(default_factory=dict)
 
-    # ── 上下文段外观 ──
-
-    # ── 开屏脚本（无面板也可预载）──
-
-    # ── 宿主设置字段 ──
-
-    # ── 动作（输入区按钮）──
-
-    # ── 面板 ──
 
     # ── 端点 ──
 
@@ -156,8 +147,14 @@ class ContributionRegistry:
         key = f"{m} {_clean_segment(plugin, '插件名')}/{'/'.join(seg)}"
         if key in self.routes:
             raise ContributionError(f"端点已注册：{key}")
-        self.routes[key] = Route(plugin=plugin, method=m, path="/".join(seg), handler=handler)
-        return lambda: self.routes.pop(key, None)
+        route = Route(plugin=plugin, method=m, path="/".join(seg), handler=handler)
+        self.routes[key] = route
+
+        def _dispose() -> None:
+            if self.routes.get(key) is route:
+                del self.routes[key]
+
+        return _dispose
 
     def match(self, method: str, url_path: str) -> Optional[Tuple[Route, Dict[str, str]]]:
         """按 `方法 + 路径` 找端点；返回 `(Route, 路径参数)` 或 None。
@@ -192,12 +189,8 @@ class ContributionRegistry:
     def drop_plugin(self, plugin: str) -> int:
         """撤掉某插件的全部贡献；返回撤掉条数（卸载兜底，防残留死标签 / 死端点）。"""
         name = str(plugin or "")
-        total = 0
-        for store in (
-            self.routes,
-        ):
-            keys = [k for k, v in store.items() if getattr(v, "plugin", None) == name]
-            for k in keys:
-                store.pop(k, None)
-            total += len(keys)
-        return total
+        keys = [k for k, v in self.routes.items()
+                if getattr(v, "plugin", None) == name]
+        for key in keys:
+            self.routes.pop(key, None)
+        return len(keys)

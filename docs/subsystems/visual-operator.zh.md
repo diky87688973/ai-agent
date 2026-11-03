@@ -1,11 +1,28 @@
-[English](visual-operator.md) | **中文**
+﻿# Visual Operator（`visual_operator` 插件）
 
-# Visual Operator（`visual_operator` 插件）
+## 1. 概览
 
 Visual Operator 把看屏幕与操作鼠标键盘做成交互工具，交给模型在真实桌面上读图、定位、点击、输入与等待；基线是四个坐标工具，另有窗口、应用启动、打开、UIA 文本定位与批量管线工具。截图作为图片附件交给模型；插件只保存坐标映射元数据，不保留截图文件。鼠标与键盘输入动作经输入锁串行投递。插件机制本身见 [plugins.md](plugins.zh.md)。
 
-## 包结构
+## 2. 插口协议
 
+### 暴露
+
+| 插口路径 | 能力 | 关键属性 | 可替换/覆盖方式 |
+|---|---|---|---|
+| `app/shell/web-ui/input/buttons/visual_btn` | 界面插口 | owner=插件；路径由声明给出；卸载时撤销 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `backend/tools/vision_*` | 工具或执行器 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/http/routes/visual-*` | HTTP 端点 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+### 依赖
+
+| 依赖路径 | 能力 | 提供者 | 为什么依赖 |
+|---|---|---|---|
+| `app/boot/facade` | 启动节点 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/host/services/contributions` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+
+## 3. 插口能力
+
+### 包结构
 ```
 plugins/visual_operator/
   plugin.py                  入口：读配置、选后端、注册视觉操作工具
@@ -49,8 +66,7 @@ plugins/visual_operator/
     _unavailable.py          其它平台：调用时报明确原因
 ```
 
-## 工具面
-
+### 工具面
 | 工具 | 方向 | 能力 |
 |---|---|---|
 | `desktop_eye` | 交给模型 | 截取整屏、区域或窗口，叠坐标网格后作为图片附件返回；可带 `hover` 在取图前展开悬停控件 |
@@ -60,7 +76,7 @@ plugins/visual_operator/
 
 上表只列基线四工具；窗口、应用启动、打开、UIA 文本定位、矩形点击与批量工具都在其上分层，并共用同一注册点。每个工具各自声明完整的 JSON Schema，不共用一个多动作大工具。动作与参数的对应关系由 `tools/_params.py` 的动作矩阵校验：属于别的动作的参数直接报错，不会被静默忽略。
 
-### `desktop_eye`
+#### `desktop_eye`
 
 | 参数 | 说明 |
 |---|---|
@@ -116,13 +132,13 @@ plugins/visual_operator/
 
 单张截图上限定为 4000 万像素；超过时在调用侧报错，并提示改用区域参数。
 
-### 同名窗口
+#### 同名窗口
 
 Windows 上 `window` 给的是不区分大小写的标题片段，同名窗口可能同时存在（自绘窗口常见：主窗 + 播放层 + 隐藏辅助窗）。候选排序是前台 → Z 序 → 面积（大到小），不是单纯的面积：用户眼前那个窗口几乎总是要操作的那个，面积最大的反而可能是盖在画面上的播放层。
 
 命中数大于 1 时，回执里的 `window` 会带 `matched` 与 `alternatives`（最多 4 个），`note` 也会写清有 N 个、选了哪个、其余 hwnd 是哪些。只给命中数不足以区分其余窗口，因此回执列出它们的 hwnd。
 
-### 缩放与换算
+#### 缩放与换算
 
 整屏图通常会被缩到 `max_side`，窗口图往往不到上限、按原尺寸发送。截图的图内坐标与屏幕坐标可能缩放，也可能带负原点（窗口阴影）。
 
@@ -137,7 +153,7 @@ screen_y = capture.y + image_y * capture.height / image.height
 
 细节看不清时用区域参数取局部：局部通常按原尺寸发送。点小目标时给 `grid_step=20–40`：网格更细，坐标可以直接读，不必在 50px 的格子里估。
 
-### `desktop_mouse`
+#### `desktop_mouse`
 
 | `action` | 必填 | 可选 |
 |---|---|---|
@@ -175,7 +191,7 @@ screen_y = capture.y + image_y * capture.height / image.height
 
 带 `shot` 时返回体是取图回执，动作本身的结果收在 `performed` 字段。回图默认跟着落点实际所在的窗口走（`shot_of: "hit"`），而不是按 `window` 标题重新解析：点击可能落在独立顶层窗口上，按标题取到的却是承载详情页的另一个窗口。显式给了 `window` / `hwnd` 时以显式参数为准（`shot_of: "window"` / `"hwnd"`）；两者都没有且拿不到落点窗口时，回退为屏幕截图（可带 `shot_region`）。落点窗口与置前窗口不是同一个时，`note` 会写明两者 hwnd。`shot` 对 `move` / `click` / `drag` / `scroll` 开放；`cursor` 是只读查询，不接受它。`move` 只回图，不做 `hit` / `changed` 比较——移动本身不改变界面，但悬停可能展开控件，所以回图仍有意义。
 
-### `desktop_keyboard`
+#### `desktop_keyboard`
 
 | `action` | 参数 |
 |---|---|
@@ -187,7 +203,7 @@ screen_y = capture.y + image_y * capture.height / image.height
 
 键名先归一成规范名：`return` → `enter`，`escape` → `esc`，`control` → `ctrl`，`option` → `alt`，`command` / `meta` / `super` → `cmd`，`windows` → `win`，`pgup` / `page_up` → `pageup`，`pgdn` / `page_down` → `pagedown`；方向键、`f1`–`f20`、字母、数字，以及 `-`、`=`、`[`、`]`、`;`、`'`、`,`、`.`、`/`、`\` 与反引号等单字符键。`hotkey` 接受 2–4 个键，至少包含一个非修饰键，分隔符为 `+` 或 `,`。
 
-### `desktop_wait`
+#### `desktop_wait`
 
 | 参数 | 说明 |
 |---|---|
@@ -206,8 +222,7 @@ screen_y = capture.y + image_y * capture.height / image.height
 
 `desktop_wait` 只读，Plan 模式可用，且不占用输入锁。
 
-## 界面展示
-
+### 界面展示
 每个工具的标题后跟一句执行摘要。摘要优先用参数里的目标，执行完再用回执补全：
 
 | 工具 | 摘要 | 例 |
@@ -223,16 +238,14 @@ screen_y = capture.y + image_y * capture.height / image.height
 
 倒计时完全由前端按参数自己数，服务端不推送计时帧。`desktop_wait` 的超时只是上限：数到 0 还没收到工具结果，就把摘要改成 `已超时 3 秒` 继续往上数，直到 `tool_end`。结束时停表，在标题末尾直接接上回执里的实际等待时长（`窗口出现 -> 编辑器 · 0 秒`），不写「已达成」/「未达成」这类状态文字——结束与否由 `done` 与标题颜色表达。时长文本按秒 / 分 / 时 / 天展开，例如 `5 秒`、`1 分 30 秒`、`1 天`；`86400 秒` 写成 `1 天`，跨天等待不必自己换算。历史回放（刷新页面、切回会话）不重启倒计时：那一次等待已经结束，重新从总数往下数会读成「还在等」。
 
-## 坐标契约
-
+### 坐标契约
 - 默认坐标空间是屏幕坐标：Windows 为物理像素，macOS 为全局显示坐标（点）。`grid_unit=image` 时网格与光标标签是图内像素；图内坐标只通过 `capture_id` 交给 `desktop_mouse`、`desktop_click_region` 或 `desktop_type_into`，不直接当屏幕坐标使用。
 - macOS 高 DPI 屏上截图是点的两倍像素：`pixel_ratio` 记录这个比例，鼠标坐标仍按点投递。
 - 网格线按「屏幕矩形 → 实发图片尺寸」的比例落位；`grid_unit=image` 时刻度数字由同一比例反推为图内像素。高 DPI 屏上不会偏移半屏。
 - `capture` 是截图的屏幕矩形，原点是窗口/裁剪区域左上角，可能为负；`image_to_screen` 给出 `scale_x/scale_y/ox/oy`，换算由服务端完成。
 - 多显示器时屏幕矩形是虚拟桌面的并集，左上角可能为负（主屏左侧的副屏）。缩放比例不一致时返回 `note` 提示跨屏坐标可能有偏差。
 
-## 截图加工
-
+### 截图加工
 `canvas.render()` 是所有平台共用的后处理：
 
 1. 解码 PNG；解不开报 `ScreenCaptureFailed`。
@@ -242,8 +255,35 @@ screen_y = capture.y + image_y * capture.height / image.height
 5. `cursor_mark` 打开时只在光标附近画短十字：黑色衬边、白色分隔层、亮绿芯，小圆环，以及带坐标的 `CURSOR` 标签；十字中心留空，不盖住落点像素，也不铺满全图。短边小于 140 的区域只写坐标、省略 `CURSOR` 前缀，且只描字不铺黑底；短边小于 90 的区域不画标签，坐标只从回执 `cursor` 读取。字号按截图缩放与短边反推，保证不同缩放下屏幕观感一致；标签单位跟随 `grid_unit`。
 6. 以 PNG 编码，交给 `desktop_eye` 放进附件。
 
-## 配置
+### 平台后端
+#### Windows
 
+- 截屏：整屏走 `GetDC(NULL)` + `BitBlt(SRCCOPY | CAPTUREBLT)` + `GetDIBits`，按虚拟桌面坐标截取，负坐标的副屏也在内；窗口走 `PrintWindow(PW_RENDERFULLCONTENT)`，取窗口自身重绘，被别的窗口遮挡也能拿到内容。像素按 `BGRX` 直接编码 PNG，不额外翻转。
+- 回退：`PrintWindow` 得到单一颜色（包括全黑）时，会在重绘时限内重试；仍取不到内容且窗口可见时回退屏幕截图，并把 `source` 标成 `screen`；窗口不可见且取不到内容时报 `ScreenCaptureFailed`。
+- 落点探测：`WindowFromPoint` 拿坐标下的子窗口，`GetAncestor(GA_ROOT)` 拿所属顶层窗口，`GetClassNameW` 拿控件类名。拿不到就省略 `hit`，不猜。
+- 窗口清单：`EnumWindows` 枚举可见顶层窗口（跳过工具窗与屏幕外辅助窗），只用于动作前后的 `window_changed` 对比；清单本身不进上下文。
+- DPI：装载时声明 per-monitor v2；宿主已经声明过则沿用宿主的选择。声明失败时依次退回 `SetProcessDpiAwareness` 与 `SetProcessDPIAware`。
+- 输入：定位用 `SetCursorPos`，按键用 `SendInput`；文本走 `KEYEVENTF_UNICODE`（代理对拆成两个 UTF-16 单元），功能键与组合键走虚拟键码。
+- 已知边界：锁屏与 UAC 安全桌面截不到内容；向更高完整性级别的窗口投递输入会被系统丢弃；混合缩放的多屏在系统层面仍可能有少量偏差。
+- 窗口取图、落点探测与窗口清单只在 Windows 后端实现。
+
+#### macOS
+
+- 截屏：`/usr/sbin/screencapture -x -t png -R x,y,w,h <临时文件>`，区域按全局显示坐标（点）给；图片像素按显示器比例放大，`geometry` 用 `CGDisplayPixelsWide` 报出 `pixel_ratio`。读取后删除临时文件。
+- 输入：CoreGraphics 的 `CGEventCreateMouseEvent` / `CGEventCreateKeyboardEvent`；文本用 `CGEventKeyboardSetUnicodeString` 注入，组合键同时设置修饰键 flags。
+- 权限：截屏需要屏幕录制权限，输入需要辅助功能权限。缺少时分别报 `DesktopPermissionDenied`，文案指向「系统设置 → 隐私与安全性」下对应的开关。
+- 能力边界：macOS 后端没有窗口端口与落点探测端口。`desktop_eye`、`desktop_mouse`（`cursor` 以外的动作）、`desktop_keyboard` 的 `window` / `hwnd` 参数，以及 `desktop_wait` 的窗口条件或窗口区域比较，都会抛 `DesktopUnavailable`。`desktop_eye(hover=...)` 只移动光标并截屏幕合成结果，不会自动选取光标下的窗口；`hit` 缺失，`window_changed` 只给出 `changed: false`。输入发给当前前台应用；调用方需用其它方式把目标应用置前。
+
+#### 其它平台
+
+Linux 与未识别平台装配不可用后端：工具照常注册，调用截屏或输入时抛 `DesktopUnavailable`。这样 CI 与不同机器上的工具表保持一致，模型看到的是明确原因，而不是工具凭空消失。后端装配失败时写入一条 stderr 诊断，并回退到同一不可用后端。
+
+### 测试
+`tests/test_visual_operator.py` 覆盖坐标、键名、配置、截图加工（缩放 / 网格 / 空白 / 坏数据）、全部工具的参数矩阵与返回值、`hover` / `hover_path` / `hover_wiggle` / `shot` / `hit` / `changed` / `window_changed` / `navigated`、条件等待、同名窗口消歧、Plan 门控、输入锁、平台表与后端可用性；Windows 上额外校验虚拟键码表覆盖全部规范键名与 UTF-16 代理对拆分。后端用记录型替身，测试不移动真实光标、不注入真实按键。
+
+## 4. 其他细节
+
+### 配置
 身份在 `plugin-meta.json`。插件开关在 `plugins.ini`；能力开关与时间参数在 `plugin-config.ini`。
 
 ```ini
@@ -278,38 +318,12 @@ wait_interval_ms = 200
 
 配置文件缺失、节缺失或值写坏时回退缺省；越界值夹到边界。配置错误不阻断工具注册。网格开启时，`grid_step` 会出现在回执里；`max_side` 造成的缩放可从 `image` 与 `note` 反查。其余键不回显。
 
-## 平台后端
-
-### Windows
-
-- 截屏：整屏走 `GetDC(NULL)` + `BitBlt(SRCCOPY | CAPTUREBLT)` + `GetDIBits`，按虚拟桌面坐标截取，负坐标的副屏也在内；窗口走 `PrintWindow(PW_RENDERFULLCONTENT)`，取窗口自身重绘，被别的窗口遮挡也能拿到内容。像素按 `BGRX` 直接编码 PNG，不额外翻转。
-- 回退：`PrintWindow` 得到单一颜色（包括全黑）时，会在重绘时限内重试；仍取不到内容且窗口可见时回退屏幕截图，并把 `source` 标成 `screen`；窗口不可见且取不到内容时报 `ScreenCaptureFailed`。
-- 落点探测：`WindowFromPoint` 拿坐标下的子窗口，`GetAncestor(GA_ROOT)` 拿所属顶层窗口，`GetClassNameW` 拿控件类名。拿不到就省略 `hit`，不猜。
-- 窗口清单：`EnumWindows` 枚举可见顶层窗口（跳过工具窗与屏幕外辅助窗），只用于动作前后的 `window_changed` 对比；清单本身不进上下文。
-- DPI：装载时声明 per-monitor v2；宿主已经声明过则沿用宿主的选择。声明失败时依次退回 `SetProcessDpiAwareness` 与 `SetProcessDPIAware`。
-- 输入：定位用 `SetCursorPos`，按键用 `SendInput`；文本走 `KEYEVENTF_UNICODE`（代理对拆成两个 UTF-16 单元），功能键与组合键走虚拟键码。
-- 已知边界：锁屏与 UAC 安全桌面截不到内容；向更高完整性级别的窗口投递输入会被系统丢弃；混合缩放的多屏在系统层面仍可能有少量偏差。
-- 窗口取图、落点探测与窗口清单只在 Windows 后端实现。
-
-### macOS
-
-- 截屏：`/usr/sbin/screencapture -x -t png -R x,y,w,h <临时文件>`，区域按全局显示坐标（点）给；图片像素按显示器比例放大，`geometry` 用 `CGDisplayPixelsWide` 报出 `pixel_ratio`。读取后删除临时文件。
-- 输入：CoreGraphics 的 `CGEventCreateMouseEvent` / `CGEventCreateKeyboardEvent`；文本用 `CGEventKeyboardSetUnicodeString` 注入，组合键同时设置修饰键 flags。
-- 权限：截屏需要屏幕录制权限，输入需要辅助功能权限。缺少时分别报 `DesktopPermissionDenied`，文案指向「系统设置 → 隐私与安全性」下对应的开关。
-- 能力边界：macOS 后端没有窗口端口与落点探测端口。`desktop_eye`、`desktop_mouse`（`cursor` 以外的动作）、`desktop_keyboard` 的 `window` / `hwnd` 参数，以及 `desktop_wait` 的窗口条件或窗口区域比较，都会抛 `DesktopUnavailable`。`desktop_eye(hover=...)` 只移动光标并截屏幕合成结果，不会自动选取光标下的窗口；`hit` 缺失，`window_changed` 只给出 `changed: false`。输入发给当前前台应用；调用方需用其它方式把目标应用置前。
-
-### 其它平台
-
-Linux 与未识别平台装配不可用后端：工具照常注册，调用截屏或输入时抛 `DesktopUnavailable`。这样 CI 与不同机器上的工具表保持一致，模型看到的是明确原因，而不是工具凭空消失。后端装配失败时写入一条 stderr 诊断，并回退到同一不可用后端。
-
-## 门控与并发
-
+### 门控与并发
 - Plan 模式：`desktop_eye` 不带 `hover` 时可用；带 `hover` 时拒绝，因为它会移动真实光标。门控不检查 `activate`：`activate=true` 在 Plan 模式下仍可把窗口置前。`desktop_mouse` 的 `cursor` 可用，其余动作与 `desktop_keyboard` 全部动作抛 `ModeConflict`。`desktop_wait` 只读，可用。门控按会话取 `live_state`；装载阶段拿不到时在执行时再取，取不到则不拦。
 - 输入锁：`desktop_mouse` 与 `desktop_keyboard` 共用一把进程内锁，同一时刻只有一个动作在投递；等锁超过 10 秒抛 `DesktopBusy`。拖拽的按下与松开始终成对。`desktop_eye` 的 `hover` 移动光标不经过这把锁。
 - 坐标校验：动作前检查目标点是否落在屏幕矩形内，屏外坐标直接报错；没有坐标的动作使用当前光标位置，没有可校验的点。
 
-## 失败文案
-
+### 失败文案
 | 异常 | 含义 |
 |---|---|
 | `DesktopUnavailable` | 平台不支持、缺 Pillow 或后端装配失败 |
@@ -318,12 +332,10 @@ Linux 与未识别平台装配不可用后端：工具照常注册，调用截�
 | `DesktopBusy` | 另一个桌面动作占着输入锁 |
 | `DesktopError` | 其余系统调用失败（带 WinError 或系统调用名） |
 
-## 测试
+## 5. 延伸阅读
 
-`tests/test_visual_operator.py` 覆盖坐标、键名、配置、截图加工（缩放 / 网格 / 空白 / 坏数据）、全部工具的参数矩阵与返回值、`hover` / `hover_path` / `hover_wiggle` / `shot` / `hit` / `changed` / `window_changed` / `navigated`、条件等待、同名窗口消歧、Plan 门控、输入锁、平台表与后端可用性；Windows 上额外校验虚拟键码表覆盖全部规范键名与 UTF-16 代理对拆分。后端用记录型替身，测试不移动真实光标、不注入真实按键。
-
-## 延伸阅读
-
-- [plugins.md](plugins.zh.md)：插件包形态、扩展点与生命周期
-- [tools.md](tools.zh.md)：工具注册、执行管道与图片附件
-- [llm.md](llm.zh.md)：多模态请求里的图片块
+| 主题 | 文档 |
+|---|---|
+| 插件包形态、扩展点与生命周期 | [plugins.zh.md](plugins.zh.md) |
+| 工具注册、执行管道与图片附件 | [tools.zh.md](tools.zh.md) |
+| 多模态请求里的图片块 | [llm.zh.md](llm.zh.md) |

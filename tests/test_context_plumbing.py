@@ -89,7 +89,7 @@ class ContextPlumbingTest(unittest.TestCase):
         self.assertEqual(ctx.service("demo_service"), {"hello": "world"})
         self.assertIsNone(ctx.service("不存在"), msg="未注册服务返回 None，不抛错")
 
-    def test_session_state_reachable_from_tool_round(self) -> None:
+    def test_live_state_reachable_from_tool_round(self) -> None:
         """会话态（门控 / 实时状态 / 待确认）直接从会话上下文取。"""
         self.session.pending_confirm = {"call_id": "call-9", "title": "t", "confirms": ["a"]}
         self.pipeline.execute(self.registry, self.call, _FakeTurn(self.app, self.session))

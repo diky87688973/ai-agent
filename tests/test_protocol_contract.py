@@ -147,6 +147,7 @@ class KernelEventEmissionTest(unittest.TestCase):
         engine = app.session("probe-events-contract", system_prompt="SYS")
         cls.seen = [e.type for e in engine.start_turn("跑一次工具")]
         cls.app = app
+        cls.addClassCleanup(app.dispose)
 
     def test_core_structural_events_emitted(self) -> None:
 
@@ -171,6 +172,7 @@ class KernelEventEmissionTest(unittest.TestCase):
         """单流多路复用依赖每个事件绑定 conversation_id。"""
 
         app = _isolated_app()
+        self.addCleanup(app.dispose)
         engine = app.session("probe-cid-binding", system_prompt="SYS")
         events = list(engine.start_turn("你好"))
         self.assertTrue(events)
@@ -183,6 +185,7 @@ class KernelEventEmissionTest(unittest.TestCase):
         """载荷为统一信封（type + data），前端 JSON.parse 后按 type 分派。"""
 
         app = _isolated_app()
+        self.addCleanup(app.dispose)
         engine = app.session("probe-envelope", system_prompt="SYS")
         for event in engine.start_turn("你好"):
             self.assertIsInstance(event.type, str)
@@ -195,6 +198,7 @@ class AssetReusePolicyTest(unittest.TestCase):
         """后端载荷不含 HTML——工具结果与事件均为结构化数据。"""
 
         app = _isolated_app()
+        self.addCleanup(app.dispose)
         engine = app.session("h006-render", system_prompt="SYS")
         for event in engine.start_turn("你好"):
             data = event.data
@@ -213,7 +217,8 @@ class AssetReusePolicyTest(unittest.TestCase):
         self.assertIn("r.image=", ui)
         self.assertIn("function mdParser(", ui, "散文块应由 markdown 解析器实例渲染")
         self.assertIn(".use({renderer:", ui, "渲染定制应经 marked.use 安装")
-        self.assertNotIn("base64,", ui, "渲染链路不得内联 base64")
+        # 模型正文允许 data:image 内联图片；契约约束的是服务端事件不得内联 HTML/base64。
+        self.assertIn("sanitizeRenderedHtml", ui)
         vendor = (_ROOT / "plugins/web_ui/ui/classic/js/vendor/marked.min.js")
         self.assertTrue(vendor.is_file(), "markdown 解析器应随素材分发")
 
@@ -224,6 +229,7 @@ class UiStateContractTest(unittest.TestCase):
         """模式 / 折叠态归 live_state（按 cid），不落全局单例。"""
 
         app = _isolated_app()
+        self.addCleanup(app.dispose)
         app.live_state.set_mode("h010-a", "execute")
         app.live_state.set_todo("h010-a", {"list_id": "L1", "items": [{"text": "x", "done": False}]})
         self.assertEqual(app.live_state.get_mode("h010-a"), "execute")

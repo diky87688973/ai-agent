@@ -39,6 +39,13 @@ function bind(){
   if(d.event==="eye_opened"){setState(String(d.conversation_id||"")===cid());}
   else if(d.event==="eye_closed"){setState(false);}
  });
+ document.addEventListener("click",function(ev){
+  var b=ev.target&&ev.target.closest?ev.target.closest(SELECTOR):null;
+  if(!b)return;
+  fetch("/api/plugin/"+PLUGIN+"/eye-consent/revoke",{
+   method:"POST",headers:{"Content-Type":"application/json"},body:"{}"
+  }).catch(function(){});
+ });
 
 }
 function init(){bind();var b=button();if(b){b.hidden=true;refresh();}}

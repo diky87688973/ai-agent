@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from agent.capabilities.plugins import plugin_config_fields, resolve_plugin_root
+from agent.common.status import PLUGIN_ERROR, PLUGIN_NOTE, PLUGIN_STATUSES, require
 from agent.config import DEFAULT_PLUGINS_PATH, get_plugins
 from agent.core.error_report import report_error
 from agent.shell.ini_sections import section_span
@@ -171,7 +172,7 @@ def sync_plugins(app: Any, *, plugins_path: Optional[Path] = None,
     for report in host.load_manifest(desired):
         reports.append({
             "name": str(report.name),
-            "status": str(report.status),
+            "status": require(report.status, PLUGIN_STATUSES, "插件装载状态"),
             "message": str(report.message or ""),
         })
     # 目录贡献随插件装卸而来去；不重算权威，停用后路由仍指着已注销的条目。
@@ -179,7 +180,7 @@ def sync_plugins(app: Any, *, plugins_path: Optional[Path] = None,
     if callable(refresh):
         note = str(refresh() or "")
         if note:
-            reports.append({"name": "", "status": "note", "message": note})
+            reports.append({"name": "", "status": PLUGIN_NOTE, "message": note})
     _announce_plugins(app, host.loaded_names())
     return reports
 
@@ -293,7 +294,7 @@ def write_plugin_config(name: str, text: Any = None, groups: Any = None,
         if host is not None and plugin in list(host.loaded_names()):
             host.unload(plugin)
             reports = sync_plugins(app)
-    if not any(str(item.get("status") or "") == "error" for item in reports):
+    if not any(str(item.get("status") or "") == PLUGIN_ERROR for item in reports):
         _announce_plugin_config(app, plugin)
     return {"ok": True, "reports": reports}
 

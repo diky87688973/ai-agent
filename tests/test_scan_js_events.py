@@ -2,7 +2,7 @@
 """JS 事件绑定审计：分级判准与输出格式。
 
 沿用「重渲染列表用委托」这条初衷：列表项逐项绑算 per-item，模块级一次性
-绑全局监听不算泄漏。负向用例与正向成对出现，防止判准日后悄悄退回旧版。
+绑全局监听不算泄漏。负向用例与正向成对出现，保证判准稳定。
 """
 from __future__ import annotations
 
@@ -127,7 +127,7 @@ class LeakRiskTest(unittest.TestCase):
         self.assertEqual(bindings[0].verdict, "leak-risk")
 
     def test_module_level_global_listener_is_not_leak_risk(self) -> None:
-        """模块级只绑一次，不是泄漏——负向用例，防止判准退回旧版。"""
+        """模块级只绑一次，不是泄漏；负向用例与正向成对，保证判准稳定。"""
         text = 'window.addEventListener("resize", function(){ repaint(); });\n'
         bindings = scan_text(text, "fixture.js")
         self.assertEqual(bindings[0].verdict, "global-once")

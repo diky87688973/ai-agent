@@ -44,6 +44,21 @@ class CommandSafetyUnitTest(unittest.TestCase):
 
         self.assertIsNotNone(cs.check_command_blacklist("powershell set-acl .\\a.txt"))
 
+    def test_blacklist_nested_shell_wrappers(self) -> None:
+
+        for command in (
+            "cmd /c del foo.txt",
+            "cmd.exe /c erase foo.txt",
+            'powershell -Command Remove-Item foo.txt',
+            "powershell -c Remove-Item foo.txt",
+            "powershell -NoProfile -Command Remove-Item foo.txt",
+            "cmd /c powershell -Command Remove-Item foo.txt",
+            "echo ok & del foo.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNotNone(cs.check_command_blacklist(command), command)
+        self.assertIsNone(cs.check_command_blacklist("echo del foo"))
+
     def test_blacklist_disk_and_acl(self) -> None:
         self.assertIsNotNone(cs.check_command_blacklist("format D:"))
         self.assertIsNotNone(cs.check_command_blacklist("icacls .\\data /grant everyone:F"))
@@ -125,6 +140,7 @@ class CommandToolsTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
         self.app = build_app()
+        self.addCleanup(self.app.dispose)
         self._seq = 0
 
     def _call(self, name: str, arguments: dict):
@@ -207,6 +223,7 @@ class PythonInlineTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
         self.app = build_app()
+        self.addCleanup(self.app.dispose)
         self._seq = 0
 
     def _call(self, name: str, arguments: dict):

@@ -1,11 +1,33 @@
-**English** | [中文](core.zh.md)
+﻿# Kernel
 
-# Kernel
+## 1. Overview
 
 `agent/core/` is the L0 layer and depends on no other layer. It provides four things: data contracts, the module abstraction, the chain executor, and the host loop.
 
-## Data contracts
+## 2. Slots
 
+### Exposed
+
+| Slot path | Capability | Key attributes | Replacement / override |
+|---|---|---|---|
+| `app/kernel` | module contribution | owner=module; assembled by SlotTree; failure follows master | Override at the same path with `replace=true`; restore on unload |
+| `app/kernel/modules/input` | kernel module | owner=module; assembled by SlotTree; failure follows master | Override at the same path with `replace=true`; restore on unload |
+| `app/kernel/modules/queued_input` | kernel module | owner=module; assembled by SlotTree; failure follows master | Override at the same path with `replace=true`; restore on unload |
+| `app/kernel/modules/compress` | kernel module | owner=module; assembled by SlotTree; failure follows master | Override at the same path with `replace=true`; restore on unload |
+| `app/kernel/modules/model` | kernel module | owner=module; assembled by SlotTree; failure follows master | Override at the same path with `replace=true`; restore on unload |
+| `app/kernel/modules/tool` | kernel module | owner=module; assembled by SlotTree; failure follows master | Override at the same path with `replace=true`; restore on unload |
+### Required
+
+| Dependency path | Capability | Provider | Why |
+|---|---|---|---|
+| `app/host/services/event_bus` | host service | host | must be ready before assembly; unavailable propagates as startup/request failure |
+| `app/host/services/registry` | host service | host | must be ready before assembly; unavailable propagates as startup/request failure |
+| `app/host/services/contexts` | host service | host | must be ready before assembly; unavailable propagates as startup/request failure |
+| `app/host/services/pipeline` | host service | host | must be ready before assembly; unavailable propagates as startup/request failure |
+
+## 3. Slot capabilities
+
+### Data contracts
 | File | Contents |
 |---|---|
 | `event_name.py` | 26 event-name constants. Plain strings, zero dependencies |
@@ -17,8 +39,7 @@
 
 Only these objects cross layer boundaries; bare dicts are not passed.
 
-## Control signals
-
+### Control signals
 ```python
 class Outcome:
     status: str    # ok / next / halt / suspend / stopped
@@ -35,8 +56,7 @@ class Outcome:
 
 `Outcome` carries **only control signals, never data** (`reason` describes the terminal state, not a payload). Message text, usage, and progress all leave through `ports.emit()`. This separation keeps modules from sharing mutable turn state.
 
-## Module abstraction
-
+### Module abstraction
 ```python
 class ModuleBase:
     # generator contract: yield facts, return the control signal
@@ -57,7 +77,7 @@ Five concrete modules live in the `agent/core/modules/` package:
 
 `build_default_chain()` assembles them in the order input → queued input insertion → compaction → model → tools.
 
-### How each module decides
+#### How each module decides
 
 **`InputModule`**: with input it emits `input_claimed` and returns `ok`; **with no input it emits no `input_claimed`**, only the terminal `input_ended`. This is required because a resume turn triggered by an interface confirmation has no user utterance; emitting an empty `input_claimed` there would make the message sequence `…assistant(tool_calls) → user("") → tool`, which the model API rejects.
 
@@ -69,8 +89,7 @@ Five concrete modules live in the `agent/core/modules/` package:
 
 **`ToolModule`**: the closing module of the chain. It finds calls requested by the newest model message that still have no result and executes them; calls already suspended are not executed again. When external input is required it emits `tool_suspended` and `tool_ended`, cancels the rest of the batch, and returns `Outcome.suspend(...)` (control returns to the host; it does not block). Otherwise, if it executed any call, it returns `next`.
 
-## Chain executor
-
+### Chain executor
 `chain.py` answers "how one pass runs":
 
 ```python
@@ -81,8 +100,7 @@ step(module, ports)            -> (list[Event], Outcome)
 
 `run_chain_iter` returns a `_Pass`. Iterating it yields events as they are produced; after iteration, `.result` holds the pass result. `PassResult` records the pass's terminal outcome, if any, and whether any module requested another pass. `run_chain` stops immediately on any terminal outcome (`halt`, `suspend`, or `stopped`) and runs no further modules. `step` is the narrow single-module entry used by tests and assembly checks.
 
-## Host loop
-
+### Host loop
 `host.py` answers "when to stop" and defines turn boundaries.
 
 ```python
@@ -102,8 +120,7 @@ Of these, the host checks only condition 3 directly, through `PassResult.wants_a
 
 `TurnResult` summarizes one turn: the ending reason (`done` / `halted` / `suspended` / `stopped` / `max_passes` / `abandoned`), the number of passes run, and a terminal explanation. Facts live in `SessionLog`, not on `TurnResult`.
 
-## Engine facade
-
+### Engine facade
 `Engine` in `engine.py` wraps the module chain in the two faces the shell needs:
 
 - **Start a turn**: deliver input and start the host loop;
@@ -111,8 +128,7 @@ Of these, the host checks only condition 3 directly, through `PassResult.wants_a
 
 `App.session(conversation_id, *, system_prompt, cancel, ...)` builds a new `Engine` each time; turn state is not shared between sessions.
 
-## Session scope
-
+### Session scope
 `session_scope.py` answers how a tool deep in a call knows which session it belongs to.
 
 ```python
@@ -123,8 +139,7 @@ set_progress_reporter(fn) / emit_progress(stream=..., text=..., done=...)
 
 Implemented with contextvars. Tools and pipeline hooks take the session id from `current_session_id()` and resolve the session context through `SessionContexts`. This is the execution mechanism for session isolation.
 
-## Image embedding
-
+### Image embedding
 `image_embed.py` handles how attachment images enter the request body. It belongs to request derivation: the side that folds facts into a request owns this.
 
 - `shrink_image()` / `shrink_path()`: resize locally by the long edge to reduce base64 payload (long-edge limit `EMBED_MAX_SIDE = 800`);
@@ -137,8 +152,7 @@ Implemented with contextvars. Tools and pipeline hooks take the session id from 
 
 A stripped image disappears only from **the copy sent to the model**: the base64 in the fact stream is untouched, so history replay and re-asking can still obtain the original image.
 
-## Context container
-
+### Context container
 `context.py` contains two classes:
 
 | Class | Role |
@@ -148,8 +162,14 @@ A stripped image disappears only from **the copy sent to the model**: the base64
 
 Service-name constants are at the top of `core/context.py`; assembly points and consumers reference the same constants.
 
-## Further reading
+## 4. Details
 
-- [architecture.md](../architecture.md): five-layer structure and assembly
-- [context.md](context.md): context management
-- [tools.md](tools.md): tool execution pipeline
+No additional details.
+
+## 5. Further reading
+
+| Topic | Document |
+|---|---|
+| five-layer structure and assembly | [architecture.md](../architecture.md) |
+| context management | [context.md](context.md) |
+| tool execution pipeline | [tools.md](tools.md) |

@@ -137,10 +137,12 @@ def build_embed_parts(
             raw = base64.b64decode(data, validate=False)
         except Exception as exc:
             report_error("agent.core.image_embed.build_embed_parts", exc)
-            skipped.append(str(index))
+            if declared:
+                skipped.append(str(index))
             continue
         if not raw:
-            skipped.append(str(index))
+            if declared:
+                skipped.append(str(index))
             continue
         shrunk, mime = shrink_image(raw, max_side=max_side, declared_mime=declared)
         b64 = base64.b64encode(shrunk).decode("ascii")

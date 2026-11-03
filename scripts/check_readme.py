@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ci_steps import catalog, gate_steps
+from ci_steps import ACCEPTANCE, catalog, gate_steps
 
 # 在 GBK 控制台直接跑本脚本时，打印 ✅/中文会抛 UnicodeEncodeError ——
 # 表现为「检查全过但退出码 1」（`ci.py` 用 PYTHONIOENCODING 掩盖了它）。
@@ -32,9 +32,7 @@ README = ROOT / "README.md"
 
 def _ci_acceptance_scripts() -> int:
     """读 ci_steps 清单里的验收脚本数（不是目录里有多少个）。"""
-    src = (ROOT / "scripts" / "ci_steps.py").read_text(encoding="utf-8")
-    block = src.split("ACCEPTANCE = [", 1)[1].split("]", 1)[0]
-    return len([x for x in re.findall(r'"(acceptance_\w+)"', block)])
+    return len(ACCEPTANCE)
 
 
 def _test_method_count() -> int:

@@ -81,7 +81,7 @@ class FindInFileTest(unittest.TestCase):
         self.assertIn("grep_files", message)
 
     def test_missing_file_is_not_reported_as_dir(self) -> None:
-        """文件不存在与传了目录必须分开说 —— 旧版两者都报「不是已存在文件」。"""
+        """文件不存在与传了目录必须分开报，不能混成「不是已存在文件」。"""
         root = Path(self._tmp.name)
         with self.assertRaises(FileNotFoundError) as ctx:
             self.tool.execute({"path": str(root / "nope.md"), "pattern": "x"})
@@ -316,7 +316,11 @@ class WebToolsTest(unittest.TestCase):
             r = tool.execute({"url": self.url, "min_chars": 10, "require_keywords": "Hello,不存在", "out_file": str(out)})
             self.assertEqual(r["title"], "Test Page")
             self.assertIn("Hello World", r["text"])
-            self.assertTrue(r["written"])
+            self.assertFalse(r["written"], msg="out_file 不得在预览阶段直写")
+            self.assertTrue(r["needs_commit"])
+            self.assertFalse(out.exists())
+            written = web_tools.build_executors()["web_fetch"](r["_preview_arguments"])
+            self.assertTrue(written["written"])
             self.assertEqual(out.read_text(encoding="utf-8"), r["text"])
             self.assertEqual(r["checks"]["hit_keywords"], ["Hello"])
 

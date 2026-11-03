@@ -13,6 +13,11 @@ from typing import Callable, Optional, Protocol, Sequence
 from .coords import ScreenGeometry, ScreenPoint, ScreenRect
 from .locate import LocatorPort
 
+ACTIVATION_NONE = "none"
+ACTIVATION_OK = "ok"
+ACTIVATION_FAILED = "failed"
+ACTIVATION_STATUSES = (ACTIVATION_NONE, ACTIVATION_OK, ACTIVATION_FAILED)
+
 
 @dataclass(frozen=True)
 class Screenshot:
@@ -35,7 +40,7 @@ class Screenshot:
     source: str = "screen"
     restored: bool = False
     foreground: bool = False
-    activation: str = "none"
+    activation: str = ACTIVATION_NONE
 
 
 @dataclass(frozen=True)

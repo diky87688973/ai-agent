@@ -18,7 +18,7 @@ plugin_tree_only = 0
 
 | 键 | 默认 | 含义 |
 |---|---|---|
-| `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可切换，**会话级选择优先**，且按会话落盘（`data/session_state/`） |
+| `reasoning_effort` | `max` | 全局推理档位。`max` = 深度推理，`high` = 标准推理。会话内可切换，**会话级选择优先**，且按会话落盘（`data/session/state/`） |
 | `backup_retention_days` | `7` | 版本化备份保留天数。启动时清理更早的；`0` = 永久保留 |
 | `max_passes` | `64` | 每回合模型往返上限；小于 1 按 1 处理。每次往返可调用 0 个或多个工具，不是工具调用次数上限 |
 | `plugin_tree_only` | `0` | `1` 时只允许装载落在 `plugins/` 树内的插件目录；清单里的绝对/外置 `path` 会被拒。环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先 |
@@ -117,11 +117,11 @@ enabled = 1
 | `skills` | Skills 库（内置 + 外置）与 `skills` 工具 | `plugins/skills/plugin-config.ini` |
 | `rules` | `rules/` 下的 `.md` 全量注入上下文 | 无配置（只有开关）；见 [Rules](../subsystems/rules.zh.md) |
 | `knowledge` | 本地知识库检索 | `plugins/knowledge/plugin-config.ini` |
-| `ai_speak` | 人类口语播报与语音播放 | `plugins/ai_speak/plugin-config.ini` |
+| `ai_cosplay` | 人类口语播报与语音播放 | `plugins/ai_cosplay/plugin-config.ini` |
 
 **节的先后即上下文组装顺序**：越不容易变动的插件排在越前面。
 
-**插件自己的配置跟着插件走。** `ai_speak` / `visual_operator` / `knowledge` / `skills` 的配置入库；`multi_model` 的密钥配置被 `.gitignore` 排除；**内核的 `config.ini` 里没有插件设置**。插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.zh.md)。
+**插件自己的配置跟着插件走。** `ai_cosplay` / `visual_operator` / `knowledge` / `skills` 的配置入库；`multi_model` 的密钥配置被 `.gitignore` 排除；**内核的 `config.ini` 里没有插件设置**。插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.zh.md)。
 
 ## HTTP 鉴权
 
@@ -234,9 +234,9 @@ agent-web --revoke-token ci
 
 | 目录 | 内容 |
 |---|---|
-| `data/sessions/` | 会话事实日志 |
-| `data/titles/` | 会话标题（纯文本派生缓存） |
-| `data/session_state/` | 会话状态（模型 / 模式 / 推理档位 / 清单，一个会话一份 JSON） |
+| `data/session/raw/` | 会话事实日志 |
+| `data/session/titles/` | 会话标题（纯文本派生缓存） |
+| `data/session/state/` | 会话状态（模型 / 模式 / 推理档位 / 清单，一个会话一份 JSON） |
 | `data/temp/` | 临时产物（写盘前备份见上节「文件备份」） |
 | `data/mesh/` | 会话间协作（`agents.json` 注册表 + 运行态） |
 | `data/queues/` | 会话待发送消息队列（用户与 Agent 消息、附件） |
@@ -245,7 +245,9 @@ agent-web --revoke-token ci
 | `data/workspace/` | `/workspace/` 静态路由根 |
 | `data/recycle/` | 删除操作的回收目录 |
 | `data/plugin/<插件名>/` | 插件专属存储（插件只看到自己那一层） |
+| `data/check/` | 工程复核清单与核实脚本 |
 | `data/cache/` | 派生缓存，含会话加密密钥 |
+| `data/tests/` | Regression evidence and test scripts |
 | `data/auth/` | 密码凭据、API Token、鉴权日志；不进入发布包 |
 | `data/logs/errors.log` | 进程错误日志（JSONL；内核/插件装配与宿主运行异常；工具业务失败收成 `ToolResult` 后不记此处；超约 2MB 轮转为 `errors.log.1`） |
 

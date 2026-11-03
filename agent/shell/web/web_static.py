@@ -12,7 +12,6 @@ MAX_BODY_BYTES = 4 * 1024 * 1024  # 4 MB 请求体上限
 SSE_HEARTBEAT_SEC = 15.0
 MODE_VALUES = ("auto", "plan", "execute")
 _BINARY_SNIFF_BYTES = 4096
-TITLE_SCAN_LINES = 400
 
 _LANG_BY_EXT = {
     "py": "python", "js": "javascript", "mjs": "javascript", "cjs": "javascript",

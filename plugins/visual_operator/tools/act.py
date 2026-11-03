@@ -88,7 +88,6 @@ class DesktopActTool(ToolPlugin):
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
         reject_unknown(arguments, set(_FIELDS), action=self.name)
-        self._history = []
         steps = normalize_steps(arguments.get("steps"))
         on_error = choice(arguments, "on_error", ("stop", "continue"), "stop")
         capture = choice(arguments, "capture", ("none", "failure", "final"), "none")
@@ -102,6 +101,7 @@ class DesktopActTool(ToolPlugin):
         if on_error == "continue" and not read_only:
             raise ValueError("on_error=continue 只允许只读步骤")
         with input_guard():
+            self._history = []
             result = run(steps, self._execute, self._assert_step,
                          timeout_ms=timeout, on_error=on_error)
         data = {

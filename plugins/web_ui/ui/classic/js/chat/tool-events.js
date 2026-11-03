@@ -61,8 +61,3 @@ var _dwd=_dws&&_dws.data&&typeof _dws.data==="object"?_dws.data:null;
 if(_dwd)desktopUpdateStepSummary(tid,o.script||ev.script,o.args||{},_dwd);
 }catch(_eWs){}
 toolOpen.delete(tid);}
-
-/* 把 HTTP 失败收成对话区可读文案。
-   本服务：409（会话忙）。
-   DeepSeek 模型侧：400/401/402/422/429/500/503（官方 Error Codes）。
-   其余：优先响应 JSON 的 error，再兜底状态码。 */

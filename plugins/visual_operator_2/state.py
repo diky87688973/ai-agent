@@ -10,19 +10,28 @@ import threading
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from PIL import Image, ImageChops, ImageStat
 
 from agent.core.error_report import report_error
+from agent.core.thread_context import thread_with_context
 
-from . import backend, calibration, render
+from . import backend, calibration, observation, render
 from .config import VisionConfig
-from .consent import CONSENT_OPTIONS, CONSENT_TITLE
+from .consent import (
+    CONSENT_OPTIONS,
+    CONSENT_TITLE,
+    DECISION_AGREE,
+    DECISION_REJECT,
+    DECISIONS,
+)
 
 CaptureFn = Callable[[], Image.Image]
 CursorFn = Callable[[], Tuple[int, int]]
+
+REASON_USER_TAKEOVER = "user_takeover"
 @dataclass(slots=True)
 class Frame:
     frame_id: str
@@ -30,6 +39,8 @@ class Frame:
     cursor: Tuple[int, int]
     captured_at: float
     generation: int
+    rendered: Dict[Tuple[Any, ...], Any] = field(default_factory=dict)
+    calibration: Optional[Dict[str, Any]] = None
 @dataclass(slots=True)
 class PendingConsent:
     request_id: str
@@ -67,13 +78,13 @@ class VisionRuntime:
         self._focus: Optional[Dict[str, int]] = None
         self._challenges = calibration.ChallengeStore(config.calibration_tolerance_px, config.calibration_enabled)
         self._observed_frame_id = ""
+        self._observed_frame: Optional[Frame] = None
         self._calibration_failures = 0
         self._last_calibration: Dict[str, Any] = {}
         self._pending: Optional[PendingConsent] = None
         self._grants: Dict[str, Dict[str, Any]] = {}
         self._last_diff = 0.0
         self._last_wake = 0.0
-        self._closed = False
     def request_open(self, conversation_id: str, call_id: str) -> Dict[str, Any]:
         cid = str(conversation_id or "").strip()
         if not cid:
@@ -124,7 +135,7 @@ class VisionRuntime:
         cid = str(conversation_id or "").strip()
         rid = str(request_id or "").strip()
         decision = str(choice or "").strip().lower()
-        if decision not in ("agree", "reject"):
+        if decision not in DECISIONS:
             return {"ok": False, "error": "choice 只能是 agree 或 reject"}
         with self._lock:
             req = self._pending
@@ -133,8 +144,8 @@ class VisionRuntime:
             if self._owner and self._owner != cid:
                 return {"ok": False, "error": "眼睛正被其他会话使用"}
             self._pending = None
-            if decision == "reject":
-                return {"ok": True, "decision": "reject", "consent_id": "",
+            if decision == DECISION_REJECT:
+                return {"ok": True, "decision": DECISION_REJECT, "consent_id": "",
                         "call_id": req.call_id}
             self._owner = cid
             consent_id = "consent_" + uuid.uuid4().hex
@@ -146,7 +157,7 @@ class VisionRuntime:
             }
             return {
                 "ok": True,
-                "decision": "agree",
+                "decision": DECISION_AGREE,
                 "consent_id": consent_id,
                 "call_id": req.call_id,
             }
@@ -168,7 +179,7 @@ class VisionRuntime:
             self._eyes_open = True
             self._takeover = False
             self._generation += 1
-            self._frames.clear()
+            self._drop_frames_locked()
             try:
                 before = self._cursor()
                 image = self._capture()
@@ -216,7 +227,7 @@ class VisionRuntime:
             self._eyes_open = False
             self._owner = ""
             self._generation += 1
-            self._frames.clear()
+            self._drop_frames_locked()
             self._grants.clear()
             self._pending = None
             self._focus = None
@@ -224,11 +235,12 @@ class VisionRuntime:
             self._observed_frame_id = ""
             self._last_calibration = {}
             self._calibration_failures = 0
+        self._stop_monitor()
         if self._control_badge is not None:
             self._control_badge.hide()
         self._emit("eye_closed", {
             "conversation_id": cid,
-            "reason": "user_takeover",
+            "reason": REASON_USER_TAKEOVER,
         })
         self._emit("control_returned", {
             "conversation_id": cid,
@@ -246,7 +258,7 @@ class VisionRuntime:
             self._owner = ""
             self._takeover = False
             self._generation += 1
-            self._frames.clear()
+            self._drop_frames_locked()
             self._grants.clear()
             self._pending = None
             self._focus = None
@@ -274,11 +286,13 @@ class VisionRuntime:
             }
     def _calibration_error(self, points, frame_id, conversation_id, center_x,
                            center_y, image_width, image_height, model_only=False):
+        challenge = self._observed_calibration(frame_id)
         self._last_calibration = self._challenges.report(
             points, frame_id, center_x, center_y, image_width, image_height,
-            model_only=model_only) or self._last_calibration
+            model_only=model_only, challenge=challenge) or self._last_calibration
         error = self._challenges.error(points, frame_id, center_x, center_y,
-                                       image_width, image_height, model_only=model_only)
+                                       image_width, image_height,
+                                       model_only=model_only, challenge=challenge)
         if not error:
             self._calibration_failures = 0
             return ""
@@ -287,77 +301,43 @@ class VisionRuntime:
             self.stop(conversation_id)
             return error + "；连续 5 次校准失败，视觉已关闭"
         return error
+    def _observed_calibration(self, frame_id: str) -> Optional[Dict[str, Any]]:
+        frame = self._observed_frame
+        if frame is None or str(frame.frame_id) != str(frame_id or ""):
+            return None
+        return frame.calibration
+
+    def _drop_frames_locked(self) -> None:
+        """清空帧缓冲并释放每帧的编码缓存与校准点（调用方已持锁）。"""
+        for frame in self._frames:
+            frame.rendered.clear()
+            frame.calibration = None
+        self._frames.clear()
+        self._observed_frame = None
+        self._observed_frame_id = ""
+
+    def _granted_locked(self, conversation_id: str) -> bool:
+        return (bool(self._eyes_open) and not bool(self._takeover)
+                and self._owner == str(conversation_id or ""))
+
     def observe(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+        cid = str(conversation_id or "")
         with self._lock:
-            if not self._eyes_open or self._owner != str(conversation_id or ""):
+            if not self._granted_locked(cid):
                 return None
-            if not self._frames:
+        # 每次注入前都抓一帧，保证最新帧；fps>0 的后台采样只负责补历史帧。
+        self._capture_after_action(cid, delay_ms=0)
+        with self._lock:
+            if not self._granted_locked(cid) or not self._frames:
                 return None
-            frame = self._frames[-1]
+            history = list(self._frames)[-max(1, int(self.config.queue_size)):]
+            frame = history[-1]
             self._observed_frame_id = frame.frame_id
-            full = render.fit(frame.image, self.config.image_max_side)
-            challenge = self._challenges.get(frame, full)
-            if challenge is not None:
-                render.draw_calibration(full, challenge["screen"],
-                                        frame.image.width, frame.image.height)
-            render.draw_marker(full, (
-                round(frame.cursor[0] * full.width / frame.image.width),
-                round(frame.cursor[1] * full.height / frame.image.height),
-            ))
-            age_ms = int((time.monotonic() - frame.captured_at) * 1000)
-            full_image = render.data_url(full, self.config)
-            full_scale = float(frame.image.width) / float(full.width)
-            focus_data: Dict[str, Any] = {}
-            focus_image = ""
-            cursor_in_focus = False
-            images = ["FULL FRAME", full_image]
-            cursor_model_x = round(frame.cursor[0] * full.width / frame.image.width)
-            cursor_model_y = round(frame.cursor[1] * full.height / frame.image.height)
-            text = (
-                "<vision_observation>"
-                f"frame_id={frame.frame_id};age_ms={age_ms};"
-                f"cursor_model=({cursor_model_x},{cursor_model_y});"
-                f"image_center=({full.width // 2},{full.height // 2});"
-                f"original_image_size=({frame.image.width},{frame.image.height});"
-                f"compressed_image_size=({full.width},{full.height});"
-                f"coordinate_space=model_image;"
-                + ("calibration=C1;check_points=read C1 center from FULL FRAME;"
-                   if challenge is not None else "")
-                + f"owner={self._owner}"
-            )
-            if self._focus is not None:
-                view = render.focus_view(
-                    frame.image, self._focus, frame.cursor, self.config)
-                focus_image = view["url"]
-                focus_data = view["focus"]
-                cursor_in_focus = view["cursor_in_focus"]
-                images.extend([view["label"], focus_image])
-                text += (
-                    f";focus_size=({focus_data['image_size'][0]},"
-                    f"{focus_data['image_size'][1]})"
-                )
-            text += "</vision_observation>"
-            return {
-                "text": text,
-                "images": images,
-                "full_image": full_image,
-                "focus_image": focus_image,
-                "frame": frame,
-                "frame_id": frame.frame_id,
-                "age_ms": age_ms,
-                "cursor": {"x": frame.cursor[0], "y": frame.cursor[1]},
-                "cursor_in_focus": cursor_in_focus,
-                "screen_size": [frame.image.width, frame.image.height],
-                "full_size": [full.width, full.height],
-                "full_scale": full_scale,
-                "coordinate_space": "model_image",
-                "compressed_image_size": [full.width, full.height],
-                "original_image_size": [frame.image.width, frame.image.height],
-                "focus": focus_data,
-                "calibration": (calibration.public_points(challenge["screen"])
-                                if challenge is not None else []),
-                "last_calibration": self._last_calibration,
-            }
+            self._observed_frame = frame
+            return observation.build_observation(
+                history, self._focus, self.config, self._challenges,
+                self._owner, self._last_calibration)
+
     def publish_observation(self, observation: Dict[str, Any]) -> None:
         """把即将交给模型的那一帧同步推给前端；不写入会话历史。"""
         if self._publish is None:
@@ -386,10 +366,10 @@ class VisionRuntime:
               width: int, height: int, center_x: int, center_y: int,
               image_width: int, image_height: int) -> Dict[str, Any]:
         with self._lock:
-            if self._takeover:
-                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
-            if not self._eyes_open or self._owner != str(conversation_id or ""):
-                return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
+            if not self._granted_locked(conversation_id):
+                return {"ok": False, "error": (
+                    "用户已接管电脑，请重新申请视觉授权" if self._takeover
+                    else "眼睛未打开或不属于当前会话")}
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
             frame = self._frames[-1]
@@ -410,10 +390,10 @@ class VisionRuntime:
         return result
     def move(self, conversation_id: str, dx: int, dy: int) -> Dict[str, Any]:
         with self._lock:
-            if self._takeover:
-                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
-            if not self._eyes_open or self._owner != str(conversation_id or ""):
-                return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
+            if not self._granted_locked(conversation_id):
+                return {"ok": False, "error": (
+                    "用户已接管电脑，请重新申请视觉授权" if self._takeover
+                    else "眼睛未打开或不属于当前会话")}
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
             origin = self._frames[-1].cursor
@@ -439,10 +419,10 @@ class VisionRuntime:
                    image_height: int,
                    check_points: Optional[List[Dict[str, int]]] = None) -> Dict[str, Any]:
         with self._lock:
-            if self._takeover:
-                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
-            if not self._eyes_open or self._owner != str(conversation_id or ""):
-                return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
+            if not self._granted_locked(conversation_id):
+                return {"ok": False, "error": (
+                    "用户已接管电脑，请重新申请视觉授权" if self._takeover
+                    else "眼睛未打开或不属于当前会话")}
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
             frame = self._frames[-1]
@@ -486,10 +466,10 @@ class VisionRuntime:
     def move_focus(self, conversation_id: str, x: int, y: int,
                    width: int, height: int) -> Dict[str, Any]:
         with self._lock:
-            if self._takeover:
-                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
-            if not self._eyes_open or self._owner != str(conversation_id or ""):
-                return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
+            if not self._granted_locked(conversation_id):
+                return {"ok": False, "error": (
+                    "用户已接管电脑，请重新申请视觉授权" if self._takeover
+                    else "眼睛未打开或不属于当前会话")}
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
             if self._focus is None:
@@ -528,10 +508,10 @@ class VisionRuntime:
         clicks_count = max(1, min(10, int(count)))
         clicks: List[Dict[str, Any]] = []
         with self._lock:
-            if self._takeover:
-                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
-            if not self._eyes_open or self._owner != str(conversation_id or ""):
-                return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
+            if not self._granted_locked(conversation_id):
+                return {"ok": False, "error": (
+                    "用户已接管电脑，请重新申请视觉授权" if self._takeover
+                    else "眼睛未打开或不属于当前会话")}
         try:
             for index in range(clicks_count):
                 with self._lock:
@@ -564,10 +544,10 @@ class VisionRuntime:
                        count: int = 1,
                        check_points: Optional[List[Dict[str, int]]] = None) -> Dict[str, Any]:
         with self._lock:
-            if self._takeover:
-                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
-            if not self._eyes_open or self._owner != str(conversation_id or ""):
-                return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
+            if not self._granted_locked(conversation_id):
+                return {"ok": False, "error": (
+                    "用户已接管电脑，请重新申请视觉授权" if self._takeover
+                    else "眼睛未打开或不属于当前会话")}
             if not self._frames:
                 return {"ok": False, "error": "当前没有观察帧"}
             frame = self._frames[-1]
@@ -636,10 +616,10 @@ class VisionRuntime:
         }
     def key(self, conversation_id: str, keys: List[str]) -> Dict[str, Any]:
         with self._lock:
-            if self._takeover:
-                return {"ok": False, "error": "用户已接管电脑，请重新申请视觉授权"}
-            if not self._eyes_open or self._owner != str(conversation_id or ""):
-                return {"ok": False, "error": "眼睛未打开或不属于当前会话"}
+            if not self._granted_locked(conversation_id):
+                return {"ok": False, "error": (
+                    "用户已接管电脑，请重新申请视觉授权" if self._takeover
+                    else "眼睛未打开或不属于当前会话")}
             try:
                 receipt = backend.press_keys(keys)
             except (OSError, ValueError, RuntimeError) as exc:
@@ -653,11 +633,15 @@ class VisionRuntime:
         if self._thread is not None and self._thread.is_alive():
             return
         self._stop.clear()
-        self._thread = threading.Thread(
+        self._thread = thread_with_context(
             target=self._capture_loop, name="visual-operator-2-capture", daemon=True)
         self._thread.start()
     def _capture_loop(self) -> None:
-        interval = 1.0 / max(0.2, float(self.config.fps))
+        fps = float(self.config.fps)
+        if fps <= 0:
+            self._stop.wait()
+            return
+        interval = 1.0 / max(0.2, fps)
         while not self._stop.is_set():
             self._wake.wait(interval)
             self._wake.clear()
@@ -686,8 +670,7 @@ class VisionRuntime:
         if settle > 0:
             time.sleep(settle)
         with self._lock:
-            if (self._takeover or not self._eyes_open
-                    or self._owner != str(conversation_id or "")):
+            if not self._granted_locked(conversation_id):
                 return None
             generation = self._generation
         try:
@@ -698,8 +681,7 @@ class VisionRuntime:
             report_error("plugins.visual_operator_2.action_capture", exc)
             return None
         with self._lock:
-            if (self._takeover or not self._eyes_open
-                    or self._owner != str(conversation_id or "")
+            if (not self._granted_locked(conversation_id)
                     or generation != self._generation):
                 return None
             self._remember_frame(image, before if before == after else after,
@@ -714,6 +696,11 @@ class VisionRuntime:
             captured_at=time.monotonic(),
             generation=generation,
         )
+        try:
+            observation.render_full(
+                frame, self.config.image_max_side, self.config, self._challenges)
+        except (OSError, ValueError) as exc:
+            report_error("plugins.visual_operator_2.prewarm", exc)
         previous = self._frames[-1] if self._frames else None
         self._frames.append(frame)
         if previous is not None:
@@ -731,7 +718,7 @@ class VisionRuntime:
                 now = time.monotonic()
                 if self._wake_model is not None and now - self._last_wake >= 1.0:
                     self._last_wake = now
-                    threading.Thread(
+                    thread_with_context(
                         target=self._wake_owner,
                         args=(self._owner,),
                         daemon=True,
@@ -753,14 +740,13 @@ class VisionRuntime:
             report_error("plugins.visual_operator_2.publish", exc)
             return
     def close(self) -> None:
-        self._closed = True
         self._stop.set()
         self._wake.set()
         with self._lock:
             self._eyes_open = False
             self._owner = ""
             self._takeover = False
-            self._frames.clear()
+            self._drop_frames_locked()
             self._grants.clear()
             self._pending = None
         self._stop_monitor()
@@ -769,8 +755,5 @@ class VisionRuntime:
         thread = self._thread
         if thread is not None and thread.is_alive():
             thread.join(timeout=1.0)
-def _contains(rect: Dict[str, int], point: Tuple[int, int]) -> bool:
-    x, y = point
-    return (rect["x"] <= x < rect["x"] + rect["width"]
-            and rect["y"] <= y < rect["y"] + rect["height"])
+
 __all__ = ["Frame", "VisionRuntime"]

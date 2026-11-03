@@ -31,7 +31,7 @@ var alt=String((token&&token.text)||"");
 var title=String((token&&token.title)||"")||raw;
 var t=title?' title="'+escapeHtml(title)+'"':'';
 if(markedIsVideo(href))return '<video src="'+escapeHtml(href)+'" controls'+t+' style="max-width:100%;border-radius:6px;margin:4px 0;max-height:480px;background:#000;"></video>';
-return '<img src="'+escapeHtml(href)+'" alt="'+escapeHtml(alt)+'"'+t+' loading="lazy" style="max-width:300px;height:auto" />';
+return '<img src="'+escapeHtml(href)+'" alt="'+escapeHtml(alt)+'"'+t+' class="msg-attach-thumb" loading="lazy" style="max-width:300px;height:auto" />';
 };
 r.link=function(token){
 var raw=String((token&&token.href)||"");

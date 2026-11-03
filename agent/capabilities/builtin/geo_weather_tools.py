@@ -273,6 +273,12 @@ class OpenMeteoWeatherTool(ToolPlugin):
         lon_s = str(longitude or "").strip()
         ip_for_lookup = _normalize_ip_for_lookup(ip)
         name_used, admin1, country, source, note = loc_input, "", "", "location", ""
+        if bool(lat_s) != bool(lon_s):
+            raise GeoServiceError(
+                "latitude 与 longitude 必须成对提供",
+                err_type="InvalidArgument",
+                hint="两个都传，或都不传（改用 location / ip）",
+            )
         if lat_s and lon_s:
             lat, lon = float(lat_s), float(lon_s)
             name_used = f"经纬度 {lat:.4f}°,{lon:.4f}°"

@@ -8,6 +8,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import agent.shell.classic_adapter.contract as C
 from agent.core.error_report import report_error
+from agent.core.state_values import (
+    TOOL_CANCELED,
+    TOOL_DONE,
+    TOOL_FAILED,
+    TOOL_RUNNING,
+    TOOL_SUSPENDED,
+)
 
 ATTACH_REGISTER_MAX_BYTES = 2 * 1024 * 1024
 ATTACH_REGISTER_MAX_COUNT = 24
@@ -73,7 +80,7 @@ def _user_item(data: Dict[str, Any], resolved: List[Dict[str, Any]]) -> Dict[str
     if sender:
         item["_sender"] = sender
         item["_sender_name"] = str(data.get("_sender_name") or sender)
-    for key in ("kind", "source", "notice_id", "batch"):
+    for key in ("kind", "source", "notice_id", "batch", "goal_round"):
         if data.get(key):
             item[key] = data[key]
     if attachments:
@@ -133,7 +140,7 @@ def _tool_started_item(data: Dict[str, Any]) -> Dict[str, Any] | None:
         "script": C.tool_script(str(data.get("name") or "")),
         "args": (dict(data.get("arguments"))
                  if isinstance(data.get("arguments"), dict) else {}),
-        "status": "running",
+        "status": TOOL_RUNNING,
     }
 
 
@@ -175,15 +182,15 @@ def _apply_tool_event(items: List[Dict[str, Any]], kind: str,
         if data.get("elapsed_s") is not None:
             item["elapsed_s"] = data.get("elapsed_s")
         if kind == "tool_done":
-            item["status"] = "done"
+            item["status"] = TOOL_DONE
         elif kind == "tool_failed":
-            item["status"] = "failed"
+            item["status"] = TOOL_FAILED
             item["error"] = str(data.get("error") or data.get("detail") or "")
         elif kind == "tool_canceled":
-            item["status"] = "canceled"
+            item["status"] = TOOL_CANCELED
             item["error"] = str(data.get("error") or "已停止")
         elif kind == "tool_suspended":
-            item["status"] = "suspended"
+            item["status"] = TOOL_SUSPENDED
             if data.get("envelope") is not None:
                 item["envelope"] = data.get("envelope")
         _tool_preview(item, kind, data)

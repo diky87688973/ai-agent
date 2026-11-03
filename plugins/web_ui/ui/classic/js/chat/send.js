@@ -65,7 +65,7 @@ if(!(err&&err.name==="AbortError")){withConversationContext(sendCid,function(){h
 }finally{
 updateTaskControls();
 if(typeof renderChatTabs==="function")renderChatTabs();
-void persistUsageAccumulator();
+void persistUsageAccumulator(activeConversationId);
 }
 }
 
@@ -153,6 +153,4 @@ if(files&&files.length)void addPendingImageFiles(files);
 }
 window.composerActions = Object.assign(window.composerActions || {}, {send: sendChatMessage});
 })();
-
-(function initClassicMainSplit(){
 

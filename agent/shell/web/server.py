@@ -26,6 +26,7 @@ if TYPE_CHECKING:  # 只为注解：运行期不导入装配根
     from agent.app import App
 
 
+from agent.common.status import MODEL_CONFIG_NONE
 from agent.config import DEFAULT_CONFIG_PATH, default_data_root
 from agent.core.error_report import report_error
 from agent.mechanisms.session_title import make_provider_title_generator
@@ -170,6 +171,13 @@ def serve(
     auth = _startup_auth(root, host, tls_cert, tls_key, allow_insecure_public)
     if auth is None:
         return 2
+    slots = getattr(getattr(app, "context", None), "slots", None)
+    if slots is not None and "app/auth" in getattr(slots, "nodes", {}):
+        path = "app/auth/runtime"
+        if path not in slots.nodes:
+            slots.register_slot(
+                path, kind="auth-runtime", default=auth,
+                default_owner="__host__")
     explicit_media = media_root or os.environ.get(MEDIA_ROOT_ENV)
     server, _shell = create_server(
         app,
@@ -177,7 +185,7 @@ def serve(
         port=port,
         media_root=resolve_media_root(roots, explicit_media) if explicit_media else None,
         fs_root=roots,
-        titles_dir=root / "titles",
+        titles_dir=root / "session" / "titles",
         workspace_root=root / "workspace",
         auth=auth,
     )
@@ -189,7 +197,7 @@ def serve(
     scheme = "https" if tls_cert and tls_key else "http"
     print("=== AI Agent Web 壳 ===")
     print(f"主界面   {scheme}://{host}:{port}/")
-    if getattr(app, "model_config_state", "") == "none":
+    if getattr(app, "model_config_state", "") == MODEL_CONFIG_NONE:
         print("模型尚未配置：可在页面右上角「设置 → 插件 → 多模型」里添加。")
     print(f"事件流   {scheme}://{host}:{port}/api/events/stream")
     shown = "；".join(str(r) for r in roots) if roots else "（不限根）"

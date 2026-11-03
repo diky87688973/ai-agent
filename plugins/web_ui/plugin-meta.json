@@ -1,6 +1,7 @@
 {
-  "name": "基础 WEB-UI",
-  "icon": "🪟",
+  "name": "图形操作界面",
+  "icon": "🖼️",
+  "desc": "提供 GUI 界面操作 Agent，内置 Web UI",
   "version": "1.0",
   "config": "false"
 }

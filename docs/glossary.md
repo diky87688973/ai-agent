@@ -24,7 +24,27 @@ Some terms in the project are custom and have fixed meanings. This page is the *
 The kernel's behavioral structure. The host repeatedly runs a fixed sequence of modules, each implementing only `execute(ports) -> Outcome`. The order is `input → queued input insertion → compaction → model → tools`. See [Architecture](architecture.md).
 
 **Composition root**
-`agent/app.py`. The only file that references all five layers at once; it builds `AppContext` and registers services. It belongs to no layer.
+`agent/boot/`. The only package that references all five layers at once; it loads the slot tree and assembles recursively. `agent/app.py` is the application facade. It belongs to no layer.
+
+## Plugin system
+
+**Plugin**
+The installable, enable/disable, unloadable unit at `plugins/<plugin-name>/`. Its entry is `register(ctx)` in `plugin.py`; the plugin declares its UI, assembly nodes, and configuration without depending on host internals.
+
+**Plugin tree**
+A logical contribution view at plugin level: roots are enabled plugins, and child nodes are the slots and contributions each plugin declares. It is not a runtime assembly object and is not the same as `SlotTree`.
+
+**Plugin protocol**
+The lifecycle contract between host and plugin package: directory layout, `register(ctx)`, `PluginContext`, disposer ledger, enable/disable, failure rollback, auto-load, and assembly declarations. It answers how a plugin enters and leaves the system.
+
+**Slot**
+An attachment point derived by a plugin. It is a contract-bearing path node that declares where a component attaches, its allowed child structure, owner, replaceability, and frozen state. A plugin can derive multiple slots.
+
+**Slot tree**
+The runtime assembly tree held by `SlotTree`: rooted at `app`, with nodes, dependencies, and lifecycle organized by slot paths. It answers what the final assembly is.
+
+**Slot protocol**
+The composition contract between a slot and its registrations: path normalization, parent/child structure, kind, owner, same-path replacement, frozen subtrees, and disposer withdrawal. It answers how a contribution attaches to a path.
 
 **Dual track**
 Two independent tracks: the decision chain and the event bus. The decision chain participates in control flow; the event bus only delivers notifications. See [Architecture](architecture.md).

@@ -2,7 +2,7 @@
 """经典 UI 上下文布局。"""
 from __future__ import annotations
 
-import sys
+import threading
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -22,6 +22,7 @@ from agent.shell.classic_adapter.contract import EV_CONTEXT_SEGMENTS
 # 有界（只留最近 32 个会话），不会随会话数无限增长。
 _LAYOUT_CACHE: "OrderedDict[str, tuple]" = OrderedDict()
 _LAYOUT_CACHE_MAX = 32
+_LAYOUT_CACHE_LOCK = threading.Lock()
 
 
 def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str, Any]]:
@@ -38,10 +39,11 @@ def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Di
     if not events:
         return None
     stamp = (len(events), _sources_version(app))
-    hit = _LAYOUT_CACHE.get(cid)
-    if hit is not None and hit[0] == stamp:
-        _LAYOUT_CACHE.move_to_end(cid)
-        return hit[1]
+    with _LAYOUT_CACHE_LOCK:
+        hit = _LAYOUT_CACHE.get(cid)
+        if hit is not None and hit[0] == stamp:
+            _LAYOUT_CACHE.move_to_end(cid)
+            return hit[1]
     budget = _budget_of(app, cid)
     payload = _last_segments(events, budget)
     if payload is None:
@@ -50,10 +52,11 @@ def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Di
         payload = _overlay_plugin_segments(app, cid, payload)
     if payload is None:
         return None
-    _LAYOUT_CACHE[cid] = (stamp, payload)
-    _LAYOUT_CACHE.move_to_end(cid)
-    while len(_LAYOUT_CACHE) > _LAYOUT_CACHE_MAX:
-        _LAYOUT_CACHE.popitem(last=False)
+    with _LAYOUT_CACHE_LOCK:
+        _LAYOUT_CACHE[cid] = (stamp, payload)
+        _LAYOUT_CACHE.move_to_end(cid)
+        while len(_LAYOUT_CACHE) > _LAYOUT_CACHE_MAX:
+            _LAYOUT_CACHE.popitem(last=False)
     return payload
 
 
@@ -80,11 +83,7 @@ def _overlay_plugin_segments(app: Any, cid: str,
         packed = collect(str(cid or ""))
     except Exception as exc:
         # 可选增强：失败不砸 SSE，但必须留痕，不得静默沿用旧快照。
-        print(
-            f"[inbound] 注入源 collect 失败 cid={cid}: "
-            f"{type(exc).__name__}: {exc}",
-            file=sys.stderr, flush=True,
-        )
+        report_error("agent.shell.classic_adapter.layout.collect", exc)
         return payload
 
     items = list(getattr(packed, "items", None) or [])

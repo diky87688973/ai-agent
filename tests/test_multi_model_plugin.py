@@ -54,7 +54,7 @@ class _Ctx:
         self.catalog = entries
         return self._disposer()
 
-    def add_route(self, method, path, handler):
+    def add_route(self, method, path, handler, **_kwargs):
         self.routes[(method, path)] = handler
         return self._disposer()
 

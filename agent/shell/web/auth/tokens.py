@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """API Token：只保存 hash、名称与 scope，支持撤销。"""
+
 from __future__ import annotations
 
 import hashlib
@@ -13,7 +14,14 @@ from typing import Any, Dict, Iterable, Optional
 from agent.core.error_report import report_error
 from agent.mechanisms.session_locking import cross_process_lock
 from agent.shell.web.auth.models import ALL_SCOPES, Principal
-from agent.shell.web.auth.security import atomic_write_text, ensure_auth_dir, read_text, secure_path
+from agent.shell.web.auth.security import (
+    AuthSecurityError,
+    atomic_write_text,
+    ensure_auth_dir,
+    read_text,
+    secure_path,
+    verify_path,
+)
 
 _VALID_SCOPES = set(ALL_SCOPES)
 
@@ -46,7 +54,12 @@ class TokenStore:
         )
 
     def _secure_lock(self) -> None:
-        secure_path(self.path.with_suffix(self.path.suffix + ".lock"))
+        """锁文件不含秘密；已持有锁后再校验/收紧 ACL，避免入锁前改权限的竞态。"""
+        lock = self.path.with_suffix(self.path.suffix + ".lock")
+        try:
+            verify_path(lock)
+        except AuthSecurityError:
+            secure_path(lock)
 
     def issue(self, name: str, scopes: Iterable[str]) -> str:
         label = str(name or "").strip()

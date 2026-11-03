@@ -23,6 +23,18 @@ from agent.core.modules.tool_facts import (
 )
 from agent.core.outcome import Outcome
 from agent.core.ports import Ports
+from agent.core.state_values import (
+    TOOL_CANCELED as TOOL_STATUS_CANCELED,
+)
+from agent.core.state_values import (
+    TOOL_DONE as TOOL_STATUS_DONE,
+)
+from agent.core.state_values import (
+    TOOL_FAILED as TOOL_STATUS_FAILED,
+)
+from agent.core.state_values import (
+    TOOL_SUSPENDED as TOOL_STATUS_SUSPENDED,
+)
 
 # ══════════════════════════════════════════════════════════════════════
 # 四、工具模块（= 收尾模块）
@@ -35,7 +47,7 @@ from agent.core.ports import Ports
 #:   tool_started   开始调用（监听者可在此起 RT、修剪参数、起卡片=「进行中」）
 #:   tool_done      成功完成（卡片=绿色 Done）
 #:   tool_failed    失败（卡片=红色 Fail）
-#:   tool_canceled  被取消（卡片=Stoped；目前尚未接线，先预留）
+#:   tool_canceled  被取消（卡片=Stopped）
 #:   tool_suspended 需要外部输入，交回控制权（卡片=「待确认」）
 #:   tool_ended     终态：结果事实之后紧随补发，与 `tool_started` 配对，
 #:                  并携带把工具调度 RT 算出来所需的一切
@@ -80,7 +92,7 @@ class ToolModule(ModuleBase):
             yield ports.emit(TOOL_CANCELED, call_id=rest.call_id,
                              name=rest.name, reason=reason, elapsed_s=0.0)
             yield ports.emit(TOOL_ENDED, call_id=rest.call_id, name=rest.name,
-                             status="canceled", elapsed_ms=0, elapsed_s=0.0)
+                             status=TOOL_STATUS_CANCELED, elapsed_ms=0, elapsed_s=0.0)
 
     def _result_events(self, ports: Ports, call, result, elapsed: int,
                        ok: bool) -> Iterator[Any]:
@@ -101,7 +113,7 @@ class ToolModule(ModuleBase):
                 error=str(getattr(result, "error", "") or ""),
                 data=data, elapsed_ms=elapsed, elapsed_s=seconds)
         yield ports.emit(TOOL_ENDED, call_id=call.call_id, name=call.name,
-                         status=("done" if ok else "failed"),
+                         status=(TOOL_STATUS_DONE if ok else TOOL_STATUS_FAILED),
                          elapsed_ms=elapsed, elapsed_s=seconds)
 
     def execute(self, ports: Ports) -> Iterator[Any]:
@@ -114,7 +126,8 @@ class ToolModule(ModuleBase):
             return Outcome.halt("未装配工具端口")
         on_progress = progress_emitter(ports)
         for index, call in enumerate(pending):
-            if index > 0 and ports.canceled():
+            # 第一个工具也要看取消位：用户点停止后不能再执行任何调用。
+            if ports.canceled():
                 yield from self._cancel_rest(ports, pending, index, "user_stop")
                 return Outcome.stopped("用户请求停止")
             started = perf_counter()
@@ -133,7 +146,7 @@ class ToolModule(ModuleBase):
                     envelope=safe_value(getattr(result, "data", None)),
                     elapsed_s=_elapsed_s(elapsed))
                 yield ports.emit(TOOL_ENDED, call_id=call.call_id, name=call.name,
-                                 status="suspended", elapsed_ms=elapsed,
+                                 status=TOOL_STATUS_SUSPENDED, elapsed_ms=elapsed,
                                  elapsed_s=_elapsed_s(elapsed))
                 yield from self._cancel_rest(
                     ports, pending, index + 1, "suspended_batch")

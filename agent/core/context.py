@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from agent.core.app_path import app_path
 from agent.core.error_report import report_error
 
 Disposer = Callable[[], None]
@@ -52,9 +53,10 @@ SERVICE_WAKE_SCHEDULER = "wake_scheduler"         # 会话唤醒调度器
 class AppContext:
     """应用级服务容器：注册 → 解析 → 注销。"""
 
-    def __init__(self) -> None:
+    def __init__(self, slots: Any = None) -> None:
         self._services: Dict[str, Any] = {}
         self._disposers: List[Tuple[str, Disposer]] = []
+        self.slots = slots
 
     def register(self, name: str, service: Any) -> Disposer:
         """注册服务；名称为空或重复时抛 ValueError；返回幂等 disposer。"""
@@ -64,11 +66,25 @@ class AppContext:
         if key in self._services:
             raise ValueError(f"服务已注册：{key}（请先注销旧服务再替换）")
         self._services[key] = service
+        slot_path = app_path("host", "services", key)
+        if self.slots is not None:
+            node = self.slots.nodes.get(slot_path)
+            if node is None:
+                self.slots.register_slot(
+                    slot_path, kind="host-service", default=service,
+                    default_owner="__host__")
+            elif node.default is None:
+                node.default = service
 
         def _dispose() -> None:
-            if key not in self._services:
-                return  # 幂等：已注销
+            # 只撤自己登记的那份服务：旧 disposer 不能在重新注册后删掉新服务。
+            if self._services.get(key) is not service:
+                return
             del self._services[key]
+            if self.slots is not None:
+                node = self.slots.nodes.get(slot_path)
+                if node is not None and node.default is service and not node.bindings:
+                    self.slots.nodes.pop(slot_path, None)
             for i, (k, _d) in enumerate(self._disposers):
                 if k == key:
                     del self._disposers[i]
@@ -78,18 +94,32 @@ class AppContext:
         return _dispose
 
     def get(self, name: str) -> Any:
-        """解析服务；未注册时抛 KeyError（附已注册名单）。"""
+        """解析服务；有装配树时以树为唯一权威，否则退回注册表。"""
         key = str(name or "").strip()
+        if self.slots is not None:
+            path = app_path("host", "services", key)
+            if path in self.slots.nodes:
+                return self.slots.resolve(path)
+            raise KeyError(f"服务未注册：{key}（宿主服务节点缺失：{path}）")
         if key not in self._services:
             raise KeyError(f"服务未注册：{key}（已注册：{sorted(self._services)}）")
         return self._services[key]
 
     def has(self, name: str) -> bool:
-        """是否已注册该服务（可选服务的存在性查询，不抛错）。"""
-        return str(name or "").strip() in self._services
+        """服务是否可解析；判定口径与 get 一致。"""
+        key = str(name or "").strip()
+        if self.slots is not None:
+            return app_path("host", "services", key) in self.slots.nodes
+        return key in self._services
 
     def names(self) -> List[str]:
         """已注册的服务名（排序后；诊断用）。"""
+        if self.slots is not None:
+            prefix = app_path("host", "services", "").rstrip("/") + "/"
+            return sorted(
+                path[len(prefix):] for path in self.slots.nodes
+                if path.startswith(prefix)
+            )
         return sorted(self._services)
 
     def dispose_all(self) -> None:

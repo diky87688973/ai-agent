@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 import agent.shell.classic_adapter.contract as C
+from agent.core.state_values import TOOL_FAILED
 
 
 @dataclass
@@ -121,7 +122,7 @@ class ToolFrames:
             confirms = []
         self._awaiting_confirm = True
         # 待确认卡已发：把这张卡从 `pending` 摘掉。内核紧接着还会发
-        # `tool_ended{status:"suspended"}`，那会走 `_on_tool_ended` 的兜底分支
+        # `tool_ended{status=TOOL_SUSPENDED}`，那会走 `_on_tool_ended` 的兜底分支
         # 再收一次同一张卡 —— 契约上就是重复帧：
         # 按 id 幂等渲染的客户端会出现重复条目。
         # 摘除动作在 return 之前执行。
@@ -142,8 +143,7 @@ class ToolFrames:
 
         卡片挂在专用事实上的原因：按两段式设计，首段不产生结果事实
         （那次调用还没返回），所以没有结果事件可以挂载。内核为此产出这条专用事实，
-        携带 `call_id` / `title` / `confirms`，选项以工具声明的为准
-        （选项以工具声明的为准）。
+        携带 `call_id` / `title` / `confirms`，选项以工具声明的为准。
 
         经典界面的卡片靠 `tool_end` 上的 `user_confirm_required` 渲染，所以这里发一个
         `tool_end`：卡片就是这次调用的界面呈现，而这次调用确实"停在了等人这一步"。
@@ -196,7 +196,7 @@ class ToolFrames:
         return self._finish_tool(d, ok=False)
 
     def _on_tool_canceled(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """工具被取消 → 卡片标签 `Stoped`（预留：取消能力尚未接线，先让映射就位）。"""
+        """工具被取消 → 卡片标签 `Stopped`。"""
         call_id = str(d.get("call_id") or "")
         pend = self.pending.pop(call_id, None)
         if pend is None:
@@ -224,7 +224,7 @@ class ToolFrames:
         call_id = str(d.get("call_id") or "")
         if not call_id or call_id not in self.pending:
             return []
-        return self._finish_tool(d, ok=(str(d.get("status") or "") != "failed"))
+        return self._finish_tool(d, ok=(str(d.get("status") or "") != TOOL_FAILED))
 
     def _finish_tool(self, d: Dict[str, Any], *, ok: bool) -> List[Dict[str, Any]]:
         """工具结果 → 经典界面的 `tool_end`（含卡片标签与结果预览）。"""

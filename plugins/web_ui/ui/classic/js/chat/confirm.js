@@ -5,6 +5,8 @@
  */
 var pendingConfirmToolRow=null;
 
+function _sendBtn(){return document.querySelector('[data-ui-action="input.send"]');}
+
 function cancelUserConfirmForNewMessage(){
 if(!userConfirmCardHost)return false;
 var row=pendingConfirmToolRow;
@@ -62,7 +64,6 @@ if(confirmEndpoint){
 }
 if(multi){
 var keys=Object.keys(pickMulti).map(function(x){return parseInt(x,10);}).filter(function(x){return !isNaN(x)&&x>=0&&x<=tailIdx;});
-function _sendBtn(){return document.querySelector('[data-ui-action="input.send"]');}
 keys.sort(function(a,b){return a-b;});
 if(!keys.length)return "";
 var parts=[];

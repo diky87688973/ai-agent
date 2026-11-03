@@ -2,6 +2,8 @@
 
 # 唤醒调度器概要
 
+**Status:** minimal implementation.
+
 状态：最小版本已实现；单进程、单线程、jobs.json 持久化，进程锁保证单调度器，投递复用 `MeshState.submit`。
 
 ## 目标

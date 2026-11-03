@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from agent.common.status import AGENT_BUSY, AGENT_IDLE
 from agent.core.error_report import report_error
 from agent.core.input_attachments import normalize_images
 from agent.mechanisms.mesh import MeshState
@@ -90,6 +91,12 @@ class SubagentLifecycle:
         except Exception as exc:
             report_error("agent.subagent.lifecycle.create_start", exc,
                          child_id=child.child_id)
+            try:
+                self.repository.abort(child.child_id)
+                self.mesh.remove_agent(child.child_id)
+            except Exception as cleanup_exc:
+                report_error("agent.subagent.lifecycle.create_rollback", cleanup_exc,
+                             child_id=child.child_id)
             raise SubagentError(
                 f"子智能体首回合启动失败：{exc}", "start_failed",
             ) from exc
@@ -98,20 +105,20 @@ class SubagentLifecycle:
             "batch": child.batch,
             "child_id": child.child_id,
             "label": title,
-            "status": "busy" if started.get("run_id") else "idle",
+            "status": AGENT_BUSY if started.get("run_id") else AGENT_IDLE,
             "queued": bool(started.get("queued")),
         }
 
     def list(self, parent_cid: str, batch: str = "") -> Dict[str, Any]:
         rows = self.repository.list_batches(str(parent_cid or "").strip(), batch)
-        counts = {"busy": 0, "idle": 0}
+        counts = {AGENT_BUSY: 0, AGENT_IDLE: 0}
         batches = []
         for row in rows:
             statuses = {}
             for child in row.children:
                 busy = bool(self.mesh.is_running(child.child_id))
                 pending = int(self.queue.size(child.child_id))
-                status = "busy" if busy else "idle"
+                status = AGENT_BUSY if busy else AGENT_IDLE
                 counts[status] += 1
                 statuses[child.child_id] = {"status": status, "pending": pending}
             batches.append(row.public(statuses=statuses))
@@ -122,7 +129,7 @@ class SubagentLifecycle:
         child = self.repository.record(child_id)
         payload.update({
             "ok": True,
-            "status": "busy" if self.mesh.is_running(child.child_id) else "idle",
+            "status": AGENT_BUSY if self.mesh.is_running(child.child_id) else AGENT_IDLE,
         })
         return payload
 
@@ -136,6 +143,6 @@ class SubagentLifecycle:
             "child_id": child.child_id,
             "batch": child.batch,
             "label": child.label,
-            "status": "busy" if busy else "idle",
+            "status": AGENT_BUSY if busy else AGENT_IDLE,
             "pending": int(self.queue.size(child.child_id)),
         }

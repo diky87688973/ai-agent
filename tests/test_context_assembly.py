@@ -29,8 +29,10 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.core.model_call import StreamDelta  # noqa: E402
+from agent.core.modules.mode_note import strip_mode_tail  # noqa: E402
 from agent.mechanisms.compaction.compactor import (  # noqa: E402
-    SUMMARY_BRIDGE_TAIL,
+    CHECKPOINT_PREAMBLE,
+    SUMMARY_OPEN_TAG,
     ContextCompactor,
     make_provider_summarizer,
 )
@@ -46,7 +48,7 @@ KB2 = "知识库-2"
 SUM1 = "【历史摘要】\n摘要-1"
 SUM2 = "【历史摘要】\n摘要-2"
 NEW_INPUT = "本轮新输入"
-INSTRUCTION_MARK = "把上面这段对话压缩成一份摘要"
+INSTRUCTION_MARK = "你正在担任本次对话的压缩引擎"
 
 
 # ── 观测工具：把消息列表压成便于写死的短记号 ──────────────────
@@ -421,12 +423,11 @@ class CompactionContext(_Case):
                         not any("## 当前模式" in str(m.get("content"))
                                 for m in spy.reqs[0].messages))
 
-    def test_instruction_is_last_and_system(self) -> None:
+    def test_instruction_is_last_and_user(self) -> None:
         spy, whole, head, tail = self._request()
         last = spy.reqs[0].messages[-1]
-        self.check("指令位置与角色", ("INSTRUCTION", "system"),
+        self.check("instruction position and role", ("INSTRUCTION", "user"),
                    (short(last), str(last.get("role"))))
-
     def test_instruction_appears_once(self) -> None:
         spy, whole, head, tail = self._request()
         n = sum(1 for m in spy.reqs[0].messages if INSTRUCTION_MARK in str(m.get("content")))
@@ -498,13 +499,13 @@ class CompactionContext(_Case):
 # ══════════════════════════════════════════════════════════════
 
 class StripRules(_Case):
-    """`_context_without_new_input` / `_strip_mode_tail` 的判据。"""
+    """`_context_without_new_input` / `strip_mode_tail` 的判据。"""
 
     def _strip_new(self, msgs):
         return ContextCompactor._context_without_new_input(msgs)
 
     def _strip_mode(self, msgs, note=MODE_AUTO):
-        return ContextCompactor._strip_mode_tail(msgs, note)
+        return strip_mode_tail(msgs, note)
 
     def test_new_input_removed_when_last(self) -> None:
         msgs = [{"role": "assistant", "content": "答"},
@@ -634,35 +635,29 @@ class CompactionLoop(_Case):
         self.assertEqual(report["compressed_count"], report["covered_end"])
         self.assertGreater(report["compressed_tokens"], 0)
 
-    def test_summary_text_excludes_bridge(self) -> None:
-        _p, _s, _c, report = self._run(text="模型给的摘要")
-        self.assertEqual(report["summary_text"], "模型给的摘要")
-        self.assertNotIn(SUMMARY_BRIDGE_TAIL, report["summary_text"])
-
-    def test_summary_appended_with_bridge(self) -> None:
+    def test_summary_text_is_current_body(self) -> None:
+        _p, _s, _c, report = self._run(text="model summary")
+        self.assertEqual(report["summary_text"], "model summary")
+        self.assertNotIn(SUMMARY_OPEN_TAG, report["summary_text"])
+    def test_summary_is_single_current_body(self) -> None:
         _p, _s, comp, _r = self._run()
-        self.check("摘要带桥接后缀", (1, True),
-                   (len(comp.summaries), comp.summaries[0].endswith(SUMMARY_BRIDGE_TAIL)))
-
+        self.assertTrue(comp.summary.startswith("新摘要"))
+        self.assertNotIn(SUMMARY_OPEN_TAG, comp.summary)
     def test_summary_text_comes_from_model(self) -> None:
-        _p, _s, comp, _r = self._run(text="模型给的摘要")
-        self.check_true("摘要正文来自模型输出", comp.summaries[0].startswith("模型给的摘要"))
-
-    def test_second_compaction_appends_second_summary(self) -> None:
-        """第二次压缩产出的摘要追加在已有摘要之后，不合并、不替换。"""
+        _p, _s, comp, _r = self._run(text="model summary")
+        self.assertTrue(comp.summary.startswith("model summary"))
+    def test_second_compaction_replaces_summary(self) -> None:
         _p1, _s1, comp1, _r1 = self._run()
         _p2, _s2, comp2, _r2 = self._run(summaries=(SUM1,))
-        self.check("第一次：只有新的一条", 1, len(comp1.summaries))
-        self.check("第二次：旧摘要仍在，新摘要追加其后",
-                   ["摘要-1", "新摘要" + SUMMARY_BRIDGE_TAIL],
-                   list(comp2.summaries))
-
-    def test_summary_messages_are_system(self) -> None:
+        self.assertEqual(comp1.summary, "新摘要")
+        self.assertEqual(comp2.summary, "新摘要")
+    def test_summary_messages_are_user_checkpoint(self) -> None:
         _p, _s, comp, _r = self._run()
         got = comp.summary_messages()
-        self.check("摘要注入是 system 且带前缀", ("system", True),
-                   (str(got[0].get("role")), str(got[0].get("content")).startswith("【历史摘要】")))
-
+        self.assertEqual(len(got), 1)
+        self.assertEqual(got[0]["role"], "user")
+        self.assertTrue(str(got[0]["content"]).startswith(CHECKPOINT_PREAMBLE))
+        self.assertIn(SUMMARY_OPEN_TAG, str(got[0]["content"]))
     def test_reassembled_request_shape(self) -> None:
         p, _s, _c, _r = self._run(rounds=3)
         p.set_summary_messages([{"role": "system", "content": SUM1}])
@@ -726,30 +721,27 @@ class CompactionLoop(_Case):
 
         comp = ContextCompactor(None)
         comp.restore_from_events([
-            Event(type="context_compacted", data={"covered_end": 4, "summary": "摘要-1"}),
-            Event(type="context_compacted", data={"covered_end": 8, "summary": "摘要-2"}),
+            Event(type="context_compacted", data={"covered_end": 4, "summary": "summary-1"}),
+            Event(type="context_compacted", data={"covered_end": 8, "summary": "summary-2"}),
         ])
-        self.check("重放事件 → 覆盖点与摘要都恢复", (8, ["摘要-1", "摘要-2"]),
-                   (comp.covered_end, comp.summaries))
-
+        self.assertEqual(comp.covered_end, 8)
+        self.assertEqual(comp.summary, "summary-2")
     def test_restore_ignores_backwards_covered_end(self) -> None:
         from agent.core.events import Event
 
         comp = ContextCompactor(None)
         comp.restore_from_events([
-            Event(type="context_compacted", data={"covered_end": 8, "summary": "摘要-2"}),
-            Event(type="context_compacted", data={"covered_end": 4, "summary": "旧的"}),
+            Event(type="context_compacted", data={"covered_end": 8, "summary": "summary-2"}),
+            Event(type="context_compacted", data={"covered_end": 4, "summary": "old"}),
         ])
-        self.check("覆盖点单调不减", (8, ["摘要-2"]), (comp.covered_end, comp.summaries))
-
+        self.assertEqual((comp.covered_end, comp.summary), (8, "summary-2"))
     def test_restore_ignores_other_events(self) -> None:
         from agent.core.events import Event
 
         comp = ContextCompactor(None)
         comp.restore_from_events([Event(type="turn_started", data={}),
-                                 Event(type="input_claimed", data={"content": "问"})])
-        self.check("无关事件不影响状态", (0, []), (comp.covered_end, comp.summaries))
-
+                                 Event(type="input_claimed", data={"content": "q"})])
+        self.assertEqual((comp.covered_end, comp.summary), (0, ""))
     def test_view_messages_drops_covered(self) -> None:
         comp = ContextCompactor(None)
         comp.covered_end = 2
@@ -863,7 +855,7 @@ class Invariants(_Case):
 
 
 # ══════════════════════════════════════════════════════════════
-# 八、用户轮原子性与工具轨迹剥离
+# 八、用户轮原子性
 #
 # 原子性 = 一条 user 起到下一条 user 前是一个整体。压缩只允许整轮处理：
 # 边界一律向下取整到轮起点，宁可压 0 个用户轮，也不切半截轮。
@@ -946,23 +938,6 @@ class TurnAtomicity(_Case):
                         not tool_chain_balanced(msgs, 4, 6))
 
 
-#: (每轮工具次数, keep_turns) → 期望的剥离结果（角色序列）
-STRIP_DISTANT_TABLE = [
-    ([0, 0, 0], 1, ["user", "assistant", "user", "assistant", "user", "assistant"]),
-    ([2, 0, 0], 1, ["user", "assistant", "user", "assistant", "user", "assistant"]),
-    ([0, 2, 0], 1, ["user", "assistant", "user", "assistant", "user", "assistant"]),
-    ([0, 0, 2], 1, ["user", "assistant", "user", "assistant", "user", "assistant",
-                    "tool", "assistant", "tool", "assistant"]),
-    ([2, 0, 0], 2, ["user", "assistant", "user", "assistant", "user", "assistant"]),
-    ([0, 0, 2], 2, ["user", "assistant", "user", "assistant", "user", "assistant",
-                    "tool", "assistant", "tool", "assistant"]),
-    ([0, 0, 2], 3, ["user", "assistant", "user", "assistant", "user", "assistant",
-                    "tool", "assistant", "tool", "assistant"]),
-    ([2, 2, 2], 0, ["user", "assistant", "user", "assistant", "user", "assistant"]),
-    ([2, 2, 2], -1, ["user", "assistant", "tool", "assistant", "tool", "assistant",
-                     "user", "assistant", "tool", "assistant", "tool", "assistant",
-                     "user", "assistant", "tool", "assistant", "tool", "assistant"]),
-]
 def _random_conv(rng: random.Random, *, max_turns: int = 7) -> list:
     """随机对话：每轮 0..3 次工具往返；末尾可能多一条新输入。"""
     msgs = []
@@ -1178,9 +1153,9 @@ class MaskSurvivesOverflow(_Case):
         left = [m for m in msgs[comp.covered_end:] if m.get("role") == "user"]
         self.check("遮盖 2 轮就留 2 轮", 2, len(left))
 
-    def test_reserve_zero_means_no_mask(self) -> None:
+    def test_reserve_zero_is_lifted_to_one(self) -> None:
         comp = ContextCompactor(None, full_user_rounds=0)
-        self.check("遮盖 0 轮 = 不遮盖（照配置来，不擅自抬）", 0,
+        self.check("遮盖 0 轮抬到 1（近场至少保留一轮）", 1,
                    comp.full_user_rounds)
 
     def test_only_masked_turns_still_get_compressed(self) -> None:

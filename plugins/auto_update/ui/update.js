@@ -2,10 +2,12 @@
 (function () {
   "use strict";
 
-  function boot() {
+  function boot(attempt) {
+    attempt = Number(attempt) || 0;
     var btn = document.querySelector('[data-ui-action="auto_update.check"]');
     if (!btn) {
-      window.setTimeout(boot, 200);
+      if (attempt >= 50) return;
+      window.setTimeout(function () { boot(attempt + 1); }, 200);
       return;
     }
     if (btn._updateBound) return;

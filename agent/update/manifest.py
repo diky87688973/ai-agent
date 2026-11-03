@@ -25,10 +25,6 @@ class UpdateManifest:
     notes: List[str]
     raw: bytes
 
-    @property
-    def signature(self) -> str:
-        return ""
-
 
 def _text(value: Any, name: str) -> str:
     text = str(value or "").strip()

@@ -177,3 +177,48 @@ html[data-ui-theme="light"] .st-editor textarea{--st-sb:rgba(0,0,0,.38)}
 }
 .st-editor textarea::-webkit-scrollbar-thumb:hover{background:var(--c-text-4);background-clip:padding-box}
 .st-editor textarea::-webkit-scrollbar-corner{background:transparent}
+
+/* 设置页下拉：所有界面风格统一使用可定制 picker。 */
+.st-form select {
+  appearance: base-select;
+  -webkit-appearance: base-select;
+  background: var(--c-bg-base);
+  color: var(--c-text-1);
+  border: 1px solid var(--c-line-2);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+.st-form select::picker(select) {
+  appearance: base-select;
+  background: var(--c-bg-raise);
+  border: 0;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .38);
+  padding: 4px;
+  color: var(--c-text-1);
+}
+.st-form select option {
+  background: var(--c-bg-raise);
+  color: var(--c-text-1);
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.st-form select option:checked {
+  background: transparent;
+  color: var(--c-text-1);
+}
+.st-form select option:hover {
+  background: var(--c-bg-hover);
+  color: var(--c-text-1);
+}
+.st-form select::picker-icon { color: var(--c-text-3); }
+
+html[data-ui-theme="light"] .st-save:disabled,
+html[data-ui-theme="light"] .st-apply.is-primary:disabled {
+  opacity: 1;
+  background: var(--c-bg-active);
+  color: var(--c-text-2);
+  border-color: var(--c-line-2);
+}

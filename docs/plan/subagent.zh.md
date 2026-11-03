@@ -2,6 +2,8 @@
 
 # 子智能体能力
 
+**Status:** 已实现。
+
 ## 目标
 
 在现有会话体系内增加可持久化的多回合子智能体。
@@ -295,7 +297,7 @@ sequence_source = 父 store
 父 store 的扫描范围：
 
 ```text
-data/sessions
+data/session/raw
 data/subagent/sessions
 ```
 
@@ -307,7 +309,7 @@ data/subagent/sessions
 
 ```text
 SessionActions.sessions()
-  只扫描 data/sessions
+  只扫描 data/session/raw
   不读取 data/subagent
 ```
 
@@ -676,7 +678,7 @@ POST /api/subagents/send
 .composer-left-col
   #chatQueue
   #queueDraft
-  #aiSpeakSlot
+  #aiCosplaySlot
 ```
 
 ### 子智能体面板
@@ -826,7 +828,7 @@ inbox 来源显示
 | 风险 | 处理 |
 |---|---|
 | 全局 `seq` 冲突 | 共享序列分配器，扫描两个会话目录。 |
-| 子会话污染主列表 | 主列表只扫 `data/sessions`。 |
+| 子会话污染主列表 | 主列表只扫 `data/session/raw`。 |
 | 密钥分裂 | 父子共用父 store 的密钥路径。 |
 | 子智能体递归 | 子视图排除 `subagent`；生命周期拒绝子智能体调用方。 |
 | sibling 越权 | 消息按父子关系校验；子会话工具不暴露目标参数。 |

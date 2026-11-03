@@ -2,6 +2,8 @@
 
 # 软件更新
 
+**Status:** implemented.
+
 状态：已实现。
 
 ## 1. 边界

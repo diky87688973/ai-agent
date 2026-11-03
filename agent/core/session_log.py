@@ -12,8 +12,10 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from agent.core.error_report import report_error
+from agent.core.event_name import TOOL_ENDED
 from agent.core.events import Event
 from agent.core.model_call import PROVIDER_META_KEY
+from agent.core.state_values import TOOL_SUSPENDED as TOOL_STATUS_SUSPENDED
 
 
 def _user_content(text: str, attachments: Any) -> Any:
@@ -29,8 +31,12 @@ def _user_content(text: str, attachments: Any) -> Any:
     from agent.core.image_embed import build_embed_parts, placeholder_text
 
     parts, skipped = build_embed_parts(attachments)
-    # 一张合法附件都没有 → 回落纯文本（单文本段不包成数组）
+    # 一张合法附件都没有 → 回落纯文本；但被跳过的附件仍要给模型一句说明，
+    # 否则“图没发出去”这个事实在请求里完全消失。
     if not parts:
+        note = placeholder_text(skipped, attachments)
+        if note:
+            return f"{text}\n{note}" if text else note
         return text
     if text:
         parts.insert(0, {"type": "text", "text": text})
@@ -155,7 +161,7 @@ class SessionLogView:
 def _closed_tool_calls(events: Any) -> set[str]:
     closed: set[str] = set()
     for ev in events:
-        if ev.type != "tool_ended" or str(ev.data.get("status") or "") == "suspended":
+        if ev.type != TOOL_ENDED or str(ev.data.get("status") or "") == TOOL_STATUS_SUSPENDED:
             continue
         cid = str(ev.data.get("call_id") or "")
         if cid:
@@ -188,7 +194,7 @@ def _model_message(ev: Event) -> dict[str, Any]:
 
 def _tool_ended_message(ev: Event, results: dict[str, dict[str, Any]],
                         emitted: set[str]) -> dict[str, Any] | None:
-    if str(ev.data.get("status") or "") == "suspended":
+    if str(ev.data.get("status") or "") == TOOL_STATUS_SUSPENDED:
         return None
     call_id = str(ev.data.get("call_id", ""))
     if call_id in emitted:

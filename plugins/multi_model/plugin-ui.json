@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "kind": "ui-paths",
+  "paths": {
+    "button": "app/shell/web-ui/input/buttons/model_switch_btn",
+    "settings_panel": "app/settings/model"
+  }
+}

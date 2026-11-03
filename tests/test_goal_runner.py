@@ -12,6 +12,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -89,6 +90,25 @@ class ContinuationTextTest(_RunnerBase):
         self.assertEqual(runner._next_continuation_text(cid), "")
 
 
+class GoalQueueFallbackTest(_RunnerBase):
+    def test_goal_turn_is_queued_when_run_slot_is_taken(self) -> None:
+        cid = "goal-race-0001"
+        state, runner, _ = self._make(cid)   # _make 已占用运行位
+        state.set_goal(cid, "继续推进")
+        rows = []
+
+        class Queue:
+            def enqueue(self, cid, **kwargs):
+                rows.append((cid, kwargs))
+                return {"id": "q1"}
+
+        runner._app.conversation_queue = Queue()  # type: ignore[attr-defined]
+        self.assertIsNone(runner._claim_goal_turn(cid, 0))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][1]["payload"]["kind"], "goal_followup")
+        self.assertEqual(rows[0][1]["payload"]["source"], "goal")
+
+
 class CancelTest(_RunnerBase):
     def test_cancel_stops_goal_continuation(self) -> None:
         """取消后必须停 —— 不判取消位就是死循环。"""
@@ -131,6 +151,20 @@ class CancelTest(_RunnerBase):
         runner.request_cancel(cid)
         thread.join(timeout=3.0)
         self.assertGreaterEqual(state.get_goal(cid)["rounds"], 1)
+
+
+class StartFailureTest(_RunnerBase):
+    def test_start_failure_releases_placeholder(self) -> None:
+        """线程没起来时必须释放占位，否则会话永久显示在跑。"""
+        cid = "goal-start-fail"
+        state = LiveState()
+        runner = SessionRunner(app=_FakeApp(state), mesh=MeshState())
+        with mock.patch(
+            "agent.shell.session.runner.thread_with_context",
+            side_effect=RuntimeError("thread unavailable"),
+        ):
+            self.assertEqual(runner.start(cid, {"content": "x"}), "")
+        self.assertFalse(runner._mesh.is_running(cid))
 
 
 if __name__ == "__main__":  # pragma: no cover

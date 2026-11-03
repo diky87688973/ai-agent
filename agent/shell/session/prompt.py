@@ -19,14 +19,19 @@ def system_prompt(*, app: Any, mesh: Any, cid: str,
     state = getattr(app, "live_state", None)
     mode = state.get_mode(cid) if state is not None else "auto"
     extra: List[Any] = []
+    after_tools: List[Any] = []
     if prompt_sections is not None:
         extra.extend(prompt_sections.render(cid))
+        render_after = getattr(prompt_sections, "render_after_tools", None)
+        if callable(render_after):
+            after_tools.extend(render_after(cid))
     extra.append(environment_section(cid))
     return resolve_system_prompt(
         mode=mode,
         registry=registry if registry is not None else getattr(app, "registry", None),
         explicit=explicit or None,
         extra_sections=extra,
+        after_tools_sections=after_tools,
     )
 
 
@@ -53,7 +58,7 @@ def mode_note(*, app: Any, mesh: Any, cid: str) -> str:
             f"{TODO_LIST_NOTE}\n"
             f"当前进度：{done} 已完成，{active} 进行中，{pending} 待处理"
         )
-    parts = [part for part in (note, todo_note if note else "") if part]
+    parts = [part for part in (note, todo_note) if part]
     if extra:
         parts.append(extra)
     return "\n\n".join(parts)

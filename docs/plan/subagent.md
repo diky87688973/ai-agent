@@ -2,6 +2,8 @@
 
 # Subagent capability
 
+Status: implemented.
+
 ## Goal
 
 Add persistent multi-turn subagents inside the existing conversation system.
@@ -295,7 +297,7 @@ sequence_source = parent store
 Parent store scan:
 
 ```text
-data/sessions
+data/session/raw
 data/subagent/sessions
 ```
 
@@ -307,7 +309,7 @@ Main session list:
 
 ```text
 SessionActions.sessions()
-  scans data/sessions only
+  scans data/session/raw only
   does not read data/subagent
 ```
 
@@ -676,7 +678,7 @@ Left column:
 .composer-left-col
   #chatQueue
   #queueDraft
-  #aiSpeakSlot
+  #aiCosplaySlot
 ```
 
 ### Subagent panel
@@ -826,7 +828,7 @@ the parent continues to message the subagents
 | Risk | Handling |
 |---|---|
 | Global `seq` collision | Shared sequence allocator; both session directories are scanned. |
-| Child sessions pollute the main list | The main list scans `data/sessions` only. |
+| Child sessions pollute the main list | The main list scans `data/session/raw` only. |
 | Key split | Parent and child share the parent store key path. |
 | Recursive subagents | The child view excludes `subagent`; the lifecycle rejects a subagent caller. |
 | Sibling privilege | Messages are validated by the parent-child relation; the child tool has no target parameter. |

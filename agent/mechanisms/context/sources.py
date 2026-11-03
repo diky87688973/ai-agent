@@ -6,7 +6,10 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Callable, List, Optional, Tuple
 
+from agent.core.app_path import app_path
 from agent.core.error_report import report_error
+
+ASSEMBLY_PATH = app_path("kernel", "modules", "context", "assembly")
 
 
 @dataclass(frozen=True)
@@ -78,9 +81,14 @@ class ContextSources:
     `collect` 按注册顺序串接，单个来源异常被隔离（记录 stderr），不影响其他来源。
     """
 
-    def __init__(self) -> None:
+    def __init__(self, slots: Any = None) -> None:
         self._sources: List[Tuple[str, str, Callable[[str], List[str]], Any, str, str]] = []
+        self._slots = slots
         self._lock = threading.Lock()
+        if self._slots is not None and ASSEMBLY_PATH not in self._slots.nodes:
+            self._slots.register_slot(
+                ASSEMBLY_PATH, kind="kernel-stage",
+                default=self._collect_segments, default_owner="__host__")
         #: 内容版本号：注册变化或来源自身的数据变化（例如勾选集合变了）时 +1。
         #: 装配侧据此判断缓存的收集结果还能不能用 —— 光看"有没有注册新来源"
         #: 判不出"同一个来源的数据换了"。
@@ -96,7 +104,8 @@ class ContextSources:
             self._version += 1
 
     def add(self, fn: Callable[[str], List[str]],
-            meta: Optional["SourceMeta"] = None) -> Callable[[], None]:
+            meta: Optional["SourceMeta"] = None, *,
+            path: str = "", owner: str = "", replace: bool = False) -> Callable[[], None]:
         """注册一段注入源；返回幂等 disposer。
 
         `meta` 不给时按来源函数名兜底成一段段名等于 key 的来源。
@@ -105,19 +114,54 @@ class ContextSources:
             raise ValueError("上下文来源必须可调用")
         info = meta if isinstance(meta, SourceMeta) else SourceMeta()
         key = info.key or slug(getattr(fn, "__name__", "") or "source")
+        if path and self._slots is not None:
+            normalized = path.strip("/")
+            if normalized.startswith("backend/"):
+                normalized = app_path(normalized)
+            node = self._slots.nodes.get(normalized)
+            if node is None:
+                if replace:
+                    raise ValueError(f"上下文源插口不存在：{normalized}")
+                self._slots.register_slot(
+                    normalized, kind="context-source", default=fn,
+                    default_owner=str(owner or "__host__"))
+                source_fn = lambda cid, _path=normalized: self._slots.resolve(_path)(cid)
+            else:
+                if not replace:
+                    raise ValueError(f"上下文源插口已注册：{normalized}")
+                return self._slots.bind(
+                    normalized, fn, owner=str(owner or "__plugin__"),
+                    mode="replace")
+            drop_source = self._register(
+                self._sources,
+                (key, info.label or key, source_fn, info.count,
+                 info.prefix, info.plugin_rank))
+
+            def drop() -> None:
+                drop_source()
+                node = self._slots.nodes.get(normalized)
+                if node is not None and node.default is fn and not node.bindings:
+                    self._slots.nodes.pop(normalized, None)
+
+            return drop
         return self._register(self._sources,
                               (key, info.label or key, fn, info.count, info.prefix,
                                info.plugin_rank))
 
     def _register(self, bucket: List[Any], item: Any) -> Callable[[], None]:
+        # 每次注册包一层独立入口：同一个来源函数重注册后，旧 disposer 只能撤
+        # 自己那一条，不能按相等性删掉新注册。
+        wrapped = (item[0], item[1],
+                   lambda cid, _fn=item[2]: _fn(cid),
+                   item[3], item[4], item[5])
         with self._lock:
-            bucket.append(item)
+            bucket.append(wrapped)
             self._version += 1
 
         def _dispose() -> None:
             with self._lock:
-                if item in bucket:
-                    bucket.remove(item)
+                if wrapped in bucket:
+                    bucket.remove(wrapped)
                     # 卸下来源也是内容变化。不打版本号的话，本趟还没作废的快照
                     # 会继续带着已经卸掉的那一段。
                     self._version += 1
@@ -125,6 +169,14 @@ class ContextSources:
         return _dispose
 
     def collect_segments(self, conversation_id: str) -> "PluginSegments":
+        """收集注入源；实现可从 context/assembly 插口解析。"""
+        if self._slots is not None and ASSEMBLY_PATH in self._slots.nodes:
+            impl = self._slots.resolve(ASSEMBLY_PATH)
+            if impl is not self._collect_segments:
+                return impl(str(conversation_id or ""))
+        return self._collect_segments(str(conversation_id or ""))
+
+    def _collect_segments(self, conversation_id: str) -> "PluginSegments":
         """收集注入源，返回 `PluginSegments`（异常隔离）。
 
         `items` 是 `[(段 key, 段名, 正文)]`；`counts` 按位置对应 `items` ——

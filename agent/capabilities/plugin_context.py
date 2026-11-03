@@ -16,9 +16,13 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from agent.capabilities.plugin_ledger import Disposer
-from agent.capabilities.registry import ToolPlugin, ToolRegistry
+from agent.capabilities.plugin_ui_context import PluginUiContextMixin
+from agent.capabilities.registry import ToolRegistry
+from agent.capabilities.slot_registry import canonical_slot_path
+from agent.core.app_path import app_path
 from agent.core.context import SERVICE_PLUGIN_EVENTS, SERVICE_SUBAGENTS
 from agent.core.error_report import report_error
+from agent.core.slot import SlotContribution
 
 
 def _safe_dir_name(name: str) -> str:
@@ -30,7 +34,7 @@ def _safe_dir_name(name: str) -> str:
     return cleaned or "plugin"
 
 
-class PluginContext:
+class PluginContext(PluginUiContextMixin):
     """插件注册面：name + 各扩展点的 `add_*`；经此产生的 disposer 由加载器记账。"""
 
     def __init__(
@@ -50,6 +54,7 @@ class PluginContext:
         prompt_tail: Any = None,
         prompt_sections: Any = None,
         context_hooks: Any = None,
+        tree: Any = None,
     ) -> None:
         self.name = name
         self._registry = registry
@@ -63,10 +68,10 @@ class PluginContext:
         self._settings = settings
         self._ui = ui
         self._backend = backend
-        self._backend_seq = 0
         self._prompt_tail = prompt_tail
         self._prompt_sections = prompt_sections
         self._context_hooks = context_hooks
+        self._tree = tree
         #: 本插件在清单里的位次（宿主装载时写入；测试直构时为 None）
         self._rank: Optional[int] = None
         self._disposers: List[Disposer] = []
@@ -79,8 +84,53 @@ class PluginContext:
         """本插件经 ctx 登记的贡献 disposer（登记顺序；撤销时逆序）。"""
         return list(self._disposers)
 
+    def own_disposer(self, disposer: Any) -> None:
+        """登记一个由本插件持有的清理器，随插件卸载逆序释放。"""
+        if callable(disposer):
+            self._disposers.append(disposer)
+
+    def _contribute(self, path: str, register: Callable[[], Any],
+                    *, master: bool = False, replace: bool = False,
+                    kind: str = "") -> Disposer:
+        """把插件贡献落成插口；运行期贡献失败时默认只丢弃这一条。"""
+        try:
+            path = canonical_slot_path(str(path or "").strip())
+        except Exception as exc:
+            report_error("agent.capabilities.plugin_context.contribute", exc,
+                         plugin=self.name, path=str(path or ""), master=master)
+            if master:
+                raise ValueError(f"必须显式提供合法 path：{path}") from exc
+            return lambda: None
+        if self._tree is None:
+            try:
+                disposer = register()
+            except Exception as exc:
+                report_error("agent.capabilities.plugin_context.contribute", exc,
+                             plugin=self.name, path=path, master=master)
+                if master:
+                    raise ValueError(f"必须显式提供合法 path：{path}") from exc
+                return lambda: None
+            self._disposers.append(disposer)
+            return disposer
+        try:
+            if kind and self._backend is not None:
+                if not (replace and path in self._backend.entries):
+                    self._backend.validate(path, kind=kind, owner=self.name)
+            disposer = self._tree.add_dynamic(
+                path, lambda _ctx: SlotContribution(path, register, master=master),
+                replace=replace)
+        except Exception as exc:
+            report_error("agent.capabilities.plugin_context.contribute", exc,
+                         plugin=self.name, path=path, master=master)
+            if master:
+                raise ValueError(f"必须显式提供合法 path：{path}") from exc
+            return lambda: None
+        self._disposers.append(disposer)
+        return disposer
+
     def _backend_path(self, path: str, kind: str, handler: Any = None,
                       metadata: Any = None) -> Disposer:
+        path = canonical_slot_path(path)
         if self._backend is None:
             return lambda: None
         disposer = self._backend.register(
@@ -89,96 +139,103 @@ class PluginContext:
         self._disposers.append(disposer)
         return disposer
 
-    def _backend_seq_id(self, prefix: str) -> str:
-        self._backend_seq += 1
-        return f"{prefix}-{self._backend_seq}"
 
-    @staticmethod
-    def _backend_slug(value: str) -> str:
-        return re.sub(r"[^a-z0-9_.-]+", "-", str(value or "").strip().lower()).strip("-") or "item"
-
-    def add_executor(self, name: str, fn: Callable[[Dict[str, Any]], Dict[str, Any]]) -> Disposer:
-        """登记写类工具的执行器（提交路径扩展点；需接入 ExecutorRegistry）。
-
-        插件自己的写类工具走 `confirm_id` 制预览时，提交那一刻按工具名来这里取。
-        """
-        if self._executors is None:
-            raise RuntimeError("插件未接入执行器注册表（PluginHost 未传 executors）")
-        disposer = self._executors.add(name, fn, owner=self.name)
-        self._disposers.append(disposer)
-        self._backend_path(f"backend/tools/{name}/executor", "executor", fn)
-        return disposer
-
-    def register_tool(self, plugin: ToolPlugin) -> Disposer:
-        """向工具注册表注册插件；子智能体可见性由 set_subagent_tools 声明。"""
-        disposer = self._registry.register(plugin, owner=self.name)
-        self._disposers.append(disposer)
-        self._backend_path(f"backend/tools/{plugin.name}", "tool", plugin,
-                           {"schema": getattr(plugin, "parameters", {})})
-        return disposer
 
     def set_subagent_tools(self, tools: Any) -> Disposer:
         """声明本插件向子智能体暴露的工具清单；空清单表示全部不暴露。"""
-        disposer = self._registry.set_subagent_tools(self.name, tools)
-        self._disposers.append(disposer)
-        self._backend_path(f"backend/tools/subagents/visibility/{self.name}",
-                           "visibility", None, {"tools": tools})
-        return disposer
+        path = app_path("backend", "tools", "subagents", "visibility", self.name)
 
-    def subscribe(self, event_type: str, handler: Callable[[Any], None]) -> Disposer:
-        """订阅事件总线上的指定类型事件；返回幂等 disposer（需接入总线）。"""
+        def register() -> Disposer:
+            backend = self._backend_path(path, "visibility", None, {"tools": tools})
+            try:
+                return self._registry.set_subagent_tools(self.name, tools)
+            except Exception:
+                backend()
+                raise
+
+        return self._contribute(path, register)
+
+    def subscribe(self, event_type: str, handler: Callable[[Any], None], *,
+                  path: str, master: bool = False) -> Disposer:
+        """订阅事件总线上的指定类型事件；path 必须显式声明。"""
         if self._event_bus is None:
             raise RuntimeError("插件未接入事件总线（PluginHost 未传 event_bus）")
-        disposer = self._event_bus.subscribe(event_type, handler)
-        self._disposers.append(disposer)
-        event_id = self._backend_seq_id("event")
-        self._backend_path(
-            f"backend/events/subscriptions/{self._backend_slug(event_type)}/{self.name}-{event_id}",
-            "event-subscription", handler)
-        return disposer
+        event_path = canonical_slot_path(str(path or "").strip())
+
+        def register() -> Disposer:
+            backend = self._backend_path(event_path, "event-subscription", handler)
+            try:
+                return self._event_bus.subscribe(event_type, handler)
+            except Exception:
+                backend()
+                raise
+
+        return self._contribute(event_path, register, master=master,
+                                kind="event-subscription")
 
     def add_context_source(self, fn: Callable[[str], List[str]],
-                           meta: Any = None) -> Disposer:
-        """注册上下文注入源（上下文注入扩展点；需接入 sources）。
-
-        `meta` 是这一段的描述（`SourceMeta` 或 `{"label": ...}` 这类映射）：
-        段 key 一律以插件名为首（宿主不解释它的含义），段名由插件给。
-        不给描述时用插件名当段名。
-        """
+                           meta: Any = None, *, path: str,
+                           master: bool = False,
+                           replace: bool = False) -> Disposer:
+        """注册上下文注入源；path 是必选契约，不再自动拼序号。"""
         if self._context_sources is None:
             raise RuntimeError("插件未接入上下文注入源（PluginHost 未传 context_sources）")
-        disposer = self._context_sources.add(fn, self._source_meta(meta))
-        self._disposers.append(disposer)
-        source_id = self._backend_seq_id("source")
-        self._backend_path(
-            f"backend/context/sources/{self.name}/{source_id}",
-            "context-source", fn, {"meta": meta})
-        return disposer
+        source_path = canonical_slot_path(str(path or "").strip())
+
+        def register() -> Disposer:
+            backend = None
+            if not replace:
+                backend = self._backend_path(
+                    source_path, "context-source", fn, {"meta": meta})
+            try:
+                return self._context_sources.add(
+                    fn, self._source_meta(meta), path=source_path,
+                    owner=self.name, replace=replace)
+            except Exception:
+                if backend is not None:
+                    backend()
+                raise
+
+        return self._contribute(source_path, register, master=master, replace=replace, kind="context-source")
 
     def add_mode_tail(self, fn: Callable[[str], Any], *,
+                      path: str, master: bool = False,
                       subagent_visible: bool = True) -> Disposer:
-        """注册请求尾部片段；可声明是否注入子智能体尾部。"""
+        """注册请求尾部片段；path 是必选契约。"""
         if self._prompt_tail is None:
             raise RuntimeError("插件未接入请求尾部（PluginHost 未传 prompt_tail）")
-        disposer = self._prompt_tail.add(fn, subagent_visible=subagent_visible)
-        self._disposers.append(disposer)
-        tail_id = self._backend_seq_id("mode-tail")
-        self._backend_path(
-            f"backend/prompt/mode-tails/{self.name}-{tail_id}",
-            "mode-tail", fn)
-        return disposer
+        tail_path = canonical_slot_path(str(path or "").strip())
 
-    def add_prompt_section(self, section: str, fn: Callable[[str], Any]) -> Disposer:
-        """注册系统提示词章节来源；同一章节由多个插件合并。"""
+        def register() -> Disposer:
+            backend = self._backend_path(tail_path, "mode-tail", fn)
+            try:
+                return self._prompt_tail.add(
+                    fn, subagent_visible=subagent_visible)
+            except Exception:
+                backend()
+                raise
+
+        return self._contribute(tail_path, register, master=master, kind="mode-tail")
+
+    def add_prompt_section(self, section: str, fn: Callable[[str], Any], *,
+                           path: str, master: bool = False,
+                           after_tools: bool = False) -> Disposer:
+        """注册系统提示词章节来源；path 是必选契约。"""
         if self._prompt_sections is None:
             raise RuntimeError("插件未接入系统提示词章节（PluginHost 未传 prompt_sections）")
-        disposer = self._prompt_sections.add(section, fn, rank=self._rank)
-        self._disposers.append(disposer)
-        section_id = self._backend_seq_id("section")
-        self._backend_path(
-            f"backend/prompt/sections/{self._backend_slug(section)}/{self.name}-{section_id}",
-            "prompt-section", fn, {"section": section})
-        return disposer
+        section_path = canonical_slot_path(str(path or "").strip())
+
+        def register() -> Disposer:
+            backend = self._backend_path(
+                section_path, "prompt-section", fn, {"section": section})
+            try:
+                return self._prompt_sections.add(
+                    section, fn, rank=self._rank, after_tools=after_tools)
+            except Exception:
+                backend()
+                raise
+
+        return self._contribute(section_path, register, master=master, kind="prompt-section")
 
     def bump_context_sources(self) -> None:
         """声明"本插件注入的内容变了"（勾选集合、磁盘文件等）。
@@ -221,40 +278,41 @@ class PluginContext:
                           prefix=prefix, count=count,
                           plugin_rank=self._rank)
 
-    def add_pre_gate(self, fn: Callable[[Any, Any], Any]) -> Disposer:
-        """注册工具管道前置门控（工具管道扩展点；仅可加检查，不可减保证）。"""
+    def add_pre_gate(self, fn: Callable[[Any, Any], Any], *,
+                     path: str, master: bool = False) -> Disposer:
+        """注册工具管道前置门控；path 必须显式声明。"""
         if self._pipeline is None:
             raise RuntimeError("插件未接入工具管道（PluginHost 未传 pipeline）")
-        disposer = self._pipeline.add_pre(fn)
-        self._disposers.append(disposer)
-        gate_id = self._backend_seq_id("gate")
-        self._backend_path(
-            f"backend/tools/pipeline/pre-gates/{self.name}/{gate_id}",
-            "gate", fn)
-        return disposer
+        gate_path = canonical_slot_path(str(path or "").strip())
 
-    def add_post_observer(self, fn: Callable[[Any, Any, Any], None]) -> Disposer:
-        """注册工具管道后置观察者（工具管道扩展点）。"""
+        def register() -> Disposer:
+            backend = self._backend_path(gate_path, "gate", fn)
+            try:
+                return self._pipeline.add_pre(fn)
+            except Exception:
+                backend()
+                raise
+
+        return self._contribute(gate_path, register, master=master, kind="gate")
+
+    def add_post_observer(self, fn: Callable[[Any, Any, Any], None], *,
+                          path: str, master: bool = False) -> Disposer:
+        """注册工具管道后置观察者；path 必须显式声明。"""
         if self._pipeline is None:
             raise RuntimeError("插件未接入工具管道（PluginHost 未传 pipeline）")
-        disposer = self._pipeline.add_post(fn)
-        self._disposers.append(disposer)
-        observer_id = self._backend_seq_id("observer")
-        self._backend_path(
-            f"backend/tools/pipeline/post-observers/{self.name}/{observer_id}",
-            "observer", fn)
-        return disposer
+        observer_path = canonical_slot_path(str(path or "").strip())
 
-    def set_runtime(self, runtime: Any) -> None:
-        """登记本插件的运行时对象，供壳层按插件名取用。
+        def register() -> Disposer:
+            backend = self._backend_path(observer_path, "observer", fn)
+            try:
+                return self._pipeline.add_post(fn)
+            except Exception:
+                backend()
+                raise
 
-        插件被 `importlib` 以动态模块名加载，壳层没法 import 到同一个模块对象，
-        所以插件自己持有的运行时必须经宿主登记出来 —— 否则壳层会另建一份，
-        两边状态各写各的（勾选存进去却注入不出来）。
-        """
-        if self._host is not None:
-            self._host.register_runtime(self.name, runtime)
-        self._backend_path(f"backend/runtime/{self.name}", "runtime", runtime)
+        return self._contribute(observer_path, register, master=master,
+                                kind="observer")
+
 
     def is_subagent(self, conversation_id: str) -> bool:
         """当前会话是否为子智能体；插件用它决定是否注入子智能体专属内容。"""
@@ -302,39 +360,7 @@ class PluginContext:
             raise RuntimeError("插件未接入贡献注册表（PluginHost 未传 contributions）")
         return self._contributions
 
-    def add_route(
-        self,
-        method: str,
-        path: str,
-        handler: Callable[[Dict[str, Any]], Any],
-    ) -> Disposer:
-        """注册插件自己的 HTTP 端点：`/api/plugin/<插件名>/<path>`。
 
-        `handler(query)` 返回 `(status, payload)`；payload 为 dict / list 时按 JSON 返回。
-        路径只许是单段字面量（不许 `..`、通配或前导斜杠），命名空间不可越出。
-        """
-        disposer = self._contrib().add_route(self.name, method, path, handler)
-        self._disposers.append(disposer)
-        route_id = self._backend_seq_id("route")
-        self._backend_path(
-            f"backend/http/routes/{self._backend_slug(str(method) + '-' + str(path))}-{route_id}",
-            "http-route", handler, {"method": method, "path": path})
-        return disposer
-
-    def add_context_assembly_hook(
-        self,
-        fn: Callable[[List[Dict[str, Any]], str], Any],
-    ) -> Disposer:
-        """注册完整上下文拼装钩子；输入消息列表，返回新的消息列表。"""
-        if self._context_hooks is None:
-            raise RuntimeError("插件未接入上下文拼装钩子（PluginHost 未传 context_hooks）")
-        disposer = self._context_hooks.add(fn)
-        self._disposers.append(disposer)
-        hook_id = self._backend_seq_id("assembly")
-        self._backend_path(
-            f"backend/context/assembly-hooks/{self.name}/{hook_id}",
-            "assembly-hook", fn)
-        return disposer
 
     def publish_event(self, event: str, payload: Any = None) -> int:
         """推送插件 SSE 事件（非事实帧）；未接入 SSE 时返回 0。"""
@@ -366,71 +392,3 @@ class PluginContext:
             return {"ok": False, "error": "内核未接入挂起调用恢复入口"}
         return resume(
             conversation_id, call_id, data, ok=ok, name=name, error=error)
-
-    def add_settings_panel(
-        self, panel_id: str, title: str, *, order: int = 0,
-    ) -> Disposer:
-        """注册新的设置面板；渲染、保存和生命周期由宿主负责。"""
-        if self._settings is None:
-            raise RuntimeError("插件未接入设置注册表")
-        disposer = self._settings.add_panel(
-            self.name, panel_id, title, order=order)
-        self._disposers.append(disposer)
-        return disposer
-
-    def add_settings_item(
-        self, parent: str, item_id: str, *,
-        kind: str, label: str, default: Any = "",
-        options: Any = (), hint: str = "", order: int = 0,
-        save: Any = None, load: Any = None,
-    ) -> Disposer:
-        """注册设置条目；保存回调由插件实现并返回成功/失败。"""
-        if self._settings is None:
-            raise RuntimeError("插件未接入设置注册表")
-        disposer = self._settings.add_item(
-            self.name, parent, item_id, kind=kind, label=label,
-            default=default, options=options, hint=hint, order=order,
-            save=save, load=load,
-        )
-        self._disposers.append(disposer)
-        return disposer
-
-    def add_ui_slot(self, path: str, *, kind: str, children: str,
-                    allowed_kinds: Any = (), fixed_children: Any = (),
-                    owner: str = "*") -> Disposer:
-        """注册 UI 插口；基础 UI 插件使用。"""
-        if self._ui is None:
-            raise RuntimeError("插件未接入 UI 注册表")
-        disposer = self._ui.add_slot(
-            path, kind=kind, children=children,
-            allowed_kinds=allowed_kinds, fixed_children=fixed_children, owner=owner)
-        self._disposers.append(disposer)
-        return disposer
-
-    def add_ui_item(self, path: str, *, kind: str,
-                    handler: Any = None, props: Any = None,
-                    order: Any = None) -> Disposer:
-        """注册 UI 控件；路径必须落在已声明插口内。"""
-        if self._ui is None:
-            raise RuntimeError("插件未接入 UI 注册表")
-        disposer = self._ui.add_item(
-            path, kind=kind, owner=self.name, handler=handler,
-            props=props, order=order)
-        self._disposers.append(disposer)
-        return disposer
-
-    def add_model_catalog(self, entries: Any) -> Disposer:
-        """声明本插件的模型清单；`entries` 是条目序列或每次重读配置的回调。
-
-        来源名固定是插件名：目录只认一个权威，冲突时保留先登记的来源并留痕，
-        插件装载不因此失败（装载顺序不是契约，但结果必须确定且可审计）。
-        """
-        if self._model_catalog is None:
-            raise RuntimeError("插件未接入模型目录（PluginHost 未传 model_catalog）")
-        try:
-            disposer = self._model_catalog.set_source(self.name, entries)
-        except RuntimeError as exc:
-            report_error("plugin.model_catalog", exc, plugin=self.name)
-            return lambda: None
-        self._disposers.append(disposer)
-        return disposer

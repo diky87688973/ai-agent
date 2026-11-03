@@ -13,12 +13,13 @@
 """
 from __future__ import annotations
 
+import copy
 import json
-import sys
 from typing import Any, Callable, Dict, List, Optional
 
+from agent.core.app_path import app_path
 from agent.core.error_report import report_error
-from agent.core.mode_marker import MODE_MARKER
+from agent.core.modules.mode_note import strip_mode_tail
 from agent.core.ports import LogicalRequest
 from agent.core.session_log import ensure_tool_pairs
 from agent.mechanisms.context.contract import (
@@ -27,37 +28,79 @@ from agent.mechanisms.context.contract import (
 )
 
 _DEFAULT_POLICY = ContextCompactionPolicy()
+BUILD_CONTEXT_PATH = app_path("kernel", "modules", "compaction", "build-context")
+SUMMARIZE_PATH = app_path("kernel", "modules", "compaction", "summarize")
+POLICY_PATH = app_path("kernel", "modules", "compaction", "policy")
 
-#: 摘要桥接后缀：接在摘要正文之后，向模型标明上文是历史摘要、下文续当前对话。
-SUMMARY_BRIDGE_TAIL = "\n\n【以上为历史摘要，下面继续当前对话】"
-
-_SUMMARY_INSTRUCTION = (
-    "把上面这段对话压缩成一份摘要，供另一个模型接着干，关键上下文不能丢。\n"
-    "1) 识别对话场景（如开发、排障、写文档、数据分析等），按场景保留高价值信息。\n"
-    "2) 降噪：去掉寒暄与无信息套话；多处矛盾时以用户最终意图与最后澄清为准；重复尝试可合并为一句。\n"
-    "3) 事实粒度：保留可执行信息——路径、命令、版本号、明确数字、用户硬性约束（必须/禁止等）。\n"
-    "4) 未完成：单独列出仍待处理或待用户确认的事项；已放弃的方案一句话带过即可。\n"
-    "5) 输出：纯文本中文；建议分节（背景 / 关键结论 / 约束与约定 / 未完成与待确认 / 风险与注意点）；"
-    "总篇幅不超过约 {max_chars} 字，在限制内尽量保留关键细节与可执行信息。\n"
-    "6) 脉络连贯：关注「用户要什么 → 做了什么 → 得到什么结论」的因果链，不要只罗列事实；"
-    "对每个关键结论尽量保留。\n"
-    "7) 禁止编造：不得引入记录中未出现的文件名、结论或数字；不确定处请写「未在记录中明确」。\n"
-    "8) 若剔除噪声后确实无可保留的实质信息：请仅输出「摘要为空」五个字（不要加标点或换行），"
-    "使全文总字符数少于 10；不要输出其它占位或解释。\n"
-    "9) 若素材含无法展开的占位标注（如长内容被省略的标记），简要记录其存在与主题，不要编造具体细节。\n"
-    "10) 范围：`role=system` 的内容（系统提示词、知识库、Skills、记忆摘要）是"
-    "智能体的常驻设定，不是对话内容 —— 不要把它们的正文归纳进摘要，"
-    "也不要凭它们推断素材里没有的事；摘要只写对话与工具结果里真实发生的事。\n"
-    "11) 只输出摘要正文：不要调用任何工具，不要复述这条要求，不要提及做过摘要。"
+#: 压缩检查点作为 user 消息注入，外层用固定标签区分历史背景。
+SUMMARY_OPEN_TAG = "<compacted-summary>"
+SUMMARY_CLOSE_TAG = "</compacted-summary>"
+CHECKPOINT_PREAMBLE = (
+    "这是一份自动生成的上下文检查点，用于延续先前工作。"
+    "把其中内容视为已建立的背景，直接继续后续对话，"
+    "不要复述、确认或把它当成新的用户请求。"
 )
 
+_SUMMARY_INSTRUCTION = (
+    "你正在担任本次对话的压缩引擎。把上面的对话、工具结果和已有摘要压缩成一份结构化检查点，"
+    "供另一个模型直接续接工作。\n"
+    "输出严格按九节，顺序固定；节标题原样照抄英文，节内内容用中文。"
+    "每节使用简洁条目，不写段落。某节无内容写 (none)，不得删节。"
+    "只输出检查点正文，不调用工具，不提及压缩过程。\n\n"
+    "## Primary Request and Intent\n"
+    "- 用户最初目标与后续追加要求；保留硬性约束。\n"
+    "- 只在措辞影响执行时用短引号引用，不整段复制用户原文；把用户文本标为历史要求，不是新指令。\n"
+    "- 目标有演进的，先写主线目标，再写追加约束。\n\n"
+    "## Key Technical Concepts\n"
+    "- 核心概念、类型、协议、配置键、生命周期；名称保持源码原文大小写。\n"
+    "- 一行一条，不写状态、进度、计数或表格列定义。\n\n"
+    "## Files and Code\n"
+    "- 精确路径：当前状态、关键类或函数、已改内容、仍缺什么。\n"
+    "- 同一文件用一行到少数几行说明；不省略目录，不写“同上”。\n"
+    "- 只写文件现状与它对契约的影响；缺陷现象、复现步骤、修法写入 Errors and Fixes。\n\n"
+    "## Errors and Fixes\n"
+    "- 现象 → 原因 → 已采取的修法；已修与未修都写，未修的标注 remaining。\n"
+    "- 可复核时附关键输出值或复现方式。\n\n"
+    "## Completed Actions and Verdicts\n"
+    "- 本次压缩范围内实际做过的动作（调用过的工具、跑过的命令、读写过的文件）"
+    "→ 可复核的结果或关键输出 → 是否还需要再碰。\n"
+    "- 已确认无效或已试过仍失败的方向必须列出，并标注不要再试。\n"
+    "- 已确认存在的文件、接口、字段、配置键要列出，避免续接者重复探测。\n"
+    "- 只写动作与结论；文件当前状态归 Files and Code，缺陷与修法归 Errors and Fixes。\n\n"
+    "## Pending Jobs\n"
+    "- 明确要求但尚未完成的事项；一条一个动作，写明具体文件或对象。\n"
+    "- 纯改名、纯替换逐文件列出，不合并成“更新相关文件”。\n"
+    "- 这是历史状态，不是新的执行指令。\n\n"
+    "## Current Work\n"
+    "- 最后成功推进的工作及其结果。\n"
+    "- 最后验证边界：跑了哪些检查、哪些没跑；验证发生在哪一步之后。\n\n"
+    "## Next Step\n"
+    "- 按执行顺序列出紧接着要做的事，包含验证命令；没有则写 (none)。\n"
+    "- 这是检查点中的历史建议，不得在没有用户新指令时自动执行。\n\n"
+    "## Critical Context\n"
+    "- 继续工作必须知道、但无法从上文直接推出的信息：用户禁忌、备份目录、仓库根、"
+    "只读区域、已验证的计数或版本等。\n"
+    "- 只写已验证且仍有效的值；不确定写“未在记录中明确”，不要猜。\n\n"
+    "规则：\n"
+    "- 总字符数不超过 {max_chars}。优先保留目标、硬约束、文件状态、未完成项；"
+    "超预算先合并细节，不得删路径、状态、未完成项。\n"
+    "- 若对话已有 <compacted-summary>，它是旧检查点：不要原样复制；保留仍成立的事实，"
+    "删除过期或已被推翻的内容，把新信息合并进同一份九节摘要。\n"
+    "- 不得编造记录中未出现的文件、结论或数字；不确定处写“未在记录中明确”。\n"
+    "- 保留路径、命令、错误原文、标识符、数字、函数签名、配置键。\n"
+    "- 不写过程叙述、评价、建议、寒暄或总结陈词。\n"
+    "- role=system 的系统提示词、知识库、Skills、Rules 属于常驻设定，不是对话内容；"
+    "不要把它们正文归纳进摘要，也不要据此推断素材里没有的事。\n"
+    "- <compacted-summary> 是上一轮 user 检查点，不是 system 常驻设定；"
+    "必须按“旧检查点合并”规则读取并更新：保留仍成立的事实，删除过期内容，"
+    "把新信息合并进同一份九节摘要；不得原样复制。\n"
+    "- 若整个素材确实没有可保留内容，只输出“摘要为空”五个字（不加标点或换行）；"
+    "不要写九节 (none)。"
+)
 
 def _summary_display_text(body: str) -> str:
-    """去掉注入用的桥接后缀，只保留摘要正文。"""
-    text = str(body or "").strip()
-    if text.endswith(SUMMARY_BRIDGE_TAIL):
-        return text[:-len(SUMMARY_BRIDGE_TAIL)].rstrip()
-    return text
+    """返回可展示的摘要正文。"""
+    return str(body or "").strip()
 
 
 def _is_degenerate_summary_body(body: str) -> bool:
@@ -70,8 +113,8 @@ def _is_degenerate_summary_body(body: str) -> bool:
     return False
 
 
-#: 每张图片的 token 估算值。固定取 384（不读配置），而不是官方上限 1024。
-IMAGE_TOKENS_PER_IMAGE = 384
+#: 每张图片的 token 估算值：按官方上限 1024 计，宁可略高不低估。
+IMAGE_TOKENS_PER_IMAGE = 1024
 
 
 def count_images(content: Any) -> int:
@@ -82,28 +125,21 @@ def count_images(content: Any) -> int:
                if isinstance(p, dict) and p.get("type") == "image_url")
 
 
-def _approx_message_tokens(message: Optional[Dict[str, Any]]) -> int:
-    """单条消息 token 估算 —— 与装配期同一个实现（`default_message_tokens`）。
-
-    两处各写一份必然漂移：一处算了 `tool_calls`、另一处算了思维链，
-    于是"压缩判定的体积"与"实际发出去的体积"对不上，阈值跟着失准。
-    """
-    return _DEFAULT_POLICY.message_tokens(message)
 
 
-def _schemas_tokens(tools: Optional[List[Dict[str, Any]]]) -> int:
+def _schemas_tokens(tools: Optional[List[Dict[str, Any]]], policy: Any = _DEFAULT_POLICY) -> int:
     """工具声明的 token 估算（每请求都带，属固定开销）。"""
     if not tools:
         return 0
     try:
-        return _DEFAULT_POLICY.approx_tokens(json.dumps(tools, ensure_ascii=False))
+        return policy.approx_tokens(json.dumps(tools, ensure_ascii=False))
     except (TypeError, ValueError):
         return 0
 
 
-def _mode_note_tokens(mode_note: str) -> int:
+def _mode_note_tokens(mode_note: str, policy: Any = _DEFAULT_POLICY) -> int:
     """尾部执行模式说明的 token 估算（也算进请求体）。"""
-    return _DEFAULT_POLICY.approx_tokens(mode_note)
+    return policy.approx_tokens(mode_note)
 
 
 def _material_messages(prefix: Optional[List[Dict[str, Any]]],
@@ -184,7 +220,7 @@ def make_provider_summarizer(
             # （400：must be followed by tool messages）。
             # 两边补法一致，前缀逐字节相同不受影响。
             messages=ensure_tool_pairs(_DEFAULT_POLICY.clip(head, 0)
-                                        + [{"role": "system", "content": tail}]),
+                                        + [{"role": "user", "content": tail}]),
             # 工具定义照平常请求带上（前缀的一部分，少一项整段缓存作废）。
             tools=list(tools or []) if prefix_reuse else [],
         )
@@ -194,7 +230,7 @@ def make_provider_summarizer(
                 if getattr(delta, "kind", "") == "text":
                     parts.append(str(getattr(delta, "text", "") or ""))
         except Exception as exc:
-            print(f"[compactor] 摘要生成失败（已放行）: {exc}", file=sys.stderr, flush=True)
+            report_error("agent.mechanisms.compaction.compactor._summarize", exc)
             return ""
         return "".join(parts).strip()
 
@@ -211,27 +247,77 @@ class ContextCompactor:
         summary_token_threshold: int = 64000,
         full_user_rounds: int = DEFAULT_FULL_USER_ROUNDS,
         policy: Optional[ContextCompactionPolicy] = None,
+        slots: Any = None,
     ) -> None:
         self._summarize_fn = summarize_fn
+        self._slots = slots
         self.summary_token_threshold = max(1, int(summary_token_threshold))
         self.covered_end = 0
+        #: 单一当前摘要；历次压缩只更新这一条。
+        self.summary: str = ""
+        #: 上一次正常请求的精确前缀快照（不含尾部注入）。
+        self._sent_prefix: Optional[List[Dict[str, Any]]] = None
+        self._sent_tools: Optional[List[Dict[str, Any]]] = None
         #: 遮盖的末尾用户轮数：正常只压它们前面那一段；那里压不出空间时
         #: 连它们一起压（压不动就是请求超上限）。取值与 `[context] full_user_rounds`
-        #: 同一个配置项。
-        self.full_user_rounds = max(0, int(full_user_rounds))
+        #: 同一个配置项；当前契约下限 1，不能把近场全部压成 0。
+        self.full_user_rounds = max(1, int(full_user_rounds))
         self._policy = policy or ContextCompactionPolicy(
             full_user_rounds=self.full_user_rounds,
         )
-        #: 历次压缩产生的摘要，各占一条 system 消息（不合并、不持续更新）：
-        #: 压缩范围只含 user/assistant 内容，摘要属系统设定、不在范围内。
-        self.summaries: List[str] = []
+        if self._slots is not None:
+            # Slots are shared by every per-session compactor.  Only reserve
+            # the paths here; never install a default that captures this
+            # instance.  Per-instance policy/summarizer stay local unless a
+            # plugin explicitly replaces the slot.
+            for path in (BUILD_CONTEXT_PATH, SUMMARIZE_PATH, POLICY_PATH):
+                if path not in self._slots.nodes:
+                    self._slots.register_slot(
+                        path, kind="kernel-stage", default=None,
+                        default_owner="__host__")
+
+    def _slot_bound(self, path: str) -> bool:
+        if self._slots is None:
+            return False
+        try:
+            return bool(self._slots.bindings_of(path))
+        except Exception as exc:
+            report_error("agent.mechanisms.compaction.compactor._slot_bound", exc)
+            return False
+
+    @staticmethod
+    def _build_context_default(messages: Any, mode_note: str = "") -> List[Dict[str, Any]]:
+        base = ContextCompactor._context_without_new_input(list(messages))
+        return strip_mode_tail(base, mode_note)
+
+    def build_context(self, messages: Any, mode_note: str = "") -> List[Dict[str, Any]]:
+        if self._slot_bound(BUILD_CONTEXT_PATH):
+            builder = self._slots.resolve(BUILD_CONTEXT_PATH)
+            return builder(list(messages), mode_note)
+        return self._build_context_default(messages, mode_note)
+
+    def _message_tokens(self, message: Optional[Dict[str, Any]]) -> int:
+        return self._policy_view().message_tokens(message)
+
+    def _policy_view(self) -> Any:
+        if self._slot_bound(POLICY_PATH):
+            return self._slots.resolve(POLICY_PATH)
+        return self._policy
+
+    def _summarize_text(self, base: List[Dict[str, Any]], tools: Any,
+                        system: str, material: List[Dict[str, Any]]) -> str:
+        if self._slot_bound(SUMMARIZE_PATH):
+            impl = self._slots.resolve(SUMMARIZE_PATH)
+            return str(impl(base, tools, system, material=list(material)) or "").strip()
+        return "" if self._summarize_fn is None else str(
+            self._summarize_fn(base, tools, system, material=list(material)) or "").strip()
 
     # ── 恢复────────────────────────────────
 
     def restore_from_events(self, events: Any) -> None:
         """从会话记录重放 `context_compacted` 事件重建状态（幂等；covered_end 单调不减）。"""
         covered = 0
-        summaries: List[str] = []
+        summary = ""
         for e in events or []:
             if getattr(e, "type", "") != "context_compacted":
                 continue
@@ -244,11 +330,11 @@ class ContextCompactor:
             if c < covered:
                 continue
             covered = c
-            s = str(data.get("summary") or "").strip()
-            if s:
-                summaries.append(s)
+            text = str(data.get("summary") or "").strip()
+            if text:
+                summary = text
         self.covered_end = covered
-        self.summaries = summaries
+        self.summary = summary
 
     # ── 视图与注入──────────────────────────
 
@@ -257,20 +343,46 @@ class ContextCompactor:
         return list(messages[self.covered_end :])
 
     def summary_messages(self) -> List[Dict[str, Any]]:
-        """摘要注入消息（记忆块；逐条独立成轮）：【历史摘要】前缀 + 正文。"""
-        return [{"role": "system", "content": "【历史摘要】\n" + s} for s in self.summaries]
+        """摘要作为单条 user 检查点注入；历史摘要不重复成多条。"""
+        if not self.summary:
+            return []
+        return [{
+            "role": "user",
+            "content": (
+                CHECKPOINT_PREAMBLE + "\n\n"
+                + SUMMARY_OPEN_TAG + "\n" + self.summary + "\n" + SUMMARY_CLOSE_TAG
+            ),
+        }]
+
+    def remember_sent_request(self, messages: List[Dict[str, Any]],
+                              cache_prefix: List[Dict[str, Any]],
+                              tools: Optional[List[Dict[str, Any]]]) -> None:
+        """记录上一次正常请求的精确前缀；只作 KV 缓存提示，不作为业务事实。"""
+        self._sent_prefix = copy.deepcopy(list(cache_prefix or []))
+        self._sent_tools = copy.deepcopy(list(tools or []))
+
+    def sent_prefix(self) -> Optional[List[Dict[str, Any]]]:
+        if self._sent_prefix is None:
+            return None
+        return copy.deepcopy(self._sent_prefix)
+
+    def sent_tools(self) -> Optional[List[Dict[str, Any]]]:
+        if self._sent_tools is None:
+            return None
+        return copy.deepcopy(self._sent_tools)
 
     # ── 拼入前检查────────────────────
 
     def _excerpt_range(self, view: List[Dict[str, Any]], context: Any):
-        rng = self._policy.excerpt(view, token_fn=context.message_tokens)
+        policy = self._policy_view()
+        rng = policy.excerpt(view, token_fn=context.message_tokens)
         if not rng:
             return None
         start, end = int(rng[0]), min(int(rng[1]), len(view))
         if end <= 0:
             return None
-        start = self._policy.floor(view, start)
-        if not self._policy.balanced(view, start, end):
+        start = policy.floor(view, start)
+        if not policy.balanced(view, start, end):
             return None
         return start, end
 
@@ -280,13 +392,10 @@ class ContextCompactor:
         system = ""
         if hasattr(context, "system_text"):
             system = str(context.system_text() or "")
-        text = ""
-        if self._summarize_fn is not None:
-            text = str(self._summarize_fn(
-                base, tools, system, material=list(material)) or "").strip()
+        text = self._summarize_text(base, tools, system, material)
         if _is_degenerate_summary_body(text):
             return ""
-        return text + SUMMARY_BRIDGE_TAIL
+        return text
 
     def ensure_before_append(
         self,
@@ -304,14 +413,17 @@ class ContextCompactor:
             view = self.view_messages(messages)
             if not view or not assembled:
                 return None
-            base = ContextCompactor._context_without_new_input(list(assembled))
-            base = ContextCompactor._strip_mode_tail(base, mode_note)
+            base = self.sent_prefix()
+            if base is None:
+                # 没有快照时只能重建；压缩仍可进行，但不能声称缓存命中。
+                base = self.build_context(list(assembled), mode_note)
             if not base:
                 return None
-            pending_tokens = _approx_message_tokens(pending)
+            pending_tokens = self._message_tokens(pending)
             context.set_summary_messages(self.summary_messages())
             context.set_dialogue(view)
-            overhead = _schemas_tokens(tools) + _mode_note_tokens(mode_note)
+            policy = self._policy_view()
+            overhead = _schemas_tokens(tools, policy) + _mode_note_tokens(mode_note, policy)
             estimate = context.total_token_estimate() + pending_tokens + overhead
             if estimate <= self.summary_token_threshold:
                 return None
@@ -320,11 +432,14 @@ class ContextCompactor:
                 return None
             start, end = rng
             material = list(view[start:end])
-            body = self._summary_body(base, material, context, tools)
+            summary_tools = self.sent_tools()
+            if summary_tools is None:
+                summary_tools = list(tools or [])
+            body = self._summary_body(base, material, context, summary_tools)
             if not body:
                 return None
             self.covered_end += end
-            self.summaries.append(body)
+            self.summary = body
             if hasattr(context, "set_summary_messages"):
                 context.set_summary_messages(self.summary_messages())
             return {
@@ -333,43 +448,12 @@ class ContextCompactor:
                 "summary_text": _summary_display_text(body),
                 "compressed_count": len(material),
                 "compressed_tokens": sum(
-                    _approx_message_tokens(message) for message in material
+                    self._message_tokens(message) for message in material
                 ),
             }
         except Exception as exc:
-            print(f"[compactor] 压缩检查失败（已放行）: {exc}",
-                  file=sys.stderr, flush=True)
+            report_error("agent.mechanisms.compaction.compactor.ensure_before_append", exc)
             return None
-
-    @staticmethod
-    def _strip_mode_tail(messages: Any, mode_note: str = "") -> List[Dict[str, Any]]:
-        """剔除尾部的执行模式说明。
-
-        判据（两条任一成立即认为是模式说明，从尾部连续剔除）：
-
-        1. 与本次的 `mode_note` 正文相同 —— 最可靠，模式说明是现拼出来的；
-        2. 正文以 `MODE_MARKER` 开头 —— 模式段的固定标记，`mode_note` 拿不到时兜底。
-
-        只剔尾部的：模式说明永远附在最后，中间的 `system` 消息（系统提示 / 插件段 /
-        知识库 / 摘要）一条都不能动。
-        """
-        note = str(mode_note or "").strip()
-        out = list(messages or [])
-        while out:
-            last = out[-1]
-            if not isinstance(last, dict) or str(last.get("role") or "") != "system":
-                break
-            text = str(last.get("content") or "").strip()
-            if not text:
-                break
-            if note and text == note:
-                out.pop()
-                continue
-            if text.startswith(MODE_MARKER):
-                out.pop()
-                continue
-            break
-        return out
 
     @staticmethod
     def _context_without_new_input(messages: Any) -> List[Dict[str, Any]]:

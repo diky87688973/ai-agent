@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""插件贡献清单：右栏面板、输入区动作、上下文段外观、开屏脚本与工具展示名。"""
+"""插件贡献清单：右栏面板、输入区动作、上下文段外观与工具展示名。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List

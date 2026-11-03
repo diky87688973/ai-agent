@@ -57,8 +57,14 @@ button:disabled{opacity:.6;cursor:default}
       body:JSON.stringify({password:p.value})}).then(function(r){
       return r.json().catch(function(){return {};}).then(function(j){
         if(r.ok&&j.ok){
-          var next=new URLSearchParams(location.search).get("next")||"/";
-          if(next.charAt(0)!=="/"||next.charAt(1)==="/")next="/";
+          var raw=new URLSearchParams(location.search).get("next")||"/";
+          var next="/";
+          try{
+            if(raw.charAt(0)=="/"&&raw.charAt(1)!=="/"&&raw.charAt(1)!=="\\\\"){
+              var u=new URL(raw,location.origin);
+              if(u.origin===location.origin)next=u.pathname+u.search+u.hash;
+            }
+          }catch(e){next="/";}
           location.replace(next);return;
         }
         e.textContent=j.error==="rate_limited"?"尝试过多，请稍后再试":
@@ -96,27 +102,54 @@ body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:c
  background:#15171c;color:#e8ecf1;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 .card{width:min(360px,calc(100vw - 40px));background:#1e2229;border:1px solid #303641;
  border-radius:12px;padding:26px;box-shadow:0 18px 60px #0008}
-h1{margin:0 0 8px;font-size:20px}p{margin:0;color:#9aa4b2;font-size:12px}
-.error{min-height:18px;margin-top:12px;color:#ff8a87;font-size:12px}
+h1{margin:0 0 16px;font-size:20px}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.steps li{display:flex;align-items:center;gap:9px;font-size:12px;color:#77808d;transition:color .15s}
+.steps li::before{content:"";width:8px;height:8px;border-radius:50%;background:#3a414c;
+ box-shadow:0 0 0 3px transparent;transition:background .15s,box-shadow .15s}
+.steps li.active{color:#e8ecf1}
+.steps li.active::before{background:#4f8cff;box-shadow:0 0 0 3px #4f8cff22}
+.steps li.done{color:#8fd3a8}
+.steps li.done::before{background:#4caf72}
+.error{min-height:18px;margin-top:14px;color:#ff8a87;font-size:12px}
 .win-close{display:none;position:fixed;top:12px;right:12px;width:32px;height:32px;margin:0;padding:0;
  border:0;border-radius:6px;background:transparent;color:#b9c2cf;font-size:20px;line-height:1;cursor:pointer}
 .win-close:hover{background:#2a303a;color:#fff}
 </style></head>
 <body><button type="button" class="win-close" id="win-close" title="关闭" aria-label="关闭">×</button>
-<div class="card"><h1>AI Agent</h1><p>正在准备桌面会话…</p>
+<div class="card"><h1>AI Agent</h1>
+<ol class="steps">
+ <li id="step-auth" class="active">正在获取认证</li>
+ <li id="step-ok">认证成功</li>
+ <li id="step-ready">正在准备桌面会话…</li>
+</ol>
 <div class="error" id="e"></div></div>
 <script>
 (function(){
  var token=location.hash ? location.hash.slice(1) : "";
+ var auth=document.getElementById("step-auth"), ok=document.getElementById("step-ok"),
+     ready=document.getElementById("step-ready"), err=document.getElementById("e");
  try{history.replaceState(null,"","/desktop-login");}catch(e){}
- if(!token){document.getElementById("e").textContent="缺少桌面引导令牌，请从桌面应用启动。";return;}
+ function fail(text){
+   if(auth)auth.className="";
+   if(err)err.textContent=text;
+ }
+ if(!token){fail("缺少桌面引导令牌，请从桌面应用启动。");return;}
  fetch("/auth/desktop",{method:"POST",credentials:"same-origin",
    headers:{"Content-Type":"application/json"},body:JSON.stringify({token:token})})
  .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
-   if(r.ok&&j.ok){location.replace("/");return;}
-   document.getElementById("e").textContent="桌面会话创建失败，请重新启动桌面应用。";
+   if(!r.ok||!j.ok){fail("桌面会话创建失败，请重新启动桌面应用。");return;}
+   window.setTimeout(function(){
+     auth.className="done";
+     ok.className="active";
+     window.setTimeout(function(){
+       ok.className="done";
+       ready.className="active";
+       window.setTimeout(function(){location.replace("/");},500);
+     },500);
+   },500);
  });})
- .catch(function(){document.getElementById("e").textContent="桌面会话创建失败，请重新启动桌面应用。";});
+ .catch(function(){fail("桌面会话创建失败，请重新启动桌面应用。");});
 })();
 (function(){
   var btn=document.getElementById("win-close");
@@ -221,7 +254,7 @@ class AuthRoutes:
         }
         return 200, {"ok": True, "csrf": session.csrf}, headers
 
-    def status(self, identity: Optional[AuthIdentity], raw_cookie: str = "") -> Tuple[int, Dict[str, Any], Dict[str, str]]:
+    def status(self, identity: Optional[AuthIdentity]) -> Tuple[int, Dict[str, Any], Dict[str, str]]:
         if identity is None:
             return 200, {"ok": True, "authenticated": False}, {"Cache-Control": "no-store"}
         payload = {

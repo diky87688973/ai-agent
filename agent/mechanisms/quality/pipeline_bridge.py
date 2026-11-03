@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, Optional, Tuple
 
+from agent.common.status import (
+    RUN_MODE_AUTO,
+    RUN_MODE_EXECUTE,
+    RUN_MODE_PLAN,
+)
 from agent.core.session_scope import current_session_id
 from agent.core.tool_call import (
     GateDecision,
@@ -21,12 +26,12 @@ def _mode_decision(live_state: Any) -> Optional[GateDecision]:
     if live_state is None:
         return None
     conv = current_session_id()
-    mode = live_state.get_mode(conv) if conv else "auto"
-    if mode == "plan":
+    mode = live_state.get_mode(conv) if conv else RUN_MODE_AUTO
+    if mode == RUN_MODE_PLAN:
         return GateDecision(
             allow=False,
             reason="ModeConflict：Plan 模式下禁止写盘（可先 run_type 切回 auto / execute）")
-    if mode == "execute" and not live_state.has_active_todo(conv):
+    if mode == RUN_MODE_EXECUTE and not live_state.has_active_todo(conv):
         return GateDecision(
             allow=False,
             reason="ModeConflict：Execute 模式写盘前须先创建非空执行清单（todo_list create）")
@@ -36,7 +41,11 @@ def _mode_decision(live_state: Any) -> Optional[GateDecision]:
 def _post_preview(call: ToolCallRequest, result: ToolResult,
                   session_gate: QualityGate) -> None:
     if isinstance(result.data, dict) and result.data.get("needs_commit", True):
-        cid = session_gate.register_preview(call.name, dict(call.arguments))
+        snapshot = dict(call.arguments)
+        extra = result.data.pop("_preview_arguments", None)
+        if isinstance(extra, dict):
+            snapshot.update(extra)
+        cid = session_gate.register_preview(call.name, snapshot)
         result.data["confirm_id"] = cid
 
 
@@ -69,7 +78,11 @@ def build_pipeline_gate(
         raise ValueError("build_pipeline_gate 需要 sessions")
     commit_names = tuple(commit_tools)
     read_names = tuple(read_tools)
-    pending: Dict[str, Dict[str, str]] = {}
+    pending: Dict[Tuple[str, str], Dict[str, str]] = {}
+
+    def pending_key(call: ToolCallRequest, ctx: Any) -> Tuple[str, str]:
+        cid = str(getattr(ctx, "conversation_id", "") or "") if ctx is not None else ""
+        return cid, call.call_id
 
     def plugin(name: str) -> Any:
         return registry.get(name)
@@ -102,11 +115,11 @@ def build_pipeline_gate(
         if not decision.allow:
             return decision
         record = session_gate.peek(cid) or {}
-        pending[call.call_id] = {"tool": str(record.get("tool") or "")}
+        pending[pending_key(call, ctx)] = {"tool": str(record.get("tool") or "")}
         return None
 
     def post(call: ToolCallRequest, result: ToolResult, ctx: Any) -> None:
-        info = pending.pop(call.call_id, None)
+        info = pending.pop(pending_key(call, ctx), None)
         if not result.ok:
             return
         session_gate = gate_for(ctx)

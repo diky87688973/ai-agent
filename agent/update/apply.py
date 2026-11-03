@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from agent.common.status import UPDATE_HEALTHY, UPDATE_ROLLED_BACK
 from agent.core.error_report import report_error
 from agent.update.install import (
     apply_staged,
@@ -47,13 +48,14 @@ def _run_new_updater(root: Path, state_path: Path, staging: Path) -> int:
 
 def main() -> int:
     parser_root = install_root()
+    state_path = None
     for index, arg in enumerate(sys.argv):
         if arg == "--root" and index + 1 < len(sys.argv):
             parser_root = Path(sys.argv[index + 1])
         if arg == "--state" and index + 1 < len(sys.argv):
             state_path = Path(sys.argv[index + 1])
     root = parser_root
-    if "state_path" not in locals():
+    if state_path is None:
         state_path = root / "updates" / "apply.json"
     if not state_path.is_file():
         return 0
@@ -76,14 +78,14 @@ def main() -> int:
         if not health_check(target):
             log_event(root, "apply_health_failed", level="error", version=version)
             restore_backup(root, previous)
-            write_state(root, "rolled_back", previous, version, "health_check_failed")
+            write_state(root, UPDATE_ROLLED_BACK, previous, version, "health_check_failed")
             return 2
         cleanup_after_success(root, version)
         try:
             state_path.unlink()
         except OSError as exc:
             log_event(root, "apply_state_cleanup_failed", level="error", error=str(exc))
-            write_state(root, "healthy", previous, version)
+            write_state(root, UPDATE_HEALTHY, previous, version)
             return 0
         killed = stop_old_launcher(root)
         removed = cleanup_launcher_archives(root)
@@ -96,7 +98,7 @@ def main() -> int:
             log_event(root, "old_launcher_stopped", pids=killed)
             if not launch_after_update(root):
                 log_event(root, "relaunch_failed", level="error")
-        write_state(root, "healthy", previous, version)
+        write_state(root, UPDATE_HEALTHY, previous, version)
         log_event(root, "apply_success", version=version)
         return 0
     except Exception as exc:

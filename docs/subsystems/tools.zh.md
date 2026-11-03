@@ -1,11 +1,42 @@
-[English](tools.md) | **中文**
+﻿# 工具
 
-# 工具
+## 1. 概览
 
 工具是模型能对外界做的事。实现在 `agent/capabilities/`，执行管道与写盘门控在 `agent/core/tool_call.py` 与 `agent/mechanisms/quality/`。
 
-## 注册
+## 2. 条件注册
 
+有些工具依赖运行时服务，不能在无依赖的装配中注册：
+
+| 工具 | 注册条件 | 生命周期 | 依赖边界 |
+|---|---|---|---|
+| `subagent` | `build_app(store=...)` 注入持久化存储 | 父会话工具；随 `SubagentManager` 创建、`App.dispose()` 关闭 | `agent/subagent` 持有批次与会话；壳层只经服务调用 |
+| `subagent_send` | 同上，仅子会话工具视图 | 子会话工具；随父管理器生命周期 | 只允许发给直属父会话 |
+
+无 store 的默认装配不注册这两个工具，因此 `catalog/tools.json` 不列出它们；这是条件注册，不是漏注册。
+
+## 3. 插口协议
+
+### 暴露
+
+| 插口路径 | 能力 | 关键属性 | 可替换/覆盖方式 |
+|---|---|---|---|
+| `app/boot/tools/*` | 工具或执行器 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `app/boot/tools/executors` | 工具或执行器 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `app/boot/tools/commit_write` | 工具或执行器 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `backend/tools/*` | 工具或执行器 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/tools/pipeline/pre-gates/*` | 工具或执行器 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/tools/pipeline/post-observers/*` | 工具或执行器 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+### 依赖
+
+| 依赖路径 | 能力 | 提供者 | 为什么依赖 |
+|---|---|---|---|
+| `app/boot/facade` | 启动节点 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/boot/files` | 启动节点 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+
+## 4. 插口能力
+
+### 注册
 ```python
 class ToolPlugin:
     name: str = ""
@@ -38,19 +69,7 @@ registry.schemas()          # 导出模型可见的工具声明
 
 注册返回幂等 disposer；调用它即注销插件。这是插件热装卸的地基。
 
-## 条件注册与生命周期
-
-有些工具依赖运行时服务，不能在无依赖的装配中注册：
-
-| 工具 | 注册条件 | 生命周期 | 依赖边界 |
-|---|---|---|---|
-| `subagent` | `build_app(store=...)` 注入持久化存储 | 父会话工具；随 `SubagentManager` 创建、`App.dispose()` 关闭 | `agent/subagent` 持有批次与会话；壳层只经服务调用 |
-| `subagent_send` | 同上，仅子会话工具视图 | 子会话工具；随父管理器生命周期 | 只允许发给直属父会话 |
-
-无 store 的默认装配不注册这两个工具，因此 `catalog/tools.json` 不列出它们；这是条件注册，不是漏注册。
-
-## 执行管道
-
+### 执行管道
 循环本体**永不直接调用工具函数**，一切调用经 `ToolPipeline`。没有第二条路径。
 
 管道分三段：
@@ -63,8 +82,7 @@ registry.schemas()          # 导出模型可见的工具声明
 
 判定结果是 `GateDecision`：放行 / 拒绝，附原因。执行期需要外部输入由工具侧抛错（异常上的 `await_user`）表达，落到 `ToolResult.await_user` / `deferred`，回合据此挂起。
 
-## 写盘四步协议
-
+### 写盘四步协议
 提交时的检查住在 `pre_tool` 段：
 
 ```
@@ -79,7 +97,7 @@ registry.schemas()          # 导出模型可见的工具声明
 
 预览与提交是**两个独立的工具入口**，不共用函数。
 
-### 回灌模型的结果信封
+#### 回灌模型的结果信封
 
 派生进模型上下文的 tool 消息（`SessionLog.derive_messages`）成功/失败**同形**：
 
@@ -88,11 +106,11 @@ registry.schemas()          # 导出模型可见的工具声明
 
 管道内部仍是 `ToolResult(ok/data/error)`；事件流仍是 `tool_done` / `tool_failed`。信封作用在「给模型看的那一层」；经典界面 `tool_end.preview` 用同一顶层 `ok`/`error`/`data` 形状。
 
-### review 与解锁
+#### review 与解锁
 
 `review_conclusion` 是模型工作流中的解锁入口：它提交基于本次改动审阅的结论与验证证据，并解锁预览。结论至少 30 字，`file_name` 必填；带 `confirm_id` 取消预览时结论可省略。带 `confirm_id` 且 `cancel_preview=true` 时改为丢弃该预览。未确认的预览不能提交。
 
-### 门控守的其余规则
+#### 门控守的其余规则
 
 | 规则 | 内容 |
 |---|---|
@@ -103,15 +121,14 @@ registry.schemas()          # 导出模型可见的工具声明
 | 大删除检测 | 删除 ≥30 行，且无新增或新增不足删除量的 35% 时亮红灯 |
 | 模式门控 | Plan 模式禁止写盘；Execute 模式提交前须有非空执行清单 |
 
-## 内置工具
-
+### 内置工具
 `catalog/tools.json` 是仓库中的工具清单，由 `scripts/gen_catalog.py` 从装配后的注册表生成；`scripts/check_catalog.py` 在它与装配集不一致时报错。
 
 **界面展示信息归工具自己**：`ToolPlugin` 上的 `label`（界面短名）与 `icon`（一个字符）
 由工具声明，经 `registry.display_list()` 与壳层的 `/api/tool-labels` 送到页面 ——
 加一个插件工具不必改界面；缺声明时界面退回显示工具名与中性图标。
 
-### 文件读写
+#### 文件读写
 
 | 工具 | 做什么 |
 |---|---|
@@ -127,13 +144,13 @@ registry.schemas()          # 导出模型可见的工具声明
 | `review_conclusion` | 提交 review 结论并解锁预览 |
 | `present` | 展示文件卡片；校验路径并返回元信息，不读取正文 |
 
-### 文件卡片
+#### 文件卡片
 
 `present` 接收文件路径列表或 `{path, title}` 对象，返回名称、大小、类型与 MIME，不读取正文。壳层把结果渲染成对话区文件卡片；点击卡片打开右栏文件查看器。卡片只由工具成功结果驱动，不从模型正文猜路径。
 
 Markdown 的本地文本文件路径链接同样进入右栏；本地媒体路径走媒体预览。正文里的行内代码路径（如 `` `E:\test.txt` ``）也按本地文件引用处理。
 
-### 定位与检索
+#### 定位与检索
 
 | 工具 | 做什么 |
 |---|---|
@@ -144,7 +161,7 @@ Markdown 的本地文本文件路径链接同样进入右栏；本地媒体路�
 | `regex_locate` | 正则定位：文件或目录，返回至多 `limit` 条命中的 region、行号和内容 |
 | `text_diff` | 对左右两侧文本生成 unified diff（只读） |
 
-### 命令执行
+#### 命令执行
 
 | 工具 | 做什么 |
 |---|---|
@@ -159,7 +176,7 @@ Markdown 的本地文本文件路径链接同样进入右栏；本地媒体路�
 `background_task` 使用 argv 直接启动进程，不套用 `safe_mode`，但仍受允许 cwd、超时与进程终止管理；它只继承上述最小环境白名单，不继承 API Key、Token 等凭据。
 `run_command`、`python_inline` 与 `background_task` 的 create 动作在 Plan 模式下被拒绝。
 
-### 网络
+#### 网络
 
 | 工具 | 做什么 |
 |---|---|
@@ -168,7 +185,7 @@ Markdown 的本地文本文件路径链接同样进入右栏；本地媒体路�
 | `ip_geolocate` | IP 地理查询（免费 API，无 Key） |
 | `open_meteo_weather` | 天气预报（免费 API，无 Key），支持地名 / 经纬度 / IP 定位，中文摘要输出 |
 
-### 数据与媒体
+#### 数据与媒体
 
 | 工具 | 做什么 |
 |---|---|
@@ -178,7 +195,7 @@ Markdown 的本地文本文件路径链接同样进入右栏；本地媒体路�
 | `image_ocr` | 图片 OCR，支持区域裁剪；需可选 OCR 引擎 |
 | `git_workspace` | Git 工作区只读查询：worktree / log / blame / show；不执行写入型命令 |
 
-### 会话与任务
+#### 会话与任务
 
 | 工具 | 做什么 |
 |---|---|
@@ -192,31 +209,36 @@ Markdown 的本地文本文件路径链接同样进入右栏；本地媒体路�
 | `session_create` | 创建自由 Agent 会话 |
 | `session_list` | 列出协作网络中的自由 Agent 会话 |
 
-### 诊断
+#### 诊断
 
 | 工具 | 做什么 |
 |---|---|
 | `unified_diagnose` | 对目录下 Python 文件做 AST 语法诊断，PATH 中有 ruff 时一并调用 |
 | `echo` | 回显输入文本 |
 
-## 插件工具
-
+### 插件工具
 插件可以通过 `ctx.register_tool(tool)` 向注册表贡献工具，执行仍走同一条管道。
 工具声明 `needs_preview=True` 时同样受写盘四步协议约束。
 
 `plugins/visual_operator` 贡献 `desktop_eye` / `desktop_mouse` / `desktop_keyboard` / `desktop_wait`：
 截屏结果作为图片附件回灌模型，鼠标与键盘动作按会话做 Plan 门控；坐标契约与平台后端见 [visual-operator.md](visual-operator.zh.md)。
 
-`plugins/ai_speak` 贡献 `ai_speak`：模型把当前步骤用人类口语说出来，后端合成语音经插件事件送到前端播放条；文本规范与配置见 [ai-speak.md](ai-speak.zh.md)。
+`plugins/ai_cosplay` 贡献 `ai_cosplay`：模型把当前步骤用人类口语说出来，后端合成语音经插件事件送到前端播放条；文本规范与配置见 [ai-cosplay.md](ai-cosplay.zh.md)。
 
 `plugins/skills` 贡献 `skills`（list / read）；见 [skills.md](skills.zh.md)。
 
 插件包形态、清单、扩展点与生命周期见 [plugins.md](plugins.zh.md)；运行时实例的登记（`ctx.set_runtime` / `plugin_host.runtime`）也在那里说明。
 
-## 延伸阅读
+## 5. 其他细节
 
-- [architecture.zh.md](../architecture.zh.md)：`ToolPort` 与模块链
-- [plugins.md](plugins.zh.md)：插件系统与工具扩展点
-- [visual-operator.md](visual-operator.zh.md)：插件工具的图片附件与输入门控示例
-- [guide/config.md](../guide/config.zh.md)：配置项
-- [session.md](session.zh.md)：跨会话协作工具背后的网格
+无额外细节。
+
+## 6. 延伸阅读
+
+| 主题 | 文档 |
+|---|---|
+| `ToolPort` 与模块链 | [architecture.zh.md](../architecture.zh.md) |
+| 插件系统与工具扩展点 | [plugins.zh.md](plugins.zh.md) |
+| 插件工具的图片附件与输入门控示例 | [visual-operator.zh.md](visual-operator.zh.md) |
+| 配置项 | [config.zh.md](../guide/config.zh.md) |
+| 跨会话协作工具背后的网格 | [session.zh.md](session.zh.md) |

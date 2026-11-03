@@ -14,6 +14,7 @@ import re
 from typing import Any, Optional
 
 from agent.core.error_report import report_error
+from agent.core.mode_marker import MODE_MARKER
 
 _REPLY_LANGUAGE = """\
 ## 回复语言
@@ -40,8 +41,8 @@ _TERMINOLOGY = """\
 - 用户确认：`user_confirm` —— 停下来问用户。与写盘链路无关。
 - `confirm_id`：`write_file` 预览返回的预览快照 ID（提交唯一凭据）。
   它与 `user_confirm` 的同名参数（宿主确认单 ID）不是一回事。
-- 三步写盘：任意声明预览的写类工具（只返回改动、不落盘）→
-  `review_conclusion`（审阅并解锁）→ `commit_write`（凭 `confirm_id` 落盘）。
+- 四步写盘：预览 → `review_conclusion`（审阅并解锁）→ `commit_write`（凭 `confirm_id` 落盘）
+  → `read_file` 重读复核。
   当前已注册的预览写类工具名单见纪律第 2 条；链路只有这一条。"""
 
 
@@ -53,7 +54,9 @@ def preview_write_tools_line(registry: Any) -> str:
     try:
         for name in registry.names():
             plugin = registry.get(name)
-            if plugin is not None and bool(getattr(plugin, "needs_preview", False)):
+            if (plugin is not None
+                    and bool(getattr(plugin, "needs_preview", False))
+                    and bool(getattr(plugin, "prompt_preview", True))):
                 names.append(str(name))
     except Exception as exc:
         report_error("agent.shell.prompts.preview_write_tools_line", exc)
@@ -74,7 +77,7 @@ def tooling_discipline(registry: Any) -> str:
 2. 改前必读：改任何源码前必须 read_file 看清当前内容 —— 跳过读取直接改必然出错。
    所有写类工具都走同一个门控，一个都不能跳 review：
    {tools_line}
-   链路见上「术语」的三步写盘链路；跳过 review 直接提交会被门控拒绝。
+   链路见上「术语」的四步写盘链路；跳过 review 直接提交会被门控拒绝。
    同一文件刚落盘后又要改：须先 read_file 复核当前内容与行号；
    复核不使已解锁的 confirm_id 失效，确认无误后用原 confirm_id 继续
    commit_write，不必重新预览。
@@ -123,7 +126,7 @@ _MODE_PROMPTS = {
         "## 当前模式：Auto\n"
         "默认模式：可直接执行。复杂改动建议先建执行清单（todo_list）；"
         "Execute 模式才强制要求非空清单；"
-        "写盘按上文的三步写盘链路走，不要自行发挥。"
+        "写盘按上文的四步写盘链路走，不要自行发挥。"
     ),
     "plan": (
         "## 当前模式：Plan（只读）\n"
@@ -133,7 +136,7 @@ _MODE_PROMPTS = {
     "execute": (
         "## 当前模式：Execute\n"
         "执行已确认的计划：写盘前必须先建立非空执行清单（todo_list）；"
-        "每写一处按上文的三步写盘链路走；一步一勾选，并验证结果。"
+        "每写一处按上文的四步写盘链路走；一步一勾选，并验证结果。"
     ),
 }
 
@@ -143,12 +146,21 @@ _TOOL_SUMMARY_HEADER = "## 可用工具"
 _TOOL_SUMMARY_FOOTER = "各工具的完整参数以它自己的 schema 为准。"
 
 
+_HEADING_BLANK_RE = re.compile(r"(?m)^(#{2,6} [^\n]*)\n[ \t]*\n")
+
+
+def compact_heading_spacing(text: str) -> str:
+    """标题后不留空行：正文紧跟标题，减少提示词空段。"""
+    return _HEADING_BLANK_RE.sub(r"\1\n", str(text or ""))
+
+
 def build_system_prompt(
     *,
     registry: Any,
     mode: str = "auto",
     tool_summary: str = "",
     extra_sections: Optional[list] = None,
+    after_tools_sections: Optional[list] = None,
 ) -> str:
     """组装基础系统提示词。
 
@@ -176,11 +188,15 @@ def build_system_prompt(
             _TOOL_SUMMARY_HEADER + "\n" + str(tool_summary).strip()
             + "\n" + _TOOL_SUMMARY_FOOTER
         )
-    return "\n\n".join(parts)
+    for section in (after_tools_sections or []):
+        text = str(section or "").strip()
+        if text:
+            parts.append(text)
+    return compact_heading_spacing("\n\n".join(parts))
 
 
 #: 模式段的起始标记。切分系统提示词时用它定位，不靠"模式段必是最后一段"这种位置假设。
-_MODE_MARKER = "## 当前模式："
+_MODE_MARKER = MODE_MARKER + "："
 
 #: 段分隔符（`build_system_prompt` 用它拼接，切分时按它还原）。
 _SECTION_JOIN = "\n\n"
@@ -222,16 +238,19 @@ def split_mode_section(system_prompt: str) -> str:
     return text[:idx].strip()
 
 
-def tool_summary(registry: Any, *, limit: int = 40) -> str:
-    """从工具注册表摘一份"名字 — 一句话"速查。
+def tool_summary(registry: Any, *, limit: Optional[int] = None) -> str:
+    """从工具注册表摘一份「名字 — 一句话」速查。
 
+    默认列出 registry 的全部工具；只有显式传入 limit 时才截断。
     注册表不可用或没有工具时返回空串——摘要只是提示词的增强项。
     """
     if registry is None:
         return ""
-    schemas = registry.schemas()
+    schemas = list(registry.schemas() or [])
+    if limit is not None:
+        schemas = schemas[: max(0, int(limit))]
     lines = []
-    for schema in list(schemas or [])[: max(0, int(limit))]:
+    for schema in schemas:
         if not isinstance(schema, dict):
             continue
         fn = schema.get("function") if isinstance(schema.get("function"), dict) else schema
@@ -240,7 +259,7 @@ def tool_summary(registry: Any, *, limit: int = 40) -> str:
             continue
         desc = str(fn.get("description") or "").strip().splitlines()
         first = desc[0].strip() if desc else ""
-        lines.append(f"- `{name}`" + (f" — {first}" if first else ""))
+        lines.append(f"- `{name}`" + (f"  — {first}" if first else ""))
     return "\n".join(lines)
 
 
@@ -250,6 +269,7 @@ def resolve_system_prompt(
     registry: Any = None,
     explicit: Optional[str] = None,
     extra_sections: Optional[list] = None,
+    after_tools_sections: Optional[list] = None,
 ) -> str:
     """会话系统提示的解析入口，不含模式段。
 
@@ -265,6 +285,7 @@ def resolve_system_prompt(
         mode=mode,
         tool_summary=tool_summary(registry),
         extra_sections=extra_sections,
+        after_tools_sections=after_tools_sections,
     ))
 
 

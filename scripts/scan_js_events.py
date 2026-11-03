@@ -462,7 +462,8 @@ def scan_text(text: str, path: str = "<memory>") -> List[Binding]:
         in_loop = bool([s for s in loops if s[0] < start < s[1]])
         guarded = bool(GUARD_RE.search(text[func_start:start]))
         ephemeral = _is_ephemeral(ephem, target)
-        paired = _has_paired_remove(text, target, event, callback)
+        remove_scope = text[func_start:enclosing[0][1] + 1] if enclosing else text
+        paired = _has_paired_remove(remove_scope, target, event, callback)
         out.append(Binding(
             path=path,
             line=_line_of(text, start),

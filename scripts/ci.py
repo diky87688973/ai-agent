@@ -34,7 +34,7 @@ for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     except Exception as exc:
-        # 旧解释器 / 非 TTY：保持默认编码即可
+        # 流不支持 reconfigure：保持默认编码即可
         print(f"[scripts.ci.module] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -49,14 +49,18 @@ def _data_files() -> set:
     return {str(p.relative_to(ROOT)) for p in d.rglob("*") if p.is_file()}
 
 
+#: Paths produced by the host at runtime; not test pollution.
 _RUNTIME_DATA_PREFIXES = (
     "data/queues/",
     "data/mesh/",
     "data/logs/",
     "data/plugin/",
-    "data/session_state/",
     "data/recycle/",
     "data/cache/",
+    "data/wake/",
+    "data/session_state/",
+    "data/subagent/",
+    "data/batches/",
     "data/auth/",
     "data/auth2/",
     "data/auth3/",
@@ -69,8 +73,26 @@ _RUNTIME_DATA_PREFIXES = (
 )
 
 
+#: User-owned review/session artifacts. CI never creates these, so a newly
+#: appearing file here is not evidence of test pollution.
+_USER_DATA_PREFIXES = (
+    "data/check/",
+    "data/session/",
+)
+
+
+def _data_rel(rel: str) -> str:
+    return str(rel).replace("\\", "/")
+
+
 def _is_runtime_data(rel: str) -> bool:
-    return any(rel.startswith(prefix) for prefix in _RUNTIME_DATA_PREFIXES)
+    value = _data_rel(rel)
+    return any(value.startswith(prefix) for prefix in _RUNTIME_DATA_PREFIXES)
+
+
+def _is_user_data(rel: str) -> bool:
+    value = _data_rel(rel)
+    return any(value.startswith(prefix) for prefix in _USER_DATA_PREFIXES)
 
 
 def _prepare_data_root() -> None:
@@ -194,7 +216,10 @@ def _run_steps(args: argparse.Namespace, steps: list[CiStep]) -> int:
     if not args.fast:
         left = sorted(_data_files() - data_before)
         runtime_left = [p for p in left if _is_runtime_data(p)]
-        extra_left = [p for p in left if not _is_runtime_data(p)]
+        extra_left = [
+            p for p in left
+            if not _is_runtime_data(p) and not _is_user_data(p)
+        ]
         if runtime_left:
             print(f"\nℹ️ 工程 `data/` 多了 {len(runtime_left)} 个运行态文件"
                   "（宿主运行产生，不计为测试污染）")
@@ -204,6 +229,7 @@ def _run_steps(args: argparse.Namespace, steps: list[CiStep]) -> int:
                 print(f"     {p}")
             if len(extra_left) > 10:
                 print(f"     …还有 {len(extra_left) - 10} 个")
+            return 1
         if not runtime_left and not extra_left:
             print("\n✅ 工程 `data/` 无新增文件")
 

@@ -90,15 +90,15 @@ class ChannelMixin:
     def attach(self) -> "queue.Queue[Dict[str, Any]]":
         """一条新 SSE 连接：给它一条独立队列，并在首条连接时开始订阅总线。
 
-        顺序是先入列、后订阅：反过来的话，从入列到订阅之间的那几毫秒里
-        发布的事件会既没进队列也没被翻译——直接消失。
+        入列与订阅在同一把锁内完成：`feed` 也拿这把锁，订阅前发布的事件
+        会等入列完成后再广播，不会落在两步之间丢掉。
         """
         box: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=_QUEUE_MAX)
         with self._lock:
+            first = not self._channels
+            if first:
+                self._ensure_subscribed()
             self._channels.append(box)
-            first = len(self._channels) == 1
-        if first:
-            self._ensure_subscribed()
         return box
 
     def detach(self, box: "queue.Queue[Dict[str, Any]]") -> None:

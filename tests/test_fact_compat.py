@@ -110,3 +110,42 @@ class ClassicToolResultTest(unittest.TestCase):
             text = str(hit[0].get("content"))
             self.assertIn("用户取消了这次确认", text, msg=f"[{label}] 模型必须看见取消")
             self.assertNotIn("请按需重新发起", text, msg=f"[{label}] 不能把取消说成没结果再请重问")
+
+
+class LegacyResultDoesNotReplayTest(unittest.TestCase):
+    """旧日志的 `tool_result` 也必须算结果，不能被当成未执行再跑一遍。"""
+
+    def test_legacy_result_closes_the_call(self) -> None:
+        from agent.core.modules.tool_facts import pending_tool_calls
+        from agent.core.session_log import SessionLog
+
+        log = SessionLog(events=[
+            Event("model_message", {"content": "", "tool_calls": [
+                {"id": "legacy-1", "name": "echo", "arguments": {}}]}),
+            Event("tool_result", {"call_id": "legacy-1", "ok": True, "data": "done"}),
+        ])
+        self.assertEqual(pending_tool_calls(log), [])
+
+    def test_legacy_result_at_tail_expects_model(self) -> None:
+        from agent.core.modules.tool_facts import tail_expects_model
+        from agent.core.session_log import SessionLog
+
+        log = SessionLog(events=[
+            Event("model_message", {"content": "", "tool_calls": [
+                {"id": "legacy-2", "name": "echo", "arguments": {}}]}),
+            Event("tool_result", {"call_id": "legacy-2", "ok": True, "data": "done"}),
+        ])
+        self.assertTrue(tail_expects_model(log))
+
+    def test_intermediate_legacy_result_is_not_terminal(self) -> None:
+        from agent.core.modules.tool_facts import pending_tool_calls
+        from agent.core.session_log import SessionLog
+
+        log = SessionLog(events=[
+            Event("model_message", {"content": "", "tool_calls": [
+                {"id": "legacy-3", "name": "ask", "arguments": {}}]}),
+            Event("tool_result", {"call_id": "legacy-3", "ok": True,
+                                  "await_user": True, "data": {"q": "x"}}),
+        ])
+        self.assertEqual(len(pending_tool_calls(log)), 1,
+                         msg="await_user 是中间结果，调用仍未完成")

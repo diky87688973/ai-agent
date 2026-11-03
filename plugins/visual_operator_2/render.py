@@ -20,11 +20,6 @@ def fit(image: Image.Image, max_side: int) -> Image.Image:
                          max(1, int(image.height * scale))), Image.Resampling.LANCZOS)
 
 
-def zoom(image: Image.Image, factor: float) -> Image.Image:
-    if factor <= 1.0:
-        return image
-    return image.resize((max(1, int(image.width * factor)),
-                         max(1, int(image.height * factor))), Image.Resampling.LANCZOS)
 
 
 def clip_focus(region: dict, screen_size: Tuple[int, int]) -> Optional[dict]:
@@ -40,49 +35,10 @@ def clip_focus(region: dict, screen_size: Tuple[int, int]) -> Optional[dict]:
     return {"x": x, "y": y, "width": width, "height": height}
 
 
-def crop_padded(image: Image.Image, rect: dict) -> Image.Image:
-    width = max(1, int(rect["width"]))
-    height = max(1, int(rect["height"]))
-    output = Image.new("RGB", (width, height), (0, 0, 0))
-    left = max(0, int(rect["x"]))
-    top = max(0, int(rect["y"]))
-    right = min(image.width, int(rect["x"]) + width)
-    bottom = min(image.height, int(rect["y"]) + height)
-    if right <= left or bottom <= top:
-        return output
-    patch = image.crop((left, top, right, bottom))
-    output.paste(patch, (left - int(rect["x"]), top - int(rect["y"])))
-    return output
 
 
-def model_point_screen(screen_width: int, screen_height: int, x: int, y: int,
-                       width: int, height: int,
-                       image_width: int, image_height: int) -> dict:
-    scale_x = (image_width / float(width)) * (screen_width / float(image_width))
-    scale_y = (image_height / float(height)) * (screen_height / float(image_height))
-    screen_x = round(int(x) * scale_x)
-    screen_y = round(int(y) * scale_y)
-    return {
-        "screen": {
-            "x": max(0, min(screen_width - 1, screen_x)),
-            "y": max(0, min(screen_height - 1, screen_y)),
-        },
-        "screen_size": [screen_width, screen_height],
-        "scale": {"x": scale_x, "y": scale_y},
-    }
 
 
-def resolve_focus(frame, _explicit, width: int, height: int) -> dict:
-    cx, cy = frame.cursor
-    width = max(1, int(width))
-    height = max(1, int(height))
-    x = cx - width // 2
-    y = cy - height // 2
-    if frame.image.width >= width:
-        x = max(0, min(frame.image.width - width, x))
-    if frame.image.height >= height:
-        y = max(0, min(frame.image.height - height, y))
-    return {"x": x, "y": y, "width": width, "height": height}
 
 
 def focus_screen_from_model(screen_width: int, screen_height: int,
@@ -179,10 +135,6 @@ def draw_marker(image: Image.Image, point: Tuple[int, int]) -> None:
         draw.line(coords, fill=fill, width=width)
 
 
-def draw_challenge(image: Image.Image, challenge, screen_width: int,
-                   screen_height: int) -> None:
-    if challenge is not None:
-        draw_calibration(image, challenge["screen"], screen_width, screen_height)
 
 
 def draw_calibration(image: Image.Image, points, screen_width: int,
@@ -239,9 +191,8 @@ def data_url(image: Image.Image, config: VisionConfig) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
-__all__ = ["clip_focus", "crop_padded", "data_url", "draw_calibration",
-           "draw_challenge",
+__all__ = ["clip_focus", "data_url", "draw_calibration",
            "draw_marker", "fit",
            "focus_point_screen", "focus_screen_from_model", "focus_view",
-           "full_point_screen", "model_point_screen", "resolve_focus",
-           "targets_for_points", "zoom"]
+           "full_point_screen",
+           "targets_for_points"]

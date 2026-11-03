@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import copy
 import json
 import re
 import threading
@@ -16,12 +17,36 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from agent.common.status import (
+    GOAL_ACTIVE,
+    GOAL_STATUSES,
+    RUN_MODE_AUTO,
+    RUN_MODES,
+)
 from agent.core.error_report import report_error
 
 _CID_RE = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
-_MODES = ("auto", "plan", "execute")
-#: 目标状态：active=到点自动触发；paused=保留但不触发；done=已达成。
-_GOAL_STATUSES = ("active", "paused", "done")
+
+#: 目标自动续跑的默认轮数；创建目标时可覆盖。
+GOAL_DEFAULT_MAX_ROUNDS = 256
+#: 单目标轮数硬上限，任何调用方都不能超过。
+GOAL_MAX_ROUNDS_CAP = 1024
+
+
+def resolve_goal_max_rounds(value: Any, fallback: int = GOAL_DEFAULT_MAX_ROUNDS) -> int:
+    """把目标轮数收敛到 1..1024；None 用 fallback，非法值报 GoalError。"""
+    if value is None or value == "":
+        value = fallback
+    if isinstance(value, bool):
+        raise GoalError("max_rounds 必须是整数")
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise GoalError("max_rounds 必须是整数") from None
+    if number < 1 or number > GOAL_MAX_ROUNDS_CAP:
+        raise GoalError(f"max_rounds 必须在 1..{GOAL_MAX_ROUNDS_CAP} 之间")
+    return number
+
 
 
 class ModeConflict(Exception):
@@ -67,18 +92,18 @@ class LiveState:
         cid = str(conversation_id or "")
         with self._lock:
             self._ensure_loaded(cid)
-            return self._modes.get(cid, "auto")
+            return self._modes.get(cid, RUN_MODE_AUTO)
 
     def set_mode(self, conversation_id: str, run_type: str) -> str:
         """切换模式：auto 清除覆盖（回默认），plan / execute 落状态；返回生效值。"""
         cid = str(conversation_id or "")
         rt = str(run_type or "").strip().lower()
-        if rt not in _MODES:
+        if rt not in RUN_MODES:
             raise ValueError(f"run_type 必须是 auto / plan / execute 之一，收到 {run_type}")
         with self._lock:
             # 写盘前必须先读回同文件的其余分量，否则这次写入会抹掉模型 / 清单。
             self._ensure_loaded(cid)
-            if rt == "auto":
+            if rt == RUN_MODE_AUTO:
                 self._modes.pop(cid, None)
             else:
                 self._modes[cid] = rt
@@ -110,7 +135,9 @@ class LiveState:
             if todo is None:
                 self._todos.pop(cid, None)
             else:
-                self._todos[cid] = dict(todo)
+                # items 是嵌套列表：只复制外层字典时，调用方仍能在写入后改内部项，
+                # 绕过锁与落盘。这里按写入瞬间的快照保存。
+                self._todos[cid] = copy.deepcopy(todo)
             self._persist(cid)
 
     def has_active_todo(self, conversation_id: str) -> bool:
@@ -140,7 +167,8 @@ class LiveState:
     # 区别是那条输入取这份目标文案 —— 于是自动续跑有了方向，
     # 也能被用户和模型随时改写、暂停、结束。
 
-    def set_goal(self, conversation_id: str, text: str, *, note: str = "") -> Dict[str, Any]:
+    def set_goal(self, conversation_id: str, text: str, *, note: str = "",
+                 max_rounds: Optional[int] = None) -> Dict[str, Any]:
         """创建或整体覆盖目标（新建时 `status=active`、`rounds=0`）。"""
         cid = str(conversation_id or "")
         body = str(text or "").strip()
@@ -150,59 +178,79 @@ class LiveState:
             raise GoalError("目标文案不能为空")
         now = time.time()
         with self._lock:
+            self._ensure_loaded(cid)
             old = self._goals.get(cid)
+            old_limit = int(old.get("max_rounds") or GOAL_DEFAULT_MAX_ROUNDS) if isinstance(old, dict) else GOAL_DEFAULT_MAX_ROUNDS
+            limit = resolve_goal_max_rounds(max_rounds, old_limit)
             created = float(old.get("created_at") or now) if isinstance(old, dict) else now
             row = {
                 "text": body,
-                "status": "active",
+                "status": GOAL_ACTIVE,
                 "note": str(note or ""),
                 "created_at": created,
                 "updated_at": now,
                 "rounds": int(old.get("rounds") or 0) if isinstance(old, dict) else 0,
+                "max_rounds": limit,
             }
             self._goals[cid] = row
+            self._persist(cid)
         return dict(row)
 
     def get_goal(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         """读取目标；没有则 None。"""
+        cid = str(conversation_id or "")
         with self._lock:
-            val = self._goals.get(str(conversation_id or ""))
+            self._ensure_loaded(cid)
+            val = self._goals.get(cid)
             return dict(val) if isinstance(val, dict) else None
 
     def update_goal(self, conversation_id: str, *, text: str = "", status: str = "",
-                    note: str = "") -> Dict[str, Any]:
-        """局部修改目标：只改显式给出的字段（文案 / 状态 / 备注）。"""
+                    note: str = "", max_rounds: Optional[int] = None) -> Dict[str, Any]:
+        """局部修改目标：只改显式给出的字段（文案 / 状态 / 备注 / 轮数）。"""
         cid = str(conversation_id or "")
         with self._lock:
+            self._ensure_loaded(cid)
             row = self._goals.get(cid)
             if not isinstance(row, dict):
                 raise GoalError("当前会话没有目标可修改")
             want = str(status or "").strip()
             if want:
-                if want not in _GOAL_STATUSES:
-                    raise GoalError(f"状态只能是 {'/'.join(_GOAL_STATUSES)}，收到 {want!r}")
+                if want not in GOAL_STATUSES:
+                    raise GoalError(f"状态只能是 {'/'.join(GOAL_STATUSES)}，收到 {want!r}")
                 row["status"] = want
             body = str(text or "").strip()
             if body:
                 row["text"] = body
             if note:
                 row["note"] = str(note)
+            if max_rounds is not None:
+                row["max_rounds"] = resolve_goal_max_rounds(
+                    max_rounds, int(row.get("max_rounds") or GOAL_DEFAULT_MAX_ROUNDS))
             row["updated_at"] = time.time()
+            self._persist(cid)
             return dict(row)
 
     def delete_goal(self, conversation_id: str) -> bool:
         """删除目标；返回是否确实删掉了（没有目标时为 False）。"""
+        cid = str(conversation_id or "")
         with self._lock:
-            return self._goals.pop(str(conversation_id or ""), None) is not None
+            self._ensure_loaded(cid)
+            removed = self._goals.pop(cid, None) is not None
+            if removed:
+                self._persist(cid)
+            return removed
 
     def note_goal_round(self, conversation_id: str) -> int:
         """记一次"因目标而起的自动回合"，返回累计回合数（供 UI 显示推进程度）。"""
+        cid = str(conversation_id or "")
         with self._lock:
-            row = self._goals.get(str(conversation_id or ""))
+            self._ensure_loaded(cid)
+            row = self._goals.get(cid)
             if not isinstance(row, dict):
                 return 0
             row["rounds"] = int(row.get("rounds") or 0) + 1
             row["updated_at"] = time.time()
+            self._persist(cid)
             return row["rounds"]
 
     def goal_trigger_text(self, conversation_id: str) -> str:
@@ -211,7 +259,7 @@ class LiveState:
         返回空串 = 不触发（没有目标 / 已暂停 / 已达成 / 文案为空）。
         """
         row = self.get_goal(conversation_id)
-        if not isinstance(row, dict) or row.get("status") != "active":
+        if not isinstance(row, dict) or row.get("status") != GOAL_ACTIVE:
             return ""
         return str(row.get("text") or "").strip()
 
@@ -313,11 +361,29 @@ class LiveState:
         if model:
             self._models[cid] = model
         mode = str(raw.get("mode") or "").strip()
-        if mode in _MODES and mode != "auto":
+        if mode in RUN_MODES and mode != RUN_MODE_AUTO:
             self._modes[cid] = mode
         effort = str(raw.get("effort") or "").strip()
         if effort in ("high", "max"):
             self._efforts[cid] = effort
+        goal = raw.get("goal")
+        if isinstance(goal, dict):
+            text = str(goal.get("text") or "").strip()
+            status = str(goal.get("status") or "").strip()
+            if text and status in GOAL_STATUSES:
+                try:
+                    limit = resolve_goal_max_rounds(goal.get("max_rounds"))
+                except GoalError:
+                    limit = GOAL_DEFAULT_MAX_ROUNDS
+                self._goals[cid] = {
+                    "text": text,
+                    "status": status,
+                    "note": str(goal.get("note") or ""),
+                    "created_at": float(goal.get("created_at") or 0.0),
+                    "updated_at": float(goal.get("updated_at") or 0.0),
+                    "rounds": max(0, int(goal.get("rounds") or 0)),
+                    "max_rounds": limit,
+                }
 
     def _persist(self, cid: str) -> None:
         """落盘（调用方持锁）；非法 cid / 无目录直接跳过，写失败留痕。
@@ -343,6 +409,9 @@ class LiveState:
             effort = self._efforts.get(cid)
             if effort:
                 body["effort"] = effort
+            goal = self._goals.get(cid)
+            if isinstance(goal, dict) and goal:
+                body["goal"] = dict(goal)
             if not body:
                 # 四个分量都空 = 这个会话没有状态了：删文件，不留空壳。
                 if fp.exists():

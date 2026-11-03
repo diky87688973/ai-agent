@@ -12,7 +12,7 @@ from typing import Any, Dict, Tuple
 #: CJK 区段的字符每字约 1 token（本工程正文以中文为主，字符数与网关回报的
 #: prompt_tokens 同量级）；其余按 4 字符 1 token。见 `approx_tokens_text`。
 #: 每张图片计入的 token 上限（官方口径每图最多 1024）。
-IMAGE_TOKENS_PER_IMAGE = 384
+IMAGE_TOKENS_PER_IMAGE = 1024
 
 _CJK_RANGES: Tuple[Tuple[int, int], ...] = (
     (0x3000, 0x303F),    # 中文标点

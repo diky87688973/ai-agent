@@ -13,14 +13,17 @@
 from __future__ import annotations
 
 import base64
-import sys
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import agent.shell.classic_adapter.contract as C
+from agent.common.status import RUN_MODE_AUTO
 from agent.core.error_report import report_error
 from agent.core.events import Event
+from agent.core.state_values import TOOL_CANCELED, TOOL_SUSPENDED
+from agent.mechanisms.session_title import UNKNOWN_TITLE
 from agent.shell.classic_adapter.history import (
     ATTACH_REGISTER_MAX_BYTES,
     ATTACH_REGISTER_MAX_COUNT,
@@ -32,7 +35,7 @@ from agent.shell.classic_adapter.history import (
 )
 from agent.shell.classic_adapter.history_page import HISTORY_PAGE_CHARS, fold_rounds, select_page
 from agent.shell.classic_adapter.layout import compute_context_layout, current_todo
-from agent.shell.classic_adapter.sessions import scan_title, session_date_group
+from agent.shell.classic_adapter.sessions import session_date_group
 from agent.shell.classic_adapter.state import ClassicState
 
 
@@ -45,11 +48,13 @@ class Inbound:
         # 由 `ClassicAdapter` 注入 WebShell（用于复用内核的标题派生）
         self._shell: Any = None
         self._usage_hydrated: set[str] = set()
+        # 历史页按“文件指纹”缓存折叠结果：翻上一页不再重读/解密 50MB 会话。
+        self._history_cache: "OrderedDict[tuple, tuple]" = OrderedDict()
 
     def _mode_of(self, cid: str) -> str:
         live = getattr(self._app, "live_state", None)
         if live is None:
-            return "auto"
+            return RUN_MODE_AUTO
         return str(live.get_mode(cid))
 
     def _model(self, cid: str = "") -> str:
@@ -83,8 +88,11 @@ class Inbound:
         store = getattr(self._app, "store", None)
         root = getattr(store, "data_root", None) if store is not None else None
         rows: List[Dict[str, Any]] = []
-        if root is not None:
-            directory = Path(root) / "sessions"
+        directory = getattr(store, "sessions_dir", None)
+        if directory is None and root is not None:
+            directory = Path(root) / "session" / "raw"
+        if directory is not None:
+            directory = Path(directory)
             if directory.is_dir():
                 entries = []
                 for path in directory.glob("*.raw"):
@@ -131,12 +139,44 @@ class Inbound:
                     return title
             except Exception as exc:
                 # 标题推导是可选的增强（读索引文件），失败即跳过。
-                # 推导器坏了 / 索引缺失就走下面的 `scan_title`（扫事实日志）兜底
-                # ——那才是权威来源。这里失败只影响"少一次快速命中"。
+                # 推导器坏了 / 索引缺失时直接返回未知标题，不回读会话日志。
                 report_error("agent.shell.classic_adapter.inbound.Inbound._derived_title", exc)
-        return scan_title(path)
+        return UNKNOWN_TITLE
 
     # ── /api/chat/history ─────────────────────────────────
+    def _history_rounds(self, cid: str, store: Any) -> tuple:
+        """返回 (rounds, context_layout)；按文件 mtime/size 缓存，避免每页全量读盘。"""
+        target = store if store is not None else getattr(self._app, "store", None)
+        path = None
+        if target is not None:
+            raw_path = getattr(target, "raw_path", None)
+            if callable(raw_path):
+                try:
+                    path = raw_path(cid)
+                except (ValueError, OSError):
+                    path = None
+        key = None
+        if path is not None:
+            try:
+                st = path.stat()
+                key = (cid, int(st.st_mtime_ns), int(st.st_size))
+            except OSError:
+                key = None
+        if key is not None:
+            hit = self._history_cache.get(key)
+            if hit is not None:
+                self._history_cache.move_to_end(key)
+                return hit
+        events = self._load_events(cid, target)
+        context_layout = (last_payload(events, "context_layout")
+                          or compute_context_layout(self._app, events, cid))
+        rounds = fold_rounds(events)
+        if key is not None:
+            self._history_cache[key] = (rounds, context_layout)
+            while len(self._history_cache) > 3:
+                self._history_cache.popitem(last=False)
+        return rounds, context_layout
+
     def history(self, cid: str, store: Any = None, *,
                 before: Optional[int] = None, meta: bool = False) -> Dict[str, Any]:
         """会话历史。经典界面从这个返回体里读三样不同的东西：
@@ -160,9 +200,7 @@ class Inbound:
         cid = C.normalize_cid(cid)
         if not cid:
             return {"ok": False, "error": "invalid conversation_id", "items": []}
-        events = self._load_events(cid, store)
-        context_layout = (last_payload(events, "context_layout")
-                          or compute_context_layout(self._app, events, cid))
+        rounds, context_layout = self._history_rounds(cid, store)
         todo_list = current_todo(self._app, cid)
         if meta:
             return {
@@ -172,7 +210,6 @@ class Inbound:
                 "context_layout": context_layout,
                 "todo_list": todo_list,
             }
-        rounds = fold_rounds(events)
         page = select_page(rounds, before=before)
         items = list(page.items)
         self._mark_stale_suspends(cid, items)
@@ -203,14 +240,15 @@ class Inbound:
 
     def _mark_stale_suspends(self, cid: str, items: List[Dict[str, Any]]) -> None:
         contexts = getattr(self._app, "session_contexts", None)
-        session = contexts.resolve_sync(cid) if contexts is not None else None
+        # 只读查询：history 对任意合法 cid 都可调用，不能借 GET 创建会话桶。
+        session = contexts.get(cid) if contexts is not None else None
         pending = getattr(session, "pending_confirm", None) if session is not None else None
         pending_call = str((pending or {}).get("call_id") or "").strip()
         for item in items:
             if (item.get("role") == "tool"
-                    and item.get("status") == "suspended"
+                    and item.get("status") == TOOL_SUSPENDED
                     and str(item.get("tool_call_id") or "") != pending_call):
-                item["status"] = "canceled"
+                item["status"] = TOOL_CANCELED
                 item["error"] = "用户取消了这次确认（未作答）"
 
     def _load_events(self, cid: str, store: Any = None) -> List[Any]:
@@ -259,7 +297,7 @@ class Inbound:
     def _with_running(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """给返回体补上"哪些会话正在跑"（服务端权威）。
 
-        读不出来就当都没有在跑（前端退回"靠 SSE 推断"的老行为），不抛。
+        读不出来就当都没有在跑（前端退回仅靠 SSE 推断），不抛。
         `running` 键总在：客户端按固定形状取字段，缺键会把"没在跑"和"字段没给"
         混成同一种情况。
         """
@@ -277,10 +315,7 @@ class Inbound:
             state["running"] = [str(c) for c in lister()]
         except Exception as exc:
             # 忙闲只用来决定"停止"键显不显示；问不出来就当没在跑，但必须留痕。
-            print(
-                f"[inbound] 列举 running 失败: {type(exc).__name__}: {exc}",
-                file=sys.stderr, flush=True,
-            )
+            report_error("agent.shell.classic_adapter.inbound.Inbound.ui_state", exc)
             state["running"] = []
         return payload
 
@@ -289,7 +324,7 @@ class Inbound:
 
         布局（标签列表 / 激活会话）在浏览器本地，服务端不做记录：一个全局字段
         表示不了"两个客户端各自激活不同会话"，只会互相覆盖。
-        端点为兼容旧前端保留，收到就丢弃。
+        端点为兼容既有客户端保留，收到就丢弃。
         """
         return {"ok": True}
 
@@ -297,9 +332,8 @@ class Inbound:
     def title(self, cid: str) -> Dict[str, Any]:
         """会话标题：直接复用内核 `WebShell.title()`。
 
-        它已经处理了"有缓存就返回 / 否则调一次模型 / 失败回落派生标题"的完整逻辑；
-        适配层自己重写一遍只会让两处口径漂移（而且 `fallback_title` 收的是消息列表，
-        不是事件列表——传错类型就会抛异常）。
+        它已经处理了"有缓存就返回 / 否则调一次模型 / 失败返回未知标题"的完整逻辑；
+        适配层自己重写一遍只会让两处口径漂移。
 
         经典界面只读 `j.title`（agent-ui.js:255 附近），所以把内核返回体里的 `title` 取出来即可。
         """
@@ -312,11 +346,7 @@ class Inbound:
             try:
                 result = getter(cid)
             except Exception as exc:
-                print(
-                    f"[inbound] 取标题失败 cid={cid}: "
-                    f"{type(exc).__name__}: {exc}",
-                    file=sys.stderr, flush=True,
-                )
+                report_error("agent.shell.classic_adapter.inbound.Inbound.title", exc)
             else:
                 # 内核口径是 `(status, payload)`
                 if isinstance(result, tuple) and len(result) == 2:
@@ -327,18 +357,8 @@ class Inbound:
         return {"ok": True, "conversation_id": cid, "title": self._fallback_title(cid)}
 
     def _fallback_title(self, cid: str) -> str:
-        """回落：从该会话的首条用户输入派生（不调模型、不抛异常）。"""
-        path = self._session_path(cid)
-        if path is None or not path.is_file():
-            return ""
-        return scan_title(path)
-
-    def _session_path(self, cid: str) -> Optional[Path]:
-        store = getattr(self._app, "store", None)
-        root = getattr(store, "data_root", None) if store is not None else None
-        if root is None:
-            return None
-        return Path(root) / "sessions" / f"{cid}.raw"
+        """没有已生成的标题文件时返回明确的未知标题，不再回读会话日志。"""
+        return UNKNOWN_TITLE
 
     # ── /api/usage-accumulator ───────────────────────────
     def _hydrate_usage(self, cid: str) -> None:
@@ -401,9 +421,7 @@ class Inbound:
             self.state.add_usage(cid, payload)
         return {"ok": True, **self.state.get_usage(cid)}
 
-    # ── /api/chat/title ───────────────────────────────────
-
-    # ── /api/chat/command-input（预留）────────────────────
+    # ── /api/chat/command-input ───────────────────────────
     def command_input(self, cid: str, body: Dict[str, Any]) -> Dict[str, Any]:
         """把人的回答送进正在等 stdin 的 `run_command` 子进程。
 

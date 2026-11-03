@@ -19,15 +19,18 @@
 依赖方向固定为：
 
 ```text
-entry → shell → capabilities → mechanisms → core
+common → core → mechanisms → subagent → capabilities/update → shell → gui/entry
 ```
 
-`agent/app.py` 是装配根，不属于五层；只有它可以同时引用五层并登记进程级服务。core、mechanisms、capabilities、shell 四层不得运行期导入 `agent/app.py` 或 `agent/entry/`；入口层导入装配根。`if TYPE_CHECKING:` 的纯注解除外。
+`agent/common/` 是最底层；`agent/update/` 与 capabilities 同层；`agent/gui/` 与 entry 同层。`agent/boot/` 是装配根，不属于这些层；只有它可以同时引用各层并登记进程级服务。`agent/app.py` 是应用门面。除装配根与入口层外，运行期不得导入 `agent/app.py`、`agent/boot/` 或 `agent/entry/`。`agent/update/health.py` 以 `-m` 子进程加载应用做安装后自检，是唯一窄例外。`if TYPE_CHECKING:` 的纯注解除外。
+
+未归类的 `agent/` 顶层包直接失败，不能静默跳过。
 
 ### 2.2 模块归属
 
 | 路径 | 职责 | 不承担 |
 |---|---|---|
+| `agent/common/status.py` | 子系统共享状态值与 `require()`；不含行为 | 层级导入、领域逻辑 |
 | `agent/core/` | 模块链、宿主循环、端口、事件契约、会话事实契约 | provider、插件、UI、具体工具 |
 | `agent/core/modules/` | 单步模块：输入、队列输入、压缩、模型、工具 | 服务装配、HTTP、插件加载 |
 | `agent/mechanisms/providers/base.py` | `ModelProvider` 协议与 `ModelRequestError` | 具体网关请求、UI |
@@ -136,12 +139,12 @@ inbound 直接持有历史/布局/状态实现
 | 基础 WEB-UI 资产 | `plugins/web_ui/ui/classic/`、`shell/web/ui_bundle.py` | `ui_bundle` 内联清单 | 页面 HTML/CSS/JS 归基础 WEB-UI 插件；壳层只负责送达 |
 | 插件 UI/主题/图标 | `plugins/<name>/ui/` | 插件 `add_ui_item` | 用解析后的插件根，不写死 `plugins/<name>` |
 | 界面配置 | `web-ui-config.ini` | 壳层读取 | 非插件私有配置 |
-| 会话事实 | `data/sessions/*.raw` | `mechanisms/session_store.py` | append-only；不得直接改写 |
+| 会话事实 | `data/session/raw/*.raw` | `mechanisms/session_store.py` | append-only；不得直接改写 |
 | 运行态数据 | `data/{queues,mesh,wake,plugin,session_state,recycle,logs,auth,auth2..auth9,subagent,batches,cache}` | 对应的 mechanisms、shell 与 subagent 服务 | 只经各自服务访问；不得复制权威状态 |
 | 规则资产 | `rules/*.md` | `rules` 插件，经 `ContextSources` 注入 | 用户/项目规则归插件，不进壳层 |
 | 技能资产 | `skills/**` | `skills` 插件，经 `ContextSources` 注入 | 技能正文归技能库，不进内核 |
 | 工具目录 | `catalog/tools.json` | `scripts/gen_catalog.py` 生成，`check_catalog.py` 校验 | 生成物；不得手改 |
-| 标题/工作区 | `data/titles/`、`data/workspace/` | 壳层/存储各归属 | 不进源码树；路径按 data root |
+| 标题/工作区 | `data/session/titles/`、`data/workspace/` | 壳层/存储各归属 | 不进源码树；路径按 data root |
 | 运行态登记 | `mechanisms/live_state.py`、`mesh.py`、`run_registry.py` | 装配根 | 单一权威；不得双份缓存 |
 | 测试 | `tests/` | unittest 发现 | 不得写入 `data/`；用临时数据根 |
 | 生成文档 | `docs/complexity.md`、`docs/unit-tests.md` | 生成器 + `--check` | 必须由门禁重生成比对 |

@@ -109,11 +109,8 @@ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 }
 function highlightJson(s){
 if(window.codeHighlight)return window.codeHighlight.highlightCode(s,'json');
-var t=String(s||'');try{var o=JSON.parse(t);t=JSON.stringify(o,null,2);}catch(e){}
-return t.replace(/("(?:\\.|[^"\\])*")\s*:/g,'<span style="color:#ce9178;">$1</span>:')
-.replace(/:\s*("(?:\\.|[^"\\])*")/g,':<span style="color:#ce9178;">$1</span>')
-.replace(/:\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,':<span style="color:#b5cea8;">$1</span>')
-.replace(/:\s*(true|false|null)/g,':<span style="color:#569cd6;">$1</span>');}
+return escapeHtml(String(s||''));
+}
 function highlightCode(s,lang){
 if(window.codeHighlight)return window.codeHighlight.highlightCode(s,lang);
 var t=String(s||'');

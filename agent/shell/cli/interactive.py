@@ -21,20 +21,10 @@ from agent.core import event_name as ev
 from agent.core.error_report import report_error
 from agent.mechanisms.session_store import new_conversation_id
 
-_PREVIEW_TOOL_NAMES = (
-    "write_file",
-    "replace_in_file",
-    "apply_patch",
-    "read_write",
-    "delete_file",
-    "file_ops",
-    "file_undo",
-)
-
 _SYSTEM_TEMPLATE = """你是 AI Agent——一个严谨的通用助手，能读写文件、执行命令，写代码只是其中一项。用户在你的工作目录中协作。
 
 【写盘纪律（宿主强制执行，违反会被拒绝）】
-1. 写类工具（write_file / replace_in_file / apply_patch / read_write / delete_file / file_ops / file_undo）两步走：先调用该工具本身预览（不落盘，返回 confirm_id）；用户确认后，用 commit_write(confirm_id) 提交——提交只传 confirm_id，不要重传参数；
+1. 写类工具（{preview_write_tools}）两步走：先调用该工具本身预览（不落盘，返回 confirm_id）；用户确认后，用 commit_write(confirm_id) 提交——提交只传 confirm_id，不要重传参数；
 2. 提交成功后必须 read_file 读回复核（删除 / 移动类除外）；
 3. 误改可用 file_undo 回滚（list 查历史、undo 凭 mod_id）；工具返回结构化错误时，按提示修正后重试。
 
@@ -79,10 +69,11 @@ def _ask_confirm(gate: Any, name: str, confirm_id: str, args: Dict[str, Any]) ->
         print("  [未确认] 模型若提交会被拒绝。")
 
 
-def run_one(engine: Any, gate: Any, text: str) -> None:
-    """跑一个回合：流式打印 + 预览确认交互。"""
+def run_one(engine: Any, gate: Any, text: str) -> int:
+    """跑一个回合：流式打印 + 预览确认交互；返回进程退出码。"""
     previews: Dict[str, Dict[str, Any]] = {}
     printed_any = False
+    failed = False
     try:
         for event in engine.start_turn(text):
             t = event.type
@@ -94,7 +85,8 @@ def run_one(engine: Any, gate: Any, text: str) -> None:
             elif t == ev.TOOL_STARTED:
                 args = d.get("arguments") or {}
                 name = str(d.get("name") or "")
-                if name in _PREVIEW_TOOL_NAMES:
+                binding = engine.registry.get(name) if getattr(engine, "registry", None) is not None else None
+                if binding is not None and bool(getattr(binding, "needs_preview", False)):
                     target = str(args.get("path") or args.get("dest_path") or args.get("dest") or args.get("source") or "")
                     print(f"\n  [tool] {name}（预览）{target}".rstrip())
                     previews[str(d.get("call_id"))] = {"name": name, "args": args}
@@ -123,13 +115,17 @@ def run_one(engine: Any, gate: Any, text: str) -> None:
                 sys.stdout.flush()
                 printed_any = True
             elif t == ev.ERROR:
+                failed = True
                 print(f"\n  [error] {d.get('detail') or d}")
     except KeyboardInterrupt:
         print("\n[已中断本次回合]")
+        return 130
     except Exception as exc:
         report_error("agent.shell.cli.interactive.run_one", exc)
         print(f"\n[请求失败] {type(exc).__name__}: {exc}")
+        return 1
     print()
+    return 1 if failed else 0
 
 
 def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
@@ -169,7 +165,13 @@ def build_session(
     if runner is not None:
         engine = runner.build_engine(cid, extra_system=str(args.system))
     else:
-        system_prompt = _SYSTEM_TEMPLATE.format(cwd=Path.cwd())
+        registry = getattr(app, "registry", None)
+        preview_names = sorted(
+            name for name in (registry.names() if registry is not None else [])
+            if bool(getattr(registry.get(name), "needs_preview", False))
+        )
+        system_prompt = _SYSTEM_TEMPLATE.format(
+            cwd=Path.cwd(), preview_write_tools=" / ".join(preview_names) or "无")
         if str(args.system).strip():
             system_prompt += "\n\n[附加指令]\n" + str(args.system).strip()
         engine = app.session(cid, system_prompt=system_prompt)
@@ -204,22 +206,25 @@ def main(argv: Optional[list] = None, *, app_factory: Any) -> int:
 
     try:
         if single:
-            run_one(engine, gate, single)
-            return 0
+            return int(run_one(engine, gate, single) or 0)
 
+        rc = 0
         while True:
             try:
                 text = input("你> ").strip()
             except (EOFError, KeyboardInterrupt):
                 print()
                 break
+            if not sys.stdin.isatty():
+                # 管道输入没有终端回显；补一行，避免模型回答粘在提示符后面。
+                print()
             if not text:
                 continue
             if text in ("/exit", "/quit", "exit", "quit"):
                 break
-            run_one(engine, gate, text)
+            rc = int(run_one(engine, gate, text) or rc)
         print("[会话结束]")
-        return 0
+        return rc
     finally:
         print(f"[session] {cid}")
         # 会话生命周期落点：退出即释放本会话运行态（已落盘记录不受影响）

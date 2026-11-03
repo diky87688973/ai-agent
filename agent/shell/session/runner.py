@@ -8,12 +8,13 @@
 """
 from __future__ import annotations
 
-import sys
 import threading
 import time
 from typing import Any, Callable, Dict, Optional
 
 from agent.core.error_report import report_error
+from agent.core.thread_context import thread_with_context
+from agent.mechanisms.live_state import GOAL_DEFAULT_MAX_ROUNDS, GOAL_MAX_ROUNDS_CAP
 from agent.shell.session import goal, heartbeat, prompt, queue, resume
 
 # 运行态心跳的间隔（秒）：远小于 `RunRegistry` 的存活期（默认 900 秒），
@@ -22,7 +23,11 @@ _HEARTBEAT_INTERVAL_SECONDS = 60.0
 
 #: 目标/自主自动续跑的回合数上限：兜底防止"目标写歪 → 无限烧 token"。
 #: 用户重新发消息会重置这个链（新回合 runner），所以正常使用不受影响。
-_MAX_AUTO_ROUNDS = 50
+_MAX_AUTO_ROUNDS = GOAL_DEFAULT_MAX_ROUNDS
+
+INSERT_NONE = "none"
+INSERT_STOP = "stop"
+INSERT_READY = "ready"
 
 
 
@@ -107,15 +112,25 @@ class SessionRunner:
         with self._lock:
             self._cancels[key] = cancel_event
         meta = message.get("meta") if isinstance(message.get("meta"), dict) else {}
-        thread = threading.Thread(
-            target=self._run_loop,
-            args=(key, text, attachments, resume, sender, meta),
-            name=f"fan-mesh-{key[:12]}",
-            daemon=True,
-        )
-        with self._lock:
-            self._threads[key] = thread
-        thread.start()
+        try:
+            thread = thread_with_context(
+                target=self._run_loop,
+                args=(key, text, attachments, resume, sender, meta),
+                name=f"fan-mesh-{key[:12]}",
+                daemon=True,
+            )
+            with self._lock:
+                self._threads[key] = thread
+            thread.start()
+        except Exception as exc:
+            # 占位已成功但线程没起来：不释放的话这个会话永远显示在跑，
+            # 后续投递全被判忙、停止键也没有对应线程可停。
+            with self._lock:
+                self._threads.pop(key, None)
+                self._cancels.pop(key, None)
+            self._mesh.abort_run(key)
+            report_error("shell.session_runner.start", exc, conversation_id=key)
+            return ""
         return rid
 
     # ── 协作式取消 ───────────────────────────────────────
@@ -193,9 +208,9 @@ class SessionRunner:
                     from_queue = True
                     continue
                 insert_state = self._insert_turn_state(cid)
-                if insert_state == "stop":
+                if insert_state == INSERT_STOP:
                     break
-                if insert_state == "ready":
+                if insert_state == INSERT_READY:
                     text = ""
                     attachments = None
                     resume = None
@@ -210,16 +225,16 @@ class SessionRunner:
                 if self._is_canceled(cid):
                     self._mesh.end_run(cid)
                     break
-                self._mesh.end_run(cid)
-                nxt_text = self._claim_goal_turn(cid, _auto_rounds)
-                if nxt_text is None:
+                nxt_text = self._claim_goal_turn(cid, _auto_rounds, renew=True)
+                if not nxt_text:
+                    self._mesh.end_run(cid)
                     break
                 _auto_rounds += 1
                 text = nxt_text
                 attachments = None
                 resume = None
                 sender = None
-                meta = None
+                meta = self._goal_followup_meta(cid)
         except Exception as exc:  # 兜底：释放占位（不续跑）
             self._mesh.abort_run(cid)
             report_error("shell.session_runner", exc, conversation_id=cid, where="aborted")
@@ -240,7 +255,7 @@ class SessionRunner:
 
     def _start_heartbeat(self, cid: str) -> threading.Event:
         stop_beat = threading.Event()
-        beater = threading.Thread(
+        beater = thread_with_context(
             target=self._heartbeat_until, args=(cid, stop_beat),
             name=f"fan-mesh-beat-{cid[:12]}", daemon=True,
         )
@@ -249,24 +264,29 @@ class SessionRunner:
 
     def _insert_turn_state(self, cid: str) -> str:
         if not queue.has_inserting(self._app, cid):
-            return "none"
+            return INSERT_NONE
         if self._is_canceled(cid):
             self._mesh.end_run(cid)
-            return "stop"
+            return INSERT_STOP
         if not self._mesh.renew_run(cid):
             self._mesh.end_run(cid)
-            return "stop"
-        return "ready"
+            return INSERT_STOP
+        return INSERT_READY
 
-    def _claim_goal_turn(self, cid: str, auto_rounds: int) -> Optional[str]:
+    def _claim_goal_turn(self, cid: str, auto_rounds: int, *, renew: bool = False) -> Optional[str]:
         text = self._next_continuation_text(cid)
         if not text:
             return None
-        if auto_rounds >= _MAX_AUTO_ROUNDS:
-            print(f"[session_runner] 自动轮次已达上限 {_MAX_AUTO_ROUNDS}，暂停续跑 "
-                  f"cid={cid}", file=sys.stderr, flush=True)
+        if auto_rounds >= self._goal_limit(cid):
+            report_error("shell.session_runner.goal_limit",
+                         RuntimeError(f"自动轮次已达上限 {self._goal_limit(cid)}"),
+                         conversation_id=cid)
             return None
-        if not self._mesh.try_begin_run(cid):
+        claimed = self._mesh.renew_run(cid) if renew else self._mesh.try_begin_run(cid)
+        if not claimed:
+            # 另一个回合同一时刻抢到运行位：目标续跑不能静默丢掉，
+            # 转入会话队列，由当前回合计完后再抽干。
+            self._queue_goal_followup(cid, text)
             return None
         self._note_goal_round(cid)
         return text
@@ -316,12 +336,70 @@ class SessionRunner:
             event = self._cancels.get(cid)
         return bool(event is not None and event.is_set())
 
+    @staticmethod
+    def _goal_round_note(meta: Any) -> str:
+        if not isinstance(meta, dict) or meta.get("kind") != "goal_followup":
+            return ""
+        round_no = int(meta.get("goal_round") or 0)
+        limit = int(meta.get("goal_limit") or _MAX_AUTO_ROUNDS)
+        return (
+            f"本轮是目标自动跟进第 {round_no}/{limit} 轮。"
+            "轮数上限由宿主控制，不要尝试修改；接近上限时应先收敛并汇报进度。"
+        )
+
+    def _queue_goal_followup(self, cid: str, text: str) -> bool:
+        queue_api = self._queue()
+        if queue_api is None:
+            return False
+        meta = self._goal_followup_meta(cid) or {
+            "kind": "goal_followup", "source": "goal", "goal_round": 0}
+        try:
+            queue_api.enqueue(
+                cid, content=text, origin="system", delivery="after_turn",
+                payload=dict(meta),
+                dedupe_key=f"goal_followup:{cid}:{meta.get('goal_round', 0)}",
+            )
+            return True
+        except Exception as exc:
+            report_error("shell.session_runner.goal_queue", exc, conversation_id=cid)
+            return False
+
+    def _goal_limit(self, cid: str) -> int:
+        if self._goal_row is None:
+            return GOAL_DEFAULT_MAX_ROUNDS
+        try:
+            row = self._goal_row(cid)
+        except Exception as exc:
+            report_error("shell.session_runner.goal_limit", exc, conversation_id=cid)
+            return GOAL_DEFAULT_MAX_ROUNDS
+        if not isinstance(row, dict):
+            return GOAL_DEFAULT_MAX_ROUNDS
+        try:
+            value = int(row.get("max_rounds") or GOAL_DEFAULT_MAX_ROUNDS)
+        except (TypeError, ValueError):
+            return GOAL_DEFAULT_MAX_ROUNDS
+        return max(1, min(GOAL_MAX_ROUNDS_CAP, value))
+
+    def _goal_followup_meta(self, cid: str) -> Any:
+        if self._goal_row is None:
+            return None
+        try:
+            row = self._goal_row(cid)
+        except Exception as exc:
+            report_error("shell.session_runner.goal_meta", exc, conversation_id=cid)
+            return None
+        if not isinstance(row, dict) or str(row.get("status") or "") != "active":
+            return None
+        return {"kind": "goal_followup", "source": "goal",
+                "goal_round": int(row.get("rounds") or 0),
+                "goal_limit": int(row.get("max_rounds") or GOAL_DEFAULT_MAX_ROUNDS)}
+
     def _note_goal_round(self, cid: str) -> None:
         goal.note_round(self._app, cid)
 
     def _next_continuation_text(self, cid: str) -> str:
         return goal.next_continuation_text(
-            cid=cid, goal_row=self._goal_row, auto_continue=self._auto_continue,
+            cid=cid, goal_row=self._goal_row, auto_continue=self._should_auto_continue,
         )
 
     def _should_auto_continue(self, cid: str) -> bool:
@@ -351,6 +429,26 @@ class SessionRunner:
     def _execute(self, cid: str, text: str, attachments: Any = None,
                  resume: Any = None, sender: Optional[Dict[str, Any]] = None,
                  from_queue: bool = False, meta: Any = None) -> bool:
+        """执行单个回合；引擎装配完成后再固定本轮 SlotSnapshot。"""
+        if isinstance(resume, dict):
+            self._splice_resume(cid, resume)
+            resume = None
+        engine = self.build_engine(
+            cid, cancel=self._cancel_check(cid),
+            extra_system=self._goal_round_note(meta),
+        )
+        slots = getattr(getattr(self._app, "context", None), "slots", None)
+        if slots is None:
+            return self._execute_round(
+                cid, text, attachments, sender, from_queue, meta, engine)
+        with slots.execution_snapshot():
+            return self._execute_round(
+                cid, text, attachments, sender, from_queue, meta, engine)
+
+    def _execute_round(self, cid: str, text: str, attachments: Any = None,
+                       sender: Optional[Dict[str, Any]] = None,
+                       from_queue: bool = False, meta: Any = None,
+                       engine: Any = None) -> bool:
         """执行单个回合：迭代事件至尽（回合过）；注入停止检查。
 
         `resume` 非空时（外部结果回灌）：先把结果写成 `tool_result` 事实，
@@ -361,9 +459,8 @@ class SessionRunner:
         它清楚"什么时候该写、下一位读者是谁"。写前查重是硬要求——拼接没有幂等性，
         同一 `call_id` 交两次会产生两条 `tool` 消息（模型 API 直接拒绝）。
         """
-        if isinstance(resume, dict):
-            self._splice_resume(cid, resume)
-        engine = self.build_engine(cid, cancel=self._cancel_check(cid))
+        if engine is None:
+            engine = self.build_engine(cid, cancel=self._cancel_check(cid))
         paused = False
         for event in engine.start_turn(text, attachments=attachments,
                                        sender=sender, from_queue=from_queue,

@@ -22,7 +22,6 @@
 from __future__ import annotations
 
 import json
-import sys
 import urllib.error
 import urllib.request
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
@@ -31,7 +30,7 @@ from agent.core.error_report import report_error
 from agent.core.model_call import StreamDelta
 from agent.core.tool_call import ToolCallRequest
 from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
-from agent.mechanisms.providers.debug import LOG_REQUESTS
+from agent.mechanisms.providers.debug import LOG_REQUESTS  # noqa: F401  (test seam)
 from agent.mechanisms.providers.sse import stream_with_timeout
 from agent.mechanisms.providers.tool_schema import tool_parameters
 
@@ -91,7 +90,7 @@ def _upstream_message(body: str) -> str:
 
 def _warn(message: str) -> None:
     """诊断必须留痕：只吞不记等于把配置问题埋掉。"""
-    print(f"[providers.anthropic] {message}", file=sys.stderr, flush=True)
+    report_error("agent.mechanisms.providers.anthropic", RuntimeWarning(message))
 
 
 # ── 消息折叠（纯函数，便于单测）──────────────
@@ -525,7 +524,6 @@ class AnthropicProvider(ModelProvider):
                 body = exc.read().decode("utf-8", errors="replace")
             except Exception as read_exc:
                 report_error("agent.mechanisms.providers.anthropic.AnthropicProvider._post_stream", read_exc)
-                _warn(f"读 HTTP 错误体失败：{type(read_exc).__name__}: {read_exc}")
                 body = ""
             raise self._http_error(exc.code, body) from exc
         except urllib.error.URLError as exc:
@@ -539,13 +537,6 @@ class AnthropicProvider(ModelProvider):
         if not url:
             raise ModelRequestError("base_url 未配置。")
         payload = self.build_payload(request)
-        if LOG_REQUESTS:
-            print(
-                f"[llm→] url={url} model={payload['model']} "
-                f"messages={len(payload['messages'])} tools={len(payload.get('tools') or [])} "
-                f"thinking={'yes' if 'thinking' in payload else 'no'}",
-                file=sys.stderr, flush=True,
-            )
         yield from _assemble_deltas(self._post_stream(url, payload))
 
 
@@ -671,7 +662,7 @@ def _assemble_deltas(chunks: Iterable[Dict[str, Any]]) -> Iterator[StreamDelta]:
         # ping / 未知事件：忽略（前滚契约）
 
     if stop_reason:
-        print(_stop_reason_note(stop_reason), file=sys.stderr, flush=True)
+        _warn(_stop_reason_note(stop_reason))
     if thinking and calls:
         # 只有"要带工具继续这一回合"时才需要回传签名；纯文本回答没有回传落点。
         yield StreamDelta(kind="meta", meta={_META_VENDOR: {_META_BLOCKS: thinking}})

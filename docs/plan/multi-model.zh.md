@@ -2,6 +2,8 @@
 
 # 多模型配置方案
 
+**Status:** 已实现。
+
 ## 1. 背景与目标
 
 模型链路分三段：
@@ -804,7 +806,6 @@ BOM 文件可读、`context_window` 必填且 `compression_percent` 校验范围
 
 ## 15. 工程约束
 
-相关标准：[standards-alignment.md](standards-alignment.zh.md)。
 
 | 约束 | 落点 | 验证方式 |
 |---|---|---|

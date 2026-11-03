@@ -12,11 +12,11 @@
     if (!left || !parent) return;
     var queue = byId("chatQueue");
     var draft = byId("queueDraft");
-    var speak = byId("aiSpeakSlot");
+    var speak = byId("aiCosplaySlot");
     var leftVisible = !!(
       (queue && !queue.classList.contains("hidden")) ||
       (draft && !draft.classList.contains("hidden")) ||
-      (speak && speak.querySelector(".ai-speak-player:not([hidden])"))
+      (speak && speak.querySelector(".ai-cosplay-player:not([hidden])"))
     );
     var subagent = byId("subagentPanel");
     var taskPanel = byId("bgTaskPanel");
@@ -33,7 +33,7 @@
 
   if (window.MutationObserver) {
     var observer = new MutationObserver(syncComposerColumns);
-    ["chatQueue", "queueDraft", "aiSpeakSlot", "subagentPanel", "bgTaskPanel"].forEach(function (id) {
+    ["chatQueue", "queueDraft", "aiCosplaySlot", "subagentPanel", "bgTaskPanel"].forEach(function (id) {
       var node = byId(id);
       if (node) {
         observer.observe(node, {

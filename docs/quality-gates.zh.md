@@ -24,7 +24,7 @@
 
 | 步骤 | 脚本 | 拦截什么 |
 |---|---|---|
-| 依赖方向 | `check_imports.py` | 下层导入上层、运行期导入装配根；`--scc` 打印包内强连通分量（当前 0 组） |
+| 依赖方向 | `check_imports.py` | 下层导入上层、未归类的顶层包、运行期导入装配根；`agent/update/health.py` 有极窄的启动自检例外 |
 | 架构约束 | `check_architecture_hygiene.py` | 跨层与同层私有导入、内核插件名、门控旁路、壳层 `skill_manage` 硬编码、提示词注册表、系统提示词静默兜底、`quality_gate` 兼容层、Provider 与压缩器边界、测试命名 |
 | CI 工作流一致 | `check_ci_workflow.py` | `ci.yml` 与 `ci_steps.py` 渲染结果不逐字节一致 |
 | 配置一致性 | `check_config_drift.py` | 真实配置多键 / 未登记节 |
@@ -41,6 +41,7 @@
 | 复杂度阈值 | `check_complexity.py` | 任一文件或函数超阈值 |
 | 复杂度文档一致 | `gen_complexity_md.py --check` | `docs/complexity.md` 与扫描结果不一致 |
 | 适用性登记 | `check_applicability.py` | 申报结构错误；编号与 `scripts/standards_rules.py` 双向比对，并打印 N/A 占比 |
+| 准则清单一致 | `check_standards_manifest.py` | 手册编号、版本与更新时间必须与 `standards_rules.py` 一致；skills 停用或手册缺失时跳过 |
 | 并发争用 | `tests.test_concurrency`（`-X dev`） | 共享可变状态的线程争用 |
 
 `docs/unit-tests.md` 是生成的可读测试目录，不是事实源；事实源是 `tests/`。

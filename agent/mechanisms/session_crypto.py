@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 from agent.core.error_report import report_error
+from agent.mechanisms.session_locking import cross_process_lock
 
 MAGIC = "__fan_agent_session_encrypted__"
 ALG_LOCAL = "local-hmac-sha256-stream-v1"
@@ -110,14 +111,22 @@ class SessionCipher:
     def _load_or_create_key_material(self) -> bytes:
         """32 字节主密钥：文件存在则复用，缺失则生成（0600）；锁防并发双建。"""
         key_file = self.key_path
-        with _KEY_LOCK:
+        # 进程内锁只挡本进程线程；首次启动的两个进程必须再经文件锁串行，
+        # 否则各自生成一把密钥，先写的那把会被后写的覆盖，旧会话再也解不开。
+        with _KEY_LOCK, cross_process_lock(key_file):
             if key_file.is_file():
                 return base64.urlsafe_b64decode(
                     key_file.read_text(encoding="ascii").strip().encode("ascii")
                 )
-            key_file.parent.mkdir(parents=True, exist_ok=True)
             key = os.urandom(32)
-            key_file.write_text(base64.urlsafe_b64encode(key).decode("ascii"), encoding="ascii")
+            try:
+                fd = os.open(key_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError:
+                return base64.urlsafe_b64decode(
+                    key_file.read_text(encoding="ascii").strip().encode("ascii")
+                )
+            with os.fdopen(fd, "w", encoding="ascii") as fh:
+                fh.write(base64.urlsafe_b64encode(key).decode("ascii"))
             try:
                 os.chmod(str(key_file), 0o600)
             except OSError as exc:

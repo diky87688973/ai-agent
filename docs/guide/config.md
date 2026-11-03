@@ -18,7 +18,7 @@ plugin_tree_only = 0
 
 | Key | Default | Meaning |
 |---|---|---|
-| `reasoning_effort` | `max` | Global reasoning level. `max` = deep reasoning, `high` = standard reasoning. It can be changed per session; the session-level choice takes precedence and is persisted per session under `data/session_state/`. |
+| `reasoning_effort` | `max` | Global reasoning level. `max` = deep reasoning, `high` = standard reasoning. It can be changed per session; the session-level choice takes precedence and is persisted per session under `data/session/state/`. |
 | `backup_retention_days` | `7` | Retention period for versioned backups, in days. Versions older than this are pruned at startup; `0` = keep forever. |
 | `max_passes` | `64` | Model round-trip limit per turn; values below 1 are treated as 1. Each round trip may call zero or more tools; this is not a tool-call limit. |
 | `plugin_tree_only` | `0` | When `1`, only plugin directories inside the `plugins/` tree may be loaded; absolute or external `path` entries in the manifest are rejected. The `AI_AGENT_PLUGIN_TREE_ONLY` environment variable takes precedence. |
@@ -117,11 +117,11 @@ enabled = 1
 | `skills` | Skills library (built-in and external) and the `skills` tool | `plugins/skills/plugin-config.ini` |
 | `rules` | Injects every `.md` under `rules/` into the context | No configuration (switch only); see [Rules](../subsystems/rules.md) |
 | `knowledge` | Local knowledge-base retrieval | `plugins/knowledge/plugin-config.ini` |
-| `ai_speak` | Spoken narration and audio playback | `plugins/ai_speak/plugin-config.ini` |
+| `ai_cosplay` | Spoken narration and audio playback | `plugins/ai_cosplay/plugin-config.ini` |
 
 **Section order is context assembly order**: plugins that change less often come first.
 
-**Each plugin's configuration lives with the plugin.** The configurations of `ai_speak`, `visual_operator`, `knowledge`, and `skills` are checked in; `multi_model`'s secret configuration is excluded by `.gitignore`; the kernel's `config.ini` contains no plugin settings. For plugin directory layout, contributed capabilities, and development, see [Plugins](../subsystems/plugins.md).
+**Each plugin's configuration lives with the plugin.** The configurations of `ai_cosplay`, `visual_operator`, `knowledge`, and `skills` are checked in; `multi_model`'s secret configuration is excluded by `.gitignore`; the kernel's `config.ini` contains no plugin settings. For plugin directory layout, contributed capabilities, and development, see [Plugins](../subsystems/plugins.md).
 
 ## HTTP authentication
 
@@ -234,9 +234,9 @@ Runtime data lives under `data/` and is not tracked by version control. Point it
 
 | Directory | Contents |
 |---|---|
-| `data/sessions/` | Session fact log |
-| `data/titles/` | Session titles (plain-text derived cache) |
-| `data/session_state/` | Session state (model / mode / reasoning level / checklist; one JSON file per session) |
+| `data/session/raw/` | Session fact log |
+| `data/session/titles/` | Session titles (plain-text derived cache) |
+| `data/session/state/` | Session state (model / mode / reasoning level / checklist; one JSON file per session) |
 | `data/temp/` | Temporary artifacts (pre-write backups are described under File backups) |
 | `data/mesh/` | Cross-session collaboration (`agents.json` roster plus runtime state) |
 | `data/queues/` | Pending message queue per session (user and agent messages, attachments) |
@@ -245,7 +245,9 @@ Runtime data lives under `data/` and is not tracked by version control. Point it
 | `data/workspace/` | Root of the `/workspace/` static route |
 | `data/recycle/` | Recycle directory for delete operations |
 | `data/plugin/<plugin name>/` | Plugin-owned storage (a plugin sees only its own directory) |
+| `data/check/` | Engineering review checklist and its verification scripts |
 | `data/cache/` | Derived cache, including the session encryption key |
+| `data/tests/` | Regression evidence and test scripts |
 | `data/auth/` | Password credentials, API tokens, and the authentication log; excluded from release packages |
 | `data/logs/errors.log` | Process error log (JSONL; kernel/plugin assembly and host runtime failures; tool business failures are returned as `ToolResult` and are not recorded here; rotates to `errors.log.1` at about 2 MB) |
 

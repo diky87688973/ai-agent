@@ -19,6 +19,15 @@ from agent.capabilities.registry import ToolPlugin
 from agent.mechanisms.file_safety import FileBackups
 from agent.mechanisms.quality import change_payload, diff_text
 
+STATUS_OLD_TEXT_NOT_FOUND = "old_text_not_found"
+STATUS_REPLACEMENT_COUNT_MISMATCH = "replacement_count_mismatch"
+STATUS_ALREADY_APPLIED = "already_applied"
+REASON_NOOP_REPLACE = "noop_replace"
+EDIT_STATUSES = (
+    STATUS_OLD_TEXT_NOT_FOUND, STATUS_REPLACEMENT_COUNT_MISMATCH,
+    STATUS_ALREADY_APPLIED,
+)
+
 # ── 公共辅助 ────────────────────────────────────────────
 
 
@@ -67,7 +76,7 @@ def _apply_one_literal(text: str, old_text: str, new_text: str,
         # 那是全局属性猜局部操作，会掩盖找错串/找错文件；也不做大小写折叠。
         exc = ValueError(label + "old_text 未找到")
         exc.data = {
-            "status": "old_text_not_found",
+            "status": STATUS_OLD_TEXT_NOT_FOUND,
             "needs_commit": False,
             "matches": 0,
             "edit_index": index,
@@ -79,7 +88,7 @@ def _apply_one_literal(text: str, old_text: str, new_text: str,
             f"{label}命中数不符：old_text 出现 {count} 次，expected_replacements={int(expected)}"
         )
         exc.data = {
-            "status": "replacement_count_mismatch",
+            "status": STATUS_REPLACEMENT_COUNT_MISMATCH,
             "needs_commit": False,
             "matches": count,
             "expected_replacements": int(expected),
@@ -126,8 +135,8 @@ def _apply_edits(text: str, edits: Any) -> Dict[str, Any]:
             "mode": "edits",
             "matches": total_matches,
             "replaced": 0,
-            "status": "already_applied",
-            "reason": "noop_replace",
+            "status": STATUS_ALREADY_APPLIED,
+            "reason": REASON_NOOP_REPLACE,
         }
     return {
         "text": current,
@@ -161,15 +170,18 @@ def _apply_replace(text: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     line_start = arguments.get("line_start")
     line_end = arguments.get("line_end")
     if line_start is not None or line_end is not None:
-        lines = text.split("\n")
+        lines = text.splitlines()
         start = int(line_start) if line_start is not None else 1
         end = int(line_end) if line_end is not None else len(lines)
         if not (1 <= start <= end <= len(lines)):
             raise ValueError(f"行区间无效：line_start={start} / line_end={end}（共 {len(lines)} 行）")
         new_text = str(arguments.get("new_text") or "")
-        merged = lines[: start - 1] + new_text.split("\n") + lines[end:]
+        merged = lines[: start - 1] + new_text.splitlines() + lines[end:]
+        result = "\n".join(merged)
+        if text.endswith("\n"):
+            result += "\n"
         return {
-            "text": "\n".join(merged),
+            "text": result,
             "mode": "lines",
             "matches": end - start + 1,
             "replaced": end - start + 1,
@@ -185,7 +197,7 @@ def _apply_replace(text: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         # 那是全局属性猜局部操作，会掩盖找错串/找错文件；也不做大小写折叠。
         exc = ValueError("old_text 未找到")
         exc.data = {
-            "status": "old_text_not_found",
+            "status": STATUS_OLD_TEXT_NOT_FOUND,
             "needs_commit": False,
             "matches": 0,
             "message": "old_text 未找到，未生成预览",
@@ -197,7 +209,7 @@ def _apply_replace(text: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             f"命中数不符：old_text 出现 {count} 次，expected_replacements={int(expected)}"
         )
         exc.data = {
-            "status": "replacement_count_mismatch",
+            "status": STATUS_REPLACEMENT_COUNT_MISMATCH,
             "needs_commit": False,
             "matches": count,
             "expected_replacements": int(expected),
@@ -217,8 +229,8 @@ def _apply_replace(text: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "mode": "literal",
             "matches": count,
             "replaced": 0,
-            "status": "already_applied",
-            "reason": "noop_replace",
+            "status": STATUS_ALREADY_APPLIED,
+            "reason": REASON_NOOP_REPLACE,
         }
     return {
         "text": new_content,
@@ -274,10 +286,10 @@ class ReplaceInFileTool(ToolPlugin):
                 data.setdefault("path", str(target))
                 exc.data = data
             raise
-        if outcome.get("status") == "already_applied":
+        if outcome.get("status") == STATUS_ALREADY_APPLIED:
             return {
                 "path": str(target),
-                "status": "already_applied",
+                "status": STATUS_ALREADY_APPLIED,
                 "applied": False,
                 "needs_commit": False,
                 "mode": outcome["mode"],
@@ -452,7 +464,7 @@ class ApplyPatchTool(ToolPlugin):
 
 def _slice_lines(text: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     """行区间切片 + max_chars 截断；返回 {text, truncated}。"""
-    lines = text.split("\n")
+    lines = text.splitlines()
     start = int(arguments.get("line_start") or 1)
     end_raw = arguments.get("line_end")
     end = int(end_raw) if end_raw is not None else len(lines)

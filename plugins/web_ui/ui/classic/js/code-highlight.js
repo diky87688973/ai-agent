@@ -45,20 +45,19 @@
 
   function highlightJson(s) {
     var t = String(s || "");
+    var parsed = false;
     try {
       var o = JSON.parse(t);
       t = JSON.stringify(o, null, 2);
+      parsed = true;
     } catch (e) {}
     if (w.hljs && w.hljs.getLanguage("json")) {
       try {
         return w.hljs.highlight(t, { language: "json", ignoreIllegals: true }).value;
       } catch (e2) {}
     }
-    return t
-      .replace(/("(?:\\.|[^"\\])*")\s*:/g, '<span class="hljs-attr">$1</span>:')
-      .replace(/:\s*("(?:\\.|[^"\\])*")/g, ':<span class="hljs-string">$1</span>')
-      .replace(/:\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, ':<span class="hljs-number">$1</span>')
-      .replace(/:\s*(true|false|null)/g, ':<span class="hljs-literal">$1</span>');
+    if (!parsed) return escapeHtml(t);
+    return escapeHtml(JSON.stringify(o, null, 2));
   }
 
   function highlightDiff(t) {

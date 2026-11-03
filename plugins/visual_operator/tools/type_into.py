@@ -2,6 +2,7 @@
 """`desktop_type_into`：按文字定位输入框并输入。"""
 from __future__ import annotations
 
+import sys
 import time
 from typing import Any, Dict, Optional
 
@@ -120,7 +121,8 @@ class DesktopTypeIntoTool(ToolPlugin):
             self._backend.mouse.click(point, "left", 1)
             time.sleep(0.05)
             if as_bool(arguments, "clear", True):
-                self._backend.keyboard.hotkey(("ctrl", "a"), 1)
+                select_all = ("cmd", "a") if sys.platform == "darwin" else ("ctrl", "a")
+                self._backend.keyboard.hotkey(select_all, 1)
                 time.sleep(0.02)
             self._backend.keyboard.type_text(move_text, self._config.type_interval_ms)
             if as_bool(arguments, "submit", False):

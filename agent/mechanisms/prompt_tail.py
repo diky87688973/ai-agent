@@ -23,7 +23,7 @@ class PromptTail:
         """
         if not callable(fn):
             raise ValueError("尾部来源必须可调用")
-        entry = (fn, bool(subagent_visible))
+        entry = (lambda cid, _fn=fn: _fn(cid), bool(subagent_visible))
         with self._lock:
             self._sources.append(entry)
 

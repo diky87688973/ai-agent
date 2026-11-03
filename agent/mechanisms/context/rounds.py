@@ -50,7 +50,7 @@ class ContextChunk:
 
 
 #: 推理正文被截断时插在中间的话。写明省了多少，模型据此知道"这里原本有内容"。
-REASONING_OMIT_FMT = "…<此处省略约 {tokens} token 的推理>…"
+
 
 
 

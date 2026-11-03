@@ -1,444 +1,147 @@
-[English](context.md) | **中文**
+﻿[English](context.md) | **中文**
 
-# 上下文管理
+# 上下文
 
-上下文管线回答两个问题：**发给模型的请求体由哪些部分组成**，以及**历史太长时怎么压缩**。
+## 1. 概览
 
-实现在 `agent/mechanisms/context/`（轮次、布局、来源与装配）与
-`agent/mechanisms/compaction/compactor.py`（压缩与摘要）。
+上下文模块负责把一次模型请求组装成稳定的消息前缀：系统提示词、插件贡献的上下文段、摘要与对话。
 
-## 三拼接装
+它只处理通用能力，不识别具体插件、业务方或工具；插件通过上下文插口贡献内容，上下文模块按注册结果组装。
 
-请求体只有三段：
-
-```
-messages = 头部 + 对话 + 尾部
-
-头部 = 系统提示词 + 插件各段 + 记忆摘要
-对话 = 从会话事实折叠出来的轮次
-尾部 = 本回合新输入 / 工具结果 + 执行模式
-```
-
-**唯一装配入口是 `ContextPipeline.assembles(tail)`**。平常请求：
-
-```python
-messages = pipeline.assembles([新输入, 模式说明])
-```
-
-压缩时先把尾部摘掉再压，压完拼回去：
-
-```python
-zip_messages = compress(pipeline.assembles([]))   # 不带尾部
-messages     = pipeline.assembles([新输入, 模式说明])
-```
-
-装配是**同步**的：没压完不接着往下跑。`rebuild_from_messages()` 是
-`set_dialogue()` 的兼容转发，不是第二条装配路径 —— 从 `messages` 反推头部会丢掉
-系统提示词与插件各段（那些不在事实记录里）。
-
-## 五个块
-
-管线按块持有内容，`CHUNK_ORDER` 固定展平顺序，空块跳过。
-
-| 常量 | 块 | 内容 |
-|---|---|---|
-| `CHUNK_SYSTEM` | 系统提示词 | 基础提示词 + 插件系统提示词章节 + 工具速查 |
-| `CHUNK_PLUGIN` | 插件段落 | 插件按段注册的注入内容 |
-| `CHUNK_MEM` | 记忆摘要 | 历次压缩产出的摘要，各占一条 `system` |
-| `CHUNK_FULL` | 近期记忆 | 对话轮次；除思维链回传预算外按原文保留 |
-| `CHUNK_MODE` | 模式 | 保留结构；执行模式走请求尾部，不落此块 |
-
-## 系统提示词章节
-
-系统提示词最终是一条 `system` 消息，但由多个有序章节组成：
+## 2. 流程图
 
 ```text
-身份 → 回复语言 → 动手指令
-→ 插件章节（PromptSections，按插件清单顺序；如 `## 资源目录`）
-→ 环境信息 → 编码准则 → 术语 → 工具使用纪律 → 工具速查
+SessionRunner.build_engine
+  ├─ session_prompt()
+  ├─ ContextPipeline.append_system()  -> CHUNK_SYSTEM
+  ├─ ContextSources.collect_segments() -> CHUNK_PLUGIN
+  ├─ Compactor                         -> CHUNK_MEM
+  ├─ SessionLog.derive_messages()      -> CHUNK_FULL
+  └─ mode_note / request tail
 ```
 
-- 基础段由 `prompts.py:build_system_prompt()` 产出；模式段由
-  `resolve_system_prompt()` 切掉，执行模式走请求尾部。
-- 插件用 `ctx.add_prompt_section(section, fn)` 注册章节；`section` 是完整标题，
-  同一标题的正文合并，标题只出现一次。章节属于系统提示词，不占独立上下文段。
-- `## 资源目录` 由 Skills 插件与 Rules 插件注册；`## 动手指令` 是基础段，固定在回复语言之后。
-- `## 环境信息` 由会话运行器按当前会话生成：操作系统与本会话 ID。
-- `## 可用工具` 是名字与一句话摘要；完整 schema 只走请求的 `tools` 字段。
+## 3. 插口协议
 
-## 组装顺序
+### 3.1 暴露的插口
 
-**顺序按改动可能性排：越不会变动的越靠前。**
+| 插口路径 | 暴露的能力 | 关键属性 | 可替换/覆盖方式 |
+|---|---|---|---|
+| `app/kernel/modules/compress` | 上下文压缩模块入口 | `scope=session`、`order=2`、`master=true`；实现 `ModuleBase.execute(ports)`，按模块链产出事件 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/context/sources` | 插件上下文正文段注册 | 注册函数 `fn(conversation_id) -> list[str]`；每项一条 `system` 消息；`SourceMeta(key,label,prefix,count,plugin_rank)`；按插件清单顺序；单来源异常隔离并记错；返回 disposer | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/context/assembly-hooks` | 装配后的消息变换钩子 | `hook(messages, conversation_id) -> list[dict] or None`；按注册顺序执行；返回非法值或抛错时记错并跳过；返回 disposer | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/context/usage-segments` | 分段用量观察 | 每段 `{key,label,tokens,pct}`，加 `{key:"remaining",...}`；只读统计，不参与请求组装 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+### 3.2 依赖的插口
 
-```text
-系统提示词 → 记忆摘要 → 近期记忆        这三段的相对顺序固定，不随插件变
-插件段整体                              落在"系统提示词"之后、"记忆摘要"之前
-插件段之间                              按插件清单（plugins.ini）顺序，靠前的插件在前
-模式                                    最后
-```
+| 依赖路径 | 依赖的能力 | 提供者 | 为什么依赖 | 不可用时的影响 |
+|---|---|---|---|---|
+| `app/host/services/prompt_sections` | 渲染系统提示词章节 | 宿主服务 | 生成 `CHUNK_SYSTEM` 的正文 | 系统提示词缺失，请求头不完整 |
+| `app/host/services/context_sources` | 收集插件正文段 | 宿主服务 | 生成 `CHUNK_PLUGIN` | 插件上下文段缺失 |
+| `app/host/services/context_hooks` | 装配后消息变换 | 宿主服务 | 在最终消息列表上追加/修改内容 | 钩子贡献的内容缺失 |
+| `app/host/services/prompt_tail` | 请求尾部片段 | 宿主服务 | 追加模式说明和插件尾部 | 请求尾部缺失 |
+| `app/host/services/provider` | 模型调用 | 宿主服务 | 生成压缩摘要 | 压缩不可用，保留原对话 |
+| `app/host/services/session_factory` | 创建每会话上下文管线 | 宿主服务 | 按 `conversation_id` 隔离上下文 | 会话无法获得上下文管线 |
+| `app/host/services/compactor_factory` | 创建压缩器 | 宿主服务 | 触发压缩与摘要 | 不压缩，上下文可能超限 |
 
-插件清单顺序即组装顺序：清单里两个节的先后就是它们在请求里的先后。
-排在前面的插件应当是更不容易变的那个 —— 会随界面操作变动的插件排在只读的之后。
-应用级来源（不属任何插件、直接用 `ContextSources.add` 注册的）没有清单位次，
-排在所有插件段之后。
+上下文模块只依赖能力接口，不依赖任何具体插件的实现或路径。
 
-实现在 `ContextSources.collect_segments()`：按 `SourceMeta.plugin_rank` 稳定排序，
-`plugin_rank` 由宿主在装载插件时按清单序号写入（`PluginContext.set_rank`）。
+## 4. 插口能力
 
-## 内核与插件的协同
+### 4.1 系统提示词：`app/host/services/prompt_sections`
 
-**内核不认识任何具体插件。** 它只知道"有个来源注册了一段"：
+依赖 `PromptSections` 渲染系统提示词章节，上下文只接收最终文本并放入 `CHUNK_SYSTEM`。
+
+- 输入：章节贡献方提供的渲染函数。
+- 输出：一段系统提示词文本。
+- 边界：上下文模块不解释章节语义，也不拼接插件名称。
+
+### 4.2 插件正文段：`backend/context/sources`
+
+每个来源注册一个函数和 `SourceMeta`：
 
 ```python
-@dataclass(frozen=True)
-class SourceMeta:
-    key: str = ""          # 段 key = 插件名（前端按它找插件的渲染钩子）
-    label: str = ""        # 段名
-    plugin: str = ""       # 提供者插件名
-    prefix: str = ""       # 注入前缀，告诉模型这段是什么
-    count: Callable[[str], int] | None = None   # 主体数量取数口 fn(cid) -> int
-    plugin_rank: int | None = None              # 插件在清单里的位次 = 组装位次
+def source(conversation_id: str) -> list[str]:
+    ...
 ```
 
-插件侧一个入口：
+- `key`：段 key，前端按它找渲染锚点。
+- `label`：段名。
+- `prefix`：可选前缀。
+- `count`：可选主体数量回调。
+- `plugin_rank`：按 `plugins.ini` 的插件顺序排序。
+
+每条正文独立成一条 `system` 消息；单来源失败不影响其它来源。
+
+### 4.3 装配钩子：`backend/context/assembly-hooks`
+
+钩子在消息列表装配完成后执行：
 
 ```python
-ctx.add_context_source(fn, {"label": "段名", "prefix": "【前缀】\n",
-                            "count": 主体数量取数口})
+def hook(messages: list[dict], conversation_id: str) -> list[dict]:
+    ...
 ```
 
-- `fn(conversation_id) -> list[str]`，每个字符串各成一条 `system` 消息；
-- 一个插件可以注册**多个来源**，它们共用段 key、在分层里各占一行；
-- `prefix` 由来源给，宿主在收集时统一拼上 —— 拼错了模型会把它当对话内容；
-- 单个来源抛错被隔离（记 stderr），不影响其它来源与本次请求。
+- 返回 `None` 表示不修改。
+- 返回新消息列表则替换当前结果。
+- 抛出异常或返回非法结构时记错并继续下一个钩子。
 
-收集结果是一个结构：
+### 4.4 压缩模块：`app/kernel/modules/compress`
 
-```python
-PluginSegments(items=[(段 key, 段名, 正文)], counts=[按位置的主体数量])
-```
-
-`counts` **按位置**对应，不按 key —— 同一个插件的两段共用段 key，按 key 存会互相覆盖。
-
-### 内核对插件段做的事
-
-| 阶段 | 内核动作 |
-|---|---|
-| 收集 | 排序（按 `plugin_rank`）、拼前缀、隔离异常、取主体数量 |
-| 装配 | 各段按 `CHUNK_PLUGIN` 顺序落成 `system` 消息，整体排在头部 |
-| 分段 | 一段一行上报，`key` 是 `plugin:<插件名>`，段名与数量用插件给的 |
-| 展平 | `flatten_to_messages()` 在末端统一过 `sanitize_fn` |
-
-内核**不解释**段名与数量的含义：`count` 是"几个文件"还是"几个 Skills"，由插件决定。
-
-### 观察面
-
-内核每装配完一次请求发一条 `context_segments` 事件（`ModelModule` 里发），
-内容就是 `layout_payload()` 的结果。经典界面适配层据此产出 `context_layout`：
-对话、系统提示词与模式段取自这份快照，插件段用当前注入源重新收集覆盖，
-百分比与剩余容量按当前预算重算。
-
-**没有快照的旧会话**走 `layout_from_messages()` 兜底：真装一次上下文
-（插件内容不在事实记录里，只能靠注入源产出），读它的头部按来源描述切段。
-
-## 分段统计
-
-`ContextPipeline.segment_tokens()` 逐段估 token，口径与真正发出去的请求一致
-（同一个 `default_message_tokens`）。
-
-| key | 来源 | `count` 的口径 |
-|---|---|---|
-| `system` | 系统提示词 | 消息条数 |
-| `plugin:<插件名>` | 插件注册的每一段各成一行 | 插件自报；缺省按消息条数 |
-| `summary` | 历次摘要 | 消息条数 |
-| `full_recent` | 近期对话 | **用户轮数**（一轮里有问有答还有工具往返） |
-| `mode` | **请求尾部**，不在管线里 | 由 `layout_payload(tail_messages=…)` 单独算 |
-
-`layout_payload()` 补 `remaining`（剩余容量）与 `pct`；服务端 `pct` 以 `budget_tokens`
-为分母，该值取压缩阈值与已用中的较大者。界面按 `model_max_context_tokens`
-重新计算展示百分比与剩余容量，该值为 0 时退回预算口径；预算百分比只服务界面展示，
-压缩触发只看阈值。
-
-自报数量**按位置**与来源对齐：`collect_segments()` 返回的数量表与段落表等长，
-某个来源少了自报数就按它自己的条数算。错位是静默的（段名、token 都对，只有数字离谱），
-所以两处都不允许用邻段的数字补位。
-
-### 字段与边界
-
-`context_layout` 顶层字段：
-
-| 字段 | 含义 |
-|---|---|
-| `segments` | 分段列表，末尾固定包含 `remaining` |
-| `total_tokens` | 各段与尾部合计占用（不含剩余容量） |
-| `budget_tokens` | 分段 `pct` 的实际分母（取压缩预算与已用中的较大者） |
-| `model_max_context_tokens` | 当前模型窗口；未知为 0，界面退回预算口径 |
-
-`context_layout.segments[]` 只给**数据**：
-
-| 字段 | 含义 |
-|---|---|
-| `key` | 段标识；插件段是 `plugin:<插件名>`，剩余容量段是 `remaining` |
-| `label` | 段名（插件自报） |
-| `tokens` | 该段占用 |
-| `count` | 主体数量（插件自报；缺省按消息条数） |
-| `pct` | 相对预算的占比 |
-
-`segments` 末尾固定追加 `{"key": "remaining", "label": "剩余容量", "tokens": ..., "pct": ...}`，这一项没有 `count`。
-
-**颜色、图标、布局由界面决定**：布局载荷里不含色号。插件经 `web-ui/left-panel/context_usage/<key>` UI 条目登记 `label` / `color`；UI catalog 通过 `ai-agent:context-segments` 发布同一份映射，分段条与浮层直接消费。插件没注册时，壳层按段 key 从自己的色名表取稳定颜色。
-## 用户轮是原子单位
-
-一条 `user` 起到下一条 `user` 前是**一个用户轮**。压缩只允许整轮处理：
-
-- 圈定要压掉的区间时**向下取整到轮边界**（`turn_boundary_floor`）—— 宁可不压那一轮，
-  也不从轮中间切开；
-- 落点还受一条硬约束：不能切在**悬空工具链**上（`tool_chain_balanced`）——
-  `assistant.tool_calls` 与它的 `tool` 结果必须同进同出，否则模型 API 硬拒绝 400。
-
-## 工具往返不剥离
-
-**普通请求对工具往返只做追加**：已经发出去过的工具往返，后续请求里逐字节不变。
-改中间任何一条，provider 的前缀缓存就从那一条起整段失效 —— 而 Agent 每回合都在
-追加工具往返，一旦每回合都改写中间的内容，缓存命中率归零。
-
-因此工具往返**不做"留最近 N 轮、剥更早的"**：
-
-- 不在压缩区间里的工具往返原样保留，一条不删；
-- 进了压缩区间的，它就在摘要请求的前缀里 —— 摘要器看到的是**带工具结果原文**的
-  那一段，工具结果由这一次摘要接管；
-- 压缩落点受 `tool_chain_balanced` 约束，绝不切在悬空工具链上
-  （`assistant.tool_calls` 与它的 `tool` 结果必须同进同出，否则模型 API 硬拒绝 400）。
-
-`set_dialogue` 丢掉已被摘要覆盖的前缀（`covered_end`），并按思维链回传预算裁剪推理；
-其余原样装载。每加一回合，上下文就是上一次的上下文**加上新消息**。
-
-## 压缩触发
-
-### 压缩阈值如何得到
-
-有模型窗口时：
+该插口暴露压缩模块本身：
 
 ```text
-threshold = floor(context_window × compression_percent / 100)
+scope=session
+order=2
+master=true
 ```
 
-`compression_percent` 属于模型条目，默认 70，范围 10–90。模型没有窗口时使用
-`[context] summary_token_fallback`（默认 64000）。
+模块按 `ModuleBase.execute(ports)` 读取上下文，产出事件；压缩策略由 `compactor_factory` 提供，摘要由 `provider` 生成。
 
-它是**请求体积的软上限**，不是"压到多少"的目标：
+### 4.5 用量观察：`backend/context/usage-segments`
 
-```
-估算体积 = 串起来发给模型的那份请求的估算 token
-         = 系统提示词 + 插件各段 + 记忆摘要 + 未覆盖的对话 + 待并入的消息
-           + 工具声明与模式说明的固定开销
-
-估算体积 <= threshold  →  放行，照原样发
-估算体积 >  threshold  →  先压既有历史，再用压缩后的上下文发
-```
-
-体积是**估算**（`approx_tokens_text` / `default_message_tokens`），不是精确计数。
-它同时也是**分层视图的百分比基准**：`context_layout.budget_tokens` 取它与已用中的较大者，
-各段 `pct` 相对这个字段算。阈值随会话当前模型变化；模型切换后下一回合重算。
-
-超过阈值**不是错误**：超了就压，压完接着发。它是这套机制里唯一决定"该不该压"的数。
-
-### 一次压缩的完整流程
-
-`ContextCompactor.ensure_before_append()` 在拼入前跑：
-
-```
-1. 取未覆盖视图     view = messages[covered_end:]      ← 已压过的不再看
-2. 组装压缩上下文   base = 整份装配结果 - 尾部（本回合新输入 + 执行模式）
-3. 估算并比较      total_token_estimate(base) + 待并入 + 固定开销 > 阈值 ?
-                    不超 → 返回 None（放行）
-4. 取压缩区间      excerpt_by_target_tokens(view, keep_turns=full_user_rounds)
-                    ├ 遮盖末尾 full_user_rounds 个用户轮（近场不压）
-                    ├ 取遮盖起点之前的区间；那里没得压就连遮盖一起压
-                    └ 落点退回轮边界（turn_boundary_floor）与工具链边界
-                      （tool_chain_balanced）；退不回去就放弃本次压缩
-5. 调摘要器        用 base 当前缀，末尾接压缩指令（目标上是平常请求的前缀）
-                    被压那一段（含工具结果原文）就在前缀里，不再另算素材
-6. 记录            covered_end += 区间长度；摘要追加进 summaries
-7. 立刻装回管线    set_summary_messages()：同一次请求随后就装配，
-                    读到的必须是新摘要（晚一步就会用旧上下文发请求）
-```
-
-### 遮盖
-
-末尾 `full_user_rounds` 个用户轮是**遮盖**：那是模型的近场，手里的活全在那里。
-
-- 正常路径：遮盖不动，压它前面那一段；
-- 遮盖前面压不出空间时（总共只剩 1 轮、或遮盖已盖住全部），**连遮盖一起压** ——
-  极端情况压完整个上下文 **0 个用户轮**，摘要接管全部历史，剩下的只有头部；
-- 遮盖是**偏好**，不是拒绝压缩的理由：压不动就是请求超上限直接失败。
-
-系统提示词与插件各段都是 `system`、排在对话之前，所以"最后一个前置 system 之后"
-这个区域**天然只覆盖对话**，不含任何系统设定。
-
-### 区间怎么取
-
-`excerpt_by_target_tokens(messages, keep_turns)` 给出要压掉的区间 `[0, cut)`：
-
-- `cut` 是**遮盖起点**：区间不含被遮盖的那几轮；
-- 遮盖前面没得压时 `cut` 落到末尾 —— 0 个用户轮是允许的结果；
-- 落点已经过轮边界与工具链边界校验，退不回去就返回 `None`（本次不压）。
-
-### 参数
-
-| 参数 | 默认 | 含义 |
-|---|---|---|
-| `threshold` | 按模型计算 | 请求体积的软上限；超了才压，同时是分层百分比的基准 |
-| `summary_token_fallback` | 64000 | 模型没有声明窗口时的回退阈值；仅配置文件 |
-| `full_user_rounds` | 5 | 遮盖的末尾用户轮数（压不出空间时连它们一起压） |
-| `summary_output_max_chars` | 5000 | 摘要篇幅上限（字） |
-| 摘要前缀 | 固定复用 | 摘要请求带上与平常请求相同的前缀，这次调用才能命中已有缓存 |
-
-### 临时运行态尾部
-
-每次模型 pass 前，宿主在请求末尾临时拼接一条 system：
+布局输出按段统计：
 
 ```text
-## 当前模式：...
-
-## Todo-List：**必须实时追踪并更新任务进度**
-当前进度：X 已完成，Y 进行中，Z 待处理
-
-[插件 prompt tail]
+CHUNK_SYSTEM / CHUNK_PLUGIN / CHUNK_MEM / CHUNK_FULL
 ```
 
-有清单且存在模式说明时才注入 Todo-List 段。
+每段包含 `key`、`label`、`tokens`、`pct`，末尾追加剩余容量。它只读，不改变请求。
 
-这条尾部：
+### 4.6 历史摘要：`app/host/services/compactor_factory`
 
-- 每次 pass 重新求值；工具勾选后下一趟读到最新 `LiveState`；
-- 不落盘、不发事件、不进压缩；
-- 装配前会移除遗留的临时尾条，避免重复拼接；
-- Todo 进度与界面使用同一套计数口径。
+历史摘要不是 system 常驻消息，而是一条 user 检查点消息：
 
-**压缩是同步的**：没压完不接着发请求 —— 发出去的那一份必须是压缩后的。
-**压缩是增强项，不阻断回合**：压缩器缺省、调用失败、返回空文本，都一律放行
-（异常会记一条 stderr，不静默）。
-
-`ContextCompactor.restore_from_events()` 从会话记录重放 `context_compacted` 事件重建
-状态（幂等，`covered_end` 单调不减）。
-
-## 摘要请求复用前缀
-
-摘要也是一次模型调用，**结构与平常请求相同，只有结尾不同**：
-
-```
-平常请求  系统提示词 + 插件各段 + 记忆摘要 + 对话 + 新输入 / 工具结果 + 执行模式
-摘要请求  系统提示词 + 插件各段 + 记忆摘要 + 对话 + 压缩指令
+```text
+<compacted-summary>
+九节摘要正文
+</compacted-summary>
 ```
 
-前缀目标上是**同一份装配结果**剔除尾部，以期命中 provider 的 KV 缓存，只按压缩指令那点新增内容付费。当前压缩路径中，晚安装的摘要与摘要副本被清空的推理内容会造成差异，因此缓存复用是尽力而为，不保证逐字节相等。
+- 整个会话只保留一条当前摘要；每次压缩用新摘要整体替换旧摘要。
+- 摘要消息位于系统/插件段之后、当前对话之前，只作为已建立背景。
+- 摘要不是新用户请求；不得因 `Pending Jobs` / `Next Step` 自动执行。
+- 压缩请求复用上一次正常请求的精确前缀，再追加一条 user 压缩指令。
 
-**必须是整份**：中间挖掉一段就不再是"上次请求的前缀"，缓存会从挖掉的位置起全部失效。
-两项必须一起对上，少一项整段缓存作废：
+## 5. 其他细节
 
-| 项 | 取法 |
+### 补充
+
+压缩请求复用同一份头部，只替换尾部指令；普通请求与压缩请求的头部逐段一致。
+
+
+
+- `CHUNK_MODE` 是保留空块；运行模式走请求尾部。
+- 模式说明不写入会话事实，也不进入系统提示词。
+- 压缩前剥离尾部临时内容，避免摘要污染。
+- 用户轮是原子单位；工具往返不跨轮拆分。
+- 图片按 `[context]` 的 `image_turns` / `image_max` 进入请求；超出的图片只从本次请求移除。
+- token 是估算：CJK 约 1 token/字，其余约 1 token/4 字符，图片固定 `IMAGE_TOKENS_PER_IMAGE`。
+- 上下文构建失败按请求失败传播，不静默回退为空上下文。
+
+## 6. 延伸阅读
+
+| 主题 | 文档 |
 |---|---|
-| 消息前缀 | 与平常请求**同一份**装配结果，末尾换成压缩指令 |
-| `tools` | 本次请求同一份 schema（`ModelModule` 传给 `ensure_before_append`） |
-
-系统提示词就在消息前缀里（开头的 `system` 消息），不作为独立字段发送。
-执行模式说明**不进**前缀：`ensure_before_append` 在构造摘要请求前按 `mode_note` 与
-`MODE_MARKER` 把尾部模式摘掉，压缩指令接在原来的位置。
-
-指令是**末尾一条 `system` 消息**，其中写明头部各段（系统提示词、插件各段、
-记忆摘要）属于智能体的常驻设定、不是对话内容。
-
-拿不到前缀时退回另一条路径：一条提问消息，内容是按角色拼接的素材正文，
-其后接同一条指令作为末尾 `system` 消息。
-
-## 执行模式是请求尾部的临时后缀
-
-执行模式（Auto / Plan / Execute）**不在系统提示词里**，也不进会话记录与事件：
-`shell/prompts.py` 的 `resolve_mode_note()` 单独产出，组装请求时作为最后一条消息追加。
-有清单时，模式之后追加固定的 `## Todo-List：**必须实时追踪并更新任务进度**` 维护提示。
-插件自己的请求尾部（如 AI说话）也在这条尾部消息里。
-
-模式若写进系统提示词，切一次模式就会改动上下文最前面那一块，从该位置起整段前缀
-缓存作废；放在末尾后，切换只改动最后一条。
-
-```
-系统提示词 + 插件各段 + 记忆摘要 + 对话 + 新输入 / 工具结果 + 执行模式
-                                                              + Todo-List
-                                                              + 插件请求尾部
-                                                                  ↑ 临时附加
-```
-
-`build_system_prompt()` 会产出模式段（供单独取用），`split_mode_section()` 负责把它
-从系统提示词里切掉，只删模式段本身、保留其后的插件章节与工具速查。
-调用方显式给了系统提示词（mesh 的 `system`）时不附加模式说明，也不附加 Todo-List。
-
-`ensure_before_append()` 在压缩前剔除尾部模式（`_strip_mode_tail`），
-避免把它当对话内容压进摘要。
-
-## 多段插件
-
-一个插件可以注册**多条**注入源，它们共用段 key（插件名）、在分层里各占一行。
-`plugins/skills` 就是这种形态：清单一条、常驻正文一条，两条各自带段名与抬头。
-
-多条注入属于**同一个来源组**：组装位次由插件在清单里的位置决定，组内按注册顺序。
-分段统计也按同一顺序逐段上报。
-
-Skills 本身的分层做法见 [skills.md](skills.zh.md)。
-
-## 图片进请求的限制
-
-图片内联进请求体，所以带多少张要自己管（两道闸都在 `[context]` 里）：
-
-| 参数 | 默认 | 含义 |
-|---|---|---|
-| `image_turns` | 1 | 只带**最近这么多轮用户发言**里的图片；更早的用户图转文本占位。工具结果里的图片不受这一项限制。负数 = 不限 |
-| `image_max` | 8 | 请求里的图片总数（用户图与工具图合计）；**最新的图片优先保**，超量的从最老的开始砍。负数 = 不限 |
-
-轮数限制按**轮**计数而不是按张：一轮里发三张算一轮。问"这张图"时指的是刚发的那一轮，
-老图连带价值低，留在请求里却是实打实的体积。
-
-被剥掉的图只从**发给模型的这一份**里消失 —— 事实流里的 base64 不动，
-历史回显与重新提问都还能拿到原图。判定与占位文本在 `image_embed.strip_old_images()`。
-
-## 摘要生成
-
-`make_provider_summarizer(provider)` 返回一个摘要函数：有可复用前缀时发送该前缀与固定
-指令，没有前缀时把素材序列化成一条用户消息；两种情况都是一次**单轮**模型请求，
-收集返回文本。复用前缀时工具声明照常随前缀带上，指令要求不调用工具。
-
-摘要提示词要求输出分节（背景 / 关键结论 / 约束与约定 / 未完成与待确认 / 风险与注意点），
-并明确"禁止编造记录中未出现的内容"。
-
-`max_chars` **只写进提示词作为篇幅约束，代码不做强制截断**，实际长度由模型遵守程度决定。
-
-退化判定 `_is_degenerate_summary_body()`：空串，或长度不足 10 且含 `摘要为空` 占位，
-都算失败。
-
-## 估算
-
-估算器 `approx_tokens_text()` 按字符分区算：**CJK 每字 1 token，其余每 4 字符 1 token**；
-`default_message_tokens()` 也把 `tool_calls` 的 `arguments` 算进去。整体按 `len // 4`
-会把中文正文低估约四倍，阈值随之失效、压缩时点大幅推后。
-
-压缩判定另外加上工具声明与模式说明的固定开销（它们不在 messages 里，却是请求体的一部分）。
-
-`reasoning_content` 按 `reasoning_replay_tokens` 裁过之后还剩多少就计多少 ——
-回传多少就花多少，估算与请求同一份。
-
-分段浮层显示的是**估算**（对装配后的 messages 求和），与用量条里的 `prompt_tokens`
-不是同一个数：后者是 API 回来的真值。两者差着工具声明与分词差异。
-
-token 数是**估算**而非精确计数：
-
-- `approx_tokens_text()`：按字符类型估算文本；
-- `default_message_tokens()`：按消息结构估算；
-- 图片按固定值 `IMAGE_TOKENS_PER_IMAGE` 计（固定 384，不读配置）。
-
-## 延伸阅读
-
-- [architecture.zh.md](../architecture.zh.md)：模块链与端口
-- [plugins.md](plugins.zh.md)：插件怎么注册注入源
-- [skills.md](skills.zh.md)：Skills 插件的三层披露
-- [core.md](core.zh.md)：`CompressModule` 在链上的位置
-- [guide/config.md](../guide/config.zh.md)：完整配置项
+| 架构 | [architecture.zh.md](../architecture.zh.md) |
+| 核心 | [core.zh.md](core.zh.md) |
+| 插件 | [plugins.zh.md](plugins.zh.md) |
+| 配置 | [config.zh.md](../guide/config.zh.md) |

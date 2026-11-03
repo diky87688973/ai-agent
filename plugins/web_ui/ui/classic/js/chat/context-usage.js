@@ -154,19 +154,21 @@ el.innerHTML='';el.appendChild(sheet);el.appendChild(row3);
 
 function applyUsageAccumulatorPayload(j){if(!j||typeof j!=="object")return;sessionTokenUsed=Number(j.session_token_used??0)||0;totalPromptTokens=Number(j.total_prompt_tokens??0)||0;totalCompletionTokens=Number(j.total_completion_tokens??0)||0;totalCacheHitTokens=Number(j.total_cache_hit_tokens??0)||0;totalCacheMissTokens=Number(j.total_cache_miss_tokens??0)||0;if(conv)_updateUsageBottom();}
 var usageAccumulatorSeq=0;
-async function loadUsageAccumulator(){try{
-const cid=String(activeConversationId||"");if(!cid)return;
+async function loadUsageAccumulator(cidArg){try{
+const cid=String(cidArg||activeConversationId||"");if(!cid)return;
 const seq=++usageAccumulatorSeq;
 const r=await fetch("/api/usage-accumulator?conversation_id="+encodeURIComponent(cid));if(!r.ok)return;
 const j=await r.json();
 if(seq!==usageAccumulatorSeq||String(activeConversationId||"")!==cid)return;
 applyUsageAccumulatorPayload(j);
 }catch(e){}}
-async function persistUsageAccumulator(){try{/* cid 为空时不发写请求 —— 空 cid 必被后端拒（invalid conversation_id），纯噪音。 */
-if(!String(activeConversationId||""))return;/* 写操作走 body（约定：写=body，读=query）。
-         缺 conversation_id 时后端返回 `invalid conversation_id`，
-         会话用量永不落盘（刷新即归零）。 */
-await fetch("/api/usage-accumulator",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:String(activeConversationId||""),session_token_used:sessionTokenUsed,total_prompt_tokens:totalPromptTokens,total_completion_tokens:totalCompletionTokens,total_cache_hit_tokens:totalCacheHitTokens,total_cache_miss_tokens:totalCacheMissTokens})});}catch(e){}}
+async function resetUsageAccumulator(cidArg){try{/* 新会话创建时先清掉可能残留的内存累计量；清空后 loadUsageAccumulator 才能读到 0。 */
+const cid=String(cidArg||"");if(!cid)return;
+await fetch("/api/usage-accumulator",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,reset:true})});
+}catch(e){}}
+async function persistUsageAccumulator(cidArg){try{/* 使用当前处理的会话 id，不能用 activeConversationId：后台会话的 usage 事件不能写到前台新会话。 */
+const cid=String(cidArg||activeConversationId||"");if(!cid)return;/* 写操作走 body（约定：写=body，读=query）。 */
+await fetch("/api/usage-accumulator",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,session_token_used:sessionTokenUsed,total_prompt_tokens:totalPromptTokens,total_completion_tokens:totalCompletionTokens,total_cache_hit_tokens:totalCacheHitTokens,total_cache_miss_tokens:totalCacheMissTokens})});}catch(e){}}
 /* 工具展示清单（`/api/tool-labels`）：中文名与图标由工具自己声明。
    界面据此认识所有工具（含插件工具）—— 加一个插件工具不必改这里。
    下面的旧表只作兜底：清单还没到时至少不是空白。 */

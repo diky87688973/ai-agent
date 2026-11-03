@@ -16,8 +16,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from agent.capabilities.plugin_paths import load_plugin_paths
 from agent.config import PROJECT_ROOT
 from agent.core.error_report import report_error
+
+_CACHE_MAX = 64
+
+PATHS = load_plugin_paths(__file__)
 
 __all__ = [
     "INJECT_PREFIX",
@@ -141,7 +146,11 @@ class RulesRuntime:
         except OSError as exc:
             report_error("rules.read", exc, path=str(path))
             return ""
+        for old in [item for item in self._cache if item[0] == key[0]]:
+            del self._cache[old]
         self._cache[key] = text
+        while len(self._cache) > _CACHE_MAX:
+            self._cache.pop(next(iter(self._cache)))
         return text
 
     # ── 组包 ──
@@ -197,12 +206,15 @@ def register(ctx: Any) -> List[Callable[[], None]]:
         ctx.add_context_source(
             runtime.build_system_messages,
             {"label": SEGMENT_LABEL, "count": runtime.attached_count},
+            path="app/backend/context/sources/rules/files",
         ),
         # 系统提示词章节：与 Skills 插件合并到同一个 `## 资源目录`
         ctx.add_prompt_section(
-            RESOURCE_HEAD, lambda _cid: resource_directory_lines(runtime)),
+            RESOURCE_HEAD, lambda _cid: resource_directory_lines(runtime),
+            path="app/backend/prompt/sections/resources/rules"),
         # 上下文分层里的段外观（界面那一行的颜色）
         ctx.add_ui_item(
-            "web-ui/left-panel/context_usage/rules", kind="segment",
-            props={"label": SEGMENT_LABEL, "color": SEGMENT_COLOR}),
+            PATHS["segment"], kind="segment",
+            props={"label": SEGMENT_LABEL, "color": SEGMENT_COLOR,
+                   "binding": {"context": True}}),
     ]

@@ -93,6 +93,9 @@ jobs:
       - name: 门禁 适用性登记
         timeout-minutes: 3
         run: python -u scripts/check_applicability.py
+      - name: 门禁 准则清单一致
+        timeout-minutes: 3
+        run: python -u scripts/check_standards_manifest.py
       - name: 门禁 并发争用
         timeout-minutes: 3
         run: python -u -X dev -m unittest tests.test_concurrency

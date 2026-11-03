@@ -1,11 +1,42 @@
-**English** | [中文](tools.zh.md)
+﻿# Tools
 
-# Tools
+## 1. Overview
 
 Tools are the actions the model can take on the outside world. Implementations live in `agent/capabilities/`; the execution pipeline and write gate live in `agent/core/tool_call.py` and `agent/mechanisms/quality/`.
 
-## Registration
+## 2. Registration conditions
 
+Some tools depend on runtime services and are not registered in assemblies without them:
+
+| Tool | Registration condition | Lifecycle | Dependency boundary |
+|---|---|---|---|
+| `subagent` | `build_app(store=...)` injects a persistent store | Parent-session tool; created with `SubagentManager`, closed by `App.dispose()` | `agent/subagent` owns batches and sessions; the shell only calls the service |
+| `subagent_send` | Same, child-session tool view only | Child-session tool; follows the parent manager's lifecycle | Sends only to the direct parent session |
+
+The default assembly without a store does not register either tool, so `catalog/tools.json` does not list them. This is conditional registration, not a missing entry.
+
+## 3. Slots
+
+### Exposed
+
+| Slot path | Capability | Key attributes | Replacement / override |
+|---|---|---|---|
+| `app/boot/tools/*` | tool or executor | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `app/boot/tools/executors` | tool or executor | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `app/boot/tools/commit_write` | tool or executor | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `backend/tools/*` | tool or executor | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+| `backend/tools/pipeline/pre-gates/*` | tool or executor | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+| `backend/tools/pipeline/post-observers/*` | tool or executor | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+### Required
+
+| Dependency path | Capability | Provider | Why |
+|---|---|---|---|
+| `app/boot/facade` | boot node | host | must be ready before assembly; unavailable propagates as startup/request failure |
+| `app/boot/files` | boot node | host | must be ready before assembly; unavailable propagates as startup/request failure |
+
+## 4. Slot capabilities
+
+### Registration
 ```python
 class ToolPlugin:
     name: str = ""
@@ -38,19 +69,7 @@ Three constraints:
 
 Registration returns an idempotent disposer; calling it unregisters the plugin. This is the basis for hot plugging.
 
-## Conditional registration and lifecycle
-
-Some tools depend on runtime services and are not registered in assemblies without them:
-
-| Tool | Registration condition | Lifecycle | Dependency boundary |
-|---|---|---|---|
-| `subagent` | `build_app(store=...)` injects a persistent store | Parent-session tool; created with `SubagentManager`, closed by `App.dispose()` | `agent/subagent` owns batches and sessions; the shell only calls the service |
-| `subagent_send` | Same, child-session tool view only | Child-session tool; follows the parent manager's lifecycle | Sends only to the direct parent session |
-
-The default assembly without a store does not register either tool, so `catalog/tools.json` does not list them. This is conditional registration, not a missing entry.
-
-## Execution pipeline
-
+### Execution pipeline
 The turn loop **never calls a tool function directly**; every call goes through `ToolPipeline`. There is no second path.
 
 The pipeline has three segments:
@@ -63,8 +82,7 @@ The pipeline has three segments:
 
 Decisions are `GateDecision`: allow or reject, with a reason. When execution needs external input, the tool raises an exception carrying `await_user`; the pipeline maps it to `ToolResult.await_user` / `deferred`, and the turn suspends.
 
-## Write four-step protocol
-
+### Write four-step protocol
 The commit-time checks live in the `pre_tool` segment:
 
 ```
@@ -78,7 +96,7 @@ preview → confirm → commit with confirm_id → reread
 
 Preview and commit are **two separate tool entries**; they do not share a function.
 
-### Result envelope for the model
+#### Result envelope for the model
 
 Tool messages derived into model context (`SessionLog.derive_messages`) have the same shape for success and failure:
 
@@ -87,11 +105,11 @@ Tool messages derived into model context (`SessionLog.derive_messages`) have the
 
 Inside the pipeline the result is still `ToolResult(ok/data/error)`; the event stream still emits `tool_done` / `tool_failed`. The envelope applies to the model-facing layer. The classic UI `tool_end.preview` uses the same top-level `ok` / `error` / `data` shape.
 
-### Review and unlock
+#### Review and unlock
 
 `review_conclusion` is the model workflow's unlock path: it records a conclusion based on the actual review, with verification evidence, and unlocks the preview. The conclusion must be at least 30 characters and `file_name` is required; when cancelling a preview with a `confirm_id`, the conclusion may be omitted. With `confirm_id` and `cancel_preview=true`, the call discards that preview instead. An unconfirmed preview cannot be committed.
 
-### Other gate rules
+#### Other gate rules
 
 | Rule | Content |
 |---|---|
@@ -102,13 +120,12 @@ Inside the pipeline the result is still `ToolResult(ok/data/error)`; the event s
 | Large-delete detection | A diff deleting at least 30 lines raises a red light when it has no additions or additions below 35% of the deletions |
 | Mode gate | Plan mode rejects writes; Execute mode requires a non-empty todo list before a commit |
 
-## Built-in tools
-
+### Built-in tools
 `catalog/tools.json` is the checked-in tool manifest, generated from the assembled registry by `scripts/gen_catalog.py`; `scripts/check_catalog.py` fails on drift.
 
 **Display metadata belongs to the tool**: `label` (short display name) and `icon` (one character) are declared on `ToolPlugin` and reach the page through `registry.display_list()` and the shell's `/api/tool-labels`. Adding a plugin tool needs no UI change; without a declaration the UI falls back to the tool name and a neutral icon.
 
-### File read and write
+#### File read and write
 
 | Tool | What it does |
 |---|---|
@@ -124,13 +141,13 @@ Inside the pipeline the result is still `ToolResult(ok/data/error)`; the event s
 | `review_conclusion` | Submit a review conclusion and unlock a preview |
 | `present` | Show file cards; validate paths and return metadata without reading the body |
 
-### File cards
+#### File cards
 
 `present` accepts a list of file paths or `{path, title}` objects and returns name, size, kind, and MIME without reading the body. The shell renders the result as file cards in the conversation; clicking a card opens the file viewer in the right pane. Cards are driven only by successful tool results, never inferred from model text.
 
 Markdown links to local text-file paths also open in the right pane; local media paths go to the media preview. Inline code paths in the body (for example `` `E:\test.txt` ``) are treated as local file references.
 
-### Location and search
+#### Location and search
 
 | Tool | What it does |
 |---|---|
@@ -141,7 +158,7 @@ Markdown links to local text-file paths also open in the right pane; local media
 | `regex_locate` | Regex lookup over a file or directory: returns matches up to `limit` with `region`, line number, and content |
 | `text_diff` | Generate a unified diff for left and right text (read-only) |
 
-### Command execution
+#### Command execution
 
 | Tool | What it does |
 |---|---|
@@ -156,7 +173,7 @@ Background children inherit only PATH, system directories, TEMP, HOME, Windows u
 `background_task` starts the process from argv directly and does not apply `safe_mode`, but it is still subject to the allowed cwd, timeout, and process-termination management; it inherits only the minimal environment allowlist above, not API keys or tokens.
 `run_command`, `python_inline`, and the create action of `background_task` are rejected in Plan mode.
 
-### Network
+#### Network
 
 | Tool | What it does |
 |---|---|
@@ -165,7 +182,7 @@ Background children inherit only PATH, system directories, TEMP, HOME, Windows u
 | `ip_geolocate` | IP geolocation lookup (free API, no key) |
 | `open_meteo_weather` | Weather forecast (free API, no key) with place-name, coordinate, or IP sources; Chinese summary output |
 
-### Data and media
+#### Data and media
 
 | Tool | What it does |
 |---|---|
@@ -175,7 +192,7 @@ Background children inherit only PATH, system directories, TEMP, HOME, Windows u
 | `image_ocr` | OCR for images with optional region cropping; requires an optional OCR engine |
 | `git_workspace` | Read-only Git workspace queries: worktree / log / blame / show; no write commands |
 
-### Sessions and tasks
+#### Sessions and tasks
 
 | Tool | What it does |
 |---|---|
@@ -189,29 +206,34 @@ Background children inherit only PATH, system directories, TEMP, HOME, Windows u
 | `session_create` | Create free agent sessions |
 | `session_list` | List free agent sessions in the collaboration mesh |
 
-### Diagnostics
+#### Diagnostics
 
 | Tool | What it does |
 |---|---|
 | `unified_diagnose` | Run AST syntax diagnostics on Python files under a directory; also runs ruff when it is on PATH |
 | `echo` | Echo the input text |
 
-## Plugin tools
-
+### Plugin tools
 Plugins contribute tools to the registry with `ctx.register_tool(tool)`; execution still goes through the same pipeline. A tool that declares `needs_preview=True` is also subject to the four-step write protocol.
 
 `plugins/visual_operator` contributes `desktop_eye` / `desktop_mouse` / `desktop_keyboard` / `desktop_wait`: screenshots are fed back to the model as image attachments, and mouse and keyboard actions are Plan-gated per session. The coordinate contract and platform backends are in [visual-operator.md](visual-operator.md).
 
-`plugins/ai_speak` contributes `ai_speak`: the model speaks the current step in human spoken language; the backend synthesizes speech and sends it to the frontend player bar as plugin events. Text rules and configuration are in [ai-speak.md](ai-speak.md).
+`plugins/ai_cosplay` contributes `ai_cosplay`: the model speaks the current step in human spoken language; the backend synthesizes speech and sends it to the frontend player bar as plugin events. Text rules and configuration are in [ai-cosplay.md](ai-cosplay.md).
 
 `plugins/skills` contributes `skills` (list / read); see [skills.md](skills.md).
 
 Plugin package form, manifest, extension points, and lifecycle are in [plugins.md](plugins.md); runtime instance registration (`ctx.set_runtime` / `plugin_host.runtime`) is described there as well.
 
-## Further reading
+## 5. Details
 
-- [architecture.md](../architecture.md): `ToolPort` and the module chain
-- [plugins.md](plugins.md): plugin system and tool extension points
-- [visual-operator.md](visual-operator.md): image attachments and input gating from a plugin tool
-- [guide/config.md](../guide/config.md): configuration keys
-- [session.md](session.md): the mesh behind cross-session collaboration tools
+No additional details.
+
+## 6. Further reading
+
+| Topic | Document |
+|---|---|
+| `ToolPort` and the module chain | [architecture.md](../architecture.md) |
+| plugin system and tool extension points | [plugins.md](plugins.md) |
+| image attachments and input gating from a plugin tool | [visual-operator.md](visual-operator.md) |
+| configuration keys | [config.md](../guide/config.md) |
+| the mesh behind cross-session collaboration tools | [session.md](session.md) |

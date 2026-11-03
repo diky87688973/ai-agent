@@ -15,6 +15,7 @@ import base64
 import hashlib
 import json
 import os
+import shutil
 import socket
 import struct
 import subprocess
@@ -216,6 +217,7 @@ def main(argv: list[str] | None = None) -> int:
             chrome.wait(timeout=5)
         except subprocess.TimeoutExpired:
             chrome.kill()
+        shutil.rmtree(profile, ignore_errors=True)
 
 
 if __name__ == "__main__":

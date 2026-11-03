@@ -6,11 +6,13 @@
 from __future__ import annotations
 
 import argparse
+import queue
 import sys
 import threading
 import time
 from typing import Any
 
+from agent.core.error_report import report_error
 from agent.core.event_name import ERROR, TURN_ENDED
 from agent.mechanisms.session_store import (
     is_valid_conversation_id,
@@ -52,9 +54,41 @@ def run_session(app: Any, text: str, *, conversation_id: str = "",
     code = EXIT_OK
     saw_end = False
     events = None
+    pending: "queue.Queue[tuple[str, Any]]" = queue.Queue()
     try:
         cid, events = _prepare(app, text, conversation_id, cancel.is_set)
-        for event in events:
+
+        def _pump() -> None:
+            try:
+                for event in events:
+                    pending.put(("event", event))
+                pending.put(("done", None))
+            except BaseException as exc:      # 交给主线程按原异常处理
+                report_error("agent.shell.cli.headless.pump", exc)
+                pending.put(("error", exc))
+
+        worker = threading.Thread(target=_pump, name="headless-events", daemon=True)
+        worker.start()
+        while True:
+            wait_for = None
+            if deadline is not None:
+                wait_for = max(0.0, deadline - time.monotonic())
+                if wait_for <= 0:
+                    cancel.set()
+                    code = EXIT_TIMEOUT
+                    break
+            try:
+                kind, payload = pending.get(timeout=wait_for)
+            except queue.Empty:
+                # 事件流阻塞时也要能超时：主线程不再等 generator 的下一条。
+                cancel.set()
+                code = EXIT_TIMEOUT
+                break
+            if kind == "done":
+                break
+            if kind == "error":
+                raise payload
+            event = payload
             print(_format(event))
             if event.type == ERROR:
                 code = EXIT_FAIL
@@ -78,7 +112,11 @@ def run_session(app: Any, text: str, *, conversation_id: str = "",
         if code == EXIT_TIMEOUT and events is not None:
             close = getattr(events, "close", None)
             if callable(close):
-                close()
+                try:
+                    close()
+                except Exception as exc:
+                    # generator 可能正在工作线程里执行；进程退出时会回收。
+                    report_error("agent.shell.cli.headless.close", exc)
     return cid, code
 
 

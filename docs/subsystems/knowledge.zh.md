@@ -1,13 +1,34 @@
-[English](knowledge.md) | **中文**
+﻿# 知识库（`knowledge` 插件）
 
-# 知识库（`knowledge` 插件）
+## 1. 概览
 
 知识库把本地目录里被勾选的文本与表格作为会话的随附资料注入上下文。
 配置判定、路径安全、文件读取、勾选状态、注入与界面全部由本插件提供；
 内核只提供通用扩展点。插件机制本身见 [plugins.md](plugins.zh.md)。
 
-## 包结构
+## 2. 插口协议
 
+### 暴露
+
+| 插口路径 | 能力 | 关键属性 | 可替换/覆盖方式 |
+|---|---|---|---|
+| `app/shell/web-ui/input/buttons/kb_btn` | 界面插口 | owner=插件；路径由声明给出；卸载时撤销 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `app/shell/web-ui/right-panel/kb` | 界面插口 | owner=插件；路径由声明给出；卸载时撤销 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `app/shell/web-ui/left-panel/context_usage/kb` | 界面插口 | owner=插件；路径由声明给出；卸载时撤销 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `backend/context/sources/knowledge/*` | 上下文贡献 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/prompt/sections/resources/knowledge` | 提示词/尾部贡献 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/http/routes/knowledge-*` | HTTP 端点 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+### 依赖
+
+| 依赖路径 | 能力 | 提供者 | 为什么依赖 |
+|---|---|---|---|
+| `app/kernel/modules/context/assembly` | 上下文贡献 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/kernel/modules/prompt/assemble` | 提示词/尾部贡献 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/host/services/contributions` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+
+## 3. 插口能力
+
+### 包结构
 ```
 plugins/knowledge/
   plugin.py                  入口：配置读取、文件层、勾选状态、注入与端点
@@ -17,8 +38,68 @@ plugins/knowledge/
   ui/panel.css               面板样式
 ```
 
-## 配置
+### 可收录的文件
+- 文本类扩展名见 `TEXT_SUFFIXES`（`.md` `.txt` `.csv` `.json` `.yaml` `.ini`
+  `.py` `.js` `.html` `.css` 等），以及配置追加的 `extra_suffixes`；
+- `.xlsx` / `.xls` / `.xlsm` 按表格解析，需要 `openpyxl`；缺库时该文件不可勾选，
+  并在校验结果里给出安装提示；
+- 无扩展名的文件按文本对待（`Dockerfile` / `Makefile` / `README` 等）；
+- 隐藏路径（任一段以 `.` 开头）、`__pycache__` 与非文本文件不列出；
+  隐藏路径与非文本文件在勾选时同样被拒。
 
+`list_files()` 只按隐藏路径、`__pycache__` 与文本类型过滤；字节上限与表格依赖
+在勾选时二次校验，因此超限文件或缺少 `openpyxl` 的表格文件可能出现在列表里，
+却无法勾选。
+
+### 勾选状态
+勾选**按会话**记录，键是会话 id，值是相对路径集合：
+
+- 状态落在 `<数据根>/plugin/knowledge/checked_state.json`，启动时全量读入；
+- 文件缺失或损坏时保持空集，不报错；
+- 写盘失败静默：勾选是界面偏好，不阻断当前会话的注入；
+- 写入采用全量替换：列表为空时清除该会话的勾选；
+- 不通过校验的路径直接丢弃，返回值是实际接受的路径。
+
+勾选变化会调用宿主注册表的 `bump_context_sources`，使装配侧丢掉缓存的收集结果；
+取不到该钩子时退化为下一回合生效。
+
+### 注入
+`build_system_messages(cid)` 为每个勾选文件产出一条系统消息：
+
+```
+【知识库：docs/guide.md】
+<文件正文>
+```
+
+正文读取按 `(路径, mtime_ns, 大小)` 缓存，同一趟装配多次收集只读一次磁盘，文件改动后
+缓存自动失效。表格转成「`[Sheet: 名称]` + 制表符分隔的行」，表格解析失败只产出一行
+说明，不影响同批其它文件。空文件不注入。
+
+注入源声明 `label` 与 `count`：段名用于界面与分层，`count` 是实际可注入的文件数。
+组装位次由 `plugins.ini` 里的插件顺序决定，见 [context.md](context.zh.md#组装顺序)。
+
+### 端点
+前缀 `/api/plugin/knowledge/`：
+
+| 方法与路径 | 请求 | 响应 |
+|---|---|---|
+| `GET files` | — | `{ok, enabled, files: [{path, name, mtime}]}`；未启用时 `files` 为空 |
+| `GET checked` | 查询串 `conversation_id` | `{ok, checked: [相对路径]}` |
+| `PUT checked` | 体 `{conversation_id, checked: [...]}` | `{ok, checked: [实际接受的路径]}`；缺会话 id 返回 400 |
+
+`path` 一律是相对根的 POSIX 风格路径，界面回传同一形状。
+
+### 面板
+右栏面板加载 `ui/panel.js` 与 `ui/panel.css`，脚本经 `window.aiAgentPlugins`
+调本插件端点。面板按会话取勾选，会话切换时重新取数；提示栏右侧的刷新按钮重新读取
+知识库目录。目录未配置、为空或加载失败时，面板分别显示对应状态，不隐藏面板本身。
+
+插件通过 `web-ui/left-panel/context_usage/kb` UI 条目登记上下文段外观（颜色 `blue`），通过 `web-ui/input/buttons/kb_btn` 登记输入区按钮；点击按钮打开 catalog 面板。
+点击按钮打开同名面板。
+
+## 4. 其他细节
+
+### 配置
 ```ini
 ; plugins/knowledge/plugin-config.ini
 [config]
@@ -37,22 +118,7 @@ extra_suffixes =
 `plugins.ini` 的 `enabled` 为 `0` 时插件留在清单里但不装载。`name` / `icon` 来自 `plugin-meta.json`，
 决定面板标题与输入区按钮文案。
 
-## 可收录的文件
-
-- 文本类扩展名见 `TEXT_SUFFIXES`（`.md` `.txt` `.csv` `.json` `.yaml` `.ini`
-  `.py` `.js` `.html` `.css` 等），以及配置追加的 `extra_suffixes`；
-- `.xlsx` / `.xls` / `.xlsm` 按表格解析，需要 `openpyxl`；缺库时该文件不可勾选，
-  并在校验结果里给出安装提示；
-- 无扩展名的文件按文本对待（`Dockerfile` / `Makefile` / `README` 等）；
-- 隐藏路径（任一段以 `.` 开头）、`__pycache__` 与非文本文件不列出；
-  隐藏路径与非文本文件在勾选时同样被拒。
-
-`list_files()` 只按隐藏路径、`__pycache__` 与文本类型过滤；字节上限与表格依赖
-在勾选时二次校验，因此超限文件或缺少 `openpyxl` 的表格文件可能出现在列表里，
-却无法勾选。
-
-## 路径安全
-
+### 路径安全
 `safe_resolve(rel)` 把相对路径解析到根目录下的真实文件，任一条件不满足即返回 `None`：
 
 - 空值、绝对路径、经 `..` 越出根目录的路径；
@@ -63,59 +129,11 @@ extra_suffixes =
 文件的字节上限、可收录类型与表格依赖在 `file_allowed()` 里二次校验；勾选写入前、
 每次注入前都会重新走一遍，磁盘上的文件被替换后不会绕过规则。
 
-## 勾选状态
+## 5. 延伸阅读
 
-勾选**按会话**记录，键是会话 id，值是相对路径集合：
-
-- 状态落在 `<数据根>/plugin/knowledge/checked_state.json`，启动时全量读入；
-- 文件缺失或损坏时保持空集，不报错；
-- 写盘失败静默：勾选是界面偏好，不阻断当前会话的注入；
-- 写入采用全量替换：列表为空时清除该会话的勾选；
-- 不通过校验的路径直接丢弃，返回值是实际接受的路径。
-
-勾选变化会调用宿主注册表的 `bump_context_sources`，使装配侧丢掉缓存的收集结果；
-取不到该钩子时退化为下一回合生效。
-
-## 注入
-
-`build_system_messages(cid)` 为每个勾选文件产出一条系统消息：
-
-```
-【知识库：docs/guide.md】
-<文件正文>
-```
-
-正文读取按 `(路径, mtime_ns, 大小)` 缓存，同一趟装配多次收集只读一次磁盘，文件改动后
-缓存自动失效。表格转成「`[Sheet: 名称]` + 制表符分隔的行」，表格解析失败只产出一行
-说明，不影响同批其它文件。空文件不注入。
-
-注入源声明 `label` 与 `count`：段名用于界面与分层，`count` 是实际可注入的文件数。
-组装位次由 `plugins.ini` 里的插件顺序决定，见 [context.md](context.zh.md#组装顺序)。
-
-## 端点
-
-前缀 `/api/plugin/knowledge/`：
-
-| 方法与路径 | 请求 | 响应 |
-|---|---|---|
-| `GET files` | — | `{ok, enabled, files: [{path, name, mtime}]}`；未启用时 `files` 为空 |
-| `GET checked` | 查询串 `conversation_id` | `{ok, checked: [相对路径]}` |
-| `PUT checked` | 体 `{conversation_id, checked: [...]}` | `{ok, checked: [实际接受的路径]}`；缺会话 id 返回 400 |
-
-`path` 一律是相对根的 POSIX 风格路径，界面回传同一形状。
-
-## 面板
-
-右栏面板加载 `ui/panel.js` 与 `ui/panel.css`，脚本经 `window.aiAgentPlugins`
-调本插件端点。面板按会话取勾选，会话切换时重新取数；提示栏右侧的刷新按钮重新读取
-知识库目录。目录未配置、为空或加载失败时，面板分别显示对应状态，不隐藏面板本身。
-
-插件通过 `web-ui/left-panel/context_usage/kb` UI 条目登记上下文段外观（颜色 `blue`），通过 `web-ui/input/buttons/kb_btn` 登记输入区按钮；点击按钮打开 catalog 面板。
-点击按钮打开同名面板。
-
-## 延伸阅读
-
-- [plugins.md](plugins.zh.md)：插件包形态、扩展点与生命周期
-- [context.md](context.zh.md)：注入源如何进入装配与分段统计
-- [tools.md](tools.zh.md)：写盘协议（知识库本身只读）
-- [../guide/config.md](../guide/config.zh.md)：配置项总表
+| 主题 | 文档 |
+|---|---|
+| 插件包形态、扩展点与生命周期 | [plugins.zh.md](plugins.zh.md) |
+| 注入源如何进入装配与分段统计 | [context.zh.md](context.zh.md) |
+| 写盘协议（知识库本身只读） | [tools.zh.md](tools.zh.md) |
+| 配置项总表 | [config.zh.md](../guide/config.zh.md) |

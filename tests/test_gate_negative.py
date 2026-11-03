@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""门禁负向用例（X2）：每条门禁都要能真的红。
+"""门禁负向用例：每条门禁都要能真的红。
 
 只测"当前仓库能过"等于没测：门禁写成 `return []` 也能过。这里给每个检查器
 喂一个必须失败的最小输入，再喂一个合法输入，钉住"判据存在且方向正确"。
@@ -42,7 +42,7 @@ def _write(path: Path, text: str) -> Path:
 
 
 class ImportDirectionGateTest(unittest.TestCase):
-    """A2：向上导入与反向依赖装配根都必须被抓到。"""
+    """向上导入与反向依赖装配根都必须被抓到。"""
 
     def _package(self, files: dict[str, str]) -> Path:
         tmp = tempfile.TemporaryDirectory()
@@ -64,6 +64,36 @@ class ImportDirectionGateTest(unittest.TestCase):
         problems = check_imports.check(root)
         self.assertTrue(problems)
         self.assertIn("装配根", problems[0])
+
+    def test_unknown_top_level_package_fails(self) -> None:
+        root = self._package({"mystery/a.py": "VALUE = 1\n"})
+        problems = check_imports.check(root)
+        self.assertTrue(any("未归类的顶层包" in problem for problem in problems))
+
+    def test_common_cannot_import_core(self) -> None:
+        root = self._package({
+            "common/a.py": "import agent.core\n",
+            "core/b.py": "VALUE = 1\n",
+        })
+        problems = check_imports.check(root)
+        self.assertTrue(any("[common]" in p and "[core]" in p for p in problems))
+
+    def test_update_health_exception_is_narrow(self) -> None:
+        root = self._package({
+            "update/health.py": "import agent.app\nimport agent.entry.web\n",
+            "update/other.py": "import agent.app\n",
+            "entry/web.py": "VALUE = 1\n",
+        })
+        problems = check_imports.check(root)
+        self.assertTrue(any("update/health.py" in p for p in problems) is False)
+        self.assertTrue(any("update/other.py" in p for p in problems))
+
+    def test_boot_may_import_layers(self) -> None:
+        root = self._package({
+            "boot/a.py": "import agent.shell\n",
+            "shell/x.py": "VALUE = 1\n",
+        })
+        self.assertEqual(check_imports.check(root), [])
 
     def test_type_checking_annotation_is_allowed(self) -> None:
         root = self._package({
@@ -334,40 +364,40 @@ class ReadmeGateTest(unittest.TestCase):
     _OK = ("流水线 29 步，17 项门禁\n"
            "→ 单测 → 10 个验收脚本\n"
            "单元测试（1242 个用例）\n"
-           "用 data/sessions/ 存会话\n")
+           "用 data/session/raw 存会话\n")
 
     def test_step_count_drift_fails(self) -> None:
         text = self._OK.replace("流水线 29 步", "流水线 28 步")
         self.assertTrue(any("流水线" in p for p in check_readme.check(
-            text, 10, 1242, ["sessions"], 29, 17)))
+            text, 10, 1242, ["session"], 29, 17)))
 
     def test_gate_count_drift_fails(self) -> None:
         text = self._OK.replace("17 项门禁", "11 项门禁")
         self.assertTrue(any("项门禁" in p for p in check_readme.check(
-            text, 10, 1242, ["sessions"], 29, 17)))
+            text, 10, 1242, ["session"], 29, 17)))
 
     def test_acceptance_count_drift_fails(self) -> None:
         text = self._OK.replace("10 个验收脚本", "9 个验收脚本")
         self.assertTrue(any("验收脚本" in p for p in check_readme.check(
-            text, 10, 1242, ["sessions"], 29, 17)))
+            text, 10, 1242, ["session"], 29, 17)))
 
     def test_test_count_drift_fails(self) -> None:
         text = self._OK.replace("1242 个用例", "1200 个用例")
         self.assertTrue(any("用例" in p for p in check_readme.check(
-            text, 10, 1242, ["sessions"], 29, 17)))
+            text, 10, 1242, ["session"], 29, 17)))
 
     def test_missing_marker_fails(self) -> None:
-        problems = check_readme.check("无关文本\n", 10, 1242, ["sessions"], 29, 17)
+        problems = check_readme.check("无关文本\n", 10, 1242, ["session"], 29, 17)
         self.assertGreaterEqual(len(problems), 4)
 
     def test_unknown_data_dir_fails(self) -> None:
         text = self._OK + "用 data/ghost/ 存别的\n"
         self.assertTrue(any("ghost" in p for p in check_readme.check(
-            text, 10, 1242, ["sessions"], 29, 17)))
+            text, 10, 1242, ["session"], 29, 17)))
 
     def test_consistent_readme_passes(self) -> None:
         self.assertEqual(
-            check_readme.check(self._OK, 10, 1242, ["sessions"], 29, 17), []
+            check_readme.check(self._OK, 10, 1242, ["session"], 29, 17), []
         )
 
 
@@ -490,6 +520,31 @@ class AcceptanceSkipGateTest(unittest.TestCase):
 
 # 延迟导入：避免测试收集阶段就因可选依赖失败
 import check_ci_workflow  # noqa: E402
+import ci  # noqa: E402
+
+
+class DataCleanlinessGateTest(unittest.TestCase):
+    def test_windows_runtime_paths_are_normalized(self) -> None:
+        for value in (
+            "data\\mesh\\runs\\session.json",
+            "data\\logs\\errors.log",
+            "data\\wake\\jobs.json",
+            "data\\session_state\\state.json",
+            "data\\subagent\\sessions\\x.json",
+            "data\\batches\\batch\\meta.json",
+        ):
+            self.assertTrue(ci._is_runtime_data(value), value)
+
+    def test_user_review_artifacts_are_not_test_pollution(self) -> None:
+        self.assertTrue(ci._is_user_data(
+            "data\\check\\_proj.json"))
+        self.assertFalse(ci._is_user_data(
+            "data\\strange\\artifact.json"))
+
+    def test_unknown_data_path_is_neither_runtime_nor_user_data(self) -> None:
+        value = "data\\strange\\artifact.json"
+        self.assertFalse(ci._is_runtime_data(value))
+        self.assertFalse(ci._is_user_data(value))
 
 
 class GeneratedComplexityDocGateTest(unittest.TestCase):

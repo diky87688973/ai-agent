@@ -23,15 +23,12 @@ class VisualAppAssemblyTest(unittest.TestCase):
                 self.assertIsNotNone(app.context_hooks)
                 self.assertIsNotNone(app.context_sources)
                 self.assertIn("vision_request_open", app.registry.names())
-                entry = app.plugin_host.ui.paths.entries.get(
-                    "web-ui/input/buttons/visual_btn")
-                if entry is None:
-                    entry = next((row for row in app.plugin_host.ui.pending
-                                  if row.get("path") == "web-ui/input/buttons/visual_btn"), None)
+                entry = next(
+                    (row for row in app.plugin_host.ui.catalog()["entries"]
+                     if row.get("path") == "app/shell/web-ui/input/buttons/visual_btn"),
+                    None)
                 self.assertIsNotNone(entry)
-                props = (entry.get("metadata", {}).get("props", {})
-                         if isinstance(entry, dict)
-                         else entry.metadata.get("props", {}))
+                props = entry.get("metadata", {}).get("props", {})
                 self.assertEqual(props["action"], "visual.toggle")
                 self.assertIn("ui/eye-toggle.js", props["scripts"])
                 self.assertTrue(app.context.has("context_hooks"))

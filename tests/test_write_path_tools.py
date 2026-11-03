@@ -44,6 +44,7 @@ class WritePathToolsTest(unittest.TestCase):
             backup_root=self.root / "bk",
             recycle_root=self.root / "rc",
         )
+        self.addCleanup(self.app.dispose)
         self.port = ToolPort(
             registry=self.app.registry,
             pipeline=self.app.pipeline,

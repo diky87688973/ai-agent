@@ -102,6 +102,28 @@ class BatchStore:
             self._write(record)
             return record
 
+    def remove_child(self, parent_cid: str, batch: str, child_id: str) -> bool:
+        """摘掉一个子智能体记录；不存在返回 False，批次清空后删除文件。"""
+        path = self._path(parent_cid, batch)
+        with self._lock:
+            if not path.is_file():
+                return False
+            record = self._read(path)
+            before = len(record.children)
+            record.children = [c for c in record.children if c.child_id != str(child_id)]
+            if len(record.children) == before:
+                return False
+            if record.children:
+                self._write(record)
+            else:
+                path.unlink()
+                try:
+                    path.parent.rmdir()
+                except OSError as exc:
+                    report_error("agent.subagent.batches.BatchStore.remove_child", exc,
+                                 path=str(path.parent))
+            return True
+
     def remove_empty(self, parent_cid: str, batch: str) -> bool:
         """删除无子智能体的批次文件；有子智能体时保持不动。"""
         path = self._path(parent_cid, batch)

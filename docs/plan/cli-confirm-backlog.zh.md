@@ -2,6 +2,8 @@
 
 # CLI 两阶段确认 backlog
 
+**Status:** pending.
+
 状态：未完成。
 
 ## 范围

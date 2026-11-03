@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+from agent.common.status import MODEL_CONFIG_NONE, REASONING_EFFORT_HIGH
 from agent.core import event_name as ev
 from agent.core.error_report import report_error
 from agent.core.input_attachments import MAX_IMAGES
@@ -21,6 +22,7 @@ from agent.shell.sse import Channel, sse_payload
 from agent.shell.web.web_chat import ChatActions
 from agent.shell.web.web_contributions import ContributionActions
 from agent.shell.web.web_files import FileViewerActions
+from agent.shell.web.web_route_slots import HttpRouteSlots
 from agent.shell.web.web_sessions import SessionActions
 from agent.shell.web.web_state import UiStateActions
 from agent.shell.web.web_subagents import SubagentActions
@@ -59,6 +61,16 @@ class WebShell(
         self.fs_roots: List[Path] = normalize_roots(fs_roots)
         self.titles = TitleStore(Path(titles_dir) if titles_dir else None)
         self.title_generator = title_generator
+        self.route_slots = HttpRouteSlots(getattr(getattr(app, "context", None), "slots", None))
+        if self.route_slots.slots is not None:
+            self.route_slots.ensure_default(
+                "GET", "/health",
+                lambda handler, query, body=None: handler.shell.health())
+            self.route_slots.ensure_default(
+                "GET", "/api/plugins/loaded",
+                lambda handler, query, body=None: (
+                    200, {"ok": True,
+                          "loaded": handler.shell.loaded_plugin_names()}))
         self._channels: List[Channel] = []
         self._lock = threading.Lock()
         self._runs: Dict[str, str] = {}  # cid → run_id（当前活跃回合）
@@ -167,7 +179,7 @@ class WebShell(
         # 只回一个模型会让前端模型下拉只剩一项，用户选其它模型还会被当非法拒掉。
         source = str(getattr(self.app, "model_config_state", "") or "")
         allowed = self.available_models()
-        if source != "none":
+        if source != MODEL_CONFIG_NONE:
             if not allowed:
                 allowed = list(getattr(provider, "allowed_models", ()) or ())
                 if not allowed:
@@ -196,7 +208,7 @@ class WebShell(
             "model_labels": self.model_labels(),
             # 全局默认档位：会话还没回填前，顶栏先按它显示（会话值以 ui-state 为准）。
             "reasoning_effort": (self.app.live_state.default_effort
-                                 if self.app.live_state is not None else "high"),
+                                 if self.app.live_state is not None else REASONING_EFFORT_HIGH),
             "max_images": MAX_IMAGES,
             "model_config": model_config,
         }

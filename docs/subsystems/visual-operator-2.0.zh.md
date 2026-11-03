@@ -1,19 +1,10 @@
-[English](visual-operator-2.0.md) | **中文**
+﻿# 视觉操作 2.0（`visual_operator_2` 插件）
 
-# 视觉操作 2.0（`visual_operator_2` 插件）
+## 1. 概览
 
-视觉操作 2.0 为模型提供持续视觉上下文，并在授权后执行桌面输入。它与旧版 `visual_operator` 插件相互独立，旧插件保持禁用。内核负责把当前视觉帧注入模型上下文；工具负责显式聚焦、移动、点击和键盘动作。
+视觉操作 2.0 为模型提供持续视觉上下文，并在授权后执行桌面输入。它与 `visual_operator` 插件相互独立，二者不共享运行时状态。内核负责把当前视觉帧注入模型上下文；工具负责显式聚焦、移动、点击和键盘动作。
 
-## 职责边界
-
-```text
-内核：截图节奏、视觉帧注入、工具注册、上下文装配
-插件：授权状态、帧、聚焦、鼠标键盘动作、SSE 事件
-```
-
-插件不通过 UIA、OCR、窗口控件树或 shell 命令驱动目标应用；这些能力属于下面的可选桌面工具。
-
-## 授权生命周期
+## 2. 流程图
 
 ```text
 vision_request_open -> 用户确认 -> vision_start -> 视觉工具
@@ -21,15 +12,29 @@ vision_request_open -> 用户确认 -> vision_start -> 视觉工具
                                              +-> vision_stop（闭眼）
 ```
 
-- `vision_request_open` 发起授权请求，界面提示用户确认。
-- `vision_start` 消费授权并睁眼；授权缺失、过期或重复使用时失败。
-- `vision_stop` 闭眼，并清空帧、聚焦区域、授权和挂起请求。
-- 用户接管（鼠标移动超过配置距离）会立即闭眼，并发出 `eye_closed` / `control_returned`。
-- 眼睛关闭、会话不是当前持有者或用户已接管时，所有视觉动作都会被拒绝。
+## 3. 插口协议
 
-## 持续视觉帧
+### 暴露
 
-眼睛打开时，运行时按 `fps` 截图并保留最近 `queue_size` 帧。模型回合装配时注入当前帧；正常流程不需要额外调用“看屏”。
+| 插口路径 | 能力 | 关键属性 | 可替换/覆盖方式 |
+|---|---|---|---|
+| `app/shell/web-ui/input/buttons/visual_btn` | 界面插口 | owner=插件；路径由声明给出；卸载时撤销 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `backend/tools/vision_*` | 工具或执行器 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/http/routes/visual-eye-*` | HTTP 端点 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/context/assembly-hooks/visual_operator_2/*` | 上下文贡献 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/prompt/sections/visual_operator_2/discipline` | 提示词/尾部贡献 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+### 依赖
+
+| 依赖路径 | 能力 | 提供者 | 为什么依赖 |
+|---|---|---|---|
+| `app/host/services/context_hooks` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/host/services/contributions` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+| `app/host/services/event_bus` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+
+## 4. 插口能力
+
+### 持续视觉帧
+无论 `fps` 取值，每次模型回合装配前都会立即抓一帧并放入帧队列，保证最新帧。`fps > 0` 时后台线程还会按 `1/fps` 秒连续采样，用于补充历史运动帧。眼睛打开时保留最近 `queue_size` 帧（默认 3），装配时把这些帧一起作为尾部视觉消息注入：每帧带时间偏移标签和图片，最后一帧标记 `LATEST` 并给高清晰度。正常流程不需要额外调用“看屏”。
 
 ```ini
 [vision]
@@ -42,10 +47,9 @@ settle_ms = 100
 takeover_distance = 100
 ```
 
-完整图按 `image_max_side` 缩放；模型读取的是实际注入图中的坐标。`vision_eye` 是独立工具：只截取一次窗口或区域，返回该图，不替代持续视觉帧。
+完整图按 `image_max_side` 缩放；抓帧线程提前渲染完整图，同一帧按帧缓存，历史帧不重复缩放编码。模型读取的是实际注入图中的坐标。`vision_eye` 是独立工具：只截取一次窗口或区域，返回该图，不替代持续视觉帧。
 
-## 坐标与校准
-
+### 坐标与校准
 绝对定位工具接收模型图内坐标、模型图中心和原始尺寸：
 
 ```text
@@ -53,13 +57,12 @@ vision_move_point(x, y, center_x, center_y, image_width, image_height)
 vision_click_sequence(points, center_x, center_y, image_width, image_height)
 ```
 
-启用校准时，当前帧包含一个随机 `C1` 标记。绝对移动和连续点击必须传 `check_points`，其值是完整图中 `C1` 标记中心；运行时把标记映射到真实屏幕坐标，偏差超过 `calibration_tolerance_px` 直接失败。
+启用校准时，每帧包含自己的随机 `C1` 标记，校准点跟随注入帧保存。绝对移动和连续点击必须传 `check_points`，其值是完整图中 `C1` 标记中心；运行时把标记映射到真实屏幕坐标，偏差超过 `calibration_tolerance_px` 直接失败。
 
 `vision_focus` 和 `vision_move_focus` 是恢复路径，不要求 `check_points`。聚焦区域会裁到屏幕内，裁剪后至少 10×10；部分超出屏幕时裁剪，不补黑区。
 
-## 工具
-
-### 视觉核心
+### 工具
+#### 视觉核心
 
 | 工具 | 作用 |
 |---|---|
@@ -76,7 +79,7 @@ vision_click_sequence(points, center_x, center_y, image_width, image_height)
 
 `vision_move_point` 和 `vision_click_sequence` 要求 `check_points`；`vision_focus` 和 `vision_move_focus` 不要求。
 
-### 迁移的桌面工具
+#### 桌面工具
 
 这些工具要求眼睛已打开，用于视觉本身无法完成的系统级动作。
 
@@ -95,8 +98,7 @@ vision_click_sequence(points, center_x, center_y, image_width, image_height)
 
 `vision_eye` 是独立看屏，不是持续视觉帧的替代。`vision_mouse` 只接受 `drag` / `scroll`；`vision_keyboard` 只接受 `type` / `key`，组合键用 `vision_key`；`vision_click_text` 只用于标准 UIA 控件，自绘界面走视觉链。
 
-## 输入后端
-
+### 输入后端
 2.0 核心后端目前只支持 Windows：
 
 ```text
@@ -107,10 +109,46 @@ vision_click_sequence(points, center_x, center_y, image_width, image_height)
 
 按键注入返回结构化回执。`SendInput` 插入数量不足时回退 `keybd_event`；Alt+Tab 在回退后报告成功并带警告，Win 和 Ctrl+Esc 在当前环境中报告失败，因为系统 shell 不接受注入的系统热键。失败不会报告成成功。
 
-迁移的桌面工具使用现有 `visual_operator` 桌面后端；2.0 核心不新增 macOS 输入或窗口/UIA 支持。
+桌面工具使用现有 `visual_operator` 桌面后端；2.0 核心不新增 macOS 输入或窗口/UIA 支持。
 
-## 配置
+### 日志与事件
+步骤日志为 JSONL，2 MB 轮转：
 
+```text
+data/logs/visual_operator_2.steps.log
+```
+
+每次调用记录 `tool_start`、`tool_done` 或 `tool_failed`，并记录 `key_inject` 与 `click_inject` 回执。前端监听 `eye_opened`、`eye_closed`、`control_returned` 和 `vision_frame`；眼睛按钮在闭眼时隐藏。
+
+### 测试
+`tests/test_visual_operator_2.py` 覆盖聚焦边界、10×10 最小值、无 `check_points` 的聚焦移动、授权、接管、鼠标/点击契约、按键回执、桌面工具授权和步骤日志路径解析。桌面工具使用现有桌面后端；测试不移动真实光标，也不注入真实按键。
+
+### 相关文档
+- [plugins.zh.md](plugins.zh.md)：插件生命周期与扩展点
+- [tools.zh.md](tools.zh.md)：工具注册与执行
+- [visual-operator-2.0.md](visual-operator-2.0.md)：英文版
+
+## 5. 其他细节
+
+### 补充
+
+- `vision_request_open` 发起授权请求，界面提示用户确认。
+- `vision_start` 消费授权并睁眼；授权缺失、过期或重复使用时失败。
+- `vision_stop` 闭眼，并清空帧、聚焦区域、授权和挂起请求。
+- 用户接管（鼠标移动超过配置距离）会立即闭眼，并发出 `eye_closed` / `control_returned`。
+- 眼睛关闭、会话不是当前持有者或用户已接管时，所有视觉动作都会被拒绝。
+
+
+
+### 职责边界
+```text
+内核：截图节奏、视觉帧注入、工具注册、上下文装配
+插件：授权状态、帧、聚焦、鼠标键盘动作、SSE 事件
+```
+
+插件不通过 UIA、OCR、窗口控件树或 shell 命令驱动目标应用；这些能力属于下面的可选桌面工具。
+
+### 配置
 `plugin-config.ini`：
 
 ```ini
@@ -137,22 +175,9 @@ focus_max_side = 512
 
 `calibration_enabled=0` 关闭 `C1` 生成和 `check_points` 校验。`calibration_tolerance_px` 是标记报告位置与真实映射点之间允许的最大偏差。
 
-## 日志与事件
+## 6. 延伸阅读
 
-步骤日志为 JSONL，2 MB 轮转：
-
-```text
-data/logs/visual_operator_2.steps.log
-```
-
-每次调用记录 `tool_start`、`tool_done` 或 `tool_failed`，并记录 `key_inject` 与 `click_inject` 回执。前端监听 `eye_opened`、`eye_closed`、`control_returned` 和 `vision_frame`；眼睛按钮在闭眼时隐藏。
-
-## 测试
-
-`tests/test_visual_operator_2.py` 覆盖聚焦边界、10×10 最小值、无 `check_points` 的聚焦移动、授权、接管、鼠标/点击契约、按键回执、迁移工具授权和步骤日志路径解析。桌面工具使用旧后端；测试不移动真实光标，也不注入真实按键。
-
-## 相关文档
-
-- [plugins.zh.md](plugins.zh.md)：插件生命周期与扩展点
-- [tools.zh.md](tools.zh.md)：工具注册与执行
-- [visual-operator-2.0.md](visual-operator-2.0.md)：英文版
+| 主题 | 文档 |
+|---|---|
+| 架构 | [architecture.zh.md](../architecture.zh.md) |
+| 插件 | [plugins.zh.md](plugins.zh.md) |

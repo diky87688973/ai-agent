@@ -1,0 +1,37 @@
+# -*- coding: utf-8 -*-
+"""内核状态值：回合 / 工具 / 模型调用的唯一来源。"""
+from __future__ import annotations
+
+TURN_DONE = "done"
+TURN_HALTED = "halted"
+TURN_SUSPENDED = "suspended"
+TURN_MAX_PASSES = "max_passes"
+TURN_ABANDONED = "abandoned"
+TURN_STOPPED = "stopped"
+TURN_REASONS = (
+    TURN_DONE, TURN_HALTED, TURN_SUSPENDED, TURN_MAX_PASSES,
+    TURN_ABANDONED, TURN_STOPPED,
+)
+
+TOOL_DONE = "done"
+TOOL_FAILED = "failed"
+TOOL_SUSPENDED = "suspended"
+TOOL_CANCELED = "canceled"
+TOOL_RUNNING = "running"
+TOOL_STATUSES = (
+    TOOL_DONE, TOOL_FAILED, TOOL_SUSPENDED, TOOL_CANCELED, TOOL_RUNNING,
+)
+
+LLM_DONE = "done"
+LLM_FAILED = "failed"
+LLM_CANCELED = "canceled"
+LLM_STATUSES = (LLM_DONE, LLM_FAILED, LLM_CANCELED)
+
+
+__all__ = [
+    "LLM_CANCELED", "LLM_DONE", "LLM_FAILED", "LLM_STATUSES",
+    "TOOL_CANCELED", "TOOL_DONE", "TOOL_FAILED", "TOOL_RUNNING",
+    "TOOL_STATUSES", "TOOL_SUSPENDED",
+    "TURN_ABANDONED", "TURN_DONE", "TURN_HALTED", "TURN_MAX_PASSES",
+    "TURN_REASONS", "TURN_STOPPED", "TURN_SUSPENDED",
+]

@@ -26,6 +26,15 @@ def _call_id() -> str:
     return str(getattr(ctx, "call_id", "") or "") if ctx is not None else ""
 
 
+def _int_arg(arguments: Dict[str, Any], key: str) -> int:
+    if key not in arguments or arguments.get(key) is None:
+        raise ValueError(f"缺少参数 {key}")
+    try:
+        return int(arguments[key])
+    except (TypeError, ValueError):
+        raise ValueError(f"参数 {key} 须为整数")
+
+
 CHECK_POINTS_PARAM = {
     "type": "array",
     "minItems": 1,
@@ -46,7 +55,7 @@ class VisionRequestOpenTool(ToolPlugin):
     description = (
         "申请打开视觉。固定授权文案由眼睛工具提供，用户确认后工具恢复并返回一次性 consent_id。"
         "拿到 consent_id 后，必须在当前回合立即调用 vision_start(consent_id=...)，"
-        "不得再让用户确认，不得先调用 ai_speak、解释或重新申请。"
+        "不得再让用户确认，不得先调用 ai_speek、解释或重新申请。"
         "在确认前不会截屏。"
     )
     parameters: Dict[str, Any] = {}
@@ -112,10 +121,10 @@ class VisionFocusTool(ToolPlugin):
     def execute(self, arguments: Dict[str, Any]) -> Any:
         return self._runtime.focus(
             _cid(),
-            int(arguments["x"]), int(arguments["y"]),
-            int(arguments["width"]), int(arguments["height"]),
-            int(arguments["center_x"]), int(arguments["center_y"]),
-            int(arguments["image_width"]), int(arguments["image_height"]),
+            _int_arg(arguments, "x"), _int_arg(arguments, "y"),
+            _int_arg(arguments, "width"), _int_arg(arguments, "height"),
+            _int_arg(arguments, "center_x"), _int_arg(arguments, "center_y"),
+            _int_arg(arguments, "image_width"), _int_arg(arguments, "image_height"),
         )
 
 
@@ -134,7 +143,7 @@ class VisionMoveTool(ToolPlugin):
         self._runtime = runtime
 
     def execute(self, arguments: Dict[str, Any]) -> Any:
-        return self._runtime.move(_cid(), int(arguments["dx"]), int(arguments["dy"]))
+        return self._runtime.move(_cid(), _int_arg(arguments, "dx"), _int_arg(arguments, "dy"))
 
 
 class VisionMovePointTool(ToolPlugin):
@@ -163,9 +172,9 @@ class VisionMovePointTool(ToolPlugin):
     def execute(self, arguments: Dict[str, Any]) -> Any:
         return self._runtime.move_point(
             _cid(),
-            int(arguments["x"]), int(arguments["y"]),
-            int(arguments["center_x"]), int(arguments["center_y"]),
-            int(arguments["image_width"]), int(arguments["image_height"]),
+            _int_arg(arguments, "x"), _int_arg(arguments, "y"),
+            _int_arg(arguments, "center_x"), _int_arg(arguments, "center_y"),
+            _int_arg(arguments, "image_width"), _int_arg(arguments, "image_height"),
             arguments.get("check_points") or [],
         )
 
@@ -193,8 +202,8 @@ class VisionMoveFocusTool(ToolPlugin):
     def execute(self, arguments: Dict[str, Any]) -> Any:
         return self._runtime.move_focus(
             _cid(),
-            int(arguments["x"]), int(arguments["y"]),
-            int(arguments["width"]), int(arguments["height"]),
+            _int_arg(arguments, "x"), _int_arg(arguments, "y"),
+            _int_arg(arguments, "width"), _int_arg(arguments, "height"),
         )
 
 
@@ -270,8 +279,8 @@ class VisionClickSequenceTool(ToolPlugin):
             raise ValueError("interval_ms 不能小于 72")
         return self._runtime.click_sequence(
             _cid(), points,
-            int(arguments["center_x"]), int(arguments["center_y"]),
-            int(arguments["image_width"]), int(arguments["image_height"]),
+            _int_arg(arguments, "center_x"), _int_arg(arguments, "center_y"),
+            _int_arg(arguments, "image_width"), _int_arg(arguments, "image_height"),
             interval,
             int(arguments.get("count") or 1),
             arguments.get("check_points") or [],

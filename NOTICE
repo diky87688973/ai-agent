@@ -7,9 +7,9 @@ Licensed under the MIT License (see LICENSE).
 
 highlight.js
 
-  agent/shell/web_assets/classic/js/vendor/highlight.min.js
-  agent/shell/web_assets/classic/css/vendor/hljs-github.min.css
-  agent/shell/web_assets/classic/css/vendor/hljs-github-dark.min.css
+  plugins/web_ui/ui/classic/js/vendor/highlight.min.js
+  plugins/web_ui/ui/classic/css/vendor/hljs-github.min.css
+  plugins/web_ui/ui/classic/css/vendor/hljs-github-dark.min.css
 
 BSD 3-Clause License
 
@@ -45,7 +45,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 marked
 
-  agent/shell/web_assets/classic/js/vendor/marked.min.js
+  plugins/web_ui/ui/classic/js/vendor/marked.min.js
 
 ## Marked
 
@@ -88,7 +88,7 @@ This software is provided by the copyright holders and contributors “as is” 
 
 Lucide Icons (selected SVG path shapes, inlined)
 
-  agent/shell/web_assets/classic/js/file-icons.js
+  plugins/web_ui/ui/classic/js/file-icons.js
 
 ISC License
 

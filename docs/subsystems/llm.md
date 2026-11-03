@@ -1,11 +1,28 @@
-**English** | [中文](llm.zh.md)
+﻿# Model calls
 
-# Model calls
+## 1. Overview
 
 `agent/mechanisms/providers/` defines the model-call protocol and its concrete implementations; routing lives only in `provider_router.py`.
 
-## Reasoning replay budget
+## 2. Slots
 
+### Exposed
+
+| Slot path | Capability | Key attributes | Replacement / override |
+|---|---|---|---|
+| `app/kernel/modules/model` | kernel module | owner=module; assembled by SlotTree; failure follows master | Override at the same path with `replace=true`; restore on unload |
+| `app/host/services/provider` | host service | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `backend/models/providers/*` | model catalog / routing | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+| `backend/models/routing/*` | model catalog / routing | owner=plugin; declared path; removed on unload | Override at the same path with `replace=true`; restore on unload |
+### Required
+
+| Dependency path | Capability | Provider | Why |
+|---|---|---|---|
+| `app/host/services/model_catalog` | host service | host | must be ready before assembly; unavailable propagates as startup/request failure |
+
+## 3. Slot capabilities
+
+### Reasoning replay budget
 In thinking mode the model produces a chain of thought each turn (`reasoning_content`). It is an **intermediate draft** produced by the model: replaying it in full adds a large block to every request that is **guaranteed to miss the cache**, and the prefix changes with every request within the same turn, so the prefix cache cannot take hold.
 
 The budget is controlled by `[context] reasoning_replay_tokens` (tokens):
@@ -22,8 +39,7 @@ Keeping both ends instead of only the tail works because the beginning of the re
 
 Budget trimming happens at **assembly time** (`set_dialogue` calls `clip_reasoning`), not on the wire: segment accounting, budget estimation, and the assembled request all see the same copy. If they diverged, the UI would count the window as full and compaction would trigger too early or too late. The fact stream is unaffected: recorded facts and UI events still carry the full reasoning. When building the wire request, the adapter only applies the historical-replay rule above to reasoning; it does not re-run budget trimming.
 
-## Protocol
-
+### Protocol
 ```python
 class ModelProvider:
     def stream(self, request: LogicalRequest) -> Iterator[StreamDelta]: ...
@@ -38,8 +54,7 @@ Consumers depend only on this interface. Changing the gateway or model requires 
 | `CompatibleProvider` | Adapter for the Compatible protocol; parses the SSE stream |
 | `NativeProvider` | Adapter for Native Messages; consumes native event frames |
 
-## Request body
-
+### Request body
 `CompatibleProvider.stream()` builds this request body:
 
 ```json
@@ -59,8 +74,7 @@ Value sources and local handling:
 - **`temperature` has no effect in thinking mode**: Upstream's official documentation states that thinking mode does not support the parameter (**it does not error, but it also has no effect**), so `0.2` only matters for non-thinking requests or other compatible gateways.
 - **Local models strip the `thinking` / `reasoning_effort` / `temperature` keys entirely.** `_is_local_model()` decides this (the model name is `local-model` or starts with it); the local model behind the browser page does not support these parameters.
 
-## Address derivation
-
+### Address derivation
 `_chat_completions_url(base_url)` expands a base URL into the full endpoint and is idempotent:
 
 | Base URL form | Result |
@@ -69,8 +83,7 @@ Value sources and local handling:
 | Last segment is a version segment (`v1` / `v4` …) | Append `/chat/completions` directly |
 | Anything else | Append `/v1/chat/completions` |
 
-## Stream parsing
-
+### Stream parsing
 `parse_sse_lines()` processes only `data:` lines and skips `event:` / `id:` / comments; `[DONE]` terminates the stream; a line whose JSON fails to parse is **skipped without aborting**.
 
 `_assemble_stream_deltas()` converts the chunk sequence into `StreamDelta`s:
@@ -82,20 +95,27 @@ Value sources and local handling:
 | Tool calls | `delta.tool_calls` fragments |
 | Usage | `usage` (the last non-empty value in the stream) |
 
-## Tool-call fragment merging
-
+### Tool-call fragment merging
 In a streamed response a tool call may be split across fragments: the first fragment carries the `id` and the function name, and later fragments carry only string pieces of `arguments`.
 
 `_merge_tool_call_fragments()` merges fragments by array index to build a complete `ToolCallRequest`.
 
 `_tool_calls_from_snapshot_message()` is a fallback: some gateways provide a complete `message.tool_calls` in the final frame, used only when fragment merging produced no calls.
 
-## Images
-
+### Images
 Images are **sent through unchanged**: capability is not guessed from the model name, and no lossy downgrade strips them — stripping is lossy, and one wrong guess means the user sent an image while the model sees only a placeholder. Whether images are included, and how many, is controlled by `[context]`'s `image_turns` / `image_max` (see [context.md](context.md)).
 
-## Error mapping
+### Request tracing
+Before sending, the adapter prints the URL and a one-line summary built by `describe_request()`: model name, message count, tool count, image count, and request body size.
 
+- `AI_AGENT_LOG_REQUESTS=0` disables it;
+- `AI_AGENT_LLM_LOG` sets the output path; when empty, the log goes to `%TEMP%\fan_agent_llm_requests.log` (falling back to the current directory when both `TEMP` and `TMP` are missing).
+
+Both stderr and the log file receive the summary; image details are listed one by one (message index, role, image count, and character count per image).
+
+## 4. Details
+
+### Error mapping
 `ModelRequestError` carries a user-facing detail and the HTTP status code.
 
 `_http_error()` maps Upstream gateway status codes to readable hints (400 / 401 / 402 / 422 / 429 / 500 / 503) and appends the upstream message (truncated to 800 characters). Non-Upstream gateways get the raw text (truncated to 8000 characters).
@@ -104,17 +124,10 @@ These hints are **shown directly to the user**, so the wording only describes wh
 
 A gateway counts as Upstream only when the model name starts with the Upstream provider's identifier or the base URL contains that identifier.
 
-## Request tracing
+## 5. Further reading
 
-Before sending, the adapter prints the URL and a one-line summary built by `describe_request()`: model name, message count, tool count, image count, and request body size.
-
-- `AI_AGENT_LOG_REQUESTS=0` disables it;
-- `AI_AGENT_LLM_LOG` sets the output path; when empty, the log goes to `%TEMP%\fan_agent_llm_requests.log` (falling back to the current directory when both `TEMP` and `TMP` are missing).
-
-Both stderr and the log file receive the summary; image details are listed one by one (message index, role, image count, and character count per image).
-
-## Further reading
-
-- [architecture.md](../architecture.md): ports and request contract
-- [context.md](context.md): assembly of `messages`
-- [guide/config.md](../guide/config.md): host configuration
+| Topic | Document |
+|---|---|
+| ports and request contract | [architecture.md](../architecture.md) |
+| assembly of `messages` | [context.md](context.md) |
+| host configuration | [config.md](../guide/config.md) |

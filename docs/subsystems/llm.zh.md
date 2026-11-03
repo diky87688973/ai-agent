@@ -1,10 +1,28 @@
-[English](llm.md) | **中文**
+﻿# 模型调用
 
-# 模型调用
+## 1. 概览
 
 `agent/mechanisms/providers/` 定义模型调用协议与具体实现；路由只在 `provider_router.py`。
 
-## 思维链的回传预算
+## 2. 插口协议
+
+### 暴露
+
+| 插口路径 | 能力 | 关键属性 | 可替换/覆盖方式 |
+|---|---|---|---|
+| `app/kernel/modules/model` | 内核模块 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `app/host/services/provider` | 宿主服务 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
+| `backend/models/providers/*` | 模型目录/路由 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+| `backend/models/routing/*` | 模型目录/路由 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
+### 依赖
+
+| 依赖路径 | 能力 | 提供者 | 为什么依赖 |
+|---|---|---|---|
+| `app/host/services/model_catalog` | 宿主服务 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
+
+## 3. 插口能力
+
+### 推理回传
 
 思考模式下模型逐轮产出思维链（`reasoning_content`）。它是模型产生的**中间稿**：
 全量回传等于每次请求的输入里多一大段**必然未命中缓存**的内容，
@@ -33,8 +51,8 @@
 压缩也会提前或滞后触发。事实流不受影响：记录与界面的事件照旧带完整推理。适配器
 构造线格式请求时，适配器对推理只执行上一条历史轮回传规则，不再按预算裁剪。
 
-## 协议
 
+### 协议
 ```python
 class ModelProvider:
     def stream(self, request: LogicalRequest) -> Iterator[StreamDelta]: ...
@@ -49,8 +67,7 @@ class ModelProvider:
 | `CompatibleProvider` | Compatible 协议真实适配，流式解析 SSE |
 | `NativeProvider` | Native Messages 真实适配，处理原生事件帧 |
 
-## 请求体
-
+### 请求体
 `CompatibleProvider.stream()` 构造的请求体：
 
 ```json
@@ -70,8 +87,7 @@ class ModelProvider:
 - **`temperature` 在思考模式下不生效**：Upstream 官方文档写明思考模式不支持该参数（**不报错，但也不会生效**），所以 `0.2` 只在非思考请求或其它兼容网关上起作用。
 - **本地模型整键剥离** `thinking` / `reasoning_effort` / `temperature`。`_is_local_model()` 判定（模型名是 `local-model` 或以它开头），走浏览器页面的本地模型不支持这几个参数。
 
-## 地址推导
-
+### 地址推导
 `_chat_completions_url(base_url)` 把基址补成完整端点，幂等：
 
 | 基址形态 | 结果 |
@@ -80,8 +96,7 @@ class ModelProvider:
 | 尾段是版本段（`v1` / `v4` …） | 直拼 `/chat/completions` |
 | 其它 | 补 `/v1/chat/completions` |
 
-## 流式解析
-
+### 流式解析
 `parse_sse_lines()` 只处理 `data:` 行，跳过 `event:` / `id:` / 注释；`[DONE]` 终止；单行 JSON 解析失败**跳过不中断**。
 
 `_assemble_stream_deltas()` 把 chunk 序列转成 `StreamDelta`：
@@ -93,20 +108,27 @@ class ModelProvider:
 | 工具调用 | `delta.tool_calls` 分片 |
 | 用量 | `usage`（流中最后一次非空值） |
 
-## 工具调用分片归并
-
+### 工具调用分片归并
 流式响应里一次工具调用可能被切成多个分片：第一片带 `id` 与函数名，后续片只带 `arguments` 的字符串片段。
 
 `_merge_tool_call_fragments()` 按数组下标归并分片，拼出完整的 `ToolCallRequest`。
 
 `_tool_calls_from_snapshot_message()` 是兜底：部分网关在末帧给出完整的 `message.tool_calls`，仅在分片归并未产出任何调用时使用。
 
-## 图片
-
+### 图片
 图片**原样下发**，不按模型名猜能力、不做降级剥图 —— 剥图是有损的，猜错一次就是“用户发了图而模型只看到一句占位”。带不带图、带几张由 `[context]` 的 `image_turns` / `image_max` 决定（见 [context.md](context.zh.md)）。
 
-## 错误映射
+### 请求留痕
+发送前打印地址与一行由 `describe_request()` 生成的摘要，内容为模型名、消息数、工具数、图片数、请求体字节数。
 
+- `AI_AGENT_LOG_REQUESTS=0` 关闭；
+- `AI_AGENT_LLM_LOG` 指定落盘路径，留空则写到 `%TEMP%\fan_agent_llm_requests.log`（`TEMP` 与 `TMP` 都缺时退到当前目录）。
+
+摘要同时写 stderr 与日志文件，图片信息在其中逐条列出（第几条消息、什么角色、几张图、每张多少字符）。
+
+## 4. 其他细节
+
+### 错误映射
 `ModelRequestError` 携带面向用户的说明与 HTTP 状态码。
 
 `_http_error()` 对 Upstream 网关按状态码给出可读提示（400 / 401 / 402 / 422 / 429 / 500 / 503），并附上游返回的原始 message（截断到 800 字符）。非 Upstream 网关直接用原始文本（截断到 8000 字符）。
@@ -115,17 +137,10 @@ class ModelProvider:
 
 模型名以 Upstream 标识开头，或基址含该标识，才算 Upstream 网关。
 
-## 请求留痕
+## 5. 延伸阅读
 
-发送前打印地址与一行由 `describe_request()` 生成的摘要，内容为模型名、消息数、工具数、图片数、请求体字节数。
-
-- `AI_AGENT_LOG_REQUESTS=0` 关闭；
-- `AI_AGENT_LLM_LOG` 指定落盘路径，留空则写到 `%TEMP%\fan_agent_llm_requests.log`（`TEMP` 与 `TMP` 都缺时退到当前目录）。
-
-摘要同时写 stderr 与日志文件，图片信息在其中逐条列出（第几条消息、什么角色、几张图、每张多少字符）。
-
-## 延伸阅读
-
-- [architecture.zh.md](../architecture.zh.md)：端口与请求契约
-- [context.md](context.zh.md)：messages 的组装
-- [guide/config.md](../guide/config.zh.md)：宿主配置
+| 主题 | 文档 |
+|---|---|
+| 端口与请求契约 | [architecture.zh.md](../architecture.zh.md) |
+| messages 的组装 | [context.zh.md](context.zh.md) |
+| 宿主配置 | [config.zh.md](../guide/config.zh.md) |

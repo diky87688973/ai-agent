@@ -77,8 +77,10 @@ class QualityPipelineTest(unittest.TestCase):
         self.assertTrue(self.gate.evidence_ok)
         self.gate.set_intent("troubleshoot")
         self.assertFalse(self.gate.evidence_ok)
-        self.gate.set_intent("whatever")
+        self.gate.set_intent("")
         self.assertEqual(self.gate.intent, "")
+        with self.assertRaises(ValueError):
+            self.gate.set_intent("whatever")
 
     def test_apply_patch_channel(self) -> None:
         """apply_patch：写之前解锁的另一份仍可提交；同一路径写之后才解锁的要先 review。"""

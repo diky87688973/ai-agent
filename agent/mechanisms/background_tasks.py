@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Deque, Dict, List, Optional, Sequence
 
 from agent.core.error_report import report_error
+from agent.core.thread_context import thread_with_context
 
 MAX_RUNNING_PER_CID = 10
 MAX_PENDING_PER_CID = 10
@@ -32,7 +33,9 @@ COMPLETED = "completed"
 FAILED = "failed"
 TIMED_OUT = "timed_out"
 CANCELLED = "cancelled"
+MAX_HISTORY = 200
 TERMINAL = frozenset({COMPLETED, FAILED, TIMED_OUT, CANCELLED})
+TASK_STATUSES = (QUEUED, RUNNING, COMPLETED, FAILED, TIMED_OUT, CANCELLED)
 
 
 @dataclass
@@ -180,7 +183,7 @@ class BackgroundTaskManager:
         self,
         allowed_roots: Sequence[Path],
         *,
-        notice: Optional[Callable[[str, str], None]] = None,
+        notice: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
     ) -> None:
         self._roots = [Path(root).resolve() for root in allowed_roots]
         self._notice = notice
@@ -189,7 +192,7 @@ class BackgroundTaskManager:
         self._queues: Dict[str, _CidQueue] = {}
         self._notice_batches: Dict[str, set[str]] = {}
         self._shutdown = threading.Event()
-        self._scheduler = threading.Thread(
+        self._scheduler = thread_with_context(
             target=self._schedule_loop, name="background-tasks-scheduler", daemon=True
         )
         self._scheduler.start()
@@ -198,7 +201,7 @@ class BackgroundTaskManager:
         with self._lock:
             return sum(self._active_locked(q) for q in self._queues.values())
 
-    def set_notice(self, notice: Optional[Callable[[str, str], None]]) -> None:
+    def set_notice(self, notice: Optional[Callable[[str, str, Dict[str, Any]], None]]) -> None:
         with self._lock:
             self._notice = notice
 
@@ -232,6 +235,8 @@ class BackgroundTaskManager:
         target = self._resolve_cwd(cwd)
         now = time.time()
         with self._lock:
+            if self._shutdown.is_set():
+                return {"ok": False, "error": "manager_stopped"}
             q = self._queue(cid)
             existing = list(q.pending) + list(q.running.values()) + q.history
             if batch and not any(item.batch == batch for item in existing):
@@ -387,11 +392,11 @@ class BackgroundTaskManager:
             return
         record.process = proc
         record.pid = proc.pid
-        threading.Thread(target=self._read_stream, args=(record, proc.stdout, "stdout"),
+        thread_with_context(target=self._read_stream, args=(record, proc.stdout, "stdout"),
                          name=f"bt-out-{record.task_id}", daemon=True).start()
-        threading.Thread(target=self._read_stream, args=(record, proc.stderr, "stderr"),
+        thread_with_context(target=self._read_stream, args=(record, proc.stderr, "stderr"),
                          name=f"bt-err-{record.task_id}", daemon=True).start()
-        threading.Thread(target=self._watch, args=(q, record),
+        thread_with_context(target=self._watch, args=(q, record),
                          name=f"bt-wait-{record.task_id}", daemon=True).start()
 
     def _read_stream(self, record: BackgroundTaskRecord, stream: Any, channel: str) -> None:
@@ -471,6 +476,8 @@ class BackgroundTaskManager:
         q.running.pop(record.task_id, None)
         if record not in q.history:
             q.history.append(record)
+            if len(q.history) > MAX_HISTORY:
+                del q.history[:-MAX_HISTORY]
         record.settled.set()
         self._changed.notify_all()
         if notices is not None:
@@ -490,7 +497,11 @@ class BackgroundTaskManager:
                 f"任务批次：{batch_text} 已完结，请查看结果。"
             )
             try:
-                self._notice(cid, text)
+                self._notice(cid, text, {
+                    "kind": "system_notice",
+                    "source": "background_tasks",
+                    "batch": batch_text,
+                })
             except Exception as exc:
                 report_error("agent.mechanisms.background_tasks.notice", exc, conversation_id=cid)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List
 
-from .consent import CONSENT_OPTIONS, CONSENT_TITLE
+from .consent import CONSENT_OPTIONS, CONSENT_TITLE, DECISION_AGREE
 from .state import VisionRuntime
 
 
@@ -52,7 +52,7 @@ def build_routes(ctx: Any, runtime: VisionRuntime) -> List[Callable[[], None]]:
         if not result.get("ok"):
             return 400, result
         call_id = str(result.get("call_id") or "")
-        if result.get("decision") == "agree":
+        if result.get("decision") == DECISION_AGREE:
             data = {"ok": True, "consent_id": result["consent_id"]}
             error = ""
             ok = True
@@ -79,10 +79,18 @@ def build_routes(ctx: Any, runtime: VisionRuntime) -> List[Callable[[], None]]:
         return 200, runtime.revoke(cid)
 
     return [
-        ctx.add_route("GET", "eye-consent/pending", pending),
-        ctx.add_route("GET", "eye-consent/status", status),
-        ctx.add_route("POST", "eye-consent/confirm", confirm),
-        ctx.add_route("POST", "eye-consent/revoke", revoke),
+        ctx.add_route(
+            "GET", "eye-consent/pending", pending,
+            slot_path="app/backend/http/routes/visual-eye-consent-pending"),
+        ctx.add_route(
+            "GET", "eye-consent/status", status,
+            slot_path="app/backend/http/routes/visual-eye-consent-status"),
+        ctx.add_route(
+            "POST", "eye-consent/confirm", confirm,
+            slot_path="app/backend/http/routes/visual-eye-consent-confirm"),
+        ctx.add_route(
+            "POST", "eye-consent/revoke", revoke,
+            slot_path="app/backend/http/routes/visual-eye-consent-revoke"),
     ]
 
 __all__ = ["build_routes"]

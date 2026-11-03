@@ -91,9 +91,83 @@ var head=ev.target&&ev.target.closest?ev.target.closest(".sys-notice-head"):null
 if(head)_toggleSystemNotice(head);
 });
 }
+function addGoalFollowup(t, meta) {
+  if (!msgs) return null;
+  var data = meta && typeof meta === "object" ? meta : {};
+  var text = String(t || "").trim();
+  var round = Number(data.goal_round || 0);
+  var limit = Number(data.goal_limit || 0);
+  var card = document.createElement("div");
+  card.className = "goal-followup";
+  var head = document.createElement("button");
+  head.type = "button";
+  head.className = "goal-followup-head";
+  head.setAttribute("aria-expanded", "false");
+  var icon = document.createElement("span");
+  icon.className = "goal-followup-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg>';
+  var main = document.createElement("span");
+  main.className = "goal-followup-main";
+  var titleline = document.createElement("span");
+  titleline.className = "goal-followup-titleline";
+  var title = document.createElement("span");
+  title.className = "goal-followup-title";
+  title.textContent = "目标跟进";
+  titleline.appendChild(title);
+  if (round > 0) {
+    var badge = document.createElement("span");
+    badge.className = "goal-followup-badge";
+    badge.textContent = "第 " + round + (limit > 0 ? "/" + limit : "") + " 轮";
+    titleline.appendChild(badge);
+  }
+  var summary = document.createElement("span");
+  summary.className = "goal-followup-summary";
+  summary.textContent = text ? text.replace(/\s+/g, " ").trim() : "（无目标内容）";
+  main.appendChild(titleline);
+  main.appendChild(summary);
+  var chevron = document.createElement("span");
+  chevron.className = "goal-followup-chevron";
+  chevron.setAttribute("aria-hidden", "true");
+  chevron.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14"><path d="M3.5 6.5 8 11l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
+  head.appendChild(icon);
+  head.appendChild(main);
+  head.appendChild(chevron);
+  var detail = document.createElement("div");
+  detail.className = "goal-followup-detail";
+  var detailLabel = document.createElement("div");
+  detailLabel.className = "goal-followup-detail-label";
+  detailLabel.textContent = "本轮目标";
+  var detailText = document.createElement("div");
+  detailText.className = "goal-followup-text";
+  detailText.textContent = text || "（无目标内容）";
+  detail.appendChild(detailLabel);
+  detail.appendChild(detailText);
+  card.appendChild(head);
+  card.appendChild(detail);
+  msgs.appendChild(card);
+  scrollMsgsToBottom();
+  return card;
+}
+function _toggleGoalFollowup(head) {
+  var card = head && head.closest ? head.closest(".goal-followup") : null;
+  if (!card) return;
+  var detail = card.querySelector(".goal-followup-detail");
+  var open = head.getAttribute("aria-expanded") === "true";
+  head.setAttribute("aria-expanded", open ? "false" : "true");
+  if (detail) detail.classList.toggle("is-open", !open);
+}
+if (!window._goalFollowupDelegated) {
+  window._goalFollowupDelegated = true;
+  document.addEventListener("click", function (ev) {
+    var head = ev.target && ev.target.closest ? ev.target.closest(".goal-followup-head") : null;
+    if (head) _toggleGoalFollowup(head);
+  });
+}
 function add(role,t,meta){
 if(!msgs)return null;
 if(role==='u'&&meta&&meta.kind==="system_notice"&&meta.source==="background_tasks")return addSystemNotice(t,meta);
+if(role==='u'&&meta&&meta.kind==="goal_followup"&&meta.source==="goal")return addGoalFollowup(t,meta);
 const e=document.createElement('div');
 e.className='b '+(role==='u'?'u':'a');
 if(role==='u'){/* 文字包一层 span —— 这样「文字」是独立子元素，附件条能用 CSS `order` 排到它前面（气泡是 flex 纵向布局，文字需要成为独立子元素才能用 `order` 调整顺序）。 */e.appendChild(Object.assign(document.createElement('span'),{className:'b-text',innerHTML:linkifyUserText(t)}));}else{e.innerHTML=renderMarkdown(t||'');}

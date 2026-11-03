@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
 
+from agent.capabilities.slot_registry import (
+    SETTINGS_PREFIX,
+    SlotRegistry,
+    canonical_slot_path,
+)
 from agent.core.error_report import report_error
 
 Disposer = Callable[[], None]
@@ -34,14 +39,14 @@ def _segment(raw: Any, what: str) -> str:
 
 
 def _panel_id(raw: Any) -> str:
-    value = str(raw or "").strip()
-    if value == "settings":
+    value = canonical_slot_path(raw)
+    if value == SETTINGS_PREFIX.rstrip("/"):
         return value
-    if not value.startswith("settings/"):
-        raise SettingsRegistryError(f"设置面板 ID 必须以 settings/ 开头：{raw!r}")
-    if value.count("/") != 1:
+    if not value.startswith(SETTINGS_PREFIX):
+        raise SettingsRegistryError(f"设置面板 ID 必须以 {SETTINGS_PREFIX} 开头：{raw!r}")
+    if value.count("/") != 2:
         raise SettingsRegistryError(f"设置面板 ID 只能有一级：{raw!r}")
-    _segment(value.split("/", 1)[1], "设置面板段")
+    _segment(value.split("/", 2)[2], "设置面板段")
     return value
 
 
@@ -96,15 +101,35 @@ class SettingsRegistry:
 
     panels: Dict[str, SettingsPanel] = field(default_factory=dict)
     items: Dict[str, SettingsItem] = field(default_factory=dict)
+    bindings: SlotRegistry = field(default_factory=SlotRegistry)
 
-    def add_panel(self, owner: str, panel_id: str, title: str, *, order: int = 0) -> Disposer:
+    def add_panel(self, owner: str, panel_id: str, title: str, *, order: int = 0,
+                  replace: bool = False) -> Disposer:
         name = _segment(owner, "插件名")
         pid = _panel_id(panel_id)
-        if pid in self.panels:
+        previous = self.panels.get(pid)
+        if previous is not None and not replace:
             raise SettingsRegistryError(f"设置面板已注册：{pid}")
         panel = SettingsPanel(owner=name, panel_id=pid, title=str(title or pid), order=int(order))
         self.panels[pid] = panel
-        return lambda: self.panels.pop(pid, None)
+        if previous is not None:
+            def drop_replaced() -> None:
+                if self.panels.get(pid) is panel:
+                    self.panels[pid] = previous
+            return drop_replaced
+
+        def drop_panel() -> None:
+            if self.panels.get(pid) is panel:
+                del self.panels[pid]
+
+        return drop_panel
+
+    def _active_item(self, path: str) -> Optional[SettingsItem]:
+        node = self.bindings.nodes.get(path)
+        if node is None:
+            return None
+        active = self.bindings.active_binding(path)
+        return active.implementation if active is not None else node.default
 
     def add_item(
         self,
@@ -120,6 +145,7 @@ class SettingsRegistry:
         order: int = 0,
         save: SaveCallback,
         load: Optional[LoadCallback] = None,
+        replace: bool = False,
     ) -> Disposer:
         name = _segment(owner, "插件名")
         pid = _panel_id(parent)
@@ -137,15 +163,39 @@ class SettingsRegistry:
         if kind_value == "select" and not normalized:
             raise SettingsRegistryError("select 设置条目必须提供 options")
         full = _item_id(pid, item_id)
-        if full in self.items:
-            raise SettingsRegistryError(f"设置条目已注册：{full}")
         item = SettingsItem(
             owner=name, parent=pid, item_id=full, kind=kind_value,
             label=str(label or full), default=default, options=normalized,
             hint=str(hint or ""), order=int(order), save=save, load=load,
         )
+        if full in self.bindings.nodes:
+            if not replace:
+                raise SettingsRegistryError(f"设置条目已注册：{full}")
+            binding = self.bindings.bind(full, item, owner=name, mode="replace")
+            self.items[full] = item
+
+            def drop_replaced() -> None:
+                if self.items.get(full) is not item:
+                    return
+                binding.dispose()
+                active = self._active_item(full)
+                if active is not None:
+                    self.items[full] = active
+                else:
+                    self.items.pop(full, None)
+
+            return drop_replaced
+        self.bindings.register_slot(
+            full, kind="settings-item", default=item, default_owner=name)
         self.items[full] = item
-        return lambda: self.items.pop(full, None)
+
+        def drop_default() -> None:
+            node = self.bindings.nodes.get(full)
+            if node is not None and node.default is item and not node.bindings:
+                self.bindings.nodes.pop(full, None)
+                self.items.pop(full, None)
+
+        return drop_default
 
     def panels_in_order(self) -> List[SettingsPanel]:
         return sorted(self.panels.values(), key=lambda item: (item.order, item.panel_id))
@@ -201,19 +251,19 @@ class SettingsRegistry:
                 except Exception as exc:
                     raise SettingsRegistryError(f"读取旧设置失败：{item_id}") from exc
         results: Dict[str, Any] = {}
-        attempted: List[str] = []
+        saved: List[str] = []
         try:
             for item_id, value in normalized.items():
                 item = self.item(item_id)
-                attempted.append(item_id)
+                saved.append(item_id)
                 result = item.save(value)
                 if not isinstance(result, Mapping) or not result.get("ok"):
                     error = str(result.get("error") if isinstance(result, Mapping) else "保存失败")
                     raise SettingsRegistryError(f"{item_id} 保存失败：{error}")
                 results[item_id] = {"ok": True}
-        except Exception as exc:
+        except Exception as save_exc:
             rollback_errors: List[str] = []
-            for item_id in reversed(attempted):
+            for item_id in reversed(saved):
                 item = self.item(item_id)
                 if item.load is None or item.save is None:
                     continue
@@ -221,20 +271,28 @@ class SettingsRegistry:
                     result = item.save(previous[item_id])
                     if not isinstance(result, Mapping) or not result.get("ok"):
                         rollback_errors.append(item_id)
-                except Exception as exc:
-                    report_error("agent.capabilities.settings_registry.rollback", exc,
+                except Exception as rollback_exc:
+                    report_error("agent.capabilities.settings_registry.rollback", rollback_exc,
                                  item=item_id)
-                    rollback_errors.append(f"{item_id}: {exc}")
+                    rollback_errors.append(f"{item_id}: {rollback_exc}")
             detail = f"；回滚失败：{', '.join(rollback_errors)}" if rollback_errors else ""
-            raise SettingsRegistryError(f"{exc}{detail}") from exc
+            raise SettingsRegistryError(f"{save_exc}{detail}") from save_exc
         return {"ok": True, "items": results}
 
     def drop_plugin(self, owner: str) -> int:
         name = str(owner or "")
-        removed = 0
-        for item_id in [key for key, item in self.items.items() if item.owner == name]:
-            self.items.pop(item_id, None)
-            removed += 1
+        removed = self.bindings.drop_owner(name)
+        for full, node in list(self.bindings.nodes.items()):
+            if not full.startswith(SETTINGS_PREFIX):
+                continue
+            if node.default_owner == name and not node.bindings:
+                self.bindings.nodes.pop(full, None)
+                removed += 1
+            item = self._active_item(full)
+            if item is not None:
+                self.items[full] = item
+            else:
+                self.items.pop(full, None)
         for panel_id in [key for key, panel in self.panels.items() if panel.owner == name]:
             if any(item.parent == panel_id for item in self.items.values()):
                 continue

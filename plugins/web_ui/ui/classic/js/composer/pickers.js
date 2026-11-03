@@ -13,8 +13,8 @@ function atMentionActiveAtCursor(){var v=ta.value,sel=ta.selectionStart||0,befor
 function atLastTriggerIndexIn(t){var re=/(?:^|\s)@/g,m,last=-1;while((m=re.exec(t))!==null)last=m.index+m[0].length-1;return last;}
 var ICON_MAP={txt:"📄",json:"📋",py:"🐍",java:"☕",html:"🌐",js:"📜",css:"🎨",xml:"📰",yml:"⚙️",yaml:"⚙️",properties:"🔧",sql:"🗄️",md:"📝",jpg:"🖼️",jpeg:"🖼️",png:"🖼️",gif:"🖼️",svg:"🖼️",bmp:"🖼️",xlsx:"📊",xls:"📊",docx:"📃",doc:"📃",pdf:"📕",pptx:"📽️",ppt:"📽️",zip:"📦",rar:"📦",exe:"⚙️",dll:"⚙️",log:"📋",csv:"📊",ts:"📜",tsx:"📜",jsx:"📜",vue:"📜",c:"📄",cpp:"📄",h:"📄",go:"📄",rs:"📄",kt:"📄",swift:"📄"};
 function iconFor(ext){return ICON_MAP[ext]||"📄";}
-async function loadAtDir(path){try{var resp=await fetch("/api/dir-browse?path="+encodeURIComponent(path||""));var data=await resp.json();renderAtList(data);}catch(e){atRestoreSelectPath=null;getAtList().innerHTML='<div class="at-item" style="color:#f66">加载失败: '+e.message+"</div>";}}
-function renderAtList(data){bindAtListDelegation();getAtCurPath().textContent=data.current;getAtCurPath().dataset.parent=data.parent||"";getAtUpBtn().style.display=(!data.parent||data.parent===data.current)?"none":"";getAtList().innerHTML="";atSelectedIndex=-1;data.items.forEach(function(item,idx){var div=document.createElement("div");div.className="at-item"+(item.type==="dir"?" dir":"");div.id="atPop_item_"+idx;div.dataset.idx=idx;div.dataset.type=item.type;div.dataset.path=item.path;if(item.type==="dir")div.title="单击进入子目录；回车插入该目录路径";var icon=item.type==="dir"?"📁":iconFor(item.ext.replace(".",""));div.innerHTML='<span class="at-icon">'+icon+'</span><span class="at-name">'+item.name+"</span>";getAtList().appendChild(div);});var pick=0;if(atRestoreSelectPath){var want=atRestoreSelectPath;atRestoreSelectPath=null;for(var rj=0;rj<data.items.length;rj++){if(data.items[rj].type==="dir"&&atNormPath(data.items[rj].path)===atNormPath(want)){pick=rj;break;}}}if(data.items&&data.items.length){atSelectedIndex=pick;updateAtSelection();}}
+async function loadAtDir(path){try{var resp=await fetch("/api/dir-browse?path="+encodeURIComponent(path||""));var data=await resp.json();renderAtList(data);}catch(e){atRestoreSelectPath=null;var err=document.createElement("div");err.className="at-item";err.style.color="#f66";err.textContent="加载失败: "+(e&&e.message?e.message:String(e));getAtList().replaceChildren(err);}}
+function renderAtList(data){bindAtListDelegation();getAtCurPath().textContent=data.current;getAtCurPath().dataset.parent=data.parent||"";getAtUpBtn().style.display=(!data.parent||data.parent===data.current)?"none":"";getAtList().innerHTML="";atSelectedIndex=-1;data.items.forEach(function(item,idx){var div=document.createElement("div");div.className="at-item"+(item.type==="dir"?" dir":"");div.id="atPop_item_"+idx;div.dataset.idx=idx;div.dataset.type=item.type;div.dataset.path=item.path;if(item.type==="dir")div.title="单击进入子目录；回车插入该目录路径";var icon=item.type==="dir"?"📁":iconFor(String(item.ext||"").replace(".",""));var iconEl=document.createElement("span");iconEl.className="at-icon";iconEl.textContent=icon;var nameEl=document.createElement("span");nameEl.className="at-name";nameEl.textContent=String(item.name||"");div.appendChild(iconEl);div.appendChild(nameEl);getAtList().appendChild(div);});var pick=0;if(atRestoreSelectPath){var want=atRestoreSelectPath;atRestoreSelectPath=null;for(var rj=0;rj<data.items.length;rj++){if(data.items[rj].type==="dir"&&atNormPath(data.items[rj].path)===atNormPath(want)){pick=rj;break;}}}if(data.items&&data.items.length){atSelectedIndex=pick;updateAtSelection();}}
 function bindAtListDelegation(){
 var list=getAtList();
 if(!list||list._atClickDelegated)return;
@@ -54,24 +54,24 @@ let reasoningEffort="max";let reasoningMenu=document.getElementById("reasoningMe
 function applyReasoningEffort(effort,persist){if(effort!=="high"&&effort!=="max")return;reasoningEffort=effort;if(reasoningLabel){reasoningLabel.textContent=effort==="high"?"High":"Max";/* 颜色走类名，不写死值：写死的是深色主题的那一套，切到白天模式
    就会变成"暗金文字压在浅底上"（对比度极差）。
    `effort-max` 只是给 CSS 一个钩子，两套主题各自决定怎么画。 */
-reasoningLabel.style.color="";
+reasoningLabel.style.color="";}
 var thinkBtn=document.querySelector('[data-ui-action="input.thinking"]');
-if(thinkBtn){thinkBtn.classList.toggle("effort-max",effort==="max");thinkBtn.classList.toggle("effort-high",effort!=="max");}}if(reasoningMenu){var cs=reasoningMenu.querySelectorAll(".reasoning-choice");cs.forEach(function(c){c.classList.remove("reasoning-current");if(c.dataset.effort===effort)c.classList.add("reasoning-current");});}
+if(thinkBtn){thinkBtn.classList.toggle("effort-max",effort==="max");thinkBtn.classList.toggle("effort-high",effort!=="max");}if(reasoningMenu){var cs=reasoningMenu.querySelectorAll(".reasoning-choice");cs.forEach(function(c){c.classList.remove("reasoning-current");if(c.dataset.effort===effort)c.classList.add("reasoning-current");});}
 /* 只有用户点击才回写；服务端回填（同一次回填里已经在显示它）再写一次
    只是多余的 PUT，还会在会话切换的竞态里把旧值盖回去。 */
 if(persist!==false){var cid=activeConversationId;if(cid){fetch("/api/reasoning-effort",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,effort:effort})}).catch(function(){});}}}
 function closeReasoningMenu(){if(reasoningMenu)reasoningMenu.classList.add("hidden");}
-function toggleReasoningMenu(){if(!reasoningMenu)return;if(typeof closeModeMenu==="function")closeModeMenu();reasoningMenu.classList.toggle("hidden");}
+function toggleReasoningMenu(){if(!reasoningMenu)return;if(!reasoningMenu.classList.contains("hidden")){closeReasoningMenu();return;}notifyComposerPopup("reasoning");reasoningMenu.classList.remove("hidden");}
 function initReasoningPicker(){if(!reasoningMenu)return;
 
 reasoningMenu.onclick=function(e){var t=e.target;if(!t||typeof t.closest!=="function")return;var btn=t.closest("[data-effort]");if(!btn||!btn.dataset)return;if(btn.dataset.effort){applyReasoningEffort(btn.dataset.effort);closeReasoningMenu();}};
-document.addEventListener("click",function(e){if(reasoningMenu&&!reasoningMenu.classList.contains("hidden")&&!reasoningMenu.contains(e.target))closeReasoningMenu();});
+document.addEventListener("click",function(e){if(reasoningMenu&&!reasoningMenu.classList.contains("hidden")&&!reasoningMenu.contains(e.target)&&!(e.target&&e.target.closest&&e.target.closest('[data-ui-action="input.thinking"]')))closeReasoningMenu();});
 /* 档位初值不在这里取：它属于会话，得等会话恢复后按 cid 一起取
    （`loadConversationModel` / `syncConversationSettings`），
    在这里按 `activeConversationId` 取会拿到还没定下来的那个会话。 */
 }
 
-function toggleModeMenu(){if(!modeMenu)return;closeReasoningMenu();modeMenu.classList.toggle("hidden");}
+function toggleModeMenu(){if(!modeMenu)return;if(!modeMenu.classList.contains("hidden")){closeModeMenu();return;}notifyComposerPopup("mode");modeMenu.classList.remove("hidden");}
 function initModePicker(){
 if(!modeMenu||!modeChip||!modeChipClear)return;
 
@@ -106,5 +106,12 @@ if(hm)hm.textContent=x?("模型: "+((window.aiAgentShell&&window.aiAgentShell.mo
 if((changed||force===true)&&typeof notifyModelSubscribers==="function")notifyModelSubscribers(x);
 }
 bindAtListDelegation();
+/* 输入区弹层互斥：任何按钮打开自己的菜单前广播一次，其它菜单立即关闭。
+   事件是稳定契约，插件不需要知道按钮来自 web_ui 还是 multi_model。 */
+var COMPOSER_POPUP_EVENT="ai-agent:composer-popup-open";
+function notifyComposerPopup(id){document.dispatchEvent(new CustomEvent(COMPOSER_POPUP_EVENT,{detail:{id:String(id||"")}}));}
+function onComposerPopupOpen(event){var id=event&&event.detail?String(event.detail.id||""):"";
+if(id!=="reasoning")closeReasoningMenu();if(id!=="mode")closeModeMenu();}
+document.addEventListener(COMPOSER_POPUP_EVENT,onComposerPopupOpen);
 
 window.composerActions = Object.assign(window.composerActions || {}, {toggleMode: toggleModeMenu, toggleThinking: toggleReasoningMenu});

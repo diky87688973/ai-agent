@@ -182,9 +182,19 @@ class ChatActions:
         confirm_id = str(confirm_id or "").strip()
         if not cid:
             return 400, {"error": "missing conversation_id"}
+        if not is_valid_conversation_id(cid):
+            return 400, {"error": "invalid conversation_id"}
         if not confirm_id:
             return 400, {"error": "missing confirm_id"}
-        gate = self.app.gate_for(cid)
+        # 只读查会话桶：confirm 不能为任意 cid 创建 SessionContext（GET/POST 都可打）。
+        contexts = getattr(self.app, "session_contexts", None)
+        session = contexts.get(cid) if contexts is not None else None
+        if session is None:
+            return 404, {
+                "confirmed": False,
+                "error": "confirm_id 无效、已消耗或不属于该会话",
+            }
+        gate = session.gate
         ok = bool(gate.confirm(confirm_id))
         if not ok:
             return 404, {

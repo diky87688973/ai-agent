@@ -403,7 +403,11 @@ def _post_unicode(char: str) -> None:
 
 
 class MacOSBackend(Backend):
-    """macOS 上的一套可用后端。"""
+    """macOS 上的一套可用后端。
+
+    端口能力：screen / mouse / keyboard 已实现；windows / hit / locator / focus
+    留空，按窗口取图、命中探测、UIA 定位与焦点查询在 macOS 上不可用。
+    """
 
     def __init__(self) -> None:
         super().__init__(platform="darwin", screen=MacScreen(),

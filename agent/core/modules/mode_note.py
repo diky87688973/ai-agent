@@ -10,6 +10,33 @@ from agent.core.mode_marker import MODE_MARKER
 _RUNTIME_NOTE_PREFIXES = ("## 当前模式", "## Todo-List")
 
 
+def strip_mode_tail(messages: Any, mode_note: str = "") -> List[Dict[str, Any]]:
+    """Remove trailing execution-mode messages from a request prefix.
+
+    A message is a mode tail when its content equals this request's mode note,
+    or when it starts with ``MODE_MARKER``.  Only contiguous trailing system
+    messages are removed; system prompts, plugin segments and summaries in the
+    middle of the prefix must stay byte-identical.
+    """
+    note = str(mode_note or "").strip()
+    out = list(messages or [])
+    while out:
+        last = out[-1]
+        if not isinstance(last, dict) or str(last.get("role") or "") != "system":
+            break
+        text = str(last.get("content") or "").strip()
+        if not text:
+            break
+        if note and text == note:
+            out.pop()
+            continue
+        if text.startswith(MODE_MARKER):
+            out.pop()
+            continue
+        break
+    return out
+
+
 def strip_runtime_note(messages: Any) -> List[Dict[str, Any]]:
     """去掉末尾遗留的临时运行态消息，避免重复拼接。"""
     out = list(messages or [])

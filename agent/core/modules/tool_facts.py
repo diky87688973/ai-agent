@@ -7,7 +7,10 @@ from typing import Any, Dict, List
 from agent.core.event_name import (
     INPUT_CLAIMED,
     MODEL_MESSAGE,
+    TOOL_CANCELED,
+    TOOL_DONE,
     TOOL_ENDED,
+    TOOL_FAILED,
     TOOL_PROGRESS,
     TOOL_SUSPENDED,
 )
@@ -16,13 +19,17 @@ from agent.core.session_log import SessionLog
 from agent.core.tool_call import ToolCallRequest
 
 _TOOL_ENDED = TOOL_ENDED
+#: 结果事实：新内核写 tool_done / tool_failed / tool_canceled，旧日志写 tool_result。
+#: 判定「已产生结果」时两类都认，否则旧事实会让同一调用被重新执行一遍。
+_TOOL_RESULTS = frozenset((TOOL_DONE, TOOL_ENDED, TOOL_FAILED, TOOL_CANCELED, "tool_result"))
 
 def tail_expects_model(log: SessionLog) -> bool:
     """上下文末端是否在等模型说话。
 
     倒着扫事实，先撞到这两个之一就是要跑模型：
       - `input_claimed`：新用户发言；
-      - `tool_result`：工具结果回来了，模型得看。
+      - 工具结果（`tool_done` / `tool_failed` / `tool_canceled` / 旧 `tool_result`）：
+        结果回来了，模型得看。
     撞到 `model_message` 说明模型已经答过、且其后没有新东西 → 不用跑。
 
     只看末端即可判定：一回合里模型与工具交替推进，每次推进都会把新事实追加到
@@ -31,6 +38,10 @@ def tail_expects_model(log: SessionLog) -> bool:
     for event in reversed(list(getattr(log, "events", ()))):
         kind = str(getattr(event, "type", "") or "")
         if kind in (INPUT_CLAIMED, _TOOL_ENDED):
+            return True
+        if kind in _TOOL_RESULTS:
+            if kind == "tool_result" and (event.data or {}).get("await_user"):
+                return False
             return True
         if kind == MODEL_MESSAGE:
             return False
@@ -51,8 +62,13 @@ def pending_tool_calls(log: SessionLog) -> List[ToolCallRequest]:
             break
     if not newest:
         return []
-    done = {str((e.data or {}).get("call_id") or "")
-            for e in events if str(getattr(e, "type", "")) == _TOOL_ENDED}
+    done = {
+        str((e.data or {}).get("call_id") or "")
+        for e in events
+        if str(getattr(e, "type", "")) in _TOOL_RESULTS
+        and not (str(getattr(e, "type", "")) == "tool_result"
+                 and (e.data or {}).get("await_user"))
+    }
     suspended = {str((e.data or {}).get("call_id") or "")
                  for e in events if str(getattr(e, "type", "")) == TOOL_SUSPENDED}
     out: List[ToolCallRequest] = []
@@ -85,7 +101,7 @@ def safe_value(value: Any) -> Any:
 
 
 #: 一条工具结果进上下文的字符上限。超过就只保留头部并标注截断 ——
-#: 结果本身仍然完整落事实（`data/sessions/*.raw`），模型要看全文可以再调工具读区间。
+#: 结果本身仍然完整落事实（`data/session/raw/*.raw`），模型要看全文可以再调工具读区间。
 #: 没有这道闸时，一次 `read_file`（默认 20 万字符）就能让这一回合的请求体翻倍，
 #: 而且它此后永久留在上下文里（事实 append-only，只有压缩才动）。
 TOOL_RESULT_MAX_CHARS = 40000

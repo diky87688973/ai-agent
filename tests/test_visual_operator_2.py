@@ -2,6 +2,7 @@
 """视觉操作 2.0 全局授权与上下文钩子。"""
 from __future__ import annotations
 
+import ctypes
 import json
 import sys
 import tempfile
@@ -21,6 +22,48 @@ from plugins.visual_operator_2.plugin import _observation_hook, _step_log_path
 from plugins.visual_operator_2.routes import build_routes
 from plugins.visual_operator_2.state import VisionRuntime
 from plugins.visual_operator_2.tools import VisionRequestOpenTool, VisionStartTool, VisionStopTool
+
+
+class InjectedInputTagTest(unittest.TestCase):
+    def test_injected_inputs_carry_foreign_tag(self) -> None:
+        from plugins.visual_operator_2 import backend
+
+        if not getattr(backend, "_WINDOWS", False):
+            self.skipTest("Windows-only SendInput")
+        captured = []
+
+        def fake_send(count, events, size):
+            for index in range(count):
+                event = events[index]
+                if event.type == backend._INPUT_MOUSE:
+                    captured.append(int(event.union.mi.dwExtraInfo))
+                else:
+                    captured.append(int(event.union.ki.dwExtraInfo))
+            return count
+
+        with patch.object(backend, "_u", SimpleNamespace(SendInput=fake_send)):
+            backend.click("left", 1)
+            backend.press_keys(["a"])
+        self.assertEqual(captured, [backend.FOREIGN_INJECT_TAG] * 4)
+
+    def test_registered_tag_filters_keyboard_even_with_injected_bit(self) -> None:
+        from plugins.visual_operator_2 import backend
+
+        if not getattr(backend, "_WINDOWS", False):
+            self.skipTest("Windows-only keyboard hook")
+        fired = []
+        monitor = backend.HumanInputMonitor()
+        monitor.bind(lambda: fired.append("fired"))
+        monitor.register_inject_tag(backend.FOREIGN_INJECT_TAG)
+        event = backend._KeyboardHookStruct()
+        event.vkCode = 0x77
+        event.flags = backend._LLKHF_INJECTED
+        event.dwExtraInfo = backend.FOREIGN_INJECT_TAG
+        with patch.object(
+                backend, "_u",
+                SimpleNamespace(CallNextHookEx=lambda *args: 0)):
+            monitor._on_keyboard(0, 0, ctypes.addressof(event))
+        self.assertEqual(fired, [])
 
 
 class VisionRuntimeTest(unittest.TestCase):
@@ -47,15 +90,63 @@ class VisionRuntimeTest(unittest.TestCase):
             assert observation is not None
             self.assertIn("cursor_model", observation["text"])
             self.assertNotIn("screen_size", observation["text"])
-            self.assertEqual(observation["images"][0], "FULL FRAME")
-            self.assertEqual(observation["images"][1].split(",")[0], "data:image/webp;base64")
-            self.assertEqual(len(observation["images"]), 2)
+            self.assertTrue(observation["frames"])
+            self.assertTrue(any("LATEST" in str(item.get("label") or "")
+                                for item in observation["images"]))
+            self.assertTrue(any(str(item.get("url") or "").split(",")[0] == "data:image/webp;base64"
+                                for item in observation["images"]))
             self.assertEqual(observation["focus_image"], "")
             self.assertEqual(observation["focus"], {})
             self.assertIsNone(runtime.observe("cid-b"))
             self.assertFalse(runtime.start("cid-a", grant["consent_id"])["ok"])
             self.assertTrue(runtime.stop("cid-a")["ok"])
             self.assertIsNone(runtime.observe("cid-a"))
+        finally:
+            runtime.close()
+
+    def test_observation_includes_multiple_frames(self) -> None:
+        runtime = VisionRuntime(
+            VisionConfig(fps=30, queue_size=4, settle_ms=0),
+            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
+            cursor=lambda: (160, 120),
+        )
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            time.sleep(0.18)
+            observation = runtime.observe("cid-a")
+            assert observation is not None
+            self.assertGreaterEqual(len(observation["frames"]), 2)
+            self.assertGreaterEqual(len(observation["images"]), 2)
+            self.assertIn("frames=", observation["text"])
+            latest = observation["images"][-1]
+            self.assertIn("LATEST", str(latest.get("label") or ""))
+            self.assertEqual(observation["full_image"], latest.get("url"))
+        finally:
+            runtime.close()
+
+    def test_on_demand_capture_replaces_background_sampling(self) -> None:
+        calls = []
+
+        def capture():
+            calls.append(1)
+            return Image.new("RGB", (320, 240), (40, 80, 120))
+
+        runtime = VisionRuntime(
+            VisionConfig(fps=0, queue_size=3, settle_ms=0),
+            capture=capture,
+            cursor=lambda: (160, 120),
+        )
+        try:
+            request = runtime.request_open("cid-a", "call-a")
+            grant = runtime.confirm("cid-a", request["request_id"], "agree")
+            runtime.start("cid-a", grant["consent_id"])
+            time.sleep(0.05)
+            observation = runtime.observe("cid-a")
+            assert observation is not None
+            self.assertGreaterEqual(len(calls), 2)
+            self.assertGreaterEqual(len(observation["frames"]), 2)
         finally:
             runtime.close()
 
@@ -95,11 +186,11 @@ class VisionRuntimeTest(unittest.TestCase):
                 [{"role": "user", "content": "hi"}], "cid-a")
             self.assertEqual(messages[-1]["role"], "user")
             parts = messages[-1]["content"]
-            self.assertEqual(sum(1 for p in parts if p["type"] == "image_url"), 1)
+            self.assertGreaterEqual(sum(1 for p in parts if p["type"] == "image_url"), 1)
             self.assertEqual(parts[0]["type"], "text")
-            self.assertEqual(parts[1]["type"], "text")
-            self.assertEqual(parts[2]["type"], "image_url")
-            self.assertEqual(len(parts), 3)
+            self.assertTrue(any(p.get("type") == "text" and "FRAME" in str(p.get("text"))
+                                for p in parts))
+            self.assertTrue(any(p.get("type") == "image_url" for p in parts))
         finally:
             runtime.close()
 
@@ -138,7 +229,7 @@ class VisionRuntimeTest(unittest.TestCase):
         resumed = []
 
         class Ctx:
-            def add_route(self, method, path, handler):
+            def add_route(self, method, path, handler, **_kwargs):
                 routes[(method, path)] = handler
                 return lambda: None
 
@@ -427,7 +518,9 @@ class VisionRuntimeTest(unittest.TestCase):
             assert observation is not None
             self.assertTrue(observation["cursor_in_focus"])
             self.assertEqual(observation["focus"]["image_size"], [100, 80])
-            self.assertEqual(len(observation["images"]), 4)
+            self.assertGreaterEqual(len(observation["images"]), 2)
+            self.assertTrue(any("FOCUS" in str(item.get("label") or "")
+                                for item in observation["images"]))
             with patch("plugins.visual_operator_2.state.backend.move_cursor",
                        return_value=True) as move:
                 moved = runtime.move_focus("cid-a", 50, 40, 100, 80)
@@ -658,7 +751,7 @@ class VisionRuntimeTest(unittest.TestCase):
                          [(1, 0x5B, 1), (1, 0x53, 0),
                           (1, 0x53, 2), (1, 0x5B, 3)])
 
-    def test_migrated_desktop_tools_are_registered_and_authorized(self) -> None:
+    def test_desktop_tools_are_registered_and_authorized(self) -> None:
         from agent.capabilities.registry import ToolPlugin
         from plugins.visual_operator_2.tools import build_tools
 

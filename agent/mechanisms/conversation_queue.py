@@ -44,6 +44,10 @@ class ConversationQueue:
         self._revisions: Dict[str, int] = {}
         self._loaded: set = set()
         self._on_change: Optional[Callable[[str, Dict[str, Any]], None]] = None
+        if self._root is not None and self._root.is_dir():
+            for child in list(self._root.iterdir()):
+                if child.is_dir() and not child.name.startswith("."):
+                    self._remove_empty_queue_dir(child)
 
     def set_change_listener(
         self, fn: Optional[Callable[[str, Dict[str, Any]], None]]
@@ -374,7 +378,6 @@ class ConversationQueue:
     def _ensure_locked(self, cid: str) -> None:
         if cid in self._loaded:
             return
-        self._loaded.add(cid)
         base = self._queue_dir(cid)
         revision = 0
         items: List[Dict[str, Any]] = []
@@ -406,6 +409,9 @@ class ConversationQueue:
         self._items[cid] = items
         self._revisions[cid] = max(revision, max(
             (int(row.get("seq") or 0) for row in items), default=0))
+        # 读盘成功后才标 loaded：读失败时下次调用必须重试，
+        # 否则这个会话的队列会被永久当成空。
+        self._loaded.add(cid)
 
     def _ordered_locked(self, cid: str) -> List[Dict[str, Any]]:
         return sorted(self._items.get(cid, []),
@@ -490,10 +496,32 @@ class ConversationQueue:
                 shutil.rmtree(base / item_id, ignore_errors=False)
             except OSError as exc:
                 report_error("conversation_queue.remove", exc, conversation_id=cid)
+            self._remove_empty_queue_dir(base)
+
+    @staticmethod
+    def _remove_empty_queue_dir(base: Path) -> None:
+        """队列空了就移除 cid 目录；不留下只有 revision 的空壳。"""
+        try:
+            if not base.is_dir():
+                return
+            if any(child.is_dir() and not child.name.startswith(".")
+                   for child in base.iterdir()):
+                return
+            revision = base / "revision"
+            if revision.is_file():
+                revision.unlink()
+            base.rmdir()
+        except OSError as exc:
+            report_error("conversation_queue.cleanup_empty", exc, path=str(base))
 
     def _bump_locked(self, cid: str) -> None:
         self._revisions[cid] = int(self._revisions.get(cid, 0)) + 1
-        self._write_revision(cid)
+        if self._items.get(cid):
+            self._write_revision(cid)
+            return
+        base = self._queue_dir(cid)
+        if base is not None:
+            self._remove_empty_queue_dir(base)
 
     def _snapshot_locked(self, cid: str) -> Dict[str, Any]:
         return {

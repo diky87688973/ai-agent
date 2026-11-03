@@ -1,6 +1,7 @@
 {
   "name": "基础设置",
   "icon": "⚙️",
+  "desc": "统一管理配置文件的设置服务",
   "version": "1.0",
   "config": "false"
 }

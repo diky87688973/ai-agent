@@ -1,12 +1,29 @@
-**English** | [中文](session.zh.md)
+﻿# Session storage and collaboration
 
-# Session storage and collaboration
+## 1. Overview
 
 `agent/mechanisms/session_store.py` persists session facts. `agent/mechanisms/run_registry.py` tracks running turns, `agent/mechanisms/mesh.py` handles cross-session delivery, `agent/mechanisms/session_title.py` generates titles, `agent/mechanisms/live_state.py` holds per-session state, and `agent/mechanisms/file_safety.py` provides versioned backups and a recycle area.
 
-## Fact log
+## 2. Slots
 
-### Layout
+### Exposed
+
+| Slot path | Capability | Key attributes | Replacement / override |
+|---|---|---|---|
+| `app/host/services/store` | host service | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `app/host/services/queue` | host service | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `app/host/services/mesh` | host service | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+| `app/host/services/subagents` | host service | owner=module; assembled by SlotTree; failure follows master | Boot-tree nodes are overlaid by path; runtime read-only slots are not replaced |
+### Required
+
+| Dependency path | Capability | Provider | Why |
+|---|---|---|---|
+| `app/host/services/event_bus` | host service | host | must be ready before assembly; unavailable propagates as startup/request failure |
+
+## 3. Slot capabilities
+
+### Fact log
+#### Layout
 
 ```
 <data_root>/sessions/<cid>.raw      one log per session; JSONL, one event per line
@@ -15,13 +32,13 @@
 
 A session id must match `^[A-Za-z0-9_-]{8,128}$`; anything else is rejected. This check is the first boundary against path traversal.
 
-### Append-only
+#### Append-only
 
 The log is an **append-only fact stream**: every event appends one line, and existing lines are not rewritten.
 
 The structural guarantee "model-visible ⟺ recorded" is enforced here: all filtering, cleanup, and formatting must happen **before** the write; a persisted row is never rewritten.
 
-### Row format
+#### Row format
 
 ```json
 {"t":"assistant_delta","d":{"text":"好"},"s":226310}
@@ -42,11 +59,11 @@ Only what the disk needs is written; anything recoverable elsewhere is omitted. 
 
 On read, both are restored (`event_from_obj`): the coordinate comes from `s`, and `conversation_id` is filled in from the session file name. Events in memory always carry `conversation_id`; SSE uses it to route frames to the correct session page.
 
-### Sequence numbers
+#### Sequence numbers
 
 `allocate_seq(count)` reserves a contiguous block of coordinates; `_observe(seq)` records the highest coordinate seen. Consumers use the coordinate to decide where to continue; SSE reconnects rely on it. The allocator seeds from the largest coordinate already on disk before its first allocation.
 
-### Encryption
+#### Encryption
 
 Two modes:
 
@@ -61,19 +78,18 @@ Plaintext and encrypted rows can coexist; a row that cannot be decrypted or pars
 
 `MAGIC = "__fan_agent_session_encrypted__"` identifies the envelope and is the on-disk format marker for encrypted logs; changing it makes those logs unreadable.
 
-### Read tolerance
+#### Read tolerance
 
 Malformed rows are skipped, a missing file returns an empty list, and rows that do not yield an event type are ignored. Because plaintext and encrypted rows are detected per row, a log stays readable regardless of which mode wrote each row.
 
-## Cross-process lock
-
-### Cross-process
+### Cross-process lock
+#### Cross-process
 
 The same-session "record offset → append → roll back" sequence is a read-modify-write. An in-process lock cannot exclude another process: concurrent writes to the same `.raw` lose rows silently, and the exit code is still 0.
 
 Writes therefore take a per-file **cross-process** exclusive lock: `msvcrt.locking` on Windows and `fcntl.flock` on POSIX. Windows retries non-blocking attempts in a loop; POSIX takes a blocking `flock`.
 
-### Semantics
+#### Semantics
 
 | Case | Behavior |
 |---|---|
@@ -83,20 +99,18 @@ Writes therefore take a per-file **cross-process** exclusive lock: `msvcrt.locki
 
 On POSIX, `flock` blocks until the lock is available.
 
-### Lock file
+#### Lock file
 
 The lock is taken on the log path plus `.lock` (`<cid>.raw.lock`). The file is zero bytes and is never deleted: deleting it would race with another process that already has it open, producing a lock on a deleted file.
 
-## Retry queue
-
+### Retry queue
 Batches that fail to write (lock timeout, disk error) enter a retry queue; `flush_pending()` and `flush_all()` resubmit them later.
 
 When a failed batch is queued again, `_pending_only_new()` filters by sequence against facts already queued or already on disk, so each fact is written once.
 
 The queue is capped at `_PENDING_MAX_BATCHES = 64` batches per session; when it overflows, the oldest batch is dropped with a stderr warning.
 
-## Run registry
-
+### Run registry
 `run_registry.py` answers one question: **whether a turn is running for this session**.
 
 The answer must be queryable from the server so a page opened mid-turn can show the running state and the stop control.
@@ -117,7 +131,7 @@ Reads during a run also renew the heartbeat (`running()` calls `touch`), subject
 
 The pid check closes the TTL window: after a process is killed, its heartbeat freezes at the last write and the file still looks fresh until the TTL expires (15 minutes by default); checking the pid detects it immediately.
 
-### Process probe
+#### Process probe
 
 Windows uses `ctypes` `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`:
 
@@ -133,8 +147,7 @@ On non-Windows platforms the probe falls back to `os.kill`; only `ProcessLookupE
 
 Unknown results are treated as alive and left to TTL expiry.
 
-## Collaboration mesh
-
+### Collaboration mesh
 `MeshState` in `mesh.py` delivers messages between sessions.
 
 | Capability | Behavior |
@@ -145,14 +158,12 @@ Unknown results are treated as alive and left to TTL expiry.
 
 Queue contents are held by `ConversationQueue`. After a turn the runner drains the queue; insertion requests enter context through `QueuedInputModule` before compaction. While a turn is paused on a tool (user confirmation, approval), the queue stays paused and no new turn starts. Busy state comes from the run registry, so the mesh and `/api/chat/ui-state` read the same source.
 
-## Titles
-
+### Titles
 `session_title.py` makes one model call with no tools. The input is the first user input plus the first model reply, each truncated; the output is cleaned to at most 18 characters and written to `<data_root>/titles/<cid>.title`.
 
 On failure (no provider, exception, empty text, placeholder result) the title falls back to a prefix of the first user input (empty when there is none) and does not block any flow. Titles are a derived cache and can be regenerated, so they are stored separately from session facts.
 
-## Live state
-
+### Live state
 `LiveState` in `live_state.py` holds mutable state keyed by session. Persisted and in-memory fields:
 
 | Field | Persisted | Notes |
@@ -178,8 +189,7 @@ Three rules:
 
 A cid must match `[A-Za-z0-9_-]{8,128}` before a path is built; an invalid cid is not persisted.
 
-## File safety
-
+### File safety
 `file_safety.py` contains two classes:
 
 | Class | Role |
@@ -189,8 +199,14 @@ A cid must match `[A-Za-z0-9_-]{8,128}` before a path is built; an invalid cid i
 
 Both sit under the data root by default (`data/temp/file_backup/` and `data/recycle/`), so they move with the data root.
 
-## Further reading
+## 4. Details
 
-- [architecture.md](../architecture.md): facts and projections
-- [tools.md](tools.md): four-step write protocol
-- [shell.md](shell.md): SSE reconnection and sequence numbers
+No additional details.
+
+## 5. Further reading
+
+| Topic | Document |
+|---|---|
+| facts and projections | [architecture.md](../architecture.md) |
+| four-step write protocol | [tools.md](tools.md) |
+| SSE reconnection and sequence numbers | [shell.md](shell.md) |

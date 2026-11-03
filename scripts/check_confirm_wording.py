@@ -27,7 +27,7 @@
 """
 from __future__ import annotations
 
-import re
+import ast
 import sys
 from pathlib import Path
 
@@ -74,6 +74,29 @@ def _read(p: Path) -> str:
         raise RuntimeError(f"{p}: 读取失败：{exc}") from exc
 
 
+def _confirm_block(gate: str) -> str:
+    block = ""
+    try:
+        tree = ast.parse(gate)
+    except SyntaxError:
+        tree = None
+    if tree is not None:
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.If):
+                continue
+            test = node.test
+            if not isinstance(test, ast.UnaryOp) or not isinstance(test.op, ast.Not):
+                continue
+            call = test.operand
+            if (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                    and call.func.attr == "get" and call.args
+                    and isinstance(call.args[0], ast.Constant)
+                    and call.args[0].value == "confirmed"):
+                block = ast.get_source_segment(gate, node) or ""
+                break
+    return block
+
+
 def check_texts(texts: dict[str, str]) -> list[str]:
     """核对给定文案；`texts` 的键是固定标签，值为文件全文。空 = 无歧义。"""
     problems: list[str] = []
@@ -92,8 +115,11 @@ def check_texts(texts: dict[str, str]) -> list[str]:
 
     # ── ② 门控拒绝文案：给可执行的下一步（工具 + 参数）──
     gate = texts.get(GATE_LABEL, "")
-    m = re.search(r'if not rec\.get\("confirmed"\):(.*?)\n    args = ', gate, re.S)
-    block = m.group(1) if m else ""
+    block = _confirm_block(gate)
+    if not block:
+        problems.append(
+            "checks.py 的确认拒绝分支结构切不到：未找到 `if not rec.get(\"confirmed\")` 节点"
+        )
     if "review_conclusion" not in block:
         problems.append(
             "checks.py 的拒绝文案没有告诉模型下一步调哪个工具 —— "

@@ -24,7 +24,7 @@ from agent.core.events import Event  # noqa: E402
 from agent.core.session_context import SessionContexts  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.shell.cli import interactive as chat  # noqa: E402
-from agent.shell.cli.interactive import _PREVIEW_TOOL_NAMES, _ask_confirm, build_session  # noqa: E402
+from agent.shell.cli.interactive import _ask_confirm, build_session  # noqa: E402
 
 CID = "chat-shell-regression-01"
 
@@ -137,7 +137,8 @@ class ChatConfirmRoundTripTest(unittest.TestCase):
     def test_preview_tool_names_include_write_path_tools(self) -> None:
 
         for name in ("write_file", "replace_in_file", "apply_patch", "read_write", "delete_file"):
-            self.assertIn(name, _PREVIEW_TOOL_NAMES, msg=name)
+            tool = self.app.registry.get(name)
+            self.assertTrue(bool(getattr(tool, "needs_preview", False)), msg=name)
 
 class ChatExitReleaseTest(unittest.TestCase):
     """交互壳退出时释放会话运行态。"""

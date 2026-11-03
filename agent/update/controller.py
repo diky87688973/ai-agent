@@ -10,6 +10,15 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from agent.common.status import (
+    UPDATE_DETAIL_DEV_CHECKOUT,
+    UPDATE_DETAIL_DOWNLOAD_FAILED,
+    UPDATE_DETAIL_IDLE,
+    UPDATE_DETAIL_NO_MANIFEST,
+    UPDATE_DETAIL_NOT_STAGED,
+    UPDATE_DETAIL_RESTARTING,
+    UPDATE_DETAIL_STAGED,
+)
 from agent.config import get_update
 from agent.core.error_report import report_error
 from agent.update.checker import check, manifest_url
@@ -30,7 +39,7 @@ class UpdateController:
             "current": "",
             "remote": "",
             "channel": "",
-            "detail": "idle",
+            "detail": UPDATE_DETAIL_IDLE,
             "staged": False,
             "version": "",
             "interval_minutes": 30,
@@ -52,8 +61,8 @@ class UpdateController:
             self._status["interval_minutes"] = interval
             if is_dev_checkout(self.root):
                 self._manifest = None
-                self._status.update({"available": False, "detail": "dev_checkout"})
-                log_event(self.root, "check_skip", reason="dev_checkout")
+                self._status.update({"available": False, "detail": UPDATE_DETAIL_DEV_CHECKOUT})
+                log_event(self.root, "check_skip", reason=UPDATE_DETAIL_DEV_CHECKOUT)
                 return dict(self._status)
             result = check(payload_root(self.root), manifest_url())
             self._manifest = result.manifest if result.available else None
@@ -71,7 +80,7 @@ class UpdateController:
                     log_event(self.root, "download_staged", version=str(result.manifest.version))
                 except (OSError, ValueError) as exc:
                     log_event(self.root, "download_failed", level="error", error=str(exc))
-                    self._status.update({"available": True, "detail": f"download_failed: {exc}"})
+                    self._status.update({"available": True, "detail": f"{UPDATE_DETAIL_DOWNLOAD_FAILED}: {exc}"})
                     return dict(self._status)
             if staged and result.manifest is not None:
                 staging_root = self.updates / "staging"
@@ -96,7 +105,7 @@ class UpdateController:
     def download(self) -> Dict[str, Any]:
         with self._lock:
             if self._manifest is None:
-                log_event(self.root, "download_skip", reason="no_manifest")
+                log_event(self.root, "download_skip", reason=UPDATE_DETAIL_NO_MANIFEST)
                 raise ValueError("没有可下载的更新")
             log_event(self.root, "download_start", version=str(self._manifest.version))
             path = stage_package(
@@ -104,14 +113,14 @@ class UpdateController:
                 manifest_url=manifest_url(),
                 updates_dir=self.updates,
             )
-            self._status.update({"staged": True, "detail": "staged", "staging": str(path)})
+            self._status.update({"staged": True, "detail": UPDATE_DETAIL_STAGED, "staging": str(path)})
             log_event(self.root, "download_staged", version=str(self._manifest.version), staging=str(path))
             return dict(self._status)
 
     def apply(self) -> Dict[str, Any]:
         with self._lock:
             if not self._status.get("staged") or self._manifest is None:
-                log_event(self.root, "apply_skip", reason="not_staged")
+                log_event(self.root, "apply_skip", reason=UPDATE_DETAIL_NOT_STAGED)
                 raise ValueError("更新尚未下载完成")
             version = str(self._manifest.version)
             staging = self.updates / "staging" / version
@@ -132,7 +141,7 @@ class UpdateController:
                           version=version, error=str(exc))
                 raise
             log_event(self.root, "apply_requested", version=version, staging=str(staging))
-            self._status.update({"detail": "restarting"})
+            self._status.update({"detail": UPDATE_DETAIL_RESTARTING})
         def _finish() -> None:
             if os.environ.get("AI_AGENT_GUI") == "1":
                 parent = os.getppid()

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 
 
-def run(acc) -> None:
+def run(acc) -> int:
     """Todo 清单 close 必须隐藏当前清单，而不是只更新数据。"""
     try:
         from playwright.sync_api import sync_playwright
@@ -18,7 +18,7 @@ def run(acc) -> None:
         except Exception as exc:
             print(f"[scripts.acceptance_web_todo.run] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             print(f"  [SKIP] Todo 清单关闭（Chromium 不可用：{type(exc).__name__}）")
-            return
+            return 2
         try:
             page = browser.new_page()
             page.goto(acc.base + "/", wait_until="domcontentloaded", timeout=30000)
@@ -54,3 +54,4 @@ def run(acc) -> None:
                       closed["display"] == "none" and closed["hidden"], str(closed))
         finally:
             browser.close()
+    return 0

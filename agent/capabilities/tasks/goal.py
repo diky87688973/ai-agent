@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from agent.capabilities.registry import ToolPlugin
+from agent.common.status import GOAL_ACTIVE, GOAL_DONE, GOAL_PAUSED
 from agent.core.session_scope import current_session_id
 from agent.mechanisms.live_state import GoalError, LiveState
 
@@ -26,7 +27,8 @@ class GoalTool(ToolPlugin):
         "管理本会话的目标文案。目标处于 active 时，每回合结束后系统会自动用该文案"
         "发起新回合，直到你用 action=pause/done 停下。"
         "action: create=新建或整体改写；get=查询；update=局部改（文案/状态/备注）；"
-        "pause=暂停触发；resume=恢复触发；done=标记达成；delete=删除。"
+        "pause=暂停触发；resume=恢复触发；done=标记达成；delete=删除；"
+        "max_rounds 控制自动续跑轮数，默认 256，最大 1024。"
         "不要每回合都调 get 自查：自动触发的那一回合里，目标文案本身就是发来的消息，"
         "你不需要再查一次；只在用户问起目标状态、或你要动手改它之前查一次。"
     )
@@ -36,6 +38,8 @@ class GoalTool(ToolPlugin):
         "text": {"type": "string", "description": "目标文案（create 必填；update 可改）"},
         "note": {"type": "string", "description": "备注（可选，给人看）"},
         "status": {"type": "string", "description": "update 时的状态：active / paused / done"},
+        "max_rounds": {"type": "integer",
+                       "description": "目标自动续跑轮数上限，默认 256，最大 1024"},
     }
 
     def __init__(self, live_state: LiveState) -> None:
@@ -51,27 +55,31 @@ class GoalTool(ToolPlugin):
         text = str(arguments.get("text") or "").strip()
         note = str(arguments.get("note") or "").strip()
         status = str(arguments.get("status") or "").strip().lower()
+        max_rounds = arguments.get("max_rounds")
         cid = current_session_id()
         if not cid:
             raise RuntimeError("goal 须由宿主传入 conversation_id")
         try:
             if action == "create":
-                return {"goal": self._state.set_goal(cid, text, note=note)}
+                return {"goal": self._state.set_goal(
+                    cid, text, note=note, max_rounds=max_rounds)}
             if action == "get":
                 return {"goal": self._state.get_goal(cid)}
             if action == "update":
-                return {"goal": self._state.update_goal(cid, text=text, status=status, note=note)}
+                return {"goal": self._state.update_goal(
+                    cid, text=text, status=status, note=note,
+                    max_rounds=max_rounds)}
             if action == "pause":
-                return {"goal": self._state.update_goal(cid, status="paused")}
+                return {"goal": self._state.update_goal(cid, status=GOAL_PAUSED)}
             if action == "resume":
                 if text:
                     # 恢复时给出的文案优先：同会话已有目标也整体替换。
                     return {"goal": self._state.set_goal(cid, text)}
                 if self._state.get_goal(cid) is None:
                     raise GoalError("目标不存在，且没有可恢复的文案")
-                return {"goal": self._state.update_goal(cid, status="active")}
+                return {"goal": self._state.update_goal(cid, status=GOAL_ACTIVE)}
             if action == "done":
-                return {"goal": self._state.update_goal(cid, status="done")}
+                return {"goal": self._state.update_goal(cid, status=GOAL_DONE)}
             if action == "delete":
                 return {"deleted": bool(self._state.delete_goal(cid))}
         except GoalError as exc:

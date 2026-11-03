@@ -96,7 +96,8 @@ class SubagentMessenger:
             result = self.mesh.submit(target_cid, payload)
         except QueueError as exc:
             raise SubagentError(str(exc), "queue_failed") from exc
-        item = result.get("queue_item") if isinstance(result, dict) else None
+        data = result if isinstance(result, dict) else {}
+        item = data.get("queue_item")
         inserted = False
         if isinstance(item, dict) and item.get("id"):
             try:
@@ -108,7 +109,7 @@ class SubagentMessenger:
         return {
             "ok": True,
             "target_id": target_cid,
-            "queued": bool(result.get("queued")),
+            "queued": bool(data.get("queued")),
             "inserted": inserted,
-            "run_id": str(result.get("run_id") or ""),
+            "run_id": str(data.get("run_id") or ""),
         }

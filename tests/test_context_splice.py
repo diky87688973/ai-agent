@@ -20,22 +20,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from agent.core.events import Event
-from agent.core.session_context import SessionContext
 from agent.core.session_log import SessionLog
 
-
-class _Facts:
-    """最小事实源：append + scan（真实实现是 SessionStore）。"""
-
-    def __init__(self) -> None:
-        self.rows: List[Dict[str, Any]] = []
-
-    def append(self, type_: str, **data: Any) -> str:
-        self.rows.append({"type": type_, **data})
-        return str(len(self.rows))
-
-    def scan(self, type_: str) -> List[Dict[str, Any]]:
-        return [dict(r) for r in self.rows if r["type"] == type_]
 
 class ContextSpliceTest(unittest.TestCase):
     """恢复即拼接。"""
@@ -130,19 +116,6 @@ class ContextSpliceTest(unittest.TestCase):
             again = SessionLog(events=store.load(cid)).derive_messages()
             self.assertEqual(again, messages)
 
-    def test_no_staging_table_is_needed(self) -> None:
-        """② 恢复路径上不需要外部结果暂存表之类的东西：事实源里只有工具结果。"""
-        store = _Facts()
-        for r in self._suspended_rows():
-            store.append(r["type"], **{k: v for k, v in r.items() if k != "type"})
-        store.append("tool_done", call_id="call-1", name="ask_user", data="甲")
-        kinds = [r["type"] for r in store.rows]
-        self.assertIn("tool_suspended", kinds, msg="挂起信息要落盘：宿主靠它知道有调用待解决")
-        self.assertNotIn("extern_result", kinds, msg="不需要暂存表")
-        delivered = store.scan("tool_done")
-        self.assertEqual(len(delivered), 1)
-        self.assertEqual(delivered[0]["call_id"], "call-1")
-
     def test_repeated_terminal_folds_to_one_tool_message(self) -> None:
         """同一 `call_id` 的终态写两次时，派生对话里只有一条 tool 消息。
 
@@ -177,40 +150,6 @@ class ContextSpliceTest(unittest.TestCase):
                                 "name": "ask_user", "status": "ok"})
         roles, tools = _roles_and_tools(guarded)
         self.assertEqual((roles, tools), (["user", "assistant", "tool"], 1))
-
-class AwaitingFactTest(unittest.TestCase):
-    """挂起信息落盘与"待解决"判定（宿主靠它知道有调用等人）。"""
-
-    def test_pending_call_is_discoverable_from_facts(self) -> None:
-        rows = [
-            {"type": "tool_call", "call_id": "call-1"},
-            {"type": "tool_suspended", "call_id": "call-1", "question": "选一个"},
-        ]
-        suspended = {r["call_id"] for r in rows if r["type"] == "tool_suspended"}
-        resolved = {r["call_id"] for r in rows if r["type"] == "tool_done"}
-        self.assertEqual(suspended - resolved, {"call-1"},
-                         msg="待解决 = 已挂起且未回灌")
-
-    def test_pending_state_is_readable_from_facts_not_from_session_context(self) -> None:
-        """挂起状态从事实源可读 —— 判定"有待解决的调用"只凭事实就够。
-
-        `SessionContext.pending_confirm` 上另存的一份是冗余的；这里钉住"仅凭事实就能判定待解决调用"，
-        使该字段不再是判定依据。
-        """
-        rows = [
-            {"type": "tool_call", "call_id": "call-1"},
-            {"type": "tool_suspended", "call_id": "call-1", "question": "选一个"},
-        ]
-        pending = {r["call_id"] for r in rows if r["type"] == "tool_suspended"} - {
-            r["call_id"] for r in rows if r["type"] == "tool_done"}
-        self.assertEqual(pending, {"call-1"}, msg="待解决调用须仅凭事实可判定")
-        # 同一份信息在会话上下文里的那份是冗余的
-        ctx = SessionContext(conversation_id="x")
-        self.assertTrue(hasattr(ctx, "pending_confirm"),
-                        msg="该字段仍存在，但判定不该依赖它")
-
-if __name__ == "__main__":
-    unittest.main()
 
 class ResumeSpliceNamingTest(unittest.TestCase):
     """`_splice_resume` 必须写内核当前认的结果事实名。
@@ -277,3 +216,7 @@ class ResumeSpliceNamingTest(unittest.TestCase):
             self.assertEqual(payload.get("ok"), True, msg="回填须走统一信封")
             self.assertIn("用户选了甲", json.dumps(payload.get("data"), ensure_ascii=False),
                           msg="回填的内容必须真的到模型手里")
+
+
+if __name__ == "__main__":
+    unittest.main()

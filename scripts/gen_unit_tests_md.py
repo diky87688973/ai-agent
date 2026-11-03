@@ -145,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f"{_display(OUT)} 与用例一致")
         return 0
-    OUT.write_text(content, encoding="utf-8")
+    OUT.write_text(content, encoding="utf-8", newline="\n")
     cases, groups = collect()
     with_doc = sum(1 for c in cases if inspect.getdoc(getattr(c, c._testMethodName, None)))
     print(f"wrote {_display(OUT)} ({OUT.stat().st_size} bytes)")

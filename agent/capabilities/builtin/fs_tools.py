@@ -17,8 +17,20 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from agent.capabilities.registry import ToolPlugin
+from agent.common.status import require
 from agent.mechanisms.file_safety import FileBackups, Recycle
 from agent.mechanisms.quality import diff_text
+
+STATUS_ALREADY_ABSENT = "already_absent"
+STATUS_PENDING = "pending"
+STATUS_SOURCE_MISSING = "source_missing"
+STATUS_ALREADY_APPLIED = "already_applied"
+STATUS_SKIPPED = "skipped"
+STATUS_DEST_EXISTS_CONFLICT = "dest_exists_conflict"
+FS_STATUSES = (
+    STATUS_ALREADY_ABSENT, STATUS_PENDING, STATUS_SOURCE_MISSING,
+    STATUS_ALREADY_APPLIED, STATUS_SKIPPED, STATUS_DEST_EXISTS_CONFLICT,
+)
 
 
 def norm_path(value: Any) -> str:
@@ -76,7 +88,7 @@ class DeleteFileTool(ToolPlugin):
         if not target.exists():
             return {
                 "path": str(target),
-                "status": "already_absent",
+                "status": STATUS_ALREADY_ABSENT,
                 "applied": False,
                 "needs_commit": False,
                 "message": "路径已不存在，无需删除",
@@ -86,7 +98,7 @@ class DeleteFileTool(ToolPlugin):
         info: Dict[str, Any] = {
             "path": str(target),
             "preview": True,
-            "status": "pending",
+            "status": STATUS_PENDING,
             "bytes": target.stat().st_size,
         }
         if self._recycle is not None:
@@ -121,7 +133,7 @@ def _terminal(
     out: Dict[str, Any] = {
         "action": action,
         "source": str(source),
-        "status": status,
+        "status": require(status, FS_STATUSES, "文件操作状态"),
         "applied": False,
         "needs_commit": False,
         "message": message,
@@ -145,7 +157,7 @@ def _ops_fail(
 ) -> None:
     """业务失败：抛 ValueError，并挂结构化 data（与 replace 的 old_text_not_found 同形）。"""
     data: Dict[str, Any] = {
-        "status": status,
+        "status": require(status, FS_STATUSES, "文件操作状态"),
         "needs_commit": False,
         "action": action,
         "source": str(source),
@@ -168,7 +180,7 @@ def _plan_delete(action: str, source: Path, recursive: bool,
                  on_exists: str) -> Dict[str, Any]:
     if not source.exists():
         return _terminal(
-            action=action, status="already_absent", source=source,
+            action=action, status=STATUS_ALREADY_ABSENT, source=source,
             message="源路径已不存在，无需删除")
     if source.is_dir() and not recursive:
         raise ValueError("删除目录须传 recursive=true")
@@ -186,7 +198,7 @@ def _plan_destination(action: str, source: Path, dest: Path, recursive: bool,
         msg = f"源路径不存在：{source}"
         msg += (f"；目标已存在：{dest}（本次未实际{verb}）" if dest_exists
                 else f"（本次未实际{verb}）")
-        _ops_fail(status="source_missing", action=action, source=source,
+        _ops_fail(status=STATUS_SOURCE_MISSING, action=action, source=source,
                   dest=dest, dest_exists=dest_exists, on_exists=on_exists,
                   message=msg)
     if dest.resolve() == source.resolve():
@@ -195,16 +207,16 @@ def _plan_destination(action: str, source: Path, dest: Path, recursive: bool,
     if dest.exists():
         if action == "copy" and _files_same(source, dest):
             return _terminal(
-                action=action, status="already_applied", source=source,
+                action=action, status=STATUS_ALREADY_APPLIED, source=source,
                 dest=dest, message="目标已存在且与源内容相同，无需复制",
                 on_exists=on_exists)
         if on_exists == "skip":
             return _terminal(
-                action=action, status="skipped", source=source, dest=dest,
+                action=action, status=STATUS_SKIPPED, source=source, dest=dest,
                 message=f"目标已存在，已按 on_exists=skip 跳过：{dest}",
                 on_exists=on_exists)
         if on_exists == "error":
-            _ops_fail(status="dest_exists_conflict", action=action,
+            _ops_fail(status=STATUS_DEST_EXISTS_CONFLICT, action=action,
                       source=source, dest=dest, dest_exists=True,
                       on_exists=on_exists, message=f"目标已存在，拒绝覆盖：{dest}")
         overwrite = True
@@ -274,7 +286,7 @@ class FileOpsTool(ToolPlugin):
             "action": plan["action"],
             "source": str(plan["source"]),
             "preview": True,
-            "status": "pending",
+            "status": STATUS_PENDING,
             "on_exists": plan.get("on_exists") or "error",
         }
         if plan.get("dest") is not None:
@@ -376,7 +388,7 @@ def _execute_delete(recycle: Recycle, arguments: Dict[str, Any]) -> Dict[str, An
         return {
             "path": str(target),
             "written": False,
-            "status": "already_absent",
+            "status": STATUS_ALREADY_ABSENT,
             "message": "路径已不存在，无需删除",
         }
     if target.is_dir():

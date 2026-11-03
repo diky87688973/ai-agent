@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
+from agent.common.status import GOAL_ACTIVE, GOAL_DONE, GOAL_PAUSED, require
 from agent.core.context import SERVICE_BACKGROUND_TASKS, SERVICE_CONVERSATION_QUEUE, SERVICE_UPDATE
 from agent.core.error_report import report_error
+from agent.mechanisms.background_tasks import TASK_STATUSES
 from agent.shell.web.web_api import WebShell
 from agent.shell.web.web_auth import AuthMiddleware
 from agent.shell.web.web_classic import ClassicRoutes
@@ -100,6 +102,17 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
 
     def _path(self) -> str:
         return urlparse(self.path).path.rstrip("/") or "/"
+    def _slot_http(self, method: str, path: str, query: Dict[str, str],
+                   body: Optional[Dict[str, Any]] = None) -> bool:
+        route_slots = getattr(self.shell, "route_slots", None)
+        if route_slots is None:
+            return False
+        handler = route_slots.resolve(method, path)
+        if handler is None:
+            return False
+        status, payload = handler(self, query, body)
+        self._json(status, payload)
+        return True
 
     # ── 静态资源───────────────────────────────────
 
@@ -229,9 +242,12 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
         try:
             batch = str(query.get("batch") or "").strip()
             if batch:
+                status = str(query.get("status") or "").strip()
+                if status:
+                    status = require(status, TASK_STATUSES, "后台任务状态")
                 result = manager.list_tasks(
                     cid, batch, task_id=str(query.get("task_id") or ""),
-                    status=str(query.get("status") or ""))
+                    status=status)
             else:
                 result = manager.snapshot(cid)
             self._json(200, result)
@@ -389,8 +405,13 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
                 return
             if not self._auth_gate("GET", path):
                 return
+            if self._slot_http("GET", path, query):
+                return
             if path == "/auth/csrf":
                 runtime = getattr(self, "auth_runtime", None)
+                if runtime is None:
+                    self._json(404, {"ok": False, "error": "not_found"})
+                    return
                 status, payload, headers = runtime.routes.csrf(
                     getattr(self, "_auth_identity", None))
                 self._json(status, payload, headers=headers)
@@ -542,10 +563,10 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
                     self._json(400, {"ok": False, "error": "目标不存在，且没有可恢复的文案"})
                     return
                 else:
-                    goal = state.update_goal(cid, status="active")
+                    goal = state.update_goal(cid, status=GOAL_ACTIVE)
             elif action in ("pause", "done"):
                 goal = state.update_goal(
-                    cid, status={"pause": "paused", "done": "done"}[action])
+                    cid, status={ "pause": GOAL_PAUSED, "done": GOAL_DONE }[action])
             elif action == "delete":
                 state.delete_goal(cid)
                 goal = None
@@ -582,6 +603,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             if self._auth_logout(path):
                 return
             body = self._read_body()
+            if self._slot_http("POST", path, self._query(), body):
+                return
             if path == "/api/chat/send":
                 self._post_chat_send(body)
                 return
@@ -625,6 +648,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             if not self._auth_gate("PUT", path):
                 return
             body = self._read_body()
+            if self._slot_http("PUT", path, self._query(), body):
+                return
             if path == "/api/chat/ui-state":
                 # 经典界面的 PUT 直接发布局对象（经典界面），不带 conversation_id；
                 # 内核那套要求 conversation_id。用有无该字段区分两套语义。
@@ -664,6 +689,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             if not self._auth_gate("DELETE", path):
                 return
             query = self._query()
+            if self._slot_http("DELETE", path, query):
+                return
             if path == "/api/chat/sessions":
                 status, payload = self.shell.release_conversation(
                     query.get("conversation_id", "") or query.get("id", "")

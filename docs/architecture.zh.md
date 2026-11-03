@@ -2,9 +2,123 @@
 
 # 架构
 
-代码按五层组织，一次请求依次流经入口、壳层、能力、机制与内核。
+应用以插件树为骨架装配：工具、模型、界面、设置与业务集成都作为插件贡献注册，支持按节点替换、启停和组合，内核与壳层保持稳定。
 
 模块结构、单一职责与资产归属的强制规则见 [工程标准](engineering-standards.zh.md)。
+
+## 插件与装配
+
+### 启动装配
+
+App 先启动自身基础装配树，再扫描额外插件；插件装配声明在递归装配前合并。
+
+```text
+启动流程（全 App）
+App 启动
+  │
+  ├─ 读取 agent/boot/slot_tree.json
+  │     └─ 基础装配树：kernel / host / tools / shell / facade
+  │
+  ├─ 扫描 plugins/（插件树：启用插件 + 装配声明）
+  │     ├─ plugins.ini           启停 + 顺序
+  │     └─ plugin-assembly.json  额外插件的装配声明
+  │
+  ├─ 合并
+  │     ├─ replace / 新增 app/... 子树
+  │     └─ 鉴权：宿主持有，不是 SlotTree 可替换子树
+  │
+  └─ SlotTree 递归装配
+        │
+        ▼
+     App 门面完成（不含组件清单）
+
+App 运行期
+  plugin.py ── register(ctx) ──▶ 后端插口 / UI 插口 / 设置 / 路由
+                                └─ 动态节点挂回同一棵 SlotTree
+```
+
+### 插口树启动模型
+
+**插口树本身就是启动装配图**。`app.py` 是应用门面，不是装配器。
+
+```text
+app
+→ host
+   → services
+      → background_tasks
+      → <新增服务 id>
+→ kernel
+   → modules
+      → context
+      → <新增模块 id>
+→ backend
+   → tools / context / prompt / models / runtime / ...
+→ settings
+→ shell
+```
+
+装配规则：
+
+1. `app` 是唯一根。所有节点路径必须能归入 `app/*`，不得出现第二个根；`backend/*` 也必须成为 `app/backend/*`。
+2. 容器节点只负责装配子节点；叶子节点提供工厂或实例。
+3. 节点契约至少包含：
+
+   ```text
+   path
+   kind
+   factory / provider
+   dependencies
+   lifecycle
+   enabled
+   scope
+   children policy
+   ```
+
+4. 启动器先校验依赖图，再按拓扑顺序装配；缺失依赖、环、重复节点和工厂失败都显式报错。
+5. `app` 只依赖插口树、节点契约和通用装配器；不 import 具体模块，不按模块 id 写分支。
+6. 新增模块 = 在树中新增节点并提供工厂，不修改 `app` 主流程。
+7. 禁用、替换、卸载由节点绑定和生命周期统一处理；启动失败整体回滚，不留下半装配实例。
+8. 模块只依赖公共契约；容器和 `app` 不知道模块内部作用。模块应能脱离主启动器单独测试。
+
+验收标准：
+
+```text
+app.py 不出现具体模块 import
+新增 app/host/services/<id> 不需修改 app.py
+新增 app/kernel/modules/<id> 不需修改 app.py
+删除节点后缺失依赖显式失败
+所有路径只有一个 app 根
+装配失败可整体回滚
+单模块可独立测试
+```
+
+当前实现状态：
+
+- `SlotTree` / `SlotRuntime` / `SlotComponent` / `SlotContainer` 位于 `agent/core/`。
+- 启动清单为 [slot_tree.json](../agent/boot/slot_tree.json)，当前包含 `app/boot`、`app/host`、`app/kernel` 下 67 个节点（含冻结的 `app/auth` 鉴权边界），另有 23 条 backend slot 声明。
+- `App` 不再是装配根；[bootstrap.py](../agent/boot/bootstrap.py) 读取清单、创建根节点并递归装配。
+- 节点契约包含 `path`、`factory`、`requires`、`master`、`enabled`、`metadata`；容器只装配直接子节点。
+- 宿主服务、内置工具、壳层组件、内核模块描述符均由启动树节点装配。
+- UI、settings、route、backend 贡献路径由 `PluginContext` 注册为同一棵 `SlotTree` 的动态节点；路径数据位于 `plugins/<name>/plugin-ui.json`；backend 容器声明在 `agent/boot/slot_tree.json` 的 `backend_slots`。
+- `SlotRegistry` 仍是插件扩展点的运行期绑定与快照机制；启动组件与插件贡献统一由 `SlotTree` 持有。
+- `app.py` 是应用门面，只保留会话、绑定、命令入口。
+
+启动装配已经由插口树驱动；插件贡献仍属于运行期扩展点。
+
+### 装配
+
+`boot_app()` 按顺序完成启动：
+
+1. 读配置（`agent/config.py`），决定 provider、数据根、Skills 库与插件清单。
+2. 读取 `agent/boot/slot_tree.json`，由 `SlotTree` materialize 根节点并递归 assembly。
+3. `facade` 节点构建 `AppContext` 与 `App`；`plugins` 节点加载插件，贡献以动态节点挂回同一棵树。
+4. 返回 `App`，其属性是 `context.get(name)` 的快捷方式。
+
+`build_shell_app()` 在 `agent/entry/web.py` 里包一层：按配置建真实 provider 与会话存储，再交给 `build_app()`。
+装配根（`boot/`）与应用门面（`app.py`）、入口层（`entry/`）是最上面几层：下层四层不得运行期导入它们，
+`entry/` 也不得被任何层导入；入口层可以导入装配根。`python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` 是三个进程入口。
+
+下面的五层结构是插件树运行的底座，不是插件清单。
 
 ## 五层结构
 
@@ -16,11 +130,13 @@ entry  →  shell  →  capabilities  →  mechanisms  →  core
 
 | 层 | 目录 | 职责 | 依赖 |
 |---|---|---|---|
-| L0 内核 | `agent/core/` | 模块链、宿主循环、事件与数据契约、端口 | 无 |
-| L1 机制 | `agent/mechanisms/` | 模型调用、上下文管线与压缩、写盘门控、会话存储、协作网格 | core |
-| L2 能力 | `agent/capabilities/` | 工具注册表、内置工具、插件加载 | core, mechanisms |
-| L3 壳层 | `agent/shell/` | HTTP + SSE 服务、界面打包、系统提示词、经典界面适配 | 全部下层 |
-| L4 入口 | `agent/entry/` | 进程入口：读配置 → 建 `App` → 交给壳跑 | 全部下层 |
+| L0 内核 | `agent/core/` | 模块链、宿主循环、事件与数据契约、端口 | common |
+| L1 机制 | `agent/mechanisms/` | 模型调用、上下文管线与压缩、写盘门控、会话存储、协作网格 | core, common |
+| L2 能力 | `agent/capabilities/` | 工具注册表、内置工具、插件加载 | core, mechanisms, common |
+| L3 壳层 | `agent/shell/` | HTTP + SSE 服务、界面打包、系统提示词、经典界面适配 | 全部下层、common |
+| L4 入口 | `agent/entry/` | 进程入口：读配置 → 建 `App` → 交给壳跑 | 全部下层、common |
+
+`agent/common/` 是各层共享的状态词汇，自身不依赖任何层，也不属于五层。
 
 ### 层内包
 
@@ -34,10 +150,12 @@ entry  →  shell  →  capabilities  →  mechanisms  →  core
 | `agent/shell/classic_adapter/` | 入站/出站门面、历史、布局、状态、会话、经典契约 |
 | `agent/shell/web/` | 路由、静态资源、经典页面/SSE、插件端点、WebShell 业务 |
 | `agent/subagent/` | 父子会话仓库、批次、生命周期、消息投递；由装配根注入，壳层不直接实现 |
+| `agent/common/` | 子系统共享状态词汇；不含行为，不导入任何层 |
 | `plugins/<name>/` | 插件自有工具、配置、UI、主题与图标 |
 
-`agent/app.py` 是**装配根**，不属于任何一层。它是唯一同时引用五层的文件，负责构建 `AppContext` 并登记服务。
-下层四层不得运行期导入装配根或入口层（`if TYPE_CHECKING:` 的纯注解除外）；入口层可以导入装配根。
+`agent/boot/` 是**装配根**，不属于五层；由 `boot_app` 读取 `slot_tree.json` 并递归装配。
+`agent/app.py` 是应用门面，只保留会话、绑定与命令入口。
+下层四层不得运行期导入装配根、应用门面或入口层（`if TYPE_CHECKING:` 的纯注解除外）；入口层可以导入装配根。
 这条规则和"层间单向"由同一道门禁检查，`--scc` 可打印全包强连通分量用于审计。
 
 ## 双轨：决策链与事件总线
@@ -99,7 +217,7 @@ class Ports:
     def canceled()          # 宿主是否已请求停止
 ```
 
-请求契约是 `LogicalRequest`：与具体模型无关的 `messages` / `tools` / `system` / `effort` / `model` / `conversation_id`。provider 负责把它翻译成某个网关的 wire 格式。
+请求契约是 `LogicalRequest`：与具体模型无关的 `messages` / `tools` / `effort` / `model` / `turn_start` / `conversation_id`。provider 负责把它翻译成某个网关的 wire 格式。
 
 `Ports` 上可用的入口：`model_port`、`tool_port`、`log`（事实只读视图）、`conversation_id`、`emit`、`canceled`。模块需要的一切外部能力都从这几个口走。
 
@@ -144,19 +262,6 @@ class Ports:
 由此得到一条结构性保证：**模型可见 ⟺ 已记录**。过滤、清理、格式化必须发生在落盘之前，落盘后的事实不可改写。
 
 事件格式向前兼容：读取时**未知事件类型一律跳过**，所以旧会话在新代码下照常可读。
-
-## 装配
-
-`app.py` 的 `build_app()` 按顺序做四件事：
-
-1. 读配置（`agent/config.py`），决定 provider、数据根、Skills 库与插件清单。
-2. 建工具注册表与门控，装配工具管道、事件总线、插件宿主；清单里的插件在此加载。
-3. 装配上下文管线工厂与压缩器工厂。
-4. 构建 `AppContext`，按逆序即清理序登记全部进程级服务；返回 `App`，其属性是 `context.get(name)` 的快捷方式。
-
-`build_shell_app()` 在 `agent/entry/web.py` 里包一层：按配置建真实 provider 与会话存储，再交给 `build_app()`。
-装配根（`app.py`）与入口层（`entry/`）是最上面两层：下层四层不得运行期导入它们，
-`entry/` 也不得被任何层导入；入口层可以导入装配根。`python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` 是三个进程入口。
 
 ## 架构硬约束
 

@@ -9,8 +9,12 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agent.capabilities.model_catalog import ModelEntry
+from agent.capabilities.plugin_paths import load_plugin_paths
 from agent.capabilities.plugins import plugin_config_fields
+from agent.core.error_report import report_error
 from agent.mechanisms.provider_registry import known_kinds
+
+PATHS = load_plugin_paths(__file__)
 
 CONFIG_FILE = "plugin-config.ini"
 SECTION_PREFIX = "model:"
@@ -64,6 +68,7 @@ def _emit(lines: Sequence[str], path: Path) -> None:
     _LAST_DIAG[str(path)] = signature
     for line in signature:
         print(line, file=sys.stderr, flush=True)
+        report_error("plugins.multi_model._emit", RuntimeError(line))
 
 def _as_bool(raw: str, path: Path, section: str, key: str,
              lines: List[str]) -> Optional[bool]:
@@ -287,13 +292,18 @@ def register(ctx: Any) -> List[Callable[[], None]]:
     base = plugin_config_fields(path.parent)
     if not base["name"]:
         # 身份只影响设置页展示，不阻断装载。
-        print(f"[plugin:multi_model] {path.parent} plugin-meta.json 缺少 name", file=sys.stderr)
+        report_error("plugins.multi_model._read_meta", RuntimeError(
+            f"{path.parent} plugin-meta.json 缺少 name"))
 
     return [
-        ctx.add_settings_panel("settings/model", "模型设置"),
-        ctx.add_ui_item("web-ui/input/buttons/model_switch_btn", kind="button",
+        ctx.add_settings_panel(PATHS["settings_panel"], "模型设置"),
+        ctx.add_ui_item(PATHS["button"], kind="button",
                         props={"label": "模型选择", "action": "model.open",
+                               "binding": {"model_slot": True,
+                                           "input": {"native": "#modelPickerSlot .mm-picker-btn"}},
                                "scripts": ["ui/model-picker.js"]}, order=40),
         ctx.add_model_catalog(lambda: parse_config(path)[0]),
-        ctx.add_route("GET", "catalog", _catalog),
+        ctx.add_route(
+            "GET", "catalog", _catalog,
+            slot_path="app/backend/http/routes/multi_model-catalog"),
     ]

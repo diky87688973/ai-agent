@@ -8,7 +8,7 @@
   ④ 并发与停止：同会话并发 send → 入队；stop 下发协作式取消；
   ⑤ Markdown 注入防线（浏览器，需 Playwright）：XSS 向量在真实页面上必须被转义；
   ⑥ 设置面板（浏览器，需 Playwright）：分区、插件清单与各编辑器都要真的渲染；
-  ⑦ AI说话播放器（浏览器，需 Playwright）：启动脚本注入播放条，插件事件可送达，
+  ⑦ AI角色扮演播放器（浏览器，需 Playwright）：启动脚本注入播放条，插件事件可送达，
     关闭插件后播放条撤销；
   ⑧ Todo 清单关闭（浏览器，需 Playwright）：close 后清单 DOM 隐藏。
 运行：python scripts/acceptance_web.py（全部通过退出码 0；场景 ⑤⑥⑦⑧ 需 Playwright）
@@ -86,7 +86,7 @@ SETTINGS_GROUPS = [
 ]
 
 class ScriptedProvider:
-    """三步写盘的 provider 替身：
+    """四步写盘的 provider 替身：
     ① write_file 预览（不落盘）→ ② review_conclusion 审阅并解锁 → ③ commit_write 落盘。
     每步在各自的回合里发一个工具调用（脚本按序驱动多个回合）。
     """
@@ -110,7 +110,7 @@ class ScriptedProvider:
                 continue
             if not isinstance(data, dict):
                 continue
-            # 模型侧信封：`{"ok":true,"data":{…confirm_id…}}`；兼容旧裸 data
+            # 模型侧信封：`{"ok":true,"data":{…confirm_id…}}`；裸 data 也可读
             inner = data.get("data") if isinstance(data.get("data"), dict) else data
             if isinstance(inner, dict) and inner.get("confirm_id"):
                 return str(inner["confirm_id"])
@@ -212,7 +212,7 @@ class Acceptance:
 
     @staticmethod
     def _manifest(root: Path) -> Path:
-        """本脚本的插件清单：知识库（勾选端点）与 AI说话（播放器启动脚本）。
+        """本脚本的插件清单：知识库（勾选端点）与 AI角色扮演（播放器启动脚本）。
 
         不用工程根的 `plugins.ini`：那会把多模型插件一起装上，而它的私有配置
         一旦有效，模型路由就被目录接管——结果取决于开发机上有没有配置过。
@@ -222,7 +222,7 @@ class Acceptance:
             "[plugin:base_settings]\nversion = 1.0\n\n"
             "[plugin:web_ui]\nversion = 1.0\n\n"
             "[plugin:knowledge]\nversion = 1.0\n"
-            "[plugin:ai_speak]\nversion = 1.0\n",
+            "[plugin:ai_cosplay]\nversion = 1.0\n",
             encoding="utf-8",
         )
         return path
@@ -379,14 +379,12 @@ class Acceptance:
         self.check("媒体越界读盘被拒", status == 403, str(status))
         inside = self.root / "inside_probe.png"
         inside.write_bytes(b"\x89PNG\r\n\x1a\n")
-        self.shell.media_root = self.root  # 便于验证根内可读
         status, body = self.get("/api/media?path=" + urllib.parse.quote(str(inside)))
         self.check(
             "媒体根内文件可读",
             status == 200 and body.startswith(b"\x89PNG"),
             str(status),
         )
-        self.shell.media_root = Path.cwd()
 
     def scenario_2(self) -> None:
         print("\n场景② 协议闭环")
@@ -464,7 +462,7 @@ class Acceptance:
         )
 
     def scenario_3(self) -> None:
-        print("\n场景③ 写盘门控闭环经 Web 层—— 三步写盘")
+        print("\n场景③ 写盘门控闭环经 Web 层—— 四步写盘")
 
         # ── (a) 正常链路：一个回合内走完 预览 → review 解锁 → 提交落盘 ──
         cid = "accept-gate-01"
@@ -479,7 +477,7 @@ class Acceptance:
         self.post("/api/chat/send", {"message": "写文件", "conversation_id": cid})
         self.wait_turn(cid)
         confirm_id = self.confirm_id_of(cid)
-        self.check("预览产生 confirm_id（三步链路第一环）", bool(confirm_id), repr(confirm_id))
+        self.check("预览产生 confirm_id（四步链路第一环）", bool(confirm_id), repr(confirm_id))
         names = [f.get("name") for f in self.frames if f.get("type") == "tool_started"]
         self.check(
             "链路顺序为 预览 → review → 提交",
@@ -487,7 +485,7 @@ class Acceptance:
             str(names),
         )
         self.check(
-            "三步走完后内容已落盘且正确",
+            "四步走完后内容已落盘且正确",
             self.target.is_file() and self.target.read_text(encoding="utf-8") == "web-accept-ok",
             f"exists={self.target.exists()}",
         )
@@ -765,12 +763,13 @@ class Acceptance:
         self.check("结构化编辑器无未捕获异常", not errors, f"{errors[:2]}")
 
     def scenario_7(self) -> None:
-        """AI说话播放器：启动脚本注入、插件事件送达、关闭插件后撤销。"""
+        """AI角色扮演播放器：启动脚本注入、插件事件送达、关闭插件后撤销。"""
         try:
             from acceptance_web_player import run
         except ImportError:
             from scripts.acceptance_web_player import run
-        run(self)
+        if run(self) == 2:
+            print("  [SKIP] AI角色扮演播放器场景因依赖缺失跳过")
 
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="accept-web-") as tmp:
@@ -785,7 +784,8 @@ def main() -> int:
             acc.scenario_6()
             acc.scenario_7()
             from scripts.acceptance_web_todo import run as run_todo_close
-            run_todo_close(acc)
+            if run_todo_close(acc) == 2:
+                print("  [SKIP] todo 关闭场景因依赖缺失跳过")
         finally:
             acc.close()
         print()

@@ -12,7 +12,7 @@ class _Ctx:
         self.panels = []
         self.items = []
 
-    def add_settings_panel(self, panel_id, title):
+    def add_settings_panel(self, panel_id, title, *, replace=False):
         self.panels.append((panel_id, title))
         return lambda: None
 
@@ -29,8 +29,8 @@ class BaseSettingsPluginTest(unittest.TestCase):
         ctx = _Ctx()
         register(ctx)
         self.assertEqual([panel[0] for panel in ctx.panels], [
-            "settings/agent", "settings/context",
-            "settings/interface", "settings/plugin",
+            "app/settings/agent", "app/settings/context",
+            "app/settings/interface", "app/settings/plugin",
         ])
         self.assertEqual(len(ctx.items), 10)
         self.assertTrue(all(item[2]["save"] for item in ctx.items))
@@ -38,7 +38,7 @@ class BaseSettingsPluginTest(unittest.TestCase):
     def test_does_not_register_model_panel(self) -> None:
         ctx = _Ctx()
         register(ctx)
-        self.assertNotIn("settings/model", [panel[0] for panel in ctx.panels])
+        self.assertNotIn("app/settings/model", [panel[0] for panel in ctx.panels])
 
 
 if __name__ == "__main__":

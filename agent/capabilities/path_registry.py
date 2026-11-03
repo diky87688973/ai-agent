@@ -105,7 +105,12 @@ class PathRegistry:
             owner=str(owner or "*"),
         )
         self.slots[pattern] = slot
-        return lambda: self.slots.pop(pattern, None)
+
+        def _drop_slot() -> None:
+            if self.slots.get(pattern) is slot:
+                del self.slots[pattern]
+
+        return _drop_slot
 
     def _parent_slot(self, path: str) -> Tuple[PathSlot, str]:
         parts = split_path(path)
@@ -117,11 +122,8 @@ class PathRegistry:
                 return slot, parts[-1]
         raise PathRegistryError(f"父插口未注册：{parent}")
 
-    def register(
-        self, path: str, *, kind: str, owner: str,
-        handler: Optional[Callable[..., Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Callable[[], None]:
+    def validate(self, path: str, *, kind: str, owner: str) -> None:
+        """只校验路径是否落在父插口协议内，不写入 entry。"""
         if path in self.entries:
             raise PathRegistryError(f"路径已注册：{path}")
         slot, child = self._parent_slot(path)
@@ -135,10 +137,22 @@ class PathRegistry:
             raise PathRegistryError(f"kind 不被插口接受：{kind}")
         if slot.owner != "*" and slot.owner != owner:
             raise PathRegistryError(f"owner 不被插口接受：{owner}")
+
+    def register(
+        self, path: str, *, kind: str, owner: str,
+        handler: Optional[Callable[..., Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Callable[[], None]:
+        self.validate(path, kind=kind, owner=owner)
         entry = PathEntry(path=path, kind=str(kind), owner=str(owner),
                           handler=handler, metadata=dict(metadata or {}))
         self.entries[path] = entry
-        return lambda: self.entries.pop(path, None)
+
+        def _drop_entry() -> None:
+            if self.entries.get(path) is entry:
+                del self.entries[path]
+
+        return _drop_entry
 
     def get(self, path: str) -> PathEntry:
         entry = self.entries.get(str(path or ""))

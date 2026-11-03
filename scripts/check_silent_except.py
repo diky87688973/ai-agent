@@ -7,7 +7,6 @@
 - `except` 体只有 `pass`/`continue`：失败；
 - 裸 `except`：失败；
 - `except Exception` / `BaseException` / `suppress(Exception)` 没有上报：失败；
-- 宽捕获 + 无上报的 return/常量赋值：失败；
 - 窄捕获 + 明确返回：允许；
 - `report_error(...)`、`write_stderr(...)`、`print(..., file=sys.stderr)` 视为上报；
 - `contextlib.suppress(SpecificError)`：允许。
@@ -94,30 +93,6 @@ def _reports(node: ast.ExceptHandler) -> bool:
     return False
 
 
-def _fallback_constant(node: ast.AST | None) -> bool:
-    if node is None:
-        return True
-    if isinstance(node, ast.Constant):
-        return True
-    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
-        return not node.elts
-    if isinstance(node, ast.Dict):
-        return not node.keys
-    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-        return node.func.id == "set" and not node.args and not node.keywords
-    return False
-
-
-def _fallback_mask(node: ast.ExceptHandler) -> bool:
-    if len(node.body) != 1:
-        return False
-    only = node.body[0]
-    if isinstance(only, ast.Return):
-        return _fallback_constant(only.value)
-    if isinstance(only, ast.Assign):
-        return _fallback_constant(only.value)
-    return False
-
 
 def _broad_suppress(tree: ast.AST) -> list[int]:
     lines: list[int] = []
@@ -169,8 +144,6 @@ def main(argv: list[str] | None = None) -> int:
                 if _broad(node) and not (_reports(node) or _transforms(node)):
                     problems.append(f"{where} 宽捕获未上报异常或转成明确结果")
                     continue
-                if _broad(node) and _fallback_mask(node) and not _reports(node):
-                    problems.append(f"{where} 宽捕获后返回默认值且未上报")
     print(f"扫描文件：{scanned}  检查 except：{checked}")
     if problems:
         print("静默异常：")

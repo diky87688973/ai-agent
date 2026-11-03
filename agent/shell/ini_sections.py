@@ -21,7 +21,7 @@ def newline(text: str) -> str:
 def section_at(line: str) -> Optional[str]:
     """该行是不是节头；是则返回节名（去空白），否则 None。
 
-    注释行与不完整的方括号都不算节头 —— `; [plugin:ai_speak]` 是注释示例，
+    注释行与不完整的方括号都不算节头 —— `; [plugin:ai_cosplay]` 是注释示例，
     不能当成真实节参与查找。
     """
     raw = line.strip()
@@ -125,39 +125,54 @@ def update_ini_keys(text: str, section: str, updates: dict) -> str:
     if not updates:
         return text
     pending = {str(key): str(value) for key, value in updates.items()}
-    for value in pending.values():
-        if "\n" in value or "\r" in value:
-            raise ValueError("配置值不能换行")
     lines = text.splitlines(keepends=True)
     nl = newline(text) if text else "\n"
+
+    def render(prefix: str, key: str, value: str) -> list[str]:
+        parts = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        block = [f"{prefix}{key} = {parts[0]}{nl}"]
+        block.extend(("    " + part if part else "    ") + nl for part in parts[1:])
+        return block
+
     span = section_span(lines, section)
     if span is None:
         block = [f"[{section}]{nl}"]
-        block.extend(f"{key} = {value}{nl}" for key, value in pending.items())
+        for key, value in pending.items():
+            block.extend(render("", key, value))
         if text and not text.endswith(("\n", "\r")):
             text += nl
         if text and not text.endswith(nl + nl):
             text += nl
         return text + "".join(block)
     start, end = span
-    for index in range(start + 1, end):
+    index = start + 1
+    while index < end:
         body = lines[index].rstrip("\r\n")
         matched = _KEY_RE.match(body)
         if matched is None:
+            index += 1
             continue
         key = matched.group(2)
         found = next((want for want in pending if want.lower() == key.lower()), None)
         if found is None:
+            index += 1
             continue
-        ending = lines[index][len(body):] or nl
-        lines[index] = f"{matched.group(1)}{key}{matched.group(3)}{pending.pop(found)}{ending}"
+        block_end = index + 1
+        while block_end < end and lines[block_end][:1].isspace():
+            block_end += 1
+        replacement = render(matched.group(1), key, pending.pop(found))
+        del lines[index:block_end]
+        lines[index:index] = replacement
+        end += len(replacement) - (block_end - index)
+        index += len(replacement)
     if pending:
         insert_at = end
         while insert_at > start + 1 and lines[insert_at - 1].strip() == "":
             insert_at -= 1
-        lines[insert_at:insert_at] = [
-            f"{key} = {value}{nl}" for key, value in pending.items()
-        ]
+        block = []
+        for key, value in pending.items():
+            block.extend(render("", key, value))
+        lines[insert_at:insert_at] = block
     return "".join(lines)
 
 

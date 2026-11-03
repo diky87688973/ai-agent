@@ -13,11 +13,12 @@ import io
 import os
 import re
 import subprocess
+import threading
 import time
 import traceback
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agent.capabilities.registry import ToolPlugin
 from agent.core.error_report import report_error
@@ -27,8 +28,9 @@ from agent.core.session_scope import (
     current_session_id,
     emit_progress,
 )
+from agent.core.thread_context import thread_with_context
 from agent.mechanisms.command_safety import (
-    STREAM_OUTPUT_MAX_CHARS,
+STREAM_OUTPUT_MAX_CHARS,
     STREAM_OUTPUT_STDERR_MAX_CHARS,
     CommandBlacklisted,
     check_command_blacklist,
@@ -46,6 +48,9 @@ from agent.mechanisms.live_state import (
     register_command_input_target,
     unregister_command_input_target,
 )
+
+#: python_inline 修改进程 cwd 时串行化，避免并发会话互相改工作目录。
+_PY_INLINE_CWD_LOCK = threading.Lock()
 
 #: 交互提示检测。
 _INTERACTIVE_PROMPT_RE = re.compile(
@@ -209,24 +214,26 @@ def _pump(
     err_chunks: List[bytes],
     timeout: float,
     progress: Any = None,
+    readers: Optional[List[Any]] = None,
 ) -> str:
     """边读边上报 stdout/stderr；返回 "ok" / "timeout" / "canceled"。"""
     import threading
     start_ts = time.time()
     deadline = start_ts + max(0.0, float(timeout))
-    readers: List[Any] = []
     reporter = current_progress_reporter()
     tail = {"text": ""}
     tail_lock = threading.Lock()
     report = lambda name, chunk: _pump_report(
         reporter, progress, tail, tail_lock, name, chunk)
-    for stream, chunks, name in ((proc.stdout, out_chunks, "stdout"),
-                                 (proc.stderr, err_chunks, "stderr")):
-        thread = threading.Thread(
-            target=_pump_reader, args=(stream, chunks, name, report),
-            name=f"fa-tool-{name}", daemon=True)
-        thread.start()
-        readers.append(thread)
+    if not readers:
+        readers = []
+        for stream, chunks, name in ((proc.stdout, out_chunks, "stdout"),
+                                     (proc.stderr, err_chunks, "stderr")):
+            thread = thread_with_context(
+                target=_pump_reader, args=(stream, chunks, name, report),
+                name=f"fa-tool-{name}", daemon=True)
+            thread.start()
+            readers.append(thread)
     turn = getattr(current_context(), "turn", None)
     state = {"stdin_eof": False, "awaiting_since": 0.0}
     while True:
@@ -325,12 +332,13 @@ class RunCommandTool(ToolPlugin):
         out_chunks: list[bytes] = []
         err_chunks: list[bytes] = []
         try:
-            outcome = _pump(proc, out_chunks, err_chunks, timeout, progress)
+            readers: List[Any] = []
+            outcome = _pump(proc, out_chunks, err_chunks, timeout, progress, readers)
             if outcome in ("timeout", "canceled"):
                 # 超时与"用户停止"都要真的杀掉进程树：只退出内核循环不够，
                 # 子进程会继续跑到自然结束。
                 kill_shell_process_tree(proc.pid)
-                _pump(proc, out_chunks, err_chunks, 10.0, progress)
+                _pump(proc, out_chunks, err_chunks, 10.0, progress, readers)
         finally:
             if cmd_key:
                 unregister_command_input_target(cmd_key)
@@ -404,12 +412,19 @@ class PythonInlineTool(ToolPlugin):
         if not code.strip():
             raise ValueError("缺少 code")
         raw_cwd = str(arguments.get("cwd") or "").strip()
-        old_cwd = Path.cwd()
+        target = None
         if raw_cwd:
             target = Path(raw_cwd)
             if not target.is_dir():
                 raise NotADirectoryError(f"工作目录不存在或不是目录：{target}")
-            os.chdir(target)
+        _PY_INLINE_CWD_LOCK.acquire()
+        old_cwd = Path.cwd()
+        try:
+            if target is not None:
+                os.chdir(target)
+        except Exception:
+            _PY_INLINE_CWD_LOCK.release()
+            raise
         ran_in = Path.cwd()
         buffer_out = io.StringIO()
         buffer_err = io.StringIO()
@@ -430,6 +445,7 @@ class PythonInlineTool(ToolPlugin):
         finally:
             if raw_cwd:
                 os.chdir(old_cwd)
+            _PY_INLINE_CWD_LOCK.release()
             emit_progress(done=True)
         return {
             "exit_code": int(exit_code),

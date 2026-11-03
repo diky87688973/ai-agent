@@ -48,7 +48,9 @@ html[data-side-empty] #classicSplitResizer{flex:0 0 0;width:0;min-width:0;border
 .chat-more-btn .rail-ico-close{display:none}
 .chat-more-btn[aria-expanded="true"] .rail-ico-open{display:none}
 .chat-more-btn[aria-expanded="true"] .rail-ico-close{display:inline}
-.chat-more-btn:hover,.chat-more-btn[aria-expanded="true"]{background:rgba(120,130,145,.10);color:#d0d7de}
+.chat-more-btn:hover{background:transparent;color:#d0d7de}
+.chat-more-btn[aria-expanded="true"]{background:transparent;color:#8f98a5}
+.chat-more-btn[aria-expanded="true"]:hover{background:transparent;color:#d0d7de}
 .session-rail-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;box-sizing:border-box;min-height:37px;padding:6px 8px;border-bottom:1px solid #333}
 #sessionRailNew{flex:0 0 auto}
 /* 左栏是会话清单。收起时宽度为 0，展开后的具体宽度由脚本写到元素上，这里只卡住 500 上限。 */

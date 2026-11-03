@@ -199,7 +199,9 @@ class FileBackups:
             with _LOCK:
                 (ver_dir / METADATA_NAME).write_text(
                     json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
-        except OSError:
+        except OSError as exc:
+            report_error("agent.mechanisms.file_safety.FileBackups.create", exc,
+                         path=str(target))
             return None
         return str(metadata["mod_id"])
 
@@ -254,7 +256,9 @@ class FileBackups:
         removed = kept = 0
         try:
             groups = list(self.root.iterdir())
-        except OSError:
+        except OSError as exc:
+            report_error("agent.mechanisms.file_safety.FileBackups.prune", exc,
+                         path=str(self.root))
             return 0, 0
         for group in groups:
             if not group.is_dir():
@@ -275,7 +279,9 @@ class FileBackups:
                 if m.group(1) < cutoff:
                     try:
                         shutil.rmtree(ver)
-                    except OSError:
+                    except OSError as exc:
+                        report_error("agent.mechanisms.file_safety.FileBackups.prune", exc,
+                                     path=str(ver))
                         kept += 1
                         continue
                     removed += 1
@@ -310,3 +316,15 @@ class Recycle:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src), str(dest))
         return dest
+
+
+
+def build_file_safety(data_root: Any, backup_root: Any = None,
+                      recycle_root: Any = None) -> tuple[Any, Any]:
+    """按数据根和可选覆盖目录构造备份库与回收站。"""
+    data = Path(data_root)
+    backups = FileBackups(
+        Path(backup_root) if backup_root is not None else data / "temp" / "file_backup")
+    recycle = Recycle(
+        Path(recycle_root) if recycle_root is not None else data / "recycle")
+    return backups, recycle

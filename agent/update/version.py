@@ -5,13 +5,40 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from functools import total_ordering
 from pathlib import Path
 from typing import Optional
 
 _VERSION_RE = re.compile(r"^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<pre>[0-9A-Za-z.-]+))?$")
 
 
-@dataclass(frozen=True, order=True)
+def _compare_prerelease(left: str, right: str) -> int:
+    """SemVer 2.0 预发布优先级；返回 -1 / 0 / 1。"""
+    if not left and not right:
+        return 0
+    if not left:
+        return 1                  # 正式版高于同版本预发布
+    if not right:
+        return -1
+    lparts = left.split(".")
+    rparts = right.split(".")
+    for lpart, rpart in zip(lparts, rparts):
+        ln, rn = lpart.isdigit(), rpart.isdigit()
+        if ln and rn:
+            li, ri = int(lpart), int(rpart)
+            if li != ri:
+                return -1 if li < ri else 1
+        elif ln != rn:
+            return -1 if ln else 1   # 数字标识符低于字母标识符
+        elif lpart != rpart:
+            return -1 if lpart < rpart else 1
+    if len(lparts) != len(rparts):
+        return -1 if len(lparts) < len(rparts) else 1
+    return 0
+
+
+@total_ordering
+@dataclass(frozen=True)
 class Version:
     major: int
     minor: int
@@ -30,6 +57,16 @@ class Version:
             int(match.group("patch")),
             str(match.group("pre") or ""),
         )
+
+    def _core(self) -> tuple[int, int, int]:
+        return (self.major, self.minor, self.patch)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, Version):
+            return NotImplemented
+        if self._core() != other._core():
+            return self._core() < other._core()
+        return _compare_prerelease(self.prerelease, other.prerelease) < 0
 
     def __str__(self) -> str:
         base = f"{self.major}.{self.minor}.{self.patch}"
@@ -60,15 +97,11 @@ def is_dev_checkout(root: Optional[Path] = None) -> bool:
 
 
 def is_newer(remote: Version, local: Version) -> bool:
-    """stable 语义：只接受更高版本；预发布不高于同版本正式版。"""
+    """SemVer 优先级：主次补丁优先，预发布按标识符规则比较。"""
     if remote.major != local.major:
         return remote.major > local.major
     if remote.minor != local.minor:
         return remote.minor > local.minor
     if remote.patch != local.patch:
         return remote.patch > local.patch
-    if not remote.prerelease:
-        return bool(local.prerelease)
-    if not local.prerelease:
-        return False
-    return remote.prerelease > local.prerelease
+    return _compare_prerelease(remote.prerelease, local.prerelease) > 0

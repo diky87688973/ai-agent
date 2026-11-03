@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict
 
+from agent.capabilities.slot_registry import UI_PREFIX
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.web.web_ui_config import get_web_ui
 
@@ -29,9 +30,11 @@ class ClassicRoutes:
 
         html = inline_ui_html(APP_VERSION)
         # 开关按请求注入：素材缓存不含 ini，改 web-ui-config.ini 后刷新页面即生效。
+        web_ui = get_web_ui()
+        web_ui["ui_root"] = UI_PREFIX.rstrip("/")
         html = html.replace(
             "{{WEB_UI_JSON}}",
-            json.dumps(get_web_ui(), ensure_ascii=False, separators=(",", ":")),
+            json.dumps(web_ui, ensure_ascii=False, separators=(",", ":")),
         )
         body = html.encode("utf-8")
         self.send_response(200)

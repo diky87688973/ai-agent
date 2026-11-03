@@ -8,6 +8,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from agent.common.status import (
+    MODEL_CONFIG_CATALOG,
+    MODEL_CONFIG_NONE,
+)
 from agent.config import (
     DEFAULT_COMPRESSION_PERCENT,
     DEFAULT_CONTEXT_WINDOW,
@@ -59,7 +63,7 @@ class AppModelPolicy:
         return {
             "source": self.model_config_state,
             "authoritative": bool(snapshot is not None and snapshot.authoritative),
-            "degraded": self.model_config_state == "none",
+            "degraded": self.model_config_state == MODEL_CONFIG_NONE,
         }
 
     def model_for(self, conversation_id: str) -> str:
@@ -71,7 +75,15 @@ class AppModelPolicy:
         state = self.live_state
         current = str(state.get_model(conversation_id) or "").strip()
         allowed = self.available_models()
-        if not allowed or not current or current in allowed:
+        if not allowed:
+            # 目录/插件全部撤下时，旧会话里的模型 id 已经无意义。
+            # 返回空串让 MissingProvider 报“未配置模型”，不能继续把
+            # 已失效的 id 带进请求。
+            if current and self.model_config_state == MODEL_CONFIG_NONE:
+                state.set_model(conversation_id, "")
+                return ""
+            return current
+        if not current or current in allowed:
             return current
         snapshot = self._catalog_snapshot()
         fallback = (str(snapshot.default_id or "") if snapshot is not None
@@ -118,7 +130,7 @@ class AppModelPolicy:
 
     def reload_model_config(self, config_path: Optional[Path] = None) -> str:
         """返回模型配置来源说明；模型由多模型插件维护。"""
-        if self.model_config_state == "catalog":
+        if self.model_config_state == MODEL_CONFIG_CATALOG:
             return "模型目录权威，配置由多模型插件维护"
         return "模型由多模型插件维护"
 
@@ -126,7 +138,7 @@ class AppModelPolicy:
         """插件装卸后重算权威来源：目录接管则刷新路由，否则清空模型。"""
         snapshot = self._catalog_snapshot()
         if snapshot is not None and snapshot.authoritative:
-            self.model_config_state = "catalog"
+            self.model_config_state = MODEL_CONFIG_CATALOG
             self._available_models = [item.id for item in snapshot.entries]
             self.live_state.default_model = snapshot.default_id
             self._reload_policy(self._available_models, snapshot.default_id, False)
@@ -140,7 +152,7 @@ class AppModelPolicy:
                    default_id=default_id, fallback_to_default=fallback)
 
     def _mark_model_config_none(self) -> str:
-        self.model_config_state = "none"
+        self.model_config_state = MODEL_CONFIG_NONE
         self._available_models = []
         self.live_state.default_model = ""
         reloader = getattr(self.provider, "reload_default", None)

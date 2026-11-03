@@ -2,6 +2,8 @@
 
 # Desktop operation interaction layer
 
+Status: implemented.
+
 ## 1. Summary
 
 The desktop tool surface exposes coordinate primitives: the model chooses which window to look at, estimates where a control is, and infers from a later screenshot whether its action worked. On a real task this becomes repeated attempts to bring a window to the foreground, coordinates read from a scaled screenshot, and text delivered to a window other than the intended one. Three gaps produce that loop: input has no target validation, actions return no receipt, and there is no window layer.

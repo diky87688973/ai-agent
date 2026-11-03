@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import sys
 import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from agent.common.status import AGENT_IDLE, AGENT_STATUSES, require
 from agent.core.error_report import report_error
 from agent.mechanisms.conversation_queue import ConversationQueue
 from agent.mechanisms.run_registry import RunRegistry, build_run_registry
@@ -66,9 +66,12 @@ class MeshState:
         if not key:
             return {}
         now = int(time.time())
+        if fields.get("status") is not None:
+            fields["status"] = require(fields["status"], AGENT_STATUSES, "Agent 状态")
         with self._lock:
             item = dict(self._agents.get(key) or {})
             item.setdefault("cid", key)
+            item.setdefault("status", AGENT_IDLE)
             item.setdefault("created_at", now)
             item["updated_at"] = now
             for name, value in fields.items():
@@ -85,6 +88,18 @@ class MeshState:
     def list_agents(self) -> Dict[str, Dict[str, Any]]:
         with self._lock:
             return {key: dict(value) for key, value in self._agents.items()}
+
+    def remove_agent(self, cid: str) -> bool:
+        """摘掉运行身份（子智能体创建失败回滚用）；不存在返回 False。"""
+        key = str(cid or "").strip()
+        if not key:
+            return False
+        with self._lock:
+            if key not in self._agents:
+                return False
+            self._agents.pop(key, None)
+            self._save_agents_locked()
+            return True
 
     # ── 待发送队列 ───────────────────────
 
@@ -210,9 +225,8 @@ class MeshState:
             path.write_text(json.dumps(data, ensure_ascii=False, indent=2),
                             encoding="utf-8")
         except Exception as exc:
-            # 状态写失败只影响下次启动重建，内存中的网格仍可用；保留 stderr 证据。
-            print(f"[mesh] agents 状态写入失败：{type(exc).__name__}: {exc}",
-                  file=sys.stderr, flush=True)
+            # 状态写失败只影响下次启动重建，内存中的网格仍可用。
+            report_error("agent.mechanisms.mesh.MeshState._save_agents_locked", exc)
 
     def _load(self) -> None:
         try:

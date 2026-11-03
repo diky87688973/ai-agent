@@ -8,7 +8,7 @@
 
 | 谁 | 管什么 |
 |---|---|
-| 宿主 | 遍历模块链、读四态、决定要不要再跑一趟、回合边界（`turn_started` / `turn_ended`） |
+| 宿主 | 遍历模块链、读控制信号、决定要不要再跑一趟、回合边界（`turn_started` / `turn_ended`） |
 | 模块 | 自己那一段的细粒度事件（如模型模块的 `llm_call_start` / `llm_call_end`，可算调用 RT） |
 
 宿主不理解任何模块的语义：它不知道什么是压缩、什么是模型、什么是工具，
@@ -24,13 +24,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator, List, Optional, Sequence
 
+from agent.common.status import require
 from agent.core.chain import run_chain_iter
 from agent.core.error_report import report_error
 from agent.core.event_name import TURN_ENDED, TURN_STARTED
 from agent.core.events import Event
 from agent.core.module import ModuleBase
+from agent.core.outcome import STOPPED, SUSPEND
 from agent.core.ports import ModelPort, Ports, ToolPort
 from agent.core.session_log import SessionLog
+from agent.core.state_values import (
+    TURN_ABANDONED,
+    TURN_DONE,
+    TURN_HALTED,
+    TURN_MAX_PASSES,
+    TURN_REASONS,
+    TURN_STOPPED,
+    TURN_SUSPENDED,
+)
 
 #: 一个回合最多跑多少趟（模型往返）。
 #:
@@ -55,18 +66,21 @@ def _asked_to_stop(cancel: Callable[[], bool]) -> bool:
 class TurnResult:
     """一次运行的结论（宿主对外的唯一交付）。"""
 
-    reason: str                     # done / halted / suspended / max_passes / abandoned
+    reason: str                     # TURN_REASONS 之一
     passes: int = 0
     detail: str = ""                # 终态原因（halt / suspend 的 reason）
 
+    def __post_init__(self) -> None:
+        self.reason = require(self.reason, TURN_REASONS, "回合结论")
+
     @property
     def ok(self) -> bool:
-        return self.reason == "done"
+        return self.reason == TURN_DONE
 
     @property
     def paused(self) -> bool:
         """是否停在"等外部输入"（挂起是终态，不是阻塞态）。"""
-        return self.reason == "suspended"
+        return self.reason == TURN_SUSPENDED
 
 
 class Host:
@@ -166,20 +180,20 @@ class Host:
                     yield self._terminal_event(result, log, conversation_id, passes)
                     return
                 if not result.wants_another:
-                    self.last_result = TurnResult(reason="done", passes=passes)
+                    self.last_result = TurnResult(reason=TURN_DONE, passes=passes)
                     yield self._append(log, TURN_ENDED, conversation_id=conversation_id,
                                      paused=False, passes=passes)
                     return
             yield self._max_passes_event(log, conversation_id, passes)
         finally:
             if self.last_result is None:      # 消费者中途放弃迭代
-                self.last_result = TurnResult(reason="abandoned", passes=passes)
+                self.last_result = TurnResult(reason=TURN_ABANDONED, passes=passes)
                 self._append(log, TURN_ENDED, conversation_id=conversation_id,
-                             paused=False, passes=passes, detail="abandoned")
+                             paused=False, passes=passes, detail=TURN_ABANDONED)
 
     def _cancel_event(self, log: SessionLog, cid: str, passes: int) -> Event:
         self.last_result = TurnResult(
-            reason="stopped", passes=passes, detail="用户请求停止")
+            reason=TURN_STOPPED, passes=passes, detail="用户请求停止")
         return self._append(
             log, TURN_ENDED, conversation_id=cid, paused=False,
             halted=False, stopped=True, passes=passes, detail="用户请求停止")
@@ -187,10 +201,11 @@ class Host:
     def _terminal_event(self, result: Any, log: SessionLog, cid: str,
                         passes: int) -> Event:
         status = result.terminal.status
-        suspended = status == "suspend"
-        stopped = status == "stopped"
+        suspended = status == SUSPEND
+        stopped = status == STOPPED
         self.last_result = TurnResult(
-            reason=("suspended" if suspended else ("stopped" if stopped else "halted")),
+            reason=(TURN_SUSPENDED if suspended else
+                    (TURN_STOPPED if stopped else TURN_HALTED)),
             passes=passes, detail=result.terminal.reason)
         return self._append(
             log, TURN_ENDED, conversation_id=cid, paused=suspended,
@@ -199,7 +214,7 @@ class Host:
 
     def _max_passes_event(self, log: SessionLog, cid: str, passes: int) -> Event:
         self.last_result = TurnResult(
-            reason="max_passes", passes=passes,
+            reason=TURN_MAX_PASSES, passes=passes,
             detail=f"本回合已达操作 {self.max_passes} 次上限"
                    f"（每次 = 模型一次往返 + 其工具调用），"
                    f"可通过 `[agent] max_passes` 配置调整每回合上限")

@@ -2,38 +2,44 @@
 """后端扩展路径插口。"""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterable, Mapping
+
+from agent.capabilities.slot_registry import canonical_slot_path
+
+#: Direct construction fallback; production boot passes the full manifest list.
+BASE_BACKEND_SLOTS = (
+    {'path': 'backend/tools', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/tools/<tool>', 'children': 'fixed', 'fixed': ('executor', 'post-write')},
+    {'path': 'backend/tools/subagents/visibility', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/tools/pipeline/pre-gates', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/tools/pipeline/pre-gates/<plugin>', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/tools/pipeline/post-observers', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/tools/pipeline/post-observers/<plugin>', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/context/sources', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/context/sources/<plugin>', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/context/assembly-hooks', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/context/assembly-hooks/<plugin>', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/context/usage-segments', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/context/usage-segments/<plugin>', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/prompt/sections', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/prompt/sections/<section>', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/prompt/mode-tails', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/events/subscriptions', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/events/subscriptions/<event>', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/http/routes', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/models/catalog', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/models/providers', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/models/routing', 'children': 'keyed', 'fixed': ()},
+    {'path': 'backend/runtime', 'children': 'keyed', 'fixed': ()},
+)
 
 
-def seed_backend_slots(paths: Any) -> None:
-    slots = (
-        ("backend/tools", "keyed", ()),
-        ("backend/tools/<tool>", "fixed", ("executor", "post-write")),
-        ("backend/tools/subagents/visibility", "keyed", ()),
-        ("backend/tools/pipeline/pre-gates", "keyed", ()),
-        ("backend/tools/pipeline/pre-gates/<plugin>", "keyed", ()),
-        ("backend/tools/pipeline/post-observers", "keyed", ()),
-        ("backend/tools/pipeline/post-observers/<plugin>", "keyed", ()),
-        ("backend/context/sources", "keyed", ()),
-        ("backend/context/sources/<plugin>", "keyed", ()),
-        ("backend/context/assembly-hooks", "keyed", ()),
-        ("backend/context/assembly-hooks/<plugin>", "keyed", ()),
-        ("backend/context/usage-segments", "keyed", ()),
-        ("backend/context/usage-segments/<plugin>", "keyed", ()),
-        ("backend/prompt/sections", "keyed", ()),
-        ("backend/prompt/sections/<section>", "keyed", ()),
-        ("backend/prompt/mode-tails", "keyed", ()),
-        ("backend/events/subscriptions", "keyed", ()),
-        ("backend/events/subscriptions/<event>", "keyed", ()),
-        ("backend/http/routes", "keyed", ()),
-        ("backend/models/catalog", "keyed", ()),
-        ("backend/models/providers", "keyed", ()),
-        ("backend/models/routing", "keyed", ()),
-        ("backend/runtime", "keyed", ()),
-    )
-    for pattern, children, fixed in slots:
-        paths.add_slot(pattern, kind="container", children=children,
-                       fixed_children=fixed, owner="*")
+def seed_backend_slots(paths: Any, backend: Iterable[Mapping[str, Any]]) -> None:
+    for row in backend:
+        paths.add_slot(
+            canonical_slot_path(str(row["path"])), kind="container",
+            children=str(row.get("children") or "none"),
+            fixed_children=tuple(row.get("fixed") or ()), owner="*")
 
 
-__all__ = ["seed_backend_slots"]
+__all__ = ["BASE_BACKEND_SLOTS", "seed_backend_slots"]

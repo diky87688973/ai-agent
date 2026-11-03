@@ -84,9 +84,6 @@ var n=chatToolName(o&&o.script);
 if(n==="python_inline")return String((o&&o.args&&o.args.code)||"");
 return String((o&&o.args&&o.args.command)||"");
 }
-function chatExecLang(script){
-return chatToolName(script)==="python_inline"?"python":"bash";
-}
 function chatThinkTail(full){
 var raw=String(full||"");
 var slice=raw.length>100?raw.slice(-100):raw;
@@ -279,7 +276,7 @@ head.setAttribute("aria-expanded","false");
 var t=document.createElement("span");t.className="chat-tool-title";t.textContent=title;
 var sum=document.createElement("span");sum.className="chat-tool-sum";sum.textContent=summary||"";
 var chev=document.createElement("span");chev.className="chat-tool-chev";chev.setAttribute("aria-hidden","true");
-head.appendChild(chev);head.appendChild(t);head.appendChild(sum);
+head.appendChild(chev);if(String(title||"").trim())head.appendChild(t);head.appendChild(sum);
 var body=document.createElement("div");body.className="chat-tool-body";
 row.appendChild(head);row.appendChild(body);
 row._title=t;row._sum=sum;row._body=body;
@@ -353,12 +350,56 @@ function registerChatToolView(view){
 if(view&&typeof view.match==="function")chatToolViews.push(view);
 return view;
 }
+function uiRoot(){
+var root=window.__webUi&&window.__webUi.ui_root;
+return String(root||"").replace(/\/+$/,"");
+}
+function chatToolViewPath(script){
+var name=chatToolName(script);
+return name?uiRoot()+"/chat/messages/tools/"+name:"";
+}
 function chatToolViewFor(script, args){
+var path=chatToolViewPath(script);
 for(var i=chatToolViews.length-1;i>=0;i--){
-if(chatToolViews[i].match(script, args))return chatToolViews[i];
+if(chatToolViews[i].path===path&&chatToolViews[i].match(script, args))return chatToolViews[i];
+}
+for(var j=chatToolViews.length-1;j>=0;j--){
+if(chatToolViews[j].match(script, args))return chatToolViews[j];
 }
 return chatToolViewDefault;
 }
+function unregisterChatToolView(path){
+var wanted=String(path||"");
+chatToolViews=chatToolViews.filter(function(view){return view.path!==wanted;});
+}
+/* 替换同路径渲染器：保存旧的同路径视图，插件卸载时可恢复。 */
+function replaceChatToolView(path, view, owner){
+var wanted=String(path||"").trim();
+if(!wanted||!view||typeof view.match!=="function")return function(){};
+var previous=chatToolViews.filter(function(item){return item.path===wanted;});
+chatToolViews=chatToolViews.filter(function(item){return item.path!==wanted;});
+view.path=wanted;
+view.owner=String(owner||window.aiAgentPluginCurrent||"");
+chatToolViews.push(view);
+var disposed=false;
+function restore(){
+if(disposed)return;
+disposed=true;
+chatToolViews=chatToolViews.filter(function(item){return item!==view;});
+if(previous.length)chatToolViews=chatToolViews.concat(previous);
+}
+view._restore=restore;
+return restore;
+}
+document.addEventListener("ai-agent:plugins-changed",function(ev){
+var loaded=(ev&&ev.detail&&Array.isArray(ev.detail.loaded))?ev.detail.loaded:[];
+var allowed={};
+for(var i=0;i<loaded.length;i++)allowed[String(loaded[i])]=true;
+for(var j=chatToolViews.length-1;j>=0;j--){
+var item=chatToolViews[j];
+if(item.owner&&!allowed[item.owner]&&typeof item._restore==="function")item._restore();
+}
+});
 function chatToolHead(o){
 var tp=buildToolTitleParts(o.script, o.args||{}, true);
 var st=String(o.stepTitle||"").trim();
@@ -476,6 +517,17 @@ if(fromRes.trim())return fromRes;
 }
 return "（无结果）";
 }
+function goalToolSummary(o){
+var args=o&&o.args||{};
+var text=String(argGet(args,"text")||"").trim();
+if(text)return text;
+var action=String(argGet(args,"action")||"").trim().toLowerCase();
+if(action==="delete")return "删除目标";
+if(action==="pause")return "暂停目标";
+if(action==="resume")return "恢复目标";
+if(action==="done")return "标记目标完成";
+return "（无目标内容）";
+}
 var chatToolViewDefault={
 match:function(){return true;},
 title:function(o){return chatToolExpandPaths(chatToolHead(o).title, o.args);},
@@ -492,6 +544,13 @@ fill:function(row, o, ev){
 if(o.chatToolRes)o.chatToolRes.textContent=chatToolResponseText(o, ev);
 }
 };
+registerChatToolView({
+match:function(script){return chatToolName(script)==="goal";},
+title:function(){return "目标";},
+summary:goalToolSummary,
+mount:function(row, o){chatToolViewDefault.mount(row, o);},
+fill:function(row, o, ev){chatToolViewDefault.fill(row, o, ev);}
+});
 registerChatToolView({
 match:function(script){return isEditFamilyTool(script);},
 title:function(o){return editFamilyTitle(o.script, o.args);},
@@ -520,10 +579,7 @@ if(src)return src;
 return chatToolName(o&&o.script)==="python_inline"?"（无代码）":"（空命令）";
 },
 mount:function(row, o){
-var src=chatExecSource(o);
-var lang=chatExecLang(o.script);
-var code=addChatToolText(addChatToolLayer(row._body,"命令","cmd"), "");
-try{code.className=hljsCodeClass(lang);code.innerHTML=highlightCode(src,lang);}catch(e){code.textContent=src;}
+/* 命令本身已在工具卡摘要里；不再额外生成一张“命令脚本”卡。 */
 var out=addChatToolText(addChatToolLayer(row._body,"执行结果","out"), "（等待输出…）");
 o.chatRunOutPre=out;
 if(!o.liveOutPre)o.liveOutPre=out;
@@ -1016,7 +1072,16 @@ row.classList.add("is-open");
 }
 });
 
-window.aiAgentChatTools={register:registerChatToolView,refresh:refreshChatToolSummaries};
+document.addEventListener("ai-agent:plugins-changed",function(ev){
+var loaded=(ev&&ev.detail&&Array.isArray(ev.detail.loaded))?ev.detail.loaded:[];
+var allowed={};
+for(var i=0;i<loaded.length;i++)allowed[String(loaded[i])]=true;
+Object.keys(chatPathRenderers).forEach(function(key){
+var item=chatPathRenderers[key];
+if(item&&item.owner&&!allowed[item.owner])delete chatPathRenderers[key];
+});
+});
+window.aiAgentChatTools={register:registerChatToolView,replace:replaceChatToolView,unregister:unregisterChatToolView,refresh:refreshChatToolSummaries};
 function appendChatToolRow(row, opts){
 if(!msgs||!row)return;
 opts=opts||{};
@@ -1045,11 +1110,77 @@ if(!o.replay)desktopStartWaitTicker(o.tid,o.script,o.args,function(left,total,el
 attachChatToolPacket(row, o);
 appendChatToolRow(row);
 }
+/* 按路径替换前端渲染器：工具壳和思考区共用同一套路径协议。 */
+var CHAT_RENDERER_THINKING=uiRoot()+"/chat/messages/thinking";
+var chatPathRenderers=Object.create(null);
+function registerPathRenderer(path, renderer, owner){
+var key=String(path||"").trim();
+if(!key||!renderer||typeof renderer.paint!=="function")return function(){};
+renderer.owner=String(owner||window.aiAgentPluginCurrent||"");
+chatPathRenderers[key]=renderer;
+var disposed=false;
+return function(){
+if(disposed)return;
+disposed=true;
+if(chatPathRenderers[key]===renderer)delete chatPathRenderers[key];
+};
+}
+function replacePathRenderer(path, renderer, owner){
+var key=String(path||"").trim();
+if(key.indexOf("/tools/")>=0&&renderer&&typeof renderer.fill==="function"){
+return replaceChatToolView(key, renderer, owner);
+}
+var previous=chatPathRenderers[key]||null;
+var restore=registerPathRenderer(key, renderer, owner);
+var disposed=false;
+return function(){
+if(disposed)return;
+disposed=true;
+restore();
+if(previous)chatPathRenderers[key]=previous;
+document.dispatchEvent(new CustomEvent("ai-agent:renderer-changed",{detail:{path:key}}));
+};
+}
+function resolvePathRenderer(path){return chatPathRenderers[String(path||"").trim()]||null;}
+window.aiAgentRenderers={
+register:registerPathRenderer,
+replace:replacePathRenderer,
+unregister:function(path){delete chatPathRenderers[String(path||"").trim()];},
+resolve:resolvePathRenderer
+};
+document.addEventListener("ai-agent:renderer-changed",function(ev){
+var path=String(ev&&ev.detail&&ev.detail.path||"");
+if(path!==CHAT_RENDERER_THINKING)return;
+if(lastLlm&&lastLlm.chatThink&&lastLlm.chatThink._customThink){
+if(lastLlm.chatThink.parentNode)lastLlm.chatThink.parentNode.removeChild(lastLlm.chatThink);
+lastLlm.chatThink=null;
+lastLlm.chatThinkFull="";
+}
+if(typeof paintChatThink==="function")paintChatThink();
+});
 function paintChatThink(){
 if(!showToolItems()||!lastLlm||lastLlm.chatThinkSealed)return;
 var full=String(lastLlm.reasoningText||"");
 if(!full)return;
 if(!lastLlm.chatThinkStartedAt)lastLlm.chatThinkStartedAt=Date.now();
+var customThink=resolvePathRenderer(CHAT_RENDERER_THINKING);
+if(customThink){
+if(!lastLlm.chatThink){
+var customRow=makeChatToolRow("思考","");
+customRow.classList.add("is-running");
+chatToolSyncStatusTitle(customRow);
+lastLlm.chatThink=customRow;
+appendChatToolRow(customRow,{beforeStream:true});
+}
+customThink.paint({
+path:CHAT_RENDERER_THINKING,
+row:lastLlm.chatThink,
+full:full,
+lastLlm:lastLlm,
+defaultFull:lastLlm.chatThinkFull,
+});
+return;
+}
 /* 标题后的摘要两次绘制至少隔 300ms。不够就丢掉这一次，不延期再画。 */
 var now=Date.now();
 var skipSum=!!(lastLlm.chatThinkPaintAt&&now-lastLlm.chatThinkPaintAt<300);

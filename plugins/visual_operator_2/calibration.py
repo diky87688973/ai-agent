@@ -104,10 +104,11 @@ class ChallengeStore:
 
     def error(self, points, frame_id: str, center_x: int, center_y: int,
               image_width: int, image_height: int,
-              model_only: bool = False) -> str:
+              model_only: bool = False,
+              challenge: Dict[str, object] | None = None) -> str:
         if not self.enabled or points is None:
             return ""
-        challenge = self._items.get(frame_id)
+        challenge = challenge or self._items.get(frame_id)
         if challenge is None:
             return "校准失败：当前帧没有随机校准点；" + HINT
         if model_only:
@@ -119,10 +120,11 @@ class ChallengeStore:
 
     def report(self, points, frame_id: str, center_x: int, center_y: int,
                image_width: int, image_height: int,
-               model_only: bool = False) -> dict:
+               model_only: bool = False,
+               challenge: Dict[str, object] | None = None) -> dict:
         if not self.enabled or not isinstance(points, list) or len(points) != 1:
             return {}
-        challenge = self._items.get(frame_id)
+        challenge = challenge or self._items.get(frame_id)
         if challenge is None:
             return {}
         rows = []

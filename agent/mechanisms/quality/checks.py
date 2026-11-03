@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -29,14 +30,32 @@ class WriteContext:
     confirm_id: str = ""  # 预览登记的确认 ID（提交唯一凭据）
 
 
+def _same_path(a: str, b: str) -> bool:
+    """两个写法是否指向同一路径。
+
+    只做全等会漏掉「相对 vs 绝对」「正反斜杠」；但按后缀匹配会把
+    `a/x.py` 和 `b/x.py` 当成同一个文件，从而绕过写后 review。
+    所以后缀一律不比：能解析到同一实路径才算同一文件。
+    """
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    try:
+        return os.path.normcase(os.path.realpath(a)) == os.path.normcase(
+            os.path.realpath(b))
+    except OSError:
+        return False
+
+
 def _in_paths(path: str, paths: List[str]) -> bool:
-    """path 是否命中 paths 之一（全等或路径后缀匹配）。"""
+    """path 是否命中 paths 之一（同一实路径；不做相对后缀匹配）。"""
     norm = norm_path(path)
     if not norm:
         return False
     for p in paths:
         q = norm_path(p)
-        if q and (norm == q or norm.endswith("/" + q) or q.endswith("/" + norm)):
+        if q and _same_path(norm, q):
             return True
     return False
 

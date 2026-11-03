@@ -252,7 +252,11 @@ class RegexLocateTool(ToolPlugin):
         if root.is_file():
             files = [root]
         else:
-            files = _collect_source_files(root, str(arguments.get("glob_pattern") or ""), bool(arguments.get("recursive", True)))
+            files = list(_iter_source_files(
+                root, str(arguments.get("glob_pattern") or ""),
+                bool(arguments.get("recursive", True)),
+                skip_set(bool(arguments.get("include_derived", False)), []),
+            ))
         items: List[Dict[str, Any]] = []
         for fp in files:
             if len(items) >= limit:

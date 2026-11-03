@@ -61,6 +61,8 @@ class TodoListTool(ToolPlugin):
     def _as_int_list(value: Any, label: str) -> List[int]:
         if value is None:
             raise ValueError(f"缺少 {label}")
+        if isinstance(value, bool):
+            raise ValueError(f"{label} 不能是布尔值")
         if isinstance(value, int):
             return [value]
         if isinstance(value, list):
@@ -74,6 +76,63 @@ class TodoListTool(ToolPlugin):
                     raise ValueError(f"{label} 须为 int 或非空 int 数组")
             return out
         raise ValueError(f"{label} 须为 int 或非空 int 数组")
+
+    def _execute_check(self, cid: str, todo: Dict[str, Any], action, arguments) -> Dict[str, Any]:
+            indices = self._as_int_list(arguments.get("indices"), "indices")
+            for idx in indices:
+                if idx < 0 or idx >= len(todo["items"]):
+                    raise IndexError(f"indices 含越界下标 {idx}，共 {len(todo['items'])} 项")
+            for idx in indices:
+                todo["items"][idx]["done"] = action == "check"
+            self._state.set_todo(cid, todo)
+            key = "checked" if action == "check" else "unchecked"
+            return {
+                "list_id": todo["list_id"],
+                "items": todo["items"],
+                key: indices,
+                **self._progress(todo["items"]),
+            }
+
+    def _execute_add_item(self, cid: str, todo: Dict[str, Any], arguments) -> Dict[str, Any]:
+            text = str(arguments.get("text") or "").strip()
+            if not text:
+                raise ValueError("add_item 需要 text")
+            item = {"text": text, "done": False}
+            ins = arguments.get("item_index")
+            if ins is None:
+                todo["items"].append(item)
+            else:
+                try:
+                    ix = int(ins)
+                except (TypeError, ValueError):
+                    raise ValueError("add_item 的 item_index 须为整数")
+                if ix < 0 or ix > len(todo["items"]):
+                    raise IndexError(
+                        f"item_index {ix} 越界，共 {len(todo['items'])} 项")
+                todo["items"].insert(ix, item)
+            self._state.set_todo(cid, todo)
+            return {"list_id": todo["list_id"], "items": todo["items"]}
+
+    def _execute_remove_replace(self, cid: str, todo: Dict[str, Any], action, arguments) -> Dict[str, Any]:
+            raw_ix = arguments.get("item_index")
+            if raw_ix is None:
+                raise ValueError(f"{action} 需要 item_index（int）")
+            try:
+                ix = int(raw_ix)
+            except (TypeError, ValueError):
+                raise ValueError(f"{action} 需要 item_index（int）")
+            if ix < 0 or ix >= len(todo["items"]):
+                raise IndexError(f"item_index {ix} 越界，共 {len(todo['items'])} 项")
+            if action == "remove_item":
+                todo["items"].pop(ix)
+            else:
+                text = str(arguments.get("text") or "").strip()
+                if not text:
+                    raise ValueError("replace_item 需要 text")
+                todo["items"][ix]["text"] = text
+            self._state.set_todo(cid, todo)
+            return {"list_id": todo["list_id"], "items": todo["items"],
+                    **self._progress(todo["items"])}
 
     def execute(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         cid = current_session_id()
@@ -99,52 +158,11 @@ class TodoListTool(ToolPlugin):
         if todo is None:
             raise ValueError("当前对话无活跃清单，请先用 create")
         if action in ("check", "uncheck"):
-            indices = self._as_int_list(arguments.get("indices"), "indices")
-            for idx in indices:
-                if idx < 0 or idx >= len(todo["items"]):
-                    raise IndexError(f"indices 含越界下标 {idx}，共 {len(todo['items'])} 项")
-            for idx in indices:
-                todo["items"][idx]["done"] = action == "check"
-            self._state.set_todo(cid, todo)
-            key = "checked" if action == "check" else "unchecked"
-            return {
-                "list_id": todo["list_id"],
-                "items": todo["items"],
-                key: indices,
-                **self._progress(todo["items"]),
-            }
+            return self._execute_check(cid, todo, action, arguments)
         if action == "add_item":
-            text = str(arguments.get("text") or "").strip()
-            if not text:
-                raise ValueError("add_item 需要 text")
-            item = {"text": text, "done": False}
-            ins = arguments.get("item_index")
-            if ins is not None and isinstance(ins, int) and 0 <= ins <= len(todo["items"]):
-                todo["items"].insert(ins, item)
-            else:
-                todo["items"].append(item)
-            self._state.set_todo(cid, todo)
-            return {"list_id": todo["list_id"], "items": todo["items"]}
+            return self._execute_add_item(cid, todo, arguments)
         if action in ("remove_item", "replace_item"):
-            raw_ix = arguments.get("item_index")
-            if raw_ix is None:
-                raise ValueError(f"{action} 需要 item_index（int）")
-            try:
-                ix = int(raw_ix)
-            except (TypeError, ValueError):
-                raise ValueError(f"{action} 需要 item_index（int）")
-            if ix < 0 or ix >= len(todo["items"]):
-                raise IndexError(f"item_index {ix} 越界，共 {len(todo['items'])} 项")
-            if action == "remove_item":
-                todo["items"].pop(ix)
-            else:
-                text = str(arguments.get("text") or "").strip()
-                if not text:
-                    raise ValueError("replace_item 需要 text")
-                todo["items"][ix]["text"] = text
-            self._state.set_todo(cid, todo)
-            return {"list_id": todo["list_id"], "items": todo["items"],
-                    **self._progress(todo["items"])}
+            return self._execute_remove_replace(cid, todo, action, arguments)
         if action == "collapse":
             todo["collapsed"] = not todo.get("collapsed", False)
             self._state.set_todo(cid, todo)
@@ -158,4 +176,3 @@ class TodoListTool(ToolPlugin):
 
 #: 宿主交互能力：Web 壳层当前只支持两段式确认；TTY 宿主接入后再由宿主打开。
 #: 环境判断不能放在模型或工具里，必须由壳层注入。
-INTERACTIVE_UI_ENABLED = False

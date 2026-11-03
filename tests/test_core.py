@@ -425,7 +425,6 @@ class SuspendResumeTest(CoreHarness):
         self.assertIn("tool_ended", kinds)
         ended = [e for e in self.log.events if e.type == "tool_ended"][0]
         self.assertEqual(ended.data.get("status"), "suspended")
-        self.assertTrue(any("挂起" in m or "suspend" in m for m in host.describe()) or True)
 
     def test_suspended_call_is_not_retried_within_the_turn(self) -> None:
         _r, provider, _i, _h = self._suspend()
@@ -467,13 +466,13 @@ class SuspendResumeTest(CoreHarness):
         self._suspend()
         call_id = "c1"
         self._splice(call_id, "甲")
-        before = len([e for e in self.log.events if e.type == "tool_result"])
-        # 第二次确认：宿主应当发现已交付，不再写
+        before = len([e for e in self.log.events if e.type == "tool_done"])
         already = {str(e.data.get("call_id")) for e in self.log.events
-                   if e.type == "tool_result"}
+                   if e.type == "tool_done"}
+        self.assertIn(call_id, already)
         if call_id not in already:
             self._splice(call_id, "甲")
-        after = len([e for e in self.log.events if e.type == "tool_result"])
+        after = len([e for e in self.log.events if e.type == "tool_done"])
         self.assertEqual(after, before)
 
 # ══════════════════════════════════════════════════════════════════
@@ -1369,10 +1368,6 @@ class StoreIntegrationTest(unittest.TestCase):
             messages = [e for e in store.load(cid) if e.type == "model_message"]
             self.assertEqual(messages[-1].data["content"], "在的")
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ContextSegmentsEventTest(CoreHarness):
     """分段快照事件：每次装配完请求发一条，载荷与真实请求一致。
 
@@ -1446,3 +1441,7 @@ class ContextSegmentsEventTest(CoreHarness):
         self._run_with_context([{"text": "好"}], text="长" * 400)
         big = {s["key"]: s["tokens"] for s in self._segs()[0]["segments"]}
         self.assertGreater(big.get("full_recent", 0), small.get("full_recent", 0))
+
+
+if __name__ == "__main__":
+    unittest.main()

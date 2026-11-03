@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """入口层（`agent/entry/`）：装配与参数解析的契约。
 
-入口层存在的全部理由：壳层不许导入装配根（A2）。所以这里逐条钉住
+入口层存在的全部理由：壳层不许导入装配根。所以这里逐条钉住
 "谁建 app、谁解析参数、谁把 app 交给壳"——任何一条退回去都会让环重新长出来。
 """
 from __future__ import annotations
@@ -212,7 +212,7 @@ class HeadlessEntryTest(unittest.TestCase):
             entry_headless.main([], app_factory=lambda: _App())
         self.assertTrue(seen["text"])
 
-    def test_real_app_uses_full_prompt_and_dynamic_mode_note(self) -> None:
+    def test_headless_prefers_runner_engine_over_app_run_turn(self) -> None:
         seen = {}
 
         class _Runner:
@@ -237,7 +237,7 @@ class HeadlessEntryTest(unittest.TestCase):
             )
         self.assertEqual(code, 0)
         self.assertEqual(seen["engine_cid"], "probe-cid")
-        self.assertIs(seen["engine_kwargs"]["cancel"], seen["engine_kwargs"]["cancel"])
+        self.assertTrue(callable(seen["engine_kwargs"]["cancel"]))
 
     def test_default_factory_wires_session_store(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
