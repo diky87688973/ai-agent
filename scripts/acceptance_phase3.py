@@ -89,7 +89,7 @@ class Acceptance:
         self.check("已加载名单一致", app.plugin_host.loaded_names() == sorted(ALL_PLUGINS), str(app.plugin_host.loaded_names()))
         subs = self.subs_total(app)
         self.check("AI角色扮演事件订阅已挂（=2）", subs == 2, f"subs={subs}")
-        self.check("AI角色扮演工具已注册", app.registry.get("ai_cosplay") is not None)
+        self.check("AI角色扮演工具已注册", app.registry.get("ai_speek") is not None)
         self.check("AI角色扮演运行时已登记",
                    app.plugin_host.runtime("ai_cosplay") is not None)
         ui = app.plugin_host.ui
@@ -151,7 +151,7 @@ class Acceptance:
                           for row in app.plugin_host.ui.pending))
         app.plugin_host.unload_all()
         self.check("卸后：名单清空", app.plugin_host.loaded_names() == [])
-        self.check("卸后：AI角色扮演工具回收", app.registry.get("ai_cosplay") is None)
+        self.check("卸后：AI角色扮演工具回收", app.registry.get("ai_speek") is None)
         subs = self.subs_total(app)
         self.check("卸后：AI角色扮演订阅回收（=0）", subs == 0, f"subs={subs}")
         # 注入源、面板、动作、端点都是插件的贡献，卸载必须一起撤掉 ——
