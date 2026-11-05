@@ -55,6 +55,10 @@ class SlotRuntime:
     vision: VisionRuntime
     desktop: DesktopParts
 
+    def dispose(self) -> None:
+        """撤销视觉授权并停止监控与采帧线程。"""
+        self.vision.close()
+
 
 def make_runtime(ctx: Any, app: Any) -> SlotRuntime:
     """装配期构造运行时：步骤日志、输入监控、控制标记与视觉资源。

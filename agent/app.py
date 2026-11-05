@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, Optional
 
@@ -42,6 +43,7 @@ class App(AppModelPolicy, AppServices):
     """
 
     # 装配器在 boot_app 末尾写入；类内显式声明，避免未装配访问落成 AttributeError。
+    _plugin_runtime: Any = None
     _slot_assembly: Any = None
     _slot_binder: Any = None
     _kernel_group: Any = None
@@ -59,6 +61,12 @@ class App(AppModelPolicy, AppServices):
         self._available_models: list = []
         #: 模型来源：catalog（插件目录权威）/ none；显式注入 provider 的测试装配为 config。
         self.model_config_state = MODEL_CONFIG_NONE
+
+    def reload_plugins(self, *, plugins_path: Any = None, plugins_dir: Any = None,
+                       reload_plugin: Any = None) -> bool:
+        """请求在安全轮次边界重新装配插件。"""
+        return self._plugin_runtime.reload(plugins_path=plugins_path, plugins_dir=plugins_dir,
+                                           reload_plugin=reload_plugin)
 
     def apply_agent_loop(self, *, image_turns: int, image_max: int,
                          max_passes: int) -> None:
@@ -112,6 +120,8 @@ class App(AppModelPolicy, AppServices):
         session_contexts = self.session_contexts
         if session_contexts is not None:
             session_contexts.close_all()
+        if self._plugin_runtime is not None:
+            self._plugin_runtime.dispose()
         # 先撤登记（注册表回到装配前），再释放构造物。
         binder = self._slot_binder
         if binder is not None:
@@ -241,7 +251,9 @@ class App(AppModelPolicy, AppServices):
 
     def run_turn(self, user_text: str, conversation_id: str = "default") -> Iterator[Event]:
         """便捷入口：单回合（新建会话引擎；无 store / 上下文时按无状态路径运行）。"""
-        yield from self.session(conversation_id).start_turn(user_text)
+        lifecycle = self.context.slot_lifecycle
+        with lifecycle.turn() if lifecycle is not None else nullcontext():
+            yield from self.session(conversation_id).start_turn(user_text)
 
     def execute_tool(
         self,
@@ -255,18 +267,21 @@ class App(AppModelPolicy, AppServices):
         from agent.core.ports import ToolPort
         from agent.core.tool_call import ToolCallRequest
 
-        port = ToolPort(
-            registry=self.registry,
-            pipeline=self.pipeline,
-            app=self.context,
-            sessions=self.session_contexts,
-        )
-        call = ToolCallRequest(
-            call_id=str(call_id or f"app-{name}"),
-            name=str(name or ""),
-            arguments=dict(arguments or {}),
-        )
-        return port.execute(call, conversation_id=str(conversation_id or ""))
+        lifecycle = self.context.slot_lifecycle
+        with lifecycle.turn() if lifecycle is not None else nullcontext():
+            port = ToolPort(
+                registry=self.registry,
+                pipeline=self.pipeline,
+                app=self.context,
+                sessions=self.session_contexts,
+            )
+            call = ToolCallRequest(
+                call_id=str(call_id or f"app-{name}"),
+                name=str(name or ""),
+                arguments=dict(arguments or {}),
+            )
+            return port.execute(call, conversation_id=str(conversation_id or ""))
+
 
     def resume_suspended(
         self,

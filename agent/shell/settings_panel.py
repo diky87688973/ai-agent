@@ -187,9 +187,9 @@ def handle_get(path: str, query: Dict[str, str],
     if path == "/api/settings":
         return 200, host_catalog(app=app)
     if path == "/api/settings/plugins":
-        return 200, list_plugins()
+        return 200, list_plugins(app=app)
     if path == "/api/settings/plugin-file":
-        payload = read_plugin_config(query.get("name", ""))
+        payload = read_plugin_config(query.get("name", ""), app=app)
         return (200 if payload.get("ok") else 400), payload
     return 404, {"ok": False, "error": "not found"}
 

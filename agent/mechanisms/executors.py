@@ -23,7 +23,7 @@ class ExecutorRegistry:
 
     @staticmethod
     def _slot_path(name: str) -> str:
-        return app_path("backend", "tools", name, "executor")
+        return app_path("tools", name, "executor")
 
     def _ensure_slot(self, name: str, owner: str = "") -> None:
         if self._slots is None:
@@ -88,7 +88,7 @@ class ExecutorRegistry:
         names = set(self._items)
         if self._slots is not None:
             for path in self._slots.nodes:
-                prefix = app_path("backend", "tools") + "/"
+                prefix = app_path("tools") + "/"
                 suffix = "/executor"
                 if path.startswith(prefix) and path.endswith(suffix):
                     names.add(path[len(prefix):-len(suffix)])

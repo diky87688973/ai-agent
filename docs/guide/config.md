@@ -8,6 +8,11 @@ The plugin manifest is a separate file, `plugins.ini` in the project root. It is
 
 ## `[agent]`
 
+`start.bat` selects the UTF-8 console code page and clears legacy Windows
+standard-stream mode. Both `start.bat` and `start.sh` set `PYTHONUTF8=1` and
+`PYTHONIOENCODING=utf-8` for Python. Open redirected startup logs as UTF-8.
+Launchers that invoke Python entry points directly must match terminal and output encodings.
+
 ```ini
 [agent]
 reasoning_effort = high

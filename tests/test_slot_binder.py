@@ -134,7 +134,8 @@ class BinderFailureTest(unittest.TestCase):
         self.assertEqual(args[0], "slot_binder.model_catalog")
         self.assertEqual(kwargs.get("path"), conflict)
         self.assertEqual(kwargs.get("plugin"), "alpha")
-        self.assertEqual(binder.failures, [])
+        self.assertEqual(len(binder.failures), 1)
+        self.assertIn(conflict, binder.failures[0])
         self.assertEqual(binder.bound_paths(), (ok,))
 
 

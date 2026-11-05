@@ -18,6 +18,7 @@ from agent.mechanisms.session_store import (
     is_valid_conversation_id,
     new_conversation_id,
 )
+from agent.shell.session.turn_stream import turn_events
 
 _SUMMARY_KEYS = ("text", "content", "name", "call_id", "ok", "error", "detail", "step")
 
@@ -41,7 +42,7 @@ def _prepare(app: Any, text: str, conversation_id: str,
     cid = str(conversation_id or "").strip() or new_conversation_id()
     if not is_valid_conversation_id(cid):
         raise ValueError("会话 ID 不合法：需 8–128 个字母、数字、下划线或短横")
-    events = runner.build_engine(cid, cancel=cancel).start_turn(text)
+    events = turn_events(app, cid, text, cancel=cancel)
     return cid, events
 
 

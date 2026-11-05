@@ -28,7 +28,7 @@ from agent.app import build_app  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
 
-ALL_PLUGINS = ["ai_cosplay", "knowledge"]
+ALL_PLUGINS = ["ai_cosplay", "knowledge", "web_ui"]
 
 
 class Acceptance:
@@ -58,9 +58,12 @@ class Acceptance:
             fields["enable"] = "1"
             return fields
 
-        with mock.patch("agent.app.get_plugins", return_value=[{"name": n} for n in enabled]), \
+        with mock.patch("agent.app.get_plugins", return_value=[{"name": folder.name, "enabled": str(int(folder.name in enabled))}
+                          for folder in (ROOT / "plugins").iterdir()
+                          if (folder / "plugin-meta.json").is_file()]), \
                 mock.patch.object(plugin_mod, "plugin_config_fields", side_effect=_force_on):
             return build_app(
+                data_root=self.root / "data",
                 backup_root=self.root / "backups",
                 recycle_root=self.root / "recycle",
                 live_state=LiveState(storage_dir=self.root / "todo"),
@@ -93,7 +96,7 @@ class Acceptance:
         self.check("AI角色扮演运行时已登记",
                    app.plugin_host.runtime("ai_cosplay") is not None)
         ui = app.plugin_host.ui
-        entry = ui.paths.entries.get("app/shell/web-ui/runtime/left-panel/ai_cosplay")
+        entry = {row["path"]: row for row in ui.catalog()["entries"]}.get("app/shell/web-ui/runtime/left-panel/ai_cosplay")
         if entry is None:
             entry = next((row for row in ui.pending
                           if row.get("path") == "app/shell/web-ui/runtime/left-panel/ai_cosplay"), None)
@@ -108,11 +111,11 @@ class Acceptance:
         sources = self.sources_total(app)
         self.check("KB 注入源已挂（=1）", sources == 1, f"sources={sources}")
         contribs = app.plugin_host.contributions
-        kb_panel = ui.paths.entries.get("app/shell/web-ui/right-panel/kb")
+        kb_panel = {row["path"]: row for row in ui.catalog()["entries"]}.get("app/shell/web-ui/right-panel/kb")
         if kb_panel is None:
             kb_panel = next((row for row in ui.pending
                              if row.get("path") == "app/shell/web-ui/right-panel/kb"), None)
-        kb_button = ui.paths.entries.get("app/shell/web-ui/input/buttons/kb_btn")
+        kb_button = {row["path"]: row for row in ui.catalog()["entries"]}.get("app/shell/web-ui/input/buttons/kb_btn")
         if kb_button is None:
             kb_button = next((row for row in ui.pending
                               if row.get("path") == "app/shell/web-ui/input/buttons/kb_btn"), None)
@@ -146,7 +149,8 @@ class Acceptance:
         print("\n场景 C 热卸态（全开 → unload_all）")
         app = self.build(ALL_PLUGINS)
         self.check("卸前：KB 面板在",
-                   "app/shell/web-ui/right-panel/kb" in app.plugin_host.ui.paths.entries
+                   any(row["path"] == "app/shell/web-ui/right-panel/kb"
+                       for row in app.plugin_host.ui.catalog()["entries"])
                    or any(row.get("path") == "app/shell/web-ui/right-panel/kb"
                           for row in app.plugin_host.ui.pending))
         app.plugin_host.unload_all()

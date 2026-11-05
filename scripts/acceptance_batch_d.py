@@ -56,6 +56,7 @@ class Acceptance:
         # 会让目录接管路由，替身收 0 个请求，脚本在别人的机器上就"过不了"）。
         self.app = build_app(
             provider=self.provider,
+            data_root=root / "data",
             mesh=self.mesh,
             plugins_path=root / "no-plugins.ini",
         )
@@ -203,6 +204,7 @@ def main() -> int:
             return acc.run()
         finally:
             acc.provider.gate.set()  # 兜底放行，防线程悬挂
+            acc.app.dispose()
 
 
 if __name__ == "__main__":

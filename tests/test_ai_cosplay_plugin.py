@@ -26,12 +26,15 @@ class AICosplayAppTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         base = Path(self._tmp.name)
         manifest = base / "plugins.ini"
-        manifest.write_text("[plugin:ai_cosplay]\n", encoding="utf-8")
+        manifest.write_text("\n".join(
+            f"[plugin:{folder.name}]\nenabled={int(folder.name in {'ai_cosplay', 'web_ui'})}\n"
+            for folder in (_ROOT / "plugins").iterdir()
+            if (folder / "plugin-meta.json").is_file()), encoding="utf-8")
         self.app = build_app(plugins_dir=_ROOT / "plugins", plugins_path=manifest)
         self.addCleanup(self.app.dispose)
 
     def test_loaded_wiring(self) -> None:
-        self.assertEqual(self.app.plugin_host.loaded_names(), ["ai_cosplay"])
+        self.assertEqual(self.app.plugin_host.loaded_names(), ["ai_cosplay", "web_ui"])
         tool = self.app.registry.get("ai_speek")
         self.assertIsNotNone(tool)
         self.assertEqual(tool.label, "AI扮演")
@@ -93,7 +96,7 @@ class AICosplayAppTest(unittest.TestCase):
 
     def test_unload_clears_everything(self) -> None:
         self.app.plugin_host.unload("ai_cosplay")
-        self.assertEqual(self.app.plugin_host.loaded_names(), [])
+        self.assertEqual(self.app.plugin_host.loaded_names(), ["web_ui"])
         self.assertIsNone(self.app.registry.get("ai_speek"))
         contribs = self.app.plugin_host.contributions
         self.assertEqual(contribs.routes_of("ai_cosplay"), [])

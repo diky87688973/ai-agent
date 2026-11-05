@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import atexit
+import codecs
 import os
 import re
 import signal
@@ -274,6 +275,28 @@ atexit.register(force_kill_active_shell_process)  # 退出清账，防孤儿进�
 
 
 # ── 组 E：输出处理与 shell 选择───────────────
+
+
+class CommandOutputDecoder:
+    """保留分块末尾的半个字符；优先 UTF-8，非 UTF-8 流回退 GB18030。"""
+
+    def __init__(self) -> None:
+        self._pending = b""
+        self._fallback = None
+
+    def decode(self, chunk: bytes, *, final: bool = False) -> str:
+        if self._fallback is not None:
+            return self._fallback.decode(chunk, final=final)
+        data = self._pending + chunk
+        self._pending = b""
+        try:
+            return data.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            if exc.reason == "unexpected end of data" and not final:
+                self._pending = data[exc.start:]
+                return data[:exc.start].decode("utf-8")
+            self._fallback = codecs.getincrementaldecoder("gb18030")(errors="replace")
+            return self._fallback.decode(data, final=final)
 
 
 def decode_output(data: bytes) -> str:

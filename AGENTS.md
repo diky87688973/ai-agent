@@ -31,7 +31,7 @@ agent/
   shell/          Web、SSE、经典界面、系统提示词、会话运行
   shell/web/auth/ HTTP 鉴权：密码、会话、Token、CSRF、路由策略
   entry/          进程入口：读配置、建 App、启动壳
-  app.py          唯一装配根
+  app.py          应用门面；装配根位于 boot/
   subagent/       父子会话、批次、生命周期与消息投递
 plugins/<name>/   插件自有工具、配置、UI、主题与图标
 rules/            运行规则
@@ -84,7 +84,7 @@ python scripts/check_readme.py
 entry → shell → capabilities → mechanisms → core
 ```
 
-- `agent/app.py` 是唯一装配根，不属于五层；只有它可以同时引用五层。
+- `agent/boot/` 是装配根，不属于五层；`agent/app.py` 提供应用门面。组合跨层实例的职责归装配根。
 - 下层四层不得运行期导入 `agent/app.py` 或 `agent/entry/`；`if TYPE_CHECKING:` 的纯注解除外。入口层可以导入 `agent/app.py`。
 - `agent/core/` 不得出现具体插件名或具体 provider 实现名。
 - 模块之间通过既有端口、事件、注册表或窄接口通信；不得跨层导入私有名。

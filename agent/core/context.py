@@ -57,6 +57,7 @@ class AppContext:
         self._services: Dict[str, Any] = {}
         self._disposers: List[Tuple[str, Disposer]] = []
         self.slots = slots
+        self.slot_lifecycle = None
 
     def register(self, name: str, service: Any) -> Disposer:
         """注册服务；名称为空或重复时抛 ValueError；返回幂等 disposer。"""

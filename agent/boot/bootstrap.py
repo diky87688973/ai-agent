@@ -8,11 +8,13 @@ from typing import Any, Callable, Optional, Tuple
 from agent.app_model_policy import apply_model_policy
 from agent.boot.config import BootConfig, HostBootConfig
 from agent.boot.plugin_assembly import discover
-from agent.capabilities.plugins import resolve_plugin_factory
+from agent.boot.plugin_runtime import PluginRuntime
+from agent.capabilities.plugins import resolve_plugin_factory, resolve_plugin_root
 from agent.capabilities.slot_binder import SlotBinder
 from agent.capabilities.slot_registry import SlotRegistry
 from agent.config import (
     DEFAULT_MAX_PASSES,
+    DEFAULT_PLUGINS_PATH,
     default_data_root,
     default_plugins_root,
     get_context,
@@ -45,6 +47,7 @@ def _build_boot_config(
     config_ready: Optional[bool],
     data_root: Optional[Path],
     plugin_manifest: Any,
+    plugins_path: Optional[Path],
 ) -> Tuple[BootConfig, Path]:
     """进程根输入 → BootConfig；插件根一并交回，装配要用同一个根。"""
     root = Path(data_root) if data_root is not None else default_data_root()
@@ -52,7 +55,8 @@ def _build_boot_config(
     slots = SlotRegistry()
     executors = ExecutorRegistry(slots)
     plugins_root = Path(plugins_dir) if plugins_dir is not None else default_plugins_root()
-    overlay = discover(plugins_root, plugin_manifest)
+    overlay = discover(plugins_root, plugin_manifest, include_unlisted=(
+        Path(plugins_path or DEFAULT_PLUGINS_PATH).resolve() == DEFAULT_PLUGINS_PATH.resolve()))
     cfg = get_context()
     if config_ready is None:
         ready = provider is not None and not isinstance(provider, MissingProvider)
@@ -84,9 +88,9 @@ def _assemble(config: SlotConfig, boot: BootConfig) -> Tuple[SlotAssembly, Any]:
     """按配置装配并交出 App；必需产物缺失时先释放再上抛。"""
 
     def plugin_factories(origin: str, spec: str, path: str,
-                         plugins_root: Path) -> Callable[..., Any]:
+                         plugins_root: Path, plugin_root: Optional[Path] = None) -> Callable[..., Any]:
         """把配置里的插件根直接交给解析器；包名与模块名规则全在 capabilities 侧。"""
-        return resolve_plugin_factory(plugins_root, origin, spec, path, REPO_ROOT)
+        return resolve_plugin_factory(plugins_root, origin, spec, path, REPO_ROOT, root=plugin_root)
 
     assembly = SlotAssembly(
         config, boot_config=boot,
@@ -122,6 +126,10 @@ def _bind(app: Any, assembly: SlotAssembly, boot: BootConfig) -> Any:
         executors=boot.host_config.executors,
         ranks=app.plugin_host.ranks(),
     ).bind(assembly)
+    if binder.failures:
+        binder.dispose()
+        assembly.dispose()
+        raise SlotAssemblyError("启动绑定失败：" + "；".join(binder.failures))
     app._kernel_group = assembly.get("app/kernel/modules")
     app._slot_assembly = assembly
     app._slot_binder = binder
@@ -154,10 +162,16 @@ def boot_app(
         live_state=live_state, mesh=mesh,
         backup_retention_days=backup_retention_days, plugins_dir=plugins_dir,
         compactor_factory=compactor_factory, config_ready=config_ready,
-        data_root=data_root, plugin_manifest=plugin_manifest)
-    config = load_merged(REPO_ROOT, plugins_root=plugins_root)
+        data_root=data_root, plugin_manifest=plugin_manifest, plugins_path=plugins_path)
+    config = load_merged(REPO_ROOT, plugins_root=plugins_root,
+                         manifest=boot.plugin_manifest, plugin_roots={
+                             item["name"]: resolve_plugin_root(plugins_root, item["name"], item.get("path", ""))
+                             for item in boot.plugin_manifest})
     assembly, app = _assemble(config, boot)
-    return _bind(app, assembly, boot)
+    app = _bind(app, assembly, boot)
+    app._plugin_runtime = PluginRuntime(app, assembly, boot, REPO_ROOT, plugins_path)
+    app.context.slot_lifecycle = app._plugin_runtime.lifecycle
+    return app
 
 
 __all__ = ["boot_app"]

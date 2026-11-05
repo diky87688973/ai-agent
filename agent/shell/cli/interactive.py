@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -179,6 +180,15 @@ def build_session(
     return app, cid, engine, gate, str(args.text or "")
 
 
+def run_current(app: Any, parsed: Any, cid: str, text: str) -> int:
+    """在本轮租约内重建提示词，避免复用已卸载插件的系统指令。"""
+    lifecycle = getattr(getattr(app, "context", None), "slot_lifecycle", None)
+    with lifecycle.turn() if lifecycle is not None else nullcontext():
+        args = argparse.Namespace(**{**vars(parsed), "session": cid})
+        _, _, engine, gate, _ = build_session(app=app, parsed=args)
+        return run_one(engine, gate, text)
+
+
 def main(argv: Optional[list] = None, *, app_factory: Any) -> int:
     """交互式入口。`app_factory` 由 `agent.entry.cli` 提供（壳层不装配 app）。"""
     parsed = parse_args(argv)
@@ -206,7 +216,7 @@ def main(argv: Optional[list] = None, *, app_factory: Any) -> int:
 
     try:
         if single:
-            return int(run_one(engine, gate, single) or 0)
+            return int(run_current(app, parsed, cid, single) or 0)
 
         rc = 0
         while True:
@@ -222,7 +232,7 @@ def main(argv: Optional[list] = None, *, app_factory: Any) -> int:
                 continue
             if text in ("/exit", "/quit", "exit", "quit"):
                 break
-            rc = int(run_one(engine, gate, text) or rc)
+            rc = int(run_current(app, parsed, cid, text) or rc)
         print("[会话结束]")
         return rc
     finally:

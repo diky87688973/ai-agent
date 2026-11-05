@@ -116,10 +116,10 @@ pre{margin:0;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;wor
 .user-confirm-cap.user-confirm-cap{padding:7px 10px 8px;background:#23262b;border-bottom:1px solid #2f3338}
 .user-confirm-cap-line{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .user-confirm-cap-line>span.uc-title{font-weight:500;font-size:12px;color:#d6dde5;flex:1;min-width:0;line-height:1.45;letter-spacing:.01em}
-.user-confirm-badge{flex-shrink:0;font-size:10px;line-height:1;padding:3px 6px;border-radius:3px;background:#2d3036;color:#9aa7b3;border:0;font-weight:500;letter-spacing:.02em}
+.user-confirm-badge{flex-shrink:0;font-size:10px;line-height:1;padding:3px 6px;border-radius:4px;background:#2d3036;color:#9aa7b3;border:1px solid transparent;font-weight:500;letter-spacing:.02em}
 .user-confirm-body{padding:8px 10px 10px;background:#1a1c1f}
-.user-confirm-opts{display:flex;flex-direction:column;gap:3px;margin:0 0 6px}
-.user-confirm-opts .uc-opt-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:4px;border:1px solid #35393e;background:rgba(0,0,0,.18);cursor:pointer;font-size:12px;line-height:1.35;color:#c9d1d9;min-height:30px;box-sizing:border-box;transition:background .12s,border-color .12s}
+.user-confirm-opts{display:flex;flex-direction:column;gap:6px;margin:0 0 6px}
+.user-confirm-opts .uc-opt-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;border:1px solid #35393e;background:rgba(0,0,0,.18);cursor:pointer;font-size:12px;line-height:1.35;color:#c9d1d9;min-height:36px;box-sizing:border-box;transition:background .12s,border-color .12s}
 .user-confirm-opts .uc-opt-row:hover{background:rgba(255,255,255,.05);border-color:#454a50}
 .user-confirm-opts .uc-opt-row.uc-row-picked{border-color:#4a5058;background:rgba(255,255,255,.06)}
 .user-confirm-opts .uc-radio{flex:0 0 16px;width:16px;height:16px;border-radius:50%;border:1.5px solid #6e655a;box-sizing:border-box;background:transparent;display:flex;align-items:center;justify-content:center}
@@ -139,14 +139,17 @@ html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
 }
 .user-confirm-opts .uc-opt-label{flex:1;min-width:0;word-break:break-word}
 .user-confirm-opts .uc-opt-row.uc-has-custom .uc-opt-input{flex:1;min-width:0;border:1px solid #3c3c3c!important;background:#252526!important;color:#e6edf3!important}
-.user-confirm-opts .uc-opt-input{flex:1;min-width:72px;height:26px;box-sizing:border-box;padding:2px 8px;border:1px solid #3c3c3c;border-radius:4px;background:#252526;color:#e6edf3;font:inherit;font-size:12px;appearance:none;-webkit-appearance:none}
+.user-confirm-opts .uc-opt-input{flex:1;min-width:72px;height:30px;box-sizing:border-box;padding:2px 8px;border:1px solid #3c3c3c;border-radius:4px;background:#252526;color:#e6edf3;font:inherit;font-size:12px;appearance:none;-webkit-appearance:none}
 .user-confirm-opts .uc-opt-input:hover{border-color:#505050}
 .user-confirm-opts .uc-opt-input:focus{outline:0!important;border-color:#6a737d!important;box-shadow:none}
 .user-confirm-opts .uc-opt-input::placeholder{color:#8b949e;opacity:1}
-.user-confirm-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #2a2d32}
+.user-confirm-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #2a2d32}
 .user-confirm-actions .mode-plus{border-color:#4a525e;color:#c9d1d9}
 .user-confirm-actions .mode-plus:hover{background:rgba(120,130,145,.10)}
-.user-confirm-actions button{padding:6px 12px;font-size:12px;border-radius:6px}
+.user-confirm-actions button{padding:6px 12px;font-size:12px;border-radius:6px;height:30px;box-sizing:border-box;line-height:16px}
+.user-confirm-card .user-confirm-actions .uc-ok{background:var(--c-brand);border-color:var(--c-brand);color:#fff;min-width:64px}
+.user-confirm-card .user-confirm-actions .uc-ok:hover{background:var(--c-brand-strong);border-color:var(--c-brand-strong);color:#fff}
+.user-confirm-card .user-confirm-actions .uc-ok:disabled{opacity:.5;cursor:default}
 .approval-desc{font-size:13px;line-height:1.55;color:#d6dde5;padding:2px 2px 4px;word-break:break-word}
 .user-confirm-actions .approval-agree{border-color:#8a7344;color:#e7d3a1}
 .user-confirm-actions .approval-agree:hover{background:rgba(201,169,98,.12)}

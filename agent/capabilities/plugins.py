@@ -19,13 +19,12 @@ import importlib.util
 import json
 import re
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Dict, List, Optional
 
-from agent.capabilities.backend_paths import BASE_BACKEND_SLOTS, seed_backend_slots
-from agent.capabilities.path_registry import PathRegistry
 from agent.capabilities.plugin_ledger import (
     Disposer,
     dispose_in_reverse,
@@ -194,7 +193,7 @@ class LoadReport:
 class PluginHost:
     """插件宿主：发现 / 按清单装载 / 卸载 / 报告。"""
 
-    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None, prompt_sections: Any = None, context_hooks: Any = None, slots: Any = None, backend_slots: Any = None) -> None:
+    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None, prompt_sections: Any = None, context_hooks: Any = None, slots: Any = None) -> None:
         self._dir = Path(plugins_dir)
         self._registry = registry
         self._event_bus = event_bus
@@ -216,10 +215,6 @@ class PluginHost:
         if slots is not None:
             self.settings.bindings = slots
             self.ui.bindings = slots
-        self.backend = PathRegistry()
-        seed_backend_slots(
-            self.backend,
-            BASE_BACKEND_SLOTS if backend_slots is None else backend_slots)
         #: 已装载插件名 → 该插件在宿主侧持有的 disposer。插件资产由片段声明、
         #: 绑定器登记，不经装载器交付，故恒为空列表；本表只回答「哪些插件已装载」。
         self._loaded: Dict[str, List[Disposer]] = {}
@@ -234,6 +229,8 @@ class PluginHost:
         self._reports: List[LoadReport] = []
         #: 内核 App；`build_app` 装配完登记（插件取内核服务用，见 `PluginContext.app`）
         self.app: Any = None
+        self.manifest_path: Optional[Path] = None
+        self.request_unload: Any = None
 
     # ── 贡献 ──
 
@@ -428,6 +425,13 @@ class PluginHost:
     # ── 卸载 ──
 
     def unload(self, name: str) -> None:
+        """由装配生命周期撤回插件的全部能力。"""
+        if self.request_unload is not None:
+            self.request_unload(str(name))
+            return
+        self._detach(name)
+
+    def _detach(self, name: str) -> None:
         """卸载单个插件：卸模块，并按 owner 清掉宿主侧登记条目。
 
         插件资产（工具 / UI / 路由 / 设置的登记）由绑定器持有，归装配生命周期
@@ -443,6 +447,8 @@ class PluginHost:
         if mod_name:
             _drop_plugin_modules(mod_name)
         self._runtimes.pop(key, None)
+        self._ranks.pop(key, None)
+        self._versions.pop(key, None)
         self._plugin_roots.pop(key, None)
         self._reports = [report for report in self._reports if report.name != key]
         # 贡献兜底：disposer 正常时已撤过，这里防的是 disposer 漏挂或执行失败 ——
@@ -451,14 +457,37 @@ class PluginHost:
             self._contributions.drop_plugin(key)
         self.settings.drop_plugin(key)
         self.ui.drop_owner(key)
-        self.backend.drop_owner(key)
         # 工具兜底：disposer 失败时仍按 owner 摘掉，避免同名工具残留到下次装载。
         self._registry.drop_owner(key)
 
     def unload_all(self) -> None:
         """卸载全部已加载插件。"""
+        if self.request_unload is not None:
+            self.request_unload(None)
+            return
+        self.detach_all()
+
+    def detach_all(self) -> None:
+        """代切换内部清理身份；登记与资源由装配事务负责。"""
         for name in list(self._loaded.keys()):
-            self.unload(name)
+            self._detach(name)
+
+    def detach_plugins(self, names: Any) -> None:
+        """代切换仅撤回受影响插件的身份，保留无关模块对象。"""
+        for name in names:
+            self._detach(name)
+
+    @contextmanager
+    def identity_transaction(self):
+        """回滚使用内存身份快照，不依赖已被替换或移走的磁盘文件。"""
+        previous = (dict(self._loaded), dict(self._modules), dict(self._plugin_roots),
+                    dict(self._versions), dict(self._ranks), list(self._reports))
+        try:
+            yield
+        except Exception:
+            (self._loaded, self._modules, self._plugin_roots,
+             self._versions, self._ranks, self._reports) = previous
+            raise
 
     # ── 查询 ──
 
@@ -469,6 +498,27 @@ class PluginHost:
     def reports(self) -> List[LoadReport]:
         """全部装载报告（副本）。"""
         return list(self._reports)
+
+
+@contextmanager
+def plugin_module_transaction(names: Any):
+    """失败时恢复上一代模块对象，已构造实例的函数引用保持有效。"""
+    prefixes = tuple(plugin_module_name(name) for name in names)
+    def owned(key: str) -> bool:
+        return any(key == prefix or key.startswith(prefix + ".") for prefix in prefixes)
+    previous = {key: module for key, module in list(sys.modules.items()) if owned(key)}
+    for key in previous:
+        sys.modules.pop(key, None)
+    def restore() -> None:
+        for key in list(sys.modules):
+            if owned(key):
+                sys.modules.pop(key, None)
+        sys.modules.update(previous)
+    try:
+        yield restore
+    except Exception:
+        restore()
+        raise
 
 
 def _drop_plugin_modules(mod_name: str) -> None:
@@ -491,8 +541,8 @@ def _ensure_parent_package(plugins_dir: Path) -> None:
         parent = ModuleType(_MODULE_PREFIX)
         parent.__path__ = [str(plugins_dir)]
         sys.modules[_MODULE_PREFIX] = parent
-    elif not getattr(parent, "__path__", None):
-        parent.__path__ = [str(plugins_dir)]
+    elif str(plugins_dir) not in getattr(parent, "__path__", ()):
+        parent.__path__ = [*getattr(parent, "__path__", ()), str(plugins_dir)]
 
 
 def plugin_module_name(name: str) -> str:
@@ -524,7 +574,7 @@ def load_plugin_module(plugins_dir: Path, name: str, *,
     sys.modules[mod_name] = module
     _ensure_parent_package(Path(plugins_dir))
     try:
-        spec.loader.exec_module(module)
+        exec(compile(target.read_bytes(), str(target), "exec"), module.__dict__)
     except Exception:
         sys.modules.pop(mod_name, None)
         raise
@@ -532,7 +582,7 @@ def load_plugin_module(plugins_dir: Path, name: str, *,
 
 
 def resolve_plugin_factory(plugins_dir: Path, origin: str, spec: str,
-                           _path: str, _repo_root: Path) -> Any:
+                           _path: str, _repo_root: Path, *, root: Optional[Path] = None) -> Any:
     """插口节点声明的插件 factory → 可调用对象。
 
     module 段写 `plugin` 时就是插件入口模块本身（与装载器同一个模块对象）；
@@ -541,7 +591,10 @@ def resolve_plugin_factory(plugins_dir: Path, origin: str, spec: str,
     module_name, sep, attr = str(spec or "").partition(":")
     if not sep or not module_name or not attr:
         raise ValueError(f"factory 必须是 module:attr：{spec!r}")
-    entry = load_plugin_module(Path(plugins_dir), origin)
+    directory = Path(root) if root is not None else Path(plugins_dir) / origin
+    if get_plugin_tree_only() and not _within_plugins_tree(Path(plugins_dir), directory.resolve()):
+        raise RuntimeError(f"插件路径越出 plugins/ 树：{directory}")
+    entry = load_plugin_module(Path(plugins_dir), origin, root=directory)
     if module_name == "plugin":
         module = entry
     else:

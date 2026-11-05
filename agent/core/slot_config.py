@@ -54,6 +54,7 @@ class SlotConfig:
     synthesized: FrozenSet[str] = frozenset()
     subagent_tools: Mapping[str, Tuple[str, ...]] = field(default_factory=dict)
     plugins_root: Optional[Path] = None
+    plugin_roots: Mapping[str, Path] = field(default_factory=dict)
     #: 覆盖声明（声明层的输入，不参与构造）：求值后进有效视图，本体即丢弃。
     overrides: Tuple[Mapping[str, Any], ...] = ()
 

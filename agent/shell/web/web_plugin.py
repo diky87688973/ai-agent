@@ -2,6 +2,7 @@
 """插件 HTTP 路由。"""
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -23,6 +24,13 @@ class PluginRoutes:
 
         handler 收到的 dict：查询串 + 路径参数 + （有请求体时）`body`。
         """
+        app = getattr(self.shell, "app", None)
+        lifecycle = getattr(getattr(app, "context", None), "slot_lifecycle", None)
+        with lifecycle.turn() if lifecycle is not None else nullcontext():
+            self._dispatch_plugin_route(method, body)
+
+    def _dispatch_plugin_route(self, method: str, body: Optional[Dict[str, Any]]) -> None:
+        """插件端点完成响应后才允许释放其运行时资源。"""
         path = self._path()
         query = self._query()
         host = getattr(self.shell.app, "plugin_host", None) if self.shell.app else None

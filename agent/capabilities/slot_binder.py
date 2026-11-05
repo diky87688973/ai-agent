@@ -94,6 +94,9 @@ class SlotBinder:
                 continue
             if disposer is not None:
                 self._ledger.append((spec.path, disposer))
+        for owner, tools in getattr(config, "subagent_tools", {}).items():
+            disposer = self.registry.set_subagent_tools(owner, tools)
+            self._ledger.append((f"app/plugins/{owner}/tools", disposer))
         return self
 
     def dispose(self) -> None:
@@ -111,6 +114,16 @@ class SlotBinder:
     def bound_paths(self) -> Tuple[str, ...]:
         """已登记成功的节点路径（登记顺序）。"""
         return tuple(path for path, _ in self._ledger)
+
+    def fork(self) -> "SlotBinder":
+        """对同一批宿主服务创建一次独立登记事务。"""
+        return SlotBinder(
+            plugin_host=self.plugin_host, registry=self.registry,
+            event_bus=self.event_bus, contributions=self.contributions,
+            prompt_sections=self.prompt_sections, prompt_tail=self.prompt_tail,
+            context_sources=self.context_sources, context_hooks=self.context_hooks,
+            model_catalog=self.model_catalog, executors=self.executors,
+            ranks=self.plugin_host.ranks())
 
     # ── 顺序 ──
 
@@ -249,6 +262,7 @@ class SlotBinder:
             # 目录只认一个权威：第二个来源被拒是既定行为，留痕后继续。
             report_error("slot_binder.model_catalog", exc,
                          path=spec.path, plugin=owner)
+            self.failures.append(self._describe(spec, exc))
             return None
 
     def _source_meta(self, spec: SlotSpec, owner: str) -> Any:

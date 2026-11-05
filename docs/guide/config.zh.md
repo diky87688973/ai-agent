@@ -8,6 +8,11 @@
 
 ## `[agent]`
 
+`start.bat` 使用 UTF-8 控制台代码页，并清除旧式 Windows 标准流设置；
+`start.bat` 与 `start.sh` 均为 Python 设置 `PYTHONUTF8=1`、
+`PYTHONIOENCODING=utf-8`。启动输出重定向到文件时，请以 UTF-8 打开。
+直接调用 Python 入口的启动器需自行保证终端与输出编码匹配。
+
 ```ini
 [agent]
 reasoning_effort = high

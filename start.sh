@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # AI Agent 启动脚本（Linux / macOS）
 set -u
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
 
 SOURCE="${BASH_SOURCE[0]:-$0}"
 ROOT="$(cd "$(dirname "$SOURCE")" && pwd)"

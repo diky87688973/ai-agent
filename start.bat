@@ -1,5 +1,14 @@
 @echo off
 setlocal EnableExtensions
+rem Keep console rendering and redirected Python output on the same encoding.
+chcp 65001 >nul
+if errorlevel 1 (
+    echo [ERROR] Cannot switch the console to UTF-8.
+    exit /b 1
+)
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "PYTHONLEGACYWINDOWSSTDIO="
 cd /d "%~dp0"
 
 echo ============================================

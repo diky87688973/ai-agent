@@ -101,19 +101,19 @@ html[data-ui-style="minimal"] .composer:focus-within {
   box-shadow: none !important;
 }
 
-html[data-ui-style="minimal"] button:not(.is-on),
+html[data-ui-style="minimal"] button:not(.is-on):not(.is-primary),
 html[data-ui-style="minimal"] select,
 html[data-ui-style="minimal"] textarea,
 html[data-ui-style="minimal"] input,
-html[data-ui-style="minimal"] .mode-plus,
+html[data-ui-style="minimal"] .mode-plus:not(.is-primary),
 html[data-ui-style="minimal"] .composer .chip {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
 }
 
-html[data-ui-style="minimal"] button:not(.is-on):hover,
-html[data-ui-style="minimal"] .mode-plus:hover,
+html[data-ui-style="minimal"] button:not(.is-on):not(.is-primary):hover,
+html[data-ui-style="minimal"] .mode-plus:not(.is-primary):hover,
 html[data-ui-style="minimal"] .composer .chip:hover {
   background: var(--minimal-hover) !important;
   border-color: transparent !important;
@@ -206,14 +206,14 @@ html[data-ui-style="minimal"] .st-form select::picker-icon { color:var(--c-text-
 
 /* 主操作按钮不能被极简按钮重置吃掉背景色。 */
 html[data-ui-style="minimal"] .st-save,
-html[data-ui-style="minimal"] .st-apply.is-primary {
+html[data-ui-style="minimal"] button.is-primary {
   background: var(--c-brand) !important;
   color: #fff !important;
   border-color: transparent !important;
   box-shadow: none !important;
 }
 html[data-ui-style="minimal"] .st-save:hover,
-html[data-ui-style="minimal"] .st-apply.is-primary:hover {
+html[data-ui-style="minimal"] button.is-primary:hover {
   background: var(--c-brand) !important;
   color: #fff !important;
   filter: brightness(1.06);

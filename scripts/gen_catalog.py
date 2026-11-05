@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,13 +27,23 @@ CATALOG_PATH = ROOT / "catalog" / "tools.json"
 
 def collect_schemas() -> list[dict]:
     """扫描装配集：构建 app 并导出全部已注册工具声明（注册表已按名称排序）。"""
-    return build_app().registry.schemas()
+    with tempfile.TemporaryDirectory(prefix="agent_catalog_") as tmp:
+        app = build_app(data_root=Path(tmp))
+        try:
+            return app.registry.schemas()
+        finally:
+            app.dispose()
 
 
 def collect_display() -> dict:
     """扫描装配集：`工具名 → {label, icon}`（工具自己声明的展示信息）。"""
-    return {row["name"]: {"label": row["label"], "icon": row["icon"]}
-            for row in build_app().registry.display_list()}
+    with tempfile.TemporaryDirectory(prefix="agent_catalog_") as tmp:
+        app = build_app(data_root=Path(tmp))
+        try:
+            return {row["name"]: {"label": row["label"], "icon": row["icon"]}
+                    for row in app.registry.display_list()}
+        finally:
+            app.dispose()
 
 
 def render_catalog(schemas: list[dict],

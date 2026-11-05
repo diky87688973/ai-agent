@@ -187,14 +187,13 @@ class Acceptance:
         self.provider = ScriptedProvider(self.target)
         self.app = build_app(
             provider=self.provider,
+            data_root=root / "data",
             store=SessionStore(root / "data"),
             backup_root=root / "bk",
             recycle_root=root / "rc",
             live_state=LiveState(storage_dir=root / "state"),
             mesh=MeshState(storage_dir=root / "mesh"),
-            # 只装本脚本要验的插件（知识库的勾选端点）。多模型插件不装：
-            # 它一旦有有效条目就会接管模型路由，替身 provider 收不到请求，
-            # 脚本的结果就取决于开发机上的私有配置了。
+            # 夹具清单排除多模型插件，防止私有配置接管本脚本的 provider。
             plugins_path=self._manifest(root),
         )
         # 显式钉住媒体根与文件根：默认值跟随宿主机（多盘），
@@ -776,13 +775,12 @@ def main() -> int:
         acc = Acceptance(Path(tmp))
         acc.start()
         try:
-            acc.scenario_1()
-            acc.scenario_2()
-            acc.scenario_3()
-            acc.scenario_4()
-            acc.scenario_5()
-            acc.scenario_6()
-            acc.scenario_7()
+            for scenario in (acc.scenario_1, acc.scenario_2, acc.scenario_3,
+                             acc.scenario_4, acc.scenario_5, acc.scenario_6, acc.scenario_7):
+                scenario()
+            from scripts.acceptance_web_hotplug import run as run_hotplug
+            if run_hotplug(acc) == 2:
+                print("  [SKIP] Web UI 热插拔场景因浏览器依赖缺失跳过")
             from scripts.acceptance_web_todo import run as run_todo_close
             if run_todo_close(acc) == 2:
                 print("  [SKIP] todo 关闭场景因依赖缺失跳过")

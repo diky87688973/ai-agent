@@ -20,6 +20,7 @@ from typing import Any, Callable, Deque, Dict, List, Optional, Sequence
 
 from agent.core.error_report import report_error
 from agent.core.thread_context import thread_with_context
+from agent.mechanisms.command_safety import CommandOutputDecoder
 
 MAX_RUNNING_PER_CID = 10
 MAX_PENDING_PER_CID = 10
@@ -403,14 +404,17 @@ class BackgroundTaskManager:
         if stream is None:
             return
         target = record.stdout if channel == "stdout" else record.stderr
+        decoder = CommandOutputDecoder()
         try:
             while True:
                 chunk = stream.read(8192)
+                text = decoder.decode(chunk or b"", final=not chunk)
+                if text:
+                    with self._lock:
+                        self._append_output(record, target, channel, text.encode("utf-8"))
+                        self._changed.notify_all()
                 if not chunk:
                     break
-                with self._lock:
-                    self._append_output(record, target, channel, chunk)
-                    self._changed.notify_all()
         except (OSError, ValueError) as exc:
             report_error("agent.mechanisms.background_tasks.read", exc, task_id=record.task_id)
         finally:
@@ -422,11 +426,13 @@ class BackgroundTaskManager:
     @staticmethod
     def _append_output(record: BackgroundTaskRecord, target: bytearray,
                        channel: str, chunk: bytes) -> None:
-        """追加输出并按裁剪量回退游标，避免裁剪后读到空/错位内容。"""
+        """追加 UTF-8 输出，按字符边界裁剪并回退消费游标。"""
         target.extend(chunk)
         if len(target) <= MAX_OUTPUT_BYTES:
             return
         drop = len(target) - MAX_OUTPUT_BYTES
+        while drop < len(target) and target[drop] & 0xC0 == 0x80:
+            drop += 1
         del target[:drop]
         cursor_name = "stdout_cursor" if channel == "stdout" else "stderr_cursor"
         cursor = max(0, int(getattr(record, cursor_name)) - drop)
@@ -549,4 +555,5 @@ class BackgroundTaskManager:
         env = {key: value for key, value in os.environ.items()
                if key.upper() in allowed}
         env.setdefault("PATH", os.environ.get("PATH", ""))
+        env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
         return env

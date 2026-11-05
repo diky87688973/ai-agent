@@ -7,10 +7,11 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from agent.capabilities.path_registry import split_path
 from agent.core.app_path import app_path
+from agent.core.slot_snapshot import freeze_value
 
 
 class SlotRegistryError(ValueError):
@@ -19,7 +20,7 @@ class SlotRegistryError(ValueError):
 
 _MODES = ("replace", "replace_subtree", "wrap", "extend")
 _NO_SUBTREE = object()
-_CURRENT_SNAPSHOT: ContextVar[Optional["SlotSnapshot"]] = ContextVar(
+_CURRENT_SNAPSHOT: ContextVar[Optional["ResolvedSlotView"]] = ContextVar(
     "slot_execution_snapshot", default=None)
 
 
@@ -186,13 +187,17 @@ def _implementation_name(value: Any) -> str:
 
 
 @dataclass(frozen=True)
-class SlotSnapshot:
+class ResolvedSlotView:
     """单轮执行使用的已解析 slot 快照；此后不再读取实时绑定。"""
 
     registry_id: int
     version: int
-    values: Dict[str, Any]
-    items: Dict[str, List[Any]]
+    values: Mapping[str, Any]
+    items: Mapping[str, Tuple[Any, ...]]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "values", freeze_value(self.values))
+        object.__setattr__(self, "items", freeze_value(self.items))
 
     def contains(self, path: Any) -> bool:
         return _normalize_path(path) in self.values or _normalize_path(path) in self.items
@@ -441,7 +446,7 @@ class SlotRegistry:
         return _NO_SUBTREE
 
     @_locked
-    def freeze(self) -> SlotSnapshot:
+    def freeze(self) -> ResolvedSlotView:
         values: Dict[str, Any] = {}
         items: Dict[str, List[Any]] = {}
         for name, node in self.nodes.items():
@@ -449,12 +454,16 @@ class SlotRegistry:
                 values[name] = self.resolve_base(name)
             if node.children in ("keyed", "fixed", "extension", "tree"):
                 items[name] = list(self.resolve_items(name))
-        return SlotSnapshot(
+        return ResolvedSlotView(
             registry_id=id(self), version=self._seq,
             values=values, items=items)
 
     @contextmanager
-    def execution_snapshot(self) -> Iterator[SlotSnapshot]:
+    def execution_snapshot(self) -> Iterator[ResolvedSlotView]:
+        current = self._current_snapshot()
+        if current is not None:
+            yield current
+            return
         snapshot = self.freeze()
         token = _CURRENT_SNAPSHOT.set(snapshot)
         try:
@@ -462,7 +471,7 @@ class SlotRegistry:
         finally:
             _CURRENT_SNAPSHOT.reset(token)
 
-    def _current_snapshot(self) -> Optional[SlotSnapshot]:
+    def _current_snapshot(self) -> Optional[ResolvedSlotView]:
         snapshot = _CURRENT_SNAPSHOT.get()
         if snapshot is not None and snapshot.registry_id == id(self):
             return snapshot

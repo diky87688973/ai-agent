@@ -74,29 +74,34 @@ def _plugin_folder(
     return resolve_plugin_root(base, plugin, path_raw)
 
 
+def _locations(app: Any, plugins_path: Any, plugins_dir: Any):
+    """读写清单与插件根取自同一个已装配宿主。"""
+    host = getattr(app, "plugin_host", None) if app is not None else None
+    manifest = plugins_path or getattr(host, "manifest_path", None) or DEFAULT_PLUGINS_PATH
+    root = plugins_dir or getattr(host, "plugins_dir", None) or PLUGINS_DIR
+    return Path(manifest), Path(root)
+
+
 def list_plugins(plugins_path: Optional[Path] = None,
                  plugins_dir: Optional[Path] = None,
                  app: Any = None) -> Dict[str, Any]:
     """插件卡片：目录里有入口的都列出，清单里有但目录没了的也列出以便关掉。"""
-    manifest_path = Path(plugins_path) if plugins_path is not None else DEFAULT_PLUGINS_PATH
-    root = Path(plugins_dir) if plugins_dir is not None else PLUGINS_DIR
+    manifest_path, root = _locations(app, plugins_path, plugins_dir)
     listed = {str(item["name"]): item for item in get_plugins(manifest_path)}
     found: Dict[str, Path] = {}
     if root.is_dir():
         for child in sorted(root.iterdir(), key=lambda item: item.name.lower()):
             if not child.is_dir() or child.name.startswith((".", "_")):
                 continue
-            entry = child / "plugin.py"
-            if entry.is_file() and _valid_name(child.name):
-                found[child.name] = entry
+            if (child / "plugin-meta.json").is_file() and _valid_name(child.name):
+                found[child.name] = child
     for name, _item in listed.items():
         if name in found or not _valid_name(name):
             continue
         folder = _plugin_folder(
             name, plugins_dir=root, plugins_path=manifest_path, app=app)
-        entry = folder / "plugin.py"
-        if entry.is_file():
-            found[name] = entry
+        if (folder / "plugin-meta.json").is_file():
+            found[name] = folder
     names = list(found)
     for name in sorted(listed):
         if name not in found and _valid_name(name):
@@ -104,12 +109,13 @@ def list_plugins(plugins_path: Optional[Path] = None,
     cards = []
     for name in names:
         entry = found.get(name)
-        meta = plugin_config_fields(entry.parent) if entry is not None else {
+        meta = plugin_config_fields(entry) if entry is not None else {
             "name": "", "desc": "", "enable": "0", "icon": "", "version": "",
         }
         declared = meta["version"]
-        on = (name in listed
-              and str(listed[name].get("enabled", "1")) != "0")
+        host = getattr(app, "plugin_host", None) if app is not None else None
+        on = (str(listed[name].get("enabled", "1")) != "0" if name in listed else
+              host is not None and name in host.loaded_names())
         cards.append({
             "name": name,
             "title": meta["name"] or name,
@@ -132,34 +138,46 @@ def set_plugin_enabled(name: str, enabled: bool, app: Any = None, *,
     plugin = str(name or "").strip()
     if not _valid_name(plugin):
         return {"ok": False, "error": "插件名不合法"}
-    manifest_path = Path(plugins_path) if plugins_path is not None else DEFAULT_PLUGINS_PATH
-    root = Path(plugins_dir) if plugins_dir is not None else PLUGINS_DIR
+    manifest_path, root = _locations(app, plugins_path, plugins_dir)
     folder = _plugin_folder(
         plugin, plugins_dir=root, plugins_path=manifest_path, app=app)
-    if enabled and not (folder / "plugin.py").is_file():
-        return {"ok": False, "error": "插件目录里没有 plugin.py"}
+    if enabled and not (folder / "plugin-meta.json").is_file():
+        return {"ok": False, "error": "插件目录里没有 plugin-meta.json"}
     with LOCK:
         text = read_text(manifest_path)
         section = f"plugin:{plugin}"
         flag = "1" if enabled else "0"
         if section_span(text.splitlines(keepends=True), section) is None:
-            if enabled:
-                text = append_ini_section(text, section, [("enabled", flag)])
-                write_text(manifest_path, text)
+            write_text(manifest_path, append_ini_section(text, section, [("enabled", flag)]))
         else:
             write_text(
                 manifest_path, update_ini_keys(text, section, {"enabled": flag}))
         reports = sync_plugins(
-            app, plugins_path=manifest_path, plugins_dir=root) if app is not None else []
-    return {"ok": True, "reports": reports}
+            app, plugins_path=manifest_path, plugins_dir=root, reload_plugin=plugin) if app is not None else []
+        if any(item.get("status") == PLUGIN_ERROR for item in reports):
+            write_text(manifest_path, text)
+    return {"ok": not any(item.get("status") == PLUGIN_ERROR for item in reports),
+            "reports": reports}
 
 
 def sync_plugins(app: Any, *, plugins_path: Optional[Path] = None,
-                 plugins_dir: Optional[Path] = None) -> List[Dict[str, str]]:
+                 plugins_dir: Optional[Path] = None,
+                 reload_plugin: Optional[str] = None) -> List[Dict[str, str]]:
     """卸掉未开启的插件，再装载清单里 `enabled` 不是 0 的。"""
     host = getattr(app, "plugin_host", None) if app is not None else None
     if host is None:
         return []
+    reload_plugins = getattr(app, "reload_plugins", None)
+    if callable(reload_plugins):
+        try:
+            applied = reload_plugins(plugins_path=plugins_path, plugins_dir=plugins_dir,
+                                     reload_plugin=reload_plugin)
+        except Exception as exc:
+            report_error("plugin_settings.reload", exc)
+            return [{"name": "", "status": PLUGIN_ERROR, "message": str(exc)}]
+        _announce_plugins(app, host.loaded_names())
+        return ([] if applied else [{"name": "", "status": PLUGIN_NOTE,
+                                     "message": "插件变更已排队，将在活跃回合结束后生效"}])
     desired = [
         item for item in get_plugins(plugins_path)
         if str(item.get("enabled", "1")) != "0"
@@ -232,7 +250,7 @@ def read_plugin_config(name: str, *, plugins_dir: Optional[Path] = None,
     plugin = str(name or "").strip()
     if not _valid_name(plugin):
         return {"ok": False, "error": "插件名不合法"}
-    root = Path(plugins_dir) if plugins_dir is not None else PLUGINS_DIR
+    plugins_path, root = _locations(app, plugins_path, plugins_dir)
     try:
         folder = _plugin_folder(
             plugin, plugins_dir=root, plugins_path=plugins_path, app=app)
@@ -258,7 +276,7 @@ def write_plugin_config(name: str, text: Any = None, groups: Any = None,
 
     插件正在装载时卸下再装，让它重新读文件。
     """
-    root = Path(plugins_dir) if plugins_dir is not None else PLUGINS_DIR
+    plugins_path, root = _locations(app, plugins_path, plugins_dir)
     plugin = str(name or "").strip()
     if not _valid_name(plugin):
         return {"ok": False, "error": "插件名不合法"}
@@ -292,11 +310,11 @@ def write_plugin_config(name: str, text: Any = None, groups: Any = None,
         reports: List[Dict[str, str]] = []
         host = getattr(app, "plugin_host", None) if app is not None else None
         if host is not None and plugin in list(host.loaded_names()):
-            host.unload(plugin)
-            reports = sync_plugins(app)
+            reports = sync_plugins(app, reload_plugin=plugin)
     if not any(str(item.get("status") or "") == PLUGIN_ERROR for item in reports):
         _announce_plugin_config(app, plugin)
-    return {"ok": True, "reports": reports}
+    return {"ok": not any(item.get("status") == PLUGIN_ERROR for item in reports),
+            "reports": reports}
 
 
 def _plugin_config_source(path: Path) -> str:

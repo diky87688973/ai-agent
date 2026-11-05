@@ -17,6 +17,7 @@
 """
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from agent.core.error_report import report_error
@@ -61,6 +62,7 @@ class Engine:
         app_context: Any = None,
         session_contexts: Any = None,
     ) -> None:
+        self.app_context = app_context
         self.conversation_id = str(conversation_id or "")
         self.log = log if log is not None else SessionLog()
         self.provider = provider
@@ -237,6 +239,16 @@ class Engine:
 
         流式靠 `Host.run_iter`：宿主在事件产出那一刻就让出控制权，本生成器逐个吐。
         """
+        lifecycle = getattr(self.app_context, "slot_lifecycle", None)
+        lease = lifecycle.turn() if lifecycle is not None else nullcontext()
+        slots = getattr(self.app_context, "slots", None)
+        with lease, (slots.execution_snapshot() if slots is not None else nullcontext()):
+            yield from self._start_turn(user_text, attachments, sender, from_queue, meta)
+
+    def _start_turn(self, user_text: str, attachments: Any = None,
+                    sender: Any = None, from_queue: bool = False,
+                    meta: Any = None) -> Iterator[Event]:
+        """在已固定的插件代内执行并持久化回合。"""
         atts = list(attachments) if isinstance(attachments, (list, tuple)) else []
         self._input.feed(str(user_text or ""), atts, sender=sender,
                           from_queue=from_queue, meta=meta)

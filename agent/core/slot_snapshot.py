@@ -57,7 +57,7 @@ class SlotSnapshot:
         return tuple(sorted(self.built))
 
 
-def _freeze_value(value: Any) -> Any:
+def freeze_value(value: Any) -> Any:
     """递归冻结容器：映射成只读视图，序列换成不可变同构。
 
     映射 -> `MappingProxyType`；`list` / `tuple` -> `tuple`；`set` -> `frozenset`；
@@ -66,12 +66,12 @@ def _freeze_value(value: Any) -> Any:
     载荷整体序列化给前端，`json.dumps` 对 `tuple` 与 `list` 输出一致，故对外格式不变。
     """
     if isinstance(value, Mapping):
-        return MappingProxyType({key: _freeze_value(item)
+        return MappingProxyType({key: freeze_value(item)
                                  for key, item in value.items()})
     if isinstance(value, (list, tuple)):
-        return tuple(_freeze_value(item) for item in value)
+        return tuple(freeze_value(item) for item in value)
     if isinstance(value, (set, frozenset)):
-        return frozenset(_freeze_value(item) for item in value)
+        return frozenset(freeze_value(item) for item in value)
     if isinstance(value, bytearray):
         return bytes(value)
     return value
@@ -87,7 +87,7 @@ def _freeze_spec(spec: SlotSpec) -> SlotSpec:
         spec,
         requires=MappingProxyType({key: str(value)
                                    for key, value in spec.requires.items()}),
-        props=_freeze_value(spec.props),
+        props=freeze_value(spec.props),
     )
 
 
@@ -104,7 +104,9 @@ def _freeze_config(config: SlotConfig) -> SlotConfig:
         specs=MappingProxyType({path: _freeze_spec(spec)
                                 for path, spec in config.specs.items()}),
         origins=MappingProxyType(dict(config.origins)),
-        subagent_tools=MappingProxyType(dict(config.subagent_tools)),
+        plugin_roots=MappingProxyType(dict(config.plugin_roots)),
+        subagent_tools=freeze_value(config.subagent_tools),
+        overrides=tuple(freeze_value(row) for row in config.overrides),
     )
 
 

@@ -90,7 +90,7 @@ def _release(ledger: Sequence[Tuple[str, Any]], tag: str) -> None:
 
 def plugin_env(boot_config: Any, owner: str,
                cache: Optional[Dict[str, Mapping[str, Any]]] = None,
-               ) -> Tuple[Optional[Path], Mapping[str, Any]]:
+               plugin_root: Optional[Path] = None) -> Tuple[Optional[Path], Mapping[str, Any]]:
     """插件节点的数据目录与身份；非插件 owner 一律 (None, {})。
 
     判据只有一条：owner 目录存在于 `plugins/` 下才算插件。
@@ -102,12 +102,15 @@ def plugin_env(boot_config: Any, owner: str,
     data_root = getattr(host, "plugin_data_root", None)
     if not owner or owner == HOST_OWNER:
         return None, {}
-    if plugins_root is None or not (Path(plugins_root) / owner).is_dir():
+    if plugins_root is None:
+        return None, {}
+    directory = plugin_root or Path(plugins_root) / owner
+    if not directory.is_dir():
         return None, {}
     if cache is None:
         cache = {}
     if owner not in cache:
-        cache[owner] = MappingProxyType(read_plugin_meta(Path(plugins_root) / owner))
+        cache[owner] = MappingProxyType(read_plugin_meta(directory))
     meta = cache[owner]
     if data_root is None:
         return None, meta
@@ -151,8 +154,9 @@ class SlotAssembly:
 
     def context_for(self, spec: SlotSpec) -> BuildContext:
         """按节点算出它的装配上下文：环境部分是只读的，运行时部分是本次的值。"""
-        data_dir, meta = plugin_env(self.boot_config, spec.owner,
-                                    self._plugin_meta_cache)
+        origin = self.config.origins.get(spec.path, spec.owner)
+        data_dir, meta = plugin_env(self.boot_config, origin, self._plugin_meta_cache,
+                                    self.config.plugin_roots.get(origin))
         return BuildContext(
             spec=spec, config=self.config, built=self.values,
             resolver=self._resolver_for(spec.path), boot_config=self.boot_config,
@@ -176,6 +180,59 @@ class SlotAssembly:
             return self.values[path]
         except KeyError as exc:
             raise SlotAssemblyError(f"节点未构造：{path}") from exc
+
+    def prepare_plugins(self, config: SlotConfig, reload_origins: Any = ()) -> "SlotAssembly":
+        """复用宿主实例，隔离构造候选插件；候选失败只释放候选资源。"""
+        candidate = SlotAssembly(
+            config, resolver=self.resolver, boot_config=self.boot_config,
+            plugin_factories=self.plugin_factories)
+        try:
+            for path in topo_order(candidate.config):
+                spec = candidate.config.spec(path)
+                if spec.scope != self.scope:
+                    candidate.templates[path] = spec
+                elif candidate.config.origin_of(path) == HOST_OWNER and path in self.values:
+                    if spec != self.config.spec(path):
+                        raise SlotAssemblyError(f"热插拔不能修改宿主声明：{path}")
+                    if spec.factory or self._can_reuse(candidate, spec, ()):
+                        candidate.values[path] = self.values[path]
+                    else:
+                        candidate._construct(spec)
+                elif self._can_reuse(candidate, spec, reload_origins):
+                    candidate.values[path] = self.values[path]
+                else:
+                    candidate._construct(spec)
+        except Exception:
+            candidate.dispose()
+            raise
+        return candidate
+
+    def _can_reuse(self, candidate: "SlotAssembly", spec: SlotSpec,
+                   reload_origins: Any) -> bool:
+        if (spec.path not in self.values or spec.path not in self.config.paths()
+                or spec != self.config.spec(spec.path)
+                or candidate.config.origin_of(spec.path) in reload_origins):
+            return False
+        dependencies = [*spec.requires.values(),
+                        *(child.path for child in candidate.config.children(spec.path)
+                          if child.scope == self.scope)]
+        old_children = tuple(child.path for child in self.config.children(spec.path))
+        new_children = tuple(child.path for child in candidate.config.children(spec.path))
+        return old_children == new_children and all(
+            candidate.values.get(path) is self.values.get(path) for path in dependencies)
+
+    def publish_plugins(self, candidate: "SlotAssembly") -> None:
+        """发布已完成绑定的插件代，宿主资源继续由当前装配器持有。"""
+        retired = [(path, value) for path, value in self._ledger
+                   if candidate.values.get(path) is not value]
+        self._ledger = [(path, value) for path, value in self._ledger
+                        if candidate.values.get(path) is value]
+        self._ledger.extend(candidate._ledger)
+        candidate._ledger.clear()
+        self.config = candidate.config
+        self.values = candidate.values
+        self.templates = candidate.templates
+        _release(retired, "slot_loader.retire_plugins")
 
     def _construct(self, spec: SlotSpec) -> None:
         try:
@@ -240,8 +297,9 @@ class SessionAssembly:
 
     def context_for(self, spec: SlotSpec) -> BuildContext:
         """会话节点的上下文：环境与 app 级同形，运行时是本会话的值。"""
-        data_dir, meta = plugin_env(self.boot_config, spec.owner,
-                                    self._plugin_meta_cache)
+        origin = self.config.origins.get(spec.path, spec.owner)
+        data_dir, meta = plugin_env(self.boot_config, origin, self._plugin_meta_cache,
+                                    self.config.plugin_roots.get(origin))
         return BuildContext(
             spec=spec, config=self.config, built=self.values,
             resolver=self.resolver, boot_config=self.boot_config,

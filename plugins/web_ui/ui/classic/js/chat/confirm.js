@@ -100,7 +100,7 @@ syncRows();
 body.appendChild(btns);
 var act=document.createElement("div");act.className="user-confirm-actions";
 var cancel=document.createElement("button");cancel.type="button";cancel.className="mode-plus uc-cancel";cancel.textContent="取消";
-var ok=document.createElement("button");ok.type="button";ok.className="mode-plus uc-ok";ok.textContent="确认";
+var ok=document.createElement("button");ok.type="button";ok.className="mode-plus uc-ok is-primary";ok.textContent="确认";
 act.appendChild(cancel);act.appendChild(ok);body.appendChild(act);
 card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;scrollMsgsToBottom();
 function cleanup(){pendingConfirmToolRow=null;closeUserConfirmCardHost();updateTaskControls();}

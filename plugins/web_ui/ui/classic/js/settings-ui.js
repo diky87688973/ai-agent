@@ -748,7 +748,8 @@
           return;
         }
         var bad = (data.reports || []).filter(function (item) { return item.status === "error"; });
-        setStatus(bad.length ? bad[0].message : "", bad.length > 0);
+        var note = (data.reports || []).filter(function (item) { return item.status === "note"; });
+        setStatus(bad.length ? bad[0].message : (note.length ? note[0].message : ""), bad.length > 0);
         // 开关会改变可用插件入口；立即重取并重绘。
         refreshHostSections();
       }).catch(function () {

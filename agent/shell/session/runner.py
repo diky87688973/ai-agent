@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import threading
 import time
+from contextlib import nullcontext
 from typing import Any, Callable, Dict, Optional
 
 from agent.core.error_report import report_error
@@ -433,15 +434,12 @@ class SessionRunner:
         if isinstance(resume, dict):
             self._splice_resume(cid, resume)
             resume = None
-        engine = self.build_engine(
-            cid, cancel=self._cancel_check(cid),
-            extra_system=self._goal_round_note(meta),
-        )
-        slots = getattr(getattr(self._app, "context", None), "slots", None)
-        if slots is None:
-            return self._execute_round(
-                cid, text, attachments, sender, from_queue, meta, engine)
-        with slots.execution_snapshot():
+        context = getattr(self._app, "context", None)
+        lifecycle = getattr(context, "slot_lifecycle", None)
+        with lifecycle.turn() if lifecycle is not None else nullcontext():
+            engine = self.build_engine(
+                cid, cancel=self._cancel_check(cid),
+                extra_system=self._goal_round_note(meta))
             return self._execute_round(
                 cid, text, attachments, sender, from_queue, meta, engine)
 

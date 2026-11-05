@@ -192,7 +192,8 @@ def effective_view(config: SlotConfig,
         origins={path: origin for path, origin in config.origins.items()
                  if path in specs},
         synthesized=frozenset(path for path in config.synthesized if path in specs),
-        subagent_tools=config.subagent_tools, plugins_root=config.plugins_root)
+        subagent_tools=config.subagent_tools, plugins_root=config.plugins_root,
+        plugin_roots=config.plugin_roots)
     problems = validate_problems(view.specs, view.root, view.origins)
     if problems:
         raise SlotConfigError("有效视图校验未通过：\n - " + "\n - ".join(problems))

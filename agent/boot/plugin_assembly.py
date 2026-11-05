@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
+from agent.capabilities.plugins import resolve_plugin_root
+
 _PLUGIN_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 
 
@@ -54,7 +56,8 @@ def _disabled(entry: Dict[str, Any]) -> bool:
     return str(entry.get("enabled", "1") or "1").strip() == "0"
 
 
-def discover(plugins_dir: Path, manifest: Iterable[Any]) -> AssemblyOverlay:
+def discover(plugins_dir: Path, manifest: Iterable[Any], *,
+             include_unlisted: bool = True) -> AssemblyOverlay:
     """扫描插件目录，返回自动装载清单。
 
     只有带 `plugin-assembly.json` 或 `plugin-meta.json` 中
@@ -73,6 +76,8 @@ def discover(plugins_dir: Path, manifest: Iterable[Any]) -> AssemblyOverlay:
             item["path"] = str(raw.get("path") or "")
         if "enabled" in raw:
             item["enabled"] = str(raw.get("enabled") or "1")
+        if not resolve_plugin_root(base, name, item.get("path", "")).exists():
+            continue
         entries.append(item)
         by_name[name] = item
     if not base.is_dir():
@@ -87,13 +92,18 @@ def discover(plugins_dir: Path, manifest: Iterable[Any]) -> AssemblyOverlay:
             meta_data = _json(meta) if meta.is_file() else {}
         except PluginAssemblyError:
             meta_data = {}
-        auto = assembly.is_file() or _truthy(meta_data.get("auto_load"))
+        if (not include_unlisted and child.name not in by_name
+                and not assembly.is_file() and not _truthy(meta_data.get("auto_load"))):
+            entries.append({"name": child.name, "enabled": "0"})
+            continue
+        auto = (assembly.is_file() or (child / "plugin-slots.json").is_file()
+                or _truthy(meta_data.get("auto_load")))
         if not auto:
             continue
         name = _name(child.name)
         if name in by_name and _disabled(by_name[name]):
             continue
-        if (child / "plugin.py").is_file() and name not in by_name:
+        if meta.is_file() and name not in by_name:
             item = {"name": name}
             entries.append(item)
             by_name[name] = item

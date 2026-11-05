@@ -79,7 +79,7 @@ def _read_fragment(path: Path) -> Dict[str, Any]:
 
 
 def _fragments(repo_root: Path,
-               plugins_root: Path) -> List[Tuple[str, str, Dict[str, Any]]]:
+               plugins_root: Path, manifest: Any = None, plugin_roots: Any = None) -> List[Tuple[str, str, Dict[str, Any]]]:
     """收集静态片段与全部启用的插件片段，返回 `(origin, owner, 内容)`。
 
     两个根分开让：`repo_root` 定位静态片段与 `plugins.ini`，`plugins_root` 定位
@@ -94,16 +94,18 @@ def _fragments(repo_root: Path,
         raise SlotConfigError(f"静态片段不存在：{static_path}")
     out: List[Tuple[str, str, Dict[str, Any]]] = [
         (HOST_OWNER, "", _read_fragment(static_path))]
-    if not plugins_root.is_dir():
-        return out
-    flags = _plugins_ini_flags(repo_root)
-    for child in sorted(plugins_root.iterdir()):
+    folders = {child.name: child for child in plugins_root.iterdir() if child.is_dir()} if plugins_root.is_dir() else {}
+    folders.update({name: Path(path) for name, path in (plugin_roots or {}).items()})
+    flags = (_plugins_ini_flags(repo_root) if manifest is None else
+             {str(item["name"]): str(item.get("enabled", "1")) != "0"
+              for item in manifest})
+    for name, child in sorted(folders.items()):
         fragment = child / FRAGMENT_FILE
         if not child.is_dir() or not fragment.is_file():
             continue
-        if flags.get(child.name, True) is False:
+        if flags.get(name, True) is False:
             continue
-        out.append((child.name, child.name, _read_fragment(fragment)))
+        out.append((name, name, _read_fragment(fragment)))
     return out
 
 
@@ -310,7 +312,8 @@ def _frozen_overrides(specs: Mapping[str, SlotSpec],
 
 
 def load_merged(repo_root: Path,
-                plugins_root: Optional[Path] = None) -> SlotConfig:
+                plugins_root: Optional[Path] = None, *, manifest: Any = None,
+                plugin_roots: Any = None) -> SlotConfig:
     """读静态片段 + 扫插件根收动态片段 → 校验冲突 → 合并成一份配置。
 
     只做配置合并，不构造、不装配。冲突一律报错并指出两处来源。
@@ -323,12 +326,16 @@ def load_merged(repo_root: Path,
     """
     root = Path(repo_root)
     plugins = Path(plugins_root) if plugins_root is not None else root / PLUGIN_DIRNAME
-    fragments = _fragments(root, plugins)
+    fragments = _fragments(root, plugins, manifest, plugin_roots)
     owners = owners_of(fragments[0][2])
     specs, origins, problems, pending, subagent, overrides = _collect(fragments, owners)
     origin_root = str(fragments[0][2].get("root") or APP_ROOT)
     specs, origins, synthesized, gaps = _with_ancestors(specs, origins, origin_root)
     problems.extend(gaps)
+    active = set(origins.values())
+    pending = [item for item in pending
+               if owner_of_path(parent_path(str(item[2].get("path", "")), APP_ROOT), owners)
+               in active | {HOST_OWNER}]
     provided, contributed, gaps = _apply_provides(pending, specs, owners)
     problems.extend(gaps)
     specs.update(provided)
@@ -337,7 +344,9 @@ def load_merged(repo_root: Path,
         root=origin_root, version=int(fragments[0][2].get("version") or 1),
         specs=specs, origins=origins,
         synthesized=synthesized, subagent_tools=subagent,
-        plugins_root=plugins, overrides=tuple(overrides))
+        plugins_root=plugins, overrides=tuple(overrides),
+        plugin_roots={name: Path((plugin_roots or {}).get(name, plugins / name))
+                      for name, _, _ in fragments if name != HOST_OWNER})
     # 合并出来的配置同样是配置：节点级判据（factory 有无与形状、能否持有子级、
     # 事件名、root 前缀）必须对成品再跑一遍 —— 绕开 `SlotConfig.parse` 不等于绕开校验。
     labels = config.sources

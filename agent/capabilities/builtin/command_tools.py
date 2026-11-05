@@ -33,6 +33,7 @@ from agent.mechanisms.command_safety import (
 STREAM_OUTPUT_MAX_CHARS,
     STREAM_OUTPUT_STDERR_MAX_CHARS,
     CommandBlacklisted,
+    CommandOutputDecoder,
     check_command_blacklist,
     check_script_content,
     decode_output,
@@ -147,10 +148,9 @@ def _read_available(stream: Any, chunk: int = 4096) -> bytes:
 
 
 def _pump_report(reporter: Any, progress: Any, tail: dict, lock: Any,
-                 name: str, chunk: bytes) -> None:
+                 name: str, text: str) -> None:
     if reporter is None:
         return
-    text = decode_output(chunk)
     payload = {"stream": name, "text": text, "done": False}
     if isinstance(progress, dict) and not progress.get("awaiting_input"):
         with lock:
@@ -169,12 +169,18 @@ def _pump_report(reporter: Any, progress: Any, tail: dict, lock: Any,
 def _pump_reader(stream: Any, chunks: List[bytes], name: str, report: Any) -> None:
     if stream is None:
         return
+    decoder = CommandOutputDecoder()
     while True:
         chunk = _read_available(stream)
         if not chunk:
             break
         chunks.append(chunk)
-        report(name, chunk)
+        text = decoder.decode(chunk)
+        if text:
+            report(name, text)
+    text = decoder.decode(b"", final=True)
+    if text:
+        report(name, text)
 
 
 def _pump_stdin(proc: Any, progress: Any, tail: dict, lock: Any,

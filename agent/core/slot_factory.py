@@ -35,7 +35,7 @@ def resolve_factory(spec: str) -> Callable[..., Any]:
 
 #: 插件 factory 的解析器：由启动器注入，core 不自己建插件包。
 #: 入参：声明方插件名、factory 原文、节点路径、插件根；返回可调用对象。
-PluginFactories = Callable[[str, str, str, Path], Callable[..., Any]]
+PluginFactories = Callable[..., Callable[..., Any]]
 
 
 def missing_plugin_factories(origin: str, spec: str, path: str,
@@ -48,13 +48,14 @@ def missing_plugin_factories(origin: str, spec: str, path: str,
 
 
 def plugin_factory(factories: PluginFactories, origin: str, spec: str,
-                   path: str, plugins_root: Path) -> Callable[..., Any]:
+                   path: str, plugins_root: Path, plugin_root: Any = None) -> Callable[..., Any]:
     """插件声明的 factory → 可调用对象；失败时报节点、原文与插件名三样。"""
     if origin == HOST_OWNER:
         raise SlotConfigError(
             f"宿主节点不得引用插件实现：{path}（factory={spec}）")
     try:
-        factory = factories(origin, spec, path, plugins_root)
+        factory = (factories(origin, spec, path, plugins_root, plugin_root=plugin_root)
+                   if plugin_root is not None else factories(origin, spec, path, plugins_root))
     except SlotConfigError as exc:
         raise SlotConfigError(
             f"插件 factory 不可解析：{path}（factory={spec}，插件={origin}）：{exc}"
@@ -91,7 +92,9 @@ def resolver_for(config: "SlotConfig", path: str,
             raise SlotConfigError(
                 f"无 plugins_root，无法解析插件实现：{path}（factory={spec}，"
                 f"插件={config.origin_of(path)}）。插件片段必须经 load_merged 带插件根加载")
-        return plugin_factory(factories, config.origin_of(path), spec, path,
-                              plugins_root)
+        origin = config.origin_of(path)
+        actual = config.plugin_roots.get(origin)
+        external = actual if actual is not None and actual != plugins_root / origin else None
+        return plugin_factory(factories, origin, spec, path, plugins_root, external)
 
     return resolve
