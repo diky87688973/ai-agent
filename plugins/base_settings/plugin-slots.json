@@ -1,0 +1,257 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/settings/agent",
+      "kind": "setting",
+      "factory": "plugin:make_panel_agent",
+      "children": "fixed",
+      "fixed": [
+        "reasoning_effort",
+        "max_passes",
+        "backup_retention_days"
+      ],
+      "props": {
+        "title": "Agent"
+      }
+    },
+    {
+      "path": "app/settings/context",
+      "kind": "setting",
+      "factory": "plugin:make_panel_context",
+      "children": "fixed",
+      "fixed": [
+        "full_user_rounds",
+        "summary_output_max_chars",
+        "reasoning_replay_tokens",
+        "image_turns",
+        "image_max"
+      ],
+      "props": {
+        "title": "上下文"
+      }
+    },
+    {
+      "path": "app/settings/interface",
+      "kind": "setting",
+      "factory": "plugin:make_panel_interface",
+      "children": "fixed",
+      "fixed": [
+        "display_tool_items",
+        "display_tool_steps",
+        "theme_style"
+      ],
+      "props": {
+        "title": "界面"
+      }
+    },
+    {
+      "path": "app/settings/plugin",
+      "kind": "setting",
+      "factory": "plugin:make_panel_plugin",
+      "children": "keyed",
+      "props": {
+        "title": "插件设置"
+      }
+    },
+    {
+      "path": "app/settings/agent/reasoning_effort",
+      "kind": "setting",
+      "factory": "plugin:make_field_agent_select",
+      "props": {
+        "panel": "app/settings/agent",
+        "key": "reasoning_effort",
+        "section": "agent",
+        "kind": "select",
+        "label": "推理档位",
+        "default": "high",
+        "options": [
+          {
+            "value": "low",
+            "label": "low"
+          },
+          {
+            "value": "high",
+            "label": "high"
+          },
+          {
+            "value": "max",
+            "label": "max"
+          }
+        ]
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/agent/max_passes",
+      "kind": "setting",
+      "factory": "plugin:make_field_agent_number",
+      "props": {
+        "panel": "app/settings/agent",
+        "key": "max_passes",
+        "section": "agent",
+        "kind": "number",
+        "label": "每回合往返上限",
+        "default": "512",
+        "hint": "每回合往返上限≠每回合工具调用次数上限，每次往返可调用 0 个或多个工具",
+        "min": 1
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/agent/backup_retention_days",
+      "kind": "setting",
+      "factory": "plugin:make_field_agent_number",
+      "props": {
+        "panel": "app/settings/agent",
+        "key": "backup_retention_days",
+        "section": "agent",
+        "kind": "number",
+        "label": "AI 修改文件时的备份保存天数",
+        "default": "7",
+        "min": 0
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/context/full_user_rounds",
+      "kind": "setting",
+      "factory": "plugin:make_field_context_number",
+      "props": {
+        "panel": "app/settings/context",
+        "key": "full_user_rounds",
+        "section": "context",
+        "kind": "number",
+        "label": "压缩时保留最近对话轮数",
+        "default": "5",
+        "min": 0
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/context/summary_output_max_chars",
+      "kind": "setting",
+      "factory": "plugin:make_field_context_number",
+      "props": {
+        "panel": "app/settings/context",
+        "key": "summary_output_max_chars",
+        "section": "context",
+        "kind": "number",
+        "label": "摘要字数上限",
+        "default": "5000",
+        "min": 1
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/context/reasoning_replay_tokens",
+      "kind": "setting",
+      "factory": "plugin:make_field_context_number",
+      "props": {
+        "panel": "app/settings/context",
+        "key": "reasoning_replay_tokens",
+        "section": "context",
+        "kind": "number",
+        "label": "思维链回传预算",
+        "default": "8000",
+        "min": -1
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/context/image_turns",
+      "kind": "setting",
+      "factory": "plugin:make_field_context_number",
+      "props": {
+        "panel": "app/settings/context",
+        "key": "image_turns",
+        "section": "context",
+        "kind": "number",
+        "label": "带图用户轮数",
+        "default": "1",
+        "min": 0
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/context/image_max",
+      "kind": "setting",
+      "factory": "plugin:make_field_context_number",
+      "props": {
+        "panel": "app/settings/context",
+        "key": "image_max",
+        "section": "context",
+        "kind": "number",
+        "label": "带图张数上限",
+        "default": "8",
+        "min": 0
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/interface/display_tool_items",
+      "kind": "setting",
+      "factory": "plugin:make_field_web_ui_checkbox",
+      "props": {
+        "panel": "app/settings/interface",
+        "key": "display_tool_items",
+        "kind": "checkbox",
+        "label": "工作区展示工具步骤",
+        "default": "1",
+        "section": "web-ui"
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/interface/display_tool_steps",
+      "kind": "setting",
+      "factory": "plugin:make_field_web_ui_checkbox",
+      "props": {
+        "panel": "app/settings/interface",
+        "key": "display_tool_steps",
+        "kind": "checkbox",
+        "label": "侧边栏展示工具步骤",
+        "default": "0",
+        "section": "web-ui"
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/nav/buttons/settings",
+      "kind": "ui-control",
+      "props": {
+        "label": "设置",
+        "action": "settings.open",
+        "binding": {
+          "nav": "settings",
+          "icon": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"3\"></circle><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z\"></path></svg>",
+          "className": "hdr-settings-btn ui-nav-btn"
+        }
+      },
+      "order": -1
+    }
+  ]
+}

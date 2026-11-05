@@ -215,9 +215,8 @@ class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
         """
         provider = getattr(self._app, "provider", None)
         model = str(getattr(provider, "model", "") or "")
-        # 可选清单以装配面为准（`config.ini` 的 `[model_reasoning] models`）：
-        # provider 未必有 `allowed_models` 属性，只读它会让清单退化成"只有当前模型"
-        # ——模型下拉只画一项，而且选择会被白名单校验拒掉。
+        # 可选清单以装配面为准（模型目录）：provider 未必持有 `allowed_models`，
+        # 只读它会让清单退化成"只有当前模型"——模型下拉只画一项，而且选择会被白名单校验拒掉。
         resolver = getattr(self._app, "available_models", None)
         allowed = [str(m) for m in (resolver() if callable(resolver) else []) or []]
         source = str(getattr(self._app, "model_config_state", "") or "")

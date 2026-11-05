@@ -26,7 +26,7 @@ def compress_module(ctx: Any, children: Any = ()) -> Any:
     return CompressModule(
         context=ctx.context, compactor=ctx.compactor, mode_note=ctx.mode_note,
         image_turns=ctx.image_turns, image_max=ctx.image_max,
-        appenders=[child.port_value() for child in children])
+        appenders=list(children))
 
 
 def model_module(ctx: Any, children: Any = ()) -> Any:

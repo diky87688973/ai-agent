@@ -24,6 +24,34 @@ from agent.core.error_report import report_error
 from agent.mechanisms.providers.missing import MissingProvider
 
 
+def apply_model_policy(app: Any) -> None:
+    """把当前可得信息算成模型策略落到 App 上：状态、可选清单、默认模型与路由白名单。
+
+    两档：目录权威 / 目录不权威。后者是空清单加降级态。
+
+    模型清单的唯一来源是插件声明的 `provider(target=model-catalog)`；
+    内核不从配置文件推导清单。
+
+    必须在绑定器之后被再调一次：模型目录的来源在绑定阶段才建立，而第一次调用
+    发生在插件装载时、早于绑定。两处调同一个实现不是重复，是「信息变了重算一次」；
+    只在一处算，目录权威会被第一次调用的结果覆盖掉。
+    """
+    snapshot = app.context.get(SERVICE_MODEL_CATALOG).snapshot()
+    if snapshot.authoritative:
+        app.model_config_state = MODEL_CONFIG_CATALOG
+        app._available_models = [item.id for item in snapshot.entries]
+        app.live_state.default_model = snapshot.default_id
+        app.provider.reload_policy(
+            allowed_ids=app._available_models,
+            default_id=snapshot.default_id, fallback_to_default=False)
+        return
+    app.model_config_state = MODEL_CONFIG_NONE
+    app._available_models = []
+    app.live_state.default_model = ""
+    app.provider.reload_policy(
+        allowed_ids=[], default_id="", fallback_to_default=False)
+
+
 class AppModelPolicy:
     """`App` 的模型选择与阈值解析。"""
 

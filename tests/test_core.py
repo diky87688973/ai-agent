@@ -728,6 +728,10 @@ class DurableRetryTest(unittest.TestCase):
         import tempfile as _tf
 
         from agent.app import build_app
+        from tests.testkit import isolate_data, isolate_plugins
+
+        isolate_plugins(self)
+        isolate_data(self)
         tmp = _tf.TemporaryDirectory(prefix="durable-")
         root = Path(tmp.name)
         store = _FlakyStore(root / "data", fail_times)
@@ -798,8 +802,10 @@ class PortConflictTest(unittest.TestCase):
     def test_second_bind_on_same_port_raises(self) -> None:
         from agent.app import build_app
         from agent.shell.web.server import create_server
-        from tests.testkit import local_auth
+        from tests.testkit import isolate_data, isolate_plugins, local_auth
 
+        isolate_plugins(self)
+        isolate_data(self)
         app = build_app()
         first = None
         try:
@@ -882,6 +888,11 @@ class DedupOnFailureTest(unittest.TestCase):
         import tempfile as _tf
 
         from agent.app import build_app
+        from tests.testkit import isolate_data, isolate_plugins
+
+        isolate_plugins(self)
+        isolate_data(self)
+
         class _Flaky(SessionStore):
             def __init__(self, root: Path, n: int) -> None:
                 super().__init__(root)
@@ -944,6 +955,10 @@ class WiringTest(unittest.TestCase):
 
         from agent.app import build_app
         from agent.mechanisms.session_store import SessionStore
+        from tests.testkit import isolate_data, isolate_plugins
+
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory(prefix="wiring-")
         root = Path(self._tmp.name)
         self.frames: list = []

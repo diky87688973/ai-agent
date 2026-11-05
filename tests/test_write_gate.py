@@ -20,6 +20,9 @@ class WriteGateTest(unittest.TestCase):
     """经管道驱动 write_file（预览）/ commit_write（提交）：四步协议 / 违规拒绝 / 红灯回灌。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)

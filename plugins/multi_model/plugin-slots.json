@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/multi_model/runtime",
+      "kind": "runtime",
+      "factory": "plugin:make_runtime",
+      "order": 0
+    },
+    {
+      "path": "app/settings/model",
+      "kind": "setting",
+      "children": "keyed",
+      "factory": "plugin:make_panel",
+      "requires": {
+        "runtime": "app/plugins/multi_model/runtime"
+      },
+      "props": {
+        "title": "模型设置"
+      }
+    },
+    {
+      "path": "app/plugins/multi_model/models/catalog",
+      "kind": "provider",
+      "factory": "plugin:make_catalog",
+      "props": {
+        "target": "model-catalog"
+      },
+      "requires": {
+        "runtime": "app/plugins/multi_model/runtime"
+      },
+      "order": 0
+    },
+    {
+      "path": "app/plugins/multi_model/routes/catalog",
+      "kind": "route",
+      "factory": "plugin:make_catalog_route",
+      "props": {
+        "path": "catalog"
+      },
+      "requires": {
+        "runtime": "app/plugins/multi_model/runtime"
+      },
+      "order": 0,
+      "method": "GET"
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/input/buttons/model_switch_btn",
+      "kind": "ui-control",
+      "props": {
+        "label": "模型选择",
+        "action": "model.open",
+        "binding": {
+          "model_slot": true,
+          "input": {
+            "native": "#modelPickerSlot .mm-picker-btn"
+          }
+        },
+        "scripts": [
+          "ui/model-picker.js"
+        ]
+      },
+      "order": 40
+    }
+  ]
+}

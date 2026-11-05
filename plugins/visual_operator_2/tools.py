@@ -11,7 +11,7 @@ from agent.capabilities.registry import ToolPlugin
 from agent.core.session_scope import current_context
 
 from .consent import VisionConsentRequired
-from .desktop import build_tools as build_desktop_tools
+from .desktop import DESKTOP_TOOL_FACTORIES, DesktopParts, make_desktop_parts
 from .state import VisionRuntime
 from .step_log import write as log_step
 
@@ -382,22 +382,29 @@ class _LoggedTool(ToolPlugin):
         return result
 
 
-def build_tools(runtime: VisionRuntime) -> list[ToolPlugin]:
-    tools = [
-        VisionRequestOpenTool(runtime),
-        VisionStartTool(runtime),
-        VisionFocusTool(runtime),
-        VisionMoveTool(runtime),
-        VisionMovePointTool(runtime),
-        VisionMoveFocusTool(runtime),
-        VisionClickTool(runtime),
-        VisionClickSequenceTool(runtime),
-        VisionKeyTool(runtime),
-        VisionStopTool(runtime),
-    ]
-    tools.extend(build_desktop_tools(runtime))
-    for tool in tools:
-        tool.description = SKILL_REQUIRED + str(tool.description)
-    return [_LoggedTool(tool) for tool in tools]
+#: 视觉链工具类，装配顺序即此顺序。
+VISION_TOOL_CLASSES = (
+    VisionRequestOpenTool, VisionStartTool, VisionFocusTool,
+    VisionMoveTool, VisionMovePointTool, VisionMoveFocusTool,
+    VisionClickTool, VisionClickSequenceTool, VisionKeyTool,
+    VisionStopTool,
+)
 
-__all__ = ["build_tools"]
+
+def finish_tool(tool: ToolPlugin) -> ToolPlugin:
+    """工具收尾：技能前缀 + 步骤日志包装。
+
+    单工具装配与批量装配都过这一处，两边的描述前缀与包装层不会分叉。
+    """
+    tool.description = SKILL_REQUIRED + str(tool.description)
+    return _LoggedTool(tool)
+
+
+def build_tools(runtime: VisionRuntime,
+                parts: DesktopParts | None = None) -> list[ToolPlugin]:
+    parts = parts if parts is not None else make_desktop_parts()
+    raw = [cls(runtime) for cls in VISION_TOOL_CLASSES]
+    raw.extend(factory(runtime, parts) for factory in DESKTOP_TOOL_FACTORIES)
+    return [finish_tool(tool) for tool in raw]
+
+__all__ = ["build_tools", "finish_tool"]

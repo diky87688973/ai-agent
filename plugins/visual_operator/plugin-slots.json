@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/visual_operator/runtime",
+      "kind": "runtime",
+      "factory": "plugin:make_runtime",
+      "order": 0,
+      "requires": {
+        "live_state": "app/host/services/live_state"
+      }
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_act",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_act",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 0
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_app",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_app",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 1
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_click_region",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_click_region",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 2
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_click_text",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_click_text",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 3
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_eye",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_eye",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 4
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_find",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_find",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 5
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_keyboard",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_keyboard",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 6
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_mouse",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_mouse",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 7
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_open",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_open",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 8
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_type_into",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_type_into",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 9
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_wait",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_wait",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 10
+    },
+    {
+      "path": "app/plugins/visual_operator/tools/desktop_window",
+      "kind": "tool",
+      "factory": "plugin:make_tool_desktop_window",
+      "requires": {
+        "runtime": "app/plugins/visual_operator/runtime"
+      },
+      "order": 11
+    }
+  ],
+  "provides": []
+}

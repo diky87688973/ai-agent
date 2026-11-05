@@ -37,6 +37,9 @@ class WritePathToolsTest(unittest.TestCase):
     """六工具：正向提交 / 违规拒绝 / 门控联动。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)

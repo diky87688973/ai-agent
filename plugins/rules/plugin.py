@@ -16,26 +16,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from agent.capabilities.plugin_paths import load_plugin_paths
 from agent.config import PROJECT_ROOT
 from agent.core.error_report import report_error
 
 _CACHE_MAX = 64
 
-PATHS = load_plugin_paths(__file__)
-
 __all__ = [
     "INJECT_PREFIX",
     "MAX_RULE_BYTES",
-    "RESOURCE_HEAD",
     "RULES_DIR",
-    "SEGMENT_LABEL",
     "RulesRuntime",
-    "register",
 ]
-
-#: 系统提示词章节标题（与 Skills 插件同一标题，正文按清单位次合并）。
-RESOURCE_HEAD = "## 资源目录"
 
 #: 规则根：工程根下的 `rules/`，与 `skills/` 平级。不提供配置项。
 RULES_DIR = PROJECT_ROOT / "rules"
@@ -43,18 +34,12 @@ RULES_DIR = PROJECT_ROOT / "rules"
 #: 注入抬头：模型靠这一行认出「这是规则条款」，不是对话内容。
 INJECT_PREFIX = "【规则 Rules {rel}】"
 
-#: 上下文段名（界面那一行显示的字）。
-SEGMENT_LABEL = "Rules"
-
 #: 单文件字节上限。超过就跳过该文件，并留一条结构化错误 —— 静默丢规则
 #: 比读不出来更难查。
 MAX_RULE_BYTES = 200000
 
 #: 只收这一种扩展名：规则是可读的条款，不是脚本或数据。
 RULE_SUFFIX = ".md"
-
-#: 段色：让 Rules 段与其它插件段区分开。
-SEGMENT_COLOR = "green"
 
 
 def _hidden(rel: Path) -> bool:
@@ -192,29 +177,18 @@ def resource_directory_lines(runtime: "RulesRuntime") -> List[str]:
     ]
 
 
-def register(ctx: Any) -> List[Callable[[], None]]:
-    """插件入口：装配运行时，注册注入源、系统提示词章节与段色。
+def make_runtime(ctx: Any) -> RulesRuntime:
+    """装配期构造规则目录的只读访问层。"""
+    return RulesRuntime()
 
-    三项注册都由 `ctx.add_*` 产出 disposer：插件停用（热开关）时宿主逆序
-    撤销，注入与章节一起消失，不需要插件自己做清理。
-    """
-    runtime = RulesRuntime()
-    ctx.set_runtime(runtime)
 
-    return [
-        # 上下文注入：一文件一条 system 消息
-        ctx.add_context_source(
-            runtime.build_system_messages,
-            {"label": SEGMENT_LABEL, "count": runtime.attached_count},
-            path="app/backend/context/sources/rules/files",
-        ),
-        # 系统提示词章节：与 Skills 插件合并到同一个 `## 资源目录`
-        ctx.add_prompt_section(
-            RESOURCE_HEAD, lambda _cid: resource_directory_lines(runtime),
-            path="app/backend/prompt/sections/resources/rules"),
-        # 上下文分层里的段外观（界面那一行的颜色）
-        ctx.add_ui_item(
-            PATHS["segment"], kind="segment",
-            props={"label": SEGMENT_LABEL, "color": SEGMENT_COLOR,
-                   "binding": {"context": True}}),
-    ]
+def make_context_source(ctx: Any, runtime: RulesRuntime) -> Callable[..., List[str]]:
+    """上下文注入源：一文件一条 system 消息。"""
+    return runtime.build_system_messages
+
+
+def make_prompt_section(ctx: Any, runtime: RulesRuntime) -> Callable[[str], List[str]]:
+    """`## 资源目录` 章节里本插件的正文行。"""
+    def section(cid: str) -> List[str]:
+        return resource_directory_lines(runtime)
+    return section

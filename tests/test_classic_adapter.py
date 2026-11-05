@@ -29,7 +29,7 @@ from agent.shell.classic_adapter import contract as C  # noqa: E402
 from agent.shell.classic_adapter.adapter import ClassicAdapter  # noqa: E402
 from agent.shell.classic_adapter.outbound import ClassicStream  # noqa: E402
 from agent.shell.web.ui_bundle import read_ui_css, read_ui_js  # noqa: E402
-from tests.testkit import no_plugins  # noqa: E402
+from tests.testkit import isolate_data, no_plugins  # noqa: E402
 
 try:                                    # 服务名常量（装配层用）
     from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
@@ -1277,6 +1277,7 @@ class SubscriptionLifecycleTest(unittest.TestCase):
         # 本类数的是总线订阅总数，所以必须排除插件贡献的订阅：
         # 插件可注册任意数量的订阅，混进来就分不清"适配层的订阅"与"插件的订阅"。
         no_plugins(self)
+        isolate_data(self)
         self.app = build_app()
         self.addCleanup(self.app.dispose)
         self.classic = self.app.context.get(SERVICE_CLASSIC_ADAPTER)

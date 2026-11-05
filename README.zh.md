@@ -227,9 +227,9 @@ pip install -e . -c constraints.txt
 
 ### CI
 
-`scripts/ci.py` 的流水线 32 步：19 项门禁 → 单测 → 10 个验收脚本 → 覆盖率采集 → 分包覆盖率。
+`scripts/ci.py` 的流水线 37 步：24 项门禁 → 单测 → 10 个验收脚本 → 覆盖率采集 → 分包覆盖率。
 
-19 项门禁覆盖依赖方向、架构约束、配置漂移、生成文档一致性、静态检查、UI/文案、复杂度、适用性与并发争用；完整清单用 `--list` 查看。
+24 项门禁覆盖依赖方向、架构约束、配置漂移、生成文档一致性、静态检查、UI/文案、复杂度、适用性、插口配置、插口字段白名单、有效视图、插口可替换（注桩）、字段回潮清扫与并发争用；完整清单用 `--list` 查看。
 
 门禁清单的唯一事实源是 `scripts/ci_steps.py`，由 `check_ci_workflow` 与 GitHub Actions 对齐。
 
@@ -243,7 +243,7 @@ python scripts/ci.py --list    # 列出检查项
 
 `docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（2182 个用例）：
+单元测试（2419 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

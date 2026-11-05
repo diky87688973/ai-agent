@@ -31,6 +31,9 @@ class _Provider:
 
 class ContextDumpTest(unittest.TestCase):
     def test_snapshot_uses_real_assembly_and_does_not_call_model(self) -> None:
+        from tests.testkit import isolate_data
+
+        isolate_data(self)
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             manifest = root / "plugins.ini"
@@ -59,6 +62,9 @@ class ContextDumpTest(unittest.TestCase):
                 app.dispose()
 
     def test_snapshot_reports_todo_progress_when_list_exists(self) -> None:
+        from tests.testkit import isolate_data
+
+        isolate_data(self)
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             manifest = root / "plugins.ini"
@@ -91,6 +97,9 @@ class ContextDumpTest(unittest.TestCase):
                 app.dispose()
 
     def test_missing_conversation_is_an_error(self) -> None:
+        from tests.testkit import isolate_data
+
+        isolate_data(self)
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             manifest = root / "plugins.ini"

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from agent.core.error_report import report_error
+from agent.core.stderr import write_stderr
 from agent.core.thread_context import thread_with_context
 
 #: 任务状态。claimed 只表示正在投递，不是终态。
@@ -175,6 +176,13 @@ class _SchedulerProcessLock:
         except (OSError, ValueError):
             return {}
 
+    def holder_pid(self) -> int:
+        """当前锁持有者的 PID；读不到时为 0。"""
+        try:
+            return int(self._read_holder().get("pid") or 0)
+        except (TypeError, ValueError):
+            return 0
+
 
 def _pid_alive(pid: int) -> bool:
     if pid <= 0:
@@ -253,10 +261,14 @@ class WakeScheduler:
                 return True
             self._start_attempted = True
             if not self._process_lock.acquire():
+                # 抢不到锁 = 本进程不是 owner，是正常竞争结果，不是缺陷：
+                # 不落 errors.log，只打一行 info，并注明谁持有。
                 self._owner = False
-                report_error("agent.mechanisms.wake_scheduler.lock_busy",
-                             "另一个进程正在运行唤醒调度器",
-                             path=str(self._process_lock.path))
+                write_stderr(
+                    "[info] 唤醒调度器未启动：锁由 PID "
+                    f"{self._process_lock.holder_pid()} 持有"
+                    f"（{self._process_lock.path}）；"
+                    "本进程仍可取到调度器对象，但不能注册或取消唤醒任务")
                 return False
             self._owner = True
             self._stop.clear()

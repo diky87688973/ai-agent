@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/nav/buttons/update",
+      "kind": "ui-control",
+      "props": {
+        "label": "版本更新",
+        "action": "auto_update.check",
+        "binding": {
+          "nav": "update",
+          "persistent": true,
+          "hidden": true,
+          "className": "update-btn ui-nav-btn"
+        },
+        "scripts": [
+          "ui/update.js"
+        ]
+      },
+      "order": 0
+    }
+  ]
+}

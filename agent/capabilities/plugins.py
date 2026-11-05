@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 """插件加载器与宿主——插件装卸的落点。
 
-目录约定：`plugins/<name>/plugin.py`（工程根 plugins/；忽略 `_`/`.` 开头目录）。
+插件身份：`plugins/<name>/plugin-meta.json` 存在即为插件（工程根 plugins/；
+忽略 `_`/`.` 开头目录）。身份只由它声明，不看某个文件名是否存在。
+插件能力：由 `plugins/<name>/plugin-slots.json` 的片段声明，由绑定器登记；
+没有片段就是没有能力，不需要 Python 入口。
 装载清单：工程根 `plugins.ini` 的 `[plugin:<名字>]` 节（可声明 path 与 enabled）；
 未列出的插件不装载。见 `docs/subsystems/plugins.md`。
-插件契约：plugin.py 暴露 `register(ctx) -> None | disposer | list[disposer]`；
-ctx（`PluginContext`）的注册面见 `agent.capabilities.plugin_context`，贡献撤销的
-合并与逆序执行见 `agent.capabilities.plugin_ledger`。
 
 纪律：
 - 单插件装载失败降级为报告（不中断宿主与其余插件）；
-- register 抛错时，经 ctx 完成的注册逆序回滚（原子性兜底）；
-- 卸载 = 逆序调用 disposer（去重）+ 移除插件模块缓存。
+- 卸载 = 移除插件模块缓存 + 按 owner 清掉残留登记。
 """
 from __future__ import annotations
 
@@ -27,11 +26,9 @@ from typing import Any, Dict, List, Optional
 
 from agent.capabilities.backend_paths import BASE_BACKEND_SLOTS, seed_backend_slots
 from agent.capabilities.path_registry import PathRegistry
-from agent.capabilities.plugin_context import PluginContext
 from agent.capabilities.plugin_ledger import (
     Disposer,
     dispose_in_reverse,
-    merge_disposers,
 )
 from agent.capabilities.registry import ToolRegistry
 from agent.capabilities.settings_registry import SettingsRegistry
@@ -67,6 +64,11 @@ def resolve_plugin_root(plugins_dir: Path, name: str, path_raw: str = "") -> Pat
         parts = parts[1:]
     return (base.joinpath(*parts) if parts else base).resolve()
 
+
+#: 插件身份文件。存在即为插件：身份只由它声明，不看某个文件名是否存在。
+META_FILE = "plugin-meta.json"
+#: 可选 Python 入口。有则装载模块（工厂解析要用同一个模块对象），无则纯声明插件。
+ENTRY_FILE = "plugin.py"
 
 #: 插件身份声明键。真实配置只放插件自己的设置，不重复声明身份。
 _IDENTITY_KEYS = ("id", "name", "desc", "icon", "version", "settings_tab")
@@ -166,10 +168,15 @@ def _entry_integrity(entry: Path) -> Dict[str, Any]:
 
 @dataclass(slots=True)
 class PluginInfo:
-    """发现到的插件（目录名 + 入口文件）。"""
+    """发现到的插件（目录名 + 插件目录 + 可选 Python 入口）。
+
+    插件存在的判据是 `plugin-meta.json`；`entry` 只是「有 Python 入口时顺便记下」，
+    纯声明插件没有入口，属于正常形态。
+    """
 
     name: str
-    path: Path
+    root: Path
+    entry: Optional[Path] = None
 
 
 @dataclass(slots=True)
@@ -187,7 +194,7 @@ class LoadReport:
 class PluginHost:
     """插件宿主：发现 / 按清单装载 / 卸载 / 报告。"""
 
-    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None, prompt_sections: Any = None, context_hooks: Any = None, slots: Any = None, tree: Any = None, backend_slots: Any = None) -> None:
+    def __init__(self, plugins_dir: Path, registry: ToolRegistry, event_bus: Any = None, context_sources: Any = None, pipeline: Any = None, contributions: Any = None, plugin_data_root: Any = None, executors: Any = None, model_catalog: Any = None, prompt_tail: Any = None, prompt_sections: Any = None, context_hooks: Any = None, slots: Any = None, backend_slots: Any = None) -> None:
         self._dir = Path(plugins_dir)
         self._registry = registry
         self._event_bus = event_bus
@@ -199,7 +206,6 @@ class PluginHost:
         self._prompt_tail = prompt_tail
         self._prompt_sections = prompt_sections if prompt_sections is not None else PromptSections()
         self._context_hooks = context_hooks
-        self.tree = tree
         #: 插件专属存储的根（`<数据根>/plugin/`）。插件只拿到自己的子目录，见 `PluginContext.data_dir`。
         self.plugin_data_root: Optional[Path] = (
             Path(plugin_data_root) if plugin_data_root is not None else None
@@ -214,9 +220,13 @@ class PluginHost:
         seed_backend_slots(
             self.backend,
             BASE_BACKEND_SLOTS if backend_slots is None else backend_slots)
+        #: 已装载插件名 → 该插件在宿主侧持有的 disposer。插件资产由片段声明、
+        #: 绑定器登记，不经装载器交付，故恒为空列表；本表只回答「哪些插件已装载」。
         self._loaded: Dict[str, List[Disposer]] = {}
         self._modules: Dict[str, str] = {}
         self._runtimes: Dict[str, Any] = {}
+        #: 已装载插件名 → 清单位次（绑定器登记提示词章节与注入源时按它排序）。
+        self._ranks: Dict[str, int] = {}
         #: 已装载插件名 → 插件目录（清单 `path` 解析后的绝对路径）
         self._plugin_roots: Dict[str, Path] = {}
         #: 版本，来自 `plugin-meta.json`；没写时沿用模块里的 `PLUGIN_VERSION`。没声明就是空串。
@@ -247,11 +257,19 @@ class PluginHost:
 
     # ── 运行时登记 ──
 
-    def register_runtime(self, name: str, runtime: Any) -> None:
-        """登记某插件的运行时对象，供壳层按插件名取用。"""
+    def register_runtime(self, name: str, runtime: Any) -> Any:
+        """登记某插件的运行时对象，供壳层按插件名取用；返回幂等 disposer。"""
         key = str(name or "").strip()
-        if key:
-            self._runtimes[key] = runtime
+        if not key:
+            return lambda: None
+        self._runtimes[key] = runtime
+
+        def _dispose() -> None:
+            # 只撤自己这一份：同名旧 disposer 在重新登记后不能删掉新运行时。
+            if self._runtimes.get(key) is runtime:
+                self._runtimes.pop(key, None)
+
+        return _dispose
 
     def runtime(self, name: str, default: Any = None) -> Any:
         """取某插件的运行时对象；未加载或未登记返回 `default`。
@@ -261,10 +279,14 @@ class PluginHost:
         """
         return self._runtimes.get(str(name or "").strip(), default)
 
+    def ranks(self) -> Dict[str, int]:
+        """已装载插件名 → 清单位次（绑定器登记提示词章节与注入源时按它排序）。"""
+        return dict(self._ranks)
+
     # ── 发现 ──
 
     def discover(self) -> List[PluginInfo]:
-        """扫描插件根目录：`<name>/plugin.py` 为插件；忽略隐藏/私有目录与无入口项。
+        """扫描插件根目录：`<name>/plugin-meta.json` 为插件；忽略隐藏/私有目录。
 
         这是不依赖清单的枚举，用于列出磁盘上有哪些插件。
         真正装载哪些由清单（`plugins.ini`）决定，装载入口是 `load_manifest`。
@@ -275,9 +297,12 @@ class PluginHost:
         for child in sorted(self._dir.iterdir()):
             if not child.is_dir() or child.name.startswith(("_", ".")):
                 continue
-            entry = child / "plugin.py"
-            if entry.is_file():
-                found.append(PluginInfo(name=child.name, path=entry))
+            if not (child / META_FILE).is_file():
+                continue
+            entry = child / ENTRY_FILE
+            found.append(PluginInfo(
+                name=child.name, root=child,
+                entry=entry if entry.is_file() else None))
         return found
 
     # ── 装载（按清单）──
@@ -286,7 +311,7 @@ class PluginHost:
         """按清单装载。每项是 `{name, version, path}`；也接受纯名字（取默认目录）。
 
         清单条目 `enabled = 0` 时卸下后跳过，不记错误。
-        名字非法、目录缺失、缺 `plugin.py`、版本对不上都记下来。
+        名字非法、目录缺失、缺 `plugin-meta.json`、版本对不上都记下来。
         """
         fresh: List[LoadReport] = []
         for rank, entry in enumerate(entries):
@@ -309,15 +334,17 @@ class PluginHost:
             if name in self._loaded:
                 continue
 
-            entry_file = root / "plugin.py"
-            if not entry_file.is_file():
-                msg = f"插件目录不存在或缺少 plugin.py：{entry_file}"
+            if not (root / META_FILE).is_file():
+                msg = f"插件目录不存在或缺少 {META_FILE}：{root}"
                 report_error("plugin.load", msg, plugin=name)
                 fresh.append(LoadReport(name=name, status=PLUGIN_ERROR, message=msg))
                 continue
 
+            entry_file = root / ENTRY_FILE
             report = self._load_one(
-                PluginInfo(name=name, path=entry_file), rank=rank, root=root)
+                PluginInfo(name=name, root=root,
+                           entry=entry_file if entry_file.is_file() else None),
+                rank=rank, root=root)
             if base["version"]:
                 self._versions[name] = base["version"]
             fresh.append(report)
@@ -337,12 +364,12 @@ class PluginHost:
                 continue
             info = discovered.get(name)
             if info is None:
-                msg = "插件目录不存在或缺少 plugin.py"
+                msg = f"插件目录不存在或缺少 {META_FILE}"
                 report_error("plugin.load", msg, plugin=name)
                 fresh.append(LoadReport(name=name, status=PLUGIN_ERROR, message=msg))
                 continue
             report = self._load_one(
-                info, rank=rank, root=info.path.parent.resolve())
+                info, rank=rank, root=info.root.resolve())
             fresh.append(report)
         self._reports.extend(fresh)
         return fresh
@@ -353,17 +380,16 @@ class PluginHost:
         rank: Optional[int] = None,
         root: Optional[Path] = None,
     ) -> LoadReport:
-        ctx = PluginContext(info.name, self._registry, self._event_bus,
-                            self._context_sources, self._pipeline, self,
-                            self._contributions, self._executors,
-                            self._model_catalog, settings=self.settings,
-                            ui=self.ui, backend=self.backend,
-                            prompt_tail=self._prompt_tail,
-            prompt_sections=self._prompt_sections,
-            context_hooks=self._context_hooks, tree=self.tree)
-        ctx.set_rank(rank)
-        mod_name = f"{_MODULE_PREFIX}.{info.name}"
-        plugin_root = Path(root).resolve() if root is not None else info.path.parent.resolve()
+        """登记一个插件并出报告；有 Python 入口时顺带把模块装载好。
+
+        插件资产由片段声明、由绑定器登记（见 `slot_binder`），本方法不执行任何
+        插件侧注册代码。有入口时加载模块是为了「工厂解析要用同一个模块对象」；
+        没有入口的纯声明插件到此结束，这不是错误。
+        版本一律取 `plugin-meta.json`，不读模块属性 —— 身份只有一份来源。
+        """
+        source = info.entry if info.entry is not None else info.root / META_FILE
+        mod_name = plugin_module_name(info.name) if info.entry is not None else None
+        plugin_root = Path(root).resolve() if root is not None else info.root.resolve()
         try:
             # 开关打开时拒绝对外置路径装载（见 docs/subsystems/plugins.md「信任模型」）
             if get_plugin_tree_only() and not _within_plugins_tree(self._dir, plugin_root):
@@ -371,7 +397,7 @@ class PluginHost:
                     f"插件路径越出 plugins/ 树：{plugin_root}"
                     "（已开 plugin_tree_only / AI_AGENT_PLUGIN_TREE_ONLY）"
                 )
-            integrity = _entry_integrity(info.path)
+            integrity = _entry_integrity(source)
             print(
                 f"[plugin.load] {info.name} source={integrity['path']} "
                 f"sha256={integrity['sha256'] or '?'} verified=no "
@@ -379,32 +405,22 @@ class PluginHost:
                 file=sys.stderr,
                 flush=True,
             )
-            # 把插件目录标成包搜索路径，使 `from .sibling import …` 在动态加载下可用
-            spec = importlib.util.spec_from_file_location(
-                mod_name,
-                str(info.path),
-                submodule_search_locations=[str(plugin_root)],
-            )
-            if spec is None or spec.loader is None:
-                raise ImportError(f"无法加载插件模块：{info.path}")
-            module: ModuleType = importlib.util.module_from_spec(spec)
-            sys.modules[mod_name] = module
-            _ensure_parent_package(self._dir)
-            spec.loader.exec_module(module)
-            register = getattr(module, "register", None)
-            if not callable(register):
-                raise AttributeError("plugin.py 未定义可调用的 register(ctx)")
-            returned = register(ctx)
-            self._loaded[info.name] = merge_disposers(ctx.owned_disposers(), returned)
-            self._modules[info.name] = mod_name
+            if info.entry is not None:
+                # 把插件目录标成包搜索路径，使 `from .sibling import …` 在动态加载下可用
+                load_plugin_module(self._dir, info.name,
+                                   root=plugin_root, entry=info.entry)
+            if rank is not None:
+                self._ranks[info.name] = rank
+            # 记账只表示「本插件已装载」；插件资产不在本表（见字段注释）。
+            self._loaded[info.name] = []
+            if mod_name is not None:
+                self._modules[info.name] = mod_name
             self._plugin_roots[info.name] = plugin_root
-            # 模块级 PLUGIN_VERSION。元数据 version 有值时调用方改用那一份，再与清单核对。
-            self._versions[info.name] = str(getattr(module, "PLUGIN_VERSION", "") or "")
+            self._versions[info.name] = plugin_config_fields(plugin_root)["version"]
             return LoadReport(name=info.name, status=PLUGIN_LOADED)
         except Exception as exc:
-            dispose_in_reverse(
-                ctx.owned_disposers(), "agent.capabilities.plugins.PluginHost._load_one")
-            _drop_plugin_modules(mod_name)
+            if mod_name is not None:
+                _drop_plugin_modules(mod_name)
             self._plugin_roots.pop(info.name, None)
             report_error("plugin.load", exc, plugin=info.name)
             return LoadReport(name=info.name, status=PLUGIN_ERROR, message=f"{type(exc).__name__}: {exc}")
@@ -412,7 +428,11 @@ class PluginHost:
     # ── 卸载 ──
 
     def unload(self, name: str) -> None:
-        """卸载单个插件（未加载则忽略）；disposer 逆序执行、单个失败不阻断。"""
+        """卸载单个插件：卸模块，并按 owner 清掉宿主侧登记条目。
+
+        插件资产（工具 / UI / 路由 / 设置的登记）由绑定器持有，归装配生命周期
+        统一撤销，不在本方法职责内；这里做的是模块卸载加按 owner 的兜底清理。
+        """
         key = str(name or "").strip()
         disposers = self._loaded.pop(key, None)
         if disposers is None:
@@ -473,3 +493,62 @@ def _ensure_parent_package(plugins_dir: Path) -> None:
         sys.modules[_MODULE_PREFIX] = parent
     elif not getattr(parent, "__path__", None):
         parent.__path__ = [str(plugins_dir)]
+
+
+def plugin_module_name(name: str) -> str:
+    """插件入口模块的唯一模块名；子模块是其前缀下的 `.<段>`。"""
+    return f"{_MODULE_PREFIX}.{name}"
+
+
+def load_plugin_module(plugins_dir: Path, name: str, *,
+                       root: Optional[Path] = None,
+                       entry: Optional[Path] = None) -> ModuleType:
+    """按全库唯一规则装载插件入口模块，已装载则直接复用。
+
+    模块名恒为 `fan_agent_plugins.<插件名>`，所以无论先走装载器还是先走
+    工厂解析，同一个 plugin.py 只会在 `sys.modules` 里存在一份。
+    `root` 是插件目录（也是子包搜索路径），`entry` 是入口文件；
+    两者缺省为 `<插件根>/<名字>` 与 `<插件目录>/plugin.py`。
+    """
+    mod_name = plugin_module_name(name)
+    loaded = sys.modules.get(mod_name)
+    if loaded is not None and getattr(loaded, "__file__", None):
+        return loaded
+    plugin_root = Path(root) if root is not None else Path(plugins_dir) / name
+    target = Path(entry) if entry is not None else plugin_root / "plugin.py"
+    spec = importlib.util.spec_from_file_location(
+        mod_name, str(target), submodule_search_locations=[str(plugin_root)])
+    if spec is None or spec.loader is None:
+        raise ImportError(f"无法加载插件模块：{target}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[mod_name] = module
+    _ensure_parent_package(Path(plugins_dir))
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(mod_name, None)
+        raise
+    return module
+
+
+def resolve_plugin_factory(plugins_dir: Path, origin: str, spec: str,
+                           _path: str, _repo_root: Path) -> Any:
+    """插口节点声明的插件 factory → 可调用对象。
+
+    module 段写 `plugin` 时就是插件入口模块本身（与装载器同一个模块对象）；
+    其他段是该包下的子模块。包名与路径规则只有本文件一处，core 不重复实现。
+    """
+    module_name, sep, attr = str(spec or "").partition(":")
+    if not sep or not module_name or not attr:
+        raise ValueError(f"factory 必须是 module:attr：{spec!r}")
+    entry = load_plugin_module(Path(plugins_dir), origin)
+    if module_name == "plugin":
+        module = entry
+    else:
+        # 点即目录层级：`backends.x` → `<插件目录>/backends/x.py`
+        module = importlib.import_module(
+            f"{plugin_module_name(origin)}.{module_name}")
+    factory = getattr(module, attr)
+    if not callable(factory):
+        raise AttributeError(f"factory 属性不可调用：{module_name}:{attr}")
+    return factory

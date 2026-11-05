@@ -7,7 +7,6 @@
 """
 from __future__ import annotations
 
-import inspect
 import sys
 import tempfile
 import unittest
@@ -18,13 +17,21 @@ from typing import Any, Dict
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
+from agent.boot.config import BootConfig, HostBootConfig  # noqa: E402
 from agent.capabilities.contributions import (  # noqa: E402
     ContributionError,
     ContributionRegistry,
 )
-from agent.capabilities.plugins import PluginContext, PluginHost  # noqa: E402
+from agent.capabilities.plugins import PluginHost  # noqa: E402
 from agent.capabilities.registry import ToolRegistry  # noqa: E402
+from agent.core.plugin_meta import safe_dir_name  # noqa: E402
+from agent.core.slot_assembly import plugin_env  # noqa: E402
 from agent.mechanisms.context import ContextSources  # noqa: E402
+
+
+def _write_meta(folder: Path) -> None:
+    """给临时插件目录写身份文件：身份只由它声明，没有它就不是插件。"""
+    (folder / "plugin-meta.json").write_text('{"version": "1.0"}\n', encoding="utf-8")
 
 
 def _host(tmp: Path, **kwargs: Any) -> PluginHost:
@@ -121,118 +128,48 @@ class ContributionRegistryTest(unittest.TestCase):
         self.assertEqual(self.reg.drop_plugin("a"), 1)
         self.assertEqual([r.plugin for r in self.reg.all_routes()], ["b"])
 
-class PluginContextContributionTest(unittest.TestCase):
+    def test_route_namespace_is_per_plugin(self) -> None:
+        """端点路径自带插件命名空间，两个插件同名端点互不覆盖。"""
+        self.reg.add_route("a", "GET", "x", lambda q: (200, {}))
+        self.assertEqual([r.plugin for r in self.reg.all_routes()], ["a"])
+        self.assertTrue(self.reg.all_routes()[0].full_path.startswith("/api/plugin/a/"))
+        self.reg.add_route("b", "GET", "x", lambda q: (200, {"b": True}))
+        self.assertEqual(self.reg.match("GET", "/api/plugin/b/x")[0].handler({}),
+                         (200, {"b": True}))
+
+class ContributionWiringTest(unittest.TestCase):
+    """上下文注入源与插件数据目录的接线（直连底层，不经已移除的注册面）。"""
+
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.base = Path(self.tmp.name)
-        self.reg = ContributionRegistry()
-        self.host = _host(self.base, contributions=self.reg)
+        self.sources = ContextSources()
 
-    def _ctx(self, name: str = "a") -> PluginContext:
-        return PluginContext(name, self.host._registry, None,
-                             self.host._context_sources, None, self.host, self.reg)
-
-    def test_ctx_namespaces_routes_by_plugin(self) -> None:
-        ctx = self._ctx("a")
-        ctx.add_route("GET", "x", lambda q: (200, {}),
-                      slot_path="app/backend/http/routes/a-x")
-        self.assertEqual([r.plugin for r in self.reg.all_routes()], ["a"])
-        self.assertTrue(self.reg.all_routes()[0].full_path.startswith("/api/plugin/a/"))
-        self.assertEqual(len(ctx._disposers), 1)
-
-    def test_register_fail_after_add_route_rolls_back(self) -> None:
-        plugins = self.base / "plugins"
-        plugins.mkdir(parents=True)
-        (plugins / "boom").mkdir()
-        (plugins / "boom" / "plugin.py").write_text(
-            "def register(ctx):\n"
-            "    ctx.add_route('GET', 'x', lambda q: (200, {}),"
-            " slot_path='app/backend/http/routes/boom-x')\n"
-            "    raise RuntimeError('boom')\n",
-            encoding="utf-8",
-        )
-        reports = self.host.load_enabled(["boom"])
-        self.assertEqual(reports[0].status, "error")
-        self.assertEqual(self.reg.all_routes(), [])
-
-    def test_ctx_add_context_source_returns_disposer(self) -> None:
-        ctx = self._ctx("a")
-        d = ctx.add_context_source(
+    def test_add_context_source_returns_disposer(self) -> None:
+        d = self.sources.add(
             lambda cid: ["注入"],
-            path="app/backend/context/sources/a/demo")
-        self.assertEqual(len(self.host._context_sources._sources), 1)
+            path="app/backend/context/sources/a/demo", owner="a")
+        self.assertEqual(len(self.sources._sources), 1)
         d()
-        self.assertEqual(len(self.host._context_sources._sources), 0)
-
-    def test_context_path_parameters_are_required(self) -> None:
-        for name in ("add_context_source", "add_prompt_section",
-                     "add_mode_tail", "add_context_assembly_hook"):
-            parameter = inspect.signature(
-                getattr(PluginContext, name)).parameters["path"]
-            self.assertIs(parameter.default, inspect.Parameter.empty, name)
-
-    def test_runtime_contributions_default_non_master(self) -> None:
-        names = (
-            "subscribe", "add_context_source", "add_mode_tail",
-            "add_prompt_section", "add_pre_gate", "add_post_observer",
-            "add_route", "add_context_assembly_hook",
-        )
-        for name in names:
-            parameter = inspect.signature(
-                getattr(PluginContext, name)).parameters["master"]
-            self.assertIs(parameter.default, False, name)
-        parameter = inspect.signature(
-            PluginContext._contribute).parameters["master"]
-        self.assertIs(parameter.default, False)
-
-    def test_invalid_runtime_contribution_does_not_kill_plugin(self) -> None:
-        folder = self.base / "plugins" / "bad"
-        folder.mkdir(parents=True)
-        (folder / "plugin.py").write_text(
-            "def register(ctx):\n"
-            "    ctx.add_route('GET', '../evil', lambda q: (200, {}),"
-            " slot_path='app/backend/http/routes/bad')\n",
-            encoding="utf-8",
-        )
-        reports = self.host.load_enabled(["bad"])
-        self.assertEqual([report.status for report in reports], ["loaded"])
-
-    def test_direct_contribution_honors_master(self) -> None:
-        ctx = PluginContext("probe", ToolRegistry())
-
-        def boom():
-            raise RuntimeError("boom")
-
-        noop = ctx._contribute("app/backend/probe/direct", boom)
-        self.assertTrue(callable(noop))
-        noop()
-        with self.assertRaises(ValueError):
-            ctx._contribute("app/backend/probe/direct", boom, master=True)
-
-    def test_ctx_add_context_source_requires_path(self) -> None:
-        ctx = self._ctx("a")
-        with self.assertRaises(TypeError):
-            ctx.add_context_source(lambda cid: ["注入"])
-
-    def test_plugin_missing_path_rejects_load(self) -> None:
-        plugins = self.base / "plugins"
-        plugins.mkdir(parents=True)
-        (plugins / "bad").mkdir()
-        (plugins / "bad" / "plugin.py").write_text(
-            "def register(ctx):\n"
-            "    ctx.add_context_source(lambda cid: ['x'])\n",
-            encoding="utf-8",
-        )
-        reports = self.host.load_enabled(["bad"])
-        self.assertEqual(reports[0].status, "error")
-        self.assertEqual(len(self.host._context_sources._sources), 0)
+        self.assertEqual(len(self.sources._sources), 0)
 
     # ── 插件专属数据目录 ──
 
+    def _boot(self, data_root: Path) -> BootConfig:
+        host = HostBootConfig(data_root=data_root,
+                              plugins_root=self.base / "plugins",
+                              plugin_data_root=data_root / "plugin")
+        return BootConfig(data_root=data_root, host_config=host)
+
     def test_data_dir_is_per_plugin_and_created(self) -> None:
-        a = self._ctx("a").data_dir
-        b = self._ctx("b").data_dir
+        plugins = self.base / "plugins"
+        for name in ("a", "b"):
+            (plugins / name).mkdir(parents=True)
+            _write_meta(plugins / name)
+        boot = self._boot(self.base / "data")
+        a, _ = plugin_env(boot, "a")
+        b, _ = plugin_env(boot, "b")
         self.assertIsNotNone(a)
         self.assertIsNotNone(b)
         self.assertNotEqual(a, b)
@@ -241,19 +178,30 @@ class PluginContextContributionTest(unittest.TestCase):
         self.assertEqual(a.parent.name, "plugin")
 
     def test_data_dir_sanitizes_plugin_name(self) -> None:
-        d = self._ctx("we/ird..name").data_dir
-        self.assertIsNotNone(d)
-        # 净化后不会越出 plugin/ 目录
-        self.assertEqual(d.parent, (self.base / "data" / "plugin").resolve())
-        self.assertNotIn("..", d.name)
-        self.assertNotIn("/", d.name)
+        d = safe_dir_name("we/ird..name")
+        self.assertTrue(d)
+        self.assertNotIn("..", d)
+        self.assertNotIn("/", d)
 
     def test_data_dir_none_without_host_root(self) -> None:
-        ctx = PluginContext("a", self.host._registry, None, None, None, None, None)
-        self.assertIsNone(ctx.data_dir, "未接入宿主时应返回 None 而不是报错")
+        from dataclasses import replace
+
+        plugins = self.base / "plugins" / "a"
+        plugins.mkdir(parents=True)
+        _write_meta(plugins)
+        boot = self._boot(self.base / "data")
+        bare = BootConfig(
+            data_root=boot.data_root,
+            host_config=replace(boot.host_config, plugin_data_root=None))
+        data_dir, _ = plugin_env(bare, "a")
+        self.assertIsNone(data_dir, "未接入宿主时应返回 None 而不是报错")
 
     def test_data_dir_path_is_absolute(self) -> None:
-        self.assertTrue(self._ctx("a").data_dir.is_absolute())
+        plugins = self.base / "plugins" / "a"
+        plugins.mkdir(parents=True)
+        _write_meta(plugins)
+        data_dir, _ = plugin_env(self._boot(self.base / "data"), "a")
+        self.assertTrue(data_dir.is_absolute())
 
 
 class PluginAssetUrlTest(unittest.TestCase):
@@ -287,6 +235,7 @@ class ExternalPluginRootAssetTest(unittest.TestCase):
         plugins_dir.mkdir()
         external = base / "elsewhere" / "extplug"
         (external / "ui").mkdir(parents=True)
+        _write_meta(external)
         (external / "plugin.py").write_text(
             "def register(ctx):\n"
             "    ctx.add_route('GET', 'x', lambda q: (200, {}),"

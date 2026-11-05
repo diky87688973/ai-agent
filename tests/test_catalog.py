@@ -20,8 +20,17 @@ from gen_catalog import (  # noqa: E402
     write_catalog,
 )
 
+from tests.testkit import isolate_data  # noqa: E402
 
-class RenderCatalogTest(unittest.TestCase):
+
+class _IsolatedCatalogTest(unittest.TestCase):
+    """`collect_schemas` / `collect_display` 内部会构造 app，数据根必须隔离。"""
+
+    def setUp(self) -> None:
+        isolate_data(self)
+
+
+class RenderCatalogTest(_IsolatedCatalogTest):
     """渲染契约：确定性、格式、写出往返。"""
 
     def test_render_deterministic(self) -> None:
@@ -56,7 +65,7 @@ class RenderCatalogTest(unittest.TestCase):
         self.assertNotIn(b"\r", raw)
 
 
-class CheckCatalogTest(unittest.TestCase):
+class CheckCatalogTest(_IsolatedCatalogTest):
     """校验器：缺失 / 损坏 / 漂移三式检出（仓库零漂移由 CI 的 check_catalog 守）。"""
 
     def test_missing_file_detected(self) -> None:
@@ -95,7 +104,7 @@ class CheckCatalogTest(unittest.TestCase):
         self.assertIn("commit_write", text)
 
 
-class CatalogDisplayTest(unittest.TestCase):
+class CatalogDisplayTest(_IsolatedCatalogTest):
     """目录带 `display`（中文名 + 图标），来源是工具自己的声明。"""
 
     def test_every_tool_has_display(self) -> None:

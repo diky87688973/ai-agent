@@ -1,0 +1,304 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/visual_operator_2/runtime",
+      "kind": "runtime",
+      "factory": "plugin:make_runtime",
+      "order": 0,
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_request_open",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_request_open",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 0
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_start",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_start",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 1
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_focus",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_focus",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 2
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_move",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_move",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 3
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_move_point",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_move_point",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 4
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_move_focus",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_move_focus",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 5
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_click",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_click",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 6
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_click_sequence",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_click_sequence",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 7
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_key",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_key",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 8
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_stop",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_stop",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 9
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_app",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_app",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 10
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_window",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_window",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 11
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_eye",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_eye",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 12
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_type_into",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_type_into",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 13
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_keyboard",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_keyboard",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 14
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_wait",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_wait",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 15
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_find",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_find",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 16
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_click_text",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_click_text",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 17
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_mouse",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_mouse",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 18
+    },
+    {
+      "path": "app/plugins/visual_operator_2/tools/vision_open",
+      "kind": "tool",
+      "factory": "plugin:make_tool_vision_open",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 19
+    },
+    {
+      "path": "app/plugins/visual_operator_2/routes/pending",
+      "kind": "route",
+      "factory": "plugin:make_route_pending",
+      "props": {
+        "path": "eye-consent/pending"
+      },
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 0,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/visual_operator_2/routes/status",
+      "kind": "route",
+      "factory": "plugin:make_route_status",
+      "props": {
+        "path": "eye-consent/status"
+      },
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 1,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/visual_operator_2/routes/confirm",
+      "kind": "route",
+      "factory": "plugin:make_route_confirm",
+      "props": {
+        "path": "eye-consent/confirm"
+      },
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime",
+        "app": "app/boot/facade"
+      },
+      "order": 2,
+      "method": "POST"
+    },
+    {
+      "path": "app/plugins/visual_operator_2/routes/revoke",
+      "kind": "route",
+      "factory": "plugin:make_route_revoke",
+      "props": {
+        "path": "eye-consent/revoke"
+      },
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 3,
+      "method": "POST"
+    },
+    {
+      "path": "app/plugins/visual_operator_2/prompt/user-messages/observations",
+      "kind": "provider",
+      "factory": "plugin:make_observation_hook",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 0,
+      "props": {
+        "target": "assembly-hook",
+        "hook": "context-assembly",
+        "adds": "user"
+      }
+    },
+    {
+      "path": "app/plugins/visual_operator_2/prompt/system-appends/discipline",
+      "kind": "provider",
+      "factory": "plugin:make_prompt_section",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 0,
+      "props": {
+        "target": "prompt-section",
+        "section": "visual_operator_2",
+        "after_tools": true
+      }
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/input/buttons/visual_btn",
+      "kind": "ui-control",
+      "props": {
+        "label": "眼睛",
+        "action": "visual.toggle",
+        "binding": {
+          "input": {
+            "standalone": true,
+            "className": "mode-plus vision-eye-btn",
+            "action": "visual.toggle",
+            "text": "眼睛",
+            "hidden": true,
+            "host": ".left-tools"
+          }
+        },
+        "scripts": [
+          "ui/eye-toggle.js",
+          "ui/vision-frame.js"
+        ],
+        "styles": [
+          "ui/vision-frame.css"
+        ]
+      },
+      "order": 60
+    }
+  ]
+}

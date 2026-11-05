@@ -11,11 +11,8 @@
 from __future__ import annotations
 
 import unittest
-from unittest import mock
 
 from agent.capabilities.model_catalog import CatalogSnapshot, ModelCatalog, ModelEntry
-from agent.capabilities.plugins import PluginContext
-from agent.capabilities.registry import ToolRegistry
 from agent.mechanisms.providers.openai import OpenAICompatibleProvider
 
 _OPENAI = {
@@ -178,50 +175,29 @@ class ProviderCacheTest(unittest.TestCase):
         self.assertIsNone(self.catalog.provider_for(""))
 
 
-class PluginContextCatalogTest(unittest.TestCase):
-    """插件注册口：来源名取插件名、冲突不抛、disposer 随 ctx 回收。"""
+class CatalogSourceTest(unittest.TestCase):
+    """目录来源：来源名即权威标识，disposer 幂等回收，回调热读。"""
 
     def setUp(self) -> None:
         self.catalog = ModelCatalog()
-        self.registry = ToolRegistry()
-
-    def _ctx(self, name: str) -> PluginContext:
-        return PluginContext(name, self.registry, model_catalog=self.catalog)
-
-    def test_missing_catalog_is_a_wiring_error(self) -> None:
-        bare = PluginContext("x", self.registry)
-        with self.assertRaises(RuntimeError):
-            bare.add_model_catalog([_entry("a")])
 
     def test_plugin_name_becomes_the_catalog_source(self) -> None:
-        ctx = self._ctx("multi_model")
-        ctx.add_model_catalog([_entry("a")])
+        self.catalog.set_source("multi_model", [_entry("a")])
         snap = self.catalog.snapshot()
         self.assertEqual(snap.source, "multi_model")
         self.assertEqual(snap.default_id, "a")
 
     def test_disposer_removes_only_its_own_source(self) -> None:
-        ctx = self._ctx("multi_model")
-        dispose = ctx.add_model_catalog([_entry("a")])
+        dispose = self.catalog.set_source("multi_model", [_entry("a")])
         self.assertEqual(self.catalog.ids(), ("a",))
         dispose()
         self.assertEqual(self.catalog.ids(), ())
         dispose()
         self.assertEqual(self.catalog.ids(), (), msg="disposer 必须幂等")
 
-    def test_second_plugin_source_is_reported_not_raised(self) -> None:
-        self._ctx("first").add_model_catalog([_entry("a")])
-        second = self._ctx("second")
-        with mock.patch("agent.capabilities.plugin_ui_context.report_error") as report:
-            dispose = second.add_model_catalog([_entry("b")])
-        self.assertTrue(report.called, msg="来源冲突必须留痕")
-        self.assertEqual(self.catalog.ids(), ("a",), msg="先登记的来源保持不变")
-        dispose()
-        self.assertEqual(self.catalog.ids(), ("a",), msg="冲突方拿到的必须是空 disposer")
-
     def test_hot_read_callback_is_accepted(self) -> None:
         state = {"entries": [_entry("a")]}
-        self._ctx("multi_model").add_model_catalog(lambda: state["entries"])
+        self.catalog.set_source("multi_model", lambda: state["entries"])
         state["entries"] = [_entry("b")]
         self.assertEqual(self.catalog.ids(), ("b",))
 

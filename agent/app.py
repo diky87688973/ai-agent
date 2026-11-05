@@ -42,8 +42,8 @@ class App(AppModelPolicy, AppServices):
     """
 
     # 装配器在 boot_app 末尾写入；类内显式声明，避免未装配访问落成 AttributeError。
-    _slot_tree: Any = None
-    _boot_runtime: Any = None
+    _slot_assembly: Any = None
+    _slot_binder: Any = None
     _kernel_group: Any = None
 
     def __init__(
@@ -112,9 +112,13 @@ class App(AppModelPolicy, AppServices):
         session_contexts = self.session_contexts
         if session_contexts is not None:
             session_contexts.close_all()
-        tree = getattr(self, "_slot_tree", None)
-        if tree is not None:
-            tree.dispose_all()
+        # 先撤登记（注册表回到装配前），再释放构造物。
+        binder = self._slot_binder
+        if binder is not None:
+            binder.dispose()
+        assembly = self._slot_assembly
+        if assembly is not None:
+            assembly.dispose()
         self.context.dispose_all()
         unbind = getattr(self, "_error_unbind", None)
         if callable(unbind):

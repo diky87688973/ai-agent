@@ -210,6 +210,8 @@ class RealMeshDispatcherTest(unittest.TestCase):
 
 class WakeToolTest(unittest.TestCase):
     def setUp(self) -> None:
+        from tests.testkit import isolate_plugins
+        isolate_plugins(self)
         self._tmp = tempfile.TemporaryDirectory(prefix="wake-tools-")
         self.addCleanup(self._tmp.cleanup)
         root = Path(self._tmp.name)

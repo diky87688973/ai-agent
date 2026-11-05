@@ -22,7 +22,6 @@ from agent.core.image_embed import (
 )
 from agent.core.session_context import SessionContext, SessionContexts
 from agent.core.session_log import SessionLog, _tool_envelope, _user_content, ensure_tool_pairs
-from agent.core.slot_tree import SlotNode, SlotTree, SlotTreeError
 from agent.mechanisms.command_safety import (
     _strip_shell_wrapper,
     check_command_blacklist,
@@ -119,19 +118,6 @@ class ImageEmbedEdgeTest(unittest.TestCase):
                 for part in message["content"]:
                     if isinstance(part, dict):
                         self.assertNotIn("attachment_id", part)
-
-
-class SlotTreeValidationEdgeTest(unittest.TestCase):
-    def test_rejects_duplicate_missing_factory_and_dependency(self) -> None:
-        node = SlotNode(path="app/a", factory="x:y")
-        with self.assertRaises(SlotTreeError):
-            SlotTree([node, SlotNode(path="app/a", factory="x:y")])
-        with self.assertRaises(SlotTreeError):
-            SlotTree([SlotNode(path="app/a", factory="")])
-        with self.assertRaises(SlotTreeError):
-            SlotTree([SlotNode(path="bad/a", factory="x:y")])
-        with self.assertRaises(SlotTreeError):
-            SlotTree([SlotNode(path="app/a", factory="x:y", requires={"x": "app/missing"})])
 
 
 class SessionContextEdgeTest(unittest.TestCase):

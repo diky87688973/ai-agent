@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/ai_cosplay/runtime",
+      "kind": "runtime",
+      "factory": "plugin:make_runtime",
+      "order": 0
+    },
+    {
+      "path": "app/plugins/ai_cosplay/tools/ai_speek",
+      "kind": "tool",
+      "factory": "plugin:make_tool",
+      "requires": {
+        "runtime": "app/plugins/ai_cosplay/runtime"
+      },
+      "order": 0
+    },
+    {
+      "path": "app/plugins/ai_cosplay/routes/config",
+      "kind": "route",
+      "factory": "plugin:make_route_config",
+      "props": {
+        "path": "config"
+      },
+      "requires": {
+        "runtime": "app/plugins/ai_cosplay/runtime"
+      },
+      "order": 0,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/ai_cosplay/routes/status",
+      "kind": "route",
+      "factory": "plugin:make_route_status",
+      "props": {
+        "path": "status"
+      },
+      "requires": {
+        "runtime": "app/plugins/ai_cosplay/runtime"
+      },
+      "order": 1,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/ai_cosplay/routes/played",
+      "kind": "route",
+      "factory": "plugin:make_route_played",
+      "props": {
+        "path": "played"
+      },
+      "requires": {
+        "runtime": "app/plugins/ai_cosplay/runtime"
+      },
+      "order": 2,
+      "method": "POST"
+    },
+    {
+      "path": "app/plugins/ai_cosplay/events/turn_ended",
+      "kind": "event",
+      "factory": "plugin:make_event_turn_ended",
+      "requires": {
+        "runtime": "app/plugins/ai_cosplay/runtime"
+      },
+      "order": 0
+    },
+    {
+      "path": "app/plugins/ai_cosplay/events/error",
+      "kind": "event",
+      "factory": "plugin:make_event_error",
+      "requires": {
+        "runtime": "app/plugins/ai_cosplay/runtime"
+      },
+      "order": 1
+    },
+    {
+      "path": "app/plugins/ai_cosplay/prompt/tail",
+      "kind": "provider",
+      "factory": "plugin:make_mode_tail",
+      "props": {
+        "target": "mode-tail",
+        "subagent_visible": false
+      },
+      "requires": {
+        "runtime": "app/plugins/ai_cosplay/runtime"
+      },
+      "order": 0
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/runtime/left-panel/ai_cosplay",
+      "kind": "ui-control",
+      "props": {
+        "action": "ai_cosplay.toggle",
+        "binding": {
+          "existing": [
+            "#aiCosplaySlot"
+          ]
+        },
+        "scripts": [
+          "ui/player.js",
+          "ui/tool-view.js"
+        ],
+        "styles": [
+          "ui/player.css"
+        ]
+      },
+      "order": 10
+    }
+  ],
+  "subagent_tools": []
+}

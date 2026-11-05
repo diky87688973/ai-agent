@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/rules/runtime",
+      "kind": "runtime",
+      "factory": "plugin:make_runtime",
+      "order": 0
+    },
+    {
+      "path": "app/plugins/rules/prompt/messages/files",
+      "kind": "provider",
+      "factory": "plugin:make_context_source",
+      "props": {
+        "target": "context-source",
+        "label": "Rules"
+      },
+      "requires": {
+        "runtime": "app/plugins/rules/runtime"
+      },
+      "order": 0
+    },
+    {
+      "path": "app/plugins/rules/prompt/system-appends/resources",
+      "kind": "provider",
+      "factory": "plugin:make_prompt_section",
+      "props": {
+        "target": "prompt-section",
+        "section": "## 资源目录"
+      },
+      "requires": {
+        "runtime": "app/plugins/rules/runtime"
+      },
+      "order": 0
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/left-panel/context_usage/rules",
+      "kind": "ui-control",
+      "props": {
+        "label": "Rules",
+        "color": "green",
+        "binding": {
+          "context": true
+        }
+      }
+    }
+  ]
+}

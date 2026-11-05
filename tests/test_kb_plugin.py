@@ -24,7 +24,7 @@ from agent.app import build_app  # noqa: E402
 from agent.core.model_call import StreamDelta  # noqa: E402
 from agent.mechanisms.context import ContextPipeline, ContextSources  # noqa: E402
 from agent.mechanisms.session_store import SessionStore  # noqa: E402  # noqa: E402
-from tests.testkit import no_plugins  # noqa: E402
+from tests.testkit import isolate_data, no_plugins  # noqa: E402
 
 _PLUGIN_DIR = _ROOT / "plugins"
 _PLUGIN_MOD = "fan_agent_plugins.knowledge"
@@ -366,6 +366,7 @@ class InjectionTest(unittest.TestCase):
         # 本用例手工注册注入源，不需要装载任何插件：不隔离的话，开发者本机的
         # 多模型插件配置会让目录接管路由，请求就不走这里注入的 provider 了。
         no_plugins(self)
+        isolate_data(self)
         rec = _RecordingProvider()
         app = build_app(provider=rec)
         app.context_sources.add(lambda cid: ["【知识库：probe】\n内容P"])
@@ -394,6 +395,7 @@ class PluginSourceContractTest(unittest.TestCase):
         # 注入源在本类里手工注册，插件装配只会带来环境差异（尤其是开发者本机的
         # 多模型配置会让目录接管路由，spy 收不到请求）。
         no_plugins(self)
+        isolate_data(self)
         spy = _RecordingProvider()
         app = build_app(provider=spy, store=SessionStore(root / "data"),
                         backup_root=root / "bk", recycle_root=root / "rc")

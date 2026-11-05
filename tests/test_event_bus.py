@@ -110,6 +110,8 @@ class EngineEventSinkTest(unittest.TestCase):
     """引擎侧接线：回合事件流同步旁路发布。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_plugins
+        isolate_plugins(self)
         tmp = tempfile.TemporaryDirectory(prefix="event-bus-")
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)

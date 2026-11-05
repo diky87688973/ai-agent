@@ -57,6 +57,13 @@ class SlotRegistryTest(unittest.TestCase):
                 self.path, lambda value: value, owner="a",
                 contract_version="2")
 
+    def test_bind_unknown_path_rejected(self) -> None:
+        """绑定未注册的插口必须报错，且错误里点名该路径。"""
+        missing = "app/not/exposed"
+        with self.assertRaises(SlotRegistryError) as caught:
+            self.registry.bind(missing, lambda: None, owner="a")
+        self.assertIn(missing, str(caught.exception))
+
     def test_wrap_receives_base(self) -> None:
         self.registry.bind(
             self.path,

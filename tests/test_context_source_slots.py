@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import unittest
 
-from agent.capabilities.plugin_context import PluginContext
-from agent.capabilities.registry import ToolRegistry
 from agent.capabilities.slot_registry import SlotRegistry
 from agent.mechanisms.context.sources import (
     ASSEMBLY_PATH,
@@ -69,16 +67,18 @@ class ContextSourceSlotTest(unittest.TestCase):
         binding.dispose()
         self.assertEqual(self.sources.collect_segments("c").items[0][2], "old")
 
-    def test_plugin_context_replace_does_not_duplicate_backend_path(self) -> None:
+    def test_replace_does_not_duplicate_backend_path(self) -> None:
+        """同路径 replace：注册表里只留一条，且内容是新的。"""
         sources = ContextSources(SlotRegistry())
-        ctx = PluginContext("a", ToolRegistry(), context_sources=sources)
-        first = ctx.add_context_source(
+        first = sources.add(
             lambda cid: ["old"], SourceMeta(key="kb", label="KB"),
-            path=self.path)
-        second = ctx.add_context_source(
+            path=self.path, owner="kb")
+        second = sources.add(
             lambda cid: ["new"], SourceMeta(key="kb", label="KB"),
-            path=self.path, replace=True)
-        self.assertEqual(sources.collect_segments("c").items[0][2], "new")
+            path=self.path, owner="override", replace=True)
+        items = sources.collect_segments("c").items
+        self.assertEqual(len(items), 1, msg="同路径 replace 不得重复注册")
+        self.assertEqual(items[0][2], "new")
         second()
         self.assertEqual(sources.collect_segments("c").items[0][2], "old")
         first()

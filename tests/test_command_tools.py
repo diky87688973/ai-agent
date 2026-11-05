@@ -136,6 +136,9 @@ class CommandToolsTest(unittest.TestCase):
     """工具层：run_command（经管道唯一入口）。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
@@ -219,6 +222,9 @@ class PythonInlineTest(unittest.TestCase):
     """工具层：python_inline（经管道唯一入口）。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)

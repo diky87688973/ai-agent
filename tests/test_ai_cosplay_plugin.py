@@ -2,7 +2,6 @@
 """AI角色扮演插件装配测试：临时清单、工具/端点/启动脚本、卸载与事件出口。"""
 from __future__ import annotations
 
-import os
 import sys
 import tempfile
 import unittest
@@ -21,14 +20,13 @@ from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER  # 
 
 class AICosplayAppTest(unittest.TestCase):
     def setUp(self) -> None:
+        from tests.testkit import isolate_data
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory(prefix="ai_cosplay_plugin_")
         self.addCleanup(self._tmp.cleanup)
         base = Path(self._tmp.name)
         manifest = base / "plugins.ini"
         manifest.write_text("[plugin:ai_cosplay]\n", encoding="utf-8")
-        env = mock.patch.dict(os.environ, {"AI_AGENT_DATA_ROOT": str(base / "data")})
-        env.start()
-        self.addCleanup(env.stop)
         self.app = build_app(plugins_dir=_ROOT / "plugins", plugins_path=manifest)
         self.addCleanup(self.app.dispose)
 

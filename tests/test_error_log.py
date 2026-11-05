@@ -144,6 +144,8 @@ class BuildAppErrorLogTest(unittest.TestCase):
             os.environ["AI_AGENT_DATA_ROOT"] = self._prev_data
 
     def test_build_app_registers_and_binds(self) -> None:
+        from tests.testkit import isolate_plugins
+        isolate_plugins(self)
         app = build_app(
             backup_root=self.root / "bk",
             recycle_root=self.root / "rc",

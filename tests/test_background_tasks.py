@@ -139,6 +139,8 @@ class BackgroundTaskManagerTest(unittest.TestCase):
         self.assertEqual(self.manager.snapshot("cid-b")["tasks"], [])
 
     def test_app_wires_manager_and_tool(self) -> None:
+        from tests.testkit import isolate_plugins
+        isolate_plugins(self)
         with tempfile.TemporaryDirectory() as data_dir:
             app = build_app(data_root=Path(data_dir))
             try:

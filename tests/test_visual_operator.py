@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import collections
 import dataclasses
 import importlib.util
 import io
@@ -1719,46 +1720,104 @@ class ActToolTest(unittest.TestCase):
 
 
 class PluginTest(unittest.TestCase):
-    def test_build_tools_honours_switches(self) -> None:
+    def test_fragment_declares_thirteen_tool_factories(self) -> None:
+        """工具集是声明式的：片段列出 12 个工具节点 + 1 个 runtime，不再由开关装配。"""
+        data = json.loads((_PLUGIN_DIR / "visual_operator" / "plugin-slots.json")
+                          .read_text(encoding="utf-8"))
+        slots = data["slots"]
+        kinds = collections.Counter(row["kind"] for row in slots)
+        self.assertEqual(kinds, {"runtime": 1, "tool": 12})
+        declared = {row["factory"] for row in slots if row["kind"] == "tool"}
+        self.assertEqual(len(declared), 12)
+        for factory in sorted(declared):
+            with self.subTest(factory=factory):
+                name = factory.partition(":")[2]
+                self.assertTrue(callable(getattr(_PLUGIN, name, None)), name)
+
+    def test_every_declared_factory_has_a_node_and_vice_versa(self) -> None:
+        """片段里的工具节点与模块里的 `make_tool_*` 一一对应，不多不少。"""
+        data = json.loads((_PLUGIN_DIR / "visual_operator" / "plugin-slots.json")
+                          .read_text(encoding="utf-8"))
+        declared = {row["path"].rsplit("/", 1)[-1]
+                    for row in data["slots"] if row["kind"] == "tool"}
+        exported = {name[len("make_tool_"):] for name in dir(_PLUGIN)
+                    if name.startswith("make_tool_")}
+        self.assertEqual(declared, exported)
+
+
+#: 恒注册的工具（不受开关影响），顺序与装配一致。
+_ALWAYS_TOOLS = ["desktop_window", "desktop_app", "desktop_open", "desktop_find",
+                 "desktop_click_text", "desktop_click_region",
+                 "desktop_type_into", "desktop_act"]
+#: 受开关控制的工具，顺序同上。
+_SWITCHED_TOOLS = [("eye", "desktop_eye"), ("mouse", "desktop_mouse"),
+                   ("keyboard", "desktop_keyboard"), ("wait", "desktop_wait")]
+#: 全部 12 个工具名。
+_ALL_TOOL_NAMES = ([name for _switch, name in _SWITCHED_TOOLS] + _ALWAYS_TOOLS)
+
+
+def _expected_names(**switches) -> list:
+    """按开关算出应有的工具名序列。"""
+    on = [name for switch, name in _SWITCHED_TOOLS if switches.get(switch, True)]
+    return on + _ALWAYS_TOOLS
+
+
+def _fake_context():
+    class Context:
+        app = SimpleNamespace(live_state=None)
+
+        def __init__(self) -> None:
+            self.tools = []
+
+        def register_tool(self, tool):
+            self.tools.append(tool)
+            return lambda: None
+
+    return Context()
+
+
+class SlotFactoryTest(unittest.TestCase):
+    """插口工厂：单个构造、captures 共享、与片段声明一致。"""
+
+    def test_factories_construct_one_tool_each(self) -> None:
+        """每个工厂只造一个实例，不是对批量结果的切片。"""
         backend, _screen, _mouse, _keyboard = _backend()
-        only_keyboard = _PLUGIN.build_tools(
-            DesktopConfig(eye=False, mouse=False, keyboard=True, wait=False), backend)
-        self.assertEqual([tool.name for tool in only_keyboard],
-                         ["desktop_keyboard", "desktop_window", "desktop_app",
-                          "desktop_open", "desktop_find", "desktop_click_text",
-                          "desktop_click_region", "desktop_type_into", "desktop_act"])
-        all_tools = _PLUGIN.build_tools(DesktopConfig(), backend)
-        self.assertEqual([tool.name for tool in all_tools],
-                         ["desktop_eye", "desktop_mouse", "desktop_keyboard",
-                          "desktop_wait", "desktop_window", "desktop_app",
-                          "desktop_open", "desktop_find", "desktop_click_text",
-                          "desktop_click_region", "desktop_type_into", "desktop_act"])
+        runtime = _PLUGIN._runtime_for(DesktopConfig(), backend)
+        for name in _ALL_TOOL_NAMES:
+            with self.subTest(name=name):
+                tool = getattr(_PLUGIN, "make_tool_" + name)(None, runtime)
+                self.assertNotIsInstance(tool, (list, tuple))
+                self.assertEqual(tool.name, name)
 
-    def test_register_returns_disposers(self) -> None:
-        class Context:
-            app = SimpleNamespace(live_state=None)
+    def test_factories_share_one_capture_store(self) -> None:
+        """拿 captures 的工具必须拿到同一份：截图与鼠标靠它对齐。"""
+        backend, _screen, _mouse, _keyboard = _backend()
+        runtime = _PLUGIN._runtime_for(DesktopConfig(), backend)
+        holders = {}
+        for name in _ALL_TOOL_NAMES:
+            tool = getattr(_PLUGIN, "make_tool_" + name)(None, runtime)
+            captures = getattr(tool, "_captures", None)
+            if captures is not None:
+                holders[name] = captures
+        self.assertEqual(sorted(holders), ["desktop_act", "desktop_click_region",
+                                           "desktop_eye", "desktop_keyboard",
+                                           "desktop_mouse", "desktop_type_into"])
+        for name, captures in holders.items():
+            with self.subTest(name=name):
+                self.assertIs(captures, runtime.captures)
 
-            def __init__(self) -> None:
-                self.tools = []
-                self.disposers = []
-
-            def register_tool(self, tool):
-                self.tools.append(tool)
-                disposer = lambda: None
-                self.disposers.append(disposer)
-                return disposer
-
-        ctx = Context()
-        with mock.patch.object(_PLUGIN, "load_backend",
-                               return_value=unavailable_backend()):
-            disposers = _PLUGIN.register(ctx)
-        self.assertEqual([tool.name for tool in ctx.tools],
-                         ["desktop_eye", "desktop_mouse", "desktop_keyboard",
-                          "desktop_wait", "desktop_window", "desktop_app",
-                          "desktop_open", "desktop_find", "desktop_click_text",
-                          "desktop_click_region", "desktop_type_into", "desktop_act"])
-        self.assertEqual(disposers, ctx.disposers)
-        self.assertEqual(len(disposers), 12)
+    def test_one_runtime_feeds_every_factory(self) -> None:
+        """装配只建一份 runtime：12 个工厂拿到的 captures 是同一对象。"""
+        backend, _screen, _mouse, _keyboard = _backend()
+        with mock.patch.object(_PLUGIN, "load_backend", return_value=backend):
+            runtime = _PLUGIN.make_runtime(None, None)
+        stores = set()
+        for name in _ALL_TOOL_NAMES:
+            tool = getattr(_PLUGIN, "make_tool_" + name)(None, runtime)
+            captures = getattr(tool, "_captures", None)
+            if captures is not None:
+                stores.add(id(captures))
+        self.assertEqual(len(stores), 1)
 
 
 def _load_macos_module():

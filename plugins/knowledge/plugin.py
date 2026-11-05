@@ -23,21 +23,16 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from agent.capabilities.plugin_paths import load_plugin_paths
-from agent.capabilities.plugins import plugin_config_fields
 from agent.config import PROJECT_ROOT, load_ini
 from agent.core.error_report import report_error
 
 _CACHE_MAX = 64
-
-PATHS = load_plugin_paths(__file__)
 
 __all__ = [
     "DEFAULT_MAX_FILE_SIZE",
     "KBRuntime",
     "MISSING_OPENPYXL_HINT",
     "TABLE_SUFFIXES",
-    "register",
 ]
 
 #: 未配置 `max_file_size` 时的缺省上限
@@ -48,9 +43,6 @@ CHECKED_STATE_FILENAME = "checked_state.json"
 
 #: 注入格式：每个勾选文件独占一条系统消息。模型靠这行标记认出"这是随附资料"。
 INJECT_PREFIX = "【知识库：{rel}】"
-
-#: 系统提示词资源目录章节标题（与 Skills / Rules 合并到同一章节）。
-RESOURCE_HEAD = "## 资源目录"
 
 #: 按表格解析的扩展名（需要 openpyxl）
 TABLE_SUFFIXES = (".xlsx", ".xls", ".xlsm")
@@ -463,101 +455,61 @@ def _read_kb_file_text(fpath: Any) -> str:
     return _KnowledgeFiles().read_text(fpath)
 
 
-#: 面板 HTML 片段。样式与脚本都是插件自己的文件（`ui/` 下），
-#: 由壳层经 `_asset` 路由随面板送达，不占壳层的公共资源。
-_PANEL_HTML = (
-    '<div class="kb-body" id="kbBody">'
-    '<div class="kb-loading">📂 加载知识库…</div>'
-    "</div>"
-)
+def make_runtime(ctx: Any, context_sources: Any) -> KBRuntime:
+    """装配期构造本插件的运行时；配置读取、勾选状态与注入源刷新都归它。
+
+    `context_sources` 由装配器按 requires 注入：勾选一变就调它的 `bump`，
+    否则装配侧的收集缓存看不到插件内部数据变化，要等下一回合才生效。
+    """
+    cfg = _load_kb_config()
+    max_size = int(cfg.get("max_file_size") or DEFAULT_MAX_FILE_SIZE)
+    runtime = KBRuntime(cfg.get("dir") or None, max_size,
+                        data_dir=ctx.data_dir,
+                        extra_suffixes=cfg.get("extra_suffixes") or ())
+    runtime.load_checked()
+    runtime._sources_bump = context_sources.bump
+    return runtime
 
 
-def _register_routes(ctx: Any, runtime: KBRuntime) -> List[Callable[[], None]]:
-    def _files(query: Dict[str, Any]) -> Any:
+def make_files_route(ctx: Any, runtime: KBRuntime) -> Callable[[Dict[str, Any]], Any]:
+    """`GET files`：列出知识库文件；未配置目录时返回空表而不是报错。"""
+    def handler(query: Dict[str, Any]) -> Any:
         if not runtime.enabled:
             return 200, {"ok": True, "enabled": False, "files": []}
         return 200, {"ok": True, "enabled": True, "files": runtime.list_files()}
+    return handler
 
-    def _checked_get(query: Dict[str, Any]) -> Any:
+
+def make_checked_get(ctx: Any, runtime: KBRuntime) -> Callable[[Dict[str, Any]], Any]:
+    """`GET checked`：读一个会话的勾选文件列表。"""
+    def handler(query: Dict[str, Any]) -> Any:
         cid = str((query or {}).get("conversation_id") or "")
         return 200, {"ok": True, "checked": sorted(runtime.get_checked(cid))}
+    return handler
 
-    def _checked_put(query: Dict[str, Any]) -> Any:
+
+def make_checked_put(ctx: Any, runtime: KBRuntime) -> Callable[[Dict[str, Any]], Any]:
+    """`PUT checked`：写一个会话的勾选状态；缺会话 id 返回 400。"""
+    def handler(query: Dict[str, Any]) -> Any:
         body = (query or {}).get("body") or {}
-        cid = str(body.get("conversation_id") or (query or {}).get("conversation_id") or "")
+        cid = str(body.get("conversation_id")
+                  or (query or {}).get("conversation_id") or "")
         if not cid:
             return 400, {"ok": False, "error": "conversation_id required"}
         raw = body.get("checked")
         if not isinstance(raw, list):
             raw = body.get("paths") if isinstance(body.get("paths"), list) else []
         return 200, {"ok": True, "checked": runtime.set_checked(cid, raw)}
-
-    return [
-        ctx.add_route("GET", "files", _files,
-                      slot_path="app/backend/http/routes/knowledge-files"),
-        ctx.add_route("GET", "checked", _checked_get,
-                      slot_path="app/backend/http/routes/knowledge-checked"),
-        ctx.add_route("PUT", "checked", _checked_put,
-                      slot_path="app/backend/http/routes/knowledge-checked-update"),
-    ]
+    return handler
 
 
-def register(ctx: Any) -> List[Callable[[], None]]:
-    """插件入口：装配运行时，注册注入源、界面贡献与端点。
+def make_context_source(ctx: Any, runtime: KBRuntime) -> Any:
+    """上下文注入源：产出的 system 消息由管线刷进「知识库」块。"""
+    return runtime.build_system_messages
 
-    知识库不依赖内核的专用接口：配置自己读，文件访问是自己的层，
-    注入用现成的 `add_context_source`，界面用面板 / 动作 / 端点贡献，
-    状态用自己的 `data_dir`。
-    """
-    cfg = _load_kb_config()
-    root = cfg.get("dir") or None
-    max_size = int(cfg.get("max_file_size") or DEFAULT_MAX_FILE_SIZE)
-    runtime = KBRuntime(root, max_size, data_dir=getattr(ctx, "data_dir", None),
-                        extra_suffixes=cfg.get("extra_suffixes") or ())
-    runtime.load_checked()
-    # 勾选一变就让装配侧丢掉缓存的收集结果：否则"改了勾选要等下一回合才生效"。
-    # 出处是宿主的注册表（`ContextSources.bump`），拿不到就退化为"下一回合生效"。
-    runtime._sources_bump = getattr(ctx, "bump_context_sources", None)
-    ctx.set_runtime(runtime)
 
-    def _meta() -> Any:
-        """这一段在上下文分层里的名片：段名、注入前缀、主体数量（勾选文件数）。"""
-        return {
-            "label": "知识库",
-            # 前缀按文件不同（`【知识库：<路径>】`），由本插件在正文里拼好。
-            "count": runtime.attached_count,
-        }
-
-    disposers: List[Callable[[], None]] = [
-        # 上下文注入：路径是插件声明的稳定插口
-        ctx.add_context_source(
-            runtime.build_system_messages, _meta(),
-            path="app/backend/context/sources/knowledge/files"),
-        # 资源目录：与 Skills / Rules 合并到同一个系统提示词章节
-        ctx.add_prompt_section(
-            RESOURCE_HEAD, lambda _cid: resource_directory_lines(runtime),
-            path="app/backend/prompt/sections/resources/knowledge"),
-    ]
-
-    base = plugin_config_fields(Path(__file__).resolve().parent)
-    title = base["name"] or "知识库"
-    disposers.append(ctx.add_ui_item(
-        PATHS["button"], kind="button",
-        props={"label": title, "action": "panel.open",
-               "binding": {"input": {"standalone": True,
-                                     "className": "mode-plus",
-                                     "action": "panel.open",
-                                     "panel": PATHS["panel"],
-                                     "text": title,
-                                     "host": ".left-tools"}}}, order=50))
-    disposers.append(ctx.add_ui_item(
-        PATHS["panel"], kind="panel",
-        props={"label": title, "action": "panel.open",
-               "html": _PANEL_HTML, "scripts": ["ui/panel.js"],
-               "styles": ["ui/panel.css"]}))
-    disposers.append(ctx.add_ui_item(
-        PATHS["segment"], kind="segment",
-        props={"label": title, "color": "blue",
-               "binding": {"context": True}}))
-    disposers.extend(_register_routes(ctx, runtime))
-    return disposers
+def make_prompt_section(ctx: Any, runtime: KBRuntime) -> Callable[[str], List[str]]:
+    """`## 资源目录` 章节里本插件的正文行。"""
+    def section(cid: str) -> List[str]:
+        return resource_directory_lines(runtime)
+    return section

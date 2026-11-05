@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/theme_style/runtime",
+      "kind": "runtime",
+      "factory": "plugin:make_runtime",
+      "order": 0
+    },
+    {
+      "path": "app/plugins/theme_style/routes/style",
+      "kind": "route",
+      "factory": "plugin:make_style_route",
+      "props": {
+        "path": "style"
+      },
+      "requires": {
+        "runtime": "app/plugins/theme_style/runtime"
+      },
+      "order": 0,
+      "method": "GET"
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/settings/interface/theme_style",
+      "kind": "setting",
+      "factory": "plugin:make_setting",
+      "requires": {
+        "runtime": "app/plugins/theme_style/runtime"
+      },
+      "order": 0,
+      "props": {
+        "title": "界面风格"
+      }
+    },
+    {
+      "path": "app/shell/web-ui/nav/buttons/style",
+      "kind": "ui-control",
+      "props": {
+        "label": "黑白切换",
+        "action": "theme.toggle",
+        "binding": {
+          "nav": "theme"
+        },
+        "scripts": [
+          "ui/theme-style.js"
+        ]
+      },
+      "order": 1
+    }
+  ]
+}

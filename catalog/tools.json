@@ -1101,6 +1101,101 @@
       }
     },
     {
+      "description": "管理当前会话的子智能体。create 创建并立即执行首条任务；list 按批次查看；status 查询忙闲；result 读取最近一次输出；send 向子智能体发消息。send 强制插入当前回合（打断式发送）。",
+      "display": {
+        "icon": "◈",
+        "label": "子智能体"
+      },
+      "name": "subagent",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "create / list / status / result / send",
+          "enum": [
+            "create",
+            "list",
+            "status",
+            "result",
+            "send"
+          ],
+          "type": "string"
+        },
+        "batch": {
+          "description": "批次号；不传自动新建，传回上次返回值",
+          "type": "string"
+        },
+        "child_id": {
+          "description": "子智能体 id（status / send 必填）",
+          "type": "string"
+        },
+        "context": {
+          "description": "fork 复制父会话已完成回合；fresh 使用空上下文",
+          "enum": [
+            "fork",
+            "fresh"
+          ],
+          "type": "string"
+        },
+        "images": {
+          "description": "图片附件，格式与 Web 输入一致",
+          "items": {
+            "properties": {
+              "data_base64": {
+                "type": "string"
+              },
+              "mime": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "label": {
+          "description": "任务标题（create 必填，UI 展示）",
+          "type": "string"
+        },
+        "msg": {
+          "description": "消息文本（send 必填）",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "首条任务（create 必填）",
+          "type": "string"
+        }
+      }
+    },
+    {
+      "description": "向直属父会话发送消息；只能用于子智能体会话。强制插入父会话当前回合（打断式发送）。",
+      "display": {
+        "icon": "↥",
+        "label": "发给父会话"
+      },
+      "name": "subagent_send",
+      "parallel_safe": false,
+      "parameters": {
+        "images": {
+          "description": "图片附件，格式与 Web 输入一致",
+          "items": {
+            "properties": {
+              "data_base64": {
+                "type": "string"
+              },
+              "mime": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "msg": {
+          "description": "消息文本",
+          "type": "string"
+        }
+      }
+    },
+    {
       "description": "注册一个绝对时间的唤醒任务，立即返回 job_id，不阻塞当前回合。at 使用带时区的 ISO 8601；无时区按宿主本地时区解释。已过期时间会被拒绝，不会静默改成立即执行。",
       "display": {
         "icon": "⏰",

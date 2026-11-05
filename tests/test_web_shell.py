@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -102,6 +103,26 @@ class EchoProvider:
     def stream(self, request):
         yield StreamDelta(kind="text", text="收到。")
 
+
+#: 壳层测试的插件根：只放 `web_ui`，整进程复制一次。
+_PLUGIN_ASSET_ROOT: "tempfile.TemporaryDirectory | None" = None
+
+
+def _plugin_asset_root() -> Path:
+    """插件资产根：只含 `web_ui`。
+
+    `_asset` 路由按插件目录送原件，目录里没东西就 404；而仓库的 `plugins/`
+    不能直接当根 —— 那里每个插件都会合并片段，多模型一进来就接管模型路由，
+    替身 provider 收不到请求。所以只搬壳层自己要的那一个插件。
+    """
+    global _PLUGIN_ASSET_ROOT
+    if _PLUGIN_ASSET_ROOT is None:
+        _PLUGIN_ASSET_ROOT = tempfile.TemporaryDirectory(prefix="ai_agent_webui_")
+        shutil.copytree(_ROOT / "plugins" / "web_ui",
+                        Path(_PLUGIN_ASSET_ROOT.name) / "web_ui")
+    return Path(_PLUGIN_ASSET_ROOT.name)
+
+
 class _ServerFixture(unittest.TestCase):
     """起真实 HTTP 服务 + SSE 收集线程；退出时彻底收摊。"""
 
@@ -130,6 +151,7 @@ class _ServerFixture(unittest.TestCase):
             backup_root=self.root / "bk",
             recycle_root=self.root / "rc",
             data_root=self.root,
+            plugins_dir=_plugin_asset_root(),
         )
         # 端口 0：由系统分配空闲端口，避免测试间抢端口
         # fs_root 显式钉在临时目录：文件查看器的越界判定才可复现（不依赖进程 cwd）

@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
 """AI角色扮演插件入口。
 
-插件只做装配：读配置、建运行时、注册工具/端点/开屏脚本/事件订阅。
+插件只提供装配工厂：读配置、建运行时、造工具/端点/事件订阅/模式尾部。
 文本规范、合成、队列与播放器分别在 `text.py`、`provider.py`、`runtime.py`
 与 `ui/` 中，互不越界。
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, List
+from typing import Any, Callable
 
-from agent.capabilities.plugin_paths import load_plugin_paths
-from agent.core import event_name as ev
 from agent.core.error_report import report_error
 
 from .config import AICosplayConfig, config_path, load_config
@@ -19,10 +17,6 @@ from .provider import create_provider
 from .runtime import AICosplayRuntime
 from .runtime_worker import ACK_STATUSES, ERROR, PLAYED
 from .tool import AICosplayTool
-
-PATHS = load_plugin_paths(__file__)
-
-PLUGIN_VERSION = "1.0"
 
 
 def _voice_directive(user_salutation: str, assistant_salutation: str,
@@ -108,50 +102,55 @@ def _played_handler(runtime: AICosplayRuntime) -> Callable[[dict], Any]:
     return _handler
 
 
-def register(ctx: Any) -> List[Callable[[], None]]:
-    """装配插件；任一注册失败时先释放运行时再抛出。"""
+def make_runtime(ctx: Any) -> AICosplayRuntime:
+    """装配期构造运行时：读配置、留警告、建合成提供者。"""
     config = load_config()
     _log_warnings(config)
-    runtime = AICosplayRuntime(config, create_provider(config.engine))
-    disposers: List[Callable[[], None]] = [runtime.dispose]
-    try:
-        disposers.append(ctx.register_tool(AICosplayTool(runtime)))
-        disposers.append(ctx.set_subagent_tools([]))
-        disposers.append(ctx.add_ui_item(
-            PATHS["panel"], kind="panel",
-            props={"action": "ai_cosplay.toggle",
-                   "binding": {"existing": ["#aiCosplaySlot"]},
-                   "scripts": ["ui/player.js", "ui/tool-view.js"],
-                   "styles": ["ui/player.css"]}, order=10))
-        disposers.append(ctx.add_route(
-            "GET", "config", lambda _query: _config_payload(runtime),
-            slot_path="app/backend/http/routes/ai_cosplay-config"))
-        disposers.append(ctx.add_route(
-            "GET", "status", lambda _query: _status_payload(runtime),
-            slot_path="app/backend/http/routes/ai_cosplay-status"))
-        disposers.append(ctx.add_route(
-            "POST", "played", _played_handler(runtime),
-            slot_path="app/backend/http/routes/ai_cosplay-played"))
-        disposers.append(ctx.subscribe(
-            ev.TURN_ENDED, _turn_handler(runtime),
-            path="app/backend/events/subscriptions/turn_ended/ai_cosplay-turn-ended"))
-        disposers.append(ctx.subscribe(
-            ev.ERROR, _error_handler(runtime),
-            path="app/backend/events/subscriptions/error/ai_cosplay-error"))
-        def _mode_tail(cid: str) -> str:
-            return _voice_directive(
-                runtime.config.user_salutation,
-                runtime.config.assistant_salutation,
-                runtime.config.tone,
-            ) if runtime.provider_ready() else ""
+    return AICosplayRuntime(config, create_provider(config.engine))
 
-        # ai_cosplay 只服务主智能体：子智能体不注入语音指令，避免子会话被播报语义污染。
-        disposers.append(ctx.add_mode_tail(
-            _mode_tail,
-            path="app/backend/prompt/mode-tails/ai_cosplay-voice",
-            subagent_visible=False))
-        ctx.set_runtime(runtime)
-    except Exception:
-        runtime.dispose()
-        raise
-    return disposers
+
+def make_tool(ctx: Any, runtime: AICosplayRuntime) -> AICosplayTool:
+    """`ai_speek` 工具：把模型要说的话交给运行时播报。"""
+    return AICosplayTool(runtime)
+
+
+def make_route_config(ctx: Any, runtime: AICosplayRuntime) -> Callable[..., Any]:
+    """`GET config`：当前语音配置快照。"""
+    def handler(_query: Any) -> Any:
+        return _config_payload(runtime)
+    return handler
+
+
+def make_route_status(ctx: Any, runtime: AICosplayRuntime) -> Callable[..., Any]:
+    """`GET status`：当前播放队列状态。"""
+    def handler(_query: Any) -> Any:
+        return _status_payload(runtime)
+    return handler
+
+
+def make_route_played(ctx: Any, runtime: AICosplayRuntime) -> Callable[..., Any]:
+    """`POST played`：前端回报播放结果。"""
+    return _played_handler(runtime)
+
+
+def make_event_turn_ended(ctx: Any, runtime: AICosplayRuntime) -> Callable[[Any], None]:
+    """回合结束订阅；事件名取 `agent.core.event_name.TURN_ENDED`。"""
+    return _turn_handler(runtime)
+
+
+def make_event_error(ctx: Any, runtime: AICosplayRuntime) -> Callable[[Any], None]:
+    """错误订阅；事件名取 `agent.core.event_name.ERROR`。"""
+    return _error_handler(runtime)
+
+
+def make_mode_tail(ctx: Any, runtime: AICosplayRuntime) -> Callable[[str], str]:
+    """模式尾部指令：提供者就绪时才注入，否则返回空串。"""
+    def tail(cid: str) -> str:
+        if not runtime.provider_ready():
+            return ""
+        return _voice_directive(
+            runtime.config.user_salutation,
+            runtime.config.assistant_salutation,
+            runtime.config.tone,
+        )
+    return tail

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""宿主服务组件工厂；路径与依赖由插口树声明。"""
+"""宿主服务组件工厂；依赖由插口节点的 `requires` 声明，按参数名注入。"""
 from __future__ import annotations
 
 from typing import Any
@@ -31,14 +31,15 @@ from agent.update.controller import UpdateController
 
 
 def _config(ctx: Any) -> Any:
-    return ctx.runtime.config.host_config
+    """宿主配置：装配根输入里的 `host_config`。"""
+    return ctx.boot_config.host_config
 
 
 def make_event_bus(ctx: Any) -> Any:
     return EventBus()
 
 
-def make_error_log(ctx: Any) -> Any:
+def make_error_log(ctx: Any, event_bus: Any = None) -> Any:
     return ErrorLog(_config(ctx).data_root)
 
 
@@ -49,25 +50,23 @@ def make_live_state(ctx: Any) -> Any:
         default_effort=get_reasoning_effort(), default_model="")
 
 
-def make_queue(ctx: Any) -> Any:
+def make_queue(ctx: Any, event_bus: Any = None) -> Any:
     cfg = _config(ctx)
     queue = cfg.mesh.queue if cfg.mesh is not None else ConversationQueue(
         cfg.data_root / "queues")
-    bus = ctx.ports.get("event_bus") if getattr(ctx, "ports", None) else None
-    if bus is not None:
+    if event_bus is not None:
         def _changed(cid: str, snapshot: Any) -> None:
             payload = {"conversation_id": str(cid or "")}
             payload.update(dict(snapshot or {}))
-            bus.publish(Event(ev.QUEUE_UPDATED, payload))
+            event_bus.publish(Event(ev.QUEUE_UPDATED, payload))
         queue.set_change_listener(_changed)
     return queue
 
 
-def make_mesh(ctx: Any) -> Any:
+def make_mesh(ctx: Any, queue: Any = None) -> Any:
     cfg = _config(ctx)
     return cfg.mesh if cfg.mesh is not None else MeshState(
-        storage_dir=cfg.data_root / "mesh",
-        input_queue=ctx.ports["queue"])
+        storage_dir=cfg.data_root / "mesh", input_queue=queue)
 
 
 def make_registry(ctx: Any) -> Any:
@@ -107,11 +106,10 @@ def make_update(ctx: Any) -> Any:
     return UpdateController()
 
 
-def make_session_factory(ctx: Any) -> Any:
+def make_session_factory(ctx: Any, context_sources: Any = None) -> Any:
     cfg = _config(ctx)
     if cfg.context_factory is not None:
         return cfg.context_factory
-    sources = ctx.ports["context_sources"]
 
     def factory(cid: str) -> Any:
         from agent.config import get_context
@@ -120,24 +118,26 @@ def make_session_factory(ctx: Any) -> Any:
             cid, full_user_rounds=int(fresh["full_user_rounds"]),
             summary_token_threshold=int(fresh["summary_token_fallback"]),
             reasoning_replay_tokens=int(fresh["reasoning_replay_tokens"]),
-            model_context_window=0, sources=sources,
+            model_context_window=0, sources=context_sources,
         )
     return factory
 
 
-def make_compactor_factory(ctx: Any) -> Any:
+def make_compactor_factory(ctx: Any, provider: Any = None) -> Any:
     cfg = _config(ctx)
     if cfg.compactor_factory is not None:
         return cfg.compactor_factory
-    router = ctx.ports["provider"]
 
     def factory(cid: str) -> Any:
         from agent.config import get_context
-        from agent.mechanisms.compaction.compactor import ContextCompactor, make_provider_summarizer
+        from agent.mechanisms.compaction.compactor import (
+            ContextCompactor,
+            make_provider_summarizer,
+        )
         fresh = get_context()
         return ContextCompactor(
             make_provider_summarizer(
-                router, max_chars=int(fresh["summary_output_max_chars"]),
+                provider, max_chars=int(fresh["summary_output_max_chars"]),
                 prefix_reuse=True),
             summary_token_threshold=int(fresh["summary_token_fallback"]),
             full_user_rounds=int(fresh["full_user_rounds"]),
@@ -146,53 +146,52 @@ def make_compactor_factory(ctx: Any) -> Any:
     return factory
 
 
-def make_provider(ctx: Any) -> Any:
+def make_provider(ctx: Any, model_catalog: Any = None) -> Any:
     cfg = _config(ctx)
     return ProviderRouter(
         default=cfg.provider if cfg.provider is not None else EchoProvider(),
-        resolve=ctx.ports["model_catalog"].provider_for,
+        resolve=model_catalog.provider_for,
         allowed_ids=tuple(cfg.available or ()),
         default_id=cfg.default_model, fallback_to_default=False,
         slots=cfg.slots,
     )
 
 
-def make_contexts(ctx: Any) -> Any:
-    registry = ctx.ports["registry"]
-    live = ctx.ports["live_state"]
-
+def make_contexts(ctx: Any, registry: Any = None, live_state: Any = None) -> Any:
     def keys_for(name: str):
         plugin = registry.get(name)
         return tuple(getattr(plugin, "write_path_keys", ()) or ()) if plugin else ()
 
     return SessionContexts(
-        lambda cid: QualityGate(path_keys_for=keys_for), live=live)
+        lambda cid: QualityGate(path_keys_for=keys_for), live=live_state)
 
 
-def make_pipeline(ctx: Any) -> Any:
+def make_pipeline(ctx: Any, registry: Any = None, contexts: Any = None,
+                  live_state: Any = None) -> Any:
     from agent.core.tool_call import ToolPipeline
     from agent.mechanisms.quality import build_pipeline_gate
-    cfg = _config(ctx)
-    pipeline = ToolPipeline(cfg.slots)
+    pipeline = ToolPipeline(_config(ctx).slots)
     pre, post = build_pipeline_gate(
-        registry=ctx.ports["registry"], sessions=ctx.ports["contexts"],
-        live_state=ctx.ports["live_state"])
+        registry=registry, sessions=contexts, live_state=live_state)
     pipeline.add_pre(pre)
     pipeline.add_post(post)
     return pipeline
 
 
-def make_plugin_host(ctx: Any) -> Any:
+def make_plugin_host(ctx: Any, registry: Any = None, event_bus: Any = None,
+                     context_sources: Any = None, pipeline: Any = None,
+                     contributions: Any = None, context_hooks: Any = None,
+                     model_catalog: Any = None, prompt_tail: Any = None,
+                     prompt_sections: Any = None) -> Any:
     cfg = _config(ctx)
     return PluginHost(
         cfg.plugins_root,
-        ctx.ports["registry"], event_bus=ctx.ports["event_bus"],
-        context_sources=ctx.ports["context_sources"], pipeline=ctx.ports["pipeline"],
-        contributions=ctx.ports["contributions"], context_hooks=ctx.ports["context_hooks"],
+        registry, event_bus=event_bus,
+        context_sources=context_sources, pipeline=pipeline,
+        contributions=contributions, context_hooks=context_hooks,
         slots=cfg.slots, plugin_data_root=cfg.plugin_data_root, executors=cfg.executors,
-        model_catalog=ctx.ports["model_catalog"], prompt_tail=ctx.ports["prompt_tail"],
-        prompt_sections=ctx.ports["prompt_sections"],
-        backend_slots=ctx.runtime.resources.get("backend_slots", ()),
+        model_catalog=model_catalog, prompt_tail=prompt_tail,
+        prompt_sections=prompt_sections,
     )
 
 
@@ -200,14 +199,14 @@ def make_store(ctx: Any) -> Any:
     return _config(ctx).store
 
 
-def make_subagents(ctx: Any) -> Any:
+def make_subagents(ctx: Any, store: Any = None, mesh: Any = None,
+                   queue: Any = None, event_bus: Any = None) -> Any:
     cfg = _config(ctx)
     if cfg.store is None:
         return None
     return SubagentManager(
-        data_root=cfg.data_root, parent_store=ctx.ports["store"],
-        mesh=ctx.ports["mesh"], queue=ctx.ports["queue"],
-        event_bus=ctx.ports["event_bus"],
+        data_root=cfg.data_root, parent_store=store,
+        mesh=mesh, queue=queue, event_bus=event_bus,
     )
 
 

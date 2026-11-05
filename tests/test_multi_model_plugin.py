@@ -2,7 +2,7 @@
 """多模型插件：配置解析、目录回调与 `/catalog` 响应。
 
 覆盖：有效条目 / 缺省值 / BOM / 坏条目隔离 / 默认标记 / 数值与布尔校验 /
-凭据不外泄 / register 的三个贡献 / 配置热读。
+凭据不外泄 / 片段声明的节点 / 配置热读。
 """
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
+from agent.core.slot_fragments import load_merged  # noqa: E402
 
 _MOD = "fan_agent_plugins.multi_model"
 _PLUGIN_PATH = _ROOT / "plugins" / "multi_model" / "plugin.py"
@@ -34,35 +35,6 @@ def _load_plugin_module():
 
 
 _PLUGIN = _load_plugin_module()
-
-
-class _Ctx:
-    """记录插件贡献的测试替身。"""
-
-    def __init__(self) -> None:
-        self.catalog = None
-        self.routes = {}
-        self.boot = []
-        self.disposed = 0
-
-    def _disposer(self):
-        def _drop():
-            self.disposed += 1
-        return _drop
-
-    def add_model_catalog(self, entries):
-        self.catalog = entries
-        return self._disposer()
-
-    def add_route(self, method, path, handler, **_kwargs):
-        self.routes[(method, path)] = handler
-        return self._disposer()
-
-    def add_settings_panel(self, panel_id, title):
-        return self._disposer()
-
-    def add_ui_item(self, path, kind, props=None, order=None):
-        return self._disposer()
 
 
 class _ConfigCase(unittest.TestCase):
@@ -353,54 +325,75 @@ class CatalogPayloadTest(_ConfigCase):
         self.assertEqual(payload["invalid"][0]["id"], "broken")
 
 
-class RegisterTest(_ConfigCase):
+class SlotFactoryTest(_ConfigCase):
+    """旧 `register` 已删：口径改为「工厂产出的东西 + 片段声明的节点」。"""
+
     def setUp(self) -> None:
         super().setUp()
         self._original_path = _PLUGIN._config_path
         _PLUGIN._config_path = lambda: self.path
         self.addCleanup(setattr, _PLUGIN, "_config_path", self._original_path)
 
-    def test_register_contributes_catalog_route_and_boot_script(self) -> None:
-        self.write(
-            "[model:a]\nbase_url = http://x\napi_key = k\n"
-        )
-        ctx = _Ctx()
+    def _runtime(self):
         with contextlib.redirect_stderr(io.StringIO()):
-            disposers = _PLUGIN.register(ctx)
-        self.assertEqual(len(disposers), 4)
-        self.assertTrue(callable(ctx.catalog))
-        self.assertIn(("GET", "catalog"), ctx.routes)
-        self.assertEqual(ctx.boot, [])
-        status, payload = ctx.routes[("GET", "catalog")]({})
+            return _PLUGIN.make_runtime(None)
+
+    def test_factories_produce_catalog_route_and_panel(self) -> None:
+        self.write("[model:a]\nbase_url = http://x\napi_key = k\n")
+        runtime = self._runtime()
+        handler = _PLUGIN.make_catalog_route(None, runtime)
+        status, payload = handler({})
         self.assertEqual(status, 200)
         self.assertEqual(payload["default"], "a")
-        for disposer in disposers:
-            disposer()
-        self.assertEqual(ctx.disposed, 4)
+        self.assertEqual([item.id for item in _PLUGIN.make_catalog(None, runtime)()], ["a"])
+        panel = _PLUGIN.make_panel(None, runtime)
+        self.assertEqual(panel.kind, "panel")
+        self.assertEqual(panel.label, "模型设置")
 
     def test_catalog_callback_hot_reads_the_file(self) -> None:
         self.write("[model:a]\nbase_url = http://x\napi_key = k\n")
-        ctx = _Ctx()
+        catalog = _PLUGIN.make_catalog(None, self._runtime())
         with contextlib.redirect_stderr(io.StringIO()):
-            _PLUGIN.register(ctx)
-        self.assertEqual([item.id for item in ctx.catalog()], ["a"])
+            self.assertEqual([item.id for item in catalog()], ["a"])
         self.write(
             "[model:a]\nbase_url = http://x\napi_key = k\n"
             "[model:b]\nbase_url = http://y\napi_key = k\n"
         )
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual([item.id for item in ctx.catalog()], ["a", "b"])
+            self.assertEqual([item.id for item in catalog()], ["a", "b"])
 
-    def test_reregister_does_not_duplicate_defaults(self) -> None:
+    def test_catalog_provider_declared_once(self) -> None:
+        """目录源重读不会多出一份默认标记。"""
         self.write("[model:a]\nbase_url = http://x\napi_key = k\n")
-        ctx = _Ctx()
+        catalog = _PLUGIN.make_catalog(None, self._runtime())
         with contextlib.redirect_stderr(io.StringIO()):
-            _PLUGIN.register(ctx)
-        first = ctx.catalog()
-        with contextlib.redirect_stderr(io.StringIO()):
-            second = ctx.catalog()
+            first = catalog()
+            second = catalog()
         self.assertEqual([item.is_default for item in first], [True])
         self.assertEqual([item.is_default for item in second], [True])
+
+    def test_fragment_declares_four_own_nodes_and_button(self) -> None:
+        config = load_merged(_ROOT)
+        own = {path: spec for path, spec in config.specs.items()
+               if (path.startswith("app/plugins/multi_model/")
+                   or path == "app/settings/model") and spec.kind != "container"}
+        self.assertEqual(sorted(own), [
+            "app/plugins/multi_model/models/catalog",
+            "app/plugins/multi_model/routes/catalog",
+            "app/plugins/multi_model/runtime",
+            "app/settings/model",
+        ])
+        self.assertEqual(own["app/settings/model"].factory, "plugin:make_panel")
+        self.assertEqual(own["app/plugins/multi_model/models/catalog"].factory,
+                         "plugin:make_catalog")
+        self.assertEqual(own["app/plugins/multi_model/routes/catalog"].factory,
+                         "plugin:make_catalog_route")
+        self.assertEqual(own["app/plugins/multi_model/routes/catalog"].method, "GET")
+
+        button = "app/shell/web-ui/input/buttons/model_switch_btn"
+        self.assertIn(button, config.specs)
+        self.assertEqual(config.origin_of(button), "multi_model")
+        self.assertEqual(config.specs[button].props.get("label"), "模型选择")
 
 
 class PickerStyleTest(unittest.TestCase):

@@ -33,6 +33,9 @@ class ToolSessionGateTest(unittest.TestCase):
     """经 ToolPort 执行时，工具所见 gate 与会话注册表一致。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.app = build_app()

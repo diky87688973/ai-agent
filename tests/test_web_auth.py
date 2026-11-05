@@ -509,6 +509,9 @@ class CreateServerAuthTest(unittest.TestCase):
     def test_required_mode_has_no_embedded_bypass(self) -> None:
         from agent.app import build_app
         from agent.shell.web.server import create_server
+        from tests.testkit import isolate_plugins
+
+        isolate_plugins(self)
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

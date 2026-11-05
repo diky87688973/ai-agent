@@ -2,21 +2,159 @@
 """视觉操作 2.0：持续视觉、全局独占、用户授权与键鼠动作。"""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Callable, List
 
-from agent.capabilities.plugin_paths import load_plugin_paths
-from agent.core.error_report import report_error
+from agent.capabilities.plugin_events import publish_plugin_event
 
 from . import backend, step_log
 from .config import load_config
-from .routes import build_routes
+from .desktop import (
+    DesktopParts,
+    make_desktop_parts,
+    make_vision_app,
+    make_vision_click_text,
+    make_vision_eye,
+    make_vision_find,
+    make_vision_keyboard,
+    make_vision_mouse,
+    make_vision_open,
+    make_vision_type_into,
+    make_vision_wait,
+    make_vision_window,
+)
+from .routes import make_confirm, make_pending, make_revoke, make_status
 from .state import VisionRuntime
-from .tools import build_tools
-
-PATHS = load_plugin_paths(__file__)
+from .tools import (
+    VisionClickSequenceTool,
+    VisionClickTool,
+    VisionFocusTool,
+    VisionKeyTool,
+    VisionMoveFocusTool,
+    VisionMovePointTool,
+    VisionMoveTool,
+    VisionRequestOpenTool,
+    VisionStartTool,
+    VisionStopTool,
+    finish_tool,
+)
 
 PLUGIN_NAME = "visual_operator_2"
+
+
+@dataclass(frozen=True)
+class SlotRuntime:
+    """插口装配期的运行时载体。
+
+    `vision` 是有状态资源（帧队列、锁、线程、当前 owner、监控器与标记），
+    必须全局唯一；`desktop` 里的 `captures` 也必须只有一份。
+    20 个工具全部从同一份载体取，不自建。
+    """
+
+    vision: VisionRuntime
+    desktop: DesktopParts
+
+
+def make_runtime(ctx: Any, app: Any) -> SlotRuntime:
+    """装配期构造运行时：步骤日志、输入监控、控制标记与视觉资源。
+
+    `app` 由装配器按 requires 注入：步骤日志路径与插件事件出口都从它取。
+    """
+    config = load_config()
+    step_log.configure(_step_log_path(app))
+    monitor = backend.HumanInputMonitor(config.takeover_distance)
+    monitor.register_inject_tag(backend.FOREIGN_INJECT_TAG)
+    badge = backend.ControlBadge()
+    vision = VisionRuntime(
+        config,
+        publish=lambda event, payload: publish_plugin_event(
+            app, PLUGIN_NAME, event, payload),
+        input_monitor=monitor,
+        control_badge=badge,
+    )
+    monitor.bind(vision.user_takeover)
+    return SlotRuntime(vision=vision, desktop=make_desktop_parts())
+
+
+def make_tool_vision_request_open(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionRequestOpenTool(runtime.vision))
+
+
+def make_tool_vision_start(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionStartTool(runtime.vision))
+
+
+def make_tool_vision_focus(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionFocusTool(runtime.vision))
+
+
+def make_tool_vision_move(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionMoveTool(runtime.vision))
+
+
+def make_tool_vision_move_point(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionMovePointTool(runtime.vision))
+
+
+def make_tool_vision_move_focus(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionMoveFocusTool(runtime.vision))
+
+
+def make_tool_vision_click(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionClickTool(runtime.vision))
+
+
+def make_tool_vision_click_sequence(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionClickSequenceTool(runtime.vision))
+
+
+def make_tool_vision_key(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionKeyTool(runtime.vision))
+
+
+def make_tool_vision_stop(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(VisionStopTool(runtime.vision))
+
+
+def make_tool_vision_app(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_app(runtime.vision, runtime.desktop))
+
+
+def make_tool_vision_window(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_window(runtime.vision, runtime.desktop))
+
+
+def make_tool_vision_eye(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_eye(runtime.vision, runtime.desktop))
+
+
+def make_tool_vision_type_into(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_type_into(runtime.vision, runtime.desktop))
+
+
+def make_tool_vision_keyboard(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_keyboard(runtime.vision, runtime.desktop))
+
+
+def make_tool_vision_wait(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_wait(runtime.vision, runtime.desktop))
+
+
+def make_tool_vision_find(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_find(runtime.vision, runtime.desktop))
+
+
+def make_tool_vision_click_text(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_click_text(runtime.vision, runtime.desktop))
+
+
+def make_tool_vision_mouse(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_mouse(runtime.vision, runtime.desktop))
+
+
+def make_tool_vision_open(ctx: Any, runtime: SlotRuntime) -> Any:
+    return finish_tool(make_vision_open(runtime.vision, runtime.desktop))
 
 
 def _observation_hook(runtime: VisionRuntime):
@@ -74,8 +212,7 @@ def _vision_prompt(_cid: str) -> str:
     )
 
 
-def _step_log_path(ctx: Any) -> Any:
-    app = getattr(ctx, "app", None)
+def _step_log_path(app: Any) -> Any:
     context = getattr(app, "context", None) if app is not None else None
     if context is None or not callable(getattr(context, "has", None)):
         return None
@@ -86,47 +223,40 @@ def _step_log_path(ctx: Any) -> Any:
     return Path(path).parent / "visual_operator_2.steps.log" if path else None
 
 
-def register(ctx: Any) -> List[Any]:
-    config = load_config()
-    step_log.configure(_step_log_path(ctx))
-    monitor = backend.HumanInputMonitor(config.takeover_distance)
-    monitor.register_inject_tag(backend.FOREIGN_INJECT_TAG)
-    badge = backend.ControlBadge()
-    runtime = VisionRuntime(
-        config,
-        publish=lambda event, payload: ctx.publish_event(event, payload),
-        input_monitor=monitor,
-        control_badge=badge,
-    )
-    monitor.bind(runtime.user_takeover)
-    disposers: List[Any] = [runtime.close]
-    try:
-        disposers.extend(ctx.register_tool(tool) for tool in build_tools(runtime))
-        disposers.append(ctx.add_context_assembly_hook(
-            _observation_hook(runtime),
-            path="app/backend/context/assembly-hooks/visual_operator_2/observations"))
-        disposers.append(ctx.add_prompt_section(
-            "visual_operator_2", _vision_prompt,
-            path="app/backend/prompt/sections/visual_operator_2/discipline",
-            after_tools=True))
-        disposers.extend(build_routes(ctx, runtime))
-        disposers.append(ctx.add_ui_item(
-            PATHS["button"], kind="button",
-            props={"label": "眼睛", "action": "visual.toggle",
-                   "binding": {"input": {"standalone": True,
-                                          "className": "mode-plus vision-eye-btn",
-                                          "action": "visual.toggle",
-                                          "text": "眼睛",
-                                          "hidden": True,
-                                          "host": ".left-tools"}},
-                   "scripts": ["ui/eye-toggle.js", "ui/vision-frame.js"],
-                   "styles": ["ui/vision-frame.css"]}, order=60))
-        ctx.set_runtime(runtime)
-    except Exception:
-        for dispose in reversed(disposers):
-            try:
-                dispose()
-            except Exception as exc:
-                report_error("plugins.visual_operator_2.register_rollback", exc)
-        raise
-    return disposers
+def make_observation_hook(ctx: Any, runtime: SlotRuntime) -> Callable[..., Any]:
+    """上下文拼装钩子：把当前画面作为一条用户消息接在末尾。"""
+    return _observation_hook(runtime.vision)
+
+
+def make_prompt_section(ctx: Any, runtime: SlotRuntime) -> Callable[[str], str]:
+    """视觉帧提示词段；`after_tools` 语义由片段 props 携带。"""
+    return _vision_prompt
+
+
+def make_route_pending(ctx: Any, runtime: SlotRuntime) -> Callable[..., Any]:
+    return make_pending(ctx, runtime.vision)
+
+
+def make_route_status(ctx: Any, runtime: SlotRuntime) -> Callable[..., Any]:
+    return make_status(ctx, runtime.vision)
+
+
+def make_route_confirm(ctx: Any, runtime: SlotRuntime, app: Any) -> Callable[..., Any]:
+    return make_confirm(app, runtime.vision)
+
+
+def make_route_revoke(ctx: Any, runtime: SlotRuntime) -> Callable[..., Any]:
+    return make_revoke(ctx, runtime.vision)
+
+
+#: 20 个工具的插口工厂，顺序与 build_tools 一致。
+TOOL_FACTORIES = (
+    make_tool_vision_request_open, make_tool_vision_start, make_tool_vision_focus,
+    make_tool_vision_move, make_tool_vision_move_point, make_tool_vision_move_focus,
+    make_tool_vision_click, make_tool_vision_click_sequence, make_tool_vision_key,
+    make_tool_vision_stop,
+    make_tool_vision_app, make_tool_vision_window, make_tool_vision_eye,
+    make_tool_vision_type_into, make_tool_vision_keyboard, make_tool_vision_wait,
+    make_tool_vision_find, make_tool_vision_click_text, make_tool_vision_mouse,
+    make_tool_vision_open,
+)

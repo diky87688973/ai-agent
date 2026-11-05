@@ -12,7 +12,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from tests.testkit import no_plugins  # noqa: E402
+from tests.testkit import isolate_data, no_plugins  # noqa: E402
 
 
 class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
@@ -20,6 +20,7 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
 
     def setUp(self) -> None:
         no_plugins(self)
+        isolate_data(self)
 
     def test_factory_passes_every_pipeline_setting(self) -> None:
         import inspect
@@ -67,6 +68,7 @@ class SegmentEventCarriesTheWindowTest(unittest.TestCase):
 
     def setUp(self) -> None:
         no_plugins(self)
+        isolate_data(self)
 
     def test_event_has_window_and_budget(self) -> None:
         from typing import Iterator

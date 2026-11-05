@@ -2,6 +2,7 @@
 """2.0 授权下的桌面辅助工具：窗口、应用、单次看屏、文本输入、滚动/拖拽。"""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -101,28 +102,110 @@ class _AuthorizedDesktopTool(ToolPlugin):
         return result
 
 
-def build_tools(runtime: VisionRuntime) -> List[ToolPlugin]:
-    config = load_desktop_config(Path(__file__).resolve().parent.parent / "visual_operator")
-    backend = load_backend()
-    captures = CaptureStore()
-    specs = [
-        ("vision_app", "启动应用", "启动本地应用并等待窗口；不经过视觉搜索。", DesktopAppTool(backend, None)),
-        ("vision_window", "窗口", "列窗口、激活、等待、读取矩形；不点击窗口内容。", DesktopWindowTool(backend, None)),
-        ("vision_eye", "单独看屏", SEPARATE_LOOK + "支持窗口/区域截图，返回 capture_id。", DesktopEyeTool(backend, config, None, captures)),
-        ("vision_type_into", "定位输入", "向 UIA 控件或截图矩形输入文本；用于标准输入框。", DesktopTypeIntoTool(backend, config, None, captures)),
-        ("vision_keyboard", "键盘输入", "输入 Unicode 文本或单键；组合键请用 vision_key。", DesktopKeyboardTool(backend, config, None, captures)),
-        ("vision_wait", "等待条件", "等待画面变化、窗口出现/消失；不移动鼠标。", DesktopWaitTool(backend, config)),
-        ("vision_find", "查找控件", "按文字查找 UIA 控件，返回矩形；不点击。", DesktopFindTool(backend)),
-        ("vision_click_text", "点击文字控件", "点击 UIA 文字控件；只用于标准控件，自绘界面用视觉链。", DesktopClickTextTool(backend, None)),
-        ("vision_mouse", "滚动拖拽", "只提供滚动和拖拽；移动与点击走 vision_move_point / vision_click。", DesktopMouseTool(backend, config, None, captures)),
-        ("vision_open", "打开资源", "打开 URL、文件或协议；不截图、不点击。", DesktopOpenTool(backend, None)),
-    ]
-    tools: List[ToolPlugin] = []
-    for name, label, text, tool in specs:
-        desc = (
-            f"【2.0 辅助桌面工具】{AUTH_HINT}{text}"
-            + ""
-            + (" 滚动/拖拽之外不要用它移动或点击。" if name == "vision_mouse" else "")
-        )
-        tools.append(_AuthorizedDesktopTool(tool, runtime, name, label, desc))
-    return tools
+@dataclass(frozen=True)
+class DesktopParts:
+    """桌面辅助工具共享件。
+
+    `captures` 必须只有一份：截图与鼠标靠同一张映射对齐。
+    """
+
+    config: Any
+    backend: Any
+    captures: CaptureStore
+
+
+def make_desktop_parts() -> DesktopParts:
+    """单点构造共享件；10 个桌面工具全部从这里取。"""
+    config = load_desktop_config(
+        Path(__file__).resolve().parent.parent / "visual_operator")
+    return DesktopParts(config=config, backend=load_backend(),
+                        captures=CaptureStore())
+
+
+def _describe(name: str, text: str) -> str:
+    return (
+        f"【2.0 辅助桌面工具】{AUTH_HINT}{text}"
+        + (" 滚动/拖拽之外不要用它移动或点击。" if name == "vision_mouse" else "")
+    )
+
+
+def make_vision_app(vision: VisionRuntime, parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopAppTool(parts.backend, None), vision, "vision_app", "启动应用",
+        _describe("vision_app", "启动本地应用并等待窗口；不经过视觉搜索。"))
+
+
+def make_vision_window(vision: VisionRuntime, parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopWindowTool(parts.backend, None), vision, "vision_window", "窗口",
+        _describe("vision_window", "列窗口、激活、等待、读取矩形；不点击窗口内容。"))
+
+
+def make_vision_eye(vision: VisionRuntime, parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopEyeTool(parts.backend, parts.config, None, parts.captures),
+        vision, "vision_eye", "单独看屏",
+        _describe("vision_eye", SEPARATE_LOOK + "支持窗口/区域截图，返回 capture_id。"))
+
+
+def make_vision_type_into(vision: VisionRuntime, parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopTypeIntoTool(parts.backend, parts.config, None, parts.captures),
+        vision, "vision_type_into", "定位输入",
+        _describe("vision_type_into", "向 UIA 控件或截图矩形输入文本；用于标准输入框。"))
+
+
+def make_vision_keyboard(vision: VisionRuntime, parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopKeyboardTool(parts.backend, parts.config, None, parts.captures),
+        vision, "vision_keyboard", "键盘输入",
+        _describe("vision_keyboard", "输入 Unicode 文本或单键；组合键请用 vision_key。"))
+
+
+def make_vision_wait(vision: VisionRuntime, parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopWaitTool(parts.backend, parts.config), vision, "vision_wait",
+        "等待条件", _describe("vision_wait", "等待画面变化、窗口出现/消失；不移动鼠标。"))
+
+
+def make_vision_find(vision: VisionRuntime, parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopFindTool(parts.backend), vision, "vision_find", "查找控件",
+        _describe("vision_find", "按文字查找 UIA 控件，返回矩形；不点击。"))
+
+
+def make_vision_click_text(vision: VisionRuntime,
+                           parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopClickTextTool(parts.backend, None), vision, "vision_click_text",
+        "点击文字控件",
+        _describe("vision_click_text",
+                  "点击 UIA 文字控件；只用于标准控件，自绘界面用视觉链。"))
+
+
+def make_vision_mouse(vision: VisionRuntime, parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopMouseTool(parts.backend, parts.config, None, parts.captures),
+        vision, "vision_mouse", "滚动拖拽",
+        _describe("vision_mouse",
+                  "只提供滚动和拖拽；移动与点击走 vision_move_point / vision_click。"))
+
+
+def make_vision_open(vision: VisionRuntime, parts: DesktopParts) -> ToolPlugin:
+    return _AuthorizedDesktopTool(
+        DesktopOpenTool(parts.backend, None), vision, "vision_open", "打开资源",
+        _describe("vision_open", "打开 URL、文件或协议；不截图、不点击。"))
+
+
+#: 桌面辅助工具装配顺序。
+DESKTOP_TOOL_FACTORIES = (
+    make_vision_app, make_vision_window, make_vision_eye, make_vision_type_into,
+    make_vision_keyboard, make_vision_wait, make_vision_find,
+    make_vision_click_text, make_vision_mouse, make_vision_open,
+)
+
+
+def build_tools(runtime: VisionRuntime,
+                parts: DesktopParts | None = None) -> List[ToolPlugin]:
+    parts = parts if parts is not None else make_desktop_parts()
+    return [factory(runtime, parts) for factory in DESKTOP_TOOL_FACTORIES]

@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 from agent.core.ports import LogicalRequest  # noqa: E402
 from agent.mechanisms.providers.base import ModelRequestError  # noqa: E402
 from agent.mechanisms.providers.openai import OpenAICompatibleProvider  # noqa: E402
-from tests.testkit import local_auth, no_plugins  # noqa: E402
+from tests.testkit import isolate_data, local_auth, no_plugins  # noqa: E402
 
 _PNG_B64 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
             "z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
@@ -423,6 +423,7 @@ class AvailableModelsWireTest(unittest.TestCase):
         # 不装插件：本类钉的是 `/health` 与 `allowed_models` 的接线，
         # 插件目录（开发者本机的多模型配置）会把清单整体换掉，与本类无关。
         no_plugins(self)
+        isolate_data(self)
         app = build_app()
         app._available_models = ["m-one", "m-two", "m-three"]
         return app
@@ -486,11 +487,22 @@ class CatalogAuthorityAtAssemblyTest(unittest.TestCase):
     _PLUGIN = '''\
 from agent.capabilities.model_catalog import ModelEntry
 
-def register(ctx):
-    return ctx.add_model_catalog(lambda: (
+
+def make_catalog(ctx):
+    return lambda: (
         ModelEntry.from_options(id="cat-a", provider="openai", is_default=True),
         ModelEntry.from_options(id="cat-b", provider="openai"),
-    ))
+    )
+'''
+
+    _SLOTS = '''{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {"path": "app/plugins/catalog_demo/models/catalog", "kind": "provider",
+     "factory": "plugin:make_catalog", "props": {"target": "model-catalog"}}
+  ]
+}
 '''
 
     def test_catalog_entries_become_the_model_list(self) -> None:
@@ -504,6 +516,9 @@ def register(ctx):
         plugins = tmp / "plugins" / "catalog_demo"
         plugins.mkdir(parents=True)
         (plugins / "plugin.py").write_text(self._PLUGIN, encoding="utf-8")
+        (plugins / "plugin-slots.json").write_text(self._SLOTS, encoding="utf-8")
+        (plugins / "plugin-meta.json").write_text(
+            '{"name": "catalog_demo", "version": "1.0"}\n', encoding="utf-8")
         manifest = tmp / "plugins.ini"
         manifest.write_text("[plugin:catalog_demo]\n", encoding="utf-8")
 
@@ -515,6 +530,7 @@ def register(ctx):
             mesh=MeshState(storage_dir=tmp / "mesh"),
             backup_root=tmp / "bk",
             recycle_root=tmp / "rc",
+            data_root=tmp,
         )
         self.addCleanup(app.dispose)
         self.assertEqual(app.model_config_state, "catalog")

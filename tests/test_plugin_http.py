@@ -31,54 +31,96 @@ from agent.shell.web import server as web_mod  # noqa: E402
 from agent.shell.web.ui_bundle import read_ui_css, read_ui_js  # noqa: E402
 from tests.testkit import local_auth  # noqa: E402
 
+_FIXTURE_META = '{"name": "probe", "version": "1.0"}\n'
+
 _FIXTURE_PLUGIN = '''# -*- coding: utf-8 -*-
-"""测试夹具插件：把一个有状态的业务暴露成 web 接口。"""
+"""测试夹具插件：把一个有状态的业务暴露成 web 接口。
+
+路由由 `plugin-slots.json` 声明，本文件只提供工厂。
+"""
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 _TASKS: Dict[str, Dict[str, Any]] = {}
 
 
-def register(ctx: Any) -> List[Any]:
-    disposers: List[Any] = []
+def create(query: Dict[str, Any]) -> Any:
+    body = query.get("body") or {}
+    tid = f"t-{len(_TASKS) + 1}"
+    _TASKS[tid] = {"id": tid, "prompt": str(body.get("prompt") or ""), "hits": 0}
+    return 201, {"ok": True, "id": tid, "tag": query.get("tag")}
 
-    def create(query: Dict[str, Any]) -> Any:
-        body = query.get("body") or {}
-        tid = f"t-{len(_TASKS) + 1}"
-        _TASKS[tid] = {"id": tid, "prompt": str(body.get("prompt") or ""), "hits": 0}
-        return 201, {"ok": True, "id": tid, "tag": query.get("tag")}
 
-    def listing(query: Dict[str, Any]) -> Any:
-        return 200, {"ok": True, "items": list(_TASKS.values())}
+def listing(query: Dict[str, Any]) -> Any:
+    return 200, {"ok": True, "items": list(_TASKS.values())}
 
-    def one(query: Dict[str, Any]) -> Any:
-        tid = str(query.get("sid") or "")
-        if tid not in _TASKS:
-            return 404, {"ok": False, "error": "no such task"}
-        _TASKS[tid]["hits"] += 1
-        return 200, {"ok": True, "task": _TASKS[tid]}
 
-    def bump(query: Dict[str, Any]) -> Any:
-        tid = str(query.get("sid") or "")
-        if tid not in _TASKS:
-            return 404, {"ok": False, "error": "no such task"}
-        body = query.get("body") or {}
-        _TASKS[tid]["prompt"] = str(body.get("prompt") or _TASKS[tid]["prompt"])
-        return 200, {"ok": True, "task": _TASKS[tid]}
+def one(query: Dict[str, Any]) -> Any:
+    tid = str(query.get("sid") or "")
+    if tid not in _TASKS:
+        return 404, {"ok": False, "error": "no such task"}
+    _TASKS[tid]["hits"] += 1
+    return 200, {"ok": True, "task": _TASKS[tid]}
 
-    def drop(query: Dict[str, Any]) -> Any:
-        tid = str(query.get("sid") or "")
-        if _TASKS.pop(tid, None) is None:
-            return 404, {"ok": False, "error": "no such task"}
-        return 200, {"ok": True, "removed": tid}
 
-    disposers.append(ctx.add_route("POST", "tasks", create, slot_path="app/backend/http/routes/probe-tasks-create"))
-    disposers.append(ctx.add_route("GET", "tasks", listing, slot_path="app/backend/http/routes/probe-tasks-list"))
-    disposers.append(ctx.add_route("GET", "tasks/:sid", one, slot_path="app/backend/http/routes/probe-tasks-one"))
-    disposers.append(ctx.add_route("PUT", "tasks/:sid", bump, slot_path="app/backend/http/routes/probe-tasks-bump"))
-    disposers.append(ctx.add_route("DELETE", "tasks/:sid", drop, slot_path="app/backend/http/routes/probe-tasks-drop"))
-    return disposers
+def bump(query: Dict[str, Any]) -> Any:
+    tid = str(query.get("sid") or "")
+    if tid not in _TASKS:
+        return 404, {"ok": False, "error": "no such task"}
+    body = query.get("body") or {}
+    _TASKS[tid]["prompt"] = str(body.get("prompt") or _TASKS[tid]["prompt"])
+    return 200, {"ok": True, "task": _TASKS[tid]}
+
+
+def drop(query: Dict[str, Any]) -> Any:
+    tid = str(query.get("sid") or "")
+    if _TASKS.pop(tid, None) is None:
+        return 404, {"ok": False, "error": "no such task"}
+    return 200, {"ok": True, "removed": tid}
+
+
+def make_route_create(ctx: Any) -> Any:
+    return create
+
+
+def make_route_list(ctx: Any) -> Any:
+    return listing
+
+
+def make_route_one(ctx: Any) -> Any:
+    return one
+
+
+def make_route_bump(ctx: Any) -> Any:
+    return bump
+
+
+def make_route_drop(ctx: Any) -> Any:
+    return drop
+'''
+
+_FIXTURE_SLOTS = '''{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {"path": "app/plugins/probe/routes/tasks-create", "kind": "route",
+     "factory": "plugin:make_route_create", "method": "POST",
+     "props": {"path": "tasks"}},
+    {"path": "app/plugins/probe/routes/tasks-list", "kind": "route",
+     "factory": "plugin:make_route_list", "method": "GET",
+     "props": {"path": "tasks"}},
+    {"path": "app/plugins/probe/routes/tasks-one", "kind": "route",
+     "factory": "plugin:make_route_one", "method": "GET",
+     "props": {"path": "tasks/:sid"}},
+    {"path": "app/plugins/probe/routes/tasks-bump", "kind": "route",
+     "factory": "plugin:make_route_bump", "method": "PUT",
+     "props": {"path": "tasks/:sid"}},
+    {"path": "app/plugins/probe/routes/tasks-drop", "kind": "route",
+     "factory": "plugin:make_route_drop", "method": "DELETE",
+     "props": {"path": "tasks/:sid"}}
+  ]
+}
 '''
 
 _PANEL_JS = (
@@ -109,11 +151,14 @@ class PluginHttpTest(unittest.TestCase):
         base = Path(cls._tmp.name)
         plugins = base / "plugins"
         (plugins / "probe" / "ui").mkdir(parents=True)
+        (plugins / "probe" / "plugin-meta.json").write_text(_FIXTURE_META, encoding="utf-8")
+        (plugins / "probe" / "plugin-slots.json").write_text(_FIXTURE_SLOTS, encoding="utf-8")
         (plugins / "probe" / "plugin.py").write_text(_FIXTURE_PLUGIN, encoding="utf-8")
         (plugins / "probe" / "ui" / "panel.js").write_text(_PANEL_JS, encoding="utf-8")
         (plugins / "probe" / "ui" / "panel.css").write_text(_PANEL_CSS, encoding="utf-8")
 
-        # 数据根走环境变量（`build_app` 不接受该参数）；装载清单走临时 `plugins.ini`
+        # 数据根显式传给 `build_app`，同时设环境变量：还有若干代码直接读环境变量。
+        # 两者指向同一目录，不会各算一份。装载清单走临时 `plugins.ini`
         # —— 真实工程那份列的是 knowledge / ai_cosplay，测试不该依赖它，也不该打补丁绕过。
         cls._env = mock.patch.dict(
             os.environ, {"AI_AGENT_DATA_ROOT": str(base / "data")})
@@ -126,7 +171,7 @@ class PluginHttpTest(unittest.TestCase):
             "agent.config.DEFAULT_PLUGINS_PATH", manifest)
         cls._manifest.start()
         cls.addClassCleanup(cls._manifest.stop)
-        cls.app = build_app(plugins_dir=plugins)
+        cls.app = build_app(plugins_dir=plugins, data_root=base / "data")
         cls.port = _free_port()
         cls.server, cls.shell = web_mod.create_server(
             cls.app, host="127.0.0.1", port=cls.port, auth=local_auth(cls.app))
@@ -141,6 +186,7 @@ class PluginHttpTest(unittest.TestCase):
         except Exception as exc:
             print(f"[tests.test_plugin_http.PluginHttpTest.tearDownClass] {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
         cls._thread.join(timeout=5)
+        cls.app.dispose()
         cls._tmp.cleanup()
 
     # ── 请求辅助 ──

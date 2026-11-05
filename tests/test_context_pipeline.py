@@ -214,8 +214,13 @@ class DefaultConfigValues(unittest.TestCase):
                          c["full_user_rounds"])
 
     def test_other_context_defaults(self) -> None:
+        """断言代码默认值：读一个不存在的文件，本地 config.ini 改成什么都不影响。"""
+        import tempfile
+        from pathlib import Path
+
         from agent.config import get_context
-        c = get_context()
+        with tempfile.TemporaryDirectory() as tmp:
+            c = get_context(Path(tmp) / "missing.ini")
         self.assertEqual(c["summary_output_max_chars"], 5000)
         self.assertEqual(c["image_turns"], 1)
         self.assertEqual(c["image_max"], 8)

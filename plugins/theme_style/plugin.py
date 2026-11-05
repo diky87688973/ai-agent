@@ -4,22 +4,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
-from agent.capabilities.plugin_paths import load_plugin_paths
 from agent.core.error_report import report_error
+from agent.core.slot_spec import SettingDecl
 
-PATHS = load_plugin_paths(__file__)
-
-
-
-STYLE_ID = "theme_style"
 DEFAULT_STYLE = "dsh"
 STYLES = {"dsh", "minimal"}
 
 
 def _state_path(ctx: Any) -> Optional[Path]:
-    root = getattr(ctx, "data_dir", None)
+    root = ctx.data_dir
     return Path(root) / "style.json" if root is not None else None
 
 
@@ -52,30 +47,37 @@ def _save_style(ctx: Any, value: Any) -> Dict[str, Any]:
     return {"ok": True}
 
 
-def register(ctx: Any) -> List[Any]:
-    def get_style(_args: Dict[str, Any]) -> Any:
-        return 200, {"ok": True, "style": _load_style(ctx)}
+def make_runtime(ctx: Any) -> Dict[str, Any]:
+    """装配期运行时：本插件唯一的状态是数据目录里的 style.json。"""
+    return {"ctx": ctx}
 
-    def save_style(value: Any) -> Dict[str, Any]:
-        return _save_style(ctx, value)
 
-    return [
-        ctx.add_settings_item(
-            PATHS["panel"], "theme_style",
-            kind="select", label="界面风格", default=DEFAULT_STYLE,
-            options=(
-                {"value": "dsh", "label": "DSH 风格"},
-                {"value": "minimal", "label": "极简风格"},
-            ),
-            hint="保存后立即切换；关闭插件回到 DSH 风格。",
-            save=save_style,
-            load=lambda: _load_style(ctx),
+def make_setting(ctx: Any, runtime: Dict[str, Any]) -> SettingDecl:
+    """界面风格条目声明。
+
+    `save` / `load` 是函数，写不进 JSON，所以只能在 factory 里闭包捕获 runtime；
+    props 只承载展示形状。
+    """
+    owner = runtime["ctx"]
+    return SettingDecl(
+        kind="select",
+        label="界面风格",
+        default=DEFAULT_STYLE,
+        options=(
+            {"value": "dsh", "label": "DSH 风格"},
+            {"value": "minimal", "label": "极简风格"},
         ),
-        ctx.add_route(
-            "GET", "style", get_style,
-            slot_path="app/backend/http/routes/theme_style-style"),
-        ctx.add_ui_item(PATHS["button"], kind="button",
-                        props={"label": "黑白切换", "action": "theme.toggle",
-                               "binding": {"nav": "theme"},
-                               "scripts": ["ui/theme-style.js"]}, order=1),
-    ]
+        hint="保存后立即切换；关闭插件回到 DSH 风格。",
+        save=lambda value: _save_style(owner, value),
+        load=lambda: _load_style(owner),
+    )
+
+
+def make_style_route(ctx: Any, runtime: Dict[str, Any],
+                     ) -> Callable[[Dict[str, Any]], Any]:
+    """`GET style`：返回当前风格名。"""
+    owner = runtime["ctx"]
+
+    def handler(_args: Dict[str, Any]) -> Any:
+        return 200, {"ok": True, "style": _load_style(owner)}
+    return handler

@@ -1,147 +1,34 @@
 # -*- coding: utf-8 -*-
-"""自装配组件工厂：容器、服务叶子、运行时门面。"""
+"""宿主装配组件：文件安全、应用门面、插件装载、内核模块容器。"""
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Callable, List, Tuple
 
+from agent.app_model_policy import apply_model_policy
 from agent.common.status import (
-    MODEL_CONFIG_CATALOG,
-    MODEL_CONFIG_CONFIG,
     MODEL_CONFIG_NONE,
     PLUGIN_ERROR,
 )
 from agent.config import get_backup_retention_days
-from agent.core.context import SERVICE_MODEL_CATALOG
-from agent.core.slot import SlotContainer, SlotLeaf, SlotValue
+from agent.core.error_report import report_error
+from agent.core.slot_config import SlotConfig
+from agent.core.slot_factory import resolve_factory
+from agent.core.slot_spec import SlotSpec
 from agent.mechanisms.file_safety import build_file_safety
 
 
-class SlotResult(SlotLeaf):
-    """装配结果由子阶段决定的组件；失败可参与 master 传播。"""
+@dataclass(frozen=True)
+class FileSafety:
+    """备份与回收两份资源；由需要它们的工具按名字取用。"""
 
-    def __init__(self, path: str, ok: bool, *, master: bool = False) -> None:
-        super().__init__(path, master=master)
-        self._ok = bool(ok)
-
-    def assembly(self, tree: Any) -> bool:
-        return self._ok
+    backups: Any
+    recycle: Any
 
 
-class KernelModuleGroup(SlotContainer):
-    """内核模块容器：拥有模块根路径并逐回合构造模块链。"""
-
-    def __init__(self, path: str, *, loop_config: Any = None,
-                 master: bool = True) -> None:
-        super().__init__(path, master=master)
-        self.tree = None
-        self.loop_config = loop_config
-
-    def assembly(self, tree: Any) -> bool:
-        self.tree = tree
-        ok = super().assembly(tree)
-        if ok:
-            tree.runtime.resources["kernel_group"] = self
-        return ok
-
-    def configure_loop(self, *, image_turns: int, image_max: int,
-                       max_passes: int) -> None:
-        from agent.core.modules.slot_chain import AgentLoopConfig
-        self.loop_config = AgentLoopConfig(
-            image_turns=int(image_turns), image_max=int(image_max),
-            max_passes=max(1, int(max_passes)))
-
-    def build_modules(self, context: Any) -> list[Any]:
-        from agent.core.module import ModuleBase
-        if self.tree is None:
-            raise RuntimeError("内核模块容器尚未装配")
-        rows = []
-        for node in self.tree.children(self.path):
-            if not node.enabled or node.metadata.get("scope") != "session":
-                continue
-            rows.append((int(node.metadata.get("order", 999)), node.path))
-        rows.sort()
-        modules = []
-        for _order, path in rows:
-            node = self.tree.node(path)
-            plugin = self.tree.materialize(node)
-            children = []
-            for child_node in self.tree.children(path):
-                if not child_node.enabled:
-                    continue
-                child = self.tree.materialize(child_node)
-                if not self.tree.assemble(child):
-                    raise RuntimeError(f"内核模块子插口装配失败：{child_node.path}")
-                children.append(child)
-            module = plugin.build(context, children)
-            if not isinstance(module, ModuleBase):
-                raise TypeError(f"内核模块类型非法：{path} / {type(module).__name__}")
-            modules.append(module)
-        return modules
-
-
-def kernel_group(ctx: Any) -> KernelModuleGroup:
-    config = ctx.runtime.config
-    from agent.core.modules.slot_chain import AgentLoopConfig
-    loop = AgentLoopConfig(
-        image_turns=int(config.image_turns), image_max=int(config.image_max),
-        max_passes=max(1, int(config.max_passes)))
-    return KernelModuleGroup(
-        ctx.node.path, loop_config=loop, master=ctx.node.master)
-
-
-class KernelModulePlugin(SlotLeaf):
-    """会话级内核模块描述符；真正的模块在每回合构造。"""
-
-    def __init__(self, path: str, builder: Any, *, master: bool = False) -> None:
-        super().__init__(path, master=master)
-        self.builder = builder
-
-    def build(self, context: Any, children: Any = ()) -> Any:
-        return self.builder(context, children)
-
-
-def kernel_module(ctx: Any) -> KernelModulePlugin:
-    spec = str(ctx.node.metadata.get("builder") or "")
-    module_name, sep, attr = spec.partition(":")
-    if not sep:
-        raise ValueError(f"内核模块 builder 非法：{spec}")
-    import importlib
-    builder = getattr(importlib.import_module(module_name), attr)
-    return KernelModulePlugin(ctx.node.path, builder, master=ctx.node.master)
-
-
-def append_context(ctx: Any) -> SlotValue:
-    """内核对上下文追加插口的通用叶子；builder 由插件提供。"""
-    spec = str(ctx.node.metadata.get("builder") or "")
-    module_name, sep, attr = spec.partition(":")
-    if not sep:
-        raise ValueError(f"builder 必须是 module:attr：{spec}")
-    import importlib
-    builder = getattr(importlib.import_module(module_name), attr)
-    return SlotValue(ctx.node.path, builder, master=ctx.node.master)
-
-
-def service_component(ctx: Any) -> SlotValue:
-    spec = str(ctx.node.metadata.get("builder") or "")
-    module_name, sep, attr = spec.partition(":")
-    if not sep:
-        raise ValueError(f"builder 必须是 module:attr：{spec}")
-    import importlib
-    builder = getattr(importlib.import_module(module_name), attr)
-    value = builder(ctx)
-    # 服务键默认取节点路径；节点可显式声明 `metadata.service`，避免调用方
-    # 把某个树路径当成服务名硬编码。
-    service_key = str(ctx.node.metadata.get("service") or ctx.node.path)
-    ctx.runtime.services[service_key] = value
-    return SlotValue(ctx.node.path, value, master=ctx.node.master)
-
-
-def container(ctx: Any) -> SlotContainer:
-    return SlotContainer(ctx.node.path, master=ctx.node.master)
-
-
-def files(ctx: Any) -> SlotValue:
-    config = ctx.runtime.config
+def make_files(ctx: Any) -> FileSafety:
+    """建文件安全资源并做一次保留期剪枝。"""
+    config = ctx.boot_config
     backups, recycle = build_file_safety(
         config.data_root, config.backup_root, config.recycle_root)
     days = (get_backup_retention_days()
@@ -151,25 +38,27 @@ def files(ctx: Any) -> SlotValue:
         try:
             backups.prune(days)
         except Exception as exc:
-            from agent.core.error_report import report_error
             report_error("boot.backup_prune", exc)
-    ctx.runtime.resources["backups"] = backups
-    ctx.runtime.resources["recycle"] = recycle
-    return SlotValue(ctx.node.path, (backups, recycle), master=ctx.node.master)
+    return FileSafety(backups=backups, recycle=recycle)
 
 
-def facade(ctx: Any) -> SlotLeaf:
+def make_facade(ctx: Any, **requires: Any) -> Any:
+    """应用门面：把 requires 声明的服务逐个登记进 AppContext。
+
+    登记名就是 requires 的键，与内核 `SERVICE_*` 常量一一对应；
+    缺一个键就意味着图里少了一条边，`context.has` 会如实报不存在。
+    """
     from agent.app import App
     from agent.core.context import AppContext
     from agent.core.error_report import bind_error_sink
 
-    runtime = ctx.runtime
-    config = runtime.config
-    context = AppContext(runtime.resources["slots"])
-    for key, value in ctx.ports.items():
+    config = ctx.boot_config
+    host = config.host_config
+    context = AppContext(host.slots)
+    for key, value in requires.items():
         if value is not None:
             context.register(key, value)
-    unbind = bind_error_sink(ctx.ports["error_log"].report)
+    unbind = bind_error_sink(requires["error_log"].report)
     app = App(
         context,
         context_defaults={
@@ -177,44 +66,88 @@ def facade(ctx: Any) -> SlotLeaf:
             "reasoning_replay_tokens": int(config.context_defaults["reasoning_replay_tokens"]),
         },
     )
-    app._available_models = list(config.available)
+    # 初值：统一降级态。真实策略由 `apply_model_policy` 在装载与绑定后各算一次。
+    app._available_models = []
     app._error_unbind = unbind
-    app.model_config_state = MODEL_CONFIG_CONFIG if config.config_ready else MODEL_CONFIG_NONE
-    runtime.app = app
-    return SlotLeaf(ctx.node.path, master=ctx.node.master)
+    app.model_config_state = MODEL_CONFIG_NONE
+    return app
 
 
-def plugins(ctx: Any) -> SlotLeaf:
-    app = ctx.runtime.app
+def make_plugins(ctx: Any, facade: Any = None) -> Any:
+    """装载插件：把宿主交给 App，按模型目录刷新可用模型表。
+
+    `host.tree` 不再赋值：旧装配树不进新架构，插件贡献不靠树分发。
+    """
+    config = ctx.boot_config
+    app = facade
     host = app.plugin_host
     host.app = app
-    host.tree = ctx.tree
-    reports = host.load_manifest(ctx.runtime.config.plugin_manifest)
+    reports = host.load_manifest(config.plugin_manifest)
     ok = not any(str(report.status) == PLUGIN_ERROR for report in reports)
-    snapshot = app.context.get(SERVICE_MODEL_CATALOG).snapshot()
-    if snapshot.authoritative:
-        app.model_config_state = MODEL_CONFIG_CATALOG
-        app._available_models = [item.id for item in snapshot.entries]
-        app.live_state.default_model = snapshot.default_id
-        app.provider.reload_policy(
-            allowed_ids=app._available_models,
-            default_id=snapshot.default_id, fallback_to_default=False)
-    elif app.model_config_state == MODEL_CONFIG_CONFIG:
-        app._available_models = list(ctx.runtime.config.available)
-        app.live_state.default_model = ctx.runtime.config.default_model
-        app.provider.reload_policy(
-            allowed_ids=app._available_models,
-            default_id=ctx.runtime.config.default_model, fallback_to_default=False)
-    else:
-        app._available_models = []
-        app.live_state.default_model = ""
-        app.provider.reload_policy(
-            allowed_ids=[], default_id="", fallback_to_default=False)
-    return SlotResult(ctx.node.path, ok, master=ctx.node.master)
+    # 此刻目录来源尚未绑定，只能落降级态；目录权威由 `_bind` 后再调一次落定。
+    apply_model_policy(app)
+    return ok
 
 
-__all__ = [
-    "KernelModuleGroup", "KernelModulePlugin", "SlotResult", "append_context",
-    "container", "facade", "files", "kernel_group", "kernel_module",
-    "plugins", "service_component",
-]
+class KernelModuleGroup:
+    """内核模块容器：持会话预算，并在每次创建会话引擎时构造一遍模块链。
+
+    模块声明是 `scope=session` 的节点，本身不进进程装配；
+    这里是它们唯一的构造入口，所以每次会话都按节点声明重新构造一遍。
+    """
+
+    def __init__(self, config: SlotConfig, *,
+                 modules: Tuple[SlotSpec, ...],
+                 loop_config: Any = None,
+                 resolver: Callable[..., Any] = resolve_factory) -> None:
+        self._config = config
+        self._modules = modules
+        self._resolver = resolver
+        self.loop_config = loop_config
+
+    def configure_loop(self, *, image_turns: int, image_max: int,
+                       max_passes: int) -> None:
+        from agent.core.modules.slot_chain import AgentLoopConfig
+        self.loop_config = AgentLoopConfig(
+            image_turns=int(image_turns), image_max=int(image_max),
+            max_passes=max(1, int(max_passes)))
+
+    def build_modules(self, context: Any) -> List[Any]:
+        from agent.core.module import ModuleBase
+        modules = []
+        for spec in self._modules:
+            factory = self._resolver(spec.factory)
+            module = factory(context, ())
+            if not isinstance(module, ModuleBase):
+                raise TypeError(
+                    f"内核模块类型非法：{spec.path} / {type(module).__name__}")
+            modules.append(module)
+        return modules
+
+
+def make_kernel_group(ctx: Any, children: Any = (), **requires: Any) -> KernelModuleGroup:
+    """建内核模块容器：会话预算取自启动配置，模块清单取自当期配置。
+
+    容器类工厂一律收到已构造的子节点；本节点的子节点是会话级模块，
+    进程装配阶段一个也不会构造（见 `_construct` 按 scope 过滤），
+    所以真正的模块清单要自己从配置里按 order 取。
+    """
+    from agent.core.modules.slot_chain import AgentLoopConfig
+
+    config = ctx.boot_config
+    loop = AgentLoopConfig(
+        image_turns=int(config.image_turns), image_max=int(config.image_max),
+        max_passes=max(1, int(config.max_passes)))
+    prefix = "app/kernel/modules/"
+    children = [
+        ctx.config.specs[path] for path in ctx.config.specs
+        if path.startswith(prefix) and "/" not in path[len(prefix):]
+        and ctx.config.specs[path].scope == "session"
+    ]
+    children.sort(key=lambda spec: (spec.order is None, spec.order or 0, spec.path))
+    return KernelModuleGroup(ctx.config, modules=tuple(children), loop_config=loop,
+                             resolver=ctx.resolver)
+
+
+__all__ = ["FileSafety", "KernelModuleGroup", "make_facade", "make_files",
+           "make_kernel_group", "make_plugins"]

@@ -17,6 +17,7 @@ from PIL import Image
 
 from agent.core.context import ToolTurnContext
 from agent.core.session_scope import reset_tool_turn_context, set_tool_turn_context
+from plugins.visual_operator_2 import plugin as _PLUGIN
 from plugins.visual_operator_2.config import VisionConfig
 from plugins.visual_operator_2.plugin import _observation_hook, _step_log_path
 from plugins.visual_operator_2.routes import build_routes
@@ -733,10 +734,10 @@ class VisionRuntimeTest(unittest.TestCase):
         context = SimpleNamespace(
             has=lambda name: name == "error_log",
             get=lambda name: SimpleNamespace(path=Path("D:/data/logs/errors.log")))
-        ctx = SimpleNamespace(app=SimpleNamespace(context=context))
-        self.assertEqual(_step_log_path(ctx),
+        app = SimpleNamespace(context=context)
+        self.assertEqual(_step_log_path(app),
                          Path("D:/data/logs/visual_operator_2.steps.log"))
-        self.assertIsNone(_step_log_path(SimpleNamespace(app=None)))
+        self.assertIsNone(_step_log_path(None))
 
     @unittest.skipUnless(sys.platform == "win32", "Windows input backend")
     def test_key_shortcut_uses_sendinput_batch(self) -> None:
@@ -893,6 +894,140 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertTrue(woke)
         finally:
             runtime.close()
+
+
+class _FakeContext:
+    """register 用到的最小上下文；只记录贡献，不做真装配。"""
+
+    app = None
+
+    def __init__(self) -> None:
+        self.tools = []
+        self.sections = []
+        self.routes = []
+        self.hooks = []
+        self.items = []
+        self.runtime = None
+
+    def publish_event(self, event, payload):
+        return 1
+
+    def register_tool(self, tool):
+        self.tools.append(tool)
+        return lambda: None
+
+    def add_context_assembly_hook(self, hook, **_kwargs):
+        self.hooks.append(hook)
+        return lambda: None
+
+    def add_prompt_section(self, name, section, **_kwargs):
+        self.sections.append((name, section))
+        return lambda: None
+
+    def add_route(self, method, path, handler, **_kwargs):
+        self.routes.append((method, path, handler))
+        return lambda: None
+
+    def add_ui_item(self, path, **kwargs):
+        self.items.append((path, kwargs))
+        return lambda: None
+
+    def set_runtime(self, runtime):
+        self.runtime = runtime
+
+    def resume_suspended(self, cid, call_id, data, **kwargs):
+        return {"ok": True}
+
+
+def _slot_runtime():
+    """不经 register 构造一份插口运行时，用于单工厂调用。"""
+    from plugins.visual_operator_2.desktop import make_desktop_parts
+    from plugins.visual_operator_2.plugin import SlotRuntime
+
+    config = VisionConfig(fps=30, focus_width=80, focus_height=60)
+    vision = VisionRuntime(
+        config,
+        capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
+        cursor=lambda: (160, 120),
+    )
+    return SlotRuntime(vision=vision, desktop=make_desktop_parts())
+
+
+class SlotFactoryTest(unittest.TestCase):
+    """插口工厂：20 个工具各一实例、共享件唯一、与片段声明一致。"""
+
+    #: 恒注册的 20 个工具名，顺序即装配顺序。
+    EXPECTED = [
+        "vision_request_open", "vision_start", "vision_focus", "vision_move",
+        "vision_move_point", "vision_move_focus", "vision_click",
+        "vision_click_sequence", "vision_key", "vision_stop",
+        "vision_app", "vision_window", "vision_eye", "vision_type_into",
+        "vision_keyboard", "vision_wait", "vision_find", "vision_click_text",
+        "vision_mouse", "vision_open",
+    ]
+
+    def test_factories_construct_every_tool_once(self) -> None:
+        """20 个工厂各造一个工具，名字集合与片段声明一致。"""
+        runtime = _slot_runtime()
+        try:
+            names = [factory(None, runtime).name for factory in _PLUGIN.TOOL_FACTORIES]
+            self.assertEqual(sorted(names), sorted(self.EXPECTED))
+        finally:
+            runtime.vision.close()
+
+    def test_declared_tools_match_module_factories(self) -> None:
+        """片段里的 20 个 tool 节点 ↔ 模块 `make_tool_*` 后缀集合相等。"""
+        data = json.loads(
+            Path(_PLUGIN.__file__).with_name("plugin-slots.json")
+            .read_text(encoding="utf-8"))
+        declared = {row["path"].rsplit("/", 1)[-1]
+                    for row in data["slots"] if row["kind"] == "tool"}
+        self.assertEqual(sorted(declared), sorted(self.EXPECTED))
+        exported = {name[len("make_tool_"):] for name in dir(_PLUGIN)
+                    if name.startswith("make_tool_")}
+        self.assertEqual(declared, exported)
+
+    def test_all_tools_share_one_vision_runtime(self) -> None:
+        """视觉运行时带锁与线程，必须全局唯一。"""
+        runtime = _slot_runtime()
+        try:
+            holders = set()
+            for factory in _PLUGIN.TOOL_FACTORIES:
+                tool = factory(None, runtime)
+                inner = getattr(tool, "_tool", None)
+                vision = getattr(inner, "_runtime", None)
+                if vision is not None:
+                    holders.add(id(vision))
+            self.assertEqual(len(holders), 1)
+        finally:
+            runtime.vision.close()
+
+    def test_desktop_tools_share_one_capture_store(self) -> None:
+        """截图与鼠标靠同一张映射对齐，桌面工具不能各建一份。"""
+        runtime = _slot_runtime()
+        try:
+            holders = {}
+            for factory in _PLUGIN.TOOL_FACTORIES:
+                tool = factory(None, runtime)
+                inner = getattr(tool, "_tool", None)
+                captures = getattr(inner, "_captures", None)
+                if captures is not None:
+                    holders[tool.name] = id(captures)
+            self.assertEqual(len(holders), 4)
+            self.assertEqual(sorted(holders),
+                             ["vision_eye", "vision_keyboard", "vision_mouse",
+                              "vision_type_into"])
+            self.assertEqual(len(set(holders.values())), 1)
+        finally:
+            runtime.vision.close()
+
+    def _runtime(self) -> VisionRuntime:
+        config = VisionConfig(fps=30, focus_width=80, focus_height=60)
+        return VisionRuntime(
+            config,
+            capture=lambda: Image.new("RGB", (320, 240), (40, 80, 120)),
+            cursor=lambda: (160, 120),
+        )
 
 
 if __name__ == "__main__":

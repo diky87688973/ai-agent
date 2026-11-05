@@ -64,6 +64,9 @@ class _AppFixture(unittest.TestCase):
     """共用装配夹具：临时 data 根，避免写进工程 data/。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)

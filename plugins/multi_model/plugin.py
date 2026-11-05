@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""多模型插件：模型目录、只读端点与开屏下拉脚本。"""
+"""多模型插件：模型目录与只读端点。"""
 from __future__ import annotations
 
 import configparser
@@ -9,12 +9,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agent.capabilities.model_catalog import ModelEntry
-from agent.capabilities.plugin_paths import load_plugin_paths
-from agent.capabilities.plugins import plugin_config_fields
 from agent.core.error_report import report_error
+from agent.core.slot_spec import SettingDecl
 from agent.mechanisms.provider_registry import known_kinds
-
-PATHS = load_plugin_paths(__file__)
 
 CONFIG_FILE = "plugin-config.ini"
 SECTION_PREFIX = "model:"
@@ -280,30 +277,34 @@ def _catalog_payload(path: Optional[Path] = None) -> Dict[str, Any]:
     }
 
 
-def register(ctx: Any) -> List[Callable[[], None]]:
-    """插件入口：目录来源 + 只读目录端点 + 开屏下拉脚本。"""
+def make_runtime(ctx: Any) -> Path:
+    """装配期确定配置文件路径，并启动时解析一次。
+
+    坏配置在日志里留痕，而不是等用户点开下拉才发现。
+    """
     path = _config_path()
-    # 启动时解析一次：坏配置在日志里留痕，而不是等用户点开下拉才发现。
     parse_config(path)
+    return path
 
-    def _catalog(_query: Dict[str, Any]) -> Any:
-        return 200, _catalog_payload(path)
 
-    base = plugin_config_fields(path.parent)
-    if not base["name"]:
-        # 身份只影响设置页展示，不阻断装载。
-        report_error("plugins.multi_model._read_meta", RuntimeError(
-            f"{path.parent} plugin-meta.json 缺少 name"))
+def make_catalog(ctx: Any, runtime: Path) -> Callable[[], Any]:
+    """模型目录源：每次取数都重读配置，改了配置不用重启。"""
+    return lambda: parse_config(runtime)[0]
 
-    return [
-        ctx.add_settings_panel(PATHS["settings_panel"], "模型设置"),
-        ctx.add_ui_item(PATHS["button"], kind="button",
-                        props={"label": "模型选择", "action": "model.open",
-                               "binding": {"model_slot": True,
-                                           "input": {"native": "#modelPickerSlot .mm-picker-btn"}},
-                               "scripts": ["ui/model-picker.js"]}, order=40),
-        ctx.add_model_catalog(lambda: parse_config(path)[0]),
-        ctx.add_route(
-            "GET", "catalog", _catalog,
-            slot_path="app/backend/http/routes/multi_model-catalog"),
-    ]
+
+def make_catalog_route(ctx: Any, runtime: Path,
+                       ) -> Callable[[Dict[str, Any]], Any]:
+    """`GET catalog`：只读目录端点，返回当前模型清单与无效项。"""
+    def handler(_query: Dict[str, Any]) -> Any:
+        return 200, _catalog_payload(runtime)
+    return handler
+
+
+def make_panel(ctx: Any, runtime: Path) -> SettingDecl:
+    """`app/settings/model` 面板声明。
+
+    面板只给身份与标题。条目形状由 `settings-schema.json`（kind=sections，
+    动态多组）描述，那份 schema 由设置页渲染器直接从插件目录读盘，
+    不经节点声明链，所以不需要、也不应该塞进 SettingDecl。
+    """
+    return SettingDecl(kind="panel", label="模型设置")

@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/skills/runtime",
+      "kind": "runtime",
+      "factory": "plugin:make_runtime",
+      "order": 0
+    },
+    {
+      "path": "app/plugins/skills/tools/skills",
+      "kind": "tool",
+      "factory": "plugin:make_tool",
+      "requires": {
+        "runtime": "app/plugins/skills/runtime"
+      },
+      "order": 0
+    },
+    {
+      "path": "app/plugins/skills/prompt/messages/catalog",
+      "kind": "provider",
+      "factory": "plugin:make_catalog_source",
+      "props": {
+        "target": "context-source",
+        "label": "Skills 清单"
+      },
+      "requires": {
+        "runtime": "app/plugins/skills/runtime"
+      },
+      "order": 0
+    },
+    {
+      "path": "app/plugins/skills/prompt/messages/resident",
+      "kind": "provider",
+      "factory": "plugin:make_resident_source",
+      "props": {
+        "target": "context-source",
+        "label": "Skills 常驻"
+      },
+      "requires": {
+        "runtime": "app/plugins/skills/runtime"
+      },
+      "order": 1
+    },
+    {
+      "path": "app/plugins/skills/prompt/system-appends/resources",
+      "kind": "provider",
+      "factory": "plugin:make_prompt_section",
+      "props": {
+        "target": "prompt-section",
+        "section": "## 资源目录"
+      },
+      "requires": {
+        "runtime": "app/plugins/skills/runtime"
+      },
+      "order": 0
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/left-panel/context_usage/skills",
+      "kind": "ui-control",
+      "props": {
+        "label": "Skills",
+        "color": "plum",
+        "binding": {
+          "context": true
+        }
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/skill",
+      "kind": "ui-control",
+      "props": {
+        "label": "Skills",
+        "scripts": [
+          "ui/tool-view.js"
+        ]
+      }
+    }
+  ]
+}

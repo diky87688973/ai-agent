@@ -21,7 +21,7 @@ from agent.app import build_app  # noqa: E402
 from agent.core.model_call import StreamDelta  # noqa: E402
 from agent.core.tool_call import ToolCallRequest  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
-from tests.testkit import no_plugins  # noqa: E402
+from tests.testkit import isolate_data, no_plugins  # noqa: E402
 
 CID_A = "senderagent1"
 CID_B = "targetagent1"
@@ -53,6 +53,7 @@ class _MeshBase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
+        isolate_data(self)
         self.mesh = MeshState(storage_dir=self.root / "mesh")
         self.app = build_app(mesh=self.mesh)
         self.addCleanup(self.app.dispose)
@@ -301,6 +302,7 @@ class RunnerE2ETest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
+        isolate_data(self)
         self.mesh = MeshState(storage_dir=self.root / "mesh")
         self.provider = _ProbeProvider(gate_first=True)
         self.addCleanup(self.provider.gate.set)  # 兜底放行，防线程悬挂

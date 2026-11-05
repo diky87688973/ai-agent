@@ -20,7 +20,8 @@ def _cid(args: Any) -> str:
     return str(body.get("conversation_id") or args.get("conversation_id") or "")
 
 
-def build_routes(ctx: Any, runtime: VisionRuntime) -> List[Callable[[], None]]:
+def make_pending(ctx: Any, runtime: VisionRuntime) -> Callable[..., Any]:
+    """`GET eye-consent/pending`：当前待确认的授权请求。"""
     def pending(args: Dict[str, Any]) -> Any:
         cid = _cid(args)
         if not cid:
@@ -38,12 +39,22 @@ def build_routes(ctx: Any, runtime: VisionRuntime) -> List[Callable[[], None]]:
             },
         }
 
+    return pending
+
+
+def make_status(ctx: Any, runtime: VisionRuntime) -> Callable[..., Any]:
+    """`GET eye-consent/status`：当前会话的视觉授权状态。"""
     def status(args: Dict[str, Any]) -> Any:
         cid = _cid(args)
         if not cid:
             return 400, {"ok": False, "error": "缺少 conversation_id"}
         return 200, runtime.status(cid)
 
+    return status
+
+
+def make_confirm(ctx: Any, runtime: VisionRuntime) -> Callable[..., Any]:
+    """`POST eye-consent/confirm`：用户确认后拉起挂起的工具调用。"""
     def confirm(args: Dict[str, Any]) -> Any:
         cid = _cid(args)
         body = _body(args)
@@ -72,25 +83,36 @@ def build_routes(ctx: Any, runtime: VisionRuntime) -> List[Callable[[], None]]:
             "consent_id": result["consent_id"],
         }
 
+    return confirm
+
+
+def make_revoke(ctx: Any, runtime: VisionRuntime) -> Callable[..., Any]:
+    """`POST eye-consent/revoke`：收回当前会话的视觉授权。"""
     def revoke(args: Dict[str, Any]) -> Any:
         cid = _cid(args)
         if not cid:
             return 400, {"ok": False, "error": "缺少 conversation_id"}
         return 200, runtime.revoke(cid)
 
+    return revoke
+
+#: 路由装配顺序：方法、HTTP 路径、处理器工厂。
+ROUTE_SPECS = (
+    ("GET", "eye-consent/pending", make_pending,
+     "app/backend/http/routes/visual-eye-consent-pending"),
+    ("GET", "eye-consent/status", make_status,
+     "app/backend/http/routes/visual-eye-consent-status"),
+    ("POST", "eye-consent/confirm", make_confirm,
+     "app/backend/http/routes/visual-eye-consent-confirm"),
+    ("POST", "eye-consent/revoke", make_revoke,
+     "app/backend/http/routes/visual-eye-consent-revoke"),
+)
+
+
+def build_routes(ctx: Any, runtime: VisionRuntime) -> List[Callable[[], None]]:
     return [
-        ctx.add_route(
-            "GET", "eye-consent/pending", pending,
-            slot_path="app/backend/http/routes/visual-eye-consent-pending"),
-        ctx.add_route(
-            "GET", "eye-consent/status", status,
-            slot_path="app/backend/http/routes/visual-eye-consent-status"),
-        ctx.add_route(
-            "POST", "eye-consent/confirm", confirm,
-            slot_path="app/backend/http/routes/visual-eye-consent-confirm"),
-        ctx.add_route(
-            "POST", "eye-consent/revoke", revoke,
-            slot_path="app/backend/http/routes/visual-eye-consent-revoke"),
+        ctx.add_route(method, path, factory(ctx, runtime), slot_path=slot)
+        for method, path, factory, slot in ROUTE_SPECS
     ]
 
 __all__ = ["build_routes"]

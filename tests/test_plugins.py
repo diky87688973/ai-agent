@@ -17,14 +17,22 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from agent.capabilities.plugins import (  # noqa: E402
-    PluginContext,
     PluginHost,
     plugin_config_fields,
 )
-from agent.capabilities.registry import ToolRegistry  # noqa: E402
+from agent.capabilities.registry import ToolPlugin, ToolRegistry  # noqa: E402
 from agent.config import get_plugins  # noqa: E402
 from agent.core.tool_call import ToolCallRequest, ToolPipeline  # noqa: E402
 from agent.shell.settings_panel import list_plugins  # noqa: E402
+
+#: 插件身份文件的内容。夹具一律写一份：身份只由它声明，没有它就不是插件。
+_META = '{"version": "1.0"}\n'
+
+
+def _write_meta(folder: Path) -> None:
+    """给临时插件目录写身份文件（插件存在判据）。"""
+    (folder / "plugin-meta.json").write_text(_META, encoding="utf-8")
+
 
 _GOOD_PLUGIN = '''\
 from agent.capabilities.registry import ToolPlugin
@@ -55,6 +63,7 @@ class PluginHostTest(unittest.TestCase):
     def _write_plugin(self, name: str, source: str) -> None:
         d = self.dir / name
         d.mkdir(exist_ok=True)
+        _write_meta(d)
         (d / "plugin.py").write_text(source, encoding="utf-8")
 
     # ── 发现 ──
@@ -66,6 +75,7 @@ class PluginHostTest(unittest.TestCase):
         (self.dir / "noentry" / "other.py").write_text("x = 1", encoding="utf-8")
         (self.dir / "__pycache__").mkdir()
         (self.dir / "_private").mkdir()
+        _write_meta(self.dir / "_private")
         (self.dir / "_private" / "plugin.py").write_text("x = 1", encoding="utf-8")
         (self.dir / "plain.txt").write_text("x", encoding="utf-8")
         self.assertEqual([i.name for i in self.host.discover()], ["good"])
@@ -78,14 +88,19 @@ class PluginHostTest(unittest.TestCase):
     # ── 白名单 ──
 
     def test_load_enabled_filters_by_whitelist(self) -> None:
+        """白名单只决定哪些插件模块被装载；插件资产不归装载器交付。
 
+        旧前提：装完读 registry 验证工具已登记（当时由 register 交付）。
+        新前提：装载器只负责模块就绪，故断言改为「报告 + 模块已加载」；
+                资产交付由 `test_plugin_asset_delivery` 走真实启动验证。
+        """
         self._write_plugin("a", _GOOD_PLUGIN.replace("plugin_demo", "tool_a"))
         self._write_plugin("b", _GOOD_PLUGIN.replace("plugin_demo", "tool_b"))
         reports = self.host.load_enabled(["a"])
         self.assertEqual([r.status for r in reports], ["loaded"])
         self.assertEqual(self.host.loaded_names(), ["a"])
-        self.assertIsNotNone(self.registry.get("tool_a"))
-        self.assertIsNone(self.registry.get("tool_b"))
+        self.assertIn("fan_agent_plugins.a", sys.modules)
+        self.assertNotIn("fan_agent_plugins.b", sys.modules)
 
     def test_unknown_name_reports_error(self) -> None:
 
@@ -98,78 +113,44 @@ class PluginHostTest(unittest.TestCase):
         self.host.load_enabled(["a"])
         self.assertEqual(self.host.load_enabled(["a"]), [])
 
-    # ── 契约与装载 ──
+    # ── 装载契约 ──
 
-    def test_register_via_ctx_returns_none(self) -> None:
+    def test_missing_register_still_loads(self) -> None:
+        """装载器只把模块准备好，不要求 plugin.py 定义 `register`。
 
-        src = _GOOD_PLUGIN.replace(
-            "    return ctx.register_tool(Demo())",
-            "    ctx.register_tool(Demo())\n    return None",
-        )
-        self._write_plugin("v", src)
-        self.assertEqual(self.host.load_enabled(["v"])[0].status, "loaded")
-        self.assertIsNotNone(self.registry.get("plugin_demo"))
-        self.host.unload("v")
-        self.assertIsNone(self.registry.get("plugin_demo"))
-        self.assertEqual(self.host.loaded_names(), [])
+        插件身份看 `plugin-meta.json`，`plugin.py` 只是可选入口：缺了 `register`
+        仍属正常装载。
+        """
+        self._write_plugin("noreg", "x = 1\n")
+        report = self.host.load_enabled(["noreg"])[0]
+        self.assertEqual(report.status, "loaded", report.message)
+        self.assertIn("fan_agent_plugins.noreg", sys.modules)
+        self.assertEqual(self.host.loaded_names(), ["noreg"])
 
-    def test_returned_disposer_list_reverse_order(self) -> None:
+    def test_register_is_not_executed(self) -> None:
+        """`register` 不再被装载器执行：它抛错也不影响装载。
 
+        插件身份看 `plugin-meta.json`，装载只看模块能否导入；`register` 没有调用点。
+        """
         src = (
             "def register(ctx):\n"
-            "    import pathlib\n"
-            "    base = pathlib.Path(__file__).parent\n"
-            "    def make(tag):\n"
-            "        def d():\n"
-            "            with (base / 'order.txt').open('a', encoding='utf-8') as fh:\n"
-            "                fh.write(tag)\n"
-            "        return d\n"
-            "    return [make('d1'), make('d2')]\n"
-        )
-        self._write_plugin("orders", src)
-        self.host.load_enabled(["orders"])
-        self.host.unload("orders")
-        self.assertEqual((self.dir / "orders" / "order.txt").read_text(encoding="utf-8"), "d2d1")
-
-    def test_register_raises_rolls_back(self) -> None:
-
-        src = (
-            "from agent.capabilities.registry import ToolPlugin\n"
-            "\n"
-            "class T(ToolPlugin):\n"
-            "    name = 'will_rollback'\n"
-            "    description = ''\n"
-            "    parameters = {}\n"
-            "    def execute(self, arguments):\n"
-            "        return None\n"
-            "\n"
-            "def register(ctx):\n"
-            "    ctx.register_tool(T())\n"
             "    raise RuntimeError('boom')\n"
         )
         self._write_plugin("boom", src)
-        reports = self.host.load_enabled(["boom"])
-        self.assertEqual(reports[0].status, "error")
-        self.assertIn("boom", reports[0].message)
-        self.assertIsNone(self.registry.get("will_rollback"))
-        self.assertEqual(self.host.loaded_names(), [])
+        report = self.host.load_enabled(["boom"])[0]
+        self.assertEqual(report.status, "loaded", report.message)
+        self.assertIn("fan_agent_plugins.boom", sys.modules)
 
     def test_broken_import_isolated(self) -> None:
-
-        self._write_plugin("bad", "def register(ctx:\n")
+        """单个插件导入失败不连坐其余插件：报错归它自己，其他照常装载。"""
+        self._write_plugin("bad_syntax", "def register(ctx:\n")
         self._write_plugin("good", _GOOD_PLUGIN)
-        by_name = {r.name: r for r in self.host.load_enabled(["bad", "good"])}
-        self.assertEqual(by_name["bad"].status, "error")
-        self.assertIn("SyntaxError", by_name["bad"].message)
+        by_name = {r.name: r for r in self.host.load_enabled(["bad_syntax", "good"])}
+        self.assertEqual(by_name["bad_syntax"].status, "error")
+        self.assertIn("SyntaxError", by_name["bad_syntax"].message)
         self.assertEqual(by_name["good"].status, "loaded")
-        self.assertIsNotNone(self.registry.get("plugin_demo"))
-
-    def test_missing_register_reports_error(self) -> None:
-
-        self._write_plugin("noreg", "x = 1\n")
-        r = self.host.load_enabled(["noreg"])[0]
-        self.assertEqual(r.status, "error")
-        self.assertIn("register", r.message)
+        self.assertIn("fan_agent_plugins.good", sys.modules)
+        self.assertEqual(self.host.loaded_names(), ["good"])
 
     def test_module_namespace_and_unload(self) -> None:
 
@@ -183,6 +164,7 @@ class PluginHostTest(unittest.TestCase):
 
         root = self.dir / "pkg"
         root.mkdir()
+        _write_meta(root)
         (root / "helper.py").write_text("VALUE = 'ok'\n", encoding="utf-8")
         (root / "plugin.py").write_text(
             "from .helper import VALUE\n"
@@ -217,102 +199,28 @@ class PluginHostTest(unittest.TestCase):
         self.assertIn(("missing", "error"), pairs)
 
     def test_plugin_tool_runs_via_pipeline(self) -> None:
+        """插件声明的工具装进注册表后能被管线执行。
 
-        self._write_plugin("pipe", _GOOD_PLUGIN)
+        旧前提：装载插件即交付工具，可直接跑管线。
+        新前提：工具由绑定器登记，故此处直接向注册表注册同一形状的工具对象，
+                验证「注册表 → 管线」这一段；「插件→注册表」由真实启动用例守。
+        """
         self.host.load_enabled(["pipe"])
+
+        class _Demo(ToolPlugin):
+            name = "plugin_demo"
+            description = "demo"
+            parameters: dict = {}
+
+            def execute(self, arguments):
+                return {"echo": "ok"}
+
+        self.registry.register(_Demo())
         pipeline = ToolPipeline()
         call = ToolCallRequest(call_id="c1", name="plugin_demo", arguments={})
         result = pipeline.execute(self.registry, call, SimpleNamespace(conversation_id="c"))
         self.assertTrue(result.ok)
         self.assertEqual(result.data, {"echo": "ok"})
-
-_GATE_ONLY_PLUGIN = '''
-from agent.core.tool_call import GateDecision
-
-def register(ctx):
-    def deny_all(call, _ctx):
-        return GateDecision(allow=False, reason="plugin gate")
-
-    return ctx.add_pre_gate(
-        deny_all,
-        path="app/backend/tools/pipeline/pre-gates/gate-deny")
-'''
-
-_GATE_BOOM_PLUGIN = '''
-from agent.core.tool_call import GateDecision
-
-def register(ctx):
-    def deny_all(call, _ctx):
-        return GateDecision(allow=False, reason="plugin gate")
-
-    ctx.add_pre_gate(
-        deny_all,
-        path="app/backend/tools/pipeline/pre-gates/gate-deny")
-    raise RuntimeError("boom")
-'''
-
-class PluginGateTest(unittest.TestCase):
-    """插件门控接缝：注册期可加检查扩展点（pre-gate）。"""
-
-    def setUp(self) -> None:
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        self.dir = Path(self._tmp.name) / "plugins"
-        self.dir.mkdir()
-        self.registry = ToolRegistry()
-        self.pipeline = ToolPipeline()
-
-    def _write_plugin(self, name: str, source: str) -> None:
-        d = self.dir / name
-        d.mkdir(exist_ok=True)
-        (d / "plugin.py").write_text(source, encoding="utf-8")
-
-    def test_pre_gate_blocks_then_unload_releases(self) -> None:
-
-        self._write_plugin("tool", _GOOD_PLUGIN.replace("plugin_demo", "gate_target"))
-        self._write_plugin("gate", _GATE_ONLY_PLUGIN)
-        host = PluginHost(self.dir, self.registry, pipeline=self.pipeline)
-        host.load_enabled(["tool", "gate"])
-        call = ToolCallRequest(call_id="c1", name="gate_target", arguments={})
-        ctx = SimpleNamespace(conversation_id="c")
-        blocked = self.pipeline.execute(self.registry, call, ctx)
-        self.assertFalse(blocked.ok)
-        self.assertIn("plugin gate", blocked.error)
-        host.unload("gate")
-        self.assertTrue(self.pipeline.execute(self.registry, call, ctx).ok)
-
-    def test_missing_pipeline_guards_and_post_observer(self) -> None:
-
-        bare = PluginContext("x", self.registry)
-        with self.assertRaises(RuntimeError):
-            bare.add_pre_gate(
-            lambda call, _c: None,
-            path="app/backend/tools/pipeline/pre-gates/bare")
-        with self.assertRaises(RuntimeError):
-            bare.add_post_observer(
-            lambda call, result, _c: None,
-            path="app/backend/tools/pipeline/post-observers/bare")
-        seen = []
-        hooked = PluginContext("y", self.registry, pipeline=self.pipeline)
-        hooked.add_post_observer(
-            lambda call, result, _c: seen.append((call.name, result.ok)),
-            path="app/backend/tools/pipeline/post-observers/seen")
-        self._write_plugin("tool", _GOOD_PLUGIN.replace("plugin_demo", "obs_target"))
-        host = PluginHost(self.dir, self.registry)
-        host.load_enabled(["tool"])
-        call = ToolCallRequest(call_id="c2", name="obs_target", arguments={})
-        self.assertTrue(self.pipeline.execute(self.registry, call, SimpleNamespace(conversation_id="c")).ok)
-        self.assertEqual(seen, [("obs_target", True)])
-
-    def test_gate_rollback_on_register_error(self) -> None:
-
-        self._write_plugin("tool", _GOOD_PLUGIN.replace("plugin_demo", "rb_target"))
-        self._write_plugin("boom", _GATE_BOOM_PLUGIN)
-        host = PluginHost(self.dir, self.registry, pipeline=self.pipeline)
-        reports = {r.name: r.status for r in host.load_enabled(["tool", "boom"])}
-        self.assertEqual(reports["boom"], "error")
-        call = ToolCallRequest(call_id="c3", name="rb_target", arguments={})
-        self.assertTrue(self.pipeline.execute(self.registry, call, SimpleNamespace(conversation_id="c")).ok)
 
 class PluginIdentityFallbackTest(unittest.TestCase):
     """插件身份只来自 `plugin-meta.json`：列表里所有插件走同一条规则。"""
@@ -438,6 +346,7 @@ class ConfigParseTest(unittest.TestCase):
             plugins_dir.mkdir()
             external = base / "elsewhere" / "ext"
             external.mkdir(parents=True)
+            _write_meta(external)
             (external / "plugin.py").write_text(
                 "def register(ctx):\n    return []\n", encoding="utf-8"
             )
@@ -467,6 +376,7 @@ class ConfigParseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "plugins"
             (root / "good").mkdir(parents=True)
+            _write_meta(root / "good")
             entry = root / "good" / "plugin.py"
             entry.write_text("def register(ctx):\n    return []\n", encoding="utf-8")
             host = PluginHost(root, ToolRegistry())
@@ -489,9 +399,11 @@ class ConfigParseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "plugins"
             (root / "good").mkdir(parents=True)
+            _write_meta(root / "good")
             (root / "good" / "plugin.py").write_text(
                 "def register(ctx):\n    return []\n", encoding="utf-8")
             (root / "off").mkdir(parents=True)
+            _write_meta(root / "off")
             (root / "off" / "plugin.py").write_text(
                 "def register(ctx):\n    return []\n", encoding="utf-8")
             host = PluginHost(root, ToolRegistry(), event_bus=None,
@@ -510,19 +422,49 @@ class ConfigParseTest(unittest.TestCase):
             self.assertEqual(reports["../evil"].status, "error")
             self.assertIn("非法", reports["../evil"].message)
 
+_TOOL_PLUGIN = '''\
+from agent.capabilities.registry import ToolPlugin
+
+class Demo(ToolPlugin):
+    name = "tool_wired"
+    description = "demo"
+    parameters = {}
+
+    def execute(self, arguments):
+        return {"echo": "ok"}
+
+
+def make_tool(ctx):
+    return Demo()
+'''
+
+_TOOL_PLUGIN_SLOTS = '''{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {"path": "app/plugins/wired/tools/tool_wired", "kind": "tool",
+     "factory": "plugin:make_tool"}
+  ]
+}
+'''
+
+
 class AppWiringTest(unittest.TestCase):
     def test_build_app_loads_whitelisted_plugin(self) -> None:
-
+        """插件工具由片段声明，build_app 装配后就应在注册表里。"""
         from agent.app import build_app
 
         with tempfile.TemporaryDirectory() as tmp:
             pdir = Path(tmp) / "plugins"
             (pdir / "wired").mkdir(parents=True)
+            _write_meta(pdir / "wired")
+            (pdir / "wired" / "plugin-slots.json").write_text(
+                _TOOL_PLUGIN_SLOTS, encoding="utf-8")
             (pdir / "wired" / "plugin.py").write_text(
-                _GOOD_PLUGIN.replace("plugin_demo", "tool_wired"), encoding="utf-8"
-            )
+                _TOOL_PLUGIN, encoding="utf-8")
             with mock.patch("agent.app.get_plugins", return_value=["wired"]):
-                app = build_app(plugins_dir=pdir)
+                app = build_app(plugins_dir=pdir, data_root=Path(tmp) / "data")
+            self.addCleanup(app.dispose)
             self.assertEqual(app.plugin_host.loaded_names(), ["wired"])
             self.assertIsNotNone(app.registry.get("tool_wired"))
 
@@ -532,7 +474,9 @@ class AppWiringTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch("agent.app.get_plugins", return_value=[]):
-                app = build_app(plugins_dir=Path(tmp) / "missing")
+                app = build_app(plugins_dir=Path(tmp) / "missing",
+                                data_root=Path(tmp) / "data")
+            self.addCleanup(app.dispose)
             self.assertEqual(app.plugin_host.loaded_names(), [])
 
 if __name__ == "__main__":

@@ -28,19 +28,70 @@ def local_auth(app: Any) -> Any:
     return auth
 
 
-def no_plugins(case: Any) -> None:
-    """让本测试用例装配的 App 不装载任何插件。
+def isolate_plugins(case: Any) -> Path:
+    """把插件层清空（清单 + 插件根两处），交回临时根。
 
-    装载清单默认取工程根的 `plugins.ini`，那是部署配置：它一变，
-    数总线订阅、数注入源、数面板的测试就会跟着变。测试要断言的是内核行为，
-    所以先把插件这一层清空。
+    插件层有两条入口，两个都得堵：
+      装载清单 `plugins.ini` 决定哪些插件进入清单；
+      插件根 `plugins/` 决定哪些片段被合并进装配　—— 片段合并只排除清单里
+      `enabled = 0` 的插件，未列出的默认启用，所以只清清单等于没隔离。
+    漏掉任一入口，装配就会带上本机 `plugins/multi_model` 的模型目录，
+    真的建出厂商 provider 并出网（`[anthropic] stop_reason=` 就是逐迹）。
 
-    在 `setUp` 里调用；补丁与临时目录都挂到 `case` 的 cleanup 上。
+    插件根必须 patch `agent.boot.bootstrap.default_plugins_root`：那里是
+    from-import，改 `agent.config` 里的同名函数对已导入的引用不起作用。
+
+    返回临时根：需要显式传 `plugins_dir` 的用例用它（`root / "plugins"`）。
+    `case` 可以是用例实例（`self`，清理挂 addCleanup）或类（`cls`，挂
+    addClassCleanup），因此在 `setUp` 与 `setUpClass` 里都能直接调。
     """
+    add = case.addClassCleanup if isinstance(case, type) else case.addCleanup
     tmp = tempfile.mkdtemp(prefix="ai_agent_noplugins_")
-    case.addCleanup(shutil.rmtree, tmp, True)
-    empty = Path(tmp) / "plugins.ini"
+    add(shutil.rmtree, tmp, True)
+    base = Path(tmp)
+    empty = base / "plugins.ini"
     empty.write_text("; 空清单：本测试不需要任何插件\n", encoding="utf-8")
-    patcher = mock.patch("agent.config.DEFAULT_PLUGINS_PATH", empty)
+    plugins_root = base / "plugins"
+    plugins_root.mkdir()
+    for patcher in (
+        mock.patch("agent.config.DEFAULT_PLUGINS_PATH", empty),
+        mock.patch("agent.boot.bootstrap.default_plugins_root",
+                   lambda: plugins_root),
+    ):
+        patcher.start()
+        add(patcher.stop)
+    return base
+
+
+#: 旧名字：语义就是「插件层清空」。别名而非第二份实现。
+no_plugins = isolate_plugins
+
+
+def isolate_data(case: Any) -> Path:
+    """把数据根隔离到临时目录，交回该目录。
+
+    `build_app()` 的缺省数据根在 `agent.boot.bootstrap` 内部解析（该模块把
+    `agent.config.default_data_root` from-import 成了本地名字），所以必须
+    patch `agent.boot.bootstrap.default_data_root`：
+    只 patch `agent.config` 里的同名函数对已 from-import 的引用不起作用。
+
+    实测依据：不 patch 时临时根不会被创建；patch `agent.config.default_data_root`
+    同样不创建；patch `agent.boot.bootstrap.default_data_root` 后临时根出现
+    `plugin/ session/ wake/` 且唤醒调度成为锁 owner。
+
+    不隔离的后果：测试落仓库 `data/`，与运行中的主进程抢 `data/wake/scheduler.lock`，
+    并在仓库 `data/logs/errors.log` 里刷满抢锁记录。
+
+    入口层（`agent/entry/*`、`agent/shell/web/server.py`）各自 from-import 了
+    同名函数；测试若走到入口函数需另行处理。当前测试都经 `build_app`，不经过它们。
+
+    `case` 可以是用例实例或类（与 `isolate_plugins` 一致）。返回临时数据根。
+    """
+    add = case.addClassCleanup if isinstance(case, type) else case.addCleanup
+    tmp = tempfile.mkdtemp(prefix="ai_agent_data_")
+    add(shutil.rmtree, tmp, True)
+    root = Path(tmp) / "data"
+    patcher = mock.patch("agent.boot.bootstrap.default_data_root", lambda: root)
     patcher.start()
-    case.addCleanup(patcher.stop)
+    add(patcher.stop)
+    return root

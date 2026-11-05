@@ -84,6 +84,21 @@ jobs:
       - name: 门禁 注册表一致性
         timeout-minutes: 3
         run: python -u scripts/check_catalog.py
+      - name: 门禁 插口配置一致性
+        timeout-minutes: 3
+        run: python -u scripts/check_slots.py
+      - name: 门禁 插口字段白名单
+        timeout-minutes: 3
+        run: python -u scripts/check_slot_fields.py
+      - name: 门禁 有效视图
+        timeout-minutes: 3
+        run: python -u scripts/check_slot_view.py
+      - name: 门禁 插口可替换（注桩）
+        timeout-minutes: 5
+        run: python -u scripts/check_slot_stub.py
+      - name: 门禁 字段回潮清扫（非未知字段防线）
+        timeout-minutes: 3
+        run: python -u scripts/check_retired_fields.py
       - name: 门禁 复杂度阈值
         timeout-minutes: 5
         run: python -u scripts/check_complexity.py

@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""壳层组件：运行器、唤醒调度、经典适配与插件事件出口。"""
+"""壳层组件：运行器、唤醒调度、经典适配与插件事件出口。
+
+每个工厂只产出一个对象；彼此之间的先后与取值由插口节点的 `requires` 决定，
+不再经由 `runtime.resources` 这份共享字典传递。
+"""
 from __future__ import annotations
 
 from typing import Any
@@ -11,24 +15,21 @@ from agent.core.context import (
     SERVICE_SUBAGENTS,
     SERVICE_WAKE_SCHEDULER,
 )
-from agent.core.slot import SlotLeaf
+from agent.core.stderr import write_stderr
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER, SERVICE_RUNNER
 
 
-def _app(ctx: Any) -> Any:
-    return ctx.runtime.app
+def _manager(app: Any) -> Any:
+    """子智能体管理器；未装配时返回 None（语义与装配顺序无关）。"""
+    return app.context.get(SERVICE_SUBAGENTS) if app.context.has(SERVICE_SUBAGENTS) else None
 
 
-def _leaf(ctx: Any) -> SlotLeaf:
-    return SlotLeaf(ctx.node.path, master=ctx.node.master)
-
-
-def runner(ctx: Any):
+def runner(ctx: Any, facade: Any = None):
     from agent.capabilities.registry import ToolRegistryView
     from agent.shell.session.runner import SessionRunner
 
-    app = _app(ctx)
-    manager = app.context.get(SERVICE_SUBAGENTS) if app.context.has(SERVICE_SUBAGENTS) else None
+    app = facade
+    manager = _manager(app)
     hidden = {"session_send", "session_multisend", "session_broadcast",
               "session_create", "session_list"}
     parent = ToolRegistryView(app.registry, excluded={"subagent_send"} | hidden)
@@ -46,15 +47,14 @@ def runner(ctx: Any):
     )
     if manager is not None:
         session_runner.set_store_for(manager.store_for)
-    ctx.runtime.resources["runner"] = session_runner
-    return _leaf(ctx)
+    return session_runner
 
 
-def wake_scheduler(ctx: Any):
+def wake_scheduler(ctx: Any, facade: Any = None):
     from agent.mechanisms.wake_scheduler import WakeScheduler
 
-    app = _app(ctx)
-    manager = app.context.get(SERVICE_SUBAGENTS) if app.context.has(SERVICE_SUBAGENTS) else None
+    app = facade
+    manager = _manager(app)
 
     def wake_store(cid: str) -> Any:
         if manager is not None and manager.is_child(cid):
@@ -89,44 +89,43 @@ def wake_scheduler(ctx: Any):
             report_error("boot.wake.target_exists", exc, conversation_id=cid)
             return False
 
-    scheduler = WakeScheduler(
-        ctx.runtime.config.data_root / "wake", submit=app.mesh.submit,
+    return WakeScheduler(
+        ctx.boot_config.data_root / "wake", submit=app.mesh.submit,
         delivered=delivered, target_exists=target_exists)
-    ctx.runtime.resources["wake_scheduler"] = scheduler
-    return _leaf(ctx)
 
 
-def classic_adapter(ctx: Any):
+def classic_adapter(ctx: Any, facade: Any = None):
     from agent.shell.classic_adapter import ClassicAdapter
-    app = _app(ctx)
+    app = facade
     adapter = ClassicAdapter(app)
     adapter.bind_bus(app.event_bus)
-    ctx.runtime.resources["classic_adapter"] = adapter
-    return _leaf(ctx)
+    return adapter
 
 
-def plugin_events(ctx: Any):
+def plugin_events(ctx: Any, classic_adapter: Any = None):
     from agent.shell.classic_adapter.plugin_events import PluginEventPublisher
-    publisher = PluginEventPublisher(ctx.runtime.resources["classic_adapter"])
-    ctx.runtime.resources["plugin_events"] = publisher
-    return _leaf(ctx)
+    return PluginEventPublisher(classic_adapter)
 
 
-def finalizer(ctx: Any):
-    app = _app(ctx)
-    runtime = ctx.runtime
-    session_runner = runtime.resources["runner"]
-    wake = runtime.resources["wake_scheduler"]
-    app.context.register(SERVICE_RUNNER, session_runner)
-    app.context.register(SERVICE_WAKE_SCHEDULER, wake)
-    app.context.register(SERVICE_CLASSIC_ADAPTER, runtime.resources["classic_adapter"])
-    app.context.register(SERVICE_PLUGIN_EVENTS, runtime.resources["plugin_events"])
-    app.mesh.set_activator(session_runner.start)
+def finalizer(ctx: Any, facade: Any = None, classic_adapter: Any = None,
+              plugin_events: Any = None, runner: Any = None,
+              wake_scheduler: Any = None):
+    """收尾：把壳层对象登记进 AppContext，并启动唤醒调度。"""
+    app = facade
+    app.context.register(SERVICE_RUNNER, runner)
+    app.context.register(SERVICE_WAKE_SCHEDULER, wake_scheduler)
+    app.context.register(SERVICE_CLASSIC_ADAPTER, classic_adapter)
+    app.context.register(SERVICE_PLUGIN_EVENTS, plugin_events)
+    app.mesh.set_activator(runner.start)
     if app.store is not None:
         app.mesh.set_session_exists(lambda cid: bool(app.store.load(cid)))
-    app.context.get(SERVICE_BACKGROUND_TASKS).set_notice(_notice_handler(app, session_runner))
-    wake.start()
-    return _leaf(ctx)
+    app.context.get(SERVICE_BACKGROUND_TASKS).set_notice(_notice_handler(app, runner))
+    # 调度器总是登记（服务必须可取到对象）；抢不到锁时本进程不是 owner，
+    # 只影响能不能注册/取消唤醒任务，不影响启停。
+    if not wake_scheduler.start():
+        write_stderr("[boot] 唤醒调度本进程未成为 owner：唤醒任务工具会返回"
+                     "「另一个进程正在运行唤醒调度器」，查询仍可用")
+    return True
 
 
 def _notice_handler(app: Any, runner: Any):

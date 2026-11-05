@@ -22,7 +22,7 @@ from agent.shell.prompts import (  # noqa: E402
     resolve_system_prompt,
     split_mode_section,
 )
-from tests.testkit import no_plugins  # noqa: E402
+from tests.testkit import isolate_data, no_plugins  # noqa: E402
 
 MODES = ("auto", "plan", "execute")
 
@@ -159,6 +159,7 @@ class ModeIsNotPersistedTest(unittest.TestCase):
         # 不装插件：本用例断言的是"模式说明不进事实流"，与插件贡献无关。
         # 不隔离的话，开发者本机的插件配置（目录权威 / 注入源）会改变这一回合的请求。
         no_plugins(self)
+        isolate_data(self)
         class _Spy:
             def __init__(self):
                 self.reqs = []

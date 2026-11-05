@@ -204,6 +204,9 @@ class AppWiringTest(unittest.TestCase):
     """装配接线（app.py 经注册表按会话解析门控）。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)

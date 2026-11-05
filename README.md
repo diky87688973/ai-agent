@@ -229,9 +229,9 @@ pip install -e . -c constraints.txt
 
 ### CI
 
-`scripts/ci.py` runs 32 steps: 19 gates → unit tests → 10 acceptance scripts → coverage collection → package coverage.
+`scripts/ci.py` runs 37 steps: 24 gates → unit tests → 10 acceptance scripts → coverage collection → package coverage.
 
-The 19 gates cover dependency direction, architecture constraints, config drift, generated-doc consistency, static checks, UI/copy, complexity, applicability, and concurrency. Run `--list` for the full list.
+The 24 gates cover dependency direction, architecture constraints, config drift, generated-doc consistency, static checks, UI/copy, complexity, applicability, slot config, slot field whitelist, effective view, slot replaceability (stub injection), retired-field sweep, and concurrency. Run `--list` for the full list.
 
 The single source of truth for gates is `scripts/ci_steps.py`, kept aligned with GitHub Actions by `check_ci_workflow`.
 
@@ -245,7 +245,7 @@ python scripts/ci.py --list    # list checks
 
 `docs/unit-tests.md` is a generated readable test catalog; the source of truth is `tests/`.
 
-Unit tests (2182 cases):
+Unit tests (2419 cases):
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

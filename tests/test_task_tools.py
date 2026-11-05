@@ -25,6 +25,9 @@ class _TaskToolsBase(unittest.TestCase):
     """公共夹具：临时目录 + 独立 LiveState + 装配 app；经管道唯一入口调用。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)

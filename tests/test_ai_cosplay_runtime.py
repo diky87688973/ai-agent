@@ -33,6 +33,7 @@ from agent.core.session_scope import (  # noqa: E402
     reset_tool_turn_context,
     set_tool_turn_context,
 )
+from agent.core.slot_fragments import load_merged  # noqa: E402
 from agent.core.tool_call import ToolCallRequest, ToolPipeline  # noqa: E402
 
 
@@ -501,70 +502,61 @@ class ToolTest(unittest.TestCase):
         self.assertIn("MessageValidationError", failed.error)
 
 
-class _FakeCtx:
-    def __init__(self) -> None:
-        self.tools: List[Any] = []
-        self.ui_items: List[tuple] = []
-        self.routes: List[tuple] = []
-        self.subscriptions: List[str] = []
-        self.mode_tails: List[Any] = []
-        self.runtime: Any = None
-        self.disposed = 0
+class SlotFactoryTest(unittest.TestCase):
+    """旧 `register` 已删：改为工厂产出的形状 + 片段声明的节点。"""
 
-    def register_tool(self, tool: Any):
-        self.tools.append(tool)
-        return lambda: self.tools.remove(tool)
+    def test_factories_produce_tool_routes_and_panel_props(self) -> None:
+        runtime = _PLUGIN.make_runtime(None)
+        self.addCleanup(runtime.dispose)
+        self.assertEqual(_PLUGIN.make_tool(None, runtime).name, "ai_speek")
 
-    def set_subagent_tools(self, tools: Any):
-        return lambda: None
-
-    def add_ui_item(self, path: str, kind: str, props: Any = None, order: Any = None):
-        self.ui_items.append((path, kind, props))
-        return lambda: self.ui_items.remove((path, kind, props))
-
-    def add_route(self, method: str, path: str, handler: Any, **_kwargs: Any):
-        self.routes.append((method, path, handler))
-        return lambda: self.routes.remove((method, path, handler))
-
-    def subscribe(self, event_type: str, handler: Any, **_kwargs: Any):
-        self.subscriptions.append(event_type)
-        return lambda: self.subscriptions.remove(event_type)
-
-    def add_mode_tail(self, fn: Any, **_kwargs: Any):
-        self.mode_tails.append(fn)
-        return lambda: self.mode_tails.remove(fn)
-
-    def set_runtime(self, runtime: Any) -> None:
-        self.runtime = runtime
-
-
-class RegistrationTest(unittest.TestCase):
-    def test_register_and_dispose(self) -> None:
-        ctx = _FakeCtx()
-        disposers = _PLUGIN.register(ctx)
-        self.assertEqual([tool.name for tool in ctx.tools], ["ai_speek"])
-        self.assertEqual(ctx.ui_items[0][2]["scripts"],
+        config = load_merged(_ROOT)
+        panel = "app/shell/web-ui/runtime/left-panel/ai_cosplay"
+        self.assertIn(panel, config.specs)
+        self.assertEqual(config.origin_of(panel), "ai_cosplay")
+        self.assertEqual(config.specs[panel].props.get("scripts"),
                          ["ui/player.js", "ui/tool-view.js"])
-        self.assertEqual([(m, p) for m, p, _h in ctx.routes],
-                         [("GET", "config"), ("GET", "status"), ("POST", "played")])
-        self.assertEqual(sorted(ctx.subscriptions), ["error", "turn_ended"])
-        self.assertEqual(len(ctx.mode_tails), 1)
-        self.assertEqual(ctx.runtime.config.engine, "edge")
-        for disposer in reversed(disposers):
-            disposer()
-        self.assertEqual(ctx.mode_tails, [])
+        self.assertEqual(config.specs[panel].props.get("action"), "ai_cosplay.toggle")
+
+        own = {path: spec for path, spec in config.specs.items()
+               if path.startswith("app/plugins/ai_cosplay/") and spec.kind != "container"}
+        self.assertEqual(sorted(own), [
+            "app/plugins/ai_cosplay/events/error",
+            "app/plugins/ai_cosplay/events/turn_ended",
+            "app/plugins/ai_cosplay/prompt/tail",
+            "app/plugins/ai_cosplay/routes/config",
+            "app/plugins/ai_cosplay/routes/played",
+            "app/plugins/ai_cosplay/routes/status",
+            "app/plugins/ai_cosplay/runtime",
+            "app/plugins/ai_cosplay/tools/ai_speek",
+        ])
+        self.assertEqual(
+            [(own[f"app/plugins/ai_cosplay/routes/{name}"].method, name)
+             for name in ("config", "status", "played")],
+            [("GET", "config"), ("GET", "status"), ("POST", "played")])
+        self.assertEqual(
+            sorted(path.rsplit("/", 1)[-1] for path in own if "/events/" in path),
+            ["error", "turn_ended"])
+        self.assertEqual(own["app/plugins/ai_cosplay/tools/ai_speek"].factory,
+                         "plugin:make_tool")
+        self.assertEqual(own["app/plugins/ai_cosplay/prompt/tail"].factory,
+                         "plugin:make_mode_tail")
 
     def test_config_and_status_routes(self) -> None:
-        ctx = _FakeCtx()
-        _PLUGIN.register(ctx)
-        handlers = {path: handler for _m, path, handler in ctx.routes}
+        runtime = _PLUGIN.make_runtime(None)
+        self.addCleanup(runtime.dispose)
+        handlers = {
+            "config": _PLUGIN.make_route_config(None, runtime),
+            "status": _PLUGIN.make_route_status(None, runtime),
+            "played": _PLUGIN.make_route_played(None, runtime),
+        }
         status, config = handlers["config"]({})
         self.assertEqual(status, 200)
-        self.assertEqual(config["user_salutation"], ctx.runtime.config.user_salutation)
-        self.assertEqual(config["assistant_salutation"], ctx.runtime.config.assistant_salutation)
-        self.assertEqual(config["tone"], ctx.runtime.config.tone)
-        self.assertEqual(config["max_segment_chars"], ctx.runtime.config.max_segment_chars)
-        self.assertEqual(config["sync_playback"], ctx.runtime.config.sync_playback)
+        self.assertEqual(config["user_salutation"], runtime.config.user_salutation)
+        self.assertEqual(config["assistant_salutation"], runtime.config.assistant_salutation)
+        self.assertEqual(config["tone"], runtime.config.tone)
+        self.assertEqual(config["max_segment_chars"], runtime.config.max_segment_chars)
+        self.assertEqual(config["sync_playback"], runtime.config.sync_playback)
         played, ack = handlers["played"]({
             "body": {"conversation_id": "cid", "call_id": "missing",
                      "status": "played"}})

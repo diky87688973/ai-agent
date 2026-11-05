@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/knowledge/runtime",
+      "kind": "runtime",
+      "factory": "plugin:make_runtime",
+      "order": 0,
+      "requires": {
+        "context_sources": "app/host/services/context_sources"
+      }
+    },
+    {
+      "path": "app/plugins/knowledge/routes/files",
+      "kind": "route",
+      "factory": "plugin:make_files_route",
+      "props": {
+        "path": "files"
+      },
+      "requires": {
+        "runtime": "app/plugins/knowledge/runtime"
+      },
+      "order": 0,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/knowledge/routes/checked",
+      "kind": "route",
+      "factory": "plugin:make_checked_get",
+      "props": {
+        "path": "checked"
+      },
+      "requires": {
+        "runtime": "app/plugins/knowledge/runtime"
+      },
+      "order": 1,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/knowledge/routes/checked-update",
+      "kind": "route",
+      "factory": "plugin:make_checked_put",
+      "props": {
+        "path": "checked"
+      },
+      "requires": {
+        "runtime": "app/plugins/knowledge/runtime"
+      },
+      "order": 2,
+      "method": "PUT"
+    },
+    {
+      "path": "app/plugins/knowledge/prompt/messages/knowledge",
+      "kind": "provider",
+      "factory": "plugin:make_context_source",
+      "props": {
+        "target": "context-source",
+        "label": "知识库"
+      },
+      "requires": {
+        "runtime": "app/plugins/knowledge/runtime"
+      },
+      "order": 0
+    },
+    {
+      "path": "app/plugins/knowledge/prompt/system-appends/resources",
+      "kind": "provider",
+      "factory": "plugin:make_prompt_section",
+      "props": {
+        "target": "prompt-section",
+        "section": "## 资源目录"
+      },
+      "requires": {
+        "runtime": "app/plugins/knowledge/runtime"
+      },
+      "order": 0
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/input/buttons/kb_btn",
+      "kind": "ui-control",
+      "order": 50,
+      "props": {
+        "label": "知识库",
+        "action": "panel.open",
+        "binding": {
+          "input": {
+            "standalone": true,
+            "className": "mode-plus",
+            "action": "panel.open",
+            "panel": "app/shell/web-ui/right-panel/kb",
+            "text": "知识库",
+            "host": ".left-tools"
+          }
+        }
+      }
+    },
+    {
+      "path": "app/shell/web-ui/right-panel/kb",
+      "kind": "ui-control",
+      "props": {
+        "label": "知识库",
+        "action": "panel.open",
+        "html": "<div class=\"kb-body\" id=\"kbBody\"><div class=\"kb-loading\">📂 加载知识库…</div></div>",
+        "scripts": [
+          "ui/panel.js"
+        ],
+        "styles": [
+          "ui/panel.css"
+        ]
+      }
+    },
+    {
+      "path": "app/shell/web-ui/left-panel/context_usage/kb",
+      "kind": "ui-control",
+      "props": {
+        "label": "知识库",
+        "color": "blue",
+        "binding": {
+          "context": true
+        }
+      }
+    }
+  ]
+}

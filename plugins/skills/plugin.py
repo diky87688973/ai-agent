@@ -17,27 +17,16 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from agent.capabilities.plugin_paths import load_plugin_paths
-from agent.capabilities.plugins import plugin_config_fields
 from agent.config import PROJECT_ROOT, load_ini
 
 from .library import SkillManager
 from .tools import build as build_tool
-
-PATHS = load_plugin_paths(__file__)
 
 CONFIG_SECTION = "config"
 DEFAULT_MAX_FILE_SIZE = 200000
 CONFIG_FILE = "plugin-config.ini"
 #: 随代码发布的内置 Skills 根；用户外置目录由 [config] dir 指定。
 BUILTIN_SKILLS_DIR = PROJECT_ROOT / "skills"
-
-# 注入前缀：让模型一眼看出这段是 Skills 说明，不是用户对话，也不是知识库素材。
-# 抬头在清单/常驻正文里拼（library 出口），这里不再叠一次。
-CATALOG_PREFIX = ""
-# 常驻抬头带 Skills 名，模型一眼看出这是哪个 Skills 的正文，由 library 逐条拼。
-RESIDENT_PREFIX = ""
-RESOURCE_HEAD = "## 资源目录"
 
 
 def _config_path() -> Path:
@@ -79,50 +68,37 @@ def _load_config(path: Optional[Path] = None) -> Dict[str, Any]:
     return {"dir": root, "max_file_size": max_size}
 
 
-def register(ctx: Any) -> List[Callable[[], None]]:
-    """插件入口：装配 Skills 库，注册工具、系统提示词章节与提交执行器。"""
+def make_runtime(ctx: Any) -> SkillManager:
+    """装配期构造 Skills 库：外置目录 + 单文件上限 + 内置目录。"""
     cfg = _load_config()
-    library = SkillManager(cfg["dir"], int(cfg["max_file_size"]),
-                           builtin_dir=BUILTIN_SKILLS_DIR)
-    base = plugin_config_fields(Path(__file__).resolve().parent)
-    style_label = base["name"] or "Skills"
+    return SkillManager(cfg["dir"], int(cfg["max_file_size"]),
+                        builtin_dir=BUILTIN_SKILLS_DIR)
 
-    tool = build_tool(library)
-    disposers: List[Callable[[], None]] = [
-        ctx.register_tool(tool),
-        # 资源目录：写入系统提示词章节；Rules 插件后续向同一章节追加自己的行。
-        ctx.add_prompt_section(
-            RESOURCE_HEAD,
-            lambda cid, _lib=library: _resource_directory_lines(_lib),
-            path="app/backend/prompt/sections/resources/skills",
-        ),
-        # 清单：只有名字与描述（渐进式披露第一层）。
-        ctx.add_context_source(
-            lambda cid, _lib=library: _catalog_parts(_lib),
-            {"label": "Skills 清单", "prefix": CATALOG_PREFIX,
-             # 取数口按 `fn(conversation_id)` 调用；Skills 清单与会话无关，用闭包吞掉这个参数。
-             "count": lambda _cid, _lib=library: len(_lib.list_skills())},
-            path="app/backend/context/sources/skills/catalog",
-        ),
-        # 常驻正文：`auto_load/` 目录下的 Skills（第二层，始终携带）。
-        ctx.add_context_source(
-            lambda cid, _lib=library: _lib.build_auto_load_messages(),
-            {"label": "Skills 常驻", "prefix": RESIDENT_PREFIX,
-             # 只数条数：为取长度去把常驻正文全拼一遍是重复开销（每次收集都跑）。
-             "count": lambda _cid, _lib=library: _lib.auto_load_count()},
-            path="app/backend/context/sources/skills/resident",
-        ),
-    ]
-    # 上下文分层外观：无面板，经贡献表交给壳层开屏注册。
-    disposers.append(ctx.add_ui_item(
-        PATHS["segment"], kind="segment",
-        props={"label": style_label, "color": "plum",
-                           "binding": {"context": True}}))
-    # 工具卡视图：开屏脚本，不必挂空面板。
-    disposers.append(ctx.add_ui_item(
-        PATHS["tool"], kind="tool-shell",
-        props={"label": "Skills", "scripts": ["ui/tool-view.js"]}))
-    return disposers
+
+def make_tool(ctx: Any, runtime: SkillManager) -> Any:
+    """`skills` 工具：读写都交给库，工具自身只做参数转发。"""
+    return build_tool(runtime)
+
+
+def make_catalog_source(ctx: Any, runtime: SkillManager) -> Callable[..., Any]:
+    """清单注入源：只有名字与描述（渐进式披露第一层）。"""
+    def source(cid: str) -> Any:
+        return _catalog_parts(runtime)
+    return source
+
+
+def make_resident_source(ctx: Any, runtime: SkillManager) -> Callable[..., Any]:
+    """常驻正文注入源：`auto_load/` 下的 Skills（第二层，始终携带）。"""
+    def source(cid: str) -> Any:
+        return runtime.build_auto_load_messages()
+    return source
+
+
+def make_prompt_section(ctx: Any, runtime: SkillManager) -> Callable[[str], List[str]]:
+    """`## 资源目录` 章节里本插件的正文行。"""
+    def section(cid: str) -> List[str]:
+        return _resource_directory_lines(runtime)
+    return section
 
 
 def _resource_directory_lines(library: SkillManager) -> List[str]:

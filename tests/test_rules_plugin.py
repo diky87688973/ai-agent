@@ -1,79 +1,25 @@
 # -*- coding: utf-8 -*-
-"""Rules 插件测试。
+"""Rules 插件：目录约定、注入格式与片段声明。
 
-覆盖：目录缺失时的空行为 / 只收 `.md` 与递归子目录 / 隐藏段与 `__pycache__` 跳过 /
-一文件一条与抬头格式 / 注入条数与自报数一致 / 单文件上限 / 资源目录两行 /
-ContextSources 里的段 key、段名与计数 / disposer 全撤后注入消失。
+旧口径是「调 `register(ctx)` 后看 ctx 收到什么」；`register` 已删，注册面改由
+`plugin-slots.json` 声明。因此本文件核对两件事：
+  运行时行为（目录缺失 / 只收 .md / 跳过隐藏与缓存 / 抬头与条数 / 上限 / 缓存）；
+  片段声明的节点齐备、归属正确，且工厂产出的东西可用。
 """
 from __future__ import annotations
 
-import importlib.util
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT))
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent.mechanisms.context import ContextSources  # noqa: E402
-
-_PLUGIN_MOD = "fan_agent_plugins.rules"
-
-
-def _load_plugin_module():
-    """从磁盘加载 Rules 插件模块（独立实例）。"""
-    path = _ROOT / "plugins" / "rules" / "plugin.py"
-    spec = importlib.util.spec_from_file_location(_PLUGIN_MOD, str(path))
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_PLUGIN_MOD] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_PLUGIN = _load_plugin_module()
-
-
-class _FakeCtx:
-    """最小插件上下文：只记下注册了什么，用来验证 register 的贡献面。"""
-
-    def __init__(self) -> None:
-        self.runtime = None
-        self.sources = ContextSources()
-        self.sections = []
-        self.ui_items = []
-        self.styles = []
-        self._disposers = []
-
-    def set_runtime(self, runtime) -> None:
-        self.runtime = runtime
-
-    def add_context_source(self, fn, meta=None, *, path="", replace=False):
-        if not path:
-            raise ValueError("缺少 path")
-        return self.sources.add(fn, self._meta(meta))
-
-    def _meta(self, meta):
-        from agent.mechanisms.context import SourceMeta
-
-        payload = meta if isinstance(meta, dict) else {}
-        return SourceMeta(key="rules", label=str(payload.get("label") or ""),
-                          plugin="rules", count=payload.get("count"))
-
-    def add_prompt_section(self, section, fn, *, path=""):
-        if not path:
-            raise ValueError("缺少 path")
-        self.sections.append((section, fn))
-
-        def _drop() -> None:
-            self.sections = [row for row in self.sections if row[1] is not fn]
-
-        return _drop
-
-    def add_ui_item(self, path, kind, props=None, order=None):
-        self.ui_items.append((path, kind, props, order))
-        return lambda: None
+from agent.core.slot_fragments import load_merged  # noqa: E402
+from agent.mechanisms.context import ContextSources, SourceMeta  # noqa: E402
+from plugins.rules import plugin as _PLUGIN  # noqa: E402
 
 
 def _make_tree(root: Path) -> None:
@@ -141,67 +87,73 @@ class RulesRuntimeTest(unittest.TestCase):
         self.assertEqual(runtime.read_text(self.root / "gone.md"), "")
 
 
-class RulesRegisterTest(unittest.TestCase):
-    def setUp(self) -> None:
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        self.root = Path(self._tmp.name) / "rules"
-        _make_tree(self.root)
+class RulesFragmentTest(unittest.TestCase):
+    """片段声明：三个自有节点 + 一条落到壳层的段外观。"""
 
-    def _register(self, root: Path):
-        ctx = _FakeCtx()
-        disposers = _PLUGIN.register(ctx)
-        ctx.runtime = _PLUGIN.RulesRuntime(root)
-        return ctx, disposers
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.config = load_merged(ROOT)
 
-    def test_segment_key_label_and_count(self) -> None:
-        ctx, _ = self._register(self.root)
-        runtime = _PLUGIN.RulesRuntime(self.root)
-        ctx.sources = ContextSources()
-        ctx.add_context_source(runtime.build_system_messages,
-                               {"label": _PLUGIN.SEGMENT_LABEL,
-                                "count": runtime.attached_count},
-                               path="app/backend/context/sources/rules/files")
-        segments = ctx.sources.collect_segments("c1")
-        keys = {item[0] for item in segments.items}
-        self.assertEqual(keys, {"rules"})
-        labels = {item[1] for item in segments.items}
-        self.assertEqual(labels, {"Rules"})
-        # 两条正文 → 两条段条目，只有第一条带自报数（2）
-        self.assertEqual(len(segments.items), 2)
-        self.assertEqual(segments.counts[0], 2)
-        self.assertEqual(segments.counts[1], 1)
+    def test_own_nodes_are_runtime_and_two_providers(self) -> None:
+        own = {path: spec for path, spec in self.config.specs.items()
+               if path.startswith("app/plugins/rules/") and spec.kind != "container"}
+        self.assertEqual(sorted(own), [
+            "app/plugins/rules/prompt/messages/files",
+            "app/plugins/rules/prompt/system-appends/resources",
+            "app/plugins/rules/runtime",
+        ])
+        for path in own:
+            with self.subTest(path=path):
+                self.assertEqual(self.config.origin_of(path), "rules")
+        self.assertEqual(own["app/plugins/rules/runtime"].factory, "plugin:make_runtime")
+        self.assertEqual(own["app/plugins/rules/prompt/messages/files"].factory,
+                         "plugin:make_context_source")
+        self.assertEqual(own["app/plugins/rules/prompt/system-appends/resources"].factory,
+                         "plugin:make_prompt_section")
 
-    def test_resource_section_lines(self) -> None:
-        ctx, _ = self._register(self.root)
-        self.assertEqual(len(ctx.sections), 1)
-        heading, fn = ctx.sections[0]
-        self.assertEqual(heading, _PLUGIN.RESOURCE_HEAD)
+    def test_segment_node_carries_label_and_color(self) -> None:
+        path = "app/shell/web-ui/left-panel/context_usage/rules"
+        self.assertIn(path, self.config.specs)
+        spec = self.config.specs[path]
+        self.assertEqual(spec.kind, "ui-control")
+        self.assertEqual(self.config.origin_of(path), "rules")
+        self.assertEqual(spec.props.get("label"), "Rules")
+        self.assertEqual(spec.props.get("color"), "green")
+
+    def test_prompt_section_factory_returns_resource_lines(self) -> None:
+        runtime = _PLUGIN.RulesRuntime(ROOT / "rules")
+        fn = _PLUGIN.make_prompt_section(None, runtime)
         lines = fn("c1")
         self.assertEqual(lines[0], f"- 规则rules: {_PLUGIN.RULES_DIR}")
         self.assertIn("该目录中规则文件（*.md）会自动注入到上下文", lines[1])
         self.assertIn("USER_RULES.md为默认用户规则文件", lines[1])
 
     def test_resource_section_marks_missing_dir(self) -> None:
-        runtime = _PLUGIN.RulesRuntime(self.root / "nope")
+        runtime = _PLUGIN.RulesRuntime(ROOT / "rules" / "nope")
         lines = _PLUGIN.resource_directory_lines(runtime)
         self.assertEqual(lines[0], f"- 规则rules: {_PLUGIN.RULES_DIR}（不存在）")
 
-    def test_segment_style_registered(self) -> None:
-        ctx, _ = self._register(self.root)
-        item = next(row for row in ctx.ui_items
-                    if row[0] == "app/shell/web-ui/left-panel/context_usage/rules")
-        self.assertEqual(item[2]["label"], "Rules")
-        self.assertTrue(item[2]["color"])
-
-    def test_dispose_removes_injection(self) -> None:
-        ctx = _FakeCtx()
-        disposers = _PLUGIN.register(ctx)
-        self.assertTrue(ctx.sources.collect_segments("c1").items)
-        for disposer in reversed(disposers):
-            disposer()
-        self.assertEqual(ctx.sources.collect_segments("c1").items, ())
-        self.assertEqual(ctx.sections, [])
+    def test_context_source_factory_contributes_one_segment(self) -> None:
+        """工厂产出的注入源交给 ContextSources：一段、标签 Rules、自报数等于正文条数。"""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name) / "rules"
+        _make_tree(root)
+        runtime = _PLUGIN.RulesRuntime(root)
+        sources = ContextSources()
+        source = _PLUGIN.make_context_source(None, runtime)
+        meta = SourceMeta(key="rules", label="Rules", plugin="rules",
+                          count=runtime.attached_count)
+        disposer = sources.add(source, meta,
+                               path="app/backend/context/sources/rules/files")
+        segments = sources.collect_segments("c1")
+        self.assertEqual({item[0] for item in segments.items}, {"rules"})
+        self.assertEqual({item[1] for item in segments.items}, {"Rules"})
+        self.assertEqual(len(segments.items), 2)
+        self.assertEqual(segments.counts[0], 2)
+        self.assertEqual(segments.counts[1], 1)
+        disposer()
+        self.assertEqual(sources.collect_segments("c1").items, ())
 
 
 if __name__ == "__main__":

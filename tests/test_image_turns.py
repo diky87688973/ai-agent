@@ -204,6 +204,10 @@ class ConfigWiringTest(unittest.TestCase):
 
     def test_app_carries_the_value(self) -> None:
         from agent.app import build_app
+        from tests.testkit import isolate_data, isolate_plugins
+
+        isolate_plugins(self)
+        isolate_data(self)
 
         app = build_app()
         self.addCleanup(app.dispose)

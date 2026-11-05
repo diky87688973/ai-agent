@@ -32,6 +32,9 @@ class ChatGateWiringTest(unittest.TestCase):
     """壳层门控解析：必须是会话自己的门控，不是默认桶。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self.app = build_app()
         self.addCleanup(self.app.dispose)
         built = build_session(["--session", CID], app=self.app)
@@ -67,6 +70,9 @@ class ChatConfirmRoundTripTest(unittest.TestCase):
     """端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）。"""
 
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
@@ -143,6 +149,9 @@ class ChatConfirmRoundTripTest(unittest.TestCase):
 class ChatExitReleaseTest(unittest.TestCase):
     """交互壳退出时释放会话运行态。"""
     def setUp(self) -> None:
+        from tests.testkit import isolate_data, isolate_plugins
+        isolate_plugins(self)
+        isolate_data(self)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
@@ -206,6 +215,8 @@ class ChatExitReleaseTest(unittest.TestCase):
 
 class InvalidSessionCliTest(unittest.TestCase):
     def test_invalid_session_returns_clean_error(self) -> None:
+        from tests.testkit import isolate_plugins
+        isolate_plugins(self)
         with tempfile.TemporaryDirectory() as tmp:
             app = build_app(data_root=Path(tmp))
             out = io.StringIO()
@@ -245,7 +256,10 @@ class ExplicitReleaseTest(unittest.TestCase):
     def test_web_release_conversation_reduces_active_count(self) -> None:
         """关闭会话 API 调用 release 后 active_count 下降。"""
         from agent.shell.web.server import WebShell
+        from tests.testkit import isolate_data, isolate_plugins
 
+        isolate_plugins(self)
+        isolate_data(self)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         app = build_app(
@@ -325,7 +339,10 @@ class ChatArgParsingTest(unittest.TestCase):
 
     def test_build_session_accepts_parsed_args(self) -> None:
         import agent.shell.cli.interactive as chat
+        from tests.testkit import isolate_data, isolate_plugins
 
+        isolate_plugins(self)
+        isolate_data(self)
         app = build_app()
         self.addCleanup(app.dispose)
         parsed = chat.parse_args(["--session", CID, "单回合"])
