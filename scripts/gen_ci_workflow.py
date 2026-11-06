@@ -63,7 +63,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e . -c constraints.txt
-          python -m pip install ruff coverage -c constraints.txt
+          python -m pip install ruff 'coverage[toml]' -c constraints.txt
 
 """
 

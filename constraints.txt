@@ -1,6 +1,6 @@
 # Locked runtime deps (pyproject.toml) + CI tools (ruff, coverage).
 # Regenerate when pyproject.toml dependencies change, e.g.:
-#   echo openpyxl>=3.1 Pillow>=10 ruff>=0.5 coverage>=7 | pip-compile --strip-extras --no-header --no-annotate -o constraints.txt -
+#   echo openpyxl>=3.1 Pillow>=10 ruff>=0.5 coverage[toml]>=7 | pip-compile --strip-extras --no-header --no-annotate -o constraints.txt -
 # Do NOT include optional extras (playwright, easyocr, etc.).
 
 coverage==7.16.2
@@ -9,3 +9,4 @@ openpyxl==3.1.5
 # Pillow 13 要求 Python>=3.11；CI 矩阵含 3.10，故钉 12.3（>=3.10）
 pillow==12.3.0
 ruff==0.17.1
+tomli==2.5.0 ; python_full_version < '3.11.0a7'
