@@ -75,6 +75,7 @@ def _data_dirs() -> list[str]:
     PARAM_NAMES = {
         "storage_dir", "titles_dir", "backup_root", "recycle_root",
         "backups_dir", "recycle_dir", "workspace_root", "sessions_dir", "cache_dir",
+        "plugin_data_root",
     }
     #: 数据根本身的变量名（用于认 `data_root / "xxx"`）
     ROOT_NAMES = {"data_root", "DATA_ROOT"}

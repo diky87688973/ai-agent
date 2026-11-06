@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import subprocess
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -13,10 +14,24 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import check_network_isolation as network  # noqa: E402
+import check_readme  # noqa: E402
 import ci  # noqa: E402
 
 
 class EngineeringGatesTest(unittest.TestCase):
+    def test_plugin_data_directory_is_found_without_runtime_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "agent").mkdir()
+            source = root / "agent" / "fixture.py"
+            source.write_text('HostBootConfig(plugin_data_root=root / "plugin", '
+                              'plugins_root=root / "not_data")\n', encoding="utf-8")
+            with mock.patch.object(check_readme, "ROOT", root):
+                names = check_readme._data_dirs()
+            self.assertIn("plugin", names)
+            self.assertNotIn("not_data", names)
+            self.assertFalse((root / "data").exists())
+
     def test_network_check_fails_for_failed_tests_without_outbound_requests(self) -> None:
         for failed in (False, True):
             result = unittest.TestResult()

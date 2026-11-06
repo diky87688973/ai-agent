@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2473** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2474** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -49,7 +49,7 @@
 38. [test_coverage_gaps.py](#test_coverage_gapspy)（10）
 39. [test_ctx_capabilities.py](#test_ctx_capabilitiespy)（8）
 40. [test_edited_files.py](#test_edited_filespy)（1）
-41. [test_engineering_gates.py](#test_engineering_gatespy)（3）
+41. [test_engineering_gates.py](#test_engineering_gatespy)（4）
 42. [test_entry_layer.py](#test_entry_layerpy)（19）
 43. [test_environment_info.py](#test_environment_infopy)（1）
 44. [test_error_log.py](#test_error_logpy)（8）
@@ -1236,13 +1236,14 @@
 
 ## test_engineering_gates.py
 
-共 3 个用例。
+共 4 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `EngineeringGatesTest` | `test_ci_timeout_is_a_failed_step` | 覆盖「A class whose instances are single test cases」：ci timeout is a failed step |
 | 2 | `EngineeringGatesTest` | `test_coverage_configuration_includes_all_handwritten_domains` | 覆盖「A class whose instances are single test cases」：coverage configuration includes all handwritten domains |
 | 3 | `EngineeringGatesTest` | `test_network_check_fails_for_failed_tests_without_outbound_requests` | 覆盖「A class whose instances are single test cases」：network check fails for failed tests without outbound requests |
+| 4 | `EngineeringGatesTest` | `test_plugin_data_directory_is_found_without_runtime_files` | 覆盖「A class whose instances are single test cases」：plugin data directory is found without runtime files |
 
 ## test_entry_layer.py
 
