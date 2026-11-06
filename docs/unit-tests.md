@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2474** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2482** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -137,22 +137,23 @@
 126. [test_top_level_services.py](#test_top_level_servicespy)（2）
 127. [test_ui_registry.py](#test_ui_registrypy)（4）
 128. [test_update.py](#test_updatepy)（26）
-129. [test_update_processes.py](#test_update_processespy)（2）
-130. [test_usage_metrics.py](#test_usage_metricspy)（7）
-131. [test_version_stamp.py](#test_version_stamppy)（4）
-132. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-133. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-134. [test_visual_operator.py](#test_visual_operatorpy)（163）
-135. [test_visual_operator_2.py](#test_visual_operator_2py)（46）
-136. [test_wake_isolation.py](#test_wake_isolationpy)（3）
-137. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-138. [test_web_auth.py](#test_web_authpy)（26）
-139. [test_web_frontend.py](#test_web_frontendpy)（6）
-140. [test_web_shell.py](#test_web_shellpy)（53）
-141. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-142. [test_write_gate.py](#test_write_gatepy)（17）
-143. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-144. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+129. [test_update_processes.py](#test_update_processespy)（3）
+130. [test_update_transaction.py](#test_update_transactionpy)（7）
+131. [test_usage_metrics.py](#test_usage_metricspy)（7）
+132. [test_version_stamp.py](#test_version_stamppy)（4）
+133. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+134. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+135. [test_visual_operator.py](#test_visual_operatorpy)（163）
+136. [test_visual_operator_2.py](#test_visual_operator_2py)（46）
+137. [test_wake_isolation.py](#test_wake_isolationpy)（3）
+138. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+139. [test_web_auth.py](#test_web_authpy)（26）
+140. [test_web_frontend.py](#test_web_frontendpy)（6）
+141. [test_web_shell.py](#test_web_shellpy)（53）
+142. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+143. [test_write_gate.py](#test_write_gatepy)（17）
+144. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+145. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -3116,12 +3117,27 @@
 
 ## test_update_processes.py
 
-共 2 个用例。
+共 3 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `ProcessStopTest` | `test_removes_old_launcher_archives` | 覆盖「A class whose instances are single test cases」：removes old launcher archives |
-| 2 | `ProcessStopTest` | `test_stops_matching_running_executable` | 覆盖「A class whose instances are single test cases」：stops matching running executable |
+| 2 | `ProcessStopTest` | `test_stops_archived_running_launcher` | 覆盖「A class whose instances are single test cases」：stops archived running launcher |
+| 3 | `ProcessStopTest` | `test_stops_matching_running_executable` | 覆盖「A class whose instances are single test cases」：stops matching running executable |
+
+## test_update_transaction.py
+
+共 7 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `UpdateTransactionTest` | `test_bootstrap_does_not_finalize_delegated_request` | 覆盖「A class whose instances are single test cases」：bootstrap does not finalize delegated request |
+| 2 | `UpdateTransactionTest` | `test_copy_failure_restores_old_files_and_records_terminal_state` | 覆盖「A class whose instances are single test cases」：copy failure restores old files and records terminal state |
+| 3 | `UpdateTransactionTest` | `test_failed_rollback_keeps_request_and_staging` | 覆盖「A class whose instances are single test cases」：failed rollback keeps request and staging |
+| 4 | `UpdateTransactionTest` | `test_new_sections_and_bom_keep_user_values` | 覆盖「A class whose instances are single test cases」：new sections and bom keep user values |
+| 5 | `UpdateTransactionTest` | `test_recovery_does_not_accept_healthy_old_version` | 覆盖「A class whose instances are single test cases」：recovery does not accept healthy old version |
+| 6 | `UpdateTransactionTest` | `test_recovery_keeps_switching_when_backup_is_missing` | 覆盖「A class whose instances are single test cases」：recovery keeps switching when backup is missing |
+| 7 | `UpdateTransactionTest` | `test_upgrade_adds_plugin_section_and_cleans_once` | 覆盖「A class whose instances are single test cases」：upgrade adds plugin section and cleans once |
 
 ## test_usage_metrics.py
 

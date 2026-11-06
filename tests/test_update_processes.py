@@ -19,6 +19,28 @@ from agent.update.processes import (
 
 @unittest.skipUnless(os.name == "nt", "仅 Windows 有按映像路径终止进程的语义")
 class ProcessStopTest(unittest.TestCase):
+    def test_stops_archived_running_launcher(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "updates" / "launcher" / "agent-gui.exe.old-1"
+            archive.parent.mkdir(parents=True)
+            executable = root / "agent-gui.exe"
+            shutil.copy2(Path(os.environ["SystemRoot"]) / "System32" / "cmd.exe", executable)
+            process = subprocess.Popen(
+                [str(executable), "/c", "set /p wait="], cwd=str(root),
+                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                executable.rename(archive)
+                executable.write_bytes(b"replacement")
+                self.assertIn(process.pid, stop_old_launcher(root, wait_seconds=0))
+                process.wait(timeout=5)
+                self.assertEqual(cleanup_launcher_archives(root, attempts=1), [archive.name])
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                process.stdin.close()
+
     def test_removes_old_launcher_archives(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -36,9 +58,9 @@ class ProcessStopTest(unittest.TestCase):
         executable = root / "agent-gui.exe"
         shutil.copy2(Path(os.environ["SystemRoot"]) / "System32" / "cmd.exe", executable)
         process = subprocess.Popen(
-            [str(executable), "/c", "ping", "-n", "30", "127.0.0.1"],
+            [str(executable), "/c", "set /p wait="],
             cwd=str(root),
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -55,8 +77,5 @@ class ProcessStopTest(unittest.TestCase):
             if process.poll() is None:
                 process.kill()
                 process.wait(timeout=5)
-            subprocess.run(
-                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
-            )
+            process.stdin.close()
             shutil.rmtree(tmp, ignore_errors=True)

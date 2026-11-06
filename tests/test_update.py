@@ -363,6 +363,7 @@ class CoverageRootTest(unittest.TestCase):
             (staging / ".ready").write_text("x", encoding="utf-8")
             (root / "updates" / "apply.json").write_text(
                 json.dumps({"version": "0.2.0", "staging": str(staging)}), encoding="utf-8")
+            write_state(root, "switching", "0.1.0", "0.2.0")
             with patch("agent.update.apply.install_root", return_value=root), \
                     patch("agent.update.apply.apply_staged", return_value=root), \
                     patch("agent.update.apply.health_check", return_value=True), \
@@ -371,6 +372,7 @@ class CoverageRootTest(unittest.TestCase):
             self.assertEqual(read_state(root)["phase"], "healthy")
             (root / "updates" / "apply.json").write_text(
                 json.dumps({"version": "0.3.0", "staging": str(staging)}), encoding="utf-8")
+            write_state(root, "switching", "0.1.0", "0.3.0")
             with patch("agent.update.apply.install_root", return_value=root), \
                     patch("agent.update.apply.apply_staged", return_value=root), \
                     patch("agent.update.apply.health_check", return_value=False), \

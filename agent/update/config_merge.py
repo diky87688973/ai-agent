@@ -10,7 +10,7 @@ from pathlib import Path
 def _read(path: Path) -> configparser.ConfigParser:
     parser = configparser.ConfigParser(interpolation=None, strict=False)
     parser.optionxform = str
-    parser.read(path, encoding="utf-8")
+    parser.read(path, encoding="utf-8-sig")
     return parser
 
 
@@ -26,7 +26,7 @@ def merge_ini(existing: Path, template: Path, *, preserve_user_keys: bool = Fals
         merged.add_section(section)
         for key, value in defaults.items(section):
             merged.set(section, key, user.get(section, key, fallback=value))
-        if preserve_user_keys:
+        if preserve_user_keys and user.has_section(section):
             # 原地升级不能因为模板没有这个键就删用户配置；新版本新增的键仍会补上。
             for key, value in user.items(section):
                 if not merged.has_option(section, key):

@@ -105,13 +105,14 @@ def find_pids(executable: Path) -> List[int]:
 
 def stop_old_launcher(root: Path, wait_seconds: float = 3.0) -> List[int]:
     """旧 GUI 还在时等待并终止；返回实际终止的 PID。"""
-    executable = Path(root) / "agent-gui.exe"
+    executables = [Path(root) / "agent-gui.exe",
+                   *sorted((Path(root) / "updates" / "launcher").glob("agent-gui.exe.old-*"))]
     try:
-        old = find_pids(executable)
+        old = sorted({pid for executable in executables for pid in find_pids(executable)})
         if not old:
             return []
         time.sleep(max(0.0, float(wait_seconds)))
-        old = find_pids(executable)
+        old = sorted({pid for executable in executables for pid in find_pids(executable)})
         if not old:
             return []
         kernel32 = _kernel32()

@@ -23,11 +23,13 @@ def main() -> int:
         log_event(root, "recover_start", phase=phase)
         if phase == UPDATE_SWITCHING:
             previous = state.get("from_version", "")
-            if health_check(root):
+            installed = (root / "VERSION").read_text(encoding="utf-8").strip()
+            if installed == state.get("to_version", "") and health_check(root):
                 write_state(root, UPDATE_HEALTHY, previous,
                             state.get("to_version", ""), "recovered")
             else:
-                restore_backup(root, previous)
+                if not restore_backup(root, previous):
+                    raise RuntimeError(f"无法恢复更新备份：{previous}")
                 write_state(root, UPDATE_ROLLED_BACK, previous,
                             state.get("to_version", ""), "recovery_failed")
                 cleanup_after_success(root, state.get("to_version", ""))

@@ -204,7 +204,9 @@ to_version
 detail
 ```
 
-`updates/apply.json` 只是待执行请求，包含 `version` 与 `staging`；helper 执行后删除。切换不是原子目录替换：切换状态标记与备份让逐文件复制在中断后可恢复。
+`updates/apply.json` 只是待执行请求，包含 `version` 与 `staging`。实际执行切换的 helper 在成功或完成回滚后清理请求与暂存；引导进程不重复清理。回滚失败时保留请求、暂存和 `switching` 状态，供恢复使用。恢复只有在安装版本等于目标版本且健康检查通过时才标记 `healthy`；找不到备份时明确报错，不声称已回滚。切换不是原子目录替换：切换状态标记与备份让逐文件复制在中断后可恢复。
+
+INI 合并保留用户已有值与自定义键，模板新增的节及键正常补入，支持 UTF-8 BOM。启动器被归档后，进程匹配同时检查安装根的启动器与 `updates/launcher/agent-gui.exe.old-*` 的实际路径。
 
 ## 7. 界面交互
 

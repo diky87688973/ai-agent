@@ -202,7 +202,9 @@ to_version
 detail
 ```
 
-`updates/apply.json` is only a pending request with `version` and `staging`; the helper removes it after it runs. The switch is not an atomic directory swap: the phase marker and backup make an interrupted per-file copy recoverable.
+`updates/apply.json` is only a pending request with `version` and `staging`. The helper that performs the switch removes the request and staging after success or a completed rollback; the bootstrap process does not repeat cleanup. Failed rollback retains the request, staging, and `switching` state for recovery. Recovery marks the installation `healthy` only when its version matches the target and its health check passes. A missing backup is an explicit error, never a reported successful rollback. The switch is not an atomic directory swap: the phase marker and backup make an interrupted per-file copy recoverable.
+
+INI merging preserves existing user values and custom keys, adds template sections and keys, and accepts UTF-8 BOM. Launcher process matching checks both the root executable and the actual paths of `updates/launcher/agent-gui.exe.old-*` archives.
 
 ## 7. Interface
 
