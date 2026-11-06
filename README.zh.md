@@ -41,6 +41,7 @@ macOS 安装包暂未构建，当前 Release 只提供 Windows 包。
 - **可服务化接入** —— 内核不绑定 UI，Web 入口提供本地 HTTP/SSE 与健康检查，无头入口面向脚本、CI、工单和外部系统调用，插件可追加自己的 HTTP 端点。
 - **访问鉴权** —— 浏览器登录，GUI 一次性免登录；scrypt 密码、HttpOnly 会话、CSRF、scope Token、登录限流、公网 TLS。
 - **插件化扩展** —— 工具、执行器、上下文、提示词、门控、模型目录、HTTP 端点与界面资产均可由插件加入，不修改内核；内置 Skills、Rules、知识库、多模型、视觉操作与 AI 说话。
+- **对话可视化** —— 可视化插件提供比例、流程、时序、进度、数据图与可交互表格/控件，支持历史恢复、筛选、选择回传和离线渲染；[协议与使用边界](docs/plan/visualization.md)。
 - **视觉操作** —— 持续视觉能力，授权后流畅操作系统，用户随时接管，过程可追溯。(目前仅支持 Windows)
 - **多智能体协作** —— 子智能体按批次创建，拥有独立会话与角色工具视图；支持父子双向通信、消息队列、工作汇报。
 - **长任务可管理** —— 后台任务按会话隔离，支持并发上限、超时、取消与输出读取；目标、Todo 和消息队列支持多回合推进。
@@ -73,17 +74,18 @@ App 启动
         ▼
      App 门面完成（不含组件清单）
 
-App 运行期
-  plugin.py ── register(ctx) ──▶ 后端插口 / UI 插口 / 设置 / 路由
-                                └─ 动态节点挂回同一棵 SlotTree
+插件贡献装配
+  plugin-slots.json ── 有效视图 ──▶ SlotBinder ──▶ 工具 / UI / 设置 / 路由
+  plugin.py 工厂只构造实现，能力声明来自同一棵 SlotTree
 ```
 
 插件目录：
 
 ```text
 plugins/<插件名>/
-  plugin.py             register(ctx)
-  plugin-ui.json        UI 插口
+  plugin.py             片段引用的实现工厂
+  plugin-slots.json     声明贡献、依赖与插口路径
+  plugin-ui.json        UI 形状或路径引用
   plugin-assembly.json  启动插口覆盖；存在即自动装载
   plugin-meta.json      身份 / auto_load
   plugin-config.ini     插件配置
@@ -243,7 +245,7 @@ python scripts/ci.py --list    # 列出检查项
 
 `docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（2482 个用例）：
+单元测试（2517 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

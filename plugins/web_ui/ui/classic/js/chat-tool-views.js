@@ -1288,6 +1288,8 @@ if(!o||!o.chatToolPacketRes)return;
 o.chatToolPacketRes.textContent=chatToolResponseText(o, ev);
 }
 function fillChatToolResult(o, ev){
+if(msgs&&!msgs.dataset.conversationId&&typeof getActiveConversationId==="function")msgs.dataset.conversationId=getActiveConversationId();
+if(window.aiAgentShell&&window.aiAgentShell.displays)window.aiAgentShell.displays.consume(o,ev,msgs);
 if(!o||!o.chatToolRow)return;
 var view=o.chatToolView||chatToolViewDefault;
 if(view.fill)view.fill(o.chatToolRow, o, ev);

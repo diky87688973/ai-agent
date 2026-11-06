@@ -166,7 +166,7 @@ TEXT_SUFFIXES = (".ini", ".toml", ".js", ".css", ".html", ".md")
 #: 文档里的"见 [x](y)"是交叉引用，属文档本职
 DOC_SUFFIXES = (".md",)
 #: 压缩过的第三方资产不查
-TEXT_SKIP_NAMES = ("highlight.min.js",)
+TEXT_SKIP_NAMES = ("highlight.min.js", "mermaid.min.js")
 
 #: 给模型的提示词：那里的祈使句是在指导模型做事，属产品文案，不按注释判据查。
 #: （其余文件里主语是读者的祈使句由本检查报出。）

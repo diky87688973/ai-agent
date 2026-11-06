@@ -58,6 +58,7 @@ An uncategorized top-level package under `agent/` fails immediately instead of b
 | `agent/shell/web/server.py` | HTTP service assembly and startup | Route dispatch, static assets, SSE frames |
 | `agent/shell/web/web_routes.py` | HTTP verb and path dispatch, request body and error exits | Concrete business actions, classic page implementation |
 | `agent/shell/web/web_static.py` | Shell static assets, paths, protocol constants | Plugin-private assets |
+| `agent/shell/web/ui/` | Generic message-panel projection, declaration-constrained implementation binding, lifecycle and local view state | Concrete charts, component schemas, private dependencies and business-fact storage |
 | `agent/shell/web/web_classic.py` | Classic pages and classic SSE | JSON API business |
 | `agent/shell/web/web_plugin.py` | Plugin endpoints and plugin asset forwarding | Plugin-internal business |
 | `agent/shell/web/web_api.py` | `WebShell` entry and connection/runtime state; business actions split by mixin into `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` / `web_subagents.py` | Route dispatch |
@@ -168,6 +169,7 @@ A capability whose owner cannot be named is not added. A capability that cannot 
 - A new front-end asset must be registered in the `ui_bundle` manifest or a plugin contribution; no orphan file may remain in the repository.
 - A new static asset must state its load path, cache policy, and behavior when missing.
 - Base page assets belong to `plugins/web_ui/ui/classic/`; the shell must not keep a second copy. Plugin-private UI stays under its plugin root.
+- Public display extensions follow section 2.5 of `docs/plan/plugin-slots-protocol.md`: the effective slot catalog uniquely declares types; scripts only bind implementations with matching ownership. New components do not modify the shared carrier. Host-contract additions require negative tests and an independent-plugin proof.
 - Test fixtures, screenshots, context exports, caches, and backups must not enter the source tree or release packages.
 
 ## 4. Extension paths

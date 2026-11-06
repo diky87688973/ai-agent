@@ -58,6 +58,7 @@ common → core → mechanisms → subagent → capabilities/update → shell �
 | `agent/shell/web/server.py` | HTTP 服务装配与启动 | 路由分派、静态资源、SSE 帧 |
 | `agent/shell/web/web_routes.py` | HTTP 动词与路径分派、请求体/错误出口 | 具体业务动作、经典页面实现 |
 | `agent/shell/web/web_static.py` | 壳层静态资源、路径与协议常量 | 插件私有资产 |
+| `agent/shell/web/ui/` | 通用消息面板投影、声明约束下的实现绑定、生命周期与本地视图状态 | 具体图表、组件 schema、插件私有依赖和业务事实存储 |
 | `agent/shell/web/web_classic.py` | 经典页面与经典 SSE | JSON API 业务 |
 | `agent/shell/web/web_plugin.py` | 插件端点与插件资产转发 | 插件内部业务 |
 | `agent/shell/web/web_api.py` | `WebShell` 入口与连接/运行态；业务动作按 mixin 分在 `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` / `web_subagents.py` | 路由分派 |
@@ -158,6 +159,7 @@ inbound 直接持有历史/布局/状态实现
 - 新增前端资产必须在 `ui_bundle` 清单或插件贡献中登记；孤儿文件不得留在仓库。
 - 新增静态资源必须说明加载路径、缓存策略、缺失时行为。
 - 基础页面资产归 `plugins/web_ui/ui/classic/`，壳层不得保留第二份；插件私有 UI 留在插件根内。
+- 公共展示扩展遵循 `docs/plan/plugin-slots-protocol.md` §2.5；类型由有效插口目录唯一声明，脚本只绑定匹配归属的实现。新增组件不修改公共载体；新增宿主契约须有负向测试及独立插件验证。
 - 测试夹具、截图、上下文导出、缓存和备份不得进入源码树或发布包。
 
 ## 4. 扩展路径

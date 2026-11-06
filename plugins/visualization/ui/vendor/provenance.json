@@ -1,0 +1,17 @@
+{
+  "package": "mermaid",
+  "version": "12.3.0",
+  "license": "MIT",
+  "url": "https://registry.npmjs.org/mermaid/-/mermaid-12.3.0.tgz",
+  "integrity": "sha512-4113TdXeLAsMruJ79OpFL5O8+LTFXhQqZ260rF3tgUmiNAtRm4Uume04I+65PRN6yZ69J4f8rVYWW8zRk65UYw==",
+  "files": {
+    "mermaid.min.js": {
+      "sha256": "336df803d87a38b70a01e736e666c8f7601d2ce42f5e47c8fafe5d721074b9a3",
+      "bytes": 5537838
+    },
+    "LICENSE": {
+      "sha256": "ec9fb67dcb25eccc416ed56e1aab819222c805a2a4bfe4cb19e7556bf2ffde80",
+      "bytes": 1089
+    }
+  }
+}

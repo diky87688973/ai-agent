@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/visualization/tools/visualize",
+      "kind": "tool",
+      "factory": "plugin:make_tool"
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "可视化",
+        "scripts": [
+          "ui/components.js",
+          "ui/chart-engine.js",
+          "ui/charts.js",
+          "ui/flow-table.js",
+          "ui/extra-components.js",
+          "ui/tasks-mermaid.js",
+          "ui/panel.js"
+        ],
+        "styles": [
+          "ui/visualization.css"
+        ]
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_proportion",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "proportion",
+        "renderer": "visualization.proportion",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_tasks",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "tasks",
+        "renderer": "visualization.tasks",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_mermaid",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "mermaid",
+        "renderer": "visualization.mermaid",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_flow",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "flow",
+        "renderer": "visualization.flow",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_progress",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "progress",
+        "renderer": "visualization.progress",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_bar",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "bar",
+        "renderer": "visualization.bar",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_line",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "line",
+        "renderer": "visualization.line",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_donut",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "donut",
+        "renderer": "visualization.donut",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_timeline",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "timeline",
+        "renderer": "visualization.timeline",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_gantt",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "gantt",
+        "renderer": "visualization.gantt",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_waterfall",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "waterfall",
+        "renderer": "visualization.waterfall",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_controls",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "controls",
+        "renderer": "visualization.controls",
+        "editable": true
+      }
+    },
+    {
+      "path": "app/shell/web-ui/chat/messages/tools/visualization_table",
+      "kind": "ui-tool-shell",
+      "props": {
+        "label": "table",
+        "renderer": "visualization.table",
+        "editable": true
+      }
+    }
+  ],
+  "subagent_tools": [
+    "visualize"
+  ]
+}

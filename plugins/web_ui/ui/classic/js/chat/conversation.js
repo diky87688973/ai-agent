@@ -60,6 +60,7 @@ function renderHistoryItems(items,conversationId){
 items=Array.isArray(items)?items:[];
 /* 必须用正在还原的会话 id，不能用当前激活 tab：多 tab 并行 loadHistory 时否则会把附件挂到错误 conversation_id → 404 */
 var cid=normalizeConversationId(conversationId)||getActiveConversationId();
+if(msgs)msgs.dataset.conversationId=cid;
 for(var i=0;i<items.length;i++){
 var it=items[i]||{};
 if(it.kind==="system_notice")continue;

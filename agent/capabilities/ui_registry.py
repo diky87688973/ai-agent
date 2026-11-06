@@ -2,6 +2,7 @@
 """插件 UI 路径注册表：区域插口、控件和 catalog。"""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
@@ -138,6 +139,7 @@ class UiRegistry:
                  replace: bool = False) -> Callable[[], None]:
         path = canonical_slot_path(path)
         item = self._item(path, kind, owner, handler, props, order)
+        self._validate_renderer(item)
         existing = self.bindings.nodes.get(path)
         if existing is not None:
             return self._install(item, replace=replace)
@@ -160,6 +162,25 @@ class UiRegistry:
 
             return drop_pending
         return self._install(item, replace=replace)
+
+    def _validate_renderer(self, item: Dict[str, Any]) -> None:
+        """展示类型由有效 UI 节点声明，不能由脚本另行发明或歧义绑定。"""
+        if item["kind"] != "ui-tool-shell":
+            return
+        props = item["metadata"]["props"]
+        if "editable" in props and type(props["editable"]) is not bool:
+            raise ValueError(f"UI editable 必须是布尔值：{item['path']}")
+        renderer = item["metadata"]["props"].get("renderer")
+        if renderer is None:
+            if "editable" in props:
+                raise ValueError(f"UI editable 必须附属于 renderer：{item['path']}")
+            return
+        if not isinstance(renderer, str) or not re.fullmatch(r"[a-z][a-z0-9_.-]{0,79}", renderer):
+            raise ValueError(f"无效的 UI renderer：{item['path']}")
+        for other in self.catalog()["entries"] + self.pending:
+            other_renderer = other.get("metadata", {}).get("props", {}).get("renderer")
+            if other["path"] != item["path"] and other_renderer == renderer:
+                raise ValueError(f"UI renderer 重复声明：{renderer}（{other['path']} / {item['path']}）")
 
     def _active_entry(self, node: Any) -> Optional[Dict[str, Any]]:
         if node.bindings:

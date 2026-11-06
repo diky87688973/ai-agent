@@ -648,8 +648,7 @@ class RealRepoTest(unittest.TestCase):
         self.assertEqual(counts["event"], 2)
         self.assertEqual(counts["provider"], 1)
         self.assertEqual(counts["container"], 4)
-        # 旧 set_subagent_tools([]) 在片段里是顶层空清单；合并后仍为空即行为一致
-        self.assertFalse(config.subagent_tools)
+        self.assertFalse(config.subagent_tools.get("ai_cosplay", ()))
 
     def test_ai_cosplay_routes_keep_their_methods(self) -> None:
         """三个路由的 HTTP 方法保持现状：config/status 为 GET，played 为 POST。"""

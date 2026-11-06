@@ -2281,6 +2281,66 @@
       }
     },
     {
+      "description": "在对话中创建或替换可交互面板。panel_id 在所属会话内唯一，revision 从1开始逐次加1；面板默认只展示内容，视图编辑由用户开启。label只写名称，不重复数值或百分比。成功后只需简短自然语言结论，不重复参数、panel_id、revision或源码；控件选项标签应面向用户。同一 panel_id/revision 重试必须提供相同内容，否则拒绝。operation=upsert 创建/替换，失败调用不产生修订：修正失败参数时仍使用原revision，只有成功后才递增。operation=remove 移除（data={}，其余字段仍须提供）。summary 是无头入口可读的文字摘要。kind: proportion/tasks/mermaid/flow/progress/bar/line/donut/timeline/gantt/waterfall/controls/table。data 形状：flow={nodes:[{id,label}],edges:[{source,target}]}；比例图会自动标原值和百分比，例如label=研发,value=50；不要把label写成研发50(50%)来重复标注。flow边只允许source和target，不能增加label等字段；条件文字可放节点标签或改用Mermaid。progress={items:[{label,value,total}]}；proportion/bar={items:[{label,value}]}；line={labels:[文本],series:[{label,values:[数值]}]}；table={columns:[{key,label}],rows:[{列key:标量}]}。tasks={batch:已有后台批次,task_ids:[已有任务ID]}实时读取任务服务，不估造百分比；mermaid={code:flowchart或sequenceDiagram定义}，不允许HTML/链接/配置指令，也不允许style/classDef/linkStyle/click，使用默认主题即可；timeline={unit,events:[{label,at,detail}]}；gantt={unit,tasks:[{label,start,end,status}]}；waterfall={unit,items:[{label,start,end,status}]}，status=waiting/running/succeeded/failed/cancelled；controls={fields:[{id,label,type,value,...}]}，type=select/tabs需要options:[{value,label}]，type=toggle使用布尔value，type=range需要min/max/step与数值value。提供完整数据，不提供 HTML、代码、链接或样式。每次调用记录修订事实，不改写历史。流程最多60节点/120边，项目最多100项，折线最多200点/8线，表格最多500行/20列。用户可以筛选、排序、缩放、选择和导出；选择经用户正常发送后才进入模型输入。",
+      "display": {
+        "icon": "📊",
+        "label": "可视化"
+      },
+      "name": "visualize",
+      "parallel_safe": false,
+      "parameters": {
+        "data": {
+          "description": "与 kind 对应的数据，形状及边界见工具说明",
+          "type": "object"
+        },
+        "kind": {
+          "description": "组件类型",
+          "enum": [
+            "proportion",
+            "tasks",
+            "mermaid",
+            "flow",
+            "progress",
+            "bar",
+            "line",
+            "donut",
+            "timeline",
+            "gantt",
+            "waterfall",
+            "controls",
+            "table"
+          ],
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "upsert",
+            "remove"
+          ],
+          "type": "string"
+        },
+        "panel_id": {
+          "description": "会话内稳定面板ID，1–64位字母数字下划线或短横线",
+          "type": "string"
+        },
+        "revision": {
+          "description": "从1开始的连续修订号",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "summary": {
+          "description": "不依赖图形也能理解的文字摘要",
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "title": {
+          "description": "明确的可视化标题",
+          "maxLength": 120,
+          "type": "string"
+        }
+      }
+    },
+    {
       "description": "抓取网页（urllib 无第三方依赖）并提取纯文本；支持超时、长度限制、min_chars/require_keywords 验收与落盘。",
       "display": {
         "icon": "🌐",

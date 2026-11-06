@@ -41,6 +41,7 @@ macOS packages are not built yet. Current releases provide Windows packages only
 - **Service-ready** — the kernel is not tied to a UI. The Web entry provides local HTTP/SSE and health checks. The headless entry targets scripts, CI, tickets, and external systems. Plugins can add their own HTTP endpoints.
 - **Access control** — browser login, one-time GUI auto-login, scrypt passwords, HttpOnly sessions, CSRF, scoped tokens, login rate limiting, and TLS for public bindings.
 - **Plugin extensions** — tools, executors, context, prompts, gates, model catalogs, HTTP endpoints, and UI assets can be added without changing the kernel. Built-in plugins include Skills, Rules, Knowledge, Multi-model, Visual Operator, and AI Speak.
+- **Conversation visualizations** — a plugin provides proportion, flow, sequence, progress and data charts, plus interactive tables and controls, with history restoration, filtering, explicit selection feedback and offline rendering. See the [contract and boundaries](docs/plan/visualization.md).
 - **Visual operation** — continuous visual capability; after authorization, operate the system smoothly, with takeover available at any time and a traceable process. (Windows only for now.)
 - **Multi-agent collaboration** — subagents are created in batches with independent sessions and role-specific tool views. Parent/child messaging, queues, and work reports are supported.
 - **Manageable long-running work** — background tasks are isolated per session with concurrency limits, timeouts, cancellation, and output retrieval. Goals, todos, and message queues support multi-turn progress.
@@ -73,17 +74,18 @@ App starts
         v
      App facade ready (no component list)
 
-App runtime
-  plugin.py -- register(ctx) --> backend slots / UI slots / settings / routes
-                                `-- dynamic nodes attach to the same SlotTree
+Plugin contribution assembly
+  plugin-slots.json -- effective view --> SlotBinder --> tools / UI / settings / routes
+  plugin.py factories construct implementations; the same SlotTree declares capabilities
 ```
 
 Plugin directory:
 
 ```text
 plugins/<name>/
-  plugin.py             register(ctx)
-  plugin-ui.json        UI slots
+  plugin.py             implementation factories referenced by fragments
+  plugin-slots.json     contributions, dependencies and slot paths
+  plugin-ui.json        UI shape or path references
   plugin-assembly.json  startup slot overrides; presence auto-loads
   plugin-meta.json      identity / auto_load
   plugin-config.ini     plugin configuration
@@ -245,7 +247,7 @@ python scripts/ci.py --list    # list checks
 
 `docs/unit-tests.md` is a generated readable test catalog; the source of truth is `tests/`.
 
-Unit tests (2482 cases):
+Unit tests (2517 cases):
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

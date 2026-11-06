@@ -49,6 +49,30 @@ class UiRegistryTest(unittest.TestCase):
         self.assertEqual(self.registry.drop_owner("a"), 1)
         self.assertEqual([e["owner"] for e in self.registry.catalog()["entries"]], ["b"])
 
+    def test_renderer_declaration_is_unique_and_owned(self) -> None:
+        path = "app/shell/web-ui/nav/buttons/"
+        self.registry.add_item(path + "a", kind="ui-tool-shell", owner="a", props={"renderer": "a.card"})
+        with self.assertRaisesRegex(ValueError, "重复声明"):
+            self.registry.add_item(path + "b", kind="ui-tool-shell", owner="b", props={"renderer": "a.card"})
+        self.registry.drop_owner("a")
+        self.registry.add_item(path + "b", kind="ui-tool-shell", owner="b", props={"renderer": "a.card"})
+        self.assertEqual(self.registry.catalog()["entries"][0]["owner"], "b")
+
+    def test_invalid_renderer_declaration_rejected(self) -> None:
+        for renderer in ("", "Bad Name", 123, "x" * 81):
+            with self.subTest(renderer=renderer), self.assertRaisesRegex(ValueError, "无效"):
+                self.registry.add_item("app/shell/web-ui/nav/buttons/a", kind="ui-tool-shell",
+                                       owner="a", props={"renderer": renderer})
+
+    def test_editable_declaration_requires_boolean(self) -> None:
+        for value in ("yes", 1, None, []):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "editable"):
+                self.registry.add_item("app/shell/web-ui/nav/buttons/a", kind="ui-tool-shell",
+                                       owner="a", props={"renderer": "a.card", "editable": value})
+        with self.assertRaisesRegex(ValueError, "renderer"):
+            self.registry.add_item("app/shell/web-ui/nav/buttons/a", kind="ui-tool-shell",
+                                   owner="a", props={"editable": True})
+
 
 if __name__ == "__main__":
     unittest.main()

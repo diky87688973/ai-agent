@@ -3,6 +3,12 @@ Copyright 2026 diky87688973
 
 Licensed under the MIT License (see LICENSE).
 
+Mermaid 12.3.0 (MIT)
+  plugins/visualization/ui/vendor/mermaid.min.js
+  License: plugins/visualization/ui/vendor/LICENSE
+  Package source and integrity: plugins/visualization/ui/vendor/provenance.json
+  Bundled dependency copyright and license notices are retained in mermaid.min.js.
+
 ---
 
 highlight.js
@@ -217,3 +223,8 @@ coverage
 
 Transitive dependencies are installed with their own license metadata and
 license files in the Python environment.
+
+Apache ECharts 6.1.0
+  License: Apache-2.0; bundled d3-derived code: BSD-3-Clause
+  Source: https://registry.npmjs.org/echarts/-/echarts-6.1.0.tgz
+  Bundle, LICENSE, NOTICE and LICENSE-d3: plugins/visualization/ui/vendor/echarts/

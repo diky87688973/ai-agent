@@ -10,6 +10,8 @@
 
 `SlotAssembly.config` 与构造值是当前代的装配来源，`SnapshotStore` 提供冻结副本。工具、UI、设置和上下文登记是该代向既有消费接口的投影，由 `SlotBinder` 的撤销句柄重建。插件不通过代码注册通道另建能力清单。
 
+消息展示扩展的公共载体位于 `agent/shell/web/ui/`；类型校验由 `UiRegistry` 执行，前端实现绑定受有效 UI catalog 的声明与 owner 约束。独立插件与负向验证见 `tests/test_display_extension.py`、`tests/test_ui_registry.py`；具体组件及浏览器回归见 [对话可视化](visualization.md)。类型契约仅在插口协议 §2.5 定义。
+
 ## 启用清单与来源
 
 默认清单允许发现目录自带的声明插件，显式 `enabled=0` 优先。指定独立清单时按完整配置剖面处理，未列出的普通目录补为禁用，显式声明 auto_load 的插件保留自动装载语义，避免验收或无头实例意外接入开发机的模型配置。继承剖面先由既有配置解析器展开。

@@ -62,6 +62,8 @@ from agent.shell.web.ui_bundle import (  # noqa: E402  （路径注入后才能�
     UI_JS_MODULES,
     UI_POST_JS_MODULES,
     UI_PRE_JS_MODULES,
+    UI_SHARED_CSS_FILES,
+    UI_SHARED_JS_FILES,
 )
 
 #: 与主脚本拼进同一个 script 的其它脚本（vendor 是第三方压缩代码，不参与检查；
@@ -188,6 +190,14 @@ def _load_shared() -> tuple[list[str], list[tuple[str, int]], set[str]]:
         path = CLASSIC_DIR / rel
         if path.is_file():
             extra_defined |= _defined_names(path.read_text(encoding="utf-8"))
+    for path in UI_SHARED_JS_FILES:
+        text = path.read_text(encoding="utf-8")
+        extra_defined |= _defined_names(text)
+        lines.append(";")
+        owner.append((str(path.relative_to(ROOT)), 0))
+        for i, line in enumerate(text.splitlines(), 1):
+            lines.append(line)
+            owner.append((str(path.relative_to(ROOT)), i))
     return lines, owner, extra_defined
 
 
@@ -300,6 +310,9 @@ def _asset_problems() -> list[str]:
         path = _js_path(rel)
         if path.is_file() and not path.read_text(encoding="utf-8").strip():
             problems.append(f"界面脚本为空：{path.relative_to(CLASSIC_DIR)}")
+    for path in UI_SHARED_JS_FILES + UI_SHARED_CSS_FILES:
+        if not path.is_file() or not path.read_text(encoding="utf-8").strip():
+            problems.append(f"宿主界面资产缺失或为空：{path.relative_to(ROOT)}")
     return problems
 
 
@@ -311,10 +324,10 @@ def _syntax_problems() -> list[str]:
         return []
     problems: list[str] = []
     seen: set[Path] = set()
-    for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES:
-        if "/vendor/" in rel:
+    paths = [_js_path(rel) for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES]
+    for path in paths + list(UI_SHARED_JS_FILES):
+        if "vendor" in path.parts:
             continue
-        path = _js_path(rel)
         if not path.is_file() or path in seen:
             continue
         seen.add(path)
@@ -324,13 +337,13 @@ def _syntax_problems() -> list[str]:
                 capture_output=True, text=True, timeout=30,
             )
         except (OSError, subprocess.SubprocessError) as exc:
-            problems.append(f"{path.relative_to(CLASSIC_DIR)} 无法执行 node --check：{exc}")
+            problems.append(f"{path.relative_to(ROOT)} 无法执行 node --check：{exc}")
             continue
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "").strip().splitlines()
             first = detail[0] if detail else "语法检查失败"
             problems.append(
-                f"{path.relative_to(CLASSIC_DIR)} node --check 失败：{first}")
+                f"{path.relative_to(ROOT)} node --check 失败：{first}")
     return problems
 
 
@@ -354,6 +367,7 @@ def _model_problems() -> list[str]:
 def main() -> int:
     missing = [rel for rel in UI_JS_MODULES + UI_PRE_JS_MODULES + UI_POST_JS_MODULES
                if not _js_path(rel).is_file()]
+    missing += [str(path.relative_to(ROOT)) for path in UI_SHARED_JS_FILES if not path.is_file()]
     if missing:
         print(f"[FAIL] 找不到 UI 脚本：{', '.join(missing)}")
         return 1

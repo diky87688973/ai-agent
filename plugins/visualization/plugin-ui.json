@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "kind": "ui-paths",
+  "paths": {
+    "panel": "app/shell/web-ui/chat/messages/tools/visualization"
+  }
+}

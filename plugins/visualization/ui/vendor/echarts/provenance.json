@@ -1,0 +1,25 @@
+{
+  "package": "echarts",
+  "version": "6.1.0",
+  "license": "Apache-2.0",
+  "url": "https://registry.npmjs.org/echarts/-/echarts-6.1.0.tgz",
+  "integrity": "sha512-q0yaFPggC9FUdsWH4blavRWFmxdrIodbkoKNAjJudAI6CA9gNPxHtV2RcZNEepZVlk4yvBYkOkbk6HIVpIyHZA==",
+  "files": {
+    "LICENSE": {
+      "sha256": "634293835b43a6dd2094fa39182a3d9a6b9ca43b7fdb9ac354e8037af2a3093a",
+      "bytes": 11990
+    },
+    "NOTICE": {
+      "sha256": "d491d358344f842685c1b1585970999db65fe30ecf7ef3867af8814f4016c016",
+      "bytes": 168
+    },
+    "LICENSE-d3": {
+      "sha256": "e1211892da0b0e0585b7aebe8f98c1274fba15bafe47fa1f4ee8a7a502c06304",
+      "bytes": 1475
+    },
+    "echarts.min.js": {
+      "sha256": "b66b25aeb4df84e33199dc21694014d336d222cbd9deb0e5a7c14bd6aa0d0fd0",
+      "bytes": 1121883
+    }
+  }
+}

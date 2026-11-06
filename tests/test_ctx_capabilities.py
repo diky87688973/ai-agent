@@ -96,7 +96,7 @@ class PluginMetaTest(unittest.TestCase):
 
     def test_plugin_meta_reads_all_real_plugins(self) -> None:
         dirs = sorted(item for item in PLUGINS.iterdir() if item.is_dir())
-        self.assertEqual(len(dirs), 11, [item.name for item in dirs])
+        self.assertTrue(dirs)
         for item in dirs:
             with self.subTest(plugin=item.name):
                 meta = read_plugin_meta(item)

@@ -25,6 +25,9 @@ from typing import Optional
 from agent.core.error_report import report_error
 
 CLASSIC_DIR = (Path(__file__).resolve().parents[3] / "plugins" / "web_ui" / "ui" / "classic")
+HOST_UI_DIR = Path(__file__).resolve().parent / "ui"
+UI_SHARED_JS_FILES = (HOST_UI_DIR / "displays.js", HOST_UI_DIR / "display-state.js")
+UI_SHARED_CSS_FILES = (HOST_UI_DIR / "displays.css",)
 
 #: 经典界面 JS 模块（相对 `classic/js/`，顺序即脚本执行顺序）。
 UI_JS_MODULES = (
@@ -138,16 +141,14 @@ def _read(path: Path) -> str:
 
 def read_ui_js() -> str:
     """按清单顺序拼出经典界面同作用域脚本（测试与静态检查共用）。"""
-    return "\n;".join(
-        _read(CLASSIC_DIR / "js" / rel).rstrip("\n") for rel in UI_JS_MODULES
-    )
+    paths = tuple(CLASSIC_DIR / "js" / rel for rel in UI_JS_MODULES) + UI_SHARED_JS_FILES
+    return "\n;".join(_read(path).rstrip("\n") for path in paths)
 
 
 def read_ui_css() -> str:
     """按清单顺序拼出经典界面样式（测试与静态检查共用）。"""
-    return "\n\n".join(
-        _read(CLASSIC_DIR / "css" / rel).rstrip("\n") for rel in UI_CSS_MODULES
-    )
+    paths = tuple(CLASSIC_DIR / "css" / rel for rel in UI_CSS_MODULES) + UI_SHARED_CSS_FILES
+    return "\n\n".join(_read(path).rstrip("\n") for path in paths)
 
 
 def scope_hljs_css(css: str, prefix: str) -> str:
