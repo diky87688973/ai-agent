@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2468** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2473** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -49,109 +49,110 @@
 38. [test_coverage_gaps.py](#test_coverage_gapspy)（10）
 39. [test_ctx_capabilities.py](#test_ctx_capabilitiespy)（8）
 40. [test_edited_files.py](#test_edited_filespy)（1）
-41. [test_entry_layer.py](#test_entry_layerpy)（19）
-42. [test_environment_info.py](#test_environment_infopy)（1）
-43. [test_error_log.py](#test_error_logpy)（8）
-44. [test_event_bus.py](#test_event_buspy)（9）
-45. [test_executor_registry.py](#test_executor_registrypy)（4）
-46. [test_fact_compat.py](#test_fact_compatpy)（7）
-47. [test_file_safety.py](#test_file_safetypy)（24）
-48. [test_file_size_format.py](#test_file_size_formatpy)（4）
-49. [test_four_step_gate.py](#test_four_step_gatepy)（10）
-50. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
-51. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
-52. [test_gate_negative.py](#test_gate_negativepy)（74）
-53. [test_goal_runner.py](#test_goal_runnerpy)（8）
-54. [test_gui_launcher.py](#test_gui_launcherpy)（9）
-55. [test_history_page.py](#test_history_pagepy)（16）
-56. [test_host_service_slots.py](#test_host_service_slotspy)（2）
-57. [test_http_route_slots.py](#test_http_route_slotspy)（5）
-58. [test_image_embed.py](#test_image_embedpy)（10）
-59. [test_image_tool.py](#test_image_toolpy)（28）
-60. [test_image_turns.py](#test_image_turnspy)（23）
-61. [test_import_graph.py](#test_import_graphpy)（5）
-62. [test_invest_tools.py](#test_invest_toolspy)（28）
-63. [test_kb_plugin.py](#test_kb_pluginpy)（50）
-64. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-65. [test_mode_note.py](#test_mode_notepy)（13）
-66. [test_model_catalog.py](#test_model_catalogpy)（21）
-67. [test_model_provider.py](#test_model_providerpy)（41）
-68. [test_model_retry.py](#test_model_retrypy)（5）
-69. [test_model_window.py](#test_model_windowpy)（14）
-70. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（31）
-71. [test_path_registry.py](#test_path_registrypy)（2）
-72. [test_plugin_assembly.py](#test_plugin_assemblypy)（4）
-73. [test_plugin_asset_delivery.py](#test_plugin_asset_deliverypy)（13）
-74. [test_plugin_contributions.py](#test_plugin_contributionspy)（19）
-75. [test_plugin_factory_origin.py](#test_plugin_factory_originpy)（8）
-76. [test_plugin_hotplug.py](#test_plugin_hotplugpy)（14）
-77. [test_plugin_http.py](#test_plugin_httppy)（17）
-78. [test_plugin_slot_factories.py](#test_plugin_slot_factoriespy)（5）
-79. [test_plugin_ui_files.py](#test_plugin_ui_filespy)（2）
-80. [test_plugins.py](#test_pluginspy)（24）
-81. [test_port_cleanup.py](#test_port_cleanuppy)（4）
-82. [test_present_tool.py](#test_present_toolpy)（2）
-83. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-84. [test_prompt_slot.py](#test_prompt_slotpy)（1）
-85. [test_prompt_tail.py](#test_prompt_tailpy)（5）
-86. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-87. [test_provider_meta.py](#test_provider_metapy)（8）
-88. [test_provider_router.py](#test_provider_routerpy)（14）
-89. [test_quality_pipeline.py](#test_quality_pipelinepy)（19）
-90. [test_queue_runner.py](#test_queue_runnerpy)（8）
-91. [test_queued_input.py](#test_queued_inputpy)（4）
-92. [test_readonly_tools.py](#test_readonly_toolspy)（33）
-93. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
-94. [test_router_slot.py](#test_router_slotpy)（1）
-95. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-96. [test_run_registry.py](#test_run_registrypy)（16）
-97. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-98. [test_session_context.py](#test_session_contextpy)（22）
-99. [test_session_seq.py](#test_session_seqpy)（23）
-100. [test_session_store.py](#test_session_storepy)（17）
-101. [test_session_tools.py](#test_session_toolspy)（17）
-102. [test_settings_panel.py](#test_settings_panelpy)（18）
-103. [test_settings_registry.py](#test_settings_registrypy)（5）
-104. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-105. [test_slot_binder.py](#test_slot_binderpy)（7）
-106. [test_slot_loader.py](#test_slot_loaderpy)（65）
-107. [test_slot_merge.py](#test_slot_mergepy)（60）
-108. [test_slot_registry.py](#test_slot_registrypy)（13）
-109. [test_slot_replaceable.py](#test_slot_replaceablepy)（19）
-110. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
-111. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
-112. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-113. [test_standards_manifest.py](#test_standards_manifestpy)（3）
-114. [test_startup_encoding.py](#test_startup_encodingpy)（2）
-115. [test_subagent.py](#test_subagentpy)（21）
-116. [test_task_tools.py](#test_task_toolspy)（28）
-117. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
-118. [test_thread_context.py](#test_thread_contextpy)（1）
-119. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-120. [test_tool_arguments.py](#test_tool_argumentspy)（5）
-121. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
-122. [test_tool_registry.py](#test_tool_registrypy)（17）
-123. [test_tool_resume.py](#test_tool_resumepy)（3）
-124. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-125. [test_top_level_services.py](#test_top_level_servicespy)（2）
-126. [test_ui_registry.py](#test_ui_registrypy)（4）
-127. [test_update.py](#test_updatepy)（26）
-128. [test_update_processes.py](#test_update_processespy)（2）
-129. [test_usage_metrics.py](#test_usage_metricspy)（7）
-130. [test_version_stamp.py](#test_version_stamppy)（4）
-131. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-132. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-133. [test_visual_operator.py](#test_visual_operatorpy)（163）
-134. [test_visual_operator_2.py](#test_visual_operator_2py)（46）
-135. [test_wake_isolation.py](#test_wake_isolationpy)（3）
-136. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-137. [test_web_auth.py](#test_web_authpy)（26）
-138. [test_web_frontend.py](#test_web_frontendpy)（6）
-139. [test_web_shell.py](#test_web_shellpy)（53）
-140. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-141. [test_write_gate.py](#test_write_gatepy)（17）
-142. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-143. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+41. [test_engineering_gates.py](#test_engineering_gatespy)（3）
+42. [test_entry_layer.py](#test_entry_layerpy)（19）
+43. [test_environment_info.py](#test_environment_infopy)（1）
+44. [test_error_log.py](#test_error_logpy)（8）
+45. [test_event_bus.py](#test_event_buspy)（9）
+46. [test_executor_registry.py](#test_executor_registrypy)（4）
+47. [test_fact_compat.py](#test_fact_compatpy)（7）
+48. [test_file_safety.py](#test_file_safetypy)（24）
+49. [test_file_size_format.py](#test_file_size_formatpy)（4）
+50. [test_four_step_gate.py](#test_four_step_gatepy)（10）
+51. [test_frame_shape_align.py](#test_frame_shape_alignpy)（6）
+52. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
+53. [test_gate_negative.py](#test_gate_negativepy)（74）
+54. [test_goal_runner.py](#test_goal_runnerpy)（8）
+55. [test_gui_launcher.py](#test_gui_launcherpy)（9）
+56. [test_history_page.py](#test_history_pagepy)（16）
+57. [test_host_service_slots.py](#test_host_service_slotspy)（2）
+58. [test_http_route_slots.py](#test_http_route_slotspy)（5）
+59. [test_image_embed.py](#test_image_embedpy)（10）
+60. [test_image_tool.py](#test_image_toolpy)（28）
+61. [test_image_turns.py](#test_image_turnspy)（23）
+62. [test_import_graph.py](#test_import_graphpy)（5）
+63. [test_invest_tools.py](#test_invest_toolspy)（28）
+64. [test_kb_plugin.py](#test_kb_pluginpy)（50）
+65. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+66. [test_mode_note.py](#test_mode_notepy)（13）
+67. [test_model_catalog.py](#test_model_catalogpy)（21）
+68. [test_model_provider.py](#test_model_providerpy)（41）
+69. [test_model_retry.py](#test_model_retrypy)（5）
+70. [test_model_window.py](#test_model_windowpy)（14）
+71. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（31）
+72. [test_path_registry.py](#test_path_registrypy)（2）
+73. [test_plugin_assembly.py](#test_plugin_assemblypy)（4）
+74. [test_plugin_asset_delivery.py](#test_plugin_asset_deliverypy)（13）
+75. [test_plugin_contributions.py](#test_plugin_contributionspy)（19）
+76. [test_plugin_factory_origin.py](#test_plugin_factory_originpy)（8）
+77. [test_plugin_hotplug.py](#test_plugin_hotplugpy)（16）
+78. [test_plugin_http.py](#test_plugin_httppy)（17）
+79. [test_plugin_slot_factories.py](#test_plugin_slot_factoriespy)（5）
+80. [test_plugin_ui_files.py](#test_plugin_ui_filespy)（2）
+81. [test_plugins.py](#test_pluginspy)（24）
+82. [test_port_cleanup.py](#test_port_cleanuppy)（4）
+83. [test_present_tool.py](#test_present_toolpy)（2）
+84. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+85. [test_prompt_slot.py](#test_prompt_slotpy)（1）
+86. [test_prompt_tail.py](#test_prompt_tailpy)（5）
+87. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+88. [test_provider_meta.py](#test_provider_metapy)（8）
+89. [test_provider_router.py](#test_provider_routerpy)（14）
+90. [test_quality_pipeline.py](#test_quality_pipelinepy)（19）
+91. [test_queue_runner.py](#test_queue_runnerpy)（8）
+92. [test_queued_input.py](#test_queued_inputpy)（4）
+93. [test_readonly_tools.py](#test_readonly_toolspy)（33）
+94. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
+95. [test_router_slot.py](#test_router_slotpy)（1）
+96. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+97. [test_run_registry.py](#test_run_registrypy)（16）
+98. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+99. [test_session_context.py](#test_session_contextpy)（22）
+100. [test_session_seq.py](#test_session_seqpy)（23）
+101. [test_session_store.py](#test_session_storepy)（17）
+102. [test_session_tools.py](#test_session_toolspy)（17）
+103. [test_settings_panel.py](#test_settings_panelpy)（18）
+104. [test_settings_registry.py](#test_settings_registrypy)（5）
+105. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+106. [test_slot_binder.py](#test_slot_binderpy)（7）
+107. [test_slot_loader.py](#test_slot_loaderpy)（65）
+108. [test_slot_merge.py](#test_slot_mergepy)（60）
+109. [test_slot_registry.py](#test_slot_registrypy)（13）
+110. [test_slot_replaceable.py](#test_slot_replaceablepy)（19）
+111. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
+112. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
+113. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+114. [test_standards_manifest.py](#test_standards_manifestpy)（3）
+115. [test_startup_encoding.py](#test_startup_encodingpy)（2）
+116. [test_subagent.py](#test_subagentpy)（21）
+117. [test_task_tools.py](#test_task_toolspy)（28）
+118. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
+119. [test_thread_context.py](#test_thread_contextpy)（1）
+120. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+121. [test_tool_arguments.py](#test_tool_argumentspy)（5）
+122. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
+123. [test_tool_registry.py](#test_tool_registrypy)（17）
+124. [test_tool_resume.py](#test_tool_resumepy)（3）
+125. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+126. [test_top_level_services.py](#test_top_level_servicespy)（2）
+127. [test_ui_registry.py](#test_ui_registrypy)（4）
+128. [test_update.py](#test_updatepy)（26）
+129. [test_update_processes.py](#test_update_processespy)（2）
+130. [test_usage_metrics.py](#test_usage_metricspy)（7）
+131. [test_version_stamp.py](#test_version_stamppy)（4）
+132. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+133. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+134. [test_visual_operator.py](#test_visual_operatorpy)（163）
+135. [test_visual_operator_2.py](#test_visual_operator_2py)（46）
+136. [test_wake_isolation.py](#test_wake_isolationpy)（3）
+137. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+138. [test_web_auth.py](#test_web_authpy)（26）
+139. [test_web_frontend.py](#test_web_frontendpy)（6）
+140. [test_web_shell.py](#test_web_shellpy)（53）
+141. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+142. [test_write_gate.py](#test_write_gatepy)（17）
+143. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+144. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -1233,6 +1234,16 @@
 |---:|---|---|---|
 | 1 | `EditedFilesPageTest` | `test_list_is_assembled_on_the_live_stream_only` | 覆盖「A class whose instances are single test cases」：list is assembled on the live stream only |
 
+## test_engineering_gates.py
+
+共 3 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `EngineeringGatesTest` | `test_ci_timeout_is_a_failed_step` | 覆盖「A class whose instances are single test cases」：ci timeout is a failed step |
+| 2 | `EngineeringGatesTest` | `test_coverage_configuration_includes_all_handwritten_domains` | 覆盖「A class whose instances are single test cases」：coverage configuration includes all handwritten domains |
+| 3 | `EngineeringGatesTest` | `test_network_check_fails_for_failed_tests_without_outbound_requests` | 覆盖「A class whose instances are single test cases」：network check fails for failed tests without outbound requests |
+
 ## test_entry_layer.py
 
 共 19 个用例。
@@ -2006,24 +2017,26 @@
 
 ## test_plugin_hotplug.py
 
-共 14 个用例。
+共 16 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `PluginHotplugTest` | `test_bad_factory_keeps_previous_generation` | 覆盖「A class whose instances are single test cases」：bad factory keeps previous generation |
 | 2 | `PluginHotplugTest` | `test_binding_failure_restores_previous_generation` | 覆盖「A class whose instances are single test cases」：binding failure restores previous generation |
 | 3 | `PluginHotplugTest` | `test_changes_wait_for_all_active_turns` | 覆盖「A class whose instances are single test cases」：changes wait for all active turns |
-| 4 | `PluginHotplugTest` | `test_disable_and_enable_restores_tool` | 覆盖「A class whose instances are single test cases」：disable and enable restores tool |
-| 5 | `PluginHotplugTest` | `test_disabled_manifest_prevents_initial_construction` | 覆盖「A class whose instances are single test cases」：disabled manifest prevents initial construction |
-| 6 | `PluginHotplugTest` | `test_external_factory_is_rejected_when_tree_policy_is_required` | 覆盖「A class whose instances are single test cases」：external factory is rejected when tree policy is required |
-| 7 | `PluginHotplugTest` | `test_external_manifest_path_controls_fragment_and_factory` | 覆盖「A class whose instances are single test cases」：external manifest path controls fragment and factory |
-| 8 | `PluginHotplugTest` | `test_last_queued_request_wins` | 覆盖「A class whose instances are single test cases」：last queued request wins |
-| 9 | `PluginHotplugTest` | `test_parallel_turn_keeps_old_tool_until_reader_exits` | 覆盖「A class whose instances are single test cases」：parallel turn keeps old tool until reader exits |
-| 10 | `PluginHotplugTest` | `test_plugin_directory_removal_retracts_its_capabilities` | 覆盖「A class whose instances are single test cases」：plugin directory removal retracts its capabilities |
-| 11 | `PluginHotplugTest` | `test_pure_declarative_plugin_can_be_enabled` | 覆盖「A class whose instances are single test cases」：pure declarative plugin can be enabled |
-| 12 | `PluginHotplugTest` | `test_reload_reads_changed_source_without_restart` | 覆盖「A class whose instances are single test cases」：reload reads changed source without restart |
-| 13 | `PluginHotplugTest` | `test_snapshot_structure_rejects_mutation` | 覆盖「A class whose instances are single test cases」：snapshot structure rejects mutation |
-| 14 | `WebUIHotplugTest` | `test_ui_without_python_entry_can_be_reenabled` | 覆盖「A class whose instances are single test cases」：ui without python entry can be reenabled |
+| 4 | `PluginHotplugTest` | `test_deferred_config_failure_is_queryable_and_preserves_saved_text` | 覆盖「A class whose instances are single test cases」：deferred config failure is queryable and preserves saved text |
+| 5 | `PluginHotplugTest` | `test_disable_and_enable_restores_tool` | 覆盖「A class whose instances are single test cases」：disable and enable restores tool |
+| 6 | `PluginHotplugTest` | `test_disabled_manifest_prevents_initial_construction` | 覆盖「A class whose instances are single test cases」：disabled manifest prevents initial construction |
+| 7 | `PluginHotplugTest` | `test_external_factory_is_rejected_when_tree_policy_is_required` | 覆盖「A class whose instances are single test cases」：external factory is rejected when tree policy is required |
+| 8 | `PluginHotplugTest` | `test_external_manifest_path_controls_fragment_and_factory` | 覆盖「A class whose instances are single test cases」：external manifest path controls fragment and factory |
+| 9 | `PluginHotplugTest` | `test_last_queued_request_wins` | 覆盖「A class whose instances are single test cases」：last queued request wins |
+| 10 | `PluginHotplugTest` | `test_operation_history_is_bounded_readonly_and_has_terminal_states` | 覆盖「A class whose instances are single test cases」：operation history is bounded readonly and has terminal states |
+| 11 | `PluginHotplugTest` | `test_parallel_turn_keeps_old_tool_until_reader_exits` | 覆盖「A class whose instances are single test cases」：parallel turn keeps old tool until reader exits |
+| 12 | `PluginHotplugTest` | `test_plugin_directory_removal_retracts_its_capabilities` | 覆盖「A class whose instances are single test cases」：plugin directory removal retracts its capabilities |
+| 13 | `PluginHotplugTest` | `test_pure_declarative_plugin_can_be_enabled` | 覆盖「A class whose instances are single test cases」：pure declarative plugin can be enabled |
+| 14 | `PluginHotplugTest` | `test_reload_reads_changed_source_without_restart` | 覆盖「A class whose instances are single test cases」：reload reads changed source without restart |
+| 15 | `PluginHotplugTest` | `test_snapshot_structure_rejects_mutation` | 覆盖「A class whose instances are single test cases」：snapshot structure rejects mutation |
+| 16 | `WebUIHotplugTest` | `test_ui_without_python_entry_can_be_reenabled` | 覆盖「A class whose instances are single test cases」：ui without python entry can be reenabled |
 
 ## test_plugin_http.py
 

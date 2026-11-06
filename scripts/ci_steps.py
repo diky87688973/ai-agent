@@ -131,8 +131,8 @@ def catalog(fast: bool = False) -> List[CiStep]:
         CiStep(
             "单元测试",
             "unittest",
-            "unittest discover",
-            ["-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-t", "tests"],
+            "scripts/check_network_isolation.py",
+            ["scripts/check_network_isolation.py"],
             15,
         )
     )

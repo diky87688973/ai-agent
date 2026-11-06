@@ -10,6 +10,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -26,6 +27,11 @@ class DependencyGraphTest(unittest.TestCase):
 
     def test_no_cycles(self) -> None:
         self.assertEqual(check_imports.cycles(), [])
+        for argv in (["check_imports.py"], ["check_imports.py", "--scc"]):
+            with mock.patch.object(sys, "argv", argv), \
+                    mock.patch.object(check_imports, "check", return_value=[]), \
+                    mock.patch.object(check_imports, "cycles", return_value=[["a", "b"]]):
+                self.assertEqual(check_imports.main(), 1)
 
     def test_entry_is_the_top_layer(self) -> None:
         self.assertEqual(check_imports.LAYERS[-1], "entry")

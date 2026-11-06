@@ -30,6 +30,7 @@ COVERAGE_FLOORS: Dict[str, float] = {
     "agent/subagent": 85,
     "agent (top-level)": 90,
     "plugins": 60,
+    "scripts": 35,
 }
 
 # ── 复杂度阈值 ──────────────────────────────────────────────────────────

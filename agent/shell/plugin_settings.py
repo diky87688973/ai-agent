@@ -128,7 +128,10 @@ def list_plugins(plugins_path: Optional[Path] = None,
             "settings_tab": str(meta.get("settings_tab") or ""),
         })
     cards.sort(key=lambda item: (not item["enabled"], item["title"]))
-    return {"ok": True, "plugins": cards}
+    context = getattr(app, "context", None)
+    lifecycle = context.slot_lifecycle if context is not None else None
+    operations = [dict(item) for item in lifecycle.operations] if lifecycle is not None else []
+    return {"ok": True, "plugins": cards, "operations": operations}
 
 
 def set_plugin_enabled(name: str, enabled: bool, app: Any = None, *,
@@ -175,8 +178,8 @@ def sync_plugins(app: Any, *, plugins_path: Optional[Path] = None,
         except Exception as exc:
             report_error("plugin_settings.reload", exc)
             return [{"name": "", "status": PLUGIN_ERROR, "message": str(exc)}]
-        _announce_plugins(app, host.loaded_names())
-        return ([] if applied else [{"name": "", "status": PLUGIN_NOTE,
+        return ([] if applied.applied else [{"name": "", "status": PLUGIN_NOTE,
+                                     "request_id": applied.request_id,
                                      "message": "插件变更已排队，将在活跃回合结束后生效"}])
     desired = [
         item for item in get_plugins(plugins_path)
@@ -311,6 +314,8 @@ def write_plugin_config(name: str, text: Any = None, groups: Any = None,
         host = getattr(app, "plugin_host", None) if app is not None else None
         if host is not None and plugin in list(host.loaded_names()):
             reports = sync_plugins(app, reload_plugin=plugin)
+        if any(item.get("status") == PLUGIN_ERROR for item in reports):
+            write_text(path, base_text)
     if not any(str(item.get("status") or "") == PLUGIN_ERROR for item in reports):
         _announce_plugin_config(app, plugin)
     return {"ok": not any(item.get("status") == PLUGIN_ERROR for item in reports),

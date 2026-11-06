@@ -9,7 +9,7 @@
 | 预算 | 常量 | 当前值 | 约束 | 备注 |
 |---|---|---|---|---|
 | 验收脚本跳过数 | `ACCEPTANCE_SKIP_BUDGET` | 1 | 只降不升 | 与白名单**分开**设置，白名单扩容不会自动放宽上限 |
-| 覆盖率分包下限 | `COVERAGE_FLOORS` | 10 个包（25%–90%） | 只升不降 | `agent/core 85`、`agent/mechanisms 80`、`agent/capabilities 75`、`agent/shell 70`、`agent/entry 60`、`agent/gui 25`、`agent/update 60`、`agent/subagent 85`、`agent (top-level) 90`、`plugins 60` |
+| 覆盖率分包下限 | `COVERAGE_FLOORS` | 11 个包（25%–90%） | 只升不降 | `agent/core 85`、`agent/mechanisms 80`、`agent/capabilities 75`、`agent/shell 70`、`agent/entry 60`、`agent/gui 25`、`agent/update 60`、`agent/subagent 85`、`agent (top-level) 90`、`plugins 60`、`scripts 35` |
 | 复杂度超阈值 | `MAX_FILE_LINES` / `MAX_FUNCTION_LINES` / `MAX_FILE_FUNCTIONS` | 800 / 80 / 40 | 硬失败 | 无豁免表；超过任一项即失败 |
 | 同层私有导入 | `SAME_LAYER_PRIVATE_BUDGET` | 0 | 只降不升 | 同层跨模块导入 `_` 符号；超过预算即失败 |
 
@@ -47,6 +47,8 @@
 `docs/unit-tests.md` 是生成的可读测试目录，不是事实源；事实源是 `tests/`。
 
 ### 2.1 覆盖率（post）
+
+统计配置位于 `pyproject.toml` 的 `[tool.coverage.run]`，覆盖 agent、plugins、scripts 三个手写源码域。scripts 初始下限为 35%，依据接入时测得的 35.3% 基线设定；原有分包下限保持不变。普通单测和覆盖率采集均经 `check_network_isolation.py` 执行，非环回 urlopen 请求或单测失败均导致失败。该门禁只约束 urlopen，不宣称拦截全部网络 API。
 
 覆盖步校验 `run_coverage.py` 发布的 `.coverage`，按顶层包比对 `COVERAGE_FLOORS`。数据生成方式（CI 在 3.12 矩阵中执行）：
 

@@ -9,11 +9,56 @@ from pathlib import Path
 from unittest import mock
 
 from agent.app import build_app
-from agent.shell.plugin_settings import set_plugin_enabled, sync_plugins
+from agent.shell.plugin_settings import (
+    list_plugins,
+    set_plugin_enabled,
+    sync_plugins,
+    write_plugin_config,
+)
 from agent.shell.settings_panel import handle_get
 
 
 class PluginHotplugTest(unittest.TestCase):
+    def test_deferred_config_failure_is_queryable_and_preserves_saved_text(self) -> None:
+        config = self.plugin / "plugin-config.ini"
+        config.write_text("[example]\nvalue=old\n", encoding="utf-8")
+        original = self.app.registry.get("example_tool")
+        source = self.plugin / "plugin.py"
+        source.write_text("def make(ctx): raise RuntimeError('deferred factory failure')\n",
+                          encoding="utf-8")
+        with self.app.context.slot_lifecycle.turn():
+            result = write_plugin_config("example", text="value=new\n", app=self.app)
+            self.assertTrue(result["ok"])
+            request_id = result["reports"][0]["request_id"]
+            operation = list_plugins(app=self.app)["operations"][-1]
+            self.assertEqual(operation["status"], "queued")
+        operation = next(item for item in list_plugins(app=self.app)["operations"]
+                         if item["request_id"] == request_id)
+        self.assertEqual(operation["status"], "failed")
+        self.assertIn("deferred factory failure", operation["error"])
+        self.assertIn("value=new", config.read_text(encoding="utf-8"))
+        self.assertIs(self.app.registry.get("example_tool"), original)
+
+    def test_operation_history_is_bounded_readonly_and_has_terminal_states(self) -> None:
+        lifecycle = self.app.context.slot_lifecycle
+        with lifecycle.turn():
+            receipt = lifecycle.request(lambda: None, label="probe")
+            self.assertFalse(receipt.applied)
+            self.assertEqual(lifecycle.operations[-1]["status"], "queued")
+        self.assertEqual(lifecycle.operations[-1]["request_id"], receipt.request_id)
+        self.assertEqual(lifecycle.operations[-1]["status"], "succeeded")
+        with self.assertRaises(TypeError):
+            lifecycle.operations[-1]["status"] = "failed"
+        for _ in range(70):
+            lifecycle.request(lambda: None)
+        self.assertEqual(len(lifecycle.operations), 64)
+        with lifecycle.turn():
+            for _ in range(64):
+                lifecycle.request(lambda: None)
+            with self.assertRaises(RuntimeError):
+                lifecycle.request(lambda: None)
+        self.assertTrue(all(item["status"] == "succeeded" for item in lifecycle.operations))
+
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory(prefix="agent_hotplug_")
         self.addCleanup(tmp.cleanup)
@@ -62,6 +107,13 @@ class PluginHotplugTest(unittest.TestCase):
             self.assertIsNotNone(self.app.registry.get("example_tool"))
         self.assertIsNone(self.app.registry.get("example_tool"))
         self.assertGreater(lifecycle.snapshots.version, snapshot.version)
+        self.assertTrue(self.toggle(True)["ok"])
+        with lifecycle.turn():
+            self.app.plugin_host.unload("example")
+            self.app.plugin_host.unload("missing")
+            self.assertIn("example", self.app.plugin_host.loaded_names())
+        self.assertNotIn("example", self.app.plugin_host.loaded_names())
+        self.assertIsNone(self.app.registry.get("example_tool"))
 
     def test_bad_factory_keeps_previous_generation(self) -> None:
         previous = self.app.registry.get("example_tool")

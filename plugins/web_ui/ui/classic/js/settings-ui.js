@@ -48,7 +48,7 @@
       '<div class="st-foot"><span class="st-status" id="stStatus"></span>' +
       '<div class="st-foot-actions">' +
       '<button type="button" class="st-apply" id="stApply" hidden>应用</button>' +
-      '<button type="button" class="st-save" id="stSave">保存</button>' +
+      '<button type="button" class="st-save is-primary" id="stSave">保存</button>' +
       "</div></div></div></div></div>";
     document.body.appendChild(node);
     node.addEventListener("click", function (ev) {
@@ -78,6 +78,30 @@
     node.textContent = text || "";
     node.classList.toggle("is-bad", !!bad);
     syncFoot();
+  }
+
+  function watchPluginRequest(data) {
+    var note = (data.reports || []).find(function (item) { return !!item.request_id; });
+    if (!note) return false;
+    var requestId = String(note.request_id);
+    setStatus("已保存，变更排队中…");
+    var poll = function () {
+      request("GET", "/api/settings/plugins").then(function (result) {
+        if (!result.ok) { setStatus("无法查询插件变更结果", true); return; }
+        var operation = (result.operations || []).find(function (item) {
+          return String(item.request_id) === requestId;
+        });
+        if (!operation) { setStatus("变更记录已失效，请检查插件当前状态", true); return; }
+        if (operation.status === "queued" || operation.status === "applying") {
+          window.setTimeout(poll, 500); return;
+        }
+        setStatus(operation.status === "succeeded" ? "变更已应用" :
+          "配置已保存，但应用失败：" + operation.error, operation.status !== "succeeded");
+        void refreshHostSections();
+      }).catch(function () { setStatus("查询插件变更结果失败", true); });
+    };
+    window.setTimeout(poll, 500);
+    return true;
   }
 
   function showApply(show) {
@@ -141,6 +165,12 @@
       state.direct = false;
       renderNav();
       renderHost();
+      var latest = (plugins.operations || []).slice(-1)[0];
+      if (latest && latest.status === "failed") {
+        setStatus("上次插件变更失败：" + latest.error, true);
+      } else if (latest && (latest.status === "queued" || latest.status === "applying")) {
+        watchPluginRequest({reports: [{request_id: latest.request_id}]});
+      }
     }).catch(function () {
       setStatus("读取设置失败", true);
     });
@@ -335,10 +365,10 @@
       area.rows = 8;
       area.value = value == null ? "" : String(value);
       if (field.placeholder) area.placeholder = field.placeholder;
-      area.addEventListener("input", function () {
+      area._settingsInput = function () {
         group.values[key] = area.value;
         setStatus("");
-      });
+      };
       return area;
     }
     var input = document.createElement("input");
@@ -355,9 +385,9 @@
       input.value = value;
       if (field.placeholder) input.placeholder = field.placeholder;
     }
-    input.addEventListener("input", function () {
+    input._settingsInput = function () {
       state.values[sectionId][field.key] = input.value;
-    });
+    };
     return input;
   }
 
@@ -381,7 +411,7 @@
       });
       select.value = value;
       remember(select.value);
-      select.addEventListener("change", function () { remember(select.value); });
+      select._settingsChange = function () { remember(select.value); };
       return select;
     }
     if (field.kind === "checkbox") {
@@ -391,7 +421,7 @@
       var area = document.createElement("textarea");
       area.id = controlId;
       area.value = value;
-      area.addEventListener("input", function () { remember(area.value); });
+      area._settingsInput = function () { remember(area.value); };
       return area;
     }
     var input = document.createElement("input");
@@ -401,7 +431,7 @@
       : (field.kind === "number" ? "number" : "text"));
     if (field.kind === "number") input.step = "1";
     input.value = value;
-    input.addEventListener("input", function () { remember(input.value); });
+    input._settingsInput = function () { remember(input.value); };
     return input;
   }
 
@@ -425,7 +455,7 @@
       });
       select.value = value;
       remember(select.value);
-      select.addEventListener("change", function () { remember(select.value); });
+      select._settingsChange = function () { remember(select.value); };
       return select;
     }
     if (field.kind === "checkbox") {
@@ -437,7 +467,7 @@
       var area = document.createElement("textarea");
       area.id = "stPlugin-" + key.replace(/[^A-Za-z0-9_-]/g, "-");
       area.value = value;
-      area.addEventListener("input", function () { remember(area.value); });
+      area._settingsInput = function () { remember(area.value); };
       return area;
     }
     var input = document.createElement("input");
@@ -447,7 +477,7 @@
       : (field.kind === "number" ? "number" : "text"));
     if (field.kind === "number") input.step = "1";
     input.value = value;
-    input.addEventListener("input", function () { remember(input.value); });
+    input._settingsInput = function () { remember(input.value); };
     return input;
   }
 
@@ -483,9 +513,9 @@
     var input = document.createElement("input");
     input.type = "checkbox";
     input.checked = value === "1" || value === true || value === 1;
-    input.addEventListener("change", function () {
+    input._settingsChange = function () {
       onChange(input.checked);
-    });
+    };
     var knob = document.createElement("i");
     wrap.appendChild(input);
     wrap.appendChild(knob);
@@ -503,10 +533,10 @@
       select.appendChild(option);
     });
     onChange(select.value);
-    select.addEventListener("change", function () {
+    select._settingsChange = function () {
       onChange(select.value);
       setStatus("");
-    });
+    };
     return select;
   }
 
@@ -516,9 +546,9 @@
     var input = document.createElement("input");
     input.type = "text";
     input.value = value;
-    input.addEventListener("input", function () {
+    input._settingsInput = function () {
       onChange(input.value);
-    });
+    };
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "st-mini";
@@ -737,7 +767,7 @@
     var input = document.createElement("input");
     input.type = "checkbox";
     input.checked = !!card.enabled;
-    input.addEventListener("change", function () {
+    input._settingsChange = function () {
       var want = input.checked;
       input.disabled = true;
       request("POST", "/api/settings/plugins", {name: card.name, enabled: want}).then(function (data) {
@@ -750,6 +780,7 @@
         var bad = (data.reports || []).filter(function (item) { return item.status === "error"; });
         var note = (data.reports || []).filter(function (item) { return item.status === "note"; });
         setStatus(bad.length ? bad[0].message : (note.length ? note[0].message : ""), bad.length > 0);
+        watchPluginRequest(data);
         // 开关会改变可用插件入口；立即重取并重绘。
         refreshHostSections();
       }).catch(function () {
@@ -757,7 +788,7 @@
         input.checked = !want;
         setStatus("请求失败", true);
       });
-    });
+    };
     var knob = document.createElement("i");
     wrap.appendChild(input);
     wrap.appendChild(knob);
@@ -857,7 +888,7 @@
     area.placeholder = "plugin-config.ini";
     area.value = editor.text || "";
     area.spellcheck = false;
-    area.addEventListener("input", function () { editor.text = area.value; });
+    area._settingsInput = function () { editor.text = area.value; };
     wrap.appendChild(editorBar(card));
     wrap.appendChild(area);
     return wrap;
@@ -993,10 +1024,10 @@
       area.rows = 8;
       area.value = value == null ? "" : String(value);
       if (field.placeholder) area.placeholder = field.placeholder;
-      area.addEventListener("input", function () {
+      area._settingsInput = function () {
         group.values[key] = area.value;
         setStatus("");
-      });
+      };
       return area;
     }
     var input = document.createElement("input");
@@ -1019,10 +1050,10 @@
       input.value = value == null ? "" : String(value);
       if (field.placeholder) input.placeholder = field.placeholder;
     }
-    input.addEventListener("input", function () {
+    input._settingsInput = function () {
       group.values[key] = input.value;
       setStatus("");
-    });
+    };
     return input;
   }
 
@@ -1133,6 +1164,7 @@
           detail: { plugin: state.plugin.name }
         }));
       } catch (e) {}
+      if (watchPluginRequest(data)) return;
       if (closeAfter) {
         closeSettings();
         return;
@@ -1151,5 +1183,13 @@
     }
   });
 
+  document.addEventListener("input", function (event) {
+    var target = event.target;
+    if (target && typeof target._settingsInput === "function") target._settingsInput(event);
+  });
+  document.addEventListener("change", function (event) {
+    var target = event.target;
+    if (target && typeof target._settingsChange === "function") target._settingsChange(event);
+  });
   bootSettingsPanel();
 })();

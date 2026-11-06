@@ -27,11 +27,7 @@ from artifact_lock import ArtifactLock  # noqa: E402
 DATA = ROOT / ".coverage"
 
 #: 统计口径（与 `scripts/check_coverage.py` 的分包下限同源）
-SOURCE_ARGS = (
-    "--branch",
-    "--source=agent,plugins",
-    "--omit=*/web_assets/*",
-)
+SOURCE_ARGS = (f"--rcfile={ROOT / 'pyproject.toml'}",)
 
 #: Windows 上目标被读句柄占用时 `os.replace` 会失败，重试等待读侧放句柄
 PUBLISH_ATTEMPTS = 30
@@ -43,7 +39,7 @@ def build_command(data_file: Path) -> list[str]:
     return [
         sys.executable, "-m", "coverage", "run", *SOURCE_ARGS,
         f"--data-file={data_file}",
-        "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-t", "tests",
+        str(ROOT / "scripts" / "check_network_isolation.py"),
     ]
 
 

@@ -4,7 +4,7 @@
 规则：某层文件 import 了层级更高的 agent 子包 → 违规。
 用法：
     python scripts/check_imports.py          # 方向门禁
-    python scripts/check_imports.py --scc    # 打印包内强连通分量（审计用，不判失败）
+    python scripts/check_imports.py --scc    # 检查包内强连通分量，有环即失败
 """
 from __future__ import annotations
 
@@ -269,8 +269,9 @@ def main() -> int:
         print(f"包内循环依赖 {len(groups)} 组：")
         for i, group in enumerate(groups, 1):
             print(f"  [{i}] " + " ⇄ ".join(group))
-        return 0
+        return 1
     violations = check()
+    violations.extend("包内循环依赖：" + " ⇄ ".join(group) for group in cycles())
     if violations:
         print("依赖方向违规：")
         for v in violations:

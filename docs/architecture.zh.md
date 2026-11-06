@@ -2,123 +2,53 @@
 
 # 架构
 
-应用以插件树为骨架装配：工具、模型、界面、设置与业务集成都作为插件贡献注册，支持按节点替换、启停和组合，内核与壳层保持稳定。
-
-模块结构、单一职责与资产归属的强制规则见 [工程标准](engineering-standards.zh.md)。
+应用以统一插口配置装配。静态片段与启用插件的动态片段经同一解析、校验和覆盖规则合并；装配器按依赖构造实例，绑定器将结果登记到工具、模型、路由与界面等消费接口。
 
 ## 插件与装配
 
-### 启动装配
+### 声明与权威来源
 
-App 先启动自身基础装配树，再扫描额外插件；插件装配声明在递归装配前合并。
+- 仓库根 `plugin-slots.json` 是静态片段，包含宿主插口及插件所有权授权。
+- `plugins/<name>/plugin-slots.json` 声明插件节点与对已授权挂载点的贡献；`plugin-meta.json` 提供身份，`plugins.ini` 指定启停与顺序。
+- `agent/core/slot_spec.py` 定义节点契约；`slot_fragments.load_merged` 解析并合并片段，形成 `SlotConfig`。
+- 节点归属由 `origins` 和前缀授权确定；主插口、持有子级能力等结构事实由协议函数推导，不重复存为布尔字段。
+- `requires` 声明依赖，`scope` 确定 app/session 生命周期，`children` 限定子级策略，`mode` 声明覆盖方式，`frozen` 禁止冻结子树被覆盖。`metadata` 是已拒绝的旧字段。
 
-```text
-启动流程（全 App）
-App 启动
-  │
-  ├─ 读取 agent/boot/slot_tree.json
-  │     └─ 基础装配树：kernel / host / tools / shell / facade
-  │
-  ├─ 扫描 plugins/（插件树：启用插件 + 装配声明）
-  │     ├─ plugins.ini           启停 + 顺序
-  │     └─ plugin-assembly.json  额外插件的装配声明
-  │
-  ├─ 合并
-  │     ├─ replace / 新增 app/... 子树
-  │     └─ 鉴权：宿主持有，不是 SlotTree 可替换子树
-  │
-  └─ SlotTree 递归装配
-        │
-        ▼
-     App 门面完成（不含组件清单）
+完整字段与失败判据见 [插口协议](plan/plugin-slots-protocol.md)。
 
-App 运行期
-  plugin.py ── register(ctx) ──▶ 后端插口 / UI 插口 / 设置 / 路由
-                                └─ 动态节点挂回同一棵 SlotTree
-```
-
-### 插口树启动模型
-
-**插口树本身就是启动装配图**。`app.py` 是应用门面，不是装配器。
+### 启动流程
 
 ```text
-app
-→ host
-   → services
-      → background_tasks
-      → <新增服务 id>
-→ kernel
-   → modules
-      → context
-      → <新增模块 id>
-→ backend
-   → tools / context / prompt / models / runtime / ...
-→ settings
-→ shell
+App 入口
+  → boot.bootstrap.boot_app
+  → 读取配置、发现插件并合并片段
+  → SlotAssembly.build：拓扑排序、依赖注入、按 scope 构造
+  → SlotBinder.bind：登记消费接口
+  → 绑定 PluginRuntime 与 SnapshotStore
+  → 返回 App 门面
 ```
 
-装配规则：
+`agent/boot/` 组合具体服务，`agent/core/` 只定义通用插口规则与生命周期。App 不维护第二份组件清单。构造失败逆序释放已构造实例；启动绑定失败拒绝返回半装配应用。
 
-1. `app` 是唯一根。所有节点路径必须能归入 `app/*`，不得出现第二个根；`backend/*` 也必须成为 `app/backend/*`。
-2. 容器节点只负责装配子节点；叶子节点提供工厂或实例。
-3. 节点契约至少包含：
+运行期合并配置是节点声明的唯一来源。`SlotRegistry` 与工具、模型、HTTP、UI 注册表是供消费者读取的绑定投影，不是另一份可独立修改的节点声明。配置、构造值、绑定与快照必须在代发布时保持一致。
 
-   ```text
-   path
-   kind
-   factory / provider
-   dependencies
-   lifecycle
-   enabled
-   scope
-   children policy
-   ```
+### 显式热重载
 
-4. 启动器先校验依赖图，再按拓扑顺序装配；缺失依赖、环、重复节点和工厂失败都显式报错。
-5. `app` 只依赖插口树、节点契约和通用装配器；不 import 具体模块，不按模块 id 写分支。
-6. 新增模块 = 在树中新增节点并提供工厂，不修改 `app` 主流程。
-7. 禁用、替换、卸载由节点绑定和生命周期统一处理；启动失败整体回滚，不留下半装配实例。
-8. 模块只依赖公共契约；容器和 `app` 不知道模块内部作用。模块应能脱离主启动器单独测试。
+`PluginRuntime` 负责候选代构造、身份与模块事务、重新绑定和发布。`SlotLifecycle` 负责读租约、变更排队及请求终态；每个请求有不可变凭据，最近请求状态以只读视图查询。
 
-验收标准：
+活跃回合及插件 HTTP 请求持有租约，最后一个读者退出后才应用排队变更。轮内继续使用既有代，普通 SSE 订阅不永久占用租约。空闲轮次不自动重扫磁盘；显式请求才解析新片段。卸载操作在执行时依据当前代计算，避免覆盖先前已发布操作。
 
-```text
-app.py 不出现具体模块 import
-新增 app/host/services/<id> 不需修改 app.py
-新增 app/kernel/modules/<id> 不需修改 app.py
-删除节点后缺失依赖显式失败
-所有路径只有一个 app 根
-装配失败可整体回滚
-单模块可独立测试
-```
+失败撤回候选绑定、恢复旧身份与模块，并重新绑定旧构造值。延迟请求的失败必须可查询，不能只写日志。配置保存与运行时应用分别报告：同步失败恢复原配置；已排队请求失败时保留已保存配置、维持旧运行代，设置页明确报告“已保存但应用失败”，用户修改后可再次应用。
 
-当前实现状态：
+设置页通过现有插件设置接口查询请求终态。插件字段回调由注册它的插件拥有；壳层负责通用控件和请求分派，动态表单的 input/change 事件委托到稳定 document。
 
-- `SlotTree` / `SlotRuntime` / `SlotComponent` / `SlotContainer` 位于 `agent/core/`。
-- 启动清单为 [slot_tree.json](../agent/boot/slot_tree.json)，当前包含 `app/boot`、`app/host`、`app/kernel` 下 67 个节点（含冻结的 `app/auth` 鉴权边界），另有 23 条 backend slot 声明。
-- `App` 不再是装配根；[bootstrap.py](../agent/boot/bootstrap.py) 读取清单、创建根节点并递归装配。
-- 节点契约包含 `path`、`factory`、`requires`、`master`、`enabled`、`metadata`；容器只装配直接子节点。
-- 宿主服务、内置工具、壳层组件、内核模块描述符均由启动树节点装配。
-- UI、settings、route、backend 贡献路径由 `PluginContext` 注册为同一棵 `SlotTree` 的动态节点；路径数据位于 `plugins/<name>/plugin-ui.json`；backend 容器声明在 `agent/boot/slot_tree.json` 的 `backend_slots`。
-- `SlotRegistry` 仍是插件扩展点的运行期绑定与快照机制；启动组件与插件贡献统一由 `SlotTree` 持有。
-- `app.py` 是应用门面，只保留会话、绑定、命令入口。
+### 宿主替换边界
 
-启动装配已经由插口树驱动；插件贡献仍属于运行期扩展点。
+插件自身贡献支持在线代切换；内核模块与宿主服务的实现更换要求重启生效。按目标插口的归属和生命周期判断，不仅按实现文件所在目录判断。无需引入宿主在线状态迁移协议。
 
-### 装配
+冻结子树拒绝覆盖。非冻结宿主节点支持启动期声明覆盖；当前插件热插拔保留宿主服务实例，拒绝在线更改宿主声明。状态型服务在线迁移没有通用状态转移契约，不能把插件贡献重载描述成任意宿主服务在线迁移。
 
-`boot_app()` 按顺序完成启动：
-
-1. 读配置（`agent/config.py`），决定 provider、数据根、Skills 库与插件清单。
-2. 读取 `agent/boot/slot_tree.json`，由 `SlotTree` materialize 根节点并递归 assembly。
-3. `facade` 节点构建 `AppContext` 与 `App`；`plugins` 节点加载插件，贡献以动态节点挂回同一棵树。
-4. 返回 `App`，其属性是 `context.get(name)` 的快捷方式。
-
-`build_shell_app()` 在 `agent/entry/web.py` 里包一层：按配置建真实 provider 与会话存储，再交给 `build_app()`。
-装配根（`boot/`）与应用门面（`app.py`）、入口层（`entry/`）是最上面几层：下层四层不得运行期导入它们，
-`entry/` 也不得被任何层导入；入口层可以导入装配根。`python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` 是三个进程入口。
-
-下面的五层结构是插件树运行的底座，不是插件清单。
+生命周期细节与验证见 [热插拔说明](plan/plugin2-hotplug.md)。模块职责与资产归属见 [工程标准](engineering-standards.zh.md)。
 
 ## 五层结构
 
@@ -153,7 +83,7 @@ entry  →  shell  →  capabilities  →  mechanisms  →  core
 | `agent/common/` | 子系统共享状态词汇；不含行为，不导入任何层 |
 | `plugins/<name>/` | 插件自有工具、配置、UI、主题与图标 |
 
-`agent/boot/` 是**装配根**，不属于五层；由 `boot_app` 读取 `slot_tree.json` 并递归装配。
+`agent/boot/` 是**装配根**，不属于五层；由 `boot_app` 合并 `plugin-slots.json` 片段并按依赖构造。
 `agent/app.py` 是应用门面，只保留会话、绑定与命令入口。
 下层四层不得运行期导入装配根、应用门面或入口层（`if TYPE_CHECKING:` 的纯注解除外）；入口层可以导入装配根。
 这条规则和"层间单向"由同一道门禁检查，`--scc` 可打印全包强连通分量用于审计。

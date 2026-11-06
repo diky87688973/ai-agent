@@ -81,7 +81,7 @@ _UNITTEST = """      - name: 单测（按文件，各限时 150 秒）
           for f in tests/test_*.py; do
             mod=$(basename "$f" .py)
             echo "::group::$mod"
-            timeout 150 python -u -m unittest "tests.$mod" > "/tmp/$mod.log" 2>&1
+            timeout 150 python -u scripts/check_network_isolation.py --module "tests.$mod" > "/tmp/$mod.log" 2>&1
             code=$?
             cat "/tmp/$mod.log"
             echo "::endgroup::"

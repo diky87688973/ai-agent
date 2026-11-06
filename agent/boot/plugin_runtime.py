@@ -10,7 +10,7 @@ from agent.capabilities.plugins import plugin_module_transaction, resolve_plugin
 from agent.common.status import PLUGIN_ERROR
 from agent.config import DEFAULT_PLUGINS_PATH, get_plugins
 from agent.core.slot_fragments import load_merged
-from agent.core.slot_lifecycle import SlotLifecycle
+from agent.core.slot_lifecycle import SlotLifecycle, SlotRequest
 from agent.core.slot_snapshot import SnapshotStore
 from agent.core.slot_spec import SlotAssemblyError
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
@@ -36,7 +36,7 @@ class PluginRuntime:
         return self.assembly.config, self.assembly.values
 
     def reload(self, *, plugins_path: Any = None, plugins_dir: Any = None,
-               reload_plugin: Any = None) -> bool:
+               reload_plugin: Any = None) -> SlotRequest:
         """取清单形成候选代；活跃回合结束后按请求顺序应用。"""
         root = Path(plugins_dir or self.boot.host_config.plugins_root)
         path = plugins_path or self.app.plugin_host.manifest_path
@@ -47,10 +47,15 @@ class PluginRuntime:
                                            for item in manifest})
         origins = ({reload_plugin} if reload_plugin is not None else
                    set(config.origins.values()) - {"__host__"})
-        return self.lifecycle.request(lambda: self._apply(config, manifest, origins))
+        return self.lifecycle.request(lambda: self._apply(config, manifest, origins),
+                                      label=str(reload_plugin or "*"))
 
     def unload(self, name: Any) -> None:
         """直接宿主卸载也通过同一片段、登记和资源事务。"""
+        self.lifecycle.request(lambda: self._apply_unload(name))
+
+    def _apply_unload(self, name: Any) -> None:
+        """队列执行时读取当前代，避免后续卸载覆盖先前操作。"""
         manifest = [dict(item) for item in self.manifest]
         for item in manifest:
             if name is None or item["name"] == name:
@@ -58,7 +63,7 @@ class PluginRuntime:
         config = load_merged(self.repo_root, plugins_root=self.assembly.config.plugins_root,
                              manifest=manifest, plugin_roots=self.assembly.config.plugin_roots)
         origins = set(self.app.plugin_host.loaded_names()) if name is None else {name}
-        self.lifecycle.request(lambda: self._apply(config, manifest, origins))
+        self._apply(config, manifest, origins)
 
     def _apply(self, config: Any, manifest: Any, origins: Any) -> None:
         previous = self.app._slot_binder

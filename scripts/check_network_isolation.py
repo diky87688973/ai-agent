@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import tempfile
 import unittest
 import urllib.error
 import urllib.parse
@@ -25,6 +26,7 @@ from contextlib import suppress
 from functools import partial
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 with suppress(AttributeError, OSError, ValueError):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -79,14 +81,14 @@ class _TrackingResult(unittest.TextTestResult):
         super().startTest(test)
 
 
-def run_suite(guard: _Guard) -> unittest.TestResult:
+def run_suite(guard: _Guard, module: str = "") -> unittest.TestResult:
     """在工程根下全量跑一遍，返回结果。"""
     os.chdir(ROOT)
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
-    suite = unittest.TestLoader().discover(
-        "tests", pattern="test_*.py", top_level_dir="tests"
-    )
+    loader = unittest.TestLoader()
+    suite = (loader.loadTestsFromName(module) if module else
+             loader.discover("tests", pattern="test_*.py", top_level_dir="tests"))
     runner = unittest.TextTestRunner(
         stream=sys.stdout, verbosity=0,
         resultclass=partial(_TrackingResult, guard=guard),
@@ -97,13 +99,16 @@ def run_suite(guard: _Guard) -> unittest.TestResult:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="检查测试是否发起真实出网请求")
     ap.add_argument("--verbose", action="store_true", help="逐条打印被拦截的目标")
+    ap.add_argument("--module", default="", help="只运行指定测试模块")
     args = ap.parse_args(argv)
 
     real = urllib.request.urlopen
     guard = _Guard(real)
     urllib.request.urlopen = guard.urlopen
     try:
-        result = run_suite(guard)
+        with tempfile.TemporaryDirectory(prefix="agent_network_tests_") as temporary:
+            with patch.dict(os.environ, {"AI_AGENT_DATA_ROOT": temporary}):
+                result = run_suite(guard, args.module)
     finally:
         urllib.request.urlopen = real
 
@@ -113,6 +118,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.verbose:
         for line in guard.blocked:
             print(f"  [BLOCK] {line}")
+    if not result.wasSuccessful():
+        print("[FAIL] 单元测试失败，网络检查不能计为通过")
+        return 1
     if guard.blocked:
         for line in guard.blocked[:20]:
             print(f"  [FAIL] {line}")

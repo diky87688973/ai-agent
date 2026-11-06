@@ -2,135 +2,53 @@
 
 # Architecture
 
-The application is assembled from a plugin tree. Tools, models, UI, settings, and business integrations register as plugin contributions, and can be replaced, enabled, or composed per node without changing the kernel or shell.
-
-For module structure, single responsibility, and asset ownership rules, see [Engineering standards](engineering-standards.md).
+The application is assembled from one merged slot configuration. Static and enabled plugin fragments share parsing, validation and override rules. The assembler constructs dependencies; the binder projects those instances into tool, model, HTTP, settings and UI registries.
 
 ## Plugins and composition
 
-### Startup assembly
+### Declarations and ownership
 
-The app starts its own base assembly tree first, then scans extra plugins; plugin assembly declarations are merged before recursive assembly.
+- Repository-root `plugin-slots.json` declares static slots and ownership grants.
+- Each `plugins/<name>/plugin-slots.json` declares owned nodes and contributions to authorized mount points. `plugin-meta.json` identifies the plugin; `plugins.ini` selects activation and order.
+- `agent/core/slot_spec.py` defines the contract; `slot_fragments.load_merged` parses and merges into `SlotConfig`.
+- `origins` and prefix grants determine ownership. Structural facts are derived by protocol functions rather than duplicated as flags.
+- `requires` declares dependencies, `scope` controls app/session lifetime, `children` constrains child nodes, `mode` declares overrides and `frozen` protects entire subtrees. The obsolete `metadata` field is rejected.
 
-```text
-Startup flow (whole app)
-App starts
-  |
-  |-- read agent/boot/slot_tree.json
-  |     `-- base tree: kernel / host / tools / shell / facade
-  |
-  |-- scan plugins/ (plugin tree: enabled plugins + declarations)
-  |     |-- plugins.ini           enable + order
-  |     `-- plugin-assembly.json  extra plugin assembly declarations
-  |
-  |-- merge
-  |     |-- replace / add app/... subtree
-  |     `-- auth subtree: frozen
-  |
-  `-- SlotTree recursive assembly
-        |
-        v
-     App facade ready (no component list)
+See the [slot protocol](plan/plugin-slots-protocol.md) for fields and rejection rules.
 
-App runtime
-  plugin.py -- register(ctx) --> backend slots / UI slots / settings / routes
-                                `-- dynamic nodes attach to the same SlotTree
-```
-
-### Slot-tree boot model
-
-The **slot tree itself is the boot assembly graph**. `app.py` is an application facade, not the assembler.
+### Startup
 
 ```text
-app
-→ host
-   → services
-      → background_tasks
-      → <new service id>
-→ kernel
-   → modules
-      → context
-      → <new module id>
-→ backend
-   → tools / context / prompt / models / runtime / ...
-→ settings
-→ shell
+Application entry
+  → boot.bootstrap.boot_app
+  → configuration, discovery, fragment merge
+  → SlotAssembly.build: dependency ordering, injection, scoped construction
+  → SlotBinder.bind: consumer registration
+  → PluginRuntime and SnapshotStore
+  → App facade
 ```
 
-Rules:
+`agent/boot/` composes concrete services; `agent/core/` owns generic contracts and lifetime rules. App does not maintain a second component list. Construction failure releases instances in reverse order; binding failure prevents a partially assembled application from escaping.
 
-1. `app` is the only root. Every node path must fall under `app/*`; `backend/*` must also become `app/backend/*`.
-2. Container nodes assemble children only; leaf nodes provide a factory or instance.
-3. A node contract contains at least:
+Merged configuration is the authoritative node declaration. `SlotRegistry` and consumer registries are binding projections, not independent declarations. Configuration, constructed values, bindings and snapshots must agree at generation publication.
 
-   ```text
-   path
-   kind
-   factory / provider
-   dependencies
-   lifecycle
-   enabled
-   scope
-   children policy
-   ```
+### Explicit reload
 
-4. The bootstrapper validates the dependency graph first, then assembles in topological order. Missing dependencies, cycles, duplicate nodes, and factory failures fail explicitly.
-5. `app` depends only on the slot tree, node contracts, and the generic assembler. It does not import concrete modules or branch on module ids.
-6. A new module is a new node plus a factory; `app` main flow does not change.
-7. Disable, replace, and unload are handled by node bindings and lifecycle. Failed boot rolls back without half-assembled instances.
-8. Modules depend only on public contracts. Containers and `app` do not know module internals. Each module remains independently testable.
+`PluginRuntime` coordinates candidate construction, identity/module transactions, binding and publication. `SlotLifecycle` owns read leases, queued changes and request outcomes. Requests have immutable receipts and a bounded read-only query of recent outcomes.
 
-Acceptance:
+Active turns and plugin HTTP requests hold leases. Pending changes apply after the final reader exits; a turn retains its existing generation. Ordinary SSE subscriptions do not hold permanent leases. Disk fragments are parsed on explicit reload, not on idle turns. Unload operations resolve against the generation current at execution, preserving preceding changes.
 
-```text
-app.py contains no concrete module imports
-adding app/host/services/<id> does not change app.py
-adding app/kernel/modules/<id> does not change app.py
-removing a node fails explicitly when dependencies are missing
-all paths have a single app root
-failed boot rolls back atomically
-each module can be tested alone
-```
+Failure retracts candidate bindings and restores old identities, modules and constructed objects. Queued failures are queryable rather than log-only. Saving and applying configuration have distinct outcomes: synchronous failure restores prior text; a failed queued application retains saved configuration and the previous running generation. Settings reports that the configuration was saved but application failed, allowing an explicit correction and retry.
 
-Current status:
+Settings queries outcomes through the plugin settings API. Plugins own their field callbacks; shell renders generic controls. Dynamic form input/change events are delegated to the stable document.
 
-- `SlotTree` / `SlotRuntime` / `SlotComponent` / `SlotContainer` live in `agent/core/`.
-- The boot manifest is [slot_tree.json](../agent/boot/slot_tree.json); it currently contains 67 nodes under `app/boot`, `app/host`, `app/kernel`, and the frozen `app/auth` boundary, plus 23 backend slot declarations.
-- `App` is no longer the composition root; [bootstrap.py](../agent/boot/bootstrap.py) loads the manifest, creates roots, and assembles recursively.
-- Node contracts include `path`, `factory`, `requires`, `master`, `enabled`, and `metadata`; containers assemble direct children only.
-- Host services, built-in tools, shell components, and kernel module descriptors are assembled from boot nodes.
-- UI, settings, route, and backend contribution paths are data in `plugins/<name>/plugin-ui.json`; backend containers are declared in `backend_slots` in `agent/boot/slot_tree.json`; `PluginContext` registers them as dynamic nodes of the same `SlotTree`.
-- `SlotRegistry` remains the runtime binding and snapshot mechanism for plugin extension points; boot components and plugin contributions are both held by `SlotTree`.
-- `app.py` is an application facade for session, binding, and command entry.
+### Host replacement boundary
 
-The boot path is now tree-driven. Plugin-owned contributions remain runtime extension points.
+Plugin-owned contributions support live generation changes. Replacing kernel modules or host services takes effect after a process restart. The target slot's ownership and lifetime determine this boundary, not merely the implementation file's directory. No live host state-migration protocol is required.
 
-### Plugin settings contract
+Frozen subtrees reject overrides. Other host slots support startup overrides. Plugin reload currently retains host service instances and rejects live host declaration changes. Stateful host migration has no generic state-transfer contract and must not be represented as an existing capability.
 
-Plugins declare settings panels and items; they do not render host settings DOM.
-
-```text
-plugin: add_settings_panel(panel_id, title)
-plugin: add_settings_item(parent, item_id, kind, label, options, save, load)
-host:   renders typed controls and submits plugin values through the generic settings entry
-plugin: save callback persists and applies its own value, then returns success/failure
-```
-
-Settings IDs are `settings`, `settings/<panel>`, and `settings/<panel>/<item>`. The registered `kind` determines the control: `text`, `search`, `number`, `select`, `checkbox`, `textarea`, `password`. Save callbacks belong to the registering plugin; the plugin system only routes, aggregates, and broadcasts. Unloading a plugin removes its panels and items immediately; the plugin retains its own persisted values for the next enable.
-
-### Composition
-
-`boot_app()` performs startup in order:
-
-1. Read configuration (`agent/config.py`) to decide provider, data root, Skills source, and plugin manifest.
-2. Load `agent/boot/slot_tree.json`; `SlotTree` materializes roots and assembles recursively.
-3. The `facade` node builds `AppContext` and `App`; the `plugins` node loads plugins and attaches contributions as dynamic nodes of the same tree.
-4. Return `App`, whose attributes are shortcuts to `context.get(name)`.
-
-`build_shell_app()` in `agent/entry/web.py` wraps this: it builds the real provider and session store from configuration, then passes them to `build_app()`.
-The composition root (`boot/`) and entry layer (`entry/`) are the top two layers: the lower four layers must not import them at runtime, and no layer may import `entry/`. Entry imports the composition root. `python -m agent.entry.web` / `agent.entry.cli` / `agent.entry.headless` are the three process entries.
-
-The five layers below are the base the plugin tree runs on; they are not the plugin list.
+See [hotplug](plan/plugin2-hotplug.md) and [engineering standards](engineering-standards.md).
 
 ## Five-layer structure
 
@@ -165,7 +83,7 @@ entry  →  shell  →  capabilities  →  mechanisms  →  core
 | `agent/common/` | Shared status vocabulary for subsystems; no behavior and no imports from layers |
 | `plugins/<name>/` | Plugin-owned tools, configuration, UI, themes, and icons |
 
-`agent/boot/` is the **composition root** and belongs to no layer. `boot_app` reads `slot_tree.json`, assembles recursively, and produces the application facade.
+`agent/boot/` is the **composition root** and belongs to no layer. `boot_app` merges `plugin-slots.json` fragments, constructs dependencies, and produces the application facade.
 The lower four layers must not import the composition root, the application facade, or entry at runtime (pure type-checking imports under `if TYPE_CHECKING:` are exempt); entry may import the composition root.
 The same gate enforces this rule and layer direction. `--scc` prints package-level strongly connected components for auditing.
 

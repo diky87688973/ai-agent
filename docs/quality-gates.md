@@ -9,7 +9,7 @@ The current values for gates and budgets are listed below. The single source for
 | Budget | Constant | Current value | Constraint | Notes |
 |---|---|---|---|---|
 | Acceptance script skips | `ACCEPTANCE_SKIP_BUDGET` | 1 | May only decrease | Set **separately** from the allowlist; a larger allowlist does not relax the cap |
-| Coverage floor per package | `COVERAGE_FLOORS` | 10 packages (25%–90%) | May only increase | `agent/core 85`, `agent/mechanisms 80`, `agent/capabilities 75`, `agent/shell 70`, `agent/entry 60`, `agent/gui 25`, `agent/update 60`, `agent/subagent 85`, `agent (top-level) 90`, `plugins 60` |
+| Coverage floor per package | `COVERAGE_FLOORS` | 11 packages (25%–90%) | May only increase | `agent/core 85`, `agent/mechanisms 80`, `agent/capabilities 75`, `agent/shell 70`, `agent/entry 60`, `agent/gui 25`, `agent/update 60`, `agent/subagent 85`, `agent (top-level) 90`, `plugins 60`, `scripts 35` |
 | Complexity over threshold | `MAX_FILE_LINES` / `MAX_FUNCTION_LINES` / `MAX_FILE_FUNCTIONS` | 800 / 80 / 40 | Hard failure | No exemption table; exceeding any one item fails |
 | Same-layer private imports | `SAME_LAYER_PRIVATE_BUDGET` | 0 | May only decrease | Importing `_` symbols across modules in the same layer; over budget fails |
 
@@ -47,6 +47,8 @@ Constraints in `check_complexity.py`:
 `docs/unit-tests.md` is a generated readable test index, not a source of truth; the source of truth is `tests/`.
 
 ### 2.1 Coverage (post)
+
+`[tool.coverage.run]` in `pyproject.toml` covers the handwritten agent, plugins and scripts domains. The initial scripts floor is 35%, based on the measured 35.3% onboarding baseline; existing floors remain unchanged. Both normal unit tests and coverage collection use `check_network_isolation.py`. Failed tests or non-loopback urlopen calls fail the step. This guard covers urlopen, not every network API.
 
 The coverage step validates the `.coverage` file published by `run_coverage.py` and compares `COVERAGE_FLOORS` per top-level package. How the data is produced (CI runs it in the 3.12 matrix):
 

@@ -63,3 +63,7 @@ ignore = [
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-q"
+
+[tool.coverage.run]
+branch = true
+source = ["agent", "plugins", "scripts"]

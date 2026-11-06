@@ -141,17 +141,19 @@ class FileViewerActions:
         """列目录供 `@` 补全：`{current, parent, items:[{name,type,ext,path}]}`。
 
         语义：
-          - `path="_drives_"` → 列出本机盘符（Windows「计算机」层）；
+          - `path="_drives_"` → 列出可见根允许访问的盘符；
           - 盘符根（如 `D:/`）的 `parent` 也是 `_drives_`（可从盘根回到计算机层）；
           - 空 `path` → `_browse_base()` 给出的基准目录；
           - 目录排前、名称不区分大小写升序；
-          - 访问不到就回落（不报错），免得上层补全卡死。
+          - 根内不存在的目录回落；越过可见根明确返回 403。
         """
         base = self._browse_base()
         raw = str(path or "").strip()
 
         if raw == "_drives_":
-            return 200, {"current": "计算机", "parent": "", "items": list_drives()}
+            drives = [item for item in list_drives()
+                      if within_any_root(Path(item["path"]), self.fs_roots or default_fs_roots())]
+            return 200, {"current": "计算机", "parent": "", "items": drives}
 
         if not raw:
             target = base
@@ -159,6 +161,9 @@ class FileViewerActions:
             candidate = Path(raw)
             if not candidate.is_absolute():
                 candidate = base / candidate
+            checked, reason = self._resolve_fs(str(candidate), must_exist=False)
+            if checked is None:
+                return fs_rejection(reason)
             try:
                 resolved = candidate.resolve()
             except OSError:
@@ -174,6 +179,8 @@ class FileViewerActions:
         except OSError:
             entries = []
         for entry in entries[:1000]:
+            if not within_any_root(Path(entry.path), self.fs_roots or default_fs_roots()):
+                continue
             try:
                 is_dir = entry.is_dir()
             except OSError as exc:
@@ -196,6 +203,9 @@ class FileViewerActions:
                 parent = str(Path(stripped).resolve().parent).replace("\\", "/")
             except OSError:
                 parent = ""
+        if parent != "_drives_" and parent and not within_any_root(
+                Path(parent), self.fs_roots or default_fs_roots()):
+            parent = ""
         return 200, {"current": current, "parent": parent, "items": items}
 
     def _browse_base(self) -> Path:
@@ -313,6 +323,10 @@ class FileViewerActions:
         if not target.is_file():
             return 404, {"error": "not found"}, "application/json"
         ctype = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
+        if ctype.startswith("text/") or ctype in {
+                "image/svg+xml", "application/xhtml+xml", "application/xml",
+                "application/javascript", "application/ecmascript"}:
+            ctype = "text/plain; charset=utf-8"
         try:
             return 200, target.read_bytes(), ctype
         except OSError as exc:

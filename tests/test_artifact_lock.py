@@ -148,8 +148,8 @@ class CoveragePublishTest(unittest.TestCase):
     def test_build_command_writes_unique_data_file(self) -> None:
         cmd = run_coverage.build_command(Path(".coverage.tmp.4242"))
         self.assertIn("--data-file=.coverage.tmp.4242", cmd)
-        self.assertIn("unittest", cmd)
-        self.assertIn("discover", cmd)
+        self.assertTrue(any(item.endswith("check_network_isolation.py") for item in cmd))
+        self.assertTrue(any(item.endswith("pyproject.toml") for item in cmd))
         self.assertNotIn(".coverage", cmd)
 
     def test_publish_replaces_target(self) -> None:

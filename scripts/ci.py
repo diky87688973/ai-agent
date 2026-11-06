@@ -101,13 +101,17 @@ def _prepare_data_root() -> None:
     atexit.register(shutil.rmtree, _tmp_data, True)
 
 
-def _run(label: str, cmd: list[str]) -> tuple[str, str]:
+def _run(label: str, cmd: list[str], timeout_minutes: int = 3) -> tuple[str, str]:
     t0 = time.perf_counter()
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-    proc = subprocess.run(
-        cmd, cwd=str(ROOT), capture_output=True, text=True,
-        encoding="utf-8", errors="replace", env=env,
-    )
+    try:
+        proc = subprocess.run(
+            cmd, cwd=str(ROOT), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", env=env,
+            timeout=max(1, timeout_minutes) * 60,
+        )
+    except subprocess.TimeoutExpired:
+        return "failed", f"FAIL {label}：超过步骤时限 {timeout_minutes} 分钟"
     dt = time.perf_counter() - t0
     out = (proc.stdout or "") + (proc.stderr or "")
     if proc.returncode == SKIPPED:
@@ -179,7 +183,7 @@ def _run_steps(args: argparse.Namespace, steps: list[CiStep]) -> int:
     skipped_post: list[str] = []
     for step in steps:
         cmd = [PY, *step.argv]
-        status, line = _run(step.label, cmd)
+        status, line = _run(step.label, cmd, step.timeout_minutes)
         print("  " + line)
         if status == "skipped":
             if step.kind == "acceptance":

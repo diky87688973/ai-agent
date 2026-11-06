@@ -48,6 +48,7 @@ _GROUPS: Tuple[Tuple[str, str], ...] = (
     ("agent/subagent", "/agent/subagent/"),
     ("agent (top-level)", "/agent/"),
     ("plugins", "/plugins/"),
+    ("scripts", "/scripts/"),
 )
 
 #: 不参与 Python 覆盖率统计的路径（JS/CSS 资产由 `check_ui_js.py` 负责）。

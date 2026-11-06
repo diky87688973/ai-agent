@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """插件自动装载清单：扫描插件目录，找出应当自动装载的插件。
 
-插件在目录里放 `plugin-assembly.json`，或把 `plugin-meta.json` 的 `auto_load`
-置真，就会自动进入装载清单；清单里 `enabled = 0` 仍然优先。
+默认清单扫描 `plugin-slots.json`、装配标记和元数据的 `auto_load`。
+显式自定义清单限制未列出插件；清单里的禁用标记优先。
 
 装配覆盖不在这里：节点怎么装配由 `plugin-slots.json` 片段与装配器决定，
 本模块只回答「哪些插件要装」。
@@ -60,8 +60,7 @@ def discover(plugins_dir: Path, manifest: Iterable[Any], *,
              include_unlisted: bool = True) -> AssemblyOverlay:
     """扫描插件目录，返回自动装载清单。
 
-    只有带 `plugin-assembly.json` 或 `plugin-meta.json` 中
-    `auto_load` 为真的插件才自动进入清单；其余插件沿用原清单规则。
+    默认剖面接受片段或自动装载标记，自定义剖面按显式清单限制片段发现。
     """
     base = Path(plugins_dir).resolve()
     entries: List[Dict[str, str]] = []

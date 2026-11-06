@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """应用门面：会话入口与上下文服务访问。
 
-启动装配由 `agent.boot.bootstrap.boot_app` 与 `SlotTree` 完成；本类不持有组件清单。
+启动装配由 `agent.boot.bootstrap.boot_app` 与 `SlotAssembly` 完成；本类不持有组件清单。
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from agent.core.error_report import report_error
 from agent.core.events import Event
 from agent.core.modules.slot_chain import ModuleBuildContext
 from agent.core.session_log import SessionLog
+from agent.core.slot_lifecycle import SlotRequest
 from agent.mechanisms.quality import QualityGate
 from agent.shell.service_keys import SERVICE_RUNNER
 
@@ -63,7 +64,7 @@ class App(AppModelPolicy, AppServices):
         self.model_config_state = MODEL_CONFIG_NONE
 
     def reload_plugins(self, *, plugins_path: Any = None, plugins_dir: Any = None,
-                       reload_plugin: Any = None) -> bool:
+                       reload_plugin: Any = None) -> SlotRequest:
         """请求在安全轮次边界重新装配插件。"""
         return self._plugin_runtime.reload(plugins_path=plugins_path, plugins_dir=plugins_dir,
                                            reload_plugin=reload_plugin)

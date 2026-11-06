@@ -345,6 +345,12 @@ class EndpointTest(_ServerFixture):
         status, body = self.get("/api/media?path=" + urllib.parse.quote(str(inside)))
         self.assertEqual(status, 200)
         self.assertTrue(body.startswith(b"\x89PNG"))
+        active = self.root / "preview.html"
+        active.write_text("<script>throw new Error('must remain text')</script>", encoding="utf-8")
+        with urllib.request.urlopen(
+                self.base + "/api/media?path=" + urllib.parse.quote(str(active))) as response:
+            self.assertEqual(response.headers.get_content_type(), "text/plain")
+            self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
         status, payload = self.get_json(
             "/api/media?path=" + urllib.parse.quote(str(_ROOT / "README.md"))
         )
@@ -847,10 +853,12 @@ class SseContractTest(_ServerFixture):
     def test_dir_browse_item_shape_and_ordering(self) -> None:
         """条目形状 {name,type,ext,path}；目录排前。"""
 
-        repo = str(_ROOT).replace("\\", "/")
+        (self.root / "browse-folder").mkdir(exist_ok=True)
+        (self.root / "browse-file.txt").write_text("fixture", encoding="utf-8")
+        repo = self.root.as_posix()
         status, payload = self.get_json(f"/api/dir-browse?path={repo}")
         self.assertEqual(status, 200)
-        self.assertTrue(payload["items"], msg="仓库根不应为空")
+        self.assertTrue(payload["items"], msg="夹具目录不应为空")
         first = payload["items"][0]
         for key in ("name", "type", "ext", "path"):
             self.assertIn(key, first)
@@ -863,10 +871,13 @@ class SseContractTest(_ServerFixture):
     def test_dir_browse_missing_path_falls_back(self) -> None:
         """访问不到的路径回落（不报错）——补全不能因为一个坏路径卡死。"""
 
-        status, payload = self.get_json("/api/dir-browse?path=Z:/definitely-not-here")
+        status, payload = self.get_json("/api/dir-browse?path=definitely-not-here")
         self.assertEqual(status, 200)
         self.assertTrue(payload["current"])
         self.assertIsInstance(payload["items"], list)
+
+        status, _ = self.get_json(f"/api/dir-browse?path={self.root.parent.as_posix()}")
+        self.assertEqual(status, 403)
 
     def test_dir_browse_relative_path_uses_workspace_base(self) -> None:
         """相对路径应基于可见根解析，且不得落到盘根。"""

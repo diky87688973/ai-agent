@@ -1,5 +1,6 @@
 :root{--minimal-hover:rgba(0,0,0,.05)}
 
+
 /* 极简：主体透明、无边框；仅交互面在悬浮时给背景高亮。 */
 html[data-ui-style="minimal"] main,
 html[data-ui-style="minimal"] header,
@@ -35,8 +36,7 @@ html[data-ui-style="minimal"] .b.a h2,
 html[data-ui-style="minimal"] .step,
 html[data-ui-style="minimal"] .card,
 html[data-ui-style="minimal"] .chat-tool-row,
-html[data-ui-style="minimal"] .chat-tab,
-html[data-ui-style="minimal"] .chat-tab.active,
+html[data-ui-style="minimal"] .chat-tab:not(.active),
 html[data-ui-style="minimal"] .chat-queue,
 html[data-ui-style="minimal"] .chat-queue-row,
 html[data-ui-style="minimal"] .queue-draft,
@@ -68,8 +68,7 @@ html[data-ui-style="minimal"] .bg-task-pop,
 html[data-ui-style="minimal"] .subagent-panel,
 html[data-ui-style="minimal"] .todo-list-area,
 html[data-ui-style="minimal"] .todo-list-header,
-html[data-ui-style="minimal"] .chat-tab,
-html[data-ui-style="minimal"] .chat-tab.active {
+html[data-ui-style="minimal"] .chat-tab:not(.active) {
   background: transparent !important;
 }
 
@@ -101,7 +100,7 @@ html[data-ui-style="minimal"] .composer:focus-within {
   box-shadow: none !important;
 }
 
-html[data-ui-style="minimal"] button:not(.is-on):not(.is-primary),
+html[data-ui-style="minimal"] button:not(.is-on):not(.is-primary):not(.chat-tab),
 html[data-ui-style="minimal"] select,
 html[data-ui-style="minimal"] textarea,
 html[data-ui-style="minimal"] input,
@@ -112,7 +111,7 @@ html[data-ui-style="minimal"] .composer .chip {
   box-shadow: none !important;
 }
 
-html[data-ui-style="minimal"] button:not(.is-on):not(.is-primary):hover,
+html[data-ui-style="minimal"] button:not(.is-on):not(.is-primary):not(.chat-tab):hover,
 html[data-ui-style="minimal"] .mode-plus:not(.is-primary):hover,
 html[data-ui-style="minimal"] .composer .chip:hover {
   background: var(--minimal-hover) !important;
@@ -157,12 +156,12 @@ html[data-ui-style="minimal"] .bg-task-detail {
 }
 
 html[data-ui-style="minimal"] .chat-tab.active {
-  background: var(--c-bg-active) !important;
+  background: var(--c-bg-layer-2) !important;
   border-color: transparent !important;
   color: var(--c-text-1) !important;
 }
 html[data-ui-style="minimal"] .chat-tab.active:hover {
-  background: var(--c-bg-active) !important;
+  background: var(--c-bg-layer-2) !important;
   border-color: transparent !important;
   color: var(--c-text-1) !important;
 }
