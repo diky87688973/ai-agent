@@ -76,7 +76,7 @@ A preview snapshot's `path` is resolved from the tool's declared `write_path_key
 6. `pending_review` is non-empty and `reviewed_ok` is false, the snapshot path is not in that list, and the preview was not unlocked before the write: reject, with the message "the review of the last real write is not complete".
 7. The tool is `apply_patch` and `apply_patch_pending` is true, and the preview was not unlocked before the write: reject, with the message "the last real `apply_patch` write has not been reviewed".
 8. The snapshot path is in `needs_reread`: reject; require `read` first.
-9. A single `replace_in_file` replacement exceeds the size rules (`MAX_DIFF_LINES`, 80): reject.
+9. A single `replace_in_file` replacement exceeds the size rules (`MAX_DIFF_LINES`, 120): reject.
 10. Otherwise allow.
 
 The "unlocked before the write" test: `confirmed_generation` is an integer and is strictly less than the current `_write_generation`. If the review happened before the latest successful commit, the condition is true. If it happened after that commit, the stamped count equals the current count and the condition is false.

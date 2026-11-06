@@ -8,9 +8,9 @@
     对话 = 事实折叠出来的对话（含工具调用与工具结果）
     尾部 = 本回合新输入 / 工具结果（在对话末尾，由事实带来）+ 执行模式
 
-压缩请求用同一份装配结果，末尾换成压缩指令::
+压缩请求只携带头部和本次实际要压掉的早期轮次::
 
-    压缩请求 = 头部 + 对话 + [压缩指令]        ← 剔除执行模式
+    压缩请求 = 头部 + 可压缩对话 + [压缩指令]  ← 不包含近期保留轮次
 
 本文件把这些结构写死成期望值逐条断言：任何一条改变装配顺序、少一格、
 多一格、把执行模式塞进压缩请求，都会在具体那条用例上失败。
@@ -387,9 +387,13 @@ class CompactionContext(_Case):
         head = len(rows)
         rows += dlg(4)
         if tool:
-            rows += [{"role": "assistant", "content": "",
-                      "tool_calls": [{"id": "c1", "name": "t", "arguments": {}}]},
-                     {"role": "tool", "tool_call_id": "c1", "content": "结果"}]
+            # 工具链放在第一轮里，确保它属于会被压缩的区间；
+            # 末尾三轮仍应原文保留，不能进入摘要请求。
+            rows[head + 2:head + 2] = [
+                {"role": "assistant", "content": "",
+                 "tool_calls": [{"id": "c1", "name": "t", "arguments": {}}]},
+                {"role": "tool", "tool_call_id": "c1", "content": "结果"},
+            ]
         tail = []
         if new_input:
             tail.append({"role": "user", "content": NEW_INPUT})
@@ -407,8 +411,8 @@ class CompactionContext(_Case):
 
     def test_user_path_request_shape(self) -> None:
         spy, whole, head, tail = self._request()
-        self.check("压缩请求 = 头部 + 对话 + 指令",
-                   shape(whole[:len(whole) - tail]) + " | INSTRUCTION",
+        self.check("压缩请求 = 头部 + 第一轮 + 指令",
+                   shape(whole[:head + 2]) + " | INSTRUCTION",
                    shape(spy.reqs[0].messages))
 
     def test_user_path_drops_new_input(self) -> None:
@@ -433,20 +437,21 @@ class CompactionContext(_Case):
         n = sum(1 for m in spy.reqs[0].messages if INSTRUCTION_MARK in str(m.get("content")))
         self.check("指令只出现一次", 1, n)
 
-    def test_prefix_equals_normal_request_minus_last_two(self) -> None:
-        spy, whole, head, tail = self._request()
-        self.check("前缀 = 平常请求去掉最后两条", whole[:-tail], spy.reqs[0].messages[:-1])
+    def test_request_stops_before_retained_turns(self) -> None:
+        spy, whole, head, _tail = self._request()
+        self.check("摘要素材只到第一轮末尾", whole[:head + 2],
+                   spy.reqs[0].messages[:-1])
 
     def test_tool_path_request_shape(self) -> None:
         spy, whole, head, tail = self._request(tool=True)
-        self.check("工具轮：结果保留在被压缩范围",
-                   shape(whole[:len(whole) - tail]) + " | INSTRUCTION",
+        self.check("工具轮：第一轮工具链进入压缩范围",
+                   shape(whole[:head + 4]) + " | INSTRUCTION",
                    shape(spy.reqs[0].messages))
 
-    def test_tool_path_prefix_equals_normal_minus_last_one(self) -> None:
-        spy, whole, head, tail = self._request(tool=True, new_input=False)
-        self.check("工具轮：前缀 = 平常请求去掉模式那一条",
-                   whole[:-1], spy.reqs[0].messages[:-1])
+    def test_tool_path_stops_after_compactable_chain(self) -> None:
+        spy, whole, head, _tail = self._request(tool=True, new_input=False)
+        self.check("工具轮：摘要素材到第一轮工具链末尾",
+                   whole[:head + 4], spy.reqs[0].messages[:-1])
 
     def test_mode_change_does_not_affect_request(self) -> None:
         a, whole_a, _h, _t = self._request(mode=MODE_AUTO)
@@ -456,15 +461,15 @@ class CompactionContext(_Case):
 
     def test_summary_present_in_head(self) -> None:
         spy, whole, head, tail = self._request(summaries=(SUM1,))
-        self.check("摘要（旧的那份）在头部",
-                   shape(whole[:len(whole) - tail]) + " | INSTRUCTION",
+        self.check("摘要（旧的那份）在头部，近期三轮不进入请求",
+                   shape(whole[:head + 2]) + " | INSTRUCTION",
                    shape(spy.reqs[0].messages))
 
     def test_no_new_input_path(self) -> None:
         """没有新输入时，尾部只有模式一条；压缩请求 = 整份剔掉它 + 指令。"""
         spy, whole, head, tail = self._request(new_input=False)
-        self.check("没有新输入时同样只剩头部+对话+指令",
-                   shape(whole[:-1]) + " | INSTRUCTION",
+        self.check("没有新输入时仍只带头部+第一轮+指令",
+                   shape(whole[:head + 2]) + " | INSTRUCTION",
                    shape(spy.reqs[0].messages))
 
     def test_system_field_is_carried(self) -> None:
@@ -1055,13 +1060,11 @@ def _run_compaction(msgs, *, threshold, reserve):
 # ══════════════════════════════════════════════════════════════
 # 九、遮盖是硬约束
 #
-# 末尾 N 个用户轮永远不压（`full_user_rounds`，至少 1 轮）。
-# 压缩区域只能是「最后一个前置 system 之后 → 遮盖起点之前」那一段 ——
+# 末尾用户轮优先完整保留；配置值压不动时逐级缩小到 1。
 # 系统提示 / Skills / 知识库 / 记忆摘要都是 system、排在对话之前，
-# 所以区域天然不含任何系统设定。
+# 所以压缩区域天然不含任何系统设定。
 #
-# 没有"压不动就连近场一起压"的兜底：遮盖住的部分超预算，是这个配置本身
-# 撑不住，不该由压缩去动近景。
+# 最少保留 1 轮；只有 1 轮时返回空区间，不能把整个近场压掉。
 # ══════════════════════════════════════════════════════════════
 
 class MaskIsHard(_Case):
@@ -1076,20 +1079,17 @@ class MaskIsHard(_Case):
                 _s, e = rng
                 left = sum(1 for m in msgs[e:] if m.get("role") == "user")
                 # 遮盖前面有可压的轮 → 留 keep 轮；遮盖已盖住全部 → 压到 0 轮
-                want = keep if keep < 5 else 0
-                self.check(f"遮盖 {keep}：剩余用户轮 = {want}", want, left)
+                want = min(max(1, keep), 4)
+                self.check(f"保留上限 {keep}：剩余用户轮 = {want}", want, left)
 
     def test_excerpt_starts_at_zero(self) -> None:
         rng = excerpt_by_target_tokens(conv([1, 0, 1, 0]), 1)
         self.check("区域从第 1 个用户轮起", 0, rng[0])
 
-    def test_single_turn_is_compressed_when_nothing_else_can_be(self) -> None:
-        """只有 1 轮：遮盖前面没东西可压 → 连它一起压（压到 0 轮）。"""
+    def test_single_turn_is_the_uncompressible_floor(self) -> None:
+        """只有 1 轮：压不动，保留这一轮并返回空区间。"""
         msgs = conv([2])
-        rng = excerpt_by_target_tokens(msgs, 1)
-        self.check("压到末尾", (0, len(msgs)), rng)
-        self.check("剩余 0 轮", 0,
-                   sum(1 for m in msgs[rng[1]:] if m.get("role") == "user"))
+        self.check("不生成压缩区间", None, excerpt_by_target_tokens(msgs, 1))
 
     def test_region_excludes_every_system_message(self) -> None:
         """压缩区域落在对话段里，一条 system 都不含。"""
@@ -1106,7 +1106,7 @@ class MaskIsHard(_Case):
 
 
 class MaskSurvivesOverflow(_Case):
-    """内层管线：超阈值时遮盖仍然不被压。"""
+    """内层管线：超阈值时保留宽度逐级收缩，但始终至少保留一轮。"""
 
     def _msgs(self, *, big_last: bool):
         out = []
@@ -1158,8 +1158,8 @@ class MaskSurvivesOverflow(_Case):
         self.check("遮盖 0 轮抬到 1（近场至少保留一轮）", 1,
                    comp.full_user_rounds)
 
-    def test_only_masked_turns_still_get_compressed(self) -> None:
-        """只有被遮盖的轮 → 连它一起压（压不动就是超上限失败）。"""
+    def test_single_turn_is_never_compacted_by_the_compactor(self) -> None:
+        """只有一轮时逐级尝试到 1 仍是空区间，不越界压缩近场。"""
         msgs = conv([4])
         p = ContextPipeline("cid-mask-0003", full_user_rounds=1)
         p.append_system(SYS)
@@ -1169,12 +1169,25 @@ class MaskSurvivesOverflow(_Case):
         comp = ContextCompactor(make_provider_summarizer(_Spy(), max_chars=200),
                                 summary_token_threshold=1, full_user_rounds=1)
         report = comp.ensure_before_append(p, msgs, mode_note=MODE_AUTO, assembled=whole)
-        self.assertTrue(report, msg="必须压下去")
-        self.check("压到 0 个用户轮", 0,
-                   sum(1 for m in msgs[comp.covered_end:] if m.get("role") == "user"))
+        self.assertIsNone(report)
+        self.assertEqual(comp.covered_end, 0)
+        self.assertEqual(sum(1 for m in msgs[comp.covered_end:]
+                             if m.get("role") == "user"), 1)
 
-    def test_mask_invariant_over_random_shapes(self) -> None:
-        """随机形态：任何一次压缩之后，被遮盖的轮数必须 ≥ 配置值。"""
+    def test_retention_drops_until_one_early_turn_is_available(self) -> None:
+        msgs = conv([0, 0, 0, 0, 0])
+        rng = excerpt_by_target_tokens(msgs, 5)
+        self.assertEqual(rng, (0, 2))
+        self.assertEqual(sum(1 for m in msgs[rng[1]:] if m.get("role") == "user"), 4)
+
+    def test_retention_never_drops_below_one(self) -> None:
+        msgs = conv([0, 0])
+        rng = excerpt_by_target_tokens(msgs, 5)
+        self.assertEqual(rng, (0, 2))
+        self.assertEqual(sum(1 for m in msgs[rng[1]:] if m.get("role") == "user"), 1)
+
+    def test_adaptive_retention_invariant_over_random_shapes(self) -> None:
+        """随机形态：保留数在 1..配置值之间，压缩绝不越过一轮底线。"""
         for seed in range(10):
             rng = random.Random(seed)
             for _ in range(8):
@@ -1196,10 +1209,11 @@ class MaskSurvivesOverflow(_Case):
                     self.fail(f"落点切断了工具链 seed={seed} turns={turns}")
                 left = sum(1 for m in msgs[comp.covered_end:]
                            if m.get("role") == "user")
-                # 遮盖是偏好：正常留 reserve 轮；压不出来时允许连遮盖一起压（0 轮）
-                if left not in (0, min(reserve, turns)):
-                    self.fail(f"剩余轮数既不是遮盖值也不是 0 seed={seed} "
+                if left < 1 or left > min(reserve, turns):
+                    self.fail(f"剩余轮数越出 1..{min(reserve, turns)} seed={seed} "
                               f"turns={turns} reserve={reserve} 剩余={left}")
+                if turns > 1 and left >= turns:
+                    self.fail(f"有可压轮次时未推进 seed={seed} turns={turns} left={left}")
 
 
 # ══════════════════════════════════════════════════════════════

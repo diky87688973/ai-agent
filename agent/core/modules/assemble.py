@@ -8,7 +8,8 @@ from agent.core.modules.mode_note import mode_tail, strip_runtime_note
 
 
 def assemble_with(context: Any, dialogue: Any, mode_note: str,
-                   covered_end: int) -> Optional[List[Dict[str, Any]]]:
+                   covered_end: int, *,
+                   include_summary: bool = True) -> Optional[List[Dict[str, Any]]]:
     """把对话装进上下文并装配出整份请求消息（头部 + 对话 + 尾部）。
 
     上下文缺能力（没实现 `set_dialogue` / `assembles`）时返回 None ——
@@ -21,7 +22,10 @@ def assemble_with(context: Any, dialogue: Any, mode_note: str,
     context.set_dialogue(strip_runtime_note(dialogue), covered_end=covered_end)
     note = str(mode_note or "").strip()
     tail = [{"role": "system", "content": note}] if note else []
-    return list(context.assembles(tail))
+    if include_summary:
+        return list(context.assembles(tail))
+    isolated = getattr(context, "assembles_without_summary", None)
+    return list(isolated(tail) if callable(isolated) else context.assembles(tail))
 
 
 def segment_snapshot(context: Any, messages: Any,

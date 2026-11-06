@@ -267,8 +267,8 @@ html[data-ui-theme="light"] .usage-ring::after{
   background:#f3f3f3;
 }
 
-html[data-ui-theme="light"] .usage-ring .usage-num{
-  color:#1f1f1f;
+html[data-ui-theme="light"] .usage-pct{
+  color:#3b4656;
 }
 
 html[data-ui-theme="light"] .pane-btn{

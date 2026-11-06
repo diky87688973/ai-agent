@@ -67,10 +67,11 @@ data/subagent/sessions/<child_id>.raw.lock
   → 父闲：启动回合
 
 子回合结束
-  → 读取子会话最近一条非空 model_message
-  → 作为 Agent 消息直接投递父 inbox
+  → 只取最近一个 turn_started 之后、当前任务轮次的非空 model_message
+  → 纯系统通知输入的回合不自动汇报父会话
+  → 普通任务轮次中途插入通知时，整个任务轮次仍只汇报一次
   → 无模型输出时投递固定提示
-  → 本回合已主动发送相同文本时不重复投递
+  → 已主动发送相同文本或同一 turn_ended 回调重复触发时不重复投递
 ```
 
 父子消息在目标忙碌时强制插入，发送路径不提供非插入模式。在 `QueuedInputModule` 中批量认领插入消息，每条保留独立 `input_claimed` 事实。

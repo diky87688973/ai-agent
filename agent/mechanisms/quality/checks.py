@@ -14,7 +14,7 @@ from agent.mechanisms.quality.path_keys import norm_path, resolve_write_path
 if TYPE_CHECKING:
     from agent.mechanisms.quality.gate import QualityGate
 
-MAX_DIFF_LINES = 80
+MAX_DIFF_LINES = 120
 # 预览卡片：diff 展示上限（超出只给统计，避免把整文件塞进事件流）
 PREVIEW_DIFF_MAX_LINES = 600
 # 重读锚点：命中位置的展示条数与单行字符上限。锚点是一句供核对的话，
@@ -258,8 +258,6 @@ def _size_decision(tool: str, args: dict) -> GateDecision | None:
         new_lines = sum(
             str(item.get("new_text") or "").count("\n") + 1
             for item in edits if isinstance(item, dict))
-    if new_lines <= MAX_DIFF_LINES:
-        return None
     span: Optional[int] = None
     line_start, line_end = args.get("line_start"), args.get("line_end")
     if line_start is not None and line_end is not None:
@@ -267,16 +265,18 @@ def _size_decision(tool: str, args: dict) -> GateDecision | None:
             span = int(line_end) - int(line_start) + 1
         except (TypeError, ValueError):
             span = None
-    if span is None or span <= 0:
-        return GateDecision(
-            allow=False,
-            reason=(f"单次替换内容过大（>{MAX_DIFF_LINES} 行）："
-                    "请提供目标行区间（line_start/line_end）或拆成更小的局部替换"))
-    if span > MAX_DIFF_LINES:
+    if span is not None and span > MAX_DIFF_LINES:
         return GateDecision(
             allow=False,
             reason=(f"目标区间跨度过大（{span} 行 > {MAX_DIFF_LINES} 行）："
                     "请拆成更小的局部替换"))
+    if new_lines > MAX_DIFF_LINES:
+        return GateDecision(
+            allow=False,
+            reason=(f"单次替换内容过大（>{MAX_DIFF_LINES} 行）："
+                    "请提供目标行区间（line_start/line_end）或拆成更小的局部替换"))
+    if span is None or span <= 0:
+        return None
     if new_lines > max(40, span * 3):
         return GateDecision(
             allow=False,

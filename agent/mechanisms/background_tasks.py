@@ -497,6 +497,8 @@ class BackgroundTaskManager:
         for cid in dict.fromkeys(notices):
             batches = sorted(self._notice_batches.pop(cid, set()))
             batch_text = "、".join(batches) if batches else "未知批次"
+            notice_id = "background-" + uuid.uuid5(
+                uuid.NAMESPACE_URL, f"{cid}:{batch_text}").hex
             text = (
                 "<<系统通知>>\n"
                 "本消息为 任务管理器 触发的系统通知\n"
@@ -506,6 +508,7 @@ class BackgroundTaskManager:
                 self._notice(cid, text, {
                     "kind": "system_notice",
                     "source": "background_tasks",
+                    "notice_id": notice_id,
                     "batch": batch_text,
                 })
             except Exception as exc:

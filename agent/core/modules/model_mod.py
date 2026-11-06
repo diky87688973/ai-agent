@@ -2,7 +2,8 @@
 """模型模块：流式调用模型并落 model_message。"""
 from __future__ import annotations
 
-from time import perf_counter
+from http.client import RemoteDisconnected
+from time import perf_counter, sleep
 from typing import Any, Dict, Iterator, List, Optional
 
 from agent.core.error_report import report_error
@@ -41,6 +42,10 @@ from agent.core.state_values import (
     LLM_FAILED as LLM_STATUS_FAILED,
 )
 from agent.core.tool_call import ToolCallRequest
+
+#: `RemoteDisconnected` 只会在 HTTP 状态行之前出现；流开始后断流不能重放。
+REMOTE_DISCONNECTED_MAX_RETRIES = 5
+RETRY_BACKOFF_SECONDS = (0.1, 0.2, 0.4, 0.8, 1.6)
 
 
 def _reasoning_ms(started: float, last_at: Optional[float]) -> int:
@@ -100,8 +105,14 @@ class ModelModule(ModuleBase):
 
     def _build_request(self, ports: Ports):
         runtime_note = resolve_runtime_note(self._mode_note)
+        wake_derive = getattr(
+            ports.log, "derive_request_messages_from_latest_wake", None)
+        wake_messages = wake_derive() if callable(wake_derive) else None
+        isolated_wake = wake_messages is not None
+        request_messages = (wake_messages if isolated_wake
+                            else ports.log.derive_request_messages())
         dialogue = prepare_dialogue(
-            ports.log.derive_request_messages(), self._image_turns, self._image_max)
+            request_messages, self._image_turns, self._image_max)
         turn_start = 0
         for index in range(len(dialogue) - 1, -1, -1):
             if str(dialogue[index].get("role") or "") == "user":
@@ -109,7 +120,8 @@ class ModelModule(ModuleBase):
                 break
         if self.context_pass is not None:
             assembled = assemble_with(self.context_pass, dialogue, runtime_note,
-                                       self._covered_end())
+                                       0 if isolated_wake else self._covered_end(),
+                                       include_summary=not isolated_wake)
             if assembled is None:
                 report_error("core.model", "上下文缺装配能力（本回合请求可能缺系统前缀）")
                 messages = with_mode_note(dialogue, runtime_note)
@@ -134,22 +146,35 @@ class ModelModule(ModuleBase):
             budget = 0
         segments = segment_snapshot(self.context_pass, messages, budget_tokens=budget)
         remember = getattr(self._compactor, "remember_sent_request", None)
-        if callable(remember):
+        if callable(remember) and not isolated_wake:
             prefix = strip_mode_tail(messages[:len(pre_hook)], runtime_note)
             remember(messages, prefix, request.tools)
         return request, messages, segments
 
-    def _cancel_events(self, ports, model, request, started, reasoning_last_at, chunks):
+    @staticmethod
+    def _wait_for_retry(ports, delay: float) -> bool:
+        """退避等待；以 50ms 为步长检查取消，返回是否应停止。"""
+        remaining = max(0.0, float(delay))
+        while remaining > 0:
+            if ports.canceled():
+                return True
+            step = min(0.05, remaining)
+            sleep(step)
+            remaining -= step
+        return ports.canceled()
+
+    def _cancel_events(self, ports, model, request, started, reasoning_last_at,
+                       chunks, retries):
         yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
                          error="CanceledByUser",
                          elapsed_ms=int((perf_counter() - started) * 1000),
                          reasoning_ms=_reasoning_ms(started, reasoning_last_at),
-                         chunks=chunks)
+                         chunks=chunks, retries=retries)
         yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
                          status=LLM_STATUS_CANCELED,
                          elapsed_ms=int((perf_counter() - started) * 1000),
                          reasoning_ms=_reasoning_ms(started, reasoning_last_at),
-                         chunks=chunks)
+                         chunks=chunks, retries=retries)
 
     def _stream(self, ports, model, request):
         started = perf_counter()
@@ -162,54 +187,73 @@ class ModelModule(ModuleBase):
         usage: Dict[str, Any] = {}
         provider_meta: Dict[str, Any] = {}
         failure = ""
-        try:
-            for delta in model.stream(request):
-                if ports.canceled():
-                    yield from self._cancel_events(
-                        ports, model, request, started, reasoning_last_at, chunks)
-                    return {"stopped": True, "failure": ""}
-                chunks += 1
-                if first_chunk_ms is None:
-                    first_chunk_ms = int((perf_counter() - started) * 1000)
-                kind = str(getattr(delta, "kind", "") or "")
-                if kind == "text":
-                    text_parts.append(str(delta.text or ""))
-                    yield ports.emit(ASSISTANT_DELTA, text=str(delta.text or ""))
-                elif kind == "reasoning":
-                    reasoning_parts.append(str(delta.text or ""))
-                    reasoning_last_at = perf_counter()
-                    yield ports.emit(REASONING_DELTA, text=str(delta.text or ""))
-                elif kind == "tool_call" and getattr(delta, "tool_call", None) is not None:
-                    tool_calls.append(delta.tool_call)
-                elif kind == "meta" and getattr(delta, "meta", None):
-                    provider_meta.update(delta.meta)
-                elif kind == "usage" and getattr(delta, "usage", None):
-                    usage = dict(delta.usage)
-        except Exception as exc:
-            failure = f"{type(exc).__name__}: {exc}"
-            report_error("core.model", exc)
+        retries = 0
+        while True:
+            try:
+                for delta in model.stream(request):
+                    if ports.canceled():
+                        yield from self._cancel_events(
+                            ports, model, request, started, reasoning_last_at,
+                            chunks, retries)
+                        return {"stopped": True, "failure": ""}
+                    chunks += 1
+                    if first_chunk_ms is None:
+                        first_chunk_ms = int((perf_counter() - started) * 1000)
+                    kind = str(getattr(delta, "kind", "") or "")
+                    if kind == "text":
+                        text_parts.append(str(delta.text or ""))
+                        yield ports.emit(ASSISTANT_DELTA, text=str(delta.text or ""))
+                    elif kind == "reasoning":
+                        reasoning_parts.append(str(delta.text or ""))
+                        reasoning_last_at = perf_counter()
+                        yield ports.emit(REASONING_DELTA, text=str(delta.text or ""))
+                    elif kind == "tool_call" and getattr(delta, "tool_call", None) is not None:
+                        tool_calls.append(delta.tool_call)
+                    elif kind == "meta" and getattr(delta, "meta", None):
+                        provider_meta.update(delta.meta)
+                    elif kind == "usage" and getattr(delta, "usage", None):
+                        usage = dict(delta.usage)
+                break
+            except Exception as exc:
+                retryable = isinstance(exc, RemoteDisconnected) and chunks == 0
+                if retryable and retries < REMOTE_DISCONNECTED_MAX_RETRIES:
+                    delay = RETRY_BACKOFF_SECONDS[min(
+                        retries, len(RETRY_BACKOFF_SECONDS) - 1)]
+                    retries += 1
+                    if self._wait_for_retry(ports, delay):
+                        yield from self._cancel_events(
+                            ports, model, request, started, reasoning_last_at,
+                            chunks, retries)
+                        return {"stopped": True, "failure": ""}
+                    continue
+                failure = f"{type(exc).__name__}: {exc}"
+                report_error("core.model", exc, retries=retries)
+                break
         elapsed = int((perf_counter() - started) * 1000)
         reasoning_ms = _reasoning_ms(started, reasoning_last_at)
         if failure:
             yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
                              error=failure, elapsed_ms=elapsed,
-                             reasoning_ms=reasoning_ms, chunks=chunks)
+                             reasoning_ms=reasoning_ms, chunks=chunks,
+                             retries=retries)
             yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
                              status=LLM_STATUS_FAILED, elapsed_ms=elapsed,
-                             reasoning_ms=reasoning_ms, chunks=chunks)
-            return {"stopped": False, "failure": failure}
+                             reasoning_ms=reasoning_ms, chunks=chunks,
+                             retries=retries)
+            return {"stopped": False, "failure": failure, "retries": retries}
         yield ports.emit(LLM_DONE, model=model.name_for(request) or "",
                          elapsed_ms=elapsed,
                          first_chunk_ms=(first_chunk_ms if first_chunk_ms is not None else -1),
                          reasoning_ms=reasoning_ms, chunks=chunks,
-                         tool_calls=len(tool_calls))
+                         tool_calls=len(tool_calls), retries=retries)
         yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
                          status=LLM_STATUS_DONE, elapsed_ms=elapsed,
                          reasoning_ms=reasoning_ms, chunks=chunks,
-                         tool_calls=len(tool_calls))
+                         tool_calls=len(tool_calls), retries=retries)
         if usage:
             yield ports.emit(USAGE, **usage)
-        return {"stopped": False, "failure": "", "text_parts": text_parts,
+        return {"stopped": False, "failure": "", "retries": retries,
+                "text_parts": text_parts,
                 "reasoning_parts": reasoning_parts, "tool_calls": tool_calls,
                 "provider_meta": provider_meta}
 
@@ -231,7 +275,9 @@ class ModelModule(ModuleBase):
             return Outcome.stopped("用户请求停止")
         failure = str(state.get("failure") or "")
         if failure:
-            yield ports.emit(ERROR, where="model", detail=failure)
+            retries = int(state.get("retries") or 0)
+            detail = (f"{failure}；重试 {retries} 次" if retries else failure)
+            yield ports.emit(ERROR, where="model", detail=detail)
             return Outcome.halt(f"模型调用失败：{failure}")
         message_data: Dict[str, Any] = {
             "content": "".join(state["text_parts"]),

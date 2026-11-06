@@ -47,6 +47,16 @@ class ContextFactoryCarriesEveryContextSettingTest(unittest.TestCase):
             self.assertIn(f"{name}=", src,
                           msg=f"工厂没把 {name} 传给管线（配置写了也不生效）")
 
+    def test_compactor_gets_the_configured_retention_width(self) -> None:
+        from agent.app import build_app
+        from agent.config import get_context
+
+        app = build_app(provider=None)
+        self.addCleanup(app.dispose)
+        compactor = app.compactor_factory("probe-compactor")
+        self.assertEqual(compactor.full_user_rounds,
+                         get_context()["full_user_rounds"])
+
     def test_pipeline_gets_the_configured_values(self) -> None:
         from agent.app import build_app
         from agent.config import get_context

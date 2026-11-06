@@ -66,7 +66,7 @@ At startup, expired versions are pruned according to `[agent] backup_retention_d
 
 ## `[context]`
 
-Context compaction. A session keeps recent memory verbatim and compacts earlier rounds into a summary: the last `full_user_rounds` user rounds are not compacted; only the rounds before them are. When no earlier rounds can be compacted, those trailing rounds are compacted as well.
+Context compaction. A session prefers to keep the last `full_user_rounds` user rounds verbatim and compacts only earlier rounds. If no earlier round can be compacted at that width, the retention count decreases until early history can be reduced. At least one round is always retained; a single round is never replaced by a summary.
 
 ```ini
 [context]
@@ -81,7 +81,7 @@ reasoning_replay_tokens  = 8000
 | Key | Default when absent or blank | Meaning | Recommended range |
 |---|---|---|---|
 | `summary_token_fallback` | `64000` | Fallback compaction threshold used only when the current model does not declare a `context_window`; not exposed on the settings page | Positive integer |
-| `full_user_rounds` | `5` | Number of trailing user rounds retained during compaction; earlier rounds are compacted. When no earlier rounds can be compacted, these rounds are compacted too. | `1`–`10` |
+| `full_user_rounds` | `5` | Preferred number of trailing user rounds retained during compaction. If no earlier round can be compacted, the count decreases down to 1; at least one round is always retained. | `1`–`10` |
 | `summary_output_max_chars` | `5000` | Maximum summary length in characters. It is written into the summary prompt as a constraint; the actual length depends on how closely the model follows it. | `2000`–`8000` |
 | `image_turns` | `1` | Only images from the most recent N user rounds are kept in the model request; images from earlier user rounds become text placeholders. `0` = no images from user rounds; negative = unlimited. Images returned by tools are not limited by this key. | `0` / positive / negative |
 | `image_max` | `8` | Maximum total number of images in the model request. The most recent images are kept first; excess images are dropped oldest first. `0` = no images; negative = unlimited. | `0` / positive / negative |

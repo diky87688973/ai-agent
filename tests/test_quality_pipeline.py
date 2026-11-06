@@ -100,20 +100,35 @@ class QualityPipelineTest(unittest.TestCase):
         self.gate.note_read(str(a))
         self.assertTrue(self.gate.check_write(self._wc(cid_again)).allow)
 
-    def test_large_diff_blocked(self) -> None:
-        """单次替换过大被拒、拆分后放行。"""
-
-        a = self.root / "d.txt"
-        big = "line\n" * 90
-        cid = self.gate.register_preview("replace_in_file", {"path": str(a), "new_text": big})
+    def _replace_decision(self, name: str, **changes: Any):
+        target = self.root / name
+        tool = "replace_in_file"
+        args = {"path": str(target), "new_text": "replacement", **changes}
+        cid = self.gate.register_preview(tool, args)
         self.gate.confirm(cid)
-        blocked = self.gate.check_write(self._wc(cid))
+        return self.gate.check_write(self._wc(cid))
+
+    def test_large_diff_limit_is_120_lines(self) -> None:
+        """替换内容恰好 120 行放行，121 行拒绝。"""
+
+        at_limit = "\n".join(f"line-{index}" for index in range(120))
+        over_limit = at_limit + "\nline-120"
+        self.assertTrue(self._replace_decision(
+            "limit-120.txt", new_text=at_limit).allow)
+        blocked = self._replace_decision(
+            "limit-121.txt", new_text=over_limit)
         self.assertFalse(blocked.allow)
-        self.assertIn("过大", blocked.reason)
-        small = "line\n" * 5
-        cid2 = self.gate.register_preview("replace_in_file", {"path": str(a), "new_text": small})
-        self.gate.confirm(cid2)
-        self.assertTrue(self.gate.check_write(self._wc(cid2)).allow)
+        self.assertIn(">120 行", blocked.reason)
+
+    def test_replace_target_span_limit_is_independent(self) -> None:
+        """目标区间恰好 120 行放行，121 行拒绝，不能由短替换内容绕过。"""
+
+        self.assertTrue(self._replace_decision(
+            "span-120.txt", line_start=1, line_end=120).allow)
+        blocked = self._replace_decision(
+            "span-121.txt", line_start=1, line_end=121)
+        self.assertFalse(blocked.allow)
+        self.assertIn("121 行 > 120 行", blocked.reason)
 
     # ── 写中 inspect ───────────────────────────────────────
 

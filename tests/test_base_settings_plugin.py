@@ -80,6 +80,10 @@ class BaseSettingsFragmentTest(unittest.TestCase):
             with self.subTest(panel=panel):
                 self.assertIn(":make_panel_", self.owned[panel].factory)
 
+    def test_retention_setting_has_a_one_round_floor(self) -> None:
+        item = self.owned["app/settings/context/full_user_rounds"]
+        self.assertEqual(item.props["min"], 1)
+
     def test_does_not_register_model_panel(self) -> None:
         """模型设置面板归 multi_model，不归本插件。"""
         self.assertNotIn("app/settings/model", self.panels)

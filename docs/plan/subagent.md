@@ -478,7 +478,7 @@ Behavior is symmetric with parent to child:
 parent idle: start the parent session
 parent busy: enqueue for the parent
 forced insert into the parent's current turn
-turn end: the latest non-empty model output in the child session is delivered to the parent inbox
+turn end: deliver only the current task turn's non-empty model output; notice-only turns do not report
 ```
 
 ### Message source

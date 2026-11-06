@@ -147,6 +147,9 @@ class SessionLogView:
     def derive_request_messages(self) -> list[dict[str, Any]]:
         return self._log.derive_request_messages()
 
+    def derive_request_messages_from_latest_wake(self) -> list[dict[str, Any]] | None:
+        return self._log.derive_request_messages_from_latest_wake()
+
     def __len__(self) -> int:
         return len(self._log.events)
 
@@ -174,6 +177,16 @@ def _input_message(ev: Event) -> dict[str, Any] | None:
     attachments = ev.data.get("attachments")
     if not content and not attachments:
         return None
+    if str(ev.data.get("kind") or "") == "wake":
+        lines = ["【定时唤醒任务】"]
+        job_id = str(ev.data.get("wake_job_id") or "").strip()
+        if job_id:
+            lines.append(f"job_id: {job_id}")
+        due_at = str(ev.data.get("due_at") or "").strip()
+        if due_at:
+            lines.append(f"due_at: {due_at}")
+        lines.extend(["reminder:", content])
+        content = "\n".join(lines)
     return {"role": "user", "content": _user_content(content, attachments)}
 
 
@@ -267,13 +280,15 @@ class SessionLog:
         """
         return SessionLogView(self)
 
-    def derive_messages(self) -> list[dict[str, Any]]:
-        """从事实投影出模型可见消息序列（供请求组装使用）。"""
+    @staticmethod
+    def _derive_messages(events: Iterable[Event]) -> list[dict[str, Any]]:
+        """从给定事实区间投影模型可见消息序列。"""
         messages: list[dict[str, Any]] = []
         results: dict[str, dict[str, Any]] = {}
         emitted: set[str] = set()
-        closed = _closed_tool_calls(self.events)
-        for ev in self.events:
+        event_rows = list(events)
+        closed = _closed_tool_calls(event_rows)
+        for ev in event_rows:
             if ev.type == "input_claimed":
                 msg = _input_message(ev)
             elif ev.type == "model_message":
@@ -289,6 +304,29 @@ class SessionLog:
             if msg is not None:
                 messages.append(msg)
         return messages
+
+    def derive_messages(self) -> list[dict[str, Any]]:
+        """从完整事实流投影模型可见消息序列（供请求组装使用）。"""
+        return self._derive_messages(self.events)
+
+    def derive_request_messages_from_latest_wake(self) -> list[dict[str, Any]] | None:
+        """只投影最近一次唤醒起的事实；没有唤醒时返回 ``None``。
+
+        唤醒是独立任务，模型只应看到本次 job 的输入、其后的模型趟和工具链。
+        返回 ``None`` 与空列表语义不同：前者表示沿用完整会话历史。
+        """
+        start = None
+        for index in range(len(self.events) - 1, -1, -1):
+            ev = self.events[index]
+            if ev.type != "input_claimed":
+                continue
+            if str(ev.data.get("kind") or "") != "wake":
+                return None
+            start = index
+            break
+        if start is None:
+            return None
+        return ensure_tool_pairs(self._derive_messages(self.events[start:]))
 
     def derive_request_messages(self) -> list[dict[str, Any]]:
         """构造模型请求用的消息序列：在 `derive_messages()` 之上补齐 tool 配对。

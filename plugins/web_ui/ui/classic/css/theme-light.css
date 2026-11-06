@@ -184,7 +184,7 @@ html[data-ui-theme="light"] .usage-ring{
   background:conic-gradient(var(--ring-color) calc(var(--p) * 1%), #d5dce8 0);
 }
 html[data-ui-theme="light"] .usage-ring::after{background:#f3f3f3}
-html[data-ui-theme="light"] .usage-ring .usage-num{color:#1f1f1f}
+html[data-ui-theme="light"] .usage-pct{color:#3b4656}
 html[data-ui-theme="light"] .card,
 html[data-ui-theme="light"] .step.card {
   background: #fcfcfc;

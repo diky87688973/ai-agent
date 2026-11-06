@@ -226,16 +226,17 @@ class SessionRunner:
                 if self._is_canceled(cid):
                     self._mesh.end_run(cid)
                     break
-                nxt_text = self._claim_goal_turn(cid, _auto_rounds, renew=True)
-                if not nxt_text:
-                    self._mesh.end_run(cid)
+                nxt_text = self._claim_goal_turn(
+                    cid, _auto_rounds, renew=True, allow_insert=True)
+                if nxt_text is None:
                     break
-                _auto_rounds += 1
+                if nxt_text:
+                    _auto_rounds += 1
                 text = nxt_text
                 attachments = None
                 resume = None
                 sender = None
-                meta = self._goal_followup_meta(cid)
+                meta = self._goal_followup_meta(cid) if nxt_text else None
         except Exception as exc:  # 兜底：释放占位（不续跑）
             self._mesh.abort_run(cid)
             report_error("shell.session_runner", exc, conversation_id=cid, where="aborted")
@@ -264,24 +265,33 @@ class SessionRunner:
         return stop_beat
 
     def _insert_turn_state(self, cid: str) -> str:
-        if not queue.has_inserting(self._app, cid):
-            return INSERT_NONE
         if self._is_canceled(cid):
-            self._mesh.end_run(cid)
-            return INSERT_STOP
-        if not self._mesh.renew_run(cid):
+            if queue.has_inserting(self._app, cid):
+                self._mesh.end_run(cid)
+                return INSERT_STOP
+            return INSERT_NONE
+        renewed = self._mesh.renew_for_insert(cid)
+        if renewed is None:
+            return INSERT_NONE
+        if not renewed:
             self._mesh.end_run(cid)
             return INSERT_STOP
         return INSERT_READY
 
-    def _claim_goal_turn(self, cid: str, auto_rounds: int, *, renew: bool = False) -> Optional[str]:
+    def _claim_goal_turn(self, cid: str, auto_rounds: int, *, renew: bool = False,
+                         allow_insert: bool = False) -> Optional[str]:
+        """返回目标续跑文本；空串表示插入续跑；None 表示释放并停止。"""
         text = self._next_continuation_text(cid)
         if not text:
+            if allow_insert and self._mesh.finish_or_continue_insert(cid):
+                return ""
             return None
         if auto_rounds >= self._goal_limit(cid):
             report_error("shell.session_runner.goal_limit",
                          RuntimeError(f"自动轮次已达上限 {self._goal_limit(cid)}"),
                          conversation_id=cid)
+            if allow_insert and self._mesh.finish_or_continue_insert(cid):
+                return ""
             return None
         claimed = self._mesh.renew_run(cid) if renew else self._mesh.try_begin_run(cid)
         if not claimed:

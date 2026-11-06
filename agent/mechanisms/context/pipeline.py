@@ -33,9 +33,8 @@ CHUNK_MODE = "模式"
 CHUNK_ORDER = (CHUNK_SYSTEM, CHUNK_PLUGIN, CHUNK_MEM, CHUNK_FULL, CHUNK_MODE)
 
 DEFAULT_SUMMARY_TOKEN_THRESHOLD = DEFAULT_SUMMARY_TOKEN_FALLBACK
-#: 最近这么多用户轮保留完整工具往返；更早的轮剥掉轮内工具往返。
-#: 压缩时保留的最近用户轮数（0 = 允许压到 0 个用户轮）。
-#: 剥掉工具往返的轮补的标注：不补的话模型会以为这些轮没调用过工具。
+#: 压缩时优先保留的最近用户轮数，下限为 1。
+#: 可压区间不足时从配置值逐级降到 1；单轮不会再被压成 0 轮。
 
 
 class ContextPipeline:
@@ -297,13 +296,16 @@ class ContextPipeline:
             out.append((key, label, count))
         return out
 
-    def host_messages(self) -> List[Dict[str, Any]]:
+    def host_messages(self, *, include_summary: bool = True) -> List[Dict[str, Any]]:
         """头部①：系统提示 / Skills / 插件段落 / 摘要，按 `CHUNK_ORDER` 顺序。
 
         模式块不在这里 —— 它是尾部③。
         """
         out: List[Dict[str, Any]] = []
-        for name in (CHUNK_SYSTEM, CHUNK_PLUGIN, CHUNK_MEM):
+        names = (CHUNK_SYSTEM, CHUNK_PLUGIN)
+        if include_summary:
+            names += (CHUNK_MEM,)
+        for name in names:
             chunk = self.name_map.get(name)
             if chunk is None:
                 continue
@@ -322,6 +324,14 @@ class ContextPipeline:
     def assembles(self, tail: Any = None) -> List[Dict[str, Any]]:
         """三段拼接：头部 + 对话 + 尾部。唯一装配入口，无重建。"""
         out = self.host_messages() + self.dialogue_messages()
+        for m in tail or []:
+            if isinstance(m, dict):
+                out.append(copy.deepcopy(m))
+        return out
+
+    def assembles_without_summary(self, tail: Any = None) -> List[Dict[str, Any]]:
+        """独立唤醒任务的装配入口：保留系统与插件，不带历史压缩摘要。"""
+        out = self.host_messages(include_summary=False) + self.dialogue_messages()
         for m in tail or []:
             if isinstance(m, dict):
                 out.append(copy.deepcopy(m))

@@ -178,6 +178,26 @@ def _material_messages(prefix: Optional[List[Dict[str, Any]]],
     return [{"role": "user", "content": "【待压缩的对话】\n" + text}]
 
 
+def _prefix_before_material(
+    prefix: Optional[List[Dict[str, Any]]],
+    material: Optional[List[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """返回正常请求中紧邻可压缩素材前的头部。
+
+    素材在正常请求里可能只是中间一段。摘要请求只保留素材及其前缀，
+    因而不会把素材后仍需原文保留的最近轮次送进摘要模型。
+    """
+    rows = list(prefix or [])
+    body = list(material or [])
+    if not rows or not body or len(body) > len(rows):
+        return []
+    width = len(body)
+    for index in range(len(rows) - width + 1):
+        if rows[index:index + width] == body:
+            return rows[:index]
+    return []
+
+
 def make_provider_summarizer(
     provider: Any,
     *,
@@ -186,15 +206,14 @@ def make_provider_summarizer(
 ) -> Callable[..., str]:
     """构造基于模型 provider 的摘要生成函数。
 
-    返回 fn(prefix, tools, system) -> str。摘要这一次调用与平常请求共用同一前缀：
+    返回 fn(prefix, tools, system) -> str。摘要请求只包含可压缩区间及其前缀：
 
-        平常请求  系统提示词 + 插件各段 + 记忆摘要 + 对话 + 新输入/工具结果
-        摘要请求  系统提示词 + 插件各段 + 记忆摘要 + 对话 + 压缩指令
+        摘要请求  系统提示词 + 插件各段 + 旧摘要 + 可压缩对话 + 压缩指令
 
-    `prefix` 就是上一次请求消息列表里"溢出点之前"的那一段，逐字节相同，
-    工具定义也照同一份带上 —— 这样前缀部分命中 provider 的 KV 缓存，
-    只按压缩指令那点新增内容付费。`prefix_reuse=False` 时不带这份前缀，
-    改发素材 JSON，前缀与平常请求无关，必然缓存未命中。
+    `prefix` 是正常请求中紧邻可压缩素材前的头部，`material` 只含本次要压掉的
+    消息；两者拼接后与正常请求的开头逐字节一致，可继续命中 provider 的 KV 缓存，
+    同时不会把需要原文保留的最近轮次送给摘要模型。`prefix_reuse=False` 时
+    只把素材展平成一条请求，不依赖正常请求前缀。
 
     生成异常 / 空文本 → 返回空串（由调用方按失败放行处理）。
     """
@@ -209,10 +228,11 @@ def make_provider_summarizer(
         if provider is None:
             return ""
         instruction = _SUMMARY_INSTRUCTION.format(max_chars=max(1, int(max_chars)))
-        head = list(prefix or []) if prefix_reuse else []
-        if not head:
-            # 没有可复用的前缀时只发素材和指令。要压的正文在素材里，请求自成一体。
-            # 这里若返回空串，估算再大也不压，直到请求超窗口被拒绝。
+        if prefix_reuse:
+            head = copy.deepcopy(list(prefix or []))
+            head.extend(copy.deepcopy(list(material or [])))
+        else:
+            # 不复用正常请求时把素材展平；请求只包含这次要压掉的内容。
             head = _material_messages(prefix, material)
         tail = instruction
         request = LogicalRequest(
@@ -260,9 +280,8 @@ class ContextCompactor:
         #: 上一次正常请求的精确前缀快照（不含尾部注入）。
         self._sent_prefix: Optional[List[Dict[str, Any]]] = None
         self._sent_tools: Optional[List[Dict[str, Any]]] = None
-        #: 遮盖的末尾用户轮数：正常只压它们前面那一段；那里压不出空间时
-        #: 连它们一起压（压不动就是请求超上限）。取值与 `[context] full_user_rounds`
-        #: 同一个配置项；当前契约下限 1，不能把近场全部压成 0。
+        #: 配置要求优先保留的最近用户轮数。前面没有可压内容时逐级减到 1；
+        #: 最低保留一轮，不能把整个近场压成摘要。
         self.full_user_rounds = max(1, int(full_user_rounds))
         self._policy = policy or ContextCompactionPolicy(
             full_user_rounds=self.full_user_rounds,
@@ -434,10 +453,14 @@ class ContextCompactor:
                 return None
             start, end = rng
             material = list(view[start:end])
+            summary_prefix = _prefix_before_material(base, material)
+            if not summary_prefix:
+                host_messages = getattr(context, "host_messages", None)
+                summary_prefix = list(host_messages()) if callable(host_messages) else []
             summary_tools = self.sent_tools()
             if summary_tools is None:
                 summary_tools = list(tools or [])
-            body = self._summary_body(base, material, context, summary_tools)
+            body = self._summary_body(summary_prefix, material, context, summary_tools)
             if not body:
                 return None
             self.covered_end += end

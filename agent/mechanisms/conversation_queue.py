@@ -104,11 +104,12 @@ class ConversationQueue:
         delivery: str = "after_turn",
         payload: Optional[Dict[str, Any]] = None,
         dedupe_key: str = "",
+        insert: bool = False,
     ) -> Dict[str, Any]:
         key = self._key(cid)
         text = str(content or "").strip()
         origin = str(origin or "user").strip().lower()
-        delivery = str(delivery or "after_turn").strip().lower()
+        delivery = "next_pass" if insert else str(delivery or "after_turn").strip().lower()
         if origin not in _ORIGINS:
             raise QueueError("未知消息来源", "invalid_origin")
         if delivery not in _DELIVERIES:
@@ -159,7 +160,7 @@ class ConversationQueue:
                 "attachments": attachments_meta,
                 "sender": dict(sender or {}) if origin == "agent" else None,
                 "delivery": delivery,
-                "state": "queued",
+                "state": "inserting" if insert else "queued",
                 "seq": seq,
                 "created_at": now,
                 "updated_at": now,

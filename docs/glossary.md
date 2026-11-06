@@ -104,7 +104,7 @@ A prerequisite for writing. The model must provide a conclusion grounded in an a
 ## Context
 
 **Retention window**
-The preferred range of trailing user rounds kept verbatim. Its width is set by `full_user_rounds`; compaction may still consume these rounds when no earlier history can be reduced.
+The preferred range of trailing user rounds kept verbatim. Its width is set by `full_user_rounds` and decreases down to one when no earlier history can be reduced; the most recent round always remains verbatim.
 
 **Summary**
 Text distilled from history rounds that have already been compacted, stored in the "memory file" chunk.

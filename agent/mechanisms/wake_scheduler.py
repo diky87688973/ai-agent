@@ -432,7 +432,7 @@ class WakeScheduler:
         message = {
             "content": job.reminder,
             "meta": {"kind": "wake", "source": "wake_scheduler",
-                     "wake_job_id": job.job_id},
+                     "wake_job_id": job.job_id, "due_at": job.due_at},
         }
         try:
             result = self._submit(job.target_cid, message, origin="system",

@@ -48,10 +48,15 @@ class BatchRecord:
         rows = []
         for child in self.children:
             info = table.get(child.child_id, {})
-            rows.append(child.public(
+            row = child.public(
                 status=str(info.get("status") or AGENT_IDLE),
                 pending=int(info.get("pending") or 0),
-            ))
+            )
+            row.update({
+                key: value for key, value in info.items()
+                if key not in ("status", "pending")
+            })
+            rows.append(row)
         return {
             "batch": self.batch,
             "created_at": self.created_at,

@@ -81,10 +81,11 @@ Child → parent
   → parent idle: start a turn
 
 Child turn ends
-  → read the child session's latest non-empty model_message
-  → deliver it to the parent inbox as an Agent message
+  → read the latest non-empty model_message after the most recent turn_started only
+  → do not report a turn driven solely by system-notice inputs
+  → report a normal task turn once even when notices were inserted during it
   → deliver a fixed notice when there is no model output
-  → skip when the child already sent the same text during that turn
+  → skip duplicate turn_ended callbacks and text already sent during that turn
 ```
 
 Both directions use forced insertion when the target is busy; the send path has no non-inserting mode. `QueuedInputModule` claims inserting messages in bulk, and each keeps its own `input_claimed` fact.

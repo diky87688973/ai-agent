@@ -104,6 +104,8 @@ class BackgroundTaskManagerTest(unittest.TestCase):
         self.assertEqual(len(self.notices), 1)
         self.assertTrue(self.notices[0][1].startswith("<<系统通知>>"))
         self.assertIn(result["task"]["batch"], self.notices[0][1])
+        self.assertTrue(str(self.notices[0][2].get("notice_id") or "").startswith(
+            "background-"))
 
     def test_cancel_queued_task(self) -> None:
         # 先塞满运行位，再让下一个任务只能排队。
@@ -312,6 +314,33 @@ class BackgroundTaskManagerTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.manager.create("cid-a", _py("print(1)"), str(self.root.parent), 10, "outside")
 
+
+class BackgroundNoticeDeliveryTest(unittest.TestCase):
+    def test_notice_handler_marks_running_session_for_insertion(self) -> None:
+        from types import SimpleNamespace
+
+        from agent.boot.shell_components import _notice_handler
+        from agent.mechanisms.conversation_queue import ConversationQueue
+        from agent.mechanisms.mesh import MeshState
+
+        cid = "notice-delivery-01"
+        queue = ConversationQueue()
+        mesh = MeshState(input_queue=queue)
+        self.assertTrue(mesh.try_begin_run(cid))
+        notice = _notice_handler(SimpleNamespace(mesh=mesh))
+        meta = {
+            "kind": "system_notice",
+            "source": "background_tasks",
+            "notice_id": "notice-stable-1",
+            "batch": "batch-1",
+        }
+        notice(cid, "任务批次已完结", meta)
+        notice(cid, "任务批次已完结", meta)
+        self.assertTrue(queue.has_inserting(cid))
+        claimed = queue.claim_insert_batch(cid)
+        self.assertEqual(len(claimed), 1)
+        self.assertEqual(claimed[0]["payload"]["notice_id"], "notice-stable-1")
+        mesh.end_run(cid)
 
 if __name__ == "__main__":
     unittest.main()

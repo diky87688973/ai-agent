@@ -242,43 +242,29 @@ def excerpt_by_target_tokens(
     keep_turns: int,
     token_fn: Optional[Callable[[Dict[str, Any]], int]] = None,
 ) -> Optional[Tuple[int, int]]:
-    """要压缩掉的区间 `[0, end)`：遮盖末尾 `keep_turns` 轮，压它前面的。
+    """要压缩掉的区间 ``[0, cut)``，尽量保留末尾 ``keep_turns`` 轮。
 
-    遮盖是偏好（正常情况）：
+    先按配置值保留末尾轮次；若它前面没有可压内容，就逐级减少保留轮数，
+    直到能压掉至少一轮。保留数最低为 1，不再把近场全部压成 0 轮。
+    连 1 轮都压不动时返回 ``None``，由调用方放行本次压缩。
 
-    - 末尾 `keep_turns` 个用户轮不压 —— 那是模型的近场，手里的活全在那里；
-    - 压缩区域只能是「最后一个前置 system 之后 → 遮盖起点之前」那一段。
-      系统提示词 / Skills / 知识库 / 记忆摘要都是 `system`，位置在对话之前，
-      所以这个区域天然只覆盖对话，不含任何系统设定。
-
-    压不动就连近场一起压（这一条亘古不变）：遮盖前面没有可压的轮
-    （例如总共只剩 1 轮、或遮盖已经盖住全部）时，连遮盖一起压掉 ——
-    极端情况压缩后整个上下文 0 个用户轮，摘要接管全部历史，
-    剩下的只有头部（系统提示 / 知识库 / 摘要）。
-    遮盖是偏好，不是拒绝压缩的理由：压不动就是请求超上限直接失败。
-
-    两者都没有（对话一条都没有）→ `None`。
-    返回的 `end` 只会落在用户轮边界或工具链闭合处。
+    压缩落点只落在用户轮边界或工具链闭合处。
     """
     msgs = list(messages or [])
     spans = turn_spans(msgs)
     if not spans:
         return None
-    keep = max(0, int(keep_turns))
-    start = len(spans) - keep
-    cut = 0
-    if 0 < start < len(spans):
-        # 正常路径：压遮盖前面那一段（`spans[0][0]` 恒为 0，落点即遮盖起点）。
-        cut = spans[start][0]
-    if cut <= 0:
-        # 遮盖前面没有可压的轮 → 连遮盖一起压（压到末尾）。
-        cut = len(msgs)
-    # 落点不能切在悬空工具链上：往前收到工具链闭合为止。
-    while cut > 0 and not tool_chain_balanced(msgs, 0, cut):
-        cut -= 1
-    if cut <= 0:
-        return None
-    return 0, cut
+    requested = max(1, int(keep_turns))
+    upper = min(requested, len(spans) - 1)
+    for keep in range(upper, 0, -1):
+        cut = spans[len(spans) - keep][0]
+        while cut > 0 and not tool_chain_balanced(msgs, 0, cut):
+            cut -= 1
+        if cut > 0:
+            return 0, cut
+    return None
+
+
 def adjust_excerpt_range_half_open(
     messages: List[Dict[str, Any]], start: int, end: int
 ) -> Tuple[int, int]:

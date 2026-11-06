@@ -346,6 +346,44 @@ class ManagerTest(_ManagerCase):
         if not app.runner.wait_idle(result["child_id"], timeout=3):
             self.fail("子智能体回合未在时限内结束")
 
+    def test_busy_timing_is_derived_from_current_run_and_omitted_when_idle(self) -> None:
+        provider = _BlockingProvider()
+        app = build_app(
+            provider=provider,
+            store=SessionStore(self.root / "data-busy"),
+            data_root=self.root / "data-busy",
+            live_state=LiveState(storage_dir=self.root / "state-busy"),
+            plugins_dir=self.root / "plugins-busy",
+            plugins_path=self.root / "plugins-busy.ini",
+        )
+        self.addCleanup(app.dispose)
+        manager = app.context.get(SERVICE_SUBAGENTS)
+        created = manager.create(
+            "parent-busy-0001", prompt="x", label="计时", context="fresh")
+        child_id = created["child_id"]
+        self.assertTrue(provider.started.wait(2))
+        self.assertEqual(created["status"], "busy")
+        self.assertIn("busy_since", created)
+        self.assertIn("busy_seconds", created)
+
+        with mock.patch("agent.subagent.lifecycle.time.time",
+                        return_value=created["busy_since"] + 37):
+            status = manager.status("parent-busy-0001", child_id)
+            result = manager.result("parent-busy-0001", child_id)
+            listed = manager.list("parent-busy-0001")["batches"][0]["children"][0]
+        for row in (status, result, listed):
+            self.assertEqual(row["status"], "busy")
+            self.assertEqual(row["busy_since"], created["busy_since"])
+            self.assertIn(row["busy_seconds"], (36, 37))
+
+        provider.release.set()
+        if not app.runner.wait_idle(child_id, timeout=3):
+            self.fail("子智能体回合未在时限内结束")
+        idle = manager.status("parent-busy-0001", child_id)
+        self.assertEqual(idle["status"], "idle")
+        self.assertNotIn("busy_since", idle)
+        self.assertNotIn("busy_seconds", idle)
+
     def test_system_prompt_uses_role_tool_view(self) -> None:
         parent_prompt = self.app.runner.system_prompt("parent-0001")
         self.assertNotIn("session_create", parent_prompt)
@@ -371,6 +409,108 @@ class ManagerTest(_ManagerCase):
         self.assertIn("result", tool.parameters["action"]["enum"])
         self.assertIsNotNone(self.app.registry.get("subagent_send"))
 
+
+class BackgroundNoticeReportTest(_ManagerCase):
+    def test_duplicate_turn_end_event_reports_once(self) -> None:
+        with mock.patch.object(
+            self.manager._messenger, "send_to_parent",
+            wraps=self.manager._messenger.send_to_parent,
+        ) as reported:
+            created = self.manager.create(
+                "parent-duplicate-01", prompt="执行任务", label="重复事件",
+                context="fresh",
+            )
+            child_id = created["child_id"]
+            self._wait(child_id)
+            self.assertEqual(reported.call_count, 1)
+            ended = make_event("turn_ended", conversation_id=child_id)
+            self.manager._on_turn_ended(ended)
+            self.manager._on_turn_ended(ended)
+            self.assertEqual(reported.call_count, 1)
+
+    def test_notice_only_turn_does_not_complete_parent_again(self) -> None:
+        with mock.patch.object(
+            self.manager._messenger, "send_to_parent",
+            wraps=self.manager._messenger.send_to_parent,
+        ) as reported:
+            created = self.manager.create(
+                "parent-notice-01", prompt="执行任务", label="通知边界",
+                context="fresh",
+            )
+            child_id = created["child_id"]
+            self._wait(child_id)
+            self.assertEqual(reported.call_count, 1)
+            started = self.app.mesh.submit_insert(
+                child_id,
+                {"content": "后台任务已完结", "meta": {
+                    "kind": "system_notice",
+                    "source": "background_tasks",
+                    "notice_id": "notice-report-1",
+                    "batch": "batch-1",
+                }},
+                origin="system",
+                dedupe_key="system_notice:background_tasks:notice-report-1",
+            )
+            self.assertTrue(started["inserted"])
+            self.assertTrue(started["run_id"])
+            self._wait(child_id)
+            self.assertEqual(reported.call_count, 1)
+            events = self.manager.history(
+                "parent-notice-01", child_id)["events"]
+            self.assertTrue(any(
+                row.get("type") == "input_claimed"
+                and row.get("kind") == "system_notice"
+                and row.get("source") == "background_tasks"
+                for row in events
+            ))
+
+    def test_notice_inserted_into_task_turn_reports_once(self) -> None:
+        provider = _BlockingProvider()
+        app = build_app(
+            provider=provider,
+            store=SessionStore(self.root / "data-notice-report"),
+            data_root=self.root / "data-notice-report",
+            live_state=LiveState(storage_dir=self.root / "state-notice-report"),
+            plugins_dir=self.root / "plugins-notice-report",
+            plugins_path=self.root / "plugins-notice-report.ini",
+        )
+        self.addCleanup(app.dispose)
+        manager = app.context.get(SERVICE_SUBAGENTS)
+        with mock.patch.object(
+            manager._messenger, "send_to_parent",
+            wraps=manager._messenger.send_to_parent,
+        ) as reported:
+            created = manager.create(
+                "parent-running-01", prompt="执行任务", label="运行中通知",
+                context="fresh",
+            )
+            child_id = created["child_id"]
+            self.assertTrue(provider.started.wait(2))
+            submitted = app.mesh.submit_insert(
+                child_id,
+                {"content": "后台任务已完结", "meta": {
+                    "kind": "system_notice",
+                    "source": "background_tasks",
+                    "notice_id": "notice-running-1",
+                    "batch": "batch-1",
+                }},
+                origin="system",
+                dedupe_key="system_notice:background_tasks:notice-running-1",
+            )
+            self.assertTrue(submitted["queued"])
+            self.assertTrue(submitted["inserted"])
+            provider.release.set()
+            if not app.runner.wait_idle(child_id, timeout=3):
+                self.fail("子智能体通知插入未在时限内结束")
+            self.assertEqual(reported.call_count, 1)
+            events = manager.history("parent-running-01", child_id)["events"]
+            notice_inputs = [
+                row for row in events
+                if row.get("type") == "input_claimed"
+                and row.get("kind") == "system_notice"
+                and row.get("source") == "background_tasks"
+            ]
+            self.assertEqual(len(notice_inputs), 1)
 
 if __name__ == "__main__":
     unittest.main()

@@ -79,13 +79,14 @@ class RunRegistry(Protocol):
         """释放占位（回合结束 / 异常兜底）。幂等。"""
         ...
 
-    def renew(self, cid: str, run_id: str) -> bool:
+    def renew(self, cid: str, run_id: str, *, reset_started: bool = True) -> bool:
         """换一个 run_id 但不释放占位（队列抽干时用）。
 
         `renew` 在保持占位的前提下换 run_id：抽干下一条消息时要"始终占着位"——
         若先 `release` 再 `claim`，中间会出现"空闲窗口"，此时另一个投递
         看到空闲就会再激活一趟（同一个回合被执行两遍）。
         已登记 → 换 id 返回 True；未登记 → 不凭空占位，返回 False。
+        `reset_started=False` 用于同一任务内的插话续跑；默认值用于新任务轮次。
         """
         ...
 
@@ -105,13 +106,17 @@ class RunRegistry(Protocol):
         """该会话当前的 run_id；未在跑返回空串。"""
         ...
 
+    def run_started_at(self, cid: str) -> Optional[float]:
+        """当前连续忙碌段的 Unix 开始时间；未在跑返回 None。"""
+        ...
+
 
 class InMemoryRunRegistry:
     """纯内存实现：单实例 / 测试用。进程退出即消失，不会留下残留。"""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._runs: Dict[str, str] = {}
+        self._runs: Dict[str, tuple[str, float]] = {}
 
     def claim(self, cid: str, run_id: str) -> bool:
         key = str(cid or "").strip()
@@ -120,19 +125,22 @@ class InMemoryRunRegistry:
         with self._lock:
             if key in self._runs:
                 return False
-            self._runs[key] = str(run_id or "")
+            self._runs[key] = (str(run_id or ""), time.time())
             return True
 
     def release(self, cid: str) -> None:
         with self._lock:
             self._runs.pop(str(cid or "").strip(), None)
 
-    def renew(self, cid: str, run_id: str) -> bool:
+    def renew(self, cid: str, run_id: str, *, reset_started: bool = True) -> bool:
         key = str(cid or "").strip()
         with self._lock:
             if key not in self._runs:
                 return False
-            self._runs[key] = str(run_id or "")
+            started_at = self._runs[key][1]
+            if reset_started:
+                started_at = time.time()
+            self._runs[key] = (str(run_id or ""), started_at)
             return True
 
     def touch(self, cid: str) -> None:
@@ -148,7 +156,13 @@ class InMemoryRunRegistry:
 
     def active_run_id(self, cid: str) -> str:
         with self._lock:
-            return self._runs.get(str(cid or "").strip(), "")
+            run = self._runs.get(str(cid or "").strip())
+            return run[0] if run is not None else ""
+
+    def run_started_at(self, cid: str) -> Optional[float]:
+        with self._lock:
+            run = self._runs.get(str(cid or "").strip())
+            return run[1] if run is not None else None
 
 
 class FileRunRegistry:
@@ -352,7 +366,7 @@ class FileRunRegistry:
             self._drop(fp)
             self._last_touch.pop(key, None)
 
-    def renew(self, cid: str, run_id: str) -> bool:
+    def renew(self, cid: str, run_id: str, *, reset_started: bool = True) -> bool:
         key = str(cid or "").strip()
         fp = self._file(key)
         if fp is None:
@@ -364,6 +378,8 @@ class FileRunRegistry:
                 return False          # 没有有效占位：不凭空占
             rec["run_id"] = str(run_id or "")
             rec["heartbeat"] = now
+            if reset_started:
+                rec["started_at"] = now
             if not self._write(fp, rec):
                 return False
             self._last_touch[key] = now
@@ -426,6 +442,21 @@ class FileRunRegistry:
             if rec is None or not self._fresh(rec):
                 return ""
             return str(rec.get("run_id") or "")
+
+    def run_started_at(self, cid: str) -> Optional[float]:
+        key = str(cid or "").strip()
+        fp = self._file(key)
+        if fp is None or not fp.is_file():
+            return None
+        with self._lock:
+            rec = self._read(fp)
+            if rec is None or not self._fresh(rec):
+                return None
+            try:
+                value = float(rec.get("started_at") or 0.0)
+            except (TypeError, ValueError):
+                return None
+            return value if value > 0 else None
 
 
 def build_run_registry(

@@ -63,6 +63,7 @@ class WakeSchedulerTest(unittest.TestCase):
         self.assertEqual(len(self.submitted), 1)
         self.assertEqual(self.submitted[0]["cid"], "cid-12345678")
         self.assertEqual(self.submitted[0]["message"]["meta"]["wake_job_id"], job["job_id"])
+        self.assertEqual(self.submitted[0]["message"]["meta"]["due_at"], job["due_at"])
         self.assertEqual(scheduler.list_jobs(target_cid="cid-12345678")[0]["status"],
                          STATUS_DELIVERED)
         scheduler.run_due(self.clock.value + 100)

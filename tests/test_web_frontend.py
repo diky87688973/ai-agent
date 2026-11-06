@@ -88,3 +88,26 @@ class ChannelBackpressureTest(unittest.TestCase):
         thread.join(timeout=3)
         self.assertEqual(len(received), 200, msg=f"收到 {len(received)} 帧")
         self.assertEqual(received[0], "data: 0\n\n")
+
+
+class ContextUsagePresentationTest(unittest.TestCase):
+    """用量环内不放数字；百分比在同组圆环后显示。"""
+
+    def test_ring_has_percentage_sibling_and_excludes_remaining_segment(self) -> None:
+        root = Path(__file__).resolve().parent.parent
+        script = (
+            root / "plugins/web_ui/ui/classic/js/chat/context-usage.js"
+        ).read_text(encoding="utf-8")
+        composer = (
+            root / "plugins/web_ui/ui/classic/css/composer.css"
+        ).read_text(encoding="utf-8")
+        light = (
+            root / "plugins/web_ui/ui/classic/css/theme-light.css"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("usage-num", script)
+        self.assertIn('key!=="remaining"', script)
+        self.assertIn('className="usage-pct"', script)
+        self.assertIn('ringWrap.appendChild(ringPct)', script)
+        self.assertIn(".usage-bottom .usage-pct", composer)
+        self.assertIn('.usage-pct{color:#3b4656}', light)

@@ -15,6 +15,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent.mechanisms.mesh import MeshState
 from agent.mechanisms.run_registry import (
@@ -50,6 +51,16 @@ class InMemoryRunRegistryTest(unittest.TestCase):
         reg.claim("aaaa1111", "r1")
         reg.claim("bbbb2222", "r2")
         self.assertEqual(reg.running_cids(), ["aaaa1111", "bbbb2222"])
+
+    def test_renew_preserves_or_resets_started_at_explicitly(self) -> None:
+        reg = InMemoryRunRegistry()
+        with mock.patch("agent.mechanisms.run_registry.time.time", return_value=100.0):
+            self.assertTrue(reg.claim(CID, "r1"))
+        with mock.patch("agent.mechanisms.run_registry.time.time", return_value=160.0):
+            self.assertTrue(reg.renew(CID, "r2", reset_started=False))
+            self.assertEqual(reg.run_started_at(CID), 100.0)
+            self.assertTrue(reg.renew(CID, "r3"))
+            self.assertEqual(reg.run_started_at(CID), 160.0)
 
 
 class FileRunRegistryTest(unittest.TestCase):
@@ -123,6 +134,16 @@ class FileRunRegistryTest(unittest.TestCase):
     def test_build_switches_implementation_by_directory(self) -> None:
         self.assertIsInstance(build_run_registry(None), InMemoryRunRegistry)
         self.assertIsInstance(build_run_registry(self.dir), FileRunRegistry)
+
+    def test_started_at_matches_in_memory_semantics(self) -> None:
+        reg = FileRunRegistry(self.dir)
+        with mock.patch("agent.mechanisms.run_registry.time.time", return_value=100.0):
+            self.assertTrue(reg.claim(CID, "r1"))
+        with mock.patch("agent.mechanisms.run_registry.time.time", return_value=160.0):
+            self.assertTrue(reg.renew(CID, "r2", reset_started=False))
+            self.assertEqual(reg.run_started_at(CID), 100.0)
+            self.assertTrue(reg.renew(CID, "r3"))
+            self.assertEqual(reg.run_started_at(CID), 160.0)
 
 
 class DrainWindowTest(unittest.TestCase):

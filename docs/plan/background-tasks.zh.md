@@ -202,16 +202,19 @@ content 仍以 <<系统通知>> 开头
 卡片宽度为对话区的 50%，居中，贴合上边框，顶部左右无圆角。
 默认 6 秒后自动消失；用户展开详情后暂停自动消失，折叠后 4 秒再消失；新通知到达时用新卡片替换旧卡片。
 
-模型忙时通知进入 ConversationQueue，`origin=system`、`delivery=next_pass`，入队后立即置为 inserting；队列 UI 不显示系统通知。模型空闲时直接启动一个回合；启动失败时回退到队列。
+通知统一通过 `MeshState.submit_insert()` 投递：消息入队与 `inserting` 标记在同一个原子边界完成，相同 `notice_id` 在队列内只保留一项。模型忙时，通知在当前模型请求结束、工具批次收尾后的安全点批量注入，下一条模型请求可以看到积压通知；它不会中断已经发起的模型流。模型空闲时，同一入口先持久化通知，再启动一个由队列驱动的回合；激活失败时通知保留在队列。队列 UI 不显示系统通知。
 
 注入字段：
 
 ```text
-直接回合 meta：kind=system_notice、source=background_tasks、notice_id、batch
-入队 payload：在上述字段上增加 rule=user 和 internal=true
+content=<<系统通知>> 正文
+payload.kind=system_notice
+payload.source=background_tasks
+payload.notice_id=<稳定去重 id>
+payload.batch=<批次号；多个用 、 连接>
 ```
 
-从 payload 只读回 `kind`、`source`、`notice_id`、`batch`；`rule` 与 `internal` 写入但不读取。会话标题生成跳过内容以 `<<系统通知>>` 开头的用户消息（允许前导空白）。
+模型输入从 payload 只读回 `kind`、`source`、`notice_id`、`batch`。会话标题生成跳过内容以 `<<系统通知>>` 开头的用户消息（允许前导空白）。
 
 只有应用停机调用 `BackgroundTaskManager.shutdown`：杀掉运行中的任务进程，并逐个最多等待 3 秒结算；待执行任务留在队列。释放或关闭会话（`release_conversation` / `drop_session`）不取消后台任务。
 
@@ -227,7 +230,7 @@ agent/capabilities/builtin/background_task.py
 ```text
 BackgroundTaskManager 在 app 中创建，注册到 AppContext 的 background_tasks
 background_task 工具取当前会话 cid 后调用 manager
-app 装配 manager 的通知回调：正在运行的 cid 进 ConversationQueue，空闲的 cid 走 SessionRunner.start
+app 装配 manager 的通知回调：所有 cid 都经 MeshState.submit_insert 持久化；空闲 cid 随后启动队列驱动回合
 App.dispose 调用 shutdown；会话释放不触碰任务
 ```
 

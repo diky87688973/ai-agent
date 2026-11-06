@@ -200,16 +200,19 @@ The classic UI renders a matching user message as a system-notice card at the to
 The card is half the width of the conversation pane, centered, flush with the top edge, with square top corners.
 It disappears automatically after 6 seconds by default; expanding the details pauses automatic dismissal, and collapsing them dismisses it after 4 more seconds; when a new notice arrives, the old card is replaced by the new one.
 
-When the cid is busy, the notice enters ConversationQueue with `origin=system` and `delivery=next_pass`, and is set to `inserting` immediately after enqueueing; the queue UI filters out system notices. When the cid is idle, it starts a turn directly; if that start fails, it falls back to the queue.
+Every notice is delivered through `MeshState.submit_insert()`, which queues the message and marks it `inserting` in one atomic boundary; an identical `notice_id` is retained only once. When the cid is busy, pending notices are injected as a batch after the current model request and tool pass finish, so the next model request sees all of them; an in-flight model stream is not interrupted. When the cid is idle, the same entry point first persists the notice and then starts one queue-driven run; if activation fails, the notice remains queued. The queue UI filters out system notices.
 
 Injection fields:
 
 ```text
-direct turn meta: kind=system_notice, source=background_tasks, notice_id, batch
-queued payload: those fields plus rule=user and internal=true
+content=the <<系统通知>> body
+payload.kind=system_notice
+payload.source=background_tasks
+payload.notice_id=<stable deduplication id>
+payload.batch=<batch ids; multiple joined with 、>
 ```
 
-Only `kind`, `source`, `notice_id`, and `batch` are read back from the payload; `rule` and `internal` are written but not read. Session-title generation skips a user message whose content starts with `<<系统通知>>` (leading whitespace allowed).
+The model-input path reads only `kind`, `source`, `notice_id`, and `batch` from the payload. Session-title generation skips a user message whose content starts with `<<系统通知>>` (leading whitespace allowed).
 
 Only application shutdown calls `BackgroundTaskManager.shutdown`, which kills the running task processes and waits up to 3 seconds for each to settle; pending tasks are left queued. Releasing or closing a session (`release_conversation` / `drop_session`) does not cancel background tasks.
 
@@ -225,7 +228,7 @@ Assembly:
 ```text
 BackgroundTaskManager is created in the app and registered in AppContext as background_tasks
 the background_task tool resolves the current session cid and calls the manager
-the app wires the manager's notice callback: busy cid -> ConversationQueue, idle cid -> SessionRunner.start
+the app wires the manager's notice callback to MeshState.submit_insert: every cid is persisted, and an idle cid then starts a queue-driven run
 App.dispose calls shutdown; session release does not touch tasks
 ```
 

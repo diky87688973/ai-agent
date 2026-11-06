@@ -121,6 +121,10 @@ class MeshState:
     def active_run_id(self, cid: str) -> str:
         return self._runs.active_run_id(str(cid or "").strip())
 
+    def run_started_at(self, cid: str) -> Optional[float]:
+        """当前连续忙碌段的开始时间；未在跑返回 None。"""
+        return self._runs.run_started_at(str(cid or "").strip())
+
     def touch_run(self, cid: str) -> None:
         self._runs.touch(str(cid or "").strip())
 
@@ -132,12 +136,36 @@ class MeshState:
             rid = uuid.uuid4().hex[:12]
             return rid if self._runs.claim(key, rid) else ""
 
-    def renew_run(self, cid: str) -> bool:
+    def renew_run(self, cid: str, *, reset_started: bool = True) -> bool:
         key = str(cid or "").strip()
         if not key:
             return False
         with self._lock:
-            return bool(self._runs.renew(key, uuid.uuid4().hex[:12]))
+            return bool(self._runs.renew(
+                key, uuid.uuid4().hex[:12], reset_started=reset_started))
+
+    def renew_for_insert(self, cid: str) -> Optional[bool]:
+        """检查并续用运行位；None=没有插入，True=已续用，False=运行位已丢。"""
+        key = str(cid or "").strip()
+        if not key:
+            return False
+        with self._lock:
+            if not self._queue.has_inserting(key):
+                return None
+            return bool(self._runs.renew(
+                key, uuid.uuid4().hex[:12], reset_started=False))
+
+    def finish_or_continue_insert(self, cid: str) -> bool:
+        """原子收尾：有插入则续用运行位，否则释放；True 表示继续。"""
+        key = str(cid or "").strip()
+        if not key:
+            return False
+        with self._lock:
+            if self._queue.has_inserting(key):
+                return bool(self._runs.renew(
+                    key, uuid.uuid4().hex[:12], reset_started=False))
+            self._runs.release(key)
+            return False
 
     def end_run(self, cid: str) -> None:
         with self._lock:
@@ -149,8 +177,16 @@ class MeshState:
 
     def _enqueue_message(self, key: str, message: Dict[str, Any], *,
                          origin: Optional[str] = None,
-                         dedupe_key: str = "") -> Dict[str, Any]:
+                         dedupe_key: str = "",
+                         delivery: str = "after_turn",
+                         insert: bool = False) -> Dict[str, Any]:
         payload = dict(message)
+        nested_meta = payload.pop("meta", None)
+        if isinstance(nested_meta, dict):
+            for name, value in nested_meta.items():
+                payload.setdefault(name, value)
+            # 旧调用方仍读取 payload.meta；展开后的顶层字段供输入与渲染使用。
+            payload["meta"] = dict(nested_meta)
         resolved_origin = str(origin or "").strip().lower()
         sender = None
         if resolved_origin not in ("user", "agent", "system"):
@@ -177,10 +213,37 @@ class MeshState:
             attachments=payload.get("attachments"),
             origin=resolved_origin,
             sender=sender,
-            delivery="after_turn",
+            delivery=delivery,
             payload=queue_payload,
             dedupe_key=dedupe_key,
+            insert=insert,
         )
+
+    def submit_insert(self, cid: str, message: Dict[str, Any], *,
+                      origin: Optional[str] = None,
+                      dedupe_key: str = "") -> Dict[str, Any]:
+        """原子插入投递：忙时入队并标记 inserting，闲时直接启动。"""
+        key = str(cid or "").strip()
+        if not key:
+            return {"queued": False, "inserted": False, "run_id": ""}
+        with self._lock:
+            item = self._enqueue_message(
+                key, message, origin=origin, dedupe_key=dedupe_key,
+                delivery="next_pass", insert=True)
+            state = str(item.get("state") or "")
+            rid = ""
+            if not self._runs.running(key) and self._activator is not None:
+                try:
+                    rid = str(self._activator(key, {}) or "")
+                except Exception as exc:
+                    report_error("agent.mechanisms.mesh.MeshState.submit_insert", exc)
+            return {
+                "queued": True,
+                "inserted": state == "inserting",
+                "already_claimed": state == "claimed",
+                "run_id": rid,
+                "queue_item": item,
+            }
 
     def submit(self, cid: str, message: Dict[str, Any], *,
                origin: Optional[str] = None,

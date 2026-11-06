@@ -62,7 +62,20 @@ barHost.addEventListener("mouseenter",showTip);
 barHost.addEventListener("mouseleave",function(){scheduleHideCtxLayoutTooltip();});
 }
 function formatCompactTokens(n){var x=Math.max(0,Math.floor(Number(n)||0));if(x>=1e9){var v=x/1e9;return (v>=100?v.toFixed(0):v>=10?v.toFixed(1):v.toFixed(2)).replace(/\.?0+$/,"")+"B";}if(x>=1e6){var v2=x/1e6;return (v2>=100?v2.toFixed(0):v2>=10?v2.toFixed(1):v2.toFixed(2)).replace(/\.?0+$/,"")+"M";}if(x>=1e3){var v3=x/1e3;return (v3>=100?v3.toFixed(0):v3.toFixed(1)).replace(/\.0+$/,"")+"K";}return String(x);}
-function buildUsageRing(){const million=Math.floor(sessionTokenUsed/SESSION_TOKEN_LIMIT);const p=tokenPercent();const used=Math.max(0,Math.floor(sessionTokenUsed));const ring=document.createElement("span");ring.className="usage-ring";ring.style.setProperty("--p",String(p));const totalCache=totalCacheHitTokens+totalCacheMissTokens;const hitPct=totalCache>0?Math.round(totalCacheHitTokens/totalCache*100):0;ring.title="已用: "+used.toLocaleString()+"\n输入: "+totalPromptTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalPromptTokens)+")\n输出: "+totalCompletionTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalCompletionTokens)+")\nKV缓存命中: "+totalCacheHitTokens.toLocaleString()+" ("+hitPct+"%)\n未命中: "+totalCacheMissTokens.toLocaleString();const num=document.createElement("span");num.className="usage-num";num.textContent=million;ring.appendChild(num);return ring;}
+function contextUsagePct(lay){
+var raw=lay&&Array.isArray(lay.segments)?lay.segments:[];
+if(!raw.length)return 0;
+var used=0;
+for(var i=0;i<raw.length;i++){
+var key=String(raw[i]&&raw[i].key||"");
+if(key!=="remaining")used+=Math.max(0,Math.floor(Number(raw[i]&&raw[i].tokens)||0));
+}
+var limit=Math.max(0,Math.floor(Number(lay&&lay.model_max_context_tokens)||0));
+var denom=limit||Math.max(0,Math.floor(Number(lay&&lay.budget_tokens)||0));
+if(!denom||used<=0)return 0;
+return Math.max(0,Math.min(100,Math.ceil(used*100/denom)));
+}
+function buildUsageRing(lay){const p=contextUsagePct(lay);const used=Math.max(0,Math.floor(sessionTokenUsed));const ring=document.createElement("span");ring.className="usage-ring";ring.style.setProperty("--p",String(p));const totalCache=totalCacheHitTokens+totalCacheMissTokens;const hitPct=totalCache>0?Math.round(totalCacheHitTokens/totalCache*100):0;ring.title="上下文占用: "+p+"%\n累计已用: "+used.toLocaleString()+"\n输入: "+totalPromptTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalPromptTokens)+")\n输出: "+totalCompletionTokens.toLocaleString()+" (显示 "+formatCompactTokens(totalCompletionTokens)+")\nKV缓存命中: "+totalCacheHitTokens.toLocaleString()+" ("+hitPct+"%)\n未命中: "+totalCacheMissTokens.toLocaleString();return ring;}
 function ctxDisplaySegments(lay){
 var raw=lay&&Array.isArray(lay.segments)?lay.segments:[];
 var total=0;
@@ -100,14 +113,17 @@ function _updateUsageBottom(){
 const el=document.getElementById("usage-bottom");if(!el)return;
 if(ctxLayoutTooltipEl){ctxLayoutTooltipEl.style.display="none";}
 if(ctxLayoutTipHideTimer){clearTimeout(ctxLayoutTipHideTimer);ctxLayoutTipHideTimer=null;}
-const ring=buildUsageRing();
+ const tabCtx=typeof getActiveTab==="function"?getActiveTab():null;
+ const lay=tabCtx&&tabCtx.lastContextLayout;
+ const ring=buildUsageRing(lay);
 function ubCells(label, value){var k=document.createElement("span");k.className="ub-k";k.textContent=label;var v=document.createElement("span");v.className="ub-v";v.textContent=value;return [k,v];}
 function ubPush(sheet, cells){for(var i=0;i<cells.length;i++)sheet.appendChild(cells[i]);}
 const totalCache=totalCacheHitTokens+totalCacheMissTokens;const hitPct=totalCache>0?Math.round(totalCacheHitTokens/totalCache*100):0;
 const sheet=document.createElement("div");sheet.className="ub-sheet";
 const head1=document.createElement("div");head1.className="ub-head";
 const title=document.createElement("span");title.className="ub-title";title.textContent="模型用量";
-const ringWrap=document.createElement("span");ringWrap.className="ub-ring";ringWrap.appendChild(ring);
+ const ringWrap=document.createElement("span");ringWrap.className="ub-ring";ringWrap.appendChild(ring);
+ const ringPct=document.createElement("span");ringPct.className="usage-pct";ringPct.textContent=contextUsagePct(lay)+"%";ringWrap.appendChild(ringPct);
 head1.appendChild(title);head1.appendChild(ringWrap);
 sheet.appendChild(head1);
 ubPush(sheet,[].concat(
@@ -119,8 +135,6 @@ ubCells("未命中", formatCompactTokens(totalCacheMissTokens))
 var row3=document.createElement("div");row3.className="ub-row ub-row-ctx";
 var t3=document.createElement("span");t3.className="ub-title";t3.textContent="上下文视图";
 var barHost=document.createElement("div");barHost.className="ctx-bar-host";
-var tabCtx=typeof getActiveTab==="function"?getActiveTab():null;
-var lay=tabCtx&&tabCtx.lastContextLayout;
 var segs=ctxDisplaySegments(lay);
 /* 快照里还留着上一次的插件段。未装载的不画。 */
 if(loadedPlugins){

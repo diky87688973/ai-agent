@@ -157,6 +157,40 @@ class SubagentRepository:
             "result": result,
         }
 
+    def current_turn_result(self, parent_cid: str, child_id: str) -> Dict[str, Any]:
+        """取当前回合输出，并判断该回合是否有需要汇报的任务输入。"""
+        child = self.record(child_id)
+        if child.parent_cid != str(parent_cid or "").strip():
+            raise SubagentError("不是该父会话的子智能体", "parent_mismatch")
+        events = self.child_store.load(child.child_id)
+        start = 0
+        for index, event in enumerate(events):
+            if str(event.type) == "turn_started":
+                start = index
+        turn_events = events[start:]
+        inputs = [
+            event.data or {} for event in turn_events
+            if str(event.type) == "input_claimed"
+        ]
+        reportable = not inputs or any(
+            not (str(data.get("kind") or "") == "system_notice"
+                 and str(data.get("source") or "") == "background_tasks")
+            for data in inputs
+        )
+        result = ""
+        for event in reversed(turn_events):
+            if str(event.type) == "model_message":
+                result = str((event.data or {}).get("content") or "").strip()
+                if result:
+                    break
+        return {
+            "child_id": child.child_id,
+            "batch": child.batch,
+            "label": child.label,
+            "result": result,
+            "reportable": reportable,
+        }
+
     def history(self, parent_cid: str, child_id: str) -> Dict[str, Any]:
         child = self.record(child_id)
         if child.parent_cid != str(parent_cid or "").strip():

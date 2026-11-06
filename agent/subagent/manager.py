@@ -63,16 +63,24 @@ class SubagentManager:
         if not child_id or not self.is_child(child_id):
             return
         child = self.record(child_id)
-        latest = self._repository.latest_result(child.parent_cid, child_id)
+        latest = self._repository.current_turn_result(child.parent_cid, child_id)
+        if not latest.get("reportable", True):
+            with self._reported_lock:
+                self._reported.pop(child_id, None)
+            return
         text = str(latest.get("result") or "").strip()
         if not text:
             text = "子智能体本轮没有输出。"
         with self._reported_lock:
-            if self._reported.pop(child_id, "") == text:
+            if self._reported.get(child_id) == text:
                 return
+            self._reported[child_id] = text
         try:
             self._messenger.send_to_parent(child_id, msg=text)
         except Exception as exc:
+            with self._reported_lock:
+                if self._reported.get(child_id) == text:
+                    self._reported.pop(child_id, None)
             report_error("agent.subagent.manager.completion_notice", exc,
                          child_id=child_id)
 

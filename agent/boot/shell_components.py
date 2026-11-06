@@ -119,7 +119,7 @@ def finalizer(ctx: Any, facade: Any = None, classic_adapter: Any = None,
     app.mesh.set_activator(runner.start)
     if app.store is not None:
         app.mesh.set_session_exists(lambda cid: bool(app.store.load(cid)))
-    app.context.get(SERVICE_BACKGROUND_TASKS).set_notice(_notice_handler(app, runner))
+    app.context.get(SERVICE_BACKGROUND_TASKS).set_notice(_notice_handler(app))
     # 调度器总是登记（服务必须可取到对象）；抢不到锁时本进程不是 owner，
     # 只影响能不能注册/取消唤醒任务，不影响启停。
     if not wake_scheduler.start():
@@ -128,19 +128,17 @@ def finalizer(ctx: Any, facade: Any = None, classic_adapter: Any = None,
     return True
 
 
-def _notice_handler(app: Any, runner: Any):
+def _notice_handler(app: Any):
     def notice(cid: str, text: str, meta: Any = None) -> None:
         extra = dict(meta) if isinstance(meta, dict) else {}
-        payload = {"internal": True, **extra}
-        if app.mesh.is_running(cid):
-            app.conversation_queue.enqueue(
-                cid, content=text, origin="system", delivery="next_pass",
-                payload=payload)
-            return
-        if not runner.start(cid, {"content": text, "meta": extra}):
-            app.conversation_queue.enqueue(
-                cid, content=text, origin="system", delivery="next_pass",
-                payload=payload)
+        notice_id = str(extra.get("notice_id") or "").strip()
+        dedupe_key = f"system_notice:background_tasks:{notice_id}" if notice_id else ""
+        app.mesh.submit_insert(
+            cid,
+            {"content": text, "meta": extra},
+            origin="system",
+            dedupe_key=dedupe_key,
+        )
     return notice
 
 

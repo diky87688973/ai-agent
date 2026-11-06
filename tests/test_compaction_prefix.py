@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""压缩请求必须复用上一次正常请求的精确前缀。"""
+"""压缩请求只复用可压缩区间前面的精确前缀。"""
 from __future__ import annotations
 
 import unittest
@@ -64,13 +64,17 @@ class CompactionPrefixTest(unittest.TestCase):
         self.assertEqual(messages[-1]["content"], "visual frame")
         self.assertNotIn("visual frame", str(sink.prefix))
 
-    def test_compaction_request_is_prefix_plus_user_instruction(self) -> None:
+    def test_compaction_request_stops_before_retained_round(self) -> None:
         pipe = ContextPipeline("cid-prefix-0001")
         pipe.append_system("system")
         pipe.set_summary_messages([{"role": "user", "content": "old summary"}])
         pipe.set_dialogue([
             {"role": "user", "content": "q1"},
             {"role": "assistant", "content": "a1"},
+            {"role": "user", "content": "q2"},
+            {"role": "assistant", "content": "a2"},
+            {"role": "user", "content": "q3"},
+            {"role": "assistant", "content": "a3"},
         ], covered_end=0)
         tail = [{"role": "user", "content": "new input"},
                 {"role": "system", "content": "## current mode"}]
@@ -79,15 +83,22 @@ class CompactionPrefixTest(unittest.TestCase):
         tools = [{"name": "read_file"}]
         spy = _Spy()
         comp = ContextCompactor(make_provider_summarizer(spy, max_chars=200),
-                                summary_token_threshold=1)
+                                summary_token_threshold=1, full_user_rounds=1)
         comp.remember_sent_request(whole, prefix, tools)
         report = comp.ensure_before_append(
-            pipe, [{"role": "user", "content": "q1"},
-                   {"role": "assistant", "content": "a1"}],
+            pipe, [
+                {"role": "user", "content": "q1"},
+                {"role": "assistant", "content": "a1"},
+                {"role": "user", "content": "q2"},
+                {"role": "assistant", "content": "a2"},
+                {"role": "user", "content": "q3"},
+                {"role": "assistant", "content": "a3"},
+            ],
             tools=tools, mode_note="## current mode", assembled=whole)
         self.assertIsNotNone(report)
         req = spy.reqs[0]
-        self.assertEqual(req.messages[:-1], prefix)
+        self.assertEqual(req.messages[:-1], prefix[:-2])
+        self.assertNotIn("q3", str(req.messages))
         self.assertEqual(req.messages[-1]["role"], "user")
         self.assertIn("压缩引擎", req.messages[-1]["content"])
         self.assertIn("Markdown", req.messages[-1]["content"])
@@ -101,16 +112,21 @@ class CompactionPrefixTest(unittest.TestCase):
         pipe.set_dialogue([
             {"role": "user", "content": "q1"},
             {"role": "assistant", "content": "a1"},
+            {"role": "user", "content": "q2"},
+            {"role": "assistant", "content": "a2"},
+            {"role": "user", "content": "q3"},
+            {"role": "assistant", "content": "a3"},
         ], covered_end=0)
         whole = pipe.assembles([])
         spy = _Spy()
         comp = ContextCompactor(make_provider_summarizer(spy, max_chars=200),
-                                summary_token_threshold=1)
+                                summary_token_threshold=1, full_user_rounds=1)
         report = comp.ensure_before_append(
             pipe, list(whole), tools=[], mode_note="", assembled=whole)
         self.assertIsNotNone(report)
         self.assertTrue(spy.reqs)
         self.assertEqual(spy.reqs[0].messages[-1]["role"], "user")
+        self.assertNotIn("q3", str(spy.reqs[0].messages))
 
 
 if __name__ == "__main__":

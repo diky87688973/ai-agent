@@ -76,7 +76,7 @@
 6. `pending_review` 非空且 `reviewed_ok` 为假，快照路径不在这份列表里，并且预览不是「写之前已解锁」：拒绝，文案为「上一次真写的 review 尚未完成」。
 7. 工具是 `apply_patch` 且 `apply_patch_pending` 为真，并且预览不是「写之前已解锁」：拒绝，文案为「apply_patch 上一次真写尚未 review」。
 8. 快照路径在 `needs_reread`：拒绝，要求先 `read`。
-9. `replace_in_file` 单次替换超出体积规则（`MAX_DIFF_LINES`，80）：拒绝。
+9. `replace_in_file` 单次替换超出体积规则（`MAX_DIFF_LINES`，120）：拒绝。
 10. 其余放行。
 
 「写之前已解锁」的判定：`confirmed_generation` 是整数，且严格小于当前 `_write_generation`。审阅发生在最近一次成功提交之前，这个条件为真。审阅发生在那次提交之后，章上的次数等于当前次数，条件为假。

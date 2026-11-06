@@ -37,7 +37,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .tag.bad{background:#3d1e1e;color:#f48771}
 .tag.stoped{background:#34313d;color:#c9b7ff}
 pre{margin:0;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-word;color:#ccc}
-.u2{font-size:10px;color:#9aa0a6;padding:6px 8px;border-top:1px dashed #3a3a3a;border-bottom:1px solid #2a2a2a;margin:2px 0 8px 0;background:#1b1b1d;border-radius:4px;display:flex;align-items:center;gap:8px}.u2 .usage-label{color:#c9d1d9;font-weight:500}.u2 .usage-text{flex:1;min-width:0}.usage-ring{--p:0;--ring-color:#c57d1d;cursor:default;position:relative;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:conic-gradient(var(--ring-color) calc(var(--p) * 1%), #3a3a3a 0)}.usage-ring::after{content:"";position:absolute;inset:2.8px;border-radius:50%;background:#1b1b1d}.usage-ring .usage-num{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1;color:#d8d8d8;font-weight:600}
+.u2{font-size:10px;color:#9aa0a6;padding:6px 8px;border-top:1px dashed #3a3a3a;border-bottom:1px solid #2a2a2a;margin:2px 0 8px 0;background:#1b1b1d;border-radius:4px;display:flex;align-items:center;gap:8px}.u2 .usage-label{color:#c9d1d9;font-weight:500}.u2 .usage-text{flex:1;min-width:0}.usage-ring{--p:0;--ring-color:#c57d1d;cursor:default;position:relative;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:conic-gradient(var(--ring-color) calc(var(--p) * 1%), #3a3a3a 0)}.usage-ring::after{content:"";position:absolute;inset:2.8px;border-radius:50%;background:#1b1b1d}.usage-pct{color:#d0d7de;font-variant-numeric:tabular-nums;white-space:nowrap}
 .step .card-body{display:none}
 .step.open .card-body{display:block}
 .step .card-body-inner{padding:4px 12px 12px 12px}
@@ -169,7 +169,7 @@ html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
 .usage-bottom .ub-ring{display:inline-flex;align-items:center;gap:6px}
 .usage-bottom .usage-ring{width:16px;height:16px;flex-shrink:0}
 .usage-bottom .usage-ring::after{inset:2px}
-.usage-bottom .usage-ring .usage-num{font-size:8px;font-weight:600}
+.usage-bottom .usage-pct{font-size:10px;font-weight:600}
 .usage-bottom .ub-cost-cny{color:#c9d1d9;font-weight:400}
 .usage-bottom .ub-cost-or{color:#9aa0a6}
 .usage-bottom .ub-cost-usd{color:#9aa0a6}

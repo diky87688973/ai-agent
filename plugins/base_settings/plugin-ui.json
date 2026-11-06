@@ -69,7 +69,7 @@
         "kind": "number",
         "label": "压缩时保留最近对话轮数",
         "default": "5",
-        "min": 0
+        "min": 1
       },
       {
         "panel": "app/settings/context",
