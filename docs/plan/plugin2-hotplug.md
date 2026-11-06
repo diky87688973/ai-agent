@@ -1,4 +1,6 @@
-# 插件 2.0 热插拔
+# 插件 2.0 实现与验证
+
+本文维护当前实现、生命周期、验证入口与明确边界；术语、节点字段、片段和覆盖规则统一以 [插口协议](plugin-slots-protocol.md) 为准，不在此重复定义。
 
 ## 目标与归属
 
@@ -6,7 +8,7 @@
 
 `agent/core/slot_lifecycle.py` 持有活跃读取租约与待应用请求。它不识别具体插件或壳层。`agent/core/slot_assembly.py` 负责依赖构造、未受影响节点复用与资源释放。`agent/boot/plugin_runtime.py` 是组合根的代切换协调者，调用片段解析、装配、绑定与模型策略。插件私有资源由其运行时的 `dispose()` 释放。
 
-`SlotAssembly.config` 与构造值是当前代的装配来源，`SnapshotStore` 提供冻结副本。工具、UI、设置和上下文登记是该代向既有消费接口的投影，由 `SlotBinder` 的撤销句柄重建。插件不再通过代码注册通道另建能力清单。旧后端路径种子表已移除。
+`SlotAssembly.config` 与构造值是当前代的装配来源，`SnapshotStore` 提供冻结副本。工具、UI、设置和上下文登记是该代向既有消费接口的投影，由 `SlotBinder` 的撤销句柄重建。插件不通过代码注册通道另建能力清单。
 
 ## 启用清单与来源
 
@@ -43,6 +45,67 @@
 
 CLI 与无头剖面的语音关闭节使用 `ai_cosplay`。`gen_catalog.py` 的装配使用临时数据根，并在返回前释放应用。
 
+## 实现地图与唯一入口
+
+| 归属 | 当前源码与职责 |
+|---|---|
+| 节点契约 | `agent/core/slot_spec.py`：SlotSpec、SettingDecl、字段集合与结构判据 |
+| 片段和配置 | `slot_fragments.py`、`slot_config.py`、`slot_problems.py`：来源、合并、授权与校验 |
+| 覆盖求值 | `slot_override.py`：覆盖冲突、冻结边界与唯一有效视图 |
+| 构造与释放 | `slot_factory.py`、`slot_assembly.py`：依赖、工厂环境、作用域与释放账本 |
+| 快照与请求 | `slot_snapshot.py`、`slot_lifecycle.py`：冻结结构、读租约和有界请求终态 |
+| 登记投影 | `agent/capabilities/slot_binder.py`：将构造值投影到既有消费接口，不另解析片段 |
+| 身份与来源 | `agent/capabilities/plugins.py`：meta 身份、模块、实际根与运行时对象 |
+| 组合根 | `agent/boot/bootstrap.py`、`plugin_assembly.py`、`plugin_runtime.py`：启动、清单发现与代切换 |
+| 模型策略 | `agent/app_model_policy.py`：绑定模型目录后重算可用模型与降级状态 |
+| 设置与资产 | `agent/shell/plugin_settings.py`、`shell/web/web_plugin.py`；界面资产归插件目录 |
+
+表内省略包前缀的 core 模块均在 `agent/core/`。主程序调用装配根，入口不作为树内自装配节点。工厂、schema、事件载荷与配置键的具体形状由各自资产的实现和测试负责。
+
+### 已确定的实现决策
+
+- plugin-meta.json 是身份来源，Python 入口可选；纯声明插件不需要空 register 函数。
+- 贡献唯一入口是片段加 SlotBinder；不恢复 PluginContext、ctx.add_*、旧 register 贡献通道或旧路径种子表。
+- 模型目录绑定后再求模型策略；不凭空增加另一个宿主模型配置来源。模型目录只接受一个权威来源。
+- 插件静态文件不是逐项装配节点，禁止越出实际插件目录，但不把“文件可送达”误说成“该插件能力已经装载”。
+- 工具门控由内核执行管线负责；provider target 中没有插件申请绕过 pipeline 门控的通道。
+- 真插件集成测试必须加载被测插件；普通单元测试同时隔离清单与插件根，不能只清空清单却合并本机片段。
+- 唤醒调度器未拿到 owner 锁时仍可查询，但注册/取消任务报“另一个进程拥有调度器”；不假装本进程具备写入能力。
+- 来源摘要是记录，不是校验或签名认证；urlopen 检查也不是完整网络沙箱。
+
+## 配套功能的当前行为
+
+这些功能与插件重构同时交付，但不属于插口字段协议。这里只保存行为摘要和验证位置，不保存“全部完成”的阶段宣告或旧验收数字。
+
+| 功能 | 当前行为 | 验证入口 |
+|---|---|---|
+| 模型断连重试 | 只对首个流式 chunk 前的 RemoteDisconnected 重试；初次加最多五次，退避 0.1/0.2/0.4/0.8/1.6 秒并检查取消；收到 chunk 后不重试；终态记录 retries | `tests/test_model_retry.py`、模型调用子系统 |
+| 单次替换预算 | replace_in_file 的内容行数与目标区间跨度均限制 120，任一超限拒绝 | `tests/test_quality_pipeline.py`、写盘门控文档 |
+| 唤醒任务隔离 | 当前输入携带 job_id/due_at/reminder，只投影本次唤醒事实及模型/工具链；保留系统/插件提示，排除历史摘要；普通输入恢复完整历史 | `tests/test_wake_isolation.py`、`tests/test_wake_scheduler.py` |
+| 子智能体忙碌时长 | 使用 RunRegistry.started_at 推导 busy_since/busy_seconds；插话续跑不重置连续忙碌段，新任务重置；空闲不返回忙碌字段 | `tests/test_run_registry.py`、`tests/test_subagent.py` |
+| 上下文用量圆环 | 按 context_layout 的非 remaining 段计算 0..100%，缺失时显示 0%，日夜模式均有颜色 | `tests/test_web_frontend.py`、`tests/test_context_config_wiring.py` |
+| 摘要与近期保留轮 | 优先保留 full_user_rounds，必要时逐级降至一轮；单轮不压缩；摘要请求排除保留轮；新摘要替换旧摘要且 covered_end 只前移一次 | `tests/test_compaction_retention.py`、`tests/test_context_assembly.py`、`tests/test_compaction_prefix.py` |
+| 后台完成通知 | 批次最后 settle 生成稳定 notice_id，经 MeshState.submit_insert 原子入队与标记；忙碌时到安全点批量消费，空闲时队列驱动启动；不打断已发出的 HTTP 流或当前工具批次 | `tests/test_background_tasks.py`、`tests/test_queue_runner.py`、`tests/test_subagent.py` |
+
+通知保留独立 input_claimed 事实，notice_id 去重；运行位释放与迟到通知共享同步边界。纯通知回合不自动汇报父会话，普通任务中插入通知仍只汇报一次，重复回调或与主动汇报相同的正文不重复投递。
+
+唤醒隔离不改变 `task_wake_list` 显式查询全部任务的能力，也不更新普通请求的历史压缩前缀。忙碌时长从运行登记推导，不增加持久化业务字段，内存与文件登记实现保持同样的保留/重置语义。
+
+模型、上下文、会话、写盘门控和后台任务的完整业务协议留在相应子系统文档，不在插件专题复制一遍。
+
+## 设计与实现边界
+
+| 项目 | 当前情况 |
+|---|---|
+| 插件贡献热插拔 | 已实现代切换、延迟应用、失败恢复和可查询终态 |
+| 非冻结内核/宿主实现替换 | 启动装配支持更换，要求重启；不实施宿主在线状态迁移 |
+| extend / wrap | 绑定层认识模式，但有效装配视图尚不支持其组合构造，会明确拒绝，不能当成完整可用能力 |
+| 独立 assemble 与 prompt 子树 | 原设计提出独立 assemble 阶段及 prompt 五类子树；现役静态片段仍为 input、queued_input、compress、model、tool 五个模块，不能把设计示意当成当前路径。若推进拆分须另做实现与回归 |
+| 错误契约 | 配置/装配错误类、路径、原因与操作终态已经存在；没有另行声称提供统一业务错误码全集 |
+| 真实模型、真实语音、跨平台 GUI | 自动测试与隔离页面不替代这些环境验收，结论必须标出未验证范围 |
+
+协议语义、完整实现和测试结果是三个证据层级。文档整理不改变运行逻辑，也不把尚未落地的设计设想改成“已实现”。
+
 ## 自动回归
 
 `tests/test_plugin_hotplug.py` 覆盖以下行为。
@@ -60,8 +123,18 @@ CLI 与无头剖面的语音关闭节使用 `ai_cosplay`。`gen_catalog.py` 的�
 
 `scripts/acceptance_phase3.py` 验证全开、全关、热卸三态的事件、上下文、UI、路由与冒烟回合。UI 断言读取消费端使用的 `ui.catalog()`，全开夹具显式包含 UI 挂载点提供者。
 
-集成验证使用临时数据根、临时插件清单和本机 HTTP 服务。浏览器检查关闭与启用 API、刷新后的页面、设置列表和未捕获脚本异常。截图与详细命令结果保存在本次工作输出中。
+集成验证使用临时数据根、临时插件清单和本机 HTTP 服务。浏览器检查关闭与启用 API、刷新后的页面、设置列表和未捕获脚本异常。每次验收结果以当次输出为准，不复制到另一份交接记录。
 
 ## 验证要求
 
 运行受影响的插口、插件、设置、入口和 Web 测试，再执行 `python scripts/ci.py --keep-going`。同步工具目录、用例文档、复杂度文档及 README 的实际计数。所有通过数、失败数、跳过数以当次执行结果为准。真实模型与真实语音效果需要独立环境验收。
+
+
+## 清单与维护
+
+- 节点与依赖：根 plugin-slots.json 和各插件片段；运行 `python scripts/check_slots.py`。
+- 工具：catalog/tools.json，由 gen_catalog.py 生成；不手写另一份全量工具表。
+- 事件：agent/core/event_name.py；HTTP 路由：shell/web/web_routes.py 及插件声明。
+- 测试、规模、CI：docs/unit-tests.md、docs/complexity.md、scripts/ci_steps.py 是对应入口，文档生成物由门禁比对。
+- 路径、字段、生命周期或默认值变更时，同步协议、实现说明及相关测试；两份专题不复制彼此的规则。
+- 交接完成后不保留交接过程文档；过程叙述、迁移批次、旧计数与旧验收结论由 Git 历史追溯，不另设交接归档、转发占位或重复完成清单。

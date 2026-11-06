@@ -48,7 +48,7 @@ Plugin-owned contributions support live generation changes. Replacing kernel mod
 
 Frozen subtrees reject overrides. Other host slots support startup overrides. Plugin reload currently retains host service instances and rejects live host declaration changes. Stateful host migration has no generic state-transfer contract and must not be represented as an existing capability.
 
-See [hotplug](plan/plugin2-hotplug.md) and [engineering standards](engineering-standards.md).
+See [implementation and verification](plan/plugin2-hotplug.md) and [engineering standards](engineering-standards.md).
 
 ## Five-layer structure
 
