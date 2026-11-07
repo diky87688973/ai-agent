@@ -1,525 +1,57 @@
-﻿# 插件
+# 插件
 
-## 1. 概览
+## 声明与装配
 
-插件是内核之外的能力扩展点：工具、事件订阅、上下文注入、工具管道门控、写类工具的
-执行器、HTTP 端点与界面，都由插件声明。**内核不认任何具体插件** —— 它只提供贡献
-注册表与 HTTP 转发。
+插件是安装与启停单元，能力由 `plugin-slots.json` 声明。协议唯一正文见[插件2.0插口协议](../plan/plugin-slots-protocol.md)，生命周期与已支持边界见[实现与验证](../plan/plugin2-hotplug.md)。
 
-内置能力也走这条路：知识库与 Skills 都是插件。移除某个插件的清单节后，它的注入源、
-工具、面板、按钮与端点一并撤销，内核不受影响。
+发现身份 → 读取启用清单 → 合并片段 → 校验归属、依赖和覆盖 → 构造 → SlotBinder登记 → 发布只读快照。
 
-插件是安装与启停单元；插件派生插口；插件树描述贡献，插口树是装配结果。插件协议规定包、入口、账本与启停；插口协议规定路径、父子、替换与冻结。
+插件目录中的 `plugin-meta.json` 提供身份；`plugin-slots.json` 提供能力声明；Python工厂与UI、配置、模板均归插件目录。纯声明插件不需要Python入口。工厂接收BuildContext及requires声明的依赖，返回当前节点的实现；不是能力注册函数。插件不调用旧式register(ctx)或ctx.add_*。
 
-## 2. 流程图
-
-```text
-插件根目录
-  │ discover
-  ▼
-<name>/plugin.py 存在? ──否──> 跳过
-  │是
-  ▼
-plugins.ini enabled? ──否──> 跳过
-  │是
-  ▼
-importlib 加载 plugin.py
-  │
-  ▼
-register(ctx) -> 工具/上下文/UI/路由
-  │
-  ▼
-ready
-  │ unload
-  ▼
-disposer 逆序 -> 清贡献 -> 删模块缓存
-```
-
-## 3. 插口协议
-
-插件宿主暴露插件装载、插件片段和运行时贡献插口；具体插件贡献哪些路径，写在各自插件的 subsystem 文档里，不在宿主文档里展开。
-
-### 暴露
-
-| 插口路径 | 能力 | 关键属性 | 可替换/覆盖方式 |
-|---|---|---|---|
-| `app/boot/plugins` | 启动节点 | owner=模块；由 SlotTree 装配；失败按 master 规则 | 启动树节点按路径覆盖；运行时只读插口不替换 |
-| `backend/runtime/*` | 模块贡献 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
-| `app/shell/web-ui/*` | 界面插口 | owner=插件；路径由声明给出；卸载时撤销 | 启动树节点按路径覆盖；运行时只读插口不替换 |
-| `backend/http/routes/*` | HTTP 端点 | owner=插件；路径由声明给出；卸载时撤销 | 同路径 `replace=true` 覆盖；卸载时恢复原插口 |
-### 依赖
-
-| 依赖路径 | 能力 | 提供者 | 为什么依赖 |
-|---|---|---|---|
-| `app/boot/facade` | 启动节点 | 宿主 | 装配前必须已就绪；不可用时按启动/请求失败传播 |
-
-## 4. 插口能力
-
-### 包
-插件是 `plugins/` 下的一个目录，目录名即插件名，也是清单里用的名字：
-
-```
-plugins/<插件名>/
-  plugin.py             必须。唯一入口，暴露 register(ctx)
-  plugin-ui.json      可选。导航、输入区、面板、动作与设置的 UI 路径声明
-  plugin-assembly.json  可选。启动期装配覆盖：按 app/... 路径替换内核、宿主、工具或壳层节点
-  plugin-meta.json      身份元数据：name / desc / icon / version / settings_tab（设置页读取）
-  plugin-config.ini     可选。插件自己的真实配置；无敏感信息时入库，含密钥时（如 multi_model）不入库
-  settings-schema.json  可选。设置页的结构化表单声明
-  ui/                   可选。面板的样式与脚本
-  <其它文件>            可选。插件自己的数据文件、库、模板
-```
-
-最小形态是只有一个 `plugin.py` 的目录：只订阅事件，不注册工具，也不贡献界面。
-
-`plugin-ui.json` 只声明 UI 路径；后端贡献仍由 `register(ctx)` 的 `add_*` 注册。插件代码不得自拼 `app/` 路径，路径以树数据为准。
-
-`plugin-assembly.json` 在启动时先合并进装配树；任意非冻结节点都可替换，也可新增 `app/...` 子树。文件存在即自动装载；`plugin-meta.json` 的 `"auto_load": true` 也可自动装载。`plugins.ini` 的 `enabled = 0` 优先于自动装载。启动节点在重启后生效。
-
-鉴权装配是冻结子树：节点标 `"frozen": true` 后，插件不能替换、删除或修改它及其子节点。鉴权模块仍以插件形式存在，但只允许宿主装配。
-
-内核、宿主、工具与壳层的启动节点在 `agent/boot/slot_tree.json`，不在插件的 `plugin-ui.json` 里。替换其中的 factory 即可更换对应模块；运行期替换仅限 `scope=session` 节点。
-
-#### 启动期装配覆盖
-
-`plugin-assembly.json` 的节点在 `slot_tree.json` 之后、装配之前合并：
+最小工具片段：
 
 ```json
-{
-  "version": 1,
-  "kind": "assembly",
-  "nodes": [
-    {
-      "path": "app/kernel/modules/model",
-      "factory": "assembly:make_model"
-    }
-  ]
-}
+{"slots":[{"path":"app/plugins/example/tools/example_tool","kind":"tool","factory":"plugin:make_tool"}]}
 ```
-
-`factory` 是插件目录内的 `模块:属性`，模块可相对导入本目录的其他文件。工厂接收 `BuildContext`，返回 path 与节点一致的 `SlotComponent`；内核模块可直接返回 `KernelModulePlugin`。节点只给 `metadata` / `requires` 时保留基础节点的 factory，用于替换 builder 或依赖。`replace` 缺省为 `true`，显式写 `false` 时遇到同路径会拒绝启动。新增节点可写任意 `app/...` 路径；父节点不存在时同一份声明里补上父节点。
-
-`frozen: true` 用于宿主保留的子树，插件覆盖该节点或其任意子节点都会拒绝启动。
-
-文件存在时插件自动进入装载清单；`plugins.ini` 的 `enabled = 0` 可以禁用。启动节点只在重启后生效。
-
-`register(ctx)` 返回 disposer、disposer 列表或不返回（`None`）。**每个 `ctx.add_*`
-都返回 disposer**，宿主在调用时把它记入本插件的贡献账本（含 `add_route` / `add_ui_item` / 设置项等）。`register` 返回的
-disposer 与账本合并、按对象身份去重；卸载时逆序调用。`register` 抛错时，经 `ctx`
-完成的注册全部回滚，插件不会留下半截状态。
-
-插件可以把实现拆成同目录的多个模块，用相对导入引用：
 
 ```python
-from .library import Thing
+def make_tool(ctx):
+    return ExampleTool()
 ```
 
-子包同样适用（`from .tools.eye import DesktopEyeTool`）：加载器补上 `fan_agent_plugins`
-父包，插件目录内的相对导入按包内解析。
+ExampleTool实现现有ToolPlugin协议；执行经ToolPipeline，不绕过权限和写盘门控。插件可声明runtime节点返回持有dispose()的资源对象；工厂构造失败必须释放自身尚未移交装配器的资源。
 
-### 清单：`plugins.ini`
-工程根的 `plugins.ini` 列出插件。节在即进入装载候选；开关是该节的 `enabled`。
+## 扩展入口
 
-```ini
-[plugin:skills]
-
-[plugin:knowledge]
-
-[plugin:local-lab]
-path = /opt/local/my-plugin
-enabled = 1
-```
-
-| 字段 | 必填 | 说明 |
-|---|---|---|
-| 节名 | 是 | 固定 `[plugin:<名字>]`。名字即模块名后缀与默认目录名，必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]*` |
-| `path` | 否 | 插件目录（可在 `plugins/` 外）。相对路径按插件根解析；空则 `plugins/<名字>`。装载后，资产与设置编辑器经宿主的 `plugin_root(名字)` 解析，不写死 `plugins/<名字>` |
-| `enabled` | 否 | `0` 不装载；缺省按 `1`。设置页开关写这一项 |
-
-**节的先后有意义**：它就是插件的装载位次，也是**上下文里插件段的组装顺序**
-（见 [context.md](context.zh.md#assembly-order)）。越不容易变动的插件排在越前面。
-
-清单错误可见：名字非法、目录不存在、缺 `plugin.py` 都会记一条 `error` 报告，
-不阻断启动，也不会静默当没写。
-
-#### 模式覆盖层
-
-运行模式只覆盖差异，不复制完整清单：
-
-```ini
-# plugins.headless.ini
-[profile]
-base = plugins.ini
-
-[plugin:ai_cosplay]
-enabled = 0
-```
-
-`[profile] base` 先读基底清单，再按插件名覆盖显式字段；未出现的插件继承基底，
-新增插件追加在末尾。`agent.entry.headless` 默认加载 `plugins.headless.ini`，
-`agent.entry.cli` 默认加载 `plugins.cli.ini`，Web 入口继续使用 `plugins.ini`。
-覆盖层只写 `path` / `enabled` 差异。
-
-### 扩展点全表
-`PluginContext` 上所有 `add_*` 都返回 disposer。
-
-| 扩展点 | 注册什么 | 内核侧落到哪 |
-|---|---|---|
-| `register_tool(tool)` | 一个 `ToolPlugin` | 工具注册表（执行仍走同一条管道） |
-| `set_subagent_tools(tools)` | 本插件向子智能体暴露的工具名清单 | 子智能体模型工具视图；空清单表示全部不暴露 |
-| `add_executor(name, fn)` | 写类工具的提交执行器 | `ExecutorRegistry`（`commit_write` 提交时按名取） |
-| `subscribe(event_type, handler)` | 事件处理 `handler(event)` | 事件总线 |
-| `add_context_source(fn, meta?)` | 上下文注入源 | `ContextSources`（见下节） |
-| `add_mode_tail(fn)` | 执行模式与 Todo 之后的请求尾部文本 | `PromptTail`（见「请求尾部」） |
-| `add_prompt_section(section, fn)` | 系统提示词章节正文 | `PromptSections`（同章节合并） |
-| `add_pre_gate(gate)` | 工具执行前门控 | 工具管道 |
-| `add_post_observer(obs)` | 工具执行后观察 | 工具管道 |
-| `add_route(method, path, handler)` | HTTP 端点 | `/api/plugin/<插件名>/…` |
-| `add_ui_item(path, kind=..., props=..., order=...)` | UI catalog 条目：导航/输入/右栏/运行时/上下文段 | UI 路径注册表；`order` 可省略，省略即排在有序区之后 |
-| `add_settings_panel(panel_id, title=...)` | 设置面板 | 插件设置注册表 → 通用设置目录 |
-| `add_settings_item(parent, id, kind=..., save=..., load=...)` | 设置面板内的条目 | 插件设置注册表；保存回调归注册插件 |
-| `add_model_catalog(entries)` | 模型清单（静态序列或热读回调） | `ModelCatalog`（唯一权威来源） |
-| `set_runtime(obj)` | 自己的运行时实例 | `plugin_host.runtime(名字)` 取同一份 |
-
-#### 上下文注入
-
-```python
-ctx.add_context_source(fn)   # fn(conversation_id: str) -> list[str]
-```
-
-管线每一步组装请求时调用，产出的文本刷进上下文的插件段。**按会话**给内容 ——
-同一个插件对不同会话可以注入不同东西。
-
-带描述时同时声明这一段在界面上的身份与主体数量：
-
-```python
-ctx.add_context_source(
-    runtime.build_system_messages,
-    {"label": "示例来源",                   # 段名，界面显示
-     "prefix": "【示例：a.md】\n",           # 注入前缀，标明这段是什么
-     "count": runtime.attached_count},     # fn(cid) -> int，主体数量
-)
-```
-
-自报的 `count` 与返回的正文**逐条对齐**：一个来源返回多条正文时只有第一条带自报数，
-其余按条数算；内核按位置取值，不会拿别的段的数字补位。
-
-- `label` 缺省用插件名；
-- `prefix` 由来源给，宿主在收集时统一拼上；
-- `count` 是界面显示“几个主体”用的取数口；不给时，有正文的段按 1 计，空段按 0 计；
-- 段 key 一律是**插件名**（`plugin:<插件名>`），一个插件可以注册多个来源，
-  它们共用这个 key、各占一行（key 与段名都相同的行会合并）；
-- 组装位次由宿主按清单位次写入，插件不需要声明。
-
-一个插件注册多条注入源的例子见 `plugins/skills`：清单一条、常驻正文一条；
-资源目录走系统提示词章节，不占独立上下文段。
-
-#### 系统提示词章节
-
-```python
-ctx.add_prompt_section("## 资源目录", fn)
-```
-
-`fn(conversation_id) -> str | list[str]` 返回章节正文；`section` 是完整标题（含 `## `）。
-同一标题可由多个插件注册，正文按插件清单位次合并，标题只出现一次。章节进入系统提示词，
-不产生 `CHUNK_PLUGIN` 段；来源异常或空正文跳过。
-
-#### 工具
-
-```python
-class MyTool(ToolPlugin):
-    name = "my_tool"
-    description = "……"
-    label = "示例工具"      # 界面上的短名
-    icon = "🧰"            # 界面图标（一个字符）
-    parameters = {...}
-    def execute(self, arguments): ...
-
-def register(ctx):
-    return [ctx.register_tool(MyTool())]
-```
-
-`label` / `icon` 是**界面展示信息，由工具自己声明**：页面经 `/api/tool-labels`
-认识所有工具（含插件工具），不必在前端维护一张工具名表 —— 否则每加一个插件工具
-都得去改界面。
-
-工具进内核注册表，与内置工具走**同一条执行管道**：门控、确认流程、写盘四步协议
-都照旧。插件不能绕过管道。
-
-**工具只在插件装载时存在**：插件注册的工具随 `[plugin:<名字>]` 节移除而消失。
-
-#### 写类工具的提交执行器
-
-走 `confirm_id` 制预览的写类工具，提交那一刻由 `commit_write` 按工具名取执行器：
-
-```python
-ctx.add_executor("my_tool", my_executor)   # my_executor(arguments) -> dict
-```
-
-用注册表而不是装配期传入的静态表：**登记发生在插件装载时，取用发生在工具调用时**，
-两者顺序无关；插件多装一个，不需要改内核装配代码。
-
-#### 事件订阅
-
-```python
-ctx.subscribe(ev.TURN_ENDED, handler)   # handler(event) -> None
-```
-
-事件名见 `agent/core/event_name.py`（`ev.*`）与 [architecture.zh.md](../architecture.zh.md)
-的事件协议。订阅是观察，不改控制流。
-
-#### 工具管道门控与观察
-
-```python
-ctx.add_pre_gate(gate)       # gate(call, ctx) -> GateDecision | None
-ctx.add_post_observer(obs)   # obs(call, result, ctx) -> None
-```
-
-`pre` 在工具执行前跑，返回 `GateDecision(allow=False, reason=...)` 即拒绝；
-`post` 在执行后跑。**门控只可加检查，不可减保证** —— 插件能拦下更多，
-不能把内核原有的检查放过去。
-
-#### HTTP 端点
-
-```python
-ctx.add_route("GET", "tasks", list_tasks)          # -> /api/plugin/<插件名>/tasks
-ctx.add_route("GET", "tasks/:sid", get_task)       # 路径参数按位置取值
-ctx.add_route("PUT", "checked", put_checked)
-ctx.add_route("DELETE", "tasks/:sid", drop_task)
-```
-
-`handler(args)` 返回 `(status, payload)`；`payload` 是 dict / list 时按 JSON 返回
-（list 会包成 `{"ok": true, "items": [...]}`）。`args` 是**查询串 + 路径参数 + 请求体**
-（有体时在 `body` 键下）。
-
-支持 `GET` / `POST` / `PUT` / `DELETE`。路径挂在 `/api/plugin/<插件名>/` 命名空间下，
-除 `:名字` 参数段外**不做通配**：路径必须与声明的形状逐段相等，段数也要相等 ——
-「某插件挂了哪些端点」因此永远可枚举、可审计。
-
-#### 界面
-
-```python
-ctx.add_ui_item(
-    "web-ui/right-panel/notes", kind="panel",
-    props={"label": "便签", "action": "notes.open",
-           "html": "<div id='notes'></div>",
-           "scripts": ["ui/panel.js"], "styles": ["ui/panel.css"]},
-    order=10,
-)
-```
-
-面板进右栏的标签容器，与「步骤」栏并列。标题就是标签上的字，面板里不再有标题行。
-`pinned=True` 的面板不显示关闭按钮。
-
-角色分工：
-
-| 谁 | 负责 |
+| 能力 | 声明入口 |
 |---|---|
-| 插件 | 面板的 HTML 片段、脚本、样式；内容怎么渲染 |
-| 壳层 | 标签容器、按数据枚举、把资产按路径送达、同源注入 |
+| 模型工具 | tool |
+| 插件HTTP端点 | route及method；地址由绑定器派生，位于/api/plugin/<owner>/命名空间 |
+| 宿主事件订阅 | event，路径包含唯一宿主事件常量 |
+| 插件事件定义与订阅 | event-channel；event通过requires.event引用定义，事件类型为定义节点完整路径 |
+| 上下文、提示段、请求尾部、模型目录 | provider及props.target |
+| 组装钩子、写类执行器 | assembly-hook、executor |
+| 设置 | setting及工厂返回的SettingDecl |
+| UI挂载与内容 | ui-slot、ui-action、ui-control、ui-tool-shell |
+| 消息面板实现 | ui-tool-shell.props.renderer及有效catalog约束下的前端绑定 |
 
-### 子智能体工具可见性
-插件通过 `ctx.set_subagent_tools([...])` 声明自己的工具清单：
+静态与插件片段共用校验、覆盖和装配机制。注册表是装配代的消费投影，不是第二份能力声明；跨插件引用必须使用显式依赖，不得运行期偷偷查另一份清单。新增业务工具、端点或展示类型通过插件目录扩展；新增基础协议种类仍属于宿主架构变更。
 
-```text
-不调用：本插件工具对子智能体全部可见
-传空列表：本插件工具对子智能体全部不可见
-传工具名列表：只有列表中的工具对子智能体可见
-```
+## 启停与失败
 
-内核只按清单过滤子智能体的模型工具视图，不复制注册表，也不按插件名写分支。
-父会话视图不受影响。工具仍保留在注册表里；重新声明清单即可再次改变可见性。
+plugins.ini决定启停；默认发现与独立清单的自动装载规则以实现文档为准，enabled=0优先。物理文件变动在显式重载后生效，不自动改动活跃轮次。
 
-插件还可以用 `ctx.is_subagent(cid)` 判断当前会话角色，决定是否注入请求尾部文本。
-`ai_cosplay` 声明空清单，并以 `subagent_visible=False` 注册语音提示尾部，
-该尾部不会渲染进子智能体请求。
+插件贡献可热插拔；活跃回合及插件HTTP请求持有读取租约，变更在读者退出后发布。构造或绑定失败撤销候选代并恢复旧代，设置页可查询延迟操作终态。关闭提供UI挂载点的插件时，其它插件对该挂载点的贡献休眠。强requires依赖不自动降级：缺失目标使候选配置失败，需一并关闭依赖方或恢复提供方。
 
-### 请求尾部
-`ctx.add_mode_tail(fn, *, subagent_visible=True)` 注册 `fn(conversation_id) -> str`。
-文本拼在执行模式与 Todo 进度之后，只进入当前请求尾部，不进入系统提示词前缀；
-插件装卸只改变尾部，系统提示词前缀不变。空串不占位，异常来源被隔离。
+内核和宿主服务替换需要重启，不属于插件资源在线迁移。extend/wrap组合构造尚未支持，会明确拒绝。
 
-### 界面资产
-面板可以带自己的样式与脚本，声明的是**插件目录内的相对路径**；壳层按
-`/api/plugin/<插件名>/_asset/<相对路径>` 送达，**目录根取自**
-`plugin_host.plugin_root(插件名)`（清单 `path=` 指向的外部目录同样适用）。
-路径是相对的、不含 `..`；只有文本类扩展名（`.js` `.mjs` `.css` `.html` `.json` `.svg`）
-会送出去。类名带自己的前缀；样式是同源注入的，没有沙箱隔离。
+## 资产与信任
 
-面板脚本加载后，用壳层给的客户端调**自己的**端点，不必知道 URL 前缀：
+插件私有UI、配置、图标、第三方库与许可证在plugins/<name>/内；公共宿主资产在agent/shell/web/。静态文件可送达不代表能力已启用；前端只能绑定有效声明且owner匹配的类型。
 
-```js
-const api = window.aiAgentPlugins.for(window.aiAgentPluginCurrent);
-const res = await api.get("files");                       // GET  /api/plugin/<插件名>/files
-await api.post("generate", { prompt: "..." });            // POST 同上
-await api.put("checked", { conversation_id, checked });
-await api.del("tasks/t-1");                               // DELETE
-```
+插件代码与本机代码同等信任，不提供Python沙箱。plugin_tree_only限制装载来源路径，不阻止已信任代码访问系统。源码摘要只提供来源诊断，不是签名认证。密钥配置不得入库；插件数据归当前数据根下的插件专属目录，由BuildContext.data_dir注入。
 
-`res` 形状是 `{ status, ok, data }`。`api.url(path)` 只拼地址、不发请求。
-
-#### 脚本的加载时机
-
-**上下文段外观**统一注册为 `web-ui/left-panel/context_usage/<key>` UI 条目，props 带 `label` / `color`；UI catalog 发布 `ai-agent:context-segments`，上下文条直接消费，不再维护第二份颜色表。
-
-**插件 UI 脚本与样式**来自 catalog 条目的 `props.scripts` / `props.styles`；样式先注入，脚本按插件串行执行，并设置 `window.aiAgentPluginCurrent`。面板由插件脚本按 catalog 条目打开时渲染。
-
-不存在独立的 boot script API、面板清单端点或动作清单端点；UI 扩展只存在于已声明的 UI 路径下，由 `GET /api/ui/catalog` 发现。
-
-#### 壳层公共桥
-
-插件在**面板之外**（输入区、页头）放置 UI 时，用壳层桥而不是自己拼 URL、
-不读壳层内部变量、不碰 `document.head`：
-
-```js
-// 模型：list() → Promise<[{id,label,provider}]>；current() → string；
-// select(id) → Promise<boolean>；onChange(fn) → 取消订阅函数。
-const models = window.aiAgentShell.models;
-const stop = models.onChange((id) => renderLabel(id));
-await models.select("target");
-stop();
-
-// 样式：relPath 是插件目录内相对路径；同一路径只注入一次。
-window.aiAgentShell.styles.load("ui/model-picker.css");
-```
-
-`aiAgentShell` 与 `aiAgentPlugins` 平级：前者是壳层能力，后者是插件自己的端点。
-桥本身**不持有当前模型** —— `current()` 每次读活动标签页，多份状态必然分叉。
-`select()` 先乐观更新界面，再写 `/api/chat/ui-state` 并广播；写失败会回滚并返回
-`false`。服务端下发的值（会话恢复 / SSE）不受本地清单限制。
-
-`styles.load()` 复用面板样式的去重表与 `/api/plugin/<插件>/_asset/` 路由：
-绝对路径、盘符、协议与 `..` 一律返回 `false`。插件停用后，`applyPluginsChanged`
-会摘掉带 `data-plugin-style` 的 `<link>`，并清掉 `#modelPickerSlot` 里
-`data-plugin` 已不在装载名单的子元素。
-
-插件变更不需要刷新页面：壳层刷新 UI catalog 与已装载插件集合，关闭已卸载插件的面板，并清空脚本与样式缓存，使重新启用后脚本能重新执行。
-面板，并清掉脚本与样式缓存，使重新启用的插件再次执行脚本。
-
-#### 宿主设置面板与条目
-
-设置通过插件设置注册表注册，不通过宿主 DOM。插件可用 `add_settings_panel(panel_id, title=...)` 增加面板，用 `add_settings_item(parent, item_id, kind=..., save=..., load=...)` 增加条目。
-
-支持的条目类型为 `text`、`search`、`number`、`select`、`checkbox`、`textarea`、`password`；`select` 必须显式给出选项列表。条目 ID 的命名空间为 `settings/<panel>/<item>`。
-
-条目所属插件提供 `save` 回调。宿主只渲染带类型的控件，把所有变更后的插件值提交给通用设置入口；插件系统再把每个条目分派给所属插件。回调负责持久化并应用本插件值，然后返回成功或失败。插件不得创建、修改或查询设置 DOM。
-
-插件卸载后，其面板与条目立即消失；插件自己持久化的值保留到下次启用。
-
-#### 会话切换通知
-
-面板内容带会话级状态时（如勾选），会话一换就要重取。壳层广播一个通用事件，
-**谁需要谁订阅**：
-
-```js
-document.addEventListener("ai-agent:conversation-changed", function () {
-  if (document.getElementById("kbBody")) render();
-});
-```
-
-壳层不点名任何插件，也不要求插件认识壳层。
-
-### 插件拥有的资源
-| 资源 | 怎么拿 | 说明 |
-|---|---|---|
-| 专属数据目录 | `ctx.data_dir` | `<数据根>/plugin/<插件名>/`，首次访问自动创建 |
-| 内核 App | `ctx.app` | 取内核已注册的服务，如 `ctx.app.registry` / `ctx.app.mesh`；装配完成前为 `None` |
-| 自己的运行时 | `ctx.set_runtime(obj)` | 登记出来，供壳层按名字取同一份实例 |
-| 清单位次 | 宿主自动写入 | 组装顺序用，插件看不到也不必管 |
-
-`ctx.data_dir` 让插件**只看到自己那一层**，不必知道外层目录在哪。各插件的目录互相
-隔离，同名文件不会撞。状态放这里而不是放插件目录里：插件目录是代码，数据根是数据。
-
-`ctx.app` 只在**处理器内部**用，不在 `register` 里用：插件在装配末尾加载，那时 App
-还没交到宿主手上；而处理器是请求来了才被调用。`ctx.set_runtime` 在 `register` 中调用。
-
-### 模型目录来源
-`add_model_catalog(entries)` 把一组模型条目交给内核的 `ModelCatalog`。条目是
-`ModelEntry`（`id` / `provider` / `label` / `options` / `is_default`），
-`base_url` / `api_key` / `model` 这类厂商相关键放在 `options` 里。内核按请求里的
-id 取对应实例；未命中的 id 直接报错，不会静默路由到别的模型。
-
-目录是模型路由的唯一权威来源（在其插件装载期间）；没有有效条目时模型清单为空。
-条目构造由插件负责，内核负责规范化、校验与消费快照。只允许一个来源：第二个来源
-被拒绝并留痕，插件仍可装载。
-
-`multi_model` 是该扩展点的实现，配置与行为见 [multi-model.md](multi-model.zh.md)。
-
-### 边界
-#### 插件信任模型
-
-**插件与本机代码同等信任。** 装载后的 `plugin.py` 跑在同一进程、同一解释器里：
-能读整个磁盘、能发网络请求、能注册工具与 HTTP 端点；UI catalog 条目的 HTML/脚本注入到
-页面同源上下文里。**没有沙箱。**
-
-因此：
-
-| 能指望 | 不能指望 |
-|---|---|
-| 约定与命名空间约束（端点前缀、资产路径校验） | 恶意/被篡改插件被运行时拦住 |
-| 装载期在日志里记录来源路径与入口文件摘要（sha256 前缀 / mtime / bytes） | 子进程隔离或权限降级（见 [评估笔记](../adr/plugin-subprocess-isolation.zh.md)） |
-| 开关打开时拒绝对 `plugins/` 树外的路径装载 | 对「受信目录里的坏代码」自动免疫 |
-
-信任边界由三项约束维持：
-
-- `plugins.ini` 与各插件目录一并纳入版本控制或部署清单；
-- `[agent] plugin_tree_only = 1`（或环境变量 `AI_AGENT_PLUGIN_TREE_ONLY=1`）把装载范围
-  限制在 `plugins/` 树内；
-- 装载日志形如 `[plugin.load] <名> source=… sha256=… mtime=… bytes=…`，可与部署哈希对照。
-
-界面与端点侧的约定：
-
-- 界面资产的类名带自己的前缀，样式同源注入；
-- 端点注册限于 `/api/plugin/<插件名>/` 命名空间，内核路由不开放注册；
-- 面板数据由插件自己的端点提供；
-- 段名与段色、工具名与图标由插件经 UI catalog 声明，壳层按路径消费；
-  服务端只给数据（段 key / 段名 / 计数），插件界面脚本负责自己的面板渲染。
-
-### 接入新插件
-1. **建目录**：`plugins/<名字>/`，目录名即插件名，也是 `plugins.ini` 里的节名后缀。
-   名字必须匹配 `[A-Za-z0-9][A-Za-z0-9_-]*`。
-2. **写入口**：`plugin.py` 暴露 `register(ctx)`。最小实现只注册一项能力：
-
-   ```python
-   def ping(args):
-       return 200, {"ok": True}
-
-   def register(ctx):
-       ctx.add_route("GET", "ping", ping)
-   ```
-
-   需要拆文件时用同目录模块，以相对导入引用（`from .library import Thing`）。
-3. **建元数据与表单**：`plugin-meta.json` 声明 `name` / `desc` / `icon` / `version`；
-   需要结构化表单时加 `settings-schema.json`，声明 `kind` 与 `fields`（`sections`
-   还要 `section_prefix` / `identity`）。无敏感信息的 `plugin-config.ini` 入库；
-   含密钥的插件配置由 `.gitignore` 排除。
-4. **注册界面**（可选）：用 `ctx.add_ui_item(path, kind=..., props=..., order=...)` 在已声明 UI 路径下注册。资产放插件目录内，经 `/api/plugin/<名字>/_asset/<相对路径>` 送达。`order` 可选；正数优先，未设置排在正数后，负数排在最后（`-1` 最后，`-2` 倒数第二）。
-5. **加清单**：在 `plugins.ini` 写一节 `[plugin:<名字>]`，可带 `path` / `enabled`。
-   节在即进入装载候选，实际是否装载看 `enabled`。
-6. **校验**：`python scripts/ci.py` 覆盖依赖方向、架构约束、注释文案与单测；
-   插件的端点与界面由 `scripts/acceptance_web.py` 一类的验收脚本覆盖。
-
-## 5. 其他细节
-
-### 补充
-
-```
-discover     扫插件根目录，找 <名字>/plugin.py    —— 枚举磁盘上有哪些插件
-load         按 plugins.ini 逐项装载：importlib 以动态模块名加载 → register(ctx)
-             装配末尾调用 —— 那时内核服务都已注册，处理器才能取到 ctx.app
-unload       逆序调用 disposer；再按插件名清一遍贡献、撤运行时、删模块缓存
-```
-
-发现阶段跳过以 `_` / `.` 开头的目录。
-
-`importlib` 的动态模块名意味着壳层 `import` 不到同一个模块对象。插件要把自己持有的
-运行时交给壳层操作，必须 `ctx.set_runtime(obj)`，壳层用 `plugin_host.runtime("<插件名>")`
-取**同一个实例**；不登记就会出现两边各持一份状态。
-
-卸载兜底会按插件名撤掉端点与 UI catalog 条目。事件订阅由 `ctx.subscribe` 注册的 disposer 撤掉。
-`ctx.subscribe` 登记的 disposer 撤销。
-
-
+## 配置与相关文档
 
 ### 插件自己的配置
 插件自己的配置放**插件自己目录下的 `plugin-config.ini`**，只含插件自己的键。
@@ -573,3 +105,60 @@ AI角色扮演 / 视觉操作 / 知识库 / Skills 的配置入库，`multi_mode
 | 工具的注册、执行管道与写盘协议 | [tools.zh.md](tools.zh.md) |
 | HTTP 路由与界面打包 | [shell.zh.md](shell.zh.md) |
 | 配置项全表 | [config.zh.md](../guide/config.zh.md) |
+
+#### 壳层公共桥
+
+插件在**面板之外**（输入区、页头）放置 UI 时，用壳层桥而不是自己拼 URL、
+不读壳层内部变量：
+
+```js
+// 模型：list() → Promise<[{id,label,provider}]>；current() → string；
+// select(id) → Promise<boolean>；onChange(fn) → 取消订阅函数。
+const models = window.aiAgentShell.models;
+const stop = models.onChange((id) => renderLabel(id));
+await models.select("target");
+stop();
+
+// 样式：relPath 是插件目录内相对路径；同一路径只注入一次。
+window.aiAgentShell.styles.load("ui/model-picker.css");
+```
+
+`aiAgentShell` 与 `aiAgentPlugins` 平级：前者是壳层能力，后者是插件自己的端点。
+桥本身**不持有当前模型** —— `current()` 每次读活动标签页，多份状态必然分叉。
+`select()` 先乐观更新界面，再写 `/api/chat/ui-state` 并广播；写失败会回滚并返回
+`false`。服务端下发的值（会话恢复 / SSE）不受本地清单限制。
+
+`styles.load()` 复用面板样式的去重表与 `/api/plugin/<插件>/_asset/` 路由：
+绝对路径、盘符、协议与 `..` 一律返回 `false`。插件停用后，`applyPluginsChanged`
+会摘掉带 `data-plugin-style` 的 `<link>`，并清掉 `#modelPickerSlot` 里
+`data-plugin` 已不在装载名单的子元素。
+
+插件变更不需要刷新页面：壳层刷新 UI catalog 与已装载插件集合，关闭已卸载插件的面板，并清空脚本与样式缓存，使重新启用后脚本能重新执行。
+
+#### 宿主设置面板与条目
+
+设置通过插件设置注册表注册，不通过宿主 DOM。插件可用 `add_settings_panel(panel_id, title=...)` 增加面板，用 `add_settings_item(parent, item_id, kind=..., save=..., load=...)` 增加条目。
+
+支持的条目类型为 `text`、`search`、`number`、`select`、`checkbox`、`textarea`、`password`；`select` 必须显式给出选项列表。条目 ID 的命名空间为 `settings/<panel>/<item>`。
+
+条目所属插件提供 `save` 回调。宿主只渲染带类型的控件，把所有变更后的插件值提交给通用设置入口；插件系统再把每个条目分派给所属插件。回调负责持久化并应用本插件值，然后返回成功或失败。插件不得创建、修改或查询设置 DOM。
+
+插件卸载后，其面板与条目立即消失；插件自己持久化的值保留到下次启用。
+
+#### 会话切换通知
+
+面板内容带会话级状态时（如勾选），会话一换就要重取。壳层广播一个通用事件，
+**谁需要谁订阅**：
+
+```js
+document.addEventListener("ai-agent:conversation-changed", function () {
+  if (document.getElementById("kbBody")) render();
+});
+```
+
+壳层不点名任何插件，也不要求插件认识壳层。
+
+
+<a id="插件信任模型"></a>
+
+插件信任模型见上方“资产与信任”：同进程插件具有本机代码权限，路径限制不是代码沙箱。

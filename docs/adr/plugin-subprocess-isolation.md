@@ -11,7 +11,7 @@ In-process loading places plugins at the same trust level as local code. If untr
 
 ## Cost (under the current architecture)
 
-- **Tool API**: `PluginContext` directly references the `ToolRegistry`, the tool pipeline, and the event bus; crossing a process boundary requires RPC and serialization contracts.
+- **Tool API**: plugin factories receive declared dependency references to host services; crossing a process boundary requires RPC and serialization contracts.
 - **Performance**: each tool call incurs one extra process round trip; cold start and handle inheritance cost more on Windows.
 - **Windows**: process and user isolation primitives differ from Linux, doubling the test matrix.
 - **UI assets**: panel scripts still load into the browser's same-origin context; process isolation does not cover the frontend.

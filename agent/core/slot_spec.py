@@ -13,17 +13,17 @@ from typing import Any, Callable, Dict, FrozenSet, Mapping, Optional, Tuple
 from agent.core import event_name
 
 #: 已登记的事件名全集：由 `agent.core.event_name` 一级常量的值构成。
-#: 事件名是对外契约，片段里写的事件名必须命中此集，不允许自造字串。
+#: 事件名是对外契约，宿主事件引用必须命中此集；插件事件通过event-channel节点声明。
 EVENT_NAMES = frozenset(
     value for name, value in vars(event_name).items()
     if name.isupper() and isinstance(value, str))
 
-#: 十六种插口类型；新增类型必须同时给出 factory 调用约定。
+#: 插口类型；新增类型必须同时给出 factory 调用约定。
 KINDS = frozenset({
     "container", "module", "service", "provider", "tool", "route",
     "http-route", "event", "assembly-hook", "executor", "setting",
     "ui-slot", "ui-action", "ui-control", "ui-tool-shell",
-    "runtime",
+    "runtime", "event-channel",
 })
 
 #: 覆盖模式；`base` 只用于标记默认实现自身，不是可写的 mode。
@@ -43,7 +43,7 @@ CHILDREN_KEYED = "keyed"
 CHILDREN_FIXED = "fixed"
 CHILDREN_MODES = frozenset({CHILDREN_NONE, CHILDREN_KEYED, CHILDREN_FIXED})
 #: 纯声明类型：没有 factory，声明本身即产物。
-DECLARATIVE_KINDS = frozenset({"ui-slot", "ui-action", "ui-control", "ui-tool-shell"})
+DECLARATIVE_KINDS = frozenset({"ui-slot", "ui-action", "ui-control", "ui-tool-shell", "event-channel"})
 #: 缺省作用域为会话级的类型。
 SESSION_BY_DEFAULT = frozenset({"module"})
 

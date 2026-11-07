@@ -14,6 +14,26 @@ from agent.gui import launcher  # noqa: E402
 
 
 class GuiLauncherTest(unittest.TestCase):
+    def test_startup_helpers_do_not_create_windows_console(self):
+        from agent.gui import port_cleanup
+
+        root = Path(__file__).resolve().parent.parent
+        with mock.patch.object(launcher, "_app_root", return_value=root), \
+                mock.patch.object(launcher.shutil, "which", return_value="python.exe"), \
+                mock.patch.object(launcher.subprocess, "CREATE_NO_WINDOW", 0x08000000, create=True), \
+                mock.patch.object(launcher.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            for platform in ("nt", "posix"):
+                with mock.patch.object(launcher.os, "name", platform):
+                    self.assertEqual(launcher._python_command(), ["python.exe"])
+                self.assertEqual(run.call_args.kwargs["creationflags"], 0x08000000 if platform == "nt" else 0)
+            with mock.patch.object(port_cleanup.os, "name", "nt"):
+                run.return_value.stdout = ""
+                self.assertEqual(port_cleanup.listening_pids("127.0.0.1", 3156), [])
+                self.assertEqual(run.call_args.kwargs["creationflags"], 0x08000000)
+                self.assertTrue(port_cleanup.kill_pid(987654))
+                self.assertEqual(run.call_args.kwargs["creationflags"], 0x08000000)
+
     def test_launch_owns_child_and_stops_it(self) -> None:
         child = object()
         with mock.patch.object(launcher, "_pick_port", return_value=8899), \

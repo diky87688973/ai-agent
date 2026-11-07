@@ -25,22 +25,26 @@ class PluginAssemblyTest(unittest.TestCase):
         root = self.plugins / name
         root.mkdir()
         (root / "plugin.py").write_text(
-            "def register(ctx):\n    return []\n", encoding="utf-8")
-        if auto_load:
-            (root / "plugin-meta.json").write_text(
-                json.dumps({"auto_load": True}), encoding="utf-8")
+            "def make(ctx):\n    return object()\n", encoding="utf-8")
+        (root / "plugin-meta.json").write_text(
+            json.dumps({"name": name, "auto_load": auto_load}), encoding="utf-8")
         if assembly is not None:
-            (root / "plugin-assembly.json").write_text(
+            (root / "plugin-slots.json").write_text(
                 json.dumps(assembly), encoding="utf-8")
         return root
 
     def test_manifest_disable_wins(self) -> None:
         self._plugin(assembly={
-            "kind": "assembly",
-            "nodes": [{"path": "app/group/node", "factory": "assembly:make"}],
+            "slots": [{"path": "app/plugins/newplug/node", "kind": "container"}],
         })
         overlay = discover(self.plugins, [{"name": "newplug", "enabled": "0"}])
         self.assertEqual(overlay.manifest[0]["enabled"], "0")
+
+    def test_retired_assembly_file_does_not_enable_independent_profile(self):
+        plugin = self._plugin()
+        (plugin / "plugin-assembly.json").write_text('{}', encoding="utf-8")
+        overlay = discover(self.plugins, [], include_unlisted=False)
+        self.assertEqual(overlay.manifest, [{"name": "newplug", "enabled": "0"}])
 
     def test_auto_load_without_assembly_only_adds_manifest(self) -> None:
         self._plugin(auto_load=True)

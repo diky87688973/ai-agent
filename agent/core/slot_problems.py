@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import Dict, FrozenSet, List, Mapping, Optional
 
+from agent.core.slot_events import channel_problem, event_type
 from agent.core.slot_spec import (
     CONTAINER_KINDS,
     DECLARATIVE_KINDS,
-    EVENT_NAMES,
     HOST_OWNER,
     PLUGIN_SLOT_ROOT,
     SlotSpec,
@@ -71,21 +71,20 @@ def order_problems(specs: Mapping[str, SlotSpec], root: str,
 
 
 def event_problems(specs: Mapping[str, SlotSpec]) -> List[str]:
-    """event 节点的事件名必须命中 `event_name` 常量集。
-
-    事件名是对外契约，订阅方按字串订；片段里自造一个名字不会报错，
-    只会静静订阅一个永远不会发生的事件。故在解析期就挡下。
-    """
+    """宿主事件按常量校验，插件事件按声明依赖校验。"""
     problems: List[str] = []
     for spec in specs.values():
-        if spec.kind != "event":
-            continue
-        segments = spec.path.split("/")
-        if not any(segment in EVENT_NAMES for segment in segments):
-            problems.append(
-                f"event 节点的事件名不在 event_name 常量里：{spec.path}"
-                f"（路径未包含任何已登记事件名；请从 agent.core.event_name 取常量）")
+        if spec.kind == "event-channel":
+            problem = channel_problem(spec)
+            if problem:
+                problems.append(problem)
+        elif spec.kind == "event":
+            try:
+                event_type(spec, specs)
+            except ValueError as exc:
+                problems.append(str(exc))
     return problems
+
 
 
 def spec_problems(specs: Mapping[str, SlotSpec], root: str) -> List[str]:

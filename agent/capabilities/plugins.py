@@ -205,7 +205,7 @@ class PluginHost:
         self._prompt_tail = prompt_tail
         self._prompt_sections = prompt_sections if prompt_sections is not None else PromptSections()
         self._context_hooks = context_hooks
-        #: 插件专属存储的根（`<数据根>/plugin/`）。插件只拿到自己的子目录，见 `PluginContext.data_dir`。
+        #: 插件专属存储的根（`<数据根>/plugin/`）。插件只拿到自己的子目录，由工厂 BuildContext.data_dir 注入。
         self.plugin_data_root: Optional[Path] = (
             Path(plugin_data_root) if plugin_data_root is not None else None
         )
@@ -227,7 +227,7 @@ class PluginHost:
         #: 版本，来自 `plugin-meta.json`；没写时沿用模块里的 `PLUGIN_VERSION`。没声明就是空串。
         self._versions: Dict[str, str] = {}
         self._reports: List[LoadReport] = []
-        #: 内核 App；`build_app` 装配完登记（插件取内核服务用，见 `PluginContext.app`）
+        #: 内核 App；`build_app` 装配完登记（插件工厂通过声明依赖取得服务）
         self.app: Any = None
         self.manifest_path: Optional[Path] = None
         self.request_unload: Any = None

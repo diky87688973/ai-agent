@@ -169,7 +169,7 @@ html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
 .usage-bottom .ub-ring{display:inline-flex;align-items:center;gap:6px}
 .usage-bottom .usage-ring{width:16px;height:16px;flex-shrink:0}
 .usage-bottom .usage-ring::after{inset:2px}
-.usage-bottom .usage-pct{font-size:10px;font-weight:600}
+.usage-bottom .usage-pct{font-size:10px;font-weight:600;transform:translateY(1px)}
 .usage-bottom .ub-cost-cny{color:#c9d1d9;font-weight:400}
 .usage-bottom .ub-cost-or{color:#9aa0a6}
 .usage-bottom .ub-cost-usd{color:#9aa0a6}

@@ -6,6 +6,7 @@
 var _autoEnabled=false;
 function _goalButton(){return document.querySelector('[data-ui-action="input.goal"]');}
 function updateAutoToggleUI(){
+if(!renderingContextVisible)return;
 var autoToggleBtn=_goalButton();
 if(!autoToggleBtn)return;
 var g=_goalInfo||null;var st=g?String(g.status||""):"";var txt=g?String(g.text||"").trim():"";
@@ -24,7 +25,7 @@ autoToggleBtn.title="目标：设定后每回合结束自动用这段文案发�
 /* 目标状态是服务端权威：页面打开时取一次，之后由 `goal` 工具的调用结果刷新。
    不在前端持久化 —— 目标属于会话，不属于这个浏览器标签页。 */
 function renderGoalDialog(){
-var cid=getActiveConversationId();if(!cid)return;
+var cid=getActiveConversationId(),tab=getActiveTab();if(!cid)return;
 var g=_goalInfo||null;var st=g?String(g.status||""):"";
 var label=(st==="active"?"进行中":st==="paused"?"已暂停":st==="done"?"已达成":"");
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
@@ -51,6 +52,7 @@ box.appendChild(el("div","goal-dialog-hint","提示：可以随时在这里改�
 var row=el("div","goal-dialog-actions");
 var onEsc=null;
 function close(){
+document.removeEventListener("ai-agent:conversation-changed",close);
 /* 监听必须在这里摘：只在"按 Escape"那条分支里摘的话，
    每次用按钮关掉弹窗都会留下一个监听（直到下次按 Escape 才清），
    开几次就积几个 —— 之后任何一次 Escape 会同时触发多个回调。 */
@@ -63,8 +65,10 @@ function act(action,extra){
 var body={conversation_id:cid,action:action};
 if(extra)for(var k in extra)body[k]=extra[k];
 post(body).then(function(j){
-if(j&&j.goal){_goalInfo=j.goal;}else if(action==="delete"){_goalInfo=null;}
-updateAutoToggleUI();close();
+if(!j||!j.ok)return;
+tab.goalInfo=j.goal||null;
+if(getActiveTab()===tab){_goalInfo=tab.goalInfo;updateAutoToggleUI();}
+close();
 });
 }
 function addBtn(text,cls,fn){var b=el("button","goal-btn"+(cls?(" "+cls):""),text);b.type="button";b._goalClick=fn;row.appendChild(b);return b;}
@@ -86,6 +90,7 @@ ta2.addEventListener("input",syncSave);syncSave();
 
 box.appendChild(row);
 document.body.appendChild(mask);document.body.appendChild(box);
+document.addEventListener("ai-agent:conversation-changed",close);
 /* 定位必须在挂载之后：`getBoundingClientRect()` 只有元素进了文档才有真实几何，
    提前量到的是 0，算出来的 left 全是错的（弹窗会跑到视口最左）。
    对齐的是触发它的那个「目标」按钮：

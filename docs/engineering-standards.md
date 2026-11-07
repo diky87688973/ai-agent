@@ -54,7 +54,7 @@ An uncategorized top-level package under `agent/` fails immediately instead of b
 | `agent/capabilities/registry.py` | Tool registry and tool protocol | Concrete tools, service assembly |
 | `agent/capabilities/builtin/` | Built-in tools, one tool domain per file | Task protocol, plugin loading |
 | `agent/capabilities/tasks/` | Task tools: run_type, todo_list, user_confirm, goal | Kernel chain, HTTP |
-| `agent/capabilities/plugins.py` | Plugin loading and Host; `PluginContext` / contribution ledger live in `plugin_context.py` / `plugin_ledger.py` | Kernel business, concrete plugin names |
+| `agent/capabilities/plugins.py` | Plugin loading and Host; identity/modules/runtime disposal; slot_binder.py projects declarations and plugin_ledger.py releases resources | Kernel business, concrete plugin names |
 | `agent/shell/web/server.py` | HTTP service assembly and startup | Route dispatch, static assets, SSE frames |
 | `agent/shell/web/web_routes.py` | HTTP verb and path dispatch, request body and error exits | Concrete business actions, classic page implementation |
 | `agent/shell/web/web_static.py` | Shell static assets, paths, protocol constants | Plugin-private assets |
@@ -146,7 +146,7 @@ A capability whose owner cannot be named is not added. A capability that cannot 
 | HTTP authentication | `shell/web/auth/`, `shell/web/web_auth.py` | `server.create_server` injects `AuthRuntime` | Passwords, sessions, tokens, CSRF, and policy belong to the shell; never to core |
 | HTTP routes | `shell/web/web_routes.py` | `server.create_server` binds `Handler` | Business actions live in `web_api.py` and its action mixins |
 | Classic page/SSE | `shell/web/web_classic.py` | Mixed into `Handler` | Does not copy the JSON API |
-| Plugin HTTP endpoints | `shell/web/web_plugin.py` | `PluginContext.add_route` | Exact match; no wildcards |
+| Plugin HTTP endpoints | `shell/web/web_plugin.py` | `SlotBinder` + `kind=route` | Exact match; no wildcards |
 | Base WEB-UI assets | `plugins/web_ui/ui/classic/`, `shell/web/ui_bundle.py` | Inline manifest in `ui_bundle` | Page HTML/CSS/JS belong to the base WEB-UI plugin; the shell only serves them |
 | Plugin UI/themes/icons | `plugins/<name>/ui/` | Plugin `add_ui_item` | Use the resolved plugin root; never hardcode `plugins/<name>` |
 | UI configuration | `web-ui-config.ini` | Read by the shell | Not plugin-private configuration |

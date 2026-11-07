@@ -54,7 +54,7 @@ common → core → mechanisms → subagent → capabilities/update → shell �
 | `agent/capabilities/registry.py` | 工具注册表与工具协议 | 具体工具、服务装配 |
 | `agent/capabilities/builtin/` | 内置工具，每个文件一个工具域 | 任务协议、插件加载 |
 | `agent/capabilities/tasks/` | 任务工具：run_type、todo_list、user_confirm、goal | 内核链、HTTP |
-| `agent/capabilities/plugins.py` | 插件装载与 Host；PluginContext / 贡献账本分离在 `plugin_context.py` / `plugin_ledger.py` | 内核业务、具体插件名 |
+| `agent/capabilities/plugins.py` | 插件装载与 Host；身份、模块与运行时释放；贡献由 `slot_binder.py` 投影，资源逆序释放在 `plugin_ledger.py` | 内核业务、具体插件名 |
 | `agent/shell/web/server.py` | HTTP 服务装配与启动 | 路由分派、静态资源、SSE 帧 |
 | `agent/shell/web/web_routes.py` | HTTP 动词与路径分派、请求体/错误出口 | 具体业务动作、经典页面实现 |
 | `agent/shell/web/web_static.py` | 壳层静态资源、路径与协议常量 | 插件私有资产 |
@@ -136,7 +136,7 @@ inbound 直接持有历史/布局/状态实现
 | HTTP 鉴权 | `shell/web/auth/`、`shell/web/web_auth.py` | `server.create_server` 注入 `AuthRuntime` | 密码/会话/Token/CSRF/策略归壳层；不进 core |
 | HTTP 路由 | `shell/web/web_routes.py` | `server.create_server` 绑定 `Handler` | 业务动作在 `web_api.py` 及动作 mixin |
 | 经典页面/SSE | `shell/web/web_classic.py` | 混入 `Handler` | 不复制 JSON API |
-| 插件 HTTP 端点 | `shell/web/web_plugin.py` | `PluginContext.add_route` | 精确匹配，不做通配 |
+| 插件 HTTP 端点 | `shell/web/web_plugin.py` | `SlotBinder` + `kind=route` | 精确匹配，不做通配 |
 | 基础 WEB-UI 资产 | `plugins/web_ui/ui/classic/`、`shell/web/ui_bundle.py` | `ui_bundle` 内联清单 | 页面 HTML/CSS/JS 归基础 WEB-UI 插件；壳层只负责送达 |
 | 插件 UI/主题/图标 | `plugins/<name>/ui/` | 插件 `add_ui_item` | 用解析后的插件根，不写死 `plugins/<name>` |
 | 界面配置 | `web-ui-config.ini` | 壳层读取 | 非插件私有配置 |

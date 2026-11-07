@@ -282,3 +282,8 @@ The output includes the fact count, derived message count, user-round count, ful
 | five-layer structure and assembly | [architecture.md](../architecture.md) |
 | write gate | [tools.md](tools.md) |
 | parameters and environment variables | [config.md](../guide/config.md) |
+
+
+### Message scrolling and the bottom overlay
+
+The message scroller fills the chat area below the tabs. The composer, queue and task controls remain anchored at the bottom; the active conversation todo panel sits above them. Overlay margins do not intercept pointer input, so wheel events reach the message scroller. Actual controls preserve their own interaction and internal scrolling. ResizeObserver derives composer and todo insets from layout; matching bottom padding keeps the last message visible. Reading position and bottom follow are preserved, and active-tab changes refresh the insets. Tests: tests/test_chat_layout_browser.py.

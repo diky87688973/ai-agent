@@ -46,7 +46,7 @@
 | mechanisms | `provider_registry` | 厂商名 → 构造器；唯一知道怎么 new 一个 provider 的地方 |
 | mechanisms | `ProviderRouter` | 按 `request.model` 选 provider 实例 |
 | capabilities | `ModelCatalog` | 模型描述注册表、provider 缓存、权威判定 |
-| capabilities | `PluginContext.add_model_catalog` | 插件的注册口 |
+| capabilities | `provider` / `model-catalog` | 插件的注册口 |
 | 装配根 | `app.build_app` | 建目录与路由、装载插件、确定权威来源与降级态 |
 | shell | `web_api`、`web_state` | 下发模型清单、持久化选择、广播变化 |
 | shell | `classic_adapter` | 广播会话模型变化 |
@@ -112,42 +112,13 @@ class ModelCatalog:
 `provider_for` 返回 `ModelProvider | None`，不是 `Any`：目录与 provider 之间的契约只有 `stream()`，
 用基类表达就够，端口上不需要开任意扩展点。
 
-### 4.2 行为
+### 4.2 目录贡献
 
-1. `set_source` 是替换。同一 `source` 再调一次就是配置变了，整批覆盖，不是追加。
-   这与唯一权威一致：合并式注册表一旦真出现第二个来源，`default_id` 该听谁的就没法回答。
-2. `entries` 可以是回调。每次 `snapshot()` 调用它，插件自行决定是否重读配置文件，
-   配置改动不需要重启进程。
-3. 第二个来源被拒绝。已存在不同 `source` 时 `set_source` 抛 `RuntimeError`。
-   `PluginContext.add_model_catalog` 捕获它，写一条带两个来源名的诊断，返回空 disposer；
-   插件装载不因此失败，首个来源保持不变。行为必须确定：装载顺序不是契约，但结果必须可审计。
-4. 权威是算出来的，不是存下来的：`authoritative = len(有效条目) > 0`。
-   把布尔值固化在登记那一刻，配置从 3 条改成 0 条时它不会跟着变，权威就会指着一个空目录。
-5. `entries` 回调失败表示"这次没读到"：快照沿用上一份好条目；一份都没有时结果为空。
-   诊断带来源名与异常文本。重复 id 是配置错误，不是临时读失败：`set_source` 以 `ValueError`
-   拒绝该批，`snapshot()` 则沿用上一份好配置。
-6. provider 缓存按整批重建。指纹是有序的 `(id, provider, options_json)` 元组；指纹一变，
-   丢掉全部缓存实例，下一次查询只重建需要的那一个。条目数是十几个，重建成本可忽略，
-   换来的是没有"指纹算错拿了旧实例"这类难复现的问题。
-7. `Disposer` 触发时清空该来源的条目与全部 provider 实例。generation 计数器保证旧 disposer
-   不会清掉后来登记的来源。
-8. 未知 `provider` 的条目在规范化阶段被跳过并留痕（`provider_registry` 对未知 kind 抛 `ValueError`）。
-9. `id` 为空、或不是 `ModelEntry` 的值，跳过并留痕；单条 `options_json` 写坏只让该条目的选项为空。
-10. `default_id` 取第一条 `is_default`，没有则取第一条；目录为空时为 `""`。
+multi_model通过provider节点的props.target=model-catalog贡献目录。工厂返回读取回调，由SlotBinder绑定到唯一ModelCatalog。来源冲突使绑定失败，外层事务拒绝发布；非法配置保留诊断原因，不泄露凭据。工厂不构造具体provider。
 
-### 4.3 插件扩展点
+### 4.3 生命周期
 
-`PluginContext` 新增（与 `add_ui_item` / `add_context_source` 同位阶）：
-
-```python
-def add_model_catalog(self, entries) -> Disposer
-```
-
-`PluginContext` 用插件名作为 `source` 调 `catalog.set_source(self.name, entries)`，
-并把返回的 disposer 收进自己的回收表。入参是条目序列或取条目的回调；
-插件不必 import 任何内核实现，也不构造 provider。
-
-`PluginHost` 构造参数增加 `model_catalog`，由装配根创建并注入。
+工厂与依赖由plugin-slots.json声明，运行时注册表是装配结果的投影。启停、重载和回滚遵循[插口协议](plugin-slots-protocol.md)及[实现边界](plugin2-hotplug.md)。
 
 ## 5. Provider 注册表
 
@@ -545,23 +516,9 @@ thinking_budget_tokens = 4096
 11. 每条诊断都必须能定位：`[plugin:multi_model] <文件路径> [model:<id>] <键> 无效：<原因>`。
     只写"配置有误"无法定位到文件、条目与键。
 
-### 10.4 register
+### 10.4 声明式装配
 
-`register(ctx)` 做三件事：
-
-1. `ctx.add_model_catalog(entries)`
-   - `entries` 是回调，每次重读 `plugin-config.ini`，返回 `ModelEntry` 列表；
-   - 不传工厂、不构造 provider——厂商分发在 `provider_registry` 里。
-2. `ctx.add_route("GET", "catalog", handler)`：
-   返回 `{"ok":true,"models":[{"id","label","provider","context_window","default"}],"default":id,"invalid":[{id,reason}]}`。
-   不返回 `api_key` 与 `base_url`。`invalid` 是运维面：坏条目不能只活在日志里。
-3. `ctx.add_ui_item("ui/model-picker.js")`。
-
-`register` 返回 disposer 列表，由插件宿主统一回收。插件启动时解析一次配置，
-坏文件在用户打开下拉之前就留痕。
-
-样式不走后端：`model-picker.js` 第一行调
-`window.aiAgentShell.styles.load("ui/model-picker.css")`。理由见 11.2.2。
+plugins/multi_model/plugin-slots.json声明模型目录、目录路由、设置和UI贡献；工厂返回实现对象，由SlotBinder事务性登记。私有脚本和样式归插件目录，不提供命令式能力注册接口。
 
 ## 11. 壳层与界面
 
@@ -618,7 +575,7 @@ window.aiAgentShell.models = {
 | 开屏样式 | 无 | — |
 
 下拉按钮在输入区、不属于任何面板，所以它需要在开屏阶段就生效的样式。
-不新增后端扩展点（`add_boot_style` + `/api/boot-styles` 要动 `PluginContext`、
+界面资产由插件片段贡献，样式通过既有壳层桥接加载，不新增后端注册通道。
 `contributions`、`web_api`、`web_routes` 四处，只为送一个 `<link>`），
 改为把壳层已有的 `loadPluginStyle` 暴露到桥上：
 
@@ -686,7 +643,7 @@ window.aiAgentShell.styles = {
 | `agent/mechanisms/provider_registry.py` | kind → 构造器映射 |
 | `agent/mechanisms/provider_router.py` | 模型 id 路由与默认实例热替换 |
 | `agent/capabilities/model_catalog.py` | 目录、provider 缓存、权威判定 |
-| `agent/capabilities/plugin_context.py` | `add_model_catalog` |
+| `agent/capabilities/slot_binder.py` | `provider` / `model-catalog` |
 | `agent/capabilities/plugins.py` | `PluginHost(model_catalog=...)` |
 | `agent/app.py` | 装配：目录、router、权威态 |
 | `agent/app_model_policy.py` | 可用清单、陈旧模型收敛、上下文窗口与压缩阈值 |

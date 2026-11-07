@@ -26,6 +26,7 @@ var cidNow=normalizeConversationId(activeConversationId);if(!cidNow)return;
 var r=await fetch("/api/chat/ui-state?conversation_id="+encodeURIComponent(cidNow));
 if(!r.ok)return;var j=await r.json();
 var st=(j&&j.state)||j||{};
+if(normalizeConversationId(activeConversationId)!==cidNow)return;
 if(Array.isArray(st.available_models))setAllowedModels(st.available_models);
 if(st.model)applyModel(st.model);
 /* 模式与档位也属于会话：服务端已落盘，页面打开时按当前会话回填。
@@ -52,10 +53,16 @@ var cidNow=normalizeConversationId(tab&&tab.id);if(!cidNow||(tab.settingsLoaded&
 var r=await fetch("/api/chat/ui-state?conversation_id="+encodeURIComponent(cidNow));
 if(!r.ok)return;var j=await r.json();var st=(j&&j.state)||j||{};
 tab.settingsLoaded=true;
+if(Object.prototype.hasOwnProperty.call(st,"goal"))tab.goalInfo=st.goal||null;
+if(st.autonomy&&typeof st.autonomy.enabled==="boolean")tab.autoEnabled=st.autonomy.enabled;
 if(st.model)tab.selectedModel=String(st.model);
 if(st.mode)tab.selectedMode=normalizeMode(st.mode);
 if(st.reasoning_effort)tab.reasoningEffort=st.reasoning_effort;
 if(normalizeConversationId(activeConversationId)!==cidNow)return;
+_goalInfo=tab.goalInfo||null;
+_autoEnabled=!!tab.autoEnabled;
+updateAutoToggleUI();
+updateTaskControls();
 if(st.model)applyModel(tab.selectedModel);
 if(st.mode)applyMode(tab.selectedMode,false);
 if(st.reasoning_effort&&typeof applyReasoningEffort==="function")applyReasoningEffort(st.reasoning_effort,false);

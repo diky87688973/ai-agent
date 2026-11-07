@@ -360,3 +360,10 @@ python scripts/inspect_compact.py <会话 id> --digest
 | 五层结构与装配 | [architecture.zh.md](../architecture.zh.md) |
 | 写盘门控 | [tools.zh.md](tools.zh.md) |
 | 参数与环境变量 | [config.zh.md](../guide/config.zh.md) |
+
+
+### 消息滚动层与底部浮层
+
+经典界面的消息滚动层覆盖标签栏以下的完整聊天高度。输入区、队列与后台任务入口固定在底部，当前会话的待办清单位于其上方；浮层外围空白不拦截命中，滚轮由消息层原生处理。输入框及任务卡仍保留自身交互和内部滚动。
+
+ResizeObserver从实际布局派生输入区与待办高度，写入当前聊天容器的CSS变量，消息底部留出相应内边距，避免末条消息被遮挡。高度变化沿用底部跟随状态，阅读历史时保持当前位置；切换标签后按活动会话重新计算。验证见tests/test_chat_layout_browser.py。

@@ -44,7 +44,7 @@ Goals:
 | mechanisms | `provider_registry` | kind → builder; the only place that constructs a provider |
 | mechanisms | `ProviderRouter` | selects a provider instance for `request.model` |
 | capabilities | `ModelCatalog` | model descriptor registry, provider cache, authority decision |
-| capabilities | `PluginContext.add_model_catalog` | plugin registration point |
+| capabilities | `provider` / `model-catalog` | plugin registration point |
 | assembly | `app.build_app` | creates the catalog and router, loads plugins, decides authority and degraded state |
 | shell | `web_api`, `web_state` | serve the model list, persist the selection, broadcast changes |
 | shell | `classic_adapter` | announces conversation model changes |
@@ -106,30 +106,13 @@ class ModelCatalog:
 
 `provider_for` returns `ModelProvider | None`, not `Any`. The only contract between the catalog and a provider is `stream()`, so the base class is sufficient; the port does not need to expose an arbitrary extension point.
 
-### 4.2 Behavior
+### 4.2 Catalog contribution
 
-1. `set_source` replaces. Calling it again with the same `source` means the configuration changed; the whole batch is replaced, not appended. This matches the single-authority rule: a merge registry would make `default_id` ambiguous as soon as a second source exists.
-2. `entries` may be a callback. It is evaluated on every `snapshot()`, so a plugin can decide whether to re-read its configuration file; configuration changes do not require a process restart.
-3. A second source is rejected. `set_source` raises `RuntimeError` when a different source is already registered. `PluginContext.add_model_catalog` catches it, reports a diagnostic naming both sources, and returns an empty disposer. Plugin loading continues and the first source is unchanged. The behavior must be deterministic: load order is not a contract, but the result must be auditable.
-4. Authority is computed, not stored: `authoritative = len(valid_entries) > 0`. A boolean fixed at registration time would keep pointing at an empty catalog after the configuration changes from three entries to zero.
-5. An `entries` callback failure means "this read failed". The snapshot retains the last good entry set; if there is none, the result is empty. A diagnostic naming the source and the exception is recorded. A duplicate id is a configuration error, not a transient read failure: `set_source` rejects the batch with `ValueError`, and `snapshot()` keeps the last good batch.
-6. The provider cache is rebuilt by batch. The fingerprint is the ordered tuple of `(id, provider, options_json)`; when it changes, all cached instances are dropped and the next lookup builds the one it needs. With a dozen entries the rebuild cost is negligible, and it avoids "a wrong fingerprint returned a stale instance" failures.
-7. When the `Disposer` fires, it clears the source's entries and every cached provider instance. A generation counter ensures an old disposer cannot clear a newer registration.
-8. Entries with an unknown `provider` are skipped during normalization with a diagnostic (`provider_registry` raises `ValueError` for an unknown kind).
-9. Entries with an empty id, or values that are not `ModelEntry` instances, are skipped with a diagnostic. A malformed `options_json` yields an empty options dictionary for that entry only.
-10. `default_id` is the first entry marked `is_default`, otherwise the first entry; it is `""` when the catalog is empty.
+Model entries are supplied by the multi_model plugin through a provider node with props.target=model-catalog. The factory returns a callback; SlotBinder binds it to the sole ModelCatalog authority. Conflicting sources make binding fail and the outer assembly transaction rejects publication. Invalid configured entries retain diagnostic reasons without exposing credentials. Factories do not construct concrete providers.
 
-### 4.3 Plugin extension point
+### 4.3 Lifecycle
 
-`PluginContext` gains a method at the same level as `add_ui_item` and `add_context_source`:
-
-```python
-def add_model_catalog(self, entries) -> Disposer
-```
-
-`PluginContext` calls `catalog.set_source(self.name, entries)` with the plugin name as the source and records the returned disposer in its own reclamation list. The argument is either an entry sequence or a callback that returns one; a plugin does not import kernel code and does not construct providers.
-
-`PluginHost` gains a `model_catalog` constructor parameter, created and injected by the assembly root.
+Factories and requires are declared in plugin-slots.json. Runtime registries are projections of the effective assembly, not a separate contribution channel. Enable, disable, reload and rollback follow the canonical [plugin protocol](plugin-slots-protocol.md) and [implementation](plugin2-hotplug.md).
 
 ## 5. Provider registry
 
@@ -465,21 +448,9 @@ thinking_budget_tokens = 4096
 10. The file is read with `utf-8-sig`. A UTF-8 file saved by a Windows editor may carry a BOM; reading it as plain `utf-8` produces a `MissingSectionHeaderError` that does not point at the real cause.
 11. Every diagnostic locates the problem: `[plugin:multi_model] <file path> [model:<id>] <key> invalid: <reason>`. "The configuration is invalid" without a file, entry, and key is not enough to act on.
 
-### 10.4 register
+### 10.4 Declarative assembly
 
-`register(ctx)` does three things:
-
-1. `ctx.add_model_catalog(entries)`
-   - `entries` is a callback that re-reads `plugin-config.ini` and returns the `ModelEntry` list;
-   - no factory or provider instance is passed; vendor dispatch lives in `provider_registry`.
-2. `ctx.add_route("GET", "catalog", handler)`:
-   returns `{"ok":true,"models":[{"id","label","provider","context_window","default"}],"default":id,"invalid":[{id,reason}]}`.
-   It never returns `api_key` or `base_url`. `invalid` is operational surface: a bad entry must not live only in a log.
-3. `ctx.add_ui_item("ui/model-picker.js")`.
-
-`register` returns the disposer list, and the plugin host reclaims it. The plugin also parses the configuration once at startup so a broken file leaves a trace before the user opens the dropdown.
-
-Styles do not go through the backend: the first line of `model-picker.js` calls `window.aiAgentShell.styles.load("ui/model-picker.css")`. The reason is in 11.2.2.
+plugins/multi_model/plugin-slots.json owns the model-catalog provider, the catalog route, settings and UI contributions. Factories return their implementation values; SlotBinder publishes them transactionally. Private scripts and styles remain under the plugin. No imperative registration API is exposed.
 
 ## 11. Shell and UI
 
@@ -525,7 +496,7 @@ Plugin assets have two delivery paths, and the model dropdown can use neither di
 | boot script | `/api/ui/catalog` | page load |
 | boot style | none | — |
 
-The dropdown button lives in the composer and belongs to no panel, so it needs a style that takes effect at boot. Instead of adding a backend extension point (`add_boot_style` plus `/api/boot-styles` would touch `PluginContext`, `contributions`, `web_api`, and `web_routes` just to deliver one `<link>`), the shell exposes its existing `loadPluginStyle` on the bridge:
+UI assets are contributed by the plugin fragment and loaded through the existing shell style bridge; no extra backend registration channel is introduced.
 
 ```js
 window.aiAgentShell.styles = {
@@ -575,7 +546,7 @@ window.aiAgentShell.styles = {
 | `agent/mechanisms/provider_registry.py` | kind → builder mapping |
 | `agent/mechanisms/provider_router.py` | model id routing and default hot swap |
 | `agent/capabilities/model_catalog.py` | catalog, provider cache, authority |
-| `agent/capabilities/plugin_context.py` | `add_model_catalog` |
+| `agent/capabilities/slot_binder.py` | `provider` / `model-catalog` |
 | `agent/capabilities/plugins.py` | `PluginHost(model_catalog=...)` |
 | `agent/app.py` | assembly: catalog, router, authority state |
 | `agent/app_model_policy.py` | available models, stale model convergence, context window and compaction threshold |

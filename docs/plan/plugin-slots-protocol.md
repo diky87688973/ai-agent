@@ -317,7 +317,8 @@ frozen 只冻自己、不冻子树
 | `provider` | 提供上下文、提示词或模型目录等契约值，目标由 `props.target` 声明 |
 | `tool` | 提供工具名和 execute 的工具对象 |
 | `route`、`http-route` | HTTP 处理器；方法与 HTTP 路径由声明明确给出 |
-| `event` | 事件处理器；事件名必须命中统一事件契约 |
+| `event` | 事件处理器；订阅宿主常量或通过 requires.event 引用插件事件声明 |
+| `event-channel` | 插件自有事件定义；无factory，名称由完整节点路径派生 |
 | `assembly-hook` | 上下文拼装钩子 |
 | `executor` | 工具提交执行器 |
 | `setting` | `SettingDecl` 面板或字段，save/load 回调由所属插件实现 |
@@ -369,7 +370,7 @@ frozen 只冻自己、不冻子树
 | `plugin-config.ini`、`settings-schema.json` | 插件配置值与编辑表单契约，不承担节点声明 |
 | 插件 ui、css、图标等文件 | 插件私有静态资产，目录边界校验后送达，不逐个作为装配节点 |
 
-plugin.py 提供声明引用的工厂，不通过 register(ctx)、ctx.add_*、set_runtime 等另建贡献清单。旧多通道注册、旧路径种子表和双树过渡不作为现役协议。磁盘中仍存在的发现标记不因此变成另一条装配路径。
+plugin.py 提供声明引用的工厂，不通过 register(ctx)、ctx.add_*、set_runtime 等另建贡献清单。旧多通道注册、旧路径种子表和双树过渡不作为现役协议。
 
 ### 2.2 slots、provides、overrides 的区别
 
@@ -448,3 +449,24 @@ plugin.py 提供声明引用的工厂，不通过 register(ctx)、ctx.add_*、se
 7. 内核或宿主覆盖要求重启；不能仅因代码放在 plugins 里就对宿主做在线状态迁移。
 8. 数量和完整清单由片段、catalog、事件常量和生成器读取，不在协议手写固定数值冒充门禁。
 9. 新增或变更契约有负向测试，按实现文档的验证入口执行；未落地设计不能写成已实现。
+
+
+## 插件自有事件
+
+插件在自身命名空间声明事件定义，无需修改core.event_name：
+
+```json
+{"slots":[{"path":"app/plugins/example/events/completed","kind":"event-channel"}]}
+```
+
+事件定义必须位于app/plugins/<owner>/events/<name>，name为小写字母开头的字母、数字、下划线或短横线；仅支持app作用域、叶节点，无factory和requires。现有片段归属规则拒绝未经授权在他人命名空间声明；重复定义沿用路径冲突检查。事件定义本身是装配产物SlotSpec，不另建可变事件目录。
+
+订阅方声明event节点，requires.event引用该定义；工厂接收event参数（SlotSpec）并返回处理函数。绑定器按event.path订阅既有EventBus，卸载由登记disposer退订。发布方工厂同样可通过requires取得定义和既有event_bus服务，用Event(type=event.path,data=...)发布纯通知；不新增发布旁路或第二条贡献注册接口。载荷契约归事件提供插件，不增加通用业务schema数据库。
+
+```json
+{"slots":[{"path":"app/plugins/listener/on_completed","kind":"event","factory":"plugin:make_handler","requires":{"event":"app/plugins/example/events/completed"}}]}
+```
+
+缺失或非event-channel引用、session级订阅均拒绝。强依赖提供方不能在依赖方仍启用时被单独移除，候选代失败并保留旧代；先关闭依赖方再关闭提供方。UI挂载点休眠规则不替代强依赖校验。事件定义重新启用后，依赖方按正常装配重新登记。
+
+宿主事件仍按core.event_name常量校验，路径必须命中唯一常量；未声明的任意字符串仍然拒绝，避免把拼写错误当成自定义事件。该约束属于受信插件的声明一致性检查，不是恶意本机代码的权限沙箱。

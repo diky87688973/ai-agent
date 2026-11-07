@@ -43,6 +43,7 @@ def listening_pids(host: str, port: int) -> List[int]:
                 text=True,
                 timeout=5,
                 check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except (OSError, subprocess.SubprocessError):
             return []
@@ -100,6 +101,7 @@ def kill_pid(pid: int) -> bool:
                 ["taskkill", "/PID", str(pid), "/T", "/F"],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, timeout=8, check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             return result.returncode == 0
         os.kill(pid, signal.SIGTERM)

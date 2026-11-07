@@ -8,11 +8,6 @@ html[data-ui-theme] .todo-list-area {
   border: 1px solid var(--c-line-2) !important;
   border-radius: var(--r-xl);
   background: var(--c-bg-layer) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
-}
-
-html[data-ui-theme="light"] .todo-list-area {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .08);
 }
 
 html[data-ui-theme] .todo-list-header {

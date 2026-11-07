@@ -20,6 +20,8 @@
     var maxButton = controls.querySelector('[data-window-action="maximize"]');
     function toggleMaximize() {
       maximized = !maximized;
+      resizing = null;
+      setEdgeCursor(null);
       window.pywebview.api.toggle_maximize(maximized);
       maxButton.textContent = maximized ? "❐" : "□";
       maxButton.setAttribute("aria-label", maximized ? "还原" : "最大化");
@@ -37,9 +39,25 @@
     });
 
     var resizing = null;
-    var resizeEdge = null;
+
+    function overScrollbar(event) {
+      for (var node = event.target; node && node !== document; node = node.parentElement) {
+        if (!(node instanceof HTMLElement)) continue;
+        var style = getComputedStyle(node), box = node.getBoundingClientRect();
+        var vertical = /auto|scroll/.test(style.overflowY) && node.scrollHeight > node.clientHeight;
+        var horizontal = /auto|scroll/.test(style.overflowX) && node.scrollWidth > node.clientWidth;
+        var borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+        var borderY = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+        var width = Math.max(3, node.offsetWidth - node.clientWidth - borderX);
+        var height = Math.max(3, node.offsetHeight - node.clientHeight - borderY);
+        if (vertical && (style.direction === "rtl" ? event.clientX <= box.left + width : event.clientX >= box.right - width)) return true;
+        if (horizontal && event.clientY >= box.bottom - height) return true;
+      }
+      return false;
+    }
 
     function edgeAt(event) {
+      if (maximized || overScrollbar(event)) return null;
       var margin = 7;
       var w = window.innerWidth || document.documentElement.clientWidth || 0;
       var h = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -85,7 +103,7 @@
       event.stopImmediatePropagation();
       window.pywebview.api.window_position().then(function (pos) {
         return window.pywebview.api.window_size().then(function (size) {
-          if (!pos || !size || event.button !== 0) return;
+          if (!pos || !size || event.button !== 0 || maximized) return;
           resizing = {
             sx: event.screenX,
             sy: event.screenY,

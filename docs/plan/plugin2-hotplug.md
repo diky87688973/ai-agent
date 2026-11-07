@@ -140,3 +140,5 @@ CLI 与无头剖面的语音关闭节使用 `ai_cosplay`。`gen_catalog.py` 的�
 - 测试、规模、CI：docs/unit-tests.md、docs/complexity.md、scripts/ci_steps.py 是对应入口，文档生成物由门禁比对。
 - 路径、字段、生命周期或默认值变更时，同步协议、实现说明及相关测试；两份专题不复制彼此的规则。
 - 交接完成后不保留交接过程文档；过程叙述、迁移批次、旧计数与旧验收结论由 Git 历史追溯，不另设交接归档、转发占位或重复完成清单。
+
+插件领域事件通过event-channel节点声明、requires.event引用，名称取完整定义路径；绑定、回滚、卸载共用现有装配事务与EventBus。跨插件强依赖缺失拒绝候选代，先退订依赖方再卸载提供方。验证见tests/test_plugin_events.py，协议定义见插口协议的插件自有事件章节。

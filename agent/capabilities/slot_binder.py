@@ -16,11 +16,11 @@ provider  props.target   落点：context-source / prompt-section / mode-tail /
 prompt-section props.section / props.after_tools
 mode-tail      props.subagent_visible
 route          props.path（HTTP 路径段）+ spec.method；路径身份由 Contributions 拼
-event          事件名取路径里那个命中 `event_name` 常量的段
+event          requires.event 引用插件事件定义；无引用时取宿主事件常量
 ```
 
-单条登记失败不中断整体：插件资产缺一条不该让内核起不来。失败带节点路径、
-注册表名与异常类型上报；其余节点继续登记。
+单条失败收集节点路径、注册表名与异常类型后继续诊断；启动和热重载入口
+检查完整失败报告，拒绝发布部分绑定并撤销本次登记。
 """
 from __future__ import annotations
 
@@ -28,8 +28,8 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from agent.core.error_report import report_error
 from agent.core.slot_config import SlotConfig
+from agent.core.slot_events import event_type
 from agent.core.slot_spec import (
-    EVENT_NAMES,
     HOST_OWNER,
     SCOPE_APP,
     SlotSpec,
@@ -38,7 +38,7 @@ from agent.core.slot_spec import (
 Disposer = Callable[[], None]
 
 #: 只负责装配、不进任何注册表的类型。
-STRUCTURAL_KINDS = frozenset({"container", "module", "service"})
+STRUCTURAL_KINDS = frozenset({"container", "module", "service", "event-channel"})
 #: UI 控件类：经 `UiRegistry.add_item` 登记。
 UI_ITEM_KINDS = frozenset({"ui-action", "ui-control", "ui-tool-shell"})
 #: `provider` 的落点，取自节点 `props.target`。
@@ -188,7 +188,8 @@ class SlotBinder:
             return self.contributions.add_route(
                 owner, spec.method, self._url_of(spec), value)
         if kind == "event":
-            return self.event_bus.subscribe(self._event_of(spec), value)
+            effective = {path: config.spec(path) for path in config.paths()}
+            return self.event_bus.subscribe(event_type(spec, effective), value)
         if kind == "assembly-hook":
             return self.context_hooks.add(value)
         if kind == "provider":
@@ -281,15 +282,6 @@ class SlotBinder:
         if not url:
             raise ValueError("route 节点未声明 props.path（HTTP 路径段）")
         return url
-
-    @staticmethod
-    def _event_of(spec: SlotSpec) -> str:
-        """事件名：路径里命中 `event_name` 常量的那一段。"""
-        for segment in spec.path.split("/"):
-            if segment in EVENT_NAMES:
-                return segment
-        raise ValueError(
-            f"event 节点的事件名不在 event_name 常量里：{spec.path}")
 
     def _describe(self, spec: SlotSpec, exc: Exception) -> str:
         """失败条目：节点路径 + 注册表名 + 异常类型，供报告与断言使用。"""

@@ -85,17 +85,16 @@ def discover(plugins_dir: Path, manifest: Iterable[Any], *,
     for child in sorted(base.iterdir()):
         if not child.is_dir() or child.name.startswith(("_", ".")):
             continue
-        assembly = child / "plugin-assembly.json"
         meta = child / "plugin-meta.json"
         try:
             meta_data = _json(meta) if meta.is_file() else {}
         except PluginAssemblyError:
             meta_data = {}
         if (not include_unlisted and child.name not in by_name
-                and not assembly.is_file() and not _truthy(meta_data.get("auto_load"))):
+                and not _truthy(meta_data.get("auto_load"))):
             entries.append({"name": child.name, "enabled": "0"})
             continue
-        auto = (assembly.is_file() or (child / "plugin-slots.json").is_file()
+        auto = ((child / "plugin-slots.json").is_file()
                 or _truthy(meta_data.get("auto_load")))
         if not auto:
             continue

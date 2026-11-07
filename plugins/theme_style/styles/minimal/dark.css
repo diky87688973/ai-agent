@@ -84,7 +84,6 @@ html[data-ui-style="minimal"] header .hdr-settings-btn:hover,
 html[data-ui-style="minimal"] .chat-tab:hover,
 html[data-ui-style="minimal"] .chat-tab.active:hover,
 html[data-ui-style="minimal"] .chat-queue-row:hover,
-html[data-ui-style="minimal"] .bg-task-head:hover,
 html[data-ui-style="minimal"] .bg-task-row:hover,
 html[data-ui-style="minimal"] .bg-task-link:hover,
 html[data-ui-style="minimal"] .subagent-row:hover,
@@ -93,7 +92,6 @@ html[data-ui-style="minimal"] .todo-item:hover,
 html[data-ui-style="minimal"] .chat-session-row:hover,
 html[data-ui-style="minimal"] .inbox-row:hover,
 html[data-ui-style="minimal"] .inbox-item:hover,
-html[data-ui-style="minimal"] .composer:hover,
 html[data-ui-style="minimal"] .composer:focus-within {
   background: var(--minimal-hover) !important;
   border-color: transparent !important;
@@ -228,4 +226,24 @@ html[data-ui-style="minimal"] .goal-dialog textarea {
 html[data-ui-style="minimal"] .goal-dialog textarea:focus {
   border-color: var(--c-brand) !important;
   outline: none !important;
+}
+
+html[data-ui-style="minimal"] .chat-conversation-pane::after {
+  content: "";
+  position: absolute;
+  inset: auto 10px 0;
+  height: calc(var(--composer-inset) + var(--todo-inset));
+  background: var(--c-bg-raise);
+  pointer-events: none;
+  z-index: 1;
+}
+
+html[data-ui-style="minimal"] #subagentPop {
+  background: var(--c-bg-raise) !important;
+  border-color: transparent !important;
+  background-clip: padding-box !important;
+}
+
+html[data-ui-style="minimal"] #subagentPop > .bg-task-pop-head {
+  background: transparent !important;
 }

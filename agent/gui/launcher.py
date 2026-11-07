@@ -78,6 +78,7 @@ def _python_command() -> Optional[List[str]]:
                 stderr=subprocess.DEVNULL,
                 timeout=5,
                 check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             report_error("agent.gui.launcher.python_probe", exc, executable=name)
