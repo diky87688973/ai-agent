@@ -264,41 +264,45 @@ class WindowIconTest(unittest.TestCase):
     """窗口图标：文件不存在或非 Windows 不动。"""
 
     def test_missing_icon_file_is_noop(self) -> None:
+        icon = Path("definitely-not-here.ico")
         with mock.patch.object(window_ops.os, "name", "nt"), \
                 mock.patch.object(window_ops, "window_handle", return_value=1):
-            window_ops.apply_window_icon(object(), Path("definitely-not-here.ico"))
-
+            window_ops.apply_window_icon(object(), icon)
 
     def test_non_windows_is_noop(self) -> None:
+        icon = Path("anything.ico")
         with mock.patch.object(window_ops.os, "name", "posix"):
-            window_ops.apply_window_icon(object(), Path("anything.ico"))
+            window_ops.apply_window_icon(object(), icon)
 
     def test_sets_icon_twice_on_success(self) -> None:
         """加载到图标后发两次消息：先设大图标再设小图标。"""
+        icon = Path(__file__)
         user32 = mock.MagicMock()
         user32.LoadImageW.return_value = 4242
         fake_windll = mock.MagicMock(user32=user32)
         with mock.patch.object(window_ops.os, "name", "nt"), \
                 mock.patch.object(window_ops, "window_handle", return_value=7), \
                 mock.patch.object(window_ops.ctypes, "windll", fake_windll, create=True):
-            window_ops.apply_window_icon(object(), Path(__file__))
+            window_ops.apply_window_icon(object(), icon)
         self.assertEqual(user32.SendMessageW.call_count, 2)
         user32.SendMessageW.assert_any_call(7, 0x80, 1, 4242)
         user32.SendMessageW.assert_any_call(7, 0x80, 0, 4242)
 
     def test_load_failure_sends_nothing(self) -> None:
         """LoadImageW 返回 0（图标加载失败）时不发消息。"""
+        icon = Path(__file__)
         user32 = mock.MagicMock()
         user32.LoadImageW.return_value = 0
         fake_windll = mock.MagicMock(user32=user32)
         with mock.patch.object(window_ops.os, "name", "nt"), \
                 mock.patch.object(window_ops, "window_handle", return_value=7), \
                 mock.patch.object(window_ops.ctypes, "windll", fake_windll, create=True):
-            window_ops.apply_window_icon(object(), Path(__file__))
+            window_ops.apply_window_icon(object(), icon)
         user32.SendMessageW.assert_not_called()
 
     def test_win32_error_is_swallowed_with_trace(self) -> None:
         """图标设置失败只留痕：不能因为缺图标让窗口起不来。"""
+        icon = Path(__file__)
         user32 = mock.MagicMock()
         user32.LoadImageW.side_effect = OSError("boom")
         with mock.patch.object(window_ops.os, "name", "nt"), \
@@ -306,7 +310,7 @@ class WindowIconTest(unittest.TestCase):
                 mock.patch.object(window_ops.ctypes, "windll",
                                   mock.MagicMock(user32=user32), create=True), \
                 mock.patch.object(window_ops, "report_error") as report:
-            window_ops.apply_window_icon(object(), Path(__file__))
+            window_ops.apply_window_icon(object(), icon)
         report.assert_called_once()
 
 

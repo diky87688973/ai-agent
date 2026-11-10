@@ -88,11 +88,13 @@ def apply_window_icon(window: Any, icon_path: Path) -> None:
     """设置窗口图标；`icon_path` 不存在时不动。
 
     图标文件归调用方提供：本模块不猜应用根在哪。
+    参数已声明为 `Path`，直接用它：本函数只在 Windows 分支执行，
+    在非 Windows 上重新构造 `Path` 会按当前 `os.name` 选错实现。
     """
     if os.name != "nt":
         return
     hwnd = window_handle(window)
-    if not hwnd or not Path(icon_path).is_file():
+    if not hwnd or not icon_path.is_file():
         return
     try:
         user32 = ctypes.windll.user32
