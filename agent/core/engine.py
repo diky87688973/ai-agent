@@ -21,7 +21,7 @@ from contextlib import nullcontext
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from agent.core.error_report import report_error
-from agent.core.event_name import TOOL_SUSPENDED, TURN_ENDED
+from agent.core.event_name import LIVE_ONLY_EVENTS, TOOL_SUSPENDED, TURN_ENDED
 from agent.core.events import Event
 from agent.core.host import MAX_PASSES_DEFAULT, Host, TurnResult
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
@@ -137,8 +137,9 @@ class Engine:
 
     def _on_event(self, event: Event) -> None:
         """宿主/模块的唯一出口：记下本回合事实，并旁路给观察面。"""
-        self._turn_events.append(event)
-        self._remember_suspend(event)
+        if event.type not in LIVE_ONLY_EVENTS:
+            self._turn_events.append(event)
+            self._remember_suspend(event)
         if self.event_sink is None:
             return
         try:

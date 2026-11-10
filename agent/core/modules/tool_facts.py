@@ -101,7 +101,7 @@ def safe_value(value: Any) -> Any:
 
 
 #: 一条工具结果进上下文的字符上限。超过就只保留头部并标注截断 ——
-#: 结果本身仍然完整落事实（`data/session/raw/*.raw`），模型要看全文可以再调工具读区间。
+#: 裁剪后的结果同时用于事实、模型上下文和界面回显。
 #: 没有这道闸时，一次 `read_file`（默认 20 万字符）就能让这一回合的请求体翻倍，
 #: 而且它此后永久留在上下文里（事实 append-only，只有压缩才动）。
 TOOL_RESULT_MAX_CHARS = 40000
@@ -126,7 +126,7 @@ def clip_tool_result(value: Any, limit: int = TOOL_RESULT_MAX_CHARS) -> Any:
     return value
 
 def progress_emitter(ports: Ports):
-    """把工具的进度上报转成 `tool_progress` 事实（进度是副作用，不是内核特办）。"""
+    """把工具进度转成只供实时观察的 `tool_progress` 事件。"""
     def _report(call_id: str, name: str, payload: Dict[str, Any]) -> None:
         event_payload: Dict[str, Any] = {
             "call_id": str(call_id),

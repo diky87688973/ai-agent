@@ -73,7 +73,9 @@ Five concrete modules live in the `agent/core/modules/` package:
 | `QueuedInputModule` | Takes messages marked for insertion from the pending queue into context | `input_claimed` |
 | `CompressModule` | Checks the budget before assembly and compacts above the threshold | `compress_started` / `context_compacted` / `compress_ended` |
 | `ModelModule` | Sends requests, consumes the stream, aggregates tool calls | `llm_started` / `assistant_delta` / `reasoning_delta` / `llm_done` / `llm_failed` / `llm_ended` / `model_message` / `usage` / `context_segments` |
-| `ToolModule` | Executes tools and feeds results back | `tool_started` / `tool_progress` / `tool_done` / `tool_failed` / `tool_canceled` / `tool_suspended` / `tool_ended` |
+| `ToolModule` | Executes tools and feeds clipped results back | `tool_started` / `tool_done` / `tool_failed` / `tool_canceled` / `tool_suspended` / `tool_ended` |
+
+Assistant and reasoning deltas are live events. Each successful model call stores one complete `model_message`. Canceled or failed calls store their terminal status.
 
 `build_default_chain()` assembles them in the order input → queued input insertion → compaction → model → tools.
 

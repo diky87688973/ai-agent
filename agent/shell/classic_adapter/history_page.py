@@ -49,7 +49,7 @@ def item_cost(item: Dict[str, Any]) -> int:
         args = item.get("args")
         if args:
             total += len(json.dumps(args, ensure_ascii=False, separators=(",", ":")))
-        for key in ("preview", "error", "output"):
+        for key in ("preview", "error"):
             total += len(str(item.get(key) or ""))
         images = item.get("images")
         if isinstance(images, list):

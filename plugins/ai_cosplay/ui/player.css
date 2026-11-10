@@ -19,6 +19,7 @@
 .ai-cosplay-player[hidden] { display: none; }
 #aiCosplaySlot .ai-cosplay-player {
   position: relative;
+  z-index: auto;
   inset: auto;
   top: auto;
   right: auto;

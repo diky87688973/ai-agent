@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from agent.capabilities.builtin.scan_scope import skip_set
+from agent.capabilities.builtin.scan_scope import ScanScope, scope
 from agent.capabilities.registry import ToolPlugin
 from agent.core.error_report import report_error
 
@@ -15,21 +15,22 @@ DEFAULT_LIMIT = 200
 _BINARY_SNIFF = "\x00"
 
 
-def _iter_text_files(root: Path, skip_names: frozenset, skipped: Optional[Dict[str, int]] = None
+def _iter_text_files(root: Path, scan: ScanScope,
+                     skipped: Optional[Dict[str, int]] = None
                      ) -> Iterator[Tuple[Path, str]]:
     """遍历 root 下文本文件，产出 (path, text)；坏文件与二进制不出现在结果里。
 
-    `skip_names` 里的目录整枝剪掉：不进入、不读、不逐文件产出 ——
+    `scan` 里的目录整枝剪掉：不进入、不读、不逐文件产出 ——
     这些目录下动辄成千上万文件，逐个过滤等于让「跳过」也付出全量遍历的代价。
     `skipped` 传入字典时累计剪掉的目录数，供回执如实说明。
     """
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames.sort()
-        if skip_names:
-            kept = [name for name in dirnames if name not in skip_names]
-            if skipped is not None:
-                skipped["dirs"] = skipped.get("dirs", 0) + (len(dirnames) - len(kept))
-            dirnames[:] = kept
+        base = Path(dirpath)
+        kept = [name for name in dirnames if not scan.skip_dir(base, name)]
+        if skipped is not None:
+            skipped["dirs"] = skipped.get("dirs", 0) + (len(dirnames) - len(kept))
+        dirnames[:] = kept
         for name in sorted(filenames):
             p = Path(dirpath) / name
             try:
@@ -61,6 +62,8 @@ class GrepFilesTool(ToolPlugin):
     icon = "🔎"
     description = (
         "在目录中快速搜索文本，返回路径、行号和命中内容。"
+        "默认剪掉 .git/、__pycache__/ 与当前进程根目录下的 data/；"
+        "要连它们一起搜时传 include_derived=true。"
         "不支持上下文、gitignore 和编码嗅探；单文件用 find_in_file 或 regex_locate，需要上下文用 file_search。"
     )
     parameters = {
@@ -74,7 +77,7 @@ class GrepFilesTool(ToolPlugin):
         },
         "include_derived": {
             "type": "boolean",
-            "description": "包含 .git/、__pycache__/；默认 false",
+            "description": "包含 .git/、__pycache__/、进程根 data/；默认 false",
         },
         "limit": {"type": "integer", "description": "结果上限，默认 200"},
     }
@@ -113,7 +116,7 @@ class GrepFilesTool(ToolPlugin):
         matches: List[Dict[str, Any]] = []
         truncated = False
         for file_path, text in _iter_text_files(
-                root, skip_set(include_derived, exclude), skipped):
+                root, scope(root, include_derived, exclude), skipped):
             rel = str(file_path.relative_to(root)).replace("\\", "/")
             for lineno, line in enumerate(text.splitlines(), 1):
                 if not matcher.search(line):

@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from agent.capabilities.builtin.scan_scope import relative_parts, skip_set
+from agent.capabilities.builtin.scan_scope import ScanScope, scope
 from agent.capabilities.registry import ToolPlugin
 from agent.core.error_report import report_error
 
@@ -84,14 +84,14 @@ def _collect_source_files(root: Path, glob_pattern: str, recursive: bool) -> Lis
 
 
 def _iter_source_files(root: Path, glob_pattern: str, recursive: bool,
-                       skip_names: frozenset,
+                       scan: ScanScope,
                        skipped: Optional[Dict[str, int]] = None
                        ) -> Iterator[Path]:
-    """按搜索范围收集文件，产出 path（`skip_names` 里的目录默认整枝剪掉）。
+    """按搜索范围收集文件，产出 path（`scan` 要剪的目录整枝剪掉）。
 
     剪枝而不是收进来再过滤：这些目录下动辄上万文件，逐个过滤等于让
     「跳过」也付出全量遍历的代价。`skipped` 传入字典时累计跳过数量：
-    剪枝时记 `dirs`（目录数），带目录分隔符的通配无法按名字剪枝，
+    剪枝时记 `dirs`（目录数），带目录分隔符的通配无法逐层剪枝，
     退回原收集器逐个判定并记 `files`（文件数）。
     """
     pattern = str(glob_pattern or "").strip()
@@ -100,7 +100,7 @@ def _iter_source_files(root: Path, glob_pattern: str, recursive: bool,
         recursive = True
     if pattern and ("/" in pattern or "\\" in pattern):
         for path in _collect_source_files(root, pattern, recursive):
-            if any(str(part) in skip_names for part in relative_parts(path, root)):
+            if scan.skip_path(path, root):
                 if skipped is not None and path.is_file():
                     skipped["files"] = skipped.get("files", 0) + 1
                 continue
@@ -108,13 +108,13 @@ def _iter_source_files(root: Path, glob_pattern: str, recursive: bool,
         return
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames.sort()
+        base = Path(dirpath)
         if not recursive:
             dirnames[:] = []
-        if skip_names:
-            kept = [name for name in dirnames if name not in skip_names]
-            if skipped is not None:
-                skipped["dirs"] = skipped.get("dirs", 0) + (len(dirnames) - len(kept))
-            dirnames[:] = kept
+        kept = [name for name in dirnames if not scan.skip_dir(base, name)]
+        if skipped is not None:
+            skipped["dirs"] = skipped.get("dirs", 0) + (len(dirnames) - len(kept))
+        dirnames[:] = kept
         for name in sorted(filenames):
             if pattern and not fnmatch.fnmatch(name, pattern):
                 continue
@@ -216,6 +216,10 @@ class RegexLocateTool(ToolPlugin):
         "recursive": {"type": "boolean", "description": "目录递归；默认 true"},
         "glob_pattern": {"type": "string", "description": "目录下文件名过滤，如 *.py"},
         "encoding": {"type": "string", "description": "文件编码，默认 utf-8；auto 嗅探"},
+        "include_derived": {
+            "type": "boolean",
+            "description": "连 .git/、__pycache__/、进程根 data/ 一起搜，默认 false",
+        },
         "limit": {"type": "integer", "description": "命中上限，默认 200"},
     }
 
@@ -255,7 +259,7 @@ class RegexLocateTool(ToolPlugin):
             files = list(_iter_source_files(
                 root, str(arguments.get("glob_pattern") or ""),
                 bool(arguments.get("recursive", True)),
-                skip_set(bool(arguments.get("include_derived", False)), []),
+                scope(root, bool(arguments.get("include_derived", False))),
             ))
         items: List[Dict[str, Any]] = []
         for fp in files:
@@ -316,7 +320,7 @@ class FileSearchTool(ToolPlugin):
         },
         "include_derived": {
             "type": "boolean",
-            "description": "包含 .git/、__pycache__/；默认 false",
+            "description": "包含 .git/、__pycache__/、进程根 data/；默认 false",
         },
         "limit": {"type": "integer", "description": "命中上限"},
     }
@@ -443,7 +447,7 @@ class FileSearchTool(ToolPlugin):
             target,
             str(arguments.get("glob_pattern") or ""),
             bool(arguments.get("recursive", True)),
-            skip_set(bool(arguments.get("include_derived", False)), exclude),
+            scope(target, bool(arguments.get("include_derived", False)), exclude),
             skipped,
         ):
             if ignore_patterns:

@@ -10,7 +10,12 @@ from agent.core.error_report import report_error
 from agent.core.slot_spec import SettingDecl
 
 DEFAULT_STYLE = "dsh"
-STYLES = {"dsh", "minimal"}
+STYLE_OPTIONS = (
+    {"value": "dsh", "label": "DSH 风格"},
+    {"value": "minimal", "label": "极简风格"},
+    {"value": "glass", "label": "玻璃风格"},
+)
+STYLES = {option["value"] for option in STYLE_OPTIONS}
 
 
 def _state_path(ctx: Any) -> Optional[Path]:
@@ -63,10 +68,7 @@ def make_setting(ctx: Any, runtime: Dict[str, Any]) -> SettingDecl:
         kind="select",
         label="界面风格",
         default=DEFAULT_STYLE,
-        options=(
-            {"value": "dsh", "label": "DSH 风格"},
-            {"value": "minimal", "label": "极简风格"},
-        ),
+        options=STYLE_OPTIONS,
         hint="保存后立即切换；关闭插件回到 DSH 风格。",
         save=lambda value: _save_style(owner, value),
         load=lambda: _load_style(owner),

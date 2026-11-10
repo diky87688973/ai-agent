@@ -165,6 +165,7 @@ class ModelModule(ModuleBase):
 
     def _cancel_events(self, ports, model, request, started, reasoning_last_at,
                        chunks, retries):
+        """取消时的两条终止事件。只发事件；是否停止由调用方决定。"""
         yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
                          error="CanceledByUser",
                          elapsed_ms=int((perf_counter() - started) * 1000),
@@ -174,6 +175,16 @@ class ModelModule(ModuleBase):
                          status=LLM_STATUS_CANCELED,
                          elapsed_ms=int((perf_counter() - started) * 1000),
                          reasoning_ms=_reasoning_ms(started, reasoning_last_at),
+                         chunks=chunks, retries=retries)
+
+    def _fail_events(self, ports, model, request, failure, elapsed, reasoning_ms,
+                     chunks, retries):
+        """失败时的两条终止事件。只发事件；返回什么由调用方决定。"""
+        name = model.name_for(request) or ""
+        yield ports.emit(LLM_FAILED, model=name, error=failure, elapsed_ms=elapsed,
+                         reasoning_ms=reasoning_ms, chunks=chunks, retries=retries)
+        yield ports.emit(LLM_ENDED, model=name, status=LLM_STATUS_FAILED,
+                         elapsed_ms=elapsed, reasoning_ms=reasoning_ms,
                          chunks=chunks, retries=retries)
 
     def _stream(self, ports, model, request):
@@ -231,25 +242,22 @@ class ModelModule(ModuleBase):
                 break
         elapsed = int((perf_counter() - started) * 1000)
         reasoning_ms = _reasoning_ms(started, reasoning_last_at)
+        name = model.name_for(request) or ""
         if failure:
-            yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
-                             error=failure, elapsed_ms=elapsed,
-                             reasoning_ms=reasoning_ms, chunks=chunks,
-                             retries=retries)
-            yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
-                             status=LLM_STATUS_FAILED, elapsed_ms=elapsed,
-                             reasoning_ms=reasoning_ms, chunks=chunks,
-                             retries=retries)
+            yield from self._fail_events(ports, model, request, failure,
+                                         elapsed, reasoning_ms, chunks, retries)
             return {"stopped": False, "failure": failure, "retries": retries}
-        yield ports.emit(LLM_DONE, model=model.name_for(request) or "",
-                         elapsed_ms=elapsed,
+        if ports.canceled():
+            yield from self._cancel_events(
+                ports, model, request, started, reasoning_last_at, chunks, retries)
+            return {"stopped": True, "failure": ""}
+        yield ports.emit(LLM_DONE, model=name, elapsed_ms=elapsed,
                          first_chunk_ms=(first_chunk_ms if first_chunk_ms is not None else -1),
                          reasoning_ms=reasoning_ms, chunks=chunks,
                          tool_calls=len(tool_calls), retries=retries)
-        yield ports.emit(LLM_ENDED, model=model.name_for(request) or "",
-                         status=LLM_STATUS_DONE, elapsed_ms=elapsed,
-                         reasoning_ms=reasoning_ms, chunks=chunks,
-                         tool_calls=len(tool_calls), retries=retries)
+        yield ports.emit(LLM_ENDED, model=name, status=LLM_STATUS_DONE,
+                         elapsed_ms=elapsed, reasoning_ms=reasoning_ms,
+                         chunks=chunks, tool_calls=len(tool_calls), retries=retries)
         if usage:
             yield ports.emit(USAGE, **usage)
         return {"stopped": False, "failure": "", "retries": retries,

@@ -7,6 +7,13 @@
    结构、字号、间距与圆角两套主题共用（写在 :root，不随主题变）；
    只有颜色分主题。切主题因此不会改变任何尺寸，滚动条也就不会跳。
    ────────────────────────────────────────────────────────────────────── */
+/* 圈号在常用等宽字体的小字号下内圈过窄，单独使用系统符号字形。 */
+@font-face{
+  font-family:"Code Circled Digits";
+  src:local("Segoe UI Symbol");
+  unicode-range:U+2460-2473;
+}
+
 :root{
   --fs-xs:11px;--fs-sm:12px;--fs-ui:12.5px;--fs-body:13px;--fs-code:11px;
   --lh-tight:1.35;--lh-ui:1.5;--lh-body:1.7;--lh-answer:1.78;
@@ -15,7 +22,7 @@
   --h-header:44px;--h-ctl:26px;--h-row:30px;
   --f-ui:system-ui,"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI",
         "Microsoft YaHei","Noto Sans SC",sans-serif;
-  --f-code:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,SFMono-Regular,Menlo,monospace;
+  --f-code:"Code Circled Digits","Cascadia Mono","Cascadia Code",Consolas,ui-monospace,SFMono-Regular,Menlo,monospace;
   --w-tip-label:6.5rem;--w-tip-track:120px;--h-tip-track:8px;
 }
 
@@ -88,6 +95,7 @@ textarea{font-family:var(--f-ui);font-size:var(--fs-body);line-height:var(--lh-u
 .b.a{font-size:var(--fs-body);line-height:var(--lh-answer)}
 .b.a h1,.b.a h2,.b.a h3,.b.a h4{line-height:var(--lh-tight)}
 .b.a code,.b.a pre,.step pre.sub{font-family:var(--f-code);font-size:var(--fs-code)}
+.b.a pre,.b.a pre code{font-size:calc(var(--fs-code) + 1px)}
 .card{font-size:var(--fs-ui)}
 .step .ch-toggle .tit{font-size:var(--fs-ui);line-height:var(--lh-ui)}
 .p-title{font-size:var(--fs-sm)}

@@ -110,7 +110,7 @@ class ToolModule(ModuleBase):
             data = clip_tool_result(safe_value(raw)) if raw is not None else None
             yield ports.emit(
                 TOOL_FAILED, call_id=call.call_id, name=call.name,
-                error=str(getattr(result, "error", "") or ""),
+                error=clip_tool_result(str(getattr(result, "error", "") or "")),
                 data=data, elapsed_ms=elapsed, elapsed_s=seconds)
         yield ports.emit(TOOL_ENDED, call_id=call.call_id, name=call.name,
                          status=(TOOL_STATUS_DONE if ok else TOOL_STATUS_FAILED),

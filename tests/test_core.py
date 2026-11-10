@@ -233,9 +233,10 @@ class BasicTurnTest(CoreHarness):
         self.assertIn("llm_started", kinds)
         self.assertIn("llm_done", kinds)
         self.assertIn("llm_ended", kinds)
-        self.assertIn("reasoning_delta", kinds)
-        self.assertIn("assistant_delta", kinds)
-        self.assertIn("model_message", kinds)
+        for kind in ("reasoning_delta", "assistant_delta"):
+            self.assertTrue(any(e.type == kind for e in self.events))
+            self.assertNotIn(kind, kinds)
+        self.assertEqual(kinds.count("model_message"), 1)
         done = [e for e in self.events if e.type == "llm_done"][-1]
         self.assertGreaterEqual(done.data["reasoning_ms"], 0)
         self.assertLessEqual(done.data["reasoning_ms"], done.data["elapsed_ms"])
@@ -267,6 +268,37 @@ class BasicTurnTest(CoreHarness):
         self.assertGreaterEqual(payload["elapsed_s"], 0.0)
         done = [e for e in self.log.events if e.type == "tool_done"][-1]
         self.assertGreaterEqual(done.data["elapsed_s"], 0.0)
+
+        from agent.core.engine import Engine
+        from agent.core.session_scope import emit_progress
+
+        class StreamingEcho(_EchoTool):
+            def execute(self, arguments):
+                emit_progress(text="live-only")
+                return {"stdout": "a" * 50_000 + "past-limit"}
+
+        observed = []
+        written = []
+        engine = Engine(
+            conversation_id=self.cid,
+            provider=ScriptedProvider([
+                {"calls": [ToolCallRequest("stream", "echo", {})]},
+                {"text": "收到"},
+            ]),
+            registry=_Registry([StreamingEcho()]), pipeline=self.pipeline,
+            fact_sink=written.extend, event_sink=observed.append,
+        )
+        list(engine.start_turn("执行"))
+        progress = next(e for e in observed if e.type == "tool_progress")
+        self.assertEqual(progress.data["text"], "live-only")
+        self.assertNotIn("_seq", progress.data)
+        self.assertFalse(any(e.type == "tool_progress" for e in written))
+        stored = next(e.data["data"] for e in written if e.type == "tool_done")
+        restored = SessionLog(written).derive_messages()
+        model_result = next(json.loads(m["content"])["data"]
+                            for m in restored if m["role"] == "tool")
+        self.assertEqual(stored, model_result)
+        self.assertNotIn("past-limit", stored["stdout"])
 
     def test_failed_tool_result_reaches_the_model_as_error(self) -> None:
         """工具失败与成功同形：`{"ok":false,"error":…}`（来自结果事实）。"""
@@ -990,7 +1022,7 @@ class WiringTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_live_events_carry_a_storage_coordinate_through_app_session(self) -> None:
-        """经 `App.session` 跑一个回合，总线上的事件必须带 `_seq`。
+        """经 `App.session` 跑一个回合，总线上的持久化事件必须带 `_seq`。
 
         漏接线的症状：帧 `id:` 行 0 条，
         浏览器 `Last-Event-ID` 恒空 → `web.py` 的 `if cursor >= 0` 跳过 replay
@@ -1001,8 +1033,15 @@ class WiringTest(unittest.TestCase):
         session = self.app.session("wiring-0001", system_prompt="你是助手")
         list(session.start_turn("问一句"))
         self.assertTrue(self.frames, msg="总线上一帧都没有，装配可能没通")
-        missing = [getattr(f, "type", "?") for f in self.frames
-                   if not isinstance((getattr(f, "data", None) or {}).get("_seq"), int)]
+        from agent.core.event_name import LIVE_ONLY_EVENTS
+        missing = [f.type for f in self.frames
+                   if f.type not in LIVE_ONLY_EVENTS and not isinstance(f.data.get("_seq"), int)]
+        persisted = self.app.store.load("wiring-0001")
+        self.assertFalse(any(e.type in LIVE_ONLY_EVENTS for e in persisted))
+        self.assertEqual(sum(e.type == "model_message" for e in persisted), 1)
+        deltas = [e for e in self.frames if e.type == "assistant_delta"]
+        self.assertTrue(deltas)
+        self.assertTrue(all("_seq" not in e.data for e in deltas))
         self.assertEqual(missing, [],
                          msg=f"这些总线帧没有存储坐标（续传会失效）：{missing}")
 
@@ -1247,10 +1286,11 @@ class ArchitectureTest(CoreHarness):
         self.assertEqual(result.passes, 4)
 
     def test_data_never_rides_on_the_return_value(self) -> None:
-        """数据只走事件：一趟跑完后事实与事件一一对应。"""
+        """持久化事件与事实一一对应。"""
         self._clear()
         self._run([{"text": "答"}], text="问")
-        self.assertEqual([e.type for e in self.events], self._kinds(),
+        from agent.core.event_name import LIVE_ONLY_EVENTS
+        self.assertEqual([e.type for e in self.events if e.type not in LIVE_ONLY_EVENTS], self._kinds(),
                          msg="事件与事实必须同序同数（先入日志再出事件）")
 
     def test_ports_expose_no_writable_public_fields(self) -> None:

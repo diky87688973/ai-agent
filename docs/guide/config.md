@@ -128,6 +128,11 @@ enabled = 1
 
 **Each plugin's configuration lives with the plugin.** The configurations of `ai_cosplay`, `visual_operator`, `knowledge`, and `skills` are checked in; `multi_model`'s secret configuration is excluded by `.gitignore`; the kernel's `config.ini` contains no plugin settings. For plugin directory layout, contributed capabilities, and development, see [Plugins](../subsystems/plugins.md).
 
+### Glass style
+
+Choose Glass under Settings → Interface → Interface Style. The Windows desktop window samples and blurs the local screen beneath the session sidebar and top navigation. The main content remains opaque. Frames stay in desktop-process memory. While enabled, the window is excluded from screenshot and recording tools that honor the Windows capture setting. Changing styles or closing the window stops sampling and restores the capture setting. Browsers and environments without desktop sampling use solid backgrounds.
+
+
 ## HTTP authentication
 
 The web service binds to `127.0.0.1` by default. When bound to a loopback address, `auto` and `local` modes bypass login. In `auto` and `required` modes, binding to a non-loopback address requires credentials; `local` refuses it. Set the password with:

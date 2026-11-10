@@ -65,13 +65,14 @@ class FoldRoundsTest(unittest.TestCase):
             _input(1, "问"),
             Event("tool_started", {"call_id": "c1", "name": "read_file", "arguments": {}}),
             Event("tool_progress", {"call_id": "c1", "text": "x"}),
-            Event("tool_done", {"call_id": "c1", "result": {"ok": True}}),
+            Event("tool_done", {"call_id": "c1", "data": {"stdout": "最终截断输出"}}),
             _input(9, "下一问"),
         ])
         self.assertEqual(len(rounds), 2)
         tool = [i for i in rounds[0].items if i.get("role") == "tool"][0]
         self.assertEqual(tool["status"], "done")
-        self.assertEqual(tool.get("output"), "x")
+        self.assertNotIn("output", tool)
+        self.assertIn("最终截断输出", tool["preview"])
 
     def test_chars_equal_sum_items(self) -> None:
         rounds = fold_rounds([_input(1, "a"), _model(2, "bb")])

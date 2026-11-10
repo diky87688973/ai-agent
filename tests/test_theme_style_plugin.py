@@ -42,6 +42,7 @@ class ThemeStylePluginTest(unittest.TestCase):
         styles = {item["id"]: item for item in catalog["styles"]}
         self.assertIn("dsh", styles)
         self.assertIn("minimal", styles)
+        self.assertIn("glass", styles)
         for style in styles.values():
             manifest = json.loads((PLUGIN_ROOT / style["manifest"]).read_text(encoding="utf-8"))
             self.assertEqual(set(manifest["themes"]), {"dark", "light"})

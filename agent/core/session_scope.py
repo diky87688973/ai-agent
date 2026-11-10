@@ -11,7 +11,7 @@
 `session.pending_confirm`）与全局服务（`ctx.service(NAME)`），不必再在构造期注入
 "能摸到会话态的函数"。调用结束还原，不跨调用泄漏。
 
-进度通道（`tool_progress` 事实）：工具不能直接发事件——那会绕开
+进度通道（`tool_progress` 实时事件）：工具不能直接发事件——那会绕开
 事件流的唯一时序。它只能"报告一段输出"，由管道决定是否转成事件。所以这里是
 一个单向回调：`emit_progress` 报告，`set_progress_reporter` 装配，未装配时静默丢弃。
 """

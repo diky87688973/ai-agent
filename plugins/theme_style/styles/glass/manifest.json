@@ -1,0 +1,17 @@
+{
+  "id": "glass",
+  "themes": {
+    "dark": {
+      "css": [
+        "styles/glass/glass.css"
+      ],
+      "js": []
+    },
+    "light": {
+      "css": [
+        "styles/glass/glass.css"
+      ],
+      "js": []
+    }
+  }
+}

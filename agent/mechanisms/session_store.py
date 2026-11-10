@@ -631,7 +631,8 @@ class SessionStore:
         return [(seq, event) for seq, event in self.load_with_seq(conversation_id)
                 if seq > threshold]
 
-    def tail_across(self, after_seq: int, limit: int = 512) -> List[Tuple[int, str, Event]]:
+    def tail_across(self, after_seq: int, limit: int = 512, *,
+                    exclude_types: frozenset[str] = frozenset()) -> List[Tuple[int, str, Event]]:
         """跨会话取 `seq > after_seq` 的事件，按坐标升序（真正的续传原语）。
 
         返回 `(seq, conversation_id, event)`。`limit` 兜住"游标很旧"的情况——
@@ -647,7 +648,7 @@ class SessionStore:
                 if not is_valid_conversation_id(cid):
                     continue
                 for seq, event in self._load_path(path, cid):
-                    if seq > threshold:
+                    if seq > threshold and event.type not in exclude_types:
                         rows.append((seq, cid, event))
         rows.sort(key=lambda row: row[0])
         return rows[: max(1, int(limit))] if limit else rows

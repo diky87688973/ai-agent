@@ -586,7 +586,8 @@ class RealRepoTest(unittest.TestCase):
         self.assertEqual(
             [dict(item) for item in decl.options],
             [{"value": "dsh", "label": "DSH 风格"},
-             {"value": "minimal", "label": "极简风格"}])
+             {"value": "minimal", "label": "极简风格"},
+             {"value": "glass", "label": "玻璃风格"}])
         self.assertEqual(decl.hint, "保存后立即切换；关闭插件回到 DSH 风格。")
         # save / load 是函数，只能在 factory 里闭包构造
         self.assertTrue(callable(decl.save))

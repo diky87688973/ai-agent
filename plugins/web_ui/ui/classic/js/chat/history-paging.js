@@ -125,7 +125,7 @@ if(conversationTabs[i]._historyStatusEl===el){t=conversationTabs[i];break;}
 if(!t)return;
 t.historyState="idle";
 el.removeAttribute("data-history-retry");
-void loadOlderHistory(t);
+if(t.historyLoaded)void loadOlderHistory(t);else void loadConversationHistory(t);
 });
 }
 

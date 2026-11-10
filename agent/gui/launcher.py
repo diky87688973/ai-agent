@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 from agent.core.error_report import report_error
+from agent.gui import window_ops
+from agent.gui.desktop_backdrop import DesktopBackdrop
 from agent.gui.port_cleanup import force_stop_agent_port as _force_stop_agent_port
 
 DEFAULT_HOST = "127.0.0.1"
@@ -42,6 +44,7 @@ def _show_startup_error(message: str) -> None:
 
 
 def _health_url(host: str, port: int) -> str:
+    """健康检查地址。"""
     return f"http://{host}:{int(port)}/healthz"
 
 
@@ -145,35 +148,18 @@ def _wait_health(host: str, port: int, timeout: float) -> bool:
     return _is_agent_health(host, port)
 
 
-def _pointer_int(value: Any) -> int:
-    if value is None:
-        return 0
-    to_int = getattr(value, "ToInt64", None)
-    if callable(to_int):
-        return int(to_int())
-    return int(value)
-
-
-def _apply_maximized_bounds(window: Any) -> None:
-    if os.name != "nt":
-        return
-    try:
-        from System.Windows.Forms import Screen
-
-        native = getattr(window, "native", None)
-        if native is None:
-            return
-        native.MaximizedBounds = Screen.FromHandle(native.Handle).WorkingArea
-    except (ImportError, AttributeError, OSError, ValueError) as exc:
-        report_error("agent.gui.launcher.maximized_bounds", exc)
-
-
 class _WindowApi:
     """暴露给页面标题栏的最小窗口控制接口。"""
 
     def __init__(self, supervisor: Optional["_ServerSupervisor"] = None) -> None:
         self._window: Any = None
         self._supervisor = supervisor
+        self._backdrop: Optional[DesktopBackdrop] = None
+
+    def set_desktop_backdrop(self, enabled: bool) -> bool:
+        if self._backdrop is None:
+            return False
+        return self._backdrop.set_enabled(self._window, enabled)
 
     def minimize(self) -> bool:
         if self._window is not None:
@@ -184,7 +170,7 @@ class _WindowApi:
         if self._window is not None:
             if maximized:
                 if os.name == "nt":
-                    _apply_maximized_bounds(self._window)
+                    window_ops.apply_maximized_bounds(self._window)
                 self._window.maximize()
             else:
                 self._window.restore()
@@ -377,115 +363,6 @@ def _storage_path() -> Path:
     return path
 
 
-def _apply_dark_titlebar(window: Any) -> None:
-    if os.name != "nt":
-        return
-    try:
-        native = getattr(window, "native", None)
-        hwnd = _pointer_int(getattr(native, "Handle", 0))
-        if not hwnd:
-            return
-        enabled = ctypes.c_int(1)
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(
-            hwnd, 20, ctypes.byref(enabled), ctypes.sizeof(enabled)
-        )
-    except (AttributeError, OSError, ValueError) as exc:
-        report_error("agent.gui.launcher.dark_titlebar", exc)
-
-
-def _window_handle(window: Any) -> int:
-    native = getattr(window, "native", None)
-    return _pointer_int(getattr(native, "Handle", 0))
-
-
-def _activate_window(window: Any) -> None:
-    if os.name != "nt":
-        return
-    hwnd = _window_handle(window)
-    if not hwnd:
-        return
-    try:
-        user32 = ctypes.windll.user32
-        user32.ShowWindow(hwnd, 9)
-        user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040)
-        user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0003)
-        user32.BringWindowToTop(hwnd)
-        foreground = user32.GetForegroundWindow()
-        if foreground == hwnd:
-            return
-        user32.keybd_event(0x12, 0, 0, 0)
-        user32.keybd_event(0x12, 0, 2, 0)
-        foreground_thread = user32.GetWindowThreadProcessId(foreground, None)
-        current_thread = ctypes.windll.kernel32.GetCurrentThreadId()
-        if foreground_thread and foreground_thread != current_thread:
-            user32.AttachThreadInput(current_thread, foreground_thread, True)
-            user32.SetForegroundWindow(hwnd)
-            user32.SetFocus(hwnd)
-            user32.AttachThreadInput(current_thread, foreground_thread, False)
-        else:
-            user32.SetForegroundWindow(hwnd)
-            user32.SetFocus(hwnd)
-        user32.SwitchToThisWindow(hwnd, True)
-    except (AttributeError, OSError) as exc:
-        report_error("agent.gui.launcher.activate", exc)
-
-
-def _apply_window_icon(window: Any) -> None:
-    if os.name != "nt":
-        return
-    hwnd = _window_handle(window)
-    icon_path = _app_root() / "assets" / "icon.ico"
-    if not hwnd or not icon_path.is_file():
-        return
-    try:
-        user32 = ctypes.windll.user32
-        user32.LoadImageW.restype = ctypes.c_void_p
-        user32.LoadImageW.argtypes = [
-            ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_uint,
-            ctypes.c_int, ctypes.c_int, ctypes.c_uint,
-        ]
-        icon = user32.LoadImageW(None, str(icon_path), 1, 0, 0, 0x10)
-        if icon:
-            user32.SendMessageW.restype = ctypes.c_ssize_t
-            user32.SendMessageW.argtypes = [
-                ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t,
-            ]
-            user32.SendMessageW(hwnd, 0x80, 1, icon)
-            user32.SendMessageW(hwnd, 0x80, 0, icon)
-    except (AttributeError, OSError) as exc:
-        report_error("agent.gui.launcher.window_icon_handle", exc)
-
-
-def _centered_geometry(width: int, height: int) -> tuple[int, int, int, int]:
-    if os.name != "nt":
-        return width, height, 0, 0
-    try:
-        from ctypes import wintypes
-
-        class RECT(ctypes.Structure):
-            _fields_ = [
-                ("left", wintypes.LONG),
-                ("top", wintypes.LONG),
-                ("right", wintypes.LONG),
-                ("bottom", wintypes.LONG),
-            ]
-
-        rect = RECT()
-        if not ctypes.windll.user32.SystemParametersInfoW(
-            48, 0, ctypes.byref(rect), 0
-        ):
-            return width, height, 0, 0
-        work_width = max(640, int(rect.right - rect.left))
-        work_height = max(480, int(rect.bottom - rect.top))
-        width = min(width, work_width)
-        height = min(height, work_height)
-        x = int(rect.left + (work_width - width) / 2)
-        y = int(rect.top + (work_height - height) / 2)
-        return width, height, x, y
-    except (AttributeError, OSError, ValueError):
-        return width, height, 0, 0
-
-
 def _open_window(url: str, supervisor: Optional[_ServerSupervisor] = None) -> bool:
     try:
         from agent.gui.bootstrap import deps_dir
@@ -504,7 +381,7 @@ def _open_window(url: str, supervisor: Optional[_ServerSupervisor] = None) -> bo
         return False
     try:
         api = _WindowApi(supervisor)
-        width, height, x, y = _centered_geometry(1440, 900)
+        width, height, x, y = window_ops.centered_geometry(1440, 900)
         window = webview.create_window(
             "AI Agent",
             url,
@@ -520,14 +397,16 @@ def _open_window(url: str, supervisor: Optional[_ServerSupervisor] = None) -> bo
             js_api=api,
         )
         api._window = window
+        api._backdrop = DesktopBackdrop(url)
+        icon = _app_root() / "assets" / "icon.ico"
 
         def shown() -> None:
-            _apply_dark_titlebar(window)
-            _apply_window_icon(window)
-            _apply_maximized_bounds(window)
-            _activate_window(window)
-            threading.Timer(0.35, lambda: _activate_window(window)).start()
-            threading.Timer(1.0, lambda: _activate_window(window)).start()
+            window_ops.apply_dark_titlebar(window)
+            window_ops.apply_window_icon(window, icon)
+            window_ops.apply_maximized_bounds(window)
+            window_ops.activate_window(window)
+            threading.Timer(0.35, lambda: window_ops.activate_window(window)).start()
+            threading.Timer(1.0, lambda: window_ops.activate_window(window)).start()
 
         window.events.shown += shown
         try:
@@ -535,7 +414,6 @@ def _open_window(url: str, supervisor: Optional[_ServerSupervisor] = None) -> bo
         except AttributeError as exc:
             report_error("agent.gui.launcher.loaded_event", exc)
         window.expose(api.minimize, api.toggle_maximize, api.close, api.ensure_server, api.window_position, api.move_window, api.window_size, api.resize_window)
-        icon = _app_root() / "assets" / "icon.ico"
         webview.start(private_mode=False, storage_path=str(_storage_path()),
                       icon=str(icon) if icon.is_file() else None)
     except Exception as exc:

@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
-from agent.capabilities.builtin.scan_scope import skip_set
+from agent.capabilities.builtin.scan_scope import ScanScope, scope
 from agent.capabilities.registry import ToolPlugin
 
 DEFAULT_LIMIT = 200
@@ -24,26 +24,26 @@ def _matches(rel: Path, pattern: str) -> bool:
 
 
 def _candidates(root: Path, pattern: str, recursive: bool,
-                skip_names: frozenset, skipped: Dict[str, int]) -> List[Path]:
-    """遍历候选路径；跳过目录整枝剪掉并计数。"""
+                scan: ScanScope, skipped: Dict[str, int]) -> List[Path]:
+    """遍历候选路径；剪掉的目录整枝跳过并计数。"""
     out: List[Path] = []
     if not recursive:
         for path in root.glob(pattern):
-            if path.is_dir() and path.name in skip_names:
+            if path.is_dir() and scan.skip_dir(root, path.name):
                 skipped["dirs"] = skipped.get("dirs", 0) + 1
                 continue
             out.append(path)
         return out
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames.sort()
+        base = Path(dirpath)
         kept = []
         for name in dirnames:
-            if name in skip_names:
+            if scan.skip_dir(base, name):
                 skipped["dirs"] = skipped.get("dirs", 0) + 1
                 continue
             kept.append(name)
         dirnames[:] = kept
-        base = Path(dirpath)
         for name in sorted(dirnames + filenames):
             path = base / name
             rel = path.relative_to(root)
@@ -60,7 +60,7 @@ class GlobFilesTool(ToolPlugin):
     icon = "📂"
     description = (
         "按 glob 模式列出路径；可选递归与 file/dir/all 过滤。"
-        "默认只剪掉 .git/ 与 __pycache__/ 两类通用产物目录，"
+        "默认剪掉 .git/、__pycache__/ 与当前进程根目录下的 data/ 三类产物目录，"
         "剪掉的目录数在回执 skipped_derived_dirs 中报出；"
         "要用 include_derived=true 连默认名单一起列出。"
     )
@@ -75,7 +75,7 @@ class GlobFilesTool(ToolPlugin):
         },
         "include_derived": {
             "type": "boolean",
-            "description": "连 .git/、__pycache__/ 默认名单一起列出，默认 false",
+            "description": "连 .git/、__pycache__/、进程根 data/ 默认名单一起列出，默认 false",
         },
         "limit": {"type": "integer", "description": "条数上限，默认 200"},
     }
@@ -99,7 +99,7 @@ class GlobFilesTool(ToolPlugin):
         skipped: Dict[str, int] = {}
         pat = pattern[3:] if pattern.startswith("**/") else pattern
         candidates = _candidates(
-            root, pat, recursive, skip_set(include_derived, exclude), skipped
+            root, pat, recursive, scope(root, include_derived, exclude), skipped
         )
         entries: List[str] = []
         truncated = False

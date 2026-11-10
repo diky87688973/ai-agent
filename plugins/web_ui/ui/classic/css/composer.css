@@ -219,7 +219,7 @@ html[data-ui-theme="light"] .user-confirm-opts .uc-check.uc-on {
 .pane-body{flex:1;min-height:0;overflow:auto}
 /* 文件查看器：内容自己给边距（容器不给）。 */
 .pane-body.pane-file{padding:8px 10px}
-.pane-body.pane-file pre.file-view{margin:0;padding:0;border:0;background:transparent;max-height:none;overflow:visible;white-space:pre;font-family:Consolas,ui-monospace,monospace;font-size:12px;line-height:1.5}
+.pane-body.pane-file pre.file-view{margin:0;padding:0;border:0;background:transparent;max-height:none;overflow:visible;white-space:pre;font-family:var(--f-code);font-size:12px;line-height:1.5}
 .pane-empty{color:#8a9199;font-size:12px;padding:6px 10px}
 /* 元信息行：只有大小 / 截断 / 刷新，与面板头留出间距，按钮不贴顶。 */
 .pane-meta{display:flex;align-items:center;gap:10px;margin:0 0 8px 0;padding:0 0 8px 0;border-bottom:1px solid #333;font-size:11px;color:#8a9199;flex-wrap:wrap}

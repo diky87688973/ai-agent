@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterator, List, Optional, Protocol
 
 from agent.core.error_report import report_error
+from agent.core.event_name import LIVE_ONLY_EVENTS
 from agent.core.events import Event
 from agent.core.model_call import StreamDelta
 from agent.core.session_log import SessionLog
@@ -239,17 +240,16 @@ class Ports:
         return self._cid
 
     def emit(self, type_: str, **data: Any) -> Event:
-        """产出一件事实：先入日志，再出事件（模型可见 ⟺ 已记录）。
-
-        顺序不可颠倒——实时订阅者看到的事实，已经能被"重新读取"还原出来，
-        否则断线重连就会看到历史里没有的东西。
-        """
+        """先记录事实再通知观察面；实时通知只经观察面发送。"""
         payload = dict(data)
         if self._cid:
             payload.setdefault("conversation_id", self._cid)
-        self._stamp_seq(payload)
+        durable = type_ not in LIVE_ONLY_EVENTS
+        if durable:
+            self._stamp_seq(payload)
         event = Event(type_, payload)
-        self._log.append([event])
+        if durable:
+            self._log.append([event])
         self._emit(event)
         return event
 

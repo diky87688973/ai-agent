@@ -10,7 +10,7 @@ from unittest import mock
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
-from agent.gui import launcher  # noqa: E402
+from agent.gui import launcher, window_ops  # noqa: E402
 
 
 class GuiLauncherTest(unittest.TestCase):
@@ -93,17 +93,17 @@ class GuiLauncherTest(unittest.TestCase):
         kernel32 = mock.MagicMock()
         kernel32.GetCurrentThreadId.return_value = 789
         fake_windll = mock.MagicMock(user32=user32, kernel32=kernel32)
-        with mock.patch.object(launcher, "_window_handle", return_value=123), \
-                mock.patch.object(launcher.os, "name", "nt"), \
-                mock.patch.object(launcher.ctypes, "windll", fake_windll, create=True):
-            launcher._activate_window(object())
+        with mock.patch.object(window_ops, "window_handle", return_value=123), \
+                mock.patch.object(window_ops.os, "name", "nt"), \
+                mock.patch.object(window_ops.ctypes, "windll", fake_windll, create=True):
+            window_ops.activate_window(object())
         user32.SetForegroundWindow.assert_called_with(123)
         user32.SetFocus.assert_called_with(123)
         user32.AttachThreadInput.assert_any_call(789, 456, True)
 
     def test_activate_window_without_handle(self) -> None:
-        with mock.patch.object(launcher, "_window_handle", return_value=0):
-            launcher._activate_window(object())
+        with mock.patch.object(window_ops, "window_handle", return_value=0):
+            window_ops.activate_window(object())
 
     def test_open_window_enables_text_selection(self) -> None:
         class _Events:

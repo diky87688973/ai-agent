@@ -73,7 +73,9 @@ class ModuleBase:
 | `QueuedInputModule` | 把待发送队列中标记插入的消息收进上下文 | `input_claimed` |
 | `CompressModule` | 拼入前预算检查，超阈值压缩 | `compress_started` / `context_compacted` / `compress_ended` |
 | `ModelModule` | 发请求、消费流、聚合工具调用 | `llm_started` / `assistant_delta` / `reasoning_delta` / `llm_done` / `llm_failed` / `llm_ended` / `model_message` / `usage` / `context_segments` |
-| `ToolModule` | 执行工具、回灌结果 | `tool_started` / `tool_progress` / `tool_done` / `tool_failed` / `tool_canceled` / `tool_suspended` / `tool_ended` |
+| `ToolModule` | 执行工具、回灌裁剪后的结果 | `tool_started` / `tool_done` / `tool_failed` / `tool_canceled` / `tool_suspended` / `tool_ended` |
+
+正文和思考增量只推送实时事件。成功调用保存一条完整的 `model_message`；取消或失败保存终态。
 
 `build_default_chain()` 按 `输入 → 待发送队列插入 → 压缩 → 模型 → 工具` 的顺序组装。
 

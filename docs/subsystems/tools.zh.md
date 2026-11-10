@@ -154,8 +154,8 @@ Markdown 的本地文本文件路径链接同样进入右栏；本地媒体路�
 
 | 工具 | 做什么 |
 |---|---|
-| `glob_files` | 按 glob 模式列出路径；默认剪 `.git/`、`__pycache__/`，回执在 `skipped_derived_dirs` 报跳过的目录数 |
-| `grep_files` | 目录快速搜索：`path` 必须是目录，返回路径、行号和命中；不支持上下文、gitignore 过滤与编码嗅探 |
+| `glob_files` | 按 glob 模式列出路径；默认剪 `.git/`、`__pycache__/` 与进程根下的 `data/`（只剪那一个，按绝对路径判，不是所有叫 `data` 的目录），回执在 `skipped_derived_dirs` 报跳过的目录数 |
+| `grep_files` | 目录快速搜索：`path` 必须是目录，返回路径、行号和命中；默认剪同一组；不支持上下文、gitignore 过滤与编码嗅探 |
 | `file_search` | 通用内容搜索：文件或目录，支持字面/正则、上下文、gitignore 过滤与编码嗅探 |
 | `find_in_file` | 单文件单点定位：按 0-based 序号取一处命中，返回 region 与行列 |
 | `regex_locate` | 正则定位：文件或目录，返回至多 `limit` 条命中的 region、行号和内容 |

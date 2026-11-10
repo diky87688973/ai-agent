@@ -452,15 +452,16 @@ _HANG_BEFORE_NUMBER = re.compile(
 )
 
 
-def _hang_speech_text(text: str) -> str:
-    """把数字搭配的“行”改写成带空格的拼音，避开 Edge TTS 的多音字误判。"""
+def _polyphone_speech_text(text: str) -> str:
+    """用带声调的拼音校准 Edge TTS 容易误判的多音字。"""
     held: List[str] = []
 
     def hold(match: "re.Match[str]") -> str:
         held.append(match.group(0))
         return f"\x00{len(held) - 1}\x00"
 
-    source = _HANG_EXCEPTIONS.sub(hold, text)
+    source = text.replace("换行", "换 háng ").replace("重跑", " chóng 跑")
+    source = _HANG_EXCEPTIONS.sub(hold, source)
     source = _HANG_AFTER_NUMBER.sub(lambda m: f"{m.group('number')} háng ", source)
     source = _HANG_BEFORE_NUMBER.sub(lambda m: f" háng {m.group('number')}", source)
     for index, value in enumerate(held):
@@ -507,7 +508,7 @@ def to_speech_text(text: str) -> str:
     就漏一次（书名号就是这样一路留到引擎的）。这里只保证一件事——
     留下的每一个字符都有声音。
     """
-    source = _hang_speech_text(str(text or ""))
+    source = _polyphone_speech_text(str(text or ""))
     source = re.sub(r'[“”‘’（）"()]', "", source)
     source = re.sub(r"(?<![A-Za-z])'|'(?![A-Za-z])", "", source)
 

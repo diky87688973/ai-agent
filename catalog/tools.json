@@ -305,7 +305,7 @@
           "type": "boolean"
         },
         "include_derived": {
-          "description": "包含 .git/、__pycache__/；默认 false",
+          "description": "包含 .git/、__pycache__/、进程根 data/；默认 false",
           "type": "boolean"
         },
         "limit": {
@@ -436,7 +436,7 @@
       }
     },
     {
-      "description": "按 glob 模式列出路径；可选递归与 file/dir/all 过滤。默认只剪掉 .git/ 与 __pycache__/ 两类通用产物目录，剪掉的目录数在回执 skipped_derived_dirs 中报出；要用 include_derived=true 连默认名单一起列出。",
+      "description": "按 glob 模式列出路径；可选递归与 file/dir/all 过滤。默认剪掉 .git/、__pycache__/ 与当前进程根目录下的 data/ 三类产物目录，剪掉的目录数在回执 skipped_derived_dirs 中报出；要用 include_derived=true 连默认名单一起列出。",
       "display": {
         "icon": "📂",
         "label": "列出路径"
@@ -457,7 +457,7 @@
           "type": "string"
         },
         "include_derived": {
-          "description": "连 .git/、__pycache__/ 默认名单一起列出，默认 false",
+          "description": "连 .git/、__pycache__/、进程根 data/ 默认名单一起列出，默认 false",
           "type": "boolean"
         },
         "limit": {
@@ -506,7 +506,7 @@
       }
     },
     {
-      "description": "在目录中快速搜索文本，返回路径、行号和命中内容。不支持上下文、gitignore 和编码嗅探；单文件用 find_in_file 或 regex_locate，需要上下文用 file_search。",
+      "description": "在目录中快速搜索文本，返回路径、行号和命中内容。默认剪掉 .git/、__pycache__/ 与当前进程根目录下的 data/；要连它们一起搜时传 include_derived=true。不支持上下文、gitignore 和编码嗅探；单文件用 find_in_file 或 regex_locate，需要上下文用 file_search。",
       "display": {
         "icon": "🔎",
         "label": "目录快速搜索"
@@ -523,7 +523,7 @@
           "type": "boolean"
         },
         "include_derived": {
-          "description": "包含 .git/、__pycache__/；默认 false",
+          "description": "包含 .git/、__pycache__/、进程根 data/；默认 false",
           "type": "boolean"
         },
         "limit": {
@@ -783,6 +783,10 @@
         },
         "ignore_case": {
           "description": "忽略大小写",
+          "type": "boolean"
+        },
+        "include_derived": {
+          "description": "连 .git/、__pycache__/、进程根 data/ 一起搜，默认 false",
           "type": "boolean"
         },
         "limit": {

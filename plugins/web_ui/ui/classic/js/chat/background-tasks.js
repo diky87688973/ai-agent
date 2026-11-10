@@ -31,8 +31,9 @@
     return "";
   }
 
-  function request(method, path, body) {
+  function request(method, path, body, signal) {
     var options = { method: method, headers: { "Content-Type": "application/json" }, cache: "no-store" };
+    if (signal) options.signal = signal;
     if (body) options.body = JSON.stringify(body);
     return fetch(path, options).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
@@ -55,7 +56,7 @@
     var selected = "";
     var lastTasks = [];
     var taskCache = Object.create(null);
-    var loadSeq = 0;
+    var polling = null;
     var timer = 0;
 
     function setCounts(tasks, summary) {
@@ -247,26 +248,33 @@
 
     function refresh() {
       var cid = currentCid();
-      if (!cid) return Promise.resolve();
-      var seq = ++loadSeq;
-      return request("GET", "/api/background/tasks?conversation_id=" + encodeURIComponent(cid))
+      if (document.hidden || !cid || polling) return Promise.resolve();
+      var controller = new AbortController();
+      polling = controller;
+      return request("GET", "/api/background/tasks?conversation_id=" + encodeURIComponent(cid), null, controller.signal)
         .then(function (data) {
           var tasks = Array.isArray(data.tasks) ? data.tasks : [];
+          if (controller.signal.aborted || cid !== currentCid()) return;
           taskCache[cid] = {tasks: tasks, counts: data.counts};
-          if (seq !== loadSeq || cid !== currentCid()) return;
           applyTasks(tasks, data.counts, cid);
         })
         .catch(function () {
-          if (seq !== loadSeq || cid !== currentCid() || !open) return;
+          if (controller.signal.aborted || cid !== currentCid() || !open) return;
           list.innerHTML = "";
           var error = document.createElement("div");
           error.className = "bg-task-empty";
           error.textContent = "后台任务暂不可用";
           list.appendChild(error);
-        });
+        }).finally(function () { if (polling === controller) polling = null; });
+    }
+
+    function cancelPoll() {
+      if (polling) polling.abort();
+      polling = null;
     }
 
     function onConversationChanged() {
+      cancelPoll();
       var cid = currentCid();
       var cached = taskCache[cid];
       selected = "";
@@ -345,6 +353,10 @@
     });
 
     document.addEventListener("ai-agent:conversation-changed", onConversationChanged);
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) cancelPoll();
+      else void refresh();
+    });
     timer = window.setInterval(refresh, 1500);
     window.addEventListener("beforeunload", function () { window.clearInterval(timer); });
     refresh();

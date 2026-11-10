@@ -229,6 +229,8 @@ class SpeechTextTest(unittest.TestCase):
             "一行N人。": "一行N人。",
             "银行。": "银行。",
             "执行。": "执行。",
+            "请换行后重跑。": "请换 háng 后 chóng 跑。",
+            "银行正在执行重要任务。": "银行正在执行重要任务。",
         }
         for raw, expected in cases.items():
             with self.subTest(raw=raw):

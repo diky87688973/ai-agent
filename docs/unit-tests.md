@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2524** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2574** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -22,7 +22,7 @@
 11. [test_backend_slot_table.py](#test_backend_slot_tablepy)（2）
 12. [test_background_tasks.py](#test_background_taskspy)（17）
 13. [test_base_settings_plugin.py](#test_base_settings_pluginpy)（6）
-14. [test_batch_f_tools.py](#test_batch_f_toolspy)（23）
+14. [test_batch_f_tools.py](#test_batch_f_toolspy)（26）
 15. [test_catalog.py](#test_catalogpy)（8）
 16. [test_chat_layout_browser.py](#test_chat_layout_browserpy)（2）
 17. [test_check_slots.py](#test_check_slotspy)（25）
@@ -111,58 +111,60 @@
 100. [test_rules_plugin.py](#test_rules_pluginpy)（12）
 101. [test_run_registry.py](#test_run_registrypy)（16）
 102. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-103. [test_session_context.py](#test_session_contextpy)（22）
-104. [test_session_seq.py](#test_session_seqpy)（23）
-105. [test_session_store.py](#test_session_storepy)（17）
-106. [test_session_tools.py](#test_session_toolspy)（17）
-107. [test_settings_panel.py](#test_settings_panelpy)（18）
-108. [test_settings_registry.py](#test_settings_registrypy)（5）
-109. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-110. [test_slot_binder.py](#test_slot_binderpy)（7）
-111. [test_slot_loader.py](#test_slot_loaderpy)（65）
-112. [test_slot_merge.py](#test_slot_mergepy)（60）
-113. [test_slot_registry.py](#test_slot_registrypy)（13）
-114. [test_slot_replaceable.py](#test_slot_replaceablepy)（19）
-115. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
-116. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
-117. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-118. [test_standards_manifest.py](#test_standards_manifestpy)（3）
-119. [test_startup_encoding.py](#test_startup_encodingpy)（2）
-120. [test_subagent.py](#test_subagentpy)（21）
-121. [test_task_tools.py](#test_task_toolspy)（28）
-122. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
-123. [test_thread_context.py](#test_thread_contextpy)（1）
-124. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-125. [test_tool_arguments.py](#test_tool_argumentspy)（5）
-126. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
-127. [test_tool_registry.py](#test_tool_registrypy)（17）
-128. [test_tool_resume.py](#test_tool_resumepy)（3）
-129. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-130. [test_top_level_services.py](#test_top_level_servicespy)（2）
-131. [test_ui_registry.py](#test_ui_registrypy)（7）
-132. [test_update.py](#test_updatepy)（26）
-133. [test_update_processes.py](#test_update_processespy)（3）
-134. [test_update_transaction.py](#test_update_transactionpy)（7）
-135. [test_usage_metrics.py](#test_usage_metricspy)（7）
-136. [test_version_stamp.py](#test_version_stamppy)（4）
-137. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-138. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-139. [test_visual_operator.py](#test_visual_operatorpy)（163）
-140. [test_visual_operator_2.py](#test_visual_operator_2py)（46）
-141. [test_visualization.py](#test_visualizationpy)（8）
-142. [test_visualization_browser.py](#test_visualization_browserpy)（7）
-143. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
-144. [test_visualization_extra.py](#test_visualization_extrapy)（5）
-145. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
-146. [test_wake_isolation.py](#test_wake_isolationpy)（3）
-147. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-148. [test_web_auth.py](#test_web_authpy)（26）
-149. [test_web_frontend.py](#test_web_frontendpy)（6）
-150. [test_web_shell.py](#test_web_shellpy)（53）
-151. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-152. [test_write_gate.py](#test_write_gatepy)（17）
-153. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-154. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+103. [test_scan_scope.py](#test_scan_scopepy)（16）
+104. [test_session_context.py](#test_session_contextpy)（22）
+105. [test_session_seq.py](#test_session_seqpy)（23）
+106. [test_session_store.py](#test_session_storepy)（17）
+107. [test_session_tools.py](#test_session_toolspy)（17）
+108. [test_settings_panel.py](#test_settings_panelpy)（18）
+109. [test_settings_registry.py](#test_settings_registrypy)（5）
+110. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+111. [test_slot_binder.py](#test_slot_binderpy)（7）
+112. [test_slot_loader.py](#test_slot_loaderpy)（65）
+113. [test_slot_merge.py](#test_slot_mergepy)（60）
+114. [test_slot_registry.py](#test_slot_registrypy)（13）
+115. [test_slot_replaceable.py](#test_slot_replaceablepy)（19）
+116. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
+117. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
+118. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+119. [test_standards_manifest.py](#test_standards_manifestpy)（3）
+120. [test_startup_encoding.py](#test_startup_encodingpy)（2）
+121. [test_subagent.py](#test_subagentpy)（21）
+122. [test_task_tools.py](#test_task_toolspy)（28）
+123. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
+124. [test_thread_context.py](#test_thread_contextpy)（1）
+125. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+126. [test_tool_arguments.py](#test_tool_argumentspy)（5）
+127. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
+128. [test_tool_registry.py](#test_tool_registrypy)（17）
+129. [test_tool_resume.py](#test_tool_resumepy)（3）
+130. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+131. [test_top_level_services.py](#test_top_level_servicespy)（2）
+132. [test_ui_registry.py](#test_ui_registrypy)（7）
+133. [test_update.py](#test_updatepy)（26）
+134. [test_update_processes.py](#test_update_processespy)（3）
+135. [test_update_transaction.py](#test_update_transactionpy)（7）
+136. [test_usage_metrics.py](#test_usage_metricspy)（7）
+137. [test_version_stamp.py](#test_version_stamppy)（4）
+138. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+139. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+140. [test_visual_operator.py](#test_visual_operatorpy)（163）
+141. [test_visual_operator_2.py](#test_visual_operator_2py)（46）
+142. [test_visualization.py](#test_visualizationpy)（8）
+143. [test_visualization_browser.py](#test_visualization_browserpy)（7）
+144. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
+145. [test_visualization_extra.py](#test_visualization_extrapy)（5）
+146. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
+147. [test_wake_isolation.py](#test_wake_isolationpy)（3）
+148. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+149. [test_web_auth.py](#test_web_authpy)（26）
+150. [test_web_frontend.py](#test_web_frontendpy)（6）
+151. [test_web_shell.py](#test_web_shellpy)（53）
+152. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+153. [test_window_ops.py](#test_window_opspy)（31）
+154. [test_write_gate.py](#test_write_gatepy)（17）
+155. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+156. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -463,7 +465,7 @@
 
 ## test_batch_f_tools.py
 
-共 23 个用例。
+共 26 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -474,22 +476,25 @@
 | 5 | `ReviewConclusionTest` | `test_cancel_preview_and_invalid` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：cancel preview and invalid |
 | 6 | `ReviewConclusionTest` | `test_confirm_unlock_and_review_done` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：confirm unlock and review done |
 | 7 | `ReviewConclusionTest` | `test_short_conclusion_and_missing_file_name_rejected` | 覆盖「review 提交与解锁（经 ToolTurnContext.session.gate）」：short conclusion and missing file name rejected |
-| 8 | `SkillsLibraryTest` | `test_scan_list_and_matching` | 覆盖「Skills 库」：scan list and matching |
-| 9 | `SkillsLibraryTest` | `test_truncation_and_incremental_rescan` | 覆盖「Skills 库」：truncation and incremental rescan |
-| 10 | `SkillsListNeverDoublesTest` | `test_auto_load_count_ignores_duplicate_entries` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：auto load count ignores duplicate entries |
-| 11 | `SkillsListNeverDoublesTest` | `test_concurrent_rescan_replaces_the_list` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：concurrent rescan replaces the list |
-| 12 | `SkillsListNeverDoublesTest` | `test_different_path_spelling_counts_once` | 同一文件的两种路径写法不能让 `len(list_skills())` 变成两倍。 |
-| 13 | `SkillsListNeverDoublesTest` | `test_duplicate_entries_do_not_double_the_catalog` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：duplicate entries do not double the catalog |
-| 14 | `SkillsListNeverDoublesTest` | `test_rescan_does_not_append_twice` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：rescan does not append twice |
-| 15 | `SkillsSourceTest` | `test_catalog_separates_builtin_and_external` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：catalog separates builtin and external |
-| 16 | `SkillsSourceTest` | `test_external_overrides_builtin_and_both_auto_loads` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：external overrides builtin and both auto loads |
-| 17 | `SkillsSourceTest` | `test_resource_directory_section_has_both_sources` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：resource directory section has both sources |
-| 18 | `SkillsSourceTest` | `test_tool_description_does_not_embed_external_dir` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：tool description does not embed external dir |
-| 19 | `SkillsToolTest` | `test_list_read_and_lookup_error` | 覆盖「skills 工具」：list read and lookup error |
-| 20 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
-| 21 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
-| 22 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
-| 23 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
+| 8 | `SkillsLibraryTest` | `test_file_without_metadata_is_not_a_skill` | 无元数据头的 `.md` 不进清单：那是技能携带的附属文档。 |
+| 9 | `SkillsLibraryTest` | `test_metadata_head_after_blank_lines_is_recognised` | 元数据头前允许空行：判据是「第一个非空行」，不是「第一行」。 |
+| 10 | `SkillsLibraryTest` | `test_metadata_read_error_falls_back_to_not_a_skill` | 读不出首部时按「不是技能」处理：宁可漏收，也不把读失败当技能收进来。 |
+| 11 | `SkillsLibraryTest` | `test_scan_list_and_matching` | 覆盖「Skills 库」：scan list and matching |
+| 12 | `SkillsLibraryTest` | `test_truncation_and_incremental_rescan` | 覆盖「Skills 库」：truncation and incremental rescan |
+| 13 | `SkillsListNeverDoublesTest` | `test_auto_load_count_ignores_duplicate_entries` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：auto load count ignores duplicate entries |
+| 14 | `SkillsListNeverDoublesTest` | `test_concurrent_rescan_replaces_the_list` | 并发重扫必须整表换上，不能在旧表上追加。 |
+| 15 | `SkillsListNeverDoublesTest` | `test_different_path_spelling_counts_once` | 同一文件的两种路径写法不能让 `len(list_skills())` 变成两倍。 |
+| 16 | `SkillsListNeverDoublesTest` | `test_duplicate_entries_do_not_double_the_catalog` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：duplicate entries do not double the catalog |
+| 17 | `SkillsListNeverDoublesTest` | `test_rescan_does_not_append_twice` | 覆盖「清单翻倍防线：库内出现重复条目时，清单仍只列一份」：rescan does not append twice |
+| 18 | `SkillsSourceTest` | `test_catalog_separates_builtin_and_external` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：catalog separates builtin and external |
+| 19 | `SkillsSourceTest` | `test_external_overrides_builtin_and_both_auto_loads` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：external overrides builtin and both auto loads |
+| 20 | `SkillsSourceTest` | `test_resource_directory_section_has_both_sources` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：resource directory section has both sources |
+| 21 | `SkillsSourceTest` | `test_tool_description_does_not_embed_external_dir` | 覆盖「内置根与外置根：合并、覆盖、auto_load」：tool description does not embed external dir |
+| 22 | `SkillsToolTest` | `test_list_read_and_lookup_error` | 覆盖「skills 工具」：list read and lookup error |
+| 23 | `WeatherTest` | `test_cn_alias_direct_resolution` | 覆盖「天气查询」：cn alias direct resolution |
+| 24 | `WeatherTest` | `test_coordinates_and_days_clamp` | 覆盖「天气查询」：coordinates and days clamp |
+| 25 | `WeatherTest` | `test_location_not_found` | 覆盖「天气查询」：location not found |
+| 26 | `WeatherTest` | `test_scoring_prefers_exact_and_major` | 覆盖「天气查询」：scoring prefers exact and major |
 
 ## test_catalog.py
 
@@ -1117,7 +1122,7 @@
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `ArchitectureTest` | `test_abandoned_consumer_is_reported` | 消费者中途放弃迭代时，宿主给出 `abandoned` 而不是留一个 None 结论。 |
-| 2 | `ArchitectureTest` | `test_data_never_rides_on_the_return_value` | 数据只走事件：一趟跑完后事实与事件一一对应。 |
+| 2 | `ArchitectureTest` | `test_data_never_rides_on_the_return_value` | 持久化事件与事实一一对应。 |
 | 3 | `ArchitectureTest` | `test_events_stream_out_incrementally` | 流式：事件在产出那一刻就让出去，不是等回合跑完再一次性返回。 |
 | 4 | `ArchitectureTest` | `test_every_module_returns_an_outcome_on_every_path` | 每个模块的每条路径都必须 return `Outcome`。 |
 | 5 | `ArchitectureTest` | `test_halt_stops_the_chain_immediately` | 覆盖「内核自身的架构约束（判据在真实模块上重验）」：halt stops the chain immediately |
@@ -1173,7 +1178,7 @@
 | 55 | `ToolLoopTest` | `test_tool_is_not_executed_twice` | 覆盖「工具调用驱动多趟：续行由事实末端表达，不需要谁发续行信号」：tool is not executed twice |
 | 56 | `ToolLoopTest` | `test_two_round_trips` | 覆盖「工具调用驱动多趟：续行由事实末端表达，不需要谁发续行信号」：two round trips |
 | 57 | `WiringTest` | `test_factory_receives_every_dependency_it_is_given` | `build_engine` 收到的依赖必须真的传进引擎（防"收了不用"）。 |
-| 58 | `WiringTest` | `test_live_events_carry_a_storage_coordinate_through_app_session` | 经 `App.session` 跑一个回合，总线上的事件必须带 `_seq`。 |
+| 58 | `WiringTest` | `test_live_events_carry_a_storage_coordinate_through_app_session` | 经 `App.session` 跑一个回合，总线上的持久化事件必须带 `_seq`。 |
 
 ## test_coverage_edges.py
 
@@ -2486,6 +2491,29 @@
 | 53 | `StringBracketTest` | `test_string_with_paren_keeps_handler_detection` | 负向对照：字符串里的括号不得让具名回调被误判成匿名。 |
 | 54 | `StringBracketTest` | `test_template_literal_with_braces_is_skipped` | 覆盖「第 7 条：配平要跳过字符串，否则回调会被提前截断」：template literal with braces is skipped |
 
+## test_scan_scope.py
+
+共 16 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ExplicitDataRootTest` | `test_deeper_root_inside_data_also_disables_it` | 覆盖「显式把搜索根设在 data 里时不剪它：那时的 data 就是要看的内容」：deeper root inside data also disables it |
+| 2 | `ExplicitDataRootTest` | `test_name_rules_still_apply_inside_data` | 覆盖「显式把搜索根设在 data 里时不剪它：那时的 data 就是要看的内容」：name rules still apply inside data |
+| 3 | `ExplicitDataRootTest` | `test_root_inside_data_disables_the_path_rule` | 覆盖「显式把搜索根设在 data 里时不剪它：那时的 data 就是要看的内容」：root inside data disables the path rule |
+| 4 | `OtherDataIsNotPrunedTest` | `test_database_is_not_mistaken_for_data` | 按路径段全等匹配，不是字符串前缀。 |
+| 5 | `OtherDataIsNotPrunedTest` | `test_general_derived_names_still_pruned` | .git / __pycache__ 仍按名字剪，与 data 的绝对路径判据并存。 |
+| 6 | `OtherDataIsNotPrunedTest` | `test_same_named_data_elsewhere_is_searched` | 覆盖「不是进程根下的 data 一律不剪」：same named data elsewhere is searched |
+| 7 | `ProjectRootEndToEndTest` | `test_glob_never_returns_paths_under_data` | 覆盖「端到端：在真实项目根搜索，结果里不该出现 data/ 下的东西」：glob never returns paths under data |
+| 8 | `ProjectRootEndToEndTest` | `test_include_derived_never_yields_fewer_entries` | 放开默认名单后条目只会变多，且不再计入剪枝数。 |
+| 9 | `RuntimeDataIsPrunedTest` | `test_files_under_runtime_data_are_skipped_by_path` | glob 带目录分隔符的场合按整路径判。 |
+| 10 | `RuntimeDataIsPrunedTest` | `test_include_derived_reopens_it` | 覆盖「进程根下的 data 按绝对路径剪掉，不看目录名」：include derived reopens it |
+| 11 | `RuntimeDataIsPrunedTest` | `test_parent_traversal_still_prunes_it` | 搜索根在父级时，遍历到 `<root>/data` 一样要剪。 |
+| 12 | `RuntimeDataIsPrunedTest` | `test_project_root_prunes_its_own_data` | 覆盖「进程根下的 data 按绝对路径剪掉，不看目录名」：project root prunes its own data |
+| 13 | `ScanScopeShapeTest` | `test_explicit_exclude_survives_include_derived` | 覆盖「ScanScope 是冻结值对象：同一份输入给出同一份范围，可安全共享」：explicit exclude survives include derived |
+| 14 | `ScanScopeShapeTest` | `test_frozen` | 覆盖「ScanScope 是冻结值对象：同一份输入给出同一份范围，可安全共享」：frozen |
+| 15 | `ScanScopeShapeTest` | `test_relative_parts_outside_root_is_empty` | 路径不在 root 下时返回空段：调用方据此按「不排除」处理。 |
+| 16 | `ScanScopeShapeTest` | `test_value_equal` | 覆盖「ScanScope 是冻结值对象：同一份输入给出同一份范围，可安全共享」：value equal |
+
 ## test_session_context.py
 
 共 22 个用例。
@@ -3687,6 +3715,44 @@
 | 22 | `WebUiConfigTest` | `test_classic_page_wires_the_placeholder` | 配置注入与工具卡拆分：占位符、开关属性、工具视图脚本进包。 |
 | 23 | `WebUiConfigTest` | `test_missing_file_defaults_items_on_steps_off` | 覆盖「A class whose instances are single test cases」：missing file defaults items on steps off |
 | 24 | `WebUiConfigTest` | `test_only_digit_one_turns_a_flag_on` | 覆盖「A class whose instances are single test cases」：only digit one turns a flag on |
+
+## test_window_ops.py
+
+共 31 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ActivateWindowTest` | `test_already_foreground_stops_early` | 已在前台就不发 Alt、不挂接：那些动作会抢焦点。 |
+| 2 | `ActivateWindowTest` | `test_attaches_thread_input_when_foreground_is_other` | 覆盖「前台激活：非 Windows、无句柄、已在前台、需挂接输入队列、不需挂接」：attaches thread input when foreground is other |
+| 3 | `ActivateWindowTest` | `test_no_handle_is_noop` | 覆盖「前台激活：非 Windows、无句柄、已在前台、需挂接输入队列、不需挂接」：no handle is noop |
+| 4 | `ActivateWindowTest` | `test_non_windows_is_noop` | 覆盖「前台激活：非 Windows、无句柄、已在前台、需挂接输入队列、不需挂接」：non windows is noop |
+| 5 | `ActivateWindowTest` | `test_sets_foreground_directly_without_foreign_thread` | 前台线程号取不到时，直接 SetForegroundWindow，不挂接。 |
+| 6 | `ActivateWindowTest` | `test_win32_error_is_swallowed_with_trace` | 激活失败只留痕、不抛出：抢不到焦点不该阻断启动。 |
+| 7 | `CenteredGeometryTest` | `test_centers_inside_work_area` | 覆盖「按工作区居中；取不到工作区时坐标归 0、尺寸原样」：centers inside work area |
+| 8 | `CenteredGeometryTest` | `test_clamps_to_work_area` | 请求比工作区大时按工作区截断。 |
+| 9 | `CenteredGeometryTest` | `test_non_windows_returns_zero_origin` | 覆盖「按工作区居中；取不到工作区时坐标归 0、尺寸原样」：non windows returns zero origin |
+| 10 | `CenteredGeometryTest` | `test_offset_work_area_keeps_origin` | 多显示器工作区不从 0 起时，居中要带上左上偏移。 |
+| 11 | `CenteredGeometryTest` | `test_unavailable_work_area_falls_back` | SystemParametersInfoW 返回 0（读不到工作区）时退回原点。 |
+| 12 | `CenteredGeometryTest` | `test_win32_error_falls_back` | SystemParametersInfoW 抛错时退回原点，不让启动失败。 |
+| 13 | `DarkTitlebarTest` | `test_calls_dwm_with_attribute_20` | 覆盖「深色标题栏：无句柄不动，非 Windows 不动，异常只留痕」：calls dwm with attribute 20 |
+| 14 | `DarkTitlebarTest` | `test_dwm_error_is_swallowed_with_trace` | DWM 不可用（旧系统）只留痕：不能因此起不了窗。 |
+| 15 | `DarkTitlebarTest` | `test_no_handle_is_noop` | 覆盖「深色标题栏：无句柄不动，非 Windows 不动，异常只留痕」：no handle is noop |
+| 16 | `DarkTitlebarTest` | `test_non_windows_is_noop` | 覆盖「深色标题栏：无句柄不动，非 Windows 不动，异常只留痕」：non windows is noop |
+| 17 | `MaximizedBoundsTest` | `test_missing_native_is_noop` | 覆盖「最大化边界取工作区；非 Windows 与无 native 都直接返回」：missing native is noop |
+| 18 | `MaximizedBoundsTest` | `test_non_windows_is_noop` | 覆盖「最大化边界取工作区；非 Windows 与无 native 都直接返回」：non windows is noop |
+| 19 | `MaximizedBoundsTest` | `test_sets_bounds_from_screen` | 覆盖「最大化边界取工作区；非 Windows 与无 native 都直接返回」：sets bounds from screen |
+| 20 | `MaximizedBoundsTest` | `test_winforms_error_is_swallowed_with_trace` | 缺 WinForms 或取屏幕失败只留痕：最大化贴边不是启动必需品。 |
+| 21 | `PointerIntTest` | `test_ctypes_pointer_uses_to_int64` | ctypes 指针的 int() 会抛，必须走 ToInt64()。 |
+| 22 | `PointerIntTest` | `test_none_is_zero` | 覆盖「句柄值归一：pywebview 给的是 ctypes 指针，也可能是 None」：none is zero |
+| 23 | `PointerIntTest` | `test_plain_int_passthrough` | 覆盖「句柄值归一：pywebview 给的是 ctypes 指针，也可能是 None」：plain int passthrough |
+| 24 | `WindowHandleTest` | `test_handle_present` | 覆盖「从窗口对象取原生句柄；任一层缺失都返回 0 而不是抛」：handle present |
+| 25 | `WindowHandleTest` | `test_missing_handle` | 覆盖「从窗口对象取原生句柄；任一层缺失都返回 0 而不是抛」：missing handle |
+| 26 | `WindowHandleTest` | `test_missing_native` | 覆盖「从窗口对象取原生句柄；任一层缺失都返回 0 而不是抛」：missing native |
+| 27 | `WindowIconTest` | `test_load_failure_sends_nothing` | LoadImageW 返回 0（图标加载失败）时不发消息。 |
+| 28 | `WindowIconTest` | `test_missing_icon_file_is_noop` | 覆盖「窗口图标：文件不存在或非 Windows 不动」：missing icon file is noop |
+| 29 | `WindowIconTest` | `test_non_windows_is_noop` | 覆盖「窗口图标：文件不存在或非 Windows 不动」：non windows is noop |
+| 30 | `WindowIconTest` | `test_sets_icon_twice_on_success` | 加载到图标后发两次消息：先设大图标再设小图标。 |
+| 31 | `WindowIconTest` | `test_win32_error_is_swallowed_with_trace` | 图标设置失败只留痕：不能因为缺图标让窗口起不来。 |
 
 ## test_write_gate.py
 

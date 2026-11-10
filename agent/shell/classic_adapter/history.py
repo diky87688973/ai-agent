@@ -148,22 +148,19 @@ def _tool_preview(item: Dict[str, Any], kind: str, data: Dict[str, Any]) -> None
     result = data.get("result")
     if result is None:
         result = data.get("data")
-    if result is not None:
-        try:
-            payload = (result if isinstance(result, dict) and "ok" in result
-                       and ("data" in result or "error" in result)
-                       else {"ok": True, "data": result})
-            if data.get("elapsed_s") is not None:
-                payload["elapsed_s"] = data.get("elapsed_s")
-            item["preview"] = json.dumps(payload, ensure_ascii=False, default=str)
-        except (TypeError, ValueError) as exc:
-            report_error("agent.shell.classic_adapter.history.history_items", exc)
-    elif kind == "tool_failed" and item.get("error"):
-        try:
+    if kind in ("tool_done", "tool_failed") or result is not None:
+        if isinstance(result, dict) and "ok" in result and "result" in data:
+            payload = dict(result)
+        elif kind == "tool_failed":
             payload = {"ok": False, "error": str(item.get("error") or "")}
-            if data.get("elapsed_s") is not None:
-                payload["elapsed_s"] = data.get("elapsed_s")
-            item["preview"] = json.dumps(payload, ensure_ascii=False)
+            if result is not None:
+                payload["data"] = result
+        else:
+            payload = {"ok": True, "data": result}
+        if data.get("elapsed_s") is not None:
+            payload["elapsed_s"] = data["elapsed_s"]
+        try:
+            item["preview"] = json.dumps(payload, ensure_ascii=False, default=str)
         except (TypeError, ValueError) as exc:
             report_error("agent.shell.classic_adapter.history.history_items", exc)
     images = C.public_tool_images(data.get("attachments"))
@@ -195,17 +192,6 @@ def _apply_tool_event(items: List[Dict[str, Any]], kind: str,
                 item["envelope"] = data.get("envelope")
         _tool_preview(item, kind, data)
         return
-
-
-def _apply_progress(items: List[Dict[str, Any]], data: Dict[str, Any]) -> None:
-    call_id = str(data.get("call_id") or "")
-    text = str(data.get("text") or "")
-    if not call_id or not text:
-        return
-    for item in reversed(items):
-        if item.get("role") == "tool" and item.get("tool_call_id") == call_id:
-            item["output"] = str(item.get("output") or "") + text
-            return
 
 
 def history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -245,8 +231,6 @@ def history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[st
         elif kind in ("tool_done", "tool_failed", "tool_canceled",
                       "tool_suspended", "tool_ended"):
             _apply_tool_event(items, kind, data)
-        elif kind == "tool_progress":
-            _apply_progress(items, data)
     return items, resolved
 
 def last_payload(events: List[Any], kind: str) -> Optional[Dict[str, Any]]:

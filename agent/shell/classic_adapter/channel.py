@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 import agent.shell.classic_adapter.contract as C
 from agent.core.error_report import report_error
+from agent.core.event_name import LIVE_ONLY_EVENTS
 
 #: 单会话待发队列上限：超出丢最旧的（UI 丢几帧旧事件好过整个服务被拖死）
 _QUEUE_MAX = 512
@@ -217,7 +218,7 @@ class ChannelMixin:
             return 0
         with self._lock:
             frames: List[Dict[str, Any]] = []
-            rows = store.tail_across(int(after_seq), limit=limit)
+            rows = store.tail_across(int(after_seq), limit=limit, exclude_types=LIVE_ONLY_EVENTS)
             # 按会话分组翻译：每个会话一条 `ClassicStream`（翻译是有状态的，
             # 回合号 / 待配对工具都按会话各自维护）。
             # 装配/契约错误（如缺 registry）直接冒泡，禁止吞成空回放。

@@ -21,8 +21,8 @@
     return "";
   }
 
-  function request(method, path) {
-    return fetch(path, { method: method, headers: { "Content-Type": "application/json" }, cache: "no-store" })
+  function request(method, path, signal) {
+    return fetch(path, { method: method, headers: { "Content-Type": "application/json" }, cache: "no-store", signal: signal })
       .then(function (response) {
         return response.json().catch(function () { return {}; }).then(function (data) {
           if (!response.ok) throw new Error(String(data && (data.error || data.message) || ("HTTP " + response.status)));
@@ -53,10 +53,9 @@
     if (!panel || !toggle || !pop || !list) return;
 
     var open = false;
-    var loading = false;
+    var polling = null;
     var timer = 0;
     var rows = [];
-    var refreshSeq = 0;
 
     function setOpen(next) {
       open = !!next;
@@ -119,7 +118,6 @@
     function refresh() {
       var active = typeof getActiveTab === "function" ? getActiveTab() : null;
       if (active && active.subagent) {
-        refreshSeq += 1;
         rows = [];
         open = false;
         pop.classList.add("hidden");
@@ -130,12 +128,12 @@
         return Promise.resolve();
       }
       var parent = currentCid();
-      if (!parent || loading) return Promise.resolve();
-      var seq = ++refreshSeq;
-      loading = true;
-      return request("GET", "/api/subagents?conversation_id=" + encodeURIComponent(parent))
+      if (document.hidden || !parent || polling) return Promise.resolve();
+      var controller = new AbortController();
+      polling = controller;
+      return request("GET", "/api/subagents?conversation_id=" + encodeURIComponent(parent), controller.signal)
         .then(function (data) {
-          if (seq !== refreshSeq) return;
+          if (controller.signal.aborted || parent !== currentCid()) return;
           var batches = Array.isArray(data.batches) ? data.batches : [];
           rows = [];
           batches.forEach(function (batch) {
@@ -156,7 +154,7 @@
           if (typeof syncComposerColumns === "function") syncComposerColumns();
         })
         .catch(function () {
-          if (open) {
+          if (!controller.signal.aborted && parent === currentCid() && open) {
             list.innerHTML = "";
             var error = document.createElement("div");
             error.className = "subagent-empty";
@@ -164,7 +162,7 @@
             list.appendChild(error);
           }
         })
-        .finally(function () { loading = false; });
+        .finally(function () { if (polling === controller) polling = null; });
     }
 
     toggle.addEventListener("click", function (event) {
@@ -198,7 +196,22 @@
       if (event.key === "Escape" && open) setOpen(false);
     });
 
-    document.addEventListener("ai-agent:conversation-changed", refresh);
+    function cancelPoll() {
+      if (polling) polling.abort();
+      polling = null;
+    }
+
+    document.addEventListener("ai-agent:conversation-changed", function () {
+      cancelPoll();
+      rows = [];
+      setOpen(false);
+      panel.classList.add("hidden");
+      void refresh();
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) cancelPoll();
+      else void refresh();
+    });
     timer = window.setInterval(refresh, 3000);
     window.addEventListener("beforeunload", function () { window.clearInterval(timer); });
     refresh();

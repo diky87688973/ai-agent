@@ -682,6 +682,6 @@ html[data-ui-theme="dark"] .step .ch-toggle .tit{
 html[data-ui-theme="dark"] .b.a code,
 html[data-ui-theme="dark"] .b.a pre,
 html[data-ui-theme="dark"] .step pre.sub{
-  font-family:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+  font-family:var(--f-code);
   font-synthesis:none;
 }

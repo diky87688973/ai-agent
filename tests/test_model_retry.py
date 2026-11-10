@@ -97,13 +97,25 @@ class RemoteDisconnectedRetryTest(unittest.TestCase):
     def test_does_not_retry_after_a_chunk(self) -> None:
         events = []
         model = _StreamModel(failures=1, chunk_before_error=True)
+        ports = _ports(events)
         state = _drain(ModelModule()._stream(
-            _ports(events), model, LogicalRequest(messages=[], tools=[])))
+            ports, model, LogicalRequest(messages=[], tools=[])))
 
         self.assertEqual(model.attempts, 1)
         self.assertEqual(state["retries"], 0)
         self.assertIn("RemoteDisconnected", state["failure"])
         self.assertTrue(any(event.type == "assistant_delta" for event in events))
+        self.assertEqual([e.type for e in ports.log], ["llm_failed", "llm_ended"])
+        self.assertEqual(ports.log[-1].data["status"], "failed")
+
+        events.clear()
+        ports = _ports(events, cancel=lambda: bool(events))
+        result = _drain(ModelModule()._stream(
+            ports, _StreamModel(), LogicalRequest(messages=[], tools=[])))
+        self.assertTrue(result["stopped"])
+        self.assertEqual(events[0].type, "assistant_delta")
+        self.assertEqual([e.type for e in ports.log], ["llm_failed", "llm_ended"])
+        self.assertEqual(ports.log[-1].data["status"], "canceled")
 
     def test_cancel_during_backoff_stops_before_next_attempt(self) -> None:
         state = {"canceled": False}

@@ -15,7 +15,7 @@
 |---|---|---|
 | 宿主 | `turn_started` / `turn_ended` | 回合边界归宿主——控制循环的是它 |
 | 模块 | 各自的生命周期（见下） | 各模块内部管理自己的事件 |
-| 共享 | `input_claimed` / `model_message` / `tool_progress` | 数据事实与副作用 |
+| 共享 | `input_claimed` / `model_message` / `tool_progress` | 输入、模型消息是事实；工具进度供实时观察 |
 
 ## 模块生命周期：统一的 `<域>_started` → 结果 → `<域>_ended`
 
@@ -60,6 +60,9 @@ CONTEXT_SEGMENTS = "context_segments"
 # ── 模型模块的流式增量 ─────────────────────────────────────
 ASSISTANT_DELTA = "assistant_delta"
 REASONING_DELTA = "reasoning_delta"
+
+#: 只供实时观察，不分配持久化游标。
+LIVE_ONLY_EVENTS = frozenset({TOOL_PROGRESS, ASSISTANT_DELTA, REASONING_DELTA})
 
 # ── 输入模块生命周期 ───────────────────────────────────────
 INPUT_STARTED = "input_started"

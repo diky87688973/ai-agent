@@ -81,6 +81,26 @@ class SkillManager:
                 return True
         return False
 
+    @staticmethod
+    def _has_metadata(file_path: Path) -> bool:
+        """首部是否带元数据头（`---` 分隔的 frontmatter）。
+
+        元数据头是 Skills 入口的判据：只有带头的 `.md` 算技能，没头的是技能
+        随携带的附属文档（`references/` `prompts/` `templates/` 等）。不判这
+        一条，`rglob("*.md")` 会把附属文档全部收进清单。
+        只读到第一个非空行为止，不整文件读入。
+        """
+        try:
+            with file_path.open("r", encoding="utf-8", errors="replace") as handle:
+                for line in handle:
+                    text = line.strip()
+                    if not text:
+                        continue
+                    return text.startswith("---")
+        except OSError as exc:
+            report_error("plugin.skills.metadata", exc)
+        return False
+
     # ── 动态检测 / 扫描 ────────────────────────────────
 
     def auto_load_count(self) -> int:
@@ -90,11 +110,16 @@ class SkillManager:
             return sum(1 for s in self._deduped() if s.is_auto_load)
 
     def _current_mtimes(self) -> Dict[str, float]:
-        """当前全部来源根里的 Skills 文件 mtime 表（键是绝对路径）。"""
+        """当前全部来源根里的 Skills 文件 mtime 表（键是绝对路径）。
+
+        只记带元数据头的入口文件：附属文档不进清单，它们变化不必触发重扫。
+        """
         out: Dict[str, float] = {}
         for root, _source in self._root_specs():
             for md_file in root.rglob("*.md"):
                 if not md_file.is_file() or self._should_skip(md_file):
+                    continue
+                if not self._has_metadata(md_file):
                     continue
                 try:
                     out[str(md_file.resolve())] = md_file.stat().st_mtime
@@ -159,12 +184,15 @@ class SkillManager:
 
             if auto_dir.is_dir():
                 for md_file in sorted(auto_dir.rglob("*.md")):
-                    if md_file.is_file() and not self._should_skip(md_file):
+                    if (md_file.is_file() and not self._should_skip(md_file)
+                            and self._has_metadata(md_file)):
                         _collect_one(md_file, is_auto_load=True)
 
             skip_prefix = auto_dir.resolve() if auto_dir.is_dir() else None
             for md_file in sorted(root.rglob("*.md")):
                 if not md_file.is_file() or self._should_skip(md_file):
+                    continue
+                if not self._has_metadata(md_file):
                     continue
                 if skip_prefix and skip_prefix in md_file.resolve().parents:
                     continue

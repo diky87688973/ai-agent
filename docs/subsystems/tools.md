@@ -151,8 +151,8 @@ Markdown links to local text-file paths also open in the right pane; local media
 
 | Tool | What it does |
 |---|---|
-| `glob_files` | List paths by glob pattern; `.git/` and `__pycache__/` are pruned by default; the reply reports the skipped directory count in `skipped_derived_dirs` |
-| `grep_files` | Fast directory content search: `path` must be a directory; returns path, line number, and match; does not support context lines, gitignore filtering, or encoding sniffing |
+| `glob_files` | List paths by glob pattern; `.git/`, `__pycache__/`, and the process root's `data/` are pruned by default (that `data/` alone, matched by absolute path, not any directory named `data`); the reply reports the skipped directory count in `skipped_derived_dirs` |
+| `grep_files` | Fast directory content search: `path` must be a directory; returns path, line number, and match; prunes the same default set; does not support context lines, gitignore filtering, or encoding sniffing |
 | `file_search` | General content search over files or directories: literal or regex search, context lines, gitignore filtering, and encoding sniffing |
 | `find_in_file` | Single-file single-point lookup: select an occurrence (0-based) and return `region` plus line and column |
 | `regex_locate` | Regex lookup over a file or directory: returns matches up to `limit` with `region`, line number, and content |

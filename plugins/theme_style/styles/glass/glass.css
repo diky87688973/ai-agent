@@ -1,0 +1,30 @@
+html[data-ui-style="glass"] {
+  --glass-tint: rgba(24, 28, 38, .72);
+  --glass-divider: rgba(255, 255, 255, .13);
+}
+
+html[data-ui-style="glass"][data-ui-theme="light"] {
+  --glass-tint: rgba(251, 253, 255, .78);
+  --glass-divider: rgba(31, 46, 68, .14);
+}
+
+html[data-ui-style="glass"][data-desktop-backdrop="glass"],
+html[data-ui-style="glass"][data-desktop-backdrop="glass"] body {
+  background: transparent;
+}
+
+html[data-ui-style="glass"][data-desktop-backdrop="glass"] :is(body > header, .session-rail, .chat-title-row) {
+  background: var(--glass-tint) !important;
+}
+
+html[data-ui-style="glass"][data-desktop-backdrop="glass"] :is(body > header, .chat-title-row) {
+  box-shadow: inset 0 -1px var(--glass-divider);
+}
+
+html[data-ui-style="glass"][data-desktop-backdrop="glass"] :is(.session-rail-resizer, .side, .classic-split-resizer) {
+  background: var(--c-bg-raise) !important;
+}
+
+html[data-ui-style="glass"][data-desktop-backdrop="glass"] .chat-conversation-mount {
+  border-radius: 0;
+}

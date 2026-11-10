@@ -214,7 +214,10 @@ class SkillsLibraryTest(unittest.TestCase):
         )
         sub = self.skills_dir / "opencli"
         sub.mkdir()
-        (sub / "beta.md").write_text("no frontmatter content\n", encoding="utf-8")
+        (sub / "beta.md").write_text(
+            "---\nname: beta\ndescription: Beta skill\n---\n\n# Beta\nbeta body\n",
+            encoding="utf-8",
+        )
         auto = self.skills_dir / "auto_load"
         auto.mkdir()
         (auto / "always.md").write_text("---\nname: always\ndescription: Always\n---\nbody\n", encoding="utf-8")
@@ -227,7 +230,48 @@ class SkillsLibraryTest(unittest.TestCase):
         self.assertNotIn("always", listed)  # auto_load 不入普通清单
         self.assertEqual(mgr.get_skill("alpha"), "# Alpha\ncontent here")
         self.assertIsNone(mgr.get_skill("beta"))  # 子目录 stem 不匹配根
-        self.assertIn("no frontmatter content", mgr.get_skill("opencli/beta"))
+        self.assertEqual(mgr.get_skill("opencli/beta"), "# Beta\nbeta body")
+
+    def test_file_without_metadata_is_not_a_skill(self) -> None:
+        """无元数据头的 `.md` 不进清单：那是技能携带的附属文档。
+
+        技能包里的 `references/` `prompts/` `templates/` 都不带头，
+        收进来就会把一份技能变成几十条条目。
+        """
+        refs = self.skills_dir / "opencli" / "references"
+        refs.mkdir()
+        (refs / "deep-dive.md").write_text("plain notes, no frontmatter\n",
+                                          encoding="utf-8")
+        mgr = SkillManager(self.skills_dir)
+        names = [s["name"] for s in mgr.list_skills()]
+        self.assertNotIn("opencli/references/deep-dive", names)
+        self.assertNotIn("deep-dive", names)
+        self.assertIsNone(mgr.get_skill("opencli/references/deep-dive"))
+        self.assertIn("alpha", names)
+
+    def test_metadata_head_after_blank_lines_is_recognised(self) -> None:
+        """元数据头前允许空行：判据是「第一个非空行」，不是「第一行」。"""
+        (self.skills_dir / "blankfirst.md").write_text(
+            "\n\n---\nname: blankfirst\ndescription: 空行开头\n---\n正文\n",
+            encoding="utf-8",
+        )
+        mgr = SkillManager(self.skills_dir)
+        self.assertIn("blankfirst", [s["name"] for s in mgr.list_skills()])
+        self.assertEqual(mgr.get_skill("blankfirst"), "正文")
+
+    def test_metadata_read_error_falls_back_to_not_a_skill(self) -> None:
+        """读不出首部时按「不是技能」处理：宁可漏收，也不把读失败当技能收进来。"""
+        broken = self.skills_dir / "broken.md"
+        broken.write_text("---\nname: broken\n---\n正文\n", encoding="utf-8")
+        real_open = Path.open
+
+        def _open(path: Path, *args, **kwargs):
+            if path.name == "broken.md":
+                raise OSError("simulated unreadable")
+            return real_open(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "open", _open):
+            self.assertFalse(SkillManager._has_metadata(broken))
 
     def test_truncation_and_incremental_rescan(self) -> None:
         small = SkillManager(self.skills_dir, max_file_size=50)
@@ -383,11 +427,17 @@ class SkillsListNeverDoublesTest(unittest.TestCase):
         self.assertEqual(len(mgr.build_auto_load_messages()), 1)
 
     def test_concurrent_rescan_replaces_the_list(self) -> None:
+        """并发重扫必须整表换上，不能在旧表上追加。
+
+        文件改动在主线程做一次：多线程同时改写同一文件时，另一个线程会扫到
+        瞬时空文件，而空文件确实还没有元数据头、也还不是一个合法的 Skill，
+        条数本来就不稳。这里要守的是“重扫不追加”，写入竞态不该混进来。
+        """
         mgr = SkillManager(self.skills_dir)
         target = self.skills_dir / "alpha.md"
+        target.write_text(target.read_text(encoding="utf-8") + "\n", encoding="utf-8")
 
         def work() -> None:
-            target.write_text(target.read_text(encoding="utf-8") + "\n", encoding="utf-8")
             mgr.list_skills()
             mgr.auto_load_count()
 

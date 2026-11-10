@@ -14,13 +14,15 @@
     catalog: null,
     selected: DEFAULT_STYLE,
     loadedStyle: "",
-    started: false
+    backdropRequest: Promise.resolve(),
+    backdropEnabled: false,
+    active: true,
+    revision: 0
   };
 
   function fetchStyle() {
     return fetch("/api/plugin/" + PLUGIN + "/style").then(function (r) { return r.json(); }).then(function (data) {
-      var value = data && data.ok ? String(data.style || DEFAULT_STYLE) : DEFAULT_STYLE;
-      return value === "minimal" ? "minimal" : DEFAULT_STYLE;
+      return data && data.ok ? String(data.style || DEFAULT_STYLE) : DEFAULT_STYLE;
     }).catch(function () { return DEFAULT_STYLE; });
   }
 
@@ -41,6 +43,29 @@
     return null;
   }
 
+  function syncBackdrop() {
+    var root = document.documentElement;
+    var api = window.pywebview && window.pywebview.api;
+    if (!api || typeof api.set_desktop_backdrop !== "function") return;
+    var enabled = state.loadedStyle === "glass";
+    if (!enabled) root.removeAttribute("data-desktop-backdrop");
+    state.backdropRequest = state.backdropRequest.then(function () {
+      if (enabled !== (state.loadedStyle === "glass")) return;
+      if (enabled === state.backdropEnabled) {
+        if (enabled) root.setAttribute("data-desktop-backdrop", "glass");
+        return;
+      }
+      return api.set_desktop_backdrop(enabled).then(function (active) {
+        state.backdropEnabled = active === true;
+        if (state.backdropEnabled && state.loadedStyle === "glass") {
+          root.setAttribute("data-desktop-backdrop", "glass");
+        }
+      });
+    }).catch(function (error) {
+      console.error("Desktop backdrop switch failed", error);
+    });
+  }
+
   function clearAssets() {
     var nodes = document.querySelectorAll("[data-theme-style]");
     for (var i = nodes.length - 1; i >= 0; i--) nodes[i].remove();
@@ -49,10 +74,12 @@
   }
 
   function apply(id) {
+    if (!state.active) return;
     var style = styleById(id);
     if (!style) style = styleById(DEFAULT_STYLE);
     if (!style || !style.themes) {
       clearAssets();
+      syncBackdrop();
       return;
     }
     clearAssets();
@@ -72,6 +99,7 @@
       script.setAttribute("data-theme-style", state.loadedStyle);
       document.head.appendChild(script);
     });
+    syncBackdrop();
   }
 
   function loadCatalog() {
@@ -92,7 +120,10 @@
   }
 
   function onSettingsChanged() {
+    if (!state.active) return;
+    var revision = ++state.revision;
     fetchStyle().then(function (value) {
+      if (revision !== state.revision) return;
       state.selected = value;
       apply(value);
     });
@@ -102,7 +133,10 @@
     var loaded = (ev && ev.detail && Array.isArray(ev.detail.loaded)) ? ev.detail.loaded : null;
     if (!loaded) return;
     if (loaded.indexOf(PLUGIN) < 0) {
+      state.active = false;
+      state.revision++;
       clearAssets();
+      syncBackdrop();
       return;
     }
     start();
@@ -111,6 +145,11 @@
   function bindOnce() {
     if (document._themeStyleBound) return;
     document._themeStyleBound = true;
+    window.addEventListener("pywebviewready", syncBackdrop);
+    window.addEventListener("desktop-backdrop-unavailable", function () {
+      state.backdropEnabled = false;
+      document.documentElement.removeAttribute("data-desktop-backdrop");
+    });
     document.addEventListener("ai-agent:settings-changed", onSettingsChanged);
     document.addEventListener("ai-agent:plugins-changed", onPluginsChanged);
     window.addEventListener("error", function (ev) {
@@ -125,7 +164,10 @@
 
   function start() {
     bindOnce();
+    state.active = true;
+    var revision = ++state.revision;
     Promise.all([loadCatalog(), fetchStyle()]).then(function (result) {
+      if (revision !== state.revision) return;
       state.selected = result[1] || DEFAULT_STYLE;
       apply(state.selected);
     });
