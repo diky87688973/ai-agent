@@ -55,7 +55,15 @@ async function loadSessionRailList(quiet){if(!chatSessionMenu)return;var gen=++s
 async function toggleSessionMenu(){var rail=document.getElementById("sessionRail");if(!rail||!chatSessionMenu)return;if(!rail.classList.contains("is-collapsed")){if(typeof window._setSessionRailOpen==="function")window._setSessionRailOpen(false);return;}if(typeof window._setSessionRailOpen==="function")window._setSessionRailOpen(true);await loadSessionRailList();}
 document.addEventListener("ai-agent:conversation-title",function(){var rail=document.getElementById("sessionRail");if(!rail||rail.classList.contains("is-collapsed"))return;void loadSessionRailList(true);});
 function isDefaultConversationTitle(t){var s=String(t&&t.title||"");return !s||/^会话\s+[A-Za-z0-9_-]{8}$/.test(s)||s==="生成标题中…"||s==="新会话"||s==="未知标题";}
-async function refreshConversationTitle(id){var t=findConversationTab(id);if(!t||t.subagent||!isDefaultConversationTitle(t))return;t.title="生成标题中…";renderChatTabs();persistConversationLayout();try{var r=await fetch("/api/chat/title",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:id})});if(!r.ok)return;var j=await r.json();var title=String(j&&j.title||"").trim();if(title&&title!=="新会话"&&title!=="未知标题"){var tt=findConversationTab(id);if(tt){tt.title=title.slice(0,18);renderChatTabs();persistConversationLayout();notifyConversationTitle(tt.id);}}else if(title==="新会话"||title==="未知标题"){var t2=findConversationTab(id);if(t2&&t2.title==="生成标题中…"){t2.title="会话 "+id.slice(0,8);renderChatTabs();persistConversationLayout();notifyConversationTitle(t2.id);}}}catch(e){}}
+/* 会话标题只在仍是占位标题时向服务端要一次。
+   `_titlePending` 挡住并发：同一 cid 同时只允许一次请求在途。
+   `_titleTried` 挡住反复重试：服务端给不出标题（空会话、只发过系统通知）
+   或请求失败时标题会停在占位态，不计数就会每轮对话结束再发一次，
+   聊得越久请求越多，而结果早已确定。 */
+var _titlePending={};
+var _titleTried={};
+var TITLE_MAX_TRIES=2;
+async function refreshConversationTitle(id){if(!id||_titlePending[id])return;var t=findConversationTab(id);if(!t||t.subagent||!isDefaultConversationTitle(t))return;if((_titleTried[id]||0)>=TITLE_MAX_TRIES)return;_titleTried[id]=(_titleTried[id]||0)+1;_titlePending[id]=true;t.title="生成标题中…";renderChatTabs();persistConversationLayout();try{var r=await fetch("/api/chat/title",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:id})});if(!r.ok)return;var j=await r.json();var title=String(j&&j.title||"").trim();if(title&&title!=="新会话"&&title!=="未知标题"){var tt=findConversationTab(id);if(tt){tt.title=title.slice(0,18);renderChatTabs();persistConversationLayout();notifyConversationTitle(tt.id);}}else if(title==="新会话"||title==="未知标题"){var t2=findConversationTab(id);if(t2&&t2.title==="生成标题中…"){t2.title="会话 "+id.slice(0,8);renderChatTabs();persistConversationLayout();notifyConversationTitle(t2.id);}}}catch(e){}finally{delete _titlePending[id];}}
 function renderHistoryItems(items,conversationId){
 items=Array.isArray(items)?items:[];
 /* 必须用正在还原的会话 id，不能用当前激活 tab：多 tab 并行 loadHistory 时否则会把附件挂到错误 conversation_id → 404 */
