@@ -56,6 +56,7 @@ _RUNTIME_DATA_PREFIXES = (
     "data/logs/",
     "data/plugin/",
     "data/recycle/",
+    "data/temp/",
     "data/cache/",
     "data/wake/",
     "data/session_state/",

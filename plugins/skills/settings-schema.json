@@ -8,7 +8,7 @@
       "kind": "text",
       "label": "目录",
       "placeholder": "示例: D:/Skills",
-      "hint": "用户外部 Skills 目录；内置 skills/ 始终加载"
+      "hint": "用户外部 Skills 目录；子目录 auto_load 为自动加载的契约目录"
     },
     {
       "key": "max_file_size",
