@@ -43,9 +43,10 @@ These fields are session-scoped, not recorded per file:
 | `_write_generation` | Number of successful commits, starting at 0. |
 | `pending_review` | Paths used by the post-write soft reminder (main paths from real writes since the last clear; the whole list is cleared when the reminder is turned off). |
 | `reviewed_ok` | When false, a cross-file commit requires a preceding `review_conclusion` call (unless the preview was unlocked before the latest successful commit). |
-| `needs_reread` | Paths just written that must be `read` before they are changed again (hard constraint). |
+| `needs_reread` | Paths just written that must be `read` before they are changed again (hard constraint). Always empty when the switch is off. |
 | `apply_patch_pending` | Whether an `apply_patch` has landed and has not been cleared by `review_done`. |
 | `pending_diagnose_red` / `fixable_paths` | When a post-write red light is on, only the listed paths may be changed (if the list is empty, `pending_review` is used instead). A successful commit adds its main path to `fixable_paths`; the list is cleared by `review_done` once no red light remains. |
+| `reread_enabled` | Whether pending rereads accumulate (`[agent] reread_after_edit`). The boot point injects the initial value and the settings page pushes it to existing sessions on save. When off, `needs_reread` stays empty and commit receipts carry no post-write review reminder. |
 
 `review_conclusion` has a fixed order:
 
@@ -56,7 +57,7 @@ These fields are session-scoped, not recorded per file:
 `note_committed` after a successful `commit_write`:
 
 1. `_write_generation` is incremented.
-2. Content tools (`write_file`, `replace_in_file`, `apply_patch`, `read_write`, `file_undo`) add the main path to `needs_reread`. Delete, move, and copy do not require a re-read.
+2. When `reread_enabled` is true, content tools (`write_file`, `replace_in_file`, `apply_patch`, `read_write`, `file_undo`) add the main path to `needs_reread`; delete, move, and copy do not require a re-read, and nothing accumulates while the switch is off. Both cases take the same branch, which clears any stale mark, so a path that no longer exists cannot leave behind a "must read yet cannot read" deadlock.
 3. The main path is appended to `pending_review`, and `reviewed_ok` is set to false (turning the post-write reminder on).
 4. When the tool name is `apply_patch`, `apply_patch_pending` is set to true.
 
@@ -112,7 +113,7 @@ Because the preview snapshot's path is the patch root directory, while `pending_
 
 As a result, the second file from the same patch can be changed immediately with another preview; the re-read check does not block it. A separate patch that was already reviewed before this real write satisfies the generation condition, so steps 6 and 7 are both skipped. A patch reviewed after this real write goes through `review_conclusion`, which calls `review_done` and clears the conditions for steps 6 and 7, so it can be committed subject to the remaining checks; if only `confirm` is called without `review_conclusion`, step 6 rejects it first, and the patch-specific wording at step 7 is not reached — the preview path is the patch root, which does not equal the file in `pending_review`.
 
-For `file_ops`, the bookkeeping path is the first non-empty value in the order `dest`, `source`. The other end of a move is not recorded. These operations do not enter `needs_reread`, but they still set `reviewed_ok` back to false.
+For `file_ops`, the bookkeeping path is the first non-empty value in the order `dest`, `source`. The other end of a move is not recorded. These operations do not enter `needs_reread`, but they still set `reviewed_ok` back to false. A move's source path no longer exists, so its pending-reread mark is dropped at commit time from the result's `moved_from`; without that it would be blocked forever and also unreadable forever.
 
 ## Behavior consequences (by design, not defects)
 

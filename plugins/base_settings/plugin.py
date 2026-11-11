@@ -103,6 +103,10 @@ def make_field_agent_number(ctx: Any, app: Any = None) -> SettingDecl:
     return _field(ctx, app, "number")
 
 
+def make_field_agent_checkbox(ctx: Any, app: Any = None) -> SettingDecl:
+    return _field(ctx, app, "checkbox")
+
+
 def make_field_context_number(ctx: Any, app: Any = None) -> SettingDecl:
     return _field(ctx, app, "number")
 

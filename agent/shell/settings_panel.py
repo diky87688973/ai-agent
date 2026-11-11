@@ -17,6 +17,7 @@ from agent.config import (
     get_context,
     get_max_passes,
     get_reasoning_effort,
+    get_reread_after_edit,
 )
 from agent.core.error_report import report_error
 from agent.shell.plugin_settings import (
@@ -32,6 +33,11 @@ from agent.shell.settings_io import (
     write_text,
 )
 from agent.shell.web.web_ui_config import WEB_UI_CONFIG_PATH, get_web_ui
+
+#: `[agent]` 段的布尔项：回填按 0/1 输出，与复选框的取值域一致。
+_AGENT_FLAGS = {
+    "reread_after_edit": get_reread_after_edit,
+}
 
 __all__ = [
     "apply_host",
@@ -52,6 +58,9 @@ def read_host_value(section: str, key: str) -> str:
         value = get_web_ui(WEB_UI_CONFIG_PATH).get(key, "")
         return "1" if value else "0"
     if section == "agent":
+        flag = _AGENT_FLAGS.get(key)
+        if flag is not None:
+            return "1" if flag(DEFAULT_CONFIG_PATH) else "0"
         getters = {
             "reasoning_effort": get_reasoning_effort,
             "max_passes": get_max_passes,
@@ -145,10 +154,29 @@ def apply_host(app: Any, *, config_path: Optional[Path] = None) -> Dict[str, str
             app.image_turns = int(ctx["image_turns"])
             app.image_max = int(ctx["image_max"])
             app.max_passes = get_max_passes(target)
+        _push_reread_flag(app, target)
     except Exception as exc:
         report_error("agent.shell.settings_panel.apply_host", exc)
         return {"error": f"{type(exc).__name__}: {exc}"}
     return applied
+
+
+def _push_reread_flag(app: Any, target: Path) -> None:
+    """把「编辑后要求重读」推给已有会话的门控。
+
+    其余项落在 app 或装配级容器上；这一项住在每会话的门控里，
+    不推的话只有此后新建的会话才拿到新值。
+    """
+    if app is None:
+        return
+    contexts = getattr(app, "session_contexts", None)
+    if contexts is None:
+        return
+    enabled = get_reread_after_edit(target)
+    for session in contexts.buckets().values():
+        gate = getattr(session, "gate", None)
+        if gate is not None:
+            gate.reread_enabled = enabled
 
 
 def pick_directory() -> Dict[str, Any]:

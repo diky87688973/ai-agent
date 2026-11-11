@@ -158,12 +158,17 @@ def make_provider(ctx: Any, model_catalog: Any = None) -> Any:
 
 
 def make_contexts(ctx: Any, registry: Any = None, live_state: Any = None) -> Any:
+    from agent.config import get_reread_after_edit
+
     def keys_for(name: str):
         plugin = registry.get(name)
         return tuple(getattr(plugin, "write_path_keys", ()) or ()) if plugin else ()
 
     return SessionContexts(
-        lambda cid: QualityGate(path_keys_for=keys_for), live=live_state)
+        lambda cid: QualityGate(
+            path_keys_for=keys_for,
+            reread_enabled=get_reread_after_edit()),
+        live=live_state)
 
 
 def make_pipeline(ctx: Any, registry: Any = None, contexts: Any = None,

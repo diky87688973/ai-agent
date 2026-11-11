@@ -101,9 +101,9 @@ def build_quality_report(gate: "QualityGate", path: str) -> Dict[str, Any]:
         actions.append("确认大删除是否为有意改动（review 提交后解除）")
     if gate.diag_fail_flag:
         actions.append("先修复诊断 fail 项，再扩大改动")
-    if gate.pending_review:
+    if gate.pending_review and gate.reread_enabled:
         # 写后复核账：不是提醒「刚才的预览没 review」（那一步已在 commit 前做完），
-        # 而是跨文件继续写之前要再清一次账。
+        # 而是跨文件继续写之前要再清一次账。开关关闭时不累积待重读，也就不提。
         actions.append("若继续改其他文件，请先做写后复核（review_conclusion）")
     overall = "red" if (gate.diag_fail_flag or gate.large_delete_flag) else "green"
     return {

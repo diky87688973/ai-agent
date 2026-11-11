@@ -19,6 +19,7 @@ reasoning_effort = high
 backup_retention_days = 7
 max_passes = 64
 plugin_tree_only = 0
+reread_after_edit = 0
 ```
 
 | 键 | 默认 | 含义 |
@@ -27,6 +28,7 @@ plugin_tree_only = 0
 | `backup_retention_days` | `7` | 版本化备份保留天数。启动时清理更早的；`0` = 永久保留 |
 | `max_passes` | `64` | 每回合模型往返上限；小于 1 按 1 处理。每次往返可调用 0 个或多个工具，不是工具调用次数上限 |
 | `plugin_tree_only` | `0` | `1` 时只允许装载落在 `plugins/` 树内的插件目录；清单里的绝对/外置 `path` 会被拒。环境变量 `AI_AGENT_PLUGIN_TREE_ONLY` 优先 |
+| `reread_after_edit` | `0` | `1` 时，内容类工具写过的路径在再次修改前必须先 `read_file`，提交回执也会带上复核提醒；`0` 则不累积待重读，写完可直接继续。设置页的「编辑后要求重读」即此项，保存后对已有会话立即生效 |
 
 仓库的 `config.ini` 使用 `high`（`reasoning_effort`）与 `512`（`max_passes`）；上表默认值取自代码。
 

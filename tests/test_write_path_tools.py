@@ -168,6 +168,7 @@ class WritePathToolsTest(unittest.TestCase):
         self.assertEqual(f.read_text(encoding="utf-8"), "hello world")
 
     def test_replace_commit_applies(self) -> None:
+        self.app.gate.reread_enabled = True
         f = self.root / "r2.txt"
         f.write_text("hello world", encoding="utf-8")
         cid = self._ready("replace_in_file", {"path": str(f), "old_text": "world", "new_text": "earth"})
@@ -607,7 +608,7 @@ class WritePathToolsTest(unittest.TestCase):
         self.assertEqual(b.read_text(encoding="utf-8"), "B")
 
     def test_reread_block_before_second_write(self) -> None:
-
+        self.app.gate.reread_enabled = True
         a = self.root / "ra.txt"
         a.write_text("v1", encoding="utf-8")
         cid1 = self._ready("replace_in_file", {"path": str(a), "old_text": "v1", "new_text": "v2"})

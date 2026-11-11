@@ -10,7 +10,8 @@
       "fixed": [
         "reasoning_effort",
         "max_passes",
-        "backup_retention_days"
+        "backup_retention_days",
+        "reread_after_edit"
       ],
       "props": {
         "title": "Agent"
@@ -115,6 +116,23 @@
         "label": "AI 修改文件时的备份保存天数",
         "default": "7",
         "min": 0
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/agent/reread_after_edit",
+      "kind": "setting",
+      "factory": "plugin:make_field_agent_checkbox",
+      "props": {
+        "panel": "app/settings/agent",
+        "key": "reread_after_edit",
+        "section": "agent",
+        "kind": "checkbox",
+        "label": "编辑后要求重读",
+        "default": "0",
+        "hint": "开启后，改过的文件在再次修改前必须先 read_file；关闭则改完可直接继续"
       },
       "requires": {
         "app": "app/boot/facade"

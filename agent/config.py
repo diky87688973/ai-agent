@@ -288,6 +288,19 @@ def default_data_root():
     return PROJECT_ROOT / "data"
 
 
+def get_reread_after_edit(path: Optional[Path] = None) -> bool:
+    """编辑后是否要求重读（`[agent] reread_after_edit`）。
+
+    开启时，内容类工具写过的路径进入待重读集合，再次改动前必须先 `read_file`；
+    关闭时该集合始终为空，写完可直接继续。缺省关闭。
+    """
+    parser = load_ini(path)
+    raw = ""
+    if parser.has_section("agent"):
+        raw = _clean(parser.get("agent", "reread_after_edit", fallback=""))
+    return raw.lower() in ("1", "true", "yes", "on")
+
+
 def get_plugin_tree_only(path: Optional[Path] = None) -> bool:
     """是否只允许从 `plugins/` 树内装载插件（`[agent] plugin_tree_only`）。
 

@@ -32,6 +32,7 @@ ITEMS = {
     "app/settings/agent/reasoning_effort": "app/settings/agent",
     "app/settings/agent/max_passes": "app/settings/agent",
     "app/settings/agent/backup_retention_days": "app/settings/agent",
+    "app/settings/agent/reread_after_edit": "app/settings/agent",
     "app/settings/context/full_user_rounds": "app/settings/context",
     "app/settings/context/summary_output_max_chars": "app/settings/context",
     "app/settings/context/reasoning_replay_tokens": "app/settings/context",
@@ -43,7 +44,7 @@ ITEMS = {
 
 
 class BaseSettingsFragmentTest(unittest.TestCase):
-    """面板恰 4 条、条目恰 10 条、每条归属正确。"""
+    """面板恰 4 条、条目恰 11 条、每条归属正确。"""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -58,7 +59,7 @@ class BaseSettingsFragmentTest(unittest.TestCase):
     def test_panels_are_exactly_the_four(self) -> None:
         self.assertEqual(sorted(self.panels), sorted(PANELS))
 
-    def test_items_are_exactly_the_ten(self) -> None:
+    def test_items_are_exactly_the_declared(self) -> None:
         self.assertEqual(sorted(self.items), sorted(ITEMS))
 
     def test_each_item_belongs_to_its_panel(self) -> None:
@@ -74,8 +75,8 @@ class BaseSettingsFragmentTest(unittest.TestCase):
             with self.subTest(item=item):
                 self.assertTrue(self.owned[item].factory.endswith(
                     tuple(f":make_field_{kind}" for kind in
-                          ("agent_select", "agent_number", "context_number",
-                           "web_ui_checkbox"))), self.owned[item].factory)
+                          ("agent_select", "agent_number", "agent_checkbox",
+                           "context_number", "web_ui_checkbox"))), self.owned[item].factory)
         for panel in PANELS:
             with self.subTest(panel=panel):
                 self.assertIn(":make_panel_", self.owned[panel].factory)

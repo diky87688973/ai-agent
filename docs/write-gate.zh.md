@@ -43,9 +43,10 @@
 | `_write_generation` | 成功提交的次数，从 0 起 |
 | `pending_review` | 写后软提醒用的路径列表（记的是上次熄灯以来各次真写的主路径；熄灯时整表清空） |
 | `reviewed_ok` | 为假时，跨文件提交会要求先走过一次 `review_conclusion`（预览在最近一次真写之前已解锁时除外） |
-| `needs_reread` | 刚写过、再次改之前必须 `read` 的路径（强约束） |
+| `needs_reread` | 刚写过、再次改之前必须 `read` 的路径（强约束）。开关关闭时恒空 |
 | `apply_patch_pending` | 是否有一次 `apply_patch` 已经落盘且尚未被 `review_done` 清掉 |
 | `pending_diagnose_red` / `fixable_paths` | 写后红灯亮着时，只允许改列出的路径（列表为空则退回 `pending_review`）。每次成功提交会把主路径加入 `fixable_paths`；红灯全部解除后由 `review_done` 清空该列表 |
+| `reread_enabled` | 是否累积待重读（`[agent] reread_after_edit`）。装配点注入初值，设置页保存后推到已有会话。关闭时 `needs_reread` 恒空，回执也不带写后复核提醒 |
 
 `review_conclusion` 的顺序固定：
 
@@ -56,7 +57,7 @@
 `commit_write` 成功后的 `note_committed`：
 
 1. `_write_generation` 先加一。
-2. 内容类工具（`write_file`、`replace_in_file`、`apply_patch`、`read_write`、`file_undo`）把主路径放进 `needs_reread`。删除、移动、复制不要求重读。
+2. 内容类工具（`write_file`、`replace_in_file`、`apply_patch`、`read_write`、`file_undo`）在 `reread_enabled` 为真时把主路径放进 `needs_reread`；删除、移动、复制不要求重读，开关关闭时也不累积。两者都走同一分支：此时旧标记被清掉，所以路径不存在后不会留下「要读又读不到」的死结。
 3. 主路径追加进 `pending_review`，`reviewed_ok` 设为假（亮起写后提醒）。
 4. 工具名是 `apply_patch` 时，`apply_patch_pending` 设为真。
 
@@ -112,7 +113,7 @@
 
 因此同一次补丁里的第二个文件，马上用另一次预览去改，不会被「先 read」拦住。另一份在这次真写之前已经审过的补丁，代际条件为真，第 6 步和第 7 步都跳过。另一份在这次真写之后才审的补丁，这次审阅会调用 `review_done`，第 6、7 步的条件都已清掉，因此可以提交；如果只 `confirm` 而没有调用 `review_conclusion`，则第 6 步会先拒绝，第 7 步的专用文案到不了——预览路径是补丁根目录，与 `pending_review` 里的文件不相等。
 
-`file_ops` 的记账路径按 `dest`、`source` 的顺序取第一个非空值。移动同时涉及的另一端不记账。这类操作不进入 `needs_reread`，但仍会把 `reviewed_ok` 打回假。
+`file_ops` 的记账路径按 `dest`、`source` 的顺序取第一个非空值。移动同时涉及的另一端不记账。这类操作不进入 `needs_reread`，但仍会把 `reviewed_ok` 打回假。移动的源路径已不存在，它的待重读标记在提交阶段由结果的 `moved_from` 销掉；不销的话该路径会永远被拦又永远读不到。
 
 ## 行为后果（按设计，不是缺陷）
 

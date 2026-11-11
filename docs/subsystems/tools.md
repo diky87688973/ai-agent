@@ -114,7 +114,7 @@ Inside the pipeline the result is still `ToolResult(ok/data/error)`; the event s
 | Rule | Content |
 |---|---|
 | Path resolution | The write target comes from the snapshot via the tool's `write_path_keys`; if no path resolves, the commit is rejected |
-| Same-path reread | After a content write, changing the same path again requires `read_file` first |
+| Same-path reread | After a content write, changing the same path again requires `read_file` first; controlled by `[agent] reread_after_edit`, off by default |
 | Cross-file review | After a real write, committing another file requires a review unless that preview was unlocked before the latest write |
 | Red-light scope | While a post-write diagnostic red light is active, only paths in `fixable_paths` (or `pending_review` when that list is empty) may be changed |
 | Large-delete detection | A diff deleting at least 30 lines raises a red light when it has no additions or additions below 35% of the deletions |

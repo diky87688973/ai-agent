@@ -60,6 +60,11 @@ def _post_commit(call: ToolCallRequest, result: ToolResult,
     session_gate.note_committed(
         path, diff_text=str(result.data.pop("_diff", "") or ""), tool=tool,
         reread=needs_reread(tool))
+    # 移动 / 重命名的源路径已不存在：清它的待重读标记。
+    # 写目标只认 dest，source 不经 note_committed，不在这里清就再无人清。
+    moved_from = str(result.data.get("moved_from") or "")
+    if moved_from:
+        session_gate.forget_reread(moved_from)
     result.data["host_quality"] = build_quality_report(session_gate, path)
 
 

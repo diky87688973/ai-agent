@@ -33,6 +33,7 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "backup_retention_days": "7",
         "max_passes": "64",
         "plugin_tree_only": "0",
+        "reread_after_edit": "0",
     },
     "update": {
         "check_interval_minutes": "30",

@@ -44,6 +44,19 @@ class _App:
         self.plugin_host = None
 
 
+class _Session:
+    def __init__(self, gate) -> None:
+        self.gate = gate
+
+
+class _Sessions:
+    def __init__(self) -> None:
+        self.buckets_map: dict = {}
+
+    def buckets(self) -> dict:
+        return dict(self.buckets_map)
+
+
 class _Host:
     def __init__(self) -> None:
         self.loaded = ["oldplug"]
@@ -131,6 +144,41 @@ class ApplyHostTest(unittest.TestCase):
             self.assertEqual(app.image_turns, 4)
             self.assertEqual(app.image_max, 2)
             self.assertEqual(app.context_defaults["full_user_rounds"], 2)
+
+    def test_apply_pushes_reread_switch_to_existing_sessions(self) -> None:
+        """保存后「编辑后要求重读」立即推到已有会话的门控，不需重启。"""
+        from agent.mechanisms.quality.gate import QualityGate
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.ini"
+            config.write_text(
+                "[agent]\n"
+                "reasoning_effort = high\n"
+                "max_passes = 3\n"
+                "reread_after_edit = 1\n"
+                "[context]\n"
+                "full_user_rounds = 2\n"
+                "image_turns = 4\n"
+                "image_max = 2\n",
+                encoding="utf-8",
+            )
+            gate = QualityGate()
+            gate.reread_enabled = False
+            sessions = _Sessions()
+            sessions.buckets_map["c1"] = _Session(gate)
+            app = _App()
+            app.session_contexts = sessions
+
+            self.assertEqual(apply_host(app, config_path=config), {})
+            self.assertTrue(gate.reread_enabled)
+
+            config.write_text(
+                config.read_text(encoding="utf-8").replace(
+                    "reread_after_edit = 1", "reread_after_edit = 0"),
+                encoding="utf-8",
+            )
+            apply_host(app, config_path=config)
+            self.assertFalse(gate.reread_enabled)
 
 
 class PluginSettingsTest(unittest.TestCase):

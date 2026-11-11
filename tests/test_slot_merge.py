@@ -541,7 +541,7 @@ class RealRepoTest(unittest.TestCase):
             fields.setdefault(row["panel"], []).append(row["key"])
         expected_fixed = {
             "app/settings/agent": ["reasoning_effort", "max_passes",
-                                   "backup_retention_days"],
+                                   "backup_retention_days", "reread_after_edit"],
             "app/settings/context": ["full_user_rounds", "summary_output_max_chars",
                                      "reasoning_replay_tokens", "image_turns",
                                      "image_max"],
@@ -649,7 +649,10 @@ class RealRepoTest(unittest.TestCase):
         self.assertEqual(counts["event"], 2)
         self.assertEqual(counts["provider"], 1)
         self.assertEqual(counts["container"], 4)
-        self.assertFalse(config.subagent_tools.get("ai_cosplay", ()))
+        # 必须真的在字典里且为空元组：`.get(..., ())` 会把「未声明」也当成空，
+        # 于是装配层把 `[]` 当真值丢掉这类缺陷会被这条断言放过。
+        self.assertIn("ai_cosplay", config.subagent_tools)
+        self.assertEqual(config.subagent_tools["ai_cosplay"], ())
 
     def test_ai_cosplay_routes_keep_their_methods(self) -> None:
         """三个路由的 HTTP 方法保持现状：config/status 为 GET，played 为 POST。"""
@@ -780,14 +783,14 @@ class RealRepoTest(unittest.TestCase):
         self.assertEqual(methods, {"pending": "GET", "status": "GET",
                                    "confirm": "POST", "revoke": "POST"})
 
-    def test_base_settings_declares_ten_fields(self) -> None:
-        """base_settings 自己只声明 10 条字段；interface 里那条 theme_style 是外来贡献。"""
+    def test_base_settings_declares_own_fields(self) -> None:
+        """base_settings 自己只声明 11 条字段；interface 里那条 theme_style 是外来贡献。"""
         config = load_merged(ROOT)
         source = json.loads(
             (ROOT / "plugins" / "base_settings" / "plugin-ui.json")
             .read_text(encoding="utf-8"))
         own = {f"{row['panel']}/{row['key']}" for row in source["settings"]["fields"]}
-        self.assertEqual(len(own), 10)
+        self.assertEqual(len(own), 11)
         for path in sorted(own):
             spec = config.specs[path]
             self.assertEqual(spec.kind, "setting")

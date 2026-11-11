@@ -19,6 +19,7 @@ reasoning_effort = high
 backup_retention_days = 7
 max_passes = 64
 plugin_tree_only = 0
+reread_after_edit = 0
 ```
 
 | Key | Default | Meaning |
@@ -27,6 +28,7 @@ plugin_tree_only = 0
 | `backup_retention_days` | `7` | Retention period for versioned backups, in days. Versions older than this are pruned at startup; `0` = keep forever. |
 | `max_passes` | `64` | Model round-trip limit per turn; values below 1 are treated as 1. Each round trip may call zero or more tools; this is not a tool-call limit. |
 | `plugin_tree_only` | `0` | When `1`, only plugin directories inside the `plugins/` tree may be loaded; absolute or external `path` entries in the manifest are rejected. The `AI_AGENT_PLUGIN_TREE_ONLY` environment variable takes precedence. |
+| `reread_after_edit` | `0` | When `1`, a path written by a content tool must be read with `read_file` before it can change again, and commit receipts carry a review reminder; when `0`, no pending-reread marks accumulate and writing can continue directly. This is the "Require re-read after edit" checkbox on the settings page; saving it takes effect for existing sessions without a restart. |
 
 The repository's `config.ini` uses `high` for `reasoning_effort` and `512` for `max_passes`; the defaults in the table come from the code.
 

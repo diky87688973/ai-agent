@@ -59,6 +59,25 @@ class WriteGateTest(unittest.TestCase):
         self.app.gate.confirm(cid)
         return cid
 
+    def _ready_delete(self, path: Path) -> str:
+        """预览删除并确认，返回 confirm_id。"""
+        r = self._call("delete_file", {"path": str(path)})
+        self.assertTrue(r.ok, r.error)
+        cid = str(r.data.get("confirm_id") or "")
+        self.assertTrue(cid)
+        self.app.gate.confirm(cid)
+        return cid
+
+    def _ready_ops(self, action: str, **kwargs) -> str:
+        """预览 file_ops 并确认，返回 confirm_id。"""
+        args = {"action": action, **{k: str(v) for k, v in kwargs.items()}}
+        r = self._call("file_ops", args)
+        self.assertTrue(r.ok, r.error)
+        cid = str(r.data.get("confirm_id") or "")
+        self.assertTrue(cid)
+        self.app.gate.confirm(cid)
+        return cid
+
     def _norm(self, path: Path) -> str:
         return str(path).replace("\\", "/")
 
@@ -102,6 +121,7 @@ class WriteGateTest(unittest.TestCase):
 
     def test_full_four_steps(self) -> None:
         """预览 → 确认 → 凭 ID 提交 → 重读：真实文件走通完整四步。"""
+        self.app.gate.reread_enabled = True
         f = self.root / "b.txt"
         cid = self._ready(f, "v1")
         r = self._commit(cid)
@@ -204,6 +224,7 @@ class WriteGateTest(unittest.TestCase):
 
     def test_reread_required_before_second_edit(self) -> None:
         """写后未重读前再次提交：被拒；重读后放行。"""
+        self.app.gate.reread_enabled = True
         f = self.root / "g.txt"
         cid1 = self._ready(f, "v1")
         self.assertTrue(self._commit(cid1).ok)
@@ -216,6 +237,63 @@ class WriteGateTest(unittest.TestCase):
         self._call("read_file", {"path": str(f)})
         self.assertTrue(self._commit(cid2).ok)
         self.assertEqual(f.read_text(encoding="utf-8"), "v2")
+
+    def test_reread_disabled_skips_mark_and_hint(self) -> None:
+        """开关关闭：写后不累积待重读，同路径再改放行，回执不带复核提醒。"""
+        self.app.gate.reread_enabled = False
+        f = self.root / "plain.txt"
+        r1 = self._commit(self._ready(f, "v1"))
+        self.assertTrue(r1.ok)
+        self.assertEqual(set(self.app.gate.needs_reread), set())
+        self.assertEqual(r1.data["host_quality"]["required_next_actions"], [])
+        self.assertTrue(self._commit(self._ready(f, "v2")).ok)
+
+    def test_reread_enabled_marks_and_hints(self) -> None:
+        """开关打开：写后累积待重读，同路径再改被拒，回执带复核提醒。"""
+        self.app.gate.reread_enabled = True
+        f = self.root / "guarded.txt"
+        r1 = self._commit(self._ready(f, "v1"))
+        self.assertTrue(r1.ok)
+        self.assertIn(self._norm(f), self.app.gate.needs_reread)
+        self.assertTrue(any("review_conclusion" in a
+                            for a in r1.data["host_quality"]["required_next_actions"]))
+        blocked = self._commit(self._ready(f, "v2"))
+        self.assertFalse(blocked.ok)
+        self.assertIn("read_file", blocked.error)
+
+    def test_move_forgets_source_path(self) -> None:
+        """移动提交：源路径的待重读标记被销掉，再写源路径放行。"""
+        self.app.gate.reread_enabled = True
+        src = self.root / "src.txt"
+        dst = self.root / "dst.txt"
+        self.assertTrue(self._commit(self._ready(src, "v1")).ok)
+        self.assertIn(self._norm(src), self.app.gate.needs_reread)
+        self.app.gate.review_done()
+        moved = self._commit(self._ready_ops("move", source=src, dest=dst))
+        self.assertTrue(moved.ok)
+        self.assertEqual(moved.data.get("moved_from"), str(src))
+        self.assertNotIn(self._norm(src), self.app.gate.needs_reread)
+        self.app.gate.review_done()
+        self.assertTrue(self._commit(self._ready(src, "v2")).ok)
+
+    def test_delete_clears_reread_mark(self) -> None:
+        """删除提交：读过的路径被删后不再留下待重读标记。"""
+        self.app.gate.reread_enabled = True
+        f = self.root / "gone.txt"
+        self.assertTrue(self._commit(self._ready(f, "v1")).ok)
+        self.app.gate.review_done()
+        self._call("read_file", {"path": str(f)})
+        self.assertTrue(self._commit(self._ready_delete(f)).ok)
+        self.assertNotIn(self._norm(f), self.app.gate.needs_reread)
+        self.assertFalse(f.exists())
+
+    def test_delete_allowed_when_reread_disabled(self) -> None:
+        """开关关闭：写完直接删不被拦。"""
+        self.app.gate.reread_enabled = False
+        f = self.root / "drop.txt"
+        self.assertTrue(self._commit(self._ready(f, "v1")).ok)
+        self.assertTrue(self._commit(self._ready_delete(f)).ok)
+        self.assertFalse(f.exists())
 
     # ── 红灯回灌与限面 ───────────────────────────────────
 

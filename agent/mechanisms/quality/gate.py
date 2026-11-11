@@ -31,6 +31,9 @@ class QualityGate:
     #: 按工具名取 `write_path_keys`（装配时闭包注册表；未装配则解析不到路径）
     path_keys_for: Optional[PathKeysFor] = field(default=None, repr=False)
     needs_reread: Set[str] = field(default_factory=set)
+    #: 是否累积待重读：`[agent] reread_after_edit`。装配点注入初值，
+    #: 设置页保存后推到已有会话。关闭时 `needs_reread` 恒空。
+    reread_enabled: bool = True
     pending_review: List[str] = field(default_factory=list)
     reviewed_ok: bool = True
     # 真写次数。预览解锁时记下当时的值，用来区分「写之前已解锁」和「写之后才解锁」。
@@ -107,8 +110,12 @@ class QualityGate:
         """真写成功后的记账 + 大删除检测；reread=False 用于结构性操作（删除/移动/重命名）。"""
         self._write_generation += 1
         norm = norm_path(path)
-        if reread:
+        if reread and self.reread_enabled:
             self.needs_reread.add(norm)
+        else:
+            # 不需要重读的写也到这里：删除后路径已不存在，移动后旧路径已不存在，
+            # 开关关闭时则根本不累积。旧标记留着就会写被拦、读读不到。
+            self.needs_reread.discard(norm)
         if norm not in self.pending_review:
             self.pending_review.append(norm)
         self.reviewed_ok = False
@@ -131,6 +138,14 @@ class QualityGate:
 
     def note_read(self, path: str) -> None:
         """read 复核后清除该路径的"需重读"标记。"""
+        self.needs_reread.discard(norm_path(path))
+
+    def forget_reread(self, path: str) -> None:
+        """清除该路径的"需重读"标记：文件已不在那里，读它必然失败。
+
+        用于移动/重命名的源路径（写目标只认 dest，源不经记账），
+        与 `note_read` 的「刚读过它的内容」是两回事。
+        """
         self.needs_reread.discard(norm_path(path))
 
     def review_done(self) -> None:
