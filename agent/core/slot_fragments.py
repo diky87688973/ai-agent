@@ -199,7 +199,9 @@ def _collect(fragments: List[Tuple[str, str, Mapping[str, Any]]],
                 continue
             overrides.append(dict(row))
         tools = raw.get("subagent_tools")
-        if tools:
+        # 未声明与声明为空是两回事：`[]` 表示该插件全部工具都不给子智能体，
+        # 而缺这个键才表示不加限制。用真值判断会把 `[]` 当成未声明。
+        if tools is not None:
             if not isinstance(tools, (list, tuple)):
                 problems.append(f"subagent_tools 必须是数组（来源：{label}）")
             else:

@@ -98,6 +98,18 @@ class MergeTest(unittest.TestCase):
         self.assertTrue(all(label.startswith("静态片段")
                             for label in config.sources.values()))
 
+    def test_empty_subagent_tools_differs_from_absent(self) -> None:
+        """声明为空与未声明是两回事：[] 入字典，缺键则不入。"""
+        self.repo.plugin("empty")
+        self.repo.plugin("silent")
+        empty_file = self.repo.root / "plugins" / "empty" / "plugin-slots.json"
+        payload = json.loads(empty_file.read_text(encoding="utf-8"))
+        payload["subagent_tools"] = []
+        empty_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        config = self.merge()
+        self.assertEqual(config.subagent_tools.get("empty"), ())
+        self.assertNotIn("silent", config.subagent_tools)
+
     def test_plugin_fragment_is_collected_with_owner(self) -> None:
         self.repo.plugin("alpha")
         config = self.merge()

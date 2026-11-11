@@ -118,6 +118,7 @@ subagent_send
 
 Without a persistent store, the subagent tools are not provided.
 `subagent` is only for parent sessions, and `subagent_send` is only for child sessions. `ToolRegistryView` filters the parent and child tool views; the tool implementations stay in the same registry.
+Whether a single tool is visible to subagents is declared by its plugin through `subagent_tools` in `plugin-slots.json`: `[]` hides every tool of that plugin, and only omitting the key means no restriction.
 
 
 

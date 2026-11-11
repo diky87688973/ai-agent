@@ -104,6 +104,7 @@ subagent_send
 
 没有持久化存储时不提供子智能体工具。
 `subagent` 只用于父会话；`subagent_send` 只用于子会话。父/子工具视图由 `ToolRegistryView` 过滤，工具实现仍保留在同一个注册表。
+单个工具是否对子智能体可见由插件在 `plugin-slots.json` 的 `subagent_tools` 声明：声明为 `[]` 表示该插件全部工具都不暴露，不声明该键才表示不加限制。
 
 
 
