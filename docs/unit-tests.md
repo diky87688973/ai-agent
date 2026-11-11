@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2574** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2581** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -116,12 +116,12 @@
 105. [test_session_seq.py](#test_session_seqpy)（23）
 106. [test_session_store.py](#test_session_storepy)（17）
 107. [test_session_tools.py](#test_session_toolspy)（17）
-108. [test_settings_panel.py](#test_settings_panelpy)（18）
+108. [test_settings_panel.py](#test_settings_panelpy)（19）
 109. [test_settings_registry.py](#test_settings_registrypy)（5）
 110. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
 111. [test_slot_binder.py](#test_slot_binderpy)（7）
 112. [test_slot_loader.py](#test_slot_loaderpy)（65）
-113. [test_slot_merge.py](#test_slot_mergepy)（60）
+113. [test_slot_merge.py](#test_slot_mergepy)（61）
 114. [test_slot_registry.py](#test_slot_registrypy)（13）
 115. [test_slot_replaceable.py](#test_slot_replaceablepy)（19）
 116. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
@@ -162,7 +162,7 @@
 151. [test_web_shell.py](#test_web_shellpy)（53）
 152. [test_web_ui_config.py](#test_web_ui_configpy)（24）
 153. [test_window_ops.py](#test_window_opspy)（31）
-154. [test_write_gate.py](#test_write_gatepy)（17）
+154. [test_write_gate.py](#test_write_gatepy)（22）
 155. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
 156. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
@@ -457,11 +457,11 @@
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `BaseSettingsFragmentTest` | `test_does_not_register_model_panel` | 模型设置面板归 multi_model，不归本插件。 |
-| 2 | `BaseSettingsFragmentTest` | `test_each_item_belongs_to_its_panel` | 覆盖「面板恰 4 条、条目恰 10 条、每条归属正确」：each item belongs to its panel |
-| 3 | `BaseSettingsFragmentTest` | `test_items_are_exactly_the_ten` | 覆盖「面板恰 4 条、条目恰 10 条、每条归属正确」：items are exactly the ten |
+| 2 | `BaseSettingsFragmentTest` | `test_each_item_belongs_to_its_panel` | 覆盖「面板恰 4 条、条目恰 11 条、每条归属正确」：each item belongs to its panel |
+| 3 | `BaseSettingsFragmentTest` | `test_items_are_exactly_the_declared` | 覆盖「面板恰 4 条、条目恰 11 条、每条归属正确」：items are exactly the declared |
 | 4 | `BaseSettingsFragmentTest` | `test_items_use_field_factories` | 条目由 `make_field_*` 造（带 save/load 闭包），面板由 `make_panel_*` 造。 |
-| 5 | `BaseSettingsFragmentTest` | `test_panels_are_exactly_the_four` | 覆盖「面板恰 4 条、条目恰 10 条、每条归属正确」：panels are exactly the four |
-| 6 | `BaseSettingsFragmentTest` | `test_retention_setting_has_a_one_round_floor` | 覆盖「面板恰 4 条、条目恰 10 条、每条归属正确」：retention setting has a one round floor |
+| 5 | `BaseSettingsFragmentTest` | `test_panels_are_exactly_the_four` | 覆盖「面板恰 4 条、条目恰 11 条、每条归属正确」：panels are exactly the four |
+| 6 | `BaseSettingsFragmentTest` | `test_retention_setting_has_a_one_round_floor` | 覆盖「面板恰 4 条、条目恰 11 条、每条归属正确」：retention setting has a one round floor |
 
 ## test_batch_f_tools.py
 
@@ -2623,28 +2623,29 @@
 
 ## test_settings_panel.py
 
-共 18 个用例。
+共 19 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ApplyHostTest` | `test_apply_updates_limits` | 覆盖「A class whose instances are single test cases」：apply updates limits |
-| 2 | `IniEditTest` | `test_append_does_not_duplicate_a_section` | 覆盖「A class whose instances are single test cases」：append does not duplicate a section |
-| 3 | `IniEditTest` | `test_remove_section_leaves_commented_header` | 覆盖「A class whose instances are single test cases」：remove section leaves commented header |
-| 4 | `IniEditTest` | `test_update_keeps_comments_and_other_sections` | 覆盖「A class whose instances are single test cases」：update keeps comments and other sections |
-| 5 | `PluginSettingsTest` | `test_enable_and_disable_edit_the_manifest` | 覆盖「A class whose instances are single test cases」：enable and disable edit the manifest |
-| 6 | `PluginSettingsTest` | `test_fields_schema_creates_real_config_from_form` | 覆盖「A class whose instances are single test cases」：fields schema creates real config from form |
-| 7 | `PluginSettingsTest` | `test_kernel_model_tab_is_absent` | 覆盖「A class whose instances are single test cases」：kernel model tab is absent |
-| 8 | `PluginSettingsTest` | `test_missing_plugin_config_returns_empty_editor` | 没有真实配置时返回空编辑器；不伪造示例、不落盘。 |
-| 9 | `PluginSettingsTest` | `test_missing_plugin_is_not_enabled` | 覆盖「A class whose instances are single test cases」：missing plugin is not enabled |
-| 10 | `PluginSettingsTest` | `test_plugin_config_roundtrip_rejects_a_bad_name` | 覆盖「A class whose instances are single test cases」：plugin config roundtrip rejects a bad name |
-| 11 | `PluginSettingsTest` | `test_unknown_route` | 覆盖「A class whose instances are single test cases」：unknown route |
-| 12 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
-| 13 | `StructuredPluginConfigTest` | `test_new_model_group_gets_a_generated_id` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：new model group gets a generated id |
-| 14 | `StructuredPluginConfigTest` | `test_read_masks_the_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：read masks the secret |
-| 15 | `StructuredPluginConfigTest` | `test_required_field_rejects_an_empty_value` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：required field rejects an empty value |
-| 16 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
-| 17 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
-| 18 | `StructuredPluginConfigTest` | `test_textarea_field_roundtrips_multiline` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：textarea field roundtrips multiline |
+| 1 | `ApplyHostTest` | `test_apply_pushes_reread_switch_to_existing_sessions` | 保存后「编辑后要求重读」立即推到已有会话的门控，不需重启。 |
+| 2 | `ApplyHostTest` | `test_apply_updates_limits` | 覆盖「A class whose instances are single test cases」：apply updates limits |
+| 3 | `IniEditTest` | `test_append_does_not_duplicate_a_section` | 覆盖「A class whose instances are single test cases」：append does not duplicate a section |
+| 4 | `IniEditTest` | `test_remove_section_leaves_commented_header` | 覆盖「A class whose instances are single test cases」：remove section leaves commented header |
+| 5 | `IniEditTest` | `test_update_keeps_comments_and_other_sections` | 覆盖「A class whose instances are single test cases」：update keeps comments and other sections |
+| 6 | `PluginSettingsTest` | `test_enable_and_disable_edit_the_manifest` | 覆盖「A class whose instances are single test cases」：enable and disable edit the manifest |
+| 7 | `PluginSettingsTest` | `test_fields_schema_creates_real_config_from_form` | 覆盖「A class whose instances are single test cases」：fields schema creates real config from form |
+| 8 | `PluginSettingsTest` | `test_kernel_model_tab_is_absent` | 覆盖「A class whose instances are single test cases」：kernel model tab is absent |
+| 9 | `PluginSettingsTest` | `test_missing_plugin_config_returns_empty_editor` | 没有真实配置时返回空编辑器；不伪造示例、不落盘。 |
+| 10 | `PluginSettingsTest` | `test_missing_plugin_is_not_enabled` | 覆盖「A class whose instances are single test cases」：missing plugin is not enabled |
+| 11 | `PluginSettingsTest` | `test_plugin_config_roundtrip_rejects_a_bad_name` | 覆盖「A class whose instances are single test cases」：plugin config roundtrip rejects a bad name |
+| 12 | `PluginSettingsTest` | `test_unknown_route` | 覆盖「A class whose instances are single test cases」：unknown route |
+| 13 | `SettingsPageAssetsTest` | `test_gear_and_settings_script_are_inlined` | 覆盖「A class whose instances are single test cases」：gear and settings script are inlined |
+| 14 | `StructuredPluginConfigTest` | `test_new_model_group_gets_a_generated_id` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：new model group gets a generated id |
+| 15 | `StructuredPluginConfigTest` | `test_read_masks_the_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：read masks the secret |
+| 16 | `StructuredPluginConfigTest` | `test_required_field_rejects_an_empty_value` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：required field rejects an empty value |
+| 17 | `StructuredPluginConfigTest` | `test_save_keeps_other_sections_and_an_untouched_secret` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save keeps other sections and an untouched secret |
+| 18 | `StructuredPluginConfigTest` | `test_save_rejects_an_unknown_key` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：save rejects an unknown key |
+| 19 | `StructuredPluginConfigTest` | `test_textarea_field_roundtrips_multiline` | 覆盖「声明了 `settings-schema.json` 的插件：按组编辑，密钥不出接口」：textarea field roundtrips multiline |
 
 ## test_settings_registry.py
 
@@ -2763,7 +2764,7 @@
 
 ## test_slot_merge.py
 
-共 60 个用例。
+共 61 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2788,45 +2789,46 @@
 | 19 | `MergeShapeTest` | `test_static_owner_defaults_to_host` | 覆盖「A class whose instances are single test cases」：static owner defaults to host |
 | 20 | `MergeTest` | `test_bad_factory_shape_is_rejected_after_merge` | factory 形状校验同样要对成品配置生效。 |
 | 21 | `MergeTest` | `test_disabled_plugin_fragment_is_skipped` | 覆盖「A class whose instances are single test cases」：disabled plugin fragment is skipped |
-| 22 | `MergeTest` | `test_missing_enabled_key_counts_as_enabled` | 覆盖「A class whose instances are single test cases」：missing enabled key counts as enabled |
-| 23 | `MergeTest` | `test_plugin_can_require_static_node` | 覆盖「A class whose instances are single test cases」：plugin can require static node |
-| 24 | `MergeTest` | `test_plugin_fragment_is_collected_with_owner` | 覆盖「A class whose instances are single test cases」：plugin fragment is collected with owner |
-| 25 | `MergeTest` | `test_plugin_without_fragment_is_ignored` | 覆盖「A class whose instances are single test cases」：plugin without fragment is ignored |
-| 26 | `MergeTest` | `test_shell_node_without_factory_is_rejected` | 合并路径也必须拦下空壳节点，否则「声明了但没实现」会一路上线。 |
-| 27 | `MergeTest` | `test_static_only` | 覆盖「A class whose instances are single test cases」：static only |
-| 28 | `OwnersGrantTest` | `test_authorized_prefix_is_declarable` | 被授权给本插件的前缀下声明的路径通过，且 owner 是授权值。 |
-| 29 | `OwnersGrantTest` | `test_same_path_is_rejected_for_unauthorized_plugin` | 同一条路径换一个未获授权的插件就报错——挡的是授权，不是路径。 |
-| 30 | `ProvidesTest` | `test_fixed_parent_accepts_listed_child_only` | 覆盖「provides 的父插口判定：只看父节点自己的 children」：fixed parent accepts listed child only |
-| 31 | `ProvidesTest` | `test_fixed_parent_rejects_unlisted_child` | 覆盖「provides 的父插口判定：只看父节点自己的 children」：fixed parent rejects unlisted child |
-| 32 | `ProvidesTest` | `test_keyed_parent_accepts_contribution` | 父节点 children=keyed：贡献被接受，owner 取父插口（宿主）。 |
-| 33 | `ProvidesTest` | `test_none_parent_rejects_contribution` | 父节点存在但 children=none：报不接受贡献，并指明父路径。 |
-| 34 | `ProvidesTest` | `test_undeclared_parent_is_reported` | 覆盖「provides 的父插口判定：只看父节点自己的 children」：undeclared parent is reported |
-| 35 | `RealRepoTest` | `test_ai_cosplay_event_names_come_from_constants` | 两个 event 节点的事件名必须是 event_name 里的常量值。 |
-| 36 | `RealRepoTest` | `test_ai_cosplay_factories_all_exist` | 片段引用的每个 ai_cosplay 工厂，都必须真的存在于 plugin.py 里。 |
-| 37 | `RealRepoTest` | `test_ai_cosplay_fragment_shape` | 片段形状：runtime 1 / tool 1 / route 3 / event 2 / provider 1。 |
-| 38 | `RealRepoTest` | `test_ai_cosplay_has_no_legacy_registration_calls` | 旧注册 API 彻底消失：plugin.py 里不得再有任何 `ctx.add_*` 之类的调用。 |
-| 39 | `RealRepoTest` | `test_ai_cosplay_panel_is_ui_control` | 左栏面板是控件（带动作与脚本），不是可再被填的插口。 |
-| 40 | `RealRepoTest` | `test_ai_cosplay_routes_keep_their_methods` | 三个路由的 HTTP 方法保持现状：config/status 为 GET，played 为 POST。 |
-| 41 | `RealRepoTest` | `test_all_repo_fragments_merge` | 覆盖「仓库根的真实片段集合必须可合并：任何插件片段写坏，这里就红」：all repo fragments merge |
-| 42 | `RealRepoTest` | `test_base_settings_declares_ten_fields` | base_settings 自己只声明 10 条字段；interface 里那条 theme_style 是外来贡献。 |
-| 43 | `RealRepoTest` | `test_base_settings_interface_accepts_foreign_setting` | interface 的 fixed 里备好了 theme_style 的位置（由 theme_style 插件 provides）。 |
-| 44 | `RealRepoTest` | `test_base_settings_panels_match_declaration` | 四个面板的 children 与 fixed 必须与 plugin-ui.json 一致。 |
-| 45 | `RealRepoTest` | `test_every_declared_props_survives_merge` | 防回潮：片段里写的每一条 props 都必须逐字出现在合并结果里。 |
-| 46 | `RealRepoTest` | `test_knowledge_fragment_nodes_and_owner` | 覆盖「仓库根的真实片段集合必须可合并：任何插件片段写坏，这里就红」：knowledge fragment nodes and owner |
-| 47 | `RealRepoTest` | `test_no_fragment_carries_retired_metadata_key` | 防回潮：仓库里任何片段都不得再出现 metadata（字段已取消）。 |
-| 48 | `RealRepoTest` | `test_static_fragment_has_no_plugin_path` | 静态片段不得含 app/plugins/ 路径：插件的东西全由插件自己的片段提供。 |
-| 49 | `RealRepoTest` | `test_theme_style_fills_reserved_slot_in_repo` | 真实仓库里的跨插件预留槽位：base_settings 预留，theme_style 填入。 |
-| 50 | `RealRepoTest` | `test_theme_style_setting_decl_matches_plugin` | theme_style 的 SettingDecl 七个字段必须与 plugin.py 里的声明逐条对齐。 |
-| 51 | `RealRepoTest` | `test_ui_kinds_are_the_only_ui_spelling` | 粗粒度的 ui 已拆成四个 kind；出现 ui 即回潮。 |
-| 52 | `RealRepoTest` | `test_ui_nodes_carry_their_props` | ui-* 节点的标签/动作/绑定/脚本全靠 props，声明类节点不允许空载荷。 |
-| 53 | `RealRepoTest` | `test_visual_operator_2_fragment_shape` | 28 个声明节点：runtime 1 / tool 20 / route 4 / provider 2 + 1 条 provides。 |
-| 54 | `RealRepoTest` | `test_visual_operator_2_owner_and_factories` | 节点全归本插件，factory 互异且逐个可解析，requires 全指向同一 runtime。 |
-| 55 | `RealRepoTest` | `test_visual_operator_2_prompt_slots_semantics` | 钩子落 user-messages、提示词段落 system-appends，且 after_tools 保留。 |
-| 56 | `RealRepoTest` | `test_visual_operator_2_route_methods` | 四条授权路由的 HTTP 方法保持现状。 |
-| 57 | `RealRepoTest` | `test_visual_operator_runtime_is_shared` | 12 个节点共用一份 runtime：captures 只有一份的接线前提。 |
-| 58 | `RealRepoTest` | `test_visual_operator_tool_nodes_resolve` | 12 个 tool 节点：factory 互不相同、全部可解析、requires 指向同一个 runtime。 |
-| 59 | `ReservedSlotTest` | `test_reserved_slot_can_be_filled_by_another_plugin` | 覆盖「跨插件预留槽位：fixed 白名单里写一个本插件没有的子名，由别的插件填」：reserved slot can be filled by another plugin |
-| 60 | `ReservedSlotTest` | `test_unreserved_name_is_still_rejected` | 预留是「只开一个口子」，不是取消白名单。 |
+| 22 | `MergeTest` | `test_empty_subagent_tools_differs_from_absent` | 声明为空与未声明是两回事：[] 入字典，缺键则不入。 |
+| 23 | `MergeTest` | `test_missing_enabled_key_counts_as_enabled` | 覆盖「A class whose instances are single test cases」：missing enabled key counts as enabled |
+| 24 | `MergeTest` | `test_plugin_can_require_static_node` | 覆盖「A class whose instances are single test cases」：plugin can require static node |
+| 25 | `MergeTest` | `test_plugin_fragment_is_collected_with_owner` | 覆盖「A class whose instances are single test cases」：plugin fragment is collected with owner |
+| 26 | `MergeTest` | `test_plugin_without_fragment_is_ignored` | 覆盖「A class whose instances are single test cases」：plugin without fragment is ignored |
+| 27 | `MergeTest` | `test_shell_node_without_factory_is_rejected` | 合并路径也必须拦下空壳节点，否则「声明了但没实现」会一路上线。 |
+| 28 | `MergeTest` | `test_static_only` | 覆盖「A class whose instances are single test cases」：static only |
+| 29 | `OwnersGrantTest` | `test_authorized_prefix_is_declarable` | 被授权给本插件的前缀下声明的路径通过，且 owner 是授权值。 |
+| 30 | `OwnersGrantTest` | `test_same_path_is_rejected_for_unauthorized_plugin` | 同一条路径换一个未获授权的插件就报错——挡的是授权，不是路径。 |
+| 31 | `ProvidesTest` | `test_fixed_parent_accepts_listed_child_only` | 覆盖「provides 的父插口判定：只看父节点自己的 children」：fixed parent accepts listed child only |
+| 32 | `ProvidesTest` | `test_fixed_parent_rejects_unlisted_child` | 覆盖「provides 的父插口判定：只看父节点自己的 children」：fixed parent rejects unlisted child |
+| 33 | `ProvidesTest` | `test_keyed_parent_accepts_contribution` | 父节点 children=keyed：贡献被接受，owner 取父插口（宿主）。 |
+| 34 | `ProvidesTest` | `test_none_parent_rejects_contribution` | 父节点存在但 children=none：报不接受贡献，并指明父路径。 |
+| 35 | `ProvidesTest` | `test_undeclared_parent_is_reported` | 覆盖「provides 的父插口判定：只看父节点自己的 children」：undeclared parent is reported |
+| 36 | `RealRepoTest` | `test_ai_cosplay_event_names_come_from_constants` | 两个 event 节点的事件名必须是 event_name 里的常量值。 |
+| 37 | `RealRepoTest` | `test_ai_cosplay_factories_all_exist` | 片段引用的每个 ai_cosplay 工厂，都必须真的存在于 plugin.py 里。 |
+| 38 | `RealRepoTest` | `test_ai_cosplay_fragment_shape` | 片段形状：runtime 1 / tool 1 / route 3 / event 2 / provider 1。 |
+| 39 | `RealRepoTest` | `test_ai_cosplay_has_no_legacy_registration_calls` | 旧注册 API 彻底消失：plugin.py 里不得再有任何 `ctx.add_*` 之类的调用。 |
+| 40 | `RealRepoTest` | `test_ai_cosplay_panel_is_ui_control` | 左栏面板是控件（带动作与脚本），不是可再被填的插口。 |
+| 41 | `RealRepoTest` | `test_ai_cosplay_routes_keep_their_methods` | 三个路由的 HTTP 方法保持现状：config/status 为 GET，played 为 POST。 |
+| 42 | `RealRepoTest` | `test_all_repo_fragments_merge` | 覆盖「仓库根的真实片段集合必须可合并：任何插件片段写坏，这里就红」：all repo fragments merge |
+| 43 | `RealRepoTest` | `test_base_settings_declares_own_fields` | base_settings 自己只声明 11 条字段；interface 里那条 theme_style 是外来贡献。 |
+| 44 | `RealRepoTest` | `test_base_settings_interface_accepts_foreign_setting` | interface 的 fixed 里备好了 theme_style 的位置（由 theme_style 插件 provides）。 |
+| 45 | `RealRepoTest` | `test_base_settings_panels_match_declaration` | 四个面板的 children 与 fixed 必须与 plugin-ui.json 一致。 |
+| 46 | `RealRepoTest` | `test_every_declared_props_survives_merge` | 防回潮：片段里写的每一条 props 都必须逐字出现在合并结果里。 |
+| 47 | `RealRepoTest` | `test_knowledge_fragment_nodes_and_owner` | 覆盖「仓库根的真实片段集合必须可合并：任何插件片段写坏，这里就红」：knowledge fragment nodes and owner |
+| 48 | `RealRepoTest` | `test_no_fragment_carries_retired_metadata_key` | 防回潮：仓库里任何片段都不得再出现 metadata（字段已取消）。 |
+| 49 | `RealRepoTest` | `test_static_fragment_has_no_plugin_path` | 静态片段不得含 app/plugins/ 路径：插件的东西全由插件自己的片段提供。 |
+| 50 | `RealRepoTest` | `test_theme_style_fills_reserved_slot_in_repo` | 真实仓库里的跨插件预留槽位：base_settings 预留，theme_style 填入。 |
+| 51 | `RealRepoTest` | `test_theme_style_setting_decl_matches_plugin` | theme_style 的 SettingDecl 七个字段必须与 plugin.py 里的声明逐条对齐。 |
+| 52 | `RealRepoTest` | `test_ui_kinds_are_the_only_ui_spelling` | 粗粒度的 ui 已拆成四个 kind；出现 ui 即回潮。 |
+| 53 | `RealRepoTest` | `test_ui_nodes_carry_their_props` | ui-* 节点的标签/动作/绑定/脚本全靠 props，声明类节点不允许空载荷。 |
+| 54 | `RealRepoTest` | `test_visual_operator_2_fragment_shape` | 28 个声明节点：runtime 1 / tool 20 / route 4 / provider 2 + 1 条 provides。 |
+| 55 | `RealRepoTest` | `test_visual_operator_2_owner_and_factories` | 节点全归本插件，factory 互异且逐个可解析，requires 全指向同一 runtime。 |
+| 56 | `RealRepoTest` | `test_visual_operator_2_prompt_slots_semantics` | 钩子落 user-messages、提示词段落 system-appends，且 after_tools 保留。 |
+| 57 | `RealRepoTest` | `test_visual_operator_2_route_methods` | 四条授权路由的 HTTP 方法保持现状。 |
+| 58 | `RealRepoTest` | `test_visual_operator_runtime_is_shared` | 12 个节点共用一份 runtime：captures 只有一份的接线前提。 |
+| 59 | `RealRepoTest` | `test_visual_operator_tool_nodes_resolve` | 12 个 tool 节点：factory 互不相同、全部可解析、requires 指向同一个 runtime。 |
+| 60 | `ReservedSlotTest` | `test_reserved_slot_can_be_filled_by_another_plugin` | 覆盖「跨插件预留槽位：fixed 白名单里写一个本插件没有的子名，由别的插件填」：reserved slot can be filled by another plugin |
+| 61 | `ReservedSlotTest` | `test_unreserved_name_is_still_rejected` | 预留是「只开一个口子」，不是取消白名单。 |
 
 ## test_slot_registry.py
 
@@ -3756,7 +3758,7 @@
 
 ## test_write_gate.py
 
-共 17 个用例。
+共 22 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -3768,15 +3770,20 @@
 | 6 | `WriteGateTest` | `test_commit_without_preview_rejected` | 无预览直提交（伪造 ID）：被拒，文件不落盘；不产生记账。 |
 | 7 | `WriteGateTest` | `test_consecutive_reviews_then_consecutive_commits` | 两个不同文件先各自 review_conclusion，再连续 commit_write，两份都落盘。 |
 | 8 | `WriteGateTest` | `test_cross_file_review_gate` | 写后未 review 跨文件：被拒；review_done 后放行。 |
-| 9 | `WriteGateTest` | `test_diagnose_red_and_recovery` | 写坏语法 → 红灯回灌；修复后转绿。 |
-| 10 | `WriteGateTest` | `test_full_four_steps` | 预览 → 确认 → 凭 ID 提交 → 重读：真实文件走通完整四步。 |
-| 11 | `WriteGateTest` | `test_large_overwrite_flags_red` | 提交覆盖既有大文件（大幅缩水）：大删除红灯 + 报告回灌 red。 |
-| 12 | `WriteGateTest` | `test_preview_does_not_write` | 预览：不落盘，返回字节数、存在标记与 confirm_id。 |
-| 13 | `WriteGateTest` | `test_red_light_limits_scope` | 红灯未清时，改其他文件被拒（限面）。 |
-| 14 | `WriteGateTest` | `test_reread_required_before_second_edit` | 写后未重读前再次提交：被拒；重读后放行。 |
-| 15 | `WriteGateTest` | `test_web_fetch_out_file_goes_through_preview` | web_fetch 的 out_file 属于写路径：预览阶段不得落盘，commit 才写。 |
-| 16 | `WriteGateTest` | `test_write_missing_content_rejected` | 缺 content：工具报错经管道结构化回灌。 |
-| 17 | `WriteGateTest` | `test_write_missing_path_rejected` | 缺 path：工具报错经管道结构化回灌。 |
+| 9 | `WriteGateTest` | `test_delete_allowed_when_reread_disabled` | 开关关闭：写完直接删不被拦。 |
+| 10 | `WriteGateTest` | `test_delete_clears_reread_mark` | 删除提交：读过的路径被删后不再留下待重读标记。 |
+| 11 | `WriteGateTest` | `test_diagnose_red_and_recovery` | 写坏语法 → 红灯回灌；修复后转绿。 |
+| 12 | `WriteGateTest` | `test_full_four_steps` | 预览 → 确认 → 凭 ID 提交 → 重读：真实文件走通完整四步。 |
+| 13 | `WriteGateTest` | `test_large_overwrite_flags_red` | 提交覆盖既有大文件（大幅缩水）：大删除红灯 + 报告回灌 red。 |
+| 14 | `WriteGateTest` | `test_move_forgets_source_path` | 移动提交：源路径的待重读标记被销掉，再写源路径放行。 |
+| 15 | `WriteGateTest` | `test_preview_does_not_write` | 预览：不落盘，返回字节数、存在标记与 confirm_id。 |
+| 16 | `WriteGateTest` | `test_red_light_limits_scope` | 红灯未清时，改其他文件被拒（限面）。 |
+| 17 | `WriteGateTest` | `test_reread_disabled_skips_mark_and_hint` | 开关关闭：写后不累积待重读，同路径再改放行，回执不带复核提醒。 |
+| 18 | `WriteGateTest` | `test_reread_enabled_marks_and_hints` | 开关打开：写后累积待重读，同路径再改被拒，回执带复核提醒。 |
+| 19 | `WriteGateTest` | `test_reread_required_before_second_edit` | 写后未重读前再次提交：被拒；重读后放行。 |
+| 20 | `WriteGateTest` | `test_web_fetch_out_file_goes_through_preview` | web_fetch 的 out_file 属于写路径：预览阶段不得落盘，commit 才写。 |
+| 21 | `WriteGateTest` | `test_write_missing_content_rejected` | 缺 content：工具报错经管道结构化回灌。 |
+| 22 | `WriteGateTest` | `test_write_missing_path_rejected` | 缺 path：工具报错经管道结构化回灌。 |
 
 ## test_write_path_keys_lifecycle.py
 
