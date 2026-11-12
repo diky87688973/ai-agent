@@ -141,11 +141,23 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 | `/api/settings/plugin-file` | 写回某个插件的可编辑节，其余内容保留 |
 | `/api/settings/pick-dir` | 弹出系统目录选择窗口（Windows） |
 
+普通确认和审批请求须携带卡片上的 `conversation_id`、`call_id` 和 `request_id`。普通确认通过 `confirm` 传入文本，空字符串表示取消。审批使用 `approval` 的 `agree` 或 `reject`。视觉授权提交到卡片声明的插件端点，使用同样的三个标识和 `choice`。缺少标识返回 HTTP 400。标识齐全但请求已过期、已结算或与当前待确认不匹配时返回 HTTP 409，响应包含 `expired: true`。写盘门控解锁仍使用 `confirm_id`。
+
+`confirmation_closed` 是仅实时发送的 SSE 事件，通过 `conversation_id`、`call_id` 和 `request_id` 定位卡片。历史接口和 `GET /api/chat/ui-state?confirmation_ids=<cid,...>` 可从 `tool_suspended` 事实恢复未结算的确认，无需创建会话上下文。Inbox 使用队列项上的 `_inbox_user_send` 识别用户主动发送，使用 `input_claimed` 事实上的 `_queue_item_id` 去重。
+
+挂起事实先落盘，随后才发送确认卡。关闭程序会保留未结算的挂起请求。
+
+会话等待确认时也可以调用 `POST /api/chat/stop`。停止会保存失败终态并通过 SSE 关闭对应卡片。若空闲会话的确认终态写入失败，接口返回 HTTP 503，待确认记录保留以便重试。
+
+确认结果已写入但续跑投递失败时，响应包含 `resume_pending: true`。前端可使用原卡片
+标识向 `POST /api/chat/user-confirm` 提交 `retry_resume: true`，只重试派发。后续回合
+开始后该操作过期。队列中的插入失败项可在原队列行重试。
+
 #### DELETE
 
 | 路径 | 作用 |
 |---|---|
-| `/api/chat/sessions` | 关闭会话并释放进程内运行态（不删事实日志） |
+| `/api/chat/sessions` | 关闭会话标签并释放进程内运行态。事实日志和持久化终止状态均保留。 |
 | `/api/chat/queue/<id>` | 取消一条未发送队列消息 |
 | `/api/plugin/<插件>/…` | 插件端点 |
 

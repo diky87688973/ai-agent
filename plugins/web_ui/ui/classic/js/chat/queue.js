@@ -4,6 +4,8 @@ var chatQueueRevision = -1;
 var chatQueueCache = Object.create(null);
 var chatQueueLoadSeq = 0;
 var chatDraft = null;
+var chatQueueInsertRequests = new Set();
+var chatQueueInsertErrors = new Map();
 
 var QUEUE_ICONS = {
   edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4Z"/><path d="m13.5 5.5 5 5"/></svg>',
@@ -142,11 +144,13 @@ function chatQueueRow(item) {
   row.appendChild(text);
 
   var inserting = item.state === "inserting";
-  if (inserting) {
+  var insertError = chatQueueInsertErrors.get(item.id);
+  if (inserting || insertError) {
     var status = document.createElement("span");
     status.className = "chat-queue-status";
-    status.textContent = "已插入";
-    status.title = "已插入当前回合，等待发送";
+    status.textContent = insertError || "已插入";
+    status.title = insertError || "已插入当前回合，等待发送";
+    if (insertError) status.setAttribute("role", "status");
     row.appendChild(status);
   }
 
@@ -155,13 +159,16 @@ function chatQueueRow(item) {
   var insert = iconButton("queue-insert", "插入发送", "up", "insert");
   var edit = iconButton("queue-edit", "修改", "edit", "recall");
   var cancel = iconButton("queue-cancel", "取消", "trash", "cancel");
-  insert.disabled = inserting;
+  insert.disabled = chatQueueInsertRequests.has(item.id);
   edit.disabled = inserting;
   cancel.disabled = inserting;
   if (inserting) {
     edit.title = "已插入，不能修改";
     cancel.title = "已插入，不能删除";
-    insert.title = "已插入，等待发送";
+  }
+  if (inserting || insertError) {
+    insert.title = "重试插入";
+    insert.setAttribute("aria-label", insert.title);
   }
   actions.appendChild(edit);
   actions.appendChild(cancel);
@@ -199,13 +206,10 @@ document.addEventListener("ai-agent:conversation-changed", function (event) {
 
 function queueInsert(item) {
   var cid = String(item && item._cid || chatQueueCid());
-  if (!cid || !item || item.state === "inserting") return;
-  item.state = "inserting";
-  renderChatQueue({
-    conversation_id: cid,
-    revision: chatQueueRevision,
-    items: chatQueueItems,
-  });
+  if (!cid || !item || chatQueueInsertRequests.has(item.id)) return;
+  chatQueueInsertRequests.add(item.id);
+  chatQueueInsertErrors.delete(item.id);
+  renderChatQueue(chatQueueCache[cid]);
   chatQueueApi(
     "/api/chat/queue/" + encodeURIComponent(item.id) + "/insert",
     {
@@ -213,9 +217,15 @@ function queueInsert(item) {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({conversation_id: cid}),
     }
-  ).then(function () { return loadChatQueue(cid); }).catch(function (err) {
-    if (window.DEBUG) console.error("[queue] insert failed", err);
-    loadChatQueue(cid);
+  ).catch(function (err) {
+    chatQueueInsertErrors.set(item.id, err.message);
+    if (chatQueueInsertErrors.size > 64) {
+      chatQueueInsertErrors.delete(chatQueueInsertErrors.keys().next().value);
+    }
+  }).finally(function () {
+    chatQueueInsertRequests.delete(item.id);
+    if (chatQueueCid() === cid) renderChatQueue(chatQueueCache[cid]);
+    return loadChatQueue(cid);
   });
 }
 

@@ -15,6 +15,7 @@ from agent.core.event_name import (
     TOOL_SUSPENDED,
 )
 from agent.core.module import ModuleBase
+from agent.core.modules.queued_input_mod import insertion_waiting
 from agent.core.modules.tool_facts import (
     clip_tool_result,
     pending_tool_calls,
@@ -23,6 +24,7 @@ from agent.core.modules.tool_facts import (
 )
 from agent.core.outcome import Outcome
 from agent.core.ports import Ports
+from agent.core.state_values import TOOL_CANCEL_INPUT_INSERTED, TOOL_CANCEL_INPUT_INSERTED_TEXT
 from agent.core.state_values import (
     TOOL_CANCELED as TOOL_STATUS_CANCELED,
 )
@@ -86,11 +88,16 @@ class ToolModule(ModuleBase):
     name = "tool"
     requires = ("tool_port",)
 
+    def __init__(self, *, queued_input: Any = None) -> None:
+        self._queued_input = queued_input
+
     def _cancel_rest(self, ports: Ports, pending, start: int,
                      reason: str) -> Iterator[Any]:
+        details = ({"error": TOOL_CANCEL_INPUT_INSERTED_TEXT}
+                   if reason == TOOL_CANCEL_INPUT_INSERTED else {})
         for rest in pending[start:]:
             yield ports.emit(TOOL_CANCELED, call_id=rest.call_id,
-                             name=rest.name, reason=reason, elapsed_s=0.0)
+                             name=rest.name, reason=reason, elapsed_s=0.0, **details)
             yield ports.emit(TOOL_ENDED, call_id=rest.call_id, name=rest.name,
                              status=TOOL_STATUS_CANCELED, elapsed_ms=0, elapsed_s=0.0)
 
@@ -130,6 +137,9 @@ class ToolModule(ModuleBase):
             if ports.canceled():
                 yield from self._cancel_rest(ports, pending, index, "user_stop")
                 return Outcome.stopped("用户请求停止")
+            if insertion_waiting(self._queued_input, ports.conversation_id):
+                yield from self._cancel_rest(ports, pending, index, TOOL_CANCEL_INPUT_INSERTED)
+                return Outcome.next()
             started = perf_counter()
             yield ports.emit(TOOL_STARTED, call_id=call.call_id, name=call.name,
                              arguments=dict(call.arguments))

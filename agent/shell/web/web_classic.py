@@ -72,15 +72,17 @@ class ClassicRoutes:
         # 没有游标就不续传：经典界面各自 `GET /api/chat/history` 渲染已有内容，
         # 适配层再回放一遍就是重复气泡。
         cursor = classic.cursor_of(self.headers, query)
-        if cursor >= 0:
-            channel.resume(cursor)
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
+        ready = False
         try:
+            if cursor >= 0:
+                channel.resume(cursor)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            ready = True
             if hasattr(self.wfile, "flush"):
                 self.wfile.write(b": connected\n\n")
                 self.wfile.flush()
@@ -88,7 +90,8 @@ class ClassicRoutes:
                 payload = channel.next_payload()
                 self.wfile.write(payload.encode("utf-8"))
                 self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
-            return
+        except OSError:
+            if not ready:
+                raise
         finally:
             channel.close()   # 摘掉本连接的广播队列，避免长跑进程里堆积

@@ -401,6 +401,8 @@ class CompactionContext(_Case):
         whole = rows + tail
 
         dialogue = [r for r in rows if str(r.get("role")) != "system"]
+        first_reply = next(row for row in dialogue if row.get("role") == "assistant")
+        first_reply["reasoning_content"] = "压缩素材保留的推理"
         p, _ = make_pipe(summaries=summaries, dialogue=dialogue)
         spy = _Spy()
         comp = ContextCompactor(make_provider_summarizer(spy, max_chars=200),
@@ -414,6 +416,8 @@ class CompactionContext(_Case):
         self.check("压缩请求 = 头部 + 第一轮 + 指令",
                    shape(whole[:head + 2]) + " | INSTRUCTION",
                    shape(spy.reqs[0].messages))
+        self.assertIn("压缩素材保留的推理", [
+            row.get("reasoning_content") for row in spy.reqs[0].messages])
 
     def test_user_path_drops_new_input(self) -> None:
         spy, whole, head, tail = self._request()
@@ -1605,7 +1609,7 @@ class LayoutWithHead(_Case):
         p.append_system(SYS)
         p.set_plugin_segments(PluginSegments(
             items=[("rules", "Rules", "【规则】甲"), ("rules", "Rules", "【规则】乙")],
-            counts=[2, 1],
+            counts=[2, 0],
         ))
         p.set_dialogue(dlg(1), covered_end=0)
         rows = [r for r in p.segment_tokens() if r["key"] == "plugin:rules"]
@@ -1924,20 +1928,29 @@ class RemainingCapacityTest(unittest.TestCase):
                     summary_token_threshold = 100000
                 return _Compactor()
 
-        laid = compute_context_layout(_App(), [stale], "cid-kb-overlay")
+        app = _App()
+        laid = compute_context_layout(app, [stale], "cid-kb-overlay")
         labels = [row["label"] for row in laid["segments"]]
         self.assertEqual(labels, ["系统提示词", "知识库", "剩余容量"])
         kb = next(row for row in laid["segments"] if row["key"] == "plugin:knowledge")
         self.assertEqual(kb["count"], 1)
         self.assertGreater(kb["tokens"], 0)
+        fresh = make_event("context_segments", _seq=20, segments=[
+            {"key": "full_recent", "tokens": 64417, "count": 5},
+        ])
+        latest = compute_context_layout(app, [fresh], "cid-kb-overlay")
+        self.assertEqual(latest["snapshot_seq"], 20)
+        recent = next(row for row in latest["segments"] if row["key"] == "full_recent")
+        self.assertEqual((recent["count"], recent["tokens"]), (5, 64417))
 
     def test_overlay_merges_same_key_and_label(self) -> None:
         """刷新时的插件段重算也要按 key+label 合并，不能绕过管线再拆成两行。"""
         from agent.mechanisms.context import ContextSources, SourceMeta
         from agent.shell.classic_adapter.layout import _overlay_plugin_segments
         sources = ContextSources()
-        sources.add(lambda cid: ["甲", "乙"],
-                    SourceMeta(key="rules", label="Rules", count=lambda cid: 2))
+        sources.add(lambda cid: ["甲", "乙"], SourceMeta(key="rules", label="Rules"))
+        sources.add(lambda cid: ["丙", "丁"],
+                    SourceMeta(key="rules", label="Rules", count=lambda cid: 5))
 
         class _App:
             context_sources = sources
@@ -1958,7 +1971,7 @@ class RemainingCapacityTest(unittest.TestCase):
         out = _overlay_plugin_segments(_App(), "cid-overlay-rules", payload)
         rows = [r for r in out["segments"] if r["key"] == "plugin:rules"]
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["count"], 2)
+        self.assertEqual(rows[0]["count"], 7)
         self.assertGreater(rows[0]["tokens"], 0)
 
     def test_rescale_falls_back_when_budget_unknown(self) -> None:
@@ -1991,7 +2004,7 @@ class PluginSegmentCountAlignmentTest(unittest.TestCase):
         self.assertEqual([label for _key, label, _t in got.items],
                          ["有自报口", "两条正文", "两条正文", "空的"],
                          msg=f"实际拿到 {[(k, l) for k, l, _ in got.items]}")
-        # 自报数只贴在该来源的第一条上；同一来源的其余条按条数算；
+        # 自报数只记一次；没有自报数的来源按正文条数计。
         # 空来源仍占一段（示意图可见），数量用自报值。
         self.assertEqual(got.counts, (7, 1, 1, 3))
         self.assertEqual(got.items[-1][2], "", msg="空来源正文应为空串占位")

@@ -49,9 +49,9 @@ class ClassicStream(ToolFrames, TurnFrames):
         # 用注入的解析器现场取（adapter 从 live_state / provider 拿）。
         self.mode_resolver = mode_resolver
         self.model_resolver = model_resolver
-        #: 上下文分段快照的计算者（装配方注入）。内核不产出 `context_layout`
-        #: 事实，按分工由消费方（`_on_context_compacted`）计算。
+        #: 没有实时分段快照时，在收尾读取已存的快照。
         self.layout_resolver = layout_resolver
+        self._has_context_snapshot = False
         self._step_had_llm = False   # 本步是否发过 llm_round（决定要不要补 llm_done）
         self._tools_in_step = 0
         # 这一次 translate 调用对应的存储坐标（落盘旁路标的 `_seq`）。

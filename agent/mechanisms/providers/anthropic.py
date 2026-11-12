@@ -118,46 +118,17 @@ def _meta_blocks(m: Mapping[str, Any]) -> List[Dict[str, str]]:
     for block in blocks:
         if not isinstance(block, dict):
             continue
+        if block.get("type") == "redacted_thinking":
+            data = block.get("data")
+            if isinstance(data, str) and data:
+                out.append({"type": "redacted_thinking", "data": data})
+            continue
         thinking = block.get("thinking")
         signature = block.get("signature")
         # 文本允许为空：有的模型（如旧名 deepseek-chat）思考块正文就是空串，
         # 但块本身仍必须原样回传（见下方 `_consume_block_stop` 的同一条约束）。
         if isinstance(thinking, str) and isinstance(signature, str) and signature:
             out.append({"thinking": thinking, "signature": signature})
-    return out
-
-
-def strip_stale_thinking(messages: List[Any], turn_start: Optional[int]) -> List[Any]:
-    """只保留本回合（下标 >= `turn_start`）的 thinking 块。
-
-    跨用户轮重放旧签名没有意义，还可能因为签名过期被拒。缺 `signature` 的块同样丢弃
-    并留一条降级日志——留着它一定会被 API 拒绝，丢块最多损失一点推理上下文。
-    """
-    cut = max(0, int(turn_start or 0))
-    out: List[Any] = []
-    dropped = 0
-    for index, m in enumerate(messages):
-        if not isinstance(m, dict):
-            continue
-        item = dict(m)
-        raw = item.get("provider_meta")
-        if isinstance(raw, dict):
-            vendor = raw.get(_META_VENDOR)
-            if isinstance(vendor, dict):
-                blocks = vendor.get(_META_BLOCKS)
-                if index < cut:
-                    # 跨轮：整段 thinking 不重放，provider_meta 也不再下发
-                    vendor = {k: v for k, v in vendor.items() if k != _META_BLOCKS}
-                elif isinstance(blocks, list):
-                    kept = _meta_blocks(item)
-                    dropped += max(0, len(blocks) - len(kept))
-                    vendor = {k: v for k, v in vendor.items() if k != _META_BLOCKS}
-                    if kept:
-                        vendor[_META_BLOCKS] = kept
-                item["provider_meta"] = {**raw, _META_VENDOR: vendor}
-        out.append(item)
-    if dropped:
-        _warn(f"丢弃了 {dropped} 个缺 signature 的 thinking 块（无法安全重放）")
     return out
 
 
@@ -277,15 +248,14 @@ def _tool_result_content(content: Any) -> Any:
     return "（工具没有返回内容）"
 
 
-def _to_anthropic_messages(messages: List[Any], turn_start: Optional[int],
-                           *, keep_thinking: bool = True) -> List[Dict[str, Any]]:
+def _to_anthropic_messages(messages: List[Any], *, keep_thinking: bool = True) -> List[Dict[str, Any]]:
     """逻辑消息 → Anthropic 线格式消息（system 另行提取，不在这里）。
 
     `keep_thinking=False` 时一条 thinking 块都不下发：思考关闭时带着思考块，
     官方端点会拒（"thinking is not enabled"）；DeepSeek 兼容层虽然忽略，
     也没有重放的意义。
     """
-    cleaned = drop_dangling_tool_results(strip_stale_thinking(messages, turn_start))
+    cleaned = drop_dangling_tool_results(messages)
     ids_per_message, id_queues = _assistant_tool_ids(cleaned)
     out: List[Dict[str, Any]] = []
 
@@ -451,6 +421,11 @@ class AnthropicProvider(ModelProvider):
             return False
         return True
 
+    def requires_full_reasoning(self, request: Any) -> bool:
+        # Thinking is sent as signed blocks; budget their full visible text.
+        budget = self.thinking_budget_tokens
+        return self.thinking and _MIN_THINKING_BUDGET <= budget < self.max_tokens
+
     def build_payload(self, request: Any) -> Dict[str, Any]:
         """逻辑请求 → Messages 请求体（单测直接断言这个形状）。"""
         model = str(getattr(request, "model", "") or "").strip() or self.model
@@ -468,7 +443,7 @@ class AnthropicProvider(ModelProvider):
             "max_tokens": self.max_tokens,
             "stream": True,
             "messages": _to_anthropic_messages(
-                raw_messages, turn_start, keep_thinking=thinking_on),
+                raw_messages, keep_thinking=thinking_on),
         }
         system = _system_text(raw_messages)
         if system:
@@ -565,6 +540,10 @@ def _consume_block_start(data: Dict[str, Any],
     block["type"] = block_type
     block["id"] = str(raw.get("id") or "")
     block["name"] = str(raw.get("name") or "")
+    if block_type == "redacted_thinking":
+        block["data"] = raw.get("data")
+    if block_type == "thinking" and isinstance(raw.get("signature"), str):
+        block["signature"] = raw["signature"]
     blocks[index] = block
     initial = raw.get("text")
     if block_type == "text" and isinstance(initial, str) and initial:
@@ -612,6 +591,10 @@ def _consume_block_stop(data: Dict[str, Any],
     if block.get("type") == "tool_use":
         calls.append((index, _tool_call(block.get("id"), block.get("name"),
                                         block.get("json"))))
+    elif block.get("type") == "redacted_thinking":
+        payload = block.get("data")
+        if isinstance(payload, str) and payload:
+            thinking.append({"type": "redacted_thinking", "data": payload})
     elif block.get("type") == "thinking":
         text = str(block.get("thinking") or "")
         sig = str(block.get("signature") or "")
@@ -663,8 +646,7 @@ def _assemble_deltas(chunks: Iterable[Dict[str, Any]]) -> Iterator[StreamDelta]:
 
     if stop_reason:
         _warn(_stop_reason_note(stop_reason))
-    if thinking and calls:
-        # 只有"要带工具继续这一回合"时才需要回传签名；纯文本回答没有回传落点。
+    if thinking:
         yield StreamDelta(kind="meta", meta={_META_VENDOR: {_META_BLOCKS: thinking}})
     for _index, call in sorted(calls, key=lambda item: item[0]):
         yield StreamDelta(kind="tool_call", tool_call=call)

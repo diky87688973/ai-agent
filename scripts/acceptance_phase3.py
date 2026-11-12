@@ -91,7 +91,9 @@ class Acceptance:
         self.check("插件报告全 loaded", all(reports.get(n) == "loaded" for n in ALL_PLUGINS), str(reports))
         self.check("已加载名单一致", app.plugin_host.loaded_names() == sorted(ALL_PLUGINS), str(app.plugin_host.loaded_names()))
         subs = self.subs_total(app)
-        self.check("AI角色扮演事件订阅已挂（=2）", subs == 2, f"subs={subs}")
+        # ai_cosplay 只订阅 turn_ended：错误事件不再接线，模型失败与护栏触顶
+        # 走 halted 但不应终止已合成的语音。
+        self.check("AI角色扮演事件订阅已挂（=1）", subs == 1, f"subs={subs}")
         self.check("AI角色扮演工具已注册", app.registry.get("ai_speek") is not None)
         self.check("AI角色扮演运行时已登记",
                    app.plugin_host.runtime("ai_cosplay") is not None)

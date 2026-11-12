@@ -5,11 +5,23 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from agent.core.modules.mode_note import mode_tail, strip_runtime_note
+from agent.core.ports import LogicalRequest
+
+
+def reasoning_budget_for(ports: Any, model: str, dialogue: list, tools: list) -> int | None:
+    """Only override the configured cap when the selected protocol requires full replay."""
+    model_port = getattr(ports, "model_port", None)
+    check = getattr(model_port, "requires_full_reasoning", None)
+    if callable(check) and check(LogicalRequest(
+            messages=dialogue, tools=tools, model=model,
+            conversation_id=ports.conversation_id)):
+        return -1
+    return None
 
 
 def assemble_with(context: Any, dialogue: Any, mode_note: str,
                    covered_end: int, *,
-                   include_summary: bool = True) -> Optional[List[Dict[str, Any]]]:
+                   include_summary: bool = True, reasoning_budget: int | None = None) -> Optional[List[Dict[str, Any]]]:
     """把对话装进上下文并装配出整份请求消息（头部 + 对话 + 尾部）。
 
     上下文缺能力（没实现 `set_dialogue` / `assembles`）时返回 None ——
@@ -19,7 +31,8 @@ def assemble_with(context: Any, dialogue: Any, mode_note: str,
         return None
     if not (hasattr(context, "set_dialogue") and hasattr(context, "assembles")):
         return None
-    context.set_dialogue(strip_runtime_note(dialogue), covered_end=covered_end)
+    options = {} if reasoning_budget is None else {"reasoning_budget": reasoning_budget}
+    context.set_dialogue(strip_runtime_note(dialogue), covered_end=covered_end, **options)
     note = str(mode_note or "").strip()
     tail = [{"role": "system", "content": note}] if note else []
     if include_summary:

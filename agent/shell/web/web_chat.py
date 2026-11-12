@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Tuple
 
+from agent.core.error_report import report_error
 from agent.core.input_attachments import normalize_images
 from agent.mechanisms.conversation_queue import QueueError
 from agent.mechanisms.session_store import is_valid_conversation_id, new_conversation_id
@@ -16,36 +17,20 @@ class ChatActions:
     def _send_draft(self, cid: str, text: str, attachments: Any, draft_id: str) -> Tuple[int, Dict[str, Any]]:
         """重发已召回草稿；身份由队列项决定。"""
         try:
-            item = self.app.conversation_queue.resubmit_draft(
-                cid, draft_id, content=text, attachments=attachments,
-            )
+            result = self.app.mesh.submit_user(
+                cid, {"content": text, "attachments": attachments}, draft_id=draft_id)
         except QueueError as exc:
             return 409, {"ok": False, "error": str(exc)}
-        if self.app.mesh.is_running(cid):
-            return 200, {
-                "ok": True, "conversation_id": cid, "run_id": "",
-                "queued": True, "queue_item": item,
-                "revision": self.app.conversation_queue.revision(cid),
-            }
-        claimed = self.app.conversation_queue.claim_item(cid, item["id"])
-        if claimed is None:
-            return 409, {"ok": False, "error": "消息已不在队列"}
-        sender = claimed.get("sender") if isinstance(claimed.get("sender"), dict) else None
-        start_payload: Dict[str, Any] = {
-            "content": str(claimed.get("content") or ""),
-            "attachments": claimed.get("attachments") or None,
+        return self._user_send_response(cid, result["run_id"], result["queue_item"])
+
+    def _user_send_response(self, cid: str, started: str, item: Any) -> Tuple[int, Dict[str, Any]]:
+        if started:
+            self._remember_run(cid, started)
+        return 200, {
+            "ok": True, "conversation_id": cid, "run_id": started,
+            "queued": not bool(started), "via_inbox": True, "queue_item": item,
+            "revision": self.app.conversation_queue.revision(cid),
         }
-        if sender:
-            start_payload["_sender"] = sender.get("cid")
-            start_payload["_sender_name"] = sender.get("name")
-        started = self.app.runner.start(cid, start_payload)
-        if not started:
-            self.app.conversation_queue.release(cid, item["id"])
-            return 503, {"ok": False, "error": "会话启动失败"}
-        self._remember_run(cid, started)
-        self.app.conversation_queue.complete(cid, item["id"])
-        return 200, {"ok": True, "conversation_id": cid,
-                     "run_id": started, "queued": False}
 
     def send(
         self,
@@ -96,28 +81,11 @@ class ChatActions:
         if attachments:
             payload["attachments"] = attachments
         try:
-            result = self.app.mesh.submit(cid, payload)
+            result = self.app.mesh.submit(cid, payload, user_send=True)
         except QueueError as exc:
             return 503, {"ok": False, "error": str(exc)}
-        if result.get("queued"):
-            return 200, {
-                "ok": True,
-                "conversation_id": cid,
-                "run_id": "",
-                "queued": True,
-                "queue_item": result.get("queue_item"),
-                "revision": self.app.conversation_queue.revision(cid),
-            }
-        started = str(result.get("run_id") or "")
-        if not started:
-            return 503, {"error": "会话启动失败"}
-        self._remember_run(cid, started)
-        return 200, {
-            "ok": True,
-            "conversation_id": cid,
-            "run_id": started,
-            "queued": False,
-        }
+        return self._user_send_response(
+            cid, str(result.get("run_id") or ""), result.get("queue_item"))
 
     def queue(self, cid: str) -> Tuple[int, Dict[str, Any]]:
         cid = str(cid or "").strip()
@@ -130,30 +98,15 @@ class ChatActions:
         if not cid or not is_valid_conversation_id(cid):
             return 400, {"ok": False, "error": "invalid conversation_id"}
         try:
-            item = self.app.conversation_queue.set_insert(cid, item_id)
-            if not self.app.mesh.is_running(cid):
-                claimed = self.app.conversation_queue.claim_item(cid, item_id)
-                if claimed is not None:
-                    sender = claimed.get("sender") if isinstance(claimed.get("sender"), dict) else None
-                    payload: Dict[str, Any] = {
-                        "content": str(claimed.get("content") or ""),
-                        "attachments": claimed.get("attachments") or None,
-                    }
-                    if sender:
-                        payload["_sender"] = sender.get("cid")
-                        payload["_sender_name"] = sender.get("name")
-                    started = self.app.runner.start(cid, payload)
-                    if not started:
-                        self.app.conversation_queue.release(cid, item_id)
-                        return 503, {"ok": False, "error": "会话启动失败"}
-                    self._remember_run(cid, started)
-                    self.app.conversation_queue.complete(cid, item_id)
-                    return 200, {"ok": True, "run_id": started,
-                                 "revision": self.app.conversation_queue.revision(cid)}
+            self.app.mesh.promote_insert(cid, item_id)
         except QueueError as exc:
             return 409, {"ok": False, "error": str(exc)}
-        return 200, {"ok": True, "item": item,
-                     "revision": self.app.conversation_queue.revision(cid)}
+        except OSError as exc:
+            report_error("web.queue_insert", exc, conversation_id=cid)
+            return 503, {"ok": False, "error": "插入消息暂未派发，请查看待发送队列"}
+        snapshot = self.app.conversation_queue.list(cid)
+        item = next((row for row in snapshot["items"] if row["id"] == item_id), None)
+        return 200, {"ok": True, "item": item, "revision": snapshot["revision"]}
 
     def queue_recall(self, cid: str, item_id: str) -> Tuple[int, Dict[str, Any]]:
         cid = str(cid or "").strip()
@@ -215,7 +168,10 @@ class ChatActions:
             return 400, {"error": "missing conversation_id"}
         run_id = self.active_run(cid)
         runner = self.app.runner
-        requested = bool(runner.request_cancel(cid)) if runner is not None else False
+        try:
+            requested = bool(runner.request_cancel(cid)) if runner is not None else False
+        except OSError:
+            return 503, {"ok": False, "error": "确认终态未保存，请重试停止"}
         return 200, {
             "stop_requested": requested,
             "conversation_id": cid,

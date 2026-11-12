@@ -252,11 +252,15 @@ class ApprovalConfirmTest(_TaskToolsBase):
 
         from agent.core.engine import Engine
         from agent.core.events import Event
-        from agent.core.session_context import SessionContext
+        from agent.mechanisms.mesh import MeshState
+        from agent.mechanisms.session_store import SessionStore
+        from agent.shell.session.runner import SessionRunner
 
-        ctx = SessionContext(conversation_id=CID)
+        store = SessionStore(self.root / "sessions")
+        runner = SessionRunner(app=self.app, mesh=MeshState(), store_for=lambda _cid: store)
+        ctx = self.app.session_contexts.resolve_sync(CID)
         engine = Engine(conversation_id=CID, modules=[], session_context=ctx)
-        engine._remember_suspend(Event("tool_suspended", {
+        suspended = Event("tool_suspended", {
             "call_id": "c1",
             "envelope": {
                 "kind": "approval",
@@ -264,12 +268,16 @@ class ApprovalConfirmTest(_TaskToolsBase):
                 "option_id": "video-1",
                 "option_desc": "是否准许生成视频？",
             },
-        }))
+        })
+        engine._remember_suspend(suspended)
+        store.append(CID, [suspended])
         self.assertEqual(ctx.pending_confirm["kind"], "approval")
         self.assertEqual(ctx.pending_confirm["option_id"], "video-1")
         aid = ctx.grant_approval("video-1")
-        engine._remember_suspend(Event("turn_ended", {"paused": False}))
+
+        self.assertFalse(runner._execute_round(CID, "", engine=engine))
         self.assertIsNone(ctx.pending_confirm)
+        self.assertIn("tool_failed", [event.type for event in store.load(CID)])
         self.assertEqual(ctx.approvals[aid], "video-1")
 
 class TaskGoalTest(_TaskToolsBase):

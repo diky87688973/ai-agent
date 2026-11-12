@@ -28,6 +28,7 @@ from agent.core.session_log import SessionLog
 from agent.core.slot_lifecycle import SlotRequest
 from agent.mechanisms.quality import QualityGate
 from agent.shell.service_keys import SERVICE_RUNNER
+from agent.shell.session.queue import persist_inputs
 
 
 def get_plugins(plugins_path=None):
@@ -156,9 +157,6 @@ class App(AppModelPolicy, AppServices):
 
     def _prepare_session(self, conversation_id: str, session_store: Any,
                          system_prompt: str) -> tuple[Any, Any, Any]:
-        log = SessionLog()
-        if session_store is not None and conversation_id:
-            log = SessionLog(events=session_store.load(conversation_id))
         context = None
         context_factory = self.context_factory
         if context_factory is not None:
@@ -172,8 +170,19 @@ class App(AppModelPolicy, AppServices):
         compactor_factory = self.compactor_factory
         if compactor_factory is not None:
             compactor = compactor_factory(conversation_id)
-            if compactor is not None:
-                compactor.restore_from_events(list(log.events))
+        log = SessionLog()
+        covered = 0
+        if session_store is not None and conversation_id:
+            load = getattr(session_store, "load_for_turn", None)
+            if callable(load):
+                events, covered = load(conversation_id, compacted=context is not None and hasattr(compactor, "loaded_prefix"))
+            else:
+                events = session_store.load(conversation_id)
+            log = SessionLog(events=events)
+        if compactor is not None:
+            compactor.restore_from_events(log.events)
+            if covered:
+                compactor.loaded_prefix = covered
         threshold = self.compression_threshold_for(conversation_id)
         if context is not None and hasattr(context, "summary_token_threshold"):
             context.summary_token_threshold = threshold
@@ -214,11 +223,14 @@ class App(AppModelPolicy, AppServices):
             conversation_id, session_store)
         model_name = self.model_for(conversation_id)
         loop = self._kernel_group.loop_config
+        queue_commit = None
+        if callable(getattr(session_store, "append_if_absent", None)):
+            queue_commit = lambda cid, items: persist_inputs(cid, self, session_store, items)
         modules = self._kernel_group.build_modules(
             ModuleBuildContext(
                 context=context, compactor=compactor,
                 context_hooks=self.context_hooks,
-                queued_input=self.conversation_queue, effort=effort,
+                queued_input=self.conversation_queue, queue_commit=queue_commit, effort=effort,
                 model=model_name, image_turns=loop.image_turns,
                 image_max=loop.image_max, mode_note=mode_note,
             ),
@@ -285,61 +297,60 @@ class App(AppModelPolicy, AppServices):
 
 
     def resume_suspended(
-        self,
-        conversation_id: str,
-        call_id: str,
-        data: Any,
-        *,
-        ok: bool = True,
-        name: str = "",
-        error: str = "",
+        self, conversation_id: str, call_id: str, data: Any = None, *,
+        request_id: str = "", kind: str = "", ok: bool = True,
+        name: str = "", error: str = "", resolve: Any = None,
     ) -> Dict[str, Any]:
-        """把外部确认结果写回挂起调用并恢复回合。
+        """Validate and settle the specific confirmation before scheduling a turn."""
+        from agent.shell.session.resume import (
+            EXPIRED,
+            confirmation_store,
+            dispatch_confirmation,
+            load_pending,
+            notify_closed,
+            write_resolution,
+        )
 
-        只接受当前会话 ``pending_confirm`` 里登记的 ``call_id``；插件确认端点
-        不直接写会话事实，由运行器在恢复回合时拼成唯一一条 tool_result。
-        """
         cid = str(conversation_id or "").strip()
         ident = str(call_id or "").strip()
-        if not cid:
-            return {"ok": False, "error": "缺少 conversation_id"}
-        if not ident:
-            return {"ok": False, "error": "缺少 call_id"}
         contexts = self.session_contexts
-        if contexts is None:
-            return {"ok": False, "error": "会话注册表不可用"}
+        if not cid or not ident or not request_id or contexts is None:
+            return {"ok": False, "expired": True, "error": EXPIRED}
         session = contexts.resolve_sync(cid)
-        pending = getattr(session, "pending_confirm", None)
-        if not isinstance(pending, dict) or str(pending.get("call_id") or "") != ident:
-            return {"ok": False, "error": "没有匹配的挂起调用"}
-        pending_snapshot = dict(pending)
-        session.pending_confirm = None
-        payload: Dict[str, Any] = {
-            "content": "",
-            "attachments": [],
-            "mode": "",
-            "model": "",
-            "resume": {
-                "call_id": ident,
-                "ok": bool(ok),
-                "name": str(name or ""),
-                "data": data,
-                "error": str(error or ""),
-            },
-        }
+        store = confirmation_store(self, cid)
+        resolution = {"ok": ok, "data": data, "error": error}
         try:
-            result = self.mesh.submit(cid, payload)
+            with session.confirmation_lock:
+                pending = load_pending(session, store, cid)
+                if (not pending or pending["call_id"] != ident
+                        or (pending.get("request_id") or ident) != request_id
+                        or (kind and pending.get("kind") != kind)):
+                    return {"ok": False, "expired": True, "error": EXPIRED}
+                if self.mesh is None:
+                    return {"ok": False, "error": "会话运行器不可用"}
+                if self.mesh.is_stopped(cid):
+                    return {"ok": False, "error": "会话已终止，请先发送新消息"}
+                if resolve is not None:
+                    resolution = resolve(session, pending)
+                    if resolution.get("rejected"):
+                        return {"ok": False, "error": resolution["error"]}
+                written = write_resolution(store, cid, ident, name or pending.get("name", ""),
+                                           resolution, request_id=request_id, continue_after=True)
+                session.pending_confirm = None
         except Exception as exc:
-            session.pending_confirm = pending_snapshot
-            report_error("agent.app.resume_suspended", exc)
-            return {"ok": False, "error": str(exc)}
-        return {
-            "ok": True,
-            "conversation_id": cid,
-            "call_id": ident,
-            "queued": bool(result.get("queued")),
-            "run_id": str(result.get("run_id") or ""),
-        }
+            rollback = resolution.get("rollback")
+            if callable(rollback):
+                rollback()
+            report_error("agent.app.resume_suspended", exc, conversation_id=cid)
+            return {"ok": False, "error": "确认结果未保存，请重试"}
+        if not written:
+            rollback = resolution.get("rollback")
+            if callable(rollback):
+                rollback()
+            return {"ok": False, "expired": True, "error": EXPIRED}
+        notify_closed(self, cid, pending, expired=False)
+        return {**dispatch_confirmation(self, cid, ident, request_id),
+                **resolution.get("response", {})}
 
 
 

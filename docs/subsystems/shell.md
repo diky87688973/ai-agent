@@ -127,11 +127,25 @@ Missing model configuration does not block startup: the service starts with `Mis
 | `/api/settings/plugin-file` | Write a plugin's editable sections; the rest of the file is preserved |
 | `/api/settings/pick-dir` | Open the system directory picker (Windows) |
 
+User confirmations and approvals require the card's `conversation_id`, `call_id`, and `request_id`. Use `confirm` for the user's text, including an empty string to cancel, or `approval` with `agree` or `reject`. Visual consent uses the endpoint declared by the card and submits the same identifiers with `choice`. Missing identifiers return HTTP 400. Expired, settled, or mismatched requests return HTTP 409 with `expired: true`. Write-plan confirmation continues to use `confirm_id`.
+
+`confirmation_closed` is a live-only SSE event keyed by `conversation_id`, `call_id`, and `request_id`. History and `GET /api/chat/ui-state?confirmation_ids=<cid,...>` can recover unresolved confirmations from stored `tool_suspended` facts without creating session state. Inbox uses `_inbox_user_send` on the queue item to route explicit user input and `_queue_item_id` on the `input_claimed` fact to deduplicate persistence.
+
+The suspension is persisted before the card is published. Closing the application preserves unanswered suspensions.
+
+`POST /api/chat/stop` also works while the session is waiting for confirmation. It records a failed outcome and closes the matching card through SSE. If that write fails while the session is idle, the endpoint returns HTTP 503 and preserves the pending confirmation so the stop can be retried.
+
+A saved confirmation may return `resume_pending: true` if its continuation
+could not be scheduled. Resubmit the same identifiers to `POST /api/chat/user-confirm`
+with `retry_resume: true`. This retries dispatch only. A subsequent turn makes the
+retry stale. Failed queue inserts can be retried from the queue row without editing
+or deleting the queued item.
+
 #### DELETE
 
 | Path | Purpose |
 |---|---|
-| `/api/chat/sessions` | Close a session and release its in-process runtime (the session log is untouched) |
+| `/api/chat/sessions` | Close a session tab and release its in-process runtime. The session log and persisted stop state are retained. |
 | `/api/chat/queue/<id>` | Cancel an unsent queued message |
 | `/api/plugin/<plugin>/…` | Plugin endpoints |
 

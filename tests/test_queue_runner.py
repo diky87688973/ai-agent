@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sys
+import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -11,13 +13,17 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from agent.core.events import Event  # noqa: E402
+from agent.core.session_context import SessionContext  # noqa: E402
 from agent.mechanisms.conversation_queue import ConversationQueue  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
+from agent.mechanisms.session_store import SessionStore  # noqa: E402
 from agent.shell.session.runner import SessionRunner  # noqa: E402
 
 
-class _Session:
-    pending_confirm = {"call_id": "confirm-1"}
+class _Session(SessionContext):
+    def __init__(self):
+        super().__init__(pending_confirm={"call_id": "confirm-1"})
 
 
 class _Contexts:
@@ -28,8 +34,8 @@ class _Contexts:
         return self.session
 
 
-class _IdleSession:
-    pending_confirm = None
+class _IdleSession(SessionContext):
+    pass
 
 
 class _IdleContexts:
@@ -62,7 +68,7 @@ class PausedQueueTest(unittest.TestCase):
         runner._execute = execute  # type: ignore[method-assign]
         queue.enqueue(cid, content="queued")
         self.assertTrue(mesh.try_begin_run(cid))
-        runner._run_loop(cid, "start")
+        runner._run_loop(cid, "")
         self.assertEqual(rounds["n"], 1)
         self.assertEqual(queue.size(cid), 1)
         self.assertFalse(mesh.is_running(cid))
@@ -79,6 +85,7 @@ class PausedQueueTest(unittest.TestCase):
         def execute(c, text, attachments=None, resume=None, sender=None,
                     from_queue=False, meta=None):
             rounds["n"] += 1
+            app.session_contexts = _Contexts()
             return True
 
         runner._execute = execute  # type: ignore[method-assign]
@@ -90,15 +97,88 @@ class PausedQueueTest(unittest.TestCase):
         self.assertFalse(mesh.is_running(cid))
 
 
+    def test_round_end_settles_confirmation_only_when_not_paused(self) -> None:
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as directory:
+            scenarios = ((False, False, False), (True, False, False),
+                         (True, True, False), (True, False, True))
+            for paused, shutdown, stopped in scenarios:
+                with self.subTest(paused=paused, shutdown=shutdown, stopped=stopped):
+                    cid = f"confirmation-round-{paused}-{shutdown}-{stopped}"
+                    queue = ConversationQueue()
+                    app = _App(queue)
+                    app.store = SessionStore(Path(directory))
+                    app.store.append(cid, [Event("tool_suspended", {"call_id": "confirm-1"})])
+                    runner = SessionRunner(app=app, mesh=MeshState(input_queue=queue))
+                    engine = SimpleNamespace(start_turn=lambda *_args, paused=paused, **_kwargs: iter([
+                        Event("turn_ended", {"paused": paused}),
+                    ]))
+                    if shutdown:
+                        runner._cancels[cid] = threading.Event()
+                        self.assertTrue(runner.shutdown())
+                    if stopped:
+                        runner._mesh.mark_stopped(cid)
+
+                    self.assertEqual(runner._execute_round(cid, "", engine=engine), paused)
+                    facts = [event.type for event in app.store.load(cid)]
+                    if paused and not stopped:
+                        self.assertIsNotNone(app.session_contexts.session.pending_confirm)
+                        self.assertEqual(facts, ["tool_suspended"])
+                    else:
+                        self.assertIsNone(app.session_contexts.session.pending_confirm)
+                        self.assertEqual(facts, ["tool_suspended", "tool_failed", "tool_ended"])
+
     def test_new_input_cancels_pending_confirm(self) -> None:
-        cid = "paused-queue-03"
-        queue = ConversationQueue()
-        mesh = MeshState(input_queue=queue)
-        app = _App(queue)
-        runner = SessionRunner(app=app, mesh=mesh)
-        self.assertEqual(runner._cancel_pending_for_new_input(cid), "confirm-1")
-        session = app.session_contexts.resolve_sync(cid)
-        self.assertIsNone(session.pending_confirm)
+        """All input sources settle the suspension before recording the new input."""
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        from agent.boot.shell_components import _notice_handler, wake_scheduler
+        from agent.shell.session import queue as input_queue
+        from agent.subagent.messaging import SubagentMessenger
+
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        root = Path(folder.name)
+        for source in ("user", "background", "peer", "wake"):
+            with self.subTest(source=source):
+                cid = f"pending-{source}-01"
+                inbox = ConversationQueue()
+                mesh = MeshState(input_queue=inbox)
+                app = _App(inbox)
+                app.mesh = mesh
+                app.context = SimpleNamespace(has=lambda _key: False)
+                app.store = SessionStore(root / source)
+                app.store.append(cid, [Event("tool_suspended", {"call_id": "confirm-1"})])
+                runner = SessionRunner(app=app, mesh=mesh, store_for=lambda _cid, store=app.store: store)
+                self.addCleanup(runner.shutdown)
+
+                def execute(_cid, *_args, inbox=inbox, app=app, **_kwargs):
+                    for item in inbox.claim_insert_batch(_cid):
+                        input_queue.persist_inputs(_cid, app, app.store, [item])
+
+                runner._execute = execute
+                mesh.set_activator(runner.start)
+                if source == "user":
+                    mesh.submit(cid, {"content": "new input"}, user_send=True)
+                elif source == "background":
+                    _notice_handler(app)(cid, "background", {"kind": "system_notice"})
+                elif source == "peer":
+                    repo = SimpleNamespace(record=lambda child, cid=cid: SimpleNamespace(
+                        parent_cid=cid, child_id=child, label="peer"))
+                    SubagentMessenger(repository=repo, mesh=mesh).send_to_parent("peer-child", msg="peer")
+                else:
+                    ctx = SimpleNamespace(boot_config=SimpleNamespace(data_root=root / source))
+                    scheduler = wake_scheduler(ctx, app)
+                    job = scheduler.schedule_seconds(1, target_cid=cid, owner_cid=cid, reminder="wake")
+                    scheduler.run_due(job["due_at"])
+                self.assertTrue(runner.wait_idle(cid, timeout=3))
+                events = app.store.load(cid)
+                self.assertEqual([e.type for e in events],
+                                 ["tool_suspended", "tool_failed", "tool_ended", "input_claimed"])
+                self.assertEqual(events[1].data["error"], "无结果：用户未作答")
+                self.assertIsNone(app.session_contexts.resolve_sync(cid).pending_confirm)
 
     def test_insertion_keeps_busy_start_but_next_queued_round_resets_it(self) -> None:
         cid = "paused-queue-04"
@@ -191,6 +271,29 @@ class InsertDeliveryTest(unittest.TestCase):
         self.assertEqual(claimed[0]["payload"]["notice_id"], "notice-1")
         mesh.end_run(cid)
 
+    def test_failed_batch_claim_keeps_items_visible_and_retryable(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as directory:
+            queue = ConversationQueue(Path(directory))
+            cid = "batch-claim-fail"
+            first = queue.enqueue(cid, content="first")
+            second = queue.enqueue(cid, content="second")
+            queue.set_insert(cid, first["id"])
+            write = queue._write_item
+
+            def fail_second(item, *args):
+                if item["id"] == second["id"] and item["state"] == "claimed":
+                    raise OSError("disk full")
+                return write(item, *args)
+
+            with patch.object(queue, "_write_item", side_effect=fail_second), self.assertRaises(OSError):
+                queue.claim_insert_batch(cid, resume_all=True)
+            self.assertEqual([item["state"] for item in queue.list(cid)["items"]], ["inserting", "queued"])
+            reopened = ConversationQueue(Path(directory))
+            self.assertEqual([item["content"] for item in reopened.claim_insert_batch(cid, resume_all=True)],
+                             ["first", "second"])
+
     def test_idle_insert_starts_one_queue_driven_run(self) -> None:
         cid = "insert-idle-0001"
         queue = ConversationQueue()
@@ -213,6 +316,63 @@ class InsertDeliveryTest(unittest.TestCase):
         self.assertEqual(claimed[0]["content"], "notice")
         self.assertEqual(claimed[0]["payload"]["kind"], "system_notice")
         mesh.end_run(cid)
+
+    def test_stop_holds_queue_until_explicit_send(self) -> None:
+        cid = "stop-handoff-01"
+        queue = ConversationQueue()
+        mesh = MeshState(input_queue=queue)
+        app = _App(queue)
+        app.session_contexts = _IdleContexts()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        app.store = SessionStore(Path(folder.name))
+        runner = SessionRunner(app=app, mesh=mesh, store_for=lambda _cid: app.store)
+        self.addCleanup(runner.shutdown)
+        mesh.set_activator(runner.start)
+        entered = threading.Event()
+        finish = threading.Event()
+        self.addCleanup(finish.set)
+        delivered = threading.Event()
+        inputs = []
+
+        def execute(_cid, text, attachments=None, resume=None, sender=None,
+                    from_queue=False, meta=None):
+            inputs.append(text)
+            if text == "first":
+                entered.set()
+                finish.wait(3)
+            else:
+                inputs.extend(e.data["content"] for e in app.store.load(cid))
+                delivered.set()
+
+        runner._execute = execute
+        self.assertTrue(runner.start(cid, {"content": "first"}))
+        self.assertTrue(entered.wait(2))
+        self.assertTrue(runner.request_cancel(cid))
+        insert = queue.enqueue(cid, content="context")
+        queue.set_insert(cid, insert["id"])
+        mesh.activate_inserts(cid)
+        self.assertTrue(mesh.submit(cid, {"content": "ordinary"})["queued"])
+        finish.set()
+        self.assertTrue(runner.wait_idle(cid, timeout=3))
+        self.assertFalse(delivered.is_set())
+        self.assertEqual(app.store.load(cid), [])
+        self.assertEqual(queue.size(cid), 2)
+        self.assertTrue(mesh.is_stopped(cid))
+        late = mesh.submit(cid, {"content": "convert while stopped"})["queue_item"]
+        queue.set_insert(cid, late["id"])
+        mesh.activate_inserts(cid)
+        self.assertEqual(app.store.load(cid), [])
+        self.assertFalse(mesh.is_running(cid))
+
+        result = mesh.submit(cid, {"content": "new user input"}, user_send=True)
+        self.assertTrue(result["run_id"])
+        self.assertTrue(delivered.wait(3))
+        self.assertTrue(runner.wait_idle(cid, timeout=3))
+        self.assertEqual(inputs, ["first", "", "context", "convert while stopped",
+                                  "ordinary", "new user input"])
+        self.assertFalse(mesh.is_stopped(cid))
+        self.assertEqual(queue.size(cid), 0)
 
     def test_late_insert_is_consumed_by_finishing_runner(self) -> None:
         cid = "insert-finish-01"

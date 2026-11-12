@@ -134,7 +134,7 @@ def known_kinds() -> tuple[str, ...]
 3. `kind` 未知时抛 `ValueError(kind)`，由调用方决定是"跳过该条目"还是"启动失败"。
 4. 选项键由各构造器自己解释；注册表只做分发与过滤。每种 kind 有白名单，
    配置里多写一个键不会让构造器因 `unexpected keyword` 报错：
-   - `openai`：`base_url`、`api_key`、`model`、`timeout`、`replay_history_reasoning`、`extra_headers`；
+   - `openai`：`base_url`、`api_key`、`model`、`timeout`、`extra_headers`；
    - `anthropic`：`base_url`、`api_key`、`model`、`max_tokens`、`thinking`、`thinking_budget_tokens`、`anthropic_version`、`timeout`、`extra_headers`。
    值为 `None` 的键被丢掉，让构造器用自己的默认值。
 
@@ -229,10 +229,9 @@ class AnthropicProvider(ModelProvider):
    （`low` / `high` / `max`）。适配器不下发 `output_config`：Messages 端点会拒绝这个未知字段，
    而同一个适配器要服务两套协议。因此 `LogicalRequest.effort` 对本适配器不生效，
    网关侧取服务端默认（`high`）；要按档位调深度，就用同一模型的 Chat Completions 条目。
-4. 思考模式 + 工具调用：两套协议都要求把本回合带 `tool_use` 的 assistant 消息里的 thinking 块
-   原样回传。跨回合不要求回传，所以 `strip_stale_thinking` 只留本回合。本回合块丢了且补不回来
-   （签名缺失被丢弃，或历史来自另一协议条目）时，`_tool_turn_missing_thinking` 让本次请求
-   关掉 thinking，避免会话永久打不开。
+4. 开启思考时，仍在请求历史中的 Anthropic 思考块跨轮原样回传。若当前工具轮缺少可回传的块，
+   `_tool_turn_missing_thinking` 会关闭本次请求的 thinking。DeepSeek 官方 Chat Completions
+   请求携带工具时，完整回传 `reasoning_content`。
 5. `tools` 为空时不下发 `tools` 与 `tool_choice`。
 6. `max_tokens` 是该 API 的必填项；条目没覆盖时用构造参数默认值。
 7. `input_schema` 必须是带 `type` 的 object schema。`ToolRegistry.schemas()` 给的 `parameters`
@@ -249,9 +248,8 @@ class AnthropicProvider(ModelProvider):
 拆成纯函数与最后的拼装两步，避免把「忠实折叠」和「下游硬约束修补」混在一处：
 
 ```python
-def strip_stale_thinking(messages, turn_start): ...   # 只留本回合的 thinking 块
 def drop_dangling_tool_results(messages): ...          # 删掉没有对应 tool_use 的 tool_result
-def _to_anthropic_messages(messages, turn_start, *, keep_thinking=True): ...
+def _to_anthropic_messages(messages, *, keep_thinking=True): ...
 ```
 
 映射表：
@@ -263,7 +261,7 @@ def _to_anthropic_messages(messages, turn_start, *, keep_thinking=True): ...
 | `role=user` 且 `content` 为多模态数组 | `text` 原样；`image_url` 的 data URL 拆成 `{type:"image", source:{type:"base64", media_type, data}}`，http(s) URL 转成 `url` 源 |
 | `role=assistant` | `content` 非空时产出 `text` 块；`tool_calls` 逐个产出 `tool_use` 块 |
 | `role=tool` | 转成 `role:"user"` 且 `content:[{type:"tool_result", tool_use_id, content}]` |
-| assistant 的 `provider_meta.anthropic.thinking_blocks` | 仅当该消息下标 `>= turn_start` 且本次请求开启 thinking 时，按原顺序插到 content 最前 |
+| assistant 的 `provider_meta.anthropic.thinking_blocks` | 本次请求开启 thinking 时，按原顺序插到 content 最前 |
 
 修补规则（都是纯函数，可单测）：
 
@@ -274,7 +272,7 @@ def _to_anthropic_messages(messages, turn_start, *, keep_thinking=True): ...
 5. 没有对应 `tool_use` 的 `tool_result` 丢弃：留着会被 API 拒绝，整段会话打不开。
 6. 同一请求内 `tool_use.id` 重复时，从第二次起追加 `_2`、`_3` 后缀；
    assistant 的 `tool_use` 与对应的 `tool_result` 必须同时改名，否则配对断裂。
-7. `turn_start` 之前的 assistant 消息不带 thinking 块；thinking 关闭时任何消息都不带。
+7. thinking 开启时跨轮回传原块，关闭时不下发这些块。
 
 ### 7.3 流事件映射
 
@@ -306,9 +304,8 @@ SSE 按行解析 `data:` 载荷。事件类型取载荷里的 `data.type`，不�
 固定顺序，便于模型模块按类型收集：
 
 1. 文本与推理增量边到边出（流中实时产出，不攒列表）。
-2. `kind="meta"`：仅当本回合有 thinking 块且存在工具调用时产出，
-   载荷为 `{"anthropic": {"thinking_blocks": [...]}}`。没有工具调用时签名无处回传，
-   不必落盘。
+2. `kind="meta"`：收到可回传的思考块时产出，载荷为
+   `{"anthropic": {"thinking_blocks": [...]}}`，供以后请求使用。
 3. `kind="tool_call"`：按块 `index` 升序逐个产出。
 4. `kind="usage"`：映射后的用量；所有字段都为 0 时不产出。
 
@@ -355,8 +352,8 @@ Messages 的 extended thinking 在带工具的同轮循环里要求把 thinking 
    assistant 消息。读方与写方引用同一个常量，不各写一遍字符串。
 4. `agent/mechanisms/providers/openai.py` 的 `_to_wire_messages` 必须
    `msg.pop(PROVIDER_META_KEY, None)`，避免未知字段发给 Chat Completions 网关。
-5. 回放范围：只有消息下标 `>= request.turn_start` 时才带 thinking 块；
-   跨用户轮直接丢弃，防止历史请求带上过期签名。
+5. 回放范围：保留在请求历史中的签名思考块和 `redacted_thinking` 原样回传。
+   `request.turn_start` 用于检查当前工具轮是否缺块。
 
 `provider_meta` 的约束：
 
@@ -696,7 +693,7 @@ window.aiAgentShell.styles = {
 2. 消息转换：system 合并到顶层、连续 `tool_result` 合并、图片 data URL 与 http(s) URL、
    assistant `tool_calls`、前导 assistant 被丢弃、悬空 `tool_result` 被丢弃、
    重复 `tool_use.id` 加后缀且配对同步改名。
-3. `provider_meta` 只在本回合回放，跨回合丢弃；thinking 关闭时不下发任何块；
+3. 签名和 `redacted_thinking` 块跨回合原样回放；thinking 关闭时不下发任何块；
    缺签名的 thinking 块被跳过并留警告。
 4. 地址构造、HTTP 错误映射、`thinking` 预算不足时降级为关闭。
 5. 事件类型只认 `data.type`：删掉 `event:` 行后仍能正确解析。
@@ -774,7 +771,7 @@ BOM 文件可读、`context_window` 必填且 `compression_percent` 校验范围
 | 只读视图真不可变 | 条目存规范化 JSON；`options` 与 `snapshot` 返回副本与元组 | 改返回值后重读不变 |
 | 少用 `Any` | `provider_for` 返回 `ModelProvider` 或 `None`；选项是唯一的字典 | 审 |
 | 一物一名 | 函数按职责命名，不用有两种含义的缩写 | 审 |
-| 折叠与修补分离 | `strip_stale_thinking` / `drop_dangling_tool_results` 都是纯函数 | 单测 |
+| 折叠与修补分离 | `drop_dangling_tool_results` 是纯函数 | 单测 |
 | 契约版本化 | `provider_meta` 为可选新增键，旧日志免迁移 | 文档 + 单测 |
 | 终态穷尽 | `model_config_state` 三态；`/health` 显式暴露 | 验收 |
 | 真流式 | 文本/推理增量边到边出，不攒列表 | 审 |

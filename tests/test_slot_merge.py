@@ -643,14 +643,14 @@ class RealRepoTest(unittest.TestCase):
         config = load_merged(ROOT)
         factories = {spec.factory for path, spec in config.specs.items()
                      if path.startswith("app/plugins/ai_cosplay/") and spec.factory}
-        self.assertEqual(len(factories), 8)
+        self.assertEqual(len(factories), 7)
         for factory in sorted(factories):
             with self.subTest(factory=factory):
                 name = factory.partition(":")[2]
                 self.assertTrue(callable(getattr(module, name, None)), name)
 
     def test_ai_cosplay_fragment_shape(self) -> None:
-        """片段形状：runtime 1 / tool 1 / route 3 / event 2 / provider 1。"""
+        """片段形状：runtime 1 / tool 1 / route 3 / event 1 / provider 1。"""
         config = load_merged(ROOT)
         own = [spec for path, spec in config.specs.items()
                if path.startswith("app/plugins/ai_cosplay/")]
@@ -658,7 +658,7 @@ class RealRepoTest(unittest.TestCase):
         self.assertEqual(counts["runtime"], 1)
         self.assertEqual(counts["tool"], 1)
         self.assertEqual(counts["route"], 3)
-        self.assertEqual(counts["event"], 2)
+        self.assertEqual(counts["event"], 1)
         self.assertEqual(counts["provider"], 1)
         self.assertEqual(counts["container"], 4)
         # 必须真的在字典里且为空元组：`.get(..., ())` 会把「未声明」也当成空，
@@ -676,12 +676,12 @@ class RealRepoTest(unittest.TestCase):
                                    "played": "POST"})
 
     def test_ai_cosplay_event_names_come_from_constants(self) -> None:
-        """两个 event 节点的事件名必须是 event_name 里的常量值。"""
+        """event 节点的事件名必须是 event_name 里的常量值。"""
         config = load_merged(ROOT)
         names = {path.rsplit("/", 1)[-1]
                  for path in config.specs
                  if path.startswith("app/plugins/ai_cosplay/events/")}
-        self.assertEqual(names, {ev.TURN_ENDED, ev.ERROR})
+        self.assertEqual(names, {ev.TURN_ENDED})
         self.assertTrue(names <= slot_spec.EVENT_NAMES)
 
     def test_ai_cosplay_panel_is_ui_control(self) -> None:
@@ -723,19 +723,20 @@ class RealRepoTest(unittest.TestCase):
         self.assertEqual(runtime.owner, "visual_operator")
 
     def test_visual_operator_2_fragment_shape(self) -> None:
-        """28 个声明节点：runtime 1 / tool 20 / route 4 / provider 2 + 1 条 provides。"""
+        """29 个声明节点：runtime 1 / tool 20 / route 4 / provider 2 / event 1 + 1 条 provides。"""
         config = load_merged(ROOT)
         prefix = "app/plugins/visual_operator_2/"
         own = {path: spec for path, spec in config.specs.items()
                if path.startswith(prefix)}
         declared = {path: spec for path, spec in own.items()
                     if spec.kind != "container"}
-        self.assertEqual(len(declared), 27)
+        self.assertEqual(len(declared), 28)
         counts = collections.Counter(spec.kind for spec in declared.values())
         self.assertEqual(counts["runtime"], 1)
         self.assertEqual(counts["tool"], 20)
         self.assertEqual(counts["route"], 4)
         self.assertEqual(counts["provider"], 2)
+        self.assertEqual(counts["event"], 1)
         button = config.specs["app/shell/web-ui/input/buttons/visual_btn"]
         self.assertEqual(button.kind, "ui-control")
         self.assertEqual(button.order, 60)
@@ -770,7 +771,7 @@ class RealRepoTest(unittest.TestCase):
                     self.assertEqual(dict(spec.requires),
                                      {"runtime": prefix + "runtime"})
                 factories.add(spec.factory)
-        self.assertEqual(len(factories), 27)
+        self.assertEqual(len(factories), 28)
 
     def test_visual_operator_2_prompt_slots_semantics(self) -> None:
         """钩子落 user-messages、提示词段落 system-appends，且 after_tools 保留。"""

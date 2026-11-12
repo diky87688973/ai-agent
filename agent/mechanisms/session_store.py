@@ -13,11 +13,13 @@
 """
 from __future__ import annotations
 
+import heapq
 import json
 import os
 import re
 import threading
 import uuid
+from itertools import islice
 from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
 
@@ -29,6 +31,7 @@ from agent.mechanisms.session_crypto import (
     MAGIC,
     SessionCipher,
 )
+from agent.mechanisms.session_fact_index import FactIndex, FactIndexes
 from agent.mechanisms.session_lines import (
     KEY_DATA,
     KEY_TYPE,
@@ -38,6 +41,8 @@ from agent.mechanisms.session_lines import (
     seq_from_obj,
 )
 from agent.mechanisms.session_locking import cross_process_lock
+from agent.mechanisms.session_sequence import SessionSequence
+from agent.mechanisms.session_snapshot import SessionSnapshots, read_turn_delta
 
 __all__ = [
     "ALG_LOCAL",
@@ -101,7 +106,7 @@ class SessionStore:
             self.data_root, self.encryption, key_path=key_path,
         )
         # 全局存储坐标（跨会话单调递增）。见 `allocate_seq`。
-        self._next_global_seq: Optional[int] = None
+        self._sequence = SessionSequence(self.data_root / "session" / "fact-sequence.sqlite3", self._scan_max_seq)
         self._max_observed: int = -1
         self._seq_lock = threading.Lock()
         # 按文件的写锁：`append` 是"读旧内容 → 写 tmp → replace"的读改写，
@@ -113,12 +118,8 @@ class SessionStore:
         # 回合级引擎每回合新建，挂在那里会随 GC 丢光）。
         # 只承诺"同一进程内不丢"：进程重启后磁盘不可写这段本来也无处可存。
         self._pending: dict = {}
-        #: 进程内已成功写过的坐标（按会话）—— 见 `_written_seqs`
-        self._written: dict = {}
-        #: 播种/写入时记下的文件指纹（按会话）：`(st_size, st_mtime_ns)`。
-        #: 用来发现「文件被外部动过」（清空/截断/别的进程写了）——见 `_written_seqs`。
-        self._written_fp: dict = {}
-        self._written_guard = threading.Lock()
+        self._snapshots = SessionSnapshots()
+        self._indexes = FactIndexes(self._parse_obj)
         self._pending_guard = threading.Lock()
 
     def _append_lock(self, path: Path):
@@ -130,6 +131,13 @@ class SessionStore:
                 lock = threading.Lock()
                 self._file_locks[key] = lock
             return lock
+
+    def fact_matches(self, conversation_id: str, **filters: Any) -> List[Event]:
+        """Read only fact rows selected by their indexed metadata."""
+        path = self.raw_path(conversation_id)
+        with self._append_lock(path), cross_process_lock(path):
+            index = self._indexes.current(path)
+            return index.read(index.lookup(**filters))
 
     # ── 存储坐标（全局单调）────────────────────────────────
     #
@@ -147,32 +155,15 @@ class SessionStore:
         if target in self._scan_dirs:
             return
         self._scan_dirs.append(target)
-        with self._seq_lock:
-            self._next_global_seq = None
 
     def allocate_seq(self, count: int) -> int:
-        """预留 `count` 个连续坐标，返回第一个。
-
-        子会话 store 通过 `sequence_source` 复用主 store 的全局坐标，
-        避免两个日志目录各自从 0 发号。
-
-        首次调用时扫一遍现有日志播种（见 `_scan_max_seq`）——否则重启后会从 0
-        重新发号，与磁盘上已有的坐标撞号。
-
-        护栏：播种只在首次做，而磁盘可能被别的进程改过。
-        所以分配前对比"本实例读过或分配过的最大号"（`_max_observed`），
-        发现计数器落后就重扫纠正 —— 内存计数器与磁盘是第二个权威，
-        不设这道护栏就会与磁盘漂移。
-        """
+        """Reserve globally unique coordinates shared by CLI, Web and child stores."""
         need = max(0, int(count))
         if self._sequence_source is not None:
             return self._sequence_source.allocate_seq(need)
         with self._seq_lock:
-            if self._next_global_seq is None or self._next_global_seq <= self._max_observed:
-                self._next_global_seq = self._scan_max_seq() + 1
-            start = self._next_global_seq
-            self._next_global_seq = start + need
-            self._max_observed = self._next_global_seq - 1
+            start = self._sequence.reserve(need, self._max_observed)
+            self._observe(start + need - 1)
             return start
 
     def _observe(self, seq: int) -> None:
@@ -180,38 +171,23 @@ class SessionStore:
         if seq > self._max_observed:
             self._max_observed = seq
 
-    def _scan_max_seq(self) -> int:
-        """扫所有会话日志，取已被占用的最大坐标；没有则 -1。
-
-        两类都要算进去：
-          ① 落盘的 `seq` 字段（全局坐标）；
-          ② 每会话行数（没有 `seq` 的行，读取时会按 0..n-1 的位置补号）。
-        漏掉 ② 就会让新号与补号撞上——那时一个游标分不清"这是补号还是
-        全局号"，续传就会漏帧。取行数上限（而非行数之和）是保守够用的下界：
-        没有 `seq` 的行之间本来就可能重号（每个文件都从 0 起），那不影响游标前进，
-        真正要防的是新号落进那些补号的区间。
-        """
-        highest = -1
-        for directory in [self.sessions_dir, *self._scan_dirs]:
-            if not directory.is_dir():
-                continue
+    def _raw_files(self):
+        for directory in dict.fromkeys([self.sessions_dir, *self._scan_dirs]):
             for path in directory.glob("*.raw"):
-                lines = 0
-                try:
-                    with path.open("r", encoding="utf-8", errors="replace") as fh:
-                        for line in fh:
-                            if not line.strip():
-                                continue
-                            lines += 1
-                            obj = self._parse_obj(line)
-                            seq = seq_from_obj(obj)
-                            if seq is not None and seq > highest:
-                                highest = seq
-                except OSError as exc:
-                    report_error("agent.mechanisms.session_store.SessionStore._scan_max_seq", exc)
-                    continue
-                if lines - 1 > highest:
-                    highest = lines - 1
+                if is_valid_conversation_id(path.stem):
+                    yield path
+
+    def prepare_indexes(self) -> None:
+        """Build existing large-log indexes on a background worker."""
+        self._indexes.prepare(path for path in self._raw_files()
+                              if not path.with_suffix(".facts.sqlite3").exists())
+
+    def _scan_max_seq(self) -> int:
+        """Find the sequence watermark from metadata, without loading event bodies."""
+        highest = -1
+        for path in self._raw_files():
+            seq, lines = self._indexes.current(path).cursor()
+            highest = max(highest, seq, lines - 1)
         return highest
 
     # ── 路径────────────────────────────────
@@ -272,11 +248,14 @@ class SessionStore:
         conversation_id: str,
         should_skip: Callable[[List[Event]], bool],
         events: Iterable[Event],
+        *,
+        retry_pending: bool = True,
+        lookup: dict,
+        select_missing: Optional[Callable[[List[Event], List[Event]], List[Event]]] = None,
     ) -> int:
         """在同一把跨进程锁内完成「查重 + 追加」；已存在返回 0。
 
-        `should_skip` 看到的是锁内的完整事件列表。调用方不能用
-        `load()` 之后再 `append()`：两步之间另一个进程已写入，就会重复落事实。
+        `lookup` 指定只需核对的事实。查重和追加共享同一把会话写锁。
         """
         batch = list(events)
         if not batch:
@@ -286,20 +265,21 @@ class SessionStore:
         with self._append_lock(path), cross_process_lock(path):
             # 查重谓词不是写操作：它抛错时不能把事件塞进待重试队列，
             # 否则下一次 append 会把从未尝试写入的事实写出去。
-            skip = should_skip(self.load(conversation_id))
-            if skip:
+            index = self._indexes.current(path)
+            existing = index.read(index.lookup(**lookup))
+            if should_skip(existing):
                 return 0
-            try:
-                rows = self._render_rows(conversation_id, batch)
-                if not rows:
+            if select_missing is not None:
+                batch = select_missing(existing, batch)
+                if not batch:
                     return 0
-                self._append_rows_locked(path, rows)
+            try:
+                written = self._append_indexed(path, index, batch)
             except Exception as exc:
-                self._pending_write(conversation_id, batch, exc)
+                if retry_pending:
+                    self._pending_write(conversation_id, batch, exc)
                 raise
-        with self._written_guard:
-            self._written_fp[conversation_id] = self._file_fp(path)
-        return len(rows)
+        return written
 
     # ── 待重试队列（跨回合存活）──────────────────────────
     #
@@ -351,48 +331,12 @@ class SessionStore:
                     s = event_seq(e)
                     if s is not None:
                         known.add(s)
-        on_disk = self._disk_seqs(conversation_id)
         out: list = []
         for e in batch:
             s = event_seq(e)
-            if s is None or (s not in known and s not in on_disk):
+            if s is None or (s not in known):
                 out.append(e)
         return out
-
-    def _written_seqs(self, conversation_id: str) -> set:
-        """进程内已成功写过的坐标（按会话）。首次访问读盘播种一次。
-
-        `_disk_seqs` 每趟 append 都整读会话文件 ——
-        11MB 会话上单条 append 要 238.6ms（关掉读盘比对只要 3.9ms，放大 60.8 倍），
-        而一个回合会调好几次 append，等于每回合多秒级阻塞。
-        而同一事实写两次是同进程内的重发问题（`_pending` 也只承诺同进程），
-        所以进程内记一份就够；文件里既有的坐标由第一次读盘播种。
-        """
-        path = self.raw_path(conversation_id)
-        fp = self._file_fp(path)
-        with self._written_guard:
-            known = self._written.get(conversation_id)
-            if known is None or self._written_fp.get(conversation_id) != fp:
-                # 首次访问、或文件被外部动过（清空/截断/别的进程写了）→ 重新播种。
-                # 只做一次 `stat()`，不读全文（读全文才是那个 238ms 的元凶）。
-                known = self._disk_seqs(conversation_id)
-                self._written[conversation_id] = known
-                self._written_fp[conversation_id] = fp
-            return known
-
-    @staticmethod
-    def _file_fp(path: Path):
-        """文件指纹 `(st_size, st_mtime_ns)`；不存在则 `None`。
-
-        `st_mtime_ns` 在 truncate 到 0 字节时也会变，所以这对指纹能可靠地
-        发现「文件被外部清空/截断/替换」—— 那是纯外部动作，
-        任何"失败即整桶失效"的机制都覆盖不到。
-        """
-        try:
-            st = path.stat()
-            return (st.st_size, st.st_mtime_ns)
-        except OSError:
-            return None
 
     @staticmethod
     def _last_good_end(path: Path) -> int:
@@ -415,15 +359,18 @@ class SessionStore:
                     return size                     # 正常：以换行收尾
                 chunk = 64 * 1024
                 pos = size
-                while pos > 0:
-                    start = max(0, pos - chunk)
+                floor = max(0, size - 4 * 1024 * 1024)
+                while pos > floor:
+                    start = max(floor, pos - chunk)
                     fh.seek(start)
                     buf = fh.read(pos - start)
                     idx = buf.rfind(b"\n")
                     if idx >= 0:
                         return start + idx + 1       # 换行之后就是残行起点
                     pos = start
-                return 0                             # 整个文件就是一条残行
+                if floor == 0:
+                    return 0
+                return size  # The damaged tail exceeds the repair window.
         except OSError:
             # 旁路，刻意吞掉：读不出来就「不修」—— 修文件不该让写入失败，
             # 而「不修」的后果只是那一条残行继续留着（有防御性换行保证不粘批）。
@@ -431,28 +378,6 @@ class SessionStore:
                 return path.stat().st_size
             except OSError:
                 return 0
-
-    def _disk_seqs(self, conversation_id: str) -> set:
-        """盘上已有的 `_seq` 集合（读不出来就当空 —— 调用方还有第二道防线）。"""
-        path = self.raw_path(conversation_id)
-        if not path.is_file():
-            return set()
-        out: set = set()
-        try:
-            with path.open("r", encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    if not line.strip():
-                        continue
-                    obj = self._parse_obj(line)
-                    seq = seq_from_obj(obj) if obj is not None else None
-                    if isinstance(seq, int):
-                        out.add(seq)
-        except Exception as exc:
-            # 补偿路径：若让异常逃出去会顶掉原始异常、且队列为空 —— 第二道防线被击穿。
-            # 读不出来就当"盘上没有已知坐标"（宁可重试也不丢），但必须留痕。
-            report_error("agent.mechanisms.session_store.SessionStore._disk_seqs", exc)
-            return set()
-        return out
 
     def _take_pending(self, conversation_id: str) -> list:
         """取出并清空该会话的待重试事实（保持顺序：旧的在前）。"""
@@ -489,11 +414,12 @@ class SessionStore:
                 "agent.mechanisms.session_store.SessionStore._put_pending",
                 RuntimeError(f"待重试队列超过 {_PENDING_MAX_BATCHES} 批，丢弃最旧 {dropped} 批"))
 
-    def _render_rows(self, conversation_id: str, rows_events: list) -> list[str]:
+    def _render_rows(self, rows_events: list, index: FactIndex) -> tuple[list[str], list]:
         missing = sum(1 for e in rows_events if event_seq(e) is None)
         fallback = self.allocate_seq(missing) if missing else 0
         rows: list[str] = []
-        on_disk = self._written_seqs(conversation_id)
+        selected = []
+        on_disk = index.known_sequences({seq for e in rows_events if (seq := event_seq(e)) is not None})
         for event in rows_events:
             seq = event_seq(event)
             if seq is None:
@@ -505,17 +431,31 @@ class SessionStore:
             else:
                 on_disk.add(seq)
             rows.append(self._encrypt_line(event_to_json(event)))
-        return rows
+            selected.append(event)
+        return rows, selected
 
-    def _append_rows(self, path: Path, rows: list[str]) -> None:
-        with self._append_lock(path), cross_process_lock(path):
-            self._append_rows_locked(path, rows)
+    def _append_indexed(self, path: Path, index: FactIndex, events: list) -> int:
+        rows, selected = self._render_rows(events, index)
+        if not rows:
+            return 0
+        start = self._append_rows_locked(path, rows)
+        try:
+            index.record_append(start, rows, selected)
+        except Exception as exc:
+            # Raw is already committed. The index catches up from its last offset.
+            report_error("session_store.record_index", exc)
+        return len(rows)
 
-    def _append_rows_locked(self, path: Path, rows: list[str]) -> None:
+    def _append_rows_locked(self, path: Path, rows: list[str]) -> int:
         offset = path.stat().st_size if path.is_file() else 0
         try:
             with path.open("a", encoding="utf-8", newline="\n") as fh:
                 good_end = self._last_good_end(path) if offset > 0 else 0
+                if offset and good_end == offset:
+                    with path.open("rb") as check:
+                        check.seek(-1, os.SEEK_END)
+                        if check.read(1) != b"\n":
+                            raise OSError("会话日志残行超过安全修复窗口")
                 if 0 <= good_end < offset:
                     try:
                         with path.open("r+b") as tf:
@@ -523,12 +463,14 @@ class SessionStore:
                             tf.flush()
                     except OSError:
                         fh.write("\n")
+                        good_end = offset + 1
                 for row in rows:
                     fh.write(row)
                     fh.write("\n")
                 fh.flush()
                 if self.durable:
                     os.fsync(fh.fileno())
+            return good_end
         except Exception:
             try:
                 if path.is_file() and path.stat().st_size > offset:
@@ -542,9 +484,6 @@ class SessionStore:
     def _pending_write(self, conversation_id: str, rows_events: list,
                        exc: Exception) -> None:
         report_error("agent.mechanisms.session_store.SessionStore._write_rows", exc)
-        with self._written_guard:
-            self._written.pop(conversation_id, None)
-            self._written_fp.pop(conversation_id, None)
         self._put_pending(conversation_id, rows_events)
 
     def _write_rows(self, conversation_id: str, rows_events: list,
@@ -555,34 +494,33 @@ class SessionStore:
         try:
             path = self.raw_path(conversation_id)
             path.parent.mkdir(parents=True, exist_ok=True)
-            rows = self._render_rows(conversation_id, rows_events)
-            if not rows:
-                return requested
-            self._append_rows(path, rows)
+            with self._append_lock(path), cross_process_lock(path):
+                self._append_indexed(path, self._indexes.current(path), rows_events)
         except Exception as exc:
             self._pending_write(conversation_id, rows_events, exc)
             raise
-        with self._written_guard:
-            self._written_fp[conversation_id] = self._file_fp(
-                self.raw_path(conversation_id))
         return requested if requested else len(rows_events)
 
     def line_count(self, conversation_id: str, *, path: Optional[Path] = None) -> int:
-        """该会话日志的行数（= 下一个可用序号）；文件不存在返回 0。"""
+        """Return the indexed number of nonblank lines."""
         target = path or self.raw_path(conversation_id)
-        if not target.is_file():
-            return 0
-        count = 0
-        try:
-            with target.open("r", encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    if line.strip():
-                        count += 1
-        except OSError:
-            return 0
-        return count
+        return self._indexes.current(target).cursor()[1]
 
     # ── 读取────────────────────────────────────────
+
+    def load_for_turn(self, conversation_id: str, *, compacted: bool = False) -> tuple[List[Event], int]:
+        """Restore live model facts directly from a durable compaction boundary."""
+        path = self.raw_path(conversation_id)
+        index = self._indexes.current(path) if compacted else None
+        start, covered = index.model_checkpoint() if index is not None else (0, 0)
+        events = self._snapshots.load(path, lambda offset, end, lines: read_turn_delta(
+            path, conversation_id, offset, end, lines, self._parse_obj, self._observe), start=start)
+        if index is not None and not covered:
+            try:
+                index.remember_legacy_checkpoint(events)
+            except Exception as exc:
+                report_error("session_store.legacy_checkpoint", exc, conversation_id=conversation_id)
+        return events, covered
 
     def load(self, conversation_id: str) -> List[Event]:
         """读回全部事件；坏行 / 空行跳过，文件缺失返回空；IO 失败冒泡。"""
@@ -621,37 +559,64 @@ class SessionStore:
                 position += 1
         return out
 
-    def tail_from(self, conversation_id: str, after_seq: int) -> List[Tuple[int, Event]]:
-        """取该会话里 `seq > after_seq` 的事件（断线续传用）。
+    def title_facts(self, conversation_id: str) -> List[Event]:
+        path = self.raw_path(conversation_id)
+        index = self._indexes.current(path)
+        return index.read(index.title())
 
-        全局坐标下，一个游标对所有会话都成立，所以传哪个会话都只是在缩小范围；
-        `after_seq < 0` 等价于"该会话全量"。
-        """
-        threshold = int(after_seq)
-        return [(seq, event) for seq, event in self.load_with_seq(conversation_id)
-                if seq > threshold]
+    def image_facts(self, conversation_id: str, ident: str) -> tuple[List[Event], bool]:
+        path = self.raw_path(conversation_id)
+        index = self._indexes.current(path)
+        rows, already = index.image_facts(ident)
+        return index.read(rows), already
+
+    def session_exists(self, conversation_id: str) -> bool:
+        """Existence checks need only file metadata."""
+        if not is_valid_conversation_id(conversation_id):
+            return False
+        try:
+            return self.raw_path(conversation_id).stat().st_size > 0
+        except FileNotFoundError:
+            return False
+
+    def history_window(self, conversation_id: str, before: int | None = None,
+                       rounds: int = 16) -> tuple[list[tuple[int, Event]], bool]:
+        path = self.raw_path(conversation_id)
+        rows, older = self._indexes.current(path).history(before, rounds)
+        return list(self._read_replay(path, rows)), older
+
+    def _read_replay(self, path: Path, rows: Iterable[tuple[int, int, int]]):
+        rows = list(rows)
+        if not rows:
+            return
+        with path.open("rb") as raw:
+            for seq, pos, size in rows:
+                raw.seek(pos)
+                obj = self._parse_obj(raw.read(size).decode("utf-8", errors="replace"))
+                event = event_from_obj(obj, path.stem)
+                if event is not None:
+                    self._observe(seq)
+                    yield seq, event
+
+    def tail_from(self, conversation_id: str, after_seq: int) -> List[Tuple[int, Event]]:
+        """Read a bounded batch of this session's events after the cursor."""
+        path = self.raw_path(conversation_id)
+        rows = self._indexes.current(path).replay(int(after_seq), 512, frozenset())
+        return list(self._read_replay(path, rows))
 
     def tail_across(self, after_seq: int, limit: int = 512, *,
                     exclude_types: frozenset[str] = frozenset()) -> List[Tuple[int, str, Event]]:
-        """跨会话取 `seq > after_seq` 的事件，按坐标升序（真正的续传原语）。
-
-        返回 `(seq, conversation_id, event)`。`limit` 兜住"游标很旧"的情况——
-        宁可分几批补，也不一次把上万条塞进一条连接的队列。
-        """
-        threshold = int(after_seq)
-        rows: List[Tuple[int, str, Event]] = []
-        for directory in [self.sessions_dir, *self._scan_dirs]:
-            if not directory.is_dir():
-                continue
-            for path in directory.glob("*.raw"):
-                cid = path.stem
-                if not is_valid_conversation_id(cid):
-                    continue
-                for seq, event in self._load_path(path, cid):
-                    if seq > threshold and event.type not in exclude_types:
-                        rows.append((seq, cid, event))
-        rows.sort(key=lambda row: row[0])
-        return rows[: max(1, int(limit))] if limit else rows
+        """Merge indexed positions before reading the bounded replay payload."""
+        count = max(1, min(int(limit), 4096))
+        batches = []
+        for path in self._raw_files():
+            rows = self._indexes.current(path).replay(int(after_seq), count, exclude_types)
+            batches.append([(seq, str(path), pos, size) for seq, pos, size in rows])
+        result = []
+        for seq, path_text, pos, size in islice(heapq.merge(*batches), count):
+            path = Path(path_text)
+            result.extend((s, path.stem, event) for s, event in self._read_replay(path, [(seq, pos, size)]))
+        return result
 
     # ── 加密入口──────────────────────────────────
 

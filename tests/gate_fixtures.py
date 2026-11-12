@@ -33,5 +33,9 @@ def builtin_path_keys(name: str) -> Tuple[str, ...]:
 
 
 def make_gate() -> QualityGate:
-    """带内置 path_keys_for 的 QualityGate（直连门控单测用）。"""
-    return QualityGate(path_keys_for=builtin_path_keys)
+    """带内置 path_keys_for 的 QualityGate（直连门控单测用）。
+
+    显式打开 `reread_enabled`：本 fixture 服务的是「写后必须重读」那组契约用例，
+    而开关的产品缺省是关闭（与配置一致），不显式打开则拦截不成立。
+    """
+    return QualityGate(path_keys_for=builtin_path_keys, reread_enabled=True)

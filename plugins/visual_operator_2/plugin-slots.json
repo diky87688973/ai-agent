@@ -3,6 +3,15 @@
   "root": "app",
   "slots": [
     {
+      "path": "app/plugins/visual_operator_2/events/confirmation_closed",
+      "kind": "event",
+      "factory": "plugin:make_event_confirmation_closed",
+      "requires": {
+        "runtime": "app/plugins/visual_operator_2/runtime"
+      },
+      "order": 0
+    },
+    {
       "path": "app/plugins/visual_operator_2/runtime",
       "kind": "runtime",
       "factory": "plugin:make_runtime",

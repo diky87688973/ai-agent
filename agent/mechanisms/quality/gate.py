@@ -31,9 +31,9 @@ class QualityGate:
     #: 按工具名取 `write_path_keys`（装配时闭包注册表；未装配则解析不到路径）
     path_keys_for: Optional[PathKeysFor] = field(default=None, repr=False)
     needs_reread: Set[str] = field(default_factory=set)
-    #: 是否累积待重读：`[agent] reread_after_edit`。装配点注入初值，
-    #: 设置页保存后推到已有会话。关闭时 `needs_reread` 恒空。
-    reread_enabled: bool = True
+    #: 是否累积待重读：`[agent] reread_after_edit`。装配点注入实际配置值，
+    #: 设置页保存后推到已有会话。默认关闭，与 `config.ini` 和 config_schema 一致。
+    reread_enabled: bool = False
     pending_review: List[str] = field(default_factory=list)
     reviewed_ok: bool = True
     # 真写次数。预览解锁时记下当时的值，用来区分「写之前已解锁」和「写之后才解锁」。

@@ -164,16 +164,6 @@ class ResumeSpliceNamingTest(unittest.TestCase):
         from agent.mechanisms.session_store import SessionStore
         from agent.shell.session.runner import SessionRunner
 
-        class _Store:
-            def __init__(self, s):
-                self.s = s
-
-            def load(self, cid):
-                return self.s.load(cid)
-
-            def append(self, cid, evs):
-                return self.s.append(cid, evs)
-
         class _App:
             def __init__(self, store):
                 self.store = store
@@ -193,7 +183,7 @@ class ResumeSpliceNamingTest(unittest.TestCase):
                 Event("tool_suspended", {"call_id": "call-1", "name": "ask_user"}),
             ])
             runner = SessionRunner.__new__(SessionRunner)
-            runner._app = _App(_Store(store))
+            runner._app = _App(store)
             runner._splice_resume(cid, {"call_id": "call-1", "ok": True,
                                         "data": "用户选了甲", "name": "ask_user"})
             # 连调两次：写前查重必须挡住第二次（拼接没有幂等性）

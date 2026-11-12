@@ -22,6 +22,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest.mock import patch
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -680,6 +681,17 @@ class SseContractTest(_ServerFixture):
         cid = "sse-hist-01"
         self.post("/api/chat/send", {"message": "留个记录", "conversation_id": cid})
         self.wait_turn(cid)
+        from agent.mechanisms.session_fact_index import FactIndexPending, HistoryWindowTooLarge
+
+        history_url = f"/api/chat/history?conversation_id={cid}"
+        with patch.object(self.app.store, "history_window", side_effect=FactIndexPending("building")):
+            status, pending = self.get_json(history_url)
+        self.assertEqual(status, 503)
+        self.assertEqual(pending["code"], "history_index_pending")
+        with patch.object(self.app.store, "history_window", side_effect=HistoryWindowTooLarge("too large")):
+            status, oversized = self.get_json(history_url)
+        self.assertEqual(status, 422)
+        self.assertNotIn("code", oversized)
         status, payload = self.get_json(f"/api/chat/history?conversation_id={cid}")
         self.assertEqual(status, 200)
         self.assertIn("page", payload)
@@ -725,12 +737,22 @@ class SseContractTest(_ServerFixture):
         self.wait_turn(cid)
         from agent.mechanisms.session_title import TitleStore
         self.shell.titles = TitleStore(self.root / "titles")
-        self.shell.title_generator = lambda _messages: ""
+        calls = []
+        self.shell.title_generator = lambda messages: calls.append(messages) or ""
         status, payload = self.post("/api/chat/title", {"conversation_id": cid})
         self.assertEqual(status, 200)
         expected = text[:32]
         self.assertEqual(payload.get("title"), expected)
         self.assertEqual(self.shell.titles.load(cid), expected)
+
+        # Keep the reservation even if the generated title file is missing.
+        (self.root / "titles" / f"{cid}.title").unlink()
+        self.shell.titles = TitleStore(self.root / "titles")
+        status, payload = self.post("/api/chat/title", {"conversation_id": cid})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["title"], expected)
+        self.assertEqual(self.shell.titles.load(cid), expected)
+        self.assertEqual(len(calls), 1)
 
     def test_sessions_prefer_the_persisted_title(self) -> None:
         from agent.mechanisms.session_title import TitleStore
@@ -985,6 +1007,137 @@ class ConcurrencyTest(_ServerFixture):
         finally:
             self.app.mesh.end_run(cid)
 
+    def test_insert_sources_preempt_remaining_tool_calls_and_reach_next_request(self) -> None:
+        from agent.core.ports import ToolPort
+
+        cid = "insert-running-tool"
+        entered = threading.Event()
+        finish = threading.Event()
+        self.addCleanup(finish.set)
+        requests = []
+        executed = []
+
+        def stream(request):
+            if request.conversation_id != cid:
+                return
+            requests.append(list(request.messages))
+            if len(requests) == 1:
+                for call_id in ("running-tool", "stale-tool"):
+                    yield StreamDelta(kind="tool_call", tool_call=ToolCallRequest(
+                        call_id=call_id, name="read_file", arguments={}))
+            else:
+                yield StreamDelta(kind="text", text="received")
+
+        def execute(_port, call, **_kwargs):
+            executed.append(call.call_id)
+            entered.set()
+            finish.wait(5)
+            return type("Result", (), {"ok": True, "data": "tool completed"})()
+
+        with patch.object(self.provider, "stream", side_effect=stream), patch.object(
+            ToolPort, "execute", autospec=True, side_effect=execute,
+        ):
+            try:
+                status, _ = self.post("/api/chat/send", {
+                    "conversation_id": cid, "message": "initial task",
+                })
+                self.assertEqual(status, 200)
+                self.assertTrue(entered.wait(5))
+                ordinary = self.app.conversation_queue.enqueue(cid, content="ordinary")
+                manual = self.app.conversation_queue.enqueue(cid, content="user correction")
+                status, inserted = self.post(f"/api/chat/queue/{manual['id']}/insert", {
+                    "conversation_id": cid,
+                })
+                self.assertEqual(status, 200, inserted)
+                self.assertEqual(inserted["item"]["delivery"], "next_pass")
+                self.app.mesh.submit_insert(cid, {
+                    "content": "peer correction", "_sender": "peer-123",
+                })
+                self.app.mesh.submit_insert(cid, {
+                    "content": "background completed",
+                    "meta": {"kind": "notice", "notice_id": "notice-a"},
+                }, origin="system")
+                self.app.mesh.submit_insert(cid, {
+                    "content": "timer due", "meta": {"kind": "wake", "wake_job_id": "wake-a"},
+                }, origin="system")
+                visible = self.app.conversation_queue.list(cid)["items"]
+                self.assertIn(ordinary["id"], [item["id"] for item in visible])
+                self.assertEqual(len(visible), 3)
+                self.assertEqual(len(requests), 1)
+            finally:
+                finish.set()
+            self.assertTrue(self.app.runner.wait_idle(cid))
+
+        self.assertEqual(executed, ["running-tool"])
+        self.assertEqual(len(requests), 3)
+        second = json.dumps(requests[1], ensure_ascii=False)
+        ordered = ("user correction", "peer correction", "background completed", "timer due")
+        positions = [second.index(message) for message in ordered]
+        self.assertEqual(positions, sorted(positions))
+        self.assertNotIn("ordinary", second)
+        skipped = next(message for message in requests[1] if message.get("tool_call_id") == "stale-tool")
+        self.assertEqual(json.loads(skipped["content"])["error"], "因插入消息打断，本工具未执行")
+        self.assertIn("ordinary", json.dumps(requests[2], ensure_ascii=False))
+        facts = self.app.store.load(cid)
+        canceled = [event.data for event in facts if event.type == "tool_canceled"]
+        self.assertEqual([(event["call_id"], event["reason"]) for event in canceled],
+                         [("stale-tool", "input_inserted")])
+        self.assertEqual(canceled[0]["error"], "因插入消息打断，本工具未执行")
+        self.assertEqual([event.data["content"] for event in facts if event.type == "input_claimed"],
+                         ["initial task", *ordered, "ordinary"])
+        finished = next(event.data["_seq"] for event in facts
+                        if event.type == "tool_ended" and event.data["call_id"] == "running-tool")
+        next_request = [event.data["_seq"] for event in facts if event.type == "llm_started"][1]
+        self.assertTrue(all(finished < event.data["_seq"] < next_request
+                            for event in facts if event.type == "input_claimed"
+                            and event.data["content"] in ordered))
+        self.assertEqual(self.app.conversation_queue.size(cid), 0)
+
+    def test_insert_fact_write_failure_keeps_input_and_does_not_call_model(self) -> None:
+        cid = "insert-fact-write"
+        item = self.app.conversation_queue.enqueue(cid, content="save before sending")
+        path = f"/api/chat/queue/{item['id']}/insert"
+        with patch.object(self.provider, "stream", wraps=self.provider.stream) as stream:
+            with patch.object(self.app.store, "append_if_absent", side_effect=OSError("disk full")):
+                status, _ = self.post(path, {"conversation_id": cid})
+                self.assertEqual(status, 200)
+                self.assertTrue(self.app.runner.wait_idle(cid))
+                stream.assert_not_called()
+            self.assertEqual(self.app.conversation_queue.list(cid)["items"][0]["state"], "inserting")
+            status, _ = self.post(path, {"conversation_id": cid})
+            self.assertEqual(status, 200)
+            self.assertTrue(self.app.runner.wait_idle(cid))
+        requests = [call.args[0] for call in stream.call_args_list if call.args[0].conversation_id == cid]
+        self.assertEqual(len(requests), 1)
+        self.assertIn("save before sending", json.dumps(requests[0].messages))
+        self.assertEqual(self.app.conversation_queue.size(cid), 0)
+        self.assertEqual(sum(event.type == "input_claimed" for event in self.app.store.load(cid)), 1)
+
+    def test_insert_reports_confirmation_write_failure_and_retains_input(self) -> None:
+        from agent.core.events import Event
+
+        cid = "insert-confirm-write"
+        self.app.store.append(cid, [Event("tool_suspended", {
+            "call_id": "call-A", "envelope": {"request_id": "req-A"},
+        })])
+        item = self.app.conversation_queue.enqueue(cid, content="pending")
+        path = f"/api/chat/queue/{item['id']}/insert"
+        with patch.object(self.app.store, "append_if_absent", side_effect=OSError("disk full")):
+            status, payload = self.post(path, {"conversation_id": cid})
+            self.assertTrue(self.app.runner.wait_idle(cid))
+        self.assertEqual(status, 200, payload)
+        self.assertEqual(self.app.conversation_queue.list(cid)["items"][0]["state"], "inserting")
+        self.assertEqual([event.type for event in self.app.store.load(cid)], ["tool_suspended"])
+
+        status, payload = self.post(path, {"conversation_id": cid})
+        self.assertEqual(status, 200, payload)
+        self.assertTrue(self.app.runner.wait_idle(cid))
+        self.assertEqual(self.app.conversation_queue.list(cid)["items"], [])
+        types = [event.type for event in self.app.store.load(cid)]
+        self.assertEqual(types[:4], ["tool_suspended", "tool_failed", "tool_ended", "turn_started"])
+        self.assertIn("input_claimed", types)
+        self.assertIn("model_message", types)
+
     def test_stop_endpoint_shape(self) -> None:
 
         status, payload = self.post("/api/chat/stop", {"conversation_id": "conc-00000002"})
@@ -992,6 +1145,63 @@ class ConcurrencyTest(_ServerFixture):
         self.assertIn("stop_requested", payload)
         status, payload = self.post("/api/chat/stop", {})
         self.assertEqual(status, 400)
+
+    def test_confirmation_saves_answer_when_dispatch_fails_and_retry_runs_once(self) -> None:
+        from agent.core.events import Event
+
+        cid = "resume-confirm-fail"
+        self.app.store.append(cid, [
+            Event("input_claimed", {"content": "confirm a choice"}),
+            Event("tool_suspended", {"call_id": "call-A", "name": "user_confirm",
+                                     "envelope": {"request_id": "req-A"}}),
+        ])
+        payload = {"conversation_id": cid, "call_id": "call-A", "request_id": "req-A"}
+        with patch.object(self.app.mesh, "submit", side_effect=OSError("queue unavailable")):
+            status, result = self.post("/api/chat/user-confirm", {**payload, "confirm": "yes"})
+        self.assertEqual(status, 200, result)
+        self.assertTrue(result["resume_pending"])
+        self.assertFalse(self.app.mesh.is_running(cid))
+        status, result = self.post("/api/chat/user-confirm", {**payload, "retry_resume": True})
+        self.assertEqual(status, 200, result)
+        self.assertTrue(result["run_id"])
+        self.wait_turn(cid)
+        status, result = self.post("/api/chat/user-confirm", {**payload, "retry_resume": True})
+        self.assertEqual(status, 409, result)
+        facts = self.app.store.load(cid)
+        self.assertEqual(sum(event.type == "tool_done" for event in facts), 1)
+        self.assertEqual(sum(event.type == "turn_started" for event in facts), 1)
+
+    def test_stop_settles_idle_confirmation(self) -> None:
+        from agent.core.events import Event
+
+        cid = "idle-confirm-stop"
+        pending = {"call_id": "call-A", "request_id": "req-A", "kind": "confirm"}
+        self.app.store.append(cid, [Event("tool_suspended", {
+            "call_id": "call-A", "envelope": pending,
+        })])
+        session = self.app.session_contexts.resolve_sync(cid)
+        session.pending_confirm = pending
+        self.assertFalse(self.app.mesh.is_running(cid))
+
+        with patch.object(self.app.store, "append_if_absent", side_effect=OSError("disk full")):
+            status, _ = self.post("/api/chat/stop", {"conversation_id": cid})
+        self.assertEqual(status, 503)
+        self.assertEqual(session.pending_confirm, {**pending, "name": ""})
+
+        status, result = self.post("/api/chat/stop", {"conversation_id": cid})
+        self.assertEqual(status, 200)
+        self.assertTrue(result["stop_requested"])
+        self.assertTrue(self.app.mesh.is_stopped(cid))
+        self.assertIsNone(session.pending_confirm)
+        facts = self.app.store.load(cid)
+        self.assertEqual([e.type for e in facts], ["tool_suspended", "tool_failed", "tool_ended"])
+
+        status, result = self.post("/api/chat/user-confirm", {
+            "conversation_id": cid, "call_id": "call-A", "request_id": "req-A", "confirm": "yes",
+        })
+        self.assertEqual(status, 409)
+        self.assertTrue(result["expired"])
+        self.assertEqual(self.app.store.load(cid), facts)
 
     def test_stop_cancels_a_running_turn(self) -> None:
         """停止是真取消：经 SessionRunner 的停止检查，让内核在检查点停下。"""
@@ -1005,6 +1215,79 @@ class ConcurrencyTest(_ServerFixture):
         # 取消后占位被释放、会话可再次提交
         self.assertFalse(self.app.mesh.is_running(cid))
         self.assertFalse(self.app.runner.request_cancel(cid))
+
+        requests = []
+        original_stream = self.provider.stream
+
+        def record(request):
+            requests.append(request)
+            yield from original_stream(request)
+
+        self.provider.stream = record
+        queue = self.app.conversation_queue
+        insert = queue.enqueue(cid, content="hold insert sentinel")
+        queue.enqueue(cid, content="hold ordinary sentinel")
+        status, _ = self.post(
+            f"/api/chat/queue/{insert['id']}/insert", {"conversation_id": cid})
+        self.assertEqual(status, 200)
+        self.assertEqual(queue.size(cid), 2)
+        self.assertFalse(self.app.mesh.is_running(cid))
+        self.assertEqual(requests, [])
+
+        enqueue = queue.enqueue
+
+        def check_enqueue(*args, **kwargs):
+            self.assertFalse(self.app.mesh.is_stopped(cid))
+            return enqueue(*args, **kwargs)
+
+        with patch.object(queue, "enqueue", side_effect=check_enqueue), patch.object(
+                self.app.mesh, "_activator", return_value=""):
+            status, held = self.post("/api/chat/send", {
+                "message": "failed startup sentinel", "conversation_id": cid,
+            })
+        self.assertEqual(status, 200, held)
+        self.assertTrue(held["queued"])
+        self.assertEqual(queue.size(cid), 3)
+        self.assertEqual(requests, [])
+        self.assertFalse(self.app.mesh.is_stopped(cid))
+
+        status, payload = self.post("/api/chat/send", {
+            "message": "explicit resume sentinel", "conversation_id": cid,
+        })
+        self.assertEqual(status, 200, payload)
+        self.assertTrue(payload["run_id"])
+        self.assertTrue(self.app.runner.wait_idle(cid, timeout=10))
+        self.assertEqual(len(requests), 1)
+        content = str(requests[0].messages)
+        expected = ("hold insert sentinel", "hold ordinary sentinel",
+                    "failed startup sentinel", "explicit resume sentinel")
+        positions = [content.index(message) for message in expected]
+        self.assertEqual(positions, sorted(positions))
+        self.assertEqual(queue.size(cid), 0)
+
+        def fail_before_answer(_request):
+            raise RuntimeError("test model rejected request")
+
+        with patch.object(self.provider, "stream", side_effect=fail_before_answer):
+            status, payload = self.post("/api/chat/send", {
+                "message": "failed model sentinel", "conversation_id": cid,
+            })
+            self.assertEqual(status, 200, payload)
+            self.assertTrue(self.app.runner.wait_idle(cid, timeout=10))
+        self.assertEqual(queue.list(cid)["items"], [])
+        facts = self.app.store.load(cid)
+        self.assertEqual(sum(e.type == "input_claimed" and
+                             e.data.get("content") == "failed model sentinel" for e in facts), 1)
+
+        with patch.object(self.app.store, "append_if_absent", side_effect=OSError("test disk full")):
+            status, payload = self.post("/api/chat/send", {
+                "message": "failed persistence sentinel", "conversation_id": cid,
+            })
+            self.assertEqual(status, 200, payload)
+            self.assertTrue(self.app.runner.wait_idle(cid, timeout=10))
+        self.assertEqual([item["content"] for item in queue.list(cid)["items"]],
+                         ["failed persistence sentinel"])
+
 
 def _pending_confirm_ids(gate) -> list:
     """从门控里取未提交的预览快照 id。

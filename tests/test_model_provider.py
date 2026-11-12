@@ -580,12 +580,8 @@ class UserFacingTextTest(unittest.TestCase):
         )
 
 
-class ReasonNotReplayedTest(unittest.TestCase):
-    """历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token。
-
-    但键必须留着：DeepSeek 思考模式下带 `tool_calls` 的 assistant 消息要回传
-    `reasoning_content`（空串可接受），缺键会 400。
-    """
+class ReasoningReplayTest(unittest.TestCase):
+    """Both completed and active turns preserve reasoning after context assembly."""
 
     def _sample(self):
         return [
@@ -598,24 +594,22 @@ class ReasonNotReplayedTest(unittest.TestCase):
             {"role": "assistant", "content": "a2", "reasoning_content": "本轮推理"},
         ]
 
-    def test_cut_clears_the_content_but_keeps_the_key_for_tool_messages(self) -> None:
+    def test_completed_tool_turn_keeps_reasoning(self) -> None:
         from agent.mechanisms.providers.openai import _to_wire_messages
 
-        wire = _to_wire_messages(self._sample(), keep_reasoning_from=5)
-        self.assertEqual(wire[2].get("reasoning_content"), "",
-                         msg="历史轮的工具消息必须保留键，只清空内容")
+        wire = _to_wire_messages(self._sample())
+        self.assertEqual(wire[2].get("reasoning_content"), "旧推理")
         self.assertEqual(wire[5].get("reasoning_content"), "本轮推理")
 
-    def test_plain_assistant_before_the_cut_drops_the_key(self) -> None:
+    def test_completed_text_turn_keeps_reasoning(self) -> None:
         from agent.mechanisms.providers.openai import _to_wire_messages
 
         wire = _to_wire_messages([
             {"role": "user", "content": "u1"},
             {"role": "assistant", "content": "a1", "reasoning_content": "旧推理"},
             {"role": "user", "content": "u2"},
-        ], keep_reasoning_from=2)
-        self.assertNotIn("reasoning_content", wire[1],
-                         msg="纯文本 assistant 没有回传要求，历史轮直接摘键")
+        ])
+        self.assertEqual(wire[1]["reasoning_content"], "旧推理")
 
     def test_tool_message_without_reasoning_gets_an_empty_key(self) -> None:
         """没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。"""
@@ -626,19 +620,21 @@ class ReasonNotReplayedTest(unittest.TestCase):
             {"role": "assistant", "content": "", "tool_calls": [
                 {"id": "c1", "name": "t", "arguments": {}}]},
             {"role": "tool", "tool_call_id": "c1", "content": "r"},
-        ], keep_reasoning_from=1)
+        ])
         self.assertEqual(wire[1].get("reasoning_content"), "")
 
-    def test_cut_none_keeps_everything(self) -> None:
+    def test_appending_a_user_message_keeps_the_wire_prefix(self) -> None:
         from agent.mechanisms.providers.openai import _to_wire_messages
 
-        wire = _to_wire_messages(self._sample(), keep_reasoning_from=None)
-        self.assertEqual(wire[2].get("reasoning_content"), "旧推理")
+        sample = self._sample()
+        initial = _to_wire_messages(sample)
+        extended = _to_wire_messages([*sample, {"role": "user", "content": "u3"}])
+        self.assertEqual(extended[:-1], initial)
 
-    def test_tool_calls_survive_the_cut(self) -> None:
+    def test_tool_calls_keep_their_wire_shape(self) -> None:
         from agent.mechanisms.providers.openai import _to_wire_messages
 
-        wire = _to_wire_messages(self._sample(), keep_reasoning_from=5)
+        wire = _to_wire_messages(self._sample())
         calls = wire[2].get("tool_calls") or []
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0]["function"]["name"], "t")
@@ -647,27 +643,103 @@ class ReasonNotReplayedTest(unittest.TestCase):
         from agent.mechanisms.providers.openai import _to_wire_messages
 
         sample = self._sample()
-        _to_wire_messages(sample, keep_reasoning_from=5)
+        _to_wire_messages(sample)
         self.assertEqual(sample[2].get("reasoning_content"), "旧推理")
 
-    def test_provider_passes_the_boundary_and_defaults_to_stripping(self) -> None:
-        from agent.mechanisms.providers.openai import OpenAICompatibleProvider
+    def test_routed_deepseek_tools_preserve_full_reasoning(self) -> None:
+        from types import SimpleNamespace
 
-        src = (ROOT / "agent/mechanisms/providers/openai.py").read_text(encoding="utf-8")
-        self.assertIn('getattr(request, "turn_start", None)', src)
-        provider = OpenAICompatibleProvider(base_url="http://x/v1", api_key="k", model="m")
-        self.assertFalse(provider.replay_history_reasoning)
-        self.assertTrue(OpenAICompatibleProvider(
-            base_url="http://x/v1", api_key="k", model="m",
-            replay_history_reasoning=True).replay_history_reasoning)
+        from agent.core.modules.model_mod import ModelModule
+        from agent.core.ports import ModelPort
+        from agent.mechanisms.context import ContextPipeline
+        from agent.mechanisms.provider_router import ProviderRouter
+
+        body = "BEGIN " + ("middle text " * 4000) + " END"
+        messages = [{"role": "user", "content": "u1"},
+                    {"role": "assistant", "content": "answer", "reasoning_content": body},
+                    {"role": "user", "content": "u2"}]
+        tool_schemas = [{"name": "echo", "parameters": {}}]
+        official = OpenAICompatibleProvider(base_url="https://api.deepseek.com/v1", api_key="k", model="m")
+        compatible = OpenAICompatibleProvider(base_url="https://gateway.invalid", api_key="k", model="m")
+        providers = {"strict": official, "ordinary": compatible}
+        router = ProviderRouter(default=compatible, resolve=providers.get)
+        ports = SimpleNamespace(
+            conversation_id="reasoning-test", model_port=ModelPort(router),
+            tool_port=SimpleNamespace(schemas=lambda: tool_schemas),
+            log=SimpleNamespace(derive_request_messages=lambda: messages),
+        )
+        context = ContextPipeline(ports.conversation_id, reasoning_replay_tokens=8000)
+        for model_id, tools_enabled in (("strict", True), ("strict", False), ("ordinary", True)):
+            with self.subTest(model=model_id, tools_enabled=tools_enabled):
+                ports.tool_port = SimpleNamespace(schemas=lambda: tool_schemas) if tools_enabled else None
+                request, _, _ = ModelModule(context=context, model=model_id)._build_request(ports)
+                reasoning = next(row["reasoning_content"] for row in request.messages if row["role"] == "assistant")
+                if model_id == "strict" and tools_enabled:
+                    self.assertEqual(reasoning, body)
+                else:
+                    self.assertNotEqual(reasoning, body)
+                    self.assertTrue(reasoning.startswith("BEGIN "))
+                    self.assertTrue(reasoning.endswith(" END"))
+                    self.assertIn("省略", reasoning)
 
 
 class TurnStartAssemblyTest(unittest.TestCase):
-    """装配时把"本回合起点"标出来，provider 才有裁的依据。"""
+    """视觉观测进入工具续跑请求，同时保留两个用户轮的签名。"""
 
     def test_model_module_marks_turn_start(self) -> None:
-        src = (ROOT / "agent/core/modules/model_mod.py").read_text(encoding="utf-8")
-        self.assertIn("turn_start=len(messages) - len(dialogue) + turn_start", src)
+        from types import SimpleNamespace
+
+        from agent.core.modules.model_mod import ModelModule
+        from agent.mechanisms.context import ContextPipeline
+        from agent.mechanisms.context.hooks import ContextAssemblyHooks
+        from agent.mechanisms.providers.anthropic import AnthropicProvider
+        from plugins.visual_operator_2 import plugin
+
+        def tool_call(call_id):
+            return {
+                "role": "assistant", "content": "",
+                "tool_calls": [{"id": call_id, "name": "read_file", "arguments": {}}],
+                "provider_meta": {"anthropic": {"thinking_blocks": [
+                    {"thinking": f"think-{call_id}", "signature": f"sig-{call_id}"},
+                ]}},
+            }
+
+        dialogue = [
+            {"role": "user", "content": "old request"}, tool_call("old"),
+            {"role": "tool", "tool_call_id": "old", "content": "old result"},
+            {"role": "user", "content": "current request"}, tool_call("current"),
+            {"role": "tool", "tool_call_id": "current", "content": "current result"},
+        ]
+        ports = SimpleNamespace(
+            log=SimpleNamespace(derive_request_messages=lambda: dialogue),
+            tool_port=None, conversation_id="turn-start-vision",
+        )
+        pipeline = ContextPipeline("turn-start-vision")
+        pipeline.append_system("system")
+        pipeline.set_summary_messages([{"role": "user", "content": "compacted summary"}])
+        hooks = ContextAssemblyHooks()
+        runtime = SimpleNamespace(
+            observe=lambda _cid: {"text": "visual observation", "images": [
+                {"url": "data:image/png;base64," + _PNG_B64},
+            ]},
+            publish_observation=lambda _observation: None,
+        )
+        hooks.add(plugin._observation_hook(runtime))
+        module = ModelModule(context=pipeline, context_hooks=hooks)
+        with mock.patch.object(plugin.step_log, "write"):
+            request, _, _ = module._build_request(ports)
+        self.assertEqual(request.messages[request.turn_start]["content"], "current request")
+        self.assertEqual(request.messages[-1]["content"][0]["text"], "visual observation")
+
+        payload = AnthropicProvider(base_url="https://gateway.invalid", api_key="k",
+                                    model="m", thinking=True).build_payload(request)
+        self.assertEqual(payload["thinking"]["type"], "enabled")
+        assistants = [row["content"] for row in payload["messages"] if row["role"] == "assistant"]
+        self.assertEqual([[block["type"] for block in row] for row in assistants],
+                         [["thinking", "tool_use"], ["thinking", "tool_use"]])
+        self.assertEqual([row[0]["signature"] for row in assistants], ["sig-old", "sig-current"])
+        self.assertEqual([block["type"] for block in payload["messages"][-1]["content"]],
+                         ["tool_result", "text", "image"])
 
     def test_port_default_keeps_everything(self) -> None:
         from agent.core.ports import LogicalRequest

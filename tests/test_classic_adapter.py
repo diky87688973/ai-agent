@@ -20,6 +20,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -458,59 +459,32 @@ class OutboundContractTest(unittest.TestCase):
         约束：空文本也要交给 `submit_user_choice`，由它把拒绝作为结果经运行器
         交回内核 —— 于是挂起闭合、模型知情、会话可继续。
         """
-        calls: list = []
+        calls = []
 
-        class _Mesh:
-            def submit(self, cid, payload):
-                calls.append((cid, payload))
-                return {"queued": False, "run_id": "r-1"}
-
-        class _App:
-            mesh = _Mesh()
+        def settle(cid, call_id, data, **kwargs):
+            calls.append((cid, call_id, data, kwargs))
+            return {"ok": True, "call_id": call_id}
 
         adapter = ClassicAdapter.__new__(ClassicAdapter)
-        adapter._app = _App()  # type: ignore[attr-defined]
-        adapter._shell = None  # type: ignore[attr-defined]
-        adapter.pending_confirm = lambda cid: {"call_id": "c-suspended"}  # type: ignore[attr-defined]
-        adapter._clear_pending = lambda cid: None  # type: ignore[attr-defined]
-
-        status, payload = adapter.user_confirm(CID, {"confirm": ""})
-
+        adapter._app = SimpleNamespace(resume_suspended=settle)
+        status, payload = adapter.user_confirm(CID, {
+            "confirm": "", "call_id": "c-suspended", "request_id": "req-suspended",
+        })
         self.assertEqual(status, 200)
-        self.assertTrue(payload.get("declined"), msg="空 confirm 应标为 declined")
-        self.assertFalse(payload.get("confirmed"))
-        self.assertEqual(len(calls), 1, msg="必须真的提交一次，让挂起闭合")
-        resume = (calls[0][1] or {}).get("resume") or {}
-        self.assertEqual(resume.get("call_id"), "c-suspended")
-        self.assertFalse(resume.get("ok"), msg="拒绝要以失败结果交回，模型才知道用户不答")
-        self.assertIn("取消", str(resume.get("error") or ""))
+        self.assertTrue(payload["declined"])
+        self.assertEqual(calls[0][1], "c-suspended")
+        self.assertEqual(calls[0][3]["request_id"], "req-suspended")
+        self.assertFalse(calls[0][3]["ok"])
 
     def test_cancel_without_pending_does_not_start_an_empty_turn(self) -> None:
-        """没有挂起调用时的取消不得起新回合。
-
-        那正是永久转圈的来源：内核那一回合没有输入 → 不产出任何事实
-        → 永远不发 `done` → 前端的 loading 状态没人复位。
-        """
-        calls: list = []
-
-        class _Mesh:
-            def submit(self, cid, payload):
-                calls.append((cid, payload))
-                return {"queued": False, "run_id": "r-1"}
-
-        class _App:
-            mesh = _Mesh()
-
+        """过期回执以 409 返回。"""
         adapter = ClassicAdapter.__new__(ClassicAdapter)
-        adapter._app = _App()  # type: ignore[attr-defined]
-        adapter._shell = None  # type: ignore[attr-defined]
-        adapter.pending_confirm = lambda cid: None  # type: ignore[attr-defined]
-        adapter._clear_pending = lambda cid: None  # type: ignore[attr-defined]
-
-        status, payload = adapter.user_confirm(CID, {"confirm": ""})
-        self.assertEqual(status, 200)
-        self.assertFalse(payload.get("confirmed"))
-        self.assertEqual(calls, [], msg="无挂起时不该起空回合")
+        adapter._app = SimpleNamespace(resume_suspended=lambda *_a, **_kw: {
+            "ok": False, "expired": True,
+        })
+        status, payload = adapter.user_confirm(CID, {"confirm": "", "call_id": "old", "request_id": "old"})
+        self.assertEqual(status, 409)
+        self.assertTrue(payload["expired"])
 
     def test_chat_bubble_layout_puts_image_above_text(self) -> None:
         """图文气泡：图片在上、文字在下。
@@ -615,10 +589,18 @@ class OutboundContractTest(unittest.TestCase):
 
     def test_context_layout_is_flat_with_segments(self) -> None:
         """`lastContextLayout = ev` 整包存下，所以 segments 在顶层（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。"""
-        frames = _stream().translate("context_layout", {
-            "segments": [{"key": "system", "tokens": 100}], "total_tokens": 100,
-        })
-        self.assertEqual(frames[0]["segments"][0]["key"], "system")
+        stale = {"segments": [{"key": "full_recent", "tokens": 603690, "count": 47}]}
+        stream = ClassicStream(CID, layout_resolver=lambda: stale)
+        stream.translate("turn_started", {})
+        self.assertEqual(_types(stream.translate("context_compacted", {"compressed_count": 1734})),
+                         [C.EV_CONTEXT_COMPACTED])
+        fresh = {"key": "full_recent", "tokens": 64417, "count": 5}
+        frames = stream.translate("context_segments", {"segments": [fresh], "_seq": 20})
+        self.assertEqual(_types(frames), [C.EV_CONTEXT_LAYOUT])
+        self.assertEqual(frames[0]["segments"], [fresh])
+        self.assertEqual(frames[0]["snapshot_seq"], 20)
+        for kind in ("model_message", "turn_ended"):
+            self.assertNotIn(C.EV_CONTEXT_LAYOUT, _types(stream.translate(kind, {})))
 
     def test_context_compacted_emits_card_payload(self) -> None:
         frames = _stream().translate("context_compacted", {
@@ -709,9 +691,23 @@ class InboundContractTest(unittest.TestCase):
         布局（打开过哪些标签、激活哪一个）是客户端本地状态，服务端不存也不回 ——
         两个客户端各自激活不同会话时，一个全局字段表示不了，只会互相覆盖。
         """
+        from agent.core.session_context import SessionContexts
+
+        self.app.session_contexts = SessionContexts(lambda _cid: None)
+        session = self.app.session_contexts.resolve_sync(CID)
+        with session.confirmation_lock:
+            session.pending_confirm = {"call_id": "call-A", "request_id": "request-A"}
         payload = self.adapter.ui_state_get()
         self.assertIn("state", payload)
         self.assertIn("running", payload["state"])
+        self.assertEqual(payload["state"]["confirmations"], {
+            CID: {"call_id": "call-A", "request_id": "request-A"},
+        })
+        self.assertEqual(self.adapter.pending_confirms(), {CID: "call-A"})
+        with session.confirmation_lock:
+            session.pending_confirm = None
+        self.assertEqual(self.adapter.ui_state_get()["state"]["confirmations"], {})
+        self.assertEqual(self.adapter.pending_confirms(), {})
         self.assertNotIn("tabs", payload["state"])
         self.assertNotIn("active_conversation_id", payload["state"])
 
@@ -906,6 +902,45 @@ class InboundContractTest(unittest.TestCase):
         tool = [item for item in items if item["role"] == "tool"][0]
         self.assertEqual(tool["status"], "canceled")
         self.assertIn("取消", tool["error"])
+
+    def test_confirmation_reads_restore_cold_state_without_creating_session(self) -> None:
+        from agent.core.events import Event
+        from agent.core.session_context import SessionContexts
+
+        self.app.session_contexts = SessionContexts(lambda _cid: None)
+        self.app.store.append(CID, [
+            Event("tool_started", {"call_id": "call-A", "name": "user_confirm", "arguments": {}}),
+            Event("tool_suspended", {"call_id": "call-A", "name": "user_confirm",
+                                     "envelope": {"request_id": "req-A"}}),
+        ])
+        state = self.adapter.ui_state_get(CID)["state"]
+        self.assertEqual(state["confirmations"], {CID: {"call_id": "call-A", "request_id": "req-A"}})
+        items = self.adapter.history(CID)["items"]
+        self.assertEqual(items[-1]["status"], "suspended")
+        self.assertIsNone(self.app.session_contexts.get(CID))
+
+    def test_warm_confirmation_snapshot_observes_other_store_and_rejects_old_card(self) -> None:
+        from agent.core.events import Event
+        from agent.core.session_context import SessionContexts
+        from agent.mechanisms.session_store import SessionStore
+        from agent.shell.session.resume import load_pending, write_resolution
+
+        self.app.session_contexts = SessionContexts(lambda _cid: None)
+        session = self.app.session_contexts.resolve_sync(CID)
+        with session.confirmation_lock:
+            self.assertIsNone(load_pending(session, self.app.store, CID))
+        external = SessionStore(self.app.store.data_root)
+        for call in ("call-A", "call-B"):
+            external.append(CID, [
+                Event("input_claimed", {"content": call}),
+                Event("tool_started", {"call_id": call, "name": "user_confirm"}),
+                Event("tool_suspended", {"call_id": call, "name": "user_confirm",
+                                         "envelope": {"request_id": call + "-request"}}),
+            ])
+            self.assertEqual(self.adapter.ui_state_get(CID)["state"]["confirmations"][CID]["call_id"], call)
+        self.assertEqual(self.adapter.history(CID)["items"][-1]["status"], "suspended")
+        self.assertFalse(write_resolution(self.app.store, CID, "call-A", "user_confirm", {"ok": True}))
+        self.assertEqual(self.adapter.ui_state_get(CID)["state"]["confirmations"][CID]["call_id"], "call-B")
 
     def test_history_carries_context_layout_at_top_level(self) -> None:
         """`context_layout` 在顶层，`applyContextLayoutFromHistory` 读那里。"""
@@ -1339,6 +1374,9 @@ class UserConfirmRoundTripTest(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        from functools import partial
+
+        from agent.app import App
         from agent.mechanisms.session_store import SessionStore
 
         self._tmp = tempfile.TemporaryDirectory()
@@ -1351,13 +1389,38 @@ class UserConfirmRoundTripTest(unittest.TestCase):
         app = self.app
 
         class _Mesh:
-            def submit(self, cid, message):
+            def is_stopped(self, cid):
+                return False
+
+            def submit(self, cid, message, **kwargs):
                 app.submitted.append((cid, dict(message)))
                 return {"queued": False, "queued_count": 0, "run_id": "run-xyz"}
 
         self.app.mesh = _Mesh()
+        self.app.resume_suspended = partial(App.resume_suspended, self.app)
         self.app.submitted = self.submitted
         self.adapter = ClassicAdapter(self.app)
+
+    def _pending(self, call_id="call-77", kind="confirm"):
+        from agent.core.events import Event
+
+        session = self.adapter._session(CID)
+        session.pending_confirm = {"call_id": call_id, "kind": kind, "option_id": "video-1"}
+        self.app.store.append(CID, [Event("tool_suspended", {
+            "call_id": call_id, "envelope": session.pending_confirm,
+        })])
+        return {"call_id": call_id, "request_id": call_id}
+
+    def _restart_confirmation_host(self):
+        from agent.core.session_context import SessionContexts
+        from agent.mechanisms.session_store import SessionStore
+
+        self.app.session_contexts = SessionContexts(lambda _cid: None)
+        self.app.store = SessionStore(Path(self._tmp.name))
+        self.adapter = ClassicAdapter(self.app)
+
+    def _result(self):
+        return self.app.store.load(CID)[-2].data
 
     def test_choice_is_filled_back_as_the_tool_result(self) -> None:
         """直通：用户的选择被写成那次 `user_confirm` 调用的返回值，不是新用户发言。
@@ -1368,13 +1431,11 @@ class UserConfirmRoundTripTest(unittest.TestCase):
         答案是日志里那条合成 `tool_result`（`call_id` 与原调用配对）。
         """
 
-        # 挂起状态由内核记在 SessionContext（管道后置观察者写），测试里手工置上
-        session = self.adapter._session(CID)
-        self.assertIsNotNone(session, msg="SessionContexts 应可用")
-        session.pending_confirm = {"call_id": "call-77", "title": "选一个",
-                                   "confirms": ["甲", "乙"], "multi": False}
-
-        status, payload = self.adapter.user_confirm(CID, {"confirm": "甲"})
+        ids = self._pending()
+        self._restart_confirmation_host()
+        state = self.adapter.ui_state_get(CID)
+        self.assertEqual(state["state"]["confirmations"][CID], ids)
+        status, payload = self.adapter.user_confirm(CID, {"confirm": "甲", **ids})
         self.assertEqual(status, 200)
         self.assertTrue(payload["confirmed"])
         self.assertEqual(payload["run_id"], "run-xyz")          # 经典界面读它
@@ -1383,22 +1444,24 @@ class UserConfirmRoundTripTest(unittest.TestCase):
         cid, message = self.submitted[0]
         self.assertEqual(cid, CID)
         self.assertEqual(message["content"], "", msg="结果回灌不该伪装成一条用户发言")
-        self.assertIn("attachments", message)
-        # 结果走 `resume` 交给运行器：由它拼成 `tool_result` 事实。
-        # 适配层不再自己往 store 写——那会变成第二个事实写点，也会绕开"写前查重"。
-        resume = message.get("resume") or {}
-        self.assertEqual(resume.get("call_id"), "call-77")
-        self.assertEqual((resume.get("data") or {}).get("confirm"), "甲")
-        # 作答已消费，挂起状态清掉（留着会让下次作答回到旧调用上）
+        self.assertEqual(self._result()["call_id"], "call-77")
+        self.assertEqual(self._result()["data"]["confirm"], "甲")
         self.assertIsNone(self.adapter._session(CID).pending_confirm)
 
     def test_cancel_posts_empty_confirm_and_submits_nothing(self) -> None:
         """模态的「取消」发空 `confirm`：不能把它当成一次用户发言送出去。"""
 
-        status, payload = self.adapter.user_confirm(CID, {"confirm": ""})
+        ids = self._pending()
+        status, payload = self.adapter.user_confirm(CID, {"confirm": "", **ids})
         self.assertEqual(status, 200)
+        self.assertTrue(payload["declined"])
         self.assertFalse(payload["confirmed"])
-        self.assertEqual(self.submitted, [])
+        self.assertEqual(len(self.submitted), 1)
+        self.assertEqual(self.submitted[0][1]["content"], "")
+        facts = self.app.store.load(CID)
+        self.assertEqual([event.type for event in facts],
+                         ["tool_suspended", "tool_failed", "tool_ended"])
+        self.assertEqual(facts[1].data["call_id"], ids["call_id"])
 
     def test_write_gate_confirm_id_still_works(self) -> None:
         """带 `confirm_id` 的写盘确认走内核既有的门控解锁，不经 mesh。"""
@@ -1425,7 +1488,7 @@ class UserConfirmRoundTripTest(unittest.TestCase):
                 return 200, {"confirmed": True}
 
         self.adapter.adopt_shell(_Shell())
-        status, payload = self.adapter.user_confirm(CID, {"confirm_id": "cf-1", "confirm": "甲"})
+        status, payload = self.adapter.user_confirm(CID, {"confirm_id": "cf-1", "confirm": "甲", **self._pending()})
         self.assertEqual(status, 200)
         self.assertEqual(len(self.submitted), 1)
 
@@ -1439,30 +1502,26 @@ class UserConfirmRoundTripTest(unittest.TestCase):
         """`mesh` 不可用时给结构化错误，不要抛——确认端点是 UI 的关键路径。"""
 
         self.app.mesh = None
-        status, payload = self.adapter.user_confirm(CID, {"confirm": "甲"})
+        status, payload = self.adapter.user_confirm(CID, {"confirm": "甲", **self._pending()})
         self.assertEqual(status, 200)
         self.assertFalse(payload["ok"])
 
     def test_agree_mints_approval_id_for_the_option(self) -> None:
         """同意：结果是「同意」加宿主签发的 approval_id，并记下 option_id。"""
 
+        ids = self._pending("call-ap", "approval")
+        self._restart_confirmation_host()
         session = self.adapter._session(CID)
-        session.pending_confirm = {
-            "call_id": "call-ap",
-            "kind": "approval",
-            "option_id": "video-1",
-            "option_desc": "是否准许生成视频？",
-        }
-        status, payload = self.adapter.user_confirm(CID, {"approval": "agree"})
+        self.assertEqual(session.approvals, {})
+        status, payload = self.adapter.user_confirm(CID, {"approval": "agree", **ids})
         self.assertEqual(status, 200)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["decision"], "同意")
         aid = payload["approval_id"]
         self.assertTrue(str(aid).startswith("apv_"))
         self.assertEqual(session.approvals[aid], "video-1")
-        resume = self.submitted[0][1]["resume"]
+        resume = self._result()
         self.assertEqual(resume["call_id"], "call-ap")
-        self.assertTrue(resume["ok"])
         self.assertEqual(resume["data"], {"decision": "同意", "approval_id": aid})
         self.assertIsNone(self.adapter._session(CID).pending_confirm)
 
@@ -1477,14 +1536,14 @@ class UserConfirmRoundTripTest(unittest.TestCase):
             "option_id": "video-1",
             "option_desc": "是否准许生成视频？",
         }
-        status, payload = self.adapter.user_confirm(CID, {"approval": "reject"})
+        status, payload = self.adapter.user_confirm(CID, {"approval": "reject", **self._pending("call-ap", "approval")})
         self.assertEqual(status, 200)
         self.assertTrue(payload["ok"])
         self.assertFalse(payload["confirmed"])
         self.assertEqual(payload["decision"], "不同意")
         self.assertEqual(payload["approval_id"], "")
         self.assertEqual(session.approvals, {})
-        resume = self.submitted[0][1]["resume"]
+        resume = self._result()
         self.assertEqual(resume["data"], {"decision": "不同意"})
 
     def test_confirm_text_does_not_answer_an_approval(self) -> None:
@@ -1497,8 +1556,8 @@ class UserConfirmRoundTripTest(unittest.TestCase):
             "kind": "approval",
             "option_id": "video-1",
         }
-        status, payload = self.adapter.user_confirm(CID, {"confirm": "同意"})
-        self.assertEqual(status, 200)
+        status, payload = self.adapter.user_confirm(CID, {"confirm": "同意", **self._pending("call-ap", "approval")})
+        self.assertEqual(status, 409)
         self.assertFalse(payload["ok"])
         self.assertEqual(self.submitted, [])
         self.assertEqual(session.pending_confirm["call_id"], "call-ap")

@@ -264,3 +264,11 @@ TOOL_FACTORIES = (
     make_tool_vision_find, make_tool_vision_click_text, make_tool_vision_mouse,
     make_tool_vision_open,
 )
+
+
+def make_event_confirmation_closed(ctx: Any, runtime: SlotRuntime) -> Callable[[Any], None]:
+    def closed(event):
+        data = event.data
+        if data.get("expired"):
+            runtime.vision.expire_confirmation(data["conversation_id"], data["request_id"])
+    return closed

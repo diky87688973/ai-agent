@@ -3,7 +3,7 @@
  * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
-function resetSteps(){resetTurnState();stepSeq=0;}
+function resetSteps(){stepSeq=0;}
 
 function onToolEnd(ev){const tid=String(ev.tool_call_id!=null?ev.tool_call_id:"").trim();
 const o=tid&&toolOpen.get(tid);if(!o)return;

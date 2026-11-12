@@ -16,7 +16,9 @@
     var leftVisible = !!(
       (queue && !queue.classList.contains("hidden")) ||
       (draft && !draft.classList.contains("hidden")) ||
-      (speak && speak.querySelector(".ai-cosplay-player:not([hidden])"))
+      // 只看挂载点里有没有内容，不认具体插件的类名：
+      // 插件不展示时会把自己的节点摘掉，挂载点自然为空。
+      (speak && speak.children.length > 0)
     );
     var subagent = byId("subagentPanel");
     var taskPanel = byId("bgTaskPanel");

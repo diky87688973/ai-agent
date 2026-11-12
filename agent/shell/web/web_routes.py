@@ -15,6 +15,7 @@ from agent.common.status import GOAL_ACTIVE, GOAL_DONE, GOAL_PAUSED, require
 from agent.core.context import SERVICE_BACKGROUND_TASKS, SERVICE_CONVERSATION_QUEUE, SERVICE_UPDATE
 from agent.core.error_report import report_error
 from agent.mechanisms.background_tasks import TASK_STATUSES
+from agent.mechanisms.session_fact_index import FactIndexPending, HistoryWindowTooLarge
 from agent.shell.web.web_api import WebShell
 from agent.shell.web.web_auth import AuthMiddleware
 from agent.shell.web.web_classic import ClassicRoutes
@@ -331,7 +332,7 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
         elif path == "/api/chat/ui-state":
             classic = self._classic()
             if classic is not None and not query.get("conversation_id"):
-                self._json(200, classic.ui_state_get())
+                self._json(200, classic.ui_state_get(query.get("confirmation_ids", "")))
             else:
                 status, payload = self.shell.ui_state(query.get("conversation_id", ""))
                 self._json(status, payload)
@@ -427,6 +428,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             if self._get_page(path, query):
                 return
             self._get_misc(path, query)
+        except FactIndexPending as exc:
+            self._safe_error(exc)
         except Exception as exc:
             report_error("agent.shell.web.web_routes.Handler.do_GET", exc)
             self._safe_error(exc)
@@ -746,7 +749,12 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
         if isinstance(exc, OSError) and getattr(exc, "winerror", None) in (10053, 10054, 10058):
             return
         try:
-            self._json(500, {"error": f"{type(exc).__name__}: {exc}"})
+            if isinstance(exc, FactIndexPending):
+                self._json(503, {"code": "history_index_pending", "error": str(exc)})
+            elif isinstance(exc, HistoryWindowTooLarge):
+                self._json(422, {"error": str(exc)})
+            else:
+                self._json(500, {"error": f"{type(exc).__name__}: {exc}"})
         except Exception:
             print(f"[web] 响应失败：{type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
 

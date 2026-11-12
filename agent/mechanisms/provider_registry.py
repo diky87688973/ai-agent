@@ -25,7 +25,7 @@ from agent.mechanisms.providers.openai import OpenAICompatibleProvider
 _OPTIONS: Dict[str, Tuple[str, ...]] = {
     "openai": (
         "base_url", "api_key", "model", "timeout",
-        "replay_history_reasoning", "extra_headers",
+        "extra_headers",
     ),
     "anthropic": (
         "base_url", "api_key", "model", "max_tokens", "thinking",

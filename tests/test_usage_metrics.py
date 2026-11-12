@@ -110,7 +110,8 @@ class WindowComesFromKernelTest(unittest.TestCase):
         # 界面经 context_layout 灌入同一字段
         src = read_ui_js()
         self.assertIn("function setModelContextWindow(", src)
-        self.assertIn("setModelContextWindow(ev.model_max_context_tokens)", src)
+        self.assertRegex(src, r"setModelContextWindow\(\w+\.model_max_context_tokens\)")
+        self.assertRegex(src, r'ev\.type\s*===\s*"context_layout"\)\s*\{\s*applyContextLayoutFromHistory\(')
 
 
 if __name__ == "__main__":

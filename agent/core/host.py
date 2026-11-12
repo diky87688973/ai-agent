@@ -93,6 +93,7 @@ class Host:
         sink: Callable[[Event], None],
         max_passes: int = MAX_PASSES_DEFAULT,
         on_pass_end: Optional[Callable[[], None]] = None,
+        before_external_facts: Optional[Callable[[], None]] = None,
         seq_allocator: Optional[Callable[[], int]] = None,
     ) -> None:
         self._modules: List[ModuleBase] = list(modules)
@@ -107,6 +108,7 @@ class Host:
         #: （攒到回合末尾落盘，门控在工具执行时抛异常 → 界面已渲染
         #: 完整对话，存储里一个字都没有、刷新即消失，连用户发言一起丢。）
         self._on_pass_end = on_pass_end
+        self._before_external_facts = before_external_facts
         #: 全局存储坐标分配器（同 `Ports`）。回合边界事实也要有坐标，
         #: 否则 `turn_started` / `turn_ended` 收不到 `id:`，续传时首尾会缺。
         self._seq_allocator = seq_allocator
@@ -164,6 +166,7 @@ class Host:
                     tools=tools,
                     cancel=cancel,
                     seq_allocator=self._seq_allocator,
+                    before_external_facts=self._before_external_facts,
                 )
                 chain = run_chain_iter(self._modules, ports)
                 # 模块 `yield` 出来的事件在此立刻转给消费者——流式的关键。

@@ -20,6 +20,7 @@ class TurnFrames:
         self.pending.clear()
         self.paused = False
         self._awaiting_confirm = False
+        self._has_context_snapshot = False
         out: List[Dict[str, Any]] = []
         # `conversation` 是必需事件：经典界面靠它建立该会话的上下文
         # （`ensureConversationTab` + 同步模式/模型），并由
@@ -70,6 +71,7 @@ class TurnFrames:
                 content=str(d.get("content") or ""),
                 sender=sender,
                 sender_name=str(d.get("_sender_name") or ""),
+                attachments=list(d.get("attachments") or []),
             )]
         if str(d.get("kind") or "") == "goal_followup" and str(d.get("source") or "") == "goal":
             return [self._ev(
@@ -208,13 +210,6 @@ class TurnFrames:
             # 那一回合的可见产出是确认模态，不是对话区里的文字。
             if content and not self._awaiting_confirm:
                 out.append(self._ev(C.EV_ASSISTANT, content=content))
-        # 上下文分段条：每步发一次。
-        #
-        # 不能只挂在 `context_compacted` 上——那条分支要求"真的发生了压缩"，
-        # 而短会话永远不触发压缩 → 右栏上下文条恒为「—」。
-        # `context_layout` 由事件的消费方计算（这里算）；
-        # 算不出来就不发这一帧。
-        out += self._emit_layout()
         return out
 
     def _on_usage(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -227,6 +222,12 @@ class TurnFrames:
         if not payload:
             return []
         return [self._ev(C.EV_USAGE, usage=payload)]
+
+    def _on_context_segments(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
+        if not d.get("segments"):
+            return []
+        self._has_context_snapshot = True
+        return self._on_context_layout({**d, "snapshot_seq": self._frame_seq})
 
     def _on_context_layout(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
         """分段快照原样转发。
@@ -289,15 +290,14 @@ class TurnFrames:
                                 where="turn", detail=detail))
         out.append(self._ev(C.EV_DONE, ok=not (stopped or halted)))
         self._error_sent = False   # 回合收尾，下一回合重新计
-        # 回合收尾再发一次布局：此时本趟事实已落盘，那趟的上下文条
-        # 才不是「—」（布局由 `_emit_layout` 计算并发出）。
-        out += self._emit_layout()
+        if not self._has_context_snapshot:
+            out += self._emit_layout()
         self.pending.clear()
         self.paused = paused
         return out
 
     def _on_context_compacted(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """压缩事实 → 压缩卡片帧，并补一帧 `context_layout`。
+        """压缩事实 → 压缩卡片。请求装配完成后会单独发布分段快照。
 
         卡片只报本次压缩的消息条数和估算 token；摘要正文单独给出，
         避免前端解析内部桥接后缀。上下文条继续按既有路径更新。
@@ -318,19 +318,10 @@ class TurnFrames:
         layout = d.get("layout")
         if isinstance(layout, dict):
             out += self._on_context_layout(layout)
-        else:
-            out += self._emit_layout()
         return out
 
     def _emit_layout(self) -> List[Dict[str, Any]]:
-        """算并发出 `context_layout`；算不出来返回空列表。
-
-        两处调用（每步的 `model_message`、回合收尾的 `turn_ended`）都要它，
-        所以抽出来。回合收尾同样发一次：布局是从已落盘的事实算的
-        （`inbound.compute_context_layout`），而事实按趟增量落盘 —— 一趟开始算布局时
-        本趟事实还没落盘，于是那一趟的上下文条一直是「—」，
-        直到刷新（走 `history()`）或下一趟才出现。收尾时事实已经写下，这时补一帧就补齐了。
-        """
+        """读取已保存的布局，仅用于本回合未收到实时快照时。"""
         try:
             computed = self.layout_resolver() if self.layout_resolver is not None else None
         except Exception as exc:

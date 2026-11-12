@@ -53,7 +53,11 @@ class WakeIsolationTest(unittest.TestCase):
             _assistant("历史唤醒回答一"),
             _wake("wake-old-2", "历史提醒二", "2026-01-02T00:00:00Z"),
             _assistant("历史唤醒回答二"),
-            _wake("wake-current", "查看当前构建结果", "2026-11-06T01:02:03Z"),
+            Event("turn_started", {}),
+            Event("input_claimed", {
+                **_wake("wake-current", "查看当前构建结果", "2026-11-06T01:02:03Z").data,
+                "_from_queue": 1,
+            }),
             _assistant("", [tool_call]),
             Event("tool_result", {
                 "call_id": "call-current",
@@ -74,6 +78,14 @@ class WakeIsolationTest(unittest.TestCase):
         self.assertNotIn("wake-old-2", rendered)
         self.assertNotIn("历史提醒", rendered)
         self.assertNotIn("历史普通任务", rendered)
+
+        # A timer that arrives during that run must keep the tool context in view.
+        log.append([Event("input_claimed", {
+            **_wake("wake-insert", "检查另一个结果", "2026-11-06T01:03:00Z").data,
+            "_from_queue": 1,
+        })])
+        self.assertIsNone(log.derive_request_messages_from_latest_wake())
+        self.assertIn("call-current", json.dumps(log.derive_request_messages()))
 
     def test_later_ordinary_input_restores_full_history(self) -> None:
         log = SessionLog([

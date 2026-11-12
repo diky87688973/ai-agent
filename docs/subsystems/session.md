@@ -4,6 +4,21 @@
 
 `agent/mechanisms/session_store.py` persists session facts. `agent/mechanisms/run_registry.py` tracks running turns, `agent/mechanisms/mesh.py` handles cross-session delivery, `agent/mechanisms/session_title.py` generates titles, `agent/mechanisms/live_state.py` holds per-session state, and `agent/mechanisms/file_safety.py` provides versioned backups and a recycle area.
 
+### Indexed reads
+
+The raw log remains authoritative. The adjacent `.facts.sqlite3` index contains
+event offsets, sizes, coordinates and lookup keys. Message bodies and image bytes
+stay in the raw log. Inbox deduplication, confirmation lookup, history pages,
+attachments and SSE replay use the index. Web and CLI allocate coordinates from
+a shared watermark. Existing logs may require background index preparation.
+Online reads report a retryable error while the required index catches up.
+
+Model assembly reads from the first retained user input when the latest
+compaction fact contains a verified `history_anchor_seq`. The summary represents
+the covered prefix. Warm snapshots read only appended facts. The first rebuild
+for a legacy summary records its verified input boundary for future starts. A
+cold session with no valid compaction boundary reconstructs its original context.
+
 ## 2. Slots
 
 ### Exposed
@@ -109,6 +124,40 @@ Batches that fail to write (lock timeout, disk error) enter a retry queue; `flus
 When a failed batch is queued again, `_pending_only_new()` filters by sequence against facts already queued or already on disk, so each fact is written once.
 
 The queue is capped at `_PENDING_MAX_BATCHES = 64` batches per session; when it overflows, the oldest batch is dropped with a stderr warning.
+
+### Tool-call pairing
+
+Messages folded from the fact stream are not guaranteed to satisfy the model API's pairing constraint. `derive_messages()` is the faithful projection of the log — a dangling call stays dangling; `derive_request_messages()` is what actually goes out, and it calls `ensure_tool_pairs()` in between.
+
+Request assembly pairs each tool call with its result. The persisted facts retain their original order.
+
+| Malformed shape | Handling |
+|---|---|
+| A call has no result | Add a failure placeholder beside the call |
+| Later messages separate a real result from its call | Move the result back beside its call and preserve its content |
+| A result has no matching call | Omit the orphan result from the request projection |
+| The same ID is declared several times | Match each occurrence to one result |
+
+The placeholder wording cannot be a single sentence — the fact stream distinguishes three causes, so it says three different things:
+
+| Cause | Evidence | Wording |
+|---|---|---|
+| Suspended | `tool_ended` with `status=suspended` | `无结果：用户未作答` |
+| Interrupted | `tool_started` without `tool_ended` | `无结果：工具调用异常中断` |
+| Unknown | No trace in the fact stream | `无结果：该调用没有回执` |
+
+The reader of this text is the model, so: never explain how the turn ended (the model
+does not need it and will only be puzzled); refer to the user in the third person — never
+say "you", or the model reads it as "I am the one who must confirm"; one sentence only,
+without "retry if needed" style advice; every wording starts with `无结果：` so the model
+can tell a filled-in placeholder from a real receipt at a glance; and none of them ends
+with a full stop, so the three stay uniform.
+
+The cause is read from events, never from tool names: more than `user_confirm` can suspend (visual authorization does too). `SessionLog` computes the cause map and passes it as `ensure_tool_pairs(reasons=…)`; the repair function only sees messages and cannot tell the two apart, so a missing or unmatched entry falls back to the neutral wording.
+
+Why fill instead of delete: deleting makes the model believe it never issued the call, so it reissues it; a placeholder keeps the information and lets the model decide whether to retry or change approach.
+
+Repair uses existing tool call IDs and preserves them when inserting missing results. It is idempotent and never mutates its input.
 
 ### Run registry
 `run_registry.py` answers one question: **whether a turn is running for this session**.

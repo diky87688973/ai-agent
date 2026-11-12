@@ -2,27 +2,14 @@
 """经典 UI 上下文布局。"""
 from __future__ import annotations
 
-import threading
-from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from agent.core.error_report import report_error
+from agent.core.modules.mode_note import mode_tail
 from agent.mechanisms.context import ContextPipeline
+from agent.mechanisms.context.layout import merge_segment_rows
 from agent.mechanisms.context.tokens import default_message_tokens
 from agent.shell.classic_adapter.contract import EV_CONTEXT_SEGMENTS
-
-#: 上下文布局的小缓存：`{cid: ((事实条数, 注入源版本), 布局)}`。
-#
-# 本函数在每一步都会被调（实时帧一路），每次都做
-# 一次全量 `store.load` + 折叠，一回合几十步就是几百毫秒的纯浪费
-# （同一步内事实没变，算出来必然一样）。
-#
-# 缓存键是事实条数加上注入源版本。事实只追加、不修改。
-# 勾选文件和插件开关不追加事实，但会抬高注入源版本，插件段得重算。
-# 有界（只留最近 32 个会话），不会随会话数无限增长。
-_LAYOUT_CACHE: "OrderedDict[str, tuple]" = OrderedDict()
-_LAYOUT_CACHE_MAX = 32
-_LAYOUT_CACHE_LOCK = threading.Lock()
 
 
 def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str, Any]]:
@@ -38,35 +25,11 @@ def compute_context_layout(app: Any, events: List[Any], cid: str) -> Optional[Di
     """
     if not events:
         return None
-    stamp = (len(events), _sources_version(app))
-    with _LAYOUT_CACHE_LOCK:
-        hit = _LAYOUT_CACHE.get(cid)
-        if hit is not None and hit[0] == stamp:
-            _LAYOUT_CACHE.move_to_end(cid)
-            return hit[1]
     budget = _budget_of(app, cid)
     payload = _last_segments(events, budget)
     if payload is None:
-        payload = _fallback_layout(app, events, cid)
-    else:
-        payload = _overlay_plugin_segments(app, cid, payload)
-    if payload is None:
-        return None
-    with _LAYOUT_CACHE_LOCK:
-        _LAYOUT_CACHE[cid] = (stamp, payload)
-        _LAYOUT_CACHE.move_to_end(cid)
-        while len(_LAYOUT_CACHE) > _LAYOUT_CACHE_MAX:
-            _LAYOUT_CACHE.popitem(last=False)
-    return payload
-
-
-def _sources_version(app: Any) -> int:
-    """注入源版本。没有注册表时为 0。"""
-    sources = getattr(app, "context_sources", None)
-    try:
-        return int(getattr(sources, "version", 0) or 0)
-    except (TypeError, ValueError):
-        return 0
+        return _fallback_layout(app, events, cid)
+    return _overlay_plugin_segments(app, cid, payload)
 
 
 def _overlay_plugin_segments(app: Any, cid: str,
@@ -89,21 +52,14 @@ def _overlay_plugin_segments(app: Any, cid: str,
     items = list(getattr(packed, "items", None) or [])
     counts = list(getattr(packed, "counts", None) or [])
     fresh: List[Dict[str, Any]] = []
-    index_by_group: Dict[Tuple[str, str], int] = {}
     for index, item in enumerate(items):
         key, label, text = item[0], item[1], item[2]
         reported = counts[index] if index < len(counts) else 1
-        group = (f"plugin:{key}", str(label or key))
         tokens = int(default_message_tokens(
             {"role": "system", "content": str(text or "")}))
-        pos = index_by_group.get(group)
-        if pos is not None:
-            fresh[pos]["tokens"] = int(fresh[pos]["tokens"]) + tokens
-            continue
-        index_by_group[group] = len(fresh)
         fresh.append({
-            "key": group[0],
-            "label": group[1],
+            "key": f"plugin:{key}",
+            "label": str(label or key),
             "tokens": tokens,
             "count": int(reported),
         })
@@ -121,7 +77,7 @@ def _overlay_plugin_segments(app: Any, cid: str,
         else:
             head.append(segment)
     merged = dict(payload)
-    merged["segments"] = head + fresh + tail
+    merged["segments"] = head + merge_segment_rows(fresh) + tail
     return _rescale(merged, _budget_of(app, cid) or int(payload.get("budget_tokens") or 0))
 
 
@@ -154,7 +110,10 @@ def _last_segments(events: List[Any],
         data = getattr(event, "data", None) or {}
         if not data.get("segments"):
             continue
-        return _rescale(dict(data), budget_tokens)
+        payload = dict(data)
+        if isinstance(payload.get("_seq"), int):
+            payload["snapshot_seq"] = payload.pop("_seq")
+        return _rescale(payload, budget_tokens or int(data.get("budget_tokens") or 0))
     return None
 
 
@@ -215,7 +174,6 @@ def _fallback_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str
     读它的头部来切段；事实只提供对话与覆盖点。
     """
     from agent.core.session_log import SessionLog
-    from agent.mechanisms.context import layout_from_messages
 
     messages = SessionLog(events=list(events)).derive_request_messages()
     if not messages:
@@ -250,14 +208,11 @@ def _fallback_layout(app: Any, events: List[Any], cid: str) -> Optional[Dict[str
         **(dict(getattr(app, "context_defaults", None) or {})),
     )
     pipeline.append_system(system_text)
-    pipeline.set_dialogue(messages, covered_end=_covered_end_of(events))
-    head = pipeline.host_messages()
-    plugin_segments = pipeline.plugin_segments()
-    payload = layout_from_messages(
-        messages,
-        system_text=system_text,
-        head=head,
-        plugin_segments=plugin_segments,
+    mode = mode_tail(messages)
+    dialogue = [message for message in messages if message not in mode]
+    pipeline.set_dialogue(dialogue, covered_end=_covered_end_of(events))
+    payload = pipeline.layout_payload(
+        tail_messages=mode,
         budget_tokens=budget,
         # 旧会话没有装配快照，但终点仍是界面：分母按当前模型窗口给，
         # 否则这条分支永远回 0，界面只好拿预算冒充窗口。

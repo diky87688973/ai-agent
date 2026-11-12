@@ -18,7 +18,7 @@ class ClassicToolResultTest(unittest.TestCase):
 
     用户作答在旧记录里写成 `tool_result`（当前内核写 `tool_done` / `tool_failed`）。
     不认它的后果不是"少一条消息"，而是用户的作答在模型眼里消失 ——
-    请求层只能补一句"这次工具调用没有产生结果"的占位。
+    请求层只能补一条「无结果」占位。
     """
 
     def _events(self):

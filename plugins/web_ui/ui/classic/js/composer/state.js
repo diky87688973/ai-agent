@@ -25,8 +25,24 @@ function _serverRunningCid(cid){var t=cid?findConversationTab(cid):null;return !
 function _clearServerRunning(id){var cid=normalizeConversationId(id);if(!cid)return;var t=findConversationTab(cid);if(t&&t.abortController&&t.abortController.server===true){t.abortController=null;t.activeRunId="";}}
 function _markServerRunning(id){var cid=normalizeConversationId(id);if(!cid)return;var t=findConversationTab(cid);if(!t||t.abortController)return;t.abortController={server:true};}
 function _stopServerRunningTab(t){if(!t)return;var cid=t.id;try{t.stopRequested=true;fetch("/api/chat/stop",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,run_id:String(t.activeRunId||"")})}).catch(function(){});}catch(_e){}try{fetch("/api/chat/autonomous",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:cid,enabled:false})}).catch(function(){});}catch(_e2){}_autoEnabled=false;if(typeof updateAutoToggleUI==="function")updateAutoToggleUI();t.stopRequested=true;try{updateTaskControls();}catch(_e3){}try{renderChatTabs();}catch(_e4){}}
-function updateTaskControls(){var t=getActiveTab();var canStop=!!(t&&t.abortController)||_autoEnabled;var send=document.querySelector('[data-ui-action="input.send"]');var stop=document.querySelector('[data-ui-action="input.stop"]');if(send){send.hidden=false;send.classList.toggle("hidden",canStop);send.disabled=false;}if(stop){stop.hidden=!canStop;stop.classList.toggle("hidden",!canStop);stop.disabled=!canStop;}}
-function stopCurrentTask(){var t=getActiveTab();var cid=t?t.id:getActiveConversationId();if(!t||!t.abortController){/* 服务端说这条会话在跑、但本页没有本地控制器（中途接入）→ 仍要把停止请求发给服务端，
+function updateTaskControls(){var t=getActiveTab();var waiting=!!userConfirmBlocking;var canStop=!!(t&&t.abortController)||_autoEnabled||waiting;var send=document.querySelector('[data-ui-action="input.send"]');var stop=document.querySelector('[data-ui-action="input.stop"]');if(send){send.hidden=false;send.classList.toggle("hidden",canStop&&!waiting);send.disabled=false;}if(stop){stop.hidden=!canStop;stop.classList.toggle("hidden",!canStop);stop.disabled=!canStop;}}
+function stopCurrentTask(){var t=getActiveTab();var cid=t?t.id:getActiveConversationId();
+if(t&&userConfirmBlocking){
+  fetch("/api/chat/stop",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({conversation_id:cid,run_id:String(t.activeRunId||"")})})
+    .then(async function(response){
+      if(!response.ok)throw new Error((await response.json()).error||"停止失败");
+      if(_autoEnabled&&getActiveConversationId()===cid){
+        _autoEnabled=false;
+        updateAutoToggleUI();
+        void fetch("/api/chat/autonomous",{method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({conversation_id:cid,enabled:false})}).catch(function(){});
+      }
+      void reconcileConfirmationCards();
+    }).catch(function(error){withConversationContext(cid,function(){add("a",error.message);});});
+  return;
+}
+if(!t||!t.abortController){/* 服务端说这条会话在跑、但本页没有本地控制器（中途接入）→ 仍要把停止请求发给服务端，
    不能直接 return：否则点了停止什么都不发生。
    这里不做 markCurrentTurnStoped：服务端才是权威，本地标记会与实际状态不符。 */
 if(_serverRunningCid(t&&t.id)){_stopServerRunningTab(t);return;}

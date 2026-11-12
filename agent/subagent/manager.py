@@ -128,9 +128,10 @@ class SubagentManager:
         *,
         msg: str,
         images: Any = None,
+        user_send: bool = False,
     ) -> Dict[str, Any]:
         return self._messenger.send_to_child(
-            parent_cid, child_id, msg=msg, images=images,
+            parent_cid, child_id, msg=msg, images=images, user_send=user_send,
         )
 
     def send_to_parent(

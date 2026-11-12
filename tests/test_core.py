@@ -435,11 +435,19 @@ class SuspendResumeTest(CoreHarness):
                 {"title": "继续吗？", "confirms": ["继续", "停止"]})]},
         ])
         ctx = SessionContext(conversation_id="confirm-0001")
+        written, durable_when_visible = [], []
+
+        def publish(event):
+            if event.type == "tool_suspended":
+                durable_when_visible.append(event in written)
+
         engine = Engine(
             conversation_id="confirm-0001", provider=provider,
             registry=registry, pipeline=ToolPipeline(), session_context=ctx,
+            fact_sink=written.extend, event_sink=publish,
         )
         events = list(engine.start_turn("需要确认"))
+        self.assertEqual(durable_when_visible, [True])
         self.assertTrue(engine.paused)
         self.assertTrue(any(e.type == "tool_suspended" for e in events))
         self.assertEqual(ctx.pending_confirm["call_id"], "c-confirm")
@@ -603,7 +611,8 @@ class SuspendBatchTest(CoreHarness):
         content = str(placeholder["content"])
         payload = json.loads(content)
         self.assertEqual(payload.get("ok"), False, msg=f"占位={content!r}")
-        self.assertIn("没有产生结果", str(payload.get("error") or ""))
+        # 文案随成因变（挂起 / 中断 / 未知），此处只验「说明了无结果」而非某档措辞。
+        self.assertIn("无结果", str(payload.get("error") or ""))
 
 # ══════════════════════════════════════════════════════════════════
 # 三·三、基础设施契约：事实落盘时机、存储坐标、端口封装

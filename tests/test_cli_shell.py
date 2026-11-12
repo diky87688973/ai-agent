@@ -146,6 +146,43 @@ class ChatConfirmRoundTripTest(unittest.TestCase):
             tool = self.app.registry.get(name)
             self.assertTrue(bool(getattr(tool, "needs_preview", False)), msg=name)
 
+    def test_cli_suspension_survives_exit_for_web_answer(self) -> None:
+        from agent.mechanisms.mesh import MeshState
+        from agent.mechanisms.session_store import SessionStore
+        from agent.shell.classic_adapter.adapter import ClassicAdapter
+
+        store = SessionStore(self.root / "sessions")
+        app = build_app(store=store, mesh=MeshState())
+        self.addCleanup(app.dispose)
+        parsed = chat.parse_args(["--session", CID])
+        old = Event("tool_suspended", {"call_id": "old-call", "envelope": {"request_id": "old-request"}})
+        new = Event("tool_suspended", {"call_id": "new-call", "name": "user_confirm",
+                                       "envelope": {"request_id": "new-request", "title": "确认？"}})
+        store.append(CID, [old])
+
+        def run_cli_turn(engine, _gate, _text):
+            facts = store.load(CID)
+            self.assertEqual([event.type for event in facts],
+                             ["tool_suspended", "tool_failed", "tool_ended"])
+            store.append(CID, [Event("tool_started", {"call_id": "new-call", "name": "user_confirm"}), new])
+            engine._remember_suspend(new)
+            return 0
+
+        with mock.patch.object(chat, "run_one", side_effect=run_cli_turn):
+            self.assertEqual(chat.run_current(app, parsed, CID, "new input"), 0)
+        app.session_contexts.release(CID)
+
+        classic = ClassicAdapter(app)
+        self.assertEqual(classic.history(CID)["items"][-1]["status"], "suspended")
+        self.assertEqual(classic.ui_state_get(CID)["state"]["confirmations"][CID]["request_id"], "new-request")
+        with mock.patch.object(app.mesh, "submit", return_value={"run_id": "web-followup"}):
+            status, result = classic.user_confirm(CID, {
+                "call_id": "new-call", "request_id": "new-request", "confirm": "yes",
+            })
+        self.assertEqual(status, 200)
+        self.assertTrue(result["confirmed"])
+
+
 class ChatExitReleaseTest(unittest.TestCase):
     """交互壳退出时释放会话运行态。"""
     def setUp(self) -> None:
@@ -254,7 +291,8 @@ class ExplicitReleaseTest(unittest.TestCase):
         self.assertIsNot(ctxs.resolve_sync("conv-a"), a)
 
     def test_web_release_conversation_reduces_active_count(self) -> None:
-        """关闭会话 API 调用 release 后 active_count 下降。"""
+        """关闭会话标签释放内存，保留持久化的终止状态。"""
+        from agent.mechanisms.mesh import MeshState
         from agent.shell.web.server import WebShell
         from tests.testkit import isolate_data, isolate_plugins
 
@@ -265,10 +303,12 @@ class ExplicitReleaseTest(unittest.TestCase):
         app = build_app(
             backup_root=Path(tmp.name) / "bk",
             recycle_root=Path(tmp.name) / "rc",
+            mesh=MeshState(Path(tmp.name) / "mesh"),
         )
         self.addCleanup(app.dispose)
         cid = "web-release-active-count-01"
         app.session_contexts.resolve_sync(cid)
+        app.mesh.mark_stopped(cid)
         before = app.session_contexts.active_count()
         self.assertGreaterEqual(before, 1)
         shell = WebShell(app)
@@ -277,6 +317,9 @@ class ExplicitReleaseTest(unittest.TestCase):
         self.assertTrue(payload.get("ok"))
         self.assertEqual(app.session_contexts.active_count(), before - 1)
         self.assertIsNone(app.session_contexts.get(cid))
+        reopened_mesh = MeshState(Path(tmp.name) / "mesh")
+        self.assertTrue(reopened_mesh.is_stopped(cid))
+        self.assertFalse(reopened_mesh.try_begin_run(cid))
 
     def test_release_unknown_and_blank_are_safe(self) -> None:
 

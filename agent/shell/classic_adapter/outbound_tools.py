@@ -57,18 +57,12 @@ class ToolFrames:
             frame["awaiting_input"] = awaiting
         return [frame]
 
+    def _on_confirmation_closed(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [self._ev("confirmation_closed", call_id=d.get("call_id"),
+                         request_id=d.get("request_id"), expired=bool(d.get("expired")))]
+
     def _on_tool_suspended(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """工具声明"需要外部输入" → 经典界面的待确认卡（当前事实名）。
-
-        与 `_on_turn_awaiting_user` 是同一件事的两种事实名：
-        - `turn_awaiting_user`：回合级暂停事实，载荷扁平带 title/confirms；
-        - `tool_suspended`：工具级挂起事实，选项在 `envelope` 里（当前）；
-
-        适配层两个都认，吸收词汇差异。
-
-        卡片挂在专用事实上：按两段式设计，首段不产生结果事实
-        （那次调用还没返回），所以没有结果事件可以挂载。
-        """
+        """Project a suspended tool into its confirmation card."""
         call_id = str(d.get("call_id") or "")
         if not call_id:
             return []
@@ -111,6 +105,7 @@ class ToolFrames:
                 ok=True,
                 preview="",
                 approval_required=True,
+                user_confirm_request_id=str(envelope.get("request_id") or call_id),
                 approval_title="审批",
                 approval_desc=desc,
             )]
@@ -136,6 +131,7 @@ class ToolFrames:
             user_confirm_title=title,
             user_confirm_options=[str(x) for x in confirms],
             user_confirm_multi=bool(envelope.get("multi")),
+            user_confirm_request_id=str(envelope.get("request_id") or call_id),
         )]
 
     def _on_turn_awaiting_user(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -203,6 +199,7 @@ class ToolFrames:
             return []
         return [self._ev(C.EV_TOOL_END, tool_call_id=call_id,
                          ok=False, canceled=True, preview="",
+                         error=str(d.get("error") or ""),
                          elapsed_s=d.get("elapsed_s"))]
 
     def _on_tool_result(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:

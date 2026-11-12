@@ -143,6 +143,27 @@ class TitleStore:
             return None
         return self.titles_dir / f"{key}.title"
 
+    def claim_generation(self, cid: str) -> bool:
+        """Reserve the single model call before entering the provider."""
+        path = self._path(cid)
+        if path is None:
+            return False
+        marker = path.with_suffix(".title-attempted")
+        try:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            with marker.open("xb"):
+                pass
+        except FileExistsError:
+            return False
+        except OSError as exc:
+            report_error("agent.mechanisms.session_title.claim_generation", exc)
+            return False
+        return True
+
+    def generation_attempted(self, cid: str) -> bool:
+        path = self._path(cid)
+        return path is not None and path.with_suffix(".title-attempted").is_file()
+
     def load(self, cid: str) -> str:
         path = self._path(cid)
         if path is None or not path.is_file():
@@ -153,15 +174,18 @@ class TitleStore:
             report_error("agent.mechanisms.session_title.TitleStore.load", exc)
             return ""
 
-    def save(self, cid: str, title: str) -> bool:
+    def save(self, cid: str, title: str, *, replace: bool = True) -> bool:
         text = str(title or "").strip()
         path = self._path(cid)
         if path is None or not text:
             return False
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8")
+            with path.open("w" if replace else "x", encoding="utf-8") as target:
+                target.write(text)
             return True
+        except FileExistsError:
+            return False
         except OSError as exc:
             report_error("agent.mechanisms.session_title.TitleStore.save", exc)
             return False

@@ -216,8 +216,8 @@ class ContextSources:
             for i, text in enumerate(texts):
                 # 前缀在收集时统一加上：插件只管正文，前缀由它自己声明。
                 items.append((key, label, f"{prefix}{text}" if prefix else text))
-                # 一个来源给多条正文时只有第一条带自报数量，其余按条数算。
-                counts.append(amount if i == 0 and amount is not None else 1)
+                # 自报总数只记一次。没有自报数时每条正文各计 1。
+                counts.append(1 if amount is None else amount if i == 0 else 0)
         # 不变量：数量与正文逐条对齐。少了数量，管线那边会把别人的数量贴到
         # 自己的段上（按位置取值）；错位是静默的，只在浮层上表现为数字离谱。
         while len(counts) < len(items):

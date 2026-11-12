@@ -15,7 +15,7 @@ from agent.core.error_report import report_error
 from .config import AICosplayConfig, config_path, load_config
 from .provider import create_provider
 from .runtime import AICosplayRuntime
-from .runtime_worker import ACK_STATUSES, ERROR, PLAYED
+from .runtime_worker import ACK_STATUSES, PLAYED
 from .tool import AICosplayTool
 
 
@@ -42,23 +42,18 @@ def _log_warnings(config: AICosplayConfig) -> None:
 
 
 def _turn_handler(runtime: AICosplayRuntime) -> Callable[[Any], None]:
+    """用户主动停止回合时清空语音。
+
+    只认 `stopped`：模型调用失败与护栏触顶走的是 `halted`，那时这一趟不再产出
+    新语音，但已合成好的音频跟错误无关，继续播完才是对的。
+    """
     def _handler(event: Any) -> None:
         data = getattr(event, "data", None) or {}
         cid = str(data.get("conversation_id") or "")
         if not cid:
             return
-        if bool(data.get("stopped")) or bool(data.get("halted")):
+        if bool(data.get("stopped")):
             runtime.stop_cid(cid, "turn_stopped")
-
-    return _handler
-
-
-def _error_handler(runtime: AICosplayRuntime) -> Callable[[Any], None]:
-    def _handler(event: Any) -> None:
-        data = getattr(event, "data", None) or {}
-        cid = str(data.get("conversation_id") or "")
-        if cid:
-            runtime.stop_cid(cid, ERROR)
 
     return _handler
 
@@ -136,11 +131,6 @@ def make_route_played(ctx: Any, runtime: AICosplayRuntime) -> Callable[..., Any]
 def make_event_turn_ended(ctx: Any, runtime: AICosplayRuntime) -> Callable[[Any], None]:
     """回合结束订阅；事件名取 `agent.core.event_name.TURN_ENDED`。"""
     return _turn_handler(runtime)
-
-
-def make_event_error(ctx: Any, runtime: AICosplayRuntime) -> Callable[[Any], None]:
-    """错误订阅；事件名取 `agent.core.event_name.ERROR`。"""
-    return _error_handler(runtime)
 
 
 def make_mode_tail(ctx: Any, runtime: AICosplayRuntime) -> Callable[[str], str]:

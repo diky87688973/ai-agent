@@ -90,7 +90,7 @@ def wake_scheduler(ctx: Any, facade: Any = None):
             return False
 
     return WakeScheduler(
-        ctx.boot_config.data_root / "wake", submit=app.mesh.submit,
+        ctx.boot_config.data_root / "wake", submit=app.mesh.submit_insert,
         delivered=delivered, target_exists=target_exists)
 
 
@@ -118,7 +118,8 @@ def finalizer(ctx: Any, facade: Any = None, classic_adapter: Any = None,
     app.context.register(SERVICE_PLUGIN_EVENTS, plugin_events)
     app.mesh.set_activator(runner.start)
     if app.store is not None:
-        app.mesh.set_session_exists(lambda cid: bool(app.store.load(cid)))
+        app.mesh.set_session_exists(app.store.session_exists)
+        app.store.prepare_indexes()
     app.context.get(SERVICE_BACKGROUND_TASKS).set_notice(_notice_handler(app))
     # 调度器总是登记（服务必须可取到对象）；抢不到锁时本进程不是 owner，
     # 只影响能不能注册/取消唤醒任务，不影响启停。

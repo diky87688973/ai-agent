@@ -166,11 +166,28 @@
     });
   }
 
+  function syncMounted(active) {
+    bar.hidden = !active;
+    if (active) {
+      if (!bar.parentNode) mountHost().appendChild(bar);
+      return;
+    }
+    // 不展示时整个摘掉，挂载点才会真空。挂载点归壳层，插件不改它的样式，
+    // 也不靠壳层认自己的类名。
+    if (bar.parentNode) bar.parentNode.removeChild(bar);
+  }
+
+  function mountHost() {
+    // 每次现查：壳层可能在脚本之后才插入挂载点，插件不缓存它的位置。
+    return document.getElementById("aiCosplaySlot")
+      || document.body || document.documentElement;
+  }
+
   function render() {
     if (destroyed) return;
     var st = currentState();
     var active = !!(st && (st.current || st.items.length || st.blocked || st.errorText || st.pendingText));
-    bar.hidden = !active;
+    syncMounted(active);
     if (!st) {
       textInner.textContent = "";
       textEl.title = "";
@@ -775,8 +792,6 @@ states: function () {
   document.addEventListener("ai-agent:conversation-changed", onConversationChanged);
   toggleBtn.addEventListener("click", onToggleClick);
   stopBtn.addEventListener("click", onStopClick);
-  var slot = document.getElementById("aiCosplaySlot");
-  (slot || document.body || document.documentElement).appendChild(bar);
   render();
 
   if (api && typeof api.get === "function") {

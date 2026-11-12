@@ -55,15 +55,39 @@ async function loadSessionRailList(quiet){if(!chatSessionMenu)return;var gen=++s
 async function toggleSessionMenu(){var rail=document.getElementById("sessionRail");if(!rail||!chatSessionMenu)return;if(!rail.classList.contains("is-collapsed")){if(typeof window._setSessionRailOpen==="function")window._setSessionRailOpen(false);return;}if(typeof window._setSessionRailOpen==="function")window._setSessionRailOpen(true);await loadSessionRailList();}
 document.addEventListener("ai-agent:conversation-title",function(){var rail=document.getElementById("sessionRail");if(!rail||rail.classList.contains("is-collapsed"))return;void loadSessionRailList(true);});
 function isDefaultConversationTitle(t){var s=String(t&&t.title||"");return !s||/^会话\s+[A-Za-z0-9_-]{8}$/.test(s)||s==="生成标题中…"||s==="新会话"||s==="未知标题";}
-/* 会话标题只在仍是占位标题时向服务端要一次。
-   `_titlePending` 挡住并发：同一 cid 同时只允许一次请求在途。
-   `_titleTried` 挡住反复重试：服务端给不出标题（空会话、只发过系统通知）
-   或请求失败时标题会停在占位态，不计数就会每轮对话结束再发一次，
-   聊得越久请求越多，而结果早已确定。 */
-var _titlePending={};
-var _titleTried={};
-var TITLE_MAX_TRIES=2;
-async function refreshConversationTitle(id){if(!id||_titlePending[id])return;var t=findConversationTab(id);if(!t||t.subagent||!isDefaultConversationTitle(t))return;if((_titleTried[id]||0)>=TITLE_MAX_TRIES)return;_titleTried[id]=(_titleTried[id]||0)+1;_titlePending[id]=true;t.title="生成标题中…";renderChatTabs();persistConversationLayout();try{var r=await fetch("/api/chat/title",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:id})});if(!r.ok)return;var j=await r.json();var title=String(j&&j.title||"").trim();if(title&&title!=="新会话"&&title!=="未知标题"){var tt=findConversationTab(id);if(tt){tt.title=title.slice(0,18);renderChatTabs();persistConversationLayout();notifyConversationTitle(tt.id);}}else if(title==="新会话"||title==="未知标题"){var t2=findConversationTab(id);if(t2&&t2.title==="生成标题中…"){t2.title="会话 "+id.slice(0,8);renderChatTabs();persistConversationLayout();notifyConversationTitle(t2.id);}}}catch(e){}finally{delete _titlePending[id];}}
+async function refreshConversationTitle(id) {
+  var tab = findConversationTab(id);
+  if (!id || !tab || tab.subagent || !isDefaultConversationTitle(tab) || tab.titleRequested) return;
+  tab.titleRequested = true;
+  var acknowledged = false;
+  tab.title = "生成标题中…";
+  renderChatTabs();
+  try {
+    var response = await fetch("/api/chat/title", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({conversation_id: id})
+    });
+    if (!response.ok) return;
+    var result = await response.json();
+    acknowledged = !!(result && result.ok);
+    var title = String(result && result.title || "").trim();
+    if (findConversationTab(id) === tab && tab.title === "生成标题中…" &&
+        title && title !== "新会话" && title !== "未知标题") {
+      tab.title = title.slice(0, 18);
+      notifyConversationTitle(id);
+    }
+  } catch (error) {
+    console.debug("[title] request failed", error);
+  } finally {
+    if (!acknowledged) tab.titleRequested = false;
+    if (findConversationTab(id) === tab) {
+      if (tab.title === "生成标题中…") tab.title = "会话 " + id.slice(0, 8);
+      renderChatTabs();
+      persistConversationLayout();
+    }
+  }
+}
 function renderHistoryItems(items,conversationId){
 items=Array.isArray(items)?items:[];
 /* 必须用正在还原的会话 id，不能用当前激活 tab：多 tab 并行 loadHistory 时否则会把附件挂到错误 conversation_id → 404 */
@@ -75,7 +99,7 @@ if(it.kind==="system_notice")continue;
 if(it.kind==="goal_followup"){addGoalFollowup(String(it.content||""),it);continue;}
 if(it.role==="user"){
 var bubble=null;
-if(it._sender&&it._sender!=="boss")addPeerMessage(String(it.content||""),String(it._sender_name||""),String(it._sender||""));
+if(it._sender&&it._sender!=="boss")bubble=addPeerMessage(String(it.content||""),String(it._sender_name||""),String(it._sender||""));
 else bubble=add("u",String(it.content||""),it);
 var atts=Array.isArray(it.attachments)?it.attachments:[];
 if(atts.length&&window.AIA&&AIA.buildMsgAttachStrip&&bubble){
@@ -133,6 +157,7 @@ var env=it.envelope||{};
 if(env.kind==="approval"){
 onToolEnd({tool_call_id:ev.tool_call_id,ok:true,approval_required:true,
 approval_title:"审批",approval_desc:String(env.option_desc||""),
+user_confirm_request_id:env.request_id||ev.tool_call_id,
 preview:it.envelope?JSON.stringify({data:it.envelope}):"",elapsed_s:it.elapsed_s});
 }else{
 var confirms=Array.isArray(env.confirms)?env.confirms.map(String):[];
@@ -140,6 +165,7 @@ onToolEnd({tool_call_id:ev.tool_call_id,ok:false,user_confirm_required:true,
 user_confirm_title:String(env.title||""),
 user_confirm_options:confirms,
 user_confirm_multi:!!env.multi,
+user_confirm_endpoint:env.confirm_path||"",user_confirm_request_id:env.request_id||"",
 preview:it.envelope?JSON.stringify({data:it.envelope}):"",elapsed_s:it.elapsed_s});
 }
 }else if(it.status==="done"){
@@ -173,7 +199,18 @@ if(parts.length)return parts.join("\n");
 }
 return "";
 }
-function applyContextLayoutFromHistory(t,j){if(!t||!j)return;if(j.context_layout)t.lastContextLayout=j.context_layout;if(j.context_layout&&normalizeConversationId(t.id)===normalizeConversationId(activeConversationId))_updateUsageBottom();}
+function applyContextLayoutFromHistory(t,j){
+  var layout=j&&j.context_layout;
+  if(!t||!layout)return;
+  var previous=t.lastContextLayout&&t.lastContextLayout.snapshot_seq;
+  if(Number.isSafeInteger(previous)&&
+     (!Number.isSafeInteger(layout.snapshot_seq)||layout.snapshot_seq<previous))return;
+  t.lastContextLayout=layout;
+  if(normalizeConversationId(t.id)===normalizeConversationId(activeConversationId)){
+    setModelContextWindow(layout.model_max_context_tokens);
+    _updateUsageBottom();
+  }
+}
 async function refreshConversationContextLayout(t){if(!t||!normalizeConversationId(t.id)||t.abortController)return;try{var r=await fetch("/api/chat/history?"+new URLSearchParams({conversation_id:t.id,meta:"1"}));if(!r.ok)return;var j=await r.json();if(!j||j.ok!==true)return;applyContextLayoutFromHistory(t,j);}catch(e){}}
 var composerResizeObserver=null;
 function syncComposerInsets(){
@@ -223,7 +260,7 @@ if(!el||!composerResizeObserver)return;
 try{composerResizeObserver.observe(el);}catch(e){}
 }
 function scrollToBottomAfterLayout(el,force){if(!el)return;requestAnimationFrame(function(){requestAnimationFrame(function(){scrollToBottom(el,force);});});}
-async function loadConversationHistory(t){if(!t)return;if(t.historyLoaded){void refreshConversationContextLayout(t);return;}if(t.historyState==="loading")return;t.historyState="loading";_historyStatus(t,"加载会话历史…",false);try{var _hp=t.subagent?"/api/subagents/history?":"/api/chat/history?";var _hq=t.subagent?new URLSearchParams({conversation_id:String(t.parentCid||""),child_id:t.id}):new URLSearchParams({conversation_id:t.id});var r=await fetch(_hp+_hq);if(!r.ok)throw new Error("history HTTP "+r.status);var j=await r.json();if(!j||j.ok!==true)throw new Error("history not ok");var items=j.items||[];_removeHistoryStatus(t);applyContextLayoutFromHistory(t,j);withConversationContext(t.id,function(){var isActive=normalizeConversationId(t.id)===normalizeConversationId(activeConversationId);if(j.todo_list&&j.todo_list.length){renderTodoListFromEvent({items:j.todo_list,all_done:j.todo_list.every(function(it){return !!it.done;}),collapsed:false},t.id);}else{hideTodoList();}if(items.length&&msgs.childNodes.length<=1){while(msgs.firstChild)msgs.removeChild(msgs.firstChild);renderHistoryItems(items,t.id);}else if(msgs.childNodes.length===0){renderHistoryItems(items,t.id);}if(isActive){scrollToBottomAfterLayout(msgs,true);}});t.historyLoaded=true;if(j.page&&typeof j.page.has_more==="boolean"){t.historyBefore=j.page.has_more?j.page.next_before:null;t.historyState=j.page.has_more?"idle":"exhausted";}else{t.historyBefore=null;t.historyState="exhausted";}}catch(e){console.error("[history] load failed",t.id,e);t.historyLoaded=false;t.historyBefore=null;t.historyState="error";_historyStatus(t,"会话历史加载失败 · 点击重试",true);}}
+async function loadConversationHistory(t){if(!t)return;if(t.historyLoaded){void refreshConversationContextLayout(t);return;}if(t.historyState==="loading")return;t.historyState="loading";_historyStatus(t,"加载会话历史…",false);try{var _hp=t.subagent?"/api/subagents/history?":"/api/chat/history?";var _hq=t.subagent?new URLSearchParams({conversation_id:String(t.parentCid||""),child_id:t.id}):new URLSearchParams({conversation_id:t.id});var j=await fetchHistoryPage(t,_hp+_hq);if(!j){_removeHistoryStatus(t);t.historyState="idle";return;}var items=j.items||[];_removeHistoryStatus(t);applyContextLayoutFromHistory(t,j);withConversationContext(t.id,function(){var isActive=normalizeConversationId(t.id)===normalizeConversationId(activeConversationId);if(j.todo_list&&j.todo_list.length){renderTodoListFromEvent({items:j.todo_list,all_done:j.todo_list.every(function(it){return !!it.done;}),collapsed:false},t.id);}else{hideTodoList();}if(items.length&&msgs.childNodes.length<=1){while(msgs.firstChild)msgs.removeChild(msgs.firstChild);renderHistoryItems(items,t.id);}else if(msgs.childNodes.length===0){renderHistoryItems(items,t.id);}if(isActive){scrollToBottomAfterLayout(msgs,true);}});t.historyLoaded=true;if(j.page&&typeof j.page.has_more==="boolean"){t.historyBefore=j.page.has_more?j.page.next_before:null;t.historyState=j.page.has_more?"idle":"exhausted";}else{t.historyBefore=null;t.historyState="exhausted";}}catch(e){console.error("[history] load failed",t.id,e);t.historyLoaded=false;t.historyBefore=null;t.historyState="error";_historyStatus(t,"会话历史加载失败 · 点击重试",true);}}
 function _routeEventBySource(ev){var scid=ev&&ev._source_session;if(!scid)return;var cid=normalizeConversationId(scid);if(!cid)return;var tab=findConversationTab(cid);if(!tab)return;var t=ev.type;if(t==="assistant"){withConversationContext(cid,function(){var ac=String(ev.content||"").trim();if(ac){add("a",ac);scrollToBottomAfterLayout(msgs,true);}});}else if(t==="tool_start"){withConversationContext(cid,function(){onToolStart(ev);});}else if(t==="tool_end"){withConversationContext(cid,function(){onToolEnd(ev);if(ev.todo_list&&ev.todo_list_data){var _td=ev.todo_list_data;renderTodoListFromEvent({items:_td.items||[],all_done:Array.isArray(_td.items)&&_td.items.every(function(it){return !!it.done;}),collapsed:!!_td.collapsed,close:!!_td.close},cid);scrollToBottomAfterLayout(msgs,true);}});}else if(t==="todo_list"){if(ev.close){syncTodoUnreadBadgeForConversation(cid);}else if(ev.items){renderTodoListFromEvent({items:ev.items,all_done:Array.isArray(ev.items)&&ev.items.every(function(it){return !!it.done;}),collapsed:!!ev.collapsed,close:!!ev.close},cid);syncTodoUnreadBadgeForConversation(cid);}}else if(t==="context_compacted"){withConversationContext(cid,function(){renderCompactionEvent(ev,findConversationTab(cid));});}else if(t==="context_layout"){var _t4=findConversationTab(cid);if(_t4)applyContextLayoutFromHistory(_t4,{context_layout:ev});}}
 /* 开局只向服务端问一件事：哪些会话在跑（服务端权威，用于回填停止键）。
    标签列表与激活会话都来自本地 —— 本地没有就是新会话，不去服务端拉一个来激活。 */

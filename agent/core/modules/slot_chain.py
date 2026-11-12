@@ -19,14 +19,14 @@ def input_module(ctx: Any, children: Any = ()) -> Any:
 
 
 def queued_input_module(ctx: Any, children: Any = ()) -> Any:
-    return QueuedInputModule(queue=ctx.queued_input)
+    return QueuedInputModule(queue=ctx.queued_input, commit=ctx.queue_commit)
 
 
 def compress_module(ctx: Any, children: Any = ()) -> Any:
     return CompressModule(
-        context=ctx.context, compactor=ctx.compactor, mode_note=ctx.mode_note,
+        context=ctx.context, compactor=ctx.compactor, mode_note=ctx.mode_note, model=ctx.model,
         image_turns=ctx.image_turns, image_max=ctx.image_max,
-        appenders=list(children))
+        appenders=list(children), queued_input=ctx.queued_input)
 
 
 def model_module(ctx: Any, children: Any = ()) -> Any:
@@ -34,11 +34,11 @@ def model_module(ctx: Any, children: Any = ()) -> Any:
         context=ctx.context, compactor=ctx.compactor, effort=ctx.effort,
         model=ctx.model, image_turns=ctx.image_turns,
         image_max=ctx.image_max, mode_note=ctx.mode_note,
-        context_hooks=ctx.context_hooks)
+        context_hooks=ctx.context_hooks, queued_input=ctx.queued_input)
 
 
 def tool_module(ctx: Any, children: Any = ()) -> Any:
-    return ToolModule()
+    return ToolModule(queued_input=ctx.queued_input)
 
 
 @dataclass(frozen=True)
@@ -58,6 +58,7 @@ class ModuleBuildContext:
     compactor: Any = None
     context_hooks: Any = None
     queued_input: Any = None
+    queue_commit: Any = None
     effort: str = "high"
     model: str = ""
     image_turns: int = KEEP_IMAGE_TURNS

@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional
 from agent.core import event_name as ev
 from agent.core.error_report import report_error
 from agent.mechanisms.session_store import new_conversation_id
+from agent.shell.session.resume import confirmation_store, interrupt_confirmation
 
 _SYSTEM_TEMPLATE = """你是 AI Agent——一个严谨的通用助手，能读写文件、执行命令，写代码只是其中一项。用户在你的工作目录中协作。
 
@@ -104,7 +105,7 @@ def run_one(engine: Any, gate: Any, text: str) -> int:
             elif t == ev.TOOL_FAILED:
                 print(f"\n  [工具失败] {d.get('error') or '未知错误'}")
             elif t == ev.TOOL_CANCELED:
-                print("\n  [工具已取消]")
+                print(f"\n  [工具已取消] {d.get('error') or ''}".rstrip())
             elif t == ev.TOOL_SUSPENDED:
                 print("\n  [工具等待确认]")
             elif t == ev.MODEL_MESSAGE:
@@ -185,6 +186,14 @@ def run_current(app: Any, parsed: Any, cid: str, text: str) -> int:
     lifecycle = getattr(getattr(app, "context", None), "slot_lifecycle", None)
     with lifecycle.turn() if lifecycle is not None else nullcontext():
         args = argparse.Namespace(**{**vars(parsed), "session": cid})
+        store = confirmation_store(app, cid)
+        if text.strip() and store is not None:
+            try:
+                interrupt_confirmation(app, cid, store)
+            except OSError as exc:
+                report_error("agent.shell.cli.interactive.confirmation", exc, conversation_id=cid)
+                print("[请求失败] 上一次确认的终态未保存", file=sys.stderr)
+                return 1
         _, _, engine, gate, _ = build_session(app=app, parsed=args)
         return run_one(engine, gate, text)
 

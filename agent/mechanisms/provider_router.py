@@ -94,14 +94,21 @@ class ProviderRouter(ModelProvider):
 
     # ── 路由 ──
 
-    def stream(self, request) -> Iterator[StreamDelta]:
+    def _route(self, request) -> tuple[str, Optional[ModelProvider]]:
         with self._lock:
             default_id = self._default_id
             allowed = self._allowed
             fallback = self._fallback
         mid = str(getattr(request, "model", "") or "").strip() or default_id
-        provider = self._select_for_request(
-            request, mid, allowed, fallback)
+        return mid, self._select_for_request(request, mid, allowed, fallback)
+
+    def requires_full_reasoning(self, request) -> bool:
+        _, provider = self._route(request)
+        check = getattr(provider, "requires_full_reasoning", None)
+        return bool(check(_with_wire_model(request, provider))) if callable(check) else False
+
+    def stream(self, request) -> Iterator[StreamDelta]:
+        mid, provider = self._route(request)
         if provider is None:
             raise ModelRequestError(f"未配置的模型：{mid}")
         # 目录条目的 id 是路由键，线格式模型名归 provider 自己（`options.model`）。

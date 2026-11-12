@@ -66,12 +66,12 @@ class ImageReadTool(ToolPlugin):
         },
     }
 
-    def _session_events(self) -> list:
+    def _session_events(self, ident: str) -> tuple[list, bool]:
         ctx = current_context()
         cid = current_session_id()
         app = getattr(ctx, "app", None) if ctx is not None else None
         if app is None or not cid or not callable(getattr(app, "has", None)):
-            return []
+            return [], False
         stores = []
         if app.has(SERVICE_STORE):
             stores.append(app.get(SERVICE_STORE))
@@ -81,12 +81,20 @@ class ImageReadTool(ToolPlugin):
             if callable(store_for):
                 stores.append(store_for(cid))
         events = []
+        already = False
         for store in stores:
-            events.extend(store.load(cid))
-        return events
+            lookup = getattr(store, "image_facts", None)
+            if callable(lookup):
+                rows, read = lookup(cid, ident)
+            else:
+                rows = store.load(cid)
+                read = self._already_read(rows, ident)
+            events.extend(rows)
+            already = already or read
+        return events, already
 
-    def _already_read(self, ident: str) -> bool:
-        events = self._session_events()
+    @staticmethod
+    def _already_read(events: list, ident: str) -> bool:
         start = 0
         for index, event in enumerate(events):
             if str(getattr(event, "type", "")) == TURN_STARTED:
@@ -103,10 +111,10 @@ class ImageReadTool(ToolPlugin):
         return False
 
     def _bytes_from_attachment(self, ident: str) -> tuple[bytes, str]:
-        events = self._session_events()
+        events, already = self._session_events(ident)
         if not events:
             raise ValueError("当前上下文没有会话存储，无法读取历史附件")
-        if self._already_read(ident):
+        if already:
             raise ValueError(
                 "本回合已读取过该附件，不能重复读取；"
                 "若图片未随请求发送，请等下一回合或调整 image_max")

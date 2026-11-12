@@ -8,36 +8,12 @@ if(!ta)return;
 var text=String(ta.value||"").trim();
 var imgs=pendingChatImages.slice();
 if(!text&&!imgs.length)return;
-if(typeof cancelUserConfirmForNewMessage==="function")cancelUserConfirmForNewMessage();
-var busy=typeof isConversationBusy==="function"&&isConversationBusy();
 var draft=(window.chatDraft&&window.chatDraft.id)?window.chatDraft:null;
-var defer=!!(busy||draft);
 var sendCid=getActiveConversationId();
-/* 有效新消息才清本回合编辑清单；/api/chat/user-confirm 不走这里。 */
-if(typeof clearLiveEdits==="function")clearLiveEdits(findConversationTab(sendCid));
-/* 气泡只显示文字：图片由下方的附件条（缩略图）表达，不再追加 `[图片 ×N]` 后缀。
-   只发图不打字时给个占位，否则气泡是空的。 */
-var display=text||"（截图）";
-var bubble=null;
-var stripEl=null;
-if(!defer){
-bubble=add("u",display);
-if(imgs.length&&window.AIA&&AIA.buildMsgAttachStrip&&bubble){
-try{
-stripEl=AIA.buildMsgAttachStrip(sendCid,null,imgs);
-bubble.appendChild(stripEl);
-}catch(e){}
-}
-ta.value="";
-clearPendingChatImages();
-autoResizeTextarea();
-resetSteps();
-showChatLoading();
-}
 var tab=findConversationTab(sendCid);
-var b=document.querySelector('[data-ui-action="input.send"]');if(b)b.disabled=true;
-if(tab&&!defer){tab.abortController={global:true};tab.stopRequested=false;tab.activeRunId="";}
-updateTaskControls();
+if(typeof clearLiveEdits==="function")clearLiveEdits(tab);
+var b=document.querySelector('[data-ui-action="input.send"]');
+if(b)b.disabled=true;
 try{
 var body={message:text,conversation_id:sendCid,mode:selectedMode,model:selectedModel};
 if(imgs.length)body.images=imgs.map(function(it){return{mime:it.mime,data_base64:it.data_base64};});
@@ -45,21 +21,20 @@ if(draft)body.draft_id=draft.id;
 var _sendUrl="/api/chat/send";
 if(tab&&tab.subagent){body={conversation_id:String(tab.parentCid||""),child_id:sendCid,msg:text};if(imgs.length)body.images=imgs.map(function(it){return{mime:it.mime,data_base64:it.data_base64};});_sendUrl="/api/subagents/send";}
 var r=await fetch(_sendUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-if(!r.ok){var _bt="";try{_bt=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/send 非 OK",{status:r.status,bodyHead:String(_bt||"").slice(0,500)});withConversationContext(sendCid,function(){hideChatLoading();add("a",formatHttpError(r.status,_bt,"发送"));});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
-var _sj=await r.json();if(tab&&_sj&&_sj.run_id)tab.activeRunId=String(_sj.run_id||"");
-if(defer){
+if(!r.ok){
+  var errorBody=await r.text();
+  withConversationContext(sendCid,function(){add("a",formatHttpError(r.status,errorBody,"发送"));});
+  return;
+}
+var result=await r.json();
+if(getActiveConversationId()===sendCid&&String(ta.value||"").trim()===text&&
+   pendingChatImages.length===imgs.length&&imgs.every(function(img,index){return pendingChatImages[index]===img;})){
   ta.value="";
   clearPendingChatImages();
   autoResizeTextarea();
   clearQueueDraft();
-  if(!busy&&draft&&draft.origin!=="agent")add("u",display);
-  if(_sj&&_sj.queued&&typeof loadChatQueue==="function")loadChatQueue(sendCid);
-}else if(stripEl&&_sj&&Array.isArray(_sj.attachments)&&_sj.attachments.length&&window.AIA&&AIA.buildMsgAttachStrip){
-try{
-var neu=AIA.buildMsgAttachStrip(sendCid,_sj.attachments,null);
-if(neu&&stripEl.parentNode)stripEl.parentNode.replaceChild(neu,stripEl);
-}catch(e2){}
 }
+if(result&&result.queued&&typeof loadChatQueue==="function")void loadChatQueue(sendCid);
 }catch(err){
 if(!(err&&err.name==="AbortError")){withConversationContext(sendCid,function(){hideChatLoading();add("a","请求失败: "+(err&&err.message?err.message:String(err)));});}
 }finally{

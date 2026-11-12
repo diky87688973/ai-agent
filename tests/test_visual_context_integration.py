@@ -35,7 +35,9 @@ class ModelHookIntegrationTest(unittest.TestCase):
 
     def test_engine_keeps_plugin_request_id_in_pending(self) -> None:
         engine = object.__new__(Engine)
-        engine.session_context = SimpleNamespace(pending_confirm=None)
+        from agent.core.session_context import SessionContext
+
+        engine.session_context = SessionContext()
         engine._remember_suspend(Event("tool_suspended", {
             "call_id": "call-1",
             "envelope": {

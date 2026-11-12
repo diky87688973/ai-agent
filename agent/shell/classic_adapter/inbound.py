@@ -37,6 +37,7 @@ from agent.shell.classic_adapter.history_page import HISTORY_PAGE_CHARS, fold_ro
 from agent.shell.classic_adapter.layout import compute_context_layout, current_todo
 from agent.shell.classic_adapter.sessions import session_date_group
 from agent.shell.classic_adapter.state import ClassicState
+from agent.shell.session.resume import confirmation_store, read_pending
 
 
 class Inbound:
@@ -144,7 +145,7 @@ class Inbound:
         return UNKNOWN_TITLE
 
     # ── /api/chat/history ─────────────────────────────────
-    def _history_rounds(self, cid: str, store: Any) -> tuple:
+    def _history_rounds(self, cid: str, store: Any, before: Optional[int]) -> tuple:
         """返回 (rounds, context_layout)；按文件 mtime/size 缓存，避免每页全量读盘。"""
         target = store if store is not None else getattr(self._app, "store", None)
         path = None
@@ -159,7 +160,7 @@ class Inbound:
         if path is not None:
             try:
                 st = path.stat()
-                key = (cid, int(st.st_mtime_ns), int(st.st_size))
+                key = (cid, before, int(st.st_mtime_ns), int(st.st_size))
             except OSError:
                 key = None
         if key is not None:
@@ -167,15 +168,20 @@ class Inbound:
             if hit is not None:
                 self._history_cache.move_to_end(key)
                 return hit
-        events = self._load_events(cid, target)
+        window = getattr(target, "history_window", None)
+        if callable(window):
+            pairs, older = window(cid, before)
+            events = self._history_events(pairs)
+        else:
+            events, older = self._load_events(cid, target), False
         context_layout = (last_payload(events, "context_layout")
                           or compute_context_layout(self._app, events, cid))
         rounds = fold_rounds(events)
         if key is not None:
-            self._history_cache[key] = (rounds, context_layout)
+            self._history_cache[key] = (rounds, context_layout, older)
             while len(self._history_cache) > 3:
                 self._history_cache.popitem(last=False)
-        return rounds, context_layout
+        return rounds, context_layout, older
 
     def history(self, cid: str, store: Any = None, *,
                 before: Optional[int] = None, meta: bool = False) -> Dict[str, Any]:
@@ -200,7 +206,7 @@ class Inbound:
         cid = C.normalize_cid(cid)
         if not cid:
             return {"ok": False, "error": "invalid conversation_id", "items": []}
-        rounds, context_layout = self._history_rounds(cid, store)
+        rounds, context_layout, older = self._history_rounds(cid, store, before)
         todo_list = current_todo(self._app, cid)
         if meta:
             return {
@@ -212,7 +218,7 @@ class Inbound:
             }
         page = select_page(rounds, before=before)
         items = list(page.items)
-        self._mark_stale_suspends(cid, items)
+        self._mark_stale_suspends(cid, items, store)
         # 把本页解出的字节合并进内存，供 `/api/chat/attachment?id=…` 取用。
         # 不能整体替换：旧页已经渲染的附件仍可能被浏览器请求。
         if page.attachments:
@@ -231,18 +237,20 @@ class Inbound:
             "page": {
                 "budget_chars": HISTORY_PAGE_CHARS,
                 "chars": page.chars,
-                "has_more": page.has_more,
-                "next_before": page.next_before,
+                "has_more": page.has_more or older,
+                "next_before": (page.next_before if page.has_more else
+                                rounds[page.start].anchor if older and page.start < page.end else None),
             },
             "context_layout": context_layout,
             "todo_list": todo_list,
         }
 
-    def _mark_stale_suspends(self, cid: str, items: List[Dict[str, Any]]) -> None:
+    def _mark_stale_suspends(self, cid: str, items: List[Dict[str, Any]], store: Any) -> None:
+        if not any(item.get("status") == TOOL_SUSPENDED for item in items):
+            return
         contexts = getattr(self._app, "session_contexts", None)
-        # 只读查询：history 对任意合法 cid 都可调用，不能借 GET 创建会话桶。
         session = contexts.get(cid) if contexts is not None else None
-        pending = getattr(session, "pending_confirm", None) if session is not None else None
+        pending = read_pending(session, store if store is not None else confirmation_store(self._app, cid), cid)
         pending_call = str((pending or {}).get("call_id") or "").strip()
         for item in items:
             if (item.get("role") == "tool"
@@ -260,6 +268,10 @@ class Inbound:
             pairs = list(loader(cid))
         else:
             pairs = list(enumerate(target.load(cid), 1))
+        return self._history_events(pairs)
+
+    @staticmethod
+    def _history_events(pairs: Any) -> List[Any]:
         out: List[Any] = []
         for seq, event in pairs:
             data = dict(getattr(event, "data", None) or {})
@@ -277,7 +289,7 @@ class Inbound:
     # 「激活的是哪个会话」是某个客户端的选择，不是服务器的事实 —— 两个浏览器各自
     # 激活不同会话时，一个全局字段无法表示，谁后写谁覆盖，另一个刷新就跳到别人的会话。
     # 所以这两个都在浏览器本地（`localStorage`）；服务端不提供、也不接收。
-    def ui_state_get(self) -> Dict[str, Any]:
+    def ui_state_get(self, confirmation_ids: str = "") -> Dict[str, Any]:
         """经典界面不带 `conversation_id` 的 GET：只回在跑的会话。
 
         ## `running` 字段的作用
@@ -292,7 +304,17 @@ class Inbound:
 
         这项是按会话的事实，与"哪个客户端激活了哪个会话"无关。
         """
-        return self._with_running({"ok": True, "state": {}})
+        contexts = getattr(self._app, "session_contexts", None)
+        pending = {}
+        buckets = contexts.buckets() if contexts is not None else {}
+        requested = dict.fromkeys(filter(None, map(C.normalize_cid, confirmation_ids.split(","))))
+        for cid in requested or buckets:
+            session = buckets.get(cid)
+            current = read_pending(session, confirmation_store(self._app, cid) if requested else None, cid)
+            if current:
+                call_id = current["call_id"]
+                pending[cid] = {"call_id": call_id, "request_id": current.get("request_id") or call_id}
+        return self._with_running({"ok": True, "state": {"confirmations": pending}})
 
     def _with_running(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """给返回体补上"哪些会话正在跑"（服务端权威）。

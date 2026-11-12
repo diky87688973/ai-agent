@@ -234,9 +234,10 @@ class VisionRuntimeTest(unittest.TestCase):
                 routes[(method, path)] = handler
                 return lambda: None
 
-            def resume_suspended(self, cid, call_id, data, **kwargs):
-                resumed.append((cid, call_id, data, kwargs))
-                return {"ok": True}
+            def resume_suspended(self, cid, call_id, **kwargs):
+                resolved = kwargs["resolve"](None, {"call_id": call_id})
+                resumed.append((cid, call_id, resolved["data"], kwargs))
+                return {"ok": True, **resolved["response"]}
 
         try:
             build_routes(Ctx(), runtime)
@@ -245,6 +246,7 @@ class VisionRuntimeTest(unittest.TestCase):
             status, payload = handler({"body": {
                 "conversation_id": "cid-a",
                 "request_id": request["request_id"],
+                "call_id": "call-a",
                 "choice": "agree",
             }})
             self.assertEqual(status, 200)
@@ -254,6 +256,49 @@ class VisionRuntimeTest(unittest.TestCase):
             self.assertEqual(resumed[0][2]["consent_id"], payload["consent_id"])
         finally:
             runtime.close()
+
+    def test_confirm_after_runtime_restart_uses_durable_request_identity(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from agent.app import App
+        from agent.core.events import Event
+        from agent.core.session_context import SessionContext
+        from agent.mechanisms.session_store import SessionStore
+        from plugins.visual_operator_2.routes import make_confirm
+
+        cid, call_id = "vision-restart", "vision-call"
+        original = self._runtime()
+        request_id = original.request_open(cid, call_id)["request_id"]
+        original.close()
+        runtime = self._runtime()
+        self.addCleanup(runtime.close)
+        with tempfile.TemporaryDirectory() as folder:
+            store = SessionStore(Path(folder))
+            store.append(cid, [Event("tool_suspended", {
+                "call_id": call_id, "name": "vision_request_open",
+                "envelope": {"kind": "vision_consent", "request_id": request_id,
+                             "conversation_id": cid},
+            })])
+            session = SessionContext()
+            app = SimpleNamespace(
+                store=store,
+                session_contexts=SimpleNamespace(resolve_sync=lambda _cid: session),
+                mesh=SimpleNamespace(is_stopped=lambda _cid: False,
+                                     submit=lambda *_args, **_kwargs: {"run_id": "continued"}),
+            )
+            ctx = SimpleNamespace(resume_suspended=lambda *args, **kw: App.resume_suspended(app, *args, **kw))
+            confirm = make_confirm(ctx, runtime)
+            body = {"conversation_id": cid, "call_id": call_id, "choice": "agree"}
+            self.assertIsNone(runtime.pending(cid))
+            self.assertEqual(confirm({"body": {**body, "request_id": "old-request"}})[0], 409)
+            self.assertEqual([event.type for event in store.load(cid)], ["tool_suspended"])
+            status, response = confirm({"body": {**body, "request_id": request_id}})
+            self.assertEqual(status, 200, response)
+            self.assertTrue(response["consent_id"])
+            result = next(event for event in store.load(cid) if event.type == "tool_done")
+            self.assertEqual(result.data["data"]["consent_id"], response["consent_id"])
+            self.assertEqual(confirm({"body": {**body, "request_id": request_id}})[0], 409)
 
     def test_tools_require_consent_and_close_cleanly(self) -> None:
         runtime = self._runtime()

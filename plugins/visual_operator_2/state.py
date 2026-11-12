@@ -131,7 +131,14 @@ class VisionRuntime:
                 "options": list(CONSENT_OPTIONS),
                 "call_id": req.call_id,
             }
-    def confirm(self, conversation_id: str, request_id: str, choice: str) -> Dict[str, Any]:
+    def expire_confirmation(self, cid: str, request_id: str) -> None:
+        with self._lock:
+            pending = self._pending
+            if pending and pending.conversation_id == cid and pending.request_id == request_id:
+                self._pending = None
+
+    def confirm(self, conversation_id: str, request_id: str, choice: str, *,
+                reversible: bool = False, verified_call_id: str = "") -> Dict[str, Any]:
         cid = str(conversation_id or "").strip()
         rid = str(request_id or "").strip()
         decision = str(choice or "").strip().lower()
@@ -139,14 +146,21 @@ class VisionRuntime:
             return {"ok": False, "error": "choice 只能是 agree 或 reject"}
         with self._lock:
             req = self._pending
-            if req is None or req.request_id != rid or req.conversation_id != cid:
+            if req is None and verified_call_id and not self._eyes_open:
+                # The host has matched the persisted suspension before entering this callback.
+                req = PendingConsent(rid, cid, verified_call_id)
+            if (req is None or req.request_id != rid or req.conversation_id != cid
+                    or (verified_call_id and req.call_id != verified_call_id)):
                 return {"ok": False, "error": "没有匹配的授权请求"}
             if self._owner and self._owner != cid:
                 return {"ok": False, "error": "眼睛正被其他会话使用"}
+            previous_owner = self._owner
             self._pending = None
             if decision == DECISION_REJECT:
                 return {"ok": True, "decision": DECISION_REJECT, "consent_id": "",
-                        "call_id": req.call_id}
+                        "call_id": req.call_id,
+                        **({"rollback": lambda: self._restore_confirmation(req, previous_owner, "")}
+                           if reversible else {})}
             self._owner = cid
             consent_id = "consent_" + uuid.uuid4().hex
             self._grants[consent_id] = {
@@ -160,7 +174,17 @@ class VisionRuntime:
                 "decision": DECISION_AGREE,
                 "consent_id": consent_id,
                 "call_id": req.call_id,
+                **({"rollback": lambda: self._restore_confirmation(req, previous_owner, consent_id)}
+                   if reversible else {}),
             }
+
+    def _restore_confirmation(self, request, previous_owner: str, consent_id: str) -> None:
+        with self._lock:
+            if consent_id and self._grants.pop(consent_id, None) is not None and self._owner == request.conversation_id:
+                self._owner = previous_owner
+            if self._pending is None:
+                self._pending = request
+
     def start(self, conversation_id: str, consent_id: str) -> Dict[str, Any]:
         cid = str(conversation_id or "").strip()
         ident = str(consent_id or "").strip()

@@ -216,9 +216,9 @@ class ChannelMixin:
         store = getattr(self._app, "store", None)
         if store is None or not hasattr(store, "tail_across"):
             return 0
+        rows = store.tail_across(int(after_seq), limit=limit, exclude_types=LIVE_ONLY_EVENTS)
         with self._lock:
             frames: List[Dict[str, Any]] = []
-            rows = store.tail_across(int(after_seq), limit=limit, exclude_types=LIVE_ONLY_EVENTS)
             # 按会话分组翻译：每个会话一条 `ClassicStream`（翻译是有状态的，
             # 回合号 / 待配对工具都按会话各自维护）。
             # 装配/契约错误（如缺 registry）直接冒泡，禁止吞成空回放。

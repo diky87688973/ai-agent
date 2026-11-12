@@ -68,9 +68,7 @@ def clip_reasoning(messages: List[Dict[str, Any]],
                    budget_tokens: int) -> List[Dict[str, Any]]:
     """按预算裁掉消息里的思维链（不改原列表、不改原消息）。
 
-    思维链是模型的中间稿：整段回传就是让每次请求多背一大段必然未命中缓存的内容。
-    按预算裁到两头保留，既省掉大部分钱，
-    又让模型看得到"上一回合打算干什么、得出了什么"。
+    超长推理保留开头和结尾。预算与消息内容不变时，每次装配产生相同文本。
 
     统计口径（分段 token、预算估算）用的也是这一份 —— 两处不一致时，
     界面会把窗口算满、压缩也会提前或滞后触发。
@@ -113,7 +111,7 @@ def as_text_parts(text: Any) -> List[str]:
 
 
 def merge_segment_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """按 key+label 合并同一个插件的多条消息；tokens 相加，count 取首条自报数。"""
+    """按 key+label 合并同一个插件的多条消息；累加 tokens 与 count。"""
     merged: List[Dict[str, Any]] = []
     index: Dict[Tuple[str, str], int] = {}
     for row in rows:
@@ -124,6 +122,7 @@ def merge_segment_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             merged.append(dict(row))
             continue
         merged[pos]["tokens"] = int(merged[pos].get("tokens") or 0) + int(row.get("tokens") or 0)
+        merged[pos]["count"] = int(merged[pos].get("count") or 0) + int(row.get("count") or 0)
     return merged
 
 

@@ -29,7 +29,12 @@ class EditedFilesPageTest(unittest.TestCase):
         self.assertNotIn("function noteLiveEdit(", ui)
         self.assertIn("noteLiveEdit(ev,_ctxTab)", ui)
         self.assertIn("finishLiveEdits(_ctxTab)", ui)
-        self.assertIn("clearLiveEdits(findConversationTab(sendCid))", ui)
+        send = ui.split("async function sendChatMessage()", 1)[1].split("var pendingChatImages", 1)[0]
+        self.assertRegex(send, (
+            r"(?:var|let|const)\s+(\w+)\s*=\s*getActiveConversationId\(\)"
+            r"[\s\S]*?(?:var|let|const)\s+(\w+)\s*=\s*findConversationTab\(\1\)"
+            r"[\s\S]*?clearLiveEdits\(\2\)"
+        ))
         history = ui.split("function renderHistoryToolItem(", 1)[1].split("function ", 1)[0]
         self.assertNotIn("noteLiveEdit", history)
         self.assertNotIn("finishLiveEdits", history)

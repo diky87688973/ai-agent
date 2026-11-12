@@ -171,6 +171,9 @@ def _material_messages(prefix: Optional[List[Dict[str, Any]]],
                 body = f"{body}\n[工具调用] {json.dumps(calls, ensure_ascii=False)}"
             except (TypeError, ValueError) as exc:
                 report_error("agent.mechanisms.compaction.compactor._material_messages", exc)
+        reasoning = msg.get("reasoning_content")
+        if isinstance(reasoning, str) and reasoning:
+            body = f"[推理] {reasoning}\n{body}"
         lines.append(f"### {role}\n{body}")
     text = "\n\n".join(lines)
     if not text:
@@ -241,8 +244,7 @@ def make_provider_summarizer(
             # `assistant(tool_calls)` 是悬空的。模型 API 对悬空调用硬拒绝
             # （400：must be followed by tool messages）。
             # 两边补法一致，前缀逐字节相同不受影响。
-            messages=ensure_tool_pairs(_DEFAULT_POLICY.clip(head, 0)
-                                        + [{"role": "user", "content": tail}]),
+            messages=ensure_tool_pairs(head + [{"role": "user", "content": tail}]),
             # 工具定义照平常请求带上（前缀的一部分，少一项整段缓存作废）。
             tools=list(tools or []) if prefix_reuse else [],
         )
@@ -275,6 +277,7 @@ class ContextCompactor:
         self._slots = slots
         self.summary_token_threshold = max(1, int(summary_token_threshold))
         self.covered_end = 0
+        self.loaded_prefix = 0
         #: 单一当前摘要；历次压缩只更新这一条。
         self.summary: str = ""
         #: 上一次正常请求的精确前缀快照（不含尾部注入）。
@@ -359,9 +362,13 @@ class ContextCompactor:
 
     # ── 视图与注入──────────────────────────
 
+    @property
+    def view_start(self) -> int:
+        return max(0, self.covered_end - self.loaded_prefix)
+
     def view_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """未覆盖视图：全量消息去除已覆盖前缀。"""
-        return list(messages[self.covered_end :])
+        return list(messages[self.view_start :])
 
     def summary_messages(self) -> List[Dict[str, Any]]:
         """摘要作为单条 user 检查点注入；历史摘要不重复成多条。"""
@@ -426,6 +433,7 @@ class ContextCompactor:
         tools: Optional[List[Dict[str, Any]]] = None,
         mode_note: str = "",
         assembled: Optional[List[Dict[str, Any]]] = None,
+        reasoning_budget: int | None = None,
     ) -> Optional[Dict[str, Any]]:
         """拼入前预算检查：超阈值先压缩既有历史；失败放行。"""
         try:
@@ -442,7 +450,11 @@ class ContextCompactor:
                 return None
             pending_tokens = self._message_tokens(pending)
             context.set_summary_messages(self.summary_messages())
-            context.set_dialogue(view)
+            options = {} if reasoning_budget is None else {"reasoning_budget": reasoning_budget}
+            context.set_dialogue(view, **options)
+            dialogue_messages = getattr(context, "dialogue_messages", None)
+            if callable(dialogue_messages):
+                view = dialogue_messages()
             policy = self._policy_view()
             overhead = _schemas_tokens(tools, policy) + _mode_note_tokens(mode_note, policy)
             estimate = context.total_token_estimate() + pending_tokens + overhead

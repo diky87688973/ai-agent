@@ -8,9 +8,10 @@ from agent.core.error_report import report_error
 from agent.core.event_name import COMPRESS_ENDED, COMPRESS_STARTED, CONTEXT_COMPACTED
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.module import ModuleBase
-from agent.core.modules.assemble import assemble_with
+from agent.core.modules.assemble import assemble_with, reasoning_budget_for
 from agent.core.modules.dialogue import prepare_dialogue
 from agent.core.modules.mode_note import resolve_runtime_note
+from agent.core.modules.queued_input_mod import insertion_waiting
 from agent.core.outcome import Outcome
 from agent.core.ports import Ports
 
@@ -18,7 +19,7 @@ from agent.core.ports import Ports
 class CompressModule(ModuleBase):
     """上下文预算与压缩：把循环里的三处检查收拢成一个模块。
 
-    从不要求续行：压缩是准备动作，不产生"该跑模型了"的意图。
+    有新插入待认领时，先让出执行权。
     压缩器缺省或出错一律放行——压缩是增强项，绝不阻断回合。
     """
 
@@ -26,14 +27,16 @@ class CompressModule(ModuleBase):
     requires = ("context", "compactor")
 
     def __init__(self, *, context: Any = None, compactor: Any = None,
-                 mode_note: Any = "", image_turns: int = KEEP_IMAGE_TURNS,
+                 mode_note: Any = "", model: str = "", image_turns: int = KEEP_IMAGE_TURNS,
                  image_max: int = MAX_EMBED_IMAGES,
-                 appenders: Any = ()) -> None:
+                 appenders: Any = (), queued_input: Any = None) -> None:
         self.context_pass = context
         self._compactor = compactor
+        self._queued_input = queued_input
         #: 执行模式说明 —— 摘要复用前缀时要照平常请求补在末尾。
         #: 与 `ModelModule` 各持一份：两个模块各自组装各自的请求，互相不读对方状态。
         self._mode_note = mode_note
+        self._model = model
         #: 图片口径必须与 `ModelModule` 一致：压缩器声明的"前缀与随后请求逐字节相同"
         #: 只有在两边用同一套剥图参数时才成立。
         self._image_turns = int(image_turns)
@@ -43,13 +46,28 @@ class CompressModule(ModuleBase):
 
     def _covered_end(self) -> int:
         """已覆盖前缀长度（压缩器维护）；没有压缩器就是 0。"""
-        value = getattr(self._compactor, "covered_end", 0)
+        value = getattr(self._compactor, "view_start", getattr(self._compactor, "covered_end", 0))
         try:
             return max(0, int(value or 0))
         except (TypeError, ValueError):
             return 0
 
+    def _attach_checkpoint(self, ports: Ports, dialogue: list, report: dict) -> None:
+        lookup = getattr(ports.log, "user_input_sequence", None)
+        covered = report.get("covered_end")
+        if not callable(lookup) or not isinstance(covered, int):
+            return
+        boundary = covered - int(getattr(self._compactor, "loaded_prefix", 0) or 0)
+        if not 0 <= boundary < len(dialogue) or dialogue[boundary].get("role") != "user":
+            return
+        ordinal = sum(message.get("role") == "user" for message in dialogue[:boundary])
+        anchor = lookup(ordinal)
+        if anchor is not None:
+            report["history_anchor_seq"] = anchor
+
     def execute(self, ports: Ports) -> Iterator[Any]:
+        if insertion_waiting(self._queued_input, ports.conversation_id):
+            return Outcome.next()
         if self.context_pass is None and self._compactor is None:
             # 没装压缩能力：仍发终态（`skipped`），监听者据此知道"这回合没压"，
             # 而不是以为"事件丢了"。
@@ -73,6 +91,7 @@ class CompressModule(ModuleBase):
         # 工具定义照平常请求取同一份：摘要复用前缀时它是前缀的一部分，
         # 少一项或换一份就整段缓存作废。
         schemas = ports.tool_port.schemas() if getattr(ports, "tool_port", None) is not None else []
+        reasoning_budget = reasoning_budget_for(ports, self._model, dialogue, schemas)
         yield ports.emit(COMPRESS_STARTED, messages=len(dialogue))
         report: Any = None
         if self._compactor is not None:
@@ -80,10 +99,11 @@ class CompressModule(ModuleBase):
                 # 压缩走同一条装配入口：头部 + 对话（+ 尾部仅执行模式，随后剔除）。
                 # 压缩器拿到的这份与随后模型请求的前缀是同一份装配结果。
                 whole = assemble_with(self.context_pass, dialogue, runtime_note,
-                                       self._covered_end())
+                                       self._covered_end(), reasoning_budget=reasoning_budget)
                 report = self._compactor.ensure_before_append(
                     self.context_pass, dialogue, pending=None, tools=schemas,
-                    mode_note=runtime_note, assembled=whole)
+                    mode_note=runtime_note, assembled=whole,
+                    **({} if reasoning_budget is None else {"reasoning_budget": reasoning_budget}))
             except Exception as exc:
                 # 压缩异常 → 放行，不阻断回合；但必须留痕：静默吞掉会让
                 # "压缩从未生效"看起来像"没超阈值"，排查时会往完全错的方向找。
@@ -91,9 +111,11 @@ class CompressModule(ModuleBase):
                 report_error("core.compress", exc)
         elif self.context_pass is not None:
             # 没有压缩能力：至少把对话装进上下文，后续模块才看得到。
-            assemble_with(self.context_pass, dialogue, runtime_note, 0)
+            assemble_with(self.context_pass, dialogue, runtime_note, 0,
+                          reasoning_budget=reasoning_budget)
         compacted = isinstance(report, dict) and bool(report)
         if compacted:
+            self._attach_checkpoint(ports, dialogue, report)
             yield ports.emit(CONTEXT_COMPACTED, **report)
         yield ports.emit(COMPRESS_ENDED, compacted=compacted,
                          elapsed_ms=int((perf_counter() - started) * 1000))

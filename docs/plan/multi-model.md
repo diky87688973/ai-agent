@@ -127,7 +127,7 @@ def known_kinds() -> tuple[str, ...]
 2. Adding a provider means adding one adapter file and one mapping row. The router, the catalog, and the plugin are unchanged.
 3. An unknown `kind` raises `ValueError(kind)`. The caller decides whether that means "skip this entry" or "fail startup".
 4. Option keys are interpreted by each constructor; the registry only dispatches and filters. Each kind has a whitelist so a stray configuration key cannot turn a typo into a `TypeError`:
-   - `openai`: `base_url`, `api_key`, `model`, `timeout`, `replay_history_reasoning`, `extra_headers`;
+   - `openai`: `base_url`, `api_key`, `model`, `timeout`, `extra_headers`;
    - `anthropic`: `base_url`, `api_key`, `model`, `max_tokens`, `thinking`, `thinking_budget_tokens`, `anthropic_version`, `timeout`, `extra_headers`.
    Values that are `None` are dropped, so the constructor keeps its own default.
 
@@ -209,7 +209,7 @@ Constraints:
 2. Thinking is effective only when `budget_tokens >= 1024` and `max_tokens > budget_tokens`. If either condition fails, thinking is disabled and a diagnostic is written to stderr, but the request is still sent; a configuration blemish must not fail the turn.
    Disabling must be explicit: send `{"type": "disabled"}`. Omitting the field leaves the gateway's default behavior in place, which may keep thinking on; in thinking mode an assistant message with `tool_use` must return its thinking blocks, so a silent omission makes the next tool turn fail with 400.
 3. On the Chat Completions gateway, `budget_tokens` is ignored and thinking depth follows `output_config.effort` (`low`, `high`, `max`). The adapter does not send `output_config`, because the Messages endpoint rejects that unknown field and one adapter serves both protocols. `LogicalRequest.effort` therefore has no effect on this adapter; the gateway uses its server-side default (`high`). To control depth by level, use a Chat Completions entry for the same model.
-4. Thinking plus tool calls: both protocols require the thinking blocks of the current turn's assistant messages with `tool_use` to be returned unchanged. Cross-turn replay is not required, so `strip_stale_thinking` keeps only the current turn. If a block is missing and cannot be recovered (the signature was dropped, or the history came from another protocol entry), `_tool_turn_missing_thinking` disables thinking for the request so the conversation does not become permanently unusable.
+4. Thinking plus tool calls: both protocols require the thinking blocks of the current turn's assistant messages with `tool_use` to be returned unchanged. Valid blocks still in request history are replayed unchanged across turns. Official DeepSeek Chat Completions requests with tools also replay `reasoning_content` in full. If a block is missing and cannot be recovered (the signature was dropped, or the history came from another protocol entry), `_tool_turn_missing_thinking` disables thinking for the request so the conversation does not become permanently unusable.
 5. When `tools` is empty, neither `tools` nor `tool_choice` is sent.
 6. `max_tokens` is required by this API. The constructor default is used when the entry does not override it.
 7. `input_schema` must be an object schema with a `type`. `ToolRegistry.schemas()` returns `parameters` as a property map, which is normalized by the shared `tool_parameters()` in `agent/mechanisms/providers/tool_schema.py` before it is sent. Passing the map directly produces `type: null`, and the Messages endpoint rejects it with `Invalid schema for function ...` (400). The Chat Completions gateway does not validate this field, so the defect only appears on the Messages protocol.
@@ -220,9 +220,8 @@ Constraints:
 Conversion is split into pure functions and a final assembly step, so "faithful folding" and "repair for downstream constraints" stay separate:
 
 ```python
-def strip_stale_thinking(messages, turn_start): ...   # keep only this turn's thinking blocks
 def drop_dangling_tool_results(messages): ...          # drop tool results without a tool_use
-def _to_anthropic_messages(messages, turn_start, *, keep_thinking=True): ...
+def _to_anthropic_messages(messages, *, keep_thinking=True): ...
 ```
 
 Mapping:
@@ -234,7 +233,7 @@ Mapping:
 | `role=user` with a multimodal array | `text` is passed through; a `data:` URL in `image_url` becomes `{type:"image", source:{type:"base64", media_type, data}}`; an `http(s)` URL becomes a `url` source |
 | `role=assistant` | non-empty `content` becomes a `text` block; each `tool_calls` item becomes a `tool_use` block |
 | `role=tool` | becomes `role:"user"` with `content:[{type:"tool_result", tool_use_id, content}]` |
-| assistant `provider_meta.anthropic.thinking_blocks` | inserted at the front of the content in original order, only when the message index is `>= turn_start` and thinking is enabled for this request |
+| assistant `provider_meta.anthropic.thinking_blocks` | inserted at the front of the content in original order, when thinking is enabled for this request |
 
 Repair rules, all pure functions and unit-testable:
 
@@ -244,7 +243,7 @@ Repair rules, all pure functions and unit-testable:
 4. The first message must be `user`; leading assistant messages are dropped because they have no `tool_result` waiting for an answer.
 5. A `tool_result` without a matching `tool_use` is dropped. Keeping it causes the API to reject the whole conversation.
 6. If `tool_use.id` repeats within one request, the second and later occurrences get `_2`, `_3` suffixes. The assistant `tool_use` and its `tool_result` must be renamed together, or the pairing breaks.
-7. Assistant messages before `turn_start` carry no thinking blocks. When thinking is disabled, no message carries them.
+7. Replay blocks across turns when thinking is enabled. Omit them when thinking is disabled.
 
 ### 7.3 Stream event mapping
 
@@ -274,7 +273,7 @@ SSE is parsed line by line from `data:` payloads. The event type comes from `dat
 The order is fixed so the model module can collect by type:
 
 1. Text and reasoning deltas stream as they arrive; they are not accumulated into a list.
-2. `kind="meta"` is emitted only when this turn has thinking blocks and at least one tool call. The payload is `{"anthropic": {"thinking_blocks": [...]}}`. Without a tool call the signature has nowhere to be returned, so there is no reason to persist it.
+2. `kind="meta"` is emitted when replayable thinking blocks arrive. The payload is `{"anthropic": {"thinking_blocks": [...]}}` for use in subsequent requests.
 3. `kind="tool_call"` is emitted in ascending block `index`.
 4. `kind="usage"` carries the mapped usage; it is omitted when every field is zero.
 
@@ -314,14 +313,14 @@ The design adds a `provider_meta` field to the `model_message` fact that the ker
 2. `agent/core/modules/model_mod.py` collects `kind=="meta"` payloads, merges them, and writes the result to `model_message[PROVIDER_META_KEY]`; the field is omitted when empty.
 3. `agent/core/session_log.py` `derive_messages()` copies the key unchanged into the assistant message. Reader and writer use the same constant instead of repeating the string.
 4. `agent/mechanisms/providers/openai.py` `_to_wire_messages` pops `PROVIDER_META_KEY` so an unknown field is never sent to a Chat Completions gateway.
-5. Replay scope: thinking blocks are included only for message indexes `>= request.turn_start`. Cross-turn blocks are dropped so an expired signature is never replayed.
+5. Replay scope: replay signed and `redacted_thinking` blocks unchanged across turns. Use `request.turn_start` to check for missing blocks in the active tool turn.
 
 `provider_meta` constraints:
 
 1. It must be JSON-serializable; both persistence and loading use the existing `default=str` fallback.
 2. The kernel does not read its internal structure and does not use it for segment accounting, token estimation, or compaction decisions.
 3. When the compactor drops messages in a compacted range, their `provider_meta` is dropped with them.
-4. It stores only `{thinking, signature}` blocks, not a whole response. The text is not truncated: truncation invalidates the signature, and the replayed block is then rejected.
+4. It stores signed and redacted thinking blocks. The text is not truncated: truncation invalidates the signature, and the replayed block is then rejected.
 5. It is an optional, forward-only key in the persisted format. Old logs without the key are read as having no thinking blocks; readers ignore unknown vendor subkeys; no migration or rollback is required. No reader may require the key.
 
 ## 9. Assembly
@@ -596,7 +595,7 @@ window.aiAgentShell.styles = {
 
 1. SSE: text deltas, thinking and `signature`, `tool_use` fragment merging, `message_delta` usage, `error`, `ping`, and missing cache fields counted as 0.
 2. Message conversion: system merged to the top level, consecutive `tool_result` merged, image `data:` URL and `http(s)` URL, assistant `tool_calls`, leading assistant dropped, dangling `tool_result` dropped, duplicate `tool_use.id` suffixed with its pair renamed.
-3. `provider_meta` is replayed only within the current turn and dropped across turns; when thinking is disabled no block is sent; a thinking block without a signature is skipped with a warning.
+3. Signed and redacted thinking blocks are replayed across turns; when thinking is disabled no block is sent; a thinking block without a signature is skipped with a warning.
 4. Address construction, HTTP error mapping, and thinking disabled when the budget is insufficient.
 5. Event type comes only from `data.type`: deleting the `event:` lines does not change parsing.
 
@@ -608,7 +607,7 @@ window.aiAgentShell.styles = {
 
 `tests/test_provider_meta.py`: the kernel passes `provider_meta` through unchanged; an unknown subkey is carried rather than validated; an old log without the key still derives its messages; `_to_wire_messages` strips the key from wire messages.
 
-`tests/test_model_provider.py`: wire message construction, tool declaration wrapping, and the reasoning replay rules (a tool message in history keeps its key with empty content; a plain assistant message drops the key).
+`tests/test_model_provider.py`: wire message construction, tool declaration wrapping, and the reasoning replay rules (historical assistant reasoning stays in the request).
 
 `tests/test_settings_panel.py`: the kernel model section is absent; the plugin schema renderer masks secrets, rejects an empty required field, and preserves other sections on save; a host settings save does not touch the model catalog.
 
@@ -651,7 +650,7 @@ window.aiAgentShell.styles = {
 | Genuinely immutable read views | entries store canonical JSON; `options` and `snapshot` return copies and tuples | unit test: mutate a returned value and read again |
 | Few `Any` | `provider_for` returns `ModelProvider` or `None`; options are the only dictionary | review |
 | One name per concept | functions are named for their role; no abbreviation with two meanings | review |
-| Folding and repair are separate | `strip_stale_thinking` and `drop_dangling_tool_results` are pure functions | unit tests |
+| Folding and repair are separate | `drop_dangling_tool_results` is a pure function | unit tests |
 | Contract versioning | `provider_meta` is an optional new key; old logs need no migration | documentation and unit tests |
 | Exhaustive end states | `model_config_state` has three values and `/health` exposes all of them | acceptance |
 | True streaming | text and reasoning deltas are emitted as they arrive, not accumulated into a list | review |

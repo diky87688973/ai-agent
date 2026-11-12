@@ -160,7 +160,7 @@ class ConversationQueue:
                 "attachments": attachments_meta,
                 "sender": dict(sender or {}) if origin == "agent" else None,
                 "delivery": delivery,
-                "state": "inserting" if insert else "queued",
+                "state": "queued" if delivery == "after_turn" else "inserting",
                 "seq": seq,
                 "created_at": now,
                 "updated_at": now,
@@ -181,11 +181,10 @@ class ConversationQueue:
             item = self._find_locked(key, item_id)
             if item is None or item.get("state") not in _ACTIVE:
                 raise QueueError("消息不在队列", "not_found")
-            item["state"] = "inserting"
-            item["delivery"] = "next_pass"
-            item["updated_at"] = int(time.time())
-            self._write_item(item)
-            self._bump_locked(key)
+            delivery = "next_pass"
+            if item.get("state") == "inserting" and item.get("delivery") == delivery:
+                return self._public(item, position=self._position_locked(key, item_id))
+            self._transition_batch_locked(key, [item], state="inserting", delivery=delivery)
             snapshot = self._snapshot_locked(key)
             public = self._public(item, position=self._position_locked(key, item_id))
         self._notify(key, snapshot)
@@ -252,9 +251,9 @@ class ConversationQueue:
         with self._lock:
             self._ensure_locked(key)
             return any(item.get("state") == "inserting"
-                       for item in self._ordered_locked(key))
+                       for item in self._items.get(key, ()))
 
-    def claim_insert_batch(self, cid: str) -> List[Dict[str, Any]]:
+    def claim_insert_batch(self, cid: str, *, resume_all: bool = False, before_item_id: str = "") -> List[Dict[str, Any]]:
         """认领全部积压的插入消息，供下一安全趟一次性注入。"""
         try:
             key = self._key(cid)
@@ -262,23 +261,51 @@ class ConversationQueue:
             return []
         with self._lock:
             self._ensure_locked(key)
-            claimed: List[Dict[str, Any]] = []
-            for item in self._ordered_locked(key):
+            candidates = []
+            ordered = self._ordered_locked(key)
+            if before_item_id:
+                boundary = self._find_locked(key, before_item_id)
+                if boundary is None:
+                    raise QueueError("派发的队列项不存在", "not_found")
+                ordered = [item for item in ordered if item["seq"] < boundary["seq"]]
+            if resume_all:
+                ordered.sort(key=lambda item: item.get("state") != "inserting")
+            for item in ordered:
                 if item.get("state") not in _ACTIVE:
                     continue
-                if item.get("state") != "inserting":
+                if resume_all:
+                    payload = item.get("payload") or {}
+                    if isinstance(payload.get("resume"), dict) or payload.get("_confirmation_resume"):
+                        continue
+                elif item.get("state") != "inserting":
                     continue
-                item["state"] = "claimed"
-                item["delivery"] = "next_pass"
-                item["updated_at"] = int(time.time())
-                self._write_item(item)
-                claimed.append(self._public(item, position=0, with_data=True))
-            if not claimed:
+                candidates.append(item)
+            if not candidates:
                 return []
-            self._bump_locked(key)
+            claimed = self._transition_batch_locked(key, candidates, state="claimed")
             snapshot = self._snapshot_locked(key)
         self._notify(key, snapshot)
         return claimed
+
+    def _transition_batch_locked(self, cid: str, candidates: list, **changes: Any) -> list:
+        """Publish changes only after the entire batch can be persisted."""
+        staged = []
+        try:
+            for original in candidates:
+                claimed = {**original, "updated_at": int(time.time()), **changes}
+                staged.append((original, claimed))
+                self._write_item(claimed)
+            self._bump_locked(cid)
+        except Exception:
+            for original, _ in reversed(staged):
+                try:
+                    self._write_item(original)
+                except Exception as exc:
+                    report_error("conversation_queue.rollback_claim", exc, conversation_id=cid)
+            raise
+        for original, claimed in staged:
+            original.update(claimed)
+        return [self._public(row, position=0, with_data=True) for row in candidates]
 
     def _claim(self, cid: str, state: Optional[str]) -> Optional[Dict[str, Any]]:
         try:
@@ -288,12 +315,13 @@ class ConversationQueue:
             return None
         with self._lock:
             self._ensure_locked(key)
-            for item in self._ordered_locked(key):
+            ordered = self._ordered_locked(key)
+            if state is None and any(item.get("state") == "inserting" for item in ordered):
+                return None
+            for item in ordered:
                 if item.get("state") not in _ACTIVE:
                     continue
                 if state is not None and item.get("state") != state:
-                    continue
-                if state is None and item.get("state") == "inserting":
                     continue
                 item["state"] = "claimed"
                 item["updated_at"] = int(time.time())
@@ -314,7 +342,7 @@ class ConversationQueue:
             item = self._find_locked(key, item_id)
             if item is None or item.get("state") != "claimed":
                 return
-            item["state"] = "queued"
+            item["state"] = "inserting" if item.get("delivery") == "next_pass" else "queued"
             item["updated_at"] = int(time.time())
             self._write_item(item)
             self._bump_locked(key)
@@ -341,6 +369,7 @@ class ConversationQueue:
         content: str = "",
         attachments: Any = None,
         delivery: str = "after_turn",
+        payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         key = self._key(cid)
         with self._lock:
@@ -357,6 +386,7 @@ class ConversationQueue:
             origin=origin,
             sender=sender,
             delivery=delivery,
+            payload=payload,
         )
         with self._lock:
             old = self._find_locked(key, draft_id)
@@ -403,8 +433,10 @@ class ConversationQueue:
                         continue
                     if not isinstance(item, dict) or item.get("cid") != cid:
                         continue
+                    if item.get("delivery") == "context_only":
+                        item["delivery"] = "next_pass"
                     if item.get("state") == "claimed":
-                        item["state"] = "queued"
+                        item["state"] = "inserting" if item.get("delivery") == "next_pass" else "queued"
                     items.append(item)
         items.sort(key=lambda row: int(row.get("seq") or 0))
         self._items[cid] = items

@@ -22,16 +22,18 @@ from agent.core.event_name import (
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
 from agent.core.model_call import PROVIDER_META_KEY
 from agent.core.module import ModuleBase
-from agent.core.modules.assemble import assemble_with, segment_snapshot
+from agent.core.modules.assemble import assemble_with, reasoning_budget_for, segment_snapshot
 from agent.core.modules.dialogue import prepare_dialogue
 from agent.core.modules.mode_note import (
     resolve_runtime_note,
     strip_mode_tail,
     with_mode_note,
 )
+from agent.core.modules.queued_input_mod import insertion_waiting
 from agent.core.modules.tool_facts import serialize_call, tail_expects_model
 from agent.core.outcome import Outcome
 from agent.core.ports import LogicalRequest, Ports
+from agent.core.session_log import ensure_tool_pairs
 from agent.core.state_values import (
     LLM_CANCELED as LLM_STATUS_CANCELED,
 )
@@ -53,6 +55,18 @@ def _reasoning_ms(started: float, last_at: Optional[float]) -> int:
     if last_at is None:
         return -1
     return max(0, int((last_at - started) * 1000))
+
+
+def _turn_start_index(messages: list[dict], anchor: dict | None) -> int:
+    """Locate the original user message after hooks and tool pairing move messages."""
+    if anchor is None:
+        return 0
+    for index, message in enumerate(messages):
+        if message is anchor:
+            return index
+    # A hook can copy messages. Prefer the first matching copy to avoid dropping
+    # the current tool turn's reasoning if equal user messages are present.
+    return next((index for index, message in enumerate(messages) if message == anchor), 0)
 
 
 class ModelModule(ModuleBase):
@@ -77,7 +91,9 @@ class ModelModule(ModuleBase):
                  effort: str = "high", model: str = "",
                  image_turns: int = KEEP_IMAGE_TURNS,
                  image_max: int = MAX_EMBED_IMAGES,
-                 mode_note: Any = "", context_hooks: Any = None) -> None:
+                 mode_note: Any = "", context_hooks: Any = None,
+                 queued_input: Any = None) -> None:
+        self._queued_input = queued_input
         self.context_pass = context
         self._compactor = compactor
         self._effort = str(effort or "high")
@@ -97,7 +113,7 @@ class ModelModule(ModuleBase):
 
     def _covered_end(self) -> int:
         """已覆盖前缀长度（压缩器维护）；没有压缩器就是 0。"""
-        value = getattr(self._compactor, "covered_end", 0)
+        value = getattr(self._compactor, "view_start", getattr(self._compactor, "covered_end", 0))
         try:
             return max(0, int(value or 0))
         except (TypeError, ValueError):
@@ -113,15 +129,13 @@ class ModelModule(ModuleBase):
                             else ports.log.derive_request_messages())
         dialogue = prepare_dialogue(
             request_messages, self._image_turns, self._image_max)
-        turn_start = 0
-        for index in range(len(dialogue) - 1, -1, -1):
-            if str(dialogue[index].get("role") or "") == "user":
-                turn_start = index
-                break
+        tools = ports.tool_port.schemas() if ports.tool_port is not None else []
+        reasoning_budget = reasoning_budget_for(ports, self._model, dialogue, tools)
         if self.context_pass is not None:
             assembled = assemble_with(self.context_pass, dialogue, runtime_note,
                                        0 if isolated_wake else self._covered_end(),
-                                       include_summary=not isolated_wake)
+                                       include_summary=not isolated_wake,
+                                       reasoning_budget=reasoning_budget)
             if assembled is None:
                 report_error("core.model", "上下文缺装配能力（本回合请求可能缺系统前缀）")
                 messages = with_mode_note(dialogue, runtime_note)
@@ -130,14 +144,17 @@ class ModelModule(ModuleBase):
         else:
             messages = with_mode_note(dialogue, runtime_note)
         pre_hook = list(messages)
+        turn_anchor = next((message for message in reversed(pre_hook)
+                            if message.get("role") == "user"), None)
         if self._context_hooks is not None:
             messages = self._context_hooks.apply(
                 messages, str(getattr(ports, "conversation_id", "") or ""))
+        messages = ensure_tool_pairs(messages)
         request = LogicalRequest(
             messages=messages,
-            tools=(ports.tool_port.schemas() if ports.tool_port is not None else []),
+            tools=tools,
             effort=self._effort, model=self._model,
-            turn_start=len(messages) - len(dialogue) + turn_start,
+            turn_start=_turn_start_index(messages, turn_anchor),
             conversation_id=str(getattr(ports, "conversation_id", "") or ""))
         budget = 0
         try:
@@ -164,10 +181,10 @@ class ModelModule(ModuleBase):
         return ports.canceled()
 
     def _cancel_events(self, ports, model, request, started, reasoning_last_at,
-                       chunks, retries):
+                       chunks, retries, *, reason="CanceledByUser"):
         """取消时的两条终止事件。只发事件；是否停止由调用方决定。"""
         yield ports.emit(LLM_FAILED, model=model.name_for(request) or "",
-                         error="CanceledByUser",
+                         error=reason,
                          elapsed_ms=int((perf_counter() - started) * 1000),
                          reasoning_ms=_reasoning_ms(started, reasoning_last_at),
                          chunks=chunks, retries=retries)
@@ -200,6 +217,15 @@ class ModelModule(ModuleBase):
         failure = ""
         retries = 0
         while True:
+            if ports.canceled():
+                yield from self._cancel_events(
+                    ports, model, request, started, reasoning_last_at, chunks, retries)
+                return {"stopped": True}
+            if insertion_waiting(self._queued_input, ports.conversation_id):
+                yield from self._cancel_events(
+                    ports, model, request, started, reasoning_last_at,
+                    chunks, retries, reason="InputInserted")
+                return {"insert_pending": True}
             try:
                 for delta in model.stream(request):
                     if ports.canceled():
@@ -251,21 +277,28 @@ class ModelModule(ModuleBase):
             yield from self._cancel_events(
                 ports, model, request, started, reasoning_last_at, chunks, retries)
             return {"stopped": True, "failure": ""}
-        yield ports.emit(LLM_DONE, model=name, elapsed_ms=elapsed,
-                         first_chunk_ms=(first_chunk_ms if first_chunk_ms is not None else -1),
-                         reasoning_ms=reasoning_ms, chunks=chunks,
-                         tool_calls=len(tool_calls), retries=retries)
-        yield ports.emit(LLM_ENDED, model=name, status=LLM_STATUS_DONE,
-                         elapsed_ms=elapsed, reasoning_ms=reasoning_ms,
-                         chunks=chunks, tool_calls=len(tool_calls), retries=retries)
-        if usage:
-            yield ports.emit(USAGE, **usage)
+        yield from self._stream_done(ports, name, elapsed, first_chunk_ms, reasoning_ms,
+                                     chunks, len(tool_calls), retries, usage)
         return {"stopped": False, "failure": "", "retries": retries,
                 "text_parts": text_parts,
                 "reasoning_parts": reasoning_parts, "tool_calls": tool_calls,
                 "provider_meta": provider_meta}
 
+    def _stream_done(self, ports, name, elapsed, first_chunk_ms, reasoning_ms,
+                     chunks, tool_count, retries, usage):
+        yield ports.emit(LLM_DONE, model=name, elapsed_ms=elapsed,
+                         first_chunk_ms=(first_chunk_ms if first_chunk_ms is not None else -1),
+                         reasoning_ms=reasoning_ms, chunks=chunks,
+                         tool_calls=tool_count, retries=retries)
+        yield ports.emit(LLM_ENDED, model=name, status=LLM_STATUS_DONE,
+                         elapsed_ms=elapsed, reasoning_ms=reasoning_ms,
+                         chunks=chunks, tool_calls=tool_count, retries=retries)
+        if usage:
+            yield ports.emit(USAGE, **usage)
+
     def execute(self, ports: Ports) -> Iterator[Any]:
+        if insertion_waiting(self._queued_input, ports.conversation_id):
+            return Outcome.next()
         if not tail_expects_model(ports.log):
             return Outcome.ok()
         model = ports.model_port
@@ -273,6 +306,8 @@ class ModelModule(ModuleBase):
             yield ports.emit(ERROR, where="model", detail="未装配模型端口")
             return Outcome.halt("未装配模型端口")
         request, messages, segments = self._build_request(ports)
+        if insertion_waiting(self._queued_input, ports.conversation_id):
+            return Outcome.next()
         if segments is not None:
             yield ports.emit(CONTEXT_SEGMENTS, **segments)
         yield ports.emit(LLM_STARTED, model=model.name_for(request) or "",
@@ -281,6 +316,8 @@ class ModelModule(ModuleBase):
         state = yield from self._stream(ports, model, request)
         if state.get("stopped"):
             return Outcome.stopped("用户请求停止")
+        if state.get("insert_pending"):
+            return Outcome.next()
         failure = str(state.get("failure") or "")
         if failure:
             retries = int(state.get("retries") or 0)

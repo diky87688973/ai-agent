@@ -40,6 +40,7 @@ class SubagentMessenger:
         *,
         msg: str,
         images: Any = None,
+        user_send: bool = False,
     ) -> Dict[str, Any]:
         child = self._record_for_parent(parent_cid, child_id)
         return self._submit(
@@ -48,7 +49,7 @@ class SubagentMessenger:
             msg,
             images,
             sender_name=self._parent_name(parent_cid),
-            sender_role="parent",
+            sender_role="parent", user_send=user_send,
         )
 
     def send_to_parent(
@@ -77,6 +78,7 @@ class SubagentMessenger:
         *,
         sender_name: Optional[str] = None,
         sender_role: str = "parent",
+        user_send: bool = False,
     ) -> Dict[str, Any]:
         text = str(msg or "").strip()
         attachments = normalize_images(images)
@@ -93,7 +95,8 @@ class SubagentMessenger:
         if attachments:
             payload["attachments"] = attachments
         try:
-            result = self.mesh.submit_insert(target_cid, payload)
+            result = (self.mesh.submit_user(target_cid, payload)
+                      if user_send else self.mesh.submit_insert(target_cid, payload))
         except QueueError as exc:
             raise SubagentError(str(exc), "queue_failed") from exc
         data = result if isinstance(result, dict) else {}
@@ -102,5 +105,6 @@ class SubagentMessenger:
             "target_id": target_cid,
             "queued": bool(data.get("queued")),
             "inserted": bool(data.get("inserted")),
+            "via_inbox": user_send,
             "run_id": str(data.get("run_id") or ""),
         }

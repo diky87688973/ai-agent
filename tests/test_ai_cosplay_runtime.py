@@ -521,7 +521,6 @@ class SlotFactoryTest(unittest.TestCase):
         own = {path: spec for path, spec in config.specs.items()
                if path.startswith("app/plugins/ai_cosplay/") and spec.kind != "container"}
         self.assertEqual(sorted(own), [
-            "app/plugins/ai_cosplay/events/error",
             "app/plugins/ai_cosplay/events/turn_ended",
             "app/plugins/ai_cosplay/prompt/tail",
             "app/plugins/ai_cosplay/routes/config",
@@ -536,11 +535,44 @@ class SlotFactoryTest(unittest.TestCase):
             [("GET", "config"), ("GET", "status"), ("POST", "played")])
         self.assertEqual(
             sorted(path.rsplit("/", 1)[-1] for path in own if "/events/" in path),
-            ["error", "turn_ended"])
+            ["turn_ended"])
         self.assertEqual(own["app/plugins/ai_cosplay/tools/ai_speek"].factory,
                          "plugin:make_tool")
         self.assertEqual(own["app/plugins/ai_cosplay/prompt/tail"].factory,
                          "plugin:make_mode_tail")
+
+    def test_halted_turn_keeps_speech_playing(self) -> None:
+        """模型失败、护栏触顶走 halted：已合成语音不得被停。"""
+        provider = BlockingProvider()
+        runtime = _RUNTIME.AICosplayRuntime(_config(), provider)
+        self.addCleanup(runtime.dispose)
+        publisher = FakePublisher()
+        runtime.enqueue(
+            "cid-12345678", "call-1", ("一。", "二。"), "test-voice", publisher
+        )
+        self.assertTrue(provider.started.wait(1.0))
+        handler = _PLUGIN.make_event_turn_ended(None, runtime)
+        handler(SimpleNamespace(data={"conversation_id": "cid-12345678",
+                                      "halted": True, "stopped": False}))
+        self.assertEqual(
+            [f for f in publisher.snapshot() if f[1] == "stop"], [],
+            msg="halted 不得终止语音：错误跟已合成的音频无关")
+
+    def test_stopped_turn_still_stops_speech(self) -> None:
+        """用户主动停止（stopped）仍要清空语音。"""
+        provider = BlockingProvider()
+        runtime = _RUNTIME.AICosplayRuntime(_config(), provider)
+        self.addCleanup(runtime.dispose)
+        publisher = FakePublisher()
+        runtime.enqueue(
+            "cid-12345678", "call-1", ("一。", "二。"), "test-voice", publisher
+        )
+        self.assertTrue(provider.started.wait(1.0))
+        handler = _PLUGIN.make_event_turn_ended(None, runtime)
+        handler(SimpleNamespace(data={"conversation_id": "cid-12345678",
+                                      "halted": False, "stopped": True}))
+        provider.release.set()
+        self.assertTrue(_wait(lambda: any(f[1] == "stop" for f in publisher.snapshot())))
 
     def test_config_and_status_routes(self) -> None:
         runtime = _PLUGIN.make_runtime(None)

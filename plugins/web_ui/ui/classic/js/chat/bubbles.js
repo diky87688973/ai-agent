@@ -184,7 +184,7 @@ var line=String(metaRaw||"").trim().replace(/\|/g," ");
 if(!line)return"";
 return'<span class="peer-meta-tag">'+escapeHtml(line)+"</span>";
 }
-function addPeerMessage(t,name,cid){
+function addPeerMessage(t,name,cid,attachments,conversationId){
 if(!msgs)return;
 var label=String(name||cid||"Agent");
 var content=t||"";
@@ -205,6 +205,9 @@ e.innerHTML=
 '<div class="peer-bubble"><div class="peer-agent-body b a"></div></div>';
 var bodyEl=e.querySelector(".peer-agent-body");
 if(bodyEl){bodyEl.innerHTML=renderMarkdown(content||"");}
+if(bodyEl&&Array.isArray(attachments)&&attachments.length&&window.AIA&&AIA.buildMsgAttachStrip){
+  bodyEl.appendChild(AIA.buildMsgAttachStrip(conversationId,null,attachments));
+}
 msgs.appendChild(e);
 if(!window._peerToggleDelegated){
 window._peerToggleDelegated=true;
@@ -220,6 +223,7 @@ if(top)togglePeerRow(top);
 });
 }
 scrollMsgsToBottom();
+return bodyEl;
 }
 
 function ensureAssistantStreamBubble(){

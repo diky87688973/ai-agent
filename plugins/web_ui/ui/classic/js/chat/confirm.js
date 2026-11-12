@@ -3,26 +3,147 @@
  * 经典界面的同作用域模块：由 `agent/shell/ui_bundle.py` 按清单顺序与其他脚本
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
-var pendingConfirmToolRow=null;
 
 function _sendBtn(){return document.querySelector('[data-ui-action="input.send"]');}
 
-function cancelUserConfirmForNewMessage(){
-if(!userConfirmCardHost)return false;
-var row=pendingConfirmToolRow;
-pendingConfirmToolRow=null;
-closeUserConfirmCardHost();
-if(row){
-if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(row,"canceled");
-if(typeof chatToolSetResultText==="function")chatToolSetResultText(row,"用户取消了这次确认（未作答）");
+function closeMatchingConfirmation(ev){
+  var card=userConfirmCardHost;
+  if(!card||card.dataset.callId!==String(ev.call_id||"")||
+     card.dataset.requestId!==String(ev.request_id||""))return;
+  if(ev.expired&&card.confirmToolRow){
+    chatToolSetRowStatus(card.confirmToolRow,"canceled");
+    chatToolSetResultText(card.confirmToolRow,"无结果：用户未作答");
+  }
+  var tab=findConversationTab(card.dataset.conversationId);
+  if(tab)tab.confirmationVersion=(tab.confirmationVersion||0)+1;
+  closeUserConfirmCardHost();
+  updateTaskControls();
 }
-updateTaskControls();
-return true;
+
+async function restoreCrossProcessConfirmation(tab,current,version){
+  if(!tab.historyLoaded||tab.subagent)return;
+  var response=await fetch("/api/chat/history?"+new URLSearchParams({conversation_id:tab.id}));
+  if(!response.ok)return;
+  var body=await response.json();
+  var item=(body.items||[]).find(function(row){
+    var envelope=row.envelope||{};
+    return row.status==="suspended"&&row.tool_call_id===current.call_id&&
+      String(envelope.request_id||row.tool_call_id)===current.request_id;
+  });
+  if(!item||findConversationTab(tab.id)!==tab||(tab.confirmationVersion||0)!==version)return;
+  withConversationContext(tab.id,function(){
+    if(!userConfirmCardHost)renderHistoryToolItem(item);
+  });
+}
+
+async function reconcileConfirmationCards(){
+  var selected=getActiveConversationId();
+  var checks=conversationTabs.flatMap(function(tab){
+    var card=tab.msgsHost&&tab.msgsHost.querySelector(".user-confirm-card-outer[data-call-id]");
+    if(!card&&(tab.id!==selected||!tab.historyLoaded))return [];
+    return [{tab:tab,version:tab.confirmationVersion||0,
+             call_id:card&&card.dataset.callId,request_id:card&&card.dataset.requestId}];
+  });
+  if(!checks.length)return;
+  try{
+    var params=new URLSearchParams({confirmation_ids:checks.map(function(entry){return entry.tab.id;}).join(",")});
+    var response=await fetch("/api/chat/ui-state?"+params);
+    if(!response.ok)return;
+    var body=await response.json();
+    var active=body.state&&body.state.confirmations;
+    if(!active)return;
+    for(var entry of checks){
+      var tab=entry.tab;
+      if(findConversationTab(tab.id)!==tab||(tab.confirmationVersion||0)!==entry.version)continue;
+      var current=active[tab.id];
+      if(entry.call_id&&(!current||current.call_id!==entry.call_id||current.request_id!==entry.request_id)){
+        withConversationContext(tab.id,function(){closeMatchingConfirmation({...entry,expired:true});});
+      }
+      if(current&&tab.id===selected&&(!entry.call_id||current.call_id!==entry.call_id||current.request_id!==entry.request_id)){
+        await restoreCrossProcessConfirmation(tab,current,tab.confirmationVersion||0);
+      }
+    }
+  }catch(error){
+    console.debug("[confirm] state unavailable",error);
+  }
+}
+
+window.addEventListener("focus",function(){void reconcileConfirmationCards();});
+document.addEventListener("ai-agent:conversation-changed",function(){void reconcileConfirmationCards();});
+
+function bindConfirmationCard(outer,ev,toolRow){
+  outer.dataset.callId=String(ev.tool_call_id||"");
+  outer.dataset.requestId=String(ev.user_confirm_request_id||ev.tool_call_id||"");
+  outer.dataset.conversationId=String((msgs&&msgs.dataset.conversationId)||getActiveConversationId());
+  outer.confirmToolRow=toolRow;
+  var tab=findConversationTab(outer.dataset.conversationId);
+  if(tab)tab.confirmationVersion=(tab.confirmationVersion||0)+1;
+}
+
+function showConfirmationResumeRetry(cid, ids){
+  var notice=add("a","确认已保存，续跑待重试。");
+  if(!notice)return;
+  var retry=document.createElement("button");
+  retry.type="button";
+  retry.textContent="重试续跑";
+  retry.className="user-confirm-btn";
+  notice.appendChild(retry);
+  retry.addEventListener("click",async function(){
+    retry.disabled=true;
+    try{
+      var response=await fetch("/api/chat/user-confirm",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({conversation_id:cid,...ids,retry_resume:true})
+      });
+      var result=await response.json();
+      if(result.expired){
+        notice.textContent=result.error||"这次确认无需再次续跑。";
+        return;
+      }
+      if(!response.ok||result.ok===false||result.resume_pending)throw new Error(result.error||"续跑失败");
+      notice.textContent="已提交续跑。";
+    }catch(error){
+      retry.title=error.message;
+      retry.textContent="续跑失败，重试";
+      retry.disabled=false;
+    }
+  });
+}
+
+async function submitConfirmation(outer,endpoint,choice){
+  if(outer.dataset.sending==="1")return null;
+  outer.dataset.sending="1";
+  var cid=outer.dataset.conversationId;
+  var ids={call_id:outer.dataset.callId,request_id:outer.dataset.requestId};
+  try{
+    var response=await fetch(endpoint,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({conversation_id:cid,...ids,...choice})
+    });
+    var result=await response.json();
+    if(result.expired){
+      withConversationContext(cid,function(){
+        closeMatchingConfirmation({...ids,expired:true});
+        add("a","操作无效，该确认已过期");
+      });
+      return null;
+    }
+    if(!response.ok||result.ok===false)throw new Error(result.error||"确认失败");
+    withConversationContext(cid,function(){
+      closeMatchingConfirmation(ids);
+      if(result.resume_pending)showConfirmationResumeRetry(cid,ids);
+    });
+    return result;
+  }catch(error){
+    withConversationContext(cid,function(){add("a","确认请求失败："+error.message);});
+    return null;
+  }finally{
+    delete outer.dataset.sending;
+  }
 }
 
 function openUserConfirmModalFromToolEnd(ev, toolRow){
 if(userConfirmCardHost||!ev.user_confirm_required)return;
-pendingConfirmToolRow=toolRow||null;
 userConfirmBlocking=true;
 if(_sendBtn())_sendBtn().disabled=false;
 hideChatLoading();
@@ -30,7 +151,6 @@ var opts=Array.isArray(ev.user_confirm_options)?ev.user_confirm_options:[];
 var title=String(ev.user_confirm_title||"请确认");
 var multi=!!ev.user_confirm_multi;
 var confirmEndpoint=String(ev.user_confirm_endpoint||"");
-var confirmRequestId=String(ev.user_confirm_request_id||"");
 var tailIdx=opts.length;
 var wrap=document.createElement("div");wrap.className="b a user-confirm-card-outer";
 var card=document.createElement("div");card.className="chat-diff-card user-confirm-card";
@@ -102,30 +222,14 @@ var act=document.createElement("div");act.className="user-confirm-actions";
 var cancel=document.createElement("button");cancel.type="button";cancel.className="mode-plus uc-cancel";cancel.textContent="取消";
 var ok=document.createElement("button");ok.type="button";ok.className="mode-plus uc-ok is-primary";ok.textContent="确认";
 act.appendChild(cancel);act.appendChild(ok);body.appendChild(act);
-card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;scrollMsgsToBottom();
-function cleanup(){pendingConfirmToolRow=null;closeUserConfirmCardHost();updateTaskControls();}
+card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;bindConfirmationCard(wrap,ev,toolRow);scrollMsgsToBottom();
 var submitUserConfirm=async function(finalTxt){
-var confirmCid=getActiveConversationId();
-if(confirmEndpoint){
- var choice=String(finalTxt||"")==="同意"?"agree":"reject";
- cleanup();showChatLoading();var gb0=_sendBtn();if(gb0)gb0.disabled=true;updateTaskControls();
- try{
-  var r0=await fetch(confirmEndpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:confirmCid,request_id:confirmRequestId,choice:choice})});
-  if(!r0.ok){var b0="";try{b0=await r0.text();}catch(e0){}withConversationContext(confirmCid,function(){hideChatLoading();add("a",formatHttpError(r0.status,b0,"视觉授权"));});return;}
-  var j0=await r0.json();
-  if(j0&&j0.ok!==false&&toolRow){var label=choice==="agree"?"同意":"拒绝";if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(toolRow,"done");if(typeof chatToolSetResultText==="function")chatToolSetResultText(toolRow,label);}
- }catch(err0){
-  withConversationContext(confirmCid,function(){hideChatLoading();add("a","视觉授权失败: "+(err0&&err0.message?err0.message:String(err0)));});
- }finally{updateTaskControls();}
- return;
-}
-cleanup();showChatLoading();var gb=_sendBtn();if(gb)gb.disabled=true;var tab=findConversationTab(confirmCid);if(tab){tab.abortController={global:true};tab.stopRequested=false;}updateTaskControls();
-try{
-var r=await fetch("/api/chat/user-confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:confirmCid,confirm:finalTxt,mode:selectedMode,model:selectedModel})});
-if(!r.ok){var _bc="";try{_bc=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/user-confirm 非 OK",{status:r.status,bodyHead:String(_bc||"").slice(0,500)});withConversationContext(confirmCid,function(){hideChatLoading();add("a",formatHttpError(r.status,_bc,"确认请求"));});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
-var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id||"");if(_jr&&_jr.ok!==false&&toolRow){var picked=String(finalTxt||"").trim();if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(toolRow, picked?"done":"bad");if(typeof chatToolSetResultText==="function")chatToolSetResultText(toolRow, picked||"用户取消了这次确认（未作答）");}
-}catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","确认请求失败: "+(err&&err.message?err.message:String(err)));});}
-finally{updateTaskControls();}
+  var choice=confirmEndpoint?{choice:finalTxt==="同意"?"agree":"reject"}:{confirm:finalTxt};
+  var result=await submitConfirmation(wrap,confirmEndpoint||"/api/chat/user-confirm",choice);
+  if(result&&toolRow){
+    chatToolSetRowStatus(toolRow,finalTxt?"done":"bad");
+    chatToolSetResultText(toolRow,finalTxt||"用户取消了这次确认（未作答）");
+  }
 };
 card._confirmClick=function(e){
 var hit=e.target;
@@ -141,7 +245,6 @@ if(!isNaN(picked))toggleIdx(picked);
 }
 function openApprovalModalFromToolEnd(ev, toolRow){
 if(userConfirmCardHost||!ev.approval_required)return;
-pendingConfirmToolRow=toolRow||null;
 userConfirmBlocking=true;
 if(_sendBtn())_sendBtn().disabled=false;
 hideChatLoading();
@@ -159,16 +262,14 @@ var act=document.createElement("div");act.className="user-confirm-actions";
 var reject=document.createElement("button");reject.type="button";reject.className="mode-plus approval-reject";reject.textContent="驳回";
 var agree=document.createElement("button");agree.type="button";agree.className="mode-plus approval-agree";agree.textContent="同意";
 act.appendChild(reject);act.appendChild(agree);body.appendChild(act);
-card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;scrollMsgsToBottom();
-function cleanup(){pendingConfirmToolRow=null;closeUserConfirmCardHost();updateTaskControls();}
+card.appendChild(body);wrap.appendChild(card);msgs.appendChild(wrap);userConfirmCardHost=wrap;bindConfirmationCard(wrap,ev,toolRow);scrollMsgsToBottom();
 var submitApproval=async function(agreed){
-var confirmCid=getActiveConversationId();cleanup();showChatLoading();var gb=_sendBtn();if(gb)gb.disabled=true;var tab=findConversationTab(confirmCid);if(tab){tab.abortController={global:true};tab.stopRequested=false;}updateTaskControls();
-try{
-var r=await fetch("/api/chat/user-confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversation_id:confirmCid,approval:agreed?"agree":"reject",mode:selectedMode,model:selectedModel})});
-if(!r.ok){var _bc="";try{_bc=await r.text();}catch(e){}if(window.DEBUG)console.error("[ai-agent] /api/chat/user-confirm 非 OK",{status:r.status,bodyHead:String(_bc||"").slice(0,500)});withConversationContext(confirmCid,function(){hideChatLoading();add("a",formatHttpError(r.status,_bc,"审批请求"));});if(tab){tab.abortController=null;tab.activeRunId="";}return;}
-var _jr=await r.json();if(tab&&_jr&&_jr.run_id)tab.activeRunId=String(_jr.run_id||"");if(_jr&&_jr.ok!==false&&toolRow){var decision=agreed?"同意":"不同意";var aid=String(_jr.approval_id||"").trim();if(typeof chatToolSetRowStatus==="function")chatToolSetRowStatus(toolRow,"done");if(typeof chatToolSetResultText==="function")chatToolSetResultText(toolRow,agreed&&aid?(decision+"\n"+aid):decision);}
-}catch(err){if(err&&err.name==="AbortError"){return;}withConversationContext(confirmCid,function(){hideChatLoading();add("a","审批请求失败: "+(err&&err.message?err.message:String(err)));});}
-finally{updateTaskControls();}
+  var result=await submitConfirmation(wrap,"/api/chat/user-confirm",{approval:agreed?"agree":"reject"});
+  if(result&&toolRow){
+    var aid=String(result.approval_id||"").trim();
+    chatToolSetRowStatus(toolRow,"done");
+    chatToolSetResultText(toolRow,agreed?(aid?"同意\n"+aid:"同意"):"不同意");
+  }
 };
 card._confirmClick=function(e){
 var hit=e.target;

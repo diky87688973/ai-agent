@@ -45,6 +45,9 @@ class Acceptance:
         )
         self.seq = 0
         self.failures: list = []
+        # 本脚本验四步协议，第四步「重读」本身就是断言；开关默认关闭，
+        # 不显式打开的话「连改未重读被拒」永不成立。
+        self.app.gate.reread_enabled = True
 
     # ── 基础操作 ────────────────────────────────────────────
 

@@ -13,7 +13,6 @@ import unittest
 import urllib.error
 from unittest import mock
 
-from agent.core.model_call import PROVIDER_META_KEY
 from agent.core.ports import LogicalRequest
 from agent.mechanisms.providers import anthropic as ap
 from agent.mechanisms.providers.anthropic import (
@@ -22,7 +21,6 @@ from agent.mechanisms.providers.anthropic import (
     _to_anthropic_messages,
     drop_dangling_tool_results,
     messages_url,
-    strip_stale_thinking,
 )
 from agent.mechanisms.providers.base import ModelRequestError
 
@@ -111,12 +109,29 @@ class StreamAssemblyTest(unittest.TestCase):
         self.assertEqual(calls[0].name, "read_file")
         self.assertEqual(calls[0].arguments, {"path": "a.txt"})
 
-    def test_meta_is_emitted_only_when_thinking_and_tools_coexist(self) -> None:
+    def test_meta_is_emitted_for_thinking_even_without_tool_calls(self) -> None:
         deltas = list(_assemble_deltas(_tool_stream(with_thinking=True)))
         meta = [d.meta for d in deltas if d.kind == "meta"]
         self.assertEqual(meta, [{"anthropic": {
             "thinking_blocks": [{"thinking": "先看文件", "signature": "sig-tail"}],
         }}])
+        chunks = _tool_stream(with_thinking=True)
+        tool_index = next(chunk["index"] for chunk in chunks
+                          if chunk.get("content_block", {}).get("type") == "tool_use")
+        text_chunks = [chunk for chunk in chunks if chunk.get("index") != tool_index]
+        text_chunks[-1:-1] = [
+            {"type": "content_block_start", "index": 2,
+             "content_block": {"type": "redacted_thinking", "data": "opaque"}},
+            {"type": "content_block_stop", "index": 2},
+        ]
+        completed = list(_assemble_deltas(text_chunks))
+        self.assertFalse(any(delta.kind == "tool_call" for delta in completed))
+        self.assertEqual([delta.meta for delta in completed if delta.kind == "meta"], [
+            {"anthropic": {"thinking_blocks": [
+                {"thinking": "先看文件", "signature": "sig-tail"},
+                {"type": "redacted_thinking", "data": "opaque"},
+            ]}},
+        ])
         without = list(_assemble_deltas(_tool_stream(with_thinking=False)))
         self.assertEqual([d for d in without if d.kind == "meta"], [])
 
@@ -209,7 +224,7 @@ class MessageConversionTest(unittest.TestCase):
                 {"id": "c1", "name": "read_file", "arguments": {"path": "a.txt"}},
             ]},
         ]
-        converted = _to_anthropic_messages(messages, turn_start=None)
+        converted = _to_anthropic_messages(messages)
         self.assertEqual(converted[-1]["content"], [{
             "type": "tool_use", "id": "c1", "name": "read_file", "input": {"path": "a.txt"},
         }])
@@ -224,7 +239,7 @@ class MessageConversionTest(unittest.TestCase):
             {"role": "tool", "tool_call_id": "c1", "content": "A"},
             {"role": "tool", "tool_call_id": "c2", "content": ""},
         ]
-        converted = _to_anthropic_messages(messages, turn_start=None)
+        converted = _to_anthropic_messages(messages)
         self.assertEqual([m["role"] for m in converted], ["user", "assistant", "user"])
         results = converted[-1]["content"]
         self.assertEqual([block["tool_use_id"] for block in results], ["c1", "c2"])
@@ -243,7 +258,7 @@ class MessageConversionTest(unittest.TestCase):
             ]},
             {"role": "tool", "tool_call_id": "dup", "content": "B"},
         ]
-        converted = _to_anthropic_messages(messages, turn_start=None)
+        converted = _to_anthropic_messages(messages)
         uses = [block["id"] for m in converted for block in m["content"]
                 if block.get("type") == "tool_use"]
         results = [block["tool_use_id"] for m in converted for block in m["content"]
@@ -255,7 +270,7 @@ class MessageConversionTest(unittest.TestCase):
         converted = _to_anthropic_messages([
             {"role": "assistant", "content": "开场白"},
             {"role": "user", "content": "正文"},
-        ], turn_start=None)
+        ])
         self.assertEqual(converted, [{"role": "user", "content": [{"type": "text", "text": "正文"}]}])
 
     def test_dangling_tool_result_is_dropped(self) -> None:
@@ -264,21 +279,27 @@ class MessageConversionTest(unittest.TestCase):
             {"role": "tool", "tool_call_id": "ghost", "content": "无主结果"},
         ]
         self.assertEqual(len(drop_dangling_tool_results(messages)), 1)
-        converted = _to_anthropic_messages(messages, turn_start=None)
+        converted = _to_anthropic_messages(messages)
         self.assertNotIn("tool_result", json.dumps(converted, ensure_ascii=False))
 
-    def test_thinking_blocks_replay_only_within_the_current_turn(self) -> None:
-        old = {"role": "assistant", "content": "旧回答", "provider_meta": {
-            "anthropic": {"thinking_blocks": [{"thinking": "旧", "signature": "s1"}],
-                          "future_key": 1}}}
-        new = {"role": "assistant", "content": "新回答", "provider_meta": {
-            "anthropic": {"thinking_blocks": [{"thinking": "新", "signature": "s2"}]}}}
-        stripped = strip_stale_thinking([old, new], turn_start=1)
-        self.assertNotIn("thinking_blocks", stripped[0]["provider_meta"]["anthropic"])
-        self.assertEqual(stripped[0]["provider_meta"]["anthropic"]["future_key"], 1,
-                         msg="未知子键必须原样保留（前滚契约）")
-        self.assertEqual(thinking_blocks(stripped[1]),
-                         [{"thinking": "新", "signature": "s2"}])
+    def test_thinking_blocks_replay_across_turns(self) -> None:
+        messages = [
+            {"role": "user", "content": "first"},
+            {"role": "assistant", "content": "old", "provider_meta": {"anthropic": {
+                "thinking_blocks": [{"thinking": "old reasoning", "signature": "s1"}]}}},
+            {"role": "user", "content": "next"},
+            {"role": "assistant", "content": "new", "provider_meta": {"anthropic": {
+                "thinking_blocks": [{"type": "redacted_thinking", "data": "opaque"},
+                                    {"thinking": "new reasoning", "signature": "s2"}]}}},
+        ]
+        initial = _to_anthropic_messages(messages[:2])
+        extended = _to_anthropic_messages(messages)
+        self.assertEqual(extended[:2], initial)
+        self.assertEqual(extended[1]["content"][0]["signature"], "s1")
+        self.assertEqual(extended[3]["content"][:2], [
+            {"type": "redacted_thinking", "data": "opaque"},
+            {"type": "thinking", "thinking": "new reasoning", "signature": "s2"},
+        ])
 
     def test_tools_payload_accepts_both_declaration_shapes(self) -> None:
         request = LogicalRequest(messages=[{"role": "user", "content": "x"}], tools=[
@@ -363,7 +384,7 @@ class MessageConversionTest(unittest.TestCase):
             payload = AnthropicProvider(
                 base_url="u", api_key="k", model="m", max_tokens=16000,
                 thinking=True, thinking_budget_tokens=4096,
-            ).build_payload(LogicalRequest(messages=messages, tools=[], turn_start=0))
+            ).build_payload(LogicalRequest(messages=messages, tools=[]))
         self.assertEqual(payload["thinking"], {"type": "disabled"})
         self.assertEqual(warn.call_count, 1)
         self.assertNotIn("thinking", json.dumps(payload["messages"], ensure_ascii=False))
@@ -378,7 +399,7 @@ class MessageConversionTest(unittest.TestCase):
         ]
         payload = AnthropicProvider(
             base_url="u", api_key="k", model="m", thinking=False,
-        ).build_payload(LogicalRequest(messages=messages, tools=[], turn_start=0))
+        ).build_payload(LogicalRequest(messages=messages, tools=[]))
         self.assertNotIn("thinking", json.dumps(payload["messages"], ensure_ascii=False))
 
     def test_thinking_block_with_empty_text_is_still_replayed(self) -> None:
@@ -395,16 +416,12 @@ class MessageConversionTest(unittest.TestCase):
                 {"thinking": "", "signature": "sig-empty"},
             ]}}},
         ]
-        converted = _to_anthropic_messages(messages, turn_start=0)
+        converted = _to_anthropic_messages(messages)
         blocks = converted[1]["content"]
         self.assertEqual(blocks[0], {"type": "thinking", "thinking": "",
                                      "signature": "sig-empty"})
 
 
-def thinking_blocks(message: dict) -> list[dict]:
-    """从带 `provider_meta` 的消息里取 thinking 块（测试辅助）。"""
-    meta = message.get(PROVIDER_META_KEY) or {}
-    return (meta.get("anthropic") or {}).get("thinking_blocks") or []
 
 
 class EndpointAndErrorTest(unittest.TestCase):

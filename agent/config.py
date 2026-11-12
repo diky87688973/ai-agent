@@ -119,9 +119,7 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         # 这两项由装配根取走交给模型模块，不进 `ContextPipeline` 的构造参数。
         "image_turns": _int("image_turns", 1),
         "image_max": _int("image_max", 8),
-        # 思维链回传预算（token）：-1 = 全量回传，0 = 不回传，
-        # 正数 = 超出就取两头、中间以省略标记代替（模型按前后文推断）。
-        # 思维链必然未命中缓存，全量回传等于每回合多背几万 token。
+        # 可裁剪推理的回传预算。需要原样回传的协议字段由适配器声明。
         "reasoning_replay_tokens": _int("reasoning_replay_tokens", DEFAULT_REASONING_REPLAY_TOKENS),
     }
 

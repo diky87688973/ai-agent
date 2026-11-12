@@ -67,7 +67,7 @@ class SubagentActions:
             return 200, manager.send(
                 parent_cid, child_id,
                 msg=msg,
-                images=images,
+                images=images, user_send=True,
             )
         except SubagentError as exc:
             return 400, {"ok": False, "error": str(exc)}

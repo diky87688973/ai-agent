@@ -2,6 +2,7 @@
 """会话协作网格：Agent 注册表、运行占位与原子投递。"""
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 import time
@@ -26,6 +27,9 @@ class MeshState:
         input_queue: Optional[ConversationQueue] = None,
     ) -> None:
         self._lock = threading.RLock()
+        self._stopped: set[str] = set()
+        # Per-session user input that triggers the next Inbox dispatch.
+        self._pending_user_dispatch: Dict[str, str] = {}
         self._agents: Dict[str, Dict[str, Any]] = {}
         self._queue = input_queue if input_queue is not None else ConversationQueue()
         self._runs: RunRegistry = run_registry if run_registry is not None else build_run_registry(
@@ -97,6 +101,11 @@ class MeshState:
         with self._lock:
             if key not in self._agents:
                 return False
+            marker = self._stop_marker(key)
+            if marker is not None:
+                marker.unlink(missing_ok=True)
+            self._stopped.discard(key)
+            self._pending_user_dispatch.pop(key, None)
             self._agents.pop(key, None)
             self._save_agents_locked()
             return True
@@ -128,20 +137,60 @@ class MeshState:
     def touch_run(self, cid: str) -> None:
         self._runs.touch(str(cid or "").strip())
 
-    def try_begin_run(self, cid: str) -> str:
+    def _stop_marker(self, cid: str) -> Optional[Path]:
+        if self._storage_dir is None:
+            return None
+        key = hashlib.sha256(cid.encode("utf-8")).hexdigest()
+        return self._storage_dir / "stopped" / key
+
+    def is_stopped(self, cid: str) -> bool:
+        with self._lock:
+            marker = self._stop_marker(cid)
+            return cid in self._stopped or (marker is not None and marker.is_file())
+
+    def mark_stopped(self, cid: str, *, cancel: Optional[threading.Event] = None) -> None:
+        with self._lock:
+            if cancel is not None:
+                cancel.set()
+            self._stopped.add(cid)
+            self._pending_user_dispatch.pop(cid, None)
+            marker = self._stop_marker(cid)
+            if marker is not None:
+                try:
+                    marker.parent.mkdir(parents=True, exist_ok=True)
+                    marker.touch()
+                    self._stopped.discard(cid)
+                except OSError as exc:
+                    report_error("agent.mechanisms.mesh.mark_stopped", exc, conversation_id=cid)
+
+    def try_begin_run(self, cid: str, *, user_send: bool = False) -> str:
         key = str(cid or "").strip()
         if not key:
             return ""
         with self._lock:
+            stopped = self.is_stopped(key)
+            if stopped and not user_send:
+                return ""
             rid = uuid.uuid4().hex[:12]
-            return rid if self._runs.claim(key, rid) else ""
+            if not self._runs.claim(key, rid):
+                return ""
+            marker = self._stop_marker(key) if stopped else None
+            if marker is not None:
+                try:
+                    marker.unlink(missing_ok=True)
+                except OSError as exc:
+                    self._runs.release(key)
+                    report_error("agent.mechanisms.mesh.try_begin_run", exc, conversation_id=key)
+                    return ""
+            self._stopped.discard(key)
+            return rid
 
     def renew_run(self, cid: str, *, reset_started: bool = True) -> bool:
         key = str(cid or "").strip()
         if not key:
             return False
         with self._lock:
-            return bool(self._runs.renew(
+            return not self.is_stopped(key) and bool(self._runs.renew(
                 key, uuid.uuid4().hex[:12], reset_started=reset_started))
 
     def renew_for_insert(self, cid: str) -> Optional[bool]:
@@ -150,7 +199,7 @@ class MeshState:
         if not key:
             return False
         with self._lock:
-            if not self._queue.has_inserting(key):
+            if self.is_stopped(key) or not self._queue.has_inserting(key):
                 return None
             return bool(self._runs.renew(
                 key, uuid.uuid4().hex[:12], reset_started=False))
@@ -161,7 +210,7 @@ class MeshState:
         if not key:
             return False
         with self._lock:
-            if self._queue.has_inserting(key):
+            if not self.is_stopped(key) and self._queue.has_inserting(key):
                 return bool(self._runs.renew(
                     key, uuid.uuid4().hex[:12], reset_started=False))
             self._runs.release(key)
@@ -222,7 +271,7 @@ class MeshState:
     def submit_insert(self, cid: str, message: Dict[str, Any], *,
                       origin: Optional[str] = None,
                       dedupe_key: str = "") -> Dict[str, Any]:
-        """原子插入投递：忙时入队并标记 inserting，闲时直接启动。"""
+        """原子插入投递：忙时等待安全点，空闲时启动，已终止时只入队。"""
         key = str(cid or "").strip()
         if not key:
             return {"queued": False, "inserted": False, "run_id": ""}
@@ -232,11 +281,10 @@ class MeshState:
                 delivery="next_pass", insert=True)
             state = str(item.get("state") or "")
             rid = ""
-            if not self._runs.running(key) and self._activator is not None:
-                try:
-                    rid = str(self._activator(key, {}) or "")
-                except Exception as exc:
-                    report_error("agent.mechanisms.mesh.MeshState.submit_insert", exc)
+            try:
+                rid = self.activate_inserts(key)
+            except Exception as exc:
+                report_error("agent.mechanisms.mesh.MeshState.submit_insert", exc)
             return {
                 "queued": True,
                 "inserted": state == "inserting",
@@ -245,17 +293,108 @@ class MeshState:
                 "queue_item": item,
             }
 
+    def promote_insert(self, cid: str, item_id: str) -> None:
+        with self._lock:
+            self._queue.set_insert(cid, item_id)
+            self.activate_inserts(cid)
+
+    def activate_inserts(self, cid: str) -> str:
+        with self._lock:
+            if (self._activator is not None and not self.is_stopped(cid)
+                    and not self._runs.running(cid) and self._queue.has_inserting(cid)):
+                return str(self._activator(cid, {}) or "")
+            return ""
+
+    def submit_user(self, cid: str, message: Dict[str, Any], *, draft_id: str = "") -> Dict[str, Any]:
+        """Clear stop, enqueue the user's input, then dispatch under the same lock."""
+        with self._lock:
+            stopped = self.is_stopped(cid)
+            marker = self._stop_marker(cid) if stopped else None
+            try:
+                if marker is not None:
+                    marker.unlink(missing_ok=True)
+                self._stopped.discard(cid)
+            except OSError as exc:
+                report_error("agent.mechanisms.mesh.submit_user", exc, conversation_id=cid)
+
+            try:
+                if draft_id:
+                    item = self._queue.resubmit_draft(
+                        cid, draft_id, content=message.get("content", ""),
+                        attachments=message.get("attachments"), payload={"_inbox_user_send": True})
+                else:
+                    item = self._enqueue_message(cid, {**message, "_inbox_user_send": True})
+            except Exception:
+                if stopped:
+                    self.mark_stopped(cid)
+                raise
+            self._pending_user_dispatch[cid] = item["id"]
+            rid = ""
+            if self._activator is not None:
+                rid = self.activate_queued(
+                    cid, lambda claimed: self._activator(cid, {"_queued_item": claimed}))
+            return {"queued": not bool(rid), "run_id": rid, "queue_item": item}
+
+    def activate_queued(self, cid: str, activate: Callable[[Dict[str, Any]], str], *,
+                        user_only: bool = False) -> str:
+        """Hand off queued input only while this session is idle."""
+        with self._lock:
+            if self._runs.running(cid):
+                return ""
+            user_item_id = self._pending_user_dispatch.get(cid)
+            if self.is_stopped(cid) or (user_only and not user_item_id):
+                return ""
+            if not user_item_id and self._queue.has_inserting(cid):
+                self.activate_inserts(cid)
+                return ""
+            item = (self._queue.claim_item(cid, user_item_id) if user_item_id
+                    else self._queue.claim_after_turn(cid))
+            if item is None and user_item_id:
+                self._pending_user_dispatch.pop(cid, None)
+                user_item_id = None
+                if not user_only:
+                    item = self._queue.claim_after_turn(cid)
+            if item is None:
+                return ""
+            started = ""
+            try:
+                if user_item_id:
+                    item["_resume_inbox"] = True
+                started = activate(item)
+                if started and user_item_id:
+                    self._pending_user_dispatch.pop(cid, None)
+            except Exception as exc:
+                report_error("agent.mechanisms.mesh.activate_queued", exc, conversation_id=cid)
+            finally:
+                if not started:
+                    self._queue.release(cid, item["id"])
+            return started
+
     def submit(self, cid: str, message: Dict[str, Any], *,
                origin: Optional[str] = None,
-               dedupe_key: str = "") -> Dict[str, Any]:
+               dedupe_key: str = "", user_send: bool = False) -> Dict[str, Any]:
         """原子投递：忙 / 无激活器 → 入队；闲 → 激活启动。"""
         key = str(cid or "").strip()
         if not key:
             return {"queued": False, "queued_count": 0, "run_id": ""}
         with self._lock:
-            if self._runs.running(key) or self._activator is None:
+            if user_send:
+                return self.submit_user(key, message)
+            if message.get("_confirmation_resume"):
+                item = self._enqueue_message(key, message, origin=origin, dedupe_key=dedupe_key)
+                rid = ""
+                if self._activator is not None:
+                    rid = self.activate_queued(
+                        key, lambda claimed: self._activator(key, {"_queued_item": claimed}))
+                return {"queued": not bool(rid), "run_id": rid, "queue_item": item}
+            if self._runs.running(key) or self._activator is None or self.is_stopped(key):
                 item = self._enqueue_message(
                     key, message, origin=origin, dedupe_key=dedupe_key)
+                return {"queued": True, "queued_count": self._queue.size(key),
+                        "run_id": "", "queue_item": item}
+            if self._queue.has_inserting(key):
+                item = self._enqueue_message(key, message, origin=origin, dedupe_key=dedupe_key)
+                self.activate_inserts(key)
                 return {"queued": True, "queued_count": self._queue.size(key),
                         "run_id": "", "queue_item": item}
             try:

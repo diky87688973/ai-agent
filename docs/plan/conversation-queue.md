@@ -177,7 +177,7 @@ At turn end:
 ```text
 the current turn ends
 → SessionRunner still holds the run placeholder
-→ ConversationQueue claims the first after_turn item
+→ process all next_pass inputs first, or claim the first after_turn item if none are pending
 → renew the placeholder for the next turn
 → start a new turn
 → remove the item after that turn completes
@@ -187,6 +187,12 @@ The queue takes priority over goal and autonomous continuation.
 
 `after_turn` delivery consumes one item per turn and does not merge messages.
 
+An explicit user send clears the stop state under the session lock before adding the input to the Inbox. Dispatch checks the stop state again and releases the item back to the queue if startup fails.
+
+A batch records inserted messages first and ordinary queued messages second, each in enqueue order. The new user input comes last. Durable input facts acknowledge delivery and remove those items from the Inbox.
+
+All `next_pass` inputs have the same priority and retain enqueue order, regardless of whether they came from the user, another agent, a background task, or a scheduled wake.
+
 ### Stop
 
 Stop ends only the current turn:
@@ -194,20 +200,19 @@ Stop ends only the current turn:
 - it does not consume the queue automatically
 - queue items keep their current state
 - the user can still insert, edit, and cancel
-- only the next explicit send or insert continues
+- only an explicit new user send resumes dispatch; promoting a queue item changes its state only
 
 ## Insertion send
 
 The insertion point is the next safe model pass:
 
 ```text
-the current model stream ends
-→ every tool in the current batch finishes
-→ tool results are persisted
-→ the next pass starts
-→ QueuedInputModule
+the active model stream or tool finishes
+→ if an insertion is pending, close every unstarted call in the batch
+→ persist completed tool results and canceled call outcomes
+→ QueuedInputModule commits the inputs before removing them from the Inbox
 → CompressModule
-→ ModelModule
+→ ModelModule includes those inputs in its next request
 ```
 
 Insertion never happens:
@@ -226,17 +231,15 @@ Interrupting the current turn immediately is a stop followed by a new turn, not 
 
 ## Agent messages
 
-When the target conversation is busy, an Agent message enters the queue:
+Peer messages between agents always enter the Inbox:
 
 ```text
 origin=agent
 sender={cid,name,thread_id,requires_reply}
-delivery=after_turn
+delivery=next_pass
 ```
 
-When the target is idle, the message starts a turn directly and is not queued.
-
-A queued subagent peer message is marked `inserting` (`delivery=next_pass`) and is delivered at the next safe point.
+An idle target dispatches immediately. A busy target dispatches at the next safe point. A stopped target keeps the message queued.
 
 Display:
 
@@ -246,7 +249,6 @@ Display:
 
 After delivery it is rendered as an Agent message, not as an ordinary user message.
 
-Ordinary Agent messages are not injected into the current turn. Queued subagent peer messages use the next safe point.
 
 ## Edit and origin preservation
 

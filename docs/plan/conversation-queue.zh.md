@@ -177,7 +177,7 @@ POST /api/chat/send
 ```text
 当前回合结束
 → SessionRunner 仍持有运行占位
-→ ConversationQueue 取 after_turn 队首
+→ 有 next_pass 时先处理全部插入消息，否则取 after_turn 队首
 → 为下一回合续占占位
 → 启动新回合
 → 该回合结束后删除队列项
@@ -187,6 +187,12 @@ POST /api/chat/send
 
 `after_turn` 每回合消费一条，不合并多条消息。
 
+用户主动发送时，后端先在会话锁内解除终止状态，再将新消息写入 Inbox。派发前检查终止状态，启动失败时退回队列。
+
+一次派发多条时，先按入队顺序写入插入消息，再按入队顺序写入普通消息，最后写入本次主动发送的新消息。输入事实落盘即从 Inbox 确认移除。
+
+所有 `next_pass` 消息同优先级，按入队顺序处理。来源可以是用户、其他 Agent、后台任务通知或定时唤醒。
+
 ### 停止
 
 停止只结束当前回合：
@@ -194,20 +200,19 @@ POST /api/chat/send
 - 不自动消费队列
 - 队列项保持当前状态
 - 用户仍可插入、修改、取消
-- 只有下一次显式发送或插入才继续
+- 只有用户通过输入框显式发送新消息才继续；转为插入只变更队列状态
 
 ## 插入发送
 
 插入点是下一个安全模型趟：
 
 ```text
-当前模型流结束
-→ 当前批次工具全部结束
-→ 工具结果落盘
-→ 下一个 pass 开始
-→ QueuedInputModule
+正在执行的模型流或工具结束
+→ 若有待插入消息，关闭同批尚未开始的工具调用
+→ 已完成的工具结果和未执行的终态落盘
+→ QueuedInputModule 落盘认领后移除 Inbox 项
 → CompressModule
-→ ModelModule
+→ ModelModule 在下一次请求中收到这批消息
 ```
 
 不插入到：
@@ -226,17 +231,15 @@ POST /api/chat/send
 
 ## Agent 消息
 
-目标会话忙时，Agent 消息进入队列：
+Agent 间协作消息统一进入 Inbox：
 
 ```text
 origin=agent
 sender={cid,name,thread_id,requires_reply}
-delivery=after_turn
+delivery=next_pass
 ```
 
-目标会话空闲时，消息直接启动回合，不入队。
-
-已入队的子智能体对等消息标记为 `inserting`（`delivery=next_pass`），在下一个安全插入点投递。
+目标会话空闲时，入队后立即派发。忙时在下一个安全插入点投递。已终止时留在队列。
 
 展示：
 
@@ -246,7 +249,6 @@ delivery=after_turn
 
 投递后按 Agent 消息渲染，不变成普通用户消息。
 
-普通 Agent 消息不注入当前回合；已入队的子智能体对等消息走下一个安全插入点。
 
 ## 修改与来源保留
 

@@ -7,14 +7,16 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict, deque
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping, Optional
 
 from agent.core.error_report import report_error
-from agent.core.event_name import TOOL_ENDED
+from agent.core.event_name import TOOL_CANCELED, TOOL_ENDED, TURN_STARTED
 from agent.core.events import Event
 from agent.core.model_call import PROVIDER_META_KEY
+from agent.core.state_values import TOOL_CANCEL_INPUT_INSERTED, TOOL_CANCEL_INPUT_INSERTED_TEXT
 from agent.core.state_values import TOOL_SUSPENDED as TOOL_STATUS_SUSPENDED
 
 
@@ -150,6 +152,19 @@ class SessionLogView:
     def derive_request_messages_from_latest_wake(self) -> list[dict[str, Any]] | None:
         return self._log.derive_request_messages_from_latest_wake()
 
+    def user_input_sequence(self, ordinal: int) -> int | None:
+        """Return the fact coordinate for a user message in the dialogue projection."""
+        for event in self._log.events:
+            if event.type != "input_claimed":
+                continue
+            if not str(event.data.get("content", "")) and not event.data.get("attachments"):
+                continue
+            if ordinal == 0:
+                seq = event.data.get("_seq")
+                return seq if isinstance(seq, int) and not isinstance(seq, bool) and seq >= 0 else None
+            ordinal -= 1
+        return None
+
     def __len__(self) -> int:
         return len(self._log.events)
 
@@ -196,12 +211,14 @@ def _model_message(ev: Event) -> dict[str, Any]:
     reasoning = str(ev.data.get("reasoning_content") or "")
     if reasoning:
         msg["reasoning_content"] = reasoning
+    # 嵌套结构一律深拷：投影结果不能与事实共享可变对象，否则下游改一下
+    # （例如往 thinking_blocks 里补项）会回写进事实源，而事故点离改动点隔着几层。
     calls = ev.data.get("tool_calls") or []
     if calls:
-        msg["tool_calls"] = calls
+        msg["tool_calls"] = deepcopy(calls)
     meta = ev.data.get(PROVIDER_META_KEY)
     if meta:
-        msg[PROVIDER_META_KEY] = meta
+        msg[PROVIDER_META_KEY] = deepcopy(meta)
     return msg
 
 
@@ -223,9 +240,14 @@ def _tool_result_message(ev: Event, closed: set[str],
     call_id = str(ev.data.get("call_id", ""))
     if not call_id:
         return None
+    error = ev.data.get("error")
+    if ev.type == TOOL_CANCELED:
+        if ev.data.get("reason") != TOOL_CANCEL_INPUT_INSERTED:
+            return None
+        error = error or TOOL_CANCEL_INPUT_INSERTED_TEXT
     results[call_id] = {
         "ok": ev.type == "tool_done", "data": ev.data.get("data"),
-        "error": ev.data.get("error"), "attachments": ev.data.get("attachments"),
+        "error": error, "attachments": ev.data.get("attachments"),
         "elapsed_s": ev.data.get("elapsed_s")}
     if call_id in closed or call_id in emitted:
         return None
@@ -295,7 +317,7 @@ class SessionLog:
                 msg = _model_message(ev)
             elif ev.type == "tool_ended":
                 msg = _tool_ended_message(ev, results, emitted)
-            elif ev.type in ("tool_done", "tool_failed"):
+            elif ev.type in ("tool_done", "tool_failed", TOOL_CANCELED):
                 msg = _tool_result_message(ev, closed, results, emitted)
             elif ev.type == "tool_result":
                 msg = _tool_fact_message(ev, results, emitted)
@@ -305,6 +327,37 @@ class SessionLog:
                 messages.append(msg)
         return messages
 
+    def _pair_repair_reasons(self, events: Iterable[Event]) -> dict[str, str]:
+        """从事实流算出每个缺结果调用的成因，供配对修补选文案。
+
+        只根据已发生的事判定，不按工具名猜：
+          · 有 `tool_ended` 且状态是 suspended → 挂起型（在等外部输入）；
+          · 有 `tool_started` 但没有 `tool_ended` → 中断型（执行中丢了终态）；
+          · 其余（事实流里毫无痕迹）不入表 → 修补层用中性文案。
+
+        不点名具体工具：同样会挂起的不只 `user_confirm`，视觉授权等
+        一处又一处，按事件判才能一次盖全。
+        """
+        started: set[str] = set()
+        ended: set[str] = set()
+        suspended: set[str] = set()
+        for ev in events:
+            call_id = str((ev.data or {}).get("call_id") or "")
+            if not call_id:
+                continue
+            if ev.type == "tool_started":
+                started.add(call_id)
+            elif ev.type == TOOL_ENDED:
+                ended.add(call_id)
+                if str((ev.data or {}).get("status") or "") == TOOL_STATUS_SUSPENDED:
+                    suspended.add(call_id)
+        reasons: dict[str, str] = {}
+        for call_id in suspended:
+            reasons[call_id] = REPAIR_REASON_SUSPENDED
+        for call_id in started - ended:
+            reasons.setdefault(call_id, REPAIR_REASON_INTERRUPTED)
+        return reasons
+
     def derive_messages(self) -> list[dict[str, Any]]:
         """从完整事实流投影模型可见消息序列（供请求组装使用）。"""
         return self._derive_messages(self.events)
@@ -312,7 +365,7 @@ class SessionLog:
     def derive_request_messages_from_latest_wake(self) -> list[dict[str, Any]] | None:
         """只投影最近一次唤醒起的事实；没有唤醒时返回 ``None``。
 
-        唤醒是独立任务，模型只应看到本次 job 的输入、其后的模型趟和工具链。
+        空闲时的独立唤醒只看到本批唤醒输入和后续工具链。插入当前回合时保留上下文。
         返回 ``None`` 与空列表语义不同：前者表示沿用完整会话历史。
         """
         start = None
@@ -326,7 +379,19 @@ class SessionLog:
             break
         if start is None:
             return None
-        return ensure_tool_pairs(self._derive_messages(self.events[start:]))
+        queued_wake = bool(self.events[start].data.get("_from_queue"))
+        while start > 0:
+            previous = self.events[start - 1]
+            if previous.type != "input_claimed" or not previous.data.get("_from_queue"):
+                break
+            if previous.data.get("kind") != "wake":
+                return None
+            start -= 1
+        if queued_wake and start > 0 and self.events[start - 1].type != TURN_STARTED:
+            return None
+        window = self.events[start:]
+        return ensure_tool_pairs(self._derive_messages(window),
+                                 reasons=self._pair_repair_reasons(window))
 
     def derive_request_messages(self) -> list[dict[str, Any]]:
         """构造模型请求用的消息序列：在 `derive_messages()` 之上补齐 tool 配对。
@@ -356,39 +421,91 @@ class SessionLog:
           · 补占位让模型看得见"这次调用没有结果"，自行决定重发或换方案；
           · 这也是唯一能让已经写出缺口的记录重新可用的办法。
         """
-        return ensure_tool_pairs(self.derive_messages())
+        return ensure_tool_pairs(
+            self.derive_messages(), reasons=self._pair_repair_reasons(self.events))
 
 
-def ensure_tool_pairs(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """保证 `assistant(tool_calls)` 的每个 id 都有对应的 tool 消息。
+#: 补齐配对时填入的结果文案。模型需要知道这次调用没拿到回执，
+#: 而不是把调用记录悄悄抹掉 —— 抹掉会让它以为从没发过，于是重发一遍。
+#:
+#: 统一成一句会把「执行中被中断」说成「在等用户答」，
+#: 所以按事实流能确定的成因分三档。
+#:
+#: 这三句是给模型看的，第三人称指用户，不用“你”—— 否则模型会以为需要它去确认。
+#: 三句一律不加句号，保持同形，便于日后逐字改文案时不漏标点。
+REPAIR_REASON_SUSPENDED = "suspended"
+REPAIR_REASON_INTERRUPTED = "interrupted"
 
-    由 `SessionLog.derive_request_messages` 保证每个 id 都有 tool 消息。
-    保持为独立的纯函数：便于单测，也避免把"日志折叠"与"请求修补"混在一起。
+#: 挂起型：等的是用户，而不是模型自己。
+_REPAIR_TEXT_SUSPENDED = "无结果：用户未作答"
+#: 中断型：已经开始了，但没等到终态（进程退出、回合被强停等）。
+_REPAIR_TEXT_INTERRUPTED = "无结果：工具调用异常中断"
+#: 未知型：事实流里没有任何该调用的痕迹，不猜原因。
+_REPAIR_TEXT_UNKNOWN = "无结果：该调用没有回执"
+
+
+def _missing_result_text(reason: str) -> str:
+    """按成因取补位文案；未识别的成因一律用中性文案，不猜。"""
+    if reason == REPAIR_REASON_SUSPENDED:
+        return _REPAIR_TEXT_SUSPENDED
+    if reason == REPAIR_REASON_INTERRUPTED:
+        return _REPAIR_TEXT_INTERRUPTED
+    return _REPAIR_TEXT_UNKNOWN
+
+
+def _missing_result_message(call_id: str, reason: str) -> dict[str, Any]:
+    """缺结果的补位消息；文案按成因取，未知成因用中性话。"""
+    return {
+        "role": "tool",
+        "tool_call_id": call_id,
+        "content": _tool_envelope(ok=False, error=_missing_result_text(reason)),
+    }
+
+
+def ensure_tool_pairs(
+    messages: list[dict[str, Any]],
+    *,
+    reasons: Optional[Mapping[str, str]] = None,
+) -> list[dict[str, Any]]:
+    """Pair each call occurrence and put its result directly after its declaration.
+
+    Keep real results, synthesize missing ones, and omit results without a preceding
+    unmatched call. The request projection leaves the stored events intact.
     """
-    answered = {str(m.get("tool_call_id") or "") for m in messages
-                if m.get("role") == "tool"}
-    out: list[dict[str, Any]] = []
-    for msg in messages:
+    known_reasons = reasons or {}
+    pending = defaultdict(deque)
+    calls_by_index = {}
+    results_by_index = defaultdict(list)
+    matched = set()
+    adjacent = None
+
+    for index, msg in enumerate(messages):
+        role = msg.get("role")
+        if role == "tool":
+            call_id = str(msg.get("tool_call_id") or "")
+            owners = pending.get(call_id)
+            if owners:
+                owner = owners.pop() if owners[-1][0] == adjacent else owners.popleft()
+                matched.add(owner)
+                results_by_index[owner[0]].append(msg)
+            continue
+        adjacent = None
+        calls = msg.get("tool_calls")
+        if role != "assistant" or not isinstance(calls, list):
+            continue
+        ids = [str(call["id"]) for call in calls if isinstance(call, dict) and call.get("id")]
+        calls_by_index[index] = ids
+        adjacent = index
+        for slot, call_id in enumerate(ids):
+            pending[call_id].append((index, slot))
+
+    out = []
+    for index, msg in enumerate(messages):
+        if msg.get("role") == "tool":
+            continue
         out.append(msg)
-        if msg.get("role") != "assistant":
-            continue
-        calls = msg.get("tool_calls") or []
-        if not calls:
-            continue
-        for raw in calls:
-            call_id = str(raw.get("id") or "")
-            if not call_id or call_id in answered:
-                continue
-            out.append({
-                "role": "tool",
-                "tool_call_id": call_id,
-                "content": _tool_envelope(
-                    ok=False,
-                    error=(
-                        "这次工具调用没有产生结果（等待用户确认期间回合结束，"
-                        "或用户转而发了新消息）。请按需重新发起。"
-                    ),
-                ),
-            })
-            answered.add(call_id)
+        for slot, call_id in enumerate(calls_by_index.get(index, ())):
+            if (index, slot) not in matched:
+                out.append(_missing_result_message(call_id, known_reasons.get(call_id, "")))
+        out.extend(results_by_index.get(index, ()))
     return out

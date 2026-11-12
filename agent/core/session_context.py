@@ -65,6 +65,7 @@ class SessionContext:
     # 而回合级上下文随回合消亡。放这里也符合分级纪律——
     # 会话态归 SessionContext，不塞全局单例、也不跨会话直读。
     pending_confirm: Optional[Dict[str, Any]] = None
+    confirmation_lock: Any = field(default_factory=threading.RLock, repr=False, compare=False)
     # 用户同意后的通行证：`approval_id` → 本次的 `option_id`。
     # 会话级字段。驳回不写入。
     approvals: Dict[str, str] = field(default_factory=dict)

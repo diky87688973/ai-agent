@@ -58,30 +58,32 @@ def make_confirm(ctx: Any, runtime: VisionRuntime) -> Callable[..., Any]:
     def confirm(args: Dict[str, Any]) -> Any:
         cid = _cid(args)
         body = _body(args)
-        result = runtime.confirm(cid, str(body.get("request_id") or ""),
-                                 str(body.get("choice") or ""))
-        if not result.get("ok"):
-            return 400, result
-        call_id = str(result.get("call_id") or "")
-        if result.get("decision") == DECISION_AGREE:
-            data = {"ok": True, "consent_id": result["consent_id"]}
-            error = ""
-            ok = True
-        else:
-            data = {"ok": False, "error": "用户拒绝了视觉授权"}
-            error = "用户拒绝了视觉授权"
-            ok = False
+        request_id = str(body.get("request_id") or "")
+        call_id = str(body.get("call_id") or "")
+        choice = str(body.get("choice") or "")
+        if not call_id or not request_id:
+            return 400, {"ok": False, "error": "缺少 call_id 或 request_id，请刷新确认卡片"}
+
+        def resolve(_session, pending):
+            result = runtime.confirm(cid, request_id, choice, reversible=True,
+                                     verified_call_id=pending["call_id"])
+            if not result.get("ok"):
+                return {"rejected": True, "error": result.get("error")}
+            agreed = result.get("decision") == DECISION_AGREE
+            error = "" if agreed else "用户拒绝了视觉授权"
+            return {
+                "ok": agreed,
+                "data": ({"ok": True, "consent_id": result["consent_id"]} if agreed
+                         else {"ok": False, "error": error}),
+                "error": error,
+                "response": {"decision": result["decision"], "consent_id": result["consent_id"]},
+                "rollback": result.get("rollback"),
+            }
+
         resumed = ctx.resume_suspended(
-            cid, call_id, data, ok=ok,
-            name="vision_request_open", error=error)
-        if not resumed.get("ok"):
-            runtime.stop(cid)
-            return 500, {"ok": False, "error": resumed.get("error"), "consent_id": ""}
-        return 200, {
-            "ok": True,
-            "decision": result["decision"],
-            "consent_id": result["consent_id"],
-        }
+            cid, call_id, request_id=request_id, kind="vision_consent",
+            name="vision_request_open", resolve=resolve)
+        return (200 if resumed.get("ok") else 409 if resumed.get("expired") else 400), resumed
 
     return confirm
 

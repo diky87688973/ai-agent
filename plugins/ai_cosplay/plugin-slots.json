@@ -66,15 +66,6 @@
       "order": 0
     },
     {
-      "path": "app/plugins/ai_cosplay/events/error",
-      "kind": "event",
-      "factory": "plugin:make_event_error",
-      "requires": {
-        "runtime": "app/plugins/ai_cosplay/runtime"
-      },
-      "order": 1
-    },
-    {
       "path": "app/plugins/ai_cosplay/prompt/tail",
       "kind": "provider",
       "factory": "plugin:make_mode_tail",

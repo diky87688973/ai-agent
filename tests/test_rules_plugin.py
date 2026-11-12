@@ -134,7 +134,8 @@ class RulesFragmentTest(unittest.TestCase):
         self.assertEqual(lines[0], f"- 规则rules: {_PLUGIN.RULES_DIR}（不存在）")
 
     def test_context_source_factory_contributes_one_segment(self) -> None:
-        """工厂产出的注入源交给 ContextSources：一段、标签 Rules、自报数等于正文条数。"""
+        """声明式规则来源每个文件贡献一条，同组展示文件总数。"""
+        from agent.mechanisms.context import ContextPipeline
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name) / "rules"
@@ -142,16 +143,19 @@ class RulesFragmentTest(unittest.TestCase):
         runtime = _PLUGIN.RulesRuntime(root)
         sources = ContextSources()
         source = _PLUGIN.make_context_source(None, runtime)
-        meta = SourceMeta(key="rules", label="Rules", plugin="rules",
-                          count=runtime.attached_count)
+        meta = SourceMeta(key="rules", label="Rules", plugin="rules")
         disposer = sources.add(source, meta,
                                path="app/backend/context/sources/rules/files")
         segments = sources.collect_segments("c1")
         self.assertEqual({item[0] for item in segments.items}, {"rules"})
         self.assertEqual({item[1] for item in segments.items}, {"Rules"})
         self.assertEqual(len(segments.items), 2)
-        self.assertEqual(segments.counts[0], 2)
-        self.assertEqual(segments.counts[1], 1)
+        self.assertEqual(segments.counts, (1, 1))
+        pipe = ContextPipeline("c1", sources=sources)
+        pipe.set_dialogue([])
+        rules = next(row for row in pipe.segment_tokens() if row["key"] == "plugin:rules")
+        self.assertEqual(rules["count"], 2)
+        self.assertEqual(pipe.plugin_segments(), [("rules", "Rules", 2)])
         disposer()
         self.assertEqual(sources.collect_segments("c1").items, ())
 

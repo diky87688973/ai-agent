@@ -38,6 +38,9 @@ class _Queue:
 class _Ports:
     conversation_id = "queue-insert-01"
 
+    def canceled(self) -> bool:
+        return False
+
     def emit(self, type_: str, **data):
         return {"type": type_, "data": data}
 

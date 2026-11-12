@@ -280,21 +280,9 @@ class ContextPipeline:
             chunk.rounds.append(r)
 
     def plugin_segments(self) -> List[Tuple[str, str, int]]:
-        """当前插件段落的 `[(段 key, 段名, 主体数量)]`。
-
-        同一插件可发多条消息；同 key+label 的消息在视图里合并为一段，
-        count 取该来源第一条的自报数，避免把后续消息的默认 1 相加。
-        """
-        out: List[Tuple[str, str, int]] = []
-        seen = set()
-        for i, (key, label) in enumerate(self._plugin_sources):
-            group = (key, label)
-            if group in seen:
-                continue
-            seen.add(group)
-            count = int(self._plugin_counts[i]) if i < len(self._plugin_counts) else 0
-            out.append((key, label, count))
-        return out
+        """返回界面同口径的插件段名与主体数量。"""
+        return [(row["key"].removeprefix("plugin:"), row["label"], row["count"])
+                for row in self._plugin_rows(lambda _message: 0)]
 
     def host_messages(self, *, include_summary: bool = True) -> List[Dict[str, Any]]:
         """头部①：系统提示 / Skills / 插件段落 / 摘要，按 `CHUNK_ORDER` 顺序。

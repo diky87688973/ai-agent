@@ -281,5 +281,101 @@ class SeqEmptyAndErrorTest(unittest.TestCase):
         self.assertEqual([seq for seq, _ in pairs], [0, 1])
         self.assertEqual([e.type for _, e in pairs], ["a", "b"])
 
+class IndexedHotPathTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+        self.root = Path(self.folder.name)
+        self.store = SessionStore(self.root)
+
+    def test_long_log_is_not_scanned_for_append_confirmation_or_replay(self) -> None:
+        from unittest.mock import patch
+
+        from agent.mechanisms.session_fact_index import FactIndex
+
+        self.store.append(CID, [
+            Event("model_message", {"content": "x" * (5 * 1024 * 1024)}),
+            Event("input_claimed", {"content": "first", "_queue_item_id": "inbox-1"}),
+            Event("tool_suspended", {"call_id": "confirm-1", "envelope": {"request_id": "req-1"}}),
+        ])
+        fresh = SessionStore(self.root)
+        event = Event("input_claimed", {"content": "second", "_queue_item_id": "inbox-2"})
+        filters = {"kind": "input_claimed", "items": ("inbox-2",)}
+        with patch.object(FactIndex, "_read_chunk", side_effect=AssertionError("raw scan")):
+            pending = fresh.fact_matches(CID, pending=True)
+            self.assertEqual(pending[0].data["call_id"], "confirm-1")
+            self.assertEqual(fresh.append_if_absent(CID, bool, [event], lookup=filters), 1)
+            self.assertEqual(fresh.append_if_absent(CID, bool, [event], lookup=filters), 0)
+            self.assertEqual([e.type for _, _, e in fresh.tail_across(1)], ["tool_suspended", "input_claimed"])
+
+    def test_model_snapshot_only_reads_new_bytes_after_external_append(self) -> None:
+        from unittest.mock import patch
+
+        from agent.mechanisms.session_store import read_turn_delta
+
+        self.store.append(CID, [Event("input_claimed", {"content": "first"})])
+        old_end = self.store.raw_path(CID).stat().st_size
+        self.assertEqual([e.data["content"] for e in self.store.load_for_turn(CID)[0]], ["first"])
+        SessionStore(self.root).append(CID, [Event("input_claimed", {"content": "second"})])
+        with patch("agent.mechanisms.session_store.read_turn_delta", wraps=read_turn_delta) as read:
+            events, _ = self.store.load_for_turn(CID)
+        self.assertEqual([e.data["content"] for e in events], ["first", "second"])
+        self.assertEqual(read.call_args.args[2], old_end)
+
+    def test_cold_compacted_turn_reads_suffix_from_the_exact_input_boundary(self) -> None:
+        from unittest.mock import patch
+
+        from agent.core.session_log import SessionLog
+        from agent.mechanisms.compaction.compactor import ContextCompactor
+        from agent.mechanisms.session_store import read_turn_delta
+
+        self.store.append(CID, [
+            Event("input_claimed", {"content": "covered"}),
+            Event("model_message", {"content": "x" * (5 * 1024 * 1024)}),
+        ])
+        offset = self.store.raw_path(CID).stat().st_size
+        self.store.append(CID, [
+            Event("input_claimed", {"content": "retained"}),
+            Event("model_message", {"content": "answer"}),
+        ])
+        full = SessionLog(events=self.store.load(CID)).readonly()
+        anchor = full.user_input_sequence(1)
+        self.store.append(CID, [Event("context_compacted", {
+            "covered_end": 2, "summary": "saved summary", "history_anchor_seq": anchor,
+        })])
+        with patch("agent.mechanisms.session_store.read_turn_delta", wraps=read_turn_delta) as read:
+            events, covered = SessionStore(self.root).load_for_turn(CID, compacted=True)
+        self.assertEqual(read.call_args.args[2], offset)
+        compactor = ContextCompactor()
+        compactor.restore_from_events(events)
+        compactor.loaded_prefix = covered
+        self.assertEqual(compactor.summary, "saved summary")
+        self.assertEqual(compactor.view_messages(SessionLog(events=events).derive_request_messages()),
+                         full.derive_request_messages()[covered:])
+
+    def test_legacy_compacted_turn_persists_its_derived_boundary_after_first_read(self) -> None:
+        self.store.append(CID, [
+            Event("input_claimed", {"content": "covered"}),
+            Event("model_message", {"content": "old answer"}),
+            Event("input_claimed", {"content": "retained"}),
+            Event("context_compacted", {"covered_end": 2, "summary": "saved summary"}),
+        ])
+        full, initial = self.store.load_for_turn(CID, compacted=True)
+        self.assertEqual(initial, 0)
+        suffix, covered = SessionStore(self.root).load_for_turn(CID, compacted=True)
+        self.assertEqual(covered, 2)
+        self.assertEqual(suffix, full[2:])
+
+    def test_sequence_reservations_are_unique_across_store_instances(self) -> None:
+        from concurrent.futures import ThreadPoolExecutor
+
+        self.store.append(CID, [Event("input_claimed", {"content": "first"})])
+        stores = [SessionStore(self.root) for _ in range(8)]
+        with ThreadPoolExecutor(max_workers=len(stores)) as pool:
+            reserved = list(pool.map(lambda store: [store.allocate_seq(1) for _ in range(12)], stores))
+        values = sorted(seq for batch in reserved for seq in batch)
+        self.assertEqual(values, list(range(1, 97)))
+
+
 if __name__ == "__main__":
     unittest.main()

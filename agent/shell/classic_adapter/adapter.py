@@ -85,7 +85,9 @@ class ClassicAdapter(ChannelMixin, ConfirmMixin, Inbound):
         store = getattr(self._app, "store", None)
         if store is None or not hasattr(store, "load"):
             return None
-        events = list(store.load(cid))
+        lookup = getattr(store, "fact_matches", None)
+        events = (lookup(cid, kind="context_segments", limit=1) if callable(lookup)
+                  else list(store.load(cid)))
         from agent.shell.classic_adapter.inbound import compute_context_layout
 
         return compute_context_layout(self._app, events, cid)

@@ -52,6 +52,23 @@ if(el&&el.parentNode)el.parentNode.removeChild(el);
 t._historyStatusEl=null;
 }
 
+async function fetchHistoryPage(t,url){
+var delay=500;
+for(;;){
+  var response=await fetch(url);
+  var body=await response.json();
+  if(response.ok&&body&&body.ok===true)return body;
+  if(response.status!==503||!body||body.code!=="history_index_pending"){
+    throw new Error((body&&body.error)||"history HTTP "+response.status);
+  }
+  if(findConversationTab(t.id)!==t||getActiveConversationId()!==t.id)return null;
+  _historyStatus(t,"正在准备会话历史",false);
+  await new Promise(function(resolve){setTimeout(resolve,delay);});
+  if(findConversationTab(t.id)!==t||getActiveConversationId()!==t.id)return null;
+  delay=Math.min(delay*2,5000);
+}
+}
+
 function _prependHistoryNodes(t,msgsEl,stepsEl){
 var status=t._historyStatusEl;
 _removeHistoryStatus(t);
@@ -72,10 +89,8 @@ var before=t.historyBefore;
 t.historyState="loading";
 _historyStatus(t,"加载更早的对话…",false);
 try{
-var r=await fetch("/api/chat/history?"+new URLSearchParams({conversation_id:t.id,before:String(before)}));
-if(!r.ok)throw new Error("history HTTP "+r.status);
-var j=await r.json();
-if(!j||j.ok!==true)throw new Error("history not ok");
+var j=await fetchHistoryPage(t,"/api/chat/history?"+new URLSearchParams({conversation_id:t.id,before:String(before)}));
+if(!j){_removeHistoryStatus(t);t.historyState="idle";return;}
 var items=Array.isArray(j.items)?j.items:[];
 var page=j.page||null;
 if(!page){_removeHistoryStatus(t);t.historyBefore=null;t.historyState="exhausted";return;}

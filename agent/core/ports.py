@@ -96,6 +96,10 @@ class ModelPort:
         want = str(getattr(request, "model", "") or "").strip()
         return want or self.name()
 
+    def requires_full_reasoning(self, request: "LogicalRequest") -> bool:
+        check = getattr(self._provider, "requires_full_reasoning", None)
+        return bool(check(request)) if callable(check) else False
+
     def stream(self, request: "LogicalRequest") -> Iterator[StreamDelta]:
         """发起流式请求，逐个产出归一化的流帧。"""
         return self._provider.stream(request)
@@ -210,6 +214,7 @@ class Ports:
         tools: Optional[ToolPort] = None,
         cancel: Optional[Callable[[], bool]] = None,
         seq_allocator: Optional[Callable[[], int]] = None,
+        before_external_facts: Optional[Callable[[], None]] = None,
     ) -> None:
         self._emit = emit
         self._log = log
@@ -223,6 +228,7 @@ class Ports:
         #: 没有 `id:`，浏览器就不会回传 `Last-Event-ID`，断线续传静默失效
         #: （全部帧无坐标）。
         self._seq_allocator = seq_allocator
+        self._before_external_facts = before_external_facts
 
     # ── 事实（读 + 追加）──────────────────────────────────
 
@@ -252,6 +258,16 @@ class Ports:
             self._log.append([event])
         self._emit(event)
         return event
+
+    def integrate_external_facts(self, commit: Callable[[], List[Event]]) -> Optional[List[Event]]:
+        """Flush earlier facts and adopt published facts unless the turn has stopped."""
+        if self._before_external_facts is not None:
+            self._before_external_facts()
+        if self.canceled():
+            return None
+        events = commit()
+        self._log.append(events)
+        return events
 
     def _stamp_seq(self, payload: Dict[str, Any]) -> None:
         """给事实标上全局存储坐标（`_seq`）。分配失败不阻断——坐标是增强项。"""
@@ -304,9 +320,7 @@ class LogicalRequest:
     tools: list[dict[str, Any]]
     effort: str = "high"
     model: str = ""
-    #: 本回合在 `messages` 里的起始下标（含）：该下标之前的消息属于已结束的回合，
-    #: provider 可以据此丢掉它们的 `reasoning_content`（见 providers/openai 的同名处理）。
-    #: None = 不知道边界，按原样下发。
+    #: 当前真实用户轮的起始下标，用于校验进行中的工具往返。
     turn_start: Optional[int] = None
     #: 会话身份：provider 侧把它过滤成官方 `user` 字段下发。
     conversation_id: str = ""

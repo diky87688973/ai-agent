@@ -6,6 +6,7 @@ import json
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional
@@ -241,26 +242,10 @@ def _to_wire_tool(tool: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _to_wire_messages(messages: List[Any],
-                      *,
-                      keep_reasoning_from: Optional[int] = None) -> List[Dict[str, Any]]:
-    """消息列表 → 线格式：assistant.tool_calls 扁平结构（id/name/arguments(dict)）
-    包装为 OpenAI 形态（type=function / function.arguments 为 JSON 文本）；其余透传。
-
-    `keep_reasoning_from` 给了下标（含）就只保留该下标之后的 `reasoning_content`
-    内容。思维链是模型的中间产物：整段回传就是让每次请求多背一大段必然未命中
-    缓存的内容，而且同一回合内每次请求的前缀都在变，缓存根本落不住；裁掉之后同一回合内
-    前缀逐字节相同，缓存能吃满。
-
-    但键不能丢：DeepSeek 思考模式下，带 `tool_calls` 的 assistant 消息必须把
-    `reasoning_content` 回传给 API（空串也接受），缺键直接 400
-    `The reasoning_content in the thinking mode must be passed back to the API`。
-    所以历史轮的工具消息只清空内容、保留键；老记录里本来就没存思维链的工具消息
-    补一个空串。纯文本 assistant 消息不受这条约束，历史轮的键照旧摘掉。
-    """
+def _to_wire_messages(messages: List[Any]) -> List[Dict[str, Any]]:
+    """Translate tool calls and keep the reasoning supplied by context assembly."""
     out: List[Dict[str, Any]] = []
-    cut = None if keep_reasoning_from is None else max(0, int(keep_reasoning_from))
-    for index, m in enumerate(messages):
+    for m in messages:
         if not isinstance(m, dict):
             continue
         msg = dict(m)
@@ -269,13 +254,7 @@ def _to_wire_messages(messages: List[Any],
         msg.pop(PROVIDER_META_KEY, None)
         calls = msg.get("tool_calls")
         has_calls = isinstance(calls, list) and any(isinstance(c, dict) for c in calls)
-        if cut is not None and index < cut:
-            msg.pop("reasoning", None)
-            if has_calls:
-                msg["reasoning_content"] = ""
-            else:
-                msg.pop("reasoning_content", None)
-        elif has_calls and "reasoning_content" not in msg:
+        if has_calls and "reasoning_content" not in msg:
             msg["reasoning_content"] = ""
         tcs = calls
         if isinstance(tcs, list) and tcs:
@@ -389,7 +368,6 @@ class OpenAICompatibleProvider(ModelProvider):
         api_key: str,
         model: str,
         timeout: float = 300.0,
-        replay_history_reasoning: bool = False,
         # usage 取官方流末帧自带的那一份：`stream_options.include_usage` 只是让中间帧
         # 也带上 usage（官方文档），单次请求用它属于多余，本实现不下发。
         extra_headers: Optional[Dict[str, str]] = None,
@@ -398,9 +376,12 @@ class OpenAICompatibleProvider(ModelProvider):
         self.api_key = str(api_key or "").strip()
         self.model = str(model or "").strip()
         self.timeout = float(timeout)
-        #: 历史回合的思维链默认不回传内容（键仍保留，见 `_to_wire_messages`）。
-        self.replay_history_reasoning = bool(replay_history_reasoning)
         self.extra_headers = {str(k): str(v) for k, v in dict(extra_headers or {}).items()}
+
+    def requires_full_reasoning(self, request: Any) -> bool:
+        """The official DeepSeek tool API requires complete reasoning across turns."""
+        host = urllib.parse.urlsplit(self.base_url).hostname
+        return host == "api.deepseek.com" and bool(request.tools)
 
     def stream(self, request: Any) -> Iterator[StreamDelta]:
         """发送流式请求并产出归一化增量（text / reasoning / tool_call / usage）。
@@ -414,10 +395,7 @@ class OpenAICompatibleProvider(ModelProvider):
         if not self.api_key:
             raise ModelRequestError("api_key 未配置。")
         url = _chat_completions_url(self.base_url)
-        messages = _to_wire_messages(
-            getattr(request, "messages", None) or [],
-            keep_reasoning_from=(None if self.replay_history_reasoning
-                                 else getattr(request, "turn_start", None)))
+        messages = _to_wire_messages(getattr(request, "messages", None) or [])
         # ── 请求体：逐键──
         #
         # 请求体的键序与取值：

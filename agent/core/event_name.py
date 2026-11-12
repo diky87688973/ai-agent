@@ -62,7 +62,8 @@ ASSISTANT_DELTA = "assistant_delta"
 REASONING_DELTA = "reasoning_delta"
 
 #: 只供实时观察，不分配持久化游标。
-LIVE_ONLY_EVENTS = frozenset({TOOL_PROGRESS, ASSISTANT_DELTA, REASONING_DELTA})
+CONFIRMATION_CLOSED = "confirmation_closed"
+LIVE_ONLY_EVENTS = frozenset({TOOL_PROGRESS, ASSISTANT_DELTA, REASONING_DELTA, CONFIRMATION_CLOSED})
 
 # ── 输入模块生命周期 ───────────────────────────────────────
 INPUT_STARTED = "input_started"

@@ -16,7 +16,8 @@ from typing import Any, Callable, Dict, Optional
 from agent.core.error_report import report_error
 from agent.core.thread_context import thread_with_context
 from agent.mechanisms.live_state import GOAL_DEFAULT_MAX_ROUNDS, GOAL_MAX_ROUNDS_CAP
-from agent.shell.session import goal, heartbeat, prompt, queue, resume
+from agent.shell.session import goal, heartbeat, prompt, queue
+from agent.shell.session import resume as resume_module
 
 # 运行态心跳的间隔（秒）：远小于 `RunRegistry` 的存活期（默认 900 秒），
 # 又不会有任何可观测开销（一次小文件写入）。
@@ -75,7 +76,8 @@ class SessionRunner:
 
     # ── 激活入口（装配到 MeshState.set_activator）──────────
 
-    def start(self, cid: str, message: Dict[str, Any]) -> str:
+    def start(self, cid: str, message: Dict[str, Any], *,
+              queued: Optional[Dict[str, Any]] = None) -> str:
         """启动一个后台回合；占位失败（忙）返回空串（由 mesh 回退入队）。
 
         `message` 可带：
@@ -89,34 +91,31 @@ class SessionRunner:
         with self._lock:
             if self._closed:
                 return ""
+        queued = queued if queued is not None else message.get("_queued_item")
+        resuming = bool((queued or {}).get("_resume_inbox"))
         rid = self._mesh.try_begin_run(key)
         if not rid:
             return ""
-        text = str(message.get("content") or "")
-        attachments = message.get("attachments")
-        resume = message.get("resume")
-        if not isinstance(resume, dict) and (text or attachments):
-            pending_call = self._cancel_pending_for_new_input(key)
-            if pending_call:
-                resume = {
-                    "call_id": pending_call,
-                    "ok": False,
-                    "error": "用户取消了这次确认（未作答）",
+        if queued is not None:
+            text, attachments, resume, sender, meta = self._queued_input(queued)
+        else:
+            text = str(message.get("content") or "")
+            attachments = message.get("attachments")
+            resume = message.get("resume")
+            meta = message.get("meta") if isinstance(message.get("meta"), dict) else {}
+            sender = message.get("sender") if isinstance(message.get("sender"), dict) else None
+            if sender is None and str(message.get("_sender") or "").strip():
+                sender = {
+                    "cid": str(message.get("_sender") or "").strip(),
+                    "name": str(message.get("_sender_name") or "").strip(),
                 }
-        sender = message.get("sender") if isinstance(message.get("sender"), dict) else None
-        if sender is None and str(message.get("_sender") or "").strip():
-            sender = {
-                "cid": str(message.get("_sender") or "").strip(),
-                "name": str(message.get("_sender_name") or "").strip(),
-            }
         cancel_event = threading.Event()
         with self._lock:
             self._cancels[key] = cancel_event
-        meta = message.get("meta") if isinstance(message.get("meta"), dict) else {}
         try:
             thread = thread_with_context(
                 target=self._run_loop,
-                args=(key, text, attachments, resume, sender, meta),
+                args=(key, text, attachments, resume, sender, meta, queued, resuming),
                 name=f"fan-mesh-{key[:12]}",
                 daemon=True,
             )
@@ -137,24 +136,41 @@ class SessionRunner:
     # ── 协作式取消 ───────────────────────────────────────
 
     def request_cancel(self, cid: str) -> bool:
-        """请求停止该会话当前回合；返回是否有活跃回合被标记。"""
+        """Stop an active turn or settle an idle confirmation."""
         key = str(cid or "").strip()
         with self._lock:
             event = self._cancels.get(key)
+        store = self._store_for(key) or getattr(self._app, "store", None)
         if event is None:
-            return False
-        event.set()
+            return resume_module.interrupt_confirmation(
+                self._app, key, store, on_pending=lambda: self._mesh.mark_stopped(key))
+        self._mesh.mark_stopped(key, cancel=event)
+        try:
+            resume_module.interrupt_confirmation(self._app, key, store)
+        except OSError as exc:
+            report_error("shell.session_runner.cancel_confirmation", exc, conversation_id=key)
         return True
 
     def _cancel_check(self, cid: str):
         """给内核的停止检查（内核 `cancel` 参数的注入位）。"""
 
-        def _check() -> bool:
-            with self._lock:
-                event = self._cancels.get(cid)
-            return bool(event is not None and event.is_set())
+        with self._lock:
+            event = self._cancels.get(cid)
+        next_probe = 0.0
+        stopped = False
 
-        return _check
+        def check() -> bool:
+            nonlocal next_probe, stopped
+            if stopped or (event is not None and event.is_set()):
+                return True
+            now = time.monotonic()
+            if now >= next_probe:
+                # 跨进程停止靠磁盘标记，流式回调按时间间隔检查。
+                next_probe = now + 0.1
+                stopped = self._mesh.is_stopped(cid)
+            return stopped
+
+        return check
 
     # ── 回合执行与队列抽干 ────────────────────────────────
 
@@ -166,41 +182,59 @@ class SessionRunner:
 
     def _run_loop(self, cid: str, text: str, attachments: Any = None,
                   resume: Any = None, sender: Optional[Dict[str, Any]] = None,
-                  meta: Any = None) -> None:
-        # 运行态心跳由旁路线程周期性续期：这一趟从占位到释放可能持续很久，
-        # 而 `RunRegistry` 用"心跳 + 存活期"判定在跑 —— 一次长工具调用
-        # （`run_command` 跑 `ping -n 120`）期间没有心跳就会被误判成"已结束"，
-        # 用户那边的停止键会消失。所以这里起一个轻量线程周期性续心跳。
+                  meta: Any = None,
+                  queued_item: Optional[Dict[str, Any]] = None, resuming: bool = False) -> None:
         stop_beat = self._start_heartbeat(cid)
-        # 因目标/自主而起的自动回合计数，只用于兜底限流。
         _auto_rounds = 0
-        current_queue_item = None
-        from_queue = False
+        current_queue_item = queued_item
+        from_queue = queued_item is not None
+        paused = failed = False
         try:
             while True:
                 paused = False
+                if self._is_canceled(cid):
+                    if current_queue_item is not None:
+                        self._release_queued(cid, current_queue_item)
+                    self._mesh.end_run(cid)
+                    break
                 try:
+                    store = self._store_for(cid) or getattr(self._app, "store", None)
+                    if queue.has_input(self._app, cid, text, attachments, resuming):
+                        resume_module.interrupt_confirmation(self._app, cid, store)
+                    if current_queue_item is not None and (resuming or queue.is_user_input(current_queue_item)):
+                        if isinstance(resume, dict):
+                            self._splice_resume(cid, resume)
+                        queue.commit_user_input(cid, self._app, store, current_queue_item, batch=resuming)
+                        current_queue_item = None
+                        text, attachments, resume = "", None, None
+                        meta = None if resuming else meta
                     paused = self._execute(cid, text, attachments, resume, sender,
                                            from_queue=from_queue, meta=meta)
-                except Exception as exc:  # 单回合失败不打断抽干链
+                except Exception as exc:
                     report_error("shell.session_runner", exc, conversation_id=cid)
+                    if current_queue_item is not None:
+                        self._release_queued(cid, current_queue_item)
+                    self._mesh.end_run(cid)
+                    if isinstance(exc, OSError):
+                        queue.notify_insert_failure(self._app, cid)
+                    failed = True
+                    break
+                resuming = False
                 if current_queue_item is not None:
                     self._complete_queued(cid, current_queue_item)
                     current_queue_item = None
-                if paused or self._is_paused(cid):
+                if self._is_canceled(cid) or paused or self._is_paused(cid):
                     self._mesh.end_run(cid)
                     break
-                resume = None
-                sender = None
-                meta = None
-                from_queue = False
+                insert_state = self._insert_turn_state(cid)
+                if insert_state == INSERT_STOP:
+                    break
+                if insert_state == INSERT_READY:
+                    text, attachments, resume, sender, meta, from_queue = "", None, None, None, None, False
+                    continue
                 queued = self._claim_queued(cid)
                 if queued is not None:
-                    if self._is_canceled(cid):
-                        self._release_queued(cid, queued)
-                        self._mesh.end_run(cid)
-                        break
-                    if not self._mesh.renew_run(cid):
+                    if self._is_canceled(cid) or not self._mesh.renew_run(cid):
                         self._release_queued(cid, queued)
                         self._mesh.end_run(cid)
                         break
@@ -208,24 +242,6 @@ class SessionRunner:
                     current_queue_item = queued
                     from_queue = True
                     continue
-                insert_state = self._insert_turn_state(cid)
-                if insert_state == INSERT_STOP:
-                    break
-                if insert_state == INSERT_READY:
-                    text = ""
-                    attachments = None
-                    resume = None
-                    sender = None
-                    meta = None
-                    from_queue = False
-                    continue
-                # 取消优先：用户点了停止就不能再续跑。
-                # 不判它会死循环 —— 取消位一经置位无人清除，而续跑判定只看目标状态，
-                # 于是"起新回合 → 新回合开头立刻被取消 → 又续跑"会无限转下去，
-                # CPU 打满、事实与 SSE 一起被灌爆，界面上"停止"等于没按。
-                if self._is_canceled(cid):
-                    self._mesh.end_run(cid)
-                    break
                 nxt_text = self._claim_goal_turn(
                     cid, _auto_rounds, renew=True, allow_insert=True)
                 if nxt_text is None:
@@ -238,22 +254,30 @@ class SessionRunner:
                 sender = None
                 meta = self._goal_followup_meta(cid) if nxt_text else None
         except Exception as exc:  # 兜底：释放占位（不续跑）
+            failed = True
             self._mesh.abort_run(cid)
             report_error("shell.session_runner", exc, conversation_id=cid, where="aborted")
         finally:
-            self._finish_run_loop(cid, stop_beat)
+            self._finish_run_loop(cid, stop_beat, failed=failed)
 
-    def _finish_run_loop(self, cid: str, stop_beat: threading.Event) -> None:
+    def _finish_run_loop(self, cid: str, stop_beat: threading.Event, *, failed: bool) -> None:
         stop_beat.set()
-        # 会话终点必须补投一次：`SessionStore.flush_pending` 只在
-        # 下一次 `append` 时才顺带补投，收尾那一趟之后不会再有 `append`。
-        # 不补投的话，某一趟落盘失败的事实就永远留在积压里，
-        # 进程退出即彻底丢失。
+        # 回合结束后可能没有下一次 append 负责补投失败的事实。
         self._flush_pending(cid)
+        if self._mesh.is_stopped(cid):
+            try:
+                store = self._store_for(cid) or getattr(self._app, "store", None)
+                resume_module.interrupt_confirmation(self._app, cid, store)
+            except OSError as exc:
+                report_error("shell.session_runner.finish_confirmation", exc, conversation_id=cid)
         with self._lock:
             if self._threads.get(cid) is threading.current_thread():
                 self._threads.pop(cid, None)
-            self._cancels.pop(cid, None)
+                self._cancels.pop(cid, None)
+
+        if not failed and not self._mesh.activate_inserts(cid):
+            self._mesh.activate_queued(
+                cid, lambda item: self.start(cid, {}, queued=item), user_only=self._is_paused(cid))
 
     def _start_heartbeat(self, cid: str) -> threading.Event:
         stop_beat = threading.Event()
@@ -266,10 +290,8 @@ class SessionRunner:
 
     def _insert_turn_state(self, cid: str) -> str:
         if self._is_canceled(cid):
-            if queue.has_inserting(self._app, cid):
-                self._mesh.end_run(cid)
-                return INSERT_STOP
-            return INSERT_NONE
+            self._mesh.end_run(cid)
+            return INSERT_STOP
         renewed = self._mesh.renew_for_insert(cid)
         if renewed is None:
             return INSERT_NONE
@@ -302,20 +324,6 @@ class SessionRunner:
         self._note_goal_round(cid)
         return text
 
-    def _cancel_pending_for_new_input(self, cid: str) -> str:
-        contexts = getattr(self._app, "session_contexts", None)
-        if contexts is None:
-            return ""
-        session = contexts.resolve_sync(cid)
-        pending = getattr(session, "pending_confirm", None)
-        if not isinstance(pending, dict):
-            return ""
-        call_id = str(pending.get("call_id") or "").strip()
-        if not call_id:
-            return ""
-        session.pending_confirm = None
-        return call_id
-
     def _is_paused(self, cid: str) -> bool:
         contexts = getattr(self._app, "session_contexts", None)
         if contexts is None:
@@ -345,7 +353,7 @@ class SessionRunner:
         """该会话是否已被请求停止。"""
         with self._lock:
             event = self._cancels.get(cid)
-        return bool(event is not None and event.is_set())
+        return bool(event is not None and event.is_set()) or self._mesh.is_stopped(cid)
 
     @staticmethod
     def _goal_round_note(meta: Any) -> str:
@@ -441,6 +449,11 @@ class SessionRunner:
                  resume: Any = None, sender: Optional[Dict[str, Any]] = None,
                  from_queue: bool = False, meta: Any = None) -> bool:
         """执行单个回合；引擎装配完成后再固定本轮 SlotSnapshot。"""
+        continuation = (meta or {}).get("_confirmation_resume")
+        if continuation:
+            store = self._store_for(cid) or getattr(self._app, "store", None)
+            if not resume_module.confirmation_can_resume(store, cid, *continuation):
+                return False
         if isinstance(resume, dict):
             self._splice_resume(cid, resume)
             resume = None
@@ -473,12 +486,15 @@ class SessionRunner:
         for event in engine.start_turn(text, attachments=attachments,
                                        sender=sender, from_queue=from_queue,
                                        meta=meta):
-            if str(getattr(event, "type", "")) == "turn_ended":
-                paused = bool((getattr(event, "data", None) or {}).get("paused"))
+            if event.type == "turn_ended":
+                paused = bool(event.data.get("paused"))
+        if not paused or self._mesh.is_stopped(cid):
+            store = self._store_for(cid) or getattr(self._app, "store", None)
+            resume_module.interrupt_confirmation(self._app, cid, store)
         return paused
 
     def _splice_resume(self, cid: str, resume_data: Dict[str, Any]) -> None:
-        resume.splice_resume(app=self._app, cid=cid, resume=resume_data)
+        resume_module.splice_resume(app=self._app, cid=cid, resume=resume_data)
 
     def registry_for(self, cid: str) -> Any:
         """当前会话的角色工具视图。"""

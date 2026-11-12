@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2581** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2615** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -10,7 +10,7 @@
 ## 目录
 
 1. [test_ai_cosplay_plugin.py](#test_ai_cosplay_pluginpy)（4）
-2. [test_ai_cosplay_runtime.py](#test_ai_cosplay_runtimepy)（25）
+2. [test_ai_cosplay_runtime.py](#test_ai_cosplay_runtimepy)（27）
 3. [test_ai_cosplay_text.py](#test_ai_cosplay_textpy)（31）
 4. [test_anthropic_provider.py](#test_anthropic_providerpy)（30）
 5. [test_app_context.py](#test_app_contextpy)（11）
@@ -26,8 +26,8 @@
 15. [test_catalog.py](#test_catalogpy)（8）
 16. [test_chat_layout_browser.py](#test_chat_layout_browserpy)（2）
 17. [test_check_slots.py](#test_check_slotspy)（25）
-18. [test_classic_adapter.py](#test_classic_adapterpy)（110）
-19. [test_cli_shell.py](#test_cli_shellpy)（20）
+18. [test_classic_adapter.py](#test_classic_adapterpy)（112）
+19. [test_cli_shell.py](#test_cli_shellpy)（21）
 20. [test_command_output_encoding.py](#test_command_output_encodingpy)（5）
 21. [test_command_tools.py](#test_command_toolspy)（31）
 22. [test_compaction_prefix.py](#test_compaction_prefixpy)（3）
@@ -103,7 +103,7 @@
 92. [test_provider_meta.py](#test_provider_metapy)（8）
 93. [test_provider_router.py](#test_provider_routerpy)（14）
 94. [test_quality_pipeline.py](#test_quality_pipelinepy)（19）
-95. [test_queue_runner.py](#test_queue_runnerpy)（8）
+95. [test_queue_runner.py](#test_queue_runnerpy)（11）
 96. [test_queued_input.py](#test_queued_inputpy)（4）
 97. [test_readonly_tools.py](#test_readonly_toolspy)（33）
 98. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
@@ -113,7 +113,7 @@
 102. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
 103. [test_scan_scope.py](#test_scan_scopepy)（16）
 104. [test_session_context.py](#test_session_contextpy)（22）
-105. [test_session_seq.py](#test_session_seqpy)（23）
+105. [test_session_seq.py](#test_session_seqpy)（28）
 106. [test_session_store.py](#test_session_storepy)（17）
 107. [test_session_tools.py](#test_session_toolspy)（17）
 108. [test_settings_panel.py](#test_settings_panelpy)（19）
@@ -135,36 +135,37 @@
 124. [test_thread_context.py](#test_thread_contextpy)（1）
 125. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
 126. [test_tool_arguments.py](#test_tool_argumentspy)（5）
-127. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
-128. [test_tool_registry.py](#test_tool_registrypy)（17）
-129. [test_tool_resume.py](#test_tool_resumepy)（3）
-130. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-131. [test_top_level_services.py](#test_top_level_servicespy)（2）
-132. [test_ui_registry.py](#test_ui_registrypy)（7）
-133. [test_update.py](#test_updatepy)（26）
-134. [test_update_processes.py](#test_update_processespy)（3）
-135. [test_update_transaction.py](#test_update_transactionpy)（7）
-136. [test_usage_metrics.py](#test_usage_metricspy)（7）
-137. [test_version_stamp.py](#test_version_stamppy)（4）
-138. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-139. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-140. [test_visual_operator.py](#test_visual_operatorpy)（163）
-141. [test_visual_operator_2.py](#test_visual_operator_2py)（46）
-142. [test_visualization.py](#test_visualizationpy)（8）
-143. [test_visualization_browser.py](#test_visualization_browserpy)（7）
-144. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
-145. [test_visualization_extra.py](#test_visualization_extrapy)（5）
-146. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
-147. [test_wake_isolation.py](#test_wake_isolationpy)（3）
-148. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-149. [test_web_auth.py](#test_web_authpy)（26）
-150. [test_web_frontend.py](#test_web_frontendpy)（6）
-151. [test_web_shell.py](#test_web_shellpy)（53）
-152. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-153. [test_window_ops.py](#test_window_opspy)（31）
-154. [test_write_gate.py](#test_write_gatepy)（22）
-155. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-156. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+127. [test_tool_pairing.py](#test_tool_pairingpy)（15）
+128. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
+129. [test_tool_registry.py](#test_tool_registrypy)（17）
+130. [test_tool_resume.py](#test_tool_resumepy)（3）
+131. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+132. [test_top_level_services.py](#test_top_level_servicespy)（2）
+133. [test_ui_registry.py](#test_ui_registrypy)（7）
+134. [test_update.py](#test_updatepy)（26）
+135. [test_update_processes.py](#test_update_processespy)（3）
+136. [test_update_transaction.py](#test_update_transactionpy)（7）
+137. [test_usage_metrics.py](#test_usage_metricspy)（7）
+138. [test_version_stamp.py](#test_version_stamppy)（4）
+139. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+140. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+141. [test_visual_operator.py](#test_visual_operatorpy)（163）
+142. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
+143. [test_visualization.py](#test_visualizationpy)（8）
+144. [test_visualization_browser.py](#test_visualization_browserpy)（7）
+145. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
+146. [test_visualization_extra.py](#test_visualization_extrapy)（5）
+147. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
+148. [test_wake_isolation.py](#test_wake_isolationpy)（3）
+149. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+150. [test_web_auth.py](#test_web_authpy)（26）
+151. [test_web_frontend.py](#test_web_frontendpy)（6）
+152. [test_web_shell.py](#test_web_shellpy)（58）
+153. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+154. [test_window_ops.py](#test_window_opspy)（31）
+155. [test_write_gate.py](#test_write_gatepy)（22）
+156. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+157. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -179,7 +180,7 @@
 
 ## test_ai_cosplay_runtime.py
 
-共 25 个用例。
+共 27 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -196,18 +197,20 @@
 | 11 | `RuntimeTest` | `test_synthesis_failure_is_isolated` | 覆盖「A class whose instances are single test cases」：synthesis failure is isolated |
 | 12 | `SlotFactoryTest` | `test_config_and_status_routes` | 覆盖「旧 `register` 已删：改为工厂产出的形状 + 片段声明的节点」：config and status routes |
 | 13 | `SlotFactoryTest` | `test_factories_produce_tool_routes_and_panel_props` | 覆盖「旧 `register` 已删：改为工厂产出的形状 + 片段声明的节点」：factories produce tool routes and panel props |
-| 14 | `ToolTest` | `test_disconnected_publisher_fails` | 覆盖「A class whose instances are single test cases」：disconnected publisher fails |
-| 15 | `ToolTest` | `test_invalid_message_fails_before_enqueue` | 覆盖「A class whose instances are single test cases」：invalid message fails before enqueue |
-| 16 | `ToolTest` | `test_missing_provider_fails` | 覆盖「A class whose instances are single test cases」：missing provider fails |
-| 17 | `ToolTest` | `test_missing_publisher_fails` | 覆盖「A class whose instances are single test cases」：missing publisher fails |
-| 18 | `ToolTest` | `test_pipeline_envelope` | 覆盖「A class whose instances are single test cases」：pipeline envelope |
-| 19 | `ToolTest` | `test_plain_text_is_sent_without_annotation` | 覆盖「A class whose instances are single test cases」：plain text is sent without annotation |
-| 20 | `ToolTest` | `test_success_enqueues_segments` | 覆盖「A class whose instances are single test cases」：success enqueues segments |
-| 21 | `ToolTest` | `test_sync_playback_releases_on_stop` | 覆盖「A class whose instances are single test cases」：sync playback releases on stop |
-| 22 | `ToolTest` | `test_sync_playback_times_out_without_ack` | 覆盖「A class whose instances are single test cases」：sync playback times out without ack |
-| 23 | `ToolTest` | `test_sync_playback_waits_for_frontend_ack` | 覆盖「A class whose instances are single test cases」：sync playback waits for frontend ack |
-| 24 | `ToolTest` | `test_sync_synthesis_failure_is_not_reported_as_playback_failure` | 覆盖「A class whose instances are single test cases」：sync synthesis failure is not reported as playback failure |
-| 25 | `ToolTest` | `test_tool_contract` | 覆盖「A class whose instances are single test cases」：tool contract |
+| 14 | `SlotFactoryTest` | `test_halted_turn_keeps_speech_playing` | 模型失败、护栏触顶走 halted：已合成语音不得被停。 |
+| 15 | `SlotFactoryTest` | `test_stopped_turn_still_stops_speech` | 用户主动停止（stopped）仍要清空语音。 |
+| 16 | `ToolTest` | `test_disconnected_publisher_fails` | 覆盖「A class whose instances are single test cases」：disconnected publisher fails |
+| 17 | `ToolTest` | `test_invalid_message_fails_before_enqueue` | 覆盖「A class whose instances are single test cases」：invalid message fails before enqueue |
+| 18 | `ToolTest` | `test_missing_provider_fails` | 覆盖「A class whose instances are single test cases」：missing provider fails |
+| 19 | `ToolTest` | `test_missing_publisher_fails` | 覆盖「A class whose instances are single test cases」：missing publisher fails |
+| 20 | `ToolTest` | `test_pipeline_envelope` | 覆盖「A class whose instances are single test cases」：pipeline envelope |
+| 21 | `ToolTest` | `test_plain_text_is_sent_without_annotation` | 覆盖「A class whose instances are single test cases」：plain text is sent without annotation |
+| 22 | `ToolTest` | `test_success_enqueues_segments` | 覆盖「A class whose instances are single test cases」：success enqueues segments |
+| 23 | `ToolTest` | `test_sync_playback_releases_on_stop` | 覆盖「A class whose instances are single test cases」：sync playback releases on stop |
+| 24 | `ToolTest` | `test_sync_playback_times_out_without_ack` | 覆盖「A class whose instances are single test cases」：sync playback times out without ack |
+| 25 | `ToolTest` | `test_sync_playback_waits_for_frontend_ack` | 覆盖「A class whose instances are single test cases」：sync playback waits for frontend ack |
+| 26 | `ToolTest` | `test_sync_synthesis_failure_is_not_reported_as_playback_failure` | 覆盖「A class whose instances are single test cases」：sync synthesis failure is not reported as playback failure |
+| 27 | `ToolTest` | `test_tool_contract` | 覆盖「A class whose instances are single test cases」：tool contract |
 
 ## test_ai_cosplay_text.py
 
@@ -269,7 +272,7 @@
 | 14 | `MessageConversionTest` | `test_logic_shaped_tool_becomes_a_valid_object_schema` | `ToolRegistry.schemas()` 给的是属性映射，必须包装成 object schema。 |
 | 15 | `MessageConversionTest` | `test_system_is_hoisted_and_user_text_becomes_a_block` | 覆盖「A class whose instances are single test cases」：system is hoisted and user text becomes a block |
 | 16 | `MessageConversionTest` | `test_thinking_block_with_empty_text_is_still_replayed` | 正文为空、签名在的思考块也要回传。 |
-| 17 | `MessageConversionTest` | `test_thinking_blocks_replay_only_within_the_current_turn` | 覆盖「A class whose instances are single test cases」：thinking blocks replay only within the current turn |
+| 17 | `MessageConversionTest` | `test_thinking_blocks_replay_across_turns` | 覆盖「A class whose instances are single test cases」：thinking blocks replay across turns |
 | 18 | `MessageConversionTest` | `test_thinking_is_enabled_only_when_the_budget_fits` | 覆盖「A class whose instances are single test cases」：thinking is enabled only when the budget fits |
 | 19 | `MessageConversionTest` | `test_thinking_off_is_sent_as_disabled_not_omitted` | 覆盖「A class whose instances are single test cases」：thinking off is sent as disabled not omitted |
 | 20 | `MessageConversionTest` | `test_tool_turn_without_thinking_blocks_disables_thinking` | 历史工具往返丢了 thinking 块就补不回来，本回合只能关掉思考，否则必被拒。 |
@@ -277,7 +280,7 @@
 | 22 | `StreamAssemblyTest` | `test_cache_fields_default_to_zero_when_absent` | 覆盖「A class whose instances are single test cases」：cache fields default to zero when absent |
 | 23 | `StreamAssemblyTest` | `test_error_event_becomes_model_request_error` | 覆盖「A class whose instances are single test cases」：error event becomes model request error |
 | 24 | `StreamAssemblyTest` | `test_invalid_tool_json_degrades_to_empty_arguments` | 覆盖「A class whose instances are single test cases」：invalid tool json degrades to empty arguments |
-| 25 | `StreamAssemblyTest` | `test_meta_is_emitted_only_when_thinking_and_tools_coexist` | 覆盖「A class whose instances are single test cases」：meta is emitted only when thinking and tools coexist |
+| 25 | `StreamAssemblyTest` | `test_meta_is_emitted_for_thinking_even_without_tool_calls` | 覆盖「A class whose instances are single test cases」：meta is emitted for thinking even without tool calls |
 | 26 | `StreamAssemblyTest` | `test_missing_tool_id_gets_a_generated_one` | 覆盖「A class whose instances are single test cases」：missing tool id gets a generated one |
 | 27 | `StreamAssemblyTest` | `test_ping_and_unknown_events_are_ignored` | 覆盖「A class whose instances are single test cases」：ping and unknown events are ignored |
 | 28 | `StreamAssemblyTest` | `test_text_deltas_stream_through_and_usage_is_mapped` | 覆盖「A class whose instances are single test cases」：text deltas stream through and usage is mapped |
@@ -554,7 +557,7 @@
 
 ## test_classic_adapter.py
 
-共 110 个用例。
+共 112 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -571,130 +574,133 @@
 | 11 | `InboundContractTest` | `test_attachment_ignores_invalid_images` | `images` 里没有可用 base64 时不登记（经典界面只在数组非空时才重建附件条）。 |
 | 12 | `InboundContractTest` | `test_attachment_missing_is_404` | 覆盖「老入参 → 内核 → 老返回体」：attachment missing is 404 |
 | 13 | `InboundContractTest` | `test_attachment_returns_image_bytes_not_json` | 经典界面用 `<img src>` 直接引用（il.js:7），所以必须返回字节而不是 JSON。 |
-| 14 | `InboundContractTest` | `test_health_model_is_in_allowed_list` | `model` 必须在 `allowed_models` 里，否则经典界面白名单校验丢弃它 → 顶栏永远加载中。 |
-| 15 | `InboundContractTest` | `test_history_cancels_suspended_tool_after_new_input` | 覆盖「老入参 → 内核 → 老返回体」：history cancels suspended tool after new input |
-| 16 | `InboundContractTest` | `test_history_carries_context_layout_at_top_level` | `context_layout` 在顶层，`applyContextLayoutFromHistory` 读那里。 |
-| 17 | `InboundContractTest` | `test_history_page_before_and_meta` | 覆盖「老入参 → 内核 → 老返回体」：history page before and meta |
-| 18 | `InboundContractTest` | `test_history_rejects_bad_id` | 覆盖「老入参 → 内核 → 老返回体」：history rejects bad id |
-| 19 | `InboundContractTest` | `test_history_returns_items_for_bubbles` | `items` 是刷新页面渲染气泡与工具卡的唯一来源（`renderHistoryItems`）。 |
-| 20 | `InboundContractTest` | `test_history_returns_ok_true` | 回显必须带 `ok:true`，否则经典界面直接 return、整段历史不渲染。 |
-| 21 | `InboundContractTest` | `test_history_todo_empty_when_none_active` | 没有清单（或已 `close`）时返回空数组，界面据此 `hideTodoList`。 |
-| 22 | `InboundContractTest` | `test_history_todo_ignores_other_tools_items` | 检索结果的 `items`（`file` / `match`）不能进清单。 |
-| 23 | `InboundContractTest` | `test_invalid_conversation_id_rejected_on_write` | 覆盖「老入参 → 内核 → 老返回体」：invalid conversation id rejected on write |
-| 24 | `InboundContractTest` | `test_remember_attachments_merges_previous_pages` | 覆盖「老入参 → 内核 → 老返回体」：remember attachments merges previous pages |
-| 25 | `InboundContractTest` | `test_sessions_read_id_not_conversation_id` | 经典界面读 `s.id`（`classic/js/chat/conversation.js` 的 `loadSessionRailList`）；`conversation_id` 不是它要的名字。 |
-| 26 | `InboundContractTest` | `test_title_never_raises` | 覆盖「老入参 → 内核 → 老返回体」：title never raises |
-| 27 | `InboundContractTest` | `test_ui_state_get_returns_only_client_independent_state` | GET 只回与客户端无关的那部分：哪些会话在跑。 |
-| 28 | `InboundContractTest` | `test_ui_state_put_stores_nothing` | PUT 收到布局也不落盘；客户端不会因此报错。 |
-| 29 | `InboundContractTest` | `test_ui_state_put_writes_no_layout_file` | 确认没有留下布局文件（服务端不该有客户端状态的副本）。 |
-| 30 | `InboundContractTest` | `test_usage_accumulates_across_events` | 覆盖「老入参 → 内核 → 老返回体」：usage accumulates across events |
-| 31 | `InboundContractTest` | `test_usage_accumulator_uses_different_field_names` | 累计端点用 `total_*`，与 SSE 的 `prompt_tokens` 不是一套（`classic/js/chat/context-usage.js` 的 `loadUsageAccumulator`）。 |
-| 32 | `InboundContractTest` | `test_usage_hydrates_from_facts_after_state_reset` | 覆盖「老入参 → 内核 → 老返回体」：usage hydrates from facts after state reset |
-| 33 | `OutboundContractTest` | `test_approval_suspension_is_not_a_choice_card` | 审批挂起发 `approval_required`，不发选项卡。 |
-| 34 | `OutboundContractTest` | `test_assistant_delta_uses_delta_field` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：assistant delta uses delta field |
-| 35 | `OutboundContractTest` | `test_assistant_only_on_final_message_with_content` | 工具调用轮没有正文，发空 `assistant` 会让经典界面渲染一个空气泡。 |
-| 36 | `OutboundContractTest` | `test_cancel_on_confirm_modal_records_a_declined_result` | 模态点「取消」（空 `confirm`）当作拒绝作答、记成工具结果， 与在端点里就地 `return 200 {"confirmed": False}` 行为不同。 |
-| 37 | `OutboundContractTest` | `test_cancel_without_pending_does_not_start_an_empty_turn` | 没有挂起调用时的取消不得起新回合。 |
-| 38 | `OutboundContractTest` | `test_chat_bubble_layout_puts_image_above_text` | 图文气泡：图片在上、文字在下。 |
-| 39 | `OutboundContractTest` | `test_confirm_card_comes_from_the_kernel_fact` | 待确认卡由内核专用事实 `turn_awaiting_user` 驱动。 |
-| 40 | `OutboundContractTest` | `test_context_compacted_emits_card_payload` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：context compacted emits card payload |
-| 41 | `OutboundContractTest` | `test_context_layout_is_flat_with_segments` | `lastContextLayout = ev` 整包存下，所以 segments 在顶层（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。 |
-| 42 | `OutboundContractTest` | `test_failed_run_type_switch_does_not_emit_mode_changed` | 失败时不能报"模式已切换"——那会让按钮显示一个并未生效的模式。 |
-| 43 | `OutboundContractTest` | `test_incomplete_awaiting_fact_is_ignored` | 缺 `call_id` 或缺选项的事实不发卡（残缺数据不猜、不半渲染）。 |
-| 44 | `OutboundContractTest` | `test_llm_request_model_is_never_empty` | 请求快照里的 `params.model` 不能是空串。 |
-| 45 | `OutboundContractTest` | `test_malformed_arguments_do_not_break_the_stream` | `arguments` 不是对象时按空对象处理（经典界面只把它 JSON 化显示，不校验）。 |
-| 46 | `OutboundContractTest` | `test_model_message_with_content_emits_response_done_and_assistant` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：model message with content emits response done and assistant |
-| 47 | `OutboundContractTest` | `test_only_a_real_suspension_asks_the_user` | 只有工具真挂起才发 `user_confirm_required`——经典界面收到它就弹模态。 |
-| 48 | `OutboundContractTest` | `test_plain_failure_is_not_mistaken_for_confirm` | 普通失败不得被判成待确认——否则每个报错都会弹出确认框。 |
-| 49 | `OutboundContractTest` | `test_reasoning_delta_requires_round` | `round` 必须与 `lastLlm.round` 相等，否则经典界面丢弃（`classic/js/chat/llm-rounds.js` 的 `appendReasoningDelta`）。 |
-| 50 | `OutboundContractTest` | `test_reasoning_is_not_promoted_into_chat_area` | 思考内容不经对话区填充（它属于右侧步骤卡）。 |
-| 51 | `OutboundContractTest` | `test_run_type_query_does_not_emit_mode_changed` | 查询模式不该发 `mode_changed`（会把按钮刷成同一个值，纯噪声）。 |
-| 52 | `OutboundContractTest` | `test_run_type_switch_emits_mode_changed` | `run_type` 切模式后必须补 `mode_changed`，否则经典界面的模式按钮停在旧值。 |
-| 53 | `OutboundContractTest` | `test_step_started_emits_llm_round_then_request` | `llm_round` 是 `reasoning_*` / `llm_request` 的前置（`classic/js/chat/llm-rounds.js` 的 `addLlmRound`）。 |
-| 54 | `OutboundContractTest` | `test_todo_list_rides_on_tool_end` | 清单没有独立事件，挂在 `tool_end.todo_list_data` 上（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。 |
-| 55 | `OutboundContractTest` | `test_tool_call_becomes_tool_start_with_call_id` | `tool_call_id` 是配对的唯一键；空则后续 `tool_end` 被整个忽略（`classic/js/chat/llm-rounds.js` 的 `onToolStart`）。 |
-| 56 | `OutboundContractTest` | `test_tool_call_does_not_pre_empt_the_confirm_card` | `tool_call` 期不发待确认卡——卡片由内核事实驱动，避免重复发两张。 |
-| 57 | `OutboundContractTest` | `test_tool_call_without_id_is_skipped` | 没有 id 就配不上 tool_end，宁可一条都不发（发了就是永远转圈的卡）。 |
-| 58 | `OutboundContractTest` | `test_tool_done_images_ride_beside_preview` | 看图的像素走 `images`，不写进 `preview` 文本。 |
-| 59 | `OutboundContractTest` | `test_tool_end_carries_elapsed_seconds` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：tool end carries elapsed seconds |
-| 60 | `OutboundContractTest` | `test_tool_result_preview_is_json_string` | `preview` 必须是 JSON 字符串（经典界面会 `JSON.parse`，`classic/js/tools/previews.js` 的 `fillToolPreview`）。 |
-| 61 | `OutboundContractTest` | `test_tool_result_without_start_is_skipped` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：tool result without start is skipped |
-| 62 | `OutboundContractTest` | `test_turn_ended_emits_done` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：turn ended emits done |
-| 63 | `OutboundContractTest` | `test_turn_started_emits_conversation_first` | `conversation` 必须发，且要带头。 |
-| 64 | `OutboundContractTest` | `test_unknown_kernel_event_is_ignored_not_raised` | 观察面纪律：翻译不认识的事件不能把事件流打断。 |
-| 65 | `OutboundContractTest` | `test_usage_must_be_nested` | 用量嵌套在 `usage` 键下：经典界面读 `ev.usage.prompt_tokens`（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。 |
-| 66 | `OutboundContractTest` | `test_user_confirm_multi_flag_passes_through` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：user confirm multi flag passes through |
-| 67 | `OutboundContractTest` | `test_vision_consent_keeps_plugin_confirmation_endpoint` | 视觉授权卡必须让前端 POST 到插件端点，而不是宿主 user-confirm。 |
-| 68 | `OutboundContractTest` | `test_write_gate_confirm_id_does_not_fake_a_confirmation` | `confirm_id` 是写盘门控的二阶提交锁：门控给预览类工具的 成功结果挂上它，意思是"锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。 用户交互不发生在这一步（解锁入口是 `review_conclusion`）。 |
-| 69 | `PluginEventTest` | `test_announce_broadcasts_to_channels` | 覆盖「插件事件出口：帧头固定、保留键拒绝、广播计数准确」：announce broadcasts to channels |
-| 70 | `PluginEventTest` | `test_frame_rejects_reserved_and_bad_names` | 覆盖「插件事件出口：帧头固定、保留键拒绝、广播计数准确」：frame rejects reserved and bad names |
-| 71 | `PluginEventTest` | `test_frame_shape_and_copy` | 覆盖「插件事件出口：帧头固定、保留键拒绝、广播计数准确」：frame shape and copy |
-| 72 | `ResumeContractTest` | `test_cursor_prefers_header_then_query` | `Last-Event-ID`（浏览器自动带）优先于 `?last_event_id=`；非法值回落 -1。 |
-| 73 | `ResumeContractTest` | `test_latest_seq_reports_global_log_end` | `latest_seq` 是全局最大坐标；空仓库返回 -1。 |
-| 74 | `ResumeContractTest` | `test_replay_frames_carry_seq` | 回放的帧必须带坐标，否则浏览器重连时没有游标可用。 |
-| 75 | `ResumeContractTest` | `test_replay_never_leaks_seq_into_frame_payloads` | `_seq` 是位置元数据，不该以原名出现在给前端的帧里（会污染契约）。 |
-| 76 | `ResumeContractTest` | `test_replay_only_targets_given_channel` | 续传只补这一条连接：别的连接的队列不能被塞进历史。 |
-| 77 | `ResumeContractTest` | `test_replay_respects_cursor` | `seq > after` 且不重复补游标那一帧。 |
-| 78 | `ResumeContractTest` | `test_sse_id_line_is_emitted_for_seq_frames` | SSE 的 `id:` 行是浏览器重连带 `Last-Event-ID` 的唯一来源。 |
-| 79 | `SubscriptionLifecycleTest` | `test_bus_subscription_reaches_channels` | 端到端：事件经真总线发布 → 翻译 → 到达连接队列。 |
-| 80 | `SubscriptionLifecycleTest` | `test_dispose_is_idempotent` | 覆盖「适配层对事件总线的订阅必须按需，不能是常驻观察者」：dispose is idempotent |
-| 81 | `SubscriptionLifecycleTest` | `test_no_subscription_without_clients` | 覆盖「适配层对事件总线的订阅必须按需，不能是常驻观察者」：no subscription without clients |
-| 82 | `SubscriptionLifecycleTest` | `test_subscribe_on_first_client_and_release_on_last` | 覆盖「适配层对事件总线的订阅必须按需，不能是常驻观察者」：subscribe on first client and release on last |
-| 83 | `UiBundleTest` | `test_each_model_call_opens_its_own_card` | 多趟往返时每回合各起一卡（工具前后各一张）。 |
-| 84 | `UiBundleTest` | `test_inline_html_contains_all_five_scripts` | 漏注入 `image-lightbox.js` 会让 `window.AIA` 缺失 → 附件四条链路静默失效。 |
-| 85 | `UiBundleTest` | `test_inline_html_has_no_placeholders_left` | 覆盖「素材与内联打包」：inline html has no placeholders left |
-| 86 | `UiBundleTest` | `test_light_hljs_sheet_is_scoped` | 两套高亮配色同页共存，浅色那套必须限定在 `[data-ui-theme="light"]` 下。 |
-| 87 | `UiBundleTest` | `test_llm_call_start_opens_a_step_card` | 步骤卡必须起得来。 |
-| 88 | `UiBundleTest` | `test_plugin_event_bridges` | 插件事件经 DOM 事件交给插件；插件开关也派发 DOM 事件。 |
-| 89 | `UiBundleTest` | `test_reasoning_stays_out_of_the_chat_area` | 思考内容不能出现在对话区（它属于右侧步骤卡）。 |
-| 90 | `UiBundleTest` | `test_tool_tag_shows_final_state_immediately` | 工具结束时立刻写标签终态。 |
-| 91 | `UsageSemanticsTest` | `test_put_overwrites_instead_of_accumulating` | 覆盖语义：连报两次累计值，第二次必须替换而不是相加。 |
-| 92 | `UserConfirmRoundTripTest` | `test_agree_mints_approval_id_for_the_option` | 同意：结果是「同意」加宿主签发的 approval_id，并记下 option_id。 |
-| 93 | `UserConfirmRoundTripTest` | `test_cancel_posts_empty_confirm_and_submits_nothing` | 模态的「取消」发空 `confirm`：不能把它当成一次用户发言送出去。 |
-| 94 | `UserConfirmRoundTripTest` | `test_choice_is_filled_back_as_the_tool_result` | 直通：用户的选择被写成那次 `user_confirm` 调用的返回值，不是新用户发言。 |
-| 95 | `UserConfirmRoundTripTest` | `test_confirm_id_and_text_together_do_both` | 两者同时给：门控解锁 + 选择回填（同一个端点的两类语义）。 |
-| 96 | `UserConfirmRoundTripTest` | `test_confirm_text_does_not_answer_an_approval` | 选项文本不能冒充审批结果，待审批保持原样。 |
-| 97 | `UserConfirmRoundTripTest` | `test_invalid_conversation_id_rejected` | 覆盖「确认的回路：用户在模态里选完，选择必须真的送到模型」：invalid conversation id rejected |
-| 98 | `UserConfirmRoundTripTest` | `test_mesh_failure_reports_error_without_raising` | `mesh` 不可用时给结构化错误，不要抛——确认端点是 UI 的关键路径。 |
-| 99 | `UserConfirmRoundTripTest` | `test_reject_returns_disagree_and_stores_nothing` | 驳回：结果是「不同意」，不签发通行证。 |
-| 100 | `UserConfirmRoundTripTest` | `test_write_gate_confirm_id_still_works` | 带 `confirm_id` 的写盘确认走内核既有的门控解锁，不经 mesh。 |
-| 101 | `WireHygieneTest` | `test_channel_emits_heartbeat_when_idle` | 空闲时发心跳（经典界面靠它判连接存活）；非 `data:` 行经典界面会安全忽略。 |
-| 102 | `WireHygieneTest` | `test_cid_exempt_set_matches_contract` | 契约豁免的事件必须在前端先接住，否则会被静默丢掉。 |
-| 103 | `WireHygieneTest` | `test_detach_stops_delivery` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：detach stops delivery |
-| 104 | `WireHygieneTest` | `test_every_frame_carries_valid_conversation_id` | 没带合法 cid 的帧会被经典界面整包静默丢弃（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。 |
-| 105 | `WireHygieneTest` | `test_frame_without_cid_is_dropped_silently` | 入站事件没有 cid 时直接丢，不要造一个假 cid 塞给前端。 |
-| 106 | `WireHygieneTest` | `test_frames_broadcast_to_every_channel` | 广播而非共享队列：两个标签页必须各自收到完整事件流。 |
-| 107 | `WireHygieneTest` | `test_heartbeat_is_cid_exempt` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：heartbeat is cid exempt |
-| 108 | `WireHygieneTest` | `test_normalize_cid_matches_ui_rule` | 经典界面的规则是 `/^[A-Za-z0-9_-]{8,128}$/`（`classic/js/core/boot.js` 的 `normalizeConversationId`）。 |
-| 109 | `WireHygieneTest` | `test_sse_payload_is_single_line_data_frame` | 帧格式必须是 `data: <单行 json>\n\n`（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。 |
-| 110 | `WireHygieneTest` | `test_tool_script_mapping_covers_known_tools` | 工具名要翻成经典界面认识的 `script`，否则图标与中文名退化成默认。 |
+| 14 | `InboundContractTest` | `test_confirmation_reads_restore_cold_state_without_creating_session` | 覆盖「老入参 → 内核 → 老返回体」：confirmation reads restore cold state without creating session |
+| 15 | `InboundContractTest` | `test_health_model_is_in_allowed_list` | `model` 必须在 `allowed_models` 里，否则经典界面白名单校验丢弃它 → 顶栏永远加载中。 |
+| 16 | `InboundContractTest` | `test_history_cancels_suspended_tool_after_new_input` | 覆盖「老入参 → 内核 → 老返回体」：history cancels suspended tool after new input |
+| 17 | `InboundContractTest` | `test_history_carries_context_layout_at_top_level` | `context_layout` 在顶层，`applyContextLayoutFromHistory` 读那里。 |
+| 18 | `InboundContractTest` | `test_history_page_before_and_meta` | 覆盖「老入参 → 内核 → 老返回体」：history page before and meta |
+| 19 | `InboundContractTest` | `test_history_rejects_bad_id` | 覆盖「老入参 → 内核 → 老返回体」：history rejects bad id |
+| 20 | `InboundContractTest` | `test_history_returns_items_for_bubbles` | `items` 是刷新页面渲染气泡与工具卡的唯一来源（`renderHistoryItems`）。 |
+| 21 | `InboundContractTest` | `test_history_returns_ok_true` | 回显必须带 `ok:true`，否则经典界面直接 return、整段历史不渲染。 |
+| 22 | `InboundContractTest` | `test_history_todo_empty_when_none_active` | 没有清单（或已 `close`）时返回空数组，界面据此 `hideTodoList`。 |
+| 23 | `InboundContractTest` | `test_history_todo_ignores_other_tools_items` | 检索结果的 `items`（`file` / `match`）不能进清单。 |
+| 24 | `InboundContractTest` | `test_invalid_conversation_id_rejected_on_write` | 覆盖「老入参 → 内核 → 老返回体」：invalid conversation id rejected on write |
+| 25 | `InboundContractTest` | `test_remember_attachments_merges_previous_pages` | 覆盖「老入参 → 内核 → 老返回体」：remember attachments merges previous pages |
+| 26 | `InboundContractTest` | `test_sessions_read_id_not_conversation_id` | 经典界面读 `s.id`（`classic/js/chat/conversation.js` 的 `loadSessionRailList`）；`conversation_id` 不是它要的名字。 |
+| 27 | `InboundContractTest` | `test_title_never_raises` | 覆盖「老入参 → 内核 → 老返回体」：title never raises |
+| 28 | `InboundContractTest` | `test_ui_state_get_returns_only_client_independent_state` | GET 只回与客户端无关的那部分：哪些会话在跑。 |
+| 29 | `InboundContractTest` | `test_ui_state_put_stores_nothing` | PUT 收到布局也不落盘；客户端不会因此报错。 |
+| 30 | `InboundContractTest` | `test_ui_state_put_writes_no_layout_file` | 确认没有留下布局文件（服务端不该有客户端状态的副本）。 |
+| 31 | `InboundContractTest` | `test_usage_accumulates_across_events` | 覆盖「老入参 → 内核 → 老返回体」：usage accumulates across events |
+| 32 | `InboundContractTest` | `test_usage_accumulator_uses_different_field_names` | 累计端点用 `total_*`，与 SSE 的 `prompt_tokens` 不是一套（`classic/js/chat/context-usage.js` 的 `loadUsageAccumulator`）。 |
+| 33 | `InboundContractTest` | `test_usage_hydrates_from_facts_after_state_reset` | 覆盖「老入参 → 内核 → 老返回体」：usage hydrates from facts after state reset |
+| 34 | `InboundContractTest` | `test_warm_confirmation_snapshot_observes_other_store_and_rejects_old_card` | 覆盖「老入参 → 内核 → 老返回体」：warm confirmation snapshot observes other store and rejects old card |
+| 35 | `OutboundContractTest` | `test_approval_suspension_is_not_a_choice_card` | 审批挂起发 `approval_required`，不发选项卡。 |
+| 36 | `OutboundContractTest` | `test_assistant_delta_uses_delta_field` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：assistant delta uses delta field |
+| 37 | `OutboundContractTest` | `test_assistant_only_on_final_message_with_content` | 工具调用轮没有正文，发空 `assistant` 会让经典界面渲染一个空气泡。 |
+| 38 | `OutboundContractTest` | `test_cancel_on_confirm_modal_records_a_declined_result` | 模态点「取消」（空 `confirm`）当作拒绝作答、记成工具结果， 与在端点里就地 `return 200 {"confirmed": False}` 行为不同。 |
+| 39 | `OutboundContractTest` | `test_cancel_without_pending_does_not_start_an_empty_turn` | 过期回执以 409 返回。 |
+| 40 | `OutboundContractTest` | `test_chat_bubble_layout_puts_image_above_text` | 图文气泡：图片在上、文字在下。 |
+| 41 | `OutboundContractTest` | `test_confirm_card_comes_from_the_kernel_fact` | 待确认卡由内核专用事实 `turn_awaiting_user` 驱动。 |
+| 42 | `OutboundContractTest` | `test_context_compacted_emits_card_payload` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：context compacted emits card payload |
+| 43 | `OutboundContractTest` | `test_context_layout_is_flat_with_segments` | `lastContextLayout = ev` 整包存下，所以 segments 在顶层（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。 |
+| 44 | `OutboundContractTest` | `test_failed_run_type_switch_does_not_emit_mode_changed` | 失败时不能报"模式已切换"——那会让按钮显示一个并未生效的模式。 |
+| 45 | `OutboundContractTest` | `test_incomplete_awaiting_fact_is_ignored` | 缺 `call_id` 或缺选项的事实不发卡（残缺数据不猜、不半渲染）。 |
+| 46 | `OutboundContractTest` | `test_llm_request_model_is_never_empty` | 请求快照里的 `params.model` 不能是空串。 |
+| 47 | `OutboundContractTest` | `test_malformed_arguments_do_not_break_the_stream` | `arguments` 不是对象时按空对象处理（经典界面只把它 JSON 化显示，不校验）。 |
+| 48 | `OutboundContractTest` | `test_model_message_with_content_emits_response_done_and_assistant` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：model message with content emits response done and assistant |
+| 49 | `OutboundContractTest` | `test_only_a_real_suspension_asks_the_user` | 只有工具真挂起才发 `user_confirm_required`——经典界面收到它就弹模态。 |
+| 50 | `OutboundContractTest` | `test_plain_failure_is_not_mistaken_for_confirm` | 普通失败不得被判成待确认——否则每个报错都会弹出确认框。 |
+| 51 | `OutboundContractTest` | `test_reasoning_delta_requires_round` | `round` 必须与 `lastLlm.round` 相等，否则经典界面丢弃（`classic/js/chat/llm-rounds.js` 的 `appendReasoningDelta`）。 |
+| 52 | `OutboundContractTest` | `test_reasoning_is_not_promoted_into_chat_area` | 思考内容不经对话区填充（它属于右侧步骤卡）。 |
+| 53 | `OutboundContractTest` | `test_run_type_query_does_not_emit_mode_changed` | 查询模式不该发 `mode_changed`（会把按钮刷成同一个值，纯噪声）。 |
+| 54 | `OutboundContractTest` | `test_run_type_switch_emits_mode_changed` | `run_type` 切模式后必须补 `mode_changed`，否则经典界面的模式按钮停在旧值。 |
+| 55 | `OutboundContractTest` | `test_step_started_emits_llm_round_then_request` | `llm_round` 是 `reasoning_*` / `llm_request` 的前置（`classic/js/chat/llm-rounds.js` 的 `addLlmRound`）。 |
+| 56 | `OutboundContractTest` | `test_todo_list_rides_on_tool_end` | 清单没有独立事件，挂在 `tool_end.todo_list_data` 上（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。 |
+| 57 | `OutboundContractTest` | `test_tool_call_becomes_tool_start_with_call_id` | `tool_call_id` 是配对的唯一键；空则后续 `tool_end` 被整个忽略（`classic/js/chat/llm-rounds.js` 的 `onToolStart`）。 |
+| 58 | `OutboundContractTest` | `test_tool_call_does_not_pre_empt_the_confirm_card` | `tool_call` 期不发待确认卡——卡片由内核事实驱动，避免重复发两张。 |
+| 59 | `OutboundContractTest` | `test_tool_call_without_id_is_skipped` | 没有 id 就配不上 tool_end，宁可一条都不发（发了就是永远转圈的卡）。 |
+| 60 | `OutboundContractTest` | `test_tool_done_images_ride_beside_preview` | 看图的像素走 `images`，不写进 `preview` 文本。 |
+| 61 | `OutboundContractTest` | `test_tool_end_carries_elapsed_seconds` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：tool end carries elapsed seconds |
+| 62 | `OutboundContractTest` | `test_tool_result_preview_is_json_string` | `preview` 必须是 JSON 字符串（经典界面会 `JSON.parse`，`classic/js/tools/previews.js` 的 `fillToolPreview`）。 |
+| 63 | `OutboundContractTest` | `test_tool_result_without_start_is_skipped` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：tool result without start is skipped |
+| 64 | `OutboundContractTest` | `test_turn_ended_emits_done` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：turn ended emits done |
+| 65 | `OutboundContractTest` | `test_turn_started_emits_conversation_first` | `conversation` 必须发，且要带头。 |
+| 66 | `OutboundContractTest` | `test_unknown_kernel_event_is_ignored_not_raised` | 观察面纪律：翻译不认识的事件不能把事件流打断。 |
+| 67 | `OutboundContractTest` | `test_usage_must_be_nested` | 用量嵌套在 `usage` 键下：经典界面读 `ev.usage.prompt_tokens`（`classic/js/chat/stream.js` 的 `handleGlobalSseEvent`）。 |
+| 68 | `OutboundContractTest` | `test_user_confirm_multi_flag_passes_through` | 覆盖「内核事件 → 老事件。每条断言都对应经典界面真正读的字段」：user confirm multi flag passes through |
+| 69 | `OutboundContractTest` | `test_vision_consent_keeps_plugin_confirmation_endpoint` | 视觉授权卡必须让前端 POST 到插件端点，而不是宿主 user-confirm。 |
+| 70 | `OutboundContractTest` | `test_write_gate_confirm_id_does_not_fake_a_confirmation` | `confirm_id` 是写盘门控的二阶提交锁：门控给预览类工具的 成功结果挂上它，意思是"锁已建好，模型接着调提交工具并把 `confirm_id` 传回来"。 用户交互不发生在这一步（解锁入口是 `review_conclusion`）。 |
+| 71 | `PluginEventTest` | `test_announce_broadcasts_to_channels` | 覆盖「插件事件出口：帧头固定、保留键拒绝、广播计数准确」：announce broadcasts to channels |
+| 72 | `PluginEventTest` | `test_frame_rejects_reserved_and_bad_names` | 覆盖「插件事件出口：帧头固定、保留键拒绝、广播计数准确」：frame rejects reserved and bad names |
+| 73 | `PluginEventTest` | `test_frame_shape_and_copy` | 覆盖「插件事件出口：帧头固定、保留键拒绝、广播计数准确」：frame shape and copy |
+| 74 | `ResumeContractTest` | `test_cursor_prefers_header_then_query` | `Last-Event-ID`（浏览器自动带）优先于 `?last_event_id=`；非法值回落 -1。 |
+| 75 | `ResumeContractTest` | `test_latest_seq_reports_global_log_end` | `latest_seq` 是全局最大坐标；空仓库返回 -1。 |
+| 76 | `ResumeContractTest` | `test_replay_frames_carry_seq` | 回放的帧必须带坐标，否则浏览器重连时没有游标可用。 |
+| 77 | `ResumeContractTest` | `test_replay_never_leaks_seq_into_frame_payloads` | `_seq` 是位置元数据，不该以原名出现在给前端的帧里（会污染契约）。 |
+| 78 | `ResumeContractTest` | `test_replay_only_targets_given_channel` | 续传只补这一条连接：别的连接的队列不能被塞进历史。 |
+| 79 | `ResumeContractTest` | `test_replay_respects_cursor` | `seq > after` 且不重复补游标那一帧。 |
+| 80 | `ResumeContractTest` | `test_sse_id_line_is_emitted_for_seq_frames` | SSE 的 `id:` 行是浏览器重连带 `Last-Event-ID` 的唯一来源。 |
+| 81 | `SubscriptionLifecycleTest` | `test_bus_subscription_reaches_channels` | 端到端：事件经真总线发布 → 翻译 → 到达连接队列。 |
+| 82 | `SubscriptionLifecycleTest` | `test_dispose_is_idempotent` | 覆盖「适配层对事件总线的订阅必须按需，不能是常驻观察者」：dispose is idempotent |
+| 83 | `SubscriptionLifecycleTest` | `test_no_subscription_without_clients` | 覆盖「适配层对事件总线的订阅必须按需，不能是常驻观察者」：no subscription without clients |
+| 84 | `SubscriptionLifecycleTest` | `test_subscribe_on_first_client_and_release_on_last` | 覆盖「适配层对事件总线的订阅必须按需，不能是常驻观察者」：subscribe on first client and release on last |
+| 85 | `UiBundleTest` | `test_each_model_call_opens_its_own_card` | 多趟往返时每回合各起一卡（工具前后各一张）。 |
+| 86 | `UiBundleTest` | `test_inline_html_contains_all_five_scripts` | 漏注入 `image-lightbox.js` 会让 `window.AIA` 缺失 → 附件四条链路静默失效。 |
+| 87 | `UiBundleTest` | `test_inline_html_has_no_placeholders_left` | 覆盖「素材与内联打包」：inline html has no placeholders left |
+| 88 | `UiBundleTest` | `test_light_hljs_sheet_is_scoped` | 两套高亮配色同页共存，浅色那套必须限定在 `[data-ui-theme="light"]` 下。 |
+| 89 | `UiBundleTest` | `test_llm_call_start_opens_a_step_card` | 步骤卡必须起得来。 |
+| 90 | `UiBundleTest` | `test_plugin_event_bridges` | 插件事件经 DOM 事件交给插件；插件开关也派发 DOM 事件。 |
+| 91 | `UiBundleTest` | `test_reasoning_stays_out_of_the_chat_area` | 思考内容不能出现在对话区（它属于右侧步骤卡）。 |
+| 92 | `UiBundleTest` | `test_tool_tag_shows_final_state_immediately` | 工具结束时立刻写标签终态。 |
+| 93 | `UsageSemanticsTest` | `test_put_overwrites_instead_of_accumulating` | 覆盖语义：连报两次累计值，第二次必须替换而不是相加。 |
+| 94 | `UserConfirmRoundTripTest` | `test_agree_mints_approval_id_for_the_option` | 同意：结果是「同意」加宿主签发的 approval_id，并记下 option_id。 |
+| 95 | `UserConfirmRoundTripTest` | `test_cancel_posts_empty_confirm_and_submits_nothing` | 模态的「取消」发空 `confirm`：不能把它当成一次用户发言送出去。 |
+| 96 | `UserConfirmRoundTripTest` | `test_choice_is_filled_back_as_the_tool_result` | 直通：用户的选择被写成那次 `user_confirm` 调用的返回值，不是新用户发言。 |
+| 97 | `UserConfirmRoundTripTest` | `test_confirm_id_and_text_together_do_both` | 两者同时给：门控解锁 + 选择回填（同一个端点的两类语义）。 |
+| 98 | `UserConfirmRoundTripTest` | `test_confirm_text_does_not_answer_an_approval` | 选项文本不能冒充审批结果，待审批保持原样。 |
+| 99 | `UserConfirmRoundTripTest` | `test_invalid_conversation_id_rejected` | 覆盖「确认的回路：用户在模态里选完，选择必须真的送到模型」：invalid conversation id rejected |
+| 100 | `UserConfirmRoundTripTest` | `test_mesh_failure_reports_error_without_raising` | `mesh` 不可用时给结构化错误，不要抛——确认端点是 UI 的关键路径。 |
+| 101 | `UserConfirmRoundTripTest` | `test_reject_returns_disagree_and_stores_nothing` | 驳回：结果是「不同意」，不签发通行证。 |
+| 102 | `UserConfirmRoundTripTest` | `test_write_gate_confirm_id_still_works` | 带 `confirm_id` 的写盘确认走内核既有的门控解锁，不经 mesh。 |
+| 103 | `WireHygieneTest` | `test_channel_emits_heartbeat_when_idle` | 空闲时发心跳（经典界面靠它判连接存活）；非 `data:` 行经典界面会安全忽略。 |
+| 104 | `WireHygieneTest` | `test_cid_exempt_set_matches_contract` | 契约豁免的事件必须在前端先接住，否则会被静默丢掉。 |
+| 105 | `WireHygieneTest` | `test_detach_stops_delivery` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：detach stops delivery |
+| 106 | `WireHygieneTest` | `test_every_frame_carries_valid_conversation_id` | 没带合法 cid 的帧会被经典界面整包静默丢弃（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。 |
+| 107 | `WireHygieneTest` | `test_frame_without_cid_is_dropped_silently` | 入站事件没有 cid 时直接丢，不要造一个假 cid 塞给前端。 |
+| 108 | `WireHygieneTest` | `test_frames_broadcast_to_every_channel` | 广播而非共享队列：两个标签页必须各自收到完整事件流。 |
+| 109 | `WireHygieneTest` | `test_heartbeat_is_cid_exempt` | 覆盖「传输层铁律：帧格式与 `conversation_id`」：heartbeat is cid exempt |
+| 110 | `WireHygieneTest` | `test_normalize_cid_matches_ui_rule` | 经典界面的规则是 `/^[A-Za-z0-9_-]{8,128}$/`（`classic/js/core/boot.js` 的 `normalizeConversationId`）。 |
+| 111 | `WireHygieneTest` | `test_sse_payload_is_single_line_data_frame` | 帧格式必须是 `data: <单行 json>\n\n`（`classic/js/chat/stream.js` 的 `drainChatSseFromResponse`）。 |
+| 112 | `WireHygieneTest` | `test_tool_script_mapping_covers_known_tools` | 工具名要翻成经典界面认识的 `script`，否则图标与中文名退化成默认。 |
 
 ## test_cli_shell.py
 
-共 20 个用例。
+共 21 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `ChatArgParsingTest` | `test_build_session_accepts_parsed_args` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：build session accepts parsed args |
 | 2 | `ChatArgParsingTest` | `test_help_exits_before_building_app` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：help exits before building app |
 | 3 | `ChatArgParsingTest` | `test_session_and_text_are_parsed` | 覆盖「入口参数在装配之前解析：缺配置时 `--help` 仍可用」：session and text are parsed |
-| 4 | `ChatConfirmRoundTripTest` | `test_default_bucket_gate_cannot_confirm_named_session` | 反面：默认桶门控确认不了具名会话的预览。 |
-| 5 | `ChatConfirmRoundTripTest` | `test_preview_tool_names_include_write_path_tools` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：preview tool names include write path tools |
-| 6 | `ChatConfirmRoundTripTest` | `test_shell_confirm_releases_preview_and_commit_lands` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：shell confirm releases preview and commit lands |
-| 7 | `ChatExitReleaseTest` | `test_main_prints_session_on_exit` | 覆盖「交互壳退出时释放会话运行态」：main prints session on exit |
-| 8 | `ChatExitReleaseTest` | `test_main_releases_session_on_exit` | 覆盖「交互壳退出时释放会话运行态」：main releases session on exit |
-| 9 | `ChatExitReleaseTest` | `test_released_session_reparses_clean` | 释放后同 cid 重新解析得到干净上下文（红灯 / 待 review 不残留）。 |
-| 10 | `ChatGateWiringTest` | `test_build_session_returns_named_conversation` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：build session returns named conversation |
-| 11 | `ChatGateWiringTest` | `test_build_session_uses_shared_runner_engine` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：build session uses shared runner engine |
-| 12 | `ChatGateWiringTest` | `test_engine_runs_on_same_conversation_id` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：engine runs on same conversation id |
-| 13 | `ChatGateWiringTest` | `test_gate_is_the_conversation_gate_not_default_bucket` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：gate is the conversation gate not default bucket |
-| 14 | `ChatToolEventTest` | `test_success_is_not_reported_as_failure` | 覆盖「工具事件显示：成功是 tool_done，失败才是 tool_failed」：success is not reported as failure |
-| 15 | `ExplicitReleaseTest` | `test_close_all_clears_registry` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：close all clears registry |
-| 16 | `ExplicitReleaseTest` | `test_release_does_not_touch_persisted_records` | 释放只丢进程内运行态：会话记录（事实源）不受影响。 |
-| 17 | `ExplicitReleaseTest` | `test_release_drops_only_that_conversation` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release drops only that conversation |
-| 18 | `ExplicitReleaseTest` | `test_release_unknown_and_blank_are_safe` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release unknown and blank are safe |
-| 19 | `ExplicitReleaseTest` | `test_web_release_conversation_reduces_active_count` | 关闭会话 API 调用 release 后 active_count 下降。 |
-| 20 | `InvalidSessionCliTest` | `test_invalid_session_returns_clean_error` | 覆盖「A class whose instances are single test cases」：invalid session returns clean error |
+| 4 | `ChatConfirmRoundTripTest` | `test_cli_suspension_survives_exit_for_web_answer` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：cli suspension survives exit for web answer |
+| 5 | `ChatConfirmRoundTripTest` | `test_default_bucket_gate_cannot_confirm_named_session` | 反面：默认桶门控确认不了具名会话的预览。 |
+| 6 | `ChatConfirmRoundTripTest` | `test_preview_tool_names_include_write_path_tools` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：preview tool names include write path tools |
+| 7 | `ChatConfirmRoundTripTest` | `test_shell_confirm_releases_preview_and_commit_lands` | 覆盖「端到端：壳层确认回调 → 模型凭同一 ID 提交（真实文件落盘）」：shell confirm releases preview and commit lands |
+| 8 | `ChatExitReleaseTest` | `test_main_prints_session_on_exit` | 覆盖「交互壳退出时释放会话运行态」：main prints session on exit |
+| 9 | `ChatExitReleaseTest` | `test_main_releases_session_on_exit` | 覆盖「交互壳退出时释放会话运行态」：main releases session on exit |
+| 10 | `ChatExitReleaseTest` | `test_released_session_reparses_clean` | 释放后同 cid 重新解析得到干净上下文（红灯 / 待 review 不残留）。 |
+| 11 | `ChatGateWiringTest` | `test_build_session_returns_named_conversation` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：build session returns named conversation |
+| 12 | `ChatGateWiringTest` | `test_build_session_uses_shared_runner_engine` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：build session uses shared runner engine |
+| 13 | `ChatGateWiringTest` | `test_engine_runs_on_same_conversation_id` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：engine runs on same conversation id |
+| 14 | `ChatGateWiringTest` | `test_gate_is_the_conversation_gate_not_default_bucket` | 覆盖「壳层门控解析：必须是会话自己的门控，不是默认桶」：gate is the conversation gate not default bucket |
+| 15 | `ChatToolEventTest` | `test_success_is_not_reported_as_failure` | 覆盖「工具事件显示：成功是 tool_done，失败才是 tool_failed」：success is not reported as failure |
+| 16 | `ExplicitReleaseTest` | `test_close_all_clears_registry` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：close all clears registry |
+| 17 | `ExplicitReleaseTest` | `test_release_does_not_touch_persisted_records` | 释放只丢进程内运行态：会话记录（事实源）不受影响。 |
+| 18 | `ExplicitReleaseTest` | `test_release_drops_only_that_conversation` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release drops only that conversation |
+| 19 | `ExplicitReleaseTest` | `test_release_unknown_and_blank_are_safe` | 覆盖「会话上下文显式释放（不引入自动淘汰）」：release unknown and blank are safe |
+| 20 | `ExplicitReleaseTest` | `test_web_release_conversation_reduces_active_count` | 关闭会话标签释放内存，保留持久化的终止状态。 |
+| 21 | `InvalidSessionCliTest` | `test_invalid_session_returns_clean_error` | 覆盖「A class whose instances are single test cases」：invalid session returns clean error |
 
 ## test_command_output_encoding.py
 
@@ -1882,13 +1888,13 @@
 | 14 | `ImagesAlwaysReachTheWireTest` | `test_image_block_survives_into_the_payload` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：image block survives into the payload |
 | 15 | `ImagesAlwaysReachTheWireTest` | `test_plain_text_message_is_untouched` | 覆盖「图片一律原样发给模型 —— 不按模型名猜能力、不做降级剥图」：plain text message is untouched |
 | 16 | `ProviderStreamTimeoutTest` | `test_openai_stream_timeout_is_bounded` | 覆盖「A class whose instances are single test cases」：openai stream timeout is bounded |
-| 17 | `ReasonNotReplayedTest` | `test_cut_clears_the_content_but_keeps_the_key_for_tool_messages` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：cut clears the content but keeps the key for tool messages |
-| 18 | `ReasonNotReplayedTest` | `test_cut_none_keeps_everything` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：cut none keeps everything |
-| 19 | `ReasonNotReplayedTest` | `test_original_messages_are_not_mutated` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：original messages are not mutated |
-| 20 | `ReasonNotReplayedTest` | `test_plain_assistant_before_the_cut_drops_the_key` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：plain assistant before the cut drops the key |
-| 21 | `ReasonNotReplayedTest` | `test_provider_passes_the_boundary_and_defaults_to_stripping` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：provider passes the boundary and defaults to stripping |
-| 22 | `ReasonNotReplayedTest` | `test_tool_calls_survive_the_cut` | 覆盖「历史推理不回传内容：它必然未命中缓存，回传等于每回合多算几万 token」：tool calls survive the cut |
-| 23 | `ReasonNotReplayedTest` | `test_tool_message_without_reasoning_gets_an_empty_key` | 没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。 |
+| 17 | `ReasoningReplayTest` | `test_appending_a_user_message_keeps_the_wire_prefix` | 覆盖「Both completed and active turns preserve reasoni…」：appending a user message keeps the wire prefix |
+| 18 | `ReasoningReplayTest` | `test_completed_text_turn_keeps_reasoning` | 覆盖「Both completed and active turns preserve reasoni…」：completed text turn keeps reasoning |
+| 19 | `ReasoningReplayTest` | `test_completed_tool_turn_keeps_reasoning` | 覆盖「Both completed and active turns preserve reasoni…」：completed tool turn keeps reasoning |
+| 20 | `ReasoningReplayTest` | `test_original_messages_are_not_mutated` | 覆盖「Both completed and active turns preserve reasoni…」：original messages are not mutated |
+| 21 | `ReasoningReplayTest` | `test_routed_deepseek_tools_preserve_full_reasoning` | 覆盖「Both completed and active turns preserve reasoni…」：routed deepseek tools preserve full reasoning |
+| 22 | `ReasoningReplayTest` | `test_tool_calls_keep_their_wire_shape` | 覆盖「Both completed and active turns preserve reasoni…」：tool calls keep their wire shape |
+| 23 | `ReasoningReplayTest` | `test_tool_message_without_reasoning_gets_an_empty_key` | 没有思维链记录的工具消息也要补空串：缺键与空串在 API 侧不等价。 |
 | 24 | `RequestLevelModelTest` | `test_effort_still_reaches_the_wire` | 推理档位照常透传到请求载荷。 |
 | 25 | `RequestLevelModelTest` | `test_empty_request_model_falls_back_to_instance_default` | 空串 = 不指定 ⇒ 用实例默认模型，既有调用方行为不变。 |
 | 26 | `RequestLevelModelTest` | `test_local_model_check_is_per_requested_model` | 本地模型的判定同理：默认是云端、本次选本地时不能照旧下发推理档位。 |
@@ -1902,8 +1908,8 @@
 | 34 | `SessionStateFileTest` | `test_every_component_survives_a_new_process` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：every component survives a new process |
 | 35 | `SessionStateFileTest` | `test_file_nests_todo_and_keeps_state_flat` | 覆盖「会话状态文件：模型 / 模式 / 档位 / 清单同住一份，可跨进程读回」：file nests todo and keeps state flat |
 | 36 | `SessionStateFileTest` | `test_stale_flat_file_is_ignored` | 只认嵌套结构：平铺把清单字段写在顶层的文件不算会话状态。 |
-| 37 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「装配时把"本回合起点"标出来，provider 才有裁的依据」：model module marks turn start |
-| 38 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「装配时把"本回合起点"标出来，provider 才有裁的依据」：port default keeps everything |
+| 37 | `TurnStartAssemblyTest` | `test_model_module_marks_turn_start` | 覆盖「视觉观测进入工具续跑请求，同时保留两个用户轮的签名」：model module marks turn start |
+| 38 | `TurnStartAssemblyTest` | `test_port_default_keeps_everything` | 覆盖「视觉观测进入工具续跑请求，同时保留两个用户轮的签名」：port default keeps everything |
 | 39 | `UserFacingTextTest` | `test_500_and_503_name_the_model_server` | 覆盖「用户可见的文案不得混入内部术语」：500 and 503 name the model server |
 | 40 | `UserFacingTextTest` | `test_deepseek_official_error_codes_are_mapped` | 与 https://api-docs.deepseek.com/quick_start/error_codes 七码对齐。 |
 | 41 | `UserFacingTextTest` | `test_http_hints_are_user_facing_and_history_free` | 覆盖「用户可见的文案不得混入内部术语」：http hints are user facing and history free |
@@ -2303,18 +2309,21 @@
 
 ## test_queue_runner.py
 
-共 8 个用例。
+共 11 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `InsertDeliveryTest` | `test_busy_insert_is_deduplicated_and_keeps_queue_order` | 覆盖「A class whose instances are single test cases」：busy insert is deduplicated and keeps queue order |
-| 2 | `InsertDeliveryTest` | `test_idle_insert_starts_one_queue_driven_run` | 覆盖「A class whose instances are single test cases」：idle insert starts one queue driven run |
-| 3 | `InsertDeliveryTest` | `test_late_insert_is_consumed_by_finishing_runner` | 覆盖「A class whose instances are single test cases」：late insert is consumed by finishing runner |
-| 4 | `InsertDeliveryTest` | `test_nested_meta_cannot_override_message_fields` | 覆盖「A class whose instances are single test cases」：nested meta cannot override message fields |
-| 5 | `PausedQueueTest` | `test_host_paused_flag_keeps_queue` | 覆盖「A class whose instances are single test cases」：host paused flag keeps queue |
-| 6 | `PausedQueueTest` | `test_insertion_keeps_busy_start_but_next_queued_round_resets_it` | 覆盖「A class whose instances are single test cases」：insertion keeps busy start but next queued round resets it |
-| 7 | `PausedQueueTest` | `test_new_input_cancels_pending_confirm` | 覆盖「A class whose instances are single test cases」：new input cancels pending confirm |
-| 8 | `PausedQueueTest` | `test_paused_turn_keeps_queue` | 覆盖「A class whose instances are single test cases」：paused turn keeps queue |
+| 2 | `InsertDeliveryTest` | `test_failed_batch_claim_keeps_items_visible_and_retryable` | 覆盖「A class whose instances are single test cases」：failed batch claim keeps items visible and retryable |
+| 3 | `InsertDeliveryTest` | `test_idle_insert_starts_one_queue_driven_run` | 覆盖「A class whose instances are single test cases」：idle insert starts one queue driven run |
+| 4 | `InsertDeliveryTest` | `test_late_insert_is_consumed_by_finishing_runner` | 覆盖「A class whose instances are single test cases」：late insert is consumed by finishing runner |
+| 5 | `InsertDeliveryTest` | `test_nested_meta_cannot_override_message_fields` | 覆盖「A class whose instances are single test cases」：nested meta cannot override message fields |
+| 6 | `InsertDeliveryTest` | `test_stop_holds_queue_until_explicit_send` | 覆盖「A class whose instances are single test cases」：stop holds queue until explicit send |
+| 7 | `PausedQueueTest` | `test_host_paused_flag_keeps_queue` | 覆盖「A class whose instances are single test cases」：host paused flag keeps queue |
+| 8 | `PausedQueueTest` | `test_insertion_keeps_busy_start_but_next_queued_round_resets_it` | 覆盖「A class whose instances are single test cases」：insertion keeps busy start but next queued round resets it |
+| 9 | `PausedQueueTest` | `test_new_input_cancels_pending_confirm` | All input sources settle the suspension before recording the new input. |
+| 10 | `PausedQueueTest` | `test_paused_turn_keeps_queue` | 覆盖「A class whose instances are single test cases」：paused turn keeps queue |
+| 11 | `PausedQueueTest` | `test_round_end_settles_confirmation_only_when_not_paused` | 覆盖「A class whose instances are single test cases」：round end settles confirmation only when not paused |
 
 ## test_queued_input.py
 
@@ -2394,7 +2403,7 @@
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `RulesFragmentTest` | `test_context_source_factory_contributes_one_segment` | 工厂产出的注入源交给 ContextSources：一段、标签 Rules、自报数等于正文条数。 |
+| 1 | `RulesFragmentTest` | `test_context_source_factory_contributes_one_segment` | 声明式规则来源每个文件贡献一条，同组展示文件总数。 |
 | 2 | `RulesFragmentTest` | `test_own_nodes_are_runtime_and_two_providers` | 覆盖「片段声明：三个自有节点 + 一条落到壳层的段外观」：own nodes are runtime and two providers |
 | 3 | `RulesFragmentTest` | `test_prompt_section_factory_returns_resource_lines` | 覆盖「片段声明：三个自有节点 + 一条落到壳层的段外观」：prompt section factory returns resource lines |
 | 4 | `RulesFragmentTest` | `test_resource_section_marks_missing_dir` | 覆盖「片段声明：三个自有节点 + 一条落到壳层的段外观」：resource section marks missing dir |
@@ -2545,33 +2554,38 @@
 
 ## test_session_seq.py
 
-共 23 个用例。
+共 28 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `SeqAssignmentTest` | `test_blank_lines_do_not_shift_positions` | 空行不占号：否则"下一个序号"会随空白漂移。 |
-| 2 | `SeqAssignmentTest` | `test_conversation_id_is_not_persisted` | 会话 ID 由文件名承载，落盘行里不存；读回时按会话补进载荷。 |
-| 3 | `SeqAssignmentTest` | `test_line_count_matches_next_seq` | `line_count` 就是"下一个可用序号"——`App._seq_next` 靠它播种。 |
-| 4 | `SeqAssignmentTest` | `test_load_still_returns_plain_events` | `load()` 的返回形状不变（既有调用方与测试都按纯事件列表用）。 |
-| 5 | `SeqAssignmentTest` | `test_seq_continues_across_appends` | 跨批连续：第二批接着第一批的号，不从头开始（约 500 行一批的 flush 依赖此）。 |
-| 6 | `SeqAssignmentTest` | `test_seq_is_written_to_each_line` | 覆盖「写入即定位：序号按会话日志位置连续编」：seq is written to each line |
-| 7 | `SeqAssignmentTest` | `test_seq_lives_in_payload_and_top_level_only` | 坐标在落盘行里只占顶层 `seq` 一处；业务字段不被污染。 |
-| 8 | `SeqEmptyAndErrorTest` | `test_allocate_seq_survives_restart_without_collision` | 重启后重新构造 store 也不能从 0 重发号（否则与磁盘上的坐标撞号）。 |
-| 9 | `SeqEmptyAndErrorTest` | `test_append_after_external_edit_does_not_collide` | 外部插入行后追加，新事件不与既有坐标撞号（全局分配器在存储层，不受文件行数影响）。 |
-| 10 | `SeqEmptyAndErrorTest` | `test_append_empty_batch_writes_nothing` | 覆盖「A class whose instances are single test cases」：append empty batch writes nothing |
-| 11 | `SeqEmptyAndErrorTest` | `test_coordinates_are_global_across_conversations` | 坐标跨会话单调：这是续传游标能只用一条流一个光标的前提。 |
-| 12 | `SeqEmptyAndErrorTest` | `test_encrypted_mode_round_trips_seq` | 加密模式下 seq 也必须能读回（它写在明文里，再整体加密）。 |
-| 13 | `SeqEmptyAndErrorTest` | `test_non_object_json_lines_do_not_produce_events` | 合法但非对象的行（`"foo"` / `123`）不产生事件，也不影响已有事件的坐标。 |
-| 14 | `SeqEmptyAndErrorTest` | `test_tail_across_uses_one_cursor_for_all_conversations` | `tail_across`：一个游标跨会话续传，按坐标升序。 |
-| 15 | `SeqEmptyAndErrorTest` | `test_unparseable_line_is_skipped` | 坏行跳过不渲染；已有事件仍保留各自的落盘坐标（坐标来自字段，不靠数位置）。 |
-| 16 | `SeqMissingTest` | `test_appended_rows_use_global_seq` | 继续追加时新行用全局坐标，必然大于同文件里的补号。 |
-| 17 | `SeqMissingTest` | `test_coordinates_stay_unique_and_monotonic` | 覆盖「缺坐标的行按行位置补号 —— 手写或外部工具产生的日志也要能读」：coordinates stay unique and monotonic |
-| 18 | `SeqMissingTest` | `test_missing_seq_falls_back_to_line_position` | 没有坐标的行按行位置补号——足以让"刷新后全量回放"工作。 |
-| 19 | `SeqTailTest` | `test_bad_conversation_id_raises_like_load` | 非法 cid 仍要拒绝（防路径穿越）——坐标功能不能成为绕过口。 |
-| 20 | `SeqTailTest` | `test_missing_conversation_is_empty_not_error` | 覆盖「`tail_from` 是续传的读取原语」：missing conversation is empty not error |
-| 21 | `SeqTailTest` | `test_tail_from_beyond_end_is_empty` | 覆盖「`tail_from` 是续传的读取原语」：tail from beyond end is empty |
-| 22 | `SeqTailTest` | `test_tail_from_is_exclusive` | `seq > after` —— 严格大于，游标自身那帧不会重复补。 |
-| 23 | `SeqTailTest` | `test_tail_from_negative_returns_everything` | 覆盖「`tail_from` 是续传的读取原语」：tail from negative returns everything |
+| 1 | `IndexedHotPathTest` | `test_cold_compacted_turn_reads_suffix_from_the_exact_input_boundary` | 覆盖「A class whose instances are single test cases」：cold compacted turn reads suffix from the exact input boundary |
+| 2 | `IndexedHotPathTest` | `test_legacy_compacted_turn_persists_its_derived_boundary_after_first_read` | 覆盖「A class whose instances are single test cases」：legacy compacted turn persists its derived boundary after first read |
+| 3 | `IndexedHotPathTest` | `test_long_log_is_not_scanned_for_append_confirmation_or_replay` | 覆盖「A class whose instances are single test cases」：long log is not scanned for append confirmation or replay |
+| 4 | `IndexedHotPathTest` | `test_model_snapshot_only_reads_new_bytes_after_external_append` | 覆盖「A class whose instances are single test cases」：model snapshot only reads new bytes after external append |
+| 5 | `IndexedHotPathTest` | `test_sequence_reservations_are_unique_across_store_instances` | 覆盖「A class whose instances are single test cases」：sequence reservations are unique across store instances |
+| 6 | `SeqAssignmentTest` | `test_blank_lines_do_not_shift_positions` | 空行不占号：否则"下一个序号"会随空白漂移。 |
+| 7 | `SeqAssignmentTest` | `test_conversation_id_is_not_persisted` | 会话 ID 由文件名承载，落盘行里不存；读回时按会话补进载荷。 |
+| 8 | `SeqAssignmentTest` | `test_line_count_matches_next_seq` | `line_count` 就是"下一个可用序号"——`App._seq_next` 靠它播种。 |
+| 9 | `SeqAssignmentTest` | `test_load_still_returns_plain_events` | `load()` 的返回形状不变（既有调用方与测试都按纯事件列表用）。 |
+| 10 | `SeqAssignmentTest` | `test_seq_continues_across_appends` | 跨批连续：第二批接着第一批的号，不从头开始（约 500 行一批的 flush 依赖此）。 |
+| 11 | `SeqAssignmentTest` | `test_seq_is_written_to_each_line` | 覆盖「写入即定位：序号按会话日志位置连续编」：seq is written to each line |
+| 12 | `SeqAssignmentTest` | `test_seq_lives_in_payload_and_top_level_only` | 坐标在落盘行里只占顶层 `seq` 一处；业务字段不被污染。 |
+| 13 | `SeqEmptyAndErrorTest` | `test_allocate_seq_survives_restart_without_collision` | 重启后重新构造 store 也不能从 0 重发号（否则与磁盘上的坐标撞号）。 |
+| 14 | `SeqEmptyAndErrorTest` | `test_append_after_external_edit_does_not_collide` | 外部插入行后追加，新事件不与既有坐标撞号（全局分配器在存储层，不受文件行数影响）。 |
+| 15 | `SeqEmptyAndErrorTest` | `test_append_empty_batch_writes_nothing` | 覆盖「A class whose instances are single test cases」：append empty batch writes nothing |
+| 16 | `SeqEmptyAndErrorTest` | `test_coordinates_are_global_across_conversations` | 坐标跨会话单调：这是续传游标能只用一条流一个光标的前提。 |
+| 17 | `SeqEmptyAndErrorTest` | `test_encrypted_mode_round_trips_seq` | 加密模式下 seq 也必须能读回（它写在明文里，再整体加密）。 |
+| 18 | `SeqEmptyAndErrorTest` | `test_non_object_json_lines_do_not_produce_events` | 合法但非对象的行（`"foo"` / `123`）不产生事件，也不影响已有事件的坐标。 |
+| 19 | `SeqEmptyAndErrorTest` | `test_tail_across_uses_one_cursor_for_all_conversations` | `tail_across`：一个游标跨会话续传，按坐标升序。 |
+| 20 | `SeqEmptyAndErrorTest` | `test_unparseable_line_is_skipped` | 坏行跳过不渲染；已有事件仍保留各自的落盘坐标（坐标来自字段，不靠数位置）。 |
+| 21 | `SeqMissingTest` | `test_appended_rows_use_global_seq` | 继续追加时新行用全局坐标，必然大于同文件里的补号。 |
+| 22 | `SeqMissingTest` | `test_coordinates_stay_unique_and_monotonic` | 覆盖「缺坐标的行按行位置补号 —— 手写或外部工具产生的日志也要能读」：coordinates stay unique and monotonic |
+| 23 | `SeqMissingTest` | `test_missing_seq_falls_back_to_line_position` | 没有坐标的行按行位置补号——足以让"刷新后全量回放"工作。 |
+| 24 | `SeqTailTest` | `test_bad_conversation_id_raises_like_load` | 非法 cid 仍要拒绝（防路径穿越）——坐标功能不能成为绕过口。 |
+| 25 | `SeqTailTest` | `test_missing_conversation_is_empty_not_error` | 覆盖「`tail_from` 是续传的读取原语」：missing conversation is empty not error |
+| 26 | `SeqTailTest` | `test_tail_from_beyond_end_is_empty` | 覆盖「`tail_from` 是续传的读取原语」：tail from beyond end is empty |
+| 27 | `SeqTailTest` | `test_tail_from_is_exclusive` | `seq > after` —— 严格大于，游标自身那帧不会重复补。 |
+| 28 | `SeqTailTest` | `test_tail_from_negative_returns_everything` | 覆盖「`tail_from` 是续传的读取原语」：tail from negative returns everything |
 
 ## test_session_store.py
 
@@ -2803,9 +2817,9 @@
 | 33 | `ProvidesTest` | `test_keyed_parent_accepts_contribution` | 父节点 children=keyed：贡献被接受，owner 取父插口（宿主）。 |
 | 34 | `ProvidesTest` | `test_none_parent_rejects_contribution` | 父节点存在但 children=none：报不接受贡献，并指明父路径。 |
 | 35 | `ProvidesTest` | `test_undeclared_parent_is_reported` | 覆盖「provides 的父插口判定：只看父节点自己的 children」：undeclared parent is reported |
-| 36 | `RealRepoTest` | `test_ai_cosplay_event_names_come_from_constants` | 两个 event 节点的事件名必须是 event_name 里的常量值。 |
+| 36 | `RealRepoTest` | `test_ai_cosplay_event_names_come_from_constants` | event 节点的事件名必须是 event_name 里的常量值。 |
 | 37 | `RealRepoTest` | `test_ai_cosplay_factories_all_exist` | 片段引用的每个 ai_cosplay 工厂，都必须真的存在于 plugin.py 里。 |
-| 38 | `RealRepoTest` | `test_ai_cosplay_fragment_shape` | 片段形状：runtime 1 / tool 1 / route 3 / event 2 / provider 1。 |
+| 38 | `RealRepoTest` | `test_ai_cosplay_fragment_shape` | 片段形状：runtime 1 / tool 1 / route 3 / event 1 / provider 1。 |
 | 39 | `RealRepoTest` | `test_ai_cosplay_has_no_legacy_registration_calls` | 旧注册 API 彻底消失：plugin.py 里不得再有任何 `ctx.add_*` 之类的调用。 |
 | 40 | `RealRepoTest` | `test_ai_cosplay_panel_is_ui_control` | 左栏面板是控件（带动作与脚本），不是可再被填的插口。 |
 | 41 | `RealRepoTest` | `test_ai_cosplay_routes_keep_their_methods` | 三个路由的 HTTP 方法保持现状：config/status 为 GET，played 为 POST。 |
@@ -2821,7 +2835,7 @@
 | 51 | `RealRepoTest` | `test_theme_style_setting_decl_matches_plugin` | theme_style 的 SettingDecl 七个字段必须与 plugin.py 里的声明逐条对齐。 |
 | 52 | `RealRepoTest` | `test_ui_kinds_are_the_only_ui_spelling` | 粗粒度的 ui 已拆成四个 kind；出现 ui 即回潮。 |
 | 53 | `RealRepoTest` | `test_ui_nodes_carry_their_props` | ui-* 节点的标签/动作/绑定/脚本全靠 props，声明类节点不允许空载荷。 |
-| 54 | `RealRepoTest` | `test_visual_operator_2_fragment_shape` | 28 个声明节点：runtime 1 / tool 20 / route 4 / provider 2 + 1 条 provides。 |
+| 54 | `RealRepoTest` | `test_visual_operator_2_fragment_shape` | 29 个声明节点：runtime 1 / tool 20 / route 4 / provider 2 / event 1 + 1 条 provides。 |
 | 55 | `RealRepoTest` | `test_visual_operator_2_owner_and_factories` | 节点全归本插件，factory 互异且逐个可解析，requires 全指向同一 runtime。 |
 | 56 | `RealRepoTest` | `test_visual_operator_2_prompt_slots_semantics` | 钩子落 user-messages、提示词段落 system-appends，且 after_tools 保留。 |
 | 57 | `RealRepoTest` | `test_visual_operator_2_route_methods` | 四条授权路由的 HTTP 方法保持现状。 |
@@ -3090,6 +3104,28 @@
 | 3 | `ToolArgumentContractTest` | `test_empty_schema_rejects_every_argument` | 覆盖「A class whose instances are single test cases」：empty schema rejects every argument |
 | 4 | `ToolArgumentContractTest` | `test_session_create_has_one_name_parameter` | 覆盖「A class whose instances are single test cases」：session create has one name parameter |
 | 5 | `ToolArgumentContractTest` | `test_unknown_aliases_are_rejected_before_execution` | 覆盖「A class whose instances are single test cases」：unknown aliases are rejected before execution |
+
+## test_tool_pairing.py
+
+共 15 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `EnsureToolPairsTest` | `test_duplicate_declaration_is_left_alone` | 同一 ID 的两次调用分别配对，已有的相邻结果留给当前调用。 |
+| 2 | `EnsureToolPairsTest` | `test_empty_call_id_is_left_alone` | 空 id 不在这里派生：适配器解析入口已经排除这种形状。 |
+| 3 | `EnsureToolPairsTest` | `test_empty_input` | 空序列返回空。 |
+| 4 | `EnsureToolPairsTest` | `test_extra_result_is_orphan_and_late_result_moves_to_its_call` | 迟到的真实结果移到调用旁，多出来的无主结果从请求投影移除。 |
+| 5 | `EnsureToolPairsTest` | `test_idempotent` | 对输出再修补一次不再变动。 |
+| 6 | `EnsureToolPairsTest` | `test_input_is_not_mutated` | 修补不修改入参。 |
+| 7 | `EnsureToolPairsTest` | `test_missing_result_gets_placeholder` | 声明了两个 id 只回来一个：缺的那个紧跟声明补占位。 |
+| 8 | `EnsureToolPairsTest` | `test_multiple_missing_results_all_filled` | 三个 id 只回来一个：另外两个都补占位，不丢任何一条。 |
+| 9 | `EnsureToolPairsTest` | `test_no_existing_message_is_dropped` | 除孤儿外，已有消息一条都不丢，且顺序不变。 |
+| 10 | `EnsureToolPairsTest` | `test_orphan_result_is_dropped` | 没有任何 assistant 声明过的 tool 消息：删掉，不补合成声明。 |
+| 11 | `EnsureToolPairsTest` | `test_placeholder_does_not_explain_turn` | 补位只说调用没结果，不解释回合怎么结束。 |
+| 12 | `EnsureToolPairsTest` | `test_placeholder_is_brief_and_impersonal` | 补位文案给模型看：第三人称指用户，不得用「你」；且保持短句。 |
+| 13 | `EnsureToolPairsTest` | `test_placeholder_text_ends_without_full_stop` | 三档文案一律不加句号。 |
+| 14 | `EnsureToolPairsTest` | `test_placeholder_text_follows_reason` | 补位文案按成因分档：挂起、中断、未知三套，不合用一句。 |
+| 15 | `EnsureToolPairsTest` | `test_well_formed_sequence_is_untouched` | 已经成对的序列原样返回。 |
 
 ## test_tool_pipeline_slot.py
 
@@ -3435,7 +3471,7 @@
 
 ## test_visual_operator_2.py
 
-共 46 个用例。
+共 47 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -3452,39 +3488,40 @@
 | 11 | `VisionRuntimeTest` | `test_check_error_comes_after_eye_state` | 覆盖「A class whose instances are single test cases」：check error comes after eye state |
 | 12 | `VisionRuntimeTest` | `test_click_sequence_uses_same_point_conversion` | 覆盖「A class whose instances are single test cases」：click sequence uses same point conversion |
 | 13 | `VisionRuntimeTest` | `test_click_tools_and_sequence_contract` | 覆盖「A class whose instances are single test cases」：click tools and sequence contract |
-| 14 | `VisionRuntimeTest` | `test_confirm_route_resumes_pending_call` | 覆盖「A class whose instances are single test cases」：confirm route resumes pending call |
-| 15 | `VisionRuntimeTest` | `test_consent_owner_and_observation` | 覆盖「A class whose instances are single test cases」：consent owner and observation |
-| 16 | `VisionRuntimeTest` | `test_context_hook_appends_full_frame` | 覆盖「A class whose instances are single test cases」：context hook appends full frame |
-| 17 | `VisionRuntimeTest` | `test_context_hook_publishes_exact_model_frame` | 覆盖「A class whose instances are single test cases」：context hook publishes exact model frame |
-| 18 | `VisionRuntimeTest` | `test_coordinate_tools_require_check_points` | 覆盖「A class whose instances are single test cases」：coordinate tools require check points |
-| 19 | `VisionRuntimeTest` | `test_desktop_tool_requires_authorization_and_blocks_core_overlap` | 覆盖「A class whose instances are single test cases」：desktop tool requires authorization and blocks core overlap |
-| 20 | `VisionRuntimeTest` | `test_desktop_tools_are_registered_and_authorized` | 覆盖「A class whose instances are single test cases」：desktop tools are registered and authorized |
-| 21 | `VisionRuntimeTest` | `test_five_calibration_failures_close_eyes` | 覆盖「A class whose instances are single test cases」：five calibration failures close eyes |
-| 22 | `VisionRuntimeTest` | `test_focus_accepts_10px_region` | 覆盖「A class whose instances are single test cases」：focus accepts 10px region |
-| 23 | `VisionRuntimeTest` | `test_focus_region_and_move_focus` | 覆盖「A class whose instances are single test cases」：focus region and move focus |
-| 24 | `VisionRuntimeTest` | `test_focus_region_maps_compressed_image_center` | 覆盖「A class whose instances are single test cases」：focus region maps compressed image center |
-| 25 | `VisionRuntimeTest` | `test_human_mouse_takeover_after_100px` | 覆盖「A class whose instances are single test cases」：human mouse takeover after 100px |
-| 26 | `VisionRuntimeTest` | `test_input_monitor_fires_once_in_worker` | 覆盖「A class whose instances are single test cases」：input monitor fires once in worker |
-| 27 | `VisionRuntimeTest` | `test_key_fallback_reports_alt_tab_success_and_win_failure` | 覆盖「A class whose instances are single test cases」：key fallback reports alt tab success and win failure |
-| 28 | `VisionRuntimeTest` | `test_key_shortcut_uses_sendinput_batch` | 覆盖「A class whose instances are single test cases」：key shortcut uses sendinput batch |
-| 29 | `VisionRuntimeTest` | `test_model_point_matches_user_example` | 覆盖「A class whose instances are single test cases」：model point matches user example |
-| 30 | `VisionRuntimeTest` | `test_model_point_uses_both_image_sizes` | 覆盖「A class whose instances are single test cases」：model point uses both image sizes |
-| 31 | `VisionRuntimeTest` | `test_model_stretched_image_uses_independent_axes` | 覆盖「A class whose instances are single test cases」：model stretched image uses independent axes |
-| 32 | `VisionRuntimeTest` | `test_move_focus_tool_executes_without_check_points` | 覆盖「A class whose instances are single test cases」：move focus tool executes without check points |
-| 33 | `VisionRuntimeTest` | `test_native_full_image_is_screen_identity` | 覆盖「A class whose instances are single test cases」：native full image is screen identity |
-| 34 | `VisionRuntimeTest` | `test_new_consent_call_supersedes_pending_request` | 覆盖「A class whose instances are single test cases」：new consent call supersedes pending request |
-| 35 | `VisionRuntimeTest` | `test_observation_includes_multiple_frames` | 覆盖「A class whose instances are single test cases」：observation includes multiple frames |
-| 36 | `VisionRuntimeTest` | `test_on_demand_capture_replaces_background_sampling` | 覆盖「A class whose instances are single test cases」：on demand capture replaces background sampling |
-| 37 | `VisionRuntimeTest` | `test_random_calibration_points` | 覆盖「A class whose instances are single test cases」：random calibration points |
-| 38 | `VisionRuntimeTest` | `test_reject_does_not_open` | 覆盖「A class whose instances are single test cases」：reject does not open |
-| 39 | `VisionRuntimeTest` | `test_single_click_count_and_interval` | 覆盖「A class whose instances are single test cases」：single click count and interval |
-| 40 | `VisionRuntimeTest` | `test_step_log_path_uses_error_log_root` | 覆盖「A class whose instances are single test cases」：step log path uses error log root |
-| 41 | `VisionRuntimeTest` | `test_step_log_writes_jsonl_and_reports_failure` | 覆盖「A class whose instances are single test cases」：step log writes jsonl and reports failure |
-| 42 | `VisionRuntimeTest` | `test_tools_require_consent_and_close_cleanly` | 覆盖「A class whose instances are single test cases」：tools require consent and close cleanly |
-| 43 | `VisionRuntimeTest` | `test_trajectory_duration_and_same_point_skip` | 覆盖「A class whose instances are single test cases」：trajectory duration and same point skip |
-| 44 | `VisionRuntimeTest` | `test_user_takeover_closes_eyes_and_blocks_actions` | 覆盖「A class whose instances are single test cases」：user takeover closes eyes and blocks actions |
-| 45 | `VisionRuntimeTest` | `test_visual_skill_is_registered` | 覆盖「A class whose instances are single test cases」：visual skill is registered |
-| 46 | `VisionRuntimeTest` | `test_zero_move_is_not_reported_as_moved` | 覆盖「A class whose instances are single test cases」：zero move is not reported as moved |
+| 14 | `VisionRuntimeTest` | `test_confirm_after_runtime_restart_uses_durable_request_identity` | 覆盖「A class whose instances are single test cases」：confirm after runtime restart uses durable request identity |
+| 15 | `VisionRuntimeTest` | `test_confirm_route_resumes_pending_call` | 覆盖「A class whose instances are single test cases」：confirm route resumes pending call |
+| 16 | `VisionRuntimeTest` | `test_consent_owner_and_observation` | 覆盖「A class whose instances are single test cases」：consent owner and observation |
+| 17 | `VisionRuntimeTest` | `test_context_hook_appends_full_frame` | 覆盖「A class whose instances are single test cases」：context hook appends full frame |
+| 18 | `VisionRuntimeTest` | `test_context_hook_publishes_exact_model_frame` | 覆盖「A class whose instances are single test cases」：context hook publishes exact model frame |
+| 19 | `VisionRuntimeTest` | `test_coordinate_tools_require_check_points` | 覆盖「A class whose instances are single test cases」：coordinate tools require check points |
+| 20 | `VisionRuntimeTest` | `test_desktop_tool_requires_authorization_and_blocks_core_overlap` | 覆盖「A class whose instances are single test cases」：desktop tool requires authorization and blocks core overlap |
+| 21 | `VisionRuntimeTest` | `test_desktop_tools_are_registered_and_authorized` | 覆盖「A class whose instances are single test cases」：desktop tools are registered and authorized |
+| 22 | `VisionRuntimeTest` | `test_five_calibration_failures_close_eyes` | 覆盖「A class whose instances are single test cases」：five calibration failures close eyes |
+| 23 | `VisionRuntimeTest` | `test_focus_accepts_10px_region` | 覆盖「A class whose instances are single test cases」：focus accepts 10px region |
+| 24 | `VisionRuntimeTest` | `test_focus_region_and_move_focus` | 覆盖「A class whose instances are single test cases」：focus region and move focus |
+| 25 | `VisionRuntimeTest` | `test_focus_region_maps_compressed_image_center` | 覆盖「A class whose instances are single test cases」：focus region maps compressed image center |
+| 26 | `VisionRuntimeTest` | `test_human_mouse_takeover_after_100px` | 覆盖「A class whose instances are single test cases」：human mouse takeover after 100px |
+| 27 | `VisionRuntimeTest` | `test_input_monitor_fires_once_in_worker` | 覆盖「A class whose instances are single test cases」：input monitor fires once in worker |
+| 28 | `VisionRuntimeTest` | `test_key_fallback_reports_alt_tab_success_and_win_failure` | 覆盖「A class whose instances are single test cases」：key fallback reports alt tab success and win failure |
+| 29 | `VisionRuntimeTest` | `test_key_shortcut_uses_sendinput_batch` | 覆盖「A class whose instances are single test cases」：key shortcut uses sendinput batch |
+| 30 | `VisionRuntimeTest` | `test_model_point_matches_user_example` | 覆盖「A class whose instances are single test cases」：model point matches user example |
+| 31 | `VisionRuntimeTest` | `test_model_point_uses_both_image_sizes` | 覆盖「A class whose instances are single test cases」：model point uses both image sizes |
+| 32 | `VisionRuntimeTest` | `test_model_stretched_image_uses_independent_axes` | 覆盖「A class whose instances are single test cases」：model stretched image uses independent axes |
+| 33 | `VisionRuntimeTest` | `test_move_focus_tool_executes_without_check_points` | 覆盖「A class whose instances are single test cases」：move focus tool executes without check points |
+| 34 | `VisionRuntimeTest` | `test_native_full_image_is_screen_identity` | 覆盖「A class whose instances are single test cases」：native full image is screen identity |
+| 35 | `VisionRuntimeTest` | `test_new_consent_call_supersedes_pending_request` | 覆盖「A class whose instances are single test cases」：new consent call supersedes pending request |
+| 36 | `VisionRuntimeTest` | `test_observation_includes_multiple_frames` | 覆盖「A class whose instances are single test cases」：observation includes multiple frames |
+| 37 | `VisionRuntimeTest` | `test_on_demand_capture_replaces_background_sampling` | 覆盖「A class whose instances are single test cases」：on demand capture replaces background sampling |
+| 38 | `VisionRuntimeTest` | `test_random_calibration_points` | 覆盖「A class whose instances are single test cases」：random calibration points |
+| 39 | `VisionRuntimeTest` | `test_reject_does_not_open` | 覆盖「A class whose instances are single test cases」：reject does not open |
+| 40 | `VisionRuntimeTest` | `test_single_click_count_and_interval` | 覆盖「A class whose instances are single test cases」：single click count and interval |
+| 41 | `VisionRuntimeTest` | `test_step_log_path_uses_error_log_root` | 覆盖「A class whose instances are single test cases」：step log path uses error log root |
+| 42 | `VisionRuntimeTest` | `test_step_log_writes_jsonl_and_reports_failure` | 覆盖「A class whose instances are single test cases」：step log writes jsonl and reports failure |
+| 43 | `VisionRuntimeTest` | `test_tools_require_consent_and_close_cleanly` | 覆盖「A class whose instances are single test cases」：tools require consent and close cleanly |
+| 44 | `VisionRuntimeTest` | `test_trajectory_duration_and_same_point_skip` | 覆盖「A class whose instances are single test cases」：trajectory duration and same point skip |
+| 45 | `VisionRuntimeTest` | `test_user_takeover_closes_eyes_and_blocks_actions` | 覆盖「A class whose instances are single test cases」：user takeover closes eyes and blocks actions |
+| 46 | `VisionRuntimeTest` | `test_visual_skill_is_registered` | 覆盖「A class whose instances are single test cases」：visual skill is registered |
+| 47 | `VisionRuntimeTest` | `test_zero_move_is_not_reported_as_moved` | 覆盖「A class whose instances are single test cases」：zero move is not reported as moved |
 
 ## test_visualization.py
 
@@ -3629,63 +3666,68 @@
 
 ## test_web_shell.py
 
-共 53 个用例。
+共 58 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `ConcurrencyTest` | `test_concurrent_send_queues` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：concurrent send queues |
-| 2 | `ConcurrencyTest` | `test_stop_cancels_a_running_turn` | 停止是真取消：经 SessionRunner 的停止检查，让内核在检查点停下。 |
-| 3 | `ConcurrencyTest` | `test_stop_endpoint_shape` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop endpoint shape |
-| 4 | `DateGroupTest` | `test_groups_by_natural_day` | 覆盖「会话日期分组」：groups by natural day |
-| 5 | `DateGroupTest` | `test_older_is_grouped_by_date` | 覆盖「会话日期分组」：older is grouped by date |
-| 6 | `DirBrowseDriveRootTest` | `test_drive_root_parent_is_drives_layer` | 覆盖「可见根是盘根时（默认情形），相对路径不能被钉死在盘根」：drive root parent is drives layer |
-| 7 | `DirBrowseDriveRootTest` | `test_relative_path_prefers_concrete_workspace_root` | 覆盖「可见根是盘根时（默认情形），相对路径不能被钉死在盘根」：relative path prefers concrete workspace root |
-| 8 | `DirBrowseQueryTest` | `test_dir_browse_single_char_path_not_truncated` | `_query()` 必须返回整串：路由若用 `[0]` 取首字符，值会被截断。 |
-| 9 | `DirBrowseQueryTest` | `test_ui_state_roundtrip` | 覆盖「路径查询串按整串解析，不按首字符」：ui state roundtrip |
-| 10 | `EndpointTest` | `test_health_endpoint` | 覆盖「端点清单可达性与显著错误码」：health endpoint |
-| 11 | `EndpointTest` | `test_media_endpoint_guards_root` | 覆盖「端点清单可达性与显著错误码」：media endpoint guards root |
-| 12 | `EndpointTest` | `test_media_missing_file_404` | 覆盖「端点清单可达性与显著错误码」：media missing file 404 |
-| 13 | `EndpointTest` | `test_pages_and_assets_served` | 覆盖「端点清单可达性与显著错误码」：pages and assets served |
-| 14 | `EndpointTest` | `test_send_rejects_bad_input` | 覆盖「端点清单可达性与显著错误码」：send rejects bad input |
-| 15 | `EndpointTest` | `test_setup_route_is_removed` | 覆盖「端点清单可达性与显著错误码」：setup route is removed |
-| 16 | `EndpointTest` | `test_unknown_path_404` | 覆盖「端点清单可达性与显著错误码」：unknown path 404 |
-| 17 | `FileViewerContractTest` | `test_absolute_path_inside_root_is_accepted` | 工具参数常给绝对路径；落在 fs_root 内必须能直接打开。 |
-| 18 | `FileViewerContractTest` | `test_absolute_path_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：absolute path outside root is forbidden |
-| 19 | `FileViewerContractTest` | `test_binary_is_reported_not_dumped` | 覆盖「文件读取端点的路径解析与越界边界」：binary is reported not dumped |
-| 20 | `FileViewerContractTest` | `test_list_absolute_path_inside_root` | 覆盖「文件读取端点的路径解析与越界边界」：list absolute path inside root |
-| 21 | `FileViewerContractTest` | `test_list_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：list outside root is forbidden |
-| 22 | `FileViewerContractTest` | `test_list_returns_entries_with_rel_and_type` | 覆盖「文件读取端点的路径解析与越界边界」：list returns entries with rel and type |
-| 23 | `FileViewerContractTest` | `test_max_chars_zero_returns_full_file` | 文件查看器显式传 0：不截断；默认调用仍保留 400000 字符保护。 |
-| 24 | `FileViewerContractTest` | `test_missing_file_inside_root_is_404_not_403` | 不存在的文件与越界必须分开报告：预览期未落盘的文件是 404，不是越权。 |
-| 25 | `FileViewerContractTest` | `test_relative_path_reads_text` | 覆盖「文件读取端点的路径解析与越界边界」：relative path reads text |
-| 26 | `FileViewerContractTest` | `test_traversal_cannot_escape_roots` | 穿越语义：不允许逃出可见根（不是"禁止 `..`"）。 |
-| 27 | `MultiRootFileViewerTest` | `test_absolute_path_in_first_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：absolute path in first root |
-| 28 | `MultiRootFileViewerTest` | `test_absolute_path_in_second_root` | 第二个根同样可达——单根实现会把它判成越界。 |
-| 29 | `MultiRootFileViewerTest` | `test_list_reports_rel_against_matched_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：list reports rel against matched root |
-| 30 | `MultiRootFileViewerTest` | `test_missing_in_a_root_is_404_not_403` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：missing in a root is 404 not 403 |
-| 31 | `MultiRootFileViewerTest` | `test_outside_all_roots_is_forbidden` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：outside all roots is forbidden |
-| 32 | `MultiRootFileViewerTest` | `test_relative_path_resolves_against_each_root` | 相对路径逐个根试：命中哪个根就用哪个。 |
-| 33 | `MultiRootFileViewerTest` | `test_roots_are_resolved_and_deduplicated_by_normalize` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：roots are resolved and deduplicated by normalize |
-| 34 | `SseContractTest` | `test_dir_browse_drives_layer` | `path=_drives_` 返回「计算机」层。 |
-| 35 | `SseContractTest` | `test_dir_browse_item_shape_and_ordering` | 条目形状 {name,type,ext,path}；目录排前。 |
-| 36 | `SseContractTest` | `test_dir_browse_missing_path_falls_back` | 访问不到的路径回落（不报错）——补全不能因为一个坏路径卡死。 |
-| 37 | `SseContractTest` | `test_dir_browse_relative_path_uses_workspace_base` | 相对路径应基于可见根解析，且不得落到盘根。 |
-| 38 | `SseContractTest` | `test_dir_browse_root_parent_is_drives` | 盘符根的 parent 是 `_drives_`，可从盘根回到计算机层。 |
-| 39 | `SseContractTest` | `test_every_frame_carries_conversation_id` | 覆盖「/ ：单流多路复用与事件信封」：every frame carries conversation id |
-| 40 | `SseContractTest` | `test_health_reports_model_for_header` | `/health` 须给出 model / allowed_models / 全局默认档位（顶栏与模型菜单）。 |
-| 41 | `SseContractTest` | `test_history_and_sessions_endpoints` | 覆盖「/ ：单流多路复用与事件信封」：history and sessions endpoints |
-| 42 | `SseContractTest` | `test_reasoning_effort_is_per_conversation` | 会话级档位不串会话：改一个不影响另一个（另一个回全局默认）。 |
-| 43 | `SseContractTest` | `test_reasoning_effort_rejects_invalid` | 非法档位拒设且保留原值；缺 cid 报错。 |
-| 44 | `SseContractTest` | `test_reasoning_effort_roundtrip` | 推理档位 GET/PUT 往返。 |
-| 45 | `SseContractTest` | `test_sessions_carry_date_group` | 会话名录须带 date_group（会话菜单按它插分组标题）。 |
-| 46 | `SseContractTest` | `test_sessions_prefer_the_persisted_title` | 覆盖「/ ：单流多路复用与事件信封」：sessions prefer the persisted title |
-| 47 | `SseContractTest` | `test_sessions_sorted_by_recent_activity` | 覆盖「/ ：单流多路复用与事件信封」：sessions sorted by recent activity |
-| 48 | `SseContractTest` | `test_sessions_without_title_file_return_unknown` | 没有已生成标题时返回明确的未知标题，不回读会话日志兜底。 |
-| 49 | `SseContractTest` | `test_title_falls_back_to_user_message_when_generation_fails` | 覆盖「/ ：单流多路复用与事件信封」：title falls back to user message when generation fails |
-| 50 | `SseContractTest` | `test_turn_events_reach_the_stream` | 覆盖「/ ：单流多路复用与事件信封」：turn events reach the stream |
-| 51 | `SseContractTest` | `test_two_sessions_do_not_cross` | 覆盖「/ ：单流多路复用与事件信封」：two sessions do not cross |
-| 52 | `WriteGateOverWebTest` | `test_confirm_is_session_scoped` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：confirm is session scoped |
-| 53 | `WriteGateOverWebTest` | `test_unconfirmed_commit_rejected_then_review_unlocks` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：unconfirmed commit rejected then review unlocks |
+| 2 | `ConcurrencyTest` | `test_confirmation_saves_answer_when_dispatch_fails_and_retry_runs_once` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：confirmation saves answer when dispatch fails and retry runs once |
+| 3 | `ConcurrencyTest` | `test_insert_fact_write_failure_keeps_input_and_does_not_call_model` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：insert fact write failure keeps input and does not call model |
+| 4 | `ConcurrencyTest` | `test_insert_reports_confirmation_write_failure_and_retains_input` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：insert reports confirmation write failure and retains input |
+| 5 | `ConcurrencyTest` | `test_insert_sources_preempt_remaining_tool_calls_and_reach_next_request` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：insert sources preempt remaining tool calls and reach next request |
+| 6 | `ConcurrencyTest` | `test_stop_cancels_a_running_turn` | 停止是真取消：经 SessionRunner 的停止检查，让内核在检查点停下。 |
+| 7 | `ConcurrencyTest` | `test_stop_endpoint_shape` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop endpoint shape |
+| 8 | `ConcurrencyTest` | `test_stop_settles_idle_confirmation` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop settles idle confirmation |
+| 9 | `DateGroupTest` | `test_groups_by_natural_day` | 覆盖「会话日期分组」：groups by natural day |
+| 10 | `DateGroupTest` | `test_older_is_grouped_by_date` | 覆盖「会话日期分组」：older is grouped by date |
+| 11 | `DirBrowseDriveRootTest` | `test_drive_root_parent_is_drives_layer` | 覆盖「可见根是盘根时（默认情形），相对路径不能被钉死在盘根」：drive root parent is drives layer |
+| 12 | `DirBrowseDriveRootTest` | `test_relative_path_prefers_concrete_workspace_root` | 覆盖「可见根是盘根时（默认情形），相对路径不能被钉死在盘根」：relative path prefers concrete workspace root |
+| 13 | `DirBrowseQueryTest` | `test_dir_browse_single_char_path_not_truncated` | `_query()` 必须返回整串：路由若用 `[0]` 取首字符，值会被截断。 |
+| 14 | `DirBrowseQueryTest` | `test_ui_state_roundtrip` | 覆盖「路径查询串按整串解析，不按首字符」：ui state roundtrip |
+| 15 | `EndpointTest` | `test_health_endpoint` | 覆盖「端点清单可达性与显著错误码」：health endpoint |
+| 16 | `EndpointTest` | `test_media_endpoint_guards_root` | 覆盖「端点清单可达性与显著错误码」：media endpoint guards root |
+| 17 | `EndpointTest` | `test_media_missing_file_404` | 覆盖「端点清单可达性与显著错误码」：media missing file 404 |
+| 18 | `EndpointTest` | `test_pages_and_assets_served` | 覆盖「端点清单可达性与显著错误码」：pages and assets served |
+| 19 | `EndpointTest` | `test_send_rejects_bad_input` | 覆盖「端点清单可达性与显著错误码」：send rejects bad input |
+| 20 | `EndpointTest` | `test_setup_route_is_removed` | 覆盖「端点清单可达性与显著错误码」：setup route is removed |
+| 21 | `EndpointTest` | `test_unknown_path_404` | 覆盖「端点清单可达性与显著错误码」：unknown path 404 |
+| 22 | `FileViewerContractTest` | `test_absolute_path_inside_root_is_accepted` | 工具参数常给绝对路径；落在 fs_root 内必须能直接打开。 |
+| 23 | `FileViewerContractTest` | `test_absolute_path_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：absolute path outside root is forbidden |
+| 24 | `FileViewerContractTest` | `test_binary_is_reported_not_dumped` | 覆盖「文件读取端点的路径解析与越界边界」：binary is reported not dumped |
+| 25 | `FileViewerContractTest` | `test_list_absolute_path_inside_root` | 覆盖「文件读取端点的路径解析与越界边界」：list absolute path inside root |
+| 26 | `FileViewerContractTest` | `test_list_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：list outside root is forbidden |
+| 27 | `FileViewerContractTest` | `test_list_returns_entries_with_rel_and_type` | 覆盖「文件读取端点的路径解析与越界边界」：list returns entries with rel and type |
+| 28 | `FileViewerContractTest` | `test_max_chars_zero_returns_full_file` | 文件查看器显式传 0：不截断；默认调用仍保留 400000 字符保护。 |
+| 29 | `FileViewerContractTest` | `test_missing_file_inside_root_is_404_not_403` | 不存在的文件与越界必须分开报告：预览期未落盘的文件是 404，不是越权。 |
+| 30 | `FileViewerContractTest` | `test_relative_path_reads_text` | 覆盖「文件读取端点的路径解析与越界边界」：relative path reads text |
+| 31 | `FileViewerContractTest` | `test_traversal_cannot_escape_roots` | 穿越语义：不允许逃出可见根（不是"禁止 `..`"）。 |
+| 32 | `MultiRootFileViewerTest` | `test_absolute_path_in_first_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：absolute path in first root |
+| 33 | `MultiRootFileViewerTest` | `test_absolute_path_in_second_root` | 第二个根同样可达——单根实现会把它判成越界。 |
+| 34 | `MultiRootFileViewerTest` | `test_list_reports_rel_against_matched_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：list reports rel against matched root |
+| 35 | `MultiRootFileViewerTest` | `test_missing_in_a_root_is_404_not_403` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：missing in a root is 404 not 403 |
+| 36 | `MultiRootFileViewerTest` | `test_outside_all_roots_is_forbidden` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：outside all roots is forbidden |
+| 37 | `MultiRootFileViewerTest` | `test_relative_path_resolves_against_each_root` | 相对路径逐个根试：命中哪个根就用哪个。 |
+| 38 | `MultiRootFileViewerTest` | `test_roots_are_resolved_and_deduplicated_by_normalize` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：roots are resolved and deduplicated by normalize |
+| 39 | `SseContractTest` | `test_dir_browse_drives_layer` | `path=_drives_` 返回「计算机」层。 |
+| 40 | `SseContractTest` | `test_dir_browse_item_shape_and_ordering` | 条目形状 {name,type,ext,path}；目录排前。 |
+| 41 | `SseContractTest` | `test_dir_browse_missing_path_falls_back` | 访问不到的路径回落（不报错）——补全不能因为一个坏路径卡死。 |
+| 42 | `SseContractTest` | `test_dir_browse_relative_path_uses_workspace_base` | 相对路径应基于可见根解析，且不得落到盘根。 |
+| 43 | `SseContractTest` | `test_dir_browse_root_parent_is_drives` | 盘符根的 parent 是 `_drives_`，可从盘根回到计算机层。 |
+| 44 | `SseContractTest` | `test_every_frame_carries_conversation_id` | 覆盖「/ ：单流多路复用与事件信封」：every frame carries conversation id |
+| 45 | `SseContractTest` | `test_health_reports_model_for_header` | `/health` 须给出 model / allowed_models / 全局默认档位（顶栏与模型菜单）。 |
+| 46 | `SseContractTest` | `test_history_and_sessions_endpoints` | 覆盖「/ ：单流多路复用与事件信封」：history and sessions endpoints |
+| 47 | `SseContractTest` | `test_reasoning_effort_is_per_conversation` | 会话级档位不串会话：改一个不影响另一个（另一个回全局默认）。 |
+| 48 | `SseContractTest` | `test_reasoning_effort_rejects_invalid` | 非法档位拒设且保留原值；缺 cid 报错。 |
+| 49 | `SseContractTest` | `test_reasoning_effort_roundtrip` | 推理档位 GET/PUT 往返。 |
+| 50 | `SseContractTest` | `test_sessions_carry_date_group` | 会话名录须带 date_group（会话菜单按它插分组标题）。 |
+| 51 | `SseContractTest` | `test_sessions_prefer_the_persisted_title` | 覆盖「/ ：单流多路复用与事件信封」：sessions prefer the persisted title |
+| 52 | `SseContractTest` | `test_sessions_sorted_by_recent_activity` | 覆盖「/ ：单流多路复用与事件信封」：sessions sorted by recent activity |
+| 53 | `SseContractTest` | `test_sessions_without_title_file_return_unknown` | 没有已生成标题时返回明确的未知标题，不回读会话日志兜底。 |
+| 54 | `SseContractTest` | `test_title_falls_back_to_user_message_when_generation_fails` | 覆盖「/ ：单流多路复用与事件信封」：title falls back to user message when generation fails |
+| 55 | `SseContractTest` | `test_turn_events_reach_the_stream` | 覆盖「/ ：单流多路复用与事件信封」：turn events reach the stream |
+| 56 | `SseContractTest` | `test_two_sessions_do_not_cross` | 覆盖「/ ：单流多路复用与事件信封」：two sessions do not cross |
+| 57 | `WriteGateOverWebTest` | `test_confirm_is_session_scoped` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：confirm is session scoped |
+| 58 | `WriteGateOverWebTest` | `test_unconfirmed_commit_rejected_then_review_unlocks` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：unconfirmed commit rejected then review unlocks |
 
 ## test_web_ui_config.py
 

@@ -28,7 +28,7 @@ class SessionActions:
             "conversation_id": cid,
             "events": [
                 {"type": e.type, **dict(e.data or {})}
-                for e in store.load(cid)
+                for _, e in store.history_window(cid)[0]
             ],
         }
 
@@ -71,7 +71,7 @@ class SessionActions:
         return 200, {"sessions": [r["conversation_id"] for r in rows], "items": rows}
 
     def release_conversation(self, conversation_id: str) -> Tuple[int, Dict[str, Any]]:
-        """关闭/删除标签时释放进程内会话运行态（不动已落盘的 `.raw`）。"""
+        """关闭标签时释放进程内会话运行态，保留历史和终止标记。"""
         cid = str(conversation_id or "").strip()
         if not cid:
             return 400, {"ok": False, "error": "conversation_id 为空"}
@@ -85,10 +85,16 @@ class SessionActions:
         return 200, {"ok": True, "conversation_id": cid, "released": True}
 
     def _derive_title(self, cid: str) -> str:
-        """会话标题：只认已生成并落盘的标题文件；没有就返回未知标题。"""
+        """读取已落盘标题；已尝试生成但未保存时从首条用户消息恢复。"""
         stored = self.titles.load(cid) if self.titles is not None else ""
         if stored and not is_placeholder_title(stored):
             return stored
+        if self.titles is not None and self.titles.generation_attempted(cid):
+            fallback = fallback_title(self._conversation_messages(cid))
+            if fallback:
+                self.titles.save(cid, fallback, replace=False)
+                recovered = self.titles.load(cid)
+                return recovered if not is_placeholder_title(recovered) else fallback
         return UNKNOWN_TITLE
 
     def title(self, cid: str) -> Tuple[int, Dict[str, Any]]:
@@ -107,8 +113,16 @@ class SessionActions:
             return 200, {"ok": True, "conversation_id": cid, "title": existing, "cached": True}
 
         messages = self._conversation_messages(cid)
+        fallback = fallback_title(messages)
         generated = ""
-        if self.title_generator is not None:
+        if fallback and self.title_generator is not None:
+            if self.titles is None or not self.titles.claim_generation(cid):
+                if self.titles is not None:
+                    self.titles.save(cid, fallback, replace=False)
+                    existing = self.titles.load(cid)
+                cached = bool(existing and not is_placeholder_title(existing))
+                return 200, {"ok": True, "conversation_id": cid,
+                             "title": existing if cached else fallback, "cached": cached}
             try:
                 generated = self.title_generator(messages)
             except Exception as exc:  # 旁路增强：不因标题失败而报错
@@ -116,7 +130,7 @@ class SessionActions:
         if generated and not is_placeholder_title(generated):
             title = generated
         else:
-            title = fallback_title(messages)
+            title = fallback
         if title and not is_placeholder_title(title):
             if self.titles is not None:
                 self.titles.save(cid, title)
@@ -129,7 +143,7 @@ class SessionActions:
         store = self.app.store
         if store is None:
             return []
-        events = store.load(cid)
+        events = store.title_facts(cid)
         messages: List[Dict[str, Any]] = []
         for event in events:
             data = event.data or {}

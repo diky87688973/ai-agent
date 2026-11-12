@@ -21,7 +21,7 @@ from contextlib import nullcontext
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
 from agent.core.error_report import report_error
-from agent.core.event_name import LIVE_ONLY_EVENTS, TOOL_SUSPENDED, TURN_ENDED
+from agent.core.event_name import LIVE_ONLY_EVENTS, TOOL_SUSPENDED
 from agent.core.events import Event
 from agent.core.host import MAX_PASSES_DEFAULT, Host, TurnResult
 from agent.core.image_embed import KEEP_IMAGE_TURNS, MAX_EMBED_IMAGES
@@ -106,6 +106,7 @@ class Engine:
             sink=self._on_event,
             max_passes=max_passes,
             on_pass_end=self._flush_facts,
+            before_external_facts=lambda: self._flush_facts(strict=True),
             seq_allocator=seq_allocator,
         )
         # 本回合尚未落盘的事实。按趟增量清空（见 `_flush_facts`）：
@@ -139,7 +140,12 @@ class Engine:
         """宿主/模块的唯一出口：记下本回合事实，并旁路给观察面。"""
         if event.type not in LIVE_ONLY_EVENTS:
             self._turn_events.append(event)
-            self._remember_suspend(event)
+            if event.type == TOOL_SUSPENDED:
+                session = self.session_context
+                with session.confirmation_lock if session is not None else nullcontext():
+                    # The UI can answer as soon as it sees this event.
+                    self._flush_facts(strict=True)
+                    self._remember_suspend(event)
         if self.event_sink is None:
             return
         try:
@@ -168,6 +174,7 @@ class Engine:
                 pending = {
                     "call_id": str((event.data or {}).get("call_id") or ""),
                     "kind": kind,
+                    "name": str(event.data.get("name") or ""),
                     "title": str(envelope.get("title") or ""),
                     "options": [str(x) for x in (envelope.get("confirms") or [])],
                     "multi": bool(envelope.get("multi")),
@@ -178,9 +185,8 @@ class Engine:
                 for key in ("request_id", "conversation_id"):
                     if envelope.get(key):
                         pending[key] = str(envelope.get(key))
-                self.session_context.pending_confirm = pending
-            elif event.type == TURN_ENDED and not bool((event.data or {}).get("paused")):
-                self.session_context.pending_confirm = None   # 已消费，清掉
+                with self.session_context.confirmation_lock:
+                    self.session_context.pending_confirm = pending
         except Exception as exc:
             # 不能静默：这里失败的症状是"UI 不弹确认"，从现象完全看不出是
             # 挂起状态没记上。吞掉异常保住回合，但必须把原因留痕。
@@ -190,7 +196,7 @@ class Engine:
                 conversation_id=self.conversation_id,
             )
 
-    def _flush_facts(self) -> None:
+    def _flush_facts(self, *, strict: bool = False) -> None:
         """把尚未落盘的本回合事实写出去，然后清空待写列表。
 
         按趟调用（宿主的 `on_pass_end`），好处是批量与崩溃安全兼得：
@@ -229,6 +235,8 @@ class Engine:
                 conversation_id=self.conversation_id,
                 batch_size=len(batch),
             )
+            if strict:
+                raise
 
     def start_turn(self, user_text: str, attachments: Any = None,
                    sender: Any = None, from_queue: bool = False,

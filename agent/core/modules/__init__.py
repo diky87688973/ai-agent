@@ -77,11 +77,11 @@ def build_default_chain(
     return [
         input_module if input_module is not None else InputModule(),
         QueuedInputModule(queue=queued_input),
-        CompressModule(context=context, compactor=compactor, mode_note=mode_note,
-                       image_turns=image_turns, image_max=image_max),
+        CompressModule(context=context, compactor=compactor, mode_note=mode_note, model=model,
+                       image_turns=image_turns, image_max=image_max, queued_input=queued_input),
         ModelModule(context=context, compactor=compactor, effort=effort, model=model,
                     image_turns=image_turns, image_max=image_max,
-                    mode_note=mode_note, context_hooks=context_hooks),
-        ToolModule(),
+                    mode_note=mode_note, context_hooks=context_hooks, queued_input=queued_input),
+        ToolModule(queued_input=queued_input),
     ]
 

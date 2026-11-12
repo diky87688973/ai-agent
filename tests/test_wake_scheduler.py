@@ -160,7 +160,7 @@ class RealMeshDispatcherTest(unittest.TestCase):
 
     def _scheduler(self) -> WakeScheduler:
         return WakeScheduler(
-            self.root / "wake", submit=self.mesh.submit, now_fn=self.clock)
+            self.root / "wake", submit=self.mesh.submit_insert, now_fn=self.clock)
 
     def test_idle_dispatch_goes_through_mesh_activator(self) -> None:
         scheduler = self._scheduler()
@@ -171,8 +171,10 @@ class RealMeshDispatcherTest(unittest.TestCase):
         scheduler.run_due()
         self.assertEqual(len(self.started), 1)
         self.assertEqual(self.started[0]["cid"], "cid-12345678")
-        meta = self.started[0]["message"]["meta"]
-        self.assertEqual(meta["wake_job_id"], job["job_id"])
+        self.assertEqual(self.started[0]["message"], {})
+        [item] = self.mesh.queue.claim_insert_batch("cid-12345678")
+        self.assertEqual(item["delivery"], "next_pass")
+        self.assertEqual(item["payload"]["wake_job_id"], job["job_id"])
 
     def test_busy_target_is_queued_with_dedupe_key(self) -> None:
         scheduler = self._scheduler()
@@ -185,8 +187,22 @@ class RealMeshDispatcherTest(unittest.TestCase):
         self.assertEqual(self.started, [])
         items = self.mesh.queue._items[cid]
         self.assertEqual(items[0]["dedupe_key"], job["job_id"])
+        self.assertEqual(items[0]["state"], "inserting")
+        self.assertEqual(items[0]["delivery"], "next_pass")
         self.assertEqual(items[0]["payload"]["meta"]["wake_job_id"], job["job_id"])
         self.mesh.end_run(cid)
+
+        self.mesh.mark_stopped(cid)
+        stopped_job = scheduler.schedule_seconds(
+            5, target_cid=cid, owner_cid=cid, reminder="终止期间到期")
+        self.clock.value = stopped_job["due_at"]
+        scheduler.run_due()
+        self.assertEqual(self.started, [])
+        self.assertTrue(self.mesh.is_stopped(cid))
+        self.assertEqual(self.mesh.queue.list(cid)["items"], [])
+        items = self.mesh.queue.claim_insert_batch(cid)
+        self.assertEqual([item["payload"]["wake_job_id"] for item in items],
+                         [job["job_id"], stopped_job["job_id"]])
 
     def test_process_lock_allows_one_scheduler(self) -> None:
         first = self._scheduler()
@@ -253,6 +269,7 @@ class WakeToolTest(unittest.TestCase):
     def test_app_wake_state_helpers(self) -> None:
         cid = "cid-12345678"
         scheduler = self.app.context.get(SERVICE_WAKE_SCHEDULER)
+        self.assertEqual(scheduler._submit, self.app.mesh.submit_insert)
         self.assertFalse(scheduler._target_exists(cid))
         self.assertFalse(scheduler._delivered(cid, "wake-check"))
         self.app.store.append(cid, [Event(type="input_claimed", data={
