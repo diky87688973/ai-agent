@@ -69,7 +69,7 @@
         "kind": "checkbox",
         "label": "编辑后要求重读",
         "default": "0",
-        "hint": "开启后，改过的文件在再次修改前必须先 read_file；关闭则改完可直接继续"
+        "hint": "开启后，改过的文件在再次修改前必须先重读；关闭则改完可直接继续"
       },
       {
         "panel": "app/settings/context",
