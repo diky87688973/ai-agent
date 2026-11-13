@@ -51,8 +51,7 @@ else if(ev.type==="reasoning_delta")appendReasoningDelta(ev);
 else if(ev.type==="reasoning_sync")applyReasoningSync(ev);
 else if(ev.type==="assistant_markdown"){if(anyToolThisTurn){flushPendingSteps();}var md=ev.markdown;if(typeof md==="string"&&md.trim()){var e=ensureAssistantStreamBubble();if(e){if(streamAssistantText&&!streamAssistantText.endsWith("\n"))streamAssistantText+="\n";streamAssistantText+=md.trim()+"\n";e.innerHTML=renderMarkdown(streamAssistantText);scrollMsgsToBottom();}}}
 else if(ev.type==="assistant"){if(anyToolThisTurn){flushPendingSteps();}chatProcessAssistant(ev.content||"",ev.tool_phase);}
-else if(ev.type==="peer_message"){addPeerMessage(ev.content||"",ev.sender_name||"",ev.sender||"",ev.attachments,packetCid);}
-else if(ev.type==="queued_user"){var _qb=add("u",ev.content||"（截图）",ev);var _qa=Array.isArray(ev.attachments)?ev.attachments:[];if(_qa.length&&_qb&&window.AIA&&AIA.buildMsgAttachStrip){try{_qb.appendChild(AIA.buildMsgAttachStrip(packetCid,null,_qa));}catch(_qe){}}}
+else if(ev.type==="peer_message"||ev.type==="queued_user")renderConversationInput(ev,packetCid,false);
 else if(ev.type==="confirmation_closed"){closeMatchingConfirmation(ev);}
 else if(ev.type==="queue_updated"){if(typeof onQueueUpdated==="function")onQueueUpdated(ev);}
 else if(ev.type==="done"){

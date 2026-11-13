@@ -58,12 +58,7 @@ class TurnFrames:
         )]
 
     def _on_input_claimed(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        # 经典界面乐观渲染用户气泡（agent-ui.js:2053），这里再发一次会重复。
-        # 所以只回一个空的确认帧，供适配层更新自身状态。
-        #
-        # 例外：别的会话投进来的消息（`_sender` 非空）不是用户自己打的，
-        # 前端没有乐观渲染它 —— 不回帧的话它在实时视图里完全看不见，
-        # 只有刷新后才冒出来（而且会被当成用户自己说的话）。
+        """Project claimed inputs with their source metadata for the UI."""
         sender = str(d.get("_sender") or "").strip()
         if sender:
             return [self._ev(
@@ -83,22 +78,13 @@ class TurnFrames:
                 goal_round=int(d.get("goal_round") or 0),
                 goal_limit=int(d.get("goal_limit") or 0),
             )]
-        if str(d.get("kind") or "") == "system_notice" and str(d.get("source") or "") == "background_tasks":
+        kind = str(d.get("kind") or "")
+        if kind in ("system_notice", "wake") or d.get("_from_queue"):
             return [self._ev(
                 C.EV_QUEUED_USER,
                 content=str(d.get("content") or ""),
                 attachments=list(d.get("attachments") or []),
-                kind="system_notice",
-                source="background_tasks",
-                notice_id=str(d.get("notice_id") or ""),
-                batch=str(d.get("batch") or ""),
-            )]
-        if bool(d.get("_from_queue")):
-            return [self._ev(
-                C.EV_QUEUED_USER,
-                content=str(d.get("content") or ""),
-                attachments=list(d.get("attachments") or []),
-                kind=str(d.get("kind") or ""),
+                kind=kind,
                 source=str(d.get("source") or ""),
                 notice_id=str(d.get("notice_id") or ""),
                 batch=str(d.get("batch") or ""),

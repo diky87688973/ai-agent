@@ -80,7 +80,7 @@ def _user_item(data: Dict[str, Any], resolved: List[Dict[str, Any]]) -> Dict[str
     if sender:
         item["_sender"] = sender
         item["_sender_name"] = str(data.get("_sender_name") or sender)
-    for key in ("kind", "source", "notice_id", "batch", "goal_round"):
+    for key in ("kind", "source", "notice_id", "batch", "goal_round", "goal_limit"):
         if data.get(key):
             item[key] = data[key]
     if attachments:
@@ -203,12 +203,17 @@ def history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[st
     resolved: List[Dict[str, Any]] = []
     think_ms: Optional[int] = None
     think_reasoning_ms: Optional[int] = None
+    in_turn = False
     for ev in events:
         kind = str(getattr(ev, "type", ""))
         data = dict(getattr(ev, "data", None) or {})
+        if kind in ("turn_started", "turn_ended"):
+            in_turn = kind == "turn_started"
         if kind == "input_claimed":
             item = _user_item(data, resolved)
             if item is not None:
+                if in_turn:
+                    item["in_turn"] = True
                 items.append(item)
         elif kind == "llm_ended":
             try:

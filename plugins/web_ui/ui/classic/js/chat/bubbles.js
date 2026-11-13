@@ -7,45 +7,11 @@ function _systemNoticeBatch(text){
 var m=String(text||"").match(/任务批次[:：]\s*([^\n]+?)\s*已完结/);
 return m?m[1].trim():"";
 }
-function _sysNoticeHost(){
-var pane=msgs&&msgs.closest?msgs.closest(".chat-conversation-pane"):null;
-if(!pane)return null;
-var host=pane.querySelector(":scope > .sys-notice-host");
-if(!host){host=document.createElement("div");host.className="sys-notice-host";pane.insertBefore(host,pane.firstChild);}
-return host;
-}
-function _hideSystemNotice(target){
-var card=target;
-if(!card||!card.parentNode)return;
-if(card._sysNoticeTimer){clearTimeout(card._sysNoticeTimer);card._sysNoticeTimer=null;}
-card.classList.add("is-leaving");
-setTimeout(function(){if(card.parentNode)card.parentNode.removeChild(card);},220);
-}
-function _clearSystemNoticeTimer(card){
-if(card&&card._sysNoticeTimer){clearTimeout(card._sysNoticeTimer);card._sysNoticeTimer=null;}
-}
-function _armSystemNoticeTimer(target,delay){
-var card=target;
-if(!card)return;
-_clearSystemNoticeTimer(card);
-card._sysNoticeTimer=setTimeout(function(){_hideSystemNotice(card);},delay);
-}
-function _replaceSystemNotices(host,next){
-if(!host)return;
-var old=host.querySelectorAll(".sys-notice");
-Array.prototype.forEach.call(old,function(card){
-_clearSystemNoticeTimer(card);
-card.classList.add("is-leaving");
-setTimeout(function(){if(card.parentNode)card.parentNode.removeChild(card);},180);
-});
-host.appendChild(next);
-}
-function addSystemNotice(t,meta){
+function addSystemNotice(t,meta,host){
 if(!msgs)return null;
 var text=String(t||"");
 var meta=meta&&typeof meta==="object"?meta:{};
 var batch=String(meta.batch||"").trim()||_systemNoticeBatch(text);
-var host=_sysNoticeHost();
 var e=document.createElement("div");
 e.className="sys-notice";
 var head=document.createElement("button");
@@ -54,7 +20,8 @@ head.className="sys-notice-head";
 head.setAttribute("aria-expanded","false");
 var title=document.createElement("span");
 title.className="sys-notice-title";
-title.textContent="系统通知"+(batch?": 任务 "+batch+" 已完结":": 任务已完结");
+title.textContent=meta.kind==="wake"?"定时提醒":
+  (batch?"系统通知 · 任务 "+batch+" 已完结":"系统通知");
 var chevron=document.createElement("span");
 chevron.className="sys-notice-chevron";
 chevron.setAttribute("aria-hidden","true");
@@ -67,8 +34,8 @@ detail.textContent=stripSystemPrefix(text).trim();
 e.appendChild(head);
 e.appendChild(detail);
 e.setAttribute("role","status");
-if(host)_replaceSystemNotices(host,e);else msgs.appendChild(e);
-_armSystemNoticeTimer(e,6000);
+(host||msgs).appendChild(e);
+scrollMsgsToBottom();
 return e;
 }
 function _toggleSystemNotice(head){
@@ -78,11 +45,6 @@ var detail=card.querySelector(".sys-notice-detail");
 var open=head.getAttribute("aria-expanded")==="true";
 head.setAttribute("aria-expanded",open?"false":"true");
 if(detail)detail.classList.toggle("is-open",!open);
-if(open){
-_armSystemNoticeTimer(card,4000);
-}else{
-_clearSystemNoticeTimer(card);
-}
 }
 if(!window._sysNoticeDelegated){
 window._sysNoticeDelegated=true;
@@ -91,10 +53,10 @@ var head=ev.target&&ev.target.closest?ev.target.closest(".sys-notice-head"):null
 if(head)_toggleSystemNotice(head);
 });
 }
-function addGoalFollowup(t, meta) {
+function addGoalFollowup(t, meta, host) {
   if (!msgs) return null;
   var data = meta && typeof meta === "object" ? meta : {};
-  var text = String(t || "").trim();
+  var text = stripSystemPrefix(t).trim();
   var round = Number(data.goal_round || 0);
   var limit = Number(data.goal_limit || 0);
   var card = document.createElement("div");
@@ -145,7 +107,7 @@ function addGoalFollowup(t, meta) {
   detail.appendChild(detailText);
   card.appendChild(head);
   card.appendChild(detail);
-  msgs.appendChild(card);
+  (host || msgs).appendChild(card);
   scrollMsgsToBottom();
   return card;
 }
@@ -167,11 +129,8 @@ if (!window._goalFollowupDelegated) {
 function stripSystemPrefix(t){
 return String(t==null?"":t).replace(/^【系统消息-[^】]*?】\n\n/,"");
 }
-function add(role,t,meta){
+function add(role,t){
 if(!msgs)return null;
-t=stripSystemPrefix(t);
-if(role==='u'&&meta&&meta.kind==="system_notice"&&meta.source==="background_tasks")return addSystemNotice(t,meta);
-if(role==='u'&&meta&&meta.kind==="goal_followup"&&meta.source==="goal")return addGoalFollowup(t,meta);
 const e=document.createElement('div');
 e.className='b '+(role==='u'?'u':'a');
 if(role==='u'){/* 文字包一层 span —— 这样「文字」是独立子元素，附件条能用 CSS `order` 排到它前面（气泡是 flex 纵向布局，文字需要成为独立子元素才能用 `order` 调整顺序）。 */e.appendChild(Object.assign(document.createElement('span'),{className:'b-text',innerHTML:linkifyUserText(t)}));}else{e.innerHTML=renderMarkdown(t||'');}
@@ -188,7 +147,7 @@ var line=String(metaRaw||"").trim().replace(/\|/g," ");
 if(!line)return"";
 return'<span class="peer-meta-tag">'+escapeHtml(line)+"</span>";
 }
-function addPeerMessage(t,name,cid,attachments,conversationId){
+function addPeerMessage(t,name,cid,host){
 if(!msgs)return;
 var label=String(name||cid||"Agent");
 var content=stripSystemPrefix(t);
@@ -209,10 +168,7 @@ e.innerHTML=
 '<div class="peer-bubble"><div class="peer-agent-body b a"></div></div>';
 var bodyEl=e.querySelector(".peer-agent-body");
 if(bodyEl){bodyEl.innerHTML=renderMarkdown(content||"");}
-if(bodyEl&&Array.isArray(attachments)&&attachments.length&&window.AIA&&AIA.buildMsgAttachStrip){
-  bodyEl.appendChild(AIA.buildMsgAttachStrip(conversationId,null,attachments));
-}
-msgs.appendChild(e);
+(host||msgs).appendChild(e);
 if(!window._peerToggleDelegated){
 window._peerToggleDelegated=true;
 function togglePeerRow(top){
@@ -228,6 +184,29 @@ if(top)togglePeerRow(top);
 }
 scrollMsgsToBottom();
 return bodyEl;
+}
+
+function renderConversationInput(item, cid, replay) {
+  var sender = item.sender || item._sender;
+  var peer = sender && sender !== "boss";
+  var notice = item.kind === "wake" || item.kind === "system_notice";
+  var goal = item.kind === "goal_followup";
+  var inside = replay ? item.in_turn : item.turn_key != null;
+  var host = (peer || notice || goal) && inside ? chatProcessBody() : msgs;
+  var text = String(item.content || "");
+  var bubble;
+  if (peer) bubble = addPeerMessage(text, item.sender_name || item._sender_name, sender, host);
+  else if (notice) bubble = addSystemNotice(text, item, host);
+  else if (goal) bubble = addGoalFollowup(text, item, host);
+  else bubble = add("u", text || (replay ? "" : "（截图）"));
+  if (!bubble) return;
+  var attachments = Array.isArray(item.attachments) ? item.attachments : [];
+  if (attachments.length && window.AIA && AIA.buildMsgAttachStrip) {
+    bubble.appendChild(AIA.buildMsgAttachStrip(cid, replay ? attachments : null, replay ? null : attachments));
+  } else if (replay && item.had_images) {
+    if (window.AIA && AIA.appendHadImagesLostTip) AIA.appendHadImagesLostTip(bubble);
+    else appendHadImagesLostTip(bubble);
+  }
 }
 
 function ensureAssistantStreamBubble(){

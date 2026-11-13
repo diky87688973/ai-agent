@@ -95,19 +95,8 @@ var nextKey=it.turn_key??null;
 if(nextKey!==turnKey){chatProcessRestore(turnKey,turnStatus,turnElapsedMs);turnKey=nextKey;chatProcessState(turnKey);}
 turnStatus=it.turn_status||null;
 turnElapsedMs=it.turn_elapsed_ms??null;
-if(it.kind==="system_notice")continue;
-if(it.kind==="goal_followup"){addGoalFollowup(String(it.content||""),it);continue;}
 if(it.role==="user"){
-var bubble=null;
-if(it._sender&&it._sender!=="boss")bubble=addPeerMessage(String(it.content||""),String(it._sender_name||""),String(it._sender||""));
-else bubble=add("u",String(it.content||""),it);
-var atts=Array.isArray(it.attachments)?it.attachments:[];
-if(atts.length&&window.AIA&&AIA.buildMsgAttachStrip&&bubble){
-bubble.appendChild(AIA.buildMsgAttachStrip(cid,atts,null));
-}else if(it.had_images&&bubble){
-if(window.AIA&&AIA.appendHadImagesLostTip)AIA.appendHadImagesLostTip(bubble);
-else appendHadImagesLostTip(bubble);
-}
+renderConversationInput(it,cid,true);
 }else if(it.role==="think"){
 renderHistoryThink(it);
 }else if(it.role==="assistant"){

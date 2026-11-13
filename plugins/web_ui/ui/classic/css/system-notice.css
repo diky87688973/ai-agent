@@ -1,42 +1,13 @@
 /* system-notice.css —— 任务管理器注入的系统通知卡片。 */
 .chat-conversation-pane{position:relative}
-.sys-notice-host{
-  position:absolute;
-  top:0;
-  left:25%;
-  right:25%;
-  z-index:900;
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  pointer-events:none;
-  overflow:hidden;
-}
 .sys-notice{
   width:100%;
   box-sizing:border-box;
   margin:0;
   border:1px solid var(--c-line-2,#2a2d32);
-  border-top:0;
-  border-radius:0 0 10px 10px;
+  border-radius:8px;
   background:var(--c-bg,#1e1e1e);
-  box-shadow:0 10px 24px rgba(0,0,0,.22);
-  pointer-events:auto;
   overflow:hidden;
-  transform-origin:top center;
-  animation:sys-notice-in .22s ease-out both;
-}
-.sys-notice.is-leaving{
-  animation:sys-notice-out .18s ease-in both;
-  pointer-events:none;
-}
-@keyframes sys-notice-in{
-  from{transform:translateY(-100%)}
-  to{transform:translateY(0)}
-}
-@keyframes sys-notice-out{
-  from{transform:translateY(0)}
-  to{transform:translateY(-100%)}
 }
 .sys-notice-head{
   width:100%;
