@@ -19,6 +19,7 @@ jobs:
 
       - name: Push mirror
         run: |
+          git fetch --force origin "refs/tags/*:refs/tags/*"
           git remote add gitee https://diky87688973:${{ secrets.GITEE_TOKEN }}@gitee.com/diky87688973/ai-agent.git
           git push --force gitee HEAD:main
-          git push --force gitee --tags
+          git push --force gitee "refs/tags/*:refs/tags/*"
