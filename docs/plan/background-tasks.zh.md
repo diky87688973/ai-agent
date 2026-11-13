@@ -180,7 +180,7 @@ Unix：以 start_new_session（setsid）启动；取消和超时向进程组发�
 消息内容：
 
 ```text
-<<系统通知>>
+【系统消息-后台任务】
 本消息为 任务管理器 触发的系统通知
 任务批次：<batch> 已完结，请查看结果。
 ```
@@ -193,7 +193,7 @@ kind=system_notice
 source=background_tasks
 notice_id=<唯一 id>
 batch=<批次号；多个用 、 连接>
-content 仍以 <<系统通知>> 开头
+content 仍以 【系统消息-后台任务】 开头
 ```
 
 契约只认 `kind` 与 `source`：`kind=system_notice` 且 `source=background_tasks` 时才渲染系统通知卡片；前缀只留给模型识别，不参与信任判断。普通用户消息即使以该前缀开头，也不会被渲染成系统通知。
@@ -207,14 +207,14 @@ content 仍以 <<系统通知>> 开头
 注入字段：
 
 ```text
-content=<<系统通知>> 正文
+content=【系统消息-后台任务】 正文
 payload.kind=system_notice
 payload.source=background_tasks
 payload.notice_id=<稳定去重 id>
 payload.batch=<批次号；多个用 、 连接>
 ```
 
-模型输入从 payload 只读回 `kind`、`source`、`notice_id`、`batch`。会话标题生成跳过内容以 `<<系统通知>>` 开头的用户消息（允许前导空白）。
+模型输入从 payload 只读回 `kind`、`source`、`notice_id`、`batch`。会话标题生成跳过内容以 `【系统消息-后台任务】` 开头的用户消息（允许前导空白）。
 
 只有应用停机调用 `BackgroundTaskManager.shutdown`：杀掉运行中的任务进程，并逐个最多等待 3 秒结算；待执行任务留在队列。释放或关闭会话（`release_conversation` / `drop_session`）不取消后台任务。
 
@@ -256,6 +256,6 @@ argv 不经 shell 解释
 plan 模式拒绝 create
 工具分发 create / list / output / cancel
 系统通知元数据经过队列与历史折叠后仍保留
-已完成任务可读输出与历史；一条通知带 <<系统通知>> 前缀和批次号
+已完成任务可读输出与历史；一条通知带 【系统消息-后台任务】 前缀和批次号
 app 注册 manager 与工具
 ```

@@ -203,7 +203,7 @@ class SendTest(_MeshBase):
         self.assertEqual(r.data["_sender"]["_sender_name"], CID_A[:12])  # 未注册发送方 → 缺省
         self.assertEqual(r.data["_sender"]["_sender_role"], "agent")
         msg = self.mesh.queue.claim_after_turn(CID_B)
-        self.assertTrue(msg["content"].startswith(f"[from={CID_A[:12]} | sender_cid={CID_A} | thread_id=auto-{CID_A[:8]}-"))
+        self.assertTrue(msg["content"].startswith(f"【系统消息-子智能体消息】\n\n[from={CID_A[:12]} | sender_cid={CID_A} | thread_id=auto-{CID_A[:8]}-"))
         self.assertIn("channel=direct", msg["content"])
         self.assertIn("requires_reply=true", msg["content"])
         self.assertTrue(msg["content"].endswith("你好呀"))
@@ -219,7 +219,7 @@ class SendTest(_MeshBase):
         r = self._call("session_send", {"target_id": CID_B, "message": "hi", "requires_reply": False})
         self.assertTrue(r.ok)
         msg = self.mesh.queue.claim_after_turn(CID_B)
-        self.assertTrue(msg["content"].startswith("[from=小A | "))
+        self.assertTrue(msg["content"].startswith("【系统消息-子智能体消息】\n\n[from=小A | "))
         self.assertNotIn("requires_reply=true", msg["content"])
         self.assertEqual(msg["sender"]["name"], "小A")
         self.assertFalse(msg["sender"]["requires_reply"])
@@ -340,7 +340,7 @@ class RunnerE2ETest(unittest.TestCase):
         seen = self.provider.seen
         self.assertEqual(len(seen), 2)  # 两回合都执行（队列抽干）
         self.assertTrue(any("【Agent 身份】" in str(m.get("content", "")) and m.get("role") == "system" for m in seen[0]))
-        self.assertTrue(any("第一条" in str(m.get("content", "")) and str(m.get("content", "")).startswith("[from=") for m in seen[0]))
+        self.assertTrue(any("第一条" in str(m.get("content", "")) and str(m.get("content", "")).startswith("【系统消息-子智能体消息】\n\n[from=") for m in seen[0]))
         self.assertTrue(any("第二条" in str(m.get("content", "")) for m in seen[1]))
         self.assertFalse(self.mesh.is_running(target))
 

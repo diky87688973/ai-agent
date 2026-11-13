@@ -102,7 +102,7 @@ class BackgroundTaskManagerTest(unittest.TestCase):
                 break
             time.sleep(0.02)
         self.assertEqual(len(self.notices), 1)
-        self.assertTrue(self.notices[0][1].startswith("<<系统通知>>"))
+        self.assertTrue(self.notices[0][1].startswith("【系统消息-后台任务】"))
         self.assertIn(result["task"]["batch"], self.notices[0][1])
         self.assertTrue(str(self.notices[0][2].get("notice_id") or "").startswith(
             "background-"))
@@ -274,7 +274,7 @@ class BackgroundTaskManagerTest(unittest.TestCase):
         queue = ConversationQueue()
         item = queue.enqueue(
             "cid-notice-1",
-            content="<<系统通知>>\n本消息为 任务管理器 触发的系统通知\n任务批次：b-1 已完结，请查看结果。",
+            content="【系统消息-后台任务】\n\n本消息为 任务管理器 触发的系统通知\n任务批次：b-1 已完结，请查看结果。",
             origin="system",
             delivery="next_pass",
             payload={

@@ -122,7 +122,7 @@ def _build_peer_message(
     tag = "[" + " | ".join(parts) + "]\n"
     user_msg: Dict[str, Any] = {
         "role": "user",
-        "content": f"{tag}{message}",
+        "content": f"【系统消息-子智能体消息】\n\n{tag}{message}",
         "_priority": str(priority or "normal"),
         "_agent_peer_message": True,
         "_message_kind": "peer",

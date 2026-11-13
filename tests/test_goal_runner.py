@@ -76,7 +76,7 @@ class ContinuationTextTest(_RunnerBase):
         cid = "goal-text-0002"
         state.set_autonomy(cid, True)          # 自主开关开着也不该用兜底文案
         state.set_goal(cid, "把登录页改成深色主题")
-        self.assertEqual(runner._next_continuation_text(cid), "把登录页改成深色主题")
+        self.assertEqual(runner._next_continuation_text(cid), "【系统消息-目标续跑】\n\n把登录页改成深色主题")
 
     def test_paused_and_done_stop_even_when_autonomy_on(self) -> None:
         """目标说了算：暂停/达成后不能再被自主开关顶回去。"""

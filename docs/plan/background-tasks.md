@@ -178,7 +178,7 @@ A single notification fires per cid when its active count (pending + running) dr
 Message content:
 
 ```text
-<<系统通知>>
+【系统消息-后台任务】
 本消息为 任务管理器 触发的系统通知
 任务批次：<batch> 已完结，请查看结果。
 ```
@@ -191,7 +191,7 @@ kind=system_notice
 source=background_tasks
 notice_id=<unique id>
 batch=<batch ids; multiple joined with 、>
-content still starts with <<系统通知>>
+content still starts with 【系统消息-后台任务】
 ```
 
 The contract relies only on `kind` and `source`: a system-notice card is rendered only when `kind=system_notice` and `source=background_tasks`; the prefix is left for the model to recognize and does not participate in trust decisions. An ordinary user message that starts with that prefix is not rendered as a system notice.
@@ -205,14 +205,14 @@ Every notice is delivered through `MeshState.submit_insert()`, which queues the 
 Injection fields:
 
 ```text
-content=the <<系统通知>> body
+content=the 【系统消息-后台任务】 body
 payload.kind=system_notice
 payload.source=background_tasks
 payload.notice_id=<stable deduplication id>
 payload.batch=<batch ids; multiple joined with 、>
 ```
 
-The model-input path reads only `kind`, `source`, `notice_id`, and `batch` from the payload. Session-title generation skips a user message whose content starts with `<<系统通知>>` (leading whitespace allowed).
+The model-input path reads only `kind`, `source`, `notice_id`, and `batch` from the payload. Session-title generation skips a user message whose content starts with `【系统消息-后台任务】` (leading whitespace allowed).
 
 Only application shutdown calls `BackgroundTaskManager.shutdown`, which kills the running task processes and waits up to 3 seconds for each to settle; pending tasks are left queued. Releasing or closing a session (`release_conversation` / `drop_session`) does not cancel background tasks.
 
@@ -254,6 +254,6 @@ argv is not shell-interpreted
 plan mode rejects create
 the tool dispatches create / list / output / cancel
 system-notice metadata survives the queue and history folding
-a completed task exposes output and history; one notice carries the <<系统通知>> prefix and batch
+a completed task exposes output and history; one notice carries the 【系统消息-后台任务】 prefix and batch
 the app registers the manager and the tool
 ```

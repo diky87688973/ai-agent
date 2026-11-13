@@ -63,7 +63,7 @@ head.appendChild(title);
 head.appendChild(chevron);
 var detail=document.createElement("div");
 detail.className="sys-notice-detail";
-detail.textContent=text.replace(/^<<系统通知>>\s*/,"").trim();
+detail.textContent=stripSystemPrefix(text).trim();
 e.appendChild(head);
 e.appendChild(detail);
 e.setAttribute("role","status");
@@ -164,8 +164,12 @@ if (!window._goalFollowupDelegated) {
     if (head) _toggleGoalFollowup(head);
   });
 }
+function stripSystemPrefix(t){
+return String(t==null?"":t).replace(/^【系统消息-[^】]*?】\n\n/,"");
+}
 function add(role,t,meta){
 if(!msgs)return null;
+t=stripSystemPrefix(t);
 if(role==='u'&&meta&&meta.kind==="system_notice"&&meta.source==="background_tasks")return addSystemNotice(t,meta);
 if(role==='u'&&meta&&meta.kind==="goal_followup"&&meta.source==="goal")return addGoalFollowup(t,meta);
 const e=document.createElement('div');
@@ -187,7 +191,7 @@ return'<span class="peer-meta-tag">'+escapeHtml(line)+"</span>";
 function addPeerMessage(t,name,cid,attachments,conversationId){
 if(!msgs)return;
 var label=String(name||cid||"Agent");
-var content=t||"";
+var content=stripSystemPrefix(t);
 var metaHtml="";
 if(content.indexOf("[from=")===0){var ci=content.indexOf("]");if(ci>0){var metaRaw=content.slice(1,ci);content=content.slice(ci+1).trim();metaHtml=_buildPeerMetaHtml(metaRaw);}}
 var e=document.createElement("div");

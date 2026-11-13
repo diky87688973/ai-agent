@@ -310,7 +310,7 @@ class ManagerTest(_ManagerCase):
         claimed = [event for event in events if event.type == "input_claimed"]
         self.assertTrue(claimed)
         self.assertEqual(claimed[-1].data.get("_sender"), result["child_id"])
-        self.assertEqual(claimed[-1].data.get("content"), "子回答")
+        self.assertEqual(claimed[-1].data.get("content"), "【系统消息-子智能体消息】\n\n子回答")
 
     def test_child_can_send_to_parent_with_source(self) -> None:
         result = self.manager.create("parent-0001", prompt="x", label="来源", context="fresh")

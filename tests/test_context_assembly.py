@@ -665,7 +665,8 @@ class CompactionLoop(_Case):
         got = comp.summary_messages()
         self.assertEqual(len(got), 1)
         self.assertEqual(got[0]["role"], "user")
-        self.assertTrue(str(got[0]["content"]).startswith(CHECKPOINT_PREAMBLE))
+        self.assertTrue(
+            str(got[0]["content"]).startswith("【系统消息-记忆摘要】\n\n" + CHECKPOINT_PREAMBLE))
         self.assertIn(SUMMARY_OPEN_TAG, str(got[0]["content"]))
     def test_reassembled_request_shape(self) -> None:
         p, _s, _c, _r = self._run(rounds=3)

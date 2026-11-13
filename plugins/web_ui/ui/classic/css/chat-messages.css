@@ -44,16 +44,19 @@
 .composer{position:relative;width:70%;width:min(calc(100% - 32px),var(--content-max,840px));margin:0 auto;border:1px solid #3c3c3c;border-radius:16px;background:#1e1e1e;padding:0;display:flex;flex-direction:column;gap:8px}
 .attach-strip{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 4px}
 .attach-strip.hidden{display:none}
-.attach-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid #555;background:#111}
+.attach-thumb{position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--c-line-3);background:transparent}
 .attach-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.attach-thumb button{position:absolute;top:2px;right:2px;width:18px;height:18px;border:0;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-size:11px;line-height:18px;cursor:pointer;padding:0}
+.attach-thumb button{position:absolute;top:2px;right:2px;width:18px;height:18px;border:0;border-radius:50%;background:rgba(0,0,0,.42);color:#fff;font-size:11px;line-height:18px;cursor:pointer;padding:0;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:background .12s ease,box-shadow .12s ease}
+.attach-thumb button:hover{background:rgba(0,0,0,.68);box-shadow:0 1px 4px rgba(0,0,0,.45)}
+html[data-ui-theme="light"] .attach-thumb button{background:rgba(255,255,255,.86);color:#141414;box-shadow:0 1px 3px rgba(0,0,0,.16)}
+html[data-ui-theme="light"] .attach-thumb button:hover{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.26)}
 /* 用户气泡里图片在上、文字在下。
    气泡（.b.u）是 flex 纵向布局，`order` 让附件条排到文字之前 ——
    只改视觉顺序，不动 DOM 插入时序。 */
 .b.u>.b-text{order:2}
 .b.u>.msg-attach-strip{order:1;margin:0 0 2px;align-self:stretch}
 .msg-attach-strip{margin:2px 0 0;align-self:stretch}
-.msg-attach-thumb,.msg-attach-strip>img{width:72px;height:72px;object-fit:cover;border-radius:8px;margin:0 6px 6px 0;border:1px solid #555;background:#111;cursor:zoom-in;vertical-align:top}
+.msg-attach-thumb,.msg-attach-strip>img{width:72px;height:72px;object-fit:cover;border-radius:8px;margin:0 6px 6px 0;border:none;background:#111;cursor:zoom-in;vertical-align:top}
 .attach-lost-tip{margin:2px 0 8px;font-size:12px;opacity:.72;line-height:1.4}
 .img-lightbox{position:fixed;inset:0;z-index:10050}
 .img-lightbox.hidden{display:none}

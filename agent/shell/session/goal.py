@@ -8,7 +8,7 @@ from agent.common.status import GOAL_ACTIVE
 from agent.core.error_report import report_error
 
 AUTO_CONTINUE_PROMPT = (
-    "（自主模式）请继续推进未完成的工作；若已全部完成或需要用户决策，"
+    "【系统消息-目标续跑】\n\n（自主模式）请继续推进未完成的工作；若已全部完成或需要用户决策，"
     "请直接给出结论并停止，不要再调用工具。"
 )
 
@@ -22,7 +22,7 @@ def next_continuation_text(*, cid: str,
         if isinstance(row, dict):
             if str(row.get("status") or "") != GOAL_ACTIVE:
                 return ""
-            return str(row.get("text") or "").strip()
+            return "【系统消息-目标续跑】\n\n" + str(row.get("text") or "").strip()
     if auto_continue is not None and bool(auto_continue(cid)):
         return AUTO_CONTINUE_PROMPT
     return ""

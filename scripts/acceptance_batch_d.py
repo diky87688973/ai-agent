@@ -153,7 +153,7 @@ class Acceptance:
         )
         self.check(
             "包装与元数据抵达目标回合",
-            any("第一条" in str(m.get("content", "")) and str(m.get("content", "")).startswith("[from=") for m in self.provider.seen[0])
+            any("第一条" in str(m.get("content", "")) and str(m.get("content", "")).startswith("【系统消息-子智能体消息】\n\n[from=") for m in self.provider.seen[0])
             and any("第二条" in str(m.get("content", "")) for m in self.provider.seen[1]),
         )
 

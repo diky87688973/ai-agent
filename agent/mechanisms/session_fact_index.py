@@ -138,7 +138,7 @@ class FactIndex:
         content = data.get("content")
         return (isinstance(content, str) and bool(content.strip())
                 and (kind == "model_message"
-                     or kind == "input_claimed" and not content.lstrip().startswith("<<系统通知>>")))
+                     or kind == "input_claimed" and not content.lstrip().startswith("【系统消息-后台任务】")))
 
     @staticmethod
     def _image_keys(kind: str, data: dict) -> tuple[list, bytes | None]:

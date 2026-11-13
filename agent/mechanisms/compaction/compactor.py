@@ -377,7 +377,8 @@ class ContextCompactor:
         return [{
             "role": "user",
             "content": (
-                CHECKPOINT_PREAMBLE + "\n\n"
+                "【系统消息-记忆摘要】\n\n"
+                + CHECKPOINT_PREAMBLE + "\n\n"
                 + SUMMARY_OPEN_TAG + "\n" + self.summary + "\n" + SUMMARY_CLOSE_TAG
             ),
         }]

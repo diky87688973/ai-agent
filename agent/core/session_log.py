@@ -193,7 +193,7 @@ def _input_message(ev: Event) -> dict[str, Any] | None:
     if not content and not attachments:
         return None
     if str(ev.data.get("kind") or "") == "wake":
-        lines = ["【定时唤醒任务】"]
+        lines = ["【系统消息-定时唤醒任务】\n"]
         job_id = str(ev.data.get("wake_job_id") or "").strip()
         if job_id:
             lines.append(f"job_id: {job_id}")

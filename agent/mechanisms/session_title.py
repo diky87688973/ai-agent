@@ -59,7 +59,7 @@ def clean_title(raw: str, *, max_chars: int = MAX_TITLE_CHARS) -> str:
 
 
 def _is_system_notice(text: str) -> bool:
-    return str(text or "").lstrip().startswith("<<系统通知>>")
+    return str(text or "").lstrip().startswith("【系统消息-后台任务】")
 
 
 def fallback_title(messages: List[Dict[str, Any]], *, max_chars: int = MAX_TITLE_CHARS) -> str:

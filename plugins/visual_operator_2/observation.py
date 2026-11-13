@@ -88,6 +88,7 @@ def build_observation(history: List[Any], focus: Optional[Dict[str, int]],
     cursor_y = round(frame.cursor[1] * full_wh[1] / frame.image.height)
     offsets = ",".join(str(row["offset_ms"]) for row in frame_rows)
     text = (
+        "【系统消息-视觉帧】\n\n"
         "<vision_observation>"
         f"frames={len(frame_rows)};offsets_ms=[{offsets}];"
         "latest_is_last_frame;"

@@ -85,7 +85,7 @@ class SubagentMessenger:
         if not text and not attachments:
             raise SubagentError("消息不能为空", "empty_message")
         payload: Dict[str, Any] = {
-            "content": text,
+            "content": "【系统消息-子智能体消息】\n\n" + text,
             "_sender": sender_cid,
             "_sender_name": sender_name or sender_cid[:12],
             "_sender_role": sender_role,

@@ -500,7 +500,7 @@ class BackgroundTaskManager:
             notice_id = "background-" + uuid.uuid5(
                 uuid.NAMESPACE_URL, f"{cid}:{batch_text}").hex
             text = (
-                "<<系统通知>>\n"
+                "【系统消息-后台任务】\n\n"
                 "本消息为 任务管理器 触发的系统通知\n"
                 f"任务批次：{batch_text} 已完结，请查看结果。"
             )

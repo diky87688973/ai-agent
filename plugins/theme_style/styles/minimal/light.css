@@ -118,6 +118,18 @@ html[data-ui-style="minimal"] .composer .chip:hover {
   box-shadow: none !important;
 }
 
+/* 缩略图移除键压在图片上：默认低对比带阴影，悬浮提亮给出反馈；特异性需高于上方通用 button 规则。 */
+html[data-ui-style="minimal"] .attach-thumb button:not(.is-on):not(.is-primary):not(.chat-tab) {
+  background: rgba(255, 255, 255, .86) !important;
+  color: #141414 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .16) !important;
+  transition: background .12s ease, box-shadow .12s ease;
+}
+html[data-ui-style="minimal"] .attach-thumb button:not(.is-on):not(.is-primary):not(.chat-tab):hover {
+  background: #fff !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .26) !important;
+}
+
 /* 设置页字段必须看起来可编辑：深/浅色底，无边框；悬浮/聚焦只加背景。 */
 html[data-ui-style="minimal"] .st-form input[type="text"],
 html[data-ui-style="minimal"] .st-form input[type="password"],
