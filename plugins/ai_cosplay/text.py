@@ -462,6 +462,7 @@ def _polyphone_speech_text(text: str) -> str:
 
     source = (text.replace("换行", "换 háng ")
               .replace("重跑", " chóng 跑")
+              .replace("去重", "去 chóng")
               .replace("运行", "运 xíng"))
     source = _HANG_EXCEPTIONS.sub(hold, source)
     source = _HANG_AFTER_NUMBER.sub(lambda m: f"{m.group('number')} háng ", source)
