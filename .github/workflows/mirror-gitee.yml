@@ -22,7 +22,7 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.GITEE_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -t ed25519 gitee.com >> ~/.ssh/known_hosts
+          ssh-keyscan -T 20 -t ed25519 gitee.com >> ~/.ssh/known_hosts
 
       - name: Push mirror
         run: |
