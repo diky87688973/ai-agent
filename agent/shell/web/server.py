@@ -74,8 +74,9 @@ def create_server(
         workspace_root=workspace_root,
     )
     bus = app.event_bus
+    unsubscribe = None
     if bus is not None:
-        bus.subscribe_all(shell.broadcast)
+        unsubscribe = bus.subscribe_all(shell.broadcast)
 
     handler = type(
         "_BoundHandler",
@@ -87,6 +88,15 @@ def create_server(
     class _Server(ThreadingHTTPServer):
         allow_reuse_address = False
 
+        def server_close(self) -> None:
+            super().server_close()
+            if unsubscribe is not None:
+                unsubscribe()
+            if shell.session_catalog is not None:
+                if app.store.on_commit == shell.session_catalog.touch:
+                    app.store.on_commit = None
+                shell.session_catalog.close()
+
     try:
         server = _Server((host, int(port)), handler)
     except OSError as exc:
@@ -96,6 +106,9 @@ def create_server(
               "连 JS 都要重启才生效）。", file=sys.stderr, flush=True)
         raise
     server.daemon_threads = True
+    if shell.session_catalog is not None:
+        app.store.on_commit = shell.session_catalog.touch
+        shell.session_catalog.start()
     return server, shell
 
 

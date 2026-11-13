@@ -69,10 +69,26 @@ for(;;){
 }
 }
 
+function mergeHistoryProcess(t,msgsEl){
+var partial=Array.from(msgsEl.querySelectorAll("[data-turn-process]")).pop();
+if(partial){
+  var existing=t.msgsHost.querySelector("[data-turn-process='"+partial.dataset.turnProcess+"']");
+  if(existing&&partial._turnProcessRecord&&existing._turnProcessRecord){
+    var source=partial._turnProcessRecord;
+    var destination=existing._turnProcessRecord;
+    destination.view.body.prepend.apply(destination.view.body,Array.from(source.view.body.childNodes));
+    destination.count+=source.count;
+    destination.renderer.finish(destination.view,destination.status||"running",destination.count,destination.elapsedMs);
+    if(source.renderer.dispose)source.renderer.dispose(source.view);
+    partial.remove();
+  }
+}
+}
+
 function _prependHistoryNodes(t,msgsEl,stepsEl){
-var status=t._historyStatusEl;
 _removeHistoryStatus(t);
 var anchor=t.msgsHost.scrollHeight-t.msgsHost.scrollTop;
+mergeHistoryProcess(t,msgsEl);
 var mfrag=document.createDocumentFragment();
 while(msgsEl.firstChild)mfrag.appendChild(msgsEl.firstChild);
 t.msgsHost.insertBefore(mfrag,t.msgsHost.firstChild);
@@ -83,23 +99,30 @@ t.msgsHost.scrollTop=t.msgsHost.scrollHeight-anchor;
 }
 
 async function loadOlderHistory(t){
-if(!t||t.subagent)return;
+if(!t)return;
 if(t.historyState!=="idle"||t.historyBefore==null)return;
 var before=t.historyBefore;
 t.historyState="loading";
 _historyStatus(t,"加载更早的对话…",false);
 try{
-var j=await fetchHistoryPage(t,"/api/chat/history?"+new URLSearchParams({conversation_id:t.id,before:String(before)}));
+var query=t.subagent?{conversation_id:t.parentCid,child_id:t.id}:{conversation_id:t.id};
+query.before=String(before);
+if(t.historySlice)query.slice="1";
+var j=await fetchHistoryPage(t,(t.subagent?"/api/subagents/history?":"/api/chat/history?")+new URLSearchParams(query));
 if(!j){_removeHistoryStatus(t);t.historyState="idle";return;}
 var items=Array.isArray(j.items)?j.items:[];
 var page=j.page||null;
 if(!page){_removeHistoryStatus(t);t.historyBefore=null;t.historyState="exhausted";return;}
 var detachedMsgs=createDetachedHost("msgs");
 var detachedSteps=createDetachedHost("steps");
-withRenderContext(detachedMsgs,detachedSteps,function(){renderHistoryItems(items,t.id);});
+withRenderContext(detachedMsgs,detachedSteps,function(){
+  if(page.omitted)add("a","这段历史有 "+page.omitted+" 条记录超过单条读取上限，已跳过展示。");
+  renderHistoryItems(items,t.id);
+});
 _prependHistoryNodes(t,detachedMsgs,detachedSteps);
 var next=page.next_before;
-var more=!!(page.has_more&&next!=null&&String(next)!==String(before)&&items.length);
+var more=!!(page.has_more&&next!=null&&String(next)!==String(before));
+t.historySlice=!!page.slice;
 t.historyBefore=more?next:null;
 t.historyState=more?"idle":"exhausted";
 }catch(e){

@@ -361,6 +361,18 @@ class RealRepoReplaceTest(unittest.TestCase):
     def test_real_config_holds_no_overrides_by_default(self) -> None:
         self.assertEqual(self.config.overrides, ())
 
+    def test_replacement_keeps_slot_owner_and_uses_script_origin(self) -> None:
+        target = "app/shell/web-ui/left-panel/sessions/list"
+        from dataclasses import replace
+
+        config = replace(self.config, overrides=({
+            "path": target, "mode": "replace", "props": {"script": "rail.js"},
+        },), override_origins=("alternate_rail",))
+        view = effective_view(config)
+        self.assertEqual(view.spec(target).owner, "web_ui")
+        self.assertEqual(view.origin_of(target), "alternate_rail")
+        self.assertEqual(view.spec(target).props["script"], "rail.js")
+
 
 if __name__ == "__main__":
     unittest.main()

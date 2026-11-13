@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.2.2-blue" alt="version">
+  <img src="https://img.shields.io/badge/version-v0.2.3-blue" alt="version">
   <img src="https://img.shields.io/badge/Python-3.10%2B-brightgreen" alt="Python">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
 </p>
@@ -245,7 +245,7 @@ python scripts/ci.py --list    # 列出检查项
 
 `docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（2615 个用例）：
+单元测试（2619 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

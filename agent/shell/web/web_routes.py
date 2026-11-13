@@ -20,6 +20,7 @@ from agent.shell.web.web_api import WebShell
 from agent.shell.web.web_auth import AuthMiddleware
 from agent.shell.web.web_classic import ClassicRoutes
 from agent.shell.web.web_plugin import PluginRoutes
+from agent.shell.web.web_session_catalog import CATALOG_URL, session_catalog_response
 from agent.shell.web.web_static import (
     MAX_BODY_BYTES,
     SSE_HEARTBEAT_SEC,
@@ -227,7 +228,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
         if path == "/api/subagents/history":
             status, payload = self.shell.subagent_history(
                 str(query.get("conversation_id") or "").strip(),
-                str(query.get("child_id") or "").strip())
+                str(query.get("child_id") or "").strip(),
+                before=query.get("before"), slice_history=query.get("slice") == "1")
             self._json(status, payload)
             return True
         return False
@@ -318,7 +320,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
                         return True
                 meta = str(query.get("meta", "") or "").strip() == "1"
                 self._json(200, classic.history(
-                    query.get("conversation_id", ""), before=before, meta=meta))
+                    query.get("conversation_id", ""), before=before, meta=meta,
+                    slice_history=query.get("slice") == "1"))
             else:
                 status, payload = self.shell.history(query.get("conversation_id", ""))
                 self._json(status, payload)
@@ -329,6 +332,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             else:
                 status, payload = self.shell.sessions()
                 self._json(status, payload)
+        elif path == CATALOG_URL:
+            self._json(*session_catalog_response(self.shell.session_catalog, query))
         elif path == "/api/chat/ui-state":
             classic = self._classic()
             if classic is not None and not query.get("conversation_id"):
@@ -609,6 +614,9 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
                 return
             body = self._read_body()
             if self._slot_http("POST", path, self._query(), body):
+                return
+            if path == CATALOG_URL:
+                self._json(*session_catalog_response(self.shell.session_catalog, {}, body))
                 return
             if path == "/api/chat/send":
                 self._post_chat_send(body)

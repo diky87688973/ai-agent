@@ -73,13 +73,11 @@ class ToolFrames:
             endpoint = str(envelope.get("confirm_path") or "").strip()
             request_id = str(envelope.get("request_id") or "").strip()
             if not title or not isinstance(confirms, list) or not confirms or not endpoint or not request_id:
-                self._awaiting_confirm = True
                 self.pending.pop(call_id, None)
                 return [self._ev(
                     C.EV_TOOL_END, tool_call_id=call_id, ok=False, preview="",
                     user_confirm_required=False,
                 )]
-            self._awaiting_confirm = True
             self.pending.pop(call_id, None)
             return [self._ev(
                 C.EV_TOOL_END,
@@ -97,7 +95,6 @@ class ToolFrames:
         if str(envelope.get("kind") or "") == "approval":
             # 审批帧带描述，按钮是同意和驳回，不带选项列表。
             desc = str(envelope.get("option_desc") or "").strip()
-            self._awaiting_confirm = True
             self.pending.pop(call_id, None)
             return [self._ev(
                 C.EV_TOOL_END,
@@ -115,7 +112,6 @@ class ToolFrames:
             # 工具没给可渲染的选项（例如它要自由文本）：仍弹卡片，只留自定义输入
             title = title or f"{d.get('name') or '工具'}需要你的输入"
             confirms = []
-        self._awaiting_confirm = True
         # 待确认卡已发：把这张卡从 `pending` 摘掉。内核紧接着还会发
         # `tool_ended{status=TOOL_SUSPENDED}`，那会走 `_on_tool_ended` 的兜底分支
         # 再收一次同一张卡 —— 契约上就是重复帧：
@@ -152,7 +148,6 @@ class ToolFrames:
         confirms = d.get("confirms")
         if not call_id or not title or not isinstance(confirms, list) or not confirms:
             return []
-        self._awaiting_confirm = True
         # 与 `_on_tool_suspended` 同理：摘掉，避免随后的终态事实重复收卡。
         # 必须在 `return` 之前。
         self.pending.pop(call_id, None)

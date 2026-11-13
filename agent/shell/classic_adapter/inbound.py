@@ -23,6 +23,7 @@ from agent.common.status import RUN_MODE_AUTO
 from agent.core.error_report import report_error
 from agent.core.events import Event
 from agent.core.state_values import TOOL_CANCELED, TOOL_SUSPENDED
+from agent.mechanisms.session_fact_index import HistoryWindowTooLarge
 from agent.mechanisms.session_title import UNKNOWN_TITLE
 from agent.shell.classic_adapter.history import (
     ATTACH_REGISTER_MAX_BYTES,
@@ -184,7 +185,8 @@ class Inbound:
         return rounds, context_layout, older
 
     def history(self, cid: str, store: Any = None, *,
-                before: Optional[int] = None, meta: bool = False) -> Dict[str, Any]:
+                before: Optional[int] = None, meta: bool = False,
+                slice_history: bool = False) -> Dict[str, Any]:
         """会话历史。经典界面从这个返回体里读三样不同的东西：
 
         1. `j.items` —— `{role:"user"|"assistant"|"tool", content, attachments}`，
@@ -206,7 +208,19 @@ class Inbound:
         cid = C.normalize_cid(cid)
         if not cid:
             return {"ok": False, "error": "invalid conversation_id", "items": []}
-        rounds, context_layout, older = self._history_rounds(cid, store, before)
+        target = store if store is not None else getattr(self._app, "store", None)
+        cursor, skipped = None, 0
+        if slice_history:
+            rounds, context_layout, cursor, skipped = self._history_slice(cid, target, before)
+            older = False
+        else:
+            try:
+                rounds, context_layout, older = self._history_rounds(cid, store, before)
+            except HistoryWindowTooLarge:
+                if not callable(getattr(target, "history_slice", None)):
+                    raise
+                rounds, context_layout, cursor, skipped = self._history_slice(cid, target, before)
+                slice_history, older = True, False
         todo_list = current_todo(self._app, cid)
         if meta:
             return {
@@ -216,7 +230,7 @@ class Inbound:
                 "context_layout": context_layout,
                 "todo_list": todo_list,
             }
-        page = select_page(rounds, before=before)
+        page = select_page(rounds, before=before, budget=2**63 - 1 if slice_history else HISTORY_PAGE_CHARS)
         items = list(page.items)
         self._mark_stale_suspends(cid, items, store)
         # 把本页解出的字节合并进内存，供 `/api/chat/attachment?id=…` 取用。
@@ -237,13 +251,27 @@ class Inbound:
             "page": {
                 "budget_chars": HISTORY_PAGE_CHARS,
                 "chars": page.chars,
-                "has_more": page.has_more or older,
-                "next_before": (page.next_before if page.has_more else
+                "has_more": page.has_more or older or cursor is not None,
+                "slice": slice_history,
+                "omitted": skipped,
+                "next_before": (cursor if slice_history else page.next_before if page.has_more else
                                 rounds[page.start].anchor if older and page.start < page.end else None),
             },
             "context_layout": context_layout,
             "todo_list": todo_list,
         }
+
+    def _history_slice(self, cid: str, target: Any, before: int | None) -> tuple:
+        pairs, cursor, skipped = target.history_slice(cid, before)
+        events = self._history_events(pairs)
+        context_layout = last_payload(events, "context_layout")
+        if pairs and events[0].type != "turn_started":
+            first = pairs[0][0]
+            start = target.fact_matches(cid, kind="turn_started", limit=1, before_seq=first)
+            end = target.fact_matches(cid, kind="turn_ended", limit=1, before_seq=first)
+            if start and (not end or end[0].data.get("_seq", -1) < start[0].data.get("_seq", -1)):
+                events.insert(0, start[0])
+        return fold_rounds(events, partial=before is not None), context_layout, cursor, skipped
 
     def _mark_stale_suspends(self, cid: str, items: List[Dict[str, Any]], store: Any) -> None:
         if not any(item.get("status") == TOOL_SUSPENDED for item in items):

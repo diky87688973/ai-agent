@@ -242,15 +242,17 @@ return e;
    marked 每次都是全量重解析（块级缓存对它无效），delta 密集时逐条渲染会把
    同一段文本反复解析几十遍 —— 内容越长越明显。合并到下一个锚点渲染，
    视觉上仍是连续增长。 */
-var streamRenderPending=false;
 function scheduleStreamRender(){
-if(streamRenderPending)return;
-streamRenderPending=true;
+var node=streamAssistantEl;
+var conversation=msgs;
+if(!node||node._streamRenderPending)return;
+node._streamRenderPending=true;
+node._streamRenderText=streamAssistantText;
 requestAnimationFrame(function(){
-streamRenderPending=false;
-if(!streamAssistantEl)return;
-streamAssistantEl.innerHTML=renderMarkdown(streamAssistantText);
-scrollMsgsToBottom();
+node._streamRenderPending=false;
+if(node._streamRenderText==null)return;
+node.innerHTML=renderMarkdown(node._streamRenderText);
+if(conversation===msgs)scrollMsgsToBottom();
 });
 }
 function appendAssistantDelta(text){
@@ -261,13 +263,17 @@ streamAssistantText+='\n\n';
 }
 pendingDeltaSeparator=false;
 streamAssistantText+=text;
+e._streamRenderText=streamAssistantText;
 scheduleStreamRender();
 }
 function finalizeAssistantStream(content){
 if(streamAssistantEl){
+streamAssistantEl._streamRenderText=null;
 if(typeof content==='string'&&content){
 streamAssistantText=String(content);
 /* 终态必须同步渲染完，不能留给节流：随后就把元素引用清掉了 */
+streamAssistantEl.innerHTML=renderMarkdown(streamAssistantText);
+}else if(streamAssistantText){
 streamAssistantEl.innerHTML=renderMarkdown(streamAssistantText);
 }
 streamAssistantEl=null;

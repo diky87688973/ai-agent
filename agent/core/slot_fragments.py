@@ -156,7 +156,7 @@ def _collect(fragments: List[Tuple[str, str, Mapping[str, Any]]],
              ) -> Tuple[Dict[str, SlotSpec], Dict[str, str],
                         List[str], List[Tuple[str, str, Mapping[str, Any]]],
                         Dict[str, Tuple[str, ...]],
-                        List[Dict[str, Any]]]:
+                        List[Dict[str, Any]], List[str]]:
     """逐片段收 `slots`，把 `provides` 留到父插口收齐后再校验。
 
     返回的第二项是 `origins`（path → 声明方的插件名，静态片段为 `__host__`），
@@ -169,6 +169,7 @@ def _collect(fragments: List[Tuple[str, str, Mapping[str, Any]]],
     pending: List[Tuple[str, str, Mapping[str, Any]]] = []
     subagent: Dict[str, Tuple[str, ...]] = {}
     overrides: List[Dict[str, Any]] = []
+    override_origins: List[str] = []
     for origin, owner, raw in fragments:
         label = _label_of(origin)
         if "paths" in raw:
@@ -198,6 +199,7 @@ def _collect(fragments: List[Tuple[str, str, Mapping[str, Any]]],
                 problems.append(f"覆盖声明必须是对象（来源：{label}）")
                 continue
             overrides.append(dict(row))
+            override_origins.append(origin)
         tools = raw.get("subagent_tools")
         # 未声明与声明为空是两回事：`[]` 表示该插件全部工具都不给子智能体，
         # 而缺这个键才表示不加限制。用真值判断会把 `[]` 当成未声明。
@@ -206,7 +208,7 @@ def _collect(fragments: List[Tuple[str, str, Mapping[str, Any]]],
                 problems.append(f"subagent_tools 必须是数组（来源：{label}）")
             else:
                 subagent[owner] = tuple(str(x) for x in tools)
-    return specs, origins, problems, pending, subagent, overrides
+    return specs, origins, problems, pending, subagent, overrides, override_origins
 
 
 def _apply_provides(pending: List[Tuple[str, str, Mapping[str, Any]]],
@@ -330,7 +332,8 @@ def load_merged(repo_root: Path,
     plugins = Path(plugins_root) if plugins_root is not None else root / PLUGIN_DIRNAME
     fragments = _fragments(root, plugins, manifest, plugin_roots)
     owners = owners_of(fragments[0][2])
-    specs, origins, problems, pending, subagent, overrides = _collect(fragments, owners)
+    collected = _collect(fragments, owners)
+    specs, origins, problems, pending, subagent, overrides, override_origins = collected
     origin_root = str(fragments[0][2].get("root") or APP_ROOT)
     specs, origins, synthesized, gaps = _with_ancestors(specs, origins, origin_root)
     problems.extend(gaps)
@@ -347,6 +350,7 @@ def load_merged(repo_root: Path,
         specs=specs, origins=origins,
         synthesized=synthesized, subagent_tools=subagent,
         plugins_root=plugins, overrides=tuple(overrides),
+        override_origins=tuple(override_origins),
         plugin_roots={name: Path((plugin_roots or {}).get(name, plugins / name))
                       for name, _, _ in fragments if name != HOST_OWNER})
     # 合并出来的配置同样是配置：节点级判据（factory 有无与形状、能否持有子级、

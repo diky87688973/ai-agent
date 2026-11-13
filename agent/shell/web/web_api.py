@@ -15,6 +15,7 @@ from agent.common.status import MODEL_CONFIG_NONE, REASONING_EFFORT_HIGH
 from agent.core import event_name as ev
 from agent.core.error_report import report_error
 from agent.core.input_attachments import MAX_IMAGES
+from agent.mechanisms.session_catalog import SessionCatalog
 from agent.mechanisms.session_title import TitleStore
 from agent.shell.fspaths import normalize_roots
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
@@ -60,6 +61,11 @@ class WebShell(
         # 可见根：单个 Path / Path 列表 / None（None = 不限根，仅供测试与显式放开）
         self.fs_roots: List[Path] = normalize_roots(fs_roots)
         self.titles = TitleStore(Path(titles_dir) if titles_dir else None)
+        store = getattr(app, "store", None)
+        raw_dir = getattr(store, "sessions_dir", None)
+        self.session_catalog = (SessionCatalog(store.data_root / "session" / "catalog.sqlite3",
+                                               raw_dir, self.titles)
+                                if isinstance(raw_dir, Path) else None)
         self.title_generator = title_generator
         self.route_slots = HttpRouteSlots(getattr(getattr(app, "context", None), "slots", None))
         if self.route_slots.slots is not None:

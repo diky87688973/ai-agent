@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from time import monotonic_ns
 from types import SimpleNamespace
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -32,11 +33,13 @@ class HostEventHelperTest(unittest.TestCase):
         self.log = SessionLog()
 
     def test_cancel_and_max_pass_events(self) -> None:
-        event = self.host._cancel_event(self.log, "cid", 2)
+        started_ns = monotonic_ns() - 1_000_000_000
+        event = self.host._cancel_event(self.log, "cid", 2, started_ns)
         self.assertEqual(event.type, "turn_ended")
+        self.assertGreaterEqual(event.data["elapsed_ms"], 1000)
         self.assertTrue(event.data["stopped"])
         self.assertEqual(self.host.last_result.reason, "stopped")
-        event = self.host._max_passes_event(self.log, "cid", 3)
+        event = self.host._max_passes_event(self.log, "cid", 3, started_ns)
         self.assertEqual(event.type, "turn_ended")
         self.assertTrue(event.data["halted"])
         self.assertEqual(self.host.last_result.reason, "max_passes")
@@ -44,14 +47,15 @@ class HostEventHelperTest(unittest.TestCase):
     def test_terminal_event_covers_all_three_states(self) -> None:
         result = SimpleNamespace(
             terminal=SimpleNamespace(status="suspend", reason="需要输入"))
-        event = self.host._terminal_event(result, self.log, "cid", 1)
+        started_ns = monotonic_ns()
+        event = self.host._terminal_event(result, self.log, "cid", 1, started_ns)
         self.assertTrue(event.data["paused"])
         self.assertEqual(self.host.last_result.reason, "suspended")
         result.terminal.status = "stopped"
-        event = self.host._terminal_event(result, self.log, "cid", 1)
+        event = self.host._terminal_event(result, self.log, "cid", 1, started_ns)
         self.assertTrue(event.data["stopped"])
         result.terminal.status = "halted"
-        event = self.host._terminal_event(result, self.log, "cid", 1)
+        event = self.host._terminal_event(result, self.log, "cid", 1, started_ns)
         self.assertTrue(event.data["halted"])
 
 

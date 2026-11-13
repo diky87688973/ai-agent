@@ -57,6 +57,7 @@ class SlotConfig:
     plugin_roots: Mapping[str, Path] = field(default_factory=dict)
     #: 覆盖声明（声明层的输入，不参与构造）：求值后进有效视图，本体即丢弃。
     overrides: Tuple[Mapping[str, Any], ...] = ()
+    override_origins: Tuple[str, ...] = ()
 
     @property
     def sources(self) -> Mapping[str, str]:

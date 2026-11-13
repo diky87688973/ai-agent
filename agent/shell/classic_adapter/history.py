@@ -112,7 +112,10 @@ def _model_items(data: Dict[str, Any], elapsed: Optional[int],
         out.append(think)
     content = str(data.get("content") or "")
     if content.strip():
-        out.append({"role": "assistant", "content": content})
+        item = {"role": "assistant", "content": content}
+        if data.get("tool_calls"):
+            item["tool_phase"] = True
+        out.append(item)
     return out
 
 
@@ -224,6 +227,8 @@ def history_items(events: List[Any]) -> Tuple[List[Dict[str, Any]], List[Dict[st
             item = _compaction_item(data)
             if item is not None:
                 items.append(item)
+        elif kind == "turn_ended" and (data.get("stopped") or data.get("halted")) and data.get("detail"):
+            items.append({"role": "status", "content": str(data["detail"])})
         elif kind == "tool_started":
             item = _tool_started_item(data)
             if item is not None:

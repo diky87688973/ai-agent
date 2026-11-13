@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2615** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2619** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -67,7 +67,7 @@
 56. [test_gate_negative.py](#test_gate_negativepy)（74）
 57. [test_goal_runner.py](#test_goal_runnerpy)（8）
 58. [test_gui_launcher.py](#test_gui_launcherpy)（10）
-59. [test_history_page.py](#test_history_pagepy)（16）
+59. [test_history_page.py](#test_history_pagepy)（17）
 60. [test_host_service_slots.py](#test_host_service_slotspy)（2）
 61. [test_http_route_slots.py](#test_http_route_slotspy)（5）
 62. [test_image_embed.py](#test_image_embedpy)（10）
@@ -123,7 +123,7 @@
 112. [test_slot_loader.py](#test_slot_loaderpy)（65）
 113. [test_slot_merge.py](#test_slot_mergepy)（61）
 114. [test_slot_registry.py](#test_slot_registrypy)（13）
-115. [test_slot_replaceable.py](#test_slot_replaceablepy)（19）
+115. [test_slot_replaceable.py](#test_slot_replaceablepy)（20）
 116. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
 117. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
 118. [test_source_snapshot.py](#test_source_snapshotpy)（10）
@@ -160,7 +160,7 @@
 149. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
 150. [test_web_auth.py](#test_web_authpy)（26）
 151. [test_web_frontend.py](#test_web_frontendpy)（6）
-152. [test_web_shell.py](#test_web_shellpy)（58）
+152. [test_web_shell.py](#test_web_shellpy)（60）
 153. [test_web_ui_config.py](#test_web_ui_configpy)（24）
 154. [test_window_ops.py](#test_window_opspy)（31）
 155. [test_write_gate.py](#test_write_gatepy)（22）
@@ -1581,26 +1581,27 @@
 
 ## test_history_page.py
 
-共 16 个用例。
+共 17 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `FoldRoundsTest` | `test_chars_equal_sum_items` | 覆盖「A class whose instances are single test cases」：chars equal sum items |
 | 2 | `FoldRoundsTest` | `test_empty` | 覆盖「A class whose instances are single test cases」：empty |
-| 3 | `FoldRoundsTest` | `test_residual_events_before_first_input` | 覆盖「A class whose instances are single test cases」：residual events before first input |
-| 4 | `FoldRoundsTest` | `test_round_anchor_and_order` | 覆盖「A class whose instances are single test cases」：round anchor and order |
-| 5 | `FoldRoundsTest` | `test_tool_lifecycle_stays_in_round` | 覆盖「A class whose instances are single test cases」：tool lifecycle stays in round |
-| 6 | `ItemCostTest` | `test_tool_uses_script_args_preview_and_images` | 覆盖「A class whose instances are single test cases」：tool uses script args preview and images |
-| 7 | `ItemCostTest` | `test_user_and_attachments` | 覆盖「A class whose instances are single test cases」：user and attachments |
-| 8 | `SelectPageTest` | `test_before_is_exclusive` | 覆盖「A class whose instances are single test cases」：before is exclusive |
-| 9 | `SelectPageTest` | `test_before_older_than_everything_returns_empty` | 覆盖「A class whose instances are single test cases」：before older than everything returns empty |
-| 10 | `SelectPageTest` | `test_budget_constant` | 覆盖「A class whose instances are single test cases」：budget constant |
-| 11 | `SelectPageTest` | `test_budget_reaches_threshold_and_includes_whole_round` | 覆盖「A class whose instances are single test cases」：budget reaches threshold and includes whole round |
-| 12 | `SelectPageTest` | `test_exact_before_does_not_return_that_round` | 覆盖「A class whose instances are single test cases」：exact before does not return that round |
-| 13 | `SelectPageTest` | `test_full_traversal_has_no_missing_or_duplicate_rounds` | 覆盖「A class whose instances are single test cases」：full traversal has no missing or duplicate rounds |
-| 14 | `SelectPageTest` | `test_next_before_only_when_has_more` | 覆盖「A class whose instances are single test cases」：next before only when has more |
-| 15 | `SelectPageTest` | `test_page_values_are_copies` | 覆盖「A class whose instances are single test cases」：page values are copies |
-| 16 | `SelectPageTest` | `test_single_round_over_budget_is_returned_whole` | 覆盖「A class whose instances are single test cases」：single round over budget is returned whole |
+| 3 | `FoldRoundsTest` | `test_host_turn_keeps_multiple_inbox_inputs_and_tool_text_together` | 覆盖「A class whose instances are single test cases」：host turn keeps multiple inbox inputs and tool text together |
+| 4 | `FoldRoundsTest` | `test_residual_events_before_first_input` | 覆盖「A class whose instances are single test cases」：residual events before first input |
+| 5 | `FoldRoundsTest` | `test_round_anchor_and_order` | 覆盖「A class whose instances are single test cases」：round anchor and order |
+| 6 | `FoldRoundsTest` | `test_tool_lifecycle_stays_in_round` | 覆盖「A class whose instances are single test cases」：tool lifecycle stays in round |
+| 7 | `ItemCostTest` | `test_tool_uses_script_args_preview_and_images` | 覆盖「A class whose instances are single test cases」：tool uses script args preview and images |
+| 8 | `ItemCostTest` | `test_user_and_attachments` | 覆盖「A class whose instances are single test cases」：user and attachments |
+| 9 | `SelectPageTest` | `test_before_is_exclusive` | 覆盖「A class whose instances are single test cases」：before is exclusive |
+| 10 | `SelectPageTest` | `test_before_older_than_everything_returns_empty` | 覆盖「A class whose instances are single test cases」：before older than everything returns empty |
+| 11 | `SelectPageTest` | `test_budget_constant` | 覆盖「A class whose instances are single test cases」：budget constant |
+| 12 | `SelectPageTest` | `test_budget_reaches_threshold_and_includes_whole_round` | 覆盖「A class whose instances are single test cases」：budget reaches threshold and includes whole round |
+| 13 | `SelectPageTest` | `test_exact_before_does_not_return_that_round` | 覆盖「A class whose instances are single test cases」：exact before does not return that round |
+| 14 | `SelectPageTest` | `test_full_traversal_has_no_missing_or_duplicate_rounds` | 覆盖「A class whose instances are single test cases」：full traversal has no missing or duplicate rounds |
+| 15 | `SelectPageTest` | `test_next_before_only_when_has_more` | 覆盖「A class whose instances are single test cases」：next before only when has more |
+| 16 | `SelectPageTest` | `test_page_values_are_copies` | 覆盖「A class whose instances are single test cases」：page values are copies |
+| 17 | `SelectPageTest` | `test_single_round_over_budget_is_returned_whole` | 覆盖「A class whose instances are single test cases」：single round over budget is returned whole |
 
 ## test_host_service_slots.py
 
@@ -2866,7 +2867,7 @@
 
 ## test_slot_replaceable.py
 
-共 19 个用例。
+共 20 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2888,7 +2889,8 @@
 | 16 | `PluginSideReplaceTest` | `test_plugin_subtree_replacement_drops_descendants` | 覆盖「d（插件侧）：插件声明的节点同样可换，与内核一视同仁」：plugin subtree replacement drops descendants |
 | 17 | `RealRepoReplaceTest` | `test_plugin_tool_slot_is_replaceable_in_real_config` | 覆盖「真实合并配置上换一个插件主插口：后代消失，其余不受影响」：plugin tool slot is replaceable in real config |
 | 18 | `RealRepoReplaceTest` | `test_real_config_holds_no_overrides_by_default` | 覆盖「真实合并配置上换一个插件主插口：后代消失，其余不受影响」：real config holds no overrides by default |
-| 19 | `StructuralFieldTest` | `test_structural_fields_are_rejected` | 覆盖「覆盖不得改形状：结构字段出现即拒，文案指明须走下一轮快照」：structural fields are rejected |
+| 19 | `RealRepoReplaceTest` | `test_replacement_keeps_slot_owner_and_uses_script_origin` | 覆盖「真实合并配置上换一个插件主插口：后代消失，其余不受影响」：replacement keeps slot owner and uses script origin |
+| 20 | `StructuralFieldTest` | `test_structural_fields_are_rejected` | 覆盖「覆盖不得改形状：结构字段出现即拒，文案指明须走下一轮快照」：structural fields are rejected |
 
 ## test_slot_snapshot.py
 
@@ -3666,7 +3668,7 @@
 
 ## test_web_shell.py
 
-共 58 个用例。
+共 60 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -3684,50 +3686,52 @@
 | 12 | `DirBrowseDriveRootTest` | `test_relative_path_prefers_concrete_workspace_root` | 覆盖「可见根是盘根时（默认情形），相对路径不能被钉死在盘根」：relative path prefers concrete workspace root |
 | 13 | `DirBrowseQueryTest` | `test_dir_browse_single_char_path_not_truncated` | `_query()` 必须返回整串：路由若用 `[0]` 取首字符，值会被截断。 |
 | 14 | `DirBrowseQueryTest` | `test_ui_state_roundtrip` | 覆盖「路径查询串按整串解析，不按首字符」：ui state roundtrip |
-| 15 | `EndpointTest` | `test_health_endpoint` | 覆盖「端点清单可达性与显著错误码」：health endpoint |
-| 16 | `EndpointTest` | `test_media_endpoint_guards_root` | 覆盖「端点清单可达性与显著错误码」：media endpoint guards root |
-| 17 | `EndpointTest` | `test_media_missing_file_404` | 覆盖「端点清单可达性与显著错误码」：media missing file 404 |
-| 18 | `EndpointTest` | `test_pages_and_assets_served` | 覆盖「端点清单可达性与显著错误码」：pages and assets served |
-| 19 | `EndpointTest` | `test_send_rejects_bad_input` | 覆盖「端点清单可达性与显著错误码」：send rejects bad input |
-| 20 | `EndpointTest` | `test_setup_route_is_removed` | 覆盖「端点清单可达性与显著错误码」：setup route is removed |
-| 21 | `EndpointTest` | `test_unknown_path_404` | 覆盖「端点清单可达性与显著错误码」：unknown path 404 |
-| 22 | `FileViewerContractTest` | `test_absolute_path_inside_root_is_accepted` | 工具参数常给绝对路径；落在 fs_root 内必须能直接打开。 |
-| 23 | `FileViewerContractTest` | `test_absolute_path_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：absolute path outside root is forbidden |
-| 24 | `FileViewerContractTest` | `test_binary_is_reported_not_dumped` | 覆盖「文件读取端点的路径解析与越界边界」：binary is reported not dumped |
-| 25 | `FileViewerContractTest` | `test_list_absolute_path_inside_root` | 覆盖「文件读取端点的路径解析与越界边界」：list absolute path inside root |
-| 26 | `FileViewerContractTest` | `test_list_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：list outside root is forbidden |
-| 27 | `FileViewerContractTest` | `test_list_returns_entries_with_rel_and_type` | 覆盖「文件读取端点的路径解析与越界边界」：list returns entries with rel and type |
-| 28 | `FileViewerContractTest` | `test_max_chars_zero_returns_full_file` | 文件查看器显式传 0：不截断；默认调用仍保留 400000 字符保护。 |
-| 29 | `FileViewerContractTest` | `test_missing_file_inside_root_is_404_not_403` | 不存在的文件与越界必须分开报告：预览期未落盘的文件是 404，不是越权。 |
-| 30 | `FileViewerContractTest` | `test_relative_path_reads_text` | 覆盖「文件读取端点的路径解析与越界边界」：relative path reads text |
-| 31 | `FileViewerContractTest` | `test_traversal_cannot_escape_roots` | 穿越语义：不允许逃出可见根（不是"禁止 `..`"）。 |
-| 32 | `MultiRootFileViewerTest` | `test_absolute_path_in_first_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：absolute path in first root |
-| 33 | `MultiRootFileViewerTest` | `test_absolute_path_in_second_root` | 第二个根同样可达——单根实现会把它判成越界。 |
-| 34 | `MultiRootFileViewerTest` | `test_list_reports_rel_against_matched_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：list reports rel against matched root |
-| 35 | `MultiRootFileViewerTest` | `test_missing_in_a_root_is_404_not_403` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：missing in a root is 404 not 403 |
-| 36 | `MultiRootFileViewerTest` | `test_outside_all_roots_is_forbidden` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：outside all roots is forbidden |
-| 37 | `MultiRootFileViewerTest` | `test_relative_path_resolves_against_each_root` | 相对路径逐个根试：命中哪个根就用哪个。 |
-| 38 | `MultiRootFileViewerTest` | `test_roots_are_resolved_and_deduplicated_by_normalize` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：roots are resolved and deduplicated by normalize |
-| 39 | `SseContractTest` | `test_dir_browse_drives_layer` | `path=_drives_` 返回「计算机」层。 |
-| 40 | `SseContractTest` | `test_dir_browse_item_shape_and_ordering` | 条目形状 {name,type,ext,path}；目录排前。 |
-| 41 | `SseContractTest` | `test_dir_browse_missing_path_falls_back` | 访问不到的路径回落（不报错）——补全不能因为一个坏路径卡死。 |
-| 42 | `SseContractTest` | `test_dir_browse_relative_path_uses_workspace_base` | 相对路径应基于可见根解析，且不得落到盘根。 |
-| 43 | `SseContractTest` | `test_dir_browse_root_parent_is_drives` | 盘符根的 parent 是 `_drives_`，可从盘根回到计算机层。 |
-| 44 | `SseContractTest` | `test_every_frame_carries_conversation_id` | 覆盖「/ ：单流多路复用与事件信封」：every frame carries conversation id |
-| 45 | `SseContractTest` | `test_health_reports_model_for_header` | `/health` 须给出 model / allowed_models / 全局默认档位（顶栏与模型菜单）。 |
-| 46 | `SseContractTest` | `test_history_and_sessions_endpoints` | 覆盖「/ ：单流多路复用与事件信封」：history and sessions endpoints |
-| 47 | `SseContractTest` | `test_reasoning_effort_is_per_conversation` | 会话级档位不串会话：改一个不影响另一个（另一个回全局默认）。 |
-| 48 | `SseContractTest` | `test_reasoning_effort_rejects_invalid` | 非法档位拒设且保留原值；缺 cid 报错。 |
-| 49 | `SseContractTest` | `test_reasoning_effort_roundtrip` | 推理档位 GET/PUT 往返。 |
-| 50 | `SseContractTest` | `test_sessions_carry_date_group` | 会话名录须带 date_group（会话菜单按它插分组标题）。 |
-| 51 | `SseContractTest` | `test_sessions_prefer_the_persisted_title` | 覆盖「/ ：单流多路复用与事件信封」：sessions prefer the persisted title |
-| 52 | `SseContractTest` | `test_sessions_sorted_by_recent_activity` | 覆盖「/ ：单流多路复用与事件信封」：sessions sorted by recent activity |
-| 53 | `SseContractTest` | `test_sessions_without_title_file_return_unknown` | 没有已生成标题时返回明确的未知标题，不回读会话日志兜底。 |
-| 54 | `SseContractTest` | `test_title_falls_back_to_user_message_when_generation_fails` | 覆盖「/ ：单流多路复用与事件信封」：title falls back to user message when generation fails |
-| 55 | `SseContractTest` | `test_turn_events_reach_the_stream` | 覆盖「/ ：单流多路复用与事件信封」：turn events reach the stream |
-| 56 | `SseContractTest` | `test_two_sessions_do_not_cross` | 覆盖「/ ：单流多路复用与事件信封」：two sessions do not cross |
-| 57 | `WriteGateOverWebTest` | `test_confirm_is_session_scoped` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：confirm is session scoped |
-| 58 | `WriteGateOverWebTest` | `test_unconfirmed_commit_rejected_then_review_unlocks` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：unconfirmed commit rejected then review unlocks |
+| 15 | `EndpointTest` | `test_catalog_keeps_project_sessions_in_recent_after_deleting_project` | 覆盖「端点清单可达性与显著错误码」：catalog keeps project sessions in recent after deleting project |
+| 16 | `EndpointTest` | `test_health_endpoint` | 覆盖「端点清单可达性与显著错误码」：health endpoint |
+| 17 | `EndpointTest` | `test_large_history_turn_keeps_the_tail_and_pages_to_earlier_content` | 覆盖「端点清单可达性与显著错误码」：large history turn keeps the tail and pages to earlier content |
+| 18 | `EndpointTest` | `test_media_endpoint_guards_root` | 覆盖「端点清单可达性与显著错误码」：media endpoint guards root |
+| 19 | `EndpointTest` | `test_media_missing_file_404` | 覆盖「端点清单可达性与显著错误码」：media missing file 404 |
+| 20 | `EndpointTest` | `test_pages_and_assets_served` | 覆盖「端点清单可达性与显著错误码」：pages and assets served |
+| 21 | `EndpointTest` | `test_send_rejects_bad_input` | 覆盖「端点清单可达性与显著错误码」：send rejects bad input |
+| 22 | `EndpointTest` | `test_setup_route_is_removed` | 覆盖「端点清单可达性与显著错误码」：setup route is removed |
+| 23 | `EndpointTest` | `test_unknown_path_404` | 覆盖「端点清单可达性与显著错误码」：unknown path 404 |
+| 24 | `FileViewerContractTest` | `test_absolute_path_inside_root_is_accepted` | 工具参数常给绝对路径；落在 fs_root 内必须能直接打开。 |
+| 25 | `FileViewerContractTest` | `test_absolute_path_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：absolute path outside root is forbidden |
+| 26 | `FileViewerContractTest` | `test_binary_is_reported_not_dumped` | 覆盖「文件读取端点的路径解析与越界边界」：binary is reported not dumped |
+| 27 | `FileViewerContractTest` | `test_list_absolute_path_inside_root` | 覆盖「文件读取端点的路径解析与越界边界」：list absolute path inside root |
+| 28 | `FileViewerContractTest` | `test_list_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：list outside root is forbidden |
+| 29 | `FileViewerContractTest` | `test_list_returns_entries_with_rel_and_type` | 覆盖「文件读取端点的路径解析与越界边界」：list returns entries with rel and type |
+| 30 | `FileViewerContractTest` | `test_max_chars_zero_returns_full_file` | 文件查看器显式传 0：不截断；默认调用仍保留 400000 字符保护。 |
+| 31 | `FileViewerContractTest` | `test_missing_file_inside_root_is_404_not_403` | 不存在的文件与越界必须分开报告：预览期未落盘的文件是 404，不是越权。 |
+| 32 | `FileViewerContractTest` | `test_relative_path_reads_text` | 覆盖「文件读取端点的路径解析与越界边界」：relative path reads text |
+| 33 | `FileViewerContractTest` | `test_traversal_cannot_escape_roots` | 穿越语义：不允许逃出可见根（不是"禁止 `..`"）。 |
+| 34 | `MultiRootFileViewerTest` | `test_absolute_path_in_first_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：absolute path in first root |
+| 35 | `MultiRootFileViewerTest` | `test_absolute_path_in_second_root` | 第二个根同样可达——单根实现会把它判成越界。 |
+| 36 | `MultiRootFileViewerTest` | `test_list_reports_rel_against_matched_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：list reports rel against matched root |
+| 37 | `MultiRootFileViewerTest` | `test_missing_in_a_root_is_404_not_403` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：missing in a root is 404 not 403 |
+| 38 | `MultiRootFileViewerTest` | `test_outside_all_roots_is_forbidden` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：outside all roots is forbidden |
+| 39 | `MultiRootFileViewerTest` | `test_relative_path_resolves_against_each_root` | 相对路径逐个根试：命中哪个根就用哪个。 |
+| 40 | `MultiRootFileViewerTest` | `test_roots_are_resolved_and_deduplicated_by_normalize` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：roots are resolved and deduplicated by normalize |
+| 41 | `SseContractTest` | `test_dir_browse_drives_layer` | `path=_drives_` 返回「计算机」层。 |
+| 42 | `SseContractTest` | `test_dir_browse_item_shape_and_ordering` | 条目形状 {name,type,ext,path}；目录排前。 |
+| 43 | `SseContractTest` | `test_dir_browse_missing_path_falls_back` | 访问不到的路径回落（不报错）——补全不能因为一个坏路径卡死。 |
+| 44 | `SseContractTest` | `test_dir_browse_relative_path_uses_workspace_base` | 相对路径应基于可见根解析，且不得落到盘根。 |
+| 45 | `SseContractTest` | `test_dir_browse_root_parent_is_drives` | 盘符根的 parent 是 `_drives_`，可从盘根回到计算机层。 |
+| 46 | `SseContractTest` | `test_every_frame_carries_conversation_id` | 覆盖「/ ：单流多路复用与事件信封」：every frame carries conversation id |
+| 47 | `SseContractTest` | `test_health_reports_model_for_header` | `/health` 须给出 model / allowed_models / 全局默认档位（顶栏与模型菜单）。 |
+| 48 | `SseContractTest` | `test_history_and_sessions_endpoints` | 覆盖「/ ：单流多路复用与事件信封」：history and sessions endpoints |
+| 49 | `SseContractTest` | `test_reasoning_effort_is_per_conversation` | 会话级档位不串会话：改一个不影响另一个（另一个回全局默认）。 |
+| 50 | `SseContractTest` | `test_reasoning_effort_rejects_invalid` | 非法档位拒设且保留原值；缺 cid 报错。 |
+| 51 | `SseContractTest` | `test_reasoning_effort_roundtrip` | 推理档位 GET/PUT 往返。 |
+| 52 | `SseContractTest` | `test_sessions_carry_date_group` | 会话名录须带 date_group（会话菜单按它插分组标题）。 |
+| 53 | `SseContractTest` | `test_sessions_prefer_the_persisted_title` | 覆盖「/ ：单流多路复用与事件信封」：sessions prefer the persisted title |
+| 54 | `SseContractTest` | `test_sessions_sorted_by_recent_activity` | 覆盖「/ ：单流多路复用与事件信封」：sessions sorted by recent activity |
+| 55 | `SseContractTest` | `test_sessions_without_title_file_return_unknown` | 没有已生成标题时返回明确的未知标题，不回读会话日志兜底。 |
+| 56 | `SseContractTest` | `test_title_falls_back_to_user_message_when_generation_fails` | 覆盖「/ ：单流多路复用与事件信封」：title falls back to user message when generation fails |
+| 57 | `SseContractTest` | `test_turn_events_reach_the_stream` | 覆盖「/ ：单流多路复用与事件信封」：turn events reach the stream |
+| 58 | `SseContractTest` | `test_two_sessions_do_not_cross` | 覆盖「/ ：单流多路复用与事件信封」：two sessions do not cross |
+| 59 | `WriteGateOverWebTest` | `test_confirm_is_session_scoped` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：confirm is session scoped |
+| 60 | `WriteGateOverWebTest` | `test_unconfirmed_commit_rejected_then_review_unlocks` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：unconfirmed commit rejected then review unlocks |
 
 ## test_web_ui_config.py
 

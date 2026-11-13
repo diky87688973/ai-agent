@@ -341,6 +341,7 @@
         }
         inputEntries = rawEntries;
         catalogEntries = inputEntries;
+        classicComponents.apply(inputEntries);
         if (window.aiAgentShell && window.aiAgentShell.displays) window.aiAgentShell.displays.setCatalog(inputEntries);
         var segments = {};
         inputEntries.forEach(function (item) {

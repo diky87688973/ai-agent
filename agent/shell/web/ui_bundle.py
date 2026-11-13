@@ -33,11 +33,14 @@ UI_SHARED_CSS_FILES = (HOST_UI_DIR / "displays.css",)
 UI_JS_MODULES = (
     "core/auth-client.js",
     "core/boot.js",
+    "core/ui-components.js",
     "core/ui-catalog.js",
     "chat/todo.js",
+    "chat/turn-process.js",
     "chat/stream.js",
     "chat/confirm.js",
     "chat/conversation.js",
+    "chat/session-rail.js",
     "chat/history-paging.js",
     "composer/goal.js",
     "composer/state.js",
@@ -124,7 +127,7 @@ def _app_version() -> str:
     except Exception as exc:
         from agent.core.error_report import report_error
         report_error("agent.shell.web.ui_bundle.version", exc)
-        return "v0.2.2"
+        return "v0.2.3"
 
 
 APP_VERSION = _app_version()

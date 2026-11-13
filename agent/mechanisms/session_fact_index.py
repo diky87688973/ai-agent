@@ -200,13 +200,16 @@ class FactIndex:
     def lookup(self, *, kind: str = "", items: tuple[str, ...] = (),
                call_id: str = "", recent: bool = False, limit: int = 0,
                pending: bool = False, confirmation: bool = False, first: bool = False,
-               resumable: bool = False) -> list[tuple[int, int]]:
+               resumable: bool = False, before_seq: int | None = None) -> list[tuple[int, int]]:
         if not self.index_path.is_file():
             return []
         where, args = [], []
         if kind:
             where.append("kind=?")
             args.append(kind)
+        if before_seq is not None:
+            where.append("seq<?")
+            args.append(before_seq)
         if items:
             where.append("item IN (" + ",".join("?" for _ in items) + ")")
             args.extend(_key(item) for item in items)
@@ -296,15 +299,29 @@ class FactIndex:
             return [], False
         with closing(self._connect()) as db:
             end = None
+            first_turn = db.execute(
+                "SELECT MIN(pos) FROM facts WHERE kind='turn_started'",
+            ).fetchone()[0]
+            legacy_end = first_turn if first_turn is not None else 2**63 - 1
             if before is not None:
                 end = db.execute(
-                    "SELECT MIN(pos) FROM facts WHERE kind='input_claimed' AND seq>=?", (before,),
+                    """SELECT MIN(pos) FROM facts WHERE seq=?
+                    AND (kind='turn_started' OR (kind='input_claimed' AND pos<?))""",
+                    (before, legacy_end),
                 ).fetchone()[0]
+            if before is not None and end is None:
+                return [], False
             end = end if end is not None else 2**63 - 1
             anchors = db.execute(
-                "SELECT pos FROM facts WHERE kind='input_claimed' AND pos<? ORDER BY pos DESC LIMIT ?",
-                (end, rounds + 1),
+                """SELECT pos FROM facts WHERE kind='turn_started' AND pos<?
+                    ORDER BY pos DESC LIMIT ?""", (end, rounds + 1),
             ).fetchall()
+            if len(anchors) < rounds + 1:
+                anchors += db.execute(
+                    """SELECT pos FROM facts WHERE kind='input_claimed' AND pos<?
+                        ORDER BY pos DESC LIMIT ?""",
+                    (min(legacy_end, end), rounds + 1 - len(anchors)),
+                ).fetchall()
             start = anchors[rounds - 1][0] if len(anchors) > rounds else 0
             rows = db.execute(
                 "SELECT seq,pos,size FROM facts WHERE pos>=? AND pos<? ORDER BY pos DESC LIMIT 8193",
@@ -312,6 +329,39 @@ class FactIndex:
             ).fetchall()
             kept, more = self._fit_history(rows, anchors)
         return list(reversed(kept)), bool(start or more)
+
+    def history_slice(self, before: int | None) -> tuple[list[tuple[int, int, int]], int | None, int]:
+        """Read a bounded slice when one host turn exceeds the normal page budget."""
+        if not self.index_path.is_file():
+            return [], None, 0
+        with closing(self._connect()) as db:
+            end = 2**63 - 1
+            if before is not None:
+                boundary = db.execute("SELECT pos FROM facts WHERE seq=?", (before,)).fetchone()
+                if boundary is None:
+                    return [], None, 0
+                end = boundary[0]
+            rows = db.execute(
+                """SELECT seq,pos,size,kind FROM facts WHERE pos<?
+                    ORDER BY pos DESC LIMIT 2049""", (end,),
+            ).fetchall()
+            selected = []
+            size = skipped = 0
+            next_before = None
+            for index, (seq, pos, length, kind) in enumerate(rows):
+                if index == 2048 or (selected and length <= 4 * 1024 * 1024
+                                     and size + length > 4 * 1024 * 1024):
+                    next_before = rows[index - 1][0]
+                    break
+                if length > 4 * 1024 * 1024:
+                    skipped += 1
+                else:
+                    size += length
+                    selected.append((seq, pos, length))
+                if kind in ("turn_started", "input_claimed") and size >= 64 * 1024:
+                    next_before = seq if index + 1 < len(rows) else None
+                    break
+        return list(reversed(selected)), next_before, skipped
 
     @staticmethod
     def _fit_history(rows: list, anchors: list) -> tuple[list, bool]:

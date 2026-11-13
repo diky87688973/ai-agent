@@ -28,7 +28,15 @@ def run(acc: Any) -> int:
             errors: list = []
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             page.goto(acc.base + "/", wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(1500)
+            page.wait_for_function("() => !!window.aiAgentAICosplay")
+            acc.check("无语音时播放条不占位", not page.locator("#aiCosplayPlayer").count())
+            page.evaluate(
+                """() => document.dispatchEvent(new CustomEvent("ai-agent:plugin-event", {
+                    detail: {type: "plugin_event", plugin: "ai_cosplay", event: "pending",
+                             conversation_id: getActiveConversationId(),
+                             call_id: "accept-web-ai", text: "测试语音"}
+                }))"""
+            )
             acc.check(
                 "AI角色扮演播放条已注入",
                 page.evaluate(

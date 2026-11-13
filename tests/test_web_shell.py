@@ -285,6 +285,50 @@ class _ServerFixture(unittest.TestCase):
 class EndpointTest(_ServerFixture):
     """端点清单可达性与显著错误码。"""
 
+    def test_catalog_keeps_project_sessions_in_recent_after_deleting_project(self) -> None:
+        from agent.core.events import Event
+
+        url = "/api/chat/session-catalog"
+        cid = "catalog-session-01"
+        self.app.store.append(cid, [Event("input_claimed", {"content": "测试"})])
+        self.assertTrue(self.shell.session_catalog.initialized.wait(5))
+        status, project = self.post(url, {"operation": "create", "name": "工程"})
+        self.assertEqual(status, 200)
+        project_id = project["project"]
+        self.assertEqual(self.post(url, {"operation": "move", "project": project_id,
+                                         "conversation_id": cid})[0], 200)
+        self.assertEqual(self.post(url, {"operation": "pin", "pinned": True,
+                                         "conversation_id": cid})[0], 200)
+        for section in ("recent", "pinned", "project"):
+            status, result = self.get_json(f"{url}?section={section}&project={project_id}")
+            self.assertEqual(status, 200)
+            self.assertEqual([item["id"] for item in result["items"]], [cid])
+        self.assertEqual(self.post(url, {"operation": "delete", "project": project_id})[0], 200)
+        _, result = self.get_json(url)
+        self.assertIsNone(result["items"][0]["project"])
+        self.assertTrue(result["items"][0]["pinned"])
+        self.assertTrue(self.app.store.session_exists(cid))
+
+    def test_large_history_turn_keeps_the_tail_and_pages_to_earlier_content(self) -> None:
+        from agent.core.events import Event
+
+        cid = "catalog-history-oversize"
+        self.app.store.append(cid, [
+            Event("turn_started", {}),
+            Event("input_claimed", {"content": "较早的输入"}),
+            Event("tool_started", {"call_id": "large-call", "name": "read_file"}),
+            Event("tool_done", {"call_id": "large-call", "data": {"text": "x" * (17 * 1024 * 1024)}}),
+            Event("model_message", {"content": "最终答复"}),
+            Event("turn_ended", {}),
+        ])
+        status, result = self.get_json(f"/api/chat/history?conversation_id={cid}")
+        self.assertEqual(status, 200)
+        self.assertTrue(result["page"]["slice"])
+        self.assertEqual(result["page"]["omitted"], 1)
+        self.assertEqual(result["items"][-1]["content"], "最终答复")
+        self.assertTrue(result["items"][-1]["final_reply"])
+        self.assertIn("较早的输入", [item.get("content") for item in result["items"]])
+
     def test_pages_and_assets_served(self) -> None:
 
         # 首页是经典界面单页：素材内联，原件仍按原名躺在 `web_assets/classic/` 下，
@@ -688,7 +732,8 @@ class SseContractTest(_ServerFixture):
             status, pending = self.get_json(history_url)
         self.assertEqual(status, 503)
         self.assertEqual(pending["code"], "history_index_pending")
-        with patch.object(self.app.store, "history_window", side_effect=HistoryWindowTooLarge("too large")):
+        with (patch.object(self.app.store, "history_window", side_effect=HistoryWindowTooLarge("too large")),
+              patch.object(self.app.store, "history_slice", None)):
             status, oversized = self.get_json(history_url)
         self.assertEqual(status, 422)
         self.assertNotIn("code", oversized)
@@ -1357,4 +1402,3 @@ class WriteGateOverWebTest(_ServerFixture):
         # 别的会话的门控不能解锁它（会话隔离）
         other = self.app.gate_for("some-other-conv")
         self.assertFalse(other.confirm(confirm_id), msg="跨会话不得解锁预览快照")
-

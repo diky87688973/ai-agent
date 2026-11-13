@@ -13,13 +13,11 @@
 """
 from __future__ import annotations
 
-import heapq
 import json
 import os
 import re
 import threading
 import uuid
-from itertools import islice
 from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
 
@@ -41,6 +39,7 @@ from agent.mechanisms.session_lines import (
     seq_from_obj,
 )
 from agent.mechanisms.session_locking import cross_process_lock
+from agent.mechanisms.session_replay import SessionReplay
 from agent.mechanisms.session_sequence import SessionSequence
 from agent.mechanisms.session_snapshot import SessionSnapshots, read_turn_delta
 
@@ -73,7 +72,7 @@ def is_valid_conversation_id(conversation_id: str) -> bool:
 _PENDING_MAX_BATCHES = 64
 
 
-class SessionStore:
+class SessionStore(SessionReplay):
     """append-only 事件日志（每会话一档）；可选行级加密。"""
 
     def __init__(
@@ -120,6 +119,7 @@ class SessionStore:
         self._pending: dict = {}
         self._snapshots = SessionSnapshots()
         self._indexes = FactIndexes(self._parse_obj)
+        self.on_commit: Optional[Callable[[str], None]] = None
         self._pending_guard = threading.Lock()
 
     def _append_lock(self, path: Path):
@@ -279,6 +279,8 @@ class SessionStore:
                 if retry_pending:
                     self._pending_write(conversation_id, batch, exc)
                 raise
+        if written:
+            self._notify_commit(conversation_id)
         return written
 
     # ── 待重试队列（跨回合存活）──────────────────────────
@@ -495,11 +497,21 @@ class SessionStore:
             path = self.raw_path(conversation_id)
             path.parent.mkdir(parents=True, exist_ok=True)
             with self._append_lock(path), cross_process_lock(path):
-                self._append_indexed(path, self._indexes.current(path), rows_events)
+                written = self._append_indexed(path, self._indexes.current(path), rows_events)
         except Exception as exc:
             self._pending_write(conversation_id, rows_events, exc)
             raise
+        if written:
+            self._notify_commit(conversation_id)
         return requested if requested else len(rows_events)
+
+    def _notify_commit(self, cid: str) -> None:
+        observer = self.on_commit
+        if observer is not None:
+            try:
+                observer(cid)
+            except Exception as exc:
+                report_error("session_store.commit_observer", exc)
 
     def line_count(self, conversation_id: str, *, path: Optional[Path] = None) -> int:
         """Return the indexed number of nonblank lines."""
@@ -578,45 +590,6 @@ class SessionStore:
             return self.raw_path(conversation_id).stat().st_size > 0
         except FileNotFoundError:
             return False
-
-    def history_window(self, conversation_id: str, before: int | None = None,
-                       rounds: int = 16) -> tuple[list[tuple[int, Event]], bool]:
-        path = self.raw_path(conversation_id)
-        rows, older = self._indexes.current(path).history(before, rounds)
-        return list(self._read_replay(path, rows)), older
-
-    def _read_replay(self, path: Path, rows: Iterable[tuple[int, int, int]]):
-        rows = list(rows)
-        if not rows:
-            return
-        with path.open("rb") as raw:
-            for seq, pos, size in rows:
-                raw.seek(pos)
-                obj = self._parse_obj(raw.read(size).decode("utf-8", errors="replace"))
-                event = event_from_obj(obj, path.stem)
-                if event is not None:
-                    self._observe(seq)
-                    yield seq, event
-
-    def tail_from(self, conversation_id: str, after_seq: int) -> List[Tuple[int, Event]]:
-        """Read a bounded batch of this session's events after the cursor."""
-        path = self.raw_path(conversation_id)
-        rows = self._indexes.current(path).replay(int(after_seq), 512, frozenset())
-        return list(self._read_replay(path, rows))
-
-    def tail_across(self, after_seq: int, limit: int = 512, *,
-                    exclude_types: frozenset[str] = frozenset()) -> List[Tuple[int, str, Event]]:
-        """Merge indexed positions before reading the bounded replay payload."""
-        count = max(1, min(int(limit), 4096))
-        batches = []
-        for path in self._raw_files():
-            rows = self._indexes.current(path).replay(int(after_seq), count, exclude_types)
-            batches.append([(seq, str(path), pos, size) for seq, pos, size in rows])
-        result = []
-        for seq, path_text, pos, size in islice(heapq.merge(*batches), count):
-            path = Path(path_text)
-            result.extend((s, path.stem, event) for s, event in self._read_replay(path, [(seq, pos, size)]))
-        return result
 
     # ── 加密入口──────────────────────────────────
 

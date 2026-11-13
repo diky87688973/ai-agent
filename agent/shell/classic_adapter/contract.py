@@ -40,6 +40,16 @@ def safe_count(value: object) -> int:
 # 经典界面读的事件名；`plugin_event` 由 `stream.js` 转发给插件。
 EV_CONVERSATION: Final = "conversation"
 EV_RUN_STARTED: Final = "run_started"
+
+
+def turn_status(data: Dict[str, Any]) -> str:
+    """Project a host terminal fact for both live and historical chat."""
+    for key in ("paused", "stopped", "interrupted", "abandoned", "halted"):
+        if data.get(key):
+            return key
+    if data.get("detail") == "abandoned":
+        return "abandoned"
+    return "done"
 EV_ASSISTANT: Final = "assistant"
 EV_ASSISTANT_DELTA: Final = "assistant_delta"
 EV_ASSISTANT_MARKDOWN: Final = "assistant_markdown"

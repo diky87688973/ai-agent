@@ -28,17 +28,23 @@ class SubagentActions:
         except ValueError as exc:
             return 400, {"ok": False, "error": str(exc)}
 
-    def subagent_history(self, parent_cid: str, child_id: str) -> Tuple[int, Dict[str, Any]]:
+    def subagent_history(self, parent_cid: str, child_id: str, *,
+                         before: str | None = None,
+                         slice_history: bool = False) -> Tuple[int, Dict[str, Any]]:
         manager = self._subagent_manager()
         if manager is None:
             return 503, {"ok": False, "error": "subagents_unavailable"}
         try:
+            cursor = int(before) if before is not None else None
+            if cursor is not None and cursor < 0:
+                raise ValueError("历史分页位置无效")
             child = manager.record(child_id)
             if child.parent_cid != str(parent_cid or "").strip():
                 return 403, {"ok": False, "error": "parent_mismatch"}
             classic = self._classic_adapter()
             if classic is not None:
-                payload = classic.history(child_id, store=manager.store_for(child_id))
+                payload = classic.history(child_id, store=manager.store_for(child_id),
+                                          before=cursor, slice_history=slice_history)
                 payload.update({
                     "ok": True,
                     "parent_cid": child.parent_cid,

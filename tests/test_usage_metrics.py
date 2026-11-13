@@ -40,11 +40,8 @@ class UsageFieldsAreOfficialTest(unittest.TestCase):
             self.assertIn(name, C.SSE_USAGE_FIELDS, msg=f"契约少了 {name}")
 
     def _stream(self) -> ClassicStream:
-        """最小可用的适配流：`_on_usage` 只用到 `cid` 与 `_ev`。"""
-        stream = ClassicStream.__new__(ClassicStream)
-        stream.cid = "usage-metrics-cid"
-        stream._frame_seq = None
-        return stream
+        """Use the normal adapter state when checking the wire payload."""
+        return ClassicStream("usage-metrics-cid")
 
     def test_outbound_forwards_them_unchanged(self) -> None:
         stream = self._stream()

@@ -328,6 +328,21 @@ frozen 只冻自己、不冻子树
 
 四种 `ui-*` 不运行 factory，声明本身就是产物。其余工厂按 kind 约定调用，具体签名以 `slot_assembly._invoke` 为准：容器类为 `factory(ctx, children, **requires)`，其他为 `factory(ctx, **requires)`。
 
+### Web UI 组件替换
+
+`web_ui` 提供两个可替换的 `ui-control`。插件在自己的 `plugin-slots.json`
+用 `overrides` 的 `mode: "replace"` 指向目标路径，在 `props.script` 或
+`props.scripts` 声明自己的相对脚本路径。有效目录从覆盖片段确定脚本归属。
+脚本执行时调用 `window.aiAgentClassicComponents.register(path, implementation)`。
+
+| 插口路径 | 实现契约 |
+|---|---|
+| `app/shell/web-ui/chat/messages/process` | `mount(host)` 将容器挂入消息区并返回 `{node, body, title}`。宿主将过程节点追加到 `body`。`finish(view, status, count, elapsedMs)` 管理完成后的折叠行为，可用 `elapsedMs` 展示回合总耗时。运行中或历史记录缺少耗时时，该值为空。可选 `dispose(view)` 释放监听与其他资源。 |
+| `app/shell/web-ui/left-panel/sessions/list` | `render(host, context)` 展示目录，`context.page(key)` 读页快照，`load(key, reset)` 取页，`mutate(body)` 整理目录，`open(id, title)` 打开会话。可选 `dispose(host)` 释放资源。页键为 `recent`、`pinned`、`projects` 或项目 ID。 |
+
+文件、展示协议产物和确认卡挂在消息主线。折叠组件只接收过程节点。
+替换插件卸载后按有效目录恢复默认实现。禁用过程插口时，过程内容平铺。
+
 `provider` 的已登记目标是 context-source、prompt-section、mode-tail、assembly-hook、model-catalog。目标及额外字段由 `SlotBinder` 校验：prompt-section 必须给出 section，路由必须给出 method 与 `props.path`，不得按节点末段猜测 HTTP 地址。新增目标要同时增加契约、绑定实现和负向测试，不能借 props 绕过登记。
 
 工厂引用有两种来源：宿主 `agent.<module>:<attribute>`，插件 `<relative.module>:<attribute>`。插件相对模块必须解析在声明来源的实际插件根内；`plugin:make` 仅表示该目录下 plugin.py 的 make，不是另一种特殊注册机制。工厂可通过 BuildContext 的 spec、config、built/depend、resolver、boot_config、data_dir、plugin_meta 获取已声明环境；不虚构 `ctx.requires` 或把 ctx.config 说成插件配置文本。

@@ -41,7 +41,8 @@
         "fixed": [
           "user_msg",
           "ai_msg",
-          "tools"
+          "tools",
+          "process"
         ]
       },
       {
@@ -170,6 +171,16 @@
       }
     ],
     "items": [
+      {
+        "path": "app/shell/web-ui/chat/messages/process",
+        "props": {"label": "执行过程"},
+        "order": null
+      },
+      {
+        "path": "app/shell/web-ui/left-panel/sessions/list",
+        "props": {"label": "会话清单"},
+        "order": null
+      },
       {
         "path": "app/shell/web-ui/right-panel/steps",
         "props": {

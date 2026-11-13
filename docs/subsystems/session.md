@@ -19,6 +19,16 @@ the covered prefix. Warm snapshots read only appended facts. The first rebuild
 for a legacy summary records its verified input boundary for future starts. A
 cold session with no valid compaction boundary reconstructs its original context.
 
+The Web sidebar stores organization in `<data_root>/session/catalog.sqlite3`.
+Projects and pins are user data. Use a consistent SQLite backup or stop the
+service before copying the database. Summaries are derived from raw file
+metadata and saved titles. Recent sessions, pinned sessions, project names, and
+project members paginate independently. History uses host turn boundaries and
+preserves input boundaries for legacy records that precede them. Older versions
+can still open the original sessions after a rollback.
+Oversized turns are read in indexed slices. The UI reports skipped records
+larger than 4 MiB and keeps the remaining history pageable.
+
 ## 2. Slots
 
 ### Exposed

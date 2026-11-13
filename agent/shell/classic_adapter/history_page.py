@@ -10,6 +10,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
+from agent.shell.classic_adapter.contract import turn_status
 from agent.shell.classic_adapter.history import history_items
 
 HISTORY_PAGE_CHARS = 10_000
@@ -17,7 +18,7 @@ HISTORY_PAGE_CHARS = 10_000
 
 @dataclass(frozen=True)
 class Round:
-    """一个用户轮：`input_claimed` 到下一个 `input_claimed` 之前。"""
+    """由宿主回合开始事实界定的一段历史。"""
 
     anchor: int | None
     items: Tuple[Dict[str, Any], ...]
@@ -77,20 +78,31 @@ def _copy_items(items: Iterable[Dict[str, Any]]) -> Tuple[Dict[str, Any], ...]:
     return tuple(copy.deepcopy(item) for item in items)
 
 
-def fold_rounds(events: Sequence[Any]) -> List[Round]:
-    """把带 `_seq` 的事件折成连续轮次。
-
-    事件必须已按存储顺序排列；`input_claimed` 开启新一轮。首个
-    `input_claimed` 之前的事件形成 `anchor=None` 的残留轮。
-    """
+def fold_rounds(events: Sequence[Any], *, partial: bool = False) -> List[Round]:
+    """从宿主边界投影轮次，旧历史前缀按用户消息分页。"""
     rounds: List[Round] = []
     current: List[Any] = []
 
     def flush() -> None:
         if not current:
             return
-        anchor = _seq(current[0]) if str(getattr(current[0], "type", "")) == "input_claimed" else None
+        kind = getattr(current[0], "type", "")
+        anchor = _seq(current[0]) if kind in ("turn_started", "input_claimed") else None
         items, attachments = history_items(current)
+        if kind == "turn_started" and anchor is not None:
+            end = next((event for event in reversed(current) if event.type == "turn_ended"), None)
+            if end is None:
+                status = "partial" if partial else "running"
+            else:
+                status = turn_status(end.data or {})
+            final = next((item for item in reversed(items)
+                          if item["role"] in ("assistant", "tool")), None)
+            if final and final["role"] == "assistant" and status != "partial" and not final.get("tool_phase"):
+                final["final_reply"] = True
+            for item in items:
+                item.update(turn_key=anchor, turn_status=status)
+                if end is not None and end.data.get("elapsed_ms") is not None:
+                    item["turn_elapsed_ms"] = end.data["elapsed_ms"]
         rounds.append(Round(
             anchor=anchor,
             items=_copy_items(items),
@@ -98,11 +110,13 @@ def fold_rounds(events: Sequence[Any]) -> List[Round]:
             chars=sum(item_cost(item) for item in items),
         ))
 
+    explicit = False
     for event in events:
         kind = str(getattr(event, "type", ""))
-        if kind == "input_claimed" and current:
+        if current and (kind == "turn_started" or (not explicit and kind == "input_claimed")):
             flush()
             current = []
+        explicit = explicit or kind == "turn_started"
         current.append(event)
     flush()
     return rounds

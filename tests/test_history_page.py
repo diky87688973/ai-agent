@@ -78,6 +78,28 @@ class FoldRoundsTest(unittest.TestCase):
         rounds = fold_rounds([_input(1, "a"), _model(2, "bb")])
         self.assertEqual(rounds[0].chars, 3)
 
+    def test_host_turn_keeps_multiple_inbox_inputs_and_tool_text_together(self) -> None:
+        rounds = fold_rounds([
+            Event("turn_started", {"_seq": 1}),
+            _input(2, "第一条"), _input(3, "第二条"),
+            Event("model_message", {"_seq": 4, "content": "先查看", "tool_calls": [{"id": "c1"}]}),
+            Event("tool_started", {"call_id": "c1", "name": "read_file"}),
+            Event("tool_done", {"call_id": "c1", "data": {}}),
+            _model(7, "结论"),
+            Event("turn_ended", {"_seq": 8, "elapsed_ms": 2450}),
+            Event("turn_started", {"_seq": 9}),
+            _model(10, "恢复确认后的答复"),
+            Event("turn_ended", {"_seq": 11, "paused": True}),
+        ])
+        self.assertEqual([rnd.anchor for rnd in rounds], [1, 9])
+        items = rounds[0].items
+        self.assertEqual([item["role"] for item in items],
+                         ["user", "user", "assistant", "tool", "assistant"])
+        self.assertFalse(items[2].get("final_reply", False))
+        self.assertTrue(items[-1]["final_reply"])
+        self.assertEqual({item["turn_elapsed_ms"] for item in items}, {2450})
+        self.assertEqual(rounds[1].items[0]["turn_status"], "paused")
+
 
 class SelectPageTest(unittest.TestCase):
     def _rounds(self, sizes):

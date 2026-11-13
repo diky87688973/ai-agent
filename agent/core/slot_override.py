@@ -13,6 +13,7 @@ from agent.core.slot_config import SlotConfig
 from agent.core.slot_problems import validate_problems
 from agent.core.slot_spec import (
     BASE_MODE,
+    HOST_OWNER,
     MODES,
     OVERRIDE_FIELDS,
     STRUCTURAL_FIELDS,
@@ -169,6 +170,13 @@ def effective_view(config: SlotConfig,
         return config
     bindings = resolve_bindings(config, rows)
     specs: Dict[str, SlotSpec] = {}
+    origins = dict(config.origins)
+    if overrides is None:
+        for row, origin in zip(rows, config.override_origins):
+            path = str(row.get("path") or "").strip().strip("/")
+            if (origin != HOST_OWNER and config.spec(path).kind.startswith("ui-")
+                    and _mode_of(row, path) in ("replace", "replace_subtree")):
+                origins[path] = origin
     for path in config.paths():
         # 两种失效都不进视图：整棵禁用，与主插口换了之后的旧后代。
         if path in bindings.hidden or path in bindings.disabled:
@@ -189,7 +197,7 @@ def effective_view(config: SlotConfig,
         specs[path] = chain[0].spec
     view = SlotConfig(
         root=config.root, version=config.version, specs=specs,
-        origins={path: origin for path, origin in config.origins.items()
+        origins={path: origin for path, origin in origins.items()
                  if path in specs},
         synthesized=frozenset(path for path in config.synthesized if path in specs),
         subagent_tools=config.subagent_tools, plugins_root=config.plugins_root,

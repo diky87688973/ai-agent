@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 import agent.shell.classic_adapter.contract as C
 from agent.core.error_report import report_error
 from agent.core.event_name import LIVE_ONLY_EVENTS
+from agent.shell.classic_adapter.outbound import ClassicStream
 
 #: 单会话待发队列上限：超出丢最旧的（UI 丢几帧旧事件好过整个服务被拖死）
 _QUEUE_MAX = 512
@@ -217,16 +218,23 @@ class ChannelMixin:
         if store is None or not hasattr(store, "tail_across"):
             return 0
         rows = store.tail_across(int(after_seq), limit=limit, exclude_types=LIVE_ONLY_EVENTS)
+        frames: List[Dict[str, Any]] = []
+        replay_streams: Dict[str, ClassicStream] = {}
+        for seq, cid, event in rows:
+            if cid not in replay_streams:
+                stream = ClassicStream(cid, mode_resolver=self._mode_of)
+                lookup = getattr(store, "fact_matches", None)
+                if callable(lookup) and event.type != "turn_started":
+                    start = lookup(cid, kind="turn_started", limit=1, before_seq=seq)
+                    if start:
+                        ended = lookup(cid, kind="turn_ended", limit=1, before_seq=seq)
+                        key = start[0].data.get("_seq")
+                        if isinstance(key, int) and (not ended or ended[0].data.get("_seq", -1) < key):
+                            stream.resume_projection(key)
+                replay_streams[cid] = stream
+            payload = dict(event.data or {}, _seq=seq)
+            frames.extend(replay_streams[cid].translate(str(event.type), payload))
         with self._lock:
-            frames: List[Dict[str, Any]] = []
-            # 按会话分组翻译：每个会话一条 `ClassicStream`（翻译是有状态的，
-            # 回合号 / 待配对工具都按会话各自维护）。
-            # 装配/契约错误（如缺 registry）直接冒泡，禁止吞成空回放。
-            for seq, cid, event in rows:
-                stream = self._stream(cid)
-                payload = dict(event.data or {})
-                payload["_seq"] = seq
-                frames.extend(stream.translate(str(event.type), payload))
             channels = [only] if only is not None else list(self._channels)
         self._push_frames(channels, frames, drop_oldest=False)
         return len(frames)

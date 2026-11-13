@@ -118,7 +118,8 @@ class SessionActions:
         if fallback and self.title_generator is not None:
             if self.titles is None or not self.titles.claim_generation(cid):
                 if self.titles is not None:
-                    self.titles.save(cid, fallback, replace=False)
+                    if self.titles.save(cid, fallback, replace=False) and self.session_catalog is not None:
+                        self.session_catalog.touch(cid)
                     existing = self.titles.load(cid)
                 cached = bool(existing and not is_placeholder_title(existing))
                 return 200, {"ok": True, "conversation_id": cid,
@@ -132,8 +133,9 @@ class SessionActions:
         else:
             title = fallback
         if title and not is_placeholder_title(title):
-            if self.titles is not None:
-                self.titles.save(cid, title)
+            if (self.titles is not None and self.titles.save(cid, title)
+                    and self.session_catalog is not None):
+                self.session_catalog.touch(cid)
         else:
             title = UNKNOWN_TITLE
         return 200, {"ok": True, "conversation_id": cid, "title": title, "cached": False}

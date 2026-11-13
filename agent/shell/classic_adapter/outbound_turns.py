@@ -19,7 +19,6 @@ class TurnFrames:
         self.round = 0
         self.pending.clear()
         self.paused = False
-        self._awaiting_confirm = False
         self._has_context_snapshot = False
         out: List[Dict[str, Any]] = []
         # `conversation` 是必需事件：经典界面靠它建立该会话的上下文
@@ -32,8 +31,9 @@ class TurnFrames:
         # "发一条消息，模型下拉自己跳回默认"。
         # 规则：首次打开页面拉一次当前模型，此后一律以发送消息那一刻
         # 前端带来的 `model` 为准 —— 服务端不反向覆盖用户当场的选择。
+        self.turn_key = self._frame_seq
         out.append(self._ev(C.EV_CONVERSATION, mode=self._resolve_mode()))
-        out.append(self._ev(C.EV_RUN_STARTED, run_id=self.run_id))
+        out.append(self._ev(C.EV_RUN_STARTED, run_id=self.run_id, turn_key=self.turn_key))
         mode = d.get("mode")
         if mode:
             out.append(self._ev(C.EV_MODE_CHANGED, mode=C.normalize_mode(mode)))
@@ -183,11 +183,7 @@ class TurnFrames:
         return [self._ev(C.EV_ASSISTANT_DELTA, delta=text)]
 
     def _on_model_message(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """本步收束：补 `llm_response` + `llm_done`，并给最终正文。
-
-        经典界面的 `assistant` 只在有正文时才应发；工具调用轮没有正文，
-        发空串会让它渲染一个空气泡。
-        """
+        """发出本次模型调用的完整正文和工具阶段标记。"""
         out: List[Dict[str, Any]] = []
         if self._step_had_llm:
             content = str(d.get("content") or "")
@@ -204,12 +200,9 @@ class TurnFrames:
             ))
             out.append(self._ev(C.EV_LLM_DONE))
             self._step_had_llm = False
-            # 正在等用户作答时不发 `assistant`：暂停那一回合通常没有正文，
-            # 而经典界面的 `assistant` 分支是 `if(!finalizeAssistantStream(c)){add("a", c||"");}`——
-            # 没有流式气泡时它会 `add("a","")`，渲染出一个空气泡。
-            # 那一回合的可见产出是确认模态，不是对话区里的文字。
-            if content and not self._awaiting_confirm:
-                out.append(self._ev(C.EV_ASSISTANT, content=content))
+            if content:
+                out.append(self._ev(C.EV_ASSISTANT, content=content,
+                                    tool_phase=bool(d.get("tool_calls"))))
         return out
 
     def _on_usage(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -288,12 +281,16 @@ class TurnFrames:
             # `_on_error` 同样给 `message`。
             out.append(self._ev(C.EV_ERROR, message=detail,
                                 where="turn", detail=detail))
-        out.append(self._ev(C.EV_DONE, ok=not (stopped or halted)))
+        status = C.turn_status(d)
+        out.append(self._ev(C.EV_DONE, ok=not (stopped or halted),
+                            turn_key=self.turn_key, turn_status=status,
+                            turn_elapsed_ms=d.get("elapsed_ms")))
         self._error_sent = False   # 回合收尾，下一回合重新计
         if not self._has_context_snapshot:
             out += self._emit_layout()
         self.pending.clear()
         self.paused = paused
+        self.turn_key = None
         return out
 
     def _on_context_compacted(self, d: Dict[str, Any]) -> List[Dict[str, Any]]:

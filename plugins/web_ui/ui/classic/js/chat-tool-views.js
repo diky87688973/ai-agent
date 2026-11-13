@@ -1085,9 +1085,9 @@ window.aiAgentChatTools={register:registerChatToolView,replace:replaceChatToolVi
 function appendChatToolRow(row, opts){
 if(!msgs||!row)return;
 opts=opts||{};
-if(opts.beforeStream&&streamAssistantEl&&streamAssistantEl.parentNode)streamAssistantEl.before(row);
-else if(streamAssistantEl&&streamAssistantEl.parentNode){streamAssistantEl.after(row);streamAssistantEl=null;streamAssistantText="";}
-else msgs.appendChild(row);
+var host=row.classList.contains("chat-file-card-row")?msgs:chatProcessBody();
+if(opts.beforeStream&&streamAssistantEl&&streamAssistantEl.parentNode===host)streamAssistantEl.before(row);
+else host.appendChild(row);
 scrollMsgsToBottom();
 }
 function mountChatToolItem(o){

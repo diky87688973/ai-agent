@@ -206,9 +206,6 @@ html[data-ui-theme="light"] .session-rail {
 html[data-ui-theme="light"] .session-rail-head {
   border-bottom-color: #e2e2e2;
 }
-html[data-ui-theme="light"] .chat-session-group {
-  color: #666666;
-}
 html[data-ui-theme="light"] .chat-session-row {
   color: #1f1f1f;
 }

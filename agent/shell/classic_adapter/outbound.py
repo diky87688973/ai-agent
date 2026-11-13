@@ -45,6 +45,7 @@ class ClassicStream(ToolFrames, TurnFrames):
         #: 本回合是否已经发过 `error` 帧（防 `turn_ended` 收尾时重复报错）。
         self._error_sent = False
         self.run_id = ""
+        self.turn_key: Optional[int] = None
         # 内核事件不带 mode/model，但经典界面的 `conversation` 事件必须有它们。
         # 用注入的解析器现场取（adapter 从 live_state / provider 拿）。
         self.mode_resolver = mode_resolver
@@ -65,8 +66,11 @@ class ClassicStream(ToolFrames, TurnFrames):
         # 本回合是否停在"等用户作答"（由 `turn_ended.paused` 置位）。
         # 它是宿主状态：恢复靠用户操作触发新回合，内核不等待、不阻塞。
         self.paused = False
-        # 本回合是否已发出待确认信封（决定要不要抑制收尾的空正文气泡）。
-        self._awaiting_confirm = False
+
+    def resume_projection(self, turn_key: int) -> None:
+        """Resume inside a turn whose opening frames the client already saw."""
+        self.turn_key = turn_key
+        self._step_had_llm = True
 
     def _ev(self, type_: str, **data: Any) -> Dict[str, Any]:
         """组一帧；除豁免事件外一律带上校验过的 conversation_id。
@@ -79,6 +83,8 @@ class ClassicStream(ToolFrames, TurnFrames):
             frame["conversation_id"] = self.cid
         if self._frame_seq is not None:
             frame["seq"] = self._frame_seq
+        if self.turn_key is not None and "turn_key" not in frame:
+            frame["turn_key"] = self.turn_key
         return frame
 
     # ── 内核事件入口 ──────────────────────────────────────

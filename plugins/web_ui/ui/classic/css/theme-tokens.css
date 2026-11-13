@@ -99,7 +99,20 @@ textarea{font-family:var(--f-ui);font-size:var(--fs-body);line-height:var(--lh-u
 .card{font-size:var(--fs-ui)}
 .step .ch-toggle .tit{font-size:var(--fs-ui);line-height:var(--lh-ui)}
 .p-title{font-size:var(--fs-sm)}
-.chat-session-group{font-size:var(--fs-xs)}
+.session-rail #sessionRailNew,
+.session-rail .session-rail-section-head h2,
+.session-rail .session-rail-action,
+.session-rail .chat-session-row,
+.session-rail .chat-session-empty,
+.session-rail-menu .session-rail-action,
+.session-rail-project-select{font-size:13px}
+.session-rail .chat-session-group,
+.session-rail .chat-session-badge,
+.session-rail .usage-bottom,
+.session-rail .usage-bottom .ub-sheet,
+.session-rail .usage-bottom .ub-note,
+.session-rail .usage-bottom .usage-pct,
+.session-rail .usage-bottom .ctx-bar-empty{font-size:12px}
 .ctx-layout-tooltip .ctx-tip-line{grid-template-columns:var(--w-tip-label) var(--w-tip-track) minmax(0,1fr)}
 .ctx-layout-tooltip .ctx-tip-track{width:var(--w-tip-track);height:var(--h-tip-track)}
 

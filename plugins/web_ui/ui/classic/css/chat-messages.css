@@ -98,3 +98,7 @@ button.sec{background:#444;color:#ccc}
 .chat-jump-bottom.is-visible{display:flex;}
 .chat-jump-bottom:hover{background:var(--c-bg-layer-2,#26272c);color:var(--c-text-1,#f9fafb);border-color:var(--c-line-1,#3c3c3c);}
 .chat-jump-bottom:active{transform:translateY(0);}
+.chat-turn-process{min-width:0;margin:4px 0;color:var(--c-text-2)}
+.chat-turn-process>summary{cursor:pointer;padding:5px 8px;border-radius:6px;font-size:12px;color:var(--c-text-3)}
+.chat-turn-process>summary:hover{background:var(--c-bg-hover)}
+.chat-turn-process-body{display:flex;flex-direction:column;gap:8px;padding:4px 0 4px 12px;margin-left:8px;border-left:1px solid var(--c-line-2);min-width:0}
