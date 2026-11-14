@@ -128,7 +128,7 @@ enabled = 1
 
 **节的先后即上下文组装顺序**：越不容易变动的插件排在越前面。
 
-**插件自己的配置跟着插件走。** `ai_cosplay` / `visual_operator` / `knowledge` / `skills` 的配置入库；`multi_model` 的密钥配置被 `.gitignore` 排除；**内核的 `config.ini` 里没有插件设置**。插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.zh.md)。
+**插件自己的配置跟着插件走。** 每个插件的 `plugin-config.ini` 都带本地实例状态（目录、凭据、阈值），一律被 `.gitignore` 排除；入库的只有内核的 `config.ini` 与 `web-ui-config.ini`；**内核的 `config.ini` 里没有插件设置**。插件的目录形态、可贡献的能力与开发方式见 [插件](../subsystems/plugins.zh.md)。
 
 ### 玻璃风格
 

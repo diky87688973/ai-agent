@@ -1,6 +1,6 @@
 # 私有配置与凭据
-# 非机密默认配置入库；含凭据或本机路径的配置与本地覆盖文件忽略
-plugins/multi_model/plugin-config.ini
+# 插件配置带本地实例属性（目录、凭据、阈值），一律不入库；只有内核配置入库
+plugins/*/plugin-config.ini
 _PRIVATE_RULE.md
 *.local.ini
 *.local.toml

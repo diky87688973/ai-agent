@@ -65,7 +65,7 @@ plugins/<插件名>/plugin-meta.json      ← 身份声明
 **内核的 `config.ini` 只含内核设置，不放任何插件设置。** 插件的设置在插件自己
 目录下，随插件一起装卸、一起删除。`plugin-config.ini` 是插件读取的唯一配置文件；
 文件不存在时插件使用代码默认值。`plugin-config.ini.example` 这类格式样例不在运行期读取。
-AI角色扮演 / 视觉操作 / 知识库 / Skills 的配置入库，`multi_model` 的配置由 `.gitignore` 排除。
+每个插件的 `plugin-config.ini` 都带本地实例状态（目录、凭据、阈值），一律由 `.gitignore` 排除；入库的只有内核配置文件。
 
 文件名固定是 `plugin-config.ini`（不是 `config.ini`）——`config.ini` 这个名字专指
 内核配置，同名两份文件会产生歧义。

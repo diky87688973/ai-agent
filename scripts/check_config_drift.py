@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """配置漂移门禁：真实配置只允许使用 schema 已登记的节与键。
 
-无凭据的默认配置入库；只有含凭据的 multi_model 配置用 `.example` 样例。
+无凭据的默认配置入库；插件配置（含凭据与本机路径）一律由 `.gitignore` 排除，multi_model 另保留 `.example` 样例。
 门禁检查现有真实文件（容忍缺省），并校验含凭据配置的样例键集合。
 """
 from __future__ import annotations

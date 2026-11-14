@@ -32,7 +32,7 @@ plugins/<plugin-name>/plugin-config.ini     ← plugin settings only
 plugins/<plugin-name>/plugin-meta.json      ← identity declaration
 ```
 
-**The kernel's `config.ini` contains kernel settings only; no plugin settings belong there.** Plugin settings live in the plugin directory and are installed, removed, and deleted with the plugin. `plugin-config.ini` is the only configuration file the plugin reads; when it does not exist, the plugin uses code defaults. A format example such as `plugin-config.ini.example` is never read at runtime. Configuration for AI Speak, Visual Operator, the knowledge base, and Skills is committed; `multi_model` configuration is excluded by `.gitignore`.
+**The kernel's `config.ini` contains kernel settings only; no plugin settings belong there.** Plugin settings live in the plugin directory and are installed, removed, and deleted with the plugin. `plugin-config.ini` is the only configuration file the plugin reads; when it does not exist, the plugin uses code defaults. A format example such as `plugin-config.ini.example` is never read at runtime. Every plugin's `plugin-config.ini` carries local instance state (directories, credentials, thresholds) and is excluded by `.gitignore`; only the kernel configuration files are committed.
 
 The file name is fixed as `plugin-config.ini` (not `config.ini`): `config.ini` refers to kernel configuration, and two files with the same name would be ambiguous.
 
