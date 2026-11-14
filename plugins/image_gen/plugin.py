@@ -37,7 +37,7 @@ class ImageGenTool(ToolPlugin):
         "check：只探测显卡与本地模型，不出图。\n"
         "安装引导：needs_setup 之后必须用 user_confirm 工具发确认，分两次：先确认选哪个模型"
         "（带上下载体积、建议显存、镜像源、是否需授权与本机够不够用），再确认装到哪个目录；"
-        "不得用普通文字提问代替确认工具，也不要自己猜目录。用户取消或未作答一律视为不下载。\n"
+        "不得用普通文字提问代替确认工具，也不要自己猜目录。\n"
         "download：下载模型。必须同时传 confirmed=true 与 model；confirmed 不为 true 时直接拒绝。"
         "model_dir 未配置时先与用户确认目录再传，该目录会写入 plugin-config.ini。"
         "模型仓库需授权的会返回 needs_auth，不准静默换模型，"
