@@ -54,6 +54,10 @@ _MIN_THINKING_BUDGET = 1024
 _META_VENDOR = "anthropic"
 _META_BLOCKS = "thinking_blocks"
 
+#: 常规收尾值：每次响应都会带一个，属正常流转，不能当异常记。
+#: 只对表外的值（未知或需关注的收尾）留痕，否则错误通道会被常态占满。
+_NORMAL_STOP_REASONS = frozenset({"tool_use", "end_turn", "max_tokens"})
+
 
 # ── 地址与错误 ──────────────────────────────
 
@@ -644,7 +648,7 @@ def _assemble_deltas(chunks: Iterable[Dict[str, Any]]) -> Iterator[StreamDelta]:
             raise ModelRequestError(str(err.get("message") or "模型返回错误")[:800])
         # ping / 未知事件：忽略（前滚契约）
 
-    if stop_reason:
+    if stop_reason and stop_reason not in _NORMAL_STOP_REASONS:
         _warn(_stop_reason_note(stop_reason))
     if thinking:
         yield StreamDelta(kind="meta", meta={_META_VENDOR: {_META_BLOCKS: thinking}})
