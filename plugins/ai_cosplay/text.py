@@ -450,6 +450,8 @@ _HANG_AFTER_NUMBER = re.compile(
 _HANG_BEFORE_NUMBER = re.compile(
     r"行\s*(?P<number>\d+|[一二三四五六七八九十百千万零两]+)"
 )
+#: 「数行」按行数读 háng；后接「为」时是「函数行为」这类词，保持原读。
+_HANG_AFTER_COUNT = re.compile(r"数行(?!为)")
 
 
 def _polyphone_speech_text(text: str) -> str:
@@ -467,6 +469,7 @@ def _polyphone_speech_text(text: str) -> str:
               .replace("去重", "去 chóng")
               .replace("运行", "运 xíng"))
     source = _HANG_EXCEPTIONS.sub(hold, source)
+    source = _HANG_AFTER_COUNT.sub("数 háng ", source)
     source = _HANG_AFTER_NUMBER.sub(lambda m: f"{m.group('number')} háng ", source)
     source = _HANG_BEFORE_NUMBER.sub(lambda m: f" háng {m.group('number')}", source)
     for index, value in enumerate(held):
