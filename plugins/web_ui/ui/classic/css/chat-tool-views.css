@@ -75,7 +75,7 @@ animation:chat-tool-marquee 1.8s linear infinite;
 .chat-tool-custom-view .chat-tool-pane--diff,
 .chat-tool-custom-view .chat-tool-pane--shot,
 .chat-tool-custom-view .diff-unified,
-.chat-tool-custom-view .chat-tool-pane--diff .diff-unified{max-height:none;overflow:visible}
+.chat-tool-custom-view .chat-tool-pane--diff .diff-unified{max-height:none;overflow-x:auto;overflow-y:visible}
 .chat-tool-packet{padding:6px 12px 8px}
 .chat-tool-packet-btn{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;padding:0;font:inherit;font-size:12.5px;line-height:1.4;color:#8b949e;cursor:pointer}
 .chat-tool-packet-btn:hover{color:#d6dde6}

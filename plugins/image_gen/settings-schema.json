@@ -1,0 +1,25 @@
+{
+  "kind": "fields",
+  "title": "本地出图配置",
+  "section": "config",
+  "fields": [
+    {
+      "key": "model_dir",
+      "kind": "text",
+      "label": "模型安装目录",
+      "hint": "例如 D:\\flux-lab；插件在该目录下找 models/，出图写到 <该目录>/output"
+    },
+    {
+      "key": "runtime_python",
+      "kind": "text",
+      "label": "运行时解释器",
+      "hint": "装有 diffusers / transformers / torch 的 python.exe；出图与下载都由它起子进程"
+    },
+    {
+      "key": "default_model",
+      "kind": "text",
+      "label": "默认模型 id",
+      "hint": "留空表示未配置：出图必须显式传 model。取值见 image_gen(action=check) 的 catalog"
+    }
+  ]
+}

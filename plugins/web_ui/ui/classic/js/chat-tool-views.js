@@ -985,6 +985,7 @@ card.setAttribute("data-file-path",path);
 var icon=document.createElement("span");
 icon.className="chat-file-card-icon";
 var kind=String(file&&file.kind||"file");
+if(kind==="image"&&path)card.setAttribute("data-file-image","1");
 if(kind==="image"&&path){
 var img=document.createElement("img");
 img.alt="";
@@ -1006,7 +1007,7 @@ var meta=document.createElement("span");
 meta.className="chat-file-card-meta";
 var bits=[chatFileCardKindLabel(kind)];
 if(file&&file.size!=null)bits.push(chatFileCardSize(file.size));
-bits.push("在侧边栏预览");
+bits.push(kind==="image"?"点击看大图":"在侧边栏预览");
 meta.textContent=bits.join(" · ");
 body.appendChild(title);
 body.appendChild(meta);

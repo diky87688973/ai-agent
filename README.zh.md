@@ -170,6 +170,7 @@ python3 -m agent.gui.launcher
 | [Skills](docs/subsystems/skills.zh.md) | `skills` 插件的三层披露、内置/外置来源与 `skills` 工具 |
 | [Rules](docs/subsystems/rules.zh.md) | `rules` 插件：`rules/` 下的 `.md` 全量注入与热开关 |
 | [AI角色扮演](docs/subsystems/ai-cosplay.zh.md) | `ai_cosplay` 的文本规范、语音合成、插件事件与播放器 |
+| [本地出图](docs/subsystems/image-gen.zh.md) | `image_gen` 的模型清单、下载确认、子进程出图与结果回传 |
 | [会话与协作](docs/subsystems/session.zh.md) | 事实日志、跨进程锁、运行态登记、协作网格 |
 | [子智能体](docs/subsystems/subagent.zh.md) | 父子会话、批次、工具可见性、消息与最终回复投递 |
 | [壳层](docs/subsystems/shell.zh.md) | HTTP 路由、SSE、界面打包、适配层 |

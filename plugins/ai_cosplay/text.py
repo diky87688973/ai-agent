@@ -461,6 +461,8 @@ def _polyphone_speech_text(text: str) -> str:
         return f"\x00{len(held) - 1}\x00"
 
     source = (text.replace("换行", "换 háng ")
+              .replace("折行", "折 háng ")
+              .replace("行内", " háng 内")
               .replace("重跑", " chóng 跑")
               .replace("去重", "去 chóng")
               .replace("运行", "运 xíng"))

@@ -73,12 +73,12 @@ pre{margin:0;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;wor
 --diff-run-out-bg:rgba(0,0,0,.08);
 --diff-run-sep:rgba(255,255,255,.22);
 }
-.diff-unified{font-family:Consolas,ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5;padding:0;max-height:none;overflow:visible;border-radius:6px}
+.diff-unified{font-family:Consolas,ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5;padding:0;max-height:none;overflow-x:auto;overflow-y:visible;border-radius:6px}
 .diff-unified:not(.diff-surface-adaptive){background:#0d1117;border:1px solid #30363d;color:#c9d1d9}
 .diff-unified.diff-surface-adaptive{background:var(--diff-surface-bg);border:1px solid var(--diff-surface-border);color:var(--diff-surface-text)}
 .diff-unified.diff-surface-adaptive>div{display:flex;align-items:stretch;border-left:4px solid transparent;min-height:1.5em}
 .diff-unified.diff-surface-adaptive .d-gutter{flex:0 0 26px;text-align:center;padding:1px 0;font-weight:600;user-select:none;font-size:12px;line-height:1.5}
-.diff-unified.diff-surface-adaptive .d-code{flex:1;padding:1px 12px 1px 8px;white-space:pre-wrap;word-break:break-word;color:var(--diff-surface-text)}
+.diff-unified.diff-surface-adaptive .d-code{flex:1;padding:1px 12px 1px 8px;white-space:pre;word-break:normal;color:var(--diff-surface-text)}
 .diff-unified.diff-surface-adaptive .d-del{background:var(--diff-del-bg);border-left-color:var(--diff-del-border)}
 .diff-unified.diff-surface-adaptive .d-del .d-gutter{color:var(--diff-del-gutter-text);background:var(--diff-del-gutter-bg)}
 .diff-unified.diff-surface-adaptive .d-add{background:var(--diff-add-bg);border-left-color:var(--diff-add-border)}
@@ -87,7 +87,7 @@ pre{margin:0;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;wor
 .diff-unified.diff-surface-adaptive .d-eq .d-gutter{color:var(--diff-eq-text);background:var(--diff-eq-gutter-bg)}
 .diff-unified.diff-surface-adaptive .d-meta{display:block;padding:3px 12px;color:var(--diff-meta-text);background:var(--diff-meta-bg);border-left:4px solid var(--diff-meta-border);font-size:11px}
 .diff-unified.diff-surface-adaptive .d-meta .d-gutter,.diff-unified.diff-surface-adaptive .d-meta .d-code{display:none}
-.preview-slot .diff-unified.diff-surface-adaptive{max-height:none;overflow:visible;margin-top:4px}
+.preview-slot .diff-unified.diff-surface-adaptive{max-height:none;overflow-x:auto;overflow-y:visible;margin-top:4px}
 /* 聊天内「执行命令」stdout 卡片：内联深色底会在白天模式下与 .b.a code 的配色叠出极低对比度 */
 .chat-run-wrap{overflow:inherit}
 .chat-run-pre{margin:0;padding:8px 10px;font-size:11px;line-height:1.45;max-height:none;overflow:visible;font-family:Consolas,ui-monospace,monospace;white-space:pre-wrap;word-break:break-word;box-sizing:border-box;border:0;border-radius:0}

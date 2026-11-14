@@ -173,6 +173,7 @@ Documentation is available in English and Chinese; English pages are canonical.
 | [Rules](docs/subsystems/rules.md) | `rules/` markdown injection and hot toggle |
 | [Visual Operator 2.0](docs/subsystems/visual-operator-2.0.md) | Continuous frames, focus, authorization, mouse/keyboard tools |
 | [AI Speak](docs/subsystems/ai-cosplay.md) | Text normalization, speech synthesis, plugin events, player |
+| [Image generation](docs/subsystems/image-gen.md) | `image_gen` model catalog, download confirmation, subprocess rendering and result hand-off |
 | [Sessions and collaboration](docs/subsystems/session.md) | Fact logs, cross-process locks, runtime registry, collaboration mesh |
 | [Subagents](docs/subsystems/subagent.md) | Parent/child sessions, batches, tool visibility, messaging |
 | [Shell](docs/subsystems/shell.md) | HTTP routes, SSE, UI bundling, adapter layer |

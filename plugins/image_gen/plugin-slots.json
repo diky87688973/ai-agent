@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/image_gen/tools/image_gen",
+      "kind": "tool",
+      "factory": "plugin:make_tool"
+    }
+  ],
+  "subagent_tools": []
+}

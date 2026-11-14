@@ -55,7 +55,11 @@ return;
 while(el&&el!==document){
 if(el.classList&&el.classList.contains("chat-file-card")){
 var fp=el.getAttribute("data-file-path")||"";
-if(fp){ev.preventDefault();openFileTab(fp);}
+if(fp){
+ev.preventDefault();
+if(el.getAttribute("data-file-image")&&window.AIA&&window.AIA.openImageFromPath)window.AIA.openImageFromPath(fp);
+else openFileTab(fp);
+}
 return;
 }
 if(el.classList&&el.classList.contains("file-ref")){
@@ -84,7 +88,9 @@ var card=t.closest(".chat-file-card");
 if(!card)return;
 var p=card.getAttribute("data-file-path")||"";
 if(!p)return;
-ev.preventDefault();openFileTab(p);
+ev.preventDefault();
+if(card.getAttribute("data-file-image")&&window.AIA&&window.AIA.openImageFromPath)window.AIA.openImageFromPath(p);
+else openFileTab(p);
 });
 }
 function updateSlashPopHints(){

@@ -328,6 +328,10 @@
 
   AIA.attachmentUrl = attachmentUrl;
   AIA.openImageLightbox = openImageLightbox;
+  /* 本地路径取图：文件卡片与行内图片共用同一套预览，不另开标签页。 */
+  AIA.openImageFromPath = function (path) {
+    openImageLightbox("/api/media?path=" + encodeURIComponent(String(path || "")));
+  };
   AIA.bindThumbClick = bindThumbClick;
   AIA.buildMsgAttachStrip = buildMsgAttachStrip;
   AIA.appendHadImagesLostTip = appendHadImagesLostTip;

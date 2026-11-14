@@ -545,6 +545,74 @@
       }
     },
     {
+      "description": "用本地扩散模型出图。出图、下载都是长耗时操作，本工具只负责起后台任务并立即返回，绝不等待完成；完成后由后台任务通知，再用 action=status 取本地图片路径。\n任务完成会自动通知，不要用 task_sleep / task_schedule 给自己设唤醒，也不要轮询等待。\naction 选填，默认 generate。\ngenerate：出图。先查本地是否已装模型；没有就返回 needs_setup 并附模型清单（名字、下载体积、建议显存、镜像源、是否需授权）与本机显卡情况，此时必须与用户确认后才能下载。\ncheck：只探测显卡与本地模型，不出图。\ndownload：下载模型。必须同时传 confirmed=true 与 model；confirmed 不为 true 时直接拒绝。model_dir 未配置时先与用户确认目录再传，该目录会写入 plugin-config.ini。模型仓库需授权的会返回 needs_auth，不准静默换模型，要与用户确认是否改用可匿名下载的社区量化版。\nstatus：凭 task_id 取结果，返回 image_path 即本地图片绝对路径；调用方默认行为是把该图片内联展示，并在正文里给出这个路径。\n用户取消或未作答一律视为不下载；未确认时不得调用 download。",
+      "display": {
+        "icon": "🎨",
+        "label": "本地出图"
+      },
+      "name": "image_gen",
+      "parallel_safe": false,
+      "parameters": {
+        "action": {
+          "description": "动作，默认 generate",
+          "enum": [
+            "generate",
+            "check",
+            "download",
+            "status"
+          ],
+          "type": "string"
+        },
+        "confirmed": {
+          "description": "download 必填：用户已明确同意下载时才传 true",
+          "type": "boolean"
+        },
+        "height": {
+          "description": "高，默认 768",
+          "maximum": 2048,
+          "minimum": 256,
+          "type": "integer"
+        },
+        "model": {
+          "description": "模型 id；省略时用配置里的 default_model，两者都为空则报错",
+          "type": "string"
+        },
+        "model_dir": {
+          "description": "download 可选：用户确认的安装目录；已配置过则省略",
+          "type": "string"
+        },
+        "negative": {
+          "description": "反向提示词，仅 SDXL 生效",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "出图提示词，generate 必填",
+          "type": "string"
+        },
+        "seed": {
+          "description": "随机种子，默认 0",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "steps": {
+          "description": "采样步数，默认 20",
+          "maximum": 60,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "task_id": {
+          "description": "status 必填：后台任务 id",
+          "type": "string"
+        },
+        "width": {
+          "description": "宽，默认 1024",
+          "maximum": 2048,
+          "minimum": 256,
+          "type": "integer"
+        }
+      }
+    },
+    {
       "description": "对图片做 OCR（pytesseract / easyocr，可选依赖）；支持区域裁剪；缺依赖时给出安装提示。",
       "display": {
         "icon": "🖼",

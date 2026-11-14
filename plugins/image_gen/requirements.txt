@@ -1,0 +1,4 @@
+# 主进程侧依赖：下载器用 requests。
+# 出图依赖（torch / diffusers / transformers / safetensors / accelerate / gguf / Pillow）
+# 装在 runtime_python 指向的解释器里，不在主进程安装。
+requests>=2.31
