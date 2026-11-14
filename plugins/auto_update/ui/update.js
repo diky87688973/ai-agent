@@ -25,6 +25,13 @@
       btn.title = title || text;
     }
 
+    function versionLabel(data) {
+      var raw = String((data && (data.version || data.remote)) || "").trim();
+      if (!raw) return "";
+      var first = raw.charAt(0);
+      return first === "v" || first === "V" ? raw : "v" + raw;
+    }
+
     function request(method, path) {
       return fetch(path, { method: method, headers: { "Content-Type": "application/json" }, cache: "no-store" })
         .then(function (response) {
@@ -47,7 +54,13 @@
       available = !!data.available;
       intervalMinutes = Number(data.interval_minutes || 30);
       failed = false;
-      if (staged) { set("重启应用更新", "更新已下载"); btn.classList.remove("hidden"); return; }
+      var version = versionLabel(data);
+      if (staged) {
+        set(version ? "重启应用新版本" + version : "重启应用更新",
+            version ? "新版本 " + version + " 已下载，点击重启应用" : "更新已下载");
+        btn.classList.remove("hidden");
+        return;
+      }
       if (available) { set("发现新版本", "点击更新"); btn.classList.remove("hidden"); return; }
       btn.classList.add("hidden");
       set("版本更新", "检查更新");
