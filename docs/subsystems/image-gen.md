@@ -43,7 +43,7 @@ The directory confirmed there, together with the model picked, is written back t
 | --- | --- |
 | `generate` (default) | An omitted `model` falls back to the configured `default_model`; when both are absent it errors out. The model gate runs first: empty `model_dir` or no installed model returns `needs_setup` with the catalog and local GPU advice; otherwise a background task is created and `task_id` is returned immediately |
 | `check` | Probes GPU and installed models only |
-| `download` | Requires `confirmed=true`; gated repositories return `needs_auth` with anonymous alternatives; a missing directory returns `need_model_dir` |
+| `download` | Install guidance must go through `user_confirm` twice (model, then directory), never plain-text questions; requires `confirmed=true`, otherwise returns `need_confirm`; gated repositories return `needs_auth` with anonymous alternatives; a missing directory returns `need_model_dir` |
 | `status` | Reads the result file for a `task_id` and returns `image_path`; never reads background task output |
 
 Long-running work reuses the host background task service (`SERVICE_BACKGROUND_TASKS`); the

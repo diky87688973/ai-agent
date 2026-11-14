@@ -40,7 +40,7 @@
 | --- | --- |
 | `generate`（默认） | 省略 `model` 时用配置里的 `default_model`，两者都没有则报错；先做模型闸门：`model_dir` 为空或没有就位模型时返回 `needs_setup` 并附清单与本机显卡建议；就位则起后台任务，立即返回 `task_id` |
 | `check` | 只探测显卡与本地模型，不出图 |
-| `download` | 必须 `confirmed=true` 才执行；需授权的仓库返回 `needs_auth` 并列出可匿名替代；缺目录返回 `need_model_dir` |
+| `download` | 引导必须用 `user_confirm` 发两次确认（先模型、再目录），不得用普通文字提问代替；下载需 `confirmed=true`，否则返回 `need_confirm`；需授权的仓库返回 `needs_auth` 并列出可匿名替代；缺目录返回 `need_model_dir` |
 | `status` | 凭 `task_id` 读结果文件返回 `image_path`；不读取后台任务输出 |
 
 后台任务一律复用宿主既有的任务服务（`SERVICE_BACKGROUND_TASKS`），插件不自建任务队列。
