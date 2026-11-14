@@ -682,3 +682,7 @@ html[data-ui-theme="dark"] .step pre.sub{
   font-family:var(--f-code);
   font-synthesis:none;
 }
+
+html[data-ui-theme="light"] .session-rail-project-select{
+  color-scheme:light;
+}

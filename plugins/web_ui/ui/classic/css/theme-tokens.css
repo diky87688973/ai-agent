@@ -106,6 +106,9 @@ textarea{font-family:var(--f-ui);font-size:var(--fs-body);line-height:var(--lh-u
 .session-rail .chat-session-empty,
 .session-rail-menu .session-rail-action,
 .session-rail-project-select{font-size:13px}
+/* 展开的选项层由浏览器原生渲染，只有 color-scheme 与 option 配色能跟着主题走。 */
+.session-rail-project-select{color-scheme:dark}
+.session-rail-project-select option{background:var(--c-bg-overlay);color:var(--c-text-2)}
 .session-rail .chat-session-group,
 .session-rail .chat-session-badge,
 .session-rail .usage-bottom,
