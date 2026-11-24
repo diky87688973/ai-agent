@@ -458,6 +458,9 @@ class EndpointAndErrorTest(unittest.TestCase):
                  (_sse("message_stop", {}) + "\n").encode()]
 
         class _Response:
+            def abort(self):
+                pass
+
             def __iter__(self):
                 return iter(lines)
 
@@ -466,7 +469,7 @@ class EndpointAndErrorTest(unittest.TestCase):
 
         captured = {}
 
-        def fake_urlopen(req, timeout=0):
+        def fake_urlopen(req, timeout=0, **_transport):
             captured["url"] = req.full_url
             captured["headers"] = {k.lower(): v for k, v in req.header_items()}
             captured["body"] = json.loads(req.data.decode("utf-8"))
@@ -476,7 +479,7 @@ class EndpointAndErrorTest(unittest.TestCase):
         provider = AnthropicProvider(base_url="https://api.anthropic.com", api_key="sk-ant",
                                      model="claude-x", thinking=False)
         with mock.patch.object(ap, "LOG_REQUESTS", False), \
-                mock.patch.object(ap.urllib.request, "urlopen", side_effect=fake_urlopen):
+                mock.patch.object(ap, "open_model_response", side_effect=fake_urlopen):
             deltas = list(provider.stream(request))
         self.assertEqual(captured["url"], "https://api.anthropic.com/v1/messages")
         self.assertEqual(captured["headers"]["x-api-key"], "sk-ant")
@@ -487,6 +490,9 @@ class EndpointAndErrorTest(unittest.TestCase):
 
     def test_stream_watchdog_stops_a_stalled_upstream(self) -> None:
         class _StalledResponse:
+            def abort(self):
+                pass
+
             def __iter__(self):
                 time.sleep(0.2)
                 return iter(())
@@ -498,7 +504,7 @@ class EndpointAndErrorTest(unittest.TestCase):
             base_url="https://x", api_key="k", model="m", timeout=0.02,
         )
         with mock.patch.object(ap, "LOG_REQUESTS", False), \
-                mock.patch.object(ap.urllib.request, "urlopen",
+                mock.patch.object(ap, "open_model_response",
                                   return_value=_StalledResponse()):
             with self.assertRaises(ModelRequestError) as caught:
                 list(provider.stream(LogicalRequest(messages=[{"role": "user", "content": "q"}],
@@ -512,7 +518,7 @@ class EndpointAndErrorTest(unittest.TestCase):
         )
         provider = AnthropicProvider(base_url="https://x", api_key="k", model="m")
         with mock.patch.object(ap, "LOG_REQUESTS", False), \
-                mock.patch.object(ap.urllib.request, "urlopen", side_effect=error):
+                mock.patch.object(ap, "open_model_response", side_effect=error):
             with self.assertRaises(ModelRequestError) as caught:
                 list(provider.stream(LogicalRequest(messages=[], tools=[])))
         self.assertEqual(caught.exception.status, 429)

@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -199,6 +201,27 @@ class PidAliveTest(unittest.TestCase):
     def test_live_pid_is_alive(self) -> None:
         """当前进程的 pid 必须判活 —— 这是最直接的判据。"""
         self.assertTrue(FileRunRegistry._pid_alive(os.getpid()))
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows retains exited process objects")
+    def test_exited_process_with_retained_handle_is_reclaimed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            registry = FileRunRegistry(Path(directory))
+            child = subprocess.Popen([sys.executable, "-c", "pass"],
+                                     creationflags=subprocess.CREATE_NO_WINDOW)
+            try:
+                child.wait(timeout=5)
+                record = {"pid": child.pid, "run_id": "old", "heartbeat": time.time()}
+                path = Path(directory) / (CID + ".json")
+                import json
+                path.write_text(json.dumps(record), encoding="utf-8")
+                self.assertFalse(FileRunRegistry._pid_alive(child.pid))
+                self.assertFalse(registry.running(CID))
+                self.assertFalse(path.exists())
+                self.assertTrue(registry.claim(CID, "new"))
+            finally:
+                if child.poll() is None:
+                    child.kill()
+                    child.wait(timeout=5)
 
     def test_nonexistent_pid_is_dead(self) -> None:
         """不存在的 pid 必须判死，否则过期记录永远不回收。"""

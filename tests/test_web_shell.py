@@ -1183,11 +1183,67 @@ class ConcurrencyTest(_ServerFixture):
         self.assertIn("input_claimed", types)
         self.assertIn("model_message", types)
 
+    def test_stop_http_returns_while_cleanup_blocks_and_preserves_new_input(self):
+        from agent.core.context import SERVICE_BACKGROUND_TASKS
+
+        cid = "async-stop-inbox"
+        entered, release = threading.Event(), threading.Event()
+        self.addCleanup(release.set)
+        tasks = self.app.context.get(SERVICE_BACKGROUND_TASKS)
+        calls = []
+
+        def cleanup(*_args):
+            calls.append("cleanup")
+            entered.set()
+            if not release.wait(5):
+                raise TimeoutError("probe cleanup timed out")
+            return 0
+
+        def stream(_request):
+            calls.append("model")
+            yield StreamDelta(kind="text", text="queued input resumed")
+
+        self.provider.stream = stream
+        with patch.object(tasks, "cancel_all", side_effect=cleanup):
+            status, first = self.post("/api/chat/stop", {"conversation_id": cid})
+            self.assertEqual(status, 202, first)
+            self.assertTrue(entered.wait(1))
+            self.assertTrue(self.app.mesh.is_stopped(cid))
+            status, duplicate = self.post("/api/chat/stop", {"conversation_id": cid})
+            self.assertEqual(status, 202)
+            self.assertEqual(duplicate["stop_id"], first["stop_id"])
+            status, sent = self.post("/api/chat/send", {"conversation_id": cid, "message": "resume now"})
+            self.assertEqual(status, 200, sent)
+            self.assertTrue(sent["queued"])
+            self.assertFalse(sent["run_id"])
+            self.assertEqual(calls, ["cleanup"])
+            release.set()
+            self.assertTrue(self.app.runner.wait_idle(cid, timeout=3))
+            status, final = self.post("/api/chat/stop", {
+                "conversation_id": cid, "stop_id": first["stop_id"]})
+            self.assertEqual(status, 200, final)
+            self.assertEqual(final["state"], "completed")
+        self.assertEqual(calls, ["cleanup", "model"])
+        self.assertEqual(self.app.mesh.queue_size(cid), 0)
+        facts = self.app.store.load(cid)
+        self.assertEqual(sum(e.type == "input_claimed" and e.data.get("content") == "resume now"
+                             for e in facts), 1)
+
+    def stop_and_wait(self, cid: str):
+        status, result = self.post("/api/chat/stop", {"conversation_id": cid})
+        deadline = time.monotonic() + 5
+        while status == 202 and time.monotonic() < deadline:
+            time.sleep(0.01)
+            status, result = self.post("/api/chat/stop", {
+                "conversation_id": cid, "stop_id": result["stop_id"]})
+        self.assertNotEqual(status, 202, result)
+        return status, result
+
     def test_stop_endpoint_shape(self) -> None:
 
-        status, payload = self.post("/api/chat/stop", {"conversation_id": "conc-00000002"})
+        status, payload = self.stop_and_wait("conc-00000002")
         self.assertEqual(status, 200)
-        self.assertIn("stop_requested", payload)
+        self.assertIs(payload["stop_requested"], True)
         status, payload = self.post("/api/chat/stop", {})
         self.assertEqual(status, 400)
 
@@ -1229,11 +1285,11 @@ class ConcurrencyTest(_ServerFixture):
         self.assertFalse(self.app.mesh.is_running(cid))
 
         with patch.object(self.app.store, "append_if_absent", side_effect=OSError("disk full")):
-            status, _ = self.post("/api/chat/stop", {"conversation_id": cid})
+            status, _ = self.stop_and_wait(cid)
         self.assertEqual(status, 503)
         self.assertEqual(session.pending_confirm, {**pending, "name": ""})
 
-        status, result = self.post("/api/chat/stop", {"conversation_id": cid})
+        status, result = self.stop_and_wait(cid)
         self.assertEqual(status, 200)
         self.assertTrue(result["stop_requested"])
         self.assertTrue(self.app.mesh.is_stopped(cid))
@@ -1248,6 +1304,91 @@ class ConcurrencyTest(_ServerFixture):
         self.assertTrue(result["expired"])
         self.assertEqual(self.app.store.load(cid), facts)
 
+    def test_stop_blocked_model_releases_run_and_accepts_new_message(self) -> None:
+        from agent.core.stream_control import register_stream_abort
+
+        cid = "blocked-model-stop"
+        entered, release = threading.Event(), threading.Event()
+        calls = []
+
+        def stream(request):
+            calls.append(request)
+            if len(calls) == 1:
+                remove = register_stream_abort(release.set)
+                entered.set()
+                try:
+                    release.wait(10)
+                    yield StreamDelta(kind="text", text="late blocked result")
+                finally:
+                    remove()
+            else:
+                yield StreamDelta(kind="text", text="resumed answer")
+
+        self.addCleanup(release.set)
+        self.provider.stream = stream
+        self.assertTrue(self.app.runner.start(cid, {"content": "first request"}))
+        self.assertTrue(entered.wait(3))
+        status, result = self.stop_and_wait(cid)
+        self.assertEqual(status, 200, result)
+        self.assertTrue(self.app.runner.wait_idle(cid, timeout=2))
+        self.assertFalse(self.app.mesh.is_running(cid))
+        self.assertTrue(self.app.mesh.is_stopped(cid))
+        self.assertEqual(len(calls), 1)
+        status, result = self.post("/api/chat/send", {
+            "conversation_id": cid, "message": "user resumes",
+        })
+        self.assertEqual(status, 200, result)
+        self.assertTrue(result["run_id"])
+        self.assertTrue(self.app.runner.wait_idle(cid, timeout=3))
+        facts = self.app.store.load(cid)
+        self.assertNotIn("late blocked result", str([e.data for e in facts]))
+        self.assertIn("resumed answer", str([e.data for e in facts]))
+
+    def test_stop_cancels_synchronous_resource_outside_model_stream(self) -> None:
+        from agent.core.events import Event
+        from agent.core.stream_control import register_stream_abort
+
+        entered, released = threading.Event(), threading.Event()
+
+        class Engine:
+            def start_turn(self, *_args, **_kwargs):
+                unregister = register_stream_abort(released.set)
+                entered.set()
+                try:
+                    released.wait(3)
+                finally:
+                    unregister()
+                yield Event("turn_ended", {"status": "stopped"})
+
+        cid = "stop-sync-resource"
+        self.addCleanup(released.set)
+        with patch.object(self.app.runner, "build_engine", return_value=Engine()):
+            self.assertTrue(self.app.runner.start(cid, {"content": "synchronous work"}))
+            self.assertTrue(entered.wait(2))
+            status, result = self.stop_and_wait(cid)
+            self.assertEqual(status, 200, result)
+            self.assertTrue(released.wait(1))
+            self.assertTrue(self.app.runner.wait_idle(cid, timeout=1))
+        self.assertFalse(self.app.mesh.is_running(cid))
+
+    def test_stop_reports_failed_background_termination_and_preserves_stop(self) -> None:
+        from agent.core.context import SERVICE_BACKGROUND_TASKS
+        from agent.mechanisms.background_tasks import TaskTerminationError
+
+        cid = "stop-background-failed"
+        tasks = self.app.context.get(SERVICE_BACKGROUND_TASKS)
+        with patch.object(tasks, "cancel_all", side_effect=TaskTerminationError(["task-failed"])):
+            status, result = self.stop_and_wait(cid)
+        self.assertEqual(status, 503)
+        self.assertEqual(result["failed_task_ids"], ["task-failed"])
+        self.assertTrue(self.app.mesh.is_stopped(cid))
+
+    def test_stop_idle_session_still_sets_persistent_stop(self) -> None:
+        cid = "idle-without-worker"
+        self.app.runner.request_cancel(cid)
+        self.assertTrue(self.app.mesh.is_stopped(cid))
+        self.assertFalse(self.app.runner.start(cid, {"content": "automatic wake"}))
+
     def test_stop_cancels_a_running_turn(self) -> None:
         """停止是真取消：经 SessionRunner 的停止检查，让内核在检查点停下。"""
 
@@ -1259,7 +1400,8 @@ class ConcurrencyTest(_ServerFixture):
         self.app.runner.wait_idle(cid, timeout=25)
         # 取消后占位被释放、会话可再次提交
         self.assertFalse(self.app.mesh.is_running(cid))
-        self.assertFalse(self.app.runner.request_cancel(cid))
+        # 空闲时再次停止也成功下发信号，返回值不表示资源数量。
+        self.assertTrue(self.app.runner.request_cancel(cid))
 
         requests = []
         original_stream = self.provider.stream

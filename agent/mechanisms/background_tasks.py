@@ -39,6 +39,14 @@ TERMINAL = frozenset({COMPLETED, FAILED, TIMED_OUT, CANCELLED})
 TASK_STATUSES = (QUEUED, RUNNING, COMPLETED, FAILED, TIMED_OUT, CANCELLED)
 
 
+class TaskTerminationError(RuntimeError):
+    """进程未确认终止，保留运行状态并允许重试。"""
+
+    def __init__(self, task_ids: Sequence[str]) -> None:
+        self.task_ids = tuple(task_ids)
+        super().__init__("后台任务终止失败，请重试：" + ", ".join(self.task_ids))
+
+
 @dataclass
 class BackgroundTaskRecord:
     task_id: str
@@ -122,6 +130,7 @@ class BackgroundTaskExecutor:
                     capture_output=True,
                     timeout=15,
                     check=False,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
                 )
             except (OSError, subprocess.SubprocessError) as exc:
                 report_error("agent.mechanisms.background_tasks.kill_tree", exc,
@@ -305,6 +314,7 @@ class BackgroundTaskManager:
         task_id = str(task_id or "").strip()
         reason = str(reason or "").strip()
         notices: List[str] = []
+        running_item = None
         with self._lock:
             q = self._queue(cid)
             for pending in list(q.pending):
@@ -320,15 +330,54 @@ class BackgroundTaskManager:
                     if old is None:
                         return {"ok": False, "error": "task_not_found"}
                     return {"ok": True, "task": old.public()}
-                if item.cancel_requested:
-                    return {"ok": True, "task": item.public()}
                 item.cancel_requested = True
                 item.detail = reason or "cancelled by user"
-                if item.pid:
-                    BackgroundTaskExecutor.kill_tree(item.pid, item.process)
+                running_item = item
                 result = {"ok": True, "task": item.public()}
+        if running_item is not None:
+            try:
+                self._terminate_records([running_item])
+            except TaskTerminationError:
+                return {"ok": False, "error": "termination_failed", "task": running_item.public()}
         self._emit_notices(notices)
         return result
+
+    def cancel_all(self, cid: str, reason: str = "") -> int:
+        """取消会话的排队及运行任务；锁内冻结整批，避免空位启动下一项。"""
+        notices: List[str] = []
+        with self._lock:
+            q = self._queue(cid)
+            pending = list(q.pending)
+            q.pending.clear()
+            running = list(q.running.values())
+            for item in pending:
+                self._settle_locked(q, item, CANCELLED, reason or "cancelled", notices)
+            for item in running:
+                item.cancel_requested = True
+                item.detail = reason or "cancelled by user"
+        try:
+            self._terminate_records(running)
+        finally:
+            self._emit_notices(notices)
+        return len(pending) + len(running)
+
+    def _terminate_records(self, records: Sequence[BackgroundTaskRecord]) -> None:
+        failed = []
+        for item in records:
+            killed = item.pid is not None and BackgroundTaskExecutor.kill_tree(item.pid, item.process)
+            if killed and item.process is not None:
+                try:
+                    item.process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    killed = False
+            if not killed:
+                with self._lock:
+                    item.detail = "进程未能终止，请重试"
+                failed.append(item.task_id)
+        if failed:
+            error = TaskTerminationError(failed)
+            report_error("background_tasks.terminate", error)
+            raise error
 
     def output(self, cid: str, task_id: str, wait: bool = False, timeout_ms: int = WAIT_DEFAULT_MS) -> Dict[str, Any]:
         task_id = str(task_id or "").strip()

@@ -28,6 +28,7 @@ Disposer = Callable[[], None]
 SERVICE_REGISTRY = "registry"                    # 工具注册表
 SERVICE_PIPELINE = "pipeline"                    # 工具执行管道（唯一入口）
 SERVICE_PROVIDER = "provider"                    # 模型提供者（ProviderRouter）
+SERVICE_MODEL_HTTP_POOL = "model_http_pool"        # 模型传输资源池
 SERVICE_MODEL_CATALOG = "model_catalog"          # 模型描述目录（唯一权威来源）
 SERVICE_STORE = "store"                          # 会话存储（事实源）
 SERVICE_EVENT_BUS = "event_bus"                  # 事件总线（旁路）

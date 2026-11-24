@@ -15,6 +15,8 @@ from uuid import uuid4
 from agent.core.error_report import report_error
 from agent.core.model_call import PROVIDER_META_KEY, StreamDelta
 from agent.core.tool_call import ToolCallRequest
+from agent.mechanisms.model_http.client import ModelHTTPClient
+from agent.mechanisms.model_http.transport import open_model_response
 from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
 from agent.mechanisms.providers.debug import LOG_REQUESTS
 from agent.mechanisms.providers.sse import stream_with_timeout
@@ -376,7 +378,11 @@ class OpenAICompatibleProvider(ModelProvider):
         self.api_key = str(api_key or "").strip()
         self.model = str(model or "").strip()
         self.timeout = float(timeout)
+        self._http_client = ModelHTTPClient()
         self.extra_headers = {str(k): str(v) for k, v in dict(extra_headers or {}).items()}
+
+    def dispose(self) -> None:
+        self._http_client.dispose()
 
     def requires_full_reasoning(self, request: Any) -> bool:
         """The official DeepSeek tool API requires complete reasoning across turns."""
@@ -475,17 +481,20 @@ class OpenAICompatibleProvider(ModelProvider):
             method="POST",
         )
         try:
-            resp = urllib.request.urlopen(req, timeout=self.timeout)
+            resp = open_model_response(req, timeout=self.timeout, pool=self._http_client.pool(),
+                                       completion={"data": "[DONE]"})
         except urllib.error.HTTPError as exc:
             try:
                 detail_body = exc.read().decode("utf-8", errors="replace")
             except Exception as read_exc:
                 report_error("agent.mechanisms.providers.openai._post_stream", read_exc)
                 detail_body = ""
+            finally:
+                exc.close()
             raise self._http_error(exc.code, detail_body) from exc
         except urllib.error.URLError as exc:
             raise ModelRequestError(f"网络错误：{getattr(exc, 'reason', exc)}") from exc
-        yield from stream_with_timeout(resp, self.timeout, label="openai")
+        yield from stream_with_timeout(resp, self.timeout, abort=resp.abort, label="openai")
 
     def _http_error(self, status: int, body: str) -> ModelRequestError:
         plain = f"HTTP {status}: {body[:8000]}" if (body or "").strip() else f"HTTP {status}"

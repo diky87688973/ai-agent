@@ -43,6 +43,7 @@ from agent.core.state_values import (
 from agent.core.state_values import (
     LLM_FAILED as LLM_STATUS_FAILED,
 )
+from agent.core.stream_control import interruptible_stream
 from agent.core.tool_call import ToolCallRequest
 
 #: `RemoteDisconnected` 只会在 HTTP 状态行之前出现；流开始后断流不能重放。
@@ -227,7 +228,7 @@ class ModelModule(ModuleBase):
                     chunks, retries, reason="InputInserted")
                 return {"insert_pending": True}
             try:
-                for delta in model.stream(request):
+                for delta in interruptible_stream(lambda: model.stream(request), ports.canceled):
                     if ports.canceled():
                         yield from self._cancel_events(
                             ports, model, request, started, reasoning_last_at,

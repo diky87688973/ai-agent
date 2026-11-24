@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from agent.core.error_report import report_error
 from agent.core.ports import LogicalRequest
+from agent.mechanisms.providers.base import ModelRequestCancelled
 
 MAX_TITLE_CHARS = 32
 MAX_INPUT_CHARS = 600  # 送模型的素材上限（省 token）
@@ -98,6 +99,8 @@ def make_provider_title_generator(
             for delta in provider.stream(request):
                 if getattr(delta, "kind", "") == "text":
                     parts.append(str(getattr(delta, "text", "") or ""))
+        except ModelRequestCancelled:
+            return ""
         except Exception as exc:  # 旁路增强：失败不抛出
             report_error("agent.mechanisms.session_title.generate", exc)
             return ""

@@ -21,6 +21,7 @@ from agent.mechanisms.background_tasks import (
     MAX_RUNNING_PER_CID,
     QUEUED,
     BackgroundTaskManager,
+    TaskTerminationError,
 )
 
 
@@ -40,6 +41,36 @@ class BackgroundTaskManagerTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.manager.shutdown()
         self._tmp.cleanup()
+
+    def test_cancel_all_stops_running_and_pending_only_for_target_session(self) -> None:
+        tasks = [self.manager.create("stop-target", _py("import time; time.sleep(30)"),
+                                     str(self.root), 60, f"task {i}")["task"]
+                 for i in range(MAX_RUNNING_PER_CID + 2)]
+        other = self.manager.create("stop-other", _py("print('other alive')"),
+                                    str(self.root), 10, "other")["task"]
+        self.assertEqual(self.manager.cancel_all("stop-target", "用户终止会话"), len(tasks))
+        for task in tasks:
+            result = self.manager.output("stop-target", task["task_id"], wait=True, timeout_ms=5000)
+            self.assertEqual(result["status"], CANCELLED)
+        result = self.manager.output("stop-other", other["task_id"], wait=True, timeout_ms=5000)
+        self.assertEqual(result["status"], COMPLETED)
+
+    def test_failed_termination_is_reported_and_single_cancel_can_retry(self) -> None:
+        from agent.mechanisms.background_tasks import BackgroundTaskExecutor
+
+        task = self.manager.create("stop-failure", _py("import time; time.sleep(30)"),
+                                    str(self.root), 60, "retry termination")["task"]
+        with mock.patch.object(BackgroundTaskExecutor, "kill_tree", return_value=False):
+            with self.assertRaises(TaskTerminationError) as caught:
+                self.manager.cancel_all("stop-failure")
+            self.assertIn(task["task_id"], caught.exception.task_ids)
+            result = self.manager.cancel("stop-failure", task["task_id"])
+            self.assertFalse(result["ok"])
+            self.assertNotEqual(result["task"]["status"], CANCELLED)
+        result = self.manager.cancel("stop-failure", task["task_id"])
+        self.assertTrue(result["ok"])
+        result = self.manager.output("stop-failure", task["task_id"], wait=True, timeout_ms=3000)
+        self.assertEqual(result["status"], CANCELLED)
 
     def test_env_allowlist_keeps_user_paths_excludes_secrets(self) -> None:
         with mock.patch.dict(os.environ, {

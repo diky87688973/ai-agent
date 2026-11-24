@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
@@ -111,6 +112,56 @@ class CommandSafetyUnitTest(unittest.TestCase):
         self.assertEqual(name, "powershell")
         with self.assertRaises(ValueError):
             cs.resolve_shell("bash", "x")
+
+    @unittest.skipUnless(os.name == "nt", "Windows taskkill timeout path")
+    def test_taskkill_timeout_keeps_pid_for_stop_retry(self) -> None:
+        import subprocess
+        cs.register_shell_process(910005, "timeout-probe")
+        try:
+            with mock.patch.object(cs.subprocess, "run", side_effect=subprocess.TimeoutExpired("taskkill", 15)):
+                with self.assertRaises(cs.ShellTerminationError) as caught:
+                    cs.force_kill_active_shell_process("timeout-probe")
+            self.assertEqual(caught.exception.pids, (910005,))
+            with mock.patch.object(cs, "kill_shell_process_tree", return_value=True):
+                self.assertEqual(cs.force_kill_active_shell_process("timeout-probe"), 1)
+        finally:
+            cs.unregister_shell_process(910005, "timeout-probe")
+
+    def test_failed_shell_termination_preserves_registration_for_retry(self) -> None:
+        cs.register_shell_process(910004, "failure-probe")
+        try:
+            with mock.patch.object(cs, "kill_shell_process_tree", return_value=False):
+                with self.assertRaises(cs.ShellTerminationError) as caught:
+                    cs.force_kill_active_shell_process("failure-probe")
+            self.assertEqual(caught.exception.pids, (910004,))
+            with mock.patch.object(cs, "kill_shell_process_tree", return_value=True) as kill:
+                self.assertEqual(cs.force_kill_active_shell_process("failure-probe"), 1)
+                kill.assert_called_once_with(910004)
+        finally:
+            cs.unregister_shell_process(910004, "failure-probe")
+
+    def test_kill_scope_preserves_other_session_and_new_registration(self) -> None:
+        cs.register_shell_process(910001, "stop-target")
+        cs.register_shell_process(910002, "stop-other")
+
+        def kill(_pid):
+            cs.register_shell_process(910003, "stop-target")
+            return True
+
+        try:
+            with mock.patch.object(cs, "kill_shell_process_tree", side_effect=kill) as killer:
+                self.assertEqual(cs.force_kill_active_shell_process("stop-target"), 1)
+                killer.assert_called_once_with(910001)
+            with mock.patch.object(cs, "kill_shell_process_tree") as killer:
+                self.assertEqual(cs.force_kill_active_shell_process("stop-target"), 1)
+                killer.assert_called_once_with(910003)
+            with mock.patch.object(cs, "kill_shell_process_tree") as killer:
+                self.assertEqual(cs.force_kill_active_shell_process("stop-other"), 1)
+                killer.assert_called_once_with(910002)
+        finally:
+            for pid, scope in ((910001, "stop-target"), (910002, "stop-other"),
+                               (910003, "stop-target")):
+                cs.unregister_shell_process(pid, scope)
 
     def test_process_registry_and_kill(self) -> None:
         import os

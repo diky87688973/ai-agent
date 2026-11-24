@@ -14,10 +14,18 @@ from contextlib import nullcontext
 from typing import Any, Callable, Dict, Optional
 
 from agent.core.error_report import report_error
+from agent.core.stream_control import StreamControl, stream_control_scope
 from agent.core.thread_context import thread_with_context
+from agent.mechanisms.background_tasks import TaskTerminationError
 from agent.mechanisms.live_state import GOAL_DEFAULT_MAX_ROUNDS, GOAL_MAX_ROUNDS_CAP
 from agent.shell.session import goal, heartbeat, prompt, queue
 from agent.shell.session import resume as resume_module
+from agent.shell.session.stopping import (
+    StopOperations,
+    begin_cancel,
+    cancel_check,
+    validate_wait_timeout,
+)
 
 # 运行态心跳的间隔（秒）：远小于 `RunRegistry` 的存活期（默认 900 秒），
 # 又不会有任何可观测开销（一次小文件写入）。
@@ -65,8 +73,9 @@ class SessionRunner:
         self._registry_for = registry_for or (lambda _cid: None)
         self._lock = threading.Lock()
         self._threads: Dict[str, threading.Thread] = {}
-        self._cancels: Dict[str, threading.Event] = {}  # cid → 取消信号（协作式）
+        self._cancels: Dict[str, StreamControl] = {}
         self._closed = False
+        self.stop_operations = StopOperations()
 
     def set_store_for(self, store_for: Optional[Callable[[str], Any]]) -> None:
         self._store_for = store_for or (lambda _cid: None)
@@ -91,86 +100,84 @@ class SessionRunner:
         with self._lock:
             if self._closed:
                 return ""
-        queued = queued if queued is not None else message.get("_queued_item")
-        resuming = bool((queued or {}).get("_resume_inbox"))
-        rid = self._mesh.try_begin_run(key)
-        if not rid:
+        if self.stop_operations.blocking(key):
             return ""
-        if queued is not None:
-            text, attachments, resume, sender, meta = self._queued_input(queued)
-        else:
-            text = str(message.get("content") or "")
-            attachments = message.get("attachments")
-            resume = message.get("resume")
-            meta = message.get("meta") if isinstance(message.get("meta"), dict) else {}
-            sender = message.get("sender") if isinstance(message.get("sender"), dict) else None
-            if sender is None and str(message.get("_sender") or "").strip():
-                sender = {
-                    "cid": str(message.get("_sender") or "").strip(),
-                    "name": str(message.get("_sender_name") or "").strip(),
-                }
-        cancel_event = threading.Event()
-        with self._lock:
-            self._cancels[key] = cancel_event
+        cancel_event = StreamControl()
+        unregister_start = self.stop_operations.register_start(key, cancel_event)
         try:
-            thread = thread_with_context(
-                target=self._run_loop,
-                args=(key, text, attachments, resume, sender, meta, queued, resuming),
-                name=f"fan-mesh-{key[:12]}",
-                daemon=True,
-            )
+            if cancel_event.is_set():
+                return ""
+            queued = queued if queued is not None else message.get("_queued_item")
+            resuming = bool((queued or {}).get("_resume_inbox"))
+            rid = self._mesh.try_begin_run(key)
+            if not rid:
+                return ""
+            if cancel_event.is_set():
+                self._mesh.abort_run(key)
+                return ""
+            if queued is not None:
+                text, attachments, resume, sender, meta = self._queued_input(queued)
+            else:
+                text = str(message.get("content") or "")
+                attachments = message.get("attachments")
+                resume = message.get("resume")
+                meta = message.get("meta") if isinstance(message.get("meta"), dict) else {}
+                sender = message.get("sender") if isinstance(message.get("sender"), dict) else None
+                if sender is None and str(message.get("_sender") or "").strip():
+                    sender = {
+                        "cid": str(message.get("_sender") or "").strip(),
+                        "name": str(message.get("_sender_name") or "").strip(),
+                    }
             with self._lock:
-                self._threads[key] = thread
-            thread.start()
-        except Exception as exc:
-            # 占位已成功但线程没起来：不释放的话这个会话永远显示在跑，
-            # 后续投递全被判忙、停止键也没有对应线程可停。
-            with self._lock:
-                self._threads.pop(key, None)
-                self._cancels.pop(key, None)
-            self._mesh.abort_run(key)
-            report_error("shell.session_runner.start", exc, conversation_id=key)
-            return ""
-        return rid
+                self._cancels[key] = cancel_event
+            try:
+                thread = thread_with_context(
+                    target=self._run_with_cancel_scope,
+                    args=(cancel_event, key, text, attachments, resume, sender, meta, queued, resuming),
+                    name=f"fan-mesh-{key[:12]}",
+                    daemon=True,
+                )
+                with self._lock:
+                    self._threads[key] = thread
+                thread.start()
+            except Exception as exc:
+                # 占位已成功但线程没起来：不释放的话这个会话永远显示在跑，
+                # 后续投递全被判忙、停止键也没有对应线程可停。
+                with self._lock:
+                    self._threads.pop(key, None)
+                    self._cancels.pop(key, None)
+                self._mesh.abort_run(key)
+                report_error("shell.session_runner.start", exc, conversation_id=key)
+                return ""
+            return rid
+        finally:
+            unregister_start()
 
     # ── 协作式取消 ───────────────────────────────────────
 
-    def request_cancel(self, cid: str) -> bool:
-        """Stop an active turn or settle an idle confirmation."""
-        key = str(cid or "").strip()
-        with self._lock:
-            event = self._cancels.get(key)
-        store = self._store_for(key) or getattr(self._app, "store", None)
-        if event is None:
-            return resume_module.interrupt_confirmation(
-                self._app, key, store, on_pending=lambda: self._mesh.mark_stopped(key))
-        self._mesh.mark_stopped(key, cancel=event)
-        try:
-            resume_module.interrupt_confirmation(self._app, key, store)
-        except OSError as exc:
-            report_error("shell.session_runner.cancel_confirmation", exc, conversation_id=key)
-        return True
-
-    def _cancel_check(self, cid: str):
-        """给内核的停止检查（内核 `cancel` 参数的注入位）。"""
-
+    def begin_cancel(self, cid: str, *, run_id: str = "") -> dict:
         with self._lock:
             event = self._cancels.get(cid)
-        next_probe = 0.0
-        stopped = False
+        return begin_cancel(self.stop_operations, self._app, self._mesh, cid,
+                            event, self._store_for, self.start, run_id=run_id)
 
-        def check() -> bool:
-            nonlocal next_probe, stopped
-            if stopped or (event is not None and event.is_set()):
-                return True
-            now = time.monotonic()
-            if now >= next_probe:
-                # 跨进程停止靠磁盘标记，流式回调按时间间隔检查。
-                next_probe = now + 0.1
-                stopped = self._mesh.is_stopped(cid)
-            return stopped
+    def request_cancel(self, cid: str, *, timeout: float = 30.0) -> bool:
+        """同步调用方等待异步停止的清理终态；HTTP 使用 begin_cancel。"""
+        if not str(cid or "").strip():
+            return False
+        timeout = validate_wait_timeout(timeout)
+        result = self.begin_cancel(cid)
+        result = self.stop_operations.wait(cid, result["stop_id"], timeout)
+        if result["state"] == "failed":
+            if result.get("failed_task_ids"):
+                raise TaskTerminationError(result["failed_task_ids"])
+            raise OSError(result["error"])
+        return result["stop_requested"]
 
-        return check
+    def _cancel_check(self, cid: str):
+        with self._lock:
+            event = self._cancels.get(cid)
+        return cancel_check(self._mesh, event, cid)
 
     # ── 回合执行与队列抽干 ────────────────────────────────
 
@@ -179,6 +186,10 @@ class SessionRunner:
             mesh=self._mesh, cid=cid, stop=stop,
             interval=_HEARTBEAT_INTERVAL_SECONDS,
         )
+
+    def _run_with_cancel_scope(self, control: StreamControl, *args: Any) -> None:
+        with stream_control_scope(control):
+            self._run_loop(*args)
 
     def _run_loop(self, cid: str, text: str, attachments: Any = None,
                   resume: Any = None, sender: Optional[Dict[str, Any]] = None,
@@ -535,12 +546,15 @@ class SessionRunner:
         with self._lock:
             alive = [cid for cid, thread in self._threads.items()
                      if thread is not current and thread.is_alive()]
+        cleanup_idle = self.stop_operations.join(max(0, deadline - time.time()))
         if alive:
             report_error("shell.session_runner.shutdown_timeout",
                          f"仍有 {len(alive)} 个回合线程未停止：{alive}",
                          conversation_id=alive[0])
-            return False
-        return True
+        if not cleanup_idle:
+            report_error("shell.session_runner.shutdown_timeout",
+                         "停止清理线程未在关闭期限内退出", phase="cleanup")
+        return not alive and cleanup_idle
 
     def wait_idle(self, cid: str, timeout: float = 10.0) -> bool:
         """等待 cid 无活跃运行并完成线程收尾；超时返回 False。"""
@@ -550,7 +564,7 @@ class SessionRunner:
             with self._lock:
                 thread = self._threads.get(key)
             alive = bool(thread is not None and thread.is_alive())
-            if not self._mesh.is_running(key) and not alive:
+            if not self._mesh.is_running(key) and not alive and not self.stop_operations.busy(key):
                 return True
             if time.time() >= deadline:
                 return False

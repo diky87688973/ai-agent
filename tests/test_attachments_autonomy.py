@@ -148,17 +148,18 @@ class VisionDegradeTest(unittest.TestCase):
 
         self.mp = mp
         self.sent: list = []
-        self._orig = mp.urllib.request.urlopen
+        self._orig = mp.open_model_response
 
-        def fake_urlopen(req, timeout=None):
+        def fake_urlopen(req, timeout=None, **_transport):
             self.sent.append(json.loads(req.data.decode("utf-8")))
             resp = io.BytesIO(b'data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n')
             resp.__enter__ = lambda: resp          # type: ignore[attr-defined]
             resp.__exit__ = lambda *a: False       # type: ignore[attr-defined]
+            resp.abort = lambda: None
             return resp
 
-        mp.urllib.request.urlopen = fake_urlopen
-        self.addCleanup(lambda: setattr(mp.urllib.request, "urlopen", self._orig))
+        mp.open_model_response = fake_urlopen
+        self.addCleanup(lambda: setattr(mp, "open_model_response", self._orig))
 
     def _provider(self, model: str, **kw):
         return self.mp.OpenAICompatibleProvider(

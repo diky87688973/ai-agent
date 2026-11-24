@@ -121,13 +121,13 @@ class RemoteDisconnectedRetryTest(unittest.TestCase):
         state = {"canceled": False}
         events = []
         model = _StreamModel(failures=5)
-        model.on_attempt = lambda _attempt: state.__setitem__("canceled", True)
-
-        result = _drain(ModelModule()._stream(
-            _ports(events, cancel=lambda: state["canceled"]),
-            model,
-            LogicalRequest(messages=[], tools=[]),
-        ))
+        with mock.patch.object(model_mod, "RETRY_BACKOFF_SECONDS", (0.1,)), mock.patch.object(
+                model_mod, "sleep", side_effect=lambda _delay: state.__setitem__("canceled", True)):
+            result = _drain(ModelModule()._stream(
+                _ports(events, cancel=lambda: state["canceled"]),
+                model,
+                LogicalRequest(messages=[], tools=[]),
+            ))
 
         self.assertEqual(model.attempts, 1)
         self.assertTrue(result["stopped"])

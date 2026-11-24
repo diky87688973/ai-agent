@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import threading
-from typing import Any, Dict, Iterable, Iterator
+from typing import Any, Callable, Dict, Iterable, Iterator
 
 from agent.core.error_report import report_error
-from agent.mechanisms.providers.base import ModelRequestError
+from agent.mechanisms.providers.base import ModelRequestCancelled, ModelRequestError
 
 
 def parse_sse_lines(lines: Iterable[str]) -> Iterator[Dict[str, Any]]:
@@ -38,15 +38,15 @@ def stream_with_timeout(
     resp: Any,
     timeout: float,
     *,
+    abort: Callable[[], None],
     label: str = "model",
 ) -> Iterator[Dict[str, Any]]:
     """SSE 流总超时：到期关闭响应，避免上游心跳把读取永久拖住。"""
     timed_out = threading.Event()
-
     def _expire() -> None:
         timed_out.set()
         try:
-            resp.close()
+            abort()
         except Exception as exc:
             report_error("agent.mechanisms.providers.sse.stream_with_timeout.close", exc)
 
@@ -58,16 +58,19 @@ def stream_with_timeout(
             lines = (raw.decode("utf-8", errors="replace") for raw in resp)
             yield from parse_sse_lines(lines)
         except Exception as exc:
-            report_error("agent.mechanisms.providers.sse.stream_with_timeout", exc)
             if timed_out.is_set():
                 raise ModelRequestError(f"{label} 模型流超时（{timeout:g}s）") from exc
+            if isinstance(exc, ModelRequestCancelled):
+                raise
+            report_error("agent.mechanisms.providers.sse.stream_with_timeout", exc)
             raise
         if timed_out.is_set():
             raise ModelRequestError(f"{label} 模型流超时（{timeout:g}s）")
     finally:
-        watchdog.cancel()
         try:
             resp.close()
         except Exception as exc:
             # 已经拿到的流或即将抛出的错误更重要，关闭失败不覆盖它们。
             report_error("agent.mechanisms.providers.sse.stream_with_timeout", exc)
+        finally:
+            watchdog.cancel()

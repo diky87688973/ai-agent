@@ -66,6 +66,21 @@ Delete operations (`delete_file` / `file_ops`) do not erase files; they move the
 
 At startup, expired versions are pruned according to `[agent] backup_retention_days`. A pruning failure is reported and does not block startup.
 
+## `[model_http]`
+
+Model HTTP requests use a host-owned reusable process pool. These startup settings require a restart.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `max_workers` | `8` | Maximum workers and simultaneous in-flight requests; positive integer |
+| `max_pending` | `64` | FIFO waiting capacity; nonnegative integer, `0` rejects when fully occupied |
+| `wait_timeout` | `30` | Seconds waiting for a worker; finite positive number, separate from network timeout |
+| `idle_timeout` | `60` | Seconds before retiring an idle worker; finite positive number |
+
+Workers start on demand and return to the pool after normal completion. Cancellation, crashes and protocol errors evict a worker; later demand replaces it. There is no eager warm-up. Invalid values and unknown keys reject startup. Saturation produces an explicit error instead of unbounded processes, memory or automatic request replay. This transport queue does not change Inbox capacity or acknowledgement rules.
+
+Process reuse does not imply HTTP connection reuse; the backend still uses urllib. See [session and collaboration](../subsystems/session.md) for ownership, isolation and future asynchronous-backend constraints.
+
 ## `[context]`
 
 Context compaction. A session prefers to keep the last `full_user_rounds` user rounds verbatim and compacts only earlier rounds. If no earlier round can be compacted at that width, the retention count decreases until early history can be reduced. At least one round is always retained; a single round is never replaced by a summary.

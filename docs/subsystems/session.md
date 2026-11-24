@@ -196,7 +196,7 @@ Windows uses `ctypes` `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`:
 
 | Result | Verdict |
 |---|---|
-| Valid handle | process exists → alive |
+| Valid handle | Query the exit code; only STILL_ACTIVE is alive, including when an exited process retains handles |
 | `last_error == 87` (`ERROR_INVALID_PARAMETER`) | the pid is known not to exist → dead |
 | Any other error | unknown → treated as alive |
 
@@ -205,6 +205,35 @@ Windows uses `ctypes` `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`:
 On non-Windows platforms the probe falls back to `os.kill`; only `ProcessLookupError` means definitely dead.
 
 Unknown results are treated as alive and left to TTL expiry.
+
+### Stop and resource cleanup
+
+Stopping persists the session stop marker even when this process has no local worker. Only an explicit user send clears it; timers, system notices, agent messages and queue state changes cannot resume a stopped session.
+
+The runner signals cancellation first, then asynchronously cleans up foreground process trees, background tasks and pending confirmations. The stop API returns an operation ID with 202; subsequent requests with that ID only query progress. Success returns 200; failure returns 503 with task/process IDs, keeps registrations and blocks new turns until retry. Successful cleanup dispatches new user input submitted during cleanup. See [shell](shell.md) for the API and UI contract.
+
+A bounded queue isolates model reads. The session runner owns an Event-compatible cancellation token, so synchronous compaction and ordinary model requests can register resource abort actions. Finishing a child request does not cancel its parent turn. Abort callbacks run independently; a blocked action cannot stall the turn or other resources.
+
+SSE requires an explicit `abort` action rather than inferring private sockets. Late output cannot enter the turn or fact stream. Only the original execution chain releases its run lease; do not unlock while an old tool can still write. Arbitrary in-process plugins that ignore cancellation still require terminable process isolation; killing host threads or pretending the session is idle is unsafe.
+
+Transport cancellation raises `ModelRequestCancelled` rather than pretending to reach normal EOF. Summary and title generation discard received fragments on cancellation instead of committing partial text as a complete result, and do not automatically retry canceled requests.
+
+#### HTTP transport pool
+
+The static slot `app/host/services/model_http_pool` constructs the pool, registers it in AppContext and disposes it with the host assembly. The router supplies it through a generic request scope: all hosted models and sessions share it. Standalone providers lazily own their client pool, expose `dispose()` and have finalizer cleanup. Plugin reloads retain the host pool rather than destroying it with provider caches.
+
+`agent/mechanisms/model_http/` owns capacity, FIFO waiting, cancellation, IPC and cleanup, not session facts, context or Inbox. Existing providers and the kernel still own request bodies and model outputs. See [`model_http` configuration](../guide/config.md).
+
+- Workers start on demand, return after normal completion and expire when idle. Each worker serves one request at a time; no eager warm-up occurs.
+- Every lease and IPC frame has a request ID. Late cancellation or release cannot affect a newer lease.
+- Reuse requires the transport end acknowledgement. Providers declare SSE completion conditions; workers close the response at that marker and acknowledge completion. Early `[DONE]` or `message_stop` returns cannot leave stale frames for the next request.
+- Cancellation, crashes and protocol faults evict that worker without affecting other leases or replaying started requests. Retiring processes still count toward capacity until reaped.
+- Waiting is bounded and timed; canceling a waiter removes it without sending HTTP. Disposal refuses new work, wakes waiters and reaps busy and idle workers. The idle reaper runs in a neutral context and does not retain the first session or plugin snapshot.
+- Credentials, headers, bodies and streamed bytes use anonymous pipes without temporary files. Windows workers are hidden and bytecode writes disabled. Each job creates a fresh urllib Request without persistent cookies or authentication headers. Default proxy handling, certificate verification and configured socket timeout remain intact; SSE total timeout is separate.
+
+IPC validates frame type and length before reading payloads: configuration is limited to 256 KiB, errors to 64 KiB, and ready/end frames must be empty. Request bodies use chunks of at most 1 MiB with total length and request-ID checks, so large contexts are not restricted to one frame. Response data frames are limited to 64 MiB; workers bound upstream line reads by the same limit. Over-limit responses fail explicitly without silently truncating and parsing the remainder. Corrupt or oversized pipe frames evict the worker without reusing a desynchronized stream or replaying the request.
+
+Process isolation enables forced termination during DNS, TCP, TLS and response-header waits. It costs one process per in-flight request plus IPC copies. Reuse amortizes startup, but does not provide unlimited concurrency or HTTP connection reuse. Capacity needs machine-specific load testing. A future asynchronous HTTP backend with connection pooling can preserve open/iteration/abort/close; multiplexing requests in a process first requires individual cancellation and fault isolation, not killing a shared worker. Environment proxy or certificate-policy changes require pool recreation or restart; model URLs, options and headers are passed per request.
 
 ### Collaboration mesh
 `MeshState` in `mesh.py` delivers messages between sessions.

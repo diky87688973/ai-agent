@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import threading
+from contextlib import nullcontext
 from typing import Any, Callable, Iterator, Optional, Sequence, Tuple
 
 from agent.core.app_path import app_path
@@ -38,6 +39,7 @@ class ProviderRouter(ModelProvider):
         default_id: str = "",
         fallback_to_default: bool = False,
         slots: Any = None,
+        request_scope: Optional[Callable[[], Any]] = None,
     ) -> None:
         self._lock = threading.Lock()
         self._default = default
@@ -46,6 +48,7 @@ class ProviderRouter(ModelProvider):
         self._default_id = str(default_id or "")
         self._fallback = bool(fallback_to_default)
         self._slots = slots
+        self._request_scope = request_scope
         if self._slots is not None and ROUTER_PATH not in self._slots.nodes:
             self._slots.register_slot(
                 ROUTER_PATH, kind="kernel-stage",
@@ -114,7 +117,9 @@ class ProviderRouter(ModelProvider):
         # 目录条目的 id 是路由键，线格式模型名归 provider 自己（`options.model`）。
         # 两者可能不同（`[model:claude]` + `model = claude-sonnet-4-5`），
         # 因此命中目录时必须把请求里的 id 换成实例的模型名。
-        yield from provider.stream(_with_wire_model(request, provider))
+        scope = self._request_scope() if self._request_scope is not None else nullcontext()
+        with scope:
+            yield from provider.stream(_with_wire_model(request, provider))
 
     def _select_for_request(self, request, mid: str, allowed: Any,
                             fallback: bool) -> Optional[ModelProvider]:

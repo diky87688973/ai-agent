@@ -26,6 +26,11 @@ AUTH_DEFAULTS: Dict[str, str] = {
     "desktop_auto_login": "1",
 }
 
+MODEL_HTTP_DEFAULTS: Dict[str, str] = {
+    "max_workers": "8", "max_pending": "64",
+    "wait_timeout": "30", "idle_timeout": "60",
+}
+
 #: `config.ini` 的节 → 键 → 默认值（值只用于文档对照与模板一致性，读取仍由 `config.py` 负责）。
 SCHEMA: Dict[str, Dict[str, str]] = {
     "agent": {
@@ -47,6 +52,7 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "reasoning_replay_tokens": "8000",
     },
     "auth": dict(AUTH_DEFAULTS),
+    "model_http": dict(MODEL_HTTP_DEFAULTS),
 
 }
 

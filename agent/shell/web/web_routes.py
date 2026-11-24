@@ -541,7 +541,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             self._json(*self.shell.autonomous(
                 str(body.get("conversation_id") or ""), body.get("enabled")))
         elif path == "/api/chat/stop":
-            self._json(*self.shell.stop(str(body.get("conversation_id") or "")))
+            self._json(*self.shell.stop(str(body.get("conversation_id") or ""),
+                                        str(body.get("stop_id") or "")))
         elif path == "/api/chat/command-input":
             classic = self._classic()
             self._json(200, classic.command_input(

@@ -113,7 +113,7 @@ Missing model configuration does not block startup: the service starts with `Mis
 | `/api/chat/send` | Start a dialogue turn; if the session is already running, the message enters the pending queue; `draft_id` re-sends a recalled draft |
 | `/api/chat/queue/<id>/insert` | Mark a queued message for insertion at the next safe turn; if the session is idle, start a turn immediately |
 | `/api/chat/queue/<id>/recall` | Recall a queued message and return its text, images and source |
-| `/api/chat/stop` | Stop the current turn (cooperative cancellation) |
+| `/api/chat/stop` | Persist the stop state and cancel the turn, HTTP transport and session tasks |
 | `/api/chat/user-confirm` | Submit a user confirmation: write-plan confirmation, `user_confirm` answer, and approval (agree/reject) share this endpoint |
 | `/api/chat/title` | Generate or read the cached session title |
 | `/api/chat/autonomous` | Toggle session autonomy |
@@ -133,7 +133,15 @@ User confirmations and approvals require the card's `conversation_id`, `call_id`
 
 The suspension is persisted before the card is published. Closing the application preserves unanswered suspensions.
 
-`POST /api/chat/stop` also works while the session is waiting for confirmation. It records a failed outcome and closes the matching card through SSE. If that write fails while the session is idle, the endpoint returns HTTP 503 and preserves the pending confirmation so the stop can be retried.
+`POST /api/chat/stop` first persists the stop state and signals cancellation, then delegates foreground processes, background tasks and confirmations to a runner-owned asynchronous stop operation. HTTP 202 means cleanup is pending and includes `stop_id`, `state`, `conversation_id` and the original `run_id`. Posting `conversation_id` plus `stop_id` to the same endpoint only queries status. Duplicate pending submissions reuse the operation. The operation alone owns `stop_requested`: it means the cancellation signal was successfully delivered, not that resources existed or cleanup completed. Successfully stopping an idle session also sets it to true; `state` describes cleanup outcomes.
+
+Terminal responses are HTTP 200 / `completed` or HTTP 503 / `failed`. Failure includes a retry message, with `failed_task_ids` for background tasks and `failed_process_ids` for foreground processes. Unconfirmed processes keep their registrations. Failed cleanup continues blocking new turns until an explicit stop retry succeeds. Unknown, superseded or evicted IDs return 404 and never start another stop.
+
+The UI queries every 500 ms only while its submitted stop is pending. Each observation lasts at most 30 seconds, and each network request, including body reading, at most 5 seconds. Terminal responses or observation timeouts stop automatic querying. A timeout neither changes the backend operation nor reports success. When an operation ID is known, continue-query retains it; an explicit failed result offers stop retry. If the initial request never returned an ID, the UI reports an unconfirmed state and resubmits only after an explicit user retry, never automatically. It does not poll Inbox. User input during cleanup stays in Inbox and resumes user-requested dispatch only after successful cleanup. The stop flag is still cleared only by new user input. In-flight turn starts register cancellation controls so a concurrent stop cannot miss them. The original execution chain still releases its run lease; cleanup acknowledgement never fabricates an idle session.
+
+The synchronous `SessionRunner.request_cancel(cid, timeout=30)` uses a monotonic deadline and condition variable to wait for its operation. The budget must be finite nonnegative seconds. Timeout raises `StopWaitTimeout` with the original `stop_id`; the operation remains queryable. Waiting never reissues stop or joins other sessions. Its return value also means the cancellation signal was delivered.
+
+`session/stopping.py` owns these operations under the host runner and joins cleanup during shutdown. Operations are not session facts. Successful results retain at most the latest 128 conversations; pending and failed operations are not evicted as successful cache entries.
 
 A saved confirmation may return `resume_pending: true` if its continuation
 could not be scheduled. Resubmit the same identifiers to `POST /api/chat/user-confirm`

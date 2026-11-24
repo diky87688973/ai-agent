@@ -26,6 +26,7 @@ from agent.mechanisms.context.contract import (
     DEFAULT_FULL_USER_ROUNDS,
     ContextCompactionPolicy,
 )
+from agent.mechanisms.providers.base import ModelRequestCancelled
 
 _DEFAULT_POLICY = ContextCompactionPolicy()
 BUILD_CONTEXT_PATH = app_path("kernel", "modules", "compaction", "build-context")
@@ -253,6 +254,8 @@ def make_provider_summarizer(
             for delta in provider.stream(request):
                 if getattr(delta, "kind", "") == "text":
                     parts.append(str(getattr(delta, "text", "") or ""))
+        except ModelRequestCancelled:
+            return ""
         except Exception as exc:
             report_error("agent.mechanisms.compaction.compactor._summarize", exc)
             return ""

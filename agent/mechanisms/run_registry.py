@@ -219,7 +219,7 @@ class FileRunRegistry:
 
         Windows 用 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`（不需要控制台）：
 
-        * 拿到有效 handle → 进程存在 → 活着；
+        * 拿到有效 handle → 查询退出码，只有 STILL_ACTIVE 算活着；
         * `last_error == 87`（`ERROR_INVALID_PARAMETER`）→ 确知该 pid 不存在 → 已死；
         * 其它错误 → 说不准，按活着处理（保守）。
 
@@ -244,12 +244,19 @@ class FileRunRegistry:
             kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
             kernel32.OpenProcess.restype = wintypes.HANDLE
             kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+            kernel32.GetExitCodeProcess.restype = wintypes.BOOL
             PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
             handle = kernel32.OpenProcess(
                 PROCESS_QUERY_LIMITED_INFORMATION, False, value)
             if handle:
-                kernel32.CloseHandle(handle)
-                return True
+                try:
+                    code = wintypes.DWORD()
+                    if kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                        return code.value == 259  # STILL_ACTIVE
+                    return True
+                finally:
+                    kernel32.CloseHandle(handle)
             # 87 = ERROR_INVALID_PARAMETER：该 pid 根本不存在
             if ctypes.get_last_error() == 87:
                 return False

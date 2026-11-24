@@ -33,6 +33,8 @@ An uncategorized top-level package under `agent/` fails immediately instead of b
 | `agent/common/status.py` | Shared subsystem status values and `require()`; no behavior | Layer imports, domain logic |
 | `agent/core/` | Module chain, host loop, ports, event contracts, session fact contracts | Providers, plugins, UI, concrete tools |
 | `agent/core/modules/` | Single-step modules: input, queued input, compaction, model, tools | Service assembly, HTTP, plugin loading |
+| `agent/core/stream_control.py` | Execution and child-request cancellation tokens, bounded delta delivery, resource abort registration | HTTP implementations, plugin execution, fact persistence |
+| `agent/mechanisms/model_http/` | Bounded transport pools, request leases, anonymous pipes, termination and reaping | Provider message conversion, session storage |
 | `agent/mechanisms/providers/base.py` | `ModelProvider` protocol and `ModelRequestError` | Concrete gateway requests, UI |
 | `agent/mechanisms/providers/sse.py` | SSE frame splitting, stream total timeout, close diagnostics | Provider request bodies, business messages |
 | `agent/mechanisms/providers/` | Requests and stream parsing for compatible and native protocols | Echo, routing, assembly |
@@ -63,6 +65,7 @@ An uncategorized top-level package under `agent/` fails immediately instead of b
 | `agent/shell/web/web_plugin.py` | Plugin endpoints and plugin asset forwarding | Plugin-internal business |
 | `agent/shell/web/web_api.py` | `WebShell` entry and connection/runtime state; business actions split by mixin into `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` / `web_subagents.py` | Route dispatch |
 | `agent/shell/session/runner.py` | Turn thread, cancellation, queue draining, lifecycle | Queue, goal, prompt, and recovery implementations |
+| `agent/shell/session/stopping.py` | Runner-owned stop operations, cancellation checks, asynchronous cleanup and outcome queries | HTTP, plugin UI, session fact storage |
 | `agent/shell/session/queue.py` | Queue claim, release, re-delivery | Turn loop |
 | `agent/shell/session/goal.py` | Goal and autonomous-continuation decision | Run thread |
 | `agent/shell/session/prompt.py` | System prompt and runtime tail | Model calls |

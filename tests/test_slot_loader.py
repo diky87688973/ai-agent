@@ -734,16 +734,17 @@ class BuildFromConfigTest(unittest.TestCase):
     def test_builds_every_declared_node(self) -> None:
         """全量配置逐节点构造：session 节点进模板，其余进装配结果。
 
-        基数是配置声明量，不是手写常数：合并片段会把插件节点一并算进来，
-        `plugin-slots.json` 91 个、其中 session 作用域 5 个。
+        对照声明逐路径验证作用域，避免节点数相同却分错作用域。
         """
         assembly = self._build()
         self.addCleanup(assembly.dispose)
         config = load_config(self.CONFIG)
         total = len(assembly.values) + len(assembly.templates)
         self.assertEqual(total, len(config.specs))
-        self.assertEqual(len(assembly.values), 86)
-        self.assertEqual(len(assembly.templates), 5)
+        self.assertEqual(set(assembly.values), {path for path, spec in config.specs.items()
+                                             if spec.scope == SCOPE_APP})
+        self.assertEqual(set(assembly.templates), {path for path, spec in config.specs.items()
+                                                if spec.scope == SCOPE_SESSION})
 
     def test_every_path_is_retrievable(self) -> None:
         """每个声明路径都能取到值；无 factory 的容器取到的是子节点元组。"""

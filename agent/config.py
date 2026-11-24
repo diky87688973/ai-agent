@@ -299,6 +299,25 @@ def get_reread_after_edit(path: Optional[Path] = None) -> bool:
     return raw.lower() in ("1", "true", "yes", "on")
 
 
+def get_model_http(path: Optional[Path] = None) -> Dict[str, Any]:
+    """HTTP 池的宿主配置；非法值拒绝启动，避免容量设置悄悄失效。"""
+    from agent.config_schema import MODEL_HTTP_DEFAULTS
+
+    parser = load_ini(path)
+    if parser.has_section("model_http"):
+        unknown = set(parser["model_http"]) - set(MODEL_HTTP_DEFAULTS)
+        if unknown:
+            raise ValueError("model_http 存在未知配置键：" + ", ".join(sorted(unknown)))
+    values = {}
+    for key, default in MODEL_HTTP_DEFAULTS.items():
+        raw = parser.get("model_http", key, fallback=default)
+        try:
+            values[key] = int(raw) if key in ("max_workers", "max_pending") else float(raw)
+        except ValueError as exc:
+            raise ValueError(f"model_http.{key} 的数值无效：{raw!r}") from exc
+    return values
+
+
 def get_plugin_tree_only(path: Optional[Path] = None) -> bool:
     """是否只允许从 `plugins/` 树内装载插件（`[agent] plugin_tree_only`）。
 

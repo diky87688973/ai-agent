@@ -310,7 +310,7 @@ class RunCommandTool(ToolPlugin):
         # Windows：以字符串形式传命令行（保留命令原文引号；list 形式会被 CRT 转义破坏 cmd/powershell 解析）
         spawn_args: Any = " ".join(argv_prefix + [command]) if os.name == "nt" else (argv_prefix + [command])
         ctx = current_context()
-        scope = getattr(ctx, "tool_scope", None) or ctx
+        scope = getattr(ctx, "turn", None) or ctx
         cid = str(getattr(scope, "conversation_id", "") or current_session_id() or "")
         tid = str(getattr(scope, "tool_call_id", "") or "")
         #: 交互式命令的进度载体：`_pump` 轮询它的 `_user_input`，
@@ -331,7 +331,7 @@ class RunCommandTool(ToolPlugin):
             # 它同时也是 Ctrl-C 与终端信号的隔离边界。
             start_new_session=True,
         )
-        register_shell_process(proc.pid)
+        register_shell_process(proc.pid, scope=cid)
         if cmd_key:
             register_command_input_target(cmd_key, progress)
         outcome = "ok"
@@ -348,7 +348,7 @@ class RunCommandTool(ToolPlugin):
         finally:
             if cmd_key:
                 unregister_command_input_target(cmd_key)
-            unregister_shell_process(proc.pid)
+            unregister_shell_process(proc.pid, scope=cid)
             emit_progress(done=True)
             # 管道句柄必须显式关闭：`communicate()` 会自己收，逐块读不会
             # （不关会一直挂到 GC，长跑服务就是句柄泄漏）

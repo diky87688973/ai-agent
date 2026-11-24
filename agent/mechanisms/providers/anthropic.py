@@ -29,6 +29,8 @@ from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Tuple
 from agent.core.error_report import report_error
 from agent.core.model_call import StreamDelta
 from agent.core.tool_call import ToolCallRequest
+from agent.mechanisms.model_http.client import ModelHTTPClient
+from agent.mechanisms.model_http.transport import open_model_response
 from agent.mechanisms.providers.base import ModelProvider, ModelRequestError
 from agent.mechanisms.providers.debug import LOG_REQUESTS  # noqa: F401  (test seam)
 from agent.mechanisms.providers.sse import stream_with_timeout
@@ -401,7 +403,11 @@ class AnthropicProvider(ModelProvider):
         self.thinking_budget_tokens = _positive_int(thinking_budget_tokens, 4096)
         self.anthropic_version = str(anthropic_version or "2023-06-01")
         self.timeout = float(timeout)
+        self._http_client = ModelHTTPClient()
         self.extra_headers = {str(k): str(v) for k, v in dict(extra_headers or {}).items()}
+
+    def dispose(self) -> None:
+        self._http_client.dispose()
 
     # ── 请求体 ──
 
@@ -497,17 +503,20 @@ class AnthropicProvider(ModelProvider):
             method="POST",
         )
         try:
-            resp = urllib.request.urlopen(req, timeout=self.timeout)
+            resp = open_model_response(req, timeout=self.timeout, pool=self._http_client.pool(),
+                                       completion={"json": {"type": "message_stop"}})
         except urllib.error.HTTPError as exc:
             try:
                 body = exc.read().decode("utf-8", errors="replace")
             except Exception as read_exc:
                 report_error("agent.mechanisms.providers.anthropic.AnthropicProvider._post_stream", read_exc)
                 body = ""
+            finally:
+                exc.close()
             raise self._http_error(exc.code, body) from exc
         except urllib.error.URLError as exc:
             raise ModelRequestError(f"网络错误：{getattr(exc, 'reason', exc)}") from exc
-        yield from stream_with_timeout(resp, self.timeout, label="anthropic")
+        yield from stream_with_timeout(resp, self.timeout, abort=resp.abort, label="anthropic")
 
     def stream(self, request: Any) -> Iterator[StreamDelta]:
         if not self.api_key:

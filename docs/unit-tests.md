@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2619** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2695** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -20,7 +20,7 @@
 9. [test_attachments_autonomy.py](#test_attachments_autonomypy)（21）
 10. [test_auth_security.py](#test_auth_securitypy)（7）
 11. [test_backend_slot_table.py](#test_backend_slot_tablepy)（2）
-12. [test_background_tasks.py](#test_background_taskspy)（17）
+12. [test_background_tasks.py](#test_background_taskspy)（19）
 13. [test_base_settings_plugin.py](#test_base_settings_pluginpy)（6）
 14. [test_batch_f_tools.py](#test_batch_f_toolspy)（26）
 15. [test_catalog.py](#test_catalogpy)（8）
@@ -29,7 +29,7 @@
 18. [test_classic_adapter.py](#test_classic_adapterpy)（112）
 19. [test_cli_shell.py](#test_cli_shellpy)（21）
 20. [test_command_output_encoding.py](#test_command_output_encodingpy)（5）
-21. [test_command_tools.py](#test_command_toolspy)（31）
+21. [test_command_tools.py](#test_command_toolspy)（34）
 22. [test_compaction_prefix.py](#test_compaction_prefixpy)（3）
 23. [test_compaction_retention.py](#test_compaction_retentionpy)（4）
 24. [test_compaction_slots.py](#test_compaction_slotspy)（3）
@@ -69,103 +69,111 @@
 58. [test_gui_launcher.py](#test_gui_launcherpy)（10）
 59. [test_history_page.py](#test_history_pagepy)（17）
 60. [test_host_service_slots.py](#test_host_service_slotspy)（2）
-61. [test_http_route_slots.py](#test_http_route_slotspy)（5）
-62. [test_image_embed.py](#test_image_embedpy)（10）
-63. [test_image_tool.py](#test_image_toolpy)（28）
-64. [test_image_turns.py](#test_image_turnspy)（23）
-65. [test_import_graph.py](#test_import_graphpy)（5）
-66. [test_invest_tools.py](#test_invest_toolspy)（28）
-67. [test_kb_plugin.py](#test_kb_pluginpy)（50）
-68. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
-69. [test_mode_note.py](#test_mode_notepy)（13）
-70. [test_model_catalog.py](#test_model_catalogpy)（21）
-71. [test_model_provider.py](#test_model_providerpy)（41）
-72. [test_model_retry.py](#test_model_retrypy)（5）
-73. [test_model_window.py](#test_model_windowpy)（14）
-74. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（31）
-75. [test_path_registry.py](#test_path_registrypy)（2）
-76. [test_plugin_assembly.py](#test_plugin_assemblypy)（5）
-77. [test_plugin_asset_delivery.py](#test_plugin_asset_deliverypy)（13）
-78. [test_plugin_contributions.py](#test_plugin_contributionspy)（19）
-79. [test_plugin_events.py](#test_plugin_eventspy)（3）
-80. [test_plugin_factory_origin.py](#test_plugin_factory_originpy)（8）
-81. [test_plugin_hotplug.py](#test_plugin_hotplugpy)（16）
-82. [test_plugin_http.py](#test_plugin_httppy)（17）
-83. [test_plugin_slot_factories.py](#test_plugin_slot_factoriespy)（5）
-84. [test_plugin_ui_files.py](#test_plugin_ui_filespy)（2）
-85. [test_plugins.py](#test_pluginspy)（24）
-86. [test_port_cleanup.py](#test_port_cleanuppy)（4）
-87. [test_present_tool.py](#test_present_toolpy)（2）
-88. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-89. [test_prompt_slot.py](#test_prompt_slotpy)（1）
-90. [test_prompt_tail.py](#test_prompt_tailpy)（5）
-91. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-92. [test_provider_meta.py](#test_provider_metapy)（8）
-93. [test_provider_router.py](#test_provider_routerpy)（14）
-94. [test_quality_pipeline.py](#test_quality_pipelinepy)（19）
-95. [test_queue_runner.py](#test_queue_runnerpy)（11）
-96. [test_queued_input.py](#test_queued_inputpy)（4）
-97. [test_readonly_tools.py](#test_readonly_toolspy)（33）
-98. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
-99. [test_router_slot.py](#test_router_slotpy)（1）
-100. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-101. [test_run_registry.py](#test_run_registrypy)（16）
-102. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-103. [test_scan_scope.py](#test_scan_scopepy)（16）
-104. [test_session_context.py](#test_session_contextpy)（22）
-105. [test_session_seq.py](#test_session_seqpy)（28）
-106. [test_session_store.py](#test_session_storepy)（17）
-107. [test_session_tools.py](#test_session_toolspy)（17）
-108. [test_settings_panel.py](#test_settings_panelpy)（19）
-109. [test_settings_registry.py](#test_settings_registrypy)（5）
-110. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-111. [test_slot_binder.py](#test_slot_binderpy)（7）
-112. [test_slot_loader.py](#test_slot_loaderpy)（65）
-113. [test_slot_merge.py](#test_slot_mergepy)（61）
-114. [test_slot_registry.py](#test_slot_registrypy)（13）
-115. [test_slot_replaceable.py](#test_slot_replaceablepy)（20）
-116. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
-117. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
-118. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-119. [test_standards_manifest.py](#test_standards_manifestpy)（3）
-120. [test_startup_encoding.py](#test_startup_encodingpy)（2）
-121. [test_subagent.py](#test_subagentpy)（21）
-122. [test_task_tools.py](#test_task_toolspy)（28）
-123. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
-124. [test_thread_context.py](#test_thread_contextpy)（1）
-125. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-126. [test_tool_arguments.py](#test_tool_argumentspy)（5）
-127. [test_tool_pairing.py](#test_tool_pairingpy)（15）
-128. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
-129. [test_tool_registry.py](#test_tool_registrypy)（17）
-130. [test_tool_resume.py](#test_tool_resumepy)（3）
-131. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-132. [test_top_level_services.py](#test_top_level_servicespy)（2）
-133. [test_ui_registry.py](#test_ui_registrypy)（7）
-134. [test_update.py](#test_updatepy)（26）
-135. [test_update_processes.py](#test_update_processespy)（3）
-136. [test_update_transaction.py](#test_update_transactionpy)（7）
-137. [test_usage_metrics.py](#test_usage_metricspy)（7）
-138. [test_version_stamp.py](#test_version_stamppy)（4）
-139. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-140. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-141. [test_visual_operator.py](#test_visual_operatorpy)（163）
-142. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
-143. [test_visualization.py](#test_visualizationpy)（8）
-144. [test_visualization_browser.py](#test_visualization_browserpy)（7）
-145. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
-146. [test_visualization_extra.py](#test_visualization_extrapy)（5）
-147. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
-148. [test_wake_isolation.py](#test_wake_isolationpy)（3）
-149. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-150. [test_web_auth.py](#test_web_authpy)（26）
-151. [test_web_frontend.py](#test_web_frontendpy)（6）
-152. [test_web_shell.py](#test_web_shellpy)（60）
-153. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-154. [test_window_ops.py](#test_window_opspy)（31）
-155. [test_write_gate.py](#test_write_gatepy)（22）
-156. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-157. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+61. [test_http_pool.py](#test_http_poolpy)（15）
+62. [test_http_pool_concurrency.py](#test_http_pool_concurrencypy)（4）
+63. [test_http_route_slots.py](#test_http_route_slotspy)（5）
+64. [test_http_transport.py](#test_http_transportpy)（13）
+65. [test_http_wire.py](#test_http_wirepy)（5）
+66. [test_http_worker.py](#test_http_workerpy)（5）
+67. [test_image_embed.py](#test_image_embedpy)（10）
+68. [test_image_tool.py](#test_image_toolpy)（28）
+69. [test_image_turns.py](#test_image_turnspy)（23）
+70. [test_import_graph.py](#test_import_graphpy)（5）
+71. [test_invest_tools.py](#test_invest_toolspy)（28）
+72. [test_kb_plugin.py](#test_kb_pluginpy)（50）
+73. [test_layout_min_width.py](#test_layout_min_widthpy)（2）
+74. [test_mode_note.py](#test_mode_notepy)（13）
+75. [test_model_catalog.py](#test_model_catalogpy)（21）
+76. [test_model_provider.py](#test_model_providerpy)（41）
+77. [test_model_retry.py](#test_model_retrypy)（5）
+78. [test_model_window.py](#test_model_windowpy)（14）
+79. [test_multi_model_plugin.py](#test_multi_model_pluginpy)（31）
+80. [test_path_registry.py](#test_path_registrypy)（2）
+81. [test_plugin_assembly.py](#test_plugin_assemblypy)（5）
+82. [test_plugin_asset_delivery.py](#test_plugin_asset_deliverypy)（13）
+83. [test_plugin_contributions.py](#test_plugin_contributionspy)（19）
+84. [test_plugin_events.py](#test_plugin_eventspy)（3）
+85. [test_plugin_factory_origin.py](#test_plugin_factory_originpy)（8）
+86. [test_plugin_hotplug.py](#test_plugin_hotplugpy)（16）
+87. [test_plugin_http.py](#test_plugin_httppy)（17）
+88. [test_plugin_slot_factories.py](#test_plugin_slot_factoriespy)（5）
+89. [test_plugin_ui_files.py](#test_plugin_ui_filespy)（2）
+90. [test_plugins.py](#test_pluginspy)（24）
+91. [test_port_cleanup.py](#test_port_cleanuppy)（4）
+92. [test_present_tool.py](#test_present_toolpy)（2）
+93. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+94. [test_prompt_slot.py](#test_prompt_slotpy)（1）
+95. [test_prompt_tail.py](#test_prompt_tailpy)（5）
+96. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+97. [test_provider_meta.py](#test_provider_metapy)（8）
+98. [test_provider_router.py](#test_provider_routerpy)（14）
+99. [test_quality_pipeline.py](#test_quality_pipelinepy)（19）
+100. [test_queue_runner.py](#test_queue_runnerpy)（11）
+101. [test_queued_input.py](#test_queued_inputpy)（4）
+102. [test_readonly_tools.py](#test_readonly_toolspy)（33）
+103. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
+104. [test_router_slot.py](#test_router_slotpy)（1）
+105. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+106. [test_run_registry.py](#test_run_registrypy)（17）
+107. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+108. [test_scan_scope.py](#test_scan_scopepy)（16）
+109. [test_session_context.py](#test_session_contextpy)（22）
+110. [test_session_seq.py](#test_session_seqpy)（28）
+111. [test_session_store.py](#test_session_storepy)（17）
+112. [test_session_tools.py](#test_session_toolspy)（17）
+113. [test_settings_panel.py](#test_settings_panelpy)（19）
+114. [test_settings_registry.py](#test_settings_registrypy)（5）
+115. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+116. [test_slot_binder.py](#test_slot_binderpy)（7）
+117. [test_slot_loader.py](#test_slot_loaderpy)（65）
+118. [test_slot_merge.py](#test_slot_mergepy)（61）
+119. [test_slot_registry.py](#test_slot_registrypy)（13）
+120. [test_slot_replaceable.py](#test_slot_replaceablepy)（20）
+121. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
+122. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
+123. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+124. [test_standards_manifest.py](#test_standards_manifestpy)（3）
+125. [test_startup_encoding.py](#test_startup_encodingpy)（2）
+126. [test_stop_operations.py](#test_stop_operationspy)（10）
+127. [test_stop_ui.py](#test_stop_uipy)（4）
+128. [test_stream_control.py](#test_stream_controlpy)（9）
+129. [test_subagent.py](#test_subagentpy)（21）
+130. [test_task_tools.py](#test_task_toolspy)（28）
+131. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
+132. [test_thread_context.py](#test_thread_contextpy)（1）
+133. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+134. [test_tool_arguments.py](#test_tool_argumentspy)（5）
+135. [test_tool_pairing.py](#test_tool_pairingpy)（15）
+136. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
+137. [test_tool_registry.py](#test_tool_registrypy)（17）
+138. [test_tool_resume.py](#test_tool_resumepy)（3）
+139. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+140. [test_top_level_services.py](#test_top_level_servicespy)（2）
+141. [test_ui_registry.py](#test_ui_registrypy)（7）
+142. [test_update.py](#test_updatepy)（26）
+143. [test_update_processes.py](#test_update_processespy)（3）
+144. [test_update_transaction.py](#test_update_transactionpy)（7）
+145. [test_usage_metrics.py](#test_usage_metricspy)（7）
+146. [test_version_stamp.py](#test_version_stamppy)（4）
+147. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+148. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+149. [test_visual_operator.py](#test_visual_operatorpy)（163）
+150. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
+151. [test_visualization.py](#test_visualizationpy)（8）
+152. [test_visualization_browser.py](#test_visualization_browserpy)（7）
+153. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
+154. [test_visualization_extra.py](#test_visualization_extrapy)（5）
+155. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
+156. [test_wake_isolation.py](#test_wake_isolationpy)（3）
+157. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+158. [test_web_auth.py](#test_web_authpy)（26）
+159. [test_web_frontend.py](#test_web_frontendpy)（6）
+160. [test_web_shell.py](#test_web_shellpy)（65）
+161. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+162. [test_window_ops.py](#test_window_opspy)（31）
+163. [test_write_gate.py](#test_write_gatepy)（22）
+164. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+165. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -431,7 +439,7 @@
 
 ## test_background_tasks.py
 
-共 17 个用例。
+共 19 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -441,17 +449,19 @@
 | 4 | `BackgroundTaskManagerTest` | `test_background_process_sees_user_paths` | 覆盖「A class whose instances are single test cases」：background process sees user paths |
 | 5 | `BackgroundTaskManagerTest` | `test_batch_groups_tasks_and_filters_exact_id` | 覆盖「A class whose instances are single test cases」：batch groups tasks and filters exact id |
 | 6 | `BackgroundTaskManagerTest` | `test_batch_returns_all_tasks_without_pagination` | 覆盖「A class whose instances are single test cases」：batch returns all tasks without pagination |
-| 7 | `BackgroundTaskManagerTest` | `test_cancel_queued_task` | 覆盖「A class whose instances are single test cases」：cancel queued task |
-| 8 | `BackgroundTaskManagerTest` | `test_completed_output_and_history` | 覆盖「A class whose instances are single test cases」：completed output and history |
-| 9 | `BackgroundTaskManagerTest` | `test_cwd_outside_root_rejected` | 覆盖「A class whose instances are single test cases」：cwd outside root rejected |
-| 10 | `BackgroundTaskManagerTest` | `test_env_allowlist_keeps_user_paths_excludes_secrets` | 覆盖「A class whose instances are single test cases」：env allowlist keeps user paths excludes secrets |
-| 11 | `BackgroundTaskManagerTest` | `test_execution_timeout_and_running_cancel` | 覆盖「A class whose instances are single test cases」：execution timeout and running cancel |
-| 12 | `BackgroundTaskManagerTest` | `test_label_required_but_not_unique` | 覆盖「A class whose instances are single test cases」：label required but not unique |
-| 13 | `BackgroundTaskManagerTest` | `test_output_cursor_rebases_after_buffer_trim` | 覆盖「A class whose instances are single test cases」：output cursor rebases after buffer trim |
-| 14 | `BackgroundTaskManagerTest` | `test_plan_mode_rejects_create` | 覆盖「A class whose instances are single test cases」：plan mode rejects create |
-| 15 | `BackgroundTaskManagerTest` | `test_queue_capacity_and_cid_isolation` | 覆盖「A class whose instances are single test cases」：queue capacity and cid isolation |
-| 16 | `BackgroundTaskManagerTest` | `test_system_notice_metadata_survives_queue_and_history` | 覆盖「A class whose instances are single test cases」：system notice metadata survives queue and history |
-| 17 | `BackgroundTaskManagerTest` | `test_tool_dispatch_create_list_output_cancel` | 覆盖「A class whose instances are single test cases」：tool dispatch create list output cancel |
+| 7 | `BackgroundTaskManagerTest` | `test_cancel_all_stops_running_and_pending_only_for_target_session` | 覆盖「A class whose instances are single test cases」：cancel all stops running and pending only for target session |
+| 8 | `BackgroundTaskManagerTest` | `test_cancel_queued_task` | 覆盖「A class whose instances are single test cases」：cancel queued task |
+| 9 | `BackgroundTaskManagerTest` | `test_completed_output_and_history` | 覆盖「A class whose instances are single test cases」：completed output and history |
+| 10 | `BackgroundTaskManagerTest` | `test_cwd_outside_root_rejected` | 覆盖「A class whose instances are single test cases」：cwd outside root rejected |
+| 11 | `BackgroundTaskManagerTest` | `test_env_allowlist_keeps_user_paths_excludes_secrets` | 覆盖「A class whose instances are single test cases」：env allowlist keeps user paths excludes secrets |
+| 12 | `BackgroundTaskManagerTest` | `test_execution_timeout_and_running_cancel` | 覆盖「A class whose instances are single test cases」：execution timeout and running cancel |
+| 13 | `BackgroundTaskManagerTest` | `test_failed_termination_is_reported_and_single_cancel_can_retry` | 覆盖「A class whose instances are single test cases」：failed termination is reported and single cancel can retry |
+| 14 | `BackgroundTaskManagerTest` | `test_label_required_but_not_unique` | 覆盖「A class whose instances are single test cases」：label required but not unique |
+| 15 | `BackgroundTaskManagerTest` | `test_output_cursor_rebases_after_buffer_trim` | 覆盖「A class whose instances are single test cases」：output cursor rebases after buffer trim |
+| 16 | `BackgroundTaskManagerTest` | `test_plan_mode_rejects_create` | 覆盖「A class whose instances are single test cases」：plan mode rejects create |
+| 17 | `BackgroundTaskManagerTest` | `test_queue_capacity_and_cid_isolation` | 覆盖「A class whose instances are single test cases」：queue capacity and cid isolation |
+| 18 | `BackgroundTaskManagerTest` | `test_system_notice_metadata_survives_queue_and_history` | 覆盖「A class whose instances are single test cases」：system notice metadata survives queue and history |
+| 19 | `BackgroundTaskManagerTest` | `test_tool_dispatch_create_list_output_cancel` | 覆盖「A class whose instances are single test cases」：tool dispatch create list output cancel |
 
 ## test_base_settings_plugin.py
 
@@ -716,7 +726,7 @@
 
 ## test_command_tools.py
 
-共 31 个用例。
+共 34 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -732,25 +742,28 @@
 | 10 | `CommandSafetyUnitTest` | `test_content_redirect_source` | 覆盖「机制层单测」：content redirect source |
 | 11 | `CommandSafetyUnitTest` | `test_content_sed_i` | 覆盖「机制层单测」：content sed i |
 | 12 | `CommandSafetyUnitTest` | `test_decode_output_gbk` | 覆盖「机制层单测」：decode output gbk |
-| 13 | `CommandSafetyUnitTest` | `test_process_registry_and_kill` | 覆盖「机制层单测」：process registry and kill |
-| 14 | `CommandSafetyUnitTest` | `test_resolve_shell` | 覆盖「机制层单测」：resolve shell |
-| 15 | `CommandSafetyUnitTest` | `test_safe_mode_chars` | 覆盖「机制层单测」：safe mode chars |
-| 16 | `CommandSafetyUnitTest` | `test_sanitize_ansi_and_cr` | 覆盖「机制层单测」：sanitize ansi and cr |
-| 17 | `CommandSafetyUnitTest` | `test_sanitize_blank_collapse_and_truncate` | 覆盖「机制层单测」：sanitize blank collapse and truncate |
-| 18 | `CommandToolsTest` | `test_run_blacklisted` | 覆盖「工具层：run_command（经管道唯一入口）」：run blacklisted |
-| 19 | `CommandToolsTest` | `test_run_blacklisted_even_safe_mode_off` | 覆盖「工具层：run_command（经管道唯一入口）」：run blacklisted even safe mode off |
-| 20 | `CommandToolsTest` | `test_run_cwd` | 覆盖「工具层：run_command（经管道唯一入口）」：run cwd |
-| 21 | `CommandToolsTest` | `test_run_echo` | 覆盖「工具层：run_command（经管道唯一入口）」：run echo |
-| 22 | `CommandToolsTest` | `test_run_exit_code` | 覆盖「工具层：run_command（经管道唯一入口）」：run exit code |
-| 23 | `CommandToolsTest` | `test_run_safe_mode_blocks_chars` | 覆盖「工具层：run_command（经管道唯一入口）」：run safe mode blocks chars |
-| 24 | `CommandToolsTest` | `test_run_safe_mode_off_allows_chain` | 覆盖「工具层：run_command（经管道唯一入口）」：run safe mode off allows chain |
-| 25 | `CommandToolsTest` | `test_run_script_content_check` | 覆盖「工具层：run_command（经管道唯一入口）」：run script content check |
-| 26 | `CommandToolsTest` | `test_run_timeout_kills` | 覆盖「工具层：run_command（经管道唯一入口）」：run timeout kills |
-| 27 | `PythonInlineTest` | `test_inline_cwd_and_restore` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline cwd and restore |
-| 28 | `PythonInlineTest` | `test_inline_exception_captured` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline exception captured |
-| 29 | `PythonInlineTest` | `test_inline_prints` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline prints |
-| 30 | `PythonInlineTest` | `test_inline_prints_push_progress` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline prints push progress |
-| 31 | `PythonInlineTest` | `test_inline_system_exit` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline system exit |
+| 13 | `CommandSafetyUnitTest` | `test_failed_shell_termination_preserves_registration_for_retry` | 覆盖「机制层单测」：failed shell termination preserves registration for retry |
+| 14 | `CommandSafetyUnitTest` | `test_kill_scope_preserves_other_session_and_new_registration` | 覆盖「机制层单测」：kill scope preserves other session and new registration |
+| 15 | `CommandSafetyUnitTest` | `test_process_registry_and_kill` | 覆盖「机制层单测」：process registry and kill |
+| 16 | `CommandSafetyUnitTest` | `test_resolve_shell` | 覆盖「机制层单测」：resolve shell |
+| 17 | `CommandSafetyUnitTest` | `test_safe_mode_chars` | 覆盖「机制层单测」：safe mode chars |
+| 18 | `CommandSafetyUnitTest` | `test_sanitize_ansi_and_cr` | 覆盖「机制层单测」：sanitize ansi and cr |
+| 19 | `CommandSafetyUnitTest` | `test_sanitize_blank_collapse_and_truncate` | 覆盖「机制层单测」：sanitize blank collapse and truncate |
+| 20 | `CommandSafetyUnitTest` | `test_taskkill_timeout_keeps_pid_for_stop_retry` | 覆盖「机制层单测」：taskkill timeout keeps pid for stop retry |
+| 21 | `CommandToolsTest` | `test_run_blacklisted` | 覆盖「工具层：run_command（经管道唯一入口）」：run blacklisted |
+| 22 | `CommandToolsTest` | `test_run_blacklisted_even_safe_mode_off` | 覆盖「工具层：run_command（经管道唯一入口）」：run blacklisted even safe mode off |
+| 23 | `CommandToolsTest` | `test_run_cwd` | 覆盖「工具层：run_command（经管道唯一入口）」：run cwd |
+| 24 | `CommandToolsTest` | `test_run_echo` | 覆盖「工具层：run_command（经管道唯一入口）」：run echo |
+| 25 | `CommandToolsTest` | `test_run_exit_code` | 覆盖「工具层：run_command（经管道唯一入口）」：run exit code |
+| 26 | `CommandToolsTest` | `test_run_safe_mode_blocks_chars` | 覆盖「工具层：run_command（经管道唯一入口）」：run safe mode blocks chars |
+| 27 | `CommandToolsTest` | `test_run_safe_mode_off_allows_chain` | 覆盖「工具层：run_command（经管道唯一入口）」：run safe mode off allows chain |
+| 28 | `CommandToolsTest` | `test_run_script_content_check` | 覆盖「工具层：run_command（经管道唯一入口）」：run script content check |
+| 29 | `CommandToolsTest` | `test_run_timeout_kills` | 覆盖「工具层：run_command（经管道唯一入口）」：run timeout kills |
+| 30 | `PythonInlineTest` | `test_inline_cwd_and_restore` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline cwd and restore |
+| 31 | `PythonInlineTest` | `test_inline_exception_captured` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline exception captured |
+| 32 | `PythonInlineTest` | `test_inline_prints` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline prints |
+| 33 | `PythonInlineTest` | `test_inline_prints_push_progress` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline prints push progress |
+| 34 | `PythonInlineTest` | `test_inline_system_exit` | 覆盖「工具层：python_inline（经管道唯一入口）」：inline system exit |
 
 ## test_compaction_prefix.py
 
@@ -1612,6 +1625,39 @@
 | 1 | `HostServiceSlotTest` | `test_dispose_removes_default_slot` | 覆盖「A class whose instances are single test cases」：dispose removes default slot |
 | 2 | `HostServiceSlotTest` | `test_replace_service_and_restore` | 覆盖「A class whose instances are single test cases」：replace service and restore |
 
+## test_http_pool.py
+
+共 15 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `HTTPPoolConfigurationTest` | `test_boot_registers_one_pool_and_router_supplies_it` | 覆盖「A class whose instances are single test cases」：boot registers one pool and router supplies it |
+| 2 | `HTTPPoolConfigurationTest` | `test_client_scope_borrows_but_does_not_dispose_shared_pool` | 覆盖「A class whose instances are single test cases」：client scope borrows but does not dispose shared pool |
+| 3 | `HTTPPoolConfigurationTest` | `test_host_configuration_and_unknown_keys` | 覆盖「A class whose instances are single test cases」：host configuration and unknown keys |
+| 4 | `HTTPPoolConfigurationTest` | `test_invalid_limits_are_rejected` | 覆盖「A class whose instances are single test cases」：invalid limits are rejected |
+| 5 | `HTTPPoolTest` | `test_cancel_waiter_does_not_kill_active_request` | 覆盖「A class whose instances are single test cases」：cancel waiter does not kill active request |
+| 6 | `HTTPPoolTest` | `test_full_queue_fails_without_spawning_more_workers` | 覆盖「A class whose instances are single test cases」：full queue fails without spawning more workers |
+| 7 | `HTTPPoolTest` | `test_idle_timeout_reclaims_worker` | 覆盖「A class whose instances are single test cases」：idle timeout reclaims worker |
+| 8 | `HTTPPoolTest` | `test_late_cancel_and_release_cannot_affect_new_lease` | 覆盖「A class whose instances are single test cases」：late cancel and release cannot affect new lease |
+| 9 | `HTTPPoolTest` | `test_sequential_requests_reuse_worker` | 覆盖「A class whose instances are single test cases」：sequential requests reuse worker |
+| 10 | `HTTPPoolTest` | `test_shutdown_wakes_waiters_and_refuses_new_requests` | 覆盖「A class whose instances are single test cases」：shutdown wakes waiters and refuses new requests |
+| 11 | `HTTPPoolTest` | `test_spawn_failure_releases_capacity_without_replaying` | 覆盖「A class whose instances are single test cases」：spawn failure releases capacity without replaying |
+| 12 | `HTTPPoolTest` | `test_unhealthy_and_dead_idle_workers_are_replaced` | 覆盖「A class whose instances are single test cases」：unhealthy and dead idle workers are replaced |
+| 13 | `HTTPPoolTest` | `test_wait_timeout_does_not_consume_another_slot` | 覆盖「A class whose instances are single test cases」：wait timeout does not consume another slot |
+| 14 | `HTTPPoolTest` | `test_waiters_receive_worker_in_fifo_order` | 覆盖「A class whose instances are single test cases」：waiters receive worker in fifo order |
+| 15 | `HTTPPoolTest` | `test_zero_pending_budget_still_admits_all_available_worker_slots` | 覆盖「A class whose instances are single test cases」：zero pending budget still admits all available worker slots |
+
+## test_http_pool_concurrency.py
+
+共 4 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `HTTPPoolConcurrencyTest` | `test_cancelled_summary_discards_partial_streamed_text` | 覆盖「A class whose instances are single test cases」：cancelled summary discards partial streamed text |
+| 2 | `HTTPPoolConcurrencyTest` | `test_cancelled_title_discards_partial_text_without_retry` | 覆盖「A class whose instances are single test cases」：cancelled title discards partial text without retry |
+| 3 | `HTTPPoolConcurrencyTest` | `test_run_scope_cancels_synchronous_auxiliary_http` | 覆盖「A class whose instances are single test cases」：run scope cancels synchronous auxiliary http |
+| 4 | `HTTPPoolConcurrencyTest` | `test_twenty_requests_use_only_two_processes_without_crossed_responses` | 覆盖「A class whose instances are single test cases」：twenty requests use only two processes without crossed responses |
+
 ## test_http_route_slots.py
 
 共 5 个用例。
@@ -1623,6 +1669,50 @@
 | 3 | `HttpRouteSlotsTest` | `test_path_is_injective` | 覆盖「A class whose instances are single test cases」：path is injective |
 | 4 | `HttpRouteSlotsTest` | `test_post_slot_can_be_bound` | 覆盖「A class whose instances are single test cases」：post slot can be bound |
 | 5 | `HttpRouteSlotsTest` | `test_slot_can_be_bound` | 覆盖「A class whose instances are single test cases」：slot can be bound |
+
+## test_http_transport.py
+
+共 13 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `HTTPTransportTest` | `test_both_provider_streams_reuse_worker_even_when_server_stays_open` | 覆盖「A class whose instances are single test cases」：both provider streams reuse worker even when server stays open |
+| 2 | `HTTPTransportTest` | `test_http_error_keeps_status_headers_and_body` | 覆盖「A class whose instances are single test cases」：http error keeps status headers and body |
+| 3 | `HTTPTransportTest` | `test_late_abort_cannot_kill_reused_worker_serving_next_request` | 覆盖「A class whose instances are single test cases」：late abort cannot kill reused worker serving next request |
+| 4 | `HTTPTransportTest` | `test_mismatched_response_is_evicted_without_automatic_replay` | 覆盖「A class whose instances are single test cases」：mismatched response is evicted without automatic replay |
+| 5 | `HTTPTransportTest` | `test_oversized_frame_evicts_worker_before_payload_read_without_replay` | 覆盖「A class whose instances are single test cases」：oversized frame evicts worker before payload read without replay |
+| 6 | `HTTPTransportTest` | `test_request_bytes_headers_sse_and_process_cleanup` | 覆盖「A class whose instances are single test cases」：request bytes headers sse and process cleanup |
+| 7 | `HTTPTransportTest` | `test_reused_worker_does_not_carry_credentials_or_cookies_between_requests` | 覆盖「A class whose instances are single test cases」：reused worker does not carry credentials or cookies between requests |
+| 8 | `HTTPTransportTest` | `test_stop_before_http_headers_for_both_providers` | 覆盖「A class whose instances are single test cases」：stop before http headers for both providers |
+| 9 | `HTTPTransportTest` | `test_stop_during_dns_and_tcp_connect` | 覆盖「A class whose instances are single test cases」：stop during dns and tcp connect |
+| 10 | `HTTPTransportTest` | `test_stop_during_tls_handshake` | 覆盖「A class whose instances are single test cases」：stop during tls handshake |
+| 11 | `HTTPTransportTest` | `test_stop_while_request_pipe_is_blocked` | 覆盖「A class whose instances are single test cases」：stop while request pipe is blocked |
+| 12 | `HTTPTransportTest` | `test_stopping_one_transport_does_not_close_another` | 覆盖「A class whose instances are single test cases」：stopping one transport does not close another |
+| 13 | `HTTPTransportTest` | `test_stream_total_timeout_kills_transport_process` | 覆盖「A class whose instances are single test cases」：stream total timeout kills transport process |
+
+## test_http_wire.py
+
+共 5 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `HTTPWireTest` | `test_invalid_header_is_rejected_before_reading_payload` | 覆盖「A class whose instances are single test cases」：invalid header is rejected before reading payload |
+| 2 | `HTTPWireTest` | `test_large_and_empty_request_bodies_round_trip` | 覆盖「A class whose instances are single test cases」：large and empty request bodies round trip |
+| 3 | `HTTPWireTest` | `test_oversized_write_never_publishes_a_partial_frame` | 覆盖「A class whose instances are single test cases」：oversized write never publishes a partial frame |
+| 4 | `HTTPWireTest` | `test_request_body_rejects_mismatch_empty_progress_and_overflow` | 覆盖「A class whose instances are single test cases」：request body rejects mismatch empty progress and overflow |
+| 5 | `HTTPWireTest` | `test_upstream_oversized_line_is_bounded_closed_and_reported` | 覆盖「A class whose instances are single test cases」：upstream oversized line is bounded closed and reported |
+
+## test_http_worker.py
+
+共 5 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `WorkerProtocolTest` | `test_completion_rules_only_match_declared_terminal` | 覆盖「A class whose instances are single test cases」：completion rules only match declared terminal |
+| 2 | `WorkerProtocolTest` | `test_error_has_terminal_ack_and_closes_http_error_body` | 覆盖「A class whose instances are single test cases」：error has terminal ack and closes http error body |
+| 3 | `WorkerProtocolTest` | `test_invalid_request_frame_never_opens_network` | 覆盖「A class whose instances are single test cases」：invalid request frame never opens network |
+| 4 | `WorkerProtocolTest` | `test_success_closes_upstream_at_terminal_and_preserves_request_identity` | 覆盖「A class whose instances are single test cases」：success closes upstream at terminal and preserves request identity |
+| 5 | `WorkerProtocolTest` | `test_test_worker_gate_blocks_before_dns_and_records_even_if_error_is_caught` | 覆盖「A class whose instances are single test cases」：test worker gate blocks before dns and records even if error is caught |
 
 ## test_image_embed.py
 
@@ -2419,7 +2509,7 @@
 
 ## test_run_registry.py
 
-共 16 个用例。
+共 17 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -2436,9 +2526,10 @@
 | 11 | `InMemoryRunRegistryTest` | `test_renew_preserves_or_resets_started_at_explicitly` | 覆盖「纯内存实现：单实例语义」：renew preserves or resets started at explicitly |
 | 12 | `InMemoryRunRegistryTest` | `test_running_cids_snapshot` | 覆盖「纯内存实现：单实例语义」：running cids snapshot |
 | 13 | `PidAliveTest` | `test_claim_then_running_is_true_in_this_process` | `claim()` 之后 `running()` 必须为 True（记录里写的是本进程 pid）。 |
-| 14 | `PidAliveTest` | `test_invalid_pid_forms_are_dead` | 非法形态不抛异常，一律判死（None / 0 / 负数 / 非数字）。 |
-| 15 | `PidAliveTest` | `test_live_pid_is_alive` | 当前进程的 pid 必须判活 —— 这是最直接的判据。 |
-| 16 | `PidAliveTest` | `test_nonexistent_pid_is_dead` | 不存在的 pid 必须判死，否则过期记录永远不回收。 |
+| 14 | `PidAliveTest` | `test_exited_process_with_retained_handle_is_reclaimed` | 覆盖「`_pid_alive` 的判活边界」：exited process with retained handle is reclaimed |
+| 15 | `PidAliveTest` | `test_invalid_pid_forms_are_dead` | 非法形态不抛异常，一律判死（None / 0 / 负数 / 非数字）。 |
+| 16 | `PidAliveTest` | `test_live_pid_is_alive` | 当前进程的 pid 必须判活 —— 这是最直接的判据。 |
+| 17 | `PidAliveTest` | `test_nonexistent_pid_is_dead` | 不存在的 pid 必须判死，否则过期记录永远不回收。 |
 
 ## test_scan_js_events.py
 
@@ -2984,6 +3075,50 @@
 |---:|---|---|---|
 | 1 | `StartupEncodingTest` | `test_native_console_uses_utf8_codepage` | 覆盖「A class whose instances are single test cases」：native console uses utf8 codepage |
 | 2 | `StartupEncodingTest` | `test_redirected_logs_are_utf8_in_legacy_environment` | 覆盖「A class whose instances are single test cases」：redirected logs are utf8 in legacy environment |
+
+## test_stop_operations.py
+
+共 10 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `StopOperationsTest` | `test_failed_cleanup_remains_blocking_until_explicit_retry` | 覆盖「A class whose instances are single test cases」：failed cleanup remains blocking until explicit retry |
+| 2 | `StopOperationsTest` | `test_invalid_wait_budget_is_rejected_before_submitting_stop` | 覆盖「A class whose instances are single test cases」：invalid wait budget is rejected before submitting stop |
+| 3 | `StopOperationsTest` | `test_returns_before_cleanup_and_deduplicates_pending_requests` | 覆盖「A class whose instances are single test cases」：returns before cleanup and deduplicates pending requests |
+| 4 | `StopOperationsTest` | `test_shutdown_reports_turn_and_cleanup_timeouts_independently` | 覆盖「A class whose instances are single test cases」：shutdown reports turn and cleanup timeouts independently |
+| 5 | `StopOperationsTest` | `test_stop_fences_inflight_start_even_after_cleanup_already_completed` | 覆盖「A class whose instances are single test cases」：stop fences inflight start even after cleanup already completed |
+| 6 | `StopOperationsTest` | `test_stop_requested_means_signal_delivered_in_pending_completed_and_failed_states` | 覆盖「A class whose instances are single test cases」：stop requested means signal delivered in pending completed and failed states |
+| 7 | `StopOperationsTest` | `test_sync_wait_timeout_keeps_original_operation_and_can_query_after_completion` | 覆盖「A class whose instances are single test cases」：sync wait timeout keeps original operation and can query after completion |
+| 8 | `StopOperationsTest` | `test_thread_start_failure_is_queryable_and_retryable` | 覆盖「A class whose instances are single test cases」：thread start failure is queryable and retryable |
+| 9 | `StopOperationsTest` | `test_wait_includes_deferred_dispatch_without_blocking_new_turn` | 覆盖「A class whose instances are single test cases」：wait includes deferred dispatch without blocking new turn |
+| 10 | `StopOperationsTest` | `test_wait_targets_only_its_operation_and_does_not_join_other_sessions` | 覆盖「A class whose instances are single test cases」：wait targets only its operation and does not join other sessions |
+
+## test_stop_ui.py
+
+共 4 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `StopUITest` | `test_definite_cleanup_failure_retries_stop_instead_of_querying_failed_operation` | 覆盖「A class whose instances are single test cases」：definite cleanup failure retries stop instead of querying failed operation |
+| 2 | `StopUITest` | `test_failure_retry_and_pending_queries_keep_conversation` | 覆盖「A class whose instances are single test cases」：failure retry and pending queries keep conversation |
+| 3 | `StopUITest` | `test_hung_fetch_and_hung_response_body_abort_without_polling_forever` | 覆盖「A class whose instances are single test cases」：hung fetch and hung response body abort without polling forever |
+| 4 | `StopUITest` | `test_observation_deadline_stops_polling_and_continue_reuses_original_id` | 覆盖「A class whose instances are single test cases」：observation deadline stops polling and continue reuses original id |
+
+## test_stream_control.py
+
+共 9 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `StreamControlTest` | `test_blocked_abort_cannot_block_turn_or_other_abort_actions` | 覆盖「A class whose instances are single test cases」：blocked abort cannot block turn or other abort actions |
+| 2 | `StreamControlTest` | `test_cancel_before_connection_returns_closes_late_transport` | 覆盖「A class whose instances are single test cases」：cancel before connection returns closes late transport |
+| 3 | `StreamControlTest` | `test_cancel_blocked_read_aborts_transport_and_exits` | 覆盖「A class whose instances are single test cases」：cancel blocked read aborts transport and exits |
+| 4 | `StreamControlTest` | `test_child_completion_keeps_parent_running_and_detaches` | 覆盖「A class whose instances are single test cases」：child completion keeps parent running and detaches |
+| 5 | `StreamControlTest` | `test_failure_and_order_are_preserved` | 覆盖「A class whose instances are single test cases」：failure and order are preserved |
+| 6 | `StreamControlTest` | `test_independent_call_survives_another_stream_cancel` | 覆盖「A class whose instances are single test cases」：independent call survives another stream cancel |
+| 7 | `StreamControlTest` | `test_reader_start_failure_detaches_from_parent` | 覆盖「A class whose instances are single test cases」：reader start failure detaches from parent |
+| 8 | `StreamControlTest` | `test_real_http_stream_without_data_is_closed_on_stop` | 覆盖「A class whose instances are single test cases」：real http stream without data is closed on stop |
+| 9 | `StreamControlTest` | `test_stopped_call_never_opens_provider` | 覆盖「A class whose instances are single test cases」：stopped call never opens provider |
 
 ## test_subagent.py
 
@@ -3668,7 +3803,7 @@
 
 ## test_web_shell.py
 
-共 60 个用例。
+共 65 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -3677,61 +3812,66 @@
 | 3 | `ConcurrencyTest` | `test_insert_fact_write_failure_keeps_input_and_does_not_call_model` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：insert fact write failure keeps input and does not call model |
 | 4 | `ConcurrencyTest` | `test_insert_reports_confirmation_write_failure_and_retains_input` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：insert reports confirmation write failure and retains input |
 | 5 | `ConcurrencyTest` | `test_insert_sources_preempt_remaining_tool_calls_and_reach_next_request` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：insert sources preempt remaining tool calls and reach next request |
-| 6 | `ConcurrencyTest` | `test_stop_cancels_a_running_turn` | 停止是真取消：经 SessionRunner 的停止检查，让内核在检查点停下。 |
-| 7 | `ConcurrencyTest` | `test_stop_endpoint_shape` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop endpoint shape |
-| 8 | `ConcurrencyTest` | `test_stop_settles_idle_confirmation` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop settles idle confirmation |
-| 9 | `DateGroupTest` | `test_groups_by_natural_day` | 覆盖「会话日期分组」：groups by natural day |
-| 10 | `DateGroupTest` | `test_older_is_grouped_by_date` | 覆盖「会话日期分组」：older is grouped by date |
-| 11 | `DirBrowseDriveRootTest` | `test_drive_root_parent_is_drives_layer` | 覆盖「可见根是盘根时（默认情形），相对路径不能被钉死在盘根」：drive root parent is drives layer |
-| 12 | `DirBrowseDriveRootTest` | `test_relative_path_prefers_concrete_workspace_root` | 覆盖「可见根是盘根时（默认情形），相对路径不能被钉死在盘根」：relative path prefers concrete workspace root |
-| 13 | `DirBrowseQueryTest` | `test_dir_browse_single_char_path_not_truncated` | `_query()` 必须返回整串：路由若用 `[0]` 取首字符，值会被截断。 |
-| 14 | `DirBrowseQueryTest` | `test_ui_state_roundtrip` | 覆盖「路径查询串按整串解析，不按首字符」：ui state roundtrip |
-| 15 | `EndpointTest` | `test_catalog_keeps_project_sessions_in_recent_after_deleting_project` | 覆盖「端点清单可达性与显著错误码」：catalog keeps project sessions in recent after deleting project |
-| 16 | `EndpointTest` | `test_health_endpoint` | 覆盖「端点清单可达性与显著错误码」：health endpoint |
-| 17 | `EndpointTest` | `test_large_history_turn_keeps_the_tail_and_pages_to_earlier_content` | 覆盖「端点清单可达性与显著错误码」：large history turn keeps the tail and pages to earlier content |
-| 18 | `EndpointTest` | `test_media_endpoint_guards_root` | 覆盖「端点清单可达性与显著错误码」：media endpoint guards root |
-| 19 | `EndpointTest` | `test_media_missing_file_404` | 覆盖「端点清单可达性与显著错误码」：media missing file 404 |
-| 20 | `EndpointTest` | `test_pages_and_assets_served` | 覆盖「端点清单可达性与显著错误码」：pages and assets served |
-| 21 | `EndpointTest` | `test_send_rejects_bad_input` | 覆盖「端点清单可达性与显著错误码」：send rejects bad input |
-| 22 | `EndpointTest` | `test_setup_route_is_removed` | 覆盖「端点清单可达性与显著错误码」：setup route is removed |
-| 23 | `EndpointTest` | `test_unknown_path_404` | 覆盖「端点清单可达性与显著错误码」：unknown path 404 |
-| 24 | `FileViewerContractTest` | `test_absolute_path_inside_root_is_accepted` | 工具参数常给绝对路径；落在 fs_root 内必须能直接打开。 |
-| 25 | `FileViewerContractTest` | `test_absolute_path_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：absolute path outside root is forbidden |
-| 26 | `FileViewerContractTest` | `test_binary_is_reported_not_dumped` | 覆盖「文件读取端点的路径解析与越界边界」：binary is reported not dumped |
-| 27 | `FileViewerContractTest` | `test_list_absolute_path_inside_root` | 覆盖「文件读取端点的路径解析与越界边界」：list absolute path inside root |
-| 28 | `FileViewerContractTest` | `test_list_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：list outside root is forbidden |
-| 29 | `FileViewerContractTest` | `test_list_returns_entries_with_rel_and_type` | 覆盖「文件读取端点的路径解析与越界边界」：list returns entries with rel and type |
-| 30 | `FileViewerContractTest` | `test_max_chars_zero_returns_full_file` | 文件查看器显式传 0：不截断；默认调用仍保留 400000 字符保护。 |
-| 31 | `FileViewerContractTest` | `test_missing_file_inside_root_is_404_not_403` | 不存在的文件与越界必须分开报告：预览期未落盘的文件是 404，不是越权。 |
-| 32 | `FileViewerContractTest` | `test_relative_path_reads_text` | 覆盖「文件读取端点的路径解析与越界边界」：relative path reads text |
-| 33 | `FileViewerContractTest` | `test_traversal_cannot_escape_roots` | 穿越语义：不允许逃出可见根（不是"禁止 `..`"）。 |
-| 34 | `MultiRootFileViewerTest` | `test_absolute_path_in_first_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：absolute path in first root |
-| 35 | `MultiRootFileViewerTest` | `test_absolute_path_in_second_root` | 第二个根同样可达——单根实现会把它判成越界。 |
-| 36 | `MultiRootFileViewerTest` | `test_list_reports_rel_against_matched_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：list reports rel against matched root |
-| 37 | `MultiRootFileViewerTest` | `test_missing_in_a_root_is_404_not_403` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：missing in a root is 404 not 403 |
-| 38 | `MultiRootFileViewerTest` | `test_outside_all_roots_is_forbidden` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：outside all roots is forbidden |
-| 39 | `MultiRootFileViewerTest` | `test_relative_path_resolves_against_each_root` | 相对路径逐个根试：命中哪个根就用哪个。 |
-| 40 | `MultiRootFileViewerTest` | `test_roots_are_resolved_and_deduplicated_by_normalize` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：roots are resolved and deduplicated by normalize |
-| 41 | `SseContractTest` | `test_dir_browse_drives_layer` | `path=_drives_` 返回「计算机」层。 |
-| 42 | `SseContractTest` | `test_dir_browse_item_shape_and_ordering` | 条目形状 {name,type,ext,path}；目录排前。 |
-| 43 | `SseContractTest` | `test_dir_browse_missing_path_falls_back` | 访问不到的路径回落（不报错）——补全不能因为一个坏路径卡死。 |
-| 44 | `SseContractTest` | `test_dir_browse_relative_path_uses_workspace_base` | 相对路径应基于可见根解析，且不得落到盘根。 |
-| 45 | `SseContractTest` | `test_dir_browse_root_parent_is_drives` | 盘符根的 parent 是 `_drives_`，可从盘根回到计算机层。 |
-| 46 | `SseContractTest` | `test_every_frame_carries_conversation_id` | 覆盖「/ ：单流多路复用与事件信封」：every frame carries conversation id |
-| 47 | `SseContractTest` | `test_health_reports_model_for_header` | `/health` 须给出 model / allowed_models / 全局默认档位（顶栏与模型菜单）。 |
-| 48 | `SseContractTest` | `test_history_and_sessions_endpoints` | 覆盖「/ ：单流多路复用与事件信封」：history and sessions endpoints |
-| 49 | `SseContractTest` | `test_reasoning_effort_is_per_conversation` | 会话级档位不串会话：改一个不影响另一个（另一个回全局默认）。 |
-| 50 | `SseContractTest` | `test_reasoning_effort_rejects_invalid` | 非法档位拒设且保留原值；缺 cid 报错。 |
-| 51 | `SseContractTest` | `test_reasoning_effort_roundtrip` | 推理档位 GET/PUT 往返。 |
-| 52 | `SseContractTest` | `test_sessions_carry_date_group` | 会话名录须带 date_group（会话菜单按它插分组标题）。 |
-| 53 | `SseContractTest` | `test_sessions_prefer_the_persisted_title` | 覆盖「/ ：单流多路复用与事件信封」：sessions prefer the persisted title |
-| 54 | `SseContractTest` | `test_sessions_sorted_by_recent_activity` | 覆盖「/ ：单流多路复用与事件信封」：sessions sorted by recent activity |
-| 55 | `SseContractTest` | `test_sessions_without_title_file_return_unknown` | 没有已生成标题时返回明确的未知标题，不回读会话日志兜底。 |
-| 56 | `SseContractTest` | `test_title_falls_back_to_user_message_when_generation_fails` | 覆盖「/ ：单流多路复用与事件信封」：title falls back to user message when generation fails |
-| 57 | `SseContractTest` | `test_turn_events_reach_the_stream` | 覆盖「/ ：单流多路复用与事件信封」：turn events reach the stream |
-| 58 | `SseContractTest` | `test_two_sessions_do_not_cross` | 覆盖「/ ：单流多路复用与事件信封」：two sessions do not cross |
-| 59 | `WriteGateOverWebTest` | `test_confirm_is_session_scoped` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：confirm is session scoped |
-| 60 | `WriteGateOverWebTest` | `test_unconfirmed_commit_rejected_then_review_unlocks` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：unconfirmed commit rejected then review unlocks |
+| 6 | `ConcurrencyTest` | `test_stop_blocked_model_releases_run_and_accepts_new_message` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop blocked model releases run and accepts new message |
+| 7 | `ConcurrencyTest` | `test_stop_cancels_a_running_turn` | 停止是真取消：经 SessionRunner 的停止检查，让内核在检查点停下。 |
+| 8 | `ConcurrencyTest` | `test_stop_cancels_synchronous_resource_outside_model_stream` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop cancels synchronous resource outside model stream |
+| 9 | `ConcurrencyTest` | `test_stop_endpoint_shape` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop endpoint shape |
+| 10 | `ConcurrencyTest` | `test_stop_http_returns_while_cleanup_blocks_and_preserves_new_input` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop http returns while cleanup blocks and preserves new input |
+| 11 | `ConcurrencyTest` | `test_stop_idle_session_still_sets_persistent_stop` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop idle session still sets persistent stop |
+| 12 | `ConcurrencyTest` | `test_stop_reports_failed_background_termination_and_preserves_stop` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop reports failed background termination and preserves stop |
+| 13 | `ConcurrencyTest` | `test_stop_settles_idle_confirmation` | 覆盖「同会话并发发送进入待发送队列；停止请求可下发」：stop settles idle confirmation |
+| 14 | `DateGroupTest` | `test_groups_by_natural_day` | 覆盖「会话日期分组」：groups by natural day |
+| 15 | `DateGroupTest` | `test_older_is_grouped_by_date` | 覆盖「会话日期分组」：older is grouped by date |
+| 16 | `DirBrowseDriveRootTest` | `test_drive_root_parent_is_drives_layer` | 覆盖「可见根是盘根时（默认情形），相对路径不能被钉死在盘根」：drive root parent is drives layer |
+| 17 | `DirBrowseDriveRootTest` | `test_relative_path_prefers_concrete_workspace_root` | 覆盖「可见根是盘根时（默认情形），相对路径不能被钉死在盘根」：relative path prefers concrete workspace root |
+| 18 | `DirBrowseQueryTest` | `test_dir_browse_single_char_path_not_truncated` | `_query()` 必须返回整串：路由若用 `[0]` 取首字符，值会被截断。 |
+| 19 | `DirBrowseQueryTest` | `test_ui_state_roundtrip` | 覆盖「路径查询串按整串解析，不按首字符」：ui state roundtrip |
+| 20 | `EndpointTest` | `test_catalog_keeps_project_sessions_in_recent_after_deleting_project` | 覆盖「端点清单可达性与显著错误码」：catalog keeps project sessions in recent after deleting project |
+| 21 | `EndpointTest` | `test_health_endpoint` | 覆盖「端点清单可达性与显著错误码」：health endpoint |
+| 22 | `EndpointTest` | `test_large_history_turn_keeps_the_tail_and_pages_to_earlier_content` | 覆盖「端点清单可达性与显著错误码」：large history turn keeps the tail and pages to earlier content |
+| 23 | `EndpointTest` | `test_media_endpoint_guards_root` | 覆盖「端点清单可达性与显著错误码」：media endpoint guards root |
+| 24 | `EndpointTest` | `test_media_missing_file_404` | 覆盖「端点清单可达性与显著错误码」：media missing file 404 |
+| 25 | `EndpointTest` | `test_pages_and_assets_served` | 覆盖「端点清单可达性与显著错误码」：pages and assets served |
+| 26 | `EndpointTest` | `test_send_rejects_bad_input` | 覆盖「端点清单可达性与显著错误码」：send rejects bad input |
+| 27 | `EndpointTest` | `test_setup_route_is_removed` | 覆盖「端点清单可达性与显著错误码」：setup route is removed |
+| 28 | `EndpointTest` | `test_unknown_path_404` | 覆盖「端点清单可达性与显著错误码」：unknown path 404 |
+| 29 | `FileViewerContractTest` | `test_absolute_path_inside_root_is_accepted` | 工具参数常给绝对路径；落在 fs_root 内必须能直接打开。 |
+| 30 | `FileViewerContractTest` | `test_absolute_path_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：absolute path outside root is forbidden |
+| 31 | `FileViewerContractTest` | `test_binary_is_reported_not_dumped` | 覆盖「文件读取端点的路径解析与越界边界」：binary is reported not dumped |
+| 32 | `FileViewerContractTest` | `test_list_absolute_path_inside_root` | 覆盖「文件读取端点的路径解析与越界边界」：list absolute path inside root |
+| 33 | `FileViewerContractTest` | `test_list_outside_root_is_forbidden` | 覆盖「文件读取端点的路径解析与越界边界」：list outside root is forbidden |
+| 34 | `FileViewerContractTest` | `test_list_returns_entries_with_rel_and_type` | 覆盖「文件读取端点的路径解析与越界边界」：list returns entries with rel and type |
+| 35 | `FileViewerContractTest` | `test_max_chars_zero_returns_full_file` | 文件查看器显式传 0：不截断；默认调用仍保留 400000 字符保护。 |
+| 36 | `FileViewerContractTest` | `test_missing_file_inside_root_is_404_not_403` | 不存在的文件与越界必须分开报告：预览期未落盘的文件是 404，不是越权。 |
+| 37 | `FileViewerContractTest` | `test_relative_path_reads_text` | 覆盖「文件读取端点的路径解析与越界边界」：relative path reads text |
+| 38 | `FileViewerContractTest` | `test_traversal_cannot_escape_roots` | 穿越语义：不允许逃出可见根（不是"禁止 `..`"）。 |
+| 39 | `MultiRootFileViewerTest` | `test_absolute_path_in_first_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：absolute path in first root |
+| 40 | `MultiRootFileViewerTest` | `test_absolute_path_in_second_root` | 第二个根同样可达——单根实现会把它判成越界。 |
+| 41 | `MultiRootFileViewerTest` | `test_list_reports_rel_against_matched_root` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：list reports rel against matched root |
+| 42 | `MultiRootFileViewerTest` | `test_missing_in_a_root_is_404_not_403` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：missing in a root is 404 not 403 |
+| 43 | `MultiRootFileViewerTest` | `test_outside_all_roots_is_forbidden` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：outside all roots is forbidden |
+| 44 | `MultiRootFileViewerTest` | `test_relative_path_resolves_against_each_root` | 相对路径逐个根试：命中哪个根就用哪个。 |
+| 45 | `MultiRootFileViewerTest` | `test_roots_are_resolved_and_deduplicated_by_normalize` | 覆盖「多可见根——agent 能写多盘，查看器必须看得见它们写的文件」：roots are resolved and deduplicated by normalize |
+| 46 | `SseContractTest` | `test_dir_browse_drives_layer` | `path=_drives_` 返回「计算机」层。 |
+| 47 | `SseContractTest` | `test_dir_browse_item_shape_and_ordering` | 条目形状 {name,type,ext,path}；目录排前。 |
+| 48 | `SseContractTest` | `test_dir_browse_missing_path_falls_back` | 访问不到的路径回落（不报错）——补全不能因为一个坏路径卡死。 |
+| 49 | `SseContractTest` | `test_dir_browse_relative_path_uses_workspace_base` | 相对路径应基于可见根解析，且不得落到盘根。 |
+| 50 | `SseContractTest` | `test_dir_browse_root_parent_is_drives` | 盘符根的 parent 是 `_drives_`，可从盘根回到计算机层。 |
+| 51 | `SseContractTest` | `test_every_frame_carries_conversation_id` | 覆盖「/ ：单流多路复用与事件信封」：every frame carries conversation id |
+| 52 | `SseContractTest` | `test_health_reports_model_for_header` | `/health` 须给出 model / allowed_models / 全局默认档位（顶栏与模型菜单）。 |
+| 53 | `SseContractTest` | `test_history_and_sessions_endpoints` | 覆盖「/ ：单流多路复用与事件信封」：history and sessions endpoints |
+| 54 | `SseContractTest` | `test_reasoning_effort_is_per_conversation` | 会话级档位不串会话：改一个不影响另一个（另一个回全局默认）。 |
+| 55 | `SseContractTest` | `test_reasoning_effort_rejects_invalid` | 非法档位拒设且保留原值；缺 cid 报错。 |
+| 56 | `SseContractTest` | `test_reasoning_effort_roundtrip` | 推理档位 GET/PUT 往返。 |
+| 57 | `SseContractTest` | `test_sessions_carry_date_group` | 会话名录须带 date_group（会话菜单按它插分组标题）。 |
+| 58 | `SseContractTest` | `test_sessions_prefer_the_persisted_title` | 覆盖「/ ：单流多路复用与事件信封」：sessions prefer the persisted title |
+| 59 | `SseContractTest` | `test_sessions_sorted_by_recent_activity` | 覆盖「/ ：单流多路复用与事件信封」：sessions sorted by recent activity |
+| 60 | `SseContractTest` | `test_sessions_without_title_file_return_unknown` | 没有已生成标题时返回明确的未知标题，不回读会话日志兜底。 |
+| 61 | `SseContractTest` | `test_title_falls_back_to_user_message_when_generation_fails` | 覆盖「/ ：单流多路复用与事件信封」：title falls back to user message when generation fails |
+| 62 | `SseContractTest` | `test_turn_events_reach_the_stream` | 覆盖「/ ：单流多路复用与事件信封」：turn events reach the stream |
+| 63 | `SseContractTest` | `test_two_sessions_do_not_cross` | 覆盖「/ ：单流多路复用与事件信封」：two sessions do not cross |
+| 64 | `WriteGateOverWebTest` | `test_confirm_is_session_scoped` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：confirm is session scoped |
+| 65 | `WriteGateOverWebTest` | `test_unconfirmed_commit_rejected_then_review_unlocks` | 覆盖「写盘门控闭环经 Web 层 —— 三步写盘（预览 → review 解锁 → 提交落盘）」：unconfirmed commit rejected then review unlocks |
 
 ## test_web_ui_config.py
 

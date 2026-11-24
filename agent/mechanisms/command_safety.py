@@ -233,42 +233,64 @@ def unregister_shell_process(pid: int, scope: str = "") -> None:
             pool.discard(int(pid))
 
 
-def kill_shell_process_tree(pid: int) -> None:
-    """强杀进程树：Windows taskkill /F /T；Unix killpg SIGKILL（兜底单进程）。"""
+class ShellTerminationError(RuntimeError):
+    """未确认终止的前台进程必须保留登记，供停止操作重试。"""
+
+    def __init__(self, pids: list[int]) -> None:
+        self.pids = tuple(pids)
+        super().__init__("前台进程未能终止：" + ", ".join(map(str, pids)))
+
+
+def kill_shell_process_tree(pid: int) -> bool:
+    """强杀进程树并返回系统确认；失败不能视为已完成。"""
     pid = int(pid)
     if os.name == "nt":
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(pid)],
-                capture_output=True,
-                timeout=15,
-                check=False,
-            )
-        except Exception as exc:
-            report_error("agent.mechanisms.command_safety.kill_shell_process_tree", exc)
-        return
+                capture_output=True, timeout=15, check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            if result.returncode in (0, 128):
+                return True
+            report_error("command_safety.kill", f"taskkill exit={result.returncode}")
+        except (OSError, subprocess.SubprocessError) as exc:
+            report_error("command_safety.kill", exc)
+        return False
     try:
         os.killpg(os.getpgid(pid), signal.SIGKILL)
-    except Exception:
+        return True
+    except ProcessLookupError:
+        return True
+    except OSError as exc:
+        report_error("command_safety.kill_group", exc)
         try:
             os.kill(pid, signal.SIGKILL)
-        except Exception as exc:
-            report_error("agent.mechanisms.command_safety.kill_shell_process_tree", exc)
+            return True
+        except ProcessLookupError:
+            return True
+        except OSError as fallback:
+            report_error("command_safety.kill", fallback)
+            return False
 
 
 def force_kill_active_shell_process(scope: str = "") -> int:
     """强杀活动 shell 进程（可按 scope 限定）；返回处理数量并清空对应登记。"""
     with _ACTIVE_LOCK:
         scopes = [str(scope or "")] if scope else list(_ACTIVE_SHELL_PIDS.keys())
-        pids: List[int] = []
-        for key in scopes:
-            pids.extend(sorted(_ACTIVE_SHELL_PIDS.get(key) or ()))
-    for pid in pids:
-        kill_shell_process_tree(pid)
+        snapshot = {key: set(_ACTIVE_SHELL_PIDS.get(key) or ()) for key in scopes}
+        pids = sorted({pid for pool in snapshot.values() for pid in pool})
+    killed = {pid for pid in pids if kill_shell_process_tree(pid)}
     with _ACTIVE_LOCK:
-        for key in scopes:
-            _ACTIVE_SHELL_PIDS.pop(key, None)
-    return len(pids)
+        for key, registered in snapshot.items():
+            pool = _ACTIVE_SHELL_PIDS.get(key)
+            if pool is not None:
+                pool.difference_update(registered & killed)
+                if not pool:
+                    _ACTIVE_SHELL_PIDS.pop(key, None)
+    failed = sorted(set(pids) - killed)
+    if failed:
+        raise ShellTerminationError(failed)
+    return len(killed)
 
 
 atexit.register(force_kill_active_shell_process)  # 退出清账，防孤儿进程

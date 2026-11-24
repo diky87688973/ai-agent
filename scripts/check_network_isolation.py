@@ -3,7 +3,7 @@
 
 判据不是「stderr 里有没有警告」——纯单测（`_assemble_deltas` 吃内存假 SSE 帧）
 也会经 `report_error` 打出 RuntimeWarning，那是日志噪音。真正的判据是请求本身：
-把 `urllib.request.urlopen` 换成记录并抛错的桩，跑全量，非环回目标必须为 0 次。
+父进程检查请求入口，HTTP 工作进程通过测试启动器检查 DNS/连接，非环回目标必须为 0 次。
 
 环回目标（127.0.0.1 / localhost / ::1）放行：`test_web_shell`、`test_plugin_http`
 起本地 HTTP 服务并真的连它，那是本机连接，不构成出网。
@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
+import json
 import os
 import sys
 import tempfile
@@ -60,13 +62,50 @@ class _Guard:
         self.current = "<用例外>"
         self.blocked: list[str] = []
 
-    def urlopen(self, target: Any, *args: Any, **kwargs: Any) -> Any:
+    def check(self, target: Any) -> None:
+        """在请求进入真实传输前拒绝非环回地址。"""
         host = _host_of(target)
         if host in LOOPBACK_HOSTS or host.endswith(".localhost"):
-            return self._real(target, *args, **kwargs)
+            return
         url = _url_of(target)
         self.blocked.append(f"{self.current} → {url}")
         raise NetworkBlocked(f"出网被门禁拦截：{url}")
+
+    def urlopen(self, target: Any, *args: Any, **kwargs: Any) -> Any:
+        self.check(target)
+        return self._real(target, *args, **kwargs)
+
+
+def _local_host(host: str) -> bool:
+    if host.lower() in LOOPBACK_HOSTS or host.lower().endswith(".localhost"):
+        return True
+    with suppress(ValueError):
+        return ipaddress.ip_address(host).is_loopback
+    return False
+
+
+def run_guarded_worker(directory: str, case: str) -> None:
+    """仅由测试启动器调用；阻止子进程出网（包括重定向与代理）。"""
+    def audit(event: str, args: tuple) -> None:
+        if event == "socket.getaddrinfo":
+            host = str(args[0])
+        elif event == "socket.connect" and isinstance(args[1], tuple):
+            host = str(args[1][0])
+        else:
+            return
+        if not _local_host(host):
+            with (Path(directory) / f"{os.getpid()}.jsonl").open("a", encoding="utf-8") as log:
+                log.write(json.dumps({"case": case, "host": host}) + "\n")
+            raise NetworkBlocked(f"子进程出网被门禁拦截：{host}")
+    sys.addaudithook(audit)
+    from agent.mechanisms.model_http.worker import main
+    main()
+
+
+def _worker_command(directory: Path, guard: _Guard) -> list[str]:
+    code = ("from scripts.check_network_isolation import run_guarded_worker; "
+            f"run_guarded_worker({str(directory)!r}, {guard.current!r})")
+    return [sys.executable, "-B", "-c", code]
 
 
 class _TrackingResult(unittest.TextTestResult):
@@ -102,19 +141,35 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--module", default="", help="只运行指定测试模块")
     args = ap.parse_args(argv)
 
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
     real = urllib.request.urlopen
     guard = _Guard(real)
     urllib.request.urlopen = guard.urlopen
     try:
         with tempfile.TemporaryDirectory(prefix="agent_network_tests_") as temporary:
-            with patch.dict(os.environ, {"AI_AGENT_DATA_ROOT": temporary}):
+            from agent.mechanisms.model_http.transport import ModelHTTPResponse
+            original_open = ModelHTTPResponse.open
+            def guarded_open(response: Any, request: Any, *args: Any, **kwargs: Any) -> Any:
+                guard.check(request)
+                return original_open(response, request, *args, **kwargs)
+            blocked_dir = Path(temporary) / "blocked-network"
+            blocked_dir.mkdir()
+            with patch.dict(os.environ, {"AI_AGENT_DATA_ROOT": temporary}), \
+                    patch.object(ModelHTTPResponse, "open", guarded_open), \
+                    patch("agent.mechanisms.model_http.process.worker_command",
+                          side_effect=lambda: _worker_command(blocked_dir, guard)):
                 result = run_suite(guard, args.module)
+            for log in blocked_dir.glob("*.jsonl"):
+                for line in log.read_text(encoding="utf-8").splitlines():
+                    entry = json.loads(line)
+                    guard.blocked.append(f"{entry['case']} → {entry['host']} (子进程)")
     finally:
         urllib.request.urlopen = real
 
     print(f"用例：{result.testsRun}  失败：{len(result.failures)}  "
           f"错误：{len(result.errors)}  跳过：{len(result.skipped)}")
-    print(f"非环回 urlopen 请求：{len(guard.blocked)} 次")
+    print(f"非环回网络请求：{len(guard.blocked)} 次")
     if args.verbose:
         for line in guard.blocked:
             print(f"  [BLOCK] {line}")

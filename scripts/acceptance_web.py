@@ -520,31 +520,8 @@ class Acceptance:
         self.check("跨会话确认同 ID 被拒", status == 404, f"{status} {payload}")
 
     def scenario_4(self) -> None:
-        print("\n场景④ 并发与停止")
-        cid = "accept-conc-01"
-        self.app.mesh.try_begin_run(cid)
-        status, payload = self.post("/api/chat/send", {"message": "再来", "conversation_id": cid})
-        self.check("同会话并发 send → 入队", status == 200 and bool(payload.get("queued")), f"{status} {payload}")
-        queue = self.app.conversation_queue.list(cid)
-        self.check("并发消息进入待发送队列", len(queue.get("items") or []) == 1, str(queue))
-        for item in queue.get("items") or []:
-            self.app.conversation_queue.cancel(cid, item["id"])
-        self.app.mesh.end_run(cid)
-
-        status, payload = self.post("/api/chat/stop", {"conversation_id": cid})
-        self.check("stop 返回 stop_requested", status == 200 and "stop_requested" in payload, str(payload))
-
-        started = self.app.runner.start("accept-conc-02", {"content": "跑"})
-        requested = self.app.runner.request_cancel("accept-conc-02")
-        self.app.runner.wait_idle("accept-conc-02", timeout=25)
-        self.check("停止检查可置位并释放占位", bool(started) and requested and not self.app.mesh.is_running("accept-conc-02"))
-
-        status, payload = self.post("/api/chat/send", {"message": "  "})
-        self.check("空消息 400", status == 400, str(payload))
-        status, payload = self.post(
-            "/api/chat/send", {"message": "hi", "conversation_id": "../escape"}
-        )
-        self.check("非法会话 id 400", status == 400, str(payload))
+        from scripts.acceptance_web_stop import run
+        run(self)
 
     # ── 场景 ⑤：Markdown 注入防线（真实页面）─────────────────
 

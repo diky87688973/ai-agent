@@ -33,6 +33,8 @@ common → core → mechanisms → subagent → capabilities/update → shell �
 | `agent/common/status.py` | 子系统共享状态值与 `require()`；不含行为 | 层级导入、领域逻辑 |
 | `agent/core/` | 模块链、宿主循环、端口、事件契约、会话事实契约 | provider、插件、UI、具体工具 |
 | `agent/core/modules/` | 单步模块：输入、队列输入、压缩、模型、工具 | 服务装配、HTTP、插件加载 |
+| `agent/core/stream_control.py` | 执行链与模型子请求的取消令牌、有界增量传递、资源终止登记 | HTTP 实现、插件执行、事实落盘 |
+| `agent/mechanisms/model_http/` | 有界传输池、请求租约、匿名管道、强制终止与回收 | provider 消息转换、会话存储 |
 | `agent/mechanisms/providers/base.py` | `ModelProvider` 协议与 `ModelRequestError` | 具体网关请求、UI |
 | `agent/mechanisms/providers/sse.py` | SSE 拆帧、流总超时、关闭诊断 | provider 请求体、业务消息 |
 | `agent/mechanisms/providers/` | 兼容协议与原生协议的请求、流解析 | Echo、路由、装配 |
@@ -63,6 +65,7 @@ common → core → mechanisms → subagent → capabilities/update → shell �
 | `agent/shell/web/web_plugin.py` | 插件端点与插件资产转发 | 插件内部业务 |
 | `agent/shell/web/web_api.py` | `WebShell` 入口与连接/运行态；业务动作按 mixin 分在 `web_chat.py` / `web_sessions.py` / `web_files.py` / `web_contributions.py` / `web_state.py` / `web_subagents.py` | 路由分派 |
 | `agent/shell/session/runner.py` | 回合线程、取消、队列抽干、生命周期 | 队列/目标/提示/恢复实现 |
+| `agent/shell/session/stopping.py` | 停止操作、取消检查、异步清理与终态查询；由运行器持有 | HTTP、插件 UI、会话事实存储 |
 | `agent/shell/session/queue.py` | 队列领取、释放、补投 | 回合循环 |
 | `agent/shell/session/goal.py` | 目标与自主续跑判定 | 运行线程 |
 | `agent/shell/session/prompt.py` | 系统提示与运行态尾部 | 模型调用 |

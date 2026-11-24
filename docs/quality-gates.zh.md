@@ -48,7 +48,7 @@
 
 ### 2.1 覆盖率（post）
 
-统计配置位于 `pyproject.toml` 的 `[tool.coverage.run]`，覆盖 agent、plugins、scripts 三个手写源码域。scripts 初始下限为 35%，依据接入时测得的 35.3% 基线设定；原有分包下限保持不变。普通单测和覆盖率采集均经 `check_network_isolation.py` 执行，非环回 urlopen 请求或单测失败均导致失败。该门禁只约束 urlopen，不宣称拦截全部网络 API。
+统计配置位于 `pyproject.toml` 的 `[tool.coverage.run]`，覆盖 agent、plugins、scripts 三个手写源码域。scripts 初始下限为 35%，依据接入时测得的 35.3% 基线设定；原有分包下限保持不变。普通单测和覆盖率采集均经 `check_network_isolation.py` 执行，非环回请求或单测失败均导致失败。父进程检查 urlopen 与模型传输入口；模型 HTTP 子进程通过测试启动器审计 DNS 和连接，重定向与代理也不能绕过。拦截记录汇总到门禁，即使调用方捕获错误也会失败。生产代码不含测试开关；该门禁不宣称拦截其他子进程或全部网络 API。
 
 覆盖步校验 `run_coverage.py` 发布的 `.coverage`，按顶层包比对 `COVERAGE_FLOORS`。数据生成方式（CI 在 3.12 矩阵中执行）：
 

@@ -51,6 +51,9 @@ def _provider(model: str = "default-model") -> _Capturing:
 class ProviderStreamTimeoutTest(unittest.TestCase):
     def test_openai_stream_timeout_is_bounded(self) -> None:
         class _StalledResponse:
+            def abort(self):
+                pass
+
             def __iter__(self):
                 time.sleep(0.2)
                 return iter(())
@@ -63,7 +66,7 @@ class ProviderStreamTimeoutTest(unittest.TestCase):
         )
         request = LogicalRequest(messages=[{"role": "user", "content": "q"}], tools=[])
         with mock.patch(
-            "agent.mechanisms.providers.openai.urllib.request.urlopen",
+            "agent.mechanisms.providers.openai.open_model_response",
             return_value=_StalledResponse(),
         ):
             with self.assertRaises(ModelRequestError) as caught:

@@ -156,24 +156,16 @@ class ChatActions:
             }
         return 200, {"confirmed": True, "conversation_id": cid, "confirm_id": confirm_id}
 
-    def stop(self, cid: str) -> Tuple[int, Dict[str, Any]]:
-        """请求停止当前回合（协作式取消）。
-
-        经 `SessionRunner.request_cancel` 置位取消信号 → 内核在检查点（流式每帧 /
-        工具执行前 / 步结算前）停止本回合，不再产生半成品落盘。这里不直接调
-        `mesh.abort_run`：占位须由运行线程自己释放，否则忙闲事实源与实际线程不一致。
-        """
+    def stop(self, cid: str, stop_id: str = "") -> Tuple[int, Dict[str, Any]]:
+        """提交停止操作；携带 stop_id 时只查询，不再次触发停止。"""
         cid = str(cid or "").strip()
-        if not cid:
-            return 400, {"error": "missing conversation_id"}
-        run_id = self.active_run(cid)
+        if not is_valid_conversation_id(cid):
+            return 400, {"error": "invalid conversation_id"}
         runner = self.app.runner
-        try:
-            requested = bool(runner.request_cancel(cid)) if runner is not None else False
-        except OSError:
-            return 503, {"ok": False, "error": "确认终态未保存，请重试停止"}
-        return 200, {
-            "stop_requested": requested,
-            "conversation_id": cid,
-            "run_id": run_id,
-        }
+        if runner is None:
+            return 503, {"error": "会话运行器未就绪"}
+        result = runner.stop_operations.status(cid, stop_id) if stop_id else runner.begin_cancel(cid, run_id=self.active_run(cid))
+        if result is None:
+            return 404, {"error": "停止操作不存在或已过期"}
+        status = 202 if result["state"] == "stopping" else 503 if result["state"] == "failed" else 200
+        return status, result

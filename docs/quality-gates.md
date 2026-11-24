@@ -48,7 +48,7 @@ Constraints in `check_complexity.py`:
 
 ### 2.1 Coverage (post)
 
-`[tool.coverage.run]` in `pyproject.toml` covers the handwritten agent, plugins and scripts domains. The initial scripts floor is 35%, based on the measured 35.3% onboarding baseline; existing floors remain unchanged. Both normal unit tests and coverage collection use `check_network_isolation.py`. Failed tests or non-loopback urlopen calls fail the step. This guard covers urlopen, not every network API.
+`[tool.coverage.run]` in `pyproject.toml` covers the handwritten agent, plugins and scripts domains. The initial scripts floor is 35%, based on the measured 35.3% onboarding baseline; existing floors remain unchanged. Both normal unit tests and coverage collection use `check_network_isolation.py`. Failed tests or non-loopback requests fail the step. The parent checks urlopen and the model transport entry; a test launcher audits DNS and connections in model HTTP workers, including redirects and proxies. Blocked attempts are collected even when callers catch the exception. Production code has no test switch. This does not claim to intercept other subprocesses or every network API.
 
 The coverage step validates the `.coverage` file published by `run_coverage.py` and compares `COVERAGE_FLOORS` per top-level package. How the data is produced (CI runs it in the 3.12 matrix):
 

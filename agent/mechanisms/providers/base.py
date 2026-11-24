@@ -16,6 +16,10 @@ class ModelRequestError(Exception):
         self.status = int(status or 0)
 
 
+class ModelRequestCancelled(ModelRequestError):
+    """请求未完成即被取消；已收到的片段不能当作完整结果提交。"""
+
+
 class ModelProvider:
     """提供者协议（替换点）：实现 `stream(request) -> Iterator[StreamDelta]`。"""
 

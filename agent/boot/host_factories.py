@@ -102,6 +102,13 @@ def make_model_catalog(ctx: Any) -> Any:
     return ModelCatalog()
 
 
+def make_model_http_pool(ctx: Any) -> Any:
+    from agent.config import get_model_http
+    from agent.mechanisms.model_http.pool import ModelHTTPPool, PoolLimits
+
+    return ModelHTTPPool(PoolLimits(**get_model_http()))
+
+
 def make_update(ctx: Any) -> Any:
     return UpdateController()
 
@@ -146,7 +153,11 @@ def make_compactor_factory(ctx: Any, provider: Any = None) -> Any:
     return factory
 
 
-def make_provider(ctx: Any, model_catalog: Any = None) -> Any:
+def make_provider(ctx: Any, model_catalog: Any = None, model_http_pool: Any = None) -> Any:
+    from agent.mechanisms.model_http.client import pool_scope
+
+    if model_http_pool is None:
+        raise ValueError("模型 HTTP 进程池未装配")
     cfg = _config(ctx)
     return ProviderRouter(
         default=cfg.provider if cfg.provider is not None else EchoProvider(),
@@ -154,6 +165,7 @@ def make_provider(ctx: Any, model_catalog: Any = None) -> Any:
         allowed_ids=tuple(cfg.available or ()),
         default_id=cfg.default_model, fallback_to_default=False,
         slots=cfg.slots,
+        request_scope=lambda: pool_scope(model_http_pool),
     )
 
 
@@ -219,7 +231,7 @@ __all__ = [
     "make_background_tasks", "make_compactor_factory", "make_context_hooks",
     "make_context_sources", "make_contexts", "make_contributions",
     "make_error_log", "make_event_bus", "make_live_state", "make_mesh",
-    "make_model_catalog", "make_pipeline", "make_plugin_host", "make_prompt_sections",
+    "make_model_catalog", "make_model_http_pool", "make_pipeline", "make_plugin_host", "make_prompt_sections",
     "make_prompt_tail", "make_provider", "make_queue", "make_registry",
     "make_session_factory", "make_store", "make_subagents", "make_update",
 ]
