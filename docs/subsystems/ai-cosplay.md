@@ -68,7 +68,11 @@ Boundary punctuation: Chinese `，。？！；、：`, English `. , ? ! ; :`. In
 One `msg` holds at most 512 characters. `max_segment_chars` bounds a single segment (default 128, any integer ≥ 1, no upper limit); segments are packed greedily up to that size. A single clause longer than the configured value fails instead of being cut mid-word.
 
 ### Pronunciation fallback
-The prompt does not ask the model to annotate pinyin. The cleanup rewrites `行` after a number to `háng` (`36行` → `36 háng`, `第36行` → `第36 háng`, `行36` → ` háng 36`), while `一行人` and `一行人员` are protected as `xíng`. Other polyphonic characters are left to Edge TTS; add a rule when a real misreading is found. A plain `毛茸茸` passes through unchanged.
+The prompt does not ask the model to annotate pinyin. The cleanup rewrites `行` after a number to `háng` (`36行` → `36 háng`, `第36行` → `第36 háng`, `行36` → ` háng 36`), while `一行人` and `一行人员` are protected as `xíng`.
+
+`重` defaults to `chóng` (`重绘` → `chóng 绘`, `重试` → `chóng 试`, `去重` → `去 chóng`, `双重` → `双 chóng`). Words where it reads `zhòng` are held aside first (`重要`, `重点`, `严重`, `尊重`, `重量`, `很重`, `太重` and the rest of the set). `重` + verb means "do it once more", which is open-ended; the `zhòng` set is closed and can be listed in full, so only that side carries an exception table.
+
+Other polyphonic characters are left to Edge TTS; add a rule when a real misreading is found. A plain `毛茸茸` passes through unchanged.
 
 ### Pre-synthesis cleanup
 Cleanup keeps only characters that can be pronounced: everything left has a sound.

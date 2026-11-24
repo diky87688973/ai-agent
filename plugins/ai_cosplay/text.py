@@ -452,6 +452,18 @@ _HANG_BEFORE_NUMBER = re.compile(
 )
 #: 「数行」按行数读 háng；后接「为」时是「函数行为」这类词，保持原读。
 _HANG_AFTER_COUNT = re.compile(r"数行(?!为)")
+#: 「重」读 zhòng 的词。
+#: 「重 + 动词」表示再做一次，是开放集，列不完；读 zhòng 的是封闭集，可以列全。
+#: 因此这里只列 zhòng，其余「重」一律按 chóng 处理。
+_ZHONG_EXCEPTIONS = re.compile(
+    r"重要|重点|重视|重大|重心|重任|重担|重责|重头戏|重金|重奖|重罚|重创"
+    r"|重压|重兵|重镇|重地|重灾区|重工业|重武器|重利|重义|重男轻女|重色轻友"
+    r"|重量|体重|净重|毛重|皮重|超重|失重|减重|载重|承重|自重|负重|比重|加重"
+    r"|起重|配重|荷重"
+    r"|严重|沉重|浓重|笨重|繁重|稳重|厚重|凝重|深重|惨重|着重|偏重"
+    r"|尊重|器重|看重|珍重|保重|借重|倚重"
+    r"|(?:很|好|太|真|挺|极|最|更|较|非常)重"
+)
 
 
 def _polyphone_speech_text(text: str) -> str:
@@ -465,10 +477,10 @@ def _polyphone_speech_text(text: str) -> str:
     source = (text.replace("换行", "换 háng ")
               .replace("折行", "折 háng ")
               .replace("行内", " háng 内")
-              .replace("重跑", " chóng 跑")
-              .replace("去重", "去 chóng")
               .replace("运行", "运 xíng"))
     source = _HANG_EXCEPTIONS.sub(hold, source)
+    source = _ZHONG_EXCEPTIONS.sub(hold, source)
+    source = source.replace("重", " chóng ")
     source = _HANG_AFTER_COUNT.sub("数 háng ", source)
     source = _HANG_AFTER_NUMBER.sub(lambda m: f"{m.group('number')} háng ", source)
     source = _HANG_BEFORE_NUMBER.sub(lambda m: f" háng {m.group('number')}", source)
