@@ -149,7 +149,7 @@ A capability whose owner cannot be named is not added. A capability that cannot 
 | HTTP authentication | `shell/web/auth/`, `shell/web/web_auth.py` | `server.create_server` injects `AuthRuntime` | Passwords, sessions, tokens, CSRF, and policy belong to the shell; never to core |
 | HTTP routes | `shell/web/web_routes.py` | `server.create_server` binds `Handler` | Business actions live in `web_api.py` and its action mixins |
 | Classic page/SSE | `shell/web/web_classic.py` | Mixed into `Handler` | Does not copy the JSON API |
-| Plugin HTTP endpoints | `shell/web/web_plugin.py` | `SlotBinder` + `kind=route` | Exact match; no wildcards |
+| Plugin HTTP endpoints | `shell/web/web_plugin.py`, `web_public.py` | `SlotBinder` + `route` / `http-route` | Relative routes or host-authorized public mounts; lease held through response completion |
 | Base WEB-UI assets | `plugins/web_ui/ui/classic/`, `shell/web/ui_bundle.py` | Inline manifest in `ui_bundle` | Page HTML/CSS/JS belong to the base WEB-UI plugin; the shell only serves them |
 | Plugin UI/themes/icons | `plugins/<name>/ui/` | Plugin `add_ui_item` | Use the resolved plugin root; never hardcode `plugins/<name>` |
 | UI configuration | `web-ui-config.ini` | Read by the shell | Not plugin-private configuration |

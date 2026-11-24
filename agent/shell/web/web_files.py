@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""右栏文件查看器与本地媒体代理。"""
+"""右栏文件查看器与授权目录浏览。"""
 from __future__ import annotations
 
-import mimetypes
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,7 +19,7 @@ from agent.shell.web.web_static import lang_from_path, looks_binary
 
 
 class FileViewerActions:
-    """列目录、读文件、`@` 补全用的目录浏览与媒体代理；路径限定在可见根内。"""
+    """列目录、读文件和 `@` 补全；路径限定在可见根内。"""
 
     def fs_list(self, path: str) -> Tuple[int, Dict[str, Any]]:
         """列目录（供右栏文件树 / @ 补全）；限定在可见根内。
@@ -297,38 +296,3 @@ class FileViewerActions:
             return candidate.resolve(), ""
         except OSError:
             return None, "unknown"
-
-    def media(self, path: str, root: Optional[Path]) -> Tuple[int, Any, str]:
-        """解析本地媒体文件供浏览器预览；限定在 root 之内（防越权读取）。
-
-        返回 (status, body_bytes | error_payload, content_type)。
-
-        `root` 为 None 时优先用显式媒体根 `media_root`，未配置时用全部可见根：
-        经典界面的 Markdown 会把正文里绝对路径指向的本地文件交给 `/api/media`，
-        它可能不在第一个根所在的盘上——只认单根会让别的盘一律 403。
-        """
-        raw = str(path or "").strip()
-        if not raw:
-            return 400, {"error": "missing path"}, "application/json"
-        target = Path(raw)
-        if root is None:
-            roots = [self.media_root] if self.media_root else (self.fs_roots or default_fs_roots())
-            if not within_any_root(target, roots):
-                return 403, {"error": "path outside media root"}, "application/json"
-        else:
-            try:
-                target.resolve().relative_to(Path(root).resolve())
-            except (ValueError, OSError):
-                return 403, {"error": "path outside media root"}, "application/json"
-        if not target.is_file():
-            return 404, {"error": "not found"}, "application/json"
-        ctype = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
-        if ctype.startswith("text/") or ctype in {
-                "image/svg+xml", "application/xhtml+xml", "application/xml",
-                "application/javascript", "application/ecmascript"}:
-            ctype = "text/plain; charset=utf-8"
-        try:
-            return 200, target.read_bytes(), ctype
-        except OSError as exc:
-            report_error("agent.shell.web.web_files.media", exc, path=str(target))
-            return 500, {"error": f"{type(exc).__name__}: {exc}"}, "application/json"

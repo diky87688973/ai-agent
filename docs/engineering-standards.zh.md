@@ -139,7 +139,7 @@ inbound 直接持有历史/布局/状态实现
 | HTTP 鉴权 | `shell/web/auth/`、`shell/web/web_auth.py` | `server.create_server` 注入 `AuthRuntime` | 密码/会话/Token/CSRF/策略归壳层；不进 core |
 | HTTP 路由 | `shell/web/web_routes.py` | `server.create_server` 绑定 `Handler` | 业务动作在 `web_api.py` 及动作 mixin |
 | 经典页面/SSE | `shell/web/web_classic.py` | 混入 `Handler` | 不复制 JSON API |
-| 插件 HTTP 端点 | `shell/web/web_plugin.py` | `SlotBinder` + `kind=route` | 精确匹配，不做通配 |
+| 插件 HTTP 端点 | `shell/web/web_plugin.py`、`web_public.py` | `SlotBinder` + `route` / `http-route` | 相对路由或宿主授权的公共挂载；响应结束后释放租约 |
 | 基础 WEB-UI 资产 | `plugins/web_ui/ui/classic/`、`shell/web/ui_bundle.py` | `ui_bundle` 内联清单 | 页面 HTML/CSS/JS 归基础 WEB-UI 插件；壳层只负责送达 |
 | 插件 UI/主题/图标 | `plugins/<name>/ui/` | 插件 `add_ui_item` | 用解析后的插件根，不写死 `plugins/<name>` |
 | 界面配置 | `web-ui-config.ini` | 壳层读取 | 非插件私有配置 |

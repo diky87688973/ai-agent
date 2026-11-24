@@ -769,6 +769,7 @@
     input.checked = !!card.enabled;
     input._settingsChange = function () {
       var want = input.checked;
+      if (!want) document.dispatchEvent(new CustomEvent("ai-agent:plugin-ui-release", {detail: {plugin: card.name}}));
       input.disabled = true;
       request("POST", "/api/settings/plugins", {name: card.name, enabled: want}).then(function (data) {
         input.disabled = false;
@@ -1148,6 +1149,7 @@
     } else {
       body.text = state.editor.text || "";
     }
+    document.dispatchEvent(new CustomEvent("ai-agent:plugin-ui-release", {detail: {plugin: state.plugin.name}}));
     request("POST", "/api/settings/plugin-file", body).then(function (data) {
       setBusy(false);
       if (!data.ok) {

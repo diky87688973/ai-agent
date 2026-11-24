@@ -185,6 +185,7 @@ python3 -m agent.gui.launcher
 | 文档 | 内容 |
 |---|---|
 | [后台任务](docs/plan/background-tasks.zh.md) | per-cid 队列、并发上限、超时、取消、输出与聚合通知 |
+| [媒体预览插件设计](docs/plan/media-viewer.md) | 原生图片/音视频面板、公共 HTTP 挂载、分段读取与查看器插口 |
 | [软件更新](docs/plan/software-update.zh.md) | 版本检查、哈希校验、逐文件切换、备份与回滚 |
 | [会话消息队列](docs/plan/conversation-queue.zh.md) | 忙时入队、回合结束投递、安全插入与修改恢复 |
 | [历史分页](docs/plan/history-paging.zh.md) | 轮次分页、游标、前插与超长报文延迟渲染 |
@@ -246,7 +247,7 @@ python scripts/ci.py --list    # 列出检查项
 
 `docs/unit-tests.md` 是生成的可读测试目录，事实源是 `tests/`。
 
-单元测试（2707 个用例）：
+单元测试（2727 个用例）：
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

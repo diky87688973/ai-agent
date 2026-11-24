@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/file-viewers/media",
+      "kind": "ui-control",
+      "order": 10,
+      "props": {
+        "version": 1,
+        "label": "媒体",
+        "extensions": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".avif", ".mp4", ".m4v", ".webm", ".mov", ".mkv", ".ogg", ".ogv", ".mp3", ".m4a", ".aac", ".wav", ".flac", ".opus", ".oga"],
+        "scripts": ["ui/viewer.js"],
+        "styles": ["ui/viewer.css"],
+        "reload_on_change": true
+      }
+    },
+    {
+      "path": "app/shell/http/mounts/media-content/get",
+      "kind": "http-route",
+      "method": "GET",
+      "factory": "plugin:make_content"
+    },
+    {
+      "path": "app/shell/http/mounts/media-content/head",
+      "kind": "http-route",
+      "method": "HEAD",
+      "factory": "plugin:make_content"
+    },
+    {
+      "path": "app/shell/http/mounts/media-info/get",
+      "kind": "http-route",
+      "method": "GET",
+      "factory": "plugin:make_info"
+    }
+  ]
+}

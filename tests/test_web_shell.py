@@ -383,7 +383,7 @@ class EndpointTest(_ServerFixture):
         self.assertEqual(status, 400)
 
     def test_media_endpoint_guards_root(self) -> None:
-
+        self.enable_media_plugin()
         inside = self.root / "pic.png"
         inside.write_bytes(b"\x89PNG\r\n\x1a\n")
         self.shell.media_root = self.root
@@ -392,22 +392,26 @@ class EndpointTest(_ServerFixture):
         self.assertTrue(body.startswith(b"\x89PNG"))
         active = self.root / "preview.html"
         active.write_text("<script>throw new Error('must remain text')</script>", encoding="utf-8")
-        with urllib.request.urlopen(
-                self.base + "/api/media?path=" + urllib.parse.quote(str(active))) as response:
-            self.assertEqual(response.headers.get_content_type(), "text/plain")
-            self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+        status, _ = self.get("/api/media?path=" + urllib.parse.quote(str(active)))
+        self.assertEqual(status, 415)
         status, payload = self.get_json(
             "/api/media?path=" + urllib.parse.quote(str(_ROOT / "README.md"))
         )
         self.assertEqual(status, 403)
 
     def test_media_missing_file_404(self) -> None:
-
+        self.enable_media_plugin()
         self.shell.media_root = self.root
         status, payload = self.get_json(
             "/api/media?path=" + urllib.parse.quote(str(self.root / "nope.png"))
         )
         self.assertEqual(status, 404)
+
+    def enable_media_plugin(self) -> None:
+        manifest = self.root / "media-plugins.ini"
+        manifest.write_text("[plugin:web_ui]\nenabled=1\n[plugin:media_viewer]\nenabled=1\n"
+                            f"path={_ROOT / 'plugins' / 'media_viewer'}\n", encoding="utf-8")
+        self.app.reload_plugins(plugins_path=manifest)
 
 class DateGroupTest(unittest.TestCase):
     """会话日期分组。"""

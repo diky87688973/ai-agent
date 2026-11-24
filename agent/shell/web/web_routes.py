@@ -9,7 +9,7 @@ import sys
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any, Dict, Optional
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, urlparse
 
 from agent.common.status import GOAL_ACTIVE, GOAL_DONE, GOAL_PAUSED, require
 from agent.core.context import SERVICE_BACKGROUND_TASKS, SERVICE_CONVERSATION_QUEUE, SERVICE_UPDATE
@@ -20,6 +20,7 @@ from agent.shell.web.web_api import WebShell
 from agent.shell.web.web_auth import AuthMiddleware
 from agent.shell.web.web_classic import ClassicRoutes
 from agent.shell.web.web_plugin import PluginRoutes
+from agent.shell.web.web_public import PublicRoutes
 from agent.shell.web.web_session_catalog import CATALOG_URL, session_catalog_response
 from agent.shell.web.web_static import (
     MAX_BODY_BYTES,
@@ -27,7 +28,7 @@ from agent.shell.web.web_static import (
 )
 
 
-class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandler):
+class Handler(AuthMiddleware, PluginRoutes, PublicRoutes, ClassicRoutes, BaseHTTPRequestHandler):
     """路由分发。"""
 
     server_version = "ai-agent-web/1.0"
@@ -69,7 +70,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
         for key, value in (headers or {}).items():
             self.send_header(key, value)
         self.end_headers()
-        self.wfile.write(body)
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def _bytes(self, status: int, body: bytes, content_type: str) -> None:
         """二进制响应（附件走这条：经典界面用 `<img src>` 直接引用）。"""
@@ -369,37 +371,8 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             status, payload = self.shell.reasoning_effort_get(
                 query.get("conversation_id", ""))
             self._json(status, payload)
-        elif path == "/api/media":
-            status, payload, ctype = self.shell.media(query.get("path", ""), None)
-            if status == 200 and isinstance(payload, (bytes, bytearray)):
-                self.send_response(200)
-                self.send_header("Content-Type", ctype)
-                self.send_header("X-Content-Type-Options", "nosniff")
-                self.send_header("Content-Length", str(len(payload)))
-                self.send_header("Cache-Control", "no-cache")
-                self.end_headers()
-                self.wfile.write(payload)
-            else:
-                self._json(status, payload if isinstance(payload, dict) else {"error": "?"})
         elif path.startswith("/workspace/"):
-            rel = unquote(path[len("/workspace/"):])
-            root = self.shell.workspace_root
-            if root is None:
-                self._json(404, {"error": "workspace 未配置"})
-            else:
-                status, payload, ctype = self.shell.media(
-                    str((root / rel).resolve()), root)
-                if status == 200 and isinstance(payload, (bytes, bytearray)):
-                    self.send_response(200)
-                    self.send_header("Content-Type", ctype)
-                    self.send_header("X-Content-Type-Options", "nosniff")
-                    self.send_header("Content-Length", str(len(payload)))
-                    self.send_header("Cache-Control", "no-cache")
-                    self.end_headers()
-                    self.wfile.write(payload)
-                else:
-                    self._json(status, payload if isinstance(payload, dict)
-                               else {"error": "?"})
+            self._workspace_file(path)
         else:
             self._json(404, {"error": "not found", "path": path})
 
@@ -413,7 +386,7 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
                 return
             if not self._auth_gate("GET", path):
                 return
-            if self._slot_http("GET", path, query):
+            if self._public_http("GET") or self._slot_http("GET", path, query):
                 return
             if path == "/auth/csrf":
                 runtime = getattr(self, "auth_runtime", None)
@@ -614,7 +587,7 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             if self._auth_logout(path):
                 return
             body = self._read_body()
-            if self._slot_http("POST", path, self._query(), body):
+            if self._public_http("POST") or self._slot_http("POST", path, self._query(), body):
                 return
             if path == CATALOG_URL:
                 self._json(*session_catalog_response(self.shell.session_catalog, {}, body))
@@ -662,7 +635,7 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             if not self._auth_gate("PUT", path):
                 return
             body = self._read_body()
-            if self._slot_http("PUT", path, self._query(), body):
+            if self._public_http("PUT") or self._slot_http("PUT", path, self._query(), body):
                 return
             if path == "/api/chat/ui-state":
                 # 经典界面的 PUT 直接发布局对象（经典界面），不带 conversation_id；
@@ -703,7 +676,7 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
             if not self._auth_gate("DELETE", path):
                 return
             query = self._query()
-            if self._slot_http("DELETE", path, query):
+            if self._public_http("DELETE") or self._slot_http("DELETE", path, query):
                 return
             if path == "/api/chat/sessions":
                 status, payload = self.shell.release_conversation(
@@ -731,20 +704,29 @@ class Handler(AuthMiddleware, PluginRoutes, ClassicRoutes, BaseHTTPRequestHandle
 
     def do_HEAD(self) -> None:
         path = self._path()
-        if not self._host_guard():
+        if not self._host_guard() or not self._auth_gate("HEAD", path):
             return
-        if not self._auth_gate("HEAD", path):
-            return
-        self.send_response(405)
-        self.send_header("Allow", "GET, POST, PUT, DELETE")
-        self.send_header("Content-Length", "0")
-        self.end_headers()
+        try:
+            if self._public_http("HEAD"):
+                return
+            if path.startswith("/workspace/"):
+                self._workspace_file(path)
+                return
+            self.send_response(405)
+            self.send_header("Allow", "GET, POST, PUT, DELETE")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        except Exception as exc:
+            report_error("http.head", exc)
+            self.close_connection = True
 
     def do_OPTIONS(self) -> None:
         path = self._path()
         if not self._host_guard():
             return
         if not self._auth_gate("OPTIONS", path):
+            return
+        if self._public_http("OPTIONS"):
             return
         self.send_response(405)
         self.send_header("Allow", "GET, POST, PUT, DELETE")

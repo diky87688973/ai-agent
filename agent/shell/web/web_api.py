@@ -20,6 +20,7 @@ from agent.mechanisms.session_title import TitleStore
 from agent.shell.fspaths import normalize_roots
 from agent.shell.service_keys import SERVICE_CLASSIC_ADAPTER
 from agent.shell.sse import Channel, sse_payload
+from agent.shell.web.http_responses import FileTransfers
 from agent.shell.web.web_chat import ChatActions
 from agent.shell.web.web_contributions import ContributionActions
 from agent.shell.web.web_files import FileViewerActions
@@ -53,6 +54,7 @@ class WebShell(
         workspace_root: Optional[Path] = None,
     ) -> None:
         self.app = app
+        self.file_transfers = FileTransfers()
         self.media_root = Path(media_root).resolve() if media_root else None
         # `/workspace/<相对路径>` 静态路由的根 —— 经典 UI 的 Markdown 渲染会把
         # 工作区绝对路径的图片/视频重写成这个路由（`agent-ui.js` 的

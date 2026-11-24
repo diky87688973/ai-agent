@@ -113,3 +113,7 @@ The shell names no plugin and does not require plugins to know about the shell.
 <a id="插件信任模型"></a>
 
 Plugins have local-code trust as described above; origin restrictions are not a sandbox.
+
+## Public HTTP mounts and file viewers
+
+A plugin can contribute an `http-route` under a host-declared public HTTP mount. The parent authorizes the URL and methods; the plugin owns the handler, and requests keep their plugin lease through file response completion. File viewers contribute `ui-control` nodes under `app/shell/web-ui/file-viewers` and implement `open`, `activate`, `deactivate`, and `dispose`. See the [slot protocol](../plan/plugin-slots-protocol.md) and [media viewer design](../plan/media-viewer.md).

@@ -27,6 +27,8 @@ ExampleTool实现现有ToolPlugin协议；执行经ToolPipeline，不绕过权�
 |---|---|
 | 模型工具 | tool |
 | 插件HTTP端点 | route及method；地址由绑定器派生，位于/api/plugin/<owner>/命名空间 |
+| 公共HTTP实现 | http-route 填充宿主公共挂载，URL 从父节点派生；HEAD 与文件流响应见插口协议 |
+| 文件查看器 | web-ui/file-viewers 下的 ui-control；声明匹配后缀及脚本，实现实例生命周期 |
 | 宿主事件订阅 | event，路径包含唯一宿主事件常量 |
 | 插件事件定义与订阅 | event-channel；event通过requires.event引用定义，事件类型为定义节点完整路径 |
 | 上下文、提示段、请求尾部、模型目录 | provider及props.target |

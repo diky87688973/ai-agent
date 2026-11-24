@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
+from agent.capabilities.file_viewer_contract import validate_file_viewers
+from agent.capabilities.http_mounts import build_http_mounts
 from agent.core.error_report import report_error
 from agent.core.slot_config import SlotConfig
 from agent.core.slot_events import event_type
@@ -82,6 +84,8 @@ class SlotBinder:
         """按登记顺序逐节点登记；单条失败留痕后继续。"""
         config = assembly.config
         values = assembly.values
+        build_http_mounts(config, values)
+        validate_file_viewers(config)
         for spec in self._order(config, values):
             if spec.scope != SCOPE_APP:
                 continue
@@ -187,6 +191,8 @@ class SlotBinder:
         if kind == "route":
             return self.contributions.add_route(
                 owner, spec.method, self._url_of(spec), value)
+        if kind == "http-route":
+            return None
         if kind == "event":
             effective = {path: config.spec(path) for path in config.paths()}
             return self.event_bus.subscribe(event_type(spec, effective), value)
@@ -300,6 +306,8 @@ class SlotBinder:
             return "registry"
         if spec.kind == "route":
             return "contributions"
+        if spec.kind == "http-route":
+            return "http-mounts"
         if spec.kind == "event":
             return "event_bus"
         if spec.kind == "runtime":

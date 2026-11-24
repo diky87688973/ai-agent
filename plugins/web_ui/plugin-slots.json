@@ -2,7 +2,7 @@
   "version": 1,
   "root": "app",
   "slots": [
-    {"path": "app/shell/web-ui", "kind": "ui-slot", "children": "fixed", "fixed": ["nav", "chat", "input", "left-panel", "right-panel", "runtime", "settings"]},
+    {"path": "app/shell/web-ui", "kind": "ui-slot", "children": "fixed", "fixed": ["nav", "chat", "input", "left-panel", "right-panel", "runtime", "settings", "file-viewers"]},
     {"path": "app/shell/web-ui/nav", "kind": "ui-slot", "children": "fixed", "fixed": ["buttons"]},
     {"path": "app/shell/web-ui/nav/buttons", "kind": "ui-slot", "children": "keyed"},
     {"path": "app/shell/web-ui/chat", "kind": "ui-slot", "children": "fixed", "fixed": ["messages"]},
@@ -17,6 +17,7 @@
     {"path": "app/shell/web-ui/left-panel/sessions", "kind": "ui-slot", "children": "fixed", "fixed": ["new", "list"]},
     {"path": "app/shell/web-ui/left-panel/sessions/list", "kind": "ui-control", "props": {"label": "会话清单"}},
     {"path": "app/shell/web-ui/left-panel/context_usage", "kind": "ui-slot", "children": "keyed"},
+    {"path": "app/shell/web-ui/file-viewers", "kind": "ui-slot", "children": "keyed"},
     {"path": "app/shell/web-ui/right-panel", "kind": "ui-slot", "children": "keyed"},
     {"path": "app/shell/web-ui/runtime", "kind": "ui-slot", "children": "fixed", "fixed": ["left-panel", "right-panel"]},
     {"path": "app/shell/web-ui/runtime/left-panel", "kind": "ui-slot", "children": "keyed"},

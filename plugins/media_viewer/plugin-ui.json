@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "kind": "ui-paths",
+  "paths": {
+    "viewer": "app/shell/web-ui/file-viewers/media"
+  }
+}

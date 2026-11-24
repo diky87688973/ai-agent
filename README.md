@@ -188,6 +188,7 @@ Design records and trade-offs, not user manuals.
 | Document | Contents |
 |---|---|
 | [Background tasks](docs/plan/background-tasks.md) | Per-cid queues, concurrency limits, timeouts, cancellation, output, aggregate notices |
+| [Media viewer design (Chinese)](docs/plan/media-viewer.md) | Native image/audio/video panel, public HTTP mounts, ranged delivery, and viewer extension contracts |
 | [Software updates](docs/plan/software-update.md) | Version checks, hash validation, per-file switch, backup, rollback |
 | [Conversation queue](docs/plan/conversation-queue.md) | Busy-time enqueue, turn-end delivery, safe insertion, edit recovery |
 | [History paging](docs/plan/history-paging.md) | Turn paging, cursors, prepend, delayed rendering of oversized payloads |
@@ -248,7 +249,7 @@ python scripts/ci.py --list    # list checks
 
 `docs/unit-tests.md` is a generated readable test catalog; the source of truth is `tests/`.
 
-Unit tests (2707 cases):
+Unit tests (2727 cases):
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -t tests

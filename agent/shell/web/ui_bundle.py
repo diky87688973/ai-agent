@@ -48,6 +48,7 @@ UI_JS_MODULES = (
     "panels/panes.js",
     "plugins/host.js",
     "panels/file-viewer.js",
+    "panels/file-viewers.js",
     "composer/model-sync.js",
     "composer/input.js",
     "render/paths.js",

@@ -211,7 +211,7 @@ class Acceptance:
 
     @staticmethod
     def _manifest(root: Path) -> Path:
-        """本脚本的插件清单：知识库（勾选端点）与 AI角色扮演（播放器启动脚本）。
+        """显式加载验收所需插件，包括媒体代理的默认实现。
 
         不用工程根的 `plugins.ini`：那会把多模型插件一起装上，而它的私有配置
         一旦有效，模型路由就被目录接管——结果取决于开发机上有没有配置过。
@@ -220,6 +220,7 @@ class Acceptance:
         path.write_text(
             "[plugin:base_settings]\nversion = 1.0\n\n"
             "[plugin:web_ui]\nversion = 1.0\n\n"
+            "[plugin:media_viewer]\nversion = 1.0\n\n"
             "[plugin:knowledge]\nversion = 1.0\n"
             "[plugin:ai_cosplay]\nversion = 1.0\n",
             encoding="utf-8",

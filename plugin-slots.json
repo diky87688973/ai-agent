@@ -10,6 +10,9 @@
     "app/settings/model": "multi_model"
   },
   "slots": [
+    {"path": "app/shell/http/mounts", "kind": "container", "children": "keyed"},
+    {"path": "app/shell/http/mounts/media-content", "kind": "container", "children": "keyed", "props": {"path": "/api/media", "methods": ["GET", "HEAD"]}},
+    {"path": "app/shell/http/mounts/media-info", "kind": "container", "children": "keyed", "props": {"path": "/api/media/info", "methods": ["GET"]}},
     {"path": "app/kernel", "kind": "container", "owner": "__host__"},
 
     {"path": "app/kernel/modules", "kind": "container", "owner": "__host__",

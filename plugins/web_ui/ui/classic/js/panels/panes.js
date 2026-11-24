@@ -4,8 +4,14 @@
  * 拼进同一个 `<script>`。因此这里不写 import/export，函数与变量直接对同作用域可见。
  */
 function selectSidePane(name){
+document.querySelectorAll(".side-pane.active").forEach(function(el){
+if(el.dataset.pane!==name)document.dispatchEvent(new CustomEvent("ai-agent:panel-deactivated",{detail:{panel:el.dataset.pane}}));
+});
 document.querySelectorAll(".side-tab").forEach(function(el){el.classList.toggle("active",el.dataset.pane===name);});
+var activeTab=document.querySelector("#sideTabbar .side-tab.active");
+if(activeTab)activeTab.scrollIntoView({block:"nearest",inline:"nearest"});
 document.querySelectorAll(".side-pane").forEach(function(el){el.classList.toggle("active",el.dataset.pane===name);});
+document.dispatchEvent(new CustomEvent("ai-agent:panel-activated",{detail:{panel:name}}));
 }
 /* 通用面板容器：标签与面板都由 `data-pane` 驱动，新增面板不必改这里。
    插件注入的面板同样只有 `data-pane` 这一条身份线索，所以遍历必须按数据走；
@@ -103,6 +109,7 @@ function syncClassicSide(){
 if(typeof window._setClassicSideOpen==="function")window._setClassicSideOpen(countOpenSideTabs()>0);
 }
 function closePane(id){
+document.dispatchEvent(new CustomEvent("ai-agent:panel-closed",{detail:{panel:id}}));
 var t=document.getElementById("tab-"+id);
 if(t)t.remove();
 var p=document.getElementById("pane-"+id);
@@ -130,8 +137,7 @@ syncClassicSide();
      await api.del("tasks/t-1");
 */
 
-/* 会话标签换行时，右栏内容要与左侧对话内容的起点对齐：
-   标签条保持一行高，差额补在它下方，避免左右内容高度错位。 */
+/* 左右标签栏均可换行；右侧较矮时补齐起点，标签增减后重新计算。 */
 function syncSideTabbarGap(){
 var titleRow=document.querySelector(".chat-title-row");
 var bar=document.getElementById("sideTabbar");
@@ -142,11 +148,13 @@ bar.style.marginBottom=Math.max(0,Math.round(titleBottom-barBottom))+"px";
 }
 function bindSideTabbarGap(){
 var titleRow=document.querySelector(".chat-title-row");
-if(!titleRow)return;
+var bar=document.getElementById("sideTabbar");
+if(!titleRow||!bar)return;
 if(typeof ResizeObserver==="function"){
 if(!bindSideTabbarGap._observer){
 bindSideTabbarGap._observer=new ResizeObserver(syncSideTabbarGap);
 bindSideTabbarGap._observer.observe(titleRow);
+bindSideTabbarGap._observer.observe(bar);
 }
 }else{
 window.addEventListener("resize",syncSideTabbarGap);

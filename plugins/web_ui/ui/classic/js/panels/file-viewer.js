@@ -78,6 +78,10 @@ body.innerHTML=meta+inner;
 function openFileTab(path){
 var p=String(path||"").trim();
 if(!p)return null;
+if(typeof classicFileViewers!=="undefined")return classicFileViewers.open(p);
+return openDefaultFileTab(p);
+}
+function openDefaultFileTab(p){
 var id=filePaneId(p);
 return openPane({
 id:id,

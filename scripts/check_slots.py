@@ -13,9 +13,9 @@
                                       例：components:make_example（插件目录下 components.py）
 ```
 
-宿主实现在任何 path 上都可用；插件相对名只允许出现在 `app/plugins/<名>/` 下。
+宿主实现在任何 path 上都可用；插件相对名按合并声明的 origin 校验，不以挂载点 owner 代替来源。
 插件相对名不带 `plugins.` 前缀、不带斜杠、不带 `.py`。装配期把点换成目录分隔符
-再补 `.py` 落到插件目录内，见 `agent/boot/plugin_assembly.py` 的 `_factory`。
+再补 `.py` 落到插件目录内，见 `agent/core/slot_factory.py` 的解析契约。
 
 `--resolve` 额外真实 import 并检查可调用。插件实现无法在此解析（插件不是 Python
 包），只统计并跳过，不算失败。默认关闭，不进 CI。
@@ -70,12 +70,10 @@ def is_plugin_path(path: str) -> bool:
     return str(path or "").strip().startswith(PLUGIN_PATH_PREFIX)
 
 
-def factory_shape(spec: str, path: str = "", owner: str = HOST_OWNER) -> str:
+def factory_shape(spec: str, path: str = "", origin: str = HOST_OWNER) -> str:
     """校验 factory 的静态形状；返回空串表示合法，否则返回原因。
 
-    插件相对模块名允许的判据是「这份资产归插件」，不是「节点路径在 app/plugins/ 下」：
-    设置类资产由插件提供、但节点落在 `app/settings/**`（owner 为插件名），
-    拿路径前缀判会把它们全判错。
+    插件相对模块名按声明来源解析；填充宿主挂载点时，宿主 owner 不代表实现来源。
     """
     text = str(spec or "").strip()
     module, sep, attr = text.partition(":")
@@ -99,10 +97,10 @@ def factory_shape(spec: str, path: str = "", owner: str = HOST_OWNER) -> str:
         return f"factory 的 module 不是合法点分名称：{module!r}"
     if module.startswith(HOST_PREFIX):
         return ""
-    if is_plugin_path(path) or owner != HOST_OWNER:
+    if is_plugin_path(path) or origin != HOST_OWNER:
         return ""
     return (f"只有插件自有资产可用插件相对模块名"
-            f"（{PLUGIN_PATH_PREFIX} 下的节点，或 owner 为插件的节点），"
+            f"（{PLUGIN_PATH_PREFIX} 下的节点，或来源为插件的节点），"
             f"其他节点须写 {HOST_PREFIX}*：{module!r}")
 
 
@@ -116,7 +114,8 @@ def factory_shapes(config: SlotConfig) -> List[str]:
     for spec in config.specs.values():
         if not spec.factory:
             continue
-        reason = factory_shape(spec.factory, spec.path, spec.owner)
+        origin = config.origin_of(spec.path) if config.origins else spec.owner
+        reason = factory_shape(spec.factory, spec.path, origin)
         if reason:
             problems.append(f"{spec.path}：{reason}")
     return problems

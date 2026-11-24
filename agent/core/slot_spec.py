@@ -237,9 +237,10 @@ def parse_spec(row: Any, base: Optional[SlotSpec] = None,
         raise SlotConfigError(f"method 只用于 route 节点：{path} / {kind}")
     if kind in ("route", "http-route") and not method:
         raise SlotConfigError(f"route 节点缺少 method：{path}")
-    if method and method not in HTTP_METHODS:
+    allowed_methods = HTTP_METHODS | {"HEAD"} if kind == "http-route" else HTTP_METHODS
+    if method and method not in allowed_methods:
         raise SlotConfigError(
-            f"method 非法：{path} / {method}（只接受 {' / '.join(sorted(HTTP_METHODS))}）")
+            f"method 非法：{path} / {method}（只接受 {' / '.join(sorted(allowed_methods))}）")
     children, fixed = _children_field(row, base, path)
     return SlotSpec(
         path=path, kind=kind, factory=factory, requires=requires, order=order,

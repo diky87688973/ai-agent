@@ -408,11 +408,21 @@
     var set = Object.create(null);
     loaded.forEach(function (name) { set[String(name)] = true; });
     var nodes = document.querySelectorAll("script[data-ui-plugin-script]");
+    var refreshAssets = Object.create(null);
+    catalogEntries.forEach(function (entry) {
+      var p = propsOf(entry);
+      if (!p.reload_on_change) return;
+      (p.scripts || []).forEach(function (rel) {
+        refreshAssets["/api/plugin/" + encodeURIComponent(entry.owner) + "/_asset/" +
+          String(rel).split("/").map(encodeURIComponent).join("/")] = true;
+      });
+    });
     for (var i = nodes.length - 1; i >= 0; i--) {
       var src = String(nodes[i].getAttribute("data-ui-plugin-script") || "");
       var match = /\/api\/plugin\/([^/]+)\//.exec(src);
-      if (match && !set[decodeURIComponent(match[1])] && nodes[i].parentNode) {
+      if (match && (!set[decodeURIComponent(match[1])] || refreshAssets[src]) && nodes[i].parentNode) {
         nodes[i].parentNode.removeChild(nodes[i]);
+        if (scriptWaiters[src]) scriptWaiters[src](false);
         delete scriptWaiters[src];
       }
     }

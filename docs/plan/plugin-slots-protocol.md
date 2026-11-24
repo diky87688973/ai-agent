@@ -316,7 +316,8 @@ frozen 只冻自己、不冻子树
 | `service` | 宿主服务对象，默认 app 作用域 |
 | `provider` | 提供上下文、提示词或模型目录等契约值，目标由 `props.target` 声明 |
 | `tool` | 提供工具名和 execute 的工具对象 |
-| `route`、`http-route` | HTTP 处理器；方法与 HTTP 路径由声明明确给出 |
+| `route` | 插件相对 HTTP 处理器；method 与 props.path 声明方法和相对路径 |
+| `http-route` | 公共挂载点的处理器；method 声明方法，URL 从父挂载点派生，额外支持 HEAD |
 | `event` | 事件处理器；订阅宿主常量或通过 requires.event 引用插件事件声明 |
 | `event-channel` | 插件自有事件定义；无factory，名称由完整节点路径派生 |
 | `assembly-hook` | 上下文拼装钩子 |
@@ -328,7 +329,19 @@ frozen 只冻自己、不冻子树
 
 四种 `ui-*` 不运行 factory，声明本身就是产物。其余工厂按 kind 约定调用，具体签名以 `slot_assembly._invoke` 为准：容器类为 `factory(ctx, children, **requires)`，其他为 `factory(ctx, **requires)`。
 
-### Web UI 组件替换
+### 公共 HTTP 与文件查看器扩展
+
+宿主在 `app/shell/http/mounts/<名称>` 声明可填充的 container，`props.path` 为公共 URL，`props.methods` 为允许的方法。插件以 provides 贡献直接 `http-route` 子节点，method 指定方法、factory 构造处理器；子节点不得另写 props.path。每个 URL/方法只能有一个有效实现，越权方法、重复贡献、非宿主挂载声明均拒绝发布。声明来源 origin 决定插件工厂解析和卸载，不使用挂载点 owner 代替 origin。
+
+公共请求先鉴权，再从租约内的当前快照派生挂载与构造物。处理器接收 v1 HttpRequest 和受限文件访问端口，返回 JsonResponse 或 FileResponse。宿主负责 Range、HEAD、有界写出和句柄关闭；传输结束后才释放请求租约。不存在实现时返回 503，不回落到包外业务实现。通用公共地址不向插件开放任意 URL 抢占能力。
+
+`app/shell/web-ui/file-viewers` 接受查看器 ui-control 子贡献。props.version=1、extensions 和 order 决定匹配，scripts/styles 归贡献插件；同后缀同优先级冲突拒绝发布。脚本使用 `aiAgentClassicComponents.register`，实现 open(context)，返回 activate/deactivate/dispose 实例。注册校验有效目录、脚本来源与契约；关闭、替换、会话切换和插件变更分别驱动实例生命周期。原有文本/表格仍由 web_ui 默认实现处理，没有另一份可变查看器配置。
+
+通用契约见 `agent/common/http_contract.py`，媒体应用设计见[媒体预览](media-viewer.md)。
+
+文件查看器面板以贡献插件命名空间和完整文件路径编码确定身份，标签显示文件名；同一路径激活已有实例，不同路径分别持有实例。关闭只释放对应路径，插件卸载释放该插件全部实例。扩展名只选择实现，不决定文件标签身份。
+
+### Web UI 消息组件替换
 
 `web_ui` 提供两个可替换的 `ui-control`。插件在自己的 `plugin-slots.json`
 用 `overrides` 的 `mode: "replace"` 指向目标路径，在 `props.script` 或
@@ -343,7 +356,7 @@ frozen 只冻自己、不冻子树
 文件、展示协议产物和确认卡挂在消息主线。折叠组件只接收过程节点。
 替换插件卸载后按有效目录恢复默认实现。禁用过程插口时，过程内容平铺。
 
-`provider` 的已登记目标是 context-source、prompt-section、mode-tail、assembly-hook、model-catalog。目标及额外字段由 `SlotBinder` 校验：prompt-section 必须给出 section，路由必须给出 method 与 `props.path`，不得按节点末段猜测 HTTP 地址。新增目标要同时增加契约、绑定实现和负向测试，不能借 props 绕过登记。
+`provider` 的已登记目标是 context-source、prompt-section、mode-tail、assembly-hook、model-catalog。目标及额外字段由 `SlotBinder` 校验：prompt-section 必须给出 section，相对 route 必须给出 method 与 `props.path`，公共 http-route 的 URL 从父挂载点派生，不得按节点末段猜测 HTTP 地址。新增目标要同时增加契约、绑定实现和负向测试，不能借 props 绕过登记。
 
 工厂引用有两种来源：宿主 `agent.<module>:<attribute>`，插件 `<relative.module>:<attribute>`。插件相对模块必须解析在声明来源的实际插件根内；`plugin:make` 仅表示该目录下 plugin.py 的 make，不是另一种特殊注册机制。工厂可通过 BuildContext 的 spec、config、built/depend、resolver、boot_config、data_dir、plugin_meta 获取已声明环境；不虚构 `ctx.requires` 或把 ctx.config 说成插件配置文本。
 

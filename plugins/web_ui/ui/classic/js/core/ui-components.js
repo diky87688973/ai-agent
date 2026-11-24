@@ -3,6 +3,7 @@ var classicComponents = (function () {
   var catalog = null;
   var implementations = new Map();
   var contracts = new Map();
+  var families = new Map();
   function scripts(entry) {
     var props = entry && entry.metadata && entry.metadata.props || {};
     return Array.isArray(props.scripts) ? props.scripts : (props.script ? [props.script] : []);
@@ -23,7 +24,8 @@ var classicComponents = (function () {
     var asset = script && /\/api\/plugin\/([^/]+)\//.exec(script.src);
     var entry = catalog && catalog.get(path);
     var contract = contracts.get(path);
-    if (!asset || !entry || !contract || entry.kind !== "ui-control" ||
+    families.forEach(function (methods, prefix) { if (path.startsWith(prefix + "/")) contract = methods; });
+    if (!asset || script.isConnected === false || !entry || !contract || entry.kind !== "ui-control" ||
         entry.owner !== decodeURIComponent(asset[1]) ||
         !scripts(entry).some(function (relative) {
           return relative && script.src.endsWith("/_asset/" +
@@ -46,6 +48,12 @@ var classicComponents = (function () {
     return registered && registered.entry.owner === entry.owner ? registered.renderer : defaults;
   }
   function define(path, methods) { contracts.set(path, methods); }
-  return {apply: apply, register: register, select: select, define: define};
+  function entries(prefix) { return catalog ? Array.from(catalog.values()).filter(function (item) { return item.path.startsWith(prefix + "/"); }) : []; }
+  function clearFamily(prefix, owner) { implementations.forEach(function (value, path) {
+    if (path.startsWith(prefix + "/") && (!owner || value.entry.owner === owner)) implementations.delete(path);
+  }); }
+  return {apply: apply, register: register, select: select, define: define, entries: entries,
+    ready: function () { return catalog !== null; },
+    defineFamily: function (prefix, methods) { families.set(prefix, methods); }, clearFamily: clearFamily};
 })();
 window.aiAgentClassicComponents = {register: classicComponents.register};
