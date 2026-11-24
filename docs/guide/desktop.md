@@ -53,12 +53,15 @@ If WebView2 is missing, the launcher attempts an automatic installation. On macO
 Frameless
 Custom-drawn title bar
 Drag to move; double-click to maximize/restore; dragging a maximized window restores it
+On Windows, drag to the screen's top edge and release to maximize
 Minimize / maximize / close
 Resize with the mouse from any edge or corner
 Closing the window terminates the agent-web subprocess
 ```
 
-The custom-drawn title bar does not provide Windows edge snapping; system edge snapping belongs to the native title bar.
+Windows retains native minimization support so the taskbar button can activate and minimize the window. On window show and page load, the GUI host enables `WS_MINIMIZEBOX` and `WS_SYSMENU` without adding a system caption or resizing border, or simulating taskbar clicks.
+
+On Windows, releasing a title-bar drag within 8 native pixels of the pointer monitor's work-area top maximizes the window; the top taskbar band also qualifies. Maximization waits for the final move, while double-click restore and drag-to-restore remain available. A failed monitor query or move prevents top-edge maximization and reports an error. This uses the desktop window bridge without adding a system border; left/right edge tiling is not provided. macOS and Linux do not enable the top-edge check.
 
 ## Building the launcher
 

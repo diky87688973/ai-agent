@@ -17,15 +17,19 @@
     actions.appendChild(controls);
 
     var maximized = false;
+    var dragEpoch = 0;
     var maxButton = controls.querySelector('[data-window-action="maximize"]');
     function toggleMaximize() {
+      dragEpoch += 1;
+      if (!maximized) normalSize = { w: window.outerWidth, h: window.outerHeight };
       maximized = !maximized;
       resizing = null;
       setEdgeCursor(null);
-      window.pywebview.api.toggle_maximize(maximized);
+      var operation = window.pywebview.api.toggle_maximize(maximized);
       maxButton.textContent = maximized ? "❐" : "□";
       maxButton.setAttribute("aria-label", maximized ? "还原" : "最大化");
       maxButton.setAttribute("title", maximized ? "还原" : "最大化");
+      return operation;
     }
 
     controls.addEventListener("mousedown", function (event) { event.stopPropagation(); });
@@ -155,30 +159,39 @@
     var raf = 0;
     var pending = null;
     var moving = false;
+    var moveCompletion = Promise.resolve();
     var normalSize = { w: window.outerWidth || 1440, h: window.outerHeight || 900 };
+    function movePending() {
+      if (moving || !pending) return moveCompletion;
+      var point = pending;
+      pending = null;
+      moving = true;
+      moveCompletion = window.pywebview.api.move_window(point.x, point.y).then(function () {
+        moving = false;
+        if (pending) return movePending();
+      }).catch(function (error) {
+        moving = false;
+        pending = null;
+        throw error;
+      });
+      return moveCompletion;
+    }
     function pumpMove() {
       if (moving || raf) return;
       raf = requestAnimationFrame(function () {
         raf = 0;
-        if (moving || !pending) return;
-        var point = pending;
-        pending = null;
-        moving = true;
-        window.pywebview.api.move_window(point.x, point.y).then(function () {
-          moving = false;
-          if (pending) pumpMove();
-        }).catch(function () {
-          moving = false;
-        });
+        movePending().catch(function (error) { console.error("窗口移动未完成", error); });
       });
     }
 
     header.addEventListener("mousedown", function (event) {
       if (event.button !== 0 || event.target.closest("button, .hdr-actions, .window-controls")) return;
       event.preventDefault();
+      dragEpoch += 1;
       press = { sx: event.screenX, sy: event.screenY, moved: false, origin: null };
+      var started = press;
       window.pywebview.api.window_position().then(function (pos) {
-        if (press && !press.origin && pos && pos.length === 2) press.origin = { x: pos[0], y: pos[1] };
+        if (press === started && !press.origin && pos && pos.length === 2) press.origin = { x: pos[0], y: pos[1] };
       });
     });
     document.addEventListener("mousemove", function (event) {
@@ -190,14 +203,24 @@
         var maxLeft = window.screenX || 0;
         var ratio = maxWidth > 0 ? (event.screenX - maxLeft) / maxWidth : 0.5;
         ratio = Math.min(1, Math.max(0, ratio));
-        toggleMaximize();
+        var restored = toggleMaximize();
         press.origin = {
           x: Math.round(event.screenX - ratio * normalSize.w),
           y: Math.round(event.screenY - 14)
         };
         press.sx = event.screenX;
         press.sy = event.screenY;
-        window.pywebview.api.move_window(press.origin.x, press.origin.y);
+        pending = { x: press.origin.x, y: press.origin.y };
+        moving = true;
+        moveCompletion = restored.then(function () {
+          moving = false;
+          return movePending();
+        }).catch(function (error) {
+          moving = false;
+          pending = null;
+          throw error;
+        });
+        moveCompletion.catch(function (error) { console.error("窗口拖动还原失败", error); });
         return;
       }
       if (!press.origin) return;
@@ -206,8 +229,16 @@
     });
     document.addEventListener("mouseup", function () {
       if (!press) return;
+      var ended = press;
       press = null;
-      pending = null;
+      if (!ended.moved) return;
+      var epoch = dragEpoch;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      // 先采样松手位置，再等待移动完成，避免迟到的 move 把最大化窗口拖走。
+      Promise.all([window.pywebview.api.cursor_at_work_area_top(), movePending()]).then(function (result) {
+        if (result[0] && epoch === dragEpoch && !press && !maximized) return toggleMaximize();
+      }).catch(function (error) { console.error("窗口贴顶最大化失败", error); });
     });
     header.addEventListener("dblclick", function (event) {
       if (!event.target.closest("button, .hdr-actions, .window-controls")) {

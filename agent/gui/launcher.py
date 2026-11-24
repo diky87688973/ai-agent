@@ -193,6 +193,9 @@ class _WindowApi:
             return [0, 0]
         return [int(self._window.x), int(self._window.y)]
 
+    def cursor_at_work_area_top(self) -> bool:
+        return self._window is not None and window_ops.cursor_at_work_area_top()
+
     def move_window(self, x: int, y: int) -> bool:
         if self._window is not None:
             self._window.move(int(x), int(y))
@@ -404,6 +407,7 @@ def _open_window(url: str, supervisor: Optional[_ServerSupervisor] = None) -> bo
             window_ops.apply_dark_titlebar(window)
             window_ops.apply_window_icon(window, icon)
             window_ops.apply_maximized_bounds(window)
+            window_ops.enable_taskbar_minimize(window)
             window_ops.activate_window(window)
             threading.Timer(0.35, lambda: window_ops.activate_window(window)).start()
             threading.Timer(1.0, lambda: window_ops.activate_window(window)).start()
@@ -413,7 +417,9 @@ def _open_window(url: str, supervisor: Optional[_ServerSupervisor] = None) -> bo
             window.events.loaded += shown
         except AttributeError as exc:
             report_error("agent.gui.launcher.loaded_event", exc)
-        window.expose(api.minimize, api.toggle_maximize, api.close, api.ensure_server, api.window_position, api.move_window, api.window_size, api.resize_window)
+        window.expose(api.minimize, api.toggle_maximize, api.close, api.ensure_server,
+                      api.window_position, api.move_window, api.window_size, api.resize_window,
+                      api.cursor_at_work_area_top)
         webview.start(private_mode=False, storage_path=str(_storage_path()),
                       icon=str(icon) if icon.is_file() else None)
     except Exception as exc:

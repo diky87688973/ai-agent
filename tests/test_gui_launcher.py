@@ -131,6 +131,40 @@ class GuiLauncherTest(unittest.TestCase):
         supervisor.stop.assert_called_once()
         window.destroy.assert_called_once()
 
+    def test_drag_top_bridge_requires_window_and_uses_native_monitor_query(self):
+        api = launcher._WindowApi()
+        with mock.patch.object(window_ops, "cursor_at_work_area_top", return_value=True) as query:
+            self.assertFalse(api.cursor_at_work_area_top())
+            query.assert_not_called()
+            api._window = mock.MagicMock()
+            self.assertTrue(api.cursor_at_work_area_top())
+            query.assert_called_once()
+            api._window.maximize.assert_not_called()
+
+    def test_native_shown_callback_enables_taskbar_minimize(self) -> None:
+        from types import SimpleNamespace
+
+        class Hook:
+            def __iadd__(self, callback):
+                self.callback = callback
+                return self
+
+        window = SimpleNamespace(events=SimpleNamespace(shown=Hook(), loaded=Hook()),
+                                 native=None, expose=mock.MagicMock())
+        fake = mock.MagicMock(settings={})
+        fake.create_window.return_value = window
+        fake.start.side_effect = lambda **_kwargs: window.events.shown.callback()
+        with mock.patch.dict(sys.modules, {"webview": fake}), \
+                mock.patch.object(launcher, "_storage_path", return_value=Path(".")), \
+                mock.patch.object(launcher.threading, "Timer"), \
+                mock.patch.object(window_ops, "activate_window"), \
+                mock.patch.object(window_ops, "apply_maximized_bounds"), \
+                mock.patch.object(window_ops, "enable_taskbar_minimize", return_value=True) as enable:
+            self.assertTrue(launcher._open_window("http://127.0.0.1:1/"))
+        enable.assert_called_once_with(window)
+        self.assertIs(window.events.loaded.callback, window.events.shown.callback)
+        self.assertTrue(fake.create_window.call_args.kwargs["frameless"])
+
     def test_pick_port_and_storage_path(self) -> None:
         port = launcher._pick_port("127.0.0.1")
         self.assertGreater(port, 0)

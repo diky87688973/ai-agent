@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2695** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2707** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -66,7 +66,7 @@
 55. [test_frozen_data_root.py](#test_frozen_data_rootpy)（3）
 56. [test_gate_negative.py](#test_gate_negativepy)（74）
 57. [test_goal_runner.py](#test_goal_runnerpy)（8）
-58. [test_gui_launcher.py](#test_gui_launcherpy)（10）
+58. [test_gui_launcher.py](#test_gui_launcherpy)（12）
 59. [test_history_page.py](#test_history_pagepy)（17）
 60. [test_host_service_slots.py](#test_host_service_slotspy)（2）
 61. [test_http_pool.py](#test_http_poolpy)（15）
@@ -170,10 +170,11 @@
 159. [test_web_frontend.py](#test_web_frontendpy)（6）
 160. [test_web_shell.py](#test_web_shellpy)（65）
 161. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-162. [test_window_ops.py](#test_window_opspy)（31）
-163. [test_write_gate.py](#test_write_gatepy)（22）
-164. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-165. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+162. [test_window_chrome_ui.py](#test_window_chrome_uipy)（2）
+163. [test_window_ops.py](#test_window_opspy)（39）
+164. [test_write_gate.py](#test_write_gatepy)（22）
+165. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+166. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -1577,20 +1578,22 @@
 
 ## test_gui_launcher.py
 
-共 10 个用例。
+共 12 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `GuiLauncherTest` | `test_activate_window_uses_windows_api` | 覆盖「A class whose instances are single test cases」：activate window uses windows api |
 | 2 | `GuiLauncherTest` | `test_activate_window_without_handle` | 覆盖「A class whose instances are single test cases」：activate window without handle |
-| 3 | `GuiLauncherTest` | `test_failed_window_still_stops_child` | 覆盖「A class whose instances are single test cases」：failed window still stops child |
-| 4 | `GuiLauncherTest` | `test_launch_owns_child_and_stops_it` | 覆盖「A class whose instances are single test cases」：launch owns child and stops it |
-| 5 | `GuiLauncherTest` | `test_missing_entry_returns_nonzero` | 覆盖「A class whose instances are single test cases」：missing entry returns nonzero |
-| 6 | `GuiLauncherTest` | `test_occupied_explicit_port_restarts_old_agent` | 覆盖「A class whose instances are single test cases」：occupied explicit port restarts old agent |
-| 7 | `GuiLauncherTest` | `test_open_window_enables_text_selection` | 覆盖「A class whose instances are single test cases」：open window enables text selection |
-| 8 | `GuiLauncherTest` | `test_pick_port_and_storage_path` | 覆盖「A class whose instances are single test cases」：pick port and storage path |
-| 9 | `GuiLauncherTest` | `test_startup_helpers_do_not_create_windows_console` | 覆盖「A class whose instances are single test cases」：startup helpers do not create windows console |
-| 10 | `GuiLauncherTest` | `test_window_close_stops_supervisor_and_destroys_window` | 覆盖「A class whose instances are single test cases」：window close stops supervisor and destroys window |
+| 3 | `GuiLauncherTest` | `test_drag_top_bridge_requires_window_and_uses_native_monitor_query` | 覆盖「A class whose instances are single test cases」：drag top bridge requires window and uses native monitor query |
+| 4 | `GuiLauncherTest` | `test_failed_window_still_stops_child` | 覆盖「A class whose instances are single test cases」：failed window still stops child |
+| 5 | `GuiLauncherTest` | `test_launch_owns_child_and_stops_it` | 覆盖「A class whose instances are single test cases」：launch owns child and stops it |
+| 6 | `GuiLauncherTest` | `test_missing_entry_returns_nonzero` | 覆盖「A class whose instances are single test cases」：missing entry returns nonzero |
+| 7 | `GuiLauncherTest` | `test_native_shown_callback_enables_taskbar_minimize` | 覆盖「A class whose instances are single test cases」：native shown callback enables taskbar minimize |
+| 8 | `GuiLauncherTest` | `test_occupied_explicit_port_restarts_old_agent` | 覆盖「A class whose instances are single test cases」：occupied explicit port restarts old agent |
+| 9 | `GuiLauncherTest` | `test_open_window_enables_text_selection` | 覆盖「A class whose instances are single test cases」：open window enables text selection |
+| 10 | `GuiLauncherTest` | `test_pick_port_and_storage_path` | 覆盖「A class whose instances are single test cases」：pick port and storage path |
+| 11 | `GuiLauncherTest` | `test_startup_helpers_do_not_create_windows_console` | 覆盖「A class whose instances are single test cases」：startup helpers do not create windows console |
+| 12 | `GuiLauncherTest` | `test_window_close_stops_supervisor_and_destroys_window` | 覆盖「A class whose instances are single test cases」：window close stops supervisor and destroys window |
 
 ## test_history_page.py
 
@@ -3904,9 +3907,18 @@
 | 23 | `WebUiConfigTest` | `test_missing_file_defaults_items_on_steps_off` | 覆盖「A class whose instances are single test cases」：missing file defaults items on steps off |
 | 24 | `WebUiConfigTest` | `test_only_digit_one_turns_a_flag_on` | 覆盖「A class whose instances are single test cases」：only digit one turns a flag on |
 
+## test_window_chrome_ui.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `WindowChromeUITest` | `test_click_non_top_stale_gesture_and_failed_move_never_snap` | 覆盖「A class whose instances are single test cases」：click non top stale gesture and failed move never snap |
+| 2 | `WindowChromeUITest` | `test_release_flushes_final_move_before_maximize_and_drag_restores` | 覆盖「A class whose instances are single test cases」：release flushes final move before maximize and drag restores |
+
 ## test_window_ops.py
 
-共 31 个用例。
+共 39 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -3926,21 +3938,29 @@
 | 14 | `DarkTitlebarTest` | `test_dwm_error_is_swallowed_with_trace` | DWM 不可用（旧系统）只留痕：不能因此起不了窗。 |
 | 15 | `DarkTitlebarTest` | `test_no_handle_is_noop` | 覆盖「深色标题栏：无句柄不动，非 Windows 不动，异常只留痕」：no handle is noop |
 | 16 | `DarkTitlebarTest` | `test_non_windows_is_noop` | 覆盖「深色标题栏：无句柄不动，非 Windows 不动，异常只留痕」：non windows is noop |
-| 17 | `MaximizedBoundsTest` | `test_missing_native_is_noop` | 覆盖「最大化边界取工作区；非 Windows 与无 native 都直接返回」：missing native is noop |
-| 18 | `MaximizedBoundsTest` | `test_non_windows_is_noop` | 覆盖「最大化边界取工作区；非 Windows 与无 native 都直接返回」：non windows is noop |
-| 19 | `MaximizedBoundsTest` | `test_sets_bounds_from_screen` | 覆盖「最大化边界取工作区；非 Windows 与无 native 都直接返回」：sets bounds from screen |
-| 20 | `MaximizedBoundsTest` | `test_winforms_error_is_swallowed_with_trace` | 缺 WinForms 或取屏幕失败只留痕：最大化贴边不是启动必需品。 |
-| 21 | `PointerIntTest` | `test_ctypes_pointer_uses_to_int64` | ctypes 指针的 int() 会抛，必须走 ToInt64()。 |
-| 22 | `PointerIntTest` | `test_none_is_zero` | 覆盖「句柄值归一：pywebview 给的是 ctypes 指针，也可能是 None」：none is zero |
-| 23 | `PointerIntTest` | `test_plain_int_passthrough` | 覆盖「句柄值归一：pywebview 给的是 ctypes 指针，也可能是 None」：plain int passthrough |
-| 24 | `WindowHandleTest` | `test_handle_present` | 覆盖「从窗口对象取原生句柄；任一层缺失都返回 0 而不是抛」：handle present |
-| 25 | `WindowHandleTest` | `test_missing_handle` | 覆盖「从窗口对象取原生句柄；任一层缺失都返回 0 而不是抛」：missing handle |
-| 26 | `WindowHandleTest` | `test_missing_native` | 覆盖「从窗口对象取原生句柄；任一层缺失都返回 0 而不是抛」：missing native |
-| 27 | `WindowIconTest` | `test_load_failure_sends_nothing` | LoadImageW 返回 0（图标加载失败）时不发消息。 |
-| 28 | `WindowIconTest` | `test_missing_icon_file_is_noop` | 覆盖「窗口图标：文件不存在或非 Windows 不动」：missing icon file is noop |
-| 29 | `WindowIconTest` | `test_non_windows_is_noop` | 覆盖「窗口图标：文件不存在或非 Windows 不动」：non windows is noop |
-| 30 | `WindowIconTest` | `test_sets_icon_twice_on_success` | 加载到图标后发两次消息：先设大图标再设小图标。 |
-| 31 | `WindowIconTest` | `test_win32_error_is_swallowed_with_trace` | 图标设置失败只留痕：不能因为缺图标让窗口起不来。 |
+| 17 | `DragTopTest` | `test_non_windows_and_monitor_failure_do_not_snap` | 覆盖「A class whose instances are single test cases」：non windows and monitor failure do not snap |
+| 18 | `DragTopTest` | `test_top_edge_uses_pointer_monitor_native_coordinates_and_top_taskbar` | 覆盖「A class whose instances are single test cases」：top edge uses pointer monitor native coordinates and top taskbar |
+| 19 | `MaximizedBoundsTest` | `test_missing_native_is_noop` | 覆盖「最大化边界取工作区；非 Windows 与无 native 都直接返回」：missing native is noop |
+| 20 | `MaximizedBoundsTest` | `test_non_windows_is_noop` | 覆盖「最大化边界取工作区；非 Windows 与无 native 都直接返回」：non windows is noop |
+| 21 | `MaximizedBoundsTest` | `test_sets_bounds_from_screen` | 覆盖「最大化边界取工作区；非 Windows 与无 native 都直接返回」：sets bounds from screen |
+| 22 | `MaximizedBoundsTest` | `test_winforms_error_is_swallowed_with_trace` | 缺 WinForms 或取屏幕失败只留痕：最大化贴边不是启动必需品。 |
+| 23 | `PointerIntTest` | `test_ctypes_pointer_uses_to_int64` | ctypes 指针的 int() 会抛，必须走 ToInt64()。 |
+| 24 | `PointerIntTest` | `test_none_is_zero` | 覆盖「句柄值归一：pywebview 给的是 ctypes 指针，也可能是 None」：none is zero |
+| 25 | `PointerIntTest` | `test_plain_int_passthrough` | 覆盖「句柄值归一：pywebview 给的是 ctypes 指针，也可能是 None」：plain int passthrough |
+| 26 | `TaskbarMinimizeTest` | `test_adds_native_capabilities_preserves_other_flags_and_refreshes_without_activation` | 覆盖「A class whose instances are single test cases」：adds native capabilities preserves other flags and refreshes without activation |
+| 27 | `TaskbarMinimizeTest` | `test_existing_capabilities_are_preserved_and_cache_still_refreshed` | 覆盖「A class whose instances are single test cases」：existing capabilities are preserved and cache still refreshed |
+| 28 | `TaskbarMinimizeTest` | `test_missing_handle_and_non_windows_do_not_call_win32` | 覆盖「A class whose instances are single test cases」：missing handle and non windows do not call win32 |
+| 29 | `TaskbarMinimizeTest` | `test_native_failures_report_error_instead_of_claiming_success` | 覆盖「A class whose instances are single test cases」：native failures report error instead of claiming success |
+| 30 | `TaskbarMinimizeTest` | `test_real_hidden_window_preserves_borderless_geometry` | 覆盖「A class whose instances are single test cases」：real hidden window preserves borderless geometry |
+| 31 | `TaskbarMinimizeTest` | `test_zero_previous_style_is_valid_when_last_error_is_zero` | 覆盖「A class whose instances are single test cases」：zero previous style is valid when last error is zero |
+| 32 | `WindowHandleTest` | `test_handle_present` | 覆盖「从窗口对象取原生句柄；任一层缺失都返回 0 而不是抛」：handle present |
+| 33 | `WindowHandleTest` | `test_missing_handle` | 覆盖「从窗口对象取原生句柄；任一层缺失都返回 0 而不是抛」：missing handle |
+| 34 | `WindowHandleTest` | `test_missing_native` | 覆盖「从窗口对象取原生句柄；任一层缺失都返回 0 而不是抛」：missing native |
+| 35 | `WindowIconTest` | `test_load_failure_sends_nothing` | LoadImageW 返回 0（图标加载失败）时不发消息。 |
+| 36 | `WindowIconTest` | `test_missing_icon_file_is_noop` | 覆盖「窗口图标：文件不存在或非 Windows 不动」：missing icon file is noop |
+| 37 | `WindowIconTest` | `test_non_windows_is_noop` | 覆盖「窗口图标：文件不存在或非 Windows 不动」：non windows is noop |
+| 38 | `WindowIconTest` | `test_sets_icon_twice_on_success` | 加载到图标后发两次消息：先设大图标再设小图标。 |
+| 39 | `WindowIconTest` | `test_win32_error_is_swallowed_with_trace` | 图标设置失败只留痕：不能因为缺图标让窗口起不来。 |
 
 ## test_write_gate.py
 

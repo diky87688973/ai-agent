@@ -56,6 +56,102 @@ class WindowHandleTest(unittest.TestCase):
         self.assertEqual(window_ops.window_handle(window), 0)
 
 
+class TaskbarMinimizeTest(unittest.TestCase):
+    def _apply(self, user32):
+        with mock.patch.object(window_ops.os, "name", "nt"), \
+                mock.patch.object(window_ops, "window_handle", return_value=123), \
+                mock.patch.object(window_ops.ctypes, "WinDLL", return_value=user32, create=True), \
+                mock.patch.object(window_ops.ctypes, "set_last_error", create=True), \
+                mock.patch.object(window_ops.ctypes, "get_last_error", return_value=0, create=True):
+            return window_ops.enable_taskbar_minimize(object())
+
+    def test_adds_native_capabilities_preserves_other_flags_and_refreshes_without_activation(self):
+        user32 = mock.MagicMock()
+        user32.GetWindowLongW.return_value = 0x16010000
+        user32.SetWindowLongW.return_value = 0x16010000
+        self.assertTrue(self._apply(user32))
+        user32.SetWindowLongW.assert_called_once_with(123, -16, 0x160B0000)
+        user32.SetWindowPos.assert_called_once_with(123, None, 0, 0, 0, 0, 0x0037)
+        self.assertFalse(user32.SetWindowLongW.call_args.args[2] & 0x00C40000)
+
+    def test_existing_capabilities_are_preserved_and_cache_still_refreshed(self):
+        user32 = mock.MagicMock()
+        user32.GetWindowLongW.return_value = 0x160B0000
+        self.assertTrue(self._apply(user32))
+        user32.SetWindowLongW.assert_not_called()
+        user32.SetWindowPos.assert_called_once()
+
+    def test_zero_previous_style_is_valid_when_last_error_is_zero(self):
+        user32 = mock.MagicMock()
+        user32.GetWindowLongW.return_value = 0
+        user32.SetWindowLongW.return_value = 0
+        self.assertTrue(self._apply(user32))
+        user32.SetWindowLongW.assert_called_once_with(123, -16, 0x000A0000)
+
+    def test_missing_handle_and_non_windows_do_not_call_win32(self):
+        with mock.patch.object(window_ops.ctypes, "WinDLL", create=True) as load:
+            with mock.patch.object(window_ops.os, "name", "posix"):
+                self.assertFalse(window_ops.enable_taskbar_minimize(object()))
+            with mock.patch.object(window_ops.os, "name", "nt"):
+                self.assertFalse(window_ops.enable_taskbar_minimize(object()))
+            load.assert_not_called()
+
+    def test_native_failures_report_error_instead_of_claiming_success(self):
+        for stage in ("GetWindowLongW", "SetWindowLongW", "SetWindowPos"):
+            with self.subTest(stage=stage):
+                user32 = mock.MagicMock()
+                user32.GetWindowLongW.return_value = 0x16010000
+                user32.SetWindowLongW.return_value = 0x16010000
+                getattr(user32, stage).return_value = 0
+                with mock.patch.object(window_ops.os, "name", "nt"), \
+                        mock.patch.object(window_ops, "window_handle", return_value=123), \
+                        mock.patch.object(window_ops.ctypes, "WinDLL", return_value=user32, create=True), \
+                        mock.patch.object(window_ops.ctypes, "set_last_error", create=True), \
+                        mock.patch.object(window_ops.ctypes, "get_last_error", return_value=5, create=True), \
+                        mock.patch.object(window_ops, "report_error") as report:
+                    self.assertFalse(window_ops.enable_taskbar_minimize(object()))
+                report.assert_called_once()
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows native window style")
+    def test_real_hidden_window_preserves_borderless_geometry(self):
+        import ctypes
+        from ctypes import wintypes
+        from types import SimpleNamespace
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR,
+                                         wintypes.DWORD, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                         ctypes.c_int, wintypes.HWND, wintypes.HMENU,
+                                         wintypes.HINSTANCE, wintypes.LPVOID]
+        user32.CreateWindowExW.restype = wintypes.HWND
+        user32.DestroyWindow.argtypes = [wintypes.HWND]
+        user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+        user32.GetWindowLongW.restype = ctypes.c_long
+        user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user32.IsWindowVisible.argtypes = [wintypes.HWND]
+        hwnd = user32.CreateWindowExW(0x80, "STATIC", "taskbar-style-regression",
+                                     0x00010000, 0, 0, 320, 240, None, None, None, None)
+        self.assertTrue(hwnd)
+        try:
+            style = user32.GetWindowLongW(hwnd, -16)
+            before, client_before = wintypes.RECT(), wintypes.RECT()
+            self.assertTrue(user32.GetWindowRect(hwnd, ctypes.byref(before)))
+            self.assertTrue(user32.GetClientRect(hwnd, ctypes.byref(client_before)))
+            window = SimpleNamespace(native=SimpleNamespace(Handle=hwnd))
+            self.assertTrue(window_ops.enable_taskbar_minimize(window))
+            self.assertTrue(window_ops.enable_taskbar_minimize(window))
+            self.assertEqual(user32.GetWindowLongW(hwnd, -16), style | 0x000A0000)
+            after, client_after = wintypes.RECT(), wintypes.RECT()
+            self.assertTrue(user32.GetWindowRect(hwnd, ctypes.byref(after)))
+            self.assertTrue(user32.GetClientRect(hwnd, ctypes.byref(client_after)))
+            self.assertEqual(bytes(before), bytes(after))
+            self.assertEqual(bytes(client_before), bytes(client_after))
+            self.assertFalse(user32.IsWindowVisible(hwnd))
+        finally:
+            self.assertTrue(user32.DestroyWindow(hwnd))
+
+
 class CenteredGeometryTest(unittest.TestCase):
     """按工作区居中；取不到工作区时坐标归 0、尺寸原样。"""
 
@@ -117,6 +213,37 @@ class CenteredGeometryTest(unittest.TestCase):
                 mock.patch.object(window_ops.ctypes, "windll",
                                   mock.MagicMock(user32=user32), create=True):
             self.assertEqual(window_ops.centered_geometry(1440, 900), (1440, 900, 0, 0))
+
+
+class DragTopTest(unittest.TestCase):
+    def test_top_edge_uses_pointer_monitor_native_coordinates_and_top_taskbar(self):
+        from types import SimpleNamespace
+
+        forms = mock.MagicMock()
+        screen = forms.Screen.FromPoint.return_value
+        screen.Bounds = SimpleNamespace(Left=-1920, Right=0, Top=-1080)
+        screen.WorkingArea = SimpleNamespace(Top=-1040)
+        for x, y, expected in [(-800, -1080, True), (-800, -1032, True),
+                               (-800, -1031, False), (-800, -1081, False),
+                               (0, -1080, False), (-1921, -1080, False)]:
+            with self.subTest(x=x, y=y):
+                point = SimpleNamespace(X=x, Y=y)
+                forms.Cursor.Position = point
+                with mock.patch.object(window_ops.os, "name", "nt"), \
+                        mock.patch.dict(sys.modules, {"System.Windows.Forms": forms}):
+                    self.assertEqual(window_ops.cursor_at_work_area_top(), expected)
+                forms.Screen.FromPoint.assert_called_with(point)
+
+    def test_non_windows_and_monitor_failure_do_not_snap(self):
+        with mock.patch.object(window_ops.os, "name", "posix"):
+            self.assertFalse(window_ops.cursor_at_work_area_top())
+        forms = mock.MagicMock()
+        forms.Screen.FromPoint.side_effect = OSError("monitor unavailable")
+        with mock.patch.object(window_ops.os, "name", "nt"), \
+                mock.patch.dict(sys.modules, {"System.Windows.Forms": forms}), \
+                mock.patch.object(window_ops, "report_error") as report:
+            self.assertFalse(window_ops.cursor_at_work_area_top())
+        report.assert_called_once()
 
 
 class MaximizedBoundsTest(unittest.TestCase):

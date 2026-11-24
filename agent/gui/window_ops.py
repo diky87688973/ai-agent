@@ -31,6 +31,43 @@ def window_handle(window: Any) -> int:
     return _pointer_int(getattr(native, "Handle", 0))
 
 
+def enable_taskbar_minimize(window: Any) -> bool:
+    """无边框窗口保留系统最小化能力，不增加标题栏或缩放边框。"""
+    if os.name != "nt":
+        return False
+    try:
+        from ctypes import wintypes
+
+        hwnd = window_handle(window)
+        if not hwnd:
+            return False
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+        user32.GetWindowLongW.restype = ctypes.c_long
+        user32.SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
+        user32.SetWindowLongW.restype = ctypes.c_long
+        user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int,
+                                       ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        user32.SetWindowPos.restype = wintypes.BOOL
+        ctypes.set_last_error(0)
+        style = user32.GetWindowLongW(hwnd, -16)  # GWL_STYLE
+        if not style and ctypes.get_last_error():
+            raise ctypes.WinError(ctypes.get_last_error())
+        updated = style | 0x00020000 | 0x00080000  # WS_MINIMIZEBOX | WS_SYSMENU
+        if updated != style:
+            ctypes.set_last_error(0)
+            previous = user32.SetWindowLongW(hwnd, -16, updated)
+            if not previous and ctypes.get_last_error():
+                raise ctypes.WinError(ctypes.get_last_error())
+        # 刷新系统缓存；不移动、缩放、激活窗口或改变层级。
+        if not user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, 0x0037):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return True
+    except (AttributeError, OSError, TypeError, ValueError) as exc:
+        report_error("agent.gui.window_ops.taskbar_minimize", exc)
+        return False
+
+
 def apply_dark_titlebar(window: Any) -> None:
     """标题栏切深色（DWM 属性 20）。"""
     if os.name != "nt":
@@ -149,6 +186,23 @@ def centered_geometry(width: int, height: int) -> Tuple[int, int, int, int]:
         return width, height, 0, 0
 
 
+def cursor_at_work_area_top() -> bool:
+    """按原生坐标判断鼠标是否在所在屏幕工作区顶边的 8 像素内。"""
+    if os.name != "nt":
+        return False
+    try:
+        from System.Windows.Forms import Cursor, Screen
+
+        point = Cursor.Position
+        screen = Screen.FromPoint(point)
+        area = screen.WorkingArea
+        return screen.Bounds.Left <= point.X < screen.Bounds.Right \
+            and screen.Bounds.Top <= point.Y <= area.Top + 8
+    except (ImportError, AttributeError, OSError, ValueError) as exc:
+        report_error("agent.gui.window_ops.drag_top", exc)
+        return False
+
+
 def apply_maximized_bounds(window: Any) -> None:
     """让最大化贴着工作区，而不是盖住任务栏（WinForms 的 MaximizedBounds）。"""
     if os.name != "nt":
@@ -170,4 +224,6 @@ __all__ = [
     "apply_maximized_bounds",
     "apply_window_icon",
     "centered_geometry",
+    "cursor_at_work_area_top",
+    "enable_taskbar_minimize",
 ]
