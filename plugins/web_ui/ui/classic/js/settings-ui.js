@@ -196,15 +196,15 @@
         }
         if (field.plugin) {
           plugins[field.key] = field.value == null
-            ? String(field.default == null ? "" : field.default)
-            : String(field.value);
+            ? (field.default == null ? "" : field.default)
+            : field.value;
           return;
         }
         var kept = !reset && old[sec.id]
           && Object.prototype.hasOwnProperty.call(old[sec.id], field.key);
         values[sec.id][field.key] = kept
           ? old[sec.id][field.key]
-          : (field.value == null ? "" : String(field.value));
+          : (field.value == null ? "" : field.value);
       });
     });
     state.values = values;
@@ -415,7 +415,7 @@
       return select;
     }
     if (field.kind === "checkbox") {
-      return boolControl(value, function (next) { remember(next); });
+      return boolControl(value === "1", function (next) { remember(next ? "1" : "0"); });
     }
     if (field.kind === "textarea") {
       var area = document.createElement("textarea");
@@ -483,7 +483,7 @@
       return chips;
     }
     if (field.kind === "checkbox") {
-      var on = isOnValue(value);
+      var on = value === true;
       state.pluginValues[key] = on;
       return boolControl(on, function (next) { state.pluginValues[key] = next; });
     }
@@ -593,18 +593,12 @@
     return configured ? "已设置秘钥,可重新设置并替换" : "未配置秘钥";
   }
 
-  function isOnValue(value) {
-    if (value === true || value === 1) return true;
-    var text = String(value == null ? "" : value).trim().toLowerCase();
-    return text === "1" || text === "true" || text === "on" || text === "yes";
-  }
-
   function boolControl(value, onChange) {
     var wrap = document.createElement("label");
     wrap.className = "st-switch";
     var input = document.createElement("input");
     input.type = "checkbox";
-    input.checked = isOnValue(value);
+    input.checked = value === true;
     input._settingsChange = function () {
       onChange(input.checked);
     };

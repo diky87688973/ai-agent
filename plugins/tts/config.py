@@ -104,14 +104,19 @@ def _int(raw: str, default: int) -> Tuple[int, Optional[str]]:
 
 
 def _bool(raw: str, default: bool) -> Tuple[bool, Optional[str]]:
-    if not raw:
+    """只认 0 与 1；其他写法一律无效并回退默认。
+
+    允许 true/yes/on 一类同义词就会让同一个开关出现多种表示，
+    写入端只写 0/1、读取端却什么都收，两边迟早对不上。
+    """
+    text = str(raw or "").strip()
+    if not text:
         return default, None
-    text = str(raw).strip().lower()
-    if text in ("1", "true", "yes", "on"):
+    if text == "1":
         return True, None
-    if text in ("0", "false", "no", "off"):
+    if text == "0":
         return False, None
-    return default, f"非布尔值 {raw!r}，使用默认值 {default}"
+    return default, f"只接受 0 或 1，收到 {raw!r}，已用默认值 {int(default)}"
 
 
 def _parse_limits(
