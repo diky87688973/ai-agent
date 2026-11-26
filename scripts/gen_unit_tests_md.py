@@ -138,10 +138,19 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         current = OUT.read_text(encoding="utf-8")
         if current != content:
-            print(
-                f"[FAIL] {_display(OUT)} 与用例不一致"
-                "（跑 python scripts/gen_unit_tests_md.py 重新生成后提交）"
-            )
+            # 跨 Python 版本生成的文档必须逐字节一致；不一致时直接指出第一处差异，
+            # 否则只能看到一句「不一致」看不出差在哪。
+            old_lines = current.splitlines()
+            new_lines = content.splitlines()
+            for index in range(max(len(old_lines), len(new_lines))):
+                old = old_lines[index] if index < len(old_lines) else "<缺行>"
+                new = new_lines[index] if index < len(new_lines) else "<缺行>"
+                if old != new:
+                    print(f"[FAIL] {_display(OUT)} 与用例不一致，首个差异在第 {index + 1} 行")
+                    print(f"  现有：{old[:120]}")
+                    print(f"  重新生成：{new[:120]}")
+                    break
+            print(f"  Python {sys.version.split()[0]}")
             return 1
         print(f"{_display(OUT)} 与用例一致")
         return 0
