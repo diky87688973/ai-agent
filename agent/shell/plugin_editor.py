@@ -181,6 +181,8 @@ def build_editor(text: str, folder: Path) -> Dict[str, Any]:
                 values[key] = ""
             elif field["kind"] == "bool":
                 values[key] = _bool_value(values.get(key), field)
+            elif field["kind"] == "number":
+                values[key] = _number_value(values.get(key), field)
             elif not str(values.get(key) or "").strip() and field.get("default"):
                 values[key] = field["default"]
         return {
@@ -294,18 +296,35 @@ def render_text(text: str, sections: Iterable[str], *, show_headers: bool) -> st
     return "\n\n".join(block.rstrip("\n") for block in blocks) + "\n"
 
 
+def _number_value(raw: Any, field: Dict[str, Any]) -> Any:
+    """读取边界：数字字段交给界面的是整数，不是 ini 里的那串文本。"""
+    text = str(raw or "").strip()
+    if not text:
+        text = str(field.get("default") or "").strip()
+    if not text:
+        return None
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field['key']} 只接受整数，收到 {raw!r}") from None
+
+
 def _bool_groups(groups: List[Dict[str, Any]],
                  schema: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """按节读取的视图也要把布尔字段转成真布尔，不能只修字段视图那一条路。"""
-    kinds = {str(item["key"]).lower(): item for item in schema["fields"]}
+    """按节读取的视图按 schema 转类型：布尔给布尔，数字给整数。
+
+    缺省项也补上默认值，否则界面拿到 undefined，开关会恒为关。
+    """
+    fields = {str(item["key"]).lower(): item for item in schema["fields"]}
     converted: List[Dict[str, Any]] = []
     for group in groups:
         values = dict(group.get("values") or {})
-        for key in list(values):
-            field = kinds.get(key)
-            if field is None or field["kind"] != "bool":
-                continue
-            values[key] = _bool_value(values[key], field)
+        for key, field in fields.items():
+            kind = field["kind"]
+            if kind == "bool":
+                values[key] = _bool_value(values.get(key), field)
+            elif kind == "number":
+                values[key] = _number_value(values.get(key), field)
         item = dict(group)
         item["values"] = values
         converted.append(item)
