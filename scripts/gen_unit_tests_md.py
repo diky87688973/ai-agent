@@ -150,6 +150,16 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"  现有：{old[:120]}")
                     print(f"  重新生成：{new[:120]}")
                     break
+            # 总数不一致时按文件列出数量差：平台差异表现为整组用例缺失，
+            # 只看到总数变化无法判断哪个模块未被发现。
+            pattern = re.compile(r"^\d+\. \[(.+?)\]\(#.+?\)（(\d+)）$", re.MULTILINE)
+            old_sizes = {m.group(1): int(m.group(2)) for m in pattern.finditer(current)}
+            new_sizes = {m.group(1): int(m.group(2)) for m in pattern.finditer(content)}
+            for name in sorted(set(old_sizes) | set(new_sizes)):
+                before = old_sizes.get(name, 0)
+                after = new_sizes.get(name, 0)
+                if before != after:
+                    print(f"  分组差异：{name} 现有 {before} → 重新生成 {after}")
             print(f"  Python {sys.version.split()[0]}")
             return 1
         print(f"{_display(OUT)} 与用例一致")
