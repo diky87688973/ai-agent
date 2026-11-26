@@ -171,11 +171,13 @@
     root.appendChild(listBox);
   }
 
-  //: 男声档位；与 schema.MALE_GENDERS 同口径。
-  var MALE_GENDERS = ["少年", "青年", "中年", "低沉", "暮年"];
+  //: 男声档位由后端下发，前端不再重复写一份名单。
+  function maleGenders() {
+    return (state.options && state.options.male_genders) || [];
+  }
 
   function isMale(dims) {
-    return MALE_GENDERS.indexOf(dims.gender) >= 0;
+    return maleGenders().indexOf(dims.gender) >= 0;
   }
 
   function optionVisible(opt, male) {

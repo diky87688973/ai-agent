@@ -386,6 +386,7 @@ def options_payload() -> Dict[str, object]:
     return {
         "dimensions": DIMENSIONS,
         "order": list(DIMENSION_ORDER),
+        "male_genders": list(MALE_GENDERS),
         "presets": PRESETS,
         "sample_text": SAMPLE_TEXT,
         "base_params": BASE_PARAMS,
