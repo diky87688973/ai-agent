@@ -16,7 +16,7 @@ from plugins.ai_cosplay.runtime import AICosplayRuntime
 from plugins.ai_cosplay.tool import AICosplayTool
 from plugins.tts.config import load_config
 from plugins.tts.plugin import make_service
-from plugins.tts.service import INSTALL_HINT, TTSService
+from plugins.tts.service import MODEL_DIRECTIVE, TTSService
 
 
 class _Service:
@@ -52,7 +52,7 @@ def _tool(hint, ready=False):
 
 class PassThroughTest(unittest.TestCase):
     def test_message_is_passed_through_verbatim(self) -> None:
-        hint = "本地引擎不可用：缺少 model_dir。" + INSTALL_HINT
+        hint = "本地引擎不可用：缺少 model_dir。" + MODEL_DIRECTIVE
         with self.assertRaises(TTSUnavailable) as ctx:
             _tool(hint).execute({"msg": "说一句。"})
         self.assertEqual(str(ctx.exception), hint)
@@ -84,6 +84,13 @@ class TtsHintTest(unittest.TestCase):
         hint = self._service(model_dir="", fallback_to_edge=False).unavailable_hint()
         self.assertIn("tts-setup", hint)
         self.assertIn("model_dir", hint)
+
+    def test_hint_orders_user_confirm(self) -> None:
+        """只提一句不够：必须明写先调 user_confirm 征得同意。"""
+        hint = self._service(model_dir="", fallback_to_edge=False).unavailable_hint()
+        self.assertIn("user_confirm", hint)
+        self.assertIn("不得只口头提一句", hint)
+        self.assertIn("现在安装", hint)
 
     def test_hint_empty_when_local_ready(self) -> None:
         service = TTSService(dataclasses.replace(load_config(), engine="edge"),

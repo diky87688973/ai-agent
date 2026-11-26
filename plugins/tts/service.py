@@ -22,11 +22,20 @@ from .config import TTSConfig
 if TYPE_CHECKING:  # 避免运行时循环导入，仅用于注解
     from .voice_lab import VoiceLab
 
-#: 本地方案不就绪时的完整引导。文案归 tts：只有它知道模型装哪、装什么、
-#: 装不好还有哪条退路；上游只管原样透传，不自造措辞。
+#: 本地方案不就绪时的简短提示；给状态页与诊断看，不写成动作指令。
 INSTALL_HINT = (
     "请加载 tts 技能的 tts-setup 子技能，按其中步骤安装本地模型并填好模型目录"
     "（也可在 tts 插件设置里打开「本地方案不可用时用 Edge 兜底」）"
+)
+
+#: 本地方案不就绪时给模型的强指令。只提一句会被当成背景信息丢掉，必须写明
+#: 先调哪个工具征得同意、同意后再加载哪个技能。
+MODEL_DIRECTIVE = (
+    "你必须先调用 user_confirm 工具问用户是否现在安装本地语音模型，"
+    "选项至少包含「现在安装」「改用 Edge 在线合成」「暂不处理」三项，"
+    "不得只口头提一句就继续。"
+    "用户选「现在安装」后，立即加载 tts 技能的 tts-setup 子技能按步骤安装并填好 model_dir；"
+    "选「改用 Edge 在线合成」则打开 tts 插件设置里的「本地方案不可用时用 Edge 兜底」开关。"
 )
 
 
@@ -82,8 +91,8 @@ class TTSService:
             return ""
         reason = str(status.get("degraded_reason") or "").strip()
         if not reason:
-            return INSTALL_HINT
-        return f"{reason}。{INSTALL_HINT}"
+            return f"语音合成不可用。{MODEL_DIRECTIVE}"
+        return f"{reason}。{MODEL_DIRECTIVE}"
 
     def status(self) -> Dict[str, object]:
         """状态快照。

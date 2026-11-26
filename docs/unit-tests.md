@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2819** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2820** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -157,7 +157,7 @@
 146. [test_tts_config.py](#test_tts_configpy)（21）
 147. [test_tts_degraded.py](#test_tts_degradedpy)（7）
 148. [test_tts_endpoints.py](#test_tts_endpointspy)（10）
-149. [test_tts_guidance.py](#test_tts_guidancepy)（8）
+149. [test_tts_guidance.py](#test_tts_guidancepy)（9）
 150. [test_tts_pinyin.py](#test_tts_pinyinpy)（2）
 151. [test_tts_provider.py](#test_tts_providerpy)（17）
 152. [test_tts_provider_errors.py](#test_tts_provider_errorspy)（6）
@@ -3455,7 +3455,7 @@
 
 ## test_tts_guidance.py
 
-共 8 个用例。
+共 9 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -3467,6 +3467,7 @@
 | 6 | `TtsHintTest` | `test_hint_empty_when_local_ready` | 覆盖「A class whose instances are single test cases」：hint empty when local ready |
 | 7 | `TtsHintTest` | `test_hint_names_skill_when_local_missing` | 覆盖「A class whose instances are single test cases」：hint names skill when local missing |
 | 8 | `TtsHintTest` | `test_hint_offers_edge_fallback` | 覆盖「A class whose instances are single test cases」：hint offers edge fallback |
+| 9 | `TtsHintTest` | `test_hint_orders_user_confirm` | 只提一句不够：必须明写先调 user_confirm 征得同意。 |
 
 ## test_tts_pinyin.py
 
