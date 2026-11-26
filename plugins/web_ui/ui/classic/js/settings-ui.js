@@ -441,9 +441,10 @@
   function pluginControl(field) {
     var key = String(field.key || "");
     var stored = state.pluginValues[key];
+    // 布尔字段的值不能转字符串：转成 "true" 后拿 === true 判就是假，开关永远显示关。
     var value = (stored == null || stored === "")
-      ? String(field.default == null ? "" : field.default)
-      : String(stored);
+      ? (field.default == null ? "" : field.default)
+      : stored;
     function remember(next) {
       state.pluginValues[key] = String(next);
     }

@@ -68,8 +68,21 @@ def _save(field: Dict[str, Any], app: Any, value: Any) -> Dict[str, Any]:
         allowed = {str(option["value"]) for option in field.get("options", ())}
         if raw not in allowed:
             return {"ok": False, "error": f"{field['label']}不在可选范围内"}
-    return save_host_value(
+    result = save_host_value(
         _section(field), field["key"], raw, app)
+    if not isinstance(result, dict) or not result.get("ok"):
+        return result if isinstance(result, dict) else {"ok": False, "error": "保存失败"}
+    if kind != "checkbox":
+        return result
+    # 写后回读：写入被回滚或写到别处时这里能抓住，否则界面显示已保存而文件里还是旧值。
+    try:
+        stored = _load(field)
+    except Exception as exc:
+        return {"ok": False, "error": f"{field['label']}写入后回读失败：{exc}"}
+    if stored is not value:
+        return {"ok": False,
+                "error": f"{field['label']}写入后回读不一致：期望 {value}，实际 {stored}"}
+    return result
 
 
 def _panel(ctx: Any) -> SettingDecl:
