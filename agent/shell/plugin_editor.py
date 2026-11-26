@@ -525,7 +525,10 @@ def _group_body(group: Dict[str, Any], schema: Dict[str, Any],
         if kind == "bool":
             raw = values.get(key, field.get("default"))
             body.extend(_comment_lines(comments.get(key.lower())))
-            body.append(f"{key} = {_bool_text(raw)}")
+            try:
+                body.append(f"{key} = {_bool_text(raw)}")
+            except ValueError as exc:
+                return [], f"{field['label']}：{exc}"
             continue
         value = str(values.get(key) or "").strip()
         if kind == "secret" and not value:
