@@ -190,10 +190,11 @@ def build_editor(text: str, folder: Path) -> Dict[str, Any]:
             "configured": configured,
         }
     if schema:
+        groups = _mask_secrets(_bool_groups(parse_groups(text, schema), schema), schema)
         return {
             "kind": "sections",
             "schema": schema,
-            "groups": _mask_secrets(parse_groups(text, schema), schema),
+            "groups": groups,
         }
     sections = text_sections(text)
     show_headers = len(sections) > 1
@@ -291,6 +292,24 @@ def render_text(text: str, sections: Iterable[str], *, show_headers: bool) -> st
     if not blocks:
         return ""
     return "\n\n".join(block.rstrip("\n") for block in blocks) + "\n"
+
+
+def _bool_groups(groups: List[Dict[str, Any]],
+                 schema: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """按节读取的视图也要把布尔字段转成真布尔，不能只修字段视图那一条路。"""
+    kinds = {str(item["key"]).lower(): item for item in schema["fields"]}
+    converted: List[Dict[str, Any]] = []
+    for group in groups:
+        values = dict(group.get("values") or {})
+        for key in list(values):
+            field = kinds.get(key)
+            if field is None or field["kind"] != "bool":
+                continue
+            values[key] = _bool_value(values[key], field)
+        item = dict(group)
+        item["values"] = values
+        converted.append(item)
+    return converted
 
 
 def _mask_secrets(groups: List[Dict[str, Any]], schema: Dict[str, Any]) -> List[Dict[str, Any]]:
