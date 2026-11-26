@@ -34,6 +34,9 @@ def run(acc: Any) -> int:
         page.goto(acc.base + "/", wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(1200)
         _open_panel(acc, page)
+        if not _lab_available(page):
+            print("  [SKIP] 音色工作台需要本地引擎，当前引擎没有音色库")
+            return 2
         _check_render(acc, page)
         _check_presets(acc, page)
         _check_voice_rows(acc, page)
@@ -52,6 +55,13 @@ def _open_panel(acc: Any, page: Any) -> None:
         {detail: {panel: 'app/shell/web-ui/right-panel/tts_voice'}}))""")
     acc.check("面板容器已插入", _wait(page, "() => !!document.getElementById('ttsLab')", 8000),
               "找不到 #ttsLab")
+
+
+def _lab_available(page: Any) -> bool:
+    """当前引擎能否开音色库：edge 引擎没有参考音色，工作台必然打不开。"""
+    text = page.evaluate(
+        "() => (document.getElementById('ttsLab') || {}).textContent || ''")
+    return "当前引擎没有音色库" not in text
 
 
 def _check_render(acc: Any, page: Any) -> None:
