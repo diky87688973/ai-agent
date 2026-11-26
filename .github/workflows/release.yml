@@ -53,8 +53,8 @@ jobs:
           $assets = @(Get-ChildItem dist -File | ForEach-Object { $_.FullName })
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release edit $tag --title "$tag" --notes-file $notesPath
+            gh release edit $tag --title "$tag" --notes-file $notesPath --draft=false --latest
             gh release upload $tag $assets --clobber
           } else {
-            gh release create $tag $assets --title "$tag" --notes-file $notesPath
+            gh release create $tag $assets --title "$tag" --notes-file $notesPath --latest
           }
