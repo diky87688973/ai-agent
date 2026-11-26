@@ -228,22 +228,27 @@ def merge_fields(text: str, values: Dict[str, Any], schema: Dict[str, Any]) -> T
     for key, value in values.items():
         if key not in fields:
             return None, f"未知配置项 {key}"
+        field = fields[key]
+        if field.get("transient") or field["kind"] == "action":
+            # 只在界面内用的取值与按钮，不进配置文件。
+            continue
+        if field["kind"] == "bool":
+            # 布尔只能走边界转换写出 0/1；直接 str() 会写出 True 这种非法值。
+            try:
+                updates[key] = _bool_text(value)
+            except ValueError as exc:
+                return None, f"{field['label']}：{exc}"
+            continue
         text_value = str(value if value is not None else "").strip()
-        if fields[key].get("transient"):
-            # 只在界面内用的取值（比如音色生成参数），不进配置文件。
+        if field["kind"] == "secret" and not text_value:
             continue
-        if fields[key]["kind"] == "action":
-            # 按钮字段没有值可存，提交里也不会出现；万一带了值也丢掉。
-            continue
-        if fields[key]["kind"] == "secret" and not text_value:
-            continue
-        if fields[key]["kind"] == "number" and text_value:
+        if field["kind"] == "number" and text_value:
             try:
                 number = int(text_value)
             except (TypeError, ValueError):
-                return None, f"{fields[key]['label']}必须是整数"
-            if "min" in fields[key] and number < int(fields[key]["min"]):
-                return None, f"{fields[key]['label']}不能小于 {fields[key]['min']}"
+                return None, f"{field['label']}必须是整数"
+            if "min" in field and number < int(field["min"]):
+                return None, f"{field['label']}不能小于 {field['min']}"
             text_value = str(number)
         updates[key] = text_value
     return update_ini_keys(text, schema["section"], updates), ""
