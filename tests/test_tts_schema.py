@@ -11,7 +11,7 @@ from plugins.tts import schema
 class ComposeTest(unittest.TestCase):
     def test_compose_structure(self) -> None:
         """指令形状：must be…definitely not…，且五个维度都在。"""
-        dims = {"age": "轻熟", "timbre": "冷冽", "persona": "冷艳强势",
+        dims = {"gender": "女性", "age": "轻熟", "timbre": "冷冽", "persona": "冷艳强势",
                 "pace": "适中", "emotion": "克制"}
         text = schema.compose(dims)
         self.assertTrue(text.startswith("must be "))
@@ -37,7 +37,7 @@ class ComposeTest(unittest.TestCase):
         self.assertGreater(longest, 200, "指令短得异常，可能漏了音高或否定段")
 
     def test_same_dims_always_same_text(self) -> None:
-        dims = {"age": "少女", "timbre": "清亮", "persona": "甜美灵动",
+        dims = {"gender": "女性", "age": "少女", "timbre": "清亮", "persona": "甜美灵动",
                 "pace": "轻快", "emotion": "愉悦"}
         self.assertEqual(schema.compose(dims), schema.compose(dict(dims)))
 
@@ -46,13 +46,13 @@ class ComposeTest(unittest.TestCase):
             schema.compose({"age": "少女", "timbre": "清亮"})
 
     def test_unknown_value_rejected(self) -> None:
-        dims = {"age": "老人", "timbre": "清亮", "persona": "甜美灵动",
+        dims = {"gender": "女性", "age": "老人", "timbre": "清亮", "persona": "甜美灵动",
                 "pace": "轻快", "emotion": "愉悦"}
         with self.assertRaises(ValueError):
             schema.compose(dims)
 
     def test_blank_value_rejected(self) -> None:
-        dims = {"age": "  ", "timbre": "清亮", "persona": "甜美灵动",
+        dims = {"gender": "女性", "age": "  ", "timbre": "清亮", "persona": "甜美灵动",
                 "pace": "轻快", "emotion": "愉悦"}
         with self.assertRaises(ValueError):
             schema.compose(dims)
@@ -83,14 +83,18 @@ class OptionsTest(unittest.TestCase):
     def test_payload_matches_dimensions(self) -> None:
         payload = schema.options_payload()
         self.assertEqual(payload["order"], list(schema.DIMENSION_ORDER))
-        self.assertEqual(len(payload["dimensions"]), 5)
+        self.assertEqual(len(payload["dimensions"]), len(schema.DIMENSION_ORDER))
         self.assertTrue(str(payload["sample_text"]))
 
     def test_each_dimension_has_options(self) -> None:
         for dim in schema.DIMENSIONS:
             with self.subTest(dim=dim["key"]):
                 self.assertTrue(dim["options"], "维度不能没有选项")
+                # 女声是基准，不产生措辞；其余选项必须有英文描述。
+                silent = schema.SILENT_VALUES.get(dim["key"], ())
                 for opt in dim["options"]:
+                    if opt["value"] in silent:
+                        continue
                     self.assertTrue(str(opt["text"]).strip())
 
 
@@ -104,7 +108,7 @@ class DescribeTest(unittest.TestCase):
                 self.assertIsNone(re.search(r"[A-Za-z]{3,}", text))
 
     def test_describe_covers_all_dimensions(self) -> None:
-        dims = {"age": "少女", "timbre": "气声", "persona": "甜美灵动",
+        dims = {"gender": "女性", "age": "少女", "timbre": "气声", "persona": "甜美灵动",
                 "pace": "舒缓", "emotion": "温和"}
         parts = schema.describe(dims).split("，")
         self.assertEqual(len(parts), len(schema.DIMENSION_ORDER))

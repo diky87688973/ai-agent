@@ -16,7 +16,14 @@ from __future__ import annotations
 from typing import Dict, List, Mapping
 
 #: 拼接顺序固定，改顺序等于换音色，不允许按调用方意愿重排。
-DIMENSION_ORDER = ("age", "timbre", "persona", "pace", "emotion")
+DIMENSION_ORDER = ("gender", "age", "timbre", "persona", "pace", "emotion")
+
+#: 男声档位。选这些值时 age 维度不参与：
+#: 同时要求 "a teenage girl" 与 "male voice" 会互相抵消，模型随机偏向一边。
+MALE_GENDERS = ("少年", "青年", "中年", "低沉", "暮年")
+
+#: 不产生措辞的维度取值：女声是基准，不需要额外描述。
+SILENT_VALUES = {"gender": ("女性",)}
 
 #: 基准参数；集合里没有写到的项就用这里的值。
 BASE_PARAMS: Dict[str, float] = {
@@ -42,6 +49,23 @@ PARAM_LIMITS: Dict[str, tuple] = {
 ACCUMULATED = ("pitch", "speed", "gain_db")
 
 DIMENSIONS: List[Dict[str, object]] = [
+    {
+        "key": "gender",
+        "label": "性别声线",
+        "options": [
+            {"value": "女性", "text": "", "neg": "", "params": {}},
+            {"value": "少年", "text": "a young boy's clear voice", "neg": "an adult man",
+             "params": {"pitch": -2.0}},
+            {"value": "青年", "text": "a young man in his twenties", "neg": "a woman",
+             "params": {"pitch": -4.0}},
+            {"value": "中年", "text": "a mature man in his forties", "neg": "a woman",
+             "params": {"pitch": -5.0}},
+            {"value": "低沉", "text": "a man with a deep resonant voice", "neg": "a woman",
+             "params": {"pitch": -6.0}},
+            {"value": "暮年", "text": "an elderly man with a weathered voice", "neg": "a woman",
+             "params": {"pitch": -6.0}},
+        ],
+    },
     {
         "key": "age",
         "label": "年龄声线",
@@ -137,53 +161,53 @@ DIMENSIONS: List[Dict[str, object]] = [
 
 PRESETS: List[Dict[str, object]] = [
     {"id": "qingling", "label": "清亮甜美",
-     "dims": {"age": "少女", "timbre": "清亮", "persona": "甜美灵动",
+     "dims": {"gender": "女性", "age": "少女", "timbre": "清亮", "persona": "甜美灵动",
               "pace": "轻快", "emotion": "愉悦"},
      "target": {"f0": [340, 395], "centroid": 1600}},
     {"id": "fanyin", "label": "温柔清晰",
-     "dims": {"age": "年轻女性", "timbre": "温润", "persona": "温柔亲切",
+     "dims": {"gender": "女性", "age": "年轻女性", "timbre": "温润", "persona": "温柔亲切",
               "pace": "适中", "emotion": "温和"},
      "target": {"f0": [195, 235], "centroid": 2500}},
     {"id": "zhixing", "label": "成熟知性",
-     "dims": {"age": "成熟", "timbre": "醇厚", "persona": "知性稳重",
+     "dims": {"gender": "女性", "age": "成熟", "timbre": "醇厚", "persona": "知性稳重",
               "pace": "舒缓", "emotion": "平和"},
      "target": {"f0": [190, 230], "centroid": 3200}},
     {"id": "yujie", "label": "御姐",
-     "dims": {"age": "成熟", "timbre": "冷冽", "persona": "冷艳强势",
+     "dims": {"gender": "女性", "age": "成熟", "timbre": "冷冽", "persona": "冷艳强势",
               "pace": "适中", "emotion": "克制"},
      "target": {"f0": [185, 220], "centroid": 3400}},
     {"id": "ruanmeng", "label": "软萌",
-     "dims": {"age": "少女", "timbre": "气声", "persona": "甜美灵动",
+     "dims": {"gender": "女性", "age": "少女", "timbre": "气声", "persona": "甜美灵动",
               "pace": "舒缓", "emotion": "温和"},
      "target": {"f0": [330, 375], "centroid": 2400},
      "seed": 6},
     {"id": "wenyi", "label": "温婉古典",
-     "dims": {"age": "轻熟", "timbre": "清亮", "persona": "古典端庄",
+     "dims": {"gender": "女性", "age": "轻熟", "timbre": "清亮", "persona": "古典端庄",
               "pace": "舒缓", "emotion": "温和"},
      "target": {"f0": [230, 285], "centroid": 2600},
      "seed": 5},
     {"id": "qingleng", "label": "清冷疏离",
-     "dims": {"age": "年轻女性", "timbre": "冷冽", "persona": "冷艳强势",
+     "dims": {"gender": "女性", "age": "年轻女性", "timbre": "冷冽", "persona": "冷艳强势",
               "pace": "适中", "emotion": "克制"},
      "target": {"f0": [195, 235], "centroid": 3100}},
     {"id": "ganlian", "label": "干练职场",
-     "dims": {"age": "成熟", "timbre": "清亮", "persona": "知性稳重",
+     "dims": {"gender": "女性", "age": "成熟", "timbre": "清亮", "persona": "知性稳重",
               "pace": "轻快", "emotion": "平和"},
      "target": {"f0": [300, 345], "centroid": 2300}},
     {"id": "youya", "label": "优雅端庄",
-     "dims": {"age": "成熟", "timbre": "醇厚", "persona": "古典端庄",
+     "dims": {"gender": "女性", "age": "成熟", "timbre": "醇厚", "persona": "古典端庄",
               "pace": "适中", "emotion": "克制"},
      "target": {"f0": [175, 205], "centroid": 3700}},
     {"id": "huopo", "label": "活泼俏皮",
-     "dims": {"age": "少女", "timbre": "清亮", "persona": "活泼俏皮",
+     "dims": {"gender": "女性", "age": "少女", "timbre": "清亮", "persona": "活泼俏皮",
               "pace": "轻快", "emotion": "愉悦"},
      "target": {"f0": [345, 395], "centroid": 2200}},
     {"id": "shenye", "label": "深夜电台",
-     "dims": {"age": "轻熟", "timbre": "气声", "persona": "慵懒松弛",
+     "dims": {"gender": "女性", "age": "轻熟", "timbre": "气声", "persona": "慵懒松弛",
               "pace": "舒缓", "emotion": "温和"},
      "target": {"f0": [190, 225], "centroid": 3700}},
     {"id": "cixiang", "label": "慈祥长辈",
-     "dims": {"age": "长辈", "timbre": "清亮", "persona": "温柔亲切",
+     "dims": {"gender": "女性", "age": "长辈", "timbre": "清亮", "persona": "温柔亲切",
               "pace": "舒缓", "emotion": "愉悦"},
      "target": {"f0": [180, 220], "centroid": 2400},
      "seed": 5},
@@ -218,16 +242,24 @@ def normalize(dims: Mapping[str, object]) -> Dict[str, str]:
     return normalized
 
 
+def _is_male(normalized: Mapping[str, str]) -> bool:
+    return normalized.get("gender") in MALE_GENDERS
+
+
 def compose_params(dims: Mapping[str, object]) -> Dict[str, float]:
-    """把五个维度的数值参数累加起来，按区间夹紧。
+    """把各维度的数值参数累加起来，按区间夹紧。
 
     pitch / speed / gain 逐项相加；cfg_scale / temperature / top_k 由
     personality 决定，后写覆盖，避免多个维度各说一套互相抵消。
+    男声档位下 age 不参与：两个维度的音高增量相加会把男声又拉回女声区。
     """
     table = _option_index()
     normalized = normalize(dims)
+    skip = {"age"} if _is_male(normalized) else set()
     params = dict(BASE_PARAMS)
     for key in DIMENSION_ORDER:
+        if key in skip:
+            continue
         option = table[key][normalized[key]]
         for name, raw in (option.get("params") or {}).items():
             if name not in PARAM_LIMITS:
@@ -247,15 +279,23 @@ def describe_params(params: Mapping[str, float]) -> str:
             f"top_k {params['top_k']:.0f}")
 
 
-def _pitch_words(pitch: float) -> str:
+def _pitch_words(pitch: float, male: bool = False) -> str:
     """把音高参数翻译成模型能听懂的音高描述。
 
     不用重采样改音高：那会把共振峰整体挪走（+4 半音 = 上移 26%），
     声音会变成花栗鼠或慢放怪声，听感直接崩掉。
 
     中音档也要明写 female：不写的时候模型会飘到中性或偏低的地方，
-    实测 wenyi 因此掉到 220 Hz，听成男声。
+    实测 wenyi 因此掉到 220 Hz，听成男声。男声反向同理，档位必须写死性别。
     """
+    if male:
+        if pitch >= -2.5:
+            return "slightly high-pitched young male voice"
+        if pitch >= -4.5:
+            return "medium-pitched young male voice"
+        if pitch >= -5.5:
+            return "slightly low-pitched mature male voice"
+        return "deep low-pitched male voice"
     if pitch >= 3.0:
         return "high-pitched youthful female voice"
     if pitch >= 1.5:
@@ -268,15 +308,26 @@ def _pitch_words(pitch: float) -> str:
 
 
 def compose(dims: Mapping[str, object]) -> str:
-    """把维度组合成一条英文指令：音高档 + 五个维度 + 能量句 + 否定项。"""
+    """把维度组合成一条英文指令：音高档 + 各维度措辞 + 能量句 + 否定项。"""
     table = _option_index()
     normalized = normalize(dims)
+    male = _is_male(normalized)
     params = compose_params(dims)
-    parts = [str(table[key][normalized[key]]["text"]) for key in DIMENSION_ORDER]
-    pitch_word = _pitch_words(params["pitch"])
+    skip = {"age"} if male else set()
+    parts = []
+    avoid = []
+    for key in DIMENSION_ORDER:
+        option = table[key][normalized[key]]
+        text = str(option["text"])
+        # 女声是基准，不额外描述；男声档位下年龄措辞会与性别冲突，一律不拼。
+        if text and key not in skip:
+            parts.append(text)
+        neg = str(option.get("neg") or "")
+        if neg:
+            avoid.append(neg)
+    pitch_word = _pitch_words(params["pitch"], male)
     if pitch_word:
         parts.insert(0, pitch_word)
-    avoid = ", ".join(str(table[key][normalized[key]]["neg"]) for key in DIMENSION_ORDER)
     # 不能写 "speak with energy"：那句会让模型转成播报腔（实测 wenyi 被听成广播员）。
     # 也不能不写能量：不写时响度只 -25~-40 dB、基频起伏 22~48，像有气无力。
     # 所以明确要求“像真人说话、不要像念新闻”。
@@ -285,9 +336,13 @@ def compose(dims: Mapping[str, object]) -> str:
 
 
 def describe(dims: Mapping[str, object]) -> str:
-    """给界面看的中文描述；英文指令只进模型。"""
+    """给界面看的中文描述；英文指令只进模型。
+
+    男声档位下年龄不参与拼装，描述里也不列，否则会出现「少年，少女」这种自相矛盾的组合。
+    """
     normalized = normalize(dims)
-    return "，".join(normalized[key] for key in DIMENSION_ORDER)
+    skip = {"age"} if _is_male(normalized) else set()
+    return "，".join(normalized[key] for key in DIMENSION_ORDER if key not in skip)
 
 
 def seed_for(dims: Mapping[str, object]) -> int:
