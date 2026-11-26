@@ -483,7 +483,7 @@
       return chips;
     }
     if (field.kind === "checkbox") {
-      var on = value === "1" || value === true || value === 1 || value === "true";
+      var on = isOnValue(value);
       state.pluginValues[key] = on;
       return boolControl(on, function (next) { state.pluginValues[key] = next; });
     }
@@ -593,12 +593,18 @@
     return configured ? "已设置秘钥,可重新设置并替换" : "未配置秘钥";
   }
 
+  function isOnValue(value) {
+    if (value === true || value === 1) return true;
+    var text = String(value == null ? "" : value).trim().toLowerCase();
+    return text === "1" || text === "true" || text === "on" || text === "yes";
+  }
+
   function boolControl(value, onChange) {
     var wrap = document.createElement("label");
     wrap.className = "st-switch";
     var input = document.createElement("input");
     input.type = "checkbox";
-    input.checked = value === "1" || value === true || value === 1;
+    input.checked = isOnValue(value);
     input._settingsChange = function () {
       onChange(input.checked);
     };
