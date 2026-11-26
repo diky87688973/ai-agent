@@ -16,8 +16,8 @@ from agent.config import load_ini
 CONFIG_FILE = "plugin-config.ini"
 SECTION = "config"
 
-_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
-_FALSE_VALUES = frozenset({"0", "false", "no", "off"})
+_TRUE_VALUES = frozenset({"1"})
+_FALSE_VALUES = frozenset({"0"})
 
 #: 整数键的取值范围；越界夹到边界。
 INT_RANGES: Mapping[str, tuple] = {
@@ -58,12 +58,15 @@ DEFAULTS = DesktopConfig()
 
 
 def _as_bool(raw: Optional[str], default: bool) -> bool:
-    text = str(raw or "").strip().lower()
-    if text in _TRUE_VALUES:
+    """只认 0 与 1；空值取默认，其他写法不静默当默认值。"""
+    text = str(raw or "").strip()
+    if not text:
+        return default
+    if text == "1":
         return True
-    if text in _FALSE_VALUES:
+    if text == "0":
         return False
-    return default
+    raise ValueError(f"疑似布尔项只接受 0 或 1，收到 {raw!r}")
 
 
 def _as_int(raw: Optional[str], key: str) -> int:

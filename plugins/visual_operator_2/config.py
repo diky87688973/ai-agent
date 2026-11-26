@@ -46,12 +46,15 @@ def _float(section: configparser.SectionProxy, key: str, default: float,
 
 
 def _bool(section: configparser.SectionProxy, key: str, default: bool) -> bool:
-    raw = str(section.get(key, "1" if default else "0") or "").strip().lower()
-    if raw in ("1", "true", "yes", "on"):
+    """只认 0 与 1；空值取默认，其他写法直接报错。"""
+    raw = str(section.get(key, "1" if default else "0") or "").strip()
+    if not raw:
+        return default
+    if raw == "1":
         return True
-    if raw in ("0", "false", "no", "off"):
+    if raw == "0":
         return False
-    return default
+    raise ValueError(f"{key} 只接受 0 或 1，收到 {raw!r}")
 
 
 def load_config(path: Path | None = None) -> VisionConfig:
