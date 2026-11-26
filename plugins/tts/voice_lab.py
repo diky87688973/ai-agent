@@ -15,8 +15,6 @@ import wave
 from pathlib import Path
 from typing import Any, Dict, List, Mapping
 
-import numpy as np
-
 from agent.common.tts_contract import TTSEngineUnavailable, TTSRequest, TTSResult
 
 from . import schema
@@ -24,41 +22,6 @@ from . import schema
 _NO_PROXY = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 _VOICE_ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _TIMEOUT_S = 180.0
-
-
-def _measure(audio: bytes, sample_rate: int) -> Dict[str, float]:
-    """算一次生成的关键指标：基频中位数、频谱质心、时长。
-
-    产品流程不用它，留给测试与诊断：音色是否落在定位区间靠这三个值判定。
-    """
-    data = np.frombuffer(audio, dtype="<i2").astype(np.float32)
-    seconds = data.size / float(sample_rate)
-    window = 960
-    frames = data[: (data.size // window) * window].reshape(-1, window)
-    if frames.size == 0:
-        return {"f0": 0.0, "centroid": 0.0, "seconds": seconds}
-    energy = np.sqrt((frames ** 2).mean(axis=1))
-    picked = frames[energy >= np.percentile(energy, 60)][:80] if frames.shape[0] else frames
-    f0s: List[float] = []
-    centroids: List[float] = []
-    low_lag = int(sample_rate / 400)
-    high_lag = int(sample_rate / 60)
-    for frame in picked:
-        centered = frame - frame.mean()
-        corr = np.correlate(centered, centered, mode="full")[centered.size - 1:]
-        if high_lag < corr.size:
-            lag = low_lag + int(np.argmax(corr[low_lag:high_lag]))
-            if corr[lag] > 0.3 * corr[0]:
-                f0s.append(sample_rate / lag)
-        spec = np.abs(np.fft.rfft(centered * np.hanning(centered.size)))
-        freqs = np.fft.rfftfreq(centered.size, 1.0 / sample_rate)
-        if spec.sum() > 0:
-            centroids.append(float((spec * freqs).sum() / spec.sum()))
-    return {
-        "f0": float(np.median(f0s)) if f0s else 0.0,
-        "centroid": float(np.mean(centroids)) if centroids else 0.0,
-        "seconds": seconds,
-    }
 
 
 class VoiceLabError(ValueError):
