@@ -89,16 +89,20 @@ def _float_value(raw: str, default: float) -> Tuple[float, Optional[str]]:
         return default, f"非数字值 {raw!r}，使用默认值 {default}"
 
 
-def _bool_value(raw: str, default: bool) -> Tuple[bool, Optional[str]]:
-    """解析布尔值；无法识别时回退默认值并给出警告。"""
-    if not raw:
-        return default, None
-    text = str(raw).strip().lower()
-    if text in ("1", "true", "yes", "on"):
-        return True, None
-    if text in ("0", "false", "no", "off"):
-        return False, None
-    return default, f"非布尔值 {raw!r}，使用默认值 {default}"
+def _bool_value(raw: str, default: bool, key: str) -> bool:
+    """ini 只能存文本，布尔在边界上用 0/1；其他写法是配置错误。
+
+    不再接受 true/yes/on：多一种写法就多一套映射，
+    写入端只写 0/1，读取端就只该认 0/1。
+    """
+    text = str(raw or "").strip()
+    if not text:
+        return default
+    if text == "1":
+        return True
+    if text == "0":
+        return False
+    raise ConfigError(f"{key} 只接受 0 或 1，收到 {raw!r}")
 
 
 def _parse_numeric(values: dict[str, str], warnings: list[str]) -> Tuple[int, int, bool, float]:
@@ -124,11 +128,9 @@ def _parse_numeric(values: dict[str, str], warnings: list[str]) -> Tuple[int, in
         warnings.append(f"play_interval_ms={play_interval_ms} 小于 0，按 0 处理")
         play_interval_ms = 0
 
-    sync_playback, warning = _bool_value(
-        values.get("sync_playback", ""), DEFAULT_SYNC_PLAYBACK
+    sync_playback = _bool_value(
+        values.get("sync_playback", ""), DEFAULT_SYNC_PLAYBACK, "sync_playback"
     )
-    if warning:
-        warnings.append(f"sync_playback {warning}")
 
     speed, warning = _float_value(values.get("speed", ""), DEFAULT_SPEED)
     if warning:
