@@ -66,7 +66,7 @@ def gate_steps() -> List[CiStep]:
         CiStep("单测文档一致", "gate", "scripts/gen_unit_tests_md.py --check",
                ["scripts/gen_unit_tests_md.py", "--check"], 5),
         CiStep("静态检查", "gate", "ruff check",
-               ["-m", "ruff", "check", "agent", "tests", "scripts"], 5),
+               ["-m", "ruff", "check", "agent", "tests", "scripts", "plugins"], 5),
         CiStep("Python 下限", "gate", "scripts/check_python_floor.py",
                ["scripts/check_python_floor.py"], 3),
         CiStep("UI JS 自检", "gate", "scripts/check_ui_js.py",

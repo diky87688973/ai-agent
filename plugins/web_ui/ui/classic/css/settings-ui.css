@@ -222,3 +222,64 @@ html[data-ui-theme="light"] .st-apply.is-primary:disabled {
   color: var(--c-text-2);
   border-color: var(--c-line-2);
 }
+
+/* 卡片选择：一排可点的选项，选中态用主色描边 + 淡底 */
+.st-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 0;
+}
+.st-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--c-line-2);
+  background: transparent;
+  color: var(--c-text-2);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color .12s ease, background .12s ease, color .12s ease;
+}
+.st-chip:hover {
+  border-color: var(--c-line-3);
+  color: var(--c-text-1);
+}
+.st-chip.is-active {
+  border-color: var(--c-accent, var(--c-line-3));
+  background: var(--c-bg-active);
+  color: var(--c-text-1);
+  font-weight: 500;
+}
+
+/* 动作按钮：试听、保存这类直接生效的操 */
+.st-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.st-action-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--c-line-3);
+  background: transparent;
+  color: var(--c-text-1);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.st-action-btn:hover:not(:disabled) {
+  background: var(--c-bg-hover);
+}
+.st-action-btn:disabled {
+  opacity: .55;
+  cursor: default;
+}
+.st-action-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--c-text-3);
+  word-break: break-all;
+}

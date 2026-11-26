@@ -179,7 +179,7 @@ Failure responses:
 | Exception | Trigger | Top-level result |
 |---|---|---|
 | `MessageValidationError` | Empty text, more than 512 characters, control characters, pairing errors, wrong leading or trailing position, percent/arithmetic context errors, a clause over the limit | `{"ok": false, "error": "..."}` |
-| `SpeechEngineUnavailable` | `edge-tts` not installed, missing conversation or tool-call context, no plugin event outlet, no connected Web UI, plugin unloaded | Same, with an actionable message |
+| `TTSUnavailable` | `edge-tts` not installed, missing conversation or tool-call context, no plugin event outlet, no connected Web UI, plugin unloaded | Same, with an actionable message |
 | `SpeechBusy` | The conversation reached its pending-segment limit | Same, with the current queue length and limit |
 | `SpeechSynthesisFailed` | A segment failed to synthesize in synchronous mode | Same, with the reason from the engine |
 | `SpeechPlaybackFailed` | Playback timed out, was stopped, errored, or the audio never arrived in synchronous mode | Same, with the playback status and elapsed wait |
@@ -670,7 +670,7 @@ class _SessionWorker:
 | Class | Producer | Handling |
 |---|---|---|
 | Validation failure | `text.split_message` | The tool raises `MessageValidationError`; top-level `ok=false`; no audio produced |
-| Dependency unavailable | `provider` / context / publisher | The tool raises `SpeechEngineUnavailable`; the message points to installation or enablement |
+| Dependency unavailable | `provider` / context / publisher | The tool raises `TTSUnavailable`; the message points to installation or enablement |
 | Queue busy | `runtime.enqueue` | The tool raises `SpeechBusy`; the message gives the queue length and limit |
 | Synthesis failure | worker | Publish an `error` event; record `report_error`; continue with the next segment |
 | Playback unfinished | synchronous waiter | The tool raises `SpeechPlaybackFailed` with the status and elapsed wait |

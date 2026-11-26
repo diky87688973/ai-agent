@@ -243,12 +243,21 @@
     st.current = null;
   }
 
+  function applyPlaybackRate(st) {
+    var rate = st.current && Number(st.current.rate) > 0 ? Number(st.current.rate) : 1;
+    var applied = !!(st.current && st.current.speedApplied);
+    // 引擎已在合成侧按语速生成时不再变速，否则会把 1.2 变成 1.44。
+    var target = applied ? 1 : rate;
+    try { st.audio.playbackRate = target; } catch (e) {}
+  }
+
   function startCurrentAudio(st) {
     if (destroyed || st.paused || st.blocked || !st.current || !st.current.url) return;
     if (st.audio.src !== st.current.url) {
       st.ignorePauseUntil = Date.now() + 150;
       st.audio.src = st.current.url;
     }
+    applyPlaybackRate(st);
     var result = st.audio.play();
     if (result && typeof result.catch === "function") {
       result.catch(function (err) {
@@ -416,6 +425,8 @@
         total: Number(frame.total) || 0,
         text: text(frame.text),
         mime: mime,
+        rate: Number(frame.speed) > 0 ? Number(frame.speed) : 1,
+        speedApplied: frame.speed_applied === true,
         url: URL.createObjectURL(new Blob([bytes], { type: mime }))
       };
     } catch (err) {
@@ -642,6 +653,7 @@
           st.audio.pause();
           st.audio.src = st.current.url;
           st.audio.load();
+          applyPlaybackRate(st);
           var retry = st.audio.play();
           if (retry && typeof retry.catch === "function") retry.catch(function () {});
           if (st === currentState()) render();

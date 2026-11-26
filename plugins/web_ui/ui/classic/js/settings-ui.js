@@ -458,6 +458,30 @@
       select._settingsChange = function () { remember(select.value); };
       return select;
     }
+    if (field.kind === "chips") {
+      var chips = document.createElement("div");
+      chips.className = "st-chips";
+      (field.options || []).forEach(function (opt) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "st-chip";
+        chip.textContent = String(opt.label || opt.value || "");
+        chip.dataset.value = String(opt.value == null ? "" : opt.value);
+        if (chip.dataset.value === value) chip.classList.add("is-active");
+        chips.appendChild(chip);
+      });
+      chips.addEventListener("click", function (event) {
+        var target = event.target;
+        if (!target || !target.dataset || target.dataset.value === undefined) return;
+        var picked = String(target.dataset.value);
+        remember(picked);
+        Array.prototype.forEach.call(chips.children, function (node) {
+          node.classList.toggle("is-active", node.dataset.value === picked);
+        });
+      });
+      remember(value);
+      return chips;
+    }
     if (field.kind === "checkbox") {
       var on = value === "1" || value === true || value === 1 || value === "true";
       state.pluginValues[key] = on;
@@ -469,6 +493,68 @@
       area.value = value;
       area._settingsInput = function () { remember(area.value); };
       return area;
+    }
+    if (field.kind === "action") {
+      var wrap = document.createElement("div");
+      wrap.className = "st-action";
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "st-action-btn";
+      button.textContent = field.button_text || field.label || key;
+      var note = document.createElement("span");
+      note.className = "st-action-note";
+      button.addEventListener("click", function () {
+        if (field.panel) {
+          document.dispatchEvent(new CustomEvent("ai-agent:open-panel", {
+            detail: { panel: String(field.panel) }
+          }));
+          note.textContent = "已打开";
+          return;
+        }
+        var payload = {};
+        (field.payload || []).forEach(function (name) {
+          var value = state.pluginValues[name];
+          payload[name] = value == null ? "" : String(value);
+        });
+        button.disabled = true;
+        note.textContent = field.busy_text || "处理中…";
+        fetch(field.action_url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        }).then(function (resp) {
+          return resp.json().catch(function () { return {}; }).then(function (data) {
+            if (!resp.ok || data.ok === false) {
+              throw new Error(String(data.error || ("HTTP " + resp.status)));
+            }
+            return data;
+          });
+        }).then(function (data) {
+          if (data.audio) {
+            var raw = atob(String(data.audio));
+            var bytes = new Uint8Array(raw.length);
+            for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+            var url = URL.createObjectURL(new Blob([bytes], {
+              type: data.mime || "audio/wav"
+            }));
+            var audio = new Audio(url);
+            audio.addEventListener("ended", function () { URL.revokeObjectURL(url); });
+            audio.play().catch(function () {});
+            note.textContent = data.instruction ? ("已生成：" + data.instruction) : "已生成";
+          } else if (data.id) {
+            note.textContent = "已保存：" + data.id;
+          } else {
+            note.textContent = "完成";
+          }
+        }).catch(function (err) {
+          note.textContent = String(err && err.message || err);
+        }).then(function () {
+          button.disabled = false;
+        });
+      });
+      wrap.appendChild(button);
+      wrap.appendChild(note);
+      return wrap;
     }
     var input = document.createElement("input");
     input.id = "stPlugin-" + key.replace(/[^A-Za-z0-9_-]/g, "-");
@@ -1006,6 +1092,79 @@
   function structuredControl(schema, group, field, row) {
     var key = field.key;
     var value = groupValue(schema, group, field);
+    if (field.kind === "action") {
+      var actionWrap = document.createElement("div");
+      actionWrap.className = "st-action";
+      var actionBtn = document.createElement("button");
+      actionBtn.type = "button";
+      actionBtn.className = "st-action-btn";
+      actionBtn.textContent = field.button_text || field.label || key;
+      var actionNote = document.createElement("span");
+      actionNote.className = "st-action-note";
+      actionBtn.addEventListener("click", function () {
+        if (field.panel) {
+          document.dispatchEvent(new CustomEvent("ai-agent:open-panel", {
+            detail: { panel: String(field.panel) }
+          }));
+          actionNote.textContent = "已打开";
+          return;
+        }
+        var payload = {};
+        (field.payload || []).forEach(function (name) {
+          var item = group.values[name];
+          payload[name] = item == null ? "" : String(item);
+        });
+        actionBtn.disabled = true;
+        actionNote.textContent = field.busy_text || "处理中…";
+        fetch(field.action_url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        }).then(function (resp) {
+          return resp.json().catch(function () { return {}; }).then(function (data) {
+            if (!resp.ok || data.ok === false) {
+              throw new Error(String(data.error || ("HTTP " + resp.status)));
+            }
+            return data;
+          });
+        }).then(function (data) {
+          actionNote.textContent = data.instruction ? ("已生成：" + data.instruction)
+            : (data.id ? ("已保存：" + data.id) : "完成");
+        }).catch(function (err) {
+          actionNote.textContent = String(err && err.message || err);
+        }).then(function () {
+          actionBtn.disabled = false;
+        });
+      });
+      actionWrap.appendChild(actionBtn);
+      actionWrap.appendChild(actionNote);
+      return actionWrap;
+    }
+    if (field.kind === "chips") {
+      var chips = document.createElement("div");
+      chips.className = "st-chips";
+      (field.options || []).forEach(function (opt) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "st-chip";
+        chip.textContent = String(opt.label || opt.value || "");
+        chip.dataset.value = String(opt.value == null ? "" : opt.value);
+        if (chip.dataset.value === String(value == null ? "" : value)) {
+          chip.classList.add("is-active");
+        }
+        chips.appendChild(chip);
+      });
+      chips.addEventListener("click", function (event) {
+        var target = event.target;
+        if (!target || !target.dataset || target.dataset.value === undefined) return;
+        var picked = String(target.dataset.value);
+        group.values[key] = picked;
+        Array.prototype.forEach.call(chips.children, function (node) {
+          node.classList.toggle("is-active", node.dataset.value === picked);
+        });
+      });
+      return chips;
+    }
     if (field.kind === "bool") {
       return boolControl(value, function (next) {
         group.values[key] = next;

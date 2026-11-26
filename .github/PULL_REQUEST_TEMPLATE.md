@@ -23,7 +23,7 @@ Closes #
 - [ ] 新增或修改行为有测试覆盖
 - [ ] 工具声明变更已运行 `python scripts/gen_catalog.py`
 - [ ] 测试变更已运行 `python scripts/gen_unit_tests_md.py`
-- [ ] `python -m ruff check agent tests scripts` 通过
+- [ ] `python -m ruff check agent tests scripts plugins` 通过
 - [ ] 涉及界面时 `python scripts/check_ui_js.py` 通过
 - [ ] 未提交 `config.ini`、插件配置密钥或 `data/` 内容
 - [ ] 文档与行为一致

@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "root": "app",
+  "slots": [
+    {
+      "path": "app/plugins/tts/service",
+      "kind": "runtime",
+      "factory": "plugin:make_service",
+      "order": 0
+    },
+    {
+      "path": "app/plugins/tts/routes/config",
+      "kind": "route",
+      "factory": "plugin:make_route_config",
+      "props": {
+        "path": "config"
+      },
+      "requires": {
+        "service": "app/plugins/tts/service"
+      },
+      "order": 0,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/tts/routes/status",
+      "kind": "route",
+      "factory": "plugin:make_route_status",
+      "props": {
+        "path": "status"
+      },
+      "requires": {
+        "service": "app/plugins/tts/service"
+      },
+      "order": 1,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/tts/routes/voice-options",
+      "kind": "route",
+      "factory": "plugin:make_route_voice_options",
+      "props": {
+        "path": "voice-options"
+      },
+      "requires": {
+        "service": "app/plugins/tts/service"
+      },
+      "order": 2,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/tts/routes/voice-list",
+      "kind": "route",
+      "factory": "plugin:make_route_voice_list",
+      "props": {
+        "path": "voice-list"
+      },
+      "requires": {
+        "service": "app/plugins/tts/service"
+      },
+      "order": 3,
+      "method": "GET"
+    },
+    {
+      "path": "app/plugins/tts/routes/voice-preview",
+      "kind": "route",
+      "factory": "plugin:make_route_voice_preview",
+      "props": {
+        "path": "voice-preview"
+      },
+      "requires": {
+        "service": "app/plugins/tts/service"
+      },
+      "order": 4,
+      "method": "POST"
+    },
+    {
+      "path": "app/plugins/tts/routes/voice-save",
+      "kind": "route",
+      "factory": "plugin:make_route_voice_save",
+      "props": {
+        "path": "voice-save"
+      },
+      "requires": {
+        "service": "app/plugins/tts/service"
+      },
+      "order": 5,
+      "method": "POST"
+    },
+    {
+      "path": "app/plugins/tts/routes/voice-delete",
+      "kind": "route",
+      "factory": "plugin:make_route_voice_delete",
+      "props": {
+        "path": "voice-delete"
+      },
+      "requires": {
+        "service": "app/plugins/tts/service"
+      },
+      "order": 6,
+      "method": "POST"
+    },
+    {
+      "path": "app/plugins/tts/routes/voice-current",
+      "kind": "route",
+      "factory": "plugin:make_route_voice_current",
+      "props": {
+        "path": "voice-current"
+      },
+      "requires": {
+        "service": "app/plugins/tts/service"
+      },
+      "order": 7,
+      "method": "POST"
+    }
+  ],
+  "provides": [
+    {
+      "path": "app/shell/web-ui/right-panel/tts_voice",
+      "kind": "ui-control",
+      "props": {
+        "label": "音色工作台",
+        "action": "panel.open",
+        "html": "<div class=\"tts-lab\" id=\"ttsLab\"><div class=\"tts-lab-status\">骨架已插入，等待脚本（看到这句说明 lab.js 没跑）</div></div>",
+        "scripts": [
+          "ui/lab.js"
+        ],
+        "styles": [
+          "ui/lab.css"
+        ]
+      },
+      "order": 11
+    }
+  ]
+}

@@ -7,7 +7,7 @@
       "key": "model_dir",
       "kind": "text",
       "label": "模型安装目录",
-      "hint": "例如 D:\\flux-lab；插件在该目录下找 models/，出图写到 <该目录>/output"
+      "hint": "例如 D:\\models\\diffusion-model；插件在该目录下找 models/，出图写到 <该目录>/output"
     },
     {
       "key": "runtime_python",

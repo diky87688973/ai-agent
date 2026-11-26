@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Deque, Dict, List, Optional, Sequence
 
+from agent.common.process_guard import adopt
 from agent.core.error_report import report_error
 from agent.core.thread_context import thread_with_context
 from agent.mechanisms.command_safety import CommandOutputDecoder
@@ -100,7 +101,7 @@ class BackgroundTaskExecutor:
     def spawn(argv: Sequence[str], cwd: Path, env: Dict[str, str]) -> subprocess.Popen:
         if os.name == "nt":
             flags = 0x08000000  # CREATE_NO_WINDOW
-            return subprocess.Popen(
+            process = subprocess.Popen(
                 list(argv),
                 cwd=str(cwd),
                 env=env,
@@ -109,6 +110,9 @@ class BackgroundTaskExecutor:
                 stderr=subprocess.PIPE,
                 creationflags=flags,
             )
+            # 父进程被强杀时不会给子进程任何信号，作业对象负责连带终止。
+            adopt(process.pid)
+            return process
         return subprocess.Popen(
             list(argv),
             cwd=str(cwd),

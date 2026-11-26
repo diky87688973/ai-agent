@@ -269,7 +269,9 @@
     var resolve = scriptWaiters[url];
     if (!resolve) return;
     delete scriptWaiters[url];
-    resolve(true);
+    // load 与 error 都会走到这里；以前一律当成功，加载失败被吞掉，
+    // 面板就永远停在骨架文字上。
+    resolve(event.type === "load");
   }
   function bindScriptEvents() {
     if (scriptEventsBound) return;
@@ -277,6 +279,32 @@
     document.addEventListener("load", onScriptEvent, true);
     document.addEventListener("error", onScriptEvent, true);
   }
+  function injectPluginScript(owner, path, url, resolve, retried) {
+    var script = document.createElement("script");
+    scriptWaiters[url] = function (ok) {
+      if (ok) {
+        resolve(true);
+        return;
+      }
+      // 加载失败（缓存抢跑、短暂 401、网络抖动）时清掉节点重试一次，
+      // 否则面板会永远停在骨架文字上。
+      if (script.parentNode) script.parentNode.removeChild(script);
+      delete scriptWaiters[url];
+      if (retried) {
+        resolve(false);
+        return;
+      }
+      setTimeout(function () {
+        injectPluginScript(owner, path, url, resolve, true);
+      }, 300);
+    };
+    script.src = url;
+    script.async = false;
+    script.setAttribute("data-ui-plugin-script", url);
+    window.aiAgentPluginCurrent = owner;
+    document.head.appendChild(script);
+  }
+
   function loadScripts(items) {
     var jobs = [];
     var seen = {};
@@ -293,13 +321,7 @@
         if (document.querySelector('script[data-ui-plugin-script="' + url + '"]')) return;
         bindScriptEvents();
         jobs.push(new Promise(function (resolve) {
-          var script = document.createElement("script");
-          scriptWaiters[url] = resolve;
-          script.src = url;
-          script.async = false;
-          script.setAttribute("data-ui-plugin-script", url);
-          window.aiAgentPluginCurrent = owner;
-          document.head.appendChild(script);
+          injectPluginScript(owner, path, url, resolve, false);
         }));
       });
     });
@@ -427,6 +449,12 @@
       }
     }
     setTimeout(boot, 0);
+  });
+
+  // 设置页里的按钮要能直接打开右侧面板（比如音色工作台）
+  document.addEventListener("ai-agent:open-panel", function (event) {
+    var target = event && event.detail && event.detail.panel;
+    if (target) openCatalogPanel(String(target));
   });
 
   if (document.readyState === "loading") {

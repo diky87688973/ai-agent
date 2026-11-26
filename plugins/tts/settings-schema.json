@@ -1,0 +1,97 @@
+{
+  "kind": "fields",
+  "title": "语音合成配置",
+  "section": "config",
+  "fields": [
+    {
+      "key": "engine",
+      "kind": "text",
+      "label": "合成引擎",
+      "default": "breeze",
+      "hint": "breeze = 本地模型；edge = 网络合成。全部取值：breeze、edge"
+    },
+    {
+      "key": "model_dir",
+      "kind": "text",
+      "label": "模型安装目录",
+      "hint": "目录内放 <模型>.gguf 与 breeze-tts-2-cpp\\breeze-server.exe；安装步骤见插件 skills/tts-setup.md"
+    },
+    {
+      "key": "default_model",
+      "kind": "text",
+      "label": "默认模型",
+      "default": "breeze-tts-2-q4k",
+      "hint": "当前只有 breeze-tts-2-q4k（约 2.36 GiB，常驻显存约 3.8 GiB）"
+    },
+    {
+      "key": "server_port",
+      "kind": "number",
+      "label": "本地服务端口",
+      "default": "8137",
+      "min": 1,
+      "hint": "只绑 127.0.0.1；被占用时改这里"
+    },
+    {
+      "key": "startup_timeout",
+      "kind": "number",
+      "label": "启动等待上限（秒）",
+      "default": "20",
+      "min": 1
+    },
+    {
+      "key": "idle_timeout",
+      "kind": "number",
+      "label": "空闲回收（秒）",
+      "default": "600",
+      "min": 0,
+      "hint": "超时后停服释放显存；0 表示不回收"
+    },
+    {
+      "key": "cfg_scale",
+      "kind": "text",
+      "label": "指令引导强度",
+      "default": "3",
+      "hint": "1–5，可填小数；1 = 关闭 guidance，2 = 折中，3 = 更贴合指令（实测更稳且语调起伏更大），越大越贴合但越慢"
+    },
+    {
+      "key": "voice_id",
+      "kind": "text",
+      "label": "参考音色 id",
+      "hint": "锁定说话人，决定实际用哪个声音。可选：fanyin（默认）、qingling、huopo、ruanmeng、qingleng、ganlian、yujie、zhixing、youya、shenye、wenyi、cixiang"
+    },
+    {
+      "key": "open_voice_lab",
+      "kind": "action",
+      "label": "音色工作台",
+      "button_text": "打开音色工作台",
+      "panel": "app/shell/web-ui/right-panel/tts_voice",
+      "hint": "造新音色、试听、保存时用；日常换声音只需改上面的参考音色 id"
+    },
+    {
+      "key": "emotion",
+      "kind": "text",
+      "label": "情感档位",
+      "default": "平静",
+      "hint": "拼进合成指令的情绪词，例如：平静、温和、愉悦、关切"
+    },
+    {
+      "key": "speed",
+      "kind": "text",
+      "label": "语速倍率",
+      "default": "1.2",
+      "hint": "0.5–2.0，可填小数。由播放侧按此倍率变速，不改音高"
+    },
+    {
+      "key": "edge_voice",
+      "kind": "text",
+      "label": "Edge 音色",
+      "default": "zh-CN-XiaoxiaoNeural",
+      "hint": "只有 edge 引擎使用；本地模型不吃音色名"
+    },
+    {
+      "key": "fallback_to_edge",
+      "kind": "bool",
+      "label": "本地方案不可用时用 Edge 兜底"
+    }
+  ]
+}

@@ -34,7 +34,8 @@ SCHEMA_FILE = "settings-schema.json"
 KEY_RE = re.compile(r"^(\s*)([A-Za-z0-9_-]+)(\s*=\s*)(.*)$")
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 SECTION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_:-]*")
-_FIELD_KINDS = ("text", "secret", "number", "bool", "enum", "textarea")
+_FIELD_KINDS = ("text", "secret", "number", "bool", "enum", "select",
+                "chips", "checkbox", "textarea", "action")
 _PLACEHOLDER_API_KEYS = (
     "请替换", "your-api-key", "your_api_key", "sk-xxx", "changeme", "placeholder",
 )
@@ -66,7 +67,7 @@ def _parse_fields(raw_fields: Any) -> List[Dict[str, Any]]:
             "placeholder": str(item.get("placeholder") or ""),
             "default": str(item.get("default") or ""),
         }
-        if kind == "enum":
+        if kind in ("enum", "chips"):
             options = [
                 {"value": str(opt.get("value") or ""),
                  "label": str(opt.get("label") or opt.get("value") or "")}
@@ -76,6 +77,18 @@ def _parse_fields(raw_fields: Any) -> List[Dict[str, Any]]:
             if not options:
                 continue
             field["options"] = options
+        if kind == "action":
+            field["action_url"] = str(item.get("action_url") or "")
+            field["panel"] = str(item.get("panel") or "")
+            field["button_text"] = str(item.get("button_text") or "")
+            field["busy_text"] = str(item.get("busy_text") or "")
+            field["payload"] = [str(name) for name in (item.get("payload") or [])
+                                if str(name).strip()]
+            # 按钮要么发请求（action_url），要么开面板（panel）；两者都没有就丢弃
+            if not field["action_url"] and not field["panel"]:
+                continue
+        if item.get("transient") is True:
+            field["transient"] = True
         if item.get("required") is True:
             field["required"] = True
         if item.get("min") is not None:
@@ -216,6 +229,12 @@ def merge_fields(text: str, values: Dict[str, Any], schema: Dict[str, Any]) -> T
         if key not in fields:
             return None, f"未知配置项 {key}"
         text_value = str(value if value is not None else "").strip()
+        if fields[key].get("transient"):
+            # 只在界面内用的取值（比如音色生成参数），不进配置文件。
+            continue
+        if fields[key]["kind"] == "action":
+            # 按钮字段没有值可存，提交里也不会出现；万一带了值也丢掉。
+            continue
         if fields[key]["kind"] == "secret" and not text_value:
             continue
         if fields[key]["kind"] == "number" and text_value:

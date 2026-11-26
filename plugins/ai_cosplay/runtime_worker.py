@@ -13,17 +13,17 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from agent.common.tts_contract import (
+    TTSRequest,
+    TTSResult,
+    TTSSynthesisError,
+    TTSUnavailable,
+)
 from agent.core.error_report import report_error
 from agent.core.thread_context import thread_with_context
+from plugins.tts.service import TTSService
 
 from .config import AICosplayConfig
-from .provider import (
-    SpeechAudio,
-    SpeechEngineUnavailable,
-    SpeechError,
-    SpeechSynthesisError,
-    TTSProvider,
-)
 
 PLUGIN_NAME = "ai_cosplay"
 MAX_PENDING_SEGMENTS = 1024
@@ -46,7 +46,7 @@ Publisher = Callable[[str, str, Dict[str, Any]], int]
 CancelCheck = Callable[[], bool]
 
 
-class SpeechBusy(SpeechError):
+class SpeechBusy(RuntimeError):
     """该会话待合成段达到上限。"""
 
     def __init__(self, queued: int, limit: int) -> None:
@@ -55,7 +55,7 @@ class SpeechBusy(SpeechError):
         super().__init__(f"待合成语音过多（{self.queued}/{self.limit}），稍后再试")
 
 
-class SpeechSynthesisFailed(SpeechError):
+class SpeechSynthesisFailed(RuntimeError):
     """语音合成失败：没有音频可播；detail 是引擎给出的原因。"""
 
     def __init__(self, detail: str = "") -> None:
@@ -66,7 +66,7 @@ class SpeechSynthesisFailed(SpeechError):
         super().__init__(message)
 
 
-class SpeechPlaybackFailed(SpeechError):
+class SpeechPlaybackFailed(RuntimeError):
     """播放没有完成：播放出错、停止、丢帧或超时。"""
 
     def __init__(self, status: str, waited_ms: int = 0, detail: str = "") -> None:
@@ -157,12 +157,12 @@ class _SessionWorker:
         self,
         runtime: Any,
         conversation_id: str,
-        provider: TTSProvider,
+        service: TTSService,
         config: AICosplayConfig,
     ) -> None:
         self._runtime = runtime
         self._cid = conversation_id
-        self._provider = provider
+        self._service = service
         self._config = config
         self._queue: "queue.Queue[Optional[Tuple[_SegmentJob, Publisher]]]" = queue.Queue(
             maxsize=MAX_PENDING_SEGMENTS
@@ -185,7 +185,7 @@ class _SessionWorker:
     def enqueue(self, jobs: List[_SegmentJob], publisher: Publisher) -> None:
         with self._put_lock:
             if self._stop.is_set():
-                raise SpeechEngineUnavailable("语音 worker 已停止")
+                raise TTSUnavailable("语音 worker 已停止")
             free = self._queue.maxsize - self._queue.qsize()
             if free < len(jobs):
                 raise SpeechBusy(self._queue.qsize(), self._queue.maxsize)
@@ -231,20 +231,21 @@ class _SessionWorker:
             report_error("plugin.ai_cosplay.publish", exc, plugin=PLUGIN_NAME)
             return 0
 
-    def _segment_payload(self, job: _SegmentJob, audio: SpeechAudio) -> Dict[str, Any]:
-        encoded = base64.b64encode(audio.data).decode("ascii")
+    def _segment_payload(self, job: _SegmentJob, audio: TTSResult) -> Dict[str, Any]:
+        encoded = base64.b64encode(audio.audio).decode("ascii")
         return {
             "conversation_id": job.conversation_id,
             "call_id": job.call_id,
             "index": job.index,
             "total": job.total,
             "text": job.text,
-            "voice": audio.voice or job.voice,
+            "voice": job.voice,
             "mime": audio.mime,
             "audio": encoded,
-            "bytes": len(audio.data),
+            "bytes": len(audio.audio),
             "gap_ms": self._config.play_interval_ms,
             "speed": self._config.speed,
+            "speed_applied": bool(audio.speed_applied),
         }
 
     def _error_payload(self, job: _SegmentJob, exc: Exception) -> Dict[str, Any]:
@@ -269,20 +270,20 @@ class _SessionWorker:
                     if self._stop.is_set():
                         continue
                     try:
-                        audio = self._provider.synthesize(
-                            job.speech,
+                        audio = self._service.synthesize(TTSRequest(
+                            text=job.speech,
                             voice=job.voice,
-                            timeout_s=self._runtime.synthesis_timeout_s,
                             speed=self._config.speed,
-                        )
-                    except SpeechSynthesisError as exc:
+                            timeout_s=self._runtime.synthesis_timeout_s,
+                        ))
+                    except TTSSynthesisError as exc:
                         self._runtime._mark_failed(self._cid, exc)
                         self._runtime._finish_playback(
                             job.conversation_id, job.call_id, SYNTHESIS_FAILED,
                             f"{type(exc).__name__}: {exc}")
                         self._publish_raw(publisher, "error", self._error_payload(job, exc))
                         continue
-                    except SpeechEngineUnavailable as exc:
+                    except TTSUnavailable as exc:
                         self._runtime._mark_failed(self._cid, exc)
                         self._runtime._finish_playback(
                             job.conversation_id, job.call_id, SYNTHESIS_FAILED,

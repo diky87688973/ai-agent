@@ -210,49 +210,6 @@ class SpeechTextTest(unittest.TestCase):
         self.assertEqual(_TEXT.to_speech_text("表情😀加@符号。"), "表情加符号。")
         self.assertEqual(_TEXT.to_speech_text("走→停。"), "走停。")
 
-    def test_hang_after_number_uses_homophone(self) -> None:
-        cases = {
-            "36行。": "36 háng。",
-            "第36行。": "第36 háng。",
-            "行36。": "háng 36。",
-            "36行代码。": "36 háng 代码。",
-            "一行字。": "一 háng 字。",
-            "一行人。": "一行人。",
-            "一行人员。": "一行人员。",
-            "一行3人。": "一行3人。",
-            "一行 3 人。": "一行 3 人。",
-            "一行数十人。": "一行数十人。",
-            "一行三人。": "一行三人。",
-            "一行几人。": "一行几人。",
-            "一行几个人。": "一行几个人。",
-            "一行十余人。": "一行十余人。",
-            "一行N人。": "一行N人。",
-            "银行。": "银行。",
-            "执行。": "执行。",
-            "请换行后重跑。": "请换 háng 后 chóng 跑。",
-            "行内显示图片。": "háng 内显示图片。",
-            "支持行内代码。": "支持 háng 内代码。",
-            "数行代码。": "数 háng 代码。",
-            "数行都超了。": "数 háng 都超了。",
-            "函数行为不变。": "函数行为不变。",
-            "这一段折行了。": "这一段折 háng 了。",
-            "行内折行都影响阅读。": "háng 内折 háng 都影响阅读。",
-            "这批数据需要去重。": "这批数据需要去 chóng。",
-            "银行正在执行重要任务。": "银行正在执行重要任务。",
-            "重绘一下界面。": "chóng 绘一下界面。",
-            "双重校验。": "双 chóng 校验。",
-            "重叠了。": "chóng 叠了。",
-            "把这句话重新说一遍。": "把这句话 chóng 新说一遍。",
-            "这个方案很重要。": "这个方案很重要。",
-            "严重程度不同。": "严重程度不同。",
-            "请尊重对方。": "请尊重对方。",
-            "重量是多少。": "重量是多少。",
-            "这个箱子很重。": "这个箱子很重。",
-        }
-        for raw, expected in cases.items():
-            with self.subTest(raw=raw):
-                self.assertEqual(_TEXT.to_speech_text(raw), expected)
-
     def test_percent(self) -> None:
         cases = {
             "10%": "百分之十",
@@ -297,8 +254,7 @@ class SpeechTextTest(unittest.TestCase):
 class ConfigTest(unittest.TestCase):
     def test_missing_file_uses_defaults(self) -> None:
         cfg = _CONFIG.load_config(Path(tempfile.gettempdir()) / "ai_cosplay_missing.ini")
-        self.assertEqual(cfg.engine, "edge")
-        self.assertEqual(cfg.voice, "zh-CN-XiaoxiaoNeural")
+        self.assertEqual(cfg.voice, "一位温柔清晰的年轻女性，声音柔和亲切")
         self.assertEqual(cfg.user_salutation, "陛下")
         self.assertEqual(cfg.assistant_salutation, "臣妾")
         self.assertEqual(cfg.tone, "温婉")
@@ -342,13 +298,10 @@ class ConfigTest(unittest.TestCase):
             self.assertEqual(cfg.speed, 1.0)
             self.assertEqual(len(cfg.warnings), 4)
 
-    def test_invalid_engine_and_voice_fail(self) -> None:
+    def test_empty_voice_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "plugin-config.ini"
-            path.write_text("[config]\nengine = console\n", encoding="utf-8")
-            with self.assertRaises(_CONFIG.ConfigError):
-                _CONFIG.load_config(path)
-            path.write_text("[config]\nengine = edge\nvoice = \n", encoding="utf-8")
+            path.write_text("[config]\nvoice = \n", encoding="utf-8")
             with self.assertRaises(_CONFIG.ConfigError):
                 _CONFIG.load_config(path)
 

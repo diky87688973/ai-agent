@@ -305,7 +305,7 @@ def _load_ai_cosplay_modules():
     spec.loader.exec_module(module)
     return (
         importlib.import_module(package + ".config"),
-        importlib.import_module(package + ".provider"),
+        importlib.import_module("agent.common.tts_contract"),
         importlib.import_module(package + ".runtime"),
     )
 
@@ -317,14 +317,17 @@ class AICosplayRuntimeContentionTest(unittest.TestCase):
         config_mod, provider_mod, runtime_mod = _load_ai_cosplay_modules()
 
         class _Provider:
-            name = "concurrency"
+            engine = "concurrency"
 
-            def available(self) -> bool:
+            def ready(self) -> bool:
                 return True
 
-            def synthesize(self, text, *, voice, timeout_s, speed=1.0):
-                return provider_mod.SpeechAudio(
-                    data=text.encode("utf-8"), mime="audio/mpeg", voice=voice
+            def synthesize(self, request):
+                return provider_mod.TTSResult(
+                    audio=request.text.encode("utf-8"),
+                    sample_rate=24000,
+                    mime="audio/mpeg",
+                    engine=self.engine,
                 )
 
         class _Publisher:

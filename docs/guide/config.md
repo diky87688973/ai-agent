@@ -140,6 +140,7 @@ enabled = 1
 | `rules` | Injects every `.md` under `rules/` into the context | No configuration (switch only); see [Rules](../subsystems/rules.md) |
 | `knowledge` | Local knowledge-base retrieval | `plugins/knowledge/plugin-config.ini` |
 | `ai_cosplay` | Spoken narration and audio playback | `plugins/ai_cosplay/plugin-config.ini` |
+| `tts` | Multi-engine speech synthesis (local model first, Edge as fallback) | `plugins/tts/plugin-config.ini` |
 
 **Section order is context assembly order**: plugins that change less often come first.
 

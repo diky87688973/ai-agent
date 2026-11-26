@@ -222,6 +222,7 @@ class Acceptance:
             "[plugin:web_ui]\nversion = 1.0\n\n"
             "[plugin:media_viewer]\nversion = 1.0\n\n"
             "[plugin:knowledge]\nversion = 1.0\n"
+            "[plugin:tts]\nversion = 1.0\n"
             "[plugin:ai_cosplay]\nversion = 1.0\n",
             encoding="utf-8",
         )
@@ -756,6 +757,9 @@ def main() -> int:
             for scenario in (acc.scenario_1, acc.scenario_2, acc.scenario_3,
                              acc.scenario_4, acc.scenario_5, acc.scenario_6, acc.scenario_7):
                 scenario()
+            from scripts.acceptance_tts_lab import run as run_tts_lab
+            if run_tts_lab(acc) == 2:
+                print("  [SKIP] 音色工作台场景因浏览器依赖缺失跳过")
             from scripts.acceptance_web_hotplug import run as run_hotplug
             if run_hotplug(acc) == 2:
                 print("  [SKIP] Web UI 热插拔场景因浏览器依赖缺失跳过")

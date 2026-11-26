@@ -62,7 +62,7 @@ jobs:
         run: python -u scripts/gen_unit_tests_md.py --check
       - name: 门禁 静态检查
         timeout-minutes: 5
-        run: python -u -m ruff check agent tests scripts
+        run: python -u -m ruff check agent tests scripts plugins
       - name: 门禁 Python 下限
         timeout-minutes: 3
         run: python -u scripts/check_python_floor.py

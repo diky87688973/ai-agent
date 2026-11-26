@@ -2,7 +2,6 @@
 """AI角色扮演运行时、工具与装配测试。"""
 from __future__ import annotations
 
-import asyncio
 import base64
 import importlib
 import importlib.util
@@ -57,7 +56,7 @@ def _load_package() -> Any:
 
 _PLUGIN = _load_package()
 _CONFIG = importlib.import_module(_PACKAGE + ".config")
-_PROVIDER = importlib.import_module(_PACKAGE + ".provider")
+_CONTRACT = importlib.import_module("agent.common.tts_contract")
 _RUNTIME = importlib.import_module(_PACKAGE + ".runtime")
 _TEXT = importlib.import_module(_PACKAGE + ".text")
 _TOOL = importlib.import_module(_PACKAGE + ".tool")
@@ -65,7 +64,6 @@ _TOOL = importlib.import_module(_PACKAGE + ".tool")
 
 def _config(**kwargs: Any):
     base = {
-        "engine": "edge",
         "voice": "test-voice",
         "max_segment_chars": 128,
         "play_interval_ms": 0,
@@ -76,32 +74,34 @@ def _config(**kwargs: Any):
 
 
 class RecordingProvider:
-    name = "recording"
+    engine = "recording"
 
     def __init__(self, fail_texts: Optional[List[str]] = None) -> None:
         self.calls: List[tuple] = []
         self.fail_texts = set(fail_texts or [])
 
-    def available(self) -> bool:
+    def ready(self) -> bool:
         return True
 
-    def synthesize(self, text: str, *, voice: str, timeout_s: float, speed: float = 1.0):
-        self.calls.append((text, voice, timeout_s, speed))
+    def synthesize(self, request: Any):
+        text = request.text
+        self.calls.append((text, request.voice, request.timeout_s, request.speed))
         if any(marker in text for marker in self.fail_texts):
-            raise _PROVIDER.SpeechSynthesisError("simulated failure")
-        return _PROVIDER.SpeechAudio(
-            data=("audio:" + text).encode("utf-8"),
+            raise _CONTRACT.TTSSynthesisError("simulated failure")
+        return _CONTRACT.TTSResult(
+            audio=("audio:" + text).encode("utf-8"),
+            sample_rate=24000,
             mime="audio/mpeg",
-            voice=voice,
+            engine=self.engine,
         )
 
 
 class MissingProvider(RecordingProvider):
-    def available(self) -> bool:
+    def ready(self) -> bool:
         return False
 
-    def synthesize(self, text: str, *, voice: str, timeout_s: float, speed: float = 1.0):
-        raise _PROVIDER.SpeechEngineUnavailable("edge-tts missing")
+    def synthesize(self, request: Any):
+        raise _CONTRACT.TTSUnavailable("voice unavailable")
 
 
 class BlockingProvider(RecordingProvider):
@@ -110,10 +110,10 @@ class BlockingProvider(RecordingProvider):
         self.started = threading.Event()
         self.release = threading.Event()
 
-    def synthesize(self, text: str, *, voice: str, timeout_s: float, speed: float = 1.0):
+    def synthesize(self, request: Any):
         self.started.set()
         self.release.wait(2.0)
-        return super().synthesize(text, voice=voice, timeout_s=timeout_s, speed=speed)
+        return super().synthesize(request)
 
 
 class FakePublisher:
@@ -142,56 +142,6 @@ def _wait(predicate, timeout: float = 3.0) -> bool:
             return True
         time.sleep(0.01)
     return False
-
-
-class ProviderTest(unittest.TestCase):
-    def _fake_edge(self, *, delay: float = 0.0, audio: bytes = b"audio"):
-        module = types.ModuleType("edge_tts")
-
-        class Communicate:
-            def __init__(self, text: str, voice: str, rate: str = "") -> None:
-                self.text = text
-                self.voice = voice
-                self.rate = rate
-
-            async def stream(self):
-                if delay:
-                    await asyncio.sleep(delay)
-                if audio:
-                    yield {"type": "audio", "data": audio}
-
-        module.Communicate = Communicate
-        return module
-
-    def test_available_and_synthesize(self) -> None:
-        fake = self._fake_edge()
-        provider = _PROVIDER.EdgeTTSProvider()
-        with mock.patch.dict(sys.modules, {"edge_tts": fake}):
-            self.assertTrue(provider.available())
-            audio = provider.synthesize("你好", voice="v", timeout_s=1.0)
-        self.assertEqual(audio.data, b"audio")
-        self.assertEqual(audio.mime, "audio/mpeg")
-        self.assertEqual(audio.voice, "v")
-
-    def test_missing_dependency(self) -> None:
-        provider = _PROVIDER.EdgeTTSProvider()
-        with mock.patch.dict(sys.modules, {"edge_tts": None}):
-            self.assertFalse(provider.available())
-            with self.assertRaises(_PROVIDER.SpeechEngineUnavailable):
-                provider.synthesize("你好", voice="v", timeout_s=1.0)
-
-    def test_empty_audio(self) -> None:
-        provider = _PROVIDER.EdgeTTSProvider()
-        with mock.patch.dict(sys.modules, {"edge_tts": self._fake_edge(audio=b"")}):
-            with self.assertRaises(_PROVIDER.SpeechSynthesisError):
-                provider.synthesize("你好", voice="v", timeout_s=1.0)
-
-    def test_timeout(self) -> None:
-        provider = _PROVIDER.EdgeTTSProvider()
-        with mock.patch.dict(sys.modules, {"edge_tts": self._fake_edge(delay=0.2)}):
-            with self.assertRaises(_PROVIDER.SpeechSynthesisError) as ctx:
-                provider.synthesize("你好", voice="v", timeout_s=0.01)
-        self.assertIn("超时", str(ctx.exception))
 
 
 class RuntimeTest(unittest.TestCase):
@@ -250,6 +200,20 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(len(publisher.snapshot()), 1)
         self.assertEqual(self.runtime.status()["totals"]["spoken"], 0)
 
+    def test_enqueue_after_dispose_reports_engine_unavailable(self) -> None:
+        """worker 已停止时入队必须抛可读的引擎异常。
+
+        这里原先抛的是一个迁移后已不存在的异常名，跑起来只会得到 NameError；
+        这条用例把那个分支钉住。
+        """
+        from agent.common.tts_contract import TTSUnavailable
+
+        self.runtime.dispose()
+        with self.assertRaises(TTSUnavailable):
+            self.runtime.enqueue(
+                "cid-12345678", "call-late", ("迟到的一段。",), "test-voice", FakePublisher()
+            )
+
     def test_stop_clears_queue_and_publishes_stop(self) -> None:
         provider = BlockingProvider()
         self.runtime = _RUNTIME.AICosplayRuntime(_config(), provider)
@@ -290,7 +254,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertTrue(_wait(lambda: self.runtime.status()["totals"]["spoken"] == 1))
         self.runtime.dispose()
         self.assertTrue(any(f[1] == "stop" for f in publisher.snapshot()))
-        with self.assertRaises(_PROVIDER.SpeechEngineUnavailable):
+        with self.assertRaises(_CONTRACT.TTSUnavailable):
             self.runtime.enqueue(
                 "cid-12345678", "call-2", ("二。",), "test-voice", publisher
             )
@@ -444,19 +408,19 @@ class ToolTest(unittest.TestCase):
             )
         )
         try:
-            with self.assertRaises(_PROVIDER.SpeechEngineUnavailable):
+            with self.assertRaises(_CONTRACT.TTSUnavailable):
                 tool.execute({"msg": "你好。"})
         finally:
             reset_tool_turn_context(token)
 
     def test_disconnected_publisher_fails(self) -> None:
         runtime = self._runtime()
-        with self.assertRaises(_PROVIDER.SpeechEngineUnavailable):
+        with self.assertRaises(_CONTRACT.TTSUnavailable):
             self._call(runtime, "你好。", FakePublisher(delivered=0))
 
     def test_missing_provider_fails(self) -> None:
         runtime = self._runtime(MissingProvider())
-        with self.assertRaises(_PROVIDER.SpeechEngineUnavailable):
+        with self.assertRaises(_CONTRACT.TTSUnavailable):
             self._call(runtime, "你好。", FakePublisher())
 
     def test_tool_contract(self) -> None:
@@ -506,7 +470,7 @@ class SlotFactoryTest(unittest.TestCase):
     """旧 `register` 已删：改为工厂产出的形状 + 片段声明的节点。"""
 
     def test_factories_produce_tool_routes_and_panel_props(self) -> None:
-        runtime = _PLUGIN.make_runtime(None)
+        runtime = _PLUGIN.make_runtime(None, RecordingProvider())
         self.addCleanup(runtime.dispose)
         self.assertEqual(_PLUGIN.make_tool(None, runtime).name, "ai_speek")
 
@@ -575,7 +539,7 @@ class SlotFactoryTest(unittest.TestCase):
         self.assertTrue(_wait(lambda: any(f[1] == "stop" for f in publisher.snapshot())))
 
     def test_config_and_status_routes(self) -> None:
-        runtime = _PLUGIN.make_runtime(None)
+        runtime = _PLUGIN.make_runtime(None, RecordingProvider())
         self.addCleanup(runtime.dispose)
         handlers = {
             "config": _PLUGIN.make_route_config(None, runtime),
@@ -597,7 +561,7 @@ class SlotFactoryTest(unittest.TestCase):
         status, report = handlers["status"]({})
         self.assertEqual(status, 200)
         self.assertTrue(report["ok"])
-        self.assertEqual(report["engine"], "edge")
+        self.assertEqual(report["engine"], "recording")
 
 
 if __name__ == "__main__":

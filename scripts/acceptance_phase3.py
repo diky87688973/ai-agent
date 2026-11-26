@@ -28,7 +28,7 @@ from agent.app import build_app  # noqa: E402
 from agent.mechanisms.live_state import LiveState  # noqa: E402
 from agent.mechanisms.mesh import MeshState  # noqa: E402
 
-ALL_PLUGINS = ["ai_cosplay", "knowledge", "web_ui"]
+ALL_PLUGINS = ["tts", "ai_cosplay", "knowledge", "web_ui"]
 
 
 class Acceptance:
@@ -123,7 +123,7 @@ class Acceptance:
                               if row.get("path") == "app/shell/web-ui/input/buttons/kb_btn"), None)
         self.check("KB 面板已注册 UI 路径", kb_panel is not None)
         self.check("KB 按钮已注册 UI 路径", kb_button is not None)
-        self.check("插件端点已贡献（=6）", len(contribs.all_routes()) == 6,
+        self.check("插件端点已贡献（=14）", len(contribs.all_routes()) == 14,
                    str([r.full_path for r in contribs.all_routes()]))
         props = (kb_panel.get("metadata", {}).get("props", {})
                  if isinstance(kb_panel, dict)

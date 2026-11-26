@@ -33,7 +33,6 @@ plugins/ai_cosplay/
   plugin.py                    entry: config, runtime, tool/routes/boot scripts/subscriptions
   config.py                    [config] reading and validation
   text.py                      character rules, segmentation, cleanup
-  provider.py                  edge-tts port and adapter
   runtime.py                   runtime: worker management, playback waiters, stop, counters
   runtime_worker.py            playback waiters, per-session serial synthesis, SSE publishing, stop
   tool.py                      the ai_speek tool
@@ -68,11 +67,7 @@ Boundary punctuation: Chinese `，。？！；、：`, English `. , ? ! ; :`. In
 One `msg` holds at most 512 characters. `max_segment_chars` bounds a single segment (default 128, any integer ≥ 1, no upper limit); segments are packed greedily up to that size. A single clause longer than the configured value fails instead of being cut mid-word.
 
 ### Pronunciation fallback
-The prompt does not ask the model to annotate pinyin. The cleanup rewrites `行` after a number to `háng` (`36行` → `36 háng`, `第36行` → `第36 háng`, `行36` → ` háng 36`), while `一行人` and `一行人员` are protected as `xíng`.
-
-`重` defaults to `chóng` (`重绘` → `chóng 绘`, `重试` → `chóng 试`, `去重` → `去 chóng`, `双重` → `双 chóng`). Words where it reads `zhòng` are held aside first (`重要`, `重点`, `严重`, `尊重`, `重量`, `很重`, `太重` and the rest of the set). `重` + verb means "do it once more", which is open-ended; the `zhòng` set is closed and can be listed in full, so only that side carries an exception table.
-
-Other polyphonic characters are left to Edge TTS; add a rule when a real misreading is found. A plain `毛茸茸` passes through unchanged.
+Not handled here. Polyphone rewriting belongs to the Edge engine and now lives in the `tts` plugin (`pinyin.py`), applied only when `needs_pinyin_hints` is set; the local model reads these correctly without hints.
 
 ### Pre-synthesis cleanup
 Cleanup keeps only characters that can be pronounced: everything left has a sound.
@@ -84,7 +79,7 @@ Pronunciation rewrites:
 - `number%` / `number％` become "百分之" plus the Chinese number, for example `10%` → `百分之十`;
 - arithmetic between numbers is read in Chinese, for example `5+3` → `五加三`, `10/2` → `十除以二`, `-5` → `负五`; the `-` in dates and inside English words is left unchanged;
 - thousands separators inside numbers are removed; decimal points are kept;
-- numeric `行` is rewritten to `háng`; ordinary bracket content is left in the subtitle.
+- ordinary bracket content is left in the subtitle.
 
 Finally, runs of spaces collapse to one.
 
@@ -123,7 +118,7 @@ The player counts segments by `call_id` and, after the final segment's `ended` e
 The safety timeout is computed from text length: `max(30s, min(600s, 15s + characters × 0.35))`. When autoplay is blocked, the player does not acknowledge and waits for the user to click play; if the user never does, the wait times out. With Web Locks, only one tab per conversation id plays and the other tabs do not acknowledge; different ids report independently.
 
 ### Boundaries
-- Synthesis uses edge-tts only; no custom synthesis endpoint is supported.
+- The synthesis engine is chosen by the `tts` plugin (local model first, Edge as fallback); this plugin only expresses voice, emotion and speed intent.
 - Audio stays in memory and is never written to a file; it is not replayed after a refresh or reconnect.
 - Per-segment audio limit: 4 MB; per-session pending-segment limit: 1024; front-end queue limit: 512.
 - Disabling the plugin unloads the tool, routes, and boot scripts, and stops current synthesis.
@@ -134,8 +129,7 @@ The safety timeout is computed from text length: `max(30s, min(600s, 15s + chara
 ### Configuration
 ```ini
 [config]
-engine = edge
-voice = zh-CN-XiaoxiaoNeural
+voice = 一位温柔清晰的年轻女性，声音柔和亲切
 user_salutation = 陛下
 assistant_salutation = 臣妾
 tone = 温婉
@@ -149,8 +143,7 @@ Identity metadata lives in `plugin-meta.json`; the enable flag lives in `plugins
 
 | Key | Default | Range | Notes |
 |---|---|---|---|
-| `engine` | `edge` | `edge` only | Synthesis engine; any other value fails at load time |
-| `voice` | `zh-CN-XiaoxiaoNeural` | non-empty | edge-tts voice name |
+| `voice` | 一位温柔清晰的年轻女性，声音柔和亲切 | non-empty | Voice intent in natural language; the `tts` plugin turns it into engine parameters |
 | `user_salutation` | `陛下` | non-empty; empty falls back to the default | How the model addresses the user |
 | `assistant_salutation` | `臣妾` | non-empty; empty falls back to the default | How the model refers to itself |
 | `tone` | `温婉` | non-empty; empty falls back to the default | Tone constraint on the model's speech |
@@ -159,7 +152,7 @@ Identity metadata lives in `plugin-meta.json`; the enable flag lives in `plugins
 | `sync_playback` | 0 | `0` / `1` | 1 = the tool waits for the front end to finish playback |
 | `speed` | `1.0` | `0.5`–`2.0` | Synthesis rate multiplier; `1.0` is normal speed |
 
-The configuration file is `plugin-config.ini` in the plugin directory; the parser reads the same keys. `edge-tts>=7.3.1` is an optional dependency; install it with `pip install -e ".[tts]"`. It is imported lazily: the plugin loads without the library, and the tool returns an install hint when it runs.
+The configuration file is `plugin-config.ini` in the plugin directory; the parser reads the same keys. Synthesis is provided by the `tts` plugin; this plugin no longer depends on `edge-tts` directly.
 
 ## 5. Further reading
 

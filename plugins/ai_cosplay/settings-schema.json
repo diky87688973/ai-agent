@@ -29,16 +29,11 @@
       "default": "臣妾"
     },
     {
-      "key": "engine",
-      "kind": "text",
-      "label": "合成引擎",
-      "default": "edge"
-    },
-    {
       "key": "voice",
-      "kind": "text",
-      "label": "音色",
-      "default": "zh-CN-XiaoxiaoNeural"
+      "kind": "textarea",
+      "label": "音色诉求",
+      "default": "一位温柔清晰的年轻女性，声音柔和亲切",
+      "hint": "用自然语言描述想要的声音；用哪个引擎由语音插件决定"
     },
     {
       "key": "max_segment_chars",

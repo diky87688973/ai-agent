@@ -189,7 +189,7 @@ max_segment_chars（默认 128 字），超过上限会失败并返回规范。
 | 异常 | 触发 | 顶层结果 |
 |---|---|---|
 | `MessageValidationError` | 空、超过 512 字、控制字符、配对错误、首尾位置错误、百分号/四则上下文错误、分句超限 | `{"ok": false, "error": "..."}` |
-| `SpeechEngineUnavailable` | `edge-tts` 未安装、缺少会话或工具调用上下文、没有插件事件出口、没有已连接的 Web 界面、插件已卸载 | 同上，错误文案给可执行动作 |
+| `TTSUnavailable` | `edge-tts` 未安装、缺少会话或工具调用上下文、没有插件事件出口、没有已连接的 Web 界面、插件已卸载 | 同上，错误文案给可执行动作 |
 | `SpeechBusy` | 该会话待合成段达到上限 | 同上，附当前队列长度与上限 |
 | `SpeechSynthesisFailed` | 同步模式下某段合成失败 | 同上，带上引擎给出的原因 |
 | `SpeechPlaybackFailed` | 同步模式下播放超时、被停止、播放出错或音频未送达 | 同上，带播放状态与已等待时长 |
@@ -754,7 +754,7 @@ class _SessionWorker:
 | 类别 | 产生方 | 处理 |
 |---|---|---|
 | 校验失败 | `text.split_message` | 工具抛 `MessageValidationError`；顶层 `ok=false`；不落音频 |
-| 依赖不可用 | `provider` / 上下文 / 发布器 | 工具抛 `SpeechEngineUnavailable`；文案给安装或启用路径 |
+| 依赖不可用 | `provider` / 上下文 / 发布器 | 工具抛 `TTSUnavailable`；文案给安装或启用路径 |
 | 队列忙 | `runtime.enqueue` | 工具抛 `SpeechBusy`；文案给队列长度与上限 |
 | 合成失败 | worker | 发布 `error` 事件；`report_error` 留痕；继续下一段 |
 | 播放未完成 | 同步等待者 | 工具抛 `SpeechPlaybackFailed`；带状态与已等待时长 |

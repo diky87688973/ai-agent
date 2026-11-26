@@ -6,10 +6,11 @@ import threading
 import time
 from typing import Any, Dict, Optional, Tuple
 
+from agent.common.tts_contract import TTSUnavailable
 from agent.core.error_report import report_error
+from plugins.tts.service import TTSService
 
 from .config import AICosplayConfig
-from .provider import SpeechEngineUnavailable, TTSProvider
 from .runtime_worker import (
     ACK_STATUSES,
     DROPPED,
@@ -36,12 +37,12 @@ class AICosplayRuntime:
     def __init__(
         self,
         config: AICosplayConfig,
-        provider: TTSProvider,
+        service: TTSService,
         *,
         synthesis_timeout_s: float = 15.0,
     ) -> None:
         self._config = config
-        self._provider = provider
+        self._service = service
         self._synthesis_timeout_s = float(synthesis_timeout_s)
         self._lock = threading.Lock()
         self._stats_lock = threading.Lock()
@@ -69,7 +70,7 @@ class AICosplayRuntime:
         return to_speech_text(text)
 
     def provider_ready(self) -> bool:
-        return bool(self._provider.available())
+        return bool(self._service.ready())
 
     # ── 入队 ──
 
@@ -83,9 +84,9 @@ class AICosplayRuntime:
     ) -> int:
         cid = str(conversation_id or "").strip()
         if not cid:
-            raise SpeechEngineUnavailable("缺少会话 id")
+            raise TTSUnavailable("缺少会话 id")
         if self._disposed:
-            raise SpeechEngineUnavailable("语音插件已卸载")
+            raise TTSUnavailable("语音插件已卸载")
         if not segments:
             return 0
         jobs = []
@@ -111,10 +112,10 @@ class AICosplayRuntime:
             ))
         with self._lock:
             if self._disposed:
-                raise SpeechEngineUnavailable("语音插件已卸载")
+                raise TTSUnavailable("语音插件已卸载")
             worker = self._workers.get(cid)
             if worker is None:
-                worker = _SessionWorker(self, cid, self._provider, self._config)
+                worker = _SessionWorker(self, cid, self._service, self._config)
                 self._workers[cid] = worker
             with self._stats_lock:
                 bucket = self._stats.setdefault(
@@ -141,7 +142,7 @@ class AICosplayRuntime:
             raise ValueError("同步播放需要 conversation_id 与 call_id")
         with self._playback_lock:
             if self._disposed:
-                raise SpeechEngineUnavailable("语音插件已卸载")
+                raise TTSUnavailable("语音插件已卸载")
             key = (cid, call)
             existing = self._playback.get(key)
             if existing is not None:
@@ -304,7 +305,7 @@ class AICosplayRuntime:
         with self._playback_lock:
             playback_waiting = len(self._playback)
         return {
-            "engine": self._config.engine,
+            "engine": self._service.engine,
             "engine_ready": self.provider_ready(),
             "voice": self._config.voice,
             "max_segment_chars": self._config.max_segment_chars,

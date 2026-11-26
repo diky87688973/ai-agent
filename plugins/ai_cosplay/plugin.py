@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agent.core.error_report import report_error
+from plugins.tts.service import TTSService
 
 from .config import AICosplayConfig, config_path, load_config
-from .provider import create_provider
 from .runtime import AICosplayRuntime
 from .runtime_worker import ACK_STATUSES, PLAYED
 from .tool import AICosplayTool
@@ -62,7 +62,6 @@ def _config_payload(runtime: AICosplayRuntime) -> Any:
     config = runtime.config
     return 200, {
         "ok": True,
-        "engine": config.engine,
         "voice": config.voice,
         "user_salutation": config.user_salutation,
         "assistant_salutation": config.assistant_salutation,
@@ -97,11 +96,11 @@ def _played_handler(runtime: AICosplayRuntime) -> Callable[[dict], Any]:
     return _handler
 
 
-def make_runtime(ctx: Any) -> AICosplayRuntime:
-    """装配期构造运行时：读配置、留警告、建合成提供者。"""
+def make_runtime(ctx: Any, tts: TTSService) -> AICosplayRuntime:
+    """装配期构造运行时：读配置、留警告，接管注入的合成服务。"""
     config = load_config()
     _log_warnings(config)
-    return AICosplayRuntime(config, create_provider(config.engine))
+    return AICosplayRuntime(config, tts)
 
 
 def make_tool(ctx: Any, runtime: AICosplayRuntime) -> AICosplayTool:

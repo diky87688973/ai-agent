@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2727** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2804** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -10,8 +10,8 @@
 ## 目录
 
 1. [test_ai_cosplay_plugin.py](#test_ai_cosplay_pluginpy)（4）
-2. [test_ai_cosplay_runtime.py](#test_ai_cosplay_runtimepy)（27）
-3. [test_ai_cosplay_text.py](#test_ai_cosplay_textpy)（31）
+2. [test_ai_cosplay_runtime.py](#test_ai_cosplay_runtimepy)（24）
+3. [test_ai_cosplay_text.py](#test_ai_cosplay_textpy)（30）
 4. [test_anthropic_provider.py](#test_anthropic_providerpy)（30）
 5. [test_app_context.py](#test_app_contextpy)（11）
 6. [test_app_context_wiring.py](#test_app_context_wiringpy)（15）
@@ -105,80 +105,88 @@
 94. [test_plugins.py](#test_pluginspy)（24）
 95. [test_port_cleanup.py](#test_port_cleanuppy)（4）
 96. [test_present_tool.py](#test_present_toolpy)（2）
-97. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-98. [test_prompt_slot.py](#test_prompt_slotpy)（1）
-99. [test_prompt_tail.py](#test_prompt_tailpy)（5）
-100. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-101. [test_provider_meta.py](#test_provider_metapy)（8）
-102. [test_provider_router.py](#test_provider_routerpy)（14）
-103. [test_quality_pipeline.py](#test_quality_pipelinepy)（19）
-104. [test_queue_runner.py](#test_queue_runnerpy)（11）
-105. [test_queued_input.py](#test_queued_inputpy)（4）
-106. [test_readonly_tools.py](#test_readonly_toolspy)（33）
-107. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
-108. [test_router_slot.py](#test_router_slotpy)（1）
-109. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-110. [test_run_registry.py](#test_run_registrypy)（17）
-111. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-112. [test_scan_scope.py](#test_scan_scopepy)（16）
-113. [test_session_context.py](#test_session_contextpy)（22）
-114. [test_session_seq.py](#test_session_seqpy)（28）
-115. [test_session_store.py](#test_session_storepy)（17）
-116. [test_session_tools.py](#test_session_toolspy)（17）
-117. [test_settings_panel.py](#test_settings_panelpy)（19）
-118. [test_settings_registry.py](#test_settings_registrypy)（5）
-119. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-120. [test_slot_binder.py](#test_slot_binderpy)（7）
-121. [test_slot_loader.py](#test_slot_loaderpy)（65）
-122. [test_slot_merge.py](#test_slot_mergepy)（61）
-123. [test_slot_registry.py](#test_slot_registrypy)（13）
-124. [test_slot_replaceable.py](#test_slot_replaceablepy)（20）
-125. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
-126. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
-127. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-128. [test_standards_manifest.py](#test_standards_manifestpy)（3）
-129. [test_startup_encoding.py](#test_startup_encodingpy)（2）
-130. [test_stop_operations.py](#test_stop_operationspy)（10）
-131. [test_stop_ui.py](#test_stop_uipy)（4）
-132. [test_stream_control.py](#test_stream_controlpy)（9）
-133. [test_subagent.py](#test_subagentpy)（21）
-134. [test_task_tools.py](#test_task_toolspy)（28）
-135. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
-136. [test_thread_context.py](#test_thread_contextpy)（1）
-137. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-138. [test_tool_arguments.py](#test_tool_argumentspy)（5）
-139. [test_tool_pairing.py](#test_tool_pairingpy)（15）
-140. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
-141. [test_tool_registry.py](#test_tool_registrypy)（17）
-142. [test_tool_resume.py](#test_tool_resumepy)（3）
-143. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-144. [test_top_level_services.py](#test_top_level_servicespy)（2）
-145. [test_ui_registry.py](#test_ui_registrypy)（7）
-146. [test_update.py](#test_updatepy)（26）
-147. [test_update_processes.py](#test_update_processespy)（3）
-148. [test_update_transaction.py](#test_update_transactionpy)（7）
-149. [test_usage_metrics.py](#test_usage_metricspy)（7）
-150. [test_version_stamp.py](#test_version_stamppy)（4）
-151. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-152. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-153. [test_visual_operator.py](#test_visual_operatorpy)（163）
-154. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
-155. [test_visualization.py](#test_visualizationpy)（8）
-156. [test_visualization_browser.py](#test_visualization_browserpy)（7）
-157. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
-158. [test_visualization_extra.py](#test_visualization_extrapy)（5）
-159. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
-160. [test_wake_isolation.py](#test_wake_isolationpy)（3）
-161. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-162. [test_web_auth.py](#test_web_authpy)（26）
-163. [test_web_frontend.py](#test_web_frontendpy)（6）
-164. [test_web_shell.py](#test_web_shellpy)（65）
-165. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-166. [test_window_chrome_ui.py](#test_window_chrome_uipy)（2）
-167. [test_window_ops.py](#test_window_opspy)（39）
-168. [test_write_gate.py](#test_write_gatepy)（22）
-169. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-170. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+97. [test_process_guard.py](#test_process_guardpy)（3）
+98. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+99. [test_prompt_slot.py](#test_prompt_slotpy)（1）
+100. [test_prompt_tail.py](#test_prompt_tailpy)（5）
+101. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+102. [test_provider_meta.py](#test_provider_metapy)（8）
+103. [test_provider_router.py](#test_provider_routerpy)（14）
+104. [test_quality_pipeline.py](#test_quality_pipelinepy)（19）
+105. [test_queue_runner.py](#test_queue_runnerpy)（11）
+106. [test_queued_input.py](#test_queued_inputpy)（4）
+107. [test_readonly_tools.py](#test_readonly_toolspy)（33）
+108. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
+109. [test_router_slot.py](#test_router_slotpy)（1）
+110. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+111. [test_run_registry.py](#test_run_registrypy)（17）
+112. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+113. [test_scan_scope.py](#test_scan_scopepy)（16）
+114. [test_session_context.py](#test_session_contextpy)（22）
+115. [test_session_seq.py](#test_session_seqpy)（28）
+116. [test_session_store.py](#test_session_storepy)（17）
+117. [test_session_tools.py](#test_session_toolspy)（17）
+118. [test_settings_panel.py](#test_settings_panelpy)（19）
+119. [test_settings_registry.py](#test_settings_registrypy)（5）
+120. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+121. [test_slot_binder.py](#test_slot_binderpy)（7）
+122. [test_slot_loader.py](#test_slot_loaderpy)（65）
+123. [test_slot_merge.py](#test_slot_mergepy)（61）
+124. [test_slot_registry.py](#test_slot_registrypy)（13）
+125. [test_slot_replaceable.py](#test_slot_replaceablepy)（20）
+126. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
+127. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
+128. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+129. [test_standards_manifest.py](#test_standards_manifestpy)（3）
+130. [test_startup_encoding.py](#test_startup_encodingpy)（2）
+131. [test_stop_operations.py](#test_stop_operationspy)（10）
+132. [test_stop_ui.py](#test_stop_uipy)（4）
+133. [test_stream_control.py](#test_stream_controlpy)（9）
+134. [test_subagent.py](#test_subagentpy)（21）
+135. [test_task_tools.py](#test_task_toolspy)（28）
+136. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
+137. [test_thread_context.py](#test_thread_contextpy)（1）
+138. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+139. [test_tool_arguments.py](#test_tool_argumentspy)（5）
+140. [test_tool_pairing.py](#test_tool_pairingpy)（15）
+141. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
+142. [test_tool_registry.py](#test_tool_registrypy)（17）
+143. [test_tool_resume.py](#test_tool_resumepy)（3）
+144. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+145. [test_top_level_services.py](#test_top_level_servicespy)（2）
+146. [test_tts_config.py](#test_tts_configpy)（21）
+147. [test_tts_endpoints.py](#test_tts_endpointspy)（10）
+148. [test_tts_pinyin.py](#test_tts_pinyinpy)（2）
+149. [test_tts_provider.py](#test_tts_providerpy)（17）
+150. [test_tts_provider_errors.py](#test_tts_provider_errorspy)（6）
+151. [test_tts_schema.py](#test_tts_schemapy)（15）
+152. [test_tts_service.py](#test_tts_servicepy)（7）
+153. [test_ui_registry.py](#test_ui_registrypy)（7）
+154. [test_update.py](#test_updatepy)（26）
+155. [test_update_processes.py](#test_update_processespy)（3）
+156. [test_update_transaction.py](#test_update_transactionpy)（7）
+157. [test_usage_metrics.py](#test_usage_metricspy)（7）
+158. [test_version_stamp.py](#test_version_stamppy)（4）
+159. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+160. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+161. [test_visual_operator.py](#test_visual_operatorpy)（163）
+162. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
+163. [test_visualization.py](#test_visualizationpy)（8）
+164. [test_visualization_browser.py](#test_visualization_browserpy)（7）
+165. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
+166. [test_visualization_extra.py](#test_visualization_extrapy)（5）
+167. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
+168. [test_wake_isolation.py](#test_wake_isolationpy)（3）
+169. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+170. [test_web_auth.py](#test_web_authpy)（26）
+171. [test_web_frontend.py](#test_web_frontendpy)（6）
+172. [test_web_shell.py](#test_web_shellpy)（65）
+173. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+174. [test_window_chrome_ui.py](#test_window_chrome_uipy)（2）
+175. [test_window_ops.py](#test_window_opspy)（39）
+176. [test_write_gate.py](#test_write_gatepy)（22）
+177. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+178. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -193,75 +201,71 @@
 
 ## test_ai_cosplay_runtime.py
 
-共 27 个用例。
+共 24 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ProviderTest` | `test_available_and_synthesize` | 覆盖「A class whose instances are single test cases」：available and synthesize |
-| 2 | `ProviderTest` | `test_empty_audio` | 覆盖「A class whose instances are single test cases」：empty audio |
-| 3 | `ProviderTest` | `test_missing_dependency` | 覆盖「A class whose instances are single test cases」：missing dependency |
-| 4 | `ProviderTest` | `test_timeout` | 覆盖「A class whose instances are single test cases」：timeout |
-| 5 | `RuntimeTest` | `test_dispose_publishes_stop_and_blocks_enqueue` | 覆盖「A class whose instances are single test cases」：dispose publishes stop and blocks enqueue |
-| 6 | `RuntimeTest` | `test_no_sse_stops_worker` | 覆盖「A class whose instances are single test cases」：no sse stops worker |
-| 7 | `RuntimeTest` | `test_playback_wait_timeout_and_cancel` | 覆盖「A class whose instances are single test cases」：playback wait timeout and cancel |
-| 8 | `RuntimeTest` | `test_publish_in_order_and_base64` | 覆盖「A class whose instances are single test cases」：publish in order and base64 |
-| 9 | `RuntimeTest` | `test_queue_full_rejects_whole_batch` | 覆盖「A class whose instances are single test cases」：queue full rejects whole batch |
-| 10 | `RuntimeTest` | `test_stop_clears_queue_and_publishes_stop` | 覆盖「A class whose instances are single test cases」：stop clears queue and publishes stop |
-| 11 | `RuntimeTest` | `test_synthesis_failure_is_isolated` | 覆盖「A class whose instances are single test cases」：synthesis failure is isolated |
-| 12 | `SlotFactoryTest` | `test_config_and_status_routes` | 覆盖「旧 `register` 已删：改为工厂产出的形状 + 片段声明的节点」：config and status routes |
-| 13 | `SlotFactoryTest` | `test_factories_produce_tool_routes_and_panel_props` | 覆盖「旧 `register` 已删：改为工厂产出的形状 + 片段声明的节点」：factories produce tool routes and panel props |
-| 14 | `SlotFactoryTest` | `test_halted_turn_keeps_speech_playing` | 模型失败、护栏触顶走 halted：已合成语音不得被停。 |
-| 15 | `SlotFactoryTest` | `test_stopped_turn_still_stops_speech` | 用户主动停止（stopped）仍要清空语音。 |
-| 16 | `ToolTest` | `test_disconnected_publisher_fails` | 覆盖「A class whose instances are single test cases」：disconnected publisher fails |
-| 17 | `ToolTest` | `test_invalid_message_fails_before_enqueue` | 覆盖「A class whose instances are single test cases」：invalid message fails before enqueue |
-| 18 | `ToolTest` | `test_missing_provider_fails` | 覆盖「A class whose instances are single test cases」：missing provider fails |
-| 19 | `ToolTest` | `test_missing_publisher_fails` | 覆盖「A class whose instances are single test cases」：missing publisher fails |
-| 20 | `ToolTest` | `test_pipeline_envelope` | 覆盖「A class whose instances are single test cases」：pipeline envelope |
-| 21 | `ToolTest` | `test_plain_text_is_sent_without_annotation` | 覆盖「A class whose instances are single test cases」：plain text is sent without annotation |
-| 22 | `ToolTest` | `test_success_enqueues_segments` | 覆盖「A class whose instances are single test cases」：success enqueues segments |
-| 23 | `ToolTest` | `test_sync_playback_releases_on_stop` | 覆盖「A class whose instances are single test cases」：sync playback releases on stop |
-| 24 | `ToolTest` | `test_sync_playback_times_out_without_ack` | 覆盖「A class whose instances are single test cases」：sync playback times out without ack |
-| 25 | `ToolTest` | `test_sync_playback_waits_for_frontend_ack` | 覆盖「A class whose instances are single test cases」：sync playback waits for frontend ack |
-| 26 | `ToolTest` | `test_sync_synthesis_failure_is_not_reported_as_playback_failure` | 覆盖「A class whose instances are single test cases」：sync synthesis failure is not reported as playback failure |
-| 27 | `ToolTest` | `test_tool_contract` | 覆盖「A class whose instances are single test cases」：tool contract |
+| 1 | `RuntimeTest` | `test_dispose_publishes_stop_and_blocks_enqueue` | 覆盖「A class whose instances are single test cases」：dispose publishes stop and blocks enqueue |
+| 2 | `RuntimeTest` | `test_enqueue_after_dispose_reports_engine_unavailable` | worker 已停止时入队必须抛可读的引擎异常。 |
+| 3 | `RuntimeTest` | `test_no_sse_stops_worker` | 覆盖「A class whose instances are single test cases」：no sse stops worker |
+| 4 | `RuntimeTest` | `test_playback_wait_timeout_and_cancel` | 覆盖「A class whose instances are single test cases」：playback wait timeout and cancel |
+| 5 | `RuntimeTest` | `test_publish_in_order_and_base64` | 覆盖「A class whose instances are single test cases」：publish in order and base64 |
+| 6 | `RuntimeTest` | `test_queue_full_rejects_whole_batch` | 覆盖「A class whose instances are single test cases」：queue full rejects whole batch |
+| 7 | `RuntimeTest` | `test_stop_clears_queue_and_publishes_stop` | 覆盖「A class whose instances are single test cases」：stop clears queue and publishes stop |
+| 8 | `RuntimeTest` | `test_synthesis_failure_is_isolated` | 覆盖「A class whose instances are single test cases」：synthesis failure is isolated |
+| 9 | `SlotFactoryTest` | `test_config_and_status_routes` | 覆盖「旧 `register` 已删：改为工厂产出的形状 + 片段声明的节点」：config and status routes |
+| 10 | `SlotFactoryTest` | `test_factories_produce_tool_routes_and_panel_props` | 覆盖「旧 `register` 已删：改为工厂产出的形状 + 片段声明的节点」：factories produce tool routes and panel props |
+| 11 | `SlotFactoryTest` | `test_halted_turn_keeps_speech_playing` | 模型失败、护栏触顶走 halted：已合成语音不得被停。 |
+| 12 | `SlotFactoryTest` | `test_stopped_turn_still_stops_speech` | 用户主动停止（stopped）仍要清空语音。 |
+| 13 | `ToolTest` | `test_disconnected_publisher_fails` | 覆盖「A class whose instances are single test cases」：disconnected publisher fails |
+| 14 | `ToolTest` | `test_invalid_message_fails_before_enqueue` | 覆盖「A class whose instances are single test cases」：invalid message fails before enqueue |
+| 15 | `ToolTest` | `test_missing_provider_fails` | 覆盖「A class whose instances are single test cases」：missing provider fails |
+| 16 | `ToolTest` | `test_missing_publisher_fails` | 覆盖「A class whose instances are single test cases」：missing publisher fails |
+| 17 | `ToolTest` | `test_pipeline_envelope` | 覆盖「A class whose instances are single test cases」：pipeline envelope |
+| 18 | `ToolTest` | `test_plain_text_is_sent_without_annotation` | 覆盖「A class whose instances are single test cases」：plain text is sent without annotation |
+| 19 | `ToolTest` | `test_success_enqueues_segments` | 覆盖「A class whose instances are single test cases」：success enqueues segments |
+| 20 | `ToolTest` | `test_sync_playback_releases_on_stop` | 覆盖「A class whose instances are single test cases」：sync playback releases on stop |
+| 21 | `ToolTest` | `test_sync_playback_times_out_without_ack` | 覆盖「A class whose instances are single test cases」：sync playback times out without ack |
+| 22 | `ToolTest` | `test_sync_playback_waits_for_frontend_ack` | 覆盖「A class whose instances are single test cases」：sync playback waits for frontend ack |
+| 23 | `ToolTest` | `test_sync_synthesis_failure_is_not_reported_as_playback_failure` | 覆盖「A class whose instances are single test cases」：sync synthesis failure is not reported as playback failure |
+| 24 | `ToolTest` | `test_tool_contract` | 覆盖「A class whose instances are single test cases」：tool contract |
 
 ## test_ai_cosplay_text.py
 
-共 31 个用例。
+共 30 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
-| 1 | `ConfigTest` | `test_invalid_engine_and_voice_fail` | 覆盖「A class whose instances are single test cases」：invalid engine and voice fail |
+| 1 | `ConfigTest` | `test_empty_voice_fails` | 覆盖「A class whose instances are single test cases」：empty voice fails |
 | 2 | `ConfigTest` | `test_missing_file_uses_defaults` | 覆盖「A class whose instances are single test cases」：missing file uses defaults |
 | 3 | `ConfigTest` | `test_values_and_limits` | 覆盖「A class whose instances are single test cases」：values and limits |
 | 4 | `SpeechTextTest` | `test_bracket_and_book_title_quotes_are_dropped` | 各种引号都不发音：合成前统一清掉，不靠逐个列举。 |
 | 5 | `SpeechTextTest` | `test_dates_and_identifiers_are_not_math` | 覆盖「A class whose instances are single test cases」：dates and identifiers are not math |
-| 6 | `SpeechTextTest` | `test_hang_after_number_uses_homophone` | 覆盖「A class whose instances are single test cases」：hang after number uses homophone |
-| 7 | `SpeechTextTest` | `test_math` | 覆盖「A class whose instances are single test cases」：math |
-| 8 | `SpeechTextTest` | `test_non_speakable_symbols_are_dropped` | 覆盖「A class whose instances are single test cases」：non speakable symbols are dropped |
-| 9 | `SpeechTextTest` | `test_percent` | 覆盖「A class whose instances are single test cases」：percent |
-| 10 | `SpeechTextTest` | `test_quotes_and_apostrophes` | 覆盖「A class whose instances are single test cases」：quotes and apostrophes |
-| 11 | `SpeechTextTest` | `test_thousands_separator_removed` | 覆盖「A class whose instances are single test cases」：thousands separator removed |
-| 12 | `SplitTest` | `test_chinese_and_english_sentences` | 覆盖「A class whose instances are single test cases」：chinese and english sentences |
-| 13 | `SplitTest` | `test_configured_limit_is_not_capped` | 覆盖「A class whose instances are single test cases」：configured limit is not capped |
-| 14 | `SplitTest` | `test_message_limit` | 覆盖「A class whose instances are single test cases」：message limit |
-| 15 | `SplitTest` | `test_numeric_separators_are_not_boundaries` | 覆盖「A class whose instances are single test cases」：numeric separators are not boundaries |
-| 16 | `SplitTest` | `test_packing_respects_limit` | 覆盖「A class whose instances are single test cases」：packing respects limit |
-| 17 | `SplitTest` | `test_quoted_end_is_a_boundary` | 覆盖「A class whose instances are single test cases」：quoted end is a boundary |
-| 18 | `SplitTest` | `test_single_piece_over_limit` | 覆盖「A class whose instances are single test cases」：single piece over limit |
-| 19 | `ValidationTest` | `test_bracket_quotes_pair_and_do_not_split` | 「」成对可用，且引号内的标点不切段。 |
-| 20 | `ValidationTest` | `test_invisible_character_named_in_error` | 换行这类不可见字符以名字出现，不塞一个看不见的字符进报错。 |
-| 21 | `ValidationTest` | `test_non_speakable_symbols_are_accepted` | 不发音的符号不在输入侧拦，交给合成前清洗。 |
-| 22 | `ValidationTest` | `test_path_and_book_title_chars_allowed` | 文件名符号与书名号可以念，且不破坏切段。 |
-| 23 | `ValidationTest` | `test_rejects_control_characters` | 控制字符会改变切段后各段拼接的含义，必须在输入侧拦住。 |
-| 24 | `ValidationTest` | `test_rejects_empty_and_missing_end` | 覆盖「A class whose instances are single test cases」：rejects empty and missing end |
-| 25 | `ValidationTest` | `test_rejects_empty_pairs` | 覆盖「A class whose instances are single test cases」：rejects empty pairs |
-| 26 | `ValidationTest` | `test_rejects_leading_boundary` | 覆盖「A class whose instances are single test cases」：rejects leading boundary |
-| 27 | `ValidationTest` | `test_rejects_math_context` | 覆盖「A class whose instances are single test cases」：rejects math context |
-| 28 | `ValidationTest` | `test_rejects_percent_without_number` | 覆盖「A class whose instances are single test cases」：rejects percent without number |
-| 29 | `ValidationTest` | `test_rejects_unmatched_book_title` | 书名号同样要求配对。 |
-| 30 | `ValidationTest` | `test_rejects_unmatched_pairs` | 覆盖「A class whose instances are single test cases」：rejects unmatched pairs |
-| 31 | `ValidationTest` | `test_reports_rule_in_error` | 报错要说明规则是什么，别只说这个字符不行。 |
+| 6 | `SpeechTextTest` | `test_math` | 覆盖「A class whose instances are single test cases」：math |
+| 7 | `SpeechTextTest` | `test_non_speakable_symbols_are_dropped` | 覆盖「A class whose instances are single test cases」：non speakable symbols are dropped |
+| 8 | `SpeechTextTest` | `test_percent` | 覆盖「A class whose instances are single test cases」：percent |
+| 9 | `SpeechTextTest` | `test_quotes_and_apostrophes` | 覆盖「A class whose instances are single test cases」：quotes and apostrophes |
+| 10 | `SpeechTextTest` | `test_thousands_separator_removed` | 覆盖「A class whose instances are single test cases」：thousands separator removed |
+| 11 | `SplitTest` | `test_chinese_and_english_sentences` | 覆盖「A class whose instances are single test cases」：chinese and english sentences |
+| 12 | `SplitTest` | `test_configured_limit_is_not_capped` | 覆盖「A class whose instances are single test cases」：configured limit is not capped |
+| 13 | `SplitTest` | `test_message_limit` | 覆盖「A class whose instances are single test cases」：message limit |
+| 14 | `SplitTest` | `test_numeric_separators_are_not_boundaries` | 覆盖「A class whose instances are single test cases」：numeric separators are not boundaries |
+| 15 | `SplitTest` | `test_packing_respects_limit` | 覆盖「A class whose instances are single test cases」：packing respects limit |
+| 16 | `SplitTest` | `test_quoted_end_is_a_boundary` | 覆盖「A class whose instances are single test cases」：quoted end is a boundary |
+| 17 | `SplitTest` | `test_single_piece_over_limit` | 覆盖「A class whose instances are single test cases」：single piece over limit |
+| 18 | `ValidationTest` | `test_bracket_quotes_pair_and_do_not_split` | 「」成对可用，且引号内的标点不切段。 |
+| 19 | `ValidationTest` | `test_invisible_character_named_in_error` | 换行这类不可见字符以名字出现，不塞一个看不见的字符进报错。 |
+| 20 | `ValidationTest` | `test_non_speakable_symbols_are_accepted` | 不发音的符号不在输入侧拦，交给合成前清洗。 |
+| 21 | `ValidationTest` | `test_path_and_book_title_chars_allowed` | 文件名符号与书名号可以念，且不破坏切段。 |
+| 22 | `ValidationTest` | `test_rejects_control_characters` | 控制字符会改变切段后各段拼接的含义，必须在输入侧拦住。 |
+| 23 | `ValidationTest` | `test_rejects_empty_and_missing_end` | 覆盖「A class whose instances are single test cases」：rejects empty and missing end |
+| 24 | `ValidationTest` | `test_rejects_empty_pairs` | 覆盖「A class whose instances are single test cases」：rejects empty pairs |
+| 25 | `ValidationTest` | `test_rejects_leading_boundary` | 覆盖「A class whose instances are single test cases」：rejects leading boundary |
+| 26 | `ValidationTest` | `test_rejects_math_context` | 覆盖「A class whose instances are single test cases」：rejects math context |
+| 27 | `ValidationTest` | `test_rejects_percent_without_number` | 覆盖「A class whose instances are single test cases」：rejects percent without number |
+| 28 | `ValidationTest` | `test_rejects_unmatched_book_title` | 书名号同样要求配对。 |
+| 29 | `ValidationTest` | `test_rejects_unmatched_pairs` | 覆盖「A class whose instances are single test cases」：rejects unmatched pairs |
+| 30 | `ValidationTest` | `test_reports_rule_in_error` | 报错要说明规则是什么，别只说这个字符不行。 |
 
 ## test_anthropic_provider.py
 
@@ -2342,6 +2346,16 @@
 | 1 | `PresentToolTest` | `test_rejects_missing_and_empty_lists` | 覆盖「A class whose instances are single test cases」：rejects missing and empty lists |
 | 2 | `PresentToolTest` | `test_returns_metadata_without_reading_content` | 覆盖「A class whose instances are single test cases」：returns metadata without reading content |
 
+## test_process_guard.py
+
+共 3 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `AdoptTest` | `test_adopted_child_dies_with_parent` | 父进程退出后子进程必须消失——这条是守护的实质，不能只测返回值。 |
+| 2 | `AdoptTest` | `test_rejects_invalid_pid` | 覆盖「A class whose instances are single test cases」：rejects invalid pid |
+| 3 | `AdoptTest` | `test_returns_bool_for_real_child` | 真起一个子进程交给作业对象；不断言必然成功——父进程若已在别的 作业对象里，嵌套可能被拒，那属于环境限制，不该让本用例变红。 |
+
 ## test_prompt_sections.py
 
 共 2 个用例。
@@ -3377,6 +3391,133 @@
 |---:|---|---|---|
 | 1 | `AppServicesTest` | `test_missing_service_reports_assembly_hint` | 覆盖「A class whose instances are single test cases」：missing service reports assembly hint |
 | 2 | `ConfigSchemaTest` | `test_unknown_section_is_empty` | 覆盖「A class whose instances are single test cases」：unknown section is empty |
+
+## test_tts_config.py
+
+共 21 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `EngineFallbackTest` | `test_empty_engine_uses_default` | 覆盖「A class whose instances are single test cases」：empty engine uses default |
+| 2 | `EngineFallbackTest` | `test_engine_is_case_insensitive` | 覆盖「A class whose instances are single test cases」：engine is case insensitive |
+| 3 | `EngineFallbackTest` | `test_unknown_engine_falls_back_with_warning` | 覆盖「A class whose instances are single test cases」：unknown engine falls back with warning |
+| 4 | `LimitsFallbackTest` | `test_cfg_scale_decimal_is_accepted` | 覆盖「A class whose instances are single test cases」：cfg scale decimal is accepted |
+| 5 | `LimitsFallbackTest` | `test_cfg_scale_out_of_range` | 覆盖「A class whose instances are single test cases」：cfg scale out of range |
+| 6 | `LimitsFallbackTest` | `test_decimal_speed_is_accepted` | 覆盖「A class whose instances are single test cases」：decimal speed is accepted |
+| 7 | `LimitsFallbackTest` | `test_empty_values_use_defaults_silently` | 覆盖「A class whose instances are single test cases」：empty values use defaults silently |
+| 8 | `LimitsFallbackTest` | `test_negative_idle_is_clamped_to_zero` | 覆盖「A class whose instances are single test cases」：negative idle is clamped to zero |
+| 9 | `LimitsFallbackTest` | `test_port_out_of_range` | 覆盖「A class whose instances are single test cases」：port out of range |
+| 10 | `LimitsFallbackTest` | `test_speed_not_a_number` | 覆盖「A class whose instances are single test cases」：speed not a number |
+| 11 | `LimitsFallbackTest` | `test_speed_out_of_range` | 覆盖「A class whose instances are single test cases」：speed out of range |
+| 12 | `MiscTest` | `test_broken_file_raises_config_error` | 覆盖「A class whose instances are single test cases」：broken file raises config error |
+| 13 | `MiscTest` | `test_defaults_match_module_constants` | 覆盖「A class whose instances are single test cases」：defaults match module constants |
+| 14 | `MiscTest` | `test_empty_edge_voice_falls_back` | 覆盖「A class whose instances are single test cases」：empty edge voice falls back |
+| 15 | `MiscTest` | `test_missing_file_uses_defaults` | 覆盖「A class whose instances are single test cases」：missing file uses defaults |
+| 16 | `ModelFallbackTest` | `test_known_model_is_kept` | 覆盖「A class whose instances are single test cases」：known model is kept |
+| 17 | `ModelFallbackTest` | `test_unregistered_model_falls_back_with_warning` | 覆盖「A class whose instances are single test cases」：unregistered model falls back with warning |
+| 18 | `SamplingTest` | `test_decimal_temperature_is_accepted` | 覆盖「A class whose instances are single test cases」：decimal temperature is accepted |
+| 19 | `SamplingTest` | `test_defaults_match_model_values` | 采样默认值跟模型自带值一致：压低会连情绪起伏一起抹平，不作为稳定音色的手段。 |
+| 20 | `SamplingTest` | `test_out_of_range_falls_back` | 覆盖「A class whose instances are single test cases」：out of range falls back |
+| 21 | `SamplingTest` | `test_zero_keeps_model_default` | 覆盖「A class whose instances are single test cases」：zero keeps model default |
+
+## test_tts_endpoints.py
+
+共 10 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `EngineUnavailableTest` | `test_list_is_503` | 覆盖「A class whose instances are single test cases」：list is 503 |
+| 2 | `EngineUnavailableTest` | `test_preview_is_503` | 覆盖「A class whose instances are single test cases」：preview is 503 |
+| 3 | `EngineUnavailableTest` | `test_save_is_503` | 覆盖「A class whose instances are single test cases」：save is 503 |
+| 4 | `ErrorMappingTest` | `test_current_value_error_is_400` | 覆盖「A class whose instances are single test cases」：current value error is 400 |
+| 5 | `ErrorMappingTest` | `test_delete_value_error_is_400` | 覆盖「A class whose instances are single test cases」：delete value error is 400 |
+| 6 | `ErrorMappingTest` | `test_list_value_error_is_400` | 覆盖「A class whose instances are single test cases」：list value error is 400 |
+| 7 | `ErrorMappingTest` | `test_options_ok` | 覆盖「A class whose instances are single test cases」：options ok |
+| 8 | `ErrorMappingTest` | `test_preview_value_error_is_400` | 覆盖「A class whose instances are single test cases」：preview value error is 400 |
+| 9 | `ErrorMappingTest` | `test_save_value_error_is_400` | 覆盖「A class whose instances are single test cases」：save value error is 400 |
+| 10 | `NoLabTest` | `test_network_engine_returns_400` | 覆盖「A class whose instances are single test cases」：network engine returns 400 |
+
+## test_tts_pinyin.py
+
+共 2 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `PolyphoneTest` | `test_hang_and_zhong` | 覆盖「A class whose instances are single test cases」：hang and zhong |
+| 2 | `PolyphoneTest` | `test_idempotent_on_plain_text` | 覆盖「A class whose instances are single test cases」：idempotent on plain text |
+
+## test_tts_provider.py
+
+共 17 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `CapabilitiesTest` | `test_breeze_supports_instruction_and_cfg` | 覆盖「A class whose instances are single test cases」：breeze supports instruction and cfg |
+| 2 | `CapabilitiesTest` | `test_edge_ignores_instruction_and_needs_pinyin` | 覆盖「A class whose instances are single test cases」：edge ignores instruction and needs pinyin |
+| 3 | `CapabilitiesTest` | `test_edge_ignores_upstream_voice` | 覆盖「A class whose instances are single test cases」：edge ignores upstream voice |
+| 4 | `EdgeSynthesisTest` | `test_empty_audio` | 覆盖「Edge 引擎走假 edge_tts 模块，验证合成成功、缺依赖、空音频与超时」：empty audio |
+| 5 | `EdgeSynthesisTest` | `test_missing_dependency` | 覆盖「Edge 引擎走假 edge_tts 模块，验证合成成功、缺依赖、空音频与超时」：missing dependency |
+| 6 | `EdgeSynthesisTest` | `test_pinyin_is_applied_before_synthesis` | 覆盖「Edge 引擎走假 edge_tts 模块，验证合成成功、缺依赖、空音频与超时」：pinyin is applied before synthesis |
+| 7 | `EdgeSynthesisTest` | `test_synthesize_uses_configured_voice` | 覆盖「Edge 引擎走假 edge_tts 模块，验证合成成功、缺依赖、空音频与超时」：synthesize uses configured voice |
+| 8 | `EdgeSynthesisTest` | `test_timeout` | 覆盖「Edge 引擎走假 edge_tts 模块，验证合成成功、缺依赖、空音频与超时」：timeout |
+| 9 | `InstructionTest` | `test_default_desc_used_when_upstream_silent` | 覆盖「A class whose instances are single test cases」：default desc used when upstream silent |
+| 10 | `InstructionTest` | `test_empty_emotion_is_skipped` | 覆盖「A class whose instances are single test cases」：empty emotion is skipped |
+| 11 | `InstructionTest` | `test_explicit_instruction_wins` | 覆盖「A class whose instances are single test cases」：explicit instruction wins |
+| 12 | `InstructionTest` | `test_speed_never_enters_instruction` | 实测该引擎不响应语速描述（要求快反而慢 17%），所以不拼进指令。 |
+| 13 | `InstructionTest` | `test_upstream_voice_overrides_default_desc` | 覆盖「A class whose instances are single test cases」：upstream voice overrides default desc |
+| 14 | `InstructionTest` | `test_voice_id_drops_voice_description` | 有参考音色时说话人已定死，再拼音色描述会跟参考音色打架。 |
+| 15 | `InstructionTest` | `test_voice_id_keeps_emotion` | 覆盖「A class whose instances are single test cases」：voice id keeps emotion |
+| 16 | `TextGuardTest` | `test_rejects_empty_text` | 覆盖「A class whose instances are single test cases」：rejects empty text |
+| 17 | `TextGuardTest` | `test_rejects_overlong_segment` | 覆盖「A class whose instances are single test cases」：rejects overlong segment |
+
+## test_tts_provider_errors.py
+
+共 6 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `HttpErrorMappingTest` | `test_bad_request_is_synthesis_error` | 覆盖「A class whose instances are single test cases」：bad request is synthesis error |
+| 2 | `HttpErrorMappingTest` | `test_busy_is_engine_unavailable` | 覆盖「A class whose instances are single test cases」：busy is engine unavailable |
+| 3 | `HttpErrorMappingTest` | `test_error_message_keeps_detail` | 覆盖「A class whose instances are single test cases」：error message keeps detail |
+| 4 | `HttpErrorMappingTest` | `test_missing_model_is_synthesis_error` | 覆盖「A class whose instances are single test cases」：missing model is synthesis error |
+| 5 | `HttpErrorMappingTest` | `test_service_down_is_engine_unavailable` | 覆盖「A class whose instances are single test cases」：service down is engine unavailable |
+| 6 | `HttpErrorMappingTest` | `test_throttled_is_engine_unavailable` | 覆盖「A class whose instances are single test cases」：throttled is engine unavailable |
+
+## test_tts_schema.py
+
+共 15 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `ComposeTest` | `test_blank_value_rejected` | 覆盖「A class whose instances are single test cases」：blank value rejected |
+| 2 | `ComposeTest` | `test_compose_keeps_under_length_limit` | 指令不能无限制堆砌；当前最长（御姐类）约 321 字符，上限抬到 340。 |
+| 3 | `ComposeTest` | `test_compose_structure` | 指令形状：must be…definitely not…，且五个维度都在。 |
+| 4 | `ComposeTest` | `test_instruction_is_english` | 英文对音色的控制明显强于中文，指令不许退回中文。 |
+| 5 | `ComposeTest` | `test_missing_dimension_rejected` | 覆盖「A class whose instances are single test cases」：missing dimension rejected |
+| 6 | `ComposeTest` | `test_same_dims_always_same_text` | 覆盖「A class whose instances are single test cases」：same dims always same text |
+| 7 | `ComposeTest` | `test_unknown_value_rejected` | 覆盖「A class whose instances are single test cases」：unknown value rejected |
+| 8 | `DescribeTest` | `test_describe_covers_all_dimensions` | 覆盖「A class whose instances are single test cases」：describe covers all dimensions |
+| 9 | `DescribeTest` | `test_describe_is_chinese_only` | 给界面看的描述必须是中文，不能泄露英文指令。 |
+| 10 | `OptionsTest` | `test_each_dimension_has_options` | 覆盖「A class whose instances are single test cases」：each dimension has options |
+| 11 | `OptionsTest` | `test_payload_matches_dimensions` | 覆盖「A class whose instances are single test cases」：payload matches dimensions |
+| 12 | `PresetTest` | `test_every_preset_composes` | 覆盖「A class whose instances are single test cases」：every preset composes |
+| 13 | `PresetTest` | `test_preset_ids_are_valid_voice_ids` | 覆盖「A class whose instances are single test cases」：preset ids are valid voice ids |
+| 14 | `PresetTest` | `test_preset_ids_unique` | 覆盖「A class whose instances are single test cases」：preset ids unique |
+| 15 | `VoiceIdTest` | `test_regex_accepts_and_rejects` | 覆盖「A class whose instances are single test cases」：regex accepts and rejects |
+
+## test_tts_service.py
+
+共 7 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `FallbackTest` | `test_engine_unavailable_falls_back` | 覆盖「A class whose instances are single test cases」：engine unavailable falls back |
+| 2 | `FallbackTest` | `test_fallback_disabled_keeps_error` | 覆盖「A class whose instances are single test cases」：fallback disabled keeps error |
+| 3 | `FallbackTest` | `test_ready_true_when_either_side_works` | 覆盖「A class whose instances are single test cases」：ready true when either side works |
+| 4 | `FallbackTest` | `test_synthesis_error_does_not_fall_back` | 覆盖「A class whose instances are single test cases」：synthesis error does not fall back |
+| 5 | `StatusTest` | `test_status_exposes_engine_and_capabilities` | 覆盖「A class whose instances are single test cases」：status exposes engine and capabilities |
+| 6 | `SupervisorTest` | `test_idle_release_without_process_is_noop` | 覆盖「A class whose instances are single test cases」：idle release without process is noop |
+| 7 | `SupervisorTest` | `test_missing_files_are_reported_before_spawn` | 覆盖「A class whose instances are single test cases」：missing files are reported before spawn |
 
 ## test_ui_registry.py
 

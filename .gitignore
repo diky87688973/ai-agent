@@ -1,6 +1,8 @@
 # 私有配置与凭据
 # 插件配置带本地实例属性（目录、凭据、阈值），一律不入库；只有内核配置入库
 plugins/*/plugin-config.ini
+# 例外：tts 插件配置只有引擎选择与音色 id 这类公开参数，不含凭据，随插件一起入库
+!plugins/tts/plugin-config.ini
 _PRIVATE_RULE.md
 *.local.ini
 *.local.toml

@@ -6,6 +6,9 @@
       "path": "app/plugins/ai_cosplay/runtime",
       "kind": "runtime",
       "factory": "plugin:make_runtime",
+      "requires": {
+        "tts": "app/plugins/tts/service"
+      },
       "order": 0
     },
     {

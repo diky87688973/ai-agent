@@ -16,8 +16,7 @@ from agent.config import load_ini
 
 CONFIG_FILE = "plugin-config.ini"
 CONFIG_SECTION = "config"
-DEFAULT_ENGINE = "edge"
-DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
+DEFAULT_VOICE = "一位温柔清晰的年轻女性，声音柔和亲切"
 DEFAULT_USER_SALUTATION = "陛下"
 DEFAULT_ASSISTANT_SALUTATION = "臣妾"
 DEFAULT_TONE = "温婉"
@@ -45,7 +44,6 @@ class ConfigError(ValueError):
 class AICosplayConfig:
     """一份不可变配置；警告只描述被回退的数值，不阻断装载。"""
 
-    engine: str = DEFAULT_ENGINE
     voice: str = DEFAULT_VOICE
     user_salutation: str = DEFAULT_USER_SALUTATION
     assistant_salutation: str = DEFAULT_ASSISTANT_SALUTATION
@@ -59,7 +57,7 @@ class AICosplayConfig:
 
     @property
     def enabled(self) -> bool:
-        return self.engine == DEFAULT_ENGINE and bool(self.voice)
+        return bool(self.voice)
 
 
 def config_path() -> Path:
@@ -146,9 +144,9 @@ def _parse_numeric(values: dict[str, str], warnings: list[str]) -> Tuple[int, in
 def load_config(path: Optional[Path] = None) -> AICosplayConfig:
     """读取并校验 `[config]`。
 
-    `engine` 只接受 `edge`；`voice` 必须非空。两者不可用时抛
-    `ConfigError`，让插件装载失败并在插件列表里可见。数值错误回退默认值，
-    通过 `warnings` 交给调用方留痕。
+    `voice` 必须非空：它是上游对音色的诉求，为空等于没有诉求，合成引擎
+    无从参考。不可用时抛 `ConfigError`，让插件装载失败并在插件列表里可见。
+    数值错误回退默认值，通过 `warnings` 交给调用方留痕。
     """
     target = Path(path) if path is not None else config_path()
     try:
@@ -159,13 +157,6 @@ def load_config(path: Optional[Path] = None) -> AICosplayConfig:
     values = {}
     if parser.has_section(CONFIG_SECTION):
         values = {str(k).strip(): _clean(v) for k, v in parser.items(CONFIG_SECTION)}
-
-    engine = (values.get("engine") or DEFAULT_ENGINE).lower()
-    if engine != DEFAULT_ENGINE:
-        raise ConfigError(
-            f"[{CONFIG_SECTION}] engine 只接受 {DEFAULT_ENGINE!r}，实际 {engine!r}",
-            path=target,
-        )
 
     voice = values["voice"] if "voice" in values else DEFAULT_VOICE
     if not voice:
@@ -188,7 +179,6 @@ def load_config(path: Optional[Path] = None) -> AICosplayConfig:
     max_segment_chars, play_interval_ms, sync_playback, speed = _parse_numeric(values, warnings)
 
     return AICosplayConfig(
-        engine=engine,
         voice=voice,
         user_salutation=user_salutation,
         assistant_salutation=assistant_salutation,

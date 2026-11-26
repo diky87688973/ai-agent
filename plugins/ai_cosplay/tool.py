@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from agent.capabilities.registry import ToolPlugin
+from agent.common.tts_contract import TTSUnavailable
 from agent.core.context import SERVICE_PLUGIN_EVENTS
 from agent.core.error_report import report_error
 from agent.core.session_scope import current_context
 
-from .provider import SpeechEngineUnavailable
 from .runtime import AICosplayRuntime
 from .runtime_worker import (
     PLAYED,
@@ -77,29 +77,29 @@ class AICosplayTool(ToolPlugin):
         segments = split_message(raw, self._runtime.config.max_segment_chars)
         speech_segments = tuple(split_speech_text(segment) for segment in segments)
         if not self._runtime.provider_ready():
-            raise SpeechEngineUnavailable(
-                "edge-tts 未安装。请执行: pip install edge-tts"
+            raise TTSUnavailable(
+                "语音合成不可用：请检查 tts 插件的配置与模型安装"
             )
 
         turn = current_context()
         if turn is None or turn.app is None:
-            raise SpeechEngineUnavailable("AI角色扮演只能在工具调用中执行")
+            raise TTSUnavailable("AI角色扮演只能在工具调用中执行")
         conversation_id = str(turn.conversation_id or "").strip()
         if not conversation_id:
-            raise SpeechEngineUnavailable("缺少会话 id")
+            raise TTSUnavailable("缺少会话 id")
         publisher = turn.app.get(SERVICE_PLUGIN_EVENTS) if turn.app.has(SERVICE_PLUGIN_EVENTS) else None
         if publisher is None or not callable(publisher):
-            raise SpeechEngineUnavailable("当前没有可用的插件事件出口")
+            raise TTSUnavailable("当前没有可用的插件事件出口")
         connected = getattr(publisher, "connected", None)
         if callable(connected) and not connected():
-            raise SpeechEngineUnavailable("没有已连接的 Web 界面")
+            raise TTSUnavailable("没有已连接的 Web 界面")
 
         call_id = str(turn.call_id or "").strip()
         sync = bool(self._runtime.config.sync_playback)
         waiter = None
         if sync:
             if not call_id:
-                raise SpeechEngineUnavailable("同步播放缺少工具调用 id")
+                raise TTSUnavailable("同步播放缺少工具调用 id")
             waiter = self._runtime.begin_playback(conversation_id, call_id)
         try:
             queued = self._runtime.enqueue(
