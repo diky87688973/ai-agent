@@ -11,13 +11,20 @@ import base64
 import dataclasses
 from typing import Any, Callable, Dict
 
-from agent.common.tts_contract import TTSEngineUnavailable, TTSProvider
+from agent.common.tts_contract import (
+    TTSCapabilities,
+    TTSEngineUnavailable,
+    TTSProvider,
+    TTSRequest,
+    TTSResult,
+    TTSUnavailable,
+)
 from agent.core.error_report import report_error
 
 from . import schema
 from .config import TTSConfig, config_path, load_config
 from .provider import create_provider, create_voice_lab
-from .service import TTSService
+from .service import INSTALL_HINT, TTSService
 
 
 def _log_warnings(config: TTSConfig) -> None:
@@ -29,11 +36,41 @@ def _edge_provider(config: TTSConfig) -> TTSProvider:
     return create_provider(dataclasses.replace(config, engine="edge"))
 
 
+class _UnavailableProvider:
+    """本地引擎装不起来、且用户关掉了兜底时用它。
+
+    插件照常装载（不连带上游一起挂），但任何一次合成都会如实报错并附带安装指引；
+    不复用 edge 顶上 —— 那会让“没装模型”变成“默默用网给”。
+    """
+
+    name = "breeze"
+
+    def __init__(self, reason: str) -> None:
+        self._reason = str(reason or "本地引擎不可用")
+
+    def available(self) -> bool:
+        return False
+
+    def capabilities(self) -> TTSCapabilities:
+        return TTSCapabilities(supports_instruction=False, supports_speed=False,
+                               supports_cfg=False, needs_pinyin_hints=False)
+
+    def synthesize(self, request: TTSRequest) -> TTSResult:
+        raise TTSUnavailable(f"{self._reason}；{INSTALL_HINT}")
+
+    def release_idle(self) -> bool:
+        return False
+
+    def dispose(self) -> None:
+        return None
+
+
 def make_service(ctx: Any) -> TTSService:
     """装配期构造合成服务。
 
-    本地引擎装配失败不能让插件装载失败，否则上游连话都说不出；此时退化为
-    edge 并把原因留在状态里，由设置页与 `GET status` 显示需要安装什么。
+    本地引擎装配失败不能让插件装载失败，否则上游连话都说不出。但退化必须可见：
+    退到 edge 时把原因写进 service，`GET status` 才能报出 `degraded_reason`
+    与 `install_hint`；用户关掉兜底时则干脆不换引擎，合成时如实报错。
     """
     config = load_config()
     _log_warnings(config)
@@ -42,7 +79,10 @@ def make_service(ctx: Any) -> TTSService:
         primary = create_provider(config)
     except TTSEngineUnavailable as exc:
         report_error("plugin.tts.service", exc, plugin="tts")
-        return TTSService(config, _edge_provider(config), None, None)
+        reason = f"本地引擎不可用：{exc}"
+        if not config.fallback_to_edge:
+            return TTSService(config, _UnavailableProvider(reason), None, None, reason)
+        return TTSService(config, _edge_provider(config), None, None, reason)
 
     fallback = None
     if config.engine != "edge" and config.fallback_to_edge:

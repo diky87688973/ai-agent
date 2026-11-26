@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2804** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2811** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -155,38 +155,39 @@
 144. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
 145. [test_top_level_services.py](#test_top_level_servicespy)（2）
 146. [test_tts_config.py](#test_tts_configpy)（21）
-147. [test_tts_endpoints.py](#test_tts_endpointspy)（10）
-148. [test_tts_pinyin.py](#test_tts_pinyinpy)（2）
-149. [test_tts_provider.py](#test_tts_providerpy)（17）
-150. [test_tts_provider_errors.py](#test_tts_provider_errorspy)（6）
-151. [test_tts_schema.py](#test_tts_schemapy)（15）
-152. [test_tts_service.py](#test_tts_servicepy)（7）
-153. [test_ui_registry.py](#test_ui_registrypy)（7）
-154. [test_update.py](#test_updatepy)（26）
-155. [test_update_processes.py](#test_update_processespy)（3）
-156. [test_update_transaction.py](#test_update_transactionpy)（7）
-157. [test_usage_metrics.py](#test_usage_metricspy)（7）
-158. [test_version_stamp.py](#test_version_stamppy)（4）
-159. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-160. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-161. [test_visual_operator.py](#test_visual_operatorpy)（163）
-162. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
-163. [test_visualization.py](#test_visualizationpy)（8）
-164. [test_visualization_browser.py](#test_visualization_browserpy)（7）
-165. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
-166. [test_visualization_extra.py](#test_visualization_extrapy)（5）
-167. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
-168. [test_wake_isolation.py](#test_wake_isolationpy)（3）
-169. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-170. [test_web_auth.py](#test_web_authpy)（26）
-171. [test_web_frontend.py](#test_web_frontendpy)（6）
-172. [test_web_shell.py](#test_web_shellpy)（65）
-173. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-174. [test_window_chrome_ui.py](#test_window_chrome_uipy)（2）
-175. [test_window_ops.py](#test_window_opspy)（39）
-176. [test_write_gate.py](#test_write_gatepy)（22）
-177. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-178. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+147. [test_tts_degraded.py](#test_tts_degradedpy)（7）
+148. [test_tts_endpoints.py](#test_tts_endpointspy)（10）
+149. [test_tts_pinyin.py](#test_tts_pinyinpy)（2）
+150. [test_tts_provider.py](#test_tts_providerpy)（17）
+151. [test_tts_provider_errors.py](#test_tts_provider_errorspy)（6）
+152. [test_tts_schema.py](#test_tts_schemapy)（15）
+153. [test_tts_service.py](#test_tts_servicepy)（7）
+154. [test_ui_registry.py](#test_ui_registrypy)（7）
+155. [test_update.py](#test_updatepy)（26）
+156. [test_update_processes.py](#test_update_processespy)（3）
+157. [test_update_transaction.py](#test_update_transactionpy)（7）
+158. [test_usage_metrics.py](#test_usage_metricspy)（7）
+159. [test_version_stamp.py](#test_version_stamppy)（4）
+160. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+161. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+162. [test_visual_operator.py](#test_visual_operatorpy)（163）
+163. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
+164. [test_visualization.py](#test_visualizationpy)（8）
+165. [test_visualization_browser.py](#test_visualization_browserpy)（7）
+166. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
+167. [test_visualization_extra.py](#test_visualization_extrapy)（5）
+168. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
+169. [test_wake_isolation.py](#test_wake_isolationpy)（3）
+170. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+171. [test_web_auth.py](#test_web_authpy)（26）
+172. [test_web_frontend.py](#test_web_frontendpy)（6）
+173. [test_web_shell.py](#test_web_shellpy)（65）
+174. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+175. [test_window_chrome_ui.py](#test_window_chrome_uipy)（2）
+176. [test_window_ops.py](#test_window_opspy)（39）
+177. [test_write_gate.py](#test_write_gatepy)（22）
+178. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+179. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -3419,6 +3420,20 @@
 | 19 | `SamplingTest` | `test_defaults_match_model_values` | 采样默认值跟模型自带值一致：压低会连情绪起伏一起抹平，不作为稳定音色的手段。 |
 | 20 | `SamplingTest` | `test_out_of_range_falls_back` | 覆盖「A class whose instances are single test cases」：out of range falls back |
 | 21 | `SamplingTest` | `test_zero_keeps_model_default` | 覆盖「A class whose instances are single test cases」：zero keeps model default |
+
+## test_tts_degraded.py
+
+共 7 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `StatusTest` | `test_degraded_is_visible` | 覆盖「A class whose instances are single test cases」：degraded is visible |
+| 2 | `StatusTest` | `test_edge_engine_has_no_hint` | 覆盖「A class whose instances are single test cases」：edge engine has no hint |
+| 3 | `StatusTest` | `test_engine_is_configured_not_active` | engine 必须是配置值；实际在用的放 active_engine。 |
+| 4 | `StatusTest` | `test_healthy_engine_has_no_hint` | 覆盖「A class whose instances are single test cases」：healthy engine has no hint |
+| 5 | `UnavailableProviderTest` | `test_capabilities_are_all_off` | 覆盖「A class whose instances are single test cases」：capabilities are all off |
+| 6 | `UnavailableProviderTest` | `test_raises_with_install_hint` | 覆盖「A class whose instances are single test cases」：raises with install hint |
+| 7 | `UnavailableProviderTest` | `test_release_and_dispose_are_safe` | 覆盖「A class whose instances are single test cases」：release and dispose are safe |
 
 ## test_tts_endpoints.py
 
