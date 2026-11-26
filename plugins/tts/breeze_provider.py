@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import threading
 import urllib.error
@@ -30,6 +31,16 @@ DEFAULT_SAMPLE_RATE = 24000
 MAX_TEXT_CHARS = 800
 
 _NO_PROXY = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def _seed_for_text(text: str) -> int:
+    """按文本派生默认种子：同句稳定，不同句分散。
+
+    原先把 42 写死：所有句子共用同一个采样起点，
+    某一批文本的瑕疵会被放大成系统性问题。
+    """
+    digest = hashlib.sha256(text.encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") % 9973 + 1
 
 
 def _pcm_to_wav(pcm: bytes, sample_rate: int) -> bytes:
@@ -124,7 +135,7 @@ class BreezeProvider(TTSProvider):
             "text": body,
             "instruction": self.build_instruction(request),
             "cfg_scale": f"{cfg:g}",
-            "seed": str(int(request.seed) if request.seed > 0 else 42),
+            "seed": str(int(request.seed) if request.seed > 0 else _seed_for_text(body)),
         }
         voice_id = self._effective_voice_id(request)
         if voice_id:
