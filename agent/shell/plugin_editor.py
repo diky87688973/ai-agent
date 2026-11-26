@@ -179,6 +179,8 @@ def build_editor(text: str, folder: Path) -> Dict[str, Any]:
                 raw = str(values.get(key) or "").strip()
                 configured[key] = bool(raw) and not is_placeholder_api_key(raw)
                 values[key] = ""
+            elif field["kind"] == "bool":
+                values[key] = _bool_value(values.get(key), field)
             elif not str(values.get(key) or "").strip() and field.get("default"):
                 values[key] = field["default"]
         return {
@@ -201,6 +203,18 @@ def build_editor(text: str, folder: Path) -> Dict[str, Any]:
         "sections": sections,
         "show_headers": show_headers,
     }
+
+
+def _bool_value(raw: Any, field: Dict[str, Any]) -> bool:
+    """读取边界：ini 文本 0/1 转成布尔，界面拿到的只有 true/false。"""
+    text = str(raw or "").strip()
+    if not text:
+        return bool(field.get("default"))
+    if text == "1":
+        return True
+    if text == "0":
+        return False
+    raise ValueError(f"{field['key']} 只接受 0 或 1，收到 {raw!r}")
 
 
 def _section_values(text: str, section: str) -> Dict[str, str]:
