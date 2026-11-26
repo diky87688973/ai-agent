@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -134,10 +135,38 @@ def list_plugins(plugins_path: Optional[Path] = None,
     return {"ok": True, "plugins": cards, "operations": operations}
 
 
+def _dependents(plugin: str, plugins_dir: Path) -> List[str]:
+    """找出在插口里声明依赖该插件的插件名。
+
+    依赖写在 `plugin-slots.json` 的 `requires` 里，值是目标插口路径；
+    只按路径前缀比对，不猜依赖语义。
+    """
+    prefix = f"app/plugins/{plugin}/"
+    found: List[str] = []
+    for meta in sorted(Path(plugins_dir).glob("*/plugin-slots.json")):
+        name = meta.parent.name
+        if name == plugin:
+            continue
+        try:
+            data = json.loads(meta.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for slot in data.get("slots") or []:
+            requires = slot.get("requires") or {}
+            if any(str(item).startswith(prefix) for item in requires.values()):
+                found.append(name)
+                break
+    return found
+
+
 def set_plugin_enabled(name: str, enabled: bool, app: Any = None, *,
                        plugins_path: Optional[Path] = None,
                        plugins_dir: Optional[Path] = None) -> Dict[str, Any]:
-    """把插件清单节的 `enabled` 写成 1 或 0，再按它装载或卸下。"""
+    """把插件清单节的 `enabled` 写成 1 或 0，再按它装载或卸下。
+
+    禁用时连带禁用依赖它的插件：依赖方留着就会装配失败，而装配失败会回滚
+    整个开关，表现为“插件关不掉”。
+    """
     plugin = str(name or "").strip()
     if not _valid_name(plugin):
         return {"ok": False, "error": "插件名不合法"}
@@ -146,20 +175,24 @@ def set_plugin_enabled(name: str, enabled: bool, app: Any = None, *,
         plugin, plugins_dir=root, plugins_path=manifest_path, app=app)
     if enabled and not (folder / "plugin-meta.json").is_file():
         return {"ok": False, "error": "插件目录里没有 plugin-meta.json"}
+    cascade = [] if enabled else _dependents(plugin, root)
     with LOCK:
-        text = read_text(manifest_path)
-        section = f"plugin:{plugin}"
-        flag = "1" if enabled else "0"
-        if section_span(text.splitlines(keepends=True), section) is None:
-            write_text(manifest_path, append_ini_section(text, section, [("enabled", flag)]))
-        else:
-            write_text(
-                manifest_path, update_ini_keys(text, section, {"enabled": flag}))
+        original = read_text(manifest_path)
+        text = original
+        for target in [plugin] + cascade:
+            section = f"plugin:{target}"
+            flag = "1" if enabled else "0"
+            if section_span(text.splitlines(keepends=True), section) is None:
+                text = append_ini_section(text, section, [("enabled", flag)])
+            else:
+                text = update_ini_keys(text, section, {"enabled": flag})
+        write_text(manifest_path, text)
         reports = sync_plugins(
             app, plugins_path=manifest_path, plugins_dir=root, reload_plugin=plugin) if app is not None else []
         if any(item.get("status") == PLUGIN_ERROR for item in reports):
-            write_text(manifest_path, text)
+            write_text(manifest_path, original)
     return {"ok": not any(item.get("status") == PLUGIN_ERROR for item in reports),
+            "disabled": cascade if not enabled else [],
             "reports": reports}
 
 
