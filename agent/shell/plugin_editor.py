@@ -471,7 +471,7 @@ def _group_body(group: Dict[str, Any], schema: Dict[str, Any],
             value = str(previous.get(key.lower()) or "").strip()
         if kind == "bool":
             body.extend(_comment_lines(comments.get(key.lower())))
-            body.append(f"{key} = {_bool_text(value, field)}")
+            body.append(f"{key} = {_bool_text(value)}")
             continue
         if not value:
             value = str(field.get("default") or "")
@@ -510,11 +510,11 @@ def _comment_lines(lines: Any) -> List[str]:
     return [str(line) for line in lines if str(line).strip()]
 
 
-def _bool_text(value: str, field: Dict[str, Any]) -> str:
-    text = str(value or "").strip().lower()
-    if not text:
-        text = str(field.get("default") or "").strip().lower()
-    return "0" if text in ("0", "false", "off", "no", "") else "1"
+def _bool_text(value: Any) -> str:
+    """写进配置文件只有 true / false 两种，不产出 0、1 或其他写法。"""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return "true" if str(value or "").strip() == "true" else "false"
 
 
 def _visible(field: Dict[str, Any], values: Dict[str, str]) -> bool:
