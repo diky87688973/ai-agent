@@ -271,7 +271,7 @@ class ConfigTest(unittest.TestCase):
             path.write_text(
                 "[config]\nengine = edge\nvoice = v\nuser_salutation = 老板\nassistant_salutation = 属下\ntone = 简洁\n"
                 "max_segment_chars = 300\nplay_interval_ms = 250\n"
-                "sync_playback = on\nspeed = 1.5\n",
+                "sync_playback = 1\nspeed = 1.5\n",
                 encoding="utf-8",
             )
             cfg = _CONFIG.load_config(path)
@@ -285,7 +285,7 @@ class ConfigTest(unittest.TestCase):
 
             path.write_text(
                 "[config]\nuser_salutation = \nassistant_salutation = \ntone = \nmax_segment_chars = 0\nplay_interval_ms = -3\n"
-                "sync_playback = maybe\nspeed = 9\n",
+                "sync_playback = 0\nspeed = 9\n",
                 encoding="utf-8",
             )
             cfg = _CONFIG.load_config(path)
@@ -296,7 +296,15 @@ class ConfigTest(unittest.TestCase):
             self.assertEqual(cfg.play_interval_ms, 0)
             self.assertFalse(cfg.sync_playback)
             self.assertEqual(cfg.speed, 1.0)
-            self.assertEqual(len(cfg.warnings), 4)
+            self.assertEqual(len(cfg.warnings), 3)
+
+    def test_bad_bool_raises(self) -> None:
+        """开关只认 0 或 1：其他写法是配置错误，不是可回退的警告。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "plugin-config.ini"
+            path.write_text("[config]\nsync_playback = maybe\n", encoding="utf-8")
+            with self.assertRaises(_CONFIG.ConfigError):
+                _CONFIG.load_config(path)
 
     def test_empty_voice_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

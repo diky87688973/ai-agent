@@ -273,7 +273,7 @@ class ConfigTest(unittest.TestCase):
 
     def test_values_are_read_and_clamped(self) -> None:
         self._write(
-            "[config]\neye = 0\nkeyboard = off\nmax_side = 99999\n"
+            "[config]\neye = 0\nkeyboard = 0\nmax_side = 99999\n"
             "grid_step = 5\nsettle_ms = -3\ntype_interval_ms = 500\n"
             "hover_approach_ms = 9999\nhover_wiggle = 0\n"
         )
@@ -289,10 +289,15 @@ class ConfigTest(unittest.TestCase):
         self.assertFalse(config.hover_wiggle)
 
     def test_bad_values_fall_back(self) -> None:
-        self._write("[config]\nmax_side = huge\ncursor_mark = maybe\n")
+        self._write("[config]\nmax_side = huge\n")
         config = load_config(self.root)
         self.assertEqual(config.max_side, 1920)
-        self.assertTrue(config.cursor_mark)
+
+    def test_bad_bool_raises(self) -> None:
+        """开关只认 0 或 1：其他写法直接报错，不静默取默认。"""
+        self._write("[config]\ncursor_mark = maybe\n")
+        with self.assertRaises(ValueError):
+            load_config(self.root)
 
 
 class CanvasTest(unittest.TestCase):
