@@ -253,7 +253,8 @@ def merge_fields(text: str, values: Dict[str, Any], schema: Dict[str, Any]) -> T
     updates: Dict[str, str] = {}
     for key, value in values.items():
         if key not in fields:
-            return None, f"未知配置项 {key}"
+            # 未声明的键可能是旧版本留下的，不因它阻断整次保存。
+            continue
         field = fields[key]
         if field.get("transient") or field["kind"] == "action":
             # 只在界面内用的取值与按钮，不进配置文件。
@@ -516,7 +517,8 @@ def _group_body(group: Dict[str, Any], schema: Dict[str, Any],
     by_key = {str(item["key"]): item for item in fields}
     for key in values:
         if str(key) not in by_key:
-            return [], f"未知配置项 {key}"
+            # 按节保存同样忽略未声明键，旧版本留下的配置不阻断保存。
+            continue
     body: List[str] = []
     notes = str(group.get("notes") or "").strip()
     if notes:
