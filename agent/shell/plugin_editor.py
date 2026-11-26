@@ -209,10 +209,19 @@ def build_editor(text: str, folder: Path) -> Dict[str, Any]:
 
 
 def _bool_value(raw: Any, field: Dict[str, Any]) -> bool:
-    """读取边界：ini 文本 0/1 转成布尔，界面拿到的只有 true/false。"""
+    """读取边界：ini 文本 0/1 转成布尔，界面拿到的只有 true/false。
+
+    缺省时不能直接 bool(default)：schema 里的 default 是文本 "0"，
+    bool("0") 为真，开关会被误当成开。
+    """
     text = str(raw or "").strip()
     if not text:
-        return bool(field.get("default"))
+        fallback = field.get("default")
+        if isinstance(fallback, bool):
+            return fallback
+        text = str(fallback or "").strip()
+        if not text:
+            return False
     if text == "1":
         return True
     if text == "0":

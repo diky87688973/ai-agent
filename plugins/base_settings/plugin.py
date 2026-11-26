@@ -17,15 +17,25 @@ def _section(field: Dict[str, Any]) -> str:
 
 
 def _load(field: Dict[str, Any]) -> Any:
-    """读取边界：开关在 ini 里是 0/1，交给界面的一律是布尔。"""
+    """读取边界：开关在 ini 里是 0/1，交给界面的一律是布尔。
+
+    缺省时不能直接 bool(default)：config_schema 里的 default 是文本 "0"，
+    bool("0") 为真，开关会被误当成开。
+    """
     raw = str(read_host_value(_section(field), field["key"]) or "").strip()
     if field["kind"] != "checkbox":
         return raw
-    if not raw:
-        return bool(field.get("default"))
-    if raw == "1":
+    text = raw
+    if not text:
+        fallback = field.get("default")
+        if isinstance(fallback, bool):
+            return fallback
+        text = str(fallback or "").strip()
+        if not text:
+            return False
+    if text == "1":
         return True
-    if raw == "0":
+    if text == "0":
         return False
     raise ValueError(f"{field['label']} 只接受 0 或 1，收到 {raw!r}")
 
