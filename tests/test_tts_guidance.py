@@ -90,7 +90,15 @@ class TtsHintTest(unittest.TestCase):
         hint = self._service(model_dir="", fallback_to_edge=False).unavailable_hint()
         self.assertIn("user_confirm", hint)
         self.assertIn("不得只口头提一句", hint)
-        self.assertIn("现在安装", hint)
+        self.assertIn("现在安装本地模型", hint)
+
+    def test_hint_assigns_who_acts(self) -> None:
+        """每条路都要写清谁动手，不能只说「打开开关」。"""
+        hint = self._service(model_dir="", fallback_to_edge=False).unavailable_hint()
+        self.assertIn("设置页", hint)
+        self.assertIn("重启宿主", hint)
+        self.assertIn("不要伪称自己能代改", hint)
+        self.assertIn("暂不处理", hint)
 
     def test_hint_empty_when_local_ready(self) -> None:
         service = TTSService(dataclasses.replace(load_config(), engine="edge"),
