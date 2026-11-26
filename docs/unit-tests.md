@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2827** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2831** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -97,99 +97,100 @@
 86. [test_plugin_asset_delivery.py](#test_plugin_asset_deliverypy)（13）
 87. [test_plugin_contributions.py](#test_plugin_contributionspy)（19）
 88. [test_plugin_disable_cascade.py](#test_plugin_disable_cascadepy)（6）
-89. [test_plugin_events.py](#test_plugin_eventspy)（3）
-90. [test_plugin_factory_origin.py](#test_plugin_factory_originpy)（8）
-91. [test_plugin_hotplug.py](#test_plugin_hotplugpy)（16）
-92. [test_plugin_http.py](#test_plugin_httppy)（17）
-93. [test_plugin_slot_factories.py](#test_plugin_slot_factoriespy)（5）
-94. [test_plugin_ui_files.py](#test_plugin_ui_filespy)（2）
-95. [test_plugins.py](#test_pluginspy)（24）
-96. [test_port_cleanup.py](#test_port_cleanuppy)（4）
-97. [test_present_tool.py](#test_present_toolpy)（2）
-98. [test_process_guard.py](#test_process_guardpy)（3）
-99. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
-100. [test_prompt_slot.py](#test_prompt_slotpy)（1）
-101. [test_prompt_tail.py](#test_prompt_tailpy)（5）
-102. [test_protocol_contract.py](#test_protocol_contractpy)（13）
-103. [test_provider_meta.py](#test_provider_metapy)（8）
-104. [test_provider_router.py](#test_provider_routerpy)（14）
-105. [test_quality_pipeline.py](#test_quality_pipelinepy)（19）
-106. [test_queue_runner.py](#test_queue_runnerpy)（11）
-107. [test_queued_input.py](#test_queued_inputpy)（4）
-108. [test_readonly_tools.py](#test_readonly_toolspy)（33）
-109. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
-110. [test_router_slot.py](#test_router_slotpy)（1）
-111. [test_rules_plugin.py](#test_rules_pluginpy)（12）
-112. [test_run_registry.py](#test_run_registrypy)（17）
-113. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
-114. [test_scan_scope.py](#test_scan_scopepy)（16）
-115. [test_session_context.py](#test_session_contextpy)（22）
-116. [test_session_seq.py](#test_session_seqpy)（28）
-117. [test_session_store.py](#test_session_storepy)（17）
-118. [test_session_tools.py](#test_session_toolspy)（17）
-119. [test_settings_panel.py](#test_settings_panelpy)（19）
-120. [test_settings_registry.py](#test_settings_registrypy)（5）
-121. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
-122. [test_slot_binder.py](#test_slot_binderpy)（7）
-123. [test_slot_loader.py](#test_slot_loaderpy)（65）
-124. [test_slot_merge.py](#test_slot_mergepy)（61）
-125. [test_slot_registry.py](#test_slot_registrypy)（13）
-126. [test_slot_replaceable.py](#test_slot_replaceablepy)（20）
-127. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
-128. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
-129. [test_source_snapshot.py](#test_source_snapshotpy)（10）
-130. [test_standards_manifest.py](#test_standards_manifestpy)（3）
-131. [test_startup_encoding.py](#test_startup_encodingpy)（2）
-132. [test_stop_operations.py](#test_stop_operationspy)（10）
-133. [test_stop_ui.py](#test_stop_uipy)（4）
-134. [test_stream_control.py](#test_stream_controlpy)（9）
-135. [test_subagent.py](#test_subagentpy)（21）
-136. [test_task_tools.py](#test_task_toolspy)（28）
-137. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
-138. [test_thread_context.py](#test_thread_contextpy)（1）
-139. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
-140. [test_tool_arguments.py](#test_tool_argumentspy)（5）
-141. [test_tool_pairing.py](#test_tool_pairingpy)（15）
-142. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
-143. [test_tool_registry.py](#test_tool_registrypy)（17）
-144. [test_tool_resume.py](#test_tool_resumepy)（3）
-145. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
-146. [test_top_level_services.py](#test_top_level_servicespy)（2）
-147. [test_tts_config.py](#test_tts_configpy)（19）
-148. [test_tts_degraded.py](#test_tts_degradedpy)（7）
-149. [test_tts_endpoints.py](#test_tts_endpointspy)（10）
-150. [test_tts_guidance.py](#test_tts_guidancepy)（10）
-151. [test_tts_pinyin.py](#test_tts_pinyinpy)（2）
-152. [test_tts_provider.py](#test_tts_providerpy)（17）
-153. [test_tts_provider_errors.py](#test_tts_provider_errorspy)（6）
-154. [test_tts_schema.py](#test_tts_schemapy)（15）
-155. [test_tts_service.py](#test_tts_servicepy)（7）
-156. [test_ui_registry.py](#test_ui_registrypy)（7）
-157. [test_update.py](#test_updatepy)（26）
-158. [test_update_processes.py](#test_update_processespy)（3）
-159. [test_update_transaction.py](#test_update_transactionpy)（7）
-160. [test_usage_metrics.py](#test_usage_metricspy)（7）
-161. [test_version_stamp.py](#test_version_stamppy)（4）
-162. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-163. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-164. [test_visual_operator.py](#test_visual_operatorpy)（164）
-165. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
-166. [test_visualization.py](#test_visualizationpy)（8）
-167. [test_visualization_browser.py](#test_visualization_browserpy)（7）
-168. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
-169. [test_visualization_extra.py](#test_visualization_extrapy)（5）
-170. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
-171. [test_wake_isolation.py](#test_wake_isolationpy)（3）
-172. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-173. [test_web_auth.py](#test_web_authpy)（26）
-174. [test_web_frontend.py](#test_web_frontendpy)（6）
-175. [test_web_shell.py](#test_web_shellpy)（65）
-176. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-177. [test_window_chrome_ui.py](#test_window_chrome_uipy)（2）
-178. [test_window_ops.py](#test_window_opspy)（39）
-179. [test_write_gate.py](#test_write_gatepy)（22）
-180. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-181. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+89. [test_plugin_editor.py](#test_plugin_editorpy)（4）
+90. [test_plugin_events.py](#test_plugin_eventspy)（3）
+91. [test_plugin_factory_origin.py](#test_plugin_factory_originpy)（8）
+92. [test_plugin_hotplug.py](#test_plugin_hotplugpy)（16）
+93. [test_plugin_http.py](#test_plugin_httppy)（17）
+94. [test_plugin_slot_factories.py](#test_plugin_slot_factoriespy)（5）
+95. [test_plugin_ui_files.py](#test_plugin_ui_filespy)（2）
+96. [test_plugins.py](#test_pluginspy)（24）
+97. [test_port_cleanup.py](#test_port_cleanuppy)（4）
+98. [test_present_tool.py](#test_present_toolpy)（2）
+99. [test_process_guard.py](#test_process_guardpy)（3）
+100. [test_prompt_sections.py](#test_prompt_sectionspy)（2）
+101. [test_prompt_slot.py](#test_prompt_slotpy)（1）
+102. [test_prompt_tail.py](#test_prompt_tailpy)（5）
+103. [test_protocol_contract.py](#test_protocol_contractpy)（13）
+104. [test_provider_meta.py](#test_provider_metapy)（8）
+105. [test_provider_router.py](#test_provider_routerpy)（14）
+106. [test_quality_pipeline.py](#test_quality_pipelinepy)（19）
+107. [test_queue_runner.py](#test_queue_runnerpy)（11）
+108. [test_queued_input.py](#test_queued_inputpy)（4）
+109. [test_readonly_tools.py](#test_readonly_toolspy)（33）
+110. [test_renderer_path_contract.py](#test_renderer_path_contractpy)（6）
+111. [test_router_slot.py](#test_router_slotpy)（1）
+112. [test_rules_plugin.py](#test_rules_pluginpy)（12）
+113. [test_run_registry.py](#test_run_registrypy)（17）
+114. [test_scan_js_events.py](#test_scan_js_eventspy)（54）
+115. [test_scan_scope.py](#test_scan_scopepy)（16）
+116. [test_session_context.py](#test_session_contextpy)（22）
+117. [test_session_seq.py](#test_session_seqpy)（28）
+118. [test_session_store.py](#test_session_storepy)（17）
+119. [test_session_tools.py](#test_session_toolspy)（17）
+120. [test_settings_panel.py](#test_settings_panelpy)（19）
+121. [test_settings_registry.py](#test_settings_registrypy)（5）
+122. [test_silent_except_gate.py](#test_silent_except_gatepy)（10）
+123. [test_slot_binder.py](#test_slot_binderpy)（7）
+124. [test_slot_loader.py](#test_slot_loaderpy)（65）
+125. [test_slot_merge.py](#test_slot_mergepy)（61）
+126. [test_slot_registry.py](#test_slot_registrypy)（13）
+127. [test_slot_replaceable.py](#test_slot_replaceablepy)（20）
+128. [test_slot_snapshot.py](#test_slot_snapshotpy)（37）
+129. [test_slot_two_roots.py](#test_slot_two_rootspy)（6）
+130. [test_source_snapshot.py](#test_source_snapshotpy)（10）
+131. [test_standards_manifest.py](#test_standards_manifestpy)（3）
+132. [test_startup_encoding.py](#test_startup_encodingpy)（2）
+133. [test_stop_operations.py](#test_stop_operationspy)（10）
+134. [test_stop_ui.py](#test_stop_uipy)（4）
+135. [test_stream_control.py](#test_stream_controlpy)（9）
+136. [test_subagent.py](#test_subagentpy)（21）
+137. [test_task_tools.py](#test_task_toolspy)（28）
+138. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
+139. [test_thread_context.py](#test_thread_contextpy)（1）
+140. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+141. [test_tool_arguments.py](#test_tool_argumentspy)（5）
+142. [test_tool_pairing.py](#test_tool_pairingpy)（15）
+143. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
+144. [test_tool_registry.py](#test_tool_registrypy)（17）
+145. [test_tool_resume.py](#test_tool_resumepy)（3）
+146. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
+147. [test_top_level_services.py](#test_top_level_servicespy)（2）
+148. [test_tts_config.py](#test_tts_configpy)（19）
+149. [test_tts_degraded.py](#test_tts_degradedpy)（7）
+150. [test_tts_endpoints.py](#test_tts_endpointspy)（10）
+151. [test_tts_guidance.py](#test_tts_guidancepy)（10）
+152. [test_tts_pinyin.py](#test_tts_pinyinpy)（2）
+153. [test_tts_provider.py](#test_tts_providerpy)（17）
+154. [test_tts_provider_errors.py](#test_tts_provider_errorspy)（6）
+155. [test_tts_schema.py](#test_tts_schemapy)（15）
+156. [test_tts_service.py](#test_tts_servicepy)（7）
+157. [test_ui_registry.py](#test_ui_registrypy)（7）
+158. [test_update.py](#test_updatepy)（26）
+159. [test_update_processes.py](#test_update_processespy)（3）
+160. [test_update_transaction.py](#test_update_transactionpy)（7）
+161. [test_usage_metrics.py](#test_usage_metricspy)（7）
+162. [test_version_stamp.py](#test_version_stamppy)（4）
+163. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+164. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+165. [test_visual_operator.py](#test_visual_operatorpy)（164）
+166. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
+167. [test_visualization.py](#test_visualizationpy)（8）
+168. [test_visualization_browser.py](#test_visualization_browserpy)（7）
+169. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
+170. [test_visualization_extra.py](#test_visualization_extrapy)（5）
+171. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
+172. [test_wake_isolation.py](#test_wake_isolationpy)（3）
+173. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+174. [test_web_auth.py](#test_web_authpy)（26）
+175. [test_web_frontend.py](#test_web_frontendpy)（6）
+176. [test_web_shell.py](#test_web_shellpy)（65）
+177. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+178. [test_window_chrome_ui.py](#test_window_chrome_uipy)（2）
+179. [test_window_ops.py](#test_window_opspy)（39）
+180. [test_write_gate.py](#test_write_gatepy)（22）
+181. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+182. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -2218,6 +2219,17 @@
 | 4 | `DisableCascadeTest` | `test_disabling_leaf_keeps_tts_untouched` | 覆盖「A class whose instances are single test cases」：disabling leaf keeps tts untouched |
 | 5 | `DisableCascadeTest` | `test_disabling_tts_also_disables_ai_cosplay` | 覆盖「A class whose instances are single test cases」：disabling tts also disables ai cosplay |
 | 6 | `DisableCascadeTest` | `test_enable_has_no_cascade` | 覆盖「A class whose instances are single test cases」：enable has no cascade |
+
+## test_plugin_editor.py
+
+共 4 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `UndeclaredKeyTest` | `test_group_save_ignores_legacy_key` | 覆盖「A class whose instances are single test cases」：group save ignores legacy key |
+| 2 | `UndeclaredKeyTest` | `test_legacy_key_is_not_written_back_from_form` | 覆盖「A class whose instances are single test cases」：legacy key is not written back from form |
+| 3 | `UndeclaredKeyTest` | `test_legacy_key_stays_in_file` | 覆盖「A class whose instances are single test cases」：legacy key stays in file |
+| 4 | `UndeclaredKeyTest` | `test_save_keeps_going_when_config_has_legacy_key` | 覆盖「A class whose instances are single test cases」：save keeps going when config has legacy key |
 
 ## test_plugin_events.py
 
