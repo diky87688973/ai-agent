@@ -190,7 +190,10 @@
           if (key) {
             var stored = "";
             try { stored = String(localStorage.getItem(key) || ""); } catch (e) {}
-            clients[key] = stored || String(field.default == null ? "" : field.default);
+            var fallback = field.default == null ? "" : field.default;
+            // 开关在本地存储里只有 "1"/"0" 两个值，schema 默认值是布尔，这里统一。
+            if (field.kind === "checkbox") fallback = fallback === true ? "1" : "0";
+            clients[key] = stored || String(fallback);
           }
           return;
         }

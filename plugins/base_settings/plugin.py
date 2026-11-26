@@ -16,21 +16,33 @@ def _section(field: Dict[str, Any]) -> str:
     return str(field.get("section") or "config")
 
 
-def _load(field: Dict[str, Any]) -> str:
-    return read_host_value(_section(field), field["key"])
+def _load(field: Dict[str, Any]) -> Any:
+    """读取边界：开关在 ini 里是 0/1，交给界面的一律是布尔。"""
+    raw = str(read_host_value(_section(field), field["key"]) or "").strip()
+    if field["kind"] != "checkbox":
+        return raw
+    if not raw:
+        return bool(field.get("default"))
+    if raw == "1":
+        return True
+    if raw == "0":
+        return False
+    raise ValueError(f"{field['label']} 只接受 0 或 1，收到 {raw!r}")
 
 
 def _save(field: Dict[str, Any], app: Any, value: Any) -> Dict[str, Any]:
-    raw = "1" if value is True else ("0" if value is False else str(value or "").strip())
     kind = field["kind"]
     if kind == "checkbox":
-        if raw in ("1", "true", "True", "on"):
+        # 开关只接受真布尔，写进 ini 一律 0/1。
+        if value is True:
             raw = "1"
-        elif raw in ("0", "false", "False", "off", ""):
+        elif value is False:
             raw = "0"
         else:
             return {"ok": False, "error": f"{field['label']}只能是开或关"}
-    elif kind == "number":
+    else:
+        raw = str(value or "").strip()
+    if kind == "number":
         try:
             number = int(raw)
         except (TypeError, ValueError):
