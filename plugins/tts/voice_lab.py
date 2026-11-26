@@ -28,6 +28,33 @@ class VoiceLabError(ValueError):
     """音色操作失败；消息面向使用者，可直接展示。"""
 
 
+def _append_config_key(text: str, key: str, value: str) -> str:
+    """在 [config] 段内补一行键；缺段时新建。"""
+    lines = text.splitlines(keepends=True)
+    start = -1
+    for index, line in enumerate(lines):
+        if line.strip() == "[config]":
+            start = index
+            break
+    if start < 0:
+        tail = "" if not text or text.endswith("\n") else "\n"
+        return f"{text}{tail}[config]\n{key} = {value}\n"
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        stripped = lines[index].strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            end = index
+            break
+    insert_at = end
+    while insert_at > start + 1 and not lines[insert_at - 1].strip():
+        insert_at -= 1
+    newline = f"{key} = {value}\n"
+    if insert_at > 0 and not lines[insert_at - 1].endswith("\n"):
+        newline = "\n" + newline
+    lines.insert(insert_at, newline)
+    return "".join(lines)
+
+
 def _pcm_to_wav(pcm: bytes, sample_rate: int) -> bytes:
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as writer:
@@ -163,9 +190,11 @@ class VoiceLab:
         path = config_path()
         text = path.read_text(encoding="utf-8")
         pattern = re.compile(r"^(?P<lead>\s*voice_id\s*=\s*).*$", re.MULTILINE)
-        if not pattern.search(text):
-            raise VoiceLabError("配置文件里没有 voice_id 键，无法写入")
-        updated = pattern.sub(lambda m: m.group("lead") + name, text, count=1)
+        # 插件配置随安装保留、升级不覆盖，可能缺本版本新增的键；缺键时补一行。
+        if pattern.search(text):
+            updated = pattern.sub(lambda m: m.group("lead") + name, text, count=1)
+        else:
+            updated = _append_config_key(text, "voice_id", name)
         if updated != text:
             path.write_text(updated, encoding="utf-8")
         # 同步运行态：provider 手里是装配期的 voice_id快照，

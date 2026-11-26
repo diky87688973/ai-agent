@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2831** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2835** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -165,32 +165,33 @@
 154. [test_tts_provider_errors.py](#test_tts_provider_errorspy)（6）
 155. [test_tts_schema.py](#test_tts_schemapy)（15）
 156. [test_tts_service.py](#test_tts_servicepy)（7）
-157. [test_ui_registry.py](#test_ui_registrypy)（7）
-158. [test_update.py](#test_updatepy)（26）
-159. [test_update_processes.py](#test_update_processespy)（3）
-160. [test_update_transaction.py](#test_update_transactionpy)（7）
-161. [test_usage_metrics.py](#test_usage_metricspy)（7）
-162. [test_version_stamp.py](#test_version_stamppy)（4）
-163. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
-164. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
-165. [test_visual_operator.py](#test_visual_operatorpy)（164）
-166. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
-167. [test_visualization.py](#test_visualizationpy)（8）
-168. [test_visualization_browser.py](#test_visualization_browserpy)（7）
-169. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
-170. [test_visualization_extra.py](#test_visualization_extrapy)（5）
-171. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
-172. [test_wake_isolation.py](#test_wake_isolationpy)（3）
-173. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
-174. [test_web_auth.py](#test_web_authpy)（26）
-175. [test_web_frontend.py](#test_web_frontendpy)（6）
-176. [test_web_shell.py](#test_web_shellpy)（65）
-177. [test_web_ui_config.py](#test_web_ui_configpy)（24）
-178. [test_window_chrome_ui.py](#test_window_chrome_uipy)（2）
-179. [test_window_ops.py](#test_window_opspy)（39）
-180. [test_write_gate.py](#test_write_gatepy)（22）
-181. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
-182. [test_write_path_tools.py](#test_write_path_toolspy)（36）
+157. [test_tts_voice_lab_config.py](#test_tts_voice_lab_configpy)（4）
+158. [test_ui_registry.py](#test_ui_registrypy)（7）
+159. [test_update.py](#test_updatepy)（26）
+160. [test_update_processes.py](#test_update_processespy)（3）
+161. [test_update_transaction.py](#test_update_transactionpy)（7）
+162. [test_usage_metrics.py](#test_usage_metricspy)（7）
+163. [test_version_stamp.py](#test_version_stamppy)（4）
+164. [test_visual_app_integration.py](#test_visual_app_integrationpy)（1）
+165. [test_visual_context_integration.py](#test_visual_context_integrationpy)（2）
+166. [test_visual_operator.py](#test_visual_operatorpy)（164）
+167. [test_visual_operator_2.py](#test_visual_operator_2py)（47）
+168. [test_visualization.py](#test_visualizationpy)（8）
+169. [test_visualization_browser.py](#test_visualization_browserpy)（7）
+170. [test_visualization_browser_extra.py](#test_visualization_browser_extrapy)（4）
+171. [test_visualization_extra.py](#test_visualization_extrapy)（5）
+172. [test_visualization_renderers.py](#test_visualization_rendererspy)（3）
+173. [test_wake_isolation.py](#test_wake_isolationpy)（3）
+174. [test_wake_scheduler.py](#test_wake_schedulerpy)（16）
+175. [test_web_auth.py](#test_web_authpy)（26）
+176. [test_web_frontend.py](#test_web_frontendpy)（6）
+177. [test_web_shell.py](#test_web_shellpy)（65）
+178. [test_web_ui_config.py](#test_web_ui_configpy)（24）
+179. [test_window_chrome_ui.py](#test_window_chrome_uipy)（2）
+180. [test_window_ops.py](#test_window_opspy)（39）
+181. [test_write_gate.py](#test_write_gatepy)（22）
+182. [test_write_path_keys_lifecycle.py](#test_write_path_keys_lifecyclepy)（4）
+183. [test_write_path_tools.py](#test_write_path_toolspy)（36）
 
 ## test_ai_cosplay_plugin.py
 
@@ -3576,6 +3577,17 @@
 | 5 | `StatusTest` | `test_status_exposes_engine_and_capabilities` | 覆盖「A class whose instances are single test cases」：status exposes engine and capabilities |
 | 6 | `SupervisorTest` | `test_idle_release_without_process_is_noop` | 覆盖「A class whose instances are single test cases」：idle release without process is noop |
 | 7 | `SupervisorTest` | `test_missing_files_are_reported_before_spawn` | 覆盖「A class whose instances are single test cases」：missing files are reported before spawn |
+
+## test_tts_voice_lab_config.py
+
+共 4 个用例。
+
+| # | 类 | 方法 | 测试目标 |
+|---:|---|---|---|
+| 1 | `AppendConfigKeyTest` | `test_existing_keys_survive` | 覆盖「A class whose instances are single test cases」：existing keys survive |
+| 2 | `AppendConfigKeyTest` | `test_key_goes_before_next_section` | 覆盖「A class whose instances are single test cases」：key goes before next section |
+| 3 | `AppendConfigKeyTest` | `test_missing_key_is_appended_at_section_end` | 覆盖「A class whose instances are single test cases」：missing key is appended at section end |
+| 4 | `AppendConfigKeyTest` | `test_missing_section_is_created` | 覆盖「A class whose instances are single test cases」：missing section is created |
 
 ## test_ui_registry.py
 
