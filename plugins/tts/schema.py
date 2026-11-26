@@ -25,6 +25,14 @@ MALE_GENDERS = ("少年", "青年", "中年", "低沉", "暮年")
 #: 不产生措辞的维度取值：女声是基准，不需要额外描述。
 SILENT_VALUES = {"gender": ("女性",)}
 
+#: 性别声线以外的年龄档位分两类：仅写女声措辞的（少女/年轻女性）与男女都成立的。
+#: 男声下后者要换成对应男性措辞，否则会拼出 “a young woman” 与 male 互相抵消。
+MALE_AGE_TEXT = {
+    "轻熟": "a man in his late twenties",
+    "成熟": "a mature man in his thirties",
+    "长辈": "a middle-aged man over forty",
+}
+
 #: 基准参数；集合里没有写到的项就用这里的值。
 BASE_PARAMS: Dict[str, float] = {
     "pitch": 0.0,
@@ -71,15 +79,15 @@ DIMENSIONS: List[Dict[str, object]] = [
         "label": "年龄声线",
         "options": [
             {"value": "少女", "text": "a teenage girl's voice", "neg": "an adult woman",
-             "params": {"pitch": 2.5}},
+             "gender": "female", "params": {"pitch": 2.5}},
             {"value": "年轻女性", "text": "a young woman in her early twenties", "neg": "childish",
-             "params": {"pitch": 1.0}},
+             "gender": "female", "params": {"pitch": 1.0}},
             {"value": "轻熟", "text": "a woman in her late twenties", "neg": "naive",
              "params": {"pitch": 0.0}},
             {"value": "成熟", "text": "a mature woman in her thirties", "neg": "girlish",
              "params": {"pitch": -1.0}},
             {"value": "长辈", "text": "a middle-aged woman over forty", "neg": "young",
-             "gender": "female", "params": {"pitch": -2.0}},
+             "params": {"pitch": -2.0}},
         ],
     },
     {
@@ -320,18 +328,24 @@ def compose(dims: Mapping[str, object]) -> str:
     normalized = normalize(dims)
     male = _is_male(normalized)
     params = compose_params(dims)
-    skip = {"age"} if male else set()
     parts = []
     avoid = []
     for key in DIMENSION_ORDER:
         option = table[key][normalized[key]]
-        text = str(option["text"])
-        # 女声是基准，不额外描述；男声档位下年龄措辞会与性别冲突，一律不拼。
-        if text and key not in skip:
-            parts.append(text)
         neg = str(option.get("neg") or "")
         if neg:
             avoid.append(neg)
+        if key == "age" and male:
+            # 年龄组里男女都成立的档位换成男性措辞；仅女的档位前端已隐藏，
+            # 旧调用方仍传了就当作未选。
+            male_text = MALE_AGE_TEXT.get(normalized[key])
+            if male_text:
+                parts.append(male_text)
+            continue
+        text = str(option["text"])
+        # 女声是基准，不额外描述。
+        if text:
+            parts.append(text)
     pitch_word = _pitch_words(params["pitch"], male)
     if pitch_word:
         parts.insert(0, pitch_word)
@@ -345,10 +359,12 @@ def compose(dims: Mapping[str, object]) -> str:
 def describe(dims: Mapping[str, object]) -> str:
     """给界面看的中文描述；英文指令只进模型。
 
-    男声档位下年龄不参与拼装，描述里也不列，否则会出现「少年，少女」这种自相矛盾的组合。
+    男声档位下仅女的年龄档位不参与，描述里也不列，
+    否则会出现「青年，少女」这种自相矛盾的组合。
     """
     normalized = normalize(dims)
-    skip = {"age"} if _is_male(normalized) else set()
+    male = _is_male(normalized)
+    skip = {"age"} if male and normalized.get("age") not in MALE_AGE_TEXT else set()
     return "，".join(normalized[key] for key in DIMENSION_ORDER if key not in skip)
 
 
