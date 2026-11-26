@@ -104,18 +104,18 @@ def _int(raw: str, default: int) -> Tuple[int, Optional[str]]:
 
 
 def _bool(raw: str, default: bool, key: str) -> bool:
-    """布尔只有 true 与 false 两种字面量；其他值一律是配置错误。
+    """ini 只能存文本，布尔在边界上用 0/1 表示，转成真布尔后内部只传 bool。
 
-    不设回退：静静换成默认值会把写错的值藏起来，等行为不对时已经找不到原因。
+    只认 0 与 1；其他写法是配置错误，不带兼容、不回退。
     """
     text = str(raw or "").strip()
     if not text:
         return default
-    if text == "true":
+    if text == "1":
         return True
-    if text == "false":
+    if text == "0":
         return False
-    raise ConfigError(f"{key} 只接受 true 或 false，收到 {raw!r}")
+    raise ConfigError(f"{key} 只接受 0 或 1，收到 {raw!r}")
 
 
 def _parse_limits(

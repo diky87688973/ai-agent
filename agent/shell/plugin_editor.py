@@ -512,10 +512,10 @@ def _comment_lines(lines: Any) -> List[str]:
 
 
 def _bool_text(value: Any) -> str:
-    """布尔字段只接受真正的布尔值；字符串、数字一律不兼容。"""
+    """布尔在写入边界上转成 ini 文特：只产出 0 或 1，且只接受真布尔。"""
     if not isinstance(value, bool):
-        raise ValueError(f"布尔字段只接受 true 或 false，收到 {value!r}")
-    return "true" if value else "false"
+        raise ValueError(f"布尔字段只接受布尔值，收到 {value!r}")
+    return "1" if value else "0"
 
 
 def _visible(field: Dict[str, Any], values: Dict[str, str]) -> bool:
