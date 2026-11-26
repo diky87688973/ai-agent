@@ -26,6 +26,13 @@
   gap: 6px;
 }
 
+/* 维度区是 renderDims 重建的容器，外层 gap 穿不进来，这里自己排。 */
+.tts-lab-dims {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .tts-lab-label {
   font-size: 12px;
   color: var(--c-text-4);
