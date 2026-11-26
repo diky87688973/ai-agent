@@ -69,13 +69,13 @@ def _emit(lines: Sequence[str], path: Path) -> None:
 
 def _as_bool(raw: str, path: Path, section: str, key: str,
              lines: List[str]) -> Optional[bool]:
-    """严格布尔解析：空值返回 None，未知写法留诊断并返回 None。"""
-    text = _clean(raw).lower()
+    """严格布尔解析：只认 0 与 1；空值返回 None，其他写法留诊断并返回 None。"""
+    text = _clean(raw)
     if not text:
         return None
-    if text in _TRUE:
+    if text == "1":
         return True
-    if text in _FALSE:
+    if text == "0":
         return False
     lines.append(_diag(path, section, key, f"应为 0/1，实际为 {raw!r}"))
     return None

@@ -236,9 +236,7 @@ class SettingsRegistry:
                 if str(value) not in allowed:
                     raise SettingsRegistryError(f"设置值不在选项中：{item_id}")
             if item.kind == "checkbox":
-                if isinstance(value, str) and value in ("0", "1"):
-                    normalized[item_id] = value == "1"
-                elif not isinstance(value, bool):
+                if not isinstance(value, bool):
                     raise SettingsRegistryError(f"勾选项必须是布尔值：{item_id}")
         previous: Dict[str, Any] = {}
         for item_id in normalized:
