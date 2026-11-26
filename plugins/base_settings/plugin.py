@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from agent.core.error_report import report_error
 from agent.core.slot_spec import (
     SettingDecl,
     SlotAssemblyError,

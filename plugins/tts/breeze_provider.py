@@ -36,8 +36,7 @@ _NO_PROXY = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 def _seed_for_text(text: str) -> int:
     """按文本派生默认种子：同句稳定，不同句分散。
 
-    原先把 42 写死：所有句子共用同一个采样起点，
-    某一批文本的瑕疵会被放大成系统性问题。
+    所有句子共用一个固定种子时，单一种子的采样瑕疵会变成整批文本的共同缺陷。
     """
     digest = hashlib.sha256(text.encode("utf-8")).digest()
     return int.from_bytes(digest[:4], "big") % 9973 + 1

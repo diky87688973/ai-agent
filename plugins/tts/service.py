@@ -100,9 +100,9 @@ class TTSService:
     def status(self) -> Dict[str, object]:
         """状态快照。
 
-        `engine` 是配置里写的引擎，`active_engine` 是实际在用的；两者不同就说明
-        退化了，原因在 `degraded_reason`。不要把“当前 provider 可用”当成
-        “本地引擎就绪”——退化成 edge 后前者仍为真，会把缺模型这件事掩盖掉。
+        `engine` 是配置里写的引擎，`active_engine` 是实际在用的；两者不同即退化，
+        原因记在 `degraded_reason`。当前 provider 可用不等于本地引擎就绪：
+        退化成 edge 后前者仍为真，会把缺模型这件事掩盖掉。
         """
         configured = str(self._config.engine or "").strip()
         active = self._primary.name

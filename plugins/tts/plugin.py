@@ -37,7 +37,7 @@ def _edge_provider(config: TTSConfig) -> TTSProvider:
 
 
 def _fallback_provider(config: TTSConfig) -> Optional[TTSProvider]:
-    """开关的唯一判定点：关掉或本来就用 edge 时返回 None。
+    """按配置决定是否装配兜底：engine 为 edge 或开关关闭时返回 None。
 
     装配期拿到的 fallback 不是 None 就说明开启，下游不重读开关。
     """
