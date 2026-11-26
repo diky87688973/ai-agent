@@ -72,6 +72,13 @@ class AICosplayRuntime:
     def provider_ready(self) -> bool:
         return bool(self._service.ready())
 
+    def provider_reason(self) -> str:
+        """透传 tts 给出的不可用提示；本插件事不自己写引导文案。"""
+        try:
+            return str(self._service.unavailable_hint() or "").strip()
+        except Exception:  # 状态读不出来不能挡住报错本身
+            return ""
+
     # ── 入队 ──
 
     def enqueue(

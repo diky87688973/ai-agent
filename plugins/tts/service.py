@@ -22,10 +22,11 @@ from .config import TTSConfig
 if TYPE_CHECKING:  # 避免运行时循环导入，仅用于注解
     from .voice_lab import VoiceLab
 
-#: 本地方案不就绪时给使用者的下一步；只写动作与文档位置，不写实现细节。
+#: 本地方案不就绪时的完整引导。文案归 tts：只有它知道模型装哪、装什么、
+#: 装不好还有哪条退路；上游只管原样透传，不自造措辞。
 INSTALL_HINT = (
-    "配置「模型安装目录」并放入模型文件与推理程序，"
-    "步骤见插件文档 skills/tts-setup.md"
+    "请加载 tts 技能的 tts-setup 子技能，按其中步骤安装本地模型并填好模型目录"
+    "（也可在 tts 插件设置里打开「本地方案不可用时用 Edge 兜底」）"
 )
 
 
@@ -73,6 +74,16 @@ class TTSService:
             if self._fallback is None:
                 raise
             return self._fallback.synthesize(request)
+
+    def unavailable_hint(self) -> str:
+        """本地方案不就绪时的完整提示；就绪或本就不是本地引擎时返回空串。"""
+        status = self.status()
+        if str(self._config.engine or "").strip() != "breeze" or status["engine_ready"]:
+            return ""
+        reason = str(status.get("degraded_reason") or "").strip()
+        if not reason:
+            return INSTALL_HINT
+        return f"{reason}。{INSTALL_HINT}"
 
     def status(self) -> Dict[str, object]:
         """状态快照。

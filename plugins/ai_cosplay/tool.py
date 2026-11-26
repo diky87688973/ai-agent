@@ -77,9 +77,8 @@ class AICosplayTool(ToolPlugin):
         segments = split_message(raw, self._runtime.config.max_segment_chars)
         speech_segments = tuple(split_speech_text(segment) for segment in segments)
         if not self._runtime.provider_ready():
-            raise TTSUnavailable(
-                "语音合成不可用：请检查 tts 插件的配置与模型安装"
-            )
+            hint = self._runtime.provider_reason()
+            raise TTSUnavailable(hint or "语音合成不可用：本地引擎未就绪")
 
         turn = current_context()
         if turn is None or turn.app is None:
