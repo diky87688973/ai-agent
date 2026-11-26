@@ -128,7 +128,7 @@ def _app_version() -> str:
     except Exception as exc:
         from agent.core.error_report import report_error
         report_error("agent.shell.web.ui_bundle.version", exc)
-        return "v0.2.5"
+        return "v0.2.6"
 
 
 APP_VERSION = _app_version()
