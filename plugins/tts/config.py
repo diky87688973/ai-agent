@@ -103,20 +103,19 @@ def _int(raw: str, default: int) -> Tuple[int, Optional[str]]:
         return default, f"非整数值 {raw!r}，使用默认值 {default}"
 
 
-def _bool(raw: str, default: bool) -> Tuple[bool, Optional[str]]:
-    """只认 true 与 false；数字、同义词一律无效并回退默认。
+def _bool(raw: str, default: bool, key: str) -> bool:
+    """布尔只有 true 与 false 两种字面量；其他值一律是配置错误。
 
-    布尔值只有两种写法。多收一个 0/1 就多一套映射，
-    写入端与读取端口径就会慢慢岔开。
+    不设回退：静静换成默认值会把写错的值藏起来，等行为不对时已经找不到原因。
     """
     text = str(raw or "").strip()
     if not text:
-        return default, None
+        return default
     if text == "true":
-        return True, None
+        return True
     if text == "false":
-        return False, None
-    return default, f"只接受 true 或 false，收到 {raw!r}，已用默认值 {str(default).lower()}"
+        return False
+    raise ConfigError(f"{key} 只接受 true 或 false，收到 {raw!r}")
 
 
 def _parse_limits(
@@ -165,10 +164,8 @@ def _parse_limits(
             f"使用默认值 {DEFAULT_SPEED:g}")
         speed = DEFAULT_SPEED
 
-    fallback, warning = _bool(values.get("fallback_to_edge", ""),
-                              DEFAULT_FALLBACK_TO_EDGE)
-    if warning:
-        warnings.append(f"fallback_to_edge {warning}")
+    fallback = _bool(values.get("fallback_to_edge", ""),
+                     DEFAULT_FALLBACK_TO_EDGE, "fallback_to_edge")
 
     return port, startup_timeout, idle_timeout, cfg_scale, speed, fallback
 

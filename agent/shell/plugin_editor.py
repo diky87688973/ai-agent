@@ -464,15 +464,16 @@ def _group_body(group: Dict[str, Any], schema: Dict[str, Any],
         key = str(field["key"])
         if not _visible(field, effective):
             continue
-        value = str(values.get(key) or "").strip()
         kind = str(field["kind"])
+        if kind == "bool":
+            raw = values.get(key, field.get("default"))
+            body.extend(_comment_lines(comments.get(key.lower())))
+            body.append(f"{key} = {_bool_text(raw)}")
+            continue
+        value = str(values.get(key) or "").strip()
         if kind == "secret" and not value:
             # 掩码字段留空 = 不改。没有旧值时就不写这个键（不写空串）。
             value = str(previous.get(key.lower()) or "").strip()
-        if kind == "bool":
-            body.extend(_comment_lines(comments.get(key.lower())))
-            body.append(f"{key} = {_bool_text(value)}")
-            continue
         if not value:
             value = str(field.get("default") or "")
         if field.get("required") and not value:
@@ -511,10 +512,10 @@ def _comment_lines(lines: Any) -> List[str]:
 
 
 def _bool_text(value: Any) -> str:
-    """写进配置文件只有 true / false 两种，不产出 0、1 或其他写法。"""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return "true" if str(value or "").strip() == "true" else "false"
+    """布尔字段只接受真正的布尔值；字符串、数字一律不兼容。"""
+    if not isinstance(value, bool):
+        raise ValueError(f"布尔字段只接受 true 或 false，收到 {value!r}")
+    return "true" if value else "false"
 
 
 def _visible(field: Dict[str, Any], values: Dict[str, str]) -> bool:
