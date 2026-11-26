@@ -48,10 +48,9 @@ class _Provider:
         pass
 
 
-def _service(primary: _Provider, fallback: _Provider | None = None,
-             *, fallback_enabled: bool = True) -> TTSService:
-    config = TTSConfig(fallback_to_edge=fallback_enabled)
-    return TTSService(config, primary, fallback)
+def _service(primary: _Provider, fallback: _Provider | None = None) -> TTSService:
+    """装配方决定带不带兜底；service 只管用传进来的那个。"""
+    return TTSService(TTSConfig(), primary, fallback)
 
 
 class FallbackTest(unittest.TestCase):
@@ -71,12 +70,9 @@ class FallbackTest(unittest.TestCase):
         self.assertEqual(fallback.calls, 0)
 
     def test_fallback_disabled_keeps_error(self) -> None:
-        fallback = _Provider("edge")
-        service = _service(_Provider("breeze", fail=TTSEngineUnavailable("未安装")),
-                           fallback, fallback_enabled=False)
+        service = _service(_Provider("breeze", fail=TTSEngineUnavailable("未安装")), None)
         with self.assertRaises(TTSEngineUnavailable):
             service.synthesize(TTSRequest(text="你好"))
-        self.assertEqual(fallback.calls, 0)
 
     def test_ready_true_when_either_side_works(self) -> None:
         self.assertTrue(_service(_Provider("breeze"), _Provider("edge")).ready())

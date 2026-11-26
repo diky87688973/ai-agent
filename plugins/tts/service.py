@@ -51,7 +51,7 @@ class TTSService:
                  degraded_reason: str = "") -> None:
         self._config = config
         self._primary = primary
-        self._fallback = fallback if config.fallback_to_edge else None
+        self._fallback = fallback
         self._lab = lab
         self._degraded_reason = str(degraded_reason or "")
         self._last_fallback_reason = ""

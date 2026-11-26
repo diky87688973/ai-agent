@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import base64
 import dataclasses
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 from agent.common.tts_contract import (
     TTSCapabilities,
@@ -34,6 +34,16 @@ def _log_warnings(config: TTSConfig) -> None:
 
 def _edge_provider(config: TTSConfig) -> TTSProvider:
     return create_provider(dataclasses.replace(config, engine="edge"))
+
+
+def _fallback_provider(config: TTSConfig) -> Optional[TTSProvider]:
+    """开关的唯一判定点：关掉或本来就用 edge 时返回 None。
+
+    装配期拿到的 fallback 不是 None 就说明开启，下游不重读开关。
+    """
+    if config.engine == "edge" or not config.fallback_to_edge:
+        return None
+    return _edge_provider(config)
 
 
 class _UnavailableProvider:
@@ -69,24 +79,21 @@ def make_service(ctx: Any) -> TTSService:
     """装配期构造合成服务。
 
     本地引擎装配失败不能让插件装载失败，否则上游连话都说不出。但退化必须可见：
-    退到 edge 时把原因写进 service，`GET status` 才能报出 `degraded_reason`
+    有兜底就拿它顶上并把原因写进 service，`GET status` 才能报出 `degraded_reason`
     与 `install_hint`；用户关掉兜底时则干脆不换引擎，合成时如实报错。
     """
     config = load_config()
     _log_warnings(config)
+    fallback = _fallback_provider(config)
 
     try:
         primary = create_provider(config)
     except TTSEngineUnavailable as exc:
         report_error("plugin.tts.service", exc, plugin="tts")
         reason = f"本地引擎不可用：{exc}"
-        if not config.fallback_to_edge:
-            return TTSService(config, _UnavailableProvider(reason), None, None, reason)
-        return TTSService(config, _edge_provider(config), None, None, reason)
+        substitute = fallback if fallback is not None else _UnavailableProvider(reason)
+        return TTSService(config, substitute, None, None, reason)
 
-    fallback = None
-    if config.engine != "edge" and config.fallback_to_edge:
-        fallback = _edge_provider(config)
     return TTSService(config, primary, fallback, create_voice_lab(config, primary))
 
 

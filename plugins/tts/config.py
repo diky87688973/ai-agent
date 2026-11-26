@@ -31,6 +31,8 @@ DEFAULT_VOICE_DESC = "一位温柔清晰的年轻女性，声音柔和亲切"
 DEFAULT_EMOTION = "平静"
 DEFAULT_SPEED = 1.0
 DEFAULT_EDGE_VOICE = "zh-CN-XiaoxiaoNeural"
+#: 本地引擎不可用时是否用 edge 顶上。唯一权威；字段默认、解析默认、装配分支都读它。
+DEFAULT_FALLBACK_TO_EDGE = True
 MIN_SPEED = 0.5
 MAX_SPEED = 2.0
 MIN_CFG = 1.0
@@ -71,7 +73,7 @@ class TTSConfig:
     emotion: str = DEFAULT_EMOTION
     speed: float = DEFAULT_SPEED
     edge_voice: str = DEFAULT_EDGE_VOICE
-    fallback_to_edge: bool = True
+    fallback_to_edge: bool = DEFAULT_FALLBACK_TO_EDGE
     warnings: Tuple[str, ...] = ()
 
 
@@ -158,7 +160,8 @@ def _parse_limits(
             f"使用默认值 {DEFAULT_SPEED:g}")
         speed = DEFAULT_SPEED
 
-    fallback, warning = _bool(values.get("fallback_to_edge", ""), True)
+    fallback, warning = _bool(values.get("fallback_to_edge", ""),
+                              DEFAULT_FALLBACK_TO_EDGE)
     if warning:
         warnings.append(f"fallback_to_edge {warning}")
 
