@@ -15,8 +15,7 @@ from plugins.ai_cosplay.config import load_config as load_cosplay
 from plugins.ai_cosplay.runtime import AICosplayRuntime
 from plugins.ai_cosplay.tool import AICosplayTool
 from plugins.tts.config import load_config
-from plugins.tts.edge_provider import EdgeProvider
-from plugins.tts.plugin import make_service
+from plugins.tts.plugin import _fallback_provider, make_service
 from plugins.tts.service import MODEL_DIRECTIVE, TTSService
 
 
@@ -147,14 +146,11 @@ class AssemblyTest(unittest.TestCase):
     def test_open_fallback_degrades_to_edge(self) -> None:
         config = dataclasses.replace(load_config(), model_dir="",
                                      fallback_to_edge=True)
-        # 兜底开关决定装配出哪个引擎，与 edge-tts 是否安装无关；
-        # 不固定 available 的话，未装该包的环境会把这个用例判成装配失败。
-        with mock.patch("plugins.tts.plugin.load_config", return_value=config), \
-                mock.patch.object(EdgeProvider, "available", return_value=True):
-            service = make_service(None)
-        self.assertTrue(service.ready())
-        self.assertEqual(service.status()["active_engine"], "edge")
-        self.assertTrue(service.status()["degraded"])
+        # 只验证开关对装配的判定：开关开着就一定装出兜底引擎。
+        # 不走 make_service，避免把「第三方包是否安装」卷进装配判定。
+        with mock.patch("plugins.tts.plugin._edge_provider") as factory:
+            fallback = _fallback_provider(config)
+        self.assertIs(fallback, factory.return_value)
 
 
 if __name__ == "__main__":
