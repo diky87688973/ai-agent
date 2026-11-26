@@ -297,7 +297,7 @@ class PluginSettingsTest(unittest.TestCase):
             self.assertFalse(payload["exists"])
             editor = payload["editor"]
             self.assertEqual(editor["kind"], "fields")
-            self.assertEqual(editor["values"]["max_file_size"], "200000")
+            self.assertEqual(editor["values"]["max_file_size"], 200000)
             written = write_plugin_config(
                 "skills", fields={"dir": "D:/skills", "max_file_size": "123"},
                 plugins_dir=root)
@@ -399,7 +399,7 @@ class StructuredPluginConfigTest(unittest.TestCase):
             group = editor["groups"][0]
             self.assertEqual(group["values"]["api_key"], "")
             self.assertTrue(group["configured"]["api_key"])
-            self.assertEqual(group["values"]["context_window"], "128000")
+            self.assertEqual(group["values"]["context_window"], 128000)
             self.assertNotIn("sk-secret", json.dumps(payload))
 
     def test_required_field_rejects_an_empty_value(self) -> None:

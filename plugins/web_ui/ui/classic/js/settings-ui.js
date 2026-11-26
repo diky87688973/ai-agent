@@ -699,12 +699,10 @@
       var itemKey = "app/settings/interface/display_tool_items";
       var stepKey = "app/settings/interface/display_tool_steps";
       if (Object.prototype.hasOwnProperty.call(state.pluginValues, itemKey)) {
-        webFlags.display_tool_items = state.pluginValues[itemKey] === true ||
-          state.pluginValues[itemKey] === "1";
+        webFlags.display_tool_items = state.pluginValues[itemKey] === true;
       }
       if (Object.prototype.hasOwnProperty.call(state.pluginValues, stepKey)) {
-        webFlags.display_tool_steps = state.pluginValues[stepKey] === true ||
-          state.pluginValues[stepKey] === "1";
+        webFlags.display_tool_steps = state.pluginValues[stepKey] === true;
       }
       if (Object.keys(webFlags).length) applyWebUi(webFlags);
       persistClientValues();
@@ -761,7 +759,7 @@
         (section && section.fields || []).forEach(function (field) {
           if (!field || !field.key) return;
           if (field.key !== "display_tool_items" && field.key !== "display_tool_steps") return;
-          flags[field.key] = String(field.value) === "1" || field.value === true;
+          flags[field.key] = field.value === true;
         });
       });
       if (!Object.keys(flags).length) return;
