@@ -75,13 +75,6 @@
       "hint": "拼进合成指令的情绪词，例如：平静、温和、愉悦、关切"
     },
     {
-      "key": "speed",
-      "kind": "text",
-      "label": "语速倍率",
-      "default": "1.2",
-      "hint": "0.5–2.0，可填小数。由播放侧按此倍率变速，不改音高"
-    },
-    {
       "key": "edge_voice",
       "kind": "text",
       "label": "Edge 音色",

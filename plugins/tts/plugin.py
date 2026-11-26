@@ -112,7 +112,6 @@ def make_route_config(ctx: Any, service: TTSService) -> Callable[..., Any]:
             "voice_desc": config.voice_desc,
             "voice_id": config.voice_id,
             "emotion": config.emotion,
-            "speed": config.speed,
             "edge_voice": config.edge_voice,
             "fallback_to_edge": config.fallback_to_edge,
             "config_path": str(config_path()),

@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2827** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2825** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -155,7 +155,7 @@
 144. [test_tool_resume.py](#test_tool_resumepy)（3）
 145. [test_tool_session_gate.py](#test_tool_session_gatepy)（1）
 146. [test_top_level_services.py](#test_top_level_servicespy)（2）
-147. [test_tts_config.py](#test_tts_configpy)（21）
+147. [test_tts_config.py](#test_tts_configpy)（19）
 148. [test_tts_degraded.py](#test_tts_degradedpy)（7）
 149. [test_tts_endpoints.py](#test_tts_endpointspy)（10）
 150. [test_tts_guidance.py](#test_tts_guidancepy)（10）
@@ -3410,7 +3410,7 @@
 
 ## test_tts_config.py
 
-共 21 个用例。
+共 19 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -3419,22 +3419,20 @@
 | 3 | `EngineFallbackTest` | `test_unknown_engine_falls_back_with_warning` | 覆盖「A class whose instances are single test cases」：unknown engine falls back with warning |
 | 4 | `LimitsFallbackTest` | `test_cfg_scale_decimal_is_accepted` | 覆盖「A class whose instances are single test cases」：cfg scale decimal is accepted |
 | 5 | `LimitsFallbackTest` | `test_cfg_scale_out_of_range` | 覆盖「A class whose instances are single test cases」：cfg scale out of range |
-| 6 | `LimitsFallbackTest` | `test_decimal_speed_is_accepted` | 覆盖「A class whose instances are single test cases」：decimal speed is accepted |
-| 7 | `LimitsFallbackTest` | `test_empty_values_use_defaults_silently` | 覆盖「A class whose instances are single test cases」：empty values use defaults silently |
-| 8 | `LimitsFallbackTest` | `test_negative_idle_is_clamped_to_zero` | 覆盖「A class whose instances are single test cases」：negative idle is clamped to zero |
-| 9 | `LimitsFallbackTest` | `test_port_out_of_range` | 覆盖「A class whose instances are single test cases」：port out of range |
-| 10 | `LimitsFallbackTest` | `test_speed_not_a_number` | 覆盖「A class whose instances are single test cases」：speed not a number |
-| 11 | `LimitsFallbackTest` | `test_speed_out_of_range` | 覆盖「A class whose instances are single test cases」：speed out of range |
-| 12 | `MiscTest` | `test_broken_file_raises_config_error` | 覆盖「A class whose instances are single test cases」：broken file raises config error |
-| 13 | `MiscTest` | `test_defaults_match_module_constants` | 覆盖「A class whose instances are single test cases」：defaults match module constants |
-| 14 | `MiscTest` | `test_empty_edge_voice_falls_back` | 覆盖「A class whose instances are single test cases」：empty edge voice falls back |
-| 15 | `MiscTest` | `test_missing_file_uses_defaults` | 覆盖「A class whose instances are single test cases」：missing file uses defaults |
-| 16 | `ModelFallbackTest` | `test_known_model_is_kept` | 覆盖「A class whose instances are single test cases」：known model is kept |
-| 17 | `ModelFallbackTest` | `test_unregistered_model_falls_back_with_warning` | 覆盖「A class whose instances are single test cases」：unregistered model falls back with warning |
-| 18 | `SamplingTest` | `test_decimal_temperature_is_accepted` | 覆盖「A class whose instances are single test cases」：decimal temperature is accepted |
-| 19 | `SamplingTest` | `test_defaults_match_model_values` | 采样默认值跟模型自带值一致：压低会连情绪起伏一起抹平，不作为稳定音色的手段。 |
-| 20 | `SamplingTest` | `test_out_of_range_falls_back` | 覆盖「A class whose instances are single test cases」：out of range falls back |
-| 21 | `SamplingTest` | `test_zero_keeps_model_default` | 覆盖「A class whose instances are single test cases」：zero keeps model default |
+| 6 | `LimitsFallbackTest` | `test_empty_values_use_defaults_silently` | 覆盖「A class whose instances are single test cases」：empty values use defaults silently |
+| 7 | `LimitsFallbackTest` | `test_negative_idle_is_clamped_to_zero` | 覆盖「A class whose instances are single test cases」：negative idle is clamped to zero |
+| 8 | `LimitsFallbackTest` | `test_port_out_of_range` | 覆盖「A class whose instances are single test cases」：port out of range |
+| 9 | `LimitsFallbackTest` | `test_unknown_speed_key_is_ignored` | 语速已不归 tts 管：旧配置里残留 speed 不应报错，也不应生效。 |
+| 10 | `MiscTest` | `test_broken_file_raises_config_error` | 覆盖「A class whose instances are single test cases」：broken file raises config error |
+| 11 | `MiscTest` | `test_defaults_match_module_constants` | 覆盖「A class whose instances are single test cases」：defaults match module constants |
+| 12 | `MiscTest` | `test_empty_edge_voice_falls_back` | 覆盖「A class whose instances are single test cases」：empty edge voice falls back |
+| 13 | `MiscTest` | `test_missing_file_uses_defaults` | 覆盖「A class whose instances are single test cases」：missing file uses defaults |
+| 14 | `ModelFallbackTest` | `test_known_model_is_kept` | 覆盖「A class whose instances are single test cases」：known model is kept |
+| 15 | `ModelFallbackTest` | `test_unregistered_model_falls_back_with_warning` | 覆盖「A class whose instances are single test cases」：unregistered model falls back with warning |
+| 16 | `SamplingTest` | `test_decimal_temperature_is_accepted` | 覆盖「A class whose instances are single test cases」：decimal temperature is accepted |
+| 17 | `SamplingTest` | `test_defaults_match_model_values` | 采样默认值跟模型自带值一致：压低会连情绪起伏一起抹平，不作为稳定音色的手段。 |
+| 18 | `SamplingTest` | `test_out_of_range_falls_back` | 覆盖「A class whose instances are single test cases」：out of range falls back |
+| 19 | `SamplingTest` | `test_zero_keeps_model_default` | 覆盖「A class whose instances are single test cases」：zero keeps model default |
 
 ## test_tts_degraded.py
 

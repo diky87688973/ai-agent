@@ -29,12 +29,9 @@ DEFAULT_IDLE_TIMEOUT = 600.0
 DEFAULT_CFG_SCALE = 3.0
 DEFAULT_VOICE_DESC = "一位温柔清晰的年轻女性，声音柔和亲切"
 DEFAULT_EMOTION = "平静"
-DEFAULT_SPEED = 1.0
 DEFAULT_EDGE_VOICE = "zh-CN-XiaoxiaoNeural"
 #: 本地引擎不可用时是否用 edge 顶上。唯一权威；字段默认、解析默认、装配分支都读它。
 DEFAULT_FALLBACK_TO_EDGE = True
-MIN_SPEED = 0.5
-MAX_SPEED = 2.0
 MIN_CFG = 1.0
 MAX_CFG = 5.0
 #: 采样温度与 top-k。默认跟模型自带值一致；压低它们会连情绪起伏一起抹平，
@@ -71,7 +68,6 @@ class TTSConfig:
     temperature: float = DEFAULT_TEMPERATURE
     top_k: int = DEFAULT_TOP_K
     emotion: str = DEFAULT_EMOTION
-    speed: float = DEFAULT_SPEED
     edge_voice: str = DEFAULT_EDGE_VOICE
     fallback_to_edge: bool = DEFAULT_FALLBACK_TO_EDGE
     warnings: Tuple[str, ...] = ()
@@ -155,19 +151,10 @@ def _parse_limits(
             f"使用默认值 {DEFAULT_CFG_SCALE:g}")
         cfg_scale = DEFAULT_CFG_SCALE
 
-    speed, warning = _float(values.get("speed", ""), DEFAULT_SPEED)
-    if warning:
-        warnings.append(f"speed {warning}")
-    if not MIN_SPEED <= speed <= MAX_SPEED:
-        warnings.append(
-            f"speed={speed:g} 超出 {MIN_SPEED:g}–{MAX_SPEED:g}，"
-            f"使用默认值 {DEFAULT_SPEED:g}")
-        speed = DEFAULT_SPEED
-
     fallback = _bool(values.get("fallback_to_edge", ""),
                      DEFAULT_FALLBACK_TO_EDGE, "fallback_to_edge")
 
-    return port, startup_timeout, idle_timeout, cfg_scale, speed, fallback
+    return port, startup_timeout, idle_timeout, cfg_scale, fallback
 
 
 def _parse_sampling(values: dict[str, str], warnings: list[str]) -> Tuple[float, int]:
@@ -220,7 +207,7 @@ def load_config(path: Optional[Path] = None) -> TTSConfig:
             f"使用默认值 {DEFAULT_ENGINE}")
         engine = DEFAULT_ENGINE
 
-    port, startup_timeout, idle_timeout, cfg_scale, speed, fallback = _parse_limits(
+    port, startup_timeout, idle_timeout, cfg_scale, fallback = _parse_limits(
         values, warnings)
     temperature, top_k = _parse_sampling(values, warnings)
 
@@ -243,7 +230,6 @@ def load_config(path: Optional[Path] = None) -> TTSConfig:
         temperature=temperature,
         top_k=top_k,
         emotion=values.get("emotion") or DEFAULT_EMOTION,
-        speed=speed,
         edge_voice=values.get("edge_voice") or DEFAULT_EDGE_VOICE,
         fallback_to_edge=fallback,
         warnings=tuple(warnings),

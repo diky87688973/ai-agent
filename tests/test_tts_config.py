@@ -14,7 +14,6 @@ from plugins.tts.config import (
     DEFAULT_IDLE_TIMEOUT,
     DEFAULT_MODEL,
     DEFAULT_PORT,
-    DEFAULT_SPEED,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOP_K,
     ConfigError,
@@ -57,17 +56,10 @@ class ModelFallbackTest(unittest.TestCase):
 
 
 class LimitsFallbackTest(unittest.TestCase):
-    def test_speed_out_of_range(self) -> None:
-        self.assertEqual(_load("[config]\nspeed = 9\n").speed, DEFAULT_SPEED)
-
-    def test_speed_not_a_number(self) -> None:
-        cfg = _load("[config]\nspeed = fast\n")
-        self.assertEqual(cfg.speed, DEFAULT_SPEED)
-        self.assertTrue(cfg.warnings)
-
-    def test_decimal_speed_is_accepted(self) -> None:
-        cfg = _load("[config]\nspeed = 1.2\n")
-        self.assertEqual(cfg.speed, 1.2)
+    def test_unknown_speed_key_is_ignored(self) -> None:
+        """语速已不归 tts 管：旧配置里残留 speed 不应报错，也不应生效。"""
+        cfg = _load("[config]\nspeed = 9\n")
+        self.assertFalse(hasattr(cfg, "speed"))
         self.assertEqual(cfg.warnings, ())
 
     def test_cfg_scale_decimal_is_accepted(self) -> None:
