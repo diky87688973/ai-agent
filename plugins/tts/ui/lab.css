@@ -4,7 +4,7 @@
   gap: 14px;
   padding: 14px 16px 20px;
   font-size: 13px;
-  color: var(--fg, #e8e8e8);
+  color: var(--c-text-2);
 }
 
 .tts-lab-head h4 {
@@ -17,7 +17,7 @@
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--fg-dim, #9aa0a6);
+  color: var(--c-text-4);
 }
 
 .tts-lab-group {
@@ -28,7 +28,7 @@
 
 .tts-lab-label {
   font-size: 12px;
-  color: var(--fg-dim, #9aa0a6);
+  color: var(--c-text-4);
   letter-spacing: 0.02em;
 }
 
@@ -40,7 +40,7 @@
 
 .tts-lab-chip {
   padding: 4px 10px;
-  border: 1px solid var(--border, #3a3d42);
+  border: 1px solid var(--c-line-2);
   border-radius: 999px;
   background: transparent;
   color: inherit;
@@ -50,19 +50,19 @@
 }
 
 .tts-lab-chip:hover {
-  border-color: var(--accent, #5b8def);
+  border-color: var(--c-brand);
 }
 
 .tts-lab-chip.is-active {
-  border-color: var(--accent, #5b8def);
-  background: color-mix(in srgb, var(--accent, #5b8def) 22%, transparent);
-  color: var(--fg, #fff);
+  border-color: var(--c-brand);
+  background: color-mix(in srgb, var(--c-brand) 22%, transparent);
+  color: var(--c-text-1);
 }
 
 .tts-lab-sentence {
   padding: 8px 10px;
   border-radius: 6px;
-  background: var(--bg-soft, rgba(255, 255, 255, 0.04));
+  background: var(--c-bg-hover);
   font-size: 12px;
   line-height: 1.6;
   word-break: break-all;
@@ -79,7 +79,7 @@
   flex: 1 1 140px;
   min-width: 120px;
   padding: 5px 8px;
-  border: 1px solid var(--border, #3a3d42);
+  border: 1px solid var(--c-line-2);
   border-radius: 6px;
   background: transparent;
   color: inherit;
@@ -88,7 +88,7 @@
 
 .tts-lab-btn {
   padding: 5px 14px;
-  border: 1px solid var(--accent, #5b8def);
+  border: 1px solid var(--c-brand);
   border-radius: 6px;
   background: transparent;
   color: inherit;
@@ -97,7 +97,7 @@
 }
 
 .tts-lab-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent, #5b8def) 18%, transparent);
+  background: color-mix(in srgb, var(--c-brand) 18%, transparent);
 }
 
 .tts-lab-btn:disabled {
@@ -108,11 +108,11 @@
 .tts-lab-status {
   min-height: 16px;
   font-size: 12px;
-  color: var(--fg-dim, #9aa0a6);
+  color: var(--c-text-4);
 }
 
 .tts-lab-status.is-error {
-  color: #e5674f;
+  color: var(--c-bad);
 }
 
 .tts-lab-voices {
@@ -126,12 +126,12 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border: 1px solid var(--border, #3a3d42);
+  border: 1px solid var(--c-line-2);
   border-radius: 6px;
 }
 
 .tts-lab-voice-id {
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: ui-monospace, monospace;
   font-size: 12px;
   min-width: 72px;
 }
@@ -140,7 +140,7 @@
   flex: 1;
   font-size: 11px;
   line-height: 1.4;
-  color: var(--fg-dim, #9aa0a6);
+  color: var(--c-text-4);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -149,13 +149,13 @@
 .tts-lab-tag {
   padding: 1px 6px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--accent, #5b8def) 26%, transparent);
+  background: color-mix(in srgb, var(--c-brand) 26%, transparent);
   font-size: 11px;
 }
 
 .tts-lab-mini {
   padding: 2px 8px;
-  border: 1px solid var(--border, #3a3d42);
+  border: 1px solid var(--c-line-2);
   border-radius: 4px;
   background: transparent;
   color: inherit;
@@ -164,15 +164,15 @@
 }
 
 .tts-lab-mini:hover {
-  border-color: var(--accent, #5b8def);
+  border-color: var(--c-brand);
 }
 
 .tts-lab-mini.is-danger:hover {
-  border-color: #e5674f;
-  color: #e5674f;
+  border-color: var(--c-bad);
+  color: var(--c-bad);
 }
 
 .tts-lab-empty {
   font-size: 12px;
-  color: var(--fg-dim, #9aa0a6);
+  color: var(--c-text-4);
 }

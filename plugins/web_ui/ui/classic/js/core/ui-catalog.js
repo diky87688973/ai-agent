@@ -256,8 +256,23 @@
     if (!pane) return;
     if (typeof selectSidePane === "function") selectSidePane(paneId);
     if (props.scripts && props.scripts.length) {
-      loadScripts([{owner: owner, metadata: {props: {scripts: props.scripts}}}]);
+      loadScripts([{owner: owner, metadata: {props: {scripts: props.scripts}}}]).then(function (results) {
+        var failed = (results || []).filter(function (ok) { return ok === false; }).length;
+        if (failed) _panelNote(paneId, "面板脚本加载失败（" + failed + " 个）；可能是登录态失效或资源路径不对");
+      });
+    } else {
+      _panelNote(paneId, "面板没声明 scripts，检查 plugin-slots.json 的 provides");
     }
+  }
+
+  function _panelNote(paneId, text) {
+    // 面板节点 id 是 "pane-" + paneId（见 openPane）。
+    var host = document.getElementById("pane-" + paneId);
+    var node = host && (host.querySelector(".tts-lab-status") || host.querySelector("[data-panel-note]"));
+    if (!node) node = document.querySelector(".tts-lab-status");
+    if (!node) return;
+    node.textContent = text;
+    node.setAttribute("data-panel-note", "1");
   }
 
   var scriptWaiters = Object.create(null);
