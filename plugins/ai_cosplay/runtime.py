@@ -76,7 +76,8 @@ class AICosplayRuntime:
         """透传 tts 给出的不可用提示；本插件事不自己写引导文案。"""
         try:
             return str(self._service.unavailable_hint() or "").strip()
-        except Exception:  # 状态读不出来不能挡住报错本身
+        except Exception as exc:  # 状态读不出来不能挡住报错本身
+            report_error("plugin.ai_cosplay.provider_reason", exc)
             return ""
 
     # ── 入队 ──

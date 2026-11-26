@@ -149,7 +149,9 @@ def _dependents(plugin: str, plugins_dir: Path) -> List[str]:
             continue
         try:
             data = json.loads(meta.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
+            # 清单读不出来就跳过这个依赖方，但得留痕：否则装配期会莫名少关一个插件。
+            report_error("plugin_settings.dependents", exc, plugin=name)
             continue
         for slot in data.get("slots") or []:
             requires = slot.get("requires") or {}

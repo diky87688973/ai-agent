@@ -78,6 +78,7 @@ def _save(field: Dict[str, Any], app: Any, value: Any) -> Dict[str, Any]:
     try:
         stored = _load(field)
     except Exception as exc:
+        report_error("plugin.base_settings.reload_check", exc, key=field["key"])
         return {"ok": False, "error": f"{field['label']}写入后回读失败：{exc}"}
     if stored is not value:
         return {"ok": False,
