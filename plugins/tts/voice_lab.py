@@ -205,7 +205,10 @@ class VoiceLab:
         updated = pattern.sub(lambda m: m.group("lead") + name, text, count=1)
         if updated != text:
             path.write_text(updated, encoding="utf-8")
-        return {"voice_id": name, "reload_required": True}
+        # 同步运行态：provider 手里是装配期的 voice_id快照，
+        # 只改文件的话新音色要等重载插件才生效。
+        self._provider.set_voice_id(name)
+        return {"voice_id": name, "reload_required": False}
 
     # ── 内部 ──────────────────────────────────────────────
 

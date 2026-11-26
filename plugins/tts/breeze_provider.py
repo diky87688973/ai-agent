@@ -88,6 +88,14 @@ class BreezeProvider(TTSProvider):
     def available(self) -> bool:
         return self._supervisor.missing_reason() == ""
 
+    def set_voice_id(self, voice_id: str) -> None:
+        """切换当前参考音色。
+
+        配置是装配期快照，工作台改完 ini 后这里同步一次；
+        不同步的话新选的音色要等重载插件才生效。
+        """
+        self._voice_id = str(voice_id or "").strip()
+
     def _effective_voice_id(self, request: TTSRequest) -> str:
         """请求指定的音色优先，其次配置里的默认音色。
 
