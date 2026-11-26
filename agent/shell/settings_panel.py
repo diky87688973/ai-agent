@@ -112,6 +112,9 @@ def host_catalog(config_path: Optional[Path] = None,
                 data = item.as_dict()
                 data["key"] = item.item_id
                 data["value"] = value if value is not None else ""
+                if item.kind == "checkbox" and not isinstance(data["default"], bool):
+                    # 声明里的默认值是文本 0/1；转成布尔后，前端只需要认 true/false。
+                    data["default"] = str(data["default"] or "").strip() == "1"
                 data["plugin"] = True
                 fields.append(data)
             if fields:
