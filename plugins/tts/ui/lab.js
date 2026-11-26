@@ -67,6 +67,9 @@
 
   function pickDim(root, key, value) {
     state.dims[key] = value;
+    // 切性别会把部分标签隐藏，已经选中但看不见的值要换成可见的，
+    // 否则会带着「青年 + 少女」这种组合去试听。
+    if (key === "gender") pruneDims();
     render(root);
   }
 
@@ -107,21 +110,9 @@
     presets.appendChild(chips);
     root.appendChild(presets);
 
-    (state.options.dimensions || []).forEach(function (dim) {
-      var group = node("div", "tts-lab-group");
-      group.appendChild(node("div", "tts-lab-label", dim.label));
-      var options = node("div", "tts-lab-chips");
-      dim.options.forEach(function (opt) {
-        var chip = node("button", "tts-lab-chip", opt.value);
-        chip.type = "button";
-        chip.dataset.dim = dim.key;
-        chip.dataset.value = opt.value;
-        if (state.dims[dim.key] === opt.value) chip.classList.add("is-active");
-        options.appendChild(chip);
-      });
-      group.appendChild(options);
-      root.appendChild(group);
-    });
+    var dimsBox = node("div", "tts-lab-dims");
+    root.appendChild(dimsBox);
+    renderDims(dimsBox);
 
     var preview = node("div", "tts-lab-group");
     preview.appendChild(node("div", "tts-lab-label", "生成结果"));
@@ -178,6 +169,63 @@
     });
     listBox.appendChild(rows);
     root.appendChild(listBox);
+  }
+
+  //: 男声档位；与 schema.MALE_GENDERS 同口径。
+  var MALE_GENDERS = ["少年", "青年", "中年", "低沉", "暮年"];
+
+  function isMale(dims) {
+    return MALE_GENDERS.indexOf(dims.gender) >= 0;
+  }
+
+  function optionVisible(opt, male) {
+    // 标签可以声明仅女 / 仅男；没声明就是两边都可用。
+    var need = opt.gender || "any";
+    if (need === "any") return true;
+    return male ? need === "male" : need === "female";
+  }
+
+  function visibleOptions(dim, male) {
+    return (dim.options || []).filter(function (opt) { return optionVisible(opt, male); });
+  }
+
+  /** 切换性别后把看不见的选择换掉，否则会带着「青年 + 少女」去试听。 */
+  function pruneDims() {
+    var male = isMale(state.dims);
+    (state.options.dimensions || []).forEach(function (dim) {
+      var shown = visibleOptions(dim, male);
+      if (!shown.length) {
+        delete state.dims[dim.key];
+        return;
+      }
+      var picked = state.dims[dim.key];
+      if (!picked || !shown.some(function (opt) { return opt.value === picked; })) {
+        state.dims[dim.key] = shown[0].value;
+      }
+    });
+  }
+
+  function renderDims(box) {
+    if (!box) return;
+    box.textContent = "";
+    var male = isMale(state.dims);
+    (state.options.dimensions || []).forEach(function (dim) {
+      var shown = visibleOptions(dim, male);
+      if (!shown.length) return;          // 整组与当前性别互斥，不渲染
+      var group = node("div", "tts-lab-group");
+      group.appendChild(node("div", "tts-lab-label", dim.label));
+      var options = node("div", "tts-lab-chips");
+      shown.forEach(function (opt) {
+        var chip = node("button", "tts-lab-chip", opt.value);
+        chip.type = "button";
+        chip.dataset.dim = dim.key;
+        chip.dataset.value = opt.value;
+        if (state.dims[dim.key] === opt.value) chip.classList.add("is-active");
+        options.appendChild(chip);
+      });
+      group.appendChild(options);
+      box.appendChild(group);
+    });
   }
 
   function loadVoices(root) {

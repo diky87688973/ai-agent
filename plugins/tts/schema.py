@@ -79,7 +79,7 @@ DIMENSIONS: List[Dict[str, object]] = [
             {"value": "成熟", "text": "a mature woman in her thirties", "neg": "girlish",
              "params": {"pitch": -1.0}},
             {"value": "长辈", "text": "a middle-aged woman over forty", "neg": "young",
-             "params": {"pitch": -2.0}},
+             "gender": "female", "params": {"pitch": -2.0}},
         ],
     },
     {
@@ -228,12 +228,19 @@ def _clamped(key: str, value: float) -> float:
 
 
 def normalize(dims: Mapping[str, object]) -> Dict[str, str]:
-    """校验并归一化维度组合；缺项或取值不在表内一律拒绝，不猜默认。"""
+    """校验并归一化维度组合；缺项或取值不在表内一律拒绝，不猜默认。
+
+    男声档位下年龄不参与拼装，因此允许不传，用第一个合法值占位。
+    """
     table = _option_index()
+    male = str(dims.get("gender", "") or "").strip() in MALE_GENDERS
     normalized: Dict[str, str] = {}
     for key in DIMENSION_ORDER:
         raw = str(dims.get(key, "") or "").strip()
         if not raw:
+            if key == "age" and male:
+                normalized[key] = next(iter(table[key]))
+                continue
             raise ValueError(f"缺少维度 {key}")
         if raw not in table[key]:
             allowed = "/".join(table[key])
