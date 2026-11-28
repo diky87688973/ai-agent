@@ -109,6 +109,9 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         except (TypeError, ValueError):
             return default
 
+    def _flag(name: str) -> bool:
+        return str(values.get(name) or "").strip().lower() in ("1", "true", "yes", "on")
+
     return {
         "summary_token_fallback": _int("summary_token_fallback", 64000),
         # 压缩时优先保留的最近用户轮数；可压区间不足时逐级降到 1。
@@ -121,6 +124,8 @@ def get_context(path: Optional[Path] = None) -> Dict[str, Any]:
         "image_max": _int("image_max", 8),
         # 可裁剪推理的回传预算。需要原样回传的协议字段由适配器声明。
         "reasoning_replay_tokens": _int("reasoning_replay_tokens", DEFAULT_REASONING_REPLAY_TOKENS),
+        # 工具清单已由请求的 `tools` 字段提供；缺省不再在系统提示里重复一份。
+        "include_tool_summary": _flag("include_tool_summary"),
     }
 
 

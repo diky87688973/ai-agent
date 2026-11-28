@@ -323,5 +323,23 @@ class SystemPromptTest(unittest.TestCase):
             tool_summary(_Boom())
         self.assertEqual(tool_summary(None), "")
 
+    def test_tool_summary_absent_from_prompt_by_default(self) -> None:
+        """工具清单走请求的 tools 字段；系统提示默认不再重复一份。"""
+
+        reg = _reg_with_preview(_PreviewTool())
+        prompt = resolve_system_prompt(registry=reg)
+        self.assertNotIn("## 可用工具", prompt)
+        self.assertNotIn("假预览写工具", prompt)
+
+    def test_tool_summary_opt_in_restores_the_section(self) -> None:
+        """开关打开时按 registry 拼回工具速查，构建逻辑本身不受影响。"""
+
+        reg = _reg_with_preview(_PreviewTool())
+        prompt = resolve_system_prompt(registry=reg, include_tool_summary=True)
+        self.assertIn("## 可用工具", prompt)
+        self.assertIn("`fake_preview_write`", prompt)
+        self.assertIn("假预览写工具", prompt)
+        self.assertIn("各工具的完整参数以它自己的 schema 为准", prompt)
+
 if __name__ == "__main__":
     unittest.main()

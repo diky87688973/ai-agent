@@ -75,6 +75,7 @@ def _build_boot_config(
         context_defaults={
             "full_user_rounds": int(cfg["full_user_rounds"]),
             "reasoning_replay_tokens": int(cfg["reasoning_replay_tokens"]),
+            "include_tool_summary": bool(cfg["include_tool_summary"]),
         },
         image_turns=int(cfg["image_turns"]), image_max=int(cfg["image_max"]),
         max_passes=get_max_passes() if get_max_passes() else DEFAULT_MAX_PASSES,

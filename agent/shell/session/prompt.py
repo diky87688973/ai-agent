@@ -26,12 +26,14 @@ def system_prompt(*, app: Any, mesh: Any, cid: str,
         if callable(render_after):
             after_tools.extend(render_after(cid))
     extra.append(environment_section(cid))
+    defaults = getattr(app, "context_defaults", None) or {}
     return resolve_system_prompt(
         mode=mode,
         registry=registry if registry is not None else getattr(app, "registry", None),
         explicit=explicit or None,
         extra_sections=extra,
         after_tools_sections=after_tools,
+        include_tool_summary=bool(defaults.get("include_tool_summary")),
     )
 
 

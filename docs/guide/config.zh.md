@@ -93,6 +93,7 @@ summary_output_max_chars = 5000
 image_turns              = 1
 image_max                = 8
 reasoning_replay_tokens  = 8000
+include_tool_summary     = 0
 ```
 
 | 键 | 缺省或留空时 | 含义 | 建议范围 |
@@ -103,6 +104,7 @@ reasoning_replay_tokens  = 8000
 | `image_turns` | `1` | 只保留**最近这么多轮用户发言**里的图片，更早用户轮里的图片转文本占位。`0` = 不带用户轮图片，负数 = 不限；工具返回的图片不受此键限制 | `0` / 正整数 / 负数 |
 | `image_max` | `8` | 进入模型请求的图片总数上限；**保留最新的图片**，超量时先丢弃最老的。`0` = 一张都不带，负数 = 不限 | `0` / 正整数 / 负数 |
 | `reasoning_replay_tokens` | `8000` | 每段可裁剪推理的 token 预算。`-1` 全量回传，`0` 不回传可裁剪文本，正数超出时保留首尾并标记省略。开启思考的 Anthropic 签名块，以及 DeepSeek 官方带工具请求的推理，原样回传。 | `-1` / `0` / 正数 |
+| `include_tool_summary` | `0` | 系统提示词是否拼接「## 可用工具」清单。关闭时工具清单只走请求的 `tools` 字段；`tool_summary()` 构建逻辑保留，开启即恢复 | `0` / `1` |
 
 有模型窗口时，实际压缩阈值 = `floor(context_window × compression_percent / 100)`；`compression_percent` 是模型条目字段，默认 70，范围 10–90，超出范围回落 70。没有模型窗口时使用 `summary_token_fallback`。
 

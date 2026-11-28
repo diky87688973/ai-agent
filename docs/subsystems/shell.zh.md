@@ -231,8 +231,12 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 `split_mode_section()` 切掉模式段，只删模式段本身，保留其后的插件章节与工具速查。
 
 插件章节经 `PromptSections` 追加（如 `## 资源目录`），会话运行器再追加 `## 环境信息`
-（操作系统与本会话 ID）。工具速查按工具摘「名字 — 描述首行」，最多 40 个；
-完整 schema 走请求的 `tools` 字段。
+（操作系统与本会话 ID）。工具速查按工具摘「名字 — 描述首行」，列出 registry 登记的全部工具，
+不做数量截断；完整 schema 走请求的 `tools` 字段。
+
+`resolve_system_prompt()` 的 `include_tool_summary` 决定工具速查是否进入系统提示，缺省关闭
+（`[context] include_tool_summary = 0`）——工具清单已由请求的 `tools` 字段承载。关闭时
+`tool_summary()` 仍然保留并被单测覆盖，只是结果不参与拼接。
 
 模式说明由 `resolve_mode_note()` 产出，作为请求尾部的临时后缀，只加在发给模型的那一份上。
 运行器的尾部还带 Todo 进度与插件尾部；有显式系统提示时，模式说明与 Todo 行都不加。

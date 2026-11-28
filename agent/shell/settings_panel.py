@@ -147,6 +147,7 @@ def apply_host(app: Any, *, config_path: Optional[Path] = None) -> Dict[str, str
             defaults.update({
                 "full_user_rounds": int(ctx["full_user_rounds"]),
                 "reasoning_replay_tokens": int(ctx["reasoning_replay_tokens"]),
+                "include_tool_summary": bool(ctx["include_tool_summary"]),
             })
         if hasattr(app, "apply_agent_loop"):
             app.apply_agent_loop(

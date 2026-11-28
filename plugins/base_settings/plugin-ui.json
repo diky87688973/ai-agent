@@ -117,6 +117,15 @@
         "min": 0
       },
       {
+        "panel": "app/settings/context",
+        "key": "include_tool_summary",
+        "section": "context",
+        "kind": "checkbox",
+        "label": "系统提示词拼接可用工具清单",
+        "default": "0",
+        "hint": "关闭后工具清单只走请求的 tools 字段，系统提示词不再重复一份"
+      },
+      {
         "panel": "app/settings/interface",
         "key": "display_tool_items",
         "kind": "checkbox",

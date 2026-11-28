@@ -38,13 +38,14 @@ ITEMS = {
     "app/settings/context/reasoning_replay_tokens": "app/settings/context",
     "app/settings/context/image_turns": "app/settings/context",
     "app/settings/context/image_max": "app/settings/context",
+    "app/settings/context/include_tool_summary": "app/settings/context",
     "app/settings/interface/display_tool_items": "app/settings/interface",
     "app/settings/interface/display_tool_steps": "app/settings/interface",
 }
 
 
 class BaseSettingsFragmentTest(unittest.TestCase):
-    """面板恰 4 条、条目恰 11 条、每条归属正确。"""
+    """面板恰 4 条、条目恰 12 条、每条归属正确。"""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -76,7 +77,8 @@ class BaseSettingsFragmentTest(unittest.TestCase):
                 self.assertTrue(self.owned[item].factory.endswith(
                     tuple(f":make_field_{kind}" for kind in
                           ("agent_select", "agent_number", "agent_checkbox",
-                           "context_number", "web_ui_checkbox"))), self.owned[item].factory)
+                           "context_number", "context_checkbox",
+                           "web_ui_checkbox"))), self.owned[item].factory)
         for panel in PANELS:
             with self.subTest(panel=panel):
                 self.assertIn(":make_panel_", self.owned[panel].factory)

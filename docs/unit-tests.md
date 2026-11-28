@@ -1,6 +1,6 @@
 # 单元测试用例清单
 
-共 **2835** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
+共 **2837** 个用例（`python -m unittest discover -s tests -p "test_*.py"`）。
 
 按测试文件分组；「测试目标」优先取方法 docstring，无则结合类 docstring 与方法名，再否则仅由方法名转写。
 
@@ -148,7 +148,7 @@
 137. [test_task_tools.py](#test_task_toolspy)（28）
 138. [test_theme_style_plugin.py](#test_theme_style_pluginpy)（4）
 139. [test_thread_context.py](#test_thread_contextpy)（1）
-140. [test_todo_context_prompt.py](#test_todo_context_promptpy)（21）
+140. [test_todo_context_prompt.py](#test_todo_context_promptpy)（23）
 141. [test_tool_arguments.py](#test_tool_argumentspy)（5）
 142. [test_tool_pairing.py](#test_tool_pairingpy)（15）
 143. [test_tool_pipeline_slot.py](#test_tool_pipeline_slotpy)（1）
@@ -485,11 +485,11 @@
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
 | 1 | `BaseSettingsFragmentTest` | `test_does_not_register_model_panel` | 模型设置面板归 multi_model，不归本插件。 |
-| 2 | `BaseSettingsFragmentTest` | `test_each_item_belongs_to_its_panel` | 覆盖「面板恰 4 条、条目恰 11 条、每条归属正确」：each item belongs to its panel |
-| 3 | `BaseSettingsFragmentTest` | `test_items_are_exactly_the_declared` | 覆盖「面板恰 4 条、条目恰 11 条、每条归属正确」：items are exactly the declared |
+| 2 | `BaseSettingsFragmentTest` | `test_each_item_belongs_to_its_panel` | 覆盖「面板恰 4 条、条目恰 12 条、每条归属正确」：each item belongs to its panel |
+| 3 | `BaseSettingsFragmentTest` | `test_items_are_exactly_the_declared` | 覆盖「面板恰 4 条、条目恰 12 条、每条归属正确」：items are exactly the declared |
 | 4 | `BaseSettingsFragmentTest` | `test_items_use_field_factories` | 条目由 `make_field_*` 造（带 save/load 闭包），面板由 `make_panel_*` 造。 |
-| 5 | `BaseSettingsFragmentTest` | `test_panels_are_exactly_the_four` | 覆盖「面板恰 4 条、条目恰 11 条、每条归属正确」：panels are exactly the four |
-| 6 | `BaseSettingsFragmentTest` | `test_retention_setting_has_a_one_round_floor` | 覆盖「面板恰 4 条、条目恰 11 条、每条归属正确」：retention setting has a one round floor |
+| 5 | `BaseSettingsFragmentTest` | `test_panels_are_exactly_the_four` | 覆盖「面板恰 4 条、条目恰 12 条、每条归属正确」：panels are exactly the four |
+| 6 | `BaseSettingsFragmentTest` | `test_retention_setting_has_a_one_round_floor` | 覆盖「面板恰 4 条、条目恰 12 条、每条归属正确」：retention setting has a one round floor |
 
 ## test_batch_f_tools.py
 
@@ -3015,7 +3015,7 @@
 | 40 | `RealRepoTest` | `test_ai_cosplay_panel_is_ui_control` | 左栏面板是控件（带动作与脚本），不是可再被填的插口。 |
 | 41 | `RealRepoTest` | `test_ai_cosplay_routes_keep_their_methods` | 三个路由的 HTTP 方法保持现状：config/status 为 GET，played 为 POST。 |
 | 42 | `RealRepoTest` | `test_all_repo_fragments_merge` | 覆盖「仓库根的真实片段集合必须可合并：任何插件片段写坏，这里就红」：all repo fragments merge |
-| 43 | `RealRepoTest` | `test_base_settings_declares_own_fields` | base_settings 自己只声明 11 条字段；interface 里那条 theme_style 是外来贡献。 |
+| 43 | `RealRepoTest` | `test_base_settings_declares_own_fields` | base_settings 自己只声明 12 条字段；interface 里那条 theme_style 是外来贡献。 |
 | 44 | `RealRepoTest` | `test_base_settings_interface_accepts_foreign_setting` | interface 的 fixed 里备好了 theme_style 的位置（由 theme_style 插件 provides）。 |
 | 45 | `RealRepoTest` | `test_base_settings_panels_match_declaration` | 四个面板的 children 与 fixed 必须与 plugin-ui.json 一致。 |
 | 46 | `RealRepoTest` | `test_every_declared_props_survives_merge` | 防回潮：片段里写的每一条 props 都必须逐字出现在合并结果里。 |
@@ -3303,7 +3303,7 @@
 
 ## test_todo_context_prompt.py
 
-共 21 个用例。
+共 23 个用例。
 
 | # | 类 | 方法 | 测试目标 |
 |---:|---|---|---|
@@ -3321,13 +3321,15 @@
 | 12 | `SystemPromptTest` | `test_mode_section_differs` | 覆盖「基础系统提示词」：mode section differs |
 | 13 | `SystemPromptTest` | `test_non_empty_by_default` | 系统提示不得为空——空提示让模型只凭 schema 猜纪律。 |
 | 14 | `SystemPromptTest` | `test_preview_write_tools_line_tracks_registry` | 预览写类名单随 registry 增减，不手写固定串。 |
-| 15 | `SystemPromptTest` | `test_tool_summary_propagates_registry_errors` | 覆盖「基础系统提示词」：tool summary propagates registry errors |
-| 16 | `SystemPromptTest` | `test_tool_summary_shape` | 覆盖「基础系统提示词」：tool summary shape |
-| 17 | `SystemPromptTest` | `test_unknown_mode_falls_back_to_auto` | 覆盖「基础系统提示词」：unknown mode falls back to auto |
-| 18 | `TodoProgressTest` | `test_check_then_all_done` | 覆盖「清单进度字段」：check then all done |
-| 19 | `TodoProgressTest` | `test_close_has_no_items` | 关闭清单只回 `{close: True}`——前端据此隐藏并清未读。 |
-| 20 | `TodoProgressTest` | `test_create_reports_progress` | 覆盖「清单进度字段」：create reports progress |
-| 21 | `TodoProgressTest` | `test_uncheck_revokes_all_done` | 覆盖「清单进度字段」：uncheck revokes all done |
+| 15 | `SystemPromptTest` | `test_tool_summary_absent_from_prompt_by_default` | 工具清单走请求的 tools 字段；系统提示默认不再重复一份。 |
+| 16 | `SystemPromptTest` | `test_tool_summary_opt_in_restores_the_section` | 开关打开时按 registry 拼回工具速查，构建逻辑本身不受影响。 |
+| 17 | `SystemPromptTest` | `test_tool_summary_propagates_registry_errors` | 覆盖「基础系统提示词」：tool summary propagates registry errors |
+| 18 | `SystemPromptTest` | `test_tool_summary_shape` | 覆盖「基础系统提示词」：tool summary shape |
+| 19 | `SystemPromptTest` | `test_unknown_mode_falls_back_to_auto` | 覆盖「基础系统提示词」：unknown mode falls back to auto |
+| 20 | `TodoProgressTest` | `test_check_then_all_done` | 覆盖「清单进度字段」：check then all done |
+| 21 | `TodoProgressTest` | `test_close_has_no_items` | 关闭清单只回 `{close: True}`——前端据此隐藏并清未读。 |
+| 22 | `TodoProgressTest` | `test_create_reports_progress` | 覆盖「清单进度字段」：create reports progress |
+| 23 | `TodoProgressTest` | `test_uncheck_revokes_all_done` | 覆盖「清单进度字段」：uncheck revokes all done |
 
 ## test_tool_arguments.py
 

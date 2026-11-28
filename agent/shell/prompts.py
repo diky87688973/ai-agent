@@ -19,7 +19,7 @@ from agent.core.mode_marker import MODE_MARKER
 _REPLY_LANGUAGE = """\
 ## 回复语言
 
-不要跨语言沟通，正文和推理都保持与用户用同一种语言。以用户首次输入内容的语言为准，用了中文就回中文，用了英文就回英文。此后只在用户明确要求换语言时才换。"""
+不要跨语言沟通，正文保持与用户用同一种语言。以用户首次输入内容的语言为准，用了中文就回中文，用了英文就回英文。此后只在用户明确要求换语言时才换。"""
 
 _ACTION_DISCIPLINE = """\
 ## 动手指令
@@ -270,20 +270,24 @@ def resolve_system_prompt(
     explicit: Optional[str] = None,
     extra_sections: Optional[list] = None,
     after_tools_sections: Optional[list] = None,
+    include_tool_summary: bool = False,
 ) -> str:
     """会话系统提示的解析入口，不含模式段。
 
     `explicit`（mesh 里显式设过 `system`）优先——调用方要能覆盖；
     否则用基础提示词 + 插件章节 + 工具速查（须传 `registry`）。
+    `include_tool_summary` 缺省关闭：工具清单由请求的 `tools` 字段承载，
+    系统提示里不再重复一份。
     """
     if explicit is not None and str(explicit).strip():
         return str(explicit)
     if registry is None:
         raise ValueError("resolve_system_prompt 在无 explicit 时需要 registry")
+    summary = tool_summary(registry) if include_tool_summary else ""
     return split_mode_section(build_system_prompt(
         registry=registry,
         mode=mode,
-        tool_summary=tool_summary(registry),
+        tool_summary=summary,
         extra_sections=extra_sections,
         after_tools_sections=after_tools_sections,
     ))

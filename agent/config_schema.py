@@ -50,6 +50,7 @@ SCHEMA: Dict[str, Dict[str, str]] = {
         "image_turns": "1",
         "image_max": "8",
         "reasoning_replay_tokens": "8000",
+        "include_tool_summary": "0",
     },
     "auth": dict(AUTH_DEFAULTS),
     "model_http": dict(MODEL_HTTP_DEFAULTS),

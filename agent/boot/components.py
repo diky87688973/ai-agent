@@ -64,6 +64,7 @@ def make_facade(ctx: Any, **requires: Any) -> Any:
         context_defaults={
             "full_user_rounds": int(config.context_defaults["full_user_rounds"]),
             "reasoning_replay_tokens": int(config.context_defaults["reasoning_replay_tokens"]),
+            "include_tool_summary": bool(config.context_defaults["include_tool_summary"]),
         },
     )
     # 初值：统一降级态。真实策略由 `apply_model_policy` 在装载与绑定后各算一次。

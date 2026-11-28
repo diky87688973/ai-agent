@@ -556,7 +556,7 @@ class RealRepoTest(unittest.TestCase):
                                    "backup_retention_days", "reread_after_edit"],
             "app/settings/context": ["full_user_rounds", "summary_output_max_chars",
                                      "reasoning_replay_tokens", "image_turns",
-                                     "image_max"],
+                                     "image_max", "include_tool_summary"],
             "app/settings/interface": ["display_tool_items", "display_tool_steps",
                                       "theme_style"],
         }
@@ -797,13 +797,13 @@ class RealRepoTest(unittest.TestCase):
                                    "confirm": "POST", "revoke": "POST"})
 
     def test_base_settings_declares_own_fields(self) -> None:
-        """base_settings 自己只声明 11 条字段；interface 里那条 theme_style 是外来贡献。"""
+        """base_settings 自己只声明 12 条字段；interface 里那条 theme_style 是外来贡献。"""
         config = load_merged(ROOT)
         source = json.loads(
             (ROOT / "plugins" / "base_settings" / "plugin-ui.json")
             .read_text(encoding="utf-8"))
         own = {f"{row['panel']}/{row['key']}" for row in source["settings"]["fields"]}
-        self.assertEqual(len(own), 11)
+        self.assertEqual(len(own), 12)
         for path in sorted(own):
             spec = config.specs[path]
             self.assertEqual(spec.kind, "setting")

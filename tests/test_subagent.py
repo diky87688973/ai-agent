@@ -385,6 +385,8 @@ class ManagerTest(_ManagerCase):
         self.assertNotIn("busy_seconds", idle)
 
     def test_system_prompt_uses_role_tool_view(self) -> None:
+        # 工具清单缺省不进系统提示；打开开关专验清单里的工具随角色视图变。
+        self.app.context_defaults["include_tool_summary"] = True
         parent_prompt = self.app.runner.system_prompt("parent-0001")
         self.assertNotIn("session_create", parent_prompt)
         self.assertNotIn("session_send", parent_prompt)

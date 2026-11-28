@@ -27,7 +27,8 @@
         "summary_output_max_chars",
         "reasoning_replay_tokens",
         "image_turns",
-        "image_max"
+        "image_max",
+        "include_tool_summary"
       ],
       "props": {
         "title": "上下文"
@@ -218,6 +219,23 @@
         "label": "带图张数上限",
         "default": "8",
         "min": 0
+      },
+      "requires": {
+        "app": "app/boot/facade"
+      }
+    },
+    {
+      "path": "app/settings/context/include_tool_summary",
+      "kind": "setting",
+      "factory": "plugin:make_field_context_checkbox",
+      "props": {
+        "panel": "app/settings/context",
+        "key": "include_tool_summary",
+        "section": "context",
+        "kind": "checkbox",
+        "label": "系统提示词拼接可用工具清单",
+        "default": "0",
+        "hint": "关闭后工具清单只走请求的 tools 字段，系统提示词不再重复一份"
       },
       "requires": {
         "app": "app/boot/facade"
