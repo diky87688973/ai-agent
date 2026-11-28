@@ -1,4 +1,4 @@
-﻿# 壳层
+# 壳层
 
 ## 1. 概览
 
@@ -223,8 +223,8 @@ python -m agent.entry.web --host 127.0.0.1 --port 8765
 
 ### 系统提示词
 `prompts.py` 的 `build_system_prompt(registry=…)` 按以下顺序组装基础提示词：身份、回复语言、
-`## 动手指令`、附加章节（插件章节与 `## 环境信息`）、`## 编码准则`、术语、`## 工具使用纪律`、
-模式段、工具速查。纪律第 2 条的预览写类名单由 `preview_write_tools_line(registry)`
+`## 动手指令`、附加章节（插件章节与 `## 环境信息`）、`## 编码准则`、`## 交付物`、术语、
+`## 工具使用纪律`、模式段、工具速查。纪律第 2 条的预览写类名单由 `preview_write_tools_line(registry)`
 按工具的 `needs_preview` 生成。
 
 `resolve_system_prompt()` 处理会话级覆盖；无 `explicit` 时必须传 `registry`。它用

@@ -202,6 +202,8 @@
     var label = st.current
       ? String(st.current.text || "")
       : (st.pendingText ? ("语音合成中… " + st.pendingText) : (st.blocked ? "点击播放" : st.errorText));
+    // 字幕单行显示：换行折成空格，否则播放条会被撑成多行。
+    label = String(label || "").replace(/[\r\n]+/g, " ");
     textInner.textContent = label;
     textEl.title = label;
     countEl.textContent = st.items.length ? ("队列 " + st.items.length) : "";

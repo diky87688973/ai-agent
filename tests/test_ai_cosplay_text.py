@@ -108,7 +108,7 @@ class ValidationTest(unittest.TestCase):
     def test_rejects_control_characters(self) -> None:
         """控制字符会改变切段后各段拼接的含义，必须在输入侧拦住。"""
 
-        for ch in ("\n", "\t", "\r"):
+        for ch in ("\t",):
             with self.subTest(ch=ch):
                 self.assert_code(f"abc{ch}。", "invalid_char")
 
@@ -127,17 +127,17 @@ class ValidationTest(unittest.TestCase):
         """报错要说明规则是什么，别只说这个字符不行。"""
 
         with self.assertRaises(_TEXT.MessageValidationError) as ctx:
-            _TEXT.split_message("abc\ndef。", 128)
+            _TEXT.split_message("abc\tdef。", 128)
         self.assertEqual(ctx.exception.code, "invalid_char")
         self.assertIn("控制字符", str(ctx.exception))
         self.assertIn("自动移除", str(ctx.exception))
 
     def test_invisible_character_named_in_error(self) -> None:
-        """换行这类不可见字符以名字出现，不塞一个看不见的字符进报错。"""
+        """不可见字符以名字出现，不塞一个看不见的字符进报错。"""
 
         with self.assertRaises(_TEXT.MessageValidationError) as ctx:
-            _TEXT.split_message("abc\ndef。", 128)
-        self.assertIn("换行", str(ctx.exception))
+            _TEXT.split_message("abc\tdef。", 128)
+        self.assertIn("制表符", str(ctx.exception))
 
     def test_path_and_book_title_chars_allowed(self) -> None:
         """文件名符号与书名号可以念，且不破坏切段。"""

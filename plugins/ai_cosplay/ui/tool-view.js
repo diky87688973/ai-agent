@@ -1,4 +1,4 @@
-/* AI扮演工具卡：标题显示工具名，摘要显示 msg，详情沿用默认请求/响应报文。 */
+/* AI扮演工具卡：标题显示工具名，摘要与详情显示 msg；请求/响应由框架收进「查看报文」。 */
 (function () {
   "use strict";
 
@@ -20,17 +20,19 @@
     title: function () { return "AI扮演"; },
     summary: function (o) { return message(o); },
     mount: function (row, o) {
-      var request = addChatToolText(
-        addChatToolLayer(row._body, "请求", "req"),
-        JSON.stringify(o.args || {}, null, 2)
-      );
-      o.chatToolRes = addChatToolText(
-        addChatToolLayer(row._body, "响应", "res"),
-        "（等待结果…）"
+      o.chatSpeakPre = addChatToolText(
+        addChatToolLayer(row._body, "", "out"),
+        message(o) || "（无播报内容）"
       );
     },
     fill: function (row, o, ev) {
-      if (o.chatToolRes) o.chatToolRes.textContent = chatToolResponseText(o, ev);
+      if (!o.chatSpeakPre || ev.user_confirm_required) return;
+      if (chatToolIsFailed(ev)) {
+        var cur = String(o.chatSpeakPre.textContent || "");
+        if (!cur.trim() || cur === "（无播报内容）") chatToolPaintFailText(o.chatSpeakPre);
+        return;
+      }
+      chatToolClearFailMark(o.chatSpeakPre);
     }
   });
 

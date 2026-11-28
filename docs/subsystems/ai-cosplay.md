@@ -53,10 +53,10 @@ parameters = {"msg": {"type": "string"}}
 
 The tool description asks the model to speak as the current role, in human spoken language, and to say each step directly. Asynchronous mode returns `{"accepted": true, "segments": N, "characters": N}`; synchronous mode returns `{"accepted": true, "played": true, "segments": N, "characters": N, "waited_ms": N}` after playback ends. The kernel wraps either result in the standard tool envelope. The tool raises on validation failure, a missing engine, a missing Web connection, or a full queue, and the kernel turns that into `ok=false`.
 
-Tool calls automatically produce `tool_started`, one result fact (`tool_done` / `tool_failed`), and `tool_ended`. The chat tool card is registered by `ui/tool-view.js`: its title is "AI扮演", its summary shows `msg`, and its expanded body holds the default request/response payloads.
+Tool calls automatically produce `tool_started`, one result fact (`tool_done` / `tool_failed`), and `tool_ended`. The chat tool card is registered by `ui/tool-view.js`: its title is "AI扮演", its summary and its expanded body both show `msg`, and the request/response payloads are folded behind the shared "查看报文" toggle by `attachChatToolPacket`.
 
 ### Text rules
-Character validation rejects only control characters that break structure (Unicode category `C`: newline, tab, carriage return, and so on); everything else passes. Symbols that cannot be pronounced are not rejected at validation; [pre-synthesis cleanup](#pre-synthesis-cleanup) removes them.
+Character validation rejects only control characters that break structure (tab and the other Unicode category `C` characters); newlines pass, because they are layout rather than structure, and are folded to spaces for both speech and subtitles. Everything else passes. Symbols that cannot be pronounced are not rejected at validation; [pre-synthesis cleanup](#pre-synthesis-cleanup) removes them.
 
 Quotes and brackets must be paired; nesting is allowed, crossing is not; empty pairs are rejected. Supported pairs: `“”` `‘’` `（）` `《》` `「」` `""` `()` `''`. `-` may be a hyphen inside an English word, a binary minus, or a negative prefix; `+` `*` `/` `×` `÷` must be binary operators. The text ends with boundary punctuation; `...` and `?!` count as one continuous boundary.
 

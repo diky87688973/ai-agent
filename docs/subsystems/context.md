@@ -1,4 +1,4 @@
-﻿**English** | [中文](context.zh.md)
+**English** | [中文](context.zh.md)
 
 # Context
 
@@ -129,6 +129,8 @@ A compaction request reuses the same head and replaces only the tail instruction
 - A user turn is atomic; tool round-trips are not split.
 - Images follow `[context]` `image_turns` / `image_max`; removed images remain in facts.
 - Tokens are estimated: about 1 per CJK character, 1 per 4 other characters, fixed `IMAGE_TOKENS_PER_IMAGE` per image.
+- Estimates are calibrated against the upstream `usage.prompt_tokens`: `observe_usage()` keeps the median ratio, clamped to 0.5–3.0, and the multiplier is applied in `calculate_tokens` only — the compaction threshold, segment stats and window usage keep reading one number.
+- The calibration surface is declared by the `TokenCalibration` protocol in `agent/core/context_usage.py`; modules test it with `isinstance` instead of probing method names. A double that only assembles counts as lacking the capability and calibration is skipped.
 - Context failure propagates as request failure; there is no silent empty fallback.
 
 ## 6. Further reading

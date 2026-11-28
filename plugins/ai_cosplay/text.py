@@ -31,6 +31,8 @@ _BOUNDARY_EN = set(".,?!;:")
 _MATH = set("+-*/×÷＋－＊／")
 _PERCENT = set("%％")
 _SPACES = set(" \u3000")
+#: 换行符：允许出现在 msg 里，念与显示时折成空格。
+_LINE_BREAKS = {"\n", "\r"}
 #: 文件名与路径里最常见、也念得出来的符号。
 #: 说文件名不该比说英文单词更难 —— 后者本来就允许 `-` 与 `'`。
 _PATH_CHARS = set("_.\\/")
@@ -154,9 +156,11 @@ def _allowed_char(ch: str) -> bool:
     在这一层逐个列举只会不断漏（书名号就是漏进来的那一个）。
     不发音的符号交给 `to_speech_text` 在合成前统一清掉。
 
-    控制字符必须拦：换行与制表符会改变切段后各段的拼接含义，
-    它们不是“念不出来”，而是“结构不成立”。
+    换行放行：它是排版，不是结构。切段按标点走，换行由
+    `to_speech_text` 与字幕折成空格。制表符仍拦：它没有对应的读音替代。
     """
+    if ch in _LINE_BREAKS:
+        return True
     if _is_space(ch):
         return True
     return unicodedata.category(ch)[0] != "C"
@@ -165,7 +169,7 @@ def _allowed_char(ch: str) -> bool:
 #: 报错时给模型看的允许字符一览。
 #: 只说“这个字符不行”等于让它反复试；说清零了就不存在须要试的东西。
 _ALLOWED_SUMMARY = (
-    "除换行、制表符等控制字符外均可；引号括号需成对；"
+    "除制表符等控制字符外均可；换行可用，念的时候按空格处理；引号括号需成对；"
     "不发音的符号（各种引号、箭头、emoji 等）会在合成前自动移除，不必删。"
 )
 
@@ -476,6 +480,7 @@ def to_speech_text(text: str) -> str:
     留下的每一个字符都有声音。
     """
     source = str(text or "")
+    source = re.sub(r"\r\n|\r|\n", " ", source)
     source = re.sub(r'[“”‘’（）"()]', "", source)
     source = re.sub(r"(?<![A-Za-z])'|'(?![A-Za-z])", "", source)
 

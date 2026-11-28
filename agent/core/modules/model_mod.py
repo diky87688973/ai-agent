@@ -6,6 +6,7 @@ from http.client import RemoteDisconnected
 from time import perf_counter, sleep
 from typing import Any, Dict, Iterator, List, Optional
 
+from agent.core.context_usage import TokenCalibration
 from agent.core.error_report import report_error
 from agent.core.event_name import (
     ASSISTANT_DELTA,
@@ -49,6 +50,10 @@ from agent.core.tool_call import ToolCallRequest
 #: `RemoteDisconnected` 只会在 HTTP 状态行之前出现；流开始后断流不能重放。
 REMOTE_DISCONNECTED_MAX_RETRIES = 5
 RETRY_BACKOFF_SECONDS = (0.1, 0.2, 0.4, 0.8, 1.6)
+#: 退化判定：正文与工具调用都为空、推理超长且字符高度重复。
+DEGENERATE_MIN_CHARS = 2000
+DEGENERATE_MAX_DISTINCT = 0.05
+DEGENERATE_DETAIL = "模型推理未产出动作：推理高度重复，判定为退化"
 
 
 def _reasoning_ms(started: float, last_at: Optional[float]) -> int:
@@ -56,6 +61,21 @@ def _reasoning_ms(started: float, last_at: Optional[float]) -> int:
     if last_at is None:
         return -1
     return max(0, int((last_at - started) * 1000))
+
+
+def _degenerate(reasoning: str, text_parts: List[str],
+                tool_calls: List[Any]) -> bool:
+    """本轮是否只有退化的推理：无正文、无工具调用，推理字符高度重复。
+
+    实测一轮 3.3 万字符的推理里周期约 52 字符、去重字符占比 0.25%，
+    正常中文推理在 15% 以上，两者相差两个数量级。
+    """
+    if tool_calls or "".join(text_parts).strip():
+        return False
+    body = str(reasoning or "")
+    if len(body) < DEGENERATE_MIN_CHARS:
+        return False
+    return len(set(body)) / len(body) < DEGENERATE_MAX_DISTINCT
 
 
 def _turn_start_index(messages: list[dict], anchor: dict | None) -> int:
@@ -168,6 +188,19 @@ class ModelModule(ModuleBase):
             prefix = strip_mode_tail(messages[:len(pre_hook)], runtime_note)
             remember(messages, prefix, request.tools)
         return request, messages, segments
+
+    def _observe_usage(self, usage: Dict[str, Any]) -> None:
+        """把上游 `prompt_tokens` 回灌上下文管线，校正本地估算的系统性偏差。"""
+        context = self.context_pass
+        if not isinstance(context, TokenCalibration) or not usage:
+            return
+        try:
+            actual = int(usage.get("prompt_tokens") or 0)
+        except (TypeError, ValueError):
+            return
+        estimated = int(context.raw_total_token_estimate() or 0)
+        if actual > 0 and estimated > 0:
+            context.observe_usage(actual, estimated)
 
     @staticmethod
     def _wait_for_retry(ports, delay: float) -> bool:
@@ -283,7 +316,7 @@ class ModelModule(ModuleBase):
         return {"stopped": False, "failure": "", "retries": retries,
                 "text_parts": text_parts,
                 "reasoning_parts": reasoning_parts, "tool_calls": tool_calls,
-                "provider_meta": provider_meta}
+                "provider_meta": provider_meta, "usage": usage}
 
     def _stream_done(self, ports, name, elapsed, first_chunk_ms, reasoning_ms,
                      chunks, tool_count, retries, usage):
@@ -325,11 +358,15 @@ class ModelModule(ModuleBase):
             detail = (f"{failure}；重试 {retries} 次" if retries else failure)
             yield ports.emit(ERROR, where="model", detail=detail)
             return Outcome.halt(f"模型调用失败：{failure}")
+        self._observe_usage(state.get("usage") or {})
+        reasoning = "".join(state["reasoning_parts"])
+        if _degenerate(reasoning, state["text_parts"], state["tool_calls"]):
+            yield ports.emit(ERROR, where="model", detail=DEGENERATE_DETAIL)
+            return Outcome.halt(DEGENERATE_DETAIL)
         message_data: Dict[str, Any] = {
             "content": "".join(state["text_parts"]),
             "tool_calls": [serialize_call(c) for c in state["tool_calls"]],
         }
-        reasoning = "".join(state["reasoning_parts"])
         if reasoning:
             message_data["reasoning_content"] = reasoning
         if state["provider_meta"]:

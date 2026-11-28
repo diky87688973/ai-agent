@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import copy
+from collections import deque
+from statistics import median
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from agent.config import DEFAULT_REASONING_REPLAY_TOKENS, DEFAULT_SUMMARY_TOKEN_FALLBACK
@@ -36,6 +38,12 @@ DEFAULT_SUMMARY_TOKEN_THRESHOLD = DEFAULT_SUMMARY_TOKEN_FALLBACK
 #: 压缩时优先保留的最近用户轮数，下限为 1。
 #: 可压区间不足时从配置值逐级降到 1；单轮不会再被压成 0 轮。
 
+#: 上游 `prompt_tokens` 与本地估算比值的样本数；取中位数，抗单次抖动。
+TOKEN_RATIO_SAMPLES = 5
+#: 比值钳制范围：上游异常数字不得把预算带飞。
+TOKEN_RATIO_MIN = 0.5
+TOKEN_RATIO_MAX = 3.0
+
 
 class ContextPipeline:
     """会话级上下文管线（摘要生成由外部执行）。"""
@@ -58,6 +66,9 @@ class ContextPipeline:
         self.reasoning_replay_tokens = int(reasoning_replay_tokens)
         #: 模型上下文窗口（token）：界面按它算占用率；0 = 未配置，界面用预算兜底。
         self.model_context_window = int(model_context_window or 0)
+        #: 上游 `prompt_tokens` / 本地估算的比值；1.0 = 尚未校准。
+        self.token_ratio = 1.0
+        self._token_ratios: deque = deque(maxlen=TOKEN_RATIO_SAMPLES)
         #: 最近这么多用户轮原样保留（含工具往返）；更早的轮剥掉轮内工具往返。
         #: 负数 = 不剥（全部保留）。
         self._sources = sources
@@ -496,14 +507,42 @@ class ContextPipeline:
     def total_token_estimate(
         self, approx_msg_fn: Callable[[Dict[str, Any]], int] = default_message_tokens
     ) -> int:
-        """全部块 token 估算求和。"""
+        """全部块 token 估算求和（已按上游回报校准）。"""
+        return sum(self.calculate_tokens(approx_msg_fn).values())
+
+    def raw_total_token_estimate(
+        self, approx_msg_fn: Callable[[Dict[str, Any]], int] = default_message_tokens
+    ) -> int:
+        """未经上游校准的估算和；只用于计算校准比值本身。"""
         return sum(c.calculate_tokens(approx_msg_fn) for c in self.chunks)
+
+    def observe_usage(self, actual: int, estimated: int) -> float:
+        """用上游 `prompt_tokens` 校准本地估算。
+
+        字符近似与真实分词器有系统性偏差：同一会话里本地算 64.6 万而网关回报
+        90.2 万，压缩判据与界面占用率都按偏小的那份算，护栏因此提前失效。
+        这里只记录比值并钳制范围；乘算在 `calculate_tokens` 一处做，
+        压缩阈值、分段统计、界面占用率仍读同一个数，不产生第二套口径。
+        """
+        try:
+            actual, estimated = int(actual), int(estimated)
+        except (TypeError, ValueError):
+            return self.token_ratio
+        if actual <= 0 or estimated <= 0:
+            return self.token_ratio
+        ratio = min(TOKEN_RATIO_MAX, max(TOKEN_RATIO_MIN, actual / estimated))
+        self._token_ratios.append(ratio)
+        self.token_ratio = float(median(self._token_ratios))
+        return self.token_ratio
 
     def calculate_tokens(
         self, approx_msg_fn: Callable[[Dict[str, Any]], int] = default_message_tokens
     ) -> Dict[str, int]:
         """分块 token 估算（{块名: tokens}；空块计 0）。"""
-        return {c.name: c.calculate_tokens(approx_msg_fn) for c in self.chunks}
+        if self.token_ratio == 1.0:
+            return {c.name: c.calculate_tokens(approx_msg_fn) for c in self.chunks}
+        return {c.name: int(round(c.calculate_tokens(approx_msg_fn) * self.token_ratio))
+                for c in self.chunks}
 
     def calculate_round_count(self) -> Dict[str, int]:
         """分块轮数（{块名: 轮数}）。"""

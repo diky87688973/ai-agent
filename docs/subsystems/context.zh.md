@@ -1,4 +1,4 @@
-﻿[English](context.md) | **中文**
+[English](context.md) | **中文**
 
 # 上下文
 
@@ -135,6 +135,8 @@ CHUNK_SYSTEM / CHUNK_PLUGIN / CHUNK_MEM / CHUNK_FULL
 - 用户轮是原子单位；工具往返不跨轮拆分。
 - 图片按 `[context]` 的 `image_turns` / `image_max` 进入请求；超出的图片只从本次请求移除。
 - token 是估算：CJK 约 1 token/字，其余约 1 token/4 字符，图片固定 `IMAGE_TOKENS_PER_IMAGE`。
+- 估算按上游 `usage.prompt_tokens` 校准：`observe_usage()` 记比值中位数并钳在 0.5～3.0，乘算只发生在 `calculate_tokens` 一处，压缩阈值、分段统计与界面占用率因此仍读同一个数。
+- 校准能力经 `agent/core/context_usage.py` 的 `TokenCalibration` 协议声明；模块用 `isinstance` 判断，不按方法名探测。只实现装配的替身不算具备该能力，模块跳过校正。
 - 上下文构建失败按请求失败传播，不静默回退为空上下文。
 
 ## 6. 延伸阅读

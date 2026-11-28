@@ -34,6 +34,7 @@ An uncategorized top-level package under `agent/` fails immediately instead of b
 | `agent/core/` | Module chain, host loop, ports, event contracts, session fact contracts | Providers, plugins, UI, concrete tools |
 | `agent/core/modules/` | Single-step modules: input, queued input, compaction, model, tools | Service assembly, HTTP, plugin loading |
 | `agent/core/stream_control.py` | Execution and child-request cancellation tokens, bounded delta delivery, resource abort registration | HTTP implementations, plugin execution, fact persistence |
+| `agent/core/context_usage.py` | Context token-calibration capability surface (`TokenCalibration`) used by modules | Context implementation, estimation rules |
 | `agent/mechanisms/model_http/` | Bounded transport pools, request leases, anonymous pipes, termination and reaping | Provider message conversion, session storage |
 | `agent/mechanisms/providers/base.py` | `ModelProvider` protocol and `ModelRequestError` | Concrete gateway requests, UI |
 | `agent/mechanisms/providers/sse.py` | SSE frame splitting, stream total timeout, close diagnostics | Provider request bodies, business messages |

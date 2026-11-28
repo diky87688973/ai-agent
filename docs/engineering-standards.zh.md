@@ -34,6 +34,7 @@ common → core → mechanisms → subagent → capabilities/update → shell �
 | `agent/core/` | 模块链、宿主循环、端口、事件契约、会话事实契约 | provider、插件、UI、具体工具 |
 | `agent/core/modules/` | 单步模块：输入、队列输入、压缩、模型、工具 | 服务装配、HTTP、插件加载 |
 | `agent/core/stream_control.py` | 执行链与模型子请求的取消令牌、有界增量传递、资源终止登记 | HTTP 实现、插件执行、事实落盘 |
+| `agent/core/context_usage.py` | 模块依赖的上下文计量能力面（`TokenCalibration`） | 上下文实现、估算口径 |
 | `agent/mechanisms/model_http/` | 有界传输池、请求租约、匿名管道、强制终止与回收 | provider 消息转换、会话存储 |
 | `agent/mechanisms/providers/base.py` | `ModelProvider` 协议与 `ModelRequestError` | 具体网关请求、UI |
 | `agent/mechanisms/providers/sse.py` | SSE 拆帧、流总超时、关闭诊断 | provider 请求体、业务消息 |
